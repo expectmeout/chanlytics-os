@@ -58,6 +58,8 @@ interface ComposerCtx {
   numberWhy: string | null;
   /** Whether a new message asks where it is sent first, and may begin as an email: the Library's composer does. */
   begins: boolean;
+  /** Whether the listing keeps a review link, as the page drawing it read it; undefined: the Library's surface says (composer.tsx). */
+  reviewLink: boolean | undefined;
 }
 
 // The fields the words are changed in: a translation's are the same as a new
@@ -291,7 +293,7 @@ function newRows(c: ComposerCtx, made: Made) {
       <div className="tpl-row">
         <span className="bc-row-label">From</span>
         <div className="bc-chips" style={{ alignItems: "center" }}>
-          {starters.list.map((s) => (
+          {(c.reviewLink === undefined ? starters.list : starters.offered(c.reviewLink)).map((s) => (
             <Button
               key={s.key}
               size="sm"

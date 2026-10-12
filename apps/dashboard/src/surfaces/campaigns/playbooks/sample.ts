@@ -236,6 +236,8 @@ export function playbooksSample(now = new Date()): PlaybooksSurface {
     number: { present: true, health: numberHealth({ quality: "GREEN", event: null, limit: "TIER_1K" }) },
     businessName: "Marisa's Studio",
     bookingLink: true,
+    // The sample has no Google listing: no review link to fill a slot with.
+    reviewLink: false,
     replyWindow: REPLY_WINDOW_WORDS,
     fetchedAt: now.getTime(),
   };

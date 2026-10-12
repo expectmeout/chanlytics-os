@@ -28,8 +28,20 @@ const SWITCH = [
   ["never set", undefined],
 ];
 const PRICED = ["A full balayage runs about $180.", "That one is 180 dollars.", "Son 180 pesos."];
+/** The zone and the clock the allowance is read at (contracts priceAllowance). */
+const TZ = "America/New_York";
+const NOW = new Date("2026-10-11T12:00:00Z");
 const reply = (replyText, cfg) =>
-  layerTwo({ replyText, escalate: false, escalationReason: "", brainCfg: cfg, policy: null, intent: "pricing" });
+  layerTwo({
+    replyText,
+    escalate: false,
+    escalationReason: "",
+    brainCfg: cfg,
+    policy: null,
+    intent: "pricing",
+    tz: TZ,
+    now: NOW,
+  });
 
 test("a price nobody wrote is blocked in a chat reply whether the switch is on, off or never set", () => {
   for (const [label, guardrails] of SWITCH) {
@@ -63,8 +75,8 @@ test("a call's price is caught by the same allowance -- the detector takes it as
     { role: "agent", content: "A full balayage runs about $180." },
   ];
   assert.equal(spokenBreach(turns, null)?.rule, "price", "strict: any price");
-  assert.equal(spokenBreach(turns, priceAllowance(brainCfg({ never_quote_prices: false }, "$180"))), null);
-  assert.equal(spokenBreach(turns, priceAllowance(brainCfg({ never_quote_prices: false })))?.rule, "price");
+  assert.equal(spokenBreach(turns, priceAllowance(brainCfg({ never_quote_prices: false }, "$180"), TZ, NOW)), null);
+  assert.equal(spokenBreach(turns, priceAllowance(brainCfg({ never_quote_prices: false }), TZ, NOW))?.rule, "price");
 });
 
 test("what the Business tab says about it is what the receptionist does, claim by claim", () => {

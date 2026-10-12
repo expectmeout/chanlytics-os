@@ -46,6 +46,12 @@ import {
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
+/**
+ * The links the harness gives the composers: the scenario's booking link, and no review link (its GET settings answers
+ * no `review_link`, as a workspace whose Google listing keeps none).
+ */
+const HARNESS_LINKS = { bookingLink: true, reviewLink: false };
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const SRC = "../../../../apps/dashboard/src";
@@ -313,7 +319,7 @@ const broadcastComposer = (record) => {
 test("the broadcast composer's picker lists what the spec expects of the rows, and says what it says where there is none or one cannot go out", () => {
   for (const [name, record] of WORKSPACES) {
     const templates = read(record, "/api/v1/templates");
-    const { groups, why } = messagesOffered(templates, broadcastSlots(true));
+    const { groups, why } = messagesOffered(templates, broadcastSlots(HARNESS_LINKS));
     const tree = broadcastComposer(record);
     if (groups.length === 0) {
       assert.ok(byTestId(tree, "bc-no-template"), `${name}: the honest line`);
@@ -353,7 +359,7 @@ test("the broadcast composer's picker lists what the spec expects of the rows, a
 test("a workspace with no WhatsApp number offers the messages it has written, opens on a channel it can send on, and is never asked for its number", () => {
   const record = scenario("email-only", NOW);
   assert.equal(hasNumber(record), false);
-  const { groups } = messagesOffered(read(record, "/api/v1/templates"), broadcastSlots(true));
+  const { groups } = messagesOffered(read(record, "/api/v1/templates"), broadcastSlots(HARNESS_LINKS));
   assert.deepEqual(
     groups.map((g) => g.name),
     ["after_visit_check", "spring_offer"],
@@ -417,7 +423,7 @@ test("the playbook composer says there is no message exactly where the spec expe
       const tree = playbookComposer(record, trigger);
       // The spec reads the moment from the picker's face and works its slot rule out from it.
       const face = textOf(pickerOf(tree, "pb-moment").props.face).trim();
-      const { groups } = messagesOffered(templates, momentSlots(face, true));
+      const { groups } = messagesOffered(templates, momentSlots(face, HARNESS_LINKS));
       assert.ok(byTestId(tree, "pb-message"), `${name}, ${face}: the section is always drawn`);
       // With nothing to send, the moment's own message is offered to add (Turn on adds it), else the honest line says so.
       const starter = !!byTestId(tree, "pb-starter");
@@ -436,23 +442,23 @@ test("the slot rule the spec reads a moment by is the page's: a visit's message 
   const templates = read(record, "/api/v1/templates");
   const offered = (trigger) => {
     const face = textOf(pickerOf(playbookComposer(record, trigger), "pb-moment").props.face).trim();
-    return messagesOffered(templates, momentSlots(face, true)).groups.map((g) => g.name);
+    return messagesOffered(templates, momentSlots(face, HARNESS_LINKS)).groups.map((g) => g.name);
   };
   assert.ok(offered("visit_tomorrow").includes("visit_reminder"));
   assert.ok(!offered("quiet_30").includes("visit_reminder"));
   assert.ok(offered("proposal_waiting").includes("proposal_follow_up"));
   assert.ok(!offered("quiet_30").includes("proposal_follow_up"));
   // And the broadcast's: a visit's message is none of it.
-  assert.ok(!messagesOffered(templates, broadcastSlots(true)).groups.some((g) => g.name === "visit_reminder"));
+  assert.ok(!messagesOffered(templates, broadcastSlots(HARNESS_LINKS)).groups.some((g) => g.name === "visit_reminder"));
   // The messages the page leaves out are the ones the spec leaves out: hidden whole, and a version in review kept by its email.
-  const names = messagesOffered(templates, broadcastSlots(true)).groups.map((g) => g.name);
+  const names = messagesOffered(templates, broadcastSlots(HARNESS_LINKS)).groups.map((g) => g.name);
   assert.ok(
     !names.includes("this_months_offer"),
     "a hidden WhatsApp version hides the message with the email beside it",
   );
   assert.ok(names.includes("after_visit_check"), "a version in review is offered by the email beside it");
   assert.ok(names.includes("hours_note"), "an email in two languages is one option");
-  const why = messagesOffered(templates, broadcastSlots(true)).why;
+  const why = messagesOffered(templates, broadcastSlots(HARNESS_LINKS)).why;
   assert.match(why, /a picture for a heading/, "a message no send can carry whole is said, not offered");
 });
 
@@ -474,7 +480,10 @@ const library = async (record) => {
 };
 
 test("the Library draws the rows the spec counts, the quiet line only where there is no number, and its composer opens where the spec says", async () => {
-  const starterNames = contracts.startersOffered(contracts.dealsAreOn(null)).map((s) => s.name);
+  // The recorded settings answers say no review link (none predates it), so the Library offers no review ask.
+  const starterNames = contracts
+    .startersOffered({ dealsOn: contracts.dealsAreOn(null), reviewLink: false })
+    .map((s) => s.name);
   for (const [name, record] of WORKSPACES) {
     const tree = await library(record);
     const messages = messagesOf(read(record, "/api/v1/templates", { all: "1" }));

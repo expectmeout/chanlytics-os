@@ -18,6 +18,7 @@ import { RecordField, RecordSwitch, RecordTip } from "../../kit/record/field";
 import { RecordCombobox } from "../../kit/record/combobox";
 import { recFolds } from "../../kit/record/registry";
 import type { BtFold } from "./gestures/fold";
+import { btoStoredZone } from "./open";
 import { businessTabSave } from "./saver";
 import type { policiesNow } from "./shell";
 
@@ -339,14 +340,23 @@ export const BtaRules = ({
   name: string | null;
 }) => {
   const rules = draft as RulesDraft;
-  // With "Never quote a price" off in the draft, the amounts it may say, read as the save would leave them (0051).
+  // With "Never quote a price" off in the draft, the amounts it may say, read as the save would leave them (0051). A
+  // note counts while it holds, judged as the notes fold judges "ended" (answers.tsx): in the zone the receptionist is
+  // composed with, the workspace's own or none, never the zone the page shows times in, at this moment.
   const prices =
     rules.never_quote_prices === false
       ? BUSINESS_TAB.pricesWrittenWords(
-          BUSINESS_TAB.allowedPrices({
-            business_name: name ?? "",
-            profile: { ...(profile || {}), guardrails: { ...(profile?.guardrails || {}), never_quote_prices: false } },
-          }),
+          BUSINESS_TAB.allowedPrices(
+            {
+              business_name: name ?? "",
+              profile: {
+                ...(profile || {}),
+                guardrails: { ...(profile?.guardrails || {}), never_quote_prices: false },
+              },
+            },
+            btoStoredZone(),
+            new Date(),
+          ),
         )
       : null;
   return (

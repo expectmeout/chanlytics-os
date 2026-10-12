@@ -1481,7 +1481,6 @@ import {
   messageAboutOfTrigger as messageAboutOfTrigger2,
   messageHolds,
   nextOpenMoment as nextOpenMoment2,
-  parseParamSpecs,
   resolveParams as resolveParams2,
   triggerOf as triggerOf2,
   versionsOf as versionsOf2,
@@ -1492,13 +1491,16 @@ import { errField as errField4, logger as logger5 } from "../../channels/dist/in
 
 // src/messages/broadcast-channels.ts
 import {
+  RECIPIENT_REASON_HEARD,
   allowanceRoom,
   emailFoot,
   emailFootHtml,
   enrolPurpose,
   heldByAllowance,
   isOfferByEmail as isOfferByEmail4,
+  leftOutByFacts,
   messageAboutOfTrigger,
+  parseParamSpecs,
   purposeOfTemplate as purposeOfTemplate3,
   renderOwnVersion,
   renderTemplate as renderTemplate2,
@@ -1539,6 +1541,14 @@ function startsInTime(cmd, r, now) {
 }
 function rowFacts(r) {
   return r.facts !== null && typeof r.facts === "object" && !Array.isArray(r.facts) ? r.facts : {};
+}
+async function batchSlots(ports, params) {
+  const specs = parseParamSpecs(params);
+  return { specs, reviewLink: specs.some((s) => s.kind === "review_link") ? await ports.reviewLink() : null };
+}
+function rowHold(r, visitStands2) {
+  if (leftOutByFacts(rowFacts(r))) return RECIPIENT_REASON_HEARD;
+  return visitStands2() ? null : "appointment_changed";
 }
 function metaOf2(b) {
   const label = b.audience?.label;
@@ -1918,7 +1928,8 @@ async function sendOne(w, r) {
     await w.mark(r.contact_id, { state: "sent", message_id: prior.id, sent_at: prior.sentAt });
     return "go on";
   }
-  if (!visitStands(w, r)) return skip("appointment_changed");
+  const rowHeld = rowHold(r, () => visitStands(w, r));
+  if (rowHeld) return skip(rowHeld);
   if (channel === "whatsapp" && !w.whatsappApproved) return skip("template_not_approved");
   if (channel === "email" && w.offersClosed) return skip("email_marketing_disabled");
   if (channel !== "whatsapp" && await overAllowance(w, channel)) return skip("month_allowance");
@@ -1929,6 +1940,7 @@ async function sendOne(w, r) {
     firstName: firstNameOf2(c.display_name, c.wa_profile_name, { source: c.name_source, settled: !!c.name_settled_at }),
     businessName: w.facts.businessName,
     bookingLink: w.facts.bookingLink,
+    reviewLink: w.reviewLink,
     visitWhen: typeof facts.visit_when === "string" ? facts.visit_when : null,
     visitService: typeof facts.visit_service === "string" ? facts.visit_service : null,
     // A follow-up's link, frozen when the run was made (0006).
@@ -1977,6 +1989,7 @@ async function sendBroadcastBatch(ports, cmd) {
   if (await stoppedByBilling(ports, b)) return;
   const facts = await ports.facts();
   if (await outsideTheHours(ports, b, cmd, facts.timezone)) return;
+  const slots = await batchSlots(ports, b.params);
   const batch = await ports.batch(b.id, BROADCAST_CHUNK);
   if (await wireIsUnbound(ports, b, cmd, batch)) return;
   if (b.state === "scheduled" && !await ports.startSending(b.id)) return;
@@ -2012,7 +2025,7 @@ async function sendBroadcastBatch(ports, cmd) {
     tpl: whatsappRow ?? { body_preview: null },
     whatsappApproved,
     rows,
-    specs: parseParamSpecs(b.params),
+    ...slots,
     facts,
     people,
     priors,
@@ -2057,9 +2070,9 @@ async function afterTheBatch(w, picked) {
   const remaining = await ports.remaining(b.id);
   if (remaining <= 0) {
     const { sent, held } = await ports.tally(b.id);
-    const emailHeld = held > 0 ? await ports.heldForEmail(b.id) : [];
+    const counted = held > 0 ? await ports.heldFor(b.id) : [];
     await ports.finish(b.id, { sent, held });
-    await ports.alert(finishedNews(b, { sent, held, emailHeld }));
+    await ports.alert(finishedNews(b, { sent, held, counted }));
     return;
   }
   if (await ports.state(b.id) !== "sending") return;
@@ -2072,8 +2085,8 @@ async function afterTheBatch(w, picked) {
   else if (picked > 0 && w.marked === 0) await stall(ports, b, cmd, "people");
   else await ports.scheduleNext(b.id);
 }
-function finishedNews(b, { sent, held, emailHeld }) {
-  const why = finishedRunHeldWhy(emailHeld);
+function finishedNews(b, { sent, held, counted }) {
+  const why = finishedRunHeldWhy(counted);
   const people = (n) => `${n} ${n === 1 ? "person" : "people"}`;
   return {
     kind: sent > 0 ? "broadcast_sent" : "broadcast_stopped",
@@ -2456,6 +2469,7 @@ async function cancelled(ports, { tenantId, key, r, fresh }) {
 }
 
 // src/campaigns/assemble.ts
+import { RECIPIENT_REASON_HEARD as RECIPIENT_REASON_HEARD2 } from "../../contracts/dist/index.js";
 import { errField as errField5, logger as logger6 } from "../../channels/dist/index.js";
 
 // src/campaigns/allowance.ts
@@ -2489,20 +2503,39 @@ async function assembleRun(ports, cmd) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
   const { id, decisionId } = made;
-  if (cmd.held.length === 0) return { ok: true, id, decisionId, unheld: 0 };
+  const leftOutUnwritten = await skipAt(ports, id, cmd.leftOut, RECIPIENT_REASON_HEARD2);
+  const unheld = await skipAt(ports, id, cmd.held, MONTH_ALLOWANCE_REASON);
+  return { ok: true, id, decisionId, unheld, leftOutUnwritten };
+}
+var UNWRITTEN_FIELD = {
+  [MONTH_ALLOWANCE_REASON]: "unheld",
+  [RECIPIENT_REASON_HEARD2]: "left_out_unwritten"
+};
+async function skipAt(ports, id, people, reason) {
+  if (people.length === 0) return 0;
+  let done;
   try {
-    await ports.holdRecipients(id, [...cmd.held], MONTH_ALLOWANCE_REASON);
-    return { ok: true, id, decisionId, unheld: 0 };
+    done = await ports.holdRecipients(id, [...people], reason);
   } catch (e) {
-    assembleLog.error("campaign_hold_unwritten", { broadcast_id: id, unheld: cmd.held.length, error: errField5(e) });
-    return { ok: true, id, decisionId, unheld: cmd.held.length };
+    done = { skipped: [], error: errField5(e) };
   }
+  const unwritten = people.length - done.skipped.length;
+  if (unwritten > 0)
+    assembleLog.error("campaign_hold_unwritten", {
+      broadcast_id: id,
+      reason,
+      [UNWRITTEN_FIELD[reason] ?? "unheld"]: unwritten,
+      error: done.error ?? "no longer queued"
+    });
+  return unwritten;
 }
 
 // src/campaigns/run-playbook.ts
 import {
+  campaignEnded,
   campaignMessageOf as campaignMessageOf2,
   clockWhen,
+  effectiveMode,
   localDate,
   messageHolds as messageHolds2,
   nextOpenMoment as nextOpenMoment3,
@@ -2518,6 +2551,7 @@ import {
   proposalFactsFor,
   readyForMessage,
   touchesAfterRun,
+  trialDayWords,
   triggerOf as triggerOf3,
   triggerOffered,
   vetoRunNotice,
@@ -2703,7 +2737,7 @@ async function sayTheRun(run, made) {
     return;
   }
   if (mode === "veto" && by.kind !== "user") {
-    const told = vetoRunNotice(p.name, n, clockWhen(at.getTime(), ctx.tz, ctx.now.getTime()));
+    const told = vetoRunNotice(p.name, n, clockWhen(at.getTime(), ctx.tz, ctx.now.getTime()), run.trial);
     await ports.notify(told.subject, told.body, made.madeId).catch(() => void 0);
   }
 }
@@ -2711,12 +2745,15 @@ async function runPlaybook(ports, cmd) {
   const { playbook: p, ctx, by } = cmd;
   const now = ctx.now;
   const runFor = cmd.runFor ?? localDate(ctx.tz, now);
-  const mode = ctx.modes.get(p.policy_class) ?? "ask";
+  const classMode = ctx.modes.get(p.policy_class) ?? "ask";
+  const mode = effectiveMode(p, classMode, now);
+  const trial = mode === classMode ? null : trialDayWords(p, ctx.tz, now);
   const record = (data) => ports.record(p.id, runFor, now, { run_for: runFor, by: by.kind, ...data });
   const off = async (skipped, opts = {}) => {
     if (opts.record !== false) await record({ mode, skipped });
     return { outcome: "off", mode, skipped };
   };
+  if (campaignEnded(p, runFor)) return off("ended");
   const plan = by.kind === "user" ? mode === "never" ? { kind: "off" } : { kind: "send", state: "scheduled", at: now } : planRun(mode, now);
   if (plan.kind === "off") return off("never");
   const send = plan.kind === "send" ? plan : null;
@@ -2724,7 +2761,7 @@ async function runPlaybook(ports, cmd) {
   const movedFrom = send && open?.moved ? send.at.toISOString() : null;
   const goesAt = open ? open.at : now;
   const channels = parseChannels(void 0, p.channels ?? null);
-  const run = { ports, p, ctx, by, runFor, mode, channels, record, off };
+  const run = { ports, p, ctx, by, runFor, mode, trial, channels, record, off };
   const message = await readMessage(run);
   if ("error" in message) return { outcome: "failed", error: message.error };
   const gate = await allowed(run, message);
@@ -2779,6 +2816,9 @@ async function runPlaybook(ports, cmd) {
     })),
     sendAt: open ? open.at : null,
     held: past.held,
+    // Nobody is enrolled to be left out here: the run drew by its moment's own reading of the week's breath
+    // (eligibleForPlaybook over its touches), which leaves out who heard, or, for an appointment's message, sends anyway.
+    leftOut: [],
     // The ledger's line, in the run's own write: a run that sends says whose decision it was; one that waits says nothing
     // until a person approves it.
     decision: open ? decisionOf(run, { n, at: open.at, movedFrom }) : null
@@ -2815,6 +2855,10 @@ import {
   parseParamSpec,
   UUID
 } from "../../contracts/dist/index.js";
+var TEMPLATE_VALUE_WORDS = {
+  noBookingLink: "This message takes the booking link, and none is on file. Add it in Settings \u203A Business first.",
+  noReviewLink: "Connect your Google listing so the review link can be filled."
+};
 async function readCampaignMessage(ports, id) {
   if (!UUID.test(id)) throw new AppError11("validation", "Pick a template.");
   const rows = await ports.message(id);
@@ -2839,7 +2883,7 @@ async function templateValues(ports, cmd) {
     if (!spec)
       throw new AppError11(
         "validation",
-        "Each value is typed text, their first name, the business name, the booking link, the booked time or service, or a proposal's link."
+        "Each value is typed text, their first name, the business name, the booking link, the review link, the booked time or service, or a proposal's link."
       );
     if (spec.kind === "text") {
       const v = cleanParam(spec.value);
@@ -2863,15 +2907,17 @@ async function templateValues(ports, cmd) {
     }
   }
   await refuseWithoutBookingLink(ports, specs);
+  await refuseWithoutReviewLink(ports, specs);
   return { message, specs };
 }
 async function refuseWithoutBookingLink(ports, specs) {
   if (specs.some((s) => s.kind === "booking_link") && !await ports.bookingLink()) {
-    throw new AppError11(
-      "conflict",
-      "This message takes the booking link, and none is on file. Add it in Settings \u203A Business first.",
-      409
-    );
+    throw new AppError11("conflict", TEMPLATE_VALUE_WORDS.noBookingLink, 409);
+  }
+}
+async function refuseWithoutReviewLink(ports, specs) {
+  if (specs.some((s) => s.kind === "review_link") && !await ports.reviewLink()) {
+    throw new AppError11("conflict", TEMPLATE_VALUE_WORDS.noReviewLink, 409);
   }
 }
 
@@ -2886,7 +2932,11 @@ import {
   BUILTIN_LISTS,
   CAMPAIGNS_PAUSED_WORDS,
   EVERYONE_LABEL,
+  LEFT_OUT_FACTS,
+  allLeftOutWords,
+  breathSplit,
   broadcastName,
+  leftOutBy,
   emptyAudienceRefusal,
   enrolFor,
   overLimitRefusal,
@@ -2899,6 +2949,15 @@ import {
 import { errField as errField6, logger as logger7 } from "../../channels/dist/index.js";
 var OFFSET = /(?:Z|[+-]\d{2}:?\d{2})$/i;
 var createLog = logger7();
+function askedBreath(breathe) {
+  if (breathe === void 0 || breathe === null) return true;
+  if (typeof breathe !== "boolean")
+    throw new AppError12(
+      "validation",
+      "breathe is true or false: whether the people who hear from you within a week of it are left out."
+    );
+  return breathe;
+}
 function asked(raw) {
   const body = raw;
   const templateId = typeof body?.template_id === "string" ? body.template_id : "";
@@ -2921,7 +2980,8 @@ function asked(raw) {
     channels: parseChannels(body?.channels),
     params: body?.params,
     scheduledFor: body?.scheduled_for,
-    name: body?.name
+    name: body?.name,
+    breathe: askedBreath(body?.breathe)
   };
 }
 function askedTime(scheduledFor, now) {
@@ -2955,6 +3015,18 @@ async function audienceOf(ports, ref, now) {
     kept: { token: listToken2(ref), rule: found.rule ?? null, counted_at: now.toISOString() }
   };
 }
+async function breathOf(ports, enrolled, breathe, at) {
+  if (!breathe) return { goes: enrolled, leftOut: [] };
+  const touches = await ports.touches(at.now).catch((e) => {
+    createLog.error("campaign_step_failed", { step: "touches", error: errField6(e) });
+    throw new AppError12(
+      "internal",
+      "Who has had a message from you lately, or has one due, could not be read just now. Nothing was sent; try again.",
+      500
+    );
+  });
+  return breathSplit(enrolled, (e) => e.row.id, leftOutBy(touches, at.sendsAt.getTime(), at.now.getTime()));
+}
 async function createBroadcast(ports, cmd) {
   const { now } = cmd;
   const want = asked(cmd.body);
@@ -2972,7 +3044,10 @@ async function createBroadcast(ports, cmd) {
   if (enrolled.length === 0) throw new AppError12("conflict", emptyAudienceRefusal(purpose, label, pool, how), 409);
   if (enrolled.length > BROADCAST_MAX_RECIPIENTS)
     throw new AppError12("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
-  const over = health ? overLimitRefusal(health, enrolled.filter((e) => e.channel === "whatsapp").length) : null;
+  const ahead = when.getTime() > now.getTime();
+  const { goes, leftOut } = await breathOf(ports, enrolled, want.breathe, { now, sendsAt: when });
+  if (goes.length === 0) throw new AppError12("conflict", allLeftOutWords(label, leftOut.length), 409);
+  const over = health ? overLimitRefusal(health, goes.filter((e) => e.channel === "whatsapp").length) : null;
   if (over) throw new AppError12("validation", over);
   const tz = await ports.timezone();
   const open = nextOpenMoment4(tz, when);
@@ -2982,7 +3057,7 @@ async function createBroadcast(ports, cmd) {
     throw new AppError12("validation", `Schedule within ${BROADCAST_SCHEDULE_MAX_DAYS} days.`);
   const past = await pastTheMonth(
     { monthSent: (channel) => ports.monthSent(channel, when) },
-    enrolled.map((e) => ({ id: e.row.id, channel: e.channel })),
+    goes.map((e) => ({ id: e.row.id, channel: e.channel })),
     null,
     purpose
   ).catch((e) => {
@@ -3000,24 +3075,7 @@ async function createBroadcast(ports, cmd) {
     label,
     ...kept ? { list: kept } : {}
   };
-  const decision = {
-    by: { kind: "user", userId: cmd.userId },
-    payload: {
-      name,
-      template: `${message.name}/${message.language}`,
-      category: message.category,
-      // The ledger names the list by its token; the send's own row keeps the rule it was counted by.
-      audience: { kind: audience.kind, id: audience.id, label: audience.label, ...kept ? { list: kept.token } : {} },
-      channels: [...how.channels],
-      values: specs.map(paramLabel),
-      recipients: enrolled.length,
-      scheduled_for: when.toISOString(),
-      ...movedFrom ? { moved_from: movedFrom } : {},
-      // As a playbook's run records it: how many the month holds. The hold is its own write after the run, and one that
-      // could not be made is logged there (assemble.ts) and counted on the receipt; the ledger's line says what was asked.
-      ...allowanceRecord(past.length, 0)
-    }
-  };
+  const out = new Set(leftOut.map((e) => e.row.id));
   const made = await assembleRun(ports, {
     broadcast: {
       name,
@@ -3033,10 +3091,21 @@ async function createBroadcast(ports, cmd) {
       created_by: cmd.userId,
       channels: [...how.channels]
     },
-    recipients: enrolled.map((e) => ({ contact_id: e.row.id, facts: null, channel: e.channel })),
+    recipients: enrolled.map((e) => ({
+      contact_id: e.row.id,
+      facts: out.has(e.row.id) ? { ...LEFT_OUT_FACTS } : null,
+      channel: e.channel
+    })),
     sendAt: when,
     held: past.map((p) => p.id),
-    decision
+    leftOut: [...out],
+    decision: {
+      by: { kind: "user", userId: cmd.userId },
+      payload: decisionPayload(
+        { name, message, audience, kept, how, specs, enrolled, when, movedFrom },
+        { held: past.length, leftOut: out.size, breathe: want.breathe }
+      )
+    }
   });
   if (!made.ok) {
     createLog.error("campaign_step_failed", { step: "assemble", error: made.error });
@@ -3053,7 +3122,29 @@ async function createBroadcast(ports, cmd) {
     // What was actually held at enrolment: a hold that could not be written is queued and held at the wire (the backstop),
     // so it is not claimed here.
     held_for_allowance: past.length - made.unheld,
+    // And who was written as left out: a skip the hold did not write is queued, held at the wire by the row's mark, and
+    // is not claimed either.
+    left_out: out.size - made.leftOutUnwritten,
+    scheduled_ahead: ahead,
     decision_id: made.decisionId
+  };
+}
+function decisionPayload(s, skipped) {
+  const { name, message, audience, kept, how, specs, enrolled, when, movedFrom } = s;
+  return {
+    name,
+    template: `${message.name}/${message.language}`,
+    category: message.category,
+    // The ledger names the list by its token; the send's own row keeps the rule it was counted by.
+    audience: { kind: audience.kind, id: audience.id, label: audience.label, ...kept ? { list: kept.token } : {} },
+    channels: [...how.channels],
+    values: specs.map(paramLabel),
+    recipients: enrolled.length,
+    scheduled_for: when.toISOString(),
+    ...movedFrom ? { moved_from: movedFrom } : {},
+    ...allowanceRecord(skipped.held, 0),
+    ...skipped.leftOut > 0 ? { left_out: skipped.leftOut } : {},
+    ...skipped.breathe ? {} : { breathe: false }
   };
 }
 
@@ -3168,15 +3259,19 @@ import {
   PLAYBOOK_PATCH_KEYS,
   PLAYBOOK_PATCH_WORDS,
   appointmentWords,
+  campaignDayWords,
   channelNeverCarries as channelNeverCarries2,
   enrolPurpose as enrolPurpose3,
+  isDayKey,
   isPlaybookState,
   isWinBack,
+  localDate as localDate3,
   messageFitsMoment,
   messageHolds as messageHolds3,
   messageWhyNot,
   momentOffered,
   momentReadsCalendar,
+  parseParamSpecs as parseParamSpecs3,
   playbookName,
   ruleNeeds,
   triggerOf as triggerOf4,
@@ -3229,6 +3324,10 @@ async function listOf(ports, trig, body) {
   if (!listName) throw new AppError15("not_found", "List not found.", 404);
   return { listName, listKey: null, listId };
 }
+function refuseFollowUpWithoutLink(trig, specs) {
+  if (trig?.kind === "deal" && !specs.some((s) => s.kind === "proposal_link"))
+    throw new AppError15("validation", FOLLOW_UP_NEEDS_LINK);
+}
 function refuseMessageThatDisagrees(cls, category) {
   const fit = messageFitsMoment(cls, category);
   if (!fit.ok) throw new AppError15("validation", fit.words);
@@ -3252,15 +3351,66 @@ async function checkPlaybookChannels(ports, row, asked2) {
   const cls = row.policy_class ?? triggerOf4(row.trigger)?.cls ?? null;
   return channelsItMayGoBy(Array.isArray(asked2) ? asked2 : [], row.channels, cls, message);
 }
+var oneSpaced = (v) => typeof v === "string" ? v.trim().replace(/\s+/g, " ") : "";
+var playbookNameAsked = (v) => oneSpaced(v).slice(0, PLAYBOOK_NAME_MAX);
 function patchName(v) {
-  const name = typeof v === "string" ? v.trim().replace(/\s+/g, " ") : "";
+  const name = oneSpaced(v);
   if (!name) throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.nameMissing);
   if (name.length > PLAYBOOK_NAME_MAX)
     throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.nameLong(PLAYBOOK_NAME_MAX));
   return name;
 }
 var patchNumber = (k, v, was) => v === void 0 ? void 0 : playbookNumber(k, v, was);
-async function checkPlaybookPatch(ports, row, asked2) {
+async function patchParams(ports, row, v) {
+  if (v === void 0) return void 0;
+  const trig = triggerOf4(row.trigger);
+  const { specs } = await templateValues(ports, {
+    templateId: row.template_id ?? "",
+    params: v,
+    visits: trig?.kind === "visit",
+    proposal: trig?.kind === "deal"
+  });
+  refuseFollowUpWithoutLink(trig, specs);
+  return specs;
+}
+async function untilOf(ports, v, when) {
+  if (v === void 0 || v === null) return v;
+  if (!isDayKey(v)) throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.untilDay);
+  if (when.undo) return v;
+  const tz = await ports.timezone();
+  const today = localDate3(tz, when.now);
+  if (v < today)
+    throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.untilPast(campaignDayWords(today, tz, when.now)));
+  return v;
+}
+var INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/;
+function trialUntilOf(v, when) {
+  if (v === void 0 || v === null) return v;
+  const at = typeof v === "string" && INSTANT.test(v) ? Date.parse(v) : Number.NaN;
+  if (!Number.isFinite(at)) throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.trialWhen);
+  if (!when.undo && at <= when.now.getTime()) throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.trialPast);
+  return new Date(at).toISOString();
+}
+function patchHeldOf(row) {
+  return {
+    state: row.state,
+    name: row.name,
+    run_hour: row.run_hour,
+    cap_per_run: row.cap_per_run,
+    gap_days: row.gap_days,
+    cadence_days: row.cadence_days,
+    params: parseParamSpecs3(row.params),
+    until: row.until ?? null,
+    trial_until: row.trial_until ?? null
+  };
+}
+function holdsAlready(k, to, held) {
+  if (k === "params") return JSON.stringify(to) === JSON.stringify(held);
+  if (k === "trial_until" && typeof to === "string" && typeof held === "string")
+    return Date.parse(to) === Date.parse(held);
+  return to === held;
+}
+async function checkPlaybookPatch(ports, row, asked2, when) {
   const keys = Object.keys(asked2).filter((k) => asked2[k] !== void 0);
   if (keys.length === 0 || keys.some((k) => !PLAYBOOK_PATCH_KEYS.includes(k)))
     throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.nothing);
@@ -3274,15 +3424,19 @@ async function checkPlaybookPatch(ports, row, asked2) {
     run_hour: patchNumber("run_hour", asked2.run_hour, row.run_hour),
     cap_per_run: patchNumber("cap_per_run", asked2.cap_per_run, row.cap_per_run),
     gap_days: patchNumber("gap_days", asked2.gap_days, row.gap_days),
-    cadence_days: patchNumber("cadence_days", asked2.cadence_days, row.cadence_days)
+    cadence_days: patchNumber("cadence_days", asked2.cadence_days, row.cadence_days),
+    params: await patchParams(ports, row, asked2.params),
+    until: await untilOf(ports, asked2.until, when),
+    trial_until: trialUntilOf(asked2.trial_until, when)
   };
+  const held = patchHeldOf(row);
   const set = {};
   const was = {};
   const differs = (k) => {
     const to = next[k];
-    if (to === void 0 || to === row[k]) return;
+    if (to === void 0 || holdsAlready(k, to, held[k])) return;
     set[k] = to;
-    was[k] = row[k];
+    was[k] = held[k];
   };
   for (const k of PLAYBOOK_PATCH_KEYS) differs(k);
   if (set.cadence_days !== void 0 && row.trigger !== "everyone_monthly")
@@ -3307,7 +3461,7 @@ async function checkPlaybookMoment(ports, body, existing) {
   return { trig, cls, listName, listKey, listId };
 }
 async function checkPlaybook(ports, body, existing) {
-  const name = typeof body?.name === "string" ? body.name.trim().replace(/\s+/g, " ").slice(0, PLAYBOOK_NAME_MAX) : "";
+  const name = playbookNameAsked(body?.name);
   const { trig, cls, listName, listKey, listId } = await checkPlaybookMoment(ports, body, existing);
   const templateId = typeof body?.template_id === "string" ? body.template_id : "";
   const { message, specs } = await templateValues(ports, {
@@ -3318,8 +3472,7 @@ async function checkPlaybook(ports, body, existing) {
   });
   refuseMessageThatDisagrees(cls, message.category);
   const channels = channelsItMayGoBy(body?.channels, existing?.channels ?? null, cls, message);
-  if (trig.kind === "deal" && !specs.some((s) => s.kind === "proposal_link"))
-    throw new AppError15("validation", FOLLOW_UP_NEEDS_LINK);
+  refuseFollowUpWithoutLink(trig, specs);
   return {
     // A name when none was given: the moment's alone when it sends its own starter, else with the message's title; a
     // list's own name for a playbook on a list; an appointment moment's in the workspace's word (D43).
@@ -38303,7 +38456,7 @@ function layerTwo(x) {
   const phone = urgentPhone(x);
   let priceBlocked = false;
   const moneyHeld = x.intent === "money" || namesMoney(replyText);
-  if (priceBreach(replyText, priceAllowance(x.brainCfg))) {
+  if (priceBreach(replyText, priceAllowance(x.brainCfg, x.tz, x.now))) {
     priceBlocked = true;
     replyText = heldLine("price", x.language, phone);
     escalate = true;
@@ -38917,7 +39070,7 @@ ${visits}`;
   }
   return leadNote;
 }
-function checked(at, brainCfg, r) {
+function checked(at, brainCfg, r, now) {
   const { rt, L } = at;
   const intent = r.meta?.intent ?? null;
   const two = layerTwo({
@@ -38928,7 +39081,10 @@ function checked(at, brainCfg, r) {
     policy: rt?.policy,
     intent,
     language: r.meta?.language ?? null,
-    known: rt?.known
+    known: rt?.known,
+    // The clock the prompt was composed at: a note's price is allowed exactly while the receptionist was told the note.
+    tz: rt?.timezone,
+    now
   });
   if (two.priceBlocked) L.warn("policy_block_price");
   if (two.moneyHeld) L.info("wa_policy_money", { intent });
@@ -38950,22 +39106,23 @@ async function modelTurn(at, bodyText, photo) {
       const { generateReply } = await ports.brain();
       const leadNote = await leadNoteFor(at);
       const openings = rt ? await ports.calendar.openings(rt) : null;
+      const now = /* @__PURE__ */ new Date();
       const tBrain = Date.now();
       const r = await generateReply(
         thread.history,
-        photo ? photoUserText(n.media?.caption, priceAllowance2(brainCfg) ? "written" : "none") : bodyText,
+        photo ? photoUserText(n.media?.caption, priceAllowance2(brainCfg, rt?.timezone, now) ? "written" : "none") : bodyText,
         // Composed from the workspace's structured facts when it has them,
         // and its hand-written prompt when it does not. lib/call-start.ts
         // composes the SAME thing for the voice agent, which is the point:
         // two copies of the hours is how two channels start disagreeing
         // about when the business opens. A text is told it answers texts (compose.ts).
-        resolveSystemPrompt(brainCfg, channel, rt?.timezone, /* @__PURE__ */ new Date(), rt?.policy, rt?.known),
+        resolveSystemPrompt(brainCfg, channel, rt?.timezone, now, rt?.policy, rt?.known),
         fallbacks.error,
         leadNote,
         // "Are you open?" it could already answer. "Are you open RIGHT NOW?"
         // it was answering too, from nothing — it had a table of hours and no
         // idea what day it was.
-        `${describeNow(rt?.timezone, /* @__PURE__ */ new Date(), brainCfg.profile?.closures)}${openings ? `
+        `${describeNow(rt?.timezone, now, brainCfg.profile?.closures)}${openings ? `
 
 ${openings}` : ""}`,
         photo ?? void 0,
@@ -38983,7 +39140,7 @@ ${openings}` : ""}`,
       usage = r.usage;
       brainMeta = r.meta;
       brainMs = Date.now() - tBrain;
-      ({ replyText, escalate, escalationReason } = checked(at, brainCfg, r));
+      ({ replyText, escalate, escalationReason } = checked(at, brainCfg, r, now));
     } catch (e) {
       L.error("brain_failed", { error: errField10(e) });
       replyText = fallbacks.error;
@@ -39302,6 +39459,7 @@ export {
   STALE_MS,
   STALE_REPLY_MS,
   SUBSCRIBERS,
+  TEMPLATE_VALUE_WORDS,
   UNKNOWN_START_GRACE_MS,
   VISION_MAX_BYTES,
   VISION_MIMES,
@@ -39370,6 +39528,7 @@ export {
   outboundGate,
   parseChannels,
   photoUserText,
+  playbookNameAsked,
   playbookNumber,
   probeAsk,
   probeYield,
@@ -39384,6 +39543,7 @@ export {
   recordInbound,
   refusalScript,
   refuseWithoutBookingLink,
+  refuseWithoutReviewLink,
   rejudgeProbe,
   replyPosture,
   replyToConversation,
@@ -39412,7 +39572,9 @@ export {
   termsShortOf,
   toBase64,
   toldFromItsEvent,
+  trialUntilOf,
   unreadableThread,
+  untilOf,
   wake,
   whatsappSender,
   whatsappWire,

@@ -130,6 +130,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "media_remove_failed",
   "media_remove_refused",
   "member_joined_not_recorded",
+  "message_version_not_filed",
   "native_sign_in_failed",
   "native_sign_in_rate_limited",
   "native_sign_in_refused",

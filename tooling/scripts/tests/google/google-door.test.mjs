@@ -292,6 +292,8 @@ const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const REVOKE_URL = "https://oauth2.googleapis.com/revoke";
 const ACCOUNTS_URL = "https://mybusinessaccountmanagement.googleapis.com/v1/accounts";
 const LOCATIONS_URL = (account) => `https://mybusinessbusinessinformation.googleapis.com/v1/${account}/locations`;
+/** One location read alone (locations.get), as a sync reads the bound one again for its review link. */
+const LOCATION_URL = (name) => `https://mybusinessbusinessinformation.googleapis.com/v1/${name}`;
 const REVIEWS_URL = (account, loc) => `https://mybusiness.googleapis.com/v4/${account}/locations/${loc}/reviews`;
 const REPLY_URL = (account, loc, id) =>
   `https://mybusiness.googleapis.com/v4/${account}/locations/${loc}/reviews/${id}/reply`;
@@ -408,6 +410,8 @@ function google({ locations = [LOC], reviews = [GBP_REVIEW], grant = {}, page = 
     if (u === ACCOUNTS_URL)
       return { status: 200, body: { accounts: [{ name: "accounts/111", accountName: "Harbor", type: "PERSONAL" }] } };
     if (u === LOCATIONS_URL("accounts/111")) return { status: 200, body: { locations } };
+    const one = locations.find((l) => u === LOCATION_URL(l.name));
+    if (one) return { status: 200, body: one };
     if (/^https:\/\/mybusiness\.googleapis\.com\/v4\/accounts\/111\/locations\/\d+\/reviews$/.test(u))
       return { status: 200, body: { reviews, averageRating: 4.7, totalReviewCount: 12, ...page } };
     if (req.method === "PUT" && u.endsWith("/reply"))
@@ -653,7 +657,13 @@ test("past status and search every op needs a database and a workspace on record
 
 test("link: the place is read BEFORE any row is written -- a wrong id is a 502 and leaves the listing on record alone -- then the listing is kept for the workspace, the old place's reviews and days forgotten, the new one read at once as history, and the ledger says who linked what", async () => {
   const tables = world({
-    google_listings: [listingRow({ place_id: PLACE2, name: "Harbor Moving Warehouse" })],
+    google_listings: [
+      listingRow({
+        place_id: PLACE2,
+        name: "Harbor Moving Warehouse",
+        new_review_uri: "https://example.com/review/harbor-moving-warehouse",
+      }),
+    ],
     google_reviews: [reviewRow(R1, { origin: "places", review_id: "p-old", body: "about the warehouse" })],
     google_listing_days: [{ tenant_id: A, day: "2026-09-01", rating: 4.5, review_count: 10 }],
   });
@@ -757,6 +767,11 @@ test("link: the place is read BEFORE any row is written -- a wrong id is a 502 a
   assert.deepEqual(
     [row.tenant_id, row.place_id, row.name, row.linked_by, row.rating, row.review_count, row.check_error],
     [A, PLACE, "Harbor Moving", U, 4.6, 11, null],
+  );
+  assert.equal(
+    row.new_review_uri,
+    null,
+    "the warehouse's review link is not the new place's, and the public read gives none (00415)",
   );
   assert.deepEqual(
     row.facts,
@@ -1115,6 +1130,11 @@ test("connect: the code from Google becomes the connection -- the token traded w
     [PLACE, "Harbor Moving", "1 Main St, Brooklyn, NY 11201", 4.7, 12, U],
     "the same place the public listing named, so the row is kept and takes the profile's numbers",
   );
+  assert.equal(
+    listing.new_review_uri,
+    LOC.metadata.newReviewUri,
+    "and the location's review link (00415), which a message's review_link slot is filled from",
+  );
   assert.deepEqual(
     listing.facts,
     { phone_e164: "+17185550142", website: "https://harbormoving.example" },
@@ -1252,9 +1272,10 @@ test("connect with several locations on Maps waits for the owner's choice: the c
       listing.name,
       listing.linked_by,
       listing.facts,
+      listing.new_review_uri,
     ],
-    [1, A, PLACE2, "Harbor Moving Warehouse", U, {}],
-    "the chosen location's place on Maps becomes the listing",
+    [1, A, PLACE2, "Harbor Moving Warehouse", U, {}, null],
+    "the chosen location's place on Maps becomes the listing, with the review link it has: none",
   );
   assert.ok(Date.parse(listing.linked_at) >= t0);
   const conn = tables.google_connections[0];
@@ -1504,12 +1525,18 @@ test("refresh with the profile connected syncs it as the owner -- the expired to
     createTime: ago(2 * HOUR),
     updateTime: ago(2 * HOUR),
   };
+  // What the workspace had been told when the bound location was read again: its bells and its events.
+  let toldByTheLink = null;
   net = wired((req) => {
     const u = req.url.split("?")[0];
     if (u === TOKEN_URL)
       return { status: 200, body: { access_token: "at-new", expires_in: 3600, scope: SCOPE, token_type: "Bearer" } };
     if (u === REVIEWS_URL("accounts/111", "222"))
       return { status: 200, body: { reviews: [NEW, GBP_REVIEW], averageRating: 4.8, totalReviewCount: 2 } };
+    if (u === LOCATION_URL("locations/222")) {
+      toldByTheLink = [tables.notifications.length, tables.events.length];
+      return { status: 200, body: LOC };
+    }
     throw new Error(`unexpected ${req.method} ${req.url}`);
   });
   const t0 = Date.now();
@@ -1528,8 +1555,19 @@ test("refresh with the profile connected syncs it as the owner -- the expired to
     [
       ["POST", TOKEN_URL],
       ["GET", REVIEWS_URL("accounts/111", "222")],
+      ["GET", LOCATION_URL("locations/222")],
     ],
-    "a token first, then the reviews as the owner",
+    "a token first, then the reviews as the owner, then, alone, the bound location again for its review link",
+  );
+  assert.deepEqual(
+    toldByTheLink,
+    [1, 1],
+    "the new review's bell and its event were kept before the location was read: the link's read is the sync's last",
+  );
+  assert.equal(
+    tables.google_listings[0].new_review_uri,
+    LOC.metadata.newReviewUri,
+    "a listing bound before 00415 has its review link at the owner's Sync now",
   );
   assert.equal(net.calls[1].headers.Authorization, "Bearer at-new");
   assert.deepEqual(
@@ -1583,6 +1621,7 @@ test("refresh with the profile connected syncs it as the owner -- the expired to
         status: 200,
         body: { reviews: [GBP_REVIEW], averageRating: 4.8, totalReviewCount: 900, nextPageToken: "more" },
       };
+    if (u === LOCATION_URL("locations/222")) return { status: 200, body: LOC };
     throw new Error(`unexpected ${req.method} ${req.url}`);
   });
   const [s3] = await answer(await knock({ op: "refresh" }));

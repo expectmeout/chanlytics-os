@@ -12,7 +12,7 @@ import {
   unsubscribeUrl,
   type EmailRequest,
 } from "@chanlytics/channels";
-import { CAMPAIGN_EMAIL_TAG, EMAIL_HOLDS, OUTCOME_UNKNOWN, parseTenantConfig } from "@chanlytics/contracts";
+import { CAMPAIGN_EMAIL_TAG, HELD_WHEN_COUNTED, OUTCOME_UNKNOWN, parseTenantConfig } from "@chanlytics/contracts";
 import {
   deliver,
   isWireUnavailable,
@@ -35,6 +35,7 @@ import {
   releaseQueuedSend,
   resolveOutboundTarget,
   resolveOutboundTargetForContact,
+  reviewLinkOf,
   runGoesByOthers,
   withdrawEmail,
   workspacePaused,
@@ -414,6 +415,9 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
       // no longer approves it, which would be a lie about their Meta account told over a statement timeout.
       message: (name, language) => messageVersionRowsOf(db, job.tenant_id, { name, language }),
       facts: () => workspaceFacts(db, job.tenant_id),
+      // Asked only of a batch whose message has a review slot (core sendBroadcastBatch): a send without one never reads
+      // the Google listing, so a failure on that table never stops it.
+      reviewLink: () => reviewLinkOf(db, job.tenant_id),
       ...peoplePorts(ctx, job.tenant_id),
       // Offers by email go only where this runtime holds a verified campaigns domain (the edge binds it for this job). An
       // email is sent by the time this tick can still wait for it (ledger sendByAt), so one started late is bounded by
@@ -442,12 +446,12 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
         ]);
         return { sent, held: all - sent };
       },
-      // Counted, as the tally is: which of the workspace's holds on email the run skipped anyone for.
-      heldForEmail: async (id) => {
+      // Counted, as the tally is: which of the reasons a finished run names only when counted the run skipped anyone for.
+      heldFor: async (id) => {
         const counts = await Promise.all(
-          EMAIL_HOLDS.map((reason) => countRecipients(db, job.tenant_id, id, "skipped", reason)),
+          HELD_WHEN_COUNTED.map((reason) => countRecipients(db, job.tenant_id, id, "skipped", reason)),
         );
-        return EMAIL_HOLDS.filter((_, i) => (counts[i] ?? 0) > 0);
+        return HELD_WHEN_COUNTED.filter((_, i) => (counts[i] ?? 0) > 0);
       },
       finish: async (id, tally) => {
         must(
@@ -497,12 +501,19 @@ export function carriedBy(payload: unknown): Required<BatchCarry> {
 /**
  * The workspace's own words for the slots that name it, and the zone its sending hours are kept by. An empty business
  * name is not a fallback: it resolves to an empty slot, and the verb marks everyone in the batch permanently
- * "missing_value". An unreadable zone reads as UTC where the hours are judged (contracts playbook-schedule).
+ * "missing_value", as it does a review slot where the Google listing keeps no link (the reviewLink port, db
+ * reviewLinkOf, read apart and only where a slot asks). An unreadable zone reads as UTC where the hours are judged
+ * (contracts playbook-schedule).
  */
 async function workspaceFacts(
   db: JobContext["db"],
   tenantId: string,
-): Promise<{ businessName: string; bookingLink: string | null; timezone: string; address: string | null }> {
+): Promise<{
+  businessName: string;
+  bookingLink: string | null;
+  timezone: string;
+  address: string | null;
+}> {
   const [tenantRes, cfgRes] = await Promise.all([
     db.from("tenants").select("name, timezone").eq("id", tenantId).maybeSingle(),
     db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),

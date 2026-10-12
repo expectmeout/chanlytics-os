@@ -364,7 +364,7 @@ function turn(ctx, over = {}) {
     ctx,
     tenantId: A,
     role: "operator",
-    facts: workspaceFacts("Harbor", TZ, ctx.supabase ? null : null, []),
+    facts: workspaceFacts("Harbor", TZ, ctx.supabase ? null : null, NOW, []),
     timezone: TZ,
     personLabel: "ada@example.com (operator)",
     language: "en",
@@ -2760,12 +2760,15 @@ test("the fourteen reads, each an action of the nine read tools, run against the
     Object.keys(out).sort(),
     [
       "calendar.openings",
+      "calendar.room",
       "calendar.week",
       "calls.get",
       "calls.list",
       "campaigns.audiences",
       "campaigns.broadcast",
       "campaigns.broadcasts",
+      "campaigns.journey",
+      "campaigns.messages",
       "campaigns.playbooks",
       "inbox.list",
       "inbox.search",
@@ -2785,7 +2788,7 @@ test("the fourteen reads, each an action of the nine read tools, run against the
       "workspace.notifications",
       "workspace.settings",
     ],
-    "the reads the loop offers: the fourteen old tools, each an action now, PR 4.3's ten and PR 4.5's search",
+    "the reads the loop offers: the fourteen old tools, each an action now, PR 4.3's ten, PR 4.5's search, the library, the journey and the room",
   );
   const found = JSON.parse(out["inbox.search"].result);
   assert.equal(out["inbox.search"].isError, false, out["inbox.search"].result);
@@ -2822,9 +2825,38 @@ test("the fourteen reads, each an action of the nine read tools, run against the
   assert.ok(out["workspace.settings"].result.includes("Harbor Moving"));
   assert.equal(out["calendar.openings"].isError, false, out["calendar.openings"].result);
   assert.ok(out["calendar.openings"].result.includes("No calendar feed"), "no feed, said plainly");
+  assert.equal(out["calendar.room"].isError, false, out["calendar.room"].result);
+  assert.deepEqual(
+    JSON.parse(out["calendar.room"].result),
+    { days: 14, open: 0, taken: 0, by_day: [], none: "no_calendar" },
+    "no feed, no room counted, and said so",
+  );
   assert.equal(out["calendar.week"].isError, false, out["calendar.week"].result);
   assert.equal(out["campaigns.audiences"].isError, false, out["campaigns.audiences"].result);
   assert.equal(out["campaigns.playbooks"].isError, false, out["campaigns.playbooks"].result);
+  assert.equal(out["campaigns.messages"].isError, false, out["campaigns.messages"].result);
+  assert.deepEqual(JSON.parse(out["campaigns.messages"].result).messages, [], "an empty library, said as no message");
+  assert.equal(out["campaigns.journey"].isError, false, out["campaigns.journey"].result);
+  const journey = JSON.parse(out["campaigns.journey"].result);
+  assert.deepEqual(
+    [journey.covered, journey.of, journey.stages.map((s) => [s.id, s.covered, s.state, s.campaigns])],
+    [
+      1,
+      4,
+      [
+        ["first_contact", true, "Answers · asks for the yes", []],
+        ["before", false, "Needs your calendar", []],
+        ["after", false, "Needs your calendar", []],
+        ["quiet", false, "Off", []],
+      ],
+    ],
+    "no calendar, no campaign: 1 of 4, as the page counts it -- the receptionist covers first contact, the appointment moments need a calendar, and quiet is off",
+  );
+  assert.deepEqual(
+    journey.guide.map((r) => r.stage),
+    ["first_contact", "quiet", null],
+    "the guide, without a calendar: no appointment moment",
+  );
   assert.equal(out["leads.searches"].isError, false, out["leads.searches"].result);
   assert.deepEqual(
     JSON.parse(out["leads.searches"].result).searches,
@@ -3199,6 +3231,23 @@ test("the proposal builders run against the database in memory: each kind is a c
     (await p("propose_settings", { change: { op: "add_closure", date: "tomorrow" } })).result,
     /change rejected/,
   );
+  // A note with its last day: the same until a closure takes, judged by its shape alone, said on the card and carried
+  // in the change its Approve applies. The card quotes the text the receptionist will be told.
+  const ending = { op: "add_note", title: "Holiday hours", text: "Open 10 to 2 this week.", until: "2026-12-31" };
+  const noted = await p("propose_settings", { change: ending });
+  assert.equal(noted.isError, false, noted.result);
+  assert.deepEqual(
+    [noted.proposal.title, noted.proposal.summary, noted.proposal.payload.change],
+    [
+      "Remember this",
+      "Note for the receptionist: “Holiday hours”, until 2026-12-31 — “Open 10 to 2 this week.”",
+      ending,
+    ],
+  );
+  assert.match(
+    (await p("propose_settings", { change: { ...ending, until: "New Year's Eve" } })).result,
+    /change rejected: until/,
+  );
   assert.match(
     JSON.parse((await p("propose_settings", {})).result).error,
     /^propose_settings: change Invalid input/,
@@ -3323,6 +3372,7 @@ test("the proposal builders run against the database in memory: each kind is a c
     proposal: null,
     result: JSON.stringify({ error: "that could not be checked; say so and suggest the page" }),
     isError: true,
+    refusal: "that could not be checked; say so and suggest the page",
   });
 });
 
@@ -4448,7 +4498,7 @@ test("the answers the model is shown fit the format key for key, ride in the cac
     assert.deepEqual(Object.keys(v).sort(), Object.keys(s.properties).sort(), path);
     for (const k of Object.keys(s.properties)) fits(s.properties[k], v[k], `${path}.${k}`);
   };
-  const system = stableSystem(workspaceFacts("Harbor", TZ, null, []));
+  const system = stableSystem(workspaceFacts("Harbor", TZ, null, NOW, []));
   for (const [question, example] of ASK_EXAMPLES) {
     fits(ASK_ANSWER_FORMAT, example, question);
     assert.ok(system.includes(JSON.stringify(example)), `${question} is in the cached block`);
@@ -5115,7 +5165,7 @@ test("the rules Ask says the receptionist follows are the ones the composer gave
   const HEALTH = "gives no health advice";
 
   // No `guardrails` key at all: what every workspace that never opened the rules has.
-  const absent = workspaceFacts("Harbor", TZ, config(undefined));
+  const absent = workspaceFacts("Harbor", TZ, config(undefined), NOW);
   assert.deepEqual(
     absent.guardrails,
     [PRICE, BOOKING, AI],
@@ -5123,7 +5173,7 @@ test("the rules Ask says the receptionist follows are the ones the composer gave
   );
   assert.doesNotMatch(factsBlock(absent), /health/, "Ask's context never claims a rule the receptionist was not given");
 
-  const on = workspaceFacts("Harbor", TZ, config({ no_health_advice: true }));
+  const on = workspaceFacts("Harbor", TZ, config({ no_health_advice: true }), NOW);
   assert.deepEqual(on.guardrails, [PRICE, BOOKING, AI, HEALTH]);
   assert.match(factsBlock(on), /The receptionist .*gives no health advice\./);
 
@@ -5131,6 +5181,7 @@ test("the rules Ask says the receptionist follows are the ones the composer gave
     "Harbor",
     TZ,
     config({ never_quote_prices: false, never_confirm_booking: false, disclose_ai: false }),
+    NOW,
   );
   assert.deepEqual(off.guardrails, [WRITTEN, AI], "switched off is off, and the health rule is still not on");
 
@@ -5167,6 +5218,58 @@ test("the rules Ask says the receptionist follows are the ones the composer gave
     no_health_advice: true,
   });
   assert.equal(guardrailsInForce({ disclose_ai: false }).disclose_ai, true, "always on, whatever a row stores");
+});
+
+test("the notes Ask says the receptionist follows are the ones the composer tells it today: an ended note is not listed, a lasting one says its end in the prompt's words, and one with no end reads as before", async () => {
+  const { factsBlock } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
+  const { composeSystemPrompt } = await import("@chanlytics/contracts");
+  const brain = {
+    business_name: "Harbor Moving",
+    booking_link: "https://book.example/harbor",
+    system_prompt: "Answer as the front desk of Harbor Moving: brief and warm.",
+    fallbacks: { greeting: "g", error: "e", non_text: "n" },
+  };
+  const withNotes = (notes) => ({ brain: { ...brain, profile: { address: "1 Pier Rd", notes } } });
+  const said = (facts) =>
+    factsBlock(facts)
+      .split("\n")
+      .find((l) => l.startsWith("Notes the receptionist follows:"));
+  const parking = { title: "Parking", text: "Behind the building" };
+  // NOW is 10:00 on Monday 14 September in New York: a note whose last day is the 14th lasts, the 13th's has ended.
+  const lasting = { title: "Holiday hours", text: "Open 10 to 2", until: "2026-09-14" };
+  const ended = { title: "Summer offer", text: "Colour at 20% off", until: "2026-09-13" };
+  const facts = workspaceFacts("Harbor", TZ, withNotes([parking, lasting, ended]), NOW, []);
+  assert.deepEqual(facts.notes, [parking, lasting], "the ended note is not among Ask's facts");
+  assert.equal(
+    said(facts),
+    "Notes the receptionist follows: Parking: Behind the building | Holiday hours (until Monday, September 14, 2026): Open 10 to 2.",
+  );
+  // The receptionist's prompt, at the same clock in the same zone, says the same notes in the same words.
+  const composed = composeSystemPrompt(
+    brain,
+    { address: "1 Pier Rd", notes: [parking, lasting, ended] },
+    "whatsapp",
+    TZ,
+    NOW,
+  );
+  assert.ok(
+    composed.includes(
+      "\n- Parking: Behind the building\n- Holiday hours (until Monday, September 14, 2026): Open 10 to 2",
+    ),
+  );
+  assert.ok(!composed.includes("Summer offer"));
+  // A note with no end, byte for byte as Ask said it before a note could end.
+  assert.equal(
+    said(workspaceFacts("Harbor", TZ, withNotes([parking]), NOW, [])),
+    "Notes the receptionist follows: Parking: Behind the building.",
+  );
+  // Every note ended: no line at all, as with none.
+  assert.equal(said(workspaceFacts("Harbor", TZ, withNotes([ended]), NOW, [])), undefined);
+  // The next day in New York the note that lasted has ended too.
+  assert.deepEqual(
+    workspaceFacts("Harbor", TZ, withNotes([parking, lasting]), new Date("2026-09-15T04:30:00Z"), []).notes,
+    [parking],
+  );
 });
 
 test("people.get says where the proposal lives (00154), so a card can carry the address into a reply; nothing when there is none, and nothing of a deal where deals are off (0008)", async () => {
@@ -6171,7 +6274,7 @@ test("campaigns.playbooks says the Playbooks page's numbers (ledger #10): every 
     ],
     "the page's reason where its read carries one, and never a reason guessed for a list of the workspace's own",
   );
-  assert.ok(read.note.includes("can_be_sent_now") && read.note.includes("this week"), read.note);
+  assert.ok(read.note.includes("can_be_sent_now") && read.note.includes("within a week of today"), read.note);
   assert.ok(read.note.includes("A null count means the page could not count it just now."), read.note);
   // Everyone could not be read: no moment and no list is counted, and each says so -- never a calendar to connect or a
   // service to add, which is what a People read that failed looked like (no People list offered at all).
@@ -7422,7 +7525,7 @@ test("the prefix (the Phase 5 plan, D2): the sha256 of what the last request sen
   const config = tables().tenant_config[0].config;
   const profile = config.brain.profile;
   const facts = (brain = {}, policies = []) =>
-    workspaceFacts("Harbor", TZ, { ...config, brain: { ...config.brain, ...brain } }, policies);
+    workspaceFacts("Harbor", TZ, { ...config, brain: { ...config.brain, ...brain } }, NOW, policies);
   const set = await ask({ facts: facts() });
   const changed = {
     role: await ask({ role: "owner", personLabel: "ada@example.com (owner)" }),
@@ -7861,7 +7964,7 @@ test("cold, each on its own (the Phase 5 plan, D1-D3): the previous round's star
     delete process.env.ASK_MODEL;
   }
   const config = tables().tenant_config[0].config;
-  const facts = (brain) => workspaceFacts("Harbor", TZ, { ...config, brain: { ...config.brain, ...brain } }, []);
+  const facts = (brain) => workspaceFacts("Harbor", TZ, { ...config, brain: { ...config.brain, ...brain } }, NOW, []);
   const profile = config.brain.profile;
   for (const [why, asking] of [
     ["another setting", { facts: facts({ business_name: "Harbor Movers" }) }],

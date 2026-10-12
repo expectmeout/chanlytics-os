@@ -30,11 +30,18 @@ const { ASK_DEFINITIONS } = await import(at("apps/dashboard/src/server/ask/promp
 const { runTool, newToolContext, buildProposal } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 
-/** Says the veto's wait in the derived words, and no other length of time. */
+/**
+ * Says the veto's wait in the derived words, and no other length of time: each wait it names is that one (a sentence
+ * may name it twice, as Ask's definition does for veto and for a new campaign's trial, which waits as veto's runs do).
+ */
 function saysTheWait(sentence, where) {
   assert.ok(sentence.includes(PLAYBOOK_VETO_DELAY_WORDS), `${where} says ${PLAYBOOK_VETO_DELAY_WORDS}: ${sentence}`);
-  const lengths = sentence.match(/\b(\d+|an?|thirty|one|two) (minutes?|hours?)\b/gi) ?? [];
-  assert.deepEqual(lengths, [PLAYBOOK_VETO_DELAY_WORDS], `${where} says no other wait: ${sentence}`);
+  const lengths = sentence.match(/\b(\d+|an?|thirty|one|two|half an) (minutes?|hours?)\b/gi) ?? [];
+  assert.deepEqual(
+    lengths.filter((l) => l !== PLAYBOOK_VETO_DELAY_WORDS),
+    [],
+    `${where} says no other wait: ${sentence}`,
+  );
 }
 
 test("the wait in words: whole minutes, or whole hours once it is one", () => {

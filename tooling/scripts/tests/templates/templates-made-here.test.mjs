@@ -12,6 +12,7 @@ import {
   PARAM_SOURCES,
   TEMPLATE_CATEGORIES,
   TEMPLATE_LANGUAGES,
+  TEMPLATE_SAME_NAME_WORDS,
   exampleParams,
   firstNameOf,
   paramLabel,
@@ -105,9 +106,20 @@ test("names Meta accepts, slots in order, one example each: what is refused is r
 test("what fills a slot: typed text once, or the person's first name, the business's name, the booking link — per recipient, with the same words the page previews", () => {
   assert.deepEqual(
     [...PARAM_SOURCES],
-    ["text", "first_name", "business_name", "booking_link", "visit_when", "visit_service", "proposal_link"],
+    [
+      "text",
+      "first_name",
+      "business_name",
+      "booking_link",
+      "review_link",
+      "visit_when",
+      "visit_service",
+      "proposal_link",
+    ],
   );
   assert.deepEqual(parseParamSpec("@proposal_link"), { kind: "proposal_link" }, "the follow-up's link (0006)");
+  assert.deepEqual(parseParamSpec("@review_link"), { kind: "review_link" }, "the Google listing's review link (00415)");
+  assert.deepEqual(parseParamSpec({ kind: "review_link" }), { kind: "review_link" });
   assert.deepEqual(parseParamSpec("20%"), { kind: "text", value: "20%" });
   assert.deepEqual(parseParamSpec("@first_name"), { kind: "first_name" });
   assert.deepEqual(parseParamSpec({ kind: "booking_link" }), { kind: "booking_link" });
@@ -150,6 +162,23 @@ test("what fills a slot: typed text once, or the person's first name, the busine
     [""],
     "no link is empty, which the send skips as a missing value",
   );
+  const review = [{ kind: "review_link" }];
+  assert.deepEqual(
+    resolveParams(review, {
+      firstName: null,
+      businessName: "x",
+      bookingLink: null,
+      reviewLink: "https://example.com/review/x",
+    }),
+    ["https://example.com/review/x"],
+  );
+  assert.deepEqual(
+    resolveParams(review, { firstName: null, businessName: "x", bookingLink: null }),
+    [""],
+    "a sender that holds no review link fills none, and the send skips it as a missing value",
+  );
+  assert.deepEqual(exampleParams(review, "x"), ["your review link"]);
+  assert.equal(paramLabel({ kind: "review_link" }), "the review link");
   assert.equal(paramLabel({ kind: "first_name" }), "their first name");
   assert.equal(paramLabel({ kind: "text", value: "20%" }), "20%");
 });
@@ -182,7 +211,9 @@ test("the routes: what Meta refuses is refused first; a duplicate name is a conf
     r.includes("const check = validateTemplateDraft({") &&
       r.includes('if (!check.ok) throw new AppError("validation", check.error);'),
   );
-  assert.ok(r.includes('"A template with that name and language already exists. Pick another name."'));
+  // The duplicate's sentence is contracts' since Ask's message card says it too (TEMPLATE_SAME_NAME_WORDS).
+  assert.ok(r.includes('throw new AppError("conflict", TEMPLATE_SAME_NAME_WORDS, 409);'));
+  assert.equal(TEMPLATE_SAME_NAME_WORDS, "A template with that name and language already exists. Pick another name.");
   assert.ok(r.includes("WhatsApp did not accept it: ${r.detail"), "Meta's words reach the person");
   const del = readCode(
     "apps/dashboard/app/api/v1/templates/[id]/route.ts",

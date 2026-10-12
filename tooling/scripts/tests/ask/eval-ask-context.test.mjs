@@ -9,16 +9,20 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   MOMENT_TRIGGERS,
+  PLAN_WORDS,
   PLAYBOOK_LIMITS,
   PLAYBOOK_PATCH_KEYS,
   PageContextSchema,
   TenantConfigWriteSchema,
   applySettingsChange,
+  channelChoices,
+  channelsReady,
   parseTenantConfig,
 } from "@chanlytics/contracts";
 import { WIN_BACK, workspaceConfig } from "../../ops/e2e-workspace.mjs";
@@ -47,6 +51,7 @@ import {
   secondScope,
   secondTurn,
   setupCardsFails,
+  skipFor,
   toolsOrderNote,
   turnShapes,
   usageRows,
@@ -102,7 +107,7 @@ const ANSWERS = {
   },
   "lead-searches": { searches: [{ id: U(31), name: "Pilates studios · Denver" }], counts: {} },
   playbooks: { playbooks: [], deals_on: false },
-  broadcasts: { broadcasts: [], more: false, touched: null },
+  broadcasts: { broadcasts: [], more: false, touched_at: null },
   templates: { templates: [] },
 };
 
@@ -1168,9 +1173,16 @@ const SETUP_AND_CHANGE = [
   "change_rename_and_hour",
   "change_hour_out_of_bounds",
   "change_reach_out_refused",
+  // A change's new fields (00416; the review after the merge, batch E): its words, its last day and its trial.
+  "change_words",
+  "change_last_day",
+  "change_trial_week",
+  // A setup with a calendar and without one (the marketing manager's §8): the same words, two workspaces.
+  "setup_with_calendar",
+  "setup_without_calendar",
 ];
 
-test("the setup and change cases (the moment spec, A8): twelve, run only after the Win-back's seed and never here; a setup's two reads ride into round 1 exactly where the turn hears a setup, and only there is the tools' order noted; nothing of theirs is approved, so nothing is filed", async () => {
+test("the setup and change cases (the moment spec, A8): seventeen, run only after the Win-back's seed and never here; a setup's two reads ride into round 1 exactly where the turn hears a setup, and only there is the tools' order noted; nothing of theirs is approved, so nothing is filed", async () => {
   const { crossPagePlan } = await import("../../../../apps/dashboard/src/server/ask/cross-page.ts");
   const cases = CASES.filter((c) => /^(setup|change)_/.test(c.id));
   assert.deepEqual(
@@ -1206,6 +1218,8 @@ test("the setup and change cases (the moment spec, A8): twelve, run only after t
       "setup_leads_refused",
       "setup_again_same_thread",
       "setup_again_same_thread (then)",
+      "setup_with_calendar",
+      "setup_without_calendar",
     ],
   );
   // The tools' order is noted only on a turn whose reads ride in first, and a read a case asks for off Campaigns' rows
@@ -1231,14 +1245,102 @@ test("the setup and change cases (the moment spec, A8): twelve, run only after t
   assert.ok(cases.every((c) => c.then?.between === undefined));
   // The change cases name the seed's own campaign (e2e-workspace.mjs WIN_BACK), a change card's fields are a change's
   // own keys, and the hour refused is under the bound the refusal says.
-  for (const c of cases.filter((x) => x.id.startsWith("change_") && x.id !== "change_reach_out_refused"))
+  // Each is asked only where the seed has been run (`needs: winback_seed`): on a workspace without it there is no
+  // Win-back to change, and the case would fail whatever the model did.
+  for (const c of cases.filter((x) => x.id.startsWith("change_") && x.id !== "change_reach_out_refused")) {
     assert.match(c.text, new RegExp(WIN_BACK.name, "i"), c.id);
+    assert.ok(c.needs?.includes("winback_seed"), `${c.id} needs the Win-back's seed`);
+  }
   for (const c of cases.filter((x) => x.expect.card_fields?.playbook_change))
     for (const k of Object.keys(c.expect.card_fields.playbook_change)) assert.ok(PLAYBOOK_PATCH_KEYS.includes(k), k);
+  for (const c of cases.filter((x) => x.expect.card_fields_present?.playbook_change))
+    for (const k of c.expect.card_fields_present.playbook_change) assert.ok(PLAYBOOK_PATCH_KEYS.includes(k), k);
   const early = cases.find((c) => c.id === "change_hour_out_of_bounds");
   assert.ok(
     7 < PLAYBOOK_LIMITS.run_hour.min && early.expect.includes_any.includes(String(PLAYBOOK_LIMITS.run_hour.min)),
   );
+});
+
+/** The reads the marketing manager's lane added (its §5.7), each asked for by a case in its own words. */
+const NEW_READS = ["calendar.room", "campaigns.journey", "campaigns.messages"];
+
+test("the cases fit their workspace and name the new reads (the review after the merge, batch E): an offer's send needs a yes and a channel, the nightly's workspace asks the offer that must make neither, each new read is the model's own pick, and a change names its words, its last day and its trial", async () => {
+  const { crossPagePlan } = await import("../../../../apps/dashboard/src/server/ask/cross-page.ts");
+  const byId = Object.fromEntries(CASES.map((c) => [c.id, c]));
+  // A send of an offer (a broadcast card, the plan's or its own) needs someone's yes to offers and a channel that carries
+  // one. The plan writes its message for whichever channel that is; the cover case sends the Win-back's message, which
+  // is on file only after the Win-back's seed and has a WhatsApp version alone, so its channel is WhatsApp.
+  const sends = CASES.filter((c) => c.expect.proposals_any?.includes("broadcast"));
+  assert.deepEqual(
+    sends.map((c) => [c.id, c.needs]),
+    [
+      ["offer_november_colour", ["offers_yes", "offers_channel"]],
+      ["covers_propose_campaign_broadcast", ["offers_yes", "offers_whatsapp", "winback_seed"]],
+    ],
+  );
+  // The nightly's workspace sets both aside, and asks the offer no channel there carries: no send and no campaign.
+  const nightly = new Set(CASES.filter((c) => !skipFor(c, NIGHTLY)).map((c) => c.id));
+  for (const c of sends) assert.ok(!nightly.has(c.id), c.id);
+  const none = byId.offer_no_offers_channel;
+  assert.deepEqual(none.needs, ["no_offers_channel"]);
+  assert.ok(nightly.has(none.id) && none.must_never && none.expect.no_write);
+  assert.deepEqual(none.expect.proposals_not, ["broadcast", "playbook"]);
+  // What it looks for in the answer is said by the plan's own refusal there (PLAN_WORDS.noChannel, over the nightly's
+  // closed channels: a +1 WhatsApp number and no mailbox), which names what to set up first.
+  const closed = channelChoices(
+    channelsReady({
+      whatsapp: { canSend: true, refusal: null, number: "+12125550142" },
+      textLine: null,
+      email: { mailbox: false, domain: true },
+    }),
+    "marketing",
+    "ours",
+  ).filter((c) => c.channel !== "sms");
+  assert.ok(closed.length === 2 && closed.every((c) => !c.ok));
+  const said = PLAN_WORDS.noChannel(
+    closed.map(({ channel, why }) => ({ channel, why })),
+    [],
+  ).toLowerCase();
+  assert.ok(
+    none.expect.includes_any.some((w) => said.includes(w.toLowerCase())),
+    said,
+  );
+  // Each new read is a case's, and never one the turn reads before round 1 for its words (server/ask/cross-page.ts
+  // crossPagePlan: a read made there is a tool the turn used), so the case grades the model's own pick. The book's room
+  // is read where a calendar is connected.
+  for (const read of NEW_READS) {
+    const asking = CASES.filter((c) => c.expect.tools_any?.includes(read));
+    assert.ok(asking.length >= 1, read);
+    for (const c of asking) {
+      const before = crossPagePlan(c.text, c.surface).map((r) => `${r.name}.${r.input.action}`);
+      assert.ok(!before.includes(read), `${c.id}: ${before.join(" ")}`);
+      assert.ok(c.expect.no_write && !c.expect.on_page, c.id);
+    }
+  }
+  assert.deepEqual(CASES.find((c) => c.expect.tools_any?.includes("calendar.room")).needs, ["calendar"]);
+  // A change's three new fields (00416), each asked of the seed's Win-back through action change. The seed's message
+  // takes no values (e2e-workspace.mjs convergeWinBack), so new words for it are refused in the door's own words
+  // ("This template takes no values."): that case grades the pick alone, and the last day and the trial grade the card.
+  const expect = (id) => byId[id].expect;
+  assert.deepEqual(
+    [expect("change_words").tools_any, expect("change_words").proposals_any],
+    [["propose_campaign.change"], undefined],
+  );
+  for (const [id, field] of [
+    ["change_last_day", "until"],
+    ["change_trial_week", "trial_until"],
+  ])
+    assert.deepEqual(
+      [expect(id).tools_any, expect(id).proposals_any, expect(id).card_fields_present],
+      [["propose_campaign.change"], ["playbook_change"], { playbook_change: [field] }],
+      id,
+    );
+  // A case's days are said relative to the day it is asked ("next month"), never as a month or a date: an offer that
+  // starts on a day past is refused (contracts plan.ts offerDates, before its channels), and so is a change's last day
+  // (core untilOf), so a dated case would fail by construction once its day had passed. ("May" is English's verb too.)
+  const dated =
+    /\b(?:january|february|march|april|june|july|august|september|october|november|december|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b|\b\d{4}-\d{2}-\d{2}\b/i;
+  for (const c of CASES) for (const t of [c.text, c.then?.text]) assert.ok(!dated.test(t ?? ""), `${c.id}: ${t}`);
 });
 
 test("the case set: every surface has an on-page case, an off-page read and a decline; the focus, the scope and the foreign row", () => {
@@ -1330,7 +1432,13 @@ test("the announcement counts turns: a case of two is two, each on its own surfa
 
 test("--list says every case and its second turn, its page, the turns and their cost, with no credentials, and spends nothing", () => {
   const env = { ...process.env, REPS: "3" };
-  for (const k of ["NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "E2E_USER_EMAIL"])
+  for (const k of [
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "E2E_USER_EMAIL",
+    "EVAL_WORKSPACE_HAS",
+  ])
     delete env[k];
   const run = spawnSync(process.execPath, ["tooling/scripts/eval-ask.mjs", "--list"], {
     cwd: ROOT,
@@ -1339,14 +1447,17 @@ test("--list says every case and its second turn, its page, the turns and their 
   });
   assert.equal(run.status, 0, run.stderr);
   for (const c of CASES) assert.ok(run.stdout.includes(`${c.id} · ${c.surface ?? "today"}`), c.id);
-  // A turn is a turn: a case of two turns is two, each priced at the baseline.
-  const n = CASES.length;
-  const turns = CASES.reduce((k, c) => k + 1 + (c.then ? 1 : 0), 0);
+  // A turn is a turn: a case of two turns is two, each priced at the baseline. A workspace that names nothing it holds
+  // runs only the cases that need nothing of it, by the runner's own reading of a case's needs.
+  const ran = CASES.filter((c) => !skipFor(c, []));
+  assert.ok(ran.length < CASES.length && ran.every((c) => !c.needs?.length));
+  const n = ran.length;
+  const turns = ran.reduce((k, c) => k + 1 + (c.then ? 1 : 0), 0);
   assert.ok(
     run.stdout.includes(`${n} cases, ${turns} turns × 3 = ${turns * 3} turns ≈ $${(turns * 3 * 0.012).toFixed(2)}`),
     run.stdout.slice(-600),
   );
-  assert.match(run.stdout, /\n {2}inbox: 6 case\(s\), 7 turn\(s\) \(7 with the page\) × 3 = 21 turns/);
+  assert.match(run.stdout, /\n {2}inbox: 7 case\(s\), 8 turn\(s\) \(8 with the page\) × 3 = 24 turns/);
   // Each two-turn case's own block: its words, then its second turn's two lines, under its own id line.
   const listed = run.stdout.split("\n");
   for (const c of CASES.filter((x) => x.then)) {
@@ -1368,7 +1479,7 @@ test("--list says every case and its second turn, its page, the turns and their 
   assert.ok(
     run.stdout.includes(
       announcement(
-        CASES.map((c) => ({ ...c, surface: c.surface ?? "today" })),
+        ran.map((c) => ({ ...c, surface: c.surface ?? "today" })),
         3,
         0.012,
       ),
@@ -1416,4 +1527,140 @@ test("a setup's keys (the moment spec, A8): proposals_max fails more cards, card
     [],
   );
   assert.deepEqual(toolsOrderNote({}, m()), []);
+});
+
+test("card_fields_absent (the marketing manager's cases): a card of the kind holding anything at a path, dotted into its payload, fails; null holds nothing, and a card of another kind is never judged", () => {
+  const card = (kind, payload) => ({ id: "p", kind, title: "t", summary: "s", payload });
+  const m = (...proposals) => ({ text: "", proposals, tools: [], answer: { do: { next: [] } } });
+  const absent = { card_fields_absent: { message: ["template_id", "versions.sms"] } };
+  const written = {
+    name: "Win-back",
+    language: "es",
+    versions: { email: { subject: "Vuelve", body: "Te esperamos" } },
+  };
+  assert.deepEqual(setupCardsFails(absent, m(card("message", written))), []);
+  const texted = { ...written, versions: { ...written.versions, sms: { body: "10% off" } } };
+  assert.deepEqual(setupCardsFails(absent, m(card("message", texted))), [
+    "a message card holding versions.sms, which the words ruled out",
+  ]);
+  assert.match(setupCardsFails(absent, m(card("message", { ...written, template_id: "@step:1" })))[0], /template_id/);
+  assert.deepEqual(setupCardsFails(absent, m(card("message", { ...written, versions: { sms: null } }))), []);
+  assert.deepEqual(setupCardsFails(absent, m(card("broadcast", { template_id: "x", versions: { sms: {} } }))), []);
+});
+
+test("needs (a case's workspace): a case needing what EVAL_WORKSPACE_HAS does not hold is said as skipped and never asked, so never failed; one whose needs it holds runs, and so does one with none", () => {
+  assert.equal(skipFor({ id: "a", needs: ["calendar", "live_call"] }, ["calendar"]), "skip a (needs live_call)");
+  assert.equal(skipFor({ id: "b", needs: ["calendar"] }, ["calendar"]), null);
+  assert.equal(skipFor({ id: "c" }, []), null);
+  const one = (id, needs) => ({ id, text: id, surface: "today", expect: { no_write: true }, ...(needs && { needs }) });
+  assert.deepEqual(pageProblems([one("d", ["a_calendar"])]), ['d: needs "a_calendar", which no workspace token names']);
+  // The runner itself: the skipped case is said and left out of the turns it announces; the others are listed to run.
+  const file = path.join(os.tmpdir(), `eval-ask-needs-${process.pid}.json`);
+  writeFileSync(file, JSON.stringify([one("a", ["live_call"]), one("b", ["calendar"]), one("c")]));
+  try {
+    const env = { ...process.env, EVAL_WORKSPACE_HAS: "calendar, deals_on" };
+    const run = spawnSync(process.execPath, ["tooling/scripts/eval-ask.mjs", "--list", file], {
+      cwd: ROOT,
+      env,
+      encoding: "utf8",
+    });
+    assert.equal(run.status, 0, run.stderr);
+    assert.match(run.stdout, /^skip a \(needs live_call\)$/m);
+    assert.match(run.stdout, /^b · today · needs calendar$/m);
+    assert.match(run.stdout, /^2 cases, 2 turns /m);
+  } finally {
+    rmSync(file, { force: true });
+  }
+});
+
+/** The nightly's workspace as its seed leaves it (e2e-workspace.mjs), in the cases' tokens, before the Win-back's seed. */
+const NIGHTLY = ["no_calendar", "no_offers_channel", "no_offers_yes"];
+
+/** The offer's channels a workspace opens, by the rule an offer's plan reads (act/plan.ts planWorld). */
+const offerChannels = (ready) => channelChoices(ready, "marketing", "ours").filter((c) => c.channel !== "sms" && c.ok);
+
+test("needs, a channel an offer can go by: offers_channel (one channelChoices opens to an offer), offers_whatsapp (WhatsApp among them) and no_offers_channel (none) are tokens a case may name, as calendar and no_calendar are, and so is no_offers_yes (nobody's yes to offers); the runner lists and skips by them", () => {
+  const one = (id, needs) => ({ id, text: id, surface: "today", expect: { no_write: true }, needs });
+  assert.deepEqual(
+    pageProblems([
+      one("offer", ["offers_yes", "offers_channel"]),
+      one("send", ["offers_yes", "offers_whatsapp"]),
+      one("none", ["no_offers_channel"]),
+      one("decline", ["no_offers_yes"]),
+    ]),
+    [],
+  );
+  assert.equal(
+    skipFor(one("offer", ["offers_yes", "offers_channel"]), NIGHTLY),
+    "skip offer (needs offers_yes, offers_channel)",
+  );
+  assert.equal(skipFor(one("none", ["no_offers_channel"]), NIGHTLY), null);
+  // A decline that rests on nobody's yes runs where nobody said yes, and is skipped where the offer cases run: there a
+  // send to everyone is rightly answered with a card, so the decline would fail by construction.
+  const decline = CASES.find((c) => c.id === "campaigns_decline");
+  assert.equal(skipFor(decline, NIGHTLY), null);
+  assert.equal(skipFor(decline, ["offers_yes", "offers_channel"]), "skip campaigns_decline (needs no_offers_yes)");
+  // What each names, by the plan's own rule: a +1 WhatsApp number (Meta's pause on offers to US numbers) and no mailbox
+  // open nothing, the nightly's workspace (no_offers_channel); a number outside +1 opens WhatsApp (offers_whatsapp).
+  const ready = (number) =>
+    channelsReady({
+      whatsapp: { canSend: true, refusal: null, number },
+      textLine: null,
+      email: { mailbox: false, domain: true },
+    });
+  assert.deepEqual(offerChannels(ready("+12125550142")), []);
+  assert.deepEqual(
+    offerChannels(ready("+525550100142")).map((c) => c.channel),
+    ["whatsapp"],
+  );
+  // The runner itself, as the nightly's workspace runs it: the offer said as skipped, the ones that name none listed.
+  const file = path.join(os.tmpdir(), `eval-ask-offers-${process.pid}.json`);
+  writeFileSync(
+    file,
+    JSON.stringify([
+      one("offer", ["offers_yes", "offers_channel"]),
+      one("none", ["no_offers_channel"]),
+      one("decline", ["no_offers_yes"]),
+    ]),
+  );
+  try {
+    const env = { ...process.env, EVAL_WORKSPACE_HAS: NIGHTLY.join(",") };
+    const run = spawnSync(process.execPath, ["tooling/scripts/eval-ask.mjs", "--list", file], {
+      cwd: ROOT,
+      env,
+      encoding: "utf8",
+    });
+    assert.equal(run.status, 0, run.stderr);
+    assert.match(run.stdout, /^skip offer \(needs offers_yes, offers_channel\)$/m);
+    assert.match(run.stdout, /^none · today · needs no_offers_channel$/m);
+    assert.match(run.stdout, /^decline · today · needs no_offers_yes$/m);
+    assert.match(run.stdout, /^2 cases, 2 turns /m);
+  } finally {
+    rmSync(file, { force: true });
+  }
+});
+
+test("card_fields_present and proposals_not (the review after the merge, batch E): a card of the kind holding nothing at a path the words named fails, null holding nothing; a card of a kind the words ruled out fails, whatever it holds", () => {
+  const card = (kind, payload) => ({ id: "p", kind, title: "t", summary: "s", payload });
+  const m = (...proposals) => ({ text: "", proposals, tools: [], answer: { do: { next: [] } } });
+  const named = { card_fields_present: { playbook_change: ["until"] } };
+  assert.deepEqual(setupCardsFails(named, m(card("playbook_change", { playbook_id: "x", until: "2026-11-30" }))), []);
+  assert.deepEqual(setupCardsFails(named, m(card("playbook_change", { playbook_id: "x", name: "Past clients" }))), [
+    "a playbook_change card holding nothing at until, which the words named",
+  ]);
+  assert.match(setupCardsFails(named, m(card("playbook_change", { until: null })))[0], /nothing at until/);
+  const dotted = { card_fields_present: { message: ["versions.email.body"] } };
+  assert.deepEqual(setupCardsFails(dotted, m(card("message", { versions: { email: { body: "15% off" } } }))), []);
+  assert.match(setupCardsFails(dotted, m(card("message", { versions: { whatsapp: {} } })))[0], /versions\.email\.body/);
+  // A card of another kind is never judged by it, and that a card of the kind was made at all is proposals_any's.
+  assert.deepEqual(setupCardsFails(named, m(card("playbook", {}))), []);
+  assert.deepEqual(setupCardsFails(named, m()), []);
+  const barred = { proposals_not: ["broadcast", "playbook"] };
+  assert.deepEqual(setupCardsFails(barred, m(card("message", {}), card("settings", {}))), []);
+  assert.deepEqual(setupCardsFails(barred, m(card("message", {}), card("broadcast", {}), card("broadcast", {}))), [
+    "a broadcast card, which the words ruled out",
+  ]);
+  assert.deepEqual(setupCardsFails(barred, m(card("playbook", {}), card("broadcast", {}))), [
+    "a playbook/broadcast card, which the words ruled out",
+  ]);
 });

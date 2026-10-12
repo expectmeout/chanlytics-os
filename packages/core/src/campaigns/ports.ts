@@ -89,10 +89,16 @@ export interface AssemblePorts {
   monthSent(channel: "email" | "sms", at: Date): Promise<number>;
   /**
    * People of a run just assembled, held at once: each still queued is skipped, with `reason`, as the send would have
-   * held them (allowance.ts). A person already settled is left as it is. Throws when it cannot be written, and then the
-   * people stay queued, which the send's own check holds all the same.
+   * held them (allowance.ts; the week's breath). A person the send already claimed or settled is left as it is. Answers
+   * who it skipped (the rows it changed, never one it did not) and, where a step of the write failed, its words: the
+   * people not skipped stay queued, and the send's own check holds them all the same (overAllowance; LEFT_OUT_FACTS).
+   * May throw, and then none is counted as skipped.
    */
-  holdRecipients(broadcastId: string, contactIds: string[], reason: string): Promise<void>;
+  holdRecipients(
+    broadcastId: string,
+    contactIds: string[],
+    reason: string,
+  ): Promise<{ skipped: readonly string[]; error: string | null }>;
 }
 export interface AssembleCommand {
   broadcast: NewBroadcast;
@@ -103,16 +109,26 @@ export interface AssembleCommand {
    * enrolled with everyone, and held the moment the run exists, so its report says so before anything is sent.
    */
   held: readonly string[];
+  /**
+   * The people of `recipients` a send by hand leaves out, hearing from a campaign or a broadcast within a week of it,
+   * before or after (the week's breath, create-broadcast.ts), by contact: enrolled with everyone, their row marked in the run's own write
+   * (contracts LEFT_OUT_FACTS, which the send's check at the wire skips them for), and skipped with RECIPIENT_REASON_HEARD
+   * the moment the run exists, before anyone held for the month. A playbook's run names none: its moment draws by its own
+   * reading of the breath (contracts eligibleForPlaybook).
+   */
+  leftOut: readonly string[];
   /** Whose decision the send is, kept with the run; none for a run that waits for a person. */
   decision: AssembleDecision | null;
 }
 /**
  * The run made (its id, and its decision's when one was asked for), or why not. `unheld` is how many of the people to
- * hold at enrolment could not be written as held: they are queued, and the send holds them at the wire, so nothing is
- * lost; the run's record says so.
+ * hold at enrolment were not written as held: they are queued, and the send holds them at the wire, so nothing is lost;
+ * the run's record says so. `leftOutUnwritten` is the same of the people left out for the breath: queued, and held at
+ * the wire by their row's mark, so the receipt claims no skip it did not write.
  */
 export type Assembled =
-  { ok: true; id: string; decisionId: string | null; unheld: number } | { ok: false; error: string };
+  | { ok: true; id: string; decisionId: string | null; unheld: number; leftOutUnwritten: number }
+  | { ok: false; error: string };
 
 /* ---- The playbook's run ---- */
 
@@ -140,6 +156,10 @@ export interface PlaybookRow {
   list_key?: string | null;
   /** The channels it may go by (`playbooks.channels`); absent or empty on a row made before: WhatsApp alone. */
   channels?: string[] | null;
+  /** Its last day (00416), YYYY-MM-DD by the business's clock: a run for a day past it is off as `ended`. Absent before it. */
+  until?: string | null;
+  /** Until when it runs on trial (00416): before it, a run its class would send by itself waits (contracts effectiveMode). */
+  trial_until?: string | null;
 }
 
 /** The workspace as the run reads it once per tenant: the people, the modes, the number, the touches, the calendar. */
@@ -157,6 +177,10 @@ export interface RunContext {
   /** When each person last heard from each playbook, from any, and had a proposal follow-up; contact id → ms. */
   touches: {
     byThis: Map<string, Map<string, number>>;
+    /**
+     * The breath's: their latest message by any run within a week of the run's now, either side (packages/db touchIndex
+     * by contracts heardWithin), which the run asks the same predicate of (contracts eligibleForPlaybook).
+     */
     byAny: Map<string, number>;
     followUps: Map<string, number>;
     /** The latest follow-up by person and by what it was about (contracts followUpKey, 0029): which proposals had theirs. */
@@ -201,7 +225,9 @@ export type RunOutcome =
         | "no_calendar"
         | "no_list"
         | "list_uncounted"
-        | "deals_off";
+        | "deals_off"
+        /** A run for a day past the campaign's last (00416 `until`): it has ended, and sends nothing more. */
+        | "ended";
     }
   | { outcome: "failed"; error: string };
 
@@ -245,6 +271,11 @@ export interface TemplateValuesPorts {
   message(id: string): Promise<MessageVersionRow[]>;
   /** The booking link on file, or null. */
   bookingLink(): Promise<string | null>;
+  /**
+   * The link a customer leaves the business a review at, as its Google listing keeps it (db reviewLinkOf, 00415), or
+   * null: no listing, or none bound from a Business Profile. Throws when it cannot be read: unreadable is not absent.
+   */
+  reviewLink(): Promise<string | null>;
 }
 
 /** A run or broadcast as the route's scope loaded it. */
@@ -281,9 +312,23 @@ export interface CreateBroadcastPorts extends AssemblePorts, TemplateValuesPorts
    * it (null when none is connected): one read of the rows each is judged by.
    */
   channels(): Promise<{ ready: ChannelsReady; health: NumberHealth | null }>;
+  /**
+   * Who a run of any kind reached from the week's breath before `now` on (contracts PLAYBOOK_BREATH_MS), or is about to
+   * reach, and when: contact id -> the time of every touch of theirs, the read the composer
+   * counts who a send leaves out by (packages/db recentTouches), so the page, Ask's card and the people a send skips are
+   * one number. A send leaves out those with one within a week of it, either side, for the time it goes (contracts
+   * leftOutBy). Read once per send, at its press, and only when it breathes. Throws when it cannot be read: "nobody
+   * heard" is the reading that messages people twice.
+   */
+  touches(now: Date): Promise<Readonly<Record<string, readonly string[]>>>;
 }
 export interface CreateBroadcastCommand {
   userId: string;
+  /**
+   * The body as the route was handed it, the verb's own to judge (create-broadcast.ts `asked`): { template_id, params,
+   * audience, channels?, scheduled_for?, name?, breathe? }. `breathe` is whether the send leaves out the people who heard
+   * from a campaign or a broadcast within the week: absent (or null) is true; false only from the composer's own switch.
+   */
   body: unknown;
   now: Date;
 }

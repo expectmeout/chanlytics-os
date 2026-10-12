@@ -1,25 +1,34 @@
 import "server-only";
 import { z } from "zod";
 import {
+  BREATH_WHY,
   EVERYONE_LABEL,
   NO_NUMBER_REACH,
-  PLAYBOOK_TRIGGERS,
+  OFFERS_OPT_IN_PHRASES,
+  PLAYBOOK_CARD_WORDS,
   PLAYBOOK_VETO_DELAY_WORDS,
   REPLY_WINDOW_MS,
+  appointmentWords,
   audiencePreview,
   campaignChannelsOf,
+  campaignDayWords,
+  campaignsHomeOf,
   clockStamp,
   compareTemplates,
+  effectiveMode,
+  heardFor,
+  isLedgerCampaign,
+  journeyGuide,
+  lifecyclePlaybooksOf,
   listToken,
   listUnknownWords,
   listsFor,
   membersOf,
   messageHolds,
-  momentOffered,
-  nextRunLabel,
   noteRows,
   numberHealth,
   numberHealthWithStanding,
+  optInLink,
   type ChannelDto,
   playbookListRef,
   policyClassOffered,
@@ -33,10 +42,16 @@ import {
   triggerOf,
   triggerWords,
   unmetNeed,
+  whatsappLineOf,
   type AudienceKind,
   type BroadcastDto,
   type ListRef,
   type CampaignMessage,
+  type LifecycleAnswerRead,
+  type LifecycleBroadcasts,
+  type LifecycleGroup,
+  type LifecyclePlaybooks,
+  type LifecycleStage,
 } from "@chanlytics/contracts";
 import { load } from "../../../readers";
 import { audiencePool } from "../../../readers/audience-pool";
@@ -46,13 +61,14 @@ import { channels as channelsReader } from "../../../readers/channels";
 import * as readers from "../../../readers/facts";
 import { lists as listsReader } from "../../../readers/lists";
 import { playbooks } from "../../../readers/playbooks";
-import { templates as templatesReader, type TemplatesRead } from "../../../readers/templates";
+import { messageReadsOf, templates as templatesReader, type TemplatesRead } from "../../../readers/templates";
 import {
   UUID,
   defineActions,
   noteRow,
   readAction,
   str,
+  touchesThisWeek,
   unlessNotFound,
   unread,
   whatsappHowOf,
@@ -109,7 +125,7 @@ function offeredMessages(messages: readonly CampaignMessage[], tpls: TemplatesRe
  * them, WhatsApp able). `number` is what the listing says of it, null where the channels could not be read.
  */
 function numberFactsOf(chans: ChannelDto[] | null) {
-  const wa = chans?.find((c) => c.kind === "whatsapp" && c.status === "active") ?? null;
+  const wa = whatsappLineOf(chans);
   const health = {
     ...numberHealthWithStanding(
       numberHealth({
@@ -139,7 +155,7 @@ function numberFactsOf(chans: ChannelDto[] | null) {
  * assistant says is the number the card will carry.
  */
 async function listAudiences(t: ToolContext): Promise<unknown> {
-  const [pool, lists, tplRead, chans] = await Promise.all([
+  const [pool, lists, tplRead, chans, touched] = await Promise.all([
     load(t.rc, audiencePool, undefined).then((r) => r.data),
     // The workspace's own lists as People's rail reads them (readers/lists.ts), once a turn.
     load(t.rc, listsReader, undefined).then((r) => r.data.lists),
@@ -150,6 +166,10 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
     // The channels as the Broadcasts page reads them (readers/channels.ts), once a turn: workspace.settings reads the
     // same. A read that fails is no number known, as the page takes it -- said as such, never as no number.
     load(t.rc, channelsReader, undefined).then((r) => r.data.channels, unread(t, "campaigns.audiences", "channels")),
+    // Who hears from a campaign or a broadcast within a week either side of now, a message sent or one due, the breath's
+    // one read (context.ts touchesThisWeek, the cards' own): a broadcast leaves them out, so the count said here is the
+    // card's. Null where it could not be read, which is said in the log there and to the model below.
+    touchesThisWeek(t, "campaigns.audiences"),
   ]);
   const tpls = tplRead ? tplRead.data.templates : null;
   const messages = tplRead ? tplRead.data.messages : null;
@@ -164,14 +184,22 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
   // own counts (audiencePreview): `sending` is the number on its chip.
   // The number it goes out on and how a proposal that names no channel counts (numberFactsOf, above).
   const { how, number } = numberFactsOf(chans);
+  // Who it can be sent is who a broadcast that goes now goes to: those it reaches, less whoever hears from you within a
+  // week of now, either side, whom it leaves out (contracts heardFor, the card's and the route's rule), said beside it where any is. Where
+  // who heard could not be read, no count is given that the card would not carry: the card itself is refused until it can be.
+  const now = t.now.getTime();
   const sizes = (kind: AudienceKind, id: string | null, ids: Set<string> | null) => {
-    const offers = audiencePreview(rows, kind, id, ids, "marketing", how);
-    const messages = audiencePreview(rows, kind, id, ids, "conversational", how);
+    const offers = audiencePreview(rows, kind, id, ids, "marketing", how, 5, touched ?? undefined);
+    const messages = audiencePreview(rows, kind, id, ids, "conversational", how, 5, touched ?? undefined);
+    const offersOut = heardFor(offers.heardTouches, now, now).heard;
+    const messagesOut = heardFor(messages.heardTouches, now, now).heard;
     return {
       said_yes_to_offers: offers.saidYes,
-      can_be_sent_offers: offers.sending,
+      can_be_sent_offers: touched ? offers.sending - offersOut : null,
+      ...(offersOut > 0 ? { left_out_offers: offersOut } : {}),
       said_yes_to_messages: messages.saidYes,
-      can_be_sent_messages: messages.sending,
+      can_be_sent_messages: touched ? messages.sending - messagesOut : null,
+      ...(messagesOut > 0 ? { left_out_messages: messagesOut } : {}),
     };
   };
   // Every list the pool can offer (contracts listsFor): People's lists this workspace can count, then its own. Each
@@ -221,7 +249,16 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
   const couldNotRead = [
     ...(tpls ? [] : ["The messages could not be read just now: say so, and propose no broadcast until they can."]),
     ...(chans ? [] : ["The WhatsApp number's state could not be read just now."]),
+    ...(touched
+      ? []
+      : [
+          "Who has had a message from you lately, or has one due, could not be read just now, so who a broadcast goes to is not counted (can_be_sent is null): say so, and propose no broadcast until it can be read.",
+        ]),
   ];
+  // Said only where somebody is left out, so a listing with nobody left out reads as it always did.
+  const leftOutSaid = audiences.some((a) => "left_out_offers" in a || "left_out_messages" in a)
+    ? " A broadcast leaves out whoever hears from you within a week of it, before or after: can_be_sent counts who a send that goes now goes to, and left_out_offers and left_out_messages how many are left out, which the card says too; a card set for later counts for its own time, so it may leave out more or fewer."
+    : "";
   return {
     route: "broadcasts",
     audiences,
@@ -229,7 +266,7 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
     cannot_send: split?.why ?? null,
     number,
     ...(couldNotRead.length ? { could_not_read: couldNotRead } : {}),
-    note: `Two consents, two counts each, all by WhatsApp. can_be_sent_offers is who a promotional template reaches on WhatsApp and can_be_sent_messages who a utility or authentication one reaches, because ${NO_NUMBER_REACH}; said_yes_to_offers and said_yes_to_messages count everyone who gave that yes, a number or not. A message whose channels hold email or sms is proposed with channels naming them, and its card then counts the people those channels reach: a 0 in these counts does not mean nobody can be reached for it.`,
+    note: `Two consents, two counts each, all by WhatsApp. can_be_sent_offers is who a promotional template reaches on WhatsApp and can_be_sent_messages who a utility or authentication one reaches, because ${NO_NUMBER_REACH}; said_yes_to_offers and said_yes_to_messages count everyone who gave that yes, a number or not. A message whose channels hold email or sms is proposed with channels naming them, and its card then counts the people those channels reach: a 0 in these counts does not mean nobody can be reached for it.${leftOutSaid}`,
   };
 }
 
@@ -243,11 +280,14 @@ const MODE_WORDS: Record<string, string> = {
 
 /**
  * The playbooks as the page shows them — the same rows, the same last 30
- * days, the same next-run words — and the triggers with the counts the page's
- * chips carry: the Playbooks page's own read (readers/playbooks.ts), once a
- * turn, projected (ledger #10). Every count is the page's: over everyone, with
- * no one looking, the week's touches applied and, where deals are on, whoever
- * already had their proposal's follow-up left out, as a run counts them.
+ * days, the same next-run words, the same end and trial — and the triggers with
+ * the counts the page's chips carry: the Playbooks page's own read
+ * (readers/playbooks.ts), once a turn, read as Campaigns reads it (contracts
+ * lifecyclePlaybooksOf: the zone, the word, the calendar and each card's next
+ * run, why it runs nothing, the day it ended and the day its trial ends) and
+ * projected (ledger #10). Every count is the page's: over everyone, with no one
+ * looking, the week's touches applied and, where deals are on, whoever already
+ * had their proposal's follow-up left out, as a run counts them.
  */
 async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
   const [read, policies, sources] = await Promise.all([
@@ -261,10 +301,13 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
     lastDaysBySource(t.rc),
   ]);
   const pb = read.data;
-  // The workspace's word (GET playbooks' businessShape): Ask says each appointment moment as the page does.
+  const answer = lifecyclePlaybooksOf(pb, t.now);
+  const { shape, timezone } = answer;
+  // The workspace's word (GET playbooks' businessShape, as Campaigns reads it): Ask says each appointment moment as the
+  // page does.
   const said = (id: string) => {
     const x = triggerOf(id);
-    return x ? triggerWords(x, pb.appointment_word) : null;
+    return x ? triggerWords(x, shape.word) : null;
   };
   // Every playbook it lists is a row an answer may cite, opened on Playbooks at its card: the reader's RowRefs.
   noteRows(t.read, read.rows);
@@ -303,9 +346,11 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       "consult";
     return listUnknownWords(need, pb.calendar);
   };
+  // The run's breath and the appointment moments it does not hold, in the contracts' words and the workspace's word.
+  const W = appointmentWords(shape.word);
   return {
     route: "campaigns",
-    timezone: pb.timezone,
+    timezone,
     modes: {
       reengage: modeOf("reengage"),
       campaign: modeOf("campaign"),
@@ -314,7 +359,7 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       ...(policyClassOffered("follow_up", pb.deals_on) ? { follow_up: modeOf("follow_up") } : {}),
     },
     mode_words: MODE_WORDS,
-    playbooks: pb.playbooks.map((p) => ({
+    playbooks: answer.cards.map(({ playbook: p, read: c }) => ({
       playbook_id: p.id,
       name: p.name,
       trigger: p.trigger,
@@ -325,9 +370,18 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       channels: campaignChannelsOf(p.channels),
       state: p.state,
       policy_class: p.policy_class,
-      mode: modeOf(p.policy_class),
-      schedule: scheduleLine(p, pb.appointment_word),
-      next_run: nextRunLabel(p, pb.timezone, t.now, pb.ready?.paused === true),
+      // The mode its runs go under now: its class's, but auto reads veto while on trial (contracts effectiveMode, core
+      // run-playbook's own), with the day the trial ends as its card says it.
+      mode: effectiveMode(p, modeOf(p.policy_class), t.now),
+      ...(c.trial ? { on_trial_until: c.trial } : {}),
+      schedule: scheduleLine(p, shape.word),
+      // No next run where it runs nothing here (an ended campaign, a follow-up with deals off): the card's one predicate,
+      // and why in its words.
+      next_run: c.off ? null : c.next,
+      ...(c.off ? { runs_nothing: c.off } : {}),
+      ...(c.ended ? { ended: c.ended } : {}),
+      // Its last day while it is still ahead (or today): an ended one says `ended` instead.
+      ...(p.until && !c.ended ? { ends: campaignDayWords(p.until, timezone, t.now) } : {}),
       // On a list (decision 0009): its token, and who a run on it reaches now, as the page counts that list.
       ...(() => {
         const ref = playbookListRef(p);
@@ -342,18 +396,18 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
     })),
     // The moments offered for a new playbook here: a proposal's only where deals are on (0006), and of the two win-backs
     // the one this workspace can read (momentOffered; a connected calendar's feed need not be readable just now).
-    triggers: PLAYBOOK_TRIGGERS.filter((x) =>
-      momentOffered(x, { dealsOn: pb.deals_on, calendarOn: pb.calendar !== "none" }),
-    ).map((x) => ({
-      trigger: x.id,
-      label: triggerWords(x, pb.appointment_word).label,
-      when: triggerWords(x, pb.appointment_word).hint,
-      policy_class: x.cls,
-      // On a list, the counts are the list's: campaigns.audiences has each list's.
-      ...(x.kind === "saved" ? { counted_per_list: true } : counted(x.id)),
-      starter_template: starterForTrigger(x.id)?.title ?? null,
-    })),
-    note: `A run is a broadcast, and ${NO_NUMBER_REACH}. It never reaches anyone twice within the playbook's gap, and sends one playbook message per person per week. said_yes_now counts who each trigger names that said the yes its template needs, a number or not; can_be_sent_now is who of them a run reaches now, the Playbooks page's own count: whoever a broadcast already reached this week waits out the week. A null count means the page could not count it just now.${pb.deals_on ? " The proposal follow-up reaches each proposal once, with its link: its counts leave out whoever already had theirs." : ""}`,
+    triggers: answer.moments
+      .filter((x) => x.offered)
+      .map(({ trigger: x }) => ({
+        trigger: x.id,
+        label: triggerWords(x, shape.word).label,
+        when: triggerWords(x, shape.word).hint,
+        policy_class: x.cls,
+        // On a list, the counts are the list's: campaigns.audiences has each list's.
+        ...(x.kind === "saved" ? { counted_per_list: true } : counted(x.id)),
+        starter_template: starterForTrigger(x.id)?.title ?? null,
+      })),
+    note: `A run is a broadcast, and ${NO_NUMBER_REACH}. It never reaches anyone twice within the playbook's gap, and holds whoever hears ${BREATH_WHY}, by a message already sent or one due, for a later run; a reminder the day before ${W.a} and a check the day after go one per ${W.one}, exempt from the gap and ${PLAYBOOK_CARD_WORDS.appointmentBreath}. said_yes_now counts who each trigger names that said the yes its template needs, a number or not; can_be_sent_now is who of them a run reaches now, the Playbooks page's own count: whoever hears from you within a week of today, by a message already sent or one due, waits. A null count means the page could not count it just now.${pb.deals_on ? " The proposal follow-up reaches each proposal once, with its link: its counts leave out whoever already had theirs." : ""}`,
   };
 }
 
@@ -445,14 +499,160 @@ async function readBroadcast(t: ToolContext, input: { broadcast_id: string }): P
 }
 
 /**
+ * The message library whole (readers/templates.ts messageReadsOf), over Settings' read (`all`), the one the Library's
+ * page and Ask's context of it read: every message, a version still in Meta's review among its versions with its state,
+ * the values it fills and the campaigns that send it, so a message Ask writes is never a twin of one the workspace holds.
+ * Every version is a row an answer may cite, as the read gave it: a template, opened on the Library. Ask's plan reads the
+ * Library through it too (act/plan.ts).
+ */
+export async function readMessages(t: ToolContext) {
+  const read = await load(t.rc, templatesReader, { all: true });
+  const library = read.data;
+  if (library.usedBy === undefined) throw new Error("templates: Settings' read came back without what sends each");
+  const messages = messageReadsOf(library);
+  const versions = new Set(messages.flatMap((m) => m.versions.map((v) => v.id)));
+  noteRows(
+    t.read,
+    read.rows.filter((r) => versions.has(r.id)),
+  );
+  return { route: "messages", messages };
+}
+
+/** GET playbooks' answer and GET broadcasts', as their readers give them. */
+type PlaybooksRead = Awaited<ReturnType<(typeof playbooks)["read"]>>["data"];
+type BroadcastsRead = Awaited<ReturnType<(typeof broadcastsReader)["read"]>>["data"];
+
+/**
+ * The playbooks surface as the home reads it, through the one reading of GET playbooks' answer the surface makes
+ * (contracts lifecyclePlaybooksOf, cmp/playbooks/surface.ts): each card beside what the answer says of it, each moment's
+ * pool, the moments that may run here with which a new campaign may start from, whether every moment was counted, and
+ * whether each channel can send now. A card's own reach (its candidates, held and named) is counted by the surface for the
+ * channels it ticks; the journey says none of it, so here it is not counted (null, as the home reads a count not made).
+ */
+function homePlaybooksOf(
+  read: LifecycleAnswerRead<PlaybooksRead["playbooks"][number]>,
+  pb: PlaybooksRead,
+): LifecyclePlaybooks {
+  return {
+    rows: read.cards.map(({ playbook, read: card }) => ({
+      ...playbook,
+      ...card,
+      candidates: null,
+      held: null,
+      named: null,
+    })),
+    pools: pb.pools,
+    triggers: read.moments.map(({ trigger, offered }) => ({ id: trigger.id, offered })),
+    timezone: read.timezone,
+    countsRead: read.countsRead,
+    ready: pb.ready,
+    modes: pb.modes,
+  };
+}
+
+/**
+ * The broadcasts surface as the home reads it (cmp/broadcasts/surface.ts): the runs by the business's clock, whether each
+ * channel can send now, the workspace's WhatsApp line (contracts whatsappLineOf, none where the channels could not be
+ * read, as that surface takes it) and the yes to offers asked on it. Null where the broadcasts could not be read, which
+ * the home takes as a line to answer on. Who can hear the workspace is not counted: the journey says none of it.
+ */
+function homeBroadcastsOf(
+  bc: BroadcastsRead | null,
+  chans: ChannelDto[] | null,
+  at: { tz: string; now: Date },
+): LifecycleBroadcasts | null {
+  if (!bc) return null;
+  const wa = whatsappLineOf(chans);
+  return {
+    rows: bc.broadcasts.map((b) => toBroadcastVM(b, at.tz, at.now)),
+    number: { present: !!wa },
+    ready: bc.ready,
+    optIn: { phrase: OFFERS_OPT_IN_PHRASES.en, link: optInLink(wa?.number_e164) },
+    reach: null,
+  };
+}
+
+/**
+ * A stage of the rail as data: its caption, whether it is covered, its state in the page's words, the moment a campaign
+ * on it starts from, and the campaigns that stand on it, each with its state as its row in the ledger says it (the
+ * receptionist and the call's text are First contact's rows and no campaign, contracts isLedgerCampaign).
+ */
+function journeyStageLine(stage: LifecycleStage, group: LifecycleGroup | undefined) {
+  return {
+    id: stage.id,
+    label: stage.caps,
+    covered: stage.covered,
+    state: stage.stateWords,
+    moment: stage.moment === null ? null : (triggerOf(stage.moment)?.id ?? null),
+    campaigns: (group?.rows ?? [])
+      .filter(isLedgerCampaign)
+      .map((r) => ({ id: r.id, name: r.name, state: r.stateWords })),
+  };
+}
+
+/**
+ * The journey as Campaigns' home draws it (contracts campaignsHomeOf), its rail as data: the playbooks and the broadcasts
+ * read as the page's surfaces answer from them, through the surface's own reading of GET playbooks' answer (contracts
+ * lifecyclePlaybooksOf, cmp/home/use-home.ts), and the channels for the WhatsApp line First contact is answered on, so
+ * the number Ask says is the page's (the rail's own `covered` of `of`); and the guide (contracts journeyGuide), what each
+ * touch point sends and when, for the workspace's shape and in its word. Only what the rail reads is read: the
+ * reach-outs, the library and the campaigns' last 30 days are the ledger's, the head's and the tiles', and the home takes
+ * each as not read yet. The campaigns it names are rows a citation names, opened on their drawer. A read the rail can do
+ * without that fails is the page's failed read: the rail stands, and the log says it. Ask's plan reads the journey through
+ * it too (act/plan.ts).
+ */
+export async function readJourney(t: ToolContext) {
+  const failed = (read: string) => unread(t, "campaigns.journey", read);
+  const [read, bc, chans] = await Promise.all([
+    load(t.rc, playbooks, undefined),
+    load(t.rc, broadcastsReader, undefined).then((r) => r.data, failed("broadcasts")),
+    load(t.rc, channelsReader, undefined).then((r) => r.data.channels, failed("channels")),
+  ]);
+  const pb = read.data;
+  const answer = lifecyclePlaybooksOf(pb, t.now);
+  const { shape } = answer;
+  const home = campaignsHomeOf({
+    nowMs: t.now.getTime(),
+    tz: answer.timezone,
+    playbooks: homePlaybooksOf(answer, pb),
+    broadcasts: homeBroadcastsOf(bc, chans, { tz: answer.timezone, now: t.now }),
+    library: undefined,
+    messages: undefined,
+    reachOuts: undefined,
+    report: undefined,
+    shape,
+    chains: undefined,
+  });
+  const stages = home.rail.stages.map((s) =>
+    journeyStageLine(
+      s,
+      home.ledger.groups.find((g) => g.id === s.id),
+    ),
+  );
+  const named = new Set(stages.flatMap((s) => s.campaigns.map((c) => c.id)));
+  noteRows(
+    t.read,
+    read.rows.filter((r) => named.has(r.id)),
+  );
+  return {
+    route: "campaigns",
+    covered: home.rail.covered,
+    of: home.rail.of,
+    stages,
+    guide: journeyGuide({ calendarOn: shape.calendar === "feed", dealsOn: shape.dealsOn, word: shape.word }),
+  };
+}
+
+/**
  * What goes out to the people who said yes (D11): a broadcast's audiences and templates (audiences, once
  * list_audiences) and the playbooks (playbooks, once list_playbooks); since Phase 4, the broadcasts as their page lists
- * them (broadcasts) and one broadcast's run (broadcast).
+ * them (broadcasts) and one broadcast's run (broadcast); since 10 Oct 2026, the library whole (messages) and the journey
+ * as Campaigns' home draws it, with the guide beside it (journey).
  */
 export const campaignsTool = defineActions({
   name: "campaigns",
   description: "What goes out to the people who said yes, by action.",
-  tail: "Call action audiences before proposing a broadcast, and to say who a message would reach; call action playbooks to say what is running, and before proposing a playbook. Pick the message first, then quote its can_be_sent count as who the broadcast reaches, never a larger one, for a message that goes by WhatsApp; for a message whose channels hold email or sms, propose it with channels naming them and quote the card's count, since the can_be_sent counts are by WhatsApp alone and a 0 there does not mean nobody can be reached; when a WhatsApp message's count is 0 and its said_yes is not, and its channels hold no other, the ones who said yes have no number to send to: say so, and never send the owner to get a yes they already have. When a playbook's can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number to send to, or heard from a broadcast this week: say so the same way. A list that cannot be counted here carries cannot_count and no counts; a null count means the page could not count it just now, and nothing has run because it was read.",
+  tail: "Call action audiences before proposing a broadcast, and to say who a message would reach; call action playbooks to say what is running, and before proposing a playbook. Pick the message first, then quote its can_be_sent count as who the broadcast reaches, never a larger one, for a message that goes by WhatsApp; for a message whose channels hold email or sms, propose it with channels naming them and quote the card's count, since the can_be_sent counts are by WhatsApp alone and a 0 there does not mean nobody can be reached; when a WhatsApp message's count is 0 and its said_yes is not, and its channels hold no other, the ones who said yes have no number to send to: say so, and never send the owner to get a yes they already have. When a playbook's can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number to send to, or hear from you within a week of today: say so the same way. A list that cannot be counted here carries cannot_count and no counts; a null count means the page could not count it just now, and nothing has run because it was read.",
   actions: {
     audiences: readAction({
       input: z.object({}),
@@ -466,7 +666,7 @@ export const campaignsTool = defineActions({
       examples: [{}],
       label: "Reading the campaigns",
       words:
-        "Action playbooks takes nothing more and reads the playbooks as the Playbooks page shows them, standing rules that each send one message to newly eligible people who said yes: each with what starts it, its message (template), the channels it goes by now (channels), its clock and next run, whether it is running, the autonomy mode its class runs under, its list when it runs on one, what it sent and how many replied over the last 30 days (last_30_days, null where that could not be read), and a run waiting for a person if there is one; then every moment this workspace can use, with who it names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter message (starter_template).",
+        "Action playbooks takes nothing more and reads the playbooks as the Playbooks page shows them, standing rules that each send one message to newly eligible people who said yes: each with what starts it, its message (template), the channels it goes by now (channels), its clock and next run (next_run, null where it runs nothing here: runs_nothing says why, and ended the day one ended, its state may still read running), its last day ahead (ends), whether it is running, the mode its runs go under now (mode: its class's, but auto reads veto while on trial until on_trial_until), its list when it runs on one, what it sent and how many replied over the last 30 days (last_30_days, null where that could not be read), and a run waiting for a person if there is one; then every moment this workspace can use, with who it names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter message (starter_template).",
       run: listPlaybooksTool,
     }),
     broadcasts: readAction({
@@ -483,6 +683,22 @@ export const campaignsTool = defineActions({
       label: "Reading the broadcast",
       words: `Action broadcast takes broadcast_id, the id action broadcasts returned or a playbook's waiting run, and reads one broadcast as its opened run shows it: its row, the five figures (sent, delivered, replied, said yes, asked to stop) with what each means, the people it touched in the page's words, and what came back, quoted, with what happened since. Call it for who a broadcast reached and what they said. It returns at most ${RUN_CAP.people} people and ${RUN_CAP.replies} replies, the figures counting everyone, each person as the page names them and their id; a broadcast the workspace does not hold is an error, said in words.`,
       run: readBroadcast,
+    }),
+    messages: readAction({
+      input: z.object({}),
+      examples: [{}],
+      label: "Reading the messages",
+      words:
+        "Action messages takes nothing more and reads the message library whole: every message, a name in a language, with its category, each version on its channel with its state (approved, pending while WhatsApp reviews it, rejected, paused or disabled), the values it fills (slots: each one's position, name and what it most likely takes) and the campaigns that send it (used_by). Call it before a new message is written, to find one that already says it, a version still in review or a message the pickers hide included, so the library never holds a twin. To pick a message a broadcast or a playbook can go out on now, and to say who it reaches, call action audiences instead: this one lists versions nothing can send yet. It counts nobody and quotes no message's words.",
+      run: readMessages,
+    }),
+    journey: readAction({
+      input: z.object({}),
+      examples: [{}],
+      label: "Reading the journey",
+      words:
+        "Action journey takes nothing more and reads the journey as Campaigns' home draws it: how many of its moments are covered (covered, of), then each stage in the order a customer passes it (first contact, the day before and the day after an appointment, which need a calendar, a proposal waiting where deals are on, quiet or lapsed) with its label, whether it is covered, its state in the page's words, the moment a campaign on it starts from (moment) and the campaigns that stand on it; and guide, what each touch point it can run sends and when, as its moment says it, the month's offer among them on no stage. Call it for what the owner is missing and what each touch point would send. An offer, a promotion or a whole setup is one call of propose_campaign with action plan, which reads the journey itself and makes the steps, never a campaign proposed stage by stage from this read; one stage asked for alone is a campaign on its moment, once a stage that needs a calendar has one (first contact is the receptionist's and needs none). For one campaign's clock, counts and runs, and whether the month's offer runs, call action playbooks.",
+      run: readJourney,
     }),
   },
 });

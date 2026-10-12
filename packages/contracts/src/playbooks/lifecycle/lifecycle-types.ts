@@ -57,8 +57,18 @@ export interface LifecyclePlaybook {
   candidates: number | null;
   held: number | null;
   named: LifecycleNamed | null;
-  /** Why it runs nothing here (a follow-up where deals are off), or null. */
+  /** Why it runs nothing here (a follow-up where deals are off, a campaign past its last day), or null. */
   off: string | null;
+  /**
+   * Its last day as its words say it ("Oct 1"), where the business's today is past it (00416 `until`): it has ended, and
+   * `off` says so. Null or absent otherwise.
+   */
+  ended?: string | null;
+  /**
+   * The day its trial ends as its words say it ("Oct 9"), while it is on trial (00416 `trial_until`): a run its class
+   * would send by itself waits for a person. Null or absent otherwise.
+   */
+  trial?: string | null;
   listArchived?: boolean;
   totals: { waiting: { id: string; recipient_count: number } | null };
   /** The channels it goes by (the row's `channels`): WhatsApp alone where it names none, as one made before them. */
@@ -96,12 +106,10 @@ export interface LifecycleChannelMark {
   state: ChannelStand;
 }
 
-/** A moment the surface offers, with its own count and who it names. */
+/** A moment that may run here, as the home reads it: whether a new campaign may start from it (its count is the surface's). */
 export interface LifecycleTrigger {
   id: string;
   offered: boolean;
-  candidates: number | null;
-  named: LifecycleNamed | null;
 }
 
 /** The playbooks surface, as the home reads it. */
@@ -595,8 +603,18 @@ export interface LifecycleHead {
 
 export interface LifecycleHome {
   head: LifecycleHead;
-  /** The rail: its name, how many moments are covered ("2 of 5 moments covered", and the phone's "2 of 5 on"), and the stages. */
-  rail: { title: string; coveredWords: string | null; phoneWords: string | null; stages: readonly LifecycleStage[] };
+  /**
+   * The rail: its name, how many moments are covered of how many (`covered` of `of`, the one count; said "2 of 5 moments
+   * covered", and the phone's "2 of 5 on"), and the stages.
+   */
+  rail: {
+    title: string;
+    covered: number;
+    of: number;
+    coveredWords: string | null;
+    phoneWords: string | null;
+    stages: readonly LifecycleStage[];
+  };
   /** Every campaign, grouped by the moment it stands on (spec 2026-10-09 §4.1). */
   ledger: LifecycleLedger;
   reach: LifecycleReachTile;

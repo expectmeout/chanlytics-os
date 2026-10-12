@@ -121,6 +121,9 @@ export function replyDrafter(db: Db, over: { brain?: typeof generateReply; now?:
       policy: null,
       intent: null,
       known: rt.known,
+      // The clock the prompt was composed at: a note's price is allowed while the draft's prompt told the note.
+      tz: rt.timezone,
+      now: at,
     });
     if (two.priceBlocked) {
       L.warn("policy_block_price", { conversation: ask.conversationId });

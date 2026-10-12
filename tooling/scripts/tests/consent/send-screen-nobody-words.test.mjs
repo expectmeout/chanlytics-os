@@ -35,7 +35,8 @@ const regulars = { label: "Regulars" };
 const reading = { people: [], saidYes: 2 };
 
 test("nobody can be sent it and somebody said yes: by WhatsApp a number is missing; by email, what the route asks", () => {
-  const by = (on) => bcPeopleOf({ active: regulars, purpose: "conversational", activeCount: 0, reading, on }).noNumber;
+  const by = (on) =>
+    bcPeopleOf({ active: regulars, purpose: "conversational", activeCount: 0, leftOut: 0, reading, on }).noNumber;
   assert.match(by(["whatsapp"]), /number/, "WhatsApp alone: the ones who said yes have no number to send to");
   const email = by(["email"]);
   assert.match(email, /^Nobody on “Regulars” can be sent this yet\./);
@@ -45,7 +46,8 @@ test("nobody can be sent it and somebody said yes: by WhatsApp a number is missi
   assert.match(by(["whatsapp", "email"]), /On WhatsApp: only people with a recorded yes .* and a phone number\./);
   // Somebody can be sent it, or nobody said yes: no such line.
   assert.equal(
-    bcPeopleOf({ active: regulars, purpose: "conversational", activeCount: 1, reading, on: ["email"] }).noNumber,
+    bcPeopleOf({ active: regulars, purpose: "conversational", activeCount: 1, leftOut: 0, reading, on: ["email"] })
+      .noNumber,
     null,
   );
   assert.equal(
@@ -53,9 +55,18 @@ test("nobody can be sent it and somebody said yes: by WhatsApp a number is missi
       active: regulars,
       purpose: "conversational",
       activeCount: 0,
+      leftOut: 0,
       reading: { people: [], saidYes: 0 },
       on: ["email"],
     }).noNumber,
     null,
   );
+  // Everyone on it left out by the week's breath (they hear from you within a week of it): they can be reached, so nobody
+  // is said to lack a number, on any channel.
+  for (const on of [["whatsapp"], ["email"]])
+    assert.equal(
+      bcPeopleOf({ active: regulars, purpose: "conversational", activeCount: 0, leftOut: 2, reading, on }).noNumber,
+      null,
+      `${on}: the ones left out can be reached`,
+    );
 });

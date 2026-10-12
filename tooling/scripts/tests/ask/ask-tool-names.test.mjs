@@ -981,12 +981,38 @@ function withCampaignsLabel(want) {
 }
 
 /**
+ * 11 Oct 2026 (a one-off send honours the breath, fix round 3): the week's breath counts a message within a week either
+ * side, one due included, so campaigns.playbooks' note says who waits in those words. The one sentence, once.
+ */
+function withTheBreathsWords(frozen) {
+  return frozen.replace(
+    "whoever a broadcast already reached this week waits out the week.",
+    "whoever hears from you within a week of today, by a message already sent or one due, waits.",
+  );
+}
+
+/**
+ * 12 Oct 2026 (Ask as the marketing manager, the review after the merge): the run's breath is a week either side of it,
+ * a message sent or due, never one playbook message a week, and the appointment moments are exempt from it and from the
+ * playbook's gap (contracts playbookRunReach returns before either), so campaigns.playbooks' note says both in the
+ * contracts' words (BREATH_WHY, PLAYBOOK_CARD_WORDS.appointmentBreath), in this workspace's word (it sells by proposal: a
+ * meeting). The one sentence, once; this world lists no playbook, so the fields that say a campaign's end and its trial
+ * are not in these bytes.
+ */
+function withTheRunsBreath(frozen) {
+  return frozen.replace(
+    "and sends one playbook message per person per week.",
+    "and holds whoever hears from you within a week of it, by a message already sent or one due, for a later run; a reminder the day before a meeting and a check the day after go one per meeting, exempt from the gap and exempt from one a week per person: each goes whatever else they hear from you within a week of it.",
+  );
+}
+
+/**
  * 9 Oct 2026 (the moment spec, A6, D35): campaigns.playbooks says each playbook's last 30 days (last_30_days, from
  * campaign_series' sources; null where that read fails, as in this world, which models no campaign_series) in the place
  * of its all-time runs, sent and replied, and its route is Campaigns' own word. Nothing else moved.
  */
 function withLastThirtyDays(frozen) {
-  const said = JSON.parse(frozen);
+  const said = JSON.parse(withTheRunsBreath(withTheBreathsWords(frozen)));
   if (!Array.isArray(said.playbooks)) return frozen;
   const playbooks = said.playbooks.map((p) =>
     Object.fromEntries(
@@ -1147,12 +1173,11 @@ test("every old tool's call, made by its new name and action, answers the bytes 
         : reachReads;
     // 7 Oct 2026 (00344, decision 0034 step 4): a person's page reads the open doubts naming them (person_doubts) in the
     // same round, so people.get makes that one read more; its bytes are unchanged, the tool not saying them yet.
-    // 12 Oct 2026 (decision 0052): and the signers of their replies, offered or taken (db signersOf), in the same round;
-    // the business they work at only where their row names one, which this person's does not. Its bytes are unchanged.
-    const withDoubts =
-      NAMES[old] === "people.get"
-        ? [...withDecisions, "person_doubts.select", "reach_out_replies.select"]
-        : withDecisions;
+    const withDoubts0 = NAMES[old] === "people.get" ? [...withDecisions, "person_doubts.select"] : withDecisions;
+    // 12 Oct 2026 (#1566, decision 0052): and the signers of their replies still offered or taken (db signersOf), in the
+    // same round; its bytes are unchanged, the tool not saying them. This world's person names no lead, so the business
+    // they work at reads nothing.
+    const withDoubts = NAMES[old] === "people.get" ? [...withDoubts0, "reach_out_replies.select"] : withDoubts0;
     // 7 Oct 2026 (00345, bookings arrive by email): the calendar's reader reads the record beside the feed -- the
     // appointments over the span, the notices' health line (the latest, and the held count) and the workspace's mailbox
     // -- so calendar.week makes those reads more. Its bytes are unchanged: this workspace has no calendar and no
@@ -1200,13 +1225,20 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // for a call that reaches its card, and no read of the runs' people where the week holds no run. Its bytes are
     // unchanged: nobody here heard from a campaign this week.
     const withWeek = readsTwins ? [...withTwins, "broadcasts.select", "tenants.select"] : withTwins;
+    // 11 Oct 2026 (a one-off send honours the breath): a broadcast proposed leaves out whoever heard this week, as the
+    // composer counts them and the route skips them (db recentTouches over touchesSince): the same two reads more for a
+    // call that reaches its card, and for the audiences listing, which counts as the card does. Their bytes are unchanged:
+    // nobody here heard from a campaign this week.
+    const readsBreath =
+      (NAMES[old] === "propose_campaign.broadcast" && !want.isError) || NAMES[old] === "campaigns.audiences";
+    const withBreath = readsBreath ? [...withWeek, "broadcasts.select", "tenants.select"] : withWeek;
     // 10 Oct 2026 (Reports, the Receptionist lens, C2 T13): and the Receptionist lens's own: one rpc more (withReceptionistReads).
     // 10 Oct 2026 (Reports, the People lens, C3 T13): and the People lens's: its series and the channels the book is judged against.
     // 11 Oct 2026 (Reports, the Campaigns lens, C4 T16): and the Campaigns lens's ledger, what is stuck and the number (withCampaignReads).
     const reads =
       NAMES[old] === "report"
-        ? withCampaignReads(withPeopleReads(withReceptionistReads(withReviewReads(withWeek))))
-        : withWeek;
+        ? withCampaignReads(withPeopleReads(withReceptionistReads(withReviewReads(withBreath))))
+        : withBreath;
     const [gotResult, wantResult] =
       NAMES[old] === "campaigns.playbooks"
         ? againstOffered(got.result, withLastThirtyDays(result))

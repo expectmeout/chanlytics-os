@@ -112,18 +112,32 @@ export async function templatesToSend(db: Db, tenantId: string, channel = "whats
  * workspace has no row of that name, which is a message that does not exist. A read that fails THROWS.
  */
 export async function messageSlots(db: Db, tenantId: string, name: string, language: string): Promise<number | null> {
+  return (await heldMessageOf(db, tenantId, name, language))?.slots ?? null;
+}
+
+/**
+ * What a message the workspace holds is, for a version being written in `language`: the category and the number of
+ * slots of the row its versions take them from (messageSlots's row: WhatsApp's first, then the one in this language).
+ * Null when the workspace has no row of that name. A read that fails THROWS.
+ */
+export async function heldMessageOf(
+  db: Db,
+  tenantId: string,
+  name: string,
+  language: string,
+): Promise<{ category: string | null; slots: number } | null> {
   const { data, error } = await db
     .from("templates")
-    .select("channel, language, variables")
+    .select("channel, language, category, variables")
     .eq("tenant_id", tenantId)
     .eq("name", name);
-  if (error) throw new Error(`messageSlots: ${error.message}`);
+  if (error) throw new Error(`heldMessageOf: ${error.message}`);
   const rows = (data ?? []).slice().sort((a, b) => {
     const wa = Number(b.channel === "whatsapp") - Number(a.channel === "whatsapp");
     return wa || Number(b.language === language) - Number(a.language === language);
   });
   const row = rows[0];
-  return row ? variablesSlotCount(row.variables) : null;
+  return row ? { category: row.category, slots: variablesSlotCount(row.variables) } : null;
 }
 
 /** The name and language of the message a version of this workspace's is, or null when it holds no version of that id. */

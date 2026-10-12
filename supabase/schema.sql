@@ -1954,18 +1954,34 @@ begin
   if p_tenant_id is null or p_playbook_id is null then
     raise exception 'change_playbook: a playbook is named by its workspace and its id' using errcode = '22004';
   end if;
-  -- The six columns a change may name, and nothing else: a key outside them is refused, never ignored.
+  -- The nine columns a change may name, and nothing else: a key outside them is refused, never ignored.
   if v_set = '{}'::jsonb or exists (
     select 1 from jsonb_object_keys(v_set) k
-     where k not in ('state', 'name', 'run_hour', 'cap_per_run', 'gap_days', 'cadence_days')
+     where k not in ('state', 'name', 'run_hour', 'cap_per_run', 'gap_days', 'cadence_days', 'params', 'until',
+                     'trial_until')
   ) then
-    raise exception 'change_playbook: name what changes: state, name, run_hour, cap_per_run, gap_days or cadence_days'
+    raise exception 'change_playbook: name what changes: state, name, run_hour, cap_per_run, gap_days, cadence_days, params, until or trial_until'
       using errcode = '22023';
   end if;
-  -- A null is no value: none of the six columns is ever empty, so it is refused, never read as "keep what it holds".
-  if exists (select 1 from jsonb_each(v_set) e where jsonb_typeof(e.value) = 'null') then
-    raise exception 'change_playbook: name a value for each column named: none of the six is ever empty'
+  -- A null is no value for the seven columns that are never empty, so it is refused, never read as "keep what it
+  -- holds". The two dates take it: it clears them.
+  if exists (select 1 from jsonb_each(v_set) e
+              where jsonb_typeof(e.value) = 'null' and e.key not in ('until', 'trial_until')) then
+    raise exception 'change_playbook: name a value for each column named: only until and trial_until may be cleared'
       using errcode = '22023';
+  end if;
+  -- The message's slots are an array, as a run reads them; anything else is refused. What each element is (the slot
+  -- specs the route builds) is core's to judge, so whatever a row holds is written back by an undo.
+  if v_set ? 'params' and jsonb_typeof(v_set -> 'params') <> 'array' then
+    raise exception 'change_playbook: params is the message''s slots, an array' using errcode = '22023';
+  end if;
+  -- The two dates in the spelling the row's own are read in (to_jsonb of the cast), so the same day or instant written
+  -- another way differs from nothing; a value that is no date is refused by its cast here (22007), before the lock.
+  if v_set ? 'until' and jsonb_typeof(v_set -> 'until') <> 'null' then
+    v_set := jsonb_set(v_set, '{until}', to_jsonb((v_set ->> 'until')::date));
+  end if;
+  if v_set ? 'trial_until' and jsonb_typeof(v_set -> 'trial_until') <> 'null' then
+    v_set := jsonb_set(v_set, '{trial_until}', to_jsonb((v_set ->> 'trial_until')::timestamptz));
   end if;
   -- The row as it stands, locked until the transaction ends, read on the caller's rights: a lock asks the update
   -- policy as well as the select policy, so another workspace's row, or one their seat may not change, is no row.
@@ -1991,7 +2007,11 @@ begin
          run_hour     = coalesce((v_diff ->> 'run_hour')::integer, p.run_hour),
          cap_per_run  = coalesce((v_diff ->> 'cap_per_run')::integer, p.cap_per_run),
          gap_days     = coalesce((v_diff ->> 'gap_days')::integer, p.gap_days),
-         cadence_days = coalesce((v_diff ->> 'cadence_days')::integer, p.cadence_days)
+         cadence_days = coalesce((v_diff ->> 'cadence_days')::integer, p.cadence_days),
+         params       = coalesce(v_diff -> 'params', p.params),
+         until        = case when v_diff ? 'until' then (v_diff ->> 'until')::date else p.until end,
+         trial_until  = case when v_diff ? 'trial_until' then (v_diff ->> 'trial_until')::timestamptz
+                             else p.trial_until end
    where p.id = p_playbook_id and p.tenant_id = p_tenant_id;
   -- A forbidden update raises nothing: counted, so a change the policy refused is never answered as made.
   get diagnostics v_rows = row_count;
@@ -2016,7 +2036,7 @@ end $$;
 -- Name: FUNCTION change_playbook(p_tenant_id uuid, p_playbook_id uuid, p_set jsonb, p_decision jsonb, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.change_playbook(p_tenant_id uuid, p_playbook_id uuid, p_set jsonb, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A member changes a playbook in place and its line in the ledger together (the change_playbook door): the row locked on the caller''s rights, of the columns p_set names (state, name, run_hour, cap_per_run, gap_days, cadence_days) only those that differ from the row written, then start_playbook or pause_playbook where the state moved, else change_playbook, as theirs (member_decision), in one transaction. A null is refused (22023). Security invoker: the update policy (is_acting_member: an owner, an operator, or a partner on a session that showed its second factor) and the column grants judge it. P0002 where the caller cannot see or change the row. Returns id, was (what each written column held), decision_id and undo_dropped; where nothing differs, nothing is written and no line: was is empty and decision_id null.';
+COMMENT ON FUNCTION public.change_playbook(p_tenant_id uuid, p_playbook_id uuid, p_set jsonb, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A member changes a playbook in place and its line in the ledger together (the change_playbook door): the row locked on the caller''s rights, of the columns p_set names (state, name, run_hour, cap_per_run, gap_days, cadence_days, params, until, trial_until) only those that differ from the row written, then start_playbook or pause_playbook where the state moved, else change_playbook, as theirs (member_decision), in one transaction. A key outside the nine is refused (22023); so is a null, but for until and trial_until, which it clears, and a params that is not an array. Security invoker: the update policy (is_acting_member: an owner, an operator, or a partner on a session that showed its second factor) and the column grants judge it. P0002 where the caller cannot see or change the row. Returns id, was (what each written column held), decision_id and undo_dropped; where nothing differs, nothing is written and no line: was is empty and decision_id null (00377, 00416).';
 
 
 --
@@ -22761,13 +22781,14 @@ begin
   end if;
   -- On the caller's rights: the table's insert policy judges the row (an acting member, as themselves, a moment, a
   -- list and a message of this workspace), and its checks and unique indexes refuse what they refuse. The workspace,
-  -- who made it and that it runs are said here, never by the caller; `kind` is the table's default, a moment.
+  -- who made it and that it runs are said here, never by the caller; `kind` is the table's default, a moment. Its last
+  -- day and its trial's end are the caller's (00416), each null where it names none.
   insert into public.playbooks (tenant_id, name, trigger, list_id, list_key, template_id, template_name,
                                 template_language, params, policy_class, state, run_hour, cap_per_run, gap_days,
-                                cadence_days, channels, created_by)
+                                cadence_days, channels, until, trial_until, created_by)
   select p_tenant_id, r.name, r.trigger, r.list_id, r.list_key, r.template_id, r.template_name,
          r.template_language, r.params, r.policy_class, 'running', r.run_hour, r.cap_per_run, r.gap_days,
-         r.cadence_days, r.channels, v_actor
+         r.cadence_days, r.channels, r.until, r.trial_until, v_actor
     from jsonb_populate_record(null::public.playbooks, p_playbook) r
   returning id into v_id;
   return jsonb_build_object('id', v_id)
@@ -22779,7 +22800,7 @@ end $$;
 -- Name: FUNCTION start_playbook(p_tenant_id uuid, p_playbook jsonb, p_decision jsonb, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.start_playbook(p_tenant_id uuid, p_playbook jsonb, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A member starts a playbook and its line in the ledger together (00357): the row, running, then the start_playbook decision as theirs (member_decision), in one transaction. Security invoker: the insert is judged by the table''s own policy, checks and unique indexes, as the route''s insert was. Returns id, decision_id and undo_dropped.';
+COMMENT ON FUNCTION public.start_playbook(p_tenant_id uuid, p_playbook jsonb, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A member starts a playbook and its line in the ledger together (00357): the row, running, then the start_playbook decision as theirs (member_decision), in one transaction. Security invoker: the insert is judged by the table''s own policy, checks and unique indexes, as the route''s insert was. Its last day (until) and its trial''s end (trial_until) are written where p_playbook names them, null where it does not (00416). Returns id, decision_id and undo_dropped.';
 
 
 --
@@ -25583,6 +25604,7 @@ CREATE TABLE public.google_listings (
     facts jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    new_review_uri text,
     CONSTRAINT google_listings_name_check CHECK (((char_length(name) >= 1) AND (char_length(name) <= 200))),
     CONSTRAINT google_listings_place_id_check CHECK (((char_length(place_id) >= 10) AND (char_length(place_id) <= 300))),
     CONSTRAINT google_listings_rating_check CHECK (((rating IS NULL) OR ((rating >= (1)::numeric) AND (rating <= (5)::numeric)))),
@@ -25595,6 +25617,13 @@ CREATE TABLE public.google_listings (
 --
 
 COMMENT ON TABLE public.google_listings IS 'A workspace''s business on Google Maps, as the public listing says it: the place, the rating, the count, when it was last read. Members read; the edge writes.';
+
+
+--
+-- Name: COLUMN google_listings.new_review_uri; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.google_listings.new_review_uri IS 'Where a customer leaves this business a review on Google: the bound Business Profile location''s newReviewUri, written when the location is bound and again by each later sync of the profile where it differs (null where the location gives none); null until one is bound, or when the place was linked by the public read. Filled into a message''s review_link slot.';
 
 
 --
@@ -27354,6 +27383,8 @@ CREATE TABLE public.playbooks (
     include_unconfirmed boolean DEFAULT false NOT NULL,
     hand jsonb,
     channels text[] DEFAULT '{whatsapp}'::text[] NOT NULL,
+    until date,
+    trial_until timestamp with time zone,
     CONSTRAINT playbooks_cadence_days_check CHECK (((cadence_days >= 1) AND (cadence_days <= 90))),
     CONSTRAINT playbooks_cap_per_run_check CHECK (((cap_per_run >= 1) AND (cap_per_run <= 500))),
     CONSTRAINT playbooks_channels_check CHECK (((channels <@ ARRAY['whatsapp'::text, 'sms'::text, 'email'::text]) AND ((cardinality(channels) >= 1) AND (cardinality(channels) <= 3)) AND (cardinality(channels) = ((((channels @> ARRAY['whatsapp'::text]))::integer + ((channels @> ARRAY['sms'::text]))::integer) + ((channels @> ARRAY['email'::text]))::integer)))),
@@ -27412,6 +27443,20 @@ COMMENT ON COLUMN public.playbooks.hand IS 'A reach-out''s last step that hands 
 --
 
 COMMENT ON COLUMN public.playbooks.channels IS 'The channels this campaign may go by (whatsapp, sms, email, each once, at least one): the composer''s ticks. Each person is reached once, on one of them (contracts'' reachFor). WhatsApp alone by default, as every campaign was before (00298).';
+
+
+--
+-- Name: COLUMN playbooks.until; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.playbooks.until IS 'The last day this campaign runs, on the business''s clock: a run on a day past it sends nothing. Null: it runs until it is paused (00416).';
+
+
+--
+-- Name: COLUMN playbooks.trial_until; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.playbooks.trial_until IS 'Until when this campaign runs on trial: before it, a run its policy would send by itself (auto) waits for a person (veto). Null: no trial (00416).';
 
 
 --
@@ -40134,6 +40179,20 @@ GRANT INSERT(list_key),UPDATE(list_key) ON TABLE public.playbooks TO authenticat
 --
 
 GRANT INSERT(channels),UPDATE(channels) ON TABLE public.playbooks TO authenticated;
+
+
+--
+-- Name: COLUMN playbooks.until; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(until),UPDATE(until) ON TABLE public.playbooks TO authenticated;
+
+
+--
+-- Name: COLUMN playbooks.trial_until; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(trial_until),UPDATE(trial_until) ON TABLE public.playbooks TO authenticated;
 
 
 --

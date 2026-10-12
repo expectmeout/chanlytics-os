@@ -113,10 +113,12 @@ test("both channels read the tenant's zone, and neither invents one", () => {
     .map((m) => readCode(`packages/core/src/inbound/${m}.ts`))
     .join("\n");
   // The wire the message came on: a text is told it answers texts (compose.ts).
-  assert.ok(wa.includes("resolveSystemPrompt(brainCfg, channel, rt?.timezone, new Date(), rt?.policy, rt?.known)"));
+  // One clock for the turn (model-turn.ts `now`): the prompt, the clock note and layer two read the same day.
+  assert.ok(wa.includes("const now = new Date();"));
+  assert.ok(wa.includes("resolveSystemPrompt(brainCfg, channel, rt?.timezone, now, rt?.policy, rt?.known)"));
   // The clock also carries the closures, so it can state a shut day in the
   // block the model reads LAST — where the weekly grid cannot outrank it.
-  assert.ok(wa.includes("describeNow(rt?.timezone, new Date(), brainCfg.profile?.closures)"));
+  assert.ok(wa.includes("describeNow(rt?.timezone, now, brainCfg.profile?.closures)"));
 
   // The phone's composition -- the same composer, one clock, the closures in
   // the block the model reads last -- is run, byte for byte, in

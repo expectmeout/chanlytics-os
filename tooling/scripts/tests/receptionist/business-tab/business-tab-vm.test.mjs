@@ -55,6 +55,8 @@ import {
   handoffCallRow,
   HANDOFF_ANYWAY,
   notesWords,
+  noteEndedWords,
+  composeSystemPrompt,
   instructionsWords,
   fallbacksWords,
   RULES_WITHOUT_FIELDS_WORDS,
@@ -1238,6 +1240,51 @@ test("the notes row names the first four by title, and how many more", () => {
     "a note with no title is a row nobody finished",
   );
   assert.deepEqual(notesWords("Parking"), { count: 0, chips: [], more: null });
+});
+
+test("a note's end is said beside it once its last day has passed on the business's own day, in the closures' spelling of a date", () => {
+  const ny = "America/New_York";
+  // 03:30 UTC on 11 October is 23:30 on the 10th in New York: a note whose last day is the 10th has not ended there.
+  assert.equal(noteEndedWords("2026-10-10", ny, new Date("2026-10-11T03:30:00Z")), null);
+  // 04:30 UTC is 00:30 on the 11th there: it has, and says so as a closure's row names a day (closureDatesLabel).
+  assert.equal(noteEndedWords("2026-10-10", ny, new Date("2026-10-11T04:30:00Z")), "ended Oct 10");
+  assert.equal(
+    noteEndedWords("2026-10-10", ny, new Date("2026-10-11T04:30:00Z")),
+    `ended ${closureDatesLabel({ date: "2026-10-10" })}`,
+  );
+  assert.equal(noteEndedWords("2026-10-11", ny, new Date("2026-10-11T04:30:00Z")), null, "its last day is today");
+  for (const none of [undefined, null, "", 20261010])
+    assert.equal(noteEndedWords(none, ny, new Date("2026-10-11T04:30:00Z")), null, `${none}: a note with no end`);
+});
+
+test("whether a note has ended is the composer's one rule: in a zone, and with no zone at all, the form says ended exactly when the prompt stops saying the note", () => {
+  const base = { business_name: "Example Salon", booking_link: null, whatsapp_line: null };
+  const said = (until, tz, at) =>
+    composeSystemPrompt(base, { notes: [{ title: "Holiday hours", text: "Open 10 to 2.", until }] }, "whatsapp", tz, at)
+      .split("\n")
+      .some((l) => l.startsWith("- Holiday hours"));
+  // 15:00 UTC on 28 September. With no zone the composer reads the day as the 27th (UTC, a day back), so a note whose
+  // last day is the 27th is still said; the form, judged by the same rule, does not call it ended. A display zone
+  // (New York, the 28th there) would have.
+  const at = new Date("2026-09-28T15:00:00Z");
+  assert.equal(said("2026-09-27", null, at), true);
+  assert.equal(noteEndedWords("2026-09-27", null, at), null);
+  assert.equal(said("2026-09-26", null, at), false);
+  assert.equal(noteEndedWords("2026-09-26", null, at), "ended Sep 26");
+  for (const [tz, when] of [
+    [null, at],
+    ["America/New_York", new Date("2026-10-11T03:30:00Z")],
+    ["America/New_York", new Date("2026-10-11T04:30:00Z")],
+    ["America/New_York", new Date("2026-12-11T04:30:00Z")],
+    ["America/New_York", new Date("2026-12-11T05:30:00Z")],
+    ["Pacific/Auckland", new Date("2026-10-10T11:30:00Z")],
+  ])
+    for (const until of ["2026-09-26", "2026-09-27", "2026-10-10", "2026-10-11", "2026-12-10", "2026-12-11"])
+      assert.equal(
+        noteEndedWords(until, tz, when) !== null,
+        !said(until, tz, when),
+        `${until} in ${tz} at ${when.toISOString()}`,
+      );
 });
 
 test("the owner's own words are said by their opening, cut at a word; their size is a number for the box, not the row", () => {

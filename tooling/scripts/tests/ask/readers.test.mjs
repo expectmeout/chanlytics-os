@@ -15,8 +15,11 @@ import {
   callerName,
   DEFAULT_TIMEZONE,
   describeNow,
+  freeWindows,
+  journeyGuide,
   newReceptionistDefaults,
   numberHealthOfConfig,
+  PLAYBOOK_CARD_WORDS,
   peopleNowOf,
   personName,
   reportFacts,
@@ -1321,7 +1324,7 @@ const PERSON_KEYS = [
   "services",
   "consult_first",
   "added",
-  // Decision 0052: the business they work at (null where their row names none), and the signers of their replies.
+  // Since #1566 (decision 0052): the business they work at, and the signers of their replies still offered or taken.
   "business",
   "signers",
 ];
@@ -1348,9 +1351,9 @@ const PERSON_READS = {
   "deals.select": 2,
   "broadcast_recipients.select": 1,
   "person_doubts.select": 1,
-  // The signers of their replies, offered or taken (decision 0052); their business only where the row names one.
-  "reach_out_replies.select": 1,
   "person_notes.select": 1,
+  // The signers of their replies (db signersOf, decision 0052, #1566).
+  "reach_out_replies.select": 1,
   "messages.select": 1,
   "escalations.select": 1,
   "decisions.select": 1,
@@ -4383,7 +4386,14 @@ test("the broadcasts, for Ask and for the page: GET broadcasts answers its reade
     assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
     // 3 Oct 2026: and whether each channel can send now (`ready`, server/campaigns/channels-ready.ts), which the composer's
     // Send by row is drawn from; these workspaces keep no WhatsApp number, so it says so.
-    assert.deepEqual(Object.keys(r.data), ["broadcasts", "more", "touched", "ready", "month_sent", "month_sent_next"]);
+    assert.deepEqual(Object.keys(r.data), [
+      "broadcasts",
+      "more",
+      "touched_at",
+      "ready",
+      "month_sent",
+      "month_sent_next",
+    ]);
     assert.equal(r.data.ready.whatsapp.why, "Connect a WhatsApp number first.");
     assert.deepEqual(
       r.data.month_sent,
@@ -4410,15 +4420,20 @@ test("the broadcasts, for Ask and for the page: GET broadcasts answers its reade
     [harbor.broadcasts.map((b) => b.id), harbor.broadcasts[0].counts.sent, harbor.broadcasts[0].counts.delivered],
     [[BC2, BC1], 1, 1],
   );
-  const touched = (await kernel.load(turnIn(worldCtx(touchedWorld())), broadcastsReader, undefined)).data.touched;
-  assert.deepEqual(touched, ["k1"], "sent this week; not held back, not canceled, not last month");
+  // 11 Oct 2026: who heard and when (`touched_at`, every message's time), so the composer judges a send by those within a
+  // week of the time it is set for, either side (contracts heardFor).
+  const touched = (await kernel.load(turnIn(worldCtx(touchedWorld())), broadcastsReader, undefined)).data.touched_at;
+  assert.deepEqual(Object.keys(touched), ["k1"], "sent this week; not held back, not canceled, not last month");
+  assert.equal(touched.k1.length, 1);
+  const at = Date.parse(touched.k1[0]);
+  assert.ok(at <= Date.now() && Date.now() - at < 2 * HOUR, `when it went, an hour ago: ${touched.k1}`);
   // The week is the turn's: at a clock eight days on, the run of an hour ago is last week's.
   const later = kernel.readerContext(
     worldCtx(touchedWorld()),
     { tenantId: A, role: "viewer" },
     new Date(Date.now() + 8 * 24 * HOUR),
   );
-  assert.deepEqual((await kernel.load(later, broadcastsReader, undefined)).data.touched, []);
+  assert.deepEqual((await kernel.load(later, broadcastsReader, undefined)).data.touched_at, {});
 });
 
 test("the month a page says is null where it could not be counted, said in the log, and never a month of nothing: both pages still answer", async () => {
@@ -4629,7 +4644,7 @@ const PB2 = "99999999-9999-4999-8999-999999999992";
 const PLAYBOOKS_KEYS = [
   "playbooks",
   "timezone",
-  "touched",
+  // 11 Oct 2026: `touched` left the answer; no client read it, and who the breath holds is in each pool's `held`.
   "pools",
   "calendar",
   "lists",
@@ -4818,14 +4833,8 @@ test("the playbooks, for Ask and for the page: GET playbooks answers its reader'
   assert.deepEqual([pages["deals off"].deals_on, pages["deals off"].pools.proposal_waiting], [false, null]);
   const rich = pages["calendar, deals and a list"];
   assert.deepEqual(
-    [
-      rich.calendar,
-      rich.deals_on,
-      Object.keys(rich.touched),
-      rich.lists.map((l) => l.id),
-      rich.pools[`list:${SEG1}`].pool,
-    ],
-    ["ok", true, [P2], [SEG1], 1],
+    [rich.calendar, rich.deals_on, "touched" in rich, rich.lists.map((l) => l.id), rich.pools[`list:${SEG1}`].pool],
+    ["ok", true, false, [SEG1], 1],
   );
   // 9 Oct 2026 (spec 2026-10-09 §4.8, §4.3): the shape's word and booking tool, and the matrix's modes by class.
   assert.deepEqual(
@@ -4910,6 +4919,8 @@ test("GET playbooks through its reader asks what it asked at origin/main, in its
     // (server/campaigns/channels-ready.ts) with its first reads: the WhatsApp number's config and the texting line (no email
     // domain is set here, so no mailbox).
     for (const q of want) if (q[0] === "playbooks.select") q[1] += ", channels";
+    // 11 Oct 2026 (00416): and each one's last day and the end of its trial, which Campaigns' home says as its state.
+    for (const q of want) if (q[0] === "playbooks.select") q[1] += ", until, trial_until";
     // 4 Oct 2026: and whether the workspace is paused (tenants.status, db workspacePaused), which the composers and the
     // Campaigns home say instead of a time; read with the channels, for the pages that compose or promise a run.
     want.splice(
@@ -5139,10 +5150,14 @@ const forwardedWorld = () => ({
     },
   ],
 });
-/** What GET settings asked of the database at origin/main, after the workspace's door, in its order. */
-const SETTINGS_ASKED_AT_MAIN = [
+/**
+ * What GET settings asks of the database, after the workspace's door, in its order: what it asked at origin/main, and
+ * the listing's review link (db reviewLinkOf, 00415) read beside the platform's facts.
+ */
+const SETTINGS_ASKED = [
   "tenant_config.select",
   "tenants.select",
+  "google_listings.select",
   "google_listings.select",
   "lines.select",
   "tenant_channels.select",
@@ -5151,7 +5166,7 @@ const SETTINGS_ASKED_AT_MAIN = [
 /** The preview's clock, apart: the rest of what the settings read answers does not move with the minute. */
 const withoutClock = (d) => (d.prompt ? { ...d, prompt: { ...d.prompt, now: "<clock>" } } : d);
 
-test("the settings read, for Ask and for the page: GET settings answers its reader's payload, key for key, over settings-routes' fixtures -- a viewer's feed masked and an owner's whole, who last changed the row, a config the parser refuses as its own state, the platform's facts with the number the business forwards -- asking what it asked at origin/main in its order: the row once, the platform's facts at once, then the Autonomy rows inside the preview; no configuration row is the route's 404; the preview's clock is the turn's, and a turn that holds the row reads it once", async () => {
+test("the settings read, for Ask and for the page: GET settings answers its reader's payload, key for key, over settings-routes' fixtures -- a viewer's feed masked and an owner's whole, who last changed the row, a config the parser refuses as its own state, the platform's facts with the number the business forwards, whether the listing keeps a review link -- asking in its order: the row once, the platform's facts and the review link at once, then the Autonomy rows inside the preview; no configuration row is the route's 404; the preview's clock is the turn's, and a turn that holds the row reads it once", async () => {
   for (const [tenant, role, version] of [
     [A, "viewer", 3],
     [B, "owner", 1],
@@ -5171,14 +5186,16 @@ test("the settings read, for Ask and for the page: GET settings answers its read
       "prompt",
       "updatedBy",
       "updatedAt",
+      "review_link",
     ]);
+    assert.equal(r.data.review_link, false, "no listing, no review link");
     assert.deepEqual(
       [r.data.version, r.data.role, r.data.configBroken, r.data.prompt, r.data.updatedBy, r.data.updatedAt],
       [version, role, false, null, null, "2026-09-01T00:00:00Z"],
       "no receptionist, no prompt; a row written before its author was kept says so with null",
     );
     assert.deepEqual(r.rows, []);
-    assert.deepEqual(asked(ctx), SETTINGS_ASKED_AT_MAIN.slice(0, -1), "no receptionist: no Autonomy rows to read");
+    assert.deepEqual(asked(ctx), SETTINGS_ASKED.slice(0, -1), "no receptionist: no Autonomy rows to read");
   }
   const viewer = await kernel.load(memberIn(dayCtx(settingsWorld()), A, "viewer"), settingsReader, undefined);
   assert.ok(
@@ -5236,18 +5253,22 @@ test("the settings read, for Ask and for the page: GET settings answers its read
     describeNow("America/New_York", NOW, undefined),
     "the preview says the turn's clock: one clock for the turn",
   );
-  assert.deepEqual(
-    asked(routed),
-    ["memberships.select", ...SETTINGS_ASKED_AT_MAIN],
-    "the workspace's door, then the reads",
-  );
-  assert.deepEqual(asked(ctx), SETTINGS_ASKED_AT_MAIN);
+  assert.deepEqual(asked(routed), ["memberships.select", ...SETTINGS_ASKED], "the workspace's door, then the reads");
+  assert.deepEqual(asked(ctx), SETTINGS_ASKED);
+  // The listing keeps a review link (00415): the composers offer it to a review-link slot, and the review ask with it.
+  const reviewed = () => ({
+    ...forwardedWorld(),
+    google_listings: [rows.googleListing({ tenant_id: A, new_review_uri: "https://example.com/review/harbor" })],
+  });
+  const linked = await kernel.load(memberIn(dayCtx(reviewed()), A, "owner", NOW), settingsReader, undefined);
+  assert.equal(linked.data.review_link, true, "the listing's link is said as there being one, never the link");
+  assert.equal((await settingsRoute.GET.run(req(`?workspace=${A}`), dayCtx(reviewed()))).review_link, true);
   // A turn that holds the row reads it once: the settings read is the turn's one read of the config.
   const turn = memberIn(dayCtx(forwardedWorld()), A, "owner", NOW);
   await kernel.load(turn, config, undefined);
   const held = turn.ctx.supabase.seen.length;
   const again = await kernel.load(turn, settingsReader, undefined);
-  assert.deepEqual(asked(turn.ctx).slice(held), SETTINGS_ASKED_AT_MAIN.slice(1), "the row was the turn's");
+  assert.deepEqual(asked(turn.ctx).slice(held), SETTINGS_ASKED.slice(1), "the row was the turn's");
   assert.deepEqual(again.data, r.data);
 });
 
@@ -6177,4 +6198,311 @@ test("poolList takes the turn's lists: handed the workspace's lists as the lists
     await poolList(worldCtx(w), A, pool, { kind: "builtin", id: "phoned_only" }),
   );
   assert.deepEqual(asked(builtin), []);
+});
+
+/**
+ * 10 Oct 2026 (Ask, the marketing manager, task 3): before Ask writes a message it reads the library whole, a version
+ * still in Meta's review among its message's versions, so it never writes a twin of one the workspace holds. One message
+ * here, an approved email and a WhatsApp version in review, which a campaign sends; another workspace's beside it.
+ */
+test("campaigns.messages reads the whole library, a WhatsApp version still in review among its message's versions with each version's state, its slots and the campaigns that send it, each version a row a citation names; campaigns.audiences still lists the message by the one version a broadcast may go by now", async () => {
+  const slot = [{ position: 1, label: "First name", example: "Ana" }];
+  const w = countsWorld(pagedPeople([]), {
+    templates: [
+      tplRow(TP1, A, { name: "spring_offer", meta_status: "pending", category: "marketing", variables: slot }),
+      tplRow(EM1, A, {
+        channel: "email",
+        name: "spring_offer",
+        category: "marketing",
+        source: "chanlytics",
+        variables: slot,
+      }),
+      tplRow(TP9, B, { name: "spring_offer", meta_status: "pending", category: "marketing" }),
+    ],
+    playbooks: [
+      pbRow(PB1, { name: "Spring", template_name: "spring_offer" }),
+      pbRow(PB2, { tenant_id: B, name: "Elsewhere", template_name: "spring_offer" }),
+    ],
+  });
+  const tc = newToolContext(worldCtx(w), A, "viewer", "America/New_York", new Date());
+  const out = await runTool(tc, { name: "campaigns", input: { action: "messages" } });
+  assert.equal(out.isError, false, out.result);
+  assert.deepEqual(
+    JSON.parse(out.result).messages,
+    [
+      {
+        name: "spring_offer",
+        language: "en_US",
+        category: "marketing",
+        versions: [
+          { channel: "whatsapp", id: TP1, state: "pending" },
+          { channel: "email", id: EM1, state: "approved" },
+        ],
+        slots: [{ position: 1, label: "First name", kind: "first_name" }],
+        used_by: [{ id: PB1, name: "Spring" }],
+      },
+    ],
+    "one message, both versions with their states; this workspace's campaign alone",
+  );
+  assert.deepEqual([...tc.read.template.keys()].sort(), [TP1, EM1].sort(), "each version a template a citation names");
+  // The composers' list is as it was: the message, by the email a broadcast may go by now, and not the version in review.
+  const aud = await runTool(tc, { name: "campaigns", input: { action: "audiences" } });
+  assert.equal(aud.isError, false, aud.result);
+  assert.deepEqual(
+    JSON.parse(aud.result).templates.map((m) => [m.template_id, m.name, m.channels]),
+    [[EM1, "spring_offer", { whatsapp: false, email: true, sms: false }]],
+  );
+});
+
+/**
+ * 10 Oct 2026 (Ask, the marketing manager, task 4): what am I missing is the journey as Campaigns' home draws it, its
+ * head and its rail as data, composed from the readers the page's surfaces answer from, so the number Ask says is the
+ * page's. Harbor here: a calendar connected, its WhatsApp number, deals off, and one running win-back by appointments.
+ */
+test("campaigns.journey says the journey as Campaigns' home draws it: 2 of 4 moments covered, first contact by the receptionist and quiet by the running win-back, which its stage names; the day before and after off; and the guide beside it, the day before's row among its rows; the win-back a row a citation names", async () => {
+  const w = countsWorld(pagedPeople([poolPerson(1)]), {
+    ...calTables("https://cal.example/journey.ics"),
+    playbooks: [pbRow(PB1, { name: "Come back soon", trigger: "lapsed" })],
+  });
+  await withFeed({ body: ONE_ICS }, async () => {
+    const tc = newToolContext(worldCtx(w), A, "viewer", "America/New_York", new Date());
+    const out = await runTool(tc, { name: "campaigns", input: { action: "journey" } });
+    assert.equal(out.isError, false, out.result);
+    const said = JSON.parse(out.result);
+    assert.equal(said.covered, 2, "first contact and quiet");
+    assert.equal(said.of, 4, "a calendar, deals off: no proposal waiting");
+    assert.deepEqual(
+      said.stages.map((s) => [s.id, s.label, s.covered, s.state, s.moment]),
+      [
+        ["first_contact", "First contact", true, "Answers · asks for the yes", null],
+        ["before", "Appointment tomorrow", false, "Off", "visit_tomorrow"],
+        ["after", "After the appointment", false, "Off", "visited"],
+        ["quiet", "Quiet or lapsed", true, "On · daily 10:00 AM", "lapsed"],
+      ],
+    );
+    assert.deepEqual(
+      said.stages.find((s) => s.id === "quiet").campaigns,
+      [{ id: PB1, name: "Come back soon", state: "On · daily 10:00 AM" }],
+      "the win-back, named on the stage it covers",
+    );
+    assert.deepEqual(
+      said.stages.filter((s) => s.id !== "quiet").map((s) => s.campaigns),
+      [[], [], []],
+      "the receptionist and the call's text are no campaign",
+    );
+    // The guide for the workspace's shape, in its word (the stages' "Appointment tomorrow"): the page's word, once.
+    assert.deepEqual(said.guide, journeyGuide({ calendarOn: true, dealsOn: false, word: "appointment" }));
+    assert.equal(
+      said.guide.find((r) => r.stage === "after").sends,
+      "the day after an appointment, when nothing is booked next: a thank-you and how it went, with a review ask where your Google listing keeps a review link",
+    );
+    const before = said.guide.find((r) => r.stage === "before");
+    assert.deepEqual(
+      [Object.keys(before), before.moment, before.sends],
+      [["stage", "moment", "sends"], "visit_tomorrow", "the day before an appointment on the calendar: a reminder"],
+      "the day before's row: its moment, and what it sends when",
+    );
+    // The win-back here goes by appointments, so its row says its moment's own days, never weeks of its own.
+    assert.equal(
+      said.guide.find((r) => r.stage === "quiet").sends,
+      "no appointment in 45 days, and nothing booked: a win-back",
+    );
+    assert.deepEqual([...tc.read.playbook.keys()], [PB1], "the campaign it names, a row a citation names");
+  });
+});
+
+/**
+ * 12 Oct 2026 (Ask, the marketing manager, the review after the merge): campaigns.playbooks says a campaign's end and its
+ * trial as its card on Campaigns does, through the page's one reading of GET playbooks' answer (contracts
+ * lifecyclePlaybooksOf). A campaign past its last day still reads running and runs nothing, so it has no next run and
+ * says why; one on trial under a class that sends on its own runs under veto until its trial ends; a last day ahead is
+ * said. Harbor here, on a frozen clock, Thursday 3 December 2026 at nine in the morning in New York, its campaigns' class
+ * on auto; the month's offer three times: ended on 30 November, on trial until 8 December and ending on the 31st, and one
+ * whose trial ended in November.
+ */
+const LIFE_NOW = new Date("2026-12-03T14:00:00.000Z");
+test("campaigns.playbooks says a campaign's end and its trial as its card does: one past its last day, still running, has no next run and says it ended; one on trial under auto runs under veto until the day its trial ends, and says its last day ahead; one whose trial is over runs under its class's mode", async () => {
+  const PB3 = "99999999-9999-4999-8999-999999999993";
+  const monthly = { trigger: "everyone_monthly", policy_class: "campaign", cadence_days: 30, gap_days: 0 };
+  const w = countsWorld(pagedPeople([]), {
+    policies: [{ tenant_id: A, class: "campaign", mode: "auto", subject_type: null, subject_id: null }],
+    playbooks: [
+      pbRow(PB1, { ...monthly, name: "November offer", until: "2026-11-30", trial_until: null }),
+      pbRow(PB2, { ...monthly, name: "Winter offer", until: "2026-12-31", trial_until: "2026-12-08T14:00:00.000Z" }),
+      pbRow(PB3, { ...monthly, name: "Always on", until: null, trial_until: "2026-11-20T14:00:00.000Z" }),
+    ],
+  });
+  const tc = newToolContext(worldCtx(w), A, "owner", "America/New_York", LIFE_NOW);
+  const out = await runTool(tc, { name: "campaigns", input: { action: "playbooks" } });
+  assert.equal(out.isError, false, out.result);
+  const said = JSON.parse(out.result);
+  assert.equal(said.modes.campaign, "auto", "the class sends on its own");
+  const by = Object.fromEntries(said.playbooks.map((p) => [p.name, p]));
+  const facts = (p) => [p.state, p.mode, p.next_run, p.runs_nothing, p.ended, p.on_trial_until, p.ends];
+  assert.deepEqual(
+    facts(by["November offer"]),
+    ["running", "auto", null, "Ended Nov 30", "Nov 30", undefined, undefined],
+    "REGRESSION: it said its next run was today at 10, a month after its last day",
+  );
+  assert.deepEqual(
+    facts(by["Winter offer"]),
+    ["running", "veto", "today 10:00 AM", undefined, undefined, "Dec 8", "Dec 31"],
+    "REGRESSION: it said a run sends on its own, where each waits 30 minutes with a Stop",
+  );
+  assert.deepEqual(facts(by["Always on"]), [
+    "running",
+    "auto",
+    "today 10:00 AM",
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+  ]);
+  // The note says the run's breath in the contracts' words, and the appointment moments neither it nor the gap holds
+  // (contracts playbookRunReach returns before both).
+  assert.ok(
+    said.note.includes(`, exempt from the gap and ${PLAYBOOK_CARD_WORDS.appointmentBreath}.`) &&
+      !said.note.includes("per person per week"),
+    said.note,
+  );
+});
+
+/**
+ * 10 Oct 2026 (Ask, the marketing manager, task 5): how full the book is, for pacing an offer to what the business can
+ * take, is the openings reader's own answer counted in slots over the next fourteen days, so the room Ask says is the
+ * time the receptionist would offer. Harbor here opens nine to five on weekdays; its feed holds two hours tomorrow and
+ * a booking that arrived by email takes an hour the day after. The clock is late on a Tuesday in New York, already
+ * Wednesday in UTC, so today offers nothing and the first day with room is tomorrow on the business's clock.
+ */
+const ROOM_NOW = new Date("2026-09-09T03:30:00.000Z");
+const ROOM_ICS = [
+  "BEGIN:VCALENDAR",
+  "BEGIN:VEVENT",
+  "UID:r1",
+  "SUMMARY:Taken",
+  "DTSTART;TZID=America/New_York:20260909T100000",
+  "DTEND;TZID=America/New_York:20260909T120000",
+  "END:VEVENT",
+  "END:VCALENDAR",
+].join("\r\n");
+const NINE_TO_FIVE = { open: "09:00", close: "17:00" };
+const ROOM_HOURS = {
+  mon: NINE_TO_FIVE,
+  tue: NINE_TO_FIVE,
+  wed: NINE_TO_FIVE,
+  thu: NINE_TO_FIVE,
+  fri: NINE_TO_FIVE,
+  sat: {},
+  sun: {},
+};
+/**
+ * calTables(url), open nine to five and booking by `rules`, with one booking on record: Thursday two to three in the
+ * afternoon, New York.
+ */
+const roomTables = (url, rules = calProfile.booking_rules) => {
+  const t = calTables(url);
+  const [row] = t.tenant_config;
+  const brain = { ...row.config.brain, profile: { ...calProfile, hours: ROOM_HOURS, booking_rules: rules } };
+  return {
+    ...t,
+    tenant_config: [{ ...row, config: { ...row.config, brain } }],
+    appointments: [
+      {
+        id: "appt-room",
+        tenant_id: A,
+        source: "booking_email",
+        tool: "booksy",
+        external_id: "booksy:appt-room",
+        status: "booked",
+        starts_at: "2026-09-10T18:00:00.000Z",
+        ends_at: "2026-09-10T19:00:00.000Z",
+        all_day: false,
+        timezone: "America/New_York",
+      },
+    ],
+  };
+};
+/** The open slots of half an hour in each day's windows, as freeWindows gives them. */
+const slotsOf = (openings) =>
+  openings.map((o) => ({
+    day: o.key,
+    open: o.windows.reduce((n, w) => n + Math.floor((w.end - w.start) / (30 * 60_000)), 0),
+  }));
+const sumOpen = (days) => days.reduce((n, d) => n + d.open, 0);
+
+test("calendar.room says how full the book is over the next fourteen days, or the fewer a business offers: the open slots freeWindows gives at half an hour, after the feed's two hours tomorrow and the hour on record the day after, by day from tomorrow on the business's clock, and the slots those take out of the hours; with no calendar, none says so and nothing is read; a calendar that cannot be read says unavailable", async () => {
+  const room = async (t) => {
+    const tc = newToolContext(calCtx(t), A, "viewer", "America/New_York", ROOM_NOW);
+    const out = await runTool(tc, { name: "calendar", input: { action: "room" } });
+    assert.equal(out.isError, false, out.result);
+    return JSON.parse(out.result);
+  };
+  await withFeed({ body: ROOM_ICS }, async (fetched) => {
+    const said = await room(roomTables("https://cal.example/room.ics"));
+    const free = {
+      hours: ROOM_HOURS,
+      closures: [],
+      tz: "America/New_York",
+      rules: { lead_hours: 2, max_days_ahead: 14, slot_min: 30 },
+      now: ROOM_NOW,
+    };
+    const busy = [
+      { start: Date.parse("2026-09-09T14:00:00.000Z"), end: Date.parse("2026-09-09T16:00:00.000Z") },
+      { start: Date.parse("2026-09-10T18:00:00.000Z"), end: Date.parse("2026-09-10T19:00:00.000Z") },
+    ];
+    const open = slotsOf(freeWindows({ ...free, busy }));
+    const hours = slotsOf(freeWindows({ ...free, busy: [] }));
+    assert.equal(said.days, 14);
+    assert.deepEqual(said.by_day, open, "each day with room, as freeWindows gives it");
+    assert.equal(said.open, sumOpen(open));
+    assert.equal(said.open, 138, "nine weekdays of sixteen half hours, less four tomorrow and two the day after");
+    assert.deepEqual(
+      said.by_day[0],
+      { day: "2026-09-09", open: 12 },
+      "tomorrow on the business's clock, where UTC says today",
+    );
+    assert.equal(said.taken, sumOpen(hours) - sumOpen(open));
+    assert.equal(said.taken, 6, "the feed's two hours and the record's one, in half hours");
+    assert.deepEqual(Object.keys(said), ["days", "open", "taken", "by_day"], "nothing is missing: no none");
+    assert.equal(fetched.length, 1, "one read of the feed");
+  });
+
+  // The room is the first fourteen days on offer: a business that offers a month ahead is counted over fourteen, and one
+  // that offers a week over its week -- Wednesday to Friday and the Monday, less the same six half hours.
+  for (const [ahead, days, open, last] of [
+    [30, 14, 138, "2026-09-21"],
+    [7, 7, 58, "2026-09-14"],
+  ])
+    await withFeed({ body: ROOM_ICS }, async () => {
+      const rules = { ...calProfile.booking_rules, max_days_ahead: ahead };
+      const said = await room(roomTables("https://cal.example/room.ics", rules));
+      assert.deepEqual(
+        [said.days, said.open, said.taken, said.by_day.at(-1).day],
+        [days, open, 6, last],
+        `${ahead} days ahead`,
+      );
+    });
+
+  await withFeed({ body: ROOM_ICS }, async (fetched) => {
+    assert.deepEqual(await room(roomTables(null)), {
+      days: 14,
+      open: 0,
+      taken: 0,
+      by_day: [],
+      none: "no_calendar",
+    });
+    assert.deepEqual(fetched, [], "no calendar, no read");
+  });
+
+  await logged("ask_feed_fetch_failed", () =>
+    withFeed({ body: "nope", status: 503 }, async () => {
+      assert.deepEqual(await room(roomTables("https://cal.example/down.ics")), {
+        days: 14,
+        open: 0,
+        taken: 0,
+        by_day: [],
+        none: "unavailable",
+      });
+    }),
+  );
 });

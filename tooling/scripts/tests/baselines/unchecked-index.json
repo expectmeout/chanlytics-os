@@ -22,7 +22,7 @@
   "apps/dashboard/src/server/ask/tools/offer.ts": 1,
   "apps/dashboard/src/server/ask/tools/read/calls.ts": 4,
   "apps/dashboard/src/server/ask/tools/read/threads.ts": 4,
-  "apps/dashboard/src/server/ask/tools/registry.ts": 10,
+  "apps/dashboard/src/server/ask/tools/registry.ts": 9,
   "apps/dashboard/src/server/ask/voice-door.ts": 5,
   "apps/dashboard/src/server/ask/voice-session.ts": 1,
   "apps/dashboard/src/server/bearer.ts": 2,

@@ -20,6 +20,7 @@
   "packages/contracts/src/people/person-attention.ts": 1,
   "packages/contracts/src/people/person-consent.ts": 1,
   "packages/contracts/src/people/person-timeline.ts": 1,
+  "packages/contracts/src/person-page/next.ts": 1,
   "packages/contracts/src/playbooks/lifecycle/lifecycle-words.ts": 2,
   "packages/contracts/src/reports/report-metrics.ts": 1,
   "packages/contracts/src/route-keys.generated.ts": 1,

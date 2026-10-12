@@ -40,9 +40,7 @@
     "00295": "held by the Reports lane's drafts (cm-reports) when #1374 numbered its migrations",
     "00322": "the tables leave Postgres Changes held this number in #1411 and landed as 00324, above the head by then; a stop ends the yes to offers had moved to 00323 to leave it room (#1409)",
     "00325": "unused: #1417 (a message's status is told to its workspace) held it, but 00326 (two records of one person become one) reached production first, so #1417 landed as 00327 above the head",
-    "00378": "held for the doors lane (#1537), whose eleven moved above #1539's 00379 and 00380 when that merged first: they landed as 00381 to 00391",
-    "00415": "claimed by the Ask lane (cm-ask-manager, 00415_a_listing_keeps_its_review_link), not merged when the person page's deferred list numbered its two above it (docs/migration-claims.md)",
-    "00416": "claimed by the Ask lane (cm-ask-manager, 00416_a_campaign_ends_and_runs_on_trial), not merged when the person page's deferred list numbered its two above it (docs/migration-claims.md)"
+    "00378": "held for the doors lane (#1537), whose eleven moved above #1539's 00379 and 00380 when that merged first: they landed as 00381 to 00391"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -419,6 +417,8 @@
     "00412_a_page_says_where_its_time_went.sql": "0b0ef8cb3e66f17bc0f50dd36e8d2208595abdadc62897599cfa191c6aba0681",
     "00413_a_person_found_as_a_lead_keeps_the_business_and_earns_a_name.sql": "4bb474e407de2e055bd8befa14b8e5e60be7d33619440927becd6ff5eff88b40",
     "00414_the_people_at_a_business_are_found_by_its_lead.sql": "eb2a572c721b9e6171fc63b1a887912a45e2f33173da4ab1231ba5bcd3082fec",
+    "00415_a_listing_keeps_its_review_link.sql": "7fa3142395525d19d0dc9d7b05aba1df5f7cfed28b068e72ad037b678457e874",
+    "00416_a_campaign_ends_and_runs_on_trial.sql": "398cc74f74f4cc8d1f1a847ca25d3bf53ec75d81b074db82c3d71a4e547d51c0",
     "00417_a_call_is_logged_on_the_person.sql": "415214e7cf7eda7ca4e810c509c48041f3432c6c17a972cd7513d04e07daeb44",
     "00418_a_business_s_other_addresses_find_its_person.sql": "63f902a7dfd297eb712aba8b2c74c6d0c68e0b5775183186b1782c389fb53827"
   }

@@ -166,7 +166,8 @@ test("the pools: counted over everyone by the runner's predicate; the week's tou
   const all = Array.from({ length: PEOPLE_PAGE + 3 }, (_, i) => person(i + 1));
   all[0].marketing_consent = "unknown"; // one who never said yes
   all[1].dnc = true; // one who asked to stop
-  const touched = { p3: iso(NOW.getTime() - 2 * DAY), p4: iso(NOW.getTime() - 3 * DAY) };
+  // As the reader answers them (db recentTouches): each person's touches, a list, since the breath reads both sides.
+  const touched = { p3: [iso(NOW.getTime() - 2 * DAY)], p4: [iso(NOW.getTime() - 3 * DAY)] };
   const ctx = ctxFor(tables(null), { people_list: pagedList(all) });
   const { pools, calendar } = await triggerPools(ctx, T, touched, TZ, NOW, NO_DEALS);
   assert.equal(calendar, "none");

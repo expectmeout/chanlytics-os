@@ -24,6 +24,7 @@ import {
   type TemplateCategoryChoice,
   type TemplateDraft,
 } from "@chanlytics/contracts";
+import { reviewLinkOf } from "@chanlytics/db";
 import type { RouteContext } from "@/server/with-route";
 import { tenantFacts } from "@/server/tenant";
 import { storedConfigOf } from "@/server/workspace/config-row";
@@ -57,7 +58,7 @@ const DraftSchema = z.object({
       z.object({
         position: z.number().int().min(1).max(10),
         label: z.string().max(TEMPLATE_LABEL_MAX),
-        source: z.enum(["text", "first_name", "business_name", "booking_link"]),
+        source: z.enum(["text", "first_name", "business_name", "booking_link", "review_link"]),
       }),
     )
     .max(10)
@@ -100,7 +101,7 @@ export function draftSystemPrompt(f: WorkspaceFacts, category: TemplateCategoryC
       : "- This is a UTILITY template: a notice about the customer's own booking or account, with no promotional words at all.",
     "- Never quote or promise a price unless the brief states the exact words; never promise an appointment.",
     "",
-    "Slots and their sources. Use {{1}} for the customer's first name when a greeting fits (source first_name). Use a slot with source business_name for the business's name, and booking_link for its booking link, when the message needs them. Any other slot is typed text (source text) with a sensible label.",
+    "Slots and their sources. Use {{1}} for the customer's first name when a greeting fits (source first_name). Use a slot with source business_name for the business's name, booking_link for its booking link, and review_link, labelled “Review link”, for the link where a customer leaves it a review on Google, when the message needs them. Any other slot is typed text (source text) with a sensible label.",
     "",
     "Answer with one JSON object and nothing else, no code fence:",
     '{"name": "short_snake_case_name", "body": "the message with {{1}} slots", "footer": "optional footer or null", "examples": ["one example per slot"], "variables": [{"position": 1, "label": "First name", "source": "first_name"}]}',
@@ -147,9 +148,22 @@ async function workspaceFor(
   ]);
   const parsed = parseTenantConfig(config);
   return {
-    facts: workspaceFacts(name, timezone, config),
+    // The request's clock: the facts are true now (a note says what it is told today; these prompts name no note).
+    facts: workspaceFacts(name, timezone, config, new Date()),
     bookingLink: parsed?.brain?.booking_link ?? null,
   };
+}
+
+/**
+ * Whether a draft may hold a review_link slot, in the model's words: only where the Google listing keeps a link (db
+ * reviewLinkOf), which the send fills it from and refuses without. A link that could not be read is none here: the
+ * draft then leaves the slot out, which costs nothing.
+ */
+async function reviewLinkRule(ctx: RouteContext, tenantId: string): Promise<string> {
+  const link = await reviewLinkOf(ctx.supabase, tenantId).catch(() => null);
+  return link
+    ? "\nThe business's Google listing keeps a review link, so a review_link slot may be used."
+    : "\nThe business has no Google review link on file: do not use a review_link slot.";
 }
 
 /**
@@ -212,12 +226,16 @@ export async function draftTemplate(
   input: { brief: string; category: TemplateCategoryChoice; language: string },
 ): Promise<DraftOutcome> {
   const brief = input.brief.trim().slice(0, DRAFT_BRIEF_MAX);
-  const { facts, bookingLink } = await workspaceFor(ctx, tenantId);
+  const [{ facts, bookingLink }, reviewRule] = await Promise.all([
+    workspaceFor(ctx, tenantId),
+    reviewLinkRule(ctx, tenantId),
+  ]);
   const system =
     draftSystemPrompt(facts, input.category, input.language) +
     (bookingLink
       ? "\nThe business has a booking link, so a booking_link slot may be used."
-      : "\nThe business has no booking link on file: do not use a booking_link slot.");
+      : "\nThe business has no booking link on file: do not use a booking_link slot.") +
+    reviewRule;
 
   const turn = await askOnce(ctx, tenantId, system, `Brief: ${brief}`, "draft");
   if (!turn.ok) return turn;

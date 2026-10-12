@@ -17,6 +17,8 @@ import {
   answerText,
   askUndoOpen,
   cardOpenRoute,
+  cardsInPlans,
+  planGroupOf,
   type AskAnswer,
   type AskProposal,
   type AskProposalOutcome,
@@ -27,7 +29,15 @@ import { askApi, type AskApiCalls, type SendEvent } from "./ask/api";
 import { apiFor } from "./api";
 import { createClient } from "../lib/supabase/client";
 import { hearAddress, routeOnScreen } from "./workspace";
-import { commitProposal, editReply, undoProposal, type CommitResult } from "./ask/commit";
+import {
+  commitCard,
+  commitPlan,
+  editReply,
+  undoProposal,
+  type CommitResult,
+  type PlanRun,
+  type UndoResult,
+} from "./ask/commit";
 import { askPalette, quickAnswer } from "./ask/palette";
 import { askSpeech, type SpeechPurpose } from "./ask/speech";
 import { askAloud } from "./ask/aloud";
@@ -45,10 +55,18 @@ export type AskApi = ReturnType<typeof askPalette> &
   ReturnType<typeof askAloud> &
   ReturnType<typeof installVoice> &
   ReturnType<typeof spokenTurns> & {
-    /** Approve a card: the verb's own route, then the surfaces refresh. */
-    commit(p: AskProposal): Promise<CommitResult>;
+    /**
+     * Approve a card: the verb's own route, then the surfaces refresh. A plan's card is judged by what the turn's other
+     * cards of its plan became (`cards`, as the Line holds them: commit.ts commitCard), so a send fills its tokens.
+     */
+    commit(p: AskProposal, cards?: readonly AskProposal[]): Promise<CommitResult>;
+    /** Approve a plan's steps that send nothing together (commit.ts commitPlan), what each became read from its cards. */
+    commitPlan(cards: readonly AskProposal[]): Promise<PlanRun>;
+    /** A turn's cards with each plan's together, and a plan's group as the Line draws it: contracts'. */
+    cardsInPlans: typeof cardsInPlans;
+    planGroupOf: typeof planGroupOf;
     /** Undo a committed card, where the verb has one. */
-    undo(p: AskProposal, outcome: AskProposalOutcome): Promise<CommitResult>;
+    undo(p: AskProposal, outcome: AskProposalOutcome): Promise<UndoResult>;
     /** "Edit in the composer": open the thread with the words ready to change. */
     editReply(p: AskProposal): void;
     /** Whether a committed card's undo is still true to offer: contracts' askUndoOpen. */
@@ -156,7 +174,10 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
     ...voice,
     send,
     sendSpoken,
-    commit: (p) => commitProposal(win, p),
+    commit: (p, cards = []) => commitCard(win, p, cards),
+    commitPlan: (cards) => commitPlan(win, cards),
+    cardsInPlans,
+    planGroupOf,
     undo: (p, o) => undoProposal(win, p, o),
     editReply: (p) => editReply(win, p),
     undoOpen: askUndoOpen,

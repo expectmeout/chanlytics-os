@@ -48,7 +48,7 @@ async function getSettings(t: ToolContext): Promise<unknown> {
   // The Autonomy rows offered here, as the pane draws them: the follow-ups' only where deals are on (0006).
   const policies = all.filter((p) => policyClassOffered(p.class, dealsAreOn(sellsBy)));
   const cfg = parseTenantConfig(cfgRow?.config ?? null);
-  const facts = workspaceFacts(name, timezone, cfgRow?.config ?? null, policies);
+  const facts = workspaceFacts(name, timezone, cfgRow?.config ?? null, t.rc.now, policies);
   return {
     business: facts.businessName,
     timezone,

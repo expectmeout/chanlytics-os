@@ -6,8 +6,11 @@
 import {
   CAMPAIGNS_PAUSED_WORDS,
   DEFAULT_CAMPAIGN_CHANNELS,
+  allLeftOutWords,
   emptyAudienceRefusal,
+  heardFor,
   overLimitRefusal,
+  reachAfterBreath,
   readyForMessage,
 } from "@chanlytics/contracts";
 import type { AskedPurpose, AudiencePreview, ConsentChannel, ParamSourceKind } from "@chanlytics/contracts";
@@ -45,28 +48,58 @@ function bcNobodyOn(base: AudiencePreview): AudiencePreview {
     sending: 0,
     held: pool,
     saidYes: 0,
-    heard: 0,
+    heardTouches: [],
   };
 }
+
+/** When the send goes (the time picked, else now) and the clock it is judged by: a week either side of it is the breath's. */
+interface BcAt {
+  sendsAt: number;
+  now: number;
+}
+
+/** A reading of an audience: who it reaches, how many of them hear from you within a week of the send, on which channel. */
+interface BcReading {
+  sending: number;
+  heard: number;
+  heardBy: Record<ConsentChannel, number>;
+  preview: AudiencePreview | null;
+}
+
+/** Who of a preview's people hear from you within a week of the send, either side (contracts heardFor, the route's rule). */
+const bcHeardOf = (sending: number, preview: AudiencePreview | null, at: BcAt): BcReading => ({
+  sending,
+  preview,
+  ...heardFor(preview ? preview.heardTouches : [], at.sendsAt, at.now),
+});
 
 /**
  * An audience read for the channels the send goes by (contracts reachFor: each person once, on one of them). WhatsApp alone
  * is the reading every audience carries, with its own count; any other set is the one kept for it (surface.ts `by`), and
- * none on reaches nobody. Null where the surface holds no preview for it, which the page then says nothing of.
+ * none on reaches nobody. Null where the surface holds no preview for it, which the page then says nothing of. Who heard is
+ * judged for the time the send goes (`at`).
  */
 function bcReadingOf(
   a: AudienceOption | null,
   purpose: AskedPurpose,
   on: readonly ConsentChannel[],
-): { sending: number; preview: AudiencePreview | null } {
-  if (!a) return { sending: 0, preview: null };
+  at: BcAt,
+): BcReading {
+  if (!a) return bcHeardOf(0, null, at);
   const base = a.preview ? a.preview[purpose] : null;
-  if (sameChannels(on, DEFAULT_CAMPAIGN_CHANNELS))
-    return { sending: a.counts ? a.counts[purpose] || 0 : 0, preview: base };
-  if (on.length === 0) return { sending: 0, preview: base ? bcNobodyOn(base) : null };
+  if (sameChannels(on, DEFAULT_CAMPAIGN_CHANNELS)) return bcHeardOf(a.counts ? a.counts[purpose] || 0 : 0, base, at);
+  if (on.length === 0) return bcHeardOf(0, base ? bcNobodyOn(base) : null, at);
   const kept = a.by ? a.by[purpose].find((k) => sameChannels(k.channels, on)) : undefined;
-  return { sending: kept ? kept.preview.sending : 0, preview: kept ? kept.preview : null };
+  return bcHeardOf(kept ? kept.preview.sending : 0, kept ? kept.preview : null, at);
 }
+
+/** Who a reading sends to: everyone it reaches, less who hear from you within a week of it while it leaves them out. */
+const bcGoes = (r: { sending: number; heard: number }, breathe: boolean): number =>
+  breathe ? r.sending - r.heard : r.sending;
+
+/** The send a choice is an answer for: its message, its list and its channels (BcBase `heardTooFor`). */
+const bcSendKey = (tplId: string, aud: string, channels: readonly ConsentChannel[]): string =>
+  `${tplId}|${aud}|${channels.join(",")}`;
 
 // Who the send reaches with the message picked: the list, how many on it this message may reach by the channels it goes
 // by, and the number it goes from.
@@ -77,7 +110,13 @@ export function bcReachOf({
   tplId,
   data,
   channels,
-}: Pick<BcBase, "audiences" | "aud" | "templates" | "tplId" | "data" | "channels">): BcReach {
+  heardTooFor,
+  setHeardTooFor,
+  whenAt,
+}: Pick<
+  BcBase,
+  "audiences" | "aud" | "templates" | "tplId" | "data" | "channels" | "heardTooFor" | "setHeardTooFor" | "whenAt"
+>): BcReach {
   const active = audiences.find((a) => bcKey(a) === aud) || audiences[0] || null;
   // The template comes BEFORE the counts now, because the counts depend on it.
   //
@@ -102,14 +141,30 @@ export function bcReachOf({
   // sizes), but a switch closed by "Texts carry no offers" over no message would be a reason for nothing, as a missing
   // version's was. Only the workspace closes one until a message says what it is.
   const viaPurpose = tpl ? purpose : "conversational";
-  const sizeOf = (a: BcReach["active"]) => bcReadingOf(a, purpose, on).sending;
-  const reading = bcReadingOf(active, purpose, on);
-  const activeCount = reading.sending;
+  // The week's breath: whoever hears from a campaign or a broadcast within a week of the send, either side (the time
+  // picked, else now: contracts heardFor, as the route judges it) is left out, as the route skips them, unless the switch
+  // sends to them too -- for this message, list and channels, which it was switched on for, and only while somebody on it
+  // does: a switch nobody sees is off. Every number the screen says is who it sends to under the switch.
+  const now = Date.now();
+  const at = { sendsAt: whenAt ?? now, now };
+  const reading = bcReadingOf(active, purpose, on, at);
+  const sendKey = bcSendKey(tplId, aud, channels);
+  const breathe = heardTooFor !== sendKey || reading.heard === 0;
+  const setHeardToo = (next: boolean) => setHeardTooFor(next ? sendKey : null);
+  // Each list in the picker by its own switch: one switched on for this list is off for every other.
+  const sizeOf = (a: BcReach["active"]) =>
+    bcGoes(bcReadingOf(a, purpose, on, at), heardTooFor !== bcSendKey(tplId, a ? bcKey(a) : "", channels));
+  const activeCount = bcGoes(reading, breathe);
+  const leftOut = reading.sending - activeCount;
+  // Who it reaches on each channel, those left out taken off theirs (contracts reachAfterBreath): the channel clause, the
+  // bar, the month's line and the day's limit read this, never the split unbroken.
+  const split =
+    reading.preview && reading.preview.split ? reachAfterBreath(reading.preview.split, reading.heardBy, breathe) : null;
   const viaWhatsApp = on.includes("whatsapp");
   // The number matters to the send only where it goes by WhatsApp: a send that does not tick it never asks.
   const numberOk = !viaWhatsApp || !!(number && number.present && number.health.canSend);
-  // The number's daily limit is WhatsApp's: only who the send reaches on it counts against it.
-  const onWhatsApp = reading.preview && reading.preview.split ? reading.preview.split.byChannel.whatsapp : activeCount;
+  // The number's daily limit is WhatsApp's: only who the send reaches on it counts against it, as the route counts it.
+  const onWhatsApp = split ? split.byChannel.whatsapp : activeCount;
   const overLimitWords = active && viaWhatsApp && number ? overLimitRefusal(number.health, onWhatsApp) : null;
   return {
     active,
@@ -117,6 +172,11 @@ export function bcReachOf({
     purpose,
     sizeOf,
     activeCount,
+    heard: reading.heard,
+    breathe,
+    setHeardToo,
+    leftOut,
+    split,
     number,
     numberOk,
     overLimit: overLimitWords !== null,
@@ -133,18 +193,19 @@ export function bcReachOf({
 export function bcSlotChoicesOf({
   tpl,
   link,
+  review,
   sources,
   tplId,
   data,
-}: Pick<BcBase, "link" | "sources" | "tplId" | "data"> & Pick<BcReach, "tpl">): BcSlotChoices {
+}: Pick<BcBase, "link" | "review" | "sources" | "tplId" | "data"> & Pick<BcReach, "tpl">): BcSlotChoices {
   const vars = tpl && Array.isArray(tpl.variables) ? (tpl.variables as BcSlotVar[]) : [];
   const SRC = starters.sources;
   const HINTS = starters.sourceHints;
   // What each slot may take, its default first: a starter's slots come filled in,
   // and a template written elsewhere gets a guess from its labels. A booking link
-  // the workspace has not set can only be typed, so nothing is offered that
-  // cannot be sent.
-  const choices = tpl ? bcSlots(tpl, link) || BC_NONE : BC_NONE;
+  // the workspace has not set, or a review link its Google listing does not keep,
+  // can only be typed, so nothing is offered that cannot be sent.
+  const choices = tpl ? bcSlots(tpl, { bookingLink: link, reviewLink: review }) || BC_NONE : BC_NONE;
   // A slot's source: the one chosen when the slot may take it, else its first. A
   // source kept from before that the slot may not take -- a run sent again, a
   // link since removed -- is not kept.
@@ -160,7 +221,9 @@ export function bcSlotChoicesOf({
         ? data.businessName || "the business"
         : kind === "booking_link"
           ? "your booking link"
-          : "";
+          : kind === "review_link"
+            ? "your review link"
+            : "";
   // Each slot's words: a starter's own, else the labels the row carries.
   const labels = tpl ? starters.slotLabels(tpl) : vars.map((v, i) => v.label || `Value ${v.position || i + 1}`);
   return { vars, SRC, HINTS, choices, srcOf, exampleOf, labels };
@@ -176,19 +239,38 @@ export function bcSlotChoicesOf({
 function bcStopOf(
   f: Pick<
     BcReach,
-    "tpl" | "active" | "activeCount" | "on" | "purpose" | "number" | "numberOk" | "overLimitWords" | "channelReady"
+    | "tpl"
+    | "active"
+    | "activeCount"
+    | "leftOut"
+    | "on"
+    | "purpose"
+    | "number"
+    | "numberOk"
+    | "overLimitWords"
+    | "channelReady"
   > &
     Pick<BcSlotChoices, "labels"> & { filled: readonly unknown[] },
 ): BcSay | null {
-  const { tpl, active, activeCount, on, purpose, number, numberOk, overLimitWords, channelReady, labels, filled } = f;
+  const { tpl, active, activeCount, leftOut, on, purpose, number, numberOk, overLimitWords, channelReady } = f;
+  const { labels, filled } = f;
   if (channelReady.paused) return { tone: "warn", words: CAMPAIGNS_PAUSED_WORDS };
   if (!tpl) return { tone: "plain", words: BC_SAYS.pickMessage };
   if (!active) return { tone: "plain", words: BC_SAYS.pickList };
   const blank = filled.findIndex((v) => !String(v).trim());
   if (blank >= 0) return { tone: "plain", words: BC_SAYS.fill(labels[blank] || `Value ${blank + 1}`) };
-  // Nobody on the list: no channel is on to reach them by, or none of them can be sent this.
+  // Nobody on the list: no channel is on to reach them by, everyone it reaches hears from you within a week of it and is
+  // left out (the switch beside the count sends to them too), or none of them can be sent this.
   if (!(activeCount > 0))
-    return { tone: "warn", words: on.length === 0 ? CM_VIA_WORDS.nowhere : BC_SAYS.nobody(active.label, purpose) };
+    return {
+      tone: "warn",
+      words:
+        on.length === 0
+          ? CM_VIA_WORDS.nowhere
+          : leftOut > 0
+            ? allLeftOutWords(active.label, leftOut)
+            : BC_SAYS.nobody(active.label, purpose),
+    };
   if (!numberOk)
     return {
       tone: "warn",
@@ -213,6 +295,7 @@ export function bcSlotWordsOf({
   tpl,
   active,
   activeCount,
+  leftOut,
   busy,
   numberOk,
   overLimitWords,
@@ -224,7 +307,16 @@ export function bcSlotWordsOf({
   Pick<BcSlotChoices, "vars" | "srcOf" | "exampleOf" | "labels"> &
   Pick<
     BcReach,
-    "tpl" | "active" | "activeCount" | "numberOk" | "overLimitWords" | "on" | "purpose" | "number" | "channelReady"
+    | "tpl"
+    | "active"
+    | "activeCount"
+    | "leftOut"
+    | "numberOk"
+    | "overLimitWords"
+    | "on"
+    | "purpose"
+    | "number"
+    | "channelReady"
   >): BcSlotWords {
   const typed = vars.map((v, i) => (params[tplId] || [])[i] || "");
   const setTyped = (i: number, words: string) =>
@@ -250,11 +342,13 @@ export function bcSlotWordsOf({
     srcOf(i) === "text" ? typed[i].trim() || `[${labels[i]}]` : exampleOf(srcOf(i)),
   );
   const specs = vars.map((v, i) => (srcOf(i) === "text" ? typed[i].trim() : { kind: srcOf(i) }));
-  // Nothing stops it, and it is not already on its way. What is said while something does is the same call's answer.
+  // Nothing stops it, and it is not already on its way. What is said while something does is the same call's answer: one
+  // reading, of who it sends to at the time it goes (the time picked, else now), for the one act the foot draws.
   const say = bcStopOf({
     tpl,
     active,
     activeCount,
+    leftOut,
     on,
     purpose,
     number,
@@ -274,19 +368,23 @@ export function bcPeopleOf({
   active,
   purpose,
   activeCount,
+  leftOut,
   reading,
+  split,
   on,
-}: Pick<BcReach, "active" | "purpose" | "activeCount" | "reading" | "on">): BcPeople {
+}: Pick<BcReach, "active" | "purpose" | "activeCount" | "leftOut" | "reading" | "split" | "on">): BcPeople {
   // Who the preview is drawing it for. The bridge keeps a handful of the rows the
   // count is a length of; a surface cached before they were published has none,
   // and then the composer shows the example values as it always did.
   const sample = reading;
   const people = sample ? sample.people : BC_NONE;
+  // Everyone it reaches, those left out among them: who said yes and can be reached is no fewer for having heard.
+  const reaches = activeCount + leftOut;
   // Nobody on it can be sent this, and somebody on it said yes: the ones who did have no number to send to. Said in
   // People's words (#663), with no door -- asking for their yes would ask for an answer they gave. A send that ticks email
   // is said as the route refuses it (contracts emptyAudienceRefusal): what each ticked channel asks, never "a number".
   const noNumber =
-    active && activeCount === 0 && sample && sample.saidYes > 0
+    active && reaches === 0 && sample && sample.saidYes > 0
       ? on.includes("email")
         ? emptyAudienceRefusal(purpose, active.label, [], { channels: on, about: "ours" })
         : broadcasts.noNumberWords(`“${active.label}”`, purpose)
@@ -294,13 +392,14 @@ export function bcPeopleOf({
   // How many on it said yes, for the line under the audience (contracts saidYesWords): who it reaches, and who said
   // yes when nobody can be sent it -- "0 people … said yes" stood right over the no-number line, and was false.
   const yesWords = active
-    ? broadcasts.saidYesWords(`“${active.label}”`, purpose, activeCount, (sample && sample.saidYes) || 0)
+    ? broadcasts.saidYesWords(`“${active.label}”`, purpose, reaches, (sample && sample.saidYes) || 0)
     : null;
-  // Said only where the send goes by more than WhatsApp alone: for WhatsApp alone the line is what it always was.
-  const splitWords = cmSplitWords(sample && sample.split, on);
-  const heldLines = splitWords ? cmHeldLines(sample && sample.split, purpose) : [];
+  // Said only where the send goes by more than WhatsApp alone: for WhatsApp alone the line is what it always was. Of who
+  // it sends to (`split`, those left out taken off their channel), as the count beside it is.
+  const splitWords = cmSplitWords(split, on);
+  const heldLines = splitWords ? cmHeldLines(split, purpose) : [];
   // The same split as the To line's clause after the count, and what the preview labels each person's channel by.
-  const reachBy = cmReachBy(sample && sample.split, on);
+  const reachBy = cmReachBy(split, on);
   return { sample, people, noNumber, yesWords, splitWords, heldLines, reachBy };
 }
 

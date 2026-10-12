@@ -41,6 +41,12 @@ interface TemplateComposerProps {
   onBegin?: (draft: VersionDraft) => Promise<ApiResult<unknown> | null>;
   /** The names the workspace already has, which a new message may not take: a version under one is written beside what is there. */
   namesHeld?: readonly string[];
+  /**
+   * Whether the Google listing keeps a review link, as the page drawing the composer read it from the surface it loads (the
+   * send screen's broadcasts surface): the starters it offers hold the review ask only where it does. Not given, the
+   * Library's own surface says it (templates/verbs.ts `starters.list`, the settings surface the Library opens on).
+   */
+  reviewLink?: boolean;
 }
 
 /**
@@ -101,6 +107,7 @@ export function TemplateComposer({
   numberWhy = null,
   onBegin,
   namesHeld,
+  reviewLink,
 }: TemplateComposerProps) {
   const draftKey = translate ? `${translate.name}|${translate.language}` : "new";
   const st = useComposerState(translate, draftKey, onBegin && numberWhy !== null ? "email" : "whatsapp");
@@ -140,7 +147,7 @@ export function TemplateComposer({
     void acts.translateNow();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on arrival: a composer is keyed by its language
   }, []);
-  const ctx = { st, facts, acts, work, businessName, onCancel, pane, numberWhy, begins: !!onBegin };
+  const ctx = { st, facts, acts, work, businessName, onCancel, pane, numberWhy, begins: !!onBegin, reviewLink };
   // The fields the words are changed in and the preview beside them are made before the form is chosen, as the JSX made them.
   const made = { fields: composerFields(ctx), preview: composerPreview(ctx) };
   return translate ? translationForm(ctx, translate, made) : newTemplateForm(ctx, made);

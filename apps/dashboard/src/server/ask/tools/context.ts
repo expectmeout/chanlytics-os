@@ -4,12 +4,15 @@ import type { z } from "zod";
 import {
   AppError,
   PROPOSAL_SPECS,
+  STEP_TOKEN,
   channelChoices,
   channelsReady,
   emptyReadSet,
   messageWhyNot,
   noteRows,
+  purposeOfTemplate,
   readyForMessage,
+  roleAtLeast,
   type AskCitationKind,
   type AskProposal,
   type AskReadSet,
@@ -22,6 +25,7 @@ import {
   type ProposalKindAboveOperator,
 } from "@chanlytics/contracts";
 import { parseChannels, readCampaignMessage, type TemplateValuesPorts } from "@chanlytics/core";
+import { recentTouches } from "@chanlytics/db";
 import type { RouteContext } from "../../with-route";
 import { readerContext, type ReaderContext } from "../../readers";
 import { whatsappHealthOf } from "../../campaigns/channels-ready";
@@ -66,6 +70,11 @@ export interface ToolContext {
    * validation).
    */
   rc: ReaderContext;
+  /**
+   * The step of Ask's plan this tool builds a card for (act/plan.ts), where a plan runs it: a `@step:n` naming an earlier
+   * step stands in for an id that step makes (stepNamed). Absent everywhere else, where a token names nothing.
+   */
+  step?: number;
 }
 
 export interface ToolOutcome {
@@ -78,9 +87,15 @@ export interface ToolOutcome {
 
 export interface ProposalOutcome {
   proposal: AskProposal | null;
+  /** Several cards from one call, in order (a plan's steps, proposeMany): where set, they are the call's cards. */
+  proposals?: AskProposal[];
   /** What the model sees. */
   result: string;
   isError: boolean;
+  /** A plan's own words for the person (proposeMany): a round that made it answers with them (loop.ts). */
+  words?: string;
+  /** Why nothing was proposed (refuse), as the model is told it: read by a plan of its step's refusal (act/plan.ts). */
+  refusal?: string;
 }
 
 /**
@@ -172,6 +187,12 @@ export const actAction = <S extends z.ZodObject>(def: ActDef<S> & { words: strin
 export const needsOf = (def: ReadDef | ActDef): MembershipRole =>
   "kind" in def ? PROPOSAL_SPECS[def.kind].needs : (def.needs ?? "viewer");
 
+/**
+ * Whether a role may use a definition (D2): the one predicate the registry offers each action by (registry.ts
+ * offeredActions), and Ask's plan asks of a step it would make (act/plan.ts: a note for the receptionist).
+ */
+export const offeredTo = (def: ReadDef | ActDef, role: MembershipRole): boolean => roleAtLeast(role, needsOf(def));
+
 /** Whose a role's action is, in the words a refusal says it: "an owner's", "an owner's or a partner's". */
 export const WHOSE: Record<MembershipRole, string> = {
   owner: "an owner's",
@@ -203,6 +224,15 @@ export const unread =
     log.error("ask_tool_read_failed", { tool, read, tenant_id: t.tenantId, error: e });
     return null;
   };
+
+/**
+ * Who heard from a campaign or a broadcast from a week ago on, or is due to, as every page and the send read it
+ * (packages/db recentTouches, the week's breath): contact id -> the time of every touch of theirs. Null where it could not
+ * be read, said in the log by the tool that asked (`unread`), which then counts nothing it would have to count with
+ * nobody heard: a card is refused (PLAYBOOK_CARD_REFUSALS.weekUnread), a listing gives no count.
+ */
+export const touchesThisWeek = (t: ToolContext, tool: string): Promise<Record<string, string[]> | null> =>
+  recentTouches(t.ctx.supabase, t.tenantId, t.now).catch(unread(t, tool, "touches"));
 
 /**
  * The channels a proposal is counted by, as the route that commits it reads them: WhatsApp alone, since a proposal names
@@ -302,7 +332,7 @@ export async function askedMessage(t: ToolContext, id: string): Promise<AskedMes
  */
 export async function whatsappAloneRefusal(
   t: ToolContext,
-  message: CampaignMessage,
+  message: Pick<CampaignMessage, "versions" | "purpose">,
   about: MessageAbout,
 ): Promise<string | null> {
   const why = messageWhyNot(message, "whatsapp");
@@ -314,6 +344,44 @@ export async function whatsappAloneRefusal(
   return goes.length > 0
     ? `${why} Say so, and name channels among ${goes.join(", ")}`
     : `${why} It can go by no other channel yet: say so`;
+}
+
+/**
+ * The earlier step of the plan a value names by its token (contracts STEP_TOKEN, `@step:n`), where the tool builds a
+ * plan's step (`t.step`) and n is a step before it; else null: a token outside a plan, or naming its own step or a later
+ * one, names nothing, and the id it stands in for is refused as any other value that is not one.
+ */
+export function stepNamed(t: ToolContext, v: string): number | null {
+  const m = STEP_TOKEN.exec(v);
+  if (!m || t.step === undefined) return null;
+  const n = Number(m[1]);
+  return n >= 1 && n < t.step ? n : null;
+}
+
+/** A message a plan writes is an offer (contracts planOf writes its category marketing). */
+const STEP_CATEGORY = "marketing";
+
+/**
+ * The message an earlier step of a plan writes, as a campaign card on it judges its channels and its people before it is
+ * filed: an offer (its category and the yes it needs, STEP_CATEGORY), with a version on each channel the card goes by,
+ * as the plan writes one for each (contracts planOf), so the workspace alone says whether each can send; a card that
+ * names none passes every channel, and the composer's own rule picks among them as for any message. Its versions' own
+ * standing (WhatsApp's review) is the route's to judge at the press, by then filled with the message the step made
+ * (Task 16's commit).
+ */
+export function stepMessage(
+  channels: readonly ConsentChannel[],
+): Pick<CampaignMessage, "versions" | "category" | "purpose"> {
+  const on = (c: ConsentChannel) => channels.includes(c);
+  return {
+    category: STEP_CATEGORY,
+    purpose: purposeOfTemplate(STEP_CATEGORY),
+    versions: {
+      whatsapp: on("whatsapp") ? { id: "", status: "approved", hidden: false, blocked: null, reason: null } : null,
+      email: on("email") ? { id: "" } : null,
+      sms: on("sms") ? { id: "" } : null,
+    },
+  };
 }
 
 /**
@@ -378,6 +446,7 @@ export const refuse = (why: string): ProposalOutcome => ({
   proposal: null,
   result: JSON.stringify({ error: why }),
   isError: true,
+  refusal: why,
 });
 
 /**
@@ -408,3 +477,28 @@ export const propose = (p: Omit<AskProposal, "id" | "needs" | "undo" | "made_at"
     }),
   };
 };
+
+/** The cards one call made, in order, as the loop keeps them: a plan's several (proposeMany), else its one, else none. */
+export const cardsOf = (o: ProposalOutcome): AskProposal[] => o.proposals ?? (o.proposal ? [o.proposal] : []);
+
+/**
+ * Several cards from one call, in order, each made by `propose` (a plan's steps, act/plan.ts): the loop keeps every one
+ * (loop.ts, cardsOf), and the model is told what `said` says of them, the plan's `words`, and that nothing has happened
+ * yet, and how a plan's cards are pressed. The words ride with the outcome too, for the round that answers with them.
+ */
+export const proposeMany = (
+  proposals: AskProposal[],
+  said: Record<string, unknown>,
+  words: string | null,
+): ProposalOutcome => ({
+  proposal: null,
+  proposals,
+  isError: false,
+  ...(words ? { words } : {}),
+  result: JSON.stringify({
+    proposed: true,
+    ...said,
+    ...(words ? { words } : {}),
+    note: "Nothing has happened yet. These are cards the person approves, edits or dismisses; a plan's steps that send nothing are one press, and each send its own after them. Say what you proposed; never say any of it is done.",
+  }),
+});

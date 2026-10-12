@@ -23,13 +23,16 @@ import {
   type AppointmentState,
   type AskedPurpose,
   type FeedNames,
+  RECIPIENT_REASON_HEARD,
   allowanceRoom,
   emailFoot,
   emailFootHtml,
   enrolPurpose,
   heldByAllowance,
   isOfferByEmail,
+  leftOutByFacts,
   messageAboutOfTrigger,
+  parseParamSpecs,
   purposeOfTemplate,
   renderOwnVersion,
   renderTemplate,
@@ -100,6 +103,8 @@ export interface Work {
   rows: Awaited<ReturnType<BroadcastBatchPorts["message"]>>;
   specs: ParamSpec[];
   facts: Awaited<ReturnType<BroadcastBatchPorts["facts"]>>;
+  /** The Google listing's review link, read once for the batch where a slot asks for it (batchSlots); else null. */
+  reviewLink: string | null;
   people: Map<string, ContactRow>;
   priors: Map<string, { id: string; sentAt: string | null }>;
   /** The appointments the batch's reminders were drawn for, by key (ports.appointments): what each send asks again. */
@@ -143,6 +148,31 @@ export function rowFacts(r: Pick<RecipientRow, "facts">): Record<string, unknown
   return r.facts !== null && typeof r.facts === "object" && !Array.isArray(r.facts)
     ? (r.facts as Record<string, unknown>)
     : {};
+}
+
+/**
+ * What fills the message's slots, read once for the batch: its specs, and the Google listing's review link only where a
+ * slot asks for it (ports.reviewLink), else null. A message with no review slot never depends on the listing, as before
+ * 00415, so a failure on that table never stops its send; one whose slot needs the link stops on the read, which the
+ * batch makes before the run is marked sending or anyone is claimed, so the job's next try finds the run as it was.
+ */
+export async function batchSlots(
+  ports: Pick<BroadcastBatchPorts, "reviewLink">,
+  params: unknown,
+): Promise<{ specs: ParamSpec[]; reviewLink: string | null }> {
+  const specs = parseParamSpecs(params);
+  return { specs, reviewLink: specs.some((s) => s.kind === "review_link") ? await ports.reviewLink() : null };
+}
+
+/**
+ * Why a person's own row holds them at the wire, or null: a send by hand left them out for the week's breath, in the run's
+ * own write (contracts LEFT_OUT_FACTS: never sent, whatever the hold after the run wrote), or a reminder's visit no longer
+ * stands (broadcast-feed.ts visitStands, handed in, and asked only of a person not left out: one the breath left out is
+ * skipped even where the calendar could not be read).
+ */
+export function rowHold(r: Pick<RecipientRow, "facts">, visitStands: () => boolean): string | null {
+  if (leftOutByFacts(rowFacts(r))) return RECIPIENT_REASON_HEARD;
+  return visitStands() ? null : "appointment_changed";
 }
 
 /** What a run's messages record: that a broadcast sent them, which, and for a run, its playbook (a thread reads "by the Win-back playbook"). */

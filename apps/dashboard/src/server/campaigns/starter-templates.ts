@@ -1,7 +1,8 @@
 /**
  * The starter set, added to a workspace (POST /api/v1/templates/starter): { keys?, languages?, channels? }, every starter
  * the workspace is offered by default (contracts startersOffered: the proposal follow-up's only where deals are on,
- * 0006), in English by default, on every channel by default. Idempotent: a starter already on file is left as it is; one
+ * 0006, and the review ask's only where the Google listing keeps a review link, 00415), in English by default, on every
+ * channel by default. Idempotent: a starter already on file is left as it is; one
  * the number's account already holds (a shared account, or written in WhatsApp Manager) is synced in rather than
  * refused; the rest are submitted to Meta for review, exactly as a template written by hand is. The answer says what
  * happened to each. When nothing can be added at all (no account on file, no token, a preview) that is said once as a
@@ -58,10 +59,17 @@ import {
   type StarterTemplate,
   type triggerOf,
 } from "@chanlytics/contracts";
-import { parseChannels, playbookNumber, refuseWithoutBookingLink } from "@chanlytics/core";
+import {
+  TEMPLATE_VALUE_WORDS,
+  parseChannels,
+  playbookNumber,
+  refuseWithoutBookingLink,
+  refuseWithoutReviewLink,
+} from "@chanlytics/core";
 import {
   followUpOnFile,
   messageVersionRowsOf,
+  reviewLinkOf,
   templateStatusOf,
   templatesNamed,
   whatsappChannelFacts,
@@ -120,6 +128,26 @@ interface StartersAsked {
   channels?: unknown;
 }
 
+/**
+ * The set this workspace is offered (contracts startersOffered): the proposal follow-up only where deals are on, and the
+ * review ask only where the Google listing keeps a review link (db reviewLinkOf, 00415), which its slot is filled from. A
+ * link that could not be read is none here: the review ask is left out of a press, which costs nothing. A starter asked
+ * for by its key and left out for want of the link is refused in the words a message's values are (core
+ * TEMPLATE_VALUE_WORDS), never as "pick at least one".
+ */
+async function startersHere(ctx: RouteContext, tenantId: string, keys: unknown): Promise<StarterTemplate[]> {
+  const [sellsBy, link] = await Promise.all([
+    sellsByOf(ctx, tenantId),
+    reviewLinkOf(ctx.supabase, tenantId).catch(() => null),
+  ]);
+  const dealsOn = dealsAreOn(sellsBy);
+  const offered = startersOffered({ dealsOn, reviewLink: link !== null });
+  const asked = Array.isArray(keys) ? keys : [];
+  if (startersOffered({ dealsOn, reviewLink: true }).some((s) => asked.includes(s.key) && !offered.includes(s)))
+    throw new AppError("conflict", TEMPLATE_VALUE_WORDS.noReviewLink, 409);
+  return offered;
+}
+
 export async function addStarterTemplates(ctx: RouteContext, req: Request, member: Member) {
   return fileStarters(ctx, member.tenantId, ((await jsonBody(req)) as StartersAsked | null) ?? {});
 }
@@ -136,7 +164,7 @@ async function fileStarters(ctx: RouteContext, tenantId: string, body: StartersA
     no_token: "Chanlytics has no access token for this number yet.",
   };
   // The set this workspace is offered: a starter it is not offered is not filed, asked for or not.
-  const offered = startersOffered(dealsAreOn(await sellsByOf(ctx, tenantId)));
+  const offered = await startersHere(ctx, tenantId, body.keys);
   const keys = Array.isArray(body.keys)
     ? body.keys.filter((k): k is string => typeof k === "string")
     : offered.map((s) => s.key);
@@ -404,8 +432,11 @@ export async function checkStarterPlaybook(
   if (!fit.ok) throw new AppError("validation", fit.words);
   for (const k of NUMBERS) playbookNumber(k, body[k], PLAYBOOK_LIMITS[k].min);
   const params = defaultParamSpecs({ name: starter.name, variables: [] });
-  // A booking-link slot needs a link on file, as a message's values are held to it (core refuseWithoutBookingLink).
-  await refuseWithoutBookingLink(templateValuePorts(ctx, tenantId), params);
+  // A booking-link slot needs a link on file, and a review-link slot the link the Google listing keeps, as a message's
+  // values are held to them (core refuseWithoutBookingLink, refuseWithoutReviewLink).
+  const values = templateValuePorts(ctx, tenantId);
+  await refuseWithoutBookingLink(values, params);
+  await refuseWithoutReviewLink(values, params);
   const purpose = enrolPurpose(cls, { category: starter.category });
   const named = body.channels === undefined || body.channels === null ? null : parseChannels(body.channels);
   const never = (named ?? []).map((c) => channelNeverCarries(c, purpose)).find((w) => w !== null);

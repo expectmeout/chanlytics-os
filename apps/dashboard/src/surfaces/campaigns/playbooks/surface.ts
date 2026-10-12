@@ -7,7 +7,6 @@
 import { read } from "@/legacy-bridge/api";
 import {
   DEFAULT_CAMPAIGN_CHANNELS,
-  PEOPLE_LISTS,
   REPLY_WINDOW_WORDS,
   numberHealth,
   type ChannelsReady,
@@ -15,22 +14,17 @@ import {
   type MonthSent,
   type NumberHealth,
   type RunSplit,
-  FOLLOW_UP_NEEDS_DEALS,
-  PLAYBOOK_TRIGGERS,
-  appointmentWordOf,
-  momentOffered,
-  nextRunLabel,
+  lifecyclePlaybooksOf,
   playbookPoolKey,
   scheduleLine,
   triggerOf,
-  triggerOffered,
   triggerWords,
+  whatsappLineOf,
   type CampaignMessage,
   type LifecycleShape,
   type LifecycleTemplate,
   type PlaybookDto,
 } from "@chanlytics/contracts";
-import type { Output } from "@/client/api";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { declareReads } from "@/legacy-bridge/surface-registry";
 import type { SettingsSurface } from "@/legacy-bridge/surfaces/settings";
@@ -291,29 +285,14 @@ export interface PlaybooksSurface {
   /** Its postal address where the Business record holds one: the foot of an email names it (contracts emailFoot). */
   businessAddress?: string | null;
   bookingLink: boolean;
+  /** Whether the Google listing keeps a review link (GET settings' `review_link`): what may fill a review-link slot. */
+  reviewLink: boolean;
   /** The reply window in words, for the tips that say what a reply is (contracts REPLY_WINDOW_WORDS). */
   replyWindow: string;
   fetchedAt: number;
 }
 
 /** Count the whole pool, not one run's cap. */
-
-/**
- * How the business works, from GET playbooks' answer (its businessShape): what the workspace calls an appointment, and
- * whether its appointment moments are counted from a calendar's feed, from a booking tool's emails, or from neither. A
- * server from before the word answers none, and the one derivation reads how its customers buy here instead, so either
- * deploy order works.
- */
-function businessShapeOf(
-  pb: Pick<Output<"GET playbooks">, "deals_on" | "appointment_word" | "bookings_by_email">,
-  calendarOn: boolean,
-): LifecycleShape {
-  return {
-    calendar: calendarOn ? "feed" : pb.bookings_by_email === true ? "email" : "none",
-    dealsOn: !!pb.deals_on,
-    word: appointmentWordOf({ stored: pb.appointment_word ?? null, sellsBy: pb.deals_on ? "proposal" : null }),
-  };
-}
 
 /**
  * What the settings read, the one read of the templates, gives the page: the messages a playbook may send, the call's text
@@ -383,16 +362,10 @@ export const playbooksOverride: SurfaceOverride = {
       "facts",
       "send",
       "campaign",
-      "lead",
-      "reach_out",
     ],
     fresh: "its-page",
     always: ["send", "campaign"],
     omit: [
-      {
-        tables: ["leads", "lead_searches", "lead_rounds", "lead_search_members", "reach_out_replies"],
-        why: "People's read carries each person's business and offered signer (0052); no moment's pool is counted from either, and a greeting's name is the person's, heard with them",
-      },
       {
         tables: ["appointment_notices"],
         why: "a booking email held for a look is the Calendar's and Settings'; the pools read the appointments themselves",
@@ -419,14 +392,17 @@ export const playbooksOverride: SurfaceOverride = {
     const held = (trigger: string) => pools[trigger]?.held ?? null;
     // And everyone each moment names, with who of them no run reaches whatever the week.
     const named = (trigger: string): PlaybookNamed | null => namedOf(pools[trigger]);
-    const wa =
-      ch instanceof Error
-        ? null
-        : ((ch.channels ?? []).find((c) => c.kind === "whatsapp" && c.status === "active") ?? null);
+    const wa = ch instanceof Error ? null : whatsappLineOf(ch.channels);
     const brain = cfg instanceof Error ? null : (cfg.config?.brain ?? null);
     if (ch instanceof Error) console.error("playbooks_channels_fetch_failed", ch.message);
-    const tz = pb.timezone || "America/New_York";
-    // A playbook on a list is counted by its list's token (`seg:<id>` or `list:<id>`, decision 0009), and named for it.
+    // The answer as the home reads it, the one reading Ask's campaigns.journey makes too (contracts lifecyclePlaybooksOf):
+    // the business's shape and zone, what it says of each card (its archived list, its trigger's words, its next run, why it
+    // runs nothing here), the moments that may run here with which a NEW playbook may start from, and whether all were
+    // counted. The word every moment's words below say is the shape's.
+    const home = lifecyclePlaybooksOf(pb, now);
+    const { shape, timezone: tz } = home;
+    const { word } = shape;
+    // A playbook on a list is counted by its list's token (`seg:<id>` or `list:<id>`, decision 0009).
     const listsKept = pb.lists ?? [];
     const peopleLists = pb.people_lists ?? [];
     const momentKey = (p: { trigger: string; list_id?: string | null; list_key?: string | null }) =>
@@ -435,53 +411,34 @@ export const playbooksOverride: SurfaceOverride = {
     // counted on its own: its run enrols by the message's yes (the route's strictMessagePools).
     const keyOf = (p: { id: string; trigger: string; list_id?: string | null; list_key?: string | null }) =>
       playbookPoolKey(p.id) in (pb.pools ?? {}) ? playbookPoolKey(p.id) : momentKey(p);
-    // A built-in is named by contracts when the route's People read failed: it is never deleted. One of the
-    // workspace's own is named by the lists read; unread, it is a list that could not be read, never a deleted one.
-    const listNameOf = (p: { list_id?: string | null; list_key?: string | null }) =>
-      p.list_key
-        ? (peopleLists.find((l) => l.key === p.list_key)?.label ??
-          PEOPLE_LISTS.find((l) => l.id === p.list_key)?.label ??
-          null)
-        : (listsKept.find((l) => l.id === p.list_id)?.name ?? null);
-    const unnamed = pb.lists === null ? "A list that could not be read" : "A list that was deleted";
-    // The moments that may run here (0006): a proposal's only where deals are on, as the route counts them. The cards read
-    // their moment from them, a retired one's too; which a NEW playbook may start from is each one's `offered` below.
-    const moments = PLAYBOOK_TRIGGERS.filter((t) => triggerOffered(t, !!pb.deals_on));
-    // A connected calendar counts whether or not its feed can be read just now: the win-back by visits is offered on it.
-    const calendarOn = (pb.calendar ?? "none") !== "none";
-    // How the business works, and the word every moment's words below say.
-    const shape = businessShapeOf(pb, calendarOn);
-    const { word } = shape;
     setSurfaceValue("playbooks", {
       pools,
       shape,
       ready: pb.ready ?? null,
       month_sent: pb.month_sent ?? null,
-      rows: pb.playbooks.map((p) => {
+      rows: home.cards.map(({ playbook: p, read: card }) => {
         const t = triggerOf(p.trigger);
-        const onArchived = p.trigger === "saved_list" && !!listsKept.find((l) => l.id === p.list_id)?.archived;
         // Its reach is the count for the channels it goes by.
         const reading = readingFor(pools[keyOf(p)], p.channels);
         return {
           ...p,
           poolKey: keyOf(p),
-          // Its list was archived (00169): paused until the list is restored or the playbook moved to another.
-          listArchived: onArchived,
-          triggerLabel:
-            p.trigger === "saved_list" ? (listNameOf(p) ?? unnamed) : t ? triggerWords(t, word).label : p.trigger,
+          listArchived: card.listArchived,
+          triggerLabel: card.triggerLabel,
           triggerHint: t ? triggerWords(t, word).hint : "",
           schedule: scheduleLine(p, word),
-          // While the workspace is paused no time is promised: the card says so instead of "tomorrow 10:00 AM".
-          next: nextRunLabel(p, tz, now, pb.ready?.paused === true),
+          next: card.next,
           candidates: reading ? reading.candidates : null,
           held: reading ? reading.held : null,
           named: namedOf(reading),
-          // A follow-up made while deals were on runs nothing once they are off: the card says why (0006).
-          off: t && !triggerOffered(t, !!pb.deals_on) ? FOLLOW_UP_NEEDS_DEALS : null,
+          off: card.off,
+          // The day it ended, or its trial ends (00416), in the card's words: what its state says.
+          ended: card.ended,
+          trial: card.trial,
         };
       }),
       timezone: tz,
-      countsRead: moments.every((t) => t.kind === "saved" || !!pb.pools?.[t.id]),
+      countsRead: home.countsRead,
       lists: [
         ...peopleLists.map((l) => ({ id: `seg:${l.key}`, name: l.label, smart: true, builtin: true })),
         // An archived list is offered to no new playbook (00169); the ones on it say so on their card.
@@ -490,14 +447,14 @@ export const playbooksOverride: SurfaceOverride = {
           .map((l) => ({ id: `list:${l.id}`, name: l.name, smart: l.smart, builtin: false })),
       ].map((l) => ({ ...l, candidates: pool(l.id), held: held(l.id), named: named(l.id) })),
       calendar: pb.calendar ?? "none",
-      triggers: moments.map((t) => ({
+      triggers: home.moments.map(({ trigger: t, offered }) => ({
         id: t.id,
         label: triggerWords(t, word).label,
         hint: triggerWords(t, word).hint,
         cls: t.cls,
         list: t.list,
         kind: t.kind,
-        offered: momentOffered(t, { dealsOn: !!pb.deals_on, calendarOn }),
+        offered,
         candidates: pool(t.id),
         held: held(t.id),
         named: named(t.id),
@@ -517,6 +474,8 @@ export const playbooksOverride: SurfaceOverride = {
       businessName: brain?.business_name || "the business",
       businessAddress: cmAddressOf(brain),
       bookingLink: !!brain?.booking_link,
+      // A read that failed, a broken config and an older server's answer all say nothing of the listing: none.
+      reviewLink: !(cfg instanceof Error) && !cfg.configBroken && cfg.review_link === true,
       replyWindow: REPLY_WINDOW_WORDS,
       fetchedAt: now.getTime(),
     });

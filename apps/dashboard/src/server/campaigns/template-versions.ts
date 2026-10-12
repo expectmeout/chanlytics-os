@@ -55,6 +55,9 @@ type Db = Pick<RouteContext, "supabase">;
 /** The session a version is written on, and the member it is written as (the first version of a message is the service role's, naming them). */
 type Acting = Pick<RouteContext, "supabase" | "userId">;
 
+/** A message's values as the routes that take them say them: numbered 1, 2, 3 in order, each with a name. */
+export const MESSAGE_VALUES_WORDS = "Give each value a number, in order from 1, and a name.";
+
 /** What a message is, said with its first version when the workspace has no row of its name (POST templates/versions). */
 interface NewMessage {
   category: "marketing" | "utility";
@@ -148,6 +151,18 @@ async function beginMessage(
 }
 
 /**
+ * A message somebody writes is an offer or news (rule 4): nobody reviews a category its writer declares, so `utility`
+ * (about their own booking or proposal) is a starter's alone, which Chanlytics writes, or comes with a WhatsApp version
+ * Meta reviews. The one check of it: a member's first version of a message (beginVersion, POST templates/versions, which
+ * never has a WhatsApp version, in MESSAGE_BEGIN_WORDS.customIsAnOffer) and a message written whole with no WhatsApp
+ * version (write-message.ts, in MESSAGE_BEGIN_WORDS.utilityNeedsWhatsapp, since that door takes one with it): each door
+ * says it in `words` true of what it takes.
+ */
+export function refuseWrittenUtility(category: "marketing" | "utility", words: string): void {
+  if (category === "utility") throw new AppError("validation", words);
+}
+
+/**
  * The first version of a message the workspace holds no row of. A starter of the registry begins as itself: its category,
  * its values and no title of its own (the starter's title is read from the registry), only on a channel it writes
  * something for in this language, else it is not found, as it was before this door existed, and only with the starter's
@@ -178,7 +193,7 @@ async function beginVersion(db: Acting, tenantId: string, v: VersionRequest): Pr
     example: x.example ?? null,
   }));
   const words = checkedWords(v, variables.length);
-  if (category === "utility") throw new AppError("validation", MESSAGE_BEGIN_WORDS.customIsAnOffer);
+  refuseWrittenUtility(category, MESSAGE_BEGIN_WORDS.customIsAnOffer);
   return beginMessage(db.userId, tenantId, v, words, { category, variables, title: title ?? null });
 }
 
@@ -207,6 +222,27 @@ export async function saveVersion(ctx: RouteContext, member: Member, v: VersionR
     throw new AppError("validation", "Pick a language from the list.");
   const held = await messageSlots(ctx.supabase, member.tenantId, v.name, v.language);
   return writeOrBegin(ctx, member.tenantId, v, held);
+}
+
+/**
+ * POST templates/message: one email or text version of a message written whole (write-message.ts), which says what the
+ * message is (its category and values) with every version at once. Beside the rows its message has, where the workspace
+ * holds any of its name (`held` is how many values they say, as the caller read them once: writeVersion, the message's
+ * own slots and category), else as its first (beginMessage: the category and values said, a text of an offer refused).
+ * The words are checked here as everywhere (checkedWords). No starter's name reaches here, nor a category or a number of
+ * values other than the message's on file, and a utility category only with a WhatsApp version for Meta to review: the
+ * caller refuses each first (refuseWrittenUtility, the check a member's first version meets).
+ */
+export async function fileWrittenVersion(
+  db: Acting,
+  tenantId: string,
+  v: VersionRequest,
+  held: number | null,
+  message: { category: "marketing" | "utility"; variables: MessageVariable[] },
+): Promise<VersionSaved> {
+  if (held !== null) return writeVersion(db, tenantId, v, held);
+  const words = checkedWords(v, message.variables.length);
+  return beginMessage(db.userId, tenantId, v, words, { ...message, title: null });
 }
 
 /** DELETE templates/versions/:id: an email or text version a member wrote, and nothing else (the door says which rows). */

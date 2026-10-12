@@ -4,6 +4,8 @@
  */
 import { INSTRUCTIONS_MAX } from "../workspace-config/config-rules";
 import { FALLBACK_DEFAULTS, isProductFallback } from "../workspace-config/fallbacks";
+import { notesInForce } from "../workspace-config/compose";
+import { closureDatesLabel } from "../../calendar/calendar-words";
 import { CHIPS_SHOWN, chipsMoreWords, count } from "./counts";
 
 /* ---- How it answers ---- */
@@ -90,6 +92,18 @@ export function notesWords(
     chips: titles.slice(0, NOTE_CHIPS),
     more: n > NOTE_CHIPS ? chipsMoreWords(n - NOTE_CHIPS) : null,
   };
+}
+
+/**
+ * A note's end, beside its title in the notes fold once its last day has passed: "ended Oct 10". Null while it lasts
+ * (its last day included) and for a note with no end. Ended is decided by the composer's own rule (notesInForce), so
+ * the form calls a note ended exactly when the receptionist stops being told it. `tz` is the zone the composer is given,
+ * the workspace's own, never a zone a page shows times in: with none, the composer's fallback decides here too. The date
+ * is spelled as the closed days' row spells a closed day (closureDatesLabel).
+ */
+export function noteEndedWords(until: unknown, tz: string | null | undefined, now: Date): string | null {
+  if (typeof until !== "string" || !until) return null;
+  return notesInForce([{ until }], tz, now).length ? null : `ended ${closureDatesLabel({ date: until })}`;
 }
 
 /** The owner's own words, at rest and in their box. */

@@ -1016,3 +1016,30 @@ test("a run's report says each person's channel where it reached anybody by some
   );
   assert.equal(subs(quiet)[1][1], "every one reached the handset");
 });
+
+test("a person a send skipped for the week's breath is held back, in words: they hear from you within a week of it", () => {
+  const vm = C.toRunReportVM(
+    {
+      broadcast: { state: "sent", params: [] },
+      recipients: [
+        {
+          contact_id: "c",
+          name: "Ada",
+          first_name: "Ada",
+          phone: null,
+          state: "skipped",
+          reason: C.RECIPIENT_REASON_HEARD,
+        },
+      ],
+    },
+    { windowMs: C.REPLY_WINDOW_MS, nowMs: T0, clock: () => null },
+  );
+  const [p] = vm.people;
+  assert.deepEqual(
+    [p.pill.label, p.words, p.in.includes("held")],
+    ["Held back", "not sent: they hear from you within a week of it", true],
+  );
+  // Spelled out in the map, as the bundler needs it, and held to the one name core writes on the row.
+  assert.equal(C.HELD_REASONS[C.RECIPIENT_REASON_HEARD], "not sent: they hear from you within a week of it");
+  assert.equal(C.HELD_REASONS.heard_this_week, C.HELD_REASONS[C.RECIPIENT_REASON_HEARD]);
+});

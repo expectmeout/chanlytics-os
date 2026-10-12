@@ -247,13 +247,12 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST contacts": () => [...peopleAndAudiences(), ...calendarIfDrawn()],
   // A conversation begun from the Inbox: their thread is new or moved, and their row on People says so.
   "POST people/[id]/message": personAndThreads,
-  // A signer's name used, put back or declined (0052): the name is on every row and thread header that draws them, and a
-  // greeting counts it (the composers' audiences). Leads' rows and peek say who the business's person is from People's rows,
-  // which this re-reads, never from a read of their own.
-  "POST people/[id]/name": () => [...personAndThreads(), ...audiences()],
-  // Linked to a business, or not at it (0052): their row trails the business, and Leads lists its people from People's rows.
-  "PUT people/[id]/business": personAndThreads,
-  "DELETE people/[id]/business": personAndThreads,
+  // A signer's name used, put back or declined (0052): the name is on every row and thread header that draws them, a greeting
+  // counts it (the composers' audiences), and Leads' rows and peek say who the business's person is.
+  "POST people/[id]/name": () => [...personAndThreads(), ...audiences(), ...leads()],
+  // Linked to a business, or not at it (0052): their row trails the business, and the lead's own rows list its people.
+  "PUT people/[id]/business": () => [...personAndThreads(), ...leads()],
+  "DELETE people/[id]/business": () => [...personAndThreads(), ...leads()],
   "POST contacts/import": peopleAndAudiences,
   // A list is an audience and a playbook's moment too: the composer's chips and a playbook's count follow it.
   "POST segments": () => [peopleOverride, broadcastsOverride, playbooksOverride],
@@ -323,6 +322,11 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // the playbooks' counts. Taking a version away moves the same surfaces as writing one: the channel it was on closes.
   "POST templates/versions": versionWrite,
   "DELETE templates/versions/[id]": versionWrite,
+  // A whole message written at once, from Ask's message card (decision 0055): every channel's version filed and its
+  // WhatsApp one submitted. It moves what a message and its versions move: the settings read the Library and both
+  // composers are drawn from, and the playbooks (a message's category is its versions'). Not the reach-outs: a message
+  // written here is on no chain.
+  "POST templates/message": () => [settingsOverride, playbooksOverride],
   // Settings and the team.
   // Settings FIRST: it carries the version the next save has to send. Today
   // states the workspace's facts; hours, closures, rules and services are the

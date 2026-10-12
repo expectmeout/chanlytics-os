@@ -216,6 +216,7 @@ export const ROUTE_KEYS = [
   "POST team/partner",
   "POST templates",
   "POST templates/draft",
+  "POST templates/message",
   "POST templates/starter",
   "POST templates/sync",
   "POST templates/versions",

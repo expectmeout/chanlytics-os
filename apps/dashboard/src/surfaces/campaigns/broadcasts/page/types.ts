@@ -13,6 +13,7 @@ import type {
   ConsentChannel,
   ParamSourceKind,
   PreviewVersions,
+  ReachSplit,
 } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import type { UnsavedWork } from "../../../kit/record/work";
@@ -104,6 +105,8 @@ export interface BcBase {
   templatesRead: boolean;
   offered: BcOffered;
   link: boolean;
+  /** Whether the Google listing keeps a review link: what a review-link slot may be filled with. */
+  review: boolean;
   templates: BroadcastTemplate[];
   aud: string;
   setAud: Setter<string>;
@@ -113,6 +116,14 @@ export interface BcBase {
   /** The channels ticked in the Send by row, as the owner left them (what is on is BcReach's `on`). */
   channels: ConsentChannel[];
   setChannels: Setter<ConsentChannel[]>;
+  /**
+   * The send the switch "Also send to the N who hear from you within a week of it" (contracts heardTooWords) was switched
+   * on for (reach.ts bcSendKey), or null: off, the send leaves out whoever hears from a campaign or a broadcast within a
+   * week of it; on, it carries
+   * `breathe: false`. It answers for that message, list and channels alone: on any other send it is off.
+   */
+  heardTooFor: string | null;
+  setHeardTooFor: Setter<string | null>;
   params: Params;
   setParams: Setter<Params>;
   sources: Sources;
@@ -158,7 +169,27 @@ export interface BcReach {
   tpl: BroadcastTemplate | null;
   purpose: AskedPurpose;
   sizeOf: (a: AudienceOption | null) => number;
+  /**
+   * Who the send goes to at the time it goes (the time picked, else now): those it reaches, less those it leaves out while
+   * it breathes. The count the reach line says, and the one act's: "Send to N now" and its Confirm, or Schedule's send.
+   */
   activeCount: number;
+  /**
+   * Of those it reaches, how many hear from a campaign or a broadcast within a week of the send, either side: the time
+   * picked, else now (contracts heardFor over the reading's `heardTouches`, as the route judges it).
+   */
+  heard: number;
+  /** Whether the send leaves them out: unless the switch sends to them too (and always where nobody heard). */
+  breathe: boolean;
+  /** The switch pressed: on sends to them too, for this message, list and channels alone. */
+  setHeardToo: (on: boolean) => void;
+  /** How many it leaves out: `heard` while the send breathes, none once it sends to them too. */
+  leftOut: number;
+  /**
+   * Who it reaches on each channel under the switch (contracts reachAfterBreath over the reading's split): the channel
+   * clause, the split bar, the month's line and the day's limit read this. Null with no preview.
+   */
+  split: ReachSplit | null;
   number: BroadcastsSurface["number"] | null;
   /** The WhatsApp number can send, or WhatsApp is not one of the channels on and the number is nothing to this send. */
   numberOk: boolean;

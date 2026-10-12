@@ -2538,6 +2538,7 @@ type Database = {
                     linked_by: string | null;
                     maps_uri: string | null;
                     name: string;
+                    new_review_uri: string | null;
                     place_id: string;
                     rating: number | null;
                     review_count: number | null;
@@ -2555,6 +2556,7 @@ type Database = {
                     linked_by?: string | null;
                     maps_uri?: string | null;
                     name: string;
+                    new_review_uri?: string | null;
                     place_id: string;
                     rating?: number | null;
                     review_count?: number | null;
@@ -2572,6 +2574,7 @@ type Database = {
                     linked_by?: string | null;
                     maps_uri?: string | null;
                     name?: string;
+                    new_review_uri?: string | null;
                     place_id?: string;
                     rating?: number | null;
                     review_count?: number | null;
@@ -5000,7 +5003,9 @@ type Database = {
                     template_language: string | null;
                     template_name: string | null;
                     tenant_id: string;
+                    trial_until: string | null;
                     trigger: string;
+                    until: string | null;
                     updated_at: string;
                 };
                 Insert: {
@@ -5033,7 +5038,9 @@ type Database = {
                     template_language?: string | null;
                     template_name?: string | null;
                     tenant_id: string;
+                    trial_until?: string | null;
                     trigger: string;
+                    until?: string | null;
                     updated_at?: string;
                 };
                 Update: {
@@ -5066,7 +5073,9 @@ type Database = {
                     template_language?: string | null;
                     template_name?: string | null;
                     tenant_id?: string;
+                    trial_until?: string | null;
                     trigger?: string;
+                    until?: string | null;
                     updated_at?: string;
                 };
                 Relationships: [

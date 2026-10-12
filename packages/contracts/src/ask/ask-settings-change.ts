@@ -3,6 +3,12 @@
  * the card's one line (describeSettingsChange). The workspace's cards propose it (ask-proposals/workspace.ts); its
  * schema is ask-schemas.ts's.
  */
+// The whole-word cut the thread's lines use; Ask's own `clip` (ask-answer.ts) reaches this module through the
+// proposals, so importing it here would close a cycle.
+import { clipAtWord } from "../conversations/message-words";
+
+/** How much of a note's text its card quotes, in characters, before it is cut on a whole word. */
+const NOTE_TEXT_SAID_MAX = 160;
 
 /* ------------------------------------------------------- settings changes */
 
@@ -15,7 +21,7 @@
 export type AskSettingsChange =
   | { op: "add_closure"; date: string; until?: string; note?: string }
   | { op: "set_hours"; day: string; open: string | null; close: string | null }
-  | { op: "add_note"; title: string; text: string }
+  | { op: "add_note"; title: string; text: string; until?: string }
   | { op: "add_service"; name: string; duration_min?: number };
 
 type Cfg = { brain?: { profile?: Record<string, unknown> } & Record<string, unknown> } & Record<string, unknown>;
@@ -43,7 +49,8 @@ export function applySettingsChange<C extends Cfg>(config: C, change: AskSetting
     }
     case "add_note": {
       const notes = [...((profile.notes as unknown[]) ?? [])];
-      notes.push({ title: change.title, text: change.text });
+      // Its last day only when it has one: a note with none is said for good, as every note was before it had one.
+      notes.push({ title: change.title, text: change.text, ...(change.until ? { until: change.until } : {}) });
       profile.notes = notes;
       break;
     }
@@ -67,8 +74,13 @@ export function describeSettingsChange(change: AskSettingsChange): string {
         : `Closed on ${change.date}${change.note ? ` (${change.note})` : ""}`;
     case "set_hours":
       return change.open && change.close ? `${change.day}: ${change.open}–${change.close}` : `${change.day}: closed`;
-    case "add_note":
-      return `Note for the receptionist: “${change.title}”`;
+    case "add_note": {
+      // Its last day as the closure's line above says a day: the date as typed. Then the text the receptionist will be
+      // told, quoted on one line and cut on a whole word, as the closure quotes its note: what is approved is what it
+      // reads, an offer's price among it.
+      const text = clipAtWord(change.text.replace(/\s+/g, " "), NOTE_TEXT_SAID_MAX);
+      return `Note for the receptionist: “${change.title}”${change.until ? `, until ${change.until}` : ""}${text ? ` — “${text}”` : ""}`;
+    }
     case "add_service":
       return `New service: ${change.name}${change.duration_min ? ` (${change.duration_min} min)` : ""}`;
   }

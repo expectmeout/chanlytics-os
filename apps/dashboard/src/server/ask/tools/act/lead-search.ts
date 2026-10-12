@@ -2,7 +2,6 @@ import "server-only";
 import { z } from "zod";
 import {
   AppError,
-  PROPOSAL_SPECS,
   ProposeLeadSearchSchema,
   planLeadSearch,
   planSentence,
@@ -11,8 +10,17 @@ import {
 } from "@chanlytics/contracts";
 import { answerPlanOf, planFacts, searchRow, waitingQuestionOf, type SearchViewRow } from "../../../leads/leads";
 import { requireUuid } from "../../../request-guards";
-import { roleAtLeast } from "../../../with-route";
-import { approvalWords, defineAct, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";
+import {
+  approvalWords,
+  defineAct,
+  offeredTo,
+  propose,
+  refuse,
+  str,
+  type ActDef,
+  type ProposalOutcome,
+  type ToolContext,
+} from "../context";
 
 /**
  * The ask as the model writes it, field by field, in the flat shape it is shown. The plan's own schema
@@ -83,8 +91,9 @@ const LeadSearchPlanInput = z.preprocess((raw) => shapeAsk(raw as LeadSearchAskI
  * the owner's answer applied, at the version and count the server sets.
  */
 async function proposeLeadSearch(t: ToolContext, input: LeadSearchAskInput): Promise<ProposalOutcome> {
-  // The lead finder is the owner's and the partner's who sets the workspace up (0012): the card needs a partner.
-  if (!roleAtLeast(t.role, PROPOSAL_SPECS.lead_search.needs)) return refuse(proposalBelowNeeds("lead_search"));
+  // The lead finder is the owner's and the partner's who sets the workspace up (0012): the card needs a partner, by the
+  // one predicate the registry offers it by (context.ts offeredTo).
+  if (!offeredTo(leadSearchAct, t.role)) return refuse(proposalBelowNeeds("lead_search"));
   const shaped = LeadSearchPlanInput.safeParse(input);
   if (!shaped.success)
     return refuse(
@@ -134,9 +143,11 @@ async function proposeLeadSearch(t: ToolContext, input: LeadSearchAskInput): Pro
   });
 }
 
-export const propose_lead_search = defineAct({
-  name: "propose_lead_search",
-  description: `Propose a search for businesses in the US the owner could reach, as a plan card they approve; nothing is searched or spent before that. The plan: what kind (who, plural, and who_one, one of them, with category_key as one lowercase word), how many (count: 50, 100, 200 or 500 unless they said a number), where (city with its two-letter region, a zip, or a region alone), the contact standard (contact: phone, or email checked), up to three terms (widest first), the criteria each with whether it is seen or likely and whether it is required, who to leave_out (chains, other kinds; short chips in plain words), looking_for (local_businesses, or people, online_sellers or other when that is what was asked: those are answered in words, not searched), and asked, the owner's words. seen is only for what a listing shows (a rating or review count, a website, an email, a phone that matches the site, open or closed) and is judged from those facts alone; what a business is or does (its kind, who owns it, what it serves or sells, who it treats) is likely, never seen, because a listing's name and category do not count as seeing it, and the kind of business itself is checked on every search without being written as a criterion. Read leads with action searches first, so a plan is not repeated: one plan, never a search. amends is the id of a search that stopped to ask (leads with action searches shows its question) when the plan is that search with the owner's answer applied and everything else kept as it was; the card then answers that search instead of starting a new one. Say the plan in one sentence; never promise how many will be found, and never say a search has started until the card is approved. ${approvalWords("lead_search")}.`,
+/** propose_lead_search's description, said whole: it takes no action. */
+const LEAD_SEARCH_DESCRIPTION = `Propose a search for businesses in the US the owner could reach, as a plan card they approve; nothing is searched or spent before that. The plan: what kind (who, plural, and who_one, one of them, with category_key as one lowercase word), how many (count: 50, 100, 200 or 500 unless they said a number), where (city with its two-letter region, a zip, or a region alone), the contact standard (contact: phone, or email checked), up to three terms (widest first), the criteria each with whether it is seen or likely and whether it is required, who to leave_out (chains, other kinds; short chips in plain words), looking_for (local_businesses, or people, online_sellers or other when that is what was asked: those are answered in words, not searched), and asked, the owner's words. seen is only for what a listing shows (a rating or review count, a website, an email, a phone that matches the site, open or closed) and is judged from those facts alone; what a business is or does (its kind, who owns it, what it serves or sells, who it treats) is likely, never seen, because a listing's name and category do not count as seeing it, and the kind of business itself is checked on every search without being written as a criterion. Read leads with action searches first, so a plan is not repeated: one plan, never a search. amends is the id of a search that stopped to ask (leads with action searches shows its question) when the plan is that search with the owner's answer applied and everything else kept as it was; the card then answers that search instead of starting a new one. Say the plan in one sentence; never promise how many will be found, and never say a search has started until the card is approved. ${approvalWords("lead_search")}.`;
+
+/** A search's plan as a card, propose_lead_search's one definition: named here so its builder asks its own role. */
+const leadSearchAct: ActDef<typeof LeadSearchAsk> = {
   kind: "lead_search",
   input: LeadSearchAsk,
   // A new plan, and the same plan answering the search that asked (amends): the owner's answer applied, the rest kept.
@@ -181,4 +192,10 @@ export const propose_lead_search = defineAct({
   ],
   label: "Planning a search",
   build: proposeLeadSearch,
+};
+
+export const propose_lead_search = defineAct({
+  name: "propose_lead_search",
+  description: LEAD_SEARCH_DESCRIPTION,
+  ...leadSearchAct,
 });

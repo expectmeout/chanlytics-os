@@ -1182,3 +1182,264 @@ test("Ask is told what a message is: a name with a version on each channel it is
   for (const text of [ASK_DEFINITIONS.broadcast, ASK_DEFINITIONS.playbook, listing, proposing])
     assert.ok(!/approved (WhatsApp )?templates?/i.test(text), text.slice(0, 120));
 });
+
+/* ---- The week's breath (spec §5.6): a broadcast card leaves out whoever heard this week, as the route does ---- */
+
+const HEARD_RUN = "88888888-8888-4888-8888-888888888881";
+/** A run sent two days ago to these people: who heard from a campaign or a broadcast this week (packages/db touchesSince). */
+const heardBy = (...people) => ({
+  broadcasts: [
+    {
+      id: HEARD_RUN,
+      tenant_id: A,
+      playbook_id: null,
+      state: "sent",
+      scheduled_for: ago(2 * DAY),
+      created_at: ago(2 * DAY),
+      run_for: null,
+      params: [],
+    },
+  ],
+  broadcast_recipients: people.map((p) => ({
+    broadcast_id: HEARD_RUN,
+    tenant_id: A,
+    contact_id: p.id,
+    state: "sent",
+    reason: null,
+    sent_at: ago(2 * DAY),
+    facts: null,
+  })),
+});
+
+test("a broadcast card leaves out whoever heard this week, as the route skips them: it counts who it sends to, says how many are left out, and its commit never carries breathe", async () => {
+  const { allLeftOutWords, heardTooWords } = await import("@chanlytics/contracts");
+  // By WhatsApp alone it reaches the two with a number: the first heard from a run two days ago.
+  const r = await propose(BROADCAST, heardBy(PEOPLE[0]));
+  assert.equal(r.isError, false, r.result);
+  assert.equal(r.proposal.payload.count, 1, "who it sends to");
+  assert.match(
+    r.proposal.summary,
+    /^1 person who said yes · 1 left out: they hear from you within a week of it · “visit_reminder” · now: /,
+  );
+  assert.equal("breathe" in commitBody(r.proposal), false, "absent is true: the route skips them as the card said");
+  assert.equal("breathe" in r.proposal.payload, false);
+  // Its action takes no breathe: the model cannot ask for one.
+  assert.equal(JSON.stringify(toApiTools("owner", true)).includes("breathe"), false);
+  // The receipt says who it went to and who was left out, from the route's answer.
+  assert.equal(
+    PROPOSAL_SPECS.broadcast.receipt(r.proposal, { id: "b1", name: "Visit note", recipient_count: 2, left_out: 1 }),
+    "Broadcast “Visit note” — 1 person, sending now · 1 left out: they hear from you within a week of it",
+  );
+  // Whether it was scheduled is the route's answer, not the card's time: one set for a time that passed before it was
+  // approved went now; one the route set ahead is scheduled.
+  const lateCard = { ...r.proposal, payload: { ...r.proposal.payload, scheduled_for: "2026-09-01T09:00:00-04:00" } };
+  const answer = { id: "b1", name: "Visit note", recipient_count: 2, left_out: 1 };
+  assert.equal(
+    PROPOSAL_SPECS.broadcast.receipt(lateCard, { ...answer, scheduled_ahead: false }),
+    "Broadcast “Visit note” — 1 person, sending now · 1 left out: they hear from you within a week of it",
+  );
+  assert.equal(
+    PROPOSAL_SPECS.broadcast.receipt(lateCard, { ...answer, scheduled_ahead: true }),
+    "Broadcast “Visit note” — 1 person, scheduled · 1 left out: they hear from you within a week of it",
+  );
+  // Nobody heard: the card is what it always was.
+  const quiet = await propose(BROADCAST, heardBy());
+  assert.match(quiet.proposal.summary, /^2 people who said yes · “visit_reminder” · now: /);
+  // By WhatsApp and email the split is counted over who it sends to.
+  const both = await propose({ ...BROADCAST, channels: ["whatsapp", "email"] }, heardBy(PEOPLE[0]));
+  assert.equal(both.proposal.payload.count, 2);
+  assert.match(
+    both.proposal.summary,
+    /^2 people who said yes · on WhatsApp and by email \(1 on WhatsApp, 1 by email\) · 1 left out: they hear from you within a week of it · /,
+  );
+  // Everyone it reaches heard: no card, in words, and the way to send to them anyway is a person's, on the composer.
+  const all = await propose(BROADCAST, heardBy(PEOPLE[0], PEOPLE[2]));
+  assert.equal(all.isError, true);
+  assert.ok(said(all).startsWith(allLeftOutWords("Everyone", 2)), said(all));
+  assert.ok(said(all).includes(heardTooWords(2)), said(all));
+});
+
+test("campaigns.audiences counts what a card would: who it sends to, with how many are left out beside it, and says so when who heard could not be read", async () => {
+  const listing = async (db, faults = {}) => {
+    const supabase = fakeDb(tables(db), faults, { people_list: () => PEOPLE });
+    const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
+    return JSON.parse((await runTool(t, { name: "campaigns", input: { action: "audiences" } })).result);
+  };
+  const everyone = (r) => r.audiences.find((a) => a.kind === "everyone");
+  // Nobody heard: the counts and the note are what they always were, and nothing is said of anyone left out.
+  const quiet = await listing(heardBy());
+  assert.equal(everyone(quiet).can_be_sent_messages, 2);
+  assert.equal("left_out_messages" in everyone(quiet), false);
+  // The first heard two days ago: the count is the card's (1), and the one left out is beside it.
+  const heard = await listing(heardBy(PEOPLE[0]));
+  assert.equal(everyone(heard).can_be_sent_messages, 1);
+  assert.equal(everyone(heard).left_out_messages, 1);
+  assert.ok(heard.note.includes("left out"), heard.note);
+  // Counted for a send that goes now; a card set for later counts for its own time.
+  assert.ok(heard.note.includes("who a send that goes now goes to"), heard.note);
+  assert.ok(heard.note.includes("a card set for later counts for its own time"), heard.note);
+  const card = await propose(BROADCAST, heardBy(PEOPLE[0]));
+  assert.equal(
+    card.proposal.payload.count,
+    everyone(heard).can_be_sent_messages,
+    "one number: the listing's and the card's",
+  );
+  // Who heard could not be read: no count it cannot stand behind, and it says why.
+  const broken = await listing(heardBy(PEOPLE[0]), { "broadcasts.select": { message: "connection reset" } });
+  assert.equal(everyone(broken).can_be_sent_messages, null);
+  assert.ok(
+    broken.could_not_read.some((w) =>
+      w.startsWith("Who has had a message from you lately, or has one due, could not be read just now"),
+    ),
+    JSON.stringify(broken.could_not_read),
+  );
+});
+
+test("a card whose week could not be read is no card, and the failed read is said in the log by the tool that asked: the broadcast's and the playbook's alike", async () => {
+  const { PLAYBOOK_CARD_REFUSALS } = await import("@chanlytics/contracts");
+  const card = (input) => {
+    const supabase = fakeDb(
+      tables(),
+      { "broadcasts.select": { message: "connection reset" } },
+      { people_list: () => PEOPLE },
+    );
+    const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
+    return buildProposal(t, "propose_campaign", input);
+  };
+  const lines = [];
+  const was = console.error;
+  console.error = (...a) => lines.push(String(a[0]));
+  let broadcast;
+  let playbook;
+  try {
+    broadcast = await card(BROADCAST);
+    playbook = await card({ action: "playbook", trigger: "quiet_30", template_id: OFFER, params: [] });
+  } finally {
+    console.error = was;
+  }
+  assert.equal(said(broadcast), PLAYBOOK_CARD_REFUSALS.weekUnread);
+  assert.equal(said(playbook), PLAYBOOK_CARD_REFUSALS.weekUnread);
+  const failed = lines
+    .map((l) => {
+      try {
+        return JSON.parse(l);
+      } catch {
+        return null;
+      }
+    })
+    .filter((l) => l?.event === "ask_tool_read_failed")
+    .map((l) => [l.tool, l.read]);
+  assert.deepEqual(failed, [
+    ["propose_campaign.broadcast", "touches"],
+    ["propose_campaign.playbook", "touches"],
+  ]);
+});
+
+test("a card leaves out nobody for a message due weeks ahead, and one due within a week of it, as the route does", async () => {
+  // The first is queued on a run due in twenty-five days, the third on one due in three: made today, waiting.
+  const queued = (id, days, p) => ({
+    broadcasts: [
+      {
+        id,
+        tenant_id: A,
+        playbook_id: null,
+        state: "scheduled",
+        scheduled_for: ago(-days * DAY),
+        created_at: ago(0),
+        run_for: null,
+        params: [],
+      },
+    ],
+    broadcast_recipients: [
+      { broadcast_id: id, tenant_id: A, contact_id: p.id, state: "queued", reason: null, sent_at: null, facts: null },
+    ],
+  });
+  const far = queued("88888888-8888-4888-8888-888888888825", 25, PEOPLE[0]);
+  const soon = queued("88888888-8888-4888-8888-888888888803", 3, PEOPLE[2]);
+  const card = await propose(BROADCAST, {
+    broadcasts: [...far.broadcasts, ...soon.broadcasts],
+    broadcast_recipients: [...far.broadcast_recipients, ...soon.broadcast_recipients],
+  });
+  assert.equal(card.isError, false, card.result);
+  assert.equal(card.proposal.payload.count, 1, "the first goes; the third, due another in three days, is left out");
+  assert.match(card.proposal.summary, /^1 person who said yes · 1 left out: they hear from you within a week of it · /);
+});
+
+test("a card scheduled ahead leaves out who hears from you within a week of it, and agrees with the route's own verb over the same world", async () => {
+  const { allLeftOutWords, RECIPIENT_REASON_HEARD } = await import("@chanlytics/contracts");
+  const { createBroadcast } = await import(at("packages/core/src/campaigns/create-broadcast.ts"));
+  const { createBroadcastPorts } = await import(at("apps/dashboard/src/server/ports/campaign-ports.ts"));
+  // The first heard two days ago, the third five days ago: each its own run, made when it was sent.
+  const run = (id, days, p) => ({
+    broadcasts: [
+      {
+        id,
+        tenant_id: A,
+        playbook_id: null,
+        state: "sent",
+        scheduled_for: ago(days * DAY),
+        created_at: ago(days * DAY),
+        run_for: null,
+        params: [],
+      },
+    ],
+    broadcast_recipients: [
+      {
+        broadcast_id: id,
+        tenant_id: A,
+        contact_id: p.id,
+        state: "sent",
+        reason: null,
+        sent_at: ago(days * DAY),
+        facts: null,
+      },
+    ],
+  });
+  const two = run("88888888-8888-4888-8888-888888888802", 2, PEOPLE[0]);
+  const five = run("88888888-8888-4888-8888-888888888805", 5, PEOPLE[2]);
+  const world = () => ({
+    broadcasts: [...two.broadcasts, ...five.broadcasts],
+    broadcast_recipients: [...two.broadcast_recipients, ...five.broadcast_recipients],
+  });
+  const inThree = new Date(NOW.getTime() + 3 * DAY).toISOString();
+  // Now, both heard this week: no card.
+  const now = await propose(BROADCAST, world());
+  assert.ok(said(now).startsWith(allLeftOutWords("Everyone", 2)), said(now));
+  // Three days ahead: only the first heard within a week of it.
+  const card = await propose({ ...BROADCAST, scheduled_for: inThree }, world());
+  assert.equal(card.isError, false, card.result);
+  assert.equal(card.proposal.payload.count, 1);
+  assert.match(
+    card.proposal.summary,
+    /^1 person who said yes · 1 left out: they hear from you within a week of it · “visit_reminder” · /,
+  );
+  // The route's verb over the same world, the same press and the same time: the same one left out.
+  const tables_ = tables(world());
+  const supabase = fakeDb(tables_, {}, { people_list: () => PEOPLE });
+  const ctx = { supabase, userId: USER, email: "ada@example.com", params: {} };
+  const holds = [];
+  const ports = {
+    ...createBroadcastPorts(ctx, A, { fresh: false }),
+    assemble: async (_row, _people, _at, decision) => ({ id: "b1", decisionId: decision ? "d1" : null }),
+    holdRecipients: async (_id, ids, reason) => (holds.push([ids, reason]), { skipped: ids, error: null }),
+    monthSent: async () => 0,
+  };
+  const made = await createBroadcast(ports, {
+    userId: USER,
+    body: { template_id: REMINDER, params: [], audience: { kind: "everyone" }, scheduled_for: inThree },
+    now: NOW,
+  });
+  assert.deepEqual(holds, [[[PEOPLE[0].id], RECIPIENT_REASON_HEARD]]);
+  assert.equal(
+    made.recipient_count - made.left_out,
+    card.proposal.payload.count,
+    "one number: the card's and the route's",
+  );
+  // The receipt over the route's own answer: scheduled, and who it left out.
+  assert.ok(
+    PROPOSAL_SPECS.broadcast
+      .receipt(card.proposal, made)
+      .endsWith("1 person, scheduled · 1 left out: they hear from you within a week of it"),
+    PROPOSAL_SPECS.broadcast.receipt(card.proposal, made),
+  );
+});

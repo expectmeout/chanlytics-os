@@ -15,7 +15,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { ASK_THREAD_ROUTES, ASK_THREAD_VERBS, PROPOSAL_SPECS, applySettingsChange } from "@chanlytics/contracts";
+import {
+  ASK_THREAD_ROUTES,
+  ASK_THREAD_VERBS,
+  DAY_MS,
+  PROPOSAL_SPECS,
+  PROPOSAL_WORDS,
+  applySettingsChange,
+} from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -84,6 +91,8 @@ const ANSWERS = {
     state: "scheduled",
     recipient_count: 12,
     scheduled_for: "2026-09-12T15:00:00.000Z",
+    // Set for a time still ahead when it was pressed (core createBroadcast): the receipt says scheduled by it.
+    scheduled_ahead: true,
     decision_id: D(9),
   },
   ["POST /api/v1/playbooks"]: { id: PB1, name: "Win-back", state: "running", decision_id: D(0) },
@@ -183,6 +192,7 @@ test("a reply: the words to the thread's reply route, marked as a card's; the re
     ok: true,
     receipt: "On its way to Rosa — sends in 15 seconds unless you cancel",
     undo: { message_id: "m-9", cancelable_until: "2026-09-12T10:00:15.000Z", decision_id: D(1) },
+    made: null,
   });
   assert.deepEqual(one(t), {
     key: `POST /api/v1/conversations/${C1}/reply`,
@@ -234,15 +244,17 @@ test("a steer, a whisper and an invite: each to its route, each with a receipt a
     ok: true,
     receipt: "Rewritten — the new draft waits its turn",
     undo: null,
+    made: null,
   });
   assert.deepEqual(await commitProposal(t.win, card("whisper", { call_id: K1, text: "Saturday is full" }), t.client), {
     ok: true,
     receipt: "Whispered — the receptionist works it into its next answer",
     undo: null,
+    made: null,
   });
   assert.deepEqual(
     await commitProposal(t.win, card("invite", { email: "ada@example.com", role: "viewer" }), t.client),
-    { ok: true, receipt: "Invited ada@example.com as viewer", undo: null },
+    { ok: true, receipt: "Invited ada@example.com as viewer", undo: null, made: null },
   );
   assert.deepEqual(
     t.sent.map((s) => [s.key, s.body, s.via]),
@@ -265,6 +277,7 @@ test("thread verbs: each to its Inbox route; the snooze carries its until; the r
     ok: true,
     receipt: "You have Rosa's thread",
     undo: { verb: "hand_back", conversation_id: C1, until: null, decision_id: D(2) },
+    made: null,
   });
   const snoozed = await commitProposal(
     t.win,
@@ -275,6 +288,7 @@ test("thread verbs: each to its Inbox route; the snooze carries its until; the r
     ok: true,
     receipt: "Snoozed",
     undo: { verb: "wake", conversation_id: C1, until: "2026-09-13T10:00:00.000Z", decision_id: D(4) },
+    made: null,
   });
   assert.deepEqual(
     await commitProposal(t.win, card("thread_verb", { verb: "hand_back", conversation_id: C1 }), t.client),
@@ -282,6 +296,7 @@ test("thread verbs: each to its Inbox route; the snooze carries its until; the r
       ok: true,
       receipt: "The receptionist has it again",
       undo: { verb: "take_over", conversation_id: C1, until: null, decision_id: D(3) },
+      made: null,
     },
   );
   // A wake has no undo (D8). It kept { verb: "snooze", until: null } and offered it for ten minutes, and the snooze it
@@ -290,16 +305,18 @@ test("thread verbs: each to its Inbox route; the snooze carries its until; the r
     ok: true,
     receipt: "Back in the Inbox",
     undo: null,
+    made: null,
   });
   assert.equal(PROPOSAL_SPECS.thread_verb.undo.label({ payload: { verb: "wake" } }), null, "and no undo words");
   assert.deepEqual(
     await commitProposal(t.win, card("thread_verb", { verb: "archive", conversation_id: C1 }), t.client),
-    { ok: true, receipt: "Archived", undo: null },
+    { ok: true, receipt: "Archived", undo: null, made: null },
   );
   assert.deepEqual(await commitProposal(t.win, card("thread_verb", { verb: "resolve", escalation_id: E1 }), t.client), {
     ok: true,
     receipt: "Resolved",
     undo: null,
+    made: null,
   });
   assert.deepEqual(
     t.sent.map((s) => [s.key, s.body]),
@@ -334,6 +351,7 @@ test("a person's mode: the owner's route, the people surface told, the previous 
     ok: true,
     receipt: "Receptionist for Rosa: Never",
     undo: { contact_id: P1, mode: "auto", decision_id: D(8) },
+    made: null,
   });
   assert.deepEqual(one(t), {
     key: `PUT /api/v1/contacts/${P1}/receptionist`,
@@ -371,7 +389,7 @@ test("a deal: the card's body to the person's deal route without the card's own 
     }),
     t.client,
   );
-  assert.deepEqual(r, { ok: true, receipt: "Maria · Client", undo: null });
+  assert.deepEqual(r, { ok: true, receipt: "Maria · Client", undo: null, made: null });
   assert.deepEqual(one(t), {
     key: `POST /api/v1/contacts/${P1}/deal`,
     body: { stage: "won", deal_id: DEAL1, version: 3, amount_cents: 250000, per: "month" },
@@ -434,6 +452,7 @@ test("a deal with its next step: the deal first, then the step as a note of the 
     ok: true,
     receipt: "Maria · Client · Step added",
     undo: null,
+    made: null,
   });
   assert.deepEqual(t.sent, [
     { key: deal, body: { stage: "won", deal_id: DEAL1, version: 3 }, via: "ask", undoOf: undefined, idem: "p-1" },
@@ -460,6 +479,7 @@ test("a deal with its next step: the deal first, then the step as a note of the 
     ok: true,
     receipt: "Maria · Client · the next step was not saved: A note is at most 600 characters.",
     undo: null,
+    made: null,
   });
   assert.equal(r.sent.length, 2);
   assert.equal(
@@ -499,6 +519,7 @@ test("a deal with its next step: the deal first, then the step as a note of the 
     ok: true,
     receipt: "Maria · Client · the next step was not saved: the deal came back without its id; set it on their page",
     undo: null,
+    made: null,
   });
   assert.deepEqual(
     bare.sent.map((s) => s.key),
@@ -561,6 +582,7 @@ test("a policy: the class with the mode or the dial, whichever the card carries;
     ok: true,
     receipt: "Autonomy changed: the summary",
     undo: { class: "reply", mode: "auto", min_confidence: 0.6 },
+    made: null,
   });
   assert.deepEqual(one(t).body, { class: "reply", mode: "ask" });
   const dial = tab();
@@ -598,7 +620,7 @@ test("a settings change: applied to the loaded config and sent with its version;
   const r = await commitProposal(t.win, card("settings", { change }), t.client);
   assert.deepEqual(
     r,
-    { ok: true, receipt: "the summary", undo: { config: before, version_after: 4 } },
+    { ok: true, receipt: "the summary", undo: { config: before, version_after: 4 }, made: null },
     "the version the save wrote travels with the undo",
   );
   const expected = applySettingsChange(before, change);
@@ -646,6 +668,20 @@ test("a settings change: applied to the loaded config and sent with its version;
   assert.equal(cold.sent.length, 0);
 });
 
+test("a note's card with its last day: its Approve saves the note with until on it, and the rest of the config as it was", async () => {
+  const t = tab();
+  const change = { op: "add_note", title: "Holiday hours", text: "Open 10 to 2 this week.", until: "2026-12-31" };
+  const before = structuredClone(t.win.__SETTINGS.config);
+  const r = await commitProposal(t.win, card("settings", { change }), t.client);
+  assert.equal(r.ok, true, r.message);
+  const { config, version } = one(t).body;
+  assert.equal(version, 3);
+  assert.deepEqual(config.brain.profile.notes, [
+    { title: "Holiday hours", text: "Open 10 to 2 this week.", until: "2026-12-31" },
+  ]);
+  assert.deepEqual(config.brain.profile.hours, before.brain.profile.hours, "the hours ride along untouched");
+});
+
 test("a broadcast and a playbook: the body the route expects, the receipt from the server's answer, the ids and the ledger rows kept for undo", async () => {
   const t = tab();
   const b = await commitProposal(
@@ -664,6 +700,7 @@ test("a broadcast and a playbook: the body the route expects, the receipt from t
     ok: true,
     receipt: "Broadcast “Friday offer” — 12 people, scheduled",
     undo: { broadcast_id: B1, decision_id: D(9) },
+    made: null,
   });
   assert.deepEqual(t.sent[0].body, {
     template_id: "tpl-1",
@@ -690,6 +727,7 @@ test("a broadcast and a playbook: the body the route expects, the receipt from t
     ok: true,
     receipt: "Campaign “Win-back” is running — its next run is under Coming up in Campaigns",
     undo: { playbook_id: PB1, decision_id: D(0) },
+    made: null,
   });
   assert.deepEqual(t.sent[1].body, {
     name: "Win-back",
@@ -1084,7 +1122,7 @@ test("a card is approved while it is fresh: past a day nothing leaves the tab an
 
   // Three days old: it was proposed against the person, the list and the setting as they stood then.
   const old = tab();
-  assert.deepEqual(await commitProposal(old.win, mode({ made_at: made(72) }), old.client, now), {
+  assert.deepEqual(await commitProposal(old.win, mode({ made_at: made(72) }), old.client, { nowMs: now }), {
     ok: false,
     message:
       "This card is more than a day old, and what it would change may have moved since. Ask again and it is made from how things stand now.",
@@ -1095,15 +1133,43 @@ test("a card is approved while it is fresh: past a day nothing leaves the tab an
   // Inside the day it goes, to the last hour of it.
   for (const hours of [0, 1, 23.9]) {
     const fresh = tab();
-    const r = await commitProposal(fresh.win, mode({ made_at: made(hours) }), fresh.client, now);
+    const r = await commitProposal(fresh.win, mode({ made_at: made(hours) }), fresh.client, { nowMs: now });
     assert.equal(r.ok, true, `${hours} hours old`);
     assert.equal(fresh.sent.length, 1);
   }
   // A card from before cards said when they were made, or one whose time cannot be read: nothing is refused on a guess.
   for (const extra of [{}, { made_at: "not a time" }]) {
     const t = tab();
-    assert.equal((await commitProposal(t.win, mode(extra), t.client, now)).ok, true, JSON.stringify(extra));
+    assert.equal((await commitProposal(t.win, mode(extra), t.client, { nowMs: now })).ok, true, JSON.stringify(extra));
   }
+});
+
+test("a plan's card is approved for a week, since a plan's sends are set ahead and its steps wait for one another: fresh at six days, lapsed at eight in the plan's own words; a card of no plan still lapses after a day", async () => {
+  const now = Date.parse("2026-10-08T12:00:00Z");
+  const made = (days) => new Date(now - days * DAY_MS).toISOString();
+  const plan = { id: "plan-1", step: 1, of: 2, silent: true, after: [] };
+  const mode = (extra) => card("person_mode", { contact_id: P1, mode: "never", who: "Rosa" }, extra);
+
+  const six = tab();
+  const fresh = await commitProposal(six.win, mode({ made_at: made(6), plan }), six.client, { nowMs: now });
+  assert.equal(fresh.ok, true, fresh.message);
+  assert.equal(one(six).idem, "plan:plan-1:1", "under its step's key");
+
+  const eight = tab();
+  assert.deepEqual(await commitProposal(eight.win, mode({ made_at: made(8), plan }), eight.client, { nowMs: now }), {
+    ok: false,
+    message: PROPOSAL_WORDS.planLapsed,
+  });
+  assert.deepEqual(eight.sent, [], "nothing was sent");
+
+  // Unstamped, the day it always had: two days old is lapsed, in the card's words.
+  const two = tab();
+  assert.deepEqual(await commitProposal(two.win, mode({ made_at: made(2) }), two.client, { nowMs: now }), {
+    ok: false,
+    message:
+      "This card is more than a day old, and what it would change may have moved since. Ask again and it is made from how things stand now.",
+  });
+  assert.deepEqual(two.sent, []);
 });
 
 test("an undo puts back what was there when the route wrote, not what the card read when it was proposed; an older route's answer falls back to the card's own reading", async () => {

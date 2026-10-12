@@ -46,9 +46,17 @@ export const TEMPLATE_FOOTER_MAX = 60;
 export const TEMPLATE_EXAMPLE_MAX = 100;
 /** The longest name a person gives one of a message's values ("First name"): the edge's ceiling and the door's (00343). */
 export const TEMPLATE_LABEL_MAX = 40;
-export const TEMPLATE_NAME_MAX = 60;
+/** The longest name slugTemplateName makes, the edge's ceiling too (00343); read by nothing outside this module. */
+const TEMPLATE_NAME_MAX = 60;
 /** What a name that is not one Meta accepts is told (templateNameOk). */
 export const TEMPLATE_NAME_WORDS = "The name needs letters, digits or underscores.";
+/** What a WhatsApp body past what Meta takes is told (templateBodyTooLong): the draft's check, and Ask's message card. */
+export const TEMPLATE_BODY_WORDS = `The message must be under ${TEMPLATE_BODY_MAX} characters.`;
+/**
+ * What a message of a name and language the workspace already holds is told: POST templates, POST templates/message and
+ * Ask's message card, which refuses it before it is a card.
+ */
+export const TEMPLATE_SAME_NAME_WORDS = "A template with that name and language already exists. Pick another name.";
 /** Meta's ceiling for the words on a button. */
 export const TEMPLATE_BUTTON_TEXT_MAX = 25;
 
@@ -68,6 +76,17 @@ export function slugTemplateName(raw: string): string {
     .replace(/^_+|_+$/g, "")
     .slice(0, TEMPLATE_NAME_MAX)
     .replace(/_+$/g, "");
+}
+
+/** A WhatsApp body as Meta reviews it: one kind of line break, and nothing blank at either end. */
+const bodyAsReviewed = (body: string | null | undefined): string =>
+  String(body ?? "")
+    .replace(/\r\n/g, "\n")
+    .trim();
+
+/** Whether a WhatsApp body is past what Meta takes (TEMPLATE_BODY_MAX), read as its review reads it: the one test of it. */
+export function templateBodyTooLong(body: string): boolean {
+  return bodyAsReviewed(body).length > TEMPLATE_BODY_MAX;
 }
 
 /** The numbered slots a body names, sorted and unique. */
@@ -124,12 +143,9 @@ export function validateTemplateDraft(d: TemplateDraftInput): TemplateDraftCheck
     return { ok: false, error: "Pick a language from the list." };
   if (!(TEMPLATE_CATEGORIES as readonly string[]).includes(d.category))
     return { ok: false, error: "A template is marketing or utility." };
-  const body = String(d.body ?? "")
-    .replace(/\r\n/g, "\n")
-    .trim();
+  const body = bodyAsReviewed(d.body);
   if (!body) return { ok: false, error: "Write the message." };
-  if (body.length > TEMPLATE_BODY_MAX)
-    return { ok: false, error: `The message must be under ${TEMPLATE_BODY_MAX} characters.` };
+  if (templateBodyTooLong(body)) return { ok: false, error: TEMPLATE_BODY_WORDS };
   const slots = placeholdersOf(body);
   if (!placeholdersSequential(slots))
     return { ok: false, error: "Number the values {{1}}, {{2}}, {{3}} in order, with no gaps." };
@@ -214,6 +230,7 @@ export const PARAM_SOURCES = [
   "first_name",
   "business_name",
   "booking_link",
+  "review_link",
   "visit_when",
   "visit_service",
   "proposal_link",
@@ -225,6 +242,8 @@ export type ParamSpec =
   | { kind: "first_name" }
   | { kind: "business_name" }
   | { kind: "booking_link" }
+  /** Where a customer leaves the business a review: the link its Google listing keeps (google_listings.new_review_uri). */
+  | { kind: "review_link" }
   /** A visit playbook's own words: "tomorrow at 2:00 PM", and the service. */
   | { kind: "visit_when" }
   | { kind: "visit_service" }
@@ -236,6 +255,7 @@ export const PARAM_SOURCE_LABELS: Record<ParamSourceKind, string> = {
   first_name: "Their first name",
   business_name: "The business name",
   booking_link: "The booking link",
+  review_link: "The review link",
   visit_when: "Their booked time",
   visit_service: "Their booked service",
   proposal_link: "Their proposal's link",
@@ -250,6 +270,7 @@ export const PARAM_SOURCE_HINTS: Record<Exclude<ParamSourceKind, "text">, string
   first_name: "Each person's own — “there” when none is on file",
   business_name: "From Settings › Business",
   booking_link: "From Settings › Business",
+  review_link: "From your Google listing",
   visit_when: "Each one's own, from the calendar",
   visit_service: "Each one's own, from the calendar",
   proposal_link: "Each proposal's own, from its deal",
@@ -262,7 +283,9 @@ export const PARAM_SOURCE_HINTS: Record<Exclude<ParamSourceKind, "text">, string
  */
 export function parseParamSpec(raw: unknown): ParamSpec | null {
   if (typeof raw === "string") {
-    const m = /^@(first_name|business_name|booking_link|visit_when|visit_service|proposal_link)$/.exec(raw.trim());
+    const m = /^@(first_name|business_name|booking_link|review_link|visit_when|visit_service|proposal_link)$/.exec(
+      raw.trim(),
+    );
     if (m) return { kind: m[1] as Exclude<ParamSourceKind, "text"> };
     return { kind: "text", value: raw };
   }
@@ -273,6 +296,7 @@ export function parseParamSpec(raw: unknown): ParamSpec | null {
       o.kind === "first_name" ||
       o.kind === "business_name" ||
       o.kind === "booking_link" ||
+      o.kind === "review_link" ||
       o.kind === "visit_when" ||
       o.kind === "visit_service" ||
       o.kind === "proposal_link"
@@ -298,6 +322,14 @@ export function paramLabel(spec: ParamSpec): string {
 }
 
 /**
+ * A slot's value as a card quotes it, the one rule every card says one by: typed words in quotes (“15% off a colour”),
+ * a value a run fills by its name (paramLabel: "their first name"). What an owner approves is the words that go.
+ */
+export function paramSaid(spec: ParamSpec): string {
+  return spec.kind === "text" ? `“${spec.value}”` : paramLabel(spec);
+}
+
+/**
  * The running playbooks that still send a template, as a refusal says it: "“Win-back” still sends this message.
  * Pause it, or give it another message, first." Deleting it would leave every later run skipped.
  */
@@ -312,6 +344,12 @@ export interface ParamFacts {
   firstName: string | null;
   businessName: string;
   bookingLink: string | null;
+  /**
+   * The link the workspace's Google listing keeps for a review (00415), as a broadcast's send reads it; absent where
+   * nothing fills a review slot: the Inbox and a call's booking link turn such a template away (inbox-templates
+   * slotToWrite).
+   */
+  reviewLink?: string | null;
   /** A visit playbook's words for this person, resolved when the run was made; absent elsewhere. */
   visitWhen?: string | null;
   visitService?: string | null;
@@ -357,6 +395,8 @@ export function resolveParams(specs: readonly ParamSpec[], f: ParamFacts): strin
         return f.businessName;
       case "booking_link":
         return f.bookingLink ?? "";
+      case "review_link":
+        return f.reviewLink ?? "";
       case "visit_when":
         return f.visitWhen ?? "";
       case "visit_service":
@@ -373,6 +413,7 @@ export function exampleParams(specs: readonly ParamSpec[], businessName: string)
     firstName: "Dani",
     businessName,
     bookingLink: "your booking link",
+    reviewLink: "your review link",
     visitWhen: "tomorrow at 2:00 PM",
     visitService: "a consultation",
     proposalLink: "their proposal's link",

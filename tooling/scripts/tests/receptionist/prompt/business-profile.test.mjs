@@ -159,6 +159,28 @@ test("a malformed time is refused rather than silently kept", () => {
   assert.equal(bad.ok, false);
 });
 
+test("a note may carry its last day, a calendar date the read keeps and the save takes; words there are refused on the save", () => {
+  const noted = (until) => ({
+    brain: {
+      ...brain,
+      profile: { notes: [{ title: "Holiday hours", text: "Open 10 to 2 this week.", ...(until ? { until } : {}) }] },
+    },
+  });
+  const read = parseTenantConfigResult(noted("2026-12-31"));
+  assert.equal(read.ok, true);
+  assert.deepEqual(read.ignored, [], "nothing of the note is left out");
+  assert.deepEqual(read.config.brain.profile.notes, [
+    { title: "Holiday hours", text: "Open 10 to 2 this week.", until: "2026-12-31" },
+  ]);
+  assert.equal(TenantConfigWriteSchema.safeParse(noted("2026-12-31")).success, true);
+  assert.equal(TenantConfigWriteSchema.safeParse(noted("New Year's Eve")).success, false);
+  assert.deepEqual(
+    parseTenantConfigResult(noted(undefined)).config.brain.profile.notes,
+    [{ title: "Holiday hours", text: "Open 10 to 2 this week." }],
+    "a note with no last day is the note it always was",
+  );
+});
+
 test("an unknown profile field is refused on the save, and left out and named on the read", () => {
   // The save refuses a typo, so it never becomes a setting the runtime never
   // applies while the UI shows it saved. The read leaves one out and says so,

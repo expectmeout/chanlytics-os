@@ -183,7 +183,7 @@ const turnInput = (over = {}) => ({
   ctx: { supabase: fakeDb({}), userId: USER, email: "ada@example.com", params: {} },
   tenantId: A,
   role: "operator",
-  facts: workspaceFacts("Harbor", "America/New_York", null, []),
+  facts: workspaceFacts("Harbor", "America/New_York", null, new Date("2026-09-14T14:00:00Z"), []),
   timezone: "America/New_York",
   personLabel: "ada@example.com (operator)",
   language: "en",

@@ -15,6 +15,9 @@ export function guessSlotKind(label: string | null | undefined, example?: string
   const l = String(label ?? "").toLowerCase();
   const e = String(example ?? "").toLowerCase();
   if (/proposal|propuesta|quote/.test(l)) return "proposal_link";
+  // Before the booking link: "Review link" names a link too, and the drafter writes one (server campaigns/templates.ts).
+  // The word itself: "Preview", "Service reviewed" and "Reviewer" are typed text, as they were before the review link.
+  if (/\breviews?\b|reseña/.test(l) || /writereview|g\.page\/r\//.test(e)) return "review_link";
   if (/link|url|book/.test(l) || /^https?:\/\//.test(e) || /booksy|calendly|square|fresha|\.com\//.test(e))
     return "booking_link";
   if (/business|salon|company|shop|studio|clinic|brand|negocio/.test(l)) return "business_name"; // trade-word: a label naming the business, in whatever word a trade uses
@@ -58,23 +61,27 @@ export function defaultParamSpecs(t: { name: string; variables: unknown }): Para
  * is a visit only on a visit moment -- anywhere else nothing fills it, and
  * the list is empty. The business name and the booking link are the ones on
  * file, or words typed once for everyone; a booking link with none on file
- * can only be typed. Typed words are typed.
+ * can only be typed, and so can a review link where the Google listing keeps
+ * none (`reviewLink`: whether the one choosing knows of one). Typed words are
+ * typed.
  *
  * A slot whose kind is only GUESSED, on a template written elsewhere, may be
  * any of them, the guess first: the guess is ours, the template is theirs.
  */
 export function slotChoices(
   kind: StarterSlotKind,
-  o: { known: boolean; visits: boolean; bookingLink: boolean; proposal: boolean },
+  o: { known: boolean; visits: boolean; bookingLink: boolean; reviewLink: boolean; proposal: boolean },
 ): ParamSourceKind[] {
   const may = (k: ParamSourceKind) =>
     k === "booking_link"
       ? o.bookingLink
-      : k === "visit_when" || k === "visit_service"
-        ? o.visits
-        : k === "proposal_link"
-          ? o.proposal
-          : true;
+      : k === "review_link"
+        ? o.reviewLink
+        : k === "visit_when" || k === "visit_service"
+          ? o.visits
+          : k === "proposal_link"
+            ? o.proposal
+            : true;
   if (!o.known) return [kind, ...PARAM_SOURCES.filter((k) => k !== kind)].filter(may);
   switch (kind) {
     case "first_name":
@@ -83,6 +90,8 @@ export function slotChoices(
       return ["business_name", "text"];
     case "booking_link":
       return o.bookingLink ? ["booking_link", "text"] : ["text"];
+    case "review_link":
+      return o.reviewLink ? ["review_link", "text"] : ["text"];
     case "visit_when":
     case "visit_service":
       return o.visits ? [kind] : [];
@@ -102,11 +111,17 @@ export function slotChoices(
  */
 export function templateSlots(
   t: { name: string; variables: unknown },
-  o: { visits: boolean; bookingLink: boolean; proposal: boolean },
+  o: { visits: boolean; bookingLink: boolean; reviewLink: boolean; proposal: boolean },
 ): ParamSourceKind[][] | null {
   const known = starterByName(t.name) !== null;
   const each = defaultSlotKinds(t).map((k) =>
-    slotChoices(k, { known, visits: o.visits, bookingLink: o.bookingLink, proposal: o.proposal }),
+    slotChoices(k, {
+      known,
+      visits: o.visits,
+      bookingLink: o.bookingLink,
+      reviewLink: o.reviewLink,
+      proposal: o.proposal,
+    }),
   );
   if (!each.every((c) => c.length > 0)) return null;
   return o.proposal && !each.some((c) => c.includes("proposal_link")) ? null : each;

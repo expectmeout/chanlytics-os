@@ -7,6 +7,7 @@ import {
   WHOSE,
   json,
   needsOf,
+  offeredTo,
   refuse,
   type ActDef,
   type ActTool,
@@ -201,7 +202,7 @@ export function toolSchema(input: z.ZodType): Record<string, unknown> {
 
 /** The actions of a tool this role may use, in the model's order (D2): a tool with no action, its one, or none. */
 export function offeredActions(t: Pick<Tool<ReadDef | ActDef>, "actions">, role: MembershipRole): string[] {
-  return Object.keys(t.actions).filter((a) => roleAtLeast(role, needsOf(t.actions[a])));
+  return Object.keys(t.actions).filter((a) => offeredTo(t.actions[a], role));
 }
 
 /**
@@ -255,7 +256,8 @@ const takesAbsent = (field: z.ZodType): boolean => field.safeParse(undefined).su
 /**
  * A `null` on an optional key is "absent", before the zod sees it. zod's `.optional()` refuses null, and the model
  * does write `"audience_id": null` where the handlers always read null as nothing; a null on a required key stays,
- * and is refused as missing. Walked into a nested shape, an array's items and the action a union picks the same way,
+ * and is refused as missing, and so does one on a key that takes null itself (`.nullable()`: a change's trial_until,
+ * whose null ends the trial). Walked into a nested shape, an array's items and the action a union picks the same way,
  * once here for every tool.
  */
 function withoutNulls(schema: z.ZodType, value: unknown): unknown {
@@ -275,7 +277,7 @@ function withoutNulls(schema: z.ZodType, value: unknown): unknown {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
       const field = shape[k];
-      if (v === null && field && takesAbsent(field)) continue;
+      if (v === null && field && takesAbsent(field) && !field.safeParse(null).success) continue;
       out[k] = field ? withoutNulls(field, v) : v;
     }
     return out;
@@ -325,8 +327,9 @@ function parseInput<D extends ReadDef | ActDef>(
 ): { ok: true; def: D; data: Record<string, unknown> } | { ok: false; error: string } {
   const asked = actionOf(tool, raw);
   if (asked !== null && Object.prototype.hasOwnProperty.call(tool.actions, asked)) {
-    const needs = needsOf(tool.actions[asked]);
-    if (!roleAtLeast(role, needs)) return { ok: false, error: `${tool.name}: action ${asked} is ${WHOSE[needs]}` };
+    const def = tool.actions[asked];
+    if (def && !offeredTo(def, role))
+      return { ok: false, error: `${tool.name}: action ${asked} is ${WHOSE[needsOf(def)]}` };
   }
   const input = INPUTS.get(role)?.get(tool.name);
   if (!input) {

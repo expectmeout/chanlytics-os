@@ -139,38 +139,63 @@ export function previewOn(
 /** The fewest characters a card quotes of a message on one channel, however many channels share its room. */
 const SAID_MIN = 60;
 
+/** A message as the person reached on one channel reads it, whole: its quiet label, an email's subject, and the words. */
+export interface PreviewPart {
+  channel: ConsentChannel;
+  /** "On WhatsApp", "By text", "By email". */
+  label: string;
+  /** An email's subject, filled; null on the other channels. */
+  subject: string | null;
+  body: string;
+}
+
 /**
- * What an approving surface quotes of a message, for the channels the campaign goes by: each channel's own words as the person
- * reached on it reads them, in the page's channel order, the slots filled with `values` --
- * "On WhatsApp: Hi Dani, …", "By email: “A note, Dani” — Hi Dani, …", "By text: Hi Dani, … Reply STOP to opt out". WhatsApp's are
- * the template's, which the caller has filled (`whatsapp`); an email's and a text's are their versions through the one fill a
- * send makes (templates renderOwnVersion), so the card quotes what goes. A channel whose version is not in hand is `missing`,
- * with the sentence for it, and the card is refused: never another channel's words under its name. `limit` is the room for
- * the words in all, shared between the channels, none cut under a line's worth.
+ * A message as it goes on each of the channels named, whole, in the page's channel order, the slots filled with `values`.
+ * WhatsApp's words are the template's, which the caller has filled (`whatsapp`); an email's and a text's are their versions
+ * through the one fill a send makes (templates renderOwnVersion: a text with the STOP line the sender adds), so what is
+ * drawn is what goes. A channel whose version is not in hand is `missing`, with the sentence for it: never another
+ * channel's words under its name. previewSays quotes these; Ask's message card draws them whole.
  */
-export function previewSays(
+export function previewParts(
   channels: readonly ConsentChannel[],
-  o: { whatsapp: string; versions: PreviewVersions; values: readonly string[]; language: string; limit: number },
-): { says: string } | { missing: ConsentChannel; why: string } {
-  const named = CONSENT_CHANNELS.filter((c) => channels.includes(c));
-  const room = Math.max(SAID_MIN, Math.floor(o.limit / Math.max(1, named.length)));
-  const clip = (words: string): string => {
-    const one = words.replace(/\s+/g, " ").trim();
-    return one.length > room ? `${one.slice(0, room).trimEnd()}…` : one;
-  };
-  const parts: string[] = [];
-  for (const channel of named) {
+  o: { whatsapp: string; versions: PreviewVersions; values: readonly string[]; language: string },
+): { parts: PreviewPart[] } | { missing: ConsentChannel; why: string } {
+  const parts: PreviewPart[] = [];
+  for (const channel of CONSENT_CHANNELS.filter((c) => channels.includes(c))) {
     const label = PREVIEW_CHANNEL_WORDS[channel];
     if (channel === "whatsapp") {
-      parts.push(`${label}: ${clip(o.whatsapp)}`);
+      parts.push({ channel, label, subject: null, body: o.whatsapp });
       continue;
     }
     const words = o.versions[channel];
     if (!words) return { missing: channel, why: noVersionWords(channel) };
     const sent = renderOwnVersion(channel, words, o.values, o.language);
-    parts.push(`${label}: ${sent.subject ? `“${sent.subject}” — ` : ""}${clip(sent.body)}`);
+    parts.push({ channel, label, subject: sent.subject, body: sent.body });
   }
-  return { says: parts.join(" · ") };
+  return { parts };
+}
+
+/**
+ * What an approving surface quotes of a message, for the channels the campaign goes by: each channel's own words as the person
+ * reached on it reads them (previewParts), each on one line --
+ * "On WhatsApp: Hi Dani, …", "By email: “A note, Dani” — Hi Dani, …", "By text: Hi Dani, … Reply STOP to opt out" -- so the
+ * card quotes what goes. A channel whose version is not in hand is `missing`, with the sentence for it, and the card is
+ * refused. `limit` is the room for the words in all, shared between the channels, none cut under a line's worth.
+ */
+export function previewSays(
+  channels: readonly ConsentChannel[],
+  o: { whatsapp: string; versions: PreviewVersions; values: readonly string[]; language: string; limit: number },
+): { says: string } | { missing: ConsentChannel; why: string } {
+  const drawn = previewParts(channels, o);
+  if ("missing" in drawn) return drawn;
+  const room = Math.max(SAID_MIN, Math.floor(o.limit / Math.max(1, drawn.parts.length)));
+  const clip = (words: string): string => {
+    const one = words.replace(/\s+/g, " ").trim();
+    return one.length > room ? `${one.slice(0, room).trimEnd()}…` : one;
+  };
+  return {
+    says: drawn.parts.map((p) => `${p.label}: ${p.subject ? `“${p.subject}” — ` : ""}${clip(p.body)}`).join(" · "),
+  };
 }
 
 /** One channel's part of who a campaign reaches: how many, and what that says. */

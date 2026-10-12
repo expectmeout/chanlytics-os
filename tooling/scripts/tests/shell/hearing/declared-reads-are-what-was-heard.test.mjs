@@ -132,7 +132,8 @@ const HEARD_BEFORE = {
     "person_notes",
     "segments",
     "segment_members",
-    // A reply's signer offered (0052): a row carries it, which the Inbox's header and Leads' peek say from People's rows.
+    // Decision 0052 (#1566) adds what a row draws of the business a person works at and the signer a reply of theirs offers.
+    "leads",
     "reach_out_replies",
   ],
   leads: ["leads", "lead_searches", "lead_rounds", "lead_search_members"],
@@ -202,6 +203,8 @@ const ON_ITS_PAGE_BEFORE = {
     "policies",
     "templates",
     "tenant_config",
+    // Decision 0052 (#1566): the business a person works at and a reply's signer, heard on People's page as the rest are.
+    "leads",
     "reach_out_replies",
   ],
   broadcasts: SENT_PAGE,

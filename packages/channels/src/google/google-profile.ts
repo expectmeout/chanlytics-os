@@ -39,6 +39,12 @@ export function locationsRequest(token: string, accountName: string, pageToken?:
   return { url: `${GBP_INFO_BASE}/${accountName}/locations?${q.toString()}`, method: "GET", headers: bearer(token) };
 }
 
+/** One location by its name (locations/{id}), asked for the fields an account's list asks each one for (locations.get). */
+function locationRequest(token: string, locationName: string): PlacesRequest {
+  const q = new URLSearchParams({ readMask: GBP_LOCATIONS_READ_MASK });
+  return { url: `${GBP_INFO_BASE}/${locationName}?${q.toString()}`, method: "GET", headers: bearer(token) };
+}
+
 /** The v4 review path: accounts/{a}/locations/{l}, from the account's name and the location's. */
 export function reviewParent(accountName: string, locationName: string): string {
   const loc = locationName.startsWith("locations/") ? locationName.slice("locations/".length) : locationName;
@@ -137,24 +143,29 @@ function oneLineAddress(a: unknown): string | null {
   return parts.length ? parts.join(", ") : null;
 }
 
+/**
+ * One location as Business Information gives it, an element of an account's list or locations.get's whole answer: its
+ * name, title and address, and the metadata that names its place on Maps. Null for one that names no location.
+ */
+function parseLocation(json: unknown): GbpLocation | null {
+  const l = recordOrNull(json);
+  const name = nonBlankOrNull(l?.name);
+  if (!l || !name?.startsWith("locations/")) return null;
+  const meta = recordOrNull(l.metadata);
+  return {
+    name,
+    title: nonBlankOrNull(l.title) ?? "",
+    address: oneLineAddress(l.storefrontAddress),
+    place_id: nonBlankOrNull(meta?.placeId),
+    maps_uri: nonBlankOrNull(meta?.mapsUri),
+    new_review_uri: nonBlankOrNull(meta?.newReviewUri),
+  };
+}
+
 export function parseLocations(json: unknown): { locations: GbpLocation[]; next: string | null } {
   const o = recordOrNull(json);
   const list = Array.isArray(o?.locations) ? o.locations : [];
-  const locations = list
-    .map((l) => recordOrNull(l))
-    .filter((l): l is Obj => !!l)
-    .map((l) => {
-      const meta = recordOrNull(l.metadata);
-      return {
-        name: nonBlankOrNull(l.name) ?? "",
-        title: nonBlankOrNull(l.title) ?? "",
-        address: oneLineAddress(l.storefrontAddress),
-        place_id: nonBlankOrNull(meta?.placeId),
-        maps_uri: nonBlankOrNull(meta?.mapsUri),
-        new_review_uri: nonBlankOrNull(meta?.newReviewUri),
-      };
-    })
-    .filter((l) => l.name.startsWith("locations/"));
+  const locations = list.map(parseLocation).filter((l): l is GbpLocation => l !== null);
   return { locations, next: nonBlankOrNull(o?.nextPageToken) };
 }
 
@@ -230,6 +241,17 @@ export async function listLocations(http: PlacesHttp, token: string, accountName
     if (!page) break;
   }
   return out;
+}
+
+/**
+ * One location read alone by its name (locations/{id}): one call whatever the size of the account, read in the fields
+ * each of an account's list is (parseLocations). A refusal is named, as every call's is; an answer that names no
+ * location is Google's fault (502).
+ */
+export async function readLocation(http: PlacesHttp, token: string, locationName: string): Promise<GbpLocation> {
+  const loc = parseLocation(await callProfileApi(http, locationRequest(token, locationName)));
+  if (!loc) throw new PlacesError(502, `Google's answer for ${locationName} named no location`);
+  return loc;
 }
 
 /** The newest pages of reviews, up to `maxPages`; the rating and the count as Google reports them beside. */

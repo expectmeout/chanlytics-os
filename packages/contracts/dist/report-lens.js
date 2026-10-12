@@ -9,12 +9,18 @@ function formatterOnUse(locales, options) {
 }
 var DATE_FMT = formatterOnUse([], { month: "short", day: "numeric" });
 
+// src/playbooks/playbook-time.ts
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
+var SWEEP_TICK_MS = 5 * MIN_MS;
+
 // src/broadcasts/run-words.ts
 var REPLY_WINDOW_HOURS = 72;
 var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * HOUR_MS;
 var REPLY_DAYS = `${REPLY_WINDOW_HOURS / 24} days`;
 var REPLY_WINDOW_WORDS = `within ${REPLY_DAYS}`;
 var STUCK_DAYS = "30 days";
+var BREATH_WHY = "from you within a week of it";
+var HEARD_UNREAD_WORDS = `Who hears ${BREATH_WHY} could not be read just now: the send still leaves them out, so it may go to fewer.`;
 var HELD_REASONS = {
   opted_out: "asked to stop",
   not_opted_in: "no recorded yes",
@@ -31,6 +37,10 @@ var HELD_REASONS = {
   sms_line_not_active: "the texting line is not active",
   // The workspace's month of emails or texts is used up (CAMPAIGN_MONTH_ALLOWANCE): held on its channel, never moved.
   month_allowance: "this month's allowance is used up",
+  // A send by hand left them out: another message from a campaign or a broadcast reaches them within a week of it, before
+  // or after (the week's breath), and they were never sent it. Spelled out rather than computed from
+  // RECIPIENT_REASON_HEARD, as outcome_unknown is below; run-report.test.mjs holds the two spellings together.
+  heard_this_week: "not sent: they hear from you within a week of it",
   // The message's WhatsApp version is no longer one a send can use: it holds the people who go by WhatsApp, and only them.
   template_not_approved: "its WhatsApp version is no longer approved",
   // The number is on file but no thread answers to it on this line: a stored
@@ -1772,9 +1782,6 @@ var lensRoute = (id, days = null, scope = null) => {
 };
 var LENS_ROUTES = REPORT_LENSES.map((l) => lensRoute(l.id));
 
-// src/playbooks/playbook-time.ts
-var SWEEP_TICK_MS = 5 * MIN_MS;
-
 // src/playbooks/playbook-triggers.ts
 var PLAYBOOK_TRIGGERS = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -1889,7 +1896,6 @@ var SENDING_HOURS_WORDS = {
   range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
   between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
 };
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
 var PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
 function delayWords(ms) {
   const minutes = Math.round(ms / MIN_MS);
@@ -2534,6 +2540,8 @@ var PROPOSAL = {
   example: "https://docs.example.com/proposal"
 };
 var PROPOSAL_ES = { ...PROPOSAL, label: "Enlace de la propuesta" };
+var REVIEW = { kind: "review_link", label: "Review link", example: "https://g.page/r/example/review" };
+var REVIEW_ES = { ...REVIEW, label: "Enlace de rese\xF1as" };
 var OFFER = { kind: "text", label: "The offer", example: "20% off any service booked before Friday." };
 var OFFER_ES = {
   kind: "text",
@@ -2682,6 +2690,48 @@ var STARTER_TEMPLATES = [
       },
       es: {
         body: "Hola {{1}}, gracias por venir ayer a {{2}}. \xBFQu\xE9 tal fue todo? Si algo no te ha gustado, responde a este mensaje y lo solucionamos."
+      }
+    }
+  },
+  {
+    // The day after's other message (10 Oct 2026): the thank-you with a review ask, the link the Google listing keeps.
+    // About the appointment they just had, with no offer and no booking push, so it is utility like How did it go. It is
+    // offered only where the listing keeps a review link (startersOffered), as its slot is filled from nothing else, and
+    // How did it go stays the moment's own: what a composer opens on, and what a campaign picks when nothing is picked.
+    key: "after_visit_review",
+    name: "after_visit_review",
+    title: "After the appointment, with a review ask",
+    purpose: "for the day after an appointment, asking for a review",
+    category: "utility",
+    trigger: "visited",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, thanks for coming to {{2}} yesterday. If you have a minute, a review helps others find us: {{3}}. If anything wasn't right, reply here and we'll sort it out.",
+        footer: null,
+        slots: [FIRST, BUSINESS, REVIEW]
+      },
+      es: {
+        body: "Hola {{1}}, gracias por venir ayer a {{2}}. Si tienes un minuto, tu rese\xF1a ayuda a otros a encontrarnos: {{3}}. Si algo no estuvo bien, responde aqu\xED y lo solucionamos.",
+        footer: null,
+        slots: [FIRST_ES, BUSINESS_ES, REVIEW_ES]
+      }
+    },
+    email: {
+      en_US: {
+        subject: "Thanks for coming to {{2}}",
+        body: "Hi {{1}},\n\nThanks for coming to {{2}} yesterday. If you have a minute, a review helps others find us: {{3}}\n\nIf anything wasn't right, just reply to this email and we'll sort it out."
+      },
+      es: {
+        subject: "Gracias por venir a {{2}}",
+        body: "Hola {{1}}:\n\nGracias por venir ayer a {{2}}. Si tienes un minuto, tu rese\xF1a ayuda a otros a encontrarnos: {{3}}\n\nSi algo no estuvo bien, responde a este correo y lo solucionamos."
+      }
+    },
+    sms: {
+      en_US: {
+        body: "Hi {{1}}, thanks for coming to {{2}} yesterday. A review helps others find us: {{3}} If anything wasn't right, reply here."
+      },
+      es: {
+        body: "Hola {{1}}, gracias por venir ayer a {{2}}. Tu rese\xF1a ayuda a otros a encontrarnos: {{3}} Si algo no estuvo bien, responde a este mensaje."
       }
     }
   },
@@ -3396,6 +3446,8 @@ var TEMPLATE_STATUS_WORDS = {
   paused: "Paused",
   disabled: "Disabled"
 };
+var TEMPLATE_BODY_MAX = 1024;
+var TEMPLATE_BODY_WORDS = `The message must be under ${TEMPLATE_BODY_MAX} characters.`;
 
 // src/reports/campaigns/campaign-words.ts
 var NO_FIGURE = "\u2014";

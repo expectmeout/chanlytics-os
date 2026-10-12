@@ -61,6 +61,7 @@ function checked(
   at: Answering,
   brainCfg: BrainConfig,
   r: { text: string; escalate: boolean; reason?: string; meta?: BrainMeta },
+  now: Date,
 ): Pick<Turn, "replyText" | "escalate" | "escalationReason"> {
   const { rt, L } = at;
   const intent = r.meta?.intent ?? null;
@@ -73,6 +74,9 @@ function checked(
     intent,
     language: r.meta?.language ?? null,
     known: rt?.known,
+    // The clock the prompt was composed at: a note's price is allowed exactly while the receptionist was told the note.
+    tz: rt?.timezone,
+    now,
   });
   if (two.priceBlocked) L.warn("policy_block_price");
   if (two.moneyHeld) L.info("wa_policy_money", { intent });
@@ -109,22 +113,27 @@ export async function modelTurn(
       // a value none of them ever reads, and the ingest write that must never
       // wait waited behind it.
       const openings = rt ? await ports.calendar.openings(rt) : null;
+      // The turn's one clock: the prompt, the clock note and layer two all read the business's day from it, so the notes
+      // the receptionist is told and the prices it may say from them are the same notes.
+      const now = new Date();
       const tBrain = Date.now();
       const r = await generateReply(
         thread.history,
-        photo ? photoUserText(n.media?.caption, priceAllowance(brainCfg) ? "written" : "none") : bodyText,
+        photo
+          ? photoUserText(n.media?.caption, priceAllowance(brainCfg, rt?.timezone, now) ? "written" : "none")
+          : bodyText,
         // Composed from the workspace's structured facts when it has them,
         // and its hand-written prompt when it does not. lib/call-start.ts
         // composes the SAME thing for the voice agent, which is the point:
         // two copies of the hours is how two channels start disagreeing
         // about when the business opens. A text is told it answers texts (compose.ts).
-        resolveSystemPrompt(brainCfg, channel, rt?.timezone, new Date(), rt?.policy, rt?.known),
+        resolveSystemPrompt(brainCfg, channel, rt?.timezone, now, rt?.policy, rt?.known),
         fallbacks!.error,
         leadNote,
         // "Are you open?" it could already answer. "Are you open RIGHT NOW?"
         // it was answering too, from nothing — it had a table of hours and no
         // idea what day it was.
-        `${describeNow(rt?.timezone, new Date(), brainCfg.profile?.closures)}${openings ? `\n\n${openings}` : ""}`,
+        `${describeNow(rt?.timezone, now, brainCfg.profile?.closures)}${openings ? `\n\n${openings}` : ""}`,
         photo ?? undefined,
         undefined,
         // Who it is for: the model port writes the call to the usage ledger and stamps the meta with the settings'
@@ -140,7 +149,7 @@ export async function modelTurn(
       usage = r.usage;
       brainMeta = r.meta;
       brainMs = Date.now() - tBrain;
-      ({ replyText, escalate, escalationReason } = checked(at, brainCfg, r));
+      ({ replyText, escalate, escalationReason } = checked(at, brainCfg, r, now));
     } catch (e) {
       L.error("brain_failed", { error: errField(e) });
       replyText = fallbacks!.error;

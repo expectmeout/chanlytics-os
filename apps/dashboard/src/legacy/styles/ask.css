@@ -225,6 +225,14 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-ring-arc { stroke-dasharray: 40.84; stroke-linecap: round; animation: ask-ring linear forwards; }
 @keyframes ask-ring { to { stroke-dashoffset: 40.84; } }
 @keyframes ask-ring-still { to { opacity: 1; } }
+/* A plan's cards as one group (ask-turn.jsx AskPlan; the marketing manager's spec §5.8): its steps a column at the cards'
+   own gap, each step's head a quiet line over its card (.ask-step-n), and the one press for the steps that send nothing
+   on a line of its own above them (.ask-steps-press), so it keeps its own width. Layout alone: the head's words are the
+   kit's (.rec-hint), the press the kit's button, a send's wait the kit's state pill. */
+.ask-steps { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ask-step { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ask-step-n { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 2px; }
+.ask-steps-press { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 
 /* ---- A phone: the takeover. The Line is the screen; the three in a hero; the field at the foot (spec 5) ---- */
 .phone-ask { display: none; }

@@ -230,6 +230,7 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     "facts",
     "maps_uri",
     "name",
+    "new_review_uri",
     "place_id",
   ),
   // A review as Google shows it: a complete read drops one Google no longer lists, and one not seen for its days goes

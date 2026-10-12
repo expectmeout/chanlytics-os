@@ -170,7 +170,8 @@ export async function runCase(key, workspace, c, over = {}) {
   if (!parsed.ok)
     return { id: c.id, ok: true, text: workspace.holding, escalate: true, reason: "brain_error", meta: null, ms };
   const meta = brainMetaOf(parsed.value, r.model);
-  // The platform's second door, as a customer meets it: a price, a promise of money or a held class is replaced.
+  // The platform's second door, as a customer meets it: a price, a promise of money or a held class is replaced. Its
+  // clock is the workspace's fixed one, the prompt's: a note's price is allowed exactly while the prompt tells the note.
   const two = layerTwo({
     replyText: parsed.value.reply.trim(),
     escalate: parsed.value.escalate,
@@ -180,6 +181,8 @@ export async function runCase(key, workspace, c, over = {}) {
     intent: meta.intent,
     language: meta.language,
     known: null,
+    tz: workspace.timezone,
+    now: workspace.now,
   });
   return {
     id: c.id,
@@ -193,8 +196,12 @@ export async function runCase(key, workspace, c, over = {}) {
   };
 }
 
-/** Every case asked `repeats` times, judged; the askings in order. */
+/**
+ * Every case asked `repeats` times, judged; the askings in order. The prices it may say are the workspace's, read at its
+ * own zone and fixed clock, as layer two reads them.
+ */
 export async function runAll(key, workspace, cases, repeats, over = {}) {
+  const allowed = priceAllowance(workspace.brain, workspace.timezone, workspace.now);
   const results = [];
   for (let i = 0; i < repeats; i++) {
     for (const c of cases) {
@@ -204,7 +211,7 @@ export async function runAll(key, workspace, cases, repeats, over = {}) {
       } catch (e) {
         result = { id: c.id, ok: false, error: e instanceof Error ? e.message : String(e), ms: 0 };
       }
-      results.push({ case: c, result, ...judgeCase(c, result, priceAllowance(workspace.brain)) });
+      results.push({ case: c, result, ...judgeCase(c, result, allowed) });
     }
   }
   return results;

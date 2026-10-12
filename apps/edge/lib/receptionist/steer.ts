@@ -24,7 +24,7 @@
 import { json, refuse } from "../http.js";
 import { tokenWorkspace, type Admitted } from "../admin-auth.js";
 import { pg } from "../pg.js";
-import { loadTenantRuntime } from "../tenant-runtime.js";
+import { loadTenantRuntime, type TenantRuntime } from "../tenant-runtime.js";
 import { readThreadState, readLeadContext, describeLead, oldestActiveChannel, withdrawQueued } from "../packages/db.js";
 import {
   resolveSystemPrompt,
@@ -62,12 +62,17 @@ export interface BrainPort {
 }
 
 /**
- * The prices a rewrite may carry: the amounts the owner wrote while "Never quote a price" is off (priceAllowance), and
+ * The prices a rewrite may carry: the amounts the owner wrote while "Never quote a price" is off (priceAllowance, in the
+ * workspace's zone at `now`, the clock the rewrite's prompt was composed at, so a note that has ended gives none), and
  * any the owner typed into this instruction, which a person chose for this one message (as person-draft.ts counts what
  * a draft was given). Null, the strict rule, when there is neither (decision 0051).
  */
-function steerAllowance(brain: Parameters<typeof priceAllowance>[0], instruction: string): ReadonlySet<string> | null {
-  const listed = priceAllowance(brain);
+function steerAllowance(
+  rt: Pick<TenantRuntime, "brain" | "timezone">,
+  now: Date,
+  instruction: string,
+): ReadonlySet<string> | null {
+  const listed = priceAllowance(rt.brain, rt.timezone, now);
   const typed = priceFigures(instruction);
   if (!listed && !typed.length) return null;
   return new Set([...(listed ?? []), ...typed]);
@@ -243,16 +248,16 @@ export async function steerHeldDraft(
 
   const leadNote = await leadNoteOf(db, m, phone, rt.timezone ?? "UTC", channel);
 
-  const t0 = Date.now();
+  const now = new Date(); // the rewrite's one clock: its prompt, its price check (steerAllowance) and its timing
   let r: Awaited<ReturnType<typeof generateReply>>;
   try {
     r = await ask(
       thread.history,
       lastUser.content,
-      resolveSystemPrompt(rt.brain, channel, rt.timezone, new Date(), rt.policy, rt.known),
+      resolveSystemPrompt(rt.brain, channel, rt.timezone, now, rt.policy, rt.known),
       fallbackMessages(rt.brain, rt.known).error,
       leadNote,
-      describeNow(rt.timezone, new Date(), rt.brain.profile?.closures),
+      describeNow(rt.timezone, now, rt.brain.profile?.closures),
       undefined,
       frameSteer(text),
       brainCallOf(m.tenant_id, rt, { subjectId: m.conversation_id }),
@@ -262,7 +267,7 @@ export async function steerHeldDraft(
     return refuse(502, "brain_failed");
   }
   // The same second door the handler keeps: no price, no money a person decides; the original draft stays.
-  if (rewriteBlocked(r.text, messageId, steerAllowance(rt.brain, text))) return refuse(409, "policy_block_price");
+  if (rewriteBlocked(r.text, messageId, steerAllowance(rt, now, text))) return refuse(409, "policy_block_price");
   const words = wordsForTheWire(channel, r.text, thread.textedBefore);
 
   const delayMs =
@@ -302,7 +307,7 @@ export async function steerHeldDraft(
     message_id: m.id,
     new_message_id: newId,
     chars: text.length,
-    ms: Date.now() - t0,
+    ms: Date.now() - now.getTime(),
     escalate: r.escalate,
     delay_ms: delayMs,
   });

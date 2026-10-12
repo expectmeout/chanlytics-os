@@ -1,6 +1,7 @@
 import "server-only";
 import {
   BOOKING_DEFAULTS,
+  MIN_MS,
   bookingToolName,
   describeOpenings,
   feedBodyProblem,
@@ -17,6 +18,7 @@ import {
   type AskOpeningsView,
   type BusyBlock,
   type FeedFailure,
+  type FreeWindowsInput,
   type Opening,
   type TenantConfig,
 } from "@chanlytics/contracts";
@@ -194,6 +196,34 @@ export interface OpeningsResult {
   service: { name: string; duration_min?: number } | null;
   /** With no calendar link: what the calendar is fed by instead, where anything is (contracts AskOpeningsView). */
   instead?: AskOpeningsView["instead"];
+  /** Where the feed read: how full the book is (roomOf), whatever day or service was asked. Ask's calendar.room. */
+  room?: { days: number; by_day: Array<{ day: string; open: number }>; taken: number };
+}
+
+/** The days the room is counted over: the first fourteen on offer, the receptionist's span until a business sets its own. */
+export const ROOM_DAYS = BOOKING_DEFAULTS.max_days_ahead;
+
+/**
+ * How full the book is, for pacing an offer to what the business can take (Ask's calendar.room): the openings, every
+ * day and service, counted in whole slots of the business's slot length on each day with any, over the first ROOM_DAYS
+ * on offer (fewer where the business offers fewer); and `taken`, the slots the feed's busy blocks and the record's
+ * (each widened by the buffer) take out of the same hours -- what the hours alone offer on the same clock and rules,
+ * less what is open. A slot is the calendar's, one booking at a time: it counts no one who works there.
+ */
+function roomOf(
+  openings: Opening[],
+  free: Omit<FreeWindowsInput, "busy">,
+  daysAhead: number,
+): NonNullable<OpeningsResult["room"]> {
+  const days = Math.min(daysAhead, ROOM_DAYS);
+  const slotMs = (free.rules?.slot_min ?? BOOKING_DEFAULTS.slot_min) * MIN_MS;
+  const hours = freeWindows({ ...free, busy: [], rules: { ...free.rules, max_days_ahead: days } });
+  // A day with room is a day the hours offer, so the hours' days are the span.
+  const span = new Set(hours.map((o) => o.key));
+  const open = openings.filter((o) => span.has(o.key));
+  const slots = (o: Opening) => o.windows.reduce((n, w) => n + Math.floor((w.end - w.start) / slotMs), 0);
+  const total = (list: Opening[]) => list.reduce((n, o) => n + slots(o), 0);
+  return { days, by_day: open.map((o) => ({ day: o.key, open: slots(o) })), taken: total(hours) - total(open) };
 }
 
 /** No link to read open times from: said with what the business does have, its booking emails or its own word. */
@@ -236,18 +266,14 @@ export async function openingsFor(
     return { state: "unavailable", text: "The calendar could not be read right now.", tz: timezone, days: [], service };
   let openings: Opening[];
   let daysAhead: number;
+  let room: NonNullable<OpeningsResult["room"]>;
   try {
     const rules = profile.booking_rules ?? null;
     daysAhead = rules?.max_days_ahead ?? BOOKING_DEFAULTS.max_days_ahead;
     const feed = parseIcs(text, timezone, { horizon: offeringHorizon(now, daysAhead) });
-    openings = freeWindows({
-      hours: profile.hours,
-      closures: profile.closures,
-      tz: timezone,
-      busy: [...feed.busy, ...(await known.taken(daysAhead))],
-      rules,
-      now,
-    });
+    const free = { hours: profile.hours, closures: profile.closures, tz: timezone, rules, now };
+    openings = freeWindows({ ...free, busy: [...feed.busy, ...(await known.taken(daysAhead))] });
+    room = roomOf(openings, free, daysAhead);
   } catch (e) {
     log.error("ask_openings_failed", { tenant_id: tenantId, error: e });
     return { state: "unavailable", text: "The calendar could not be read right now.", tz: timezone, days: [], service };
@@ -268,5 +294,6 @@ export async function openingsFor(
       windows: o.windows.slice(0, 6).map((w) => fmtWindow(w.start, w.end, timezone)),
     })),
     service,
+    room,
   };
 }

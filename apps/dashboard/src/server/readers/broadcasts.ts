@@ -9,7 +9,7 @@ import {
 import { getBroadcast, listBroadcasts } from "../campaigns/broadcasts";
 import { channelsReadyOrNull } from "../campaigns/channels-ready";
 import { monthSentNext, monthSentOrNull } from "../campaigns/month-sent";
-import { recentTouches } from "../campaigns/playbooks";
+import { recentTouches } from "@chanlytics/db";
 import { load, stamp, type Reader, type RowRef } from "./index";
 import * as readers from "./facts";
 import { log } from "@/server/log";
@@ -24,9 +24,11 @@ const runRef = (b: BroadcastDto): RowRef => ({
 
 /**
  * GET broadcasts, as the route answers it: the recent fifty with what their messages earned, whether older ones exist
- * beyond them, and who a run of any kind reached within the week, from the turn's clock -- the composer says how many
- * of an audience heard from one. Touches that cannot be read are null, said in the log, and the composer says nothing,
- * rather than a list of nobody. And whether the workspace can send on each channel now (`ready`, channels-ready.ts), which
+ * beyond them, and who a run of any kind reached from a week before the turn's clock on, or is due to, and when
+ * (`touched_at`, contact id -> the time of every touch of theirs, earliest first) -- the composer says how many of an
+ * audience hear from one within a week of the time a send is set for, either side (contracts heardFor, leftOutBy's rule).
+ * Touches that cannot be read are null, said in the log, and the
+ * composer says nothing, rather than a list of nobody. And whether the workspace can send on each channel now (`ready`, channels-ready.ts), which
  * the composer's Send by ticks and its reach line are drawn from; null where that could not be read, which the composer
  * says. And what the workspace's campaigns have sent by email and by text this calendar month (`month_sent`,
  * month-sent.ts), which the Campaigns head says from half used and the composer says before a send; null where that could not
@@ -39,7 +41,7 @@ export const broadcasts: Reader<
   {
     broadcasts: BroadcastDto[];
     more: boolean;
-    touched: string[] | null;
+    touched_at: Record<string, string[]> | null;
     ready: ChannelsReady | null;
     month_sent: MonthSent | null;
     month_sent_next: { from: number; sent: MonthSent | null } | null;
@@ -47,9 +49,9 @@ export const broadcasts: Reader<
 > = {
   name: "broadcasts",
   async read(rc) {
-    const [list, touched, ready, month_sent, month_sent_next] = await Promise.all([
+    const [list, touched_at, ready, month_sent, month_sent_next] = await Promise.all([
       listBroadcasts(rc.ctx, rc.tenantId),
-      recentTouches(rc.ctx, rc.tenantId, rc.now).catch((e: unknown) => {
+      recentTouches(rc.ctx.supabase, rc.tenantId, rc.now).catch((e: unknown) => {
         log.error("broadcast_touches_failed", {
           tenant_id: rc.tenantId,
           error: e instanceof Error ? e.message : String(e),
@@ -65,7 +67,7 @@ export const broadcasts: Reader<
       ),
     ]);
     return {
-      data: { ...list, touched: touched ? Object.keys(touched) : null, ready, month_sent, month_sent_next },
+      data: { ...list, touched_at, ready, month_sent, month_sent_next },
       rows: list.broadcasts.map(runRef),
       stamp: stamp(),
     };

@@ -107,16 +107,7 @@ export const calendarOverride: SurfaceOverride = {
   // (appointment_notices: the held list the card and Settings > Business both draw), and the business's hours, closures and
   // services (tenant_config: the open times, the windows a caller is offered), which a save in another tab or by a teammate
   // moved only in the board's own five minutes. A few a day. This tab's own save is read once, by the refresh map.
-  ...declareReads("calendar", {
-    reads: ["visit", "facts", "lead", "reach_out"],
-    fresh: "live",
-    omit: [
-      {
-        tables: ["leads", "lead_searches", "lead_rounds", "lead_search_members", "reach_out_replies"],
-        why: "People's read carries each person's business, its addresses and an offered signer (0052): the board matches by them again on its next read, and a search's thousands of lead writes are not heard",
-      },
-    ],
-  }),
+  ...declareReads("calendar", { reads: ["visit", "facts"], fresh: "live" }),
   // A span's reads take their turn; a move to another span is read at once (activateOverride).
   view: () => `${calendarFrom ?? "today"}|${calendarDays}`,
   apply: async () => {

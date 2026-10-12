@@ -347,7 +347,7 @@ test("a card's outcome is the person's own turn: which card, an outcome in its s
     proposals.POST.run(send("POST", {}), ctxFor(tables, { id: M1, pid: "p-1" })),
     "validation",
     400,
-    "An outcome is { state, receipt, atMs, undo? }.",
+    "An outcome is { state, receipt, atMs, undo?, made? }.",
   );
   await refused(
     proposals.POST.run(
@@ -386,6 +386,42 @@ test("a card's outcome is the person's own turn: which card, an outcome in its s
     "conflict",
     409,
     "That card was already approved.",
+  );
+});
+
+test("a card's outcome keeps what its commit made, so a plan's made is read back after a reload; an outcome that says none, as every one before did, is kept as having made nothing", async () => {
+  const tables = {
+    memberships: both("viewer", "viewer"),
+    ask_messages: [
+      turn(M1, T1, A, "assistant", {
+        text: "A plan of three steps.",
+        proposals: [
+          { id: "p-1", kind: "message", outcome: null },
+          { id: "p-2", kind: "settings", outcome: null },
+        ],
+      }),
+    ],
+  };
+  const made = { kind: "message", id: "77777777-7777-4777-8777-000000000001" };
+  await proposals.POST.run(
+    send("POST", { state: "done", receipt: "“offer” is in the Library", atMs: 1, made }),
+    ctxFor(tables, { id: M1, pid: "p-1" }),
+  );
+  await proposals.POST.run(
+    send("POST", { state: "done", receipt: "Noted", atMs: 1 }),
+    ctxFor(tables, { id: M1, pid: "p-2" }),
+  );
+  const [first, second] = tables.ask_messages[0].content.proposals;
+  assert.deepEqual(first.outcome.made, made, "kept on the turn, not stripped");
+  assert.equal(second.outcome.made, null);
+  await refused(
+    proposals.POST.run(
+      send("POST", { state: "sent", receipt: "x", atMs: 1, made }),
+      ctxFor(tables, { id: M1, pid: "p-2" }),
+    ),
+    "validation",
+    400,
+    "An outcome is { state, receipt, atMs, undo?, made? }.",
   );
 });
 

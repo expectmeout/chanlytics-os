@@ -45,7 +45,7 @@ what the script writes.
 | [`events`](#events) | `packages/db/src/events.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notifications.ts`, `packages/db/src/repositories/sending-domains.ts` | on, 1 policy |
 | [`google_connections`](#google_connections) | none | on, 1 policy |
 | [`google_listing_days`](#google_listing_days) | none | on, 1 policy |
-| [`google_listings`](#google_listings) | none | on, 1 policy |
+| [`google_listings`](#google_listings) | `packages/db/src/repositories/campaigns/workspace.ts` | on, 1 policy |
 | [`google_reviews`](#google_reviews) | `packages/db/src/repositories/notifications.ts` | on, 1 policy |
 | [`idempotency_keys`](#idempotency_keys) | `packages/db/src/repositories/idempotency.ts` | on, 1 policy |
 | [`invitations`](#invitations) | `packages/db/src/repositories/notifications.ts` | on, 1 policy |
@@ -1051,7 +1051,7 @@ Foreign keys:
 
 A workspace's business on Google Maps, as the public listing says it: the place, the rating, the count, when it was last read. Members read; the edge writes.
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/campaigns/workspace.ts`
 - Primary key: `tenant_id`
 - Row-level security: on, 1 policy
 
@@ -1072,6 +1072,7 @@ A workspace's business on Google Maps, as the public listing says it: the place,
 | `facts` | jsonb | no | `'{}'::jsonb` |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
+| `new_review_uri` | text | yes |  | Where a customer leaves this business a review on Google: the bound Business Profile location's newReviewUri, written when the location is bound and again by each later sync of the profile where it differs (null where the location gives none); null until one is bound, or when the place was linked by the public read. Filled into a message's review_link slot. |
 
 Foreign keys:
 
@@ -2372,6 +2373,8 @@ Foreign keys:
 | `include_unconfirmed` | boolean | no | `false` |  |
 | `hand` | jsonb | yes |  | A reach-out's last step that hands each lead it reaches to the team (Reach out Part 5, G20): {kind: call \| note, words}. Such a step has no template. |
 | `channels` | text[] | no | `'{whatsapp}'::text[]` | The channels this campaign may go by (whatsapp, sms, email, each once, at least one): the composer's ticks. Each person is reached once, on one of them (contracts' reachFor). WhatsApp alone by default, as every campaign was before (00298). |
+| `until` | date | yes |  | The last day this campaign runs, on the business's clock: a run on a day past it sends nothing. Null: it runs until it is paused (00416). |
+| `trial_until` | timestamp with time zone | yes |  | Until when this campaign runs on trial: before it, a run its policy would send by itself (auto) waits for a person (veto). Null: no trial (00416). |
 
 Foreign keys:
 

@@ -73,6 +73,12 @@ export interface LayerTwoIn {
   language?: string | null;
   /** What the platform knows independently of what was typed; the number to call resolves over both. */
   known?: KnownFacts | null;
+  /**
+   * The zone and the clock the reply's prompt was composed with: a price from an owner's note is one it may say while
+   * the note holds on the business's day (contracts priceAllowance, notesInForce), and never after it ends.
+   */
+  tz: string | null | undefined;
+  now: Date;
 }
 
 export interface LayerTwoOut {
@@ -107,7 +113,8 @@ function urgentPhone(x: Pick<LayerTwoIn, "brainCfg" | "known">): string | null {
  * Layer-2 policy enforcement (Blueprint §6): prompt text is never the only
  * defense. A price it may not say blocks the send outright: any price while
  * "Never quote a price" is on, and with it off any amount the owner did not
- * write (priceAllowance, decision 0051). Money -- a refund, a
+ * write, or wrote in a note that has ended (priceAllowance at the reply's own
+ * zone and clock, decision 0051). Money -- a refund, a
  * discount, a deposit, a payment term, named in the draft or read as the
  * model's intent -- is a person's, whatever the model's record says (the
  * charter's locked row). Under "ask", a booking or a service/pricing question
@@ -122,7 +129,7 @@ export function layerTwo(x: LayerTwoIn): LayerTwoOut {
   const phone = urgentPhone(x);
   let priceBlocked = false;
   const moneyHeld = x.intent === "money" || namesMoney(replyText);
-  if (priceBreach(replyText, priceAllowance(x.brainCfg))) {
+  if (priceBreach(replyText, priceAllowance(x.brainCfg, x.tz, x.now))) {
     priceBlocked = true;
     replyText = heldLine("price", x.language, phone);
     escalate = true;

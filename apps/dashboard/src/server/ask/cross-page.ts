@@ -116,8 +116,42 @@ const SETUP_START = String.raw`(?:start|iniciar?|lanzar?) (?:(?:all|a few|todas)
  * win-back of customers gone quiet, and what should go out this month.
  */
 const SETUP_IDEAS = String.raw`win[- ]?back\b|recuperar? a\b|what should (?:go|we send) out\b|qu[eé] deber[ií]a(?:mos)? (?:salir|enviar)\b`;
+/** Where a request may start: the text's start, or after a sentence's or a clause's mark (SETUP's and OFFER_ASKED's). */
+const SENTENCE_START = String.raw`(?:^|[.!?;:,¿¡]\s*)`;
 const SETUP = new RegExp(
-  String.raw`(?:^|[.!?;:,¿¡]\s*)(?:(?:${SETUP_OPENERS})\s+)*(?:(?:${SETUP_MAKE}|${SETUP_START})${SETUP_WORD}${SETUP_NOUN}|${SETUP_IDEAS})`,
+  String.raw`${SENTENCE_START}(?:(?:${SETUP_OPENERS})\s+)*(?:(?:${SETUP_MAKE}|${SETUP_START})${SETUP_WORD}${SETUP_NOUN}|${SETUP_IDEAS})`,
+  "iu",
+);
+
+/**
+ * An offer, asked for (the marketing manager's spec §5.7): the journey and the Library (campaigns.journey,
+ * campaigns.messages), read before round 1 on any page, Campaigns included, which propose_campaign's plan then reads
+ * again from the turn's cache (readers/index.ts TurnCache), never from the database twice. Only an offer to make, at a
+ * sentence's start past a setup's openers or a "we":
+ *   - an amount off, its article before it or none ("10% off every service all November", "a 10% discount", "un 10% de
+ *     descuento");
+ *   - or a verb that makes one, then within four words an amount, a discount, a promotion or a sale ("give everyone 15%
+ *     off", "haz unas rebajas"), never one already named ("the 10% off", "our promo"). Do, have, run, start and make (and
+ *     tener) open many requests besides an offer, so they make one only after an opener ("can we do a sale", "let's run
+ *     a promotion"), never alone ("Do we have any promotions running?", "Run the numbers on the promo").
+ * "Offer" alone is who can be sent one (AUDIENCES), and an offer said of a campaign that runs ("make the month's offer
+ * 15% off", PLAYBOOKS' words) is a change to it, read as PLAYBOOKS reads it; "deal" is the pipeline's (PIPELINE); "sale"
+ * alone is Spanish for "goes out"; a question about how one did ("how did the promotion do?") is none. A missed offer
+ * costs nothing, since the plan reads both itself; a false one pushes another named read to the model's own round.
+ */
+const OFFER_AMOUNT = String.raw`(?:(?:\d+(?:[.,]\d+)?\s?%|[$€£]\s?\d+(?:[.,]\d+)?)\s?(?:off|discount|(?:de )?descuento)|half[- ](?:off|price)|mitad de precio|2x1|(?:two|2) for (?:one|1)|buy one,? get one|bogo)\b`;
+const OFFER_THING = String.raw`(?:discounts?|descuentos?|promo(?:tion)?s?|promoci[oó]n(?:es)?|sale|rebajas?)\b`;
+/** Who makes it, besides a setup's openers: we, as a request or a plan. */
+const OFFER_OPENERS = String.raw`we(?:[’']re| are| will)?|(?:can|could|should|shall) we|let me|queremos|vamos a|podemos`;
+/** A verb that makes an offer and little else, in either language, said now or as under way: it may open a request. */
+const OFFER_LEAD = String.raw`(?:offer(?:ing)?|giv(?:e|ing)|throw(?:ing)?|send(?:ing)?|launch(?:ing)?|creat(?:e|ing)|set[- ]?up|plan(?:ning)?|put on|ofrec(?:er|e)|dar?|hacer|haz|hagamos|lanzar?|crear?|enviar?|env[ií]a|mandar?|preparar?|poner?|pon)`;
+/** A verb that opens many other requests too: an offer's only after an opener. */
+const OFFER_DO = String.raw`(?:run(?:ning)?|do(?:ing)?|hav(?:e|ing)|start(?:ing)?|mak(?:e|ing)|tener)`;
+/** What the verb makes, within four words of it, never right after a word that names one already there. */
+const OFFER_MADE = String.raw`\s+(?:[\p{L}\d'’$%-]+\s+){0,4}?(?<!\b(?:the|this|that|these|those|our|my|your|its|their|el|la|los|las|este|esta|estos|estas|ese|esa|nuestr[oa]s?|mis?|tus?|sus?)\s)(?:${OFFER_AMOUNT}|${OFFER_THING})`;
+const OFFER_OPENER = String.raw`(?:${SETUP_OPENERS}|${OFFER_OPENERS})\s+`;
+const OFFER_ASKED = new RegExp(
+  String.raw`${SENTENCE_START}(?:${OFFER_OPENER})*(?:(?:an?|un|una)\s+)?${OFFER_AMOUNT}|${SENTENCE_START}(?:${OFFER_OPENER})*${OFFER_LEAD}${OFFER_MADE}|${SENTENCE_START}(?:${OFFER_OPENER})+${OFFER_DO}${OFFER_MADE}`,
   "iu",
 );
 
@@ -139,7 +173,8 @@ const ON_PAGE: Partial<Record<AskSurface, ReadonlySet<string>>> = {
 /**
  * The reads a question names on another page, at most CROSS_PAGE_MAX, in the order below. On Reports a
  * report is read only for a period other than the one on screen (the context's view). A setup's reads (SETUP) come
- * first, on every page.
+ * first, on every page, then a setup's or an offer's (OFFER_ASKED) journey and Library: within the cap a setup keeps
+ * its own two, and an offer's go before every other read.
  */
 export function crossPagePlan(text: string, surface: string | null, view: string | null = null): ToolRun[] {
   const q = text.replace(/\s+/g, " ").trim();
@@ -151,8 +186,14 @@ export function crossPagePlan(text: string, surface: string | null, view: string
     if (!answered.has(called) && !out.some((r) => calledName(r.name, r.input) === called)) out.push({ name, input });
   };
   // A setup's two reads come first and are read whatever page asks (A4): the page's rows hold neither.
-  if (SETUP.test(q))
-    for (const action of ["playbooks", "audiences"]) out.push({ name: "campaigns", input: { action } });
+  const setup = SETUP.test(q);
+  if (setup) for (const action of ["playbooks", "audiences"]) out.push({ name: "campaigns", input: { action } });
+  // Then the plan's two, the journey and the Library (the marketing manager's §5.7), whatever page asks: no page's rows
+  // are either. The cap leaves a setup its own two, whose one campaign alone reads nothing else (prompt.ts, the setup
+  // rule); a whole setup's plan reads these on its call, the campaigns and the lines among them read already. An offer
+  // said of a campaign that runs is a change to it: PLAYBOOKS reads it below.
+  if (setup || (OFFER_ASKED.test(q) && !PLAYBOOKS.test(q)))
+    for (const action of ["journey", "messages"]) out.push({ name: "campaigns", input: { action } });
   const overview = OVERVIEW.test(q);
   if (overview) add("today", {});
   if (overview || REPORT.test(q)) {

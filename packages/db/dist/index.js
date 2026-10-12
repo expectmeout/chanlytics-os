@@ -629,6 +629,7 @@ var ERASURE_STRATEGIES = {
     "facts",
     "maps_uri",
     "name",
+    "new_review_uri",
     "place_id"
   ),
   // A review as Google shows it: a complete read drops one Google no longer lists, and one not seen for its days goes
@@ -1562,7 +1563,9 @@ async function playbookForChannels(db, tenantId, playbookId) {
   return { ...data, run_waits: (waiting.data ?? []).length > 0 };
 }
 async function playbookForChange(db, tenantId, playbookId) {
-  const { data, error } = await db.from("playbooks").select("id, name, trigger, state, policy_class, run_hour, cap_per_run, gap_days, cadence_days, list_id, list_key").eq("tenant_id", tenantId).eq("id", playbookId).maybeSingle();
+  const { data, error } = await db.from("playbooks").select(
+    "id, name, trigger, state, policy_class, run_hour, cap_per_run, gap_days, cadence_days, list_id, list_key, template_id, params, until, trial_until"
+  ).eq("tenant_id", tenantId).eq("id", playbookId).maybeSingle();
   if (error) throw new Error(`playbook_for_change: ${error.message}`);
   if (!data) return null;
   const waiting = await db.from("broadcasts").select("id, recipient_count").eq("tenant_id", tenantId).eq("playbook_id", playbookId).eq("state", "pending_approval").limit(1);
@@ -1617,10 +1620,13 @@ async function campaignMonthSent(db, tenantId, channel, at) {
   return data;
 }
 async function holdRecipients(db, p) {
+  const skipped = [];
   for (let i = 0; i < p.contactIds.length; i += IDS_PER_READ2) {
-    const { error } = await db.from("broadcast_recipients").update({ state: "skipped", reason: p.reason }).eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").in("contact_id", p.contactIds.slice(i, i + IDS_PER_READ2));
-    if (error) throw new Error(`hold_recipients: ${error.message}`);
+    const { data, error } = await db.from("broadcast_recipients").update({ state: "skipped", reason: p.reason }).eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").in("contact_id", p.contactIds.slice(i, i + IDS_PER_READ2)).select("contact_id");
+    if (error) return { skipped, error: `hold_recipients: ${error.message}` };
+    for (const r of data) skipped.push(r.contact_id);
   }
+  return { skipped, error: null };
 }
 
 // src/repositories/ingest.ts
@@ -3201,14 +3207,17 @@ async function templatesToSend(db, tenantId, channel = "whatsapp") {
   return data ?? [];
 }
 async function messageSlots(db, tenantId, name, language) {
-  const { data, error } = await db.from("templates").select("channel, language, variables").eq("tenant_id", tenantId).eq("name", name);
-  if (error) throw new Error(`messageSlots: ${error.message}`);
+  return (await heldMessageOf(db, tenantId, name, language))?.slots ?? null;
+}
+async function heldMessageOf(db, tenantId, name, language) {
+  const { data, error } = await db.from("templates").select("channel, language, category, variables").eq("tenant_id", tenantId).eq("name", name);
+  if (error) throw new Error(`heldMessageOf: ${error.message}`);
   const rows = (data ?? []).slice().sort((a, b) => {
     const wa = Number(b.channel === "whatsapp") - Number(a.channel === "whatsapp");
     return wa || Number(b.language === language) - Number(a.language === language);
   });
   const row = rows[0];
-  return row ? variablesSlotCount(row.variables) : null;
+  return row ? { category: row.category, slots: variablesSlotCount(row.variables) } : null;
 }
 async function messageOfVersion(db, tenantId, id) {
   const { data, error } = await db.from("templates").select("name, language").eq("tenant_id", tenantId).eq("id", id).maybeSingle();
@@ -3936,6 +3945,12 @@ async function workspacePaused(db, tenantId) {
   if (error) throw new Error(`cannot read the workspace: ${error.message}`);
   return data?.status === "paused";
 }
+async function reviewLinkOf(db, tenantId) {
+  const { data, error } = await db.from("google_listings").select("new_review_uri").eq("tenant_id", tenantId).maybeSingle();
+  if (error && error.code === "42703" && error.message.includes("new_review_uri")) return null;
+  if (error) throw new Error(`cannot read the workspace's review link: ${error.message}`);
+  return data?.new_review_uri?.trim() || null;
+}
 
 // src/repositories/routing.ts
 import { MIN_MS as MIN_MS2 } from "../../contracts/dist/index.js";
@@ -4556,20 +4571,38 @@ async function deleteList(db, id) {
 }
 
 // src/repositories/touches.ts
-import { DEFAULT_TIMEZONE, followUpKey, localDate, parseParamSpecs } from "../../contracts/dist/index.js";
+import {
+  DEFAULT_TIMEZONE,
+  PLAYBOOK_BREATH_MS,
+  followUpKey,
+  heardWithin,
+  localDate,
+  parseParamSpecs
+} from "../../contracts/dist/index.js";
 var RUN_IDS_PER_QUERY = 200;
 var STOPPED = /* @__PURE__ */ new Set(["canceled", "failed"]);
 async function touchesSince(db, tenantId, since, now) {
   return touchesOf(db, tenantId, since, now, false);
 }
+async function recentTouches(db, tenantId, now) {
+  const touched = {};
+  for (const t of await touchesSince(db, tenantId, new Date(now.getTime() - PLAYBOOK_BREATH_MS), now))
+    (touched[t.contact_id] ??= []).push(t.at);
+  for (const times of Object.values(touched)) times.sort((a, b) => Date.parse(a) - Date.parse(b));
+  return touched;
+}
 async function followUpTouchesSince(db, tenantId, since, now) {
   return touchesOf(db, tenantId, since, now, true);
 }
 var FOLLOW_UP_PARAMS = '[{"kind":"proposal_link"}]';
+var runsSince = (since) => {
+  const s = since.toISOString();
+  return `created_at.gte.${s},scheduled_for.gte.${s},finished_at.gte.${s},state.eq.sending`;
+};
 async function touchesOf(db, tenantId, since, now, followUpsOnly) {
   const [all2, zone] = await Promise.all([
     readAllRows("broadcasts", (from, to) => {
-      const q = db.from("broadcasts").select("id, playbook_id, state, scheduled_for, created_at, run_for, params").eq("tenant_id", tenantId).gte("created_at", since.toISOString());
+      const q = db.from("broadcasts").select("id, playbook_id, state, scheduled_for, created_at, run_for, params").eq("tenant_id", tenantId).or(runsSince(since));
       return (followUpsOnly ? q.contains("params", FOLLOW_UP_PARAMS) : q).order("id").range(from, to);
     }),
     db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle().then(
@@ -4617,11 +4650,12 @@ async function touchesOf(db, tenantId, since, now, followUpsOnly) {
   return out;
 }
 var factString = (v) => typeof v === "string" && v ? v : null;
-function touchIndex(touches) {
+function touchIndex(touches, now) {
   const byThis = /* @__PURE__ */ new Map();
   const byAny = /* @__PURE__ */ new Map();
   const followUps = /* @__PURE__ */ new Map();
   const followUpKeys = /* @__PURE__ */ new Map();
+  const breath = heardWithin(now.getTime(), now.getTime());
   for (const t of touches) {
     const at = Date.parse(t.at);
     if (t.playbook_id) {
@@ -4629,7 +4663,7 @@ function touchIndex(touches) {
       m.set(t.contact_id, Math.max(m.get(t.contact_id) ?? 0, at));
       byThis.set(t.playbook_id, m);
     }
-    byAny.set(t.contact_id, Math.max(byAny.get(t.contact_id) ?? 0, at));
+    if (breath(at)) byAny.set(t.contact_id, Math.max(byAny.get(t.contact_id) ?? 0, at));
     if (t.follow_up) followUps.set(t.contact_id, Math.max(followUps.get(t.contact_id) ?? 0, at));
     if (t.follow_up) {
       const m = followUpKeys.get(t.contact_id) ?? /* @__PURE__ */ new Map();
@@ -5643,6 +5677,7 @@ export {
   handBackThread,
   handRun,
   hasNewerCopy,
+  heldMessageOf,
   heldNoticeDue,
   heldNoticesOf,
   heldStale,
@@ -5785,6 +5820,7 @@ export {
   readThreadState,
   readVoiceSession,
   readVoiceSessionByConversation,
+  recentTouches,
   receptionistSeries,
   recheckSends,
   recordActivation,
@@ -5829,6 +5865,7 @@ export {
   resolveOutboundTarget,
   resolveOutboundTargetForContact,
   resolvePerson,
+  reviewLinkOf,
   reviewRowsByGoogleId,
   reviewsLedger,
   runCounts,

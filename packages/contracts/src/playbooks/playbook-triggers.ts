@@ -2,7 +2,6 @@
  * What starts a playbook, and the playbook's standing limits: the triggers, the states, the defaults and the hours a
  * run may send in. Moved whole from playbooks.ts (Reach out Part 2.5), which re-exports it.
  */
-import { DAY_MS } from "./playbook-time";
 import { appointmentWords, type AppointmentWord } from "../journey/appointment-word";
 import type { SchemaSet } from "../shared/schema-sets";
 import { MIN_MS } from "../shared/time";
@@ -175,8 +174,9 @@ export const SENDING_HOURS_WORDS = {
 export const sendsWaitWords = (hours: Pick<typeof SENDING_HOURS_WORDS, "range"> = SENDING_HOURS_WORDS): string =>
   `sends wait for ${hours.range}`;
 
-/** One playbook message per person per week, across playbooks. */
-export const PLAYBOOK_BREATH_MS = 7 * DAY_MS;
+// One playbook message per person per week, across playbooks: declared with the playbooks' clock (playbook-time.ts), so
+// a broadcast's breath (broadcasts/run-words.ts) reads it without this module's triggers.
+export { PLAYBOOK_BREATH_MS } from "./playbook-time";
 
 /** Under veto, a run is scheduled this far ahead with a Stop. */
 export const PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
@@ -197,13 +197,23 @@ export const PLAYBOOK_VETO_DELAY_WORDS = delayWords(PLAYBOOK_VETO_DELAY_MS);
 /**
  * What the owner is told when the sweep makes a run under veto: it goes by itself `when` (the business's clock, with
  * its day: "today 10:30 AM", "tomorrow 9:00 AM") unless a person stops it, and the promise "unless you stop it" is only kept for someone who is told. A run a person
- * asked for is not told: they decided it. Said on the bell and by mail (core run-playbook.ts).
+ * asked for is not told: they decided it. Said on the bell and by mail (core run-playbook.ts). `trialUntil`: the day the
+ * campaign's trial ends ("Oct 18"), where its trial made a run its class would send by itself wait (contracts
+ * effectiveMode), so the owner reads why this one waits and that the next ones will not; null where veto is its class's.
  */
-export function vetoRunNotice(name: string, people: number, when: string): { subject: string; body: string } {
+export function vetoRunNotice(
+  name: string,
+  people: number,
+  when: string,
+  trialUntil: string | null,
+): { subject: string; body: string } {
   const who = `${people} ${people === 1 ? "person" : "people"}`;
+  const trial = trialUntil
+    ? ` “${name}” is on trial until ${trialUntil}: until then each of its runs waits ${PLAYBOOK_VETO_DELAY_WORDS} for you to stop it, and after it they send on their own.`
+    : "";
   return {
     subject: `Campaign “${name}” sends ${when}: ${who}`,
-    body: `${who} will be sent “${name}” ${when}. Stop the run on Today or in Campaigns before then if it should not go.`,
+    body: `${who} will be sent “${name}” ${when}. Stop the run on Today or in Campaigns before then if it should not go.${trial}`,
   };
 }
 

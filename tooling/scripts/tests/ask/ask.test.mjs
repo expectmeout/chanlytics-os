@@ -658,6 +658,27 @@ test("language, scope and settings changes", () => {
     applySettingsChange(cfg, { op: "add_note", title: "Parking", text: "Behind the building." }).brain.profile.notes,
     [{ title: "Parking", text: "Behind the building." }],
   );
+  // A note with its last day is written with it, and the card's line says it in the date its closure's line uses.
+  const holiday = { op: "add_note", title: "Holiday hours", text: "Open 10 to 2 this week.", until: "2026-12-31" };
+  assert.deepEqual(applySettingsChange(cfg, holiday).brain.profile.notes, [
+    { title: "Holiday hours", text: "Open 10 to 2 this week.", until: "2026-12-31" },
+  ]);
+  // The card quotes what the receptionist will be told, after its title and its last day: what is approved is the text.
+  assert.equal(
+    describeSettingsChange(holiday),
+    "Note for the receptionist: “Holiday hours”, until 2026-12-31 — “Open 10 to 2 this week.”",
+  );
+  assert.equal(
+    describeSettingsChange({ op: "add_note", title: "Parking", text: "Behind the building.\n\nUse the side door." }),
+    "Note for the receptionist: “Parking” — “Behind the building. Use the side door.”",
+    "a note with no last day says none, and its text is one line",
+  );
+  // A long text is cut on a whole word at 160 characters, with an ellipsis inside the quote.
+  const long = `${"Ten percent off every colour booked this month ".repeat(4)}and nothing else.`;
+  const longLine = describeSettingsChange({ op: "add_note", title: "Offer", text: long });
+  const quoted = longLine.slice(longLine.indexOf("— “") + 3, -1);
+  assert.ok(longLine.startsWith("Note for the receptionist: “Offer” — “") && longLine.endsWith("…”"), longLine);
+  assert.ok(quoted.length <= 161 && long.startsWith(quoted.slice(0, -1)) && long[quoted.length - 1] === " ", quoted);
   assert.equal(
     applySettingsChange(cfg, { op: "add_service", name: "Gloss", duration_min: 45 }).brain.profile.services[0]
       .duration_min,
@@ -928,9 +949,9 @@ test("the loop and its reads: several at once, the stable block cached, through 
   assert.deepEqual(
     READ_TOOLS.map((t) => [t.name, t.input_schema.properties.action?.enum ?? []]),
     [
-      ["calendar", ["week", "openings"]],
+      ["calendar", ["week", "openings", "room"]],
       ["calls", ["list", "get"]],
-      ["campaigns", ["audiences", "playbooks", "broadcasts", "broadcast"]],
+      ["campaigns", ["audiences", "playbooks", "broadcasts", "broadcast", "messages", "journey"]],
       ["inbox", ["list", "thread", "search"]],
       ["leads", ["searches", "leads", "lead", "search"]],
       ["people", ["search", "get", "lists", "pipeline"]],
@@ -1225,6 +1246,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     run: "approve",
     playbook_channels: "approve",
     playbook_change: "approve",
+    message: "approve",
   });
   const ok = AskProposalOutcomeSchema.safeParse({
     state: "done",
@@ -1243,7 +1265,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     ACT_TOOLS.map((t) => [t.name, t.input_schema.properties.action?.enum ?? []]),
     [
       ["propose_autonomy", []],
-      ["propose_campaign", ["broadcast", "playbook", "run", "channels", "change"]],
+      ["propose_campaign", ["broadcast", "playbook", "run", "channels", "change", "message", "plan"]],
       ["propose_deal", []],
       ["propose_lead_search", []],
       ["propose_list", []],
@@ -1294,7 +1316,8 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
   assert.ok(ui.includes('data-testid="ask-card"') && ui.includes('data-testid="ask-card-approve"'));
   // The card checks the role gate before Approve (the route re-checks): executed in ask-palette.test.mjs, "a card's
   // Approve is gated by the shell's rule".
-  assert.ok(ui.includes("A.outcome(messageId, p.id, o)"), "what became of the card is kept on the turn");
+  // What became of the card is kept on the turn (A.outcome, the outcome route): executed in ask-palette.test.mjs, "a card
+  // approved records what its commit made with its outcome" and, through the real route, "REGRESSION (ruling 3)".
   assert.ok(ui.includes('p.outcome ? p.outcome.state : "idle"'), "a thread reads back with the card's outcome");
   const thread = readCode("apps/dashboard/src/surfaces/inbox/thread/composer.tsx");
   assert.ok(thread.includes("if (words) setText(words);"), "Edit in the composer lands the words in the composer");
@@ -1395,6 +1418,8 @@ test("the eval checks that an Open asked for is followed, and what the words dec
       // A campaign changed in place (the moment spec, A8): the fields its change card carries.
       change_resume_by_name: { playbook_change: { state: "running" } },
       change_rename_and_hour: { playbook_change: { name: "Past clients", run_hour: 9 } },
+      // A reminder the day before, asked where a calendar is connected (the marketing manager's §8): its moment.
+      remind_day_before: { playbook: { trigger: "visit_tomorrow" } },
     },
   );
   assert.deepEqual(
@@ -1578,7 +1603,8 @@ test("the speed pass: a fast model for a short answer, the autonomy modes in the
   assert.ok(
     // Prettier breaks a call with two function arguments over lines: the shape, whatever its whitespace.
     /load\(rc, readers\.policies, undefined\)\.then\(\s*\(r\) => r\.data,\s*\(\) => \[\],?\s*\)/.test(turn) &&
-      turn.includes("cfg?.config ?? null, offered)"),
+      // At the turn's clock since a note may end (workspaceFacts' `now`), with the policies after it.
+      turn.includes("cfg?.config ?? null, rc.now, offered)"),
     "the policies still ride in the stable block, read through the turn's cache and tolerated when they fail",
   );
   const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
@@ -1874,4 +1900,186 @@ test("on Campaigns the turn's words say what a sentence there is: a campaign to 
   // D19: the person reads Ask's answers, so Ask says the word the pages say, on every page (the definition is read on
   // every turn; the Campaigns line only on Campaigns).
   assert.ok(ASK_DEFINITIONS.playbook.includes("say campaign, never playbook"), ASK_DEFINITIONS.playbook);
+});
+
+test("the rules know the plan and the message (the marketing manager's §5.7): an offer, a promotion or a whole setup is one call of propose_campaign's plan, whose steps Ask never assembles, and a message's words are written by its action message alone, every channel's version on the card; the setup rule says so itself, no rule left says otherwise, and on Campaigns the turn's words name the plan first", async () => {
+  const { turnWords } = await import(
+    pathToFileURL(path.join(here, "../../../../apps/dashboard/src/server/ask/prompt.ts")).href
+  );
+  const PLAN =
+    "For an offer, a promotion, or a whole setup, call propose_campaign with action plan once with the intent and leave the steps to it; never assemble the steps yourself.";
+  const MESSAGE =
+    "A message's words are written only through propose_campaign with action message, and every channel's version is on the card";
+  for (const words of [PLAN, MESSAGE])
+    assert.equal(ASK_RULES.filter((r) => r.includes(words)).length, 1, `one rule says it: ${words}`);
+  // The plan is the setup rule's own first instruction: the rule is reworded, never a second one beside it.
+  const setup = ASK_RULES.find((r) => r.startsWith("Setting up campaigns is a few cards, never a claim."));
+  assert.ok(setup.startsWith(`Setting up campaigns is a few cards, never a claim. ${PLAN}`), setup);
+  assert.ok(!ASK_RULES.some((r) => r !== setup && /\bset(ting)? up campaigns\b/i.test(r)), "one setup rule");
+  // A plan's steps that send nothing are one press and each send its own, as the plan's count sentence says them
+  // (contracts answerForCards); a reminder or a check after an appointment only where a calendar is connected (D2).
+  assert.ok(setup.includes("The steps that send nothing are one press and each send is its own"), setup);
+  assert.ok(
+    setup.includes("A reminder before an appointment, or a check after one, only where a calendar is connected"),
+  );
+  // A plan's answer is the plan's own words (the last rule: the plan is called alone): each rule that asks for a
+  // sentence of Ask's own after a proposal names that exception, so no two rules disagree about a plan's answer.
+  const act = ASK_RULES.find((r) => r.startsWith("You never act."));
+  for (const r of [act, setup]) assert.ok(r.includes("(a plan's answer is the plan's own words)"), r);
+  assert.ok(ASK_RULES.at(-1).includes("A plan is the exception"), "the rule both point to");
+  // What the rules said before a plan and a written message, none of it left: a whole setup's cards assembled by hand,
+  // a campaign on a held message or its starter and nothing else, every card its own press, Ask never writing a message.
+  const rules = ASK_RULES.join("\n");
+  for (const old of [
+    /then propose one card per campaign in one round/,
+    /\bEach card is its own press\b/,
+    /never (writes?|composes?) (a |the )?(message|template)/i,
+    /\bstarters? only\b|\bonly (a |its |the )?starter\b/i,
+    /template_id or the moment's starter/,
+  ])
+    assert.ok(!old.test(rules), String(old));
+  // Where a rule offers a campaign its starter, it offers the message Ask writes too.
+  for (const r of ASK_RULES.filter((x) => /\bstarter\b/.test(x))) assert.ok(r.includes("action message"), r);
+  // The polish round (11 Oct 2026): a proposal is one card, and a plan's cards one proposal, so the two rules agree;
+  // and a campaign's values (the month's offer's text) are its change's, never a message written anew.
+  const one = ASK_RULES.find((r) => r.startsWith("A proposal is one card."));
+  assert.ok(one.startsWith("A proposal is one card. A plan's cards, its steps from one call, are one proposal."), one);
+  assert.ok(
+    ASK_RULES.find((r) => r.includes(MESSAGE)).includes("a campaign's values are changed with action change"),
+    "the message rule",
+  );
+  // Every page's turn words (the surface lines, Campaigns' among them) say none of the old words either, and restate
+  // no path of the setup rule's: Campaigns' line points to the rule by its first words, so the two cannot drift.
+  const facts = {
+    role: "owner",
+    personLabel: "ada@example.com (owner)",
+    scope: null,
+    language: "en",
+    timezone: "America/New_York",
+    closures: [],
+    now: new Date(NOW),
+  };
+  for (const surface of ASK_SURFACES) {
+    const said = turnWords({ ...facts, surface });
+    for (const old of [
+      /then propose one card per campaign in one round/,
+      /\bEach card is its own press\b/,
+      /never (writes?|composes?) (a |the )?(message|template)/i,
+      /\bstarters? only\b|\bonly (a |its |the )?starter\b/i,
+      /template_id or the moment's starter/,
+      /propose_campaign with action (plan|playbook|message)\b/,
+      /action playbooks and action audiences together/,
+    ])
+      assert.ok(!old.test(said), `${surface}: ${old}`);
+  }
+  const head = "Setting up campaigns is a few cards";
+  assert.ok(setup.startsWith(head));
+  assert.ok(turnWords({ ...facts, surface: "campaigns" }).includes(`as the rule "${head}" says`));
+  // The two actions the rules name are propose_campaign's, as the API is told them.
+  const campaign = ACT_TOOLS.find((t) => t.name === "propose_campaign");
+  for (const action of ["Action plan ", "Action message "]) assert.ok(campaign.description.includes(action), action);
+  // 11 Oct 2026 (Task 19's review): the tools' words the model reads beside the rules agree with them. propose_campaign's
+  // tail sends an offer, a promotion or a whole setup to the plan before it names any action that builds one step, and
+  // the journey read says what it reports and that a whole setup or an offer is the plan's, never assembled from it.
+  const tail =
+    "For an offer, a promotion or a whole setup, call action plan once with the intent and leave its steps to it, never the actions below one by one.";
+  assert.ok(campaign.description.includes(tail), campaign.description);
+  assert.ok(campaign.description.indexOf(tail) < campaign.description.indexOf("call action broadcast for one message"));
+  const journey = READ_TOOLS.find((t) => t.name === "campaigns").description;
+  assert.ok(
+    journey.includes(
+      "An offer, a promotion or a whole setup is one call of propose_campaign with action plan, which reads the journey itself and makes the steps, never a campaign proposed stage by stage from this read",
+    ),
+    journey,
+  );
+  assert.ok(!journey.includes("then propose one for an uncovered stage"), "the hand-assembled setup is gone");
+  // A campaign's values are slot text, never "its words" (the polish round): the tail's change and the change action's
+  // own words say values, so the message rule never steers "make the month's offer 15% off" to a new message.
+  assert.ok(!campaign.description.includes("change its words"), "the tail");
+  assert.ok(campaign.description.includes("or change the values its message fills in"), "the tail");
+  assert.ok(!campaign.description.includes("new words, the same message"), "action change");
+  assert.ok(campaign.description.includes("new text in the same message, never a new message"), "action change");
+});
+
+test("an offer asked for reads its journey and its Library before round 1, as a setup reads its two (the marketing manager's §5.7): on any page, Campaigns included, in either language; offer alone stays the audiences' word and deal the pipeline's; a question about how one did is none; within the cap a setup keeps its own two, and an offer's go before any other read", async () => {
+  const mod = await import(
+    pathToFileURL(path.join(here, "../../../../apps/dashboard/src/server/ask/cross-page.ts")).href
+  );
+  const names = (q, surface) => mod.crossPagePlan(q, surface).map((r) => `${r.name} ${JSON.stringify(r.input)}`);
+  const planReads = ['campaigns {"action":"journey"}', 'campaigns {"action":"messages"}'];
+  for (const q of [
+    "10% off colour all November",
+    // The eval's offer_november_colour, and its must-never offer_no_offers_channel.
+    "I want to offer 10% off colour all next month",
+    "I want to offer 15% off everything next month",
+    "For November, 10% off colour",
+    "half price haircuts next Tuesday",
+    "$20 off any appointment booked this week",
+    "Let's run a promotion for the holidays",
+    "Can we do a Black Friday sale?",
+    "Give everyone who said yes 15% off in December",
+    "please set up a discount for new clients",
+    "We're running a promo next month",
+    "Quiero ofrecer un 10% de descuento en color todo noviembre",
+    "Haz una promoción de 2x1 en diciembre",
+    "Lanza unas rebajas de verano",
+    // An amount at a sentence's start may stand after its article (the polish round, 11 Oct 2026).
+    "A 10% discount for new clients in December",
+    "Un 10% de descuento en noviembre",
+  ])
+    for (const surface of ["campaigns", "today", "people"])
+      assert.deepEqual(names(q, surface), planReads, `${q} (${surface})`);
+  // Do, have, run, start and make open many requests besides an offer: alone at a sentence's start they open none (an
+  // opener before them does: "can we do", "let's run"), and an offer already named ("the 10% off", "our promo") is no
+  // offer to make. A missed read costs nothing (the plan reads both itself); a false one pushes another to round 2.
+  for (const q of [
+    "Do we have any promotions running?",
+    "Do I have any discounts running?",
+    "Have the promotions gone out?",
+    "Do you do discounts?",
+    "Run the numbers on the promo",
+    "Give me results of the 10% off",
+    "Start the promotion",
+    "Make sure nobody gets the discount twice",
+  ]) {
+    assert.deepEqual(names(q, "campaigns"), [], q);
+    assert.ok(!names(q, "today").some((n) => /journey|messages/.test(n)), `${q} (today)`);
+  }
+  // An offer said of a campaign that runs (the month's offer) is a change to it, read as the campaigns are read.
+  for (const q of ["Can you make the month's offer 15% off?", "Make the month's offer 15% off"]) {
+    assert.deepEqual(names(q, "today"), ['campaigns {"action":"playbooks"}', 'campaigns {"action":"audiences"}'], q);
+    assert.deepEqual(names(q, "campaigns"), [], q);
+  }
+  // Where the deals stand is the pipeline's, never an offer's.
+  for (const q of [
+    "how many deals are open?",
+    "Who has a deal waiting?",
+    "move the deal with Ana to won",
+    "¿cuántas propuestas tengo?",
+  ])
+    assert.deepEqual(names(q, "today"), ['people {"action":"pipeline"}'], q);
+  // Offer alone is who can be sent one (the audiences) or the month's offer (a campaign the page holds).
+  assert.deepEqual(names("how many people can I send offers to?", "campaigns"), ['campaigns {"action":"audiences"}']);
+  assert.deepEqual(names("send an offer to the quiet clients", "today"), ['campaigns {"action":"audiences"}']);
+  assert.deepEqual(names("¿a quién puedo enviar ofertas?", "campaigns"), ['campaigns {"action":"audiences"}']);
+  assert.deepEqual(names("pause the monthly offer", "campaigns"), []);
+  // How one did, a customer's ask, Spanish's "sale" (goes out) and the business's sales are no offer to make.
+  for (const q of [
+    "how did the promotion do?",
+    "did the 10% off bring anyone in?",
+    "which discount worked best?",
+    "what should I do about the discount she asked for?",
+    "¿Sale el mensaje mañana?",
+    "¿qué sale esta semana?",
+  ])
+    assert.deepEqual(names(q, "campaigns"), [], q);
+  assert.deepEqual(names("how are sales this month?", "today"), ['report {"days":30}']);
+  // The cap (CROSS_PAGE_MAX, two) keeps the first: a setup's own two before an offer's, and an offer's before the
+  // rest, so the week asked beside an offer is the model's own read.
+  assert.equal(mod.CROSS_PAGE_MAX, 2);
+  assert.deepEqual(names("Set up my campaigns and run 10% off colour in November", "campaigns"), [
+    'campaigns {"action":"playbooks"}',
+    'campaigns {"action":"audiences"}',
+  ]);
+  assert.deepEqual(names("10% off colour all November. How did last month go?", "today"), planReads);
 });

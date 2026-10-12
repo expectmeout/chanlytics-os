@@ -16,6 +16,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { sendsAs, sendsAsCampaigns } from "@chanlytics/channels";
+import { HELD_REASONS } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { middayZone } from "../shared/_midday-zone.mjs";
 
@@ -173,8 +174,9 @@ const LANE = {
 /**
  * The job's context: the three wires, as the edge binds them -- the email one the real sender over the hosted mailbox, and
  * over the campaigns domain too where `campaigns` is the lane (a broadcast's email is the business's news, an offer at the door).
+ * `faults` are the database's own failures, by statement (`"<table>.select"`: the database in memory's).
  */
-function context(t, { monthSent = 0, campaigns = null } = {}) {
+function context(t, { monthSent = 0, campaigns = null, faults = {} } = {}) {
   const wa = [];
   const sms = [];
   const posted = [];
@@ -186,7 +188,7 @@ function context(t, { monthSent = 0, campaigns = null } = {}) {
   const news = [];
   const later = [];
   const ctx = {
-    db: fakeDb(t, {}, { campaign_month_sent: () => monthSent }),
+    db: fakeDb(t, faults, { campaign_month_sent: () => monthSent }),
     wire: {
       whatsapp: async (to, p) => (wa.push({ to, p }), { ok: true, wamid: `wamid.${wa.length}`, status: 200 }),
       sms: async (to, p) => (sms.push({ to, p }), { ok: true, wamid: `SM${sms.length}`, status: 201 }),
@@ -211,6 +213,50 @@ function context(t, { monthSent = 0, campaigns = null } = {}) {
   return { ctx, wa, sms, posted, news, later, restore: () => (globalThis.fetch = real) };
 }
 const JOB = { id: "j1", tenant_id: TID, kind: "broadcast_send", payload: { broadcast_id: "b1" } };
+
+test("a run's batch reads the Google listing only where its message has a review slot: a listing that cannot be read never stops a reminder, and still stops a review ask before anyone is claimed", async () => {
+  // Before the lane a broadcast never depended on google_listings; every batch then read it, whatever its message, so a
+  // passing failure on that table threw sends that carry no review link at all.
+  const LISTING_DOWN = {
+    "google_listings.select": { code: "57014", message: "canceling statement due to statement timeout" },
+  };
+  const t = world();
+  const w = context(t, { faults: LISTING_DOWN });
+  try {
+    await dispatchJob(w.ctx, JOB);
+  } finally {
+    w.restore();
+  }
+  assert.deepEqual(
+    t.broadcast_recipients.map((r) => [r.contact_id, r.state]),
+    [
+      ["k1", "sent"],
+      ["k2", "sent"],
+      ["k3", "sent"],
+    ],
+    "no review slot: everyone is reached, the listing never asked",
+  );
+  assert.equal(t.broadcasts[0].state, "sent");
+  // The same listing, a message with a review slot: the batch stops on the read, the run as it was for the job's next try.
+  const ask = world();
+  ask.broadcasts[0] = { ...ask.broadcasts[0], params: [{ kind: "first_name" }, { kind: "review_link" }] };
+  const a = context(ask, { faults: LISTING_DOWN });
+  try {
+    await assert.rejects(dispatchJob(a.ctx, JOB), /cannot read the workspace's review link/);
+  } finally {
+    a.restore();
+  }
+  assert.equal(ask.broadcasts[0].state, "scheduled", "not started");
+  assert.deepEqual(
+    ask.broadcast_recipients.map((r) => [r.contact_id, r.state]),
+    [
+      ["k1", "queued"],
+      ["k2", "queued"],
+      ["k3", "queued"],
+    ],
+    "nobody claimed, nobody held for a link that may well be there",
+  );
+});
 
 test("one batch, three channels: WhatsApp's template, the text version with its STOP line, and an email from the hosted mailbox, each on its own wire", async () => {
   const t = world();
@@ -518,6 +564,11 @@ test("the door holds a text until the line is approved, an email to an address t
       `${month}: ${JSON.stringify(skipped)}`,
     );
     assert.equal(c.wa.length, 1, "WhatsApp is never held for Chanlytics' allowance");
+    // The run's news names the allowance among the reasons it held someone, counted by the job as its page shows it: it
+    // gave every other reason, and never this one.
+    const news = c.news.at(-1);
+    assert.equal(news?.kind, "broadcast_sent");
+    assert.ok(news.body.includes(`${HELD_REASONS.month_allowance}, or a run that did not finish`), news.body);
   }
 });
 
