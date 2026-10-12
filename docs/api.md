@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-242 handlers in 47 domains.
+243 handlers in 47 domains.
 
 ## activity
 
@@ -408,6 +408,18 @@ Declares no query schema: it takes none beyond the workspace, or reads its own (
 Writes; for a member of the row's own workspace, owner or above; counts against the `erase` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/contacts/[id]/route.ts`).
+
+### `POST /api/v1/contacts/[id]/call`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `person_edit` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `outcome` | one of `"spoke"`, `"interested"`, `"call_back"`, `"not_interested"`, `"voicemail"`, `"no_answer"`, `"wrong_number"` | yes |  |
+| `said` | string | no | at most 280 characters |
+| `due_on` | string or null | no |  |
+| `tell` | boolean | no |  |
+| `spoke_with` | string | no | at most 80 characters |
 
 ### `PUT /api/v1/contacts/[id]/consent`
 

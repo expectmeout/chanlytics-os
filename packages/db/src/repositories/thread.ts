@@ -209,6 +209,8 @@ export interface LeadContext {
   conversationId: string | null;
   /** What to call them, if we know. */
   name: string | null;
+  /** The name on record is the business they are at (0052, name_source lead), never to be called theirs. Optional. */
+  standIn?: boolean;
   /** We have spoken before. False for a genuinely first contact. */
   returning: boolean;
   lastSeenAt: string | null;
@@ -315,7 +317,7 @@ export async function readLeadContext(
   const withAnswer = await db
     .from("contacts")
     .select(
-      "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, marketing_channels, offers_asked_at, tenants(sells_by)",
+      "id, display_name, wa_profile_name, name_source, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, marketing_channels, offers_asked_at, tenants(sells_by)",
     )
     .eq("tenant_id", tenantId)
     .eq("phone_e164", phoneE164)
@@ -324,6 +326,7 @@ export async function readLeadContext(
     id: string;
     display_name: string | null;
     wa_profile_name: string | null;
+    name_source?: string | null;
     last_seen_at: string | null;
     consent: string;
     dnc: boolean;
@@ -410,6 +413,7 @@ export async function readLeadContext(
     // display_name is what a human typed; wa_profile_name is what WhatsApp
     // reports. The human's version wins, and neither is invented.
     name: contact.display_name || contact.wa_profile_name || null,
+    standIn: contact.name_source === "lead" && !!contact.display_name, // the business's own name (0052)
     // Having said anything at all is what makes someone returning — not merely
     // existing as a row, which an outbound-only contact would also satisfy.
     returning: history.length > 0,
@@ -531,7 +535,10 @@ export function describeLead(
   // A name may be one the person gave themselves (a WhatsApp profile name): capped, one line, and fenced as their words,
   // so it can say nothing to the model (contracts ai/fence.ts; the one injection policy).
   const name = promptSafeName(lead.name);
-  bits.push(name ? `Name on record: ${fencedInline("profile_name", name)}.` : "No name on record.");
+  const theirs = lead.standIn
+    ? " That is the business they are at, not their own name: never call them by it, and ask who you are speaking with if it helps."
+    : "";
+  bits.push(name ? `Name on record: ${fencedInline("profile_name", name)}.${theirs}` : "No name on record.");
   // Whether an address is on file, so the receptionist asks for one only when there is none (booking rule ask_email);
   // a reader that never learned it (undefined) says nothing rather than a guess.
   if (lead.hasEmail === true) bits.push("Their email address is on file.");

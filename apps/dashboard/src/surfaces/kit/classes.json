@@ -251,6 +251,7 @@
     "subtab",
     "subtab-bar",
     "subtab-count",
+    "subtab-dot",
     "subtab-label",
     "subtabs",
     "subtabs-stand",
@@ -262,7 +263,8 @@
     "token-caret",
     "token-face",
     "token-inline",
-    "ui-tip"
+    "ui-tip",
+    "wash"
   ],
   "modifiers": [
     "active",

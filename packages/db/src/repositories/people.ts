@@ -288,6 +288,41 @@ export async function addPersonNote(
   return { data, error };
 }
 
+/** A call a member made, as the door keeps it (person_call_logged, 0052): the note's words and the lead's ask, spelled by contracts. */
+export interface PersonCallArgs {
+  contactId: string;
+  outcome: string;
+  body: string;
+  dueOn: string | null;
+  tell: boolean;
+  stepBody: string | null;
+  lead: { stage: string | null; reason: string | null; note: string | null; spokeWith: string | null } | null;
+}
+
+/**
+ * A call logged on a person, as the signed-in member (person_call_logged): a note (a step with a day), and the outcome on
+ * the lead their business is, where it is open. The door's answer as it came, {note, step, lead} or {error}, with the
+ * database's own error beside it, for the caller to read as the notes route reads one.
+ */
+export async function logPersonCall(
+  db: Db,
+  a: PersonCallArgs,
+): Promise<{ data: unknown; error: { code?: string; message: string } | null }> {
+  const { data, error } = await db.rpc("person_call_logged", {
+    p_contact_id: a.contactId,
+    p_outcome: a.outcome,
+    p_body: a.body,
+    p_tell: a.tell,
+    ...(a.dueOn ? { p_due_on: a.dueOn } : {}),
+    ...(a.stepBody ? { p_step_body: a.stepBody } : {}),
+    ...(a.lead?.stage ? { p_lead_stage: a.lead.stage } : {}),
+    ...(a.lead?.reason ? { p_lead_reason: a.lead.reason } : {}),
+    ...(a.lead?.note ? { p_lead_note: a.lead.note } : {}),
+    ...(a.lead?.spokeWith ? { p_spoke_with: a.lead.spokeWith } : {}),
+  });
+  return { data, error };
+}
+
 /** What the merge door answers (merge_people, 00326): the kept record, the merged one, and what moved. */
 interface MergedPeople {
   contact_id: string;

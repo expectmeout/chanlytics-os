@@ -7,11 +7,19 @@
  * presses, the record kit's fold for a yes).
  */
 import { useState } from "react";
-import { LAST_WORDS_TITLE, NOTE_REFUSALS, NOTE_WORDS, UP_NEXT_WORDS, personNextFor } from "@chanlytics/contracts";
+import {
+  LAST_WORDS_TITLE,
+  NOTE_REFUSALS,
+  NOTE_WORDS,
+  PERSON_WASH_WORDS,
+  UP_NEXT_WORDS,
+  personNextFor,
+} from "@chanlytics/contracts";
 import type { UpNextRowVM } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
+import { Wash } from "../../kit/motion/wash";
 import { routeDoor } from "../../legacy-verbs";
 import { VisitAsk } from "../../visit-line";
 import { PersonDealCard, pdRun } from "../deal/person-deal";
@@ -103,7 +111,10 @@ function UpNext({ c }: { c: PageCtx }) {
       data-testid="person-up-next"
     >
       <h2 className="cl-prof-section-title" id="person-up-next-title">
-        {UP_NEXT_WORDS.title}
+        {/* The ladder someone else changed while the page is open: its name washes (canvas A's wash), never a row's place. */}
+        <Wash scope={c.p.id} value={vm.rows.map((r) => r.id).join(" ")} said={PERSON_WASH_WORDS.upNext}>
+          {UP_NEXT_WORDS.title}
+        </Wash>
       </h2>
       <ol className="cl-prof-rungs">
         {rows.map((row) => (
@@ -135,20 +146,26 @@ function LastWords({ c }: { c: PageCtx }) {
       </h2>
       <div className="cl-prof-word-list">
         {words.map((w) => {
+          // Theirs and ours keep their place, so newer words of theirs wash where the last ones were (canvas A's wash).
           const body = (
             <>
               <span className="cl-prof-word-meta">
                 {w.who} · {w.when}
               </span>
-              <span className="cl-prof-word-text">{w.text}</span>
+              <span className="cl-prof-word-text">
+                <Wash scope={c.p.id} value={w.id} said={w.mine ? null : PERSON_WASH_WORDS.lastWords}>
+                  {w.text}
+                </Wash>
+              </span>
             </>
           );
+          const place = w.mine ? "ours" : "theirs";
           return to ? (
-            <a key={w.id} className="cl-prof-word" data-mine={w.mine || undefined} {...routeDoor(to)}>
+            <a key={place} className="cl-prof-word" data-mine={w.mine || undefined} {...routeDoor(to)}>
               {body}
             </a>
           ) : (
-            <div key={w.id} className="cl-prof-word" data-mine={w.mine || undefined}>
+            <div key={place} className="cl-prof-word" data-mine={w.mine || undefined}>
               {body}
             </div>
           );

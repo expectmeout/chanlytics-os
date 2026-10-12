@@ -1499,6 +1499,9 @@ const withMessages = (messages) => {
 const segment = (tree, ask, word) => find(byTestId(tree, ask), (n) => n.type === "button" && textOf(n).trim() === word);
 const way = (tree, ask, word) =>
   find(byTestId(tree, `${ask}-how`), (n) => n.type === "button" && textOf(n).trim() === word);
+/** Press a choice of the kit's toggle group by its words (the notes composer's For and day). */
+const chooseIn = (tree, group, word) =>
+  press(find(byTestId(tree, group), (n) => n.props?.role === "radio" && textOf(n).trim() === word));
 
 test("their own message is chosen from what they wrote: the way opens their recent messages, and the one pressed is the one recorded", async () => {
   const vm = withMessages([
@@ -1536,6 +1539,82 @@ test("their own message is chosen from what they wrote: the way opens their rece
       "the message pressed is the message named",
     );
     assert.equal(byTestId(draw(), "consent-marketing-how"), null, "the ask closes once it lands");
+  } finally {
+    restore();
+  }
+});
+
+test("a person opened from a People view steps to the one before and after (‹ 2 of 3 ›), the address replaced so Back still leaves the list; on a phone, from More's first rows (0052)", async () => {
+  const { tabMemoryFor } = await importSrc("apps/dashboard/src/legacy-bridge/tab-memory.ts");
+  const { keepWalk } = await importSrc("apps/dashboard/src/surfaces/people/walk.ts");
+  const keep = {
+    memory: globalThis.window.__tabMemory,
+    nav: globalThis.window.CHANLY.nav,
+    mq: globalThis.window.matchMedia,
+  };
+  const steps = [];
+  globalThis.window.__tabMemory = tabMemoryFor(globalThis.window);
+  globalThis.window.CHANLY.nav = (to, opts) => steps.push([to, opts]);
+  try {
+    const vm = toPersonVM(detail(), ZONE, new Date(NOW));
+    keepWalk("all", ["p-before", vm.id, "p-after"]);
+    let draw = await profile(vm);
+    let tree = draw();
+    assert.equal(textOf(byTestId(tree, "person-walk")).replace(/\s+/g, ""), "‹2of3›");
+    press(byTestId(tree, "person-walk-next"));
+    assert.deepEqual(steps.at(-1), ["clients/p-after", { replace: true }], "the next person, the address replaced");
+    press(byTestId(tree, "person-walk-prev"));
+    assert.deepEqual(steps.at(-1), ["clients/p-before", { replace: true }]);
+    // A person the view does not hold has no steps.
+    keepWalk("all", ["p-before", "p-after"]);
+    draw = await profile(vm);
+    assert.equal(byTestId(draw(), "person-walk"), null);
+    // On a phone the steps are More's first rows, and the head draws none.
+    keepWalk("all", ["p-before", vm.id, "p-after"]);
+    globalThis.window.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
+    draw = await profile(vm);
+    tree = draw();
+    assert.equal(byTestId(tree, "person-walk"), null);
+    const more = find(byTestId(tree, "person-acts"), (n) => n.type === Menu);
+    const first = more.props.groups[0].items.map((i) => i.label);
+    assert.deepEqual(first, ["Next person · 3 of 3", "Previous person"]);
+    more.props.groups[0].items[0].onSelect();
+    assert.deepEqual(steps.at(-1), ["clients/p-after", { replace: true }]);
+  } finally {
+    globalThis.window.__tabMemory = keep.memory;
+    globalThis.window.CHANLY.nav = keep.nav;
+    globalThis.window.matchMedia = keep.mq;
+  }
+});
+
+test("a person a lead names, or who works at one, has a Yes no member may press: disabled, with the doors' own sentence as its caption (0052)", async () => {
+  const unasked = { consent: "unknown", consent_source: null, consent_updated_at: null };
+  const atBusiness = toPersonVM(
+    detail({
+      row: row({ visits: VISITS, ...unasked, lead_id: "l1", lead_name: "Bloom & Vow Bridal", name_source: "typed" }),
+    }),
+    ZONE,
+    new Date(NOW),
+  );
+  const theLeads = toPersonVM(
+    detail({
+      row: row({ visits: VISITS, ...unasked }),
+      lead: { id: "l1", business_name: "Bloom & Vow Bridal", found_at: iso(9 * D), reach_out: null },
+    }),
+    ZONE,
+    new Date(NOW),
+  );
+  assert.equal(atBusiness.yesLocked, contracts.LEAD_CONSENT_REFUSAL, "someone who works at a lead");
+  assert.equal(theLeads.yesLocked, contracts.LEAD_CONSENT_REFUSAL, "the person a lead was found as");
+  assert.equal(toPersonVM(detail(), ZONE, new Date(NOW)).yesLocked, null, "anyone else");
+  const { draw, restore } = await profileRecording(atBusiness);
+  try {
+    const tree = draw();
+    const yes = segment(tree, "consent-control", "Yes");
+    assert.equal(yes.props.disabled, true, "the doors refuse it: the page does not offer it");
+    assert.equal(yes.props["aria-describedby"], "consent-control-yes-locked", "its caption says why");
+    assert.equal(textOf(byTestId(tree, "consent-control-yes-locked")), contracts.LEAD_CONSENT_REFUSAL);
+    assert.equal(segment(tree, "consent-control", "No").props.disabled, false, "a no is recorded however it is said");
   } finally {
     restore();
   }
@@ -2188,7 +2267,10 @@ test("a proposal's send sits beside the booking link in More, 'again' once it we
   try {
     tree = (await profile(vm))();
     assert.ok(!labels(tree).some((l) => /^Send/.test(l)), `a viewer sends nothing: ${labels(tree)}`);
-    assert.ok(byTestId(tree, "person-call"), "the head's own Call, beside More (0052)");
+    // A link on a phone; on a desk the press the call's popover hangs from (call.tsx), which the popover holds as its trigger.
+    const call =
+      byTestId(tree, "person-call") ?? find(tree, (n) => n.props?.trigger?.props?.["data-testid"] === "person-call");
+    assert.ok(call, "the head's own Call, beside More (0052)");
   } finally {
     globalThis.window.__ME = { role: "owner" };
   }
@@ -3006,7 +3088,12 @@ test("REGRESSION: the notes card was one box the receptionist read whole, overwr
 
   type(byTestId(draw(), "person-notes-input"), "  Likes tea.  ");
   tree = draw();
-  byTestId(tree, "person-note-for").props.onChange({ target: { value: "u-sam" } });
+  // For is a choice under its word, Anyone first and you next (0052's composer).
+  assert.deepEqual(
+    all(byTestId(tree, "person-note-for"), (n) => n.props?.role === "radio").map((n) => textOf(n).trim()),
+    ["Anyone", "Me", "Sam"],
+  );
+  chooseIn(tree, "person-note-for", "Sam");
   tree = draw();
   byTestId(tree, "person-note-team-only").props.onChange({ target: { checked: true } });
   tree = draw();
@@ -3113,15 +3200,29 @@ test("a note may have a day (0007, amended): a day makes it a step and holds Tea
     assert.deepEqual(sent.at(-1), ["done", vm.id, { note_id: "n-done", done: false, version: 1 }]);
     assert.equal(flashes.at(-1).action, undefined);
 
-    // The composer: a day makes the note a step, and holds Team only on whatever it was.
+    // The composer: its days are three (Tomorrow, this week's Friday or next week, Pick a day); a day makes the note a
+    // step, holds Team only on whatever it was, and the button says what it makes.
     type(byTestId(draw(), "person-notes-input"), "Follow up on the logo");
     let tree = draw();
-    const tomorrow = contracts.stepDays(Date.now(), "UTC")[1];
+    assert.equal(textOf(byTestId(tree, "person-notes-save")).trim(), W.add);
+    const days = contracts.composerDays(Date.now(), "UTC");
+    assert.deepEqual(
+      all(byTestId(tree, "person-note-day"), (n) => n.props?.role === "radio").map((n) => textOf(n).trim()),
+      days.map((d) => d.label),
+    );
+    const tomorrow = days[0];
     assert.equal(tomorrow.label, "Tomorrow");
-    byTestId(tree, "person-note-day").props.onChange({ target: { value: tomorrow.key } });
+    chooseIn(tree, "person-note-day", "Tomorrow");
     tree = draw();
     const lock = byTestId(tree, "person-note-team-only");
     assert.deepEqual([lock.props.checked, lock.props.disabled], [true, true]);
+    assert.equal(textOf(byTestId(tree, "person-notes-save")).trim(), "Add step for Tomorrow");
+    // A second press on the day chosen takes it away, and a first chooses it again.
+    chooseIn(tree, "person-note-day", "Tomorrow");
+    tree = draw();
+    assert.equal(textOf(byTestId(tree, "person-notes-save")).trim(), W.add);
+    chooseIn(tree, "person-note-day", "Tomorrow");
+    tree = draw();
     press(byTestId(tree, "person-notes-save"));
     await settle();
     assert.deepEqual(sent.at(-1), [
@@ -3134,7 +3235,7 @@ test("a note may have a day (0007, amended): a day makes it a step and holds Tea
     // Pick a day opens the date field, and Add waits for a day.
     type(byTestId(draw(), "person-notes-input"), "Call her back");
     tree = draw();
-    byTestId(tree, "person-note-day").props.onChange({ target: { value: "pick" } });
+    chooseIn(tree, "person-note-day", "Pick a day");
     tree = draw();
     assert.equal(byTestId(tree, "person-notes-save").props.disabled, true, "no day picked yet");
     // Nor from the keyboard: Ctrl+Enter adds nothing until a day is picked (it was a plain note the receptionist read).
@@ -3153,7 +3254,11 @@ test("a note may have a day (0007, amended): a day makes it a step and holds Tea
     [step, done, plain] = rowsOf(draw());
     editOf(step).onClick();
     tree = draw();
-    byTestId(tree, "person-note-day").props.onChange({ target: { value: "" } });
+    // Its day is the one chosen (in the date field, under Pick a day, where it is none of the composer's three), and a
+    // second press on it takes it away.
+    const chosen = find(byTestId(tree, "person-note-day"), (n) => n.props?.role === "radio" && n.props["aria-checked"]);
+    assert.ok(chosen, "the step's day is chosen");
+    press(chosen);
     press(byTestId(draw(), "person-note-save"));
     await settle();
     assert.deepEqual(sent.at(-1), [

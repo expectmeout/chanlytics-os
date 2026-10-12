@@ -280,10 +280,15 @@ const useRouteGate = ({ page, param, routeKey }) => {
  * Kept here, never in history.state: Next's router reloads the whole app on a Back to an entry whose state it did not
  * write (app-router.js onPopState), and a state-only replaceState is one it never re-marks.
  */
+// One page, whatever its tab: `clients/<id>` and `clients/<id>/history` are one person (0052, a person's tabs are addresses).
+const shellSamePage = (a, b) => String(a).split("/").slice(0, 2).join("/") === String(b).split("/").slice(0, 2).join("/");
 const useShellNavigate = (setRoute) => {
   const lastPush = React.useRef(null);
   const navigate = useShellCallback((to, opts) => {
     if (opts && opts.replace) {
+      // A replaced entry is the same entry: a person's page stepping to the next person (0052) keeps Back to the list.
+      const p = lastPush.current;
+      if (p && shellSamePage(p.to, window.CHANLY.address.route())) p.to = to;
       window.CHANLY.address.go(to, { replace: true, quiet: true });
       setRoute(parseRoute());
       return;
@@ -296,7 +301,7 @@ const useShellNavigate = (setRoute) => {
   // Reached any other way -- a link, a reload, another page's door, Back from somewhere else -- it is People itself.
   const backToPeople = useShellCallback(() => {
     const p = lastPush.current;
-    if (p && p.to === window.CHANLY.address.route() && /^clients(?:$|[/:])/.test(p.from) && window.history && window.history.back) window.history.back();
+    if (p && shellSamePage(p.to, window.CHANLY.address.route()) && /^clients(?:$|[/:])/.test(p.from) && window.history && window.history.back) window.history.back();
     else navigate("clients");
   }, [navigate]);
   return { navigate, backToPeople };

@@ -4,6 +4,7 @@
  * Each is a function of the page's context returning an element, never a component of its own.
  */
 import {
+  PERSON_WASH_WORDS,
   appointmentWordWhere,
   visitDoor,
   visitLinkWords,
@@ -11,6 +12,7 @@ import {
   type PersonVM,
 } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
+import { Wash } from "../../kit/motion/wash";
 import { navigate } from "../../legacy-verbs";
 import { VisitAsk } from "../../visit-line";
 import { PersonEmail } from "./name";
@@ -76,7 +78,10 @@ export function historySection(c: PageCtx, past: PersonVM["timeline"]) {
     <section className="cl-prof-section cl-prof-history" aria-labelledby="person-history-title">
       <div className="cl-prof-section-head">
         <h2 className="cl-prof-section-title" id="person-history-title">
-          History
+          {/* Its newest row someone else added while the page is open: the heading washes (canvas A's wash). */}
+          <Wash scope={p.id} value={past[0]?.id ?? ""} said={PERSON_WASH_WORDS.history}>
+            History
+          </Wash>
         </h2>
       </div>
       <PersonTimeline
@@ -88,6 +93,7 @@ export function historySection(c: PageCtx, past: PersonVM["timeline"]) {
         showAll={tlAll}
         onShowAll={() => setTlAll(true)}
         dealsOn={p.dealsOn}
+        fresh={c.fresh}
       />
     </section>
   );

@@ -138,6 +138,8 @@ export {
   visitMarkOfDto,
   ADD_TO_PEOPLE_WORDS,
   addToPeopleOf,
+  feedSourceLabel,
+  eventText,
 } from "./calendar-words";
 export type {
   CalendarFeedNoteVM,
@@ -176,8 +178,6 @@ export {
   visitLine,
   matchWordsOf,
   describeVisits,
-  feedSourceLabel,
-  eventText,
   toVisitDto,
   guessName,
   peopleFromItems,

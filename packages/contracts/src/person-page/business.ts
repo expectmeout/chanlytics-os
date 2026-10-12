@@ -14,6 +14,7 @@ import { formatPhoneDisplay } from "../shared/phone";
 import { MIN_MS } from "../shared/time";
 import { personName } from "../people/person-name";
 import type { PersonBusinessDto, PersonSignerDto } from "../people/person-dto";
+import type { PersonRowVM } from "../people/person-row";
 import type { ReachOutLeadTimelineDto } from "../reach-out/reach-out-leads";
 import { BUSINESS_DOOR_LABEL, PERSON_NAME_WORDS, WORKS_AT_WORDS, type NameSource } from "./words";
 
@@ -208,6 +209,11 @@ export interface BusinessRecordVM {
   /** "From the listing · read Sep 18" */
   read: string;
   stage: { word: string; note: string };
+  /**
+   * Still worked (not closed), with its own person (leads.contact_id): a call logged on one of its people moves it too
+   * (person_call_logged, which moves no lead without its person, whose Interested would make a second one).
+   */
+  open: boolean;
   people: BusinessPersonVM[];
   peopleTitle: string;
   fit: { word: string; checks: string } | null;
@@ -274,6 +280,7 @@ export function businessRecordOf(
     address: peek.where ? { line: peek.where.line, href: peek.where.href } : null,
     read: Number.isFinite(found) ? WORKS_AT_WORDS.readOnSheet(clockDate(found, tz, nowMs)) : "",
     stage: { word: LEAD_STAGE_WORDS[b.lead.stage] ?? b.lead.stage, note: WORKS_AT_WORDS.stageNote },
+    open: b.lead.stage !== "archived" && !!b.lead.contact_id,
     people,
     peopleTitle: WORKS_AT_WORDS.peopleHere(people.length),
     fit: peek.checkDots.length ? { word: peek.fit.word, checks: WORKS_AT_WORDS.checks(peek.checkDots.length) } : null,
@@ -293,6 +300,76 @@ export function businessRecordOf(
       : null,
     links,
     to: leadsRoute({ peek: b.lead.id }),
+  };
+}
+
+/** A row of People as Leads reads a business's people from it (0052). */
+type AtLeadRow = Pick<PersonRowVM, "id" | "name" | "standIn" | "worksAt" | "deal" | "state">;
+
+/** People's rows by the business each works at, and by id: made once for a page of leads, never for each row. */
+export interface LeadPeopleIndex {
+  byLead: ReadonlyMap<string, readonly AtLeadRow[]>;
+  byId: ReadonlyMap<string, AtLeadRow>;
+}
+
+export function leadPeopleIndex(rows: readonly AtLeadRow[]): LeadPeopleIndex {
+  const byLead = new Map<string, AtLeadRow[]>();
+  const byId = new Map<string, AtLeadRow>();
+  for (const r of rows) {
+    byId.set(r.id, r);
+    const lead = r.worksAt && !r.worksAt.gone ? r.worksAt.leadId : null;
+    if (!lead) continue;
+    const at = byLead.get(lead);
+    if (at) at.push(r);
+    else byLead.set(lead, [r]);
+  }
+  return { byLead, byId };
+}
+
+/** The people at a business as Leads' row says them (0052, canvas A): the Stage's door, the row's line, the card's line, the client. */
+export interface LeadPeopleVM {
+  /**
+   * Who a Talking lead's Stage opens, its face: the person at it with a name of their own most recently in touch, else its
+   * own person (leads.contact_id); with their name where they have one, never a stand-in's (it is the business's own).
+   */
+  door: { id: string; name: string | null } | null;
+  /**
+   * The row's line under the business's name, "2 people · Priya Nair, Leah Brooks", once someone at it has a name of their
+   * own; null before then (a stand-in alone is the business we wrote to, and where it is says more).
+   */
+  line: string | null;
+  /** The name card's line, "In People · Priya Nair, Leah Brooks"; null as `line` is. */
+  card: string | null;
+  /** The person at the business whose deal is won (0004, any of them since 0052): the Client pill opens them. */
+  client: string | null;
+  /** Everyone at the business, by id, in the order every list of them takes: the face, whoever waits on you, the rest. */
+  order: string[];
+}
+
+/**
+ * Who works at this lead, as People holds them. Its face is the person a member knows it by: the one with a name of their
+ * own most recently in touch, else the lead's own person (leads.contact_id), so a stand-in the finder made never stands
+ * for the business once someone there has a name. The face first, then whoever waits on you, then People's own order (the
+ * latest in touch first). Nothing before People is read, and nobody for a business whose details were removed.
+ */
+export function leadPeopleOf(lead: { id: string; contactId: string | null }, index: LeadPeopleIndex): LeadPeopleVM {
+  const own = lead.contactId ? (index.byId.get(lead.contactId) ?? null) : null;
+  const at = index.byLead.get(lead.id) ?? [];
+  const face = at.find((r) => !r.standIn) ?? own ?? at[0] ?? null;
+  const others = at.filter((r) => r !== face);
+  const people = [
+    ...(face && at.includes(face) ? [face] : []),
+    ...others.filter((r) => r.state === "needs_you"),
+    ...others.filter((r) => r.state !== "needs_you"),
+  ];
+  const names = WORKS_AT_WORDS.someNames(people.filter((r) => !r.standIn).map((r) => r.name));
+  const n = people.length;
+  return {
+    door: face ? { id: face.id, name: face.standIn ? null : face.name } : null,
+    line: names ? WORKS_AT_WORDS.peopleLine(n, names) : null,
+    card: n ? (names ? WORKS_AT_WORDS.inPeopleNamed(names) : WORKS_AT_WORDS.inPeople(n)) : null,
+    client: [...(own ? [own] : []), ...people].find((r) => r.deal?.stage === "won")?.id ?? null,
+    order: people.map((r) => r.id),
   };
 }
 

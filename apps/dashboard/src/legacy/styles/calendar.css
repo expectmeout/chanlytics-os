@@ -525,6 +525,8 @@
 .cal-ev-who { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 10px; font-size: var(--text-sm); color: var(--ink); }
 .cal-ev-who .icon { color: var(--ink-dim); }
 .cal-ev-via { color: var(--ink-faint); font-size: 11.5px; }
+/* The business they work at (0052), dim after their name. */
+.cal-ev-trail { color: var(--ink-dim); }
 .cal-ev-detail { display: flex; gap: 8px; margin-top: 8px; font-size: var(--text-sm); color: var(--ink); }
 .cal-ev-detail-key { color: var(--ink-faint); font-size: 10px; letter-spacing: .05em; text-transform: uppercase; padding-top: 2px; }
 .cal-ev-desc { margin-top: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); font-size: 12px; line-height: 1.45; color: var(--ink-dim); white-space: pre-wrap; max-height: 160px; overflow: auto; }

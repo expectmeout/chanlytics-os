@@ -238,6 +238,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // A note may be a step, and a row carries the next one (00166): the Pipeline, Steps due and Today follow it, and so does the
   // People lens, which counts the steps overdue and due today.
   "POST contacts/[id]/notes": notes,
+  // A call logged (0052): a note, perhaps a step, as above; and, at an open lead, its outcome and stage, as Leads' own call.
+  "POST contacts/[id]/call": () => [...notes(), ...leadsAnswered()],
   "POST contacts/[id]/notes/done": notes,
   "POST contacts/[id]/notes/remove": notes,
   // A receptionist's suggestion kept becomes a note, perhaps a step: the same rows move.

@@ -1122,6 +1122,9 @@
 .cl-prof-hero.cl-prof-head > .cl-prof-queue-actions { flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 8px; }
 .cl-prof-head > .cl-prof-queue-actions > :is([data-testid="person-open-thread"], [data-testid="person-start-conversation"]) { justify-content: center; }
 .cl-prof-acts-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+/* ‹ 4 of 24 ›: where they stand in the People view they were opened from, at the head's top right (0052, canvas A). */
+.cl-prof-walk { align-self: flex-end; display: inline-flex; align-items: center; gap: 2px; margin-bottom: 6px; }
+.cl-prof-walk-at { font-size: var(--text-xs); color: var(--ink-dim); padding: 0 4px; }
 
 .cl-prof-id {
   display: flex;
@@ -1488,6 +1491,8 @@
   margin-bottom: 3px;
 }
 .cl-tl-time { margin-left: auto; color: var(--ink-faint); white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* New since the reader last looked (0052): a dot after who it was, the History tab's dot (the kit's .subtab-dot) beside it. */
+.cl-tl-new { flex: none; align-self: center; width: 6px; height: 6px; border-radius: var(--radius-full); background: var(--accent); }
 .cl-tl-sub { margin-top: 3px; font-size: var(--text-xs); color: var(--ink-faint); }
 /* A visit that asks "Did they come?" (surfaces/visit-line.tsx): the question and its presses, and the door beside them. */
 .cl-tl-ask { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; }
@@ -1810,7 +1815,10 @@
 .cl-prof-note-input:focus { border-color: var(--accent); }
 .cl-prof-note-input::placeholder { color: var(--ink-faint); }
 .cl-prof-note-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
-.cl-prof-note-aud { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
+.cl-prof-note-aud { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; min-width: 0; }
+/* For, said once before its choices (Anyone · Me · Jo Park), the kit's toggle group beside it. */
+.cl-prof-note-choose { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.cl-prof-note-choose-word { font-size: var(--text-xs); color: var(--ink-muted); }
 .cl-prof-note-for { font: inherit; font-size: 12px; color: var(--ink-muted); background: transparent; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 2px 6px; max-width: 150px; }
 .cl-prof-note-team { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--ink-muted); cursor: pointer; }
 .cl-prof-note-team input { margin: 0; accent-color: var(--ink); }
@@ -1919,8 +1927,10 @@
 /* A stop the row says beside the name (the Pipeline's person cell) or beside the State pill (People's, where "Needs you"
    outranks it): it keeps its whole word, and stands off the pill it follows. */
 .cl-row-fullname > .cl-row-stopped { flex: none; overflow: visible; }
-/* The business a person works at, dim after their name (0052): it gives way, and ends in an ellipsis, before the name does. */
-.cl-row-fullname > .cl-row-trail { flex: 0 100 auto; white-space: nowrap; font-weight: var(--weight-regular); color: var(--ink-dim); }
+/* The business a person works at, dim after their name (0052): it gives way, and ends in an ellipsis, before the name does.
+   Its shrink is 100000, not 100: a flex line takes its cut from each item by shrink times width, and at 100 the name still
+   lost a fraction of a pixel to it, enough to end "Leah Brooks" in an ellipsis (the Inbox's trails take the same). */
+.cl-row-fullname > .cl-row-trail { flex: 0 100000 auto; white-space: nowrap; font-weight: var(--weight-regular); color: var(--ink-dim); }
 .cl-row-trail { color: var(--ink-dim); font-weight: var(--weight-regular); }
 .cl-state-cell > .cl-row-stopped { margin-left: 6px; }
 .cl-row-name-them { display: inline-flex; align-items: center; gap: 3px; border: none; background: transparent; padding: 0; font: inherit; font-size: 10.5px; color: var(--ink-faint); cursor: pointer; opacity: 0; transition: opacity 120ms ease, color 120ms ease; }
@@ -2187,6 +2197,8 @@
 .cl-attn-body { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .cl-attn-name { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: var(--text-sm); font-weight: 500; color: var(--ink); line-height: 1.3; }
 .cl-attn-who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The business they work at (0052), dim after the name inside its line, so a short line cuts it before the name. */
+.cl-attn-trail { font-weight: var(--weight-regular); color: var(--ink-dim); }
 .cl-attn-meta { flex: none; font-size: 10.5px; font-weight: 400; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 /* TWO lines, not one. This line is the thing a person decides from -- the
    customer's own words, or what the receptionist could not finish -- and one
@@ -3705,6 +3717,95 @@
 /* The strip of tabs stands on the page, between the figures and the tab's panes, at the panes' own sides. */
 .cl-prof-strip {
   --subtabs-side: 4px;
+}
+/* It sticks under the top bar as the tab's panes scroll, and wears the control layer's glass only once it is stuck
+   (data-stuck: the mark above it has left the scroller, work.tsx). */
+.cl-prof-strip-stand {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.cl-prof-strip-stand[data-stuck] {
+  background: var(--surface-control-fill);
+  -webkit-backdrop-filter: var(--surface-control-blur);
+  backdrop-filter: var(--surface-control-blur);
+}
+.cl-prof-strip-sentinel {
+  display: block;
+  height: 0;
+}
+/* The identity rail holds still beside the work column on a desk: as tall as the page's scroller at most (--record-h,
+   person-real.tsx), scrolling inside itself where it is taller. */
+@media (width > 900px) {
+  .cl-prof-side {
+    position: sticky;
+    top: 0;
+    max-height: var(--record-h, none);
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+}
+/* Call (canvas A M4, call.tsx): on a desk a popover from the head's Call, the dial and then "How did the call go?"; on a
+   phone the same question in a sheet. The outcomes wrap (the kit's toggle group, data-wrap), Call back is the composer's
+   days under its word, and the foot says where the call goes beside the Save that names it. */
+.cl-prof-call {
+  width: min(380px, calc(100vw - 24px));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cl-prof-call-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--ink);
+}
+.cl-prof-call-sub {
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.cl-prof-call-dial,
+.cl-prof-call-ask {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+.cl-prof-call-dial > :last-child {
+  align-self: flex-start;
+}
+.cl-prof-call-back {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cl-prof-call-word {
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.cl-prof-call-tell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.cl-prof-call-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+.cl-prof-call-goes {
+  flex: 1 1 140px;
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.cl-prof-call-rise .cl-prof-call-ask {
+  padding-block: 14px 16px;
 }
 /* Under the name: the business as a door to its sheet (a 44px press around its words), or a stand-in's story. */
 .cl-prof-business {

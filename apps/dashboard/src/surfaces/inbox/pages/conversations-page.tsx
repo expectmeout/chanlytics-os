@@ -48,7 +48,7 @@ import { conversationsData, inboxData, IX_STORE } from "../store";
 import { ThreadCall } from "../thread/call";
 import { ixSwipeBack } from "../thread/thread";
 import { IxWho } from "../thread/who";
-import { businessTrailFor } from "../thread/shell-thread";
+import { businessTrailFor } from "../../people/business-trail";
 import { ThreadPane } from "../thread/thread-pane";
 import type { ConversationRow, ConversationsSurface } from "../types";
 import { Button } from "../../kit/button/button";

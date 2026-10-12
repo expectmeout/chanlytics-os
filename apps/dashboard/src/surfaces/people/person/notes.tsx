@@ -11,12 +11,14 @@
  */
 import { useEffect, useState } from "react";
 import type { Dispatch, MouseEvent, ReactNode, SetStateAction } from "react";
-import { NOTE_MAX, NOTE_WORDS, stepDays } from "@chanlytics/contracts";
+import { NOTE_MAX, NOTE_WORDS, composerDays, stepDayName } from "@chanlytics/contracts";
 import type { PersonVM } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
 import { holdStill } from "../../legacy-verbs";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
+import { RecordToggleGroup } from "../../kit/record/field";
+import { tabDraft, useUnsavedWork } from "../../kit/record/work";
 import { menuGroups, moreButton } from "../menu-groups";
 import { markStepDone, decidePersonNote, removePersonNote, writePersonNote } from "../people-detail";
 import { openStepSheet } from "../step-sheet/step-sheet";
@@ -26,7 +28,7 @@ const NOTES_SHOWN = 3;
 
 type Words = typeof NOTE_WORDS;
 type Note = PersonVM["noteList"][number];
-type Days = ReturnType<typeof stepDays>;
+type Days = ReturnType<typeof composerDays>;
 
 /** What is typed in the composer. */
 interface NoteDraft {
@@ -46,7 +48,42 @@ interface NoteEdit extends NoteDraft {
 
 const NOTE_EMPTY: NoteDraft = { text: "", forId: null, teamOnly: false, day: null, picking: false };
 
-/** Who a note is for and whether the receptionist reads it: the composer's and the editor's two controls, one shape. */
+/** The composer's draft in the tab's memory, by person (the kit's one rule for a composer, kit/record/work.tsx). */
+const NOTE_DRAFT = "person-note";
+
+/** What the tab kept for this person's composer, as a draft's shape, or nothing typed. */
+function keptDraft(personId: string): NoteDraft {
+  const kept: unknown = tabDraft(NOTE_DRAFT, personId);
+  if (!kept || typeof kept !== "object") return NOTE_EMPTY;
+  const k: Partial<Record<keyof NoteDraft, unknown>> = kept;
+  return {
+    text: typeof k.text === "string" ? k.text.slice(0, NOTE_MAX) : "",
+    forId: typeof k.forId === "string" ? k.forId : null,
+    teamOnly: k.teamOnly === true,
+    day: typeof k.day === "string" ? k.day : null,
+    picking: k.picking === true,
+  };
+}
+
+/** Up to this many people (you among them), For is a choice of their names; a bigger team keeps the menu. */
+const FOR_CHOICES_MAX = 4;
+
+/** For's choices: Anyone, then you, then the rest of the team as the page lists them. */
+function forChoices(team: PersonVM["noteTeam"], W: Words) {
+  const me = team.filter((m) => m.me);
+  const rest = team.filter((m) => !m.me);
+  return [
+    { value: "", label: W.anyone },
+    ...me.map((m) => ({ value: m.id, label: W.me })),
+    ...rest.map((m) => ({ value: m.id, label: m.name })),
+  ];
+}
+
+/**
+ * Who a note is for and whether the receptionist reads it: the composer's and the editor's two controls, one shape. For
+ * is a choice under its word (Anyone · Me · Jo Park, the kit's toggle group) for a team of up to four; a bigger team keeps
+ * the menu, which a row of eight names would not fit.
+ */
 function NoteAudience({
   team,
   forId,
@@ -68,7 +105,22 @@ function NoteAudience({
 }) {
   return (
     <span className="cl-prof-note-aud">
-      {team.length > 1 && (
+      {team.length > 1 && team.length <= FOR_CHOICES_MAX ? (
+        <span className="cl-prof-note-choose">
+          <span className="cl-prof-note-choose-word" aria-hidden="true">
+            {W.forLabel}
+          </span>
+          <RecordToggleGroup
+            label={W.forLabel}
+            value={forId || ""}
+            options={forChoices(team, W)}
+            onChange={(v) => onFor(v || null)}
+            readOnly={disabled}
+            testid="person-note-for"
+          />
+        </span>
+      ) : null}
+      {team.length > FOR_CHOICES_MAX && (
         <select
           className="cl-prof-note-for"
           value={forId || ""}
@@ -98,16 +150,20 @@ function NoteAudience({
 }
 
 /**
- * A note's day (0007, amended): with one, the note is a step, and the team's. The days are the picker's (contracts
- * stepDays); Pick a day opens the date field, and the first choice takes the day away. Hookless.
+ * A note's day (0007, amended): with one, the note is a step, and the team's. The days are the composer's three (contracts
+ * composerDays: Tomorrow, Friday or next week, Pick a day), the kit's toggle group; Pick a day opens the date field, and
+ * a press on the day chosen takes it away again. A step whose day is none of the three shows it in the date field. Hookless.
+ * A call's Call back is the same choice under its own word (call.tsx: `label`, and its own test ids).
  */
-function NoteDay({
+export function NoteDay({
   day,
   picking,
   days,
   onDay,
   disabled,
   W,
+  label = W.due,
+  testid = "person-note",
 }: {
   day: string | null;
   picking: boolean;
@@ -115,27 +171,29 @@ function NoteDay({
   onDay: (d: { picking: boolean; day: string | null }) => void;
   disabled: boolean;
   W: Words;
+  label?: string;
+  testid?: string;
 }) {
   const listed = !!day && days.some((c) => c.key === day);
+  const chosen = picking || (day && !listed) ? "pick" : day || "";
   return (
     <span className="cl-prof-note-day">
-      <select
-        className="cl-prof-note-for"
-        value={picking || (day && !listed) ? "pick" : day || ""}
-        disabled={disabled}
-        aria-label={W.due}
-        data-testid="person-note-day"
-        onChange={(e) =>
-          onDay(e.target.value === "pick" ? { picking: true, day } : { picking: false, day: e.target.value || null })
+      <RecordToggleGroup
+        label={label}
+        value={chosen}
+        options={days.map((c) => ({ value: c.key, label: c.label }))}
+        onChange={(v) =>
+          onDay(
+            v === chosen
+              ? { picking: false, day: null }
+              : v === "pick"
+                ? { picking: true, day }
+                : { picking: false, day: v },
+          )
         }
-      >
-        <option value="">{day || picking ? W.noDay : W.addDay}</option>
-        {days.map((c) => (
-          <option key={c.key} value={c.key} title={c.title}>
-            {c.label}
-          </option>
-        ))}
-      </select>
+        readOnly={disabled}
+        testid={`${testid}-day`}
+      />
       {picking || (day && !listed) ? (
         <input
           type="date"
@@ -143,7 +201,7 @@ function NoteDay({
           value={day || ""}
           disabled={disabled}
           aria-label={W.pickDay}
-          data-testid="person-note-date"
+          data-testid={`${testid}-date`}
           onChange={(e) => onDay({ picking: true, day: e.target.value || null })}
         />
       ) : null}
@@ -480,7 +538,8 @@ function composer(c: Card, acts: Acts) {
               onClick={() => void acts.add()}
               data-testid="person-notes-save"
             >
-              {W.add}
+              {/* It says what pressing it makes: a note, or a step and its day (the motion grammar's label). */}
+              {draft.day ? W.addStepFor(stepDayName(draft.day, Date.now(), pageClock().zone())) : W.add}
             </button>
           </span>
         </div>
@@ -549,14 +608,19 @@ export function PersonNotes({
   const W = NOTE_WORDS;
   const notes = p.noteList || [];
   const team = p.noteTeam || [];
-  const days = stepDays(Date.now(), pageClock().zone());
-  const [draft, setDraft] = useState(NOTE_EMPTY);
+  const days = composerDays(Date.now(), pageClock().zone());
+  // The draft is held with the person it was typed for, so a move to another person's page never shows, or keeps, it there.
+  const [held, setHeld] = useState(() => ({ id: p.id, draft: keptDraft(p.id) }));
+  const draft = held.id === p.id ? held.draft : keptDraft(p.id);
+  const setDraft: Dispatch<SetStateAction<NoteDraft>> = (next) =>
+    setHeld({ id: p.id, draft: typeof next === "function" ? next(draft) : next });
+  // Kept in the tab as it is typed, gone once a note is added (the draft empties), and held while the tab closes.
+  useUnsavedWork(NOTE_DRAFT, p.id, { value: draft, dirty: !!draft.text.trim(), onLeave: () => setDraft(NOTE_EMPTY) });
   const [editing, setEditing] = useState<NoteEdit | null>(null);
   const [asking, setAsking] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [all, setAll] = useState(false);
   useEffect(() => {
-    setDraft(NOTE_EMPTY);
     setEditing(null);
     setAsking(null);
   }, [p.id]);

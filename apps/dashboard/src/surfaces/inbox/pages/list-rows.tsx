@@ -16,7 +16,7 @@ import { ReplyChip } from "../thread/reply-strip";
 import { channelIconOf } from "../thread/timeline";
 import { inboxData } from "../store";
 import { threadUnread } from "../../seen";
-import { businessTrailFor } from "../thread/shell-thread";
+import { businessTrailFor } from "../../people/business-trail";
 import type { Thread } from "../types";
 
 /**

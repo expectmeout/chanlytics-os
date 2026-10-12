@@ -174,6 +174,29 @@ test("the description says whether an email address is on file, so the reception
   assert.doesNotMatch(describeLead(base), /email address/, "a reader that never learned it says nothing");
 });
 
+test("a stand-in's name is said as the business they are at, never as theirs (0052): nobody is greeted by a shop's name", () => {
+  const base = {
+    contactId: "k1",
+    conversationId: "c1",
+    name: "Northside Print Shop",
+    returning: true,
+    lastSeenAt: null,
+    history: [],
+    optedOut: false,
+  };
+  const d = describeLead({ ...base, standIn: true }, NOW);
+  assert.match(d, /Name on record: <profile_name>Northside Print Shop<\/profile_name>\./);
+  assert.match(d, /That is the business they are at, not their own name: never call them by it/);
+  assert.match(d, /ask who you are speaking with/);
+  // A person's own name is said as it always was.
+  assert.doesNotMatch(describeLead({ ...base, name: "Dana Ortiz" }, NOW), /not their own name/);
+  assert.doesNotMatch(
+    describeLead(base, NOW),
+    /not their own name/,
+    "a reader that never learned it says nothing more",
+  );
+});
+
 /* ------------------------------ the wiring -------------------------------- */
 
 const voice = read("apps/edge/lib/voice/call-start.ts");
@@ -246,9 +269,9 @@ test("the owner's notes ride with who the person is — as facts, with the rule 
   // this long is Prettier's to wrap however it likes.
   assert.ok(
     src.includes(
-      '"id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, marketing_channels, offers_asked_at, tenants(sells_by)"',
+      '"id, display_name, wa_profile_name, name_source, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, marketing_channels, offers_asked_at, tenants(sells_by)"',
     ),
-    "read with the rest of who they are, how their workspace's customers buy, whether an email is on file, what they said about offers and on which channels",
+    "read with the rest of who they are (and whether their name is the business's, 0052), how their workspace's customers buy, whether an email is on file, what they said about offers and on which channels",
   );
 });
 

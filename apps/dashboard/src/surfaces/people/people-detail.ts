@@ -29,6 +29,7 @@ import {
   type DealLostReason,
   type DealPer,
   type DealStage,
+  type PersonCallBody,
   type PersonNoteDto,
   type PersonVM,
   type AskedPurpose,
@@ -501,6 +502,17 @@ interface NoteBody {
 // the whole list was being read before a note said it was added. The page reads the person itself.
 export async function writePersonNote(id: string, body: NoteBody): Promise<ApiResult<{ note: PersonNoteDto | null }>> {
   return api()("POST contacts/[id]/notes", { params: { id }, body, refresh: "behind", once: true });
+}
+
+/**
+ * A call the member made, logged (0052, canvas A M4): a note, a step with a day, and the outcome on the lead their business
+ * is, where it is open. Once: a second press of a slow Save is not a second call.
+ */
+export async function logCallOn(
+  id: string,
+  body: PersonCallBody,
+): Promise<ApiResult<{ note: PersonNoteDto | null; step: PersonNoteDto | null; lead: { stage: string } | null }>> {
+  return api()("POST contacts/[id]/call", { params: { id }, body, refresh: "behind", once: true });
 }
 
 /** A step done, or open again (00166): any owner or operator, with the version the page saw. */

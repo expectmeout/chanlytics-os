@@ -454,8 +454,8 @@
 .ix-th-who > .ix-th-id { min-width: 0; }
 .ix-th-name-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* The business a named person works at, dim after their name (0052): it gives way before the name does. */
-.ix-thread-trail { flex: 0 100 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--weight-regular); color: var(--ink-dim); }
-.ix-th-trail { flex: 0 100 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--weight-regular); color: var(--ink-dim); }
+.ix-thread-trail { flex: 0 100000 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--weight-regular); color: var(--ink-dim); }
+.ix-th-trail { flex: 0 100000 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--weight-regular); color: var(--ink-dim); }
 /* A reply's signer offered as their name (0052): the notice under the head, its acts the kit's, at the head's sides. */
 .ix-th-offer { grid-column: 1 / -1; min-width: 0; margin-top: -4px; }
 .ix-th-go { display: inline-flex; flex: none; color: var(--ink-faint); transition: color var(--duration-fast) var(--ease-out); }
@@ -1953,6 +1953,11 @@ button.ix-ctx:hover { background: var(--bg-hover); }
 .ix-th-sub { display: flex; align-items: center; min-width: 0; }
 .ix-th-sub .ix-th-meta { flex: none; }
 .ix-th-visit { display: inline-flex; align-items: center; min-width: 0; white-space: nowrap; }
+/* Where they work (0052): a desk draws it as the door beside the head (.ix-th-works), a phone as these words in it. */
+.ix-th-works-said { display: none; }
+/* The door gives way before the name does, and its words end in an ellipsis rather than reach the Actions beside it. */
+.ix-th-works { flex: 0 3 auto; min-width: 0; max-width: 50%; overflow: hidden; }
+.ix-th-works-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ix-th-visit::before { color: var(--ink-faint); }
 .ix-th-visit .icon { flex: none; }
 .ix-th-visit-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; }

@@ -1,11 +1,15 @@
 import {
   AppError,
   NOTE_REFUSALS,
+  PERSON_CALL_WORDS,
   memberWords,
+  personCallLeadArgs,
+  personCallNote,
+  type PersonCallBody,
   type PersonNoteDto,
   type PersonNoteTeamDto,
 } from "@chanlytics/contracts";
-import { seePersonNote } from "@chanlytics/db";
+import { logPersonCall, seePersonNote } from "@chanlytics/db";
 import { dbRefusal, type RouteContext } from "@/server/with-route";
 import { log } from "@/server/log";
 
@@ -171,6 +175,44 @@ export async function seeNote(ctx: RouteContext, contactId: string, noteId: stri
   const notYours = answer.why === "not_yours";
   const why = notYours ? "not_for_you" : "not_found";
   throw new AppError(notYours ? "forbidden" : "not_found", NOTE_REFUSALS[why] ?? why, notYours ? 403 : 404);
+}
+
+/** What the lead became, where the call moved it (lead_set_stage's answer, through the door). */
+interface CallLead {
+  stage: string;
+  closed_reason: string | null;
+  converted: boolean;
+}
+
+/**
+ * A call the member made, logged (decision 0052, canvas A M4): the note's words and the lead's ask are contracts'
+ * (personCallNote, personCallLeadArgs), the door judges and keeps them (person_call_logged), and a refusal is the notes'
+ * own. Wrong number offers no day, so none is kept for it.
+ */
+export async function logCall(
+  ctx: RouteContext,
+  contactId: string,
+  input: PersonCallBody,
+): Promise<{ note: PersonNoteDto | null; step: PersonNoteDto | null; lead: CallLead | null }> {
+  const lead = personCallLeadArgs(input.outcome, input.said, input.spoke_with);
+  const { data, error } = await logPersonCall(ctx.supabase, {
+    contactId,
+    outcome: input.outcome,
+    body: personCallNote(input.outcome, input.said),
+    dueOn: input.outcome === "wrong_number" ? null : (input.due_on ?? null),
+    tell: input.tell ?? false,
+    stepBody: PERSON_CALL_WORDS.stepBody,
+    lead: lead
+      ? { stage: lead.p_lead_stage, reason: lead.p_lead_reason, note: lead.p_lead_note, spokeWith: lead.p_spoke_with }
+      : null,
+  });
+  const { note } = noteAnswer("person_call_logged", data, error);
+  const r = (data ?? {}) as { step?: NoteRow | null; lead?: CallLead | null };
+  return {
+    note: note ? writtenNote(ctx, note) : null,
+    step: r.step ? writtenNote(ctx, r.step) : null,
+    lead: r.lead ?? null,
+  };
 }
 
 /** Who a row's next step is for, by name and whether it is the reader (00166), from the team as a note's is. */

@@ -325,6 +325,38 @@ test("beside the wires, the person's next visit from People -- or their last -- 
   assert.ok(redrawWanted(), "the header redraws when People lands");
 });
 
+test("where they work is a door to the business's sheet beside the head on a desk, and words in the head on a phone; none for a stand-in or a business removed (0052)", () => {
+  const vm = toInboxThreadVM(conv(), asked, ZONE, NOW);
+  const person = (over) => ({
+    id: "k1",
+    nextVisitLine: null,
+    lastVisitLine: null,
+    standIn: false,
+    worksAt: { leadId: "l1", name: "Bloom & Vow Bridal", gone: false },
+    ...over,
+  });
+  try {
+    globalThis.window.__PEOPLE = { rows: [person()] };
+    let tree = draw(vm);
+    const door = find(tree, byTestId("ix-th-works-door"));
+    assert.ok(door, "the door to the sheet");
+    assert.match(textOf(door), /Works at\s+Bloom & Vow Bridal/);
+    const head = find(tree, byTestId("ix-th-person"));
+    if (head) assert.equal(find(head, byTestId("ix-th-works-door")), undefined, "beside the link to their page");
+    const words = find(tree, byTestId("ix-th-works-at"));
+    assert.ok(hasClass("ix-th-works-said")(words), "the phone's words, which a desk hides");
+    // A stand-in's name is the business's already; a business removed has no sheet, and is said as words everywhere.
+    globalThis.window.__PEOPLE = { rows: [person({ standIn: true })] };
+    assert.equal(find(draw(vm), byTestId("ix-th-works-door")), undefined);
+    globalThis.window.__PEOPLE = { rows: [person({ worksAt: { leadId: "l1", name: null, gone: true } })] };
+    tree = draw(vm);
+    assert.equal(find(tree, byTestId("ix-th-works-door")), undefined);
+    assert.ok(!hasClass("ix-th-works-said")(find(tree, byTestId("ix-th-works-at"))));
+  } finally {
+    delete globalThis.window.__PEOPLE;
+  }
+});
+
 test("REGRESSION: who the thread is with opens their page -- the face, the name and the line under it are one link; Actions › Open profile was the only way there", () => {
   const went = [];
   const vm = toInboxThreadVM(conv(), asked, ZONE, NOW);

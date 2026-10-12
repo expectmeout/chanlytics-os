@@ -117,12 +117,54 @@ it closes stay the lead's own person's, as before this note, and its signer is t
 signature is never offered as the name of the person they answered for (a first build moved the no to the writer and
 left the person we wrote to unanswered; the reply suite now holds both).
 
-Owed, each a step of its own: the business trailing the name on Today, the Calendar panel and Live; Leads' Stage
-"Talking · Priya Nair ›" and its row's people line; the Inbox chip opening the business sheet (it is words, under the
-head's door); Ask's "Ask about this person" and `leads.lead` with its people; the receptionist's line for a stand-in
-(after an eval pass); the lead's other addresses as its own for matching; the disabled Yes with the lock's sentence as
-its caption (the doors refuse it now); the sticky rail and strip, record navigation, the History's "new since you last
-looked", the Call popover's outcome sheet for a person, the composer's day chips and the motion grammar's wash.
+Then, in the lane `person/business-everywhere` (12 October 2026): the business trails the name on Today's queue (each
+row names its person, `person_id`), the Calendar's appointment and Live's row and head, all from one reading of People's
+rows (`apps/dashboard/src/surfaces/people/business-trail.ts`); Leads' row says who at a business is in People (contracts `leadPeopleOf`:
+its face is the one with a name of their own most recently in touch, never the stand-in while someone there has a name),
+its Talking stage is the door to that face ("Talking ›" beside the name, "Talking · Priya Nair ›" in the Stage column),
+the line under the name reads "2 people · Priya Nair, Leah Brooks", the name card says who is in People, and a won deal
+with anyone there makes it a client; the Inbox's Works at is a door beside the head on a desk that opens the business
+sheet over the thread (loaded on the press), and words in the head on a phone; Ask's `leads.lead` returns the lead's
+people, and Ask asks about a stand-in as "this person"; and a person a lead names, or who works at one, has a disabled
+Yes with the doors' sentence as its caption.
+
+Then the deferred list (12 October 2026, built beside the business-everywhere lane, not yet merged), each a step of its
+own:
+
+- **The composer's day chips**: For and the day are the kit's toggle group (Anyone · Me · a teammate; Tomorrow · Friday
+  or next week · Pick a day), a press on the day chosen takes it away, the button names the result ("Add step for
+  Tomorrow", contracts `composerDays`, `stepDayName`), and the draft is kept in the tab (`useUnsavedWork`).
+- **History's "new since you last looked"**: contracts `newSinceOf` over the reader's own mark as the visit began (their
+  words and calls after what the mark had seen, everything else after it was last written; nothing on a first open, nor
+  what the visit itself brought), a dot on each row and on the History tab (the kit's sub-tab `fresh`), the mark
+  written after a dwell.
+- **Record navigation**: "‹ 4 of 24 ›" beside the frame's People on a desk, the first rows of More on a phone, from the
+  People view the person was opened from (`surfaces/people/walk.ts`), each step a replaced address on the tab the
+  person was on, and the people either side read before they are asked for.
+- **The sticky rail and strip**: the identity rail holds still beside the work column, held to the scroller's height
+  and scrolling inside itself; the tab strip sticks under the top bar and wears the control layer's glass only once
+  stuck; on a phone a swipe across the work column walks the tabs (data-bits `touchSwipe`, a page that stays).
+- **The Call popover's outcome sheet** (canvas A M4, P2; Your call A3): on a desk Call opens a popover, the dial and then
+  "How did the call go?"; on a phone Call dials and the sheet rises when the app comes back; "Log a call you already
+  made" in More. Spoke · Call back later · Left a voicemail · No answer · Wrong number, and Interested and Not interested
+  where the business is an open lead; Call back's days (Call back later starts on Tomorrow); what was said; "The
+  receptionist should know", off; Save names what it saves. One door, `person_call_logged` (00417): a note, the team's
+  unless the receptionist should know, a step with a day (beside the note where the receptionist reads it), and the
+  outcome through `lead_set_stage` where the lead is open and has its own person (a lead nobody stands for is never
+  moved: its Interested would make a second person), never Spoke, Wrong number only where the person has no number of
+  their own, and a lead already Talking kept so by a call that went nowhere; the door writes no lead itself. Call rang
+  `tel:+` alone before this (a stripped number kept only the plus): the number is now contracts' (`personCallOf`).
+- **The motion grammar's wash**: a value someone else changed while the page is open (the figures, the state, the name,
+  Up next, their last words, History's newest row) takes the kit's wash (`kit/motion/wash.tsx`: a fill that fades over
+  1.6 s, nothing moves) and is said once, politely; nothing on the first paint, on a move to another person, or just
+  after the reader's own press.
+- **The lead's other addresses**: `people_list` carries the lead's address and the ones the finder read off its site
+  (`lead_emails`, 00418) on the lead's own person alone, and the calendar takes a booking from one of them as theirs,
+  "matched by their business" (contracts `personLikeOf`, `matchPerson`, `visitsIn`).
+- **The receptionist's line for a stand-in**: the person's lines say a name that is the business's as the business they
+  are at, never theirs, and to ask who is speaking if it helps (`describeLead`, `LeadContext.standIn`). Two cases on
+  trial in the nightly evals (`stand_in_not_named_en`, `stand_in_says_their_name_en`, with a case's `who`): owed a live
+  run on the eval key before the line is relied on.
 
 ## Tests
 

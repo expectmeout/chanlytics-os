@@ -35,6 +35,8 @@ interface AttnRowProps {
   initials?: string;
   glyph?: string | null;
   name: ReactNode;
+  /** The business the person works at (0052), dim after their name, and the first thing cut where the line is short. */
+  trail?: string | null;
   meta?: string;
   sentence?: string;
   quoted?: boolean;
@@ -93,6 +95,7 @@ export function AttnRow({
   initials,
   glyph = null,
   name,
+  trail = null,
   meta = "",
   sentence = "",
   quoted = false,
@@ -132,7 +135,15 @@ export function AttnRow({
       )}
       <div className="cl-attn-body">
         <div className="cl-attn-name">
-          <span className="cl-attn-who">{name}</span>
+          <span className="cl-attn-who">
+            {name}
+            {trail ? (
+              <span className="cl-attn-trail" data-testid="attention-business">
+                {" "}
+                · {trail}
+              </span>
+            ) : null}
+          </span>
           {meta ? <span className="cl-attn-meta">{meta}</span> : null}
         </div>
         <div className={`cl-attn-sentence ${quoted ? "quoted" : ""}`}>{quoted ? `“${sentence}”` : sentence}</div>

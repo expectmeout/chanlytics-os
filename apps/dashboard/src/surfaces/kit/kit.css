@@ -2496,6 +2496,38 @@ textarea.rec-input {
   font-weight: var(--weight-regular);
   color: var(--ink-dim);
 }
+/* ---------- The wash: a value someone else changed while the page is open (motion/wash.tsx) ---------- */
+/* A lozenge fill under the value that fades over 1.6 s; nothing moves, and the value keeps its own ink. Under reduced
+   motion the same fill comes and goes in a beat. */
+.wash {
+  border-radius: var(--radius-sm);
+}
+.wash[data-wash="true"] {
+  animation: wash-fade 1.6s var(--ease-out) both;
+}
+@keyframes wash-fade {
+  from {
+    background-color: var(--info-soft);
+    outline: 4px solid var(--info-soft);
+  }
+  to {
+    background-color: transparent;
+    outline: 4px solid transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wash[data-wash="true"] {
+    animation-duration: var(--duration-fast);
+  }
+}
+/* More options than one row holds (data-wrap: a call's seven outcomes): the same track and the same raised choice, the
+   options on as many rows as they need, the track as wide as its column. */
+.rec-seg[data-wrap="true"] {
+  display: flex;
+  flex-wrap: wrap;
+  width: 100%;
+  border-radius: var(--surface-inset-radius);
+}
 
 /* ---------- A date picker: one day of a month, over the page ---------- */
 /* The popup is the panel's pop at the width seven days need. A day is a button the size of its cell and a round inside it
@@ -3592,6 +3624,15 @@ a.list-row {
   font-weight: var(--weight-medium);
   font-variant-numeric: tabular-nums;
   color: var(--ink-dim);
+}
+/* Something new there to the reader (a person's History): a small dot after the words, in the accent, no figure. */
+.subtab-dot {
+  flex: none;
+  align-self: center;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
 }
 .subtab-bar {
   position: absolute;

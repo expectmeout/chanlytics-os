@@ -7673,6 +7673,7 @@ export type Database = {
           latest_snooze_until: string
           latest_state: string
           latest_wa_inbound_at: string
+          lead_emails: string[]
           lead_gone: boolean
           lead_id: string
           lead_name: string
@@ -7732,6 +7733,21 @@ export type Database = {
       }
       people_series: {
         Args: { p_days?: number; p_end?: string; p_tenant_id: string }
+        Returns: Json
+      }
+      person_call_logged: {
+        Args: {
+          p_body: string
+          p_contact_id: string
+          p_due_on?: string
+          p_lead_note?: string
+          p_lead_reason?: string
+          p_lead_stage?: string
+          p_outcome: string
+          p_spoke_with?: string
+          p_step_body?: string
+          p_tell?: boolean
+        }
         Returns: Json
       }
       person_doubt_dismiss: { Args: { p_doubt_id: string }; Returns: Json }
