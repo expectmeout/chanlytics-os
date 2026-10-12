@@ -3,7 +3,7 @@
  * what each means. The adapter that knows the tables and the runtime's
  * services is packages/jobs/src/handlers.ts.
  */
-import type { AppointmentState, EmailHold, JobNews, SendPurpose } from "@chanlytics/contracts";
+import type { AppointmentState, JobNews, SendPurpose } from "@chanlytics/contracts";
 import type { EmailRequest } from "@chanlytics/channels";
 import type { Json, MessageVersionRow } from "@chanlytics/db";
 import type { Channel, Delivered, Delivery } from "../deliver";
@@ -173,17 +173,21 @@ export interface BroadcastBatchPorts {
    */
   message(name: string, language: string): Promise<MessageVersionRow[]>;
   /**
-   * The workspace's own words for the slots that name it (its review link the one its Google listing keeps, 00408), and
-   * its clock (IANA zone), which the sending hours are kept by; and the postal address its emails' foot gives (the
-   * Business record's), null when it has none.
+   * The workspace's own words for the slots that name it, and its clock (IANA zone), which the sending hours are kept by;
+   * and the postal address its emails' foot gives (the Business record's), null when it has none.
    */
   facts(): Promise<{
     businessName: string;
     bookingLink: string | null;
-    reviewLink: string | null;
     timezone: string;
     address?: string | null;
   }>;
+  /**
+   * The link a customer leaves the business a review at, as its Google listing keeps it (db reviewLinkOf, 00408), or null
+   * where it keeps none; throws when it cannot be read. Asked once a batch, and only of a run whose message has a review
+   * slot: a send without one never depends on the listing.
+   */
+  reviewLink(): Promise<string | null>;
   /** Up to `limit` people still queued; throws when it cannot be read. */
   batch(id: string, limit: number): Promise<RecipientRow[]>;
   /** The people on the batch by id, one read for all of them; a row that is gone is absent. Throws when it cannot be read. */
@@ -316,10 +320,11 @@ export interface BroadcastBatchPorts {
   /** Who got it and who was held, once nobody is queued. */
   tally(id: string): Promise<{ sent: number; held: number }>;
   /**
-   * Which of the workspace's holds on email (contracts EMAIL_HOLDS) anyone on the run was skipped for: the finished run's
-   * news names those, and only those, among its reasons. Asked once nobody is queued, of a run that held someone back.
+   * Which of the reasons a finished run names only when counted (contracts HELD_WHEN_COUNTED: the workspace's holds on
+   * email, the week's breath, the month's allowance) anyone on the run was skipped for: the finished run's news names
+   * those, and only those, among its reasons. Asked once nobody is queued, of a run that held someone back.
    */
-  heldForEmail(id: string): Promise<EmailHold[]>;
+  heldFor(id: string): Promise<string[]>;
   /** sending → sent, and the event with the tally. */
   finish(id: string, tally: { sent: number; held: number }): Promise<void>;
   /** Tell this workspace's people. The news says what it IS (contracts JobNews); a caller cannot leave that to the sender. */

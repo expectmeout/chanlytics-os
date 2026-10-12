@@ -3,6 +3,7 @@
  * what came back in the last thirty. Each is made from what the surfaces carry and says nothing it does not know: a count the
  * workspace could not make is left out, a surface not read yet leaves its tile out, and a zero is shown as zero.
  */
+import { breathWaitWords } from "../../broadcasts/run-words";
 import { zoneMidnight, shiftKey } from "../../calendar/day-keys";
 import { purposeOfPlaybook } from "../../consent/consent";
 import { CONSENT_CHANNELS, countsByChannelWords, type ConsentChannel } from "../../consent/consent-channels";
@@ -173,18 +174,14 @@ export function workspacePausedOf(input: Pick<LifecycleInput, "playbooks" | "bro
   return input.playbooks?.ready?.paused === true || input.broadcasts?.ready?.paused === true;
 }
 
-/**
- * Who of a moment's people the week's breath holds, in words: another message reaches them within a week of today, sent
- * or due (broadcasts/run-words.ts heardWithin), so they wait. One for one, more for more.
- */
-const heldWaitWords = (n: number): string =>
-  `${n} ${n === 1 ? "hears" : "hear"} from you within a week of today and ${n === 1 ? "waits" : "wait"}`;
-
 /** Who a running moment will reach on its next run, and the reason when it reaches nobody. */
 function whoWill(p: LifecyclePlaybook): { why: string; pill: LifecycleComing["pill"] } | null {
   const reach = playbookReach({ state: p.state, candidates: p.candidates, held: p.held, waiting: p.totals.waiting });
   const of = p.named ? ` of ${p.named.pool}` : "";
   const offers = purposeOfPlaybook(triggerOf(p.trigger)?.cls ?? null) === "marketing";
+  // Who the week's breath holds for a later run, said as many as they are (contracts breathWaitWords, the one spelling).
+  const waits = p.held ?? 0;
+  const waitWords = breathWaitWords(waits, String(waits));
   switch (reach) {
     case "sends": {
       // A run sends its cap and no more (core run-playbook draws the longest-unheard first, at most cap_per_run): a new
@@ -200,7 +197,7 @@ function whoWill(p: LifecyclePlaybook): { why: string; pill: LifecycleComing["pi
         why:
           `${next}${of} will get it` +
           (later > 0 ? ` · up to ${later} more on later runs, ${cap} a run` : "") +
-          (p.held ? ` · ${heldWaitWords(p.held)}` : ""),
+          (waits > 0 ? ` · ${waitWords}` : ""),
         pill: { tone: "ok", label: plural(next, "person", "people") },
       };
     }
@@ -216,7 +213,7 @@ function whoWill(p: LifecyclePlaybook): { why: string; pill: LifecycleComing["pi
       };
     case "all-heard":
       return {
-        why: heldWaitWords(p.held ?? 0),
+        why: waitWords,
         pill: { tone: "warn", label: "All waiting" },
       };
     case "uncounted":

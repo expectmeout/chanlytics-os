@@ -32,6 +32,7 @@ import {
   isOfferByEmail,
   leftOutByFacts,
   messageAboutOfTrigger,
+  parseParamSpecs,
   purposeOfTemplate,
   renderOwnVersion,
   renderTemplate,
@@ -102,6 +103,8 @@ export interface Work {
   rows: Awaited<ReturnType<BroadcastBatchPorts["message"]>>;
   specs: ParamSpec[];
   facts: Awaited<ReturnType<BroadcastBatchPorts["facts"]>>;
+  /** The Google listing's review link, read once for the batch where a slot asks for it (slotsOf); else null. */
+  reviewLink: string | null;
   people: Map<string, ContactRow>;
   priors: Map<string, { id: string; sentAt: string | null }>;
   /** The appointments the batch's reminders were drawn for, by key (ports.appointments): what each send asks again. */
@@ -139,6 +142,20 @@ export function rowFacts(r: Pick<RecipientRow, "facts">): Record<string, unknown
   return r.facts !== null && typeof r.facts === "object" && !Array.isArray(r.facts)
     ? (r.facts as Record<string, unknown>)
     : {};
+}
+
+/**
+ * What fills the message's slots, read once for the batch: its specs, and the Google listing's review link only where a
+ * slot asks for it (ports.reviewLink), else null. A message with no review slot never depends on the listing, as before
+ * 00408, so a failure on that table never stops its send; one whose slot needs the link stops on the read, which the
+ * batch makes before the run is marked sending or anyone is claimed, so the job's next try finds the run as it was.
+ */
+export async function slotsOf(
+  ports: Pick<BroadcastBatchPorts, "reviewLink">,
+  params: unknown,
+): Promise<{ specs: ParamSpec[]; reviewLink: string | null }> {
+  const specs = parseParamSpecs(params);
+  return { specs, reviewLink: specs.some((s) => s.kind === "review_link") ? await ports.reviewLink() : null };
 }
 
 /**

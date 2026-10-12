@@ -166,6 +166,16 @@ const BREATH_WHY = "from you within a week of it";
 const hearsOrHear = (n: number): string => (n === 1 ? "hears" : "hear");
 
 /**
+ * Who of a moment's people the breath holds, in words: another message reaches them within a week of today, one already
+ * sent or one due, so they wait for a later run. `who` is how they are counted where it is said ("2" on Coming up's row, "2
+ * people more" on the moment's own line); `n` is how many, for the verbs. The one spelling of it: Campaigns' rail
+ * (lifecycle-tiles.ts) and a moment's drawer (card-detail.tsx) both say it through here.
+ */
+export function breathWaitWords(n: number, who: string): string {
+  return `${who} ${hearsOrHear(n)} from you within a week of today and ${n === 1 ? "waits" : "wait"}`;
+}
+
+/**
  * The composer's note on who of those it reaches hear from you within a week of it, and Ask's card's: while the send
  * breathes they are left out ("3 left out: they hear from you within a week of it"); sent to them too, who they are. Null
  * when none do.
@@ -283,30 +293,36 @@ export const DELIVERY_RECEIPTS_WORDS = "each channel's own receipts";
 export const DELIVERY_RECEIPTS_TIP = "Each channel's own receipts";
 
 /**
- * The two reasons the workspace, not the person, holds an email for: its offers and news by email paused by a gate, and a
- * campaigns domain that cannot be used. A run that also goes another way skips each email person for them, one by one, and
- * goes on (core broadcast-stops.ts).
+ * The reasons a finished run names only where it skipped someone for one, in the order its news names them (core
+ * broadcast.ts finishedNews); the send job counts each (packages/jobs broadcast-send.ts heldFor), and a run nobody was
+ * skipped on for one must not suggest it. Written out, never spread from another list: a spread runs an iterator the
+ * bundler cannot prove pure, so it kept the list in every entry that imports anything from here (report-lens.js).
  */
-export const EMAIL_HOLDS = [
+export const HELD_WHEN_COUNTED = [
+  // The two the workspace, not the person, holds an email for: its offers and news by email paused by a gate, and a
+  // campaigns domain that cannot be used. A run that also goes another way skips each email person for them, one by one,
+  // and goes on (core broadcast-stops.ts), and must say that is what happened to them.
   "email_offers_paused",
   "email_marketing_disabled",
-] as const satisfies readonly DeliveryRefusal[];
-export type EmailHold = (typeof EMAIL_HOLDS)[number];
+  // The week's breath: a send by hand leaves out whoever hears from you within a week of it, and its tally counts them
+  // held, as the run's own page files them under Held back.
+  RECIPIENT_REASON_HEARD,
+  // The workspace's month of emails or texts used up (CAMPAIGN_MONTH_ALLOWANCE).
+  "month_allowance",
+] as const;
 
 /**
  * The reasons a finished run gives for the people it held back, in one list for its news (core broadcast.ts finishedNews):
  * a run's tally counts who was held, not why, so the news names what any run is held for, each in the words the run's own
- * page gives (HELD_REASONS). The workspace's holds on email are named only where this run skipped someone for one
- * (`emailHeld`): a run that went on past its email people must say that is what happened to them, and a run nobody was
- * held on for it must not suggest it.
+ * page gives (HELD_REASONS), and then each reason of HELD_WHEN_COUNTED that `counted` says this run skipped someone for.
  */
-export function finishedRunHeldWhy(emailHeld: readonly EmailHold[]): string {
+export function finishedRunHeldWhy(counted: readonly string[]): string {
   const why = [
     HELD_REASONS.not_opted_in,
     HELD_REASONS.opted_out,
     HELD_REASONS.no_phone,
     HELD_REASONS.human_has_it,
-    ...EMAIL_HOLDS.filter((r) => emailHeld.includes(r)).map((r) => HELD_REASONS[r]),
+    ...HELD_WHEN_COUNTED.filter((r) => counted.includes(r)).map((r) => HELD_REASONS[r]),
   ];
   return `${why.join(", ")}, or ${HELD_REASONS.outcome_unknown}`;
 }

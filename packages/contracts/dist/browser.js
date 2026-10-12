@@ -2661,6 +2661,9 @@ function reachAfterBreath(split, heardBy, breathe) {
 }
 var BREATH_WHY = "from you within a week of it";
 var hearsOrHear = (n) => n === 1 ? "hears" : "hear";
+function breathWaitWords(n, who) {
+  return `${who} ${hearsOrHear(n)} from you within a week of today and ${n === 1 ? "waits" : "wait"}`;
+}
 function heardWords(n, breathe) {
   if (!(n > 0)) return null;
   if (breathe) return `${n} left out: they hear ${BREATH_WHY}`;
@@ -2744,17 +2747,25 @@ var HELD_REASONS = {
 };
 var DELIVERY_RECEIPTS_WORDS = "each channel's own receipts";
 var DELIVERY_RECEIPTS_TIP = "Each channel's own receipts";
-var EMAIL_HOLDS = [
+var HELD_WHEN_COUNTED = [
+  // The two the workspace, not the person, holds an email for: its offers and news by email paused by a gate, and a
+  // campaigns domain that cannot be used. A run that also goes another way skips each email person for them, one by one,
+  // and goes on (core broadcast-stops.ts), and must say that is what happened to them.
   "email_offers_paused",
-  "email_marketing_disabled"
+  "email_marketing_disabled",
+  // The week's breath: a send by hand leaves out whoever hears from you within a week of it, and its tally counts them
+  // held, as the run's own page files them under Held back.
+  RECIPIENT_REASON_HEARD,
+  // The workspace's month of emails or texts used up (CAMPAIGN_MONTH_ALLOWANCE).
+  "month_allowance"
 ];
-function finishedRunHeldWhy(emailHeld) {
+function finishedRunHeldWhy(counted2) {
   const why = [
     HELD_REASONS.not_opted_in,
     HELD_REASONS.opted_out,
     HELD_REASONS.no_phone,
     HELD_REASONS.human_has_it,
-    ...EMAIL_HOLDS.filter((r2) => emailHeld.includes(r2)).map((r2) => HELD_REASONS[r2])
+    ...HELD_WHEN_COUNTED.filter((r2) => counted2.includes(r2)).map((r2) => HELD_REASONS[r2])
   ];
   return `${why.join(", ")}, or ${HELD_REASONS.outcome_unknown}`;
 }
@@ -30618,11 +30629,12 @@ function nextShare(p) {
 function workspacePausedOf(input) {
   return input.playbooks?.ready?.paused === true || input.broadcasts?.ready?.paused === true;
 }
-var heldWaitWords = (n) => `${n} ${n === 1 ? "hears" : "hear"} from you within a week of today and ${n === 1 ? "waits" : "wait"}`;
 function whoWill(p) {
   const reach = playbookReach({ state: p.state, candidates: p.candidates, held: p.held, waiting: p.totals.waiting });
   const of = p.named ? ` of ${p.named.pool}` : "";
   const offers = purposeOfPlaybook(triggerOf(p.trigger)?.cls ?? null) === "marketing";
+  const waits = p.held ?? 0;
+  const waitWords2 = breathWaitWords(waits, String(waits));
   switch (reach) {
     case "sends": {
       const all = p.candidates ?? 0;
@@ -30630,7 +30642,7 @@ function whoWill(p) {
       const next = nextShare(p);
       const later = all - next;
       return {
-        why: `${next}${of} will get it` + (later > 0 ? ` \xB7 up to ${later} more on later runs, ${cap} a run` : "") + (p.held ? ` \xB7 ${heldWaitWords(p.held)}` : ""),
+        why: `${next}${of} will get it` + (later > 0 ? ` \xB7 up to ${later} more on later runs, ${cap} a run` : "") + (waits > 0 ? ` \xB7 ${waitWords2}` : ""),
         pill: { tone: "ok", label: plural(next, "person", "people") }
       };
     }
@@ -30641,7 +30653,7 @@ function whoWill(p) {
       };
     case "all-heard":
       return {
-        why: heldWaitWords(p.held ?? 0),
+        why: waitWords2,
         pill: { tone: "warn", label: "All waiting" }
       };
     case "uncounted":
@@ -40385,7 +40397,6 @@ export {
   EMAIL_BODY_MAX,
   EMAIL_CLAIMS,
   EMAIL_ELSEWHERE_SENTENCE,
-  EMAIL_HOLDS,
   EMAIL_NOT_ANSWERED_SENTENCE,
   EMAIL_STOP_PATTERN,
   EMAIL_SUBJECT_MAX,
@@ -40446,6 +40457,7 @@ export {
   HEARD_UNREAD_WORDS,
   HELD_ON,
   HELD_REASONS,
+  HELD_WHEN_COUNTED,
   HELD_WORDS,
   HOLD_DOOR_WORDS,
   HOUR_MS,
@@ -41147,6 +41159,7 @@ export {
   brainMetaOf,
   breathSplit,
   breathTouchOf,
+  breathWaitWords,
   broadcastFailureFix,
   broadcastFailureWords,
   broadcastName,

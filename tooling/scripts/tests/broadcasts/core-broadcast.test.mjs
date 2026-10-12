@@ -82,6 +82,9 @@ function fakes(over = {}) {
     message: rowsOf({ whatsapp: approved }),
     // UTC, where noon is inside the day's sending hours on any machine the suite runs on.
     facts: { businessName: "Marisa's", bookingLink: "https://book.example/m", timezone: "UTC" },
+    // The Google listing's review link is read only where a slot asks for it: a case whose message has no review slot
+    // never asks, so this fails any that would.
+    reviewLink: new Error("the review link was read for a message with no review slot"),
     batch: [
       { contact_id: "k1", facts: null },
       { contact_id: "k2", facts: null },
@@ -107,8 +110,9 @@ function fakes(over = {}) {
     // Nobody on the run goes another way than the channel asked about, unless a case says so: a hold on one channel then
     // holds that channel's people alone (WhatsApp's template not approved; the workspace's offers and news by email).
     byOtherChannels: false,
-    // Nobody on the run was skipped for a hold of the workspace's on email, unless a case says which (contracts EMAIL_HOLDS).
-    heldForEmail: [],
+    // Nobody on the run was skipped for a reason its news names only when counted (contracts HELD_WHEN_COUNTED: the
+    // workspace's holds on email, the week's breath, the month's allowance), unless a case says which.
+    heldFor: [],
     deliver: (d) => ({ outcome: "sent", messageId: `m-${d.contactId}`, externalId: "wamid" }),
     scheduleNext: undefined,
     finish: undefined,
@@ -481,19 +485,46 @@ test("people still queued: the next batch is scheduled, unless a cancel landed m
     "as many as it reached, of how many, and what a person is held for; a hold on email is not named on a run nobody was held on for one",
   );
   // A run that skipped someone for a hold of the workspace's on email names that hold, and only that one.
-  const held = fakes({ remaining: 0, tally: { sent: 1, held: 1 }, heldForEmail: ["email_offers_paused"] });
+  const held = fakes({ remaining: 0, tally: { sent: 1, held: 1 }, heldFor: ["email_offers_paused"] });
   await sendBroadcastBatch(held.ports, cmd());
   assert.equal(
     held.log.at(-1)[1].body,
     "1 of 2 people got it; 1 held back (no recorded yes, asked to stop, no number, a person had the thread, offers and news by email are paused, or a run that did not finish). Replies land in the Inbox.",
   );
   assert.ok(held.ops().indexOf("finish") >= 0 && held.log.at(-1)[0] === "alert");
+  // The week's breath: a send by hand left someone out (skipped heard_this_week), and its tally counts them as held. The
+  // news gives that reason, in the words the run's own page gives them, where it named every reason but the real one.
+  const breath = fakes({ remaining: 0, tally: { sent: 1, held: 1 }, heldFor: ["heard_this_week"] });
+  await sendBroadcastBatch(breath.ports, cmd());
+  assert.equal(
+    breath.log.at(-1)[1].body,
+    "1 of 2 people got it; 1 held back (no recorded yes, asked to stop, no number, a person had the thread, not sent: they hear from you within a week of it, or a run that did not finish). Replies land in the Inbox.",
+  );
+  assert.ok(breath.log.at(-1)[1].body.includes(`${HELD_REASONS.heard_this_week}, or a run that did not finish`));
+  // The month's allowance, the other reason a run skips someone for that its news left out.
+  const month = fakes({ remaining: 0, tally: { sent: 1, held: 1 }, heldFor: ["month_allowance"] });
+  await sendBroadcastBatch(month.ports, cmd());
+  assert.equal(
+    month.log.at(-1)[1].body,
+    "1 of 2 people got it; 1 held back (no recorded yes, asked to stop, no number, a person had the thread, this month's allowance is used up, or a run that did not finish). Replies land in the Inbox.",
+  );
+  // Several, in the list's own order whatever order the port answers them in; and a run the breath left everyone out of.
+  const all = fakes({
+    remaining: 0,
+    tally: { sent: 0, held: 3 },
+    heldFor: ["month_allowance", "heard_this_week", "email_marketing_disabled"],
+  });
+  await sendBroadcastBatch(all.ports, cmd());
+  assert.equal(
+    all.log.at(-1)[1].body,
+    `None of the 3 people on it got it: each was held back (no recorded yes, asked to stop, no number, a person had the thread, ${HELD_REASONS.email_marketing_disabled}, ${HELD_REASONS.heard_this_week}, ${HELD_REASONS.month_allowance}, or a run that did not finish). The broadcast's page says who and why.`,
+  );
   // Read before the run is closed: a read that fails leaves the run open for the job's next try, the owner's news not lost.
-  const unread = fakes({ remaining: 0, tally: { sent: 1, held: 1 }, heldForEmail: new Error("PostgREST down") });
+  const unread = fakes({ remaining: 0, tally: { sent: 1, held: 1 }, heldFor: new Error("PostgREST down") });
   await assert.rejects(sendBroadcastBatch(unread.ports, cmd()), /PostgREST down/);
   assert.ok(!unread.ops().includes("finish") && !unread.ops().includes("alert"));
   // Nobody held: nothing to ask.
-  const none = fakes({ remaining: 0, tally: { sent: 2, held: 0 }, heldForEmail: new Error("never asked") });
+  const none = fakes({ remaining: 0, tally: { sent: 2, held: 0 }, heldFor: new Error("never asked") });
   await sendBroadcastBatch(none.ports, cmd());
   assert.ok(none.ops().includes("finish"));
   assert.equal(BROADCAST_CHUNK, 25);
@@ -606,8 +637,12 @@ test("a review ask's send: the link the workspace's Google listing keeps (00408)
   const ask = broadcast({ params: [{ kind: "first_name" }, { kind: "review_link" }] });
   const words = { meta_status: "approved", body_preview: "Thanks, {{1}}! A review helps: {{2}}", category: "utility" };
   const link = "https://example.com/review/harbor-studio";
-  const facts = (reviewLink) => ({ businessName: "Marisa's", bookingLink: null, reviewLink, timezone: "UTC" });
-  const filled = fakes({ broadcast: ask, message: rowsOf({ whatsapp: words }), facts: facts(link) });
+  const asked = [];
+  const filled = fakes({
+    broadcast: ask,
+    message: rowsOf({ whatsapp: words }),
+    reviewLink: () => (asked.push("reviewLink"), link),
+  });
   await sendBroadcastBatch(filled.ports, cmd());
   assert.deepEqual(
     filled.log.filter((l) => l[0] === "deliver").map((l) => [l[1].contactId, l[1].template.params]),
@@ -616,13 +651,38 @@ test("a review ask's send: the link the workspace's Google listing keeps (00408)
       ["k2", ["Bo", link]],
     ],
   );
-  const none = fakes({ broadcast: ask, message: rowsOf({ whatsapp: words }), facts: facts(null) });
+  assert.deepEqual(asked, ["reviewLink"], "read once for the batch, never once a person");
+  const none = fakes({ broadcast: ask, message: rowsOf({ whatsapp: words }), reviewLink: null });
   await sendBroadcastBatch(none.ports, cmd());
   assert.equal(none.log.filter((l) => l[0] === "deliver").length, 0);
   assert.deepEqual(none.marks(), [
     ["k1", "skipped", "missing_value"],
     ["k2", "skipped", "missing_value"],
   ]);
+});
+
+test("the Google listing is read only where a slot asks for its review link: a listing that cannot be read never stops a send with no review slot, and still stops one whose slot needs the link", async () => {
+  // Before the lane a broadcast never depended on google_listings; every batch then read it whatever its message, so a
+  // passing failure on that table threw sends that carry no review link at all.
+  const unreadable = new Error("cannot read the workspace's review link: statement timeout");
+  const plain = fakes({ reviewLink: unreadable, remaining: 0, tally: { sent: 2, held: 0 } });
+  await sendBroadcastBatch(plain.ports, cmd());
+  assert.deepEqual(
+    plain.log.filter((l) => l[0] === "deliver").map((l) => [l[1].contactId, l[1].template.params]),
+    [
+      ["k1", ["Ada", "Marisa's"]],
+      ["k2", ["Bo", "Marisa's"]],
+    ],
+    "no review slot: everyone is sent, the listing never asked",
+  );
+  assert.ok(plain.ops().includes("finish"), "and the run finishes");
+  // The same unreadable listing, with a review slot: the batch stops on the read, before the run is marked sending or
+  // anyone is claimed, so the job's next try finds it as it was and nobody is held for a link that may well be there.
+  const ask = broadcast({ params: [{ kind: "first_name" }, { kind: "review_link" }] });
+  const words = { meta_status: "approved", body_preview: "Thanks, {{1}}! A review helps: {{2}}", category: "utility" };
+  const slot = fakes({ broadcast: ask, message: rowsOf({ whatsapp: words }), reviewLink: unreadable });
+  await assert.rejects(sendBroadcastBatch(slot.ports, cmd()), /cannot read the workspace's review link/);
+  assert.deepEqual(slot.ops(), [], "nothing written: not started, nobody claimed, nobody held");
 });
 
 test("a playbook's run asks the door for the stricter of its moment's class and its message's category, as its enrolment did: a no to offers said after a Win-back enrolled someone holds them at the wire", async () => {
@@ -1922,7 +1982,7 @@ test("offers by email, where the deployment names a campaigns domain the provide
     message: versionsOf([], offerRows),
     offersClosed: () => (asked.push("asked"), "the campaigns domain campaigns.example.com is not verified for sending"),
     byOtherChannels: (_id, than) => (others.push(than), true),
-    heldForEmail: ["email_marketing_disabled"],
+    heldFor: ["email_marketing_disabled"],
     remaining: 0,
     tally: { sent: 1, held: 2 },
   });
@@ -2342,7 +2402,7 @@ test("a pause on offers and news by email, or a campaigns domain that cannot be 
           ? heldBy(reason)(d)
           : { outcome: "sent", messageId: `m-${d.contactId}`, externalId: "wamid" },
       byOtherChannels: (_id, than) => (others.push(than), true),
-      heldForEmail: [reason],
+      heldFor: [reason],
       remaining: 0,
       tally: { sent: 1, held: 2 },
     });

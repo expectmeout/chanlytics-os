@@ -1406,7 +1406,6 @@ import {
   messageAboutOfTrigger as messageAboutOfTrigger2,
   messageHolds,
   nextOpenMoment as nextOpenMoment2,
-  parseParamSpecs,
   resolveParams as resolveParams2,
   triggerOf as triggerOf2,
   versionsOf as versionsOf2,
@@ -1427,6 +1426,7 @@ import {
   isOfferByEmail as isOfferByEmail4,
   leftOutByFacts,
   messageAboutOfTrigger,
+  parseParamSpecs,
   purposeOfTemplate as purposeOfTemplate3,
   renderOwnVersion,
   renderTemplate as renderTemplate2,
@@ -1467,6 +1467,10 @@ function startsInTime(cmd, r, now) {
 }
 function rowFacts(r) {
   return r.facts !== null && typeof r.facts === "object" && !Array.isArray(r.facts) ? r.facts : {};
+}
+async function slotsOf(ports, params) {
+  const specs = parseParamSpecs(params);
+  return { specs, reviewLink: specs.some((s) => s.kind === "review_link") ? await ports.reviewLink() : null };
 }
 function rowHold(appointments, r) {
   const facts = rowFacts(r);
@@ -1836,7 +1840,7 @@ async function sendOne(w, r) {
     firstName: firstNameOf2(c.display_name, c.wa_profile_name),
     businessName: w.facts.businessName,
     bookingLink: w.facts.bookingLink,
-    reviewLink: w.facts.reviewLink,
+    reviewLink: w.reviewLink,
     visitWhen: typeof facts.visit_when === "string" ? facts.visit_when : null,
     visitService: typeof facts.visit_service === "string" ? facts.visit_service : null,
     // A follow-up's link, frozen when the run was made (0006).
@@ -1885,6 +1889,7 @@ async function sendBroadcastBatch(ports, cmd) {
   if (await stoppedByBilling(ports, b)) return;
   const facts = await ports.facts();
   if (await outsideTheHours(ports, b, cmd, facts.timezone)) return;
+  const slots = await slotsOf(ports, b.params);
   const batch = await ports.batch(b.id, BROADCAST_CHUNK);
   if (await wireIsUnbound(ports, b, cmd, batch)) return;
   if (b.state === "scheduled" && !await ports.startSending(b.id)) return;
@@ -1920,7 +1925,7 @@ async function sendBroadcastBatch(ports, cmd) {
     tpl: whatsappRow ?? { body_preview: null },
     whatsappApproved,
     rows,
-    specs: parseParamSpecs(b.params),
+    ...slots,
     facts,
     people,
     priors,
@@ -1964,9 +1969,9 @@ async function afterTheBatch(w, picked) {
   const remaining = await ports.remaining(b.id);
   if (remaining <= 0) {
     const { sent, held } = await ports.tally(b.id);
-    const emailHeld = held > 0 ? await ports.heldForEmail(b.id) : [];
+    const counted = held > 0 ? await ports.heldFor(b.id) : [];
     await ports.finish(b.id, { sent, held });
-    await ports.alert(finishedNews(b, { sent, held, emailHeld }));
+    await ports.alert(finishedNews(b, { sent, held, counted }));
     return;
   }
   if (await ports.state(b.id) !== "sending") return;
@@ -1979,8 +1984,8 @@ async function afterTheBatch(w, picked) {
   else if (picked > 0 && w.marked === 0) await stall(ports, b, cmd, "people");
   else await ports.scheduleNext(b.id);
 }
-function finishedNews(b, { sent, held, emailHeld }) {
-  const why = finishedRunHeldWhy(emailHeld);
+function finishedNews(b, { sent, held, counted }) {
+  const why = finishedRunHeldWhy(counted);
   const people = (n) => `${n} ${n === 1 ? "person" : "people"}`;
   return {
     kind: sent > 0 ? "broadcast_sent" : "broadcast_stopped",

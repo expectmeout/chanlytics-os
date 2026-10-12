@@ -14,6 +14,7 @@ import {
   MESSAGE_GONE_WORDS,
   PLAYBOOK_DELETE_WORDS,
   appointmentWordOf,
+  breathWaitWords,
   pipelineRoute,
 } from "@chanlytics/contracts";
 import type { AppointmentWord, ConsentChannel } from "@chanlytics/contracts";
@@ -374,7 +375,7 @@ function nextWords(c: CardCtx): ReactNode {
   // Who the run reaches now, as many as one run takes (a visit's moment has no cap), and who waits out the week's breath:
   // said where the moment was counted, where the drawer's Who line said it (Ruben, 11 Oct 2026: the line is the sentence
   // now). They wait for a message within a week of today on either side, one already sent or one due, so the words say
-  // both, never "this week".
+  // both, never "this week": contracts breathWaitWords, the one spelling Coming up's row says them by too.
   const now = p.candidates ?? 0;
   const waits = p.held ?? 0;
   const counted = p.candidates !== null && p.held !== null && !p.totals.waiting;
@@ -385,13 +386,7 @@ function nextWords(c: CardCtx): ReactNode {
       <b>{LIFECYCLE_WORDS.compose.sentence.at(p.next)}</b>
       {reaches > 0 ? <> &middot; {pbPeople(reaches)}</> : null}
       {reachWords ? <> &middot; {reachWords}</> : null}
-      {reaches > 0 && waits > 0 ? (
-        <>
-          {" "}
-          &middot; {pbPeople(waits)} more {waits === 1 ? "hears" : "hear"} from you within a week of today and{" "}
-          {waits === 1 ? "waits" : "wait"}
-        </>
-      ) : null}
+      {reaches > 0 && waits > 0 ? <> &middot; {breathWaitWords(waits, `${pbPeople(waits)} more`)}</> : null}
       {reachDoor ? (
         <>
           {" "}

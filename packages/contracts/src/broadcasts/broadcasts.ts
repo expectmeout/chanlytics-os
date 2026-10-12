@@ -181,16 +181,17 @@ export {
   heardWords,
   heardTooWords,
   allLeftOutWords,
+  breathWaitWords,
   HEARD_UNREAD_WORDS,
   goesToOf,
   HELD_REASONS,
-  EMAIL_HOLDS,
+  HELD_WHEN_COUNTED,
   DELIVERY_RECEIPTS_TIP,
   DELIVERY_RECEIPTS_WORDS,
   finishedRunHeldWhy,
   isReplyTo,
 } from "./run-words";
-export type { EmailHold, HeardTouch } from "./run-words";
+export type { HeardTouch } from "./run-words";
 
 /** The words a person will read: the body with its numbered slots filled. */
 export function renderTemplate(body: string | null | undefined, params: readonly string[]): string {

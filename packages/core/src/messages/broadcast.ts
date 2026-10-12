@@ -6,7 +6,6 @@ import {
   BROADCAST_THROTTLE_WAITS_MS,
   finishedRunHeldWhy,
   OUTCOME_UNKNOWN,
-  type EmailHold,
   type JobNews,
   audienceTrigger,
   campaignMessageOf,
@@ -17,7 +16,6 @@ import {
   messageAboutOfTrigger,
   messageHolds,
   nextOpenMoment,
-  parseParamSpecs,
   resolveParams,
   triggerOf,
   versionsOf,
@@ -36,6 +34,7 @@ import {
   rowFacts,
   rowHold,
   prepare,
+  slotsOf,
   startsInTime,
   type Work,
 } from "./broadcast-channels";
@@ -238,7 +237,7 @@ async function sendOne(w: Work, r: RecipientRow): Promise<Verdict> {
     firstName: firstNameOf(c.display_name, c.wa_profile_name),
     businessName: w.facts.businessName,
     bookingLink: w.facts.bookingLink,
-    reviewLink: w.facts.reviewLink,
+    reviewLink: w.reviewLink,
     visitWhen: typeof facts.visit_when === "string" ? facts.visit_when : null,
     visitService: typeof facts.visit_service === "string" ? facts.visit_service : null,
     // A follow-up's link, frozen when the run was made (0006).
@@ -337,6 +336,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   // them would otherwise go on, batch after batch, past the last hour.
   const facts = await ports.facts();
   if (await outsideTheHours(ports, b, cmd, facts.timezone)) return;
+  const slots = await slotsOf(ports, b.params);
   // Who is next, before the wires are asked about: the channels this batch goes by are its people's.
   const batch = await ports.batch(b.id, BROADCAST_CHUNK);
   if (await wireIsUnbound(ports, b, cmd, batch)) return;
@@ -372,7 +372,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   // all) reads as marketing and needs the stronger consent rather than the weaker one. Whichever channel it goes by; and a
   // playbook's run asks the stricter of it and its moment's class, as its enrolment did (purposeAtTheDoor). (What fills
   // each slot, typed text once and the rest per person, and the workspace's own words for the slots that name it, are
-  // `facts`, read once above.)
+  // `slots` and `facts`, read once above.)
   // The moment a playbook's run was made for (contracts audienceTrigger), null for a broadcast: a visit run is never held by the
   // month's allowance, and what its message is about, the pause it passes and whether it is an offer by email follow from it.
   const trigger = audienceTrigger(b.audience);
@@ -390,7 +390,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
     tpl: whatsappRow ?? { body_preview: null },
     whatsappApproved,
     rows,
-    specs: parseParamSpecs(b.params),
+    ...slots,
     facts,
     people,
     priors,
@@ -456,11 +456,11 @@ async function afterTheBatch(w: Work, picked: number): Promise<void> {
   const remaining = await ports.remaining(b.id);
   if (remaining <= 0) {
     const { sent, held } = await ports.tally(b.id);
-    // Which of the workspace's holds on email anyone was skipped for, read before the run is closed: a read that fails
-    // leaves the run open for the job's next try, where one after the close would lose the owner their news.
-    const emailHeld = held > 0 ? await ports.heldForEmail(b.id) : [];
+    // Which reasons its news names only when counted anyone was skipped for, read before the run is closed: a read that
+    // fails leaves the run open for the job's next try, where one after the close would lose the owner their news.
+    const counted = held > 0 ? await ports.heldFor(b.id) : [];
     await ports.finish(b.id, { sent, held });
-    await ports.alert(finishedNews(b, { sent, held, emailHeld }));
+    await ports.alert(finishedNews(b, { sent, held, counted }));
     return;
   }
   if ((await ports.state(b.id)) !== "sending") return;
@@ -479,14 +479,14 @@ async function afterTheBatch(w: Work, picked: number): Promise<void> {
  * kept as until 00141, so two completed broadcasts were counted into Today's "6 jobs did not finish". And as many as it
  * reached, of how many: a run that reached nobody is not "sent", in its words or in its KIND (it was `broadcast_sent`
  * under "reached nobody": the bell's green tick, and "1 broadcast finished" in what Today says you missed; it is a
- * broadcast that did not go out, `broadcast_stopped`). The reasons it gives for who was held name a hold of the
- * workspace's on email only where it skipped someone for one (`emailHeld`, contracts finishedRunHeldWhy).
+ * broadcast that did not go out, `broadcast_stopped`). The reasons it gives for who was held name those of contracts
+ * HELD_WHEN_COUNTED (an email hold, the week's breath, the month's allowance) only where it skipped someone for one.
  */
 function finishedNews(
   b: { id: string; name: string },
-  { sent, held, emailHeld }: { sent: number; held: number; emailHeld: readonly EmailHold[] },
+  { sent, held, counted }: { sent: number; held: number; counted: readonly string[] },
 ): JobNews {
-  const why = finishedRunHeldWhy(emailHeld);
+  const why = finishedRunHeldWhy(counted);
   const people = (n: number) => `${n} ${n === 1 ? "person" : "people"}`;
   return {
     kind: sent > 0 ? "broadcast_sent" : "broadcast_stopped",
