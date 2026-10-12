@@ -339,7 +339,7 @@ test.describe("Ask with the page it is asked on", () => {
  * applied to production, with E2E_PAID_MODEL=1.
  */
 const OFFER_ASKED = "I want to offer 10% off everything from today until the end of next month.";
-const CLAIMS_A_SEND = /\bI (have )?(sent|scheduled|set up|created)\b/i;
+const CLAIMS_A_SEND = /\bI(?:['’]ve| have)? (?:sent|scheduled|set up|created)\b/i;
 
 test.describe("Ask as the marketing manager", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
@@ -361,17 +361,21 @@ test.describe("Ask as the marketing manager", () => {
       .split("\n")
       .filter(Boolean)
       .map((l) => JSON.parse(l));
-    const final = lines.find((l) => l.t === "final");
-    expect(final, "a final message").toBeTruthy();
-    if (!final.message.failed) {
-      const kinds = final.message.proposals.map((p: { kind: string }) => p.kind);
-      expect(kinds, "no one-off send is proposed").not.toContain("broadcast");
-      expect(kinds, "no campaign is proposed").not.toContain("playbook");
-      expect(final.message.text).not.toMatch(CLAIMS_A_SEND);
+    try {
+      const final = lines.find((l) => l.t === "final");
+      expect(final, "a final message").toBeTruthy();
+      if (!final.message.failed) {
+        const kinds = final.message.proposals.map((p: { kind: string }) => p.kind);
+        expect(kinds, "no one-off send is proposed").not.toContain("broadcast");
+        expect(kinds, "no campaign is proposed").not.toContain("playbook");
+        expect(final.message.text).not.toMatch(CLAIMS_A_SEND);
+      }
+    } finally {
+      // The thread is the run's own, deleted whatever the turn said, so a failed run leaves none behind; no card was
+      // pressed.
+      const del = await page.request.delete(scoped(`/api/v1/ask/threads/${lines[0].id}`, ws), fromTheApp);
+      expect(del.status()).toBe(200);
     }
-    // The thread is the run's own, deleted as every turn here leaves none behind; no card was pressed.
-    const del = await page.request.delete(scoped(`/api/v1/ask/threads/${lines[0].id}`, ws), fromTheApp);
-    expect(del.status()).toBe(200);
   });
 });
 

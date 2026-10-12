@@ -10,9 +10,9 @@ and a tool call may return several cards. Built on its lane by 12 October 2026 (
 Written against `origin/main` at `ef0aea36a` (#1537), read by three read-only explorations on that commit (Ask's tool
 layer; campaigns, messages and moments; the receptionist's knowledge, lists, calendar and doors) and checked by hand
 where this document names a line; the code wins where they disagree. Branch `ask/the-marketing-manager`, worktree
-`cm-ask-manager` (source only, no install yet). To be built end to end on the local branch, by one Sonnet implementer
-per part with one combined review round each, and pushed as one pull request labelled `suite` after Ruben's review (his
-9 October rule for the moment lane).
+`cm-ask-manager`. Built end to end on the local branch by one Opus implementer and one Opus reviewer per task, with fix
+rounds where a review asked (Ruben's word on the plan, 10 October 2026), main merged in twice, and pushed as one pull
+request labelled `suite` after Ruben's review.
 
 Asked by Ruben on 10 October 2026 in three messages: that Ask should think like the owner's marketing manager; that it
 should know every offer and campaign, recommend and write new messages for WhatsApp, email and text, turn "I want to offer
@@ -492,7 +492,7 @@ The plan's seven amendments, then the rulings made while building:
    `plan` card kind, no `POST campaigns/plan`, no `apply-plan.ts`. Its silent steps are committed in order by
    `commitPlan` (`apps/dashboard/src/legacy-bridge/ask/commit.ts`), each through its own route under the key
    `plan:<id>:<n>`, and a send unlocks when the steps it names are done. Undo stays per card.
-2. **`propose_plan` is the action `propose_campaign.plan`**, so every role keeps twenty tools.
+2. **`propose_plan` is the action `propose_campaign.plan`**, so no role passes twenty tools.
 3. **No `lapseMs`:** `askCardLapsed` gives a stamped card a week and any other a day.
 4. **The review ask is a second starter**, `after_visit_review` (utility, on the day after an appointment), offered only
    where the Google listing keeps a review link; How did it go keeps its words.
@@ -564,7 +564,8 @@ twenty act actions (eighteen) and nineteen card kinds (eighteen).
   typechecked, never run here: its first run is after 00415 and 00416 are applied, with `E2E_PAID_MODEL=1`.
 - **The eval cases** name what their workspace must hold (`needs`), and a run names what it holds
   (`EVAL_WORKSPACE_HAS`). The suite's workspace (`no_calendar,no_offers_channel,no_offers_yes`) runs 108 of the 123
-  cases, 116 once its Win-back is seeded, and no offer case (`docs/runbook.md`, "Turn on Ask, spoken").
+  cases, 116 once its Win-back is seeded, and no case where an offer can be carried (`docs/runbook.md`, "Turn on Ask,
+  spoken").
 
 **D4, restated under decision 0051.** A cut in a reply ("10% off", any discount) is always held for a person. A fixed
 offer price written in the plan's note may be said only while "Never quote a price" is off, and only through the note's
@@ -573,6 +574,9 @@ confirm.
 
 **Owed to Ruben** (the plan's "Owed to Ruben" holds the same list):
 
+- Applying 00415 and 00416 before the merge, dry run first, in the order §13.2 gives; their final numbers are claimed
+  just before the push.
+- His calls, taken as recommended: D4 above and its switch-off case to confirm, and the rest the plan's list names.
 - The `change_words` eval case proves only the tool: a seeded message with one text value would let it expect a
   `playbook_change` card with `params`.
 - The e2e block and the real-app screenshots run only after he applies 00415 and 00416: the e2e and the local dev

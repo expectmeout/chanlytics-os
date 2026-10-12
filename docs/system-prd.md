@@ -156,7 +156,7 @@ The invariants every subsystem obeys, and where each is enforced. When a change 
 | Every time is said by the business's clock                             | A minute, a day, a "tomorrow" is the workspace's, not the browser's                                                                                                                                   | `contracts/clock.ts` through `window.__clock`                                                                                                                    |
 | The interface says each thing once, and the phone shows the work first | One tone vocabulary, one pill, one Confirm, one empty state, one toast; a page's numbers are one line, its rules behind a tap, no strip above the work on a phone                                     | `contracts/tone.ts`, `chrome.ts`, `refusal.ts`; `data-bits.jsx`; the interface plan's passes (S-11)                                                              |
 | Production scripts meet the bar                                        | Dry run by default, a JSONL backup first, idempotent, `--apply` to mean it                                                                                                                            | Every writing script in `tooling/scripts`                                                                                                                        |
-| Either deploy order works                                              | A shape both apps must agree on is compatible in both orders                                                                                                                                          | Review rule; README                                                                                                                                              |
+| Either deploy order works                                              | A shape both apps must agree on is compatible in both orders; where it cannot be (a campaign's trial and last day, which only the edge keeps), no such card is approved until the edge deploys (S-14) | Review rule; README                                                                                                                                              |
 
 ## S-04 · Tenancy, identity and access
 
@@ -958,8 +958,8 @@ records `ended` (contracts `campaignEnded`), and the campaign stays running and 
 veto, 30 minutes with a Stop, and its notice says so (contracts `effectiveMode`); under ask, veto and never it changes
 nothing. While it lasts the campaign's state says "On trial until Oct 9". Only Ask sets either. Its card for a new
 campaign under an auto class carries `trial: true`, and `POST playbooks` counts the week from its own clock at Approve
-(`newCampaignTrialUntil`); a past instant from any caller is refused. A plan's paced campaign carries the offer's last
-day (`until`, judged by core `untilOf`: today or later). Ask's change card sets, moves or clears both, and a campaign's
+(`newCampaignTrialUntil`); a past instant from any caller is refused. Its card for a new campaign may name a last day
+(`until`), and a plan's paced campaign carries the offer's, each judged by core `untilOf` (today or later). Ask's change card sets, moves or clears both, and a campaign's
 words (`params`), through `PUT playbooks/[id]` and the `change_playbook` door, which takes nine keys; an undo puts back
 the dates the door recorded, past or not. The composer's own campaigns start with neither. Both are kept only by the
 edge (core `runPlaybook`), which deploys about three minutes after the dashboard.

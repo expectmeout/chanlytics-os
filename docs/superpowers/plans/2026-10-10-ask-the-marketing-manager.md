@@ -499,10 +499,9 @@ Run (R1): `tests/ask/ask-tools-size.test.mjs`. Expected: PASS, four printed line
 **Files:**
 - Modify: `act/playbook-change.ts` (fields `params?: string[]`, `until?: string`, `trial_until?: string | null`),
   `act/playbook.ts` (`PROPOSABLE_TRIGGERS` → the moments `momentOffered` allows for this workspace, read from the facts
-  the handler already loads plus the calendar's state from the `connections` reader; every new playbook card sets
-  `trial_until = now + 7 days` and its summary says "on trial for a week: for seven days each run waits half an hour
-  with a Stop"; as built, the week counts from Approve, under an auto class only, and each run waits 30 minutes, veto's
-  own words: the spec's §13), `srv/ask/prompt.ts` (the reminder line of spec §5.3), registry tests,
+  the handler already loads plus the calendar's state from the `connections` reader; a new playbook card starts a
+  week's trial, counted from Approve, under an auto class only, each run waiting 30 minutes with a Stop in veto's own
+  words: the spec's §13), `srv/ask/prompt.ts` (the reminder line of spec §5.3), registry tests,
   `rename-ask-tools.mjs`; fixture (R5)
 - Test: `tests/playbooks/change/ask-playbook-change.test.mjs` (exists; append), `tests/playbooks/ask-setup/starter-card.test.mjs`
   (exists; append)
@@ -834,8 +833,8 @@ What the branch cannot do for itself, each also a line of the lane's ledger
   server read production.
 - **The live and nightly evals spend his key;** the push and the `suite` label are his; so is his look on a desk and a
   phone (the plan's group, "pasos silenciosos", the four coral buttons).
-- **His calls, taken as recommended** (decision 0055): D4 under decision 0051, the switch-off case to confirm; the
-  review ask filed utility (its English text may bill as two parts once a real link fills it); Undo leaving a WhatsApp
+- **His calls, taken as recommended** (decision 0055 and the ledger's rulings): D4 under decision 0051, the switch-off
+  case to confirm; the review ask filed utility (its English text may bill as two parts once a real link fills it); Undo leaving a WhatsApp
   version; an ended campaign staying running; the month's offer resumed by hand; the reminder as a sentence; the group
   press approving a silent step set aside with Not now; `CROSS_PAGE_MAX` not raised.
 - **Decision 0035's door order** (the scope read before the key, so no kind's delete undo replays from its key) is a

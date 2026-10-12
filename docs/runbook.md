@@ -1034,7 +1034,7 @@ WhatsApp pauses offers to US numbers), `offers_whatsapp` (WhatsApp among them, n
 `no_offers_channel`; `live_call`; `deals_on`; and `winback_seed` (the paused Win-back,
 `tooling/scripts/ops/e2e-workspace.mjs --seed-win-back`, by hand). The suite's own workspace has no calendar, a +1
 WhatsApp number, no mailbox and nobody's yes to offers: it is `no_calendar,no_offers_channel,no_offers_yes`, and
-`winback_seed` once seeded. Counted 12 Oct 2026, it runs 108 of the 123 cases (116 seeded) and no offer case. The two
+`winback_seed` once seeded. Counted 12 Oct 2026, it runs 108 of the 123 cases (116 seeded) and no case where an offer can be carried. The two
 offer cases (`offer_november_colour`, `covers_propose_campaign_broadcast`) need a workspace where someone said yes to
 offers and a channel carries them: email set up for offers (a verified campaigns domain and a postal address), or
 WhatsApp on a number outside +1, which the broadcast case needs, with its Win-back seeded. The calendar cases need a

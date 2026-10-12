@@ -10,8 +10,8 @@ checked again at the pull request. Where this note and the code disagree, the co
 
 On 10 October 2026 Ruben asked that Ask think like the owner's marketing manager: know every offer and campaign, write
 messages for WhatsApp, email and text, and turn "10% off all next month" into the right mix of what exists and what is
-new (`docs/superpowers/specs/2026-10-10-ask-the-marketing-manager-design.md`, §0 to §2). Read on main at `b220a8b74`,
-the commit the lane first met:
+new (`docs/superpowers/specs/2026-10-10-ask-the-marketing-manager-design.md`, §0 to §2). The lane began on main at
+`ef0aea36a`; read here on main at `b220a8b74`, the main first merged into it (`735b16279`):
 
 - **Ask could not write a message or propose a reminder.** `propose_campaign` picked a message the Library held or a
   moment's starter; the setup rule said "Never propose a reminder before or after an appointment"
@@ -83,7 +83,8 @@ And, ruled while building:
   sent: they hear from you within a week of it" after (`run-words.ts:186,240`). The composer's switch sends to them
   too; Ask's card never does. The appointment moments stay exempt, and their cards say so.
 - **A setup with no silent step is plain cards.** Where every step sends (a setup's campaigns, each its own press), the
-  cards are not stamped: a day's lapse, their own keys, "N cards to review" (`act/plan.ts:240`). This is the spec's D3.
+  cards are not stamped (`act/plan.ts:240`): a day's lapse, their own keys, "N cards to review"
+  (`packages/contracts/src/ask/ask-answer.ts:741`). This is the spec's D3.
 - **A plan's words are its answer's detail.** The round that made the plan answers with them, what no card carries
   first, cut at the answer's 700 characters (`packages/contracts/src/ask/ask-answer.ts:725`, `answerForCards`). They are
   English, so a Spanish answer carries them in English.
@@ -112,8 +113,9 @@ confirmation.
 - **Reads:** `campaigns.journey` (the stages and the guide, `packages/contracts/src/journey/journey-guide.ts`),
   `campaigns.messages` (the whole Library, versions in review included), `calendar.room` (open slots ahead). Ask's
   `campaigns.playbooks` says each campaign's last day and trial.
-- **Acts:** `propose_campaign` with action `message` (card `message`), action `plan`, and `change` with `params`,
-  `until` and `trial_until`; the appointment moments proposable where a calendar is connected.
+- **Acts:** `propose_campaign` with action `message` (card `message`), action `plan`, `change` with `params`, `until`
+  and `trial_until`, and a new campaign (`playbook`) with its own `until` (`act/playbook.ts:603-605`); the appointment
+  moments proposable where a calendar is connected.
 - **Records:** `playbooks.until` and `playbooks.trial_until` (00416), a note's `until` in `tenant_config`,
   `google_listings.new_review_uri` (00415), written at the bind and by every later sync of the profile
   (`apps/edge/lib/google/profile-sync.ts:92`, `keepReviewLink`).
@@ -163,7 +165,8 @@ written and typechecked, not yet run.
 - A plan with only its silent steps (at least the note) when nothing can carry an offer or nobody has said yes; today
   the whole plan is refused in words.
 - Keeping `card:plan:` keys eight days (a migration 00410 in the review's numbering) instead of the guards above.
-- Owed, and Ruben's: the `change_words` eval case proves only the tool (a seeded message with one text value would let
+- Owed, and Ruben's: applying 00415 and 00416 as Steps says; D4's switch-off case (part 4) to confirm; the
+  `change_words` eval case proves only the tool (a seeded message with one text value would let
   it expect a `playbook_change` card with `params`); the e2e block and the real-app screenshots run only after 00415 and
   00416 are applied, since both read production; the live and nightly evals spend his key; the push and the `suite`
   label; his look on a desk and a phone; and decision 0035's door order (scope read before the key) is a separate task
