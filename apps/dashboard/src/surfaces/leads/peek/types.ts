@@ -21,6 +21,8 @@ export interface Armed {
   asked: boolean;
   outcome: LeadCallOutcome | null;
   note: string;
+  /** Who the call reached (0052), asked under Interested. */
+  spokeWith?: string;
 }
 
 /**
@@ -99,6 +101,8 @@ export interface PeekActs {
   onExpand: () => void;
   /** A lead that became a person: their page in People (the head's name opens it; so does the toast after Talking). */
   onOpenPerson: (id: string) => void;
+  /** The page's toast, for what a pane says after a door answers (In People's Use this name, 0052). */
+  say: Flash;
   onStage: (stage: PeekStage) => Promise<unknown>;
   onBack: () => void;
   onNotAFit: () => void;
@@ -115,6 +119,8 @@ export interface PeekActs {
   onLogCall: (id: string) => void;
   onOutcome: (outcome: LeadCallOutcome) => void;
   onNote: (note: string) => void;
+  /** Who the call reached (0052). */
+  onSpokeWith: (name: string) => void;
   onCancelCall: () => void;
   onSaveCall: () => Promise<void>;
   onDraft: (id: string) => Promise<void>;

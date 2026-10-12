@@ -189,6 +189,7 @@ export const LeadPeekActions = (p: PeekPage): PeekActs => {
       if (p.expand) p.expand(vm.id);
     },
     onOpenPerson: p.onOpenPerson,
+    say: p.flash,
     onStage: (stage) => post({ kind: "stage", stage }, "Not changed"),
     onBack: () => p.setMode("info"),
     onNotAFit: () => p.setMode("why"),
@@ -212,12 +213,18 @@ export const LeadPeekActions = (p: PeekPage): PeekActs => {
     onLogCall: () => armFor("call"),
     onOutcome: (outcome) => p.setArmed({ ...p.armed, outcome } as Armed),
     onNote: (note) => p.setArmed({ ...p.armed, note: note.slice(0, W.noteMax) } as Armed),
+    onSpokeWith: (name) => p.setArmed({ ...p.armed, spokeWith: name.slice(0, 80) } as Armed),
     onCancelCall: () => p.setArmed(null),
     onSaveCall: async () => {
       const a = p.armed;
       if (!a || !a.outcome) return;
       p.setArmed(null);
-      await post({ kind: "outcome", outcome: a.outcome, ...(a.note ? { note: a.note } : {}) }, "Not recorded");
+      // Who they spoke with goes only with Interested, the one outcome that makes or names a person (0052).
+      const spoke = a.outcome === "interested" && a.spokeWith?.trim() ? { spoke_with: a.spokeWith.trim() } : {};
+      await post(
+        { kind: "outcome", outcome: a.outcome, ...(a.note ? { note: a.note } : {}), ...spoke },
+        "Not recorded",
+      );
     },
     ...leadDraftActs(p, api, armFor),
     onSaidSent: async () => {

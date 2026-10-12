@@ -238,7 +238,7 @@ function peoplePorts(
       const { data, error } = await db
         .from("contacts")
         .select(
-          "id, phone_e164, consent, dnc, marketing_consent, erased_at, display_name, wa_profile_name, email, email_marketing",
+          "id, phone_e164, consent, dnc, marketing_consent, erased_at, display_name, wa_profile_name, email, email_marketing, name_source, name_settled_at",
         )
         .in("id", ids)
         .eq("tenant_id", tenantId);

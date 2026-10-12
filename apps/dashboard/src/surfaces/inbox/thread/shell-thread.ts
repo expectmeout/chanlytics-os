@@ -7,6 +7,7 @@
  * Nothing here is new behaviour: each reads the window name the JSX read, and says what the JSX said where it is not there.
  */
 import { useCallback, useSyncExternalStore } from "react";
+import { businessTrailOf } from "@chanlytics/contracts";
 import type { Params, RouteKey } from "@/client/api";
 import { onSurfaceMoved, surfaceVersion } from "@/legacy-bridge/surface-status";
 import type { replies } from "@/legacy-bridge/reach-out/replies";
@@ -40,6 +41,29 @@ export function usePeopleMoved(): void {
 /** The People surface, as far as the thread's header reads it: its rows, when they were read, and whether deals are on. */
 export function peopleRead(): Partial<Pick<PeopleSurface, "rows" | "fetchedAt" | "dealsOn">> | undefined {
   return object("__PEOPLE");
+}
+
+/** People's rows as their business trails (0052), kept for the rows they were made of: a list draws many names. */
+let trailRows: unknown = null;
+let trails = new Map<string, string>();
+
+/**
+ * The business a person works at, as it trails their name on a row (contracts businessTrailOf over People's row): null
+ * for a stand-in, someone who works nowhere, or before People is read.
+ */
+export function businessTrailFor(personId: string | null | undefined): string | null {
+  const rows = peopleRead()?.rows;
+  if (!rows || !personId) return null;
+  if (rows !== trailRows) {
+    trailRows = rows;
+    trails = new Map(
+      rows.flatMap((r): [string, string][] => {
+        const trail = businessTrailOf(r);
+        return trail ? [[r.id, trail]] : [];
+      }),
+    );
+  }
+  return trails.get(personId) ?? null;
 }
 
 /** A person's notes' courier (people-detail.ts `__personNotes`), when it is published and can say when a step is due. */

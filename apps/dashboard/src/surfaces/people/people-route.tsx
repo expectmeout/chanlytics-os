@@ -8,7 +8,7 @@
  * is one mount across every view of it: the Leads page follows its own address (../leads/page/leads-real.tsx).
  */
 import { useEffect, useRef, useState } from "react";
-import { routeOfPath } from "@chanlytics/contracts";
+import { personRouteOf, routeOfPath } from "@chanlytics/contracts";
 import { demoSession, navigate } from "../legacy-verbs";
 import { useSurface } from "../use-surface";
 import { takeOwnAddress } from "./page/own-address";
@@ -98,8 +98,12 @@ export function PeopleRoute({ pathname }: { pathname: string | null }) {
   // Until the list can be drawn, the route says People's name.
   const listDrawn = !!live || demoSession();
   usePeopleStanding(person ? "person" : pipeline || leads || listDrawn ? null : "people");
-  // A person's page reads the person itself (people-detail.ts) and never waits for People's rows; it is a new mount per person.
-  if (person) return <ClientProfile key={param} id={param} />;
+  // A person's page reads the person itself (people-detail.ts) and never waits for People's rows; it is a new mount per person,
+  // and one mount across their tabs (`<id>/history`, 0052), which the page follows as a prop.
+  if (person) {
+    const at = personRouteOf(param);
+    return <ClientProfile key={at.id} id={at.id} tab={at.tab} />;
+  }
   if (leads) return <LeadsScopePage param={param} />;
   // A workspace's People waits for its own surface (the frame's gate); a demo session draws the sample.
   if (!listDrawn) return null;

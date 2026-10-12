@@ -55,6 +55,7 @@ import type { POLICY_CLASSES, POLICY_MODES } from "../config/workspace-config/po
 import type { DEAL_LOST_REASONS, DEAL_PERS, DEAL_SOURCES, DEAL_STAGES } from "../deals/deal-words";
 import type { SELLS_BY } from "../deals/sells-by";
 import type { DOUBT_SEEN, DOUBT_SETTLED_AS } from "../people/person-doubts";
+import type { NAME_SOURCES } from "../person-page/words";
 import type { APPOINTMENT_SOURCES, APPOINTMENT_STATUSES } from "../calendar/feed-appointments";
 import type { SERVER_NOTIFICATION_KINDS } from "../today/notifications";
 import type { PLAYBOOK_STATES, PLAYBOOK_TRIGGERS } from "../playbooks/playbooks";
@@ -142,6 +143,8 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof CONSENT_STATES>, SchemaSet<"contacts.marketing_consent">>>,
   // The email answer (00174): the same three words, asked of marketing email (Reach out's unsubscribe).
   Holds<Exactly<Of<typeof CONSENT_STATES>, SchemaSet<"contacts.email_marketing">>>,
+  // Where a person's name came from (0052, 00412), in its one order.
+  Holds<Exactly<Of<typeof NAME_SOURCES>, SchemaSet<"contacts.name_source">>>,
 
   // Conversations and messages.
   Holds<Exactly<Of<typeof CONVERSATION_STATES>, SchemaSet<"conversations.state">>>,

@@ -944,9 +944,12 @@ test("the number's health: what WhatsApp said decides what may be sent; nothing 
 test("the detail: every person on a broadcast, with what happened to them; the send route refuses what the number cannot carry; the thread says which broadcast", () => {
   // The detail route answers getBroadcast's own answer: run through its reader in readers.test.mjs.
   const s = readCode("apps/dashboard/src/server/campaigns/broadcasts.ts");
-  // With the two columns that say whether the person stands (00403's rule, contracts answersToRuns): an erased person answers nothing.
+  // With the two columns that say whether the person stands (00403's rule, contracts answersToRuns): an erased person answers
+  // nothing. And the two that say where the name came from (0052): a stand-in named for their business is greeted by no name.
   assert.ok(
-    s.includes("contacts(display_name, wa_profile_name, phone_e164, email, erased_at, merged_into_contact_id)"),
+    s.includes(
+      "contacts(display_name, wa_profile_name, phone_e164, email, erased_at, merged_into_contact_id, name_source, name_settled_at)",
+    ),
     "names come with the rows",
   );
   assert.ok(s.includes("replied: !!(r.messages?.conversation_id && replied.has(r.messages.conversation_id)),"));

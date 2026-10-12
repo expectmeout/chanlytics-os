@@ -5165,6 +5165,10 @@ CREATE TABLE public.contacts (
     offers_asked_at timestamp with time zone,
     acquired_via text,
     acquired_ref text,
+    lead_id uuid,
+    lead_settled_at timestamp with time zone,
+    name_source text,
+    name_settled_at timestamp with time zone,
     CONSTRAINT contacts_acquired_ref_check CHECK (((acquired_ref IS NULL) OR ((acquired_via IS NOT NULL) AND ((char_length(acquired_ref) >= 1) AND (char_length(acquired_ref) <= 200))))),
     CONSTRAINT contacts_acquired_via_check CHECK (((acquired_via IS NULL) OR (acquired_via = ANY (ARRAY['whatsapp'::text, 'sms'::text, 'email'::text, 'call'::text, 'ad'::text, 'calendar'::text, 'import'::text, 'lead'::text, 'manual'::text])))),
     CONSTRAINT contacts_consent_check CHECK ((consent = ANY (ARRAY['unknown'::text, 'opted_in'::text, 'opted_out'::text]))),
@@ -5172,6 +5176,7 @@ CREATE TABLE public.contacts (
     CONSTRAINT contacts_email_marketing_check CHECK ((email_marketing = ANY (ARRAY['unknown'::text, 'opted_in'::text, 'opted_out'::text]))),
     CONSTRAINT contacts_email_suppressed_check CHECK ((((email_suppressed_at IS NULL) = (email_suppressed_reason IS NULL)) AND ((email_suppressed_reason IS NULL) OR (email_suppressed_reason = ANY (ARRAY['hard_bounce'::text, 'complaint'::text, 'provider'::text]))))),
     CONSTRAINT contacts_marketing_consent_check CHECK ((marketing_consent = ANY (ARRAY['unknown'::text, 'opted_in'::text, 'opted_out'::text]))),
+    CONSTRAINT contacts_name_source_check CHECK (((name_source IS NULL) OR (name_source = ANY (ARRAY['typed'::text, 'import'::text, 'calendar'::text, 'signature'::text, 'wire'::text, 'lead'::text])))),
     CONSTRAINT contacts_notes_check CHECK (((notes IS NULL) OR ((char_length(notes) >= 1) AND (char_length(notes) <= 600)))),
     CONSTRAINT contacts_proposal_url_check CHECK (((proposal_url IS NULL) OR ((proposal_url = btrim(proposal_url)) AND ((char_length(proposal_url) >= 10) AND (char_length(proposal_url) <= 500)) AND (proposal_url ~ '^https?://[^[:space:]]+$'::text))))
 );
@@ -5287,6 +5292,34 @@ COMMENT ON COLUMN public.contacts.acquired_via IS 'How the person first reached 
 --
 
 COMMENT ON COLUMN public.contacts.acquired_ref IS 'The line (tenant_channels.id) or the ad (Meta''s source id) the person first came through; null where nothing says. Never the person.';
+
+
+--
+-- Name: COLUMN contacts.lead_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.contacts.lead_id IS 'The business this person works at (0052): a lead, the newest that named them, set one way from leads (lead_tells_its_person) or by a member (person_join_lead). A lead is the business record; there is no businesses table.';
+
+
+--
+-- Name: COLUMN contacts.lead_settled_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.contacts.lead_settled_at IS 'When a member said where this person works (person_join_lead, person_leave_lead): their lead_id then never moves by itself (0052).';
+
+
+--
+-- Name: COLUMN contacts.name_source; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.contacts.name_source IS 'Where display_name came from (0052): typed, import, calendar, signature, wire or lead. Null when no name was set (the WhatsApp name or the number shows) or for a name set before this, whose source is not known. The engine replaces only a strictly lower rank (person_name_rank) and never a settled name.';
+
+
+--
+-- Name: COLUMN contacts.name_settled_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.contacts.name_settled_at IS 'When a member settled the name (typed it, took a signer''s, put the business''s back, or declined a signer, 0052): automatic naming never moves it.';
 
 
 --
@@ -5944,6 +5977,11 @@ begin
      set opening = null, angle = null, hold_detail = null
    where tenant_id = v_tenant and lead_id = p_lead_id
      and (opening is not null or angle is not null or hold_detail is not null);
+  -- A person still named for the business (a stand-in, 0052) keeps nothing of it: the name goes with the place, and
+  -- their address or number is what names them again.
+  update public.contacts
+     set display_name = null, name_source = null, updated_at = now()
+   where tenant_id = v_tenant and lead_id = p_lead_id and name_source = 'lead';
   -- A preference's example copied from this lead (00391).
   update public.lead_preferences
      set example = null
@@ -7179,6 +7217,37 @@ $$;
 --
 
 COMMENT ON FUNCTION public.lead_niche_prior(p_category_key text) IS 'The platform-wide prior for a kind of business ({places, matched, with_email}), or null when the kind was never searched. Aggregates only.';
+
+
+--
+-- Name: lead_person_leg(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_person_leg(p_lead_id uuid, p_email text, p_phone text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  -- What a lead holds of one person (0052): their address, as its own or among its others, their number, and the note of
+  -- the call. The place, its name and the others' are kept; nothing is banned.
+  update public.leads l
+     set email = case when p_email is not null and lower(l.email) = lower(p_email) then null else l.email end,
+         email_state = case when p_email is not null and lower(l.email) = lower(p_email) then 'none' else l.email_state end,
+         email_alternates = coalesce((select jsonb_agg(a) from jsonb_array_elements(l.email_alternates) a
+                                       where p_email is null or lower(coalesce(a->>'email', '')) <> lower(p_email)),
+                                     '[]'::jsonb),
+         phone_e164 = case when p_phone is not null and l.phone_e164 = p_phone then null else l.phone_e164 end,
+         last_note = null,
+         version = l.version + 1
+   where l.id = p_lead_id;
+end $$;
+
+
+--
+-- Name: FUNCTION lead_person_leg(p_lead_id uuid, p_email text, p_phone text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_person_leg(p_lead_id uuid, p_email text, p_phone text) IS 'Erasure of one of several people at a business (0052): their address (its own or among its others), their number and the call''s note leave the lead, which stays the others''; no place is banned. Called by leads_erase_on_contact.';
 
 
 --
@@ -8747,10 +8816,10 @@ COMMENT ON FUNCTION public.lead_searches_on(p_tenant_id uuid) IS 'Whether this w
 
 
 --
--- Name: lead_set_stage(uuid, text, text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+-- Name: lead_set_stage(uuid, text, text, text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.lead_set_stage(p_lead_id uuid, p_stage text DEFAULT NULL::text, p_reason text DEFAULT NULL::text, p_fit_reason text DEFAULT NULL::text, p_outcome text DEFAULT NULL::text, p_note text DEFAULT NULL::text) RETURNS jsonb
+CREATE FUNCTION public.lead_set_stage(p_lead_id uuid, p_stage text DEFAULT NULL::text, p_reason text DEFAULT NULL::text, p_fit_reason text DEFAULT NULL::text, p_outcome text DEFAULT NULL::text, p_note text DEFAULT NULL::text, p_spoke_with text DEFAULT NULL::text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $_$
@@ -8817,6 +8886,20 @@ begin
         jsonb_build_object('lead_id', p_lead_id));
       v_contact := (v_made->>'contact_id')::uuid;
       v_existed := coalesce((v_made->>'existed')::boolean, false);
+    end if;
+  end if;
+
+  -- Who they spoke with (0052): the person the call reached is named so, a member's typed name, settled; a person still
+  -- named for the business is renamed, never one with a name of their own. Never a name for a call that made no one.
+  if v_convert and v_contact is not null and nullif(btrim(coalesce(p_spoke_with, '')), '') is not null then
+    update public.contacts
+       set display_name = left(btrim(p_spoke_with), 80), name_source = 'typed', name_settled_at = now(), updated_at = now()
+     where id = v_contact and tenant_id = v_lead.tenant_id
+       and (display_name is null or name_source = 'lead');
+    if found then
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (v_lead.tenant_id, 'contact.named', 'contact', 'contact', v_contact,
+              jsonb_build_object('named', true, 'by', v_user, 'source', 'typed', 'was', 'lead', 'via', 'call'));
     end if;
   end if;
 
@@ -8891,10 +8974,10 @@ end $_$;
 
 
 --
--- Name: FUNCTION lead_set_stage(p_lead_id uuid, p_stage text, p_reason text, p_fit_reason text, p_outcome text, p_note text); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION lead_set_stage(p_lead_id uuid, p_stage text, p_reason text, p_fit_reason text, p_outcome text, p_note text, p_spoke_with text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_set_stage(p_lead_id uuid, p_stage text, p_reason text, p_fit_reason text, p_outcome text, p_note text) IS 'Operator. The one door for a lead''s stage, its six call outcomes, "Did you send it?" and Not a fit. A click to converted marks Talking and nothing else: contact_id stays null and the answer says converted false (§9.6). Only outcome interested makes a person -- the one whose number this is when the workspace has them, else whose address, else a new one named for the business with source lead -- and links it. wrong_number marks the number and keeps the stage. reason customer hides the place from every future search. Writes one lead_operations row (kind stage) with the lead''s new version.';
+COMMENT ON FUNCTION public.lead_set_stage(p_lead_id uuid, p_stage text, p_reason text, p_fit_reason text, p_outcome text, p_note text, p_spoke_with text) IS 'Operator. The one door for a lead''s stage, its six call outcomes, "Did you send it?" and Not a fit. A click to converted marks Talking and nothing else: contact_id stays null and the answer says converted false (§9.6). Only outcome interested makes a person -- the one whose number this is when the workspace has them, else whose address, else a new one named for the business with source lead -- and links it; p_spoke_with (0052) names the person the call reached, typed and settled, or renames one still named for the business. wrong_number marks the number and keeps the stage. reason customer hides the place from every future search. Writes one lead_operations row (kind stage) with the lead''s new version.';
 
 
 --
@@ -9255,6 +9338,45 @@ COMMENT ON FUNCTION public.lead_suppression_hash(p_tenant_id uuid, p_value text)
 
 
 --
+-- Name: lead_tells_its_person(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_tells_its_person() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if new.erased_at is not null or new.blanked_at is not null then
+    return null;
+  end if;
+  -- The person this lead names works at it, unless they work at another already: a newer lead takes them while nobody
+  -- settled where they work. Never writes leads.
+  update public.contacts c
+     set lead_id = new.id, updated_at = now()
+   where c.id = new.contact_id and c.tenant_id = new.tenant_id
+     and c.erased_at is null and c.merged_into_contact_id is null
+     and c.lead_id is distinct from new.id
+     and c.lead_settled_at is null
+     and (c.lead_id is null
+          or exists (select 1 from public.leads o
+                      where o.id = c.lead_id and o.tenant_id = c.tenant_id and o.found_at < new.found_at));
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (new.tenant_id, 'contact.business_linked', 'contact', 'contact', new.contact_id,
+            jsonb_build_object('lead_id', new.id, 'via', 'lead'));
+  end if;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION lead_tells_its_person(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_tells_its_person() IS 'Decision 0052: a lead that names a person (leads.contact_id: its first email, an Interested call, a person who wrote from its own number or address) sets that person''s lead_id when they work nowhere yet, or when this lead is newer and nobody settled where they work; contact.business_linked {lead_id, via lead}. One way: it never writes leads.';
+
+
+--
 -- Name: lead_undo(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -9434,10 +9556,23 @@ CREATE FUNCTION public.leads_erase_on_contact() RETURNS trigger
     SET search_path TO 'public'
     AS $$
 declare
-  r record;
+  r      record;
+  v_next uuid;
 begin
   if NEW.erased_at is not null and OLD.erased_at is null then
     for r in select l.id, l.place_id, l.phone_e164, l.email from public.leads l where l.tenant_id = NEW.tenant_id and l.contact_id = NEW.id loop
+      -- One of several people at the business (0052): their own leg, not the lead's blank; the lead stays the
+      -- others', its first person the one most lately touched, and no place is banned.
+      select c.id into v_next from public.contacts c
+       where c.tenant_id = NEW.tenant_id and c.lead_id = r.id and c.id <> NEW.id
+         and c.erased_at is null and c.erasing_since is null and c.merged_into_contact_id is null
+       order by c.updated_at desc
+       limit 1;
+      if v_next is not null then
+        perform public.lead_person_leg(r.id, OLD.email, OLD.phone_e164);
+        update public.leads set contact_id = v_next, version = version + 1 where id = r.id;
+        continue;
+      end if;
       if r.place_id is not null then
         insert into public.lead_suppressions (tenant_id, kind, hash, what) values (NEW.tenant_id, 'place', public.lead_suppression_hash(NEW.tenant_id, r.place_id), 'erased') on conflict (tenant_id, kind, hash) do update set what = 'erased';
       end if;
@@ -9450,6 +9585,11 @@ begin
       perform public.lead_blank(r.id);
       update public.leads set erased_at = now() where id = r.id;
     end loop;
+    -- A person who works at a lead they are not the first person of (0052): the same leg on it.
+    if OLD.lead_id is not null
+       and not exists (select 1 from public.leads l where l.id = OLD.lead_id and l.contact_id = NEW.id) then
+      perform public.lead_person_leg(OLD.lead_id, OLD.email, OLD.phone_e164);
+    end if;
   end if;
   return NEW;
 end $$;
@@ -10174,6 +10314,10 @@ declare
   v_n        int;
   v_counts   jsonb := '{}'::jsonb;
   v_decision uuid;
+  -- Combine (0052): the record we wrote to at a business and the person who answered from their own address there.
+  v_combine  boolean := false;
+  v_swap     public.contacts%rowtype;
+  v_swap_id  uuid;
 begin
   -- The caller is auth.uid(), read HERE, never a parameter (00021's rule).
   if v_user is null then
@@ -10209,11 +10353,24 @@ begin
   if k.merged_into_contact_id is not null or m.merged_into_contact_id is not null then
     raise exception 'One of these records was already merged into another.' using errcode = '22023';
   end if;
+  -- Combine (0052, amending 0028): a stand-in (named for the business, by its lead) that never wrote, and a person who
+  -- works at the same lead, are one human: the stand-in's address is the business's, the person's their own. For
+  -- exactly this pair two addresses are no sign of two people, and the person is the one kept, with their own name
+  -- and address, whichever of the two pages the owner pressed it from.
+  v_combine := k.lead_id is not null and k.lead_id = m.lead_id
+    and (coalesce(k.name_source, '') = 'lead') <> (coalesce(m.name_source, '') = 'lead')
+    and not exists (select 1 from messages x
+                     where x.tenant_id = v_tenant and x.direction = 'inbound'
+                       and x.contact_id = case when k.name_source = 'lead' then k.id else m.id end);
+  if v_combine and k.name_source = 'lead' then
+    v_swap := k; k := m; m := v_swap;
+    v_swap_id := p_keep; p_keep := p_merge; p_merge := v_swap_id;
+  end if;
   if k.phone_e164 is not null and m.phone_e164 is not null and k.phone_e164 <> m.phone_e164 then
     raise exception 'These two records have different phone numbers, so they may be two people. They can''t be merged.'
       using errcode = '22023';
   end if;
-  if k.email is not null and m.email is not null and k.email <> m.email then
+  if k.email is not null and m.email is not null and k.email <> m.email and not v_combine then
     raise exception 'These two records have different email addresses, so they may be two people. They can''t be merged.'
       using errcode = '22023';
   end if;
@@ -10512,7 +10669,7 @@ begin
 
   insert into events (tenant_id, kind, category, subject_type, subject_id, data)
   values (v_tenant, 'contact.merged', 'contact', 'contact', p_keep,
-          v_counts || jsonb_build_object('merged', p_merge));
+          v_counts || jsonb_build_object('merged', p_merge) || case when v_combine then jsonb_build_object('combine', true) else '{}'::jsonb end);
   insert into decisions (tenant_id, subject_type, subject_id, verb, actor_type, actor_user_id, payload)
   values (v_tenant, 'contact', p_keep, 'merge', 'user', v_user,
           jsonb_build_object('merged', p_merge, 'counts', v_counts))
@@ -10528,7 +10685,7 @@ end $$;
 -- Name: FUNCTION merge_people(p_keep uuid, p_merge uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.merge_people(p_keep uuid, p_merge uuid) IS 'An owner merges two records of one person (decision 0028): the kept record takes the other''s identities, thread (folded into its own), deals, leads, visits, notes, lists, receptionist mode and ledger; the other is left marked merged_into_contact_id with no number or address. Consent is the most careful answer on each question (D5), each change written to the ledger with the source merge. Refuses two different phone numbers or email addresses, an erased or already merged record, and two open deals for one service. One transaction; never undone. The caller is auth.uid(); a stranger is told not found.';
+COMMENT ON FUNCTION public.merge_people(p_keep uuid, p_merge uuid) IS 'An owner merges two records of one person (decision 0028): the kept record takes the other''s identities, thread (folded into its own), deals, leads, visits, notes, lists, receptionist mode and ledger; the other is left marked merged_into_contact_id with no number or address. Consent is the most careful answer on each question (D5), each change written to the ledger with the source merge. Refuses two different phone numbers or email addresses, an erased or already merged record, and two open deals for one service; Combine (0052) takes a stand-in that never wrote and a person at the same lead with two addresses, the person kept whichever was named to keep (the answer''s contact_id). One transaction; never undone. The caller is auth.uid(); a stranger is told not found.';
 
 
 --
@@ -13143,7 +13300,7 @@ COMMENT ON FUNCTION public.pause_email_offers(p_tenant_id uuid, p_reason text, p
 -- Name: people_list(uuid, uuid, text, integer, integer, timestamp with time zone, timestamp with time zone, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT NULL::uuid, p_query text DEFAULT NULL::text, p_limit integer DEFAULT 1000, p_offset integer DEFAULT 0, p_after_at timestamp with time zone DEFAULT NULL::timestamp with time zone, p_after_added timestamp with time zone DEFAULT NULL::timestamp with time zone, p_after_id uuid DEFAULT NULL::uuid) RETURNS TABLE(id uuid, display_name text, wa_profile_name text, phone_e164 text, email text, email_suppressed_at timestamp with time zone, consent text, consent_source text, consent_updated_at timestamp with time zone, dnc boolean, marketing_consent text, marketing_consent_source text, marketing_consent_updated_at timestamp with time zone, consent_channels text[], marketing_channels text[], offers_asked_at timestamp with time zone, email_marketing text, email_marketing_source text, email_marketing_updated_at timestamp with time zone, channels text[], conversation_count integer, escalation_count integer, needs_human boolean, open_escalation_reason text, open_escalation_since timestamp with time zone, latest_conversation_id uuid, latest_state text, latest_paused_until timestamp with time zone, latest_assignee_user_id uuid, latest_snooze_until timestamp with time zone, latest_wa_inbound_at timestamp with time zone, last_message_at timestamp with time zone, last_message_direction text, last_message_sender text, last_inbound_text text, last_inbound_at timestamp with time zone, last_inbound_channel text, last_wrote_at timestamp with time zone, last_call_at timestamp with time zone, last_inbound_call_at timestamp with time zone, last_inbound_call_summary text, call_count integer, call_seconds integer, first_contact_at timestamp with time zone, earliest_row_at timestamp with time zone, has_backfill boolean, has_chat boolean, message_channels text[], queued_reply_at timestamp with time zone, came_from text, deal_id uuid, deal_stage text, deal_service text, deal_proposed_at timestamp with time zone, deal_decided_at timestamp with time zone, deal_ended_at timestamp with time zone, deal_amount_cents integer, deal_per text, deal_proposal_url text, deal_valid_until date, deal_lost_reason text, open_deals jsonb, step_id uuid, step_body text, step_due_on date, step_for_user_id uuid, step_deal_id uuid, in_touch_at timestamp with time zone, added_at timestamp with time zone)
+CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT NULL::uuid, p_query text DEFAULT NULL::text, p_limit integer DEFAULT 1000, p_offset integer DEFAULT 0, p_after_at timestamp with time zone DEFAULT NULL::timestamp with time zone, p_after_added timestamp with time zone DEFAULT NULL::timestamp with time zone, p_after_id uuid DEFAULT NULL::uuid) RETURNS TABLE(id uuid, display_name text, wa_profile_name text, phone_e164 text, email text, email_suppressed_at timestamp with time zone, consent text, consent_source text, consent_updated_at timestamp with time zone, dnc boolean, marketing_consent text, marketing_consent_source text, marketing_consent_updated_at timestamp with time zone, consent_channels text[], marketing_channels text[], offers_asked_at timestamp with time zone, email_marketing text, email_marketing_source text, email_marketing_updated_at timestamp with time zone, channels text[], conversation_count integer, escalation_count integer, needs_human boolean, open_escalation_reason text, open_escalation_since timestamp with time zone, latest_conversation_id uuid, latest_state text, latest_paused_until timestamp with time zone, latest_assignee_user_id uuid, latest_snooze_until timestamp with time zone, latest_wa_inbound_at timestamp with time zone, last_message_at timestamp with time zone, last_message_direction text, last_message_sender text, last_inbound_text text, last_inbound_at timestamp with time zone, last_inbound_channel text, last_wrote_at timestamp with time zone, last_call_at timestamp with time zone, last_inbound_call_at timestamp with time zone, last_inbound_call_summary text, call_count integer, call_seconds integer, first_contact_at timestamp with time zone, earliest_row_at timestamp with time zone, has_backfill boolean, has_chat boolean, message_channels text[], queued_reply_at timestamp with time zone, came_from text, deal_id uuid, deal_stage text, deal_service text, deal_proposed_at timestamp with time zone, deal_decided_at timestamp with time zone, deal_ended_at timestamp with time zone, deal_amount_cents integer, deal_per text, deal_proposal_url text, deal_valid_until date, deal_lost_reason text, open_deals jsonb, step_id uuid, step_body text, step_due_on date, step_for_user_id uuid, step_deal_id uuid, in_touch_at timestamp with time zone, added_at timestamp with time zone, lead_id uuid, lead_name text, lead_gone boolean, name_source text, name_settled_at timestamp with time zone, signer_message_id uuid, signer_name text, signer_title text, signer_read_at timestamp with time zone)
     LANGUAGE sql STABLE
     SET search_path TO 'public'
     AS $$
@@ -13211,16 +13368,36 @@ CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT N
     dl.proposal_url, dl.valid_until, dl.lost_reason,
     od.deals,
     st.id, st.body, st.due_on, st.for_user_id, st.deal_id,
-    c.in_touch_at, c.added_at
+    c.in_touch_at, c.added_at,
+    ch.lead_id, case when not coalesce(ld.gone, false) then ld.business_name end, coalesce(ld.gone, false),
+    ch.name_source, ch.name_settled_at,
+    sg.message_id, sg.signer_name, sg.signer_title, sg.read_at
   from page c
   left join lateral (
     -- What each yes covers, when offers were asked for (00297), and when their address stopped being sent to (00126):
     -- read for the page's people alone, by their key.
     select k.consent_channels, k.marketing_channels, k.offers_asked_at, k.email_suppressed_at,
-           k.email_marketing, k.email_marketing_source, k.email_marketing_updated_at
+           k.email_marketing, k.email_marketing_source, k.email_marketing_updated_at,
+           k.lead_id, k.name_source, k.name_settled_at
       from contacts k
      where k.id = c.id and k.tenant_id = p_tenant_id
   ) ch on true
+  left join lateral (
+    -- The business they work at (0052), by its key: its name, and whether it was erased or blanked since.
+    select l.business_name, (l.erased_at is not null or l.blanked_at is not null) as gone
+      from leads l
+     where l.id = ch.lead_id and l.tenant_id = p_tenant_id
+  ) ld on true
+  left join lateral (
+    -- A reply's signer offered as their name (0052), the newest: the reply's writer's alone, as the name's doors match
+    -- it; offered rows are few, and found by reach_out_replies_signer_offered.
+    select r.message_id, r.signer_name, r.signer_title, r.read_at
+      from reach_out_replies r
+     where r.tenant_id = p_tenant_id and r.signer_state = 'offered' and r.undone_at is null
+       and r.contact_id = c.id
+     order by r.read_at desc
+     limit 1
+  ) sg on true
   left join lateral (
     -- How they were added, when a door added them: their first contact.added
     -- event, should a door ever write two.
@@ -13371,7 +13548,7 @@ $$;
 -- Name: FUNCTION people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) IS 'Everyone this workspace has ever heard from, with both consent answers: `consent` for conversation and their own appointments, `marketing_consent` for offers. Two answers because the carriers require them collected separately (error 30913). `came_from` says where each first came from: the door that added them (calendar, lead, import, manual); else a history moved in from before the database says how it began, in the thread''s own order (a call''s note is call, anything else its wire; import only when it names none); else their first call (call) or the wire of their first message (whatsapp, sms, email); null when nothing says. p_query matches a name, a WhatsApp name, an email address or three digits of the number; p_contact_id names one person, their row alone. The page is chosen before it is read (0021, people_page): its people come from person_moments in one whole order, latest contact first (in_touch_at, -infinity for never), then the newest added (added_at), then the id, falling, at most p_limit (1000) of them after p_offset or after the cursor p_after_at, p_after_added, p_after_id (the last row''s in_touch_at, added_at and id); every other column is read for them alone. The deal_* columns carry the newest open or current deal, else the newest of any (0004), with its link, its valid-until day and why they passed (0008); `open_deals` carries every open deal (proposed or won, one per service), newest first, in the same fields (0029), null with none open. The step_* columns carry their next step: the earliest open note with a day (0007, amended), by its day and then as written. `consent_channels` and `marketing_channels` are the channels each yes covers (00297; null: a yes recorded before the channels were kept, which covers WhatsApp alone) and `offers_asked_at` is when the receptionist first asked for the yes to offers. `last_inbound_channel` is the channel of the last written message they sent themselves (their own words: not an automatic reply or a list''s mail) (whatsapp, sms or email; null when they have sent none): the channel a campaign reaches them on first (00298, contracts'' reachFor). `last_wrote_at` is when they last wrote words that were a person''s own, an automatic reply, a list''s mail or a delivery report left out (00299, message_is_a_persons_words): the fact of "they wrote" that contracts'' relationshipOnRecord reads. `email_suppressed_at` is when their address stopped being sent to (a bounce, a complaint; null while it is good): a campaign does not pick email for a person who has it. `email_marketing`, `email_marketing_source` and `email_marketing_updated_at` are the person''s own answer about offers by email (00174, 00299): an offer by email goes to someone who has not unsubscribed and who asked for offers by email or has a relationship with the business on record (contracts'' mayMessageFor).';
+COMMENT ON FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) IS 'Everyone this workspace has ever heard from, with both consent answers: `consent` for conversation and their own appointments, `marketing_consent` for offers. Two answers because the carriers require them collected separately (error 30913). `came_from` says where each first came from: the door that added them (calendar, lead, import, manual); else a history moved in from before the database says how it began, in the thread''s own order (a call''s note is call, anything else its wire; import only when it names none); else their first call (call) or the wire of their first message (whatsapp, sms, email); null when nothing says. p_query matches a name, a WhatsApp name, an email address or three digits of the number; p_contact_id names one person, their row alone. The page is chosen before it is read (0021, people_page): its people come from person_moments in one whole order, latest contact first (in_touch_at, -infinity for never), then the newest added (added_at), then the id, falling, at most p_limit (1000) of them after p_offset or after the cursor p_after_at, p_after_added, p_after_id (the last row''s in_touch_at, added_at and id); every other column is read for them alone. The deal_* columns carry the newest open or current deal, else the newest of any (0004), with its link, its valid-until day and why they passed (0008); `open_deals` carries every open deal (proposed or won, one per service), newest first, in the same fields (0029), null with none open. The step_* columns carry their next step: the earliest open note with a day (0007, amended), by its day and then as written. `consent_channels` and `marketing_channels` are the channels each yes covers (00297; null: a yes recorded before the channels were kept, which covers WhatsApp alone) and `offers_asked_at` is when the receptionist first asked for the yes to offers. `last_inbound_channel` is the channel of the last written message they sent themselves (their own words: not an automatic reply or a list''s mail) (whatsapp, sms or email; null when they have sent none): the channel a campaign reaches them on first (00298, contracts'' reachFor). `last_wrote_at` is when they last wrote words that were a person''s own, an automatic reply, a list''s mail or a delivery report left out (00299, message_is_a_persons_words): the fact of "they wrote" that contracts'' relationshipOnRecord reads. `email_suppressed_at` is when their address stopped being sent to (a bounce, a complaint; null while it is good): a campaign does not pick email for a person who has it. `email_marketing`, `email_marketing_source` and `email_marketing_updated_at` are the person''s own answer about offers by email (00174, 00299): an offer by email goes to someone who has not unsubscribed and who asked for offers by email or has a relationship with the business on record (contracts'' mayMessageFor). `lead_id`, `lead_name` and `lead_gone` are the business they work at (0052: the lead, its name while it stands, and whether it was erased or blanked since); p_query matches its name too. `name_source` is where their name came from (typed, import, calendar, signature, wire, lead) and `name_settled_at` when a member settled it. `signer_*` is the newest reply signer offered as their name (the notice Use this name), null with none.';
 
 
 --
@@ -13436,6 +13613,11 @@ begin
              or c.display_name ilike '%' || v_words || '%'
              or c.wa_profile_name ilike '%' || v_words || '%'
              or c.email ilike '%' || v_words || '%'
+             -- The business they work at (0052): "bloom" finds the people at Bloom & Vow.
+             or exists (select 1 from leads l
+                         where l.id = c.lead_id and l.tenant_id = p_tenant_id
+                           and l.erased_at is null and l.blanked_at is null
+                           and l.business_name ilike '%' || v_words || '%')
              or (length(v_digits) >= 3
                  and regexp_replace(coalesce(c.phone_e164, ''), '\D', '', 'g') like '%' || v_digits || '%')
            )
@@ -13760,6 +13942,87 @@ begin
   end if;
   return new;
 end $$;
+
+
+--
+-- Name: person_join_lead(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.person_join_lead(p_contact_id uuid, p_lead_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user   uuid := auth.uid();
+  v_tenant uuid;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  select c.tenant_id into v_tenant from public.contacts c where c.id = p_contact_id and c.erased_at is null;
+  if v_tenant is null or not public.is_acting_member(v_tenant) then
+    raise exception 'Person not found.' using errcode = 'P0002';
+  end if;
+  if not exists (select 1 from public.leads l
+                  where l.id = p_lead_id and l.tenant_id = v_tenant and l.erased_at is null and l.blanked_at is null) then
+    raise exception 'That business is not in your workspace.' using errcode = 'P0002';
+  end if;
+  update public.contacts
+     set lead_id = p_lead_id, lead_settled_at = now(), updated_at = now()
+   where id = p_contact_id and lead_id is distinct from p_lead_id;
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_tenant, 'contact.business_linked', 'contact', 'contact', p_contact_id,
+            jsonb_build_object('lead_id', p_lead_id, 'via', 'hand', 'by', v_user));
+  else
+    update public.contacts set lead_settled_at = now() where id = p_contact_id;
+  end if;
+  return jsonb_build_object('contact_id', p_contact_id, 'lead_id', p_lead_id);
+end $$;
+
+
+--
+-- Name: FUNCTION person_join_lead(p_contact_id uuid, p_lead_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.person_join_lead(p_contact_id uuid, p_lead_id uuid) IS 'Link a business (0052): an acting member says a person works at a lead of their workspace; settled, so the link never moves by itself; contact.business_linked {lead_id, via hand, by}.';
+
+
+--
+-- Name: person_leave_lead(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.person_leave_lead(p_contact_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user   uuid := auth.uid();
+  v_tenant uuid;
+  v_lead   uuid;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  select c.tenant_id, c.lead_id into v_tenant, v_lead from public.contacts c where c.id = p_contact_id and c.erased_at is null;
+  if v_tenant is null or not public.is_acting_member(v_tenant) then
+    raise exception 'Person not found.' using errcode = 'P0002';
+  end if;
+  update public.contacts set lead_id = null, lead_settled_at = now(), updated_at = now() where id = p_contact_id;
+  if v_lead is not null then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_tenant, 'contact.business_unlinked', 'contact', 'contact', p_contact_id,
+            jsonb_build_object('lead_id', v_lead, 'via', 'hand', 'by', v_user));
+  end if;
+  return jsonb_build_object('contact_id', p_contact_id, 'left', v_lead is not null);
+end $$;
+
+
+--
+-- Name: FUNCTION person_leave_lead(p_contact_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.person_leave_lead(p_contact_id uuid) IS 'Not at this business (0052): an acting member unlinks a person from the lead they work at; settled, so a later lead or reply never links them again by itself; contact.business_unlinked {lead_id, via hand, by}.';
 
 
 --
@@ -14197,6 +14460,229 @@ COMMENT ON FUNCTION public.person_moments_recompute(p_contacts uuid[]) IS 'Write
 
 
 --
+-- Name: person_name_adopt(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.person_name_adopt(p_contact_id uuid, p_message_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user   uuid := auth.uid();
+  v_tenant uuid;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  select c.tenant_id into v_tenant from public.contacts c where c.id = p_contact_id and c.erased_at is null;
+  if v_tenant is null or not public.is_acting_member(v_tenant) then
+    raise exception 'Person not found.' using errcode = 'P0002';
+  end if;
+  return public.person_name_take(v_tenant, p_contact_id, p_message_id, v_user, 'press');
+end $$;
+
+
+--
+-- Name: FUNCTION person_name_adopt(p_contact_id uuid, p_message_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.person_name_adopt(p_contact_id uuid, p_message_id uuid) IS 'Use this name (0052): an acting member takes the name a reply was signed with for its writer, through person_name_take (press: the name is settled). Answers {named, name} or {named false, why: gone | no_signer | settled | named}.';
+
+
+--
+-- Name: person_name_decline(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.person_name_decline(p_contact_id uuid, p_message_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user   uuid := auth.uid();
+  v_tenant uuid;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  select c.tenant_id into v_tenant from public.contacts c where c.id = p_contact_id and c.erased_at is null;
+  if v_tenant is null or not public.is_acting_member(v_tenant) then
+    raise exception 'Person not found.' using errcode = 'P0002';
+  end if;
+  perform 1 from public.contacts where id = p_contact_id for update;
+  update public.reach_out_replies r
+     set signer_state = 'declined', signer_settled_at = now(), signer_settled_by = v_user
+   where r.message_id = p_message_id and r.tenant_id = v_tenant
+     and r.contact_id = p_contact_id
+     and r.signer_state = 'offered';
+  if not found then
+    return jsonb_build_object('declined', false, 'why', 'settled');
+  end if;
+  update public.contacts set name_settled_at = now(), updated_at = now() where id = p_contact_id;
+  return jsonb_build_object('declined', true, 'contact_id', p_contact_id);
+end $$;
+
+
+--
+-- Name: FUNCTION person_name_decline(p_contact_id uuid, p_message_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.person_name_decline(p_contact_id uuid, p_message_id uuid) IS 'The × on "Use this name" (0052): the reply''s signer declined for everyone and the person''s name settled, so automatic naming never takes it; a different signer later is offered again. An acting member''s.';
+
+
+--
+-- Name: person_name_rank(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.person_name_rank(p_source text) RETURNS integer
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO ''
+    AS $$
+  -- A name whose source is not known (null) ranks as a typed one: nothing replaces it.
+  select case p_source
+           when 'lead' then 1
+           when 'wire' then 2
+           when 'signature' then 3
+           when 'calendar' then 3
+           when 'import' then 3
+           else 9
+         end
+$$;
+
+
+--
+-- Name: FUNCTION person_name_rank(p_source text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.person_name_rank(p_source text) IS 'The order of a name''s sources (0052): the business''s own name (lead) < a wire''s (wire) < a signer''s, a calendar''s or a client list''s < a member''s (typed), and a name whose source is not known ranks as typed. The engine replaces only a strictly lower rank.';
+
+
+--
+-- Name: person_name_take(uuid, uuid, uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.person_name_take(p_tenant_id uuid, p_contact_id uuid, p_message_id uuid, p_by uuid, p_via text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_person public.contacts%rowtype;
+  v_reply  public.reach_out_replies%rowtype;
+begin
+  if p_via is null or p_via not in ('press', 'auto') then
+    raise exception 'A signer''s name is taken by a press or automatically.' using errcode = '22023';
+  end if;
+  select * into v_person from public.contacts
+   where id = p_contact_id and tenant_id = p_tenant_id and erased_at is null and merged_into_contact_id is null
+   for update;
+  if not found then
+    return jsonb_build_object('named', false, 'why', 'gone');
+  end if;
+  select * into v_reply from public.reach_out_replies r
+   where r.message_id = p_message_id and r.tenant_id = p_tenant_id
+     and r.contact_id = p_contact_id
+   for update;
+  if not found or v_reply.signer_name is null then
+    return jsonb_build_object('named', false, 'why', 'no_signer');
+  end if;
+  if v_reply.signer_state <> 'offered' or v_reply.undone_at is not null then
+    return jsonb_build_object('named', false, 'why', 'settled');
+  end if;
+  if v_person.display_name is not null and public.person_name_rank(v_person.name_source) >= public.person_name_rank('signature') then
+    return jsonb_build_object('named', false, 'why', 'named');
+  end if;
+  if p_via = 'auto' and v_person.name_settled_at is not null then
+    return jsonb_build_object('named', false, 'why', 'settled');
+  end if;
+  update public.contacts
+     set display_name = v_reply.signer_name, name_source = 'signature',
+         name_settled_at = case when p_via = 'press' then now() end, updated_at = now()
+   where id = p_contact_id;
+  update public.reach_out_replies
+     set signer_state = 'adopted', signer_settled_at = now(), signer_settled_by = p_by,
+         signer_was = coalesce(signer_was, case when v_person.display_name is null then 'none' else v_person.name_source end)
+   where message_id = p_message_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'contact.named', 'contact', 'contact', p_contact_id,
+          jsonb_strip_nulls(jsonb_build_object('named', true, 'by', p_by, 'source', 'signature',
+                                               'was', v_person.name_source, 'via', p_via, 'message_id', p_message_id)));
+  return jsonb_build_object('named', true, 'contact_id', p_contact_id, 'name', v_reply.signer_name);
+end $$;
+
+
+--
+-- Name: FUNCTION person_name_take(p_tenant_id uuid, p_contact_id uuid, p_message_id uuid, p_by uuid, p_via text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.person_name_take(p_tenant_id uuid, p_contact_id uuid, p_message_id uuid, p_by uuid, p_via text) IS 'Decision 0052: the one writer of a reply''s signer''s name onto its writer (display_name, name_source signature), by a member''s press (settled) or automatically (never over a settled name), only while the reply offers it and only over the business''s own name, a wire''s or none; the reply''s signer adopted, contact.named {source, was, via, message_id}. Answers {named} or {named false, why}.';
+
+
+--
+-- Name: person_name_undo(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.person_name_undo(p_contact_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user     uuid := auth.uid();
+  v_tenant   uuid;
+  v_person   public.contacts%rowtype;
+  v_reply    public.reach_out_replies%rowtype;
+  v_business text;
+  v_name     text;
+  v_source   text;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  select c.tenant_id into v_tenant from public.contacts c where c.id = p_contact_id and c.erased_at is null;
+  if v_tenant is null or not public.is_acting_member(v_tenant) then
+    raise exception 'Person not found.' using errcode = 'P0002';
+  end if;
+  select * into v_person from public.contacts where id = p_contact_id for update;
+  if v_person.name_source is distinct from 'signature' then
+    return jsonb_build_object('undone', false, 'why', 'not_a_signer');
+  end if;
+  select * into v_reply from public.reach_out_replies r
+   where r.tenant_id = v_tenant and r.contact_id = p_contact_id
+     and r.signer_state = 'adopted'
+   order by r.signer_settled_at desc
+   limit 1
+   for update;
+  if not found then
+    return jsonb_build_object('undone', false, 'why', 'not_a_signer');
+  end if;
+  if v_reply.signer_was = 'lead' then
+    select left(nullif(btrim(l.business_name), ''), 80) into v_business
+      from public.leads l
+     where l.id = coalesce(v_person.lead_id, v_reply.lead_id) and l.tenant_id = v_tenant
+       and l.erased_at is null and l.blanked_at is null;
+  end if;
+  v_name := v_business;
+  v_source := case when v_business is not null then 'lead' end;
+  update public.contacts
+     set display_name = v_name, name_source = v_source, name_settled_at = now(), updated_at = now()
+   where id = p_contact_id;
+  update public.reach_out_replies
+     set signer_state = 'undone', signer_settled_at = now(), signer_settled_by = v_user
+   where message_id = v_reply.message_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_tenant, 'contact.named', 'contact', 'contact', p_contact_id,
+          jsonb_strip_nulls(jsonb_build_object('named', v_name is not null, 'by', v_user, 'source', v_source,
+                                               'was', 'signature', 'via', 'undo', 'message_id', v_reply.message_id)));
+  return jsonb_build_object('undone', true, 'contact_id', p_contact_id, 'name', v_name);
+end $$;
+
+
+--
+-- Name: FUNCTION person_name_undo(p_contact_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.person_name_undo(p_contact_id uuid) IS 'Undo of Use this name (0052): the name the signer replaced goes back (the business''s, from the lead they work at, while it stands; else none), settled, so that sign-off is never taken again; the reply''s signer undone; contact.named {via undo}. An acting member''s.';
+
+
+--
 -- Name: person_note_add(uuid, text, uuid, boolean, text, date, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -14484,6 +14970,49 @@ COMMENT ON FUNCTION public.person_note_remove(p_note_id uuid) IS 'Take a note aw
 
 
 --
+-- Name: person_note_seen(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.person_note_seen(p_note_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user    uuid := auth.uid();
+  v_tenant  uuid;
+  v_for     uuid;
+  v_contact uuid;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  select n.tenant_id, n.for_user_id, n.contact_id into v_tenant, v_for, v_contact from public.person_notes n where n.id = p_note_id;
+  -- Any member of the workspace may say they read a note that is for them, a viewer too (the notes' own read, 00157),
+  -- through the one member check for a definer door: a partner's seat only on a session that showed its second factor.
+  if v_tenant is null or not public.may_read_workspace(v_tenant) then
+    return jsonb_build_object('error', 'not_found');
+  end if;
+  if v_for is distinct from v_user then
+    return jsonb_build_object('error', 'not_yours');
+  end if;
+  update public.person_notes set for_seen_at = now() where id = p_note_id and for_seen_at is null;
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_tenant, 'contact.note_seen', 'contact', 'contact', v_contact,
+            jsonb_build_object('note_id', p_note_id, 'by', v_user));
+  end if;
+  return jsonb_build_object('seen', p_note_id);
+end $$;
+
+
+--
+-- Name: FUNCTION person_note_seen(p_note_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.person_note_seen(p_note_id uuid) IS 'Got it (0052, canvas A Up next): the member a note is for marks it read; it leaves their Up next. Their own mark: a note for anyone else is not_yours.';
+
+
+--
 -- Name: person_note_suggest(uuid, uuid, text, text, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -14646,6 +15175,32 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.person_set_first_touch(p_tenant_id uuid, p_contact_id uuid, p_via text, p_ref text, p_made_at timestamp with time zone) IS 'A person''s first touch (K3), written once: sets acquired_via and acquired_ref where acquired_via is null and, when p_made_at is given, only where the person''s created_at is that instant (the row that made them was written in the same transaction). True when it wrote. Called by the message, call and contact.added triggers; the closed set is contacts_acquired_via_check.';
+
+
+--
+-- Name: person_signer_erase_on_contact(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.person_signer_erase_on_contact() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if new.erased_at is not null and old.erased_at is null then
+    update public.reach_out_replies
+       set signer_name = null, signer_title = null, signer_state = null, signer_was = null,
+           signer_settled_at = null, signer_settled_by = null
+     where tenant_id = new.tenant_id and (contact_id = new.id or lead_contact_id = new.id) and signer_name is not null;
+  end if;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION person_signer_erase_on_contact(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.person_signer_erase_on_contact() IS 'When a person is erased, the name a reply''s reading found as its signer goes with them (0036, 0052).';
 
 
 --
@@ -17579,6 +18134,12 @@ declare
   v_hold     record;
   v_holds    jsonb := '[]'::jsonb;
   v_owed     boolean := false;
+  -- Who wrote it, whether it cites our email, and who signed it (0052).
+  v_writer   uuid;
+  v_cited    boolean;
+  v_signer   text := left(nullif(btrim(regexp_replace(coalesce(p_reading->'signer'->>'name', ''), '\s+', ' ', 'g')), ''), 80);
+  v_title    text := left(nullif(btrim(regexp_replace(coalesce(p_reading->'signer'->>'title', ''), '\s+', ' ', 'g')), ''), 80);
+  v_linked   boolean := false;
 begin
   if v_intent is null or v_intent not in ('interested', 'question', 'not_now', 'no', 'wrong_person', 'away', 'other') then
     raise exception 'a reading names one of the seven intents' using errcode = '22023';
@@ -17597,6 +18158,11 @@ begin
   end if;
   v_lead   := (v_of->>'lead_id')::uuid;
   v_person := (v_of->>'lead_contact_id')::uuid;
+  v_writer := (v_of->>'contact_id')::uuid;
+  v_cited  := coalesce((v_of->>'cited')::boolean, false);
+  -- A reply that cites our email from another address at the business links its writer to the lead (0052, 1b below);
+  -- what the reading records (a no, a step, the leads it closes) stays the lead's own person's, as before. A reply that
+  -- cites nothing links nobody: nothing is inferred from a domain.
   -- An out-of-office's pause is an automatic reply's alone (the table's CHECK says so too).
   if v_intent <> 'away' or v_of->>'claim' <> 'auto_reply' then
     v_until := null;
@@ -17644,6 +18210,37 @@ begin
      where r.message_id = p_message_id
     returning * into v_row;
     v_tell := v_tell or v_owed;
+  end if;
+
+  -- 1b. The writer of a reply that cites our email is at the lead's business (0052): linked, unless a member settled
+  -- where they work. Once, on the first reading.
+  if v_reread = 0 and v_cited and v_writer is not null and v_writer is distinct from v_person then
+    update public.contacts c
+       set lead_id = v_lead, updated_at = now()
+     where c.id = v_writer and c.tenant_id = p_tenant_id and c.erased_at is null
+       and c.lead_id is null and c.lead_settled_at is null;
+    v_linked := found;
+    if v_linked then
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'contact.business_linked', 'contact', 'contact', v_writer,
+              jsonb_build_object('lead_id', v_lead, 'via', 'reply', 'message_id', p_message_id));
+      v_changed := v_changed || jsonb_build_object('linked', v_writer);
+    end if;
+  end if;
+
+  -- 1c. The signer, the writer's: kept on the row, offered to the owner (the notice) or taken when the plan says so
+  -- (automatic naming, switched off until its evals pass). Only a first reading or a re-read that finally read the reply
+  -- has one.
+  if v_signer is not null and v_row.signer_name is null then
+    update public.reach_out_replies
+       set signer_name = v_signer, signer_title = v_title, signer_state = 'offered',
+           signer_was = (select case when c.display_name is null then 'none' else c.name_source end
+                           from public.contacts c where c.id = v_writer)
+     where message_id = p_message_id;
+    if coalesce((p_plan->>'adoptSigner')::boolean, false) and v_writer is not null then
+      v_changed := v_changed || jsonb_build_object('named',
+        public.person_name_take(p_tenant_id, v_writer, p_message_id, null, 'auto')->'named');
+    end if;
   end if;
 
   -- 2. The lead's sends still waiting in live runs: the door would refuse each (wrote back), so none waits for an owner.
@@ -17755,7 +18352,7 @@ end $_$;
 -- Name: FUNCTION reach_out_reply_apply(p_tenant_id uuid, p_message_id uuid, p_reading jsonb, p_plan jsonb, p_reread integer, p_days integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_reply_apply(p_tenant_id uuid, p_message_id uuid, p_reading jsonb, p_plan jsonb, p_reread integer, p_days integer) IS 'A reply''s reading and its plan (contracts readingPlan), applied once in one transaction (Reach out Part 5, G6-G11): the lead''s waiting sends skipped (wrote back), Talking through lead_convert_by, resume_at, a no through set_email_marketing (reply) with the reply''s From and the business''s own domain on the never-again list, a dated step, and reach_out.replied. A re-read applies by compare-and-set on the row still unread. Records what it changed for the undo. Answers {applied}. Service role only.';
+COMMENT ON FUNCTION public.reach_out_reply_apply(p_tenant_id uuid, p_message_id uuid, p_reading jsonb, p_plan jsonb, p_reread integer, p_days integer) IS 'A reply''s reading and its plan (contracts readingPlan), applied once in one transaction (Reach out Part 5, G6-G11): the lead''s waiting sends skipped (wrote back), Talking through lead_convert_by, resume_at, a no through set_email_marketing (reply) with the reply''s From and the business''s own domain on the never-again list, a dated step, and reach_out.replied. A reply that cites our email from another address at the business links its writer to the lead (0052); its no, its step and the leads it closes stay the lead''s own person''s. The signer the reading found is its writer''s: kept on the row and offered (the notice), or taken for the writer when the plan says adoptSigner (automatic naming). A re-read applies by compare-and-set on the row still unread. Records what it changed for the undo. Answers {applied}. Service role only.';
 
 
 --
@@ -17836,10 +18433,12 @@ CREATE FUNCTION public.reach_out_reply_of(p_tenant_id uuid, p_message_id uuid, p
       order by s.sent_at desc
       limit 1)
   ), one as (
-    select f.id from found f order by f.how, f.sent_at desc limit 1
+    select f.id, f.how from found f order by f.how, f.sent_at desc limit 1
   )
   select jsonb_build_object(
     'send_id', s.id,
+    -- Whether the reply cites our email by its Message-ID (0052): only then is its writer linked to the lead.
+    'cited', one.how = 1,
     'lead_id', l.id,
     'lead_contact_id', l.contact_id,
     'lead_email', lower(btrim(l.email)),
@@ -17861,6 +18460,13 @@ CREATE FUNCTION public.reach_out_reply_of(p_tenant_id uuid, p_message_id uuid, p
     'claim', case when m.meta->'email'->>'claim' in ('person', 'automated', 'auto_reply')
                   then m.meta->'email'->>'claim' else 'person' end,
     'from', m.meta->'email'->>'from',
+    -- The From line's own words, and the names a signer can never be: the workspace's and its members' (0052).
+    'from_name', m.meta->'email'->>'from_name',
+    'workspace', t.name,
+    'team', (select coalesce(jsonb_agg(p.display_name), '[]'::jsonb)
+               from public.memberships ms
+               join public.profiles p on p.user_id = ms.user_id
+              where ms.tenant_id = s.tenant_id and btrim(p.display_name) <> ''),
     'subject', m.meta->'email'->>'subject',
     'text', m.body,
     'received_at', m.received_at)
@@ -17878,7 +18484,7 @@ $$;
 -- Name: FUNCTION reach_out_reply_of(p_tenant_id uuid, p_message_id uuid, p_days integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_reply_of(p_tenant_id uuid, p_message_id uuid, p_days integer) IS 'Whose reply a received email is (Reach out Part 5, G5): the reach-out email it answers or cites, else the latest one sent to its thread''s person, within p_days before it arrived. Answers the send, the lead, the lead''s person, address and website (and whether that website is its host''s root, 00237), the chain, the email it answers (its first 600 characters), the workspace''s zone, and the reply''s own claim, sender, subject and words; null when it answers none. Service role only.';
+COMMENT ON FUNCTION public.reach_out_reply_of(p_tenant_id uuid, p_message_id uuid, p_days integer) IS 'Whose reply a received email is (Reach out Part 5, G5): the reach-out email it answers or cites, else the latest one sent to its thread''s person, within p_days before it arrived. Answers the send, the lead, the lead''s person, address and website (and whether that website is its host''s root, 00237), whether the reply cites our email by its Message-ID (cited, 0052), the chain, the email it answers (its first 600 characters), the workspace''s zone, and the reply''s own claim, sender, subject and words; null when it answers none. Service role only.';
 
 
 --
@@ -19924,6 +20530,10 @@ declare
   v_lead      uuid;                 -- the lead this person turned out to be (step 5)
   v_outcome   text;
   v_existed   boolean;
+  -- Where the name this call gives comes from (0052): a calendar, a client list, the business's own name, or a member.
+  v_name_src  text := case coalesce(nullif(btrim(p_source), ''), 'manual')
+                        when 'calendar' then 'calendar' when 'import' then 'import' when 'lead' then 'lead'
+                        else 'typed' end;
 begin
   if p_tenant_id is null then
     raise exception 'Workspace not found.' using errcode = 'P0002';
@@ -20037,11 +20647,12 @@ begin
       if v_other is not null then v_seen_as := 'name'; end if;
     end if;
     begin
-      insert into contacts (tenant_id, phone_e164, email, display_name, wa_profile_name, last_seen_at)
+      insert into contacts (tenant_id, phone_e164, email, display_name, wa_profile_name, last_seen_at, name_source)
       values (p_tenant_id, v_phone, v_new_email,
               case when v_observed then null else v_name end,
               case when v_observed then v_name end,
-              v_seen)
+              v_seen,
+              case when v_observed or v_name is null then null else v_name_src end)
       returning id into v_id;
       v_outcome := 'new';
       v_existed := false;
@@ -20089,8 +20700,13 @@ begin
           update contacts set wa_profile_name = v_name, updated_at = now() where id = v_id;
           v_filled := array_append(v_filled, 'wa_profile_name');
         end if;
-      elsif v_row.display_name is null then
-        update contacts set display_name = v_name, updated_at = now() where id = v_id;
+      -- Empty is filled; a name is replaced only by a name of a strictly higher rank (0052: a calendar or a client
+      -- list over the business's own name, a member over either), never a settled one, and never by the same words.
+      elsif v_row.display_name is null
+         or (v_row.name_settled_at is null
+             and public.person_name_rank(v_row.name_source) < public.person_name_rank(v_name_src)
+             and lower(v_row.display_name) is distinct from lower(v_name)) then
+        update contacts set display_name = v_name, name_source = v_name_src, updated_at = now() where id = v_id;
         v_filled := array_append(v_filled, 'display_name');
       end if;
     end if;
@@ -20202,7 +20818,7 @@ end $_$;
 -- Name: FUNCTION resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb, p_seen_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb, p_seen_at timestamp with time zone) IS 'The one door a person is resolved by (decision 0034): the erasure digests first on the passive paths, then the identity, the number and the address in that order, two numbers being two people; fills what is empty and never overwrites, a name the wire gave following the wire; never merges, and writes a doubt instead for a pair the merge could join; links the lead holding their number or address whenever it learns one (person_link_lead, 00346); contact.added for a new person a member, a feed or the finder brought, person.resolved when the call changed something (a person made, a field filled, an identity added or raised, a doubt written, a lead linked; 00384). The service role''s and the doors'' alone.';
+COMMENT ON FUNCTION public.resolve_person(p_tenant_id uuid, p_channel text, p_external text, p_phone text, p_email text, p_name text, p_assurance text, p_source text, p_detail jsonb, p_seen_at timestamp with time zone) IS 'The one door a person is resolved by (decision 0034): the erasure digests first on the passive paths, then the identity, the number and the address in that order, two numbers being two people; fills what is empty and never overwrites, a name the wire gave following the wire, but a name of a strictly higher rank replaces an unsettled one (0052: person_name_rank; a calendar or a client list over the business''s own name, a member over either) and records where it came from (name_source); never merges, and writes a doubt instead for a pair the merge could join; links the lead holding their number or address whenever it learns one (person_link_lead, 00346); contact.added for a new person a member, a feed or the finder brought, person.resolved when the call changed something (a person made, a field filled, an identity added or raised, a doubt written, a lead linked; 00384). The service role''s and the doors'' alone.';
 
 
 --
@@ -21085,8 +21701,12 @@ begin
   -- however the message is named. The edge (no session) records what they
   -- texted; the yes page records what they chose. The sentence is contracts'
   -- LEAD_CONSENT_REFUSAL; consent-paths.db.test.mjs holds the two doors equal.
+  -- 0052: and for everyone who works at a lead (contacts.lead_id: linked by a reply that cited ours, or by a member's
+  -- hand); "Not at this business" (person_leave_lead) lifts it, for anyone but the lead's own person.
   if p_consent = 'opted_in'
-     and exists (select 1 from public.leads l where l.contact_id = p_contact_id and l.tenant_id = v_tenant) then
+     and (exists (select 1 from public.leads l where l.contact_id = p_contact_id and l.tenant_id = v_tenant)
+          or exists (select 1 from public.contacts k
+                      where k.id = p_contact_id and k.tenant_id = v_tenant and k.lead_id is not null)) then
     raise exception 'This person came from a lead you found. A yes has to come from them: their own message, or your yes page.' using errcode = '42501';
   end if;
 
@@ -21395,8 +22015,12 @@ begin
   -- however the message is named. The edge (no session) records what they
   -- texted; the yes page records what they chose. The sentence is contracts'
   -- LEAD_CONSENT_REFUSAL; consent-paths.db.test.mjs holds the two doors equal.
+  -- 0052: and for everyone who works at a lead (contacts.lead_id: linked by a reply that cited ours, or by a member's
+  -- hand); "Not at this business" (person_leave_lead) lifts it, for anyone but the lead's own person.
   if auth.uid() is not null and p_consent = 'opted_in'
-     and exists (select 1 from public.leads l where l.contact_id = p_contact_id and l.tenant_id = p_tenant_id) then
+     and (exists (select 1 from public.leads l where l.contact_id = p_contact_id and l.tenant_id = p_tenant_id)
+          or exists (select 1 from public.contacts k
+                      where k.id = p_contact_id and k.tenant_id = p_tenant_id and k.lead_id is not null)) then
     raise exception 'This person came from a lead you found. A yes has to come from them: their own message, or your yes page.' using errcode = '42501';
   end if;
 
@@ -21519,6 +22143,7 @@ declare
   v_user   uuid := auth.uid();
   v_tenant uuid;
   v_name   text := nullif(btrim(regexp_replace(coalesce(p_name, ''), '\s+', ' ', 'g')), '');
+  v_was    text;
 begin
   if v_user is null then
     raise exception 'Sign in required.' using errcode = '28000';
@@ -21530,10 +22155,17 @@ begin
   if v_tenant is null or not public.is_acting_member(v_tenant) then
     raise exception 'Person not found.' using errcode = 'P0002';
   end if;
-  update contacts set display_name = v_name, updated_at = now() where id = p_contact_id;
+  select c.name_source into v_was from contacts c where c.id = p_contact_id;
+  -- A member's name is typed and settled (0052): nothing the engine finds replaces it.
+  update contacts
+     set display_name = v_name, name_source = case when v_name is null then null else 'typed' end,
+         name_settled_at = now(), updated_at = now()
+   where id = p_contact_id;
   insert into events (tenant_id, kind, category, subject_type, subject_id, data)
   values (v_tenant, 'contact.named', 'contact', 'contact', p_contact_id,
-          jsonb_build_object('named', v_name is not null, 'by', v_user));
+          jsonb_strip_nulls(jsonb_build_object('named', v_name is not null, 'by', v_user,
+                                               'source', case when v_name is not null then 'typed' end,
+                                               'was', v_was, 'via', 'typed')));
   return jsonb_build_object('contact_id', p_contact_id, 'name', v_name);
 end $$;
 
@@ -21542,7 +22174,7 @@ end $$;
 -- Name: FUNCTION set_person_name(p_contact_id uuid, p_name text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.set_person_name(p_contact_id uuid, p_name text) IS 'Owner or operator names a person; empty clears it and the WhatsApp name or the number shows again. The event records that the name changed and by whom, never the name.';
+COMMENT ON FUNCTION public.set_person_name(p_contact_id uuid, p_name text) IS 'Owner or operator names a person; empty clears it and the WhatsApp name or the number shows again. The name is typed and settled (0052: name_source typed, name_settled_at): nothing the engine finds replaces it. The event records that the name changed, where it came from and what it replaced, and by whom, never the name.';
 
 
 --
@@ -26246,6 +26878,7 @@ CREATE TABLE public.person_notes (
     done_at timestamp with time zone,
     done_by uuid,
     deal_id uuid,
+    for_seen_at timestamp with time zone,
     CONSTRAINT person_notes_author_check CHECK ((((author_kind = 'member'::text) AND (state = 'kept'::text)) OR (author_kind = 'receptionist'::text))),
     CONSTRAINT person_notes_author_kind_check CHECK ((author_kind = ANY (ARRAY['member'::text, 'receptionist'::text]))),
     CONSTRAINT person_notes_body_check CHECK (((char_length(body) >= 1) AND (char_length(body) <= 600))),
@@ -26289,6 +26922,13 @@ COMMENT ON COLUMN public.person_notes.done_by IS 'Who marked the step done; null
 --
 
 COMMENT ON COLUMN public.person_notes.deal_id IS 'The deal this note moves, when it names one: one of the person''s own (the doors refuse anyone else''s). Kept, as null, when the deal goes.';
+
+
+--
+-- Name: COLUMN person_notes.for_seen_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.person_notes.for_seen_at IS 'When the member the note is for said Got it (0052, canvas A Up next): the note leaves their Up next; null until then.';
 
 
 --
@@ -26692,6 +27332,12 @@ CREATE TABLE public.reach_out_replies (
     read_at timestamp with time zone DEFAULT now() NOT NULL,
     undone_at timestamp with time zone,
     undone_by uuid,
+    signer_name text,
+    signer_title text,
+    signer_state text,
+    signer_was text,
+    signer_settled_at timestamp with time zone,
+    signer_settled_by uuid,
     CONSTRAINT reach_out_replies_away_has_until CHECK (((until_at IS NULL) OR ((intent = 'away'::text) AND (claim = 'auto_reply'::text)))),
     CONSTRAINT reach_out_replies_claim_check CHECK ((claim = ANY (ARRAY['person'::text, 'automated'::text, 'auto_reply'::text]))),
     CONSTRAINT reach_out_replies_draft_check CHECK (((draft IS NULL) OR (char_length(draft) <= 4000))),
@@ -26700,6 +27346,7 @@ CREATE TABLE public.reach_out_replies (
     CONSTRAINT reach_out_replies_intent_check CHECK ((intent = ANY (ARRAY['interested'::text, 'question'::text, 'not_now'::text, 'no'::text, 'wrong_person'::text, 'away'::text, 'other'::text]))),
     CONSTRAINT reach_out_replies_refer_to_check CHECK (((refer_to IS NULL) OR (char_length(refer_to) <= 120))),
     CONSTRAINT reach_out_replies_rereads_check CHECK (((rereads >= 0) AND (rereads <= 3))),
+    CONSTRAINT reach_out_replies_signer_check CHECK ((((signer_name IS NULL) OR ((char_length(signer_name) >= 1) AND (char_length(signer_name) <= 80))) AND ((signer_title IS NULL) OR ((signer_name IS NOT NULL) AND ((char_length(signer_title) >= 1) AND (char_length(signer_title) <= 80)))) AND ((signer_name IS NULL) = (signer_state IS NULL)) AND ((signer_state IS NULL) OR (signer_state = ANY (ARRAY['offered'::text, 'adopted'::text, 'declined'::text, 'undone'::text]))) AND ((signer_was IS NULL) OR (signer_was = ANY (ARRAY['none'::text, 'typed'::text, 'import'::text, 'calendar'::text, 'signature'::text, 'wire'::text, 'lead'::text]))) AND ((signer_settled_at IS NULL) = ((signer_state IS NULL) OR (signer_state = 'offered'::text))))),
     CONSTRAINT reach_out_replies_summary_check CHECK (((summary IS NULL) OR (char_length(summary) <= 160))),
     CONSTRAINT reach_out_replies_unread_check CHECK (((unread IS NULL) OR (unread = ANY (ARRAY['no_model'::text, 'may_not_spend'::text, 'day_spent'::text, 'model_failed'::text])))),
     CONSTRAINT reach_out_replies_unread_is_other CHECK (((unread IS NULL) OR (intent = 'other'::text)))
@@ -26711,6 +27358,20 @@ CREATE TABLE public.reach_out_replies (
 --
 
 COMMENT ON TABLE public.reach_out_replies IS 'Reach out Part 5: one reading of one reply to a reach-out, keyed by the message (G3). The intent (or other, with why it could not be read), what the reading did (plan, with what it changed for the undo), the notice''s two marks (B2), and the undo. Written by the service role''s doors (reach_out_reply_apply, _draft, _tell_claim, _told) and the member''s undo (reach_out_reply_undo) only.';
+
+
+--
+-- Name: COLUMN reach_out_replies.signer_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.reach_out_replies.signer_name IS 'Who signed the reply, as the reading found it in the writer''s own lines and the human-name gate let it through (contracts signerOf, 0052); null when nobody did. Cleared when the person is erased.';
+
+
+--
+-- Name: COLUMN reach_out_replies.signer_state; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.reach_out_replies.signer_state IS 'What became of the signer''s name (0052): offered (the notice "Use this name"), adopted (by a member''s press or automatically), declined, or undone.';
 
 
 --
@@ -28602,6 +29263,13 @@ CREATE INDEX contacts_tenant_last_seen ON public.contacts USING btree (tenant_id
 
 
 --
+-- Name: contacts_tenant_lead; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX contacts_tenant_lead ON public.contacts USING btree (tenant_id, lead_id) WHERE (lead_id IS NOT NULL);
+
+
+--
 -- Name: contacts_tenant_name_lower_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -29505,6 +30173,13 @@ CREATE INDEX reach_out_replies_recent ON public.reach_out_replies USING btree (t
 
 
 --
+-- Name: reach_out_replies_signer_offered; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX reach_out_replies_signer_offered ON public.reach_out_replies USING btree (tenant_id, contact_id) WHERE (signer_state = 'offered'::text);
+
+
+--
 -- Name: reach_out_replies_thread; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -29883,6 +30558,13 @@ CREATE TRIGGER contacts_erase_takes_notes AFTER UPDATE OF erased_at ON public.co
 
 
 --
+-- Name: contacts contacts_erase_takes_signers; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER contacts_erase_takes_signers AFTER UPDATE OF erased_at ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.person_signer_erase_on_contact();
+
+
+--
 -- Name: contacts contacts_erasure_digest_keyed; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -30090,6 +30772,13 @@ CREATE TRIGGER leads_note_set_aside AFTER UPDATE OF stage, closed_reason ON publ
 --
 
 CREATE TRIGGER leads_stamp_stage BEFORE UPDATE OF stage ON public.leads FOR EACH ROW WHEN ((old.stage IS DISTINCT FROM new.stage)) EXECUTE FUNCTION public.leads_stamp_stage();
+
+
+--
+-- Name: leads leads_tell_their_person; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER leads_tell_their_person AFTER INSERT OR UPDATE OF contact_id ON public.leads FOR EACH ROW WHEN ((new.contact_id IS NOT NULL)) EXECUTE FUNCTION public.lead_tells_its_person();
 
 
 --
@@ -30859,7 +31548,7 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.capability_activatio
 -- Name: contacts workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER workspace_tell_update AFTER UPDATE OF display_name, wa_profile_name, phone_e164, email, notes, proposal_url, consent, consent_source, consent_updated_at, dnc, marketing_consent, marketing_consent_source, marketing_consent_updated_at, email_marketing, email_marketing_source, email_marketing_updated_at, consent_channels, marketing_channels, email_suppressed_at, email_suppressed_reason, merged_into_contact_id, erased_at ON public.contacts FOR EACH ROW WHEN (((old.display_name IS DISTINCT FROM new.display_name) OR (old.wa_profile_name IS DISTINCT FROM new.wa_profile_name) OR (old.phone_e164 IS DISTINCT FROM new.phone_e164) OR (old.email IS DISTINCT FROM new.email) OR (old.notes IS DISTINCT FROM new.notes) OR (old.proposal_url IS DISTINCT FROM new.proposal_url) OR (old.consent IS DISTINCT FROM new.consent) OR (old.consent_source IS DISTINCT FROM new.consent_source) OR (old.consent_updated_at IS DISTINCT FROM new.consent_updated_at) OR (old.dnc IS DISTINCT FROM new.dnc) OR (old.marketing_consent IS DISTINCT FROM new.marketing_consent) OR (old.marketing_consent_source IS DISTINCT FROM new.marketing_consent_source) OR (old.marketing_consent_updated_at IS DISTINCT FROM new.marketing_consent_updated_at) OR (old.email_marketing IS DISTINCT FROM new.email_marketing) OR (old.email_marketing_source IS DISTINCT FROM new.email_marketing_source) OR (old.email_marketing_updated_at IS DISTINCT FROM new.email_marketing_updated_at) OR (old.consent_channels IS DISTINCT FROM new.consent_channels) OR (old.marketing_channels IS DISTINCT FROM new.marketing_channels) OR (old.email_suppressed_at IS DISTINCT FROM new.email_suppressed_at) OR (old.email_suppressed_reason IS DISTINCT FROM new.email_suppressed_reason) OR (old.merged_into_contact_id IS DISTINCT FROM new.merged_into_contact_id) OR (old.erased_at IS DISTINCT FROM new.erased_at))) EXECUTE FUNCTION public.workspace_tell_row_change();
+CREATE TRIGGER workspace_tell_update AFTER UPDATE OF display_name, wa_profile_name, phone_e164, email, notes, proposal_url, consent, consent_source, consent_updated_at, dnc, marketing_consent, marketing_consent_source, marketing_consent_updated_at, email_marketing, email_marketing_source, email_marketing_updated_at, consent_channels, marketing_channels, email_suppressed_at, email_suppressed_reason, merged_into_contact_id, erased_at, lead_id, name_source ON public.contacts FOR EACH ROW WHEN (((old.display_name IS DISTINCT FROM new.display_name) OR (old.wa_profile_name IS DISTINCT FROM new.wa_profile_name) OR (old.phone_e164 IS DISTINCT FROM new.phone_e164) OR (old.email IS DISTINCT FROM new.email) OR (old.notes IS DISTINCT FROM new.notes) OR (old.proposal_url IS DISTINCT FROM new.proposal_url) OR (old.consent IS DISTINCT FROM new.consent) OR (old.consent_source IS DISTINCT FROM new.consent_source) OR (old.consent_updated_at IS DISTINCT FROM new.consent_updated_at) OR (old.dnc IS DISTINCT FROM new.dnc) OR (old.marketing_consent IS DISTINCT FROM new.marketing_consent) OR (old.marketing_consent_source IS DISTINCT FROM new.marketing_consent_source) OR (old.marketing_consent_updated_at IS DISTINCT FROM new.marketing_consent_updated_at) OR (old.email_marketing IS DISTINCT FROM new.email_marketing) OR (old.email_marketing_source IS DISTINCT FROM new.email_marketing_source) OR (old.email_marketing_updated_at IS DISTINCT FROM new.email_marketing_updated_at) OR (old.consent_channels IS DISTINCT FROM new.consent_channels) OR (old.marketing_channels IS DISTINCT FROM new.marketing_channels) OR (old.email_suppressed_at IS DISTINCT FROM new.email_suppressed_at) OR (old.email_suppressed_reason IS DISTINCT FROM new.email_suppressed_reason) OR (old.merged_into_contact_id IS DISTINCT FROM new.merged_into_contact_id) OR (old.erased_at IS DISTINCT FROM new.erased_at) OR (old.lead_id IS DISTINCT FROM new.lead_id) OR (old.name_source IS DISTINCT FROM new.name_source))) EXECUTE FUNCTION public.workspace_tell_row_change();
 
 
 --
@@ -31363,6 +32052,14 @@ ALTER TABLE ONLY public.contact_reads
 
 ALTER TABLE ONLY public.contact_reads
     ADD CONSTRAINT contact_reads_user_id_same_workspace FOREIGN KEY (user_id, tenant_id) REFERENCES public.memberships(user_id, tenant_id) ON DELETE CASCADE;
+
+
+--
+-- Name: contacts contacts_lead_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contacts
+    ADD CONSTRAINT contacts_lead_id_same_workspace FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE SET NULL (lead_id);
 
 
 --
@@ -35206,6 +35903,14 @@ GRANT ALL ON FUNCTION public.lead_niche_prior(p_category_key text) TO service_ro
 
 
 --
+-- Name: FUNCTION lead_person_leg(p_lead_id uuid, p_email text, p_phone text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_person_leg(p_lead_id uuid, p_email text, p_phone text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_person_leg(p_lead_id uuid, p_email text, p_phone text) TO service_role;
+
+
+--
 -- Name: FUNCTION lead_plan_check(p_plan jsonb); Type: ACL; Schema: public; Owner: -
 --
 
@@ -35423,12 +36128,12 @@ GRANT ALL ON FUNCTION public.lead_searches_on(p_tenant_id uuid) TO service_role;
 
 
 --
--- Name: FUNCTION lead_set_stage(p_lead_id uuid, p_stage text, p_reason text, p_fit_reason text, p_outcome text, p_note text); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION lead_set_stage(p_lead_id uuid, p_stage text, p_reason text, p_fit_reason text, p_outcome text, p_note text, p_spoke_with text); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.lead_set_stage(p_lead_id uuid, p_stage text, p_reason text, p_fit_reason text, p_outcome text, p_note text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.lead_set_stage(p_lead_id uuid, p_stage text, p_reason text, p_fit_reason text, p_outcome text, p_note text) TO authenticated;
-GRANT ALL ON FUNCTION public.lead_set_stage(p_lead_id uuid, p_stage text, p_reason text, p_fit_reason text, p_outcome text, p_note text) TO service_role;
+REVOKE ALL ON FUNCTION public.lead_set_stage(p_lead_id uuid, p_stage text, p_reason text, p_fit_reason text, p_outcome text, p_note text, p_spoke_with text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_set_stage(p_lead_id uuid, p_stage text, p_reason text, p_fit_reason text, p_outcome text, p_note text, p_spoke_with text) TO authenticated;
+GRANT ALL ON FUNCTION public.lead_set_stage(p_lead_id uuid, p_stage text, p_reason text, p_fit_reason text, p_outcome text, p_note text, p_spoke_with text) TO service_role;
 
 
 --
@@ -35477,6 +36182,14 @@ GRANT ALL ON FUNCTION public.lead_suggestions_write(p_tenant_id uuid, p_act text
 
 REVOKE ALL ON FUNCTION public.lead_suppression_hash(p_tenant_id uuid, p_value text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.lead_suppression_hash(p_tenant_id uuid, p_value text) TO service_role;
+
+
+--
+-- Name: FUNCTION lead_tells_its_person(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_tells_its_person() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_tells_its_person() TO service_role;
 
 
 --
@@ -36163,6 +36876,24 @@ GRANT ALL ON FUNCTION public.person_doubts_on_contact_change() TO service_role;
 
 
 --
+-- Name: FUNCTION person_join_lead(p_contact_id uuid, p_lead_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.person_join_lead(p_contact_id uuid, p_lead_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.person_join_lead(p_contact_id uuid, p_lead_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.person_join_lead(p_contact_id uuid, p_lead_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION person_leave_lead(p_contact_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.person_leave_lead(p_contact_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.person_leave_lead(p_contact_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.person_leave_lead(p_contact_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION person_link_lead(p_tenant_id uuid, p_contact_id uuid, p_assurance text, p_source text, p_made boolean, p_skip_lead uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -36258,6 +36989,50 @@ GRANT ALL ON FUNCTION public.person_moments_recompute(p_contacts uuid[]) TO serv
 
 
 --
+-- Name: FUNCTION person_name_adopt(p_contact_id uuid, p_message_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.person_name_adopt(p_contact_id uuid, p_message_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.person_name_adopt(p_contact_id uuid, p_message_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.person_name_adopt(p_contact_id uuid, p_message_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION person_name_decline(p_contact_id uuid, p_message_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.person_name_decline(p_contact_id uuid, p_message_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.person_name_decline(p_contact_id uuid, p_message_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.person_name_decline(p_contact_id uuid, p_message_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION person_name_rank(p_source text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.person_name_rank(p_source text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.person_name_rank(p_source text) TO authenticated;
+GRANT ALL ON FUNCTION public.person_name_rank(p_source text) TO service_role;
+
+
+--
+-- Name: FUNCTION person_name_take(p_tenant_id uuid, p_contact_id uuid, p_message_id uuid, p_by uuid, p_via text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.person_name_take(p_tenant_id uuid, p_contact_id uuid, p_message_id uuid, p_by uuid, p_via text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.person_name_take(p_tenant_id uuid, p_contact_id uuid, p_message_id uuid, p_by uuid, p_via text) TO service_role;
+
+
+--
+-- Name: FUNCTION person_name_undo(p_contact_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.person_name_undo(p_contact_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.person_name_undo(p_contact_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.person_name_undo(p_contact_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION person_note_add(p_contact_id uuid, p_body text, p_for_user_id uuid, p_team_only boolean, p_source text, p_due_on date, p_deal_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -36303,6 +37078,15 @@ GRANT ALL ON FUNCTION public.person_note_remove(p_note_id uuid) TO service_role;
 
 
 --
+-- Name: FUNCTION person_note_seen(p_note_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.person_note_seen(p_note_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.person_note_seen(p_note_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.person_note_seen(p_note_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION person_note_suggest(p_tenant_id uuid, p_contact_id uuid, p_body text, p_source text, p_source_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -36332,6 +37116,14 @@ GRANT ALL ON FUNCTION public.person_notes_scrub(p_tenant_id uuid, p_contact_id u
 
 REVOKE ALL ON FUNCTION public.person_set_first_touch(p_tenant_id uuid, p_contact_id uuid, p_via text, p_ref text, p_made_at timestamp with time zone) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.person_set_first_touch(p_tenant_id uuid, p_contact_id uuid, p_via text, p_ref text, p_made_at timestamp with time zone) TO service_role;
+
+
+--
+-- Name: FUNCTION person_signer_erase_on_contact(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.person_signer_erase_on_contact() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.person_signer_erase_on_contact() TO service_role;
 
 
 --

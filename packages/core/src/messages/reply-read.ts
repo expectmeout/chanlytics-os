@@ -28,6 +28,7 @@
  * It sends nothing to the business. The pages (PRs 7 and 8) come later.
  */
 import {
+  AUTOMATIC_NAMING,
   DRAFT_NEEDS_MS,
   leadReplyNote,
   parseReplyReading,
@@ -37,6 +38,8 @@ import {
   replyTextOf,
   replyUserContent,
   rereadAt,
+  signerAgrees,
+  signerOf,
   UNREAD_READING,
   zoneDayKey,
   type DraftWhy,
@@ -70,6 +73,9 @@ export interface ReplyFacts {
   signedBy: string | null;
   /** The business's zone. */
   tz: string;
+  /** The From line's own words, and the names a signer can never be: the workspace's and its members' (0052). */
+  fromName?: string | null;
+  notNames?: readonly string[];
 }
 
 /** A reading as it is kept. */
@@ -87,6 +93,8 @@ export interface KeptReading {
   draft: "answer" | "thanks" | null;
   draftState: DraftState;
   draftText: string | null;
+  /** The reply's signer while their name is offered (0052, "Use this name"); null otherwise. */
+  signerOffered: string | null;
 }
 
 /** reach_out_replies.draft_state. */
@@ -206,6 +214,22 @@ async function readNow(
       answered: facts.answered,
     });
     reading = parseReplyReading(await ports.ask(replySystemPrompt(), user));
+    // Who signed it, kept only when it passes the person page's gate (0052): word for word in their own lines, one
+    // person's own name, never ours, the business's, the workspace's or a member's, and never from a no.
+    if (reading)
+      reading = {
+        ...reading,
+        signer: signerOf({
+          name: reading.signer?.name,
+          title: reading.signer?.title,
+          text: facts.text,
+          intent: reading.intent,
+          claim: facts.claim,
+          business: facts.business,
+          from: facts.from,
+          notNames: [facts.signedBy, ...(facts.notNames ?? [])],
+        }),
+      };
   } catch {
     // A call that threw or ran out of time is a reply not read, not a job that failed: the read is spent and the reply
     // is `other` meanwhile. The read runs again on the schedule contracts' rereadAt gives (G4, below).
@@ -312,7 +336,7 @@ export async function readReply(ports: ReplyReadPorts, cmd: ReadReplyCommand): P
 
   if (isDue(kept, n)) {
     const { reading, unread, now } = await readNow(ports, cmd, facts);
-    const plan = readingPlan(reading, {
+    const planned = readingPlan(reading, {
       claim: facts.claim,
       receivedAt: facts.receivedAt,
       tz: facts.tz,
@@ -324,6 +348,12 @@ export async function readReply(ports: ReplyReadPorts, cmd: ReadReplyCommand): P
       reread: n > 0,
       readAt: now,
     });
+    // Automatic naming (0052): only while it is on, and only when two independent signals agree.
+    const signer = reading?.signer ?? null;
+    const plan: ReadingPlan = {
+      ...planned,
+      adoptSigner: AUTOMATIC_NAMING && !!signer && signerAgrees(signer, { address: facts.from, name: facts.fromName }),
+    };
     applied = await ports.apply(tenantId, messageId, { reading: reading ?? UNREAD_READING, unread, plan, reread: n });
     kept = await ports.reading(tenantId, messageId);
     if (!kept) throw new Error("reply_read: the reading was applied and is not there");
@@ -365,6 +395,7 @@ export async function readReply(ports: ReplyReadPorts, cmd: ReadReplyCommand): P
     unread: kept.unread,
     automatic: facts.claim === "auto_reply",
     reread: n > 0,
+    signer: kept.signerOffered,
   });
   const told = await ports.tell(tenantId, {
     conversationId: facts.conversationId,

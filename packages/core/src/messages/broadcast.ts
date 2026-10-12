@@ -221,7 +221,7 @@ async function sendOne(w: Work, r: RecipientRow): Promise<Verdict> {
   // A visit run's words for this person, resolved when the run was made.
   const facts = rowFacts(r);
   const params = resolveParams(w.specs, {
-    firstName: firstNameOf(c.display_name, c.wa_profile_name),
+    firstName: firstNameOf(c.display_name, c.wa_profile_name, { source: c.name_source, settled: !!c.name_settled_at }),
     businessName: w.facts.businessName,
     bookingLink: w.facts.bookingLink,
     visitWhen: typeof facts.visit_when === "string" ? facts.visit_when : null,

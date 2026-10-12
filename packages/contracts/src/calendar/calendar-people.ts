@@ -51,10 +51,12 @@ export interface PersonLike {
    * stop or are on do-not-contact. The board's block asks the booking link's rule (people/person-reach.ts) of these.
    */
   reach?: { wire: "whatsapp" | "sms" | "email" | null; emailStopped: boolean; optedOut: boolean };
+  /** The business they work at, while it stands (0052): a booking that names it is theirs, where nobody else works there. */
+  business?: string | null;
 }
 
 /** How a match was made, surest first: a number and an address are exact, a name is a guess. */
-export type MatchVia = "phone" | "email" | "name";
+export type MatchVia = "phone" | "email" | "name" | "business";
 
 /**
  * How a match is said, once, wherever a visit names who it is for (the Calendar's panel, the person's History, Coming up
@@ -65,6 +67,7 @@ const MATCH_WORDS: Record<MatchVia, string> = {
   phone: "matched by phone",
   email: "matched by email",
   name: "matched by name",
+  business: "matched by their business",
 };
 
 /** The words for a match, or null where the visit says none (a visit rebuilt from an older read has no route). */
@@ -74,7 +77,7 @@ export function matchWordsOf(via: MatchVia | null | undefined): string | null {
 
 /** Whether a match is a guess: a name only, where a number and an address are the person (matchPerson). */
 export function isGuess(via: MatchVia | null | undefined): boolean {
-  return via === "name";
+  return via === "name" || via === "business";
 }
 
 export interface PersonMatch {
@@ -299,8 +302,20 @@ export function matchPerson(
       if (p) return { id: p.id, name: labelOf(p), via: "email", ...threadOf(p), ...replyFactsOf(p) };
     }
   }
-  const p = personInText([item.title, ...c.names, item.description ?? ""].join("\n"), people);
-  return p ? { id: p.id, name: labelOf(p), via: "name", ...threadOf(p), ...replyFactsOf(p) } : null;
+  const words = [item.title, ...c.names, item.description ?? ""].join("\n");
+  const p = personInText(words, people);
+  if (p) return { id: p.id, name: labelOf(p), via: "name", ...threadOf(p), ...replyFactsOf(p) };
+  const byBusiness = personInText(words, soleAtBusiness(people));
+  const b = byBusiness ? people.find((x) => x.id === byBusiness.id) : undefined;
+  return b ? { id: b.id, name: labelOf(b), via: "business", ...threadOf(b), ...replyFactsOf(b) } : null;
+}
+
+/** Each person who is the only one in the pool at their business (0052), named by it: two at one is no one's booking. */
+function soleAtBusiness(people: PersonLike[]): PersonLike[] {
+  const key = (p: PersonLike) => p.business?.trim().toLowerCase() ?? "";
+  const n = new Map<string, number>();
+  for (const p of people) n.set(key(p), (n.get(key(p)) ?? 0) + 1);
+  return people.flatMap((p) => (key(p) && n.get(key(p)) === 1 ? [{ ...p, name: p.business?.trim() ?? "" }] : []));
 }
 
 /* ---------------------------------------------------------------- visits */
@@ -498,7 +513,7 @@ export function describeVisits(
   if (visits.next) {
     const n = visits.next;
     out.push(
-      `Their next appointment on the calendar: ${visitLine(n, tz, nowMs)} (${n.title}).${n.via === "name" ? " Matched by name only — make sure it is them before confirming details." : ""} If they ask, confirm it; to change or cancel it, ${opts.hasBookingLink ? "send the booking link" : "say the team will follow up"} — nothing is changed from here.`,
+      `Their next appointment on the calendar: ${visitLine(n, tz, nowMs)} (${n.title}).${n.via === "name" ? " Matched by name only — make sure it is them before confirming details." : n.via === "business" ? " Matched by their business only — make sure it is them before confirming details." : ""} If they ask, confirm it; to change or cancel it, ${opts.hasBookingLink ? "send the booking link" : "say the team will follow up"} — nothing is changed from here.`,
     );
   }
   if (visits.last) {

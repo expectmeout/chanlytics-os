@@ -555,6 +555,9 @@ interface ReplyThread extends Pick<Thread, "id" | "tenant_id" | "phone_e164"> {
     /** The names on file, for a template that opens with their first name. */
     display_name?: string | null;
     wa_profile_name?: string | null;
+    /** Where that name came from, and whether a member settled it (0052): a stand-in is "there" (firstNameOf). */
+    name_source?: string | null;
+    name_settled_at?: string | null;
     /** The address on the person's page, and whether it has stopped being sent to (00125, 00126). */
     email?: string | null;
     email_suppressed_at?: string | null;
@@ -995,6 +998,9 @@ interface ContactRow {
     erased_at: string | null;
     display_name: string | null;
     wa_profile_name: string | null;
+    /** Where that name came from, and whether a member settled it (0052): a stand-in is "there" (firstNameOf). */
+    name_source?: string | null;
+    name_settled_at?: string | null;
 }
 type RecipientMark = {
     /**
@@ -1529,6 +1535,9 @@ interface ReplyFacts {
     signedBy: string | null;
     /** The business's zone. */
     tz: string;
+    /** The From line's own words, and the names a signer can never be: the workspace's and its members' (0052). */
+    fromName?: string | null;
+    notNames?: readonly string[];
 }
 /** A reading as it is kept. */
 interface KeptReading {
@@ -1545,6 +1554,8 @@ interface KeptReading {
     draft: "answer" | "thanks" | null;
     draftState: DraftState;
     draftText: string | null;
+    /** The reply's signer while their name is offered (0052, "Use this name"); null otherwise. */
+    signerOffered: string | null;
 }
 /** reach_out_replies.draft_state. */
 type DraftState = "none" | "waiting" | "written" | "not_written";

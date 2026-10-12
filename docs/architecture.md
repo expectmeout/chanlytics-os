@@ -664,6 +664,7 @@ packages/contracts/src/
   notes/
   notices/
   people/
+  person-page/
   playbooks/
   reach-out/
   reports/

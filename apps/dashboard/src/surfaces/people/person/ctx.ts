@@ -3,7 +3,7 @@
  * page's own state, and the one toast. `ClientProfileReal` builds it once a draw and every part of the page is a function of it.
  */
 import type { Dispatch, SetStateAction } from "react";
-import type { PersonRowVM, PersonVM } from "@chanlytics/contracts";
+import type { PersonRowVM, PersonTab, PersonVM } from "@chanlytics/contracts";
 import type { useRecordFold } from "../../kit/record/hooks";
 import type { FlashFn } from "../person-verbs";
 
@@ -75,6 +75,17 @@ export interface PageCtx {
   tlAll: boolean;
   setTlAll: Dispatch<SetStateAction<boolean>>;
   folds: { rm: Fold; visit: Fold; offers: Fold };
+  /** The tab the address names (0052), as this width draws it: a desk's Deals is a phone's Overview, a phone's About a desk's. */
+  tab: PersonTab;
+  /** Move to a tab: the address replaced, so the page is not mounted again and Back leaves the person. */
+  goTab: (tab: PersonTab) => void;
+  /** The page as a phone draws it (the People phone's 900px): one column, About a tab of its own. */
+  phone: boolean;
+  /** The business sheet (0052), open or not; the door that opened it takes focus back as it closes (the kit's Sheet). */
+  sheet: boolean;
+  setSheet: Dispatch<SetStateAction<boolean>>;
+  /** Open their thread with words ready (hero.tsx openWith), for every send the page offers. */
+  compose: (text?: string | null) => void;
 }
 
 /** The digits of a number, for comparing what was typed with a phone. */

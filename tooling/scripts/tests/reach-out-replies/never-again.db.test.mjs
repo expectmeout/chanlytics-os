@@ -818,7 +818,8 @@ const SOURCES = {
  * The migration that re-creates a function last, after the one a test below holds it to (00220, 00344), whose own
  * suite holds it to the body before it: ingest_inbound's 00361 in intake/a-delivery-taken-in-again-changes-no-consent.
  */
-const LATER = { outreach_lead_facts: "00241", lead_set_stage: "00344", ingest_inbound: "00361" };
+// lead_set_stage is re-created whole last by 00412 (decision 0052: who the call reached, p_spoke_with).
+const LATER = { outreach_lead_facts: "00241", lead_set_stage: "00412", ingest_inbound: "00361" };
 
 /**
  * 00344 (decision 0034, step 2) re-creates four doors whole, each its last body but for the person's block, which the
@@ -1116,7 +1117,8 @@ test(
 test("every function re-created whole keeps its source's volatility, rights, search path and grants", { skip }, () => {
   // As main's replay has them before 00220: grantees beside the owner.
   const want = {
-    "lead_set_stage(uuid,text,text,text,text,text)": [
+    // Seven arguments since 00412 (p_spoke_with, decision 0052).
+    "lead_set_stage(uuid,text,text,text,text,text,text)": [
       "v",
       true,
       ["search_path=public"],
@@ -1133,7 +1135,7 @@ test("every function re-created whole keeps its source's volatility, rights, sea
          from aclexplode(p.proacl) g where g.grantee <> p.proowner) as grantees
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public'
-     and p.oid in ('public.lead_set_stage(uuid,text,text,text,text,text)'::regprocedure,
+     and p.oid in ('public.lead_set_stage(uuid,text,text,text,text,text,text)'::regprocedure,
                    'public.outreach_lead_facts(uuid,uuid,text,uuid)'::regprocedure,
                    'public.reach_out_audience(uuid,uuid,integer,boolean)'::regprocedure,
                    'public.sending_domain_counts(uuid,text,timestamptz)'::regprocedure,

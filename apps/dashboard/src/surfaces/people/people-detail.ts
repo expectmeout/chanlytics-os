@@ -185,8 +185,15 @@ export async function deletePerson(id: string): Promise<DeleteResult> {
  */
 export async function mergePerson(keep: string, merge: string): Promise<DeleteResult> {
   const r = await api()("POST contacts/[id]/merge", { params: { id: keep }, body: { merge } });
-  if (r.ok) people().forget(merge);
+  // Combine (0052) keeps the person, whichever was named to keep: the record the door merged away is the one let go.
+  if (r.ok) people().forget(keptOf(r.data, keep) === keep ? merge : keep);
   return r;
+}
+
+/** The record a merge kept, as the door answers it (its contact_id), else the one named to keep. */
+export function keptOf(answer: unknown, keep: string): string {
+  const kept: unknown = answer && typeof answer === "object" ? Reflect.get(answer, "contact_id") : undefined;
+  return typeof kept === "string" && kept ? kept : keep;
 }
 
 /**
@@ -510,6 +517,11 @@ export async function markStepDone(
   });
 }
 
+/** Got it (canvas A, Up next): a note for the reader, marked read; it leaves their Up next. */
+export async function seePersonNote(id: string, noteId: string): Promise<ApiResult<{ seen: string }>> {
+  return api()("POST contacts/[id]/notes/seen", { params: { id }, body: { note_id: noteId } });
+}
+
 export async function removePersonNote(id: string, noteId: string): Promise<ApiResult<{ removed: string }>> {
   return api()("POST contacts/[id]/notes/remove", { params: { id }, body: { note_id: noteId }, refresh: "behind" });
 }
@@ -586,6 +598,12 @@ interface DetailsBody {
 
 export async function setPersonDetails(id: string, body: DetailsBody): Promise<DeleteResult> {
   return api()("PUT contacts/[id]/details", { params: { id }, body });
+}
+
+/** "Link a business…" (a lead of the workspace) and "Not at this business" (null), decision 0052. */
+export async function setPersonBusiness(id: string, leadId: string | null): Promise<DeleteResult> {
+  if (leadId === null) return api()("DELETE people/[id]/business", { params: { id } });
+  return api()("PUT people/[id]/business", { params: { id }, body: { lead_id: leadId } });
 }
 
 export function installPeopleCourier(): void {

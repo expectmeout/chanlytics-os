@@ -406,7 +406,7 @@ function peoplePorts(ctx, tenantId) {
     // The batch's people in one read, not one read per person.
     contacts: async (ids) => {
       const { data, error } = await db.from("contacts").select(
-        "id, phone_e164, consent, dnc, marketing_consent, erased_at, display_name, wa_profile_name, email, email_marketing"
+        "id, phone_e164, consent, dnc, marketing_consent, erased_at, display_name, wa_profile_name, email, email_marketing, name_source, name_settled_at"
       ).in("id", ids).eq("tenant_id", tenantId);
       if (error) throw new Error(`broadcast_send: cannot read the people: ${error.message}`);
       return new Map((data ?? []).map((c) => [c.id, c]));
@@ -657,7 +657,9 @@ function replyFactsOf(r) {
     leadWebsite: r.lead_website,
     leadWebsiteRoot: r.lead_website_root,
     signedBy: r.signed_by,
-    tz: r.tz ?? DEFAULT_TIMEZONE
+    tz: r.tz ?? DEFAULT_TIMEZONE,
+    fromName: r.from_name,
+    notNames: r.not_names
   };
 }
 function keptReadingOf(row) {
@@ -679,6 +681,7 @@ function keptReadingOf(row) {
     draft: plan.draft === "answer" || plan.draft === "thanks" ? plan.draft : null,
     draftState: row.draft_state,
     // one of DRAFT_STATES, checked above
+    signerOffered: row.signer_state === "offered" ? row.signer_name : null,
     draftText: row.draft
   };
 }
@@ -714,7 +717,9 @@ async function replyRead(ctx, job) {
           summary: p.reading.summary,
           day: p.reading.day,
           refer_to: p.reading.referTo,
-          unread: p.unread
+          unread: p.unread,
+          // The signer the gate kept (0052): offered to the owner, or taken when the plan says adoptSigner.
+          signer: p.reading.signer
         },
         plan: planJson(p.plan),
         reread: p.reread,

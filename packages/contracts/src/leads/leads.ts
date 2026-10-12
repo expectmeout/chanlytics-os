@@ -280,6 +280,9 @@ export const LEAD_WORDS = {
     tone: LEAD_CALL_OUTCOME_TONES[id],
   })),
   noteLabel: "A note about the call",
+  /** Under Interested (0052): the person the call reached, who becomes their own page's name. */
+  spokeWith: "Who did you speak with?",
+  spokeWithPlaceholder: "Their name, if they said it",
   notePlaceholder: LEAD_NOTE_PLACEHOLDER,
   noteMax: LEAD_NOTE_MAX,
   noteLeft: leadNoteLeft,

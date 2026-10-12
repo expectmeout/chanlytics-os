@@ -16,6 +16,9 @@ export type {
   PersonCampaignDto,
   PersonLeadDto,
   PersonCampaignVM,
+  PersonAtLeadDto,
+  PersonSignerDto,
+  PersonBusinessDto,
 } from "./person-dto";
 export { asPersonMode, PERSON_MODES, PERSON_MODE_LABELS, PERSON_MODE_WORDS } from "./person-receptionist";
 export type { PersonMode, ReceptionistTone, PersonReceptionist, HolderNames } from "./person-receptionist";
@@ -74,7 +77,14 @@ export {
 export type { PeopleListAction, PeopleAggregates } from "./people-lists";
 export { attentionRow } from "./person-attention";
 export type { AttentionRowVM } from "./person-attention";
-export { filterTimeline, personActs, timelineFilterLabel, toPersonVM, TIMELINE_FILTERS } from "./person-profile";
+export {
+  filterTimeline,
+  personActs,
+  personNextFor,
+  timelineFilterLabel,
+  toPersonVM,
+  TIMELINE_FILTERS,
+} from "./person-profile";
 export type { TimelineFilterId, PersonVM, PersonActVM, OwnMessageVM, PersonDoubtVM } from "./person-profile";
 export type { PersonAboutFact, PersonRightNow, PersonFact } from "./person-cards";
 export { consentChangeWords } from "./person-timeline";

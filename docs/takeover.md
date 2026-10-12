@@ -50,7 +50,7 @@ edge statements naming no workspace   27   in 14 files
 doors importing db or channels        0   imports in 0 files
 unnamed durations                    63   in 33 files
 event-shaped clocks                   5   of the registered clocks (invariant 6)
-tables with more than one writer     57   389 writers among them
+tables with more than one writer     57   402 writers among them
 doors writing a record with no event   70   writing 80 tables (invariant 2)
 personal columns with no erasure strategy    2   in 1 table
 breakpoints outside the set          33   in 11 files
@@ -64,7 +64,7 @@ lint warnings                       340   in 147 files, 56 of them exhaustive-de
 route JS ceiling, KB gzipped        800   the shell included
 route CSS ceiling, KB gzipped       160
 each page's own JS ceiling, KB      256   gzipped, beyond the route
-trees the lint's limits hold         57   16 of them with max-params waiting
+trees the lint's limits hold         58   16 of them with max-params waiting
 ```
 
 <!-- measured:end -->

@@ -319,11 +319,22 @@ export interface ParamFacts {
   proposalLink?: string | null;
 }
 
-/** The first name a message may use, or null when all that is on file is a number or an address (isIdentifierName, the one test). */
+/**
+ * The first name a message may use, or null when all that is on file is a number or an address (isIdentifierName, the one
+ * test). And null for a name a person was given by their business or by the engine and nobody has looked at (0052): a
+ * stand-in named for the business they work at (name source `lead`) is "there", never "Bloom"; a name taken from a
+ * reply's signature or a wire without a member's press waits until a member settles it. A name whose source is not
+ * known (`nameSource` absent or null) is greeted as before.
+ */
 export function firstNameOf(
   displayName: string | null | undefined,
   waProfileName: string | null | undefined,
+  name?: { source: string | null | undefined; settled: boolean } | null,
 ): string | null {
+  if (displayName && name) {
+    if (name.source === "lead") return null;
+    if ((name.source === "signature" || name.source === "wire") && !name.settled) return null;
+  }
   const raw = (displayName || waProfileName || "").trim();
   if (!raw || isIdentifierName(raw)) return null;
   const first = raw.split(/\s+/)[0].replace(/[^\p{L}\p{M}'’-]/gu, "");

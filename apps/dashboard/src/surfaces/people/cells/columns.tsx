@@ -13,6 +13,7 @@
 import {
   appointmentWordWhere,
   appointmentWords,
+  businessTrailOf,
   heldWords,
   isIdentifierName,
   rowReachWords,
@@ -162,6 +163,7 @@ export const plNameCell = (
             >
               {p.name}
             </span>
+            {businessTrail(p)}
             {/* The Pipeline's person cell says a stop beside the name (People's own row says it in its State pill). */}
             {stopMark && p.stopped && <StoppedMark className="cl-row-stopped" testid="row-stopped" />}
             {numbered && (
@@ -188,6 +190,19 @@ export const plNameCell = (
     </td>
   );
 };
+
+/**
+ * The business they work at, dim after their name (0052), which gives way before the name does: never after a stand-in,
+ * whose name is the business's already, nor where the business's details were removed.
+ */
+function businessTrail(p: PersonRowVM) {
+  const trail = businessTrailOf(p);
+  return trail ? (
+    <span className="cl-row-trail" data-testid="row-business">
+      · {trail}
+    </span>
+  ) : null;
+}
 
 /** What a row says under the name: their words, or what they said on the phone, as the attention strip says them. */
 function attentionWordsOf(p: PersonRowVM, attention: PeopleCellCtx["attention"]): string | null {
@@ -599,7 +614,13 @@ const plCardCell = (p: PersonRowVM, { attention }: Pick<PeopleCellCtx, "attentio
   return plRowCard({
     face: { person: { name: p.name, initials: p.initials } },
     pick,
-    name: p.name,
+    name: businessTrailOf(p) ? (
+      <>
+        {p.name} {businessTrail(p)}
+      </>
+    ) : (
+      p.name
+    ),
     unread: plUnread(p),
     numeric: isIdentifierName(p.name),
     pill: <PeopleStatePill state={p.state} label={p.stateLabel} />,

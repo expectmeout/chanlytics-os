@@ -1184,11 +1184,15 @@ export type Database = {
           first_seen_at: string
           id: string
           last_seen_at: string
+          lead_id: string | null
+          lead_settled_at: string | null
           marketing_channels: string[] | null
           marketing_consent: string
           marketing_consent_source: string | null
           marketing_consent_updated_at: string | null
           merged_into_contact_id: string | null
+          name_settled_at: string | null
+          name_source: string | null
           notes: string | null
           offers_asked_at: string | null
           phone_e164: string | null
@@ -1220,11 +1224,15 @@ export type Database = {
           first_seen_at?: string
           id?: string
           last_seen_at?: string
+          lead_id?: string | null
+          lead_settled_at?: string | null
           marketing_channels?: string[] | null
           marketing_consent?: string
           marketing_consent_source?: string | null
           marketing_consent_updated_at?: string | null
           merged_into_contact_id?: string | null
+          name_settled_at?: string | null
+          name_source?: string | null
           notes?: string | null
           offers_asked_at?: string | null
           phone_e164?: string | null
@@ -1256,11 +1264,15 @@ export type Database = {
           first_seen_at?: string
           id?: string
           last_seen_at?: string
+          lead_id?: string | null
+          lead_settled_at?: string | null
           marketing_channels?: string[] | null
           marketing_consent?: string
           marketing_consent_source?: string | null
           marketing_consent_updated_at?: string | null
           merged_into_contact_id?: string | null
+          name_settled_at?: string | null
+          name_source?: string | null
           notes?: string | null
           offers_asked_at?: string | null
           phone_e164?: string | null
@@ -1270,6 +1282,13 @@ export type Database = {
           wa_profile_name?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "contacts_lead_id_same_workspace"
+            columns: ["tenant_id", "lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["tenant_id", "id"]
+          },
           {
             foreignKeyName: "contacts_merged_into_contact_id_same_workspace"
             columns: ["tenant_id", "merged_into_contact_id"]
@@ -4748,6 +4767,7 @@ export type Database = {
           done_at: string | null
           done_by: string | null
           due_on: string | null
+          for_seen_at: string | null
           for_user_id: string | null
           id: string
           kept_at: string | null
@@ -4770,6 +4790,7 @@ export type Database = {
           done_at?: string | null
           done_by?: string | null
           due_on?: string | null
+          for_seen_at?: string | null
           for_user_id?: string | null
           id?: string
           kept_at?: string | null
@@ -4792,6 +4813,7 @@ export type Database = {
           done_at?: string | null
           done_by?: string | null
           due_on?: string | null
+          for_seen_at?: string | null
           for_user_id?: string | null
           id?: string
           kept_at?: string | null
@@ -5280,6 +5302,12 @@ export type Database = {
           reread_at: string | null
           rereads: number
           send_id: string | null
+          signer_name: string | null
+          signer_settled_at: string | null
+          signer_settled_by: string | null
+          signer_state: string | null
+          signer_title: string | null
+          signer_was: string | null
           summary: string | null
           tell_claimed_at: string | null
           tenant_id: string
@@ -5308,6 +5336,12 @@ export type Database = {
           reread_at?: string | null
           rereads?: number
           send_id?: string | null
+          signer_name?: string | null
+          signer_settled_at?: string | null
+          signer_settled_by?: string | null
+          signer_state?: string | null
+          signer_title?: string | null
+          signer_was?: string | null
           summary?: string | null
           tell_claimed_at?: string | null
           tenant_id: string
@@ -5336,6 +5370,12 @@ export type Database = {
           reread_at?: string | null
           rereads?: number
           send_id?: string | null
+          signer_name?: string | null
+          signer_settled_at?: string | null
+          signer_settled_by?: string | null
+          signer_state?: string | null
+          signer_title?: string | null
+          signer_was?: string | null
           summary?: string | null
           tell_claimed_at?: string | null
           tenant_id?: string
@@ -6894,6 +6934,10 @@ export type Database = {
       }
       lead_name_key: { Args: { p_name: string }; Returns: string }
       lead_niche_prior: { Args: { p_category_key: string }; Returns: Json }
+      lead_person_leg: {
+        Args: { p_email: string; p_lead_id: string; p_phone: string }
+        Returns: undefined
+      }
       lead_plan_check: { Args: { p_plan: Json }; Returns: undefined }
       lead_release: {
         Args: {
@@ -7018,6 +7062,7 @@ export type Database = {
           p_note?: string
           p_outcome?: string
           p_reason?: string
+          p_spoke_with?: string
           p_stage?: string
         }
         Returns: Json
@@ -7570,11 +7615,16 @@ export type Database = {
           latest_snooze_until: string
           latest_state: string
           latest_wa_inbound_at: string
+          lead_gone: boolean
+          lead_id: string
+          lead_name: string
           marketing_channels: string[]
           marketing_consent: string
           marketing_consent_source: string
           marketing_consent_updated_at: string
           message_channels: string[]
+          name_settled_at: string
+          name_source: string
           needs_human: boolean
           offers_asked_at: string
           open_deals: Json
@@ -7582,6 +7632,10 @@ export type Database = {
           open_escalation_since: string
           phone_e164: string
           queued_reply_at: string
+          signer_message_id: string
+          signer_name: string
+          signer_read_at: string
+          signer_title: string
           step_body: string
           step_deal_id: string
           step_due_on: string
@@ -7623,6 +7677,11 @@ export type Database = {
         Returns: Json
       }
       person_doubt_dismiss: { Args: { p_doubt_id: string }; Returns: Json }
+      person_join_lead: {
+        Args: { p_contact_id: string; p_lead_id: string }
+        Returns: Json
+      }
+      person_leave_lead: { Args: { p_contact_id: string }; Returns: Json }
       person_link_lead: {
         Args: {
           p_assurance: string
@@ -7666,6 +7725,26 @@ export type Database = {
         Args: { p_contacts: string[] }
         Returns: number
       }
+      person_name_adopt: {
+        Args: { p_contact_id: string; p_message_id: string }
+        Returns: Json
+      }
+      person_name_decline: {
+        Args: { p_contact_id: string; p_message_id: string }
+        Returns: Json
+      }
+      person_name_rank: { Args: { p_source: string }; Returns: number }
+      person_name_take: {
+        Args: {
+          p_by: string
+          p_contact_id: string
+          p_message_id: string
+          p_tenant_id: string
+          p_via: string
+        }
+        Returns: Json
+      }
+      person_name_undo: { Args: { p_contact_id: string }; Returns: Json }
       person_note_add: {
         Args: {
           p_body: string
@@ -7705,6 +7784,7 @@ export type Database = {
         Returns: Json
       }
       person_note_remove: { Args: { p_note_id: string }; Returns: Json }
+      person_note_seen: { Args: { p_note_id: string }; Returns: Json }
       person_note_suggest: {
         Args: {
           p_body: string

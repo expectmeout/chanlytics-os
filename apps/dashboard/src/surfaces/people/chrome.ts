@@ -3,7 +3,7 @@
  * drawNewList and drawPipeline, decision 0015): which addresses under `clients` the page takes, and the crumbs, the mount
  * and the one act of each. The frame stays mounted around it (surfaces/routes.ts).
  */
-import { PERSON_STATE_LABELS, parseLeadsRoute } from "@chanlytics/contracts";
+import { PERSON_STATE_LABELS, parseLeadsRoute, personRouteOf } from "@chanlytics/contracts";
 import { surfaceValue } from "../surface-values";
 import { demoSession } from "../legacy-verbs";
 import { P } from "./pipeline/pipe";
@@ -121,8 +121,11 @@ export function peopleChrome({ param, backToPeople }: { param: string | null; ba
     };
   }
   // Its People is the profile's own Back (on a phone the only one: the crumb says ‹ People and the page draws none). A person is
-  // a mount of their own: the frame keys it by the whole route.
-  if (isPersonParam(param)) return { crumbs: [{ ...PEOPLE_CRUMB, go: backToPeople }, personName(param)] };
+  // a mount of their own, and their tabs (`<id>/history`, 0052) are their page too: one mount across them, keyed by the person.
+  if (isPersonParam(param)) {
+    const { id } = personRouteOf(param);
+    return { crumbs: [{ ...PEOPLE_CRUMB, go: backToPeople }, personName(id)], mount: `clients/${id}` };
+  }
   if (param === "new-list")
     return { crumbs: [PEOPLE_CRUMB, "New list"], mount: "clients", views: scopeViews("people") };
   if (/^pipeline(:|$)/.test(param)) {

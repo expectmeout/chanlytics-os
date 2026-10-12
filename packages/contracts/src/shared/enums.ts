@@ -259,6 +259,12 @@ export const EVENT_KINDS = [
   "contact.added",
   /** A person renamed or annotated at the desk (00054), or given an email address (00125). */
   "contact.named",
+  /**
+   * Where a person works (0052, 00412): linked to a lead (its first email or call, a reply that cited ours, a member's
+   * hand), or not at it any more: { lead_id, via, by? }, never a name.
+   */
+  "contact.business_linked",
+  "contact.business_unlinked",
   "contact.noted",
   /** A note changed, taken away, or the receptionist's suggestion kept or dismissed (00157, 0007). Never the words. */
   "contact.note_changed",
@@ -268,6 +274,8 @@ export const EVENT_KINDS = [
   "contact.note_dismissed",
   "contact.note_done",
   "contact.note_undone",
+  /** The member a note is for said Got it (0052): { note_id, by }, never the words. */
+  "contact.note_seen",
   "contact.email_set",
   /** A person's proposal link set or cleared at the desk (00154). Never the address. */
   "contact.proposal_set",

@@ -10,9 +10,11 @@ import {
   openDealsFromJson,
   type DoubtSeen,
   type NameableContact,
+  type PersonAtLeadDto,
   type PersonDecisionDto,
   type PersonDoubtDto,
   type PersonRowDto,
+  type PersonSignerDto,
   type SeenMarksDto,
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
@@ -333,6 +335,153 @@ function mergedOf(v: unknown): MergedPeople {
     email_marketing: word("email_marketing"),
     counts: out,
   };
+}
+
+/* ------------------------------------------------------------ where a person works, and what to call them (0052) -- */
+
+/**
+ * What a name door answers (00412: person_name_adopt, person_name_undo, person_name_decline): whether it did it, the
+ * name the person now has, and why not where it did not (gone, no_signer, settled, named, not_a_signer).
+ */
+export interface PersonNameAnswer {
+  done: boolean;
+  name: string | null;
+  why: string | null;
+}
+
+/** A door's answer read key by key; the first of `doneKeys` that is true says it was done. */
+function nameAnswerOf(v: unknown, doneKey: "named" | "undone" | "declined"): PersonNameAnswer {
+  const o = v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+  return {
+    done: o[doneKey] === true,
+    name: typeof o.name === "string" ? o.name : null,
+    why: typeof o.why === "string" ? o.why : null,
+  };
+}
+
+/**
+ * Use this name (0052): the name a reply was signed with becomes its writer's, through the door as the signed-in
+ * member (session client: the door reads auth.uid() and refuses anyone who may not act here). A press settles it.
+ */
+export async function adoptPersonName(db: Db, personId: string, messageId: string): Promise<PersonNameAnswer> {
+  const { data, error } = await db.rpc("person_name_adopt", { p_contact_id: personId, p_message_id: messageId });
+  if (error) throw error;
+  return nameAnswerOf(data, "named");
+}
+
+/** Undo of Use this name: the name it replaced goes back, settled, so that sign-off is never taken again. */
+export async function undoPersonName(db: Db, personId: string): Promise<PersonNameAnswer> {
+  const { data, error } = await db.rpc("person_name_undo", { p_contact_id: personId });
+  if (error) throw error;
+  return nameAnswerOf(data, "undone");
+}
+
+/** The notice's ×: the signer declined for everyone, the name settled. */
+export async function declinePersonName(db: Db, personId: string, messageId: string): Promise<PersonNameAnswer> {
+  const { data, error } = await db.rpc("person_name_decline", { p_contact_id: personId, p_message_id: messageId });
+  if (error) throw error;
+  return nameAnswerOf(data, "declined");
+}
+
+/** Link a business (0052): the person works at this lead, by a member's hand, settled. */
+export async function joinPersonToLead(db: Db, personId: string, leadId: string): Promise<{ leadId: string }> {
+  const { data, error } = await db.rpc("person_join_lead", { p_contact_id: personId, p_lead_id: leadId });
+  if (error) throw error;
+  const o = data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : {};
+  return { leadId: typeof o.lead_id === "string" ? o.lead_id : leadId };
+}
+
+/** Not at this business (0052): the person is unlinked from the lead they work at, settled. */
+export async function leavePersonLead(db: Db, personId: string): Promise<{ left: boolean }> {
+  const { data, error } = await db.rpc("person_leave_lead", { p_contact_id: personId });
+  if (error) throw error;
+  const o = data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : {};
+  return { left: o.left === true };
+}
+
+/**
+ * Got it (canvas A, Up next): the member a note is for marks it read, through the door as the signed-in member (it
+ * reads auth.uid()). `not_yours` for a note that is for someone else; `not_found` for one the caller cannot see.
+ */
+export async function seePersonNote(db: Db, noteId: string): Promise<{ seen: boolean; why: string | null }> {
+  const { data, error } = await db.rpc("person_note_seen", { p_note_id: noteId });
+  if (error) throw error;
+  const o = data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : {};
+  return { seen: typeof o.seen === "string", why: typeof o.error === "string" ? o.error : null };
+}
+
+/** The most people one business lists: a business is a few people, and the sheet says the rest are there. */
+const PEOPLE_AT_A_LEAD = 20;
+
+/**
+ * Everyone who works at one lead (contacts.lead_id, 0052), the most recently in touch first, under the caller's row
+ * security and the workspace's own filter. Living people only: not erased, not merged into another.
+ */
+export async function peopleAtLead(db: Db, tenantId: string, leadId: string): Promise<PersonAtLeadDto[]> {
+  const { data, error } = await db
+    .from("contacts")
+    .select("id, display_name, wa_profile_name, phone_e164, email, name_source")
+    .eq("tenant_id", tenantId)
+    .eq("lead_id", leadId)
+    .is("erased_at", null)
+    .is("merged_into_contact_id", null)
+    .limit(PEOPLE_AT_A_LEAD);
+  if (error) throw new Error(`peopleAtLead: ${error.message}`);
+  const people = data ?? [];
+  if (!people.length) return [];
+  const ids = people.map((p) => p.id);
+  const [moments, waiting] = await Promise.all([
+    db.from("person_moments").select("contact_id, in_touch_at").eq("tenant_id", tenantId).in("contact_id", ids),
+    db
+      .from("conversations")
+      .select("contact_id")
+      .eq("tenant_id", tenantId)
+      .eq("state", "needs_human")
+      .in("contact_id", ids),
+  ]);
+  if (moments.error) throw new Error(`peopleAtLead: ${moments.error.message}`);
+  if (waiting.error) throw new Error(`peopleAtLead: ${waiting.error.message}`);
+  const touched = new Map((moments.data ?? []).map((m) => [m.contact_id, m.in_touch_at]));
+  const needs = new Set((waiting.data ?? []).map((w) => w.contact_id));
+  return people
+    .map((p) => {
+      const at = touched.get(p.id) ?? null;
+      // -infinity is People's "never in touch".
+      return { ...p, in_touch_at: at && !at.startsWith("-") ? at : null, needs_you: needs.has(p.id) };
+    })
+    .sort((a, b) => (b.in_touch_at ?? "").localeCompare(a.in_touch_at ?? ""));
+}
+
+/**
+ * The signers of the replies this person wrote that are still offered or were adopted, the newest first: the notice and
+ * its undo. A signer is its reply's writer's alone (0052), never the lead's person a colleague answered for.
+ */
+export async function signersOf(db: Db, tenantId: string, personId: string): Promise<PersonSignerDto[]> {
+  const { data, error } = await db
+    .from("reach_out_replies")
+    .select("message_id, signer_name, signer_title, signer_state, read_at, intent, claim")
+    .eq("tenant_id", tenantId)
+    .eq("contact_id", personId)
+    .in("signer_state", ["offered", "adopted"])
+    .is("undone_at", null)
+    .order("read_at", { ascending: false })
+    .limit(5);
+  if (error) throw new Error(`signersOf: ${error.message}`);
+  return (data ?? []).flatMap((r) =>
+    r.signer_name && (r.signer_state === "offered" || r.signer_state === "adopted")
+      ? [
+          {
+            message_id: r.message_id,
+            name: r.signer_name,
+            title: r.signer_title,
+            state: r.signer_state,
+            read_at: r.read_at,
+            intent: r.intent,
+            claim: r.claim,
+          },
+        ]
+      : [],
+  );
 }
 
 /** What a door hands resolve_person (00342, 00344): the identity as it saw it, and how sure it is of it. */

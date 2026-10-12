@@ -1710,3 +1710,49 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
     inset: -6px 0;
   }
 }
+
+/* In People (decision 0052): who works at the business, as People holds them, each a door to their page; a stand-in's
+   reply signer offered as their name under their line (the person page's notice, clients.css). */
+.pk-people {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pk-people-head {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.pk-people-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pk-people-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+}
+.pk-people-row:first-child {
+  border-top: 0;
+}
+.pk-people-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+.pk-people-said {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+.pk-people-said[data-needs] {
+  font-weight: var(--weight-medium);
+  color: var(--warn-ink);
+}

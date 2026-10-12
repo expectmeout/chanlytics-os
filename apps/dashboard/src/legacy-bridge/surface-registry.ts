@@ -154,8 +154,10 @@ export const PERSON_ROUTE = "clients/person";
  * server/request-guards.ts requireUuid); the mockup's seeded people are `c-…` and keep the list's gate and its seeds.
  */
 export function personRouteId(page: string, param?: string | null): string | null {
-  return page === "clients" && param && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(param)
-    ? param
+  // A person's tab is their address with its word (0052): `clients/<id>/history` is still their page.
+  const id = param ? param.split("/")[0] : null;
+  return page === "clients" && id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+    ? id
     : null;
 }
 

@@ -181,6 +181,12 @@ export interface ReachOutReplyOf {
   subject: string | null;
   text: string | null;
   received_at: string;
+  /** Whether the reply cites our email by its Message-ID (0052, 00412); false before it. */
+  cited: boolean;
+  /** The From line's own words ("Priya Nair" of "Priya Nair <priya@…>"); null when it had none. */
+  from_name: string | null;
+  /** The names a signer can never be (0052): the workspace's own and its members'. Empty before 00412. */
+  not_names: string[];
 }
 
 const textOf = (v: unknown): string | null => (typeof v === "string" && v !== "" ? v : null);
@@ -231,6 +237,11 @@ export async function reachOutReplyOf(
     subject: textOf(o.subject),
     text: textOf(o.text),
     received_at: receivedAt,
+    cited: o.cited === true,
+    from_name: textOf(o.from_name),
+    not_names: [textOf(o.workspace), ...(Array.isArray(o.team) ? o.team.map(textOf) : [])].filter(
+      (x): x is string => !!x,
+    ),
   };
 }
 
@@ -248,6 +259,9 @@ export interface ReplyReadingRow {
   draft: string | null;
   draft_state: string;
   draft_why: string | null;
+  /** Who signed it, and what became of the name (0052): offered, adopted, declined or undone. */
+  signer_name: string | null;
+  signer_state: string | null;
 }
 
 /** The reading kept for this message, if any. A read that fails throws. */
@@ -257,7 +271,9 @@ export async function replyReadingOf(
 ): Promise<ReplyReadingRow | null> {
   const { data, error } = await db
     .from("reach_out_replies")
-    .select("intent, claim, summary, unread, rereads, plan, told_at, undone_at, draft, draft_state, draft_why")
+    .select(
+      "intent, claim, summary, unread, rereads, plan, told_at, undone_at, draft, draft_state, draft_why, signer_name, signer_state",
+    )
     .eq("tenant_id", p.tenantId)
     .eq("message_id", p.messageId)
     .maybeSingle();

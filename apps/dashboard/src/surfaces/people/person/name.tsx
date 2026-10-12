@@ -12,9 +12,10 @@
  * (whyNotAnEmail), and the door's own refusal, another person here already has it, is said there too.
  */
 import { useEffect, useState } from "react";
-import { whyNotAnEmail } from "@chanlytics/contracts";
+import { PERSON_NAME_WORDS, whyNotAnEmail } from "@chanlytics/contracts";
 import type { PersonVM } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
+import { LinkButton } from "../../kit/link-button/link-button";
 import { editorBox, focusAsDrawn } from "../../legacy-verbs";
 import { setPersonDetails } from "../people-detail";
 import type { FlashFn } from "../person-verbs";
@@ -25,19 +26,24 @@ interface FieldProps {
   flash: FlashFn;
 }
 
-/** The name, with the pencil that changes it. */
-export function PersonName({ p, canEdit, flash }: FieldProps) {
+/**
+ * The name, with the pencil that changes it. A stand-in (named for the business, 0052) is offered "Add their name", and
+ * its field opens empty: the business's name is not theirs. A name a reply's signer gave says so in the field, with the
+ * way back to the business (`onPutBack`, the notice's Undo).
+ */
+export function PersonName({ p, canEdit, flash, onPutBack }: FieldProps & { onPutBack?: (() => void) | null }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const open = () => {
-    setValue(p.givenName || "");
+    setValue(p.standIn ? "" : p.givenName || "");
     setEditing(true);
   };
   const save = async () => {
     if (busy) return;
     const next = value.trim();
-    if (next === (p.givenName || "")) {
+    // A stand-in's field left empty keeps the business's name: an empty save would clear it.
+    if (next === (p.givenName || "") || (p.standIn && !next)) {
       setEditing(false);
       return;
     }
@@ -60,21 +66,22 @@ export function PersonName({ p, canEdit, flash }: FieldProps) {
     });
   };
   if (!editing) {
-    const unnamed = !p.givenName;
+    const unnamed = !p.givenName || p.standIn;
+    const word = p.standIn ? (p.head.addName ? PERSON_NAME_WORDS.addName : null) : unnamed ? "Name them" : null;
     return (
       <div className="cl-prof-name-row">
         <h1 className="cl-prof-name">{p.name}</h1>
         {canEdit && (
           <button
             type="button"
-            className={`cl-prof-rename ${unnamed ? "is-plain" : ""}`}
+            className={`cl-prof-rename ${word ? "is-plain" : ""}`}
             title={unnamed ? "Give them a name" : "Rename"}
             aria-label={unnamed ? "Give them a name" : "Rename"}
             onClick={open}
             data-testid="person-rename"
           >
             <Icon name="edit" size={11} />
-            {unnamed && <span className="cl-prof-rename-word">Name them</span>}
+            {word && <span className="cl-prof-rename-word">{word}</span>}
           </button>
         )}
       </div>
@@ -112,6 +119,25 @@ export function PersonName({ p, canEdit, flash }: FieldProps) {
           {busy ? "Saving…" : "Save"}
         </button>
       </span>
+      {p.head.namedBy && onPutBack ? (
+        <p className="cl-prof-name-from" data-testid="person-name-from">
+          {PERSON_NAME_WORDS.fromSignature(p.head.namedBy.day)}
+          {p.head.namedBy.putBack ? (
+            <>
+              {" · "}
+              <LinkButton
+                onClick={() => {
+                  setEditing(false);
+                  onPutBack();
+                }}
+                data-testid="person-name-put-back"
+              >
+                {PERSON_NAME_WORDS.putBack(p.head.namedBy.putBack)}
+              </LinkButton>
+            </>
+          ) : null}
+        </p>
+      ) : null}
     </div>
   );
 }

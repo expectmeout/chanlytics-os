@@ -351,6 +351,8 @@ async function readAs(messageId, answer, { reread = 0, unread = "model_failed", 
         day: r.day,
         refer_to: r.referTo,
         unread: reading ? null : unread,
+        // Who signed it (0052), as the reading found it: the door keeps it on the row and offers it.
+        signer: r.signer ?? null,
       },
       p_plan: plan,
       p_reread: reread,
@@ -546,6 +548,20 @@ test(
     assert.equal(plan.suppressFrom, `gerencia@${host}`);
     assert.equal(plan.suppressDomain, host);
     assert.deepEqual(await consentOf(ro.person), { email_marketing: "opted_out", email_marketing_source: "reply" });
+    // Its writer cited our email from another address at the business: linked to the lead (0052), and the no stays the
+    // lead's own person's, as it was. The writer's own answer is untouched: their address is on the list below.
+    const writer = (await reading(msg)).contact_id;
+    assert.notEqual(writer, ro.person);
+    assert.equal((await reading(msg)).lead_contact_id, ro.person, "the reply is still the lead's person's");
+    const linked = ok(await db.from("contacts").select("lead_id, email_marketing").eq("id", writer).single());
+    assert.deepEqual(linked, { lead_id: ro.lead, email_marketing: "unknown" });
+    const told = ok(
+      await db.from("events").select("data").eq("subject_id", writer).eq("kind", "contact.business_linked"),
+    );
+    assert.deepEqual(
+      told.map((e) => [e.data.lead_id, e.data.via, e.data.message_id]),
+      [[ro.lead, "reply", msg]],
+    );
     for (const a of [ro.address, `gerencia@${host}`, `dana@${host}`]) assert.equal(await held(a), true, a);
     assert.deepEqual(await rowsFor("domain", host), [{ what: "said_no" }]);
     for (const id of [ro.lead, also]) {
@@ -561,6 +577,37 @@ test(
       "the lead's address, the reply's From and the domain: what this act added",
     );
     assert.deepEqual(changed.leads.map((l) => l.stage).sort(), ["nurture", "ready"]);
+  },
+);
+
+test(
+  "a signed reply keeps who signed it on the row and offers it to its writer (0052); automatic naming is off, so nobody is named by it",
+  { skip },
+  async () => {
+    const ro = await wroteTo({ host: `signed-${stamp}.example` });
+    const msg = await replied(ro, { text: "Yes, send it over.\n\nPriya Nair\nOwner" });
+    const { res, plan } = await readAs(msg, {
+      intent: "interested",
+      summary: "Wants the details",
+      day: null,
+      refer_to: null,
+      signer: { name: "  Priya   Nair ", title: "Owner" },
+    });
+    assert.equal(res.applied, true);
+    assert.equal(plan.adoptSigner, undefined, "the plan says nothing of it: the job decides, and it is off");
+    const row = await reading(msg);
+    assert.deepEqual(
+      [row.contact_id, row.signer_name, row.signer_title, row.signer_state, row.signer_was, row.signer_settled_at],
+      [ro.person, "Priya Nair", "Owner", "offered", null, null],
+      "kept, offered, nothing settled; the writer had no name source, so what it replaced is said when it is taken",
+    );
+    const person = ok(await db.from("contacts").select("display_name, name_source").eq("id", ro.person).single());
+    assert.match(person.display_name, /^Fixture /, "the writer keeps the name they had");
+    assert.equal(person.name_source, null);
+    // A re-read of a reading that already found a signer never writes another over it.
+    const again = await readAs(msg, { intent: "interested", summary: "x", signer: { name: "Someone Else" } });
+    assert.equal(again.res.applied, false, "a reading applies once");
+    assert.equal((await reading(msg)).signer_name, "Priya Nair");
   },
 );
 
