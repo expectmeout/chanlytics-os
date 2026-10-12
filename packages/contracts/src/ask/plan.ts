@@ -31,8 +31,9 @@
  *                 day. The words say when to ask for it (nineteen days in, or the offer's last day), where a calendar
  *                 can say who booked, last of what no card carries
  *   the words     what no card carries first (channels left out, a note left out or held, the pause to resume, the
- *                 room, WhatsApp's review, the reminder), then what the cards show (the message, the note, the send's
- *                 day): the answer's detail is cut at 700 characters (answerForCards), so a cut loses what a card says
+ *                 room, WhatsApp's review of a paced campaign that also goes by email, the reminder), then what the
+ *                 cards show (WhatsApp's review of a send it holds, the message, the note, the send's day): the answer's
+ *                 detail is cut at 700 characters (answerForCards), so a cut loses what a card says
  *   the journey   a campaign on each moment not covered yet that the workspace can run, on its action's pick; the day
  *                 after's review ask only where the Google listing keeps a review link (stageInput); without one, the
  *                 check named only over a review ask the Library holds, else the action's pick, which may be the
@@ -269,9 +270,9 @@ export const PLAN_WORDS = {
     `It goes without ${versionWord(channel)}: ${whyOf(why)}`,
   /** Why it goes without WhatsApp where the one message that carries it waits on WhatsApp's review (a send it holds). */
   reviewing: (name: string): string => `WhatsApp is still reviewing the WhatsApp version of “${name}”.`,
-  /** That message, and WhatsApp the one channel asked for: no twin; email named where it is open but not asked. */
+  /** That message, WhatsApp alone asked: no twin; email, where open, named (the message may have no email version). */
   reviewRefused: (name: string, emailOpen: boolean): string =>
-    `“${name}”, the one message here that carries an offer, waits on WhatsApp's review of its WhatsApp version, and WhatsApp is the one channel ${emailOpen ? "asked for" : "this offer may go by"}: say so, and ${emailOpen ? "that email can carry it now (name it, or leave channels out), or " : ""}ask again once WhatsApp has reviewed it.`,
+    `“${name}”, the one message here that carries an offer, waits on WhatsApp's review of its WhatsApp version, and WhatsApp is the one channel ${emailOpen ? "asked for" : "this offer may go by"}: say so, and ${emailOpen ? "that email can carry it now (name it), or " : ""}ask again once WhatsApp has reviewed it.`,
   noText: CHANNEL_WORDS.noOffersByText,
   noteMade: (until: string): string => `Tells the receptionist about the offer, until ${until}.`,
   noteKnown: "The receptionist already has a note about the offer.",
@@ -289,7 +290,7 @@ export const PLAN_WORDS = {
   /** The same room for an offer that starts later: its send reaches the whole list, or is dismissed to pace it then. */
   roomTight: (room: Room, audience: number, from: string): string =>
     `${roomWords(room, audience)}, and the send goes to the whole list at once: to pace the offer to the room instead, dismiss the send and ask again on ${from}.`,
-  /** A send WhatsApp's review holds (sendWaitsForReview), its WhatsApp version not approved yet: at its press, whenever it goes. */
+  /** A send WhatsApp's review holds (sendWaitsForReview), not approved yet: at its press, as its card says too. */
   reviewFirst: "The send can be approved once WhatsApp has reviewed its WhatsApp version.",
   /** A paced campaign by email too: approved now, its WhatsApp people held until the version is approved. */
   whatsappReview:
@@ -652,7 +653,10 @@ function offerRead(offer: Offer, say: string | undefined, world: PlanWorld): Off
   };
 }
 
-/** What the plan says of its send that no card says: the room, WhatsApp's review, the day to ask for a reminder. */
+/** A WhatsApp version the send goes by still to be reviewed: the one the plan writes, or one in review it reuses. */
+const awaitsReview = (r: OfferRead): boolean => r.on.includes("whatsapp") && (r.message.made || r.message.inReview);
+
+/** What no card says of the send: the room, WhatsApp's review of a paced campaign by email too, the reminder's day. */
 function sendUnseen(r: OfferRead, world: PlanWorld): string[] {
   const room = r.tight
     ? [
@@ -661,13 +665,9 @@ function sendUnseen(r: OfferRead, world: PlanWorld): string[] {
           : SAY.roomTight(r.tight.room, r.tight.audience, r.dates.fromWords),
       ]
     : [];
-  // A WhatsApp version still to be reviewed: a send its review holds is approved once it is reviewed, whenever it goes;
-  // a paced campaign by email too goes now and holds its WhatsApp people until then.
-  const reviewing = r.on.includes("whatsapp") && (r.message.made || r.message.inReview);
-  const review = sendWaitsForReview(r.kind, r.on) ? SAY.reviewFirst : SAY.whatsappReview;
   return [
     ...room,
-    ...(reviewing ? [review] : []),
+    ...(awaitsReview(r) && !sendWaitsForReview(r.kind, r.on) ? [SAY.whatsappReview] : []),
     ...(r.reminder ? [SAY.reminderAsk(campaignDayWords(r.reminder, world.tz, world.now), r.audience.name)] : []),
   ];
 }
@@ -723,6 +723,8 @@ function offerPlan(r: OfferRead, world: PlanWorld): { steps: PlanStep[]; words: 
     ...(r.note.input ? [] : [r.note.said]),
     ...r.pauses.map((p) => p.said),
     ...sendUnseen(r, world),
+    // A send WhatsApp's review holds, approved once it is reviewed, as its card says too (plan-steps.ts reviewedStep).
+    ...(awaitsReview(r) && sendWaitsForReview(r.kind, r.on) ? [SAY.reviewFirst] : []),
     r.message.made ? SAY.writeMessage(r.message.name, r.on) : SAY.reuseMessage(r.message.name),
     ...(r.note.input ? [r.note.said] : []),
     ...sendDay(r),
@@ -742,7 +744,7 @@ const CHECK_STARTER = "after_visit_check";
  * filed at Approve). The day after's is the review ask only where the Google listing keeps a review link, whose slot
  * fills from it alone: the one the Library holds in this language, by a version it can go by (live; WhatsApp's where
  * WhatsApp sends, the review ask being about their own appointment, not an offer), else its starter, filed at Approve.
- * With no link, the check is named only where the Library holds a review ask, which the action's pick would take.
+ * With no link, the check is named only where the Library holds a review ask, which the action's pick could take.
  */
 function stageInput(id: JourneyStageId, moment: string, world: PlanWorld): Record<string, unknown> {
   if (id !== "after") return { trigger: moment };

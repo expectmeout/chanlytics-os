@@ -9,9 +9,9 @@
  * offer starts today and the calendar has less room than half the audience, and said tight where it starts later; the
  * reminder never a step but the day to ask for it; and a campaign on each moment of the journey not covered yet. The
  * words say first what no card carries (the channels left out and why, a note left out or already held, the month's
- * offer to resume after, the room, WhatsApp's review, the reminder last of them), then what the cards show (the message,
- * the note made, the send's day and hour), so the answer's detail, cut at its 700 characters, loses only what a card
- * says. The dates are the business's: a start already past is refused by the same judge that refuses a campaign's past
+ * offer to resume after, the room, WhatsApp's review of a paced campaign that also goes by email, the reminder last of
+ * them), then what the cards show (WhatsApp's review of a send it holds, the message, the note made, the send's day and
+ * hour), so the answer's detail, cut at its 700 characters, loses only what a card says. The dates are the business's: a start already past is refused by the same judge that refuses a campaign's past
  * end (contracts localDate), and ten o'clock is wallClockAt's.
  *
  * Every step's input is the input of the Ask action it is expanded through (Task 17): each is parsed, strictly, by that
@@ -271,6 +271,11 @@ const ROOM_TIGHT =
 const TODAY_NOTE = noteStep(0, "Oct 11", "Nov 15", "2026-11-15");
 const TODAY_SAYS = "Tells the receptionist about the offer, until Nov 15.";
 const REMINDS_OCT_30 = W.reminderAsk("Oct 30", "Can receive offers");
+/**
+ * A month's offer named near its 80 characters: in the operator's world below, the reminder would end past the answer's
+ * 700 characters were WhatsApp's review of the send said before it.
+ */
+const LONG_MONTHS_OFFER = "This month's offer, for every regular and every newer client, all autumn long";
 
 /** The rows: an intent, a world, and the steps and words it plans, or its refusal. */
 const ROWS = [
@@ -286,7 +291,7 @@ const ROWS = [
     intent: offer(),
     world: world({ playbooks: [monthsOffer({ state: "paused" })] }),
     steps: [WRITTEN({ whatsapp: { body: WA_BODY }, email: EMAIL }), noteStep(2), writtenSend(3, [1, 2])],
-    words: [REVIEW_FIRST, REMINDS, WRITES("WhatsApp and email"), NOTE, GOES],
+    words: [REMINDS, REVIEW_FIRST, WRITES("WhatsApp and email"), NOTE, GOES],
   },
   {
     name: "with no WhatsApp number the message is written for email alone, and the words say why in the channels' own reason",
@@ -310,7 +315,7 @@ const ROWS = [
     intent: offer(),
     world: world({ channels: { whatsapp: OPEN, email: NO_MAILBOX } }),
     steps: [WRITTEN({ whatsapp: { body: WA_BODY } }), noteStep(2), writtenSend(3, [1, 2], { channels: ["whatsapp"] })],
-    words: [WITHOUT_EMAIL, REVIEW_FIRST, REMINDS, WRITES("WhatsApp"), NOTE, GOES],
+    words: [WITHOUT_EMAIL, REMINDS, REVIEW_FIRST, WRITES("WhatsApp"), NOTE, GOES],
   },
   {
     name: "email not checked just now, with no reason given: said as not checked, never as not set up",
@@ -326,7 +331,7 @@ const ROWS = [
       messages: [monthsOfferMessage({ versions: [{ channel: "whatsapp", id: V(1), state: "approved" }] })],
     }),
     steps: [WRITTEN({ whatsapp: { body: WA_BODY }, email: EMAIL }), noteStep(2), writtenSend(3, [1, 2])],
-    words: [REVIEW_FIRST, REMINDS, WRITES("WhatsApp and email"), NOTE, GOES],
+    words: [REMINDS, REVIEW_FIRST, WRITES("WhatsApp and email"), NOTE, GOES],
   },
   {
     name: "a text asked for is dropped, since texts carry no offers",
@@ -356,7 +361,7 @@ const ROWS = [
       ],
     }),
     steps: [WRITTEN({ whatsapp: { body: WA_BODY }, email: EMAIL }), noteStep(2), writtenSend(3, [1, 2])],
-    words: [REVIEW_FIRST, REMINDS, WRITES("WhatsApp and email"), NOTE, GOES],
+    words: [REMINDS, REVIEW_FIRST, WRITES("WhatsApp and email"), NOTE, GOES],
   },
   {
     name: "a quick note is not an offer message: the plan's own is sent, the quick note never (ruling 2)",
@@ -370,7 +375,7 @@ const ROWS = [
     intent: offer(),
     world: world({ messages: [quickNote()] }),
     steps: [WRITTEN({ whatsapp: { body: WA_BODY }, email: EMAIL }), noteStep(2), writtenSend(3, [1, 2])],
-    words: [REVIEW_FIRST, REMINDS, WRITES("WhatsApp and email"), NOTE, GOES],
+    words: [REMINDS, REVIEW_FIRST, WRITES("WhatsApp and email"), NOTE, GOES],
   },
   {
     name: "the month's offer starter comes before a message a plan wrote, whatever the Library's order (ruling 2)",
@@ -460,7 +465,7 @@ const ROWS = [
       pauseStep(3),
       writtenSend(4, [1, 2, 3]),
     ],
-    words: [PAUSES, REVIEW_FIRST, REMINDS, WRITES("WhatsApp and email"), NOTE, GOES],
+    words: [PAUSES, REMINDS, REVIEW_FIRST, WRITES("WhatsApp and email"), NOTE, GOES],
   },
   {
     name: "a month's offer past its last day sends nothing however its state reads: it is not paused, nor said to be resumed (campaignEnded)",
@@ -553,8 +558,8 @@ const ROWS = [
       writtenSend(3, [1, 2], { scheduled_for: "2026-10-11T14:00:00.000Z" }),
     ],
     words: [
-      REVIEW_FIRST,
       REMINDS_OCT_30,
+      REVIEW_FIRST,
       WRITES("WhatsApp and email"),
       TODAY_SAYS,
       "The offer goes to “Can receive offers” on Oct 11 at 10:00 AM.",
@@ -618,7 +623,14 @@ const ROWS = [
     intent: offer({ channels: ["whatsapp"] }),
     world: world({ messages: [monthsOfferMessage({ versions: PENDING_WA })] }),
     refused:
-      "“this_months_offer”, the one message here that carries an offer, waits on WhatsApp's review of its WhatsApp version, and WhatsApp is the one channel asked for: say so, and that email can carry it now (name it, or leave channels out), or ask again once WhatsApp has reviewed it.",
+      "“this_months_offer”, the one message here that carries an offer, waits on WhatsApp's review of its WhatsApp version, and WhatsApp is the one channel asked for: say so, and that email can carry it now (name it), or ask again once WhatsApp has reviewed it.",
+  },
+  {
+    name: "the one message that fits in review has a WhatsApp version alone (an offer written while email was closed), and WhatsApp asked for alone with email open: refused, naming email to ask for, never leaving channels out, which would write a twin whose send waits on WhatsApp's review again (final cleanup)",
+    intent: offer({ channels: ["whatsapp"] }),
+    world: world({ messages: [writtenOffer({ versions: [{ channel: "whatsapp", id: V(21), state: "pending" }] })] }),
+    refused:
+      "“offer”, the one message here that carries an offer, waits on WhatsApp's review of its WhatsApp version, and WhatsApp is the one channel asked for: say so, and that email can carry it now (name it), or ask again once WhatsApp has reviewed it.",
   },
   {
     name: "a paced campaign by email too keeps a WhatsApp version in review: it is approved now, and whoever it reaches on WhatsApp waits for the review",
@@ -678,7 +690,7 @@ const ROWS = [
     intent: offer(),
     world: world({ canNote: false }),
     steps: [WRITTEN({ whatsapp: { body: WA_BODY }, email: EMAIL }), writtenSend(2, [1])],
-    words: [W.noteLeftOut, REVIEW_FIRST, REMINDS, WRITES("WhatsApp and email"), GOES],
+    words: [W.noteLeftOut, REMINDS, REVIEW_FIRST, WRITES("WhatsApp and email"), GOES],
   },
   {
     name: "an offer that ends before its twentieth day: the reminder is asked for on its last day (ruling 1)",
@@ -747,7 +759,7 @@ const ROWS = [
     pastTheCap: true,
   },
   {
-    name: "an operator, email not set up, a new WhatsApp message, the month's offer running and a tight later room: the note left out, the pause, the room, the review and the reminder, then the message written and the send's day",
+    name: "an operator, email not set up, a new WhatsApp message, the month's offer running and a tight later room: the note left out, the pause, the room and the reminder, then the review the send's card says, the message written and the send's day",
     intent: offer(),
     world: world({
       channels: { whatsapp: OPEN, email: NO_MAILBOX },
@@ -756,7 +768,29 @@ const ROWS = [
       canNote: false,
     }),
     steps: [WRITTEN({ whatsapp: { body: WA_BODY } }), pauseStep(2), writtenSend(3, [1, 2], { channels: ["whatsapp"] })],
-    words: [WITHOUT_EMAIL, W.noteLeftOut, PAUSES, ROOM_TIGHT, REVIEW_FIRST, REMINDS, WRITES("WhatsApp"), GOES],
+    words: [WITHOUT_EMAIL, W.noteLeftOut, PAUSES, ROOM_TIGHT, REMINDS, REVIEW_FIRST, WRITES("WhatsApp"), GOES],
+    pastTheCap: true,
+  },
+  {
+    name: "the same operator's world with the month's offer under a long name: the reminder still whole, since WhatsApp's review of the send, which its card says (plan-steps.ts reviewedStep), comes after it (final cleanup)",
+    intent: offer(),
+    world: world({
+      channels: { whatsapp: OPEN, email: NO_MAILBOX },
+      playbooks: [monthsOffer({ name: LONG_MONTHS_OFFER })],
+      room: { open: 15, days: 14 },
+      canNote: false,
+    }),
+    steps: [WRITTEN({ whatsapp: { body: WA_BODY } }), pauseStep(2), writtenSend(3, [1, 2], { channels: ["whatsapp"] })],
+    words: [
+      WITHOUT_EMAIL,
+      W.noteLeftOut,
+      W.monthsOfferPaused(LONG_MONTHS_OFFER, "Nov 30"),
+      ROOM_TIGHT,
+      REMINDS,
+      REVIEW_FIRST,
+      WRITES("WhatsApp"),
+      GOES,
+    ],
     pastTheCap: true,
   },
 
@@ -944,23 +978,42 @@ for (const row of ROWS) {
   });
 }
 
-test("what no card carries comes first, so the answer's detail, cut at its own 700 characters, keeps the review and the reminder whole: the worlds the review of batch P measured past the cap", () => {
+test("what no card carries comes first, so the answer's detail, cut at its own 700 characters, keeps the reminder whole, and the review after it: the worlds the reviews of batch P measured past the cap", () => {
   const cap = C.ASK_ANSWER_CAPS.detail;
   const both = world({ playbooks: [monthsOffer()], room: { open: 15, days: 14 } });
   const worlds = [
     ...ROWS.filter((r) => r.pastTheCap).map((r) => [r.name, r.intent, r.world]),
     ["both channels open, a new message, the month's offer running and a tight later room", offer(), both],
   ];
-  assert.equal(worlds.length, 3);
+  assert.equal(worlds.length, 4);
   for (const [name, intent, w] of worlds) {
     const out = planOf(intent, w);
     assert.ok("words" in out, `${name}: planned`);
     const detail = C.clip(out.words, cap);
     assert.ok(out.words.length > cap, `${name}: past the cap (${out.words.length}), so the cut is what is proved`);
     assert.ok(detail.includes(REMINDS), `${name}: the reminder whole in ${detail}`);
-    if (out.words.includes(REVIEW_FIRST)) assert.ok(detail.includes(REVIEW_FIRST), `${name}: the review whole`);
+    // WhatsApp's review of a send it holds is said on the send's card too (plan-steps.ts reviewedStep), so it comes after
+    // the reminder, and a cut takes it before anything no card says.
+    if (out.words.includes(REVIEW_FIRST))
+      assert.ok(out.words.indexOf(REVIEW_FIRST) > out.words.indexOf(REMINDS), `${name}: the review after the reminder`);
     if (out.words.includes(PAUSES)) assert.ok(detail.includes(PAUSES), `${name}: the pause to resume whole`);
   }
+});
+
+test("the review refusal's advice holds whichever versions the message in review has: email named, the offer goes by email now; channels left out, a message with WhatsApp's version alone is twinned and the send waits on WhatsApp's review again (final cleanup)", () => {
+  const waOnly = writtenOffer({ versions: [{ channel: "whatsapp", id: V(21), state: "pending" }] });
+  for (const [what, message] of [
+    ["both versions", monthsOfferMessage({ versions: PENDING_WA })],
+    ["WhatsApp's alone", waOnly],
+  ]) {
+    const out = planOf(offer({ channels: ["email"] }), world({ messages: [message] }));
+    assert.ok("steps" in out, `${what}: ${JSON.stringify(out)}`);
+    const send = out.steps.at(-1);
+    assert.deepEqual([send.kind, send.input.channels], ["broadcast", ["email"]], what);
+    assert.ok(!out.words.includes(REVIEW_FIRST) && !out.words.includes(W.whatsappReview), `${what}: ${out.words}`);
+  }
+  const left = planOf(offer(), world({ messages: [waOnly] }));
+  assert.ok("steps" in left && left.words.includes(REVIEW_FIRST), JSON.stringify(left));
 });
 
 test("the refusals and the words the brief names are words, and the pace is the open slots a day", () => {

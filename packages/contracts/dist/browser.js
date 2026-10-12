@@ -19182,8 +19182,8 @@ var PLAN_WORDS = {
   without: (channel, why) => `It goes without ${versionWord(channel)}: ${whyOf(why)}`,
   /** Why it goes without WhatsApp where the one message that carries it waits on WhatsApp's review (a send it holds). */
   reviewing: (name) => `WhatsApp is still reviewing the WhatsApp version of \u201C${name}\u201D.`,
-  /** That message, and WhatsApp the one channel asked for: no twin; email named where it is open but not asked. */
-  reviewRefused: (name, emailOpen) => `\u201C${name}\u201D, the one message here that carries an offer, waits on WhatsApp's review of its WhatsApp version, and WhatsApp is the one channel ${emailOpen ? "asked for" : "this offer may go by"}: say so, and ${emailOpen ? "that email can carry it now (name it, or leave channels out), or " : ""}ask again once WhatsApp has reviewed it.`,
+  /** That message, WhatsApp alone asked: no twin; email, where open, named (the message may have no email version). */
+  reviewRefused: (name, emailOpen) => `\u201C${name}\u201D, the one message here that carries an offer, waits on WhatsApp's review of its WhatsApp version, and WhatsApp is the one channel ${emailOpen ? "asked for" : "this offer may go by"}: say so, and ${emailOpen ? "that email can carry it now (name it), or " : ""}ask again once WhatsApp has reviewed it.`,
   noText: CHANNEL_WORDS.noOffersByText,
   noteMade: (until) => `Tells the receptionist about the offer, until ${until}.`,
   noteKnown: "The receptionist already has a note about the offer.",
@@ -19197,7 +19197,7 @@ var PLAN_WORDS = {
   paced: (room, audience) => `${roomWords(room, audience)}, so the offer goes as a campaign: up to ${capOf(room)} a day, each person once, until it ends, starting when you approve it.`,
   /** The same room for an offer that starts later: its send reaches the whole list, or is dismissed to pace it then. */
   roomTight: (room, audience, from) => `${roomWords(room, audience)}, and the send goes to the whole list at once: to pace the offer to the room instead, dismiss the send and ask again on ${from}.`,
-  /** A send WhatsApp's review holds (sendWaitsForReview), its WhatsApp version not approved yet: at its press, whenever it goes. */
+  /** A send WhatsApp's review holds (sendWaitsForReview), not approved yet: at its press, as its card says too. */
   reviewFirst: "The send can be approved once WhatsApp has reviewed its WhatsApp version.",
   /** A paced campaign by email too: approved now, its WhatsApp people held until the version is approved. */
   whatsappReview: "Its WhatsApp version waits on WhatsApp's review, which may still be running at the first send: whoever it reaches on WhatsApp waits for it.",
@@ -19408,15 +19408,14 @@ function offerRead(offer, say2, world) {
     pauses: monthsOfferPauses(world, dates.untilWords)
   };
 }
+var awaitsReview = (r2) => r2.on.includes("whatsapp") && (r2.message.made || r2.message.inReview);
 function sendUnseen(r2, world) {
   const room = r2.tight ? [
     r2.cap !== null ? SAY.paced(r2.tight.room, r2.tight.audience) : SAY.roomTight(r2.tight.room, r2.tight.audience, r2.dates.fromWords)
   ] : [];
-  const reviewing = r2.on.includes("whatsapp") && (r2.message.made || r2.message.inReview);
-  const review = sendWaitsForReview(r2.kind, r2.on) ? SAY.reviewFirst : SAY.whatsappReview;
   return [
     ...room,
-    ...reviewing ? [review] : [],
+    ...awaitsReview(r2) && !sendWaitsForReview(r2.kind, r2.on) ? [SAY.whatsappReview] : [],
     ...r2.reminder ? [SAY.reminderAsk(campaignDayWords(r2.reminder, world.tz, world.now), r2.audience.name)] : []
   ];
 }
@@ -19466,6 +19465,8 @@ function offerPlan(r2, world) {
     ...r2.note.input ? [] : [r2.note.said],
     ...r2.pauses.map((p) => p.said),
     ...sendUnseen(r2, world),
+    // A send WhatsApp's review holds, approved once it is reviewed, as its card says too (plan-steps.ts reviewedStep).
+    ...awaitsReview(r2) && sendWaitsForReview(r2.kind, r2.on) ? [SAY.reviewFirst] : [],
     r2.message.made ? SAY.writeMessage(r2.message.name, r2.on) : SAY.reuseMessage(r2.message.name),
     ...r2.note.input ? [r2.note.said] : [],
     ...sendDay(r2)

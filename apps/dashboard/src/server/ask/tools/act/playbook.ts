@@ -636,7 +636,9 @@ async function proposePlaybook(t: ToolContext, proposed: PlaybookProposed): Prom
   });
   if ("refusal" in checked) return refuse(checked.refusal);
   // A running twin (D9), in the model's words (campaigns/playbook-row.ts twinRefusal). Its Approve meets the rule again
-  // only for a press after its key's day, refused by the campaign its first press started under the same name.
+  // (startNewPlaybook), refusing a twin started since the card was made under the name it carries (under any name, for
+  // a starter's or a plan step's card that names nothing), and so a press after its key's day, by the campaign its
+  // first press started.
   const twin = await twinRefusal(t.ctx, t.tenantId, checked, input.name, PLAYBOOK_CARD_REFUSALS.twin);
   if (twin) return refuse(twin);
   // By the channels it goes by: said and committed whenever they are more than WhatsApp alone by default.

@@ -655,7 +655,7 @@ test("the one message that fits still in WhatsApp's review: a broadcast, built b
     ten,
   );
   assert.equal(paced.isError, true);
-  assert.equal(said(paced).error, W.reviewRefused("this_months_offer"));
+  assert.equal(said(paced).error, W.reviewRefused("this_months_offer", false));
 });
 
 /* ------------------------------------------------------------------ a read that fails */

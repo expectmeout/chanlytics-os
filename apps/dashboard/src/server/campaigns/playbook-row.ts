@@ -161,13 +161,15 @@ export async function twinRefusal(
  * starts on (trialAsked) and its last day (`until`, YYYY-MM-DD: core untilOf, a change's own judge, today or later by
  * the business's clock) are judged first, at this route's clock.
  *
- * A card's start (x-via ask) meets twinRefusal again, 409 in the owner's words (contracts twinRunsWords), and what that
- * guards is a press after its key's day: one within it is answered its first answer before this runs (route.ts
- * onceForKey), but a plan's card can be approved for a week, its key kept a day (0035), so a later press reaches here
- * under the name the first press started its campaign by, and that campaign refuses it. It is not the card's rule again:
- * a card on a message the Library holds always carries a name, so a twin under another name is not refused here. A
- * starter on file is reused, and one not on file has no running twin on its template, so a refused start files nothing
- * new. The composer's start is a person's, and does not meet it.
+ * A card's start (x-via ask) meets twinRefusal again, 409 in the owner's words (contracts twinRunsWords). It refuses a
+ * twin started since the card was made: under the name the card carries, or under any name where it carries none (a
+ * starter's card, or a plan step's, that named nothing). So it also refuses a press after its key's day: one within it
+ * is answered its first answer before this runs (route.ts onceForKey), but a plan's card can be approved for a week, its
+ * key kept a day (0035), so a later press reaches here carrying what the first carried, and the campaign that first
+ * press started refuses it. It is not the card's rule again: a card on a message the Library holds always carries a
+ * name, so a twin started under another name is not refused here. A starter on file is reused, and one not on file has
+ * no running twin on its template, so a refused start files nothing new. The composer's start is a person's, and does
+ * not meet it.
  */
 export async function startNewPlaybook(ctx: RouteContext, req: Request, member: Member) {
   const tenantId = member.tenantId;

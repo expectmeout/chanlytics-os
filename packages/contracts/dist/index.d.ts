@@ -18855,7 +18855,7 @@ declare const PLAN_WORDS: {
     readonly without: (channel: OfferChannel, why: string | null) => string;
     /** Why it goes without WhatsApp where the one message that carries it waits on WhatsApp's review (a send it holds). */
     readonly reviewing: (name: string) => string;
-    /** That message, and WhatsApp the one channel asked for: no twin; email named where it is open but not asked. */
+    /** That message, WhatsApp alone asked: no twin; email, where open, named (the message may have no email version). */
     readonly reviewRefused: (name: string, emailOpen: boolean) => string;
     readonly noText: "Texts carry no offers.";
     readonly noteMade: (until: string) => string;
@@ -18870,7 +18870,7 @@ declare const PLAN_WORDS: {
     readonly paced: (room: Room, audience: number) => string;
     /** The same room for an offer that starts later: its send reaches the whole list, or is dismissed to pace it then. */
     readonly roomTight: (room: Room, audience: number, from: string) => string;
-    /** A send WhatsApp's review holds (sendWaitsForReview), its WhatsApp version not approved yet: at its press, whenever it goes. */
+    /** A send WhatsApp's review holds (sendWaitsForReview), not approved yet: at its press, as its card says too. */
     readonly reviewFirst: "The send can be approved once WhatsApp has reviewed its WhatsApp version.";
     /** A paced campaign by email too: approved now, its WhatsApp people held until the version is approved. */
     readonly whatsappReview: "Its WhatsApp version waits on WhatsApp's review, which may still be running at the first send: whoever it reaches on WhatsApp waits for it.";
