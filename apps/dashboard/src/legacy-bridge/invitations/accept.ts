@@ -42,10 +42,13 @@ function sayJoined(words: string): void {
  * them in, none when nothing was open or the answer did not come.
  */
 export function acceptInvitations(): Promise<JoinedWorkspaceDto[]> {
-  // Nothing is re-read behind it (refresh-map.ts REFRESHES_NOTHING): the caller reads the list again itself when it seated someone.
-  accepting ??= api()("POST me/invitations/accept", { refresh: false }).then(
+  // Nothing is re-read behind it (refresh-map.ts REFRESHES_NOTHING): the caller reads the list again itself when it seated
+  // someone. And nothing the boot holds is forgotten for it (keepsReads), unless it seated someone: an accept that seated
+  // nobody changed nothing a read holds, and the reads after it share the boot's answers rather than ask again.
+  accepting ??= api()("POST me/invitations/accept", { refresh: false, keepsReads: true }).then(
     (r) => {
       const joined = r.ok ? r.data.joined : [];
+      if (joined.length) api().forget();
       const words = youJoinedWords(joined.map((w) => w.name));
       if (words) sayJoined(words);
       return joined;

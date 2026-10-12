@@ -71,7 +71,14 @@ export type {
   ToastTone,
   ToastShape,
 } from "./chrome";
-export { routePrefetchScript, PREFETCH_SLOT, PREFETCH_READS } from "./route-prefetch";
+export {
+  routePrefetchScript,
+  PREFETCH_SLOT,
+  PREFETCH_READS,
+  PREFETCH_BESIDE,
+  PREFETCH_OPEN,
+  openReads,
+} from "./route-prefetch";
 export {
   routeOfPath,
   routeOfHash,

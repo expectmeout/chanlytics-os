@@ -160,8 +160,39 @@ export function load<A, T>(rc: ReaderContext, r: Reader<A, T>, args: A): Promise
 export function readerContext(
   ctx: RouteContext,
   member: Pick<Member, "tenantId" | "role" | "facts">,
-  now: Date = new Date(),
+  now?: Date,
   opts: { keep?: boolean } = {},
+): ReaderContext {
+  // A request that answers several reads (shareTurn): one turn for them all, so a reader two of them read (the
+  // workspace's settings, everyone, how it sells) is read once, and every one says "today" by the same clock.
+  const shared = SHARED_TURNS.get(ctx);
+  if (shared && now === undefined && opts.keep !== true) {
+    const key = `${member.tenantId}|${member.role}`;
+    const had = shared.get(key);
+    if (had) return had;
+    const rc = freshContext(ctx, member, new Date(), opts);
+    shared.set(key, rc);
+    return rc;
+  }
+  return freshContext(ctx, member, now ?? new Date(), opts);
+}
+
+/** The turns of requests that answer several reads (GET open), by workspace and role. */
+const SHARED_TURNS = new WeakMap<RouteContext, Map<string, ReaderContext>>();
+
+/**
+ * A request that answers several reads as one (GET open, decision 0053 step 2): the readers they read through share one
+ * turn, as an Ask turn's tools do. Each read's route still answers what it always answered, from the same readers.
+ */
+export function shareTurn(ctx: RouteContext): void {
+  if (!SHARED_TURNS.has(ctx)) SHARED_TURNS.set(ctx, new Map());
+}
+
+function freshContext(
+  ctx: RouteContext,
+  member: Pick<Member, "tenantId" | "role" | "facts">,
+  now: Date,
+  opts: { keep?: boolean },
 ): ReaderContext {
   const turn = new TurnCache();
   // The workspace's name and clock came with the membership (with-route.ts memberContext): the facts reader's answer

@@ -1,8 +1,10 @@
 # 0053 · A page says where its time went
 
-**Status:** Built, step 1 (12 October 2026, 00412; Ruben: "go with all of your best decisions do the work yourself"):
-the shell's own measures, the browser's five said for the page they were of, Server-Timing by reader and by database
-call, and the back office's card. Steps 2 to 10 are decided, each its own change, ordered by what step 1's numbers say.
+**Status:** Built, steps 1 and 2 (12 October 2026; Ruben: "go with all of your best decisions do the work yourself",
+then "go ahead as you recommend"): step 1 (#1565, 00412) the shell's own measures, the browser's five said for the page
+they were of, Server-Timing by reader and by database call, and the back office's card; step 2 for Today, one read for
+its first screen, and the boot's accept no longer asking every read again. Steps 3 to 10 are decided, each its own
+change, ordered by what the numbers say.
 Written against commit `b220a8b74` (main, 12 October 2026, after #1563). Where this note and the code disagree, the
 code wins.
 
@@ -93,8 +95,27 @@ Step 1 is this change. The rest are the review's ranked list; each is its own ch
 production numbers, and the one whose page is slowest goes first.
 
 1. **Measure** (built): the above.
-2. **One read per route**: a composite `open` read over the readers' `load()`, called from the head; the per-read
-   routes stay for refreshes.
+2. **One read per route** (built for Today, 12 October 2026): `GET open` answers a page's whole first screen as one
+   streamed request, called from the head in place of one request a read; the per-read routes stay for refreshes and
+   for every other page until each joins (`PREFETCH_BESIDE`). What the first numbers showed, and what it changed:
+   - **A cold load of Today asked for 36 reads, nine of them twice** (a production build, 12 October 2026). The boot
+     holds every answer so the surfaces that read the same lists share them, and the one accept of invitations it sends
+     on every boot (#1564) let go of them all, as every write does; in production it also dropped Setup's and the
+     Calendar's reads in flight, which the page then asked for again at about 1.5 s, the reads its READY waited on. The
+     accept now keeps the reads (`keepsReads`, client/api.ts) and lets go of them only when it seated someone.
+   - **Ten of Today's eleven surfaces' reads left only once the shell had mounted.** The head started the page's own
+     nine; the ten it draws beside them (the period line, the bell, Sent's runs, the playbooks, the people…) waited
+     for the boot, and the parts drawn from them came last (2.7 to 4.1 s). Now the head asks `GET open?route=today`
+     once (contracts `openReads`): who is looking and the page's own first, then what it draws beside them, each a
+     line of JSON the moment it settles, parked under the URL the page reads it by. Each read is answered by its own
+     route's `run` past one session check, one membership read (`shareMembership`) and one readers' turn
+     (`shareTurn`), so its answer is the bytes its own request answered, and its refusal the same
+     (`answerOfThrow`). A read the stream did not carry, or a refusal of the whole, is the page's to ask for itself.
+   - Measured on a production build on a laptop (12 October 2026): the cold load's requests fell from 36 to 9, none
+     twice, all in by 745 ms where they had been by 1,503; one read had the page's own in by about 280 ms against 305 to
+     332 as nine, and everything by 521 to 595 against 660. In production each read was a serverless call of its own,
+     many of them cold, which the laptop does not show: the field data will.
+   - Not yet: a part's own Server-Timing reaches the page only as the whole read's, so a page's wait says `open`.
 3. **People and Pipeline as projections**: their counts and the board in SQL, no read of everyone at boot; the
    Calendar stops drawing People.
 4. **The Inbox's threads as a projection**, messages read on open, and a notice that names its row patches it in place.

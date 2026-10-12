@@ -412,7 +412,11 @@ five. Measured on production, 9 October 2026: the Inbox had its rows 350 ms into
   page's own read takes the answer in place of a fetch (`apps/dashboard/src/client/api.ts`). A read that needs something
   only the server knows is made sayable by its route, never left out: the Calendar asks for `around=today` and the route
   works out the weeks by the business's clock. `tooling/scripts/tests/shell/surfaces/route-prefetch.test.mjs` runs each
-  page's surfaces against the list, and fails a page that has no entry.
+  page's surfaces against the list, and fails a page that has no entry. A page that also names what it draws beside its
+  own (`PREFETCH_BESIDE`, Today alone so far) asks for its whole first screen as one streamed read instead
+  (`apps/dashboard/app/api/v1/open/route.ts` over `apps/dashboard/src/server/workspace/page-open.ts`): its own reads,
+  then the rest, each answered by its own route past one session check, one membership read and one readers' turn, and
+  parked for the page under the URL it reads it by (decision 0053, step 2).
 - _The boot reads the page's own first._ Who is looking, the page's surface and what it draws beside it
   (`apps/dashboard/src/legacy-bridge/surface-registry.ts`, `ROUTE_DRAWS`), then everyone else's
   (`apps/dashboard/src/legacy-bridge/surface-runner.ts`).
