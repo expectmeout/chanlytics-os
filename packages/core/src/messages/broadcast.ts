@@ -26,6 +26,7 @@ import { errField, logger } from "@chanlytics/channels";
 import type { Channel, Delivered, Delivery } from "../deliver";
 import { isNotTakenError, isWireUnavailableError } from "../wire-senders";
 import {
+  batchSlots,
   channelOf,
   countSent,
   overAllowance,
@@ -34,7 +35,6 @@ import {
   rowFacts,
   rowHold,
   prepare,
-  slotsOf,
   startsInTime,
   type Work,
 } from "./broadcast-channels";
@@ -336,7 +336,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   // them would otherwise go on, batch after batch, past the last hour.
   const facts = await ports.facts();
   if (await outsideTheHours(ports, b, cmd, facts.timezone)) return;
-  const slots = await slotsOf(ports, b.params);
+  const slots = await batchSlots(ports, b.params);
   // Who is next, before the wires are asked about: the channels this batch goes by are its people's.
   const batch = await ports.batch(b.id, BROADCAST_CHUNK);
   if (await wireIsUnbound(ports, b, cmd, batch)) return;

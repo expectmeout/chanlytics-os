@@ -1468,7 +1468,7 @@ function startsInTime(cmd, r, now) {
 function rowFacts(r) {
   return r.facts !== null && typeof r.facts === "object" && !Array.isArray(r.facts) ? r.facts : {};
 }
-async function slotsOf(ports, params) {
+async function batchSlots(ports, params) {
   const specs = parseParamSpecs(params);
   return { specs, reviewLink: specs.some((s) => s.kind === "review_link") ? await ports.reviewLink() : null };
 }
@@ -1889,7 +1889,7 @@ async function sendBroadcastBatch(ports, cmd) {
   if (await stoppedByBilling(ports, b)) return;
   const facts = await ports.facts();
   if (await outsideTheHours(ports, b, cmd, facts.timezone)) return;
-  const slots = await slotsOf(ports, b.params);
+  const slots = await batchSlots(ports, b.params);
   const batch = await ports.batch(b.id, BROADCAST_CHUNK);
   if (await wireIsUnbound(ports, b, cmd, batch)) return;
   if (b.state === "scheduled" && !await ports.startSending(b.id)) return;

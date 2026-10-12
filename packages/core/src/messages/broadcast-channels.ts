@@ -103,7 +103,7 @@ export interface Work {
   rows: Awaited<ReturnType<BroadcastBatchPorts["message"]>>;
   specs: ParamSpec[];
   facts: Awaited<ReturnType<BroadcastBatchPorts["facts"]>>;
-  /** The Google listing's review link, read once for the batch where a slot asks for it (slotsOf); else null. */
+  /** The Google listing's review link, read once for the batch where a slot asks for it (batchSlots); else null. */
   reviewLink: string | null;
   people: Map<string, ContactRow>;
   priors: Map<string, { id: string; sentAt: string | null }>;
@@ -150,7 +150,7 @@ export function rowFacts(r: Pick<RecipientRow, "facts">): Record<string, unknown
  * 00408, so a failure on that table never stops its send; one whose slot needs the link stops on the read, which the
  * batch makes before the run is marked sending or anyone is claimed, so the job's next try finds the run as it was.
  */
-export async function slotsOf(
+export async function batchSlots(
   ports: Pick<BroadcastBatchPorts, "reviewLink">,
   params: unknown,
 ): Promise<{ specs: ParamSpec[]; reviewLink: string | null }> {
