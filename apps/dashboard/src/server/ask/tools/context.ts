@@ -92,6 +92,10 @@ export interface ProposalOutcome {
   /** What the model sees. */
   result: string;
   isError: boolean;
+  /** A plan's own words for the person (proposeMany): a round that made it answers with them (loop.ts). */
+  words?: string;
+  /** Why nothing was proposed (refuse), as the model is told it: read by a plan of its step's refusal (act/plan.ts). */
+  refusal?: string;
 }
 
 /**
@@ -442,6 +446,7 @@ export const refuse = (why: string): ProposalOutcome => ({
   proposal: null,
   result: JSON.stringify({ error: why }),
   isError: true,
+  refusal: why,
 });
 
 /**
@@ -478,15 +483,22 @@ export const cardsOf = (o: ProposalOutcome): AskProposal[] => o.proposals ?? (o.
 
 /**
  * Several cards from one call, in order, each made by `propose` (a plan's steps, act/plan.ts): the loop keeps every one
- * (loop.ts, cardsOf), and the model is told what `said` says of them, and that nothing has happened yet.
+ * (loop.ts, cardsOf), and the model is told what `said` says of them, the plan's `words`, and that nothing has happened
+ * yet, and how a plan's cards are pressed. The words ride with the outcome too, for the round that answers with them.
  */
-export const proposeMany = (proposals: AskProposal[], said: Record<string, unknown>): ProposalOutcome => ({
+export const proposeMany = (
+  proposals: AskProposal[],
+  said: Record<string, unknown>,
+  words: string | null,
+): ProposalOutcome => ({
   proposal: null,
   proposals,
   isError: false,
+  ...(words ? { words } : {}),
   result: JSON.stringify({
     proposed: true,
     ...said,
-    note: "Nothing has happened yet. These are cards the person approves, edits or dismisses, each on its own. Say what you proposed; never say any of it is done.",
+    ...(words ? { words } : {}),
+    note: "Nothing has happened yet. These are cards the person approves, edits or dismisses; a plan's steps that send nothing are one press, and each send its own after them. Say what you proposed; never say any of it is done.",
   }),
 });

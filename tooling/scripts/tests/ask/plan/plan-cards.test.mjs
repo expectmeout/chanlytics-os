@@ -31,7 +31,7 @@ const { buildProposal, newToolContext, runTool } = await import(at("apps/dashboa
 // Read as a module, so a name contracts does not export yet is a failing assertion, not a file that will not load.
 const C = await import("@chanlytics/contracts");
 const { PLAN_WORDS: W, PLAYBOOK_PATCH_WORDS, PROPOSAL_SPECS, planOf, stepToken } = C;
-const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { readerCache, stableJson } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const { emailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
 const { runAskTurn } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
 const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
@@ -57,6 +57,10 @@ const ICAL = "https://cal.example/harbor.ics";
 const WORDS = "10% off colour all November";
 const LINE = "10% off colour all November.";
 const OFFERS = "seg:offers_ok";
+/** The owner's own phrasing of the offer, kept apart from its words: what every send types into its offer. */
+const OWN_SAY = "Ten percent off any colour, all of November";
+/** What a send on the message step 1 writes says of it: that step, and the offer its values type, quoted (stepSays). */
+const STEP_SAYS = `${W.stepMessage(1)}, with the offer “${OWN_SAY}.”`;
 
 /** A person People's list answers: a yes to offers and to messages, an address and a number, who wrote once. */
 const row = (n, over = {}) => ({
@@ -317,7 +321,10 @@ const worldOf = (over = {}) => ({
   now: NOW,
   tz: TZ,
   language: "en",
-  channels: { whatsapp: false, email_offers: true },
+  // As channelChoices answers them for an offer: no number, and email set up to send offers.
+  channels: { whatsapp: { ok: false, why: C.CHANNEL_WORDS.noWhatsApp }, email: { ok: true, why: null } },
+  whatsappSends: false,
+  reviewLink: false,
   messages: [
     {
       name: "this_months_offer",
@@ -341,6 +348,7 @@ const worldOf = (over = {}) => ({
       trigger: "everyone_monthly",
       state: "running",
       template_name: "this_months_offer",
+      until: null,
     },
   ],
   notes: [],
@@ -355,7 +363,11 @@ const worldOf = (over = {}) => ({
   ...over,
 });
 
-/** Every card a plan made, against the steps planOf makes of `world`: one card a step, in order, each stamped. */
+/**
+ * Every card a plan made, against the steps planOf makes of `world`: one card a step, in order, each stamped where the
+ * plan has a step that sends nothing; where it has none (a setup's campaigns, D3) the cards are plain cards, unstamped,
+ * each with a day's lapse and its own key, and the model is told no plan id.
+ */
 function cardsAreSteps(r, intent, world) {
   assert.equal(r.isError, false, r.result);
   assert.equal(r.proposal, null, "a plan's cards come as several, never as one");
@@ -363,12 +375,16 @@ function cardsAreSteps(r, intent, world) {
   assert.ok("steps" in planned, JSON.stringify(planned));
   const cards = r.proposals;
   assert.equal(cards.length, planned.steps.length, "one card a step");
-  const id = cards[0].plan.id;
-  assert.match(id, /^plan-[0-9a-f-]{36}$/);
+  const stamped = planned.steps.some((s) => s.silent);
+  const id = stamped ? cards[0].plan.id : undefined;
+  if (stamped) assert.match(id, /^plan-[0-9a-f-]{36}$/);
   cards.forEach((p, i) => {
     const s = planned.steps[i];
     assert.equal(p.kind, CARD_KIND[s.kind], `step ${s.n} is a ${s.kind}`);
-    assert.deepEqual(p.plan, { id, step: s.n, of: planned.steps.length, silent: s.silent, after: s.after });
+    assert.deepEqual(
+      p.plan,
+      stamped ? { id, step: s.n, of: planned.steps.length, silent: s.silent, after: s.after } : undefined,
+    );
   });
   assert.equal(new Set(cards.map((p) => p.id)).size, cards.length, "each card its own id");
   const out = said(r);
@@ -417,10 +433,12 @@ test("a November offer, on email alone (no WhatsApp number) and the month's offe
   assert.equal(send.payload.count, PEOPLE.length);
   assert.ok(!send.summary.includes("made by step"), "a real message is quoted, never a step's");
   // `say` is kept: in the note's text and in the words the send types into the offer.
-  const owned = await plan(offer({}, "Ten percent off any colour, all of November"));
+  const owned = await plan(offer({}, OWN_SAY));
   const [n2, , s2] = owned.proposals;
   assert.match(n2.payload.change.text, /^The offer: Ten percent off any colour, all of November\./);
-  assert.equal(s2.payload.params[2].value, "Ten percent off any colour, all of November.");
+  assert.equal(s2.payload.params[2].value, `${OWN_SAY}.`);
+  // The note's card the owner approves quotes what the receptionist is told, the owner's phrasing among it.
+  assert.ok(n2.summary.includes(`${OWN_SAY}.`), n2.summary);
 });
 
 test("the same offer with no message that fits: a message card first, written for email alone, whose token (@step:1) the send's template_id carries, and the send's card says the message is made by step 1", async () => {
@@ -447,6 +465,12 @@ test("the same offer with no message that fits: a message card first, written fo
   assert.deepEqual([send.payload.count, send.payload.channels], [PEOPLE.length, ["email"]]);
   // The commit fills the token from what step 1 made before the route sees it (Task 16): the body keeps it until then.
   assert.equal(PROPOSAL_SPECS.broadcast.commit(send, { settings: null }).body.template_id, stepToken(1));
+  // The send's card the owner approves quotes the offer its values type, through the plan, the owner's own phrasing
+  // (`say`) where it differs from the offer's words: what goes to everyone it reaches, never only "made by step 1".
+  const owned = await plan(offer({}, OWN_SAY), rows);
+  const s2 = owned.proposals.at(-1);
+  assert.equal(s2.payload.params[2].value, `${OWN_SAY}.`);
+  assert.ok(s2.summary.includes(STEP_SAYS), s2.summary);
 });
 
 test("a token outside a plan, or naming a step that is not an earlier one, names nothing: the send's template_id is refused as any other non-id", async () => {
@@ -566,6 +590,74 @@ test("texts never carry an offer: a plan asked for by text alone says so, in wor
   assert.match(W.textOnly, /[Tt]exts/);
 });
 
+/** Harbor's WhatsApp row on `number`, healthy, as the channels' reader reads it (the number judges offers on it). */
+const waRow = (number) => ({
+  id: "ch-wa",
+  tenant_id: A,
+  kind: "whatsapp",
+  status: "active",
+  number_e164: number,
+  config: { quality_rating: "GREEN", messaging_limit: "TIER_1K" },
+});
+
+test("a US number, read through the channels' real reader: the plan says WhatsApp's pause on offers in the pause's own words, never that no number is connected, and the offer goes by email; WhatsApp asked for alone is refused in those words, naming email", async () => {
+  const US = "+12125550123";
+  const rows = tables({ tenant_channels: [waRow(US)] });
+  const r = await plan(offer(), rows);
+  assert.equal(r.isError, false, r.result);
+  const words = said(r).words;
+  assert.ok(words.includes(W.without("whatsapp", C.whatsappOffersOpen(US).why)), words);
+  assert.ok(!words.includes(C.CHANNEL_WORDS.noWhatsApp) && !/no WhatsApp number/i.test(words), words);
+  const send = r.proposals.at(-1);
+  assert.deepEqual([send.kind, send.payload.channels, send.payload.template_id], ["broadcast", ["email"], OFFER_EMAIL]);
+  readerCache.clear();
+  const only = await plan(offer({ channels: ["whatsapp"] }), rows);
+  assert.equal(only.isError, true);
+  assert.equal(said(only).error, W.noChannel([{ channel: "whatsapp", why: C.whatsappOffersOpen(US).why }], ["email"]));
+  assert.match(said(only).error, /Email can carry it/);
+});
+
+/** The month's offer starter on WhatsApp and by email, its WhatsApp version still in WhatsApp's review. */
+const OFFER_WA = "77777777-7777-4777-8777-000000000001";
+const reviewing = () => [
+  tpl(OFFER_WA, {
+    channel: "whatsapp",
+    meta_status: "pending",
+    body_preview: "Hi {{1}}, this month at {{2}}: {{3}} Book here: {{4}}",
+    components: null,
+  }),
+  tpl(OFFER_EMAIL),
+];
+
+test("the one message that fits still in WhatsApp's review: a broadcast, built by the real broadcast handler, goes by its email version and the words say why, never core's 409 for the whole plan; a paced campaign by WhatsApp alone is refused in the plan's words, never as a step its handler refused", async () => {
+  const both = withCalendar({ templates: reviewing() });
+  const r = await plan(offer(), both);
+  assert.equal(r.isError, false, r.result);
+  const send = r.proposals.at(-1);
+  // The card names the message by its anchor (its WhatsApp version, as every broadcast card does), and goes by email.
+  assert.deepEqual([send.kind, send.payload.channels, send.payload.template_id], ["broadcast", ["email"], OFFER_WA]);
+  assert.ok(said(r).words.includes(W.without("whatsapp", W.reviewing("this_months_offer"))), said(r).words);
+  assert.ok(!r.proposals.some((p) => p.kind === "message"), "no twin of it is written");
+  // WhatsApp the one channel that carries offers (no mailbox), and a room tight today: the paced campaign goes by
+  // WhatsApp alone, which core holds for the review, so the plan refuses it itself.
+  readerCache.clear();
+  const tight = withCalendar({ templates: reviewing(), mailboxes: [] });
+  const [cfg] = tight.tenant_config;
+  const profile = { ...PROFILE, hours: { mon: { open: "09:00", close: "10:00" } } };
+  tight.tenant_config = [{ ...cfg, config: { ...cfg.config, brain: { ...cfg.config.brain, profile } } }];
+  const ten = Array.from({ length: 10 }, (_, i) =>
+    row(i, { id: `aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaab${String(i).padStart(2, "0")}` }),
+  );
+  const paced = await call(
+    { action: "plan", ...offer({ from: "2026-10-11", until: "2026-11-15" }) },
+    tight,
+    "owner",
+    ten,
+  );
+  assert.equal(paced.isError, true);
+  assert.equal(said(paced).error, W.reviewRefused("this_months_offer"));
+});
+
 /* ------------------------------------------------------------------ a read that fails */
 
 const BOOM = { message: "connection reset" };
@@ -576,11 +668,12 @@ const refusedFor = (r, words) => {
   assert.equal(said(r).error, words);
 };
 
-test("which channels can carry an offer, unread: the plan refuses in its own words, never planning on a guess of WhatsApp alone (fix round 1)", async () => {
+test("which channels can send, unread: the plan refuses in its own words, never planning on a guess of WhatsApp alone, in words a setup's plan is true of too (fix round 1)", async () => {
   // The mailbox's read fails, so the channels' readiness is none (campaigns/channels-ready.ts channelsReadyOrNull).
   const r = await call({ action: "plan", ...offer() }, tables(), "owner", PEOPLE, { "mailboxes.select": BOOM });
   refusedFor(r, W.channelsUnread);
-  assert.ok(!r.result.includes(W.withoutEmail), "never says email is not set up when it could not be read");
+  assert.ok(!r.result.includes("It goes without email"), "never says email is left out when it could not be read");
+  assert.ok(!W.channelsUnread.includes("offer"), "a setup carries no offer");
   const journey = await call({ action: "plan", intent: "cover_journey" }, withCalendar(), "owner", PEOPLE, {
     "mailboxes.select": BOOM,
   });
@@ -605,7 +698,7 @@ test("the Library or the campaigns unread: refused in the plan's words; the jour
     W.journeyUnread,
   );
   // The calendar's appointments on record unread: calendar.room says it cannot count (`unavailable`), the room is not
-  // known (never full), and the offer is its broadcast. A room read that throws is the same: not known (act/plan.ts).
+  // known (never full), and the offer is its broadcast. A room read that throws is the next test's.
   const roomless = await call(
     { action: "plan", ...offer() },
     withCalendar({ templates: [tpl(OFFER_EMAIL)] }),
@@ -618,6 +711,37 @@ test("the Library or the campaigns unread: refused in the plan's words; the jour
   assert.equal(roomless.isError, false, roomless.result);
   assert.ok(!said(roomless).words.includes("open slot"), said(roomless).words);
   assert.equal(roomless.proposals.at(-1).kind, "broadcast");
+});
+
+test("an offer's lists or notes unread: refused in the plan's words, never a send to a list it did not read, nor a second note over the first; a room read that throws costs the offer nothing but its room (review after the merge)", async () => {
+  // The lists (People's own, as people.lists reads them, and the workspace's) fail with the segments' read.
+  refusedFor(
+    await call({ action: "plan", ...offer() }, tables(), "owner", PEOPLE, { "segments.select": BOOM }),
+    W.listsUnread,
+  );
+  // The configuration row fails: no notes are known, so none is guessed to be missing.
+  refusedFor(
+    await call({ action: "plan", ...offer() }, tables(), "owner", PEOPLE, { "tenant_config.select": BOOM }),
+    W.notesUnread,
+  );
+  // The workspace's facts (its zone, which says which notes still hold) fail: the campaigns' read needs the zone too
+  // (readers/playbooks.ts) and shares the turn's one read of it, so it is refused first, as the campaigns unread; a plan
+  // never reaches the notes on a zone it could not read.
+  refusedFor(
+    await call({ action: "plan", ...offer() }, tables(), "owner", PEOPLE, { "tenants.select": BOOM }),
+    W.playbooksUnread,
+  );
+  // calendar.room's read throws (its reader, readers/openings.ts, rejects where the zone or the settings cannot be read,
+  // which other reads of a plan need too, so the turn's read of it alone is made to reject, as a reader's failure reaches
+  // every caller of the turn's cache): the room is not known, never full, and the offer goes on as its broadcast.
+  const t = newToolContext(ctxOf(withCalendar({ templates: [tpl(OFFER_EMAIL)] })), A, "owner", TZ, NOW);
+  const failed = Promise.reject(new Error("the calendar's settings could not be read"));
+  failed.catch(() => {});
+  t.rc.turn.hits.set(`openings:${stableJson({ day: null, service: null })}`, failed);
+  const roomThrew = await buildProposal(t, "propose_campaign", { action: "plan", ...offer() });
+  assert.equal(roomThrew.isError, false, roomThrew.result);
+  assert.ok(!said(roomThrew).words.includes("open slot"), said(roomThrew).words);
+  assert.equal(roomThrew.proposals.at(-1).kind, "broadcast");
 });
 
 test("the receptionist's notes are the settings read's own (the notes in force the receptionist is told), and a configuration that does not read is refused in words, never read as no notes (fix round 1)", async () => {
@@ -676,37 +800,58 @@ const CALENDAR_JOURNEY = [
   { id: "quiet", covered: false, moment: "lapsed" },
 ];
 
-test("cover_journey with a calendar: a campaign card on each moment not covered yet, one a step of planOf's, no silent step; the day after with no review starter goes by its own starter, after_visit_check, where the step names no message", async () => {
+/** Harbor's world with a calendar and its WhatsApp number (+44: offers on it are open), nothing in the Library. */
+const calendarWorld = (over = {}) =>
+  worldOf({
+    channels: { whatsapp: { ok: true, why: null }, email: { ok: true, why: null } },
+    whatsappSends: true,
+    messages: [],
+    playbooks: [],
+    journey: CALENDAR_JOURNEY,
+    ...over,
+  });
+
+test("cover_journey with a calendar: a campaign card on each moment not covered yet, one a step of planOf's; no step sends nothing, so they are plain cards (D3), unstamped, each its own press with a day's lapse; the day after with no review link goes by its own starter, after_visit_check", async () => {
   const intent = { intent: "cover_journey" };
   const r = await plan(intent, withCalendar());
-  const { cards } = cardsAreSteps(
-    r,
-    intent,
-    worldOf({
-      channels: { whatsapp: true, email_offers: true },
-      messages: [],
-      playbooks: [],
-      journey: CALENDAR_JOURNEY,
-    }),
-  );
+  const { cards } = cardsAreSteps(r, intent, calendarWorld());
   assert.deepEqual(
-    cards.map((p) => [p.kind, p.payload.trigger, p.plan.silent, p.plan.after]),
+    cards.map((p) => [p.kind, p.payload.trigger, p.plan]),
     [
-      ["playbook", "visit_tomorrow", false, []],
-      ["playbook", "visited", false, []],
-      ["playbook", "lapsed", false, []],
+      ["playbook", "visit_tomorrow", undefined],
+      ["playbook", "visited", undefined],
+      ["playbook", "lapsed", undefined],
     ],
   );
+  // Fresh for a day, as every card of no plan (contracts askCardLapsed), never a plan's week.
+  assert.equal(C.askCardLapsed(cards[0], Date.parse(cards[0].made_at) + 2 * DAY), true);
+  // The model is told the plan's steps and words, and no plan id: there is no plan to press.
+  assert.equal("plan" in said(r), false);
   // Nothing in the Library: each goes by its moment's own starter, which its Approve adds.
   assert.deepEqual(
     cards.map((p) => p.payload.starter_key),
     ["visit_reminder", "after_visit_check", "winback_reply"],
-    "the day after's own starter, never the review ask the Library does not hold",
+    "the day after's own starter, never the review ask, with no review link",
   );
 });
 
-test("an offer starting today on a calendar with less room than half its audience, and no message that fits: the campaign's card goes by the message step 1 writes, named by its token, says so, and ends with the offer", async () => {
-  const intent = offer({ from: "2026-10-11", until: "2026-11-15" });
+test("cover_journey where the Google listing keeps a review link and the Library holds no review ask: the day after's card names the review starter and files it at its Approve", async () => {
+  const intent = { intent: "cover_journey", stages: ["after"] };
+  const rows = withCalendar({
+    google_listings: [{ tenant_id: A, new_review_uri: "https://example.com/review/harbor" }],
+  });
+  const r = await plan(intent, rows);
+  const { cards } = cardsAreSteps(r, intent, calendarWorld({ reviewLink: true }));
+  assert.deepEqual(
+    cards.map((p) => [p.kind, p.payload.trigger, p.payload.starter_key]),
+    [["playbook", "visited", "after_visit_review"]],
+  );
+  // Its Approve files the review ask, the route's own starter card (POST playbooks with the starter's key).
+  assert.equal(PROPOSAL_SPECS.playbook.commit(cards[0], { settings: null }).body.starter_key, "after_visit_review");
+});
+
+test("an offer starting today on a calendar with less room than half its audience, and no message that fits: the campaign's card goes by the message step 1 writes, named by its token, says so and quotes the offer its values type (the owner's phrasing), and ends with the offer", async () => {
+  const intent = offer({ from: "2026-10-11", until: "2026-11-15" }, OWN_SAY);
   // One hour on Mondays: four half-hour slots in the next fourteen days, for ten people who can receive offers.
   const tight = withCalendar({ tenant_channels: [] });
   const [cfg] = tight.tenant_config;
@@ -748,7 +893,7 @@ test("an offer starting today on a calendar with less room than half its audienc
     ["saved_list", "offers_ok", stepToken(1), 1, "2026-11-15", ["email"]],
   );
   assert.equal(campaign.payload.template_name, null);
-  assert.ok(campaign.summary.includes(`Says: ${W.stepMessage(1)}`), campaign.summary);
+  assert.ok(campaign.summary.includes(`Says: ${STEP_SAYS}`), campaign.summary);
   assert.ok(campaign.summary.includes(PLAYBOOK_PATCH_WORDS.until("Nov 15")), campaign.summary);
   assert.equal(PROPOSAL_SPECS.playbook.commit(campaign, { settings: null }).body.template_id, stepToken(1));
 });
@@ -779,16 +924,16 @@ const saidBeside = (headline, detail) => ({
 });
 /**
  * The November offer asked for (or `text`), the model's one round scripted as `blocks`, the plan's tool run for real
- * over `ctx`.
+ * over `ctx`, asked by a member of `role`.
  */
-const planTurn = (blocks, { text = `I want to offer ${WORDS}`, ctx = ctxOf(tables()) } = {}) => {
+const planTurn = (blocks, { text = `I want to offer ${WORDS}`, role = "owner", ctx = null } = {}) => {
   const rounds = [{ blocks, stopReason: "tool_use", streamError: null }];
   const events = [];
   return runAskTurn(
     {
-      ctx,
+      ctx: ctx ?? ctxOf(tables(), role === "owner" ? USER : "u2"),
       tenantId: A,
-      role: "owner",
+      role,
       facts: workspaceFacts("Harbor", TZ, null, NOW, []),
       timezone: TZ,
       personLabel: "ada@example.com (owner)",
@@ -822,7 +967,11 @@ const planTurn = (blocks, { text = `I want to offer ${WORDS}`, ctx = ctxOf(table
   );
 };
 
-test("the loop keeps every card one call made: a plan's three cards are the turn's, said as a plan to review (its steps that send nothing and its send, counted)", async () => {
+/** The plan's words a turn's tool result carried, which the model never reads where the plan is the round's one call. */
+const planWordsOf = async (input, rows = tables(), role = "owner") =>
+  said(await call({ action: "plan", ...input }, rows, role)).words;
+
+test("the loop keeps every card one call made: a plan's three cards are the turn's, counted as its steps, and the plan alone in its round answers with the plan's own words, which no card says (what it pauses and to resume it, what it leaves out and why)", async () => {
   const r = await planTurn([PLAN_CALL]);
   assert.equal(r.failed, false, JSON.stringify(r));
   assert.deepEqual(
@@ -833,13 +982,45 @@ test("the loop keeps every card one call made: a plan's three cards are the turn
       ["broadcast", 3],
     ],
   );
-  assert.equal(r.answer.say.headline, "A plan of 2 steps and 1 send to review.");
-  assert.equal(
-    r.answer.say.detail,
-    "The steps that send nothing are approved with one press; each send is its own press once the steps it waits for are done. Nothing happens until you do.",
-  );
+  assert.equal(r.answer.say.headline, "A plan of 3 steps to review: 2 send nothing, then 1 sends.");
+  readerCache.clear();
+  const words = await planWordsOf(offer());
+  assert.equal(r.answer.say.detail, words, "the plan's words whole, in place of the press sentence");
+  assert.ok(words.includes(W.monthsOfferPaused("This month's offer", "Nov 30")), words);
+  assert.ok(words.includes(W.without("whatsapp", C.CHANNEL_WORDS.noWhatsApp)), words);
+  assert.ok(r.answer.say.detail.length <= C.ASK_ANSWER_CAPS.detail);
   // The offer's journey and Library ride in before round 1 (cross-page.ts OFFER_ASKED), then the plan.
   assert.deepEqual(r.tools, ["campaigns.journey", "campaigns.messages", "propose_campaign.plan"]);
+});
+
+test("with a calendar, the plan alone in its round says when to ask for the reminder (its own question on the day), and an operator's plan says the receptionist is not told of the offer until an owner or a partner adds a note: words no card carries", async () => {
+  const rows = () => withCalendar({ tenant_channels: [], templates: [tpl(OFFER_EMAIL)], playbooks: [pbRow(MONTHLY)] });
+  const r = await planTurn([PLAN_CALL], { ctx: ctxOf(rows()) });
+  assert.equal(r.failed, false, JSON.stringify(r));
+  const detail = r.answer.say.detail;
+  assert.ok(detail.includes(W.monthsOfferPaused("This month's offer", "Nov 30")), detail);
+  assert.ok(detail.includes(W.reminderAsk("Nov 20", "Can receive offers")), detail);
+  assert.ok(detail.length <= C.ASK_ANSWER_CAPS.detail, `${detail.length}`);
+  readerCache.clear();
+  const op = await planTurn([PLAN_CALL], { role: "operator" });
+  assert.equal(op.failed, false, JSON.stringify(op));
+  assert.ok(op.answer.say.detail.includes(W.noteLeftOut), op.answer.say.detail);
+});
+
+test("a setup's plan alone in its round: its campaigns are plain cards (D3), so the answer counts them as cards, and the plan's words are its detail", async () => {
+  const setup = { ...PLAN_CALL, json: JSON.stringify({ action: "plan", intent: "cover_journey" }) };
+  const r = await planTurn([setup], { text: "Set up my campaigns", ctx: ctxOf(withCalendar()) });
+  assert.equal(r.failed, false, JSON.stringify(r));
+  assert.deepEqual(
+    r.proposals.map((p) => [p.kind, p.plan]),
+    [
+      ["playbook", undefined],
+      ["playbook", undefined],
+      ["playbook", undefined],
+    ],
+  );
+  assert.equal(r.answer.say.headline, "3 cards to review.");
+  assert.equal(r.answer.say.detail, W.cover(3));
 });
 
 test("an offer's journey and Library read before round 1 are the plan's own reads, answered from the turn's cache (readers/index.ts TurnCache): the plan's call after them asks the database for nothing more than the same call with nothing read ahead, and makes the same cards", async () => {
@@ -872,17 +1053,23 @@ test("an offer's journey and Library read before round 1 are the plan's own read
   );
 });
 
-test("an answer beside a plan's cards that claims a write is said as the plan's own count sentence, its detail kept (loop.ts withoutClaimedWrite): nothing is done until a person presses", async () => {
+test("an answer written beside a plan's call was written before the plan's words came back: it is set aside, as one beside a read is, and the round answers with the plan's count and its own words, a claimed write and an honest answer alike", async () => {
+  const words = await planWordsOf(offer());
+  readerCache.clear();
   const r = await planTurn([saidBeside("I've set up your November offer.", "It starts on Nov 1."), PLAN_CALL]);
   assert.equal(r.failed, false, JSON.stringify(r));
   assert.equal(r.proposals.length, 3);
   assert.deepEqual(
     [r.answer.say.headline, r.answer.say.detail],
-    ["A plan of 2 steps and 1 send to review.", "It starts on Nov 1."],
+    ["A plan of 3 steps to review: 2 send nothing, then 1 sends.", words],
   );
-  // An answer that claims nothing stands as the model wrote it.
+  // An answer that claims nothing is set aside all the same: what the plan pauses and leaves out is the plan's to say.
+  readerCache.clear();
   const honest = await planTurn([saidBeside("Here is a plan for your November offer.", ""), PLAN_CALL]);
-  assert.equal(honest.answer.say.headline, "Here is a plan for your November offer.");
+  assert.deepEqual(
+    [honest.answer.say.headline, honest.answer.say.detail],
+    ["A plan of 3 steps to review: 2 send nothing, then 1 sends.", words],
+  );
 });
 
 /* ------------------------------------------------------------------ a campaign's last day */

@@ -1156,6 +1156,8 @@ test("an unknown tool is refused as it always was, for a read and for an act, an
     proposal: null,
     result: JSON.stringify({ error: "unknown tool teleport" }),
     isError: true,
+    // The refusal as the model is told it, kept beside the result (context.ts refuse): what a plan names its step's by.
+    refusal: "unknown tool teleport",
   });
   assert.equal(
     JSON.parse((await runTool(t, { name: "get_thread", input: {} })).result).error,

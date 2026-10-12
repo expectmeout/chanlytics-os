@@ -995,7 +995,7 @@
           "action": "plan",
           "intent": "offer",
           "offer": {
-            "words": "10% off colour all November",
+            "words": "10% off every service all November",
             "from": "2026-11-01",
             "until": "2026-11-30"
           }
@@ -2138,7 +2138,7 @@
           "action": "plan",
           "intent": "offer",
           "offer": {
-            "words": "10% off colour all November",
+            "words": "10% off every service all November",
             "from": "2026-11-01",
             "until": "2026-11-30"
           }
@@ -3517,7 +3517,7 @@
           "action": "plan",
           "intent": "offer",
           "offer": {
-            "words": "10% off colour all November",
+            "words": "10% off every service all November",
             "from": "2026-11-01",
             "until": "2026-11-30"
           }

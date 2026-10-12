@@ -15,6 +15,7 @@ import {
   type PlanStep,
   type PlanWorld,
 } from "@chanlytics/contracts";
+import { reviewLinkOf } from "@chanlytics/db";
 import { load } from "../../../readers";
 import { channelsReady, config, facts as factsReader } from "../../../readers/facts";
 import { playbooks } from "../../../readers/playbooks";
@@ -74,7 +75,7 @@ const orNull = <T>(t: ToolContext, read: string, p: Promise<T>): Promise<T | nul
 
 /** Everything a plan reads, each null where its read failed. */
 async function worldReads(t: ToolContext) {
-  const [library, lists, journey, pb, room, ready, settings, facts] = await Promise.all([
+  const [library, lists, journey, pb, room, ready, settings, facts, reviewLink] = await Promise.all([
     orNull(t, "messages", readMessages(t)),
     orNull(t, "lists", listLists(t)),
     orNull(t, "journey", readJourney(t)),
@@ -101,8 +102,11 @@ async function worldReads(t: ToolContext) {
       "facts",
       load(t.rc, factsReader, undefined).then((r) => r.data),
     ),
+    // The link the review ask's slot fills from (db reviewLinkOf, the send's own reading): a read that failed is none, as
+    // the starter set counts it (campaigns/starter-templates.ts startersHere), so no review ask is proposed on a guess.
+    orNull(t, "review link", reviewLinkOf(t.ctx.supabase, t.tenantId)),
   ]);
-  return { library, lists, journey, pb, room, ready, settings, facts };
+  return { library, lists, journey, pb, room, ready, settings, facts, reviewLink };
 }
 
 /**
@@ -124,16 +128,18 @@ function notesOf(r: Awaited<ReturnType<typeof worldReads>>, now: Date): PlanWorl
  * so what the plan reuses, counts and covers is what those actions say: the Library (campaigns.messages), the lists and
  * their counts (people.lists: People's offered here and the workspace's own), the journey (campaigns.journey, as
  * Campaigns' home composes it), the campaigns (GET playbooks' reader, the journey's own read), the room (calendar.room:
- * none where no calendar can say it, or one with no slot either way), the receptionist's notes in force (notesOf), and
- * the channels an offer may go by now (the channels' readiness with the offer's own rule, contracts channelChoices). Each
- * read once a turn, the independent ones together. And whether the member asking may approve a note for the
- * receptionist (context.ts offeredTo, the registry's own predicate), so a plan is never dead at a step its member may
- * not approve.
+ * none where no calendar can say it, or one with no slot either way), the receptionist's notes in force (notesOf), the
+ * channels an offer may go by now and why not (the channels' readiness with the offer's own rule, contracts
+ * channelChoices, each entry whole) and whether WhatsApp sends at all, and whether the Google listing keeps a review link
+ * (db reviewLinkOf). Each read once a turn, the independent ones together. And whether the member asking may approve a
+ * note for the receptionist (context.ts offeredTo, the registry's own predicate), so a plan is never dead at a step its
+ * member may not approve.
  *
  * A read that failed is never a guess of what it would have said: the plan is refused in its own words where it needs
  * the read (the channels, the Library and the campaigns always; an offer the lists and the notes, which a setup reads
- * neither of), and goes on without what it can do without: the room not known (never full), and an offer's journey (only
- * its reminder's sentence reads it, and is not said). A setup's journey unread is planOf's own refusal (journeyUnread).
+ * neither of), and goes on without what it can do without: the room not known (never full), an offer's journey (only its
+ * reminder's sentence reads it, and is not said), and the review link (none: the day after asks how it went). A setup's
+ * journey unread is planOf's own refusal (journeyUnread).
  */
 async function planWorld(
   t: ToolContext,
@@ -149,9 +155,13 @@ async function planWorld(
   if (!r.library) return { refusal: PLAN_WORDS.libraryUnread };
   if (offer && !r.lists) return { refusal: PLAN_WORDS.listsUnread };
   if (offer && !notes) return { refusal: PLAN_WORDS.notesUnread };
-  // An offer is the business's news (decision D1): whether each channel may carry one now, by the rule a send's ticks are.
+  // An offer is the business's news (decision D1): whether each channel may carry one now, by the rule a send's ticks
+  // are, and why not where it may not (WhatsApp's pause on offers to US numbers is not a missing number).
   const offers = channelChoices(r.ready, "marketing", "ours");
-  const may = (c: "whatsapp" | "email") => offers.some((o) => o.channel === c && o.ok);
+  const offerOn = (c: "whatsapp" | "email") => {
+    const o = offers.find((x) => x.channel === c);
+    return { ok: o?.ok === true, why: o?.why ?? null };
+  };
   // The stages this workspace can run are the guide's (contracts journeyGuide: an appointment's only with a calendar, a
   // proposal's only where deals are on); the rail draws the others too, as needing what they lack.
   const runs = new Set(r.journey?.guide.map((g) => g.stage));
@@ -160,7 +170,10 @@ async function planWorld(
     now: t.now,
     tz: t.timezone,
     language,
-    channels: { whatsapp: may("whatsapp"), email_offers: may("email") },
+    channels: { whatsapp: offerOn("whatsapp"), email: offerOn("email") },
+    // A message about their own appointment (the review ask) goes on WhatsApp where it sends, whatever offers may.
+    whatsappSends: r.ready.whatsapp.ready,
+    reviewLink: r.reviewLink !== null,
     messages: r.library.messages,
     lists: [
       ...(r.lists?.lists ?? []).map((l) => ({ token: l.list, name: l.label, count: l.count })),
@@ -176,6 +189,8 @@ async function planWorld(
       trigger: p.trigger,
       state: p.state,
       template_name: p.template_name ?? null,
+      // Its last day: a month's offer past it sends nothing, so the plan leaves it alone (contracts campaignEnded).
+      until: p.until ?? null,
     })),
     notes: notes ?? [],
     room: room ? { open: room.open, days: room.days } : null,
@@ -201,16 +216,18 @@ async function stepCard(t: ToolContext, step: PlanStep): Promise<AskProposal | {
     return { refusal: parsed.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ") };
   const made = await def.build({ ...t, step: step.n }, parsed.data);
   if (made.proposal) return made.proposal;
-  const said = JSON.parse(made.result) as { error?: unknown };
-  return { refusal: typeof said.error === "string" ? said.error : made.result };
+  return { refusal: made.refusal ?? made.result };
 }
 
 /**
  * An offer or a whole setup, as one plan (the marketing manager's spec §5.4): the workspace read once (planWorld), the
  * steps made with no model (contracts planOf, refused in its words), then each step built by its own action into an
- * ordinary card and stamped as one plan: its id, its step of how many, whether it sends nothing, and the steps a send
- * waits for. A step its action refuses is the plan's refusal, naming the step; nothing is proposed then. The cards come
- * back together (proposeMany), with the plan's words and its steps for the model to say.
+ * ordinary card. Where a step sends nothing, the cards are stamped as one plan (D3): its id, its step of how many,
+ * whether it sends nothing, and the steps a send waits for, so its silent steps are one press and its cards keep a
+ * plan's week. Where none does (a setup's campaigns, each its own press), they are plain cards, unstamped: a day's lapse
+ * and their own keys, with no plan id said. A step its action refuses is the plan's refusal, naming the step; nothing is
+ * proposed then. The cards come back together (proposeMany), with the plan's steps for the model and its words, which
+ * the round that made it answers with (loop.ts).
  */
 async function proposePlan(t: ToolContext, asked: PlanAsked): Promise<ProposalOutcome> {
   const intent = intentOf(asked);
@@ -220,19 +237,16 @@ async function proposePlan(t: ToolContext, asked: PlanAsked): Promise<ProposalOu
   const planned = planOf(intent, world);
   if ("refused" in planned) return refuse(planned.refused);
   const made = await Promise.all(planned.steps.map((s) => stepCard(t, s)));
-  const id = `plan-${randomUUID()}`;
+  const id = planned.steps.some((s) => s.silent) ? `plan-${randomUUID()}` : null;
   const of = planned.steps.length;
   const cards: AskProposal[] = [];
   for (const [i, s] of planned.steps.entries()) {
     const card = made[i];
     if (!card || "refusal" in card) return refuse(`Step ${s.n} (${s.kind}): ${card?.refusal ?? "it made no card"}`);
-    cards.push({ ...card, plan: { id, step: s.n, of, silent: s.silent, after: s.after } });
+    cards.push(id ? { ...card, plan: { id, step: s.n, of, silent: s.silent, after: s.after } } : card);
   }
-  return proposeMany(cards, {
-    plan: id,
-    steps: planned.steps.map((s, i) => ({ n: s.n, kind: s.kind, card: cards[i]?.title ?? "", silent: s.silent })),
-    words: planned.words,
-  });
+  const steps = planned.steps.map((s, i) => ({ n: s.n, kind: s.kind, card: cards[i]?.title ?? "", silent: s.silent }));
+  return proposeMany(cards, id ? { plan: id, steps } : { steps }, planned.words);
 }
 
 /** An offer or a whole setup, made into its cards from one call: propose_campaign's action plan. */
@@ -256,7 +270,10 @@ export const planAction = actAction({
     language: z.enum(["en", "es"]).optional(),
   }),
   examples: [
-    { intent: "offer", offer: { words: "10% off colour all November", from: "2026-11-01", until: "2026-11-30" } },
+    {
+      intent: "offer",
+      offer: { words: "10% off every service all November", from: "2026-11-01", until: "2026-11-30" },
+    },
     { intent: "cover_journey" },
   ],
   label: "Making a plan",

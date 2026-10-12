@@ -133,11 +133,21 @@ interface GroupStep<P extends HeldCard> {
 }
 
 /**
+ * Whether a send of this kind, by these channels, waits for WhatsApp's review of its message's WhatsApp version before it
+ * can be approved, the way core holds it: a broadcast that ticks WhatsApp (core refuseTicks answers 409 while the version
+ * is in review), or a campaign by WhatsApp alone (check-playbook's refuseMessageNoTickHolds). A campaign by email too
+ * keeps its WhatsApp tick and holds those people until the version is approved, so it can be approved now. The one
+ * reading of it: the Line's (reviewedStep) and the plan's words and its pick of a message (plan.ts).
+ */
+export function sendWaitsForReview(kind: string, channels: readonly unknown[]): boolean {
+  if (kind === "broadcast") return channels.includes("whatsapp");
+  return kind === "playbook" && channels.length > 0 && channels.every((c) => c === "whatsapp");
+}
+
+/**
  * The step whose message a send goes on (its template_id, `@step:n`), where that step writes the message with a WhatsApp
- * version and the send goes by WhatsApp the way core holds for WhatsApp's review: a broadcast that ticks WhatsApp (core
- * refuseTicks answers 409 while the version is in review), or a campaign by WhatsApp alone (check-playbook's
- * refuseMessageNoTickHolds); a campaign by email too keeps its WhatsApp tick and holds those people until it is approved,
- * so it can be approved now. Null for every other card. Read from the cards alone: no review state is held.
+ * version and the send waits for WhatsApp's review of it (sendWaitsForReview). Null for every other card. Read from the
+ * cards alone: no review state is held.
  */
 function reviewedStep(p: HeldCard, steps: ReadonlyMap<number, HeldCard>): number | null {
   const token = typeof p.payload.template_id === "string" ? STEP_TOKEN.exec(p.payload.template_id) : null;
@@ -146,11 +156,7 @@ function reviewedStep(p: HeldCard, steps: ReadonlyMap<number, HeldCard>): number
   const message = steps.get(n);
   const writesWhatsApp = message?.kind === "message" && !!rec(message.payload.versions).whatsapp;
   const channels: unknown[] = Array.isArray(p.payload.channels) ? p.payload.channels : [];
-  const held =
-    p.kind === "broadcast"
-      ? channels.includes("whatsapp")
-      : p.kind === "playbook" && channels.length > 0 && channels.every((c) => c === "whatsapp");
-  return writesWhatsApp && held ? n : null;
+  return writesWhatsApp && sendWaitsForReview(p.kind, channels) ? n : null;
 }
 
 /**
@@ -190,28 +196,38 @@ export function planGroupOf<P extends HeldCard>(
 }
 
 /**
- * The answer's sentence for a plan's cards (ask-answer.ts answerForCards: the turn that proposed and said nothing else,
- * and the headline an answer that claimed a write is said as, the marketing manager's spec §5.8): its steps that send
- * nothing and its sends, counted ("A plan of 4 steps and 2 sends to review."), and how they are approved where some send
- * nothing, the sends' own press said only where there is a send (null where none sends nothing: each card is its own
- * press, as several cards are). Null where the cards are not every one a step of one plan, which are counted as cards.
+ * The answer's sentences for a round's cards (ask-answer.ts answerForCards: the round that proposed and said nothing else,
+ * and the headline an answer that claimed a write is said as, the marketing manager's spec §5.8). The headline counts a
+ * plan's cards as steps, as each card's head does ("Step 6 of 6"), and says how many send nothing and how many send ("A
+ * plan of 6 steps to review: 4 send nothing, then 2 send."), a part that is none left out; null where the cards are not
+ * every one a step of one plan, which are counted as cards. The detail is the plan's own words where the round made a
+ * plan (`words`, its steps unstamped too, D3: what it pauses, leaves out and asks to be asked again, said nowhere else),
+ * in English as the plan says them (Task 18); else, for a plan with steps that send nothing, how its cards are approved,
+ * the sends' own press said only where there is a send; else null, each card its own press as several cards are.
  */
 export function planCountWords(
   cards: readonly Pick<AskProposal, "plan">[],
   language: AskLanguage,
-): { headline: string; detail: string | null } | null {
+  words: string | null,
+): { headline: string | null; detail: string | null } {
+  // No words (null, or a caller in the browser's JavaScript that passed none) is a round that made no plan.
+  const said = words || null;
   const id = cards[0]?.plan?.id;
-  if (id === undefined || cards.some((p) => p.plan?.id !== id)) return null;
-  const steps = cards.filter((p) => p.plan?.silent).length;
-  const sends = cards.length - steps;
+  if (id === undefined || cards.some((p) => p.plan?.id !== id)) return { headline: null, detail: said };
+  const silent = cards.filter((p) => p.plan?.silent).length;
+  const sends = cards.length - silent;
   const es = language === "es";
-  const count = (n: number, one: string, many: string): string[] => (n === 0 ? [] : [`${n} ${n === 1 ? one : many}`]);
+  const one = (n: number, singular: string, plural: string): string => `${n} ${n === 1 ? singular : plural}`;
   const parts = [
-    ...count(steps, es ? "paso" : "step", es ? "pasos" : "steps"),
-    ...count(sends, es ? "envío" : "send", es ? "envíos" : "sends"),
+    ...(silent > 0
+      ? [es ? one(silent, "no envía nada", "no envían nada") : one(silent, "sends nothing", "send nothing")]
+      : []),
+    ...(sends > 0 ? [es ? one(sends, "envía", "envían") : one(sends, "sends", "send")] : []),
   ];
-  const headline = es ? `Un plan de ${parts.join(" y ")} para revisar.` : `A plan of ${parts.join(" and ")} to review.`;
-  if (steps === 0) return { headline, detail: null };
+  const headline = es
+    ? `Un plan de ${one(cards.length, "paso", "pasos")} para revisar: ${parts.join(" y luego ")}.`
+    : `A plan of ${one(cards.length, "step", "steps")} to review: ${parts.join(", then ")}.`;
+  if (said !== null || silent === 0) return { headline, detail: said };
   // The sends' half only where the plan has a send to say it of.
   const together = es
     ? "Los pasos que no envían nada se aprueban con un toque"

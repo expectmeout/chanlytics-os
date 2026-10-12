@@ -128,7 +128,7 @@ const SETUP = new RegExp(
  * campaigns.messages), read before round 1 on any page, Campaigns included, which propose_campaign's plan then reads
  * again from the turn's cache (readers/index.ts TurnCache), never from the database twice. Only an offer to make, at a
  * sentence's start past a setup's openers or a "we":
- *   - an amount off, its article before it or none ("10% off colour all November", "a 10% discount", "un 10% de
+ *   - an amount off, its article before it or none ("10% off every service all November", "a 10% discount", "un 10% de
  *     descuento");
  *   - or a verb that makes one, then within four words an amount, a discount, a promotion or a sale ("give everyone 15%
  *     off", "haz unas rebajas"), never one already named ("the 10% off", "our promo"). Do, have, run, start and make (and

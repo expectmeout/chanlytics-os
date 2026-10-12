@@ -3372,6 +3372,7 @@ test("the proposal builders run against the database in memory: each kind is a c
     proposal: null,
     result: JSON.stringify({ error: "that could not be checked; say so and suggest the page" }),
     isError: true,
+    refusal: "that could not be checked; say so and suggest the page",
   });
 });
 

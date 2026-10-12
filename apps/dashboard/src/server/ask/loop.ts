@@ -309,7 +309,23 @@ function withoutClaimedWrite(
 ): AskAnswer {
   if (made.length === 0 || !claimsWrite(answer.say.headline)) return answer;
   log.warn("ask_answer_claimed_write", { cards: made.length, tenant_id: input.tenantId });
-  return { ...answer, say: { ...answer.say, headline: answerForCards(made, input.language).say.headline } };
+  return { ...answer, say: { ...answer.say, headline: answerForCards(made, input.language, null).say.headline } };
+}
+
+/** A round of cards alone, every one made, that made a plan: the plan's words (ProposalOutcome.words), its answer. */
+const roundPlan = (calls: unknown[], acts: unknown[], refused: boolean, words: string[]): string | null =>
+  acts.length === calls.length && !refused && words.length > 0 ? words.join(" ") : null;
+
+/**
+ * An answer beside a round's acts, which stands where every card was made (an act only checks), or "" where it is set
+ * aside, its Say taken back: beside a card refused or cut off it claims a card that is not there, so the model answers
+ * again knowing why (logged); beside a plan's cards it was written before the plan's words came back (roundPlan).
+ */
+function besideActs(written: string, r: { refused: boolean; planned: string | null; unsay(): void; log(): void }) {
+  if (!written || (!r.refused && r.planned === null)) return written;
+  if (r.refused) r.log();
+  r.unsay();
+  return "";
 }
 
 export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts()): Promise<TurnResult> {
@@ -319,7 +335,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   const es = input.language === "es";
   const tc = toolContextOf(input, now);
   const toolsUsed: string[] = [];
-  const proposals: AskProposal[] = [];
+  const [proposals, planWords]: [AskProposal[], string[]] = [[], []]; // its cards, and its plans' words (roundPlan)
   let reads = 0;
   // Where the time went and what the model was fed (AskTurnShape, turn-end.ts): only the loop sees all of it.
   const meter = turnMeter(t0);
@@ -538,6 +554,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     return timed(calledName(b.name, args), async () => {
       const p = await ports.propose(tc, b.name, args);
       proposals.push(...cardsOf(p));
+      if (p.words) planWords.push(p.words);
       return { result: p.result, isError: p.isError };
     });
   };
@@ -678,7 +695,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
 
       // Reads and proposals, in parallel; every result goes back at once.
       for (const b of calls) input.emit({ t: "trace", text: toolLabel(b.name, argsOf(b)) });
-      const before = proposals.length;
+      const [before, saidBefore] = [proposals.length, planWords.length];
       const outcomes = await Promise.all(
         calls.map(async (b) => ({ block: b, out: ACT_TOOL_NAMES.has(b.name) ? await propose(b) : await read(b) })),
       );
@@ -686,18 +703,17 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       // The round as it went out and came back: a turn that ends on it keeps it as the turn it was (memory.ts).
       const lastRound = { request, blocks, outcomes, roundAt, streamError };
 
-      // Beside acts, the answer stands when every card was made: an act only
-      // checks and proposes. A card refused or cut off would leave an answer
-      // claiming a card that is not there, so the answer goes back with the
-      // round, and the model answers again knowing why.
-      if (written && refused) {
-        log.warn("ask_answer_beside_refused_card", {
-          tools: acts.map((b) => calledName(b.name, argsOf(b))),
-          tenant_id: input.tenantId,
-        });
-        written = "";
-        unsay();
-      }
+      const planned = roundPlan(calls, acts, refused, planWords.slice(saidBefore));
+      written = besideActs(written, {
+        refused,
+        planned,
+        unsay,
+        log: () =>
+          log.warn("ask_answer_beside_refused_card", {
+            tools: acts.map((b) => calledName(b.name, argsOf(b))),
+            tenant_id: input.tenantId,
+          }),
+      });
 
       if (written) {
         let answer: AskAnswer;
@@ -741,11 +757,10 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
         });
       }
 
-      // Cards alone, every one of them made: they are the Do, said in a
-      // sentence, with no second round. A refused or failed proposal keeps the
-      // round -- the model must say why and what the person can do instead.
+      // Cards alone, every one of them made: they are the Do, said in a sentence (a plan's in its words), with no second
+      // round. A refused or failed proposal keeps the round -- the model must say why and what the person can do instead.
       if (acts.length === calls.length && !refused && proposals.length > before) {
-        const answer = answerForCards(proposals.slice(before), input.language);
+        const answer = answerForCards(proposals.slice(before), input.language, planned);
         meter.said();
         input.emit({ t: "say", headline: answer.say.headline, detail: answer.say.detail });
         return done({ answer, failed: false, failure: null, rounds: round, lastRound });

@@ -100,12 +100,26 @@ const JOURNEY = [
   { id: "quiet", covered: false, moment: "lapsed" },
 ];
 
+/** A channel an offer may go by, as channelChoices answers it. */
+const OPEN = { ok: true, why: null };
+/** WhatsApp's pause on offers to US numbers, in its own words (the channels' reader passes the number). */
+const US_PAUSED = C.whatsappOffersOpen("+12125550123").why;
+/** No WhatsApp number: channelChoices' reason, the readiness's own. */
+const NO_NUMBER = { ok: false, why: C.CHANNEL_WORDS.noWhatsApp };
+const NO_MAILBOX = { ok: false, why: C.CHANNEL_WORDS.noMailbox };
+
+/** A setup's one campaign on the day after, its input the moment and `over` (its message or the starter it names). */
+const AFTER = (over) => ({ n: 1, kind: "playbook", silent: false, after: [], input: { trigger: "visited", ...over } });
+const COVERS_ONE = "Starts 1 campaign, one on each moment not covered yet, each its own card.";
+
 /** A workspace that can send offers on WhatsApp and by email, with a calendar, and nothing in its Library yet. */
 const world = (over = {}) => ({
   now: NOW,
   tz: TZ,
   language: "en",
-  channels: { whatsapp: true, email_offers: true },
+  channels: { whatsapp: OPEN, email: OPEN },
+  whatsappSends: true,
+  reviewLink: false,
   messages: [],
   lists: [offersList()],
   playbooks: [],
@@ -129,6 +143,7 @@ const monthsOffer = (over = {}) => ({
   trigger: "everyone_monthly",
   state: "running",
   template_name: "this_months_offer",
+  until: null,
   ...over,
 });
 
@@ -210,9 +225,43 @@ const PAUSES =
 const GOES = "The offer goes to “Can receive offers” on Nov 1 at 10:00 AM.";
 const REMINDS =
   "On Nov 20, ask me to send a reminder to whoever on “Can receive offers” has not booked by then: that is its own question on the day, when who has booked is known.";
+/** A broadcast that ticks WhatsApp, on a WhatsApp version not reviewed yet: approved once it is, whenever it goes. */
+const REVIEW_FIRST = "The send can be approved once WhatsApp has reviewed its WhatsApp version.";
+/** The month's offer's WhatsApp version still in WhatsApp's review, the reason a send it holds goes without it. */
+const REVIEWING = "It goes without WhatsApp: WhatsApp is still reviewing the WhatsApp version of “this_months_offer”.";
+/** Each channel left out, with channelChoices' reason, never one the product wrote for it. */
+const WITHOUT_WA = `It goes without WhatsApp: ${C.CHANNEL_WORDS.noWhatsApp}`;
+const WITHOUT_WA_US = `It goes without WhatsApp: ${US_PAUSED}`;
+const WITHOUT_EMAIL = `It goes without email: ${C.CHANNEL_WORDS.noMailbox}`;
 
 /** A today's offer: from Sunday 11 Oct to 15 Nov. */
 const TODAY = { from: "2026-10-11", until: "2026-11-15" };
+/** The month's offer starter with its WhatsApp version still in WhatsApp's review, its email one approved. */
+const PENDING_WA = [
+  { channel: "whatsapp", id: V(1), state: "pending" },
+  { channel: "email", id: V(2), state: "approved" },
+];
+/** Today's offer paced to 15 open slots in 14 days for 40 people: a campaign, two a day, ending with it. */
+const PACED =
+  "The calendar has 15 open slots in the next 14 days for 40 people, so the offer goes as a campaign: up to 2 a day, each person once, until it ends, starting when you approve it.";
+const pacedStep = (n, after, over = {}) => ({
+  n,
+  kind: "playbook",
+  silent: false,
+  after,
+  input: {
+    trigger: "saved_list",
+    list: OFFERS,
+    policy_class: "campaign",
+    template_id: V(1),
+    params: PARAMS,
+    cap_per_run: 2,
+    name: `Offer: ${WORDS}`,
+    channels: BOTH,
+    until: "2026-11-15",
+    ...over,
+  },
+});
 const TODAY_NOTE = noteStep(0, "Oct 11", "Nov 15", "2026-11-15");
 const TODAY_SAYS = "Tells the receptionist about the offer, until Nov 15.";
 const REMINDS_OCT_30 = W.reminderAsk("Oct 30", "Can receive offers");
@@ -227,25 +276,42 @@ const ROWS = [
     words: [REUSED, NOTE, PAUSES, GOES, REMINDS],
   },
   {
-    name: "no message carries an offer: one is written for WhatsApp and email, and a paused month's offer is left alone",
+    name: "no message carries an offer: one is written for WhatsApp and email, and a paused month's offer is left alone; the send ticks WhatsApp, so it is approved once WhatsApp has reviewed the new version, whenever it goes",
     intent: offer(),
     world: world({ playbooks: [monthsOffer({ state: "paused" })] }),
     steps: [WRITTEN({ whatsapp: { body: WA_BODY }, email: EMAIL }), noteStep(2), writtenSend(3, [1, 2])],
-    words: [WRITES("WhatsApp and email"), NOTE, GOES, REMINDS],
+    words: [WRITES("WhatsApp and email"), NOTE, GOES, REVIEW_FIRST, REMINDS],
   },
   {
-    name: "with no WhatsApp number the message is written for email alone, and the words say why",
+    name: "with no WhatsApp number the message is written for email alone, and the words say why in the channels' own reason",
     intent: offer(),
-    world: world({ channels: { whatsapp: false, email_offers: true } }),
+    world: world({ channels: { whatsapp: NO_NUMBER, email: OPEN } }),
     steps: [WRITTEN({ email: EMAIL }), noteStep(2), writtenSend(3, [1, 2], { channels: ["email"] })],
-    words: [WRITES("email"), W.withoutWhatsApp, NOTE, GOES, REMINDS],
+    words: [WRITES("email"), WITHOUT_WA, NOTE, GOES, REMINDS],
   },
   {
-    name: "where email does not send offers the message has no email version, and the words say so",
+    name: "a US number: WhatsApp's pause on offers is said as itself, never as a missing number, and the starter goes by its email version",
     intent: offer(),
-    world: world({ channels: { whatsapp: true, email_offers: false } }),
+    world: world({
+      channels: { whatsapp: { ok: false, why: US_PAUSED }, email: OPEN },
+      messages: [monthsOfferMessage()],
+    }),
+    steps: [noteStep(1), firstSend(2, [1], { template_id: V(2), channels: ["email"] })],
+    words: [REUSED, WITHOUT_WA_US, NOTE, GOES, REMINDS],
+  },
+  {
+    name: "where email does not send offers the message has no email version, and the words say so in its reason",
+    intent: offer(),
+    world: world({ channels: { whatsapp: OPEN, email: NO_MAILBOX } }),
     steps: [WRITTEN({ whatsapp: { body: WA_BODY } }), noteStep(2), writtenSend(3, [1, 2], { channels: ["whatsapp"] })],
-    words: [WRITES("WhatsApp"), W.withoutEmail, NOTE, GOES, REMINDS],
+    words: [WRITES("WhatsApp"), WITHOUT_EMAIL, NOTE, GOES, REVIEW_FIRST, REMINDS],
+  },
+  {
+    name: "email not checked just now, with no reason given: said as not checked, never as not set up",
+    intent: offer(),
+    world: world({ channels: { whatsapp: OPEN, email: { ok: false, why: null } }, messages: [monthsOfferMessage()] }),
+    steps: [noteStep(1), firstSend(2, [1], { channels: ["whatsapp"] })],
+    words: [REUSED, `It goes without email: ${C.CHANNEL_WORDS.unchecked}`, NOTE, GOES, REMINDS],
   },
   {
     name: "a message missing a channel the offer goes by is not reused: one is written with both",
@@ -254,7 +320,7 @@ const ROWS = [
       messages: [monthsOfferMessage({ versions: [{ channel: "whatsapp", id: V(1), state: "approved" }] })],
     }),
     steps: [WRITTEN({ whatsapp: { body: WA_BODY }, email: EMAIL }), noteStep(2), writtenSend(3, [1, 2])],
-    words: [WRITES("WhatsApp and email"), NOTE, GOES, REMINDS],
+    words: [WRITES("WhatsApp and email"), NOTE, GOES, REVIEW_FIRST, REMINDS],
   },
   {
     name: "a text asked for is dropped, since texts carry no offers",
@@ -284,7 +350,7 @@ const ROWS = [
       ],
     }),
     steps: [WRITTEN({ whatsapp: { body: WA_BODY }, email: EMAIL }), noteStep(2), writtenSend(3, [1, 2])],
-    words: [WRITES("WhatsApp and email"), NOTE, GOES, REMINDS],
+    words: [WRITES("WhatsApp and email"), NOTE, GOES, REVIEW_FIRST, REMINDS],
   },
   {
     name: "a quick note is not an offer message: the plan's own is sent, the quick note never (ruling 2)",
@@ -298,7 +364,7 @@ const ROWS = [
     intent: offer(),
     world: world({ messages: [quickNote()] }),
     steps: [WRITTEN({ whatsapp: { body: WA_BODY }, email: EMAIL }), noteStep(2), writtenSend(3, [1, 2])],
-    words: [WRITES("WhatsApp and email"), NOTE, GOES, REMINDS],
+    words: [WRITES("WhatsApp and email"), NOTE, GOES, REVIEW_FIRST, REMINDS],
   },
   {
     name: "the month's offer starter comes before a message a plan wrote, whatever the Library's order (ruling 2)",
@@ -308,10 +374,19 @@ const ROWS = [
     words: [REUSED, NOTE, GOES, REMINDS],
   },
   {
-    name: "neither WhatsApp nor email can carry an offer here: refused (Review Focus 2)",
+    name: "neither WhatsApp nor email can carry an offer here: refused, each in its own reason, then the text rule (Review Focus 2)",
     intent: offer(),
-    world: world({ channels: { whatsapp: false, email_offers: false } }),
-    refused: W.noChannel,
+    world: world({ channels: { whatsapp: NO_NUMBER, email: NO_MAILBOX } }),
+    refused: `Nothing here can carry this offer. WhatsApp cannot: ${C.CHANNEL_WORDS.noWhatsApp} Email cannot: ${C.CHANNEL_WORDS.noMailbox} ${C.CHANNEL_WORDS.noOffersByText} Say so, and what to set up first.`,
+  },
+  {
+    name: "WhatsApp asked for alone, paused for offers to US numbers, with email open: refused in the pause's own words, naming email to ask for",
+    intent: offer({ channels: ["whatsapp"] }),
+    world: world({
+      channels: { whatsapp: { ok: false, why: US_PAUSED }, email: OPEN },
+      messages: [monthsOfferMessage()],
+    }),
+    refused: `Nothing asked for can carry this offer. WhatsApp cannot: ${US_PAUSED} Email can carry it: name it, or leave channels out.`,
   },
   {
     name: "channels that name none is its own refusal",
@@ -364,7 +439,21 @@ const ROWS = [
       pauseStep(3),
       writtenSend(4, [1, 2, 3]),
     ],
-    words: [WRITES("WhatsApp and email"), NOTE, PAUSES, GOES, REMINDS],
+    words: [WRITES("WhatsApp and email"), NOTE, PAUSES, GOES, REVIEW_FIRST, REMINDS],
+  },
+  {
+    name: "a month's offer past its last day sends nothing however its state reads: it is not paused, nor said to be resumed (campaignEnded)",
+    intent: offer(),
+    world: world({ messages: [monthsOfferMessage()], playbooks: [monthsOffer({ until: "2026-10-10" })] }),
+    steps: [noteStep(1), firstSend(2, [1])],
+    words: [REUSED, NOTE, GOES, REMINDS],
+  },
+  {
+    name: "a month's offer whose last day is still ahead runs until then: it is paused as any other",
+    intent: offer(),
+    world: world({ messages: [monthsOfferMessage()], playbooks: [monthsOffer({ until: "2026-10-11" })] }),
+    steps: [noteStep(1), pauseStep(2), firstSend(3, [1, 2])],
+    words: [REUSED, NOTE, PAUSES, GOES, REMINDS],
   },
   {
     name: "an offer starting today, with less room than half its audience: a campaign capped at the open slots a day, from its Approve, ending with the offer (rulings 2, 3, 4)",
@@ -397,7 +486,7 @@ const ROWS = [
     ],
   },
   {
-    name: "the same tight room for an offer three weeks out: its broadcast, scheduled, and the words say to ask again on its day (ruling 3)",
+    name: "the same tight room for an offer three weeks out: its broadcast, scheduled, to the whole list, and the words say pacing it instead is dismissing the send and asking again on its day (ruling 3)",
     intent: offer(),
     world: world({ messages: [monthsOfferMessage()], room: { open: 15, days: 14 } }),
     steps: [noteStep(1), firstSend(2, [1])],
@@ -405,7 +494,7 @@ const ROWS = [
       REUSED,
       NOTE,
       GOES,
-      "The calendar has 15 open slots in the next 14 days for 40 people: ask again on Nov 1 to pace the offer to the room then.",
+      "The calendar has 15 open slots in the next 14 days for 40 people, and the send goes to the whole list at once: to pace the offer to the room instead, dismiss the send and ask again on Nov 1.",
       REMINDS,
     ],
   },
@@ -434,7 +523,7 @@ const ROWS = [
     ],
   },
   {
-    name: "a new WhatsApp version and a send under a day away: the words say WhatsApp's review may still run (ruling 7)",
+    name: "a new WhatsApp version and a send under a day away: the send is approved once WhatsApp has reviewed it, as on any day (ruling 7)",
     intent: offer(TODAY),
     world: world({ now: new Date("2026-10-11T13:00:00Z") }),
     steps: [
@@ -446,46 +535,32 @@ const ROWS = [
       WRITES("WhatsApp and email"),
       TODAY_SAYS,
       "The offer goes to “Can receive offers” on Oct 11 at 10:00 AM.",
-      W.whatsappReview,
+      REVIEW_FIRST,
       REMINDS_OCT_30,
     ],
   },
   {
-    name: "a reused message whose WhatsApp version it sends is in review says so too, a send under a day away",
+    name: "the one message that fits waits on WhatsApp's review, and the broadcast ticks WhatsApp, which core refuses while it does: no twin is written, the offer goes by its email version, and the words say why (a send under a day away)",
     intent: offer(TODAY),
-    world: world({
-      messages: [
-        monthsOfferMessage({
-          versions: [
-            { channel: "whatsapp", id: V(1), state: "pending" },
-            { channel: "email", id: V(2), state: "approved" },
-          ],
-        }),
-      ],
-      now: new Date("2026-10-11T13:00:00Z"),
-    }),
-    steps: [{ ...TODAY_NOTE, n: 1 }, firstSend(2, [1], { scheduled_for: "2026-10-11T14:00:00.000Z" })],
+    world: world({ messages: [monthsOfferMessage({ versions: PENDING_WA })], now: new Date("2026-10-11T13:00:00Z") }),
+    steps: [
+      { ...TODAY_NOTE, n: 1 },
+      firstSend(2, [1], { template_id: V(2), channels: ["email"], scheduled_for: "2026-10-11T14:00:00.000Z" }),
+    ],
     words: [
       REUSED,
+      REVIEWING,
       TODAY_SAYS,
       "The offer goes to “Can receive offers” on Oct 11 at 10:00 AM.",
-      W.whatsappReview,
       REMINDS_OCT_30,
     ],
   },
   {
-    name: "a version in review is nothing to say where the offer goes without WhatsApp: its email is what is sent",
+    name: "a version in review is nothing to say where the offer goes without WhatsApp for its own reason: its email is what is sent",
     intent: offer(TODAY),
     world: world({
-      channels: { whatsapp: false, email_offers: true },
-      messages: [
-        monthsOfferMessage({
-          versions: [
-            { channel: "whatsapp", id: V(1), state: "pending" },
-            { channel: "email", id: V(2), state: "approved" },
-          ],
-        }),
-      ],
+      channels: { whatsapp: NO_NUMBER, email: OPEN },
+      messages: [monthsOfferMessage({ versions: PENDING_WA })],
       now: new Date("2026-10-11T13:00:00Z"),
     }),
     steps: [
@@ -494,27 +569,57 @@ const ROWS = [
     ],
     words: [
       REUSED,
-      W.withoutWhatsApp,
+      WITHOUT_WA,
       TODAY_SAYS,
       "The offer goes to “Can receive offers” on Oct 11 at 10:00 AM.",
       REMINDS_OCT_30,
     ],
   },
   {
-    name: "a version in review and a send more than a day away: nothing to say of the review",
+    name: "a version in review and a send more than a day away: the same, since the review holds the press, not the send's day",
+    intent: offer(),
+    world: world({ messages: [monthsOfferMessage({ versions: PENDING_WA })] }),
+    steps: [noteStep(1), firstSend(2, [1], { template_id: V(2), channels: ["email"] })],
+    words: [REUSED, REVIEWING, NOTE, GOES, REMINDS],
+  },
+  {
+    name: "the one message that fits in review, and WhatsApp the one channel that carries offers: refused, never a twin, to ask again once it is reviewed",
     intent: offer(),
     world: world({
-      messages: [
-        monthsOfferMessage({
-          versions: [
-            { channel: "whatsapp", id: V(1), state: "pending" },
-            { channel: "email", id: V(2), state: "approved" },
-          ],
-        }),
-      ],
+      channels: { whatsapp: OPEN, email: NO_MAILBOX },
+      messages: [monthsOfferMessage({ versions: PENDING_WA })],
     }),
-    steps: [noteStep(1), firstSend(2, [1])],
-    words: [REUSED, NOTE, GOES, REMINDS],
+    refused:
+      "“this_months_offer”, the one message here that carries an offer, waits on WhatsApp's review of its WhatsApp version, and WhatsApp is the one channel this offer may go by: say so, and ask again once WhatsApp has reviewed it.",
+  },
+  {
+    name: "a paced campaign by email too keeps a WhatsApp version in review: it is approved now, and whoever it reaches on WhatsApp waits for the review",
+    intent: offer(TODAY),
+    world: world({ messages: [monthsOfferMessage({ versions: PENDING_WA })], room: { open: 15, days: 14 } }),
+    steps: [{ ...TODAY_NOTE, n: 1 }, pacedStep(2, [1], { template_id: V(1) })],
+    words: [REUSED, TODAY_SAYS, PACED, W.whatsappReview],
+  },
+  {
+    name: "a paced campaign by WhatsApp alone is held for the review as a broadcast is: on a version in review, refused",
+    intent: offer(TODAY),
+    world: world({
+      channels: { whatsapp: OPEN, email: NO_MAILBOX },
+      messages: [monthsOfferMessage({ versions: PENDING_WA })],
+      room: { open: 15, days: 14 },
+    }),
+    refused:
+      "“this_months_offer”, the one message here that carries an offer, waits on WhatsApp's review of its WhatsApp version, and WhatsApp is the one channel this offer may go by: say so, and ask again once WhatsApp has reviewed it.",
+  },
+  {
+    name: "a paced campaign by WhatsApp alone on the message the plan writes: approved once WhatsApp has reviewed it",
+    intent: offer(TODAY),
+    world: world({ channels: { whatsapp: OPEN, email: NO_MAILBOX }, room: { open: 15, days: 14 } }),
+    steps: [
+      WRITTEN({ whatsapp: { body: WA_BODY } }),
+      { ...TODAY_NOTE, n: 2 },
+      pacedStep(3, [1, 2], { template_id: stepToken(1), channels: ["whatsapp"] }),
+    ],
+    words: [WRITES("WhatsApp"), WITHOUT_EMAIL, TODAY_SAYS, PACED, REVIEW_FIRST],
   },
   {
     name: "the receptionist already has the offer's note with the same end: no note step",
@@ -545,7 +650,7 @@ const ROWS = [
     intent: offer(),
     world: world({ canNote: false }),
     steps: [WRITTEN({ whatsapp: { body: WA_BODY }, email: EMAIL }), writtenSend(2, [1])],
-    words: [WRITES("WhatsApp and email"), W.noteLeftOut, GOES, REMINDS],
+    words: [WRITES("WhatsApp and email"), W.noteLeftOut, GOES, REVIEW_FIRST, REMINDS],
   },
   {
     name: "an offer that ends before its twentieth day: the reminder is asked for on its last day (ruling 1)",
@@ -613,9 +718,9 @@ const ROWS = [
     words: ["Starts 2 campaigns, one on each moment not covered yet, each its own card."],
   },
   {
-    name: "the day after sends the review ask where the Library holds it (ruling 9)",
+    name: "the day after sends the review ask the Library holds where the Google listing keeps a review link (ruling 9)",
     intent: { intent: "cover_journey" },
-    world: world({ messages: [reviewAsk()] }),
+    world: world({ messages: [reviewAsk()], reviewLink: true }),
     steps: [
       { n: 1, kind: "playbook", silent: false, after: [], input: { trigger: "visit_tomorrow" } },
       { n: 2, kind: "playbook", silent: false, after: [], input: { trigger: "visited", template_id: V(7) } },
@@ -624,16 +729,62 @@ const ROWS = [
     words: ["Starts 3 campaigns, one on each moment not covered yet, each its own card."],
   },
   {
-    name: "the review ask by a version it can go by: not WhatsApp's without a number, nor one WhatsApp refused",
+    name: "a review link and nothing held: the day after names the review starter, which its Approve files",
     intent: { intent: "cover_journey", stages: ["after"] },
-    world: world({ channels: { whatsapp: false, email_offers: true }, messages: [reviewAsk()] }),
-    steps: [{ n: 1, kind: "playbook", silent: false, after: [], input: { trigger: "visited", template_id: V(8) } }],
-    words: ["Starts 1 campaign, one on each moment not covered yet, each its own card."],
+    world: world({ reviewLink: true }),
+    steps: [AFTER({ starter: "after_visit_review" })],
+    words: [COVERS_ONE],
+  },
+  {
+    name: "a review link and only the check held: the day after still names the review starter, never the check that asks no review",
+    intent: { intent: "cover_journey", stages: ["after"] },
+    world: world({ reviewLink: true, messages: [checkAsk()] }),
+    steps: [AFTER({ starter: "after_visit_review" })],
+    words: [COVERS_ONE],
+  },
+  {
+    name: "no review link: a review ask the Library holds is never sent, whose link would fill from nothing; the day after names the check",
+    intent: { intent: "cover_journey", stages: ["after"] },
+    world: world({ messages: [reviewAsk()] }),
+    steps: [AFTER({ starter: "after_visit_check" })],
+    words: [COVERS_ONE],
+  },
+  {
+    name: "no review link and nothing held: the day after goes by the moment's own starter, as the action takes it",
+    intent: { intent: "cover_journey", stages: ["after"] },
+    world: world(),
+    steps: [AFTER({})],
+    words: [COVERS_ONE],
+  },
+  {
+    name: "the review ask by a version it can go by: not WhatsApp's where WhatsApp sends nothing, nor one WhatsApp refused",
+    intent: { intent: "cover_journey", stages: ["after"] },
+    world: world({
+      channels: { whatsapp: NO_NUMBER, email: OPEN },
+      whatsappSends: false,
+      reviewLink: true,
+      messages: [reviewAsk()],
+    }),
+    steps: [AFTER({ template_id: V(8) })],
+    words: [COVERS_ONE],
+  },
+  {
+    name: "a US number with offers paused still sends a message about their own appointment: the review ask keeps its WhatsApp version",
+    intent: { intent: "cover_journey", stages: ["after"] },
+    world: world({
+      channels: { whatsapp: { ok: false, why: US_PAUSED }, email: OPEN },
+      whatsappSends: true,
+      reviewLink: true,
+      messages: [reviewAsk()],
+    }),
+    steps: [AFTER({ template_id: V(7) })],
+    words: [COVERS_ONE],
   },
   {
     name: "a review ask's WhatsApp version that WhatsApp refused is not picked: its email version is",
     intent: { intent: "cover_journey", stages: ["after"] },
     world: world({
+      reviewLink: true,
       messages: [
         reviewAsk({
           versions: [
@@ -714,6 +865,17 @@ function reviewAsk(over = {}) {
   };
 }
 
+/** The day after's check, which asks how it went and no review, as the Library reads it. */
+function checkAsk() {
+  return reviewAsk({
+    name: "after_visit_check",
+    versions: [
+      { channel: "email", id: V(9), state: "approved" },
+      { channel: "whatsapp", id: V(10), state: "approved" },
+    ],
+  });
+}
+
 for (const row of ROWS) {
   test(row.name, () => {
     const out = planOf(row.intent, row.world);
@@ -729,15 +891,23 @@ for (const row of ROWS) {
 }
 
 test("the refusals and the words the brief names are words, and the pace is the open slots a day", () => {
-  for (const k of ["fromAfterUntil", "fromPast", "noChannel", "noChannelNamed", "noOffersList"])
+  for (const k of ["fromAfterUntil", "fromPast", "noChannelNamed", "noOffersList"])
     assert.equal(typeof W[k], "string", k);
+  assert.equal(typeof W.noChannel([], []), "string", "noChannel says the channels it is given");
   assert.match(W.paced({ open: 15, days: 14 }, 40), /15 open slots in the next 14 days for 40 people.*up to 2 a day/);
   assert.match(W.paced({ open: 9, days: 1 }, 40), /9 open slots in the next 1 day for 40 people.*up to 9 a day/);
   assert.match(W.paced({ open: 0, days: 14 }, 3), /no open slot in the next 14 days for 3 people.*up to 1 a day/);
-  assert.match(
+  // A tight room for a later offer: the send reaches the whole list on its day, so pacing it is dismissing the send.
+  assert.equal(
     W.roomTight({ open: 1, days: 14 }, 40, "Nov 1"),
-    /^The calendar has 1 open slot in the next 14 days for 40 people: ask again on Nov 1/,
+    "The calendar has 1 open slot in the next 14 days for 40 people, and the send goes to the whole list at once: to pace the offer to the room instead, dismiss the send and ask again on Nov 1.",
   );
+  // A send its review holds says so whenever it goes; the paced campaign by email too says its WhatsApp people wait.
+  assert.equal(W.reviewFirst, REVIEW_FIRST);
+  assert.notEqual(W.reviewFirst, W.whatsappReview);
+  // The channels' own reasons are said, never a sentence of the plan's about a missing number.
+  for (const r of ROWS.filter((x) => !x.refused))
+    assert.ok(!planOf(r.intent, r.world).words.includes("no WhatsApp number is connected"), r.name);
   assert.doesNotMatch(
     Object.values(W)
       .filter((w) => typeof w === "string")
@@ -886,7 +1056,7 @@ const filed = (step) => ({
   used_by: [],
 });
 
-test("the message one plan writes is the message the next plan sends, with that offer's own words (ruling 1 of the pre-review)", () => {
+test("the message one plan writes is the message the next plan sends, with that offer's own words, by email while WhatsApp still reviews its WhatsApp version, never a twin (ruling 1 of the pre-review)", () => {
   const first = planOf(offer(), world({ messages: [quickNote()] }));
   const [written] = first.steps;
   doorTakes(written, "the first plan's message");
@@ -916,13 +1086,14 @@ test("the message one plan writes is the message the next plan sends, with that 
       silent: false,
       after: [1],
       input: {
-        template_id: V(5),
+        // Its email version: the broadcast ticks WhatsApp only once WhatsApp has reviewed its WhatsApp one.
+        template_id: V(6),
         audience_kind: "list",
         audience_id: "offers_ok",
         params: ["@first_name", "@business_name", `${weekend}.`, "@booking_link"],
         scheduled_for: "2026-10-17T14:00:00.000Z",
         name: `Offer: ${weekend}`,
-        channels: BOTH,
+        channels: ["email"],
       },
     },
   ]);
@@ -930,6 +1101,7 @@ test("the message one plan writes is the message the next plan sends, with that 
     next.words,
     [
       "Sends “offer”, already in the Library, with the offer in its words.",
+      "It goes without WhatsApp: WhatsApp is still reviewing the WhatsApp version of “offer”.",
       "Tells the receptionist about the offer, until Oct 18.",
       "The offer goes to “Can receive offers” on Oct 17 at 10:00 AM.",
       W.reminderAsk("Oct 18", "Can receive offers"),

@@ -17540,10 +17540,11 @@ declare function partialSay(prefix: string): {
 } | null;
 /**
  * The answer when a round proposed and nothing else, every card made: the cards are the Do, with no second round. A
- * plan's cards are counted as its steps and its sends (plan-steps.ts planCountWords); the loop's headline for an answer
- * that claimed a write is this one's too.
+ * plan's cards are counted as its steps, and a plan's words are the detail, cut on a whole word (plan-steps.ts
+ * planCountWords; `words` null for a round that made no plan); the loop's headline for an answer that claimed a write is
+ * this one's too.
  */
-declare function answerForCards(cards: ReadonlyArray<Pick<AskProposal, "title" | "plan">>, language: AskLanguage): AskAnswer;
+declare function answerForCards(cards: ReadonlyArray<Pick<AskProposal, "title" | "plan">>, language: AskLanguage, words: string | null): AskAnswer;
 /** A turn that could not be answered: its sentence as the headline (spec 5.4, step 6). The message is marked failed. */
 declare function failedAnswer(sentenceText: string, language: AskLanguage): AskAnswer;
 /** Words with no shape: a turn whose format the API refused (D15). */
@@ -17712,7 +17713,10 @@ declare const ASK_MAX_CHARS = 1000;
 declare const ASK_MAX_ROUNDS = 3;
 /** End to end, under the route's sixty-second ceiling. */
 declare const ASK_TURN_BUDGET_MS = 45000;
-/** The most the owner's tools block may be, in characters as the model is sent it (66,050 on 11 October 2026). */
+/**
+ * The most the owner's tools block may be, in characters as the model is sent it (66,050 on 11 October 2026; 70,286 on
+ * 12 October, after the review of Ask's campaign cards, its reads and its plan).
+ */
 declare const ASK_TOOLS_CHARS_CEILING = 72000;
 /**
  * The longest the voice door lets pass with nothing speakable sent: ElevenLabs cuts a custom LLM whose stream goes
@@ -18749,11 +18753,18 @@ interface PlanWorld {
     tz: string;
     /** The language a message is written in, and a reused one is in. */
     language: "en" | "es";
-    /** Whether the workspace can send an offer on each: a WhatsApp number connected; email set up to send offers. */
-    channels: {
-        whatsapp: boolean;
-        email_offers: boolean;
-    };
+    /**
+     * Whether an offer may go by each channel now, and why not: channelChoices' own entry, the offer's (no number,
+     * WhatsApp's pause on offers to US numbers, email not set up to send offers, not checked), so its words are true.
+     */
+    channels: Record<OfferChannel, {
+        ok: boolean;
+        why: string | null;
+    }>;
+    /** Whether WhatsApp sends at all: a message about their own appointment (the review ask) goes where an offer may not. */
+    whatsappSends: boolean;
+    /** Whether the Google listing keeps a review link (db reviewLinkOf; unread is none): the review ask's link is it. */
+    reviewLink: boolean;
     /** The Library, as campaigns with action messages reads it. */
     messages: MessageRead[];
     /** People's lists offered here and the workspace's own, each with its count (null: not counted). */
@@ -18762,14 +18773,8 @@ interface PlanWorld {
         name: string;
         count: number | null;
     }[];
-    /** The workspace's campaigns: the month's offer among them (trigger everyone_monthly). */
-    playbooks: {
-        id: string;
-        name: string;
-        trigger: string;
-        state: string;
-        template_name: string | null;
-    }[];
+    /** The workspace's campaigns, each with its last day or none: the month's offer among them (trigger everyone_monthly). */
+    playbooks: (Record<"id" | "name" | "trigger" | "state", string> & Record<"template_name" | "until", string | null>)[];
     /** The receptionist's notes. */
     notes: Note[];
     /**
@@ -18823,7 +18828,11 @@ declare const PLAN_WORDS: {
     readonly notADay: "from and until are days on the business's calendar, written YYYY-MM-DD: ask for them again.";
     readonly fromAfterUntil: "until comes before from: an offer's last day is its first day or later. Ask which dates they meant.";
     readonly fromPast: "from is a day already past on the business's calendar: an offer starts today or later. Ask when it starts.";
-    readonly noChannel: "Nothing here can carry an offer: WhatsApp needs a connected number, email needs email set up to send offers, and texts carry no offers. Say so, and what to set up first.";
+    /** No channel asked for can carry it: each closed, with its reason; one open but not asked, to name; else what to set up. */
+    readonly noChannel: (closed: readonly {
+        channel: OfferChannel;
+        why: string | null;
+    }[], open: readonly OfferChannel[]) => string;
     readonly noChannelNamed: "channels names no channel: name WhatsApp, email or both, or leave channels out for every one the workspace sends offers on.";
     /** Texts asked for alone: never a channel an offer goes by, whatever the workspace can send. */
     readonly textOnly: "Texts carry no offers. An offer goes by WhatsApp or email: say so, and name either, or leave channels out for every one the workspace sends offers on.";
@@ -18842,8 +18851,12 @@ declare const PLAN_WORDS: {
     readonly noteText: (line: string, from: string, until: string, service: string | null) => string;
     readonly reuseMessage: (name: string) => string;
     readonly writeMessage: (name: string, on: readonly OfferChannel[]) => string;
-    readonly withoutWhatsApp: "It goes without WhatsApp: no WhatsApp number is connected.";
-    readonly withoutEmail: "It goes without email: email is not set up to send offers.";
+    /** A channel the offer goes without, and channelChoices' why, as a card says a channel that waits (playbook-channels.ts). */
+    readonly without: (channel: OfferChannel, why: string | null) => string;
+    /** Why it goes without WhatsApp where the one message that carries it waits on WhatsApp's review (a send it holds). */
+    readonly reviewing: (name: string) => string;
+    /** That message, and WhatsApp the one channel asked for and open: no twin is written, and nothing goes yet. */
+    readonly reviewRefused: (name: string) => string;
     readonly noText: "Texts carry no offers.";
     readonly noteMade: (until: string) => string;
     readonly noteKnown: "The receptionist already has a note about the offer.";
@@ -18855,8 +18868,11 @@ declare const PLAN_WORDS: {
     readonly firstAtApprove: (list: string, at: string) => string;
     /** An offer that starts today, on a calendar with less room than half its audience: a campaign, from its Approve. */
     readonly paced: (room: Room, audience: number) => string;
-    /** The same room for an offer that starts later: the room counted now is not the offer's, so it is asked again then. */
+    /** The same room for an offer that starts later: its send reaches the whole list, or is dismissed to pace it then. */
     readonly roomTight: (room: Room, audience: number, from: string) => string;
+    /** A send WhatsApp's review holds (sendWaitsForReview), its WhatsApp version not approved yet: at its press, whenever it goes. */
+    readonly reviewFirst: "The send can be approved once WhatsApp has reviewed its WhatsApp version.";
+    /** A paced campaign by email too: approved now, its WhatsApp people held until the version is approved. */
     readonly whatsappReview: "Its WhatsApp version waits on WhatsApp's review, which may still be running at the first send: whoever it reaches on WhatsApp waits for it.";
     /** The reminder is a question of its own on its day, when who has booked is known: a send counts its people at its Approve. */
     readonly reminderAsk: (day: string, list: string) => string;
@@ -18873,7 +18889,7 @@ declare const PLAN_WORDS: {
     readonly stepChangeOnly: (n: number) => string;
     readonly why: {
         readonly message: "No message in the Library carries an offer on every channel this one goes by.";
-        readonly note: "So the receptionist can answer about the offer.";
+        readonly note: "So the receptionist knows the offer and when it runs.";
         readonly pause: "So nobody gets the month's offer and this one.";
         readonly first: "The offer, on its first day.";
         readonly paced: "The offer, as fast as the calendar can take it.";
@@ -25524,9 +25540,11 @@ declare function bookingPageOf(raw: string | null | undefined): string | null;
  * here and said when that moment says it is (triggerWords' hint: a win-back's own days); then the month's offer, which
  * stands on no stage (journeyStageOf). It states what the product does and no outcome it cannot vouch for, so it says no
  * why (12 Oct 2026): the day after names a review ask only where the Google listing keeps a review link, since Ask's plan
- * and its campaign card propose the review starter (starter-templates.ts after_visit_review) only there, and elsewhere the
- * check that asks how it went. Every sentence says the workspace's own word for an appointment (triggerWords, from
- * appointmentWords), the word its customers read, never one trade's.
+ * proposes one only there (plan.ts stageInput: the review ask the Library holds, else its starter, starter-templates.ts
+ * after_visit_review, filed at Approve), naming the check that asks how it went over a review ask the Library holds where
+ * there is none, and its campaign card files the review starter only there (checkStarterPlaybook). Every sentence says
+ * the workspace's own word for an appointment (triggerWords, from appointmentWords), the word its customers read, never
+ * one trade's.
  */
 
 /** One touch point: the stage it stands on, the moment a campaign on it starts from, and what goes out when. */

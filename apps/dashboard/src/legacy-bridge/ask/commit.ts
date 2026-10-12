@@ -16,11 +16,15 @@
  * is a change like any other there.
  *
  * A plan's cards (AskProposal.plan) are ordinary cards with three differences: a step's calls go under the step's key
- * (`plan:<id>:<n>`), so the plan pressed twice, or once as a group and once card by card, makes nothing twice; a send
- * waits for the steps its stamp names (`after`), refused before its spec is read until each is committed; and a token
- * in a step's payload (`@step:n`) is filled with what step n made before the spec reads it. commitPlan approves one
- * plan's silent steps together, in step order, stopping at the first refused; commitCard is a card pressed on the Line,
- * judged by what the turn's other cards of its plan became.
+ * (`plan:<id>:<n>`), so the plan pressed twice the same day, or once as a group and once card by card, makes nothing
+ * twice (server/route.ts onceForKey keeps a key a day, 00340, and a plan's card is fresh a week); a send waits for the
+ * steps its stamp names (`after`), refused before its spec is read until each is committed; and a token in a step's
+ * payload (`@step:n`) is filled with what step n made before the spec reads it. commitPlan approves one plan's silent
+ * steps together, in step order, stopping at the first refused; commitCard is a card pressed on the Line, judged by what
+ * the turn's other cards of its plan became. A press after its key's day is held by what the turn recorded of each
+ * card (planMadeOf), and where that record was lost, by each door's own rule: a message by its name (409), a campaign
+ * by its running twin (POST playbooks, campaigns/playbook-row.ts twinRefusal), a send by the week's breath, which leaves
+ * out whoever the first reached.
  *
  * The client is a parameter with the tab's own as the default, so a test hands in one bound to a fake fetch and runs
  * every branch for real.
@@ -207,27 +211,22 @@ export interface PlanRun {
 
 /**
  * A plan's silent steps, approved together (the marketing manager's spec §5.4): the cards of one plan stamped silent,
- * in step order, each through commitProposal under its step's key. A step `made` holds is never sent again: one
- * committed before is done, and one the owner undid stays undone, skipped, since an undo is the owner's word on that
- * step and any later step that names it is refused on its own (planUndone); the rest of the plan still goes. So a
- * second press, however long after, files nothing twice; and two presses that each know nothing was made (two tabs at
- * once) are answered by each route under the step's key with what the first made (server/route.ts, onceForKey, a key
- * kept a day). A step's tokens are filled from `made` and what the press makes as it goes, and every step it commits
- * joins the made it hands back, with no id where it made nothing a token names. The first step refused or failed ends
- * the press: its result says the plan stopped there (PROPOSAL_WORDS.planStopped), and no later step is sent. A send is
- * not among them: each is its own press.
+ * in step order, each through commitProposal under its step's key. What the plan's cards became (contracts planMadeOf,
+ * their outcomes as the turn holds them) says which steps were made: one committed before, on its own or before a
+ * reload, is done, and one the owner undid stays undone, skipped, since an undo is the owner's word on that step and any
+ * later step that names it is refused on its own (planUndone); the rest of the plan still goes. So a second press with
+ * those outcomes recorded files nothing twice; two presses that each know nothing was made (two tabs at once) are
+ * answered by each route under the step's key with what the first made (server/route.ts, onceForKey, a key kept a day);
+ * and a press after that day whose record was lost is held by each door's own rule, as this module's head says. A
+ * step's tokens are filled from what was made and what the press makes as it goes, and every step it commits joins the
+ * made it hands back, with no id where it made nothing a token names. The first step refused or failed ends the press:
+ * its result says the plan stopped there (PROPOSAL_WORDS.planStopped), and no later step is sent. A send is not among
+ * them: each is its own press.
  *
  * One plan a press: the plan the first stamped card is a step of, and only its cards, so a turn's two plans never share a
- * step's number (another plan's step 1 is never skipped as this one's, nor fills a token from this one's made[1]). Handed
- * no `made` (the Line's press, AskApi.commitPlan), it reads what the plan's cards became (contracts planMadeOf), so a
- * step approved on its own, or before a reload, is done.
+ * step's number (another plan's step 1 is never skipped as this one's, nor fills a token from this one's made[1]).
  */
-export async function commitPlan(
-  win: Window,
-  cards: readonly AskProposal[],
-  made?: PlanMade,
-  use: PressWith = {},
-): Promise<PlanRun> {
+export async function commitPlan(win: Window, cards: readonly AskProposal[], use: PressWith = {}): Promise<PlanRun> {
   const client = use.client ?? apiFor(win);
   const nowMs = use.nowMs ?? Date.now();
   const planId = cards.find((p) => p.plan)?.plan?.id;
@@ -235,7 +234,7 @@ export async function commitPlan(
   const silent = mine
     .flatMap((p) => (p.plan?.silent ? [{ p, step: p.plan.step }] : []))
     .sort((a, b) => a.step - b.step);
-  const known = made ?? (planId === undefined ? {} : planMadeOf(planId, mine));
+  const known = planId === undefined ? {} : planMadeOf(planId, mine);
   const run: PlanRun = { results: [], done: [], undone: [], made: { ...known }, stoppedAt: null };
   for (const { p, step } of silent) {
     const was = run.made[step];

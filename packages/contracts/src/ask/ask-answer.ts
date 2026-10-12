@@ -716,37 +716,40 @@ const sentence = (s: string) => (/[.!?]$/.test(s) ? s : `${s}.`);
 
 /**
  * The answer when a round proposed and nothing else, every card made: the cards are the Do, with no second round. A
- * plan's cards are counted as its steps and its sends (plan-steps.ts planCountWords); the loop's headline for an answer
- * that claimed a write is this one's too.
+ * plan's cards are counted as its steps, and a plan's words are the detail, cut on a whole word (plan-steps.ts
+ * planCountWords; `words` null for a round that made no plan); the loop's headline for an answer that claimed a write is
+ * this one's too.
  */
 export function answerForCards(
   cards: ReadonlyArray<Pick<AskProposal, "title" | "plan">>,
   language: AskLanguage,
+  words: string | null,
 ): AskAnswer {
   const es = language === "es";
   const n = cards.length;
-  const plan = planCountWords(cards, language);
+  const plan = planCountWords(cards, language, words);
   const a = structured(
-    plan
-      ? plan.headline
-      : n === 1
+    plan.headline ??
+      (n === 1
         ? es
           ? sentence(`Una tarjeta para revisar: ${cards[0].title}`)
           : sentence(`One card to review: ${cards[0].title}`)
         : es
           ? `${n} tarjetas para revisar.`
-          : `${n} cards to review.`,
+          : `${n} cards to review.`),
     language,
   );
-  a.say.detail =
-    plan?.detail ??
-    (n === 1
-      ? es
-        ? "Apruébala, cámbiala o descártala: nada pasa hasta que lo hagas."
-        : "Approve it, change it or dismiss it: nothing happens until you do."
-      : es
-        ? "Cada una se aprueba por separado: apruébala, cámbiala o descártala; nada pasa hasta que lo hagas."
-        : "Each is its own press: approve, change or dismiss each one; nothing happens until you do.");
+  a.say.detail = clip(
+    plan.detail ??
+      (n === 1
+        ? es
+          ? "Apruébala, cámbiala o descártala: nada pasa hasta que lo hagas."
+          : "Approve it, change it or dismiss it: nothing happens until you do."
+        : es
+          ? "Cada una se aprueba por separado: apruébala, cámbiala o descártala; nada pasa hasta que lo hagas."
+          : "Each is its own press: approve, change or dismiss each one; nothing happens until you do."),
+    ASK_ANSWER_CAPS.detail,
+  );
   return a;
 }
 

@@ -4705,7 +4705,7 @@ test("REGRESSION (ruling 3): what the group's press made survives a reload, thro
   let ran = null;
   const calls = planBridge({
     commitPlan: async (cards) => {
-      ran = await commit.commitPlan(tab, cards, undefined, { client, nowMs: NOW });
+      ran = await commit.commitPlan(tab, cards, { client, nowMs: NOW });
       return ran;
     },
     commit: (p, cards) => commit.commitCard(tab, p, cards, { client, nowMs: NOW }),

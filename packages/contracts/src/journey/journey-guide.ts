@@ -6,9 +6,11 @@
  * here and said when that moment says it is (triggerWords' hint: a win-back's own days); then the month's offer, which
  * stands on no stage (journeyStageOf). It states what the product does and no outcome it cannot vouch for, so it says no
  * why (12 Oct 2026): the day after names a review ask only where the Google listing keeps a review link, since Ask's plan
- * and its campaign card propose the review starter (starter-templates.ts after_visit_review) only there, and elsewhere the
- * check that asks how it went. Every sentence says the workspace's own word for an appointment (triggerWords, from
- * appointmentWords), the word its customers read, never one trade's.
+ * proposes one only there (plan.ts stageInput: the review ask the Library holds, else its starter, starter-templates.ts
+ * after_visit_review, filed at Approve), naming the check that asks how it went over a review ask the Library holds where
+ * there is none, and its campaign card files the review starter only there (checkStarterPlaybook). Every sentence says
+ * the workspace's own word for an appointment (triggerWords, from appointmentWords), the word its customers read, never
+ * one trade's.
  */
 import { triggerOf, triggerWords, type PlaybookTrigger } from "../playbooks/playbook-triggers";
 import type { AppointmentWord } from "./appointment-word";
