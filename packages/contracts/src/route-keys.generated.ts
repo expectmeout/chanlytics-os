@@ -127,6 +127,7 @@ export const ROUTE_KEYS = [
   "POST channels/whatsapp/standing",
   "POST client-errors",
   "POST contacts",
+  "POST contacts/[id]/call",
   "POST contacts/[id]/deal",
   "POST contacts/[id]/doubts/dismiss",
   "POST contacts/[id]/merge",

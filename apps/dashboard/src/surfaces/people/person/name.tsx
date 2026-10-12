@@ -12,9 +12,10 @@
  * (whyNotAnEmail), and the door's own refusal, another person here already has it, is said there too.
  */
 import { useEffect, useState } from "react";
-import { PERSON_NAME_WORDS, whyNotAnEmail } from "@chanlytics/contracts";
+import { PERSON_NAME_WORDS, PERSON_WASH_WORDS, whyNotAnEmail } from "@chanlytics/contracts";
 import type { PersonVM } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
+import { Wash } from "../../kit/motion/wash";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { editorBox, focusAsDrawn } from "../../legacy-verbs";
 import { setPersonDetails } from "../people-detail";
@@ -70,7 +71,11 @@ export function PersonName({ p, canEdit, flash, onPutBack }: FieldProps & { onPu
     const word = p.standIn ? (p.head.addName ? PERSON_NAME_WORDS.addName : null) : unnamed ? "Name them" : null;
     return (
       <div className="cl-prof-name-row">
-        <h1 className="cl-prof-name">{p.name}</h1>
+        <h1 className="cl-prof-name">
+          <Wash scope={p.id} value={p.name} said={PERSON_WASH_WORDS.name(p.name)}>
+            {p.name}
+          </Wash>
+        </h1>
         {canEdit && (
           <button
             type="button"

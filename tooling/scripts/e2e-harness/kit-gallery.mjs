@@ -638,13 +638,15 @@ const figure = ({
   door = null,
   thin = null,
   tone = null,
+  washed = false,
 } = {}) => {
+  const said = washed ? `<span class="wash" data-wash="true">${value}</span>` : value;
   const number =
     door === "a"
-      ? `<a class="figure-door" href="#">${value}</a>`
+      ? `<a class="figure-door" href="#">${said}</a>`
       : door === "button"
-        ? `<button type="button" class="figure-door">${value}</button>`
-        : value;
+        ? `<button type="button" class="figure-door">${said}</button>`
+        : said;
   return (
     `<dl class="gx-figs"><div class="figure${thin === null ? "" : " is-thin"}${tone === null ? "" : ` is-${tone}`}"><dt class="figure-label">${term}</dt>` +
     `<dd class="figure-value">${number}${change ? `<span class="figure-change">${change}</span>` : ""}</dd>` +
@@ -815,10 +817,11 @@ const kitSwitches = () =>
   kitSwitch(false, "Send it now") + kitSwitch(true, "Remind them the day before") + kitSwitch(true, "Take calls", true);
 
 /** One sub-tab of the kit's, as Base UI's Tabs draws it: its word holding the room of its bold form, its figure after. */
-const kitSubtab = (label, { on = false, count, tone, glyph = "" } = {}) =>
+const kitSubtab = (label, { on = false, count, tone, glyph = "", fresh } = {}) =>
   `<button type="button" role="tab" aria-selected="${on}" aria-disabled="false" tabindex="${on ? 0 : -1}" class="subtab"` +
   `${tone ? ` data-tone="${tone}"` : ""}>${glyph}<span class="subtab-label" data-text="${label}">${label}</span>` +
-  `${count === undefined ? "" : `<span class="subtab-count">${count}</span>`}</button>`;
+  `${count === undefined ? "" : `<span class="subtab-count">${count}</span>`}` +
+  `${fresh ? `<span class="subtab-dot" role="img" aria-label="${fresh}"></span>` : ""}</button>`;
 
 /** A strip of the kit's sub-tabs: Base UI's tablist, its tabs, and the indicator that is the bar under the picked one. */
 const kitSubtabs = (name, tabs, { attrs = "", left = "18px", width = "78px", direction = "none" } = {}) =>
@@ -1319,7 +1322,7 @@ export const FAMILIES = [
   {
     family: "Sub-tabs, on Base UI",
     about:
-      "A page's own sub-menu, SubTabs (surfaces/kit/sub-tabs/sub-tabs.tsx): Base UI's tabs as small text tabs on a line under the strip of views, the picked one in ink with a bar that is the Tabs' indicator, a plain figure beside a word that has one; a strip that is quiet on a phone, which keeps only the warn tab's figure; a dense one for a desk pane with more tabs than room; and a glyph before the words.",
+      "A page's own sub-menu, SubTabs (surfaces/kit/sub-tabs/sub-tabs.tsx): Base UI's tabs as small text tabs on a line under the strip of views, the picked one in ink with a bar that is the Tabs' indicator, a plain figure beside a word that has one; a strip that is quiet on a phone, which keeps only the warn tab's figure; a dense one for a desk pane with more tabs than room; a dot after the words where something there is new to the reader; and a glyph before the words.",
     entries: [
       {
         id: "subtabs",
@@ -1353,6 +1356,18 @@ export const FAMILIES = [
             kitSubtab("Email", { count: 10 }),
           ],
           { attrs: ' data-dense="true"', left: "14px", width: "38px" },
+        ),
+      },
+      {
+        id: "subtabs-fresh",
+        html: kitSubtabs(
+          "Their record",
+          [
+            kitSubtab("Overview", { on: true }),
+            kitSubtab("History", { count: 14, fresh: "New since you last looked" }),
+            kitSubtab("Visits", { count: 2 }),
+          ],
+          { width: "70px" },
         ),
       },
       {
@@ -1511,13 +1526,32 @@ export const FAMILIES = [
   {
     family: "Switch and choice",
     about:
-      "A switch (RecordSwitch), off, on and read-only; a choice of a few drawn as a segmented control (RecordToggleGroup), and its options as cards with a sentence each.",
+      "A switch (RecordSwitch), off, on and read-only; a choice of a few drawn as a segmented control (RecordToggleGroup), its options as cards with a sentence each, and more options than one row holds, wrapping (a call's outcomes).",
     entries: [
       {
         id: "rec-switch",
         html: `${recSwitch(false, "Send it now")} ${recSwitch(true, "Remind them the day before")} ${recSwitch(true, "Take calls", true)}`,
       },
       { id: "rec-seg", html: recSeg("How often", ["Once", "Every week", "Every month"], "Every week") },
+      {
+        id: "rec-seg-wrap",
+        html:
+          `<div style="max-width: 320px">` +
+          recSeg(
+            "How did the call go?",
+            [
+              "Spoke",
+              "Interested",
+              "Not interested",
+              "Call back later",
+              "Left a voicemail",
+              "No answer",
+              "Wrong number",
+            ],
+            "Call back later",
+          ).replace('class="rec-seg"', 'class="rec-seg" data-wrap="true"') +
+          `</div>`,
+      },
       {
         id: "rec-seg-hints",
         html:
@@ -1880,9 +1914,11 @@ export const FAMILIES = [
       "it has an address and a button where it acts. A ratio of some, but too few (its count above none and under the " +
       "minimum) is greyed and says how few, under the line under it; of none there is no ratio, and nothing is greyed. " +
       "A tone is on the number alone: amber for what needs you, red for what failed, never green, and never the period " +
-      "before beside it, which stays in plain ink. Reports' strip is drawn with it.",
+      "before beside it, which stays in plain ink. Reports' strip is drawn with it. A number someone else changed while " +
+      "the page is open is washed (motion/wash.tsx): a fill under it that fades over 1.6 s, and nothing moves.",
     entries: [
       { id: "figure", html: figure() },
+      { id: "figure-washed", html: figure({ value: "Today", washed: true }) },
       { id: "figure-change", html: figure({ change: "up from 7" }) },
       { id: "figure-door", html: figure({ door: "a" }) },
       { id: "figure-door-act", html: figure({ door: "button" }) },

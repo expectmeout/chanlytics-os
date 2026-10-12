@@ -20,6 +20,7 @@ import { carryReply } from "../inbox/carried-reply";
 import { Button } from "../kit/button/button";
 import { Icon } from "../kit/icon/icon";
 import { StoppedMark } from "../kit/pill/stopped-mark";
+import { businessTrailFor } from "../people/business-trail";
 import { gate, leaving, navigate, touchSwipe, trapFocus } from "../legacy-verbs";
 import { crPhone } from "./board-dom";
 import { askDealSheet, dealSheetInstalled, onPeopleMoved, peopleRead, routeTo, statePill } from "./shell-verbs";
@@ -72,14 +73,25 @@ function whoLine(p: {
       .includes(String(person.name).toLowerCase())
   );
   const Pill = statePill();
+  // The business they work at, dim after their name, or after "In People" where the title already names them (0052).
+  const works = person ? businessTrailFor(person.id) : null;
+  const trail = works ? (
+    <span className="cal-ev-trail" data-testid="cal-panel-business">
+      · {works}
+    </span>
+  ) : null;
   return person ? (
     <div className="cal-ev-who" data-testid="cal-panel-person">
       <Icon name="users" size={12} />
       {namedInTitle ? (
-        <span>In People</span>
+        <>
+          <span>In People</span>
+          {trail}
+        </>
       ) : (
         <>
-          <b>{person.name}</b> is in People
+          <b>{person.name}</b>
+          {trail} is in People
         </>
       )}
       {deal && deal.stage && <Pill kind="deal" value={deal.stage} testid="cal-panel-deal" />}

@@ -731,6 +731,25 @@ function SubTabsKitDense() {
   );
 }
 
+/** The sub-tabs of a person's record, History saying something there is new since the reader last looked (0052). */
+function SubTabsKitFresh() {
+  const [on, setOn] = useState("overview");
+  return (
+    <Figure id="subtabs-fresh" about="the kit's SubTabs, a tab with something new">
+      <SubTabs
+        label="Their record"
+        value={on}
+        onSelect={setOn}
+        tabs={[
+          { id: "overview", label: "Overview" },
+          { id: "history", label: "History", count: 14, fresh: "New since you last looked" },
+          { id: "visits", label: "Visits", count: 2 },
+        ]}
+      />
+    </Figure>
+  );
+}
+
 /** The sub-tabs with a glyph before each word. */
 function SubTabsKitGlyph() {
   const [on, setOn] = useState("all");
@@ -818,6 +837,7 @@ export const ENTRIES: { id: string; Draw: () => ReactElement; closed: boolean }[
   { id: "subtabs", Draw: SubTabsKit, closed: true },
   { id: "subtabs-quiet", Draw: SubTabsKitQuiet, closed: true },
   { id: "subtabs-dense", Draw: SubTabsKitDense, closed: true },
+  { id: "subtabs-fresh", Draw: SubTabsKitFresh, closed: true },
   { id: "subtabs-glyph", Draw: SubTabsKitGlyph, closed: true },
   { id: "field-kit", Draw: FieldKit, closed: true },
   { id: "field-kit-wrong", Draw: FieldKitWrong, closed: true },

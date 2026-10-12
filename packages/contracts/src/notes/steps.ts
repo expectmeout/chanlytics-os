@@ -151,6 +151,29 @@ export function stepDays(nowMs: number, tz: string): StepDayChoice[] {
   return out;
 }
 
+/**
+ * The notes composer's days (0052's composer): Tomorrow, this week's Friday where it comes after tomorrow, else next
+ * week, and Pick a day. Three, from the picker's own (stepDays), so a note becomes a step in a press and fits a phone.
+ */
+export function composerDays(nowMs: number, tz: string): StepDayChoice[] {
+  const all = stepDays(nowMs, tz);
+  const tomorrow = all.find((c) => c.label === "Tomorrow");
+  const friday = all.find((c) => c.label === WEEKDAYS[5].slice(0, 3));
+  const nextWeek = all.find((c) => c.label === "Next week");
+  const pick = all.find((c) => c.key === "pick");
+  return [tomorrow, friday ?? nextWeek, pick].filter((c): c is StepDayChoice => !!c);
+}
+
+/**
+ * A chosen day as the composer's button names it ("Add step for Tomorrow"): its picker's word where the picker offers it
+ * (Tomorrow, Fri, next week), else its date ("Oct 20"), by the business's calendar.
+ */
+export function stepDayName(key: string, nowMs: number, tz: string): string {
+  const offered = stepDays(nowMs, tz).find((c) => c.key === key && c.key !== "pick");
+  if (offered) return offered.label === "Next week" ? "next week" : offered.label;
+  return clockDate(wallClockAt(tz, key, 12, 0), tz, nowMs);
+}
+
 /** How many steps due Today names as rows of its queue, the rest one row to People's Steps due. */
 export const TODAY_STEPS_MAX = 3;
 

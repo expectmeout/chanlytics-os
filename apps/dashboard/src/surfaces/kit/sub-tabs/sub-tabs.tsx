@@ -36,6 +36,11 @@ export type SubTab = {
   tone?: "warn";
   /** A glyph before the words, for a strip with room for one. */
   glyph?: ReactElement;
+  /**
+   * Something there is new to the reader: a dot after its words, named by these words for a screen reader (a person's
+   * History, "New since you last looked").
+   */
+  fresh?: string;
   /** What pressing it does, on hover. */
   hint?: string;
   /** The page's test id for this tab. */
@@ -84,6 +89,7 @@ export function SubTabs({ label, value, tabs, onSelect, quietCounts, dense, clas
               {tab.label}
             </span>
             {tab.count === undefined ? null : <span className="subtab-count">{tab.count}</span>}
+            {tab.fresh ? <span className="subtab-dot" role="img" aria-label={tab.fresh} /> : null}
           </Tabs.Tab>
         ))}
         <Tabs.Indicator className="subtab-bar" />

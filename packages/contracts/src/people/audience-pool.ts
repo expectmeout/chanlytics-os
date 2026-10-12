@@ -46,6 +46,7 @@ export function personLikeOf(
         | "lead_id"
         | "lead_name"
         | "lead_gone"
+        | "lead_emails"
       >
     >,
 ): PersonLike {
@@ -72,6 +73,11 @@ export function personLikeOf(
     },
     // The business they work at, while it stands (0052): the calendar's fourth match.
     business: p.lead_id && !p.lead_gone && p.lead_name ? p.lead_name : null,
+    // Its own addresses, on its own person alone (people_list, 00418): a booking from one is theirs, by their business.
+    businessEmails:
+      p.lead_id && !p.lead_gone && p.lead_emails
+        ? p.lead_emails.map((e) => e.trim().toLowerCase()).filter((e) => e.length > 0)
+        : [],
   };
 }
 

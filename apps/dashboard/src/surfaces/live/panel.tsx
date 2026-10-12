@@ -10,6 +10,7 @@ import { EmptyState } from "../kit/empty/empty";
 import { Icon } from "../kit/icon/icon";
 import { Face } from "../kit/face/face";
 import { StoppedMark } from "../kit/pill/stopped-mark";
+import { businessTrailFor, usePeopleTrails } from "../people/business-trail";
 import { LrPill, lrClock } from "./call-parts";
 import { LrControls } from "./controls";
 import { LrWhisper } from "./whisper";
@@ -135,6 +136,12 @@ function panelHead({ c, elapsed, quietS, onBack = null }: HeadProps) {
             ) : (
               c.who
             )}
+            {/* The business they work at (0052), dim after the name. */}
+            {businessTrailFor(c.clientId) ? (
+              <span className="lm-head-trail" data-testid="lm-head-business">
+                · {businessTrailFor(c.clientId)}
+              </span>
+            ) : null}
             {/* Before the call's pill, which a phone's header leaves out as the last of the line (live.css). */}
             {c.stopped && <StoppedMark testid="lm-head-stopped" />}
             <LrPill c={c} />
@@ -287,6 +294,8 @@ interface LrPanelProps {
 }
 
 export const LrPanel = ({ c, elapsed, nowMs = Date.now(), notice = null, onBack = null }: LrPanelProps) => {
+  // People's rows can land after the call: the caller's business follows them (0052).
+  usePeopleTrails();
   if (!c) {
     // A chosen call that is gone is the panel's whole news; "nothing on the line" beside it would say less than is true.
     return (

@@ -753,6 +753,9 @@ const FIGURES = {
   "figure-thin": () => h(Figure, { label: "Customer messages", value: "62%", meta: "on 6 of 7 days", n: 3, minN: 5 }),
   "figure-warn": () => h(Figure, { label: "Customer messages", value: "17", meta: "on 6 of 7 days", tone: "warn" }),
   "figure-fail": () => h(Figure, { label: "Customer messages", value: "17", meta: "on 6 of 7 days", tone: "fail" }),
+  // Someone else changed it while the page is open (0052's wash): the page's hook says it washes, the figure wears it.
+  "figure-washed": () =>
+    h(Figure, { label: "Customer messages", value: "Today", meta: "on 6 of 7 days", washed: true }),
 };
 
 test("Figure draws the gallery's Figure family: a term and its definitions, the number a door where it opens something, the page's class last", () => {

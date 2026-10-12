@@ -1149,6 +1149,21 @@ async function addPersonNote(db, contactId, body, teamOnly) {
   });
   return { data, error };
 }
+async function logPersonCall(db, a) {
+  const { data, error } = await db.rpc("person_call_logged", {
+    p_contact_id: a.contactId,
+    p_outcome: a.outcome,
+    p_body: a.body,
+    p_tell: a.tell,
+    ...a.dueOn ? { p_due_on: a.dueOn } : {},
+    ...a.stepBody ? { p_step_body: a.stepBody } : {},
+    ...a.lead?.stage ? { p_lead_stage: a.lead.stage } : {},
+    ...a.lead?.reason ? { p_lead_reason: a.lead.reason } : {},
+    ...a.lead?.note ? { p_lead_note: a.lead.note } : {},
+    ...a.lead?.spokeWith ? { p_spoke_with: a.lead.spokeWith } : {}
+  });
+  return { data, error };
+}
 async function mergePeople(db, keep, merge) {
   const { data, error } = await db.rpc("merge_people", { p_keep: keep, p_merge: merge });
   if (error) throw error;
@@ -3511,7 +3526,7 @@ var EMPTY_LEAD = {
 };
 async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16, answering) {
   const withAnswer = await db.from("contacts").select(
-    "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, marketing_channels, offers_asked_at, tenants(sells_by)"
+    "id, display_name, wa_profile_name, name_source, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, marketing_channels, offers_asked_at, tenants(sells_by)"
   ).eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
   let contact = withAnswer.data ? { ...withAnswer.data, sellsBy: sellsByOf(withAnswer.data.tenants) } : null;
   let cErr = withAnswer.error;
@@ -3545,6 +3560,8 @@ async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16, answe
     // display_name is what a human typed; wa_profile_name is what WhatsApp
     // reports. The human's version wins, and neither is invented.
     name: contact.display_name || contact.wa_profile_name || null,
+    standIn: contact.name_source === "lead" && !!contact.display_name,
+    // the business's own name (0052)
     // Having said anything at all is what makes someone returning — not merely
     // existing as a row, which an outbound-only contact would also satisfy.
     returning: history.length > 0,
@@ -3611,7 +3628,8 @@ function describeLead(lead, now = /* @__PURE__ */ new Date(), tz = "UTC", channe
   if (!lead.contactId) return "New contact \u2014 no prior history on record.";
   const bits = [];
   const name = promptSafeName(lead.name);
-  bits.push(name ? `Name on record: ${fencedInline("profile_name", name)}.` : "No name on record.");
+  const theirs = lead.standIn ? " That is the business they are at, not their own name: never call them by it, and ask who you are speaking with if it helps." : "";
+  bits.push(name ? `Name on record: ${fencedInline("profile_name", name)}.${theirs}` : "No name on record.");
   if (lead.hasEmail === true) bits.push("Their email address is on file.");
   else if (lead.hasEmail === false) bits.push("No email address on file.");
   bits.push(
@@ -5703,6 +5721,7 @@ export {
   listPolicies,
   listRow,
   listSecondFactors,
+  logPersonCall,
   mailSent,
   mailboxById,
   mailboxFor,

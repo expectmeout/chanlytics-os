@@ -11,6 +11,9 @@ import {
   DOUBT_WORDS,
   MERGE_WORDS,
   NEW_CONVERSATION_WORDS,
+  PERSON_CALL_WORDS,
+  PERSON_WALK_WORDS,
+  PERSON_WASH_WORDS,
   appointmentWords,
   proposalMessage,
 } from "@chanlytics/contracts";
@@ -23,6 +26,7 @@ import { FailedRead } from "../../kit/empty/empty";
 import { FieldError } from "../../kit/field-error/field-error";
 import { StatePill } from "../../kit/pill/state-pill";
 import { Icon } from "../../kit/icon/icon";
+import { Wash } from "../../kit/motion/wash";
 import { Picker } from "../../kit/picker/picker";
 import type { PickerGroup } from "../../kit/picker/picker";
 import { gate, navigate } from "../../legacy-verbs";
@@ -31,6 +35,7 @@ import { openNewConversation } from "../../inbox/new-conversation/store";
 import { visitWordHere } from "../../visit-line";
 import { deletePerson, keptOf, mergePerson, settleDoubt } from "../people-detail";
 import { BusinessTile, HeadLine } from "./business";
+import { CallAct } from "./call";
 import { PersonName } from "./name";
 import { NameNotices, putNameBack } from "./signer";
 import { digitsOf } from "./ctx";
@@ -125,7 +130,31 @@ function moreGroups(c: PageCtx, compose: (text?: string | null) => void): MenuGr
     if (last && last.key === a.group) last.items.push(item);
     else groups.push({ key: a.group, items: [item] });
   }
-  return groups.map((g) => ({ items: g.items }));
+  // A call already made, logged without a dial (canvas A, Your call A3): beside the number, or a group of its own where
+  // the number rung is the listing's.
+  if (canRecord && c.call.vm) {
+    const past: MenuItem = {
+      label: PERSON_CALL_WORDS.logPast,
+      glyph: <Icon name="clock" size={13} />,
+      onSelect: c.call.logPast,
+    };
+    const copy = acts.find((a) => a.id === "copy-phone");
+    const home = copy ? groups.find((g) => g.key === copy.group) : undefined;
+    if (home && copy) home.items.splice(home.items.findIndex((i) => i.label === copy.label) + 1, 0, past);
+    else groups.push({ key: "call", items: [past] });
+  }
+  // On a phone, stepping to the next person of the list they were opened from is More's first rows (canvas A, owner-8).
+  const w = c.phone ? c.walk : null;
+  const steps: MenuItem[] = [];
+  if (w && w.next) {
+    const to = w.next;
+    steps.push({ label: PERSON_WALK_WORDS.nextAt(w.at + 1, w.of), onSelect: () => c.step(to) });
+  }
+  if (w && w.prev) {
+    const to = w.prev;
+    steps.push({ label: PERSON_WALK_WORDS.previous, onSelect: () => c.step(to) });
+  }
+  return [...(steps.length ? [{ items: steps }] : []), ...groups.map((g) => ({ items: g.items }))];
 }
 
 /** The typed-name confirmation to delete a person: it erases messages, media and recordings and cannot be undone. */
@@ -361,7 +390,9 @@ function heroId(c: PageCtx, phoneOnly: boolean) {
         <div className="cl-prof-name-line">
           <PersonName p={p} canEdit={canRecord} flash={flash} onPutBack={() => void putNameBack(c)} />
           <span className="cl-prof-now" data-tone={tone} data-testid="person-now" title={p.rightNow.detail}>
-            <StatePill kind="standing" value={tone} testid="person-standing" />
+            <Wash scope={p.id} value={tone} said={PERSON_WASH_WORDS.state(p.rightNow.title)}>
+              <StatePill kind="standing" value={tone} testid="person-standing" />
+            </Wash>
           </span>
         </div>
         {/* A sign-off waiting, or a record to combine with, takes the line under the name; else the business (a door
@@ -411,13 +442,6 @@ function toTheNote(c: PageCtx) {
   });
 }
 
-/** Their number to ring from the member's own phone, or, for someone at a business with none of their own, the listing's. */
-function telOf(c: PageCtx): string | null {
-  const own = String(c.p.phone || "").replace(/[^d+]/g, "");
-  if (own) return `tel:${own}`;
-  return c.p.business?.phone?.tel ?? null;
-}
-
 /**
  * The page's one primary: their thread in every state that has one (Right now's act where it says one), except a person who
  * opted out, whose header's Open thread was their only way in.
@@ -430,7 +454,6 @@ function threadCtaOf(c: PageCtx): { label: string; to: string } | null {
 /** The page's acts: its one primary, their thread; then Call, Note and the More menu. */
 function heroActs(c: PageCtx, more: MenuGroup[]): ReactNode {
   const { p, who } = c;
-  const tel = telOf(c);
   // The action lives in Right now, beside what needs doing. Its own button is the thread in every state that has one,
   // except a person who opted out: the header's Open thread was their only way in, so it falls back to it.
   const threadCta = threadCtaOf(c);
@@ -455,12 +478,8 @@ function heroActs(c: PageCtx, more: MenuGroup[]): ReactNode {
         </Button>
       )}
       <div className="cl-prof-acts-row">
-        {/* The member's own phone rings them, as a lead is called; never the receptionist. */}
-        {tel ? (
-          <Button size="sm" href={tel} data-testid="person-call">
-            <Icon name="phone" size={12} /> Call
-          </Button>
-        ) : null}
+        {/* The member's own phone rings them, as a lead is called; never the receptionist. Then: how did it go? */}
+        <CallAct c={c} />
         {c.canRecord ? (
           <Button size="sm" onClick={() => toTheNote(c)} data-testid="person-note-act">
             <Icon name="edit" size={12} /> Note
@@ -484,8 +503,50 @@ function heroActs(c: PageCtx, more: MenuGroup[]): ReactNode {
 }
 
 /**
- * The head, at the top of the identity rail (canvas A): Back, who they are, the acts, the doubts the door raised on them,
- * and the delete or merge question while it is asked.
+ * Stepping to the person before or after them in the People view they were opened from (0052, canvas A): "‹ 4 of 24 ›" at
+ * the head of a desk's record, beside the frame's ‹ People. A phone steps from the first rows of More instead.
+ */
+function walkStep(c: PageCtx) {
+  const w = c.walk;
+  if (!w || c.phone) return null;
+  const W = PERSON_WALK_WORDS;
+  const go = (to: string | null) => () => {
+    if (to) c.step(to);
+  };
+  return (
+    <nav className="cl-prof-walk" aria-label={W.label} data-testid="person-walk">
+      <Button
+        variant="quiet"
+        size="sm"
+        iconOnly
+        aria-label={W.previous}
+        title={W.previous}
+        disabled={!w.prev}
+        onClick={go(w.prev)}
+        data-testid="person-walk-prev"
+      >
+        <span aria-hidden="true">‹</span>
+      </Button>
+      <span className="cl-prof-walk-at tabular">{W.at(w.at, w.of)}</span>
+      <Button
+        variant="quiet"
+        size="sm"
+        iconOnly
+        aria-label={W.next}
+        title={W.next}
+        disabled={!w.next}
+        onClick={go(w.next)}
+        data-testid="person-walk-next"
+      >
+        <span aria-hidden="true">›</span>
+      </Button>
+    </nav>
+  );
+}
+
+/**
+ * The head, at the top of the identity rail (canvas A): Back, where they stand in the list they were opened from, who they
+ * are, the acts, the doubts the door raised on them, and the delete or merge question while it is asked.
  */
 export function hero(c: PageCtx, phoneOnly: boolean) {
   const more = moreGroups(c, c.compose);
@@ -496,6 +557,7 @@ export function hero(c: PageCtx, phoneOnly: boolean) {
         <Icon name="chevron" size={11} style={{ transform: "rotate(180deg)" }} />
         <span className="cl-prof-back-word">People</span>
       </Button>
+      {walkStep(c)}
       {heroId(c, phoneOnly)}
       {heroActs(c, more)}
       {doubtRows(c)}
@@ -523,7 +585,6 @@ export function PhoneDock({ c }: { c: PageCtx }) {
   }, [c.phone]);
   if (!c.phone || !away) return null;
   const cta = threadCtaOf(c);
-  const tel = telOf(c);
   const more = moreGroups(c, c.compose);
   return createPortal(
     <div
@@ -547,11 +608,7 @@ export function PhoneDock({ c }: { c: PageCtx }) {
           {NEW_CONVERSATION_WORDS.personDoor}
         </Button>
       )}
-      {tel ? (
-        <Button iconOnly aria-label="Call" href={tel}>
-          <Icon name="phone" size={15} />
-        </Button>
-      ) : null}
+      <CallAct c={c} dock />
       {c.canRecord ? (
         <Button iconOnly aria-label="Note" onClick={() => toTheNote(c)}>
           <Icon name="edit" size={15} />

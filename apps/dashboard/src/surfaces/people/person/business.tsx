@@ -5,15 +5,17 @@
  * (person-page/business.ts over Leads' own peek view model); the sheet is the kit's. The sheet's only press that leaves
  * the page is Open in Leads; a person at the business is a door to their own page.
  */
+import { useEffect, useReducer, useState } from "react";
 import { WORKS_AT_WORDS } from "@chanlytics/contracts";
 import type { BusinessRecordVM, PersonFaceVM } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
+import { FailedRead } from "../../kit/empty/empty";
 import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Sheet } from "../../kit/sheet/sheet";
 import { routeDoor } from "../../legacy-verbs";
-import { setPersonBusiness } from "../people-detail";
+import { peekPerson, personDetail, setPersonBusiness } from "../people-detail";
 import type { PageCtx } from "./ctx";
 
 /** A business's tile: its initials on the tint its kind decides, the listing's photo over them where there is one. */
@@ -84,26 +86,34 @@ export function WorksAtCard({ c }: { c: PageCtx }) {
   );
 }
 
-/** Its people: this page says so, each other person is a door to their own page. */
-function peopleHere(b: BusinessRecordVM) {
+/**
+ * Its people: the one the sheet was opened from says so, each other person is a door to their own page. On their page
+ * they are "this page"; opened from their thread (the Inbox's Works at), "this thread", and their name the door to their page.
+ */
+function peopleHere(b: BusinessRecordVM, from: "page" | "thread") {
   return (
     <section className="cl-prof-biz-part" aria-label={b.peopleTitle}>
       <h3 className="cl-prof-biz-title">{b.peopleTitle}</h3>
       <ul className="cl-prof-biz-people">
-        {b.people.map((x) => (
-          <li key={x.id} className="cl-prof-biz-person" data-here={x.here || undefined}>
-            <Face initials={x.initials} size="sm" />
-            {x.to ? (
-              <a className="cl-prof-biz-door" {...routeDoor(x.to)} data-testid="person-business-person">
-                {x.name}
-              </a>
-            ) : (
-              <span className="cl-prof-biz-name">{x.name}</span>
-            )}
-            <span className="cl-prof-biz-line">{x.line}</span>
-            {x.needsYou ? <span className="cl-prof-biz-needs" aria-label="Needs you" /> : null}
-          </li>
-        ))}
+        {b.people.map((x) => {
+          const to = x.to ?? (from === "thread" ? `clients/${x.id}` : null);
+          return (
+            <li key={x.id} className="cl-prof-biz-person" data-here={x.here || undefined}>
+              <Face initials={x.initials} size="sm" />
+              {to ? (
+                <a className="cl-prof-biz-door" {...routeDoor(to)} data-testid="person-business-person">
+                  {x.name}
+                </a>
+              ) : (
+                <span className="cl-prof-biz-name">{x.name}</span>
+              )}
+              <span className="cl-prof-biz-line">
+                {x.here && from === "thread" ? WORKS_AT_WORDS.thisThread : x.line}
+              </span>
+              {x.needsYou ? <span className="cl-prof-biz-needs" aria-label="Needs you" /> : null}
+            </li>
+          );
+        })}
       </ul>
     </section>
   );
@@ -183,10 +193,101 @@ async function leaveBusiness(c: PageCtx) {
   c.load();
 }
 
-/** The business sheet: a pane from the right on a desk, from the bottom on a phone (the kit's Sheet). */
+/**
+ * The business sheet opened from a thread (0052, the Inbox's Works at): the person read through the profile's courier, the
+ * tab's copy at once and read again behind it, the sheet saying "Reading…" under the business's name until it is in, and
+ * the read's failure where it failed. Its one way out is Open in Leads; "Not at this business" is said on their own page.
+ * The Inbox loads this module on the press, so a thread carries none of it until then.
+ */
+export function BusinessSheetFor({ personId, name, onClose }: { personId: string; name: string; onClose: () => void }) {
+  const [person, setPerson] = useState(() => peekPerson(personId));
+  const [failed, setFailed] = useState<string | null>(null);
+  const [tries, tryAgain] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => {
+    let here = true;
+    setFailed(null);
+    personDetail(personId).then(
+      (p) => {
+        if (here && p) setPerson(p);
+      },
+      (e: unknown) => {
+        if (here) setFailed(e instanceof Error ? e.message : String(e));
+      },
+    );
+    return () => {
+      here = false;
+    };
+  }, [personId, tries]);
+  if (failed && !person?.business)
+    return (
+      <Sheet
+        open
+        onClose={onClose}
+        title={name}
+        close={{ label: WORKS_AT_WORDS.close, glyph: <Icon name="x" size={13} /> }}
+        className="cl-prof-business-record"
+        testid="person-business-sheet"
+      >
+        <FailedRead kind="line" what="this business" why={failed} onRetry={tryAgain} testid="person-business-failed" />
+      </Sheet>
+    );
+  return (
+    <BusinessRecordSheet
+      b={person?.business ?? null}
+      open
+      onClose={onClose}
+      onLeave={null}
+      reading={name}
+      from="thread"
+    />
+  );
+}
+
+/** The business sheet on a person's page, the door their head's line and the Works at row open. */
 export function BusinessSheet({ c }: { c: PageCtx }) {
-  const b = c.p.business;
-  if (!b) return null;
+  return (
+    <BusinessRecordSheet
+      b={c.p.business}
+      open={c.sheet}
+      onClose={() => c.setSheet(false)}
+      onLeave={c.canRecord ? () => void leaveBusiness(c) : null}
+    />
+  );
+}
+
+/** What the business sheet draws and does, wherever it opens: a person's page, or a thread's Works at (0052). */
+interface BusinessRecordSheetProps {
+  /** The business, once read; null while it is read, when `reading` names it. */
+  b: BusinessRecordVM | null;
+  open: boolean;
+  onClose: () => void;
+  /** "Not at this business", where the page may record it (their own page); null anywhere else. */
+  onLeave: (() => void) | null;
+  /** The business's name as the press knew it, said over "Reading…" until the business is in. */
+  reading?: string | null;
+  /** Where it was opened: their page (the default), or their thread, where they are "this thread" and a door to their page. */
+  from?: "page" | "thread";
+}
+
+/** The business sheet: a pane from the right on a desk, from the bottom on a phone (the kit's Sheet). */
+function BusinessRecordSheet({ b, open, onClose, onLeave, reading = null, from = "page" }: BusinessRecordSheetProps) {
+  if (!b) {
+    if (!reading) return null;
+    return (
+      <Sheet
+        open={open}
+        onClose={onClose}
+        title={reading}
+        close={{ label: WORKS_AT_WORDS.close, glyph: <Icon name="x" size={13} /> }}
+        className="cl-prof-business-record"
+        testid="person-business-sheet"
+      >
+        <div className="route-reading" role="status" aria-busy="true" data-testid="person-business-reading">
+          {WORKS_AT_WORDS.reading}
+        </div>
+      </Sheet>
+    );
+  }
   const foot = (
     <>
       {b.phone?.tel ? (
@@ -201,8 +302,8 @@ export function BusinessSheet({ c }: { c: PageCtx }) {
   );
   return (
     <Sheet
-      open={c.sheet}
-      onClose={() => c.setSheet(false)}
+      open={open}
+      onClose={onClose}
       title={b.name}
       sub={b.kind}
       close={{ label: WORKS_AT_WORDS.close, glyph: <Icon name="x" size={13} /> }}
@@ -227,13 +328,13 @@ export function BusinessSheet({ c }: { c: PageCtx }) {
           </div>
         </div>
         {b.read ? <p className="cl-prof-biz-read">{b.read}</p> : null}
-        {peopleHere(b)}
+        {peopleHere(b, from)}
         {listingParts(b)}
-        {c.canRecord ? (
+        {onLeave ? (
           <LinkButton
             className="cl-prof-biz-leave"
             title={WORKS_AT_WORDS.leaveHint}
-            onClick={() => void leaveBusiness(c)}
+            onClick={onLeave}
             data-testid="person-business-leave"
           >
             {WORKS_AT_WORDS.leave}

@@ -8,7 +8,13 @@
  */
 import { Fragment } from "react";
 import type { MouseEventHandler, ReactNode } from "react";
-import { TIMELINE_FILTERS, filterTimeline, personFaceOf, timelineFilterLabel } from "@chanlytics/contracts";
+import {
+  NEW_SINCE_WORDS,
+  TIMELINE_FILTERS,
+  filterTimeline,
+  personFaceOf,
+  timelineFilterLabel,
+} from "@chanlytics/contracts";
 import type { PersonVM } from "@chanlytics/contracts";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { EmptyState } from "../../kit/empty/empty";
@@ -18,6 +24,9 @@ import { holdStill, routeDoor } from "../../legacy-verbs";
 import { VisitAsk } from "../../visit-line";
 
 type Item = PersonVM["timeline"][number];
+
+/** No row new to the reader: the History of a page that does not say. */
+const NOTHING_NEW: ReadonlySet<string> = new Set();
 
 /** Newer than this many rows waits behind one press. The Inbox is the whole thread; a profile that drew a year of messages ran to five screens on a phone. */
 const TL_CAP = 20;
@@ -73,14 +82,20 @@ function askLine(e: Item) {
   );
 }
 
-/** A row's mark, who and when, what was said, its second line, and the arrow where it has somewhere to go. */
-function rowBody(e: Item, customer: ReactNode, ask: ReactNode = null) {
+/**
+ * A row's mark, who and when (a dot before the time where it is new since the reader last looked, 0052), what was said,
+ * its second line, and the arrow where it has somewhere to go.
+ */
+function rowBody(e: Item, customer: ReactNode, ask: ReactNode = null, isNew = false) {
   return (
     <>
       <div className={`cl-tl-mark ${markClassOf(e)}`}>{markOf(e, customer)}</div>
       <div className="cl-tl-body">
         <div className="cl-tl-head">
           <span className="cl-tl-who">{e.who}</span>
+          {isNew ? (
+            <span className="cl-tl-new" role="img" aria-label={NEW_SINCE_WORDS} data-testid="timeline-new" />
+          ) : null}
           <span className="cl-tl-time">{e.time}</span>
         </div>
         <div className={`cl-tl-text ${e.kind === "customer" ? "" : "muted"}`}>{e.text}</div>
@@ -124,8 +139,17 @@ function filterStrip(items: Item[], filter: string, onFilter: (id: string) => vo
   );
 }
 
-/** The record as rows: each day's head above the rows that belong to it, and Show N older after the twentieth. */
-function rows(visible: Item[], older: number, customer: ReactNode, onShowAll: (() => void) | null) {
+/**
+ * The record as rows: each day's head above the rows that belong to it, and Show N older after the twentieth (`more`: how
+ * many are older, and the press that shows them).
+ */
+function rows(
+  visible: Item[],
+  more: { older: number; onShowAll: (() => void) | null },
+  customer: ReactNode,
+  fresh: ReadonlySet<string>,
+) {
+  const { older, onShowAll } = more;
   let lastDay: string | null = null;
   return (
     <div className="cl-prof-timeline">
@@ -134,7 +158,7 @@ function rows(visible: Item[], older: number, customer: ReactNode, onShowAll: ((
         const dayHead = e.day !== lastDay ? <div className="cl-tl-day">{e.day}</div> : null;
         lastDay = e.day;
         const asking = asksOf(e);
-        const body = rowBody(e, customer, asking ? askLine(e) : null);
+        const body = rowBody(e, customer, asking ? askLine(e) : null, fresh.has(e.id));
         return (
           <Fragment key={e.id}>
             {dayHead}
@@ -183,6 +207,7 @@ export function PersonTimeline({
   showAll = false,
   onShowAll = null,
   dealsOn = false,
+  fresh = NOTHING_NEW,
 }: {
   items: Item[];
   initials: string;
@@ -194,6 +219,8 @@ export function PersonTimeline({
   onShowAll?: (() => void) | null;
   /** Whether deals are on here: the workspace's word for an appointment follows (appointmentWordWhere). */
   dealsOn?: boolean;
+  /** The rows new since the reader last looked (contracts newSinceOf), each with its dot. */
+  fresh?: ReadonlySet<string>;
 }) {
   const shown = filterTimeline(items, filter);
   // A fold of three rows is not worth a press.
@@ -205,7 +232,7 @@ export function PersonTimeline({
       {items.length === 0 ? (
         <EmptyState kind="line" className="empty-center" title="Nothing recorded yet." />
       ) : (
-        rows(visible, older, customerMark(name, initials), onShowAll)
+        rows(visible, { older, onShowAll }, customerMark(name, initials), fresh)
       )}
     </>
   );

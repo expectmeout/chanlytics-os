@@ -159,6 +159,12 @@ export interface PersonRowDto {
   lead_id?: string | null;
   lead_name?: string | null;
   lead_gone?: boolean | null;
+  /**
+   * That business's own addresses (its email and the other ones the finder read off its site, lower-cased), on its own
+   * person's row alone while it stands (0052, I24; 00418): what a calendar booking from one is matched to them by. Absent
+   * before 00418, null on everyone else's row.
+   */
+  lead_emails?: string[] | null;
   /** Where their name came from (NAME_SOURCES), and when a member settled it; absent before 00413, null when not known. */
   name_source?: string | null;
   name_settled_at?: string | null;

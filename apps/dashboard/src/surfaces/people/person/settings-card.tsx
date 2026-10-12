@@ -235,6 +235,7 @@ function visitFold(c: PageCtx, row: ReactNode) {
         yesHow={askScript ? `Asking in person or on the phone? Say: “${askScript}”` : undefined}
         canRecord={canRecord}
         lockedNote={null}
+        yesLocked={p.yesLocked}
         messages={p.ownMessages}
         onRecord={recordAndClose(c, "conversational", folds.visit)}
         hint={visitHint(c)}
@@ -276,6 +277,7 @@ function offersFold(c: PageCtx, row: ReactNode) {
         yesHow="How did they say yes in writing?"
         canRecord={canRecord && p.consent.state !== "opted_out"}
         lockedNote={null}
+        yesLocked={p.yesLocked}
         messages={p.ownMessages}
         onRecord={recordAndClose(c, "marketing", folds.offers)}
         hint={offersHint(c)}

@@ -15,7 +15,7 @@ import {
   proposalMessage,
 } from "@chanlytics/contracts";
 import type { DealVM, PersonNextStepVM, PersonRowVM, VisitLineVM } from "@chanlytics/contracts";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
 import { Menu, type MenuGroup, type MenuItem } from "../../kit/menu/menu";
 import { StoppedMark } from "../../kit/pill/stopped-mark";
@@ -403,8 +403,8 @@ function headerName(thread: Thread, personTo: string | null, facts: HeaderFacts)
 /** The line under the name: the wires, and the deal or the visit. */
 function headerSub(thread: Thread, channelLabels: Record<string, string>, facts: HeaderFacts) {
   const { deal, visit, person } = facts;
-  // Where they work, as the chip, when there is no deal or visit to say (0052): words, since the head is the door to their
-  // page, whose line opens the business.
+  // Where they work, as words inside the head's door, when there is no deal or visit to say (0052): a phone's, whose head
+  // has no room beside it for the door a desk draws (worksAtDoor), and a business removed since, which has no sheet.
   const works = !deal && !visit && person && person.worksAt && !person.standIn ? person.worksAt : null;
   return (
     <div className="ix-th-sub">
@@ -416,7 +416,7 @@ function headerSub(thread: Thread, channelLabels: Record<string, string>, facts:
         </span>
       )}
       {works && (
-        <span className="ix-th-visit" data-testid="ix-th-works-at">
+        <span className={`ix-th-visit${works.gone ? "" : " ix-th-works-said"}`} data-testid="ix-th-works-at">
           <Icon name="map" size={10} />
           <span className="ix-th-visit-words">
             {works.gone ? WORKS_AT_WORDS.gone : `${WORKS_AT_WORDS.title} ${works.name}`}
@@ -453,7 +453,65 @@ interface ThreadHeaderProps {
   onArchive?: (() => void) | null;
 }
 
-/** The face, the name and what is known of them, one link to their page, and the "Also in Leads" chip beside it. */
+/** The business sheet's module (people/person/business.tsx), loaded once for the tab: a thread carries none of it until asked. */
+type BusinessDoorModule = Pick<typeof import("../../people/person/business"), "BusinessSheetFor">;
+let businessDoor: BusinessDoorModule | null = null;
+let businessDoorLoading: Promise<BusinessDoorModule> | null = null;
+
+function loadBusinessDoor(): Promise<BusinessDoorModule> {
+  // What it reads of the module is named, so the dead-exports check (knip) sees the use.
+  businessDoorLoading ??= import("../../people/person/business").then(
+    ({ BusinessSheetFor }) => (businessDoor = { BusinessSheetFor }),
+  );
+  return businessDoorLoading;
+}
+
+/** Whose business the sheet over the thread shows: the person and the business's name, said while it is read. */
+interface BusinessAsked {
+  personId: string;
+  name: string;
+}
+
+/**
+ * Where they work, a door to the business's sheet beside the link to their page (0052): the "Also in Leads" chip of the
+ * mockup, made real. A desk's: a phone says it as words in the head (headerSub). Its module is asked for as a pointer
+ * reaches it, so the press opens the sheet at once. Nothing for a stand-in, whose name is the business's already, or a
+ * business whose details were removed.
+ */
+function worksAtDoor(facts: HeaderFacts, open: (b: BusinessAsked) => void) {
+  const person = facts.person;
+  const w = person && !person.standIn ? person.worksAt : null;
+  if (!person || !w || w.gone || !w.name) return null;
+  const asked = { personId: person.id, name: w.name };
+  return (
+    <Button
+      variant="quiet"
+      size="sm"
+      className="ix-th-works"
+      onPointerEnter={() => void loadBusinessDoor()}
+      onClick={() => open(asked)}
+      data-testid="ix-th-works-door"
+    >
+      <Icon name="map" size={11} />
+      <span className="ix-th-works-name">
+        {WORKS_AT_WORDS.title} {w.name}
+      </span>
+      <Icon name="chevron" size={10} />
+    </Button>
+  );
+}
+
+/** The business sheet over the thread, once its module is in (the door's press asks for it, if a pointer did not). */
+function ThreadBusinessSheet({ asked, onClose }: { asked: BusinessAsked | null; onClose: () => void }) {
+  const [, landed] = useState(0);
+  useEffect(() => {
+    if (asked && !businessDoor) void loadBusinessDoor().then(() => landed((n) => n + 1));
+  }, [asked]);
+  const Door = businessDoor?.BusinessSheetFor;
+  return asked && Door ? <Door personId={asked.personId} name={asked.name} onClose={onClose} /> : null;
+}
+
+/** The face, the name and what is known of them, one link to their page, and the door to their business beside it. */
 function headerMain(props: ThreadHeaderProps, facts: HeaderFacts, alsoLeads: ReactNode) {
   const { thread, channelLabels, onOpenClient = () => {}, onBack = null } = props;
   // Who this is opens their page: the face, the name and the line under it are one link (IxWho), as a messaging app's
@@ -521,9 +579,11 @@ export const ThreadHeader = (props: ThreadHeaderProps) => {
   const [toastNode, flash] = useToast();
   const facts = headerFacts(thread);
   const { person } = facts;
+  // The business sheet over the thread (0052): whose, while it is open.
+  const [business, setBusiness] = useState<BusinessAsked | null>(null);
   // The deal's group and the seeded chip are made before the markup, as they were: a role gate is asked for each in that order.
   const dealActs = dealGroup(thread, facts);
-  const alsoLeads = alsoInLeads(thread);
+  const alsoLeads = alsoInLeads(thread) ?? (thread.real && !demoSession() ? worksAtDoor(facts, setBusiness) : null);
 
   return (
     <header className="ix-th-head capsule">
@@ -576,6 +636,7 @@ export const ThreadHeader = (props: ThreadHeaderProps) => {
       {person && person.nextStep && !demoSession() ? (
         <IxThreadStep key={person.nextStep.id} personId={person.id} step={person.nextStep} flash={flash} />
       ) : null}
+      <ThreadBusinessSheet asked={business} onClose={() => setBusiness(null)} />
       {toastNode}
     </header>
   );

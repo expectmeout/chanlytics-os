@@ -16,7 +16,7 @@ import { plPhoneNow } from "../../people/words";
 import type { RowPick, TableColumn } from "../../people/types";
 import { LeadRowCall } from "./call-menu";
 import { LeadHover, LeadTip, ldPlacePop } from "./hover";
-import { LeadRatedCard, ldBusinessCell, ldClientOf } from "./name-cell";
+import { LeadRatedCard, ldBusinessCell, ldClientOf, ldPeopleOf, ldTalkingDoor } from "./name-cell";
 import { LeadSlot, LeadSlotShape } from "./shapes";
 import type { LeadCellCtx } from "./types";
 
@@ -155,7 +155,8 @@ export const LEAD_COLUMNS: readonly TableColumn<LeadRowVM, LeadCellCtx>[] = [
     on: false,
     cell: (l, x) => (
       <td key="stage" className="ld-stage-cell" data-testid="lead-stage">
-        {l.cls !== "excluded" && <StatePill kind="lead_stage" value={l.stage} label={l.stageLabel} />}
+        {l.cls !== "excluded" &&
+          ldTalkingDoor(l, x, { kind: "lead_stage", value: l.stage, label: l.stageLabel, named: true })}
         {ldReachOutLine(l, x)}
       </td>
     ),
@@ -325,13 +326,14 @@ const ldCardCell = (l: LeadRowVM, x: LeadCellCtx, pick?: RowPick) => {
       <StatePill kind="lead_row_state" value={l.state} label={l.stateTag || l.stageLabel} testid="lead-state" />
     ),
     // Under a group's own heading (x.sectioned, the scope's review sections) the reason is said once, above. While a
-    // reach-out writes to the open search, its line says where this business stands (Part 6, H8).
+    // reach-out writes to the open search, its line says where this business stands (Part 6, H8); once anyone at it is in
+    // People, who they are (0052). The Stage stays words on a phone: the row opens the peek, whose In People rows are doors.
     lead:
       l.cls === "excluded"
         ? l.fitLabel
         : l.cls === "review" && x && x.sectioned
           ? l.sub
-          : (x && x.reachOut && x.reachOut.lineOf(l.id)) || l.waitsOn || l.sub,
+          : (x && x.reachOut && x.reachOut.lineOf(l.id)) || l.waitsOn || ldPeopleOf(l, x)?.line || l.sub,
     leadTestid: "lead-sub",
     swipe: slides
       ? touchSwipe({

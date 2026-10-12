@@ -51,6 +51,29 @@ export const PERSON_NAME_WORDS = {
 } as const;
 
 /** The words of the business a person works at: the line under their name, the Works at row and the sheet. */
+/** Stepping from person to person through the People view they were opened from (0052, canvas A): "‹ 4 of 24 ›". */
+export const PERSON_WALK_WORDS = {
+  label: "People in this list",
+  at: (at: number, of: number) => `${at} of ${of}`,
+  next: "Next person",
+  previous: "Previous person",
+  /** The phone's ⋯, where stepping is its first two rows. */
+  nextAt: (at: number, of: number) => `Next person · ${at} of ${of}`,
+} as const;
+
+/**
+ * What the page says, politely, of a value someone else changed while it is open (0052, canvas A: the motion grammar's
+ * wash): the figures, the state, the name after a rename, Up next, their last words and History's newest row.
+ */
+export const PERSON_WASH_WORDS = {
+  figure: (label: string, value: string) => `${label} is now ${value}`,
+  name: (name: string) => `Their name is now ${name}`,
+  state: (word: string) => `Where they stand is now: ${word}`,
+  upNext: "Up next has changed",
+  lastWords: "They wrote again",
+  history: "Something new in History",
+} as const;
+
 export const WORKS_AT_WORDS = {
   title: "Works at",
   /** A business erased or blanked since: said where its name was, with no door. */
@@ -62,7 +85,20 @@ export const WORKS_AT_WORDS = {
   peopleHere: (n: number) => `People here · ${n}`,
   /** Leads' peek: the people who work at the business, as People holds them. */
   inPeople: (n: number) => `In People · ${n}`,
+  /** Leads' name card: the people at the business, by name. */
+  inPeopleNamed: (names: string) => `In People · ${names}`,
+  /** Leads' row, under the business's name: "2 people · Priya Nair, Leah Brooks". */
+  peopleLine: (n: number, names: string) => `${plural(n, "person", "people")} · ${names}`,
+  /** What the Talking door does, said on it: whom it opens. */
+  openInPeople: (name: string) => `Open ${name} in People`,
+  /** A Talking lead's Stage, naming who it is talking with where they have a name of their own: "Talking · Priya Nair". */
+  stageWith: (stage: string, name: string | null) => (name ? `${stage} · ${name}` : stage),
+  /** "Priya Nair, Leah Brooks", then how many more: a line names two at most. */
+  someNames: (names: readonly string[]) =>
+    names.length > 2 ? `${names.slice(0, 2).join(", ")} and ${names.length - 2} more` : names.join(", "),
   thisPage: "this page",
+  /** The business sheet opened from a thread (the Inbox's Works at): the person the thread is with. */
+  thisThread: "this thread",
   inTouch: (day: string) => `in touch ${day}`,
   neverInTouch: "not in touch yet",
   linkPerson: "Link a person",

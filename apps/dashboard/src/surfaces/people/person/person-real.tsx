@@ -11,28 +11,32 @@
  * people it read, and a person the tab does not hold yet is nothing of theirs until their whole page is in, `Reading…` after
  * the standard's beat, never their name first and the rest after (Ruben, 24 Sep).
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
-import { isIdentifierName, personTabRoute, shortName } from "@chanlytics/contracts";
-import type { PersonRowVM, PersonTab, PersonVM } from "@chanlytics/contracts";
+import { isIdentifierName, newSinceOf, personTabRoute, shortName } from "@chanlytics/contracts";
+import type { LookedAt, PersonRowVM, PersonTab, PersonVM } from "@chanlytics/contracts";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { useRecordFold } from "../../kit/record/hooks";
-import { mayAtLeast } from "../../legacy-verbs";
+import { tabMemory } from "../../kit/record/shell-verbs";
+import { mayAtLeast, navigate } from "../../legacy-verbs";
 import { addressReplace } from "../shell-verbs";
 import { PL_PHONE_QUERY } from "../words";
 import { backToPeople, hear, saidBy, usePersonToast } from "../person-verbs";
+import { warmPerson } from "../people-detail";
+import { walkOf, type PersonWalk } from "../walk";
 import type { DelState, DoubtState, MergeState, PageCtx, RmState } from "./ctx";
 import { BusinessSheet, WorksAtCard } from "./business";
+import { CallSheet, usePersonCall } from "./call";
 import { PhoneDock, hero, openWith } from "./hero";
 import { PersonLists } from "./lists";
 import { PersonProfileFrame } from "./frame";
 import { aboutCard } from "./sections";
-import { Figures, PersonTabs, TabBody } from "./work";
+import { Figures, PersonTabs, TabBody, tabSwipe } from "./work";
 import { settingsCard } from "./settings-card";
 import { heldPerson, readPerson } from "./read";
 import { hearTheirThread } from "./their-thread";
 import { usePeopleSeam } from "./use-people";
-import { useSeeOpen } from "../../seen";
+import { seePerson, useSeeOpen } from "../../seen";
 import { usePartShown } from "../../use-surface";
 import { plReading } from "../cells/columns";
 
@@ -161,7 +165,7 @@ function railGroups(c: PageCtx) {
  * The page of a person who is here (canvas A): on a desk the identity rail beside the work column, on a phone one column
  * with the rail's groups under About; the business sheet over it when it is open.
  */
-function personPage(c: PageCtx, toastNode: ReactNode) {
+function personPage(c: PageCtx, toastNode: ReactNode, scroller: (el: HTMLDivElement | null) => void) {
   const { p, who } = c;
   // Their visits ahead are Coming up, above what has happened.
   const past = p.timeline.filter((t) => !t.ahead);
@@ -175,14 +179,14 @@ function personPage(c: PageCtx, toastNode: ReactNode) {
     </aside>
   );
   return (
-    <div className="cl-profile" data-takeover data-tab={c.tab}>
+    <div className="cl-profile" ref={scroller} data-takeover data-tab={c.tab}>
       <div className="cl-prof-page">
         <div className="cl-prof-record" data-thin={p.thin || undefined}>
           <div className="cl-prof-side">
             {hero(c, phoneOnly)}
             {c.phone ? null : about}
           </div>
-          <div className="cl-prof-work">
+          <div className="cl-prof-work" {...tabSwipe(c)}>
             <Figures c={c} />
             <PersonTabs c={c} />
             <TabBody c={c} past={past} about={about} />
@@ -191,6 +195,7 @@ function personPage(c: PageCtx, toastNode: ReactNode) {
       </div>
       <PhoneDock c={c} />
       <BusinessSheet c={c} />
+      <CallSheet c={c} />
       {toastNode}
     </div>
   );
@@ -235,6 +240,10 @@ function ClientProfileReal({ id, tab: asked }: { id: string; tab: PersonTab }) {
     reading ? { personId: id, conversationId: reading.conversationId } : null,
     reading ? plReading(reading) : undefined,
   );
+  const looked = useLookedAt(id, reading);
+  const walk = useWalk(id);
+  const scroller = useRailHeld();
+  const call = usePersonCall(vm, phone);
   if (missing)
     return (
       <PersonProfileFrame onBack={backToPeople}>
@@ -297,12 +306,97 @@ function ClientProfileReal({ id, tab: asked }: { id: string; tab: PersonTab }) {
     phone,
     sheet,
     setSheet,
+    fresh: newSinceOf(vm.timeline, looked),
+    walk,
+    step: (to) => navigate(personTabRoute(to, tab), { replace: true }),
     compose: () => undefined,
+    call,
   };
   // Every send the page offers opens their thread through one path (the More menu's, the deal card's, Up next's).
   c.compose = openWith(c);
-  return personPage(c, toastNode);
+  return personPage(c, toastNode, scroller);
 }
+
+/**
+ * The identity rail holds still beside the work column on a desk (canvas A's sticky rail): it is held to the height of the
+ * page's scroller (`--record-h` on it, clients.css), which a rail taller than the screen scrolls inside, so its foot is
+ * never out of reach while the work column is read. Measured as the scroller is, and again as it changes.
+ */
+function useRailHeld(): (scroller: HTMLDivElement | null) => void {
+  const watch = useRef<ResizeObserver | null>(null);
+  // The page's own scroller, by its ref: a page on its way out is still drawn beside it (the view deck's still copy).
+  return useCallback((scroller: HTMLDivElement | null) => {
+    watch.current?.disconnect();
+    watch.current = null;
+    if (!scroller || typeof ResizeObserver === "undefined") return;
+    const hold = () => scroller.style.setProperty("--record-h", `${scroller.clientHeight}px`);
+    hold();
+    watch.current = new ResizeObserver(hold);
+    watch.current.observe(scroller);
+  }, []);
+}
+
+/**
+ * Where they stand in the People view they were opened from (walk.ts, 0052's "‹ 4 of 24 ›"), read as their page opens, and
+ * the people either side read ahead, so a step lands on a page the tab already holds, whole.
+ */
+function useWalk(id: string): PersonWalk | null {
+  const walk = useMemo(() => walkOf(id), [id]);
+  const prev = walk?.prev ?? null;
+  const next = walk?.next ?? null;
+  useEffect(() => {
+    // Read ahead and let go: a read that fails here is read again when the step asks for it.
+    for (const to of [prev, next]) if (to) void warmPerson(to);
+  }, [prev, next]);
+  return walk;
+}
+
+/** Where a visit's "what you had seen" waits in the tab (a place, by person): a refresh keeps it, leaving lets it go. */
+const LOOKED = "person-looked";
+
+/** What the tab kept of this visit's looking, as numbers; nothing where it kept none. */
+function lookedKept(id: string): LookedAt | null {
+  const kept = tabMemory()?.place(LOOKED, id);
+  if (!kept) return null;
+  const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+  return { seenAtMs: n(kept.seenAtMs), markedAtMs: n(kept.markedAtMs), visitAtMs: n(kept.visitAtMs) };
+}
+
+/**
+ * New since you last looked (0052): what the reader had seen of this person as this visit began, from their People row
+ * before the page writes its own mark, kept in the tab for the visit (a refresh keeps the dots; leaving the person lets
+ * them go). Then the mark, on every open (decision 0052's call 9), so the next visit is new against this one, team rows
+ * too: the Inbox and People mark a person only while something of theirs is unread.
+ */
+function useLookedAt(id: string, row: PersonRowVM | null): LookedAt | null {
+  const held = useRef<{ id: string; looked: LookedAt | null } | null>(null);
+  if (!held.current || held.current.id !== id) held.current = { id, looked: lookedKept(id) };
+  if (!held.current.looked && row)
+    held.current.looked = { seenAtMs: row.seenAtMs, markedAtMs: row.markAtMs, visitAtMs: Date.now() };
+  const looked = held.current.looked;
+  useEffect(() => {
+    if (looked) tabMemory()?.keepPlace(LOOKED, id, { ...looked });
+  }, [id, looked]);
+  useEffect(() => () => tabMemory()?.keepPlace(LOOKED, id, {}), [id]);
+  const ready = !!looked && !!row;
+  const conversationId = row ? row.conversationId : null;
+  const heardAtMs = row ? (row.askedMs ?? 0) : 0;
+  const markAtMs = row ? row.markAtMs : 0;
+  const unseen = row ? row.unseen : false;
+  useEffect(() => {
+    if (!ready) return undefined;
+    // After a dwell: stepping through a list past someone (‹ 4 of 24 ›) does not mark them looked at.
+    const t = setTimeout(
+      () => seePerson({ personId: id, conversationId }, { unseen, heardAtMs, markAtMs }),
+      SEEN_DWELL_MS,
+    );
+    return () => clearTimeout(t);
+  }, [id, ready, conversationId, unseen, heardAtMs, markAtMs]);
+  return looked;
+}
+
+/** How long a person's page is on screen before the visit counts as looking at them (0052, canvas A). */
+const SEEN_DWELL_MS = 1500;
 
 /**
  * The door refuses a pair with two different numbers or two different addresses as two people (0028): the page does not

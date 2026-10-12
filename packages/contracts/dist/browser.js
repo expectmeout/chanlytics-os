@@ -1045,8 +1045,8 @@ function addressInMessage(body) {
   }
   if (found.size !== 1) return null;
   const alone = tokens.length === 1;
-  const theirs = tokens.length <= 8 && OWN_ADDRESS_WORDS.test(s);
-  return alone || theirs ? [...found][0] : null;
+  const theirs2 = tokens.length <= 8 && OWN_ADDRESS_WORDS.test(s);
+  return alone || theirs2 ? [...found][0] : null;
 }
 
 // src/shared/phone.ts
@@ -3832,8 +3832,8 @@ function writtenChannelOf(channel) {
 }
 var THREAD_CHANNEL_WORDS = { whatsapp: "WhatsApp", phone: "Phone", sms: "Text", email: "Email" };
 function lastWroteOn(messages) {
-  const theirs = [...messages].reverse().find(isTheirOwnWords);
-  return theirs ? writtenChannelOf(theirs.channel) : null;
+  const theirs2 = [...messages].reverse().find(isTheirOwnWords);
+  return theirs2 ? writtenChannelOf(theirs2.channel) : null;
 }
 function isChatMessage(m) {
   return m.type !== "call_summary" && m.type !== "note";
@@ -3853,12 +3853,12 @@ function threadChannelOf(messages) {
 function replyWireOf(messages) {
   const wrote = lastWroteOn(messages);
   if (wrote) return wrote;
-  const theirs = [...messages].reverse().find(isFromTheirSide);
-  return theirs ? writtenChannelOf(theirs.channel) : null;
+  const theirs2 = [...messages].reverse().find(isFromTheirSide);
+  return theirs2 ? writtenChannelOf(theirs2.channel) : null;
 }
 function answerWireOf(messages) {
-  const theirs = replyWireOf(messages);
-  if (theirs) return theirs;
+  const theirs2 = replyWireOf(messages);
+  if (theirs2) return theirs2;
   const ours = [...messages].reverse().find((m) => isChatMessage(m) && m.direction === "outbound");
   return writtenChannelOf(ours?.channel);
 }
@@ -5571,10 +5571,10 @@ function parseReading(a) {
   };
 }
 function openingVerdict(code2, reading, stepLanguage) {
-  const theirs = languageBase(reading.language);
+  const theirs2 = languageBase(reading.language);
   const ours = languageBase(stepLanguage);
-  if (theirs && ours && theirs !== ours)
-    return { ok: false, hold: "language", detail: theirs, rewrite: false, why: "" };
+  if (theirs2 && ours && theirs2 !== ours)
+    return { ok: false, hold: "language", detail: theirs2, rewrite: false, why: "" };
   if (!reading.backed) {
     const detail = reading.unbacked.slice(0, 120) || null;
     return {
@@ -8121,6 +8121,19 @@ function stepDays(nowMs, tz) {
   add(dayPlus(today, wd === 0 ? 1 : 8 - wd), "Next week");
   out.push({ key: "pick", label: "Pick a day", title: "Choose any day" });
   return out;
+}
+function composerDays(nowMs, tz) {
+  const all = stepDays(nowMs, tz);
+  const tomorrow = all.find((c) => c.label === "Tomorrow");
+  const friday = all.find((c) => c.label === WEEKDAYS[5].slice(0, 3));
+  const nextWeek = all.find((c) => c.label === "Next week");
+  const pick = all.find((c) => c.key === "pick");
+  return [tomorrow, friday ?? nextWeek, pick].filter((c) => !!c);
+}
+function stepDayName(key, nowMs, tz) {
+  const offered = stepDays(nowMs, tz).find((c) => c.key === key && c.key !== "pick");
+  if (offered) return offered.label === "Next week" ? "next week" : offered.label;
+  return clockDate(wallClockAt(tz, key, 12, 0), tz, nowMs);
 }
 var TODAY_STEPS_MAX = 3;
 function todayStepsDue(rows2, nowMs, tz, max = TODAY_STEPS_MAX) {
@@ -12125,6 +12138,12 @@ function matchPerson(item, everyone, own) {
       const p2 = byEmail.get(em);
       if (p2) return { id: p2.id, name: labelOf(p2), via: "email", ...threadOf(p2), ...replyFactsOf(p2) };
     }
+    const byBusiness2 = /* @__PURE__ */ new Map();
+    for (const p2 of people) for (const em of p2.businessEmails ?? []) byBusiness2.set(em, p2);
+    for (const em of c.emails) {
+      const p2 = byBusiness2.get(em);
+      if (p2) return { id: p2.id, name: labelOf(p2), via: "business", ...threadOf(p2), ...replyFactsOf(p2) };
+    }
   }
   const words2 = [item.title, ...c.names, item.description ?? ""].join("\n");
   const p = personInText(words2, people);
@@ -12175,6 +12194,7 @@ function allVisitsIn(index, person) {
   };
   if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
   if (person.email) for (const it of index.byEmail.get(person.email.toLowerCase()) ?? []) take(it, "email");
+  for (const em of person.businessEmails ?? []) for (const it of index.byEmail.get(em) ?? []) take(it, "business");
   const re = nameMatcher(person.name);
   if (re) {
     for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
@@ -12203,6 +12223,7 @@ function visitsIn(index, person, nowMs) {
   };
   if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
   if (person.email) for (const it of index.byEmail.get(person.email.toLowerCase()) ?? []) take(it, "email");
+  for (const em of person.businessEmails ?? []) for (const it of index.byEmail.get(em) ?? []) take(it, "business");
   const re = nameMatcher(person.name);
   if (re) {
     for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
@@ -12256,25 +12277,6 @@ function describeVisits(visits, tz, nowMs, opts) {
     );
   }
   return out.length ? out.join(" ") : null;
-}
-function feedSourceLabel(url) {
-  if (!url) return "your calendar";
-  let host;
-  try {
-    host = new URL(url.replace(/^webcal:\/\//i, "https://")).hostname.toLowerCase();
-  } catch {
-    return "your calendar";
-  }
-  if (host.includes("google")) return "Google Calendar";
-  if (host.includes("icloud")) return "Apple Calendar";
-  if (host.includes("office365") || host.includes("outlook") || host.includes("live.com")) return "Outlook";
-  return "your calendar";
-}
-function eventText(raw, max = 1500) {
-  if (!raw) return null;
-  const text = raw.replace(/<br\s*\/?>/gi, "\n").replace(/<\/?(p|div|li|tr|h[1-6])\b[^>]*>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
-  if (!text) return null;
-  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}\u2026` : text;
 }
 function toVisitDto(v) {
   return v ? {
@@ -12566,6 +12568,25 @@ function spanLabel2(t1, t2) {
   const b = clockLabel(t2);
   const sameHalf = t2 < 24 && t1 < 12 === t2 < 12;
   return `${sameHalf ? a.slice(0, -3) : a} \u2013 ${b}`;
+}
+function feedSourceLabel(url) {
+  if (!url) return "your calendar";
+  let host;
+  try {
+    host = new URL(url.replace(/^webcal:\/\//i, "https://")).hostname.toLowerCase();
+  } catch {
+    return "your calendar";
+  }
+  if (host.includes("google")) return "Google Calendar";
+  if (host.includes("icloud")) return "Apple Calendar";
+  if (host.includes("office365") || host.includes("outlook") || host.includes("live.com")) return "Outlook";
+  return "your calendar";
+}
+function eventText(raw, max = 1500) {
+  if (!raw) return null;
+  const text = raw.replace(/<br\s*\/?>/gi, "\n").replace(/<\/?(p|div|li|tr|h[1-6])\b[^>]*>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  if (!text) return null;
+  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}\u2026` : text;
 }
 
 // src/setup/calendar-source.ts
@@ -15328,14 +15349,14 @@ function lastContactOf(r2, tz, nowMs) {
     };
   }
   if (k !== null && (m === null || k > m)) {
-    const theirs = ts(r2.last_inbound_call_at) === k;
-    const by = theirs ? "Phoned" : "We called";
+    const theirs2 = ts(r2.last_inbound_call_at) === k;
+    const by = theirs2 ? "Phoned" : "We called";
     const when2 = ago(k, tz, nowMs);
     return {
       ts: k,
       at: r2.last_call_at,
       kind: "call",
-      who: theirs ? "they" : "system",
+      who: theirs2 ? "they" : "system",
       by,
       when: when2,
       label: `${by} \xB7 ${when2}`
@@ -15585,6 +15606,11 @@ var NOTE_WORDS = {
   edited: "edited",
   forAnyone: "For anyone",
   forLabel: "For",
+  /** The composer's For, as choices under its label (0052's composer): Anyone · Me · Jo Park. */
+  anyone: "Anyone",
+  me: "Me",
+  /** The composer's button once a day is chosen: it says what pressing it makes (the motion grammar's label). */
+  addStepFor: (day) => `Add step for ${day}`,
   teamOnly: "Team only",
   teamOnlyHint: "The receptionist won't read it",
   readsHint: "The receptionist uses notes as facts and never reads them aloud.",
@@ -20724,10 +20750,10 @@ function answersToRuns(sends2, events) {
   const standing = /* @__PURE__ */ new Map();
   for (const raw of events) {
     const e = countedOf(raw);
-    const theirs = e ? sendsOf.get(e.contactId) : void 0;
-    if (!e || !theirs) continue;
+    const theirs2 = e ? sendsOf.get(e.contactId) : void 0;
+    if (!e || !theirs2) continue;
     const exact = e.key !== null;
-    for (const s of e.key ? namedBy(e.key, theirs) : reachedBefore(e, theirs)) {
+    for (const s of e.key ? namedBy(e.key, theirs2) : reachedBefore(e, theirs2)) {
       const slot = JSON.stringify([s.runId, s.contactId]);
       const held = standing.get(slot);
       if (!held || isLaterEvent(e, held.event)) standing.set(slot, { runId: s.runId, event: e, exact });
@@ -21070,8 +21096,8 @@ function dealStageOf(r2, nowMs) {
   return d ? d.stage : null;
 }
 function dealStagesOf(stage, open) {
-  const theirs = open.map((d) => d.stage).filter((s) => s === "proposed" || s === "won");
-  return [...new Set(stage ? [stage, ...theirs] : theirs)];
+  const theirs2 = open.map((d) => d.stage).filter((s) => s === "proposed" || s === "won");
+  return [...new Set(stage ? [stage, ...theirs2] : theirs2)];
 }
 function consultationsWithoutProposal(rows2, nowMs) {
   const endOf = (r2) => r2.consultedMs;
@@ -25615,10 +25641,10 @@ function fullNameHolders(rows2) {
 function visitMomentDay(trigger, tz, nowMs) {
   return dayPlusInZone(tz, nowMs, trigger === "visit_tomorrow" ? 1 : -1).key;
 }
-function visitOnDay(v, day, side, theirs) {
+function visitOnDay(v, day, side, theirs2) {
   if (!v) return null;
   const onDay = (v.near ?? [side === "next" ? v.next : v.last]).filter(
-    (x) => !!x && visitDateKey(x.start, v.timezone) === day && theirs(x.via)
+    (x) => !!x && visitDateKey(x.start, v.timezone) === day && theirs2(x.via)
   );
   return (side === "next" ? onDay[0] : onDay[onDay.length - 1]) ?? null;
 }
@@ -25659,14 +25685,14 @@ function playbookRunReach(rows2, p, touches, nowMs, pace, listIds = null) {
     at: touches.followUps.get(id),
     keys: touches.followUpKeys.get(id)
   });
-  const theirs = theirVisitTest(t.kind === "visit" ? rows2 : []);
+  const theirs2 = theirVisitTest(t.kind === "visit" ? rows2 : []);
   const named = t.kind === "visit" ? (
     // The calendar's own day, never hours: eleven at night tomorrow is still tomorrow. And a visit that is surely
     // theirs (visitIsTheirs).
     rows2.filter((r2) => {
       if (!r2.calendarTz) return false;
       const day = visitMomentDay(p.trigger, r2.calendarTz, nowMs);
-      const onDay = r2.visitDays.some((d) => d.date === day && theirs(r2, d.via));
+      const onDay = r2.visitDays.some((d) => d.date === day && theirs2(r2, d.via));
       if (p.trigger === "visit_tomorrow") return onDay;
       return onDay && !r2.booked;
     })
@@ -29687,6 +29713,22 @@ var PERSON_NAME_WORDS = {
     not_a_signer: "Their name did not come from a reply."
   }
 };
+var PERSON_WALK_WORDS = {
+  label: "People in this list",
+  at: (at3, of) => `${at3} of ${of}`,
+  next: "Next person",
+  previous: "Previous person",
+  /** The phone's ⋯, where stepping is its first two rows. */
+  nextAt: (at3, of) => `Next person \xB7 ${at3} of ${of}`
+};
+var PERSON_WASH_WORDS = {
+  figure: (label, value) => `${label} is now ${value}`,
+  name: (name) => `Their name is now ${name}`,
+  state: (word) => `Where they stand is now: ${word}`,
+  upNext: "Up next has changed",
+  lastWords: "They wrote again",
+  history: "Something new in History"
+};
 var WORKS_AT_WORDS = {
   title: "Works at",
   /** A business erased or blanked since: said where its name was, with no door. */
@@ -29698,7 +29740,19 @@ var WORKS_AT_WORDS = {
   peopleHere: (n) => `People here \xB7 ${n}`,
   /** Leads' peek: the people who work at the business, as People holds them. */
   inPeople: (n) => `In People \xB7 ${n}`,
+  /** Leads' name card: the people at the business, by name. */
+  inPeopleNamed: (names3) => `In People \xB7 ${names3}`,
+  /** Leads' row, under the business's name: "2 people · Priya Nair, Leah Brooks". */
+  peopleLine: (n, names3) => `${plural(n, "person", "people")} \xB7 ${names3}`,
+  /** What the Talking door does, said on it: whom it opens. */
+  openInPeople: (name) => `Open ${name} in People`,
+  /** A Talking lead's Stage, naming who it is talking with where they have a name of their own: "Talking · Priya Nair". */
+  stageWith: (stage, name) => name ? `${stage} \xB7 ${name}` : stage,
+  /** "Priya Nair, Leah Brooks", then how many more: a line names two at most. */
+  someNames: (names3) => names3.length > 2 ? `${names3.slice(0, 2).join(", ")} and ${names3.length - 2} more` : names3.join(", "),
   thisPage: "this page",
+  /** The business sheet opened from a thread (the Inbox's Works at): the person the thread is with. */
+  thisThread: "this thread",
   inTouch: (day) => `in touch ${day}`,
   neverInTouch: "not in touch yet",
   linkPerson: "Link a person",
@@ -29878,7 +29932,8 @@ function rowThreadOf(r2, askedMs) {
     threadId: r2.has_chat && r2.latest_conversation_id ? `th-${r2.latest_conversation_id}` : null,
     conversationId: r2.latest_conversation_id,
     unseen: reading.unseen,
-    markAtMs: reading.markAtMs
+    markAtMs: reading.markAtMs,
+    seenAtMs: r2.seen_at && Number.isFinite(Date.parse(r2.seen_at)) ? Date.parse(r2.seen_at) : 0
   };
 }
 function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null, ready, names3 = null) {
@@ -29984,7 +30039,9 @@ function personLikeOf(p) {
       optedOut: isOptedOutContact({ consent: p.consent, dnc: p.dnc })
     },
     // The business they work at, while it stands (0052): the calendar's fourth match.
-    business: p.lead_id && !p.lead_gone && p.lead_name ? p.lead_name : null
+    business: p.lead_id && !p.lead_gone && p.lead_name ? p.lead_name : null,
+    // Its own addresses, on its own person alone (people_list, 00418): a booking from one is theirs, by their business.
+    businessEmails: p.lead_id && !p.lead_gone && p.lead_emails ? p.lead_emails.map((e) => e.trim().toLowerCase()).filter((e) => e.length > 0) : []
   };
 }
 function peopleVisitsOf(items, people, cal, nowMs) {
@@ -30915,13 +30972,13 @@ function rightNowOf({
     return { tone: "silent", title: SILENT_STOP.label, detail: SILENT_STOP.detail, cta: null };
   }
   if (["never", "ask"].includes(profile.receptionist_mode ?? "") || ["never", "ask"].includes(profile.workspace_reply_mode ?? "")) {
-    const theirs = ["never", "ask"].includes(profile.receptionist_mode ?? "");
-    const mode = theirs ? profile.receptionist_mode : profile.workspace_reply_mode;
+    const theirs2 = ["never", "ask"].includes(profile.receptionist_mode ?? "");
+    const mode = theirs2 ? profile.receptionist_mode : profile.workspace_reply_mode;
     const word = PERSON_MODE_WORDS[mode === "never" ? "never" : "ask"];
     return {
       tone: "paused",
       title: `Held for you, set to ${word}`,
-      detail: theirs ? `Set to ${word} for them \u2014 their messages come straight to you.` : `Set to ${word} for the workspace \u2014 every message waits for a person.`,
+      detail: theirs2 ? `Set to ${word} for them \u2014 their messages come straight to you.` : `Set to ${word} for the workspace \u2014 every message waits for a person.`,
       cta: openThread
     };
   }
@@ -31501,6 +31558,7 @@ function businessRecordOf(b, of, tz, now) {
     address: peek.where ? { line: peek.where.line, href: peek.where.href } : null,
     read: Number.isFinite(found) ? WORKS_AT_WORDS.readOnSheet(clockDate(found, tz, nowMs)) : "",
     stage: { word: LEAD_STAGE_WORDS[b.lead.stage] ?? b.lead.stage, note: WORKS_AT_WORDS.stageNote },
+    open: b.lead.stage !== "archived" && !!b.lead.contact_id,
     people,
     peopleTitle: WORKS_AT_WORDS.peopleHere(people.length),
     fit: peek.checkDots.length ? { word: peek.fit.word, checks: WORKS_AT_WORDS.checks(peek.checkDots.length) } : null,
@@ -31516,6 +31574,39 @@ function businessRecordOf(b, of, tz, now) {
     } : null,
     links,
     to: leadsRoute({ peek: b.lead.id })
+  };
+}
+function leadPeopleIndex(rows2) {
+  const byLead = /* @__PURE__ */ new Map();
+  const byId2 = /* @__PURE__ */ new Map();
+  for (const r2 of rows2) {
+    byId2.set(r2.id, r2);
+    const lead = r2.worksAt && !r2.worksAt.gone ? r2.worksAt.leadId : null;
+    if (!lead) continue;
+    const at3 = byLead.get(lead);
+    if (at3) at3.push(r2);
+    else byLead.set(lead, [r2]);
+  }
+  return { byLead, byId: byId2 };
+}
+function leadPeopleOf(lead, index) {
+  const own = lead.contactId ? index.byId.get(lead.contactId) ?? null : null;
+  const at3 = index.byLead.get(lead.id) ?? [];
+  const face = at3.find((r2) => !r2.standIn) ?? own ?? at3[0] ?? null;
+  const others = at3.filter((r2) => r2 !== face);
+  const people = [
+    ...face && at3.includes(face) ? [face] : [],
+    ...others.filter((r2) => r2.state === "needs_you"),
+    ...others.filter((r2) => r2.state !== "needs_you")
+  ];
+  const names3 = WORKS_AT_WORDS.someNames(people.filter((r2) => !r2.standIn).map((r2) => r2.name));
+  const n = people.length;
+  return {
+    door: face ? { id: face.id, name: face.standIn ? null : face.name } : null,
+    line: names3 ? WORKS_AT_WORDS.peopleLine(n, names3) : null,
+    card: n ? names3 ? WORKS_AT_WORDS.inPeopleNamed(names3) : WORKS_AT_WORDS.inPeople(n) : null,
+    client: [...own ? [own] : [], ...people].find((r2) => r2.deal?.stage === "won")?.id ?? null,
+    order: people.map((r2) => r2.id)
   };
 }
 function businessTrailOf(row2) {
@@ -31640,9 +31731,9 @@ function personNextOf(f) {
 var LAST_WORDS_TITLE = "Their last words";
 var BUBBLE = 280;
 function lastWordsOf(timeline) {
-  const theirs = timeline.find((t) => t.kind === "customer" && !!t.text);
+  const theirs2 = timeline.find((t) => t.kind === "customer" && !!t.text);
   const ours = timeline.find((t) => (t.kind === "receptionist" || t.kind === "team") && !t.unsent && !!t.text);
-  return [theirs, ours].filter((t) => !!t).sort((a, b) => a.ts - b.ts).map((t) => ({
+  return [theirs2, ours].filter((t) => !!t).sort((a, b) => a.ts - b.ts).map((t) => ({
     id: t.id,
     mine: t.kind !== "customer",
     who: t.who,
@@ -31854,6 +31945,8 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = null, na
     smartLists: smartListsOf(d, base),
     campaigns: campaignsOf(d, tz, nowMs),
     lead: leadOf(d, base, tz, nowMs),
+    // The doors' own test, as far as the page can see it: a lead names them, or they work at one.
+    yesLocked: d.lead || base.worksAt ? LEAD_CONSENT_REFUSAL : null,
     doubts: doubtsOf(d),
     deal: ctx.current,
     deals: ctx.deals,
@@ -31993,6 +32086,127 @@ function campaignsOf(d, tz, nowMs) {
       to: addressOf({ kind: "send", id: c.broadcast_id })
     };
   });
+}
+
+// src/person-page/call.ts
+var PERSON_CALL_OUTCOMES = ["spoke", ...LEAD_CALL_OUTCOMES];
+var LEADS_OWN = ["interested", "not_interested"];
+var PERSON_CALL_SAID_MAX = LEAD_NOTE_MAX;
+var CALL_OUTCOME_ORDER = [
+  "spoke",
+  "interested",
+  "not_interested",
+  "call_back",
+  "voicemail",
+  "no_answer",
+  "wrong_number"
+];
+var PERSON_CALL_WORDS = {
+  call: "Call",
+  dial: "Call from your phone",
+  dialHint: "Your own phone rings them; the receptionist never does",
+  logPast: "Log a call you already made",
+  question: LEAD_CALL_QUESTION,
+  outcomes: { spoke: "Spoke", ...LEAD_CALL_OUTCOME_WORDS },
+  callBack: "Call back",
+  said: "What was said",
+  saidPlaceholder: "What was said (team only)",
+  tell: "The receptionist should know",
+  tellHint: "Off, the note is the team's only, and the receptionist never repeats it",
+  spokeWith: "Who did you speak with?",
+  spokeWithPlaceholder: "Their name, if they said it",
+  fromPhone: "from your phone",
+  onLead: "logged on the lead",
+  logged: "Logged as a team-only note",
+  told: "Logged as a note the receptionist reads",
+  save: (what) => `Save as ${what}`,
+  /** Save before an outcome is picked, when it cannot be pressed yet. */
+  saveBare: "Save",
+  saved: "Call logged",
+  couldNot: "Could not log this call.",
+  notNow: "Not now",
+  /** The step a call back writes beside a note the receptionist reads (a step is always the team's own). */
+  stepBody: "Call back"
+};
+function dialable(raw) {
+  const digits2 = String(raw || "").replace(/[^\d+]/g, "");
+  return /\d/.test(digits2) ? digits2 : null;
+}
+function personCallOf(i) {
+  const own = dialable(i.phone);
+  const b = i.business;
+  const onLead = !!b?.open;
+  const outcomes = CALL_OUTCOME_ORDER.filter((o) => onLead || !LEADS_OWN.includes(o)).map((id) => ({
+    id,
+    label: PERSON_CALL_WORDS.outcomes[id]
+  }));
+  if (own)
+    return {
+      tel: `tel:${own}`,
+      number: formatPhoneDisplay(own) ?? own,
+      heading: formatPhoneDisplay(own) ?? own,
+      sub: PERSON_CALL_WORDS.fromPhone,
+      listing: false,
+      outcomes,
+      onLead,
+      asksWho: false
+    };
+  const ph = b?.phone;
+  if (!b || !ph || !ph.tel) return null;
+  return {
+    tel: ph.tel,
+    number: ph.value,
+    heading: `${b.name} \xB7 ${ph.value}`,
+    sub: [ph.hours, onLead ? PERSON_CALL_WORDS.onLead : null].filter(Boolean).join(" \xB7 "),
+    listing: true,
+    outcomes,
+    onLead,
+    asksWho: i.standIn
+  };
+}
+function personCallDays(o) {
+  return { offered: !!o && o !== "wrong_number", tomorrow: o === "call_back" };
+}
+function personCallNote(o, said) {
+  const words2 = String(said || "").trim();
+  return `Call \xB7 ${PERSON_CALL_WORDS.outcomes[o]}${words2 ? `: ${words2}` : ""}`;
+}
+function personCallSave(o, dayName) {
+  const W = PERSON_CALL_WORDS;
+  if (o === "call_back") return W.save(dayName ? `${W.callBack} ${dayName}` : W.outcomes.call_back);
+  return W.save(dayName ? `${W.outcomes[o]} \xB7 ${W.callBack.toLowerCase()} ${dayName}` : W.outcomes[o]);
+}
+function personCallFoot(vm, o, tell) {
+  const W = PERSON_CALL_WORDS;
+  if (vm.onLead && o && o !== "spoke" && (o !== "wrong_number" || vm.listing)) {
+    if (o === "interested") return `Moves the lead to ${LEAD_STAGE_WORDS.converted}`;
+    if (o === "not_interested") return `Closes the lead: ${LEAD_CLOSED_WORDS.said_no}`;
+    if (o === "wrong_number") return "Marks the listing's number wrong";
+    return "Logged on the lead";
+  }
+  return tell ? W.told : W.logged;
+}
+function personCallLeadArgs(o, said, spokeWith) {
+  if (o === "spoke") return null;
+  const a = stageArgs({
+    kind: "outcome",
+    outcome: o,
+    ...said && said.trim() ? { note: said.trim() } : {},
+    ...spokeWith && spokeWith.trim() ? { spoke_with: spokeWith.trim() } : {}
+  });
+  return { p_lead_stage: a.p_stage, p_lead_reason: a.p_reason, p_lead_note: a.p_note, p_spoke_with: a.p_spoke_with };
+}
+
+// src/person-page/new-since.ts
+var NEW_SINCE_WORDS = "New since you last looked";
+var theirs = (kind) => kind === "customer" || kind === "call";
+function newSinceOf(items, looked) {
+  if (!looked || !looked.markedAtMs) return /* @__PURE__ */ new Set();
+  return new Set(
+    items.filter(
+      (e) => e.ts <= looked.visitAtMs && e.ts > (theirs(e.kind) ? looked.seenAtMs || looked.markedAtMs : looked.markedAtMs)
+    ).map((e) => e.id)
+  );
 }
 
 // src/person-page/signer.ts
@@ -35028,6 +35242,7 @@ var ROUTE_KEYS = [
   "POST channels/whatsapp/standing",
   "POST client-errors",
   "POST contacts",
+  "POST contacts/[id]/call",
   "POST contacts/[id]/deal",
   "POST contacts/[id]/doubts/dismiss",
   "POST contacts/[id]/merge",
@@ -39236,8 +39451,8 @@ function namedProblem(check, words2, set) {
   if (set.kind === "named") return check.error;
   const subject = words2.subject ?? "";
   const count2 = set.keys.length;
-  const theirs = versionSlotsRefusal(subject, count2) ?? versionSlotsRefusal(words2.body, count2);
-  if (theirs === null || theirs !== check.error) return check.error;
+  const theirs2 = versionSlotsRefusal(subject, count2) ?? versionSlotsRefusal(words2.body, count2);
+  if (theirs2 === null || theirs2 !== check.error) return check.error;
   return namedRefusal(subject, set) ?? namedRefusal(words2.body, set) ?? check.error;
 }
 
@@ -40935,6 +41150,7 @@ function callbackRow(r2) {
     kind: "callback",
     conversationId: e.conversation_id,
     callId: r2.call ? r2.call.id : null,
+    person_id: r2.conv?.contact.id ?? r2.call?.contact_id ?? null,
     who: r2.who,
     initials: initialsOf(r2.who),
     channel: "Phone",
@@ -40959,6 +41175,7 @@ function handoffRow2(r2) {
     kind: "handoff",
     conversationId: e.conversation_id,
     callId: null,
+    person_id: r2.conv?.contact.id ?? null,
     who: r2.who,
     initials: initialsOf(r2.who),
     channel: r2.conv ? threadChannelWords(r2.conv.messages) : "WhatsApp",
@@ -40993,6 +41210,7 @@ function windowRow(c, f) {
     kind: "window",
     conversationId: c.id,
     callId: null,
+    person_id: c.contact.id,
     who,
     initials: initialsOf(who),
     channel: "WhatsApp",
@@ -41016,6 +41234,7 @@ function earRow(r2, f) {
     kind: "call",
     conversationId: c?.conversation_id ?? null,
     callId: r2.id,
+    person_id: c?.contact_id ?? null,
     who: r2.who,
     initials: initialsOf(r2.who),
     channel: "Phone",
@@ -41040,6 +41259,7 @@ function searchRow(s, now) {
     kind: "search",
     conversationId: null,
     callId: null,
+    person_id: null,
     who: s.name,
     initials: initialsOf(s.name),
     channel: "Leads",
@@ -41415,6 +41635,7 @@ function visitRow(a) {
     kind: "visit",
     conversationId: null,
     callId: null,
+    person_id: person.id,
     who: person.name,
     initials: initialsOf(person.name),
     channel: "Calendar",
@@ -41438,6 +41659,7 @@ function visitsRestRow(asked) {
     kind: "visits",
     conversationId: null,
     callId: null,
+    person_id: null,
     who: VISITS_ASKED_WORDS.rest(rest, W),
     initials: `+${rest}`,
     channel: "Calendar",
@@ -41706,6 +41928,7 @@ function stepRow(s) {
     kind: "step",
     conversationId: null,
     callId: null,
+    person_id: s.personId,
     who: s.name,
     initials: initialsOf(s.name),
     channel: NOTE_WORDS.next,
@@ -41727,6 +41950,7 @@ function restRow(count2, to) {
     kind: "steps",
     conversationId: null,
     callId: null,
+    person_id: null,
     who: STEP_ROW.rest(count2),
     initials: `+${count2}`,
     channel: NOTE_WORDS.next,
@@ -43007,6 +43231,7 @@ export {
   NEW_MESSAGE_WORDS,
   NEW_PLAYBOOK_TICKS_EVERY_CHANNEL,
   NEW_REVIEW_NEWS,
+  NEW_SINCE_WORDS,
   NEW_WINDOW_DAYS,
   NOTE_MAX,
   NOTE_REFUSALS,
@@ -43094,6 +43319,9 @@ export {
   PEOPLE_TABS,
   PERM_DOING,
   PERSON_AD_ON,
+  PERSON_CALL_OUTCOMES,
+  PERSON_CALL_SAID_MAX,
+  PERSON_CALL_WORDS,
   PERSON_CAME_FROM_WORDS,
   PERSON_CHANNEL_WORDS,
   PERSON_DETAIL_WORDS,
@@ -43106,6 +43334,8 @@ export {
   PERSON_STATE_LABELS,
   PERSON_TABS_LABEL,
   PERSON_TAB_WORDS,
+  PERSON_WALK_WORDS,
+  PERSON_WASH_WORDS,
   PHONE_LINE_OFF,
   PHONE_RINGS,
   PHONE_WAYS,
@@ -43661,6 +43891,7 @@ export {
   compareTemplates,
   compareWords,
   composeSystemPrompt,
+  composerDays,
   connectionRows,
   connectionWords,
   consentAnswerWords,
@@ -44094,6 +44325,8 @@ export {
   leadNotBusinessesLine,
   leadNoteLeft,
   leadPeekMenu,
+  leadPeopleIndex,
+  leadPeopleOf,
   leadPhoneState,
   leadPinTone,
   leadPlanAsk,
@@ -44249,6 +44482,7 @@ export {
   newCampaignTrialUntil,
   newConversationOf,
   newReceptionistDefaults,
+  newSinceOf,
   nextMonthStart,
   nextOpenMoment,
   nextRunLabel,
@@ -44386,6 +44620,12 @@ export {
   peopleNowOf,
   peopleVisitsOf,
   personActs,
+  personCallDays,
+  personCallFoot,
+  personCallLeadArgs,
+  personCallNote,
+  personCallOf,
+  personCallSave,
   personFaceOf,
   personFiguresOf,
   personHeadOf,
@@ -44797,6 +45037,7 @@ export {
   stateWordList,
   statesAutomated,
   stepDayFor,
+  stepDayName,
   stepDayOf,
   stepDays,
   stepIsDue,

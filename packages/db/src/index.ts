@@ -427,6 +427,7 @@ export {
   peoplePage,
   personRow,
   addPersonNote,
+  logPersonCall,
   peopleCursorOf,
   everyoneIn,
   everyoneOnceIn,
@@ -451,7 +452,13 @@ export {
   peopleAtLead,
   signersOf,
 } from "./repositories/people";
-export type { PeopleCursor, PersonNameAnswer, ResolvePersonInput, ResolvedPerson } from "./repositories/people";
+export type {
+  PeopleCursor,
+  PersonCallArgs,
+  PersonNameAnswer,
+  ResolvePersonInput,
+  ResolvedPerson,
+} from "./repositories/people";
 export {
   savedListsFor,
   listMemberIds,

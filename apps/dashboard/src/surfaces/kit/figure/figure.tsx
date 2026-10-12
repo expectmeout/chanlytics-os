@@ -47,6 +47,11 @@ export type FigureProps = {
   tone?: "warn" | "fail";
   /** What the figure is, for a page's tests and a later phase's definitions (`data-figure`). */
   id?: string;
+  /**
+   * The number is watched for someone else's change while the page is open (motion/wash.tsx, whose `useWash` the page
+   * holds): true while it washes, false when it is still. None for a figure that is not watched.
+   */
+  washed?: boolean;
   className?: string;
   /** The id a test finds the figure by; the label's stop, where it has one, is `<id>-term`. */
   "data-testid"?: string;
@@ -67,6 +72,7 @@ export function Figure({
   minN,
   tone,
   id,
+  washed,
   className,
   "data-testid": testid,
 }: FigureProps) {
@@ -90,12 +96,20 @@ export function Figure({
         </span>
       </Tooltip>
     );
-  const number =
-    door === undefined ? (
+  const said =
+    washed === undefined ? (
       value
     ) : (
-      <Press {...door} className="figure-door">
+      <span className="wash" data-wash={washed ? "true" : undefined}>
         {value}
+      </span>
+    );
+  const number =
+    door === undefined ? (
+      said
+    ) : (
+      <Press {...door} className="figure-door">
+        {said}
       </Press>
     );
   return (
