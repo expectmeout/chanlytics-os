@@ -16,7 +16,8 @@ export function guessSlotKind(label: string | null | undefined, example?: string
   const e = String(example ?? "").toLowerCase();
   if (/proposal|propuesta|quote/.test(l)) return "proposal_link";
   // Before the booking link: "Review link" names a link too, and the drafter writes one (server campaigns/templates.ts).
-  if (/review|reseña/.test(l) || /writereview|g\.page\/r\//.test(e)) return "review_link";
+  // The word itself: "Preview", "Service reviewed" and "Reviewer" are typed text, as they were before the review link.
+  if (/\breviews?\b|reseña/.test(l) || /writereview|g\.page\/r\//.test(e)) return "review_link";
   if (/link|url|book/.test(l) || /^https?:\/\//.test(e) || /booksy|calendly|square|fresha|\.com\//.test(e))
     return "booking_link";
   if (/business|salon|company|shop|studio|clinic|brand|negocio/.test(l)) return "business_name"; // trade-word: a label naming the business, in whatever word a trade uses

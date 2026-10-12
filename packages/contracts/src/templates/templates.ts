@@ -304,6 +304,14 @@ export function paramLabel(spec: ParamSpec): string {
 }
 
 /**
+ * A slot's value as a card quotes it, the one rule every card says one by: typed words in quotes (“15% off a colour”),
+ * a value a run fills by its name (paramLabel: "their first name"). What an owner approves is the words that go.
+ */
+export function paramSaid(spec: ParamSpec): string {
+  return spec.kind === "text" ? `“${spec.value}”` : paramLabel(spec);
+}
+
+/**
  * The running playbooks that still send a template, as a refusal says it: "“Win-back” still sends this message.
  * Pause it, or give it another message, first." Deleting it would leave every later run skipped.
  */

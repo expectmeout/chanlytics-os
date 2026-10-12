@@ -661,12 +661,22 @@ test("language, scope and settings changes", () => {
   assert.deepEqual(applySettingsChange(cfg, holiday).brain.profile.notes, [
     { title: "Holiday hours", text: "Open 10 to 2 this week.", until: "2026-12-31" },
   ]);
-  assert.equal(describeSettingsChange(holiday), "Note for the receptionist: “Holiday hours”, until 2026-12-31");
+  // The card quotes what the receptionist will be told, after its title and its last day: what is approved is the text.
   assert.equal(
-    describeSettingsChange({ op: "add_note", title: "Parking", text: "Behind the building." }),
-    "Note for the receptionist: “Parking”",
-    "a note with no last day says none",
+    describeSettingsChange(holiday),
+    "Note for the receptionist: “Holiday hours”, until 2026-12-31 — “Open 10 to 2 this week.”",
   );
+  assert.equal(
+    describeSettingsChange({ op: "add_note", title: "Parking", text: "Behind the building.\n\nUse the side door." }),
+    "Note for the receptionist: “Parking” — “Behind the building. Use the side door.”",
+    "a note with no last day says none, and its text is one line",
+  );
+  // A long text is cut on a whole word at 160 characters, with an ellipsis inside the quote.
+  const long = `${"Ten percent off every colour booked this month ".repeat(4)}and nothing else.`;
+  const longLine = describeSettingsChange({ op: "add_note", title: "Offer", text: long });
+  const quoted = longLine.slice(longLine.indexOf("— “") + 3, -1);
+  assert.ok(longLine.startsWith("Note for the receptionist: “Offer” — “") && longLine.endsWith("…”"), longLine);
+  assert.ok(quoted.length <= 161 && long.startsWith(quoted.slice(0, -1)) && long[quoted.length - 1] === " ", quoted);
   assert.equal(
     applySettingsChange(cfg, { op: "add_service", name: "Gloss", duration_min: 45 }).brain.profile.services[0]
       .duration_min,

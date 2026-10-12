@@ -7,7 +7,7 @@
  * card is (Spanish cards are one later lane for all of them, D31).
  */
 import { clockHour } from "../shared/clock";
-import { paramLabel, type ParamSpec } from "../templates/templates";
+import { paramSaid, type ParamSpec } from "../templates/templates";
 import { PLAYBOOK_VETO_DELAY_WORDS, type PlaybookState } from "./playbook-triggers";
 
 /** What a change may name, in the order a card says them. */
@@ -51,9 +51,6 @@ export type PlaybookPatch = {
 const keysSaid = (last: string): string =>
   `${PLAYBOOK_PATCH_KEYS.slice(0, -1).join(", ")} ${last} ${PLAYBOOK_PATCH_KEYS.at(-1) ?? ""}`;
 
-/** A slot's value as a card quotes it: typed text in quotes, a value the run fills by its name ("their first name"). */
-const valueSaid = (spec: ParamSpec): string => (spec.kind === "text" ? `“${spec.value}”` : paramLabel(spec));
-
 /** The words of a change: a card's title and parts, and its refusals. */
 export const PLAYBOOK_PATCH_WORDS = {
   title: (p: PlaybookPatch, name: string): string =>
@@ -64,8 +61,8 @@ export const PLAYBOOK_PATCH_WORDS = {
   cap_per_run: (to: number, was: number): string => `Up to ${to} people a run, where it was ${was}`,
   gap_days: (to: number, was: number): string => `Reaches a person again after ${to} days, where it was ${was}`,
   cadence_days: (to: number, was: number): string => `Every ${to} days, where it was every ${was}`,
-  /** Its words, each value as the card quotes it. */
-  params: (to: readonly ParamSpec[]): string => `Its words changed: ${to.map(valueSaid).join(", ")}`,
+  /** Its words, each value as every card quotes one (templates paramSaid). */
+  params: (to: readonly ParamSpec[]): string => `Its words changed: ${to.map(paramSaid).join(", ")}`,
   /** Its last day, said by the business's calendar (contracts campaignDayWords: "Nov 30"), or none. */
   until: (day: string | null): string => (day ? `Ends ${day}` : "Runs until it is paused, with no last day"),
   /** The day its trial ends (campaignDayWords), or none: what a trial does is said with it. */

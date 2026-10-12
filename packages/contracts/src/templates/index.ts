@@ -10,6 +10,7 @@ export {
   parseParamSpec,
   parseParamSpecs,
   paramLabel,
+  paramSaid,
   playbooksStillSending,
   firstNameOf,
   resolveParams,

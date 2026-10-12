@@ -3232,13 +3232,17 @@ test("the proposal builders run against the database in memory: each kind is a c
     /change rejected/,
   );
   // A note with its last day: the same until a closure takes, judged by its shape alone, said on the card and carried
-  // in the change its Approve applies.
+  // in the change its Approve applies. The card quotes the text the receptionist will be told.
   const ending = { op: "add_note", title: "Holiday hours", text: "Open 10 to 2 this week.", until: "2026-12-31" };
   const noted = await p("propose_settings", { change: ending });
   assert.equal(noted.isError, false, noted.result);
   assert.deepEqual(
     [noted.proposal.title, noted.proposal.summary, noted.proposal.payload.change],
-    ["Remember this", "Note for the receptionist: “Holiday hours”, until 2026-12-31", ending],
+    [
+      "Remember this",
+      "Note for the receptionist: “Holiday hours”, until 2026-12-31 — “Open 10 to 2 this week.”",
+      ending,
+    ],
   );
   assert.match(
     (await p("propose_settings", { change: { ...ending, until: "New Year's Eve" } })).result,

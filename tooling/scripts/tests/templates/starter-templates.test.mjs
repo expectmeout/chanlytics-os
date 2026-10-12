@@ -11,6 +11,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   MOMENT_TRIGGERS,
+  PLAYBOOK_PATCH_WORDS,
   STARTER_LANGUAGES,
   STARTER_TEMPLATES,
   bookingTemplate,
@@ -20,6 +21,7 @@ import {
   defaultTemplate,
   guessSlotKind,
   isLibrarySample,
+  paramSaid,
   slotLabels,
   starterByKey,
   starterByName,
@@ -348,8 +350,12 @@ test("a slot's source: a starter's own, or a guess from the label and the exampl
   assert.equal(guessSlotKind("Value 2", "https://booksy.com/x"), "booking_link");
   // A review's link is a link too, and the drafter labels it so: the review link, never the booking link (00408).
   assert.equal(guessSlotKind("Review link", null), "review_link");
+  assert.equal(guessSlotKind("Reviews link", null), "review_link");
   assert.equal(guessSlotKind("Enlace para la reseña", null), "review_link");
   assert.equal(guessSlotKind("Value 3", "https://search.google.com/local/writereview?placeid=x"), "review_link");
+  // The word, never the letters inside another: a preview, a service reviewed or a reviewer is typed text.
+  for (const label of ["Preview", "Service reviewed", "Reviewer"])
+    assert.equal(guessSlotKind(label, null), "text", label);
   assert.equal(guessSlotKind("Business name", null), "business_name");
   assert.equal(guessSlotKind("First name", null), "first_name");
   assert.equal(guessSlotKind("Name", null), "first_name");
@@ -388,6 +394,17 @@ test("a slot's source: a starter's own, or a guess from the label and the exampl
     { kind: "business_name" },
     { kind: "text", value: "" },
   ]);
+});
+
+test("a slot's value as a card quotes it, the one rule every card says it by: typed words in quotes, a value a run fills by its name", () => {
+  assert.equal(paramSaid({ kind: "text", value: "15% off a colour" }), "“15% off a colour”");
+  assert.equal(paramSaid({ kind: "first_name" }), "their first name");
+  assert.equal(paramSaid({ kind: "review_link" }), "the review link");
+  assert.equal(
+    PLAYBOOK_PATCH_WORDS.params([{ kind: "first_name" }, { kind: "text", value: "15% off a colour" }]),
+    `Its words changed: ${paramSaid({ kind: "first_name" })}, ${paramSaid({ kind: "text", value: "15% off a colour" })}`,
+    "a campaign's change card says its words by the same rule",
+  );
 });
 
 test("the door: idempotent, one language at a time, synced in when the number's account already holds it, Meta's own words when it refuses", async () => {

@@ -11395,6 +11395,9 @@ function parseParamSpecs(raw) {
 function paramLabel(spec) {
   return spec.kind === "text" ? spec.value : PARAM_SOURCE_LABELS[spec.kind].toLowerCase();
 }
+function paramSaid(spec) {
+  return spec.kind === "text" ? `\u201C${spec.value}\u201D` : paramLabel(spec);
+}
 function playbooksStillSending(names3) {
   const quoted = names3.map((n) => `\u201C${n}\u201D`);
   if (quoted.length <= 1)
@@ -11544,7 +11547,6 @@ var PLAYBOOK_PATCH_KEYS = [
 ];
 var PLAYBOOK_PATCH_CLEARS = ["until", "trial_until"];
 var keysSaid = (last) => `${PLAYBOOK_PATCH_KEYS.slice(0, -1).join(", ")} ${last} ${PLAYBOOK_PATCH_KEYS.at(-1) ?? ""}`;
-var valueSaid = (spec) => spec.kind === "text" ? `\u201C${spec.value}\u201D` : paramLabel(spec);
 var PLAYBOOK_PATCH_WORDS = {
   title: (p, name) => p.state === "paused" ? `Pause: ${name}` : p.state === "running" ? `Resume: ${name}` : `Change: ${name}`,
   name: (to) => `Renamed \u201C${to}\u201D`,
@@ -11552,8 +11554,8 @@ var PLAYBOOK_PATCH_WORDS = {
   cap_per_run: (to, was) => `Up to ${to} people a run, where it was ${was}`,
   gap_days: (to, was) => `Reaches a person again after ${to} days, where it was ${was}`,
   cadence_days: (to, was) => `Every ${to} days, where it was every ${was}`,
-  /** Its words, each value as the card quotes it. */
-  params: (to) => `Its words changed: ${to.map(valueSaid).join(", ")}`,
+  /** Its words, each value as every card quotes one (templates paramSaid). */
+  params: (to) => `Its words changed: ${to.map(paramSaid).join(", ")}`,
   /** Its last day, said by the business's calendar (contracts campaignDayWords: "Nov 30"), or none. */
   until: (day) => day ? `Ends ${day}` : "Runs until it is paused, with no last day",
   /** The day its trial ends (campaignDayWords), or none: what a trial does is said with it. */
@@ -16336,6 +16338,7 @@ var listSpec = {
 };
 
 // src/ask/ask-settings-change.ts
+var NOTE_TEXT_SAID_MAX = 160;
 function applySettingsChange(config2, change) {
   const brain = { ...config2.brain ?? {} };
   const profile = { ...brain.profile ?? {} };
@@ -16378,8 +16381,10 @@ function describeSettingsChange(change) {
       return change.until ? `Closed ${change.date} to ${change.until}${change.note ? ` (${change.note})` : ""}` : `Closed on ${change.date}${change.note ? ` (${change.note})` : ""}`;
     case "set_hours":
       return change.open && change.close ? `${change.day}: ${change.open}\u2013${change.close}` : `${change.day}: closed`;
-    case "add_note":
-      return `Note for the receptionist: \u201C${change.title}\u201D${change.until ? `, until ${change.until}` : ""}`;
+    case "add_note": {
+      const text = clipAtWord(change.text.replace(/\s+/g, " "), NOTE_TEXT_SAID_MAX);
+      return `Note for the receptionist: \u201C${change.title}\u201D${change.until ? `, until ${change.until}` : ""}${text ? ` \u2014 \u201C${text}\u201D` : ""}`;
+    }
     case "add_service":
       return `New service: ${change.name}${change.duration_min ? ` (${change.duration_min} min)` : ""}`;
   }
@@ -28066,7 +28071,7 @@ function guessSlotKind(label, example) {
   const l = String(label ?? "").toLowerCase();
   const e = String(example ?? "").toLowerCase();
   if (/proposal|propuesta|quote/.test(l)) return "proposal_link";
-  if (/review|reseña/.test(l) || /writereview|g\.page\/r\//.test(e)) return "review_link";
+  if (/\breviews?\b|reseña/.test(l) || /writereview|g\.page\/r\//.test(e)) return "review_link";
   if (/link|url|book/.test(l) || /^https?:\/\//.test(e) || /booksy|calendly|square|fresha|\.com\//.test(e))
     return "booking_link";
   if (/business|salon|company|shop|studio|clinic|brand|negocio/.test(l)) return "business_name";
@@ -41924,6 +41929,7 @@ export {
   pageTitle,
   pageVitalsWords,
   paramLabel,
+  paramSaid,
   parseAds,
   parseAmount,
   parseCsv,
