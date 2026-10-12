@@ -12,14 +12,15 @@
 -- columns where a new campaign names them (Ask's card starts one on trial under an auto class); null where it does not.
 --
 -- Deploy order: this migration first, before the dashboard (runbook, "Apply a migration", step 4). The dashboard reads
--- both columns to change a campaign (db playbookForChange: on a database before it every PUT playbooks/:id fails, the
--- drawer's Pause and Resume and Ask's change card among them), the door before it refuses the three keys, and the start
--- before it writes no trial and no last day, without a word. The edge reads the whole row (00245 playbooks_due's
--- to_jsonb), so it needs nothing of this to run, but only an edge from this change keeps the two (core runPlaybook:
--- effectiveMode, campaignEnded): an older one runs a campaign as its class says and past its last day, so one started
--- on trial under an auto class sends by itself. The edge deploys about three minutes after the dashboard (runbook,
--- "Deploy"): approve no card that starts a campaign on trial or gives one a last day until the edge's /api/version
--- names the merge. Re-runnable.
+-- both columns to change a campaign in place (db playbookForChange: on a database before it every change in place
+-- fails, PUT playbooks/:id with state, name, …: the drawer's Pause and Resume, Ask's change card, the reach-out sheet's
+-- Pause; its channels alone and the composer's whole-playbook save read neither), the door before it refuses the three
+-- keys, and the start before it writes no trial and no last day, without a word. The edge reads the whole row (00245
+-- playbooks_due's to_jsonb), so it needs nothing of this to run, but only an edge from this change keeps the two (core
+-- runPlaybook: effectiveMode, campaignEnded): an older one runs a campaign as its class says and past its last day, so
+-- one started on trial under an auto class sends by itself. The edge deploys about three minutes after the dashboard
+-- (runbook, "Deploy"): approve no card that starts a campaign on trial or gives one a last day until the edge's
+-- /api/version names the merge. Re-runnable.
 
 set local lock_timeout = '3s';
 

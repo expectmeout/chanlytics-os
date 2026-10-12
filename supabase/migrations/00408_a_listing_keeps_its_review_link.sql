@@ -5,9 +5,10 @@
 -- google_listings kept the place's `maps_uri` alone. It is kept now, beside it, for a message's `review_link` slot to be
 -- filled from (contracts ParamSpec, core refuseWithoutReviewLink). The bind writes it from the location it binds, and
 -- every later sync of the profile reads that location again and writes it where it differs, null where the location
--- gives none (apps/edge profile-sync.ts keepReviewLink), so a listing bound before this has it from its next sync: the
--- sweep's, a day after its last, or the owner's Sync now. Null until a profile's location is bound, and again when a
--- listing is linked to a place by the public read, which gives none.
+-- gives none, onto the listing of that location's own place alone (apps/edge profile-sync.ts keepReviewLink), so a
+-- listing bound before this has it from its next sync after its first: the sweep's, a day after its last, or the
+-- owner's Sync now. Null until a profile's location is bound, and again when a listing is linked to a place by the
+-- public read, which gives none.
 --
 -- The table's policies and grants cover the column (00069: members read, the edge writes with the service role).
 -- Deploy order: this migration first, before the edge (runbook, "Apply a migration", step 4). The edge writes the

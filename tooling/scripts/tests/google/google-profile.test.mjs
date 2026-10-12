@@ -35,6 +35,7 @@ import {
   parseReviewsPage,
   starRatingNumber,
   listReviews,
+  readLocation,
   replyToReview,
   cleanReply,
   GBP_LOCATIONS_READ_MASK,
@@ -350,6 +351,67 @@ test("the review pages are followed up to the cap; a refusal is named; a reply's
   assert.equal(cleanReply("  Thank you,  \r\n Ana  "), "Thank you,\nAna");
   assert.equal(cleanReply("x".repeat(5000)).length, GBP_REPLY_MAX);
   assert.equal(cleanReply(42), "");
+});
+
+test("one location is read alone at its own name (locations.get), asked for the list's fields and read as the list reads each", async () => {
+  const one = {
+    name: "locations/456",
+    title: "Northside Movers",
+    storefrontAddress: { locality: "Brooklyn", administrativeArea: "NY", addressLines: ["1200 Harbor Blvd"] },
+    metadata: {
+      placeId: "ChIJN1t_tDeuEmsRUsoyG83frY4",
+      mapsUri: "https://maps.google.com/?cid=1",
+      newReviewUri: "https://search.google.com/local/writereview?placeid=x",
+    },
+  };
+  const asked = [];
+  const loc = await readLocation(
+    async (req) => {
+      asked.push(req);
+      return { status: 200, body: JSON.stringify(one) };
+    },
+    "tok",
+    "locations/456",
+  );
+  assert.deepEqual(
+    asked.map((r) => [r.method, r.url, r.headers.Authorization]),
+    [
+      [
+        "GET",
+        `https://mybusinessbusinessinformation.googleapis.com/v1/locations/456?readMask=${encodeURIComponent(GBP_LOCATIONS_READ_MASK)}`,
+        "Bearer tok",
+      ],
+    ],
+    "one call, the metadata asked for",
+  );
+  assert.deepEqual(loc, parseLocations({ locations: [one] }).locations[0], "the one spelling of a location");
+  assert.equal(loc.new_review_uri, "https://search.google.com/local/writereview?placeid=x");
+  const off = await readLocation(
+    async () => ({ status: 200, body: JSON.stringify({ name: "locations/789", title: "Warehouse" }) }),
+    "tok",
+    "locations/789",
+  );
+  assert.deepEqual([off.place_id, off.new_review_uri], [null, null], "not on Maps: no place, no link");
+  await assert.rejects(
+    () =>
+      readLocation(
+        async () => ({
+          status: 404,
+          body: JSON.stringify({
+            error: { code: 404, message: "Requested entity was not found.", status: "NOT_FOUND" },
+          }),
+        }),
+        "tok",
+        "locations/456",
+      ),
+    (e) => e instanceof PlacesError && e.status === 404 && /NOT_FOUND/.test(e.message),
+    "a refusal is named",
+  );
+  await assert.rejects(
+    () => readLocation(async () => ({ status: 200, body: "{}" }), "tok", "locations/456"),
+    (e) => e instanceof PlacesError && e.status === 502,
+    "an answer that names no location is Google's fault",
+  );
 });
 
 /* ----------------------------------------------------------- the planner */
@@ -925,21 +987,12 @@ const connected = (over = {}) => ({
 });
 
 /**
- * The account's locations as Google lists them (accounts/1): another location first, then the one `connected()` is bound
- * to (locations/1), its metadata `meta`. A review link is `meta.newReviewUri`.
+ * The location `connected()` is bound to (locations/1, on Maps as p1) as Google answers it read alone (locations.get),
+ * its metadata `meta`. A review link is `meta.newReviewUri`.
  */
 const boundLocation = (meta = {}) => ({
   status: 200,
-  body: JSON.stringify({
-    locations: [
-      {
-        name: "locations/2",
-        title: "Ada's Uptown",
-        metadata: { placeId: "p2", newReviewUri: "https://example.com/review/ada-uptown" },
-      },
-      { name: "locations/1", title: "Ada's Downtown", metadata: { placeId: "p1", ...meta } },
-    ],
-  }),
+  body: JSON.stringify({ name: "locations/1", title: "Ada's Downtown", metadata: { placeId: "p1", ...meta } }),
 });
 
 test("a re-connect whose vault write fails puts the working connection back, instead of deleting it", () =>
@@ -1403,10 +1456,12 @@ async function logged(run) {
 
 /**
  * One sync of a bound listing, last synced at `synced` (null: never, its first after the bind), its token fresh and its
- * reviews read (none new, and no rating or count, so the listing's row is written for its link alone): the listing
- * keeps `link` (undefined: never written, as a listing bound before 00408), the account's locations answer
- * `locations`, the reviews `reviews`. What reached Google, what was written to the listing, the rows after, the answer
- * and the log's events.
+ * reviews read (none new, and no rating or count, so the listing's row is written for its link alone): the listing is
+ * linked to `place` and keeps `link` (undefined: never written, as a listing bound before 00408), the bound location's
+ * read answers `locations` (a function: what it returns or throws), the reviews `reviews`; `meanwhile` changes the rows
+ * as Google is asked for the location, as a re-bind would. The bells and the events are kept in the same database. What
+ * reached Google, what was written to the listing, the rows after, how many bells and events were kept when the location
+ * was asked for, the answer and the log's events.
  */
 async function syncTheLink({
   link,
@@ -1414,22 +1469,32 @@ async function syncTheLink({
   reviews = { status: 200, body: '{"reviews":[]}' },
   faults = {},
   synced = "2026-09-11T00:00:00Z",
+  place = "p1",
+  meanwhile = () => {},
 }) {
   const { syncProfile } = await import("../../../../apps/edge/lib/google/profile-sync.ts");
+  const { setPg } = await import("../../../../apps/edge/lib/pg.ts");
   const now = new Date("2026-09-12T00:00:00Z");
   const seen = [];
-  const net = async (req) => {
-    seen.push(req.url);
-    if (req.url.includes("/reviews")) return reviews;
-    if (req.url.includes("/locations")) return locations;
-    throw new Error(`unexpected call: ${req.url}`);
-  };
   const conn = connected({ last_synced_at: synced });
   const tables = {
     google_connections: [conn],
-    google_listings: [{ tenant_id: "t1", place_id: "p1", ...(link === undefined ? {} : { new_review_uri: link }) }],
+    google_listings: [{ tenant_id: "t1", place_id: place, ...(link === undefined ? {} : { new_review_uri: link }) }],
     google_listing_days: [],
     google_reviews: [],
+    notifications: [],
+    events: [],
+  };
+  let kept = null;
+  const net = async (req) => {
+    seen.push(req.url);
+    if (req.url.includes("/reviews")) return reviews;
+    if (req.url.includes("/locations")) {
+      kept ??= { bells: tables.notifications.length, events: tables.events.length };
+      meanwhile(tables);
+      return typeof locations === "function" ? locations() : locations;
+    }
+    throw new Error(`unexpected call: ${req.url}`);
   };
   const db = fakeDb(tables, faults, {
     get_google_credentials: () => ({
@@ -1439,23 +1504,37 @@ async function syncTheLink({
       scope: "https://www.googleapis.com/auth/business.manage",
     }),
   });
-  const { result, lines } = await withOAuthEnv(() => logged(() => syncProfile(db, conn, "America/New_York", now, net)));
-  return {
-    r: result,
-    asked: seen.filter((u) => u.includes("/locations") && !u.includes("/reviews")),
-    written: db.seen.filter((s) => s.table === "google_listings" && s.op !== "select").map((s) => s.values),
-    listing: tables.google_listings[0],
-    connection: tables.google_connections[0],
-    events: lines.map((l) => l.event).filter((e) => e.startsWith("google_review_link")),
-  };
+  // The bells reach the edge's own handle (ops/notify.ts keepAndPush): this database, for the run.
+  setPg(db);
+  try {
+    const { result, lines } = await withOAuthEnv(() =>
+      logged(() => syncProfile(db, conn, "America/New_York", now, net)),
+    );
+    return {
+      r: result,
+      asked: seen.filter((u) => u.includes("/locations") && !u.includes("/reviews")),
+      written: db.seen.filter((s) => s.table === "google_listings" && s.op !== "select").map((s) => s.values),
+      listing: tables.google_listings[0],
+      connection: tables.google_connections[0],
+      kept,
+      bells: tables.notifications.length,
+      told: tables.events.map((e) => e.kind),
+      events: lines.map((l) => l.event).filter((e) => e.startsWith("google_review_link")),
+    };
+  } finally {
+    setPg(null);
+  }
 }
 
 test("a sync gives a listing bound before 00408 the review link of the location it is bound to, through the injected transport", async () => {
   const s = await syncTheLink({ link: undefined, locations: boundLocation({ newReviewUri: REVIEW_LINK }) });
   assert.equal(s.r.ok, true, JSON.stringify(s.r));
-  assert.equal(s.listing.new_review_uri, REVIEW_LINK, "its own location's link, never the other location's");
-  assert.equal(s.asked.length, 1, "the account's locations, read once");
-  assert.ok(s.asked[0].includes("/v1/accounts/1/locations?"), "the connection's own account, through `net`");
+  assert.equal(s.listing.new_review_uri, REVIEW_LINK, "its own location's link");
+  assert.equal(s.asked.length, 1, "the bound location, read once");
+  assert.ok(
+    s.asked[0].startsWith("https://mybusinessbusinessinformation.googleapis.com/v1/locations/1?readMask="),
+    "alone, by its name, through `net`: one call for an account of any size",
+  );
   assert.deepEqual(s.written, [{ new_review_uri: REVIEW_LINK }], "the link alone is written");
   assert.equal(s.connection.sync_error, null);
   assert.deepEqual(s.events, []);
@@ -1489,14 +1568,16 @@ test("a listing that already keeps its location's link is not written again", as
   }
 });
 
-test("a locations read that fails, or lists no bound location, leaves the link as it is and the sync whole", async () => {
+test("a location read that fails, or answers another location, leaves the link as it is and the sync whole", async () => {
   const elsewhere = {
     status: 200,
-    body: JSON.stringify({ locations: [{ name: "locations/2", title: "Ada's Uptown", metadata: { placeId: "p2" } }] }),
+    body: JSON.stringify({ name: "locations/2", title: "Ada's Uptown", metadata: { placeId: "p1" } }),
   };
   for (const [why, locations] of [
     ["Google refused the read", { status: 500, body: '{"error":{"message":"boom"}}' }],
-    ["the bound location is not among the account's", elsewhere],
+    ["the location is no longer the owner's", { status: 404, body: '{"error":{"message":"not found"}}' }],
+    ["Google answered another location", elsewhere],
+    ["Google answered no location", { status: 200, body: "{}" }],
   ]) {
     for (const link of [REVIEW_LINK, undefined]) {
       const s = await syncTheLink({ link, locations });
@@ -1540,6 +1621,111 @@ test("a sync whose reviews could not be read asks Google for no location", async
   assert.equal(s.r.ok, false);
   assert.deepEqual(s.asked, [], "the link is read only after the reviews were");
   assert.deepEqual(s.written, []);
+});
+
+/** The reviews read with one written since the last sync (2026-09-11), not on record: news, rung and told. */
+const A_NEW_REVIEW = {
+  status: 200,
+  body: JSON.stringify({
+    reviews: [
+      {
+        name: "accounts/1/locations/1/reviews/rv-new",
+        reviewId: "rv-new",
+        starRating: "FIVE",
+        reviewer: { displayName: "Luis" },
+        comment: "Great crew.",
+        createTime: "2026-09-11T20:00:00Z",
+        updateTime: "2026-09-11T20:00:00Z",
+      },
+    ],
+    averageRating: 4.8,
+    totalReviewCount: 3,
+  }),
+};
+
+test("the link is read last: a new review's bell and the google.reviews event are kept before Google is asked for the location, and a location read that fails holds neither", async () => {
+  const s = await syncTheLink({
+    link: undefined,
+    locations: boundLocation({ newReviewUri: REVIEW_LINK }),
+    reviews: A_NEW_REVIEW,
+  });
+  assert.equal(s.r.ok, true, JSON.stringify(s.r));
+  assert.equal(s.r.fresh, 1);
+  assert.deepEqual(
+    s.kept,
+    { bells: 1, events: 1 },
+    "the bell and the event were kept before the location was asked for: a sweep killed on the link's read loses neither",
+  );
+  assert.equal(s.listing.new_review_uri, REVIEW_LINK, "and the link is kept after them");
+
+  for (const [why, locations] of [
+    ["Google refused the read", { status: 500, body: '{"error":{"message":"boom"}}' }],
+    [
+      "the read never answered",
+      () => {
+        throw new Error("The operation was aborted due to timeout");
+      },
+    ],
+  ]) {
+    const f = await syncTheLink({ link: undefined, locations, reviews: A_NEW_REVIEW });
+    assert.equal(f.r.ok, true, `${why}: ${JSON.stringify(f.r)}`);
+    assert.equal(f.bells, 1, `${why}: the new review rang`);
+    assert.deepEqual(f.told, ["google.reviews"], `${why}: and was told`);
+    assert.equal(f.connection.sync_error, null, why);
+    assert.deepEqual(f.events, ["google_review_link_read_failed"], `${why}: logged`);
+  }
+});
+
+test("a location Google gives no place on Maps clears nothing: the bind refuses it, so its link is never the listing's", async () => {
+  for (const link of [REVIEW_LINK, undefined]) {
+    const s = await syncTheLink({ link, locations: boundLocation({ placeId: undefined }) });
+    const what = link ? "a link on file" : "none on file";
+    assert.equal(s.r.ok, true, `${what}: ${JSON.stringify(s.r)}`);
+    assert.equal(s.listing.new_review_uri, link, `${what}: left as it is`);
+    assert.deepEqual(s.written, [], `${what}: nothing written`);
+    assert.equal(s.connection.sync_error, null, what);
+    assert.deepEqual(s.events, ["google_review_link_read_failed"], `${what}: logged`);
+  }
+});
+
+test("the bound location's link is written only onto the listing of its own place: a listing the public read linked to another place, or one re-bound while the sweep ran, keeps its own", async () => {
+  // The public link (POST /api/v1/google/link) is not refused while a profile is connected, and writes no review link.
+  for (const link of [undefined, "https://example.com/review/ada-elsewhere"]) {
+    const s = await syncTheLink({ link, place: "p-public", locations: boundLocation({ newReviewUri: REVIEW_LINK }) });
+    const what = `linked to another place, ${link ? "a link on file" : "none on file"}`;
+    assert.equal(s.r.ok, true, `${what}: ${JSON.stringify(s.r)}`);
+    assert.equal(s.listing.place_id, "p-public", what);
+    assert.equal(s.listing.new_review_uri, link, `${what}: never the bound location's link`);
+    assert.deepEqual(s.events, ["google_review_link_read_failed"], `${what}: logged`);
+  }
+
+  // The owner chose another location (p2, its own link written by the bind) while this sweep held the old connection.
+  const uptown = "https://example.com/review/ada-uptown";
+  const raced = await syncTheLink({
+    link: REVIEW_LINK,
+    locations: boundLocation({ newReviewUri: "https://example.com/review/ada-downtown-now" }),
+    meanwhile: (tables) => Object.assign(tables.google_listings[0], { place_id: "p2", new_review_uri: uptown }),
+  });
+  assert.equal(raced.r.ok, true, JSON.stringify(raced.r));
+  assert.deepEqual(
+    [raced.listing.place_id, raced.listing.new_review_uri],
+    ["p2", uptown],
+    "the re-bound listing keeps the link its bind wrote",
+  );
+  assert.deepEqual(raced.events, ["google_review_link_read_failed"]);
+});
+
+test("a listing whose link cannot be read is left as it is, and the sync whole", async () => {
+  const s = await syncTheLink({
+    link: "https://example.com/review/ada-before",
+    locations: boundLocation({ newReviewUri: REVIEW_LINK }),
+    faults: { "google_listings.select": { code: "57014", message: "canceling statement due to statement timeout" } },
+  });
+  assert.equal(s.r.ok, true, JSON.stringify(s.r));
+  assert.equal(s.listing.new_review_uri, "https://example.com/review/ada-before", "never written over unread");
+  assert.deepEqual(s.written, []);
+  assert.equal(s.connection.sync_error, null);
+  assert.deepEqual(s.events, ["google_review_link_read_failed"]);
 });
 
 /**

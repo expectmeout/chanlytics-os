@@ -363,6 +363,7 @@ export {
   parseReviewsPage,
   listAccounts,
   listLocations,
+  readLocation,
   listReviews,
   replyToReview,
   cleanReply,

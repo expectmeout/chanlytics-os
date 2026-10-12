@@ -4634,6 +4634,10 @@ function locationsRequest(token, accountName, pageToken) {
   if (pageToken) q.set("pageToken", pageToken);
   return { url: `${GBP_INFO_BASE}/${accountName}/locations?${q.toString()}`, method: "GET", headers: bearer(token) };
 }
+function locationRequest(token, locationName) {
+  const q = new URLSearchParams({ readMask: GBP_LOCATIONS_READ_MASK });
+  return { url: `${GBP_INFO_BASE}/${locationName}?${q.toString()}`, method: "GET", headers: bearer(token) };
+}
 function reviewParent(accountName, locationName) {
   const loc = locationName.startsWith("locations/") ? locationName.slice("locations/".length) : locationName;
   return `${accountName}/locations/${loc}`;
@@ -4675,20 +4679,24 @@ function oneLineAddress(a) {
   ].filter((p) => !!p);
   return parts.length ? parts.join(", ") : null;
 }
+function parseLocation(json) {
+  const l = recordOrNull2(json);
+  const name = nonBlankOrNull2(l?.name);
+  if (!l || !name?.startsWith("locations/")) return null;
+  const meta = recordOrNull2(l.metadata);
+  return {
+    name,
+    title: nonBlankOrNull2(l.title) ?? "",
+    address: oneLineAddress(l.storefrontAddress),
+    place_id: nonBlankOrNull2(meta?.placeId),
+    maps_uri: nonBlankOrNull2(meta?.mapsUri),
+    new_review_uri: nonBlankOrNull2(meta?.newReviewUri)
+  };
+}
 function parseLocations(json) {
   const o = recordOrNull2(json);
   const list = Array.isArray(o?.locations) ? o.locations : [];
-  const locations = list.map((l) => recordOrNull2(l)).filter((l) => !!l).map((l) => {
-    const meta = recordOrNull2(l.metadata);
-    return {
-      name: nonBlankOrNull2(l.name) ?? "",
-      title: nonBlankOrNull2(l.title) ?? "",
-      address: oneLineAddress(l.storefrontAddress),
-      place_id: nonBlankOrNull2(meta?.placeId),
-      maps_uri: nonBlankOrNull2(meta?.mapsUri),
-      new_review_uri: nonBlankOrNull2(meta?.newReviewUri)
-    };
-  }).filter((l) => l.name.startsWith("locations/"));
+  const locations = list.map(parseLocation).filter((l) => l !== null);
   return { locations, next: nonBlankOrNull2(o?.nextPageToken) };
 }
 var STARS = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 };
@@ -4753,6 +4761,11 @@ async function listLocations(http2, token, accountName) {
     if (!page) break;
   }
   return out;
+}
+async function readLocation(http2, token, locationName) {
+  const loc = parseLocation(await callProfileApi(http2, locationRequest(token, locationName)));
+  if (!loc) throw new PlacesError(502, `Google's answer for ${locationName} named no location`);
+  return loc;
 }
 async function listReviews(http2, token, parent, maxPages = GBP_REVIEWS_MAX_PAGES) {
   const all = [];
@@ -5329,6 +5342,7 @@ export {
   publicFetcher,
   publicLookup,
   publishAgentVersion,
+  readLocation,
   receivedEmailFrom,
   referencesFor,
   refusalWords,
