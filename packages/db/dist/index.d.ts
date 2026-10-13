@@ -40177,7 +40177,7 @@ declare function workspaceMaySpend(db: Db$r, tenantId: string): Promise<boolean>
 declare function workspaceAbout(db: Db$r, tenantId: string): Promise<string | null>;
 
 /**
- * The lead workbench's doors (00423): leads added to a reach-out fed by a list (reach_out_add, dry or not), a lead put
+ * The lead workbench's doors (00426): leads added to a reach-out fed by a list (reach_out_add, dry or not), a lead put
  * off for later in a pass of the pile (lead_member_later), the pile's progress line (lead_pile_counts) and who is in a
  * reach-out (reach_out_chain_people). Each is asked on the member's own session: the door checks who may in SQL, and
  * answers its refusal with its SQLSTATE and its own words, which come back here as they came (code and all), so the
@@ -40230,22 +40230,22 @@ declare function reachOutChainPeople(db: Db$q, p: {
     limit?: number;
 }): Promise<DoorResult<ReachOutChainPeopleDto | null>>;
 /**
- * What feeds a reach-out (00423): a list its owner adds to (a search of via chosen or import), else the finder's
+ * What feeds a reach-out (00426): a list its owner adds to (a search of via chosen or import), else the finder's
  * search. The run reads it, so every first-email run of a list-fed chain waits for its owner. A read that fails throws:
  * not being able to tell is not "a search".
  */
 declare function reachOutFedByOf(db: Db$q, tenantId: string, searchId: string | null): Promise<ReachOutFedBy>;
-/** Leads' Back today (00423 leads_back_today): the leads who asked to hear back on a day that has come. */
+/** Leads' Back today (00426 leads_back_today): the leads who asked to hear back on a day that has come. */
 declare function leadsBackToday(db: Db$q, tenantId: string): Promise<DoorResult<LeadBackDto[]>>;
-/** Leave out: one lead off a list-fed reach-out's list before anything left for it (00423 reach_out_leave_out). */
+/** Leave out: one lead off a list-fed reach-out's list before anything left for it (00426 reach_out_leave_out). */
 declare function reachOutLeaveOut(db: Db$q, p: {
     rootId: string;
     leadId: string;
 }): Promise<DoorResult<unknown>>;
-/** What a reach-out could start from (00423 reach_out_sources): the searches and lists with none yet, newest first. */
+/** What a reach-out could start from (00426 reach_out_sources): the searches and lists with none yet, newest first. */
 declare function reachOutSources(db: Db$q, tenantId: string): Promise<DoorResult<ReachOutSourceDto[]>>;
 /**
- * Who is in each reach-out now, by root (00423 reach_out_people_counts: the drawer's one rule), for Campaigns' ledger.
+ * Who is in each reach-out now, by root (00426 reach_out_people_counts: the drawer's one rule), for Campaigns' ledger.
  * Null where they could not be counted: the ledger says a dash, never a zero nobody counted.
  */
 declare function reachOutPeopleCounts(db: Db$q, tenantId: string): Promise<Record<string, ReachOutPeopleCountsDto> | null>;
@@ -40253,12 +40253,12 @@ declare function reachOutPeopleCounts(db: Db$q, tenantId: string): Promise<Recor
 /**
  * The check (Reach out Part 4, 00197): the sends it takes each tick, leased under their row locks, the business's record
  * each is checked against, the holds it leaves and its model spend. Moved from repositories/reach-out.ts when the record
- * took the listing's signals (00423); what the check found is written by that module's recordCheck, the one module that
+ * took the listing's signals (00426); what the check found is written by that module's recordCheck, the one module that
  * writes a send.
  */
 
 type Db$p = SupabaseClient<Database>;
-/** A business's record, as 00197's reach_out_record reads it (00423: and its signals): what the check writes and reads an opening from. */
+/** A business's record, as 00197's reach_out_record reads it (00426: and its signals): what the check writes and reads an opening from. */
 interface ReachOutRecordRow {
     business_name: string | null;
     category: string | null;
@@ -40275,7 +40275,7 @@ interface ReachOutRecordRow {
     site_listings: number;
     name_listings: number;
     email_domain_shared: boolean;
-    /** The listing's review spread, its stars to their counts, and whether its owner claimed it (00423): the signals. */
+    /** The listing's review spread, its stars to their counts, and whether its owner claimed it (00426): the signals. */
     reviews_dist: unknown;
     claimed: boolean | null;
 }

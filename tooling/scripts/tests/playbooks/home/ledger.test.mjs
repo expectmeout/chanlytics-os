@@ -461,7 +461,7 @@ test("a reach-out's numbers: written, businesses and wrote back from its own tot
   );
 });
 
-test("a reach-out's People cell is who is in it now (00423): its waiting and writing in words, sorted by both, the done alone where nobody else is left, — where not counted; its hint says what feeds it and its steps in words", () => {
+test("a reach-out's People cell is who is in it now (00426): its waiting and writing in words, sorted by both, the done alone where nobody else is left, — where not counted; its hint says what feeds it and its steps in words", () => {
   const call = { hand: { kind: "call", words: "Ring them" } };
   const note = { hand: { kind: "note", words: "Drop by" } };
   const l = ledger({

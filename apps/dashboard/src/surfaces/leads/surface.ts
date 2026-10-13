@@ -20,8 +20,7 @@ import {
   parseLeadsRoute,
   stageArgs,
   toLeadPeekVM,
-  toLeadRowVM,
-  leadPileFactsOf,
+  leadRowOf,
   type LeadChips,
   type LeadClass,
   type LeadCounts,
@@ -59,7 +58,7 @@ export interface LeadsView {
   chips: Partial<LeadChips>;
   sort: LeadSort;
   dir: "asc" | "desc";
-  /** The pile's list (sort pile, 00423): the list its adds go to, whose leads it puts with the decided. */
+  /** The pile's list (sort pile, 00426): the list its adds go to, whose leads it puts with the decided. */
   pileList?: string | null;
 }
 export interface LeadsSurface {
@@ -75,7 +74,7 @@ export interface LeadsSurface {
   suggestions: LeadSuggestionsDto | null;
   /** The month's standing (D5): what the workbench says a press costs. Null until a first page has answered. */
   month: LeadMonthDto | null;
-  /** The pile's progress line (sort pile of one search, 00423), from whichever first page last answered one. */
+  /** The pile's progress line (sort pile of one search, 00426), from whichever first page last answered one. */
   pile: LeadPileCountsDto | null;
   /**
    * The leads the peek read on their own because no page loaded holds them (PR 9: a link to a lead, one far down a
@@ -153,7 +152,7 @@ interface LeadsLoaded {
   key: string;
   /** The month's standing (D5), from whichever first page last answered one. */
   month: LeadMonthDto | null;
-  /** The pile's progress line (00423), from whichever first page of a pile last answered one. */
+  /** The pile's progress line (00426), from whichever first page of a pile last answered one. */
   pile: LeadPileCountsDto | null;
   searches: LeadSearchDto[];
   counts: LeadCounts;
@@ -232,10 +231,8 @@ function publishLeads(failed = false): void {
   // landed, its rows stopped dimming, and the last view's rows stood under the new title until the read came back.
   const shown = L?.view ?? view;
   // Each row is handed its own search (D5): a review row names what it waits on in the queue's words.
-  const vmOf = (r: LeadRowDto): LeadRowVM => ({
-    ...toLeadRowVM(r, L?.tz ?? "UTC", now, (L?.searches ?? []).find((s) => s.id === r.search_id) ?? null),
-    ...leadPileFactsOf(r),
-  });
+  const vmOf = (r: LeadRowDto) =>
+    leadRowOf(r, L?.tz ?? "UTC", now, (L?.searches ?? []).find((s) => s.id === r.search_id) ?? null);
   // An erased lead is gone from every view this tab holds at once: a view read before the erase still has it.
   const rows = (L?.rows ?? []).filter((r) => !erased.has(r.id));
   const drawn = new Set(rows.map((r) => r.id));
@@ -398,8 +395,7 @@ async function refreshView(): Promise<void> {
   L.counts = page.counts ?? searches.counts ?? L.counts;
   // The month moves with a refresh (D5): a Keep just spent one, so the workbench's "5 of your 238 left" follows.
   L.month = page.month ?? L.month;
-  // The pile's numbers move with it too (00423): an add, a later or a Not a fit just decided one.
-  L.pile = page.pile ?? L.pile;
+  L.pile = page.pile ?? L.pile; // the pile's numbers move with it (00426): an add or a Later just decided one
   L.rows = rows;
   publishLeads();
   // A lead the peek read on its own is not in any page this re-read patched: it is read again too, behind.
@@ -596,7 +592,7 @@ export async function putBackLead(searchId: string, id: string) {
     api()("POST leads/[id]/put-back", { params: { id }, body: { search_id: searchId }, refresh: "behind" }),
   );
 }
-/** Later (00423): put off in this pass; the pile brings it back at the end, and its undo is the operator's own. */
+/** Later (00426): put off in this pass; the pile brings it back at the end, and its undo is the operator's own. */
 export async function laterLead(searchId: string, id: string) {
   const later = (r: LeadRowDto): LeadRowDto => ({ ...r, member: { ...r.member, later_at: new Date().toISOString() } });
   return actAtOnce([id], later, () =>

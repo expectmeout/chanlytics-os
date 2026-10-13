@@ -97,7 +97,7 @@ test("the shortcuts sheet lists what the app answers to, grouped in order, and n
     groups.map((g) => g.group),
     ["Everywhere", "Ask", "People", "The pile, on Leads", "A person", "Inbox", "Calendar"],
   );
-  // The pile's keys (00423): its rail left to right, Undo, and the way out; the page's one listener hears them.
+  // The pile's keys (00426): its rail left to right, Undo, and the way out; the page's one listener hears them.
   assert.deepEqual(
     groups.find((g) => g.group === "The pile, on Leads").items.map((s) => s.keys.join(" ")),
     ["A", "L", "N", "Z", "Esc"],

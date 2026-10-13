@@ -18,7 +18,7 @@ import { runAction } from "./run";
  * what its drawer's Pause, Resume and Edit of its name and clock do), and since 10 Oct 2026 a new message for the Library,
  * a version per channel (message: what the Library's New message files, whole), and since 11 Oct 2026 an offer or a whole
  * setup as one plan (plan: every card it takes, each step built by its own action here or propose_settings', from one
- * call), and since 13 Oct 2026 leads added to a reach-out fed by a list (leads, 00423: what Leads' pile and a reach-out's
+ * call), and since 13 Oct 2026 leads added to a reach-out fed by a list (leads, 00426: what Leads' pile and a reach-out's
  * Add leads do). Each action is its own family's, under this tool; each builds a card an operator may approve.
  */
 export const propose_campaign = defineActions({

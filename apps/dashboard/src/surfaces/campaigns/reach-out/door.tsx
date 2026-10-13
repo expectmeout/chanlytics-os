@@ -7,7 +7,7 @@
  * primary act, so a role that may not (a viewer, or an owner viewing as one) is shown it gated by the one role table
  * (gate("approve")), and told why at the control, never offered a sheet it could not save. On a phone it is an accent word
  * at the end of the search's line, under its counts (a full-width coral bar pinned over the rows, then a second coral button, until 10 Oct 2026). Saved, the sheet stays open to say what the run did (R14); the door reads its search
- * again behind it. Its reach-out opens at who is in it (`moment:<id>:people`, 00423). On a desk, a list that feeds its
+ * again behind it. Its reach-out opens at who is in it (`moment:<id>:people`, 00426). On a desk, a list that feeds its
  * reach-out offers Add to its reach-out first: Leads, with that reach-out where the next pile's adds go, as the drawer's
  * Add leads does.
  */
@@ -55,7 +55,7 @@ export function ReachOutDoor({ search, phone = false }: DoorProps) {
     return door.kind === "open" ? navigate(reachOutPeopleRoute(door.rootId)) : setOpen({ include: door.include });
   };
   const gated = door && door.kind === "write" ? gate("approve", "write to these leads") : {};
-  // A list that feeds its reach-out takes more (00423): on a desk, adding comes first and opening it beside.
+  // A list that feeds its reach-out takes more (00426): on a desk, adding comes first and opening it beside.
   const adds = door && door.kind === "open" && !phone && isLeadList(search) ? door.rootId : null;
   return (
     <>

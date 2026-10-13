@@ -24,7 +24,7 @@ export interface ReachOutReportCounts {
   interested: number;
   booked: number;
   /**
-   * The businesses whose deal naming them was won (00423): a count, never an amount, as the other outcomes are. Absent on
+   * The businesses whose deal naming them was won (00426): a count, never an amount, as the other outcomes are. Absent on
    * a database before it, where the cell says a dash, never a zero nobody counted.
    */
   won?: number;
@@ -155,7 +155,7 @@ export interface ReachOutDayNumbers {
   said_no: number;
   bounced: number;
   held: number;
-  /** The visits made today whose lead a reach-out wrote to before them (00423); absent before it. */
+  /** The visits made today whose lead a reach-out wrote to before them (00426); absent before it. */
   booked?: number;
 }
 

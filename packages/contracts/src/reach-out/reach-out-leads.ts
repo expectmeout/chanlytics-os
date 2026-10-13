@@ -5,7 +5,7 @@
  * (reachOutPersonOf). Every sentence is here, said by the business's clock, over the facts 00241's reads answer; a
  * number the database does not hold is never said.
  *
- * The lead workbench (00423): a reach-out fed by a list takes the leads you add (reach_out_add, its why-not words and
+ * The lead workbench (00426): a reach-out fed by a list takes the leads you add (reach_out_add, its why-not words and
  * its answer's sentence), a lead's standing in its reach-out is one line every page reads (reachOutStandingOf, with
  * when its first email goes: reachOutWhenOf, the run and never a minute), and the drawer's People
  * (reach_out_chain_people) reads the lines Leads reads.
@@ -30,15 +30,15 @@ export interface ReachOutLineReplyDto {
   undone: boolean;
 }
 
-/** What a reach-out writes to (00423): its search, which the finder keeps current, or a list its owner adds leads to. */
+/** What a reach-out writes to (00426): its search, which the finder keeps current, or a list its owner adds leads to. */
 export type ReachOutFedBy = "search" | "list";
 
-/** One lead's facts in an open search's chain (00241 reach_out_search_lines; 00423 reach_out_root_lines). */
+/** One lead's facts in an open search's chain (00241 reach_out_search_lines; 00426 reach_out_root_lines). */
 export interface ReachOutLeadLineDto {
   lead_id: string;
-  /** The business, so a list of lines names each (00423; absent before it). */
+  /** The business, so a list of lines names each (00426; absent before it). */
   business_name?: string;
-  /** When it was put on its reach-out's list, while nothing has been written to it (00423). */
+  /** When it was put on its reach-out's list, while nothing has been written to it (00426). */
   added_at?: string | null;
   stage: string;
   closed_reason: string | null;
@@ -62,7 +62,7 @@ export interface ReachOutLeadLineDto {
   away_until: string | null;
   resume_at: string | null;
   booked_at: string | null;
-  /** When a deal that names the lead was won (00423): a count, never an amount; absent before it. */
+  /** When a deal that names the lead was won (00426): a count, never an amount; absent before it. */
   won_at?: string | null;
   stopped_at: string | null;
 }
@@ -70,7 +70,7 @@ export interface ReachOutLeadLineDto {
 /** An open search's chain, as Leads draws it (00241 reach_out_search_lines): the strip's facts and the leads' lines. */
 export interface ReachOutSearchLinesDto {
   chain: { root_id: string; name: string; state: string };
-  /** Whether more leads can be added (a list) or its search keeps it current (00423; absent before it). */
+  /** Whether more leads can be added (a list) or its search keeps it current (00426; absent before it). */
   fed_by?: ReachOutFedBy;
   written_to: number;
   /** Emails that left since the business's midnight. */
@@ -117,7 +117,7 @@ export interface ReachOutTimelineReadingDto {
   can_undo: boolean;
 }
 
-/** One step of a lead's chain, as its story counts them (00423). */
+/** One step of a lead's chain, as its story counts them (00426). */
 export interface ReachOutChainStepDto {
   n: number;
   after_days: number | null;
@@ -125,7 +125,7 @@ export interface ReachOutChainStepDto {
 }
 
 /**
- * A lead's chain, as its story reads it: since 00423 also what feeds it, its steps, its hour and the day it last ran,
+ * A lead's chain, as its story reads it: since 00426 also what feeds it, its steps, its hour and the day it last ran,
  * and a run that waits for its owner (all absent before it).
  */
 export interface ReachOutTimelineChainDto {
@@ -149,12 +149,12 @@ export interface ReachOutLeadTimelineDto {
   email_state: string | null;
   resume_at: string | null;
   booked_at: string | null;
-  /** When a deal that names the lead was won (00423); absent before it. */
+  /** When a deal that names the lead was won (00426); absent before it. */
   won_at?: string | null;
   stopped_at: string | null;
   /** Found on a listing (the finder's); false for a lead a list of the owner's own brought (00242). Absent before it. */
   found_on_listing?: boolean;
-  /** When it was put on its reach-out's list, while nothing has been written to it (00423). */
+  /** When it was put on its reach-out's list, while nothing has been written to it (00426). */
   added_at?: string | null;
   chain: ReachOutTimelineChainDto | null;
   search: { id: string; name: string; asked: string | null; fit: string | null } | null;
@@ -210,7 +210,7 @@ function writtenWords(l: ReachOutLeadLineDto, tz: string, nowMs: number): string
 
 /**
  * The line under a lead's stage while a reach-out writes (H8), or null when the chain has done nothing with it. The
- * first that holds: booked and won (00423), their reply as read, said no, bounced, stopped, away, written (with its
+ * first that holds: booked and won (00426), their reply as read, said no, bounced, stopped, away, written (with its
  * nudges and what is next), held, planned, handed.
  */
 export function reachOutLineOf(l: ReachOutLeadLineDto, nowMs: number, tz: string): string | null {
@@ -466,7 +466,7 @@ export function reachOutPersonOf(t: ReachOutLeadTimelineDto, nowMs: number, tz: 
   };
 }
 
-/* ------------------------------------------------------------------ where a lead stands, in one line (00423) -- */
+/* ------------------------------------------------------------------ where a lead stands, in one line (00426) -- */
 
 /** A lead's standing in its reach-out: the one line the card, the peek, the person's page and Ask say. */
 export interface ReachOutStandingVM {
@@ -489,7 +489,7 @@ const standing = (words: string, tone: ReachOutStandingVM["tone"], stop: boolean
 /**
  * When a lead nothing was written to yet goes: with its reach-out's run, never at a minute the run has not chosen (the
  * timetable places each email in its business's hours). A run that waits for its owner, a paused reach-out, today's
- * run still to come, the next hourly sweep (today's not made: an add after the hour is planned then, 00423), or
+ * run still to come, the next hourly sweep (today's not made: an add after the hour is planned then, 00426), or
  * tomorrow's (today's made, or the day's last hour gone). A list-fed reach-out's first email always waits for its
  * owner's say first.
  */
@@ -584,7 +584,7 @@ export function reachOutStandingOf(t: ReachOutLeadTimelineDto, nowMs: number, tz
   return standing(`${added}not written yet · ${when}`, t.chain.waiting_run_id ? "warn" : "plain", false);
 }
 
-/* ---------------------------------------------------------------- adding leads to a reach-out (00423) -- */
+/* ---------------------------------------------------------------- adding leads to a reach-out (00426) -- */
 
 /**
  * Why a lead would not be added, or written to (reach_out_why_not's, then reach_out_add's own): the one closed set the
@@ -634,7 +634,7 @@ export interface ReachOutAddLeadDto {
   chain_name: string | null;
 }
 
-/** What POST reach-outs/:id/leads answered (00423 reach_out_add): dry, what would join; else what joined. */
+/** What POST reach-outs/:id/leads answered (00426 reach_out_add): dry, what would join; else what joined. */
 export interface ReachOutAddDto {
   dry: boolean;
   added: number;
@@ -659,7 +659,7 @@ export const REACH_OUT_ADD_WORDS = {
   takenBack: (n: number) => `Took ${plural(n, "lead", "leads")} back off the list`,
   onItsWay: "Its email is already on its way, so it stays. Stop writing to them instead.",
   sent: "Its email was already sent, so it stays. Stop writing to them instead.",
-  /** The drawer's door on a lead waiting in a reach-out fed by a list (00423 reach_out_leave_out). */
+  /** The drawer's door on a lead waiting in a reach-out fed by a list (00426 reach_out_leave_out). */
   leaveOut: "Leave out",
   leftOut: (name: string) => `Left ${name} out. Nothing had been written to them.`,
   backOn: (name: string) => `${name} is back on its list.`,
@@ -722,7 +722,7 @@ export function reachOutCameWords(p: Pick<ReachOutChainPeopleDto, "counts" | "ca
   return parts.join(" · ");
 }
 
-/** A search or a list a reach-out could start from (00423 reach_out_sources): New message's Write to leads. */
+/** A search or a list a reach-out could start from (00426 reach_out_sources): New message's Write to leads. */
 export interface ReachOutSourceDto {
   id: string;
   name: string;
@@ -757,18 +757,18 @@ export function reachOutSourceOf(s: ReachOutSourceDto): { title: string; sub: st
 }
 
 /**
- * A reach-out's drawer open at who is in it (00423, canvas B's Campaigns): `campaigns/moment:<id>:people`, so a link from
+ * A reach-out's drawer open at who is in it (00426, canvas B's Campaigns): `campaigns/moment:<id>:people`, so a link from
  * Today, the bell or Leads lands on its People, and Back steps out of it.
  */
 export const reachOutPeopleRoute = (rootId: string): string => `${addressOf({ kind: "reach_out", id: rootId })}:people`;
 
-/** Who is in a reach-out, as its drawer lists them (00423 reach_out_chain_people). */
+/** Who is in a reach-out, as its drawer lists them (00426 reach_out_chain_people). */
 export interface ReachOutChainPeopleDto {
   root_id: string;
   fed_by: ReachOutFedBy;
   search: { id: string; name: string } | null;
   counts: ReachOutPeopleCountsDto & { of: number };
-  /** What came of it (00423): of everyone it has, written to, wrote back, booked and won, each lead once. */
+  /** What came of it (00426): of everyone it has, written to, wrote back, booked and won, each lead once. */
   came?: { written: number; wrote_back: number; booked: number; won: number };
   waiting: ReachOutLeadLineDto[];
   writing: ReachOutLeadLineDto[];

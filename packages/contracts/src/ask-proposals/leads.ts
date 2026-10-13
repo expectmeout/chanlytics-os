@@ -1,6 +1,6 @@
 /**
  * The lead finder's cards: a search planned in Ask, or the answer to a search that stopped to ask; and leads added to a
- * reach-out fed by a list (00423), whose first email still waits for its owner's say on its run (a card never approves
+ * reach-out fed by a list (00426), whose first email still waits for its owner's say on its run (a card never approves
  * a run).
  */
 import { leadQuestionRoute, leadsRoute } from "../leads/leads";
@@ -59,7 +59,7 @@ export const leadSearchSpec: ProposalSpecAboveOperator = {
 };
 
 /**
- * Leads added to a reach-out fed by a list (00423 reach_out_add): an operator's, as the add door is. The add itself sends
+ * Leads added to a reach-out fed by a list (00426 reach_out_add): an operator's, as the add door is. The add itself sends
  * nothing: its reach-out's next run plans the first email, and that run waits for its owner's say (a list-fed one always
  * does), so the receipt says so. Undo takes them back off the list, while nothing has left for them (lead_undo).
  */

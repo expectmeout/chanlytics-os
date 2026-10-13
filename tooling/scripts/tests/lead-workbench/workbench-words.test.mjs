@@ -1,5 +1,5 @@
 /**
- * The lead workbench's words (00423), run: where a lead stands in its reach-out, one line every page says
+ * The lead workbench's words (00426), run: where a lead stands in its reach-out, one line every page says
  * (reachOutStandingOf, and when its first email goes, reachOutWhenOf: the run and never a minute); what an add said
  * (reachOutAddWords); the pile's progress (leadPileProgressOf); a person's page reading the same line; a lead on a
  * list nothing was written to yet, under its stage on Leads (reachOutLineOf).
@@ -243,7 +243,7 @@ test("the pile's progress: decided of the whole, the later ones said, done when 
 });
 
 test("the pile's rail: no, not now, yes; Keep and Leave out are find's, an add goes to its reach-out or a new list", async () => {
-  const { leadPileRailOf, leadPileOpen, leadPileFactsOf, LEAD_PILE_WORDS } = await import("@chanlytics/contracts");
+  const { leadPileRailOf, leadPileOpen, LEAD_PILE_WORDS } = await import("@chanlytics/contracts");
   assert.deepEqual(
     leadPileRailOf({ cls: "qualified", target: "Early gyms" }).map((s) => [s.act, s.label, s.key, s.right]),
     [
@@ -275,11 +275,10 @@ test("the pile's rail: no, not now, yes; Keep and Leave out are find's, an add g
   assert.equal(leadPileOpen(row({ laterAt: "2026-10-13T15:00:00Z" }), later), true, "but in the later one");
   assert.equal(leadPileOpen(row({ cls: "review" }), { cls: "review", pass: "first" }), true);
   assert.equal(leadPileOpen(row({ cls: "qualified" }), { cls: "review", pass: "first" }), false, "kept: decided");
-  assert.deepEqual(leadPileFactsOf({ chain_id: "r1", member: { later_at: null } }), { chainId: "r1", laterAt: null });
   assert.equal(LEAD_PILE_WORDS.writeHeld(3), "Write to the 3");
 });
 
-test("what came of it (00423): won on the line and the standing, Back on their own day, the drawer's line, booked at 6 PM, Won in the report", () => {
+test("what came of it (00426): won on the line and the standing, Back on their own day, the drawer's line, booked at 6 PM, Won in the report", () => {
   const l = {
     lead_id: "lead-1",
     stage: "converted",

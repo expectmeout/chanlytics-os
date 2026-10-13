@@ -86,7 +86,7 @@ interface LeadPageRow {
   places: number;
   version: number;
   page_key: string;
-  /** The pile (00423): when a member put it off for later in this search, and the reach-out it goes with. */
+  /** The pile (00426): when a member put it off for later in this search, and the reach-out it goes with. */
   later_at?: string | null;
   chain_id?: string | null;
 }
@@ -263,11 +263,11 @@ export interface LeadsPageAnswer {
   counts?: LeadCounts;
   /** The month's standing (D5), with the first page only: what a Keep on the workbench costs is read from here. */
   month?: LeadMonthDto;
-  /** The pile's progress line (sort=pile of one search, 00423), with the first page only. */
+  /** The pile's progress line (sort=pile of one search, 00426), with the first page only. */
   pile?: LeadPileCountsDto;
 }
 
-/** The pile's progress line, read under the caller's row security (00423 lead_pile_counts). */
+/** The pile's progress line, read under the caller's row security (00426 lead_pile_counts). */
 async function pileOf(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,

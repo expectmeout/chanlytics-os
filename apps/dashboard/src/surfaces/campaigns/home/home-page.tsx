@@ -361,7 +361,7 @@ export function CampaignsHome({ param, nowMs }: CampaignsHomeProps) {
       )}
       <MomentDrawer
         id={address.moment}
-        part={address.part}
+        part={address.part ?? null}
         home={home}
         playbooks={playbooks}
         reachOuts={reachOuts}

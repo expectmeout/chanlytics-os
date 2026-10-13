@@ -1,5 +1,5 @@
 /**
- * The lead workbench's doors (00423), on the member's own session: leads added to a reach-out fed by a list (dry, what
+ * The lead workbench's doors (00426), on the member's own session: leads added to a reach-out fed by a list (dry, what
  * each would do; else what joined, with its undo), Later in a pass of the pile, and who is in a reach-out (its drawer's
  * People), and what a reach-out could start from. The rules are SQL's (reach_out_add, lead_member_later,
  * reach_out_chain_people and reach_out_sources, over reach_out_why_not and reach_out_root_lines); these say their
@@ -72,7 +72,7 @@ export async function chainPeopleOf(
   return data;
 }
 
-/** What a reach-out could start from (00423): New message's Write to leads lists them. */
+/** What a reach-out could start from (00426): New message's Write to leads lists them. */
 export async function reachOutSourcesOf(ctx: Ctx, tenantId: string): Promise<{ sources: ReachOutSourceDto[] }> {
   const { data, error } = await reachOutSources(ctx.supabase, tenantId);
   if (error) throw dbRefusal(error);
@@ -80,7 +80,7 @@ export async function reachOutSourcesOf(ctx: Ctx, tenantId: string): Promise<{ s
 }
 
 /**
- * Leave out: one lead off a list-fed reach-out's list before anything left for it (00423), with its undo. One on its way
+ * Leave out: one lead off a list-fed reach-out's list before anything left for it (00426), with its undo. One on its way
  * or sent stays, said in the add's own words (Stop writing is the correction there).
  */
 export async function leaveOut(
@@ -99,7 +99,7 @@ export async function leaveOut(
   return { lead_id: leadId, op_id: String(a.op_id), version: Number(a.version), skipped: Number(a.skipped ?? 0) };
 }
 
-/** Leads' Back today (00423): who asked to hear back on a day that has come, to write to by hand (decision 9). */
+/** Leads' Back today (00426): who asked to hear back on a day that has come, to write to by hand (decision 9). */
 export async function backTodayOf(ctx: Ctx, tenantId: string): Promise<{ leads: LeadBackDto[] }> {
   const { data, error } = await leadsBackToday(ctx.supabase, tenantId);
   if (error) throw dbRefusal(error);

@@ -37,7 +37,7 @@ const firstWords = (tz: string, atMs: number): string =>
 
 /**
  * The step as the verb reads it: its chain's root, the chain's state (a paused root pauses every step of it), and what
- * feeds it (the root's search: a list of via chosen or import, else the finder's, 00423). A hand step (00228) has its
+ * feeds it (the root's search: a list of via chosen or import, else the finder's, 00426). A hand step (00228) has its
  * hand and no template. Null when its root cannot be found within a chain's length, or the row is neither.
  */
 async function stepOf(db: Db, row: ReachOutRow): Promise<ReachOutStep | HandStep | null> {

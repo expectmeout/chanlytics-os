@@ -410,7 +410,7 @@ export const EVENT_KINDS = [
   "reach_out.send_decided",
   /**
    * Leads added to a list-fed reach-out ({ search_id, n, by }), and an add taken back ({ search_id, taken, leaving,
-   * sent, by }), on the reach-out (00423).
+   * sent, by }), on the reach-out (00426).
    */
   "reach_out.lead_added",
   "reach_out.lead_taken_back",
@@ -418,7 +418,7 @@ export const EVENT_KINDS = [
   "lead.kept",
   "lead.excluded",
   "lead.put_back",
-  /** A lead put off in a pass of the pile: Later ({ search_id, by }), on the lead (00423). */
+  /** A lead put off in a pass of the pile: Later ({ search_id, by }), on the lead (00426). */
   "lead.later",
   /** A search renamed ({ name, by }) or removed ({ kept, archived, by }), on the search. */
   "lead.search_renamed",

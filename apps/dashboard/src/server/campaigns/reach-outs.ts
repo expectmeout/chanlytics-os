@@ -104,7 +104,7 @@ function chainOf(root: StepRow, all: StepRow[]): StepRow[] {
 
 /**
  * The chains of a workspace, without their reports (R23: a report is read when its row is opened), each with what feeds
- * it and who is in it now (00423: the ledger's People cell, counted by the drawer's one rule).
+ * it and who is in it now (00426: the ledger's People cell, counted by the drawer's one rule).
  */
 export async function chainsOf(ctx: RouteContext, tenantId: string): Promise<ReachOutChainDto[]> {
   const sb = ctx.supabase;

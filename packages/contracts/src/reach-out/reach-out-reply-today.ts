@@ -26,7 +26,7 @@ export function replyRowOf(row: TodayQueueRowVM, r: ReachOutReplyDto): TodayQueu
     ...row,
     kind: "reply",
     channel: "Email",
-    // The reach-out it answers, so Today's row says what the reply is to (00423's truth pass): "Email, Early gyms".
+    // The reach-out it answers, so Today's row says what the reply is to (00426's truth pass): "Email, Early gyms".
     via: r.chain ?? null,
     status: read ? ["Wrote back", REPLY_INTENT_WORDS[r.intent]] : ["Wrote back"],
     sentence: r.summary ?? row.sentence,

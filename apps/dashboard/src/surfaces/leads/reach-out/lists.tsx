@@ -349,7 +349,7 @@ export interface LeadLists {
   /** Opens the import sheet: the first day's own door to it, where no rail is drawn. */
   openImport: () => void;
   writeAct: (a: { ids: string[]; phone?: boolean; shut?: () => void }) => ReactNode;
-  /** Writes to these leads: the list made of them, and its reach-out's sheet (the pile's held leads, 00423). */
+  /** Writes to these leads: the list made of them, and its reach-out's sheet (the pile's held leads, 00426). */
   writeTo: (ids: string[]) => void;
   node: ReactNode;
   stripOf: Lists["stripOf"] | (() => null);

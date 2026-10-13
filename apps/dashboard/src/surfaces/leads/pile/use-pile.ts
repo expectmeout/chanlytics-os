@@ -1,5 +1,5 @@
 /**
- * The pile's state and acts (the lead workbench, 00423): which search is being gone through and in which pass, the
+ * The pile's state and acts (the lead workbench, 00426): which search is being gone through and in which pass, the
  * reach-out its adds go to (or a new list, held and written to together at the end), and what was done, three deep, for
  * Undo. The order is the database's (leads_page's pile sort, read while the pile is on); which lead is up is the first
  * of them still open in this pass (contracts leadPileOpen), less the ones decided here a moment ago, so a press moves on
@@ -40,7 +40,7 @@ interface PileDone {
 /** How deep Undo reaches back. */
 const UNDO_DEPTH = 3;
 
-/** The reach-outs fed by a list, as the pile's targets: the newest first. A chain says what feeds it (00423). */
+/** The reach-outs fed by a list, as the pile's targets: the newest first. A chain says what feeds it (00426). */
 const pileTargetsOf = (chains: readonly ReachOutChainDto[], searches: readonly LeadSearchDto[]): PileTarget[] =>
   chains
     .filter(
@@ -142,7 +142,7 @@ export function useLeadPile({ searches, flash }: { searches: readonly LeadSearch
     }
   };
 
-  /** Undo the last thing done: a lead held is let go; any other act, its door's undo (00423: the operator's own). */
+  /** Undo the last thing done: a lead held is let go; any other act, its door's undo (00426: the operator's own). */
   const undo = async () => {
     const last = done.at(-1);
     if (!last || busy) return;

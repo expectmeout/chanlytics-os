@@ -101,7 +101,7 @@ export const ACTIVITY_NOISE_PREFIXES = ["usage.", "webhook.", "ingest."] as cons
 export const ACTIVITY_NOISE_KINDS = [
   "escalation.changed",
   "lead.set_aside",
-  // Later, in a pass of the pile (00423): a soft word for this sitting, not a decision the owner reads back.
+  // Later, in a pass of the pile (00426): a soft word for this sitting, not a decision the owner reads back.
   "lead.later",
   // The ideas for a search, written or asked for again (00400): how often is Reports', not the owner's day.
   "lead.ideas_written",

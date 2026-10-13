@@ -545,7 +545,7 @@ test(
     const story = ok(
       await as.viewer.c.rpc("reach_out_lead_timeline", { p_tenant_id: A, p_lead_id: w.leads.interested }),
     );
-    // 00423: the chain says what feeds it, its steps and its next run, for the standing line.
+    // 00426: the chain says what feeds it, its steps and its next run, for the standing line.
     assert.deepEqual(story.chain, {
       root_id: w.root,
       name: "Reach out · Movers",

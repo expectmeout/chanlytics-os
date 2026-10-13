@@ -273,7 +273,7 @@ export function businessRecordOf(
     reachOut: reachOut?.chain
       ? {
           chain: reachOut.chain.name,
-          // Where the business stands in it, said once for every page (00423): never "still writing" after an answer.
+          // Where the business stands in it, said once for every page (00426): never "still writing" after an answer.
           line: reachOutStandingOf(reachOut, nowMs, tz)?.line ?? "",
           to: reachOut.conversation_id ? `inbox/th-${reachOut.conversation_id}` : null,
         }

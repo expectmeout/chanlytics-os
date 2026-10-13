@@ -1,13 +1,13 @@
 /**
  * A row's door in a reach-out's People (canvas B's Campaigns, the drawer's point 2): each lead's real inverse at the point
  * it is at. Waiting in a run that waits for its owner's say: Open the run, where Approve and Skip stay. Waiting on a list
- * its owner adds to, nothing on its way: Leave out (00423 reach_out_leave_out), with its undo in the toast. Written to:
+ * its owner adds to, nothing on its way: Leave out (00426 reach_out_leave_out), with its undo in the toast. Written to:
  * Stop writing to them, asked first, since it is final. Done: none, its name is the door to the lead. Each is an
  * operator's, as the doors are; a role that may not is shown none (the block's head says who may).
  */
 import { useState } from "react";
 import type { ReactNode } from "react";
-import { REACH_OUT_ADD_WORDS, REACH_OUT_STOP_WORDS } from "@chanlytics/contracts";
+import { REACH_OUT_ADD_WORDS, REACH_OUT_STOP_WORDS, addressOf } from "@chanlytics/contracts";
 import type { ReachOutChainDto, ReachOutLeadLineDto } from "@chanlytics/contracts";
 import { Confirm } from "../../kit/confirm/confirm";
 import { LinkButton } from "../../kit/link-button/link-button";
@@ -45,7 +45,7 @@ export function PersonDoor({ chain, group, line, listFed, flash, moved }: Person
   if (group === "waiting" && line.held && run)
     return (
       <span className="ro-person-door">
-        <LinkButton {...routeDoor(`broadcasts/run:${run}`)} data-testid="ro-person-run">
+        <LinkButton {...routeDoor(addressOf({ kind: "send", id: run }))} data-testid="ro-person-run">
           Open the run
         </LinkButton>
       </span>

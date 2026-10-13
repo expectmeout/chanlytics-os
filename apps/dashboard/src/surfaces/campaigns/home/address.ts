@@ -6,12 +6,12 @@
  *   campaigns/in:<group>             the ledger narrowed to one group: a journey stage's word-free id (`before`), `lists`,
  *                                    `reach_out` or `sent_once` (decision 46); a card's press or a phone's chip replaces it
  *   campaigns/moment:<id>            a playbook (or a reach-out) open in the drawer, the address every old `outbound/<id>` lands on
- *   campaigns/moment:<id>:people     a reach-out open at who is in it (00423): where Today, the bell and Leads link
+ *   campaigns/moment:<id>:people     a reach-out open at who is in it (00426): where Today, the bell and Leads link
  *   campaigns/message:<name>         a message open in a drawer of its own, by its name (the call's text; a playbook's message)
  *   campaigns/new                    the composer, on Send once
  *   campaigns/new:to:<audience>      the same, on the list or audience it was asked for (every old `broadcasts/<audience>` lands here)
  *   campaigns/new:every              the composer, on Every time a moment comes
- *   campaigns/new:leads              the composer, on Write to leads: where a reach-out starts (00423)
+ *   campaigns/new:leads              the composer, on Write to leads: where a reach-out starts (00426)
  *   campaigns/new:moment:<trigger>   the same, on the moment a Turn on was pressed for
  *   campaigns/new:edit:<id>          the same, changing the playbook the drawer showed; a reach-out's id opens its own sheet
  *
@@ -28,8 +28,8 @@ export interface HomeAddress {
   group: string | null;
   /** The playbook or reach-out open in the drawer. */
   moment: string | null;
-  /** The part of the drawer the address opens at: a reach-out's People, or its top. */
-  part: "people" | null;
+  /** The part of the drawer the address opens at: a reach-out's People (`moment:<id>:people`); absent at its top. */
+  part?: "people";
   /** A message open in a drawer of its own, by its name: read and changed there, over the home (Ruben, 11 Oct 2026). */
   message: string | null;
   /**
@@ -46,7 +46,7 @@ export interface HomeAddress {
 /** The home itself. Read here alone: use-home.ts closes to `groupRoute(null)`, so an export would be a dead one. */
 const HOME_ROUTE = "campaigns";
 
-const NONE: HomeAddress = { group: null, moment: null, part: null, message: null, compose: null };
+const NONE: HomeAddress = { group: null, moment: null, message: null, compose: null };
 
 /** A group's id as an address writes it: word-free, lower case, words joined by underscores (`before`, `reach_out`). */
 const GROUP_ID = /^[a-z]+(?:_[a-z]+)*$/;
@@ -80,7 +80,8 @@ export function parseHome(param: string | null): HomeAddress {
   }
   if (param.startsWith("moment:")) {
     const [id = "", part] = param.slice("moment:".length).split(":");
-    return id ? { ...NONE, moment: id, part: part === "people" ? "people" : null } : NONE;
+    if (!id) return NONE;
+    return part === "people" ? { ...NONE, moment: id, part } : { ...NONE, moment: id };
   }
   if (param.startsWith("message:")) {
     const name = param.slice("message:".length);

@@ -473,7 +473,7 @@ export interface LifecycleRow {
   channels: readonly LifecycleChannelMark[];
   /**
    * Who its moment or list names now (the card's pool), and what the number counts; null where not counted. `words`, where
-   * a row says more than one number (a reach-out's "17 waiting · 9 writing", 00423), is said in its place; `n` still sorts.
+   * a row says more than one number (a reach-out's "17 waiting · 9 writing", 00426), is said in its place; `n` still sorts.
    */
   people: { n: number | null; unit: string; words?: string };
   results: LifecycleRowResults;

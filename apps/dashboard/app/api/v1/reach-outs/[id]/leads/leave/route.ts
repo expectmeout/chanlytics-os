@@ -7,7 +7,7 @@ const Body = z.object({ lead_id: z.uuid() });
 
 /**
  * POST /api/v1/reach-outs/:id/leads/leave — Leave out, the drawer's door on a lead waiting in a reach-out fed by a list
- * (00423 reach_out_leave_out), by its first step: off its list, and a send planned or held for it in a live run skipped
+ * (00426 reach_out_leave_out), by its first step: off its list, and a send planned or held for it in a live run skipped
  * as taken back. One on its way or sent stays, and the answer says so. An operator's, as the add is; the answer
  * carries its undo (lead_undo).
  */

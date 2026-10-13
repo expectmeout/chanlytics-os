@@ -15,7 +15,7 @@ export interface ReachOutStep {
   state: "running" | "paused";
   lead_search_id: string | null;
   /**
-   * What the chain's first step writes to (00423): a search the finder keeps current, or a list its owner adds leads to
+   * What the chain's first step writes to (00426): a search the finder keeps current, or a list its owner adds leads to
    * by hand (a search of via chosen or import). Every first-email run of a list-fed chain waits for its owner's say.
    */
   fed_by: "search" | "list";

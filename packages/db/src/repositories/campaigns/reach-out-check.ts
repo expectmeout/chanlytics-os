@@ -1,7 +1,7 @@
 /**
  * The check (Reach out Part 4, 00197): the sends it takes each tick, leased under their row locks, the business's record
  * each is checked against, the holds it leaves and its model spend. Moved from repositories/reach-out.ts when the record
- * took the listing's signals (00423); what the check found is written by that module's recordCheck, the one module that
+ * took the listing's signals (00426); what the check found is written by that module's recordCheck, the one module that
  * writes a send.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -10,7 +10,7 @@ import type { ReachOutSendRow } from "../reach-out";
 
 type Db = SupabaseClient<Database>;
 
-/** A business's record, as 00197's reach_out_record reads it (00423: and its signals): what the check writes and reads an opening from. */
+/** A business's record, as 00197's reach_out_record reads it (00426: and its signals): what the check writes and reads an opening from. */
 export interface ReachOutRecordRow {
   business_name: string | null;
   category: string | null;
@@ -27,7 +27,7 @@ export interface ReachOutRecordRow {
   site_listings: number;
   name_listings: number;
   email_domain_shared: boolean;
-  /** The listing's review spread, its stars to their counts, and whether its owner claimed it (00423): the signals. */
+  /** The listing's review spread, its stars to their counts, and whether its owner claimed it (00426): the signals. */
   reviews_dist: unknown;
   claimed: boolean | null;
 }

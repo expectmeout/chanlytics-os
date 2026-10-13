@@ -9,7 +9,7 @@ const Body = z.object({ version: z.number().int().min(0) });
  * POST /api/v1/lead-operations/:id/undo: Undo is a server record (E9). The
  * client sends the operation's id and the version it saw; the door restores
  * `before` and refuses when anyone changed the rows since. An operator's
- * (00423): the door itself says whose act it is to take back (an add, a later,
+ * (00426): the door itself says whose act it is to take back (an add, a later,
  * a stage or a bulk act its maker's, or find's; keep, exclude and put back
  * find's alone). An add taken back says how many came off its list.
  */

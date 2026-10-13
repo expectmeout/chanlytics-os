@@ -1,5 +1,5 @@
 /**
- * The pile (the lead workbench, 00423): a search's ready leads, one at a time, each decided (added to a reach-out,
+ * The pile (the lead workbench, 00426): a search's ready leads, one at a time, each decided (added to a reach-out,
  * worked, set aside) or put off for Later, which brings it back at the end. leads_page's `pile` sort orders it
  * (undecided, then later, oldest first, then the decided; within each the strongest fit, a checked address before a
  * number alone, the newest), lead_pile_counts counts it, and every sentence it says is here.
@@ -11,7 +11,7 @@ import { plural } from "../shared/words";
 import type { LeadRowDto } from "./lead-dtos";
 import type { LeadClass, LeadStage } from "./lead-words";
 
-/** The pile's progress line's numbers (00423 lead_pile_counts): of a search's shown members, against the list it adds to. */
+/** The pile's progress line's numbers (00426 lead_pile_counts): of a search's shown members, against the list it adds to. */
 export interface LeadPileCountsDto {
   total: number;
   /** On the list the pile adds to. */
@@ -69,16 +69,11 @@ export function leadPileProgressOf(c: LeadPileCountsDto): LeadPileProgressVM {
   return { text: parts.join(" · "), share: c.total > 0 ? decided / c.total : 0, done: c.left === 0 };
 }
 
-/** What the pile reads of a row beyond its words (00423): the reach-out it goes with, and when it was put off. */
+/** What the pile reads of a row beyond its words (00426): the reach-out it goes with, and when it was put off. */
 export interface LeadPileFacts {
   chainId: string | null;
   laterAt: string | null;
 }
-
-export const leadPileFactsOf = (r: Pick<LeadRowDto, "chain_id" | "member">): LeadPileFacts => ({
-  chainId: r.chain_id ?? null,
-  laterAt: r.member.later_at ?? null,
-});
 
 /**
  * Whether a row is still to decide in this pass of the pile, in the order the database sorted them (the one order):
@@ -136,7 +131,7 @@ export function leadPileRailOf(p: { cls: LeadClass; target: string | null }): Le
 
 /* ------------------------------------------------------------------------- Back today (decision 9 of the workbench) */
 
-/** A lead whose own day to hear back has come (00423 leads_back_today): written to by hand, never by a reach-out again. */
+/** A lead whose own day to hear back has come (00426 leads_back_today): written to by hand, never by a reach-out again. */
 export interface LeadBackDto {
   lead_id: string;
   business_name: string;

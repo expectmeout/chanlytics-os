@@ -212,7 +212,7 @@ async function getLead(t: ToolContext, input: { lead_id: string; search_id?: str
     searchesById(t, "leads.lead"),
     // Who works there (0052), as their business sheet lists them; a lead whose people cannot be read is the lead alone.
     load(t.rc, leadPeople, { id }).then((r) => r, unread(t, "leads.lead", "the people at the lead")),
-    // Its reach-out's story (00423): where it stands, said as every page says it; one that cannot be read says nothing.
+    // Its reach-out's story (00426): where it stands, said as every page says it; one that cannot be read says nothing.
     leadTimelineOf(t.ctx, t.tenantId, id).catch(() => null),
   ]);
   if (!read) return { error: "no such lead in this workspace" };

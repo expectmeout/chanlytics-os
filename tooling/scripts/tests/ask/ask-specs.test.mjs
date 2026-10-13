@@ -359,7 +359,7 @@ function routesOf(kind) {
   return seen;
 }
 
-test("leads added to a reach-out from a card (00423): the add door with the leads alone, a receipt that says the run still waits for its say, an undo that takes them back at the version it made, and its drawer", () => {
+test("leads added to a reach-out from a card (00426): the add door with the leads alone, a receipt that says the run still waits for its say, an undo that takes them back at the version it made, and its drawer", () => {
   const spec = PROPOSAL_SPECS.reach_out_add;
   const p = card("reach_out_add", { root_id: "r1", name: "Spring dentists", lead_ids: ["l1", 7, "l2"] });
   assert.deepEqual(spec.commit(p, TAB), {

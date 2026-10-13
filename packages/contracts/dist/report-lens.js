@@ -2350,7 +2350,7 @@ function businessesPart(dto, when) {
     ["wrote_back", "Wrote back", wrote_back],
     ["interested", "Interested", interested],
     ["booked", "Booked", booked],
-    // Won (00423): a deal naming the business, won; not said where the database does not count it.
+    // Won (00426): a deal naming the business, won; not said where the database does not count it.
     ...isCount(won) ? [["won", "Won", won]] : [],
     ["said_no", "Said no", said_no]
   ];

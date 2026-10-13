@@ -1,11 +1,11 @@
--- 00424 · A lead has one first email.
+-- 00427 · A lead has one first email.
 --
--- No lead is written to twice by a workspace (reach_out_why_not's "written", 00423): its audience leaves out a lead any
+-- No lead is written to twice by a workspace (reach_out_why_not's "written", 00426): its audience leaves out a lead any
 -- reach-out has a send for. That rule is read when a run is planned, and two reach-outs planned in the same minute (a
 -- list's lead added to a second list's reach-out while the first one's run is being made) could each read it before the
 -- other wrote. This index makes the second planner's send the one refused: one first-step send per lead, a send of a
 -- run its owner skipped (run_canceled) or one taken back before it left (owner_took_back) aside, as the audience lets
--- those leads back in. reach_out_plan_run inserts with a bare on conflict do nothing (00423), so the refused send is
+-- those leads back in. reach_out_plan_run inserts with a bare on conflict do nothing (00426), so the refused send is
 -- left out of its run, never the run's failure.
 --
 -- Built CONCURRENTLY, and alone in its file, as 00355 and 00414 are: reach_out_sends takes a write for every lead of

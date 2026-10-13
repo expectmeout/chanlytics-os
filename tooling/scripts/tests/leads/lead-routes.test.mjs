@@ -178,7 +178,7 @@ test("release A's eleven declare their policy: the reads open to every member; a
       rate: "lead_member",
       spend: false,
     });
-  // An undo is the operator's since 00423: the door says whose act it is to take back (its maker's add, later, stage or
+  // An undo is the operator's since 00426: the door says whose act it is to take back (its maker's add, later, stage or
   // bulk; keep, exclude and put back find's alone), so the route opens at the lowest rung any of them needs.
   assert.deepEqual(undo.POST.policy, {
     kind: "write",

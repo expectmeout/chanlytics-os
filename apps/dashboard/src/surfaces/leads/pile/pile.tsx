@@ -1,5 +1,5 @@
 /**
- * The pile (the lead workbench, 00423; canvas B v2): one lead at a time where the rows stand, and three presses for it
+ * The pile (the lead workbench, 00426; canvas B v2): one lead at a time where the rows stand, and three presses for it
  * -- no, not now, yes -- with the five whys of Not a fit in the rail's place when it is pressed. Over it, the search
  * being gone through and where its adds go; under it, how far through it is, and Undo for the last three. At the end,
  * the later ones, or the leads held for a new list and the one press that writes to them. On a desk the lead's details
@@ -185,7 +185,7 @@ interface PileViewProps {
   /** The lead that is up, and how many are put off for later (usePileUp). */
   up: LeadRowVM | null;
   later: number;
-  /** The pile's numbers, from the page's read (00423 lead_pile_counts). */
+  /** The pile's numbers, from the page's read (00426 lead_pile_counts). */
   counts: LeadPileCountsDto | null;
   searchName: string;
   phone: boolean;

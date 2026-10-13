@@ -287,7 +287,7 @@ const firstDayOf = (p: P, phone: boolean) => (
 const scopeBodyOf = (p: P, phone: boolean, table: ReactElement) => {
   const search = p.search;
   if (p.surface.readFailed) return <FailedRead kind="block" what="your leads" surface="leads" testid="leads-failed" />;
-  // The pile (00423): one lead at a time where the rows stand, while it is on.
+  // The pile (00426): one lead at a time where the rows stand, while it is on.
   if (p.pile) return p.pile;
   if (p.mapOpen && p.plot && p.plot.pins.length)
     return (
@@ -434,7 +434,7 @@ const newSearchOf = (p: P, phone: boolean) => (
 );
 
 /** The scope's main column: the phone's bar, the scroller and what is in it, and what stands over it. */
-/** Back today (00423, decision 9): who asked to hear back on a day that has come, over the lists, never over a search. */
+/** Back today (00426, decision 9): who asked to hear back on a day that has come, over the lists, never over a search. */
 const backTodayOf = (p: P) => (!p.search && !p.firstDay && !p.surface.readFailed ? <LeadsBackToday /> : null);
 
 const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections) => {

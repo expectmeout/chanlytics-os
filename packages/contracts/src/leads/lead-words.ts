@@ -27,7 +27,7 @@ export const LEAD_LISTS = ["all", "ready", "nurture", "converted", "said_no", "n
 
 /** The orders a person picks on Leads (B widens A's three); a view remembers one of these, and Ask reads by them. */
 export const LEAD_VIEW_SORTS = ["fit", "found", "distance", "business", "rating", "stage"] as const;
-/** leads_page's p_sort: the view's orders and the pile's (00423), which only a pass of the pile asks for. */
+/** leads_page's p_sort: the view's orders and the pile's (00426), which only a pass of the pile asks for. */
 export const LEAD_SORTS = [...LEAD_VIEW_SORTS, "pile"] as const;
 
 export const LEAD_CALL_OUTCOMES = [

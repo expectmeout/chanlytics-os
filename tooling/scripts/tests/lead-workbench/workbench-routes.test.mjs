@@ -1,6 +1,6 @@
 /**
- * The lead workbench's routes (00423), run through route(): the real route modules, their `run` called with a database
- * in memory whose rpcs answer as 00423's functions do. What is proved is the policy each declares, what each asks of
+ * The lead workbench's routes (00426), run through route(): the real route modules, their `run` called with a database
+ * in memory whose rpcs answer as 00426's functions do. What is proved is the policy each declares, what each asks of
  * its function, that a dry check is the add's own door asked to write nothing, and that each refusal is said in
  * contracts' words, at the status its code means.
  */
@@ -52,7 +52,7 @@ const tables = (role = "operator") => ({
     },
   ],
 });
-/** 00423's doors as their answers look, each ask recorded. */
+/** 00426's doors as their answers look, each ask recorded. */
 const doors = (over = {}) => {
   const asked = [];
   const rec = (name, answer) => (a) => {

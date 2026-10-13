@@ -1,5 +1,5 @@
 /**
- * 00423 and 00424 on the database (the lead workbench): a reach-out takes the leads you add.
+ * 00426 and 00427 on the database (the lead workbench): a reach-out takes the leads you add.
  *
  *   1. The one predicate, reach_out_why_not, says why a lead would not be written to, in its order, and the audience is
  *      the members it lets go, strongest fit first.
@@ -16,7 +16,7 @@
  *      are the searches and lists with no reach-out, each with its reach as the Leads door reads it.
  *   5b. Leave out (reach_out_leave_out): a lead waiting on a list comes off it, its planned send skipped as taken back,
  *      with an undo that is its maker's; one already written to stays and says so; a finder-fed reach-out refuses.
- *   6. One first email per lead (00424): a second reach-out's run leaves the lead out and is made; an add taken back
+ *   6. One first email per lead (00427): a second reach-out's run leaves the lead out and is made; an add taken back
  *      skips its planned send as owner_took_back, which lets the lead be planned again; on its way and sent say so.
  *   7. The record the check reads: why it fits and what was asked fall back to where the lead was found, and the
  *      listing's review spread and claim mark ride along to the check (reach_out_unchecked).

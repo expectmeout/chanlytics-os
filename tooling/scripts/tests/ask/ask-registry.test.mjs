@@ -509,7 +509,7 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
     // Oct 2026: and its change, a playbook that exists paused, resumed, renamed or retimed, to the same roles; 10 Oct
     // 2026: and its message, a new message written for the Library, to the same roles; 11 Oct 2026: and its plan, an
     // offer or a whole setup made into its cards, to the same roles; 13 Oct 2026: and its leads, leads added to a
-    // reach-out fed by a list (00423), to the same roles.
+    // reach-out fed by a list (00426), to the same roles.
     [
       null,
       ["broadcast", "playbook", "run", "channels", "change", "message", "plan", "leads"],
@@ -663,7 +663,7 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
       lead_ids: leadIds,
       ...fields
     } = now.input_schema.properties;
-    // 13 Oct 2026 (00423): the leads action's own two fields, the reach-out and the leads it takes, as many as a list holds.
+    // 13 Oct 2026 (00426): the leads action's own two fields, the reach-out and the leads it takes, as many as a list holds.
     assert.deepEqual(
       [rootId, leadIds].map(shapeOf),
       [{ type: "string" }, { type: "array", items: { type: "string" }, maxItems: 500, minItems: 1 }],

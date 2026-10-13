@@ -1496,7 +1496,7 @@ One lead in one search, with that search's judgment ({answer, reasons, shares}),
 | `blanked_at` | timestamp with time zone | yes |  |  |
 | `version` | integer | no | `1` |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
-| `later_at` | timestamp with time zone | yes |  | Later (the pile, 00423): when a member put this lead off in a pass, nothing written. Cleared by its undo, by an add, and by a decision. |
+| `later_at` | timestamp with time zone | yes |  | Later (the pile, 00426): when a member put this lead off in a pass, nothing written. Cleared by its undo, by an add, and by a decision. |
 
 Foreign keys:
 

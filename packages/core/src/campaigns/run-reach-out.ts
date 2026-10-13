@@ -1,7 +1,7 @@
 /**
  * One step of a reach-out, on its day (Reach out §4.1, §4.5): who it writes to, a run for them, and when each email
  * goes. The first run of a chain waits for its owner (the class outreach asks, §4.8), and so does every first-email run
- * of a chain fed by a list (00423: each of its leads was added by hand, so each run is a new say); a later run gives
+ * of a chain fed by a list (00426: each of its leads was added by hand, so each run is a new say); a later run gives
  * thirty minutes to be stopped, or waits too when its owner asked for every run to (E7), and while any run of the chain
  * waits nothing more is made. A lead the door would refuse (outreachRefusalOf, the door's own mapping), one whose email from the
  * chain bounced (C4), and one that keeps no open hour all week are skipped with why, so none of them heads the step's

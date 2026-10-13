@@ -30,7 +30,7 @@ export interface KeyDoors {
   canFind?: boolean;
   find?: () => void;
   call?: ((id: string) => void) | null;
-  /** Under Leads, while the pile is on (00423): A, L and N press its rail, Z undoes, Esc leaves it. */
+  /** Under Leads, while the pile is on (00426): A, L and N press its rail, Z undoes, Esc leaves it. */
   pile?: { press: (key: "a" | "l" | "n") => void; undo: () => void; leave: () => void } | null;
 }
 

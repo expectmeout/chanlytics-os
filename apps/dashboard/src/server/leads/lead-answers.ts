@@ -49,7 +49,7 @@ export interface DoorAnswer {
   round_id?: string;
   op_id?: string;
   version?: number;
-  /** lead_undo of an add (00423): leads taken back off the list, and those whose email is on its way or gone. */
+  /** lead_undo of an add (00426): leads taken back off the list, and those whose email is on its way or gone. */
   taken?: number;
   leaving?: number;
   sent?: number;
@@ -67,7 +67,7 @@ const MEMBER_NOW: Record<string, string> = {
   excluded: "left out",
 };
 
-/** An add taken back too late (lead_undo, 00423): its email is on its way, or gone; Stop writing is the correction. */
+/** An add taken back too late (lead_undo, 00426): its email is on its way, or gone; Stop writing is the correction. */
 const TOO_LATE = { on_its_way: REACH_OUT_ADD_WORDS.onItsWay, sent: REACH_OUT_ADD_WORDS.sent } as const;
 
 /** A door's refusal, in a sentence the owner can act on; null when the door did not refuse. */

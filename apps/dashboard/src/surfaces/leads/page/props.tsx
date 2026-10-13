@@ -77,7 +77,7 @@ export type LeadsPage = Controls &
     cellCtxLeads: LeadCellCtx;
     reachOut: ReachOutLines | null;
     lists: LeadLists;
-    /** The pile where the rows stand while it is on, and the door into it under a search (00423). */
+    /** The pile where the rows stand while it is on, and the door into it under a search (00426). */
     pileNode: ReactNode;
     pileDoor: ReactNode;
   };

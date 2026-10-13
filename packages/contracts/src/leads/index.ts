@@ -191,6 +191,7 @@ export {
   leadBand,
   leadMarkSrc,
   toLeadRowVM,
+  leadRowOf,
   leadRail,
   leadsStanding,
   LEAD_MARKS_BUCKET,
@@ -310,14 +311,7 @@ export {
   JUDGE_OUTPUT_SCHEMA,
 } from "./lead-judge";
 export type { PlaceFacts, JudgeFactKey, JudgeCriterionAnswer, JudgePlaceAnswer } from "./lead-judge";
-export {
-  LEAD_BACK_WORDS,
-  LEAD_PILE_WORDS,
-  leadPileFactsOf,
-  leadPileOpen,
-  leadPileProgressOf,
-  leadPileRailOf,
-} from "./lead-pile";
+export { LEAD_BACK_WORDS, LEAD_PILE_WORDS, leadPileOpen, leadPileProgressOf, leadPileRailOf } from "./lead-pile";
 export type {
   LeadPileAct,
   LeadPileCountsDto,

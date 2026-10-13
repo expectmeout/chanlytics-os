@@ -61,7 +61,7 @@ export interface ReachOutLensSourceLine {
   wroteBack: string;
   interested: string;
   booked: string;
-  /** Won (00423): a dash on a database before it. */
+  /** Won (00426): a dash on a database before it. */
   won: string;
   saidNo: string;
   bounced: string;
@@ -257,7 +257,7 @@ function businessesPart(dto: ReachOutReportDto, when: WhenWords): MixPartVM {
     ["wrote_back", "Wrote back", wrote_back],
     ["interested", "Interested", interested],
     ["booked", "Booked", booked],
-    // Won (00423): a deal naming the business, won; not said where the database does not count it.
+    // Won (00426): a deal naming the business, won; not said where the database does not count it.
     ...(isCount(won) ? ([["won", "Won", won]] as MixEntry[]) : []),
     ["said_no", "Said no", said_no],
   ];
@@ -365,7 +365,7 @@ function summed(steps: ReachOutReportStepDto[]): ReachOutReportCounts {
     total.said_no += s.said_no;
     total.handed += s.handed;
   }
-  // Won is summed only where every step counted it (a database before 00423 counts none: a dash, not a zero).
+  // Won is summed only where every step counted it (a database before 00426 counts none: a dash, not a zero).
   return steps.every((s) => isCount(s.won)) ? { ...total, won: sumOf(steps.map((s) => s.won ?? 0)) } : total;
 }
 

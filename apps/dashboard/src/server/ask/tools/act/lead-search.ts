@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   AppError,
   LEAD_LIST_MAX,
+  addressOf,
   ProposeLeadSearchSchema,
   planLeadSearch,
   planSentence,
@@ -208,7 +209,7 @@ export const propose_lead_search = defineAct({
   ...leadSearchAct,
 });
 
-/* ------------------------------------------------------------- adding leads to a reach-out (00423) -- */
+/* ------------------------------------------------------------- adding leads to a reach-out (00426) -- */
 
 /**
  * Leads added to a reach-out fed by a list: the card says, before anything is written, what the add would do (the add
@@ -234,7 +235,7 @@ async function proposeReachOutAdd(
   }
   const said = reachOutAddWords(dry, root.name);
   if (!dry.would_add) return refuse(`${said.text}. Say so; nothing was proposed`);
-  noteRow(t, "playbook", rootId, root.name, `campaigns/moment:${rootId}`);
+  noteRow(t, "playbook", rootId, root.name, addressOf({ kind: "reach_out", id: rootId }));
   return propose({
     kind: "reach_out_add",
     title: `Add to “${root.name}”`,

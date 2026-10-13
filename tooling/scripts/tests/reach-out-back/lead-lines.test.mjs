@@ -308,7 +308,7 @@ test("a person's page names the reach-out's emails, says how each reply was read
     at: Date.parse("2026-09-20T15:00:00.000Z"),
     text: "Found on Google Maps by “personal trainers in Austin” · strong fit · address checked",
   });
-  // The one standing line (00423): what their answer did with the reach-out, as every page says it.
+  // The one standing line (00426): what their answer did with the reach-out, as every page says it.
   assert.equal(vm.about, "Trainers in Austin · Talking · wrote back Thu · interested · the reach-out stopped");
   const booked = reachOutPersonOf(story({ booked_at: "2026-10-01T18:30:00.000Z" }), NOW, TZ);
   assert.equal(booked.about, "Trainers in Austin · Talking · booked Thu 1:30 PM");

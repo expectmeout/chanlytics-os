@@ -51,16 +51,16 @@ export interface ReachOutChainDto {
   domains: Array<{ host: string; sent_days: number }>;
   next: ReachOutNextFacts;
   created_at: string;
-  /** What feeds it (00423): a list its owner adds to, or the search that keeps it current; absent before it. */
+  /** What feeds it (00426): a list its owner adds to, or the search that keeps it current; absent before it. */
   fed_by?: ReachOutFedBy;
   /**
-   * Who is in it now (00423 reach_out_people_counts): the ledger's People cell, apart from the last 30 days. Null where
+   * Who is in it now (00426 reach_out_people_counts): the ledger's People cell, apart from the last 30 days. Null where
    * they could not be counted; absent from a server before it.
    */
   people?: ReachOutPeopleCountsDto | null;
 }
 
-/** How many of a reach-out's leads are in each group now (00423 reach_out_people_of, the one rule). */
+/** How many of a reach-out's leads are in each group now (00426 reach_out_people_of, the one rule). */
 export interface ReachOutPeopleCountsDto {
   waiting: number;
   writing: number;

@@ -331,7 +331,7 @@ var EVENT_KINDS = [
   "reach_out.send_decided",
   /**
    * Leads added to a list-fed reach-out ({ search_id, n, by }), and an add taken back ({ search_id, taken, leaving,
-   * sent, by }), on the reach-out (00423).
+   * sent, by }), on the reach-out (00426).
    */
   "reach_out.lead_added",
   "reach_out.lead_taken_back",
@@ -339,7 +339,7 @@ var EVENT_KINDS = [
   "lead.kept",
   "lead.excluded",
   "lead.put_back",
-  /** A lead put off in a pass of the pile: Later ({ search_id, by }), on the lead (00423). */
+  /** A lead put off in a pass of the pile: Later ({ search_id, by }), on the lead (00426). */
   "lead.later",
   /** A search renamed ({ name, by }) or removed ({ kept, archived, by }), on the search. */
   "lead.search_renamed",
@@ -8187,7 +8187,7 @@ var ACTIVITY_NOISE_PREFIXES = ["usage.", "webhook.", "ingest."];
 var ACTIVITY_NOISE_KINDS = [
   "escalation.changed",
   "lead.set_aside",
-  // Later, in a pass of the pile (00423): a soft word for this sitting, not a decision the owner reads back.
+  // Later, in a pass of the pile (00426): a soft word for this sitting, not a decision the owner reads back.
   "lead.later",
   // The ideas for a search, written or asked for again (00400): how often is Reports', not the owner's day.
   "lead.ideas_written",
@@ -13569,7 +13569,7 @@ var LIFECYCLE_WORDS = {
     once: "Send once",
     // Beside "Send once" at the sheet's head; the moment it comes on is the To row's (Ruben, 11 Oct 2026: shorter words).
     every: "Every time",
-    /** The third (00423, canvas B): a reach-out to leads, from a search, a list, or the ones the pile adds. */
+    /** The third (00426, canvas B): a reach-out to leads, from a search, a list, or the ones the pile adds. */
     leads: "Write to leads",
     /** The sheet a moment's Turn on opens, titled for the campaign it starts (spec §4.2): "Turn on Appointment reminder". */
     turnOn: (name) => `Turn on ${name}`,
@@ -13772,10 +13772,10 @@ var LIFECYCLE_WORDS = {
     archived: "Its list is archived",
     businesses: "businesses",
     chainNeeds: "Writes to the businesses a search found",
-    /** A reach-out fed by a list its owner adds to (00423), where a search's says the search's name. */
+    /** A reach-out fed by a list its owner adds to (00426), where a search's says the search's name. */
     ownList: "Its own list",
     /**
-     * Who is in a reach-out now (00423), its People cell: the waiting and the writing, "17 waiting · 9 writing"; the
+     * Who is in a reach-out now (00426), its People cell: the waiting and the writing, "17 waiting · 9 writing"; the
      * done alone where nobody else is left; "Nobody yet" before anyone is.
      */
     peopleNow: (p) => {
@@ -17369,6 +17369,9 @@ function toLeadRowVM(r2, tz, now, search = null) {
     card,
     point: typeof r2.lat === "number" && typeof r2.lng === "number" ? { lat: r2.lat, lng: r2.lng } : null
   };
+}
+function leadRowOf(r2, tz, now, search = null) {
+  return { ...toLeadRowVM(r2, tz, now, search), chainId: r2.chain_id ?? null, laterAt: r2.member.later_at ?? null };
 }
 var roundIsLive = (state) => state !== "ended" && state !== "waiting_on_owner";
 function foundLine(r2, term) {
@@ -24930,7 +24933,7 @@ var SHORTCUTS = [
   { group: "People", keys: ["Esc"], does: "Clear the selection" },
   { group: "People", keys: ["F"], does: "Find leads (on Leads)" },
   { group: "People", keys: ["C"], does: "Call the lead under the cursor (on Leads)" },
-  // The pile, on Leads (00423): its rail by key, left to right, and its Undo; drawn nowhere but here.
+  // The pile, on Leads (00426): its rail by key, left to right, and its Undo; drawn nowhere but here.
   { group: "The pile, on Leads", keys: ["A"], does: "Add the lead to its reach-out, or keep it" },
   { group: "The pile, on Leads", keys: ["L"], does: "Later: it comes back at the end" },
   { group: "The pile, on Leads", keys: ["N"], does: "Not a fit, or leave it out" },
@@ -28648,10 +28651,6 @@ function leadPileProgressOf(c) {
   if (c.later > 0) parts2.push(`${c.later} for later`);
   return { text: parts2.join(" \xB7 "), share: c.total > 0 ? decided / c.total : 0, done: c.left === 0 };
 }
-var leadPileFactsOf = (r2) => ({
-  chainId: r2.chain_id ?? null,
-  laterAt: r2.member.later_at ?? null
-});
 function leadPileOpen(r2, pile) {
   const undecided = pile.cls === "review" ? r2.cls === "review" : r2.stage === "ready" && !r2.chainId;
   return undecided && (pile.pass === "first" ? !r2.laterAt : !!r2.laterAt);
@@ -32375,7 +32374,7 @@ var REACH_OUT_ADD_WORDS = {
   takenBack: (n) => `Took ${plural(n, "lead", "leads")} back off the list`,
   onItsWay: "Its email is already on its way, so it stays. Stop writing to them instead.",
   sent: "Its email was already sent, so it stays. Stop writing to them instead.",
-  /** The drawer's door on a lead waiting in a reach-out fed by a list (00423 reach_out_leave_out). */
+  /** The drawer's door on a lead waiting in a reach-out fed by a list (00426 reach_out_leave_out). */
   leaveOut: "Leave out",
   leftOut: (name) => `Left ${name} out. Nothing had been written to them.`,
   backOn: (name) => `${name} is back on its list.`,
@@ -33169,7 +33168,7 @@ function businessRecordOf(b, of, tz, now) {
     fit: peek.checkDots.length ? { word: peek.fit.word, checks: WORKS_AT_WORDS.checks(peek.checkDots.length) } : null,
     reachOut: reachOut?.chain ? {
       chain: reachOut.chain.name,
-      // Where the business stands in it, said once for every page (00423): never "still writing" after an answer.
+      // Where the business stands in it, said once for every page (00426): never "still writing" after an answer.
       line: reachOutStandingOf(reachOut, nowMs, tz)?.line ?? "",
       to: reachOut.conversation_id ? `inbox/th-${reachOut.conversation_id}` : null
     } : null,
@@ -36290,7 +36289,7 @@ function replyRowOf(row2, r2) {
     ...row2,
     kind: "reply",
     channel: "Email",
-    // The reach-out it answers, so Today's row says what the reply is to (00423's truth pass): "Email, Early gyms".
+    // The reach-out it answers, so Today's row says what the reply is to (00426's truth pass): "Email, Early gyms".
     via: r2.chain ?? null,
     status: read ? ["Wrote back", REPLY_INTENT_WORDS[r2.intent]] : ["Wrote back"],
     sentence: r2.summary ?? row2.sentence,
@@ -45960,7 +45959,6 @@ export {
   leadPeopleIndex,
   leadPeopleOf,
   leadPhoneState,
-  leadPileFactsOf,
   leadPileOpen,
   leadPileProgressOf,
   leadPileRailOf,
@@ -45977,6 +45975,7 @@ export {
   leadReplyNote,
   leadReviewCosts,
   leadReviewGroups,
+  leadRowOf,
   leadSearchWords,
   leadSlots,
   leadTileSrc,

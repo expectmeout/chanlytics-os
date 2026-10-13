@@ -435,7 +435,7 @@ test(
       checked_at: iso(Date.now() - DAY),
       included_for: ["chain"],
     });
-    // The nudge is its chain's second step's: no lead has two first emails (00424).
+    // The nudge is its chain's second step's: no lead has two first emails (00427).
     const nudge = await one(
       db.from("playbooks").insert({
         tenant_id: A,

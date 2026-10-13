@@ -511,7 +511,7 @@ test(
       await write(w, first, S2, m, dayAt(1), { angle: "m2" });
     }
     // M1 is a business of the second reach-out as well, and wrote back: by its follow-up, since no lead has two first
-    // emails (00424), as the reach-outs before 00197 could leave behind.
+    // emails (00427), as the reach-outs before 00197 could leave behind.
     await write(w, second, second.steps[1], M1, dayAt(2), { angle: "x1" });
     await wroteBack(w, M1);
 

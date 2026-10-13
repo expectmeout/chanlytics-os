@@ -425,7 +425,7 @@
     "00420_a_combined_person_keeps_their_own_name.sql": "86eaac65eb654c7971e39c0fd5e4e8eb102a159a378d96377e951259cc59198c",
     "00421_a_wait_that_ends_closes_its_notice.sql": "46863862b96741c939deaed5de55726167085c2fa281efbb8eb5e6c4536d0c52",
     "00422_a_call_that_was_the_call_back_closes_it.sql": "a95d3a6440a442c275e4120b3cea796f08422e4348d7238af2fcb14c8d735c3f",
-    "00423_a_reach_out_takes_the_leads_you_add.sql": "3d1cd4a78a30c4b5e76e298c0e9525148091301ab98176e61c87d39d911cf4d2",
-    "00424_a_lead_has_one_first_email.sql": "c7ce189cc2127b99ef4d82486b8a8ff8bee7271c54a45ded7bdc1bcc671b324f"
+    "00426_a_reach_out_takes_the_leads_you_add.sql": "3d1dada36c573a88858ae3354a8daa72c1b349ee8c757c7ae95cd59bb2cf496a",
+    "00427_a_lead_has_one_first_email.sql": "54e6d0e76d4adbb424e22b2021a54855655c44812330e9b8ee1e2cd937511419"
   }
 }

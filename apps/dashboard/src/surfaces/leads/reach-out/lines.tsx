@@ -140,7 +140,7 @@ export const LeadReachOut = ({ lead, flash }: { lead: LeadPeekVM | null; flash: 
   }, [leadId, tick]);
   if (!lead || !story || !story.chain || story.lead_id !== leadId) return null;
   const vm = reachOuts.timelineOf(story);
-  // Where it stands, the one line every page says (00423): what is next, or what its answer did.
+  // Where it stands, the one line every page says (00426): what is next, or what its answer did.
   const standing = vm.stopped ? null : reachOuts.standingOf(story);
   const W = reachOuts.words.REACH_OUT_STOP_WORDS;
   const said = (r: { ok: boolean } | null | undefined, ok: string) => {

@@ -427,7 +427,7 @@ end $$;
 -- Name: FUNCTION appointments_lead_stamp(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.appointments_lead_stamp() IS 'A visit names the lead its person was made from (00423): appointments.lead_id, filled before a visit is written or its person changes, where it names a person and no lead; the newest converted lead first. The 6 PM line counts a reach-out''s bookings by it.';
+COMMENT ON FUNCTION public.appointments_lead_stamp() IS 'A visit names the lead its person was made from (00426): appointments.lead_id, filled before a visit is written or its person changes, where it names a person and no lead; the newest converted lead first. The 6 PM line counts a reach-out''s bookings by it.';
 
 
 --
@@ -6282,7 +6282,7 @@ $$;
 -- Name: FUNCTION lead_chain_of(p_tenant_id uuid, p_lead_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_chain_of(p_tenant_id uuid, p_lead_id uuid) IS 'The reach-out a lead goes with (00423): the one that wrote it last (a canceled run''s send and one taken back aside), else the one whose search holds it; null for a lead in none. leads_page''s chain_id and its pile, and lead_pile_counts, read it. Under the caller''s row security.';
+COMMENT ON FUNCTION public.lead_chain_of(p_tenant_id uuid, p_lead_id uuid) IS 'The reach-out a lead goes with (00426): the one that wrote it last (a canceled run''s send and one taken back aside), else the one whose search holds it; null for a lead in none. leads_page''s chain_id and its pile, and lead_pile_counts, read it. Under the caller''s row security.';
 
 
 --
@@ -7125,7 +7125,7 @@ end $$;
 -- Name: FUNCTION lead_member_later(p_search_id uuid, p_lead_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_member_later(p_search_id uuid, p_lead_id uuid) IS 'Later (the pile, 00423): an acting member puts a lead of a search off in this pass. Nothing is written to it and its stage does not move; the pile brings it back at the end. One lead_operations row of kind later and the event lead.later. Returns {op_id, version}.';
+COMMENT ON FUNCTION public.lead_member_later(p_search_id uuid, p_lead_id uuid) IS 'Later (the pile, 00426): an acting member puts a lead of a search off in this pass. Nothing is written to it and its stage does not move; the pile brings it back at the end. One lead_operations row of kind later and the event lead.later. Returns {op_id, version}.';
 
 
 --
@@ -7450,7 +7450,7 @@ $$;
 -- Name: FUNCTION lead_pile_counts(p_tenant_id uuid, p_search_id uuid, p_class text, p_list_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_pile_counts(p_tenant_id uuid, p_search_id uuid, p_class text, p_list_id uuid) IS 'The pile''s progress line (00423), under the caller''s row security: of a search''s shown members of one class, how many are on the list p_list_id (added), with another reach-out already (elsewhere), no longer Ready (closed: worked or set aside), put off for later, and left. Decided is added + elsewhere + closed: the pile sort''s last bucket.';
+COMMENT ON FUNCTION public.lead_pile_counts(p_tenant_id uuid, p_search_id uuid, p_class text, p_list_id uuid) IS 'The pile''s progress line (00426), under the caller''s row security: of a search''s shown members of one class, how many are on the list p_list_id (added), with another reach-out already (elsewhere), no longer Ready (closed: worked or set aside), put off for later, and left. Decided is added + elsewhere + closed: the pile sort''s last bucket.';
 
 
 --
@@ -8366,7 +8366,7 @@ begin
           public.lead_day(p_tenant_id, now()), to_char(now() at time zone 'UTC', 'YYYY-MM-DD'))
   returning id into v_round;
   -- Outside the round, as a file's joined leads are: Remove the ones you haven't touched gives back nothing here. Each
-  -- carries the fit, the reason and the share marks of where it was found (00423): the check reads why it fits, and a
+  -- carries the fit, the reason and the share marks of where it was found (00426): the check reads why it fits, and a
   -- business the finder saw share with another is still written to once.
   insert into public.lead_search_members (search_id, lead_id, round_id, tenant_id, class, fit, reason, judgment, counted,
                                           counted_month)
@@ -8395,7 +8395,7 @@ end $$;
 -- Name: FUNCTION lead_search_choose(p_tenant_id uuid, p_name text, p_lead_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_search_choose(p_tenant_id uuid, p_name text, p_lead_ids uuid[]) IS 'An acting member''s choice of leads (1 to lead_cap(''list_rows'') ids) as a search of its own, via chosen, for a reach-out to write to (00242, J7). Only a lead of this workspace with an address and counted in one of its kept searches joins, Qualified and counted without drawing the month again, with the fit, the reason and the share marks of where it was found (00423); the rest are counted as not_counted, no_email or gone. Its round is made and ended at once (target_reached), so nothing is checked and nothing rings. Refuses {error: nothing, sentence} when none joins. Returns {search_id, round_id, counted, left_out: {not_counted, no_email, gone}}.';
+COMMENT ON FUNCTION public.lead_search_choose(p_tenant_id uuid, p_name text, p_lead_ids uuid[]) IS 'An acting member''s choice of leads (1 to lead_cap(''list_rows'') ids) as a search of its own, via chosen, for a reach-out to write to (00242, J7). Only a lead of this workspace with an address and counted in one of its kept searches joins, Qualified and counted without drawing the month again, with the fit, the reason and the share marks of where it was found (00426); the rest are counted as not_counted, no_email or gone. Its round is made and ended at once (target_reached), so nothing is checked and nothing rings. Refuses {error: nothing, sentence} when none joins. Returns {search_id, round_id, counted, left_out: {not_counted, no_email, gone}}.';
 
 
 --
@@ -9624,7 +9624,7 @@ begin
     raise exception 'Operation not found.' using errcode = 'P0002';
   end if;
   -- The act's own right: an add, a later, a leave, a stage or a bulk act is any acting member's to make, so its maker
-  -- may take it back; keep, exclude, put back and a search's undo spend or credit the month, and stay with find (00423).
+  -- may take it back; keep, exclude, put back and a search's undo spend or credit the month, and stay with find (00426).
   if op.kind in ('add', 'later', 'leave', 'stage', 'bulk') then
     if not (public.is_acting_member(op.tenant_id)
             and (op."by" = v_user or public.has_permission(v_user, op.tenant_id, 'find'))) then
@@ -9805,7 +9805,7 @@ end $$;
 -- Name: FUNCTION lead_undo(p_op_id uuid, p_version integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_undo(p_op_id uuid, p_version integer) IS 'Undoes one operation by its id and the version the client saw: {error: changed} when the operation or any touched row moved since; restores `before`. Who: an add, a later, a stage or a bulk act is undone by an acting member who made it (or one with find); keep, exclude, put back and a search''s undo need find (00423). A counted lead goes back to the allowance of the month it counted in, never the budget; a removed search, or a finished round the owner took back, comes back without the leads exported since and takes its credit again; a stage change goes back and takes its "Already a customer" suppression with it, unless it made a person, which is never unmade here; a bulk act restores every row nobody has touched and says how many it kept; a later is cleared; an add takes each lead back by what became of its email (off the list before a run planned it; a planned or held send of a live run skipped as owner_took_back and off the list; on its way or gone it stays, {error: on_its_way | sent} when none could be taken), with reach_out.lead_taken_back.';
+COMMENT ON FUNCTION public.lead_undo(p_op_id uuid, p_version integer) IS 'Undoes one operation by its id and the version the client saw: {error: changed} when the operation or any touched row moved since; restores `before`. Who: an add, a later, a stage or a bulk act is undone by an acting member who made it (or one with find); keep, exclude, put back and a search''s undo need find (00426). A counted lead goes back to the allowance of the month it counted in, never the budget; a removed search, or a finished round the owner took back, comes back without the leads exported since and takes its credit again; a stage change goes back and takes its "Already a customer" suppression with it, unless it made a person, which is never unmade here; a bulk act restores every row nobody has touched and says how many it kept; a later is cleared; an add takes each lead back by what became of its email (off the list before a run planned it; a planned or held send of a live run skipped as owner_took_back and off the list; on its way or gone it stays, {error: on_its_way | sent} when none could be taken), with reach_out.lead_taken_back.';
 
 
 --
@@ -9848,7 +9848,7 @@ end $$;
 -- Name: FUNCTION leads_back_today(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.leads_back_today(p_tenant_id uuid) IS 'Leads'' Back today (00423, decision 9 of the lead workbench), for a member: the leads who asked to hear back on a day that has come, within the week after it (the business''s zone), still not closed, booked, stopped or won, the earliest first, at most 50, each with its business, the day it asked for and its person. Nothing writes to them by itself: the owner writes by hand.';
+COMMENT ON FUNCTION public.leads_back_today(p_tenant_id uuid) IS 'Leads'' Back today (00426, decision 9 of the lead workbench), for a member: the leads who asked to hear back on a day that has come, within the week after it (the business''s zone), still not closed, booked, stopped or won, the earliest first, at most 50, each with its business, the day it asked for and its person. Nothing writes to them by itself: the owner writes by hand.';
 
 
 --
@@ -10004,7 +10004,7 @@ CREATE FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid DEFAULT NUL
                              || lpad((9999999999 - floor(extract(epoch from l.found_at)))::bigint::text, 10, '0')
              when 'stage' then (case l.stage when 'ready' then '0' when 'nurture' then '1' when 'converted' then '2' else '3' end)
                              || lpad((9999999999 - floor(extract(epoch from l.found_at)))::bigint::text, 10, '0')
-             -- The pile (00423): undecided first, then put off for later (the oldest first), then the decided: on the list
+             -- The pile (00426): undecided first, then put off for later (the oldest first), then the decided: on the list
              -- it adds to, or with a reach-out already (lead_chain_of: one lead, one reach-out), or no longer Ready; within
              -- each, the strongest fit, then a checked address before a number alone, then the newest.
              when 'pile' then
@@ -10055,7 +10055,7 @@ $$;
 -- Name: FUNCTION leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid, p_list_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid, p_list_id uuid) IS 'A page of members of one class (qualified: the counted ones; review; excluded) joined to their leads, narrowed to one of the rail''s lists (lead_in_list), keyset-paged on the sort key in either direction, under the caller''s row security. Seven sorts: found, fit, distance, business, rating, stage, and pile (00423: undecided first, then put off for later, oldest first, then the decided: on the list p_list_id, with a reach-out already, or no longer Ready; within each, the strongest fit, a checked address before a number alone, the newest). Each row says when it was put off (later_at) and the reach-out it goes with (chain_id, lead_chain_of). Hand the last row''s page_key and member_id back as p_after_key and p_after_id; A''s packed sort_key still works on its own, split here. Which memberships show is lead_member_shown (00212).';
+COMMENT ON FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid, p_list_id uuid) IS 'A page of members of one class (qualified: the counted ones; review; excluded) joined to their leads, narrowed to one of the rail''s lists (lead_in_list), keyset-paged on the sort key in either direction, under the caller''s row security. Seven sorts: found, fit, distance, business, rating, stage, and pile (00426: undecided first, then put off for later, oldest first, then the decided: on the list p_list_id, with a reach-out already, or no longer Ready; within each, the strongest fit, a checked address before a number alone, the newest). Each row says when it was put off (later_at) and the reach-out it goes with (chain_id, lead_chain_of). Hand the last row''s page_key and member_id back as p_after_key and p_after_id; A''s packed sort_key still works on its own, split here. Which memberships show is lead_member_shown (00212).';
 
 
 --
@@ -17545,7 +17545,7 @@ end $$;
 -- Name: FUNCTION reach_out_add(p_root_id uuid, p_lead_ids uuid[], p_dry boolean); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_add(p_root_id uuid, p_lead_ids uuid[], p_dry boolean) IS 'An acting member adds leads (1 to lead_cap(''list_rows'')) to a list-fed reach-out (00423): its search is a list (via chosen or import); a finder-fed one answers {error: fed_by_search}. Each lead that reach_out_why_not lets go (or whose address is still being checked), that is counted in a kept search, is not on the list already and is with no other reach-out joins its list outside any round, with the fit, reason and share marks of where it was found; one lead_operations row of kind add and the event reach_out.lead_added. With p_dry nothing is written. Answers {dry, added, would_add, op_id, version, left_out: {why: n}, leads: [{lead_id, why, chain_id, chain_name}], waiting, cap}.';
+COMMENT ON FUNCTION public.reach_out_add(p_root_id uuid, p_lead_ids uuid[], p_dry boolean) IS 'An acting member adds leads (1 to lead_cap(''list_rows'')) to a list-fed reach-out (00426): its search is a list (via chosen or import); a finder-fed one answers {error: fed_by_search}. Each lead that reach_out_why_not lets go (or whose address is still being checked), that is counted in a kept search, is not on the list already and is with no other reach-out joins its list outside any round, with the fit, reason and share marks of where it was found; one lead_operations row of kind add and the event reach_out.lead_added. With p_dry nothing is written. Answers {dry, added, would_add, op_id, version, left_out: {why: n}, leads: [{lead_id, why, chain_id, chain_name}], waiting, cap}.';
 
 
 --
@@ -17578,7 +17578,7 @@ $$;
 -- Name: FUNCTION reach_out_audience(p_tenant_id uuid, p_search_id uuid, p_limit integer, p_include_unconfirmed boolean); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_audience(p_tenant_id uuid, p_search_id uuid, p_limit integer, p_include_unconfirmed boolean) IS 'Who a reach-out''s first step may write to (Part 3, rebuilt on reach_out_why_not in 00423): the qualified, counted, unblanked members of its one search that reach_out_why_not lets go, strongest fit first, then the longest found. Service role only.';
+COMMENT ON FUNCTION public.reach_out_audience(p_tenant_id uuid, p_search_id uuid, p_limit integer, p_include_unconfirmed boolean) IS 'Who a reach-out''s first step may write to (Part 3, rebuilt on reach_out_why_not in 00426): the qualified, counted, unblanked members of its one search that reach_out_why_not lets go, strongest fit first, then the longest found. Service role only.';
 
 
 --
@@ -17789,7 +17789,7 @@ end $$;
 -- Name: FUNCTION reach_out_chain_people(p_tenant_id uuid, p_root_id uuid, p_limit integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_chain_people(p_tenant_id uuid, p_root_id uuid, p_limit integer) IS 'Who is in a reach-out (00423), for a member: the leads waiting, writing and done (reach_out_people_of, the one rule), each a line of reach_out_root_lines, at most p_limit (1 to 200) of each, with their counts and how many are on its search. fed_by says whether more can be added (a list) or its search keeps it current. Null for a reach-out the workspace does not hold.';
+COMMENT ON FUNCTION public.reach_out_chain_people(p_tenant_id uuid, p_root_id uuid, p_limit integer) IS 'Who is in a reach-out (00426), for a member: the leads waiting, writing and done (reach_out_people_of, the one rule), each a line of reach_out_root_lines, at most p_limit (1 to 200) of each, with their counts and how many are on its search. fed_by says whether more can be added (a list) or its search keeps it current. Null for a reach-out the workspace does not hold.';
 
 
 --
@@ -18180,7 +18180,7 @@ $$;
 -- Name: FUNCTION reach_out_day_due(p_now timestamp with time zone, p_limit integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_day_due(p_now timestamp with time zone, p_limit integer) IS 'The 6 PM line (Reach out Part 6, H12): each workspace with a reach-out, past 6 PM in its zone and not told today, with today''s numbers: written, wrote back, interested, said no, bounced, held, and booked (00423: the visits made today whose lead a reach-out wrote to before the visit''s start). A day with none of written, wrote back, said no, held or booked is not told. Service role only.';
+COMMENT ON FUNCTION public.reach_out_day_due(p_now timestamp with time zone, p_limit integer) IS 'The 6 PM line (Reach out Part 6, H12): each workspace with a reach-out, past 6 PM in its zone and not told today, with today''s numbers: written, wrote back, interested, said no, bounced, held, and booked (00426: the visits made today whose lead a reach-out wrote to before the visit''s start). A day with none of written, wrote back, said no, held or booked is not told. Service role only.';
 
 
 --
@@ -18471,7 +18471,7 @@ begin
    order by s.created_at desc
    limit 1;
   v_sent := v_root is not null;
-  -- Not written yet: the reach-out whose search holds it (a list it was added to, or the search that found it), 00423.
+  -- Not written yet: the reach-out whose search holds it (a list it was added to, or the search that found it), 00426.
   if v_root is null then
     select p.id, m.created_at into v_root, v_added
       from public.playbooks p
@@ -18497,7 +18497,7 @@ begin
     'stopped_at', v_lead.reach_out_stopped_at,
     -- Found on a listing (the finder's), or brought on a list of the owner's own with no place (00242).
     'found_on_listing', v_lead.place_id is not null,
-    -- When it was put on its reach-out's list, while nothing has been written to it (00423).
+    -- When it was put on its reach-out's list, while nothing has been written to it (00426).
     'added_at', case when not v_sent and v_via in ('chosen', 'import') then v_added end,
     'chain', (select jsonb_build_object(
                 'root_id', p.id, 'name', p.name, 'state', p.state,
@@ -18594,7 +18594,7 @@ end $$;
 -- Name: FUNCTION reach_out_lead_timeline(p_tenant_id uuid, p_lead_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_lead_timeline(p_tenant_id uuid, p_lead_id uuid) IS 'One lead''s reach-out (Reach out Part 6, H9, H11), for a member: the lead''s stage, dates and search, whether it was found on a listing, its chain (with fed_by, its steps, run_hour, last_run_for and a waiting run: what the standing line needs, 00423), added_at while it waits on a list, its person''s email thread, its sends (at most 20), its readings (at most 10) and can_stop. A lead nothing was written to yet has the reach-out whose search holds it (00423). Null for a lead the workspace does not hold.';
+COMMENT ON FUNCTION public.reach_out_lead_timeline(p_tenant_id uuid, p_lead_id uuid) IS 'One lead''s reach-out (Reach out Part 6, H9, H11), for a member: the lead''s stage, dates and search, whether it was found on a listing, its chain (with fed_by, its steps, run_hour, last_run_for and a waiting run: what the standing line needs, 00426), added_at while it waits on a list, its person''s email thread, its sends (at most 20), its readings (at most 10) and can_stop. A lead nothing was written to yet has the reach-out whose search holds it (00426). Null for a lead the workspace does not hold.';
 
 
 --
@@ -18672,7 +18672,7 @@ end $$;
 -- Name: FUNCTION reach_out_leave_out(p_root_id uuid, p_lead_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_leave_out(p_root_id uuid, p_lead_id uuid) IS 'Leave out (00423), the drawer''s door on a lead waiting in a reach-out fed by a list: off its list (blanked), a send planned or held for it in a live run skipped as taken back, with an operation of kind leave whose undo (lead_undo, its maker''s or find''s) puts it back; one on its way or sent stays (on_its_way, sent: Stop writing is the correction there). An operator''s, as the add is.';
+COMMENT ON FUNCTION public.reach_out_leave_out(p_root_id uuid, p_lead_id uuid) IS 'Leave out (00426), the drawer''s door on a lead waiting in a reach-out fed by a list: off its list (blanked), a send planned or held for it in a live run skipped as taken back, with an operation of kind leave whose undo (lead_undo, its maker''s or find''s) puts it back; one on its way or sent stays (on_its_way, sent: Stop writing is the correction there). An operator''s, as the add is.';
 
 
 --
@@ -18739,7 +18739,7 @@ end $$;
 -- Name: FUNCTION reach_out_people_counts(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_people_counts(p_tenant_id uuid) IS 'Who is in each reach-out now (00423), for a member: by root, how many leads are waiting, writing and done (reach_out_people_of, the one rule the drawer reads too). Campaigns'' ledger says it in its People cell, apart from the last 30 days.';
+COMMENT ON FUNCTION public.reach_out_people_counts(p_tenant_id uuid) IS 'Who is in each reach-out now (00426), for a member: by root, how many leads are waiting, writing and done (reach_out_people_of, the one rule the drawer reads too). Campaigns'' ledger says it in its People cell, apart from the last 30 days.';
 
 
 --
@@ -18779,7 +18779,7 @@ $$;
 -- Name: FUNCTION reach_out_people_of(p_tenant_id uuid, p_root_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_people_of(p_tenant_id uuid, p_root_id uuid) IS 'Who is in a reach-out (00423), one rule: each lead with its group (waiting: nothing left for it and not done, on its list, in a run that waits or in its search''s audience; writing: written to, not done; done: booked, stopped, bounced, said no, closed, or a person answered), its line of reach_out_root_lines, when it last moved and its place in the audience. reach_out_chain_people and reach_out_people_counts read it. Service role only.';
+COMMENT ON FUNCTION public.reach_out_people_of(p_tenant_id uuid, p_root_id uuid) IS 'Who is in a reach-out (00426), one rule: each lead with its group (waiting: nothing left for it and not done, on its list, in a run that waits or in its search''s audience; writing: written to, not done; done: booked, stopped, bounced, said no, closed, or a person answered), its line of reach_out_root_lines, when it last moved and its place in the audience. reach_out_chain_people and reach_out_people_counts read it. Service role only.';
 
 
 --
@@ -18883,7 +18883,7 @@ begin
     return jsonb_build_object('exists', true);
   end;
   -- A send any unique rule refuses (a replay's, or a lead another reach-out planned first: one first send per lead,
-  -- 00424) is left out of this run, never the run's failure.
+  -- 00427) is left out of this run, never the run's failure.
   insert into public.reach_out_sends (id, tenant_id, broadcast_id, playbook_id, root_id, lead_id, contact_id, domain_id,
                                       send_at, state, reason)
   select x.id, v_tenant, v_run, v_step, v_root, x.lead_id, x.contact_id, x.domain_id, x.send_at,
@@ -18902,7 +18902,7 @@ end $$;
 -- Name: FUNCTION reach_out_plan_run(p_run jsonb, p_sends jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_plan_run(p_run jsonb, p_sends jsonb) IS 'A reach-out step''s run and its sends, written whole (core runReachOut): {id}, or {exists} when the step already has its run for the day. A send any unique rule refuses (a replay''s, or a lead another reach-out planned first, 00424) is left out, never the run. Service role only.';
+COMMENT ON FUNCTION public.reach_out_plan_run(p_run jsonb, p_sends jsonb) IS 'A reach-out step''s run and its sends, written whole (core runReachOut): {id}, or {exists} when the step already has its run for the day. A send any unique rule refuses (a replay''s, or a lead another reach-out planned first, 00427) is left out, never the run. Service role only.';
 
 
 --
@@ -19020,7 +19020,7 @@ CREATE FUNCTION public.reach_out_record(p_tenant_id uuid, p_search_id uuid, p_le
     AS $$
   select l.business_name, l.category, l.city, l.region, l.rating, l.reviews, l.website_host, l.hours, l.about,
          lower(btrim(l.email)),
-         -- Why it fits: the chain's search's member, else where the lead was found (a list made before 00423 kept none).
+         -- Why it fits: the chain's search's member, else where the lead was found (a list made before 00426 kept none).
          coalesce(nullif(sm.reason, ''),
                   (select o.reason from public.lead_search_members o
                     where o.tenant_id = l.tenant_id and o.lead_id = l.id and o.counted and o.blanked_at is null
@@ -19062,7 +19062,7 @@ $$;
 -- Name: FUNCTION reach_out_record(p_tenant_id uuid, p_search_id uuid, p_lead_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_record(p_tenant_id uuid, p_search_id uuid, p_lead_id uuid) IS 'One business''s record as the check reads it (00197; 00423): its listing''s fields, why it fits (the chain''s search''s member, else where it was found), what was asked (the chain''s search, else the search that found it), how many leads share its site or name, whether another person in People shares its address''s domain, and its review spread and claim mark (the signals). Service role only.';
+COMMENT ON FUNCTION public.reach_out_record(p_tenant_id uuid, p_search_id uuid, p_lead_id uuid) IS 'One business''s record as the check reads it (00197; 00426): its listing''s fields, why it fits (the chain''s search''s member, else where it was found), what was asked (the chain''s search, else the search that found it), how many leads share its site or name, whether another person in People shares its address''s domain, and its review spread and claim mark (the signals). Service role only.';
 
 
 --
@@ -19803,7 +19803,7 @@ begin
     last_sent as (
       select distinct on (x.root_id, x.lead_id) x.root_id, x.playbook_id, x.lead_id, x.contact_id, x.angle,
              l.closed_reason, l.booked_at,
-             -- Won (00423): a deal that names the lead, won. A count of businesses, never an amount.
+             -- Won (00426): a deal that names the lead, won. A count of businesses, never an amount.
              exists (select 1 from public.deals d
                       where d.tenant_id = p_tenant_id and d.lead_id = x.lead_id and d.stage = 'won') as won
         from sent x
@@ -19946,7 +19946,7 @@ end $$;
 -- Name: FUNCTION reach_out_report(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_report(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports'' Reach-outs section (Reach out Part 6, H1, H3-H6), for a member: over p_days days (1 to 90; any other is refused) to the window''s last day in the workspace''s zone, the emails that left and what came of them. has_reach_out, totals, before (written, delivered and bounced over the same count of days before the window, 00404: outcomes are state now, so they have no period before), series (written per day), chains (at most 20, each with its steps; reach_out_chain_totals counts every chain over the same window, 00375), angles (the top 8, other_angles, no_angle) and domains (at most 10; a removed domain''s host is null). Emails are written, delivered and bounced; businesses are the leads written to, each once per chain at its last email of the period, and every outcome (wrote back, interested, booked, won, said no) is a count of them, so it is never more than `businesses`, on the totals, on a step (the businesses whose last email was that step), on an angle (the ones whose last email had it) and past the top 8 (00404); wrote back is outreach_wrote_back; won (00423) is a deal naming the lead, won, a count and never an amount. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
+COMMENT ON FUNCTION public.reach_out_report(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports'' Reach-outs section (Reach out Part 6, H1, H3-H6), for a member: over p_days days (1 to 90; any other is refused) to the window''s last day in the workspace''s zone, the emails that left and what came of them. has_reach_out, totals, before (written, delivered and bounced over the same count of days before the window, 00404: outcomes are state now, so they have no period before), series (written per day), chains (at most 20, each with its steps; reach_out_chain_totals counts every chain over the same window, 00375), angles (the top 8, other_angles, no_angle) and domains (at most 10; a removed domain''s host is null). Emails are written, delivered and bounced; businesses are the leads written to, each once per chain at its last email of the period, and every outcome (wrote back, interested, booked, won, said no) is a count of them, so it is never more than `businesses`, on the totals, on a step (the businesses whose last email was that step), on an angle (the ones whose last email had it) and past the top 8 (00404); wrote back is outreach_wrote_back; won (00426) is a deal naming the lead, won, a count and never an amount. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
 
 
 --
@@ -19991,7 +19991,7 @@ CREATE FUNCTION public.reach_out_root_lines(p_tenant_id uuid, p_root_id uuid) RE
            p.ord, null::timestamptz as added_at
       from per p
     union all
-    -- A list-fed reach-out's leads not written yet: on its list, with when each was added (00423).
+    -- A list-fed reach-out's leads not written yet: on its list, with when each was added (00426).
     select m.lead_id, 0, null, null, null, false, false, false, null, null, m.created_at
       from public.playbooks r
       join public.lead_searches q on q.id = r.lead_search_id and q.via in ('chosen', 'import') and q.removed_at is null
@@ -20052,7 +20052,7 @@ $$;
 -- Name: FUNCTION reach_out_root_lines(p_tenant_id uuid, p_root_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_root_lines(p_tenant_id uuid, p_root_id uuid) IS 'One reach-out''s lines, one per lead (00423): every lead it has a send for (a canceled run''s and a taken-back send aside) and, for a list-fed one, each lead on its list not written yet with added_at. The line''s facts are 00241''s plus business_name and added_at; ord is when it last left (else when it was added); done is booked, stopped, bounced, said no, no longer Ready or Contacted, or a person answered. reach_out_search_lines and reach_out_chain_people read it. Service role only.';
+COMMENT ON FUNCTION public.reach_out_root_lines(p_tenant_id uuid, p_root_id uuid) IS 'One reach-out''s lines, one per lead (00426): every lead it has a send for (a canceled run''s and a taken-back send aside) and, for a list-fed one, each lead on its list not written yet with added_at. The line''s facts are 00241''s plus business_name and added_at; ord is when it last left (else when it was added); done is booked, stopped, bounced, said no, no longer Ready or Contacted, or a person answered. reach_out_search_lines and reach_out_chain_people read it. Service role only.';
 
 
 --
@@ -20415,7 +20415,7 @@ end $$;
 -- Name: FUNCTION reach_out_search_lines(p_tenant_id uuid, p_search_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_search_lines(p_tenant_id uuid, p_search_id uuid) IS 'Leads while it writes (Reach out Part 6, H8), for a member: an open search''s chain, or null when it has none. chain {root_id, name, state}, fed_by (list or search, 00423), written_to, today (emails that left since the workspace''s midnight), next {at, business, host} (the earliest planned and checked email of a live run), held, waiting_run_id, and leads: at most 2,000 lines from reach_out_root_lines, one per lead the chain has a send for and, for a list-fed one, each lead on its list not written yet.';
+COMMENT ON FUNCTION public.reach_out_search_lines(p_tenant_id uuid, p_search_id uuid) IS 'Leads while it writes (Reach out Part 6, H8), for a member: an open search''s chain, or null when it has none. chain {root_id, name, state}, fed_by (list or search, 00426), written_to, today (emails that left since the workspace''s midnight), next {at, business, host} (the earliest planned and checked email of a live run), held, waiting_run_id, and leads: at most 2,000 lines from reach_out_root_lines, one per lead the chain has a send for and, for a list-fed one, each lead on its list not written yet.';
 
 
 --
@@ -20539,7 +20539,7 @@ end $$;
 -- Name: FUNCTION reach_out_sources(p_tenant_id uuid, p_limit integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_sources(p_tenant_id uuid, p_limit integer) IS 'What a reach-out could start from (00423), for a member: the newest p_limit (1 to 50) searches and lists with no reach-out yet that have someone it would write to, each with its name, how it was made (via), when, and how many it would write to (ready, and with the unconfirmed). Campaigns'' New message, Write to leads, lists them.';
+COMMENT ON FUNCTION public.reach_out_sources(p_tenant_id uuid, p_limit integer) IS 'What a reach-out could start from (00426), for a member: the newest p_limit (1 to 50) searches and lists with no reach-out yet that have someone it would write to, each with its name, how it was made (via), when, and how many it would write to (ready, and with the unconfirmed). Campaigns'' New message, Write to leads, lists them.';
 
 
 --
@@ -20633,7 +20633,7 @@ end $$;
 -- Name: FUNCTION reach_out_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid) IS 'The sends the check clock takes this tick (Reach out, Part 4), leased under their row locks, round-robin by workspace, each with its words'' step, the name its chain signs with, the holds its owner included it past and its business''s record (00197; the record''s signals, 00423). Service role only.';
+COMMENT ON FUNCTION public.reach_out_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid) IS 'The sends the check clock takes this tick (Reach out, Part 4), leased under their row locks, round-robin by workspace, each with its words'' step, the name its chain signs with, the holds its owner included it past and its business''s record (00197; the record''s signals, 00426). Service role only.';
 
 
 --
@@ -20693,7 +20693,7 @@ $$;
 -- Name: FUNCTION reach_out_why_not(p_tenant_id uuid, p_lead_ids uuid[], p_include_unconfirmed boolean); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_why_not(p_tenant_id uuid, p_lead_ids uuid[], p_include_unconfirmed boolean) IS 'The one predicate (00423): for each lead, why a reach-out would not write to it, or null when it would. In this order: gone, closed (not Ready), customer (People holds its address or number), suppressed (the never-again list), written (a send of any reach-out, bar a canceled run''s or one taken back), shared (the finder saw it share with another lead), no_email, checking, unconfirmed (a catch-all address, unless the reach-out includes them), invalid, unchecked. reach_out_audience and reach_out_add both ask it. Service role only; the doors that ask it check the caller.';
+COMMENT ON FUNCTION public.reach_out_why_not(p_tenant_id uuid, p_lead_ids uuid[], p_include_unconfirmed boolean) IS 'The one predicate (00426): for each lead, why a reach-out would not write to it, or null when it would. In this order: gone, closed (not Ready), customer (People holds its address or number), suppressed (the never-again list), written (a send of any reach-out, bar a canceled run''s or one taken back), shared (the finder saw it share with another lead), no_email, checking, unconfirmed (a catch-all address, unless the reach-out includes them), invalid, unchecked. reach_out_audience and reach_out_add both ask it. Service role only; the doors that ask it check the caller.';
 
 
 --
@@ -27016,7 +27016,7 @@ COMMENT ON TABLE public.lead_search_members IS 'One lead in one search, with tha
 -- Name: COLUMN lead_search_members.later_at; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.lead_search_members.later_at IS 'Later (the pile, 00423): when a member put this lead off in a pass, nothing written. Cleared by its undo, by an add, and by a decision.';
+COMMENT ON COLUMN public.lead_search_members.later_at IS 'Later (the pile, 00426): when a member put this lead off in a pass, nothing written. Cleared by its undo, by an add, and by a decision.';
 
 
 --

@@ -281,7 +281,7 @@ function ReachOutOpen({ chain, canAct, W, read, retry, said, acts, editing, onEd
         <FailedRead kind="line" what={RW.failed} onRetry={retry} testid="ro-failed" />
       )}
       {said && <ReachOutReport said={said} />}
-      {/* Who is in it (00423): waiting, writing and done, each a door to the lead; a list-fed one takes more. */}
+      {/* Who is in it (00426): waiting, writing and done, each a door to the lead; a list-fed one takes more. */}
       {chain.search ? <ReachOutPeople chain={chain} focus={at === "people"} flash={flash} /> : null}
       {acts}
       {/* Who may is the role store's one answer (contracts roleGate, a partner included), never a copy of it. */}

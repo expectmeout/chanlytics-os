@@ -178,6 +178,7 @@ export {
   LEAD_MARK_PATH,
   leadMarkSrc,
   toLeadRowVM,
+  leadRowOf,
   leadRail,
   leadsStanding,
 } from "./lead-row";

@@ -44,7 +44,7 @@ const reading = (over = {}) => ({
   ...over,
 });
 const strip = (over) => replyStripOf(reading(over), NOW, TZ);
-// What the reply answers (00423): the reach-out and its email, so a reply is never read alone.
+// What the reply answers (00426): the reach-out and its email, so a reply is never read alone.
 const FIRST = "Answers your first email of “Reach out · Movers”";
 
 test("interested and a question: talking now, and the draft is in the reply box", () => {

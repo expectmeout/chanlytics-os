@@ -1,9 +1,9 @@
-# 0056 · A reach-out takes the leads you add
+# 0057 · A reach-out takes the leads you add
 
 **Status:** Built on the lane `leads/workbench` from main's `38d3f2529`, 13 October 2026, and merged in its pull request
 (Ruben chose canvas B v2 of the lead workbench on 13 October 2026, https://claude.ai/artifact/9WafSeCumGch2fNCEFf4Dy,
 version 16, approved every call on its Model board, and asked for it built end to end; "continue and merge" the same
-day). The number is the next free one after main's 0055. Where this note and the code disagree, the code wins.
+day). The number is the next free one after main's 0055 and the cold-email lane's 0056, claimed before it. Where this note and the code disagree, the code wins.
 
 ## Context
 
@@ -32,11 +32,11 @@ The ten calls of canvas B, as approved:
 6. **An operator undoes their own** add, later, leave, stage and bulk acts (`lead_undo`).
 7. **Sending order**: drafts the owner sends first, then Outlook, then Gmail. Not built here (below).
 8. **Companies with named people.** Not built here (below).
-9. **No second reach-out to a lead** (`reach_out_sends_one_first`, 00424): one who said "not now" comes back on their
+9. **No second reach-out to a lead** (`reach_out_sends_one_first`, 00427): one who said "not now" comes back on their
    day in **Back today** (`leads_back_today`), to write to by hand.
 10. **Pace defaults** for an own mailbox: one email every 20 minutes, 9 to 5. They belong with call 7.
 
-What it built (00423, 00424; the plan in `docs/superpowers/plans/2026-10-13-the-lead-workbench.md`):
+What it built (00426, 00427; the plan in `docs/superpowers/plans/2026-10-13-the-lead-workbench.md`):
 
 - **The pile** on Leads: a search gone through one lead at a time (`leads_page`'s `pile` sort, `lead_pile_counts`),
   with Add, Later and Not a fit, Undo three deep, and a list of its own made at the end ("Write to the N").

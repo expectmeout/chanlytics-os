@@ -1,5 +1,5 @@
 /**
- * The lead workbench's doors (00423): leads added to a reach-out fed by a list (reach_out_add, dry or not), a lead put
+ * The lead workbench's doors (00426): leads added to a reach-out fed by a list (reach_out_add, dry or not), a lead put
  * off for later in a pass of the pile (lead_member_later), the pile's progress line (lead_pile_counts) and who is in a
  * reach-out (reach_out_chain_people). Each is asked on the member's own session: the door checks who may in SQL, and
  * answers its refusal with its SQLSTATE and its own words, which come back here as they came (code and all), so the
@@ -75,7 +75,7 @@ export async function reachOutChainPeople(
 }
 
 /**
- * What feeds a reach-out (00423): a list its owner adds to (a search of via chosen or import), else the finder's
+ * What feeds a reach-out (00426): a list its owner adds to (a search of via chosen or import), else the finder's
  * search. The run reads it, so every first-email run of a list-fed chain waits for its owner. A read that fails throws:
  * not being able to tell is not "a search".
  */
@@ -91,26 +91,26 @@ export async function reachOutFedByOf(db: Db, tenantId: string, searchId: string
   return isLeadList(data) ? "list" : "search";
 }
 
-/** Leads' Back today (00423 leads_back_today): the leads who asked to hear back on a day that has come. */
+/** Leads' Back today (00426 leads_back_today): the leads who asked to hear back on a day that has come. */
 export async function leadsBackToday(db: Db, tenantId: string): Promise<DoorResult<LeadBackDto[]>> {
   const { data, error } = await db.rpc("leads_back_today", { p_tenant_id: tenantId });
   return answer<LeadBackDto[]>(data, error);
 }
 
-/** Leave out: one lead off a list-fed reach-out's list before anything left for it (00423 reach_out_leave_out). */
+/** Leave out: one lead off a list-fed reach-out's list before anything left for it (00426 reach_out_leave_out). */
 export async function reachOutLeaveOut(db: Db, p: { rootId: string; leadId: string }): Promise<DoorResult<unknown>> {
   const { data, error } = await db.rpc("reach_out_leave_out", { p_root_id: p.rootId, p_lead_id: p.leadId });
   return answer<unknown>(data, error);
 }
 
-/** What a reach-out could start from (00423 reach_out_sources): the searches and lists with none yet, newest first. */
+/** What a reach-out could start from (00426 reach_out_sources): the searches and lists with none yet, newest first. */
 export async function reachOutSources(db: Db, tenantId: string): Promise<DoorResult<ReachOutSourceDto[]>> {
   const { data, error } = await db.rpc("reach_out_sources", { p_tenant_id: tenantId });
   return answer<ReachOutSourceDto[]>(data, error);
 }
 
 /**
- * Who is in each reach-out now, by root (00423 reach_out_people_counts: the drawer's one rule), for Campaigns' ledger.
+ * Who is in each reach-out now, by root (00426 reach_out_people_counts: the drawer's one rule), for Campaigns' ledger.
  * Null where they could not be counted: the ledger says a dash, never a zero nobody counted.
  */
 export async function reachOutPeopleCounts(

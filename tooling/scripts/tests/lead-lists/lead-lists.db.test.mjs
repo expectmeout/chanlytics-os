@@ -667,8 +667,14 @@ test(
   { skip },
   async () => {
     const w = await world();
-    const now = bodyIn(migration("00242"), "create or replace function public.lead_rounds_notify(");
-    assert.equal(liveBody("lead_rounds_notify"), now, "the database runs 00242's");
+    const bell = bodyIn(migration("00421"), "create or replace function public.lead_rounds_notify(");
+    assert.equal(liveBody("lead_rounds_notify"), bell, "the database runs 00421's");
+    // 00421 is 00242's with the round's question closed as it leaves waiting_on_owner, and nothing else.
+    const now = bell.replace(
+      / {2}-- A round that leaves waiting_on_owner[^\n]*\n {2}--[^\n]*\n {2}if OLD\.state = 'waiting_on_owner'[^\n]*\n {4}perform public\.notifications_close_about[^\n]*\n {2}end if;\n/,
+      "",
+    );
+    assert.equal(now, bodyIn(migration("00242"), "create or replace function public.lead_rounds_notify("));
     const was = now
       .replace("  v_via  text;\n", "")
       .replace("select s.name, s.via into v_name, v_via from", "select s.name into v_name from")
@@ -679,9 +685,9 @@ test(
       );
     assert.equal(was, bodyIn(migration("00163"), "create or replace function public.lead_rounds_notify("));
 
-    // 00423 gave a lead on a list, before any send, its chain and when it was added (lead-workbench/reach-out-add.db.test.mjs).
-    const live = bodyIn(migration("00423"), "create or replace function public.reach_out_lead_timeline(");
-    assert.equal(liveBody("reach_out_lead_timeline"), live, "the database runs 00423's");
+    // 00426 gave a lead on a list, before any send, its chain and when it was added (lead-workbench/reach-out-add.db.test.mjs).
+    const live = bodyIn(migration("00426"), "create or replace function public.reach_out_lead_timeline(");
+    assert.equal(liveBody("reach_out_lead_timeline"), live, "the database runs 00426's");
     const latest = bodyIn(migration("00280"), "create or replace function public.reach_out_lead_timeline(");
     // 00280 is 00242's with a partner's second-factor clause on the membership check, and nothing else.
     const story = latest
