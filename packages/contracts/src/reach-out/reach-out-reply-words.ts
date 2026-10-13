@@ -105,7 +105,7 @@ export interface ReplyStrip {
  * Which email of which reach-out a reply answers, so a reply is never read without what it answers: "Answers your
  * first email of “Early gyms”", "Answers email 2 of “Early gyms”". Null for a reply to an email no reach-out wrote.
  */
-export function replyAnswersOf(r: Pick<ReachOutReplyDto, "chain" | "step">): string | null {
+function replyAnswersOf(r: Pick<ReachOutReplyDto, "chain" | "step">): string | null {
   if (!r.chain) return null;
   return `Answers ${!r.step || r.step <= 1 ? "your first email" : `email ${r.step}`} of “${r.chain}”`;
 }

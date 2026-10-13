@@ -14,7 +14,7 @@ import { LeadPileDoor, LeadPileView } from "./pile";
 import { usePileUp, type LeadPile } from "./use-pile";
 
 /** What the page's one listener hands the pile: a press of the rail by its key, Undo, and the way out. */
-export interface PileKeys {
+interface PileKeys {
   press: (key: "a" | "l" | "n") => void;
   undo: () => void;
   leave: () => void;

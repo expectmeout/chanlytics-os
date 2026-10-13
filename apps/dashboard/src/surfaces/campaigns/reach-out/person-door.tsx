@@ -18,7 +18,7 @@ import { reachOuts } from "./surface";
 export type PeopleFlash = (flash: { tone?: string; msg: ReactNode; undo?: (() => unknown) | null }) => void;
 
 /** The groups of a reach-out's People, in the order a lead moves through them. */
-export type PeopleGroup = "waiting" | "writing" | "done";
+type PeopleGroup = "waiting" | "writing" | "done";
 
 /** A door's answer, as the toast reads it: done, or its refusal (said as the shell's refusalToast says one). */
 type Said = { ok: boolean } | null | undefined;

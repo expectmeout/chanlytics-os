@@ -24,7 +24,7 @@ import type { Flash } from "../../people/types";
 import { excludeLead, keepLead, laterLead, setLeadStage, undoLeadOperation } from "../surface";
 
 /** Where the pile's adds go: a reach-out fed by a list, by its first step, and that list. */
-export interface PileTarget {
+interface PileTarget {
   rootId: string;
   name: string;
   listId: string;
@@ -41,7 +41,7 @@ interface PileDone {
 const UNDO_DEPTH = 3;
 
 /** The reach-outs fed by a list, as the pile's targets: the newest first. A chain says what feeds it (00423). */
-export const pileTargetsOf = (chains: readonly ReachOutChainDto[], searches: readonly LeadSearchDto[]): PileTarget[] =>
+const pileTargetsOf = (chains: readonly ReachOutChainDto[], searches: readonly LeadSearchDto[]): PileTarget[] =>
   chains
     .filter(
       (c) =>

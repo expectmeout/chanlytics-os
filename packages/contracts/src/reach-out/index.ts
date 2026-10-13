@@ -229,7 +229,6 @@ export {
   REPLY_UNDO_REFUSALS,
   isReplyUndoRefusal,
   replyStripOf,
-  replyAnswersOf,
   replyChipOf,
   replyChipStateOf,
   replyFromLineOf,

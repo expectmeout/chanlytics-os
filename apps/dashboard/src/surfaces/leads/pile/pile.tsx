@@ -180,7 +180,7 @@ const progressOf = (p: PileViewProps, up: LeadRowVM | null) => {
   );
 };
 
-export interface PileViewProps {
+interface PileViewProps {
   pile: LeadPile;
   /** The lead that is up, and how many are put off for later (usePileUp). */
   up: LeadRowVM | null;
