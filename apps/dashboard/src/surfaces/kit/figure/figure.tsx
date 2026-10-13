@@ -52,6 +52,8 @@ export type FigureProps = {
    * holds): true while it washes, false when it is still. None for a figure that is not watched.
    */
   washed?: boolean;
+  /** An inset tile of its own (a person's figures on a phone, canvas A); none is the plain figure of a strip. */
+  look?: "tile";
   className?: string;
   /** The id a test finds the figure by; the label's stop, where it has one, is `<id>-term`. */
   "data-testid"?: string;
@@ -73,6 +75,7 @@ export function Figure({
   tone,
   id,
   washed,
+  look,
   className,
   "data-testid": testid,
 }: FigureProps) {
@@ -114,7 +117,7 @@ export function Figure({
     );
   return (
     <div
-      className={cx("figure", thin && "is-thin", tone && `is-${tone}`, className)}
+      className={cx("figure", look === "tile" && "figure-tile", thin && "is-thin", tone && `is-${tone}`, className)}
       data-figure={id}
       data-testid={testid}
     >

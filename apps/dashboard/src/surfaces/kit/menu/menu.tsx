@@ -24,6 +24,7 @@ import { Menu as BaseMenu } from "@base-ui/react/menu";
 import type { ReactElement, ReactNode, Ref } from "react";
 import { Fragment, useState } from "react";
 import { keepTouch, onAPhone, touchSwipe } from "../../legacy-verbs";
+import { CopiedWords, useCopied } from "../copy-button/copy-button";
 import { cx, variants } from "../variants";
 
 /** The room between the control and the menu, as the house's menu leaves it (kit.css, .more-menu's top). */
@@ -49,8 +50,16 @@ type MenuGate = { title?: string; gate?: Record<string, unknown> };
 export type MenuItem = MenuWords &
   MenuGate &
   (
-    | { onSelect: () => void; tone?: "danger"; disabled?: boolean; href?: undefined }
-    | { href: string; onSelect?: undefined; tone?: undefined; disabled?: undefined }
+    | { onSelect: () => void; tone?: "danger"; disabled?: boolean; href?: undefined; copy?: undefined }
+    | { href: string; onSelect?: undefined; tone?: undefined; disabled?: undefined; copy?: undefined }
+    | {
+        /** A copy: the words it puts on the clipboard, and what it says in place once it has (the menu stays open). */
+        copy: { text: string; said: string };
+        onSelect?: undefined;
+        href?: undefined;
+        tone?: undefined;
+        disabled?: undefined;
+      }
   );
 
 /** A set the page chooses one of: the one chosen, the options, and the tick drawn beside the one chosen. */
@@ -73,8 +82,11 @@ export type MenuToggles = {
   tick: ReactElement;
 };
 
-/** A group of the menu: its items, a set to choose from, or a set of switches, under a heading or none. A line parts two groups. */
-export type MenuGroup = { header?: string } & (
+/**
+ * A group of the menu: its items, a set to choose from, or a set of switches, under a heading or none, and a line under
+ * its items where one thing is said of them all (`caption`: why the sends are off). A line parts two groups.
+ */
+export type MenuGroup = { header?: string; caption?: string } & (
   | { items: readonly MenuItem[]; choose?: undefined; toggles?: undefined }
   | { choose: MenuChoice; items?: undefined; toggles?: undefined }
   | { toggles: MenuToggles; items?: undefined; choose?: undefined }
@@ -104,8 +116,35 @@ function itemContent({ label, glyph, meta, hint }: MenuWords) {
   );
 }
 
-/** One item: a button that acts, or a link to a page. */
+/**
+ * A copy: the clipboard written and "Copied" said in its place (the kit's copy, ../copy-button), the menu left open to
+ * say it, as the canvas's copy rows do; a press outside or Escape closes it.
+ */
+function CopyItem({ item, copy }: { item: MenuItem; copy: { text: string; said: string } }) {
+  const [copied, press] = useCopied();
+  return (
+    <BaseMenu.Item
+      className={itemClasses()}
+      nativeButton
+      render={<button type="button" />}
+      label={item.label}
+      title={item.title}
+      closeOnClick={false}
+      data-copied={copied || undefined}
+      onClick={() => press(copy.text)}
+      {...item.gate}
+    >
+      {item.glyph}
+      <span className="more-item-label" aria-live="polite">
+        {copied ? <CopiedWords said={copy.said} /> : item.label}
+      </span>
+    </BaseMenu.Item>
+  );
+}
+
+/** One item: a button that acts, a copy, or a link to a page. */
 function Item({ item }: { item: MenuItem }) {
+  if (item.copy !== undefined) return <CopyItem item={item} copy={item.copy} />;
   if (item.href !== undefined) {
     return (
       <BaseMenu.LinkItem className={itemClasses()} href={item.href} label={item.label}>
@@ -180,14 +219,22 @@ function Toggles({ toggles }: { toggles: MenuToggles }) {
   );
 }
 
-/** A group: its heading, which names it, over its items, its set, or its switches. */
+/** A group: its heading, which names it, over its items, its set, or its switches, and its caption under them. */
 function Group({ group }: { group: MenuGroup }) {
-  const body = group.toggles ? (
+  const items = group.toggles ? (
     <Toggles toggles={group.toggles} />
   ) : group.choose ? (
     <Choice choose={group.choose} />
   ) : (
     group.items.map((item, at) => <Item key={at} item={item} />)
+  );
+  const body = group.caption ? (
+    <>
+      {items}
+      <p className="more-cap">{group.caption}</p>
+    </>
+  ) : (
+    items
   );
   if (group.header === undefined) return <>{body}</>;
   return (

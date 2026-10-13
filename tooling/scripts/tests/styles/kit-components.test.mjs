@@ -32,6 +32,7 @@ import { Button } from "../../../../apps/dashboard/src/surfaces/kit/button/butto
 import { EmptyState, FailedRead } from "../../../../apps/dashboard/src/surfaces/kit/empty/empty.tsx";
 import { Face } from "../../../../apps/dashboard/src/surfaces/kit/face/face.tsx";
 import { Figure } from "../../../../apps/dashboard/src/surfaces/kit/figure/figure.tsx";
+import { Icon } from "../../../../apps/dashboard/src/surfaces/kit/icon/icon.tsx";
 import { LinkButton } from "../../../../apps/dashboard/src/surfaces/kit/link-button/link-button.tsx";
 import { ListRow } from "../../../../apps/dashboard/src/surfaces/kit/list-row/list-row.tsx";
 import { Meter } from "../../../../apps/dashboard/src/surfaces/kit/meter/meter.tsx";
@@ -384,6 +385,27 @@ const BUTTONS = {
   "btn-icon": () => [
     h(Button, { iconOnly: true, "aria-label": "More" }, glyph()),
     h(Button, { iconOnly: true, size: "sm", "aria-label": "Close" }, glyph()),
+  ],
+  // A phone's head (canvas A, P1): the thread at the touch floor, its acts circles of the control layer's glass.
+  "btn-touch-glass": () => [
+    h(Button, { size: "touch", variant: "primary" }, "Open the thread"),
+    h(Button, { iconOnly: true, size: "touch", variant: "glass", "aria-label": "Call" }, glyph()),
+    h(Button, { iconOnly: true, size: "touch", variant: "glass", "aria-label": "Note" }, glyph()),
+    h(Button, { iconOnly: true, size: "touch", variant: "glass", "aria-label": "More" }, glyph()),
+  ],
+  // The dock's circles, bare inside its glass.
+  "btn-touch-quiet": () => [
+    h(Button, { iconOnly: true, size: "touch", variant: "quiet", "aria-label": "Call" }, glyph()),
+    h(Button, { iconOnly: true, size: "touch", variant: "quiet", "aria-label": "More" }, glyph()),
+  ],
+  // A walk's ‹ ›: the chevron, the first one turned (kit.css .icon-turned).
+  "btn-icon-turned": () => [
+    h(
+      Button,
+      { iconOnly: true, size: "sm", variant: "quiet", "aria-label": "Previous person" },
+      h(Icon, { name: "chevron", size: 12, className: "icon-turned" }),
+    ),
+    h(Button, { iconOnly: true, size: "sm", variant: "quiet", "aria-label": "Next person" }, glyph()),
   ],
   "btn-text": () =>
     h(
@@ -757,6 +779,8 @@ const FIGURES = {
   // Someone else changed it while the page is open (0052's wash): the page's hook says it washes, the figure wears it.
   "figure-washed": () =>
     h(Figure, { label: "Customer messages", value: "Today", meta: "on 6 of 7 days", washed: true }),
+  // A phone's figure (canvas A, P1): a tile of its own, two to a line.
+  "figure-tile": () => h(Figure, { label: "Last contact", value: "Sep 24", meta: "You replied", look: "tile" }),
 };
 
 test("Figure draws the gallery's Figure family: a term and its definitions, the number a door where it opens something, the page's class last", () => {
@@ -1177,6 +1201,16 @@ const VIEW_TABS = {
       picked: "broadcasts",
       onPick() {},
       tabs: viewsOf("Playbooks", "Broadcasts", "Templates"),
+    }),
+  // A person's tabs on a phone (canvas A, P1): the capsule at the page's width, its tabs sharing it.
+  "stabs-fill": () =>
+    h(ViewTabs, {
+      name: "person",
+      label: "Their page",
+      picked: "overview",
+      onPick() {},
+      fill: true,
+      tabs: viewsOf("Overview", "History", "Visits", "About"),
     }),
 };
 

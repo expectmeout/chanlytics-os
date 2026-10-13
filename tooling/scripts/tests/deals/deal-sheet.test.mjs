@@ -770,13 +770,14 @@ test("the card says each open deal once: its steps, its link and whether it went
   assert.deepEqual(card.flags, [{ words: "Nothing back in 9 days", tone: "warn" }]);
   assert.equal(card.next.id, "follow-up");
 
-  // Recorded without a link: said, the link is what to add, and a quiet week still counts (it went some other way).
+  // Recorded without a link: said, and the link is what to add; nothing went, so nothing is waited on (canvas A: "Nothing
+  // back" only once a link was sent).
   [card] = dealCardsOf(
     person({ deals: [dealDto({ proposal_url: null })], rowOver: { last_inbound_at: at(12 * D) } }),
     NOW,
     ZONE,
   ).cards;
-  assert.deepEqual([card.link, card.facts[0], card.next.id], [null, "No link", "edit"]);
+  assert.deepEqual([card.link, card.facts[0], card.next.id], [null, "No link yet", "edit"]);
   assert.deepEqual(card.flags, [{ words: "Nothing back in 9 days", tone: "warn" }]);
   assert.deepEqual(
     card.more.map((a) => a.id),
@@ -1435,7 +1436,9 @@ test("a proposal's card says the workspace's pace once it has one, and waits by 
   const paced = person({ ...nine, deal_pace: { median_days: 12, yeses: 6 } });
   assert.equal(paced.dealPace.words, "Usually 12 days to a yes", "read with the person");
   [card] = dealCardsOf(paced, NOW, ZONE).cards;
-  assert.deepEqual(card.facts, ["Sent Sep 14 by email", "Usually 12 days to a yes"]);
+  // The pace is the card's own line now, out of the facts (canvas A: a deal row says it beside the steps).
+  assert.deepEqual(card.facts, ["Sent Sep 14 by email"]);
+  assert.equal(card.pace, "Usually 12 days to a yes");
   assert.deepEqual(card.flags, [], "within the pace and a fifth: not waiting on anyone yet");
   assert.equal(card.next.id, "won", "and the follow-up waits for it");
   // A client's card says no pace: theirs is decided.
@@ -1445,6 +1448,7 @@ test("a proposal's card says the workspace's pace once it has one, and waits by 
     ZONE,
   ).cards;
   assert.ok(!card.facts.includes("Usually 12 days to a yes"));
+  assert.equal(card.pace, null);
   // Where deals are off there is no pace to say, whatever the server sent.
   assert.equal(person({ ...nine, deals_on: false, deal_pace: { median_days: 12, yeses: 6 } }).dealPace, null);
 });

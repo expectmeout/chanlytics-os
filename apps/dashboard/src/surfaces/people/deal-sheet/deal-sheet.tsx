@@ -17,6 +17,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ComponentProps, Dispatch, ReactNode, RefObject, SetStateAction } from "react";
 import {
+  DEAL_ACT_WORDS,
   DEAL_SHEET_WORDS,
   dealSheetBody,
   dealSheetDirty,
@@ -255,7 +256,21 @@ async function save({ st, setSt, flash, fold, sheet }: Host): Promise<void> {
   const said = out.send && canSend ? await sendProposal(person, out.send.text, flash) : false;
   setSt(DS_CLOSED);
   fold.current.close();
-  if (!said)
+  // A pass says what it did first, then which deal, and offers the way back into it (canvas A, M5).
+  if (!said && ask.mode === "lost") {
+    const dealId = ask.dealId ?? null;
+    flash({
+      msg: (
+        <>
+          <b>{DEAL_SHEET_WORDS.passed}</b> · {sheet.deal?.service || whoOf(person)}
+        </>
+      ),
+      action: {
+        label: DEAL_ACT_WORDS.again,
+        onClick: () => void openDealSheet({ personId: ask.personId, mode: "again", dealId }),
+      },
+    });
+  } else if (!said)
     flash({
       msg: (
         <>

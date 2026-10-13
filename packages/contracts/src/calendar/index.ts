@@ -115,6 +115,7 @@ export type {
   CalendarServiceDto,
   CalendarWeekDto,
   VisitMark,
+  EarlierVisitsDto,
 } from "./calendar-dto";
 export { shiftKey, mondayOf, isDayKey, monthSpan, shiftMonth, monthLabelOf, zoneMidnight } from "./day-keys";
 export {

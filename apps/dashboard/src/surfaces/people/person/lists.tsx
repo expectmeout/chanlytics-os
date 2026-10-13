@@ -5,13 +5,16 @@
  */
 import { useState } from "react";
 import type { ReactNode } from "react";
+import { PERSON_ABOUT_WORDS } from "@chanlytics/contracts";
 import { isSurfaceFailed } from "@/legacy-bridge/surface-status";
 import { FailedRead } from "../../kit/empty/empty";
 import { Button } from "../../kit/button/button";
 import { Menu } from "../../kit/menu/menu";
+import type { MenuGroup } from "../../kit";
+import { Press } from "../../kit/press";
 import { menuGroups } from "../menu-groups";
 import { Icon } from "../../kit/icon/icon";
-import { navigate } from "../../legacy-verbs";
+import { navigate, routeDoor } from "../../legacy-verbs";
 import { lists } from "../people-lists";
 import type { PeopleSurface } from "../surface";
 import { usePeopleSeam } from "./use-people";
@@ -37,14 +40,13 @@ function whyTitle(s: SavedList, personId: string): string {
 function smartChipsOf(smart: SmartChip[]): ReactNode[] {
   return smart.map((l) => (
     <span key={l.id} className="chip chip-wrap" data-testid="person-smart-chip">
-      <button
-        type="button"
-        onClick={() => navigate(clientSegRoute(l.id))}
+      <a
+        {...routeDoor(clientSegRoute(l.id))}
         title={l.why ? `Because: ${l.why} — open it on People` : `${l.label} keeps itself current — open it on People`}
         data-tip={l.why ? `Because: ${l.why}` : undefined}
       >
         {l.label}
-      </button>
+      </a>
     </span>
   ));
 }
@@ -54,15 +56,14 @@ function listChip(s: SavedList, o: { personId: string; canEdit: boolean; busy: b
   const { personId, canEdit, busy, who, change } = o;
   return (
     <span key={s.id} className="chip chip-wrap" data-testid="person-list-chip">
-      <button
-        type="button"
-        onClick={() => navigate(`clients/list:${s.id}`)}
+      <a
+        {...routeDoor(`clients/list:${s.id}`)}
         title={whyTitle(s, personId)}
         data-tip={s.byHand ? undefined : whyTip(s, personId)}
         data-testid="person-list-open"
       >
         {s.name}
-      </button>
+      </a>
       {canEdit && s.byHand && (
         <button
           type="button"
@@ -88,6 +89,101 @@ function listChip(s: SavedList, o: { personId: string; canEdit: boolean; busy: b
 
 type Change = (fn: () => Promise<{ ok: boolean; message?: string }>, msg: ReactNode) => Promise<void>;
 
+/**
+ * A phone's Lists (canvas A, M2): one row, "On 3 lists" over their names, that opens a menu of the lists kept by hand to
+ * tick them on and off (a sheet from the foot, the kit's Menu on a phone) and the ones that keep themselves, each opening
+ * on People. Chips with × are a desk's.
+ */
+function listsRow(o: {
+  personId: string;
+  canEdit: boolean;
+  who: string;
+  saved: SavedList[];
+  smart: SmartChip[];
+  change: Change;
+}) {
+  const { personId, canEdit, who, saved, smart, change } = o;
+  const on = saved.filter((s) => s.ids.includes(personId));
+  const names = [...smart.map((s) => s.label), ...on.map((s) => s.name)];
+  const byHand = saved.filter((s) => s.byHand);
+  const toggle = (id: string) => {
+    const s = byHand.find((x) => x.id === id);
+    if (!s) return;
+    const isOn = s.ids.includes(personId);
+    void change(
+      () => (isOn ? lists.drop(s.id, [personId]) : lists.add(s.id, [personId])),
+      <>
+        <b>{who}</b> is {isOn ? "off" : "on"} <b>{s.name}</b>
+      </>,
+    );
+  };
+  const groups: MenuGroup[] = [];
+  if (canEdit && byHand.length)
+    groups.push({
+      toggles: {
+        items: byHand.map((s) => ({ value: s.id, label: s.name, on: s.ids.includes(personId) })),
+        onToggle: toggle,
+        tick: <Icon name="check" size={13} />,
+      },
+    });
+  const doors = [...smart.map((s) => ({ id: s.id, label: s.label, to: clientSegRoute(s.id) }))];
+  if (!canEdit) doors.push(...on.map((s) => ({ id: s.id, label: s.name, to: `clients/list:${s.id}` })));
+  if (doors.length) groups.push({ items: doors.map((d) => ({ label: d.label, onSelect: () => navigate(d.to) })) });
+  const body = (
+    <>
+      <span className="cl-prof-reach-l">
+        <span className="cl-prof-reach-v">{PERSON_ABOUT_WORDS.onLists(names.length)}</span>
+        {names.length ? <span className="cl-prof-reach-src">{names.join(", ")}</span> : null}
+      </span>
+      {groups.length ? <Icon name="chevron" size={12} /> : null}
+    </>
+  );
+  if (!groups.length)
+    return (
+      <div className="cl-prof-reach" data-testid="person-lists-row">
+        {body}
+      </div>
+    );
+  return (
+    <Menu
+      label={PERSON_ABOUT_WORDS.lists}
+      align="start"
+      groups={groups}
+      trigger={
+        <Press className="cl-prof-reach" data-testid="person-lists-row">
+          {body}
+        </Press>
+      }
+    />
+  );
+}
+
+/**
+ * Their Lists group (canvas A, T-01): drawn only while they are on a list (kept by hand, or one that keeps itself), or
+ * where their lists could not be read; a person on none has no group, and More's Add to a list puts them on one.
+ */
+export function ListsGroup(props: {
+  personId: string;
+  canEdit: boolean;
+  first: string;
+  flash: FlashFn;
+  smart: SmartChip[];
+  row: boolean;
+}) {
+  const people = usePeopleSeam();
+  const on = !!people && (people.saved || []).some((s) => s.ids.includes(props.personId));
+  const failed = people ? people.savedRead === false : isSurfaceFailed("people");
+  if (!on && !failed && props.smart.length === 0) return null;
+  return (
+    <section className="cl-prof-rail-section" aria-labelledby="person-lists-title" data-testid="person-lists">
+      <h3 className="cl-prof-rail-label" id="person-lists-title">
+        {PERSON_ABOUT_WORDS.lists}
+      </h3>
+      <PersonLists {...props} />
+    </section>
+  );
+}
+
 /** The person's lists: chips for the ones that hold them, a quiet link to the ones they could be put on. */
 export function PersonLists({
   personId,
@@ -95,12 +191,15 @@ export function PersonLists({
   first,
   flash,
   smart = [],
+  row = false,
 }: {
   personId: string;
   canEdit: boolean;
   first: string;
   flash: FlashFn;
   smart?: SmartChip[];
+  /** A phone's one row (canvas A), in place of the chips. */
+  row?: boolean;
 }) {
   const people = usePeopleSeam();
   const [busy, setBusy] = useState(false);
@@ -142,6 +241,7 @@ export function PersonLists({
       </div>
     );
   }
+  if (row && (saved.length > 0 || smart.length > 0)) return listsRow({ personId, canEdit, who, saved, smart, change });
   if (saved.length === 0) {
     // The lists live on People: the door lands there with the New list box open (clients/new-list).
     return (

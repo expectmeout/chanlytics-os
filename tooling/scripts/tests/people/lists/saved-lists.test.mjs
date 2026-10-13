@@ -193,9 +193,7 @@ test("the page: the rail's Saved section is real, a name typed there is the only
   assert.equal(ask.props.detail, "The people stay.");
   // The profile's section is the person page's rail (surfaces/people/person/person-real.tsx), and what it draws is the
   // person's lists (lists.tsx), run here on the stub React the page tests share, over the People the seam holds.
-  assert.ok(
-    readCode("apps/dashboard/src/surfaces/people/person/person-real.tsx").includes('data-testid="person-lists"'),
-  );
+  assert.ok(readCode("apps/dashboard/src/surfaces/people/person/lists.tsx").includes('data-testid="person-lists"'));
   const LR = await import("../../_legacy-react.mjs");
   LR.installLegacyReact({ __DEMO_MODE: false });
   const went = [];

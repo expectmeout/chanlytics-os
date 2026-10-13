@@ -70,6 +70,7 @@ export function NewConversationHost() {
           key={ask.session}
           open={ask.open}
           personId={ask.personId}
+          wire={ask.wire}
           onClose={closeNewConversation}
           flash={flash}
         />

@@ -85,11 +85,14 @@ export function VisitActs({
   acts,
   testid,
   door = sayVisit,
+  variant = "quiet",
 }: {
   mark: VisitMark;
   acts: readonly VisitWord[];
   testid: string;
   door?: typeof sayVisit;
+  /** The presses' look: quiet words on a line of words, the default button where they are a row's act (Up next). */
+  variant?: "quiet" | "secondary";
 }) {
   const [busy, setBusy] = useState<VisitWord | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -121,7 +124,7 @@ export function VisitActs({
         {acts.map((status) => (
           <Button
             key={status}
-            variant="quiet"
+            variant={variant}
             size="sm"
             data-testid={`${testid}-${status}`}
             disabled={busy !== null || asking}

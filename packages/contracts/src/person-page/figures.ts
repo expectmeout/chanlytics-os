@@ -27,8 +27,8 @@ export interface PersonFigureFacts {
   /** Their next step's day ("Tue") and words, when it is due or near. */
   step: { day: string; words: string } | null;
   calls: { count: number; minutes: string };
-  /** Their visits ahead and how many past ones a member marked. */
-  visits: { ahead: number; marked: number; any: boolean };
+  /** Their visits ahead, the past ones a member said they kept, and the ended ones nobody has said of. */
+  visits: { ahead: number; kept: number; toMark: number; any: boolean };
   /** A reach-out's emails to their business, and its answers. */
   emails: { out: number; back: number } | null;
 }
@@ -70,7 +70,12 @@ export function personFiguresOf(f: PersonFigureFacts): PersonFigureVM[] {
       id: "visits",
       label: "Visits",
       value: f.visits.ahead > 0 ? `${f.visits.ahead} ahead` : "None ahead",
-      sub: f.visits.marked > 0 ? `${f.visits.marked} marked` : "none marked yet",
+      sub:
+        f.visits.toMark > 0
+          ? `${f.visits.toMark} to mark`
+          : f.visits.kept > 0
+            ? `${f.visits.kept} kept`
+            : "none marked yet",
       to: "visits",
     });
   return out.slice(0, FIGURES);

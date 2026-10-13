@@ -18,3 +18,11 @@ export function takeOwnAddress(route: string): boolean {
   written = null;
   return mine;
 }
+
+/**
+ * The view People draws, as its address names it (contracts peopleRoute): a smart list `seg:<id>`, a list kept by hand
+ * `list:<id>`, a state `state:<tab>`; null for Everyone. One spelling for the address, the place and the peek.
+ */
+export function peopleViewToken(listId: string | null, savedId: string | null, tab: string): string | null {
+  return listId ? `seg:${listId}` : savedId ? `list:${savedId}` : tab !== "all" ? `state:${tab}` : null;
+}

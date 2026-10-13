@@ -57,6 +57,11 @@ export type ViewTabsProps = {
   onPick: (id: string) => void;
   /** Whether the page on screen may be left now. Where it answers no, nothing moves and `onPick` hears the press. */
   mayLeave?: () => boolean;
+  /**
+   * The strip is as wide as its column, its tabs in equal shares (a person's tabs on a phone, canvas A), and wears the
+   * control layer's rim and blur at every width, since the page moves behind it.
+   */
+  fill?: boolean;
   testid?: string;
   className?: string;
 };
@@ -66,7 +71,7 @@ const ownPress = (e: MouseEvent) =>
   !(e.defaultPrevented || e.button > 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey);
 
 /** A strip of views, one picked. A strip of one view draws nothing. */
-export function ViewTabs({ name, label, picked, tabs, onPick, mayLeave, testid, className }: ViewTabsProps) {
+export function ViewTabs({ name, label, picked, tabs, onPick, mayLeave, fill, testid, className }: ViewTabsProps) {
   // The tab pressed, lit until the address says it is the page's own.
   const [pending, setPending] = useState<string | null>(null);
   const strip = useRef<HTMLElement>(null);
@@ -105,7 +110,13 @@ export function ViewTabs({ name, label, picked, tabs, onPick, mayLeave, testid, 
   };
 
   return (
-    <nav ref={strip} className={cx("stabs", `stabs-${name}`, className)} aria-label={label} data-testid={testid}>
+    <nav
+      ref={strip}
+      className={cx("stabs", `stabs-${name}`, className)}
+      aria-label={label}
+      {...(fill ? { "data-fill": "true" } : {})}
+      data-testid={testid}
+    >
       <span className="stabs-pill" aria-hidden="true" />
       {tabs.map((tab) => (
         <a

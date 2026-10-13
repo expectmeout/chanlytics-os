@@ -149,6 +149,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "people_series_missing",
   "people_visits_failed",
   "person_business_failed",
+  "person_earlier_visits_failed",
   "person_notes_read_failed",
   "person_signers_failed",
   "person_visits_failed",

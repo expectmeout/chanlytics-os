@@ -25,11 +25,25 @@ interface Standing {
   /** The way back, above the name on a desk and in the date's place on a phone: the crumb before the last where unsaid; null
    *  for none. */
   back?: BackWay | null;
+  /**
+   * What a phone's top bar says at its centre once the page's own head has scrolled away (a person's name and the dot
+   * of their state, canvas A's hand-off); none while the head is on screen, and none on a desk.
+   */
+  bar?: BarTitle | null;
+}
+
+/** The top bar's centre on a phone: a name, and the dot of where they stand in its tone, with the word for a reader. */
+interface BarTitle {
+  name: string;
+  tone: string;
+  word: string;
 }
 
 export interface BackWay {
   label: string;
   go: () => void;
+  /** What stands beside the way back in the date's place: a person's "‹ 4 of 24 ›" on a desk (canvas A). */
+  after?: ReactNode;
 }
 
 /** A crumb as the frame draws it: its words, and where it goes (`to`), or the page's own move there (`go`). */

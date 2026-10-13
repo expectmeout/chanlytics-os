@@ -1287,7 +1287,12 @@ test("the proposal's send is a deal's: a workspace whose customers book is never
   assert.ok(acts(true).includes("proposal"));
   assert.ok(!acts(false).includes("proposal"), "REGRESSION: a salon's More menu offered to send a proposal");
   assert.ok(!acts(undefined).includes("proposal"), "an older read says nothing about deals: off");
-  assert.equal(acts(false)[0], "booking", "the booking link's send stays where it was");
+  // More's first group is reaching them (canvas A): Call, Text them, then the booking link's send, which stays.
+  assert.deepEqual(
+    acts(false).slice(0, 3),
+    ["call", "text", "booking"],
+    "the booking link's send stays in the reach group",
+  );
 });
 
 /* ---- the person page is honest about a stop, the reason, the team and the attempts (the 2 Oct 2026 audit) ---- */

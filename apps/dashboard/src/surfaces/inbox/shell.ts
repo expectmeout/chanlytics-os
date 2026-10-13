@@ -129,16 +129,6 @@ export function hasDealSheet(): boolean {
   return !!fn("openDealSheet");
 }
 
-/** The step sheet (step-sheet.jsx `openStepSheet`), asked for by the person and the deal. */
-export function openStepSheet(ask: { personId: string; dealId: string | null }): void {
-  fn<[typeof ask], void>("openStepSheet")?.(ask);
-}
-
-/** Whether the shell has the step sheet at all. */
-export function hasStepSheet(): boolean {
-  return !!fn("openStepSheet");
-}
-
 /* ----------------------------------- Ask ----------------------------------- */
 
 /* What Ask is told is on screen is one ledger with one writer (legacy-bridge/ask/on-screen.ts), as every page says it. */

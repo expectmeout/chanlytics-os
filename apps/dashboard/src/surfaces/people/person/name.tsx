@@ -11,10 +11,13 @@
  * address, or no row at all. What is wrong with a typed address is said under the field before a round trip
  * (whyNotAnEmail), and the door's own refusal, another person here already has it, is said there too.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
+import type { KeyboardEvent } from "react";
 import { PERSON_NAME_WORDS, PERSON_WASH_WORDS, whyNotAnEmail } from "@chanlytics/contracts";
 import type { PersonVM } from "@chanlytics/contracts";
+import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
+import { RecordBox } from "../../kit/record/field";
 import { Wash } from "../../kit/motion/wash";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { editorBox, focusAsDrawn } from "../../legacy-verbs";
@@ -33,6 +36,7 @@ interface FieldProps {
  * way back to the business (`onPutBack`, the notice's Undo).
  */
 export function PersonName({ p, canEdit, flash, onPutBack }: FieldProps & { onPutBack?: (() => void) | null }) {
+  const boxId = useId();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
@@ -94,35 +98,49 @@ export function PersonName({ p, canEdit, flash, onPutBack }: FieldProps & { onPu
   }
   return (
     <div className="cl-prof-name-row editing" {...editorBox}>
-      <input
-        className="cl-prof-name-input"
+      {/* The name's own box at the name's size, ✓ and ✕ beside it (canvas A, M1): Enter saves, Escape puts it back. */}
+      <RecordBox
+        id={boxId}
+        label="Their name"
+        className="cl-prof-name-box"
         // eslint-disable-next-line jsx-a11y-x/no-autofocus -- the pencil was pressed to type here: focus follows it under a mouse
         autoFocus={focusAsDrawn()}
         value={value}
         placeholder="Their name"
         maxLength={80}
-        disabled={busy}
-        aria-label="Their name"
+        readOnly={busy}
         data-testid="person-name-input"
-        onChange={(e) => setValue(e.target.value)}
-        onKeyDown={(e) => {
+        onChange={setValue}
+        onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
           if (e.key === "Enter") void save();
           if (e.key === "Escape") setEditing(false);
         }}
       />
       <span className="cl-prof-name-acts">
-        <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setEditing(false)}>
-          Cancel
-        </button>
-        <button
-          type="button"
-          className="btn btn-sm btn-primary"
-          disabled={busy}
+        <Button
+          variant="quiet"
+          size="sm"
+          iconOnly
+          className="cl-prof-name-ok"
+          aria-label={busy ? "Saving…" : "Save"}
+          title="Save"
+          aria-busy={busy || undefined}
           onClick={() => void save()}
           data-testid="person-name-save"
         >
-          {busy ? "Saving…" : "Save"}
-        </button>
+          <Icon name="check" size={13} />
+        </Button>
+        <Button
+          variant="quiet"
+          size="sm"
+          iconOnly
+          aria-label="Cancel"
+          title="Cancel"
+          onClick={() => setEditing(false)}
+          data-testid="person-name-cancel"
+        >
+          <Icon name="x" size={13} />
+        </Button>
       </span>
       {p.head.namedBy && onPutBack ? (
         <p className="cl-prof-name-from" data-testid="person-name-from">

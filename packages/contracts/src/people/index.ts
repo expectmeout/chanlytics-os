@@ -79,6 +79,8 @@ export { attentionRow } from "./person-attention";
 export type { AttentionRowVM } from "./person-attention";
 export {
   filterTimeline,
+  PERSON_ACT_WORDS,
+  PERSON_DELETE_WORDS,
   personActs,
   personNextFor,
   timelineFilterLabel,
@@ -118,6 +120,7 @@ export {
 export { ListDraftAnswerSchema, PeopleExportQuerySchema } from "./lists/list-schemas";
 export type { ListNeed, ListFact, ListAny, ListCondition, ListRule, InList } from "./lists/list-rules";
 export type { ListDraftAnswer } from "./lists/list-schemas";
+export { parsePeopleRoute, peopleRoute } from "./lists/people-route";
 export {
   listToken,
   parseListToken,
@@ -167,7 +170,7 @@ export {
 export type { PoolCalendar, PoolOptions } from "./audience-pool";
 export { legacyErasedPhoneHash, legacyErasedEmailHash, legacyLeadSuppressionHash } from "./erasure";
 export { CARRIER_CONSENT_SOURCE, STOP_ENDED_OFFERS_SOURCE, WHATSAPP_CONSENT_SOURCE } from "./person-consent";
-export { MERGE_CONSENT_SOURCE, MERGE_REFUSALS, MERGE_WORDS, mergedAnswers } from "./person-merge";
+export { MERGE_ANSWERS, MERGE_CONSENT_SOURCE, MERGE_REFUSALS, MERGE_WORDS, mergedAnswers } from "./person-merge";
 export type { MergedAnswers, RecordAnswers } from "./person-merge";
 export { DOUBT_SEEN, DOUBT_SETTLED_AS, DOUBT_WORDS } from "./person-doubts";
 export type { DoubtSeen, DoubtSettledAs, PersonDoubtDto } from "./person-doubts";

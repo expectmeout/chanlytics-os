@@ -13,7 +13,15 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
-import { isIdentifierName, newSinceOf, personTabRoute, shortName } from "@chanlytics/contracts";
+import {
+  NOTE_WORDS,
+  PERSON_PEEK_WORDS,
+  isIdentifierName,
+  newSinceOf,
+  personTabRoute,
+  shortName,
+  stateOf,
+} from "@chanlytics/contracts";
 import type { LookedAt, PersonRowVM, PersonTab, PersonVM } from "@chanlytics/contracts";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { useRecordFold } from "../../kit/record/hooks";
@@ -24,15 +32,20 @@ import { PL_PHONE_QUERY } from "../words";
 import { backToPeople, hear, saidBy, usePersonToast } from "../person-verbs";
 import { warmPerson } from "../people-detail";
 import { walkOf, type PersonWalk } from "../walk";
-import type { DelState, DoubtState, MergeState, PageCtx, RmState } from "./ctx";
+import { dealPersonOf } from "./ctx";
+import type { CombineState, DelState, DoubtState, MergeState, PageCtx, RmState } from "./ctx";
 import { BusinessSheet, WorksAtCard } from "./business";
+import { ListsSheet } from "./sheets/lists-sheet";
+import { CombineSheet, useArrivalToast } from "./sheets/combine-sheet";
 import { CallSheet, usePersonCall } from "./call";
-import { PhoneDock, hero, openWith } from "./hero";
-import { PersonLists } from "./lists";
+import { PersonWalkNav, PhoneDock, hero, openWith, useNameAway } from "./hero";
+import { NotesSection } from "./overview";
+import { useStanding } from "../../kit/head/standing";
+import { ListsGroup } from "./lists";
 import { PersonProfileFrame } from "./frame";
-import { aboutCard } from "./sections";
-import { Figures, PersonTabs, TabBody, tabSwipe } from "./work";
-import { settingsCard } from "./settings-card";
+import { aboutGroups } from "./sections";
+import { Figures, PersonTabs, TabBody, TabView } from "./work";
+import { messagesGroup, phoneFolds } from "./settings-card";
 import { heldPerson, readPerson } from "./read";
 import { hearTheirThread } from "./their-thread";
 import { usePeopleSeam } from "./use-people";
@@ -138,9 +151,12 @@ function useTab(
   return [tabs.some((t) => t.id === tab) ? tab : "overview", goTab];
 }
 
-/** What the rail knows of them: the role once, how to reach them, where they work, what they may be sent, their lists. */
+/**
+ * What the rail knows of them, its groups in canvas A's order: the role once, how to reach them, where they came from,
+ * where they work, what they may be sent and who answers them, their lists.
+ */
 function railGroups(c: PageCtx) {
-  const { p, canRecord, flash, first } = c;
+  const { canRecord } = c;
   // The role, said once for the rail: every locked control used to say it again under itself.
   const roleNote = !canRecord ? "You can read this page; an owner or operator changes it." : null;
   return (
@@ -150,14 +166,27 @@ function railGroups(c: PageCtx) {
           {roleNote}
         </div>
       )}
-      {aboutCard(c)}
+      {aboutGroups(c)}
       <WorksAtCard c={c} />
-      {settingsCard(c)}
-      <div className="cl-prof-rail-section" data-testid="person-lists">
-        <div className="cl-prof-rail-label">Lists</div>
-        <PersonLists personId={p.id} canEdit={canRecord} first={first} flash={flash} smart={p.smartLists || []} />
-      </div>
+      {messagesGroup(c)}
+      {/* At a wide window their lists stand under their notes, in the third column. */}
+      {c.wide ? null : listsGroup(c)}
     </>
+  );
+}
+
+/** Their lists, as a group of the rail: chips on a desk, one row on a phone (canvas A). */
+function listsGroup(c: PageCtx) {
+  const { p, canRecord, flash, first } = c;
+  return (
+    <ListsGroup
+      personId={p.id}
+      canEdit={canRecord}
+      first={first}
+      flash={flash}
+      smart={p.smartLists || []}
+      row={c.phone}
+    />
   );
 }
 
@@ -165,13 +194,14 @@ function railGroups(c: PageCtx) {
  * The page of a person who is here (canvas A): on a desk the identity rail beside the work column, on a phone one column
  * with the rail's groups under About; the business sheet over it when it is open.
  */
-function personPage(c: PageCtx, toastNode: ReactNode, scroller: (el: HTMLDivElement | null) => void) {
+function personPage(
+  c: PageCtx,
+  toastNode: ReactNode,
+  refs: { scroller: (el: HTMLDivElement | null) => void; record: (el: HTMLDivElement | null) => void },
+) {
   const { p, who } = c;
   // Their visits ahead are Coming up, above what has happened.
   const past = p.timeline.filter((t) => !t.ahead);
-  // Nobody is called "+1": a person known only by number is "them" in copy, and the line under their name does not say the
-  // number twice.
-  const phoneOnly = isIdentifierName(p.name);
   const label = `About ${who === "This person" ? "this person" : who}`;
   const about = (
     <aside className="cl-prof-rail" aria-label={label}>
@@ -179,23 +209,36 @@ function personPage(c: PageCtx, toastNode: ReactNode, scroller: (el: HTMLDivElem
     </aside>
   );
   return (
-    <div className="cl-profile" ref={scroller} data-takeover data-tab={c.tab}>
+    <div className="cl-profile" ref={refs.scroller} data-takeover data-tab={c.tab}>
       <div className="cl-prof-page">
-        <div className="cl-prof-record" data-thin={p.thin || undefined}>
+        <div className="cl-prof-record" ref={refs.record} data-thin={p.thin || undefined}>
           <div className="cl-prof-side">
-            {hero(c, phoneOnly)}
+            {hero(c)}
             {c.phone ? null : about}
           </div>
-          <div className="cl-prof-work" {...tabSwipe(c)}>
-            <Figures c={c} />
+          <div className="cl-prof-work">
+            {/* A phone's About holds what the rail knows: the figures stand down for it (canvas A, M2). */}
+            {c.phone && c.tab === "about" ? null : <Figures c={c} />}
             <PersonTabs c={c} />
-            <TabBody c={c} past={past} about={about} />
+            <TabView c={c}>
+              <TabBody c={c} past={past} about={about} />
+            </TabView>
           </div>
+          {/* A wide window (canvas A, D7): their notes and lists in a third column that holds still. */}
+          {c.wide && !c.phone ? (
+            <aside className="cl-prof-notes-rail" aria-label={NOTE_WORDS.title}>
+              <NotesSection c={c} />
+              {listsGroup(c)}
+            </aside>
+          ) : null}
         </div>
       </div>
       <PhoneDock c={c} />
       <BusinessSheet c={c} />
       <CallSheet c={c} />
+      <ListsSheet c={c} />
+      <CombineSheet c={c} />
+      {phoneFolds(c)}
       {toastNode}
     </div>
   );
@@ -205,6 +248,7 @@ function personPage(c: PageCtx, toastNode: ReactNode, scroller: (el: HTMLDivElem
 function ClientProfileReal({ id, tab: asked }: { id: string; tab: PersonTab }) {
   const [st, setSt] = useHeld(id);
   const [toastNode, flash] = usePersonToast();
+  useArrivalToast(id, flash);
   // "Delete this person" is a typed-name confirmation, not a click: it erases messages, media and recordings and cannot be
   // undone. The one Confirm draws it; the typed text and the match stay here, with the record.
   const [del, setDel] = useState<DelState>({ open: false, typed: "", busy: false, error: null });
@@ -229,6 +273,15 @@ function ClientProfileReal({ id, tab: asked }: { id: string; tab: PersonTab }) {
   const [tab, goTab] = useTab(id, asked, vm, phone);
   // The business sheet (0052): one at a time, closed when the person changes.
   const [sheet, setSheet] = useState(false);
+  // Note was pressed: the Notes pane is drawn for someone with none yet (canvas A). Let go when the person changes.
+  const [composing, setComposing] = useState(false);
+  // Add to a list (More): its sheet, closed when the person changes.
+  const [listsOpen, setListsOpen] = useState(false);
+  const [combine, setCombine] = useState<CombineState>({ act: null, busy: false, error: null });
+  useEffect(() => {
+    setComposing(false);
+    setListsOpen(false);
+  }, [id]);
   // The page's first part (client/page-speed.ts): the person drawn whole, or said missing or unread. A person opened
   // from another is a move inside the page, timed from its press.
   usePartShown("person", "hero", !!vm || missing || (!!error && !loading), id);
@@ -243,15 +296,33 @@ function ClientProfileReal({ id, tab: asked }: { id: string; tab: PersonTab }) {
   const looked = useLookedAt(id, reading);
   const walk = useWalk(id);
   const scroller = useRailHeld();
+  const [record, wide] = useWide();
   const call = usePersonCall(vm, phone);
+  // The page draws its own head (canvas A), so it says a null title to the frame: its way back to People stands where the
+  // date does, and on a desk where they stand in the list they were opened from stands beside it ("‹ 4 of 24 ›"). On a
+  // phone, once the head has scrolled away, the top bar's centre says their name and the dot of their state.
+  const away = useNameAway(phone, !!vm);
+  const said = vm ? stateOf("person", vm.state) : null;
+  useStanding({
+    title: null,
+    back: {
+      label: "People",
+      go: backToPeople,
+      after:
+        walk && !phone ? (
+          <PersonWalkNav walk={walk} step={(to) => navigate(personTabRoute(to, tab), { replace: true })} />
+        ) : null,
+    },
+    bar: away && vm && said ? { name: vm.name, tone: said.tone, word: vm.stateLabel } : null,
+  });
   if (missing)
     return (
       <PersonProfileFrame onBack={backToPeople}>
         <EmptyState
           kind="page"
           glyph="user"
-          title="This person is not in your workspace"
-          body="They may have been deleted."
+          title={PERSON_PEEK_WORDS.missing.title}
+          body={PERSON_PEEK_WORDS.missing.body}
         />
       </PersonProfileFrame>
     );
@@ -272,7 +343,7 @@ function ClientProfileReal({ id, tab: asked }: { id: string; tab: PersonTab }) {
   }
   // Where the proposal follow-up has them in hand (0006), their People row says so: the deal card then says when its run goes,
   // and leads with no nudge of its own. People unread, the card says what it said.
-  const dealP = peopleRow && peopleRow.followUp ? { ...vm, followUp: peopleRow.followUp } : vm;
+  const dealP = dealPersonOf(vm, peopleRow);
   const phoneOnly = isIdentifierName(vm.name);
   // A stand-in named for their business is said whole (0052): "More for Zilker Strength Lab", never "More for Zilker".
   const first = phoneOnly ? "them" : vm.standIn ? vm.name : shortName(vm.name);
@@ -311,10 +382,39 @@ function ClientProfileReal({ id, tab: asked }: { id: string; tab: PersonTab }) {
     step: (to) => navigate(personTabRoute(to, tab), { replace: true }),
     compose: () => undefined,
     call,
+    composing,
+    setComposing,
+    wide,
+    listsOpen,
+    setListsOpen,
+    combine,
+    setCombine,
   };
   // Every send the page offers opens their thread through one path (the More menu's, the deal card's, Up next's).
   c.compose = openWith(c);
-  return personPage(c, toastNode, scroller);
+  return personPage(c, toastNode, { scroller, record });
+}
+
+/** The width from which the record takes a third column (clients.css's container query on the record; canvas A, D7). */
+const WIDE_PX = 1240;
+
+/**
+ * Whether the record holds three columns: its own width, measured as it changes (the stylesheet's container query says
+ * the same, at the same width).
+ */
+function useWide(): [(el: HTMLDivElement | null) => void, boolean] {
+  const [wide, setWide] = useState(false);
+  const watch = useRef<ResizeObserver | null>(null);
+  const ref = useCallback((el: HTMLDivElement | null) => {
+    watch.current?.disconnect();
+    watch.current = null;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const judge = () => setWide(el.clientWidth >= WIDE_PX);
+    judge();
+    watch.current = new ResizeObserver(judge);
+    watch.current.observe(el);
+  }, []);
+  return [ref, wide];
 }
 
 /**

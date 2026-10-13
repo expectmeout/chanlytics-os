@@ -12,6 +12,8 @@ import { usePlControls } from "../hooks/use-controls";
 import { usePeople } from "../hooks/use-people";
 import { PL_NO_LISTS } from "../words";
 import { usePeopleCells, usePeoplePlace } from "./cells-hook";
+import { peopleViewToken } from "./own-address";
+import { usePeoplePeek } from "../peek/use-people-peek";
 import { peopleListActs, peopleListDoors, peoplePhoneSheetActs } from "./list-acts";
 import { plPeopleShown } from "./shown";
 import {
@@ -23,26 +25,34 @@ import {
   usePeopleView,
 } from "./view-hooks";
 
-/** What the shell hands the page: the door a row's press opens a person by, and the address's view. */
+/**
+ * What the shell hands the page: the door a row's press opens a person by on a phone, the address's view and the person
+ * peeked at over it on a desk, and the page's own move of its address (a push, or a replace).
+ */
 export interface PeopleRealProps {
   onOpenProfile?: (id: string) => void;
   initialSegment?: string | null;
   initialSaved?: string | null;
   initialState?: string | null;
-  onNavigate?: ((to: string) => void) | null;
+  initialPeek?: string | null;
+  onNavigate?: ((to: string, opts?: { replace?: boolean }) => void) | null;
   newList?: boolean;
 }
+
+/** The columns a row keeps beside an open peek. */
+const PL_PEEK_KEEPS = new Set(["name", "state"]);
 
 export function usePeopleState({
   onOpenProfile = () => undefined,
   initialSegment = null,
   initialSaved = null,
   initialState = null,
+  initialPeek = null,
   onNavigate = null,
   newList = false,
 }: PeopleRealProps) {
   const people = usePeople();
-  const nav = onNavigate || ((to: string) => navigate(to));
+  const nav = onNavigate || ((to: string, opts?: { replace?: boolean }) => navigate(to, opts));
   const rows = people.rows;
   const lists = people.lists;
   const agg = people.aggregates;
@@ -87,6 +97,23 @@ export function usePeopleState({
     dropFromList: acts.dropFromList,
   });
   const place = usePeoplePlace({ controls, shown, tab, listId, savedId, q });
+  // On a desk a row's press peeks at the person beside the rows (canvas A, PEEK-01); on a phone it opens their page.
+  const peek = usePeoplePeek({
+    addrPeek: initialPeek,
+    view: peopleViewToken(listId, savedId, tab),
+    phone,
+    shownIds: place.shownIds,
+    cursor: place.cursor,
+    setCursor: place.setCursor,
+    nav,
+    rows,
+  });
+  const openPerson = phone ? onOpenProfile : peek.openPeek;
+  // Beside an open peek a row keeps what still says it, who and where they stand, as the Pipeline keeps its stage.
+  const columns = useMemo(
+    () => (peek.peekId ? controls.columns.filter((c) => PL_PEEK_KEEPS.has(c.key)) : controls.columns),
+    [controls.columns, peek.peekId],
+  );
   // The rows rise as the list under the view changes (the Inbox's buckets do): a pick in the rail answers, never a hard cut.
   const swap = useSwapMotion<HTMLTableElement>(`${listId ?? ""}|${savedId ?? ""}|${tab}`, TABLE_BODIES);
   const phoneActs = peoplePhoneSheetActs({
@@ -101,15 +128,17 @@ export function usePeopleState({
   });
   // What the keyboard's one listener reads (usePlPlace): Enter opens the person.
   place.keysWith({
-    open: onOpenProfile,
+    open: openPerson,
     canSelect: canEditLists || canExport,
+    peekOpen: !!peek.peekId,
+    closePeek: peek.closePeek,
     // People's sheets on a phone are the kit's, the Lists sheet, its small jobs and the selection's: in PL_OVERLAY while open,
     // so the keys hold still behind them, and each closes on its own Esc (Base UI's). None is the page's own.
   });
   // Whether anyone shown is selected, or a phone's Select people is on: the bar shows then, and on a phone a tap on a row
   // selects it rather than opening the person (Gmail's way; the face is the checkbox, clients.css).
   const selecting = (phone && selectMode) || shown.some((p) => sel.has(p.id));
-  cells.rowOpenRef.current = phone && selecting ? toggleSel : onOpenProfile;
+  cells.rowOpenRef.current = phone && selecting ? toggleSel : openPerson;
   return {
     ...controls,
     ...view,
@@ -122,6 +151,8 @@ export function usePeopleState({
     ...cells,
     ...place,
     ...phoneActs,
+    ...peek,
+    columns,
     onOpenProfile,
     nav,
     people,

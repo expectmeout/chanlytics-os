@@ -611,7 +611,7 @@ const glassHead = ({ glass, pane, where, page, param, views, navigate, primaryAc
 
 const appChrome = (s) => {
   const { theme, themePref, onTheme, look, onLook, sidebar, onSidebar, navOpen, setNavOpen, askOpen, setAskOpen, openAsk, inboxNeeds, navigate, onPlace, PhoneFace } = s;
-  const { page, param, views, activeNav, crumbs, pane, primaryAction, content, viewKey, routeStay, routeSlide, routeStrip, routeLoading, surfaceUnavailable } = s;
+  const { page, param, views, activeNav, crumbs, pane, primaryAction, content, viewKey, routeStay, routeSlide, routeStrip, routeLoading, surfaceUnavailable, ask } = s;
   const glass = look === "glass";
   return (
     <div className="app-root" data-theme={theme} data-look={look}>
@@ -650,6 +650,7 @@ const appChrome = (s) => {
           themePref={themePref}
           onTheme={onTheme}
           onAsk={openAsk}
+          askLabel={ask || null}
           onMenu={() => setNavOpen(true)}
           right={glass ? null : primaryAction}
         />

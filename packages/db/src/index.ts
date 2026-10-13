@@ -570,6 +570,7 @@ export {
   markVisit,
   appointmentWorkspace,
   appointmentsForClient,
+  earlierVisitRows,
   appointmentsScrub,
   contactIdByPhone,
   contactIdByEmail,
@@ -582,6 +583,7 @@ export type {
   AppointmentInsert,
   AppointmentUpdate,
   AppointmentSync,
+  EarlierVisitRow,
 } from "./repositories/calendar/appointments";
 export {
   appointmentNoticeOf,

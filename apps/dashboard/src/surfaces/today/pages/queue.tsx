@@ -284,7 +284,11 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
   const peopleRoom = wants.waiting.length + wants.soon.length > 0 ? PEOPLE_MAX : CARD_MAX;
   const drawn = personRows(rows.slice(0, peopleRoom), nav, {
     kind: verbKind,
-    done: (r) => stepDone(r, ppFlash, (noteId) => setDone((was) => [...was, noteId])),
+    done: (r) =>
+      stepDone(r, ppFlash, {
+        hide: (noteId) => setDone((was) => [...was, noteId]),
+        show: (noteId) => setDone((was) => was.filter((id) => id !== noteId)),
+      }),
     say: (r, status) => visitSay(r, status, { flash: ppFlash, hide: (markId) => setMarked((was) => [...was, markId]) }),
   });
   // A person who has been waiting comes before a run waiting for a word, so runs take only what is left.

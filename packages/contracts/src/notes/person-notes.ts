@@ -106,6 +106,11 @@ export const NOTE_WORDS = {
   readsHint: "The receptionist uses notes as facts and never reads them aloud.",
   none: "No notes yet.",
   suggested: "Suggested by the receptionist",
+  /** A suggestion's eyebrow, said on every screen: who, where it was heard, and when ("… · after a call · 2:10 PM"). */
+  suggestedLine: (from: string | null, when: string) =>
+    ["Suggested by the receptionist", from ? `${from.charAt(0).toLowerCase()}${from.slice(1)}` : null, when]
+      .filter(Boolean)
+      .join(" · "),
   keep: "Keep",
   dismiss: "Dismiss",
   added: "Note added",
@@ -118,6 +123,8 @@ export const NOTE_WORDS = {
   left: (n: number) => `${n} left`,
   // A note with a day is a step (0007, amended).
   addDay: "Add a day",
+  /** The composer's day row's word, over its chips (canvas A, M4). */
+  day: "Day",
   due: "Due",
   noDay: "No day",
   pickDay: "Pick a day",
@@ -132,9 +139,13 @@ export const NOTE_WORDS = {
   stepSaved: "Step saved",
   stepDone: "Step done",
   stepReopened: "Step open again",
-  setTheNext: "Set the next one",
   /** Done's name for a screen reader, where a header holds more than the step. */
   markDone: (words: string) => `Mark “${words}” done`,
+  /** The Overview's Notes (canvas A): the door to every note, History's Notes, at the pane's head. */
+  all: "All notes",
+  /** Over the newest note on the Overview, in the mono eyebrow: "Note · Marisa · Sep 21"; a step says its day. */
+  eyebrow: (who: string, when: string) => `Note · ${who} · ${when}`,
+  stepEyebrow: (who: string, due: string) => `Step · ${who} · ${due}`,
 } as const;
 
 /** A door's refusal, in the owner's words (00157's error keys). */

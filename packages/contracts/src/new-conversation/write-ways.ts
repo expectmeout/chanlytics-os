@@ -25,12 +25,8 @@ import { STOP_WORDS } from "../consent/consent";
 import { replyWindow } from "../config/policy";
 import type { ChannelsReady } from "../broadcasts/reach-for";
 import type { PersonRowDto } from "../people/person-dto";
-import { personName } from "../people/person-name";
 import { QUIET_AFTER_DAYS } from "../people/person-state";
 import { DAY_MS, HOUR_MS } from "../shared/time";
-import { firstNameOf } from "../templates/templates";
-import { NEW_CONVERSATION_WORDS } from "./new-conversation-words";
-import type { PersonReachDto } from "./person-draft";
 
 /**
  * What the rule reads of a person: People's own row, as the wire carries it (people_list), with their thread where they
@@ -122,10 +118,16 @@ export const WRITE_HOLD_WORDS: Record<Exclude<WriteHold, "not_ready">, (wire: Co
   no_yes: (wire) => `No yes on record for messages ${CONSENT_CHANNEL_WORDS[wire]}.`,
 };
 
-/** What a wire is judged against: the person's standing, what the workspace can send on, and what the message is. */
+/** A wire that cannot go, where no reason is to hand: the sheet's and the page's one fallback sentence. */
+export const WRITE_WAY_REFUSED = "A message cannot go to them that way.";
+
+/**
+ * What a wire is judged against: the person's standing, what the workspace can send on (null where its lines were not
+ * judged: every hold but not_ready is still said), and what the message is.
+ */
 interface Judged {
   bearing: PurposeBearing;
-  ready: ChannelsReady;
+  ready: ChannelsReady | null;
   starts: boolean;
   about: MessageAbout;
 }
@@ -136,7 +138,7 @@ function holdOf(wire: ConsentChannel, r: WriteRow, { bearing, ready, starts, abo
     if (!r.email) return "no_address";
     if (r.email_suppressed_at) return "address_stopped";
   } else if (!r.phone_e164) return "no_number";
-  if (!ready[wire].ready) return "not_ready";
+  if (ready && !ready[wire].ready) return "not_ready";
   if (isOfferByEmail({ channel: wire, purpose: "conversational", proactive: starts, about })) return "no_history";
   // The one predicate, told this is a person's own message and whether it begins there (`begins`): the send door asks
   // it the same way at the wire (core deliver.ts).
@@ -145,8 +147,12 @@ function holdOf(wire: ConsentChannel, r: WriteRow, { bearing, ready, starts, abo
   return may.reason === "unsubscribed" ? "unsubscribed" : "no_yes";
 }
 
-/** Every wire, in the house order (WhatsApp, text, email), as a message to this person stands on it now. */
-export function writeWaysOf(r: WriteRow, ready: ChannelsReady, now: Date = new Date()): WriteWay[] {
+/**
+ * Every wire, in the house order (WhatsApp, text, email), as a message to this person stands on it now. `ready` null:
+ * the workspace's lines were not judged (a person's page before People has read them), so every hold but not_ready is
+ * said, and the sheet and the send judge the lines again.
+ */
+export function writeWaysOf(r: WriteRow, ready: ChannelsReady | null, now: Date = new Date()): WriteWay[] {
   const relationship = relationshipOnRecord({
     lastWroteAt: r.last_wrote_at,
     lastInboundCallAt: r.last_inbound_call_at,
@@ -172,7 +178,7 @@ export function writeWaysOf(r: WriteRow, ready: ChannelsReady, now: Date = new D
       wire,
       ok: hold === null,
       hold,
-      why: hold === null ? null : hold === "not_ready" ? ready[wire].why : WRITE_HOLD_WORDS[hold](wire),
+      why: hold === null ? null : hold === "not_ready" ? (ready?.[wire].why ?? null) : WRITE_HOLD_WORDS[hold](wire),
       carries: window.open ? "words" : "approved",
       starts,
       about,
@@ -191,48 +197,8 @@ export function defaultWriteWire(
   return (there ?? ways.find((w) => w.ok))?.wire ?? null;
 }
 
-/**
- * What the reach read answers of one person (GET people/[id]/reach), composed from People's row for them: who they are,
- * their thread as the Inbox addresses it, each wire as it stands, the wire the sheet opens on, the call, whether the
- * receptionist answers them, and what fills an approved message's slots. `mode` is the receptionist's mode in force for
- * them (their own setting, else the workspace's; null where neither says): it answers unless told to ask first or
- * never. `facts` are the workspace's own words for the slots that name it, as the send reads them; null with none.
- * `firstTextLine` is the line a first text to them would carry, where no text of ours has reached them yet.
- */
-export function writeReachOf(
-  r: WriteRow & Pick<PersonRowDto, "id" | "display_name" | "wa_profile_name" | "name_source" | "name_settled_at">,
-  at: {
-    ready: ChannelsReady;
-    mode: string | null;
-    facts: { business_name: string; booking_link: string | null } | null;
-    firstTextLine: string | null;
-    now?: Date;
-  },
-): PersonReachDto {
-  const { ready, mode, facts, now = new Date() } = at;
-  const ways = writeWaysOf(r, ready, now);
-  const C = NEW_CONVERSATION_WORDS.call;
-  return {
-    person: { id: r.id, name: personName(r), phone: r.phone_e164, email: r.email },
-    thread: r.latest_conversation_id ? `th-${r.latest_conversation_id}` : null,
-    ways,
-    default_wire: defaultWriteWire(ways, r.last_inbound_channel),
-    call: !r.phone_e164
-      ? { ok: false, tel: null, why: C.noNumber }
-      : r.dnc
-        ? { ok: false, tel: null, why: C.doNotContact }
-        : { ok: true, tel: r.phone_e164, why: null },
-    receptionist: { answers: mode !== "ask" && mode !== "never" },
-    offers_ok: r.marketing_consent === "opted_in",
-    fills: facts
-      ? {
-          first_name: firstNameOf(r.display_name, r.wa_profile_name, {
-            source: r.name_source,
-            settled: !!r.name_settled_at,
-          }),
-          ...facts,
-        }
-      : null,
-    first_text_line: ways.some((w) => w.wire === "sms" && w.ok) ? at.firstTextLine : null,
-  };
+/** Why a message cannot go by this wire now, in the sheet's own words; null where it can (a person's page's More). */
+export function wayOff(ways: readonly WriteWay[], wire: ConsentChannel): string | null {
+  const w = ways.find((x) => x.wire === wire);
+  return w && !w.ok ? (w.why ?? WRITE_WAY_REFUSED) : null;
 }
