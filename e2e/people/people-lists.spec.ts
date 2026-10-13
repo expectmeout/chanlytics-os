@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { atRoute } from "../address";
 import { apiGet } from "../workspace";
+import { openPersonPage } from "../person-page";
 
 /**
  * Saved lists on People.
@@ -24,7 +25,8 @@ test.describe("Saved lists on People", () => {
     await page.waitForLoadState("networkidle");
     const saved = page.getByTestId("saved-lists");
     await expect(saved).toBeVisible();
-    await expect(saved).toContainText("Saved");
+    // The group says whose lists they are, as Campaigns' audience and the playbook picker do (contracts LIST_GROUP_WORDS).
+    await expect(saved).toContainText("Your lists");
     // What the server holds is what the rail shows: the same count of rows.
     const res = await apiGet(page, "/api/v1/segments");
     expect(res.status()).toBe(200);
@@ -80,8 +82,7 @@ test.describe("Saved lists on People", () => {
     await page.waitForLoadState("networkidle");
     const rows = page.locator(".cl-table tbody tr:not(:has(.empty))");
     test.skip((await rows.count()) === 0, "this workspace has nobody to open");
-    await rows.first().click();
-    await expect(page.locator(".cl-prof-name")).toBeVisible();
+    await openPersonPage(page, rows.first());
     const section = page.getByTestId("person-lists");
     await expect(section).toBeVisible();
     await expect(section).toContainText("Lists");

@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { atRoute, routeOf } from "../address";
 import { apiGet } from "../workspace";
+import { openPeekedPage, openPersonPage } from "../person-page";
 
 /**
  * People, on a real workspace.
@@ -123,8 +124,7 @@ test.describe("People on a real workspace", () => {
     const rows = page.locator(".cl-table tbody tr:not(:has(.empty))");
     test.skip((await rows.count()) === 0, "this workspace has nobody to open");
 
-    await rows.first().click();
-    await expect(page.locator(".cl-prof-name")).toBeVisible();
+    await openPersonPage(page, rows.first());
     await expect(page).toHaveURL(atRoute(/^clients\/[0-9a-f-]{36}$/));
     await assertMeasuredOnly(page, "the profile");
 
@@ -132,18 +132,19 @@ test.describe("People on a real workspace", () => {
     // two newest messages the timeline opens on, and a six-cell strip said the rail's facts again.
     await expect(page.getByText("Last exchange")).toHaveCount(0);
     await expect(page.locator(".cl-prof-money")).toHaveCount(0);
-    // Where they stand is one line under the name now, the standing's word and its sentence; History is what happened.
+    // Where they stand is one line under the name now, the standing's word and its sentence. What happened is the
+    // History tab, an address of its own (0052), its count on the tab rather than in a row of facts.
     await expect(page.getByTestId("person-now")).toBeVisible();
-    await expect(page.locator(".cl-prof-section-title", { hasText: "History" })).toBeVisible();
+    const history = page.getByTestId("person-tab-history");
+    await expect(history).toBeVisible();
 
     // The page fills the pane and is one scroll: the profile was as wide as its content, 304px short at 1667.
     const pane = (await page.locator(".cl-profile").boundingBox())!;
     const main = (await page.locator(".main").boundingBox())!;
     expect(Math.round(pane.width), "the profile is as wide as the pane it sits in").toBe(Math.round(main.width));
 
-    // The strip's counts are About's History row; the line under the name holds the number and since when.
+    // What the card under the name says is not said again as a row of facts.
     const keys = (await page.locator(".cl-prof-attr-key").allInnerTexts()).map((k) => k.trim());
-    expect(keys).toContain("History");
     for (const said of ["Phone", "Channels", "First contact"])
       expect(keys, `${said} is said under the name`).not.toContain(said);
 
@@ -152,11 +153,17 @@ test.describe("People on a real workspace", () => {
       await page.locator(".cl-profile button", { hasText: /^(Open thread|Open in Inbox|Open the thread)$/ }).count(),
     ).toBeLessThanOrEqual(1);
 
+    // The History tab is the timeline, at the person's address with its word; the tab replaces the entry, so Back
+    // below still leaves the person.
+    await history.click();
+    await expect(page).toHaveURL(atRoute(/^clients\/[0-9a-f-]{36}\/history$/));
+    await expect(page.locator(".cl-prof-section-title", { hasText: "History" })).toBeVisible();
+
     // Between 901 and 1250px the name's column went to zero beside the header's buttons. The column, not the
     // name: a name's own box is only as wide as its letters, and passes while the column around it is broken.
     await page.setViewportSize({ width: 1000, height: 800 });
-    const column = (await page.locator(".cl-prof-titles").boundingBox())!;
-    expect(column.width, "the name's column keeps its width at 1000px").toBeGreaterThan(200);
+    const column = (await page.locator(".cl-prof-name-line").first().boundingBox())!;
+    expect(column.width, "the name's column keeps its width at 1000px").toBeGreaterThan(150);
 
     // Back returns to the list, not to a "client not found" page. In Glass the page draws no way back of its own: the
     // frame's head draws it where the date stands (‹ People, kit/head/frame-head.tsx), so that is pressed.
@@ -181,8 +188,7 @@ test.describe("People on a real workspace", () => {
     );
     const rows = page.locator(".cl-table tbody tr:not(:has(.empty))");
     test.skip((await rows.count()) === 0, "this workspace has nobody to open");
-    await rows.first().click();
-    await expect(page.locator(".cl-prof-name")).toBeVisible();
+    await openPersonPage(page, rows.first());
     const section = page.getByTestId("person-deal");
     if ((await section.count()) === 0) {
       // Deals are off here (0008: the workspace answers that its customers book, or was never asked): nothing is drawn.
@@ -494,7 +500,9 @@ test.describe("People on a real workspace", () => {
     await expect.poll(() => routeOf(page.url())).toMatch(/^inbox\//);
   });
 
-  test("the keyboard walks the rows: ↓ focuses, Enter opens the profile", async ({ page }) => {
+  test("the keyboard walks the rows: ↓ focuses, Enter opens the person, and the peek's door their profile", async ({
+    page,
+  }) => {
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
     const rows = page.locator(".cl-table tbody tr:not(:has(.empty))");
@@ -506,7 +514,7 @@ test.describe("People on a real workspace", () => {
     await page.keyboard.press("ArrowDown");
     await expect(page.locator(".cl-table tbody tr.focused")).toHaveCount(1);
     await page.keyboard.press("Enter");
-    await expect(page.locator(".cl-prof-name")).toBeVisible();
+    await openPeekedPage(page);
   });
 
   test("the page opens on its people: one line above the table, and the count in it is the tap that filters", async ({
