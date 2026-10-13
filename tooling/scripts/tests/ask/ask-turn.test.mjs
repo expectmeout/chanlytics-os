@@ -4702,8 +4702,8 @@ test("the day is read once a turn, each tool as its page reads it: today, inbox.
   const selects = (table) => ctx.supabase.seen.filter((q) => q.table === table && q.op === "select").length;
   assert.deepEqual(
     ["conversations", "calls", "escalations", "tenants"].map(selects),
-    [2, 1, 1, 0],
-    "the newest hundred once, shared; the escalated one past it once, for the Inbox; the calls and the escalations once; and no tenant: the zone is the turn's",
+    [2, 1, 2, 0],
+    "the newest hundred once, shared; the escalated one past it once, shared by Today and the Inbox; the calls once and the escalations once (in their two halves: readers/escalations.ts); and no tenant: the zone is the turn's",
   );
   const out = Object.fromEntries(
     s.requests[1].messages.at(-1).content.map((c) => [c.tool_use_id, fromRecord(c.content)]),
@@ -4712,8 +4712,8 @@ test("the day is read once a turn, each tool as its page reads it: today, inbox.
   assert.equal(longest.route, `inbox/th-${longest.conversation_id}`, "a Today row says where it opens");
   assert.deepEqual(
     [out["t-today"].needs_you.count, longest.conversation_id, longest.who],
-    [22, C2, "Unknown"],
-    "Today counts the customer waiting past the newest hundred as the Today page does, whose thread it does not read: the longest wait, first",
+    [22, C2, "Quinn"],
+    "Today counts the customer waiting past the newest hundred as the Today page does, and reads their thread by its id, so it names them (the wiring's second audit, S7-7): the longest wait, first",
   );
   const needs = out["t-inbox.list"];
   const [first] = needs.threads;
@@ -4824,8 +4824,8 @@ test("inbox.thread and calls.get read through the readers (ledger #5): the threa
   const selects = (table) => ctx.supabase.seen.filter((q) => q.table === table && q.op === "select");
   assert.deepEqual(
     ["conversations", "messages", "escalations", "calls"].map((x) => selects(x).length),
-    [1, 1, 1, 1],
-    "the thread's row once, through the loader the page's scope uses; its messages once; the open escalations once; the call once",
+    [1, 1, 2, 1],
+    "the thread's row once, through the loader the page's scope uses; its messages once; the open escalations once (in their two halves: escalations.ts); the call once",
   );
   assert.deepEqual(
     selects("calls")[0].filters,
@@ -6495,10 +6495,10 @@ test("thirteen names in a turn (PR 4.2): the rows leads.searches, campaigns.audi
     [
       ["search", WAITING_SEARCH.id, `clients/leads:s-${WAITING_SEARCH.id}`],
       ["list", offered.audience_id, `clients/seg:${offered.audience_id}`],
-      ["template", TPL, "messages"],
+      ["template", TPL, "campaigns/message:fall_offer"],
       ["playbook", PB, `campaigns/moment:${PB}`],
     ],
-    "each where its reader said: a search on Leads, a People list on People, a template on Templates, a playbook at its card",
+    "each where its reader said: a search on Leads, a People list on People, a template at its message in the Library, a playbook at its card",
   );
   assert.deepEqual(
     lines.map((l) => JSON.parse(l).dropped),

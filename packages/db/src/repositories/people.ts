@@ -268,18 +268,16 @@ export async function scrubPersonNotes(
   return data ?? 0;
 }
 
+/** A door's answer as it came, with the database's own error beside it (the dashboard's noteAnswer reads it). */
+type DoorAnswer = { data: unknown; error: { code?: string; message: string } | null };
+
 /**
  * A member writes a note on a person, as themselves (person_note_add, 0007): the door's answer as it came, {note} or
  * {error}, with the database's own error beside it, for the caller to read as the notes route reads one (the
  * dashboard's noteAnswer). The plan a conversation begins with is kept this way (core begin.ts), for the receptionist
  * to read, never for the team alone.
  */
-export async function addPersonNote(
-  db: Db,
-  contactId: string,
-  body: string,
-  teamOnly: boolean,
-): Promise<{ data: unknown; error: { code?: string; message: string } | null }> {
+export async function addPersonNote(db: Db, contactId: string, body: string, teamOnly: boolean): Promise<DoorAnswer> {
   const { data, error } = await db.rpc("person_note_add", {
     p_contact_id: contactId,
     p_body: body,
@@ -297,6 +295,8 @@ export interface PersonCallArgs {
   tell: boolean;
   stepBody: string | null;
   lead: { stage: string | null; reason: string | null; note: string | null; spokeWith: string | null } | null;
+  /** This call was the call back they asked for (00422): sent only when true, so a database before it answers as before. */
+  closesCallBack: boolean;
 }
 
 /**
@@ -304,10 +304,7 @@ export interface PersonCallArgs {
  * the lead their business is, where it is open. The door's answer as it came, {note, step, lead} or {error}, with the
  * database's own error beside it, for the caller to read as the notes route reads one.
  */
-export async function logPersonCall(
-  db: Db,
-  a: PersonCallArgs,
-): Promise<{ data: unknown; error: { code?: string; message: string } | null }> {
+export async function logPersonCall(db: Db, a: PersonCallArgs): Promise<DoorAnswer> {
   const { data, error } = await db.rpc("person_call_logged", {
     p_contact_id: a.contactId,
     p_outcome: a.outcome,
@@ -319,6 +316,7 @@ export async function logPersonCall(
     ...(a.lead?.reason ? { p_lead_reason: a.lead.reason } : {}),
     ...(a.lead?.note ? { p_lead_note: a.lead.note } : {}),
     ...(a.lead?.spokeWith ? { p_spoke_with: a.lead.spokeWith } : {}),
+    ...(a.closesCallBack ? { p_closes_call_back: true } : {}),
   });
   return { data, error };
 }
@@ -345,6 +343,27 @@ export async function mergePeople(db: Db, keep: string, merge: string): Promise<
   const { data, error } = await db.rpc("merge_people", { p_keep: keep, p_merge: merge });
   if (error) throw error;
   return mergedOf(data);
+}
+
+/**
+ * Where a person combined into another now is (0028): the record kept, through up to five later combines, in this
+ * workspace; null where they were never combined, or the record kept is erased or not here. A read that fails THROWS.
+ */
+export async function keptPersonOf(db: Db, tenantId: string, contactId: string): Promise<string | null> {
+  let at = contactId;
+  for (let hop = 0; hop <= 5; hop++) {
+    const { data, error } = await db
+      .from("contacts")
+      .select("merged_into_contact_id, erased_at")
+      .eq("tenant_id", tenantId)
+      .eq("id", at)
+      .maybeSingle();
+    if (error) throw Object.assign(new Error(error.message), { code: error.code });
+    if (!data || data.erased_at) return null;
+    if (!data.merged_into_contact_id) return at === contactId ? null : at;
+    at = data.merged_into_contact_id;
+  }
+  return null;
 }
 
 /**

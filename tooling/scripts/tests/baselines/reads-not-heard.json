@@ -588,6 +588,14 @@
           "deals"
         ]
       }
+    },
+    {
+      "why": "The emails the check holds in a going reach-out run, counted beside each run of Sent (withHeld over heldSendCounts, the wiring's second audit W-campaign-run-template-reachout-4). A held email is decided on the run's page (POST reach-out-sends/[id]/decide) or sent to be checked again (POST broadcasts/[id]/recheck), writes whose rows re-read Sent; the check that holds one ticks the run's own row, which the feed tells. The feed does not tell reach_out_sends, which a run writes once for each email.",
+      "reads": {
+        "broadcasts": [
+          "reach_out_sends"
+        ]
+      }
     }
   ]
 }

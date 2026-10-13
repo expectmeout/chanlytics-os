@@ -8,7 +8,7 @@
  * reach-out's sheet at an address of its own (home-page.tsx), over this one, so Back returns here.
  */
 import { useRef } from "react";
-import { LIFECYCLE_WORDS, lifecycleKicker } from "@chanlytics/contracts";
+import { chainOfMoment, LIFECYCLE_WORDS, lifecycleKicker } from "@chanlytics/contracts";
 import type { LifecycleHome, ReachOutChainDto } from "@chanlytics/contracts";
 import { EmptyState } from "../../kit/empty/empty";
 import { PlaybookPane } from "../playbooks/card-detail";
@@ -64,7 +64,8 @@ function DrawerBody({
       <PlaybookPane p={row} canAct={canAct} onEdit={onEdit} onMessage={onMessage} flash={flash} onClose={onClose} />
     );
   }
-  const chain = reachOuts ? (reachOuts.find((c) => c.root_id === id) ?? null) : null;
+  // A reach-out by its root or by any of its steps: a later email's run links its step (contracts chainOfMoment).
+  const chain = reachOuts ? chainOfMoment(reachOuts, id) : null;
   if (chain)
     return (
       <ReachOutPane chain={chain} canAct={canAct} flash={flash} onClose={onClose} onEdit={onEditChain} at={part} />
@@ -83,8 +84,10 @@ function DrawerBody({
 export function MomentDrawer(p: DrawerProps) {
   const id = useKept(p.id);
   if (id === null) return null;
+  // A step's id is said as its reach-out's, whose row the ledger holds.
+  const moment = p.reachOuts ? (chainOfMoment(p.reachOuts, id)?.root_id ?? id) : id;
   return (
-    <PaneSheet open={p.id !== null} title={lifecycleKicker(p.home, id)} onClose={p.onClose} testid="cmh-drawer">
+    <PaneSheet open={p.id !== null} title={lifecycleKicker(p.home, moment)} onClose={p.onClose} testid="cmh-drawer">
       <DrawerBody {...p} id={id} />
     </PaneSheet>
   );

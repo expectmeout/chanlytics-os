@@ -19,6 +19,7 @@ import {
   runA2PSaga,
   LOW_VOLUME_USECASE,
   encodeForm,
+  brandNameOf,
   brandTypeFor,
   twilioRequest,
   type A2PPorts,
@@ -44,7 +45,7 @@ import { logger } from "../log.js";
 import { tenantDb } from "../packages/db.js";
 import { env } from "../env.js";
 import { campaignFactsFor } from "./a2p-campaign-facts.js";
-import { factsOf } from "./line-resume.js";
+import { factsOf, FILED_NAME_FACT } from "./line-resume.js";
 
 export type Db = SupabaseClient<Database>;
 export type LineRow = Database["public"]["Tables"]["lines"]["Row"];
@@ -220,6 +221,19 @@ function filingInProgress(state: A2PState): RegisterResult {
 }
 
 /**
+ * Whether this filing sends the name the brand goes under, so the line keeps it (FILED_NAME_FACT: what the save of the
+ * record says the carriers hold). The brand request names no business: the carriers take the name from an end user the
+ * saga made, the business's on the standard path (refreshed from the record until the profile is submitted) and the
+ * sole proprietor's on the narrow one (made with the messaging profile). A filing that resumes past that step, or files
+ * a campaign under a brand that exists, files the name sent before, which the line already keeps.
+ */
+function sendsBrandName(line: LineRow, record: BusinessRecord): boolean {
+  if (line.brand_sid) return false;
+  const s = a2pStateFrom(line);
+  return brandTypeFor(record) === "SOLE_PROPRIETOR" ? !s.a2pProfileSid : !s.profileSubmitted;
+}
+
+/**
  * The filing takes its line before the saga's first call: the row says `registering`, and which registration, and
  * holds the filing's lease -- only if it is still the row this filing read. Two presses of Register, or an owner's
  * press and the sweep filing the held campaign, each read the row before either wrote; each ran the saga from it and
@@ -241,7 +255,11 @@ async function takeFiling(db: Db, o: Filing, record: BusinessRecord): Promise<Li
       reg_sole_prop: brandTypeFor(record) === "SOLE_PROPRIETOR",
       last_error: null,
       state_since: new Date(now).toISOString(),
-      facts: { ...factsOf(o.line), [LEASE_FACT]: new Date(now + A2P_FILING_LEASE_MS).toISOString() },
+      facts: {
+        ...factsOf(o.line),
+        ...(sendsBrandName(o.line, record) ? { [FILED_NAME_FACT]: brandNameOf(record) } : {}),
+        [LEASE_FACT]: new Date(now + A2P_FILING_LEASE_MS).toISOString(),
+      },
     })
     .eq("id", o.line.id)
     .eq("updated_at", o.line.updated_at)

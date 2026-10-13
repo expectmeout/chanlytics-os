@@ -63,6 +63,8 @@ export {
   PERSON_CALL_OUTCOMES,
   PERSON_CALL_SAID_MAX,
   PERSON_CALL_WORDS,
+  callBackWaits,
+  personCallClosesBack,
   personCallDays,
   personCallFoot,
   personCallLeadArgs,

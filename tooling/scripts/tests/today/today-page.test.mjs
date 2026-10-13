@@ -842,8 +842,8 @@ test("the queue: no count badge over the rows, one primary verb, the runs in con
   );
   assert.match(
     textOf(find(queue, (n) => classes(n).includes("tq-sub"))),
-    /1 need you · 1 call worth a listen · 2 runs waiting/,
-    "the parts from contracts, the runs' count from contracts",
+    /1 need you · 1 call worth a listen · 1 run waiting/,
+    "the parts from contracts, the runs' count from contracts: a run that goes on its own is its row, and waits on no word",
   );
   const rows = all(queue, (n) => classes(n).includes("cl-attn-row"));
   const primary = rows.filter((r) =>
@@ -1501,6 +1501,7 @@ test("while you were away: drawn wherever the bell is, deduped over every queue 
     dismiss() {},
     seenAll() {},
     unread: () => unreadCount(rows),
+    older: () => 0,
   };
   // The queue draws the Win-back run held for a word (broadcasts()), so the bell's "is ready" about it is the queue's.
   set({ today: vm, __notifs: api, __BROADCASTS: broadcasts() });
@@ -1540,6 +1541,7 @@ test("the mockup no longer draws Today: a demo session's sample is not read, the
     dismiss() {},
     seenAll() {},
     unread: () => 1,
+    older: () => 0,
   };
   set({
     today: busy(),
@@ -1591,7 +1593,15 @@ test("the page is its bands and nothing seeded", () => {
     __BROADCASTS: broadcasts(),
     __CALENDAR: calendar([block("b9", 9, "Gloss")]),
     __PLAYBOOKS: noPlaybooks(),
-    __notifs: { feed: () => [], onChange: () => () => {}, read() {}, dismiss() {}, seenAll() {}, unread: () => 0 },
+    __notifs: {
+      feed: () => [],
+      onChange: () => () => {},
+      read() {},
+      dismiss() {},
+      seenAll() {},
+      unread: () => 0,
+      older: () => 0,
+    },
   });
   W.__DEMO_MODE = true;
   const tree = draw(DashboardA);
@@ -1643,6 +1653,7 @@ const emptyBell = () => ({
   dismiss() {},
   seenAll() {},
   unread: () => 0,
+  older: () => 0,
 });
 
 test("the queue's foot stands with nothing cut and says so, and a row carries its one verb", () => {

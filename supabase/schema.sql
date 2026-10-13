@@ -4454,6 +4454,32 @@ $$;
 
 
 --
+-- Name: escalation_closes_its_notices(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.escalation_closes_its_notices() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  perform public.notifications_close_about(
+    NEW.tenant_id, array['handoff', 'deadman', 'call'], 'conversation', NEW.conversation_id::text
+  );
+  return null;
+exception when others then
+  raise warning 'escalation_closes_its_notices: %', sqlerrm;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION escalation_closes_its_notices(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.escalation_closes_its_notices() IS 'Closes the open handoff, deadman and call rows about a hold''s thread when the hold goes open -> resolved, whoever resolves it (00421, through notifications_close_about); a snooze, a take-over or a pause leave the hold open and close nothing. Never fails the resolve: a failure is a warning.';
+
+
+--
 -- Name: escalation_open(uuid, uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -8054,6 +8080,11 @@ declare
   v_n    integer;
   v_id   uuid;
 begin
+  -- A round that leaves waiting_on_owner has settled its question for good (a round waits on its owner once): its row
+  -- closes, for a list and a chosen search too, so this comes before the returns below (00421).
+  if OLD.state = 'waiting_on_owner' and NEW.state is distinct from 'waiting_on_owner' then
+    perform public.notifications_close_about(NEW.tenant_id, array['leads_question'], 'lead_round', NEW.id::text);
+  end if;
   select s.name, s.via into v_name, v_via from public.lead_searches s where s.id = NEW.search_id;
   if v_name is null then return null; end if;
   -- A list: a file rings once its check ran; a choice never rings (00242).
@@ -8094,7 +8125,7 @@ end $$;
 -- Name: FUNCTION lead_rounds_notify(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_rounds_notify() IS 'The bell''s two lead kinds: one leads_question row when a round stops to ask, pointing at the search''s left-out pile (the places the question is about), and one leads_ready row when it ends with anything but "stopped" or "question_unanswered", pointing at the search; each once per round, each with a push_send job so a phone hears it too. A file of the owner''s own (via import, 00242) rings "Your list … is checked" with how many have a checked address once its check ran, or "could not be checked" when the check ended any other way; a chosen search rings nothing. A member''s own read mark is notification_marks'', as for every other kind.';
+COMMENT ON FUNCTION public.lead_rounds_notify() IS 'The bell''s two lead kinds: one leads_question row when a round stops to ask, pointing at the search''s left-out pile (the places the question is about), and one leads_ready row when it ends with anything but "stopped" or "question_unanswered", pointing at the search; each once per round, each with a push_send job so a phone hears it too. A file of the owner''s own (via import, 00242) rings "Your list … is checked" with how many have a checked address once its check ran, or "could not be checked" when the check ended any other way; a chosen search rings nothing. A round that leaves waiting_on_owner closes its question row for everyone (00421, notifications_close_about). A member''s own read mark is notification_marks'', as for every other kind.';
 
 
 --
@@ -11938,6 +11969,37 @@ end $$;
 
 
 --
+-- Name: notifications_close_about(uuid, text[], text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.notifications_close_about(p_tenant_id uuid, p_kinds text[], p_subject_type text, p_subject_id text, p_title text DEFAULT NULL::text) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_closed integer;
+begin
+  update public.notifications n
+     set closed_at = now()
+   where n.tenant_id = p_tenant_id
+     and n.kind = any (p_kinds)
+     and (p_subject_type is null or (n.subject_type = p_subject_type and n.subject_id = p_subject_id))
+     and (p_title is null or n.title = p_title)
+     and n.closed_at is null
+     and n.created_at >= now() - interval '30 days';
+  get diagnostics v_closed = row_count;
+  return v_closed;
+end $$;
+
+
+--
+-- Name: FUNCTION notifications_close_about(p_tenant_id uuid, p_kinds text[], p_subject_type text, p_subject_id text, p_title text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.notifications_close_about(p_tenant_id uuid, p_kinds text[], p_subject_type text, p_subject_id text, p_title text) IS 'Closes a workspace''s open bell rows of the given kinds about one subject (and of one title, where given) within the bell''s window (contracts BELL_WINDOW_DAYS), each once, and answers how many it closed (00421). The one door: the hold trigger, the lead-round notifier and resume_email_offers call it. A close is a mark on a kept row, not a fact, so it writes no event. Service role only.';
+
+
+--
 -- Name: notifications_seen(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -14299,10 +14361,10 @@ COMMENT ON FUNCTION public.people_series(p_tenant_id uuid, p_days integer, p_end
 
 
 --
--- Name: person_call_logged(uuid, text, text, date, boolean, text, text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+-- Name: person_call_logged(uuid, text, text, date, boolean, text, text, text, text, text, boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date DEFAULT NULL::date, p_tell boolean DEFAULT false, p_step_body text DEFAULT NULL::text, p_lead_stage text DEFAULT NULL::text, p_lead_reason text DEFAULT NULL::text, p_lead_note text DEFAULT NULL::text, p_spoke_with text DEFAULT NULL::text) RETURNS jsonb
+CREATE FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date DEFAULT NULL::date, p_tell boolean DEFAULT false, p_step_body text DEFAULT NULL::text, p_lead_stage text DEFAULT NULL::text, p_lead_reason text DEFAULT NULL::text, p_lead_note text DEFAULT NULL::text, p_spoke_with text DEFAULT NULL::text, p_closes_call_back boolean DEFAULT false) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -14316,6 +14378,8 @@ declare
   v_note   jsonb;
   v_step   jsonb := null;
   v_moved  jsonb := null;
+  v_thread uuid;
+  v_handed boolean := false;
 begin
   if v_user is null then
     raise exception 'Sign in required.' using errcode = '28000';
@@ -14374,15 +14438,30 @@ begin
     end if;
   end if;
 
-  return jsonb_build_object('note', v_note->'note', 'step', v_step->'note', 'lead', v_moved);
+  -- The call back they asked for, made (X3-1): their thread, where it holds an open call-back request, handed back as
+  -- the caller, the request resolved by that decision (conversation_hand_back: the release, the hold, the ledger).
+  if coalesce(p_closes_call_back, false) then
+    select c.id into v_thread
+      from public.conversations c
+      join public.escalations e
+        on e.conversation_id = c.id and e.tenant_id = c.tenant_id and e.state = 'open' and e.reason = 'callback'
+     where c.tenant_id = v_person.tenant_id and c.contact_id = p_contact_id
+       and (c.assignee_user_id is null or c.assignee_user_id = v_user)
+       and (c.control_kind is null or c.control_until <= now() or (c.control_kind = 'person' and c.control_by = v_user));
+    if v_thread is not null then
+      v_handed := public.conversation_hand_back(v_person.tenant_id, v_thread, 'call', null) is not null;
+    end if;
+  end if;
+
+  return jsonb_build_object('note', v_note->'note', 'step', v_step->'note', 'lead', v_moved, 'handed_back', v_handed);
 end $$;
 
 
 --
--- Name: FUNCTION person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text, p_closes_call_back boolean); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text) IS 'A call a member made, logged on the person (0052, canvas A M4): a note, the team''s unless p_tell, a step with p_due_on (beside the note where the receptionist reads it), and, where the person''s business is an open lead with its own person, the outcome through lead_set_stage (never Spoke; Wrong number only where the person has no number of their own; a lead Talking kept so by a call that went nowhere). Owner, operator or partner. Answers {note, step, lead} or {error}.';
+COMMENT ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text, p_closes_call_back boolean) IS 'A call a member made, logged on the person (0052, canvas A M4): a note, the team''s unless p_tell, a step with p_due_on (beside the note where the receptionist reads it), and, where the person''s business is an open lead with its own person, the outcome through lead_set_stage (never Spoke; Wrong number only where the person has no number of their own; a lead Talking kept so by a call that went nowhere). With p_closes_call_back (00422, X3-1), the person''s thread, where it holds an open call-back request and no teammate has it, is handed back through conversation_hand_back as the caller, in the same transaction. Owner, operator or partner. Answers {note, step, lead, handed_back} or {error}.';
 
 
 --
@@ -21968,6 +22047,11 @@ begin
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
   values (p_tenant_id, 'mailbox.offers_resumed', 'system', 'mailbox', v_mailbox,
           jsonb_build_object('reason', v_reason, 'paused_at', v_since));
+  -- The bell's pause notice is closed: the pause it told of has lifted (00421; the title is contracts
+  -- OFFERS_NOTICE_WORDS.paused's).
+  perform public.notifications_close_about(
+    p_tenant_id, array['sweep'], null, null, 'Offers and news by email are paused'
+  );
   return true;
 end $$;
 
@@ -21976,7 +22060,7 @@ end $$;
 -- Name: FUNCTION resume_email_offers(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.resume_email_offers(p_tenant_id uuid) IS 'The back office''s: turns a workspace''s offers by email back on, once its list is fixed, stamps offers_resumed_at (the gates are then judged over the offers sent after it) and writes a mailbox.offers_resumed event. True when they were paused. Service role only.';
+COMMENT ON FUNCTION public.resume_email_offers(p_tenant_id uuid) IS 'The back office''s: turns a workspace''s offers by email back on, once its list is fixed, stamps offers_resumed_at (the gates are then judged over the offers sent after it), writes a mailbox.offers_resumed event and closes the bell''s pause notice (00421). True when they were paused. Service role only.';
 
 
 --
@@ -27617,6 +27701,7 @@ CREATE TABLE public.notifications (
     recipient_user_id uuid,
     source_event uuid,
     mail_due_at timestamp with time zone,
+    closed_at timestamp with time zone,
     CONSTRAINT notifications_body_check CHECK ((char_length(body) <= 4000)),
     CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text]))),
     CONSTRAINT notifications_title_check CHECK (((char_length(title) >= 1) AND (char_length(title) <= 200)))
@@ -27649,6 +27734,13 @@ COMMENT ON COLUMN public.notifications.source_event IS 'The event this notice an
 --
 
 COMMENT ON COLUMN public.notifications.mail_due_at IS 'When this notice''s mail became owed (decision 0048, 00409): set with the row when a mail is to go, cleared once it has gone, so a retry sends the mail alone and the bell keeps one row. Null for a notice nothing owes.';
+
+
+--
+-- Name: COLUMN notifications.closed_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.notifications.closed_at IS 'When what the row asked for ended for good, for everyone (00421): the hold it told of resolved (escalation_closes_its_notices), the question it asked settled (lead_rounds_notify), the offers pause it told of lifted (resume_email_offers), or the warning mended by news the edge kept after it (contracts NOTICE_MENDS). Null while it may still ask. A closed row reads as read and wears no warning; a member''s own read stays notification_marks''. Written by the service role and the definer functions only: the table''s one policy is SELECT.';
 
 
 --
@@ -31842,6 +31934,13 @@ CREATE TRIGGER deals_set_updated_at BEFORE UPDATE ON public.deals FOR EACH ROW E
 
 
 --
+-- Name: escalations escalation_closes_its_notices; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER escalation_closes_its_notices AFTER UPDATE OF state ON public.escalations FOR EACH ROW WHEN (((old.state = 'open'::text) AND (new.state = 'resolved'::text))) EXECUTE FUNCTION public.escalation_closes_its_notices();
+
+
+--
 -- Name: escalations escalations_guard; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -32875,6 +32974,13 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE OF role ON public.memberships 
 --
 
 CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.messages REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes('status');
+
+
+--
+-- Name: notifications workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE OF closed_at ON public.notifications FOR EACH ROW WHEN ((old.closed_at IS DISTINCT FROM new.closed_at)) EXECUTE FUNCTION public.workspace_tell_row_change();
 
 
 --
@@ -36620,6 +36726,14 @@ GRANT ALL ON FUNCTION public.erasure_rekey_hashes(p_list jsonb) TO service_role;
 
 
 --
+-- Name: FUNCTION escalation_closes_its_notices(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.escalation_closes_its_notices() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.escalation_closes_its_notices() TO service_role;
+
+
+--
 -- Name: FUNCTION escalation_open(p_tenant_id uuid, p_conversation_id uuid, p_reason text, p_details text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -37847,6 +37961,14 @@ GRANT ALL ON FUNCTION public.notification_mark(p_id uuid, p_read boolean, p_dism
 
 
 --
+-- Name: FUNCTION notifications_close_about(p_tenant_id uuid, p_kinds text[], p_subject_type text, p_subject_id text, p_title text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.notifications_close_about(p_tenant_id uuid, p_kinds text[], p_subject_type text, p_subject_id text, p_title text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.notifications_close_about(p_tenant_id uuid, p_kinds text[], p_subject_type text, p_subject_id text, p_title text) TO service_role;
+
+
+--
 -- Name: FUNCTION notifications_seen(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -38147,12 +38269,12 @@ GRANT ALL ON FUNCTION public.people_series(p_tenant_id uuid, p_days integer, p_e
 
 
 --
--- Name: FUNCTION person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text, p_closes_call_back boolean); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text) TO authenticated;
-GRANT ALL ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text) TO service_role;
+REVOKE ALL ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text, p_closes_call_back boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text, p_closes_call_back boolean) TO authenticated;
+GRANT ALL ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text, p_closes_call_back boolean) TO service_role;
 
 
 --

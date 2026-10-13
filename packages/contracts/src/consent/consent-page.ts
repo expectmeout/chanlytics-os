@@ -42,6 +42,7 @@ import { OFFERS_OPT_IN_PHRASES, optInLink } from "../shared/enums";
 import { formatPhoneDisplay } from "../shared/phone";
 import type { AskedPurpose } from "./consent";
 import { notFoundPageMetadata, type PublicPageMetadata } from "../shell/chrome";
+import { takesSignUps, WORKSPACE_PAUSED_FACT, type OpenToCustomers } from "../workspace/billing";
 
 export interface ConsentPageFacts {
   businessName: string;
@@ -53,7 +54,34 @@ export interface ConsentPageFacts {
   whatsappE164: string | null;
   /** The line that receives texts, E.164; null until one is approved for texting. */
   smsE164: string | null;
+  /**
+   * Whether the workspace is open to its customers (contracts workspace/billing.ts openToCustomersOf); absent where it
+   * was not read, which keeps the page as it was. A paused workspace's pages stay readable, for the carriers' re-vet of
+   * the filing that names them, and ask nobody for a yes: nobody answers on its behalf (the wiring's second audit, X4-1).
+   */
+  open?: OpenToCustomers | null;
 }
+
+/** What a paused workspace's pages say in place of asking: it is not taking sign-ups, and what that means here. */
+export function notTakingSignUps(name: string, so?: string): string {
+  return `${name} is not taking sign-ups right now${so ? `, so ${so}` : ""}.`;
+}
+
+/** The Broadcasts card's words while the workspace is paused: why there is no code or link to hand out. */
+export const GET_YES_PAUSED_WORDS = {
+  note: "not taking sign-ups while the workspace is paused",
+  body: `${WORKSPACE_PAUSED_FACT}. Meanwhile your sign-up page, desk sign and paper form tell customers you are not taking sign-ups, and there is no code or link to hand out. Resume it from Settings › Billing.`,
+} as const;
+
+/**
+ * A yes taken while the workspace is paused: its confirmation is refused by the send door (core deliver.ts `paused`), so
+ * the hold says so in the words of a pause, not of a reply that failed (the hold's reason is `paused`).
+ */
+export const YES_WHILE_PAUSED = {
+  details:
+    "The customer said yes while the workspace is paused, so the confirmation of their yes was not sent. When the workspace runs again, send it from the Inbox.",
+  answered: "(the confirmation of their yes waits: the workspace is paused)",
+} as const;
 
 export type ConsentWayKind = "whatsapp" | "sms";
 
@@ -103,6 +131,8 @@ export interface ConsentPageVM {
   links: PolicyLinks;
   /** True when this workspace has no way to say yes yet: the page says so rather than pretending. */
   empty: boolean;
+  /** Whether the page asks for a yes now: false while the workspace is paused (no ways, no code, no paper form). */
+  taking: boolean;
 }
 
 export interface PolicyLinks {
@@ -263,28 +293,35 @@ export function consentPageVM(f: ConsentPageFacts): ConsentPageVM {
   const offers = waysFor({ ...f, smsE164: null }, CONSENT_PHRASE);
   const empty = conversation.length === 0 && offers.length === 0;
   const words = askWords(name);
+  // Paused: each ask keeps its title, its lead and its terms, which is what a carrier's re-vet reads, and loses every way
+  // to answer it.
+  const taking = takesSignUps(f.open);
+  const answered = (ways: ConsentWay[]) => (taking ? ways : []);
 
   const asks: ConsentAsk[] = empty
     ? []
     : [
         ...(conversation.length
-          ? [{ purpose: "conversational" as const, ...words.conversational, ways: conversation }]
+          ? [{ purpose: "conversational" as const, ...words.conversational, ways: answered(conversation) }]
           : []),
-        ...(offers.length ? [{ purpose: "marketing" as const, ...words.marketing, ways: offers }] : []),
+        ...(offers.length ? [{ purpose: "marketing" as const, ...words.marketing, ways: answered(offers) }] : []),
       ];
 
   return {
     title: `Text messages from ${name}`,
     lead: empty
       ? `${name} is not set up to take sign-ups here yet.`
-      : asks.length > 1
-        ? `Two separate things you can say yes to, in your own message from your own phone. ${name} never sells or shares your number.`
-        : `One thing you can say yes to, in your own message from your own phone: messages about your appointment. ${name} never sells or shares your number.`,
+      : !taking
+        ? notTakingSignUps(name)
+        : asks.length > 1
+          ? `Two separate things you can say yes to, in your own message from your own phone. ${name} never sells or shares your number.`
+          : `One thing you can say yes to, in your own message from your own phone: messages about your appointment. ${name} never sells or shares your number.`,
     asks,
-    qrLink: optInLink(f.whatsappE164, CONSENT_PHRASE),
+    qrLink: taking ? optInLink(f.whatsappE164, CONSENT_PHRASE) : null,
     terms: bothTerms(name),
     links: policyLinks(f),
     empty,
+    taking,
   };
 }
 
@@ -315,6 +352,8 @@ export interface ConsentFormVM {
   links: PolicyLinks;
   /** The line the business fills in when it records the sheet: its own audit trail. */
   office: string;
+  /** Whether the sheet is in use: false while the workspace is paused, and the page does not offer to print it. */
+  taking: boolean;
 }
 
 /**
@@ -335,9 +374,10 @@ export interface ConsentFormVM {
  * line is approved for texting.
  */
 export function consentFormVM(
-  f: Pick<ConsentPageFacts, "businessName" | "slug" | "businessPage"> & { whatsappE164?: string | null },
+  f: Pick<ConsentPageFacts, "businessName" | "slug" | "businessPage" | "open"> & { whatsappE164?: string | null },
 ): ConsentFormVM {
   const name = f.businessName.trim() || "This business";
+  const taking = takesSignUps(f.open);
   const words = askWords(name);
   // The offers box is WhatsApp's, like the offers ask on the page: a business
   // without WhatsApp has one box, and its texting line carries no promotions.
@@ -361,8 +401,9 @@ export function consentFormVM(
   ];
   return {
     title: `Text messages from ${name}`,
-    lead:
-      sections.length > 1
+    lead: !taking
+      ? notTakingSignUps(name, "this form is not in use")
+      : sections.length > 1
         ? "Two separate boxes. Tick and sign only the ones you want: signing one does not sign you up for the other, and either one can be had without the other."
         : "One box. Tick and sign it if you want messages about your appointments: a reply when you write, and reminders and confirmations.",
     // An email line, for the messages a business will send by email once it can (the campaigns-on-every-channel
@@ -372,6 +413,7 @@ export function consentFormVM(
     terms: bothTerms(name),
     links: policyLinks(f),
     office: `For ${name}: record each signed box on the customer's profile, under its own answer, as “Sign-up form”, type the email on their page, and keep this sheet. Recorded on __________ by __________`,
+    taking,
   };
 }
 
@@ -385,7 +427,9 @@ export function consentPageMetadata(f: ConsentPageFacts | null): PublicPageMetad
 
 /** The paper form's tab: the sheet it is, for the business it asks for, or Not found. Never indexed. */
 export function consentFormMetadata(
-  f: (Pick<ConsentPageFacts, "businessName" | "slug" | "businessPage"> & { whatsappE164?: string | null }) | null,
+  f:
+    | (Pick<ConsentPageFacts, "businessName" | "slug" | "businessPage" | "open"> & { whatsappE164?: string | null })
+    | null,
 ): PublicPageMetadata {
   return f
     ? { title: `Sign-up form: ${consentFormVM(f).title}`, robots: { index: false, follow: false } }
@@ -430,7 +474,9 @@ export interface DeskSignVM {
 
 export function deskSignVM(f: ConsentPageFacts): DeskSignVM {
   const name = f.businessName.trim() || "This business";
-  const qrLink = optInLink(f.whatsappE164, CONSENT_PHRASE);
+  // Paused: no code to print, and the page says why (notTakingSignUps).
+  const taking = takesSignUps(f.open);
+  const qrLink = taking ? optInLink(f.whatsappE164, CONSENT_PHRASE) : null;
   const number = formatPhoneDisplay(f.whatsappE164);
   return {
     business: name,
@@ -445,7 +491,9 @@ export function deskSignVM(f: ConsentPageFacts): DeskSignVM {
     qrLink,
     links: policyLinks(f),
     empty: !qrLink,
-    emptyLine: `${name} has no WhatsApp number to say yes on yet, so there is no sign to print.`,
+    emptyLine: taking
+      ? `${name} has no WhatsApp number to say yes on yet, so there is no sign to print.`
+      : notTakingSignUps(name, "there is no sign to print"),
   };
 }
 

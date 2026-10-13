@@ -9,6 +9,7 @@
  * The receptionist and the call's text are First contact's rows of their own kind (the glossary's Campaign) and are
  * never counted. The marks a campaign goes by are read here once, for its row and for its moment's card (lifecycle.ts).
  */
+import { RUN_GOING_STATES } from "../../broadcasts/broadcasts";
 import type { ChannelsReady } from "../../broadcasts/reach-for";
 import { purposeOfPlaybook } from "../../consent/consent";
 import { CONSENT_CHANNELS } from "../../consent/consent-channels";
@@ -16,6 +17,7 @@ import type { AppointmentWord } from "../../journey/appointment-word";
 import type { JourneyStage } from "../../journey/journey";
 import type { ReachOutChainDto } from "../../reach-out/reach-out-dtos";
 import { HAND_KINDS } from "../../reach-out/reach-out-hand";
+import { reachOutRootOf } from "../../reach-out/reach-out-rules";
 import type { ReachOutChainTotalsDto } from "../../reports/reach-out-report";
 import { CAMPAIGNS_RESULTS_PERIOD, fixedDaysOf } from "../../reports/report-periods";
 import { periodWords } from "../../reports/reports";
@@ -407,6 +409,28 @@ function offOfferRow(caps: string): LifecycleRow {
   };
 }
 
+/**
+ * The emails the check holds in a reach-out's going runs, summed, and the newest such run: what the chain's row says when no
+ * run waits for approval (the wiring's second audit, W-campaign-run-template-reachout-4). Null where Sent is unread.
+ */
+function chainHeldOf(
+  rootId: string,
+  broadcasts: LifecycleInput["broadcasts"],
+): { n: number; runId: string | null } | null {
+  if (!broadcasts) return null;
+  let n = 0;
+  let runId: string | null = null;
+  for (const r of broadcasts.rows) {
+    if (reachOutRootOf(r.audience) !== rootId || !(RUN_GOING_STATES as readonly string[]).includes(r.state)) continue;
+    const held = typeof r.held === "number" ? r.held : 0;
+    if (held > 0) {
+      n += held;
+      runId ??= r.id;
+    }
+  }
+  return { n, runId };
+}
+
 /** A chain's steps in words, as the canvas says them: "3 emails and a call", "2 emails", "2 emails, a call and a note". */
 function chainStepsWords(steps: ReachOutChainDto["steps"]): string {
   const emails = steps.filter((s) => !s.hand).length;
@@ -430,6 +454,9 @@ function chainRow(
   const paused = c.state !== "running";
   // A run waiting is shown whether or not the reach-out is paused, as a campaign's is (lifecycleChainStateOf).
   const waitingRun = c.next.waiting_run_id;
+  // A going run's held emails, said where no run waits for approval (a waiting run is the thing to answer first).
+  const held = waitingRun ? null : chainHeldOf(c.root_id, at.input.broadcasts);
+  const heldRun = held && held.n > 0 ? held.runId : null;
   const status: LifecycleRow["status"] = waitingRun ? "waiting" : paused ? "paused" : "on";
   const state = lifecycleChainStateOf(c);
   const stateWords = state.words;
@@ -459,17 +486,21 @@ function chainRow(
     results: chainResultsOf(c.root_id, at.input.chains),
     next: waitingRun
       ? { words: LIFECYCLE_WORDS.coming.waiting, atMs: at.input.nowMs }
-      : paused
-        ? { words: "Paused", atMs: null }
-        : NO_NEXT,
+      : heldRun && held
+        ? { words: LIFECYCLE_WORDS.coming.held(held.n), atMs: at.input.nowMs }
+        : paused
+          ? { words: "Paused", atMs: null }
+          : NO_NEXT,
     open: { kind: "open", label: "Open", playbookId: c.root_id },
     waiting: null,
     // The run waiting is the thing to answer, so its door comes before Resume (the drawer has Resume either way).
     act: waitingRun
       ? { kind: "route", label: W.openRun, route: `broadcasts/run:${waitingRun}` }
-      : paused
-        ? resume
-        : null,
+      : heldRun
+        ? { kind: "route", label: W.openRun, route: `broadcasts/run:${heldRun}` }
+        : paused
+          ? resume
+          : null,
     search: rowSearchOf(c.name, hint, at.caps),
   };
 }

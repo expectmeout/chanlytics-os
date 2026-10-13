@@ -15,6 +15,7 @@ import { isReachOutRun } from "../reach-out/reach-out-rules";
 import { messageAboutOfTrigger } from "./playbook-purpose";
 import type { RunReach } from "./playbook-reach";
 import { triggerOf } from "./playbook-triggers";
+import { localDate, nextOpenMoment } from "./playbook-schedule";
 import type { PlaybookDto } from "./playbooks";
 import { PARAM_SOURCE_LABELS, type ParamSpec } from "../templates/templates";
 
@@ -262,6 +263,16 @@ interface ApprovalDays {
   today: string;
   sendsOn: string;
   say?: (ymd: string) => string;
+}
+
+/**
+ * The days a waiting run is judged by, in a business's zone: its day now, and the day of the next open sending moment
+ * (approved after the last sending hour, a run waits for nine). The one derivation of them: the verb (core approveRun),
+ * the count of what waits on you (waits.ts runWaitsOnYou), the page's clock and the hourly sweep that ends a run whose
+ * day has passed all read the days here, so none of them calls a run waiting that another calls too late.
+ */
+export function runDaysAt(tz: string, now: Date): { today: string; sendsOn: string } {
+  return { today: localDate(tz, now), sendsOn: localDate(tz, nextOpenMoment(tz, now).at) };
 }
 
 /**

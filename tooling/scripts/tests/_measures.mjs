@@ -42,6 +42,7 @@ import {
   headerOf,
   durationsIn,
   inlineStyles,
+  handRoutesIn,
   sourceReads,
   mediaPreludes,
   mediaWidths,
@@ -524,6 +525,21 @@ export const MEASURES = [
     measure: () => perFile(MARKUP, inlineStyles),
     advice:
       "Style it with a class that reads tokens, not a style prop: a value in a prop is one no look can reach (the interface kit's rule 1, docs/plans/2026-09-28-the-interface-kit-and-its-looks.md).",
+  },
+  {
+    // contracts holds the one writer of a record's route and of a link (addressOf, appLink); the code that ships beside it
+    // is counted. Its tests are not: a test spells the route it expects.
+    name: "routes and links written by hand",
+    file: "hand-routes.json",
+    measure: () =>
+      perFile(
+        SRC.filter(
+          (f) => /\.(tsx?|jsx?|mjs)$/.test(f) && !f.startsWith("packages/contracts/") && !f.includes("/dist/"),
+        ),
+        handRoutesIn,
+      ),
+    advice:
+      "Write a record's route with contracts addressOf({ kind, id }) and a link to a workspace's page with appLink(slug, route): the one writer, so a route is spelled as its page reads it and a retired one moves in one place (the wiring's second audit, S5-6).",
   },
   {
     // Each registered clock's kind is clocks/_clocks.mjs's; ops/sweep-registry.db.test.mjs holds every row to one.

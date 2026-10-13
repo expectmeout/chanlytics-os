@@ -16,9 +16,17 @@ import { lineOffGets } from "../lines/caller-gets";
 import { CHANNEL_ANSWERED, channelNoun } from "../lines/channels";
 import type { ReplySpeed } from "../reports/report-speed";
 import { durationWords } from "../shared/clock";
+import { runsWaitingSentence } from "../shell/campaign-rooms";
 import { PAUSED_WORDS } from "../workspace/billing";
 import type { TodayFacts } from "./today-facts";
-import type { TodayFactVM, TodayNeedsRowVM, TodayQueueEmptyVM, TodaySentenceVM, TodayVM } from "./today-vm";
+import type {
+  TodayCalmVM,
+  TodayFactVM,
+  TodayNeedsRowVM,
+  TodayQueueEmptyVM,
+  TodaySentenceVM,
+  TodayVM,
+} from "./today-vm";
 
 /** "Email", "WhatsApp and Email", "WhatsApp, Texting and Email". (calendar.ts, config.ts and
  *  reports.ts each hold their own copy of this join; one home for it is a tidy of its own.) */
@@ -231,6 +239,7 @@ export function todayQuietDay(f: TodayFacts, proof: string): Omit<NonNullable<To
 }
 
 type TodayHeadline = Pick<TodayVM["standing"], "headline" | "detail" | "tone">;
+type TodayHead = Pick<TodayVM["standing"], "headline" | "detail" | "tone" | "calm">;
 
 /**
  * What the queue holds besides the people who asked for a person, as sentences: a reply window closing, a call worth a
@@ -252,21 +261,24 @@ export function todayAlsoWaiting(w: { windows?: number; calls: number; searches:
 
 /**
  * The headline ladder: first match wins. `needsRows` are Ask's rows, oldest wait first, for the one name it says.
- * `also` is what the queue holds besides them (todayAlsoWaiting), for the last rung.
+ * `also` is what the queue holds besides them (todayAlsoWaiting), for the last rung, whose words are kept (`calm`) so a
+ * page that holds the runs says the head again with them (standingWithRuns).
  */
 export function todayHeadline(
   f: TodayFacts,
   alert: string | null,
   needsRows: TodayNeedsRowVM[],
   also: readonly string[],
-): TodayHeadline {
+): TodayHead {
   const { needsYouCount, oldest } = f;
-  if (alert) return { headline: "Check your connection before anything else.", detail: null, tone: "alert" };
+  if (alert)
+    return { headline: "Check your connection before anything else.", detail: null, tone: "alert", calm: null };
   if (needsYouCount > 1) {
     return {
       headline: `${needsYouCount} conversations need you.`,
       detail: oldest ? `The oldest has been waiting since ${oldest}.` : null,
       tone: "needs",
+      calm: null,
     };
   }
   if (needsYouCount === 1) {
@@ -275,18 +287,15 @@ export function todayHeadline(
       headline: "One conversation needs you",
       detail: who && oldest ? `${who} has been waiting since ${oldest}.` : null,
       tone: "needs",
+      calm: null,
     };
   }
-  return calmHeadline(f, also);
+  const calm = calmOf(f, also);
+  return { ...calmStanding(calm, 0), calm };
 }
 
-/**
- * The last rung of the ladder: nobody asked for a person, so the day's traffic, and whether the receptionist handled all
- * of it. "Nothing needs you" is said only over a queue with nothing in it: with a search waiting on an answer the head
- * said it above a queue that said "1 Need you" (Ruben, 7 Oct 2026). What still waits is said first, in the queue's own
- * sentences, then the traffic.
- */
-function calmHeadline({ period, speed }: TodayFacts, also: readonly string[]): TodayHeadline {
+/** The calm rung's words before the runs are known: what else waits, the day's traffic, and how it was answered. */
+function calmOf({ period, speed }: TodayFacts, also: readonly string[]): TodayCalmVM {
   const bits: string[] = [];
   if (period.messages_in) {
     bits.push(
@@ -298,24 +307,55 @@ function calmHeadline({ period, speed }: TodayFacts, also: readonly string[]): T
     );
   }
   if (period.calls) bits.push(`${period.calls} call${period.calls === 1 ? "" : "s"}`);
-  // "Handled everything" only when the receptionist did: a message you
-  // answered yourself, or one nobody answered, is not the receptionist's.
-  const allByReceptionist = period.unanswered_in_window === 0 && period.messages_out_you === 0;
+  return {
+    also: [...also],
+    traffic: bits.length ? bits.join(" and ") : null,
+    // "Handled everything" only when the receptionist did: a message you
+    // answered yourself, or one nobody answered, is not the receptionist's.
+    handled_all: period.unanswered_in_window === 0 && period.messages_out_you === 0,
+    answered:
+      speed !== null && period.messages_in > 0
+        ? `answered ${period.answered_by_ai} of the ${period.messages_in} on its own, typically ${speedIn(speed, true)}.`
+        : null,
+  };
+}
+
+/**
+ * The last rung of the ladder: nobody asked for a person, so the day's traffic, and whether the receptionist handled all
+ * of it. "Nothing needs you" is said only over a queue with nothing in it: with a search waiting on an answer the head
+ * said it above a queue that said "1 Need you" (Ruben, 7 Oct 2026), and with a campaign run waiting it said it under a
+ * badge that counted the run (the wiring's second audit, S7-1). What still waits is said first, the runs before the
+ * queue's own sentences, then the traffic.
+ */
+function calmStanding(c: TodayCalmVM, runs: number): TodayHeadline {
+  const also = [...(runs > 0 ? [runsWaitingSentence(runs)] : []), ...c.also];
   const headline = also.length
-    ? [...also, ...(bits.length ? [`${bits.join(" and ")} today.`] : [])].join(" ")
-    : bits.length
-      ? allByReceptionist
-        ? `The receptionist handled everything — ${bits.join(" and ")} today. Nothing needs you.`
-        : `${bits.join(" and ")} today. Nothing needs you right now.`
+    ? [...also, ...(c.traffic ? [`${c.traffic} today.`] : [])].join(" ")
+    : c.traffic
+      ? c.handled_all
+        ? `The receptionist handled everything — ${c.traffic} today. Nothing needs you.`
+        : `${c.traffic} today. Nothing needs you right now.`
       : "Nothing needs you.";
   // "It" only after a headline that named the receptionist ("The receptionist handled everything"); after any other
   // (what still waits, or the traffic alone) the sentence names it itself.
-  const named = !also.length && bits.length > 0 && allByReceptionist;
-  const detail =
-    speed !== null && period.messages_in > 0
-      ? `${named ? "It" : "The receptionist"} answered ${period.answered_by_ai} of the ${period.messages_in} on its own, typically ${speedIn(speed, true)}.`
-      : null;
+  const named = !also.length && !!c.traffic && c.handled_all;
+  const detail = c.answered ? `${named ? "It" : "The receptionist"} ${c.answered}` : null;
   return { headline, detail, tone: "calm" };
+}
+
+/**
+ * The standing said with the campaign runs waiting for your word (waits.ts runsThatWait): on the calm rung and the quiet
+ * day a run leads the head, as the badge counts it, and "Nothing needs you" is never said over it; the alert and the
+ * needs rungs stand as they are. Asked again with the same runs it answers the same, so a brief composed with its runs
+ * (the server's) may be handed in again by a page that holds them.
+ */
+export function standingWithRuns<S extends TodayHead>(standing: S, runs: number): S {
+  return runs > 0 && standing.calm ? { ...standing, ...calmStanding(standing.calm, runs) } : standing;
+}
+
+/** "1 draft on its way" beside the queue's parts: the replies counting down to send, which have no row; null for none. */
+export function todayDraftsSub(n: number): string | null {
+  return n ? (n === 1 ? "1 draft on its way" : `${n} drafts on their way`) : null;
 }
 
 /**

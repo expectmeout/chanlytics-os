@@ -1,6 +1,7 @@
 import "server-only";
 import {
   VERSION_CHANNELS,
+  addressOf,
   bookingTemplate,
   campaignMessagesOf,
   defaultSlotKinds,
@@ -238,7 +239,8 @@ export function messageReadsOf(read: LibraryRead): MessageRead[] {
  * row of the workspace by contracts campaignMessagesOf, not of the rows left in the list, so a WhatsApp version in
  * review keeps its status inside its message, and a message with no WhatsApp row is one. The route's body, moved here
  * whole, so the composers and Ask's campaigns.audiences read the same rows the same way; the route checks `?all=`. Each
- * template is a row a citation names, with no address of its own: it opens Templates, whichever read returned it.
+ * template is a row a citation names, at its message's own address in the Library, by name (contracts addressOf; the
+ * wiring's second audit, W-campaign-run-template-reachout-6): it opened the Library's list, whichever read returned it.
  */
 export const templates: Reader<{ all: boolean }, TemplatesRead> = {
   name: "templates",
@@ -249,7 +251,7 @@ export const templates: Reader<{ all: boolean }, TemplatesRead> = {
       rows: data.templates.map((t) => ({
         kind: "template" as const,
         id: t.id,
-        route: "messages",
+        route: addressOf({ kind: "template", name: t.name }),
         label: t.title || t.name,
       })),
       stamp: stamp(),

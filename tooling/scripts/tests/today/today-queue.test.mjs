@@ -225,7 +225,7 @@ test("one queue, longest wait first: the handoff, the call-back, the closing win
     ["handoff", "callback", "window", "call"],
   );
   assert.equal(vm.queue.more, 0);
-  assert.equal(vm.queue.waiting, 3, "the call worth an ear is nobody waiting");
+  assert.equal(vm.queue.windows, 1, "the closing window is said as a window; the call worth an ear is nobody waiting");
 
   const handoff = rows[0];
   assert.deepEqual(
@@ -302,7 +302,7 @@ test("a search waiting on its owner is a row in the queue, by its wait, with one
   assert.deepEqual(row.cta, { label: "Answer", to: leadQuestionRoute("s-wait") });
   assert.equal(row.also, null);
   assert.ok(vm.queue.parts.includes("1 search waiting for your answer"), vm.queue.parts.join(" · "));
-  assert.equal(vm.queue.waiting, 4, "the search counts with the people waiting");
+  assert.equal(vm.queue.searches, 1, "the search is counted as a search, apart from the people");
 
   // Past twelve hours the row warns: the sweep stops a question after a day.
   const stale = toTodayVM(metrics(), conversations, escalations, calls, NOW, [
@@ -320,7 +320,7 @@ test("a search waiting on its owner is a row in the queue, by its wait, with one
       before.queue.rows.map((r) => r.kind),
       ["handoff", "callback", "window", "call"],
     );
-    assert.equal(before.queue.waiting, 3);
+    assert.equal(before.queue.searches, 0);
     assert.ok(!before.queue.parts.some((p) => p.includes("search")));
   }
 });
@@ -337,7 +337,7 @@ test("the cap and the rest: six rows on Today, the rest counted for the Inbox li
   const vm = toTodayVM(metrics({ now: { ...metrics().now, escalations_open: 8 } }), conversations, many, [], NOW);
   assert.equal(vm.queue.rows.length, 6);
   assert.equal(vm.queue.more, 3, "eight handoffs and the closing window: six shown, three more");
-  assert.equal(vm.queue.waiting, 9, "and all nine are people waiting, which Ask's Right now counts past the six shown");
+  assert.equal(vm.queue.windows, 1, "and the closing window is a window, never one of the people who need you");
   const quiet = toTodayVM(
     metrics({
       period: { ...metrics().period, messages_in: 0, calls: 0, messages_out_you: 0 },
@@ -717,7 +717,6 @@ test("the queue counts the people past the six apart from the calls and the sear
   assert.equal(vm.queue.more_people, 3, "the people past the six, nothing else");
   assert.equal(vm.queue.calls, 4, "every call worth a listen, though none is among the six drawn");
   assert.equal(vm.queue.searches, 1, "and the search, though it sorts after nine people");
-  assert.equal(vm.queue.waiting, 10, "the nine people and the search");
   const words = todayBriefWords(vm, null, []).text;
   assert.match(words, /Person 0, Person 1, Person 2 and 6 more need you\./, `${words}: nine people, three named`);
   assert.doesNotMatch(words, /and 11 more|and 8 more/, "REGRESSION: the calls and the search were counted as people");

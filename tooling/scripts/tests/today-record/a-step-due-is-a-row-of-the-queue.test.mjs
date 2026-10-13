@@ -296,7 +296,7 @@ test("with room on the card, the rest is one row: how many more, and a door to P
   );
 });
 
-test("Done is the Inbox header's verb, press for press: the step's note, said done, answered in the toast with Set the next one; a second press while the first is on its way waits", async () => {
+test("Done is the Inbox header's verb, press for press: the step's note, said done, answered in the one step toast with its Undo; a second press while the first is on its way waits", async () => {
   clear();
   let release;
   doneAnswer = () =>
@@ -311,10 +311,9 @@ test("Done is the Inbox header's verb, press for press: the step's note, said do
   release();
   await first;
   assert.equal(doneCalls.length, 1);
-  assert.equal(textOf(flashes.at(-1).msg), NOTE_WORDS.stepDone);
-  assert.equal(flashes.at(-1).action.label, NOTE_WORDS.setTheNext);
-  flashes.at(-1).action.onClick();
-  assert.deepEqual(opened, [{ personId: "d", dealId: null }], "the next one is set in the step sheet");
+  // One toast for a step done, wherever it is done (#1574, surfaces/step-done.tsx): "Step done · {the step's words}".
+  assert.equal(textOf(flashes.at(-1).msg), `${NOTE_WORDS.stepDone} · Call Di`);
+  assert.equal(typeof flashes.at(-1).undo, "function", "with its Undo, and nothing else (canvas A, M5)");
   // The row goes at once, as the thread header's line does; People is read again behind the verb.
   const after = again(() => W.React.createElement(AgentCommand, {}));
   assert.deepEqual(stepRowsOf(after).map(whoOf), ["Hal", "Ana"], "the step done is gone from the queue");
@@ -335,9 +334,9 @@ test("a day with only steps due is not an empty queue; no step due draws nothing
   clear();
   const vm = handoffDay();
   vm.queue.rows = [];
-  vm.queue.waiting = 0;
+  vm.queue.windows = 0;
   // And the one count of what needs you (0048), which the head says: nobody is held for a person.
-  if (vm.needsYou) vm.needsYou = { ...vm.needsYou, count: 0, rows: [] };
+  if (vm.needsYou) vm.needsYou = { ...vm.needsYou, count: 0, holds: 0, sends: 0, rows: [] };
   vm.queue.parts = [];
   setSurfaceValue("today", vm);
   const tree = draw();

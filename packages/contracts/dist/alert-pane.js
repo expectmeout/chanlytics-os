@@ -130,6 +130,7 @@ var LEAD_SORTS = [...LEAD_VIEW_SORTS, "pile"];
 var LEAD_QUESTION_WAIT_LINE = "Nothing is spent while this waits. With no answer in a day, it stops and keeps what it found.";
 
 // src/today/push.ts
+var BELL_LIST_ROWS = 60;
 var PUSH_RECEIPTS_AFTER_MS = 15 * MIN_MS;
 var BELL_WINDOW_DAYS = 30;
 
@@ -353,7 +354,7 @@ var ALERT_PANE_WORDS = {
   where: "Where alerts reach you",
   whereSub: "The bell keeps everything. Choose what else reaches you below.",
   bell: "Bell",
-  bellValue: `Everything below, for ${BELL_WINDOW_DAYS} days`,
+  bellValue: `Everything below, for ${BELL_WINDOW_DAYS} days; the newest ${BELL_LIST_ROWS} are listed`,
   bellOn: "Always on",
   email: "Email",
   emailNobody: "Nobody yet",

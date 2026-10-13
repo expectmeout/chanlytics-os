@@ -7,7 +7,7 @@ import { standingOfThread } from "../conversations/standing";
 import type { CallDto } from "../conversations/call-dto";
 import { toCallVM } from "../conversations/call-vm";
 import { waitsOnAPerson, type EscalationDto } from "../conversations/escalations";
-import { threadsWaitingOnYou } from "../conversations/inbox-thread";
+import { threadWaitsOf } from "../conversations/inbox-thread";
 import { lastExchanged, messageWords, clipAtWord } from "../conversations/message-words";
 import { contactName } from "../conversations/thread-contact";
 import { isOptedOut, type ConversationDto } from "../conversations/thread-dto";
@@ -41,6 +41,12 @@ interface TodayInput {
   now: Date;
   /** Null: the searches were not read; the queue says nothing about them. */
   searches: LeadSearchDto[] | null;
+  /**
+   * The threads of open holds past the newest page, read by their ids (inbox-thread.ts heldThreadIds), so a hold whose
+   * thread is older than the page is judged by its own standing and named, as the Inbox judges it. Empty where none was
+   * read; a hold whose thread is in neither list is counted as waiting (unknown is not handled).
+   */
+  heldThreads: ConversationDto[];
 }
 
 /**
@@ -86,9 +92,11 @@ export interface TodayFacts extends TodayInput {
   callsRead: boolean;
   wires: TodayWire[];
   /**
-   * How many conversations wait on you: threadsWaitingOnYou, the threads' part of the one count every surface says for "need
-   * you" (waits.ts needsYouCount, which adds the runs waiting for a word). The headline says conversations, so it says this.
+   * The threads' part of the one count every surface says for "need you" (inbox-thread.ts threadWaitsOf; waits.ts
+   * needsYouCount adds the runs): the holds, and the replies counting down that can still be stopped, which have no row.
    */
+  waits: { holds: number; sends: number };
+  /** How many conversations wait on you: the holds and the held sends. The headline says conversations, so it says this. */
   needsYouCount: number;
   /** The open escalations nobody has taken over, oldest waiting first, each read once. */
   escRecords: EscalationRecord[];
@@ -192,7 +200,9 @@ function escalationRecords(
  */
 function closingConversations(conversations: ConversationDto[], escSet: Set<string>, now: Date): ConversationDto[] {
   return conversations.filter((c) => {
-    if (escSet.has(c.id) || isOptedOut(c)) return false;
+    // Nor a thread put away: an archived thread is nobody's to answer, whatever its window says (the wiring's second
+    // audit, S7-8). A snoozed thread, or a teammate's, keeps its row: its window really is closing.
+    if (escSet.has(c.id) || isOptedOut(c) || c.state === "archived") return false;
     const last = lastExchanged(c.messages);
     if (!last || last.sender !== "customer") return false;
     const w = waWindow(c.last_wa_inbound_at, now);
@@ -206,7 +216,10 @@ export function todayFacts(input: TodayInput): TodayFacts {
   const tz = metrics.workspace.timezone;
   const period = metrics.period;
   const callDtos = calls ?? [];
-  const byConv = new Map(conversations.map((c) => [c.id, c]));
+  // The newest page and the held threads past it: every open hold is judged by its own thread where one was read.
+  const threads = [...conversations, ...input.heldThreads];
+  const byConv = new Map(threads.map((c) => [c.id, c]));
+  const waits = threadWaitsOf(threads, escalations, now);
   const openEsc = openEscalations(escalations, byConv, now);
   const escSet = new Set(openEsc.map((e) => e.conversation_id));
   const sinceMs = new Date(metrics.window.since).getTime();
@@ -219,7 +232,8 @@ export function todayFacts(input: TodayInput): TodayFacts {
     // Null: the calls read failed. The card says so rather than counting none.
     callsRead: calls !== null,
     wires: todayWires(metrics),
-    needsYouCount: threadsWaitingOnYou(conversations, escalations, now),
+    waits,
+    needsYouCount: waits.holds + waits.sends,
     escRecords: escalationRecords(openEsc, byConv, newestCallByThread(callDtos), tz, now),
     escSet,
     closingConvs: closingConversations(conversations, escSet, now),

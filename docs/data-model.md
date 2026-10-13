@@ -27,7 +27,7 @@ what the script writes.
 | [`billing_events`](#billing_events) | none | on, no policy, so only the service role reaches it |
 | [`broadcast_recipients`](#broadcast_recipients) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/touches.ts` | on, 2 policies |
 | [`broadcasts`](#broadcasts) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts` | on, 3 policies |
-| [`business_records`](#business_records) | `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
+| [`business_records`](#business_records) | `packages/db/src/lines.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
 | [`calls`](#calls) | `packages/db/src/events.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 1 policy |
 | [`capability_activations`](#capability_activations) | none | on, 2 policies |
 | [`contact_identities`](#contact_identities) | none | on, 1 policy |
@@ -36,7 +36,7 @@ what the script writes.
 | [`contacts`](#contacts) | `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notifications.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts` | on, 1 policy |
 | [`conversations`](#conversations) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notifications.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/thread.ts` | on, 2 policies |
 | [`deals`](#deals) | `packages/db/src/events.ts`, `packages/db/src/repositories/deals.ts`, `packages/db/src/repositories/thread.ts` | on, 1 policy |
-| [`decisions`](#decisions) | `packages/db/src/repositories/people.ts` | on, 2 policies |
+| [`decisions`](#decisions) | `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/people.ts` | on, 2 policies |
 | [`erasure_keying`](#erasure_keying) | none | on, no policy, so only the service role reaches it |
 | [`escalations`](#escalations) | `packages/db/src/events.ts`, `packages/db/src/repositories/notifications.ts`, `packages/db/src/repositories/outreach.ts` | on, 2 policies |
 | [`event_deliveries`](#event_deliveries) | `packages/db/src/events.ts` | on, no policy, so only the service role reaches it |
@@ -71,8 +71,8 @@ what the script writes.
 | [`messages`](#messages) | `packages/db/src/events.ts`, `packages/db/src/jobs.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notifications.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 3 policies |
 | [`model_prompts`](#model_prompts) | none | on, no policy, so only the service role reaches it |
 | [`model_turns`](#model_turns) | none | on, no policy, so only the service role reaches it |
-| [`notification_marks`](#notification_marks) | none | on, 1 policy |
-| [`notification_reads`](#notification_reads) | none | on, 1 policy |
+| [`notification_marks`](#notification_marks) | `packages/db/src/repositories/notifications.ts` | on, 1 policy |
+| [`notification_reads`](#notification_reads) | `packages/db/src/repositories/notifications.ts` | on, 1 policy |
 | [`notifications`](#notifications) | `packages/db/src/repositories/notifications.ts` | on, 1 policy |
 | [`operator_pages`](#operator_pages) | none | on, no policy, so only the service role reaches it |
 | [`page_vitals`](#page_vitals) | none | on, no policy, so only the service role reaches it |
@@ -103,10 +103,10 @@ what the script writes.
 | [`sending_domains`](#sending_domains) | `packages/db/src/repositories/sending-domains.ts` | on, 1 policy |
 | [`sweep_status`](#sweep_status) | none | on, no policy, so only the service role reaches it |
 | [`templates`](#templates) | `packages/db/src/events.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/templates.ts` | on, 1 policy |
-| [`tenant_channels`](#tenant_channels) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/sweeps.ts` | on, 1 policy |
+| [`tenant_channels`](#tenant_channels) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/sweeps.ts` | on, 1 policy |
 | [`tenant_config`](#tenant_config) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts` | on, 2 policies |
 | [`tenant_config_versions`](#tenant_config_versions) | none | on, no policy, so only the service role reaches it |
-| [`tenants`](#tenants) | `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 2 policies |
+| [`tenants`](#tenants) | `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 2 policies |
 | [`waitlist`](#waitlist) | `packages/db/src/waitlist.ts` | on, no policy, so only the service role reaches it |
 | [`lead_searches_view`](#lead_searches_view) (view) | none | |
 | [`usage_ledger`](#usage_ledger) (view) | none | |
@@ -485,7 +485,7 @@ Foreign keys:
 
 What every carrier registration asks of a business, kept once per workspace. Members read; the edge writes.
 
-- Owned by: `packages/db/src/repositories/reach-out.ts`
+- Owned by: `packages/db/src/lines.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts`
 - Primary key: `tenant_id`
 - Row-level security: on, 1 policy
 
@@ -827,7 +827,7 @@ Foreign keys:
 
 ### decisions
 
-- Owned by: `packages/db/src/repositories/people.ts`
+- Owned by: `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/people.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 
@@ -1874,7 +1874,7 @@ Foreign keys:
 
 ### notification_marks
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/notifications.ts`
 - Primary key: `notification_id`, `user_id`
 - Row-level security: on, 1 policy
 
@@ -1895,7 +1895,7 @@ Foreign keys:
 
 ### notification_reads
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/notifications.ts`
 - Primary key: `tenant_id`, `user_id`
 - Row-level security: on, 1 policy
 
@@ -1935,6 +1935,7 @@ What needed the workspace's attention, kept: each alert the edge raised, where t
 | `recipient_user_id` | uuid | yes |  | The one member this is for (0007); null for everyone in the workspace. Only the recipient reads an addressed row. |
 | `source_event` | uuid | yes |  | The event this notice answers (decision 0043, 00396): a hold's notice keeps its escalation event, so a second delivery of it tells nobody. A sweep's once-only notice keeps, in its place, a uuid made from the name of what it answers (the edge's notify.ts onceKey: the deadman's warning of one hold, the warning before a number is given back, a booking email held for a look), so a retry finds it and sends only the mail it still owes (00419). Null for a notice nothing keys. |
 | `mail_due_at` | timestamp with time zone | yes |  | When this notice's mail became owed (decision 0048, 00409): set with the row when a mail is to go, cleared once it has gone, so a retry sends the mail alone and the bell keeps one row. Null for a notice nothing owes. |
+| `closed_at` | timestamp with time zone | yes |  | When what the row asked for ended for good, for everyone (00421): the hold it told of resolved (escalation_closes_its_notices), the question it asked settled (lead_rounds_notify), the offers pause it told of lifted (resume_email_offers), or the warning mended by news the edge kept after it (contracts NOTICE_MENDS). Null while it may still ask. A closed row reads as read and wears no warning; a member's own read stays notification_marks'. Written by the service role and the definer functions only: the table's one policy is SELECT. |
 
 Foreign keys:
 
@@ -2855,7 +2856,7 @@ Foreign keys:
 
 The ROUTING table: one row per thing an inbound webhook must resolve to a workspace. A voice row is keyed on the receptionist (external_id = agent id) so several numbers may share one; an sms or whatsapp row is keyed on the number, because a message arrives addressed to one. config.line_id names the lines row that created it, when a line did -- numbers provisioned inside Retell or through Meta legitimately have none. See public.number_drift() for what disagreement between the two looks like.
 
-- Owned by: `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/sweeps.ts`
+- Owned by: `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/sweeps.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -2931,7 +2932,7 @@ Foreign keys:
 
 ### tenants
 
-- Owned by: `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts`
+- Owned by: `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 

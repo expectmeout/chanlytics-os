@@ -1,4 +1,4 @@
-import { activitySubjectHome } from "./subjects";
+import { activitySubjectHome, workspaceChangeDoor } from "./subjects";
 import {
   CALL_MISSED_WORDS,
   CALL_UNANSWERED_WORDS,
@@ -235,9 +235,13 @@ export function activityRowsForLines<T extends ActivityFoldRow>(
  * no page (a workspace), and one nobody declared. A visit opens its panel on the Calendar, and its day is the server's to
  * add (a visit's own address, calendar/<day>:a-<id>): the id alone is the shape the board reads without one.
  */
-export function activityDoor(r: Pick<ActivityFoldRow, "subject_type" | "subject_id">): string | null {
+export function activityDoor(
+  r: Pick<ActivityFoldRow, "subject_type" | "subject_id"> & { kind?: string },
+): string | null {
   const home = activitySubjectHome(r.subject_type);
-  return home && "door" in home ? home.door(r.subject_id) : null;
+  if (home && "door" in home) return home.door(r.subject_id);
+  // The workspace has no page, but a change of one of its panes opens that pane (subjects.ts workspaceChangeDoor).
+  return (r.subject_type === "workspace" || r.subject_type === "tenant") && r.kind ? workspaceChangeDoor(r.kind) : null;
 }
 
 /**

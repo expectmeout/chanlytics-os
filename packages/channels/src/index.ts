@@ -263,7 +263,7 @@ export {
 export type { ProviderDomain, ProviderAnswer } from "./email/email-domains";
 export { A2P_POLICIES, TRUSTHUB, MESSAGING, encodeForm } from "./lines/a2p/wire";
 export type { A2PRequest } from "./lines/a2p/wire";
-export { brandTypeFor } from "./lines/a2p/business-record";
+export { brandTypeFor, brandNameOf } from "./lines/a2p/business-record";
 export type { BusinessRecord, BrandType } from "./lines/a2p/business-record";
 export {
   customerProfileRequest,

@@ -160,6 +160,8 @@ export interface LifecycleRun {
    */
   run_for?: string | null;
   audience?: unknown;
+  /** A reach-out's going run: how many of its emails the check holds for its owner's say; absent where not counted. */
+  held?: number | null;
 }
 
 /** Who can hear the workspace, counted over everyone in People once (`reachCountsOf`). */

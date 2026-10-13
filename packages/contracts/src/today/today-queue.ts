@@ -25,12 +25,22 @@ const TODAY_QUEUE_MAX = 6;
 const PEOPLE_KINDS: ReadonlySet<TodayQueueRowVM["kind"]> = new Set(["handoff", "callback", "window", "reply"]);
 
 /**
- * Whether a row is a person waiting on one. The one answer for the brief's names and its "and N more", the head's
- * count and the foot's "more in the Inbox": each said a different thing about the same rows while the calls and the
- * searches counted as people (the 2 Oct 2026 audit).
+ * Whether a row is a person, as the queue's rows go: the foot's "more in the Inbox" and the people past the six. Who
+ * needs you is isHoldRow: a closing window is a person, and nobody waiting on you (the wiring's second audit, S7-8).
  */
 export function isPersonRow(r: Pick<TodayQueueRowVM, "kind">): boolean {
   return PEOPLE_KINDS.has(r.kind);
+}
+
+/** The kinds of row that are a hold: a person who asked for a person (a handoff, a call-back, a reach-out's reply read). */
+const HOLD_KINDS: ReadonlySet<TodayQueueRowVM["kind"]> = new Set(["handoff", "callback", "reply"]);
+
+/**
+ * Whether a row is someone who needs you: a hold. The brief names these as needing you and the phone's widget names the
+ * first; a closing window is said as a window, never as someone who needs you (the wiring's second audit, S7-8).
+ */
+export function isHoldRow(r: Pick<TodayQueueRowVM, "kind">): boolean {
+  return HOLD_KINDS.has(r.kind);
 }
 
 /**
@@ -246,8 +256,8 @@ export function todayQueue(f: TodayFacts, callRows: TodayCallRowVM[], empty: Tod
     // among the six rows, so it said nothing of four calls the head had just counted.
     calls: earN,
     searches: searchN,
+    windows: winN,
     parts,
     empty,
-    waiting: needN + winN + searchN,
   };
 }

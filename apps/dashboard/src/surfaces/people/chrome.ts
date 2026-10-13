@@ -4,6 +4,7 @@
  * and the one act of each. The frame stays mounted around it (surfaces/routes.ts).
  */
 import {
+  addressOf,
   PERSON_ABOUT_WORDS,
   PERSON_STATE_LABELS,
   isIdentifierName,
@@ -149,7 +150,7 @@ export function peopleChrome({ param, backToPeople }: { param: string | null; ba
     const { id } = personRouteOf(param);
     return {
       crumbs: [{ ...PEOPLE_CRUMB, go: backToPeople }, personName(id)],
-      mount: `clients/${id}`,
+      mount: addressOf({ kind: "person", id }),
       ask: personAsk(id),
     };
   }

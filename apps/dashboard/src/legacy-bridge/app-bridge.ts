@@ -12,6 +12,7 @@
  */
 import {
   callsStillUp,
+  canonicalRoute,
   IN_APP_CLASS,
   isUuid,
   parsePageMessage,
@@ -20,8 +21,9 @@ import {
   type LiveVM,
   type PageMessage,
   type TodayVM,
+  type Waits,
 } from "@chanlytics/contracts";
-import { hearNeedsYou, needsYouNow } from "../surfaces/needs-you";
+import { hearNeedsYou, needsYouNow, needsYouOnToday } from "../surfaces/needs-you";
 import { api } from "./api";
 import { sealSurfaceCache } from "./surface-cache";
 import { goToRoute, hearAddress, pathWorkspace, routeOnScreen, workspaceHref } from "./workspace";
@@ -74,12 +76,16 @@ export const deviceDoors: DeviceDoors = {
   forget: async (token) => (await api()("DELETE me/devices", { body: { token } })).ok,
 };
 
-/** What the bridge asks of the count of what needs you: its number now (null before the Inbox has been read), and to be told when it may have moved. */
+/**
+ * What the bridge asks of the count of what needs you: its number now (null before the Inbox has been read), to be told
+ * when it may have moved, and its parts for Today's widget (the page's own, else the brief's: needsYouOnToday).
+ */
 export interface NeedsSource {
   now(): number | null;
   hear(fn: () => void): () => void;
+  parts(vm: TodayVM): Waits;
 }
-const NEEDS_YOU: NeedsSource = { now: () => needsYouNow(), hear: hearNeedsYou };
+const NEEDS_YOU: NeedsSource = { now: () => needsYouNow(), hear: hearNeedsYou, parts: (vm) => needsYouOnToday(vm) };
 
 export function installAppBridge(
   win: BridgeWindow = window,
@@ -108,14 +114,23 @@ export function installAppBridge(
     needsSaid = inbox;
     post({ t: "needs", inbox });
   };
-  // Today for the widget: on every refresh of the page's Today, and at install when it is already there.
+  // Today for the widget: on every refresh of the page's Today, whenever what waits moves (a run approved, a reply held:
+  // the count's parts, which the widget says), and at install when it is already there; never the same twice in a row.
+  let todaySaid: string | null = null;
   const today = () => {
     const vm = win.TODAY_DATA;
-    if (vm && typeof vm === "object" && vm.standing && vm.queue)
-      post({ t: "today", snapshot: todayWidgetSnapshot(vm, new Date()) });
+    if (!vm || typeof vm !== "object" || !vm.standing || !vm.queue) return;
+    const snapshot = todayWidgetSnapshot(vm, new Date(), source.parts(vm));
+    const key = JSON.stringify({ ...snapshot, at: "" });
+    if (key === todaySaid) return;
+    todaySaid = key;
+    post({ t: "today", snapshot });
   };
   const offAddress = hearAddress(route, win);
-  const offNeeds = source.hear(counts);
+  const offNeeds = source.hear(() => {
+    counts();
+    today();
+  });
   win.addEventListener("workspace:changed", workspace);
   win.addEventListener("surface:today", today);
   // The calls still up, for the Lock Screen's activity: none means the phone may end what it shows. A call marked live
@@ -257,7 +272,8 @@ function pushedRoutes(win: BridgeWindow): Pushes {
   const go = (route: string, workspace: string, mine: boolean) => {
     if (mine) return goToRoute(route, {}, win);
     sealSurfaceCache();
-    win.location.assign(workspaceHref(workspace, `#/${route}`));
+    // Spelled as the shell spells it (contracts canonicalRoute), as goToRoute spells a move in this workspace.
+    win.location.assign(workspaceHref(workspace, `#/${canonicalRoute(route)}`));
   };
   function stop(): void {
     waiting = null;

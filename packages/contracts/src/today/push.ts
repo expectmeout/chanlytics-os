@@ -128,20 +128,50 @@ export interface PushTarget {
   badge: number;
 }
 
+/** The newest kept rows GET notifications lists; the count is of all the window's (NotificationsDto.unread). */
+export const BELL_LIST_ROWS = 60;
+
 /**
  * The bell's number, by the bell's own rule (notifications.ts serverNotificationRows): kept rows of the window newer
- * than the person's seen moment, not marked read or dismissed by them. The edge counts it per reader before a push
- * and the page counts it (keptUnreadOf) as the phone app's icon; both must agree, so both count here.
+ * than the person's seen moment, not marked read or dismissed by them, and not closed by the server (closed_at, 00421: a
+ * row whose wait ended for good is no part of the number). The edge counts it per reader before a push and the page
+ * counts it (keptUnreadOf) as the phone app's icon; both must agree, so both count here.
  */
 export function unreadFor(
-  rows: readonly { id: string; created_at: string }[],
+  rows: readonly { id: string; created_at: string; closed_at?: string | null }[],
   seenAt: string | null,
   marks: readonly { notification_id: string; read_at: string | null; dismissed_at: string | null }[],
 ): number {
   const seen = seenAt ? Date.parse(seenAt) : 0;
   const gone = new Set(marks.filter((m) => m.read_at || m.dismissed_at).map((m) => m.notification_id));
-  return rows.filter((r) => Date.parse(r.created_at) > seen && !gone.has(r.id)).length;
+  return rows.filter((r) => Date.parse(r.created_at) > seen && !gone.has(r.id) && !r.closed_at).length;
 }
+
+/** The listed rows' own marks, as unreadFor reads marks. */
+const marksOf = (dto: NotificationsDto) =>
+  dto.notifications.map((n) => ({
+    notification_id: n.id,
+    read_at: n.read ? n.created_at : null,
+    dismissed_at: n.dismissed ? n.created_at : null,
+  }));
+
+/**
+ * The unread kept rows the bell does not list (older than its newest BELL_LIST_ROWS), from the server's count of the whole
+ * window (NotificationsDto.unread) less the listed rows' own. None where the server did not count, and none after a Mark all
+ * read made on this device (`seenMs` later than the server's seen moment reads every row).
+ */
+export function olderUnreadOf(dto: NotificationsDto | null | undefined, seenMs = 0): number {
+  if (!dto || typeof dto.unread !== "number") return 0;
+  const seen = dto.seen_at ? Date.parse(dto.seen_at) : 0;
+  // A Mark all read on this device since the server's moment covers the older rows; a moment of this device's that is
+  // later only because its clock runs ahead of the server's does not, so it counts as one only from the oldest row listed.
+  const oldest = Date.parse(dto.notifications.at(-1)?.created_at ?? "");
+  if (seenMs > seen && seenMs >= oldest) return 0;
+  return Math.max(0, dto.unread - unreadFor(dto.notifications, dto.seen_at, marksOf(dto)));
+}
+
+/** No ids: nothing the surfaces settle. */
+const NO_IDS: ReadonlySet<string> = new Set();
 
 /**
  * The number on the phone app's icon, as the page holds the bell's kept rows (GET notifications: the window's rows, each
@@ -150,17 +180,19 @@ export function unreadFor(
  * draft, a missed call, an invitation) and the edge cannot, so the icon read 2 with the app closed and 5 once it was open
  * (D1-phone-badge). `seenMs` is a later seen moment this device holds, a Mark all read the re-read has not brought back.
  */
-export function keptUnreadOf(dto: NotificationsDto | null | undefined, seenMs = 0): number {
+export function keptUnreadOf(
+  dto: NotificationsDto | null | undefined,
+  seenMs = 0,
+  settled: ReadonlySet<string> = NO_IDS,
+): number {
   if (!dto) return 0;
   const seen = Math.max(seenMs, (dto.seen_at ? Date.parse(dto.seen_at) : 0) || 0);
-  return unreadFor(
-    dto.notifications,
-    seen > 0 ? new Date(seen).toISOString() : null,
-    dto.notifications.map((n) => ({
-      notification_id: n.id,
-      read_at: n.read ? n.created_at : null,
-      dismissed_at: n.dismissed ? n.created_at : null,
-    })),
+  // The rows the surfaces settle now (a hold snoozed or a teammate's, a run approved: notice-closes.ts settledNoticeIds) are
+  // no part of the icon's number either, while the app is open; the edge's count honours the server's close alone.
+  const listed = dto.notifications.filter((n) => !settled.has(n.id));
+  return (
+    unreadFor(listed, seen > 0 ? new Date(seen).toISOString() : null, marksOf({ ...dto, notifications: listed })) +
+    olderUnreadOf(dto, seenMs)
   );
 }
 

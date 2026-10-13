@@ -4216,6 +4216,7 @@ export type Database = {
       notifications: {
         Row: {
           body: string
+          closed_at: string | null
           created_at: string
           id: string
           kind: string
@@ -4230,6 +4231,7 @@ export type Database = {
         }
         Insert: {
           body: string
+          closed_at?: string | null
           created_at?: string
           id?: string
           kind: string
@@ -4244,6 +4246,7 @@ export type Database = {
         }
         Update: {
           body?: string
+          closed_at?: string | null
           created_at?: string
           id?: string
           kind?: string
@@ -7420,6 +7423,16 @@ export type Database = {
         Args: { p_dismissed?: boolean; p_id: string; p_read?: boolean }
         Returns: Json
       }
+      notifications_close_about: {
+        Args: {
+          p_kinds: string[]
+          p_subject_id: string
+          p_subject_type: string
+          p_tenant_id: string
+          p_title?: string
+        }
+        Returns: number
+      }
       notifications_seen: { Args: { p_tenant_id: string }; Returns: Json }
       number_drift: {
         Args: never
@@ -7765,6 +7778,7 @@ export type Database = {
       person_call_logged: {
         Args: {
           p_body: string
+          p_closes_call_back?: boolean
           p_contact_id: string
           p_due_on?: string
           p_lead_note?: string

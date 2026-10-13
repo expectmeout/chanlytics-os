@@ -24,6 +24,8 @@ export {
   outreachRefusalOf,
   isWaitRefusal,
   isReachOutRun,
+  chainOfMoment,
+  reachOutRootOf,
   reachOutEmailOf,
   reachOutExampleValues,
   REACH_OUT_LANGUAGE,

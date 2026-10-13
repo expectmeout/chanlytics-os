@@ -56,6 +56,8 @@ export function todayNeedsYou(f: TodayFacts): NonNullable<TodayVM["needsYou"]> {
   const { period } = f;
   return {
     count: f.needsYouCount,
+    holds: f.waits.holds,
+    sends: f.waits.sends,
     hint: "The receptionist stopped and asked for a human.",
     rows,
     // Said only when nothing waits: a reply counting down to send is counted (threadsWaitingOnYou) and has no row here.

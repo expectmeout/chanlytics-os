@@ -170,6 +170,7 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "PROFILE_LIMITS",
     "PROMPT_NOW",
     "PROMPT_READERS",
+    "SERVICES_ON_PUBLIC_PAGE",
     "SERVICE_PRICE_EMPTY",
     "TONE_PRESETS",
     "VISION_STRENGTH",

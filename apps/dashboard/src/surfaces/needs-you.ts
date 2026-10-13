@@ -11,11 +11,24 @@
  * only the Inbox knows (a reply this tab has just held), and over the runs the campaigns surface holds that wait for a word.
  * It sends nothing and keeps nothing: the surfaces it is made of move, and a reader that asks again is told the same thing.
  * The sum is contracts' (waits.ts `needsYouCount`), and a thread's part in it is `threadWait`, which the Inbox's chip and
- * Today's headline ask too.
+ * Today's headline ask too. Its parts are read here too (`needsYouParts`), by every page that says them: Today's head and
+ * its sub-line, the Inbox's band for the runs and its head, Ask's Right now and the phone's widget, so no page says
+ * "nothing needs you" over a part the badge counts (the wiring's second audit, S7-1 and S7-2). A run counts only while an
+ * approval can still send it (contracts runWaitsOnYou, by the business's days), and a hold whose thread the Inbox could not
+ * read counts too (UNREAD_HOLDS: unknown is not handled).
  */
 import { useSyncExternalStore } from "react";
-import { needsYouCount, waitsOf, type WaitingThread } from "@chanlytics/contracts";
+import {
+  needsYouCount,
+  runsThatWait,
+  waitsOf,
+  type BroadcastVM,
+  type TodayVM,
+  type WaitingThread,
+  type Waits,
+} from "@chanlytics/contracts";
 import { onSurfaceMoved } from "@/legacy-bridge/surface-status";
+import { approvalDaysNow } from "./campaigns/broadcasts/when-words";
 import { ixWaiting, ixWaitsOnYou } from "./inbox/rules";
 import { demoSession } from "./inbox/shell";
 import { IX_STORE, inboxData } from "./inbox/store";
@@ -30,20 +43,62 @@ function waitingThread(t: Thread): WaitingThread {
   return t.real ? ixWaiting(t) : { needsYou: ixWaitsOnYou(t) && !IX_STORE.get(t.id) };
 }
 
+/** The runs the campaigns surface holds that wait for a word an approval can still send: none until it is read. */
+export function waitingRunsNow(nowMs: number = Date.now()): BroadcastVM[] {
+  const rows = surfaceValue("broadcasts")?.rows ?? [];
+  // The business's days are asked only over runs to judge: a page with none never asks the clock.
+  return rows.length ? runsThatWait(rows, approvalDaysNow(nowMs)) : [];
+}
+
+let lastParts: Waits | null = null;
+
 /**
- * How many things wait on you now, or null while the Inbox has not been read: a count of what nothing has read is no count,
- * and the seeded threads of the mockup are no one's. A demo session counts its seeds, as the mockup always did. The runs
- * are the campaigns surface's, none until it is read.
+ * What waits on you now, by its parts (holds, held sends, runs), or null while the Inbox has not been read: a count of
+ * what nothing has read is no count, and the seeded threads of the mockup are no one's. A demo session counts its seeds,
+ * as the mockup always did. The same object while the parts are the same, so a hook over it draws once.
  */
-export function needsYouNow(nowMs: number = Date.now()): number | null {
+export function needsYouParts(nowMs: number = Date.now()): Waits | null {
   const inbox = typeof window !== "undefined" && demoSession() ? inboxData() : surfaceValue("inbox");
   if (!inbox) return null;
-  return needsYouCount(
-    waitsOf({
-      threads: inbox.THREADS.map(waitingThread),
-      runs: surfaceValue("broadcasts")?.rows ?? [],
-      nowMs,
-    }),
+  const rows = surfaceValue("broadcasts")?.rows ?? [];
+  const parts = waitsOf({
+    threads: inbox.THREADS.map(waitingThread),
+    // The holds whose thread the Inbox could not read, each a customer who may be waiting (a STOP's is not counted).
+    unreadHolds: inbox.UNREAD_HOLDS ?? 0,
+    runs: rows,
+    days: rows.length ? approvalDaysNow(nowMs) : NO_DAYS,
+    nowMs,
+  });
+  if (lastParts && lastParts.holds === parts.holds && lastParts.sends === parts.sends && lastParts.runs === parts.runs)
+    return lastParts;
+  lastParts = parts;
+  return parts;
+}
+
+/** Days for a count with no runs to judge: never read, since no run is asked of them. */
+const NO_DAYS = { today: "", sendsOn: "" };
+
+/**
+ * How many things wait on you now, or null while the Inbox has not been read (needsYouParts, summed by contracts'
+ * needsYouCount).
+ */
+export function needsYouNow(nowMs: number = Date.now()): number | null {
+  const p = needsYouParts(nowMs);
+  return p ? needsYouCount(p) : null;
+}
+
+/**
+ * The parts for Today's page, which may stand before the Inbox is read: the live parts when there are any (`live`, the
+ * hook's), else the brief's own (its holds and sends) with the runs the campaigns surface holds. One fallback, for the
+ * head, the queue and the phone's widget alike.
+ */
+export function needsYouOnToday(vm: Pick<TodayVM, "needsYou">, live: Waits | null = needsYouParts()): Waits {
+  return (
+    live ?? {
+      holds: vm.needsYou?.holds ?? vm.needsYou?.count ?? 0,
+      sends: vm.needsYou?.sends ?? 0,
+      runs: waitingRunsNow().length,
+    }
   );
 }
 
@@ -86,3 +141,11 @@ export function needsYouMoved(): void {
 export function useNeedsYou(): number | null {
   return useSyncExternalStore(hearNeedsYou, needsYouNow, needsYouNow);
 }
+
+/** The parts, as a hook: drawn again when a part changes (a hold becomes a held send, a run is approved), by nothing else. */
+export function useNeedsYouParts(): Waits | null {
+  return useSyncExternalStore(hearNeedsYou, partsNow, partsNow);
+}
+
+// useSyncExternalStore calls its snapshot with no arguments: the clock is now.
+const partsNow = () => needsYouParts();

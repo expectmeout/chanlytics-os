@@ -2498,10 +2498,13 @@ interface CancelReceipt {
  * stops at its next batch — the messages already on their way are on their
  * way, and the row says how many. Waiting for approval (a playbook's run
  * under the ask mode): skipped, nothing was ever scheduled. Anything else
- * has already ended and says so. The ledger records the decision.
+ * has already ended and says so. The ledger records the decision, with why
+ * where the system skipped it (`day_passed`: the edge's playbooks sweep ends a
+ * run waiting for approval after its day, which no approval can send).
  */
 declare function cancelBroadcast(ports: CancelBroadcastPorts, cmd: {
     row: Pick<BroadcastRef, "id" | "state" | "name">;
+    reason?: "day_passed";
 }): Promise<CancelReceipt>;
 
 /** Everything a playbook names, checked. */
@@ -2686,7 +2689,7 @@ interface ReachOutStep {
     state: "running" | "paused";
     lead_search_id: string | null;
     /**
-     * What the chain's first step writes to (00430): a search the finder keeps current, or a list its owner adds leads to
+     * What the chain's first step writes to (00423): a search the finder keeps current, or a list its owner adds leads to
      * by hand (a search of via chosen or import). Every first-email run of a list-fed chain waits for its owner's say.
      */
     fed_by: "search" | "list";

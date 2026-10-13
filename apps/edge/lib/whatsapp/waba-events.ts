@@ -21,8 +21,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { mapCategory, mapQuality, mapStatus } from "./meta-templates.js";
 import type { Database, Json } from "../packages/db.js";
 import { emitEvent, keepChannelStanding, setTemplateQuality } from "../packages/db.js";
-import { notify, type NotifyTarget } from "../ops/notify.js";
+import { mendWarnings, notify, type NotifyTarget } from "../ops/notify.js";
 import {
+  addressOf,
   nameDecisionWords,
   parseTenantConfig,
   samePhone,
@@ -151,10 +152,18 @@ const BLOCKED = { kind: "template_blocked" as const, route: "messages" };
 /**
  * A template notice opens the message it is about, in its own drawer over Campaigns (campaigns/message:<name>), and says what
  * it is about (D1-template-marks): it opened the bare Library, at its top, though a message has its own address now. Without
- * a name (an event that carries none) it keeps the Library's door.
+ * a name (an event that carries none) it keeps the Library's door. What it is about is the version, by its name and its
+ * language where the event says it (a row per both, 00004): a version approved in one language mends no refusal of
+ * another (contracts NOTICE_MENDS; the wiring's second audit, W-channel-team-plus-4).
  */
-function aboutTemplate(name: string | null): Partial<Pick<WabaWords, "route" | "about">> {
-  return name ? { route: `campaigns/message:${name}`, about: { type: "template", id: name } } : {};
+function aboutTemplate(v: Record<string, unknown>): Partial<Pick<WabaWords, "route" | "about">> {
+  const name = typeof v.message_template_name === "string" ? v.message_template_name : null;
+  if (!name) return {};
+  const language = typeof v.message_template_language === "string" ? v.message_template_language : null;
+  return {
+    route: addressOf({ kind: "template", name }),
+    about: { type: "template", id: language ? `${name}:${language}` : name },
+  };
 }
 
 /** A status WhatsApp put on a template, in the Library's own word for it (TEMPLATE_STATUS_WORDS), lower case in a sentence. */
@@ -169,7 +178,7 @@ function categoryWords(v: Record<string, unknown>): WabaWords {
   const to = typeof v.new_category === "string" ? v.new_category.toLowerCase() : "another category";
   return {
     ...(to === "marketing" ? BLOCKED : READY),
-    ...aboutTemplate(typeof v.message_template_name === "string" ? v.message_template_name : null),
+    ...aboutTemplate(v),
     subject: `Template “${name}” is now ${to}`,
     body: `Meta moved the template “${name}” to ${to}.${to === "marketing" ? " Sends that use it now need the customer's recorded yes." : ""}`,
     alert: to === "marketing",
@@ -179,7 +188,7 @@ function categoryWords(v: Record<string, unknown>): WabaWords {
 /** A template's status at Meta moved: refused, paused or disabled, or approved; null for a status nobody is told of. */
 function templateStatusWords(v: Record<string, unknown>): WabaWords | null {
   const name = typeof v.message_template_name === "string" ? v.message_template_name : "a template";
-  const door = aboutTemplate(typeof v.message_template_name === "string" ? v.message_template_name : null);
+  const door = aboutTemplate(v);
   const event = String(v.event ?? "");
   if (event === "REJECTED")
     return {
@@ -433,7 +442,35 @@ export async function handleWabaChange(
   if (change.field === "message_template_quality_update")
     await applyTemplateQuality(db, routed.tenantId, change.value, L);
   if (change.field === "phone_number_name_update") await keepNameDecision(db, routed, change.value, L);
-  if (!described || !described.alert) return "kept";
+  if (!described) return "kept";
+  return tellWabaChange(db, routed, change.field, described, loadNotifications);
+}
+
+/**
+ * What a change's words do once it is kept: news is told (the bell, the mail), and news told to nobody still mends the
+ * warning it answers: "back to normal" closes "flagged", "raised" closes "lowered", "approved" closes "rejected" (contracts
+ * NOTICE_MENDS; the wiring's second audit, W-channel-team-plus-4). A number's quality and limit are that number's (an
+ * account may hold several): their notices are about its channel, so one number's good news mends only its own warning.
+ */
+async function tellWabaChange(
+  db: SupabaseClient<Database>,
+  routed: Routed,
+  field: string,
+  said: WabaWords,
+  loadNotifications: (tenantId: string) => Promise<NotificationsConfig | null>,
+): Promise<"kept" | "alerted"> {
+  const described =
+    field === "phone_number_quality_update" ? { ...said, about: { type: "channel", id: routed.channelId } } : said;
+  if (!described.alert) {
+    // Never throws: a close that fails is logged and the warning stays until it is read.
+    await mendWarnings(db, {
+      tenantId: routed.tenantId,
+      by: { kind: described.kind, title: described.subject },
+      subject: described.about ?? null,
+      keptId: null,
+    });
+    return "kept";
+  }
   const target: NotifyTarget = {
     tenantId: routed.tenantId,
     notifications: await loadNotifications(routed.tenantId),

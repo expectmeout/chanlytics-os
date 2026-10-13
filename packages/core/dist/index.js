@@ -1473,6 +1473,7 @@ async function readReply(ports, cmd) {
 
 // src/messages/broadcast.ts
 import {
+  addressOf as addressOf3,
   BROADCAST_CHUNK,
   BROADCAST_GAP_MS,
   BROADCAST_THROTTLE_WAITS_MS,
@@ -2009,7 +2010,7 @@ async function sendBroadcastBatch(ports, cmd) {
     await ports.fail(b.id, "template_not_approved");
     await ports.alert({
       kind: "broadcast_stopped",
-      route: `broadcasts/run:${b.id}`,
+      route: addressOf3({ kind: "send", id: b.id }),
       about: { type: "broadcast", id: b.id },
       subject: `Broadcast \u201C${b.name}\u201D stopped`,
       body: whatsappStoppedRunWords(message)
@@ -2096,7 +2097,7 @@ function finishedNews(b, { sent, held, counted }) {
   const people = (n) => `${n} ${n === 1 ? "person" : "people"}`;
   return {
     kind: sent > 0 ? "broadcast_sent" : "broadcast_stopped",
-    route: `broadcasts/run:${b.id}`,
+    route: addressOf3({ kind: "send", id: b.id }),
     about: { type: "broadcast", id: b.id },
     subject: sent > 0 ? `Broadcast \u201C${b.name}\u201D sent` : `Broadcast \u201C${b.name}\u201D reached nobody`,
     body: sent > 0 ? `${sent} of ${people(sent + held)} got it${held ? `; ${held} held back (${why})` : ""}. Replies land in the Inbox.` : `None of the ${people(held)} on it got it: each was held back (${why}). The broadcast's page says who and why.`
@@ -2150,7 +2151,7 @@ async function stall(ports, b, cmd, what) {
   await ports.fail(b.id, what === "people" ? "people_unreadable" : wireFailure("stalled", what));
   await ports.alert({
     kind: "broadcast_stopped",
-    route: `broadcasts/run:${b.id}`,
+    route: addressOf3({ kind: "send", id: b.id }),
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast \u201C${b.name}\u201D stopped`,
     body: [
@@ -2169,7 +2170,7 @@ async function stopAfterHours(ports, b, waited) {
   await ports.fail(b.id, "after_hours");
   await ports.alert({
     kind: "broadcast_stopped",
-    route: `broadcasts/run:${b.id}`,
+    route: addressOf3({ kind: "send", id: b.id }),
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast \u201C${b.name}\u201D stopped`,
     body: [
@@ -2195,7 +2196,7 @@ async function stopForTheWire(w, out, channel) {
   const theirs = out.reason === "provider" ? words.platformKey : null;
   await ports.alert({
     kind: "broadcast_stopped",
-    route: `broadcasts/run:${b.id}`,
+    route: addressOf3({ kind: "send", id: b.id }),
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast \u201C${b.name}\u201D stopped`,
     body: theirs ? `${theirs.down} (HTTP ${out.status}), so the rest was not sent. ${thenWhat(b, theirs.told, `${theirs.told}. Send it again later.`, "when_it_can")}` : `${words.down} (${cause}), so the rest was not sent. ${thenWhat(b, words.reconnect, `${words.reconnect} and send it again.`, "tomorrow")}`
@@ -2212,7 +2213,7 @@ async function stopForTheLimit(w, contactId, out, limit) {
   await ports.fail(b.id, "provider_limit");
   await ports.alert({
     kind: "broadcast_stopped",
-    route: `broadcasts/run:${b.id}`,
+    route: addressOf3({ kind: "send", id: b.id }),
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast \u201C${b.name}\u201D stopped`,
     body: [
@@ -2251,7 +2252,7 @@ async function backOff(ports, b, cmd, how) {
   const until = at ? "until the day's sending hours ran out" : "for about an hour";
   await ports.alert({
     kind: "broadcast_stopped",
-    route: `broadcasts/run:${b.id}`,
+    route: addressOf3({ kind: "send", id: b.id }),
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast \u201C${b.name}\u201D stopped`,
     body: why === "throttled" ? `${words.limiting} ${until}, so the rest was not sent. ${gotIt(sent)} ${thenWhat(b, words.lifts, `${words.lifts}; send it again later.`, "tomorrow")}` : `${words.reach} ${until}, so the rest was not sent. ${gotIt(sent)} ${thenWhat(b, words.fine, `${words.fine}; send it again later.`, "tomorrow")}`
@@ -3160,9 +3161,9 @@ import {
   AppError as AppError13,
   CAMPAIGNS_PAUSED_WORDS as CAMPAIGNS_PAUSED_WORDS2,
   isReachOutRun as isReachOutRun2,
-  localDate as localDate2,
   nextOpenMoment as nextOpenMoment5,
-  runApprovalRefusal
+  runApprovalRefusal,
+  runDaysAt
 } from "../../contracts/dist/index.js";
 var approveLog = logger8();
 var NOT_APPROVED_WORDS = "The send could not be scheduled. The run is still waiting; try again.";
@@ -3174,7 +3175,7 @@ async function approveRun(ports, cmd) {
   if (isReachOutRun2(b.audience)) return approveReachOut(ports, b, cmd.now);
   const tz = await ports.timezone();
   const open = nextOpenMoment5(tz, cmd.now);
-  const late = runApprovalRefusal(b, { today: localDate2(tz, cmd.now), sendsOn: localDate2(tz, open.at) });
+  const late = runApprovalRefusal(b, runDaysAt(tz, cmd.now));
   if (late) throw new AppError13("conflict", late, 409);
   const at = open.at;
   const scheduledFor = at.toISOString();
@@ -3246,7 +3247,11 @@ async function cancelBroadcast(ports, cmd) {
   if (!await ports.cancel(b.id, b.state))
     throw new AppError14("conflict", "This broadcast just changed state; look again.", 409);
   if (b.state === "scheduled") await ports.withdraw(b.id);
-  const decision_id = await ports.record("broadcast", b.id, "cancel_broadcast", { name: b.name, was: b.state });
+  const decision_id = await ports.record("broadcast", b.id, "cancel_broadcast", {
+    name: b.name,
+    was: b.state,
+    ...cmd.reason ? { reason: cmd.reason } : {}
+  });
   return { id: b.id, state: "canceled", was: b.state, decision_id };
 }
 
@@ -3271,7 +3276,7 @@ import {
   isDayKey,
   isPlaybookState,
   isWinBack,
-  localDate as localDate3,
+  localDate as localDate2,
   messageFitsMoment,
   messageHolds as messageHolds3,
   messageWhyNot,
@@ -3384,7 +3389,7 @@ async function untilOf(ports, v, when) {
   if (!isDayKey(v)) throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.untilDay);
   if (when.undo) return v;
   const tz = await ports.timezone();
-  const today = localDate3(tz, when.now);
+  const today = localDate2(tz, when.now);
   if (v < today)
     throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.untilPast(campaignDayWords(today, tz, when.now)));
   return v;
@@ -38860,7 +38865,13 @@ async function photoOf(at, seen) {
 
 // src/inbound/reply-gates.ts
 import { errField as errField9 } from "../../channels/dist/index.js";
-import { offersAfterStart, optInConfirmation, tokenBudgetSpent, tokenCapOf } from "../../contracts/dist/index.js";
+import {
+  offersAfterStart,
+  optInConfirmation,
+  tokenBudgetSpent,
+  tokenCapOf,
+  YES_WHILE_PAUSED
+} from "../../contracts/dist/index.js";
 async function offersNoteFor(at) {
   const { db, tenantId, ing, ports, channel, L } = at;
   if (channel !== "whatsapp" || !db || !tenantId || !ing?.contact_id) return null;
@@ -38923,16 +38934,17 @@ async function confirmedYes(at, bodyText) {
     let asked2 = null;
     if (confirmed.outcome !== "sent") {
       const why = confirmed.outcome === "failed" ? `${confirmed.reason}, HTTP ${confirmed.status}` : confirmed.reason;
+      const paused = confirmed.outcome === "refused" && confirmed.reason === "paused";
       asked2 = sink.escalate(
-        "send_failed",
-        `The customer said yes and their confirmation did not go out (${why}), so they have no record of what they signed up for, how often, or how to stop. Send it from the Inbox.`
+        paused ? "paused" : "send_failed",
+        paused ? YES_WHILE_PAUSED.details : `The customer said yes and their confirmation did not go out (${why}), so they have no record of what they signed up for, how often, or how to stop. Send it from the Inbox.`
       );
       await Promise.all([
         asked2,
         tell(asked2, {
           said: bodyText,
-          answered: `(the confirmation of their yes was not delivered \u2014 ${why})`,
-          why: "opt-in not confirmed"
+          answered: paused ? YES_WHILE_PAUSED.answered : `(the confirmation of their yes was not delivered \u2014 ${why})`,
+          why: paused ? "paused" : "opt-in not confirmed"
         })
       ]);
     }

@@ -96,8 +96,15 @@ export {
   recordWhatsAppOffersStop,
 } from "./repositories/campaigns/offers-answer";
 export type { LateCarrierStop } from "./repositories/campaigns/offers-answer";
-export { failStrandedRun, strandedRuns } from "./repositories/campaigns/stranded-runs";
-export type { StrandedRun } from "./repositories/campaigns/stranded-runs";
+export {
+  failStrandedRun,
+  strandedRuns,
+  waitingPlaybookRuns,
+  cancelBroadcastFrom,
+  recordSystemDecision,
+  waitingRunsOf,
+} from "./repositories/campaigns/stranded-runs";
+export type { StrandedRun, WaitingPlaybookRun, WaitingRunRow } from "./repositories/campaigns/stranded-runs";
 export {
   sendingDomainsOf,
   sendingDomainOf,
@@ -224,6 +231,7 @@ export {
   outreachModeOf,
   tenantZoneOf,
   heldNoticeDue,
+  heldSendCounts,
   markHeldNotice,
   leadNamesByIds,
   handRun,
@@ -276,6 +284,9 @@ export {
   reviewRowsByGoogleId,
   setMemberPushOff,
   membersPushedFor,
+  unreadOfReaders,
+  olderUnreadFor,
+  closeMendedNotices,
 } from "./repositories/notifications";
 export type { MemberAlertsRow, KeptNotice } from "./repositories/notifications";
 export { reviewLinkOf, workspacePaused } from "./repositories/campaigns/workspace";
@@ -413,6 +424,9 @@ export {
   personReplyMode,
   setPersonReplyMode,
   workspaceAnswersOnItsOwn,
+  workspaceOpenToCustomers,
+  publicWorkspaceBySlug,
+  workspacePublicSlug,
   workspaceNamed,
   workspaceZoneOf,
   membershipCountOf,
@@ -433,6 +447,8 @@ export type {
   LineForwardingArgs,
   PlaybookPatch,
   PlaybookToStart,
+  OpenToCustomersRead,
+  PublicWorkspaceRead,
 } from "./repositories/control-plane";
 export {
   PEOPLE_PAGE,
@@ -449,6 +465,7 @@ export {
   erasureDigests,
   scrubPersonNotes,
   mergePeople,
+  keptPersonOf,
   recordConsent,
   addPersonByHand,
   resolvePerson,
@@ -557,7 +574,7 @@ export {
   ideasBasis,
   ideasClockAndLanguage,
 } from "./repositories/leads";
-export { ownLineOf } from "./lines";
+export { ownLineOf, businessOnRecordOf } from "./lines";
 export type { LeadOneLead, LeadOneMember, IdeasKept } from "./repositories/leads";
 export { watchedTables, watchedEvents, subscribeWorkspaceChanges } from "./realtime";
 export type { SubscribeOptions } from "./realtime";

@@ -131,11 +131,15 @@ export const PageVitalReport = z.object({
 });
 export type PageVitalReportDto = z.infer<typeof PageVitalReport>;
 
-/** People's scopes, each a page of its own in the field data (decision 0053): what is drawn differs, and so does its time. */
+/**
+ * People's scopes, each a page of its own in the field data (decision 0053): what is drawn differs, and so does its time.
+ * A person's page is theirs on every tab (`clients/<id>/history`): a tab's press was counted as a visit to the People list
+ * (the wiring's second audit, S5-2).
+ */
 const PEOPLE_SCOPES: ReadonlyArray<readonly [RegExp, string]> = [
   [/^leads(:|$)/, "leads"],
   [/^pipeline(:|$)/, "pipeline"],
-  [/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, "person"],
+  [/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:\/|$)/i, "person"],
 ];
 
 /**

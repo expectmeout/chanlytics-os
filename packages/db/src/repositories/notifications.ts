@@ -1,12 +1,16 @@
 /**
  * What a person is told, as the edge reads and writes it: a kept notification taken back (apps/edge/lib/ops/notify.ts),
- * and the phones a call in progress is shown on (apps/edge/lib/voice/call-activity.ts). A read or write that fails
- * throws.
+ * and the phones a call in progress is shown on (apps/edge/lib/voice/call-activity.ts). The bell's number for each reader
+ * (unreadOfReaders: the push job's badge, and the older rows the page does not list), and the warnings a mend closes
+ * (closeMendedNotices). A read or write that fails throws.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  BELL_WINDOW_DAYS,
   CATCH_UP_VISITS,
+  DAY_MS,
   HOUR_MS,
+  isForReader,
   MIN_MS,
   SAME_VISIT_MS,
   sameVisitOnRecord,
@@ -15,6 +19,7 @@ import {
   type BookingVia,
   type MemberJoined,
   type OptOutPerson,
+  unreadFor,
 } from "@chanlytics/contracts";
 import type { Database } from "../database.types";
 import { DELIVERED } from "./thread";
@@ -620,4 +625,169 @@ export async function memberJoinedOf(db: Db, tenantId: string, invitationId: str
     "the invitation",
   );
   return invite ? { invitationId: invite.id, email: invite.email, role: invite.role } : null;
+}
+
+/** PostgREST's answer to one read is a thousand rows at most; a bigger set is read a page at a time. */
+const BELL_READ_PAGE = 1000;
+/** How many uuids one `in` list carries: measured, about two hundred is where the URL becomes too long. */
+const BELL_IN_BATCH = 100;
+
+/**
+ * The bell's number for each reader (contracts unreadFor) over the rows bellRowsOf reads, by each reader's seen moment and
+ * marks, less the rows the server closed: the push job's badge counts a reader's whole window by it, and the bell's read the
+ * older rows it does not list (olderUnreadFor), so the page and the phone count by one implementation.
+ */
+export async function unreadOfReaders(db: Db, p: BellRange): Promise<Map<string, number>> {
+  const { rows, seen, marks } = await bellRowsOf(db, p);
+  const out = new Map<string, number>();
+  for (const u of p.readers) out.set(u, unreadForReader(rows, seen, marks, u).length);
+  return out;
+}
+
+/**
+ * One reader's unread rows past the bell's list (unreadOfReaders' rule): how many, and the threads of those that are a
+ * hold's notice (`holdKinds`), which the bell draws as its own row while the hold waits (contracts bellOlderOf, S6-10).
+ */
+export async function olderUnreadFor(
+  db: Db,
+  p: {
+    tenantId: string;
+    reader: string;
+    fromIso: string;
+    throughIso: string;
+    leaving: ReadonlySet<string>;
+    holdKinds: readonly string[];
+  },
+): Promise<{ unread: number; holdThreads: string[] }> {
+  const { rows, seen, marks } = await bellRowsOf(db, { ...p, readers: [p.reader] });
+  const mine = unreadForReader(rows, seen, marks, p.reader);
+  const holdThreads = mine
+    .filter((r) => p.holdKinds.includes(r.kind) && r.subject_type === "conversation" && r.subject_id)
+    .map((r) => r.subject_id as string);
+  return { unread: mine.length, holdThreads: [...new Set(holdThreads)] };
+}
+
+/** The rows a bell's count is of: a workspace's, from a moment (through another), less those counted where listed. */
+interface BellRange {
+  tenantId: string;
+  readers: readonly string[];
+  fromIso: string;
+  throughIso?: string | null;
+  leaving?: ReadonlySet<string>;
+}
+/** A kept row as the bell's counts read it. */
+interface BellCountRow {
+  id: string;
+  created_at: string;
+  recipient_user_id: string | null;
+  closed_at: string | null;
+  kind: string;
+  subject_type: string | null;
+  subject_id: string | null;
+}
+type BellMark = { notification_id: string; user_id: string; read_at: string | null; dismissed_at: string | null };
+
+/** One reader's unread rows (contracts unreadFor, row by row), less a note left for another member (00158, isForReader). */
+function unreadForReader(
+  rows: readonly BellCountRow[],
+  seen: ReadonlyArray<{ user_id: string; seen_at: string | null }>,
+  marks: readonly BellMark[],
+  reader: string,
+): BellCountRow[] {
+  const seenAt = seen.find((s) => s.user_id === reader)?.seen_at ?? null;
+  const own = marks.filter((m) => m.user_id === reader);
+  return rows.filter((r) => isForReader(r, reader) && unreadFor([r], seenAt, own) === 1);
+}
+
+/**
+ * The workspace's kept rows from `fromIso` (through `throughIso`) less those in `leaving` (counted where they are listed), a
+ * page at a time, with the readers' seen moments and their marks on those rows, in batches read together.
+ */
+async function bellRowsOf(
+  db: Db,
+  p: BellRange,
+): Promise<{ rows: BellCountRow[]; seen: Array<{ user_id: string; seen_at: string | null }>; marks: BellMark[] }> {
+  const rows: BellCountRow[] = [];
+  for (let from = 0; ; from += BELL_READ_PAGE) {
+    let q = db
+      .from("notifications")
+      .select("id, created_at, recipient_user_id, closed_at, kind, subject_type, subject_id")
+      .eq("tenant_id", p.tenantId)
+      .gte("created_at", p.fromIso);
+    if (p.throughIso) q = q.lte("created_at", p.throughIso);
+    const page = await q.order("created_at", { ascending: true }).range(from, from + BELL_READ_PAGE - 1);
+    if (page.error) throw new Error(`cannot read the bell: ${page.error.message}`);
+    rows.push(...(page.data ?? []).filter((r) => !p.leaving?.has(r.id)));
+    if ((page.data ?? []).length < BELL_READ_PAGE) break;
+  }
+  const seen = await db
+    .from("notification_reads")
+    .select("user_id, seen_at")
+    .eq("tenant_id", p.tenantId)
+    .in("user_id", [...p.readers]);
+  if (seen.error) throw new Error(`cannot read when the bell was opened: ${seen.error.message}`);
+  const batches: string[][] = [];
+  for (let i = 0; i < rows.length; i += BELL_IN_BATCH) batches.push(rows.slice(i, i + BELL_IN_BATCH).map((r) => r.id));
+  const reads = await Promise.all(
+    batches.map((ids) =>
+      db
+        .from("notification_marks")
+        .select("notification_id, user_id, read_at, dismissed_at")
+        .in("user_id", [...p.readers])
+        .in("notification_id", ids),
+    ),
+  );
+  const marks: BellMark[] = [];
+  for (const r of reads) {
+    if (r.error) throw new Error(`cannot read the bell's marks: ${r.error.message}`);
+    marks.push(...(r.data ?? []));
+  }
+  return { rows, seen: seen.data ?? [], marks };
+}
+
+/** The bell's window from a moment, as the edge and the page read it (contracts BELL_WINDOW_DAYS). */
+const bellWindowFrom = (nowMs: number): string => new Date(nowMs - BELL_WINDOW_DAYS * DAY_MS).toISOString();
+
+/**
+ * The warnings a mend closes (contracts NOTICE_MENDS, warningsMendedBy): for each, the workspace's open rows of its kind in
+ * the bell's window (about the same subject where the pair must be; none where it must and no subject is known), less the
+ * row just kept, whose title its rule matches, closed (closed_at). The titles are matched here, never in SQL, so the rule
+ * stays in contracts. Answers how many it closed.
+ */
+export async function closeMendedNotices(
+  db: Db,
+  p: {
+    tenantId: string;
+    warnings: ReadonlyArray<{ kind: string; title: RegExp; sameSubject: boolean }>;
+    subject: { type: string; id: string } | null;
+    keptId: string | null;
+    nowMs: number;
+  },
+): Promise<number> {
+  let closed = 0;
+  for (const w of p.warnings) {
+    if (w.sameSubject && !p.subject) continue;
+    let q = db
+      .from("notifications")
+      .select("id, title")
+      .eq("tenant_id", p.tenantId)
+      .eq("kind", w.kind)
+      .is("closed_at", null)
+      .gte("created_at", bellWindowFrom(p.nowMs));
+    if (w.sameSubject && p.subject) q = q.eq("subject_type", p.subject.type).eq("subject_id", p.subject.id);
+    const found = await q;
+    if (found.error) throw new Error(`cannot read the warnings a mend closes: ${found.error.message}`);
+    const ids = (found.data ?? []).filter((r) => r.id !== p.keptId && w.title.test(r.title)).map((r) => r.id);
+    if (!ids.length) continue;
+    const up = await db
+      .from("notifications")
+      .update({ closed_at: new Date(p.nowMs).toISOString() })
+      .eq("tenant_id", p.tenantId)
+      .in("id", ids)
+      .is("closed_at", null)
+      .select("id");
+    if (up.error) throw new Error(`cannot close the mended warnings: ${up.error.message}`);
+    closed += (up.data ?? []).length;
+  }
+  return closed;
 }

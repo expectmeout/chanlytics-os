@@ -85,6 +85,11 @@ export interface LeadsSurface {
   tz: string;
   readFailed: boolean;
   fetchedAt: number;
+  /**
+   * When the searches were last asked for (LeadsLoaded.readAt), epoch ms: the bell judges a lead question's kept notice only
+   * by a read that began after it. fetchedAt is the publish time, which moves on a republish with no read.
+   */
+  readAt?: number;
 }
 
 /** What `GET lead-searches` and `GET leads` answer (4.6's DTOs); the counts ride with whichever read made them. */
@@ -251,6 +256,7 @@ function publishLeads(failed = false): void {
     tz: L?.tz ?? "UTC",
     readFailed: failed,
     fetchedAt: now.getTime(),
+    readAt: L?.readAt,
   });
 }
 
@@ -268,8 +274,9 @@ async function leadsPage(v: LeadsView, after?: { key: string; id: string } | nul
 /** Page one of a view, read under its key: what a first read and a warm both do. */
 async function readPageOne(v: LeadsView): Promise<LeadsLoaded> {
   const key = viewKey(v);
-  // As it is asked: a change while the answer is on its way leaves the view older than the change.
-  const readAt = Date.now();
+  // As it is asked, or as old as a read it may share (api sharesFrom): a change while the answer is on its way leaves the
+  // view older than the change.
+  const readAt = api().sharesFrom();
   const asOfChange = leadsChangeCount;
   const [searches, page, tz] = await Promise.all([
     leadRead<LeadSearchesAnswer>("GET lead-searches"),
@@ -374,7 +381,7 @@ async function refreshView(): Promise<void> {
   const L = leadsLoaded;
   if (!L) return readView(view);
   const key = L.key;
-  const readAt = Date.now();
+  const readAt = api().sharesFrom();
   const asOfChange = leadsChangeCount;
   const [searches, page] = await Promise.all([leadRead<LeadSearchesAnswer>("GET lead-searches"), leadsPage(L.view)]);
   if (!leadsLoaded || leadsLoaded.key !== key) return; // the view moved while this was out

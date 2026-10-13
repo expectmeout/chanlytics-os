@@ -6,12 +6,12 @@
 import type { AwayGroupVM, AwayQueueRef } from "@chanlytics/contracts";
 import { Fragment, useEffect, useState } from "react";
 import type { BellApi, BellRow } from "@/legacy-bridge/notifications";
-import type { BroadcastsSurface } from "@/surfaces/campaigns/broadcasts/surface";
 import { Icon } from "../../kit/icon/icon";
 import { surfaceValue } from "../../surface-values";
 import { useSurface } from "../../use-surface";
 import { TODAY_HELPERS } from "../helpers";
-import { appNavigate, bell, borrowed, holdStill } from "../shell";
+import { appNavigate, bell, holdStill } from "../shell";
+import { runsPending } from "./queue-runs";
 import { Button } from "../../kit/button/button";
 import { reviewLineOf } from "./review-line";
 
@@ -56,8 +56,9 @@ export const TodayAway = () => {
   // What each row above is about: a queue row's thread, its call, or both (contracts AwayQueueRef), a waiting search by its
   // door, the runs the queue draws, by name (a run held for a word is a row up there, and the bell's "is ready" is about the
   // same run), and the review the card draws.
-  const B = borrowed<BroadcastsSurface>("__BROADCASTS");
-  const runsDrawn = ((B && B.rows) || []).filter((r) => r.state === "pending_approval").slice(0, 3);
+  // The runs the queue draws, waiting and too late alike (queue-runs.tsx runsPending), the first three.
+  const { waiting: runsWaiting, late: runsLate } = runsPending();
+  const runsDrawn = [...runsWaiting, ...runsLate].slice(0, 3);
   const inQueue: AwayQueueRef[] = [
     ...(T
       ? T.queue.rows.map((r) => ({
@@ -69,7 +70,8 @@ export const TodayAway = () => {
     ...runsDrawn.map((r) => ({ runLabel: r.audience.label })),
     ...(review ? [{ review: review.review }] : []),
   ];
-  const { groups, total, foot, empty } = TODAY_HELPERS.awayGrouped(rows, inQueue, 5);
+  // And the unread rows the bell does not list (older than its newest sixty), counted in the head (S6-10).
+  const { groups, total, foot, empty } = TODAY_HELPERS.awayGrouped(rows, inQueue, 5, api.older());
   // A note is read as it is opened, and opens its own record.
   const openNote = (n: AwayBellRow, to: string) => {
     api.read(n.id);

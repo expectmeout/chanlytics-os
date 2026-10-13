@@ -92,7 +92,7 @@ declare const ALERT_PANE_WORDS: {
     readonly where: "Where alerts reach you";
     readonly whereSub: "The bell keeps everything. Choose what else reaches you below.";
     readonly bell: "Bell";
-    readonly bellValue: "Everything below, for 30 days";
+    readonly bellValue: "Everything below, for 30 days; the newest 60 are listed";
     readonly bellOn: "Always on";
     readonly email: "Email";
     readonly emailNobody: "Nobody yet";

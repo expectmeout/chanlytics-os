@@ -241,8 +241,6 @@ test("the baseline says why for every read, in groups that name surfaces and tab
  * `write -> *` for all), each with why. May only fall: an entry no longer needed fails.
  */
 const NOT_TOLD = {
-  "POST contacts/[id]/merge -> setup":
-    "Setup hears notifications for the bell line a line's step raises, an arrival, and draws none of them; a merge only re-addresses the lines that are there (merge_people updates their subject and route).",
   "POST workspaces/create -> *":
     "It makes another workspace's rows (its settings, its rules, the seat of whoever made it), and the tab switches to that workspace, which boots; nothing of the workspace on screen is drawn from them.",
   "POST partner/workspaces -> *":
@@ -315,8 +313,6 @@ const NOT_READ = {
     "The row says the lead's own rows list its people (0052); they are People's rows (leads/peek/people.tsx), which the row re-reads, and the trace finds no read of contacts under Leads, so it is probably premature. Owed: as for POST people/[id]/name.",
   "DELETE people/[id]/business -> leads":
     "The row says the lead's own rows list its people (0052); they are People's rows (leads/peek/people.tsx), which the row re-reads, and the trace finds no read of contacts under Leads, so it is probably premature. Owed: as for POST people/[id]/name.",
-  "POST broadcasts/[id]/recheck -> broadcasts":
-    "Check the held again sends a run's held emails back to be checked (reach_out_run_recheck writes reach_out_sends); the trace finds no read of reach_out_sends under Broadcasts, so it is probably premature. Owed: drop the two.",
   "POST broadcasts/[id]/recheck -> playbooks":
     "Check the held again sends a run's held emails back to be checked (reach_out_run_recheck writes reach_out_sends); the trace finds no read of reach_out_sends under the playbooks, so it is probably premature. Owed: drop the two.",
   "PUT settings -> reports_campaigns":
@@ -329,8 +325,6 @@ const NOT_READ = {
     "channelChange() names the Campaigns lens for the connected number's health; a mailbox saved is not the number, and the lens reads no mailbox. Premature. Owed: name reportsCampaigns() only where the number changes, with CAMPAIGNS_WRITES in refresh-coverage.test.mjs.",
   "POST calendar/visits/[id] -> reports_people":
     "visits() names the People lens with the other readers of a visit; the lens's read (GET reports/people) reads no appointment. Premature. Owed: drop reportsPeople() from visits(), with its assertions in a-visit-reaches-every-reader.test.mjs.",
-  "POST setup/request -> setup":
-    "Setup's requested line is read from the ledger (setup.requested events, setupRequested), which the request appends to; the ledger is the machinery's to this check.",
 };
 
 /** Each re-read of a row that the write's own tables, and the tables of the edge doors it asks, give the surface nothing to read for. */

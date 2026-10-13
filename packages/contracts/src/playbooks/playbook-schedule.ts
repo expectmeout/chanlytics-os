@@ -122,6 +122,22 @@ export function nextOpenMoment(tz: string, when: Date): { at: Date; moved: boole
 }
 
 /**
+ * When today's sending hours end in the zone: the moment nextOpenMoment moves to tomorrow, after which a visit's run made
+ * for today can no longer go today (runApprovalRefusal's sendsOn). Null once they have ended. A page that counts the runs
+ * waiting for a word judges them again then, as at midnight (the wiring's second audit, S7-4).
+ */
+export function sendingEndsAt(tz: string, now: Date): Date | null {
+  const { date, hour } = parts(tz, now);
+  if (hour > PLAYBOOK_HOURS.max) return null;
+  const end = PLAYBOOK_HOURS.max + 1;
+  // The hour read back and corrected, as nextOpenMoment does, for a day the clocks change.
+  let at = zoneMidnight(tz, date) + end * HOUR_MS;
+  const landed = parts(tz, new Date(at)).hour;
+  if (landed !== end) at += (end - landed) * HOUR_MS;
+  return new Date(at);
+}
+
+/**
  * A running playbook runs once per local day: at its hour, or later that day
  * when the sweep missed the hour or the playbook was started or resumed
  * after it — never past the last hour a message may go out.

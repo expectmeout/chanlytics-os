@@ -393,3 +393,20 @@ test("a list drawn from the tab before the boot starts waits for that boot: its 
     stop();
   }
 });
+
+test("REGRESSION (the wiring's second audit, S5-3): a person combined into another is read as the record kept, which their page opens instead; any other 404 is not here", async () => {
+  const { refusalOf, combinedInto } = await import("@chanlytics/contracts");
+  const KEPT = uuid(61);
+  const gone = (details) => () =>
+    json(404, { ok: false, error: { code: "not_found", message: "This person is not in your workspace.", details } });
+  answer = gone(combinedInto(KEPT));
+  assert.equal(await readPerson(ID), null, "the old record draws nobody of its own");
+  assert.equal(bridge.personMovedTo(ID), KEPT, "and names the person they became, for the page to open");
+  assert.equal(heldPerson(ID), null, "the tab keeps no copy of the old record");
+  // What only a person's 404 says, and only as an id.
+  const said = (status, details) => refusalOf({ code: "not_found", status, details, write: false }).movedTo;
+  assert.equal(said(404, combinedInto(KEPT)), KEPT);
+  assert.equal(said(404, { moved_to: "clients/elsewhere" }), undefined, "never an address or a word");
+  assert.equal(said(409, combinedInto(KEPT)), undefined, "on that refusal and no other");
+  assert.equal(said(404, undefined), undefined);
+});

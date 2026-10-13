@@ -201,6 +201,16 @@ function matches(row, filters, defaults = {}) {
                                     .replace(/%/g, ".*")}$`,
                                 ).test(String(read(row, col)))
                               );
+                            // PostgREST's `.not(col, "in", "(a,b)")`: modelled for the escalations read, which asks the
+                            // holds that wait on a person as the complement of the hand-back reasons. NULL is in no list,
+                            // and is not "not in" one either (SQL's three values).
+                            if (o === "in") {
+                              const listed = String(v)
+                                .replace(/^\(|\)$/g, "")
+                                .split(",")
+                                .map((x) => x.trim());
+                              return read(row, col) != null && !listed.includes(String(read(row, col)));
+                            }
                             throw new Error(`fakeDb: not(${col}, ${o}) is not modelled`);
                           })()
                         : // PostgREST's `.or("a.is.null,a.lt.x")`: any ONE of the clauses. Modelled

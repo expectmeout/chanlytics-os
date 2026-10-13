@@ -4,6 +4,7 @@ import {
   NEW_CONVERSATION_WORDS,
   addressOf,
   callerName,
+  combinedInto,
   consentChangeOf,
   dealsAreOn,
   personName,
@@ -17,6 +18,7 @@ import {
 import { SMS_FOOTER } from "@chanlytics/channels";
 import {
   openDoubtsOf,
+  keptPersonOf,
   peopleAtLead,
   personDecisions,
   personReplyMode,
@@ -129,6 +131,15 @@ async function businessAndSigners(
     return [];
   });
   return { business: await business, signers: await signers };
+}
+
+/**
+ * The 404 for a person this workspace does not show: in its words, and, for one combined into another since (0028),
+ * naming the record kept (contracts combinedInto), so their old address opens the person they became (S5-3).
+ */
+async function notHere(sb: Parameters<typeof keptPersonOf>[0], tenantId: string, id: string): Promise<AppError> {
+  const kept = await keptPersonOf(sb, tenantId, id);
+  return new AppError("not_found", "This person is not in your workspace.", 404, kept ? combinedInto(kept) : undefined);
 }
 
 /**
@@ -300,7 +311,7 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       // The business they work at and who signed their replies (0052); never fatal.
       businessAndSigners(rc, tenantId, id, rowRead),
     ]);
-    if (!row) throw new AppError("not_found", "This person is not in your workspace.", 404);
+    if (!row) throw await notHere(sb, tenantId, id);
     if (history.error) throw new Error(history.error.message);
     if (own.error) throw new Error(own.error.message);
     // Checked like the other seven. A dropped error here reads as "this

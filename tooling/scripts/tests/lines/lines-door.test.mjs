@@ -1045,6 +1045,11 @@ test("record validates the row it is about to write and reports the first proble
     [body.record.legal_name, body.record.path, body.record.sole_proprietor],
     ["Harbor Moving LLC", "standard", false],
   );
+  // The first record kept: nothing to compare, nothing filed (the wiring's second audit, X4-3).
+  assert.deepEqual(
+    [body.record.first, body.record.changed, body.record.filing, body.record.filed_name],
+    [true, [], "none", null],
+  );
   assert.equal(tables.business_records.length, 1);
   const row = tables.business_records[0];
   assert.equal(row.tenant_id, A);
@@ -1065,7 +1070,15 @@ test("record validates the row it is about to write and reports the first proble
   assert.deepEqual(
     tables.events.map((e) => [e.kind, e.category, e.subject_type, e.subject_id, e.data]),
     // Who saved it, as the dashboard's token names them: the ledger said the record changed and never whose hand it was.
-    [["business.recorded", "setup", "tenant", A, { legal_name: "Harbor Moving LLC", path: "standard", by: "u1" }]],
+    [
+      [
+        "business.recorded",
+        "setup",
+        "tenant",
+        A,
+        { legal_name: "Harbor Moving LLC", path: "standard", by: "u1", changed: null },
+      ],
+    ],
   );
 
   // Said twice makes one row.
@@ -1074,6 +1087,8 @@ test("record validates the row it is about to write and reports the first proble
   );
   assert.equal(again, 200);
   assert.equal(moved.record.legal_name, "Harbor Moving LLC");
+  assert.deepEqual([moved.record.first, moved.record.changed], [false, ["city"]], "what moved, by name");
+  assert.deepEqual(tables.events[1].data.changed, ["city"], "and the ledger keeps the names, never the values");
   assert.equal(tables.business_records.length, 1);
   assert.equal(tables.business_records[0].city, "Queens");
   const up = writes(db, "business_records");
@@ -1081,6 +1096,40 @@ test("record validates the row it is about to write and reports the first proble
     up.every((w) => w.op === "upsert" && w.conflict.join() === "tenant_id"),
     "an upsert on the workspace, never a second row",
   );
+});
+
+test("record: a save over a filing says what moved and where the filing stands, with the name the carriers hold; a rehearsal is no filing, and a read of the lines that fails still saves and says nothing of one (the wiring's second audit, X4-3)", async () => {
+  const stored = { ...RECORD, tenant_id: A };
+  const saveOver = async (lines, faults = {}) => {
+    const tables = world({ lines, business_records: [{ ...stored }] });
+    use(tables, {}, faults);
+    const [status, body] = await answer(
+      await knock({ op: "record", record: { ...FORM, legal_name: "Harbor Movers LLC" }, path: "standard" }),
+    );
+    assert.equal(status, 200, JSON.stringify(body));
+    assert.equal(tables.business_records[0].legal_name, "Harbor Movers LLC", "saved whatever the filing");
+    return body.record;
+  };
+  const named = { ...filed().facts, a2p_filed_name: "Harbor Moving LLC" };
+  const onFile = await saveOver([filed({ sms_state: "active", facts: named })]);
+  assert.equal(onFile.filing, "on_file");
+  assert.equal(onFile.filed_name, "Harbor Moving LLC", "the name the brand was filed under, not the one just typed");
+  assert.ok(onFile.changed.includes("legal_name"));
+  assert.equal(onFile.first, false);
+
+  assert.equal(
+    (await saveOver([filed({ facts: named })])).filing,
+    "in_review",
+    "approved: the campaign is still theirs",
+  );
+  assert.equal((await saveOver([rejected()])).filing, "sent_back");
+  const rehearsed = await saveOver([rehearsal()]);
+  assert.deepEqual([rehearsed.filing, rehearsed.filed_name], ["none", null], "a rehearsal is no filing");
+  // A filing that failed: a brand made is a brand the carriers hold; none made, nothing went to them.
+  assert.equal((await saveOver([filed({ sms_state: "failed" })])).filing, "on_file");
+  assert.equal((await saveOver([unfiled({ sms_state: "failed" })])).filing, "none");
+  const unread = await saveOver([filed()], { "lines.select": { message: "lines unreadable" } });
+  assert.equal(unread.filing, null, "lines that could not be read say nothing of a filing");
 });
 
 test("record: which registration is said, not inferred — a sole proprietor is stored with no tax id and reads back on that path; derived only when the caller did not say", async () => {
@@ -1444,6 +1493,8 @@ test("register: a rehearsal made real — refile takes the mock campaign off, ch
     ],
     [false, "BUcust", "NEW0001", "NEW0006", "NEW0007", "registering", null, null],
   );
+  // And no name written over them: the real brand goes under the customer profile the rehearsal submitted, whose name
+  // this filing did not send (the wiring's second audit, X4-3; a2p-register.ts sendsBrandName).
   assert.deepEqual(row.facts, rehearsal().facts, "the four receipts that cost a person's time survive");
 });
 

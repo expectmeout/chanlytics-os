@@ -1087,7 +1087,8 @@ Each page load in a workspace sends its web vitals when the page is hidden, and 
 the pages are", says the 75th percentile of each over the last seven days (00255). That is the number the bundle's
 ceiling answers to (`check:bundle -- --ceiling js=<bytes> css=<bytes> page=<bytes>`, the line no pull request crosses; set
 on 10 Oct 2026 at 800 KiB for the route's JS, 160 KiB for its CSS and 256 KiB for each page's own, with room for a month's
-work at the rate main grew in early October, read again with these numbers): LCP for the page drawn, INP for a tap
+work at the rate main grew in early October, read again with these numbers; the route's JS raised to 832 KiB on 13 Oct 2026
+by Ruben's word, #1579, docs/debt.md "Rises"): LCP for the page drawn, INP for a tap
 answered.
 
 Since 00412 (decision 0053) a load also says where its time went. Each page, and each part of one a person waits for

@@ -7,7 +7,7 @@ import { MIN_MS } from "../shared/time";
 import { formatPhoneDisplay } from "../shared/phone";
 import { replyWhy, type ReplyWhyVM } from "../config/brain";
 import { replyWindow } from "../config/policy";
-import { needsYouCount, threadWait, waitsOf, type WaitingThread } from "../waits/waits";
+import { needsYouCount, threadWait, threadWaits, type WaitingThread, type Waits } from "../waits/waits";
 import { HELD_WORDS, readingOf, replyWaitsOnYou, standingOfThread } from "./standing";
 import { messageAt, isOptedOut, type ConversationDto, type MessageDto } from "./thread-dto";
 import { agentFor, answerWireOf, isChatMessage, writtenChannelOf, THREAD_CHANNEL_WORDS } from "./thread-channel";
@@ -86,30 +86,59 @@ function waitingThread(dto: ConversationDto, escalation: EscalationDto | null, n
 }
 
 /**
- * How many threads wait on you, over a page of threads and the open escalations: each thread read by
- * conversationWaitsOnYou, and an open escalation whose thread the page did not hold counted as waiting (unknown is not
- * handled; the Inbox reads such a thread by id and counts it the same way). THE number Today's headline says: the
- * threads' part of the one count (waits.ts needsYouCount, which adds the runs waiting for a word), so the two cannot
- * differ, and neither drops a customer flagged before the newest page.
+ * How the threads wait on you, over the threads a page holds and the open escalations: each thread read by
+ * conversationWaitsOnYou, and an open escalation whose thread the page did not hold counted as a hold (unknown is not
+ * handled). The Inbox and Today both read such a thread by its id (heldThreadIds), so a held thread is judged by its own
+ * standing and only one whose read failed is counted unread. THE threads' part of the one count (waits.ts
+ * needsYouCount, which adds the runs waiting for a word), so Today's headline and the badge cannot differ, and neither
+ * drops a customer flagged before the newest page.
  */
-export function threadsWaitingOnYou(
+export function threadWaitsOf(
   conversations: readonly ConversationDto[],
   escalations: ReadonlyArray<EscalationDto & { conversation_id: string }>,
   now: Date,
-): number {
+): Pick<Waits, "holds" | "sends"> {
   // A hold that waits on nobody (a customer who asked to stop, opened before decision 0048) is not counted, held or not.
   const open = new Map(
     escalations.filter((e) => e.state === "open" && waitsOnAPerson(e.reason)).map((e) => [e.conversation_id, e]),
   );
   const held = new Set(conversations.map((c) => c.id));
-  return needsYouCount(
-    waitsOf({
-      threads: conversations.map((c) => waitingThread(c, open.get(c.id) ?? null, now)),
-      runs: [],
-      unreadHolds: [...open.keys()].filter((id) => !held.has(id)).length,
-      nowMs: now.getTime(),
-    }),
-  );
+  return threadWaits({
+    threads: conversations.map((c) => waitingThread(c, open.get(c.id) ?? null, now)),
+    unreadHolds: [...open.keys()].filter((id) => !held.has(id)).length,
+    nowMs: now.getTime(),
+  });
+}
+
+/** How many threads wait on you (threadWaitsOf's holds and held sends, as one number). */
+export function threadsWaitingOnYou(
+  conversations: readonly ConversationDto[],
+  escalations: ReadonlyArray<EscalationDto & { conversation_id: string }>,
+  now: Date,
+): number {
+  return needsYouCount({ ...threadWaitsOf(conversations, escalations, now), runs: 0 });
+}
+
+/**
+ * The most threads one read by id asks for: GET conversations takes a list of ids this long (its route's limit), and a
+ * page reads a held thread past the newest hundred by its id in one such read.
+ */
+export const HELD_BY_ID_MAX = 100;
+
+/**
+ * The threads of open holds a page does not hold, by id, for one read by id (HELD_BY_ID_MAX of them): the holds that wait
+ * on a person first, then the rest (a customer's STOP, a hand-back), each thread once. One rule for the Inbox and Today,
+ * so both ask the same ids and their reads are one; ordered so the limit never drops a waiting customer for a STOP.
+ */
+export function heldThreadIds(
+  listed: ReadonlySet<string>,
+  open: ReadonlyArray<{ conversation_id: string; reason: string; state?: string }>,
+): string[] {
+  const ids = new Set<string>();
+  const holds = open.filter((e) => (e.state ?? "open") === "open" && !listed.has(e.conversation_id));
+  for (const e of holds) if (waitsOnAPerson(e.reason)) ids.add(e.conversation_id);
+  for (const e of holds) ids.add(e.conversation_id);
+  return [...ids].slice(0, HELD_BY_ID_MAX);
 }
 
 /**

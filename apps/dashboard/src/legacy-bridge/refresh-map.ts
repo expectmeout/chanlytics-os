@@ -240,7 +240,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // People lens, which counts the steps overdue and due today.
   "POST contacts/[id]/notes": notes,
   // A call logged (0052): a note, perhaps a step, as above; and, at an open lead, its outcome and stage, as Leads' own call.
-  "POST contacts/[id]/call": () => [...notes(), ...leadsAnswered()],
+  // A call that was the call back hands their thread back (00422): the threads, Today and the badge move with the note.
+  "POST contacts/[id]/call": () => [...notes(), leadsOverride, ...thread()],
   "POST contacts/[id]/notes/done": notes,
   "POST contacts/[id]/notes/remove": notes,
   // A receptionist's suggestion kept becomes a note, perhaps a step: the same rows move.

@@ -1,5 +1,6 @@
 import "server-only";
 import {
+  addressOf,
   chainResultsOf,
   dealsAreOn,
   lifecycleChainStateOf,
@@ -204,7 +205,8 @@ async function templateRows(rc: ReaderContext, ids: string[]) {
     rows.push({
       source: sourceOf("template", id),
       title: name,
-      text: line([name, t.category, t.meta_status, t.language], "messages"),
+      // Its own address in the Library, by name, as its row's (the templates reader): the message, not the list.
+      text: line([name, t.category, t.meta_status, t.language], addressOf({ kind: "template", name: t.name })),
       ref: refs.get(id) ?? null,
     });
   }

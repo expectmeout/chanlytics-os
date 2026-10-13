@@ -191,6 +191,28 @@ var ESCALATION_SUMMARIES = {
   carriers: "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
   email_review: "They wrote by email. The receptionist does not answer email yet, so nothing was sent. Read it and reply from here."
 };
+var ESCALATION_ACTS = {
+  human_token: "reply",
+  refusal: "reply",
+  brain_error: "reply",
+  non_text: "reply",
+  send_failed: "reply",
+  policy_block: "reply",
+  policy_ask: "reply",
+  person_hold: "reply",
+  rate_cap: "reply",
+  deadman: "reply",
+  manual: "reply",
+  opt_out: "hand_back",
+  state_unavailable: "reply",
+  stale: "reply",
+  budget: "reply",
+  callback: "call_back",
+  paused: "reply",
+  carriers: "reply",
+  email_review: "reply"
+};
+var HAND_BACK_REASONS = Object.keys(ESCALATION_ACTS).filter((r2) => ESCALATION_ACTS[r2] === "hand_back");
 
 // src/conversations/standing.ts
 var HELD_WORDS = {
@@ -2328,7 +2350,7 @@ function businessesPart(dto, when) {
     ["wrote_back", "Wrote back", wrote_back],
     ["interested", "Interested", interested],
     ["booked", "Booked", booked],
-    // Won (00430): a deal naming the business, won; not said where the database does not count it.
+    // Won (00423): a deal naming the business, won; not said where the database does not count it.
     ...isCount(won) ? [["won", "Won", won]] : [],
     ["said_no", "Said no", said_no]
   ];

@@ -3,6 +3,7 @@
  * legacy/pages/broadcasts.jsx, decision 0015). Plain functions that return the elements they draw, called from
  * BroadcastsReal with the page's state.
  */
+import { GET_YES_PAUSED_WORDS, takesSignUps } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
 import { EmptyState } from "../../../kit/empty/empty";
 import { Icon } from "../../../kit/icon/icon";
@@ -14,10 +15,38 @@ import { BcBand, BcHistoryStats, BcWeek } from "../ledger";
 import { CmHead } from "../../parts/head";
 import type { BcBase, BcV } from "./types";
 
+/**
+ * Get their yes, while the workspace is paused (the wiring's second audit, X4-1): the same folded card, with no code, no
+ * desk sign and no link to hand out, and the reason (contracts GET_YES_PAUSED_WORDS).
+ */
+function bcOptInPaused({ yesOpen, setYesOpen }: Pick<BcBase, "yesOpen" | "setYesOpen">) {
+  return (
+    <section id="bc-optin" className="ct-section bc-optin" data-testid="bc-optin">
+      <details
+        className="bc-yes"
+        open={yesOpen}
+        onToggle={(e) => setYesOpen(!!(e && e.currentTarget && e.currentTarget.open))}
+      >
+        <summary className="bc-yes-head" data-testid="bc-optin-toggle">
+          <span className="bc-yes-k">Get their yes</span>
+          <span className="bc-yes-note">{GET_YES_PAUSED_WORDS.note}</span>
+          <Icon name="chevron-down" size={12} />
+        </summary>
+        <div className="bc-optin-body">
+          <p data-testid="bc-optin-paused">{GET_YES_PAUSED_WORDS.body}</p>
+        </div>
+      </details>
+    </section>
+  );
+}
+
 // Get their yes: the QR and the phrase, folded to its one line under the runs.
 function bcOptIn({ data, yesOpen, setYesOpen, flash }: Pick<BcBase, "data" | "yesOpen" | "setYesOpen" | "flash">) {
   const optIn = data.optIn;
   const link = optIn && optIn.link;
+  // Paused, with a number: the card stays where every "get their yes" door lands, and says why there is no code.
+  if (!link && optIn && data.number?.present && !takesSignUps(optIn.open))
+    return bcOptInPaused({ yesOpen, setYesOpen });
   return (
     link && (
       <section id="bc-optin" className="ct-section bc-optin" data-testid="bc-optin">

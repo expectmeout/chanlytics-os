@@ -12,8 +12,7 @@
  * Add leads does.
  */
 import { useEffect, useState } from "react";
-import { REACH_OUT_ADD_WORDS, isLeadList, reachOutPeopleRoute } from "@chanlytics/contracts";
-import type { ReachOutReachDto } from "@chanlytics/contracts";
+import { REACH_OUT_ADD_WORDS, isLeadList, reachOutPeopleRoute, type ReachOutReachDto } from "@chanlytics/contracts";
 import { gate, navigate } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";

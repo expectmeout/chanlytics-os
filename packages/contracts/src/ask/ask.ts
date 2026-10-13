@@ -25,6 +25,7 @@ import type { ProposalNeeds } from "../ask-proposals/spec";
 import { parseLeadsRoute } from "../leads/lead-plan";
 import { parsePipelineRoute } from "../deals/pipeline/pipeline-views";
 import { pipelinePersonOf } from "../deals/pipeline/pipeline-vm";
+import { personRouteOf } from "../person-page/route";
 import type { AskLanguage } from "./ask-language";
 import type { ReachOutChainDto } from "../reach-out/reach-out-dtos";
 import type { TemplateStatus } from "../shared/enums";
@@ -334,7 +335,9 @@ const UUID = /^[0-9a-f-]{36}$/;
 
 /**
  * The row People's address names (`clients/<param>`): a lead or a search on Leads, a person in the Pipeline's peek or on
- * their own page. The Leads and Pipeline peeks are read by their own pages' parsers (lead-plan.ts, pipeline.ts).
+ * their own page, on any of its tabs (`<id>/history`: person-page/route.ts personRouteOf, the one parse of a person's
+ * address). The Leads and Pipeline peeks are read by their own pages' parsers (lead-plan.ts, pipeline.ts). Ask lost the
+ * person on every tab but Overview (the wiring's second audit, S1-2, S5-1).
  */
 function clientsScope(param: string, label: string | null | undefined): AskScope | null {
   const leads = parseLeadsRoute(`clients/${param}`);
@@ -349,7 +352,8 @@ function clientsScope(param: string, label: string | null | undefined): AskScope
     return pipeline.peek
       ? { kind: "person", id: pipelinePersonOf(pipeline.peek), label: label || "this person" }
       : null;
-  if (UUID.test(param)) return { kind: "person", id: param, label: label || "this person" };
+  const { id } = personRouteOf(param);
+  if (UUID.test(id)) return { kind: "person", id, label: label || "this person" };
   return null;
 }
 

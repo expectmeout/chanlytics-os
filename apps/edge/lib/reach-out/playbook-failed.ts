@@ -20,6 +20,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  addressOf,
   inLastSendingHour,
   PLAYBOOK_CALENDAR_UNREAD,
   playbookFailedAbout,
@@ -87,8 +88,8 @@ async function tellTheOwner(f: Failure, p: FailedPlaybook): Promise<void> {
     { tenantId: f.tenantId, ...target },
     {
       kind: "playbook",
-      // The playbook's own door: `outbound/<id>` lands on `campaigns/moment:<id>` (contracts doorOf).
-      route: `outbound/${p.id}`,
+      // The playbook's own door, its drawer over Campaigns' home (contracts addressOf).
+      route: addressOf({ kind: "campaign", id: p.id }),
       about,
       subject: words.title,
       body: words.body,

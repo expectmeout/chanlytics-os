@@ -7,7 +7,7 @@
  * fails throws: "we could not read" is never "none".
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { versionWords } from "@chanlytics/contracts";
+import { RUN_GOING_STATES, versionWords } from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
 import type { JsonObject } from "../events";
 
@@ -360,7 +360,7 @@ export async function heldNoticeDue(
     .from("broadcasts")
     .select("id, tenant_id, name, state, audience, updated_at")
     .in("id", [...byRun.keys()])
-    .in("state", ["scheduled", "sending"]);
+    .in("state", [...RUN_GOING_STATES]);
   if (runs.error) throw new Error(`cannot read the held's runs: ${runs.error.message}`);
   return (runs.data ?? []).flatMap((b) => {
     const audience: JsonObject =
@@ -402,4 +402,28 @@ export async function markHeldNotice(
   const { data, error } = await q.select("id");
   if (error) throw new Error(`cannot mark the run: ${error.message}`);
   return (data ?? []).length === 1;
+}
+
+/**
+ * How many emails the check holds for their owner's say in each of a workspace's runs (reach_out_sends in state held), one
+ * head count per run, read together: what Sent's row, the bell's held notice and Campaigns' chain row say (the wiring's
+ * second audit, W-campaign-run-template-reachout-4). Throws when it cannot read.
+ */
+export async function heldSendCounts(
+  db: Db,
+  p: { tenantId: string; runIds: readonly string[] },
+): Promise<Map<string, number>> {
+  const counts = await Promise.all(
+    p.runIds.map(async (id) => {
+      const { count, error } = await db
+        .from("reach_out_sends")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", p.tenantId)
+        .eq("broadcast_id", id)
+        .eq("state", "held");
+      if (error) throw new Error(`cannot count the held emails of run ${id}: ${error.message}`);
+      return [id, count ?? 0] as const;
+    }),
+  );
+  return new Map(counts);
 }

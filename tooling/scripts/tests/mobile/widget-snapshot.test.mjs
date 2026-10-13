@@ -1,10 +1,12 @@
 /**
- * The widget's snapshot (contracts/widget.ts): Today's figures, the waiting count and the first person, in the
- * page's words, from the Today view model; and what the shell trusts after the bridge.
+ * The widget's snapshot (contracts mobile/today-widget.ts): Today's figures, the one count every surface says and the
+ * first person who needs you, in the page's words, from the Today view model and the parts of what waits; and what the
+ * shell trusts after the bridge (contracts mobile/widget.ts).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { todayWidgetSnapshot, parseTodayWidgetSnapshot } from "../../../../packages/contracts/src/mobile/widget.ts";
+import { parseTodayWidgetSnapshot } from "../../../../packages/contracts/src/mobile/widget.ts";
+import { todayWidgetSnapshot } from "../../../../packages/contracts/src/mobile/today-widget.ts";
 
 const vm = {
   standing: {
@@ -43,17 +45,19 @@ const vm = {
   ],
   // The queue's first row is not the needs-you list's first: the page's Today draws the queue's.
   queue: {
-    rows: [{ who: "Dana", sentence: "wants to move her booking", id: "q1" }],
+    rows: [{ kind: "handoff", who: "Dana", sentence: "wants to move her booking", id: "q1" }],
     more: 0,
     parts: [],
     empty: { headline: "", sub: "" },
-    waiting: 2,
+    windows: 0,
   },
 };
+/** The parts of what waits, as the badge counts them. */
+const needs = (over = {}) => ({ holds: 2, sends: 0, runs: 0, ...over });
 
 test("the snapshot is Today's own words and numbers, as of a moment", () => {
   const at = new Date("2026-09-26T15:00:00Z");
-  assert.deepEqual(todayWidgetSnapshot(vm, at), {
+  assert.deepEqual(todayWidgetSnapshot(vm, at, needs()), {
     headline: "2 people need you",
     figures: [
       { label: "messages", value: 12 },
@@ -66,16 +70,30 @@ test("the snapshot is Today's own words and numbers, as of a moment", () => {
     at: "2026-09-26T15:00:00.000Z",
   });
   const quiet = todayWidgetSnapshot(
-    { ...vm, figures: null, needsYou: null, queue: { ...vm.queue, rows: [], waiting: 0 } },
+    { ...vm, figures: null, needsYou: null, queue: { ...vm.queue, rows: [] } },
     at,
+    needs({ holds: 0 }),
   );
   assert.deepEqual(quiet.figures, []);
   assert.equal(quiet.first, null);
   assert.equal(quiet.waiting, 0);
 });
 
+test("the widget says the badge's number and never a window as someone who needs you (S8-4)", () => {
+  const at = new Date("2026-09-26T15:00:00Z");
+  const window = { kind: "window", who: "Eve", sentence: "her reply window closes in 2h", id: "q0" };
+  const first = todayWidgetSnapshot({ ...vm, queue: { ...vm.queue, rows: [window, ...vm.queue.rows] } }, at, needs());
+  assert.deepEqual(first.first, { who: "Dana", reason: "wants to move her booking" }, "the first hold, not the window");
+  const onlyWindow = todayWidgetSnapshot({ ...vm, queue: { ...vm.queue, rows: [window] } }, at, needs({ holds: 0 }));
+  assert.equal(onlyWindow.first, null, "REGRESSION: a closing window was shown as the person who needs you");
+  assert.equal(onlyWindow.waiting, 0);
+  const runAndSend = todayWidgetSnapshot(vm, at, needs({ holds: 0, sends: 1, runs: 1 }));
+  assert.equal(runAndSend.waiting, 2, "a reply counting down and a run waiting for a word, as the badge counts them");
+  assert.equal(runAndSend.first, null, "neither is a person's row");
+});
+
 test("after the bridge the shell trusts the shapes and the sizes, nothing else", () => {
-  const good = todayWidgetSnapshot(vm, new Date("2026-09-26T15:00:00Z"));
+  const good = todayWidgetSnapshot(vm, new Date("2026-09-26T15:00:00Z"), needs());
   assert.deepEqual(parseTodayWidgetSnapshot(JSON.parse(JSON.stringify(good))), good);
   assert.equal(parseTodayWidgetSnapshot({ ...good, waiting: -1 }), null);
   assert.equal(parseTodayWidgetSnapshot({ ...good, at: "yesterday" }), null);

@@ -18,6 +18,7 @@ import { REPLY_INTENT_WORDS, isReplyIntent } from "./reach-out-replies";
 import { chainPaceOf, stepLabelOf } from "./reach-out-sheet";
 import { localDate, localHour } from "../playbooks/playbook-schedule";
 import { PLAYBOOK_HOURS } from "../playbooks/playbook-triggers";
+import { addressOf } from "../activity/record-address";
 import type { ReachOutChainDto, ReachOutPeopleCountsDto } from "./reach-out-dtos";
 import type { HandKind } from "./reach-out-hand";
 
@@ -759,7 +760,7 @@ export function reachOutSourceOf(s: ReachOutSourceDto): { title: string; sub: st
  * A reach-out's drawer open at who is in it (00423, canvas B's Campaigns): `campaigns/moment:<id>:people`, so a link from
  * Today, the bell or Leads lands on its People, and Back steps out of it.
  */
-export const reachOutPeopleRoute = (rootId: string): string => `campaigns/moment:${rootId}:people`;
+export const reachOutPeopleRoute = (rootId: string): string => `${addressOf({ kind: "reach_out", id: rootId })}:people`;
 
 /** Who is in a reach-out, as its drawer lists them (00423 reach_out_chain_people). */
 export interface ReachOutChainPeopleDto {

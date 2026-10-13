@@ -349,3 +349,109 @@ test("a notice that arrives for a page that is elsewhere, about a change the sur
     r.stop();
   }
 });
+
+/**
+ * Judged by one clock (the wiring's second audit, S2-1, S4-2, S10-1): every answer of the app plane carries the server's
+ * clock when it began (contracts SERVED_AT_HEADER), and the tab's client measures how far its own clock leads the servers'
+ * (client/api.ts clockLead). An answer read here through the tab's own client, with the server's clock `offset` behind this
+ * one, is the measure; the notice is then told by the database's clock, which is the servers'.
+ */
+async function measured(offset) {
+  const was = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response(JSON.stringify({ ok: true, data: { notifications: [], seen_at: null } }), {
+      status: 200,
+      headers: { "content-type": "application/json", "x-served-at": String(Date.now() - offset) },
+    });
+  try {
+    await api()("GET notifications");
+  } finally {
+    globalThis.fetch = was;
+  }
+}
+
+test("a browser whose clock runs ahead of the servers' still reads a change made just after its read began; its own change is read once", async (t) => {
+  const r = await running(t, [{ key: "inbox", refreshOnTables: ["messages"] }]);
+  try {
+    await r.advance(10 * SECOND);
+    // This browser is three seconds fast: the server began its answer three seconds before this clock says.
+    await measured(3 * SECOND);
+    assert.equal(api().clockLead(), 3 * SECOND, "the lead, measured on an answer");
+    const read = Date.now();
+    await r.write("inbox");
+    r.reads.length = 0;
+    // A teammate's message, committed a tenth of a second after the read began, in the database's clock.
+    r.told("messages", iso(read - 3 * SECOND + 100));
+    await r.advance(5 * SECOND);
+    assert.deepEqual(
+      keysOf(r),
+      ["inbox"],
+      "REGRESSION (S2-1): a fast clock took the teammate's message for one the read held, and nothing read it again",
+    );
+    r.reads.length = 0;
+    // The tab's own change, committed a second before the read in the database's clock: held by the read, read once.
+    const again = Date.now();
+    await r.write("inbox");
+    r.reads.length = 0;
+    r.told("messages", iso(again - 3 * SECOND - SECOND));
+    await r.advance(5 * SECOND);
+    assert.deepEqual(keysOf(r), [], "the change the read holds is not read twice");
+
+    // One slow answer is not a fast clock: the least of the measures stands.
+    await measured(3 * 60 * SECOND);
+    assert.equal(api().clockLead(), 3 * SECOND);
+  } finally {
+    // The least measure is the lead: one that says none puts the tab's client back where the other tests found it.
+    await measured(0);
+    assert.equal(api().clockLead(), 0);
+    t.mock.timers.reset();
+    r.stop();
+  }
+});
+
+test("a clock three minutes fast is measured on the newest answers, and judged by as surely", async (t) => {
+  const r = await running(t, [{ key: "inbox", refreshOnTables: ["messages"] }]);
+  try {
+    await r.advance(10 * SECOND);
+    // The newest twenty answers are the measure: a clock set three minutes fast is followed within them.
+    for (let i = 0; i < 20; i += 1) await measured(3 * 60 * SECOND);
+    assert.equal(api().clockLead(), 3 * 60 * SECOND);
+    const read = Date.now();
+    await r.write("inbox");
+    r.reads.length = 0;
+    r.told("messages", iso(read - 3 * 60 * SECOND + 100));
+    await r.advance(5 * SECOND);
+    assert.deepEqual(keysOf(r), ["inbox"], "a change made just after the read is read");
+    r.reads.length = 0;
+    const again = Date.now();
+    await r.write("inbox");
+    r.reads.length = 0;
+    r.told("messages", iso(again - 3 * 60 * SECOND - SECOND));
+    await r.advance(5 * SECOND);
+    assert.deepEqual(keysOf(r), [], "and the tab's own change, held by the read, is read once");
+  } finally {
+    await measured(0);
+    t.mock.timers.reset();
+    r.stop();
+  }
+});
+
+test("a browser whose clock runs behind the servers' judges as before: its reads look older than they are, the side of reading", async (t) => {
+  const r = await running(t, [{ key: "inbox", refreshOnTables: ["messages"] }]);
+  try {
+    await r.advance(10 * SECOND);
+    await measured(-3 * SECOND);
+    assert.equal(api().clockLead(), 0, "a clock behind leads by nothing");
+    const read = Date.now();
+    await r.write("inbox");
+    r.reads.length = 0;
+    // A change committed after the read began, three seconds ahead of this clock: read.
+    r.told("messages", iso(read + 3 * SECOND + 100));
+    await r.advance(5 * SECOND);
+    assert.deepEqual(keysOf(r), ["inbox"]);
+  } finally {
+    await measured(0);
+    t.mock.timers.reset();
+    r.stop();
+  }
+});

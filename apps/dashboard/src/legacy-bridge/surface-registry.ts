@@ -19,7 +19,7 @@
  * (window.__DEMO_MODE). Flipping a surface to real later is a one-line change
  * here, made in the same directory as the override that makes it true.
  */
-import { FIRST_RUN_ROUTE, reportsParamParts } from "@chanlytics/contracts";
+import { FIRST_RUN_ROUTE, personRouteOf, reportsParamParts } from "@chanlytics/contracts";
 
 import {
   heardOnItsPage,
@@ -154,8 +154,8 @@ export const PERSON_ROUTE = "clients/person";
  * server/request-guards.ts requireUuid); the mockup's seeded people are `c-…` and keep the list's gate and its seeds.
  */
 export function personRouteId(page: string, param?: string | null): string | null {
-  // A person's tab is their address with its word (0052): `clients/<id>/history` is still their page.
-  const id = param ? param.split("/")[0] : null;
+  // A person's tab is their address with its word (0052): `clients/<id>/history` is still their page (personRouteOf).
+  const id = param ? personRouteOf(param).id : null;
   return page === "clients" && id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
     ? id
     : null;
@@ -205,7 +205,8 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   [PERSON_ROUTE]: ["people"],
   // A reply to a reach-out, read: the Inbox's strip, composer line and row chip (Reach out Part 5, PR 7). A call in a
   // thread is drawn from the calls Conversations reads (surfaces/inbox/thread/call.tsx tlCallFor), the same door as the Inbox's own.
-  inbox: ["reach_out_replies", "conversations"],
+  // And Sent's runs: the Needs-you band and the badge say the runs waiting for your word (needs-you.ts), on the Inbox.
+  inbox: ["reach_out_replies", "conversations", "broadcasts"],
   // A reach-out's chains are Playbooks' rows, and their emails Templates' email rows (Part 4 PR 8): the reach-outs
   // surface, read beside each page's own.
   outbound: ["reach_outs"],

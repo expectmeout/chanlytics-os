@@ -23,5 +23,6 @@ export { ACTIVITY_SUBJECT_HOMES } from "./subjects";
 export type { ActivitySubjectType } from "./subjects";
 export { RECORD_KINDS, liveTablesOf } from "./record-kinds";
 export type { RecordKind, RecordTable } from "./record-kinds";
-export { addressOf, RECORDS_WITHOUT_AN_ADDRESS } from "./record-address";
+export { addressOf, jobRecordOf, RECORDS_WITHOUT_AN_ADDRESS } from "./record-address";
+export type { JobRecord } from "./record-address";
 export type { RecordRef } from "./record-address";

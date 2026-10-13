@@ -213,15 +213,42 @@ test("a route with a page of its own goes through the App Router and is heard wh
       "a replace of the address the page is at is the history's, not a request for the page",
     );
     assert.deepEqual(w.replaced, ["/w/acme/reports"]);
-    goToRoute("settings", {}, w.win);
-    assert.deepEqual(w.pushed, ["/w/acme/settings"], "a route the frame's table draws is pushed, as always");
+    // A route the frame's own table draws (the demo's Agents: no page of its own) is pushed, as always.
+    goToRoute("agents", {}, w.win);
+    assert.deepEqual(w.pushed, ["/w/acme/agents"], "a route the frame's table draws is pushed, as always");
     assert.equal(asked.length, 1, "and never asks the router for a page that draws nothing");
+    // Settings in the product's word is the shell's `admin`, a page of its own: the router's (S5-4).
+    goToRoute("settings", {}, w.win);
+    assert.deepEqual(asked.at(-1), ["push", "/w/acme/settings"], "the product's word is the page it names");
     stop();
     // With no router (a test's window, the standalone mockup) a route with a page is moved like any other.
     setAppRouter(null);
     const m = windowAt({ pathname: "/", hash: "#/today" });
     goToRoute("reports", {}, m.win);
     assert.deepEqual(m.pushed, ["#/reports"]);
+  } finally {
+    setAppRouter(null);
+  }
+});
+
+test("a route asked in the product's words is the route as the shell spells it: a mail link to a person arrives at People's page (S5-4, S8-1)", () => {
+  const w = windowAt({ pathname: "/w/acme/today" });
+  const asked = [];
+  setAppRouter({ push: (href) => asked.push(["push", href]), replace: (href) => asked.push(["replace", href]) });
+  try {
+    assert.equal(routeHasPage("clients/c-1"), true, "a person's address is People's page");
+    goToRoute("people/c-1", {}, w.win);
+    assert.deepEqual(
+      asked,
+      [["push", "/w/acme/people/c-1"]],
+      "REGRESSION: 'people/c-1' was no route with a page, so the address moved and the page stayed Today",
+    );
+    assert.deepEqual(w.pushed, [], "the router's move, not one under it");
+    // At People, another person by the product's word is a move within the page, as `clients/c-2` is.
+    w.win.location.pathname = "/w/acme/people/c-1";
+    goToRoute("people/c-2", {}, w.win);
+    assert.equal(asked.length, 1, "the page follows its address: no request for the page it is");
+    assert.deepEqual(w.pushed, ["/w/acme/people/c-2"]);
   } finally {
     setAppRouter(null);
   }
@@ -384,8 +411,10 @@ test("a route with a page of its own is warmed in full at every reach, as a link
     warmRoute("inbox", w.win);
     warmRoute("inbox/th-1", w.win);
     assert.equal(asked.length, 2, "the page on screen is already drawn, whichever of its addresses is asked");
-    warmRoute("settings", w.win);
+    warmRoute("agents", w.win);
     assert.equal(asked.length, 2, "a route the frame's table draws has no page to warm");
+    warmRoute("settings", w.win);
+    assert.equal(asked.at(-1), "/w/acme/settings", "the product's word warms the page it names (S5-4)");
     // On the address API the pages that cannot import reach it by.
     addressApi(w.win).warm("live");
     assert.equal(asked.at(-1), "/w/acme/live");

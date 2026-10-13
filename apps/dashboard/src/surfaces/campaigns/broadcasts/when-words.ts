@@ -2,9 +2,9 @@
  * When a send really goes, in one sentence for every receipt that has one (moved from when.tsx, which draws the picker):
  * words alone, so Today's receipts and the shell that publishes them (campaigns/globals.ts) carry no picker.
  */
-import { MIN_MS, runApprovalRefusal, waitingRunOffer } from "@chanlytics/contracts";
+import { MIN_MS, runApprovalRefusal, runDaysAt, waitingRunOffer } from "@chanlytics/contracts";
 import type { WaitingRunOffer } from "@chanlytics/contracts";
-import { pageClock } from "@/legacy-bridge/zone";
+import { pageClock, type PageClock } from "@/legacy-bridge/zone";
 
 /** A waiting run as the approve verb reads it: whose it is, the day it was made for, and its moment. */
 interface WaitingRun {
@@ -13,11 +13,13 @@ interface WaitingRun {
   audience?: unknown;
 }
 
-/** The business's day now and the day of the next open sending moment, in its words: what the verb asks by. */
-function approvalDays() {
-  const C = pageClock();
-  const now = Date.now();
-  return { today: C.dayKey(now), sendsOn: C.dayKey(C.nextOpen(now).at), say: C.dayWords };
+/**
+ * The business's day now and the day of the next open sending moment, in its words: what the verb asks by (contracts
+ * runDaysAt, the one derivation the verb, the count and the sweep read), by the page's clock. The clock is asked only when
+ * this is called, so a count with no runs to judge never asks it (a test with no window has none).
+ */
+export function approvalDaysNow(nowMs: number = Date.now(), clock: PageClock = pageClock()) {
+  return { ...runDaysAt(clock.zone(), new Date(nowMs)), say: clock.dayWords };
 }
 
 /**
@@ -27,7 +29,7 @@ function approvalDays() {
  * card), which offered the button over a run the route then refused with a 409: the sheet alone asked (toApprovalVM).
  */
 export function bcLateWords(run: WaitingRun): string | null {
-  return runApprovalRefusal(run, approvalDays());
+  return runApprovalRefusal(run, approvalDaysNow());
 }
 
 /**
@@ -37,7 +39,7 @@ export function bcLateWords(run: WaitingRun): string | null {
  * `at.known`). A playbook's card reads it here; Coming up's line reads the same rule in contracts (lifecycle-tiles.ts).
  */
 export function bcRunOffer(run: WaitingRun, at: { paused: boolean; known: boolean }): WaitingRunOffer {
-  return waitingRunOffer(run, approvalDays(), at);
+  return waitingRunOffer(run, approvalDaysNow(), at);
 }
 
 /**

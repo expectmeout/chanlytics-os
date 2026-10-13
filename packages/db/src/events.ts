@@ -66,7 +66,8 @@ interface TableData {
   "broadcast.sent": JsonObject;
   /** Why the run stopped (a BROADCAST_FAILURES code, with its channel where it names one) and how many it reached first. */
   "broadcast.stopped": { failure: string; sent: number | null };
-  "business.recorded": { legal_name: string | null; path: string; by?: string | null };
+  // `changed`: the columns a save moved, never their values (contracts changedRecordFields); null on the first save.
+  "business.recorded": { legal_name: string | null; path: string; by?: string | null; changed?: string[] | null };
   /** The owner switched what the workspace answers on or off: which (voice, whatsapp, sms), and who. */
   "capability.activated": { capability: string; by: string };
   "capability.deactivated": { capability: string; by: string };
