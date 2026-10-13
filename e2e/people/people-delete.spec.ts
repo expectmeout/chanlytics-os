@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { routeOf } from "../address";
-import { openPersonPage } from "../person-page";
+import { openPersonPage } from "./open-person";
 
 /**
  * "Delete this person" is the one destructive verb on the profile.

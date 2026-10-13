@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { atRoute, routeOf } from "../address";
 import { apiGet } from "../workspace";
-import { openPeekedPage, openPersonPage } from "../person-page";
+import { openPeekedPage, openPersonPage } from "./open-person";
 
 /**
  * People, on a real workspace.

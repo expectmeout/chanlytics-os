@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
-import { openMessagesFold, openPersonPage } from "../person-page";
+import { openMessagesFold, openPersonPage } from "./open-person";
 
 /**
  * "Offers by WhatsApp" on the profile rail.

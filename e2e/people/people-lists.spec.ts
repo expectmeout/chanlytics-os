@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { atRoute } from "../address";
 import { apiGet } from "../workspace";
-import { openPersonPage } from "../person-page";
+import { openPersonPage } from "./open-person";
 
 /**
  * Saved lists on People.
