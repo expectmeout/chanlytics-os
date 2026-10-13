@@ -4318,7 +4318,7 @@ declare const SCHEMA_SETS: {
     readonly "jobs.kind": readonly ["outbound_send", "broadcast_send", "line_provision", "email_ingest", "lead_round_start", "lead_collect", "lead_check", "push_send", "push_receipts", "reply_read", "event_deliver", "booking_read", "inbound_answer"];
     readonly "jobs.state": readonly ["scheduled", "fired", "done", "canceled", "failed"];
     readonly "lead_counters.kind": readonly ["allowance", "budget", "day"];
-    readonly "lead_operations.kind": readonly ["undo_search", "keep", "exclude", "put_back", "include", "stop", "stage", "bulk"];
+    readonly "lead_operations.kind": readonly ["undo_search", "keep", "exclude", "put_back", "include", "stop", "stage", "bulk", "add", "later", "leave"];
     readonly "lead_preferences.kind": readonly ["chain", "wrong_kind", "too_far"];
     readonly "lead_rounds.answered": readonly ["keep", "include", "stop"];
     readonly "lead_rounds.ending": readonly ["target_reached", "searched_everything", "month_leads_used", "budget_used", "few_new_matches", "stopped", "source_failed", "question_unanswered", "paused"];
@@ -15604,8 +15604,8 @@ type LeadMemberClass = (typeof LEAD_MEMBER_CLASSES)[number];
 declare const LEAD_FITS: readonly ["strong", "look", "long"];
 type LeadFit = (typeof LEAD_FITS)[number];
 declare const LEAD_COUNTER_KINDS: readonly ["allowance", "budget", "day"];
-/** A's six, and release B's two: a lead's stage, and many at once. */
-declare const LEAD_OPERATION_KINDS: readonly ["undo_search", "keep", "exclude", "put_back", "include", "stop", "stage", "bulk"];
+/** A's six, release B's two (a lead's stage, and many at once), and the workbench's three (00426): an add, a Later, a leave. */
+declare const LEAD_OPERATION_KINDS: readonly ["undo_search", "keep", "exclude", "put_back", "include", "stop", "stage", "bulk", "add", "later", "leave"];
 declare const LEAD_PREFERENCE_KINDS: readonly ["chain", "wrong_kind", "too_far"];
 declare const LEAD_SUPPRESSION_KINDS: readonly ["email", "place", "phone", "domain"];
 declare const LEAD_SUPPRESSION_WHATS: readonly ["email_opt_out", "customer", "erased", "said_no"];

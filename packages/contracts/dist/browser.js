@@ -2225,7 +2225,10 @@ var LEAD_OPERATION_KINDS = [
   "include",
   "stop",
   "stage",
-  "bulk"
+  "bulk",
+  "add",
+  "later",
+  "leave"
 ];
 var LEAD_PREFERENCE_KINDS = ["chain", "wrong_kind", "too_far"];
 var LEAD_SUPPRESSION_KINDS = ["email", "place", "phone", "domain"];
@@ -37778,7 +37781,19 @@ var SCHEMA_SETS = {
   ],
   "jobs.state": ["scheduled", "fired", "done", "canceled", "failed"],
   "lead_counters.kind": ["allowance", "budget", "day"],
-  "lead_operations.kind": ["undo_search", "keep", "exclude", "put_back", "include", "stop", "stage", "bulk"],
+  "lead_operations.kind": [
+    "undo_search",
+    "keep",
+    "exclude",
+    "put_back",
+    "include",
+    "stop",
+    "stage",
+    "bulk",
+    "add",
+    "later",
+    "leave"
+  ],
   "lead_preferences.kind": ["chain", "wrong_kind", "too_far"],
   "lead_rounds.answered": ["keep", "include", "stop"],
   "lead_rounds.ending": [
