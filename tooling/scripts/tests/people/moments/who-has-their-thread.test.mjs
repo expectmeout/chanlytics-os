@@ -214,7 +214,7 @@ test("a teammate's thread says whose it is where the roster is read, as the Inbo
       TZ,
       NOW,
       viewer,
-      roster,
+      { names: roster },
     );
   // The row, the card and the fact all say the name; the sentence is the Inbox's with the name in it.
   assert.deepEqual(toPersonRowVM(rowFor(FLAGGED), TZ, NOW, ME, null, names).receptionist, {

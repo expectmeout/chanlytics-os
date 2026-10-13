@@ -12,7 +12,7 @@ import { Icon } from "../icon/icon";
 import { cx } from "../variants";
 
 /** How long a copy says "Copied" before its label comes back. */
-const COPIED_MS = 2_000;
+const SAID_FOR_MS = 2_000;
 
 /**
  * A copy's press, and whether it has just copied: the clipboard written, then two seconds of "Copied". It says so only
@@ -33,7 +33,7 @@ export function useCopied(): [boolean, (text: string) => void] {
     if (!live.current) return;
     setCopied(true);
     if (timer.current !== null) window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => setCopied(false), COPIED_MS);
+    timer.current = window.setTimeout(() => setCopied(false), SAID_FOR_MS);
   };
   const copy = (text: string) => {
     try {

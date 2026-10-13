@@ -32448,7 +32448,7 @@ function oursFirst(e) {
   const m = e.messages.find((x) => moment(messageAt(x)) === at3);
   return m && m.direction === "outbound" ? { on: CONSENT_CHANNEL_WORDS[writtenChannelOf(m.channel)] } : null;
 }
-var lower2 = (s) => `${s.charAt(0).toLowerCase()}${s.slice(1)}`;
+var firstLowered = (s) => `${s.charAt(0).toLowerCase()}${s.slice(1)}`;
 function personOriginOf(e, tz, nowMs) {
   const from = e.first.cameFrom;
   if (!from) return null;
@@ -32456,7 +32456,7 @@ function personOriginOf(e, tz, nowMs) {
   const W = ORIGIN_WORDS;
   if (from === "call" || from === "whatsapp" || from === "sms" || from === "email") {
     if (e.first.ts === null) return null;
-    const when = lower2(e.first.label);
+    const when = firstLowered(e.first.label);
     const ours = oursFirst(e);
     if (ours) return "call" in ours ? W.weCalledFirst(when) : W.weWroteFirstOn(ours.on, when);
     return W[from](when);
@@ -32468,7 +32468,7 @@ function personOriginOf(e, tz, nowMs) {
     const wrote = day(e.lead?.firstSendMs ?? null);
     return wrote ? `${said} \xB7 ${W.weWroteFirst(wrote)}` : said;
   }
-  const added = day(e.added?.ms ?? null) ?? (e.first.ts !== null ? lower2(e.first.label) : null);
+  const added = day(e.added?.ms ?? null) ?? (e.first.ts !== null ? firstLowered(e.first.label) : null);
   return added ? W[from](added) : null;
 }
 
@@ -32639,7 +32639,7 @@ function ownMessagesOf(d, stamp) {
   return found.sort((a, b) => b.t - a.t).slice(0, OWN_MESSAGE_CHOICES).map((f) => f.vm);
 }
 function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = null, page2 = {}) {
-  const ctx = personCardContext(d, tz, now, viewerId, page2.names ?? null);
+  const ctx = personCardContext(d, tz, now, viewerId, page2?.names ?? null);
   const { base, nowMs, dealsOn, reply } = ctx;
   const vm = {
     ...base,
@@ -32672,7 +32672,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = null, pa
     services: d.services ?? [],
     consultFirst: d.consult_first ?? [],
     // The one rule's answer, wire by wire, over People's own row for them (the sheet asks the same of the same row).
-    ways: writeWaysOf(ctx.row, page2.ready ?? null, now)
+    ways: writeWaysOf(ctx.row, page2?.ready ?? null, now)
   };
   const whole = {
     ...vm,
@@ -32768,9 +32768,6 @@ function personPageOf(p, d, tz, now) {
     thin
   };
   const evidence = contactEvidenceOf(d, { ...p.firstContact, cameFrom: p.cameFrom?.key ?? null });
-  const notNames = [d.business?.lead.business_name ?? null, ...(d.note_team ?? []).map((t) => t.name)];
-  const calls = callFactsOf(d.calls, notNames, tz, nowMs);
-  const stepAt = calls.step?.atMs ?? null;
   return {
     head,
     worksAtRow: worksAtOf(p.worksAt, d.business ?? null, tz, nowMs),
@@ -32778,33 +32775,40 @@ function personPageOf(p, d, tz, now) {
     thin,
     figures,
     next: personNextFor({ ...p, business }, p, tz, nowMs),
-    notices: personNoticesOf({
-      head,
-      business,
-      doubts: p.doubts,
-      email: p.email,
-      phone: d.row.phone_e164,
-      named: !!p.givenName,
-      heardFrom: p.askedMs !== null,
-      peopleHere: (d.business?.people ?? []).filter((x) => x.id !== p.id).map((x) => ({
-        id: x.id,
-        name: personName(x),
-        email: x.email,
-        nameSource: x.name_source,
-        phone: x.phone_e164,
-        named: !!x.display_name
-      })),
-      calls,
-      givenName: p.givenName,
-      openStep: p.nextStep !== null,
-      stepNoted: stepAt !== null && (d.person_notes ?? []).some((n) => n.source === "call" && (ts(n.created_at) ?? 0) >= stepAt),
-      draft: heldDraftWaiting(evidence.messages, p.openThread, tz, nowMs)
-    }),
+    notices: pageNoticesOf({ p, d, head, business, messages: evidence.messages, tz, nowMs }),
     lastWords: lastWordsOf(past),
     tabs: { desk: personTabsOf(tabFacts, false), phone: personTabsOf(tabFacts, true) },
     reach: reachRowsOf(evidence, tz, nowMs),
     origin: personOriginOf(evidence, tz, nowMs)
   };
+}
+function pageNoticesOf(f) {
+  const { p, d, head, business, tz, nowMs } = f;
+  const notNames = [d.business?.lead.business_name ?? null, ...(d.note_team ?? []).map((t) => t.name)];
+  const calls = callFactsOf(d.calls, notNames, tz, nowMs);
+  const stepAt = calls.step?.atMs ?? null;
+  return personNoticesOf({
+    head,
+    business,
+    doubts: p.doubts,
+    email: p.email,
+    phone: d.row.phone_e164,
+    named: !!p.givenName,
+    heardFrom: p.askedMs !== null,
+    peopleHere: (d.business?.people ?? []).filter((x) => x.id !== p.id).map((x) => ({
+      id: x.id,
+      name: personName(x),
+      email: x.email,
+      nameSource: x.name_source,
+      phone: x.phone_e164,
+      named: !!x.display_name
+    })),
+    calls,
+    givenName: p.givenName,
+    openStep: p.nextStep !== null,
+    stepNoted: stepAt !== null && (d.person_notes ?? []).some((n) => n.source === "call" && (ts(n.created_at) ?? 0) >= stepAt),
+    draft: heldDraftWaiting(f.messages, p.openThread, tz, nowMs)
+  });
 }
 function heldDraftWaiting(messages, thread, tz, nowMs) {
   const held = heldDraftOf(messages);

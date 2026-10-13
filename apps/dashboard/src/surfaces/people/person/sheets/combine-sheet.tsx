@@ -19,16 +19,16 @@ import { keptOf, mergePerson } from "../../people-detail";
 import type { PageCtx } from "../ctx";
 
 /** A toast waiting for the page it was said for: one at a time, taken once. */
-let waiting: { id: string; msg: string } | null = null;
+let arrival: { id: string; msg: string } | null = null;
 
 /** What the kept person's page says as it opens, once: Combine pressed on the record that folded into them. */
 export function useArrivalToast(id: string, flash: PageCtx["flash"]): void {
   const say = useRef(flash);
   say.current = flash;
   useEffect(() => {
-    const w = waiting;
+    const w = arrival;
     if (!w || w.id !== id) return;
-    waiting = null;
+    arrival = null;
     say.current({ msg: w.msg });
   }, [id]);
 }
@@ -62,7 +62,7 @@ export function CombineSheet({ c }: { c: PageCtx }) {
       c.load();
       return;
     }
-    waiting = { id: kept, msg: said };
+    arrival = { id: kept, msg: said };
     navigate(personTabRoute(kept, "overview"), { replace: true });
   };
   const foot = vm ? (

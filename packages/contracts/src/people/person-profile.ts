@@ -477,9 +477,9 @@ export function toPersonVM(
    * person-receptionist.ts heldThreadOf), and the workspace's lines as People read them (ChannelsReady), which More's
    * sends are judged against; null for either is not read (a server's reader, Ask).
    */
-  page: { names?: HolderNames | null; ready?: ChannelsReady | null } = {},
+  page: { names?: HolderNames | null; ready?: ChannelsReady | null } | null = {},
 ): PersonVM {
-  const ctx = personCardContext(d, tz, now, viewerId, page.names ?? null);
+  const ctx = personCardContext(d, tz, now, viewerId, page?.names ?? null);
   const { base, nowMs, dealsOn, reply } = ctx;
   const vm: Omit<PersonVM, "proposal" | "proposalAction" | "acts" | PersonPageKeys> = {
     ...base,
@@ -512,7 +512,7 @@ export function toPersonVM(
     services: d.services ?? [],
     consultFirst: d.consult_first ?? [],
     // The one rule's answer, wire by wire, over People's own row for them (the sheet asks the same of the same row).
-    ways: writeWaysOf(ctx.row, page.ready ?? null, now),
+    ways: writeWaysOf(ctx.row, page?.ready ?? null, now),
   };
   // The send's words follow the wire the page has settled on, exact window included.
   const whole = {
@@ -660,10 +660,6 @@ function personPageOf(
     thin,
   };
   const evidence = contactEvidenceOf(d, { ...p.firstContact, cameFrom: p.cameFrom?.key ?? null });
-  // What their calls left: a name passes the gate the business's and the team's names are kept out of.
-  const notNames = [d.business?.lead.business_name ?? null, ...(d.note_team ?? []).map((t) => t.name)];
-  const calls = callFactsOf(d.calls, notNames, tz, nowMs);
-  const stepAt = calls.step?.atMs ?? null;
   return {
     head,
     worksAtRow: worksAtOf(p.worksAt, d.business ?? null, tz, nowMs),
@@ -671,36 +667,56 @@ function personPageOf(
     thin,
     figures,
     next: personNextFor({ ...p, business }, p, tz, nowMs),
-    notices: personNoticesOf({
-      head,
-      business,
-      doubts: p.doubts,
-      email: p.email,
-      phone: d.row.phone_e164,
-      named: !!p.givenName,
-      heardFrom: p.askedMs !== null,
-      peopleHere: (d.business?.people ?? [])
-        .filter((x) => x.id !== p.id)
-        .map((x) => ({
-          id: x.id,
-          name: personName(x),
-          email: x.email,
-          nameSource: x.name_source,
-          phone: x.phone_e164,
-          named: !!x.display_name,
-        })),
-      calls,
-      givenName: p.givenName,
-      openStep: p.nextStep !== null,
-      stepNoted:
-        stepAt !== null && (d.person_notes ?? []).some((n) => n.source === "call" && (ts(n.created_at) ?? 0) >= stepAt),
-      draft: heldDraftWaiting(evidence.messages, p.openThread, tz, nowMs),
-    }),
+    notices: pageNoticesOf({ p, d, head, business, messages: evidence.messages, tz, nowMs }),
     lastWords: lastWordsOf(past),
     tabs: { desk: personTabsOf(tabFacts, false), phone: personTabsOf(tabFacts, true) },
     reach: reachRowsOf(evidence, tz, nowMs),
     origin: personOriginOf(evidence, tz, nowMs),
   };
+}
+
+/**
+ * The page's notices (personNoticesOf) over what was read: the signer and Combine, the doubts, what their calls left (a
+ * name passes the gate the business's and the team's names are kept out of), and a reply held in its veto window.
+ */
+function pageNoticesOf(f: {
+  p: Omit<PersonVM, PersonPageKeys>;
+  d: PersonDetailDto;
+  head: PersonHeadVM;
+  business: BusinessRecordVM | null;
+  messages: readonly MessageDto[];
+  tz: string;
+  nowMs: number;
+}): NoticeVM[] {
+  const { p, d, head, business, tz, nowMs } = f;
+  const notNames = [d.business?.lead.business_name ?? null, ...(d.note_team ?? []).map((t) => t.name)];
+  const calls = callFactsOf(d.calls, notNames, tz, nowMs);
+  const stepAt = calls.step?.atMs ?? null;
+  return personNoticesOf({
+    head,
+    business,
+    doubts: p.doubts,
+    email: p.email,
+    phone: d.row.phone_e164,
+    named: !!p.givenName,
+    heardFrom: p.askedMs !== null,
+    peopleHere: (d.business?.people ?? [])
+      .filter((x) => x.id !== p.id)
+      .map((x) => ({
+        id: x.id,
+        name: personName(x),
+        email: x.email,
+        nameSource: x.name_source,
+        phone: x.phone_e164,
+        named: !!x.display_name,
+      })),
+    calls,
+    givenName: p.givenName,
+    openStep: p.nextStep !== null,
+    stepNoted:
+      stepAt !== null && (d.person_notes ?? []).some((n) => n.source === "call" && (ts(n.created_at) ?? 0) >= stepAt),
+    draft: heldDraftWaiting(f.messages, p.openThread, tz, nowMs),
+  });
 }
 
 /** A reply the receptionist holds in its veto window (heldDraftOf, the Inbox's own pick), while it still waits. */

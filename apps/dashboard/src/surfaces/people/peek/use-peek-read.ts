@@ -16,11 +16,11 @@ interface PeekRead {
   missing: boolean;
 }
 
-const NONE: PeekRead = { id: null, person: null, failed: null, missing: false };
+const NO_READ: PeekRead = { id: null, person: null, failed: null, missing: false };
 
 /** The peeked person as read, the copy held until then; `retry` asks again after a failed read. */
 export function usePeekRead(id: string | null) {
-  const [st, setSt] = useState<PeekRead>(NONE);
+  const [st, setSt] = useState<PeekRead>(NO_READ);
   const [tries, setTries] = useState(0);
   const mine = st.id === id;
   useEffect(() => {

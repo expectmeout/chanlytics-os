@@ -15,8 +15,6 @@ import { routeDoor } from "../../../legacy-verbs";
 import { VisitActs } from "../../../visit-line";
 import type { PageCtx } from "../ctx";
 
-const W = VISITS_TAB_WORDS;
-
 /** The leaf a row starts with: the month over the day of the month, as Coming up draws it. */
 function leaf(r: PersonVisitRowVM) {
   return (
@@ -28,7 +26,7 @@ function leaf(r: PersonVisitRowVM) {
 }
 
 /** What a row says: its title over its line. */
-function words(r: PersonVisitRowVM) {
+function visitRowLine(r: PersonVisitRowVM) {
   return (
     <span className="cl-prof-vwords">
       <span className="cl-prof-vtitle">{r.title}</span>
@@ -63,7 +61,7 @@ function toMarkRow(c: PageCtx) {
   return (r: PersonVisitRowVM) => (
     <li key={r.id} className="cl-prof-vrow" data-testid="person-visit-to-mark">
       {leaf(r)}
-      {words(r)}
+      {visitRowLine(r)}
       {c.canRecord && r.visit.mark ? (
         <VisitActs mark={r.visit.mark} acts={r.visit.asks} testid="person-visit-mark" variant="secondary" />
       ) : null}
@@ -77,7 +75,7 @@ function doorRow(r: PersonVisitRowVM) {
     <li key={r.id}>
       <a className="cl-prof-vrow" data-door {...routeDoor(r.to)} data-testid="person-visit-row">
         {leaf(r)}
-        {words(r)}
+        {visitRowLine(r)}
         {r.said && r.saidWord ? (
           <span className="cl-prof-vword" data-said={r.said}>
             <Icon name={r.said === "kept" ? "check" : "x"} size={12} />
@@ -96,12 +94,12 @@ function head(h: PersonVisitsVM["head"]) {
   return (
     <p className="cl-prof-vhead" data-testid="person-visits-head">
       <span>
-        <b>{W.kept(h.kept)}</b>
+        <b>{VISITS_TAB_WORDS.kept(h.kept)}</b>
       </span>
-      {h.missed > 0 ? <span>{W.missed(h.missed)}</span> : null}
+      {h.missed > 0 ? <span>{VISITS_TAB_WORDS.missed(h.missed)}</span> : null}
       {h.lastKept ? <span>{h.lastKept}</span> : null}
-      {h.cadence ? <span>{W.cadence(h.cadence)}</span> : null}
-      {h.toMark > 0 ? <span data-tone="warn">{W.toMarkN(h.toMark)}</span> : null}
+      {h.cadence ? <span>{VISITS_TAB_WORDS.cadence(h.cadence)}</span> : null}
+      {h.toMark > 0 ? <span data-tone="warn">{VISITS_TAB_WORDS.toMarkN(h.toMark)}</span> : null}
       <span data-over="">{h.over}</span>
     </p>
   );
@@ -118,9 +116,9 @@ export function VisitsTab({ c }: { c: PageCtx }) {
         </h2>
       </div>
       {head(v.head)}
-      {v.toMark.length > 0 ? section("to-mark", W.toMark, v.toMark, toMarkRow(c)) : null}
+      {v.toMark.length > 0 ? section("to-mark", VISITS_TAB_WORDS.toMark, v.toMark, toMarkRow(c)) : null}
       <h3 className="cl-prof-vsec" id="person-visits-ahead-title">
-        {W.ahead}
+        {VISITS_TAB_WORDS.ahead}
       </h3>
       {v.ahead.length > 0 ? (
         <Panel
@@ -134,9 +132,9 @@ export function VisitsTab({ c }: { c: PageCtx }) {
           {v.ahead.map(doorRow)}
         </Panel>
       ) : (
-        <EmptyState kind="line" body={W.none} testid="person-visits-none" />
+        <EmptyState kind="line" body={VISITS_TAB_WORDS.none} testid="person-visits-none" />
       )}
-      {v.past.length > 0 ? section("past", W.past, v.past, doorRow) : null}
+      {v.past.length > 0 ? section("past", VISITS_TAB_WORDS.past, v.past, doorRow) : null}
     </section>
   );
 }

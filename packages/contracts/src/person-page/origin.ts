@@ -140,7 +140,7 @@ function oursFirst(e: ContactEvidence): { call: true } | { on: string } | null {
   return m && m.direction === "outbound" ? { on: CONSENT_CHANNEL_WORDS[writtenChannelOf(m.channel)] } : null;
 }
 
-const lower = (s: string) => `${s.charAt(0).toLowerCase()}${s.slice(1)}`;
+const firstLowered = (s: string) => `${s.charAt(0).toLowerCase()}${s.slice(1)}`;
 
 /**
  * Where they came from, in one line (ORIGIN_WORDS), or null where nothing says: the wire they first reached you on and
@@ -153,7 +153,7 @@ export function personOriginOf(e: ContactEvidence, tz: string, nowMs: number): s
   const W = ORIGIN_WORDS;
   if (from === "call" || from === "whatsapp" || from === "sms" || from === "email") {
     if (e.first.ts === null) return null;
-    const when = lower(e.first.label);
+    const when = firstLowered(e.first.label);
     const ours = oursFirst(e);
     if (ours) return "call" in ours ? W.weCalledFirst(when) : W.weWroteFirstOn(ours.on, when);
     return W[from](when);
@@ -165,6 +165,6 @@ export function personOriginOf(e: ContactEvidence, tz: string, nowMs: number): s
     const wrote = day(e.lead?.firstSendMs ?? null);
     return wrote ? `${said} · ${W.weWroteFirst(wrote)}` : said;
   }
-  const added = day(e.added?.ms ?? null) ?? (e.first.ts !== null ? lower(e.first.label) : null);
+  const added = day(e.added?.ms ?? null) ?? (e.first.ts !== null ? firstLowered(e.first.label) : null);
   return added ? W[from](added) : null;
 }

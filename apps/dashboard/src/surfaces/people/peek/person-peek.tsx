@@ -58,7 +58,7 @@ function peekHead(p: PersonPeekProps) {
         <div className="pk-sub">
           {state ? <StatePill kind="person" value={state} label={word} testid="person-peek-state" /> : null}
         </div>
-        {head?.sentence ? <p className="pp-peek-why">{head.sentence}</p> : null}
+        {head?.sentence ? <p className="pp-glance-why">{head.sentence}</p> : null}
       </div>
       {walk ? <PersonWalkNav walk={walk} step={onStep} /> : null}
       <Button
@@ -85,7 +85,7 @@ function peekBody(p: PersonPeekProps) {
     return failed !== null ? (
       <FailedRead kind="card" what={W.what} why={failed || null} onRetry={onRetry} testid="person-peek-failed" />
     ) : (
-      <div className="route-reading pp-peek-reading" role="status" aria-busy="true">
+      <div className="route-reading pp-glance-reading" role="status" aria-busy="true">
         {W.reading}
       </div>
     );
@@ -111,8 +111,8 @@ export function PersonPeek(p: PersonPeekProps) {
   return (
     <aside className="pk pl-peek pp-peek" role="dialog" aria-label={W.label(name)} data-testid="person-peek">
       {peekHead(p)}
-      <div className="pk-body pp-peek-body">{peekBody(p)}</div>
-      <div className="pp-peek-foot">
+      <div className="pk-body pp-glance-body">{peekBody(p)}</div>
+      <div className="pp-glance-foot">
         {cta ? (
           <Button variant="primary" size="sm" {...routeDoor(cta.to)} data-testid="person-peek-thread">
             {cta.label}

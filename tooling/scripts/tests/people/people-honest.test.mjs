@@ -625,6 +625,8 @@ const draw = (props = {}) => {
   frames.begin();
   return PeopleReal({ onOpenProfile: (id) => opened.push(id), ...props });
 };
+/** Who a desk's peek beside the rows is open on, by its label, or null: on a desk a row's press opens the peek. */
+const peeked = () => byTestId(draw(), "person-peek")?.props["aria-label"] ?? null;
 /**
  * A key as the window hears it: pressed in `target`, where focus is unless `focus` says where it went (a field's own
  * Esc can close the field, and focus with it, before the window hears the key), with `mods`: ctrlKey, metaKey, altKey,
@@ -668,7 +670,7 @@ test("REGRESSION (B14): Enter or Space on a focused button presses that button -
   assert.equal(byTestId(draw(), "bulk-bar"), null, "and Space on it selects nobody");
   const onRow = { tagName: "TR", isContentEditable: false, closest: () => null };
   assert.equal(press("Enter", onRow), true);
-  assert.equal(opened.length, 1, "away from a button, Enter still opens the person under the cursor");
+  assert.equal(peeked(), "Preview of Person 1", "away from a button, Enter still opens the person under the cursor");
 });
 
 test("REGRESSION (B22): a list made on the rail says so and is the one shown -- the rail closed with no word", async () => {
@@ -2626,7 +2628,8 @@ test("the keyboard: J/K and the arrows move, x and Space select, Enter opens, / 
   assert.equal(press("Escape"), true);
   assert.equal(byTestId(draw(), "bulk-bar"), null, "Esc clears the selection");
   assert.equal(press("Enter", { tagName: "TR", isContentEditable: false, closest: () => null }), true);
-  assert.deepEqual(opened, ["p2"], "Enter opens the person under the cursor");
+  assert.equal(peeked(), "Preview of Person 2", "Enter opens the person under the cursor, in the peek on a desk");
+  assert.deepEqual(opened, [], "and not their page");
   const box = find(draw(), (n) => n.type === "input" && /Search/.test(n.props?.placeholder || ""));
   let focusedSearch = 0;
   box.props.ref.current = {
@@ -4005,9 +4008,8 @@ test("focusing a row puts the cursor on it, and the cursor's row is the table's 
     [false, false, true],
     "the keys carry on from it",
   );
-  const before = opened.length;
   assert.equal(press("Enter", { tagName: "TR", isContentEditable: false, closest: () => null }), true);
-  assert.deepEqual(opened.slice(before), ["p3"], "Enter on the focused row opens it");
+  assert.equal(peeked(), "Preview of Person 3", "Enter on the focused row opens it");
 });
 
 /* ------------------------------ the loading standard: People's rows, place and search ------------------------------ */

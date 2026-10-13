@@ -907,7 +907,7 @@ test("REGRESSION: a person's page says who they are once -- the header held two 
   const tree = draw();
   const cls = (n) => String(n.props?.className || "");
 
-  // Who they are: the name and the state; their number and since when are Reach them's (canvas A), said once.
+  // Who they are: the name and the state; their number and where it came from are Reach them's (canvas A), said once.
   assert.equal(byTestId(tree, "person-id-line"), null, "no line of the number under the name");
   // Reach them's number is the press that opens its acts (the kit's Menu, its trigger the row).
   const reachMenu = find(
@@ -916,8 +916,8 @@ test("REGRESSION: a person's page says who they are once -- the header held two 
   );
   const reach = reachMenu?.props.trigger;
   assert.ok(
-    reach && textOf(reach).includes(vm.phone) && textOf(reach).includes("since "),
-    `Reach them says the number and since when: ${reach && textOf(reach)}`,
+    reach && textOf(reach).includes(vm.phone) && /Phone · they wrote from it /.test(textOf(reach)),
+    `Reach them says the number and where it came from: ${reach && textOf(reach)}`,
   );
   const id = find(tree, (n) => cls(n) === "cl-prof-id");
   assert.deepEqual(

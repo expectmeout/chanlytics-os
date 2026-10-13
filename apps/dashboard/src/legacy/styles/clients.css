@@ -4871,26 +4871,26 @@ a.cl-prof-word:focus-visible > .cl-prof-word-text {
 }
 /* People's peek (peek/person-peek.tsx; canvas A, PEEK-01): the Pipeline's pane, holding the person page's own parts. The
    head's sentence under the state, the parts a step smaller than the page's, the doors in a foot that holds still. */
-.pp-peek-why {
+.pp-glance-why {
   margin: 6px 0 0;
   font-size: var(--text-sm);
   line-height: 1.45;
   color: var(--ink-muted);
 }
-.pp-peek-body .cl-prof-section-title {
+.pp-glance-body .cl-prof-section-title {
   font-size: var(--text-md);
 }
-.pp-peek-reading {
+.pp-glance-reading {
   padding: 18px 0;
 }
-.pp-peek-foot {
+.pp-glance-foot {
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 12px 18px;
   border-top: 1px solid var(--line);
 }
-.pp-peek-foot > :last-child {
+.pp-glance-foot > :last-child {
   margin-left: auto;
 }
 [data-testid="pipeline-peek-reach"] {

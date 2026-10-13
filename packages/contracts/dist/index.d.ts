@@ -28858,7 +28858,7 @@ viewerId?: string | null,
 page?: {
     names?: HolderNames | null;
     ready?: ChannelsReady | null;
-}): PersonVM;
+} | null): PersonVM;
 /** The keys the person page's own parts add (decision 0052, canvas A), built last over the rest. */
 type PersonPageKeys = "head" | "worksAtRow" | "business" | "thin" | "figures" | "next" | "notices" | "lastWords" | "tabs" | "reach" | "origin";
 /**

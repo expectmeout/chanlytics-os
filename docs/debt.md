@@ -263,7 +263,7 @@ files over 800 lines                  3
 directories over 20 modules           3
 window globals                       75   names
 window publishers                   133   sites in 47 files
-copies                               73   of 21 names
+copies                               70   of 20 names
 as unknown as                       132
 as never                             13
 non-null assertions, x!             102
@@ -278,11 +278,11 @@ tables with more than one writer     57   402 writers among them
 doors writing a record with no event   70   writing 80 tables (invariant 2)
 personal columns with no erasure strategy    2   in 1 table
 breakpoints outside the set          33   in 11 files
-literal style values                893   in 22 stylesheets
-primitives outside the kit         1696   selectors naming 706 classes
-inline style props                  196   in 50 files
+literal style values                878   in 22 stylesheets
+primitives outside the kit         1690   selectors naming 702 classes
+inline style props                  195   in 49 files
 wire names not in snake_case         54   in 27 routes
-dead exports, types and modules     277
+dead exports, types and modules     276
 source-text reads in tests          756
 lint warnings                       337   in 145 files, 56 of them exhaustive-deps
 route JS ceiling, KB gzipped        800   the shell included
