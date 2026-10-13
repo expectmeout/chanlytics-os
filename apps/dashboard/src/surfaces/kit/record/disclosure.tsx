@@ -11,46 +11,71 @@
  * it grows rather than appearing. `mark` is a short word beside the label, with the kit's quiet dot before it: what is
  * worth knowing without opening it ("Changed"). Open or closed is the row's own, and starts closed, so a draft that
  * changes what it holds never pushes the sheet's fields up; `forceOpen` holds it open while what it holds must be seen
- * (a sentence that stops the save, under a box inside it), and it is the row's own again after.
+ * (a sentence that stops the save, under a box inside it), and it is the row's own again after. `remember` (opt-in) keeps
+ * the member's choice in the tab, by `id` (record/remember.ts): a fold a page wants left as it was across the walk from
+ * person to person and a phone's tab switches; a fold held open by `forceOpen` is not a choice, and writes nothing.
  *
  * Not Base UI's Collapsible: the record kit's parts ride every page's route (kit-globals.ts), where no Base UI part
  * does, and a button and a region are all this needs.
+ *
+ * `look="group"` is a group of a page's rail (a person's Messages and receptionist, canvas A's "fold with a summary"):
+ * no inset of its own, its name a group's heading, and `summary` one line under it saying what it holds, which fades
+ * while it is open, so nothing is said twice.
  */
-import { useState } from "react";
 import type { ReactNode } from "react";
+import { useRememberedOpen } from "./remember";
 import { Icon } from "../icon/icon";
 
 interface RecordDisclosureProps {
   id: string;
   label: ReactNode;
   mark?: ReactNode;
+  /** One line under the press while it is closed: what it holds, said short. */
+  summary?: ReactNode;
+  /** A sheet's folded line (the default), or a group of a page's rail. */
+  look?: "line" | "group";
   forceOpen?: boolean;
+  /** The tab remembers that the member left it open, by `id`; off, it starts closed every time it is drawn. */
+  remember?: boolean;
   testid?: string | null;
   children?: ReactNode;
 }
 
 /** A line that opens onto what it holds. */
 export function RecordDisclosure(props: RecordDisclosureProps) {
-  const { id, label, mark = null, forceOpen = false, testid = null, children = null } = props;
-  const [chosen, setOpen] = useState(false);
+  const { id, label, mark = null, summary = null, look = "line", forceOpen = false, testid = null } = props;
+  const { children = null, remember = false } = props;
+  const [chosen, choose] = useRememberedOpen(remember ? id : null);
   const open = chosen || forceOpen;
   const pressId = `${id}-press`;
   const panelId = `${id}-panel`;
   return (
-    <div className="rec-disclosure" data-open={open ? "true" : "false"} data-testid={testid || undefined}>
+    <div
+      className="rec-disclosure"
+      data-open={open ? "true" : "false"}
+      data-look={look === "group" ? "group" : undefined}
+      data-testid={testid || undefined}
+    >
       <button
         type="button"
         className="rec-disclosure-press"
         id={pressId}
         aria-expanded={open}
         aria-controls={panelId}
-        onClick={() => setOpen((was) => !was)}
+        onClick={() => {
+          if (!(remember && forceOpen)) choose(!chosen);
+        }}
         data-testid={testid ? `${testid}-press` : undefined}
       >
         <span className="rec-disclosure-label">{label}</span>
         {mark ? <span className="rec-disclosure-mark">{mark}</span> : null}
         <Icon name="chevron" size={12} />
       </button>
+      {summary ? (
+        <p className="rec-disclosure-sum" aria-hidden={open || undefined}>
+          {summary}
+        </p>
+      ) : null}
       <div className="rec-disclosure-panel" id={panelId} role="region" aria-labelledby={pressId}>
         <div className="rec-disclosure-inner">{children}</div>
       </div>

@@ -9,6 +9,7 @@ import {
   NOTE_REFUSALS,
   NOTE_WORDS,
   PEOPLE_LISTS,
+  callDays,
   composerDays,
   dueStepDay,
   forWords,
@@ -64,8 +65,8 @@ test("the picker offers today, tomorrow, the weekdays to Friday, next week's Mon
   assert.equal(stepDays(NOW, TZ).find((c) => c.label === "Next week").key, "2026-09-28");
 });
 
-test("the notes composer offers three of the picker's days -- tomorrow, this week's Friday or else next week, and any day -- and its button names the day chosen", () => {
-  const on = (iso) => composerDays(Date.parse(iso), TZ).map((c) => c.label);
+test("a call back offers three of the picker's days -- tomorrow, this week's Friday or else next week, and any day -- and the notes composer offers today before them (canvas A, M4); a button names the day chosen", () => {
+  const on = (iso) => callDays(Date.parse(iso), TZ).map((c) => c.label);
   assert.deepEqual(on("2026-09-21T15:00:00Z"), ["Tomorrow", "Fri", "Pick a day"], "a Monday");
   assert.deepEqual(
     on("2026-09-24T15:00:00Z"),
@@ -74,11 +75,21 @@ test("the notes composer offers three of the picker's days -- tomorrow, this wee
   );
   assert.deepEqual(on("2026-09-26T15:00:00Z"), ["Tomorrow", "Next week", "Pick a day"], "a Saturday");
   assert.deepEqual(on("2026-09-27T15:00:00Z"), ["Tomorrow", "Pick a day"], "a Sunday: tomorrow is next week");
-  const days = composerDays(Date.parse("2026-09-21T15:00:00Z"), TZ);
+  const days = callDays(Date.parse("2026-09-21T15:00:00Z"), TZ);
   assert.deepEqual(
     days.map((c) => c.key),
     ["2026-09-22", "2026-09-25", "pick"],
     "the picker's own days, by the business's calendar",
+  );
+  // A note's step may be for today; a call back is for a day after the call.
+  const composer = composerDays(Date.parse("2026-09-21T15:00:00Z"), TZ);
+  assert.deepEqual(
+    composer.map((c) => c.label),
+    ["Today", "Tomorrow", "Fri", "Pick a day"],
+  );
+  assert.deepEqual(
+    composer.map((c) => c.key),
+    ["2026-09-21", "2026-09-22", "2026-09-25", "pick"],
   );
   const name = (key, iso = "2026-09-21T15:00:00Z") => stepDayName(key, Date.parse(iso), TZ);
   assert.equal(NOTE_WORDS.addStepFor(name("2026-09-22")), "Add step for Tomorrow");

@@ -4,16 +4,19 @@
  * sheet by the page under it, so neither can hold the other's state. One sheet for the Inbox's three tabs.
  */
 import { useSyncExternalStore } from "react";
+import type { ConsentChannel } from "@chanlytics/contracts";
 
 interface NewConversationAsk {
   open: boolean;
   /** The person it opens on, where a door named one (their page's Start a conversation); null opens on the pick. */
   personId: string | null;
+  /** The wire it opens on, where a door named one (their page's Text them, Email them); null takes the reach read's. */
+  wire: ConsentChannel | null;
   /** Counts each opening, so the sheet drawn for one starts from nothing of the last. */
   session: number;
 }
 
-const NEVER: NewConversationAsk = { open: false, personId: null, session: 0 };
+const NEVER: NewConversationAsk = { open: false, personId: null, wire: null, session: 0 };
 let asked: NewConversationAsk = NEVER;
 const watchers = new Set<() => void>();
 
@@ -27,9 +30,9 @@ const onAsked = (fn: () => void): (() => void) => {
 const askedNow = (): NewConversationAsk => asked;
 const neverAsked = (): NewConversationAsk => NEVER;
 
-/** Open the sheet: on the pick, or on one person. */
-export function openNewConversation(personId: string | null = null): void {
-  asked = { open: true, personId, session: asked.session + 1 };
+/** Open the sheet: on the pick, or on one person, and on the wire a door named. */
+export function openNewConversation(personId: string | null = null, wire: ConsentChannel | null = null): void {
+  asked = { open: true, personId, wire, session: asked.session + 1 };
   tellAsked();
 }
 

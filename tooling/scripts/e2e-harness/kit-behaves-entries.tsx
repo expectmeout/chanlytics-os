@@ -186,6 +186,74 @@ function MenuKit() {
   );
 }
 
+/** The menu with a group's caption: its sends drawn disabled, and why said once under them (a person's More). */
+function MenuKitCaption() {
+  const [said, setSaid] = useState("nothing yet");
+  return (
+    <Figure id="menu-kit-caption" about={`the kit's Menu, a caption under a group; last chosen: ${said}`}>
+      <Menu
+        trigger={
+          <Button variant="quiet" size="sm" iconOnly aria-label="More" data-testid="menu-caption-open">
+            {glyph("more", 14)}
+          </Button>
+        }
+        groups={[
+          {
+            caption: "They asked to stop: nothing is sent to them.",
+            items: [
+              { label: "Email them", glyph: glyph("mail", 13), disabled: true, onSelect: () => setSaid("Email them") },
+              {
+                label: "Send booking link",
+                glyph: glyph("calendar", 13),
+                disabled: true,
+                onSelect: () => setSaid("Send booking link"),
+              },
+            ],
+          },
+          {
+            items: [
+              { label: "Copy the number", glyph: glyph("copy", 13), copy: { text: "+1 555 0100", said: "Copied" } },
+            ],
+          },
+        ]}
+      />
+    </Figure>
+  );
+}
+
+/** The sheet with a mark: a business's tile before its name, the line under it muted. */
+function SheetKitMark() {
+  const [open, setOpen] = useState(false);
+  return (
+    <Figure id="sheet-kit-mark" about="the kit's Sheet, a mark before its title">
+      <Button data-testid="sheet-mark-open" onClick={() => setOpen(true)}>
+        Open the business
+      </Button>
+      <Sheet
+        open={open}
+        onClose={() => setOpen(false)}
+        mark={
+          <span className="face face-lg" aria-hidden="true">
+            HP
+          </span>
+        }
+        title="Hyde Park Personal Training"
+        sub="Personal trainer · Austin, TX"
+        close={{ label: "Close", glyph: glyph("x", 13) }}
+      >
+        {SHEET_SERVICES.map(([name, long]) => (
+          <div key={name} className="rec-row" data-empty="false">
+            <span className="rec-row-key">{name}</span>
+            <div className="rec-row-val">
+              <span className="rec-row-value">{long}</span>
+            </div>
+          </div>
+        ))}
+      </Sheet>
+    </Figure>
+  );
+}
+
 /** A menu of switches it stays open over, one kept on: the table's columns. */
 function MenuKitSwitches() {
   const [on, setOn] = useState<Record<string, boolean>>({ name: true, state: true, email: false });
@@ -822,7 +890,9 @@ export const ENTRIES: { id: string; Draw: () => ReactElement; closed: boolean }[
   { id: "sheet-kit", Draw: SheetKit, closed: false },
   { id: "sheet-kit-job", Draw: SheetKitJob, closed: false },
   { id: "sheet-kit-kicker", Draw: SheetKitKicker, closed: false },
+  { id: "sheet-kit-mark", Draw: SheetKitMark, closed: false },
   { id: "menu-kit", Draw: MenuKit, closed: false },
+  { id: "menu-kit-caption", Draw: MenuKitCaption, closed: false },
   { id: "menu-kit-set", Draw: MenuKitSet, closed: false },
   { id: "menu-kit-switches", Draw: MenuKitSwitches, closed: false },
   { id: "menu-kit-shared", Draw: MenuKitShared, closed: false },

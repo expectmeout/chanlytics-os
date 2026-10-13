@@ -25,6 +25,7 @@ import {
   newConversationOf,
   parseLeadsRoute,
   parseListToken,
+  parsePeopleRoute,
   parsePipelineRoute,
   pipelinePersonOf,
   reportsParamParts,
@@ -126,8 +127,10 @@ function opensSent(param: string): Opened | null {
 function opensPeople(param: string): Opened | null {
   if (param === "") return { view: "clients" };
   if (param === "new-list") return { view: "clients/new-list" };
+  // The route as the page's parsers read it, whole.
+  const route = `clients/${param}`;
   if (/^leads(:|$)/.test(param)) {
-    const at = parseLeadsRoute(`clients/${param}`);
+    const at = parseLeadsRoute(route);
     if (!at) return null;
     if (!at.peek && !at.searchId) return { view: "clients/leads" };
     return {
@@ -139,7 +142,7 @@ function opensPeople(param: string): Opened | null {
     };
   }
   if (/^pipeline(:|$)/.test(param)) {
-    const at = parsePipelineRoute(`clients/${param}`);
+    const at = parsePipelineRoute(route);
     if (!at) return null;
     if (!at.peek) return { view: "clients/pipeline" };
     // A row's id is the person's, or the person's and one of their deals' joined by `_` (contracts pipelineRowId).
@@ -148,7 +151,11 @@ function opensPeople(param: string): Opened | null {
     return { ref: { kind: "deal", personId, ...(dealKey ? { dealKey } : {}), on: "pipeline" } };
   }
   if (/^(seg|list|state):/.test(param)) {
-    const list = parseListToken(param);
+    // A person seen over a view (`:p-<id>`, contracts parsePeopleRoute) is that person's; Everyone peeked is Everyone.
+    const at = parsePeopleRoute(route);
+    if (at?.peek) return RECORD_ID.test(at.peek) ? { ref: { kind: "person", id: at.peek } } : null;
+    if (at && !at.view) return { view: "clients" };
+    const list = parseListToken(at?.view ?? param);
     return list ? { ref: { kind: "list", id: list.id, ...(list.kind === "saved" ? { saved: true } : {}) } } : null;
   }
   return isPersonParam(param) && RECORD_ID.test(param) ? { ref: { kind: "person", id: param } } : null;

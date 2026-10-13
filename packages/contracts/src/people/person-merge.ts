@@ -34,6 +34,9 @@ export const MERGE_REFUSALS = {
  * typed confirmation, which asks for the kept person's name as Delete does. `question`, `detail` and `yes` take the
  * names so the sheet says who is kept and who is merged in, never "this record" and "that one".
  */
+/** How two records' answers about messages and offers come together: said by a merge and by Combine, once. */
+export const MERGE_ANSWERS = "Their answers about messages and offers become the more careful of the two.";
+
 export const MERGE_WORDS = {
   act: "Merge with another record…",
   actHint: "Two records of one person become one",
@@ -44,7 +47,7 @@ export const MERGE_WORDS = {
   pickReading: "People is still being read; the other records are offered once it lands.",
   question: (kept: string, other: string) => `Merge ${other} into ${kept}?`,
   detail: (kept: string, other: string) =>
-    `${kept} keeps their record and takes ${other}'s messages, calls, deals, notes and lists. Their answers about messages and offers become the more careful of the two. ${other}'s record stays as a merged record with no number or address. This cannot be undone.`,
+    `${kept} keeps their record and takes ${other}'s messages, calls, deals, notes and lists. ${MERGE_ANSWERS} ${other}'s record stays as a merged record with no number or address. This cannot be undone.`,
   typed: (kept: string) => `Type ${kept} to confirm.`,
   yes: "Merge the two records",
   busy: "Merging…",

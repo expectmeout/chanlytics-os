@@ -4,7 +4,9 @@
  */
 import "server-only";
 import {
+  earlierVisitsOf,
   indexFeed,
+  seasonHorizon,
   toVisitDto,
   type PersonLike,
   type PersonVisitsDto,
@@ -17,6 +19,7 @@ import type { RouteContext } from "@/server/with-route";
 import { calendarOf } from "./calendar-settings";
 import { parsedFeedFor, type ParsedRead } from "./parsed-feed";
 import { poolRecordOf } from "./people-visits";
+import { earlierVisitRows } from "@chanlytics/db";
 import { log } from "@/server/log";
 
 /* ---- One person's appointments, for their profile ---- */
@@ -50,11 +53,13 @@ export async function personVisits(
   });
   // The record beside the feed (0002's readers): a booking's visits join theirs, a cancelled one leaves, a word rides.
   const recordRead = calendar.then(({ url }) => (url ? poolRecordOf(ctx, tenantId, now) : null));
-  const [{ url, lostCalendar, timezone, source, own }, feed, person, record] = await Promise.all([
+  const earlierRead = earlierRowsOf(ctx, tenantId, calendar, who, now);
+  const [{ url, lostCalendar, timezone, source, own }, feed, person, record, earlierRows] = await Promise.all([
     calendar,
     feedRead,
     who,
     recordRead,
+    earlierRead,
   ]);
   // No calendar: nothing to say about this person's visits. A calendar the settings hid: say that, not nothing.
   if (!url) return lostCalendar ? { timezone, source, state: "unavailable", next: null, last: null } : null;
@@ -68,6 +73,10 @@ export async function personVisits(
   const all = allVisitsIn(index, person)
     .map((x) => toVisitDto(x) as VisitDto)
     .slice(-60);
+  // The record's count of theirs from before the season (R7), leaving out any row the season carries.
+  const earlier = earlierRows
+    ? earlierVisitsOf(earlierRows, new Set(all.flatMap((x) => (x.record_id ? [x.record_id] : []))))
+    : null;
   return {
     timezone,
     source,
@@ -76,5 +85,38 @@ export async function personVisits(
     last: toVisitDto(v.last),
     missed: toVisitDto(v.missed ?? null),
     all,
+    ...(earlier ? { earlier } : {}),
   };
+}
+
+/**
+ * The record's rows of one person from before the season the feed's read covers (packages/db earlierVisitRows), started
+ * in the same round as the rest. Never fatal: a failed or capped read leaves the count to the season's alone, said as
+ * "Last 90 days", never the calendar unavailable.
+ */
+function earlierRowsOf(
+  ctx: RouteContext,
+  tenantId: string,
+  calendar: ReturnType<typeof calendarOf>,
+  who: PersonLike | PromiseLike<PersonLike | null>,
+  now: Date,
+) {
+  return Promise.all([calendar, who]).then(async ([{ url }, person]) => {
+    if (!url || !person) return null;
+    try {
+      const read = await earlierVisitRows(
+        ctx.supabase,
+        tenantId,
+        { id: person.id, phone: person.phone, email: person.email },
+        new Date(seasonHorizon(now).from).toISOString(),
+      );
+      return read.capped ? null : read.rows;
+    } catch (e) {
+      log.error("person_earlier_visits_failed", {
+        tenant_id: tenantId,
+        error: e instanceof Error ? e.message : String(e),
+      });
+      return null;
+    }
+  });
 }

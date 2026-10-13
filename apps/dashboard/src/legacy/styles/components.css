@@ -658,10 +658,11 @@
      a scroll and the page stands; else the page walks. The browser was told nothing of that choice, so its own scroll
      ran on under a page already moving sideways, and a thumb could carry Reports in circles (Ruben's recording, 9 Oct
      2026). touch-action is read on what scrolls, so each strip page's phone scroller says it: Reports' body, the
-     Inbox's threads, Conversations' rows, People's main, Settings' pane (one each, found on the app at 375px;
-     tooling/scripts/tests/styles/swipe-axis.test.mjs holds the list). A touch that began across never scrolls it, as a
-     phone's own pagers hold their axis; one that began down scrolls as before, and the reader moves nothing. */
-  .rpt-body, .ix-threads, .cv-rows, .cl-main-scroll, .set-pane { touch-action: pan-y; }
+     Inbox's threads, Conversations' rows, People's main, Settings' pane, a person's page (its tabs, and People behind the
+     first; one each, found on the app at 375px; tooling/scripts/tests/styles/swipe-axis.test.mjs holds the list). A touch
+     that began across never scrolls it, as a phone's own pagers hold their axis; one that began down scrolls as before,
+     and the reader moves nothing. */
+  .rpt-body, .ix-threads, .cv-rows, .cl-main-scroll, .set-pane, .cl-profile { touch-action: pan-y; }
 }
 
 /* ---------- Unified stat strip (dashboard anchors · clients head · profile money) ---------- */
@@ -714,7 +715,6 @@
 
 /* Contexts */
 .cl-head-stats.stat-strip .stat-cell { min-width: 110px; }
-.cl-prof-money.stat-strip { margin-top: 16px; }
 
 /* ---------- Bell badge ---------- */
 .tb-bell { position: relative; }
@@ -2420,6 +2420,20 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     content: "";
     position: absolute;
     inset: -6px 0;
+  }
+  /* What stands with the way back (frame-head.tsx `after`: a person's ‹ ›, canvas A) takes the bell's place at the bar's
+     right, on the bell's line, and the bell stands down while it is there: a page that draws one has taken the screen
+     over, as a person's does (its tab bar and Ask's circle stand down too). The name the bar says once the head has gone
+     keeps the middle between the two (--bartitle-right, kit.css's .pg-bartitle). */
+  .pg-dateline-slot:has(> .pg-back-after) {
+    right: var(--gutter-page);
+    justify-content: space-between;
+  }
+  .main:has(> .pg-dateline-slot > .pg-back-after) {
+    --bartitle-right: 72px;
+  }
+  .main:has(> .pg-dateline-slot > .pg-back-after) > .topbar .tbn-wrap {
+    display: none;
   }
   .pg-act-slot {
     grid-column: 1;

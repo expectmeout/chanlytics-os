@@ -377,6 +377,8 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { group: "People", keys: ["Esc"], does: "Clear the selection" },
   { group: "People", keys: ["F"], does: "Find leads (on Leads)" },
   { group: "People", keys: ["C"], does: "Call the lead under the cursor (on Leads)" },
+  // A person's page, on a desk (person-real.tsx useWalkKeys): the list they were opened from, walked as its rows are.
+  { group: "A person", keys: ["J", "K"], does: "Next and previous person in the list you opened them from" },
   { group: "Inbox", keys: ["J", "K"], does: "Next and previous conversation" },
   { group: "Inbox", keys: ["N"], does: "New conversation" },
   { group: "Inbox", keys: ["A"], does: "Approve the draft" },

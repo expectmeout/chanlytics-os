@@ -5639,6 +5639,20 @@ async function appointmentsForClient(db, tenantId, who, fromIso) {
   if (error) throw new Error(`appointments_for_client: ${error.message}`);
   return data ?? [];
 }
+var EARLIER_ROWS_MAX = 1e3;
+async function earlierVisitRows(db, tenantId, who, beforeIso) {
+  const or = [`contact_id.eq.${who.id}`, clientFilter(who)].filter(Boolean).join(",");
+  let capped = false;
+  const rows = await readAllRows(
+    "appointments_earlier",
+    (from, to) => db.from("appointments").select("id, status, starts_at").eq("tenant_id", tenantId).in("status", ["kept", "missed", "booked"]).is("vanished_at", null).lte("ends_at", beforeIso).or(or).order("starts_at", { ascending: false }).order("id", { ascending: false }).range(from, to),
+    EARLIER_ROWS_MAX,
+    () => {
+      capped = true;
+    }
+  );
+  return { rows, capped };
+}
 async function appointmentsScrub(db, p) {
   const { data, error } = await db.rpc("appointments_scrub", {
     p_tenant_id: p.tenantId,
@@ -5861,6 +5875,7 @@ export {
   dueDomains,
   duePlaybooks,
   dueSendingDomains,
+  earlierVisitRows,
   emailOfferCounts,
   emailOffersPause,
   emailWordsByTemplate,

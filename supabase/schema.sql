@@ -10665,7 +10665,13 @@ begin
   update contacts
      set phone_e164      = coalesce(k.phone_e164, m.phone_e164),
          email           = coalesce(k.email, m.email),
-         display_name    = coalesce(k.display_name, m.display_name),
+         -- The name (00420): a Combine's kept person keeps their own, or none, never the business's the record we wrote
+         -- to was named for; any other merge fills an empty name from the other record, with where it came from and
+         -- whether a member settled it, so a name a member typed is not taken for one the wire gave.
+         display_name    = case when v_combine then k.display_name else coalesce(k.display_name, m.display_name) end,
+         name_source     = case when v_combine or k.display_name is not null then k.name_source else m.name_source end,
+         name_settled_at = case when v_combine or k.display_name is not null then k.name_settled_at
+                                else m.name_settled_at end,
          wa_profile_name = coalesce(k.wa_profile_name, m.wa_profile_name),
          notes           = coalesce(k.notes, m.notes),
          proposal_url    = coalesce(k.proposal_url, m.proposal_url),
@@ -10752,7 +10758,7 @@ end $$;
 -- Name: FUNCTION merge_people(p_keep uuid, p_merge uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.merge_people(p_keep uuid, p_merge uuid) IS 'An owner merges two records of one person (decision 0028): the kept record takes the other''s identities, thread (folded into its own), deals, leads, visits, notes, lists, receptionist mode and ledger; the other is left marked merged_into_contact_id with no number or address. Consent is the most careful answer on each question (D5), each change written to the ledger with the source merge. Refuses two different phone numbers or email addresses, an erased or already merged record, and two open deals for one service; Combine (0052) takes a stand-in that never wrote and a person at the same lead with two addresses, the person kept whichever was named to keep (the answer''s contact_id). One transaction; never undone. The caller is auth.uid(); a stranger is told not found.';
+COMMENT ON FUNCTION public.merge_people(p_keep uuid, p_merge uuid) IS 'An owner merges two records of one person (decision 0028): the kept record takes the other''s identities, thread (folded into its own), deals, leads, visits, notes, lists, receptionist mode and ledger; the other is left marked merged_into_contact_id with no number or address. Consent is the most careful answer on each question (D5), each change written to the ledger with the source merge. Refuses two different phone numbers or email addresses, an erased or already merged record, and two open deals for one service; Combine (0052) takes a stand-in that never wrote and a person at the same lead with two addresses, the person kept whichever was named to keep (the answer''s contact_id), with their own name or none, never the business''s (00420). An empty name is filled from the other record with its name_source and name_settled_at. One transaction; never undone. The caller is auth.uid(); a stranger is told not found.';
 
 
 --

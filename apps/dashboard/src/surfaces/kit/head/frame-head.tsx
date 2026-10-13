@@ -117,7 +117,14 @@ function PageDateline() {
     }, ZONE_ASK_MS);
     return () => clearInterval(ask);
   }, [zone]);
-  if (back && inDate) return <BackButton back={back} />;
+  if (back && inDate)
+    return (
+      <>
+        <BackButton back={back} />
+        {/* Beside the way back on a desk; in the bell's place on a phone, the bell standing down (components.css). */}
+        {back.after ? <span className="pg-back-after">{back.after}</span> : null}
+      </>
+    );
   const { day, time } = pageDatelineParts(now, zone ?? "UTC");
   return (
     <p className="pg-dateline">
@@ -148,6 +155,28 @@ function GlassHead() {
 function PageAct() {
   const said = useStandingSaid();
   return said?.act ? <>{said.act}</> : null;
+}
+
+/**
+ * A phone's top bar, at its centre between the way back and the bell: the name and the dot the page said once its own
+ * head has scrolled away (a person's, canvas A's hand-off), fading in and out. Always drawn on a phone, so it fades
+ * rather than appears; a word for no one, since the page's head says the same.
+ */
+function BarTitleSaid() {
+  const said = useStandingSaid();
+  const phone = usePhoneHead();
+  if (!phone) return null;
+  const bar = said?.bar ?? null;
+  return (
+    <div className="pg-bartitle" data-shown={bar ? "true" : undefined} aria-hidden="true">
+      {bar ? (
+        <>
+          <span className="pg-bartitle-name">{bar.name}</span>
+          <span className="pg-bartitle-dot" data-tone={bar.tone} title={bar.word} />
+        </>
+      ) : null}
+    </div>
+  );
 }
 
 export function FrameHead({ look }: { look: string }) {
@@ -185,11 +214,14 @@ export function FrameHead({ look }: { look: string }) {
     return () => watcher.disconnect();
   }, [look]);
   if (!places || !places.head) return null;
+  // The bar's centre is laid over the top bar as the date's place is, in the frame's column (`.main`).
+  const column = places.dateline?.parentElement ?? null;
   return (
     <>
       {places.dateline && createPortal(<PageDateline />, places.dateline)}
       {createPortal(<GlassHead />, places.head)}
       {places.act && createPortal(<PageAct />, places.act)}
+      {column && createPortal(<BarTitleSaid />, column)}
     </>
   );
 }

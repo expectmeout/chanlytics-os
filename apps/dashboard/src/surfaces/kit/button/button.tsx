@@ -19,15 +19,25 @@ const buttonClasses = variants({
   base: "btn",
   variants: {
     shape: { words: "", glyph: "btn-icon" },
-    size: { md: "", sm: "btn-sm", lg: "btn-lg", text: "btn-text" },
-    variant: { secondary: "", primary: "btn-primary", quiet: "btn-ghost", plain: "btn-plain", danger: "btn-danger" },
+    size: { md: "", sm: "btn-sm", lg: "btn-lg", text: "btn-text", touch: "btn-touch" },
+    variant: {
+      secondary: "",
+      primary: "btn-primary",
+      quiet: "btn-ghost",
+      plain: "btn-plain",
+      danger: "btn-danger",
+      glass: "btn-glass",
+    },
     tone: { danger: "danger" },
   },
   defaults: { shape: "words", size: "md", variant: "secondary" },
 });
 
-/** Its kinds. */
-type ButtonKind = "secondary" | "primary" | "quiet" | "plain" | "danger";
+/**
+ * Its kinds. `glass` is the control layer's glass (a phone's head circles beside the page's one coral, canvas A): the
+ * fill, sheen, depth and rim the capsules of the frame wear.
+ */
+type ButtonKind = "secondary" | "primary" | "quiet" | "plain" | "danger" | "glass";
 
 /**
  * Its kind, and the tone of its words. Any kind may be chosen as the page runs (Confirm's Yes is danger or the
@@ -45,9 +55,10 @@ type ButtonHolds = { iconOnly?: false } | { iconOnly: boolean; "aria-label": str
 /**
  * Its size. `text` is drawn as text: the height of the words it holds, in a text's weight and tracking, never a
  * control's: an area of a page's words that is one press (a moment's card on Campaigns' rail). Only the quiet kind is
- * drawn so, and names itself: a filled kind as text would lose its weight, and no page wants one.
+ * drawn so, and names itself: a filled kind as text would lose its weight, and no page wants one. `touch` is a thumb's
+ * 44px, drawn so (a glyph alone is then a 44px circle, never the oval a smaller button grew into under the floor).
  */
-type ButtonSize = { size?: "sm" | "md" | "lg" } | { size: "text"; variant: "quiet" };
+type ButtonSize = { size?: "sm" | "md" | "lg" | "touch" } | { size: "text"; variant: "quiet" };
 
 /** A button: its look, what it holds, its size, and an act or a door (../press.tsx). */
 export type ButtonProps = ButtonLook & ButtonHolds & ButtonSize & (PressAct | PressDoor);

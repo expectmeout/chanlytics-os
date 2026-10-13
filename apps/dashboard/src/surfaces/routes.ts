@@ -62,6 +62,8 @@ interface SurfaceChrome {
   /** What the view is mounted under, where the page follows its address itself: absent, the route's own key. */
   mount?: string;
   act?: SurfaceAct | null;
+  /** The top bar's Ask in the address's words, where it is about someone ("Ask about Emily"); absent, Ask's own. */
+  ask?: string | null;
 }
 
 /** What the frame hands a route's `chrome`: the address's param, and the shell's own Back to People. */

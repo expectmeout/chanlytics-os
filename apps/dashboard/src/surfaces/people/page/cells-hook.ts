@@ -7,7 +7,8 @@ import type { PersonRowVM } from "@chanlytics/contracts";
 import { askOnScreenKey, setAskOnScreen } from "../../legacy-verbs";
 import { useSeen } from "../../seen";
 import { warmPeople, warmPerson } from "../people-detail";
-import { keepWalk } from "../walk";
+import { keepWalk, leaveWalk } from "../walk";
+import { peopleViewToken } from "./own-address";
 import { usePlPlace } from "../hooks/use-place";
 import type { PlaceControls } from "../hooks/use-place";
 import type { PeopleCellCtx, PeopleRead, SavedList } from "../types";
@@ -107,7 +108,7 @@ export function usePeoplePlace({
   const filtered = tab !== "all" || !!listId || !!savedId || !!q.trim();
   const shownIds = shown.map((r) => r.id);
   // Each view keeps its own place: everyone, a smart list, a kept list or a state.
-  const peopleView = listId ? `seg:${listId}` : savedId ? `list:${savedId}` : tab !== "all" ? `state:${tab}` : "all";
+  const peopleView = peopleViewToken(listId, savedId, tab) ?? "all";
   const { cursor, setCursor, rowBudget, keysWith, toggleAll } = usePlPlace({
     controls,
     page: "people",
@@ -129,6 +130,8 @@ export function usePeoplePlace({
   useEffect(() => {
     keepWalk(peopleView, walkIds ? walkIds.split(",") : []);
   }, [peopleView, walkIds]);
+  // The list gone, a person opened after it is not one opened from it (walk.ts).
+  useEffect(() => leaveWalk, []);
   // What Ask is told is on screen (legacy-bridge/ask/context.ts): the people this view draws, in its order after its list,
   // search and sort, forty at most, and the view that chose them; taken back when the list goes.
   useEffect(() => {

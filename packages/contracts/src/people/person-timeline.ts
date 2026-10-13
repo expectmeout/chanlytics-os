@@ -27,7 +27,7 @@ import {
 import { addedBy, ts } from "./person-helpers";
 import { MERGE_CONSENT_SOURCE } from "./person-merge";
 import { capitalize } from "../shared/words";
-import { callLength } from "../shared/clock";
+import { callLength, clockHistoryDay } from "../shared/clock";
 import { shortName } from "../conversations/thread-contact";
 import {
   CALL_OUTCOME_WORDS,
@@ -54,6 +54,8 @@ export interface PersonTimelineItemVM {
   ts: number;
   time: string;
   day: string;
+  /** History's head for its day (canvas A): "Today", "Yesterday", "Sat", else "Sat Oct 4"; `day` is the row's own word. */
+  dayHead?: string;
   kind: TimelineKind;
   who: string;
   text: string;
@@ -529,7 +531,8 @@ export function timelineOf(ctx: PersonCardContext): PersonTimelineItemVM[] {
     ...foundItems(ctx),
   ];
   items.sort((a, b) => b.ts - a.ts);
-  return items;
+  // History heads its days as the canvas does: Today, Yesterday, the weekday within the week, else the weekday and date.
+  return items.map((i) => ({ ...i, dayHead: clockHistoryDay(i.ts, ctx.tz, ctx.nowMs) }));
 }
 
 /** Their visits that have not ended, soonest first: the page's Coming up. */

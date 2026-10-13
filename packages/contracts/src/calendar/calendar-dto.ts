@@ -15,6 +15,24 @@ export interface VisitMark {
   status: AppointmentStatus;
 }
 
+/**
+ * What the record holds of one person's visits from before the season a read of the feed covers (decision 0002, R7):
+ * disjoint from PersonVisitsDto.all, so a visit is counted once. Each instant an ISO start.
+ */
+export interface EarlierVisitsDto {
+  /** Theirs a member said they kept, before the season. */
+  kept: number;
+  missed: number;
+  /** The start of the latest of those kept; null with none. */
+  last_kept_at: string | null;
+  /** The starts of the newest kept, newest first, at most a couple of dozen: what the cadence reads. */
+  kept_at: string[];
+  /** The starts of ended visits nobody has said, from the oldest of kept_at on: the cadence's guard. */
+  unmarked_at: string[];
+  /** The start of the earliest visit the record holds of theirs: "on record since". */
+  first_at: string;
+}
+
 export interface CalendarItemDto {
   id: string;
   /** ISO instants. */

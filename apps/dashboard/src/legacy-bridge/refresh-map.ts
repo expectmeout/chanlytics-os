@@ -222,7 +222,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // Two records became one (0028): the kept person's page and People, the threads that folded, and every count by
   // consent, Reports' included: the merge may change an answer, as a consent write does. The bell's lines about the folded thread
   // now name the kept one (their address moves; the feed is told of a line's arrival, not of its change).
-  "POST contacts/[id]/merge": () => [...consentWrite(), notificationsOverride],
+  // A merge moves a lead's person to the kept record (Combine, 0052): Leads is read again with People.
+  "POST contacts/[id]/merge": () => [...consentWrite(), notificationsOverride, ...leads()],
   "PUT contacts/[id]/receptionist": people,
   "PUT contacts/[id]/consent": consentWrite,
   "PUT contacts/[id]/marketing-consent": consentWrite,

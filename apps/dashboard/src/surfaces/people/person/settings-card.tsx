@@ -9,12 +9,18 @@
  * column is what made a signed marketing consent impossible to record: the profile then claimed offers could go out, and the
  * composer refused every one of them.
  */
+import { Fragment } from "react";
 import type { ReactNode } from "react";
 import {
   CONSENT_SOURCES,
   GET_YES_ROUTE,
   OFFERS_IN_WRITING_WORDS,
+  PERSON_ABOUT_WORDS,
+  UP_NEXT_WORDS,
+  isIdentifierName,
+  messagesSummaryOf,
   offersYesRefusal,
+  receptionistKnowsOf,
   stateOf,
   STOP_ENDED_OFFERS_SOURCE,
   STOP_WORDS,
@@ -22,6 +28,9 @@ import {
 } from "@chanlytics/contracts";
 import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
+import { LinkButton } from "../../kit/link-button/link-button";
+import { Panel } from "../../kit/panel/panel";
+import { RecordDisclosure } from "../../kit/record/disclosure";
 import { RecordFold } from "../../kit/record/fold";
 import { RecordRow } from "../../kit/record/row";
 import { navigate } from "../../legacy-verbs";
@@ -310,55 +319,156 @@ function offersFold(c: PageCtx, row: ReactNode) {
 function emailOffersRow(c: PageCtx) {
   const { consent } = c.p;
   if (!consent.emailOffersLabel) return null;
+  // The person says it themselves, in their own email or by pressing Unsubscribe: read only, and said so.
+  const value = consent.state === "opted_out" ? STOP_WORDS.mark : consent.emailOffersLabel;
   return (
     <RecordRow
       id="person-email-offers"
       label="Offers by email"
-      value={consent.emailOffersLabel}
-      hint={consent.emailOffersSub || null}
+      value={`${value} · ${PERSON_ABOUT_WORDS.readOnly}`}
+      stacked
     />
   );
 }
 
-/** The card's rows, each drawn at rest and, while its editor is a sheet on a phone, behind it. */
-export function settingsCard(c: PageCtx) {
+/**
+ * The card's rows (canvas A, P9.4), each drawn at rest and, while its editor is a sheet on a phone, behind it: the key
+ * over its answer, the act at the right ("Record a yes" while nobody asked, else Change). After a stop the answers say
+ * Stopped and take no act; the receptionist's row keeps its Change.
+ */
+function settingsCard(c: PageCtx) {
   const { p, isOwner, canRecord, folds } = c;
+  const W = PERSON_ABOUT_WORDS;
   const rmPerson = p.receptionistMode.person;
   const rmEffective = rmPerson || p.receptionistMode.workspace;
+  const stopped = p.consent.state === "opted_out";
+  // A question nobody has asked them yet is answered by recording their yes (canvas A): the act says so.
+  const askOr = (state: string) => (state === "unknown" ? UP_NEXT_WORDS.recordYes : W.change);
   const rmRow = (
     <RecordRow
       id="person-receptionist"
       label="Receptionist"
-      value={rmWord(rmEffective)}
-      source={rmPerson ? null : "workspace"}
-      act={isOwner ? { label: "Change", onClick: folds.rm.request } : null}
+      value={rmPerson ? rmWord(rmEffective) : `${rmWord(rmEffective)} · ${W.thisWorkspace}`}
+      act={isOwner ? { label: W.change, onClick: folds.rm.request } : null}
+      stacked
     />
   );
   const visitRow = (
     <RecordRow
       id="person-visit"
       label="Visit messages"
-      value={p.consent.answerLabel}
-      act={canRecord ? { label: "Change", onClick: folds.visit.request } : null}
+      value={stopped ? STOP_WORDS.mark : p.consent.answerLabel}
+      act={canRecord && !stopped ? { label: askOr(p.consent.state), onClick: folds.visit.request } : null}
+      stacked
     />
   );
   const offersRow = (
     <RecordRow
       id="person-offers"
       label="Offers & news"
-      value={p.consent.marketingLabel}
-      act={canRecord && p.consent.state !== "opted_out" ? { label: "Change", onClick: folds.offers.request } : null}
+      value={stopped ? STOP_WORDS.mark : p.consent.marketingLabel}
+      act={canRecord && !stopped ? { label: askOr(p.consent.marketing), onClick: folds.offers.request } : null}
+      stacked
     />
   );
   return (
     <div className="cl-prof-rec" data-testid="person-settings">
-      {folds.rm.open ? null : rmRow}
-      {receptionistFold(c, rmRow)}
       {folds.visit.open ? null : visitRow}
       {visitFold(c, visitRow)}
       {folds.offers.open ? null : offersRow}
       {offersFold(c, offersRow)}
       {emailOffersRow(c)}
+      {folds.rm.open ? null : rmRow}
+      {receptionistFold(c, rmRow)}
+      {knowsPanel(c)}
     </div>
+  );
+}
+
+/**
+ * The three editors as a phone's sheets over a tab that is not About (canvas A, P1.5): Up next's "Record a yes" opens
+ * the yes over the Overview, where it was asked, and About draws its own in place under each row (as a thin record's one
+ * scroll does, which holds About's groups under its Overview).
+ */
+export function phoneFolds(c: PageCtx) {
+  if (!c.phone || c.tab === "about" || c.p.thin) return null;
+  return (
+    <>
+      {receptionistFold(c, null)}
+      {visitFold(c, null)}
+      {offersFold(c, null)}
+    </>
+  );
+}
+
+/** What the receptionist knows of them (canvas A, P9.4): one line of facts, and how it uses the notes. */
+function knowsPanel(c: PageCtx) {
+  const { p } = c;
+  const W = PERSON_ABOUT_WORDS;
+  const line = receptionistKnowsOf({
+    name: isIdentifierName(p.name) ? null : p.name,
+    worksAt: p.worksAt?.name ?? null,
+    email: p.email,
+    offers: p.consent.state === "opted_out" ? null : p.consent.marketingLabel,
+    lastInTouch: p.figures.find((f) => f.id === "last")?.value ?? null,
+  });
+  if (!line) return null;
+  return (
+    <Panel variant="inset" size="sm" className="cl-prof-knows" data-testid="person-knows">
+      <p className="cl-prof-knows-title">{W.knowsTitle}</p>
+      <p className="cl-prof-knows-body">{line}</p>
+      <p className="cl-prof-knows-foot">{W.knowsFoot}</p>
+    </Panel>
+  );
+}
+
+/**
+ * Messages and receptionist (canvas A): the rail's group of what they may be sent and who answers them, folded behind
+ * one line of the three answers, and open while one of its editors is.
+ */
+export function messagesGroup(c: PageCtx) {
+  const { p, folds } = c;
+  const effective = p.receptionistMode.person || p.receptionistMode.workspace;
+  const parts = messagesSummaryOf(
+    { label: p.consent.answerLabel, unknown: p.consent.state === "unknown" },
+    {
+      label: p.consent.marketingLabel,
+      unknown: p.consent.marketing === "unknown" && p.consent.state !== "opted_out",
+    },
+    rmWord(effective),
+  );
+  // The first "not asked" is the press that asks it, for someone who may record the answer (canvas A, M1's fold).
+  const first = c.canRecord ? parts.find((x) => x.notAsked) : undefined;
+  const ask = (id: string) => (id === "visit" ? folds.visit.request() : folds.offers.request());
+  const summary = parts.map((x, i) => (
+    <Fragment key={x.id}>
+      {i > 0 ? " · " : null}
+      {x.lead ? `${x.lead} ` : null}
+      {x === first ? (
+        <LinkButton size="inherit" className="cl-prof-not-asked" onClick={() => ask(x.id)}>
+          {x.answer}
+        </LinkButton>
+      ) : x.notAsked ? (
+        <u className="cl-prof-not-asked">{x.answer}</u>
+      ) : (
+        x.answer
+      )}
+    </Fragment>
+  ));
+  return (
+    <section className="cl-prof-rail-section" data-testid="person-messages">
+      <RecordDisclosure
+        id="person-messages"
+        look="group"
+        label={PERSON_ABOUT_WORDS.messages}
+        summary={summary}
+        forceOpen={folds.rm.open || folds.visit.open || folds.offers.open}
+        // Folded by default, and left as the member left it, from person to person (canvas A, P9.4).
+        remember
+        testid="person-messages-fold"
+      >
+        {settingsCard(c)}
+      </RecordDisclosure>
+    </section>
   );
 }

@@ -109,6 +109,12 @@ const GLYPHS: Record<string, Drawing> = {
       <circle cx="12.5" cy="8" r="0.8" fill="currentColor" />
     </svg>
   ),
+  note: (p) => (
+    <svg {...p}>
+      <path d="M4 2.5h5.5L12 5v8.5H4z" />
+      <path d="M9.5 2.5V5H12M6 8.25h4M6 10.75h2.5" />
+    </svg>
+  ),
   chevron: (p) => (
     <svg {...p}>
       <path d="M6 4l4 4-4 4" />

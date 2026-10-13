@@ -12,7 +12,8 @@ import {
   NOTE_WORDS,
   PERSON_CALL_SAID_MAX,
   PERSON_CALL_WORDS as W,
-  composerDays,
+  callDays,
+  clockTime,
   personCallDays,
   personCallFoot,
   personCallOf,
@@ -24,7 +25,7 @@ import { pageClock } from "@/legacy-bridge/zone";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Popover } from "../../kit/popover/popover";
-import { RecordField, RecordSwitch, RecordToggleGroup } from "../../kit/record/field";
+import { RecordBox, RecordField, RecordSwitch, RecordToggleGroup } from "../../kit/record/field";
 import { Sheet } from "../../kit/sheet/sheet";
 import { logCallOn } from "../people-detail";
 import { NoteDay } from "./notes";
@@ -38,6 +39,8 @@ export interface PersonCallCtl {
   open: boolean;
   /** It shows the question, not the dial. */
   asking: boolean;
+  /** When Call was pressed on this page, said in the question's head ("· 4:12 PM"); null for a call logged after. */
+  at: number | null;
   setOpen: (open: boolean) => void;
   /** Call was pressed: a desk turns to the question at once, a phone waits for the app to come back. */
   dialled: () => void;
@@ -58,6 +61,7 @@ export function usePersonCall(p: PersonVM | null, phone: boolean): PersonCallCtl
   const [open, setOpen] = useState(false);
   const [asking, setAsking] = useState(false);
   const [armed, setArmed] = useState(false);
+  const [at, setAt] = useState<number | null>(null);
   // The dial left the app; the question waits until the member is back to answer it (Leads' leadArmOnReturn).
   useEffect(() => {
     if (!armed) return undefined;
@@ -78,15 +82,18 @@ export function usePersonCall(p: PersonVM | null, phone: boolean): PersonCallCtl
     vm,
     open,
     asking,
+    at,
     setOpen: (next) => {
       setOpen(next);
       if (next) setAsking(false);
     },
     dialled: () => {
+      setAt(Date.now());
       if (phone) setArmed(true);
       else setAsking(true);
     },
     logPast: () => {
+      setAt(null);
       setAsking(true);
       setOpen(true);
     },
@@ -113,16 +120,17 @@ function CallAsk({ c, vm, onDone }: { c: PageCtx; vm: PersonCallVM; onDone: () =
   const [who, setWho] = useState("");
   const [busy, setBusy] = useState(false);
   const tellId = useId();
+  const saidId = useId();
   const tz = pageClock().zone();
-  const days = composerDays(Date.now(), tz);
+  const days = callDays(Date.now(), tz);
   const offer = personCallDays(outcome);
   const due = offer.offered ? day.day : null;
   const pick = (o: PersonCallOutcome) => {
     setOutcome(o);
     const next = personCallDays(o);
-    // composerDays always offers Tomorrow first.
     if (!next.offered) setDay({ picking: false, day: null });
-    else if (next.tomorrow && !day.day) setDay({ picking: false, day: days[0]?.key ?? null });
+    else if (next.tomorrow && !day.day)
+      setDay({ picking: false, day: days.find((d) => d.label === "Tomorrow")?.key ?? null });
   };
   const save = async () => {
     if (!outcome || busy || (offer.offered && day.picking && !day.day)) return;
@@ -143,6 +151,25 @@ function CallAsk({ c, vm, onDone }: { c: PageCtx; vm: PersonCallVM; onDone: () =
     c.load();
     onDone();
   };
+  // Call back: under the outcomes on a desk; on a phone after what was said and the receptionist's switch (canvas A, D1).
+  const back = offer.offered ? (
+    <div className="cl-prof-call-back">
+      <span className="cl-prof-call-word" aria-hidden="true">
+        {W.callBack}
+      </span>
+      <NoteDay
+        day={day.day}
+        picking={day.picking}
+        days={days}
+        onDay={setDay}
+        disabled={busy}
+        W={NOTE_WORDS}
+        label={W.callBack}
+        look={c.phone ? "chips" : "chips-sm"}
+        testid="person-call"
+      />
+    </div>
+  ) : null;
   return (
     <div className="cl-prof-call-ask" data-testid="person-call-ask">
       <RecordToggleGroup
@@ -151,7 +178,7 @@ function CallAsk({ c, vm, onDone }: { c: PageCtx; vm: PersonCallVM; onDone: () =
         options={vm.outcomes.map((o) => ({ value: o.id, label: o.label }))}
         onChange={pick}
         readOnly={busy}
-        wrap
+        look={c.phone ? "chips" : "chips-sm"}
         testid="person-call-outcome"
       />
       {vm.asksWho && outcome === "interested" ? (
@@ -165,43 +192,41 @@ function CallAsk({ c, vm, onDone }: { c: PageCtx; vm: PersonCallVM; onDone: () =
           testid="person-call-who"
         />
       ) : null}
-      {offer.offered ? (
-        <div className="cl-prof-call-back">
-          <span className="cl-prof-call-word" aria-hidden="true">
-            {W.callBack}
-          </span>
-          <NoteDay
-            day={day.day}
-            picking={day.picking}
-            days={days}
-            onDay={setDay}
-            disabled={busy}
-            W={NOTE_WORDS}
-            label={W.callBack}
-            testid="person-call"
-          />
-        </div>
-      ) : null}
-      <RecordField
+      {c.phone ? null : back}
+      {/* What was said: a box with no label drawn, its placeholder saying it is the team's (canvas A, M4). */}
+      <RecordBox
+        id={saidId}
         label={W.said}
-        rows={2}
+        rows={3}
         value={said}
         onChange={setSaid}
         placeholder={W.saidPlaceholder}
         maxLength={PERSON_CALL_SAID_MAX}
+        className="cl-prof-call-said"
         testid="person-call-said"
       />
-      <div className="cl-prof-call-tell" title={W.tellHint}>
-        <span id={tellId}>{W.tell}</span>
-        <RecordSwitch on={tell} onChange={setTell} labelledBy={tellId} readOnly={busy} testid="person-call-tell" />
-      </div>
+      {/* The phone's sheet asks whether the receptionist should know; the desk's popover logs a team-only note (canvas A,
+          M4), its foot saying so. */}
+      {c.phone ? (
+        <div className="cl-prof-call-tell" title={W.tellHint}>
+          <span id={tellId}>{W.tell}</span>
+          <RecordSwitch on={tell} onChange={setTell} labelledBy={tellId} readOnly={busy} testid="person-call-tell" />
+        </div>
+      ) : null}
+      {c.phone ? back : null}
       <div className="cl-prof-call-foot">
-        <span className="cl-prof-call-goes" data-testid="person-call-goes">
-          {personCallFoot(vm, outcome, tell)}
-        </span>
+        {/* Where the call goes, beside Save on a desk; a phone's sheet keeps its foot for Save alone (canvas A, D1). */}
+        {c.phone ? null : (
+          <span className="cl-prof-call-goes" data-testid="person-call-goes">
+            {personCallFoot(vm, outcome, tell)}
+          </span>
+        )}
+        {/* On a phone Save is the sheet's one filled control; on a desk the page's one coral stays Open the thread
+            (canvas A, D1 and M4). Busy while the door has it, never off. */}
         <Button
-          variant="primary"
-          disabled={!outcome || busy || (offer.offered && day.picking && !day.day)}
+          variant={c.phone ? "primary" : "secondary"}
+          disabled={!outcome || (offer.offered && day.picking && !day.day)}
+          aria-busy={busy || undefined}
           onClick={() => void save()}
           data-testid="person-call-save"
         >
@@ -216,7 +241,7 @@ function CallAsk({ c, vm, onDone }: { c: PageCtx; vm: PersonCallVM; onDone: () =
 function CallDial({ c, vm }: { c: PageCtx; vm: PersonCallVM }) {
   return (
     <div className="cl-prof-call-dial" data-testid="person-call-dial">
-      <Button variant="primary" href={vm.tel} onClick={c.call.dialled} data-testid="person-call-dial-go">
+      <Button href={vm.tel} onClick={c.call.dialled} data-testid="person-call-dial-go">
         <Icon name="phone" size={12} /> {W.dial}
       </Button>
       <span className="cl-prof-call-sub">{W.dialHint}</span>
@@ -236,19 +261,25 @@ function CallDial({ c, vm }: { c: PageCtx; vm: PersonCallVM }) {
 export function CallAct({ c, dock = false }: { c: PageCtx; dock?: boolean }) {
   const { vm } = c.call;
   if (!vm) return null;
+  // A phone's Call is a circle (canvas A, P1): of the control layer's glass in the head's row, bare in the dock's capsule.
   if (c.phone)
-    return dock ? (
-      <Button iconOnly aria-label={W.call} href={vm.tel} onClick={c.canRecord ? c.call.dialled : undefined}>
-        <Icon name="phone" size={15} />
-      </Button>
-    ) : (
-      <Button size="sm" href={vm.tel} onClick={c.canRecord ? c.call.dialled : undefined} data-testid="person-call">
-        <Icon name="phone" size={12} /> {W.call}
+    return (
+      <Button
+        iconOnly
+        size="touch"
+        variant={dock ? "quiet" : "glass"}
+        aria-label={W.call}
+        title={W.call}
+        href={vm.tel}
+        onClick={c.canRecord ? c.call.dialled : undefined}
+        data-testid={dock ? undefined : "person-call"}
+      >
+        <Icon name="phone" size={16} />
       </Button>
     );
   const trigger: ReactElement = (
     <Button size="sm" data-testid="person-call">
-      <Icon name="phone" size={12} /> {W.call}
+      {W.call}
     </Button>
   );
   return (
@@ -264,7 +295,11 @@ export function CallAct({ c, dock = false }: { c: PageCtx; dock?: boolean }) {
     >
       <div className="cl-prof-call-head">
         <strong>{c.call.asking ? W.question : vm.heading}</strong>
-        <span className="cl-prof-call-sub">{c.call.asking ? `${vm.number} · ${vm.sub}` : vm.sub}</span>
+        <span className="cl-prof-call-sub">
+          {c.call.asking
+            ? `${vm.number} · ${vm.sub}${c.call.at !== null ? ` · ${clockTime(c.call.at, pageClock().zone())}` : ""}`
+            : vm.sub}
+        </span>
       </div>
       {c.call.asking && c.canRecord ? <CallAsk c={c} vm={vm} onDone={c.call.close} /> : <CallDial c={c} vm={vm} />}
     </Popover>

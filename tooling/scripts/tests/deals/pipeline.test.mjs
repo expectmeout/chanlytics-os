@@ -2412,7 +2412,8 @@ test('"No link" is a fact at rest, said when nothing else is: a plain dot, never
     TZ,
     new Date(NOW),
   );
-  assert.deepEqual(pipelineOf([fresh], NOW, TZ, null).groups[0].rows[0].chip, { words: "No link", tone: "plain" });
+  // The deal card's own words (DEAL_CARD_WORDS.noLink, canvas A), the same on a person's row and on the Pipeline.
+  assert.deepEqual(pipelineOf([fresh], NOW, TZ, null).groups[0].rows[0].chip, { words: "No link yet", tone: "plain" });
   const dated = toPersonRowVM(
     personRow(NOW, "pia", "Pia", deal(NOW, "proposed", { proposed: 2, url: null, validUntil: "2026-09-30" })),
     TZ,

@@ -3,9 +3,10 @@
  * wiring plan, task 4.4).
  *
  * Kept and Missed could be pressed in one place, the Calendar's panel, which the owner had to open from the board to find the
- * block. The person's History and Coming up now carry the same two presses on a visit nobody has marked, through the same door
- * (POST calendar/visits/[id]) and the same gate, and the word the Calendar's panel says (Past, never 'Past visit'). The presses
- * sit beside the row's door and not in it: a press inside a link is the link's.
+ * block. The person's History and Up next now carry the same two presses on a visit nobody has marked (Coming up's rows are
+ * doors and ask nothing, canvas A), through the same door (POST calendar/visits/[id]) and the same gate, and the word the
+ * Calendar's panel says (Past, never 'Past visit'). The presses sit beside the row's door and not in it: a press inside a
+ * link is the link's.
  *
  * Run on the page's parts drawn on the stub React over the person's view model (the timeline the History draws, Coming up),
  * and on the shared parts (VisitAsk, VisitActs, VisitState) with the door handed in.
@@ -148,27 +149,33 @@ test("History: a visit nobody has marked asks 'Did they come?' beside its door, 
   assert.equal(textOf(door).trim(), "Open the appointment", "the row's door is words of its own, a link");
   assert.match(door.props.href, /calendar\/2026-09-1[67]:a-r-a$/, door.props.href);
   assert.equal(all(ended, hasClass("cl-tl-go")).length, 0, "no arrow: the row is not the door");
-  // A kept visit and a missed one are links, as every row with somewhere to go is, and ask nothing.
+  // A kept visit and a missed one are links, as every row with somewhere to go is, and ask nothing. The row is the door
+  // itself, whole, so it draws no arrow of its own (canvas A, D3).
   for (const r of [kept, missed]) {
     assert.equal(r.type, "a");
     assert.equal(byTestId(r, "timeline-visit-ask"), null);
-    assert.equal(all(r, hasClass("cl-tl-go")).length, 1, "the arrow says it is the door");
+    assert.equal(all(r, hasClass("cl-tl-go")).length, 0, "the row is the door: no arrow of its own");
   }
 });
 
-test("Coming up: a visit under way and nobody has marked asks the same two presses beside its door; one ahead asks nothing; a guess says so in the one set of words", () => {
+test("Coming up: each visit is its door and asks nothing (canvas A: whether they came is Up next's to ask); a visit under way and nobody has marked is Up next's question, with the same two presses; a guess says so in the one set of words", () => {
   const p = person([visit("u", -0.25, { via: "name" }), visit("f", 30)]);
   fresh();
   const section = comingUpSection(p.comingUp);
   const items = all(section, hasClass("cl-prof-up-item"));
   assert.equal(items.length, 2);
   const [under, ahead] = items;
-  assert.ok(byTestId(under, "person-visit-ahead"), "the door is a button of its own");
-  assert.deepEqual(buttonsOf(byTestId(under, "person-visit-ask")), ["Kept", "Missed"]);
+  assert.ok(byTestId(under, "person-visit-ahead"), "the door is a link of its own");
+  assert.equal(byTestId(under, "person-visit-ask"), null, "under way: Up next asks it, not Coming up");
   assert.equal(byTestId(ahead, "person-visit-ask"), null, "ahead: nothing to say yet");
   assert.ok(textOf(under).includes("matched by name"), textOf(under));
   assert.ok(!textOf(ahead).includes("matched"), "an exact match is not a guess to say");
   assert.equal(comingUpSection([]), false, "nothing coming up, no section");
+  // Up next asks the one under way, today's, in plain words ("come today", never "come on Today"), with Kept and Missed.
+  const asked = p.next.rows.find((r) => r.act.kind === "visit");
+  assert.equal(asked?.title, "Did Maria come today?");
+  assert.equal(asked.act.label, "Kept · Missed");
+  assert.equal(asked.act.line.id, p.comingUp[0].visit.id, "the visit under way, the one Coming up draws first");
 });
 
 test("a press says the word through the door, on the record's row, and the word replaces the presses until the page reads again; a refusal is the door's sentence and the presses stay", async () => {

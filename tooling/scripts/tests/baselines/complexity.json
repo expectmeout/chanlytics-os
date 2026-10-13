@@ -20,9 +20,9 @@
     "depth": 1
   },
   "apps/dashboard/src/legacy/components/data-bits.jsx::onTouchEnd#1": {
-    "lines": 45,
-    "branches": 52,
-    "depth": 3
+    "lines": 43,
+    "branches": 48,
+    "depth": 2
   },
   "apps/dashboard/src/legacy/components/data-bits.jsx::onTouchMove#1": {
     "lines": 43,

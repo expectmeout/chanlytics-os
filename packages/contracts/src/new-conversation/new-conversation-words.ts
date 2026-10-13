@@ -10,7 +10,7 @@ import type { ConsentChannel } from "../consent/consent-channels";
 import { inboxSlots } from "../templates/inbox-templates";
 import { resolveParams } from "../templates/templates";
 import { PLAN_NOTE_MAX, type PersonReachDto } from "./person-draft";
-import type { WriteWay } from "./write-ways";
+import { WRITE_WAY_REFUSED, type WriteWay } from "./write-ways";
 
 /**
  * What an Inbox address asks of the sheet: nothing (null), the pick (`inbox/new`), or one person (`inbox/new:<person>`).
@@ -132,7 +132,7 @@ export const NEW_CONVERSATION_WORDS = {
     money:
       "The draft offered money you did not mention, so it was not kept. Say it in your own words, or leave it out.",
     approvedOnly: "Only a message WhatsApp approved ahead of time can go to them until they write. Pick one.",
-    notThatWay: "A message cannot go to them that way.",
+    notThatWay: WRITE_WAY_REFUSED,
     noWords: "Write the message first.",
     noRoomForStop:
       "The first text to someone also carries the line that says how to stop, and this one leaves no room for it. Shorten it a little.",

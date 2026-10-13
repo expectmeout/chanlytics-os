@@ -3,10 +3,9 @@
  * page's own state, and the one toast. `ClientProfileReal` builds it once a draw and every part of the page is a function of it.
  */
 import type { Dispatch, SetStateAction } from "react";
-import type { PersonRowVM, PersonTab, PersonVM } from "@chanlytics/contracts";
+import type { CombineAct, PersonRowVM, PersonTab, PersonVM } from "@chanlytics/contracts";
 import type { useRecordFold } from "../../kit/record/hooks";
 import type { FlashFn } from "../person-verbs";
-import type { PersonWalk } from "../walk";
 import type { PersonCallCtl } from "./call";
 
 /** The typed-name confirmation to delete a person: open, what was typed, whether the delete is out, and what went wrong. */
@@ -30,6 +29,13 @@ export interface MergeState {
 }
 
 /** A doubt being settled as two people (0034 step 4): which one is out, and what went wrong. */
+/** Combine (0052): the pair the notice offered, while its sheet is open, and its press. */
+export interface CombineState {
+  act: CombineAct | null;
+  busy: boolean;
+  error: string | null;
+}
+
 export interface DoubtState {
   busy: string | null;
   error: string | null;
@@ -88,15 +94,43 @@ export interface PageCtx {
   setSheet: Dispatch<SetStateAction<boolean>>;
   /** The History rows new since the reader last looked (0052, contracts newSinceOf): a dot on each, and on History's tab. */
   fresh: ReadonlySet<string>;
-  /** Where they stand in the People view they were opened from, and who is either side (walk.ts); null outside one. */
-  walk: PersonWalk | null;
-  /** Step to another person of that view, on the tab this one is on: the address replaced, so Back still leaves the list. */
-  step: (to: string) => void;
   /** Open their thread with words ready (hero.tsx openWith), for every send the page offers. */
   compose: (text?: string | null) => void;
   /** The member's own call to them (0052, canvas A M4): the number Call rings, and "How did the call go?" (call.tsx). */
   call: PersonCallCtl;
+  /**
+   * Note was pressed (canvas A): the Overview draws its Notes pane, with the composer, for someone who has no note yet;
+   * one with a note or a suggestion has the pane anyway.
+   */
+  composing: boolean;
+  setComposing: Dispatch<SetStateAction<boolean>>;
+  /** The record holds three columns (canvas A, D7: 1240px of its own width and up): their notes and lists stand in the third. */
+  wide: boolean;
+  /** Add to a list (More, canvas A): its sheet, open or not. */
+  listsOpen: boolean;
+  setListsOpen: Dispatch<SetStateAction<boolean>>;
+  /** Combine (0052): its sheet, open on the pair the notice offered. */
+  combine: CombineState;
+  setCombine: Dispatch<SetStateAction<CombineState>>;
 }
 
 /** The digits of a number, for comparing what was typed with a phone. */
 export const digitsOf = (x: string | null | undefined): string => String(x || "").replace(/\D/g, "");
+
+/**
+ * What Up next and their last words read of the page, wherever they are drawn: the person's page, or People's peek of
+ * them, which has no rail and so no fold for a yes (`folds` absent: that rung says its fact and offers no press).
+ */
+export type UpNextCtx = Pick<PageCtx, "p" | "dealP" | "canRecord" | "flash" | "load" | "compose"> & {
+  folds?: Pick<PageCtx["folds"], "visit">;
+};
+
+/** What a page's notices read of it: the person, who may act, the toast and the read again. */
+export type NoticeCtx = Pick<PageCtx, "p" | "canRecord" | "flash" | "load">;
+
+/**
+ * The person as the deal card reads them: where the proposal follow-up has them in hand (0006), their People row says so,
+ * and it is laid on. One derivation, for the page and People's peek.
+ */
+export const dealPersonOf = (vm: PersonVM, row: Pick<PersonRowVM, "followUp"> | null | undefined): PersonVM =>
+  row && row.followUp ? { ...vm, followUp: row.followUp } : vm;

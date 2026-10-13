@@ -196,13 +196,19 @@ export function offeringHorizon(now: Date, daysAhead: number): FeedHorizon {
   return { from: now.getTime() - DAY_MS, to: now.getTime() + (daysAhead + 1) * DAY_MS };
 }
 
+/** How far back a season reaches: every read of visits over the feed holds this many days, and a count of them says so. */
+export const SEASON_BACK_DAYS = 90;
+
 /**
  * A season either side: ninety days back for "when were they last in", and
  * ninety forward — or the offering window when a workspace books further out
  * than that, so the two never disagree about a day the receptionist can offer.
  */
 export function seasonHorizon(now: Date, daysAhead = 0): FeedHorizon {
-  return { from: now.getTime() - DAY_MS * 90, to: now.getTime() + Math.max(daysAhead + 1, 90) * DAY_MS };
+  return {
+    from: now.getTime() - DAY_MS * SEASON_BACK_DAYS,
+    to: now.getTime() + Math.max(daysAhead + 1, 90) * DAY_MS,
+  };
 }
 
 /**

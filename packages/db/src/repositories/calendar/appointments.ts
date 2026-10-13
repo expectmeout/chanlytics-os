@@ -6,7 +6,8 @@
  *                       client holds near an instant), insertAppointment, updateAppointment ("refused" when the row's
  *                       guard will not take the move: a finished visit cancelled).
  *   the board           appointmentsBetween (the live rows over a span the feed does not already draw), appointmentsForClient
- *                       (one person's, by their number or address, from an instant on), visitsOver (a span's rows, and
+ *                       (one person's, by their number or address, from an instant on), earlierVisitRows (one person's
+ *                       from before a season, said or standing booked), visitsOver (a span's rows, and
  *                       the feed's by key, with what a member said of each).
  *   the pools           recordOver (a season's bookings and the feed's said rows, paged whole), feedWordsOver (the said
  *                       rows alone): what People, Reports, the playbooks and a caller's visits join to the feed.
@@ -312,6 +313,49 @@ export async function appointmentsForClient(
     .limit(50);
   if (error) throw new Error(`appointments_for_client: ${error.message}`);
   return data ?? [];
+}
+
+/** A page of PostgREST's thousand and no more: past it a person's earlier visits are not counted, never half-counted. */
+const EARLIER_ROWS_MAX = 1000;
+
+/** One of a person's earlier visits: its id, how it stands, and when it began. */
+export type EarlierVisitRow = Pick<AppointmentRow, "id" | "status" | "starts_at">;
+
+/**
+ * One person's visits that ended at or before `beforeIso` (the season's start, so none is the season's too): the ones a
+ * member said they kept or missed, and the ones that stand booked with nobody having said (the cadence's guard). Found
+ * by the person the record linked (contact_id: the hourly sync's match, a notice's; a merge moves it) or by the number
+ * or address a booking carries. A feed row the calendar stopped naming is left out, as feedWordsOver leaves it. Newest
+ * first. `capped`: more matched than EARLIER_ROWS_MAX, so the rows are a part and must not be counted from.
+ */
+export async function earlierVisitRows(
+  db: Db,
+  tenantId: string,
+  who: { id: string; phone: string | null; email: string | null },
+  beforeIso: string,
+): Promise<{ rows: EarlierVisitRow[]; capped: boolean }> {
+  const or = [`contact_id.eq.${who.id}`, clientFilter(who)].filter(Boolean).join(",");
+  let capped = false;
+  const rows = await readAllRows<EarlierVisitRow>(
+    "appointments_earlier",
+    (from, to) =>
+      db
+        .from("appointments")
+        .select("id, status, starts_at")
+        .eq("tenant_id", tenantId)
+        .in("status", ["kept", "missed", "booked"])
+        .is("vanished_at", null)
+        .lte("ends_at", beforeIso)
+        .or(or)
+        .order("starts_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(from, to),
+    EARLIER_ROWS_MAX,
+    () => {
+      capped = true;
+    },
+  );
+  return { rows, capped };
 }
 
 /* ------------------------------------------------------------------ an erasure's hand */

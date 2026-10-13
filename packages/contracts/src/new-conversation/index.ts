@@ -1,5 +1,14 @@
 /** A new conversation: which wire carries a message to a person, the sheet's words, and Ask's draft for one person. */
-export { defaultWriteWire, startsOn, writeReachOf, writeWaysOf, WRITE_HOLDS, WRITE_HOLD_WORDS } from "./write-ways";
+export {
+  defaultWriteWire,
+  startsOn,
+  wayOff,
+  writeWaysOf,
+  WRITE_HOLDS,
+  WRITE_HOLD_WORDS,
+  WRITE_WAY_REFUSED,
+} from "./write-ways";
+export { writeReachOf } from "./write-reach";
 export type { WriteHold, WriteRow, WriteWay } from "./write-ways";
 export {
   NEW_CONVERSATION_WORDS,

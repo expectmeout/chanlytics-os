@@ -60,6 +60,7 @@ export const UNLISTED = {
     "usePPToast's tone class on a confirmation, which no stylesheet names (data-bits.jsx, pp-toast-<tone>)",
   "stabs-inbox": "the Inbox's strip as ViewTabs marks each strip's (stabs-<name>), which no stylesheet names",
   "stabs-campaigns": "a second strip's own mark (ViewTabs, stabs-<name>), which no stylesheet names",
+  "stabs-person": "a person's tabs' own mark (ViewTabs, stabs-<name>), which no stylesheet names",
   "stabs-badge": "the count on a tab (SurfaceTabs), which mobile.css hides on a phone's Inbox",
   "rec-seg-label": "an option's label beside its hint (RecordToggleGroup), which no stylesheet names",
   "rec-combo-label": "an option's words beside its meta (RecordCombobox), which no stylesheet names",
@@ -124,6 +125,19 @@ const recSaysFolded = ({ open = false, mark = null } = {}) =>
   `<div class="rec-says-part" data-part="gone"><span class="rec-says-eyebrow">No longer told</span>` +
   `<pre><span class="rec-says-line">Open on public holidays.</span></pre></div>` +
   `</div></div></div></div>`;
+
+/**
+ * A group of a page's rail folded with its summary (RecordDisclosure look="group", a person's Messages and receptionist):
+ * closed on its one line, or open on its rows.
+ */
+const recDisclosureGroup = ({ open = false } = {}) =>
+  `<div class="rec-disclosure" data-open="${open}" data-look="group">` +
+  `<button type="button" class="rec-disclosure-press" aria-expanded="${open}">` +
+  `<span class="rec-disclosure-label">Messages and receptionist</span>${icon("chevron", 12)}</button>` +
+  `<p class="rec-disclosure-sum">Visit messages not asked · Offers &amp; news not asked · Answer</p>` +
+  `<div class="rec-disclosure-panel" role="region"><div class="rec-disclosure-inner">` +
+  `<p>Visit messages · Not asked</p><p>Offers &amp; news · Not asked</p>` +
+  `</div></div></div>`;
 
 /** A field (RecordField): its label holding the box, and a hint under it. */
 const recField = (label, value, hint = null) =>
@@ -384,6 +398,18 @@ const kitSheet = () =>
   `<button type="button" tabindex="0" aria-label="More for the services" aria-haspopup="menu" aria-expanded="false" ` +
   `class="btn btn-icon btn-sm btn-ghost">${icon("more", 14)}</button></div></footer></section>`;
 
+/** The kit's Sheet with a mark (`mark`): a business's tile before its name, the line under it muted, no rule under the head. */
+const kitMarkSheet = () =>
+  `<button type="button" class="btn">Open the business</button>` +
+  `<div class="sheet-backdrop" role="presentation" aria-hidden="true"></div>` +
+  `<section class="sheet" role="dialog" tabindex="-1">` +
+  `<div class="sheet-handle" aria-hidden="true"></div>` +
+  `<header class="rec-sheet-head" data-marked="true"><span class="sheet-mark"><span class="face face-lg" aria-hidden="true">HP</span></span>` +
+  `<div class="rec-sheet-heading"><h2 class="rec-sheet-title">Hyde Park Personal Training</h2>` +
+  `<p class="rec-sheet-sub">Personal trainer · Austin, TX</p></div>` +
+  `<button type="button" tabindex="0" aria-label="Close" class="rec-sheet-close">${icon("x", 13)}</button></header>` +
+  `<div class="rec-sheet-body">${KIT_ROWS}</div></section>`;
+
 /**
  * The kit's Sheet with its title a kicker (`kicker`, kit-behaves.tsx's): the title a quiet line with its small Close at
  * its end and no rule under it, over rows that carry their own name, and a foot that closes it (`footCloses`: its
@@ -457,6 +483,22 @@ const kitMenu = () =>
   `<a role="menuitem" tabindex="-1" href="#kit" class="more-item">${icon("user", 13)}` +
   `<span class="more-item-label">Open their page</span></a>` +
   kitItem("x", "Delete person…", { tone: " danger" }) +
+  `</div></div>`;
+
+/** The kit's Menu with a group's caption: its sends drawn disabled, and why said once under them. */
+const kitMenuCaption = () =>
+  `<button type="button" tabindex="0" aria-label="More" aria-haspopup="menu" aria-expanded="true" ` +
+  `class="btn btn-icon btn-sm btn-ghost">${icon("more", 14)}</button>` +
+  `<div class="more-backdrop" role="presentation" data-open="true"></div>` +
+  `<div class="pop-place" role="presentation" ${placed("top: 56px; left: 16px;")}>` +
+  `<div class="more-menu align-right" role="menu" tabindex="-1">` +
+  `<button type="button" role="menuitem" tabindex="-1" aria-disabled="true" data-disabled="" class="more-item">` +
+  `${icon("mail", 13)}<span class="more-item-label">Email them</span></button>` +
+  `<button type="button" role="menuitem" tabindex="-1" aria-disabled="true" data-disabled="" class="more-item">` +
+  `${icon("calendar", 13)}<span class="more-item-label">Send booking link</span></button>` +
+  `<p class="more-cap">They asked to stop: nothing is sent to them.</p>` +
+  `<div class="more-divider" role="separator" aria-orientation="horizontal"></div>` +
+  kitItem("copy", "Copy the number") +
   `</div></div>`;
 
 /**
@@ -639,6 +681,7 @@ const figure = ({
   thin = null,
   tone = null,
   washed = false,
+  tile = false,
 } = {}) => {
   const said = washed ? `<span class="wash" data-wash="true">${value}</span>` : value;
   const number =
@@ -648,7 +691,7 @@ const figure = ({
         ? `<button type="button" class="figure-door">${said}</button>`
         : said;
   return (
-    `<dl class="gx-figs"><div class="figure${thin === null ? "" : " is-thin"}${tone === null ? "" : ` is-${tone}`}"><dt class="figure-label">${term}</dt>` +
+    `<dl class="gx-figs"><div class="figure${tile ? " figure-tile" : ""}${thin === null ? "" : " is-thin"}${tone === null ? "" : ` is-${tone}`}"><dt class="figure-label">${term}</dt>` +
     `<dd class="figure-value">${number}${change ? `<span class="figure-change">${change}</span>` : ""}</dd>` +
     `${meta ? `<dd class="figure-meta">${meta}</dd>` : ""}` +
     `${thin === null ? "" : `<dd class="figure-n">only ${thin}, too few to read</dd>`}</div></dl>`
@@ -950,6 +993,28 @@ export const FAMILIES = [
           `<button type="button" class="btn btn-icon btn-sm" aria-label="Close">${icon("x", 12)}</button>`,
       },
       {
+        id: "btn-touch-glass",
+        html:
+          `<button type="button" class="btn btn-touch btn-primary">Open the thread</button> ` +
+          `<button type="button" class="btn btn-icon btn-touch btn-glass" aria-label="Call">${icon("phone", 16)}</button> ` +
+          `<button type="button" class="btn btn-icon btn-touch btn-glass" aria-label="Note">${icon("note", 16)}</button> ` +
+          `<button type="button" class="btn btn-icon btn-touch btn-glass" aria-label="More">${icon("more", 18)}</button>`,
+      },
+      {
+        id: "btn-touch-quiet",
+        html:
+          `<button type="button" class="btn btn-icon btn-touch btn-ghost" aria-label="Call">${icon("phone", 16)}</button> ` +
+          `<button type="button" class="btn btn-icon btn-touch btn-ghost" aria-label="More">${icon("more", 18)}</button>`,
+      },
+      {
+        // A left chevron is the right one turned (kit.css .icon-turned): a walk's ‹ › between two people.
+        id: "btn-icon-turned",
+        html:
+          `<button type="button" class="btn btn-icon btn-sm btn-ghost" aria-label="Previous person">` +
+          `${icon("chevron", 12).replace('class="icon"', 'class="icon icon-turned"')}</button> ` +
+          `<button type="button" class="btn btn-icon btn-sm btn-ghost" aria-label="Next person">${icon("chevron", 12)}</button>`,
+      },
+      {
         id: "btn-text",
         html: `<button type="button" class="btn btn-text btn-ghost" aria-pressed="false">Visit reminder: 12 people, 3 campaigns, 2 on and 1 paused</button>`,
       },
@@ -1045,6 +1110,12 @@ export const FAMILIES = [
         html:
           `<span class="chip"><button type="button">Regulars</button>` +
           `<button type="button" class="chip-x" aria-label="Take Sam Ortega off Regulars">${icon("x", 9)}</button></span>`,
+      },
+      {
+        id: "chip-x-link",
+        html:
+          `<span class="chip"><a href="#kit">Bridal party</a>` +
+          `<button type="button" class="chip-x" aria-label="Take Emily Chen off Bridal party">${icon("x", 9)}</button></span>`,
       },
       {
         id: "chip-wrap",
@@ -1326,6 +1397,13 @@ export const FAMILIES = [
           `<a class="stabs-tab" href="#">Playbooks</a>` +
           `<a class="stabs-tab active" href="#" aria-current="page">Broadcasts</a><a class="stabs-tab" href="#">Templates</a></nav>`,
       },
+      {
+        id: "stabs-fill",
+        html:
+          `<nav class="stabs stabs-person" aria-label="Their page" data-fill="true"><span class="stabs-pill" aria-hidden="true"></span>` +
+          `<a class="stabs-tab active" href="#" aria-current="page">Overview</a><a class="stabs-tab" href="#">History</a>` +
+          `<a class="stabs-tab" href="#">Visits</a><a class="stabs-tab" href="#">About</a></nav>`,
+      },
     ],
   },
   {
@@ -1516,6 +1594,16 @@ export const FAMILIES = [
             `<div class="rec-row-val"><span class="rec-row-value">Warm and unhurried</span></div>${recAct("Change")}</div>`,
         ),
       },
+      {
+        // A narrow rail's rows (canvas A's Messages and receptionist): the key over its answer, the act beside both.
+        id: "rec-row-stacked",
+        html: recCard(
+          `<div class="rec-row rec-row-stacked" data-empty="false" data-act="true"><span class="rec-row-key">Visit messages</span>` +
+            `<div class="rec-row-val"><span class="rec-row-value">Not asked</span></div>${recAct("Record a yes")}</div>` +
+            `<div class="rec-row rec-row-stacked" data-empty="false"><span class="rec-row-key">Offers by email</span>` +
+            `<div class="rec-row-val"><span class="rec-row-value">Not asked · read only</span></div></div>`,
+        ),
+      },
     ],
   },
   {
@@ -1597,6 +1685,21 @@ export const FAMILIES = [
             "Call back later",
           ).replace('class="rec-seg"', 'class="rec-seg" data-wrap="true"') +
           `</div>`,
+      },
+      {
+        id: "rec-seg-chips",
+        html: recSeg(
+          "How did the call go?",
+          ["Spoke", "Call back later", "Left a voicemail", "No answer", "Wrong number"],
+          "Call back later",
+        ).replace('class="rec-seg"', 'class="rec-seg" data-look="chips"'),
+      },
+      {
+        id: "rec-seg-chips-sm",
+        html: recSeg("Day", ["Today", "Tomorrow", "Fri", "Pick a day"], "Tomorrow").replace(
+          'class="rec-seg"',
+          'class="rec-seg" data-look="chips-sm"',
+        ),
       },
       {
         id: "rec-seg-hints",
@@ -1694,6 +1797,8 @@ export const FAMILIES = [
       },
       { id: "rec-says-folded", html: recCard(recSaysFolded({ mark: "Changed" })) },
       { id: "rec-says-folded-open", html: recCard(recSaysFolded({ open: true, mark: "Changed" })) },
+      { id: "rec-disclosure-group", html: recCard(recDisclosureGroup()) },
+      { id: "rec-disclosure-group-open", html: recCard(recDisclosureGroup({ open: true })) },
       {
         id: "rec-inline-saving",
         html: recCard(
@@ -1748,6 +1853,49 @@ export const FAMILIES = [
           `<div class="rec-card-tip" role="group" aria-label="Link your listing"><span class="rec-card-tip-title">Link your listing</span>` +
           `<span class="rec-card-tip-body">Your hours and reviews come from Google once it is linked.</span>` +
           `<button type="button" class="rec-card-tip-act">Find it</button></div>`,
+      },
+    ],
+  },
+  {
+    family: "Notice",
+    about:
+      "kit/notice/notice.tsx (canvas A, one suggestion grammar): a fact the page noticed in an inset where it lives, its " +
+      "subject in bold and its source dim after it, its one act and the × that puts it away; the line form puts the act " +
+      "beside the fact.",
+    entries: [
+      {
+        id: "notice",
+        html:
+          `<div class="notice" role="group" aria-label="Gave their name as Dana Ruiz">` +
+          `<p class="notice-fact">Gave their name as <b>Dana Ruiz</b><span class="notice-src"> · on the call Oct 2</span></p>` +
+          `<div class="notice-acts"><button type="button" class="btn btn-sm">Use this name</button>` +
+          `<button type="button" class="btn btn-icon btn-sm btn-ghost notice-x" aria-label="Not theirs" title="Not theirs">` +
+          `${icon("x", 11)}</button></div></div>`,
+      },
+      {
+        id: "notice-line",
+        html:
+          `<div class="notice notice-line" role="group" aria-label="A draft answer is waiting in the thread">` +
+          `<p class="notice-fact">A draft answer is waiting in the thread</p>` +
+          `<div class="notice-acts"><button type="button" class="btn btn-sm">Review the draft</button></div></div>`,
+      },
+    ],
+  },
+  {
+    family: "Copy",
+    about:
+      "kit/copy-button/copy-button.tsx (canvas A, M5): quiet words that copy and say so in place, a check and Copied in " +
+      "the ok ink for two seconds, never a toast; in a menu the item says it and the menu stays open.",
+    entries: [
+      {
+        id: "copy-button",
+        html: `<button type="button" class="btn btn-sm btn-ghost copy-btn" aria-live="polite">Copy the link</button>`,
+      },
+      {
+        id: "copy-button-copied",
+        html:
+          `<button type="button" class="btn btn-sm btn-ghost copy-btn" aria-live="polite" data-copied="true">` +
+          `${icon("check", 12)} Copied</button>`,
       },
     ],
   },
@@ -1971,6 +2119,7 @@ export const FAMILIES = [
       { id: "figure-thin", html: figure({ value: "62%", thin: 3 }) },
       { id: "figure-warn", html: figure({ tone: "warn" }) },
       { id: "figure-fail", html: figure({ tone: "fail" }) },
+      { id: "figure-tile", html: figure({ term: "Last contact", value: "Sep 24", meta: "You replied", tile: true }) },
     ],
   },
   {
@@ -2028,6 +2177,7 @@ export const FAMILIES = [
       "phone's small job's shape, on a step with its way back, its title, its word and the step's one act.",
     entries: [
       { id: "sheet-kit", stage: "sheet", html: kitSheet() },
+      { id: "sheet-kit-mark", stage: "sheet", html: kitMarkSheet() },
       { id: "sheet-kit-job", stage: "sheet", html: kitJobSheet() },
       { id: "sheet-kit-kicker", stage: "sheet", html: kitKickerSheet() },
     ],
@@ -2041,6 +2191,7 @@ export const FAMILIES = [
       "rows' controls share, which says the row that opened it.",
     entries: [
       { id: "menu-kit", stage: "pop", html: kitMenu() },
+      { id: "menu-kit-caption", stage: "pop", html: kitMenuCaption() },
       { id: "menu-kit-set", stage: "pop", html: kitMenuSet() },
       { id: "menu-kit-switches", stage: "pop", html: kitMenuSwitches() },
       { id: "menu-kit-shared", stage: "pop", html: kitMenuShared() },
@@ -2166,6 +2317,12 @@ export const FAMILIES = [
           `<header class="pg-head pg-head-stacked"><p class="pg-dateline">Friday, October 2<span class="pg-dateline-time"> · 4:02 PM</span></p>` +
           `<div class="pg-line"><h1 class="pg-title">Good afternoon, Marisa</h1>` +
           `<p class="pg-sentence">2 conversations need you. The oldest has been waiting since 2:26 PM.</p></div></header>`,
+      },
+      {
+        id: "page-bartitle",
+        html:
+          `<div class="gx-bar"><div class="pg-bartitle" data-shown="true" aria-hidden="true">` +
+          `<span class="pg-bartitle-name">Emily Chen</span><span class="pg-bartitle-dot" data-tone="warn"></span></div></div>`,
       },
     ],
   },

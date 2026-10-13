@@ -4,6 +4,7 @@
  * were (screen.tsx).
  */
 import { useEffect, useState } from "react";
+import { parsePeopleRoute, peopleRoute } from "@chanlytics/contracts";
 import type { PersonRowVM } from "@chanlytics/contracts";
 import { refusalToast } from "../../legacy-verbs";
 import { lists as listsDoor } from "../people-lists";
@@ -14,7 +15,7 @@ import { addressReplace, addressRoute } from "../shell-verbs";
 import type { Flash, PeopleRead, SavedList, SmartList } from "../types";
 import { PL_LIST_EMPTY, PL_TABS, plPhoneNow, plStandingList } from "../words";
 import type { ListDraft } from "../words";
-import { noteOwnAddress } from "./own-address";
+import { noteOwnAddress, peopleViewToken } from "./own-address";
 
 /** How long the box is left still before the server is asked past the loaded people. */
 const SEARCH_DELAY_MS = 250;
@@ -95,14 +96,17 @@ export function usePeopleAddress(listId: string | null, savedId: string | null, 
     if (!cur.startsWith("clients")) return;
     // The New list door's address stands while the box is what it opened; once a list is made (or any view picked), the
     // address is that view's, so a reload opens the list and not the box again.
-    const want = listId ? `seg:${listId}` : savedId ? `list:${savedId}` : tab !== "all" ? `state:${tab}` : "";
+    const want = peopleViewToken(listId, savedId, tab);
     if (cur === "clients/new-list" && !want) return;
     if (/^clients\/(?!seg:|list:|state:|pipeline(:|$)|new-list$)./.test(cur)) return;
     // Where deals are on, the Pipeline's address is the Pipeline's. This page may still be mounted for the moment a move to
     // it takes to draw, and must not take the address back (before People was one page, the frame's row drew the Pipeline
     // and this page was already gone).
     if (/^clients\/pipeline(:|$)/.test(cur) && surfaceValue("people")?.dealsOn) return;
-    const next = want ? `clients/${want}` : "clients";
+    // A person peeked over the view is the peek's own to say (usePeoplePeek): this says the view, and a view that moved
+    // drops the peek with it.
+    if (parsePeopleRoute(cur)?.view === want) return;
+    const next = peopleRoute({ view: want });
     if (cur !== next) {
       noteOwnAddress(next);
       addressReplace(next, { quiet: true });
