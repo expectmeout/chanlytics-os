@@ -17,6 +17,8 @@ import {
   routePrefetchScript,
   PREFETCH_SLOT,
   PREFETCH_READS,
+  PREFETCH_BESIDE,
+  openReads,
   REPORT_PERIOD_DEFAULT,
   REPORT_PERIOD_IDS,
   REPORT_PERIOD_STORAGE,
@@ -291,6 +293,104 @@ test("run twice, the head starts nothing twice; a fetch that throws leaves the p
   );
 });
 
+/* ------------------------------ one read for a page (GET open) ------------------------------ */
+
+/** The head over Today in a browser that reads a stream: GET open answered by `answer`, the slot it parked. */
+const openedToday = ({ answer, storage = {} }) => {
+  const calls = [];
+  const { win } = headRuns({
+    pathname: "/w/harbor",
+    hash: "",
+    fetch: (url, init) => {
+      calls.push([url, init]);
+      return Promise.resolve(answer());
+    },
+    globals: {
+      Response,
+      TextDecoder,
+      localStorage: { getItem: (k) => storage[k] ?? null },
+    },
+  });
+  return { calls, slot: win[PREFETCH_SLOT] };
+};
+const line = (k, b, s = 200, h) => JSON.stringify({ k, s, b, ...(h ? { h } : {}) });
+const ndjson = (lines) => new Response(`${lines.join("\n")}\n`, { status: 200 });
+const urlOf = (key) => `/api/v1/${key}${key.includes("?") ? "&" : "?"}workspace=harbor`;
+const settled = (p) =>
+  p.then(
+    async (r) => ({ status: r.status, body: await r.json(), retry: r.headers.get("retry-after") }),
+    (e) => ({ rejected: String(e.message ?? e) }),
+  );
+
+test("where the browser reads a stream, Today opens through one read: an answer parked for each of its reads, as the client spells it", async () => {
+  const [own, beside] = openReads("today");
+  const { calls, slot } = openedToday({
+    answer: () => ndjson([...own, ...beside].map((k) => line(k, { ok: true, data: { k } }))),
+  });
+  assert.equal(calls.length, 1, "one request");
+  assert.equal(calls[0][0], "/api/v1/open?route=today&workspace=harbor");
+  assert.equal(calls[0][1].credentials, "same-origin");
+  assert.deepEqual(
+    Object.keys(slot).sort(),
+    [...own, ...beside].map(urlOf).sort(),
+    "who is looking, the page's own, what it draws beside",
+  );
+  for (const k of [...own, ...beside])
+    assert.deepEqual(await settled(slot[urlOf(k)]), { status: 200, body: { ok: true, data: { k } }, retry: null }, k);
+});
+
+test("each answer is the line its read's own route wrote, its status and wait included; one the stream did not carry is the page's to ask for", async () => {
+  const { slot } = openedToday({
+    answer: () =>
+      ndjson([
+        line("metrics?days=1", { ok: false, error: { code: "rate_limited", message: "Slow down." } }, 429, {
+          "retry-after": "13",
+        }),
+        line("calls", { ok: true, data: { calls: [] } }),
+      ]),
+  });
+  assert.deepEqual(await settled(slot[urlOf("metrics?days=1")]), {
+    status: 429,
+    body: { ok: false, error: { code: "rate_limited", message: "Slow down." } },
+    retry: "13",
+  });
+  assert.equal((await settled(slot[urlOf("calls")])).status, 200);
+  assert.deepEqual(
+    await settled(slot[urlOf("setup")]),
+    { rejected: "open" },
+    "not carried: the page's read asks itself",
+  );
+});
+
+test("a refusal of the whole, or a stream that cannot be read, hands every read back to the page", async () => {
+  for (const answer of [
+    () => new Response(JSON.stringify({ ok: false, error: { code: "unauthorized" } }), { status: 401 }),
+    () => new Response("{not json\n", { status: 200 }),
+  ]) {
+    const { slot } = openedToday({ answer });
+    for (const url of Object.keys(slot)) assert.deepEqual(await settled(slot[url]), { rejected: "open" }, url);
+  }
+});
+
+test("the period line is read over the period this device last picked, as Reports reads it, and the head asks over it", async () => {
+  const { calls, slot } = openedToday({
+    storage: { [REPORT_PERIOD_STORAGE]: "7d" },
+    answer: () => ndjson([line("reports/headline?period=7d", { ok: true, data: { headline: 1 } })]),
+  });
+  assert.equal(calls[0][0], "/api/v1/open?route=today&period=7d&workspace=harbor");
+  assert.equal((await settled(slot[urlOf("reports/headline?period=7d")])).status, 200);
+  assert.ok(!(urlOf("reports/headline?period=30d") in slot), "never the default's beside it");
+});
+
+test("a browser that cannot read a stream opens Today as it always did, one request for each of its own reads", () => {
+  const { calls } = headRuns({ pathname: "/w/harbor", hash: "" });
+  assert.deepEqual(
+    calls.map(([u]) => u),
+    opensOn("harbor", "today"),
+    "who is looking and the page's own: what it draws beside them waits for the page",
+  );
+});
+
 test("a read the head started is bounded until its headers come, never after: a hung one gives way, an answered one's body is never cut off", async () => {
   const timers = new Map();
   let next = 1;
@@ -502,6 +602,11 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
       (await importSrc(`${S}/surfaces/leads/surface.ts`)).leadsOverride,
       // Who is looking: Reports' strip waits for it (ROUTE_WAITS), and its read is every page's.
       (await importSrc(`${S}/legacy-bridge/surface-data.ts`)).workspaceOverride,
+      // What Today draws beside its own (PREFETCH_BESIDE): the period line, the bell, Google's reviews, the reach-outs' replies.
+      (await importSrc(`${S}/surfaces/reports/headline.ts`)).reportsHeadlineOverride,
+      (await importSrc(`${S}/legacy-bridge/surfaces/notifications.ts`)).notificationsOverride,
+      (await importSrc(`${S}/legacy-bridge/google.ts`)).googleOverride,
+      (await importSrc(`${S}/legacy-bridge/reach-out/replies.ts`)).repliesOverride,
     ].map((o) => [o.key, o]),
   );
   const settle = async () => {
@@ -535,6 +640,36 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
       .sort();
     const head = opensOn("harbor", route).slice(1).sort();
     assert.deepEqual(head, theirs, `${route}: the head starts what ${keys.join(" and ")} ask for first`);
+  }
+  // A page that opens through one read (GET open) answers what every surface of its first screen asks for first: its
+  // own, what its first draw waits for, and everything it draws beside them (ROUTE_DRAWS), each one run.
+  for (const route of Object.keys(PREFETCH_BESIDE)) {
+    const keys = [
+      registry.routeSurfaceFor(route, null),
+      ...(registry.ROUTE_WAITS[route] ?? []),
+      ...registry.ROUTE_DRAWS[route],
+    ];
+    assert.ok(
+      keys.every((k) => overrides[k]),
+      `${route}: every surface of its first screen is run here (${keys.join(", ")})`,
+    );
+    win.location.pathname = `/w/harbor/${route}`;
+    api().forget();
+    asked.length = 0;
+    for (const k of keys) void overrides[k].apply().catch(() => {});
+    await settle();
+    const theirs = [...new Set(asked)]
+      .filter((u) => !u.startsWith("/api/v1/workspaces") && !u.startsWith("/api/v1/me/invitations/accept"))
+      .sort();
+    const [own, beside] = openReads(route);
+    const opened = [...own.slice(1), ...beside]
+      .map((r) => `/api/v1/${r}${r.includes("?") ? "&" : "?"}workspace=harbor`)
+      .sort();
+    assert.deepEqual(
+      opened,
+      theirs,
+      `${route}: GET open answers what its first screen's ${keys.length} surfaces ask for first`,
+    );
   }
   // Reports over days a member picked, which only its address says: the head reads the address as the page's surface
   // does, so the two spell one read (first day, then last) and the surface's own takes what the head started.

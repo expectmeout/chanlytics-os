@@ -173,9 +173,13 @@ const speedShell: SpeedShell = {
 };
 // Where each page's time goes: the document's visit begins at its start, and each move of the address from the press
 // that asked for it. After the cache has been restored, so a page drawn from it is said to have drawn held rows; on a
-// workspace's page alone (the home sends the tab on).
+// workspace's page alone (the home sends the tab on). Only a deployed build reports: a production build run on a laptop
+// has no commit ("dev") and would file its numbers beside the people's.
 if (getActiveWorkspace())
-  installPageSpeed(speedShell, { build: publicEnv.NEXT_PUBLIC_BUILD_SHA, report: publicEnv.productionBuild });
+  installPageSpeed(speedShell, {
+    build: publicEnv.NEXT_PUBLIC_BUILD_SHA,
+    report: publicEnv.productionBuild && publicEnv.NEXT_PUBLIC_BUILD_SHA !== "dev",
+  });
 
 // The mockup's own data-before-mount contract (boot gate). The seeded people (CLIENTS), the Agents roster and the
 // seeded Today (FLEET_DATA, CHANLY_DATA) are the demo's, loaded only in a demo session (manifest-demo.ts).

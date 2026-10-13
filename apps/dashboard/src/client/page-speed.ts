@@ -184,7 +184,7 @@ const SHELL_ROUTE_OF: Readonly<Record<string, string>> = {
 function ownReads(page: string): ReadonlySet<string> {
   const reads = PREFETCH_READS[SHELL_ROUTE_OF[page] ?? page] ?? [];
   const keys = reads.map((r) => readKeyOf(`/api/v1/${r}`)).filter((k): k is string => k !== null);
-  return new Set(["page", "workspaces", ...(page === "person" ? ["contacts"] : []), ...keys]);
+  return new Set(["page", "workspaces", "open", ...(page === "person" ? ["contacts"] : []), ...keys]);
 }
 
 /** The resources a wait can be, watched as they land, the latest few hundred. */

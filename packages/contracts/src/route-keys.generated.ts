@@ -62,6 +62,7 @@ export const ROUTE_KEYS = [
   "GET messages/[id]/media",
   "GET metrics",
   "GET notifications",
+  "GET open",
   "GET partner",
   "GET partner/invitations",
   "GET partner/workspaces",

@@ -59,6 +59,7 @@ export const ROUTES = {
   "GET messages/[id]/media": { method: "GET", path: "/api/v1/messages/[id]/media" },
   "GET metrics": { method: "GET", path: "/api/v1/metrics" },
   "GET notifications": { method: "GET", path: "/api/v1/notifications" },
+  "GET open": { method: "GET", path: "/api/v1/open" },
   "GET partner": { method: "GET", path: "/api/v1/partner" },
   "GET partner/invitations": { method: "GET", path: "/api/v1/partner/invitations" },
   "GET partner/workspaces": { method: "GET", path: "/api/v1/partner/workspaces" },
@@ -306,6 +307,7 @@ export type Routes = {
   "GET messages/[id]/media": typeof import("../../app/api/v1/messages/[id]/media/route").GET;
   "GET metrics": typeof import("../../app/api/v1/metrics/route").GET;
   "GET notifications": typeof import("../../app/api/v1/notifications/route").GET;
+  "GET open": typeof import("../../app/api/v1/open/route").GET;
   "GET partner": typeof import("../../app/api/v1/partner/route").GET;
   "GET partner/invitations": typeof import("../../app/api/v1/partner/invitations/route").GET;
   "GET partner/workspaces": typeof import("../../app/api/v1/partner/workspaces/route").GET;

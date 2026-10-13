@@ -1030,6 +1030,13 @@
       "rate": "alert_test",
       "spend": false
     },
+    "GET open": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
     "POST partner/invitations/[id]/accept": {
       "kind": "write",
       "scope": "account",

@@ -325,6 +325,19 @@ test("a write lets go of every held answer: what was read before it describes th
   assert.equal(n, 3, "the read after the write is its own request");
 });
 
+test("a write that keeps the reads leaves every held answer shared: the boot's accept, which changed nothing a read holds", async () => {
+  let n = 0;
+  const h = harness(() => {
+    n += 1;
+    return envelope({ conversations: [], joined: [] });
+  });
+  h.api.holdAnswers();
+  await h.api("GET conversations");
+  await h.api("POST me/invitations/accept", { refresh: false, keepsReads: true });
+  await h.api("GET conversations");
+  assert.equal(n, 2, "the read after the accept shares the one before it: the accept is the only other request");
+});
+
 test("onAccepted is handed what the server accepted, before the surfaces are read again: a toast can say what an approve scheduled", async () => {
   const h = harness(envelope({ recipient_count: 3, scheduled_for: "2026-09-28T13:00:00Z" }));
   const seen = [];
