@@ -305,9 +305,12 @@ export function askPalette(win: Window, storage: Storage | null) {
     /** What an answer shows, decided once: the Line's answer (plan 3) or today's read back, with one door per place. */
     answer: (m: AskMessageVM): { answer: AskAnswer; cardOpen: Record<string, boolean> } =>
       oneDoor(m.answer ?? answerFromV1(m), m.proposals ?? []),
-    // A reach-out's drawer is told from a campaign's by the chains the page read (contracts scopeFromRoute).
-    scopeFor: (page: string, param: string | null, label?: string | null) =>
-      scopeFromRoute(page, param, label, surfaceValue("reach_outs")),
+    // A reach-out's drawer is told from a campaign's by the chains the page read (contracts scopeFromRoute); a person on
+    // any of their tabs is named by their People row (personLabelOf).
+    scopeFor: (page: string, param: string | null, label?: string | null) => {
+      const scope = scopeFromRoute(page, param, label, surfaceValue("reach_outs"));
+      return scope?.kind === "person" && !label ? { ...scope, label: personLabelOf(scope.id) ?? scope.label } : scope;
+    },
     surfaceFor,
     language,
     rememberLanguage,
@@ -316,6 +319,16 @@ export function askPalette(win: Window, storage: Storage | null) {
     /** Whether the Line's field may take focus as it opens: not on a touch screen, whatever its width (legacy-verbs). */
     focusAsDrawn,
   };
+}
+
+/**
+ * The name Ask's scope says for a person, on any of their tabs (the scope reads the address by contracts personRouteOf):
+ * their People row's, never a stand-in's (its name is the business's, so "this person", 0052); null where People holds
+ * none of them.
+ */
+function personLabelOf(id: string): string | null {
+  const row = surfaceValue("people")?.rows?.find((r) => r.id === id);
+  return row && !row.standIn ? row.name : null;
 }
 
 /** The openings route as the quick answer reads it (ask/api.ts `openings`). */

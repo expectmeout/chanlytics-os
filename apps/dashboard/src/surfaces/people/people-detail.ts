@@ -69,13 +69,23 @@ export function personDetail(id: string): Promise<PersonVM | null> {
         names: holderName,
         ready: peopleLoaded?.channelsReady ?? null,
       });
-    // Gone: the copy this tab kept of them goes too, or the next open would paint someone who is not there.
+    // Gone: the copy this tab kept of them goes too, or the next open would paint someone who is not there. Combined
+    // into someone since (0028): the record kept is noted, for the page to open them instead (personMovedTo).
     if (r.status === 404) {
       people().forget(id);
+      if (r.movedTo) movedTo.set(id, r.movedTo);
       return null;
     }
     throw new ApiError(r.code, r.status, r.message);
   });
+}
+
+/** The people this tab asked for who were combined into another (0028), by the record kept, as the server said. */
+const movedTo = new Map<string, string>();
+
+/** The record a person was combined into, when the server said so of them (personDetail); null for anyone else. */
+export function personMovedTo(id: string): string | null {
+  return movedTo.get(id) ?? null;
 }
 
 /** The person this tab already read, if it has. Synchronous: what the page paints first. */

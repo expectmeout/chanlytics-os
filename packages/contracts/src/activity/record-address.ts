@@ -3,6 +3,7 @@ import { pipelineRoute } from "../deals/pipeline/pipeline-views";
 import { pipelineRowId } from "../deals/pipeline/pipeline-vm";
 import { leadsRoute } from "../leads/lead-plan";
 import { listToken } from "../people/lists/lists";
+import { personTabRoute, type PersonTab } from "../person-page/route";
 import { lensRoute, reviewRoute } from "../reports/lenses";
 import type { RecordKind } from "./record-kinds";
 
@@ -44,7 +45,7 @@ import type { RecordKind } from "./record-kinds";
  * (`reports/reviews:<id>`). The lines, the team, the business's facts, its rules and its bill are one pane each.
  */
 export type RecordRef =
-  | { kind: "person"; id: string }
+  | { kind: "person"; id: string; tab?: PersonTab }
   | { kind: "conversation"; id: string; in?: "inbox" | "conversations" }
   | { kind: "hold"; conversationId: string }
   | { kind: "call"; id: string; on?: "live" }
@@ -86,7 +87,8 @@ const PANE = { channel: "admin/integrations", team: "admin/team", billing: "admi
 export function addressOf(ref: RecordRef): string {
   switch (ref.kind) {
     case "person":
-      return `clients/${ref.id}`;
+      // Their page, on the tab named (person-page/route.ts personTabRoute, the one writer of a tab's address).
+      return personTabRoute(ref.id, ref.tab ?? "overview");
     case "conversation":
       return ref.in === "conversations" ? `conversations/${ref.id}` : `inbox/th-${ref.id}`;
     case "hold":

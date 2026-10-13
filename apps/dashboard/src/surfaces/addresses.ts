@@ -27,6 +27,8 @@ import {
   parseListToken,
   parsePeopleRoute,
   parsePipelineRoute,
+  personRouteOf,
+  personTabRoute,
   pipelinePersonOf,
   reportsParamParts,
   type RecordRef,
@@ -129,6 +131,14 @@ function opensPeople(param: string): Opened | null {
   if (param === "new-list") return { view: "clients/new-list" };
   // The route as the page's parsers read it, whole.
   const route = `clients/${param}`;
+  // A person's tab is their address with its word (contracts personRouteOf, the one parse of it): their page, on that
+  // tab, which addressOf writes back the same (S5-1). Any other slash in the param is nobody's, as flat says of the others.
+  if (param.includes("/")) {
+    const { id, tab } = personRouteOf(param);
+    return isPersonParam(id) && RECORD_ID.test(id) && personTabRoute(id, tab) === route
+      ? { ref: { kind: "person", id, tab } }
+      : null;
+  }
   if (/^leads(:|$)/.test(param)) {
     const at = parseLeadsRoute(route);
     if (!at) return null;
@@ -230,7 +240,8 @@ const PAGES: ReadonlyMap<string, Parse> = new Map<string, Parse>([
   ["campaigns", flat(opensCampaigns)],
   ["messages", alone("messages")],
   ["broadcasts", flat(opensSent)],
-  ["clients", flat(opensPeople)],
+  // A person's tab has a slash (`clients/<id>/history`), which opensPeople reads itself.
+  ["clients", opensPeople],
   ["segments", flat(opensLists)],
   ["start", flat(opensStart)],
   ["admin", opensSettings],

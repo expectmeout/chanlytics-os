@@ -348,6 +348,27 @@ export async function mergePeople(db: Db, keep: string, merge: string): Promise<
 }
 
 /**
+ * Where a person combined into another now is (0028): the record kept, through up to five later combines, in this
+ * workspace; null where they were never combined, or the record kept is erased or not here. A read that fails THROWS.
+ */
+export async function keptPersonOf(db: Db, tenantId: string, contactId: string): Promise<string | null> {
+  let at = contactId;
+  for (let hop = 0; hop <= 5; hop++) {
+    const { data, error } = await db
+      .from("contacts")
+      .select("merged_into_contact_id, erased_at")
+      .eq("tenant_id", tenantId)
+      .eq("id", at)
+      .maybeSingle();
+    if (error) throw Object.assign(new Error(error.message), { code: error.code });
+    if (!data || data.erased_at) return null;
+    if (!data.merged_into_contact_id) return at === contactId ? null : at;
+    at = data.merged_into_contact_id;
+  }
+  return null;
+}
+
+/**
  * The door's answer read key by key: a word where it said one, the counts as it gave them, never a cast. An answer
  * that names no kept or merged record is not the door's, and is refused rather than read as a success: the merge has
  * committed by then, and the route answers that something went wrong, never a page with nobody on it.

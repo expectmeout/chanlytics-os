@@ -31,7 +31,7 @@ import { mayAtLeast, navigate, touchSwipe } from "../../legacy-verbs";
 import { addressReplace } from "../shell-verbs";
 import { PL_PHONE_QUERY } from "../words";
 import { backToPeople, hear, saidBy, usePersonToast } from "../person-verbs";
-import { warmPerson } from "../people-detail";
+import { personMovedTo, warmPerson } from "../people-detail";
 import { armWalk, noteStep, takeStep, walkOf, type PersonWalk } from "../walk";
 import { dealPersonOf } from "./ctx";
 import type { CombineState, DelState, DoubtState, MergeState, PageCtx, RmState } from "./ctx";
@@ -112,6 +112,26 @@ function useLoad(id: string, vm: PersonVM | null, setSt: Dispatch<SetStateAction
     );
   }, [id, load]);
   return load;
+}
+
+/**
+ * A person combined into another since (0028): the server names the record kept (people-detail.ts personMovedTo), and
+ * their old address -- a bell row, a note's link, a tab left open -- is replaced by the kept person's, on the tab it
+ * asked for, never "not in your workspace" (the wiring's second audit, S5-3). True while that move is under way.
+ */
+function useCombinedInto(id: string, missing: boolean, tab: PersonTab): boolean {
+  const to = missing ? personMovedTo(id) : null;
+  // The person moved to: the page is not mounted again, so the old record's "not here" stands until their read is in.
+  const [went, setWent] = useState<string | null>(null);
+  useEffect(() => {
+    if (!to) return;
+    setWent(to);
+    addressReplace(personTabRoute(to, tab), { quiet: false });
+  }, [to, tab]);
+  useEffect(() => {
+    if (!missing) setWent(null);
+  }, [missing]);
+  return !!to || (missing && went === id);
 }
 
 /** The phone's width (People's 900px), kept current as the window changes: the page is one column under it. */
@@ -284,7 +304,10 @@ function ClientProfileReal({ id, tab: asked }: { id: string; tab: PersonTab }) {
   };
   const load = useLoad(id, st.vm, setSt);
   const people = usePeopleSeam();
-  const { vm, loading, missing, error } = st;
+  // A person combined away is read on the kept one's page: "Reading…" while the address moves, never "not here".
+  const moving = useCombinedInto(id, st.missing, asked);
+  const { vm, error } = st;
+  const [missing, loading] = [st.missing && !moving, st.loading || moving];
   const phone = usePhone();
   const scrollerEl = useRef<HTMLDivElement | null>(null);
   const [tab, goTab] = useTab(id, asked, vm ? (phone ? vm.tabs.phone : vm.tabs.desk) : [], scrollerEl);

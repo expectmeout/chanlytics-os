@@ -452,6 +452,7 @@ export {
   erasureDigests,
   scrubPersonNotes,
   mergePeople,
+  keptPersonOf,
   recordConsent,
   addPersonByHand,
   resolvePerson,

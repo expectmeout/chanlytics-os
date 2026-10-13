@@ -1169,6 +1169,17 @@ async function mergePeople(db, keep, merge) {
   if (error) throw error;
   return mergedOf(data);
 }
+async function keptPersonOf(db, tenantId, contactId) {
+  let at = contactId;
+  for (let hop = 0; hop <= 5; hop++) {
+    const { data, error } = await db.from("contacts").select("merged_into_contact_id, erased_at").eq("tenant_id", tenantId).eq("id", at).maybeSingle();
+    if (error) throw Object.assign(new Error(error.message), { code: error.code });
+    if (!data || data.erased_at) return null;
+    if (!data.merged_into_contact_id) return at === contactId ? null : at;
+    at = data.merged_into_contact_id;
+  }
+  return null;
+}
 function mergedOf(v) {
   const o = v && typeof v === "object" && !Array.isArray(v) ? v : {};
   const word = (k) => typeof o[k] === "string" ? o[k] : "";
@@ -5949,6 +5960,7 @@ export {
   keepMessageCost,
   keepModelTurn,
   keepProviderEvent,
+  keptPersonOf,
   lastInboundEmail,
   lastOutboundEmailSubject,
   leadAddressBounced,

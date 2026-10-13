@@ -1487,6 +1487,43 @@ test("a person this workspace does not hold is GET contacts/:id's 404, in its se
   await assert.rejects(personRoute.GET.run(req(`?workspace=${B}`), personCtx(tbls, P1)), notHere);
 });
 
+test("REGRESSION (the wiring's second audit, S5-3): a person combined into another since is the 404 that names the record kept, through a later combine, and never one erased or another workspace's", async () => {
+  const OLD = "44444444-4444-4444-8444-444444444444";
+  const tbls = personTables({ threads: true });
+  const combined = (id, into, over = {}) => ({
+    id,
+    tenant_id: A,
+    phone_e164: null,
+    display_name: "Ada",
+    erased_at: null,
+    marketing_consent: null,
+    notes: null,
+    merged_into_contact_id: into,
+    ...over,
+  });
+  // OLD was combined into P2, and P2 into P1 since: OLD's address opens P1, the person both became.
+  tbls.contacts.push(combined(P2, P1), combined(OLD, P2));
+  const keptIs = (to) => (e) => {
+    notHere(e);
+    assert.deepEqual(e.details, to === null ? undefined : { moved_to: to }, `the record kept: ${to}`);
+    return true;
+  };
+  await assert.rejects(kernel.load(turnIn(personCtx(tbls, P2)), onePerson, { id: P2 }), keptIs(P1));
+  await assert.rejects(kernel.load(turnIn(personCtx(tbls, OLD)), onePerson, { id: OLD }), keptIs(P1));
+  await assert.rejects(personRoute.GET.run(req(`?workspace=${A}`), personCtx(tbls, OLD)), keptIs(P1));
+  // Another workspace asking for them is told nothing of where they went.
+  await assert.rejects(kernel.load(turnIn(personCtx(tbls, P2), B), onePerson, { id: P2 }), keptIs(null));
+  // The record kept was erased since: nobody to open.
+  const erased = personTables({ threads: true });
+  erased.contacts[0].erased_at = "2026-08-10T00:00:00Z";
+  erased.contacts.push(combined(P2, P1));
+  await assert.rejects(kernel.load(turnIn(personCtx(erased, P2)), onePerson, { id: P2 }), keptIs(null));
+  // A combine that comes back on itself is followed no further than five records.
+  const loop = personTables({ threads: true });
+  loop.contacts.push(combined(P2, OLD), combined(OLD, P2));
+  await assert.rejects(kernel.load(turnIn(personCtx(loop, P2)), onePerson, { id: P2 }), keptIs(null));
+});
+
 test("a config read that fails keeps the route's place in the error order: a person this workspace does not hold is still the 404, one it holds is the config's own failure, and a failure the route checks first is still said first", async () => {
   const tbls = personTables({ threads: true });
   const configDown = { "tenant_config.select": { message: "config down" } };

@@ -12014,6 +12014,46 @@ function pipelineRail(vm, nowMs) {
   ].filter((s) => s.rows.length > 0);
 }
 
+// src/person-page/route.ts
+var PERSON_TABS = ["overview", "history", "visits", "deals", "campaigns", "about"];
+var PERSON_TAB_WORDS = {
+  overview: "Overview",
+  history: "History",
+  visits: "Visits",
+  deals: "Deals",
+  campaigns: "Campaigns",
+  about: "About"
+};
+var PERSON_TABS_LABEL = "Their page";
+var PERSON_FIGURES_LABEL = "At a glance";
+function personRouteOf(param) {
+  const slash = param.indexOf("/");
+  if (slash < 0) return { id: param, tab: "overview" };
+  const id = param.slice(0, slash);
+  const word = param.slice(slash + 1).split(/[/?#]/)[0] ?? "";
+  const tab = PERSON_TABS.includes(word) ? word : "overview";
+  return { id, tab };
+}
+function personTabRoute(id, tab) {
+  return tab === "overview" ? `clients/${id}` : `clients/${id}/${tab}`;
+}
+function personTabsOf(f, phone) {
+  if (f.thin) return [];
+  const tab = (id, count2) => ({
+    id,
+    label: PERSON_TAB_WORDS[id],
+    count: phone ? null : count2,
+    to: personTabRoute(f.id, id)
+  });
+  const tabs = [tab("overview", null)];
+  if (f.history > 0) tabs.push(tab("history", f.history));
+  if (f.visits > 0 || (f.marked ?? 0) > 0) tabs.push(tab("visits", f.visits > 0 ? f.visits : null));
+  if (!phone && f.deals > 0) tabs.push(tab("deals", f.deals));
+  if (!phone && f.campaigns > 0) tabs.push(tab("campaigns", null));
+  if (phone) tabs.push(tab("about", null));
+  return tabs;
+}
+
 // src/ask/ask.ts
 var ASK_MAX_CHARS = 1e3;
 var ASK_MAX_ROUNDS = 3;
@@ -12077,7 +12117,8 @@ function clientsScope(param, label) {
   const pipeline = parsePipelineRoute(`clients/${param}`);
   if (pipeline)
     return pipeline.peek ? { kind: "person", id: pipelinePersonOf(pipeline.peek), label: label || "this person" } : null;
-  if (UUID.test(param)) return { kind: "person", id: param, label: label || "this person" };
+  const { id } = personRouteOf(param);
+  if (UUID.test(id)) return { kind: "person", id, label: label || "this person" };
   return null;
 }
 function scopeFromRoute(page2, param, label, chains) {
@@ -13083,7 +13124,7 @@ var PANE = { channel: "admin/integrations", team: "admin/team", billing: "admin/
 function addressOf(ref) {
   switch (ref.kind) {
     case "person":
-      return `clients/${ref.id}`;
+      return personTabRoute(ref.id, ref.tab ?? "overview");
     case "conversation":
       return ref.in === "conversations" ? `conversations/${ref.id}` : `inbox/th-${ref.id}`;
     case "hold":
@@ -36697,46 +36738,6 @@ function shortAddress(email) {
   return at3 > 0 ? `${email.slice(0, at3)}@\u2026` : email;
 }
 
-// src/person-page/route.ts
-var PERSON_TABS = ["overview", "history", "visits", "deals", "campaigns", "about"];
-var PERSON_TAB_WORDS = {
-  overview: "Overview",
-  history: "History",
-  visits: "Visits",
-  deals: "Deals",
-  campaigns: "Campaigns",
-  about: "About"
-};
-var PERSON_TABS_LABEL = "Their page";
-var PERSON_FIGURES_LABEL = "At a glance";
-function personRouteOf(param) {
-  const slash = param.indexOf("/");
-  if (slash < 0) return { id: param, tab: "overview" };
-  const id = param.slice(0, slash);
-  const word = param.slice(slash + 1).split(/[/?#]/)[0] ?? "";
-  const tab = PERSON_TABS.includes(word) ? word : "overview";
-  return { id, tab };
-}
-function personTabRoute(id, tab) {
-  return tab === "overview" ? `clients/${id}` : `clients/${id}/${tab}`;
-}
-function personTabsOf(f, phone) {
-  if (f.thin) return [];
-  const tab = (id, count2) => ({
-    id,
-    label: PERSON_TAB_WORDS[id],
-    count: phone ? null : count2,
-    to: personTabRoute(f.id, id)
-  });
-  const tabs = [tab("overview", null)];
-  if (f.history > 0) tabs.push(tab("history", f.history));
-  if (f.visits > 0 || (f.marked ?? 0) > 0) tabs.push(tab("visits", f.visits > 0 ? f.visits : null));
-  if (!phone && f.deals > 0) tabs.push(tab("deals", f.deals));
-  if (!phone && f.campaigns > 0) tabs.push(tab("campaigns", null));
-  if (phone) tabs.push(tab("about", null));
-  return tabs;
-}
-
 // src/person-page/visits.ts
 var VISITS_TAB_WORDS = {
   toMark: "To mark",
@@ -37729,6 +37730,18 @@ function confirmEmailToOf(details) {
   return typeof to === "string" && to.trim() ? to.trim() : null;
 }
 var SESSION_ENDED = { session_ended: true };
+function combinedInto(keptId) {
+  return { moved_to: keptId };
+}
+function movedToOf(details) {
+  const to = details && typeof details === "object" ? details.moved_to : void 0;
+  return typeof to === "string" && /^[0-9a-f-]{36}$/i.test(to) ? to : null;
+}
+function asideOf(details, status) {
+  const confirmEmailTo = confirmEmailToOf(details);
+  const movedTo = status === 404 ? movedToOf(details) : null;
+  return { ...confirmEmailTo ? { confirmEmailTo } : {}, ...movedTo ? { movedTo } : {} };
+}
 function sessionEnded(details) {
   return !!details && typeof details === "object" && details.session_ended === true;
 }
@@ -37738,7 +37751,7 @@ function refusalOf(input) {
   const retryAfterS = retryAfterOf(input.details, input.retryAfter, input.nowMs ?? Date.now());
   const fields = fieldsOf(input.details);
   const code2 = typeof input.code === "string" && input.code ? input.code : null;
-  const confirmEmailTo = confirmEmailToOf(input.details);
+  const aside = asideOf(input.details, status);
   const refusal = (c, title, message) => ({
     code: c,
     status,
@@ -37746,7 +37759,7 @@ function refusalOf(input) {
     message,
     retryAfterS,
     fields,
-    ...confirmEmailTo ? { confirmEmailTo } : {}
+    ...aside
   });
   if (!code2) {
     if (status === 0) return refusal("network", "No connection", input.write ? NETWORK_WRITE : NETWORK_READ);
@@ -52289,6 +52302,7 @@ export {
   closuresAheadWords,
   closuresFrom,
   combineOf,
+  combinedInto,
   companyTypeOf,
   compareTemplates,
   compareWords,
