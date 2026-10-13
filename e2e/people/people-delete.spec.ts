@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { routeOf } from "../address";
+import { openPersonPage } from "./open-person";
 
 /**
  * "Delete this person" is the one destructive verb on the profile.
@@ -26,8 +27,7 @@ test.describe("Delete this person", () => {
     // workspace looked empty and the spec skipped itself.
     await expect(page.locator(".cl-table tbody tr")).not.toHaveCount(0);
     test.skip((await rows.count()) === 0, "this workspace has nobody to open");
-    await rows.first().click();
-    await expect(page.locator(".cl-prof-name")).toBeVisible();
+    await openPersonPage(page, rows.first());
     const name = (await page.locator(".cl-prof-name").innerText()).trim();
 
     const seen: { method: string; url: string }[] = [];

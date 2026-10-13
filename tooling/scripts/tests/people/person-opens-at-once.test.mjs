@@ -273,12 +273,22 @@ test("a person the server no longer has is let go of, here and in the tab", asyn
   assert.equal(reloaded().peekPerson(ID), null, "and a reload would too");
 });
 
-test("deleting a person here lets go of the copy the tab kept", async () => {
+test("deleting a person here lets go of the copy the tab kept, and the tab remembers whom it deleted", async () => {
   await bridge.personDetail(ID);
   const r = await bridge.deletePerson(ID);
   assert.equal(r.ok, true);
   assert.equal(bridge.peekPerson(ID), null);
   assert.equal(reloaded().peekPerson(ID), null);
+  // People's Back leaves the page for the entry they were opened from, which since the peek names them: that address
+  // is the view's own now, never a peek saying they are not in the workspace.
+  assert.equal(bridge.personDeletedHere(ID), true);
+});
+
+test("a delete the server refuses leaves the person who they were: their peek still opens", async () => {
+  answer = () => json(403, { ok: false, error: { code: "forbidden", message: "Only an owner can delete a person." } });
+  const r = await bridge.deletePerson("refused-person");
+  assert.equal(r.ok, false);
+  assert.equal(bridge.personDeletedHere("refused-person"), false);
 });
 
 test("signing out takes them with the surfaces: nothing of a customer outlives the session", async () => {
