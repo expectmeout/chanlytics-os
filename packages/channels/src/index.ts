@@ -240,14 +240,7 @@ export type { EmailReceiptType, EmailReceipt, EmailSuppressionReason, EmailRecei
 export { resendLimitOf, mailDomainsFrom } from "./email/provider-answers";
 export type { ResendLimit, MailCapability, MailDomainFacts } from "./email/provider-answers";
 export { emailPlainText } from "./email/email-text";
-export {
-  sendEmail,
-  fetchReceivedEmail,
-  fetchMailDomains,
-  SEND_TIMEOUT_MS,
-  SEND_DEADLINE_MS,
-  SEND_MIN_MS,
-} from "./email/email-resend";
+export { sendEmail, fetchReceivedEmail, fetchMailDomains, SEND_DEADLINE_MS, SEND_MIN_MS } from "./email/email-resend";
 export type { ResendConfig, ResendAnswer, SendEmailOptions } from "./email/email-resend";
 export {
   MAILBOX_SCOPES,

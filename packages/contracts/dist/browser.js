@@ -43223,8 +43223,16 @@ var NOTICE_MENDS = [
   },
   // A connected mailbox held for its own mail is mended by its owner's resume, one signed out by connecting it again, and
   // either by its removal (decision 0056, mailbox-notices.ts words them).
-  { warns: { kind: "sweep", title: /^.+ is held: /u }, by: { change: "mailbox_connection.resumed" }, sameSubject: true },
-  { warns: { kind: "sweep", title: /^.+ is held: /u }, by: { change: "mailbox_connection.removed" }, sameSubject: true },
+  {
+    warns: { kind: "sweep", title: /^.+ is held: /u },
+    by: { change: "mailbox_connection.resumed" },
+    sameSubject: true
+  },
+  {
+    warns: { kind: "sweep", title: /^.+ is held: /u },
+    by: { change: "mailbox_connection.removed" },
+    sameSubject: true
+  },
   {
     warns: { kind: "sweep", title: /^.+ needs reconnecting$/u },
     by: { change: "mailbox_connection.connected" },
