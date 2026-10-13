@@ -8,7 +8,6 @@
  * page's word, for a send). docs/glossary.md has its row.
  */
 import { plural } from "../shared/words";
-import type { LeadRowDto } from "./lead-dtos";
 import type { LeadClass, LeadStage } from "./lead-words";
 
 /** The pile's progress line's numbers (00426 lead_pile_counts): of a search's shown members, against the list it adds to. */
