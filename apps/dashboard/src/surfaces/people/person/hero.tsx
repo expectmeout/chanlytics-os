@@ -178,30 +178,9 @@ function moreGroups(c: PageCtx, compose: (text?: string | null) => void): MenuGr
     if (home) home.items.push(past);
     else groups.push({ key: "call", items: [past], offs: [] });
   }
-  // On a phone, stepping to the next person of the list they were opened from is More's first rows (canvas A, owner-8).
-  const w = c.phone ? c.walk : null;
-  const steps: MenuItem[] = [];
-  if (w && w.next) {
-    const to = w.next;
-    steps.push({
-      label: PERSON_WALK_WORDS.next,
-      hint: PERSON_WALK_WORDS.at(w.at + 1, w.of),
-      glyph: <Icon name="chevron" size={15} />,
-      onSelect: () => c.step(to),
-    });
-  }
-  if (w && w.prev) {
-    const to = w.prev;
-    steps.push({
-      label: PERSON_WALK_WORDS.previous,
-      glyph: <Icon name="chevron" size={15} className="icon-turned" />,
-      onSelect: () => c.step(to),
-    });
-  }
-  return [
-    ...(steps.length ? [{ items: steps }] : []),
-    ...groups.map((g) => ({ items: g.items, ...(g.offs[0] ? { caption: g.offs[0] } : {}) })),
-  ];
+  // Stepping to the person before or after is the top bar's, at every width (PersonWalkNav): More holds what is done to
+  // this person alone.
+  return groups.map((g) => ({ items: g.items, ...(g.offs[0] ? { caption: g.offs[0] } : {}) }));
 }
 
 /** A typed-name question in a sheet: what it does in the sheet's body, and the question with its answers in its foot. */
@@ -587,8 +566,9 @@ function noteAct(c: PageCtx) {
 
 /**
  * Stepping to the person before or after them in the People view they were opened from (0052, canvas A): "‹ 4 of 24 ›" in
- * the top bar's row on a desk, beside the frame's ‹ People (the page's standing, person-real.tsx). A phone steps from the
- * first rows of More instead.
+ * the top bar's row, beside the frame's ‹ People on a desk and a capsule of the control layer's glass in the bell's place
+ * on a phone (the page's standing, person-real.tsx; components.css). J and K step too, on a desk. The page turns toward
+ * the side it steps (walk.ts noteStep).
  */
 export function PersonWalkNav({ walk: w, step }: { walk: PersonWalk; step: (to: string) => void }) {
   const W = PERSON_WALK_WORDS;

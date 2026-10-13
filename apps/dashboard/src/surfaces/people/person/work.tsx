@@ -21,9 +21,8 @@ import { useSlide } from "../../kit/motion/use-slide";
 import { viewDeck } from "../../kit/motion/view-deck";
 import { useWash } from "../../kit/motion/wash";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
-import { viewPager } from "../../kit/view-tabs/pager";
+import { viewPager, type ViewPage } from "../../kit/view-tabs/pager";
 import { ViewTabs } from "../../kit/view-tabs/view-tabs";
-import { touchSwipe, type SwipeHandlers } from "../../legacy-verbs";
 import { PersonDealCard } from "../deal/person-deal";
 import { Overview } from "./overview";
 import { campaignsCard, historySection } from "./sections";
@@ -112,10 +111,9 @@ export function PersonTabs({ c }: { c: PageCtx }) {
 
 /**
  * What the tab picked holds, as a view of the page (the kit's view deck, kit/motion/view-deck.ts): replaced as the tab
- * changes, arriving from the side the tab stands on (a phone slides it, a desk cross-fades it), and on a phone a swipe
- * across it walks the capsule over it (the kit's viewPager: the panes follow the thumb, the capsule's light with them).
- * The head and the figures hold still. Never from 24px of either edge, the phone's own back, nor from a field or a row
- * that scrolls across.
+ * changes, arriving from the side the tab stands on (a phone slides it, a desk cross-fades it). The head and the figures
+ * hold still, and so does the page's scroll (tabs/tab-scroll.ts). On a phone a swipe across it walks the capsule over it:
+ * the page's thumb (person-real.tsx pageSwipe) asks `tabPages`.
  */
 export function TabView({ c, children }: { c: PageCtx; children: ReactNode }) {
   const tabs = c.phone ? c.p.tabs.phone : c.p.tabs.desk;
@@ -123,12 +121,21 @@ export function TabView({ c, children }: { c: PageCtx; children: ReactNode }) {
     tabs.map((t) => t.id),
     c.tab,
   );
-  const swipe: SwipeHandlers = c.phone && tabs.length > 1 ? touchSwipe({ pages: viewPager, when: () => c.phone }) : {};
   return (
-    <div className="cl-prof-deck" key={c.tab} ref={viewDeck.view("person-tab")} data-slide={slide} {...swipe}>
+    <div className="cl-prof-deck" key={c.tab} ref={viewDeck.view("person-tab")} data-slide={slide}>
       {children}
     </div>
   );
+}
+
+/**
+ * The tab a swipe across walks on a phone (the kit's viewPager over the tab's panes: they follow the thumb, the capsule's
+ * light with them), for a touch that began in the panes; none for one that began on the head or the figures, which a
+ * swipe right takes back to People instead. A page with no strip (a thin record) walks none.
+ */
+export function tabPages(page: Element, from: EventTarget | null): ViewPage | null {
+  const deck = page.querySelector(".cl-prof-deck:not(.view-leaving)");
+  return deck && from instanceof Node && deck.contains(from) ? viewPager(deck, from) : null;
 }
 
 /** A phone's strip: the kit's capsule of views, each tab its address, a press moving the tab's panes by the deck. */

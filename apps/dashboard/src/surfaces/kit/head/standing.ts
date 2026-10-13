@@ -42,7 +42,8 @@ interface BarTitle {
 export interface BackWay {
   label: string;
   go: () => void;
-  /** What stands beside the way back in the date's place: a person's "‹ 4 of 24 ›" on a desk (canvas A). */
+  /** What stands with the way back in the date's place: a person's "‹ 4 of 24 ›" (canvas A), beside it on a desk and in
+   *  the bell's place on a phone, where the bell stands down for it (components.css). */
   after?: ReactNode;
 }
 

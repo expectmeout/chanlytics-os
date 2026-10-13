@@ -1086,6 +1086,11 @@
   gap: 14px;
   min-width: 0;
 }
+/* The tab's panes are at least the room under the stuck strip (--tab-room, tabs/tab-scroll.ts): a tab shorter than the
+   depth read never pulls the page up under the reader as it is pressed, and the strip's place is always one to stand at. */
+.cl-prof-deck {
+  min-height: var(--tab-room, 0px);
+}
 /* Beside the work from 880 of its column, the rail 296 wide; from 1240 a third column (person-real.tsx WIDE_PX, which reads
    the same width) for their notes, the rail 272 and the notes 288 (canvas A, D7 at 1680). Under 880, one column, the rail over the work. */
 @container record (width > 880px) {
@@ -1138,6 +1143,50 @@
    lets presses through to the bar; these take their own. */
 .cl-prof-walk { display: inline-flex; align-items: center; gap: 2px; margin-left: 14px; pointer-events: auto; }
 .cl-prof-walk-at { font-size: var(--text-sm); color: var(--ink-dim); padding: 0 4px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* On a phone the two presses are one capsule of the control layer's glass in the bell's place, as tall as ‹ People and on
+   its line (components.css places it), the way a phone's mail steps between messages: the count is for a screen reader
+   there, where the bar's middle is the name's. Each press is 28px to the eye and 44 to a finger, by a margin no one sees,
+   as ‹ People's is (Ruben, 13 Oct 2026: "subtle sophisticated buttons to cycle through previous and next"). */
+@media (max-width: 900px) {
+  .cl-prof-walk {
+    height: var(--control-h-md);
+    margin-left: 0;
+    padding: 0 2px;
+    gap: 0;
+    border-radius: var(--radius-full);
+    background-color: var(--surface-control-fill);
+    background-image: var(--surface-control-sheen);
+    box-shadow: var(--surface-control-depth);
+  }
+  .cl-prof-walk-at {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .cl-prof-walk > button {
+    position: relative;
+    width: var(--control-h-sm);
+    min-width: var(--control-h-sm);
+    height: var(--control-h-sm);
+    min-height: var(--control-h-sm);
+  }
+  .cl-prof-walk > button::after {
+    content: "";
+    position: absolute;
+    inset: -8px -1px;
+  }
+  /* A thumb carrying the page back to People (person-real.tsx pageSwipe): its edge says it is lifted, and the foot's dock
+     steps aside while it moves. */
+  .cl-profile[data-going] {
+    box-shadow: var(--shadow-lg);
+  }
+  body:has(.cl-profile[data-going]) .cl-prof-dock {
+    opacity: 0;
+    transition: opacity var(--duration-fast) var(--ease-out);
+  }
+}
 
 /* Who they are (canvas A's head, hero.tsx heroId): the face beside the name and the business's line under it, then the one
    state and its sentence under both on a desk; on a phone the state stands under the name beside the face and the

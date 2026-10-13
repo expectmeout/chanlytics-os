@@ -47,7 +47,8 @@ A lead the finder found becomes a person at the first cold email: `reach_out_per
 7. **One human, two doors: Combine.** A person named for the business who never wrote and the human who answered from
    another address at the same lead may be combined, an owner's press; merge (0028) lifts its two-addresses refusal for
    exactly that pair, and the person is the one kept, with their own name and address, whichever page it is pressed
-   from. The business's address stays the lead's.
+   from. The business's address stays the lead's. One who answered without giving a name keeps none: the business's
+   name is the record's, never theirs (00420, 13 Oct 2026; until then the page offered Combine only to a named person).
 8. **Erasure has a person leg.** Erasing one of several people at a lead removes their address, number and notes from
    the lead and bans no place; the last person out blanks and bans as today. Erasing the lead first keeps its people and
    strips a name that is the lead's placeholder.

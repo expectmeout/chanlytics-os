@@ -768,3 +768,84 @@ test("two records with no thread merge too, and a yes by text and a yes on Whats
   assert.equal("threads" in answered.counts, false, "no thread to fold or take");
   assert.deepEqual((await row(k)).consent_channels, ["whatsapp", "sms"]);
 });
+
+/** A business the finder found, in this workspace. */
+const business = async (name) =>
+  ok(
+    await db
+      .from("leads")
+      .insert({ tenant_id: A, place_id: `merge-${++serial}-${RUN}`, business_name: name })
+      .select("id")
+      .single(),
+  ).id;
+
+test(
+  "Combine (00420): the person who answered keeps their own name, or none -- they took the business's, the name the record we wrote to was given",
+  { skip },
+  async () => {
+    // Pressed from the record we wrote to: the door keeps the person who answered all the same.
+    const lead = await business("Northside Print Shop");
+    const standIn = await bare({
+      display_name: "Northside Print Shop",
+      name_source: "lead",
+      lead_id: lead,
+      email: address(),
+    });
+    const someone = await bare({ lead_id: lead, email: address() });
+    const answered = ok(await merge(owner, standIn, someone));
+    assert.equal(answered.contact_id, someone, "the person who answered is the one kept");
+    const kept = await row(someone);
+    assert.deepEqual(
+      [kept.display_name, kept.name_source, kept.name_settled_at],
+      [null, null, null],
+      "REGRESSION: an answerer who gave no name took the business's",
+    );
+    assert.equal((await row(standIn)).merged_into_contact_id, someone);
+
+    // One who gave a name keeps it, and where it came from.
+    const lead2 = await business("Eastgate Tile Works");
+    const standIn2 = await bare({
+      display_name: "Eastgate Tile Works",
+      name_source: "lead",
+      lead_id: lead2,
+      email: address(),
+    });
+    const dana = await bare({
+      lead_id: lead2,
+      email: address(),
+      display_name: "Dana Ortiz",
+      name_source: "typed",
+      name_settled_at: new Date().toISOString(),
+    });
+    ok(await merge(owner, dana, standIn2));
+    const named = await row(dana);
+    assert.deepEqual([named.display_name, named.name_source, !!named.name_settled_at], ["Dana Ortiz", "typed", true]);
+  },
+);
+
+test(
+  "any other merge fills an empty name from the other record with where it came from and whether it was settled",
+  { skip },
+  async () => {
+    const k = await bare({ phone_e164: phone() });
+    const m = await bare({
+      email: address(),
+      display_name: "Leah Brooks",
+      name_source: "typed",
+      name_settled_at: new Date().toISOString(),
+    });
+    ok(await merge(owner, k, m));
+    const kept = await row(k);
+    assert.deepEqual(
+      [kept.display_name, kept.name_source, !!kept.name_settled_at],
+      ["Leah Brooks", "typed", true],
+      "REGRESSION: a typed name came across as one nobody gave, and the engine could write over it",
+    );
+    // A name of the kept record's own stands, with its own source.
+    const k2 = await bare({ phone_e164: phone(), display_name: "Sam Rivera", name_source: "calendar" });
+    const m2 = await bare({ email: address(), display_name: "S. Rivera", name_source: "typed" });
+    ok(await merge(owner, k2, m2));
+    const kept2 = await row(k2);
+    assert.deepEqual([kept2.display_name, kept2.name_source], ["Sam Rivera", "calendar"]);
+  },
+);

@@ -18084,6 +18084,8 @@ declare const WORKS_AT_WORDS: {
     readonly saidNo: (day: string) => string;
     /** Combine (0052, amending 0028): the record we wrote to and the person who answered from another address. */
     readonly answeredFrom: (name: string, address: string) => string;
+    /** The same, for someone who answered without giving a name: their address is all the page knows them by. */
+    readonly someoneAnswered: (address: string) => string;
     readonly combineWith: (name: string) => string;
     readonly wroteToFirst: (address: string) => string;
     readonly combine: "Combine";
@@ -28523,6 +28525,7 @@ type NoticeHome = "name" | "reach" | "consent" | "next" | "last-words";
 /**
  * Combine's act (0052, amending 0028): the other record, by its id, name and address, and which of the two the door
  * keeps: the person who answered, whichever page it is pressed from (`keepsOther`: this page is the record we wrote to).
+ * `keptNamed`: the person kept has a name of their own; one who gave none keeps none (00420), and the sheet says so.
  */
 interface CombineAct {
     kind: "combine";
@@ -28530,6 +28533,7 @@ interface CombineAct {
     otherName: string;
     otherEmail: string;
     keepsOther: boolean;
+    keptNamed: boolean;
 }
 /** What a notice's act does; the page maps each kind to its verb. */
 type NoticeAct = {
@@ -28578,7 +28582,7 @@ interface NoticeFacts {
     email: string | null;
     /** This person's own number: a pair with two numbers is two people, and the merge door refuses it. */
     phone?: string | null;
-    /** They have a name of their own (one a member, a door or a signer gave): the kept person must, or Combine waits. */
+    /** They have a name of their own (one a member, a door or a signer gave): Combine says theirs, or says someone. */
     named?: boolean;
     /** They have written or called to us themselves. */
     heardFrom: boolean;
@@ -32145,13 +32149,16 @@ declare const COMBINE_WORDS: {
     readonly title: (name: string) => string;
     readonly sub: (business: string) => string;
     readonly body: (kept: string, other: string) => string;
+    /** The same, for someone who answered without giving a name. */
+    readonly bodySomeone: (other: string) => string;
     readonly keeps: "Keeps their own name, number and address";
+    readonly keepsNoName: "Keeps their own number and address, and no name until they give one";
     readonly takesThread: (other: string) => string;
     readonly takesRecords: "Takes its notes, deals, visits and lists";
     readonly takesReachOut: "Takes the emails we sent it, the replies, and the lead's link to it";
     readonly answers: "Their answers about messages and offers become the more careful of the two.";
     readonly after: (other: string) => string;
-    readonly why: (business: string, wroteTo: string, answerer: string, from: string) => string;
+    readonly why: (business: string, wroteTo: string, answerer: string | null, from: string) => string;
     readonly owner: string;
     readonly cancel: "Cancel";
     readonly yes: "Combine";

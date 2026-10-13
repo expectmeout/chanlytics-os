@@ -121,7 +121,8 @@ function PageDateline() {
     return (
       <>
         <BackButton back={back} />
-        {back.after ?? null}
+        {/* Beside the way back on a desk; in the bell's place on a phone, the bell standing down (components.css). */}
+        {back.after ? <span className="pg-back-after">{back.after}</span> : null}
       </>
     );
   const { day, time } = pageDatelineParts(now, zone ?? "UTC");

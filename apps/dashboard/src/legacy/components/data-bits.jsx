@@ -258,6 +258,7 @@ const keyPress = (fn) => (e) => {
 // the page carries on at it; otherwise `settle()`. Kept with the touch, so a redraw loses nothing. `back` goes first.
 // A page that `stays` (the Calendar's days) says only `{ prev, next, stays, go(step) }` and is turned in place
 // (swipeStays): it follows, leaves, is asked for the next, waits until `go` lands it, and comes back in from its side.
+// With both (a person's page), a page to the left is walked first, and `onBack` is what lies left of the first one.
 //
 // A swipe across, with nothing following, is `onLeft`/`onRight`: `min` of travel (80px) along the axis it went
 // further on, so a scroll is never a move and a move never a scroll. A touch the browser reports only at its ends is
@@ -307,6 +308,7 @@ const ARRIVE_PX = 40;
 const screenWide = (el) => (typeof window.innerWidth === "number" && window.innerWidth) || (el && el.offsetWidth) || 0;
 const pageStep = (dx) => (dx < 0 ? 1 : -1);
 const pageOpen = (p, step) => !!(p && (step > 0 ? p.next : p.prev));
+const swipePageOf = (pages, el, g) => (pages && g.x > EDGE && g.x < screenWide(el) - EDGE ? pages(el, g.from) : null);
 // How fast the finger is going across, in pixels a millisecond, from its last two places: what a page is let go at.
 const swipePace = (g, x) => {
   const now = Date.now();
@@ -417,20 +419,20 @@ const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = nul
     if (g.way === null) {
       if (Math.max(Math.abs(dx), Math.abs(dy)) < GRAB_AT) return;
       const allowed = !when || when();
+      const page = Math.abs(dy) > Math.abs(dx) || !allowed ? null : swipePageOf(pages, el, g);
       if (Math.abs(dy) > Math.abs(dx)) g.way = dy > 0 && g.top && onDown && allowed ? "down" : "none";
-      else if (dx > 0 && onBack && allowed && g.x > EDGE) g.way = "back";
+      else if (dx > 0 && onBack && allowed && g.x > EDGE && !(page && page.prev)) g.way = "back";
       else if (dx < 0 && onAway && allowed) g.way = "away";
-      else if (pages && allowed && g.x > EDGE && g.x < screenWide(el) - EDGE) {
-        const page = pages(el, g.from);
-        g.pages = page && !page.drag ? swipeStays(g, page) : page;
-        g.way = g.pages && (g.pages.prev || g.pages.next) ? "page" : "none";
+      else if (page) {
+        g.pages = !page.drag ? swipeStays(g, page) : page;
+        g.way = g.pages.prev || g.pages.next ? "page" : "none";
       } else g.way = "none";
       if (g.way === "none") return;
       g.wash = washBehind(el);
       // A page moves itself (the strip's, by the deck; one that stays, by swipeStays); anything else is the element.
       if (g.way !== "page" && el.style) el.style.transition = "none";
       if (g.wash && g.wash.style) g.wash.style.transition = "none";
-      if (onGrab) onGrab(el, true);
+      if (onGrab && g.way !== "page") onGrab(el, true);
     }
     if (!el.style) return;
     if (g.way === "down") {
@@ -477,14 +479,12 @@ const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = nul
     // for a touch the browser reported only at its ends.
     if (Math.abs(dx) >= Math.abs(dy)) {
       if (Math.abs(dx) < min) return;
-      const back = dx > 0 && onBack && (!when || when()) && g.x > EDGE;
-      if (!back && g.way === null && pages && (!when || when()) && g.x > EDGE && g.x < screenWide(el) - EDGE) {
-        const p = pages(el, g.from);
-        if (pageOpen(p, pageStep(dx))) {
-          p.go(pageStep(dx), 0);
-          return;
-        }
+      const p = g.way === null && (!when || when()) ? swipePageOf(pages, el, g) : null;
+      if (pageOpen(p, pageStep(dx))) {
+        p.go(pageStep(dx), 0);
+        return;
       }
+      const back = dx > 0 && onBack && (!when || when()) && g.x > EDGE;
       const away = dx < 0 && onAway && (!when || when());
       const way = away ? onAway : dx < 0 ? onLeft : back ? onBack : onRight;
       if (way) way();

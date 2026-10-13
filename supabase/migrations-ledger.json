@@ -421,6 +421,7 @@
     "00416_a_campaign_ends_and_runs_on_trial.sql": "398cc74f74f4cc8d1f1a847ca25d3bf53ec75d81b074db82c3d71a4e547d51c0",
     "00417_a_call_is_logged_on_the_person.sql": "415214e7cf7eda7ca4e810c509c48041f3432c6c17a972cd7513d04e07daeb44",
     "00418_a_business_s_other_addresses_find_its_person.sql": "63f902a7dfd297eb712aba8b2c74c6d0c68e0b5775183186b1782c389fb53827",
-    "00419_the_bell_tells_the_truth.sql": "11bd834bc11fb2ce8ecc6bd85b7784071a08dff7dbdbdad3c3530ade2b57aaa3"
+    "00419_the_bell_tells_the_truth.sql": "11bd834bc11fb2ce8ecc6bd85b7784071a08dff7dbdbdad3c3530ade2b57aaa3",
+    "00420_a_combined_person_keeps_their_own_name.sql": "86eaac65eb654c7971e39c0fd5e4e8eb102a159a378d96377e951259cc59198c"
   }
 }
