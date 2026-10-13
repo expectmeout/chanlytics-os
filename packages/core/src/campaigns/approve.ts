@@ -3,9 +3,9 @@ import {
   AppError,
   CAMPAIGNS_PAUSED_WORDS,
   isReachOutRun,
-  localDate,
   nextOpenMoment,
   runApprovalRefusal,
+  runDaysAt,
 } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import type { ApproveRunPorts, BroadcastRef } from "./ports";
@@ -58,7 +58,7 @@ export async function approveRun(
   // A playbook's run is a day's run: approved on a later day it is refused, and so is a visit's run that would go out on
   // a later day than it was made for (approved after the last sending hour it waits for nine, with the day before's
   // words): contracts runApprovalRefusal, the words Ask's run card refuses in and the sheet says instead of a button.
-  const late = runApprovalRefusal(b, { today: localDate(tz, cmd.now), sendsOn: localDate(tz, open.at) });
+  const late = runApprovalRefusal(b, runDaysAt(tz, cmd.now));
   if (late) throw new AppError("conflict", late, 409);
   const at = open.at;
   const scheduledFor = at.toISOString();

@@ -1,5 +1,5 @@
 /**
- * A connected mailbox's token (decision 0056): kept in Vault (00421 put/get_mailbox_credentials), never on a row; a
+ * A connected mailbox's token (decision 0056): kept in Vault (00423 put/get_mailbox_credentials), never on a row; a
  * grant read from the provider's token endpoint; and `tokenFor`, the access token each call to the mailbox rides,
  * refreshed before it expires and kept only over the grant it refreshed (a reconnect stored meanwhile stands), as
  * Business Profile's is (google/profile-credentials.ts).

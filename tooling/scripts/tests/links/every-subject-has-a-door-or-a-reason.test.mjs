@@ -64,6 +64,24 @@ test("a line, a mailbox, a connected mailbox, a Google listing and a number open
   assert.equal(activityDoor({ subject_type: "subscription", subject_id: "sub_1" }), "admin/billing");
 });
 
+test("a change of the workspace opens the pane it changed; the workspace itself opens nothing (W-review-facts-rules-6)", () => {
+  const T = "11111111-0000-4000-8000-000000000001";
+  const door = (kind, subject_type = "workspace") => activityDoor({ kind, subject_type, subject_id: T });
+  assert.equal(
+    door("policy.changed"),
+    "admin/autonomy",
+    "REGRESSION: 'An autonomy setting changed' could not be opened",
+  );
+  assert.equal(door("settings.changed"), "admin/workspace", "REGRESSION: 'Settings changed' could not be opened");
+  assert.equal(door("settings.changed", "tenant"), "admin/workspace", "as storage names the workspace too");
+  assert.equal(door("capability.activated"), "admin/integrations");
+  assert.equal(door("capability.deactivated"), "admin/integrations");
+  assert.equal(door("member.left"), "admin/team");
+  assert.equal(door("export"), null, "an export of the workspace has no pane");
+  assert.equal(door("workspace.activated"), null, "nor its start");
+  assert.equal(activityDoor({ subject_type: "workspace", subject_id: T }), null, "and with no kind, nothing");
+});
+
 test("a template is a page the server finds (its message, by name, while the row is there): the id alone opens nothing", () => {
   const home = ACTIVITY_SUBJECT_HOMES.template;
   assert.ok("lookup" in home, "a message of the Library is addressed by its name, which only its row knows");

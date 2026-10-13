@@ -748,8 +748,22 @@ test("the autonomy change takes the row's own snake_case names, and for one rele
 });
 
 test("the business record: read by every member, nothing on file is null not a blank form; written by the owner, refused in the owner's words before anything leaves for the carriers", async () => {
-  const tables = { memberships: both("operator", "owner"), business_records: [] };
-  assert.deepEqual(await record.GET.run(get(inA), ctxFor(tables)), { record: null, path: null, problems: {} });
+  const tables = {
+    memberships: both("operator", "owner"),
+    // Harbor has public pages; Bayside is a fixture, which has none (contracts hasPublicPages).
+    tenants: [
+      { id: A, slug: "harbor", status: "active", left_empty_at: null },
+      { id: B, slug: "bayside", status: "test", left_empty_at: null },
+    ],
+    business_records: [],
+  };
+  // Where the business's own page is, for the form's link (the wiring's second audit, X4-4).
+  assert.deepEqual(await record.GET.run(get(inA), ctxFor(tables)), {
+    record: null,
+    path: null,
+    problems: {},
+    page: "/b/harbor",
+  });
   const onFile = {
     ...tables,
     business_records: [
@@ -758,6 +772,12 @@ test("the business record: read by every member, nothing on file is null not a b
   };
   const out = await record.GET.run(get(inB), ctxFor(onFile));
   assert.equal(out.record.legal_name, "Bayside LLC");
+  assert.equal(out.page, null, "a fixture has no public page to link to");
+  const ended = {
+    ...tables,
+    tenants: [{ id: A, slug: "harbor", status: "active", left_empty_at: "2026-09-01T00:00:00Z" }],
+  };
+  assert.equal((await record.GET.run(get(inA), ctxFor(ended))).page, null, "nor an ended workspace");
   assert.ok(!("tenant_id" in out.record) && !("created_at" in out.record), "the row's plumbing stays behind");
   assert.ok(typeof out.path === "string" && typeof out.problems === "object");
   await refused(

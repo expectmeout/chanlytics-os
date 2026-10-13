@@ -90,7 +90,7 @@ export async function applyEmailReceipt(db: Db, r: EmailReceipt, nowIso: string)
   let leftFrom: string | null = effect.suppress === "hard_bounce" ? requestFromOf(sent?.request) : null;
   if (effect.status) await recordEmailStatus(db, { ...row, status: effect.status, error: effect.error });
   // A complaint arrives after delivery and moves no status: the row is stamped, so the mailbox it left from counts it
-  // (00176, 00422). Before the suppression, so a retry of a half-applied receipt still counts it once.
+  // (00176, 00424). Before the suppression, so a retry of a half-applied receipt still counts it once.
   if (r.type === "complained") await stampEmailComplaint(db, { ...row, at: nowIso });
   if (effect.suppress) {
     const contactId = await suppressEmailOf(db, { ...row, addresses: r.to, reason: effect.suppress, at: nowIso });

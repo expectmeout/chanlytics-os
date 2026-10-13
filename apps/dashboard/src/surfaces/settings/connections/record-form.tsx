@@ -31,7 +31,7 @@ import { FailedRead } from "../../kit/empty/empty";
 import { FieldError } from "../../kit/field-error/field-error";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { RecordField } from "../../kit/record/field";
-import { canDo, gate, gateTitle, holdStill, meNow, refusalToast, type LegacyFlash } from "../../legacy-verbs";
+import { canDo, gate, gateTitle, holdStill, refusalToast, type LegacyFlash } from "../../legacy-verbs";
 import { businessRecord } from "./record";
 
 const RECORD = businessRecord;
@@ -125,6 +125,7 @@ function fieldBox(opts: FieldOptions) {
     <>
       {f.label}
       {f.required ? "" : <span className="dim"> · optional</span>}
+      {f.published ? <span className="dim"> · {RECORD.publicMark}</span> : ""}
     </>
   );
   const cell = `biz-cell${f.multiline ? " biz-cell-wide" : ""}`;
@@ -208,12 +209,15 @@ function groupBlock(opts: GroupOptions) {
 }
 
 interface RecordActs {
-  save: () => Promise<void>;
+  /** `reviewed`: the owner has answered the question asked before a change the carriers are reviewing. */
+  save: (reviewed?: boolean) => Promise<void>;
   file: () => Promise<void>;
 }
 
 interface ActsOptions {
   record: BusinessRecordDto;
+  /** The record as last read or saved: what a save is compared with. */
+  saved: BusinessRecordDto | null;
   path: RegistrationPath;
   line: Line;
   owner: boolean;
@@ -221,12 +225,27 @@ interface ActsOptions {
   setProblems: (found: Problems) => void;
   setBusy: (busy: boolean) => void;
   setArm: (arm: boolean) => void;
+  setReview: (review: boolean) => void;
+  setSaved: (record: BusinessRecordDto) => void;
+}
+
+/**
+ * Whether a save asks first: while the carriers are reviewing the filing, a change to what the public page shows (they
+ * check the registration against it, and a campaign waiting on them is filed from the record as it then stands). A change
+ * to a box the page does not show (the mobile, the tax id) is asked nothing (the wiring's second audit, X4-3).
+ */
+function asksBeforeSaving(line: Line, saved: BusinessRecordDto | null, record: BusinessRecordDto): boolean {
+  return (
+    !!saved &&
+    RECORD.filingOf(line ? [line] : []) === "in_review" &&
+    RECORD.changed(saved, record).some(RECORD.isPublished)
+  );
 }
 
 /** The form's two acts: keep the record (Save), and file the line with the carriers (File). */
 function recordActs(opts: ActsOptions): RecordActs {
-  const { record, path, line, owner, flash, setProblems, setBusy, setArm } = opts;
-  const save = async () => {
+  const { record, saved, path, line, owner, flash, setProblems, setBusy, setArm, setReview, setSaved } = opts;
+  const save = async (reviewed = false) => {
     if (!owner) return;
     const found = RECORD.problems(record, path);
     setProblems(found);
@@ -236,6 +255,12 @@ function recordActs(opts: ActsOptions): RecordActs {
       flash({ tone: "warn", msg: <>Not saved — {count === 1 ? "1 field needs" : `${count} fields need`} a look.</> });
       return;
     }
+    if (!reviewed && asksBeforeSaving(line, saved, record)) {
+      setArm(false);
+      setReview(true);
+      return;
+    }
+    setReview(false);
     setBusy(true);
     const r = await RECORD.save(record, path);
     setBusy(false);
@@ -246,6 +271,7 @@ function recordActs(opts: ActsOptions): RecordActs {
       flash(refusalToast(r, "Not saved"));
       return;
     }
+    setSaved(record);
     flash({ msg: <>{r.message}</> });
   };
   const file = async () => {
@@ -264,26 +290,41 @@ interface ActsRowOptions {
   path: RegistrationPath;
   ready: boolean;
   arm: boolean;
+  review: boolean;
   busy: boolean;
   acts: RecordActs;
   onArm: (arm: boolean) => void;
+  onReview: (review: boolean) => void;
 }
 
-/** Save, File and the question that asks before it files. */
+/** Save, File, and the questions asked before a save the carriers are reviewing and before a filing. */
 function actsRow(opts: ActsRowOptions) {
-  const { line, path, ready, arm, busy, acts, onArm } = opts;
+  const { line, path, ready, arm, review, busy, acts, onArm, onReview } = opts;
   return (
     <div className="set-acts">
-      <Button
-        size="sm"
-        variant="primary"
-        onClick={() => void acts.save()}
-        disabled={busy}
-        data-testid="biz-save"
-        {...gate("team", "fill in the business record")}
-      >
-        {busy ? "Saving…" : "Save"}
-      </Button>
+      {review ? (
+        <Confirm
+          question={RECORD.review.question}
+          detail={RECORD.review.detail}
+          yes={RECORD.review.yes}
+          no={RECORD.review.no}
+          busy={busy}
+          onYes={() => void acts.save(true)}
+          onNo={() => onReview(false)}
+          testid="biz-save-review"
+        />
+      ) : (
+        <Button
+          size="sm"
+          variant="primary"
+          onClick={() => void acts.save()}
+          disabled={busy}
+          data-testid="biz-save"
+          {...gate("team", "fill in the business record")}
+        >
+          {busy ? "Saving…" : "Save"}
+        </Button>
+      )}
       {/*
             Not on a line the carriers SENT BACK. Resubmitting one is support's action
             (gate 6), so this button could only be refused there -- a dead button on the
@@ -327,25 +368,48 @@ interface FormOptions {
   record: BusinessRecordDto;
   path: RegistrationPath;
   line: Line;
+  /** The business's own page, once the saved record publishes it; null before. */
+  page: string | null;
   owner: boolean;
   busy: boolean;
   arm: boolean;
+  review: boolean;
   problems: Problems;
   acts: RecordActs;
   onSet: SetField;
   onAsk: () => void;
   onArm: (arm: boolean) => void;
+  onReview: (review: boolean) => void;
 }
 
-/** The form itself, once the registration is known: the answer, each part of the form, the acts. */
+/** What goes on the business's own page, before it publishes and once it does, with the link to it (the wiring's second audit, X4-4). */
+function publicNote(page: string | null) {
+  return (
+    <span className="set-row-hint" data-testid="biz-public-note">
+      {page ? RECORD.pageNote.live : RECORD.pageNote.before}
+      {page ? (
+        <>
+          {" "}
+          <LinkButton href={page} target="_blank" rel="noopener" data-testid="biz-public-link">
+            {RECORD.pageNote.open}
+          </LinkButton>
+        </>
+      ) : null}
+    </span>
+  );
+}
+
+/** The form itself, once the registration is known: the answer, what goes on the public page, each part of the form, the acts. */
 function formView(opts: FormOptions) {
-  const { head, record, path, line, owner, busy, arm, problems, acts, onSet, onAsk, onArm } = opts;
+  const { head, record, path, line, page, owner, busy, arm, review, problems, acts, onSet, onAsk, onArm, onReview } =
+    opts;
   const words = RECORD.groupsFor(path);
   const fields = RECORD.fieldsFor(path);
   const ready = Object.keys(RECORD.problems(record, path)).length === 0;
   return (
     <div className="set-row set-row-stack biz" data-testid="business-record">
       {head}
+      {publicNote(page)}
 
       <div className="biz-answer" data-testid="biz-answer">
         <span className="biz-hint">
@@ -367,7 +431,7 @@ function formView(opts: FormOptions) {
 
       {/* Save and File are the form's acts: a role that may not press them sees them gated, saying why, and the form
           says why once below. They were hidden under a sentence of the form's own (the one gate). */}
-      {actsRow({ line, path, ready, arm, busy, acts, onArm })}
+      {actsRow({ line, path, ready, arm, review, busy, acts, onArm, onReview })}
       {!owner && <span className="set-row-hint">{gateTitle("team", "fill in the business record")}</span>}
     </div>
   );
@@ -376,14 +440,13 @@ function formView(opts: FormOptions) {
 /**
  * A registration already with the carriers. It cannot be withdrawn, so the
  * answer stops being a choice and becomes a fact — one that can still be
- * changed, at the price of a second filing.
+ * changed, at the price of a second filing. Whether there is a filing is
+ * contracts' one rule (recordFilingOf): a rehearsal against the free test
+ * registry is none, so it never warns of a fee.
  */
 function filedPathOf(line: Line): RegistrationPath | null {
-  return line && line.sms_state && line.sms_state !== "none" && line.sms_state !== "needs_record"
-    ? line.reg_sole_prop
-      ? "sole_proprietor"
-      : "standard"
-    : null;
+  if (!line || RECORD.filingOf([line]) === "none") return null;
+  return line.reg_sole_prop ? "sole_proprietor" : "standard";
 }
 
 export function BusinessRecordForm({ line, flash }: { line?: LineDto | null; flash: Flash }) {
@@ -394,6 +457,11 @@ export function BusinessRecordForm({ line, flash }: { line?: LineDto | null; fla
   const [problems, setProblems] = useState<Problems>({});
   const [busy, setBusy] = useState(false);
   const [arm, setArm] = useState(false);
+  // The record as last read or saved, which a save is compared with; the question asked before a change the carriers
+  // are reviewing; and where the business's own page is (null while the workspace has none).
+  const [saved, setSaved] = useState<BusinessRecordDto | null>(null);
+  const [review, setReview] = useState(false);
+  const [pageAt, setPageAt] = useState<string | null>(null);
   // A read that failed is its own state -- never an empty record, and never the
   // one-time question asked over a record that may well be on file.
   const [readFailed, setReadFailed] = useState<string | null>(null);
@@ -411,7 +479,11 @@ export function BusinessRecordForm({ line, flash }: { line?: LineDto | null; fla
       // product publishes for the workspace (/b/<slug>), as the field's hint
       // says. The guess this replaced was saved as the website and filed with
       // the carriers: the opt-in page, of whichever workspace sorted first.
-      setRecord(r.record ?? RECORD.empty({ email: meNow()?.email ?? "" }));
+      // Nor the email: the box is on the public page, so it is an address the
+      // owner chose to publish, never their sign-in filled in for them.
+      setRecord(r.record ?? RECORD.empty());
+      setSaved(r.record);
+      setPageAt(r.page);
       setPath(r.path ?? null);
       setProblems(r.problems || {});
     });
@@ -482,19 +554,38 @@ export function BusinessRecordForm({ line, flash }: { line?: LineDto | null; fla
     });
   }
 
-  const acts = recordActs({ record, path, line, owner, flash, setProblems, setBusy, setArm });
+  const acts = recordActs({
+    record,
+    saved,
+    path,
+    line,
+    owner,
+    flash,
+    setProblems,
+    setBusy,
+    setArm,
+    setReview,
+    setSaved,
+  });
   return formView({
     head,
     record,
     path,
     line,
+    page: pageAt && RECORD.publishes(saved) ? pageAt : null,
     owner,
     busy,
     arm,
+    review,
     problems,
     acts,
     onSet: set,
     onAsk: () => setAsking(true),
-    onArm: setArm,
+    // Arming File puts the save's question away: one question at a time.
+    onArm: (on) => {
+      setArm(on);
+      if (on) setReview(false);
+    },
+    onReview: setReview,
   });
 }

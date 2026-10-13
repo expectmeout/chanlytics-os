@@ -420,6 +420,7 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | `due_on` | string or null | no |  |
 | `tell` | boolean | no |  |
 | `spoke_with` | string | no | at most 80 characters |
+| `closes_call_back` | boolean | no |  |
 
 ### `PUT /api/v1/contacts/[id]/consent`
 

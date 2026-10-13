@@ -220,7 +220,7 @@ export type SchemaAgreement = [
   // A proposal is part of the deal (00160): why they passed, and how the workspace's customers buy.
   Holds<Exactly<Of<typeof DEAL_LOST_REASONS>, SchemaSet<"deals.lost_reason">>>,
   Holds<Exactly<Of<typeof SELLS_BY>, SchemaSet<"tenants.sells_by">>>,
-  // A business writes cold email from mailboxes it connected (00421, decision 0056): whose, where each stands, and why
+  // A business writes cold email from mailboxes it connected (00423, decision 0056): whose, where each stands, and why
   // one is held.
   Holds<Exactly<Of<typeof MAILBOX_PROVIDERS>, SchemaSet<"mailbox_connections.provider">>>,
   Holds<Exactly<Of<typeof MAILBOX_CONNECTION_STATES>, SchemaSet<"mailbox_connections.state">>>,

@@ -1,4 +1,4 @@
--- 00421 · A business connects the mailbox it writes from (decision 0056).
+-- 00423 · A business connects the mailbox it writes from (decision 0056).
 --
 -- A cold email leaves from a mailbox the business connected, through its provider's own API (Gmail, or Microsoft
 -- Graph), never through an account of the platform's. One row per mailbox:
@@ -369,6 +369,6 @@ drop trigger if exists workspace_tell_delete on public.sending_domains;
 
 -- What the retired lane leaves behind says so, for whoever reads the schema before the change that drops it.
 comment on table public.sending_domains is
-  'Retired (decision 0056, 00421): the domains a second Resend account sent cold email from. Nothing reads or writes it now; kept inert until a later migration drops it (docs/debt.md).';
+  'Retired (decision 0056, 00423): the domains a second Resend account sent cold email from. Nothing reads or writes it now; kept inert until a later migration drops it (docs/debt.md).';
 comment on table public.sending_domain_days is
-  'Retired (decision 0056, 00421): each sending domain''s day, filed nightly until its clock was unscheduled. Kept inert until a later migration drops it (docs/debt.md).';
+  'Retired (decision 0056, 00423): each sending domain''s day, filed nightly until its clock was unscheduled. Kept inert until a later migration drops it (docs/debt.md).';

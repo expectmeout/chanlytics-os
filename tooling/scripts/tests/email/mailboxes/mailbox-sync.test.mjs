@@ -88,7 +88,7 @@ function world({ box = {}, cursor = "100" } = {}) {
   };
   const rpcs = {
     ...v.rpcs,
-    // 00422: of the threads that changed, the ones holding an email this workspace sent.
+    // 00424: of the threads that changed, the ones holding an email this workspace sent.
     mailbox_threads_known: (a) =>
       a.p_thread_ids.filter((t) =>
         tables.messages.some((m) => m.tenant_id === a.p_tenant_id && m.meta?.email?.thread_id === t),

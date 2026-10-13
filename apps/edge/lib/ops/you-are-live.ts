@@ -98,7 +98,7 @@ export async function sendYouAreLive(auth: Admitted, body: Partial<{ tenant_id?:
           length: call.data.duration_ms ? spokenDuration(call.data.duration_ms) : null,
         }
       : null,
-    todayUrl: `${dashboardOrigin()}/w/${encodeURIComponent(tenant.data.slug)}#/today`,
+    todayUrl: `${dashboardOrigin()}${appLink(tenant.data.slug, "today")}`,
   });
   const sent = await mail(target, message);
   L.info("you_are_live_sent", { tenant_id: tenantId, sent });

@@ -483,11 +483,12 @@ test("an open email has nothing of a WhatsApp message's to rename, hide or delet
   assert.equal(textOf(byTestId(tree, "ro-start")), "Save");
 });
 
-test("an email's Edit the reach-out, for a role that may not change the chain, opens its Playbooks row instead", () => {
+test("an email's Edit the reach-out, for a role that may not change the chain, opens the reach-out's drawer instead", () => {
   let tree = opened(page({ role: "viewer" }));
   press(byTestId(byTestId(tree, "reach-out-email-body"), "reach-out-email-edit"));
   tree = redraw();
-  assert.deepEqual(went, [`outbound/${ROOT}`]);
+  // Its own address, by the one writer (contracts addressOf), where the retired outbound/<id> moved.
+  assert.deepEqual(went, [`campaigns/moment:${ROOT}`]);
   assert.equal(byTestId(tree, "ro-sheet"), null);
 });
 

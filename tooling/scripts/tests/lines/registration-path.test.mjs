@@ -37,6 +37,8 @@ import {
   REGISTRATION_QUESTION,
   REGISTRATION_PATH_WORDS,
   REGISTRATION_COST_WORDS,
+  RECORD_REVIEW_CONFIRM,
+  BUSINESS_PAGE_NOTE,
   SOLE_PROP_CEILING_SENTENCE,
   smsStateRow,
   textingWords,
@@ -151,7 +153,10 @@ test("each path asks exactly what its own filing sends", () => {
   for (const path of ["standard", "sole_proprietor"]) {
     assert.equal(businessFieldsFor(path).find((f) => f.name === "website_url").required, false, path);
   }
-  assert.match(businessFieldsFor("standard").find((f) => f.name === "website_url").hint, /we publish a page for you/);
+  assert.match(
+    businessFieldsFor("standard").find((f) => f.name === "website_url").hint,
+    /the carriers are given your public page instead/,
+  );
 
   // SOLE PROPRIETOR: two end users and an address, and between them they send
   // one name, the person, their mobile and the vertical. Nothing else.
@@ -326,6 +331,8 @@ await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 // stubbed by giving that object the answers of `api()` below: no window door stands between them any more.
 const { businessRecord } = await importSrc("apps/dashboard/src/surfaces/settings/connections/record.ts");
 const { BusinessRecordForm } = await importSrc("apps/dashboard/src/surfaces/settings/connections/record-form.tsx");
+// The real save, kept before any test stands the network in for it: the words a save shows are run through it below.
+const realSave = businessRecord.save;
 const theRecordSays = (answers) => Object.assign(businessRecord, answers);
 
 function mount(props) {
@@ -710,6 +717,155 @@ test("a working sole-proprietor line says what it can do, on both surfaces", () 
   // One clause, one source of numbers: what is promised before filing and what
   // is stated after cannot drift.
   assert.ok(SOLE_PROP_CEILING_SENTENCE.includes(String(SOLE_PROP_LIMITS.messagesPerSecond)));
+});
+
+/** Types into one of the form's boxes, as a person does: the box's own change handler, then the page drawn again. */
+async function type(page, id, words) {
+  let box = null;
+  walk(byId(page.tree, id), (n) => {
+    if (!box && (n.type === "input" || n.type === "textarea")) box = n;
+  });
+  assert.ok(box, `the ${id} box`);
+  box.props.onChange({ target: { value: words } });
+  await page.flush();
+}
+
+test("a registration the carriers are reviewing asks before a change to what the public page shows is saved, and only then: nothing is asked of a box the page does not show, of a line with nothing filed, or of a rehearsal (the wiring's second audit, X4-3)", async () => {
+  const saved = [];
+  const opened = (line) => {
+    theRecordSays(api({ ok: true, record: { ...RECORD }, path: "standard", problems: {} }, saved));
+    return mount({ line, flash: () => {} });
+  };
+  const page = opened({ id: LINE, sms_state: "registering" });
+  await page.flush();
+  await type(page, "biz-legal_name", "Harbor Movers LLC");
+  await page.act(byId(page.tree, "biz-save"));
+  const asked = byId(page.tree, "biz-save-review-confirm");
+  assert.ok(asked, "the question, in Save's place");
+  assert.ok(
+    textOf(asked).includes(RECORD_REVIEW_CONFIRM.question) && textOf(asked).includes(RECORD_REVIEW_CONFIRM.detail),
+  );
+  assert.equal(byId(page.tree, "biz-save"), null);
+  assert.equal(saved.length, 0, "nothing saved before the answer");
+  await page.act(byId(page.tree, "biz-save-review-yes"));
+  assert.equal(saved.length, 1, "saved once the owner says so");
+  assert.equal(saved[0].record.legal_name, "Harbor Movers LLC");
+  assert.equal(byId(page.tree, "biz-save-review-confirm"), null, "and the question is put away");
+  // Saved again with nothing moved since: nothing to ask.
+  await page.act(byId(page.tree, "biz-save"));
+  assert.equal(saved.length, 2);
+
+  // "Not yet" saves nothing and gives Save back.
+  const no = opened({ id: LINE, sms_state: "approved" });
+  await no.flush();
+  await type(no, "biz-city", "Queens");
+  await no.act(byId(no.tree, "biz-save"));
+  await no.act(byId(no.tree, "biz-save-review-no"));
+  assert.equal(saved.length, 2, "not saved");
+  assert.ok(byId(no.tree, "biz-save"));
+
+  // A box the page does not show (the mobile) asks nothing while the carriers review.
+  const mobile = opened({ id: LINE, sms_state: "registering" });
+  await mobile.flush();
+  await type(mobile, "biz-contact_phone", "+19175550199");
+  await mobile.act(byId(mobile.tree, "biz-save"));
+  assert.equal(byId(mobile.tree, "biz-save-review-confirm"), null);
+  assert.equal(saved.length, 3, "saved straight away");
+
+  // Nothing filed, or only a rehearsal against the free test registry: nothing to ask.
+  for (const line of [
+    { id: LINE, sms_state: "none" },
+    { id: LINE, sms_state: "registering", reg_mock: true },
+  ]) {
+    const was = saved.length;
+    const p = opened(line);
+    await p.flush();
+    await type(p, "biz-legal_name", "Harbor Movers LLC");
+    await p.act(byId(p.tree, "biz-save"));
+    assert.equal(byId(p.tree, "biz-save-review-confirm"), null, JSON.stringify(line));
+    assert.equal(saved.length, was + 1, JSON.stringify(line));
+  }
+});
+
+test("REGRESSION (X4-3): a rehearsal against the free test registry is no filing, so the fork warns of no second fee; a real filing that failed still does", async () => {
+  theRecordSays(api({ ok: true, record: { ...RECORD }, path: "standard", problems: {} }));
+  const rehearsed = mount({ line: { id: LINE, sms_state: "registering", reg_mock: true }, flash: () => {} });
+  await rehearsed.flush();
+  await rehearsed.act(byId(rehearsed.tree, "biz-path-change"));
+  assert.doesNotMatch(textOf(byId(rehearsed.tree, "biz-fork")), /already filed/);
+  theRecordSays(api({ ok: true, record: { ...RECORD }, path: "standard", problems: {} }));
+  const failed = mount({ line: { id: LINE, sms_state: "failed" }, flash: () => {} });
+  await failed.flush();
+  await failed.act(byId(failed.tree, "biz-path-change"));
+  assert.match(textOf(byId(failed.tree, "biz-fork")), /already filed/, "a brand it may have made cannot be withdrawn");
+});
+
+test("the form says which boxes go on the business's own page, which anyone can open, and links to the page once the record publishes it; the sign-in email is never filled into the published box (the wiring's second audit, X4-4)", async () => {
+  theRecordSays(api({ ok: true, record: { ...RECORD }, path: "standard", problems: {}, page: "/b/harbor" }));
+  const page = mount({ line: { id: LINE, sms_state: "none" }, flash: () => {} });
+  await page.flush();
+  for (const f of businessFieldsFor("standard")) {
+    const label = textOf(byId(page.tree, `biz-${f.name}`));
+    assert.equal(label.includes(" · public"), f.published, f.name);
+  }
+  for (const name of ["contact_phone", "ein", "contact_first_name", "contact_last_name"])
+    assert.ok(!textOf(byId(page.tree, `biz-${name}`)).includes(" · public"), `${name} is never published`);
+  assert.ok(textOf(byId(page.tree, "biz-public-note")).startsWith(BUSINESS_PAGE_NOTE.live));
+  const link = byId(page.tree, "biz-public-link");
+  assert.equal(link.props.href, "/b/harbor");
+  assert.equal(link.props.target, "_blank");
+
+  // Nothing on record yet: the note says when the page publishes, and there is nothing to link to.
+  theRecordSays(api({ ok: true, record: null, path: null, problems: {}, page: "/b/harbor" }));
+  const fresh = mount({ line: null, flash: () => {} });
+  await fresh.flush();
+  assert.equal(byId(fresh.tree, "biz-public-note"), null, "the fork has no boxes, so it says nothing of them");
+  await fresh.act(byId(fresh.tree, "biz-path-standard"));
+  assert.equal(textOf(byId(fresh.tree, "biz-public-note")), BUSINESS_PAGE_NOTE.before);
+  assert.equal(byId(fresh.tree, "biz-public-link"), null);
+  // REGRESSION (X4-4): the sign-in email (window.__ME, ada@example.com) was filled into the box the page publishes.
+  let email = null;
+  walk(byId(fresh.tree, "biz-contact_email"), (n) => {
+    if (!email && n.type === "input") email = n;
+  });
+  assert.equal(email.props.value, "", "the owner types the address they choose to publish");
+
+  // A workspace with no public pages (a fixture, an ended one): nothing to link to, whatever is on record.
+  theRecordSays(api({ ok: true, record: { ...RECORD }, path: "standard", problems: {}, page: null }));
+  const none = mount({ line: null, flash: () => {} });
+  await none.flush();
+  assert.equal(byId(none.tree, "biz-public-link"), null);
+});
+
+test("the save says what it moved and what the carriers hold, in the words contracts writes from the route's answer; a server that does not say yet gets a plain Saved (the wiring's second audit, X4-3)", async () => {
+  const W = globalThis.window;
+  const was = W.fetch;
+  const answers = [];
+  W.fetch = async (url, init = {}) => {
+    answers.push([init.method, String(url)]);
+    return new Response(JSON.stringify({ ok: true, data: answers.next }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  try {
+    answers.next = {
+      record: { legal_name: "Harbor Movers LLC" },
+      saved: { first: false, changed: ["legal_name"], filing: "on_file", filed_name: "Harbor Moving LLC" },
+    };
+    const onFile = await realSave(RECORD, "standard");
+    assert.equal(onFile.ok, true);
+    assert.equal(
+      onFile.message,
+      "Saved. Your public page shows it now; the carriers still hold “Harbor Moving LLC” as you filed it.",
+    );
+    assert.match(answers[0][1], /\/api\/v1\/business-record/);
+    assert.equal(answers[0][0], "PUT");
+    answers.next = { record: { legal_name: "Harbor Moving LLC" } };
+    assert.equal((await realSave(RECORD, "standard")).message, "Saved.", "an answer from before it said nothing more");
+  } finally {
+    W.fetch = was;
+  }
 });
 
 test("REGRESSION: a business record that could not be read says so, and Retry reads again -- it drew an empty form and the one-time question, as if nothing were on file", async () => {

@@ -9,11 +9,17 @@
  *
  * A reach-out's run is not one: approved, it is released with no broadcast job on purpose, and the reach-out clock claims
  * its planned sends (core approveReachOut).
+ *
+ * And runs nothing will ever send: a playbook's run still waiting for approval after the day it was made for, which the
+ * approve verb refuses (contracts runApprovalRefusal) and only a skip can end. The edge's playbooks sweep reads them here
+ * (waitingPlaybookRuns), ends each that is too late (cancelBroadcastFrom) and records the system's decision
+ * (recordSystemDecision), so a missed day's run waits on nobody (the wiring's second audit, S7-3).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { isReachOutRun } from "@chanlytics/contracts";
-import type { Database } from "../../database.types";
+import { DEFAULT_TIMEZONE, RUN_GOING_STATES, isReachOutRun } from "@chanlytics/contracts";
+import type { Database, Json } from "../../database.types";
 import { emitEvent } from "../../events";
+import { heldSendCounts } from "../reach-out-sheet";
 
 type Db = SupabaseClient<Database>;
 
@@ -85,4 +91,146 @@ export async function failStrandedRun(db: Db, p: { tenantId: string; id: string 
   // On the ledger as every stopped run is (broadcast.stopped), best effort. Nobody got it: it never left `scheduled`.
   await emitEvent(db, p.tenantId, "broadcast.stopped", "broadcast", p.id, { failure: "run_interrupted", sent: 0 });
   return true;
+}
+
+/** A playbook's run waiting for approval, with the zone its day is told in: what the sweep asks of its day. */
+export interface WaitingPlaybookRun {
+  id: string;
+  tenant_id: string;
+  name: string;
+  state: string;
+  playbook_id: string;
+  run_for: string;
+  audience: unknown;
+  /** The workspace's zone, or the one the approve verb reads for a workspace with none (DEFAULT_TIMEZONE). */
+  timezone: string;
+}
+
+/**
+ * The playbooks' runs still waiting for approval, oldest day first, at most `limit`, across every workspace (the service
+ * role's client), each with its workspace's zone. A reach-out's run is approved on any later day (decision D6), so it is
+ * left out before the limit, as strandedRuns leaves it out. A read that fails THROWS: "could not look" is not "none".
+ */
+export async function waitingPlaybookRuns(db: Db, p: { limit: number }): Promise<WaitingPlaybookRun[]> {
+  const { data, error } = await db
+    .from("broadcasts")
+    .select("id, tenant_id, name, state, playbook_id, run_for, audience")
+    .eq("state", "pending_approval")
+    .not("playbook_id", "is", null)
+    .not("run_for", "is", null)
+    .or("audience->>kind.is.null,audience->>kind.neq.reach_out")
+    .order("run_for", { ascending: true })
+    .order("created_at", { ascending: true })
+    .limit(p.limit);
+  if (error) throw new Error(`waiting runs: cannot read the runs waiting for approval: ${error.message}`);
+  const runs = (data ?? []).filter((r) => !isReachOutRun(r.audience));
+  if (!runs.length) return [];
+  const zones = await db
+    .from("tenants")
+    .select("id, timezone")
+    .in("id", [...new Set(runs.map((r) => r.tenant_id))]);
+  if (zones.error) throw new Error(`waiting runs: cannot read their workspaces' zones: ${zones.error.message}`);
+  const zoneOf = new Map((zones.data ?? []).map((t) => [t.id, t.timezone]));
+  return runs.flatMap((r) =>
+    r.playbook_id && r.run_for
+      ? [
+          {
+            id: r.id,
+            tenant_id: r.tenant_id,
+            name: r.name,
+            state: r.state,
+            playbook_id: r.playbook_id,
+            run_for: r.run_for,
+            audience: r.audience,
+            timezone: zoneOf.get(r.tenant_id) || DEFAULT_TIMEZONE,
+          },
+        ]
+      : [],
+  );
+}
+
+/**
+ * A run moved to `canceled`, only while it is still in `from`: true iff this call moved it (a run approved or skipped
+ * since it was read is left as it is). The cancel verb's port for a run nobody's session asks for. Throws when it
+ * cannot be written.
+ */
+export async function cancelBroadcastFrom(db: Db, p: { tenantId: string; id: string; from: string }): Promise<boolean> {
+  const { data, error } = await db
+    .from("broadcasts")
+    .update({ state: "canceled" })
+    .eq("id", p.id)
+    .eq("tenant_id", p.tenantId)
+    .eq("state", p.from)
+    .select("id");
+  if (error) throw new Error(`waiting runs: cannot end run ${p.id}: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+
+/** A decision the system made, with nobody's hand on it (actor_type `system`): its id. Throws when it cannot be written. */
+export async function recordSystemDecision(
+  db: Db,
+  p: { tenantId: string; subjectType: string; subjectId: string; verb: string; payload: Json },
+): Promise<string> {
+  const { data, error } = await db
+    .from("decisions")
+    .insert({
+      tenant_id: p.tenantId,
+      subject_type: p.subjectType,
+      subject_id: p.subjectId,
+      verb: p.verb,
+      actor_type: "system",
+      actor_user_id: null,
+      payload: p.payload,
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(`cannot record the system's decision: ${error.message}`);
+  return data.id;
+}
+
+/** A run waiting for a word as a workspace's own read takes it: what the count asks of it, and what names it. */
+export interface WaitingRunRow {
+  id: string;
+  name: string;
+  state: string;
+  playbook_id: string | null;
+  run_for: string | null;
+  audience: unknown;
+  recipient_count: number;
+  created_at: string;
+  /** A going reach-out run's emails the check holds for the owner's say (contracts runHeldEmails). */
+  held?: number;
+}
+
+const WAITING_RUN_COLUMNS = "id, name, state, playbook_id, run_for, audience, recipient_count, created_at";
+
+/**
+ * One workspace's runs waiting for a word, newest first, on the session's client (RLS decides): those waiting for
+ * approval (two hundred at most), and the going reach-out runs whose check holds emails for the owner's say, with how
+ * many (heldSendCounts). What the server's Today counts as waiting on you (contracts runsThatWait, by the verb's own day
+ * rule and runHeldEmails) and Ask's today tool names. A read that fails throws.
+ */
+export async function waitingRunsOf(db: Db, tenantId: string): Promise<WaitingRunRow[]> {
+  const [pending, going] = await Promise.all([
+    db
+      .from("broadcasts")
+      .select(WAITING_RUN_COLUMNS)
+      .eq("tenant_id", tenantId)
+      .eq("state", "pending_approval")
+      .order("created_at", { ascending: false })
+      .limit(200),
+    db
+      .from("broadcasts")
+      .select(WAITING_RUN_COLUMNS)
+      .eq("tenant_id", tenantId)
+      .in("state", [...RUN_GOING_STATES])
+      .order("created_at", { ascending: false })
+      .limit(200),
+  ]);
+  if (pending.error) throw new Error(`cannot read the runs waiting for approval: ${pending.error.message}`);
+  if (going.error) throw new Error(`cannot read the going runs: ${going.error.message}`);
+  const reaching = (going.data ?? []).filter((r) => isReachOutRun(r.audience));
+  const held = reaching.length ? await heldSendCounts(db, { tenantId, runIds: reaching.map((r) => r.id) }) : null;
+  const holding = reaching.flatMap((r) => ((held?.get(r.id) ?? 0) > 0 ? [{ ...r, held: held?.get(r.id) ?? 0 }] : []));
+  return [...(pending.data ?? []), ...holding].sort((a, b) => b.created_at.localeCompare(a.created_at));
 }

@@ -5,17 +5,18 @@ import {
   type BroadcastDto,
   type ChannelsReady,
   type MonthSent,
+  type OpenToCustomers,
 } from "@chanlytics/contracts";
 import { getBroadcast, listBroadcasts } from "../campaigns/broadcasts";
 import { channelsReadyOrNull } from "../campaigns/channels-ready";
 import { monthSentNext, monthSentOrNull } from "../campaigns/month-sent";
-import { recentTouches } from "@chanlytics/db";
+import { recentTouches, waitingRunsOf, workspaceOpenToCustomers, type WaitingRunRow } from "@chanlytics/db";
 import { load, stamp, type Reader, type RowRef } from "./index";
 import * as readers from "./facts";
 import { log } from "@/server/log";
 
 /** A broadcast as a citation names it: a Broadcasts row, opened where its address spells it, a run. */
-const runRef = (b: BroadcastDto): RowRef => ({
+const runRef = (b: Pick<BroadcastDto, "id" | "name">): RowRef => ({
   kind: "broadcast",
   id: b.id,
   route: addressOf({ kind: "send", id: b.id }),
@@ -33,7 +34,9 @@ const runRef = (b: BroadcastDto): RowRef => ({
  * says. And what the workspace's campaigns have sent by email and by text this calendar month (`month_sent`,
  * month-sent.ts), which the Campaigns head says from half used and the composer says before a send; null where that could not
  * be read. With the month after it (`month_sent_next`, and the instant it begins), because a broadcast may be set to go in it
- * and the composer reads the month at the time it is set for (contracts monthSentAt). The route's body, moved here whole. Each
+ * and the composer reads the month at the time it is set for (contracts monthSentAt). And whether the workspace is open to
+ * its customers (`open_to_customers`, contracts openToCustomersOf), so the card that gets a yes offers no code while it is
+ * paused (the wiring's second audit, X4-1); null where it could not be read. The route's body, moved here whole. Each
  * broadcast is a row a citation names.
  */
 export const broadcasts: Reader<
@@ -45,11 +48,12 @@ export const broadcasts: Reader<
     ready: ChannelsReady | null;
     month_sent: MonthSent | null;
     month_sent_next: { from: number; sent: MonthSent | null } | null;
+    open_to_customers: OpenToCustomers | null;
   }
 > = {
   name: "broadcasts",
   async read(rc) {
-    const [list, touched_at, ready, month_sent, month_sent_next] = await Promise.all([
+    const [list, touched_at, ready, month_sent, month_sent_next, open_to_customers] = await Promise.all([
       listBroadcasts(rc.ctx, rc.tenantId),
       recentTouches(rc.ctx.supabase, rc.tenantId, rc.now).catch((e: unknown) => {
         log.error("broadcast_touches_failed", {
@@ -65,9 +69,19 @@ export const broadcasts: Reader<
         (r) => monthSentNext(rc.tenantId, rc.now, r.data.timezone),
         () => null,
       ),
+      workspaceOpenToCustomers(rc.ctx.supabase, rc.tenantId).then(
+        (s) => s.open,
+        (e: unknown) => {
+          log.error("broadcast_open_to_customers_failed", {
+            tenant_id: rc.tenantId,
+            error: e instanceof Error ? e.message : String(e),
+          });
+          return null;
+        },
+      ),
     ]);
     return {
-      data: { ...list, touched_at, ready, month_sent, month_sent_next },
+      data: { ...list, touched_at, ready, month_sent, month_sent_next, open_to_customers },
       rows: list.broadcasts.map(runRef),
       stamp: stamp(),
     };
@@ -84,5 +98,18 @@ export const broadcast: Reader<{ id: string }, BroadcastDetailDto> = {
   async read(rc, { id }) {
     const data = await getBroadcast(rc.ctx, rc.tenantId, id);
     return { data, rows: [runRef(data.broadcast)], stamp: stamp() };
+  },
+};
+
+/**
+ * The runs waiting for a word, newest first (packages/db waitingRunsOf: for approval, or holding emails for your say): what the server's Today counts as waiting on
+ * you, by the verb's own day rule (contracts runsThatWait), so Ask's Today says the head the page says and names the
+ * runs. Each run is a row a citation names.
+ */
+export const waitingRuns: Reader<undefined, { runs: WaitingRunRow[] }> = {
+  name: "waiting_runs",
+  async read(rc) {
+    const runs = await waitingRunsOf(rc.ctx.supabase, rc.tenantId);
+    return { data: { runs }, rows: runs.map(runRef), stamp: stamp() };
   },
 };

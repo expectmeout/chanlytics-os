@@ -984,14 +984,18 @@ test("Campaigns: the playbooks, the broadcasts or the messages the page drew, by
       [`template://${T1}`, "Win-back offer"],
     ],
   );
-  assert.equal(textOf(msgs.blocks[1]), "Win-back offer · MARKETING · approved · en_US · route: messages");
+  assert.equal(
+    textOf(msgs.blocks[1]),
+    "Win-back offer · MARKETING · approved · en_US · route: campaigns/message:winback_offer",
+    "the message's own address, not the Library's list",
+  );
   // Each row as its page's reader gave it; a Broadcasts row, which the page calls a run, is cited as a broadcast.
   assert.deepEqual(
     [pb, bc, msgs].map((b) => b.refs.slice(1)),
     [
       [{ kind: "playbook", id: PB1, route: `campaigns/moment:${PB1}`, label: "Win-back" }],
       [{ kind: "broadcast", id: BC1, route: `broadcasts/run:${BC1}`, label: "September offer" }],
-      [{ kind: "template", id: T1, route: "messages", label: "Win-back offer" }],
+      [{ kind: "template", id: T1, route: "campaigns/message:winback_offer", label: "Win-back offer" }],
     ],
   );
 

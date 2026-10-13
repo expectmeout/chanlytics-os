@@ -53,7 +53,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
   // 00401 added 'purge_model_turns', the nightly purge of the receptionist's kept turns, thirty days on, and of the
   // prompts no turn has read for 400.
   // 00402 added 'purge_config_versions', the nightly purge of a workspace's settings 400 days after a version is replaced.
-  // 00421 took 'domains' and 'sending_domain_days' off with the cold lane, and added 'mailboxes', the five-minute
+  // 00423 took 'domains' and 'sending_domain_days' off with the cold lane, and added 'mailboxes', the five-minute
   // sweep of the mailboxes a business connected (decision 0056).
   assert.deepEqual(
     data.map((r) => r.sweep),
@@ -203,7 +203,7 @@ test("every schedule the watchdog depends on is present and active", { skip }, a
     "purge-ask",
     "purge-notifications",
     "purge-rate-hits",
-    // 00421: the mailboxes a business connected, read every five minutes.
+    // 00423: the mailboxes a business connected, read every five minutes.
     "mailboxes-sweep",
     // 00186: the reach-out clock, every minute.
     "reach-out-sweep",

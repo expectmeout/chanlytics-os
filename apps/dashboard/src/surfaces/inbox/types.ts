@@ -309,6 +309,18 @@ export interface InboxSurface {
   INBOX_BASELINE: { doneThisWeek: number };
   /** Escalated threads that could not be read: the list says how many rather than list fewer. */
   UNREAD_ESCALATED?: number;
+  /**
+   * Open holds that wait on a person whose thread could not be read: each a customer who may be waiting, which the badge
+   * counts (needs-you.ts; a customer's STOP, which waits on nobody, is not one).
+   */
+  UNREAD_HOLDS?: number;
+  /** When this read was asked, epoch ms: the bell judges a hold's kept notice only by a read that began after it. */
+  readAt?: number;
+  /**
+   * Whether every open hold that waits on a person was read with its thread: the bell judges a hold's kept notice by the
+   * threads only then, since a hold the read did not take would read as no longer waiting.
+   */
+  holdsWhole?: boolean;
   /** The workspace's approved WhatsApp templates; null when the read failed, absent while it is still being read. */
   templates?: ApprovedTemplate[] | null;
   /** The WhatsApp messages left out of those, counted by why (contracts templateHolds); null where the read failed. */

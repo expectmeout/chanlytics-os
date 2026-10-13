@@ -98,7 +98,7 @@ const ok = (res) => {
 };
 const one = async (q) => ok(await q.select("id").single()).id;
 
-/** A mailbox the business connected, its token in Vault (00421), read back from history 100 on. */
+/** A mailbox the business connected, its token in Vault (00423), read back from history 100 on. */
 async function connect(tenantId, address) {
   const id = await one(
     db.from("mailbox_connections").insert({

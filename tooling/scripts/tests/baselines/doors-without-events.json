@@ -31,6 +31,7 @@
   "model_turn_keep()": 2,
   "note_for_you_notify()": 1,
   "notification_mark()": 1,
+  "notifications_close_about()": 1,
   "notifications_seen()": 1,
   "partner_become()": 1,
   "partner_invitations_lapse()": 1,

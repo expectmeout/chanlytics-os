@@ -460,6 +460,39 @@ export function inlineStyles(sf) {
   return n;
 }
 
+/**
+ * A piece of a string that ends where a record's route, or a link to a page of a workspace, is built by hand: a record's
+ * route head (`inbox/th-`, `conversations/cv-`, `broadcasts/run:`, `campaigns/moment:`, `campaigns/message:`, the retired
+ * `outbound/`, `clients/`, `live/`) or a link's (`/w/`, `#/`), with the id or the slug to follow.
+ */
+const HAND_ROUTE =
+  /(?:^|[^\w-])(?:inbox\/th-|conversations\/(?:cv-)?|broadcasts\/run:|campaigns\/(?:moment|message):|outbound\/|clients\/|live\/|w\/|#\/)$/;
+
+/**
+ * The routes and links a module builds by hand (the wiring's second audit, S5-6): a template literal or a `+` whose text
+ * before a value is a record's route head or a link's (HAND_ROUTE), each counted once. contracts' addressOf and appLink
+ * are the one writer of them; a place that builds its own spells a route the page may not open, or a retired one.
+ */
+export function handRoutesIn(sf) {
+  let n = 0;
+  const visit = (m) => {
+    if (ts.isTemplateExpression(m)) {
+      // The text before each value: the head, then each span's text but the last's (which no value follows).
+      const before = [m.head.text, ...m.templateSpans.slice(0, -1).map((s) => s.literal.text)];
+      if (before.some((t) => HAND_ROUTE.test(t))) n++;
+    } else if (
+      ts.isBinaryExpression(m) &&
+      m.operatorToken.kind === ts.SyntaxKind.PlusToken &&
+      ts.isStringLiteral(m.left) &&
+      HAND_ROUTE.test(m.left.text)
+    )
+      n++;
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return n;
+}
+
 const NOT_A_TABLE = new Set([
   "Buffer",
   "Array",

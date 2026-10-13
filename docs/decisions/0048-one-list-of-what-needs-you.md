@@ -54,3 +54,37 @@ words the Inbox uses.
 ## Open questions
 
 None for the owner.
+
+## Amended, 13 October 2026
+
+The wiring's second audit (`docs/2026-10-12-chanlytics-wiring-second-audit.md`, lane R2) found the one count and the
+closing rule half built. The amendment finishes both, in the shape above, with two layers to a close.
+
+1. **The one count, everywhere.** `waitsOf` takes the business's days (`runDaysAt`), so a run waiting for approval
+   counts only while an approval can still send it (`runApprovalRefusal`, the verb's own rule). A visit's run whose day
+   has passed is skipped by the playbooks sweep as a system decision (`endRunsWhoseDayPassed`, `cancel_broadcast` with
+   `reason: day_passed`), with no mail and no bell row. Today's head, its standing on the calm rung, the Inbox's head, Ask's
+   Right now, Ask's `today` tool, the home-screen widget and the palette all read the count's parts: holds, replies
+   counting down, runs. A closing reply window is said as a window, a search's question as a search, and neither is a
+   person who needs you. Today's own read takes the runs waiting and the threads of the holds past its hundred
+   (`heldThreadIds`, `HELD_BY_ID_MAX`).
+2. **The server closes what ended for good** (`notifications.closed_at`, 00421). A hold that resolves closes its handoff,
+   deadman and call rows (`escalation_closes_its_notices`). A round that leaves `waiting_on_owner` closes its question.
+   `resume_email_offers` closes the pause notice. Kept good news closes the warning it mends (contracts `NOTICE_MENDS`,
+   edge `mendWarnings`): a number's flag by its "back to normal", a payment that did not go through by a paid invoice, a
+   domain's hold by its own domain's resume or release. A closed row reads as read and wears no warning on every device,
+   on the phone's icon (`unreadFor`) and in a push (`push_send` sends nothing for a row closed before it ran).
+3. **The browser closes what the surfaces it holds say is settled now.** Every kind the edge keeps says how its row
+   ends (`NOTICE_ENDS`: news, mended, or judged by its source). A run's three notices are judged by Sent: waiting for a
+   word, going unless stopped, emails the check holds. A hold's notice is judged by the Inbox, only from a read that took
+   every hold with its thread. A question is judged by Leads. The phone's icon leaves out what the bell reads as settled
+   (`settledNoticeIds`).
+4. **The bell says what it does not list.** The bell lists its newest sixty rows (`BELL_LIST_ROWS`); the server counts
+   the unread rows past them (`NotificationsDto.unread`), and the badge, the away card and the bell say them, with Mark
+   all read as the act that clears them.
+
+Held emails in a going reach-out run count on the badge (Ruben, 13 October 2026): they go nowhere until the owner
+says, so they wait on a person. A going run whose check holds emails is one wait, however many it holds, as a run
+waiting for approval is (contracts `runWaitsOnYou`, `runHeldEmails`; db `waitingRunsOf` reads them for the server's
+Today and Ask). Today's queue, the Inbox's band and Ask's Right now list it with "2 emails wait for your say" and open
+the run, where each is put back or skipped; the runs' sentence says "waiting for your say", which covers both kinds.

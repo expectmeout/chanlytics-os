@@ -18,7 +18,7 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { doorOf, localDate, localHour, playbookFailedWords } from "@chanlytics/contracts";
+import { canonicalRoute, localDate, localHour, playbookFailedWords } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { rows } from "../_rows.mjs";
 import { withoutRequestId } from "../_log-lines.mjs";
@@ -236,6 +236,8 @@ const counts = (over) => ({
   failed: 0,
   remaining: 0,
   told: 0,
+  // The runs whose day passed, skipped first (endRunsWhoseDayPassed).
+  ended: 0,
   ...over,
 });
 
@@ -799,7 +801,7 @@ const coldRpcs = (leads) => ({
       });
     return { id: a.p_run.id };
   },
-  // 00422's day of a mailbox: a new one, connected, nothing sent yet.
+  // 00424's day of a mailbox: a new one, connected, nothing sent yet.
   mailbox_capacity: () => ({
     state: "connected",
     clean_since: iso(20 * D),
@@ -1208,9 +1210,13 @@ test("a playbook that cannot run is told: the platform is paged once per workspa
       const [notice] = bellOf(w, A);
       assert.deepEqual(
         [notice.kind, notice.title, notice.route, notice.subject_type, notice.subject_id],
-        ["playbook", "“Win-back” could not run today", "outbound/pb-a", "playbook_day", `pb-a:${today}`],
+        ["playbook", "“Win-back” could not run today", "campaigns/moment:pb-a", "playbook_day", `pb-a:${today}`],
       );
-      assert.equal(doorOf(notice.route), "campaigns/moment:pb-a", "the bell opens the playbook itself");
+      assert.equal(
+        canonicalRoute(notice.route),
+        notice.route,
+        "the bell opens the playbook itself, at its own address",
+      );
       assert.ok(
         notice.body.startsWith("“Win-back” could not run today, so nobody was sent it. Tomorrow's run will try again."),
         notice.body,

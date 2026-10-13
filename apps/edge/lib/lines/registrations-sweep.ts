@@ -17,6 +17,8 @@
 import { json, refuse } from "../http.js";
 import { dashboardOrigin } from "../dashboard-origin.js";
 import { registerLine } from "./a2p-register.js";
+import { filingPages, sweepFilingHold } from "./line-ops.js";
+import { workspaceOpenToCustomers } from "../packages/db.js";
 import { syncRegistration } from "./a2p-sync.js";
 import type { SweepTick } from "../ops/sweep-door.js";
 
@@ -66,6 +68,8 @@ export async function sweepRegistrations({ db, L }: SweepTick): Promise<Response
   // brand still in review both left the row exactly as it was, so a sweep that
   // could see nothing looked identical to a quiet hour.
   let unreadable = 0;
+  // Filings the owner's own rules hold back: a workspace paused, ended or not able to spend on texting (sweepFilingHold).
+  let held = 0;
   for (const line of lines) {
     try {
       const r = await syncRegistration(db, line);
@@ -88,6 +92,14 @@ export async function sweepRegistrations({ db, L }: SweepTick): Promise<Response
       if (r.smsState !== line.sms_state) moved++;
       // The wait's own ending: the brand is through, so the campaign can go. Never for a refused line (ASKED).
       if (r.brand === "APPROVED" && !line.campaign_sid && line.sms_state !== "rejected") {
+        // Asked first, as the owner's press asks it: nothing is filed, and nothing spent, for a workspace that is not
+        // open to its customers or may not spend. The line goes to the back of the queue and is asked again next hour.
+        const hold = sweepFilingHold(await workspaceOpenToCustomers(db, line.tenant_id));
+        if (hold) {
+          held++;
+          L.info("registration_filing_held", { line_id: line.id, tenant_id: line.tenant_id, why: hold });
+          continue;
+        }
         const rec = await db.from("business_records").select("*").eq("tenant_id", line.tenant_id).maybeSingle();
         const tenant = await db.from("tenants").select("name, slug").eq("id", line.tenant_id).maybeSingle();
         const fresh = await db.from("lines").select("*").eq("id", line.id).maybeSingle();
@@ -96,10 +108,7 @@ export async function sweepRegistrations({ db, L }: SweepTick): Promise<Response
             line: fresh.data,
             record: rec.data,
             workspaceName: tenant.data.name,
-            optInUrl: `${origin}/yes/${tenant.data.slug}`,
-            hostedUrl: `${origin}/b/${tenant.data.slug}`,
-            privacyUrl: `${origin}/privacy`,
-            termsUrl: `${origin}/terms`,
+            ...filingPages(origin, tenant.data.slug),
             mock: fresh.data.reg_mock,
           });
           if (out.ok) filed++;
@@ -112,7 +121,13 @@ export async function sweepRegistrations({ db, L }: SweepTick): Promise<Response
       });
     }
   }
-  L.info("registration_sweep", { checked: lines.length, campaigns_filed: filed, states_moved: moved, unreadable });
+  L.info("registration_sweep", {
+    checked: lines.length,
+    campaigns_filed: filed,
+    campaigns_held: held,
+    states_moved: moved,
+    unreadable,
+  });
   // Every line unreadable means the sweep ran and learned nothing -- our
   // credentials, not the carriers. 503 so sweep_health turns this red and the
   // platform is told, instead of the sweep reporting a cheerful 200 for ever

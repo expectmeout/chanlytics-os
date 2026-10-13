@@ -201,6 +201,16 @@ function matches(row, filters, defaults = {}) {
                                     .replace(/%/g, ".*")}$`,
                                 ).test(String(read(row, col)))
                               );
+                            // PostgREST's `.not(col, "in", "(a,b)")`: modelled for the escalations read, which asks the
+                            // holds that wait on a person as the complement of the hand-back reasons. NULL is in no list,
+                            // and is not "not in" one either (SQL's three values).
+                            if (o === "in") {
+                              const listed = String(v)
+                                .replace(/^\(|\)$/g, "")
+                                .split(",")
+                                .map((x) => x.trim());
+                              return read(row, col) != null && !listed.includes(String(read(row, col)));
+                            }
                             throw new Error(`fakeDb: not(${col}, ${o}) is not modelled`);
                           })()
                         : // PostgREST's `.or("a.is.null,a.lt.x")`: any ONE of the clauses. Modelled
@@ -1621,7 +1631,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       // becomes an error envelope rather than a rejected promise -- carrying the
       // `code` the test put on the error, since a route maps the function's own
       // codes (22023, 54000) to the wire, and its `hint`, which a door raising
-      // P0001 names its refusal by (00421's mailbox_connection_connect).
+      // P0001 names its refusal by (00423's mailbox_connection_connect).
       const run = () => {
         if (missing) return { data: null, error: missing };
         try {

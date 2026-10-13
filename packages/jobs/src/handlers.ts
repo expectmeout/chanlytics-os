@@ -8,10 +8,9 @@ import {
   noticeRoute,
   pushFor,
   type JobKind,
-  isForReader,
-  unreadFor,
   PUSH_RECEIPTS_AFTER_MS,
   BELL_WINDOW_DAYS,
+  DAY_MS,
   REACH_OUT_REPLY_DAYS,
   EVENT_SUBSCRIBERS,
   type EventSubscriber,
@@ -69,6 +68,7 @@ import {
   twinTold,
   memberJoinedOf,
   noticeKept,
+  unreadOfReaders,
 } from "@chanlytics/db";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
 import { broadcastSend } from "./broadcast-send";
@@ -324,12 +324,13 @@ async function pushSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
     "push_send: cannot read the notification",
     await ctx.db
       .from("notifications")
-      .select("id, tenant_id, kind, title, body, route, recipient_user_id")
+      .select("id, tenant_id, kind, title, body, route, recipient_user_id, closed_at")
       .eq("id", id)
       .eq("tenant_id", job.tenant_id)
       .maybeSingle(),
   );
-  if (!n) return;
+  // Gone, or closed before this ran (a hold answered within the minute, 00421): nothing to push, quietly.
+  if (!n || n.closed_at) return;
   // A note's one reader, or everyone in the workspace; less whoever turned this kind off for their phones.
   const readers = await membersPushedFor(ctx.db, {
     tenantId: job.tenant_id,
@@ -343,7 +344,12 @@ async function pushSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
       await ctx.db.from("push_devices").select("token, user_id").in("user_id", readers),
     ) ?? [];
   if (!devices.length) return;
-  const badges = await badgesFor(ctx, job.tenant_id, [...new Set(devices.map((d) => d.user_id))]);
+  // Each reader's bell, counted as the page counts it (packages/db unreadOfReaders, by contracts unreadFor).
+  const badges = await unreadOfReaders(ctx.db, {
+    tenantId: job.tenant_id,
+    readers: [...new Set(devices.map((d) => d.user_id))],
+    fromIso: new Date(Date.now() - BELL_WINDOW_DAYS * DAY_MS).toISOString(),
+  });
   const receipts = await ctx.push.send(
     pushFor(
       // The phone opens the place the bell does (contracts noticeRoute): a row kept with no route opens its kind's list.
@@ -380,80 +386,6 @@ async function pushSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
       });
     }
   }
-}
-
-/** PostgREST's answer to one read is a thousand rows at most; a bigger set is read a page at a time. */
-const READ_PAGE = 1000;
-/** How many uuids one `in` list carries: measured, about two hundred is where the URL becomes too long. */
-const IN_BATCH = 100;
-
-/**
- * The bell's number for each reader (contracts unreadFor): the workspace's kept rows of the bell's window that are
- * theirs to read (contracts isForReader: the workspace's own, and a note left for them), each reader's seen moment and
- * their own marks. Read once per send, for every reader at once.
- */
-async function badgesFor(ctx: JobContext, tenantId: string, readers: readonly string[]): Promise<Map<string, number>> {
-  const since = new Date(Date.now() - BELL_WINDOW_DAYS * 86_400_000).toISOString();
-  // The window's rows, a page at a time: PostgREST answers at most a thousand rows to one read and says nothing
-  // about the rest, so a busy month's bell was counted short.
-  const rows: { id: string; created_at: string; recipient_user_id: string | null }[] = [];
-  for (let from = 0; ; from += READ_PAGE) {
-    const page =
-      must(
-        "push_send: cannot read the bell",
-        await ctx.db
-          .from("notifications")
-          .select("id, created_at, recipient_user_id")
-          .eq("tenant_id", tenantId)
-          .gte("created_at", since)
-          .order("created_at", { ascending: true })
-          .range(from, from + READ_PAGE - 1),
-      ) ?? [];
-    rows.push(...page);
-    if (page.length < READ_PAGE) break;
-  }
-  const seen =
-    must(
-      "push_send: cannot read when the bell was opened",
-      await ctx.db
-        .from("notification_reads")
-        .select("user_id, seen_at")
-        .eq("tenant_id", tenantId)
-        .in("user_id", readers),
-    ) ?? [];
-  // The marks, by the rows' ids in batches: an `in` list of uuids is a URL, and a URL of about two hundred of them
-  // is longer than PostgREST takes (414). Every mark of the window went in one list.
-  const marks: { notification_id: string; user_id: string; read_at: string | null; dismissed_at: string | null }[] = [];
-  for (let i = 0; i < rows.length; i += IN_BATCH) {
-    marks.push(
-      ...(must(
-        "push_send: cannot read the bell's marks",
-        await ctx.db
-          .from("notification_marks")
-          .select("notification_id, user_id, read_at, dismissed_at")
-          .in("user_id", readers)
-          .in(
-            "notification_id",
-            rows.slice(i, i + IN_BATCH).map((r) => r.id),
-          ),
-      ) ?? []),
-    );
-  }
-  const out = new Map<string, number>();
-  for (const u of readers) {
-    const mine = seen.find((s) => s.user_id === u);
-    // This read is the service role's, which the notes' row policy (00158) does not narrow as it narrows the page's:
-    // a note left for another member is not on this reader's bell, so it is not on their badge.
-    out.set(
-      u,
-      unreadFor(
-        rows.filter((r) => isForReader(r, u)),
-        mine?.seen_at ?? null,
-        marks.filter((m) => m.user_id === u),
-      ),
-    );
-  }
-  return out;
 }
 
 /**

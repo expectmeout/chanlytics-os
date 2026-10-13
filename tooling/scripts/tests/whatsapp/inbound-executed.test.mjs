@@ -1268,6 +1268,22 @@ test("a confirmation the door refuses reaches a person, not just the log", async
   assert.equal(w.seen.processed, 1);
 });
 
+test("a yes taken while the workspace is paused is held as the pause's, in its words, not as a reply that failed to deliver (the wiring's second audit, X4-1)", async () => {
+  const { YES_WHILE_PAUSED } = await import("@chanlytics/contracts");
+  const w = world({
+    escalateAnswer: "failed",
+    delivered: { outcome: "refused", reason: "paused", messageId: null },
+  });
+  await w.run(text("YES OFFERS"));
+  assert.deepEqual(
+    w.seen.refused.map((e) => e.reason),
+    ["paused"],
+  );
+  assert.equal(w.seen.refused[0].details, YES_WHILE_PAUSED.details);
+  assert.doesNotMatch(w.seen.refused[0].details, /did not go out/);
+  assert.equal(w.seen.alerts[0].reason, "paused");
+});
+
 /* ------------------------- in the business's name, as it is now (S5) ------------------------- */
 
 // The three messages sent when the receptionist cannot answer were written once, with the number and the booking link

@@ -68,7 +68,7 @@ function world({ boxes = [], refuse = null, creds = {} } = {}) {
   };
   const rpcs = {
     ...v.rpcs,
-    // 00421's connect: made, or found again; its refusals by their hint.
+    // 00423's connect: made, or found again; its refusals by their hint.
     mailbox_connection_connect: (a) => {
       if (refuse) throw Object.assign(new Error(refuse.message), { code: "P0001", hint: refuse.hint });
       const was = tables.mailbox_connections.find(

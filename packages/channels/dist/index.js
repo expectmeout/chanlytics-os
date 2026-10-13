@@ -4498,6 +4498,9 @@ import { registrationPathOf } from "../../contracts/dist/index.js";
 function brandTypeFor(r) {
   return registrationPathOf(r) === "sole_proprietor" ? "SOLE_PROPRIETOR" : "STANDARD";
 }
+function brandNameOf(r) {
+  return brandTypeFor(r) === "SOLE_PROPRIETOR" ? r.tradeName || r.legalName : r.legalName;
+}
 
 // src/lines/a2p/trust-hub.ts
 import { businessTypeOf, companyTypeOf, industryOf } from "../../contracts/dist/index.js";
@@ -4561,10 +4564,10 @@ function soleProprietorEndUserRequest(r, industry) {
     url: `${TRUSTHUB}/EndUsers`,
     method: "POST",
     form: {
-      FriendlyName: `${r.tradeName || r.legalName} \xB7 sole proprietor`.slice(0, 64),
+      FriendlyName: `${brandNameOf(r)} \xB7 sole proprietor`.slice(0, 64),
       Type: "sole_proprietor_information",
       Attributes: attrs({
-        brand_name: r.tradeName || r.legalName,
+        brand_name: brandNameOf(r),
         mobile_phone_number: r.contactPhone,
         vertical: industry
       })
@@ -5960,6 +5963,7 @@ export {
   authorizeUrl,
   availabilityUrl,
   b64url,
+  brandNameOf,
   brandRequest,
   brandTypeFor,
   breakerOf,

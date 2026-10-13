@@ -66,7 +66,8 @@ interface TableData {
   "broadcast.sent": JsonObject;
   /** Why the run stopped (a BROADCAST_FAILURES code, with its channel where it names one) and how many it reached first. */
   "broadcast.stopped": { failure: string; sent: number | null };
-  "business.recorded": { legal_name: string | null; path: string; by?: string | null };
+  // `changed`: the columns a save moved, never their values (contracts changedRecordFields); null on the first save.
+  "business.recorded": { legal_name: string | null; path: string; by?: string | null; changed?: string[] | null };
   /** The owner switched what the workspace answers on or off: which (voice, whatsapp, sms), and who. */
   "capability.activated": { capability: string; by: string };
   "capability.deactivated": { capability: string; by: string };
@@ -123,7 +124,7 @@ interface TableData {
   "line.texting_approved": TextingData;
   "line.texting_on": TextingData;
   "line.texting_rejected": TextingData;
-  /** A mailbox the business writes from (00421, decision 0056): its address, never its token. */
+  /** A mailbox the business writes from (00423, decision 0056): its address, never its token. */
   "mailbox_connection.connected": { address: string; provider: string; again: boolean; by: string | null };
   "mailbox_connection.signed_out": { address: string; provider: string };
   "mailbox_connection.held": { address: string; why: string; sent: number; bounced: number; unsubscribed: number };

@@ -1,7 +1,7 @@
 /**
  * The reach-out clock's claim (Reach out, Part 3; C7, C8, C9, C10, E8; decision 0056): for each mailbox the business
  * connected with a send due, the sends it may take within its day's share (contracts mailboxDailyCap) and its
- * workspace's month, claimed under the mailbox's lock (00422 reach_out_claim_from); then for each, its email written
+ * workspace's month, claimed under the mailbox's lock (00424 reach_out_claim_from); then for each, its email written
  * before the send leaves `claimed` (rows first, C8):
  *
  *   0. an email this send already wrote (a tick that died after writing it) is adopted, whatever has changed since:
@@ -22,7 +22,7 @@
  *      that sends it through the one door (deliver.ts);
  *   6. the send `claimed → queued`, and its run `scheduled → sending`.
  *
- * The email row comes first: the mailbox's capacity counts a claim and a queued row each (00422), so this order only
+ * The email row comes first: the mailbox's capacity counts a claim and a queued row each (00424), so this order only
  * ever counts one twice for a moment, which sends less, never more. A claim a tick left mid-way (it died after the
  * claim) is written again five minutes on: its email's id is the same, so it is the same email, never a second.
  * One mailbox's failure is its own: the rest of the page, and every other workspace, still claim.

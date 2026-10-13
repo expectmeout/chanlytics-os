@@ -1,5 +1,5 @@
 /**
- * What the send door asks of a cold email (00422 outreach_mailbox_facts, over 00177's and 00181's lead facts), proved on
+ * What the send door asks of a cold email (00424 outreach_mailbox_facts, over 00177's and 00181's lead facts), proved on
  * the database: the lead's stage (the one still being written to wins), the never-again list by the finder's own hash,
  * whether the person wrote back, and the mailbox the business connected that the From is, with its day
  * (mailbox_capacity, proved in mailbox-connections.db.test.mjs). Local stack only.

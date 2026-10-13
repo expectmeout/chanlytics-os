@@ -298,7 +298,7 @@ async function makeWorkspace() {
     crypto.getRandomValues(new Uint8Array(24)),
     (b) => "abcdefghijklmnopqrstuvwxyz234567"[b % 32],
   ).join("");
-  // The hosted address every workspace has, and the Gmail mailbox the business connected, its token in Vault (00421),
+  // The hosted address every workspace has, and the Gmail mailbox the business connected, its token in Vault (00423),
   // read back from history 100 on.
   ok(
     await db

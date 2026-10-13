@@ -12,6 +12,7 @@ import {
 import { mailboxHoldWords } from "../email/mailbox-connections";
 import { reviewHeldWords } from "../google/review-reply";
 import { standingChangeWords } from "../lines/number-standing";
+import { businessFieldLabel } from "../lines/business-record";
 import { HELD_REASONS } from "../broadcasts/run-words";
 import { REPLY_INTENT_WORDS, isReplyIntent } from "../reach-out/reach-out-replies";
 import { plural } from "../shared/words";
@@ -511,6 +512,16 @@ const wordsAt = (o: Record<string, unknown>, k: string): string | null => {
   return list.length ? list.slice(0, 4).join(", ") : null;
 };
 
+/**
+ * What a save of the business on record moved, by the form's labels (four at most), or that nothing did: the ledger keeps
+ * the columns' names, never their values (the wiring's second audit, X4-3). A row from before it said nothing of them.
+ */
+const recordChangedWords = (p: Record<string, unknown>): string | null => {
+  if (!Array.isArray(p.changed)) return null;
+  const moved = p.changed.filter((c): c is string => typeof c === "string");
+  return moved.length ? moved.slice(0, 4).map(businessFieldLabel).join(", ") : "nothing changed";
+};
+
 /** The kinds whose sentence is written whole, by its own function. */
 const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base: string) => string>([
   ["broadcast.sent", (p, base) => runEndWords("broadcast.sent", p, base)],
@@ -545,6 +556,13 @@ const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base: string
           ]),
       ] as const,
   ),
+  ["business.recorded", (p, base) => joinBits(base, [recordChangedWords(p)])],
+  // A run the hourly sweep skipped because its day had passed (no approval could send it, S7-3): the system's, named.
+  [
+    "cancel_broadcast",
+    (p, base) =>
+      textAt(p, "reason") === "day_passed" ? joinBits("Skipped a run whose day had passed", [textAt(p, "name")]) : base,
+  ],
   ["channel.standing", (p, base) => joinBits(base, [standingChangeWords(p)])],
   ["workspace.activated", (p, base) => joinBits(base, [wordOf(ACTIVATED_WORDS, textAt(p, "milestone"))])],
   ["google.reply_held", (p, base) => joinBits(base, [reviewHeldWords(textAt(p, "why"))])],

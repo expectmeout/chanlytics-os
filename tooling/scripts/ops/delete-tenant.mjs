@@ -117,7 +117,7 @@ const TABLES = [
   "lead_suppressions",
   "leads",
   "lines",
-  // The mailboxes a business connected to write its reach-outs from (00421, decision 0056).
+  // The mailboxes a business connected to write its reach-outs from (00423, decision 0056).
   "mailbox_connections",
   "mailboxes",
   "memberships",

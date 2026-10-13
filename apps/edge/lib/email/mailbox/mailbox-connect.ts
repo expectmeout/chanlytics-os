@@ -6,7 +6,7 @@
  *   mailboxConnect   the code traded for a grant; a grant without send and read access, without a lasting refresh
  *                    token, or on a free mail domain (gmail.com, outlook.com: not a business writing to businesses)
  *                    is given back and refused by name; the account is named (Google's id token, Graph's /me); its row
- *                    made or found again (00421), its token stored, its domain's records read, its watch made, and the
+ *                    made or found again (00423), its token stored, its domain's records read, its watch made, and the
  *                    event said. A mailbox on the domain the business's own website is on is its customer domain,
  *                    kept to 20 a day (decision 0056, 4); with no website on file, it is taken to be.
  *   mailboxRemove    the grant given back where the provider has a way to, the watch ended, the token dropped, the row
@@ -49,6 +49,7 @@ import { mailboxClient } from "./mailbox-config.js";
 import { grantOf, storeMailboxCredentials, tokenFor } from "./mailbox-credentials.js";
 import { readMailboxDns } from "./mailbox-dns.js";
 import { endWatch, keepWatch } from "./mailbox-watch.js";
+import { mendWarnings } from "../../ops/notify.js";
 import { errField, type Logger } from "../../log.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -189,6 +190,8 @@ export async function mailboxConnect(
     again: !made.made,
     by: i.userId,
   });
+  // Connected again, its sign-out's warning is mended (contracts NOTICE_MENDS).
+  if (!made.made) await mendMailbox(p.db, i.tenantId, made.id, "mailbox_connection.connected");
   return { ok: true, id: made.id, made: made.made, address };
 }
 
@@ -209,7 +212,12 @@ export async function mailboxRemove(p: MailboxPorts, row: MailboxConnectionRow, 
     address: row.address,
     by,
   });
+  await mendMailbox(p.db, row.tenant_id, row.id, "mailbox_connection.removed");
 }
+
+/** A mailbox's held or signed-out warning closed by the change that mends it (contracts NOTICE_MENDS). */
+const mendMailbox = (db: MailboxPorts["db"], tenantId: string, id: string, change: string) =>
+  mendWarnings(db, { tenantId, by: { change }, subject: { type: "mailbox_connection", id }, keptId: null });
 
 /** Its owner's pause, and its end: only from the states it can be paused or unpaused from. */
 export async function mailboxPause(p: MailboxPorts, row: MailboxConnectionRow, by: string, pause: boolean) {
@@ -240,12 +248,14 @@ export async function mailboxResume(p: MailboxPorts, row: MailboxConnectionRow, 
     from: ["held"],
     patch: { state: "connected", held_why: null, held_at: null, counted_since: now },
   });
-  if (moved)
+  if (moved) {
     await emitEvent(p.db, row.tenant_id, "mailbox_connection.resumed", "mailbox_connection", row.id, {
       address: row.address,
       why: row.held_why,
       by,
     });
+    await mendMailbox(p.db, row.tenant_id, row.id, "mailbox_connection.resumed");
+  }
   return moved;
 }
 

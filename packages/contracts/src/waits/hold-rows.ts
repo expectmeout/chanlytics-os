@@ -20,7 +20,8 @@ import {
   type NotificationRow,
   type NotificationsDto,
 } from "../today/notifications";
-import { closeSettledNotices, NOTHING_WAITS_KNOWN, type WhatWaits } from "./notice-closes";
+import { olderUnreadOf } from "../today/push";
+import { closeSettledNotices, kindsEndedBy, NOTHING_WAITS_KNOWN, type WhatWaits } from "./notice-closes";
 
 /** The key a derived invitation row is made with (notifications.ts buildNotificationFeed): this prefix plus the invitation's id. */
 const INVITE_KEY_PREFIX = "invite:";
@@ -37,20 +38,43 @@ function acceptedInvitations(kept: NotificationsDto | null | undefined): Readonl
   );
 }
 
-/** The kinds of kept row that tell of a hold: a handoff, the deadman's second alert, and a call that needs a call back. */
-const HOLD_NOTICE_KINDS: readonly string[] = ["handoff", "deadman", "call"];
+/** The kinds of kept row that tell of a hold (a handoff, the deadman's second alert, a call that needs a call back): listed once. */
+const HOLD_NOTICE_KINDS: readonly string[] = kindsEndedBy("hold");
 
 /**
  * The kept notices whose marks a derived "needs you" row carries: those of the hold on its conversation, dismissed ones
  * too. None for a derived row that is not a hold's (a held draft, a missed call, an invitation), and none before the edge
- * has kept the hold.
+ * has kept the hold. A notice the server closed belongs to a hold that ended and lends no marks: a new hold on the same
+ * thread, before its own notice is kept, would otherwise read as read (00421).
  */
 export function holdMarksOf(derivedKey: string, kept: NotificationsDto | null | undefined): NotificationDto[] {
   const conversationId = conversationOfNeedsKey(derivedKey);
   if (!conversationId) return [];
   return (kept?.notifications ?? []).filter(
-    (n) => HOLD_NOTICE_KINDS.includes(n.kind) && n.subject_type === "conversation" && n.subject_id === conversationId,
+    (n) =>
+      HOLD_NOTICE_KINDS.includes(n.kind) &&
+      n.subject_type === "conversation" &&
+      n.subject_id === conversationId &&
+      !n.closed_at,
   );
+}
+
+/**
+ * The unread kept rows the bell does not list (olderUnreadOf), less the holds it already draws: a hold whose notice is past
+ * the list while its thread still waits is the bell's own derived row (one row for one hold), not a second unread row
+ * (NotificationsDto.older_holds; the wiring's second audit, S6-10). The bell's number, its sentence for them and Today's
+ * away card read this; the phone's icon, which counts the kept rows alone, reads olderUnreadOf.
+ */
+export function bellOlderOf(
+  dto: NotificationsDto | null | undefined,
+  seenMs: number,
+  drawn: ReadonlyArray<{ key: string }>,
+): number {
+  const older = olderUnreadOf(dto, seenMs);
+  const holds = dto?.older_holds ?? [];
+  if (!older || !holds.length) return older;
+  const waiting = new Set(drawn.map((r) => conversationOfNeedsKey(r.key)).filter((c): c is string => !!c));
+  return Math.max(0, older - holds.filter((c) => waiting.has(c)).length);
 }
 
 /**

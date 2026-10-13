@@ -19,6 +19,14 @@ import {
   businessRecordForPath,
   soleProprietorLimits,
   industryWords,
+  changedRecordFields,
+  isPublishedFact,
+  publishesBusinessPage,
+  recordFilingOf,
+  recordSavedWords,
+  BUSINESS_PAGE_NOTE,
+  PUBLIC_FIELD_MARK,
+  RECORD_REVIEW_CONFIRM,
   REGISTRATION_PATHS,
   REGISTRATION_QUESTION,
   REGISTRATION_PATH_WORDS,
@@ -39,6 +47,8 @@ interface BusinessRecordApi {
     record: BusinessRecordDto | null;
     path: RegistrationPath | null;
     problems: Record<string, string>;
+    /** The business's own page, while the workspace has public pages; null when it has none. */
+    page: string | null;
     message: string;
   }>;
   /** Keep it, for the registration the owner said it is for. Owners only; the route says so. */
@@ -66,17 +76,35 @@ interface BusinessRecordApi {
   problems: typeof businessRecordProblems;
   line: typeof businessRecordLine;
   optionWords: (value: string) => string;
+  /** What a save moves, whether a column is on the public page, and whether a record publishes the page. */
+  changed: typeof changedRecordFields;
+  isPublished: typeof isPublishedFact;
+  publishes: typeof publishesBusinessPage;
+  /** Where the workspace's filing stands, from its lines. */
+  filingOf: typeof recordFilingOf;
+  /** Asked before a change to what the carriers are reviewing is saved. */
+  review: typeof RECORD_REVIEW_CONFIRM;
+  pageNote: typeof BUSINESS_PAGE_NOTE;
+  publicMark: typeof PUBLIC_FIELD_MARK;
 }
 
 export const businessRecord: BusinessRecordApi = {
   async read() {
     const r = await api()("GET business-record");
-    if (!r.ok) return { ok: false, record: null, path: null, problems: {}, message: r.message };
-    return { ok: true, record: r.data.record, path: r.data.path, problems: r.data.problems, message: "" };
+    if (!r.ok) return { ok: false, record: null, path: null, problems: {}, page: null, message: r.message };
+    return {
+      ok: true,
+      record: r.data.record,
+      path: r.data.path,
+      problems: r.data.problems,
+      page: r.data.page ?? null,
+      message: "",
+    };
   },
   async save(record, path) {
     const r = await api()("PUT business-record", { body: { record, path } });
-    if (r.ok) return { ok: true, message: "Saved. The carriers see this when you file.", problems: {} };
+    // What moved and what the carriers hold of it, in the owner's words (the wiring's second audit, X4-3).
+    if (r.ok) return { ok: true, message: recordSavedWords(r.data.saved ?? null), problems: {} };
     // The route names every field it refuses, so the form marks each box.
     return { ok: false, message: r.message, title: r.title, problems: { ...(r.fields ?? {}) } };
   },
@@ -107,4 +135,11 @@ export const businessRecord: BusinessRecordApi = {
   problems: businessRecordProblems,
   line: businessRecordLine,
   optionWords: (value) => (/^[A-Z_]+$/.test(value) ? industryWords(value) : value),
+  changed: changedRecordFields,
+  isPublished: isPublishedFact,
+  publishes: publishesBusinessPage,
+  filingOf: recordFilingOf,
+  review: RECORD_REVIEW_CONFIRM,
+  pageNote: BUSINESS_PAGE_NOTE,
+  publicMark: PUBLIC_FIELD_MARK,
 };

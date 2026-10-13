@@ -417,6 +417,8 @@ const notice = (to, event, table, statuses) => ({
  * a page draws. `null` is a table with no list: the settings are told when their version moved, whatever was named.
  */
 const NARROWED = {
+  // A notice closed when what it asked for ended (00421): the bell reads it as read, on every tab.
+  notifications: ["closed_at"],
   contacts: [
     "display_name",
     "wa_profile_name",
@@ -457,6 +459,21 @@ const NARROWED = {
     "variables",
   ],
   mailboxes: ["offers_paused_at", "offers_paused_reason", "offers_resumed_at"],
+  // A mailbox the business connected (00423, decision 0056): what Connections draws, never the sync's cursor, its watch
+  // or the stamp of a send, which the clocks move all day.
+  mailbox_connections: [
+    "state",
+    "held_why",
+    "resting_until",
+    "daily_cap",
+    "customer_domain",
+    "sent_days",
+    "dns",
+    "last_error",
+    "from_name",
+    "signature",
+    "address",
+  ],
   memberships: ["role"],
   tenants: ["status"],
 };

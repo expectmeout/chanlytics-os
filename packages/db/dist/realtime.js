@@ -12,8 +12,8 @@ var WATCHED = [
   // opened by the edge, resolved elsewhere
   { table: "calls", events: EVERY },
   // a call starting, each live turn, its end, its analysis: told with its statuses
-  { table: "notifications", events: INSERTS },
-  // an alert the edge kept: the bell repaints
+  // an alert the edge kept, or one closed when what it asked for ended (00421, told when closed_at moved): the bell repaints
+  { table: "notifications", events: INSERTS_AND_UPDATES },
   { table: "lines", events: EVERY },
   // a line's saga step, its failure, its answer, its release: Setup repaints
   { table: "google_listings", events: EVERY },
@@ -31,7 +31,7 @@ var WATCHED = [
   { table: "google_connections", events: EVERY },
   // the profile connected, synced or failing by the hourly sweep: Connections repaints (00070)
   { table: "mailbox_connections", events: EVERY },
-  // a mailbox connected, signed out, held, paused or removed, its day or records when they moved: Connections and the sheet repaint (00421)
+  // a mailbox connected, signed out, held, paused or removed, its day or records when they moved: Connections and the sheet repaint (00423)
   // a round's page committed, a check landed, a class changed: the Leads scope repaints (00140)
   { table: "leads", events: EVERY },
   { table: "lead_searches", events: EVERY },

@@ -1,6 +1,6 @@
 /**
  * A connected mailbox read back (decision 0056): what arrived in its inbox since its cursor, and of that only what sits
- * in a thread a reach-out started (00422 mailbox_threads_known), so nothing else the business receives is ever read.
+ * in a thread a reach-out started (00424 mailbox_threads_known), so nothing else the business receives is ever read.
  *
  *   a delivery report   applied as the bounce it reports (email-receipts.ts applyEmailReceipt, with a receipt made
  *                       of the report): the row fails, and a permanent one stops the address and marks the lead. A

@@ -1,5 +1,5 @@
 /**
- * Reach out's doors on the database (00184, Reach out Part 3 PR 3; a connected mailbox's since 00422): one capacity per
+ * Reach out's doors on the database (00184, Reach out Part 3 PR 3; a connected mailbox's since 00424): one capacity per
  * mailbox (D15's days sent, the day's use, the timetable's times, all from its own sends), the send door keyed by the
  * lead a send is for, the leads a chain's first step may write to, the person a first send makes without converting
  * its lead, a step's followers with the mailbox each was written from, and the claim that never spends a mailbox's day
@@ -44,7 +44,7 @@ const ok = (res) => {
 };
 const one = async (q) => ok(await q.select("id").single()).id;
 
-/** A mailbox the business connected, on a host of its own (three a host, ten a workspace: 00421). */
+/** A mailbox the business connected, on a host of its own (three a host, ten a workspace: 00423). */
 const mailboxRow = (over = {}) => {
   n += 1;
   return one(
@@ -168,7 +168,7 @@ async function sendIn(over = {}, to = "planned", at = {}) {
   return id;
 }
 /**
- * What a mailbox's day counts is its own reach-out sends (00422): an email it sent, frozen, and its send moved along
+ * What a mailbox's day counts is its own reach-out sends (00424): an email it sent, frozen, and its send moved along
  * the guard's path to where the email is (written and waiting, or gone).
  */
 async function sentFrom(mailbox, { status = "sent", error = null, sentAt = null } = {}) {
@@ -254,7 +254,7 @@ before(async () => {
   );
   thread = await one(db.from("conversations").insert({ tenant_id: A, contact_id: person }));
 });
-// A workspace connects ten mailboxes at most (00421): each case removes its own, and its sends keep their place.
+// A workspace connects ten mailboxes at most (00423): each case removes its own, and its sends keep their place.
 afterEach(async () => {
   if (!skip && A) ok(await db.from("mailbox_connections").delete().eq("tenant_id", A));
 });

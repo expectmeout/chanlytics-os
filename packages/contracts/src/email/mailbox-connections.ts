@@ -2,7 +2,7 @@
  * A mailbox a business connected to write from (decision 0056): its states, its day (the cold ramp, its owner's cap,
  * the customer domain's ceiling), its health, its domain's records, and every sentence Connections, the reach-out
  * sheet, the bell and the Activity log say about it. Pure; the edge (lib/email/mailbox/) reads the facts and writes
- * the row (00421 mailbox_connections), the dashboard tells the page (server/connections/mailbox-connections.ts).
+ * the row (00423 mailbox_connections), the dashboard tells the page (server/connections/mailbox-connections.ts).
  */
 import type { Tone } from "../shell/tone";
 import { formatterOnUse } from "../shared/time";
@@ -12,15 +12,15 @@ const DAY_FMT = formatterOnUse("en-US", { month: "short", day: "numeric" });
 
 /* ------------------------------------------------------------------------------------------------ the closed sets */
 
-/** Whose mailbox it is (00421 mailbox_connections.provider). */
+/** Whose mailbox it is (00423 mailbox_connections.provider). */
 export const MAILBOX_PROVIDERS = ["google", "microsoft"] as const;
 export type MailboxProvider = (typeof MAILBOX_PROVIDERS)[number];
 
-/** Where a connected mailbox stands (00421 mailbox_connections.state): its column comment says each. */
+/** Where a connected mailbox stands (00423 mailbox_connections.state): its column comment says each. */
 export const MAILBOX_CONNECTION_STATES = ["connected", "reconnect", "paused", "held", "removed"] as const;
 export type MailboxConnectionState = (typeof MAILBOX_CONNECTION_STATES)[number];
 
-/** Why a mailbox's own mail held it (00421 mailbox_connections.held_why): only its owner's Resume lifts one. */
+/** Why a mailbox's own mail held it (00423 mailbox_connections.held_why): only its owner's Resume lifts one. */
 export const MAILBOX_HOLDS = ["bounces", "complaint", "unsubscribes"] as const;
 export type MailboxHold = (typeof MAILBOX_HOLDS)[number];
 
@@ -33,7 +33,7 @@ export type MailboxDnsRecord = (typeof MAILBOX_DNS_RECORDS)[number];
 
 /* --------------------------------------------------------------------------------------------------- the limits */
 
-/** The most live mailboxes a workspace writes from, and on one domain (00421's trigger says them too). */
+/** The most live mailboxes a workspace writes from, and on one domain (00423's trigger says them too). */
 export const MAILBOX_CONNECTIONS_MAX = 10;
 const MAILBOXES_PER_DOMAIN_MAX = 3;
 /** The highest cap an owner may set; the ramp and the customer domain's ceiling stand below it. */
@@ -79,7 +79,7 @@ export function mailboxSendsNow(m: { state: string; resting_until: string | null
 }
 
 /**
- * Whether a reach-out's step writes from this mailbox (00422): one the step names, or any of the workspace's when it
+ * Whether a reach-out's step writes from this mailbox (00424): one the step names, or any of the workspace's when it
  * names none, while it is not removed. The run's timetable, its replan and the chain's row share this one reading, so
  * a row never names a mailbox the run would not write from. Whether it sends today is the mailbox's day's to say.
  */
@@ -166,7 +166,7 @@ export function mailboxConnectionDtoOf(r: {
 
 /* ------------------------------------------------------------------------------------------------- its health */
 
-/** What one mailbox's emails came to since it was counted clean (00422 mailbox_connection_counts). */
+/** What one mailbox's emails came to since it was counted clean (00424 mailbox_connection_counts). */
 export interface MailboxCounts {
   sent: number;
   bounced: number;

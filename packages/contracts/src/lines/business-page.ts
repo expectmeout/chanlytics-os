@@ -28,8 +28,10 @@
  */
 import { formatPhoneDisplay } from "../shared/phone";
 import { industryWords } from "./a2p-enums";
-import { ABOUT_MIN } from "./business-record";
+import { ABOUT_MIN, type BusinessRecordDto } from "./business-record";
 import { notFoundPageMetadata, type PublicPageMetadata } from "../shell/chrome";
+import { takesSignUps, type OpenToCustomers } from "../workspace/billing";
+import { notTakingSignUps } from "../consent/consent-page";
 
 /**
  * The clauses every carrier review looks for, word for word.
@@ -97,6 +99,11 @@ export interface BusinessPageFacts {
   privacyUrl: string;
   /** The program's terms, beside it: `/b/<slug>/terms`. */
   termsUrl: string;
+  /**
+   * Whether the workspace is open to its customers (contracts workspace/billing.ts openToCustomersOf); absent where it
+   * was not read, which keeps the page as it was. A paused one's page says who it is and asks nobody for a yes.
+   */
+  open?: OpenToCustomers | null;
 }
 
 export interface BusinessPageVM {
@@ -120,6 +127,26 @@ export interface BusinessPageVM {
   websiteUrl: string | null;
   /** True when the record is too thin to publish honestly. */
   empty: boolean;
+  /** Said under the lead while the workspace is paused: it is not taking sign-ups. Null while it is open. */
+  closedLine: string | null;
+  /** The words before the link to the sign-up page: a paused page offers it to read, not to say yes on. */
+  signUpLead: string;
+}
+
+/**
+ * Whether the record identifies a business, which is when `/b/<slug>` publishes: a legal name, a street and a city. A
+ * record too thin to identify anybody is what 30919 refused, so the page says there is nothing rather than publish it.
+ * The one predicate (the page, its terms, the sign-up page's policy links and the filing's preflight ask it).
+ */
+function identifiesABusiness(f: { legalName: string; street: string; city: string }): boolean {
+  return !!f.legalName.trim() && !!f.street.trim() && !!f.city.trim();
+}
+
+/** The same rule over the record's own columns: whether a saved record publishes the page (the form's note and link). */
+export function publishesBusinessPage(
+  r: Pick<BusinessRecordDto, "legal_name" | "street" | "city"> | null | undefined,
+): boolean {
+  return !!r && identifiesABusiness({ legalName: r.legal_name ?? "", street: r.street ?? "", city: r.city ?? "" });
 }
 
 function addressLine(f: BusinessPageFacts): string {
@@ -136,7 +163,9 @@ export function businessPageVM(f: BusinessPageFacts): BusinessPageVM {
   // A page with no legal name and no address identifies nobody, which is exactly
   // what 30919 refused. Better to say there is nothing here than to publish a
   // page a reviewer will read as evasive.
-  const empty = !legal || !f.street.trim() || !f.city.trim();
+  const empty = !identifiesABusiness(f);
+  // Paused: the page still says who the business is, for the carriers' re-vet, and no longer that it answers anyone.
+  const taking = takesSignUps(f.open);
 
   const identity: BusinessPageVM["identity"] = [];
   if (legal)
@@ -157,7 +186,13 @@ export function businessPageVM(f: BusinessPageFacts): BusinessPageVM {
     title: known || "This business",
     lead: empty
       ? "This business has not finished setting up yet."
-      : `${known} answers its customers by phone, on WhatsApp and by text. This page says who they are and what those messages are.`,
+      : taking
+        ? `${known} answers its customers by phone, on WhatsApp and by text. This page says who they are and what those messages are.`
+        : `This page says who ${known} is and what its text messages are.`,
+    closedLine: !empty && !taking ? notTakingSignUps(known) : null,
+    signUpLead: taking
+      ? "To say yes, or to see exactly what you would be agreeing to, open"
+      : "To see exactly what you would be agreeing to, open",
     identity,
     about: (f.about ?? "").trim() || null,
     services: f.services.slice(0, 40).map((s) => ({
@@ -204,13 +239,15 @@ export interface TextingTermsVM {
   privacyUrl: string;
   /** True when the record is too thin to publish honestly. */
   empty: boolean;
+  /** Said under the lead while the workspace is paused: it is not taking sign-ups. Null while it is open. */
+  closedLine: string | null;
 }
 
 export function textingTermsVM(f: BusinessPageFacts): TextingTermsVM {
   const legal = f.legalName.trim();
   const trade = (f.tradeName ?? "").trim();
   const known = trade || legal || "This business";
-  const empty = !legal || !f.street.trim() || !f.city.trim();
+  const empty = !identifiesABusiness(f);
   const phone = formatPhoneDisplay(f.publicPhoneE164);
   const email = f.contactEmail.trim();
   const support = [phone ? `call ${phone}` : null, email ? `email ${email}` : null].filter(Boolean).join(" or ");
@@ -235,6 +272,7 @@ export function textingTermsVM(f: BusinessPageFacts): TextingTermsVM {
       { label: "Your information", text: SMS_CLAUSES[3] },
     ],
     privacyUrl: f.privacyUrl,
+    closedLine: !empty && !takesSignUps(f.open) ? notTakingSignUps(known) : null,
     empty,
   };
 }
@@ -339,7 +377,7 @@ export function registrationPreflight(f: PreflightFacts): PreflightProblem[] {
   // The page we file as their website and privacy policy renders from these. No
   // legal name or no address and it answers 404, so the filing would name a URL
   // that does not exist — which is 30919, arriving a week later.
-  if (!f.legalName.trim() || !f.street.trim() || !f.city.trim()) {
+  if (!identifiesABusiness(f)) {
     out.push({
       id: "no_identity",
       what: "The page the carriers will open to check who you are cannot be published: it needs your legal name and your address.",

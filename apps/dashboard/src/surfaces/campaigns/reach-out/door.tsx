@@ -10,7 +10,7 @@
  * again behind it.
  */
 import { useEffect, useState } from "react";
-import type { ReachOutReachDto } from "@chanlytics/contracts";
+import { addressOf, type ReachOutReachDto } from "@chanlytics/contracts";
 import { gate, navigate } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
@@ -48,7 +48,9 @@ export function ReachOutDoor({ search, phone = false }: DoorProps) {
   // The button that presses is drawn only where there is a door to press.
   const press = () => {
     if (!door) return;
-    return door.kind === "open" ? navigate(`outbound/${door.rootId}`) : setOpen({ include: door.include });
+    return door.kind === "open"
+      ? navigate(addressOf({ kind: "reach_out", id: door.rootId }))
+      : setOpen({ include: door.include });
   };
   const gated = door && door.kind === "write" ? gate("approve", "write to these leads") : {};
   return (

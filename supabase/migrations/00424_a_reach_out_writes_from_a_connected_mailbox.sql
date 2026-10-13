@@ -1,4 +1,4 @@
--- 00422 · A reach-out writes from a connected mailbox (decision 0056).
+-- 00424 · A reach-out writes from a connected mailbox (decision 0056).
 --
 -- A reach-out's sends are planned, claimed and counted by the mailbox they leave from, never by a domain on an account
 -- of the platform's:
@@ -40,7 +40,7 @@ alter table public.reach_out_sends add constraint reach_out_sends_mailbox_id_sam
 create index if not exists reach_out_sends_mailbox_due on public.reach_out_sends (mailbox_id, send_at) where state = 'planned';
 create index if not exists reach_out_sends_mailbox on public.reach_out_sends (mailbox_id, state) where mailbox_id is not null;
 comment on column public.reach_out_sends.mailbox_id is
-  'The mailbox this send leaves from (00422): planned with it, claimed under its day, and kept by its lead for the whole chain. Null for a skipped send, or once its mailbox is gone.';
+  'The mailbox this send leaves from (00424): planned with it, claimed under its day, and kept by its lead for the whole chain. Null for a skipped send, or once its mailbox is gone.';
 
 alter table public.playbooks add column if not exists mailbox_ids uuid[] not null default '{}';
 comment on column public.reach_out_sends.domain_id is
@@ -48,9 +48,9 @@ comment on column public.reach_out_sends.domain_id is
 comment on column public.playbooks.domain_ids is
   'Retired (decision 0056): the sending domains a chain wrote from. reach_out_save empties it; mailbox_ids is the chain''s.';
 comment on column public.playbooks.mailbox_ids is
-  'A reach-out step''s mailboxes (00422): the ones its owner picked, or none for every connected one of its workspace.';
+  'A reach-out step''s mailboxes (00424): the ones its owner picked, or none for every connected one of its workspace.';
 
--- The check's holds, and what an owner may include past: a business abroad (00422).
+-- The check's holds, and what an owner may include past: a business abroad (00424).
 alter table public.reach_out_sends drop constraint if exists reach_out_sends_held_says_why;
 alter table public.reach_out_sends add constraint reach_out_sends_held_says_why check (
   state <> 'held' or reason in ('customer_domain', 'chain', 'language', 'unbacked_fact', 'reads_like_spam',
@@ -125,7 +125,7 @@ $$;
 revoke all on function public.mailbox_capacity(uuid, timestamptz) from public, anon, authenticated;
 grant execute on function public.mailbox_capacity(uuid, timestamptz) to service_role;
 comment on function public.mailbox_capacity(uuid, timestamptz) is
-  'A connected mailbox''s day (00422): its state, rest, cap and customer domain; sent_days (the UTC days it sent on since clean_since, before today''s: the ramp''s step, D15); sent_today and used (what left in the last day, and that plus what is written or claimed and not gone); recent (every moment it spends, planned included, epoch ms); last_sent_at. From its reach-out sends. Service role only.';
+  'A connected mailbox''s day (00424): its state, rest, cap and customer domain; sent_days (the UTC days it sent on since clean_since, before today''s: the ramp''s step, D15); sent_today and used (what left in the last day, and that plus what is written or claimed and not gone); recent (every moment it spends, planned included, epoch ms); last_sent_at. From its reach-out sends. Service role only.';
 
 /* --------------------------------------------------- 3. the clock's two reads -- */
 
@@ -165,7 +165,7 @@ $$;
 revoke all on function public.reach_out_due_mailboxes(timestamptz, integer, uuid, uuid[], uuid[]) from public, anon, authenticated;
 grant execute on function public.reach_out_due_mailboxes(timestamptz, integer, uuid, uuid[], uuid[]) to service_role;
 comment on function public.reach_out_due_mailboxes(timestamptz, integer, uuid, uuid[], uuid[]) is
-  'The connected, rested mailboxes with a reach-out send due and going ahead (checked, its run and chain running), earliest first (00422). Service role only.';
+  'The connected, rested mailboxes with a reach-out send due and going ahead (checked, its run and chain running), earliest first (00424). Service role only.';
 
 create or replace function public.reach_out_claim_from(p_mailbox_id uuid, p_cap integer, p_at timestamptz, p_limit integer)
 returns setof public.reach_out_sends
@@ -212,7 +212,7 @@ end $$;
 revoke all on function public.reach_out_claim_from(uuid, integer, timestamptz, integer) from public, anon, authenticated;
 grant execute on function public.reach_out_claim_from(uuid, integer, timestamptz, integer) to service_role;
 comment on function public.reach_out_claim_from(uuid, integer, timestamptz, integer) is
-  'A connected mailbox''s due reach-out sends, claimed within its day (p_cap less what it has used), at most p_limit, under the mailbox''s lock (C7, 00422). Nothing for a mailbox that is not connected, or resting. Service role only.';
+  'A connected mailbox''s due reach-out sends, claimed within its day (p_cap less what it has used), at most p_limit, under the mailbox''s lock (C7, 00424). Nothing for a mailbox that is not connected, or resting. Service role only.';
 
 /* ------------------------------------------------------- 4. the run, written -- */
 
@@ -257,7 +257,7 @@ begin
   return jsonb_build_object('id', v_run);
 end $$;
 comment on function public.reach_out_plan_run(jsonb, jsonb) is
-  'A reach-out step''s run and its sends, written whole (core runReachOut): {id}, or {exists} when the step already has its run for the day. Each send names its mailbox (00422). Service role only.';
+  'A reach-out step''s run and its sends, written whole (core runReachOut): {id}, or {exists} when the step already has its run for the day. Each send names its mailbox (00424). Service role only.';
 
 -- Each follower's mailbox: the one its chain's step before wrote to it from, so the nudge leaves from it, in the thread.
 drop function if exists public.reach_out_followers(uuid, uuid, uuid, int, int);
@@ -306,7 +306,7 @@ $$;
 revoke execute on function public.reach_out_followers(uuid, uuid, uuid, int, int) from public, anon, authenticated;
 grant execute on function public.reach_out_followers(uuid, uuid, uuid, int, int) to service_role;
 comment on function public.reach_out_followers(uuid, uuid, uuid, int, int) is
-  'A later reach-out step''s leads: those its step before wrote to p_after_days ago or more, whom the send door would still write to, with the mailbox the step before wrote from (00422) and the lead''s country. Service role only.';
+  'A later reach-out step''s leads: those its step before wrote to p_after_days ago or more, whom the send door would still write to, with the mailbox the step before wrote from (00424) and the lead''s country. Service role only.';
 
 /* ------------------------------------------------------ 5. the send door's ask -- */
 
@@ -334,7 +334,7 @@ $$;
 revoke all on function public.outreach_mailbox_facts(uuid, uuid, text, text, uuid) from public, anon, authenticated;
 grant execute on function public.outreach_mailbox_facts(uuid, uuid, text, text, uuid) to service_role;
 comment on function public.outreach_mailbox_facts(uuid, uuid, text, text, uuid) is
-  'What the send door asks of a cold email (00422): outreach_lead_facts, and the workspace''s mailbox its From is (its id, address and mailbox_capacity now), or null when the From is none of them. Service role only.';
+  'What the send door asks of a cold email (00424): outreach_lead_facts, and the workspace''s mailbox its From is (its id, address and mailbox_capacity now), or null when the From is none of them. Service role only.';
 
 /* ---------------------------------------------------------- 6. a mailbox's health -- */
 
@@ -384,7 +384,7 @@ $$;
 revoke all on function public.mailbox_connection_counts(uuid, timestamptz) from public, anon, authenticated;
 grant execute on function public.mailbox_connection_counts(uuid, timestamptz) to service_role;
 comment on function public.mailbox_connection_counts(uuid, timestamptz) is
-  'What a connected mailbox''s reach-out emails came to since p_since (00422): sent (its last 500 that left), bounced (permanent bounces of them), complained, and unsubscribed (the people whose unsubscribe or reply no names one of them, a no undone excepted). The mailboxes clock judges its health by them (contracts mailboxHoldOf). Service role only.';
+  'What a connected mailbox''s reach-out emails came to since p_since (00424): sent (its last 500 that left), bounced (permanent bounces of them), complained, and unsubscribed (the people whose unsubscribe or reply no names one of them, a no undone excepted). The mailboxes clock judges its health by them (contracts mailboxHoldOf). Service role only.';
 
 /* ------------------------------------------- 7. the doors that name a mailbox -- */
 
@@ -433,7 +433,7 @@ begin
       raise exception 'A call or a note ends the chain.' using errcode = '22023';
     end if;
   end loop;
-  -- The mailboxes it writes from are this workspace's, and not removed (00421).
+  -- The mailboxes it writes from are this workspace's, and not removed (00423).
   if exists (select 1 from unnest(v_mailboxes) b
               where not exists (select 1 from public.mailbox_connections c
                                  where c.id = b and c.tenant_id = p_tenant_id and c.state <> 'removed')) then
@@ -1006,7 +1006,7 @@ end $$;
 
 -- The provider's thread of an email a reach-out wrote from a mailbox (Gmail's threadId, Graph's conversationId) is kept
 -- on its message's meta.email.thread_id by the wire: the sync fetches only messages in these threads (decision 0056).
--- Its index is 00423's, built concurrently.
+-- Its index is 00425's, built concurrently.
 
 create or replace function public.mailbox_threads_known(p_tenant_id uuid, p_thread_ids text[])
 returns text[]
@@ -1023,7 +1023,7 @@ $$;
 revoke all on function public.mailbox_threads_known(uuid, text[]) from public, anon, authenticated;
 grant execute on function public.mailbox_threads_known(uuid, text[]) to service_role;
 comment on function public.mailbox_threads_known(uuid, text[]) is
-  'Of the provider thread ids a mailbox''s sync saw change, the ones a message this workspace sent is in (00422): only these are fetched. Service role only.';
+  'Of the provider thread ids a mailbox''s sync saw change, the ones a message this workspace sent is in (00424): only these are fetched. Service role only.';
 
 /* --------------------------------------------------- 9. an email sent from a mailbox -- */
 
@@ -1063,4 +1063,4 @@ $$;
 revoke all on function public.stamp_email_from_mailbox(uuid, uuid, text, text, text, uuid) from public, anon, authenticated;
 grant execute on function public.stamp_email_from_mailbox(uuid, uuid, text, text, text, uuid) to service_role;
 comment on function public.stamp_email_from_mailbox(uuid, uuid, text, text, text, uuid) is
-  'An email sent from a connected mailbox, stamped (00422): its provider id, the Message-ID it went under (meta.email.message_id, which a reply cites), its provider thread (meta.email.thread_id, which the sync reads by) and the mailbox (meta.email.mailbox_id); the mailbox''s last send. True when the row was there. Service role only.';
+  'An email sent from a connected mailbox, stamped (00424): its provider id, the Message-ID it went under (meta.email.message_id, which a reply cites), its provider thread (meta.email.thread_id, which the sync reads by) and the mailbox (meta.email.mailbox_id); the mailbox''s last send. True when the row was there. Service role only.';

@@ -19,7 +19,7 @@ import { agoShort } from "../shared/time";
 // The kinds as a type alone: the list is NOTIFICATION_DELIVERY's own keys, so the page's entry (alert-pane.ts) loads
 // nothing of the bell's feed.
 import type { ServerNotificationKind } from "./notifications";
-import { BELL_WINDOW_DAYS, type PushKind } from "./push";
+import { BELL_LIST_ROWS, BELL_WINDOW_DAYS, type PushKind } from "./push";
 
 /**
  * How each kept kind reaches the owner, beyond the row on the bell: by email as well, or on the bell alone.
@@ -367,7 +367,7 @@ export const ALERT_PANE_WORDS = {
   where: "Where alerts reach you",
   whereSub: "The bell keeps everything. Choose what else reaches you below.",
   bell: "Bell",
-  bellValue: `Everything below, for ${BELL_WINDOW_DAYS} days`,
+  bellValue: `Everything below, for ${BELL_WINDOW_DAYS} days; the newest ${BELL_LIST_ROWS} are listed`,
   bellOn: "Always on",
   email: "Email",
   emailNobody: "Nobody yet",

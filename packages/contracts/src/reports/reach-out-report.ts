@@ -50,9 +50,9 @@ export interface ReachOutReportMailboxDto {
   held_why: string | null;
   held_at: string | null;
   sent: number;
-  /** What left and did not fail: no provider tells a mailbox it delivered (00422). */
+  /** What left and did not fail: no provider tells a mailbox it delivered (00424). */
   delivered: number;
-  /** Permanent bounces, the mailbox's own rule (00422 mailbox_connection_counts). */
+  /** Permanent bounces, the mailbox's own rule (00424 mailbox_connection_counts). */
   bounced: number;
   complained: number;
 }
@@ -76,7 +76,7 @@ export interface ReachOutReportDto {
   angles: Array<{ angle: string; written: number; businesses?: number; wrote_back: number }>;
   other_angles: { written: number; businesses?: number; wrote_back: number };
   no_angle: number;
-  /** Where its emails left from (00422); a database before it says none. */
+  /** Where its emails left from (00424); a database before it says none. */
   mailboxes: ReachOutReportMailboxDto[];
 }
 

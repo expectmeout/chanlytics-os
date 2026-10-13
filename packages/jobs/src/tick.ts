@@ -16,7 +16,7 @@
  * slot is a runner of its own that claims one job, runs it, and claims the
  * next, so the rule holds slot by slot.
  */
-import { jittered, jobNewsWords, type JobEnd, type JobNews } from "@chanlytics/contracts";
+import { jittered, jobNewsWords, jobRecordOf, type JobEnd, type JobNews } from "@chanlytics/contracts";
 import {
   verdictFor,
   retryWait,
@@ -333,9 +333,12 @@ async function conclude(
     // back, so this is the one place job_failed is the truth.
     const words = jobNewsWords(job.kind, end, { attempts: job.attempts, resumed });
     const reference = `Reference: job ${job.id} (${job.kind}): ${reason}.`;
+    // The thread or the run the job names, where it names one; its list's door otherwise (contracts jobRecordOf).
+    const record = jobRecordOf(job.kind, job.payload);
     await ports.alert(job, {
       kind: "job_failed",
-      route: words.to,
+      route: record?.route ?? words.to,
+      about: record?.about ?? null,
       subject: words.title,
       body: [words.lead, wreckage, reference].filter(Boolean).join("\n\n"),
     });

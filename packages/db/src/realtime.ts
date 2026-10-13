@@ -39,7 +39,8 @@ const WATCHED: ReadonlyArray<{ table: string; events: readonly Event[] }> = [
   { table: "conversations", events: EVERY }, // the pause and snooze clocks, other tabs
   { table: "escalations", events: EVERY }, // opened by the edge, resolved elsewhere
   { table: "calls", events: EVERY }, // a call starting, each live turn, its end, its analysis: told with its statuses
-  { table: "notifications", events: INSERTS }, // an alert the edge kept: the bell repaints
+  // an alert the edge kept, or one closed when what it asked for ended (00421, told when closed_at moved): the bell repaints
+  { table: "notifications", events: INSERTS_AND_UPDATES },
   { table: "lines", events: EVERY }, // a line's saga step, its failure, its answer, its release: Setup repaints
   { table: "google_listings", events: EVERY }, // the listing linked, read, or removed: Setup and Reports repaint
   { table: "google_reviews", events: INSERTS }, // a review seen for the first time
@@ -48,7 +49,7 @@ const WATCHED: ReadonlyArray<{ table: string; events: readonly Event[] }> = [
   { table: "capability_activations", events: EVERY }, // the owner's act, in another tab: Setup repaints (00108)
   { table: "business_records", events: EVERY }, // the record the carriers read, saved on Connections: Setup repaints (00075)
   { table: "google_connections", events: EVERY }, // the profile connected, synced or failing by the hourly sweep: Connections repaints (00070)
-  { table: "mailbox_connections", events: EVERY }, // a mailbox connected, signed out, held, paused or removed, its day or records when they moved: Connections and the sheet repaint (00421)
+  { table: "mailbox_connections", events: EVERY }, // a mailbox connected, signed out, held, paused or removed, its day or records when they moved: Connections and the sheet repaint (00423)
   // a round's page committed, a check landed, a class changed: the Leads scope repaints (00140)
   { table: "leads", events: EVERY },
   { table: "lead_searches", events: EVERY },

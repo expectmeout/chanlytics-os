@@ -1,5 +1,5 @@
 /**
- * The mailboxes a business connected to write from (00421, decision 0056): the one place `mailbox_connections` is
+ * The mailboxes a business connected to write from (00423, decision 0056): the one place `mailbox_connections` is
  * typed. Members read their workspace's rows on their own client (RLS); the edge writes, as the service role, through
  * these: a connection made or found again (mailbox_connection_connect), its token in Vault (put/get/drop), a guarded
  * change of its state, the clock's reads and its sync's lease. A read or a door that fails throws: "could not check"
@@ -82,11 +82,11 @@ export async function mailboxesToTend(
   return data ?? [];
 }
 
-/** Why a connection was not made, by the door's own word (00421's P0001 hints). */
+/** Why a connection was not made, by the door's own word (00423's P0001 hints). */
 export type ConnectRefusal = "taken" | "too_many" | "too_many_on_domain";
 
 /**
- * The mailbox's row: made, or the same account's row found again and back to connected (00421
+ * The mailbox's row: made, or the same account's row found again and back to connected (00423
  * mailbox_connection_connect). A refusal the owner causes comes back as its code; anything else throws.
  */
 export async function connectMailbox(
@@ -139,7 +139,7 @@ export async function patchMailboxConnection(
 
 /* ------------------------------------------------------------------------------------------------ the token */
 
-/** The token, in Vault: a connect writes whatever is there; a refresh names the refresh token it read (00421). */
+/** The token, in Vault: a connect writes whatever is there; a refresh names the refresh token it read (00423). */
 export async function putMailboxCredentials(
   db: Db,
   p: { id: string; secret: Json; ifRefreshToken?: string | null },
@@ -172,7 +172,7 @@ export async function dropMailboxCredentials(db: Db, id: string): Promise<boolea
 /* -------------------------------------------------------------------------------------------- what it sent */
 
 /**
- * What a mailbox's own emails came to since it was counted clean (00422 mailbox_connection_counts): the mailboxes
+ * What a mailbox's own emails came to since it was counted clean (00424 mailbox_connection_counts): the mailboxes
  * clock judges its health by them (contracts mailboxHoldOf).
  */
 export async function mailboxCountsOf(
@@ -189,7 +189,7 @@ export async function mailboxCountsOf(
 }
 
 /**
- * An email sent from a mailbox, stamped (00422 stamp_email_from_mailbox): the provider's id, the Message-ID a reply
+ * An email sent from a mailbox, stamped (00424 stamp_email_from_mailbox): the provider's id, the Message-ID a reply
  * cites, the thread the sync reads by, and which mailbox. False when the row was not there.
  */
 export async function stampEmailFromMailbox(

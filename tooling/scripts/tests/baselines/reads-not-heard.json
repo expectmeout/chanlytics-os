@@ -504,7 +504,7 @@
       }
     },
     {
-      "why": "A chain's counts and its leads' timeline (reach_out_reach, reach_out_chain_report, reach_out_lead_timeline): sent, wrote back, the leads and the domain rows. The chains' read never hears a message or a lead on purpose (a chain is not a thread; its counts are its report, read when its sheet opens: refresh-map.ts, refresh-coverage.test.mjs), and the replies it counts are heard (reach_out_replies).",
+      "why": "A chain's counts and its leads' timeline (reach_out_reach, reach_out_chain_report, reach_out_lead_timeline): sent, wrote back, the leads and the mailbox each lead heard from (decision 0056). The chains' read never hears a message or a lead on purpose (a chain is not a thread; its counts are its report, read when its sheet opens: refresh-map.ts, refresh-coverage.test.mjs), and the replies it counts are heard (reach_out_replies).",
       "reads": {
         "reach_outs": [
           "calls",
@@ -514,9 +514,9 @@
           "lead_searches",
           "lead_suppressions",
           "leads",
+          "mailbox_connections",
           "messages",
-          "reach_out_sends",
-          "sending_domains"
+          "reach_out_sends"
         ]
       }
     },
@@ -529,14 +529,15 @@
       }
     },
     {
-      "why": "The reach-outs' part of the Campaigns lens and home counts what a chain sent and who wrote back, said no or booked (reach_out_chain_totals, reach_out_report): a lead's call, the leads and their searches, the sends' rows and the domain rows. The replies it counts are heard (reach_out_replies); a lead's stage written re-reads the lens in the writer's tab (refresh-map.ts leadsAnswered). Owed: hear the lead and domain tables they count.",
+      "why": "The reach-outs' part of the Campaigns lens and home counts what a chain sent and who wrote back, said no or booked (reach_out_chain_totals, reach_out_report): a lead's call, the leads and their searches, the sends' rows and the mailboxes they left from (connected, or the hosted address: decision 0056). The replies it counts are heard (reach_out_replies); a lead's stage written re-reads the lens in the writer's tab (refresh-map.ts leadsAnswered). Owed: hear the lead and mailbox tables they count.",
       "reads": {
         "campaign_results": [
           "calls",
           "lead_searches",
           "leads",
-          "reach_out_sends",
-          "sending_domains"
+          "mailbox_connections",
+          "mailboxes",
+          "reach_out_sends"
         ],
         "reports_campaigns": [
           "calls",
@@ -547,11 +548,12 @@
       }
     },
     {
-      "why": "The reply strip names the reply's lead, the person it came from, the email it answered and the domain it came to (repliesFor, reach_out_reply_undoable, answeredReachOutEmail). It hears the replies themselves (reach_out_replies); a lead, a person or a message changing underneath is read on the next read.",
+      "why": "The reply strip names the reply's lead, the person it came from, the email it answered and the connected mailbox it came to (decision 0056) (repliesFor, reach_out_reply_undoable, answeredReachOutEmail). It hears the replies themselves (reach_out_replies); a lead, a person or a message changing underneath is read on the next read.",
       "reads": {
         "reach_out_replies": [
           "contacts",
           "leads",
+          "mailbox_connections",
           "messages",
           "reach_out_sends"
         ]
@@ -562,6 +564,14 @@
       "reads": {
         "broadcasts": [
           "templates"
+        ]
+      }
+    },
+    {
+      "why": "The emails the check holds in a going reach-out run, counted beside each run of Sent (withHeld over heldSendCounts, the wiring's second audit W-campaign-run-template-reachout-4). A held email is decided on the run's page (POST reach-out-sends/[id]/decide) or sent to be checked again (POST broadcasts/[id]/recheck), writes whose rows re-read Sent; the check that holds one ticks the run's own row, which the feed tells. The feed does not tell reach_out_sends, which a run writes once for each email.",
+      "reads": {
+        "broadcasts": [
+          "reach_out_sends"
         ]
       }
     }

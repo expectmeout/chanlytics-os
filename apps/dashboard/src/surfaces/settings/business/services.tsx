@@ -405,6 +405,9 @@ const btsTold = (f: SheetFields) => {
           {words}
         </p>
       ) : null}
+      <p className="bt-services-note" data-testid="rec-sheet-services-public">
+        {BUSINESS_TAB.SERVICES_ON_PUBLIC_PAGE}
+      </p>
       <FieldError id="bt-services-problem" message={f.problems.services || null} testid="rec-services-problem" />
     </div>
   );

@@ -554,7 +554,7 @@ test("the Leads door: its search's chain, else its ready, else its unconfirmed i
   await settle();
   went.length = 0;
   press(byTestId(redraw(), "leads-write"));
-  assert.deepEqual(went, ["outbound/r9"], "one chain per search: its row");
+  assert.deepEqual(went, ["campaigns/moment:r9"], "one chain per search: its drawer, at its own address");
 
   verbs({ reach: { ready: 0, with_unconfirmed: 12, phone_only: 0, of: 30, chain: null } });
   redraw = door();

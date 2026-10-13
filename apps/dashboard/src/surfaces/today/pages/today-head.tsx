@@ -3,9 +3,13 @@
  * member by their first name as the page's name, and under it where the day stands. The frame draws the head
  * (kit/head/frame-head.tsx) with the date and time; the page says the greeting and the sentence. The sentence is the view
  * model's own (`headline` with its `detail`, which Ask reads: "2 conversations need you. The oldest has been waiting
- * since 2:26 PM."); the greeting is the only sentence made here.
+ * since 2:26 PM."); the greeting is the only sentence made here. It is said with the campaign runs waiting for your word
+ * (contracts standingWithRuns), which the page holds and the badge counts: a calm day with a run waiting leads with it, and
+ * never says "Nothing needs you" over it (the wiring's second audit, S7-1).
  */
+import { standingWithRuns } from "@chanlytics/contracts";
 import { useStanding } from "../../kit/head/standing";
+import { needsYouOnToday, useNeedsYouParts } from "../../needs-you";
 import { useSurface } from "../../use-surface";
 import { member, workspaceClock } from "../shell";
 
@@ -35,7 +39,9 @@ const todayOnPhone = (): boolean =>
 /** Today's standing, said to the frame's head as the page draws: the greeting over the day's sentence; "Today" on a phone. */
 export function useTodayStanding(): void {
   const vm = useSurface("today");
-  const standing = vm?.standing;
+  // Drawn again when a part of what waits moves (a run approved, a run made), not only when Today is read.
+  const live = useNeedsYouParts();
+  const standing = vm ? standingWithRuns(vm.standing, needsYouOnToday(vm, live).runs) : undefined;
   const zone = workspaceClock()?.zone() ?? "UTC";
   useStanding(
     todayOnPhone()

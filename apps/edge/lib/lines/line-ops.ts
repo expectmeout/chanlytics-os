@@ -18,7 +18,7 @@
  * asked before a row exists, and a filing the pre-flight refuses never
  * reaches the vault.
  */
-import type { Database } from "../packages/db.js";
+import type { Database, OpenToCustomersRead } from "../packages/db.js";
 import { isAreaCode, LINE_COSTS, type LineProviderName } from "../packages/channels.js";
 import {
   formatPhoneDisplay,
@@ -35,6 +35,11 @@ import {
   businessRecordForPath,
   registrationPathOf,
   REGISTRATION_PATHS,
+  SPEND_TEXTING,
+  changedRecordFields,
+  recordFilingOf,
+  type BusinessRecordColumn,
+  type RecordFiling,
   type RegistrationPath,
 } from "../packages/contracts.js";
 import { lineForClient, type LineProviderChoice } from "./lines.js";
@@ -42,7 +47,7 @@ import { campaignFactsFor } from "./a2p-campaign-facts.js";
 import type { RegisterResult } from "./a2p-register.js";
 import type { RefileOutcome } from "./a2p-refile.js";
 import type { RegistrationSync } from "./a2p-sync.js";
-import { retryRequestedBy, type LineDbRow } from "./line-resume.js";
+import { factsOf, FILED_NAME_FACT, retryRequestedBy, type LineDbRow } from "./line-resume.js";
 import type { LineReleaseResult } from "./line-release.js";
 import { errorMessage, type DoorAnswer } from "../admin-door.js";
 
@@ -173,6 +178,21 @@ export function spendRefusal(bill: BillingRead, doing: SpendWords): DoorAnswer |
   if (why)
     return { status: 402, body: { ok: false, error: "payment_required", detail: why, status: bill.data.status } };
   return null;
+}
+
+/**
+ * Why the filing nobody presses waits (the wiring's second audit, X4-8): the owner's own rules for spending on the
+ * carriers, asked for the campaign the hourly registrations sweep files when a brand is approved. Not while the workspace
+ * is paused or ended (contracts openToCustomersOf: nobody answers on its behalf, and its pages say it is not taking
+ * sign-ups), and not on a plan that may not spend on texting (spendRefusal, the owner's press's own gate). Null: file.
+ */
+export function sweepFilingHold(
+  s: OpenToCustomersRead,
+): "paused" | "ended" | "no_billing_record" | "payment_required" | null {
+  if (s.open !== "open") return s.open;
+  const refused = spendRefusal({ data: s.billing, error: null }, SPEND_TEXTING);
+  if (!refused) return null;
+  return refused.body.error === "no_billing_record" ? "no_billing_record" : "payment_required";
 }
 
 /* ------------------------------------------------------------------- buy */
@@ -407,7 +427,44 @@ export function recordRefusal(row: RecordDraft, path: RegistrationPath, ourNumbe
   };
 }
 
-export function recordAnswer(kept: Pick<RecordRow, "legal_name" | "ein" | "updated_at">): DoorAnswer {
+/** A line as the save reads it: where its filing stands, and the name its brand was filed under. */
+type RecordSaveLine = Pick<LineDbRow, "sms_state" | "reg_mock" | "brand_sid" | "facts">;
+
+/**
+ * What a save of the business on record moved, and what the carriers hold of it (the wiring's second audit, X4-3): the
+ * first record kept, the columns that changed (names, never values), where the workspace's filing stands across its
+ * lines (null when they could not be read), and the name its brand was filed under, where a filing kept one.
+ */
+interface RecordSaved {
+  first: boolean;
+  changed: BusinessRecordColumn[];
+  filing: RecordFiling | null;
+  filedName: string | null;
+}
+
+const filingOfLine = (l: RecordSaveLine) => ({ sms_state: l.sms_state, reg_mock: l.reg_mock, brand: !!l.brand_sid });
+
+export function recordSaved(
+  before: RecordRow | null,
+  after: RecordRow,
+  lines: readonly RecordSaveLine[] | null,
+): RecordSaved {
+  const named = (lines ?? [])
+    .filter((l) => recordFilingOf([filingOfLine(l)]) !== "none")
+    .map((l) => factsOf(l)[FILED_NAME_FACT])
+    .find((n): n is string => typeof n === "string" && !!n.trim());
+  return {
+    first: !before,
+    changed: before ? changedRecordFields(before, after) : [],
+    filing: lines ? recordFilingOf(lines.map(filingOfLine)) : null,
+    filedName: named ? named.trim() : null,
+  };
+}
+
+export function recordAnswer(
+  kept: Pick<RecordRow, "legal_name" | "ein" | "updated_at">,
+  saved: RecordSaved,
+): DoorAnswer {
   return {
     status: 200,
     body: {
@@ -417,6 +474,11 @@ export function recordAnswer(kept: Pick<RecordRow, "legal_name" | "ein" | "updat
         path: registrationPathOf(kept),
         sole_proprietor: !kept.ein,
         updated_at: kept.updated_at,
+        // What the save says to the owner (contracts recordSavedOf, recordSavedWords).
+        first: saved.first,
+        changed: saved.changed,
+        filing: saved.filing,
+        filed_name: saved.filedName,
       },
     },
   };

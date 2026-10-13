@@ -357,7 +357,17 @@ test("a paused subscription pauses the workspace and rings once; resuming turns 
     "active",
     "the receptionist answers again",
   );
-  assert.equal(writes(db, "notifications").length, 2, "one bell each way, never twice for one change");
+  assert.equal(
+    writes(db, "notifications").filter((w) => w.op === "insert").length,
+    2,
+    "one bell each way, never twice for one change",
+  );
+  // And "is back" mends "is paused" (contracts NOTICE_MENDS): the warning is closed, not left amber beside the good news.
+  assert.equal(
+    writes(db, "notifications").filter((w) => w.op === "update").length,
+    1,
+    "the pause's warning closed by its mend",
+  );
   assert.equal(first(writes(db, "events").at(-1)).kind, "billing.resumed");
 });
 

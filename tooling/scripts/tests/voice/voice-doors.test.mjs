@@ -504,7 +504,7 @@ test("provision, the apply that buys a number: the LLM that is the shell, the ag
   const bell = tables.notifications[0];
   assert.deepEqual(
     [bell.tenant_id, bell.kind, bell.title, bell.route, bell.subject_type, bell.subject_id],
-    [A, "number", `Your phone line is ready: ${shown}`, "admin/setup", "setup", row.id],
+    [A, "number", `Your phone line is ready: ${shown}`, "start", "setup", row.id],
   );
   assert.ok(
     bell.body.includes(`The receptionist answers calls on ${shown}.`) &&

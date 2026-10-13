@@ -2507,10 +2507,13 @@ interface CancelReceipt {
  * stops at its next batch — the messages already on their way are on their
  * way, and the row says how many. Waiting for approval (a playbook's run
  * under the ask mode): skipped, nothing was ever scheduled. Anything else
- * has already ended and says so. The ledger records the decision.
+ * has already ended and says so. The ledger records the decision, with why
+ * where the system skipped it (`day_passed`: the edge's playbooks sweep ends a
+ * run waiting for approval after its day, which no approval can send).
  */
 declare function cancelBroadcast(ports: CancelBroadcastPorts, cmd: {
     row: Pick<BroadcastRef, "id" | "state" | "name">;
+    reason?: "day_passed";
 }): Promise<CancelReceipt>;
 
 /** Everything a playbook names, checked. */
@@ -2699,7 +2702,7 @@ interface ReachOutStep {
     after_playbook_id: string | null;
     after_days: number | null;
     gap_minutes: number;
-    /** The mailboxes it writes from (00422); none named is every connected one. */
+    /** The mailboxes it writes from (00424); none named is every connected one. */
     mailbox_ids: string[];
     cap_per_run: number;
     template_id: string;
@@ -2758,7 +2761,7 @@ interface ReachOutFollower extends ReachOutLead {
     };
     /** Any email of the chain to them bounced or failed for good (C4). */
     bounced: boolean;
-    /** The mailbox the step before wrote to them from (00422): this step writes from it too, in its thread. */
+    /** The mailbox the step before wrote to them from (00424): this step writes from it too, in its thread. */
     mailbox_id: string | null;
 }
 interface NewReachOutRun {

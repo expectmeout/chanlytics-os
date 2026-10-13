@@ -2077,7 +2077,7 @@ test("REGRESSION (C13): each source row opens its playbook or its broadcast -- t
   const rows = all(page(), (n) => n.props?.["data-testid"] === "source-row");
   assert.equal(rows.length, 2);
   for (const r of rows) press(byTestId(r, "source-open"));
-  assert.deepEqual(went, ["outbound/p1", "broadcasts/run:b1"], "REGRESSION: no door on either row");
+  assert.deepEqual(went, ["campaigns/moment:p1", "broadcasts/run:b1"], "REGRESSION: no door on either row");
   // Each row's shares are of its own sends, said as the view model says them: from five sends a percentage (the answered with their count).
   assert.deepEqual(
     rows.map((r) =>

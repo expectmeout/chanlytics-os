@@ -119,7 +119,7 @@ test("the strip says how many, today's of the day's share, the next and where fr
   const s = reachOutStripOf(lines(), chain, NOW, TZ);
   assert.equal(s.title, "Writing to 44 businesses");
   assert.deepEqual(s.parts, ["18 of 30 today", "next 11:12 AM, Zilker Kettlebell Club", "from sam@mail.example.com"]);
-  // A line from before 00422 names its domain alone, and says that.
+  // A line from before 00424 names its domain alone, and says that.
   const older = reachOutStripOf(lines({ next: { ...lines().next, from: undefined } }), chain, NOW, TZ);
   assert.equal(older.parts[2], "from mail.example.com");
   assert.equal(s.running, true);

@@ -70,7 +70,7 @@ function wireOf(result = { ok: true, wamid: "wamid.1", status: 200 }) {
   };
 }
 /**
- * The send door's one question for a cold email (00422 outreach_mailbox_facts), answered from the world's tables the
+ * The send door's one question for a cold email (00424 outreach_mailbox_facts), answered from the world's tables the
  * way the SQL answers it; the SQL itself is proved on a database (outreach-facts.db.test.mjs). `t.suppressed` lists the
  * addresses on the never-again list; `t.sent_today` is what the mailbox sent in the rolling day; a person wrote back when an
  * inbound message of theirs is on one of their threads, an email's automatic reply aside (00181; a reply from another

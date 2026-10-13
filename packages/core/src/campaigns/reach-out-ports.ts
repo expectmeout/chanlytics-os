@@ -19,7 +19,7 @@ export interface ReachOutStep {
   after_playbook_id: string | null;
   after_days: number | null;
   gap_minutes: number;
-  /** The mailboxes it writes from (00422); none named is every connected one. */
+  /** The mailboxes it writes from (00424); none named is every connected one. */
   mailbox_ids: string[];
   cap_per_run: number;
   template_id: string;
@@ -75,7 +75,7 @@ export interface ReachOutFollower extends ReachOutLead {
   facts: { lead_stage: string | null; suppressed: boolean; wrote_back: boolean; away?: boolean; stopped?: boolean };
   /** Any email of the chain to them bounced or failed for good (C4). */
   bounced: boolean;
-  /** The mailbox the step before wrote to them from (00422): this step writes from it too, in its thread. */
+  /** The mailbox the step before wrote to them from (00424): this step writes from it too, in its thread. */
   mailbox_id: string | null;
 }
 

@@ -1,5 +1,5 @@
 /**
- * The reach-out sender on a real database (00187, Reach out Part 3 PR 6; from a connected mailbox since 00422). Its two
+ * The reach-out sender on a real database (00187, Reach out Part 3 PR 6; from a connected mailbox since 00424). Its two
  * reads, at the sizes a page would have failed at: the mailboxes with sends due are filtered before their limit, so six
  * hundred sends a paused chain holds on one mailbox never keep another's due send out of the page; the month's count is the workspace's own calendar month in
  * its own zone, and only what left, may have left, or waits to go. Then the writer itself, over the real guards: a due
@@ -76,7 +76,7 @@ const chain = async (tenant, state = "running", tpl = template) =>
       state,
     }),
   );
-/** A mailbox the business connected, on a host of its own (ten a workspace, 00421). */
+/** A mailbox the business connected, on a host of its own (ten a workspace, 00423). */
 const mailbox = (tenant, over = {}) => {
   n += 1;
   return one(
@@ -215,7 +215,7 @@ test(
       checked_at: null,
       checked_words: null,
     });
-    // Nor a mailbox its owner paused, or one its provider has rested until later (00422).
+    // Nor a mailbox its owner paused, or one its provider has rested until later (00424).
     const pausedBox = await mailbox(A, { state: "paused" });
     const resting = await mailbox(A, { resting_until: iso(Date.now() + 60 * MIN) });
     await planned(A, goRun, going, pausedBox, await leads(A, 1), Date.now() - 5 * DAY);

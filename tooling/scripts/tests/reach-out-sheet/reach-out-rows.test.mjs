@@ -701,3 +701,18 @@ test("Edit opens the reach-out sheet over the chain as read, saves through its o
     W.ST_STORE = keep;
   }
 });
+
+test("a reach-out opens by its root or by any of its steps: a later email's run no longer says the campaign is gone (W-campaign-run-template-reachout-3)", () => {
+  const chains = [
+    { root_id: "r1", steps: [{ id: "r1" }, { id: "s2" }, { id: "s3" }] },
+    { root_id: "r9", steps: [{ id: "r9" }] },
+  ];
+  assert.equal(contracts.chainOfMoment(chains, "r1")?.root_id, "r1", "its root");
+  assert.equal(
+    contracts.chainOfMoment(chains, "s3")?.root_id,
+    "r1",
+    "REGRESSION: the third email's run linked its step, and the drawer opened on it said 'This campaign is gone'",
+  );
+  assert.equal(contracts.chainOfMoment(chains, "pb-7"), null, "a playbook's id is no reach-out's");
+  assert.equal(contracts.chainOfMoment([], "s3"), null);
+});

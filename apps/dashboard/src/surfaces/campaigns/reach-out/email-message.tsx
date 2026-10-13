@@ -16,6 +16,7 @@
  */
 import { useState } from "react";
 import {
+  addressOf,
   REACH_OUT_LANGUAGE,
   REACH_OUT_SLOT_SET,
   fillSlots,
@@ -111,7 +112,7 @@ export function ReachOutEmailPane({ t, busy, onSave, onClose }: PaneProps) {
   const chains = useSurface("reach_outs");
   const W = reachOuts.words;
   const w = W.emailTemplateWords({ chainName: t.chain_name, stepN: t.step_n, afterDays: t.after_days });
-  const go = () => navigate(`outbound/${t.root_id}`);
+  const go = () => navigate(addressOf({ kind: "reach_out", id: t.root_id }));
   const chain = (chains || []).find((c) => c.root_id === t.root_id);
   const mayEdit = !!(chain && chain.search && canDo("approve"));
   // The six slots filled as one business would see them: made-up for what changes from business to business, and this

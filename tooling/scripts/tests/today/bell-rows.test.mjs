@@ -14,6 +14,7 @@ import {
   jobNewsWords,
   nameKnownCustomers,
   serverNotificationRows,
+  todayAwayGrouped,
   JOB_KINDS,
   REACH_OUT_DAY_ROUTE,
 } from "@chanlytics/contracts";
@@ -274,6 +275,34 @@ test("the bell says notes of one kind once, where the newest stood, new above ea
     "one of a kind is a note, not a group",
   );
   assert.deepEqual(bellSections([]), [], "an empty bell has no sections");
+});
+
+test("the unread rows the bell does not list are said once, after its own, with the act that clears them; the away card counts them", () => {
+  const rows = [{ id: "n:1", kind: "review", unread: true }];
+  assert.deepEqual(
+    bellSections(rows, 3).map((x) => [x.label, x.lines.length]),
+    [
+      ["New", 1],
+      ["3 older unread notices are not listed. Mark all read clears them.", 0],
+    ],
+  );
+  assert.deepEqual(
+    bellSections([], 1).map((x) => x.label),
+    ["1 older unread notice is not listed. Mark all read clears it."],
+    "REGRESSION: the badge counted unread rows past the bell's list, and the bell said nothing of them",
+  );
+  assert.deepEqual(
+    bellSections(rows).map((x) => x.label),
+    ["New"],
+  );
+  // The away card: the older rows are in its total, and alone they are its sentence, never "All caught up."
+  const only = todayAwayGrouped([], [], 5, 2);
+  assert.equal(only.total, 2);
+  assert.deepEqual(only.empty, {
+    icon: "bell",
+    text: "2 older unread notices are not listed. Mark all read clears them.",
+  });
+  assert.equal(todayAwayGrouped([], [], 5, 0).empty.text, "All caught up.");
 });
 
 /* ------------------------------ the popover ------------------------------ */

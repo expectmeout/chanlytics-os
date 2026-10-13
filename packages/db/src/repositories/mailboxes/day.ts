@@ -1,5 +1,5 @@
 /**
- * A connected mailbox's day (decision 0056; 00422): what it may still send (mailbox_capacity), the one reading the
+ * A connected mailbox's day (decision 0056; 00424): what it may still send (mailbox_capacity), the one reading the
  * timetable, the claim and the door share, and the mailboxes with sends due that the reach-out clock claims from
  * (reach_out_due_mailboxes). The service role asks both; a read that fails throws.
  */
@@ -9,7 +9,7 @@ import type { Database } from "../../database.types";
 type Db = SupabaseClient<Database>;
 
 /**
- * What a connected mailbox may still send (00422 mailbox_capacity): the one reading the timetable, the claim and the
+ * What a connected mailbox may still send (00424 mailbox_capacity): the one reading the timetable, the claim and the
  * door share. Its day is contracts' mailboxDailyCap of these.
  */
 export interface MailboxCapacity {
@@ -63,7 +63,7 @@ export interface DueMailbox {
 
 /**
  * The connected, rested mailboxes with sends due in runs that go ahead on running chains, longest waiting first
- * (00422), past the workspaces and mailboxes the caller is done with this tick. The lists ride in the call's body, not
+ * (00424), past the workspaces and mailboxes the caller is done with this tick. The lists ride in the call's body, not
  * its address, so their length is no URL's.
  */
 export async function dueMailboxes(

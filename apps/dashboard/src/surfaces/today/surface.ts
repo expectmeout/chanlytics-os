@@ -8,9 +8,10 @@
 import { read } from "@/legacy-bridge/api";
 import { isLiveCallTurn } from "@/legacy-bridge/surface-realtime";
 import { declareReads } from "@/legacy-bridge/surface-registry";
-import { toTodayVM, type CallDto, type LeadSearchDto } from "@chanlytics/contracts";
+import { heldThreadIds, toTodayVM, type CallDto, type LeadSearchDto } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { declareSurfaceValue, setSurfaceValue } from "../surface-values";
+import { readHeldThreads } from "../inbox/held-threads";
 
 // The pages that have not moved (Ask, the phone app's bridge, the bell) still read the day under its old name.
 declareSurfaceValue("today", "TODAY_DATA");
@@ -97,10 +98,19 @@ export const todayOverride: SurfaceOverride = {
     } catch (e) {
       console.error("today_searches_fetch_failed", e instanceof Error ? e.message : e);
     }
+    // The threads of open holds past the hundred, by their ids, the Inbox's own read (one rule, one read): a hold whose
+    // thread is older than the page is judged by its own standing and named, as the Inbox judges it (S7-7). Read only
+    // where there is one; a read that failed leaves each counted as waiting (unknown is not handled).
+    const ids = heldThreadIds(new Set(convData.conversations.map((c) => c.id)), escData.escalations);
+    const heldThreads = await readHeldThreads(ids);
+    if (heldThreads === null) console.error("today_held_threads_fetch_failed", ids.length);
     const now = new Date();
+    // The brief is said here without the runs: the page holds Sent's runs and says the head with them (today-head.tsx).
     setSurfaceValue(
       "today",
-      toTodayVM(metricsRes.metrics, convData.conversations, escData.escalations, calls, now, searches),
+      toTodayVM(metricsRes.metrics, convData.conversations, escData.escalations, calls, now, searches, {
+        heldThreads,
+      }),
     );
     // Today publishes no count for the badge, the tabs, the title or the phone. It used to send one after every read
     // (metrics.now.escalations_open, then threadStanding alone, then the newest page alone, then threadsWaitingOnYou), each a

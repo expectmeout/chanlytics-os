@@ -69,6 +69,12 @@ test("the seven are the table's seven, its devices its two, and a page is named 
   const person = "5f0c9a3e-1111-4222-8333-444455556666";
   assert.equal(named({ hash: `#/clients/${person}` }), "person");
   assert.equal(named({ pathname: `/w/acme/people/${person}` }), "person");
+  for (const tab of ["history", "visits", "about"])
+    assert.equal(
+      named({ pathname: `/w/acme/people/${person}/${tab}` }),
+      "person",
+      `REGRESSION (S5-2): a person's ${tab} tab was counted as the People list`,
+    );
   assert.equal(named({ pathname: "/w/acme/people" }), "people");
   assert.equal(named({ pathname: "/w/acme/people/seg:needs_you" }), "people", "a list of People is People");
   assert.equal(named({ pathname: "/w/acme/people/leads" }), "leads");

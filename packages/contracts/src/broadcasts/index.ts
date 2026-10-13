@@ -8,6 +8,7 @@ export {
   sentByWords,
   emptyAudienceRefusal,
   BROADCAST_STATES,
+  RUN_GOING_STATES,
   RECIPIENT_STATES,
   REACH_OUT_SEND_STATES,
   BROADCAST_STATE_LABELS,

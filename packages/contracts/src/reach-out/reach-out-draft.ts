@@ -40,7 +40,7 @@ export interface ReachOutDraft {
   name: string;
   include_unconfirmed: boolean;
   gap_minutes: number;
-  /** Empty: every connected mailbox of the workspace (00422). */
+  /** Empty: every connected mailbox of the workspace (00424). */
   mailbox_ids: string[];
   signed_by: string;
   steps: ReachOutDraftStep[];

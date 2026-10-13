@@ -1,13 +1,11 @@
 import { agoShort as spanAgo, MIN_MS } from "../shared/time";
 import { callAttemptWords } from "../conversations/call-dto";
 import { replyWaitsOnYou } from "../conversations/standing";
-import { ESCALATION_REASON_SHORT, HOLD_ACT_WORDS, holdActOf, reasonShort } from "../conversations/escalations";
 import { missedCallIsNews, type LiveCallVM } from "../voice/live";
 import { FINISH_SETTING_UP } from "../setup/first-run";
 import { lensRoute } from "../reports/lenses";
 import { firstLine } from "./push";
 import type { JobKind } from "../shared/enums";
-import { formatPhoneDisplay } from "../shared/phone";
 import { invitationExpired } from "../shell/identity";
 /**
  * The bell: what needs the owner, from what the browser already holds.
@@ -337,12 +335,33 @@ export interface NotificationDto {
   /** This person's marks. */
   read: boolean;
   dismissed: boolean;
+  /** When what the row asked for ended for good, for everyone (00421); absent from a server before it. */
+  closed_at?: string | null;
 }
 
 /** What `GET /api/v1/notifications` returns: the month's rows and this person's "seen everything" moment. */
 export interface NotificationsDto {
   notifications: NotificationDto[];
   seen_at: string | null;
+  /**
+   * This reader's unread kept rows of the whole window, by unreadFor: the listed rows' and the older ones' (the bell lists
+   * the newest BELL_LIST_ROWS). Absent from a server before it.
+   */
+  unread?: number;
+  /**
+   * The threads of the older unread rows that are a hold's notice: the bell draws a hold that still waits as its own row,
+   * so those are not counted twice (waits/hold-rows.ts bellOlderOf). Absent from a server before it.
+   */
+  older_holds?: string[];
+}
+
+/**
+ * A row whose wait ended reads as read and wears no warning (a warning over a settled wait is the one thing it must not
+ * wear); it stays on the bell, under Earlier, as the record. The server's close (closed_at) and the surfaces' judgement
+ * (notice-closes.ts) both settle a row this one way.
+ */
+export function settledRow<T extends NotificationRow>(row: T): T {
+  return { ...row, unread: false, tone: row.tone === "warn" ? "" : row.tone };
 }
 
 /* ------------------------------------------------- a job's news, in an owner's words */
@@ -641,7 +660,7 @@ export function serverNotificationRows(dto: NotificationsDto | null | undefined)
       const job = jobRowWords(n);
       // The day's reach-out numbers open the Reach-outs, whatever route their row was kept with.
       const route = job ? job.route : n.kind === "reach_out_day" ? REACH_OUT_DAY_ROUTE : n.route;
-      return {
+      const row: NotificationRow = {
         key: `${SERVER_KEY_PREFIX}${n.id}`,
         kind: (SERVER_NOTIFICATION_KINDS as readonly string[]).includes(n.kind)
           ? (n.kind as NotificationKind)
@@ -656,6 +675,8 @@ export function serverNotificationRows(dto: NotificationsDto | null | undefined)
         unread: at > seen && !n.read,
         about: n.subject_type && n.subject_id ? { type: n.subject_type, id: n.subject_id } : null,
       };
+      // What the row asked for ended for good, for everyone (00421): read, and no warning.
+      return n.closed_at ? settledRow(row) : row;
     });
 }
 
@@ -716,84 +737,4 @@ export function nameKnownCustomers<T extends NotificationRow>(
           : undefined;
     return who ? { ...r, title: r.title.replace(NUMBER_IN_WORDS, who) } : r;
   });
-}
-
-/* ---- A hold, told from its record (decision 0043) ---- */
-
-/*
- * Why a thread waits for a person is said in the Inbox's own words (escalations.ts ESCALATION_REASON_SHORT, through
- * reasonShort), "needs a person — <why>", and what the owner does about it in the reason's act (HOLD_ACT_WORDS): a
- * reason has one vocabulary, in the mail, the phone, the bell and every page (D1-hold-reasons). This file held a second
- * map for the same closed set ("has waited two hours for a person" where the Inbox said "nobody picked this up").
- */
-
-/** The channel a thread was last written on, in the words an owner reads. */
-const HOLD_CHANNEL_WORDS: Readonly<Record<string, string>> = {
-  whatsapp: "WhatsApp",
-  sms: "Text",
-  email: "Email",
-  voice: "Phone",
-};
-
-/** What a hold's notice says, read from its rows (packages/db holdFactsOf). */
-export interface HoldFacts {
-  conversationId: string;
-  /** The hold's reason, one of ESCALATION_REASONS. */
-  reason: string;
-  /** The hold's own words: what happened and what to do, written where it was decided. */
-  details: string | null;
-  /** The person's name, when the record has one. */
-  who: string | null;
-  /** Their number (E.164) or their address. */
-  address: string | null;
-  /** The channel of their latest message, or of the thread. */
-  channel: string | null;
-  /** Their latest words in the thread. */
-  customerWords: string | null;
-  /** What the receptionist said or held after them, when it did. */
-  replyWords: string | null;
-  /** How many hours the receptionist is out of the thread, when it is. */
-  pausedHours: number | null;
-  /** The person is erased, or being erased: the thread is told of, never them. */
-  erased: boolean;
-}
-
-/** A line of words cut to `max` characters, an ellipsis where it was cut. */
-const clipped = (s: string, max: number): string => {
-  const t = s.replace(/\s+/g, " ").trim();
-  return t.length > max ? `${t.slice(0, max - 1)}…` : t;
-};
-
-/**
- * The owner's notice of a hold (decision 0043): who needs a person and why, their words and the receptionist's, the
- * hold's own words, where to answer, and the pause when there is one. An erased person is "A customer", with no words
- * and no number. The platform's copy, for a workspace nobody can be told in, says the fact and never the words.
- */
-export function holdNotice(f: HoldFacts): Omit<JobNews, "sourceEvent"> {
-  // The Inbox's clause for the reason, and none for a reason the set does not know (the subject then says only that a
-  // person is needed, never the raw token).
-  const why = Object.hasOwn(ESCALATION_REASON_SHORT, f.reason) ? reasonShort(f.reason) : null;
-  const act = HOLD_ACT_WORDS[holdActOf(f.reason)].notice;
-  const where = HOLD_CHANNEL_WORDS[f.channel ?? ""] ?? "The";
-  const shown = f.erased ? null : f.address?.startsWith("+") ? (formatPhoneDisplay(f.address) ?? f.address) : f.address;
-  const name = (!f.erased && f.who?.trim()) || shown || "A customer";
-  const lines = f.erased
-    ? []
-    : [
-        ...(f.customerWords ? [`They wrote: “${clipped(f.customerWords, 600)}”`] : []),
-        ...(f.replyWords ? [`The receptionist: “${clipped(f.replyWords, 600)}”`] : []),
-        ...(f.details ? [clipped(f.details, 600)] : []),
-      ];
-  // What to do, by the reason's act: reply, call back, or nothing that may be sent; the pause rides after it when there is one.
-  const pause = f.pausedHours
-    ? `${act.replace(/\.$/, "")} — the receptionist is paused on this thread for ${f.pausedHours}h.`
-    : act;
-  return {
-    kind: "handoff",
-    route: `inbox/th-${f.conversationId}`,
-    about: { type: "conversation", id: f.conversationId },
-    subject: clipped(why ? `${name} needs a person — ${why}` : `${name} needs a person`, 200),
-    body: [...lines, "", `${where} conversation${shown ? ` · ${shown}` : ""}`, pause].join("\n").replace(/^\n/, ""),
-    redactedBody: `A ${where === "The" ? "" : `${where} `}conversation needed a person${why ? ` (${why})` : ""}, and nobody could be told.`,
-  };
 }

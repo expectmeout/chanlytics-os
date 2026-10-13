@@ -563,8 +563,9 @@ const ownKept = (u: Record<string, unknown>): OwnVersionChannel[] =>
  * said before anything is filed (the card was made by the same checks). Its receipt says what the door filed and the
  * version it could not. Its undo deletes the email and text versions the door filed, one DELETE templates/versions/[id]
  * each, within ten minutes; a WhatsApp version is WhatsApp's to hold (deleting a template at Meta is a decision of its
- * own), so it is left, and the undo says so and where it is deleted by hand. Open is the Library, which gives one message
- * no address of its own.
+ * own), so it is left, and the undo says so and where it is deleted by hand. Open is the Library's list, the card's door
+ * before it is approved, when there is no message yet to open; Ask's rows of a message made open the message itself, at its
+ * own address by name (addressOf, the templates reader).
  */
 export const messageSpec: ProposalSpec = {
   needs: "operator",

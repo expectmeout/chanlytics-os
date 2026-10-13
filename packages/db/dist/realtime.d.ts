@@ -4332,6 +4332,7 @@ type Database = {
             notifications: {
                 Row: {
                     body: string;
+                    closed_at: string | null;
                     created_at: string;
                     id: string;
                     kind: string;
@@ -4346,6 +4347,7 @@ type Database = {
                 };
                 Insert: {
                     body: string;
+                    closed_at?: string | null;
                     created_at?: string;
                     id?: string;
                     kind: string;
@@ -4360,6 +4362,7 @@ type Database = {
                 };
                 Update: {
                     body?: string;
+                    closed_at?: string | null;
                     created_at?: string;
                     id?: string;
                     kind?: string;
@@ -5692,13 +5695,6 @@ type Database = {
                 };
                 Relationships: [
                     {
-                        foreignKeyName: "reach_out_sends_mailbox_id_same_workspace";
-                        columns: ["tenant_id", "mailbox_id"];
-                        isOneToOne: false;
-                        referencedRelation: "mailbox_connections";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
                         foreignKeyName: "reach_out_sends_broadcast_id_same_workspace";
                         columns: ["tenant_id", "broadcast_id"];
                         isOneToOne: false;
@@ -5724,6 +5720,13 @@ type Database = {
                         columns: ["tenant_id", "lead_id"];
                         isOneToOne: false;
                         referencedRelation: "leads";
+                        referencedColumns: ["tenant_id", "id"];
+                    },
+                    {
+                        foreignKeyName: "reach_out_sends_mailbox_id_same_workspace";
+                        columns: ["tenant_id", "mailbox_id"];
+                        isOneToOne: false;
+                        referencedRelation: "mailbox_connections";
                         referencedColumns: ["tenant_id", "id"];
                     },
                     {
@@ -8068,6 +8071,16 @@ type Database = {
                 };
                 Returns: Json;
             };
+            notifications_close_about: {
+                Args: {
+                    p_kinds: string[];
+                    p_subject_id: string;
+                    p_subject_type: string;
+                    p_tenant_id: string;
+                    p_title?: string;
+                };
+                Returns: number;
+            };
             notifications_seen: {
                 Args: {
                     p_tenant_id: string;
@@ -8499,6 +8512,7 @@ type Database = {
             person_call_logged: {
                 Args: {
                     p_body: string;
+                    p_closes_call_back?: boolean;
                     p_contact_id: string;
                     p_due_on?: string;
                     p_lead_note?: string;
@@ -9046,6 +9060,14 @@ type Database = {
                 };
                 Returns: string;
             };
+            put_mailbox_credentials: {
+                Args: {
+                    p_connection_id: string;
+                    p_if_refresh_token?: string;
+                    p_secret: Json;
+                };
+                Returns: string;
+            };
             reach_out_audience: {
                 Args: {
                     p_include_unconfirmed?: boolean;
@@ -9076,14 +9098,6 @@ type Database = {
                     lead_id: string;
                     region: string;
                 }[];
-            };
-            put_mailbox_credentials: {
-                Args: {
-                    p_connection_id: string;
-                    p_if_refresh_token?: string;
-                    p_secret: Json;
-                };
-                Returns: string;
             };
             reach_out_booked: {
                 Args: {

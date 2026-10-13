@@ -1005,6 +1005,26 @@ test("the detail: every person on a broadcast, with what happened to them; the s
   assert.equal(verbs.includes("__refreshBroadcasts"), false, "the hook went with the template rows' calls to it");
 });
 
+test("getting their yes while the workspace is paused: the card stays where its doors land, says why, and hands out no code, sign or link; with no number there is no card (the wiring's second audit, X4-1)", async () => {
+  const { GET_YES_PAUSED_WORDS } = await import("@chanlytics/contracts");
+  const paused = {
+    phrase: "YES OFFERS",
+    phraseEs: "SI OFERTAS",
+    link: null,
+    qrPath: null,
+    pageUrl: null,
+    open: "paused",
+  };
+  const ledger = drawn({}, { optIn: paused });
+  const card = byTestId(ledger, "bc-optin");
+  assert.ok(card && card.props.id === "bc-optin", "the anchor every 'get their yes' door goes to");
+  assert.equal(textOf(byTestId(ledger, "bc-optin-paused")), GET_YES_PAUSED_WORDS.body);
+  for (const id of ["bc-optin-copy", "bc-optin-sign", "bc-optin-form"]) assert.ok(!byTestId(ledger, id), id);
+  assert.ok(!find(ledger, (n) => n.props?.download === "say-yes-to-offers.svg"), "no code to download");
+  const none = drawn({}, { optIn: paused, number: { ...GOOD_NUMBER, present: false } });
+  assert.ok(!byTestId(none, "bc-optin"), "no number, no card, as before");
+});
+
 test("getting their yes: an unambiguous phrase the ingest records, a link that opens WhatsApp with it, a QR of that link, and a receptionist that thanks them", async () => {
   const { OPT_IN_PATTERN, OFFERS_OPT_IN_PHRASES, optInLink } = await import("@chanlytics/contracts");
   assert.equal(OFFERS_OPT_IN_PHRASES.en, "YES OFFERS");
@@ -1028,11 +1048,8 @@ test("getting their yes: an unambiguous phrase the ingest records, a link that o
       q.includes('"content-type": "image/svg+xml; charset=utf-8"'),
     "the code encodes one link and nothing a caller chooses",
   );
-  assert.ok(
-    readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts").includes(
-      'qrPath: optInLink(wa?.number_e164) ? api().url("GET consent/qr") : null,',
-    ),
-  );
+  // The card's code is the code's address only while there is a link: run in broadcast-counts-are-whole.test.mjs, for an
+  // open, a paused and an ended workspace and an older server's answer.
   const ledger = drawn();
   const optIn = byTestId(ledger, "bc-optin");
   assert.ok(optIn && byTestId(ledger, "bc-optin-copy"), "the section, and the link to copy");

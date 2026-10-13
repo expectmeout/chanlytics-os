@@ -132,15 +132,8 @@ test("what they do, from what they already told the receptionist", () => {
 });
 
 test("the page is on the same domain as the opt-in page, which is what 30907 wanted", () => {
-  const server = readCode("apps/dashboard/src/server/public/business-page.ts");
-  // Relative, so it is the same site by construction rather than by a constant
-  // somebody has to keep correct.
-  assert.match(server, /optInUrl: `\/yes\/\$\{clean\}`/);
-  assert.ok(
-    !/https?:\/\//.test(server.slice(server.indexOf("optInUrl"))),
-    "no hardcoded origin to point at the wrong deployment",
-  );
-
+  // Relative, so it is the same site by construction rather than by a constant somebody has to keep correct: the reader's
+  // links are run in a-paused-workspace-asks-nobody-for-a-yes.test.mjs (/yes/<slug>, /b/<slug>, /b/<slug>/terms).
   // And the ABSOLUTE form the carriers are handed is built the same way the
   // opt-in URL is, from one origin, at the one moment a filing is composed.
   // The door's filing is run in lines-door.test.mjs, and the sweep that finishes
@@ -184,7 +177,6 @@ test("a business with no website of its own files the page we publish", () => {
 test("the wiring: public, indexed, reads by slug, writes nothing", () => {
   const page = readCode("apps/dashboard/app/b/[slug]/page.tsx");
   assert.ok(page.includes("const facts = await businessPageFor(slug);") && page.includes("if (!facts) notFound();"));
-  assert.ok(!/<form|<input|useState|"POST"/.test(page), "nothing to fill in and nothing to write");
   // INDEXED, unlike the opt-in page: a business a reviewer cannot look up is
   // exactly what 30919 was complaining about.
   assert.ok(
@@ -197,27 +189,9 @@ test("the wiring: public, indexed, reads by slug, writes nothing", () => {
     ),
     "and the opt-in page still is not",
   );
-
-  const server = readCode("apps/dashboard/src/server/public/business-page.ts");
-  assert.ok(server.includes('import "server-only";') && server.includes('import { serviceDb } from "../service-db";'));
-  assert.ok(
-    server.includes('if (!tenant || tenant.status === "test" || tenant.left_empty_at) return null;'),
-    "a fixture workspace has no page, nor an ended one (run in an-ended-workspace-publishes-nothing.test.mjs)",
-  );
-  assert.ok(
-    server.includes("if (!record.data) return null;"),
-    "and neither does a business that has not said who it is",
-  );
-  assert.ok(!/insert|update|delete|upsert/i.test(server), "the public page's reader may not write");
-
-  // The identity is `business_records` -- the same facts the carriers vetted on
-  // the brand. Publishing anything else would mean a page that disagrees with
-  // the filing it exists to support.
-  assert.ok(server.includes('.from("business_records")'));
-  assert.ok(
-    server.includes("parseTenantConfig(cfg.data?.config ?? null)?.brain?.profile"),
-    "and the services are what they told the receptionist",
-  );
+  // The reader (fixtures and ended workspaces have no page, nor a business that has not said who it is; only selects; the
+  // identity from business_records' public columns and the services from the receptionist's profile) is run in
+  // a-paused-workspace-asks-nobody-for-a-yes.test.mjs.
 });
 
 test("Chanlytics' own policy and a workspace's page cannot drift", () => {

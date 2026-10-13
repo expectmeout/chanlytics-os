@@ -67,7 +67,7 @@ export async function reachOutPerson(db: Db, tenantId: string, leadId: string): 
   return { ok: true, contactId: r.contact_id, conversationId: r.conversation_id, made: r.made === true };
 }
 
-/** Up to `limit` due sends of a running chain from one mailbox, claimed under its lock within `cap` (00422, C7). */
+/** Up to `limit` due sends of a running chain from one mailbox, claimed under its lock within `cap` (00424, C7). */
 export async function claimSends(
   db: Db,
   p: { mailboxId: string; cap: number; at: Date; limit: number },
@@ -115,9 +115,9 @@ export interface FollowerLead {
   facts: { lead_stage: string | null; suppressed: boolean; wrote_back: boolean; away?: boolean };
   /** Any email of the chain to them bounced or failed for good (C4): the chain stops. */
   bounced: boolean;
-  /** The mailbox the step before wrote to them from (00422): the nudge leaves from it, in its thread. */
+  /** The mailbox the step before wrote to them from (00424): the nudge leaves from it, in its thread. */
   mailbox_id: string | null;
-  /** The lead's country (decision 0056, 9). A database before 00422 says none: the finder's, the United States. */
+  /** The lead's country (decision 0056, 9). A database before 00424 says none: the finder's, the United States. */
   country: string | null;
 }
 

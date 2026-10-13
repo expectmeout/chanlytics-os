@@ -2,7 +2,7 @@
  * A reach-out step's mailboxes as the timetable takes them (decision 0056): each it writes from (contracts
  * reachOutWritesFrom: those its owner picked, or every connected one), and each a later step's lead keeps (`also`),
  * with its day's share (contracts mailboxDailyCap: its ramp, its owner's cap, the customer domain's ceiling) and the
- * moments it already spends (00422 mailbox_capacity). A mailbox that does not send now (paused, held, signed out) has
+ * moments it already spends (00424 mailbox_capacity). A mailbox that does not send now (paused, held, signed out) has
  * no share, so nothing is placed on it while it does not; `gone` is those of `also` that are removed or not the
  * workspace's, whose leads' chains end there. The run (run-context.ts) and the replan (replan.ts) read it alike, so a
  * send is planned again by the reading it was planned by.

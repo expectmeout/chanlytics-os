@@ -5,7 +5,7 @@
  *
  *   the send door's facts   outreachFactsOf (outreach_mailbox_facts): the lead's stage, whether the address is
  *                           suppressed, whether the person wrote back, an out-of-office or a stop in force, and the
- *                           connected mailbox the From is, with its day (00422), in one answer. core's deliver() asks it for a reach-out email
+ *                           connected mailbox the From is, with its day (00424), in one answer. core's deliver() asks it for a reach-out email
  *                           alone, on the service role.
  *   the never-again list    addressesSuppressed (lead_addresses_suppressed): an address's own row, or its business's
  *                           own domain after a no. The finder (apps/edge/lib/leads/lead-db.ts) asks it through this
@@ -58,7 +58,7 @@ export interface OutreachFactsRow {
   /** Its owner stopped writing to this lead (00241, Reach out Part 6's H10). A database before 00241 says nothing. */
   stopped: boolean;
   /**
-   * The workspace's connected mailbox the From is (00422), with its day (mailbox_capacity now); null when the From is
+   * The workspace's connected mailbox the From is (00424), with its day (mailbox_capacity now); null when the From is
    * none of its mailboxes, or one removed.
    */
   mailbox: ({ id: string; address: string } & MailboxCapacity) | null;

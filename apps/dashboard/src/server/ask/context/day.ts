@@ -6,6 +6,8 @@ import {
   toCallVM,
   toInboxThreadVM,
   toTodayVM,
+  todayDraftsSub,
+  todayRunsSub,
   type CallVM,
   type InboxThreadVM,
 } from "@chanlytics/contracts";
@@ -64,8 +66,14 @@ const zone = (rc: ReaderContext) => load(rc, facts.facts, undefined).then((r) =>
 
 /** Today: the queue's rows the page drew, each as the queue says it, and the day's standing and figures. */
 export const today: Provider = async (rc, ctx) => {
-  const { metrics, conversations, escalations, calls, searches } = (await load(rc, todayReader, undefined)).data;
-  const vm = toTodayVM(metrics, conversations, escalations, calls, rc.now, searches);
+  const { metrics, conversations, escalations, calls, searches, runs, heldThreads } = (
+    await load(rc, todayReader, undefined)
+  ).data;
+  const vm = toTodayVM(metrics, conversations, escalations, calls, rc.now, searches, { runs, heldThreads });
+  // What the queue holds, and what waits with no row: the replies counting down and the runs waiting for a word.
+  const parts = [...vm.queue.parts, todayDraftsSub(vm.needsYou?.sends ?? 0), todayRunsSub(vm.runs_waiting ?? 0)].filter(
+    (p): p is string => !!p,
+  );
   const rows: ContextRow[] = [];
   for (const r of idsOf(ctx, "thread", "call", "search")) {
     // The page's own mapping (legacy-bridge/ask/context.ts): a search is `q-s-<id>`, a person's row its thread, else the call.
@@ -96,7 +104,7 @@ export const today: Provider = async (rc, ctx) => {
       `Today: ${vm.standing.headline}`,
       vm.standing.detail,
       ...vm.standing.chips.map((c) => c.text),
-      vm.queue.parts.length ? vm.queue.parts.join(", ") : vm.queue.empty.sub,
+      parts.length ? parts.join(", ") : vm.queue.empty.sub,
       ...(vm.figures ?? []).map((f) => `${f.label}: ${f.value}`),
       vm.calls?.line,
     ]),

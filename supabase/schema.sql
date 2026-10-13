@@ -3772,6 +3772,35 @@ COMMENT ON FUNCTION public.drop_google_credentials(p_tenant_id uuid) IS 'Service
 
 
 --
+-- Name: drop_mailbox_credentials(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.drop_mailbox_credentials(p_connection_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'vault'
+    AS $$
+declare
+  v_name text := 'mailbox-creds-' || p_connection_id::text;
+  v_id   uuid;
+begin
+  select id into v_id from vault.secrets where name = v_name;
+  if v_id is null then
+    return false;
+  end if;
+  delete from vault.secrets where id = v_id;
+  update public.mailbox_connections set credentials_ref = null where id = p_connection_id;
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION drop_mailbox_credentials(p_connection_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.drop_mailbox_credentials(p_connection_id uuid) IS 'Service-role only: deletes a connected mailbox''s token from Vault. Called when it is removed, after its provider was asked to revoke it.';
+
+
+--
 -- Name: email_from_host(jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4427,6 +4456,32 @@ $$;
 
 
 --
+-- Name: escalation_closes_its_notices(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.escalation_closes_its_notices() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  perform public.notifications_close_about(
+    NEW.tenant_id, array['handoff', 'deadman', 'call'], 'conversation', NEW.conversation_id::text
+  );
+  return null;
+exception when others then
+  raise warning 'escalation_closes_its_notices: %', sqlerrm;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION escalation_closes_its_notices(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.escalation_closes_its_notices() IS 'Closes the open handoff, deadman and call rows about a hold''s thread when the hold goes open -> resolved, whoever resolves it (00421, through notifications_close_about); a snooze, a take-over or a pause leave the hold open and close nothing. Never fails the resolve: a failure is a warning.';
+
+
+--
 -- Name: escalation_open(uuid, uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4988,6 +5043,37 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.get_line_credentials(p_line_id uuid) IS 'Service-role only: a line''s provider secrets from Vault, or null.';
+
+
+--
+-- Name: get_mailbox_credentials(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_mailbox_credentials(p_connection_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'vault'
+    AS $$
+declare
+  v_ref    text;
+  v_secret text;
+begin
+  select credentials_ref into v_ref from public.mailbox_connections where id = p_connection_id;
+  if v_ref is null then
+    return null;
+  end if;
+  select decrypted_secret into v_secret from vault.decrypted_secrets where name = v_ref;
+  if v_secret is null then
+    return null;
+  end if;
+  return v_secret::jsonb;
+end $$;
+
+
+--
+-- Name: FUNCTION get_mailbox_credentials(p_connection_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.get_mailbox_credentials(p_connection_id uuid) IS 'Service-role only: a connected mailbox''s token from Vault, or null.';
 
 
 --
@@ -7913,6 +7999,11 @@ declare
   v_n    integer;
   v_id   uuid;
 begin
+  -- A round that leaves waiting_on_owner has settled its question for good (a round waits on its owner once): its row
+  -- closes, for a list and a chosen search too, so this comes before the returns below (00421).
+  if OLD.state = 'waiting_on_owner' and NEW.state is distinct from 'waiting_on_owner' then
+    perform public.notifications_close_about(NEW.tenant_id, array['leads_question'], 'lead_round', NEW.id::text);
+  end if;
   select s.name, s.via into v_name, v_via from public.lead_searches s where s.id = NEW.search_id;
   if v_name is null then return null; end if;
   -- A list: a file rings once its check ran; a choice never rings (00242).
@@ -7953,7 +8044,7 @@ end $$;
 -- Name: FUNCTION lead_rounds_notify(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_rounds_notify() IS 'The bell''s two lead kinds: one leads_question row when a round stops to ask, pointing at the search''s left-out pile (the places the question is about), and one leads_ready row when it ends with anything but "stopped" or "question_unanswered", pointing at the search; each once per round, each with a push_send job so a phone hears it too. A file of the owner''s own (via import, 00242) rings "Your list … is checked" with how many have a checked address once its check ran, or "could not be checked" when the check ended any other way; a chosen search rings nothing. A member''s own read mark is notification_marks'', as for every other kind.';
+COMMENT ON FUNCTION public.lead_rounds_notify() IS 'The bell''s two lead kinds: one leads_question row when a round stops to ask, pointing at the search''s left-out pile (the places the question is about), and one leads_ready row when it ends with anything but "stopped" or "question_unanswered", pointing at the search; each once per round, each with a push_send job so a phone hears it too. A file of the owner''s own (via import, 00242) rings "Your list … is checked" with how many have a checked address once its check ran, or "could not be checked" when the check ended any other way; a chosen search rings nothing. A round that leaves waiting_on_owner closes its question row for everyone (00421, notifications_close_about). A member''s own read mark is notification_marks'', as for every other kind.';
 
 
 --
@@ -9974,6 +10065,224 @@ COMMENT ON FUNCTION public.lookup_user_for_invite(p_tenant_id uuid, p_email text
 
 
 --
+-- Name: mailbox_capacity(uuid, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.mailbox_capacity(p_mailbox_id uuid, p_at timestamp with time zone) RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  with b as (
+    select id, tenant_id, state, clean_since, resting_until, daily_cap, customer_domain
+      from public.mailbox_connections where id = p_mailbox_id
+  ),
+  gone as (
+    -- What left the mailbox, or went and nobody knows how: by when it left, back 120 days at most.
+    select coalesce(s.sent_at, public.email_sent_at(m.meta, m.status_updated_at, m.created_at)) as at
+      from public.reach_out_sends s
+      join b on b.id = s.mailbox_id
+      join public.messages m on m.id = s.message_id and m.tenant_id = s.tenant_id
+     where s.state in ('sent', 'queued', 'failed')
+       and m.created_at >= p_at - interval '120 days'
+       and (public.email_left(m.status, m.error)
+            or (m.status = 'failed' and coalesce(m.error->>'outcome', '') = 'unknown'))
+  ),
+  waiting as (
+    -- Written and not yet gone, and claimed with no email yet: each counts against the day as it is spent.
+    select coalesce(s.claimed_at, p_at) as at
+      from public.reach_out_sends s
+      join b on b.id = s.mailbox_id
+      left join public.messages m on m.id = s.message_id and m.tenant_id = s.tenant_id
+     where s.state = 'claimed' or (s.state = 'queued' and (m.id is null or m.status = 'queued'))
+  ),
+  planned as (
+    select s.send_at as at from public.reach_out_sends s join b on b.id = s.mailbox_id where s.state = 'planned'
+  )
+  select jsonb_build_object(
+    'state', b.state,
+    'clean_since', b.clean_since,
+    'resting_until', b.resting_until,
+    'daily_cap', b.daily_cap,
+    'customer_domain', b.customer_domain,
+    -- D15: the days it actually sent on (UTC days) since it was last clean, before today's.
+    'sent_days', (select count(distinct (g.at at time zone 'UTC')::date) from gone g
+                   where g.at >= greatest(b.clean_since, p_at - interval '90 days')
+                     and (g.at at time zone 'UTC')::date < (p_at at time zone 'UTC')::date),
+    'sent_today', (select count(*) from gone g where g.at > p_at - interval '1 day' and g.at <= p_at),
+    'used', (select count(*) from gone g where g.at > p_at - interval '1 day' and g.at <= p_at)
+            + (select count(*) from waiting),
+    'recent', coalesce((select jsonb_agg((extract(epoch from x.at) * 1000)::bigint order by x.at) from (
+                 select at from gone where at > p_at - interval '1 day'
+                 union all select at from waiting
+                 union all select at from planned) x), '[]'::jsonb),
+    'last_sent_at', (select max(g.at) from gone g where g.at <= p_at)
+  ) from b
+$$;
+
+
+--
+-- Name: FUNCTION mailbox_capacity(p_mailbox_id uuid, p_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.mailbox_capacity(p_mailbox_id uuid, p_at timestamp with time zone) IS 'A connected mailbox''s day (00424): its state, rest, cap and customer domain; sent_days (the UTC days it sent on since clean_since, before today''s: the ramp''s step, D15); sent_today and used (what left in the last day, and that plus what is written or claimed and not gone); recent (every moment it spends, planned included, epoch ms); last_sent_at. From its reach-out sends. Service role only.';
+
+
+--
+-- Name: mailbox_connection_connect(uuid, uuid, text, text, text, text, text[], boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.mailbox_connection_connect(p_tenant_id uuid, p_user_id uuid, p_provider text, p_account text, p_address text, p_from_name text, p_scopes text[], p_customer_domain boolean) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_address text := lower(btrim(p_address));
+  v_row     public.mailbox_connections;
+  v_other   uuid;
+begin
+  -- The same account, connected again (a reconnect, or the owner pressed Connect twice): its row, back to connected.
+  select * into v_row from public.mailbox_connections c
+   where c.tenant_id = p_tenant_id and c.provider = p_provider and c.provider_account = p_account
+     and c.state <> 'removed'
+   for update;
+  if found then
+    update public.mailbox_connections
+       set address = v_address, host = split_part(v_address, '@', 2), scopes = coalesce(p_scopes, '{}'),
+           customer_domain = coalesce(p_customer_domain, false),
+           state = case when state in ('reconnect') then 'connected' else state end,
+           last_error = null, last_error_at = null, connected_by = coalesce(p_user_id, connected_by),
+           connected_at = now()
+     where id = v_row.id
+     returning * into v_row;
+    return jsonb_build_object('id', v_row.id, 'made', false, 'state', v_row.state);
+  end if;
+  -- An address another workspace writes from is that workspace's.
+  select c.tenant_id into v_other from public.mailbox_connections c
+   where c.address = v_address and c.state <> 'removed' and c.tenant_id <> p_tenant_id
+   limit 1;
+  if v_other is not null then
+    raise exception 'Another workspace writes from this mailbox.' using errcode = 'P0001', hint = 'taken';
+  end if;
+  insert into public.mailbox_connections
+    (tenant_id, provider, provider_account, address, host, from_name, scopes, customer_domain, connected_by)
+  values
+    (p_tenant_id, p_provider, p_account, v_address, split_part(v_address, '@', 2),
+     left(coalesce(nullif(btrim(p_from_name), ''), split_part(v_address, '@', 1)), 80),
+     coalesce(p_scopes, '{}'), coalesce(p_customer_domain, false), p_user_id)
+  returning * into v_row;
+  return jsonb_build_object('id', v_row.id, 'made', true, 'state', v_row.state);
+end $$;
+
+
+--
+-- Name: FUNCTION mailbox_connection_connect(p_tenant_id uuid, p_user_id uuid, p_provider text, p_account text, p_address text, p_from_name text, p_scopes text[], p_customer_domain boolean); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.mailbox_connection_connect(p_tenant_id uuid, p_user_id uuid, p_provider text, p_account text, p_address text, p_from_name text, p_scopes text[], p_customer_domain boolean) IS 'Service-role only (the edge''s connect, once the provider''s grant is in hand): the mailbox''s row, made, or the same account''s row found again and back to connected. {id, made, state}. Raises P0001 hint taken when another workspace writes from the address, and the limit trigger''s too_many / too_many_on_domain.';
+
+
+--
+-- Name: mailbox_connection_counts(uuid, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.mailbox_connection_counts(p_mailbox_id uuid, p_since timestamp with time zone) RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  with ours as (
+    select m.id, m.status, m.error, m.meta, m.created_at, s.tenant_id
+      from public.reach_out_sends s
+      join public.messages m on m.id = s.message_id and m.tenant_id = s.tenant_id
+     where s.mailbox_id = p_mailbox_id
+       and m.created_at >= now() - interval '90 days'
+  ), recent as (
+    select o.id, o.status, o.error, o.tenant_id from ours o
+     where o.created_at >= coalesce(p_since, '-infinity'::timestamptz)
+       and public.email_left(o.status, o.error)
+     order by o.created_at desc
+     limit 500
+  )
+  select jsonb_build_object(
+    'sent', (select count(*) from recent),
+    -- A permanent bounce only: a full mailbox or a greylisting server says nothing about the mailbox that wrote.
+    'bounced', (select count(*) from recent where status = 'failed' and error->>'provider' = 'bounced'
+                  and lower(coalesce(error->>'kind', '')) = 'permanent'),
+    'complained', (
+      select count(*) from ours
+       where (meta->'email'->>'complained_at')::timestamptz >= coalesce(p_since, '-infinity'::timestamptz)),
+    -- A person counts once, however many of the window's emails their noes name; a no undone is no no.
+    'unsubscribed', (
+      select count(distinct e.subject_id) from recent r
+        join public.events e
+          on e.tenant_id = r.tenant_id and e.kind = 'contact.consent_changed'
+         and e.created_at >= greatest(coalesce(p_since, '-infinity'::timestamptz), now() - interval '90 days')
+         and e.data->>'purpose' = 'email_marketing' and e.data->>'source' in ('unsubscribe', 'reply')
+         and e.data->>'message_id' = r.id::text
+         and not (e.data->>'source' = 'reply' and exists (
+           select 1 from public.events u
+            where u.tenant_id = r.tenant_id and u.kind = 'contact.consent_changed'
+              and u.created_at >= e.created_at and u.subject_id = e.subject_id
+              and u.data->>'purpose' = 'email_marketing' and u.data->>'source' = 'reply_undone'
+              and u.data->>'message_id' = e.data->>'message_id'))))
+$$;
+
+
+--
+-- Name: FUNCTION mailbox_connection_counts(p_mailbox_id uuid, p_since timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.mailbox_connection_counts(p_mailbox_id uuid, p_since timestamp with time zone) IS 'What a connected mailbox''s reach-out emails came to since p_since (00424): sent (its last 500 that left), bounced (permanent bounces of them), complained, and unsubscribed (the people whose unsubscribe or reply no names one of them, a no undone excepted). The mailboxes clock judges its health by them (contracts mailboxHoldOf). Service role only.';
+
+
+--
+-- Name: mailbox_connections_within_limit(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.mailbox_connections_within_limit() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+begin
+  if new.state = 'removed' then
+    return new;
+  end if;
+  perform pg_advisory_xact_lock(hashtext('mailbox_connections:' || new.tenant_id::text));
+  if (select count(*) from public.mailbox_connections c
+       where c.tenant_id = new.tenant_id and c.state <> 'removed' and c.id <> new.id) >= 10 then
+    raise exception 'A workspace writes from 10 mailboxes at most.' using errcode = 'P0001', hint = 'too_many';
+  end if;
+  if (select count(*) from public.mailbox_connections c
+       where c.tenant_id = new.tenant_id and c.host = new.host and c.state <> 'removed' and c.id <> new.id) >= 3 then
+    raise exception 'A workspace writes from 3 mailboxes on one domain at most.' using errcode = 'P0001',
+      hint = 'too_many_on_domain';
+  end if;
+  return new;
+end $$;
+
+
+--
+-- Name: mailbox_threads_known(uuid, text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.mailbox_threads_known(p_tenant_id uuid, p_thread_ids text[]) RETURNS text[]
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select coalesce(array_agg(distinct m.meta->'email'->>'thread_id'), '{}')
+    from public.messages m
+   where m.tenant_id = p_tenant_id and m.channel = 'email' and m.direction = 'outbound'
+     and m.meta->'email'->>'thread_id' = any (coalesce(p_thread_ids, '{}'))
+$$;
+
+
+--
+-- Name: FUNCTION mailbox_threads_known(p_tenant_id uuid, p_thread_ids text[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.mailbox_threads_known(p_tenant_id uuid, p_thread_ids text[]) IS 'Of the provider thread ids a mailbox''s sync saw change, the ones a message this workspace sent is in (00424): only these are fetched. Service role only.';
+
+
+--
 -- Name: mark_processed(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -11649,6 +11958,37 @@ end $$;
 
 
 --
+-- Name: notifications_close_about(uuid, text[], text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.notifications_close_about(p_tenant_id uuid, p_kinds text[], p_subject_type text, p_subject_id text, p_title text DEFAULT NULL::text) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_closed integer;
+begin
+  update public.notifications n
+     set closed_at = now()
+   where n.tenant_id = p_tenant_id
+     and n.kind = any (p_kinds)
+     and (p_subject_type is null or (n.subject_type = p_subject_type and n.subject_id = p_subject_id))
+     and (p_title is null or n.title = p_title)
+     and n.closed_at is null
+     and n.created_at >= now() - interval '30 days';
+  get diagnostics v_closed = row_count;
+  return v_closed;
+end $$;
+
+
+--
+-- Name: FUNCTION notifications_close_about(p_tenant_id uuid, p_kinds text[], p_subject_type text, p_subject_id text, p_title text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.notifications_close_about(p_tenant_id uuid, p_kinds text[], p_subject_type text, p_subject_id text, p_title text) IS 'Closes a workspace''s open bell rows of the given kinds about one subject (and of one title, where given) within the bell''s window (contracts BELL_WINDOW_DAYS), each once, and answers how many it closed (00421). The one door: the hold trigger, the lead-round notifier and resume_email_offers call it. A close is a mark on a kept row, not a fact, so it writes no event. Service role only.';
+
+
+--
 -- Name: notifications_seen(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -11861,6 +12201,31 @@ $$;
 --
 
 COMMENT ON FUNCTION public.outreach_lead_facts(p_tenant_id uuid, p_contact_id uuid, p_to text, p_lead_id uuid) IS 'A cold email''s facts about its lead: lead_stage (the send''s own lead when named, else the one still being written to), suppressed, wrote_back (00181), away (an automatic out-of-office whose day is still ahead, 00226), stopped (its owner stopped writing to it, 00241). Service role only.';
+
+
+--
+-- Name: outreach_mailbox_facts(uuid, uuid, text, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.outreach_mailbox_facts(p_tenant_id uuid, p_contact_id uuid, p_to text, p_from text, p_lead_id uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select public.outreach_lead_facts(p_tenant_id, p_contact_id, p_to, p_lead_id) || jsonb_build_object(
+    'mailbox', (
+      select jsonb_build_object('id', b.id, 'address', b.address)
+             || public.mailbox_capacity(b.id, now())
+        from public.mailbox_connections b
+       where b.tenant_id = p_tenant_id and b.address = lower(btrim(p_from)) and b.state <> 'removed'
+       limit 1))
+$$;
+
+
+--
+-- Name: FUNCTION outreach_mailbox_facts(p_tenant_id uuid, p_contact_id uuid, p_to text, p_from text, p_lead_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.outreach_mailbox_facts(p_tenant_id uuid, p_contact_id uuid, p_to text, p_from text, p_lead_id uuid) IS 'What the send door asks of a cold email (00424): outreach_lead_facts, and the workspace''s mailbox its From is (its id, address and mailbox_capacity now), or null when the From is none of them. Service role only.';
 
 
 --
@@ -14010,10 +14375,10 @@ COMMENT ON FUNCTION public.people_series(p_tenant_id uuid, p_days integer, p_end
 
 
 --
--- Name: person_call_logged(uuid, text, text, date, boolean, text, text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+-- Name: person_call_logged(uuid, text, text, date, boolean, text, text, text, text, text, boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date DEFAULT NULL::date, p_tell boolean DEFAULT false, p_step_body text DEFAULT NULL::text, p_lead_stage text DEFAULT NULL::text, p_lead_reason text DEFAULT NULL::text, p_lead_note text DEFAULT NULL::text, p_spoke_with text DEFAULT NULL::text) RETURNS jsonb
+CREATE FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date DEFAULT NULL::date, p_tell boolean DEFAULT false, p_step_body text DEFAULT NULL::text, p_lead_stage text DEFAULT NULL::text, p_lead_reason text DEFAULT NULL::text, p_lead_note text DEFAULT NULL::text, p_spoke_with text DEFAULT NULL::text, p_closes_call_back boolean DEFAULT false) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -14027,6 +14392,8 @@ declare
   v_note   jsonb;
   v_step   jsonb := null;
   v_moved  jsonb := null;
+  v_thread uuid;
+  v_handed boolean := false;
 begin
   if v_user is null then
     raise exception 'Sign in required.' using errcode = '28000';
@@ -14085,15 +14452,30 @@ begin
     end if;
   end if;
 
-  return jsonb_build_object('note', v_note->'note', 'step', v_step->'note', 'lead', v_moved);
+  -- The call back they asked for, made (X3-1): their thread, where it holds an open call-back request, handed back as
+  -- the caller, the request resolved by that decision (conversation_hand_back: the release, the hold, the ledger).
+  if coalesce(p_closes_call_back, false) then
+    select c.id into v_thread
+      from public.conversations c
+      join public.escalations e
+        on e.conversation_id = c.id and e.tenant_id = c.tenant_id and e.state = 'open' and e.reason = 'callback'
+     where c.tenant_id = v_person.tenant_id and c.contact_id = p_contact_id
+       and (c.assignee_user_id is null or c.assignee_user_id = v_user)
+       and (c.control_kind is null or c.control_until <= now() or (c.control_kind = 'person' and c.control_by = v_user));
+    if v_thread is not null then
+      v_handed := public.conversation_hand_back(v_person.tenant_id, v_thread, 'call', null) is not null;
+    end if;
+  end if;
+
+  return jsonb_build_object('note', v_note->'note', 'step', v_step->'note', 'lead', v_moved, 'handed_back', v_handed);
 end $$;
 
 
 --
--- Name: FUNCTION person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text, p_closes_call_back boolean); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text) IS 'A call a member made, logged on the person (0052, canvas A M4): a note, the team''s unless p_tell, a step with p_due_on (beside the note where the receptionist reads it), and, where the person''s business is an open lead with its own person, the outcome through lead_set_stage (never Spoke; Wrong number only where the person has no number of their own; a lead Talking kept so by a call that went nowhere). Owner, operator or partner. Answers {note, step, lead} or {error}.';
+COMMENT ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text, p_closes_call_back boolean) IS 'A call a member made, logged on the person (0052, canvas A M4): a note, the team''s unless p_tell, a step with p_due_on (beside the note where the receptionist reads it), and, where the person''s business is an open lead with its own person, the outcome through lead_set_stage (never Spoke; Wrong number only where the person has no number of their own; a lead Talking kept so by a call that went nowhere). With p_closes_call_back (00422, X3-1), the person''s thread, where it holds an open call-back request and no teammate has it, is handed back through conversation_hand_back as the caller, in the same transaction. Owner, operator or partner. Answers {note, step, lead, handed_back} or {error}.';
 
 
 --
@@ -17043,6 +17425,49 @@ COMMENT ON FUNCTION public.put_line_credentials(p_line_id uuid, p_secret jsonb) 
 
 
 --
+-- Name: put_mailbox_credentials(uuid, jsonb, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.put_mailbox_credentials(p_connection_id uuid, p_secret jsonb, p_if_refresh_token text DEFAULT NULL::text) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'vault'
+    AS $$
+declare
+  v_name text := 'mailbox-creds-' || p_connection_id::text;
+  v_id   uuid;
+  v_now  text;
+begin
+  -- The row, held for the write: every write of this mailbox's token takes it first, so a refresh's compare and its
+  -- write are one step against a reconnect's.
+  perform 1 from public.mailbox_connections where id = p_connection_id for update;
+  if not found then
+    raise exception 'put_mailbox_credentials: no such mailbox';
+  end if;
+  if p_if_refresh_token is not null then
+    select (decrypted_secret::jsonb)->>'refresh_token' into v_now from vault.decrypted_secrets where name = v_name;
+    if v_now is distinct from p_if_refresh_token then
+      raise exception 'put_mailbox_credentials: the token changed since it was read' using errcode = '40001';
+    end if;
+  end if;
+  select id into v_id from vault.secrets where name = v_name;
+  if v_id is null then
+    perform vault.create_secret(p_secret::text, v_name, 'A connected mailbox''s token: ' || p_connection_id::text);
+  else
+    perform vault.update_secret(v_id, p_secret::text);
+  end if;
+  update public.mailbox_connections set credentials_ref = v_name where id = p_connection_id;
+  return v_name;
+end $$;
+
+
+--
+-- Name: FUNCTION put_mailbox_credentials(p_connection_id uuid, p_secret jsonb, p_if_refresh_token text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.put_mailbox_credentials(p_connection_id uuid, p_secret jsonb, p_if_refresh_token text) IS 'Service-role only: stores a connected mailbox''s token in Vault under mailbox-creds-<id> and points credentials_ref at it. The only write path for the token. With p_if_refresh_token, only while the token stored still carries that refresh token, under a lock on the row every write takes; otherwise it raises 40001 and writes nothing (as 00364''s for Google).';
+
+
+--
 -- Name: reach_out_audience(uuid, uuid, integer, boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -17469,10 +17894,11 @@ CREATE TABLE public.reach_out_sends (
     check_gen integer DEFAULT 0 NOT NULL,
     checked_words text,
     included_for text[] DEFAULT '{}'::text[] NOT NULL,
+    mailbox_id uuid,
     CONSTRAINT reach_out_sends_attempts_check CHECK (((attempts >= 0) AND (attempts <= 20))),
-    CONSTRAINT reach_out_sends_check_is_whole CHECK ((((opening IS NULL) OR ((char_length(opening) >= 1) AND (char_length(opening) <= 400))) AND ((angle IS NULL) OR ((char_length(angle) >= 1) AND (char_length(angle) <= 40))) AND ((hold_detail IS NULL) OR (char_length(hold_detail) <= 120)) AND ((checked_words IS NULL) OR ((char_length(checked_words) >= 1) AND (char_length(checked_words) <= 64))) AND ((check_tries >= 0) AND (check_tries <= 100)) AND (check_gen >= 0) AND (cardinality(facts_used) <= 12) AND (included_for <@ ARRAY['customer_domain'::text, 'chain'::text, 'language'::text, 'unbacked_fact'::text, 'reads_like_spam'::text, 'check_unavailable'::text]))),
+    CONSTRAINT reach_out_sends_check_is_whole CHECK ((((opening IS NULL) OR ((char_length(opening) >= 1) AND (char_length(opening) <= 400))) AND ((angle IS NULL) OR ((char_length(angle) >= 1) AND (char_length(angle) <= 40))) AND ((hold_detail IS NULL) OR (char_length(hold_detail) <= 120)) AND ((checked_words IS NULL) OR ((char_length(checked_words) >= 1) AND (char_length(checked_words) <= 64))) AND ((check_tries >= 0) AND (check_tries <= 100)) AND (check_gen >= 0) AND (cardinality(facts_used) <= 12) AND (included_for <@ ARRAY['customer_domain'::text, 'chain'::text, 'language'::text, 'unbacked_fact'::text, 'reads_like_spam'::text, 'check_unavailable'::text, 'abroad'::text]))),
     CONSTRAINT reach_out_sends_handed_is_dated CHECK (((state <> 'handed'::text) OR (sent_at IS NOT NULL))),
-    CONSTRAINT reach_out_sends_held_says_why CHECK (((state <> 'held'::text) OR (reason = ANY (ARRAY['customer_domain'::text, 'chain'::text, 'language'::text, 'unbacked_fact'::text, 'reads_like_spam'::text, 'check_unavailable'::text])))),
+    CONSTRAINT reach_out_sends_held_says_why CHECK (((state <> 'held'::text) OR (reason = ANY (ARRAY['customer_domain'::text, 'chain'::text, 'language'::text, 'unbacked_fact'::text, 'reads_like_spam'::text, 'check_unavailable'::text, 'abroad'::text])))),
     CONSTRAINT reach_out_sends_planned_is_timed CHECK (((state <> 'planned'::text) OR (send_at IS NOT NULL))),
     CONSTRAINT reach_out_sends_reason_check CHECK (((reason IS NULL) OR (char_length(reason) <= 60))),
     CONSTRAINT reach_out_sends_sent_is_dated CHECK (((state <> 'sent'::text) OR (sent_at IS NOT NULL))),
@@ -17485,6 +17911,20 @@ CREATE TABLE public.reach_out_sends (
 --
 
 COMMENT ON TABLE public.reach_out_sends IS 'Reach out: one lead in one step''s run. Planned (a time and a domain), claimed under the domain''s capacity, queued as an email row with its outbound_send job, then what that row became. Written by the service role only (the reach-out clock, apps/edge/lib/reach-out).';
+
+
+--
+-- Name: COLUMN reach_out_sends.domain_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.reach_out_sends.domain_id IS 'Retired (decision 0056): the sending domain a send left from on the cold Resend lane. Nothing writes it now; mailbox_id is the send''s.';
+
+
+--
+-- Name: COLUMN reach_out_sends.mailbox_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.reach_out_sends.mailbox_id IS 'The mailbox this send leaves from (00424): planned with it, claimed under its day, and kept by its lead for the whole chain. Null for a skipped send, or once its mailbox is gone.';
 
 
 --
@@ -17530,6 +17970,59 @@ begin
    where s.id = picked.id
   returning s.*;
 end $$;
+
+
+--
+-- Name: reach_out_claim_from(uuid, integer, timestamp with time zone, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.reach_out_claim_from(p_mailbox_id uuid, p_cap integer, p_at timestamp with time zone, p_limit integer) RETURNS SETOF public.reach_out_sends
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_room int;
+begin
+  if p_mailbox_id is null or p_cap is null or p_limit is null or p_at is null or p_cap <= 0 or p_limit <= 0 then
+    return;
+  end if;
+  -- One claimer per mailbox at a time: the count below and the claim after it are one step (C7).
+  perform pg_advisory_xact_lock(hashtext('reach_out_claim_mailbox:' || p_mailbox_id::text));
+  if not exists (select 1 from public.mailbox_connections
+                  where id = p_mailbox_id and state = 'connected'
+                    and (resting_until is null or resting_until <= p_at)) then
+    return;
+  end if;
+  v_room := least(p_limit, p_cap - (public.mailbox_capacity(p_mailbox_id, p_at)->>'used')::int);
+  if v_room is null or v_room <= 0 then
+    return;
+  end if;
+  -- Picked once, then claimed (00213): a materialized pick runs exactly once, so the claim is at most v_room rows.
+  return query
+  with picked as materialized (
+     select s2.id from public.reach_out_sends s2
+       join public.playbooks p on p.id = s2.playbook_id
+       join public.playbooks r on r.id = s2.root_id
+       join public.broadcasts b on b.id = s2.broadcast_id
+      where s2.mailbox_id = p_mailbox_id and s2.state = 'planned' and s2.send_at <= p_at
+        and s2.checked_at is not null
+        and p.state = 'running' and r.state = 'running' and b.state in ('scheduled', 'sending')
+      order by s2.send_at
+      limit v_room
+      for update of s2 skip locked)
+  update public.reach_out_sends s
+     set state = 'claimed', claimed_at = p_at
+    from picked
+   where s.id = picked.id
+  returning s.*;
+end $$;
+
+
+--
+-- Name: FUNCTION reach_out_claim_from(p_mailbox_id uuid, p_cap integer, p_at timestamp with time zone, p_limit integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.reach_out_claim_from(p_mailbox_id uuid, p_cap integer, p_at timestamp with time zone, p_limit integer) IS 'A connected mailbox''s due reach-out sends, claimed within its day (p_cap less what it has used), at most p_limit, under the mailbox''s lock (C7, 00424). Nothing for a mailbox that is not connected, or resting. Service role only.';
 
 
 --
@@ -17652,6 +18145,43 @@ COMMENT ON FUNCTION public.reach_out_due_domains(p_at timestamp with time zone, 
 
 
 --
+-- Name: reach_out_due_mailboxes(timestamp with time zone, integer, uuid, uuid[], uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.reach_out_due_mailboxes(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid DEFAULT NULL::uuid, p_skip_tenants uuid[] DEFAULT '{}'::uuid[], p_skip_mailboxes uuid[] DEFAULT '{}'::uuid[]) RETURNS TABLE(id uuid, tenant_id uuid)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select b.id, b.tenant_id
+    from public.mailbox_connections b
+    -- Its earliest due send that goes ahead, so a paused chain's backlog is walked only as far as the first that does.
+    cross join lateral (
+      select s.send_at as first_due
+        from public.reach_out_sends s
+        join public.broadcasts r on r.id = s.broadcast_id
+        join public.playbooks p on p.id = s.playbook_id
+        join public.playbooks root on root.id = s.root_id
+       where s.mailbox_id = b.id and s.state = 'planned' and s.send_at <= p_at and s.checked_at is not null
+         and r.state in ('scheduled', 'sending') and p.state = 'running' and root.state = 'running'
+       order by s.send_at
+       limit 1) due
+   where b.state = 'connected' and (b.resting_until is null or b.resting_until <= p_at)
+     and (p_tenant_id is null or b.tenant_id = p_tenant_id)
+     and not (b.tenant_id = any (coalesce(p_skip_tenants, '{}')))
+     and not (b.id = any (coalesce(p_skip_mailboxes, '{}')))
+   order by due.first_due, b.id
+   limit greatest(coalesce(p_limit, 0), 0)
+$$;
+
+
+--
+-- Name: FUNCTION reach_out_due_mailboxes(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid, p_skip_tenants uuid[], p_skip_mailboxes uuid[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.reach_out_due_mailboxes(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid, p_skip_tenants uuid[], p_skip_mailboxes uuid[]) IS 'The connected, rested mailboxes with a reach-out send due and going ahead (checked, its run and chain running), earliest first (00424). Service role only.';
+
+
+--
 -- Name: reach_out_finishable(integer, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -17672,14 +18202,15 @@ $$;
 -- Name: reach_out_followers(uuid, uuid, uuid, integer, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.reach_out_followers(p_tenant_id uuid, p_step_id uuid, p_parent_id uuid, p_after_days integer, p_limit integer) RETURNS TABLE(lead_id uuid, contact_id uuid, email text, region text, hours jsonb, parent_message_id uuid, facts jsonb, bounced boolean)
+CREATE FUNCTION public.reach_out_followers(p_tenant_id uuid, p_step_id uuid, p_parent_id uuid, p_after_days integer, p_limit integer) RETURNS TABLE(lead_id uuid, contact_id uuid, email text, region text, hours jsonb, parent_message_id uuid, facts jsonb, bounced boolean, mailbox_id uuid, country text)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-  select f.lead_id, f.contact_id, f.email, f.region, f.hours, f.parent_message_id, f.facts, f.bounced
+  select f.lead_id, f.contact_id, f.email, f.region, f.hours, f.parent_message_id, f.facts, f.bounced, f.mailbox_id,
+         f.country
     from (
       select l.id as lead_id, s.contact_id, lower(btrim(l.email)) as email, l.region, l.hours,
-             s.message_id as parent_message_id, s.sent_at,
+             s.message_id as parent_message_id, s.sent_at, s.mailbox_id, l.country,
              public.outreach_lead_facts(p_tenant_id, s.contact_id, lower(btrim(l.email)), l.id) as facts,
              exists (select 1 from public.reach_out_sends b join public.messages bm on bm.id = b.message_id
                       where b.root_id = s.root_id and b.lead_id = l.id
@@ -17703,6 +18234,13 @@ CREATE FUNCTION public.reach_out_followers(p_tenant_id uuid, p_step_id uuid, p_p
    order by f.sent_at
    limit greatest(p_limit, 0)
 $$;
+
+
+--
+-- Name: FUNCTION reach_out_followers(p_tenant_id uuid, p_step_id uuid, p_parent_id uuid, p_after_days integer, p_limit integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.reach_out_followers(p_tenant_id uuid, p_step_id uuid, p_parent_id uuid, p_after_days integer, p_limit integer) IS 'A later reach-out step''s leads: those its step before wrote to p_after_days ago or more, whom the send door would still write to, with the mailbox the step before wrote from (00424) and the lead''s country. Service role only.';
 
 
 --
@@ -17945,7 +18483,8 @@ begin
                                                   then public.email_sent_at(m.meta, m.status_updated_at, m.created_at) end),
                'left', s.state = 'sent' or (s.state = 'failed' and coalesce(public.email_left(m.status, m.error), false)),
                'angle', s.angle,
-               'host', d.host,
+               'host', b.host,
+               'from', b.address,
                'message_id', s.message_id,
                'email_status', m.status,
                'bounced', coalesce(m.status = 'failed' and m.error->>'provider' = 'bounced', false))
@@ -17956,7 +18495,7 @@ begin
                limit 20) s
         left join c on c.id = s.playbook_id
         left join public.playbooks p on p.id = s.playbook_id
-        left join public.sending_domains d on d.id = s.domain_id
+        left join public.mailbox_connections b on b.id = s.mailbox_id
         left join public.messages m on m.id = s.message_id), '[]'::jsonb),
     'readings', coalesce((
       select jsonb_agg(jsonb_build_object(
@@ -18107,7 +18646,6 @@ begin
   if p_run->'audience'->>'kind' is distinct from 'reach_out' then
     raise exception 'reach_out_plan_run: a run of a reach-out says so in its audience';
   end if;
-  -- The step and its chain's root are this workspace's reach-outs.
   if not exists (select 1 from public.playbooks where id = v_step and tenant_id = v_tenant and kind = 'reach_out')
      or not exists (select 1 from public.playbooks where id = v_root and tenant_id = v_tenant and kind = 'reach_out') then
     raise exception 'reach_out_plan_run: step % or root % is no reach-out of workspace %', v_step, v_root, v_tenant;
@@ -18119,18 +18657,17 @@ begin
             p_run->>'template_name', p_run->>'template_language', p_run->>'state',
             (p_run->>'scheduled_for')::timestamptz, (p_run->>'recipient_count')::int, p_run->'audience');
   exception when unique_violation then
-    -- Its id (a replay) or its step and day (broadcasts_playbook_run): made already, whole.
     return jsonb_build_object('exists', true);
   end;
-  insert into public.reach_out_sends (id, tenant_id, broadcast_id, playbook_id, root_id, lead_id, contact_id, domain_id,
+  insert into public.reach_out_sends (id, tenant_id, broadcast_id, playbook_id, root_id, lead_id, contact_id, mailbox_id,
                                       send_at, state, reason)
-  select x.id, v_tenant, v_run, v_step, v_root, x.lead_id, x.contact_id, x.domain_id, x.send_at,
+  select x.id, v_tenant, v_run, v_step, v_root, x.lead_id, x.contact_id, x.mailbox_id, x.send_at,
          coalesce(x.state, 'planned'), x.reason
     from jsonb_to_recordset(coalesce(p_sends, '[]'::jsonb))
-         as x(id uuid, lead_id uuid, contact_id uuid, domain_id uuid, send_at timestamptz, state text, reason text)
+         as x(id uuid, lead_id uuid, contact_id uuid, mailbox_id uuid, send_at timestamptz, state text, reason text)
    where exists (select 1 from public.leads l where l.id = x.lead_id and l.tenant_id = v_tenant)
-     and (x.domain_id is null
-          or exists (select 1 from public.sending_domains d where d.id = x.domain_id and d.tenant_id = v_tenant))
+     and (x.mailbox_id is null
+          or exists (select 1 from public.mailbox_connections b where b.id = x.mailbox_id and b.tenant_id = v_tenant))
   on conflict (broadcast_id, lead_id) do nothing;
   return jsonb_build_object('id', v_run);
 end $$;
@@ -18140,7 +18677,7 @@ end $$;
 -- Name: FUNCTION reach_out_plan_run(p_run jsonb, p_sends jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_plan_run(p_run jsonb, p_sends jsonb) IS 'A reach-out step''s run and its sends, written whole (core runReachOut): {id}, or {exists} when the step already has its run for the day. Service role only.';
+COMMENT ON FUNCTION public.reach_out_plan_run(p_run jsonb, p_sends jsonb) IS 'A reach-out step''s run and its sends, written whole (core runReachOut): {id}, or {exists} when the step already has its run for the day. Each send names its mailbox (00424). Service role only.';
 
 
 --
@@ -18997,7 +19534,7 @@ begin
     -- window's `sent` and the period before), so not materialized (00404): each read takes the rows it needs, and the
     -- tenant's whole history of emails is never held for the second.
     with left_ as not materialized (
-      select s.id, s.root_id, s.playbook_id, s.lead_id, s.contact_id, s.domain_id,
+      select s.id, s.root_id, s.playbook_id, s.lead_id, s.contact_id, s.mailbox_id,
              coalesce(s.sent_at, public.email_sent_at(m.meta, m.status_updated_at, m.created_at)) as sent_at,
              lower(nullif(btrim(s.angle), '')) as angle, m.status, m.error, m.meta
         from public.reach_out_sends s
@@ -19044,15 +19581,15 @@ begin
        where x.angle is not null
        group by x.angle
     ),
-    domains as (
-      select x.domain_id, d.host, d.state, d.held_why, d.held_at, count(*) as sent,
-             count(*) filter (where x.status in ('delivered', 'read')) as delivered,
+    mailboxes as (
+      select x.mailbox_id, b.address, b.state, b.held_why, b.held_at, count(*) as sent,
+             count(*) filter (where x.status in ('sent', 'delivered', 'read')) as delivered,
              count(*) filter (where x.status = 'failed' and x.error->>'provider' = 'bounced'
                                 and lower(coalesce(x.error->>'kind', '')) = 'permanent') as bounced,
              count(*) filter (where x.meta->'email'->>'complained_at' is not null) as complained
         from sent x
-        left join public.sending_domains d on d.id = x.domain_id and d.tenant_id = p_tenant_id
-       group by x.domain_id, d.host, d.state, d.held_why, d.held_at
+        left join public.mailbox_connections b on b.id = x.mailbox_id and b.tenant_id = p_tenant_id
+       group by x.mailbox_id, b.address, b.state, b.held_why, b.held_at
     )
     select jsonb_build_object(
       'timezone', v_tz,
@@ -19065,7 +19602,7 @@ begin
       'totals', jsonb_build_object(
         'written', (select count(*) from sent),
         'businesses', (select count(*) from last_sent),
-        'delivered', (select count(*) from sent where status in ('delivered', 'read')),
+        'delivered', (select count(*) from sent where status in ('sent', 'delivered', 'read')),
         'bounced', (select count(*) from sent where status = 'failed' and error->>'provider' = 'bounced'),
         'wrote_back', (select count(*) from answers where wrote_back),
         'interested', (select count(*) from answers where interested),
@@ -19076,7 +19613,7 @@ begin
       'before', (
         select jsonb_build_object(
                  'written', count(*),
-                 'delivered', count(*) filter (where x.status in ('delivered', 'read')),
+                 'delivered', count(*) filter (where x.status in ('sent', 'delivered', 'read')),
                  'bounced', count(*) filter (where x.status = 'failed' and x.error->>'provider' = 'bounced'))
           from left_ x where x.sent_at >= v_prior and x.sent_at < v_since),
       'series', (
@@ -19112,7 +19649,7 @@ begin
                          'hand', p.hand->>'kind',
                          'written', (select count(*) from sent x where x.playbook_id = c.id),
                          'delivered', (select count(*) from sent x where x.playbook_id = c.id
-                                         and x.status in ('delivered', 'read')),
+                                         and x.status in ('sent', 'delivered', 'read')),
                          'bounced', (select count(*) from sent x where x.playbook_id = c.id
                                        and x.status = 'failed' and x.error->>'provider' = 'bounced'),
                          'businesses', (select count(*) from answers a where a.playbook_id = c.id),
@@ -19140,12 +19677,14 @@ begin
         'businesses', coalesce((select sum(a.businesses) from angles a where a.rank > 8), 0),
         'wrote_back', coalesce((select sum(a.wrote_back) from angles a where a.rank > 8), 0)),
       'no_angle', (select count(*) from sent where angle is null),
-      'domains', coalesce((
+      -- An edge or a page from before mailboxes reads `domains`: none now (decision 0056).
+      'domains', '[]'::jsonb,
+      'mailboxes', coalesce((
         select jsonb_agg(jsonb_build_object(
-                 'host', d.host, 'state', d.state, 'held_why', d.held_why, 'held_at', d.held_at,
+                 'address', d.address, 'state', d.state, 'held_why', d.held_why, 'held_at', d.held_at,
                  'sent', d.sent, 'delivered', d.delivered, 'bounced', d.bounced, 'complained', d.complained)
-               order by d.sent desc, d.host)
-          from (select * from domains order by sent desc, host limit 10) d), '[]'::jsonb))
+               order by d.sent desc, d.address)
+          from (select * from mailboxes order by sent desc, address limit 10) d), '[]'::jsonb))
   );
 end $$;
 
@@ -19200,8 +19739,8 @@ declare
   v_gap      int := (p_chain->>'gap_minutes')::int;
   v_signed   text := nullif(btrim(coalesce(p_chain->>'signed_by', '')), '');
   v_unconf   boolean := coalesce((p_chain->>'include_unconfirmed')::boolean, false);
-  v_domains  uuid[] := coalesce(
-               array(select x::uuid from jsonb_array_elements_text(coalesce(p_chain->'domain_ids', '[]'::jsonb)) x), '{}');
+  v_mailboxes uuid[] := coalesce(
+               array(select x::uuid from jsonb_array_elements_text(coalesce(p_chain->'mailbox_ids', '[]'::jsonb)) x), '{}');
   v_steps    jsonb := coalesce(p_chain->'steps', '[]'::jsonb);
   v_n        int := jsonb_array_length(coalesce(p_chain->'steps', '[]'::jsonb));
   v_existing uuid[] := '{}';
@@ -19233,9 +19772,11 @@ begin
       raise exception 'A call or a note ends the chain.' using errcode = '22023';
     end if;
   end loop;
-  if exists (select 1 from unnest(v_domains) d
-              where not exists (select 1 from public.sending_domains s where s.id = d and s.tenant_id = p_tenant_id)) then
-    raise exception 'Domain not found.' using errcode = 'P0002';
+  -- The mailboxes it writes from are this workspace's, and not removed (00423).
+  if exists (select 1 from unnest(v_mailboxes) b
+              where not exists (select 1 from public.mailbox_connections c
+                                 where c.id = b and c.tenant_id = p_tenant_id and c.state <> 'removed')) then
+    raise exception 'Mailbox not found.' using errcode = 'P0002';
   end if;
 
   if v_root is null then
@@ -19317,14 +19858,14 @@ begin
         returning id into v_template;
       end if;
       insert into public.playbooks (id, tenant_id, kind, name, trigger, policy_class, lead_search_id, after_playbook_id,
-                                    after_days, gap_minutes, domain_ids, signed_by, include_unconfirmed, template_id,
+                                    after_days, gap_minutes, mailbox_ids, signed_by, include_unconfirmed, template_id,
                                     template_name, template_language, hand, params, run_hour, cap_per_run, state,
                                     created_by)
       values (v_id, p_tenant_id, 'reach_out',
               case when v_i = 0 then v_name else left(v_name, 80 - char_length(v_label) - 3) || ' · ' || v_label end,
               case when v_i = 0 then 'lead_first' else 'after_step' end, 'outreach',
               case when v_i = 0 then v_search end, case when v_i > 0 then v_prev end,
-              case when v_i > 0 then (v_step->>'after_days')::int end, v_gap, v_domains,
+              case when v_i > 0 then (v_step->>'after_days')::int end, v_gap, v_mailboxes,
               case when v_i = 0 then v_signed end, v_i = 0 and v_unconf,
               case when v_hand is null then v_template end,
               case when v_hand is null then 'reach_out_' || replace(v_id::text, '-', '') end,
@@ -19370,7 +19911,7 @@ begin
       end if;
       update public.playbooks
          set name = case when v_i = 0 then v_name else left(v_name, 80 - char_length(v_label) - 3) || ' · ' || v_label end,
-             gap_minutes = v_gap, domain_ids = v_domains,
+             gap_minutes = v_gap, mailbox_ids = v_mailboxes, domain_ids = '{}',
              after_days = case when v_i > 0 then (v_step->>'after_days')::int end,
              signed_by = case when v_i = 0 then v_signed end,
              include_unconfirmed = v_i = 0 and v_unconf
@@ -19473,7 +20014,7 @@ begin
   return (
     -- left_at: when an email left (sent, or failed by a receipt after it left: email_left), else null.
     with sends as (
-      select s.id, s.lead_id, s.state, s.reason, s.send_at, s.checked_at, s.domain_id, s.message_id,
+      select s.id, s.lead_id, s.state, s.reason, s.send_at, s.checked_at, s.mailbox_id, s.message_id,
              case when s.state = 'sent' then s.sent_at
                   when s.state = 'failed' and public.email_left(m.status, m.error)
                     then public.email_sent_at(m.meta, m.status_updated_at, m.created_at) end as left_at,
@@ -19502,10 +20043,10 @@ begin
       'chain', jsonb_build_object('root_id', v_root.id, 'name', v_root.name, 'state', v_root.state),
       'written_to', (select count(*) from per where sent > 0),
       'today', (select count(*) from sends where left_at >= v_midnight),
-      'next', (select jsonb_build_object('at', x.send_at, 'business', l.business_name, 'host', d.host)
+      'next', (select jsonb_build_object('at', x.send_at, 'business', l.business_name, 'host', b.host, 'from', b.address)
                  from sends x
                  join public.leads l on l.id = x.lead_id
-                 left join public.sending_domains d on d.id = x.domain_id
+                 left join public.mailbox_connections b on b.id = x.mailbox_id
                 where x.state = 'planned' and x.live and x.checked_at is not null
                 order by x.send_at
                 limit 1),
@@ -21080,6 +21621,11 @@ begin
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
   values (p_tenant_id, 'mailbox.offers_resumed', 'system', 'mailbox', v_mailbox,
           jsonb_build_object('reason', v_reason, 'paused_at', v_since));
+  -- The bell's pause notice is closed: the pause it told of has lifted (00421; the title is contracts
+  -- OFFERS_NOTICE_WORDS.paused's).
+  perform public.notifications_close_about(
+    p_tenant_id, array['sweep'], null, null, 'Offers and news by email are paused'
+  );
   return true;
 end $$;
 
@@ -21088,7 +21634,7 @@ end $$;
 -- Name: FUNCTION resume_email_offers(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.resume_email_offers(p_tenant_id uuid) IS 'The back office''s: turns a workspace''s offers by email back on, once its list is fixed, stamps offers_resumed_at (the gates are then judged over the offers sent after it) and writes a mailbox.offers_resumed event. True when they were paused. Service role only.';
+COMMENT ON FUNCTION public.resume_email_offers(p_tenant_id uuid) IS 'The back office''s: turns a workspace''s offers by email back on, once its list is fixed, stamps offers_resumed_at (the gates are then judged over the offers sent after it), writes a mailbox.offers_resumed event and closes the bell''s pause notice (00421). True when they were paused. Service role only.';
 
 
 --
@@ -22725,6 +23271,43 @@ end $$;
 
 
 --
+-- Name: stamp_email_from_mailbox(uuid, uuid, text, text, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.stamp_email_from_mailbox(p_tenant_id uuid, p_message_id uuid, p_provider_id text, p_rfc_message_id text, p_thread_id text, p_mailbox_id uuid) RETURNS boolean
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  -- What a mailbox kept of the email it sent, which no receipt brings later: the provider's id, the Message-ID it went
+  -- under, its thread, and which mailbox (00128 stamp_email_sent's shape, for the mailbox's road).
+  with stamped as (
+    update public.messages m
+       set external_id = coalesce(m.external_id, p_provider_id),
+           meta = jsonb_set(
+             coalesce(m.meta, '{}'::jsonb),
+             '{email}',
+             coalesce(m.meta->'email', '{}'::jsonb)
+               || jsonb_strip_nulls(jsonb_build_object(
+                    'message_id', p_rfc_message_id, 'thread_id', p_thread_id, 'mailbox_id', p_mailbox_id)))
+     where m.id = p_message_id and m.tenant_id = p_tenant_id and m.channel = 'email' and m.direction = 'outbound'
+    returning 1
+  ), sent as (
+    update public.mailbox_connections b set sent_at = now()
+     where b.id = p_mailbox_id and b.tenant_id = p_tenant_id and exists (select 1 from stamped)
+    returning 1
+  )
+  select exists (select 1 from stamped)
+$$;
+
+
+--
+-- Name: FUNCTION stamp_email_from_mailbox(p_tenant_id uuid, p_message_id uuid, p_provider_id text, p_rfc_message_id text, p_thread_id text, p_mailbox_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.stamp_email_from_mailbox(p_tenant_id uuid, p_message_id uuid, p_provider_id text, p_rfc_message_id text, p_thread_id text, p_mailbox_id uuid) IS 'An email sent from a connected mailbox, stamped (00424): its provider id, the Message-ID it went under (meta.email.message_id, which a reply cites), its provider thread (meta.email.thread_id, which the sync reads by) and the mailbox (meta.email.mailbox_id); the mailbox''s last send. True when the row was there. Service role only.';
+
+
+--
 -- Name: stamp_email_left_as(uuid, uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -24033,6 +24616,31 @@ CREATE FUNCTION public.trigger_lines_sweep() RETURNS bigint
 --
 
 COMMENT ON FUNCTION public.trigger_lines_sweep() IS 'Asks the edge to resume any line whose provisioning saga was killed mid-run. Recorded in public.sweep_status.';
+
+
+--
+-- Name: trigger_mailboxes_sweep(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trigger_mailboxes_sweep() RETURNS bigint
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions'
+    AS $$
+begin
+  if exists (select 1 from public.mailbox_connections c where c.state in ('connected', 'paused', 'held')) then
+    return public.request_sweep('mailboxes', '/api/cron/mailboxes', 65000);
+  end if;
+  insert into public.sweep_status (sweep, requested_at) values ('mailboxes', now())
+  on conflict (sweep) do update set requested_at = excluded.requested_at;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION trigger_mailboxes_sweep(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.trigger_mailboxes_sweep() IS 'The mailboxes clock (decision 0056). Calls the edge (/api/cron/mailboxes) only while a connected mailbox is live; otherwise records that it looked.';
 
 
 --
@@ -26491,6 +27099,86 @@ COMMENT ON COLUMN public.lines.reg_sole_prop IS 'True when the carrier registrat
 
 
 --
+-- Name: mailbox_connections; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.mailbox_connections (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    provider text NOT NULL,
+    provider_account text NOT NULL,
+    address text NOT NULL,
+    host text NOT NULL,
+    from_name text NOT NULL,
+    signature text,
+    scopes text[] DEFAULT '{}'::text[] NOT NULL,
+    state text DEFAULT 'connected'::text NOT NULL,
+    held_why text,
+    held_at timestamp with time zone,
+    resting_until timestamp with time zone,
+    daily_cap integer DEFAULT 40 NOT NULL,
+    customer_domain boolean DEFAULT false NOT NULL,
+    clean_since timestamp with time zone DEFAULT now() NOT NULL,
+    counted_since timestamp with time zone DEFAULT now() NOT NULL,
+    sent_days integer DEFAULT 0 NOT NULL,
+    dns jsonb DEFAULT '{}'::jsonb NOT NULL,
+    dns_checked_at timestamp with time zone,
+    sync_cursor text,
+    watch_id text,
+    watch_expires_at timestamp with time zone,
+    synced_at timestamp with time zone,
+    sync_lease_until timestamp with time zone,
+    judged_at timestamp with time zone,
+    sent_at timestamp with time zone,
+    last_error text,
+    last_error_at timestamp with time zone,
+    credentials_ref text,
+    connected_by uuid,
+    connected_at timestamp with time zone DEFAULT now() NOT NULL,
+    removed_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT mailbox_connections_address_check CHECK ((((char_length(address) >= 6) AND (char_length(address) <= 254)) AND (address = lower(btrim(address))) AND (address ~ '^[a-z0-9._%+''-]+@([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$'::text))),
+    CONSTRAINT mailbox_connections_daily_cap_check CHECK (((daily_cap >= 1) AND (daily_cap <= 50))),
+    CONSTRAINT mailbox_connections_dns_check CHECK ((jsonb_typeof(dns) = 'object'::text)),
+    CONSTRAINT mailbox_connections_from_name_check CHECK (((char_length(btrim(from_name)) >= 1) AND (char_length(btrim(from_name)) <= 80))),
+    CONSTRAINT mailbox_connections_held_is_whole CHECK ((((state = 'held'::text) = (held_why IS NOT NULL)) AND ((held_why IS NULL) = (held_at IS NULL)))),
+    CONSTRAINT mailbox_connections_held_why_check CHECK ((held_why = ANY (ARRAY['bounces'::text, 'complaint'::text, 'unsubscribes'::text]))),
+    CONSTRAINT mailbox_connections_host_is_address CHECK ((host = split_part(address, '@'::text, 2))),
+    CONSTRAINT mailbox_connections_last_error_check CHECK (((last_error IS NULL) OR (char_length(last_error) <= 300))),
+    CONSTRAINT mailbox_connections_provider_account_check CHECK (((char_length(provider_account) >= 1) AND (char_length(provider_account) <= 200))),
+    CONSTRAINT mailbox_connections_provider_check CHECK ((provider = ANY (ARRAY['google'::text, 'microsoft'::text]))),
+    CONSTRAINT mailbox_connections_removed_is_dated CHECK (((state = 'removed'::text) = (removed_at IS NOT NULL))),
+    CONSTRAINT mailbox_connections_sent_days_check CHECK ((sent_days >= 0)),
+    CONSTRAINT mailbox_connections_signature_check CHECK (((signature IS NULL) OR (char_length(signature) <= 1000))),
+    CONSTRAINT mailbox_connections_state_check CHECK ((state = ANY (ARRAY['connected'::text, 'reconnect'::text, 'paused'::text, 'held'::text, 'removed'::text]))),
+    CONSTRAINT mailbox_connections_sync_cursor_check CHECK (((sync_cursor IS NULL) OR (char_length(sync_cursor) <= 4000))),
+    CONSTRAINT mailbox_connections_watch_id_check CHECK (((watch_id IS NULL) OR (char_length(watch_id) <= 200)))
+);
+
+
+--
+-- Name: TABLE mailbox_connections; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.mailbox_connections IS 'A mailbox a business connected to write from (decision 0056): its provider (google or microsoft), its address and the name it sends as, its state, its day (the owner''s cap, the ramp''s clock, the provider''s own limit), its domain''s DNS, the sync''s cursor and watch. Tokens are in Vault (put/get/drop_mailbox_credentials), never here. Members read; the service role writes. One live row per address across every workspace.';
+
+
+--
+-- Name: COLUMN mailbox_connections.state; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mailbox_connections.state IS 'connected: it sends and is read. reconnect: its provider signed it out (a revoked or expired grant): its sends wait and its owner is told once. paused: its owner paused it. held: its own mail earned a hold (held_why), lifted by its owner''s Resume. removed: gone; kept so a send and a report still name it.';
+
+
+--
+-- Name: COLUMN mailbox_connections.resting_until; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mailbox_connections.resting_until IS 'Set when the provider refused a send for its own day''s limit: the mailbox''s sends wait until then (the next midnight in its provider''s reckoning, or the wait it named). Null otherwise.';
+
+
+--
 -- Name: mailboxes; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -26721,6 +27409,7 @@ CREATE TABLE public.notifications (
     recipient_user_id uuid,
     source_event uuid,
     mail_due_at timestamp with time zone,
+    closed_at timestamp with time zone,
     CONSTRAINT notifications_body_check CHECK ((char_length(body) <= 4000)),
     CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text]))),
     CONSTRAINT notifications_title_check CHECK (((char_length(title) >= 1) AND (char_length(title) <= 200)))
@@ -26753,6 +27442,13 @@ COMMENT ON COLUMN public.notifications.source_event IS 'The event this notice an
 --
 
 COMMENT ON COLUMN public.notifications.mail_due_at IS 'When this notice''s mail became owed (decision 0048, 00409): set with the row when a mail is to go, cleared once it has gone, so a retry sends the mail alone and the bell keeps one row. Null for a notice nothing owes.';
+
+
+--
+-- Name: COLUMN notifications.closed_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.notifications.closed_at IS 'When what the row asked for ended for good, for everyone (00421): the hold it told of resolved (escalation_closes_its_notices), the question it asked settled (lead_rounds_notify), the offers pause it told of lifted (resume_email_offers), or the warning mended by news the edge kept after it (contracts NOTICE_MENDS). Null while it may still ask. A closed row reads as read and wears no warning; a member''s own read stays notification_marks''. Written by the service role and the definer functions only: the table''s one policy is SELECT.';
 
 
 --
@@ -27407,6 +28103,7 @@ CREATE TABLE public.playbooks (
     channels text[] DEFAULT '{whatsapp}'::text[] NOT NULL,
     until date,
     trial_until timestamp with time zone,
+    mailbox_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
     CONSTRAINT playbooks_cadence_days_check CHECK (((cadence_days >= 1) AND (cadence_days <= 90))),
     CONSTRAINT playbooks_cap_per_run_check CHECK (((cap_per_run >= 1) AND (cap_per_run <= 500))),
     CONSTRAINT playbooks_channels_check CHECK (((channels <@ ARRAY['whatsapp'::text, 'sms'::text, 'email'::text]) AND ((cardinality(channels) >= 1) AND (cardinality(channels) <= 3)) AND (cardinality(channels) = ((((channels @> ARRAY['whatsapp'::text]))::integer + ((channels @> ARRAY['sms'::text]))::integer) + ((channels @> ARRAY['email'::text]))::integer)))),
@@ -27454,6 +28151,13 @@ COMMENT ON COLUMN public.playbooks.list_key IS 'The People list a saved_list pla
 
 
 --
+-- Name: COLUMN playbooks.domain_ids; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.playbooks.domain_ids IS 'Retired (decision 0056): the sending domains a chain wrote from. reach_out_save empties it; mailbox_ids is the chain''s.';
+
+
+--
 -- Name: COLUMN playbooks.hand; Type: COMMENT; Schema: public; Owner: -
 --
 
@@ -27479,6 +28183,13 @@ COMMENT ON COLUMN public.playbooks.until IS 'The last day this campaign runs, on
 --
 
 COMMENT ON COLUMN public.playbooks.trial_until IS 'Until when this campaign runs on trial: before it, a run its policy would send by itself (auto) waits for a person (veto). Null: no trial (00416).';
+
+
+--
+-- Name: COLUMN playbooks.mailbox_ids; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.playbooks.mailbox_ids IS 'A reach-out step''s mailboxes (00424): the ones its owner picked, or none for every connected one of its workspace.';
 
 
 --
@@ -27779,7 +28490,7 @@ CREATE TABLE public.sending_domain_days (
 -- Name: TABLE sending_domain_days; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.sending_domain_days IS 'One row per sending domain per UTC day: its state and counters as the domains sweep''s last check left them (K9), written by sending_domain_days_keep at 00:23 for the day that ended. Null where the domain had no count; checked_at says how stale. Members read their workspace''s; the service role writes.';
+COMMENT ON TABLE public.sending_domain_days IS 'Retired (decision 0056, 00423): each sending domain''s day, filed nightly until its clock was unscheduled. Kept inert until a later migration drops it (docs/debt.md).';
 
 
 --
@@ -27828,7 +28539,7 @@ CREATE TABLE public.sending_domains (
 -- Name: TABLE sending_domains; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.sending_domains IS 'The domains a workspace sends cold email from (Reach out): the identity, the provider''s records, and where each stands. Members read; the service role writes (apps/edge lib/email/sending-domains.ts).';
+COMMENT ON TABLE public.sending_domains IS 'Retired (decision 0056, 00423): the domains a second Resend account sent cold email from. Nothing reads or writes it now; kept inert until a later migration drops it (docs/debt.md).';
 
 
 --
@@ -28819,6 +29530,22 @@ ALTER TABLE ONLY public.leads
 
 ALTER TABLE ONLY public.lines
     ADD CONSTRAINT lines_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: mailbox_connections mailbox_connections_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mailbox_connections
+    ADD CONSTRAINT mailbox_connections_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: mailbox_connections mailbox_connections_tenant_id_id; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mailbox_connections
+    ADD CONSTRAINT mailbox_connections_tenant_id_id UNIQUE (tenant_id, id);
 
 
 --
@@ -30064,6 +30791,34 @@ CREATE INDEX lines_tenant_idx ON public.lines USING btree (tenant_id, created_at
 
 
 --
+-- Name: mailbox_connections_live_account; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX mailbox_connections_live_account ON public.mailbox_connections USING btree (tenant_id, provider, provider_account) WHERE (state <> 'removed'::text);
+
+
+--
+-- Name: mailbox_connections_live_address; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX mailbox_connections_live_address ON public.mailbox_connections USING btree (address) WHERE (state <> 'removed'::text);
+
+
+--
+-- Name: mailbox_connections_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX mailbox_connections_tenant ON public.mailbox_connections USING btree (tenant_id, state);
+
+
+--
+-- Name: mailbox_connections_watch; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX mailbox_connections_watch ON public.mailbox_connections USING btree (watch_expires_at) WHERE (state = ANY (ARRAY['connected'::text, 'paused'::text, 'held'::text]));
+
+
+--
 -- Name: mailboxes_local_part_uq; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -30145,6 +30900,13 @@ CREATE INDEX messages_email_message_id_idx ON public.messages USING btree (tenan
 --
 
 CREATE INDEX messages_email_references_idx ON public.messages USING gin ((((meta -> 'email'::text) -> 'references'::text)) jsonb_path_ops) WHERE ((channel = 'email'::text) AND (direction = 'inbound'::text));
+
+
+--
+-- Name: messages_email_thread; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX messages_email_thread ON public.messages USING btree (tenant_id, (((meta -> 'email'::text) ->> 'thread_id'::text))) WHERE ((channel = 'email'::text) AND (direction = 'outbound'::text) AND (((meta -> 'email'::text) ->> 'thread_id'::text) IS NOT NULL));
 
 
 --
@@ -30540,6 +31302,20 @@ CREATE INDEX reach_out_sends_lead ON public.reach_out_sends USING btree (tenant_
 
 
 --
+-- Name: reach_out_sends_mailbox; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX reach_out_sends_mailbox ON public.reach_out_sends USING btree (mailbox_id, state) WHERE (mailbox_id IS NOT NULL);
+
+
+--
+-- Name: reach_out_sends_mailbox_due; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX reach_out_sends_mailbox_due ON public.reach_out_sends USING btree (mailbox_id, send_at) WHERE (state = 'planned'::text);
+
+
+--
 -- Name: reach_out_sends_message; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -30932,6 +31708,13 @@ CREATE TRIGGER deals_set_updated_at BEFORE UPDATE ON public.deals FOR EACH ROW E
 
 
 --
+-- Name: escalations escalation_closes_its_notices; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER escalation_closes_its_notices AFTER UPDATE OF state ON public.escalations FOR EACH ROW WHEN (((old.state = 'open'::text) AND (new.state = 'resolved'::text))) EXECUTE FUNCTION public.escalation_closes_its_notices();
+
+
+--
 -- Name: escalations escalations_guard; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -31118,6 +31901,20 @@ CREATE TRIGGER lines_sms_guard BEFORE UPDATE ON public.lines FOR EACH ROW EXECUT
 --
 
 CREATE TRIGGER lines_voice_guard BEFORE UPDATE ON public.lines FOR EACH ROW EXECUTE FUNCTION public.lines_voice_guard();
+
+
+--
+-- Name: mailbox_connections mailbox_connections_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER mailbox_connections_set_updated_at BEFORE UPDATE ON public.mailbox_connections FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
+-- Name: mailbox_connections mailbox_connections_within_limit; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER mailbox_connections_within_limit BEFORE INSERT OR UPDATE OF state, host ON public.mailbox_connections FOR EACH ROW EXECUTE FUNCTION public.mailbox_connections_within_limit();
 
 
 --
@@ -31520,6 +32317,13 @@ CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.lines REFERENCING OL
 
 
 --
+-- Name: mailbox_connections workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.mailbox_connections REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
 -- Name: memberships workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -31566,13 +32370,6 @@ CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.segment_members REFE
 --
 
 CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.segments REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
-
-
---
--- Name: sending_domains workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.sending_domains REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
 
 
 --
@@ -31730,6 +32527,13 @@ CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.lines REFERENCING NE
 
 
 --
+-- Name: mailbox_connections workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.mailbox_connections REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
 -- Name: memberships workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -31790,13 +32594,6 @@ CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.segment_members REFE
 --
 
 CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.segments REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
-
-
---
--- Name: sending_domains workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.sending_domains REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
 
 
 --
@@ -31947,6 +32744,13 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.lines REFERENCING NE
 
 
 --
+-- Name: mailbox_connections workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE OF state, held_why, resting_until, daily_cap, customer_domain, sent_days, dns, last_error, from_name, signature, address ON public.mailbox_connections FOR EACH ROW WHEN (((old.state IS DISTINCT FROM new.state) OR (old.held_why IS DISTINCT FROM new.held_why) OR (old.resting_until IS DISTINCT FROM new.resting_until) OR (old.daily_cap IS DISTINCT FROM new.daily_cap) OR (old.customer_domain IS DISTINCT FROM new.customer_domain) OR (old.sent_days IS DISTINCT FROM new.sent_days) OR (old.dns IS DISTINCT FROM new.dns) OR (old.last_error IS DISTINCT FROM new.last_error) OR (old.from_name IS DISTINCT FROM new.from_name) OR (old.signature IS DISTINCT FROM new.signature) OR (old.address IS DISTINCT FROM new.address))) EXECUTE FUNCTION public.workspace_tell_row_change();
+
+
+--
 -- Name: mailboxes workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -31965,6 +32769,13 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE OF role ON public.memberships 
 --
 
 CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.messages REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes('status');
+
+
+--
+-- Name: notifications workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE OF closed_at ON public.notifications FOR EACH ROW WHEN ((old.closed_at IS DISTINCT FROM new.closed_at)) EXECUTE FUNCTION public.workspace_tell_row_change();
 
 
 --
@@ -32007,13 +32818,6 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.segment_members REFE
 --
 
 CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.segments REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
-
-
---
--- Name: sending_domains workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.sending_domains REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
 
 
 --
@@ -32789,6 +33593,14 @@ ALTER TABLE ONLY public.lines
 
 
 --
+-- Name: mailbox_connections mailbox_connections_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mailbox_connections
+    ADD CONSTRAINT mailbox_connections_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: mailboxes mailboxes_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -33330,6 +34142,14 @@ ALTER TABLE ONLY public.reach_out_sends
 
 ALTER TABLE ONLY public.reach_out_sends
     ADD CONSTRAINT reach_out_sends_lead_id_same_workspace FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: reach_out_sends reach_out_sends_mailbox_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reach_out_sends
+    ADD CONSTRAINT reach_out_sends_mailbox_id_same_workspace FOREIGN KEY (tenant_id, mailbox_id) REFERENCES public.mailbox_connections(tenant_id, id) ON DELETE SET NULL (mailbox_id);
 
 
 --
@@ -34291,6 +35111,21 @@ ALTER TABLE public.lines ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY lines_member_select ON public.lines FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: mailbox_connections; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.mailbox_connections ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: mailbox_connections mailbox_connections_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY mailbox_connections_member_select ON public.mailbox_connections FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
@@ -35571,6 +36406,14 @@ GRANT ALL ON FUNCTION public.drop_google_credentials(p_tenant_id uuid) TO servic
 
 
 --
+-- Name: FUNCTION drop_mailbox_credentials(p_connection_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.drop_mailbox_credentials(p_connection_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.drop_mailbox_credentials(p_connection_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION email_from_host(p_meta jsonb); Type: ACL; Schema: public; Owner: -
 --
 
@@ -35699,6 +36542,14 @@ GRANT ALL ON FUNCTION public.erasure_rekey(p_apply boolean, p_tenant_id uuid) TO
 
 REVOKE ALL ON FUNCTION public.erasure_rekey_hashes(p_list jsonb) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.erasure_rekey_hashes(p_list jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION escalation_closes_its_notices(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.escalation_closes_its_notices() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.escalation_closes_its_notices() TO service_role;
 
 
 --
@@ -35838,6 +36689,14 @@ GRANT ALL ON FUNCTION public.get_google_credentials(p_tenant_id uuid) TO service
 
 REVOKE ALL ON FUNCTION public.get_line_credentials(p_line_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.get_line_credentials(p_line_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION get_mailbox_credentials(p_connection_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.get_mailbox_credentials(p_connection_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.get_mailbox_credentials(p_connection_id uuid) TO service_role;
 
 
 --
@@ -36605,6 +37464,46 @@ GRANT ALL ON FUNCTION public.lookup_user_for_invite(p_tenant_id uuid, p_email te
 
 
 --
+-- Name: FUNCTION mailbox_capacity(p_mailbox_id uuid, p_at timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.mailbox_capacity(p_mailbox_id uuid, p_at timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.mailbox_capacity(p_mailbox_id uuid, p_at timestamp with time zone) TO service_role;
+
+
+--
+-- Name: FUNCTION mailbox_connection_connect(p_tenant_id uuid, p_user_id uuid, p_provider text, p_account text, p_address text, p_from_name text, p_scopes text[], p_customer_domain boolean); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.mailbox_connection_connect(p_tenant_id uuid, p_user_id uuid, p_provider text, p_account text, p_address text, p_from_name text, p_scopes text[], p_customer_domain boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.mailbox_connection_connect(p_tenant_id uuid, p_user_id uuid, p_provider text, p_account text, p_address text, p_from_name text, p_scopes text[], p_customer_domain boolean) TO service_role;
+
+
+--
+-- Name: FUNCTION mailbox_connection_counts(p_mailbox_id uuid, p_since timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.mailbox_connection_counts(p_mailbox_id uuid, p_since timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.mailbox_connection_counts(p_mailbox_id uuid, p_since timestamp with time zone) TO service_role;
+
+
+--
+-- Name: FUNCTION mailbox_connections_within_limit(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.mailbox_connections_within_limit() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.mailbox_connections_within_limit() TO service_role;
+
+
+--
+-- Name: FUNCTION mailbox_threads_known(p_tenant_id uuid, p_thread_ids text[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.mailbox_threads_known(p_tenant_id uuid, p_thread_ids text[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.mailbox_threads_known(p_tenant_id uuid, p_thread_ids text[]) TO service_role;
+
+
+--
 -- Name: FUNCTION mark_processed(p_tenant_id uuid, p_message_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -36893,6 +37792,14 @@ GRANT ALL ON FUNCTION public.notification_mark(p_id uuid, p_read boolean, p_dism
 
 
 --
+-- Name: FUNCTION notifications_close_about(p_tenant_id uuid, p_kinds text[], p_subject_type text, p_subject_id text, p_title text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.notifications_close_about(p_tenant_id uuid, p_kinds text[], p_subject_type text, p_subject_id text, p_title text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.notifications_close_about(p_tenant_id uuid, p_kinds text[], p_subject_type text, p_subject_id text, p_title text) TO service_role;
+
+
+--
 -- Name: FUNCTION notifications_seen(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -36932,6 +37839,14 @@ GRANT ALL ON FUNCTION public.outreach_facts(p_tenant_id uuid, p_contact_id uuid,
 
 REVOKE ALL ON FUNCTION public.outreach_lead_facts(p_tenant_id uuid, p_contact_id uuid, p_to text, p_lead_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.outreach_lead_facts(p_tenant_id uuid, p_contact_id uuid, p_to text, p_lead_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION outreach_mailbox_facts(p_tenant_id uuid, p_contact_id uuid, p_to text, p_from text, p_lead_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.outreach_mailbox_facts(p_tenant_id uuid, p_contact_id uuid, p_to text, p_from text, p_lead_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.outreach_mailbox_facts(p_tenant_id uuid, p_contact_id uuid, p_to text, p_from text, p_lead_id uuid) TO service_role;
 
 
 --
@@ -37193,12 +38108,12 @@ GRANT ALL ON FUNCTION public.people_series(p_tenant_id uuid, p_days integer, p_e
 
 
 --
--- Name: FUNCTION person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text, p_closes_call_back boolean); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text) TO authenticated;
-GRANT ALL ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text) TO service_role;
+REVOKE ALL ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text, p_closes_call_back boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text, p_closes_call_back boolean) TO authenticated;
+GRANT ALL ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text, p_closes_call_back boolean) TO service_role;
 
 
 --
@@ -37756,6 +38671,14 @@ GRANT ALL ON FUNCTION public.put_line_credentials(p_line_id uuid, p_secret jsonb
 
 
 --
+-- Name: FUNCTION put_mailbox_credentials(p_connection_id uuid, p_secret jsonb, p_if_refresh_token text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.put_mailbox_credentials(p_connection_id uuid, p_secret jsonb, p_if_refresh_token text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.put_mailbox_credentials(p_connection_id uuid, p_secret jsonb, p_if_refresh_token text) TO service_role;
+
+
+--
 -- Name: FUNCTION reach_out_audience(p_tenant_id uuid, p_search_id uuid, p_limit integer, p_include_unconfirmed boolean); Type: ACL; Schema: public; Owner: -
 --
 
@@ -37830,6 +38753,14 @@ GRANT ALL ON FUNCTION public.reach_out_claim(p_domain_id uuid, p_cap integer, p_
 
 
 --
+-- Name: FUNCTION reach_out_claim_from(p_mailbox_id uuid, p_cap integer, p_at timestamp with time zone, p_limit integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.reach_out_claim_from(p_mailbox_id uuid, p_cap integer, p_at timestamp with time zone, p_limit integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.reach_out_claim_from(p_mailbox_id uuid, p_cap integer, p_at timestamp with time zone, p_limit integer) TO service_role;
+
+
+--
 -- Name: FUNCTION reach_out_closed_sends(p_stuck_before timestamp with time zone, p_limit integer, p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -37851,6 +38782,14 @@ GRANT ALL ON FUNCTION public.reach_out_day_due(p_now timestamp with time zone, p
 
 REVOKE ALL ON FUNCTION public.reach_out_due_domains(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid, p_skip_tenants uuid[], p_skip_domains uuid[]) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.reach_out_due_domains(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid, p_skip_tenants uuid[], p_skip_domains uuid[]) TO service_role;
+
+
+--
+-- Name: FUNCTION reach_out_due_mailboxes(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid, p_skip_tenants uuid[], p_skip_mailboxes uuid[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.reach_out_due_mailboxes(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid, p_skip_tenants uuid[], p_skip_mailboxes uuid[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.reach_out_due_mailboxes(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid, p_skip_tenants uuid[], p_skip_mailboxes uuid[]) TO service_role;
 
 
 --
@@ -38508,6 +39447,14 @@ GRANT ALL ON FUNCTION public.stamp_email_complaint(p_tenant_id uuid, p_message_i
 
 
 --
+-- Name: FUNCTION stamp_email_from_mailbox(p_tenant_id uuid, p_message_id uuid, p_provider_id text, p_rfc_message_id text, p_thread_id text, p_mailbox_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.stamp_email_from_mailbox(p_tenant_id uuid, p_message_id uuid, p_provider_id text, p_rfc_message_id text, p_thread_id text, p_mailbox_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.stamp_email_from_mailbox(p_tenant_id uuid, p_message_id uuid, p_provider_id text, p_rfc_message_id text, p_thread_id text, p_mailbox_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION stamp_email_left_as(p_tenant_id uuid, p_message_id uuid, p_left_as text, p_why text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -38816,6 +39763,14 @@ GRANT ALL ON FUNCTION public.trigger_leads_sweep() TO service_role;
 
 REVOKE ALL ON FUNCTION public.trigger_lines_sweep() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.trigger_lines_sweep() TO service_role;
+
+
+--
+-- Name: FUNCTION trigger_mailboxes_sweep(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.trigger_mailboxes_sweep() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.trigger_mailboxes_sweep() TO service_role;
 
 
 --
@@ -39809,6 +40764,14 @@ GRANT ALL ON TABLE public.lead_suppressions TO service_role;
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.lines TO authenticated;
 GRANT ALL ON TABLE public.lines TO service_role;
+
+
+--
+-- Name: TABLE mailbox_connections; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.mailbox_connections TO authenticated;
+GRANT ALL ON TABLE public.mailbox_connections TO service_role;
 
 
 --

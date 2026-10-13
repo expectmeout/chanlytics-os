@@ -65,7 +65,7 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
     }),
     "A consent answer changed · no to marketing email · unsubscribe",
   );
-  // A mailbox the business connected (00421): its address, and why when it was held, in the words Connections says.
+  // A mailbox the business connected (00423): its address, and why when it was held, in the words Connections says.
   assert.equal(
     activityWords("mailbox_connection.held", { address: "sam@getharbor.com", why: "bounces", sent: 150 }),
     "A mailbox to write from was held · sam@getharbor.com · more than 3% of its recent emails bounced",
@@ -1202,6 +1202,20 @@ test("what the ledgers never kept is said in an owner's words: a thread handed o
     activityWords("playbook.changed", { name: "Win-back", by: "u1", fields: [] }),
     "A campaign was edited · Win-back",
   );
+  // A save of the business on record says what it moved, by the form's labels, never the values (the wiring's second
+  // audit, X4-3); a row from before it, or the first save, says only that it was saved.
+  assert.equal(
+    activityWords("business.recorded", { by: "u1", changed: ["legal_name", "street"] }),
+    "The business record was saved · Legal name, Street",
+  );
+  assert.equal(
+    activityWords("business.recorded", { changed: ["contact_job_position", "country", "about", "city", "region"] }),
+    "The business record was saved · Job position, Country, What the business does, City",
+    "four at most, each by the words a person reads",
+  );
+  assert.equal(activityWords("business.recorded", { changed: [] }), "The business record was saved · nothing changed");
+  assert.equal(activityWords("business.recorded", { changed: null }), "The business record was saved");
+  assert.equal(activityWords("business.recorded", {}), "The business record was saved");
   // A campaign to whoever reads the log, never a playbook (decision 19): the ledger's kinds keep their names.
   assert.equal(activityWords("playbook.run", {}), "A campaign ran");
   assert.equal(activityWords("start_playbook", {}), "Started a campaign");

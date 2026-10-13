@@ -62,6 +62,11 @@ export interface Refusal {
    * refusal and no other.
    */
   confirmEmailTo?: string;
+  /**
+   * A person combined into another since (0028): the record kept, which their old address now opens (combinedInto).
+   * Present on that 404 and no other.
+   */
+  movedTo?: string;
 }
 
 const TITLES: ReadonlyMap<string, string> = new Map([
@@ -165,6 +170,28 @@ function confirmEmailToOf(details: unknown): string | null {
  */
 export const SESSION_ENDED: Readonly<{ session_ended: true }> = { session_ended: true };
 
+/**
+ * What a 404 for a person says beside its code when they were combined into another (0028): the record kept, so a link
+ * to the one combined away (a bell row, a note, a tab left open) opens the person they became, never "not in your
+ * workspace" (the wiring's second audit, S5-3).
+ */
+export function combinedInto(keptId: string): Readonly<{ moved_to: string }> {
+  return { moved_to: keptId };
+}
+
+/** The record a refusal's details name as the one its person became (combinedInto); null on any other. */
+function movedToOf(details: unknown): string | null {
+  const to = details && typeof details === "object" ? (details as { moved_to?: unknown }).moved_to : undefined;
+  return typeof to === "string" && /^[0-9a-f-]{36}$/i.test(to) ? to : null;
+}
+
+/** What one refusal alone says beside its words: the address a held reply goes to, the record a person became. */
+function asideOf(details: unknown, status: number): Pick<Refusal, "confirmEmailTo" | "movedTo"> {
+  const confirmEmailTo = confirmEmailToOf(details);
+  const movedTo = status === 404 ? movedToOf(details) : null;
+  return { ...(confirmEmailTo ? { confirmEmailTo } : {}), ...(movedTo ? { movedTo } : {}) };
+}
+
 /** Whether a refusal's details say the session ended (SESSION_ENDED). */
 export function sessionEnded(details: unknown): boolean {
   return !!details && typeof details === "object" && (details as { session_ended?: unknown }).session_ended === true;
@@ -176,7 +203,7 @@ export function refusalOf(input: RefusalInput): Refusal {
   const retryAfterS = retryAfterOf(input.details, input.retryAfter, input.nowMs ?? Date.now());
   const fields = fieldsOf(input.details);
   const code = typeof input.code === "string" && input.code ? input.code : null;
-  const confirmEmailTo = confirmEmailToOf(input.details);
+  const aside = asideOf(input.details, status);
   const refusal = (c: string, title: string, message: string): Refusal => ({
     code: c,
     status,
@@ -184,7 +211,7 @@ export function refusalOf(input: RefusalInput): Refusal {
     message,
     retryAfterS,
     fields,
-    ...(confirmEmailTo ? { confirmEmailTo } : {}),
+    ...aside,
   });
 
   if (!code) {

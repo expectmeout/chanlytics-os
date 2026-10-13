@@ -61,14 +61,36 @@ export const ACTIVITY_SUBJECT_HOMES = {
   },
   list: { lookup: "its page depends on what kind of list it is, which the log's list route says (listRoute)" },
   // The subjects that open nowhere, and why.
-  workspace: { none: "the workspace has no page of its own: what changed in it is in the row's sentence" },
-  tenant: { none: "the workspace as storage names it: what changed in it is in the row's sentence" },
+  workspace: {
+    none: "the workspace has no page of its own: what changed in it is in the row's sentence, and a change of one of its panes opens that pane (WORKSPACE_CHANGE_DOORS)",
+  },
+  tenant: {
+    none: "the workspace as storage names it: what changed in it is in the row's sentence, and a change of one of its panes opens that pane (WORKSPACE_CHANGE_DOORS)",
+  },
   draft: { none: "a held draft is answered in the Inbox, and the row does not know the thread it is in" },
   agent: { none: "the Agents of the mockup are hidden from every real workspace (surface-registry.ts)" },
   job: { none: "a platform job: the back office reads it, and an owner has no page for it" },
   user: { none: "a member's Ask usage: counted, and there is no page it belongs to" },
   lead_round: { none: "one round of a search: the search holds it, and a round has no page of its own" },
 } as const satisfies Record<string, SubjectHome>;
+
+/**
+ * Where a row about the workspace itself opens, by what changed in it (the wiring's second audit, W-review-facts-rules-6):
+ * the workspace has no page, and "An autonomy setting changed" and "Settings changed" could not be opened, though each is
+ * of one pane. A kind not here (an export, the workspace starting) opens nowhere, as the subject says.
+ */
+const WORKSPACE_CHANGE_DOORS: ReadonlyMap<string, string> = new Map([
+  ["policy.changed", addressOf({ kind: "rules" })],
+  ["settings.changed", addressOf({ kind: "facts" })],
+  ["capability.activated", CONNECTIONS],
+  ["capability.deactivated", CONNECTIONS],
+  ["member.left", addressOf({ kind: "team" })],
+]);
+
+/** The pane a change of the workspace opens, by the row's kind, or null (WORKSPACE_CHANGE_DOORS). */
+export function workspaceChangeDoor(kind: string): string | null {
+  return WORKSPACE_CHANGE_DOORS.get(kind) ?? null;
+}
 
 /** Every kind of thing a ledger row can be about: the keys of the table above. */
 export type ActivitySubjectType = keyof typeof ACTIVITY_SUBJECT_HOMES;

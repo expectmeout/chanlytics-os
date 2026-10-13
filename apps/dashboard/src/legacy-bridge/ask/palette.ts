@@ -17,11 +17,14 @@ import {
   callsAnswer,
   callsToday,
   detectLanguage,
+  isHoldRow,
   needsAnswer,
   oneDoor,
   openingsAnswer,
   rightNowCounts,
   rightNowLine,
+  runHeldEmails,
+  runsThatWait,
   sameQuestion,
   scopeFromRoute,
   type AskAnswer,
@@ -35,8 +38,12 @@ import {
   type FeedLive,
   type JumpEntry,
   type TodayQueueRowVM,
+  type Waits,
 } from "@chanlytics/contracts";
 import { surfaceValue } from "@/surfaces/surface-values";
+import { needsYouParts } from "@/surfaces/needs-you";
+import { approvalDaysNow } from "@/surfaces/campaigns/broadcasts/when-words";
+import { pageClock } from "@/legacy-bridge/zone";
 import { focusAsDrawn } from "@/surfaces/legacy-verbs";
 import { feedFromGlobals } from "../notifications";
 import type { Workspace } from "../surface-data";
@@ -45,6 +52,9 @@ import type { Workspace } from "../surface-data";
 interface Run {
   id: string;
   state: string;
+  /** The playbook that made it, and the day it was made for: what the approve verb asks of its day. */
+  playbook_id: string | null;
+  run_for?: string | null;
   recipient_count: number;
   when: string;
   counts: { sent: number; replied: number };
@@ -71,9 +81,9 @@ export interface PaletteGlobals {
           "id" | "kind" | "conversationId" | "callId" | "who" | "channel" | "when" | "sentence" | "quoted" | "cta"
         >
       >;
-      /** How many wait across the whole queue (the people and the searches), past the six rows drawn. */
-      waiting?: number;
     };
+    /** The threads' part of what waits on you: the holds, and the replies counting down (which have no row). */
+    needsYou?: { count: number; holds?: number; sends?: number } | null;
   } | null;
   __BROADCASTS?: { rows?: Run[] } | null;
   /**
@@ -150,45 +160,55 @@ export function jumpIndexFrom(win: Window): JumpEntry[] {
   return out;
 }
 
+/** One queue row as Ask draws a person: who, where, when, and their own words or the row's sentence. */
+const askRowOf = (
+  r: Pick<
+    TodayQueueRowVM,
+    "id" | "conversationId" | "callId" | "who" | "channel" | "when" | "sentence" | "quoted" | "cta"
+  >,
+) => ({
+  id: r.conversationId ?? r.callId ?? r.id,
+  kind: r.conversationId ? ("thread" as const) : ("call" as const),
+  who: r.who,
+  channel: r.channel,
+  when: r.when,
+  line: r.quoted ? `“${r.sentence}”` : r.sentence,
+  to: r.cta.to,
+});
+
 /**
- * Who is waiting on you: the people in Today's queue (a call worth a listen is not someone waiting) and how many more
- * wait past its six rows, the playbook runs waiting for a yes, which the queue draws the same way
- * (dashboard-a-command.jsx runsPending), and the searches that stopped to ask, which the queue draws as its own
- * rows. Null until Today's queue has been read: nobody is claimed to be waiting.
+ * Who is waiting on you: the holds in Today's queue (isHoldRow: a closing window is said as a window, a call worth a
+ * listen is nobody waiting) and how many more wait past them (the one count's holds and replies counting down, the
+ * badge's parts), the playbook runs waiting for a yes that an approval can still send (the count's own rule), the
+ * searches that stopped to ask, and the reply windows closing (the wiring's second audit, S7-8 and W-thread-wait-step-4).
+ * Null until Today's queue has been read: nobody is claimed to be waiting.
  */
-export function waitingFrom(win: Window): AskWaiting | null {
+export function waitingFrom(win: Window, parts: Waits | null = needsYouParts()): AskWaiting | null {
   const w = win as unknown as PaletteGlobals;
   const queue = w.TODAY_DATA?.queue;
   if (!queue) return null;
   const rows = queue.rows ?? [];
-  const people = rows
-    .filter((r) => r.kind !== "call" && r.kind !== "search")
-    .map((r) => ({
-      id: r.conversationId ?? r.callId ?? r.id,
-      kind: r.conversationId ? ("thread" as const) : ("call" as const),
-      who: r.who,
-      channel: r.channel,
-      when: r.when,
-      line: r.quoted ? `“${r.sentence}”` : r.sentence,
-      to: r.cta.to,
-    }));
+  const people = rows.filter(isHoldRow).map(askRowOf);
+  const windows = rows.filter((r) => r.kind === "window").map(askRowOf);
   const searches = rows
     .filter((r) => r.kind === "search")
     .map((r) => ({ id: r.id, name: r.who, question: r.sentence, to: r.cta.to }));
+  const threadsWaiting = parts ? parts.holds + parts.sends : (w.TODAY_DATA?.needsYou?.count ?? people.length);
+  // A run waiting for approval, or a going one whose emails the check holds (the count's own rule, runWaitsOnYou).
+  const pending = (w.__BROADCASTS?.rows ?? []).filter((r) => r.state === "pending_approval" || runHeldEmails(r) > 0);
+  // The business's days, by this window's clock, asked only over runs to judge.
+  const runs = pending.length ? runsThatWait(pending, approvalDaysNow(Date.now(), pageClock(win))) : [];
   return {
     people,
-    // The queue's waiting counts the searches too; one past its six rows is counted here as one more, since the
-    // queue does not say which kind it hid.
-    more: Math.max(0, (queue.waiting ?? people.length) - people.length - searches.length),
-    runs: (w.__BROADCASTS?.rows ?? [])
-      .filter((r) => r.state === "pending_approval")
-      .map((r) => ({
-        id: r.id,
-        label: r.audience?.label || "Campaign",
-        reach: r.recipient_count,
-        to: `broadcasts/run:${r.id}`,
-      })),
+    more: Math.max(0, threadsWaiting - people.length),
+    runs: runs.map((r) => ({
+      id: r.id,
+      label: r.audience?.label || "Campaign",
+      reach: r.recipient_count,
+      to: `broadcasts/run:${r.id}`,
+    })),
     searches,
+    windows,
   };
 }
 
@@ -248,7 +268,9 @@ export function askPalette(win: Window, storage: Storage | null) {
     /** Right now, in a sentence: Today's queue itself (the Line, D7), on every page. */
     rightNow: (lang?: AskLanguage) => rightNowLine(waiting(), lang ?? lastLanguage()),
     /** The sentence and the counts it was built from (the Stage's pills, spec 4.3). */
-    rightNowParts: (lang?: AskLanguage): { sentence: string; people: number; runs: number; searches: number } => {
+    rightNowParts: (
+      lang?: AskLanguage,
+    ): { sentence: string; people: number; runs: number; searches: number; windows: number } => {
       const w = waiting();
       return { sentence: rightNowLine(w, lang ?? lastLanguage()), ...rightNowCounts(w) };
     },
@@ -285,9 +307,12 @@ export function askPalette(win: Window, storage: Storage | null) {
     /** What an answer shows, decided once: the Line's answer (plan 3) or today's read back, with one door per place. */
     answer: (m: AskMessageVM): { answer: AskAnswer; cardOpen: Record<string, boolean> } =>
       oneDoor(m.answer ?? answerFromV1(m), m.proposals ?? []),
-    // A reach-out's drawer is told from a campaign's by the chains the page read (contracts scopeFromRoute).
-    scopeFor: (page: string, param: string | null, label?: string | null) =>
-      scopeFromRoute(page, param, label, surfaceValue("reach_outs")),
+    // A reach-out's drawer is told from a campaign's by the chains the page read (contracts scopeFromRoute); a person on
+    // any of their tabs is named by their People row (personLabelOf).
+    scopeFor: (page: string, param: string | null, label?: string | null) => {
+      const scope = scopeFromRoute(page, param, label, surfaceValue("reach_outs"));
+      return scope?.kind === "person" && !label ? { ...scope, label: personLabelOf(scope.id) ?? scope.label } : scope;
+    },
     surfaceFor,
     language,
     rememberLanguage,
@@ -296,6 +321,16 @@ export function askPalette(win: Window, storage: Storage | null) {
     /** Whether the Line's field may take focus as it opens: not on a touch screen, whatever its width (legacy-verbs). */
     focusAsDrawn,
   };
+}
+
+/**
+ * The name Ask's scope says for a person, on any of their tabs (the scope reads the address by contracts personRouteOf):
+ * their People row's, never a stand-in's (its name is the business's, so "this person", 0052); null where People holds
+ * none of them.
+ */
+function personLabelOf(id: string): string | null {
+  const row = surfaceValue("people")?.rows?.find((r) => r.id === id);
+  return row && !row.standIn ? row.name : null;
 }
 
 /** The openings route as the quick answer reads it (ask/api.ts `openings`). */

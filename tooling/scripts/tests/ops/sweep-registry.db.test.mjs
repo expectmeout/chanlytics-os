@@ -83,7 +83,7 @@ const EVERY_CLOCK = {
   // The receptionist's note suggestions (00159): a thirty-minute clock that asks the edge only when a call's
   // analysis is in or a conversation has gone quiet, and records that it looked otherwise.
   notes: "notes-sweep",
-  // The mailboxes a business connected (00421): a five-minute clock that asks the edge only when one is connected,
+  // The mailboxes a business connected (00423): a five-minute clock that asks the edge only when one is connected,
   // paused or held, and records that it looked otherwise.
   mailboxes: "mailboxes-sweep",
   // The reach-out clock (00186): every minute, asking the edge only when a send is due, one is claimed or queued, a

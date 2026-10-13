@@ -275,7 +275,7 @@ before(async () => {
     from_local: "sam",
     from_name: "Tenancy",
   });
-  // A mailbox the business connected (00421): what a reach-out writes from now; the domain above is 00175's, kept.
+  // A mailbox the business connected (00423): what a reach-out writes from now; the domain above is 00175's, kept.
   ctx.mailbox = await seed("mailbox_connections", {
     tenant_id: A,
     provider: "google",
@@ -762,7 +762,7 @@ const TENANT_TABLES = {
       from_name: "Stranger",
     }),
   ],
-  // A mailbox a business connected (00421, decision 0056): members read their workspace's, and only the edge's service
+  // A mailbox a business connected (00423, decision 0056): members read their workspace's, and only the edge's service
   // role writes one, once the provider's grant is in hand.
   mailbox_connections: [
     "member",

@@ -44,7 +44,7 @@ const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const HOUR = 3_600_000;
 const iso = (ms) => new Date(Date.now() + ms).toISOString();
 
-/** The mailboxes, their tokens, and each one's counts as 00422 would answer them. */
+/** The mailboxes, their tokens, and each one's counts as 00424 would answer them. */
 function world(boxes, { counts = {}, creds } = {}) {
   const v = vault(creds ?? Object.fromEntries(boxes.map((b) => [b.id, liveCredentials(`ya29.${b.id.slice(-4)}`)])));
   const tables = {

@@ -1,4 +1,5 @@
 import {
+  addressOf,
   BROADCAST_CHUNK,
   BROADCAST_GAP_MS,
   BROADCAST_THROTTLE_WAITS_MS,
@@ -346,7 +347,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
     await ports.fail(b.id, "template_not_approved");
     await ports.alert({
       kind: "broadcast_stopped",
-      route: `broadcasts/run:${b.id}`,
+      route: addressOf({ kind: "send", id: b.id }),
       about: { type: "broadcast", id: b.id },
       subject: `Broadcast “${b.name}” stopped`,
       body: whatsappStoppedRunWords(message),
@@ -479,7 +480,7 @@ function finishedNews(
   const people = (n: number) => `${n} ${n === 1 ? "person" : "people"}`;
   return {
     kind: sent > 0 ? "broadcast_sent" : "broadcast_stopped",
-    route: `broadcasts/run:${b.id}`,
+    route: addressOf({ kind: "send", id: b.id }),
     about: { type: "broadcast", id: b.id },
     subject: sent > 0 ? `Broadcast “${b.name}” sent` : `Broadcast “${b.name}” reached nobody`,
     body:
@@ -606,7 +607,7 @@ async function stall(
   await ports.fail(b.id, what === "people" ? "people_unreadable" : wireFailure("stalled", what));
   await ports.alert({
     kind: "broadcast_stopped",
-    route: `broadcasts/run:${b.id}`,
+    route: addressOf({ kind: "send", id: b.id }),
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast “${b.name}” stopped`,
     body: [
@@ -632,7 +633,7 @@ async function stopAfterHours(ports: BroadcastBatchPorts, b: StoppedRun, waited:
   await ports.fail(b.id, "after_hours");
   await ports.alert({
     kind: "broadcast_stopped",
-    route: `broadcasts/run:${b.id}`,
+    route: addressOf({ kind: "send", id: b.id }),
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast “${b.name}” stopped`,
     body: [
@@ -683,7 +684,7 @@ async function stopForTheWire(
   const theirs = out.reason === "provider" ? words.platformKey : null;
   await ports.alert({
     kind: "broadcast_stopped",
-    route: `broadcasts/run:${b.id}`,
+    route: addressOf({ kind: "send", id: b.id }),
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast “${b.name}” stopped`,
     body: theirs
@@ -714,7 +715,7 @@ async function stopForTheLimit(
   await ports.fail(b.id, "provider_limit");
   await ports.alert({
     kind: "broadcast_stopped",
-    route: `broadcasts/run:${b.id}`,
+    route: addressOf({ kind: "send", id: b.id }),
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast “${b.name}” stopped`,
     body: [
@@ -778,7 +779,7 @@ async function backOff(
   const until = at ? "until the day's sending hours ran out" : "for about an hour";
   await ports.alert({
     kind: "broadcast_stopped",
-    route: `broadcasts/run:${b.id}`,
+    route: addressOf({ kind: "send", id: b.id }),
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast “${b.name}” stopped`,
     body:

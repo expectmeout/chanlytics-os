@@ -27,6 +27,8 @@ import {
   parseListToken,
   parsePeopleRoute,
   parsePipelineRoute,
+  personRouteOf,
+  personTabRoute,
   pipelinePersonOf,
   reportsParamParts,
   type RecordRef,
@@ -127,8 +129,18 @@ function opensSent(param: string): Opened | null {
 function opensPeople(param: string): Opened | null {
   if (param === "") return { view: "clients" };
   if (param === "new-list") return { view: "clients/new-list" };
+  // The route as the page's parsers read it, whole.
+  const route = `clients/${param}`;
+  // A person's tab is their address with its word (contracts personRouteOf, the one parse of it): their page, on that
+  // tab, which addressOf writes back the same (S5-1). Any other slash in the param is nobody's, as flat says of the others.
+  if (param.includes("/")) {
+    const { id, tab } = personRouteOf(param);
+    return isPersonParam(id) && RECORD_ID.test(id) && personTabRoute(id, tab) === route
+      ? { ref: { kind: "person", id, tab } }
+      : null;
+  }
   if (/^leads(:|$)/.test(param)) {
-    const at = parseLeadsRoute(`clients/${param}`);
+    const at = parseLeadsRoute(route);
     if (!at) return null;
     if (!at.peek && !at.searchId) return { view: "clients/leads" };
     return {
@@ -140,7 +152,7 @@ function opensPeople(param: string): Opened | null {
     };
   }
   if (/^pipeline(:|$)/.test(param)) {
-    const at = parsePipelineRoute(`clients/${param}`);
+    const at = parsePipelineRoute(route);
     if (!at) return null;
     if (!at.peek) return { view: "clients/pipeline" };
     // A row's id is the person's, or the person's and one of their deals' joined by `_` (contracts pipelineRowId).
@@ -150,7 +162,7 @@ function opensPeople(param: string): Opened | null {
   }
   if (/^(seg|list|state):/.test(param)) {
     // A person seen over a view (`:p-<id>`, contracts parsePeopleRoute) is that person's; Everyone peeked is Everyone.
-    const at = parsePeopleRoute(`clients/${param}`);
+    const at = parsePeopleRoute(route);
     if (at?.peek) return RECORD_ID.test(at.peek) ? { ref: { kind: "person", id: at.peek } } : null;
     if (at && !at.view) return { view: "clients" };
     const list = parseListToken(at?.view ?? param);
@@ -228,7 +240,8 @@ const PAGES: ReadonlyMap<string, Parse> = new Map<string, Parse>([
   ["campaigns", flat(opensCampaigns)],
   ["messages", alone("messages")],
   ["broadcasts", flat(opensSent)],
-  ["clients", flat(opensPeople)],
+  // A person's tab has a slash (`clients/<id>/history`), which opensPeople reads itself.
+  ["clients", opensPeople],
   ["segments", flat(opensLists)],
   ["start", flat(opensStart)],
   ["admin", opensSettings],

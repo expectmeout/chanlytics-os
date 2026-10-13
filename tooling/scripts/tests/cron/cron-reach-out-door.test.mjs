@@ -188,7 +188,7 @@ function clockReads(t) {
 }
 
 /**
- * The sender's doors over the tables, as 00422 and 00187 make them (their SQL is proved on a stack,
+ * The sender's doors over the tables, as 00424 and 00187 make them (their SQL is proved on a stack,
  * mailbox-connections.db.test.mjs): the mailboxes with sends due (connected, rested, longest waiting first, past the
  * ones the sender skips), the month's count, the claim (from a connected mailbox, within its share), and the person
  * made once. `failClaim` names the mailboxes whose claim the database refuses.
@@ -360,7 +360,7 @@ function world({
     {
       ...vault,
       ...senderReads(tables, { monthSent, failClaim, onClaim: onClaim && ((id) => onClaim(tables, id)) }),
-      // 00422's day of a mailbox, as its row stands: a new one, nothing sent yet today.
+      // 00424's day of a mailbox, as its row stands: a new one, nothing sent yet today.
       mailbox_capacity: (a) => {
         const m = tables.mailbox_connections.find((x) => x.id === a.p_mailbox_id);
         return {

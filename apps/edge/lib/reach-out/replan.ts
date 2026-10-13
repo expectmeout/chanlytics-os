@@ -89,7 +89,7 @@ export async function replanSends(db: Db, items: Replan[], now: Date, log: Logge
       // Each mailbox's times, less these sends' own: a send planned again never waits for the time it held.
       const own = new Map<string, number[]>();
       for (const s of group) {
-        // What it holds in its mailbox's times (00422): a planned send its time, a claim the moment it was claimed.
+        // What it holds in its mailbox's times (00424): a planned send its time, a claim the moment it was claimed.
         const held = s.state === "planned" ? s.send_at : s.state === "claimed" ? s.claimed_at : null;
         if (s.mailbox_id && held) own.set(s.mailbox_id, [...(own.get(s.mailbox_id) ?? []), Date.parse(held)]);
       }

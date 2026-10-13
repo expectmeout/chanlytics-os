@@ -12,7 +12,7 @@
  * write a reach-out: a link that does not open is the platform's, and paged.
  *
  * The route is api/cron/mailboxes.ts: sweepDoor (lib/ops/sweep-door.ts) names the request, finds the database and
- * checks the sweep key. pg_cron asks it at minutes 2, 7, ... 57 ('mailboxes-sweep', 00421), and trigger_mailboxes_sweep
+ * checks the sweep key. pg_cron asks it at minutes 2, 7, ... 57 ('mailboxes-sweep', 00423), and trigger_mailboxes_sweep
  * only when a mailbox is connected, paused or held. sweep_health() expects an answer at least every 20 minutes.
  *
  * The work is bounded by time: up to MAX_DUE mailboxes are read, AT_ONCE at a time, and neither a batch nor any

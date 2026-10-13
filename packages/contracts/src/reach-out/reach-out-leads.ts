@@ -56,7 +56,7 @@ export interface ReachOutSearchLinesDto {
   written_to: number;
   /** Emails that left since the business's midnight. */
   today: number;
-  /** The next email: when, to whom, and the mailbox it leaves from (`host` its domain, from before 00422). */
+  /** The next email: when, to whom, and the mailbox it leaves from (`host` its domain, from before 00424). */
   next: { at: string; business: string | null; host: string | null; from?: string | null } | null;
   held: number;
   waiting_run_id: string | null;
@@ -74,7 +74,7 @@ export interface ReachOutTimelineSendDto {
   send_at: string | null;
   sent_at: string | null;
   angle: string | null;
-  /** Its mailbox's domain, and its address (00422); a send from before 00422 names neither. */
+  /** Its mailbox's domain, and its address (00424); a send from before 00424 names neither. */
   host: string | null;
   from?: string | null;
   message_id: string | null;

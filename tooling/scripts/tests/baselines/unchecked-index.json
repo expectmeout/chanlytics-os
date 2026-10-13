@@ -51,7 +51,7 @@
   "apps/dashboard/src/surfaces/leads/map/lead-map-draw.ts": 4,
   "apps/dashboard/src/surfaces/reports/sample.ts": 4,
   "apps/dashboard/src/surfaces/today/pages/setup-card.tsx": 1,
-  "packages/contracts/src/ask/ask-answer.ts": 8,
+  "packages/contracts/src/ask/ask-answer.ts": 6,
   "packages/contracts/src/broadcasts/run-report.ts": 1,
   "packages/contracts/src/calendar/calendar-people.ts": 1,
   "packages/contracts/src/calendar/calendar-views.ts": 3,

@@ -25,6 +25,7 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  closeMendedNotices,
   forgetNotification,
   mailSent,
   noticeFor,
@@ -41,6 +42,7 @@ import {
   isPushKind,
   noticeRoute,
   openItLine,
+  warningsMendedBy,
 } from "../packages/contracts.js";
 import { scheduleJob } from "../packages/jobs.js";
 import { pg } from "../pg.js";
@@ -281,10 +283,42 @@ export async function recordNotification(
       L.error("notification_record_failed", { kind, error: error?.message ?? "no row" });
       return null;
     }
+    // Good news kept closes the warning it mends (contracts NOTICE_MENDS): "back to normal" closes "flagged".
+    await mendWarnings(db, { tenantId, by: { kind, title: n.title }, subject: n.about ?? null, keptId: data.id });
     return { id: data.id, kind };
   } catch (e) {
     L.error("notification_record_failed", { kind, error: errField(e) });
     return null;
+  }
+}
+
+/**
+ * The warnings a kept row or a change mends, closed (contracts NOTICE_MENDS, warningsMendedBy; packages/db
+ * closeMendedNotices): a number's flag by its "back to normal", a payment that did not go through by a paid invoice, a
+ * domain held by its resume or its release. Best effort: a close that fails is logged (notice_mend_failed) and the
+ * warning stays until read, as it did; it never fails what was kept or changed (the wiring's second audit,
+ * W-channel-team-plus-4).
+ */
+export async function mendWarnings(
+  db: Db | null,
+  m: {
+    tenantId: string;
+    by: { kind: string; title: string } | { change: string };
+    subject: { type: string; id: string } | null;
+    keptId: string | null;
+  },
+): Promise<void> {
+  const { tenantId, by, subject, keptId } = m;
+  if (!db) return;
+  const warnings = warningsMendedBy(by);
+  if (!warnings.length) return;
+  try {
+    await closeMendedNotices(db, { tenantId, warnings, subject, keptId, nowMs: Date.now() });
+  } catch (e) {
+    logger({ tenant_id: tenantId }).error("notice_mend_failed", {
+      by: "change" in by ? by.change : by.kind,
+      error: errField(e),
+    });
   }
 }
 

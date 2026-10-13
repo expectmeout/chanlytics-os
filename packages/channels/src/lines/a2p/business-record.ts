@@ -59,3 +59,12 @@ export type BrandType = "STANDARD" | "SOLE_PROPRIETOR";
 export function brandTypeFor(r: Pick<BusinessRecord, "ein">): BrandType {
   return registrationPathOf(r) === "sole_proprietor" ? "SOLE_PROPRIETOR" : "STANDARD";
 }
+
+/**
+ * The name the brand is filed under: a sole proprietor's trading name where it has one (the carriers show it beside the
+ * texts), and the legal name otherwise. One rule for the filing that sends it and the line that keeps it, so the save can
+ * say which name the carriers hold (the wiring's second audit, X4-3).
+ */
+export function brandNameOf(r: Pick<BusinessRecord, "ein" | "legalName" | "tradeName">): string {
+  return brandTypeFor(r) === "SOLE_PROPRIETOR" ? r.tradeName || r.legalName : r.legalName;
+}

@@ -4,16 +4,24 @@
  * legacy-bridge/surfaces/inbox.ts, decision 0015). Part of the SurfaceData seam (legacy-bridge/surface-data.ts); the page
  * reads what it publishes through `useSurface("inbox")`.
  */
-import { read } from "@/legacy-bridge/api";
+import { api, read } from "@/legacy-bridge/api";
 import { workspaceZone } from "@/legacy-bridge/zone";
 import { LEFT_THE_QUEUE } from "@/legacy-bridge/surface-realtime";
 import { declareReads } from "@/legacy-bridge/surface-registry";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { routeOnScreen } from "@/legacy-bridge/workspace";
-import { toInboxThreadVM, type ConversationDto, type EscalationDto } from "@chanlytics/contracts";
+import {
+  heldThreadIds,
+  OPEN_HOLDS_READ_MAX,
+  toInboxThreadVM,
+  waitsOnAPerson,
+  type ConversationDto,
+  type EscalationDto,
+} from "@chanlytics/contracts";
 import { followSettings, heldBackOf, offeredWhatsApp } from "../offered-templates";
 import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
 import { namedByRoute } from "./address";
+import { readHeldThreads } from "./held-threads";
 import { inboxData } from "./store";
 import type { InboxBucket } from "./types";
 
@@ -47,9 +55,6 @@ const REAL_BUCKETS: InboxBucket[] = [
   { id: "snoozed", label: "Snoozed", hint: "Hidden until they wake", icon: "clock" },
 ];
 
-/** The most escalations one read by id holds: the escalations read holds a hundred at most. */
-const ESCALATIONS_BY_ID = 100;
-
 /**
  * The approved templates a reply can use are the settings read's (offered-templates.ts), not a read of the Inbox's own. It
  * read GET templates on every message, receipt and flag the feed brought, then kept the answer for five minutes so that it
@@ -79,6 +84,10 @@ export const inboxOverride: SurfaceOverride = {
   // offers are the settings read's, which hears them (offered-templates.ts).
   ...declareReads("inbox", { reads: ["conversation", "hold", "person"], fresh: "live" }),
   apply: async () => {
+    // When this read was ASKED, or the oldest read it may share (a head's prefetch, one in flight: api sharesFrom): the bell
+    // judges a hold's kept notice only by a read that began after it was kept (a hold kept while the read was in flight
+    // would otherwise be judged by a read that never saw it), on the servers' clock (notifications.ts whatWaits).
+    const readAt = api().sharesFrom();
     const [convData, escData, tz] = await Promise.all([
       read("GET conversations"),
       read("GET escalations", { query: { state: "open" } }),
@@ -89,10 +98,11 @@ export const inboxOverride: SurfaceOverride = {
     for (const e of escData.escalations) byConv.set(e.conversation_id, e);
 
     // A thread that escalated but has since gone quiet can fall outside the
-    // newest-100 conversations page — fetch those individually rather than
-    // letting a waiting customer be invisible.
+    // newest-100 conversations page — fetch those by id rather than letting a
+    // waiting customer be invisible: the holds that wait on a person first, one
+    // rule with Today's read (contracts heldThreadIds), so the two are one read.
     const listed = new Set(convData.conversations.map((c) => c.id));
-    const missing = [...byConv.keys()].filter((id) => !listed.has(id));
+    const missing = heldThreadIds(listed, escData.escalations);
     // The thread the address names (a bell row from last week, an Activity line, a person's "Open the thread", an Ask citation,
     // a tapped push) is read by its id when neither the newest hundred nor the waiting hold it: a link is a read of one record,
     // never a look in the window the page holds (finding A2c). The workspace scopes the read, so another's thread answers
@@ -102,12 +112,7 @@ export const inboxOverride: SurfaceOverride = {
     // One read for all of them, by id: one read per thread, the first twenty only, left the twenty-first waiting
     // customer out of the Inbox with nothing said (I5). The escalations read holds a hundred at most.
     const [extraRead, byAddress] = await Promise.all([
-      missing.length
-        ? read("GET conversations", { query: { ids: missing.slice(0, ESCALATIONS_BY_ID).join(",") } }).then(
-            (d): ConversationDto[] | null => d.conversations,
-            () => null,
-          )
-        : Promise.resolve<ConversationDto[] | null>([]),
+      readHeldThreads(missing),
       // One that cannot be read is no waiting customer: the page says the thread is not here, as it did.
       askedByAddress
         ? read("GET conversations", { query: { ids: askedByAddress } }).then(
@@ -121,6 +126,19 @@ export const inboxOverride: SurfaceOverride = {
     // list says how many, rather than listing fewer.
     const unreadEscalated = missing.length - extra.length;
     if (unreadEscalated) console.error("inbox_escalated_fetch_failed", unreadEscalated);
+    // Of those, the holds that wait on a person, and any past the read's hundred: each a customer who may be waiting,
+    // which the badge counts (a customer's STOP is not one).
+    const readIds = new Set(extra.map((c) => c.id));
+    const unreadHolds = new Set(
+      escData.escalations
+        .filter((e) => e.state === "open" && waitsOnAPerson(e.reason) && !listed.has(e.conversation_id))
+        .map((e) => e.conversation_id)
+        .filter((id) => !readIds.has(id)),
+    ).size;
+    // Whether every hold that waits on a person was read, threads and all: a bell row about a hold is judged by the
+    // threads only then (a hold past the read's hundred would read as no longer waiting).
+    const waitingRead = escData.escalations.filter((e) => waitsOnAPerson(e.reason)).length;
+    const holdsWhole = waitingRead < OPEN_HOLDS_READ_MAX && unreadHolds === 0;
 
     // The one a link named stands last, among the oldest, where its own time puts it.
     const all = [...extra, ...convData.conversations, ...byAddress];
@@ -144,6 +162,9 @@ export const inboxOverride: SurfaceOverride = {
       },
       INBOX_BASELINE: { ...prev.INBOX_BASELINE, doneThisWeek: 0 },
       UNREAD_ESCALATED: unreadEscalated,
+      UNREAD_HOLDS: unreadHolds,
+      readAt,
+      holdsWhole,
       templates: shareUnchanged(prev.templates, offeredWhatsApp(settings)),
       templatesHeld: shareUnchanged(prev.templatesHeld, heldBackOf(settings)),
     });

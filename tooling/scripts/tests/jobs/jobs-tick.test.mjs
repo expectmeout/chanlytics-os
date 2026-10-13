@@ -555,6 +555,25 @@ test("a throw that gets out of a job's own bookkeeping stops the slots, and the 
   );
 });
 
+test("a job's news opens the thread or the run its payload names, and its list where it names none (S5-5)", async () => {
+  const C = "c0000000-0000-4000-8000-000000000001";
+  const B = "b0000000-0000-4000-8000-000000000001";
+  for (const [kind, payload, route, about] of [
+    ["outbound_send", { conversation_id: C, message_id: "m1" }, `inbox/th-${C}`, { type: "conversation", id: C }],
+    ["broadcast_send", { broadcast_id: B }, `broadcasts/run:${B}`, { type: "broadcast", id: B }],
+    // A payload that names nothing keeps the list (the tests above: an empty payload opens the Inbox and Sent).
+    ["outbound_send", { message_id: "m1" }, "inbox", null],
+  ]) {
+    const { ports, calls } = fakes([{ ...job("a", kind, 2), payload }]);
+    await runTick(ports, OPTS);
+    assert.deepEqual(
+      [calls.alert[0].route, calls.alert[0].about ?? null],
+      [route, about],
+      `${kind}: REGRESSION: the job knew its thread or run, and its news opened the list`,
+    );
+  }
+});
+
 test("a send whose run died is never run a second time", async () => {
   for (const kind of ["outbound_send", "broadcast_send"]) {
     const { ports, calls } = fakes([job("a", kind, 2)]);

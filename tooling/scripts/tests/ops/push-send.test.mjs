@@ -275,6 +275,26 @@ test("a phone the service reports gone is forgotten; a row nobody can hear, or t
   assert.deepEqual(q.sent, [], "a purged row says nothing");
 });
 
+test("a row closed before the job ran is pushed to nobody, and a closed row is on no badge (00421)", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-09-26T12:00:00Z") });
+  // Answered within the minute: the hold resolved and its notice closed before push_send claimed it.
+  const { db } = world({ notification: { closed_at: "2026-09-26T10:00:30Z" } });
+  const p = port();
+  assert.equal(await dispatchJob(ctx(db, { push: p.push }), job), "done");
+  assert.deepEqual(p.sent, [], "REGRESSION: a phone buzzed for a person a teammate had already answered");
+  const both = fakeDb({
+    notifications: [
+      row({ id: "n1" }),
+      row({ id: "n2", created_at: "2026-09-26T09:00:00Z", closed_at: "2026-09-26T09:30:00Z" }),
+    ],
+    memberships: [{ user_id: "u1", tenant_id: T, role: "owner", push_off: [] }],
+    push_devices: [{ id: "d1", user_id: "u1", token: "tok-u1-a" }],
+  });
+  const q = port();
+  await dispatchJob(ctx(both, { push: q.push }), job);
+  assert.equal(q.sent[0].badge, 1, "the open row; the closed one asks nobody");
+});
+
 test("a month's bell is counted whole, a page at a time and the marks in short lists", async (t) => {
   // The rows are dated 1 to 25 September and the bell counts the last thirty days (BELL_WINDOW_DAYS), so the clock is
   // the 28th: read off the wall clock, the first of them would leave the window on 1 October and the count with it.

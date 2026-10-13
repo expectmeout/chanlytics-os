@@ -218,6 +218,7 @@ export function broadcastsSample(now = new Date()): BroadcastsSurface {
       link: "https://wa.me/13055550100?text=YES",
       qrPath: null,
       pageUrl: null,
+      open: "open",
     },
     getYes: GET_YES_ROUTE,
     businessName: "Marisa's Studio",

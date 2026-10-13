@@ -1,5 +1,5 @@
 /**
- * A mailbox the business connected, on the database (00421-00423, decision 0056): the row's own rules (an address
+ * A mailbox the business connected, on the database (00423-00425, decision 0056): the row's own rules (an address
  * written once and its host its own, a hold and a removal whole, the owner's cap within fifty, one live row an
  * address); the limits (ten a workspace, three a domain, a removed one counting for neither, the hint naming which);
  * the connect door (made, found again by its account and back to connected, another workspace's address refused as
@@ -73,7 +73,7 @@ const threadOf = async (contact) => {
 
 /**
  * An email a mailbox sent, as the sender writes one: its row, and its send moved along the guard's path (planned,
- * claimed, queued, sent) under the suite's run. What a mailbox's counts read is its sends (00422), never a From.
+ * claimed, queued, sent) under the suite's run. What a mailbox's counts read is its sends (00424), never a From.
  */
 async function sentFrom(mailbox, { contact = null, status = "sent", error = null, meta = {}, createdAt = null } = {}) {
   n += 1;

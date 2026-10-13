@@ -2,7 +2,16 @@
  * The dashboard's chrome: its words and hotkeys, the tone vocabulary, a refusal in the owner's words, who is signed
  * in, and how fast its pages are.
  */
-export { refusalOf, roleGate, waitWords, NEEDS_TITLE, PERM_DOING, SESSION_ENDED, sessionEnded } from "./refusal";
+export {
+  refusalOf,
+  roleGate,
+  waitWords,
+  NEEDS_TITLE,
+  PERM_DOING,
+  SESSION_ENDED,
+  sessionEnded,
+  combinedInto,
+} from "./refusal";
 export type { RefusalInput, Refusal, RolePerm } from "./refusal";
 export {
   personInitials,
@@ -102,6 +111,8 @@ export {
   BROADCAST_WORDS,
   runStoppedWords,
   RUN_WAITING_WORDS,
+  runsWaitingSentence,
+  heldEmailsWords,
   runStopWords,
   OFFERS_IN_WRITING_WORDS,
 } from "./campaign-rooms";

@@ -1,6 +1,6 @@
 /**
  * A connected mailbox's sync (decision 0056): one at a time (its lease), where it left off (its cursor and watch), and
- * which of the threads that changed hold an email this workspace sent (00422 mailbox_threads_known), so only those are
+ * which of the threads that changed hold an email this workspace sent (00424 mailbox_threads_known), so only those are
  * ever fetched. The edge's sync (lib/email/mailbox/mailbox-sync.ts) asks these as the service role.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -80,7 +80,7 @@ export async function sentEmailIdByMessageId(db: Db, tenantId: string, rfcMessag
   return data?.[0]?.id ?? null;
 }
 
-/** Of the provider threads that changed, the ones holding an email this workspace sent (00422). */
+/** Of the provider threads that changed, the ones holding an email this workspace sent (00424). */
 export async function knownThreads(db: Db, tenantId: string, threadIds: string[]): Promise<Set<string>> {
   if (threadIds.length === 0) return new Set();
   const { data, error } = await db.rpc("mailbox_threads_known", {

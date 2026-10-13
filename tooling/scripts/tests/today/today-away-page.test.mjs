@@ -50,7 +50,14 @@ const news = (id, title) => ({
 
 const draw = (rows, cvs, queue = null) => {
   fresh();
-  globalThis.__notifs = { feed: () => rows, onChange: () => () => {}, read() {}, dismiss() {}, seenAll() {} };
+  globalThis.__notifs = {
+    feed: () => rows,
+    onChange: () => () => {},
+    read() {},
+    dismiss() {},
+    seenAll() {},
+    older: () => 0,
+  };
   // The day, through the seam the page reads it from (surface-values.ts), not off `window.TODAY_DATA`.
   setSurfaceValue("today", {
     queue: { rows: queue ?? cvs.map((id) => ({ kind: "handoff", conversationId: id, callId: null })) },
@@ -508,7 +515,14 @@ test("the card draws no review notice under the line: Today's Google surface is 
     const rows = [notice];
     fresh();
     setSurfaceValue("google", surface);
-    globalThis.__notifs = { feed: () => rows, onChange: () => () => {}, read() {}, dismiss() {}, seenAll() {} };
+    globalThis.__notifs = {
+      feed: () => rows,
+      onChange: () => () => {},
+      read() {},
+      dismiss() {},
+      seenAll() {},
+      older: () => 0,
+    };
     setSurfaceValue("today", { queue: { rows: [] } });
     return globalThis.React.createElement(TodayAway, {});
   };

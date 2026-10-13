@@ -1,7 +1,7 @@
 /**
  * A reach-out step's run on the database (00185, Reach out Part 3 PR 4): the run and its sends written whole under the
  * run's own id, never a run with nothing planned in it; a replay or another tick answered {exists}; the sends, and
- * the mailbox each leaves from (00422), kept to the run's workspace; and a step's followers kept to the ones the door
+ * the mailbox each leaves from (00424), kept to the run's workspace; and a step's followers kept to the ones the door
  * would write to before their limit, so a lead that may not be written to never heads the page ahead of those behind
  * it, each with the mailbox its chain wrote to it from and its country. Local stack only: it makes workspaces.
  */

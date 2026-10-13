@@ -27,7 +27,7 @@ what the script writes.
 | [`billing_events`](#billing_events) | none | on, no policy, so only the service role reaches it |
 | [`broadcast_recipients`](#broadcast_recipients) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/touches.ts` | on, 2 policies |
 | [`broadcasts`](#broadcasts) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts` | on, 3 policies |
-| [`business_records`](#business_records) | `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
+| [`business_records`](#business_records) | `packages/db/src/lines.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
 | [`calls`](#calls) | `packages/db/src/events.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 1 policy |
 | [`capability_activations`](#capability_activations) | none | on, 2 policies |
 | [`contact_identities`](#contact_identities) | none | on, 1 policy |
@@ -36,7 +36,7 @@ what the script writes.
 | [`contacts`](#contacts) | `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notifications.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts` | on, 1 policy |
 | [`conversations`](#conversations) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notifications.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/thread.ts` | on, 2 policies |
 | [`deals`](#deals) | `packages/db/src/events.ts`, `packages/db/src/repositories/deals.ts`, `packages/db/src/repositories/thread.ts` | on, 1 policy |
-| [`decisions`](#decisions) | `packages/db/src/repositories/people.ts` | on, 2 policies |
+| [`decisions`](#decisions) | `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/people.ts` | on, 2 policies |
 | [`erasure_keying`](#erasure_keying) | none | on, no policy, so only the service role reaches it |
 | [`escalations`](#escalations) | `packages/db/src/events.ts`, `packages/db/src/repositories/notifications.ts`, `packages/db/src/repositories/outreach.ts` | on, 2 policies |
 | [`event_deliveries`](#event_deliveries) | `packages/db/src/events.ts` | on, no policy, so only the service role reaches it |
@@ -66,13 +66,14 @@ what the script writes.
 | [`lead_suppressions`](#lead_suppressions) | `packages/db/src/repositories/outreach.ts` | on, 1 policy |
 | [`leads`](#leads) | `packages/db/src/events.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
 | [`lines`](#lines) | `packages/db/src/lines.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 1 policy |
+| [`mailbox_connections`](#mailbox_connections) | `packages/db/src/repositories/mailboxes/connections.ts`, `packages/db/src/repositories/mailboxes/sync.ts` | on, 1 policy |
 | [`mailboxes`](#mailboxes) | `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/email.ts` | on, 1 policy |
 | [`memberships`](#memberships) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/notifications.ts` | on, 2 policies |
 | [`messages`](#messages) | `packages/db/src/events.ts`, `packages/db/src/jobs.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/mailboxes/sync.ts`, `packages/db/src/repositories/notifications.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 3 policies |
 | [`model_prompts`](#model_prompts) | none | on, no policy, so only the service role reaches it |
 | [`model_turns`](#model_turns) | none | on, no policy, so only the service role reaches it |
-| [`notification_marks`](#notification_marks) | none | on, 1 policy |
-| [`notification_reads`](#notification_reads) | none | on, 1 policy |
+| [`notification_marks`](#notification_marks) | `packages/db/src/repositories/notifications.ts` | on, 1 policy |
+| [`notification_reads`](#notification_reads) | `packages/db/src/repositories/notifications.ts` | on, 1 policy |
 | [`notifications`](#notifications) | `packages/db/src/repositories/notifications.ts` | on, 1 policy |
 | [`operator_pages`](#operator_pages) | none | on, no policy, so only the service role reaches it |
 | [`page_vitals`](#page_vitals) | none | on, no policy, so only the service role reaches it |
@@ -103,15 +104,13 @@ what the script writes.
 | [`sending_domains`](#sending_domains) | none | on, 1 policy |
 | [`sweep_status`](#sweep_status) | none | on, no policy, so only the service role reaches it |
 | [`templates`](#templates) | `packages/db/src/events.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/templates.ts` | on, 1 policy |
-| [`tenant_channels`](#tenant_channels) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/sweeps.ts` | on, 1 policy |
+| [`tenant_channels`](#tenant_channels) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/sweeps.ts` | on, 1 policy |
 | [`tenant_config`](#tenant_config) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts` | on, 2 policies |
 | [`tenant_config_versions`](#tenant_config_versions) | none | on, no policy, so only the service role reaches it |
-| [`tenants`](#tenants) | `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 2 policies |
+| [`tenants`](#tenants) | `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 2 policies |
 | [`waitlist`](#waitlist) | `packages/db/src/waitlist.ts` | on, no policy, so only the service role reaches it |
 | [`lead_searches_view`](#lead_searches_view) (view) | none | |
 | [`usage_ledger`](#usage_ledger) (view) | none | |
-
-Named in a `.from("…")` in `packages/db/src` and not a table or view here: `mailbox_connections` (`packages/db/src/repositories/mailboxes/connections.ts`, `packages/db/src/repositories/mailboxes/sync.ts`).
 
 ## Tables
 
@@ -487,7 +486,7 @@ Foreign keys:
 
 What every carrier registration asks of a business, kept once per workspace. Members read; the edge writes.
 
-- Owned by: `packages/db/src/repositories/reach-out.ts`
+- Owned by: `packages/db/src/lines.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts`
 - Primary key: `tenant_id`
 - Row-level security: on, 1 policy
 
@@ -829,7 +828,7 @@ Foreign keys:
 
 ### decisions
 
-- Owned by: `packages/db/src/repositories/people.ts`
+- Owned by: `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/people.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 
@@ -1721,6 +1720,60 @@ Foreign keys:
 | --- | --- | --- | --- | --- |
 | `lines_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
+### mailbox_connections
+
+A mailbox a business connected to write from (decision 0056): its provider (google or microsoft), its address and the name it sends as, its state, its day (the owner's cap, the ramp's clock, the provider's own limit), its domain's DNS, the sync's cursor and watch. Tokens are in Vault (put/get/drop_mailbox_credentials), never here. Members read; the service role writes. One live row per address across every workspace.
+
+- Owned by: `packages/db/src/repositories/mailboxes/connections.ts`, `packages/db/src/repositories/mailboxes/sync.ts`
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `provider` | text | no |  |  |
+| `provider_account` | text | no |  |  |
+| `address` | text | no |  |  |
+| `host` | text | no |  |  |
+| `from_name` | text | no |  |  |
+| `signature` | text | yes |  |  |
+| `scopes` | text[] | no | `'{}'::text[]` |  |
+| `state` | text | no | `'connected'::text` | connected: it sends and is read. reconnect: its provider signed it out (a revoked or expired grant): its sends wait and its owner is told once. paused: its owner paused it. held: its own mail earned a hold (held_why), lifted by its owner's Resume. removed: gone; kept so a send and a report still name it. |
+| `held_why` | text | yes |  |  |
+| `held_at` | timestamp with time zone | yes |  |  |
+| `resting_until` | timestamp with time zone | yes |  | Set when the provider refused a send for its own day's limit: the mailbox's sends wait until then (the next midnight in its provider's reckoning, or the wait it named). Null otherwise. |
+| `daily_cap` | integer | no | `40` |  |
+| `customer_domain` | boolean | no | `false` |  |
+| `clean_since` | timestamp with time zone | no | `now()` |  |
+| `counted_since` | timestamp with time zone | no | `now()` |  |
+| `sent_days` | integer | no | `0` |  |
+| `dns` | jsonb | no | `'{}'::jsonb` |  |
+| `dns_checked_at` | timestamp with time zone | yes |  |  |
+| `sync_cursor` | text | yes |  |  |
+| `watch_id` | text | yes |  |  |
+| `watch_expires_at` | timestamp with time zone | yes |  |  |
+| `synced_at` | timestamp with time zone | yes |  |  |
+| `sync_lease_until` | timestamp with time zone | yes |  |  |
+| `judged_at` | timestamp with time zone | yes |  |  |
+| `sent_at` | timestamp with time zone | yes |  |  |
+| `last_error` | text | yes |  |  |
+| `last_error_at` | timestamp with time zone | yes |  |  |
+| `credentials_ref` | text | yes |  |  |
+| `connected_by` | uuid | yes |  |  |
+| `connected_at` | timestamp with time zone | no | `now()` |  |
+| `removed_at` | timestamp with time zone | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `updated_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `mailbox_connections_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
 ### mailboxes
 
 A workspace's email address on the platform's mail domain, its reply route, and how much the receptionist may do with an email. Members read; the service role writes.
@@ -1875,7 +1928,7 @@ Foreign keys:
 
 ### notification_marks
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/notifications.ts`
 - Primary key: `notification_id`, `user_id`
 - Row-level security: on, 1 policy
 
@@ -1896,7 +1949,7 @@ Foreign keys:
 
 ### notification_reads
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/notifications.ts`
 - Primary key: `tenant_id`, `user_id`
 - Row-level security: on, 1 policy
 
@@ -1936,6 +1989,7 @@ What needed the workspace's attention, kept: each alert the edge raised, where t
 | `recipient_user_id` | uuid | yes |  | The one member this is for (0007); null for everyone in the workspace. Only the recipient reads an addressed row. |
 | `source_event` | uuid | yes |  | The event this notice answers (decision 0043, 00396): a hold's notice keeps its escalation event, so a second delivery of it tells nobody. A sweep's once-only notice keeps, in its place, a uuid made from the name of what it answers (the edge's notify.ts onceKey: the deadman's warning of one hold, the warning before a number is given back, a booking email held for a look), so a retry finds it and sends only the mail it still owes (00419). Null for a notice nothing keys. |
 | `mail_due_at` | timestamp with time zone | yes |  | When this notice's mail became owed (decision 0048, 00409): set with the row when a mail is to go, cleared once it has gone, so a retry sends the mail alone and the bell keeps one row. Null for a notice nothing owes. |
+| `closed_at` | timestamp with time zone | yes |  | When what the row asked for ended for good, for everyone (00421): the hold it told of resolved (escalation_closes_its_notices), the question it asked settled (lead_rounds_notify), the offers pause it told of lifted (resume_email_offers), or the warning mended by news the edge kept after it (contracts NOTICE_MENDS). Null while it may still ask. A closed row reads as read and wears no warning; a member's own read stays notification_marks'. Written by the service role and the definer functions only: the table's one policy is SELECT. |
 
 Foreign keys:
 
@@ -2370,13 +2424,14 @@ Foreign keys:
 | `after_playbook_id` | uuid | yes |  |  |
 | `after_days` | integer | yes |  |  |
 | `gap_minutes` | integer | yes |  |  |
-| `domain_ids` | uuid[] | no | `'{}'::uuid[]` |  |
+| `domain_ids` | uuid[] | no | `'{}'::uuid[]` | Retired (decision 0056): the sending domains a chain wrote from. reach_out_save empties it; mailbox_ids is the chain's. |
 | `signed_by` | text | yes |  |  |
 | `include_unconfirmed` | boolean | no | `false` |  |
 | `hand` | jsonb | yes |  | A reach-out's last step that hands each lead it reaches to the team (Reach out Part 5, G20): {kind: call \| note, words}. Such a step has no template. |
 | `channels` | text[] | no | `'{whatsapp}'::text[]` | The channels this campaign may go by (whatsapp, sms, email, each once, at least one): the composer's ticks. Each person is reached once, on one of them (contracts' reachFor). WhatsApp alone by default, as every campaign was before (00298). |
 | `until` | date | yes |  | The last day this campaign runs, on the business's clock: a run on a day past it sends nothing. Null: it runs until it is paused (00416). |
 | `trial_until` | timestamp with time zone | yes |  | Until when this campaign runs on trial: before it, a run its policy would send by itself (auto) waits for a person (veto). Null: no trial (00416). |
+| `mailbox_ids` | uuid[] | no | `'{}'::uuid[]` | A reach-out step's mailboxes (00424): the ones its owner picked, or none for every connected one of its workspace. |
 
 Foreign keys:
 
@@ -2603,7 +2658,7 @@ Reach out: one lead in one step's run. Planned (a time and a domain), claimed un
 | `root_id` | uuid | no |  |  |
 | `lead_id` | uuid | no |  |  |
 | `contact_id` | uuid | yes |  |  |
-| `domain_id` | uuid | yes |  |  |
+| `domain_id` | uuid | yes |  | Retired (decision 0056): the sending domain a send left from on the cold Resend lane. Nothing writes it now; mailbox_id is the send's. |
 | `send_at` | timestamp with time zone | yes |  |  |
 | `state` | text | no | `'planned'::text` |  |
 | `reason` | text | yes |  |  |
@@ -2625,6 +2680,7 @@ Reach out: one lead in one step's run. Planned (a time and a domain), claimed un
 | `check_gen` | integer | no | `0` |  |
 | `checked_words` | text | yes |  |  |
 | `included_for` | text[] | no | `'{}'::text[]` |  |
+| `mailbox_id` | uuid | yes |  | The mailbox this send leaves from (00424): planned with it, claimed under its day, and kept by its lead for the whole chain. Null for a skipped send, or once its mailbox is gone. |
 
 Foreign keys:
 
@@ -2632,6 +2688,7 @@ Foreign keys:
 - `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete set null
 - `tenant_id`, `domain_id` → [`sending_domains`](#sending_domains) (`tenant_id`, `id`), on delete set null
 - `tenant_id`, `lead_id` → [`leads`](#leads) (`tenant_id`, `id`), on delete cascade
+- `tenant_id`, `mailbox_id` → [`mailbox_connections`](#mailbox_connections) (`tenant_id`, `id`), on delete set null
 - `tenant_id`, `message_id` → [`messages`](#messages) (`tenant_id`, `id`), on delete set null
 - `tenant_id`, `playbook_id` → [`playbooks`](#playbooks) (`tenant_id`, `id`), on delete set null
 - `tenant_id`, `root_id` → [`playbooks`](#playbooks) (`tenant_id`, `id`), on delete cascade
@@ -2719,7 +2776,7 @@ Foreign keys:
 
 ### sending_domain_days
 
-One row per sending domain per UTC day: its state and counters as the domains sweep's last check left them (K9), written by sending_domain_days_keep at 00:23 for the day that ended. Null where the domain had no count; checked_at says how stale. Members read their workspace's; the service role writes.
+Retired (decision 0056, 00423): each sending domain's day, filed nightly until its clock was unscheduled. Kept inert until a later migration drops it (docs/debt.md).
 
 - Owned by: none
 - Primary key: `domain_id`, `day`
@@ -2750,7 +2807,7 @@ Foreign keys:
 
 ### sending_domains
 
-The domains a workspace sends cold email from (Reach out): the identity, the provider's records, and where each stands. Members read; the service role writes (apps/edge lib/email/sending-domains.ts).
+Retired (decision 0056, 00423): the domains a second Resend account sent cold email from. Nothing reads or writes it now; kept inert until a later migration drops it (docs/debt.md).
 
 - Owned by: none
 - Primary key: `id`
@@ -2856,7 +2913,7 @@ Foreign keys:
 
 The ROUTING table: one row per thing an inbound webhook must resolve to a workspace. A voice row is keyed on the receptionist (external_id = agent id) so several numbers may share one; an sms or whatsapp row is keyed on the number, because a message arrives addressed to one. config.line_id names the lines row that created it, when a line did -- numbers provisioned inside Retell or through Meta legitimately have none. See public.number_drift() for what disagreement between the two looks like.
 
-- Owned by: `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/sweeps.ts`
+- Owned by: `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/sweeps.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -2932,7 +2989,7 @@ Foreign keys:
 
 ### tenants
 
-- Owned by: `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts`
+- Owned by: `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 

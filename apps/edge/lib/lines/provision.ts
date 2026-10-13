@@ -16,7 +16,12 @@
  */
 import { notify, recordNotification } from "../ops/notify.js";
 import { emitEvent, recordActivation } from "../packages/db.js";
-import { formatPhoneDisplay, lineCredentialFailure, LINE_CREDENTIALS_SENTENCE } from "../packages/contracts.js";
+import {
+  FIRST_RUN_ROUTE,
+  formatPhoneDisplay,
+  lineCredentialFailure,
+  LINE_CREDENTIALS_SENTENCE,
+} from "../packages/contracts.js";
 import { runLineSaga, type LineRow } from "../packages/channels.js";
 import { linePorts, LINE_STEP_WORDS, type LineProviderChoice } from "./lines.js";
 import type { ResumedBy } from "./line-resume.js";
@@ -50,7 +55,7 @@ export async function reportLineFailed(
     body: credentials
       ? `Setting up ${shown} stopped at ${LINE_CREDENTIALS_SENTENCE}. A retry cannot help until we restore them; we have been told and will finish it with you.`
       : `Setting up ${shown} stopped while ${at}. You can retry from Setup; we have been told and will finish it with you if the retry does not.`,
-    route: "admin/setup",
+    route: FIRST_RUN_ROUTE,
     about: { type: "line", id: line.id },
   });
   await notify(
@@ -107,7 +112,7 @@ export async function provisionLine(
       kind: "number",
       title: `Your phone line is ready: ${shown}`,
       body: `The receptionist answers calls on ${shown}. Call it from your own phone to hear it; the Live page shows the call as it happens. Texting arrives once the carriers register the line.`,
-      route: "admin/setup",
+      route: FIRST_RUN_ROUTE,
       about: { type: "line", id: line.id },
     });
     await emitEvent(db, tenant.id, "line.answering", "line", line.id, {

@@ -1,7 +1,7 @@
 /**
  * A connected mailbox's health, tended by the mailboxes clock (decision 0056, 8):
  *
- *   its own mail   counted hourly since it was last counted clean (00422 mailbox_connection_counts) and judged by the
+ *   its own mail   counted hourly since it was last counted clean (00424 mailbox_connection_counts) and judged by the
  *                  one rule (contracts mailboxHoldOf): any complaint, or bounces or noes past 3%, holds it. Held, it
  *                  sends nothing until its owner resumes it; the Activity log says so, and its owner is told once.
  *   its ramp       the days it has sent on (mailbox_capacity's sent_days) kept on its row, for the page's pace.

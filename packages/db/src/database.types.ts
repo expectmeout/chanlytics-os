@@ -4335,6 +4335,7 @@ export type Database = {
       notifications: {
         Row: {
           body: string
+          closed_at: string | null
           created_at: string
           id: string
           kind: string
@@ -4349,6 +4350,7 @@ export type Database = {
         }
         Insert: {
           body: string
+          closed_at?: string | null
           created_at?: string
           id?: string
           kind: string
@@ -4363,6 +4365,7 @@ export type Database = {
         }
         Update: {
           body?: string
+          closed_at?: string | null
           created_at?: string
           id?: string
           kind?: string
@@ -5695,13 +5698,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "reach_out_sends_mailbox_id_same_workspace"
-            columns: ["tenant_id", "mailbox_id"]
-            isOneToOne: false
-            referencedRelation: "mailbox_connections"
-            referencedColumns: ["tenant_id", "id"]
-          },
-          {
             foreignKeyName: "reach_out_sends_broadcast_id_same_workspace"
             columns: ["tenant_id", "broadcast_id"]
             isOneToOne: false
@@ -5727,6 +5723,13 @@ export type Database = {
             columns: ["tenant_id", "lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "reach_out_sends_mailbox_id_same_workspace"
+            columns: ["tenant_id", "mailbox_id"]
+            isOneToOne: false
+            referencedRelation: "mailbox_connections"
             referencedColumns: ["tenant_id", "id"]
           },
           {
@@ -6881,7 +6884,10 @@ export type Database = {
       get_cron_sweep_key: { Args: never; Returns: string }
       get_google_credentials: { Args: { p_tenant_id: string }; Returns: Json }
       get_line_credentials: { Args: { p_line_id: string }; Returns: Json }
-      get_mailbox_credentials: { Args: { p_connection_id: string }; Returns: Json }
+      get_mailbox_credentials: {
+        Args: { p_connection_id: string }
+        Returns: Json
+      }
       handover_accept: {
         Args: { p_tenant: string }
         Returns: {
@@ -7561,6 +7567,16 @@ export type Database = {
         Args: { p_dismissed?: boolean; p_id: string; p_read?: boolean }
         Returns: Json
       }
+      notifications_close_about: {
+        Args: {
+          p_kinds: string[]
+          p_subject_id: string
+          p_subject_type: string
+          p_tenant_id: string
+          p_title?: string
+        }
+        Returns: number
+      }
       notifications_seen: { Args: { p_tenant_id: string }; Returns: Json }
       number_drift: {
         Args: never
@@ -7916,6 +7932,7 @@ export type Database = {
       person_call_logged: {
         Args: {
           p_body: string
+          p_closes_call_back?: boolean
           p_contact_id: string
           p_due_on?: string
           p_lead_note?: string
@@ -8300,6 +8317,14 @@ export type Database = {
         Args: { p_line_id: string; p_secret: Json }
         Returns: string
       }
+      put_mailbox_credentials: {
+        Args: {
+          p_connection_id: string
+          p_if_refresh_token?: string
+          p_secret: Json
+        }
+        Returns: string
+      }
       reach_out_audience:
         | {
             Args: {
@@ -8333,14 +8358,6 @@ export type Database = {
               region: string
             }[]
           }
-      put_mailbox_credentials: {
-        Args: {
-          p_connection_id: string
-          p_if_refresh_token?: string
-          p_secret: Json
-        }
-        Returns: string
-      }
       reach_out_booked: {
         Args: { p_seen: Json; p_tenant_id: string }
         Returns: number

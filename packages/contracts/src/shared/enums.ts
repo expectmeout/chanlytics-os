@@ -310,7 +310,7 @@ export const EVENT_KINDS = [
   /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00299). The reason, never an address. */
   "mailbox.offers_paused",
   "mailbox.offers_resumed",
-  /** A mailbox the business writes cold email from (00421, decision 0056): connected (or connected again), signed out
+  /** A mailbox the business writes cold email from (00423, decision 0056): connected (or connected again), signed out
    * by its provider, held for its own mail, resumed by its owner, paused and unpaused by its owner, removed. Its
    * address and the reason, never its token. */
   "mailbox_connection.connected",

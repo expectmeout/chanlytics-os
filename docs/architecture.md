@@ -195,7 +195,7 @@ workspace's own credentials; the environment's keys never send for another
 business.
 
 A cold email (the `outreach` purpose, Reach out) is always a broadcast, and
-asks more of the door. One call, `outreach_mailbox_facts` (00422), answers
+asks more of the door. One call, `outreach_mailbox_facts` (00424), answers
 whether the business is a lead still being written to, whether its address is
 on the never-again list, whether the person ever wrote back or phoned (00181),
 and which of the workspace's connected mailboxes its From is, with that
@@ -213,7 +213,7 @@ it through Gmail's or Graph's own send. What the send learns about the mailbox
 is applied at once: a provider's day used up rests it until the next UTC
 midnight, and a grant gone sets it to reconnect and tells its owner once; the
 send itself comes back as a wait. A sent email is stamped with the Message-ID
-and thread the mailbox kept (00422 `stamp_email_from_mailbox`), which no
+and thread the mailbox kept (00424 `stamp_email_from_mailbox`), which no
 receipt brings later. A cold send never moves its thread, and a failure is
 recorded on its row rather than flagged.
 

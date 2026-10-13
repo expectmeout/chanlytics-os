@@ -1,7 +1,7 @@
--- 00423 · A mailbox's threads are found by their id (decision 0056).
+-- 00425 · A mailbox's threads are found by their id (decision 0056).
 --
 -- The sync of a connected mailbox asks which of the threads that changed hold an email this workspace sent
--- (00422 mailbox_threads_known), by the provider's thread id the wire keeps on the email's meta.email.thread_id. This
+-- (00424 mailbox_threads_known), by the provider's thread id the wire keeps on the email's meta.email.thread_id. This
 -- is that question's index: only emails sent from a mailbox carry a thread id, so it holds none of the rest.
 --
 -- Built concurrently, so writes to messages never wait for it: this file runs on its own, outside a transaction (the

@@ -205,6 +205,7 @@ export async function logCall(
     lead: lead
       ? { stage: lead.p_lead_stage, reason: lead.p_lead_reason, note: lead.p_lead_note, spokeWith: lead.p_spoke_with }
       : null,
+    closesCallBack: input.closes_call_back === true,
   });
   const { note } = noteAnswer("person_call_logged", data, error);
   const r = (data ?? {}) as { step?: NoteRow | null; lead?: CallLead | null };

@@ -1,5 +1,5 @@
 /**
- * A connected mailbox's world, for the suites in this folder (decision 0056): its token in a vault in memory (00421's
+ * A connected mailbox's world, for the suites in this folder (decision 0056): its token in a vault in memory (00423's
  * three Vault doors, as fakeDb's rpcs), the deployment's switches for both providers, and the providers answered by
  * the test (a fetch that records each call and answers by what it asked). The row itself is _rows.mjs's
  * (rows.mailboxConnection).
@@ -44,7 +44,7 @@ export const liveCredentials = (access = "ya29.live-token", refresh = "1//refres
 });
 
 /**
- * 00421's Vault doors over a map: get answers the secret or null; put keeps it, refusing with 40001 when it names a
+ * 00423's Vault doors over a map: get answers the secret or null; put keeps it, refusing with 40001 when it names a
  * refresh token that is no longer the one kept (a reconnect stored meanwhile); drop forgets it.
  */
 export function vault(seed = {}) {
