@@ -74,6 +74,7 @@ export function personDetail(id: string): Promise<PersonVM | null> {
     if (r.status === 404) {
       people().forget(id);
       if (r.movedTo) movedTo.set(id, r.movedTo);
+      else movedTo.delete(id);
       return null;
     }
     throw new ApiError(r.code, r.status, r.message);

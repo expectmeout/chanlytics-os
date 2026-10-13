@@ -126,16 +126,17 @@ test("the route takes an outcome it knows, words within the lead's note, and a r
   assert.equal(PersonCallSchema.safeParse({ outcome: "spoke", extra: 1 }).success, false, "nothing it does not name");
 });
 
-test("REGRESSION (the wiring's second audit, X3-1): a call that reached them is the call back they asked for unless the member says not; one that went nowhere is not; the sheet asks only while one is open", () => {
+test("REGRESSION (the wiring's second audit, X3-1): a call that reached them is the call back they asked for unless the member says not; one that went nowhere is not; the sheet asks only while one is open and no teammate has the thread", () => {
   const reached = ["spoke", "interested", "not_interested"];
   for (const o of ["spoke", "interested", "not_interested", "call_back", "voicemail", "no_answer", "wrong_number"])
     assert.equal(personCallClosesBack(o), reached.includes(o), o);
   assert.equal(personCallClosesBack(null), false, "nothing picked yet closes nothing");
-  // Open on their thread: asked. Resolved, or a hold that asks for something else: not.
+  // Open on their thread: asked. Resolved, or a hold that asks for something else: not. A teammate's thread: theirs.
   const hold = (state, reason) => ({ state, reason });
-  assert.equal(callBackWaits([hold("open", "callback")]), true);
-  assert.equal(callBackWaits([hold("resolved", "callback"), hold("open", "manual")]), false);
-  assert.equal(callBackWaits([]), false);
+  assert.equal(callBackWaits([hold("open", "callback")], false), true);
+  assert.equal(callBackWaits([hold("open", "callback")], true), false, "a teammate has it: theirs to close");
+  assert.equal(callBackWaits([hold("resolved", "callback"), hold("open", "manual")], false), false);
+  assert.equal(callBackWaits([], false), false);
   assert.match(PERSON_CALL_WORDS.closesCallBack, /call back they asked for/);
   // The route takes the member's answer, and only a yes or a no.
   const body = { outcome: "spoke", closes_call_back: true };

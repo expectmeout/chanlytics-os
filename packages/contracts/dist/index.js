@@ -36902,8 +36902,8 @@ var REACHED = ["spoke", "interested", "not_interested"];
 function personCallClosesBack(o) {
   return !!o && REACHED.includes(o);
 }
-function callBackWaits(escalations) {
-  return escalations.some((e) => e.state === "open" && e.reason === "callback");
+function callBackWaits(escalations, theirs2) {
+  return !theirs2 && escalations.some((e) => e.state === "open" && holdActOf(e.reason) === "call_back");
 }
 function dialable(raw) {
   const digits2 = String(raw || "").replace(/[^\d+]/g, "");
@@ -37434,7 +37434,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = null, pa
     lead: leadOf2(d, base, tz, nowMs),
     // The doors' own test, as far as the page can see it: a lead names them, or they work at one.
     yesLocked: d.lead || base.worksAt ? LEAD_CONSENT_REFUSAL : null,
-    callBackOpen: callBackWaits(d.escalations),
+    callBackOpen: callBackWaits(d.escalations, holderOf(ctx.row, nowMs, viewerId) === "theirs"),
     doubts: doubtsOf(d),
     deal: ctx.current,
     deals: ctx.deals,

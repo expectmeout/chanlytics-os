@@ -32617,10 +32617,11 @@ declare const PERSON_CALL_WORDS: {
  */
 declare function personCallClosesBack(o: PersonCallOutcome | null): boolean;
 /**
- * They asked for a call back and it is still open (an open hold on their thread whose reason is callback): the call sheet
- * then asks whether this call was it (X3-1), and the door hands their thread back when it was.
+ * They asked for a call back and it is still open (an open hold on their thread whose verb is Call back, decision 0048's
+ * holdActOf): the call sheet then asks whether this call was it (X3-1), and the door hands their thread back when it was.
+ * A thread a teammate has is theirs to close (`theirs`), as the Inbox says: the sheet does not ask, and the door would not.
  */
-declare function callBackWaits(escalations: readonly Pick<PersonEscalationDto, "state" | "reason">[]): boolean;
+declare function callBackWaits(escalations: readonly Pick<PersonEscalationDto, "state" | "reason">[], theirs: boolean): boolean;
 /** The popover's and the sheet's head, the outcomes it offers, and whether Save moves a lead too. */
 interface PersonCallVM {
     /** What Call opens: their number, or the listing's for someone at a business with none of their own. */

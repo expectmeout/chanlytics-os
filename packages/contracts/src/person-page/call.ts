@@ -15,6 +15,7 @@ import {
   LEAD_STAGE_WORDS,
 } from "../leads/lead-words";
 import { formatPhoneDisplay } from "../shared/phone";
+import { holdActOf } from "../conversations/escalations";
 import type { PersonEscalationDto } from "../people/person-dto";
 import type { BusinessRecordVM } from "./business";
 
@@ -83,11 +84,15 @@ export function personCallClosesBack(o: PersonCallOutcome | null): boolean {
 }
 
 /**
- * They asked for a call back and it is still open (an open hold on their thread whose reason is callback): the call sheet
- * then asks whether this call was it (X3-1), and the door hands their thread back when it was.
+ * They asked for a call back and it is still open (an open hold on their thread whose verb is Call back, decision 0048's
+ * holdActOf): the call sheet then asks whether this call was it (X3-1), and the door hands their thread back when it was.
+ * A thread a teammate has is theirs to close (`theirs`), as the Inbox says: the sheet does not ask, and the door would not.
  */
-export function callBackWaits(escalations: readonly Pick<PersonEscalationDto, "state" | "reason">[]): boolean {
-  return escalations.some((e) => e.state === "open" && e.reason === "callback");
+export function callBackWaits(
+  escalations: readonly Pick<PersonEscalationDto, "state" | "reason">[],
+  theirs: boolean,
+): boolean {
+  return !theirs && escalations.some((e) => e.state === "open" && holdActOf(e.reason) === "call_back");
 }
 
 /** The popover's and the sheet's head, the outcomes it offers, and whether Save moves a lead too. */

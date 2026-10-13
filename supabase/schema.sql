@@ -14156,7 +14156,9 @@ begin
       from public.conversations c
       join public.escalations e
         on e.conversation_id = c.id and e.tenant_id = c.tenant_id and e.state = 'open' and e.reason = 'callback'
-     where c.tenant_id = v_person.tenant_id and c.contact_id = p_contact_id;
+     where c.tenant_id = v_person.tenant_id and c.contact_id = p_contact_id
+       and (c.assignee_user_id is null or c.assignee_user_id = v_user)
+       and (c.control_kind is null or c.control_until <= now() or (c.control_kind = 'person' and c.control_by = v_user));
     if v_thread is not null then
       v_handed := public.conversation_hand_back(v_person.tenant_id, v_thread, 'call', null) is not null;
     end if;
@@ -14170,7 +14172,7 @@ end $$;
 -- Name: FUNCTION person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text, p_closes_call_back boolean); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text, p_closes_call_back boolean) IS 'A call a member made, logged on the person (0052, canvas A M4): a note, the team''s unless p_tell, a step with p_due_on (beside the note where the receptionist reads it), and, where the person''s business is an open lead with its own person, the outcome through lead_set_stage (never Spoke; Wrong number only where the person has no number of their own; a lead Talking kept so by a call that went nowhere). With p_closes_call_back (00422, X3-1), the person''s thread, where it holds an open call-back request, is handed back through conversation_hand_back as the caller, in the same transaction. Owner, operator or partner. Answers {note, step, lead, handed_back} or {error}.';
+COMMENT ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text, p_closes_call_back boolean) IS 'A call a member made, logged on the person (0052, canvas A M4): a note, the team''s unless p_tell, a step with p_due_on (beside the note where the receptionist reads it), and, where the person''s business is an open lead with its own person, the outcome through lead_set_stage (never Spoke; Wrong number only where the person has no number of their own; a lead Talking kept so by a call that went nowhere). With p_closes_call_back (00422, X3-1), the person''s thread, where it holds an open call-back request and no teammate has it, is handed back through conversation_hand_back as the caller, in the same transaction. Owner, operator or partner. Answers {note, step, lead, handed_back} or {error}.';
 
 
 --

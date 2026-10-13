@@ -83,6 +83,7 @@ const told = async (subject, kind) =>
 const log = (who, id, a) => who.as.rpc("person_call_logged", { p_contact_id: id, p_tell: false, ...a });
 
 let maria;
+let olu;
 let viewer;
 
 before(async () => {
@@ -90,6 +91,7 @@ before(async () => {
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   tenantId = await one(db.from("tenants").insert({ slug: `call-logged-${RUN}`, name: "Call logged" }), "tenant");
   maria = await member("operator", "maria");
+  olu = await member("operator", "olu");
   viewer = await member("viewer", "viewer");
 });
 
@@ -245,9 +247,20 @@ test(
   },
 );
 
-/** The person's thread (one a person), holding an open request of `reason` (escalation_open, the one door for it). */
+/**
+ * The person's thread (one a person), holding an open request of `reason` (escalation_open, the one door for it), in the
+ * shape the edge leaves a call-back request in (call-webhook.ts handToPerson: needing a person, the receptionist paused).
+ */
 const holding = async (contactId, reason) => {
-  const id = await one(db.from("conversations").insert({ tenant_id: tenantId, contact_id: contactId }), "thread");
+  const id = await one(
+    db.from("conversations").insert({
+      tenant_id: tenantId,
+      contact_id: contactId,
+      state: "needs_human",
+      paused_until: new Date(Date.now() + 4 * 3600e3).toISOString(),
+    }),
+    "thread",
+  );
   const opened = ok(
     await db.rpc("escalation_open", {
       p_tenant_id: tenantId,
@@ -272,10 +285,17 @@ const holdOf = async (thread) =>
     "the hold",
   );
 const threadOf = async (id) =>
-  ok(await db.from("conversations").select("state, assignee_user_id").eq("id", id).single(), "thread");
+  ok(
+    await db
+      .from("conversations")
+      .select("state, assignee_user_id, paused_until, control_kind, control_by")
+      .eq("id", id)
+      .single(),
+    "thread",
+  );
 
 test(
-  "REGRESSION (the wiring's second audit, X3-1): a call that was the call back they asked for hands their thread back, as the caller, and its bell row closes; a thread asking something else, a call not ticked as it, and a viewer move nothing",
+  "REGRESSION (the wiring's second audit, X3-1): a call that was the call back they asked for hands their thread back, as the caller, and its bell row closes; a thread asking something else, a thread a teammate has, a call not ticked as it, and a viewer move nothing",
   { skip },
   async () => {
     const ana = await person({ display_name: "Ana Ruiz", phone_e164: phone() });
@@ -308,6 +328,7 @@ test(
       { error: "not_found" },
     );
     assert.equal((await holdOf(asked)).state, "open");
+    assert.equal((await threadOf(asked)).state, "needs_human", "still waiting on a person");
 
     const done = ok(
       await log(maria, ana, { p_outcome: "spoke", p_body: "Call · Spoke: booked Friday", p_closes_call_back: true }),
@@ -324,8 +345,8 @@ test(
     assert.deepEqual([decided.verb, decided.actor_user_id, decided.payload.via], ["hand_back", maria.id, "call"]);
     assert.deepEqual(
       await threadOf(asked),
-      { state: "open", assignee_user_id: null },
-      "handed back to the receptionist",
+      { state: "open", assignee_user_id: null, paused_until: null, control_kind: null, control_by: null },
+      "handed back to the receptionist: open, nobody's, nothing paused or held",
     );
     const row = ok(await db.from("notifications").select("closed_at").eq("id", rang).single(), "the bell's row");
     assert.ok(row.closed_at, "the bell stops asking (00421's hold trigger)");
@@ -344,5 +365,31 @@ test(
     );
     assert.equal(again.handed_back, false);
     assert.ok(again.note);
+
+    // A thread a teammate took over is theirs (the Inbox's rule): a call Maria logs as the call back leaves it, their
+    // take-over and their hold as they were, and the request open for them to close.
+    const cy = await person({ display_name: "Cy Moreau", phone_e164: phone() });
+    const taken = await holding(cy, "callback");
+    ok(
+      await olu.as.rpc("conversation_take_over", {
+        p_tenant_id: tenantId,
+        p_conversation_id: taken,
+        p_paused_until: new Date(Date.now() + 3600e3).toISOString(),
+      }),
+      "a teammate takes it over",
+    );
+    const theirs = ok(
+      await log(maria, cy, { p_outcome: "spoke", p_body: "Call · Spoke", p_closes_call_back: true }),
+      "a teammate's thread",
+    );
+    assert.equal(theirs.handed_back, false);
+    assert.ok(theirs.note, "the call is still logged on the person");
+    const still = await threadOf(taken);
+    assert.deepEqual(
+      [still.state, still.assignee_user_id, still.control_kind, still.control_by],
+      ["needs_human", olu.id, "person", olu.id],
+      "their take-over stands",
+    );
+    assert.equal((await holdOf(taken)).state, "open", "and the request is theirs to close");
   },
 );

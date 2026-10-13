@@ -1267,10 +1267,16 @@ test("every old tool's call, made by its new name and action, answers the bytes 
         ? [...withBreath, "escalations.select"]
         : withBreath;
     const withRunsWaiting = old === "get_today" ? [...halves, "broadcasts.select"] : halves;
+    // 13 Oct 2026 (the wiring's second audit, R3, S5-3): a person the workspace does not show is asked once more whether
+    // they were combined into another (db keptPersonOf), so their old address opens the person they became: one
+    // `contacts` read more where the profile is refused. Its bytes are unchanged for nobody combined.
+    const followsACombine =
+      NAMES[old] === "people.get" && want.isError ? [...withRunsWaiting, "contacts.select"] : null;
+    const withKept = followsACombine ?? withRunsWaiting;
     const reads =
       NAMES[old] === "report"
-        ? withCampaignReads(withPeopleReads(withReceptionistReads(withReviewReads(withRunsWaiting))))
-        : withRunsWaiting;
+        ? withCampaignReads(withPeopleReads(withReceptionistReads(withReviewReads(withKept))))
+        : withKept;
     const [gotResult, wantResult] =
       NAMES[old] === "campaigns.playbooks"
         ? againstOffered(got.result, withLastThirtyDays(result))

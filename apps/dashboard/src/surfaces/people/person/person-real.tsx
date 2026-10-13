@@ -117,21 +117,16 @@ function useLoad(id: string, vm: PersonVM | null, setSt: Dispatch<SetStateAction
 /**
  * A person combined into another since (0028): the server names the record kept (people-detail.ts personMovedTo), and
  * their old address -- a bell row, a note's link, a tab left open -- is replaced by the kept person's, on the tab it
- * asked for, never "not in your workspace" (the wiring's second audit, S5-3). True while that move is under way.
+ * asked for, never "not in your workspace" (the wiring's second audit, S5-3). True while that move is under way (the
+ * kept person's page is mounted afresh: people-route.tsx keys it by id). Not while this page's own Combine is out
+ * (`combining`): its sheet moves to the kept person itself, with the toast that says so (combine-sheet.tsx arrival).
  */
-function useCombinedInto(id: string, missing: boolean, tab: PersonTab): boolean {
-  const to = missing ? personMovedTo(id) : null;
-  // The person moved to: the page is not mounted again, so the old record's "not here" stands until their read is in.
-  const [went, setWent] = useState<string | null>(null);
+function useCombinedInto(id: string, missing: boolean, tab: PersonTab, combining: boolean): boolean {
+  const to = missing && !combining ? personMovedTo(id) : null;
   useEffect(() => {
-    if (!to) return;
-    setWent(to);
-    addressReplace(personTabRoute(to, tab), { quiet: false });
+    if (to) addressReplace(personTabRoute(to, tab), { quiet: false });
   }, [to, tab]);
-  useEffect(() => {
-    if (!missing) setWent(null);
-  }, [missing]);
-  return !!to || (missing && went === id);
+  return !!to;
 }
 
 /** The phone's width (People's 900px), kept current as the window changes: the page is one column under it. */
@@ -304,8 +299,9 @@ function ClientProfileReal({ id, tab: asked }: { id: string; tab: PersonTab }) {
   };
   const load = useLoad(id, st.vm, setSt);
   const people = usePeopleSeam();
+  const [combine, setCombine] = useState<CombineState>({ act: null, busy: false, error: null });
   // A person combined away is read on the kept one's page: "Reading…" while the address moves, never "not here".
-  const moving = useCombinedInto(id, st.missing, asked);
+  const moving = useCombinedInto(id, st.missing, asked, combine.busy);
   const { vm, error } = st;
   const [missing, loading] = [st.missing && !moving, st.loading || moving];
   const phone = usePhone();
@@ -317,7 +313,6 @@ function ClientProfileReal({ id, tab: asked }: { id: string; tab: PersonTab }) {
   const [composing, setComposing] = useState(false);
   // Add to a list (More): its sheet, closed when the person changes.
   const [listsOpen, setListsOpen] = useState(false);
-  const [combine, setCombine] = useState<CombineState>({ act: null, busy: false, error: null });
   useEffect(() => {
     setComposing(false);
     setListsOpen(false);

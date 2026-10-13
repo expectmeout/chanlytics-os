@@ -424,6 +424,6 @@
     "00419_the_bell_tells_the_truth.sql": "11bd834bc11fb2ce8ecc6bd85b7784071a08dff7dbdbdad3c3530ade2b57aaa3",
     "00420_a_combined_person_keeps_their_own_name.sql": "86eaac65eb654c7971e39c0fd5e4e8eb102a159a378d96377e951259cc59198c",
     "00421_a_wait_that_ends_closes_its_notice.sql": "46863862b96741c939deaed5de55726167085c2fa281efbb8eb5e6c4536d0c52",
-    "00422_a_call_that_was_the_call_back_closes_it.sql": "f6e1ffbdd15c53c08a8eb9eaa82244da9fc743bbcf38757a0a2af1b82508352b"
+    "00422_a_call_that_was_the_call_back_closes_it.sql": "a95d3a6440a442c275e4120b3cea796f08422e4348d7238af2fcb14c8d735c3f"
   }
 }

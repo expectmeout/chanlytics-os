@@ -70,6 +70,7 @@ import { personNoticesOf, type NoticeVM } from "../person-page/notices";
 import { personTabsOf, type PersonTabVM } from "../person-page/route";
 import { personVisitsOf, type PersonVisitsVM } from "../person-page/visits";
 import { callBackWaits } from "../person-page/call";
+import { holderOf } from "./person-state";
 import { callFactsOf } from "../person-page/call-facts";
 import { contactEvidenceOf, personOriginOf, reachRowsOf } from "../person-page/origin";
 import { WORKS_AT_WORDS } from "../person-page/words";
@@ -507,7 +508,7 @@ export function toPersonVM(
     lead: leadOf(d, base, tz, nowMs),
     // The doors' own test, as far as the page can see it: a lead names them, or they work at one.
     yesLocked: d.lead || base.worksAt ? LEAD_CONSENT_REFUSAL : null,
-    callBackOpen: callBackWaits(d.escalations),
+    callBackOpen: callBackWaits(d.escalations, holderOf(ctx.row, nowMs, viewerId) === "theirs"),
     doubts: doubtsOf(d),
     deal: ctx.current,
     deals: ctx.deals,

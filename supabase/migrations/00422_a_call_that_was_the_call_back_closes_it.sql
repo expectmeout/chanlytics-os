@@ -11,8 +11,10 @@
 --                        the caller and in the same transaction as the note: the release, the hand_back decision (via
 --                        'call') and the request resolved by it, so the hold's own trigger closes its bell row (00421)
 --                        and Today, the badge and History read it done. A thread asking anything else is left as it
---                        was, and false changes nothing the door did before. The answer gains handed_back (true or
---                        false).
+--                        was, and so is one a teammate has (assigned to them, or held by them or a live call): the
+--                        hand-back would undo their take-over and leave their hold on (the Inbox's own rule: a
+--                        teammate's thread has nothing to hand back but theirs). False changes nothing the door did
+--                        before. The answer gains handed_back (true or false).
 --
 -- The old signature is dropped first: a new trailing default makes a second function beside it, and PostgREST would find
 -- two. Deploy order: this migration first (a dashboard that sends the new argument to a database without it is refused,
@@ -115,7 +117,9 @@ begin
       from public.conversations c
       join public.escalations e
         on e.conversation_id = c.id and e.tenant_id = c.tenant_id and e.state = 'open' and e.reason = 'callback'
-     where c.tenant_id = v_person.tenant_id and c.contact_id = p_contact_id;
+     where c.tenant_id = v_person.tenant_id and c.contact_id = p_contact_id
+       and (c.assignee_user_id is null or c.assignee_user_id = v_user)
+       and (c.control_kind is null or c.control_until <= now() or (c.control_kind = 'person' and c.control_by = v_user));
     if v_thread is not null then
       v_handed := public.conversation_hand_back(v_person.tenant_id, v_thread, 'call', null) is not null;
     end if;
@@ -134,5 +138,5 @@ comment on function public.person_call_logged(uuid, text, text, date, boolean, t
   '(beside the note where the receptionist reads it), and, where the person''s business is an open lead with its own '
   'person, the outcome through lead_set_stage (never Spoke; Wrong number only where the person has no number of their '
   'own; a lead Talking kept so by a call that went nowhere). With p_closes_call_back (00422, X3-1), the person''s thread, '
-  'where it holds an open call-back request, is handed back through conversation_hand_back as the caller, in the same '
-  'transaction. Owner, operator or partner. Answers {note, step, lead, handed_back} or {error}.';
+  'where it holds an open call-back request and no teammate has it, is handed back through conversation_hand_back as '
+  'the caller, in the same transaction. Owner, operator or partner. Answers {note, step, lead, handed_back} or {error}.';
