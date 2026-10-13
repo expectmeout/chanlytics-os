@@ -387,7 +387,9 @@ a.chip:focus-visible {
   box-shadow: var(--focus-ring);
 }
 /* A chip that opens its name and can be taken off: the name is one button, the × another. */
-.chip > button {
+/* The chip's words as a press, or as a link where they open a page (a person's list, canvas A): either takes the chip's
+   ink and type, with no underline of its own. */
+.chip > :is(button, a) {
   display: inline-flex;
   align-items: center;
   min-width: 0;
@@ -396,9 +398,10 @@ a.chip:focus-visible {
   background: none;
   font: inherit;
   color: inherit;
+  text-decoration: none;
   cursor: pointer;
 }
-.chip > button:focus-visible {
+.chip > :is(button, a):focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
   border-radius: var(--radius-xs);
@@ -695,6 +698,31 @@ a.chip:focus-visible {
   height: 1px;
   background: var(--line);
   margin: 6px 4px;
+}
+/* A copy (kit/copy-button/copy-button.tsx; canvas A, M5): quiet words that copy and say so in place, a check and
+   "Copied" in the ok ink for two seconds, never a toast; in a menu, the item's words say it and the menu stays open. */
+.copy-btn {
+  font-weight: var(--weight-medium);
+  color: var(--ink-muted);
+}
+.copy-btn[data-copied],
+.more-item[data-copied] .more-item-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ok-ink);
+}
+/* A glyph pointing back: the chevron turned, for a ‹ (a walk's previous, a way back), never a glyph of its own. */
+.icon-turned {
+  rotate: 180deg;
+}
+/* One thing said of a group's items, under them (Menu's `caption`): why its sends cannot go, in from the glyphs' edge. */
+.more-cap {
+  margin: 0;
+  padding: 2px 10px 8px 34px;
+  font-size: var(--text-xs);
+  line-height: 1.45;
+  color: var(--ink-dim);
 }
 /* A menu that escapes its pane (MoreMenu `escape`, data-bits.jsx moreFit): placed against the window, so a pane that
    scrolls cannot cut it off and it is as wide as every other menu. Drawn unseen until placed, so it never flashes at
@@ -1531,6 +1559,32 @@ a.more-item {
 .rec-row-top {
   align-items: flex-start;
 }
+/* Stacked (RecordRow `stacked`; canvas A's Messages and receptionist in a narrow rail): the key in the ink over its
+   answer in the small dim words, the act at the right of both, so neither squeezes the other to a letter a line. */
+.rec-row-stacked {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "key act"
+    "val act";
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 2px;
+  padding: 9px 0;
+}
+.rec-row-stacked > .rec-row-key {
+  grid-area: key;
+  font-size: var(--text-base);
+  color: var(--ink);
+}
+.rec-row-stacked > .rec-row-val {
+  grid-area: val;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.rec-row-stacked > .rec-row-act {
+  grid-area: act;
+}
 .rec-row-key {
   flex: 0 0 var(--rec-key);
   font-size: var(--text-sm);
@@ -1975,6 +2029,53 @@ a.more-item {
   gap: 8px;
   padding: 0 14px 14px;
 }
+/* A group of a page's rail (`look="group"`, canvas A's fold with a summary): no inset of its own, its name a group's
+   heading in ink at the base step, a 44px press on a phone, and the summary under it at the small step in the dim ink,
+   gone while it is open (its rows say it). */
+.rec-disclosure[data-look="group"] {
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.rec-disclosure[data-look="group"] .rec-disclosure-press {
+  min-height: 34px;
+  padding: 0;
+  color: var(--ink);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+.rec-disclosure[data-look="group"][data-open="true"] .rec-disclosure-inner {
+  padding: 0;
+}
+.rec-disclosure-sum {
+  max-height: 5lh;
+  margin: 0;
+  padding: 0 0 10px;
+  overflow: hidden;
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--ink-dim);
+  text-wrap: pretty;
+  transition:
+    opacity var(--duration-base) var(--ease-out),
+    max-height var(--duration-base) var(--ease-out),
+    padding var(--duration-base) var(--ease-out);
+}
+.rec-disclosure[data-open="true"] > .rec-disclosure-sum {
+  max-height: 0;
+  padding-bottom: 0;
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rec-disclosure-sum {
+    transition: none;
+  }
+}
+@media (max-width: 900px) {
+  .rec-disclosure[data-look="group"] .rec-disclosure-press {
+    min-height: 44px;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .rec-disclosure-press > svg,
   .rec-disclosure-panel,
@@ -2161,6 +2262,21 @@ a.more-item {
   gap: 14px;
   padding: 20px 22px 14px;
   border-bottom: 1px solid var(--line);
+}
+/* A sheet with a mark (Sheet `mark`: a business's tile beside its name): the mark, the words beside it, no rule under the
+   head (the band reads as one with what follows), and the line under the title in the muted ink. */
+.sheet-mark {
+  flex: none;
+  display: inline-flex;
+}
+.rec-sheet-head[data-marked] {
+  align-items: center;
+  gap: 12px;
+  padding: 18px 16px 14px 20px;
+  border-bottom: 0;
+}
+.rec-sheet-head[data-marked] .rec-sheet-sub {
+  color: var(--ink-muted);
 }
 .rec-sheet-heading {
   flex: 1;
@@ -3088,6 +3204,64 @@ select.rec-input :is(option, optgroup) {
   overflow: hidden;
 }
 
+/* ---------- Notice: a fact the page noticed, its source, its one act and its × (kit/notice/notice.tsx) ----------
+   Canvas A's one suggestion grammar: an inset where the fact lives (under a name, at a group's foot, under a list), the
+   fact at the small step with its subject in bold, the source dim after it, the act a small button and the × a quiet
+   circle at the row's end. The line form puts the act beside the fact. On a phone the presses take the touch floor. */
+.notice {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 10px 10px 12px;
+  border-radius: var(--surface-inset-radius);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-ring), var(--surface-inset-depth);
+}
+.notice-fact {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.notice-fact b {
+  font-weight: var(--weight-semibold);
+}
+.notice-src {
+  color: var(--ink-dim);
+}
+.notice-acts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.notice-x {
+  margin-left: auto;
+  color: var(--ink-dim);
+}
+.notice-line {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 8px 14px;
+}
+.notice-line > .notice-fact {
+  flex: 1 1 auto;
+}
+@media (max-width: 900px) {
+  .notice {
+    gap: 6px;
+    padding: 10px 8px 8px 12px;
+  }
+  .notice-acts > .btn {
+    min-height: var(--control-h-touch);
+  }
+  .notice-acts > .notice-x {
+    width: var(--control-h-touch);
+  }
+}
+
 /* ---------- The quiet link button: words that act, with no ground ----------
    Step 2.2. Confirm's No, EmptyState's and FailedRead's acts on a line, and the pages' (.cl-bucket-link,
    components.css:1882-1893, People's name for it). Its danger form is red at rest and the ink when hovered: the hover
@@ -3168,6 +3342,14 @@ select.rec-input :is(option, optgroup) {
   width: 48px;
   height: 48px;
   font-size: var(--text-lg);
+}
+/* A page's head on a phone (canvas A's phone boards): 44, the initials a step down. */
+@media (max-width: 900px) {
+  .face-xl {
+    width: 44px;
+    height: 44px;
+    font-size: var(--text-base);
+  }
 }
 /* A thread of the first priority rings its face in the accent (Classic; Glass draws none, as its canvases do not). */
 .face[data-priority="P1"] {
@@ -3561,7 +3743,8 @@ a.list-row {
 .subtabs {
   position: relative;
   display: flex;
-  gap: 18px;
+  /* The room between two tabs: the kit's 18, or the page's where its canvas spaces them wider (a person's, 26). */
+  gap: var(--subtabs-gap, 18px);
   /* The sides it keeps are the page's, on the strip's stand: --subtabs-side, where a pane's own padding is the margin. */
   padding: 0 var(--subtabs-side, 18px);
   overflow-x: auto;
@@ -3586,6 +3769,8 @@ a.list-row {
   font-size: var(--text-base);
   font-weight: var(--weight-medium);
   color: var(--ink-dim);
+  /* A tab that is a link (a page of its own, SubTab `href`) draws as one that is not. */
+  text-decoration: none;
   white-space: nowrap;
   cursor: pointer;
   transition: color var(--duration-base) var(--ease-out);
@@ -3779,6 +3964,43 @@ a.list-row {
   width: var(--control-h-lg);
   padding: 0;
 }
+/* A thumb's size, drawn (canvas A's phone head): 44 tall, and a glyph alone a 44px circle. */
+.btn-touch {
+  height: var(--control-h-touch);
+  min-height: var(--control-h-touch);
+  padding: 0 18px;
+  font-size: var(--text-base);
+}
+.btn-icon.btn-touch {
+  width: var(--control-h-touch);
+  min-width: var(--control-h-touch);
+  padding: 0;
+  border-radius: var(--radius-circle);
+}
+/* The control layer's glass on a button (a phone's head circles): its fill, its sheen, its depth, its rim. */
+.btn-glass {
+  position: relative;
+  border-color: transparent;
+  background-color: var(--surface-control-fill);
+  background-image: var(--surface-control-sheen);
+  box-shadow: var(--surface-control-depth);
+  color: var(--ink);
+}
+.btn-glass::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-control-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+.btn-glass:hover {
+  background-color: var(--selected-fill);
+}
 .btn-primary {
   font-weight: var(--weight-semibold);
   box-shadow: var(--primary-depth);
@@ -3818,6 +4040,47 @@ a.list-row {
 }
 .rec-seg[data-hints="true"] .rec-seg-btn {
   border-radius: var(--radius-lg);
+}
+/* Chips (`look="chips"`: a call's outcomes, a note's days, canvas A M4): no track, each option a pill of its own with
+   the hairline and the secondary ground, wrapping as they need; the picked one the lozenge. `chips-sm` is a popover's
+   and a composer's row; under a thumb every chip is 44px tall. */
+.rec-seg:is([data-look="chips"], [data-look="chips-sm"]) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.rec-seg:is([data-look="chips"], [data-look="chips-sm"]) .rec-seg-btn {
+  height: var(--control-h-lg);
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  background: var(--secondary-fill);
+  box-shadow: var(--surface-inset-depth);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+.rec-seg[data-look="chips-sm"] .rec-seg-btn {
+  height: var(--control-h-md);
+  padding: 0 12px;
+  font-size: var(--text-sm);
+}
+.rec-seg:is([data-look="chips"], [data-look="chips-sm"]) .rec-seg-btn[aria-checked="true"] {
+  border-color: var(--line-strong);
+  background: var(--selected-fill);
+  box-shadow: var(--selected-depth);
+  font-weight: var(--weight-semibold);
+}
+@media (max-width: 900px) {
+  .rec-seg:is([data-look="chips"], [data-look="chips-sm"]) .rec-seg-btn {
+    min-height: var(--control-h-touch);
+  }
 }
 /* A key's focus draws the house's ring over a picked segment's own depth: the lozenge's shadow outranks the ring's
    rule (components.css, NUANCE PASS), and the picked segment is where a radio group and a tab list put focus. The dim
@@ -3918,6 +4181,31 @@ a.list-row {
 }
 .stabs[data-glide] .stabs-tab.active:focus-visible {
   box-shadow: var(--focus-ring);
+}
+/* A strip as wide as its column, its tabs in equal shares (`fill`: a person's tabs on a phone, canvas A), with the rim
+   and the blur at every width: it sticks over a page that moves behind it. */
+.stabs[data-fill] {
+  width: 100%;
+  -webkit-backdrop-filter: var(--surface-control-blur);
+  backdrop-filter: var(--surface-control-blur);
+}
+.stabs[data-fill] .stabs-tab {
+  flex: 1 1 0;
+  justify-content: center;
+  min-width: 0;
+  padding: 0 4px;
+}
+.stabs[data-fill]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-control-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
 }
 
 /* ---- The tab bar (liquid.py tabbar; tab-bar/tab-bar.tsx) ----
@@ -4710,6 +4998,57 @@ textarea.rec-input,
     background-image: var(--surface-page-light), linear-gradient(var(--ink-dim), var(--ink-dim));
   }
 }
+/* A phone's top bar at its centre (frame-head.tsx BarTitleSaid; canvas A's hand-off): once the page's own head has
+   scrolled away, a name and the dot of where they stand, between the way back and the bell, fading in and out. Amber is
+   for what needs someone; every other state's dot is the muted ink. Laid over the bar as the date's place is. */
+.pg-bartitle {
+  display: none;
+}
+@media (max-width: 900px) {
+  .pg-bartitle {
+    position: absolute;
+    top: 10px;
+    right: calc(var(--gutter-page) + 44px);
+    left: calc(var(--gutter-page) + 96px);
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    height: 32px;
+    font-size: var(--text-md);
+    font-weight: var(--weight-medium);
+    letter-spacing: -0.01em;
+    color: var(--ink);
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--duration-base) var(--ease-out);
+  }
+  .pg-bartitle[data-shown] {
+    opacity: 1;
+  }
+}
+.pg-bartitle-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pg-bartitle-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-circle);
+  background: var(--ink-muted);
+}
+.pg-bartitle-dot[data-tone="warn"] {
+  background: var(--warn);
+}
+@media (prefers-reduced-motion: reduce) {
+  .pg-bartitle {
+    transition: none;
+  }
+}
 /* iOS Safari paints no text through a background-clip when one of its layers is fixed to the screen, so the title and
    the date keep the veil's and the fill's soft ink alone there: the lettering without the page's light through it.
    (The gallery's browser is not WebKit on a phone and never draws this: e2e/kit/kit.spec.ts, ENGINE_ONLY.) */
@@ -4836,6 +5175,32 @@ textarea.rec-input,
   color: var(--ink-dim);
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+}
+/* A figure as a tile (`look="tile"`: a person's figures on a phone, canvas A): an inset of its own, the label at the
+   smallest step, the number at the title's in the semibold, the line under it on one line. */
+.figure-tile {
+  justify-content: center;
+  gap: 1px;
+  min-height: 64px;
+  padding: 8px 14px;
+  border-radius: var(--surface-inset-radius);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-ring), var(--surface-inset-depth);
+}
+.figure-tile .figure-label {
+  font-size: var(--text-xs);
+}
+.figure-tile .figure-value {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+.figure-tile .figure-meta {
+  display: block;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 /* A tone is on the number alone (the reports lenses spec, D10): amber for what needs you (steps overdue), red for what
    failed (email that stopped working), never green. The period before beside it keeps its own plain ink (.figure-change

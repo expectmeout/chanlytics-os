@@ -28,8 +28,10 @@ function _buttonTakes(
   type _Its = [
     // Its props are the type the kit names for them, and its kinds, sizes and tone its map's, each optional.
     Holds<Exactly<ComponentProps<typeof Button>, ButtonProps>>,
-    Holds<Exactly<ButtonProps["variant"], "primary" | "secondary" | "quiet" | "plain" | "danger" | undefined>>,
-    Holds<Exactly<ButtonProps["size"], "sm" | "md" | "lg" | "text" | undefined>>,
+    Holds<
+      Exactly<ButtonProps["variant"], "primary" | "secondary" | "quiet" | "plain" | "danger" | "glass" | undefined>
+    >,
+    Holds<Exactly<ButtonProps["size"], "sm" | "md" | "lg" | "text" | "touch" | undefined>>,
     Holds<Exactly<ButtonProps["tone"], "danger" | undefined>>,
   ];
   Button({ children: "Export" });
@@ -37,6 +39,7 @@ function _buttonTakes(
   Button({ variant: "quiet", size: "sm", tone: "danger", children: "Delete" });
   Button({ tone: "danger", children: "Stop" });
   Button({ iconOnly: true, "aria-label": "More", children: glyph });
+  Button({ iconOnly: true, size: "touch", variant: "glass", "aria-label": "Call", children: glyph });
   Button({ type: "submit", ref: button, onClick: () => undefined, children: "Save" });
   // A door: a link, with a link's ref, in any kind and either form.
   Button({ href: "/w/studio/#/clients", ref: link, children: "Open People" });

@@ -149,6 +149,22 @@ export function clockDate(atMs: number, tz: string, nowMs: number): string {
     : f.dateYear.format(new Date(atMs));
 }
 
+/**
+ * A day as History heads its rows (canvas A): "Today", "Yesterday", its weekday within the week before ("Sat"), else the
+ * weekday and the date ("Sat Oct 4"), with the year when that is not this year there.
+ */
+export function clockHistoryDay(atMs: number, tz: string, nowMs: number): string {
+  const day = zoneDayKey(atMs, tz);
+  const today = zoneDayKey(nowMs, tz);
+  if (day === today) return "Today";
+  if (day === shiftDay(today, -1)) return "Yesterday";
+  const f = formatsFor(tz);
+  const weekday = f.weekday.format(new Date(atMs));
+  const gap = (Date.parse(today) - Date.parse(day)) / DAY_MS;
+  if (gap > 0 && gap < 7) return weekday;
+  return `${weekday} ${clockDate(atMs, tz, nowMs)}`;
+}
+
 /** "Sep 6, 2026" by the business's calendar: a record that always says its year. */
 export function clockDateYear(atMs: number, tz: string): string {
   return formatsFor(tz).dateYear.format(new Date(atMs));

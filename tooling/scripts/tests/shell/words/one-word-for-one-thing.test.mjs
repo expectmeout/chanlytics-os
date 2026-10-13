@@ -182,7 +182,7 @@ const personFor = (
     TZ,
     NOW,
     viewer,
-    names,
+    { names },
   );
 
 test("D1-message-status: History says a reply that did not reach them in the thread's words, and keeps a canceled one as a line", () => {

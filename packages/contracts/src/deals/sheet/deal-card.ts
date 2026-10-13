@@ -21,10 +21,16 @@ import { act, consultedService, dealNextAct, followUpOn, sentOf, type DealAct, t
 /** The words the person page's Deal section says beside what its view model derives. */
 export const DEAL_CARD_WORDS = {
   title: "Deal",
+  /** The person page's pane of them (canvas A): one row a deal, and the act under the rows for one more. */
+  titleMany: "Deals",
+  another: "Start another proposal",
   proposal: "Proposal",
   engagement: "Engagement",
   consultation: "Consultation",
-  noLink: "No link",
+  noLink: "No link yet",
+  /** The opened deal's copy of its link, said in place once it has copied (the kit's copy, canvas A). */
+  copyLink: "Copy the link",
+  copied: "Copied",
   notSent: "Not sent yet",
   /** A message carrying the link is queued, in the seconds its send can be undone. */
   sending: "Sending",
@@ -66,6 +72,8 @@ export interface DealCardVM {
    * (waitingOnProposal).
    */
   flags: { words: string; tone: Tone }[];
+  /** How long this workspace's proposals usually take ("Usually 9 days to a yes"), once five are decided; none for a client. */
+  pace: string | null;
   /** The one act the card leads with (dealNextAct); null for a client. */
   next: DealAct | null;
   /** The other moves, quiet. */
@@ -200,8 +208,6 @@ function cardOf(p: DealPerson, deal: DealVM, nowMs: number, tz: string, consulta
             : DEAL_CARD_WORDS.notSent,
     );
     if (deal.validUntil && !deal.validUntil.lapsed) facts.push(deal.validUntil.words);
-    // How long this workspace's proposals usually take, once five are decided (0008, amended).
-    if (p.dealPace) facts.push(p.dealPace.words);
     if (deal.validUntil?.lapsed) flags.push({ words: deal.validUntil.words, tone: "warn" });
     // Nothing back past the workspace's pace (a week without one): a proposal that went, or one recorded without a
     // link (it went some other way). A link that never went has not waited on anyone.
@@ -229,6 +235,8 @@ function cardOf(p: DealPerson, deal: DealVM, nowMs: number, tz: string, consulta
     link: !won && deal.proposal ? { url: deal.proposal.url, host: deal.proposal.host } : null,
     facts,
     flags,
+    // How long this workspace's proposals usually take, once five are decided (0008, amended): said beside the wait.
+    pace: !won && p.dealPace ? p.dealPace.words : null,
     next,
     // Each move once: the one the card leads with is not said again among the quiet ones.
     more: others.filter((o) => o.mode !== nextMode),

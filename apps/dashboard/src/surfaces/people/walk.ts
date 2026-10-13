@@ -27,6 +27,11 @@ export function keepWalk(view: string, ids: readonly string[]): void {
 export function walkOf(id: string): PersonWalk | null {
   const kept = tabMemory()?.place(WALK, "order");
   const ids = kept && Array.isArray(kept.ids) ? kept.ids.filter((x): x is string => typeof x === "string") : [];
+  return walkIn(ids, id);
+}
+
+/** Where a person stands in an order of people (People's shown rows, or the order a view kept), or null outside it. */
+export function walkIn(ids: readonly string[], id: string): PersonWalk | null {
   const i = ids.indexOf(id);
   if (i < 0 || ids.length < 2) return null;
   return { at: i + 1, of: ids.length, prev: ids[i - 1] ?? null, next: ids[i + 1] ?? null };

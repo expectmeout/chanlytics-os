@@ -105,6 +105,8 @@ export const DEAL_SHEET_WORDS = {
     lost: "Passed",
     ended: "Ended",
   } satisfies Record<DealSheetMode, string>,
+  /** A deal marked as passed, its lead words in the toast before the service (canvas A, M5), with Propose again. */
+  passed: "Marked as passed",
   /** The send's own toast, after the name: its Undo stops the message, never the record. */
   sent: "proposal recorded and on its way",
   /** Before the reason a send was refused, after a good record. */

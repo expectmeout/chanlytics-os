@@ -35,6 +35,7 @@ export {
   providerCodeOf,
   reachedCustomer,
   isHeldDraft,
+  heldDraftOf,
   draftSendsAtMs,
   messageWords,
   messageText,

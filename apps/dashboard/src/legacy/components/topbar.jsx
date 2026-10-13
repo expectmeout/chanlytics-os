@@ -242,14 +242,16 @@ const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onRead = null, on
  * The capsule's words. No key beside them in either look: the ? sheet is the one place a key is drawn (Ruben, 23 Sep and
  * again 1 Oct 2026, when Glass had put the canvases' \u2318K in the capsule).
  */
-const tbAskLabel = () => <span className="tb-ask-label">Ask Chanlytics</span>;
+// `label`: the page's words for Ask where it is about someone (a person's page: "Ask about Emily", app-routes.jsx
+// drawRoute's `ask`), else Ask's own.
+const tbAskLabel = (label) => <span className="tb-ask-label">{label || "Ask Chanlytics"}</span>;
 
 const Topbar = ({
   crumbs = [],
   theme = "light",
   themePref = theme,
   onTheme = () => {},
-  onAsk = () => {},
+  onAsk = () => {}, askLabel,
   onMenu = () => {},
   right = null,
 }) => {
@@ -527,7 +529,7 @@ const Topbar = ({
         {TbFace
           ? <TbFace className="tb-ask-face" testId="tb-ask-face" />
           : <Icon name="sparkle" size={13} />}
-        {tbAskLabel()}
+        {tbAskLabel(askLabel)}
       </button>
 
       {right}

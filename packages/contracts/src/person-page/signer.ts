@@ -197,8 +197,15 @@ function standsIn(text: string, words: string): boolean {
   return !!w && t.includes(` ${w} `);
 }
 
-/** The human-name gate: whether `name` is one person's own name, by the rules above. */
-function isPersonsName(name: string, notNames: readonly (string | null | undefined)[], from?: string | null): boolean {
+/**
+ * The human-name gate: whether `name` is one person's own name, by the rules above. A signer's and a call's given name
+ * pass the same gate (call-facts.ts).
+ */
+export function isPersonsName(
+  name: string,
+  notNames: readonly (string | null | undefined)[],
+  from?: string | null,
+): boolean {
   const tokens = name.split(" ");
   if (tokens.length < 1 || tokens.length > 4) return false;
   if (!tokens.every((t) => NAME_WORD.test(t))) return false;

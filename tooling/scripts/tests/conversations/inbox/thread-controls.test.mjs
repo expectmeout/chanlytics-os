@@ -620,7 +620,7 @@ test("the chip beside the wires says the deal before the visit: a client, a prop
   }
 });
 
-test("a step due under the head: what, and when it was due, with Done outside the link -- one ahead is not said; Done answers in a toast with Set the next one, and the line goes", async () => {
+test("a step due under the head: what, and when it was due, with Done outside the link -- one ahead is not said; Done answers in a toast that says the step, with Undo, and the line goes", async () => {
   const vm = toInboxThreadVM(conv(), asked, ZONE, NOW);
   // The line judges the day against the real clock, as the page does.
   const now = Date.now();
@@ -635,7 +635,6 @@ test("a step due under the head: what, and when it was due, with Done outside th
   let answer = { ok: true, data: { note: null } };
   let hold = null;
   const events = [];
-  const sheets = [];
   const w = globalThis.window;
   const keep = { dispatchEvent: w.dispatchEvent, gate: w.gate };
   Object.assign(w, {
@@ -650,7 +649,6 @@ test("a step due under the head: what, and when it was due, with Done outside th
         return answer;
       },
     },
-    openStepSheet: (a) => sheets.push(a),
     dispatchEvent: (e) => {
       events.push([e.type, e.detail]);
       return true;
@@ -701,18 +699,25 @@ test("a step due under the head: what, and when it was due, with Done outside th
     );
     tree = redraw();
     assert.equal(find(tree, byTestId("ix-th-step")), undefined, "done: the line goes before People is read again");
-    assert.equal(textOf(find(tree, hasClass("pp-toast-msg"))), NOTE_WORDS.stepDone);
+    const said = `${NOTE_WORDS.stepDone} · Send the revised quote`;
+    assert.equal(textOf(find(tree, hasClass("pp-toast-msg"))), said, "the toast says which step");
     // People read again, the step gone from their row: the line's component goes, and the toast stays with the head.
     w.__PEOPLE = { rows: [{ id: "k1", deal: null, nextStep: null }] };
     tree = redraw();
     assert.equal(
       textOf(find(tree, hasClass("pp-toast-msg"))),
-      NOTE_WORDS.stepDone,
+      said,
       "REGRESSION: the toast went with the line, a People read after it opened",
     );
-    const next = find(tree, (n) => hasClass("pp-toast-cta")(n) && textOf(n) === NOTE_WORDS.setTheNext);
-    next.props.onClick();
-    assert.deepEqual(sheets, [{ personId: "k1", dealId: null }], "Set the next one opens the one step sheet");
+    // Undo is the same door, open again; the toast offers nothing else.
+    const ctas = all(tree, hasClass("pp-toast-cta")).map(textOf);
+    assert.deepEqual(ctas, [NOTE_WORDS.undo], "Undo, and no Set the next one");
+    find(tree, (n) => hasClass("pp-toast-cta")(n) && textOf(n) === NOTE_WORDS.undo).props.onClick();
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    assert.deepEqual(pressed, [
+      ["k1", "s1", true],
+      ["k1", "s1", false],
+    ]);
     // A refusal is said in the door's words, and the line stays.
     w.__PEOPLE = { rows: [{ id: "k1", deal: null, nextStep: stepOf(-2) }] };
     answer = { ok: false, message: "Only a note with a day can be done." };

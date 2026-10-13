@@ -14,7 +14,7 @@ import type { ReactNode } from "react";
 import { PERSON_NAME_WORDS, type PersonNameAct } from "@chanlytics/contracts";
 import { api } from "@/legacy-bridge/api";
 import { Button } from "../../kit/button/button";
-import { Icon } from "../../kit/icon/icon";
+import { Notice } from "../../kit/notice/notice";
 import { meNow } from "../../legacy-verbs";
 
 /** What the page's toast is told. */
@@ -121,11 +121,12 @@ export function NameOffer({
     onChanged();
   };
   return (
-    <div className="cl-prof-notice" role="group" aria-label={fact} data-testid={testid ?? "person-name-notice"}>
-      <span className="cl-prof-notice-fact">{fact}</span>
-      {source ? <span className="cl-prof-notice-src">{source}</span> : null}
-      {canRecord ? (
-        <span className="cl-prof-notice-acts">
+    <Notice
+      label={fact}
+      fact={fact}
+      source={source}
+      act={
+        canRecord ? (
           <Button
             size="sm"
             onClick={() => void use()}
@@ -134,20 +135,19 @@ export function NameOffer({
           >
             {PERSON_NAME_WORDS.use}
           </Button>
-          <Button
-            size="sm"
-            variant="quiet"
-            iconOnly
-            aria-label={PERSON_NAME_WORDS.notTheirs}
-            title={PERSON_NAME_WORDS.notTheirs}
-            onClick={() => void decline()}
-            aria-busy={busy === "decline" || undefined}
-            data-testid="person-name-decline"
-          >
-            <Icon name="x" size={11} />
-          </Button>
-        </span>
-      ) : null}
-    </div>
+        ) : null
+      }
+      dismiss={
+        canRecord
+          ? {
+              label: PERSON_NAME_WORDS.notTheirs,
+              onDismiss: () => void decline(),
+              busy: busy === "decline",
+              testid: "person-name-decline",
+            }
+          : null
+      }
+      testid={testid ?? "person-name-notice"}
+    />
   );
 }

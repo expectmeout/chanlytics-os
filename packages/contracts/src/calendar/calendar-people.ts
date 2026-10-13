@@ -19,6 +19,7 @@
 import { isIdentifierName } from "../conversations/thread-contact";
 import { dayInZone, dayPlusInZone } from "./zone-math";
 import type { FeedItem } from "./feed";
+import type { EarlierVisitsDto } from "./calendar-dto";
 import { appointmentKeyOf, recordIdOf } from "./appointment-key";
 import { normalizeEmail } from "../shared/email-address";
 import { alertAddressesOf } from "../config/workspace-config/alerts";
@@ -574,6 +575,8 @@ export interface PersonVisitsDto {
   near?: VisitDto[];
   /** The latest visit a member said they missed (Visits.missed), or null. Absent on an older read. */
   missed?: VisitDto | null;
+  /** The record's count of their visits from before the season (R7); absent on the list, with none, and on an older read. */
+  earlier?: EarlierVisitsDto;
 }
 
 export function toVisitDto(v: Visit | null): VisitDto | null {

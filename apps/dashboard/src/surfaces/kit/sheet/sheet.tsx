@@ -47,6 +47,8 @@ type SheetShape =
       close: { label: string; glyph: ReactElement };
       /** The line under the title, which describes it to a screen reader. */
       sub?: ReactNode;
+      /** What it is of, drawn before its title: a business's tile (canvas A, the business sheet). */
+      mark?: ReactNode;
       /** A strip of tools over the rows: a search, an Add. */
       tools?: ReactNode;
       /** The foot, which holds still under the rows: the page's acts. */
@@ -68,6 +70,7 @@ type SheetShape =
       close: { word: string } | null;
       back?: SheetBack | null;
       sub?: undefined;
+      mark?: undefined;
       tools?: undefined;
       foot?: undefined;
       kicker?: undefined;
@@ -102,7 +105,8 @@ const partId = (testid: string | undefined, part: string) => (testid ? `${testid
 function recordParts(p: SheetProps & { shape?: "record" }) {
   return (
     <>
-      <header className="rec-sheet-head">
+      <header className="rec-sheet-head" data-marked={p.mark ? "true" : undefined}>
+        {p.mark ? <span className="sheet-mark">{p.mark}</span> : null}
         <div className="rec-sheet-heading">
           <Dialog.Title className="rec-sheet-title">{p.title}</Dialog.Title>
           {p.sub ? <Dialog.Description className="rec-sheet-sub">{p.sub}</Dialog.Description> : null}

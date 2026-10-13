@@ -9,8 +9,8 @@
  * picked tab; the arrows, Home and End walk the tabs, and Enter or Space picks the one reached (a pick can move the
  * address or read a list, so an arrow alone only moves focus). The bar is the Tabs' indicator, one element that slides
  * between tabs on the page's ease and never draws at a place it has not been (kit.css). A tab is a press that acts where
- * it stands (`onSelect`); a strip whose tabs are pages of their own, with an address each, is a strip of links and
- * draws them as the Button draws one (../press.tsx) when its first such page moves here.
+ * it stands (`onSelect`); a tab that is a page of its own carries its address (`href`, a person's tabs) and is drawn as
+ * a link, a plain press still the strip's pick and a modified one the browser's, which opens it apart.
  *
  * On a phone (the kit's 900px) a tab is a thumb's 44px by an invisible margin round its 34px, the bar sits above its
  * foot, and `quietCounts` keeps only the warn tab's figure: the others' say what the line above says again. A strip
@@ -23,7 +23,7 @@
  * the sides it keeps), and comes last; it is on the strip's wrapper, the line itself is the kit's.
  */
 import { Tabs } from "@base-ui/react/tabs";
-import type { ReactElement } from "react";
+import type { MouseEvent, ReactElement } from "react";
 import { cx } from "../variants";
 
 /** A tab: the value the page keeps, its words, and what it may say beside them. */
@@ -45,6 +45,11 @@ export type SubTab = {
   hint?: string;
   /** The page's test id for this tab. */
   testid?: string;
+  /**
+   * Its address, where the tab is a page of its own (a person's History, Visits): drawn as a link, so a long press, a
+   * middle click or a modified one opens it in a new tab; a plain press stays the strip's own pick (`onSelect`).
+   */
+  href?: string;
 };
 
 /** A strip of sub-tabs: its name, the one picked, the tabs, what picking another does, and how loud its figures are. */
@@ -60,6 +65,22 @@ export type SubTabsProps = {
   dense?: boolean;
   className?: string;
 };
+
+/**
+ * A tab that is a link: its address on the element, a plain press the strip's pick (the browser's own way there held
+ * back), and a press with a modifier or the middle button left to the browser, which opens it apart.
+ */
+function linkTab(href: string) {
+  return {
+    nativeButton: false,
+    // eslint-disable-next-line jsx-a11y-x/anchor-has-content -- Base UI draws the tab's words inside the link it renders
+    render: <a href={href} />,
+    onClick: (e: MouseEvent<HTMLElement> & { preventBaseUIHandler: () => void }) => {
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) e.preventBaseUIHandler();
+      else e.preventDefault();
+    },
+  };
+}
 
 /** A line of sub-tabs, one picked. */
 export function SubTabs({ label, value, tabs, onSelect, quietCounts, dense, className }: SubTabsProps) {
@@ -83,6 +104,7 @@ export function SubTabs({ label, value, tabs, onSelect, quietCounts, dense, clas
             data-tone={tab.tone}
             data-testid={tab.testid}
             title={tab.hint}
+            {...(tab.href ? linkTab(tab.href) : {})}
           >
             {tab.glyph}
             <span className="subtab-label" data-text={tab.label}>

@@ -18,6 +18,7 @@ export {
   forWords,
   nextStepOf,
   stepDays,
+  callDays,
   composerDays,
   stepDayName,
   todayStepsDue,

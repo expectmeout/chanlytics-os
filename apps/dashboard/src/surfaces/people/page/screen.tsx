@@ -24,6 +24,7 @@ import { PhoneSheetRow } from "../sheets/phone-sheet";
 import { PeopleColumnsMenu } from "../table/columns-menu";
 import { PeopleFileActs } from "./file-acts";
 import { PeopleTable } from "../table/table";
+import { PersonPeek } from "../peek/person-peek";
 import type { TableEmpty } from "../types";
 import { PL_DEFAULT_GROUPS, PL_NO_LISTS, PL_SEARCH_LABEL, PL_TAB_LABEL, plLoadedWords, plSortedBy } from "../words";
 import type { PeopleState } from "./state";
@@ -542,6 +543,26 @@ function listActRows(s: PeopleState) {
   );
 }
 
+/** The person peeked at beside the rows, on a desk (canvas A, PEEK-01; peek/person-peek.tsx). */
+function peekBlock(s: PeopleState) {
+  if (s.phone || !s.peekId) return null;
+  return (
+    <PersonPeek
+      id={s.peekId}
+      row={s.peekRow}
+      person={s.peekPerson}
+      failed={s.peekFailed}
+      missing={s.peekMissing}
+      walk={s.peekWalk}
+      canRecord={s.canEditLists}
+      flash={s.plFlash}
+      onStep={s.stepPeek}
+      onClose={s.closePeek}
+      onRetry={s.peekRetry}
+    />
+  );
+}
+
 export function peopleScreen(s: PeopleState) {
   const {
     phone,
@@ -582,7 +603,7 @@ export function peopleScreen(s: PeopleState) {
     setSavedId,
   } = s;
   return (
-    <div className="clients">
+    <div className="clients pp-scope">
       {/* The switch between the scopes is the frame's strip of views, over this page (surfaces/people/chrome.ts). */}
       <PeopleRail
         scope="people"
@@ -610,11 +631,12 @@ export function peopleScreen(s: PeopleState) {
         newListSignal={newListSignal}
       />
 
-      <div className="cl-main">
+      <div className={`cl-main${!s.phone && s.peekId ? " has-peek" : ""}`}>
         {/* A phone's one bar: the switch, the list, search and the more-menu (PeoplePhoneBar). It stands over the scroller, as
             the Inbox's strip does: the rows scroll and bounce under it, and a pull down never takes it. */}
         {phone && phoneBar(s)}
         {peopleScroll(s)}
+        {peekBlock(s)}
         {/* The bar counts, and acts on, the people shown and selected. */}
         {selecting && (
           <PeopleBulkBar

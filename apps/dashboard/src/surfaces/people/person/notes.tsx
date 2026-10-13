@@ -9,19 +9,21 @@
  * The card is one component with its hooks (the draft, the note being changed, the one asked about, whether a write is out,
  * whether every note is shown); what it does is `noteActs`, and what it draws is plain functions returning elements.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import type { Dispatch, MouseEvent, ReactNode, SetStateAction } from "react";
 import { NOTE_MAX, NOTE_WORDS, composerDays, stepDayName } from "@chanlytics/contracts";
 import type { PersonVM } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
 import { holdStill } from "../../legacy-verbs";
+import { Button } from "../../kit/button/button";
+import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
-import { RecordToggleGroup } from "../../kit/record/field";
+import { RecordSwitch, RecordToggleGroup } from "../../kit/record/field";
 import { tabDraft, useUnsavedWork } from "../../kit/record/work";
 import { menuGroups, moreButton } from "../menu-groups";
+import { completeStep } from "../../step-done";
 import { markStepDone, decidePersonNote, removePersonNote, writePersonNote } from "../people-detail";
-import { openStepSheet } from "../step-sheet/step-sheet";
 import type { FlashFn } from "../person-verbs";
 
 const NOTES_SHOWN = 3;
@@ -80,80 +82,122 @@ function forChoices(team: PersonVM["noteTeam"], W: Words) {
 }
 
 /**
- * Who a note is for and whether the receptionist reads it: the composer's and the editor's two controls, one shape. For
- * is a choice under its word (Anyone · Me · Jo Park, the kit's toggle group) for a team of up to four; a bigger team keeps
- * the menu, which a row of eight names would not fit.
+ * Who a note is for: a choice under its word (Anyone · Me · Jo Park, the kit's toggle group) for a team of up to four; a
+ * bigger team keeps the menu, which a row of eight names would not fit. Nothing for a team of one.
  */
-function NoteAudience({
+function NoteFor({
   team,
   forId,
-  teamOnly,
   onFor,
+  disabled,
+  W,
+}: {
+  team: PersonVM["noteTeam"];
+  forId: string | null;
+  onFor: (id: string | null) => void;
+  disabled: boolean;
+  W: Words;
+}) {
+  if (team.length <= 1) return null;
+  if (team.length > FOR_CHOICES_MAX)
+    return (
+      <select
+        className="cl-prof-note-for"
+        value={forId || ""}
+        disabled={disabled}
+        aria-label={W.forLabel}
+        data-testid="person-note-for"
+        onChange={(e) => onFor(e.target.value || null)}
+      >
+        <option value="">{W.forAnyone}</option>
+        {team.map((m) => (
+          <option key={m.id} value={m.id}>{`${W.forLabel} ${m.me ? "me" : m.name}`}</option>
+        ))}
+      </select>
+    );
+  return (
+    <RecordToggleGroup
+      label={W.forLabel}
+      value={forId || ""}
+      options={forChoices(team, W)}
+      onChange={(v) => onFor(v || null)}
+      readOnly={disabled}
+      testid="person-note-for"
+    />
+  );
+}
+
+/** Team only: the kit's switch beside its words (canvas A, M4), on and held while a day makes the note a step. */
+function NoteTeam({
+  teamOnly,
   onTeamOnly,
   disabled,
   W,
   lockTeam = false,
 }: {
-  team: PersonVM["noteTeam"];
-  forId: string | null;
   teamOnly: boolean;
-  onFor: (id: string | null) => void;
   onTeamOnly: (on: boolean) => void;
   disabled: boolean;
   W: Words;
   lockTeam?: boolean;
 }) {
+  const teamId = useId();
   return (
-    <span className="cl-prof-note-aud">
-      {team.length > 1 && team.length <= FOR_CHOICES_MAX ? (
-        <span className="cl-prof-note-choose">
-          <span className="cl-prof-note-choose-word" aria-hidden="true">
-            {W.forLabel}
-          </span>
-          <RecordToggleGroup
-            label={W.forLabel}
-            value={forId || ""}
-            options={forChoices(team, W)}
-            onChange={(v) => onFor(v || null)}
-            readOnly={disabled}
-            testid="person-note-for"
-          />
-        </span>
-      ) : null}
-      {team.length > FOR_CHOICES_MAX && (
-        <select
-          className="cl-prof-note-for"
-          value={forId || ""}
-          disabled={disabled}
-          aria-label={W.forLabel}
-          data-testid="person-note-for"
-          onChange={(e) => onFor(e.target.value || null)}
-        >
-          <option value="">{W.forAnyone}</option>
-          {team.map((m) => (
-            <option key={m.id} value={m.id}>{`${W.forLabel} ${m.me ? "me" : m.name}`}</option>
-          ))}
-        </select>
-      )}
-      <label className="cl-prof-note-team" title={lockTeam ? W.stepTeamOnly : W.teamOnlyHint}>
-        <input
-          type="checkbox"
-          checked={!!teamOnly || lockTeam}
-          disabled={disabled || lockTeam}
-          onChange={(e) => onTeamOnly(e.target.checked)}
-          data-testid="person-note-team-only"
-        />
-        <span>{W.teamOnly}</span>
-      </label>
+    <span className="cl-prof-note-team" title={lockTeam ? W.stepTeamOnly : W.teamOnlyHint}>
+      <RecordSwitch
+        on={!!teamOnly || lockTeam}
+        onChange={onTeamOnly}
+        labelledBy={teamId}
+        readOnly={disabled || lockTeam}
+        testid="person-note-team-only"
+      />
+      <span id={teamId}>{W.teamOnly}</span>
     </span>
   );
 }
 
 /**
- * A note's day (0007, amended): with one, the note is a step, and the team's. The days are the composer's three (contracts
- * composerDays: Tomorrow, Friday or next week, Pick a day), the kit's toggle group; Pick a day opens the date field, and
- * a press on the day chosen takes it away again. A step whose day is none of the three shows it in the date field. Hookless.
- * A call's Call back is the same choice under its own word (call.tsx: `label`, and its own test ids).
+ * A note's open rows (canvas A, M4): its day under the word Day (the chips), who it is for under For, and the foot with
+ * Team only at its start and the acts (`acts`) at its end, over a hairline.
+ */
+function noteRows(c: Card, d: NoteDraft, set: (next: Partial<NoteDraft>) => void, acts: ReactNode) {
+  const W = NOTE_WORDS;
+  return (
+    <>
+      <div className="cl-prof-note-row">
+        <span className="cl-prof-note-row-word" aria-hidden="true">
+          {W.day}
+        </span>
+        <NoteDay day={d.day} picking={d.picking} days={c.days} disabled={c.busy} W={W} onDay={(x) => set(x)} />
+      </div>
+      {c.team.length > 1 ? (
+        <div className="cl-prof-note-row">
+          <span className="cl-prof-note-row-word" aria-hidden="true">
+            {W.forLabel}
+          </span>
+          <NoteFor team={c.team} forId={d.forId} disabled={c.busy} W={W} onFor={(forId) => set({ forId })} />
+        </div>
+      ) : null}
+      <div className="cl-prof-note-foot">
+        <NoteTeam
+          teamOnly={d.teamOnly}
+          disabled={c.busy}
+          W={W}
+          lockTeam={!!d.day}
+          onTeamOnly={(teamOnly) => set({ teamOnly })}
+        />
+        <span className="cl-prof-name-acts">{acts}</span>
+      </div>
+    </>
+  );
+}
+
+/**
+ * A note's day (0007, amended): with one, the note is a step, and the team's. The days are the composer's (contracts
+ * composerDays: Today, Tomorrow, Friday or next week, Pick a day) as the kit's chips (canvas A, M4); Pick a day opens the
+ * date field, and a press on the day chosen takes it away again. A step whose day is none of them shows it in the date
+ * field. Hookless. A call's Call back is the same choice under its own word, from its own three days (call.tsx: `label`,
+ * `look`, and its own test ids).
  */
 export function NoteDay({
   day,
@@ -164,6 +208,7 @@ export function NoteDay({
   W,
   label = W.due,
   testid = "person-note",
+  look = "chips-sm",
 }: {
   day: string | null;
   picking: boolean;
@@ -173,6 +218,7 @@ export function NoteDay({
   W: Words;
   label?: string;
   testid?: string;
+  look?: "chips" | "chips-sm";
 }) {
   const listed = !!day && days.some((c) => c.key === day);
   const chosen = picking || (day && !listed) ? "pick" : day || "";
@@ -192,6 +238,7 @@ export function NoteDay({
           )
         }
         readOnly={disabled}
+        look={look}
         testid={`${testid}-day`}
       />
       {picking || (day && !listed) ? (
@@ -238,11 +285,7 @@ interface Wrote {
 function noteActs(c: Card) {
   const { p, flash, draft, editing, setDraft, setEditing, setAsking, setBusy } = c;
   const W = NOTE_WORDS;
-  const run = async (
-    fn: () => Promise<Wrote>,
-    done: string,
-    action: { label: string; onClick: () => void } | null = null,
-  ) => {
+  const run = async (fn: () => Promise<Wrote>, done: ReactNode) => {
     if (c.busy) return false;
     setBusy(true);
     const r = await fn();
@@ -251,7 +294,7 @@ function noteActs(c: Card) {
       flash({ tone: "danger", msg: <>{r.message || "Could not save this note."}</> });
       return false;
     }
-    flash({ msg: <>{done}</>, ...(action ? { action } : {}) });
+    flash({ msg: <>{done}</> });
     c.onChanged();
     return true;
   };
@@ -298,13 +341,24 @@ function noteActs(c: Card) {
   };
   const decide = (n: Note, keep: boolean) =>
     run(() => decidePersonNote(p.id, { note_id: n.id, keep }), keep ? W.kept : W.dismissed);
-  // A step done, or open again, by anyone who acts. Done, the toast offers the next one, on the same deal.
-  const toggleDone = (n: Note) => {
-    const done = !n.step?.done;
-    const next = done
-      ? { label: W.setTheNext, onClick: () => openStepSheet({ personId: p.id, dealId: n.dealId }) }
-      : null;
-    return run(() => markStepDone(p.id, n.id, done, n.version), done ? W.stepDone : W.stepReopened, next);
+  // A step done, or open again, by anyone who acts. Done says what every page says (step-done.tsx): "Step done · its
+  // words", with an Undo that opens it again; open again says so.
+  const toggleDone = async (n: Note) => {
+    if (n.step?.done) return run(() => markStepDone(p.id, n.id, false, n.version), W.stepReopened);
+    if (c.busy) return false;
+    setBusy(true);
+    const ok = await completeStep({
+      personId: p.id,
+      noteId: n.id,
+      words: n.body,
+      version: n.version,
+      done: markStepDone,
+      say: flash,
+      onUndone: () => c.onChanged(),
+    });
+    setBusy(false);
+    if (ok) c.onChanged();
+    return ok;
   };
   return { add, saveEdit, remove, decide, toggleDone };
 }
@@ -313,7 +367,7 @@ type Acts = ReturnType<typeof noteActs>;
 
 /** A note being changed: its box, who it is for, its day, and Cancel and Save. */
 function editingRow(c: Card, n: Note, edit: NoteEdit, acts: Acts) {
-  const { team, days, busy, setEditing } = c;
+  const { busy, setEditing } = c;
   const W = NOTE_WORDS;
   return (
     <li key={n.id} className="cl-pnote is-editing" data-testid="person-note">
@@ -331,40 +385,25 @@ function editingRow(c: Card, n: Note, edit: NoteEdit, acts: Acts) {
           if (e.key === "Escape") setEditing(null);
         }}
       />
-      <div className="cl-prof-note-bar">
-        <NoteAudience
-          team={team}
-          forId={edit.forId}
-          teamOnly={edit.teamOnly}
-          disabled={busy}
-          W={W}
-          lockTeam={!!edit.day}
-          onFor={(forId) => setEditing({ ...edit, forId })}
-          onTeamOnly={(teamOnly) => setEditing({ ...edit, teamOnly })}
-        />
-        <NoteDay
-          day={edit.day}
-          picking={edit.picking}
-          days={days}
-          disabled={busy}
-          W={W}
-          onDay={(d) => setEditing({ ...edit, ...d })}
-        />
-        <span className="cl-prof-name-acts">
-          <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setEditing(null)}>
+      {noteRows(
+        c,
+        edit,
+        (next) => setEditing({ ...edit, ...next }),
+        <>
+          <Button variant="quiet" size="sm" aria-busy={busy || undefined} onClick={() => setEditing(null)}>
             {W.cancel}
-          </button>
-          <button
-            type="button"
-            className="btn btn-sm btn-primary"
-            disabled={busy || !edit.text.trim() || (edit.picking && !edit.day)}
+          </Button>
+          <Button
+            size="sm"
+            disabled={!edit.text.trim() || (edit.picking && !edit.day)}
+            aria-busy={busy || undefined}
             onClick={() => void acts.saveEdit()}
             data-testid="person-note-save"
           >
             {W.save}
-          </button>
-        </span>
-      </div>
+          </Button>
+        </>,
+      )}
     </li>
   );
 }
@@ -424,26 +463,21 @@ function noteMenu(c: Card, n: Note) {
   return { items, has: items.length > 0 };
 }
 
-/** Delete asked inline, never a dialog. */
+/** Delete asked inline, never a dialog: the kit's one confirm, its Yes red, Escape its No. */
 function askRemove(c: Card, n: Note, acts: Acts) {
   const W = NOTE_WORDS;
   return (
-    <div className="cl-prof-note-ask" role="alert">
-      <span>{W.askRemove}</span>
-      <span className="cl-prof-name-acts">
-        <button type="button" className="btn btn-ghost btn-sm" disabled={c.busy} onClick={() => c.setAsking(null)}>
-          {W.cancel}
-        </button>
-        <button
-          type="button"
-          className="btn btn-sm btn-danger"
-          disabled={c.busy}
-          onClick={() => void acts.remove(n)}
-          data-testid="person-note-remove"
-        >
-          {W.remove}
-        </button>
-      </span>
+    <div className="cl-prof-note-ask">
+      <Confirm
+        danger
+        question={W.askRemove}
+        yes={W.remove}
+        no={W.cancel}
+        busy={c.busy}
+        onYes={() => void acts.remove(n)}
+        onNo={() => c.setAsking(null)}
+        testid="person-note-remove"
+      />
     </div>
   );
 }
@@ -488,14 +522,43 @@ function noteRow(c: Card, n: Note, acts: Acts) {
   );
 }
 
-/** The one-line composer, whose For and Team only appear once something is typed. */
-function composer(c: Card, acts: Acts) {
-  const { draft, team, days, busy, setDraft } = c;
+/** The Notes pane's composer (the Overview's, or the third column's at a wide window): where the head's Note goes. */
+let noteBox: HTMLTextAreaElement | null = null;
+/** Note was pressed before that composer was drawn: it takes the focus as it is. */
+let noteAsked = false;
+
+function bringNote(box: HTMLTextAreaElement) {
+  box.scrollIntoView({ block: "center" });
+  box.focus();
+}
+
+/** The pane's composer, as React draws and takes it away; it answers a Note pressed before it was drawn. */
+function takeNoteBox(box: HTMLTextAreaElement | null) {
+  noteBox = box;
+  if (box && noteAsked) {
+    noteAsked = false;
+    bringNote(box);
+  }
+}
+
+/**
+ * The head's Note: the Notes pane's composer brought into view and focused, at once where it is drawn, else as the
+ * page draws it (the Overview's, once Note opened its pane), however many frames that takes.
+ */
+export function askNoteFocus(): void {
+  if (noteBox?.isConnected) bringNote(noteBox);
+  else noteAsked = true;
+}
+
+/** The one-line composer, whose day, For and Team only appear once something is typed (canvas A, M4). */
+function composer(c: Card, acts: Acts, pane = false) {
+  const { draft, busy, setDraft } = c;
   const W = NOTE_WORDS;
   const left = NOTE_MAX - draft.text.length;
   return (
     <div className={`cl-prof-note-compose${draft.text ? " is-open" : ""}`}>
       <textarea
+        ref={pane ? takeNoteBox : undefined}
         className="cl-prof-note-input"
         value={draft.text}
         rows={draft.text ? 3 : 1}
@@ -509,81 +572,64 @@ function composer(c: Card, acts: Acts) {
           if ((e.metaKey || e.ctrlKey) && e.key === "Enter") void acts.add();
         }}
       />
-      {draft.text && (
-        <div className="cl-prof-note-bar">
-          <NoteAudience
-            team={team}
-            forId={draft.forId}
-            teamOnly={draft.teamOnly}
-            disabled={busy}
-            W={W}
-            lockTeam={!!draft.day}
-            onFor={(forId) => setDraft({ ...draft, forId })}
-            onTeamOnly={(teamOnly) => setDraft({ ...draft, teamOnly })}
-          />
-          <NoteDay
-            day={draft.day}
-            picking={draft.picking}
-            days={days}
-            disabled={busy}
-            W={W}
-            onDay={(d) => setDraft({ ...draft, ...d })}
-          />
-          <span className="cl-prof-name-acts">
-            {left < 60 && <span className="cl-prof-aut-hint">{W.left(left)}</span>}
-            <button
-              type="button"
-              className="btn btn-sm btn-primary"
-              disabled={busy || !draft.text.trim() || (draft.picking && !draft.day)}
-              onClick={() => void acts.add()}
-              data-testid="person-notes-save"
-            >
-              {/* It says what pressing it makes: a note, or a step and its day (the motion grammar's label). */}
-              {draft.day ? W.addStepFor(stepDayName(draft.day, Date.now(), pageClock().zone())) : W.add}
-            </button>
-          </span>
-        </div>
-      )}
+      {draft.text
+        ? noteRows(
+            c,
+            draft,
+            (next) => setDraft({ ...draft, ...next }),
+            <>
+              {left < 60 && <span className="cl-prof-aut-hint">{W.left(left)}</span>}
+              {/* The page's one coral is Open the thread (canvas A, M4): the composer's act is the kit's plain button. */}
+              <Button
+                disabled={!draft.text.trim() || (draft.picking && !draft.day)}
+                aria-busy={busy || undefined}
+                onClick={() => void acts.add()}
+                data-testid="person-notes-save"
+              >
+                {/* It says what pressing it makes: a note, or a step and its day (the motion grammar's label). */}
+                {draft.day ? W.addStepFor(stepDayName(draft.day, Date.now(), pageClock().zone())) : W.add}
+              </Button>
+            </>,
+          )
+        : null}
     </div>
   );
 }
 
-/** The receptionist's suggestions, each with Keep and Dismiss for someone who may act. */
+/**
+ * The receptionist's suggestions (canvas A, `.a-sug`): each an inset row, who suggested it, where it was heard and when
+ * over what it says (on a phone too, where nothing hovers), and Keep and Dismiss at its end for someone who may act (under
+ * it where the pane is narrow). The date with its year is its hover.
+ */
 function suggestions(c: Card, waiting: Note[], acts: Acts) {
   const W = NOTE_WORDS;
   return (
-    <ul className="cl-prof-note-list">
+    <ul className="cl-prof-sugs">
       {waiting.map((n) => (
-        <li key={n.id} className="cl-pnote is-suggested" data-testid="person-note-suggested">
-          <div className="cl-prof-note-meta">
-            <span className="cl-prof-note-who">
-              <Icon name="sparkle" size={10} /> {W.suggested}
-            </span>
-            {n.from && <span>{n.from}</span>}
-            <span title={n.whenFull}>{n.when}</span>
+        <li key={n.id} className="cl-prof-sug" data-testid="person-note-suggested">
+          <div className="cl-prof-sug-words" title={n.whenFull}>
+            <span className="cl-prof-sug-from">{W.suggestedLine(n.from, n.when)}</span>
+            <span className="cl-prof-sug-text">{n.body}</span>
           </div>
-          <div className="cl-prof-note-body">{n.body}</div>
           {c.canEdit && (
-            <div className="cl-prof-note-decide">
-              <button
-                type="button"
-                className="btn btn-sm"
-                disabled={c.busy}
+            <span className="cl-prof-sug-acts">
+              <Button
+                size="sm"
+                aria-busy={c.busy || undefined}
                 onClick={() => void acts.decide(n, true)}
                 data-testid="person-note-keep"
               >
                 {W.keep}
-              </button>
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                disabled={c.busy}
+              </Button>
+              <Button
+                size="sm"
+                aria-busy={c.busy || undefined}
                 onClick={() => void acts.decide(n, false)}
                 data-testid="person-note-dismiss"
               >
                 {W.dismiss}
-              </button>
-            </div>
+              </Button>
+            </span>
           )}
         </li>
       ))}
@@ -591,19 +637,53 @@ function suggestions(c: Card, waiting: Note[], acts: Acts) {
   );
 }
 
-/** A person's notes: the composer, the receptionist's suggestions, then the kept ones, three and the rest behind one press. */
+/**
+ * The newest kept note as the Overview draws it (canvas A): an inset, who wrote it and when in the mono eyebrow over its
+ * words (two lines at most), its ⋯ beside the eyebrow; a step says its day there and keeps its Done box.
+ */
+function latestNote(c: Card, n: Note, acts: Acts) {
+  const W = NOTE_WORDS;
+  if (c.editing && c.editing.id === n.id)
+    return <ul className="cl-prof-note-list">{editingRow(c, n, c.editing, acts)}</ul>;
+  const menu = noteMenu(c, n);
+  const step = n.step;
+  return (
+    <div className="cl-prof-note-latest" data-testid="person-note">
+      <div className="cl-prof-note-eyebrow">
+        <span title={n.whenFull}>
+          {step ? W.stepEyebrow(n.who, (step.done ? step.doneWords : step.words) ?? "") : W.eyebrow(n.who, n.when)}
+        </span>
+        {menu.has && c.asking !== n.id && (
+          <span className="cl-prof-note-more">
+            <Menu label={W.more} groups={menuGroups(menu.items)} trigger={moreButton({ title: W.more, size: 12 })} />
+          </span>
+        )}
+      </div>
+      {step ? stepLine(c, n, step, acts) : <div className="cl-prof-note-text">{n.body}</div>}
+      {c.asking === n.id && askRemove(c, n, acts)}
+    </div>
+  );
+}
+
+/**
+ * A person's notes. In full (History's Notes): the composer, the receptionist's suggestions, then the kept ones, three
+ * and the rest behind one press. `compact` is the Overview's pane (canvas A): the newest kept note, the suggestions, and
+ * the composer under them; every note is History's.
+ */
 export function PersonNotes({
   p,
   canEdit,
   isOwner,
   flash,
   onChanged,
+  compact = false,
 }: {
   p: PersonVM;
   canEdit: boolean;
   isOwner: boolean;
   flash: FlashFn;
   onChanged: () => void;
+  compact?: boolean;
 }) {
   const W = NOTE_WORDS;
   const notes = p.noteList || [];
@@ -644,6 +724,16 @@ export function PersonNotes({
   const acts = noteActs(card);
   const waiting = notes.filter((n) => n.suggested);
   const kept = notes.filter((n) => !n.suggested);
+  const latest = kept[0];
+  if (compact)
+    return (
+      <div className="cl-prof-notes is-compact" data-testid="person-notes">
+        {latest ? latestNote(card, latest, acts) : null}
+        {waiting.length > 0 && suggestions(card, waiting, acts)}
+        {canEdit && composer(card, acts, true)}
+        {!latest && waiting.length === 0 && !canEdit ? <div className="cl-prof-aut-hint">{W.none}</div> : null}
+      </div>
+    );
   const shown = all ? kept : kept.slice(0, NOTES_SHOWN);
   const toggleAll = (e?: MouseEvent<HTMLElement>) => holdStill(e?.currentTarget, () => setAll(!all));
   let list: ReactNode = null;

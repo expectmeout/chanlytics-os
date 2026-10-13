@@ -21,6 +21,7 @@ import {
   reachedCustomer,
   lastExchanged,
   isHeldDraft,
+  heldDraftOf,
   draftSendsAtMs,
   messageWords,
   messageText,
@@ -56,16 +57,6 @@ export function threadStanding(
   const v = standingOfThread(dto, escalation, now.getTime());
   const state: InboxThreadVM["state"] = v.standing === "snoozed" ? "snoozed" : v.flagged ? "escalated" : "done";
   return { state, takenOver: v.takenOver, needsYou: v.standing === "needs_you", claimedByOther: v.claimedByOther };
-}
-
-/**
- * The thread's held draft: the LAST one, not the first. If two ever coexist the newer one is what the customer would
- * receive, so it is the one to offer controls for (cancelling withdraws every queued AI row on the thread anyway). The
- * thread's view model offers it (`heldDraft`, `veto`) and `conversationWaitsOnYou` counts it: one pick, so the two
- * cannot read different drafts.
- */
-function heldDraftOf(messages: readonly MessageDto[]): MessageDto | null {
-  return [...messages].reverse().find(isHeldDraft) ?? null;
 }
 
 /**

@@ -26,10 +26,8 @@ import {
   demoSession,
   gate,
   hasDealSheet,
-  hasStepSheet,
   navigate,
   openDealSheet,
-  openStepSheet,
   seededLeads,
   useToast,
   type Flash,
@@ -43,14 +41,14 @@ import { NameOffer } from "../../people/person/name-offer";
 import { mayAtLeast } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
 import { LinkButton } from "../../kit/link-button/link-button";
+import { completeStep } from "../../step-done";
 
 // A step due under the head (0007, amended): their next step once its day has come, with Done, so whoever answers
 // them ticks it where they are. People's row carries it, judged as every page judges a step: at the moment People's
 // rows were published (contracts dueStepDay, through __personNotes). One ahead is not said -- the head says who they
 // are, and a step waits for its day. Done is an owner's or an operator's (the door's rule; the gate says so to anyone
-// else) and answers in the header's toast, with Set the next one, as the deal card's does: the line goes with the
-// step once People is read again, and the toast must outlive it. A second press while the first is on its way waits.
-const IX_STEP_PRESSED = new Set<string>();
+// else) and is said as every page says it (step-done.tsx): "Step done · its words", with an Undo that brings the line
+// back. The line goes with the step once People is read again, and the header's toast outlives it.
 const IxThreadStep = ({
   personId,
   step,
@@ -67,29 +65,19 @@ const IxThreadStep = ({
   const at = people && people.fetchedAt ? people.fetchedAt : Date.now();
   const day = N ? N.dueDay(step, tz, at) : null;
   if (!N || !day || gone === step.id) return null;
-  const done = async () => {
-    if (IX_STEP_PRESSED.has(step.id)) return;
-    IX_STEP_PRESSED.add(step.id);
-    let r: Awaited<ReturnType<typeof N.done>> | undefined;
-    try {
-      r = await N.done(personId, step.id, true);
-    } finally {
-      IX_STEP_PRESSED.delete(step.id);
-    }
-    if (r && r.ok) {
-      setGone(step.id);
-      const next = hasStepSheet() ? () => openStepSheet({ personId, dealId: step.dealId || null }) : null;
-      flash({
-        msg: <>{N.words.stepDone}</>,
-        ...(next ? { action: { label: N.words.setTheNext, onClick: next } } : {}),
-      });
-    } else if (r) {
-      flash({ tone: "danger", msg: <>{r.message}</> });
+  const done = () =>
+    completeStep({
+      personId,
+      noteId: step.id,
+      words: step.words,
+      done: N.done,
+      say: flash,
+      onDone: () => setGone(step.id),
+      onUndone: () => setGone(null),
       // Refused: nothing was written, so nothing is read again on its own, and the step the page holds may be the one that
       // moved. A done is read again with People behind it (the write's refresh, 0047), which the person's page hears.
-      window.dispatchEvent(new CustomEvent("surface:clients"));
-    }
-  };
+      onRefused: () => window.dispatchEvent(new CustomEvent("surface:clients")),
+    });
   return (
     <div className="ix-th-step" data-due={day.due} data-testid="ix-th-step">
       <span className="ix-th-step-label">{N.words.next}</span>

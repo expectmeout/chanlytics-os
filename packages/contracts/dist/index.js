@@ -1670,6 +1670,17 @@ function clockDate(atMs, tz, nowMs) {
   const f = formatsFor(tz);
   return wall(atMs, tz).year === wall(nowMs, tz).year ? f.date.format(new Date(atMs)) : f.dateYear.format(new Date(atMs));
 }
+function clockHistoryDay(atMs, tz, nowMs) {
+  const day = zoneDayKey(atMs, tz);
+  const today = zoneDayKey(nowMs, tz);
+  if (day === today) return "Today";
+  if (day === shiftDay(today, -1)) return "Yesterday";
+  const f = formatsFor(tz);
+  const weekday = f.weekday.format(new Date(atMs));
+  const gap = (Date.parse(today) - Date.parse(day)) / DAY_MS;
+  if (gap > 0 && gap < 7) return weekday;
+  return `${weekday} ${clockDate(atMs, tz, nowMs)}`;
+}
 function clockDateYear(atMs, tz) {
   return formatsFor(tz).dateYear.format(new Date(atMs));
 }
@@ -3517,7 +3528,7 @@ function freeWindows(input) {
   const leadMs = rules.lead_hours * 36e5;
   const bufferMs = rules.buffer_min * 6e4;
   const slotMs = rules.slot_min * 6e4;
-  const earliest2 = onTheGrid(input.tz, input.now.getTime() + leadMs, rules.slot_min);
+  const earliest3 = onTheGrid(input.tz, input.now.getTime() + leadMs, rules.slot_min);
   const busy = input.busy.map((b) => ({ start: b.start - bufferMs, end: b.end + bufferMs })).sort((a, b) => a.start - b.start);
   const out = [];
   for (let offset = 0; offset < rules.max_days_ahead; offset++) {
@@ -3528,7 +3539,7 @@ function freeWindows(input) {
     for (const [open, close] of ranges) {
       const o = hhmm(open), c = hhmm(close);
       if (!o || !c) continue;
-      let start = Math.max(localToUtcMs(input.tz, day.y, day.m, day.d, o[0], o[1]), earliest2);
+      let start = Math.max(localToUtcMs(input.tz, day.y, day.m, day.d, o[0], o[1]), earliest3);
       const end = localToUtcMs(input.tz, day.y, day.m, day.d, c[0], c[1]);
       for (const b of busy) {
         if (b.end <= start) continue;
@@ -8136,6 +8147,9 @@ var CALL_NOTE_PREFIX = /^\[voice call note [^\]]*\]\s*(Caller phoned the (?:salo
 function isHeldDraft(m) {
   return m.status === "queued" && m.sender === "ai";
 }
+function heldDraftOf(messages) {
+  return [...messages].reverse().find(isHeldDraft) ?? null;
+}
 function draftSendsAtMs(m) {
   const delay = typeof m.meta?.delay_ms === "number" ? m.meta.delay_ms : 0;
   return new Date(m.created_at).getTime() + delay;
@@ -11646,13 +11660,17 @@ function stepDays(nowMs, tz) {
   out.push({ key: "pick", label: "Pick a day", title: "Choose any day" });
   return out;
 }
-function composerDays(nowMs, tz) {
+function callDays(nowMs, tz) {
   const all = stepDays(nowMs, tz);
   const tomorrow = all.find((c) => c.label === "Tomorrow");
   const friday = all.find((c) => c.label === WEEKDAYS[5].slice(0, 3));
   const nextWeek = all.find((c) => c.label === "Next week");
   const pick = all.find((c) => c.key === "pick");
   return [tomorrow, friday ?? nextWeek, pick].filter((c) => !!c);
+}
+function composerDays(nowMs, tz) {
+  const today = stepDays(nowMs, tz).find((c) => c.label === "Today");
+  return [...today ? [today] : [], ...callDays(nowMs, tz)];
 }
 function stepDayName(key, nowMs, tz) {
   const offered = stepDays(nowMs, tz).find((c) => c.key === key && c.key !== "pick");
@@ -13523,6 +13541,7 @@ var MERGE_REFUSALS = {
   emails: "These two records have different email addresses, so they may be two people. They can't be merged.",
   deals: "Both records have an open deal for the same service. Close or move one of them first."
 };
+var MERGE_ANSWERS = "Their answers about messages and offers become the more careful of the two.";
 var MERGE_WORDS = {
   act: "Merge with another record\u2026",
   actHint: "Two records of one person become one",
@@ -13532,7 +13551,7 @@ var MERGE_WORDS = {
   pickNone: "Choose the other record",
   pickReading: "People is still being read; the other records are offered once it lands.",
   question: (kept, other) => `Merge ${other} into ${kept}?`,
-  detail: (kept, other) => `${kept} keeps their record and takes ${other}'s messages, calls, deals, notes and lists. Their answers about messages and offers become the more careful of the two. ${other}'s record stays as a merged record with no number or address. This cannot be undone.`,
+  detail: (kept, other) => `${kept} keeps their record and takes ${other}'s messages, calls, deals, notes and lists. ${MERGE_ANSWERS} ${other}'s record stays as a merged record with no number or address. This cannot be undone.`,
   typed: (kept) => `Type ${kept} to confirm.`,
   yes: "Merge the two records",
   busy: "Merging\u2026",
@@ -14649,7 +14668,7 @@ var LIBRARY_STARTER_WORDS = {
   /** The route's refusal when the channels it is asked for are none it knows. */
   pickAChannel: "Pick at least one channel: WhatsApp, email or text.",
   /** A new campaign named by a starter that is not its moment's own, or by no starter the set has (A0). */
-  notThisMoment: (moment) => `That starter is not one \u201C${moment}\u201D goes by: name the moment's own starter, or a message from the Library.`,
+  notThisMoment: (moment2) => `That starter is not one \u201C${moment2}\u201D goes by: name the moment's own starter, or a message from the Library.`,
   /** A starter whose words are the owner's to write (the month's offer): it is started from the composer. */
   takesOwnWords: (title) => `The \u201C${title}\u201D starter takes words of its own: write them in the composer and start it there.`,
   /**
@@ -19121,6 +19140,8 @@ var NOTE_WORDS = {
   readsHint: "The receptionist uses notes as facts and never reads them aloud.",
   none: "No notes yet.",
   suggested: "Suggested by the receptionist",
+  /** A suggestion's eyebrow, said on every screen: who, where it was heard, and when ("… · after a call · 2:10 PM"). */
+  suggestedLine: (from, when) => ["Suggested by the receptionist", from ? `${from.charAt(0).toLowerCase()}${from.slice(1)}` : null, when].filter(Boolean).join(" \xB7 "),
   keep: "Keep",
   dismiss: "Dismiss",
   added: "Note added",
@@ -19133,6 +19154,8 @@ var NOTE_WORDS = {
   left: (n) => `${n} left`,
   // A note with a day is a step (0007, amended).
   addDay: "Add a day",
+  /** The composer's day row's word, over its chips (canvas A, M4). */
+  day: "Day",
   due: "Due",
   noDay: "No day",
   pickDay: "Pick a day",
@@ -19147,9 +19170,13 @@ var NOTE_WORDS = {
   stepSaved: "Step saved",
   stepDone: "Step done",
   stepReopened: "Step open again",
-  setTheNext: "Set the next one",
   /** Done's name for a screen reader, where a header holds more than the step. */
-  markDone: (words3) => `Mark \u201C${words3}\u201D done`
+  markDone: (words3) => `Mark \u201C${words3}\u201D done`,
+  /** The Overview's Notes (canvas A): the door to every note, History's Notes, at the pane's head. */
+  all: "All notes",
+  /** Over the newest note on the Overview, in the mono eyebrow: "Note · Marisa · Sep 21"; a step says its day. */
+  eyebrow: (who, when) => `Note \xB7 ${who} \xB7 ${when}`,
+  stepEyebrow: (who, due) => `Step \xB7 ${who} \xB7 ${due}`
 };
 var NOTE_REFUSALS = {
   empty: "Write something first.",
@@ -20516,11 +20543,11 @@ function callNoteLines(n) {
 function tidyCallSummary(text) {
   const t = (text ?? "").replace(/\s+/g, " ").trim();
   if (!t) return null;
-  const folded = t.replace(
+  const folded2 = t.replace(
     /^The (?:user|caller|customer) (?:called|phoned|contacted|reached out to) [^.,;]*? (to|and) /i,
     (_m, joiner) => joiner.toLowerCase() === "to" ? "Called to " : "Called and "
   );
-  return folded.charAt(0).toUpperCase() + folded.slice(1);
+  return folded2.charAt(0).toUpperCase() + folded2.slice(1);
 }
 
 // src/workspace/retention.ts
@@ -22388,16 +22415,16 @@ function offerPlan(r2, world) {
 }
 var REVIEW_STARTER = "after_visit_review";
 var CHECK_STARTER = "after_visit_check";
-function stageInput(id, moment, world) {
-  if (id !== "after") return { trigger: moment };
+function stageInput(id, moment2, world) {
+  if (id !== "after") return { trigger: moment2 };
   const reviews = world.messages.filter((m) => m.name === REVIEW_STARTER);
-  if (!world.reviewLink) return reviews.length ? { trigger: moment, starter: CHECK_STARTER } : { trigger: moment };
+  if (!world.reviewLink) return reviews.length ? { trigger: moment2, starter: CHECK_STARTER } : { trigger: moment2 };
   const review = reviews.find((m) => languageBase(m.language) === world.language);
   const goes = (review?.versions ?? []).filter(
     (v) => LIVE.has(v.state) && (v.channel !== "whatsapp" || world.whatsappSends)
   );
   const version = goes.find((v) => v.channel === "whatsapp") ?? goes.at(0);
-  return version ? { trigger: moment, template_id: version.id } : { trigger: moment, starter: REVIEW_STARTER };
+  return version ? { trigger: moment2, template_id: version.id } : { trigger: moment2, starter: REVIEW_STARTER };
 }
 function journeyPlan(stages, world) {
   const journey = world.journey;
@@ -23173,9 +23200,9 @@ function serviceNamedIn(title, services, only) {
   let best = null;
   for (const s of services ?? []) {
     const name = String(s.name ?? "").trim();
-    const folded = foldName(name);
-    if (!folded || !t.includes(folded) || only && !only(name)) continue;
-    if (!best || folded.length > best.folded.length) best = { name, folded };
+    const folded2 = foldName(name);
+    if (!folded2 || !t.includes(folded2) || only && !only(name)) continue;
+    if (!best || folded2.length > best.folded.length) best = { name, folded: folded2 };
   }
   return best ? best.name : null;
 }
@@ -23617,8 +23644,12 @@ function feedBodyProblem(text) {
 function offeringHorizon(now, daysAhead) {
   return { from: now.getTime() - DAY_MS, to: now.getTime() + (daysAhead + 1) * DAY_MS };
 }
+var SEASON_BACK_DAYS = 90;
 function seasonHorizon(now, daysAhead = 0) {
-  return { from: now.getTime() - DAY_MS * 90, to: now.getTime() + Math.max(daysAhead + 1, 90) * DAY_MS };
+  return {
+    from: now.getTime() - DAY_MS * SEASON_BACK_DAYS,
+    to: now.getTime() + Math.max(daysAhead + 1, 90) * DAY_MS
+  };
 }
 function previewHorizon(now) {
   return { from: now.getTime() - DAY_MS, to: now.getTime() + 30 * DAY_MS };
@@ -27561,9 +27592,6 @@ function threadStanding(dto, escalation, now = /* @__PURE__ */ new Date()) {
   const state = v.standing === "snoozed" ? "snoozed" : v.flagged ? "escalated" : "done";
   return { state, takenOver: v.takenOver, needsYou: v.standing === "needs_you", claimedByOther: v.claimedByOther };
 }
-function heldDraftOf(messages) {
-  return [...messages].reverse().find(isHeldDraft) ?? null;
-}
 function conversationWaitsOnYou(dto, escalation, now = /* @__PURE__ */ new Date()) {
   return threadWait(waitingThread(dto, escalation, now), now.getTime()) !== null;
 }
@@ -28758,10 +28786,10 @@ var MESSAGE_MOMENT_WORDS = {
   texts_on_offers: "This moment sends offers, which only a yes to offers may get, and this message is a reminder, a check after or a follow-up. Pick an offer, or the moment it was written for."
 };
 function messageFitsMoment(policyClass, category) {
-  const moment = purposeOfPlaybook(policyClass);
+  const moment2 = purposeOfPlaybook(policyClass);
   const message = purposeOfTemplate(category);
-  if (moment === message) return { ok: true };
-  const why = moment === "conversational" ? "offer_on_texts" : "texts_on_offers";
+  if (moment2 === message) return { ok: true };
+  const why = moment2 === "conversational" ? "offer_on_texts" : "texts_on_offers";
   return { ok: false, why, words: MESSAGE_MOMENT_WORDS[why] };
 }
 
@@ -29125,8 +29153,8 @@ function dayGoneWords(runFor, say2 = (ymd) => ymd) {
   return `This run was made for ${say2(runFor)} and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.`;
 }
 function visitRunTooLate(run, days) {
-  const moment = triggerOf(audienceTrigger(run.audience) ?? "");
-  return moment?.kind === "visit" && !!run.run_for && days.sendsOn > run.run_for;
+  const moment2 = triggerOf(audienceTrigger(run.audience) ?? "");
+  return moment2?.kind === "visit" && !!run.run_for && days.sendsOn > run.run_for;
 }
 function runApprovalRefusal(run, days) {
   if (isReachOutRun(run.audience)) return null;
@@ -29249,10 +29277,16 @@ function visitDayWord(visit, tz, sendAt, assumed) {
 // src/deals/sheet/deal-card.ts
 var DEAL_CARD_WORDS = {
   title: "Deal",
+  /** The person page's pane of them (canvas A): one row a deal, and the act under the rows for one more. */
+  titleMany: "Deals",
+  another: "Start another proposal",
   proposal: "Proposal",
   engagement: "Engagement",
   consultation: "Consultation",
-  noLink: "No link",
+  noLink: "No link yet",
+  /** The opened deal's copy of its link, said in place once it has copied (the kit's copy, canvas A). */
+  copyLink: "Copy the link",
+  copied: "Copied",
   notSent: "Not sent yet",
   /** A message carrying the link is queued, in the seconds its send can be undone. */
   sending: "Sending",
@@ -29325,7 +29359,6 @@ function cardOf2(p, deal, nowMs, tz, consultation) {
       !deal.proposal ? DEAL_CARD_WORDS.noLink : deal.proposal.sending ? DEAL_CARD_WORDS.sending : sent2 ? sentWords(sent2, tz, nowMs) : DEAL_CARD_WORDS.notSent
     );
     if (deal.validUntil && !deal.validUntil.lapsed) facts.push(deal.validUntil.words);
-    if (p.dealPace) facts.push(p.dealPace.words);
     if (deal.validUntil?.lapsed) flags.push({ words: deal.validUntil.words, tone: "warn" });
     if ((sent2 || !deal.proposal) && waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs, p.dealPace ?? null)) {
       const fu = followUpOn(p, deal);
@@ -29345,6 +29378,8 @@ function cardOf2(p, deal, nowMs, tz, consultation) {
     link: !won && deal.proposal ? { url: deal.proposal.url, host: deal.proposal.host } : null,
     facts,
     flags,
+    // How long this workspace's proposals usually take, once five are decided (0008, amended): said beside the wait.
+    pace: !won && p.dealPace ? p.dealPace.words : null,
     next,
     // Each move once: the one the card leads with is not said again among the quiet ones.
     more: others.filter((o) => o.mode !== nextMode),
@@ -29475,6 +29510,8 @@ var DEAL_SHEET_WORDS = {
     lost: "Passed",
     ended: "Ended"
   },
+  /** A deal marked as passed, its lead words in the toast before the service (canvas A, M5), with Propose again. */
+  passed: "Marked as passed",
   /** The send's own toast, after the name: its Undo stops the message, never the record. */
   sent: "proposal recorded and on its way",
   /** Before the reason a send was refused, after a good record. */
@@ -32554,6 +32591,90 @@ function callActivityPropsOf(call) {
   };
 }
 
+// src/new-conversation/write-ways.ts
+var WRITE_HOLDS = [
+  "stopped",
+  "no_number",
+  "no_address",
+  "address_stopped",
+  "not_ready",
+  "no_history",
+  "unsubscribed",
+  "no_yes"
+];
+var heardWire = (c) => c === "whatsapp" || c === "sms" || c === "email" ? c : null;
+var HEARD_BY_CALL_MS = QUIET_AFTER_DAYS * DAY_MS;
+function startsOn(wire, heard, now) {
+  const called = !!heard.calledAt && now.getTime() - Date.parse(heard.calledAt) <= HEARD_BY_CALL_MS;
+  return !(heard.lastWrote === wire || wire !== "email" && called);
+}
+var WRITE_HOLD_WORDS = {
+  stopped: () => `${STOP_WORDS.said("They")}.`,
+  no_number: () => "No number on their page.",
+  no_address: () => "No email address on their page.",
+  address_stopped: () => "Email to their address has stopped.",
+  no_history: () => "A first email to someone with no history with you goes from Campaigns, with its way to unsubscribe.",
+  // The send door's own sentence for it (consent.ts), so the sheet and a refused row say the same thing.
+  unsubscribed: () => PURPOSE_REFUSALS.unsubscribed,
+  no_yes: (wire) => `No yes on record for messages ${CONSENT_CHANNEL_WORDS[wire]}.`
+};
+var WRITE_WAY_REFUSED = "A message cannot go to them that way.";
+function holdOf2(wire, r2, { bearing, ready, starts, about }) {
+  if (isOptedOutContact(bearing)) return "stopped";
+  if (wire === "email") {
+    if (!r2.email) return "no_address";
+    if (r2.email_suppressed_at) return "address_stopped";
+  } else if (!r2.phone_e164) return "no_number";
+  if (ready && !ready[wire].ready) return "not_ready";
+  if (isOfferByEmail({ channel: wire, purpose: "conversational", proactive: starts, about })) return "no_history";
+  const may = mayMessageFor(bearing, "conversational", { proactive: starts, channel: wire, about, begins: starts });
+  if (may.ok) return null;
+  return may.reason === "unsubscribed" ? "unsubscribed" : "no_yes";
+}
+function writeWaysOf(r2, ready, now = /* @__PURE__ */ new Date()) {
+  const relationship = relationshipOnRecord({
+    lastWroteAt: r2.last_wrote_at,
+    lastInboundCallAt: r2.last_inbound_call_at,
+    hasDeal: !!r2.deal_id
+  });
+  const about = relationship ? "theirs" : "ours";
+  const bearing = {
+    consent: r2.consent,
+    dnc: r2.dnc,
+    marketing_consent: r2.marketing_consent,
+    consent_channels: r2.consent_channels,
+    marketing_channels: r2.marketing_channels,
+    email_marketing: r2.email_marketing,
+    has_relationship: relationship
+  };
+  const heard = { lastWrote: heardWire(r2.last_inbound_channel), calledAt: r2.last_inbound_call_at ?? null };
+  return CONSENT_CHANNELS.map((wire) => {
+    const starts = startsOn(wire, heard, now);
+    const hold = holdOf2(wire, r2, { bearing, ready, starts, about });
+    const window = replyWindow(wire, r2.latest_wa_inbound_at, now);
+    const left = window.closesAtIso ? new Date(window.closesAtIso).getTime() - now.getTime() : 0;
+    return {
+      wire,
+      ok: hold === null,
+      hold,
+      why: hold === null ? null : hold === "not_ready" ? ready?.[wire].why ?? null : WRITE_HOLD_WORDS[hold](wire),
+      carries: window.open ? "words" : "approved",
+      starts,
+      about,
+      hours_left: wire === "whatsapp" && window.open ? Math.max(0, Math.floor(left / HOUR_MS)) : null
+    };
+  });
+}
+function defaultWriteWire(ways, lastWrote) {
+  const last = heardWire(lastWrote);
+  const there = ways.find((w) => w.wire === last && w.ok);
+  return (there ?? ways.find((w) => w.ok))?.wire ?? null;
+}
+function wayOff(ways, wire) {
+  const w = ways.find((x) => x.wire === wire);
+  return w && !w.ok ? w.why ?? WRITE_WAY_REFUSED : null;
+}
+
 // src/templates/message-languages.ts
 function languageWords(code2) {
   return languageName(code2);
@@ -32926,7 +33047,7 @@ var NEW_CONVERSATION_WORDS = {
     priced: "The draft named a price you did not give, so it was not kept. Say it in your own words, or leave it out.",
     money: "The draft offered money you did not mention, so it was not kept. Say it in your own words, or leave it out.",
     approvedOnly: "Only a message WhatsApp approved ahead of time can go to them until they write. Pick one.",
-    notThatWay: "A message cannot go to them that way.",
+    notThatWay: WRITE_WAY_REFUSED,
     noWords: "Write the message first.",
     noRoomForStop: "The first text to someone also carries the line that says how to stop, and this one leaves no room for it. Shorten it a little.",
     notYours: "This person is not in your workspace."
@@ -32957,84 +33078,7 @@ function planNoteOf(day, how, about) {
   return clipAtWord(`${day}: ${did}. It was about: ${about.trim()}`, PLAN_NOTE_MAX - 1);
 }
 
-// src/new-conversation/write-ways.ts
-var WRITE_HOLDS = [
-  "stopped",
-  "no_number",
-  "no_address",
-  "address_stopped",
-  "not_ready",
-  "no_history",
-  "unsubscribed",
-  "no_yes"
-];
-var heardWire = (c) => c === "whatsapp" || c === "sms" || c === "email" ? c : null;
-var HEARD_BY_CALL_MS = QUIET_AFTER_DAYS * DAY_MS;
-function startsOn(wire, heard, now) {
-  const called = !!heard.calledAt && now.getTime() - Date.parse(heard.calledAt) <= HEARD_BY_CALL_MS;
-  return !(heard.lastWrote === wire || wire !== "email" && called);
-}
-var WRITE_HOLD_WORDS = {
-  stopped: () => `${STOP_WORDS.said("They")}.`,
-  no_number: () => "No number on their page.",
-  no_address: () => "No email address on their page.",
-  address_stopped: () => "Email to their address has stopped.",
-  no_history: () => "A first email to someone with no history with you goes from Campaigns, with its way to unsubscribe.",
-  // The send door's own sentence for it (consent.ts), so the sheet and a refused row say the same thing.
-  unsubscribed: () => PURPOSE_REFUSALS.unsubscribed,
-  no_yes: (wire) => `No yes on record for messages ${CONSENT_CHANNEL_WORDS[wire]}.`
-};
-function holdOf2(wire, r2, { bearing, ready, starts, about }) {
-  if (isOptedOutContact(bearing)) return "stopped";
-  if (wire === "email") {
-    if (!r2.email) return "no_address";
-    if (r2.email_suppressed_at) return "address_stopped";
-  } else if (!r2.phone_e164) return "no_number";
-  if (!ready[wire].ready) return "not_ready";
-  if (isOfferByEmail({ channel: wire, purpose: "conversational", proactive: starts, about })) return "no_history";
-  const may = mayMessageFor(bearing, "conversational", { proactive: starts, channel: wire, about, begins: starts });
-  if (may.ok) return null;
-  return may.reason === "unsubscribed" ? "unsubscribed" : "no_yes";
-}
-function writeWaysOf(r2, ready, now = /* @__PURE__ */ new Date()) {
-  const relationship = relationshipOnRecord({
-    lastWroteAt: r2.last_wrote_at,
-    lastInboundCallAt: r2.last_inbound_call_at,
-    hasDeal: !!r2.deal_id
-  });
-  const about = relationship ? "theirs" : "ours";
-  const bearing = {
-    consent: r2.consent,
-    dnc: r2.dnc,
-    marketing_consent: r2.marketing_consent,
-    consent_channels: r2.consent_channels,
-    marketing_channels: r2.marketing_channels,
-    email_marketing: r2.email_marketing,
-    has_relationship: relationship
-  };
-  const heard = { lastWrote: heardWire(r2.last_inbound_channel), calledAt: r2.last_inbound_call_at ?? null };
-  return CONSENT_CHANNELS.map((wire) => {
-    const starts = startsOn(wire, heard, now);
-    const hold = holdOf2(wire, r2, { bearing, ready, starts, about });
-    const window = replyWindow(wire, r2.latest_wa_inbound_at, now);
-    const left = window.closesAtIso ? new Date(window.closesAtIso).getTime() - now.getTime() : 0;
-    return {
-      wire,
-      ok: hold === null,
-      hold,
-      why: hold === null ? null : hold === "not_ready" ? ready[wire].why : WRITE_HOLD_WORDS[hold](wire),
-      carries: window.open ? "words" : "approved",
-      starts,
-      about,
-      hours_left: wire === "whatsapp" && window.open ? Math.max(0, Math.floor(left / HOUR_MS)) : null
-    };
-  });
-}
-function defaultWriteWire(ways, lastWrote) {
-  const last = heardWire(lastWrote);
-  const there = ways.find((w) => w.wire === last && w.ok);
-  return (there ?? ways.find((w) => w.ok))?.wire ?? null;
-}
+// src/new-conversation/write-reach.ts
 function writeReachOf(r2, at3) {
   const { ready, mode, facts, now = /* @__PURE__ */ new Date() } = at3;
   const ways = writeWaysOf(r2, ready, now);
@@ -33438,9 +33482,7 @@ var PERSON_WALK_WORDS = {
   label: "People in this list",
   at: (at3, of) => `${at3} of ${of}`,
   next: "Next person",
-  previous: "Previous person",
-  /** The phone's ⋯, where stepping is its first two rows. */
-  nextAt: (at3, of) => `Next person \xB7 ${at3} of ${of}`
+  previous: "Previous person"
 };
 var PERSON_WASH_WORDS = {
   figure: (label, value) => `${label} is now ${value}`,
@@ -33504,6 +33546,124 @@ var WORKS_AT_WORDS = {
   combine: "Combine"
 };
 var BUSINESS_DOOR_LABEL = (name) => `${name}: open the business`;
+var PERSON_ABOUT_WORDS = {
+  label: (who) => `About ${who}`,
+  reach: "Reach them",
+  cameFrom: "Where they came from",
+  /** Where they came from as a lead: the door to it, beside the day. */
+  openLead: "Open the lead",
+  messages: "Messages and receptionist",
+  lists: "Lists",
+  waName: (name) => `WhatsApp name \xB7 ${name}`,
+  /** The number's press: its sheet on a phone, its menu on a desk. */
+  callIt: "Call",
+  textIt: "Text them",
+  copyNumber: "Copy the number",
+  /** What a copy says in place once it has copied (the kit's copy: never a toast). */
+  copied: "Copied",
+  /** Lists as one row on a phone: "On 3 lists", their names under it. */
+  onLists: (n) => n === 0 ? "On no list yet" : `On ${plural(n, "list")}`,
+  /** A phone's Campaigns, folded (canvas A, P4): how many went to them, and what came of the newest ("2 sent · Replied"). */
+  campaigns: "Campaigns",
+  campaignsMark: (n, newest) => `${n} sent \xB7 ${newest}`,
+  /** Messages and receptionist's rows (canvas A, P9.4): a mode the workspace sets, and a row nobody here changes. */
+  thisWorkspace: "this workspace",
+  readOnly: "read only",
+  change: "Change",
+  /** The top bar's Ask on their page (canvas A): about them by their first name, or a stand-in's business whole. */
+  askAbout: (who) => `Ask about ${who}`,
+  /** What the receptionist knows of them, under the rows while the group is open. */
+  knowsTitle: "What the receptionist knows",
+  knowsFoot: "It uses kept notes as facts and never reads them aloud."
+};
+var REACH_SOURCE_WORDS = {
+  phone: {
+    called: (day) => `Phone \xB7 they called from it ${day}`,
+    wrote: (day) => `Phone \xB7 they wrote from it ${day}`,
+    booking: "Phone \xB7 from the booking",
+    listing: "Phone \xB7 from the listing",
+    none: "Phone"
+  },
+  email: {
+    wrote: (day) => `Email \xB7 they wrote from it ${day}`,
+    gaveOnCall: (day) => `Email \xB7 they gave it on the call ${day}`,
+    listing: "Email \xB7 from the listing",
+    none: "Email"
+  }
+};
+var ORIGIN_WORDS = {
+  call: (day) => `Phoned you \xB7 ${day}`,
+  whatsapp: (day) => `Wrote on WhatsApp \xB7 ${day}`,
+  sms: (day) => `Texted you \xB7 ${day}`,
+  email: (day) => `Wrote by email \xB7 ${day}`,
+  calendar: (day) => `From your calendar \xB7 ${day}`,
+  manual: (day) => `Added by hand \xB7 ${day}`,
+  import: (day) => `Imported \xB7 ${day}`,
+  ad: (day) => `From an ad \xB7 ${day}`,
+  lead: (day) => `Found by your lead search \xB7 ${day}`,
+  ownList: (day) => `From your own list \xB7 ${day}`,
+  weWroteFirst: (day) => `we wrote first ${day}`,
+  weCalledFirst: (day) => `We called first \xB7 ${day}`,
+  /** "We wrote first by text · Sep 20": the wire as a sentence says it (CONSENT_CHANNEL_WORDS). */
+  weWroteFirstOn: (on, day) => `We wrote first ${on} \xB7 ${day}`
+};
+var CALL_FACT_WORDS = {
+  name: (name) => `Gave their name as ${name}`,
+  onTheCall: (day) => `on the call ${day}`,
+  email: (day, address) => `Spelled out on the call ${day}: ${address}`,
+  useEmail: "Use this address",
+  notTheirAddress: "Not their address",
+  fromTheCall: (day) => `from the ${day} call`,
+  keepStep: "Keep as a note",
+  notAStep: "Not a step",
+  /** The toasts after a press. */
+  emailKept: (address) => `Their address is now ${address}`,
+  stepKept: "Kept as a note"
+};
+var DRAFT_NOTICE_WORDS = {
+  waiting: "A draft answer is waiting in the thread",
+  sends: (time) => `sends at ${time}`,
+  review: "Review the draft"
+};
+var PERSON_PEEK_WORDS = {
+  label: (name) => `Preview of ${name}`,
+  close: "Close",
+  page: "Open the full page",
+  reading: "Reading\u2026",
+  what: "this person",
+  missing: { title: "This person is not in your workspace", body: "They may have been deleted." }
+};
+var PERSON_LISTS_SHEET_WORDS = {
+  keepsItself: "Keeps itself current",
+  none: "No lists of your own yet.",
+  newList: "New list",
+  newListName: "The new list's name",
+  make: "Make it",
+  making: "Making\u2026",
+  close: "Close",
+  /** "Emily is on Regulars", or off it. */
+  moved: (on) => on ? "is on" : "is off",
+  onNew: "is on the new list",
+  failed: "Could not change the list.",
+  notMade: "Could not make the list."
+};
+function receptionistKnowsOf(f) {
+  return [
+    f.name ? `Name ${f.name}` : null,
+    f.worksAt ? `Works at ${f.worksAt}` : null,
+    f.email ? `Email ${f.email}` : null,
+    f.offers ? `Offers & news ${f.offers.charAt(0).toLowerCase()}${f.offers.slice(1)}` : null,
+    f.lastInTouch ? `Last in touch ${f.lastInTouch}` : null
+  ].filter((x) => x !== null).join(" \xB7 ");
+}
+function messagesSummaryOf(visit, offers, receptionist) {
+  const low = (s) => `${s.charAt(0).toLowerCase()}${s.slice(1)}`;
+  return [
+    { id: "visit", lead: "Visit messages", answer: low(visit.label), notAsked: visit.unknown },
+    { id: "offers", lead: "Offers & news", answer: low(offers.label), notAsked: offers.unknown },
+    { id: "receptionist", lead: "", answer: receptionist, notAsked: false }
+  ];
+}
 
 // src/people/person-row.ts
 function rowNameAndWorkOf(r2, tz, nowMs) {
@@ -35049,7 +35209,7 @@ function timelineOf(ctx) {
     ...foundItems(ctx)
   ];
   items.sort((a, b) => b.ts - a.ts);
-  return items;
+  return items.map((i) => ({ ...i, dayHead: clockHistoryDay(i.ts, ctx.tz, ctx.nowMs) }));
 }
 function comingUpOf({ profile, nowMs, base }) {
   const found = [];
@@ -35277,7 +35437,7 @@ function personFiguresOf(f) {
       id: "visits",
       label: "Visits",
       value: f.visits.ahead > 0 ? `${f.visits.ahead} ahead` : "None ahead",
-      sub: f.visits.marked > 0 ? `${f.visits.marked} marked` : "none marked yet",
+      sub: f.visits.toMark > 0 ? `${f.visits.toMark} to mark` : f.visits.kept > 0 ? `${f.visits.kept} kept` : "none marked yet",
       to: "visits"
     });
   return out.slice(0, FIGURES2);
@@ -35289,12 +35449,23 @@ var UP_NEXT_WORDS = {
   title: "Up next",
   gotIt: "Got it",
   leftYouANote: (who, when) => `${who === "You" ? "You left yourself" : `${who} left you`} a note \xB7 ${when}`,
-  didTheyCome: (when) => `Did they come? ${when}`,
+  /**
+   * "Did Emily come on Sat Oct 10?": the day as a question says it, with no comma after the weekday (canvas A); a visit
+   * of today or yesterday is asked without the "on" ("Did Emily come yesterday?").
+   */
+  didTheyCome: (who, day) => day === "Today" || day === "Yesterday" ? `Did ${who} come ${day.toLowerCase()}?` : `Did ${who} come on ${day.replace(/,/g, "")}?`,
   done: "Done",
   recordYes: "Record a yes",
   visitNotAsked: "Visit messages not asked",
   more: (n) => `${plural(n, "more", "more")}`
 };
+function dealRungSub(c) {
+  const low = (s) => `${s.charAt(0).toLowerCase()}${s.slice(1)}`;
+  const waits = c.flags.map((x) => x.words);
+  if (waits.length) return [...waits, c.pace ? low(c.pace) : null].filter(Boolean).join(" \xB7 ");
+  if (!c.link) return c.facts[0] ?? null;
+  return c.facts.filter(Boolean).join(" \xB7 ") || null;
+}
 function personNextOf(f) {
   const rows2 = [];
   for (const n of f.notes) {
@@ -35312,8 +35483,8 @@ function personNextOf(f) {
   if (asking)
     rows2.push({
       id: `visit:${asking.id}`,
-      title: UP_NEXT_WORDS.didTheyCome([asking.day, asking.time].filter(Boolean).join(" \xB7 ")),
-      sub: asking.title,
+      title: UP_NEXT_WORDS.didTheyCome(f.who, asking.day),
+      sub: [asking.title, asking.time].filter(Boolean).join(" \xB7 "),
       act: { kind: "visit", line: asking, label: asking.asks.map((a) => VISIT_WORDS[a]).join(" \xB7 ") }
     });
   if (f.dealsOn) {
@@ -35322,7 +35493,7 @@ function personNextOf(f) {
       rows2.push({
         id: `deal:${c.id ?? c.title}`,
         title: c.title,
-        sub: [...c.flags.map((x) => x.words), ...c.facts].filter(Boolean).join(" \xB7 ") || null,
+        sub: dealRungSub(c),
         act: { kind: "deal", dealId: c.id, act: c.next, label: c.next.label }
       });
     }
@@ -35386,19 +35557,22 @@ function personNoticesOf(f) {
       act: { label: PERSON_NAME_WORDS.use, do: { kind: "use-name", messageId: s.messageId } },
       dismiss: { label: PERSON_NAME_WORDS.notTheirs }
     });
-  const others = f.peopleHere.filter((p) => p.id && p.email);
+  const others = f.peopleHere.filter((p) => p.id && p.email && !(f.phone && p.phone && f.phone !== p.phone));
   if (f.head.standIn && !f.heardFrom) {
-    const human = others.find((p) => p.nameSource !== "lead");
+    const human = others.find((p) => p.nameSource !== "lead" && p.named);
     if (human && human.email)
       out.push({
         id: `combine:${human.id}`,
         home: "name",
         fact: WORKS_AT_WORDS.answeredFrom(human.name, shortAddress(human.email)),
         source: null,
-        act: { label: WORKS_AT_WORDS.combineWith(human.name), do: { kind: "combine", otherId: human.id } },
-        dismiss: { label: PERSON_NAME_WORDS.notTheirs }
+        act: {
+          label: WORKS_AT_WORDS.combineWith(human.name),
+          do: { kind: "combine", otherId: human.id, otherName: human.name, otherEmail: human.email, keepsOther: true }
+        },
+        dismiss: null
       });
-  } else if (!f.head.standIn) {
+  } else if (!f.head.standIn && f.named) {
     const standIn = others.find((p) => p.nameSource === "lead");
     if (standIn && standIn.email)
       out.push({
@@ -35406,8 +35580,17 @@ function personNoticesOf(f) {
         home: "name",
         fact: WORKS_AT_WORDS.wroteToFirst(shortAddress(standIn.email)),
         source: null,
-        act: { label: WORKS_AT_WORDS.combine, do: { kind: "combine", otherId: standIn.id } },
-        dismiss: { label: PERSON_NAME_WORDS.notTheirs }
+        act: {
+          label: WORKS_AT_WORDS.combine,
+          do: {
+            kind: "combine",
+            otherId: standIn.id,
+            otherName: standIn.name,
+            otherEmail: standIn.email,
+            keepsOther: false
+          }
+        },
+        dismiss: null
       });
   }
   for (const d of f.doubts)
@@ -35418,6 +35601,52 @@ function personNoticesOf(f) {
       source: null,
       act: { label: "Same person?", do: { kind: "same-person", doubtId: d.id, otherId: d.otherId } },
       dismiss: { label: "Not the same" }
+    });
+  out.push(...callNotices(f, !!s));
+  if (f.draft)
+    out.push({
+      id: "draft",
+      home: "last-words",
+      fact: DRAFT_NOTICE_WORDS.waiting,
+      source: DRAFT_NOTICE_WORDS.sends(f.draft.sends),
+      act: { label: DRAFT_NOTICE_WORDS.review, do: { kind: "open-thread", to: f.draft.to } },
+      dismiss: null
+    });
+  return out;
+}
+var folded = (s) => (s ?? "").normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().trim();
+function callNotices(f, signerOffered) {
+  const c = f.calls;
+  if (!c) return [];
+  const W = CALL_FACT_WORDS;
+  const out = [];
+  const nameIsNew = !!c.name && folded(c.name.name) !== folded(f.givenName);
+  if (c.name && nameIsNew && !signerOffered && (!f.givenName || f.head.standIn))
+    out.push({
+      id: `call-name:${c.name.callId}`,
+      home: "name",
+      fact: W.name(c.name.name),
+      source: W.onTheCall(c.name.day),
+      act: { label: PERSON_NAME_WORDS.use, do: { kind: "use-call-name", callId: c.name.callId, name: c.name.name } },
+      dismiss: { label: PERSON_NAME_WORDS.notTheirs }
+    });
+  if (c.email && !f.email)
+    out.push({
+      id: `call-email:${c.email.callId}`,
+      home: "reach",
+      fact: W.email(c.email.day, c.email.email),
+      source: null,
+      act: { label: W.useEmail, do: { kind: "use-call-email", callId: c.email.callId, email: c.email.email } },
+      dismiss: { label: W.notTheirAddress }
+    });
+  if (c.step && !f.openStep && !f.stepNoted)
+    out.push({
+      id: `call-step:${c.step.callId}`,
+      home: "next",
+      fact: c.step.body,
+      source: W.fromTheCall(c.step.day),
+      act: { label: W.keepStep, do: { kind: "note-call-step", callId: c.step.callId, body: c.step.body } },
+      dismiss: { label: W.notAStep }
     });
   return out;
 }
@@ -35459,365 +35688,128 @@ function personTabsOf(f, phone) {
   });
   const tabs = [tab("overview", null)];
   if (f.history > 0) tabs.push(tab("history", f.history));
-  if (f.visits > 0) tabs.push(tab("visits", f.visits));
+  if (f.visits > 0 || (f.marked ?? 0) > 0) tabs.push(tab("visits", f.visits > 0 ? f.visits : null));
   if (!phone && f.deals > 0) tabs.push(tab("deals", f.deals));
   if (!phone && f.campaigns > 0) tabs.push(tab("campaigns", null));
   if (phone) tabs.push(tab("about", null));
   return tabs;
 }
 
-// src/people/person-profile.ts
-var TIMELINE_FILTERS = [
-  { id: "all", label: "All", kinds: null },
-  { id: "messages", label: "Messages", kinds: ["customer", "receptionist", "team", "escalation", "decision"] },
-  { id: "calls", label: "Calls", kinds: ["call"] },
-  { id: "visits", label: "Appointments", kinds: ["visit"] },
-  { id: "consent", label: "Consent", kinds: ["consent"] },
-  { id: "deals", label: "Deals", kinds: ["deal"] }
-];
-function timelineFilterLabel(f, dealsOn) {
-  return f.id === "visits" ? appointmentWords(appointmentWordWhere(dealsOn)).Many : f.label;
+// src/person-page/visits.ts
+var VISITS_TAB_WORDS = {
+  toMark: "To mark",
+  ahead: "Ahead",
+  past: "Past",
+  none: "No visits ahead.",
+  /** A visit the calendar names nothing for. */
+  visit: "Visit",
+  /** A missed visit: it is not a gap between visits, so the cadence does not read it. */
+  notCounted: "Not counted in the gaps",
+  kept: (n) => `${n} kept`,
+  missed: (n) => `${n} missed`,
+  cadence: (every) => `Usually every ${every}`,
+  toMarkN: (n) => `${n} to mark`,
+  /** Over how long the line counts: the season the read holds, or since the record's first visit of theirs. */
+  over: (days) => `Last ${days} days`,
+  since: (day) => `On record since ${day}`,
+  /** Said when none was kept this season: the last they kept, before it. */
+  lastKept: (day) => `Last kept ${day}`
+};
+function visitCadenceOf(kept, unmarked) {
+  if (kept.length < 3) return null;
+  const at3 = [...kept].sort((a, b) => a - b);
+  const first = at3[0] ?? 0;
+  const last = at3[at3.length - 1] ?? 0;
+  if (unmarked.some((t) => t > first && t < last)) return null;
+  const gaps = at3.slice(1).map((t, i) => t - (at3[i] ?? t));
+  gaps.sort((a, b) => a - b);
+  const mid = gaps.length % 2 ? gaps[(gaps.length - 1) / 2] ?? 0 : ((gaps[gaps.length / 2 - 1] ?? 0) + (gaps[gaps.length / 2] ?? 0)) / 2;
+  const days = Math.round(mid / DAY_MS);
+  if (days < 1) return null;
+  if (days < 14) return days === 1 ? "day" : `${days} days`;
+  const weeks = Math.round(days / 7);
+  return `${weeks} weeks`;
 }
-function filterTimeline(items, id) {
-  const kinds = TIMELINE_FILTERS.find((f) => f.id === id)?.kinds ?? null;
-  return kinds ? items.filter((i) => kinds.includes(i.kind)) : [...items];
-}
-function doubtsOf(d) {
-  return (d.doubts ?? []).map((x) => {
-    const other = personName(x.other);
-    return {
-      id: x.id,
-      otherId: x.other.id,
-      other,
-      phone: x.other.phone_e164 ? formatPhoneDisplay(x.other.phone_e164) : null,
-      email: x.other.email,
-      seen: x.seen,
-      sentence: DOUBT_WORDS.seen[x.seen](other)
-    };
-  });
-}
-function personActs(p) {
-  const acts = [];
-  const reach = mayReach(p);
-  const on = p.replyVia === "Email" ? " by email" : p.replyVia === "Text" ? " as a text" : p.replyVia ? " on WhatsApp" : "";
-  const ready = `Opens their thread with it ready to send${on}`;
-  if (reach && p.bookingLink && p.bookingLinkAction.offered)
-    acts.push({
-      id: "booking",
-      label: "Send booking link",
-      hint: p.bookingLinkAction.ready ? ready : p.bookingLinkAction.title,
-      group: "send",
-      needs: "record"
-    });
-  const cardSends = p.deal?.stage === "proposed" && (!p.proposal?.sent || !!p.deal.proposal?.sending);
-  if (reach && p.dealsOn && p.proposal && p.proposalAction.ready && !cardSends)
-    acts.push({
-      id: "proposal",
-      label: p.proposal.sent ? `${DEAL_ACT_WORDS.send} again` : DEAL_ACT_WORDS.send,
-      hint: ready,
-      group: "send",
-      needs: "record"
-    });
-  if (p.phone && !p.consent.dnc) {
-    acts.push({ id: "call", label: "Call", hint: "From your own phone", group: "reach", needs: "any" });
-    acts.push({ id: "copy-phone", label: "Copy number", hint: null, group: "reach", needs: "any" });
-  }
-  if (p.email) acts.push({ id: "copy-email", label: "Copy email", hint: null, group: "reach", needs: "any" });
-  acts.push({ id: "merge", label: MERGE_WORDS.act, hint: MERGE_WORDS.actHint, group: "delete", needs: "owner" });
-  acts.push({ id: "delete", label: "Delete person\u2026", hint: null, group: "delete", needs: "owner", danger: true });
-  return acts;
-}
-var OWN_MESSAGE_CHOICES = 10;
-var EVIDENCE_WORDS = 80;
-function ownMessagesOf(d, stamp) {
-  const found = [];
-  for (const c of d.conversations) {
-    for (const m of c.messages) {
-      if (m.direction !== "inbound" || m.sender !== "customer" || m.channel === "voice" || m.channel === "system")
-        continue;
-      const said = [m.body, m.media?.caption].map((s) => (s ?? "").replace(/\s+/g, " ").trim()).find(Boolean);
-      const t = ts(messageAt(m));
-      if (!said || t === null) continue;
-      const chars = Array.from(said);
-      const at3 = stamp(t);
-      found.push({
-        t,
-        vm: {
-          id: m.id,
-          words: chars.length > EVIDENCE_WORDS ? `${chars.slice(0, EVIDENCE_WORDS).join("")}\u2026` : said,
-          via: PERSON_CHANNEL_WORDS[m.channel] ?? "",
-          when: `${at3.day}, ${at3.time}`
-        }
-      });
-    }
-  }
-  return found.sort((a, b) => b.t - a.t).slice(0, OWN_MESSAGE_CHOICES).map((f) => f.vm);
-}
-function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = null, names3 = null) {
-  const ctx = personCardContext(d, tz, now, viewerId, names3);
-  const { base, nowMs, dealsOn, reply } = ctx;
-  const vm = {
-    ...base,
-    ...reply ? replyFields(reply, base.emailSuppressed, { optedOut: base.stopped, who: base.name }) : {},
-    since: sinceWords(base),
-    metaLine: `${plural(base.threads, "conversation")} \xB7 ${plural(base.calls, "call")}`,
-    lastExchange: lastExchangeOf(ctx),
-    facts: personFactsOf(ctx),
-    rightNow: rightNowOf(ctx),
-    timeline: timelineOf(ctx),
-    comingUp: comingUpOf(ctx),
-    about: aboutOf(ctx),
-    noteList: personNotesVM(d.person_notes, tz, nowMs),
-    noteTeam: d.note_team ?? [],
-    bookingLink: d.booking_link?.trim() || null,
-    openThread: base.threadId ? `inbox/${base.threadId}` : null,
-    receptionistMode: receptionistModeOf(d),
-    ownMessages: ownMessagesOf(d, ctx.stamp),
-    smartLists: smartListsOf(d, base),
-    campaigns: campaignsOf(d, tz, nowMs),
-    lead: leadOf2(d, base, tz, nowMs),
-    // The doors' own test, as far as the page can see it: a lead names them, or they work at one.
-    yesLocked: d.lead || base.worksAt ? LEAD_CONSENT_REFUSAL : null,
-    doubts: doubtsOf(d),
-    deal: ctx.current,
-    deals: ctx.deals,
-    dealsOn,
-    dealPace: dealsOn ? dealPaceOf(d.deal_pace) : null,
-    services: d.services ?? [],
-    consultFirst: d.consult_first ?? []
-  };
-  const whole = {
-    ...vm,
-    proposal: ctx.proposal,
-    proposalAction: proposalAction(
-      { via: vm.replyVia ?? null, window: vm.replyWindow ?? null, emailStopped: vm.emailSuppressed },
-      ctx.sentWords
-    )
-  };
-  const withActs = { ...whole, acts: personActs(whole) };
-  return { ...withActs, ...personPageOf(withActs, d, tz, now) };
-}
-function callLength2(seconds2) {
-  return seconds2 >= 60 ? `${Math.round(seconds2 / 60)} min` : `${seconds2} s`;
-}
-function recordedOf(deals) {
-  const open = deals.filter((x) => x.stage === "proposed" || x.stage === "won");
-  const amounts = open.map((x) => x.amount).filter((x) => !!x);
-  if (!amounts.length) return null;
-  return amounts.length === 1 ? `${amounts[0]} recorded` : `${amounts.length} amounts recorded`;
-}
-function personNextFor(p, dealP, tz, nowMs) {
-  return personNextOf({
-    notes: p.noteList,
-    lastVisit: p.lastVisitLine,
-    ahead: p.comingUp,
-    deals: dealCardsOf(dealP, nowMs, tz),
-    dealsOn: p.dealsOn,
-    // A business you are talking to (the lead's stage converted, said "Talking"): with no deal, a proposal is next.
-    talking: !!p.business && p.business.stage.word === LEAD_STAGE_WORDS.converted,
-    step: p.nextStep,
-    visitYesHeld: p.consent.state === "unknown" && p.campaigns.some((c) => c.outcome.startsWith("Held"))
-  });
-}
-function personPageOf(p, d, tz, now) {
-  const nowMs = now.getTime();
-  const reachOut = d.lead?.reach_out ?? null;
-  const firstCall = d.calls.map((c) => ts(c.started_at)).filter((x) => x !== null).sort((a, b) => a - b)[0];
-  const saidNo = reachOut?.readings.find((r2) => r2.said_no && !r2.undone) ?? null;
-  const head = personHeadOf(
-    {
-      name: p.name,
-      initials: p.initials,
-      givenName: p.givenName,
-      nameSource: p.nameSource,
-      worksAt: p.worksAt,
-      business: d.business ?? null,
-      signers: d.signers ?? [],
-      addedMs: ts(d.added?.at ?? null),
-      calledMs: firstCall ?? null,
-      saidNoMs: saidNo ? ts(saidNo.read_at) : null
-    },
-    tz,
-    nowMs
-  );
-  const business = d.business ? businessRecordOf(d.business, { personId: p.id, reachOut }, tz, now) : null;
-  const past = p.timeline.filter((t) => !t.ahead);
-  const thin = p.threads === 0 && p.deals.length === 0 && past.length < 6;
-  const visitsSeen = p.timeline.filter((t) => t.kind === "visit").length;
-  const sent2 = reachOut ? reachOut.sends.filter((x) => !!x.sent_at).length : 0;
-  const figures = personFiguresOf({
-    thin,
-    last: p.lastContact.ts !== null ? { value: clockDate(p.lastContact.ts, tz, nowMs), sub: p.lastContact.by } : null,
-    lead: business ? { stage: business.stage.word, since: business.stage.note } : null,
-    deals: {
-      count: p.openDeals.length,
-      recorded: recordedOf(p.openDeals)
-    },
-    step: p.nextStep ? { day: p.nextStep.day.near, words: p.nextStep.words } : null,
-    calls: { count: p.calls, minutes: callLength2(p.callSeconds) },
-    visits: {
-      ahead: p.comingUp.length,
-      marked: 0,
-      any: p.calendar === "ok" && (p.comingUp.length > 0 || visitsSeen > 0)
-    },
-    emails: reachOut ? { out: sent2, back: reachOut.readings.filter((r2) => !r2.undone).length } : null
-  });
-  const tabFacts = {
-    id: p.id,
-    history: past.length,
-    visits: visitsSeen,
-    deals: p.deals.length,
-    campaigns: p.campaigns.length,
-    thin
-  };
+var EARLIER_KEPT_MAX = 24;
+function earlierVisitsOf(rows2, seasonIds) {
+  const mine = rows2.filter((r2) => !seasonIds.has(r2.id)).sort((a, b) => Date.parse(b.starts_at) - Date.parse(a.starts_at));
+  const oldest = mine.at(-1);
+  if (!oldest) return null;
+  const kept = mine.filter((r2) => r2.status === "kept");
+  const keptAt = kept.slice(0, EARLIER_KEPT_MAX).map((r2) => r2.starts_at);
+  const floor = keptAt.length ? Date.parse(keptAt.at(-1) ?? "") : Infinity;
   return {
-    head,
-    worksAtRow: worksAtOf(p.worksAt, d.business ?? null, tz, nowMs),
-    business,
-    thin,
-    figures,
-    next: personNextFor({ ...p, business }, p, tz, nowMs),
-    notices: personNoticesOf({
-      head,
-      business,
-      doubts: p.doubts,
-      email: p.email,
-      heardFrom: p.askedMs !== null,
-      peopleHere: (d.business?.people ?? []).filter((x) => x.id !== p.id).map((x) => ({ id: x.id, name: personName(x), email: x.email, nameSource: x.name_source }))
-    }),
-    lastWords: lastWordsOf(past),
-    tabs: { desk: personTabsOf(tabFacts, false), phone: personTabsOf(tabFacts, true) }
+    kept: kept.length,
+    missed: mine.filter((r2) => r2.status === "missed").length,
+    last_kept_at: kept.at(0)?.starts_at ?? null,
+    kept_at: keptAt,
+    unmarked_at: mine.filter((r2) => r2.status === "booked" && Date.parse(r2.starts_at) >= floor).map((r2) => r2.starts_at),
+    first_at: oldest.starts_at
   };
 }
-function campaignsOf(d, tz, nowMs) {
-  const threadOf2 = /* @__PURE__ */ new Map();
-  const repliesIn = /* @__PURE__ */ new Map();
-  for (const c of d.conversations) {
-    for (const m of c.messages) {
-      threadOf2.set(m.id, c.id);
-      if (isTheirOwnWords(m)) repliesIn.set(c.id, [...repliesIn.get(c.id) ?? [], m.created_at]);
-    }
-  }
-  return (d.campaigns ?? []).map((c) => {
-    const at3 = ts(c.sent_at ?? c.scheduled_for);
-    const thread = c.message_id ? threadOf2.get(c.message_id) : void 0;
-    const sentAt = c.sent_at;
-    const replied = c.state === "sent" && !!sentAt && !!thread && (repliesIn.get(thread) ?? []).some((x) => isReplyTo(sentAt, x));
-    const why = c.reason ? HELD_REASONS[c.reason] : void 0;
-    const outcome = c.state === "sent" ? replied ? "Replied" : "Sent" : c.state === "skipped" ? `Held \u2014 ${why ?? "held back"}` : c.state === "failed" ? why ? `Didn't send \u2014 ${why}` : "Didn't send" : "Waiting to send";
-    return {
-      id: c.broadcast_id,
-      kind: c.playbook_id ? "playbook" : "broadcast",
-      title: c.playbook_id ? c.playbook_name || c.name : c.name,
-      when: at3 !== null ? clockDate(at3, tz, nowMs) : "\u2014",
-      outcome,
-      // Which wire it went by, or would have: a person on three channels is not told "Sent" with nowhere to look.
-      line: `${c.playbook_id ? "Campaign" : "Broadcast"} \xB7 ${THREAD_CHANNEL_WORDS[writtenChannelOf(c.channel)]} \xB7 ${outcome}`,
-      tone: replied ? "ok" : c.state === "skipped" || c.state === "failed" ? "warn" : "plain",
-      to: addressOf({ kind: "send", id: c.broadcast_id })
-    };
-  });
-}
-
-// src/people/lists/list-schemas.ts
-import { z as z16 } from "zod";
-var PeopleExportQuerySchema = z16.object({
-  list: z16.string().max(80).refine((t) => parseListToken(t) !== null, "Name a list by its token.").optional()
-});
-var ListDraftAnswerSchema = z16.object({
-  name: z16.string().trim().min(1).max(60),
-  cannot: z16.string().trim().max(200),
-  all: z16.array(z16.unknown()).max(LIST_RULE_MAX)
-});
-
-// src/people/audience-pool.ts
-function personLikeOf(p) {
+function visitsHeadOf(season, earlier, zone, nowMs) {
+  const W = VISITS_TAB_WORDS;
+  const dayOf2 = (iso) => clockDate(Date.parse(iso), zone, nowMs);
+  const lastKept = season.keptAt.length === 0 && earlier?.last_kept_at ? W.lastKept(dayOf2(earlier.last_kept_at)) : null;
   return {
-    id: p.id,
-    name: p.display_name || p.wa_profile_name || "",
-    phone: p.phone_e164,
-    // Optional on the Pick the way personName takes it: a row read before 00125 carries no address, and no address is
-    // no match, never a crash.
-    email: p.email ?? null,
-    thread: p.has_chat && p.latest_conversation_id ? p.latest_conversation_id : null,
-    waInboundAt: p.latest_wa_inbound_at ?? null,
-    // What a reply to them is judged by, from the same row and the same functions the People row asks (person-row.ts), so the
-    // board's block offers the booking link, or does not, as the row does. A row without the columns says no stop: absence is
-    // no opt-out (consent.ts).
-    reach: {
-      wire: replyChannelOfRow({
-        has_chat: p.has_chat ?? false,
-        last_inbound_channel: p.last_inbound_channel ?? null,
-        message_channels: p.message_channels
-      }),
-      emailStopped: isEmailStopped({ email_suppressed_at: p.email_suppressed_at ?? null }),
-      optedOut: isOptedOutContact({ consent: p.consent, dnc: p.dnc })
-    },
-    // The business they work at, while it stands (0052): the calendar's fourth match.
-    business: p.lead_id && !p.lead_gone && p.lead_name ? p.lead_name : null,
-    // Its own addresses, on its own person alone (people_list, 00418): a booking from one is theirs, by their business.
-    businessEmails: p.lead_id && !p.lead_gone && p.lead_emails ? p.lead_emails.map((e) => e.trim().toLowerCase()).filter((e) => e.length > 0) : []
+    kept: season.keptAt.length + (earlier?.kept ?? 0),
+    missed: season.missed + (earlier?.missed ?? 0),
+    cadence: visitCadenceOf(
+      [...season.keptAt, ...(earlier?.kept_at ?? []).map((s) => Date.parse(s))],
+      [...season.unmarkedAt, ...(earlier?.unmarked_at ?? []).map((s) => Date.parse(s))]
+    ),
+    toMark: season.toMark,
+    lastKept,
+    over: earlier ? W.since(dayOf2(earlier.first_at)) : W.over(SEASON_BACK_DAYS)
   };
 }
-function peopleVisitsOf(items, people, cal, nowMs) {
-  const index = indexFeed(feedWithRecord(items, cal.record, cal.own), cal.own);
-  const mark = (v) => v ? { ...v, consultation: isConsultationTitle(v.title, cal.services, cal.rules) } : null;
-  const out = /* @__PURE__ */ new Map();
-  for (const p of people) {
-    const v = visitsIn(index, personLikeOf(p), nowMs);
-    out.set(p.id, {
-      timezone: cal.timezone,
-      source: cal.source,
-      state: "ok",
-      next: mark(toVisitDto(v.next)),
-      last: mark(toVisitDto(v.last)),
-      near: v.near.map((x) => mark(toVisitDto(x))).filter((x) => x !== null),
-      missed: mark(toVisitDto(v.missed ?? null))
-    });
+function personVisitsOf({ profile, nowMs, base }) {
+  const toMark = [];
+  const ahead = [];
+  const past = [];
+  const keptAt = [];
+  const unmarkedAt = [];
+  let missed = 0;
+  const visits = profile.visits;
+  for (const v of visits?.all ?? []) {
+    const t = Date.parse(v.start);
+    if (!visits || !Number.isFinite(t)) continue;
+    const zone = visits.timezone;
+    const line = visitLineForDto(v, { zone, nowMs, person: { id: base.id, name: base.name } });
+    const status = line.mark?.status;
+    const said = status === "kept" || status === "missed" || status === "cancelled" ? status : null;
+    const at3 = new Date(t);
+    const day = visitDay(t, zone, nowMs);
+    const weekday = day === "Today" || day === "Tomorrow" ? day : dateFormat("en-US", { timeZone: zone, weekday: "short" }).format(at3);
+    const start = dateFormat("en-US", { timeZone: zone, hour: "numeric", minute: "2-digit" }).format(at3);
+    const row2 = {
+      id: `v-${v.id}`,
+      month: dateFormat("en-US", { timeZone: zone, month: "short" }).format(at3),
+      date: dateFormat("en-US", { timeZone: zone, day: "numeric" }).format(at3),
+      title: line.title || VISITS_TAB_WORDS.visit,
+      // A match the calendar guessed (a name) is said on a page about them, as Coming up says it (VisitLineVM.guess).
+      sub: [said === "missed" ? VISITS_TAB_WORDS.notCounted : `${weekday} \xB7 ${start}`, line.guess ? line.match : null].filter(Boolean).join(" \xB7 "),
+      said,
+      saidWord: said && line.state ? line.state.text : null,
+      visit: line,
+      to: visitDoor(visitDateKey(v.start, zone), v.record_id)
+    };
+    if (said === "kept") keptAt.push(t);
+    if (said === "missed") missed += 1;
+    if (line.unmarked) {
+      unmarkedAt.push(t);
+      toMark.push({ t, row: row2 });
+    } else if (line.state === null) ahead.push({ t, row: row2 });
+    else past.push({ t, row: row2 });
   }
-  return out;
-}
-function withVisitsOf(people, visits, cal) {
-  const unread2 = {
-    timezone: cal.timezone,
-    source: cal.source,
-    state: "unavailable",
-    next: null,
-    last: null
+  const newest = (a, b) => b.t - a.t;
+  const season = { keptAt, unmarkedAt, missed, toMark: toMark.length };
+  return {
+    head: visitsHeadOf(season, visits?.earlier ?? null, visits?.timezone ?? "UTC", nowMs),
+    toMark: toMark.sort(newest).map((x) => x.row),
+    ahead: ahead.sort((a, b) => a.t - b.t).map((x) => x.row),
+    past: past.sort(newest).map((x) => x.row)
   };
-  return people.map((p) => ({
-    ...p,
-    visits: cal.state === "ok" ? visits.get(p.id) ?? null : cal.state === "unavailable" ? unread2 : null
-  }));
-}
-function poolRowOf(person, o) {
-  const vm = toPersonRowVM(person, o.tz, o.now, o.viewer, o.ready, o.names ?? null);
-  return o.dealsOn ? vm : { ...vm, deal: null, dealStage: null, openDeals: [], dealStages: [] };
-}
-function poolRowsOf(people, o) {
-  return people.map((p) => poolRowOf(p, o));
-}
-function consultFirstOf(rules) {
-  return (rules?.consult_first ?? []).length > 0;
-}
-function poolListContext(o) {
-  return { calendar: o.calendar, dealsOn: o.dealsOn, consultFirst: o.consultFirst, viewer: o.viewer !== null };
-}
-
-// src/people/erasure.ts
-async function legacyDigest(tenantId, identifier) {
-  const bytes = new TextEncoder().encode(`${tenantId}:${identifier}`);
-  const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-function legacyErasedPhoneHash(tenantId, phoneE164) {
-  return legacyDigest(tenantId, phoneE164);
-}
-function legacyErasedEmailHash(tenantId, email) {
-  return legacyDigest(tenantId, email);
-}
-function legacyLeadSuppressionHash(tenantId, value) {
-  return legacyDigest(tenantId, value);
 }
 
 // src/person-page/signer.ts
@@ -35947,8 +35939,8 @@ function isPersonsName(name, notNames, from) {
   if (tokens.length < 1 || tokens.length > 4) return false;
   if (!tokens.every((t) => NAME_WORD2.test(t))) return false;
   if (!tokens.some((t) => !/^\p{Lu}\.$/u.test(t))) return false;
-  const folded = foldedName(name).split(" ");
-  if (folded.some((t) => ROLE_WORDS2.has(t) || BUSINESS_WORDS.has(t) || t === "and")) return false;
+  const folded2 = foldedName(name).split(" ");
+  if (folded2.some((t) => ROLE_WORDS2.has(t) || BUSINESS_WORDS.has(t) || t === "and")) return false;
   for (const other of notNames) {
     const o = other ? foldedName(other) : "";
     if (!o) continue;
@@ -35982,6 +35974,626 @@ function signerAgrees(s, from) {
   return byFromLine || byAddress;
 }
 
+// src/person-page/call-facts.ts
+var STEP_WORDS_MAX2 = 200;
+function callFactsOf(calls, notNames, tz, nowMs) {
+  const theirs2 = calls.filter((k) => k.direction === "inbound" && !neverConnected(k) && !!k.started_at).map((k) => ({ k, at: Date.parse(k.started_at ?? "") })).filter((x) => Number.isFinite(x.at)).sort((a, b) => b.at - a.at);
+  const day = (at3) => clockDate(at3, tz, nowMs);
+  const named = theirs2.find(({ k }) => {
+    const n = k.caller_name?.replace(/\s+/g, " ").trim();
+    return !!n && isPersonsName(n, notNames);
+  });
+  const spelled = theirs2.find(({ k }) => !!k.caller_email?.trim());
+  const newest = theirs2[0];
+  const step2 = newest?.k.follow_up?.trim();
+  return {
+    name: named ? { callId: named.k.id, name: (named.k.caller_name ?? "").replace(/\s+/g, " ").trim(), day: day(named.at) } : null,
+    email: spelled ? { callId: spelled.k.id, email: (spelled.k.caller_email ?? "").trim(), day: day(spelled.at) } : null,
+    step: newest && step2 ? { callId: newest.k.id, body: clipAtWord(step2, STEP_WORDS_MAX2), day: day(newest.at), atMs: newest.at } : null
+  };
+}
+
+// src/person-page/origin.ts
+function contactEvidenceOf(d, first) {
+  const reachOut = d.lead?.reach_out ?? null;
+  return {
+    phone: d.row.phone_e164,
+    email: d.row.email,
+    first,
+    calls: d.calls,
+    messages: d.conversations.flatMap((c) => c.messages),
+    added: d.added ? { source: d.added.source, ms: moment(d.added.at) } : null,
+    listing: d.business ? { phone: d.business.lead.phone, email: d.business.lead.email } : null,
+    lead: d.lead ? {
+      foundMs: moment(d.lead.found_at),
+      ownList: reachOut?.found_on_listing === false,
+      firstSendMs: earliest((reachOut?.sends ?? []).map((x) => moment(x.sent_at)))
+    } : null
+  };
+}
+var moment = (iso) => {
+  const t = iso ? Date.parse(iso) : NaN;
+  return Number.isFinite(t) ? t : null;
+};
+var earliest = (xs) => {
+  const ok2 = xs.filter((x) => x !== null);
+  return ok2.length ? Math.min(...ok2) : null;
+};
+var undated = (m) => m.meta?.backfill === true && !m.channel_ts;
+function firstWrote(messages, wires) {
+  return earliest(
+    messages.filter((m) => isTheirOwnWords(m) && wires.includes(writtenChannelOf(m.channel)) && !undated(m)).map((m) => moment(messageAt(m)))
+  );
+}
+function firstCalled(e) {
+  return earliest(
+    e.calls.filter((k) => k.direction === "inbound" && !neverConnected(k) && samePhone(k.from_e164, e.phone)).map((k) => moment(k.started_at))
+  );
+}
+function exactFirst(e, wires) {
+  return e.first.ts !== null && !e.first.estimate && e.first.cameFrom && wires.includes(e.first.cameFrom) ? e.first.ts : null;
+}
+function reachRowsOf(e, tz, nowMs) {
+  const day = (t) => clockDate(t, tz, nowMs);
+  const P = REACH_SOURCE_WORDS.phone;
+  const E = REACH_SOURCE_WORDS.email;
+  const called = earliest([firstCalled(e), exactFirst(e, ["call"])]);
+  const wrote = earliest([firstWrote(e.messages, ["whatsapp", "sms"]), exactFirst(e, ["whatsapp", "sms"])]);
+  const phone = called !== null && (wrote === null || called <= wrote) ? P.called(day(called)) : wrote !== null ? P.wrote(day(wrote)) : e.added?.source === "calendar" ? P.booking : e.listing && samePhone(e.listing.phone, e.phone) ? P.listing : P.none;
+  const address = e.email?.trim().toLowerCase() ?? "";
+  const emailed = earliest([firstWrote(e.messages, ["email"]), exactFirst(e, ["email"])]);
+  const gave = address ? earliest(
+    e.calls.filter((k) => k.direction === "inbound" && k.caller_email?.trim().toLowerCase() === address).map((k) => moment(k.started_at))
+  ) : null;
+  const email = emailed !== null ? E.wrote(day(emailed)) : gave !== null ? E.gaveOnCall(day(gave)) : address && e.listing?.email?.trim().toLowerCase() === address ? E.listing : E.none;
+  return { phone, email };
+}
+function oursFirst(e) {
+  const at3 = e.first.ts;
+  if (at3 === null || e.first.estimate) return null;
+  const call = e.calls.find((k) => moment(k.started_at) === at3);
+  if (call) return call.direction === "outbound" ? { call: true } : null;
+  const m = e.messages.find((x) => moment(messageAt(x)) === at3);
+  return m && m.direction === "outbound" ? { on: CONSENT_CHANNEL_WORDS[writtenChannelOf(m.channel)] } : null;
+}
+var firstLowered = (s) => `${s.charAt(0).toLowerCase()}${s.slice(1)}`;
+function personOriginOf(e, tz, nowMs) {
+  const from = e.first.cameFrom;
+  if (!from) return null;
+  const day = (t) => t !== null ? clockDate(t, tz, nowMs) : null;
+  const W = ORIGIN_WORDS;
+  if (from === "call" || from === "whatsapp" || from === "sms" || from === "email") {
+    if (e.first.ts === null) return null;
+    const when = firstLowered(e.first.label);
+    const ours = oursFirst(e);
+    if (ours) return "call" in ours ? W.weCalledFirst(when) : W.weWroteFirstOn(ours.on, when);
+    return W[from](when);
+  }
+  if (from === "lead") {
+    const found = day(e.lead?.foundMs ?? e.added?.ms ?? null);
+    if (!found) return null;
+    const said = e.lead?.ownList ? W.ownList(found) : W.lead(found);
+    const wrote = day(e.lead?.firstSendMs ?? null);
+    return wrote ? `${said} \xB7 ${W.weWroteFirst(wrote)}` : said;
+  }
+  const added = day(e.added?.ms ?? null) ?? (e.first.ts !== null ? firstLowered(e.first.label) : null);
+  return added ? W[from](added) : null;
+}
+
+// src/people/person-profile.ts
+var TIMELINE_FILTERS = [
+  { id: "all", label: "All", kinds: null },
+  { id: "messages", label: "Messages", kinds: ["customer", "receptionist", "team", "escalation", "decision"] },
+  { id: "calls", label: "Calls", kinds: ["call"] },
+  { id: "visits", label: "Appointments", kinds: ["visit"] },
+  { id: "consent", label: "Consent", kinds: ["consent"] },
+  { id: "deals", label: "Deals", kinds: ["deal"] }
+];
+function timelineFilterLabel(f, dealsOn) {
+  return f.id === "visits" ? appointmentWords(appointmentWordWhere(dealsOn)).Many : f.label;
+}
+function filterTimeline(items, id) {
+  const kinds = TIMELINE_FILTERS.find((f) => f.id === id)?.kinds ?? null;
+  return kinds ? items.filter((i) => kinds.includes(i.kind)) : [...items];
+}
+function doubtsOf(d) {
+  return (d.doubts ?? []).map((x) => {
+    const other = personName(x.other);
+    return {
+      id: x.id,
+      otherId: x.other.id,
+      other,
+      phone: x.other.phone_e164 ? formatPhoneDisplay(x.other.phone_e164) : null,
+      email: x.other.email,
+      seen: x.seen,
+      sentence: DOUBT_WORDS.seen[x.seen](other)
+    };
+  });
+}
+var PERSON_ACT_WORDS = {
+  call: "Call",
+  callHint: "From your own phone",
+  text: "Text them",
+  email: "Email them",
+  booking: "Send booking link",
+  startProposal: "Start a proposal",
+  addToList: "Add to a list",
+  copyPhone: "Copy the number",
+  copyEmail: "Copy the address",
+  deletePerson: "Delete person\u2026",
+  /** Why a send into their thread cannot go: there is none (a wire's own reasons are the sheet's, writeWaysOf). */
+  noThread: "No conversation with them yet.",
+  ready: (on) => `Opens their thread with it ready to send${on}`
+};
+var PERSON_DELETE_WORDS = {
+  title: "Delete person",
+  detail: "Removes their messages, media and recordings from Chanlytics and stops any reply still queued. This cannot be undone.",
+  typed: (name) => `Type ${name} to confirm.`,
+  question: (name) => `Delete ${name}?`,
+  yes: "Delete this person",
+  busy: "Deleting\u2026",
+  cancel: "Cancel",
+  failed: "Could not delete this person.",
+  done: (name) => `${name} deleted: their messages, media and recordings are gone`
+};
+function threadOff(p) {
+  if (!p.openThread) return PERSON_ACT_WORDS.noThread;
+  return p.replyVia ? wayOff(p.ways, REPLY_WIRE[p.replyVia]) : null;
+}
+function personActs(p) {
+  const W = PERSON_ACT_WORDS;
+  const acts = [];
+  const reach = mayReach(p);
+  const off = threadOff(p);
+  const on = p.replyVia === "Email" ? " by email" : p.replyVia === "Text" ? " as a text" : p.replyVia ? " on WhatsApp" : "";
+  if (p.phone && !p.consent.dnc)
+    acts.push({ id: "call", label: W.call, hint: W.callHint, group: "reach", needs: "any", off: null });
+  if (p.phone)
+    acts.push({ id: "text", label: W.text, hint: null, group: "reach", needs: "record", off: wayOff(p.ways, "sms") });
+  if (p.email)
+    acts.push({
+      id: "email",
+      label: W.email,
+      hint: null,
+      group: "reach",
+      needs: "record",
+      off: wayOff(p.ways, "email")
+    });
+  if (p.bookingLink && p.bookingLinkAction.offered)
+    acts.push({
+      id: "booking",
+      label: W.booking,
+      hint: reach && p.bookingLinkAction.ready ? W.ready(on) : p.bookingLinkAction.title,
+      group: "reach",
+      needs: "record",
+      off
+    });
+  const cardSends = p.deal?.stage === "proposed" && (!p.proposal?.sent || !!p.deal.proposal?.sending);
+  if (reach && p.dealsOn && p.proposal && p.proposalAction.ready && !cardSends)
+    acts.push({
+      id: "proposal",
+      label: p.proposal.sent ? `${DEAL_ACT_WORDS.send} again` : DEAL_ACT_WORDS.send,
+      hint: W.ready(on),
+      group: "reach",
+      needs: "record",
+      off
+    });
+  if (p.dealsOn)
+    acts.push({
+      id: "start-proposal",
+      label: W.startProposal,
+      hint: null,
+      group: "record",
+      needs: "record",
+      off: null
+    });
+  acts.push({ id: "add-to-list", label: W.addToList, hint: null, group: "record", needs: "record", off: null });
+  if (p.phone)
+    acts.push({ id: "copy-phone", label: W.copyPhone, hint: null, group: "record", needs: "any", off: null });
+  if (p.email)
+    acts.push({ id: "copy-email", label: W.copyEmail, hint: null, group: "record", needs: "any", off: null });
+  if (p.worksAt && !p.worksAt.gone)
+    acts.push({
+      id: "leave-business",
+      label: WORKS_AT_WORDS.leave,
+      hint: WORKS_AT_WORDS.leaveHint,
+      group: "delete",
+      needs: "record",
+      off: null
+    });
+  acts.push({
+    id: "merge",
+    label: MERGE_WORDS.act,
+    hint: MERGE_WORDS.actHint,
+    group: "delete",
+    needs: "owner",
+    off: null
+  });
+  acts.push({
+    id: "delete",
+    label: W.deletePerson,
+    hint: null,
+    group: "delete",
+    needs: "owner",
+    off: null,
+    danger: true
+  });
+  return acts;
+}
+var OWN_MESSAGE_CHOICES = 10;
+var EVIDENCE_WORDS = 80;
+function ownMessagesOf(d, stamp) {
+  const found = [];
+  for (const c of d.conversations) {
+    for (const m of c.messages) {
+      if (m.direction !== "inbound" || m.sender !== "customer" || m.channel === "voice" || m.channel === "system")
+        continue;
+      const said = [m.body, m.media?.caption].map((s) => (s ?? "").replace(/\s+/g, " ").trim()).find(Boolean);
+      const t = ts(messageAt(m));
+      if (!said || t === null) continue;
+      const chars = Array.from(said);
+      const at3 = stamp(t);
+      found.push({
+        t,
+        vm: {
+          id: m.id,
+          words: chars.length > EVIDENCE_WORDS ? `${chars.slice(0, EVIDENCE_WORDS).join("")}\u2026` : said,
+          via: PERSON_CHANNEL_WORDS[m.channel] ?? "",
+          when: `${at3.day}, ${at3.time}`
+        }
+      });
+    }
+  }
+  return found.sort((a, b) => b.t - a.t).slice(0, OWN_MESSAGE_CHOICES).map((f) => f.vm);
+}
+function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = null, page2 = {}) {
+  const ctx = personCardContext(d, tz, now, viewerId, page2?.names ?? null);
+  const { base, nowMs, dealsOn, reply } = ctx;
+  const vm = {
+    ...base,
+    ...reply ? replyFields(reply, base.emailSuppressed, { optedOut: base.stopped, who: base.name }) : {},
+    since: sinceWords(base),
+    metaLine: `${plural(base.threads, "conversation")} \xB7 ${plural(base.calls, "call")}`,
+    lastExchange: lastExchangeOf(ctx),
+    facts: personFactsOf(ctx),
+    rightNow: rightNowOf(ctx),
+    timeline: timelineOf(ctx),
+    comingUp: comingUpOf(ctx),
+    visitTab: personVisitsOf(ctx),
+    about: aboutOf(ctx),
+    noteList: personNotesVM(d.person_notes, tz, nowMs),
+    noteTeam: d.note_team ?? [],
+    bookingLink: d.booking_link?.trim() || null,
+    openThread: base.threadId ? `inbox/${base.threadId}` : null,
+    receptionistMode: receptionistModeOf(d),
+    ownMessages: ownMessagesOf(d, ctx.stamp),
+    smartLists: smartListsOf(d, base),
+    campaigns: campaignsOf(d, tz, nowMs),
+    lead: leadOf2(d, base, tz, nowMs),
+    // The doors' own test, as far as the page can see it: a lead names them, or they work at one.
+    yesLocked: d.lead || base.worksAt ? LEAD_CONSENT_REFUSAL : null,
+    doubts: doubtsOf(d),
+    deal: ctx.current,
+    deals: ctx.deals,
+    dealsOn,
+    dealPace: dealsOn ? dealPaceOf(d.deal_pace) : null,
+    services: d.services ?? [],
+    consultFirst: d.consult_first ?? [],
+    // The one rule's answer, wire by wire, over People's own row for them (the sheet asks the same of the same row).
+    ways: writeWaysOf(ctx.row, page2?.ready ?? null, now)
+  };
+  const whole = {
+    ...vm,
+    proposal: ctx.proposal,
+    proposalAction: proposalAction(
+      { via: vm.replyVia ?? null, window: vm.replyWindow ?? null, emailStopped: vm.emailSuppressed },
+      ctx.sentWords
+    )
+  };
+  const withActs = { ...whole, acts: personActs(whole) };
+  return { ...withActs, ...personPageOf(withActs, d, tz, now) };
+}
+function callLength2(seconds2) {
+  return seconds2 >= 60 ? `${Math.round(seconds2 / 60)} min` : `${seconds2} s`;
+}
+function recordedOf(deals) {
+  const open = deals.filter((x) => x.stage === "proposed" || x.stage === "won");
+  const amounts = open.map((x) => x.amount).filter((x) => !!x);
+  if (!amounts.length) return null;
+  return amounts.length === 1 ? `${amounts[0]} recorded` : `${amounts.length} amounts recorded`;
+}
+function personNextFor(p, dealP, tz, nowMs) {
+  return personNextOf({
+    notes: p.noteList,
+    // The newest visit that ended with nobody saying (the Visits tab's To mark), else the calendar's last: the calendar's
+    // last may be one the record holds no row for, which cannot be asked, while an older one waits.
+    lastVisit: p.visitTab.toMark[0]?.visit ?? p.lastVisitLine,
+    ahead: p.comingUp,
+    deals: dealCardsOf(dealP, nowMs, tz),
+    dealsOn: p.dealsOn,
+    // A business you are talking to (the lead's stage converted, said "Talking"): with no deal, a proposal is next.
+    talking: !!p.business && p.business.stage.word === LEAD_STAGE_WORDS.converted,
+    step: p.nextStep,
+    // Not asked, with a visit ahead and a number its reminder goes to: it would be held for want of a yes (canvas A), so
+    // the yes is the next thing. With no number there is no reminder to hold.
+    visitYesHeld: p.consent.state === "unknown" && p.comingUp.length > 0 && !!p.phone,
+    who: isIdentifierName(p.name) ? "they" : shortName(p.name)
+  });
+}
+function personPageOf(p, d, tz, now) {
+  const nowMs = now.getTime();
+  const reachOut = d.lead?.reach_out ?? null;
+  const firstCall = d.calls.map((c) => ts(c.started_at)).filter((x) => x !== null).sort((a, b) => a - b)[0];
+  const saidNo = reachOut?.readings.find((r2) => r2.said_no && !r2.undone) ?? null;
+  const head = personHeadOf(
+    {
+      name: p.name,
+      initials: p.initials,
+      givenName: p.givenName,
+      nameSource: p.nameSource,
+      worksAt: p.worksAt,
+      business: d.business ?? null,
+      signers: d.signers ?? [],
+      addedMs: ts(d.added?.at ?? null),
+      calledMs: firstCall ?? null,
+      saidNoMs: saidNo ? ts(saidNo.read_at) : null
+    },
+    tz,
+    nowMs
+  );
+  const business = d.business ? businessRecordOf(d.business, { personId: p.id, reachOut }, tz, now) : null;
+  const past = p.timeline.filter((t) => !t.ahead);
+  const thin = p.threads === 0 && p.deals.length === 0 && past.length < 6;
+  const visitsSeen = p.timeline.filter((t) => t.kind === "visit").length;
+  const earlier = d.visits?.earlier;
+  const earlierSaid = (earlier?.kept ?? 0) + (earlier?.missed ?? 0);
+  const sent2 = reachOut ? reachOut.sends.filter((x) => !!x.sent_at).length : 0;
+  const figures = personFiguresOf({
+    thin,
+    last: p.lastContact.ts !== null ? { value: clockDate(p.lastContact.ts, tz, nowMs), sub: p.lastContact.by } : null,
+    lead: business ? { stage: business.stage.word, since: business.stage.note } : null,
+    deals: {
+      count: p.openDeals.length,
+      recorded: recordedOf(p.openDeals)
+    },
+    step: p.nextStep ? { day: p.nextStep.day.near, words: p.nextStep.words } : null,
+    calls: { count: p.calls, minutes: callLength2(p.callSeconds) },
+    visits: {
+      ahead: p.comingUp.length,
+      kept: p.visitTab.head.kept,
+      toMark: p.visitTab.head.toMark,
+      any: p.calendar === "ok" && (p.comingUp.length > 0 || visitsSeen > 0 || earlierSaid > 0)
+    },
+    emails: reachOut ? { out: sent2, back: reachOut.readings.filter((r2) => !r2.undone).length } : null
+  });
+  const tabFacts = {
+    id: p.id,
+    history: past.length,
+    visits: visitsSeen,
+    marked: earlierSaid,
+    deals: p.deals.length,
+    campaigns: p.campaigns.length,
+    thin
+  };
+  const evidence = contactEvidenceOf(d, { ...p.firstContact, cameFrom: p.cameFrom?.key ?? null });
+  return {
+    head,
+    worksAtRow: worksAtOf(p.worksAt, d.business ?? null, tz, nowMs),
+    business,
+    thin,
+    figures,
+    next: personNextFor({ ...p, business }, p, tz, nowMs),
+    notices: pageNoticesOf({ p, d, head, business, messages: evidence.messages, tz, nowMs }),
+    lastWords: lastWordsOf(past),
+    tabs: { desk: personTabsOf(tabFacts, false), phone: personTabsOf(tabFacts, true) },
+    reach: reachRowsOf(evidence, tz, nowMs),
+    origin: personOriginOf(evidence, tz, nowMs)
+  };
+}
+function pageNoticesOf(f) {
+  const { p, d, head, business, tz, nowMs } = f;
+  const notNames = [d.business?.lead.business_name ?? null, ...(d.note_team ?? []).map((t) => t.name)];
+  const calls = callFactsOf(d.calls, notNames, tz, nowMs);
+  const stepAt = calls.step?.atMs ?? null;
+  return personNoticesOf({
+    head,
+    business,
+    doubts: p.doubts,
+    email: p.email,
+    phone: d.row.phone_e164,
+    named: !!p.givenName,
+    heardFrom: p.askedMs !== null,
+    peopleHere: (d.business?.people ?? []).filter((x) => x.id !== p.id).map((x) => ({
+      id: x.id,
+      name: personName(x),
+      email: x.email,
+      nameSource: x.name_source,
+      phone: x.phone_e164,
+      named: !!x.display_name
+    })),
+    calls,
+    givenName: p.givenName,
+    openStep: p.nextStep !== null,
+    stepNoted: stepAt !== null && (d.person_notes ?? []).some((n) => n.source === "call" && (ts(n.created_at) ?? 0) >= stepAt),
+    draft: heldDraftWaiting(f.messages, p.openThread, tz, nowMs)
+  });
+}
+function heldDraftWaiting(messages, thread, tz, nowMs) {
+  const held = heldDraftOf(messages);
+  if (!held || !thread) return null;
+  const at3 = draftSendsAtMs(held);
+  return replyWaitsOnYou({ endsAtMs: at3 }, nowMs) ? { to: thread, sends: clockTime(at3, tz) } : null;
+}
+function campaignsOf(d, tz, nowMs) {
+  const threadOf2 = /* @__PURE__ */ new Map();
+  const repliesIn = /* @__PURE__ */ new Map();
+  for (const c of d.conversations) {
+    for (const m of c.messages) {
+      threadOf2.set(m.id, c.id);
+      if (isTheirOwnWords(m)) repliesIn.set(c.id, [...repliesIn.get(c.id) ?? [], m.created_at]);
+    }
+  }
+  return (d.campaigns ?? []).map((c) => {
+    const at3 = ts(c.sent_at ?? c.scheduled_for);
+    const thread = c.message_id ? threadOf2.get(c.message_id) : void 0;
+    const sentAt = c.sent_at;
+    const replied = c.state === "sent" && !!sentAt && !!thread && (repliesIn.get(thread) ?? []).some((x) => isReplyTo(sentAt, x));
+    const why = c.reason ? HELD_REASONS[c.reason] : void 0;
+    const outcome = c.state === "sent" ? replied ? "Replied" : "Sent" : c.state === "skipped" ? `Held \u2014 ${why ?? "held back"}` : c.state === "failed" ? why ? `Didn't send \u2014 ${why}` : "Didn't send" : "Waiting to send";
+    return {
+      id: c.broadcast_id,
+      kind: c.playbook_id ? "playbook" : "broadcast",
+      title: c.playbook_id ? c.playbook_name || c.name : c.name,
+      when: at3 !== null ? clockDate(at3, tz, nowMs) : "\u2014",
+      outcome,
+      // Which wire it went by, or would have: a person on three channels is not told "Sent" with nowhere to look.
+      line: `${c.playbook_id ? "Campaign" : "Broadcast"} \xB7 ${THREAD_CHANNEL_WORDS[writtenChannelOf(c.channel)]} \xB7 ${outcome}`,
+      tone: replied ? "ok" : c.state === "skipped" || c.state === "failed" ? "warn" : "plain",
+      to: addressOf({ kind: "send", id: c.broadcast_id })
+    };
+  });
+}
+
+// src/people/lists/list-schemas.ts
+import { z as z16 } from "zod";
+var PeopleExportQuerySchema = z16.object({
+  list: z16.string().max(80).refine((t) => parseListToken(t) !== null, "Name a list by its token.").optional()
+});
+var ListDraftAnswerSchema = z16.object({
+  name: z16.string().trim().min(1).max(60),
+  cannot: z16.string().trim().max(200),
+  all: z16.array(z16.unknown()).max(LIST_RULE_MAX)
+});
+
+// src/people/lists/people-route.ts
+var PEEK_ID2 = /^[A-Za-z0-9_-]{1,80}$/;
+var VIEW_TOKEN = /^(seg|list|state):[^:/]+$/;
+function peopleRoute(v = {}) {
+  const view = v.view && v.view !== "state:all" && VIEW_TOKEN.test(v.view) ? v.view : null;
+  const peek = v.peek && PEEK_ID2.test(v.peek) ? v.peek : null;
+  if (!peek) return view ? `clients/${view}` : "clients";
+  return `clients/${view ?? "state:all"}:p-${peek}`;
+}
+function parsePeopleRoute(route) {
+  const r2 = String(route ?? "");
+  const slash = r2.indexOf("/");
+  const head = slash < 0 ? r2 : r2.slice(0, slash);
+  if (head !== "clients" && head !== "people") return null;
+  const param = slash < 0 ? "" : r2.slice(slash + 1);
+  if (!param) return { view: null, peek: null };
+  const [kind, id, ...rest] = param.split(":");
+  const view = `${kind}:${id ?? ""}`;
+  if (id === void 0 || !VIEW_TOKEN.test(view)) return null;
+  const peekSeg = rest.find((s) => s.startsWith("p-") && PEEK_ID2.test(s.slice(2)));
+  return { view: view === "state:all" ? null : view, peek: peekSeg ? peekSeg.slice(2) : null };
+}
+
+// src/people/audience-pool.ts
+function personLikeOf(p) {
+  return {
+    id: p.id,
+    name: p.display_name || p.wa_profile_name || "",
+    phone: p.phone_e164,
+    // Optional on the Pick the way personName takes it: a row read before 00125 carries no address, and no address is
+    // no match, never a crash.
+    email: p.email ?? null,
+    thread: p.has_chat && p.latest_conversation_id ? p.latest_conversation_id : null,
+    waInboundAt: p.latest_wa_inbound_at ?? null,
+    // What a reply to them is judged by, from the same row and the same functions the People row asks (person-row.ts), so the
+    // board's block offers the booking link, or does not, as the row does. A row without the columns says no stop: absence is
+    // no opt-out (consent.ts).
+    reach: {
+      wire: replyChannelOfRow({
+        has_chat: p.has_chat ?? false,
+        last_inbound_channel: p.last_inbound_channel ?? null,
+        message_channels: p.message_channels
+      }),
+      emailStopped: isEmailStopped({ email_suppressed_at: p.email_suppressed_at ?? null }),
+      optedOut: isOptedOutContact({ consent: p.consent, dnc: p.dnc })
+    },
+    // The business they work at, while it stands (0052): the calendar's fourth match.
+    business: p.lead_id && !p.lead_gone && p.lead_name ? p.lead_name : null,
+    // Its own addresses, on its own person alone (people_list, 00418): a booking from one is theirs, by their business.
+    businessEmails: p.lead_id && !p.lead_gone && p.lead_emails ? p.lead_emails.map((e) => e.trim().toLowerCase()).filter((e) => e.length > 0) : []
+  };
+}
+function peopleVisitsOf(items, people, cal, nowMs) {
+  const index = indexFeed(feedWithRecord(items, cal.record, cal.own), cal.own);
+  const mark = (v) => v ? { ...v, consultation: isConsultationTitle(v.title, cal.services, cal.rules) } : null;
+  const out = /* @__PURE__ */ new Map();
+  for (const p of people) {
+    const v = visitsIn(index, personLikeOf(p), nowMs);
+    out.set(p.id, {
+      timezone: cal.timezone,
+      source: cal.source,
+      state: "ok",
+      next: mark(toVisitDto(v.next)),
+      last: mark(toVisitDto(v.last)),
+      near: v.near.map((x) => mark(toVisitDto(x))).filter((x) => x !== null),
+      missed: mark(toVisitDto(v.missed ?? null))
+    });
+  }
+  return out;
+}
+function withVisitsOf(people, visits, cal) {
+  const unread2 = {
+    timezone: cal.timezone,
+    source: cal.source,
+    state: "unavailable",
+    next: null,
+    last: null
+  };
+  return people.map((p) => ({
+    ...p,
+    visits: cal.state === "ok" ? visits.get(p.id) ?? null : cal.state === "unavailable" ? unread2 : null
+  }));
+}
+function poolRowOf(person, o) {
+  const vm = toPersonRowVM(person, o.tz, o.now, o.viewer, o.ready, o.names ?? null);
+  return o.dealsOn ? vm : { ...vm, deal: null, dealStage: null, openDeals: [], dealStages: [] };
+}
+function poolRowsOf(people, o) {
+  return people.map((p) => poolRowOf(p, o));
+}
+function consultFirstOf(rules) {
+  return (rules?.consult_first ?? []).length > 0;
+}
+function poolListContext(o) {
+  return { calendar: o.calendar, dealsOn: o.dealsOn, consultFirst: o.consultFirst, viewer: o.viewer !== null };
+}
+
+// src/people/erasure.ts
+async function legacyDigest(tenantId, identifier) {
+  const bytes = new TextEncoder().encode(`${tenantId}:${identifier}`);
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+function legacyErasedPhoneHash(tenantId, phoneE164) {
+  return legacyDigest(tenantId, phoneE164);
+}
+function legacyErasedEmailHash(tenantId, email) {
+  return legacyDigest(tenantId, email);
+}
+function legacyLeadSuppressionHash(tenantId, value) {
+  return legacyDigest(tenantId, value);
+}
+
+// src/person-page/head-state.ts
+var asSentence = (s) => {
+  const t = s.trim();
+  if (!t) return null;
+  const up = `${t.charAt(0).toUpperCase()}${t.slice(1)}`;
+  return /[.!?]$/.test(up) ? up : `${up}.`;
+};
+function personHeadStateOf(p) {
+  const needs2 = p.state === "needs_you" || p.state === "waiting_on_you";
+  return {
+    state: p.state,
+    word: p.stateLabel,
+    sentence: needs2 ? asSentence(p.rightNow.detail) : asSentence(p.stateDetail)
+  };
+}
+
 // src/person-page/new-since.ts
 var NEW_SINCE_WORDS = "New since you last looked";
 var theirs = (kind) => kind === "customer" || kind === "call";
@@ -35992,6 +36604,211 @@ function newSinceOf(items, looked) {
       (e) => e.ts <= looked.visitAtMs && e.ts > (theirs(e.kind) ? looked.seenAtMs || looked.markedAtMs : looked.markedAtMs)
     ).map((e) => e.id)
   );
+}
+
+// src/shell/refusal.ts
+var NEEDS_TITLE = {
+  owner: "Owner only",
+  operator: "Not for viewers"
+};
+var TITLES = /* @__PURE__ */ new Map([
+  ["unauthorized", "Signed out"],
+  ["forbidden", "Not allowed"],
+  ["not_found", "Not found"],
+  ["validation", "Check the details"],
+  ["choose_workspace", "Choose a workspace"],
+  ["mfa_required", "Two-step sign-in"],
+  ["conflict", "Not possible right now"],
+  ["rate_limited", "Too many at once"],
+  ["payment_required", "Needs a subscription"],
+  ["window_closed", "WhatsApp's 24 hours have passed"],
+  ["upstream_meta", "WhatsApp didn't accept it"],
+  ["upstream_retell", "The phone line didn't answer"],
+  ["upstream_anthropic", "The assistant didn't answer"],
+  ["upstream_email", "The email didn't go"],
+  ["upstream_auth", "Couldn't check your sign-in"],
+  ["internal", "Something went wrong"],
+  ["network", "No connection"],
+  ["timeout", "No answer in time"],
+  ["client", "Not sent"]
+]);
+var SAID = /* @__PURE__ */ new Map([
+  ["forbidden", "Your role can't do this."],
+  ["not_found", "That isn't here any more."],
+  ["validation", "Something in this form wasn't accepted."],
+  ["choose_workspace", "Choose which workspace first."],
+  ["mfa_required", "Enter the code from your authenticator app first."],
+  ["conflict", "That isn't possible right now."],
+  ["payment_required", "This needs a subscription \u2014 see Billing."],
+  ["window_closed", "WhatsApp's 24 hours have passed \u2014 send an approved message instead."],
+  ["upstream_meta", "WhatsApp didn't accept it \u2014 try again in a moment."],
+  ["upstream_retell", "The phone line didn't answer \u2014 try again in a moment."],
+  ["upstream_anthropic", "The assistant didn't answer \u2014 try again in a moment."],
+  ["upstream_email", "The email didn't go \u2014 try again in a moment."],
+  ["upstream_auth", "Couldn't check your sign-in just now \u2014 try again."],
+  ["client", "Not sent."]
+]);
+var SERVER_CATCH_ALL = "Something went wrong.";
+var NETWORK_WRITE = "Network error \u2014 nothing was changed.";
+var NETWORK_READ = "Chanlytics could not be reached.";
+var TIMEOUT_WRITE = "Chanlytics took too long to answer \u2014 this may still go through, so check before trying again.";
+var TIMEOUT_READ = "Chanlytics took too long to answer \u2014 try again in a moment.";
+var NO_ANSWER_WRITE = "Chanlytics didn't answer properly, so this may or may not have gone through \u2014 check before trying again.";
+var UNCONFIRMED_WRITE = "Chanlytics hit a problem and couldn't confirm this \u2014 check whether it went through before trying again.";
+var READ_AGAIN = "Chanlytics couldn't read this just now \u2014 try again in a moment.";
+var OUT_OF_DATE = "This page is out of date \u2014 reload it and try again.";
+function waitWords(seconds2) {
+  if (seconds2 < 60) return `${seconds2} second${seconds2 === 1 ? "" : "s"}`;
+  const m = Math.ceil(seconds2 / 60);
+  return `${m} minute${m === 1 ? "" : "s"}`;
+}
+function retryAfterOf(details, header, nowMs) {
+  const counted3 = details && typeof details === "object" ? details.retry_after_s : void 0;
+  if (typeof counted3 === "number" && Number.isFinite(counted3) && counted3 >= 0) return Math.max(1, Math.ceil(counted3));
+  const h = typeof header === "string" ? header.trim() : "";
+  if (!h) return null;
+  if (/^[0-9]+$/.test(h)) return Math.max(1, Number(h));
+  const at3 = Date.parse(h);
+  if (!Number.isFinite(at3)) return null;
+  const s = Math.ceil((at3 - nowMs) / 1e3);
+  return s > 0 ? s : null;
+}
+function fieldsOf(details) {
+  const f = details && typeof details === "object" ? details.fields : void 0;
+  if (!f || typeof f !== "object" || Array.isArray(f)) return null;
+  const out = {};
+  for (const [name, said] of Object.entries(f)) {
+    if (name && typeof said === "string" && said.trim()) out[name] = said;
+  }
+  return Object.keys(out).length ? out : null;
+}
+function confirmEmailToOf(details) {
+  const to = details && typeof details === "object" ? details.confirm_email_to : void 0;
+  return typeof to === "string" && to.trim() ? to.trim() : null;
+}
+var SESSION_ENDED = { session_ended: true };
+function sessionEnded(details) {
+  return !!details && typeof details === "object" && details.session_ended === true;
+}
+function refusalOf(input) {
+  const status = Number.isFinite(input.status) ? input.status : 0;
+  const said = typeof input.message === "string" ? input.message.trim() : "";
+  const retryAfterS = retryAfterOf(input.details, input.retryAfter, input.nowMs ?? Date.now());
+  const fields = fieldsOf(input.details);
+  const code2 = typeof input.code === "string" && input.code ? input.code : null;
+  const confirmEmailTo = confirmEmailToOf(input.details);
+  const refusal = (c, title, message) => ({
+    code: c,
+    status,
+    title,
+    message,
+    retryAfterS,
+    fields,
+    ...confirmEmailTo ? { confirmEmailTo } : {}
+  });
+  if (!code2) {
+    if (status === 0) return refusal("network", "No connection", input.write ? NETWORK_WRITE : NETWORK_READ);
+    if (status >= 500) return refusal("internal", "No answer", input.write ? NO_ANSWER_WRITE : READ_AGAIN);
+    if (status === 413) return refusal("internal", "Too large", "That was too large to send.");
+    return refusal("internal", "Out of date", OUT_OF_DATE);
+  }
+  switch (code2) {
+    case "unauthorized":
+      return refusal(code2, "Signed out", "Signed out.");
+    case "network":
+      return refusal(code2, "No connection", input.write ? NETWORK_WRITE : NETWORK_READ);
+    case "timeout":
+      return refusal(code2, "No answer in time", input.write ? TIMEOUT_WRITE : TIMEOUT_READ);
+    case "internal":
+      return refusal(
+        code2,
+        "Something went wrong",
+        said && said !== SERVER_CATCH_ALL ? said : input.write ? UNCONFIRMED_WRITE : READ_AGAIN
+      );
+    case "rate_limited":
+      return refusal(
+        code2,
+        "Too many at once",
+        said || `Too many at once \u2014 try again in ${retryAfterS ? waitWords(retryAfterS) : "a moment"}.`
+      );
+    case "forbidden": {
+      const needs2 = input.details && typeof input.details === "object" ? input.details.needs : void 0;
+      return refusal(
+        code2,
+        needs2 === "owner" || needs2 === "operator" ? NEEDS_TITLE[needs2] : "Not allowed",
+        said || SAID.get(code2)
+      );
+    }
+    default:
+      return refusal(code2, TITLES.get(code2) ?? "Not done", said || SAID.get(code2) || "That didn't go through.");
+  }
+}
+var PERM_DOING = {
+  approve: "approve or send",
+  autonomy: "change what the receptionist may do on its own",
+  disconnect: "disconnect a channel",
+  billing: "change billing",
+  team: "manage the team",
+  settings: "change the business details",
+  export: "export the customer list",
+  find: "find businesses for you"
+};
+function roleGate(role, perm, doing) {
+  const who = ROLES.includes(role ?? "") ? role : "viewer";
+  if (ROLE_PERMS[who]?.[perm]) return null;
+  const needs2 = ROLE_PERMS.operator?.[perm] ? "operator" : "owner";
+  const what = doing?.trim() || PERM_DOING[perm] || "do this";
+  return {
+    needs: needs2,
+    title: NEEDS_TITLE[needs2],
+    reason: needs2 === "owner" ? `Only an owner can ${what}.` : `Only an owner or operator can ${what}.`
+  };
+}
+
+// src/person-page/combine.ts
+var COMBINE_WORDS = {
+  title: WORKS_AT_WORDS.combineWith,
+  sub: (business) => `Two records at ${business}`,
+  body: (kept, other) => `${other} and ${kept} are one person, so ${kept} keeps their own record and takes everything under ${other}.`,
+  keeps: "Keeps their own name, number and address",
+  takesThread: (other) => `Takes the messages and calls on ${other}'s record, in one thread`,
+  takesRecords: "Takes its notes, deals, visits and lists",
+  takesReachOut: "Takes the emails we sent it, the replies, and the lead's link to it",
+  answers: MERGE_ANSWERS,
+  after: (other) => `${other}'s record stays as a merged record with no number or address`,
+  why: (business, wroteTo, answerer, from) => `Both work at ${business}. We wrote to ${wroteTo}, and ${answerer} answered from ${from}.`,
+  owner: NEEDS_TITLE.owner,
+  cancel: "Cancel",
+  yes: "Combine",
+  busy: "Combining\u2026",
+  close: "Close",
+  done: (kept) => `Combined into ${kept}`,
+  failed: "Could not combine these records."
+};
+function combineOf(f) {
+  const W = COMBINE_WORDS;
+  const { here, act: act2, business } = f;
+  const k = act2.keepsOther;
+  const kept = {
+    id: k ? act2.otherId : here.id,
+    name: k ? act2.otherName : here.name,
+    email: k ? act2.otherEmail : here.email
+  };
+  const drop = {
+    id: k ? here.id : act2.otherId,
+    name: k ? here.name : act2.otherName,
+    email: k ? here.email : act2.otherEmail
+  };
+  return {
+    keepId: kept.id,
+    dropId: drop.id,
+    keptName: kept.name,
+    title: W.title(act2.otherName),
+    sub: W.sub(business),
+    body: W.body(kept.name, drop.name),
+    rows: [W.keeps, W.takesThread(drop.name), W.takesRecords, W.takesReachOut, W.answers, W.after(drop.name)],
+    why: drop.email && kept.email ? W.why(business, drop.email, kept.name, kept.email) : ""
+  };
 }
 
 // src/person-page/schemas.ts
@@ -36897,12 +37714,12 @@ function journeyAddOf(def, stage, held, playbooks) {
   if (def.kind === "receptionist") return null;
   if (def.unmet) return { kind: "route", label: LIFECYCLE_WORDS.needsCalendar.door, route: CALENDAR_SETTING_ROUTE };
   if (def.one && held > 0) return null;
-  const moment = stage.moment;
-  if (!moment || !playbooks.triggers.some((t) => t.id === moment && t.offered)) return null;
+  const moment2 = stage.moment;
+  if (!moment2 || !playbooks.triggers.some((t) => t.id === moment2 && t.offered)) return null;
   return {
     kind: "turn_on",
     label: stage.state === "off" && stage.hint ? stage.hint : LIFECYCLE_WORDS.ledger.turnOn,
-    moment
+    moment: moment2
   };
 }
 function journeyGroup(def, stage, at3) {
@@ -37127,7 +37944,7 @@ function playbookStage(base, p) {
     act: { kind: "open", label: "Open", playbookId: p.id }
   };
 }
-function emptyStage(base, offered, moment) {
+function emptyStage(base, offered, moment2) {
   if (!offered) {
     const words3 = "Not offered here";
     return {
@@ -37147,23 +37964,23 @@ function emptyStage(base, offered, moment) {
     phoneWords: "Off",
     tone: "plain",
     covered: false,
-    act: { kind: "turn_on", label: "Turn on", moment }
+    act: { kind: "turn_on", label: "Turn on", moment: moment2 }
   };
 }
 function stageOf(def, at3) {
   const { playbooks } = at3;
   const own = def.kind === "moment" ? stagePlaybooks(def, playbooks.rows) : [];
   const p = own.find((x) => x.state === "running") ?? own.at(0) ?? null;
-  const moment = def.id === "quiet" ? winBackMoment(playbooks, def.trigger) : def.trigger;
-  const poolKey = def.kind === "receptionist" ? def.poolKey : p?.trigger ?? moment ?? def.poolKey;
+  const moment2 = def.id === "quiet" ? winBackMoment(playbooks, def.trigger) : def.trigger;
+  const poolKey = def.kind === "receptionist" ? def.poolKey : p?.trigger ?? moment2 ?? def.poolKey;
   const pool = def.unmet ? null : poolOf(playbooks, poolKey);
-  const needs2 = moment === null ? "none" : purposeOfPlaybook(triggerOf(moment)?.cls ?? null) === "marketing" ? "offers" : "messages";
+  const needs2 = moment2 === null ? "none" : purposeOfPlaybook(triggerOf(moment2)?.cls ?? null) === "marketing" ? "offers" : "messages";
   const base = {
     id: def.id,
     caps: def.caps,
     name: p ? p.name : def.name,
     glyph: def.glyph,
-    moment,
+    moment: moment2,
     playbookId: p ? p.id : null,
     people: pool ? pool.pool : null,
     unit: def.unit,
@@ -37179,8 +37996,8 @@ function stageOf(def, at3) {
   if (def.kind === "receptionist") return receptionistStage(base, at3.line);
   if (def.unmet) return unmetStage(base, at3.shape);
   if (p) return playbookStage(base, p);
-  const offered = moment !== null && playbooks.triggers.some((t) => t.id === moment && t.offered);
-  return emptyStage(base, offered, moment ?? def.poolKey);
+  const offered = moment2 !== null && playbooks.triggers.some((t) => t.id === moment2 && t.offered);
+  return emptyStage(base, offered, moment2 ?? def.poolKey);
 }
 function withHint(stages, defs, playbooks) {
   const reachOf = (s) => poolOf(playbooks, s.moment ?? "")?.candidates ?? 0;
@@ -37628,7 +38445,7 @@ function fitsCap(times, t, cap2) {
   }
   return true;
 }
-function earliest(spans, times, cap2, gapMs, limitMs) {
+function earliest2(spans, times, cap2, gapMs, limitMs) {
   let floor = 0;
   for (const [start, end] of spans) {
     let t = Math.max(start, floor);
@@ -37681,7 +38498,7 @@ function timetable(input) {
     }
     let best = null;
     for (const d of domains) {
-      const t = earliest(spans, d.times, d.cap, gapMs, limitMs);
+      const t = earliest2(spans, d.times, d.cap, gapMs, limitMs);
       if (t === null) continue;
       if (!best || t < best.t || t === best.t && d.placed < best.d.placed) best = { d, t };
     }
@@ -39899,9 +40716,9 @@ function messageRateWords(m) {
   const said = messagesAnsweredWords(m.replied, m.mature);
   return isThinShare(m.mature, REPORT_MIN_N) ? said : `${said}  ${pct(m.replied, m.mature)}%`;
 }
-function runsLineWords(moment, broadcast) {
+function runsLineWords(moment2, broadcast) {
   const kinds = [
-    moment > 0 ? plural(moment, "campaign run") : null,
+    moment2 > 0 ? plural(moment2, "campaign run") : null,
     broadcast > 0 ? plural(broadcast, "one-off broadcast") : null
   ].filter((kind) => kind !== null);
   return kinds.length === 0 ? null : `From ${joinWords(kinds)}.`;
@@ -40014,9 +40831,9 @@ function reachedPeopleOf({ people }) {
   };
 }
 function runsOf({ runs }) {
-  const moment = knownCount(runs.now.moment);
+  const moment2 = knownCount(runs.now.moment);
   const broadcast = knownCount(runs.now.broadcast);
-  return { moment, broadcast, total: moment === null || broadcast === null ? null : moment + broadcast };
+  return { moment: moment2, broadcast, total: moment2 === null || broadcast === null ? null : moment2 + broadcast };
 }
 function isQuiet(report, series) {
   if (report === null) return false;
@@ -40206,8 +41023,8 @@ function byMessagePart(series) {
 }
 function runsLineOf(series) {
   if (series === null) return null;
-  const { moment, broadcast } = runsOf(series);
-  return moment === null || broadcast === null ? null : runsLineWords(moment, broadcast);
+  const { moment: moment2, broadcast } = runsOf(series);
+  return moment2 === null || broadcast === null ? null : runsLineWords(moment2, broadcast);
 }
 function waitPart(dist, words3) {
   if (dist === null || !isCount(dist.n)) return noMix(null);
@@ -43930,165 +44747,6 @@ var ROUTE_KEYS = [
   "PUT views/[page]",
   "PUT workspaces/logo"
 ];
-
-// src/shell/refusal.ts
-var NEEDS_TITLE = {
-  owner: "Owner only",
-  operator: "Not for viewers"
-};
-var TITLES = /* @__PURE__ */ new Map([
-  ["unauthorized", "Signed out"],
-  ["forbidden", "Not allowed"],
-  ["not_found", "Not found"],
-  ["validation", "Check the details"],
-  ["choose_workspace", "Choose a workspace"],
-  ["mfa_required", "Two-step sign-in"],
-  ["conflict", "Not possible right now"],
-  ["rate_limited", "Too many at once"],
-  ["payment_required", "Needs a subscription"],
-  ["window_closed", "WhatsApp's 24 hours have passed"],
-  ["upstream_meta", "WhatsApp didn't accept it"],
-  ["upstream_retell", "The phone line didn't answer"],
-  ["upstream_anthropic", "The assistant didn't answer"],
-  ["upstream_email", "The email didn't go"],
-  ["upstream_auth", "Couldn't check your sign-in"],
-  ["internal", "Something went wrong"],
-  ["network", "No connection"],
-  ["timeout", "No answer in time"],
-  ["client", "Not sent"]
-]);
-var SAID = /* @__PURE__ */ new Map([
-  ["forbidden", "Your role can't do this."],
-  ["not_found", "That isn't here any more."],
-  ["validation", "Something in this form wasn't accepted."],
-  ["choose_workspace", "Choose which workspace first."],
-  ["mfa_required", "Enter the code from your authenticator app first."],
-  ["conflict", "That isn't possible right now."],
-  ["payment_required", "This needs a subscription \u2014 see Billing."],
-  ["window_closed", "WhatsApp's 24 hours have passed \u2014 send an approved message instead."],
-  ["upstream_meta", "WhatsApp didn't accept it \u2014 try again in a moment."],
-  ["upstream_retell", "The phone line didn't answer \u2014 try again in a moment."],
-  ["upstream_anthropic", "The assistant didn't answer \u2014 try again in a moment."],
-  ["upstream_email", "The email didn't go \u2014 try again in a moment."],
-  ["upstream_auth", "Couldn't check your sign-in just now \u2014 try again."],
-  ["client", "Not sent."]
-]);
-var SERVER_CATCH_ALL = "Something went wrong.";
-var NETWORK_WRITE = "Network error \u2014 nothing was changed.";
-var NETWORK_READ = "Chanlytics could not be reached.";
-var TIMEOUT_WRITE = "Chanlytics took too long to answer \u2014 this may still go through, so check before trying again.";
-var TIMEOUT_READ = "Chanlytics took too long to answer \u2014 try again in a moment.";
-var NO_ANSWER_WRITE = "Chanlytics didn't answer properly, so this may or may not have gone through \u2014 check before trying again.";
-var UNCONFIRMED_WRITE = "Chanlytics hit a problem and couldn't confirm this \u2014 check whether it went through before trying again.";
-var READ_AGAIN = "Chanlytics couldn't read this just now \u2014 try again in a moment.";
-var OUT_OF_DATE = "This page is out of date \u2014 reload it and try again.";
-function waitWords(seconds2) {
-  if (seconds2 < 60) return `${seconds2} second${seconds2 === 1 ? "" : "s"}`;
-  const m = Math.ceil(seconds2 / 60);
-  return `${m} minute${m === 1 ? "" : "s"}`;
-}
-function retryAfterOf(details, header, nowMs) {
-  const counted3 = details && typeof details === "object" ? details.retry_after_s : void 0;
-  if (typeof counted3 === "number" && Number.isFinite(counted3) && counted3 >= 0) return Math.max(1, Math.ceil(counted3));
-  const h = typeof header === "string" ? header.trim() : "";
-  if (!h) return null;
-  if (/^[0-9]+$/.test(h)) return Math.max(1, Number(h));
-  const at3 = Date.parse(h);
-  if (!Number.isFinite(at3)) return null;
-  const s = Math.ceil((at3 - nowMs) / 1e3);
-  return s > 0 ? s : null;
-}
-function fieldsOf(details) {
-  const f = details && typeof details === "object" ? details.fields : void 0;
-  if (!f || typeof f !== "object" || Array.isArray(f)) return null;
-  const out = {};
-  for (const [name, said] of Object.entries(f)) {
-    if (name && typeof said === "string" && said.trim()) out[name] = said;
-  }
-  return Object.keys(out).length ? out : null;
-}
-function confirmEmailToOf(details) {
-  const to = details && typeof details === "object" ? details.confirm_email_to : void 0;
-  return typeof to === "string" && to.trim() ? to.trim() : null;
-}
-var SESSION_ENDED = { session_ended: true };
-function sessionEnded(details) {
-  return !!details && typeof details === "object" && details.session_ended === true;
-}
-function refusalOf(input) {
-  const status = Number.isFinite(input.status) ? input.status : 0;
-  const said = typeof input.message === "string" ? input.message.trim() : "";
-  const retryAfterS = retryAfterOf(input.details, input.retryAfter, input.nowMs ?? Date.now());
-  const fields = fieldsOf(input.details);
-  const code2 = typeof input.code === "string" && input.code ? input.code : null;
-  const confirmEmailTo = confirmEmailToOf(input.details);
-  const refusal = (c, title, message) => ({
-    code: c,
-    status,
-    title,
-    message,
-    retryAfterS,
-    fields,
-    ...confirmEmailTo ? { confirmEmailTo } : {}
-  });
-  if (!code2) {
-    if (status === 0) return refusal("network", "No connection", input.write ? NETWORK_WRITE : NETWORK_READ);
-    if (status >= 500) return refusal("internal", "No answer", input.write ? NO_ANSWER_WRITE : READ_AGAIN);
-    if (status === 413) return refusal("internal", "Too large", "That was too large to send.");
-    return refusal("internal", "Out of date", OUT_OF_DATE);
-  }
-  switch (code2) {
-    case "unauthorized":
-      return refusal(code2, "Signed out", "Signed out.");
-    case "network":
-      return refusal(code2, "No connection", input.write ? NETWORK_WRITE : NETWORK_READ);
-    case "timeout":
-      return refusal(code2, "No answer in time", input.write ? TIMEOUT_WRITE : TIMEOUT_READ);
-    case "internal":
-      return refusal(
-        code2,
-        "Something went wrong",
-        said && said !== SERVER_CATCH_ALL ? said : input.write ? UNCONFIRMED_WRITE : READ_AGAIN
-      );
-    case "rate_limited":
-      return refusal(
-        code2,
-        "Too many at once",
-        said || `Too many at once \u2014 try again in ${retryAfterS ? waitWords(retryAfterS) : "a moment"}.`
-      );
-    case "forbidden": {
-      const needs2 = input.details && typeof input.details === "object" ? input.details.needs : void 0;
-      return refusal(
-        code2,
-        needs2 === "owner" || needs2 === "operator" ? NEEDS_TITLE[needs2] : "Not allowed",
-        said || SAID.get(code2)
-      );
-    }
-    default:
-      return refusal(code2, TITLES.get(code2) ?? "Not done", said || SAID.get(code2) || "That didn't go through.");
-  }
-}
-var PERM_DOING = {
-  approve: "approve or send",
-  autonomy: "change what the receptionist may do on its own",
-  disconnect: "disconnect a channel",
-  billing: "change billing",
-  team: "manage the team",
-  settings: "change the business details",
-  export: "export the customer list",
-  find: "find businesses for you"
-};
-function roleGate(role, perm, doing) {
-  const who = ROLES.includes(role ?? "") ? role : "viewer";
-  if (ROLE_PERMS[who]?.[perm]) return null;
-  const needs2 = ROLE_PERMS.operator?.[perm] ? "operator" : "owner";
-  const what = doing?.trim() || PERM_DOING[perm] || "do this";
-  return {
-    needs: needs2,
-    title: NEEDS_TITLE[needs2],
-    reason: needs2 === "owner" ? `Only an owner can ${what}.` : `Only an owner or operator can ${what}.`
-  };
-}
 
 // src/shell/route-prefetch.ts
 var PREFETCH_UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
@@ -48990,7 +49648,7 @@ var PARTNER_INVITE_WORDS = {
   decline: "Decline",
   declining: "Declining\u2026"
 };
-var ORIGIN_WORDS = {
+var ORIGIN_WORDS2 = {
   link: "came to you through their link",
   handover: "set this workspace up for you",
   invite: "joined at your invitation"
@@ -49000,7 +49658,7 @@ function workspacePartnerVM(dto, nowMs = Date.now()) {
   if (p)
     return {
       state: "partner",
-      sentence: p.seated ? `${p.code} is your partner: they ${ORIGIN_WORDS[p.origin] ?? "joined"}, on ${dayWords2(p.since)}. Remove them in the team above at any time.` : `${p.code} was your partner: they ${ORIGIN_WORDS[p.origin] ?? "joined"}, on ${dayWords2(p.since)}, and are no longer on your team. A workspace has one partner.`,
+      sentence: p.seated ? `${p.code} is your partner: they ${ORIGIN_WORDS2[p.origin] ?? "joined"}, on ${dayWords2(p.since)}. Remove them in the team above at any time.` : `${p.code} was your partner: they ${ORIGIN_WORDS2[p.origin] ?? "joined"}, on ${dayWords2(p.since)}, and are no longer on your team. A workspace has one partner.`,
       canInvite: false,
       canWithdraw: false,
       seated: p.seated
@@ -49873,6 +50531,7 @@ export {
   CALL_ACTIVITY_NAME,
   CALL_ACTIVITY_ROLES,
   CALL_ACTIVITY_STALE_MS,
+  CALL_FACT_WORDS,
   CALL_HEARTBEAT_MS,
   CALL_MISSED_WORDS,
   CALL_OUTCOMES,
@@ -49905,6 +50564,7 @@ export {
   CHOOSE,
   CLIENT_ERROR_BOUNDARIES,
   CLIENT_ERROR_LIMITS,
+  COMBINE_WORDS,
   COMMON_LANGUAGES,
   COMPANY_TYPES,
   CONFIDENCE_STEPS,
@@ -50273,6 +50933,7 @@ export {
   MAX_CLOSURES,
   MAX_INTERVALS_PER_DAY,
   MEMBERSHIP_ROLES,
+  MERGE_ANSWERS,
   MERGE_CONSENT_SOURCE,
   MERGE_REFUSALS,
   MERGE_WORDS,
@@ -50401,19 +51062,24 @@ export {
   PEOPLE_TAB,
   PEOPLE_TABS,
   PERM_DOING,
+  PERSON_ABOUT_WORDS,
+  PERSON_ACT_WORDS,
   PERSON_AD_ON,
   PERSON_CALL_OUTCOMES,
   PERSON_CALL_SAID_MAX,
   PERSON_CALL_WORDS,
   PERSON_CAME_FROM_WORDS,
   PERSON_CHANNEL_WORDS,
+  PERSON_DELETE_WORDS,
   PERSON_DETAIL_WORDS,
   PERSON_DRAFT_JSON_SCHEMA,
   PERSON_FIGURES_LABEL,
+  PERSON_LISTS_SHEET_WORDS,
   PERSON_MODES,
   PERSON_MODE_LABELS,
   PERSON_MODE_WORDS,
   PERSON_NAME_WORDS,
+  PERSON_PEEK_WORDS,
   PERSON_STATE_LABELS,
   PERSON_TABS_LABEL,
   PERSON_TAB_WORDS,
@@ -50763,6 +51429,7 @@ export {
   VERSION_CHANNELS,
   VERSION_CHANNEL_WORDS,
   VISION_STRENGTH,
+  VISITS_TAB_WORDS,
   VISIT_ASK_WORDS,
   VISIT_REFUSALS,
   VISIT_WORDS,
@@ -50783,6 +51450,7 @@ export {
   WORKS_AT_WORDS,
   WRITE_HOLDS,
   WRITE_HOLD_WORDS,
+  WRITE_WAY_REFUSED,
   ZIPS,
   abandonedCall,
   abilityRows,
@@ -50961,6 +51629,7 @@ export {
   callActivityPropsOf,
   callActivityStart,
   callAttemptWords,
+  callDays,
   callJumpSub,
   callLength,
   callNoteLines,
@@ -51054,6 +51723,7 @@ export {
   closureDatesLabel,
   closuresAheadWords,
   closuresFrom,
+  combineOf,
   companyTypeOf,
   compareTemplates,
   compareWords,
@@ -51172,6 +51842,7 @@ export {
   durationWords,
   eachInTouch,
   earlierCost,
+  earlierVisitsOf,
   editFootOf,
   editOf,
   effectiveMode,
@@ -51326,6 +51997,7 @@ export {
   heldBackOfOneRun,
   heldBackWords,
   heldByAllowance,
+  heldDraftOf,
   heldDraftWaits,
   heldLine,
   heldNoticeWords,
@@ -51657,6 +52329,7 @@ export {
   messageWhy,
   messageWhyNot,
   messageWords,
+  messagesSummaryOf,
   metaStatusOf,
   metricWordsOf,
   minorOfUnits,
@@ -51799,6 +52472,7 @@ export {
   parsePageMessage,
   parseParamSpec,
   parseParamSpecs,
+  parsePeopleRoute,
   parsePipelineRoute,
   parseReading,
   parseReplyReading,
@@ -51844,6 +52518,7 @@ export {
   peopleFromItems,
   peopleListAction,
   peopleNowOf,
+  peopleRoute,
   peopleVisitsOf,
   peopleWord,
   perDayOf,
@@ -51857,6 +52532,7 @@ export {
   personFaceOf,
   personFiguresOf,
   personHeadOf,
+  personHeadStateOf,
   personInText,
   personInitials,
   personLikeOf,
@@ -52062,6 +52738,7 @@ export {
   receiptWords,
   receptionistCardOf,
   receptionistDtoOf,
+  receptionistKnowsOf,
   receptionistOf2 as receptionistOf,
   receptionistOn,
   receptionistPrimary,
@@ -52503,6 +53180,7 @@ export {
   waitsOf,
   waitsOnAPerson,
   wallClockAt,
+  wayOff,
   websiteHostOf,
   weekHoursOf,
   weekOf,

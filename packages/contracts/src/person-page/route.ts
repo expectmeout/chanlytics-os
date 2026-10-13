@@ -52,6 +52,8 @@ export interface PersonTabFacts {
   id: string;
   history: number;
   visits: number;
+  /** Their visits the record holds from before the season, said kept or missed (R7): a Visits tab with no row listed. */
+  marked?: number;
   deals: number;
   campaigns: number;
   /** No thread, no deal and fewer than six rows of history: one scroll, no tabs (the thin-record rule). */
@@ -73,7 +75,7 @@ export function personTabsOf(f: PersonTabFacts, phone: boolean): PersonTabVM[] {
   });
   const tabs: PersonTabVM[] = [tab("overview", null)];
   if (f.history > 0) tabs.push(tab("history", f.history));
-  if (f.visits > 0) tabs.push(tab("visits", f.visits));
+  if (f.visits > 0 || (f.marked ?? 0) > 0) tabs.push(tab("visits", f.visits > 0 ? f.visits : null));
   if (!phone && f.deals > 0) tabs.push(tab("deals", f.deals));
   if (!phone && f.campaigns > 0) tabs.push(tab("campaigns", null));
   if (phone) tabs.push(tab("about", null));

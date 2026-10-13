@@ -49,8 +49,10 @@ export interface UpNextFacts {
   /** They work at a business you are talking to: with no deal, a proposal is the next thing. */
   talking: boolean;
   step: PersonNextStepVM | null;
-  /** Their visit messages are not asked, and one was held back for it. */
+  /** Their visit messages are not asked, and a visit is ahead whose reminder would be held for it. */
   visitYesHeld: boolean;
+  /** Who the visit's question asks about: their first name, or "they" for someone known only by a number. */
+  who: string;
 }
 
 /** The most rungs shown before "N more". */
@@ -61,12 +63,32 @@ export const UP_NEXT_WORDS = {
   gotIt: "Got it",
   leftYouANote: (who: string, when: string) =>
     `${who === "You" ? "You left yourself" : `${who} left you`} a note · ${when}`,
-  didTheyCome: (when: string) => `Did they come? ${when}`,
+  /**
+   * "Did Emily come on Sat Oct 10?": the day as a question says it, with no comma after the weekday (canvas A); a visit
+   * of today or yesterday is asked without the "on" ("Did Emily come yesterday?").
+   */
+  didTheyCome: (who: string, day: string) =>
+    day === "Today" || day === "Yesterday"
+      ? `Did ${who} come ${day.toLowerCase()}?`
+      : `Did ${who} come on ${day.replace(/,/g, "")}?`,
   done: "Done",
   recordYes: "Record a yes",
   visitNotAsked: "Visit messages not asked",
   more: (n: number) => `${plural(n, "more", "more")}`,
 } as const;
+
+/**
+ * A deal's rung's line (canvas A): one that waits says how long, beside how long the workspace's usually take ("Nothing
+ * back in 17 days · usually 9 days to a yes"), with a link or without one; a proposal with no link yet, and no wait,
+ * says only that; else its facts.
+ */
+function dealRungSub(c: DealCardVM): string | null {
+  const low = (s: string) => `${s.charAt(0).toLowerCase()}${s.slice(1)}`;
+  const waits = c.flags.map((x) => x.words);
+  if (waits.length) return [...waits, c.pace ? low(c.pace) : null].filter(Boolean).join(" · ");
+  if (!c.link) return c.facts[0] ?? null;
+  return c.facts.filter(Boolean).join(" · ") || null;
+}
 
 /** The ladder: every true rung in its order, four shown, the rest folded. */
 export function personNextOf(f: UpNextFacts): UpNextVM {
@@ -87,8 +109,8 @@ export function personNextOf(f: UpNextFacts): UpNextVM {
   if (asking)
     rows.push({
       id: `visit:${asking.id}`,
-      title: UP_NEXT_WORDS.didTheyCome([asking.day, asking.time].filter(Boolean).join(" · ")),
-      sub: asking.title,
+      title: UP_NEXT_WORDS.didTheyCome(f.who, asking.day),
+      sub: [asking.title, asking.time].filter(Boolean).join(" · "),
       act: { kind: "visit", line: asking, label: asking.asks.map((a) => VISIT_WORDS[a]).join(" · ") },
     });
   if (f.dealsOn) {
@@ -97,7 +119,7 @@ export function personNextOf(f: UpNextFacts): UpNextVM {
       rows.push({
         id: `deal:${c.id ?? c.title}`,
         title: c.title,
-        sub: [...c.flags.map((x) => x.words), ...c.facts].filter(Boolean).join(" · ") || null,
+        sub: dealRungSub(c),
         act: { kind: "deal", dealId: c.id, act: c.next, label: c.next.label },
       });
     }

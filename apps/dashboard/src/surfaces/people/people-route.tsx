@@ -8,7 +8,7 @@
  * is one mount across every view of it: the Leads page follows its own address (../leads/page/leads-real.tsx).
  */
 import { useEffect, useRef, useState } from "react";
-import { personRouteOf, routeOfPath } from "@chanlytics/contracts";
+import { parsePeopleRoute, peopleRoute, personRouteOf, routeOfPath } from "@chanlytics/contracts";
 import { demoSession, navigate } from "../legacy-verbs";
 import { usePartShown, useSurface } from "../use-surface";
 import { takeOwnAddress } from "./page/own-address";
@@ -19,21 +19,35 @@ import { addressReplace } from "./shell-verbs";
 import { isPersonParam } from "./chrome";
 import { ClientProfile } from "./person/person-real";
 
-/** What the address names of the page's view: the props the rows gave the page. */
+/**
+ * What the address names of the page's view (contracts parsePeopleRoute): the props the rows gave the page, and the
+ * person peeked at over it on a desk (`:p-<id>`), which the page follows as it follows its own address.
+ */
 function viewOf(param: string) {
   if (param === "new-list") return { newList: true };
-  if (!/^(seg|list|state):/.test(param)) return {};
-  const kind = param.slice(0, param.indexOf(":"));
+  const at = parsePeopleRoute(`clients/${param}`);
+  if (!at) return {};
+  const view = at.view ?? "";
+  const kind = view.slice(0, view.indexOf(":"));
+  const id = view.slice(view.indexOf(":") + 1);
   return {
-    initialSegment: kind === "seg" ? param.slice(4) : null,
-    initialSaved: kind === "list" ? param.slice(5) : null,
-    initialState: kind === "state" ? param.slice(6) : null,
+    initialSegment: kind === "seg" ? id : null,
+    initialSaved: kind === "list" ? id : null,
+    initialState: kind === "state" ? id : null,
+    initialPeek: at.peek,
   };
 }
 
-/** What the frame mounted a route under: the Pipeline's address family is one mount (where deals are off its addresses draw People), every other view its own. */
-const mountOf = (route: string): string =>
-  route === "clients/pipeline" || route.startsWith("clients/pipeline:") ? "clients/pipeline" : route;
+/**
+ * What the frame mounted a route under: the Pipeline's address family is one mount (where deals are off its addresses
+ * draw People), a view of People is one with or without a person peeked over it (Everyone, bare or `state:all`), and
+ * every other view its own.
+ */
+function mountOf(route: string): string {
+  if (route === "clients/pipeline" || route.startsWith("clients/pipeline:")) return "clients/pipeline";
+  const at = parsePeopleRoute(route);
+  return at ? peopleRoute({ view: at.view }) : route;
+}
 
 /** The page mounts afresh when the address moves to one it did not write itself, as the frame remounted a view it was told of. */
 function useMountKey(route: string): number {
@@ -99,7 +113,8 @@ export function PeopleRoute({ pathname }: { pathname: string | null }) {
   // standing line (rail/standing.tsx); and People's list says its own, with its act, Add a person (page/people-real.tsx).
   // Until the list can be drawn, the route says People's name.
   const listDrawn = !!live || demoSession();
-  usePeopleStanding(person ? "person" : pipeline || leads || listDrawn ? null : "people");
+  // A person's page says its own standing (person-real.tsx: its way back, and on a desk "‹ 4 of 24 ›" beside it).
+  usePeopleStanding(person || pipeline || leads || listDrawn ? null : "people");
   // People's first part (client/page-speed.ts): its table, drawn once People's read is in. Its scopes say their own.
   usePartShown("people", "table", !!live && !person && !leads && !pipeline);
   // A person's page reads the person itself (people-detail.ts) and never waits for People's rows; it is a new mount per person,
@@ -121,11 +136,6 @@ export function PeopleRoute({ pathname }: { pathname: string | null }) {
       />
     );
   return (
-    <PeopleReal
-      key={mount}
-      {...viewOf(param)}
-      onNavigate={navigate}
-      onOpenProfile={(id) => navigate(`clients/${id}`)}
-    />
+    <PeopleReal key={mount} {...viewOf(param)} onNavigate={ownGo} onOpenProfile={(id) => navigate(`clients/${id}`)} />
   );
 }

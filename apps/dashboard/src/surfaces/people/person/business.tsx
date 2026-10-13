@@ -6,6 +6,7 @@
  * the page is Open in Leads; a person at the business is a door to their own page.
  */
 import { useEffect, useReducer, useState } from "react";
+import type { ReactNode } from "react";
 import { WORKS_AT_WORDS } from "@chanlytics/contracts";
 import type { BusinessRecordVM, PersonFaceVM } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
@@ -44,7 +45,7 @@ export function HeadLine({ c }: { c: PageCtx }) {
         data-testid="person-business"
       >
         {line.text}
-        <Icon name="chevron" size={11} />
+        <Icon name="chevron" size={10} />
       </LinkButton>
     );
   return (
@@ -91,26 +92,34 @@ export function WorksAtCard({ c }: { c: PageCtx }) {
  * they are "this page"; opened from their thread (the Inbox's Works at), "this thread", and their name the door to their page.
  */
 function peopleHere(b: BusinessRecordVM, from: "page" | "thread") {
+  // Each person is one door to their page (canvas A, the business sheet): the face, the name, and where they stand with
+  // its chevron; the one whose page this is says so and opens nothing.
   return (
-    <section className="cl-prof-biz-part" aria-label={b.peopleTitle}>
+    <section className="cl-prof-biz-part cl-prof-biz-here" aria-label={b.peopleTitle}>
       <h3 className="cl-prof-biz-title">{b.peopleTitle}</h3>
       <ul className="cl-prof-biz-people">
         {b.people.map((x) => {
           const to = x.to ?? (from === "thread" ? `clients/${x.id}` : null);
-          return (
-            <li key={x.id} className="cl-prof-biz-person" data-here={x.here || undefined}>
+          const said = x.here && from === "thread" ? WORKS_AT_WORDS.thisThread : x.line;
+          const inner = (
+            <>
               <Face initials={x.initials} size="sm" />
+              <span className="cl-prof-biz-name">{x.name}</span>
+              <span className="cl-prof-biz-line">
+                {said}
+                {to ? <Icon name="chevron" size={10} /> : null}
+              </span>
+            </>
+          );
+          return (
+            <li key={x.id} data-here={x.here || undefined}>
               {to ? (
-                <a className="cl-prof-biz-door" {...routeDoor(to)} data-testid="person-business-person">
-                  {x.name}
+                <a className="cl-prof-biz-person" data-door {...routeDoor(to)} data-testid="person-business-person">
+                  {inner}
                 </a>
               ) : (
-                <span className="cl-prof-biz-name">{x.name}</span>
+                <span className="cl-prof-biz-person">{inner}</span>
               )}
-              <span className="cl-prof-biz-line">
-                {x.here && from === "thread" ? WORKS_AT_WORDS.thisThread : x.line}
-              </span>
-              {x.needsYou ? <span className="cl-prof-biz-needs" aria-label="Needs you" /> : null}
             </li>
           );
         })}
@@ -120,69 +129,81 @@ function peopleHere(b: BusinessRecordVM, from: "page" | "thread") {
 }
 
 /** What the listing says: the stage, the verdict, the reach-out, the phone and the links, each where it has something. */
-function listingParts(b: BusinessRecordVM) {
+/** A fact of the listing: its word, what it says with its note under it, and a door at its end where it has one. */
+function bizFact(f: { key: string; dt: string; value: ReactNode; note?: ReactNode; door?: ReactNode }) {
   return (
-    <>
-      <dl className="cl-prof-biz-facts">
-        <div className="cl-prof-biz-fact">
-          <dt>{WORKS_AT_WORDS.stage}</dt>
-          <dd>
-            {b.stage.word} <span className="cl-prof-biz-dim">· {b.stage.note}</span>
-          </dd>
-        </div>
-        {b.fit ? (
-          <div className="cl-prof-biz-fact">
-            <dt>{WORKS_AT_WORDS.fit}</dt>
-            <dd>
-              {b.fit.word} <span className="cl-prof-biz-dim">· {b.fit.checks}</span>
-            </dd>
-          </div>
-        ) : null}
-        {b.reachOut ? (
-          <div className="cl-prof-biz-fact">
-            <dt>{WORKS_AT_WORDS.reachOut}</dt>
-            <dd>
-              {b.reachOut.chain}
-              {b.reachOut.line ? <span className="cl-prof-biz-dim"> · {b.reachOut.line}</span> : null}
-              {b.reachOut.to ? (
-                <>
-                  {" · "}
-                  <a className="cl-prof-biz-door" {...routeDoor(b.reachOut.to)}>
-                    {WORKS_AT_WORDS.readWhatWentOut}
-                  </a>
-                </>
-              ) : null}
-            </dd>
-          </div>
-        ) : null}
-        {b.phone ? (
-          <div className="cl-prof-biz-fact">
-            <dt>{WORKS_AT_WORDS.listingPhone}</dt>
-            <dd>
-              {b.phone.value}
-              {b.phone.hours ? <span className="cl-prof-biz-dim"> · {b.phone.hours}</span> : null}
-            </dd>
-          </div>
-        ) : null}
-      </dl>
-      {b.links.length ? (
-        <section className="cl-prof-biz-part" aria-label={WORKS_AT_WORDS.links}>
-          <h3 className="cl-prof-biz-title">{WORKS_AT_WORDS.links}</h3>
-          <div className="cl-prof-biz-links">
-            {b.links.map((l) => (
-              <a key={l.href} className="cl-prof-biz-door" href={l.href} target="_blank" rel="noreferrer noopener">
-                {l.label}
-              </a>
-            ))}
-          </div>
-        </section>
-      ) : null}
-    </>
+    <div key={f.key} className="cl-prof-biz-fact">
+      <dt>{f.dt}</dt>
+      <dd>
+        {f.value}
+        {f.note ? <span className="cl-prof-biz-src">{f.note}</span> : null}
+      </dd>
+      {f.door ?? null}
+    </div>
   );
 }
 
-/** "Not at this business": the person unlinked, settled; the lead keeps its history (an operator's press). */
-async function leaveBusiness(c: PageCtx) {
+/** The listing's facts after its people (canvas A): Fit, Reach out, the listing's phone, and its links. */
+function listingParts(b: BusinessRecordVM) {
+  const facts: ReactNode[] = [];
+  if (b.fit)
+    facts.push(
+      bizFact({
+        key: "fit",
+        dt: WORKS_AT_WORDS.fit,
+        value: b.fit.word,
+        note: b.fit.checks,
+        door: (
+          <a className="cl-prof-biz-go" data-door {...routeDoor(b.to)} aria-label={WORKS_AT_WORDS.openInLeads}>
+            <Icon name="chevron" size={12} />
+          </a>
+        ),
+      }),
+    );
+  if (b.reachOut) {
+    const r = b.reachOut;
+    facts.push(
+      bizFact({
+        key: "reach",
+        dt: WORKS_AT_WORDS.reachOut,
+        value: r.chain,
+        note: (
+          <>
+            {r.line}
+            {r.to ? (
+              <a className="cl-prof-biz-door" data-door {...routeDoor(r.to)}>
+                {WORKS_AT_WORDS.readWhatWentOut} <Icon name="chevron" size={10} />
+              </a>
+            ) : null}
+          </>
+        ),
+      }),
+    );
+  }
+  // The number and its hours; the sheet's foot is where it is called (canvas A), so the row offers no second Call.
+  if (b.phone)
+    facts.push(bizFact({ key: "phone", dt: WORKS_AT_WORDS.listingPhone, value: b.phone.value, note: b.phone.hours }));
+  if (b.links.length)
+    facts.push(
+      bizFact({
+        key: "links",
+        dt: WORKS_AT_WORDS.links,
+        value: (
+          <span className="cl-prof-biz-links">
+            {b.links.map((l, i) => (
+              <Button key={l.href} href={l.href} target="_blank" rel="noreferrer noopener" size="sm">
+                {i === 0 ? <Icon name="globe" size={12} /> : null} {l.label}
+              </Button>
+            ))}
+          </span>
+        ),
+      }),
+    );
+  return facts.length ? <dl className="cl-prof-biz-facts">{facts}</dl> : null;
+}
+
+/** "Not at this business" (More, canvas A): the person unlinked, settled; the lead keeps its history (an operator's press). */
+export async function leaveBusiness(c: PageCtx) {
   const r = await setPersonBusiness(c.p.id, null);
   if (!r.ok) {
     c.flash({ tone: "danger", msg: r.message || WORKS_AT_WORDS.leaveHint });
@@ -231,28 +252,12 @@ export function BusinessSheetFor({ personId, name, onClose }: { personId: string
         <FailedRead kind="line" what="this business" why={failed} onRetry={tryAgain} testid="person-business-failed" />
       </Sheet>
     );
-  return (
-    <BusinessRecordSheet
-      b={person?.business ?? null}
-      open
-      onClose={onClose}
-      onLeave={null}
-      reading={name}
-      from="thread"
-    />
-  );
+  return <BusinessRecordSheet b={person?.business ?? null} open onClose={onClose} reading={name} from="thread" />;
 }
 
 /** The business sheet on a person's page, the door their head's line and the Works at row open. */
 export function BusinessSheet({ c }: { c: PageCtx }) {
-  return (
-    <BusinessRecordSheet
-      b={c.p.business}
-      open={c.sheet}
-      onClose={() => c.setSheet(false)}
-      onLeave={c.canRecord ? () => void leaveBusiness(c) : null}
-    />
-  );
+  return <BusinessRecordSheet b={c.p.business} open={c.sheet} onClose={() => c.setSheet(false)} />;
 }
 
 /** What the business sheet draws and does, wherever it opens: a person's page, or a thread's Works at (0052). */
@@ -261,8 +266,6 @@ interface BusinessRecordSheetProps {
   b: BusinessRecordVM | null;
   open: boolean;
   onClose: () => void;
-  /** "Not at this business", where the page may record it (their own page); null anywhere else. */
-  onLeave: (() => void) | null;
   /** The business's name as the press knew it, said over "Reading…" until the business is in. */
   reading?: string | null;
   /** Where it was opened: their page (the default), or their thread, where they are "this thread" and a door to their page. */
@@ -270,7 +273,7 @@ interface BusinessRecordSheetProps {
 }
 
 /** The business sheet: a pane from the right on a desk, from the bottom on a phone (the kit's Sheet). */
-function BusinessRecordSheet({ b, open, onClose, onLeave, reading = null, from = "page" }: BusinessRecordSheetProps) {
+function BusinessRecordSheet({ b, open, onClose, reading = null, from = "page" }: BusinessRecordSheetProps) {
   if (!b) {
     if (!reading) return null;
     return (
@@ -288,58 +291,59 @@ function BusinessRecordSheet({ b, open, onClose, onLeave, reading = null, from =
       </Sheet>
     );
   }
+  // The foot (canvas A): Call the listing, and Open in Leads at its end; one row, never stacked.
   const foot = (
-    <>
+    <div className="cl-prof-biz-acts">
       {b.phone?.tel ? (
         <Button href={b.phone.tel} size="sm" data-testid="person-business-call">
-          <Icon name="phone" size={12} /> {WORKS_AT_WORDS.call}
+          <Icon name="phone" size={13} /> {WORKS_AT_WORDS.call}
         </Button>
       ) : null}
       <Button size="sm" variant="quiet" {...routeDoor(b.to)} data-testid="person-business-leads">
         {WORKS_AT_WORDS.openInLeads} <Icon name="chevron" size={11} />
       </Button>
+    </div>
+  );
+  // Under the name: its kind, then its rating and where it is (canvas A, the business sheet's band).
+  const where = b.address ? (
+    b.address.href ? (
+      <a className="cl-prof-biz-where" href={b.address.href} target="_blank" rel="noreferrer noopener">
+        · {b.address.line}
+      </a>
+    ) : (
+      <span className="cl-prof-biz-where">· {b.address.line}</span>
+    )
+  ) : null;
+  const sub = (
+    <>
+      {b.kind}
+      {b.rating || where ? (
+        <span className="cl-prof-biz-rate">
+          {b.rating}
+          {where}
+        </span>
+      ) : null}
     </>
   );
   return (
     <Sheet
       open={open}
       onClose={onClose}
+      mark={<BusinessTile face={b.tile} size="lg" />}
       title={b.name}
-      sub={b.kind}
+      sub={sub}
       close={{ label: WORKS_AT_WORDS.close, glyph: <Icon name="x" size={13} /> }}
       foot={foot}
       className="cl-prof-business-record"
       testid="person-business-sheet"
     >
       <div className="cl-prof-biz">
-        <div className="cl-prof-biz-band">
-          <BusinessTile face={b.tile} size="lg" />
-          <div className="cl-prof-biz-band-words">
-            {b.rating ? <span className="cl-prof-biz-rating">{b.rating}</span> : null}
-            {b.address ? (
-              b.address.href ? (
-                <a className="cl-prof-biz-door" href={b.address.href} target="_blank" rel="noreferrer noopener">
-                  {b.address.line}
-                </a>
-              ) : (
-                <span>{b.address.line}</span>
-              )
-            ) : null}
-          </div>
-        </div>
         {b.read ? <p className="cl-prof-biz-read">{b.read}</p> : null}
+        <dl className="cl-prof-biz-facts">
+          {bizFact({ key: "stage", dt: WORKS_AT_WORDS.stage, value: b.stage.word, note: b.stage.note })}
+        </dl>
         {peopleHere(b, from)}
         {listingParts(b)}
-        {onLeave ? (
-          <LinkButton
-            className="cl-prof-biz-leave"
-            title={WORKS_AT_WORDS.leaveHint}
-            onClick={onLeave}
-            data-testid="person-business-leave"
-          >
-            {WORKS_AT_WORDS.leave}
-          </LinkButton>
-        ) : null}
       </div>
     </Sheet>
   );

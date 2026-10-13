@@ -85,30 +85,31 @@ test("the Pipeline's head is the line over its table: every part it draws, in it
   );
 });
 
-test("a person's page is its own head: a null title, and its way back to People where the frame draws the date", () => {
+test("a person's page is its own head: People's hook says nothing for it, the person page says its own standing", () => {
   setSurfaceValue("people", peopleSample(NOW));
   forgetStanding();
   fresh();
-  again(() => Page({ scope: "person" }));
-  const said = standingSaid();
-  assert.ok(said, "a standing is said");
-  assert.equal(said.title, null, "no name: the hero names them");
-  // The frame puts a null-titled page's way back in the top bar's row (kit/head/frame-head.tsx PageDateline), as canvas
-  // P3 draws "‹ People" where the date stands; the move is the person page's own (person-verbs backToPeople).
-  assert.equal(said.back?.label, "People", "the way back is People's");
-  assert.equal(typeof said.back?.go, "function", "and it is the page's own move");
+  again(() => Page({ scope: null }));
+  assert.equal(
+    standingSaid(),
+    null,
+    "People's hook stands down for a person: the person page says a null title itself",
+  );
+  // What the person page says (person/person-real.tsx useStanding): no title, the way back to People with where they stand
+  // in the list beside it on a desk, and on a phone their name and state in the top bar once the head has scrolled away
+  // (canvas A). person-honest draws the page and reads it.
   setSurfaceValue("people", undefined);
 });
 
-test("the route says the standing once, from its address: a person's page its own head, the Pipeline's, Leads' and the list's pages their own, else People's", async () => {
+test("the route says the standing once, from its address: a person's page, the Pipeline's, Leads' and the list's pages their own, else People's", async () => {
   const route = (await import("node:fs")).readFileSync(
     new URL("../../../../../apps/dashboard/src/surfaces/people/people-route.tsx", import.meta.url),
     "utf8",
   );
   assert.match(
     route,
-    /usePeopleStanding\(person \? "person" : pipeline \|\| leads \|\| listDrawn \? null : "people"\)/,
-    "one call, keyed by the address; the Pipeline's page, Leads and the list say their own (pipeline/standing.tsx, rail/standing.tsx, page/people-real.tsx)",
+    /usePeopleStanding\(person \|\| pipeline \|\| leads \|\| listDrawn \? null : "people"\)/,
+    "one call, keyed by the address; a person's page, the Pipeline's, Leads and the list say their own (person/person-real.tsx, pipeline/standing.tsx, rail/standing.tsx, page/people-real.tsx)",
   );
   assert.equal(route.match(/usePeopleStanding\(/g).length, 1, "and only the one");
   assert.ok(!/<PeopleHead|<Glass>/.test(route), "the page draws no head of its own; the frame's is the head");

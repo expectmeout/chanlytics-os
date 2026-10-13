@@ -404,6 +404,8 @@ function useKept(written: Written, held: { dirty: boolean; busy: boolean }, onLe
 export interface Opened {
   open: boolean;
   personId: string | null;
+  /** The wire a door named (their page's Text them, Email them): a message on it, over what the tab kept. */
+  wire?: ConsentChannel | null;
   onClose: () => void;
   flash: (flash: Flash) => void;
 }
@@ -435,9 +437,11 @@ function useWays(written: Written, reads: number) {
 
 /** The sheet's state and its acts. */
 export function useNewConversationSheet(opened: Opened) {
-  const [written, setWritten] = useState<Written>(() =>
-    writtenFor(opened.personId, tabMemory()?.draft<Partial<Written>>(KIND) ?? null),
-  );
+  const [written, setWritten] = useState<Written>(() => {
+    const kept = writtenFor(opened.personId, tabMemory()?.draft<Partial<Written>>(KIND) ?? null);
+    // A door that named the wire asked for a message on it; one it cannot go on falls to the reach read's (useWays).
+    return opened.wire ? { ...kept, how: "message", wire: opened.wire } : kept;
+  });
   const patch = (p: Partial<Written>) => setWritten((w) => ({ ...w, ...p }));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

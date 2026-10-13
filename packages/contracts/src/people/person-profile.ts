@@ -4,7 +4,7 @@
  * builder per card) and person-timeline.ts (a builder per source). Moved whole from people.ts (Reach out Part 2.5);
  * exported from index.ts directly, since it reads people.ts's row view model.
  */
-import { clockDate } from "../shared/clock";
+import { clockDate, clockTime } from "../shared/clock";
 import { appointmentWordWhere, appointmentWords } from "../journey/appointment-word";
 import { plural } from "../shared/words";
 import { DEAL_ACT_WORDS } from "../deals/deal-words";
@@ -20,10 +20,15 @@ import { mayReach, type PersonProposalVM, proposalAction } from "./person-reach"
 import type { PersonRowVM } from "./person-row";
 import { ts } from "./person-helpers";
 import { personNotesVM, type PersonNoteTeamDto, type PersonNoteVM } from "../notes/person-notes";
-import { PERSON_CHANNEL_WORDS, type PersonChannel } from "./person-words";
+import { PERSON_CHANNEL_WORDS, REPLY_WIRE, type PersonChannel } from "./person-words";
+import type { ChannelsReady } from "../broadcasts/reach-for";
+import { wayOff, writeWaysOf, type WriteWay } from "../new-conversation/write-ways";
 import { addressOf } from "../activity/record-address";
 import { HELD_REASONS, isReplyTo } from "../broadcasts/run-words";
-import { messageAt } from "../conversations/thread-dto";
+import { messageAt, type MessageDto } from "../conversations/thread-dto";
+import { draftSendsAtMs, heldDraftOf } from "../conversations/message-words";
+import { replyWaitsOnYou } from "../conversations/standing";
+import { isIdentifierName, shortName } from "../conversations/thread-contact";
 import { THREAD_CHANNEL_WORDS, isTheirOwnWords, writtenChannelOf } from "../conversations/thread-channel";
 import {
   aboutOf,
@@ -63,6 +68,10 @@ import { personNextOf, type UpNextVM } from "../person-page/next";
 import { lastWordsOf, type LastWordVM } from "../person-page/last-words";
 import { personNoticesOf, type NoticeVM } from "../person-page/notices";
 import { personTabsOf, type PersonTabVM } from "../person-page/route";
+import { personVisitsOf, type PersonVisitsVM } from "../person-page/visits";
+import { callFactsOf } from "../person-page/call-facts";
+import { contactEvidenceOf, personOriginOf, reachRowsOf } from "../person-page/origin";
+import { WORKS_AT_WORDS } from "../person-page/words";
 
 /* -------------------------------- profile -------------------------------- */
 
@@ -110,6 +119,11 @@ export interface PersonVM extends PersonRowVM {
   timeline: PersonTimelineItemVM[];
   /** Their visits that have not ended, soonest first: the page's Coming up. Each is in `timeline` too, marked `ahead`. */
   comingUp: PersonVisitAheadVM[];
+  /**
+   * Their visits as the Visits tab draws them: kept, missed, how often, to mark, ahead and past, each from the calendar
+   * and the record (never a count the schema does not hold).
+   */
+  visitTab: PersonVisitsVM;
   about: PersonAboutFact[];
   /** Their notes (0007): the receptionist's suggestions first, then newest first. */
   noteList: PersonNoteVM[];
@@ -159,6 +173,11 @@ export interface PersonVM extends PersonRowVM {
    * disabled Yes's caption. Null for anyone else.
    */
   yesLocked: string | null;
+  /**
+   * How a message can go to them now, wire by wire (writeWaysOf): the New conversation sheet's own answer, drawn on More
+   * before anything opens. The workspace's lines are judged only where the page read them (People's ChannelsReady).
+   */
+  ways: WriteWay[];
   /** What the page's More menu offers for them, in order (personActs): the page keeps those its reader's role allows. */
   acts: PersonActVM[];
   /** The open doubts naming them (0034 step 4, doubtsOf): another record one identity could belong to, each with its sentence. */
@@ -181,6 +200,10 @@ export interface PersonVM extends PersonRowVM {
   lastWords: LastWordVM[];
   /** The tabs as addresses, a desk's and a phone's (personTabsOf). */
   tabs: { desk: PersonTabVM[]; phone: PersonTabVM[] };
+  /** Reach them's lines under the number and the address: what each is and where it came from (reachRowsOf). */
+  reach: { phone: string; email: string };
+  /** Where they came from, in one line (personOriginOf); null where nothing says. */
+  origin: string | null;
 }
 
 /**
@@ -215,40 +238,118 @@ function doubtsOf(d: PersonDetailDto): PersonDoubtVM[] {
 
 /**
  * One act in a person's More menu: a few words, the line said on hover where the act needs explaining, the group it
- * sits in (a send, a way to reach them, the delete: a line between groups), and who may press it ("any" reader, one
- * who may "record", or the "owner"). The page draws them; which exist, and their words, are here.
+ * sits in (a way to reach them, a thing to record, the ends: a line between groups), who may press it ("any" reader, one
+ * who may "record", or the "owner"), and why it cannot go now (`off`), so it is drawn and said, never hidden. The page
+ * draws them; which exist, and their words, are here.
  */
 export interface PersonActVM {
-  id: "booking" | "proposal" | "call" | "copy-phone" | "copy-email" | "merge" | "delete";
+  id:
+    | "call"
+    | "text"
+    | "email"
+    | "booking"
+    | "proposal"
+    | "start-proposal"
+    | "add-to-list"
+    | "copy-phone"
+    | "copy-email"
+    | "leave-business"
+    | "merge"
+    | "delete";
   label: string;
   hint: string | null;
-  group: "send" | "reach" | "delete";
+  group: "reach" | "record" | "delete";
   needs: "any" | "record" | "owner";
+  /** Why it cannot go: drawn disabled with this as its line, and said once under its group. Null when it can. */
+  off: string | null;
   danger?: boolean;
 }
 
+/** The words of More's own acts (canvas A, 3422-3434). */
+export const PERSON_ACT_WORDS = {
+  call: "Call",
+  callHint: "From your own phone",
+  text: "Text them",
+  email: "Email them",
+  booking: "Send booking link",
+  startProposal: "Start a proposal",
+  addToList: "Add to a list",
+  copyPhone: "Copy the number",
+  copyEmail: "Copy the address",
+  deletePerson: "Delete person…",
+  /** Why a send into their thread cannot go: there is none (a wire's own reasons are the sheet's, writeWaysOf). */
+  noThread: "No conversation with them yet.",
+  ready: (on: string) => `Opens their thread with it ready to send${on}`,
+} as const;
+
 /**
- * What can be done for a person from their page, besides opening their thread (the page's one primary act).
+ * Delete person… (owner only): the sheet's name, what it does, its question with the typed name that gates it, and the
+ * toast after. The database's door erases; nothing here can be undone.
+ */
+export const PERSON_DELETE_WORDS = {
+  title: "Delete person",
+  detail:
+    "Removes their messages, media and recordings from Chanlytics and stops any reply still queued. This cannot be undone.",
+  typed: (name: string) => `Type ${name} to confirm.`,
+  question: (name: string) => `Delete ${name}?`,
+  yes: "Delete this person",
+  busy: "Deleting…",
+  cancel: "Cancel",
+  failed: "Could not delete this person.",
+  done: (name: string) => `${name} deleted: their messages, media and recordings are gone`,
+} as const;
+
+/**
+ * Why a send into their thread cannot go now: there is no thread, else the reply wire's own reason (writeWaysOf, the
+ * sheet's words); null when it can. Text them and Email them ask their wire's way directly (wayOff).
+ */
+function threadOff(p: Omit<PersonVM, "acts" | PersonPageKeys>): string | null {
+  if (!p.openThread) return PERSON_ACT_WORDS.noThread;
+  return p.replyVia ? wayOff(p.ways, REPLY_WIRE[p.replyVia]) : null;
+}
+
+/**
+ * What can be done for a person from their page, besides opening their thread (the page's one primary act), in three
+ * groups (canvas A, 3422-3434): reach them (Call where the head has none, Text them, Email them, the booking link and the
+ * proposal's send), record (Start a proposal, Add to a list, the copies), and the ends (Not at this business, Merge,
+ * Delete).
  *
  * A send opens their thread with the words ready; nothing is sent from the page. So it says so, in the wire it goes
  * on, and never names a template or a window: where WhatsApp takes only an approved message the thread offers it,
  * which is what its hover says. The labels are a few words each: with a sentence beside every one the menu was a
- * block of wrapped words cut off at its edge. No send reaches someone who said stop or is on do-not-contact, nor by
- * email an address that stopped accepting mail (mayReach), and no call reaches someone on do-not-contact. A call is the member's own phone ringing them (a tel: link), never the receptionist.
+ * block of wrapped words cut off at its edge. A send that cannot reach them (they said stop, do-not-contact, an address
+ * that stopped accepting mail: mayReach) is drawn and says why (`off`), and no call reaches someone on do-not-contact. A
+ * call is the member's own phone ringing them (a tel: link), never the receptionist.
  */
 export function personActs(p: Omit<PersonVM, "acts" | PersonPageKeys>): PersonActVM[] {
+  const W = PERSON_ACT_WORDS;
   const acts: PersonActVM[] = [];
   const reach = mayReach(p);
+  const off = threadOff(p);
   const on =
     p.replyVia === "Email" ? " by email" : p.replyVia === "Text" ? " as a text" : p.replyVia ? " on WhatsApp" : "";
-  const ready = `Opens their thread with it ready to send${on}`;
-  if (reach && p.bookingLink && p.bookingLinkAction.offered)
+  if (p.phone && !p.consent.dnc)
+    acts.push({ id: "call", label: W.call, hint: W.callHint, group: "reach", needs: "any", off: null });
+  // Text them and Email them are judged as the New conversation sheet judges them (writeWaysOf): its words, up front.
+  if (p.phone)
+    acts.push({ id: "text", label: W.text, hint: null, group: "reach", needs: "record", off: wayOff(p.ways, "sms") });
+  if (p.email)
+    acts.push({
+      id: "email",
+      label: W.email,
+      hint: null,
+      group: "reach",
+      needs: "record",
+      off: wayOff(p.ways, "email"),
+    });
+  if (p.bookingLink && p.bookingLinkAction.offered)
     acts.push({
       id: "booking",
-      label: "Send booking link",
-      hint: p.bookingLinkAction.ready ? ready : p.bookingLinkAction.title,
-      group: "send",
+      label: W.booking,
+      hint: reach && p.bookingLinkAction.ready ? W.ready(on) : p.bookingLinkAction.title,
+      group: "reach",
       needs: "record",
+      off,
     });
   // A proposal is a deal's (0008): a workspace whose customers book is never offered one to send. Its first send is
   // the deal card's next act (deal-sheet.ts dealNextAct), and no send is offered while one is on its way, so the menu
@@ -258,18 +359,53 @@ export function personActs(p: Omit<PersonVM, "acts" | PersonPageKeys>): PersonAc
     acts.push({
       id: "proposal",
       label: p.proposal.sent ? `${DEAL_ACT_WORDS.send} again` : DEAL_ACT_WORDS.send,
-      hint: ready,
-      group: "send",
+      hint: W.ready(on),
+      group: "reach",
       needs: "record",
+      off,
     });
-  if (p.phone && !p.consent.dnc) {
-    acts.push({ id: "call", label: "Call", hint: "From your own phone", group: "reach", needs: "any" });
-    acts.push({ id: "copy-phone", label: "Copy number", hint: null, group: "reach", needs: "any" });
-  }
-  if (p.email) acts.push({ id: "copy-email", label: "Copy email", hint: null, group: "reach", needs: "any" });
+  if (p.dealsOn)
+    acts.push({
+      id: "start-proposal",
+      label: W.startProposal,
+      hint: null,
+      group: "record",
+      needs: "record",
+      off: null,
+    });
+  acts.push({ id: "add-to-list", label: W.addToList, hint: null, group: "record", needs: "record", off: null });
+  if (p.phone)
+    acts.push({ id: "copy-phone", label: W.copyPhone, hint: null, group: "record", needs: "any", off: null });
+  if (p.email)
+    acts.push({ id: "copy-email", label: W.copyEmail, hint: null, group: "record", needs: "any", off: null });
+  // The business they work at, while it stands: the link undone, the business keeping its history (0052).
+  if (p.worksAt && !p.worksAt.gone)
+    acts.push({
+      id: "leave-business",
+      label: WORKS_AT_WORDS.leave,
+      hint: WORKS_AT_WORDS.leaveHint,
+      group: "delete",
+      needs: "record",
+      off: null,
+    });
   // Two records of one person become one (0028): the owner's, as Delete is, and beside it.
-  acts.push({ id: "merge", label: MERGE_WORDS.act, hint: MERGE_WORDS.actHint, group: "delete", needs: "owner" });
-  acts.push({ id: "delete", label: "Delete person…", hint: null, group: "delete", needs: "owner", danger: true });
+  acts.push({
+    id: "merge",
+    label: MERGE_WORDS.act,
+    hint: MERGE_WORDS.actHint,
+    group: "delete",
+    needs: "owner",
+    off: null,
+  });
+  acts.push({
+    id: "delete",
+    label: W.deletePerson,
+    hint: null,
+    group: "delete",
+    needs: "owner",
+    off: null,
+    danger: true,
+  });
   return acts;
 }
 
@@ -336,10 +472,14 @@ export function toPersonVM(
   now = new Date(),
   /** The member looking (toPersonRowVM's viewer). */
   viewerId: string | null = null,
-  /** The roster, where the page has read it: a teammate's thread says whose it is (person-receptionist.ts heldThreadOf). */
-  names: HolderNames | null = null,
+  /**
+   * What the page holds beside the person: the roster, where it has read it (a teammate's thread says whose it is,
+   * person-receptionist.ts heldThreadOf), and the workspace's lines as People read them (ChannelsReady), which More's
+   * sends are judged against; null for either is not read (a server's reader, Ask).
+   */
+  page: { names?: HolderNames | null; ready?: ChannelsReady | null } | null = {},
 ): PersonVM {
-  const ctx = personCardContext(d, tz, now, viewerId, names);
+  const ctx = personCardContext(d, tz, now, viewerId, page?.names ?? null);
   const { base, nowMs, dealsOn, reply } = ctx;
   const vm: Omit<PersonVM, "proposal" | "proposalAction" | "acts" | PersonPageKeys> = {
     ...base,
@@ -351,6 +491,7 @@ export function toPersonVM(
     rightNow: rightNowOf(ctx),
     timeline: timelineOf(ctx),
     comingUp: comingUpOf(ctx),
+    visitTab: personVisitsOf(ctx),
     about: aboutOf(ctx),
     noteList: personNotesVM(d.person_notes, tz, nowMs),
     noteTeam: d.note_team ?? [],
@@ -370,6 +511,8 @@ export function toPersonVM(
     dealPace: dealsOn ? dealPaceOf(d.deal_pace) : null,
     services: d.services ?? [],
     consultFirst: d.consult_first ?? [],
+    // The one rule's answer, wire by wire, over People's own row for them (the sheet asks the same of the same row).
+    ways: writeWaysOf(ctx.row, page?.ready ?? null, now),
   };
   // The send's words follow the wire the page has settled on, exact window included.
   const whole = {
@@ -386,7 +529,17 @@ export function toPersonVM(
 
 /** The keys the person page's own parts add (decision 0052, canvas A), built last over the rest. */
 type PersonPageKeys =
-  "head" | "worksAtRow" | "business" | "thin" | "figures" | "next" | "notices" | "lastWords" | "tabs";
+  | "head"
+  | "worksAtRow"
+  | "business"
+  | "thin"
+  | "figures"
+  | "next"
+  | "notices"
+  | "lastWords"
+  | "tabs"
+  | "reach"
+  | "origin";
 
 /** "3 min" or "45 s": a call's length said as the figures say it. */
 function callLength(seconds: number): string {
@@ -408,7 +561,16 @@ function recordedOf(deals: readonly DealVM[]): string | null {
 export function personNextFor(
   p: Pick<
     PersonVM,
-    "noteList" | "lastVisitLine" | "comingUp" | "dealsOn" | "business" | "nextStep" | "consent" | "campaigns"
+    | "noteList"
+    | "lastVisitLine"
+    | "comingUp"
+    | "visitTab"
+    | "dealsOn"
+    | "business"
+    | "nextStep"
+    | "consent"
+    | "name"
+    | "phone"
   >,
   dealP: Parameters<typeof dealCardsOf>[0],
   tz: string,
@@ -416,14 +578,19 @@ export function personNextFor(
 ): UpNextVM {
   return personNextOf({
     notes: p.noteList,
-    lastVisit: p.lastVisitLine,
+    // The newest visit that ended with nobody saying (the Visits tab's To mark), else the calendar's last: the calendar's
+    // last may be one the record holds no row for, which cannot be asked, while an older one waits.
+    lastVisit: p.visitTab.toMark[0]?.visit ?? p.lastVisitLine,
     ahead: p.comingUp,
     deals: dealCardsOf(dealP, nowMs, tz),
     dealsOn: p.dealsOn,
     // A business you are talking to (the lead's stage converted, said "Talking"): with no deal, a proposal is next.
     talking: !!p.business && p.business.stage.word === LEAD_STAGE_WORDS.converted,
     step: p.nextStep,
-    visitYesHeld: p.consent.state === "unknown" && p.campaigns.some((c) => c.outcome.startsWith("Held")),
+    // Not asked, with a visit ahead and a number its reminder goes to: it would be held for want of a yes (canvas A), so
+    // the yes is the next thing. With no number there is no reminder to hold.
+    visitYesHeld: p.consent.state === "unknown" && p.comingUp.length > 0 && !!p.phone,
+    who: isIdentifierName(p.name) ? "they" : shortName(p.name),
   });
 }
 
@@ -461,6 +628,9 @@ function personPageOf(
   const past = p.timeline.filter((t) => !t.ahead);
   const thin = p.threads === 0 && p.deals.length === 0 && past.length < 6;
   const visitsSeen = p.timeline.filter((t) => t.kind === "visit").length;
+  // The record's visits of theirs from before the season, said kept or missed (R7): a regular has a Visits tab still.
+  const earlier = d.visits?.earlier;
+  const earlierSaid = (earlier?.kept ?? 0) + (earlier?.missed ?? 0);
   const sent = reachOut ? reachOut.sends.filter((x) => !!x.sent_at).length : 0;
   const figures = personFiguresOf({
     thin,
@@ -474,8 +644,9 @@ function personPageOf(
     calls: { count: p.calls, minutes: callLength(p.callSeconds) },
     visits: {
       ahead: p.comingUp.length,
-      marked: 0,
-      any: p.calendar === "ok" && (p.comingUp.length > 0 || visitsSeen > 0),
+      kept: p.visitTab.head.kept,
+      toMark: p.visitTab.head.toMark,
+      any: p.calendar === "ok" && (p.comingUp.length > 0 || visitsSeen > 0 || earlierSaid > 0),
     },
     emails: reachOut ? { out: sent, back: reachOut.readings.filter((r) => !r.undone).length } : null,
   });
@@ -483,10 +654,12 @@ function personPageOf(
     id: p.id,
     history: past.length,
     visits: visitsSeen,
+    marked: earlierSaid,
     deals: p.deals.length,
     campaigns: p.campaigns.length,
     thin,
   };
+  const evidence = contactEvidenceOf(d, { ...p.firstContact, cameFrom: p.cameFrom?.key ?? null });
   return {
     head,
     worksAtRow: worksAtOf(p.worksAt, d.business ?? null, tz, nowMs),
@@ -494,19 +667,69 @@ function personPageOf(
     thin,
     figures,
     next: personNextFor({ ...p, business }, p, tz, nowMs),
-    notices: personNoticesOf({
-      head,
-      business,
-      doubts: p.doubts,
-      email: p.email,
-      heardFrom: p.askedMs !== null,
-      peopleHere: (d.business?.people ?? [])
-        .filter((x) => x.id !== p.id)
-        .map((x) => ({ id: x.id, name: personName(x), email: x.email, nameSource: x.name_source })),
-    }),
+    notices: pageNoticesOf({ p, d, head, business, messages: evidence.messages, tz, nowMs }),
     lastWords: lastWordsOf(past),
     tabs: { desk: personTabsOf(tabFacts, false), phone: personTabsOf(tabFacts, true) },
+    reach: reachRowsOf(evidence, tz, nowMs),
+    origin: personOriginOf(evidence, tz, nowMs),
   };
+}
+
+/**
+ * The page's notices (personNoticesOf) over what was read: the signer and Combine, the doubts, what their calls left (a
+ * name passes the gate the business's and the team's names are kept out of), and a reply held in its veto window.
+ */
+function pageNoticesOf(f: {
+  p: Omit<PersonVM, PersonPageKeys>;
+  d: PersonDetailDto;
+  head: PersonHeadVM;
+  business: BusinessRecordVM | null;
+  messages: readonly MessageDto[];
+  tz: string;
+  nowMs: number;
+}): NoticeVM[] {
+  const { p, d, head, business, tz, nowMs } = f;
+  const notNames = [d.business?.lead.business_name ?? null, ...(d.note_team ?? []).map((t) => t.name)];
+  const calls = callFactsOf(d.calls, notNames, tz, nowMs);
+  const stepAt = calls.step?.atMs ?? null;
+  return personNoticesOf({
+    head,
+    business,
+    doubts: p.doubts,
+    email: p.email,
+    phone: d.row.phone_e164,
+    named: !!p.givenName,
+    heardFrom: p.askedMs !== null,
+    peopleHere: (d.business?.people ?? [])
+      .filter((x) => x.id !== p.id)
+      .map((x) => ({
+        id: x.id,
+        name: personName(x),
+        email: x.email,
+        nameSource: x.name_source,
+        phone: x.phone_e164,
+        named: !!x.display_name,
+      })),
+    calls,
+    givenName: p.givenName,
+    openStep: p.nextStep !== null,
+    stepNoted:
+      stepAt !== null && (d.person_notes ?? []).some((n) => n.source === "call" && (ts(n.created_at) ?? 0) >= stepAt),
+    draft: heldDraftWaiting(f.messages, p.openThread, tz, nowMs),
+  });
+}
+
+/** A reply the receptionist holds in its veto window (heldDraftOf, the Inbox's own pick), while it still waits. */
+function heldDraftWaiting(
+  messages: readonly MessageDto[],
+  thread: string | null,
+  tz: string,
+  nowMs: number,
+): { to: string; sends: string } | null {
+  const held = heldDraftOf(messages);
+  if (!held || !thread) return null;
+  const at = draftSendsAtMs(held);
+  return replyWaitsOnYou({ endsAtMs: at }, nowMs) ? { to: thread, sends: clockTime(at, tz) } : null;
 }
 
 /**

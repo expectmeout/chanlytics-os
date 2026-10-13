@@ -127,6 +127,8 @@
   --radius-lg: 12px;
   --radius-xl: 16px;
   --radius-2xl: 20px;
+  /* A message's bubble on a person's page (canvas A, their last words): 18 round, its tail's corner --radius-sm. */
+  --radius-bubble: 18px;
   /* A capsule around a 36px control with 6px of room (the Inbox's reply box, I1): 18 + 6. */
   --radius-3xl: 24px;
   /* The top corners of the phone's action sheet (the kit's Menu from the bottom edge): the sheet's 16 and 6 more. */
@@ -464,6 +466,8 @@
   --control-h-sm: 28px;
   --control-h-md: 32px;
   --control-h-lg: 36px;
+  /* The touch floor (legacy-bridge/legacy.css), drawn: a phone's circle and the act beside it (canvas A's head). */
+  --control-h-touch: 44px;
   --control-radius: var(--radius-full);
   --control-radius-sm: var(--radius-full);
   --selected-fill: oklch(1 0 0 / 0.82);

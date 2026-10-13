@@ -496,6 +496,8 @@ const { Menu } = await import(`${P}/../kit/menu/menu.tsx`);
 const { Picker } = await import(`${P}/../kit/picker/picker.tsx`);
 const { Confirm: KitConfirm } = await import(`${P}/../kit/confirm/confirm.tsx`);
 const { SubTabs } = await import(`${P}/../kit/sub-tabs/sub-tabs.tsx`);
+// The page says its own head to the frame (kit/head/standing.ts): a null title, and its way back to People.
+const { standingSaid } = await import(`${P}/../kit/head/standing.ts`);
 const itemsIn = (menu) => menu.props.groups.flatMap((g) => g.items);
 /** The kit Menu's items as the page built them: an item's act is `onSelect`, given here as `onClick` too. */
 const actsIn = (menu) => itemsIn(menu).map((i) => ({ ...i, onClick: i.onSelect }));
@@ -678,19 +680,20 @@ test("REGRESSION (B15): the bulk bar's receptionist menu uses the one set of wor
 test("REGRESSION (B19, B15): a profile goes back to People, and names following the workspace the way the menu does", async () => {
   const draw = await profile(toPersonVM(detail(), ZONE, new Date(NOW)));
   const tree = draw();
-  assert.equal(
-    textOf(find(tree, (n) => n.props?.className === "cl-prof-back")).trim(),
-    "People",
-    "REGRESSION: All clients",
-  );
+  // The way back is the frame's "‹ People" where the date stands (canvas A): the page says it, and draws no button of
+  // its own for it.
+  const said = standingSaid();
+  assert.equal(said?.title, null, "the page is its own head");
+  assert.equal(said?.back?.label, "People", "REGRESSION: All clients");
   // Back is the frame's own (the People view they came from, with its place), and People itself where the frame has none.
-  press(find(tree, (n) => n.props?.className === "cl-prof-back"));
+  said.back.go();
   assert.deepEqual(went, ["back"]);
   const frameBack = globalThis.window.appBackToPeople;
   delete globalThis.window.appBackToPeople;
   try {
     went.length = 0;
-    press(find(draw(), (n) => n.props?.className === "cl-prof-back"));
+    draw();
+    standingSaid().back.go();
     assert.deepEqual(went, ["clients"]);
   } finally {
     globalThis.window.appBackToPeople = frameBack;
@@ -742,8 +745,8 @@ test("REGRESSION (B17): the timeline narrows by kind, and each linked item opens
     find(t, (n) => n.type === SubTabs && n.props.tabs.some((x) => x.testid?.startsWith("timeline-filter-"))).props;
   assert.deepEqual(
     filters(tree).tabs.map((t) => t.testid),
-    ["timeline-filter-all", "timeline-filter-messages", "timeline-filter-visits"],
-    "a filter for each kind History holds, and none for a kind it does not",
+    ["timeline-filter-all", "timeline-filter-messages", "timeline-filter-visits", "timeline-filter-notes"],
+    "a filter for each kind History holds, and none for a kind it does not; their notes are History's last tab",
   );
   for (const open of all(tree, (n) => n.props?.["data-testid"] === "timeline-open")) press(open);
   doors.push(...went);
@@ -842,8 +845,10 @@ test("a call's to-do and what the caller gave are on the person's page, under th
 test("REGRESSION (B26): the profile's next visit opens that day on the Calendar -- the tile opened nothing", async () => {
   const draw = await profile(toPersonVM(detail(), ZONE, new Date(NOW)));
   const tree = draw();
-  const open = byTestId(tree, "fact-next-visit");
+  // The next visit is Coming up's tile (canvas A), a link to its day.
+  const open = byTestId(tree, "person-visit-ahead");
   assert.ok(open, "the next visit is a door");
+  assert.equal(open.type, "a", "a door is a link");
   press(open);
   assert.deepEqual(went, [`calendar/${toPersonRowVM(row({ visits: VISITS }), ZONE, new Date(NOW)).nextVisitDate}`]);
 });
@@ -854,9 +859,9 @@ test("(A1, D1) the profile's next visit opens the visit itself when the record h
   const draw = await profile(
     toPersonVM(detail({ row: withRow, visits: { ...VISITS, next, all: [next] } }), ZONE, new Date(NOW)),
   );
-  const open = byTestId(draw(), "fact-next-visit");
+  const open = byTestId(draw(), "person-visit-ahead");
   assert.ok(open, "the next visit is a door");
-  assert.ok(textOf(open).includes("Open the appointment"), `it says what it opens: ${textOf(open)}`);
+  assert.ok(open.props.href.endsWith(":a-r-next"), `its address is the visit itself: ${open.props.href}`);
   press(open);
   assert.deepEqual(went, [`calendar/${toPersonRowVM(withRow, ZONE, new Date(NOW)).nextVisitDate}:a-r-next`]);
 });
@@ -902,11 +907,17 @@ test("REGRESSION: a person's page says who they are once -- the header held two 
   const tree = draw();
   const cls = (n) => String(n.props?.className || "");
 
-  // Who they are: the name, then one line with the number and since when.
-  const line = byTestId(tree, "person-id-line");
+  // Who they are: the name and the state; their number and where it came from are Reach them's (canvas A), said once.
+  assert.equal(byTestId(tree, "person-id-line"), null, "no line of the number under the name");
+  // Reach them's number is the press that opens its acts (the kit's Menu, its trigger the row).
+  const reachMenu = find(
+    tree,
+    (n) => n.type === Menu && n.props.trigger?.props?.["data-testid"] === "person-reach-phone",
+  );
+  const reach = reachMenu?.props.trigger;
   assert.ok(
-    line && textOf(line).includes(vm.phone) && textOf(line).includes("since "),
-    `the line under the name: ${line && textOf(line)}`,
+    reach && textOf(reach).includes(vm.phone) && /Phone · they wrote from it /.test(textOf(reach)),
+    `Reach them says the number and where it came from: ${reach && textOf(reach)}`,
   );
   const id = find(tree, (n) => cls(n) === "cl-prof-id");
   assert.deepEqual(
@@ -916,7 +927,7 @@ test("REGRESSION: a person's page says who they are once -- the header held two 
   );
   assert.deepEqual(
     all(id, (n) => typeof n.type === "function" && n.type.name === "StatePill").map((s) => s.props.value),
-    [vm.rightNow.tone],
+    [vm.state],
     "REGRESSION: two pills in the header said Right now's state and the consent again; one word under the name now",
   );
 
@@ -955,12 +966,10 @@ test("REGRESSION: a person's page says who they are once -- the header held two 
   );
   assert.ok(!find(tree, (n) => cls(n).includes("cl-prof-money")), "REGRESSION: six cells said the rail's facts again");
 
-  // About carries the strip's counts, and not what the line under the name says.
-  const keys = all(tree, (n) => n.props?.className === "cl-prof-attr-key").map((k) => textOf(k));
-  assert.ok(keys.includes("History"), `About: ${keys}`);
-  for (const k of ["Phone", "Channels", "First contact"])
-    assert.ok(!keys.includes(k), `${k} is said under the name, not again in About: ${keys}`);
-  assert.ok(byTestId(tree, "fact-next-visit"), "the next visit still opens its day, from About");
+  // The rail's groups say each fact once (canvas A): no About card of keys repeating the figures or the head.
+  assert.equal(all(tree, (n) => n.props?.className === "cl-prof-attr-key").length, 0, "no About card of keys");
+  assert.ok(textOf(tree).split(vm.phone).length - 1 <= 1, "their number is said once, in Reach them");
+  assert.ok(byTestId(tree, "person-visit-ahead"), "the next visit still opens its day, from Coming up");
 
   assert.ok(
     !textOf(tree).includes("· receptionist"),
@@ -1105,20 +1114,23 @@ test("Right now says the state once: the pill wears the standing's word, the sen
   );
   const draw = await profile(vm);
   const tree = draw();
+  // The head says the person's one state, as People's row does (canvas A): Needs you, never the receptionist's standing,
+  // which Messages and receptionist says.
   const card = byTestId(tree, "person-now");
-  assert.equal(card.props["data-tone"], "escalated", "the line wears the tone the pill wears");
+  assert.equal(card.props["data-state"], vm.state, "the line says the state People's row says");
+  assert.equal(vm.state, "needs_you", "an escalation is someone who needs you");
   assert.ok(
     !String(card.props.className).includes("approval"),
     "REGRESSION: an accent edge on a card whose pill is warn",
   );
   const pill = find(card, (n) => typeof n.type === "function" && n.type.name === "StatePill");
-  assert.equal(pill.props.value, "escalated");
+  assert.equal(pill.props.value, vm.state);
   assert.equal(
     pill.props.label,
-    undefined,
-    "REGRESSION: the pill carried the whole title -- Escalated · asked for a person -- and spilled past the card between 901 and 990px",
+    vm.stateLabel,
+    "REGRESSION: the pill carried the whole title -- Escalated · asked for a person -- and spilled past the card between 901 and 990px: it says the state's word alone",
   );
-  // The pill is the standing's word; the sentence under the name gives the reason, and both are read together.
+  // The pill is the state's word; the sentence under the name gives the reason, and both are read together.
   const why = byTestId(tree, "person-now-why");
   assert.equal(textOf(why), vm.rightNow.detail, "the sentence gives the reason");
   const words = `${textOf(card)} ${textOf(why)}`;
@@ -1180,7 +1192,7 @@ test("arming a consent answer does not draw it as the answer on record, and the 
   );
 });
 
-test("a frame with nobody to draw has no rail column; History leads About; ten seconds on the phone is not one minute", async () => {
+test("a frame with nobody to draw has no rail column; their calls are a figure; ten seconds on the phone is not one minute", async () => {
   // Nobody at this id: the wire says they are not in the workspace.
   await newTree();
   const frame = () => pageFor("p-none");
@@ -1197,15 +1209,10 @@ test("a frame with nobody to draw has no rail column; History leads About; ten s
 
   const vm = toPersonVM(detail({ row: row({ visits: VISITS, call_count: 1, call_seconds: 12 }) }), ZONE, new Date(NOW));
   const tree = (await profile(vm))();
-  const keys = all(tree, (n) => n.props?.className === "cl-prof-attr-key").map((k) => textOf(k));
-  assert.equal(keys[0], "History", `History leads: ${keys}`);
-  const history = find(
-    tree,
-    (n) =>
-      n.props?.className === "cl-prof-attr" &&
-      textOf(find(n, (k) => k.props?.className === "cl-prof-attr-key")) === "History",
-  );
-  assert.match(textOf(history), /1 call, 12 s/, textOf(history));
+  // Their calls are a figure at the top of the work (canvas A), with how long they ran: no About card says them again.
+  const calls = find(tree, (n) => n.props?.["data-figure"] === "calls");
+  assert.ok(calls, "the calls figure");
+  assert.match(textOf(calls), /12 s/, textOf(calls));
 });
 
 test("each smart list on a profile says why it has them, in its rule's words (decision 0009)", async () => {
@@ -1230,7 +1237,8 @@ test("each smart list on a profile says why it has them, in its rule's words (de
     const tree = (await profile(vm))();
     const smart = all(tree, (n) => n.props?.["data-testid"] === "person-smart-chip");
     assert.ok(smart.length > 0);
-    for (const chip of smart) assert.match(find(chip, (n) => n.type === "button").props["data-tip"], /^Because: /);
+    // A chip's name is a door to its list on People (a link: the kit's chip link), its rule's words its tip.
+    for (const chip of smart) assert.match(find(chip, (n) => n.type === "a").props["data-tip"], /^Because: /);
     assert.equal(byTestId(tree, "person-list-open").props["data-tip"], "Because: Reaches you by WhatsApp");
   } finally {
     setSurfaceValue("people", saved);
@@ -1310,19 +1318,16 @@ const profileSaving = async (vm, answer = { ok: true, data: {} }) => {
 };
 const type = (input, value) => input.props.onChange({ target: { value } });
 
-test("a person's email address is said once, in About, and added there: the row is its own control, and what is wrong with a typed address is said under the field before anything is sent", async () => {
+test("a person's email address is said once, in Reach them, and added there: the row is its own control, and what is wrong with a typed address is said under the field before anything is sent", async () => {
   const vm = toPersonVM(detail({ row: row({ visits: VISITS, email: null }) }), ZONE, new Date(NOW));
   assert.equal(vm.email, null);
   const { draw, sent, restore } = await profileSaving(vm);
   try {
     let tree = draw();
-    const keys = all(tree, (n) => n.props?.className === "cl-prof-attr-key").map((k) => textOf(k));
-    assert.deepEqual(
-      keys.slice(0, 2),
-      ["History", "Email"],
-      `someone who may change it gets the row while it is empty: ${keys}`,
-    );
-    const add = byTestId(tree, "person-email-edit");
+    // Reach them holds the address (canvas A): someone who may change it gets the row while it is empty.
+    const reach = find(tree, (n) => n.props?.["data-testid"] === "person-reach");
+    assert.ok(reach, "Reach them");
+    const add = byTestId(reach, "person-email-edit");
     assert.equal(textOf(add).trim(), "Add an email", "an empty address is an invitation, not a bare pencil");
     press(add);
     tree = draw();
@@ -1560,15 +1565,24 @@ test("a person opened from a People view steps to the one before and after (‹ 
     keepWalk("all", ["p-before", vm.id, "p-after"]);
     let draw = await profile(vm);
     let tree = draw();
-    assert.equal(textOf(byTestId(tree, "person-walk")).replace(/\s+/g, ""), "‹2of3›");
-    press(byTestId(tree, "person-walk-next"));
+    // On a desk the walk stands beside "‹ People" where the date stands (the standing's `back.after`, canvas A): the
+    // frame draws it, so it is drawn here from what the page said.
+    const walkOf = () => {
+      const after = standingSaid()?.back?.after;
+      return after ? after.type(after.props) : null;
+    };
+    const walk = walkOf();
+    assert.equal(textOf(walk).replace(/\s+/g, ""), "2of3");
+    press(byTestId(walk, "person-walk-next"));
     assert.deepEqual(steps.at(-1), ["clients/p-after", { replace: true }], "the next person, the address replaced");
-    press(byTestId(tree, "person-walk-prev"));
+    press(byTestId(walk, "person-walk-prev"));
     assert.deepEqual(steps.at(-1), ["clients/p-before", { replace: true }]);
+    assert.equal(byTestId(tree, "person-walk"), null, "the page itself draws no walk");
     // A person the view does not hold has no steps.
     keepWalk("all", ["p-before", "p-after"]);
     draw = await profile(vm);
-    assert.equal(byTestId(draw(), "person-walk"), null);
+    draw();
+    assert.equal(walkOf(), null);
     // On a phone the steps are More's first rows, and the head draws none.
     keepWalk("all", ["p-before", vm.id, "p-after"]);
     globalThis.window.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
@@ -1576,8 +1590,12 @@ test("a person opened from a People view steps to the one before and after (‹ 
     tree = draw();
     assert.equal(byTestId(tree, "person-walk"), null);
     const more = find(byTestId(tree, "person-acts"), (n) => n.type === Menu);
-    const first = more.props.groups[0].items.map((i) => i.label);
-    assert.deepEqual(first, ["Next person · 3 of 3", "Previous person"]);
+    const first = more.props.groups[0].items.map((i) => [i.label, i.hint ?? null]);
+    assert.deepEqual(first, [
+      ["Next person", "3 of 3"],
+      ["Previous person", null],
+    ]);
+    assert.equal(standingSaid()?.back?.after, null, "and the dateline carries none");
     more.props.groups[0].items[0].onSelect();
     assert.deepEqual(steps.at(-1), ["clients/p-after", { replace: true }]);
   } finally {
@@ -2065,7 +2083,8 @@ test("the profile's Campaigns rows open each run's report, and its Lists name th
   });
   const chip = byTestId(lists, "person-smart-chip");
   assert.ok(chip && textOf(chip).includes("Booked"));
-  press(find(chip, (n) => n.type === "button"));
+  // The chip's name is a door: a link to the list on People (the kit's chip link).
+  press(find(chip, (n) => n.type === "a"));
   assert.deepEqual(went, ["clients/seg:booked"]);
 });
 
@@ -2220,16 +2239,18 @@ test("a proposal's send sits beside the booking link in More, 'again' once it we
   const moreOf = (t) => find(t, (n) => n.type === Menu);
   const labels = (t) => (moreOf(t) ? itemsIn(moreOf(t)).map((i) => i.label) : []);
   const items = itemsIn(moreOf(tree));
+  // More's first group reaches them (canvas A): Text them, the booking link, then the proposal (Call is the head's).
   assert.deepEqual(
-    items.slice(0, 2).map((i) => i.label),
-    ["Send booking link", "Send proposal"],
+    items.slice(0, 3).map((i) => i.label),
+    ["Text them", "Send booking link", "Send proposal"],
     "the booking link, then the proposal",
   );
+  const proposal = items.find((i) => i.label === "Send proposal");
   assert.ok(
-    /^Opens their thread with it ready to send/.test(items[1].title),
-    `what it does, on hover: ${items[1].title}`,
+    /^Opens their thread with it ready to send/.test(proposal.title),
+    `what it does, on hover: ${proposal.title}`,
   );
-  const send = { props: { onClick: items[1].onSelect } };
+  const send = { props: { onClick: proposal.onSelect } };
 
   // The press carries the contract's words into the thread's composer and opens the thread; nothing is sent.
   const carried = [];
@@ -2260,7 +2281,8 @@ test("a proposal's send sits beside the booking link in More, 'again' once it we
   // None on file: no send, and no row inviting one: a proposal is started from the Deal section.
   tree = (await profile(toPersonVM(detail({ deals_on: true }), ZONE, new Date(NOW))))();
   assert.equal(byTestId(tree, "person-proposal"), null);
-  assert.ok(!labels(tree).some((l) => /proposal/.test(l)), "no proposal, no send");
+  assert.ok(!labels(tree).some((l) => /^Send proposal/.test(l)), "no proposal, no send");
+  assert.ok(labels(tree).includes("Start a proposal"), "a proposal is started, in the sheet");
 
   // A viewer sends nothing, and may still call them from their own phone.
   globalThis.window.__ME = { role: "viewer" };
@@ -2282,7 +2304,13 @@ test("a proposal's send sits beside the booking link in More, 'again' once it we
     new Date(NOW),
   );
   tree = (await profile(quiet))();
-  assert.ok(!labels(tree).some((l) => /^Send/.test(l)), "nothing is sent to someone who said stop");
+  // Nothing is sent to someone who said stop: what would send is drawn, disabled, and says why (canvas A, More).
+  const sends = itemsIn(moreOf(tree)).filter((i) => /^(Send|Text them|Email them)/.test(i.label));
+  assert.ok(sends.length > 0, "the sends are drawn");
+  assert.ok(
+    sends.every((i) => i.disabled === true && /asked to stop/.test(i.title)),
+    `nothing is sent to someone who said stop: ${sends.map((i) => `${i.label}:${i.disabled}`)}`,
+  );
 
   // A workspace whose customers book: the booking link's send, and no proposal anywhere (0008).
   tree = (
@@ -2367,6 +2395,16 @@ const sheetAsks = () => {
   return asked;
 };
 const cardOf = (t) => byTestId(t, "person-deal-card");
+/**
+ * The Deals tab with each deal's row folded open (canvas A: a deal is a row, its name the press that folds the rest
+ * open under it), drawn again after the press.
+ */
+const openedRow = async (vm, tab = "deals") => {
+  const draw = await profile(vm, tab);
+  for (const title of all(draw(), (n) => n.props?.["data-testid"] === "person-deal-title")) press(title);
+  return draw();
+};
+
 const movesOf = (t) => all(t, (n) => n.type === "button" && n.props?.["data-testid"] === "person-deal-move");
 
 test("the Deal section stands on the Overview above Coming up, only where deals are on; with no deal it is one quiet line that starts a proposal in the sheet; the card's settings have no Deal row", async () => {
@@ -2399,8 +2437,8 @@ test("the Deal section stands on the Overview above Coming up, only where deals 
       all(byTestId(tree, "person-settings"), (n) => cls(n).split(" ").includes("rec-row")).map((r) =>
         textOf(find(r, (n) => cls(n) === "rec-row-key")),
       ),
-      ["Receptionist", "Visit messages", "Offers & news"],
-      "REGRESSION: the deal was a row of the card and a fold under it",
+      ["Visit messages", "Offers & news", "Receptionist"],
+      "REGRESSION: the deal was a row of the card and a fold under it (canvas A's order: the answers, then who answers)",
     );
     assert.equal(byTestId(tree, "rec-row-person-deal"), null);
     assert.ok(!all(tree, (n) => n.type === "h2").some((h) => textOf(h) === "Proposal"));
@@ -2418,7 +2456,7 @@ test("a proposal out is a card: its service and value, its steps, its link and w
   try {
     // The person's own link (00154) stays theirs: the card says the deal's.
     const vm = withDeals([dealRow({ proposal_url: url })], { proposal_url: "https://docs.example.com/p/own" });
-    let tree = (await profile(vm, "deals"))();
+    let tree = await openedRow(vm);
     const card = cardOf(tree);
     assert.equal(textOf(byTestId(card, "person-deal-title")), "Ad management");
     assert.equal(textOf(byTestId(card, "person-deal-value")), "$1,200", "a proposal says its value (0008)");
@@ -2444,7 +2482,7 @@ test("a proposal out is a card: its service and value, its steps, its link and w
     // The card leads with the send, so the More menu does not say it again.
     const more = find(tree, (n) => n.type === Menu);
     assert.ok(
-      !itemsIn(more).some((i) => /proposal/i.test(i.label || "")),
+      !itemsIn(more).some((i) => /^Send proposal/i.test(i.label || "")),
       "REGRESSION: Send proposal on the card and again under More",
     );
     went.length = 0;
@@ -2463,27 +2501,25 @@ test("a proposal out is a card: its service and value, its steps, its link and w
     ]);
 
     // Recorded without a link: said, and adding it is the next act.
-    tree = (await profile(withDeals([dealRow()]), "deals"))();
+    tree = await openedRow(withDeals([dealRow()]));
     assert.deepEqual(all(cardOf(tree), (n) => n.props?.["data-testid"] === "person-deal-fact").map(textOf), [
-      "No link",
+      "No link yet",
     ]);
     assert.equal(textOf(byTestId(tree, "person-deal-next")), "Edit proposal");
     assert.deepEqual(movesOf(tree).map(textOf), ["Mark as client", "Mark as passed"], "the edit is said once");
     assert.equal(byTestId(tree, "person-deal-flag"), null, "they wrote since: nothing waiting");
-    // Nothing back in a week: a state in the warn tone, the house's one pill.
-    tree = (await profile(withDeals([dealRow()], {}, { last_inbound_at: iso(12 * D) }), "deals"))();
+    // Nothing back in a week: a state in the warn tone, the house's one pill. A proposal recorded without a link went
+    // some other way, so it waits as one whose link went.
+    tree = await openedRow(withDeals([dealRow()], {}, { last_inbound_at: iso(12 * D) }));
     const flag = find(tree, (n) => n.type === StatePill && n.props.testid === "person-deal-flag");
     assert.deepEqual([flag.props.kind, flag.props.value, flag.props.label], ["tone", "warn", "Nothing back in 9 days"]);
 
     // A client: the steps say it; the one move is the end, in quiet words.
-    tree = (
-      await profile(
-        withDeals([
-          dealRow({ stage: "won", decided_at: iso(2 * D), per: "month", amount_cents: 250_000, proposal_url: url }),
-        ]),
-        "deals",
-      )
-    )();
+    tree = await openedRow(
+      withDeals([
+        dealRow({ stage: "won", decided_at: iso(2 * D), per: "month", amount_cents: 250_000, proposal_url: url }),
+      ]),
+    );
     assert.equal(textOf(byTestId(cardOf(tree), "person-deal-value")), "$2,500 a month");
     assert.equal(byTestId(tree, "person-deal-link"), null, "a client's proposal is history");
     assert.equal(byTestId(tree, "person-deal-next"), null);
@@ -2558,14 +2594,14 @@ test("where only an approved message can reach them, the card's follow-up opens 
     );
   try {
     const vm = quiet();
-    const tree = (await profile(vm, "deals"))();
+    const tree = await openedRow(vm);
     const next = byTestId(tree, "person-deal-next");
     assert.deepEqual([textOf(next), next.props.title], ["Follow up", contracts.DEAL_ACT_HINTS.approved]);
     press(next);
     assert.deepEqual(went, [vm.openThread], "their thread, which offers the approved messages");
     assert.deepEqual(carried, [], "and nothing written for them: no free text can go");
     for (const rowOver of [{ consent: "opted_out" }, { dnc: true }]) {
-      const stopped = (await profile(quiet(rowOver), "deals"))();
+      const stopped = await openedRow(quiet(rowOver));
       assert.equal(textOf(byTestId(stopped, "person-deal-next")), "Mark as client", JSON.stringify(rowOver));
     }
     // Where their People row says the proposal follow-up has them (0006): the day its run goes, and the card leads
@@ -2577,6 +2613,7 @@ test("where only an approved message can reach them, the card's follow-up opens 
         ...(keep || {}),
         rows: [{ id: vm.id, followUp: { kind: "will", atMs: NOW, asks: true } }],
       });
+      for (const title of all(draw(), (n) => n.props?.["data-testid"] === "person-deal-title")) press(title);
       const inHand = draw();
       assert.equal(textOf(byTestId(inHand, "person-deal-next")), "Mark as client");
       const flag = find(inHand, (n) => n.type === StatePill && n.props.testid === "person-deal-flag");
@@ -2659,11 +2696,15 @@ test("the card's settings are one line each, and Change opens the editor under i
   const rows = all(settings, (n) => cls(n).split(" ").includes("rec-row"));
   assert.deepEqual(
     rows.map((r) => textOf(find(r, (n) => cls(n) === "rec-row-key"))),
-    ["Receptionist", "Visit messages", "Offers & news"],
-    "REGRESSION: three stacked controls with a paragraph under each were 1,249px of rail",
+    ["Visit messages", "Offers & news", "Receptionist"],
+    "REGRESSION: three stacked controls with a paragraph under each were 1,249px of rail (canvas A: the key over its answer)",
+  );
+  assert.ok(
+    rows.every((r) => cls(r).split(" ").includes("rec-row-stacked")),
+    "each row stacks its key over its answer: the rail's width squeezed them a letter a line",
   );
   assert.deepEqual(
-    rows.slice(1).map((r) => textOf(find(r, (n) => cls(n) === "rec-row-value"))),
+    rows.slice(0, 2).map((r) => textOf(find(r, (n) => cls(n) === "rec-row-value"))),
     [vm.consent.answerLabel, vm.consent.marketingLabel],
     "each answer in its control's own words, from contracts",
   );
@@ -3044,6 +3085,20 @@ test("a person's notes are a log (0007): the receptionist's suggestion first, th
  * The notes card's doors on the wire (POST contacts/<id>/notes, and /done, /remove, /decide), recording what the page asks of
  * them as [door, person, body] in the order it asks, and accepting each.
  */
+/**
+ * History's Notes tab (canvas A): every note with its acts, the suggestions and the composer, where the Overview keeps
+ * the newest note alone. Answers the page's draw, on that tab.
+ */
+const notesTab = async (vm) => {
+  const draw = await profile(vm, "history");
+  const strip = find(
+    draw(),
+    (n) => n.type === SubTabs && n.props.tabs.some((x) => x.testid?.startsWith("timeline-filter-")),
+  );
+  strip.props.onSelect("notes");
+  return draw;
+};
+
 const recordingNotes = (sent, id = "p1") => {
   for (const [door, name] of [
     ["", "write"],
@@ -3061,13 +3116,15 @@ test("REGRESSION: the notes card was one box the receptionist read whole, overwr
   const vm = toPersonVM(withNotes(), ZONE, new Date(NOW));
   const sent = [];
   recordingNotes(sent);
-  const draw = await profile(vm);
+  const draw = await notesTab(vm);
   let tree = draw();
   const card = byTestId(tree, "person-notes");
   assert.ok(card, "the card");
   const suggested = byTestId(card, "person-note-suggested");
-  assert.match(textOf(suggested), /Suggested by the receptionist/);
-  assert.match(textOf(suggested), /After a call/);
+  // Who suggested it, where it was heard and when, said on its eyebrow on every screen (a phone has no hover); the date
+  // with its year is its hover.
+  assert.match(textOf(suggested), /^Suggested by the receptionist · after a call · /);
+  assert.match(String(find(suggested, (n) => typeof n.props?.title === "string")?.props.title), /, 20\d\d · /);
   const rows = all(card, (n) => n.props?.["data-testid"] === "person-note");
   assert.ok(
     rows.every((r) => !String(r.props.className).split(" ").includes("cl-prof-note")),
@@ -3095,7 +3152,8 @@ test("REGRESSION: the notes card was one box the receptionist read whole, overwr
   );
   chooseIn(tree, "person-note-for", "Sam");
   tree = draw();
-  byTestId(tree, "person-note-team-only").props.onChange({ target: { checked: true } });
+  // Team only is the kit's switch (canvas A, the composer's foot).
+  press(byTestId(tree, "person-note-team-only"));
   tree = draw();
   press(byTestId(tree, "person-notes-save"));
   await settle();
@@ -3113,17 +3171,17 @@ test("who may do what to a note: its author changes it, an owner or its author d
         return m ? itemsIn(m).map((i) => i.label) : [];
       });
     globalThis.window.__ME = { role: "owner" };
-    let draw = await profile(vm);
+    let draw = await notesTab(vm);
     assert.deepEqual(
       actsOf(draw()),
       [["Edit", "Delete"], ["Delete"], ["Delete"]],
       "an owner deletes any; edits only their own",
     );
     globalThis.window.__ME = { role: "operator" };
-    draw = await profile(vm);
+    draw = await notesTab(vm);
     assert.deepEqual(actsOf(draw()), [["Edit", "Delete"], [], []], "an operator only their own");
     globalThis.window.__ME = { role: "viewer" };
-    draw = await profile(vm);
+    draw = await notesTab(vm);
     const tree = draw();
     assert.equal(byTestId(tree, "person-notes-input"), null, "a viewer writes nothing");
     assert.deepEqual(actsOf(tree), [[], [], []]);
@@ -3132,7 +3190,7 @@ test("who may do what to a note: its author changes it, an owner or its author d
     // blind to the preview, and offered the owner's controls to the viewer they were previewing.
     globalThis.window.__ME = { role: "owner" };
     globalThis.window.ST_STORE.viewAsRole = "viewer";
-    draw = await profile(vm);
+    draw = await notesTab(vm);
     const previewed = draw();
     assert.equal(byTestId(previewed, "person-notes-input"), null, "an owner previewing a viewer writes nothing");
     assert.deepEqual(actsOf(previewed), [[], [], []], "and deletes nothing");
@@ -3174,7 +3232,7 @@ test("a note may have a day (0007, amended): a day makes it a step and holds Tea
   globalThis.window.usePPToast = () => [null, (t) => flashes.push(t)];
   const W = contracts.NOTE_WORDS;
   try {
-    const draw = await profile(vm);
+    const draw = await notesTab(vm);
     const rowsOf = (tree) => all(byTestId(tree, "person-notes"), (n) => n.props?.["data-testid"] === "person-note");
     let [step, done, plain] = rowsOf(draw());
     assert.match(String(step.props.className), /\bis-step\b/);
@@ -3186,13 +3244,17 @@ test("a note may have a day (0007, amended): a day makes it a step and holds Tea
     assert.equal(byTestId(plain, "person-note-due"), null, "a note with no day says none");
     assert.equal(byTestId(plain, "person-note-done"), null);
 
-    // Ticked by anyone who acts, with the version the page saw; done, the toast offers the next one, on its deal.
+    // Ticked by anyone who acts, with the version the page saw; done, the toast says it in bold with the step's words and
+    // its Undo opens it again (canvas A, M5): a true inverse door, and no sheet asked for.
     byTestId(step, "person-note-done").props.onChange({ target: { checked: true } });
     await settle();
     assert.deepEqual(sent.at(-1), ["done", vm.id, { note_id: "n-step", done: true, version: 1 }]);
-    assert.equal(flashes.at(-1).action.label, W.setTheNext);
-    flashes.at(-1).action.onClick();
-    assert.deepEqual(asked().at(-1), { personId: vm.id, dealId: "d1", noteId: null });
+    assert.match(textOf(flashes.at(-1).msg), new RegExp(`^${W.stepDone} · Call about the timeline$`));
+    assert.equal(flashes.at(-1).action, undefined, "no Set the next one");
+    flashes.at(-1).undo();
+    await settle();
+    assert.deepEqual(sent.at(-1), ["done", vm.id, { note_id: "n-step", done: false }], "Undo opens the step again");
+    assert.deepEqual(asked(), [], "and no sheet");
     // Ticked again, a done step is open again, and nothing is offered.
     [step, done, plain] = rowsOf(draw());
     byTestId(done, "person-note-done").props.onChange({ target: { checked: false } });
@@ -3200,8 +3262,8 @@ test("a note may have a day (0007, amended): a day makes it a step and holds Tea
     assert.deepEqual(sent.at(-1), ["done", vm.id, { note_id: "n-done", done: false, version: 1 }]);
     assert.equal(flashes.at(-1).action, undefined);
 
-    // The composer: its days are three (Tomorrow, this week's Friday or next week, Pick a day); a day makes the note a
-    // step, holds Team only on whatever it was, and the button says what it makes.
+    // The composer: its days are four (Today, Tomorrow, this week's Friday or next week, Pick a day: canvas A); a day
+    // makes the note a step, holds Team only on whatever it was, and the button says what it makes.
     type(byTestId(draw(), "person-notes-input"), "Follow up on the logo");
     let tree = draw();
     assert.equal(textOf(byTestId(tree, "person-notes-save")).trim(), W.add);
@@ -3212,12 +3274,12 @@ test("a note may have a day (0007, amended): a day makes it a step and holds Tea
       all(byTestId(tree, "person-note-day"), (n) => n.props?.role === "radio").map((n) => textOf(n).trim()),
       days.map((d) => d.label),
     );
-    const tomorrow = days[0];
+    const tomorrow = days[1];
     assert.equal(tomorrow.label, "Tomorrow");
     chooseIn(tree, "person-note-day", "Tomorrow");
     tree = draw();
     const lock = byTestId(tree, "person-note-team-only");
-    assert.deepEqual([lock.props.checked, lock.props.disabled], [true, true]);
+    assert.deepEqual([lock.props["aria-checked"], lock.props["aria-disabled"]], [true, true]);
     assert.equal(textOf(byTestId(tree, "person-notes-save")).trim(), "Add step for Tomorrow");
     // A second press on the day chosen takes it away, and a first chooses it again.
     chooseIn(tree, "person-note-day", "Tomorrow");
@@ -3314,7 +3376,7 @@ test("a deal's card says its next step (0007, amended): Next, what, when, for wh
       }),
       noteDto("n-person", "Ask about her sister", 7, { due_on: dayFrom(1), team_only: true }),
     ];
-    let tree = (await profile(withDeals([dealRow()], { person_notes: notes, note_team: NOTE_TEAM })))();
+    let tree = await openedRow(withDeals([dealRow()], { person_notes: notes, note_team: NOTE_TEAM }), "overview");
     const card = byTestId(tree, "person-deal-card");
     const step = byTestId(card, "person-deal-nextstep");
     assert.ok(step, "the card says its next step");
@@ -3355,12 +3417,12 @@ test("a deal's card says its next step (0007, amended): Next, what, when, for wh
     assert.deepEqual(asked.at(-1), { personId: "p1", noteId: "n-soon" });
 
     // Someone else's step: Done, and no Change.
-    tree = (await profile(withDeals([dealRow()], { person_notes: [notes[0]], note_team: NOTE_TEAM })))();
+    tree = await openedRow(withDeals([dealRow()], { person_notes: [notes[0]], note_team: NOTE_TEAM }), "overview");
     assert.ok(byTestId(tree, "person-deal-nextstep-done"));
     assert.equal(byTestId(tree, "person-deal-nextstep-change"), null, "only its author changes it");
 
     // No step on the deal: Set a next step, which asks for the sheet on that deal.
-    tree = (await profile(withDeals([dealRow()], { person_notes: [notes[2]], note_team: NOTE_TEAM })))();
+    tree = await openedRow(withDeals([dealRow()], { person_notes: [notes[2]], note_team: NOTE_TEAM }), "overview");
     assert.equal(byTestId(tree, "person-deal-nextstep"), null);
     const set = byTestId(tree, "person-deal-set-nextstep");
     assert.equal(textOf(set), S.setNext);
@@ -3369,11 +3431,11 @@ test("a deal's card says its next step (0007, amended): Next, what, when, for wh
 
     // A viewer reads the step and acts on none of it.
     globalThis.window.__ME = { role: "viewer" };
-    tree = (await profile(withDeals([dealRow()], { person_notes: notes, note_team: NOTE_TEAM })))();
+    tree = await openedRow(withDeals([dealRow()], { person_notes: notes, note_team: NOTE_TEAM }), "overview");
     assert.ok(byTestId(tree, "person-deal-nextstep"));
     assert.equal(byTestId(tree, "person-deal-nextstep-done"), null);
     assert.equal(byTestId(tree, "person-deal-nextstep-change"), null);
-    tree = (await profile(withDeals([dealRow()], { person_notes: [], note_team: NOTE_TEAM })))();
+    tree = await openedRow(withDeals([dealRow()], { person_notes: [], note_team: NOTE_TEAM }), "overview");
     assert.equal(byTestId(tree, "person-deal-set-nextstep"), null);
   } finally {
     globalThis.window.openStepSheet = keep.sheet;
@@ -3381,6 +3443,10 @@ test("a deal's card says its next step (0007, amended): Next, what, when, for wh
     globalThis.window.fetch = keep.fetch;
   }
 });
+
+/** The merge's typed question: the kit's Confirm in its sheet's foot, where the pick and what it does are the body. */
+const mergeConfirm = (tree) =>
+  find(find(tree, (n) => n.props?.testid === "person-merge-sheet")?.props.foot, (n) => n.type === KitConfirm);
 
 test("Merge with another record (0028): the owner's act opens the picker over People and the typed confirmation, and the merge is the kept record's request", async () => {
   const { MERGE_WORDS } = contracts;
@@ -3420,7 +3486,7 @@ test("Merge with another record (0028): the owner's act opens the picker over Pe
     assert.equal(byTestId(draw(), "merge"), null, "nothing is drawn until the act is pressed");
 
     act.onSelect();
-    let box = byTestId(draw(), "merge");
+    const box = byTestId(draw(), "merge");
     assert.ok(box, "the merge box");
     const picker = find(box, (n) => n.type === Picker);
     assert.deepEqual(
@@ -3429,18 +3495,18 @@ test("Merge with another record (0028): the owner's act opens the picker over Pe
       "the other records of People, this person left out",
     );
     assert.equal(picker.props.placeholder, MERGE_WORDS.pickNone);
-    let confirm = find(box, (n) => n.type === KitConfirm);
+    let confirm = mergeConfirm(draw());
     assert.equal(confirm.props.ready, false, "nothing chosen, nothing typed");
     assert.equal(textOf(confirm.props.question), MERGE_WORDS.question(vm.name, "the other record"));
 
     picker.props.onValueChange("p2");
-    box = byTestId(draw(), "merge");
-    confirm = find(box, (n) => n.type === KitConfirm);
+    confirm = mergeConfirm(draw());
     assert.equal(textOf(confirm.props.question), MERGE_WORDS.question(vm.name, "Daniela by email"));
     assert.equal(confirm.props.ready, false, "chosen, but the kept name is not typed");
+    // What it does is the sheet's body, under the pick, once (the question and its answers are the foot's).
+    assert.ok(textOf(byTestId(draw(), "merge")).includes(MERGE_WORDS.detail(vm.name, "Daniela by email")));
     confirm.props.onType(vm.name);
-    box = byTestId(draw(), "merge");
-    confirm = find(box, (n) => n.type === KitConfirm);
+    confirm = mergeConfirm(draw());
     assert.equal(confirm.props.ready, true);
     assert.equal(textOf(confirm.props.yes), MERGE_WORDS.yes);
 
@@ -3457,7 +3523,8 @@ test("Merge with another record (0028): the owner's act opens the picker over Pe
       world.seen.slice(before).some((r) => r.method === "GET" && r.path === "/api/v1/contacts/p1"),
       "and the page is read again, whole",
     );
-    assert.equal(byTestId(draw(), "merge"), null, "the box closes");
+    // The merge asks in the kit's sheet (canvas A), which closes; it plays its way out with what it held.
+    assert.equal(find(draw(), (n) => n.props?.testid === "person-merge-sheet")?.props.open, false, "the sheet closes");
   } finally {
     globalThis.window.__ME = me;
     setSurfaceValue("people", saved);
@@ -3533,7 +3600,7 @@ test("Same person? (0034 step 4): each doubt the door raised is a row saying who
       ],
       "the doubts' records, beside what People holds",
     );
-    const confirm = find(box, (n) => n.type === KitConfirm);
+    const confirm = mergeConfirm(draw());
     assert.equal(textOf(confirm.props.question), MERGE_WORDS.question(vm.name, "Daniela by email"));
 
     // Not the same: the pair's own door, then the page read again.
@@ -3666,7 +3733,7 @@ test("a merge the door refuses says so in the box, in the door's sentence, and a
     actsIn(menu)
       .find((i) => i.label === contracts.MERGE_WORDS.act)
       .onSelect();
-    const confirmOf = () => find(byTestId(draw(), "merge"), (n) => n.type === KitConfirm);
+    const confirmOf = () => mergeConfirm(draw());
     find(byTestId(draw(), "merge"), (n) => n.type === Picker).props.onValueChange("p2");
     confirmOf().props.onType(vm.name);
     const before = world.seen.length;

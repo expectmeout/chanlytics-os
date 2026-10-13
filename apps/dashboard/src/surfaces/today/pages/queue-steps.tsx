@@ -6,13 +6,14 @@
  * teammate (a note on the live feed is one of People's own tables) moves People, and People moves this.
  *
  * Done is the Inbox thread header's verb, press for press (inbox/thread/header.tsx IxThreadStep): the person-notes courier's
- * `done`, an owner's or an operator's (the door's rule; the gate says so to anyone else), answered in the toast with Set the
- * next one; a second press while the first is on its way waits.
+ * `done`, an owner's or an operator's (the door's rule; the gate says so to anyone else), said as every page says it
+ * (step-done.tsx): "Step done · its words", with an Undo that brings the row back.
  */
 import { NOTE_WORDS, type TodayQueueRowVM, type TodayStepsVM } from "@chanlytics/contracts";
 import type { PeopleSurface } from "@/surfaces/people/surface";
 import { TODAY_HELPERS } from "../helpers";
-import { borrowed, gate, openStepSheet, personNotes, stepSheetOffered, workspaceClock, type Flash } from "../shell";
+import { completeStep, type StepSay } from "../../step-done";
+import { borrowed, gate, personNotes, workspaceClock } from "../shell";
 
 /**
  * The steps due, from People's rows as the People surface holds them; null while People is unread or the workspace's zone is
@@ -51,32 +52,25 @@ export function stepAct(row: TodayQueueRowVM, kind: "primary" | "ghost", done: (
   };
 }
 
-/** A step is being marked: the press that is on its way, so a second waits. */
-const PRESSED = new Set<string>();
-
 /**
  * Mark a step done. The row goes at once (`hide`), as the thread header's line does, and People is read again behind the verb
- * (the route's refresh); the answer is said in the toast whatever the page does next.
+ * (the route's refresh); the toast says it, and its Undo brings the row back (`show`).
  */
-export async function stepDone(row: TodayQueueRowVM, flash: (flash: Flash) => void, hide: (noteId: string) => void) {
+export async function stepDone(
+  row: TodayQueueRowVM,
+  say: StepSay,
+  page: { hide: (noteId: string) => void; show: (noteId: string) => void },
+) {
   const step = row.step;
   const notes = personNotes();
-  if (!step || !notes || PRESSED.has(step.note_id)) return;
-  PRESSED.add(step.note_id);
-  let res: Awaited<ReturnType<typeof notes.done>>;
-  try {
-    res = await notes.done(step.person_id, step.note_id, true);
-  } finally {
-    PRESSED.delete(step.note_id);
-  }
-  if (!res.ok) {
-    flash({ tone: "danger", msg: <>{res.message}</> });
-    return;
-  }
-  hide(step.note_id);
-  const next = stepSheetOffered() ? () => openStepSheet({ personId: step.person_id, dealId: step.deal_id }) : null;
-  flash({
-    msg: <>{NOTE_WORDS.stepDone}</>,
-    ...(next ? { action: { label: NOTE_WORDS.setTheNext, onClick: next } } : {}),
+  if (!step || !notes) return;
+  await completeStep({
+    personId: step.person_id,
+    noteId: step.note_id,
+    words: row.sentence,
+    done: notes.done,
+    say,
+    onDone: () => page.hide(step.note_id),
+    onUndone: () => page.show(step.note_id),
   });
 }

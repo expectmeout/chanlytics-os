@@ -95,6 +95,8 @@ interface RecordRowProps {
   wrong?: ReactNode;
   act?: RecordAct | null;
   top?: boolean;
+  /** The key over the value, the act at the right of both: a row in a narrow rail (canvas A's Messages group). */
+  stacked?: boolean;
   testid?: string | null;
   settled?: boolean;
   children?: ReactNode;
@@ -272,6 +274,10 @@ function rowAct(act: RecordAct, ids: RowIds) {
   return act.wrap ? act.wrap(button, face) : button;
 }
 
+/** A row's classes: tall where it holds more than a line, stacked where its key stands over its value. */
+const rowClassOf = (tall: boolean, stacked: boolean | undefined) =>
+  `rec-row${tall ? " rec-row-top" : ""}${stacked ? " rec-row-stacked" : ""}`;
+
 /** A record's row: a label, its value, where the value came from, and one act. */
 export function RecordRow(props: RecordRowProps) {
   const { id = null, label, disputed = null, wrong = null, act = null, top = false } = props;
@@ -284,7 +290,7 @@ export function RecordRow(props: RecordRowProps) {
   const tall = top || !!hint || !!disputed || !!wrong || kids;
   return (
     <div
-      className={`rec-row${tall ? " rec-row-top" : ""}`}
+      className={rowClassOf(tall, props.stacked)}
       role="presentation"
       data-empty={isEmpty ? "true" : "false"}
       data-state={wrong || (disputed && disputed.severity === "serious") ? "warn" : undefined}

@@ -28,6 +28,9 @@ type Item = PersonVM["timeline"][number];
 /** No row new to the reader: the History of a page that does not say. */
 const NOTHING_NEW: ReadonlySet<string> = new Set();
 
+/** Fewer rows than this draw no filters: a short record is read whole (canvas A, D3). */
+const FILTERS_FROM = 6;
+
 /** Newer than this many rows waits behind one press. The Inbox is the whole thread; a profile that drew a year of messages ran to five screens on a phone. */
 const TL_CAP = 20;
 
@@ -44,7 +47,7 @@ function customerMark(name: string | undefined, initials: string): ReactNode {
 function markOf(e: Item, customer: ReactNode): ReactNode {
   if (e.kind === "customer") return customer;
   if (e.kind === "receptionist") return <Icon name="sparkle" size={12} />;
-  if (e.kind === "team") return <Icon name="users" size={12} />;
+  if (e.kind === "team") return <Icon name="chat" size={12} />;
   if (e.kind === "call") return <Icon name="phone" size={12} />;
   if (e.kind === "visit") return <Icon name="calendar" size={12} />;
   if (e.kind === "deal") return <Icon name="deal" size={12} />;
@@ -83,8 +86,9 @@ function askLine(e: Item) {
 }
 
 /**
- * A row's mark, who and when (a dot before the time where it is new since the reader last looked, 0052), what was said,
- * its second line, and the arrow where it has somewhere to go.
+ * A row's mark, who (a dot after it where it is new since the reader last looked, 0052), what was said, its second line,
+ * and its time, always the row's third cell at its right edge (canvas A, D3). A row that goes somewhere is the door
+ * itself, whole, so it draws no arrow of its own.
  */
 function rowBody(e: Item, customer: ReactNode, ask: ReactNode = null, isNew = false) {
   return (
@@ -96,9 +100,8 @@ function rowBody(e: Item, customer: ReactNode, ask: ReactNode = null, isNew = fa
           {isNew ? (
             <span className="cl-tl-new" role="img" aria-label={NEW_SINCE_WORDS} data-testid="timeline-new" />
           ) : null}
-          <span className="cl-tl-time">{e.time}</span>
         </div>
-        <div className={`cl-tl-text ${e.kind === "customer" ? "" : "muted"}`}>{e.text}</div>
+        <div className="cl-tl-text">{e.text}</div>
         {/* What the call's analysis left (its to-do, what the caller gave), a line each under what they wanted. */}
         {e.notes?.map((n) => (
           <div key={n} className="cl-tl-sub" data-testid="timeline-note">
@@ -108,11 +111,7 @@ function rowBody(e: Item, customer: ReactNode, ask: ReactNode = null, isNew = fa
         {e.sub && <div className="cl-tl-sub">{e.sub}</div>}
         {ask}
       </div>
-      {e.link && !ask && (
-        <span className="cl-tl-go" aria-hidden="true">
-          <Icon name="arrow-right" size={11} />
-        </span>
-      )}
+      <span className="cl-tl-time">{e.time}</span>
     </>
   );
 }
@@ -121,18 +120,39 @@ function rowBody(e: Item, customer: ReactNode, ask: ReactNode = null, isNew = fa
 const tabPressed = (testid: string): HTMLElement | null =>
   "querySelector" in document ? document.querySelector<HTMLElement>(`[data-testid="${testid}"]`) : null;
 
-/** The filters offered: All, then only the kinds this person's record holds. */
-function filterStrip(items: Item[], filter: string, onFilter: (id: string) => void, dealsOn: boolean): ReactNode {
+/** History's Notes (canvas A, "All notes ›"): its tab's words, and every note in place of the rows while it is picked. */
+interface TimelineNotes {
+  id: string;
+  label: string;
+  body: ReactNode;
+}
+
+/** The filters offered: All, then only the kinds this person's record holds, then their notes where they have any. */
+function filterStrip(
+  items: Item[],
+  filter: string,
+  onFilter: (id: string) => void,
+  more: { dealsOn: boolean; notes: TimelineNotes | null },
+): ReactNode {
   const offered = TIMELINE_FILTERS.filter((f) => f.id === "all" || items.some((i) => (f.kinds || []).includes(i.kind)));
-  if (offered.length <= 2) return null;
+  const { dealsOn, notes } = more;
+  // A short record needs no filters (canvas A, D3): under six rows, none, unless their notes are only reached here.
+  if (offered.length + (notes ? 1 : 0) <= 2 || (items.length < FILTERS_FROM && !notes)) return null;
   const testid = (id: string) => `timeline-filter-${id}`;
+  // All says how many rows it holds; a kind says nothing (canvas A, D3).
+  const tabs = offered.map((f) => ({
+    id: f.id,
+    label: timelineFilterLabel(f, dealsOn),
+    ...(f.id === "all" ? { count: items.length } : {}),
+    testid: testid(f.id),
+  }));
   return (
     <SubTabs
       label="Show on the timeline"
       value={filter}
       className="cl-tl-filters"
       // The appointments' filter is headed in the workspace's word for one (decision 0041), the rest in their own.
-      tabs={offered.map((f) => ({ id: f.id, label: timelineFilterLabel(f, dealsOn), testid: testid(f.id) }))}
+      tabs={notes ? [...tabs, { id: notes.id, label: notes.label, testid: testid(notes.id) }] : tabs}
       // Held still from the tab pressed: the strip does not jump from under the thumb as the list gets shorter.
       onSelect={(id) => holdStill(tabPressed(testid(id)), () => onFilter(id))}
     />
@@ -155,8 +175,10 @@ function rows(
     <div className="cl-prof-timeline">
       {visible.map((e) => {
         // The day sits above the rail line, on the page's own ground: the line ran through "TODAY".
-        const dayHead = e.day !== lastDay ? <div className="cl-tl-day">{e.day}</div> : null;
-        lastDay = e.day;
+        // A day's head in History's words (contracts dayHead: Today, Yesterday, the weekday), else the row's own day.
+        const day = e.dayHead ?? e.day;
+        const dayHead = day !== lastDay ? <div className="cl-tl-day">{day}</div> : null;
+        lastDay = day;
         const asking = asksOf(e);
         const body = rowBody(e, customer, asking ? askLine(e) : null, fresh.has(e.id));
         return (
@@ -208,6 +230,7 @@ export function PersonTimeline({
   onShowAll = null,
   dealsOn = false,
   fresh = NOTHING_NEW,
+  notes = null,
 }: {
   items: Item[];
   initials: string;
@@ -221,14 +244,24 @@ export function PersonTimeline({
   dealsOn?: boolean;
   /** The rows new since the reader last looked (contracts newSinceOf), each with its dot. */
   fresh?: ReadonlySet<string>;
+  /** Their notes as a tab of the filters (the page's History): every note, in place of the rows, while it is picked. */
+  notes?: TimelineNotes | null;
 }) {
+  const strip = onFilter ? filterStrip(items, filter, onFilter, { dealsOn, notes }) : null;
+  if (notes && filter === notes.id)
+    return (
+      <>
+        {strip}
+        {notes.body}
+      </>
+    );
   const shown = filterTimeline(items, filter);
   // A fold of three rows is not worth a press.
   const visible = showAll || shown.length <= TL_CAP + 3 ? shown : shown.slice(0, TL_CAP);
   const older = shown.length - visible.length;
   return (
     <>
-      {onFilter ? filterStrip(items, filter, onFilter, dealsOn) : null}
+      {strip}
       {items.length === 0 ? (
         <EmptyState kind="line" className="empty-center" title="Nothing recorded yet." />
       ) : (

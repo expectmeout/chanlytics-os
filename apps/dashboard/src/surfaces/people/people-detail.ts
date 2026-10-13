@@ -39,7 +39,7 @@ import { ApiError, type ApiResult } from "@/client/api";
 import { workspaceZone } from "@/legacy-bridge/zone";
 import { readCache, staleReadCaches } from "@/legacy-bridge/read-cache";
 import { holderName } from "../holder-names";
-import { keepSavedView, placeDeal } from "./surface";
+import { keepSavedView, peopleLoaded, placeDeal } from "./surface";
 import { personRouteId } from "@/legacy-bridge/surface-registry";
 import { afterBoot, bootWaitsFor } from "@/legacy-bridge/surface-runner";
 import { getActiveWorkspace, routeOnScreen } from "@/legacy-bridge/workspace";
@@ -63,7 +63,12 @@ export function personDetail(id: string): Promise<PersonVM | null> {
     const [r, tz] = await Promise.all([api()("GET contacts/[id]", { params: { id } }), workspaceZone()]);
     // For the member looking (__ME): a teammate's thread is theirs, not waiting on you.
     const me = (window as unknown as { __ME?: { id?: string | null } }).__ME?.id ?? null;
-    if (r.ok) return toPersonVM(r.data.person, tz, new Date(), me, holderName);
+    // More's sends are judged against the lines People read (null until it has: the sheet judges them again).
+    if (r.ok)
+      return toPersonVM(r.data.person, tz, new Date(), me, {
+        names: holderName,
+        ready: peopleLoaded?.channelsReady ?? null,
+      });
     // Gone: the copy this tab kept of them goes too, or the next open would paint someone who is not there.
     if (r.status === 404) {
       people().forget(id);

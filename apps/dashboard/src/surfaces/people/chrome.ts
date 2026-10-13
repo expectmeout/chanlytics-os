@@ -3,7 +3,15 @@
  * drawNewList and drawPipeline, decision 0015): which addresses under `clients` the page takes, and the crumbs, the mount
  * and the one act of each. The frame stays mounted around it (surfaces/routes.ts).
  */
-import { PERSON_STATE_LABELS, parseLeadsRoute, personRouteOf } from "@chanlytics/contracts";
+import {
+  PERSON_ABOUT_WORDS,
+  PERSON_STATE_LABELS,
+  isIdentifierName,
+  parseLeadsRoute,
+  parsePeopleRoute,
+  personRouteOf,
+  shortName,
+} from "@chanlytics/contracts";
 import { surfaceValue } from "../surface-values";
 import { demoSession } from "../legacy-verbs";
 import { P } from "./pipeline/pipe";
@@ -38,7 +46,10 @@ export const peopleTakes = (param: string): boolean =>
 const peopleFor = (): PeopleSurface | undefined =>
   surfaceValue("people") ?? (demoSession() ? peopleSample() : undefined);
 
-/** The words a view of People goes by in the crumbs: its list's own name, a state's, else what a list is called. */
+/**
+ * The words a view of People goes by in the crumbs, by its token alone (`seg:<id>`, `list:<id>`, `state:<tab>`, never
+ * the person peeked over it): its list's own name, a state's, else what a list is called.
+ */
 function viewLabel(param: string): string {
   const P = peopleFor();
   const kind = param.slice(0, param.indexOf(":"));
@@ -89,6 +100,16 @@ function personName(id: string): string {
 }
 
 /**
+ * The top bar's Ask on a person's page (canvas A): about them by their first name, a stand-in's business whole, and
+ * Ask's own words for someone known only by a number or not read yet.
+ */
+function personAsk(id: string): string | null {
+  const p = peopleFor()?.rows.find((r) => r.id === id) ?? heldPerson(id);
+  if (!p || isIdentifierName(p.name)) return null;
+  return PERSON_ABOUT_WORDS.askAbout(p.standIn ? p.name : shortName(p.name));
+}
+
+/**
  * People | Leads (| Pipeline), the page's scopes, as the views the frame draws (PRD 6.1): the Pipeline only where deals are
  * on. None until People has landed, which is when its deals are known, so the strip never gains a tab after it is drawn.
  */
@@ -111,7 +132,9 @@ function scopeViews(picked: "people" | "leads" | "pipeline"): SurfaceViews | nul
  * toast and its selection with every pick.
  */
 export function peopleChrome({ param, backToPeople }: { param: string | null; backToPeople: unknown }) {
-  if (!param) {
+  // Everyone, with or without a person peeked over it (`state:all:p-<id>`): the list's own chrome.
+  const at = param ? parsePeopleRoute(`clients/${param}`) : null;
+  if (!param || (at && !at.view)) {
     // "Add client" opens the Ask overlay, which is demo theater; a real workspace gains people when they write or phone.
     return {
       crumbs: ["People"],
@@ -124,7 +147,11 @@ export function peopleChrome({ param, backToPeople }: { param: string | null; ba
   // a mount of their own, and their tabs (`<id>/history`, 0052) are their page too: one mount across them, keyed by the person.
   if (isPersonParam(param)) {
     const { id } = personRouteOf(param);
-    return { crumbs: [{ ...PEOPLE_CRUMB, go: backToPeople }, personName(id)], mount: `clients/${id}` };
+    return {
+      crumbs: [{ ...PEOPLE_CRUMB, go: backToPeople }, personName(id)],
+      mount: `clients/${id}`,
+      ask: personAsk(id),
+    };
   }
   if (param === "new-list")
     return { crumbs: [PEOPLE_CRUMB, "New list"], mount: "clients", views: scopeViews("people") };
@@ -139,5 +166,6 @@ export function peopleChrome({ param, backToPeople }: { param: string | null; ba
   // Every view of Leads is one mount: the page follows its address (`p-<lead>` is the lead open over the view).
   if (/^leads(:|$)/.test(param))
     return { crumbs: leadsCrumbs(param), mount: "clients/leads", views: scopeViews("leads") };
-  return { crumbs: [PEOPLE_CRUMB, viewLabel(param)], mount: "clients", views: scopeViews("people") };
+  // A view of People, with or without a person peeked over it: named by its token.
+  return { crumbs: [PEOPLE_CRUMB, viewLabel(at?.view ?? param)], mount: "clients", views: scopeViews("people") };
 }

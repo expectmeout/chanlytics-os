@@ -114,9 +114,6 @@ export function personNotes() {
   return notes && typeof notes.done === "function" ? notes : null;
 }
 
-/** The step sheet (step-sheet.jsx `openStepSheet`) the toast after a step done offers, when the shell has one. */
-export { openStepSheet, stepSheetOffered } from "../people/deal/deal-verbs";
-
 /** The playbooks surface read again after a run's verb (`window.__refreshPlaybooks`): nothing in a stand-in window. */
 export function refreshPlaybooks(): void {
   fn<[], void>("__refreshPlaybooks")?.();

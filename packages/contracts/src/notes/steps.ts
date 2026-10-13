@@ -152,16 +152,25 @@ export function stepDays(nowMs: number, tz: string): StepDayChoice[] {
 }
 
 /**
- * The notes composer's days (0052's composer): Tomorrow, this week's Friday where it comes after tomorrow, else next
- * week, and Pick a day. Three, from the picker's own (stepDays), so a note becomes a step in a press and fits a phone.
+ * A call's days to call back (0052's call): Tomorrow, this week's Friday where it comes after tomorrow, else next week,
+ * and Pick a day. Three, from the picker's own (stepDays), so a call back is a press and fits a phone.
  */
-export function composerDays(nowMs: number, tz: string): StepDayChoice[] {
+export function callDays(nowMs: number, tz: string): StepDayChoice[] {
   const all = stepDays(nowMs, tz);
   const tomorrow = all.find((c) => c.label === "Tomorrow");
   const friday = all.find((c) => c.label === WEEKDAYS[5].slice(0, 3));
   const nextWeek = all.find((c) => c.label === "Next week");
   const pick = all.find((c) => c.key === "pick");
   return [tomorrow, friday ?? nextWeek, pick].filter((c): c is StepDayChoice => !!c);
+}
+
+/**
+ * The notes composer's days (canvas A, M4): Today, then a call's three (Tomorrow, Friday or next week, Pick a day), so a
+ * note becomes a step for today too.
+ */
+export function composerDays(nowMs: number, tz: string): StepDayChoice[] {
+  const today = stepDays(nowMs, tz).find((c) => c.label === "Today");
+  return [...(today ? [today] : []), ...callDays(nowMs, tz)];
 }
 
 /**

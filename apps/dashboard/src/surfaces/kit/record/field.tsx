@@ -274,6 +274,11 @@ interface RecordToggleGroupProps<V extends string | number | boolean> {
   testid?: string | null;
   /** More options than one row holds (a call's seven outcomes): the options wrap onto as many rows as they need. */
   wrap?: boolean;
+  /**
+   * Each option a pill of its own rather than a segment of one track (a call's outcomes, a note's days: canvas A, M4),
+   * wrapping as they need; `chips-sm` the smaller pill a popover's and a composer's rows hold.
+   */
+  look?: "segments" | "chips" | "chips-sm";
 }
 
 const WALK_STEPS: Partial<Record<string, number>> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
@@ -297,6 +302,7 @@ export function RecordToggleGroup<V extends string | number | boolean>({
   gate = null,
   testid = null,
   wrap = false,
+  look = "segments",
 }: RecordToggleGroupProps<V>) {
   const at = options.findIndex((o) => o.value === value);
   const refused = readOnly || !!(gate && gate["aria-disabled"]);
@@ -328,6 +334,7 @@ export function RecordToggleGroup<V extends string | number | boolean>({
       onKeyDown={walk}
       data-hints={hints ? "true" : undefined}
       data-wrap={wrap ? "true" : undefined}
+      data-look={look === "segments" ? undefined : look}
       data-testid={testid || undefined}
     >
       {options.map((o, i) => {
