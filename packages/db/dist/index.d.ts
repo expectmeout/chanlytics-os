@@ -8324,6 +8324,7 @@ type Database = {
             person_call_logged: {
                 Args: {
                     p_body: string;
+                    p_closes_call_back?: boolean;
                     p_contact_id: string;
                     p_due_on?: string;
                     p_lead_note?: string;
@@ -18928,6 +18929,7 @@ declare function builderOf<T extends TenantTable>(db: Db$x, table: T): _supabase
         person_call_logged: {
             Args: {
                 p_body: string;
+                p_closes_call_back?: boolean;
                 p_contact_id: string;
                 p_due_on?: string;
                 p_lead_note?: string;
@@ -42308,19 +42310,21 @@ declare function erasureDigests(db: Db$8, tenantId: string, values: string[]): P
  * person's own, which go with them. Nothing is deleted and names are left. Answers how many notes changed. Service role.
  */
 declare function scrubPersonNotes(db: Db$8, tenantId: string, contactId: string, needles: readonly string[]): Promise<number>;
+/** A door's answer as it came, with the database's own error beside it (the dashboard's noteAnswer reads it). */
+type DoorAnswer = {
+    data: unknown;
+    error: {
+        code?: string;
+        message: string;
+    } | null;
+};
 /**
  * A member writes a note on a person, as themselves (person_note_add, 0007): the door's answer as it came, {note} or
  * {error}, with the database's own error beside it, for the caller to read as the notes route reads one (the
  * dashboard's noteAnswer). The plan a conversation begins with is kept this way (core begin.ts), for the receptionist
  * to read, never for the team alone.
  */
-declare function addPersonNote(db: Db$8, contactId: string, body: string, teamOnly: boolean): Promise<{
-    data: unknown;
-    error: {
-        code?: string;
-        message: string;
-    } | null;
-}>;
+declare function addPersonNote(db: Db$8, contactId: string, body: string, teamOnly: boolean): Promise<DoorAnswer>;
 /** A call a member made, as the door keeps it (person_call_logged, 0052): the note's words and the lead's ask, spelled by contracts. */
 interface PersonCallArgs {
     contactId: string;
@@ -42335,19 +42339,15 @@ interface PersonCallArgs {
         note: string | null;
         spokeWith: string | null;
     } | null;
+    /** This call was the call back they asked for (00422): sent only when true, so a database before it answers as before. */
+    closesCallBack: boolean;
 }
 /**
  * A call logged on a person, as the signed-in member (person_call_logged): a note (a step with a day), and the outcome on
  * the lead their business is, where it is open. The door's answer as it came, {note, step, lead} or {error}, with the
  * database's own error beside it, for the caller to read as the notes route reads one.
  */
-declare function logPersonCall(db: Db$8, a: PersonCallArgs): Promise<{
-    data: unknown;
-    error: {
-        code?: string;
-        message: string;
-    } | null;
-}>;
+declare function logPersonCall(db: Db$8, a: PersonCallArgs): Promise<DoorAnswer>;
 /** What the merge door answers (merge_people, 00326): the kept record, the merged one, and what moved. */
 interface MergedPeople {
     contact_id: string;

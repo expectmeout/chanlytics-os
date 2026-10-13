@@ -244,3 +244,105 @@ test(
     assert.deepEqual([named.display_name, named.name_source], ["Priya Nair", "typed"]);
   },
 );
+
+/** The person's thread (one a person), holding an open request of `reason` (escalation_open, the one door for it). */
+const holding = async (contactId, reason) => {
+  const id = await one(db.from("conversations").insert({ tenant_id: tenantId, contact_id: contactId }), "thread");
+  const opened = ok(
+    await db.rpc("escalation_open", {
+      p_tenant_id: tenantId,
+      p_conversation_id: id,
+      p_reason: reason,
+      p_details: "Call me after five.",
+    }),
+    reason,
+  );
+  assert.equal(opened, "opened");
+  return id;
+};
+const holdOf = async (thread) =>
+  ok(
+    await db
+      .from("escalations")
+      .select("state, reason, resolved_by_user_id, decision_id")
+      .eq("conversation_id", thread)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single(),
+    "the hold",
+  );
+const threadOf = async (id) =>
+  ok(await db.from("conversations").select("state, assignee_user_id").eq("id", id).single(), "thread");
+
+test(
+  "REGRESSION (the wiring's second audit, X3-1): a call that was the call back they asked for hands their thread back, as the caller, and its bell row closes; a thread asking something else, a call not ticked as it, and a viewer move nothing",
+  { skip },
+  async () => {
+    const ana = await person({ display_name: "Ana Ruiz", phone_e164: phone() });
+    const bo = await person({ display_name: "Bo Lind", phone_e164: phone() });
+    const asked = await holding(ana, "callback");
+    const handoff = await holding(bo, "manual");
+    const rang = ok(
+      await db
+        .from("notifications")
+        .insert({
+          tenant_id: tenantId,
+          kind: "call",
+          title: "Ana asked for a call back",
+          body: "Call me after five.",
+          subject_type: "conversation",
+          subject_id: asked,
+        })
+        .select("id")
+        .single(),
+      "the bell's row",
+    ).id;
+
+    // Not ticked: the note alone, as before 00422.
+    const plain = ok(await log(maria, ana, { p_outcome: "spoke", p_body: "Call · Spoke" }), "not ticked");
+    assert.equal(plain.handed_back, false);
+    assert.equal((await holdOf(asked)).state, "open", "a call not said to be the call back closes nothing");
+    // A viewer may not, and moves nothing.
+    assert.deepEqual(
+      ok(await log(viewer, ana, { p_outcome: "spoke", p_body: "Call · Spoke", p_closes_call_back: true }), "viewer"),
+      { error: "not_found" },
+    );
+    assert.equal((await holdOf(asked)).state, "open");
+
+    const done = ok(
+      await log(maria, ana, { p_outcome: "spoke", p_body: "Call · Spoke: booked Friday", p_closes_call_back: true }),
+      "the call back",
+    );
+    assert.equal(done.handed_back, true, "their thread, holding the call-back request");
+    assert.ok(done.note, "and the note, in the same press");
+    const hold = await holdOf(asked);
+    assert.deepEqual([hold.state, hold.resolved_by_user_id], ["resolved", maria.id], "resolved as the caller");
+    const decided = ok(
+      await db.from("decisions").select("verb, actor_user_id, payload").eq("id", hold.decision_id).single(),
+      "the decision",
+    );
+    assert.deepEqual([decided.verb, decided.actor_user_id, decided.payload.via], ["hand_back", maria.id, "call"]);
+    assert.deepEqual(
+      await threadOf(asked),
+      { state: "open", assignee_user_id: null },
+      "handed back to the receptionist",
+    );
+    const row = ok(await db.from("notifications").select("closed_at").eq("id", rang).single(), "the bell's row");
+    assert.ok(row.closed_at, "the bell stops asking (00421's hold trigger)");
+    // A thread asking for a person is not a call back: a call to them, said to be one, leaves it standing.
+    const bos = ok(
+      await log(maria, bo, { p_outcome: "spoke", p_body: "Call · Spoke", p_closes_call_back: true }),
+      "a handoff",
+    );
+    assert.equal(bos.handed_back, false);
+    assert.equal((await holdOf(handoff)).state, "open", "a handoff is left to its own Done");
+
+    // Nothing open to close: the call is logged, and nothing is handed back.
+    const again = ok(
+      await log(maria, ana, { p_outcome: "spoke", p_body: "Call · Spoke", p_closes_call_back: true }),
+      "nothing left",
+    );
+    assert.equal(again.handed_back, false);
+    assert.ok(again.note);
+  },
+);

@@ -1160,7 +1160,8 @@ async function logPersonCall(db, a) {
     ...a.lead?.stage ? { p_lead_stage: a.lead.stage } : {},
     ...a.lead?.reason ? { p_lead_reason: a.lead.reason } : {},
     ...a.lead?.note ? { p_lead_note: a.lead.note } : {},
-    ...a.lead?.spokeWith ? { p_spoke_with: a.lead.spokeWith } : {}
+    ...a.lead?.spokeWith ? { p_spoke_with: a.lead.spokeWith } : {},
+    ...a.closesCallBack ? { p_closes_call_back: true } : {}
   });
   return { data, error };
 }

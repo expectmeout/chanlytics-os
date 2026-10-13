@@ -15,6 +15,7 @@ import {
   LEAD_STAGE_WORDS,
 } from "../leads/lead-words";
 import { formatPhoneDisplay } from "../shared/phone";
+import type { PersonEscalationDto } from "../people/person-dto";
 import type { BusinessRecordVM } from "./business";
 
 /** What a call came to: Spoke, then a lead's six (decision 0052: the person's own outcomes are the lead's, and Spoke). */
@@ -65,7 +66,29 @@ export const PERSON_CALL_WORDS = {
   notNow: "Not now",
   /** The step a call back writes beside a note the receptionist reads (a step is always the team's own). */
   stepBody: "Call back",
+  /** They asked for a call back, still open: this call was it, and Save closes it (X3-1). */
+  closesCallBack: "This was the call back they asked for",
+  closesCallBackHint: "Closes their call-back request: Today, the badge and the bell stop asking",
 } as const;
+
+/** The outcomes that reached them, so a call back they asked for is done unless the member says otherwise (X3-1). */
+const REACHED: readonly PersonCallOutcome[] = ["spoke", "interested", "not_interested"];
+
+/**
+ * Whether Save closes the call back they asked for, before the member says (X3-1): yes where the call reached them
+ * (Spoke, Interested, Not interested), no where it went nowhere; the member's own answer stands over either.
+ */
+export function personCallClosesBack(o: PersonCallOutcome | null): boolean {
+  return !!o && REACHED.includes(o);
+}
+
+/**
+ * They asked for a call back and it is still open (an open hold on their thread whose reason is callback): the call sheet
+ * then asks whether this call was it (X3-1), and the door hands their thread back when it was.
+ */
+export function callBackWaits(escalations: readonly Pick<PersonEscalationDto, "state" | "reason">[]): boolean {
+  return escalations.some((e) => e.state === "open" && e.reason === "callback");
+}
 
 /** The popover's and the sheet's head, the outcomes it offers, and whether Save moves a lead too. */
 export interface PersonCallVM {

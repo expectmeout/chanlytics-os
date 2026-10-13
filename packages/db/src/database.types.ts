@@ -7754,6 +7754,7 @@ export type Database = {
       person_call_logged: {
         Args: {
           p_body: string
+          p_closes_call_back?: boolean
           p_contact_id: string
           p_due_on?: string
           p_lead_note?: string

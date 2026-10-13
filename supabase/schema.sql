@@ -14072,10 +14072,10 @@ COMMENT ON FUNCTION public.people_series(p_tenant_id uuid, p_days integer, p_end
 
 
 --
--- Name: person_call_logged(uuid, text, text, date, boolean, text, text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+-- Name: person_call_logged(uuid, text, text, date, boolean, text, text, text, text, text, boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date DEFAULT NULL::date, p_tell boolean DEFAULT false, p_step_body text DEFAULT NULL::text, p_lead_stage text DEFAULT NULL::text, p_lead_reason text DEFAULT NULL::text, p_lead_note text DEFAULT NULL::text, p_spoke_with text DEFAULT NULL::text) RETURNS jsonb
+CREATE FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date DEFAULT NULL::date, p_tell boolean DEFAULT false, p_step_body text DEFAULT NULL::text, p_lead_stage text DEFAULT NULL::text, p_lead_reason text DEFAULT NULL::text, p_lead_note text DEFAULT NULL::text, p_spoke_with text DEFAULT NULL::text, p_closes_call_back boolean DEFAULT false) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -14089,6 +14089,8 @@ declare
   v_note   jsonb;
   v_step   jsonb := null;
   v_moved  jsonb := null;
+  v_thread uuid;
+  v_handed boolean := false;
 begin
   if v_user is null then
     raise exception 'Sign in required.' using errcode = '28000';
@@ -14147,15 +14149,28 @@ begin
     end if;
   end if;
 
-  return jsonb_build_object('note', v_note->'note', 'step', v_step->'note', 'lead', v_moved);
+  -- The call back they asked for, made (X3-1): their thread, where it holds an open call-back request, handed back as
+  -- the caller, the request resolved by that decision (conversation_hand_back: the release, the hold, the ledger).
+  if coalesce(p_closes_call_back, false) then
+    select c.id into v_thread
+      from public.conversations c
+      join public.escalations e
+        on e.conversation_id = c.id and e.tenant_id = c.tenant_id and e.state = 'open' and e.reason = 'callback'
+     where c.tenant_id = v_person.tenant_id and c.contact_id = p_contact_id;
+    if v_thread is not null then
+      v_handed := public.conversation_hand_back(v_person.tenant_id, v_thread, 'call', null) is not null;
+    end if;
+  end if;
+
+  return jsonb_build_object('note', v_note->'note', 'step', v_step->'note', 'lead', v_moved, 'handed_back', v_handed);
 end $$;
 
 
 --
--- Name: FUNCTION person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text, p_closes_call_back boolean); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text) IS 'A call a member made, logged on the person (0052, canvas A M4): a note, the team''s unless p_tell, a step with p_due_on (beside the note where the receptionist reads it), and, where the person''s business is an open lead with its own person, the outcome through lead_set_stage (never Spoke; Wrong number only where the person has no number of their own; a lead Talking kept so by a call that went nowhere). Owner, operator or partner. Answers {note, step, lead} or {error}.';
+COMMENT ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text, p_closes_call_back boolean) IS 'A call a member made, logged on the person (0052, canvas A M4): a note, the team''s unless p_tell, a step with p_due_on (beside the note where the receptionist reads it), and, where the person''s business is an open lead with its own person, the outcome through lead_set_stage (never Spoke; Wrong number only where the person has no number of their own; a lead Talking kept so by a call that went nowhere). With p_closes_call_back (00422, X3-1), the person''s thread, where it holds an open call-back request, is handed back through conversation_hand_back as the caller, in the same transaction. Owner, operator or partner. Answers {note, step, lead, handed_back} or {error}.';
 
 
 --
@@ -37298,12 +37313,12 @@ GRANT ALL ON FUNCTION public.people_series(p_tenant_id uuid, p_days integer, p_e
 
 
 --
--- Name: FUNCTION person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text, p_closes_call_back boolean); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text) TO authenticated;
-GRANT ALL ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text) TO service_role;
+REVOKE ALL ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text, p_closes_call_back boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text, p_closes_call_back boolean) TO authenticated;
+GRANT ALL ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text, p_closes_call_back boolean) TO service_role;
 
 
 --
