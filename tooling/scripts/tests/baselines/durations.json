@@ -30,6 +30,5 @@
   "packages/core/src/deliver.ts": 1,
   "packages/core/src/inbound/reply-gates.ts": 1,
   "packages/core/src/inbound/steps.ts": 2,
-  "packages/core/src/messages/broadcast.ts": 1,
-  "packages/jobs/src/handlers.ts": 1
+  "packages/core/src/messages/broadcast.ts": 1
 }

@@ -163,6 +163,26 @@ test("only a hold's notices carry the derived row's marks: a reply to a reach-ou
   assert.deepEqual(holdMarksOf(`needs:th-${C1}`, null), [], "nor before the bell's rows are read");
 });
 
+test("a notice the server closed belongs to a hold that ended: a new hold on the thread is not read by its marks (00421)", () => {
+  const ended = notice(K1, C1, { read: true, closed_at: iso(ago(10)) });
+  assert.deepEqual(holdMarksOf(`needs:th-${C1}`, { notifications: [ended], seen_at: null }), []);
+  const rows = feed({ notices: [ended] });
+  const needs = rows.find((r) => r.key === `needs:th-${C1}`);
+  assert.ok(needs, "the thread waits again: its derived row stands");
+  assert.equal(
+    needs.unread,
+    true,
+    "REGRESSION: the ended hold's read mark read the new hold as read before its own notice was kept",
+  );
+  assert.equal(rows.find((r) => r.key === `n:${K1}`)?.unread ?? false, false, "and the closed notice asks nobody");
+  for (const kind of ["handoff", "deadman", "call"])
+    assert.deepEqual(
+      holdMarksOf(`needs:th-${C1}`, { notifications: [notice(K1, C1, { kind })], seen_at: null }).map((n) => n.kind),
+      [kind],
+      `a ${kind} notice is a hold's (contracts kindsEndedBy("hold"))`,
+    );
+});
+
 test("a derived row that is not a hold's keeps this device's marks whatever the server holds", () => {
   const draft = {
     id: `th-${C1}`,

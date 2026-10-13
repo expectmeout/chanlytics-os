@@ -222,6 +222,8 @@ export function todayAwayGrouped<T extends AwayRowLike>(
   rows: readonly T[],
   inQueue: readonly AwayQueueRef[] = [],
   max = 5,
+  // The unread kept rows the bell does not list (older than its newest BELL_LIST_ROWS): counted in the head, said alone.
+  older = 0,
 ): TodayAwayVM<T> {
   const convs = new Set(
     inQueue.flatMap((q) => {
@@ -300,16 +302,20 @@ export function todayAwayGrouped<T extends AwayRowLike>(
   // 4, and no foot was drawn at all while the bell held four.
   const shown = sorted.slice(0, max);
   const stoodFor = shown.reduce((n, g) => n + g.count, 0);
-  const total = unreadCount(rows);
-  const queued = total - fresh.length;
+  const total = unreadCount(rows) + older;
+  const queued = unreadCount(rows) - fresh.length;
   const more = Math.max(0, total - stoodFor);
   // Keyed on `fresh`, not on what the cap left: a card with nothing to draw is
   // empty because the queue holds everything, and that is only true of `fresh`.
+  // Only older rows unread: the card says so, with the act that clears them.
   const empty = fresh.length
     ? null
     : total === 0
       ? { icon: "check", text: AWAY_EMPTY_CLEAR }
-      : { icon: "arrow-up", text: AWAY_EMPTY_QUEUED };
+      : queued > 0
+        ? // The queue above holds the new rows, and the older ones are said beside it: the head counted both.
+          { icon: "arrow-up", text: older > 0 ? `${AWAY_EMPTY_QUEUED} ${bellOlderWords(older)}` : AWAY_EMPTY_QUEUED }
+        : { icon: "bell", text: bellOlderWords(older) };
   return { groups: shown, total, more, queued, foot: awayFoot(more, queued, shown.length > 0), empty };
 }
 
@@ -338,9 +344,16 @@ export interface BellLineVM<T extends BellNoteLike> {
 }
 
 export interface BellSectionVM<T extends BellNoteLike> {
-  label: "New" | "Earlier";
+  /** "New", "Earlier", or the sentence for the unread rows the bell does not list (bellOlderWords), which has no lines. */
+  label: string;
   lines: Array<BellLineVM<T>>;
 }
+
+/** The unread kept rows the bell does not list, and the act that clears them (the bell lists its newest BELL_LIST_ROWS). */
+const bellOlderWords = (n: number): string =>
+  n === 1
+    ? "1 older unread notice is not listed. Mark all read clears it."
+    : `${n} older unread notices are not listed. Mark all read clears them.`;
 
 /**
  * The bell, read the way the away card reads it: new above earlier, and notes of one kind said once, where the
@@ -349,7 +362,7 @@ export interface BellSectionVM<T extends BellNoteLike> {
  * bell and Today say "9 calls" about the same nine calls. A kind with no noun (a thread that needs you) is never
  * folded: each of those is its own decision.
  */
-export function bellSections<T extends BellNoteLike>(rows: readonly T[]): Array<BellSectionVM<T>> {
+export function bellSections<T extends BellNoteLike>(rows: readonly T[], older = 0): Array<BellSectionVM<T>> {
   const idOf = (r: T) => r.id ?? r.key ?? "";
   const part = (label: BellSectionVM<T>["label"], list: T[]): BellSectionVM<T> => {
     const order: string[] = [];
@@ -389,5 +402,7 @@ export function bellSections<T extends BellNoteLike>(rows: readonly T[]): Array<
       "Earlier",
       rows.filter((r) => !r.unread),
     ),
-  ].filter((s) => s.lines.length > 0);
+  ]
+    .filter((s) => s.lines.length > 0)
+    .concat(older > 0 ? [{ label: bellOlderWords(older), lines: [] }] : []);
 }

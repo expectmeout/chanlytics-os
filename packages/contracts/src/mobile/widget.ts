@@ -1,9 +1,10 @@
 /**
  * What the home-screen widget shows (the phone app's PRD, M7): Today's four figures, how many need you and the first
  * of them, and the standing's headline, in the page's own words, as of a moment. Derived from the Today view model
- * the page already holds, so the widget can never say a number the page would not.
+ * the page already holds (today-widget.ts todayWidgetSnapshot), so the widget can never say a number the page would not.
+ * This module is the shape and its parser alone: the phone app's entry (phone-app.ts) reads it, and nothing it imports
+ * pulls Today's builders into the app's own compile.
  */
-import type { TodayVM } from "../today/today-vm";
 import { isCount } from "../shared/unknown";
 
 export interface TodayWidgetSnapshot {
@@ -11,27 +12,12 @@ export interface TodayWidgetSnapshot {
   headline: string;
   /** The day's four figures in the page's order, each with its word; empty on a day with nothing at all. */
   figures: Array<{ label: string; value: number }>;
-  /** How many people are waiting on you across the whole queue. */
+  /** How many wait on you: the one count the badge says (waits.ts needsYouCount: holds, held sends, runs waiting). */
   waiting: number;
-  /** The first person who needs you, and why; null when nobody does. */
+  /** The first person who needs you (a hold), and why; null when no hold has a row (only a run or a held send waits). */
   first: { who: string; reason: string } | null;
   /** When this was true, ISO. The widget says "as of" from it. */
   at: string;
-}
-
-/**
- * The first person and the count come from one list, the queue, as the page's own Today draws it: the first was the
- * needs-you list's while the count was the queue's, so the widget could name someone the count did not include.
- */
-export function todayWidgetSnapshot(vm: TodayVM, at: Date): TodayWidgetSnapshot {
-  const row = vm.queue.rows[0] ?? null;
-  return {
-    headline: vm.standing.headline,
-    figures: (vm.figures ?? []).map((f) => ({ label: f.label, value: f.value })),
-    waiting: vm.queue.waiting,
-    first: row ? { who: row.who, reason: row.sentence } : null,
-    at: at.toISOString(),
-  };
 }
 
 const FIGURES_MAX = 4;

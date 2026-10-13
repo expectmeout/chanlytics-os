@@ -16,13 +16,19 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import {
   conversationWaitsOnYou,
+  heldEmailsWords,
   needsYouCount,
+  runHeldEmails,
+  runsWaitingSentence,
+  todayRunWords,
   threadWait,
   threadsWaitingOnYou,
   toInboxThreadVM,
   toTodayVM,
   waitsOf,
 } from "@chanlytics/contracts";
+import { waitingRunsOf } from "@chanlytics/db";
+import { fakeDb } from "../_fake-db.mjs";
 import { installLegacyReact, fresh, byTestId, textOf } from "../_legacy-react.mjs";
 import { importSrc } from "../_source.mjs";
 import { NOW as DAY, ZONE, handoffDay, metrics } from "./_world.mjs";
@@ -47,6 +53,8 @@ const { AgentCommand } = await importSrc(`${SRC}/surfaces/today/pages/queue.tsx`
 
 const nowMs = Date.now();
 const NOW = new Date(nowMs);
+/** The business's days the runs are judged by (contracts runDaysAt): none of these runs is made for a day. */
+const DAYS = { today: "2026-09-26", sendsOn: "2026-09-26" };
 const ago = (min) => new Date(nowMs - min * 60_000).toISOString();
 
 /* ------------------------------------- the salon's threads, as the wire has them ------------------------------------- */
@@ -194,6 +202,7 @@ test("waitsOf counts the holds, the held sends and the runs waiting; needsYouCou
       { state: "pending_approval" },
     ],
     unreadHolds: 1,
+    days: DAYS,
     nowMs,
   });
   assert.deepEqual(
@@ -202,7 +211,105 @@ test("waitsOf counts the holds, the held sends and the runs waiting; needsYouCou
     "two holds and the one whose thread could not be read; one send; two runs",
   );
   assert.equal(needsYouCount(w), 6);
-  assert.equal(needsYouCount(waitsOf({ threads: [], runs: [], nowMs })), 0, "a zero is shown");
+  // A visit's run made for a day that has passed waits on nobody: the verb would refuse it (contracts runApprovalRefusal).
+  const late = waitsOf({
+    threads: [],
+    runs: [{ state: "pending_approval", playbook_id: "p1", run_for: "2026-09-25" }],
+    unreadHolds: 0,
+    days: DAYS,
+    nowMs,
+  });
+  assert.equal(
+    late.runs,
+    0,
+    "REGRESSION (S7-4): yesterday's run, which can only be skipped, was counted as needing you",
+  );
+  assert.equal(
+    needsYouCount(waitsOf({ threads: [], runs: [], unreadHolds: 0, days: DAYS, nowMs })),
+    0,
+    "a zero is shown",
+  );
+});
+
+test("a going run whose emails the check holds waits on you once, however many it holds; one holding none, or not going, does not (Ruben, 13 Oct 2026)", () => {
+  const reach = { kind: "reach_out" };
+  const w = waitsOf({
+    threads: [],
+    runs: [
+      { state: "sending", audience: reach, held: 12 },
+      { state: "scheduled", audience: reach, held: 1 },
+      { state: "sending", audience: reach, held: 0 },
+      { state: "sending", audience: reach },
+      // A run that is not going holds nothing for your say: its held count, if any, is not read.
+      { state: "sent", audience: reach, held: 3 },
+      { state: "canceled", audience: reach, held: 2 },
+    ],
+    unreadHolds: 0,
+    days: DAYS,
+    nowMs,
+  });
+  assert.equal(w.runs, 2, "two going runs hold emails: one wait each, never one per email");
+  assert.deepEqual(
+    [
+      runHeldEmails({ state: "sending", held: 12 }),
+      runHeldEmails({ state: "sent", held: 3 }),
+      runHeldEmails({ state: "sending" }),
+    ],
+    [12, 0, 0],
+  );
+  // The words every page draws the run with: the held emails, and the rest of the run going as planned.
+  const words = todayRunWords({
+    state: "sending",
+    recipient_count: 40,
+    when: "",
+    counts: { sent: 9, replied: 0 },
+    audience: reach,
+    held: 2,
+  });
+  assert.equal(words.held.sentence, "2 emails wait for your say. The rest of the run goes as planned.");
+  assert.equal(heldEmailsWords(1), "1 email waits for your say");
+  assert.equal(
+    runsWaitingSentence(2),
+    "2 campaign runs are waiting for your say.",
+    "one sentence for both kinds of wait",
+  );
+});
+
+test("the server reads the runs waiting for a word as the page counts them: those waiting for approval, and the going reach-out runs whose check holds emails, with how many", async () => {
+  const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const reach = { kind: "reach_out", chain_id: "c1" };
+  const run = (id, state, audience, created_at) => ({
+    id,
+    tenant_id: T,
+    name: id,
+    state,
+    playbook_id: null,
+    run_for: null,
+    audience,
+    recipient_count: 3,
+    created_at,
+  });
+  const send = (broadcast_id, state) => ({ tenant_id: T, broadcast_id, state });
+  const db = fakeDb({
+    broadcasts: [
+      run("waiting", "pending_approval", { kind: "list" }, "2026-09-26T08:00:00Z"),
+      run("holding", "sending", reach, "2026-09-26T09:00:00Z"),
+      run("clear", "sending", reach, "2026-09-26T10:00:00Z"),
+      run("playbook-going", "scheduled", { kind: "list" }, "2026-09-26T11:00:00Z"),
+      run("done", "sent", reach, "2026-09-26T07:00:00Z"),
+    ],
+    reach_out_sends: [send("holding", "held"), send("holding", "held"), send("clear", "sent"), send("done", "held")],
+  });
+  const runs = await waitingRunsOf(db, T);
+  assert.deepEqual(
+    runs.map((r) => [r.id, r.held ?? null]),
+    [
+      ["holding", 2],
+      ["waiting", null],
+    ],
+    "newest first: the going run holding two emails, then the run waiting for approval; nothing else waits",
+  );
+  assert.equal(waitsOf({ threads: [], runs, unreadHolds: 0, days: DAYS, nowMs }).runs, 2, "and the count says both");
 });
 
 test("a hold is not snoozed, not a teammate's, not yours, and never a customer's STOP; a held send is not past its deadline", () => {
@@ -252,7 +359,7 @@ test("the wire's rule and the Inbox's rule are one: each thread waits exactly wh
   });
   // The sum of the threads' part is Today's headline's count.
   assert.equal(
-    needsYouCount(waitsOf({ threads: vms.map(facts), runs: [], nowMs })),
+    needsYouCount(waitsOf({ threads: vms.map(facts), runs: [], unreadHolds: 0, days: DAYS, nowMs })),
     threadsWaitingOnYou(
       rows.map((r) => r.dto),
       rows.flatMap((r) => (r.esc ? [r.esc] : [])),
@@ -388,15 +495,20 @@ test("Today's head is the badge's number: the holds, the held sends and the runs
 test("Today's head says the runs waiting for a word until the Inbox is read, and no more than they are", () => {
   reset();
   const day = toTodayVM(metrics(), [], [], [], DAY);
-  W.__BROADCASTS = {
+  // Sent's runs as the surface publishes them (the count reads the seam: needs-you.ts waitingRunsNow), and on the window,
+  // where the queue's own rows read them.
+  const runs = {
     rows: [
       runRow("r1", "pending_approval"),
       runRow("r2", "scheduled", { scheduled_for: new Date(nowMs + 3_600_000).toISOString() }),
     ],
   };
+  setSurfaceValue("broadcasts", runs);
+  W.__BROADCASTS = runs;
   try {
     assert.equal(head(day), "1", "one run waits for a word; the one about to go is said in the sub-line");
   } finally {
+    setSurfaceValue("broadcasts", undefined);
     delete W.__BROADCASTS;
   }
 });

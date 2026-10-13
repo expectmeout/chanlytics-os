@@ -21,7 +21,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../packages/db.js";
 import { emitEvent } from "../packages/db.js";
-import { forwardingMatch, forwardingProof, formatPhoneDisplay, type ForwardingFacts } from "../packages/contracts.js";
+import {
+  FIRST_RUN_ROUTE,
+  forwardingMatch,
+  forwardingProof,
+  formatPhoneDisplay,
+  type ForwardingFacts,
+} from "../packages/contracts.js";
 import { recordNotification } from "../ops/notify.js";
 import { logger, errField } from "../log.js";
 
@@ -85,7 +91,7 @@ export async function markForwardingVerified(
         kind: "number",
         title: `Forwarding works: calls to ${kept} reach your receptionist`,
         body: `Your test call came through. Calls to ${kept} that you don't pick up now reach the receptionist; Setup reads the number as kept.`,
-        route: "admin/setup",
+        route: FIRST_RUN_ROUTE,
         about: { type: "line", id: row.id },
       });
       await emitEvent(db, tenantId, "line.forwarding_verified", "line", row.id, {

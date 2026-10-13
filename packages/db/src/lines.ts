@@ -1,5 +1,5 @@
 /**
- * A workspace's own line, as the edge's doors that read its texts need it.
+ * A workspace's own line, as the edge's doors that read its texts need it, and the business on record its filings read.
  *
  * The line a workspace was given (provisioned through a provider: Twilio, or the dry one on a preview) as the Connections
  * page's rows say it (the oldest that is not a number the business kept at its carrier), with what a read of its texts takes:
@@ -30,5 +30,18 @@ export async function ownLineOf(
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(`cannot read the workspace's own line: ${error.message}`);
+  return data;
+}
+
+/**
+ * The business on record, whole: what a carrier filing reads and what the save door compares a save against (the
+ * wiring's second audit, X4-3). Null when nothing is on record. A read that fails throws.
+ */
+export async function businessOnRecordOf(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+): Promise<Database["public"]["Tables"]["business_records"]["Row"] | null> {
+  const { data, error } = await db.from("business_records").select("*").eq("tenant_id", tenantId).maybeSingle();
+  if (error) throw new Error(`cannot read the business on record: ${error.message}`);
   return data;
 }

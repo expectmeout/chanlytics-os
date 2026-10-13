@@ -20,6 +20,7 @@ import {
   closeSettledNotices,
   noticeStillWaits,
   serverNotificationRows,
+  settledNoticeIds,
   todayAwayGrouped,
   unreadCount,
 } from "@chanlytics/contracts";
@@ -57,8 +58,14 @@ const kept = (kind, title, about, over = {}) => ({
 const ready = (about = { type: "broadcast", id: RUN }, title = "Campaign “Win-back” is ready: 40 people") =>
   kept("playbook", title, about);
 
-/** What the Sent surface holds of its runs, as read after the rows were kept (unless said otherwise). */
-const runs = (states, readAt = NOW) => ({ readAt, held: new Map(Object.entries(states)) });
+/**
+ * What the Sent surface holds of its runs, as read after the rows were kept (unless said otherwise): a state, or the run
+ * as the approve verb and the check hold it.
+ */
+const runs = (states, readAt = NOW) => ({
+  readAt,
+  held: new Map(Object.entries(states).map(([id, s]) => [id, typeof s === "string" ? { state: s } : s])),
+});
 const waitsOf = (over) => ({ ...NOTHING_WAITS_KNOWN, ...over });
 const feed = (notices, waits, derived = []) =>
   bellFeed({ derived, device: { ...EMPTY_READ_STATE }, kept: { notifications: notices, seen_at: null }, waits });
@@ -111,11 +118,9 @@ test("unknown is not settled: a surface not read, a run it does not hold, or a r
   );
 });
 
-test("only a row that announces a wait closes: the check's held emails, a run that goes unless stopped, and a run's finish are news", () => {
+test("only a row that announces a wait closes: a run's finish, a row about no run, and a teammate's arrival are news", () => {
   const states = waitsOf({ runs: runs({ [RUN]: "sent" }) });
   const news = [
-    kept("playbook", "The check held 2 emails in Spring", { type: "broadcast", id: RUN }),
-    kept("playbook", "Campaign “Win-back” sends tomorrow 9:00 AM: 3 people", { type: "broadcast", id: RUN }),
     kept("broadcast_sent", "Broadcast “Spring” sent", { type: "broadcast", id: RUN }),
     kept("broadcast_stopped", "Broadcast “Spring” stopped", { type: "broadcast", id: RUN }),
     kept("playbook", "Campaign “Win-back” is ready: 40 people", null),
@@ -225,6 +230,123 @@ test("a run waiting for a word is a warning, as its topic says: the away card li
   );
 });
 
+/** Whether one kept row's subject still waits, as the bell judges it. */
+const judge = (n, waits) => noticeStillWaits(serverNotificationRows({ notifications: [n], seen_at: null })[0], waits);
+
+test("a run that goes unless stopped asks while it can be stopped; the check's held emails ask while the going run holds some", () => {
+  const goes = kept("playbook", "Campaign “Win-back” sends tomorrow 9:00 AM: 3 people", { type: "broadcast", id: RUN });
+  assert.equal(
+    judge(goes, waitsOf({ runs: runs({ [RUN]: "scheduled" }) })),
+    true,
+    "scheduled: it can still be stopped",
+  );
+  for (const state of ["sending", "sent", "failed", "cancelled"])
+    assert.equal(judge(goes, waitsOf({ runs: runs({ [RUN]: state }) })), false, `${state}: nothing is left to stop`);
+  const held = kept("playbook", "The check held 2 emails in Spring", { type: "broadcast", id: RUN2 });
+  const at = (run) => judge(held, waitsOf({ runs: runs({ [RUN2]: run }) }));
+  assert.equal(at({ state: "sending", held: 2 }), true, "the emails still wait for the owner's say");
+  assert.equal(
+    at({ state: "sending", held: 0 }),
+    false,
+    "REGRESSION (W-campaign-run-template-reachout-4): the owner sent or dropped them, and the row asked on",
+  );
+  assert.equal(at({ state: "sending" }), null, "a server that did not count them settles nothing");
+  assert.equal(at({ state: "sent", held: 2 }), false, "a run no longer going holds none");
+});
+
+test("a run whose day has passed waits on nobody: the verb would refuse it, so its 'is ready' row is read where the days are known", () => {
+  const a = ready();
+  const visitRun = { state: "pending_approval", playbook_id: "pb-1", run_for: "2026-10-10" };
+  const days = { today: "2026-10-11", sendsOn: "2026-10-11" };
+  assert.equal(
+    judge(a, waitsOf({ runs: runs({ [RUN]: visitRun }), days })),
+    false,
+    "REGRESSION (S7-4): yesterday's run could only be skipped, and the bell still asked for a yes",
+  );
+  assert.equal(judge(a, waitsOf({ runs: runs({ [RUN]: { ...visitRun, run_for: "2026-10-11" } }), days })), true);
+  assert.equal(
+    judge(a, waitsOf({ runs: runs({ [RUN]: visitRun }) })),
+    true,
+    "the days not known: a run waiting for approval waits, as it did",
+  );
+  assert.equal(
+    judge(a, waitsOf({ runs: runs({ [RUN]: { state: "pending_approval", playbook_id: null } }), days })),
+    true,
+    "a one-off campaign has no day to pass",
+  );
+});
+
+test("a hold's row waits while its thread needs you: answered, snoozed or a teammate's, it is read; a thread the read lacks is unknown", () => {
+  const C = "ffffffff-0000-4000-8000-000000000001";
+  const handoff = kept("handoff", "Ana needs a person", { type: "conversation", id: C });
+  const holds = (needs, readAt = NOW) => waitsOf({ holds: { readAt, held: new Map(Object.entries(needs)) } });
+  assert.equal(judge(handoff, holds({ [C]: true })), true);
+  assert.equal(
+    judge(handoff, holds({ [C]: false })),
+    false,
+    "REGRESSION (S7-4): a teammate answered Ana; the bell asked on",
+  );
+  assert.equal(judge(handoff, holds({})), null, "a thread the Inbox did not read");
+  assert.equal(judge(handoff, holds({ [C]: false }, KEPT_AT - 1)), null, "a read from before the row");
+  assert.equal(
+    judge(kept("call", "Missed call from Ana", { type: "call", id: C }), holds({ [C]: false })),
+    null,
+    "a call row about a call is news",
+  );
+});
+
+test("a search's question waits while its newest round waits on its owner: answered, or a newer round, settles it", () => {
+  const S = "a516a5a6-ecb5-4ad1-96bf-56a65afceac8";
+  const ROUND = "a516a5a6-0000-4000-8000-000000000001";
+  const asks = kept(
+    "leads_question",
+    "Your search for florists is waiting for your answer",
+    { type: "lead_round", id: ROUND },
+    { route: `clients/leads:s-${S}:c-excluded` },
+  );
+  const searches = (round) => waitsOf({ searches: { readAt: NOW, held: new Map([[S, round]]) } });
+  assert.equal(judge(asks, searches({ roundId: ROUND, state: "waiting_on_owner" })), true);
+  assert.equal(
+    judge(asks, searches({ roundId: ROUND, state: "running" })),
+    false,
+    "REGRESSION (S6-3): answered, the round runs again, and the question asked on",
+  );
+  assert.equal(
+    judge(asks, searches({ roundId: "a516a5a6-0000-4000-8000-000000000002", state: "waiting_on_owner" })),
+    false,
+    "a newer round asks with its own row",
+  );
+  assert.equal(
+    judge(asks, waitsOf({ searches: { readAt: NOW, held: new Map() } })),
+    null,
+    "a search Leads did not read",
+  );
+});
+
+test("a row the server closed reads as read and wears no warning, on every device, with no surface read", () => {
+  const C = "ffffffff-0000-4000-8000-000000000002";
+  const closed = kept("handoff", "Bo needs a person", { type: "conversation", id: C }, { closed_at: iso(NOW) });
+  const open = kept("handoff", "Cy needs a person", {
+    type: "conversation",
+    id: "ffffffff-0000-4000-8000-000000000003",
+  });
+  const rows = byId(feed([closed, open], NOTHING_WAITS_KNOWN));
+  assert.equal(rows[`n:${closed.id}`].unread, false);
+  assert.equal(rows[`n:${closed.id}`].tone, "");
+  assert.equal(rows[`n:${open.id}`].unread, true, "a row the server did not close asks as it did");
+  const approved = ready();
+  assert.deepEqual(
+    [
+      ...settledNoticeIds(
+        { notifications: [approved], seen_at: null },
+        waitsOf({ runs: runs({ [RUN]: "scheduled" }) }),
+      ),
+    ],
+    [approved.id],
+    "the phone's icon leaves out what the bell reads as settled",
+  );
+});
+
 /* ------------------------------------------------------ the bridge's bell ------------------------------------------------------ */
 
 const bridge = await importSrc("apps/dashboard/src/legacy-bridge/notifications.ts");
@@ -245,7 +367,7 @@ globalThis.window = {
 };
 after(() => {
   globalThis.window = was;
-  for (const key of ["broadcasts", "calendar", "google"]) setSurfaceValue(key, undefined);
+  for (const key of ["broadcasts", "calendar", "google", "inbox", "leads"]) setSurfaceValue(key, undefined);
 });
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
@@ -314,9 +436,37 @@ test("the bell is drawn again when a surface it judges by moves, without a new r
   surfaceMoved("broadcasts");
   surfaceMoved("calendar");
   surfaceMoved("google");
+  surfaceMoved("leads");
   surfaceMoved("people");
-  assert.equal(drawn, 3, "Sent, the Calendar and Google; not a surface the rows do not depend on");
+  assert.equal(drawn, 4, "Sent, the Calendar, Google and Leads; not a surface the rows do not depend on");
   off();
+});
+
+test("the bridge reads the Inbox and Leads too: an answered hold and an answered question leave the badge; a partial Inbox read settles nothing", () => {
+  const C = "ffffffff-0000-4000-8000-000000000009";
+  const S = "a516a5a6-ecb5-4ad1-96bf-56a65afceac8";
+  const ROUND = "a516a5a6-0000-4000-8000-000000000009";
+  const before = iso(Date.now() - HOUR);
+  const h = kept("handoff", "Ana needs a person", { type: "conversation", id: C }, { created_at: before });
+  const q = kept(
+    "leads_question",
+    "Your search for florists is waiting for your answer",
+    { type: "lead_round", id: ROUND },
+    { route: `clients/leads:s-${S}:c-excluded`, created_at: before },
+  );
+  const { api } = bell([h, q]);
+  hold();
+  assert.equal(api.unread(), 2);
+  const readAt = Date.now() + 1000;
+  const answered = [{ real: true, conversationId: C, needsYou: false }];
+  setSurfaceValue("inbox", { THREADS: answered, readAt, holdsWhole: false });
+  assert.equal(api.unread(), 2, "a read that did not take every waiting hold with its thread settles none");
+  setSurfaceValue("inbox", { THREADS: answered, readAt, holdsWhole: true });
+  assert.equal(api.unread(), 1, "answered: the hold's row is read");
+  setSurfaceValue("leads", { searches: [{ id: S, round: { id: ROUND, state: "running" } }], readAt });
+  assert.equal(api.unread(), 0, "answered: the question's row is read");
+  setSurfaceValue("inbox", undefined);
+  setSurfaceValue("leads", undefined);
 });
 
 test("readWhere reads the kept rows that match on the server and leaves the rest: an answered review's notices", async () => {

@@ -286,3 +286,43 @@ test("marking notifications: every member may, the workspace must be named, and 
   await refused(notifications.PUT.run(put(`?workspace=${A}`, { id }), ctxFor(tables, { rpcs })), "validation", 400);
   await refused(notifications.PUT.run(put(`?workspace=${A}`, {}), ctxFor(tables, { rpcs })), "validation", 400);
 });
+
+test("the code a customer scans to say yes is not handed out while the workspace is paused or ended: its address answers none, as the Broadcasts card offers none; a standing that cannot be read serves it, as the card does (the wiring's second audit, X4-1)", async () => {
+  const qr = await import(at("apps/dashboard/app/api/v1/consent/qr/route.ts"));
+  const worldOf = ({
+    status = "active",
+    left_empty_at = null,
+    billing = { mode: "stripe", status: "active" },
+  } = {}) => ({
+    memberships: [membership(A, "operator", "harbor", "2026-01-01T00:00:00Z")],
+    tenants: [{ id: A, slug: "harbor", status, left_empty_at }],
+    billing_accounts: billing ? [{ tenant_id: A, ...billing }] : [],
+    tenant_channels: [
+      {
+        tenant_id: A,
+        kind: "whatsapp",
+        status: "active",
+        number_e164: "+13055550100",
+        created_at: "2026-10-01T00:00:00Z",
+      },
+    ],
+  });
+  const code = await qr.GET.run(get(`?workspace=${A}`), ctxFor(worldOf()));
+  assert.equal(code.headers.get("content-type"), "image/svg+xml; charset=utf-8", "open: the code");
+  for (const [why, over] of [
+    ["paused by a person", { status: "paused" }],
+    ["ended", { left_empty_at: "2026-10-01T00:00:00Z" }],
+    ["a plan that stops the receptionist", { billing: { mode: "stripe", status: "canceled" } }],
+  ])
+    await assert.rejects(
+      qr.GET.run(get(`?workspace=${A}`), ctxFor(worldOf(over))),
+      (e) => e.code === "conflict" && e.status === 409 && /not taking sign-ups/.test(e.message),
+      why,
+    );
+  const unread = {
+    ...ctxFor(worldOf({ status: "paused" })),
+    supabase: fakeDb(worldOf({ status: "paused" }), { "billing_accounts.select": { message: "billing unreadable" } }),
+  };
+  const served = await qr.GET.run(get(`?workspace=${A}`), unread);
+  assert.equal(served.headers.get("content-type"), "image/svg+xml; charset=utf-8", "not read: the code, as before");
+});

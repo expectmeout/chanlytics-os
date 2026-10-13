@@ -19,6 +19,7 @@ import {
   reachOutChainBodyOf,
   reachOutDraftOf,
   reachOutEmailOf,
+  reachOutRootOf,
   reachOutSendsFrom,
   reachOutStepOf,
   validateReachOutChain,
@@ -123,8 +124,10 @@ export async function chainsOf(ctx: RouteContext, tenantId: string): Promise<Rea
   const domainsOf = (ids: string[]) =>
     domains.filter((d) => reachOutSendsFrom(d, ids)).map((d) => ({ host: d.host, sent_days: d.sent_days ?? 0 }));
   const waitingOf = new Map<string, string>();
-  for (const w of waiting)
-    if (isReachOutRun(w.audience)) waitingOf.set(String((w.audience as { root_id?: unknown }).root_id), w.id);
+  for (const w of waiting) {
+    const root = reachOutRootOf(w.audience);
+    if (root) waitingOf.set(root, w.id);
+  }
 
   return roots.map((root) => {
     const chain = chainOf(root, steps);
@@ -398,7 +401,7 @@ export async function reachOutRunOf(
   run: { id: string; audience: unknown; playbook_id: string | null; run_for: string | null },
 ): Promise<ReachOutRunDto | null> {
   if (!isReachOutRun(run.audience)) return null;
-  const rootId = String((run.audience as { root_id?: unknown }).root_id ?? "");
+  const rootId = reachOutRootOf(run.audience) ?? "";
   const [rows, all, facts] = await Promise.all([
     reachOutRunSendsOf(ctx.supabase, tenantId, run.id),
     reachOutStepsOf(ctx.supabase, tenantId),

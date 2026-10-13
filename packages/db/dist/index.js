@@ -1160,7 +1160,8 @@ async function logPersonCall(db, a) {
     ...a.lead?.stage ? { p_lead_stage: a.lead.stage } : {},
     ...a.lead?.reason ? { p_lead_reason: a.lead.reason } : {},
     ...a.lead?.note ? { p_lead_note: a.lead.note } : {},
-    ...a.lead?.spokeWith ? { p_spoke_with: a.lead.spokeWith } : {}
+    ...a.lead?.spokeWith ? { p_spoke_with: a.lead.spokeWith } : {},
+    ...a.closesCallBack ? { p_closes_call_back: true } : {}
   });
   return { data, error };
 }
@@ -1168,6 +1169,17 @@ async function mergePeople(db, keep, merge) {
   const { data, error } = await db.rpc("merge_people", { p_keep: keep, p_merge: merge });
   if (error) throw error;
   return mergedOf(data);
+}
+async function keptPersonOf(db, tenantId, contactId) {
+  let at = contactId;
+  for (let hop = 0; hop <= 5; hop++) {
+    const { data, error } = await db.from("contacts").select("merged_into_contact_id, erased_at").eq("tenant_id", tenantId).eq("id", at).maybeSingle();
+    if (error) throw Object.assign(new Error(error.message), { code: error.code });
+    if (!data || data.erased_at) return null;
+    if (!data.merged_into_contact_id) return at === contactId ? null : at;
+    at = data.merged_into_contact_id;
+  }
+  return null;
 }
 function mergedOf(v) {
   const o = v && typeof v === "object" && !Array.isArray(v) ? v : {};
@@ -2290,7 +2302,168 @@ async function recordLateCarrierOptOut(db, p) {
 }
 
 // src/repositories/campaigns/stranded-runs.ts
-import { isReachOutRun } from "../../contracts/dist/index.js";
+import { DEFAULT_TIMEZONE, RUN_GOING_STATES as RUN_GOING_STATES2, isReachOutRun } from "../../contracts/dist/index.js";
+
+// src/repositories/reach-out-sheet.ts
+import { RUN_GOING_STATES, versionWords } from "../../contracts/dist/index.js";
+var STEP_COLUMNS = "id, name, state, trigger, lead_search_id, after_playbook_id, after_days, gap_minutes, domain_ids, signed_by, include_unconfirmed, template_id, hand, run_hour, last_run_for, created_at";
+async function reachOutStepsOf(db, tenantId) {
+  const { data, error } = await db.from("playbooks").select(STEP_COLUMNS).eq("tenant_id", tenantId).eq("kind", "reach_out");
+  if (error) throw new Error(`cannot read the reach-outs: ${error.message}`);
+  return data ?? [];
+}
+async function reachOutRootOf(db, id) {
+  const { data, error } = await db.from("playbooks").select("id, tenant_id, name, state, trigger, lead_search_id").eq("id", id).eq("kind", "reach_out").eq("trigger", "lead_first").maybeSingle();
+  if (error) throw new Error(`cannot read the reach-out: ${error.message}`);
+  return data;
+}
+async function reachOutSendRefOf(db, id) {
+  const { data, error } = await db.from("reach_out_sends").select("id, tenant_id, broadcast_id, state, reason").eq("id", id).maybeSingle();
+  if (error) throw new Error(`cannot read the email: ${error.message}`);
+  return data;
+}
+function emailWordsFrom(row) {
+  const words = versionWords({ channel: "email", components: row.components, body_preview: row.body_preview });
+  return words.body.trim() ? words : null;
+}
+async function emailWordsByTemplate(db, tenantId, ids) {
+  if (ids.length === 0) return /* @__PURE__ */ new Map();
+  const { data, error } = await db.from("templates").select("id, components, body_preview").eq("tenant_id", tenantId).in("id", ids);
+  if (error) throw new Error(`cannot read the reach-outs' words: ${error.message}`);
+  return new Map((data ?? []).map((t) => [t.id, emailWordsFrom(t)]));
+}
+async function searchNamesByIds(db, tenantId, ids) {
+  if (ids.length === 0) return /* @__PURE__ */ new Map();
+  const { data, error } = await db.from("lead_searches").select("id, name").eq("tenant_id", tenantId).in("id", ids);
+  if (error) throw new Error(`cannot read the searches: ${error.message}`);
+  return new Map((data ?? []).map((s) => [s.id, s.name]));
+}
+async function leadNamesByIds(db, tenantId, ids) {
+  if (ids.length === 0) return /* @__PURE__ */ new Map();
+  const { data, error } = await db.from("leads").select("id, business_name").eq("tenant_id", tenantId).in("id", ids);
+  if (error) throw new Error(`cannot read the leads' names: ${error.message}`);
+  return new Map((data ?? []).map((l) => [l.id, l.business_name]));
+}
+async function handRun(db, p) {
+  const { data, error } = await db.rpc("reach_out_hand_run", {
+    p_tenant_id: p.tenantId,
+    p_step_id: p.stepId,
+    p_run_id: p.runId,
+    p_day: p.day,
+    p_items: p.items
+  });
+  if (error) throw new Error(`cannot write the hand step's run: ${error.message}`);
+  const r = data ?? {};
+  return { made: r.made ?? 0, already: r.already ?? 0 };
+}
+async function saveReachOutChain(db, p) {
+  const { data, error } = await db.rpc("reach_out_save", {
+    p_tenant_id: p.tenantId,
+    p_user_id: p.userId,
+    p_chain: p.chain,
+    p_decision: p.decision?.payload ?? null,
+    ...p.decision?.via ? { p_via: p.decision.via } : {},
+    ...p.decision?.undoOf ? { p_undo_of: p.decision.undoOf } : {}
+  });
+  if (error) return { data: null, error: { code: error.code, message: error.message } };
+  const saved = data;
+  if (!saved || typeof saved.root_id !== "string")
+    return { data: null, error: { message: "reach_out_save: no chain" } };
+  if (p.decision && typeof saved.decision_id !== "string")
+    return { data: null, error: { message: "reach_out_save: the door answered without its decision" } };
+  return { data: saved, error: null };
+}
+async function runsWaitingOf(db, tenantId) {
+  const { data, error } = await db.from("broadcasts").select("id, audience").eq("tenant_id", tenantId).eq("state", "pending_approval");
+  if (error) throw new Error(`cannot read the runs waiting: ${error.message}`);
+  return data ?? [];
+}
+async function reachOutRunSendsOf(db, tenantId, runId) {
+  const { data, error } = await db.from("reach_out_sends").select(
+    "id, lead_id, state, reason, hold_detail, opening, angle, send_at, checked_at, created_at, domain_id, lead:leads(business_name, email, city)"
+  ).eq("tenant_id", tenantId).eq("broadcast_id", runId);
+  if (error) throw new Error(`cannot read the run's emails: ${error.message}`);
+  return data ?? [];
+}
+async function stampReachOutStep(db, id, p) {
+  const { error } = await db.from("playbooks").update({ last_run_at: p.at.toISOString(), ...p.runFor ? { last_run_for: p.runFor } : {} }).eq("id", id);
+  if (error) throw new Error(`cannot stamp the step's day: ${error.message}`);
+}
+async function recheckSends(db, p) {
+  if (p.ids.length === 0) return 0;
+  const { data, error } = await db.rpc("reach_out_recheck", {
+    p_send_ids: p.ids,
+    p_tenant_id: p.tenantId,
+    ...p.fromState ? { p_from_state: p.fromState } : {}
+  });
+  if (error) throw new Error(`cannot put the sends back to be checked: ${error.message}`);
+  return typeof data === "number" ? data : 0;
+}
+async function outreachModeOf(db, tenantId) {
+  const { data, error } = await db.from("policies").select("mode").eq("tenant_id", tenantId).eq("class", "outreach").is("subject_type", null).maybeSingle();
+  if (error) throw new Error(`cannot read the outreach mode: ${error.message}`);
+  const said = data?.mode;
+  return said === "veto" || said === "never" ? said : "ask";
+}
+async function tenantZoneOf(db, tenantId) {
+  const { data, error } = await db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle();
+  return error ? null : data?.timezone ?? null;
+}
+var markOf = (v) => v && typeof v === "object" && !Array.isArray(v) && typeof v.claimed_at === "string" ? { claimed_at: v.claimed_at, ...typeof v.sent_at === "string" ? { sent_at: v.sent_at } : {} } : null;
+async function heldNoticeDue(db, p) {
+  let sends = db.from("reach_out_sends").select("tenant_id, broadcast_id, reason").eq("state", "held").gte("updated_at", p.since).limit(p.limit);
+  if (p.tenantId) sends = sends.eq("tenant_id", p.tenantId);
+  const held = await sends;
+  if (held.error) throw new Error(`cannot read the held: ${held.error.message}`);
+  const byRun = /* @__PURE__ */ new Map();
+  for (const s of held.data ?? []) {
+    if (!s.broadcast_id) continue;
+    const r = byRun.get(s.broadcast_id) ?? { held: 0, reasons: /* @__PURE__ */ new Set() };
+    r.held += 1;
+    if (s.reason) r.reasons.add(s.reason);
+    byRun.set(s.broadcast_id, r);
+  }
+  if (byRun.size === 0) return [];
+  const runs = await db.from("broadcasts").select("id, tenant_id, name, state, audience, updated_at").in("id", [...byRun.keys()]).in("state", [...RUN_GOING_STATES]);
+  if (runs.error) throw new Error(`cannot read the held's runs: ${runs.error.message}`);
+  return (runs.data ?? []).flatMap((b) => {
+    const audience = b.audience && typeof b.audience === "object" && !Array.isArray(b.audience) ? b.audience : {};
+    if (audience.kind !== "reach_out") return [];
+    const mark = markOf(audience.held_notice);
+    if (mark && (mark.sent_at || mark.claimed_at >= p.staleBefore)) return [];
+    const r = byRun.get(b.id);
+    return [
+      {
+        id: b.id,
+        tenant_id: b.tenant_id,
+        name: b.name,
+        audience,
+        updated_at: b.updated_at,
+        held: r.held,
+        reasons: [...r.reasons]
+      }
+    ];
+  });
+}
+async function markHeldNotice(db, p) {
+  let q = db.from("broadcasts").update({ audience: { ...p.audience, held_notice: { ...p.mark } } }).eq("tenant_id", p.tenantId).eq("id", p.id);
+  if (p.ifUpdatedAt) q = q.eq("updated_at", p.ifUpdatedAt);
+  const { data, error } = await q.select("id");
+  if (error) throw new Error(`cannot mark the run: ${error.message}`);
+  return (data ?? []).length === 1;
+}
+async function heldSendCounts(db, p) {
+  const counts = await Promise.all(
+    p.runIds.map(async (id) => {
+      const { count: count2, error } = await db.from("reach_out_sends").select("id", { count: "exact", head: true }).eq("tenant_id", p.tenantId).eq("broadcast_id", id).eq("state", "held");
+      if (error) throw new Error(`cannot count the held emails of run ${id}: ${error.message}`);
+      return [id, count2 ?? 0];
+    })
+  );
+  return new Map(counts);
+}
+
+// src/repositories/campaigns/stranded-runs.ts
 async function strandedRuns(db, p) {
   const { data, error } = await db.from("broadcasts").select("id, tenant_id, name, playbook_id, audience, scheduled_for").eq("state", "scheduled").gt("scheduled_for", p.since.toISOString()).lt("scheduled_for", p.before.toISOString()).or("audience->>kind.is.null,audience->>kind.neq.reach_out").order("scheduled_for", { ascending: true }).limit(p.limit);
   if (error) throw new Error(`stranded runs: cannot read the scheduled runs: ${error.message}`);
@@ -2315,6 +2488,60 @@ async function failStrandedRun(db, p) {
   if (!(data ?? []).length) return false;
   await emitEvent(db, p.tenantId, "broadcast.stopped", "broadcast", p.id, { failure: "run_interrupted", sent: 0 });
   return true;
+}
+async function waitingPlaybookRuns(db, p) {
+  const { data, error } = await db.from("broadcasts").select("id, tenant_id, name, state, playbook_id, run_for, audience").eq("state", "pending_approval").not("playbook_id", "is", null).not("run_for", "is", null).or("audience->>kind.is.null,audience->>kind.neq.reach_out").order("run_for", { ascending: true }).order("created_at", { ascending: true }).limit(p.limit);
+  if (error) throw new Error(`waiting runs: cannot read the runs waiting for approval: ${error.message}`);
+  const runs = (data ?? []).filter((r) => !isReachOutRun(r.audience));
+  if (!runs.length) return [];
+  const zones = await db.from("tenants").select("id, timezone").in("id", [...new Set(runs.map((r) => r.tenant_id))]);
+  if (zones.error) throw new Error(`waiting runs: cannot read their workspaces' zones: ${zones.error.message}`);
+  const zoneOf = new Map((zones.data ?? []).map((t) => [t.id, t.timezone]));
+  return runs.flatMap(
+    (r) => r.playbook_id && r.run_for ? [
+      {
+        id: r.id,
+        tenant_id: r.tenant_id,
+        name: r.name,
+        state: r.state,
+        playbook_id: r.playbook_id,
+        run_for: r.run_for,
+        audience: r.audience,
+        timezone: zoneOf.get(r.tenant_id) || DEFAULT_TIMEZONE
+      }
+    ] : []
+  );
+}
+async function cancelBroadcastFrom(db, p) {
+  const { data, error } = await db.from("broadcasts").update({ state: "canceled" }).eq("id", p.id).eq("tenant_id", p.tenantId).eq("state", p.from).select("id");
+  if (error) throw new Error(`waiting runs: cannot end run ${p.id}: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+async function recordSystemDecision(db, p) {
+  const { data, error } = await db.from("decisions").insert({
+    tenant_id: p.tenantId,
+    subject_type: p.subjectType,
+    subject_id: p.subjectId,
+    verb: p.verb,
+    actor_type: "system",
+    actor_user_id: null,
+    payload: p.payload
+  }).select("id").single();
+  if (error) throw new Error(`cannot record the system's decision: ${error.message}`);
+  return data.id;
+}
+var WAITING_RUN_COLUMNS = "id, name, state, playbook_id, run_for, audience, recipient_count, created_at";
+async function waitingRunsOf(db, tenantId) {
+  const [pending, going] = await Promise.all([
+    db.from("broadcasts").select(WAITING_RUN_COLUMNS).eq("tenant_id", tenantId).eq("state", "pending_approval").order("created_at", { ascending: false }).limit(200),
+    db.from("broadcasts").select(WAITING_RUN_COLUMNS).eq("tenant_id", tenantId).in("state", [...RUN_GOING_STATES2]).order("created_at", { ascending: false }).limit(200)
+  ]);
+  if (pending.error) throw new Error(`cannot read the runs waiting for approval: ${pending.error.message}`);
+  if (going.error) throw new Error(`cannot read the going runs: ${going.error.message}`);
+  const reaching = (going.data ?? []).filter((r) => isReachOutRun(r.audience));
+  const held = reaching.length ? await heldSendCounts(db, { tenantId, runIds: reaching.map((r) => r.id) }) : null;
+  const holding = reaching.flatMap((r) => (held?.get(r.id) ?? 0) > 0 ? [{ ...r, held: held?.get(r.id) ?? 0 }] : []);
+  return [...pending.data ?? [], ...holding].sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
 // src/repositories/sending-domains.ts
@@ -2664,157 +2891,6 @@ async function reachOutDayDue(db, now, limit) {
 
 // src/repositories/reach-out.ts
 import { maySpend } from "../../contracts/dist/index.js";
-
-// src/repositories/reach-out-sheet.ts
-import { versionWords } from "../../contracts/dist/index.js";
-var STEP_COLUMNS = "id, name, state, trigger, lead_search_id, after_playbook_id, after_days, gap_minutes, domain_ids, signed_by, include_unconfirmed, template_id, hand, run_hour, last_run_for, created_at";
-async function reachOutStepsOf(db, tenantId) {
-  const { data, error } = await db.from("playbooks").select(STEP_COLUMNS).eq("tenant_id", tenantId).eq("kind", "reach_out");
-  if (error) throw new Error(`cannot read the reach-outs: ${error.message}`);
-  return data ?? [];
-}
-async function reachOutRootOf(db, id) {
-  const { data, error } = await db.from("playbooks").select("id, tenant_id, name, state, trigger, lead_search_id").eq("id", id).eq("kind", "reach_out").eq("trigger", "lead_first").maybeSingle();
-  if (error) throw new Error(`cannot read the reach-out: ${error.message}`);
-  return data;
-}
-async function reachOutSendRefOf(db, id) {
-  const { data, error } = await db.from("reach_out_sends").select("id, tenant_id, broadcast_id, state, reason").eq("id", id).maybeSingle();
-  if (error) throw new Error(`cannot read the email: ${error.message}`);
-  return data;
-}
-function emailWordsFrom(row) {
-  const words = versionWords({ channel: "email", components: row.components, body_preview: row.body_preview });
-  return words.body.trim() ? words : null;
-}
-async function emailWordsByTemplate(db, tenantId, ids) {
-  if (ids.length === 0) return /* @__PURE__ */ new Map();
-  const { data, error } = await db.from("templates").select("id, components, body_preview").eq("tenant_id", tenantId).in("id", ids);
-  if (error) throw new Error(`cannot read the reach-outs' words: ${error.message}`);
-  return new Map((data ?? []).map((t) => [t.id, emailWordsFrom(t)]));
-}
-async function searchNamesByIds(db, tenantId, ids) {
-  if (ids.length === 0) return /* @__PURE__ */ new Map();
-  const { data, error } = await db.from("lead_searches").select("id, name").eq("tenant_id", tenantId).in("id", ids);
-  if (error) throw new Error(`cannot read the searches: ${error.message}`);
-  return new Map((data ?? []).map((s) => [s.id, s.name]));
-}
-async function leadNamesByIds(db, tenantId, ids) {
-  if (ids.length === 0) return /* @__PURE__ */ new Map();
-  const { data, error } = await db.from("leads").select("id, business_name").eq("tenant_id", tenantId).in("id", ids);
-  if (error) throw new Error(`cannot read the leads' names: ${error.message}`);
-  return new Map((data ?? []).map((l) => [l.id, l.business_name]));
-}
-async function handRun(db, p) {
-  const { data, error } = await db.rpc("reach_out_hand_run", {
-    p_tenant_id: p.tenantId,
-    p_step_id: p.stepId,
-    p_run_id: p.runId,
-    p_day: p.day,
-    p_items: p.items
-  });
-  if (error) throw new Error(`cannot write the hand step's run: ${error.message}`);
-  const r = data ?? {};
-  return { made: r.made ?? 0, already: r.already ?? 0 };
-}
-async function saveReachOutChain(db, p) {
-  const { data, error } = await db.rpc("reach_out_save", {
-    p_tenant_id: p.tenantId,
-    p_user_id: p.userId,
-    p_chain: p.chain,
-    p_decision: p.decision?.payload ?? null,
-    ...p.decision?.via ? { p_via: p.decision.via } : {},
-    ...p.decision?.undoOf ? { p_undo_of: p.decision.undoOf } : {}
-  });
-  if (error) return { data: null, error: { code: error.code, message: error.message } };
-  const saved = data;
-  if (!saved || typeof saved.root_id !== "string")
-    return { data: null, error: { message: "reach_out_save: no chain" } };
-  if (p.decision && typeof saved.decision_id !== "string")
-    return { data: null, error: { message: "reach_out_save: the door answered without its decision" } };
-  return { data: saved, error: null };
-}
-async function runsWaitingOf(db, tenantId) {
-  const { data, error } = await db.from("broadcasts").select("id, audience").eq("tenant_id", tenantId).eq("state", "pending_approval");
-  if (error) throw new Error(`cannot read the runs waiting: ${error.message}`);
-  return data ?? [];
-}
-async function reachOutRunSendsOf(db, tenantId, runId) {
-  const { data, error } = await db.from("reach_out_sends").select(
-    "id, lead_id, state, reason, hold_detail, opening, angle, send_at, checked_at, created_at, domain_id, lead:leads(business_name, email, city)"
-  ).eq("tenant_id", tenantId).eq("broadcast_id", runId);
-  if (error) throw new Error(`cannot read the run's emails: ${error.message}`);
-  return data ?? [];
-}
-async function stampReachOutStep(db, id, p) {
-  const { error } = await db.from("playbooks").update({ last_run_at: p.at.toISOString(), ...p.runFor ? { last_run_for: p.runFor } : {} }).eq("id", id);
-  if (error) throw new Error(`cannot stamp the step's day: ${error.message}`);
-}
-async function recheckSends(db, p) {
-  if (p.ids.length === 0) return 0;
-  const { data, error } = await db.rpc("reach_out_recheck", {
-    p_send_ids: p.ids,
-    p_tenant_id: p.tenantId,
-    ...p.fromState ? { p_from_state: p.fromState } : {}
-  });
-  if (error) throw new Error(`cannot put the sends back to be checked: ${error.message}`);
-  return typeof data === "number" ? data : 0;
-}
-async function outreachModeOf(db, tenantId) {
-  const { data, error } = await db.from("policies").select("mode").eq("tenant_id", tenantId).eq("class", "outreach").is("subject_type", null).maybeSingle();
-  if (error) throw new Error(`cannot read the outreach mode: ${error.message}`);
-  const said = data?.mode;
-  return said === "veto" || said === "never" ? said : "ask";
-}
-async function tenantZoneOf(db, tenantId) {
-  const { data, error } = await db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle();
-  return error ? null : data?.timezone ?? null;
-}
-var markOf = (v) => v && typeof v === "object" && !Array.isArray(v) && typeof v.claimed_at === "string" ? { claimed_at: v.claimed_at, ...typeof v.sent_at === "string" ? { sent_at: v.sent_at } : {} } : null;
-async function heldNoticeDue(db, p) {
-  let sends = db.from("reach_out_sends").select("tenant_id, broadcast_id, reason").eq("state", "held").gte("updated_at", p.since).limit(p.limit);
-  if (p.tenantId) sends = sends.eq("tenant_id", p.tenantId);
-  const held = await sends;
-  if (held.error) throw new Error(`cannot read the held: ${held.error.message}`);
-  const byRun = /* @__PURE__ */ new Map();
-  for (const s of held.data ?? []) {
-    if (!s.broadcast_id) continue;
-    const r = byRun.get(s.broadcast_id) ?? { held: 0, reasons: /* @__PURE__ */ new Set() };
-    r.held += 1;
-    if (s.reason) r.reasons.add(s.reason);
-    byRun.set(s.broadcast_id, r);
-  }
-  if (byRun.size === 0) return [];
-  const runs = await db.from("broadcasts").select("id, tenant_id, name, state, audience, updated_at").in("id", [...byRun.keys()]).in("state", ["scheduled", "sending"]);
-  if (runs.error) throw new Error(`cannot read the held's runs: ${runs.error.message}`);
-  return (runs.data ?? []).flatMap((b) => {
-    const audience = b.audience && typeof b.audience === "object" && !Array.isArray(b.audience) ? b.audience : {};
-    if (audience.kind !== "reach_out") return [];
-    const mark = markOf(audience.held_notice);
-    if (mark && (mark.sent_at || mark.claimed_at >= p.staleBefore)) return [];
-    const r = byRun.get(b.id);
-    return [
-      {
-        id: b.id,
-        tenant_id: b.tenant_id,
-        name: b.name,
-        audience,
-        updated_at: b.updated_at,
-        held: r.held,
-        reasons: [...r.reasons]
-      }
-    ];
-  });
-}
-async function markHeldNotice(db, p) {
-  let q = db.from("broadcasts").update({ audience: { ...p.audience, held_notice: { ...p.mark } } }).eq("tenant_id", p.tenantId).eq("id", p.id);
-  if (p.ifUpdatedAt) q = q.eq("updated_at", p.ifUpdatedAt);
-  const { data, error } = await q.select("id");
-  if (error) throw new Error(`cannot mark the run: ${error.message}`);
-  return (data ?? []).length === 1;
-}
-
-// src/repositories/reach-out.ts
 async function domainCapacityOf(db, domainId, at) {
   const { data, error } = await db.rpc("sending_domain_capacity", {
     p_domain_id: domainId,
@@ -3441,12 +3517,16 @@ async function pageSpots(db, window) {
 
 // src/repositories/notifications.ts
 import {
+  BELL_WINDOW_DAYS,
   CATCH_UP_VISITS,
+  DAY_MS as DAY_MS2,
   HOUR_MS as HOUR_MS2,
+  isForReader,
   MIN_MS,
   SAME_VISIT_MS,
   sameVisitOnRecord,
-  sightingStands
+  sightingStands,
+  unreadFor
 } from "../../contracts/dist/index.js";
 
 // src/repositories/thread.ts
@@ -3970,6 +4050,68 @@ async function memberJoinedOf(db, tenantId, invitationId) {
   );
   return invite ? { invitationId: invite.id, email: invite.email, role: invite.role } : null;
 }
+var BELL_READ_PAGE = 1e3;
+var BELL_IN_BATCH = 100;
+async function unreadOfReaders(db, p) {
+  const { rows, seen, marks } = await bellRowsOf(db, p);
+  const out = /* @__PURE__ */ new Map();
+  for (const u of p.readers) out.set(u, unreadForReader(rows, seen, marks, u).length);
+  return out;
+}
+async function olderUnreadFor(db, p) {
+  const { rows, seen, marks } = await bellRowsOf(db, { ...p, readers: [p.reader] });
+  const mine = unreadForReader(rows, seen, marks, p.reader);
+  const holdThreads = mine.filter((r) => p.holdKinds.includes(r.kind) && r.subject_type === "conversation" && r.subject_id).map((r) => r.subject_id);
+  return { unread: mine.length, holdThreads: [...new Set(holdThreads)] };
+}
+function unreadForReader(rows, seen, marks, reader) {
+  const seenAt = seen.find((s) => s.user_id === reader)?.seen_at ?? null;
+  const own = marks.filter((m) => m.user_id === reader);
+  return rows.filter((r) => isForReader(r, reader) && unreadFor([r], seenAt, own) === 1);
+}
+async function bellRowsOf(db, p) {
+  const rows = [];
+  for (let from = 0; ; from += BELL_READ_PAGE) {
+    let q = db.from("notifications").select("id, created_at, recipient_user_id, closed_at, kind, subject_type, subject_id").eq("tenant_id", p.tenantId).gte("created_at", p.fromIso);
+    if (p.throughIso) q = q.lte("created_at", p.throughIso);
+    const page = await q.order("created_at", { ascending: true }).range(from, from + BELL_READ_PAGE - 1);
+    if (page.error) throw new Error(`cannot read the bell: ${page.error.message}`);
+    rows.push(...(page.data ?? []).filter((r) => !p.leaving?.has(r.id)));
+    if ((page.data ?? []).length < BELL_READ_PAGE) break;
+  }
+  const seen = await db.from("notification_reads").select("user_id, seen_at").eq("tenant_id", p.tenantId).in("user_id", [...p.readers]);
+  if (seen.error) throw new Error(`cannot read when the bell was opened: ${seen.error.message}`);
+  const batches = [];
+  for (let i = 0; i < rows.length; i += BELL_IN_BATCH) batches.push(rows.slice(i, i + BELL_IN_BATCH).map((r) => r.id));
+  const reads = await Promise.all(
+    batches.map(
+      (ids) => db.from("notification_marks").select("notification_id, user_id, read_at, dismissed_at").in("user_id", [...p.readers]).in("notification_id", ids)
+    )
+  );
+  const marks = [];
+  for (const r of reads) {
+    if (r.error) throw new Error(`cannot read the bell's marks: ${r.error.message}`);
+    marks.push(...r.data ?? []);
+  }
+  return { rows, seen: seen.data ?? [], marks };
+}
+var bellWindowFrom = (nowMs) => new Date(nowMs - BELL_WINDOW_DAYS * DAY_MS2).toISOString();
+async function closeMendedNotices(db, p) {
+  let closed = 0;
+  for (const w of p.warnings) {
+    if (w.sameSubject && !p.subject) continue;
+    let q = db.from("notifications").select("id, title").eq("tenant_id", p.tenantId).eq("kind", w.kind).is("closed_at", null).gte("created_at", bellWindowFrom(p.nowMs));
+    if (w.sameSubject && p.subject) q = q.eq("subject_type", p.subject.type).eq("subject_id", p.subject.id);
+    const found = await q;
+    if (found.error) throw new Error(`cannot read the warnings a mend closes: ${found.error.message}`);
+    const ids = (found.data ?? []).filter((r) => r.id !== p.keptId && w.title.test(r.title)).map((r) => r.id);
+    if (!ids.length) continue;
+    const up = await db.from("notifications").update({ closed_at: new Date(p.nowMs).toISOString() }).eq("tenant_id", p.tenantId).in("id", ids).is("closed_at", null).select("id");
+    if (up.error) throw new Error(`cannot close the mended warnings: ${up.error.message}`);
+    closed += (up.data ?? []).length;
+  }
+  return closed;
+}
 
 // src/repositories/campaigns/workspace.ts
 async function workspacePaused(db, tenantId) {
@@ -4325,7 +4467,10 @@ async function scrubProviderEvents(db, tenantId, needles) {
 }
 
 // src/repositories/control-plane.ts
-import { receptionistOn } from "../../contracts/dist/index.js";
+import {
+  hasPublicPages,
+  openToCustomersOf
+} from "../../contracts/dist/index.js";
 async function getTenantConfig(db, tenantId) {
   const { data, error } = await db.from("tenant_config").select("tenant_id, config, version, updated_at, updated_by").eq("tenant_id", tenantId).maybeSingle();
   if (error) throw new Error(`getTenantConfig: ${error.message}`);
@@ -4397,15 +4542,65 @@ async function setPersonReplyMode(db, tenantId, contactId, mode) {
   if (error) throw new Error(error.message);
   return was?.mode ?? null;
 }
-async function workspaceAnswersOnItsOwn(db, tenantId) {
+var billingPlanOf = (row) => row ? { mode: row.mode, status: row.status } : null;
+async function workspaceOpenToCustomers(db, tenantId) {
   const [tenant, billing] = await Promise.all([
     db.from("tenants").select("status, left_empty_at").eq("id", tenantId).maybeSingle(),
     db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle()
   ]);
   if (tenant.error) throw new Error(`cannot read the workspace: ${tenant.error.message}`);
   if (billing.error) throw new Error(`cannot read the workspace's billing: ${billing.error.message}`);
-  if (tenant.data?.status === "paused" || tenant.data?.left_empty_at) return false;
-  return !(billing.data?.mode === "stripe" && !receptionistOn(billing.data.status));
+  const plan = billingPlanOf(billing.data);
+  return {
+    open: openToCustomersOf({
+      paused: tenant.data?.status === "paused",
+      ended: !!tenant.data?.left_empty_at,
+      billing: plan
+    }),
+    billing: plan
+  };
+}
+async function workspaceAnswersOnItsOwn(db, tenantId) {
+  return (await workspaceOpenToCustomers(db, tenantId)).open === "open";
+}
+var PUBLIC_RECORD_COLUMNS = "legal_name, trade_name, street, street_secondary, city, region, postal_code, country, contact_email, website_url, about, industry";
+var publicRecordOf = (db, tenantId) => db.from("business_records").select(PUBLIC_RECORD_COLUMNS).eq("tenant_id", tenantId).maybeSingle();
+async function publicWorkspaceBySlug(db, slug) {
+  const t = await db.from("tenants").select("id, name, slug, status, left_empty_at").eq("slug", slug).maybeSingle();
+  if (t.error) throw new Error(`reading the workspace: ${t.error.message}`);
+  if (!t.data) return null;
+  const id = t.data.id;
+  const [billing, record, cfg, channels] = await Promise.all([
+    db.from("billing_accounts").select("mode, status").eq("tenant_id", id).maybeSingle(),
+    publicRecordOf(db, id),
+    db.from("tenant_config").select("config").eq("tenant_id", id).maybeSingle(),
+    db.from("tenant_channels").select("kind, number_e164").eq("tenant_id", id).eq("status", "active").order("created_at", { ascending: true })
+  ]);
+  if (billing.error) throw new Error(`reading the workspace's billing: ${billing.error.message}`);
+  if (record.error) throw new Error(`reading the business on record: ${record.error.message}`);
+  if (cfg.error) throw new Error(`reading the workspace's configuration: ${cfg.error.message}`);
+  if (channels.error) throw new Error(`reading the workspace's channels: ${channels.error.message}`);
+  return {
+    id,
+    name: t.data.name,
+    slug: t.data.slug,
+    status: t.data.status,
+    open: openToCustomersOf({
+      paused: t.data.status === "paused",
+      ended: !!t.data.left_empty_at,
+      billing: billingPlanOf(billing.data)
+    }),
+    record: record.data ?? null,
+    config: cfg.data?.config ?? null,
+    channels: channels.data ?? []
+  };
+}
+async function workspacePublicSlug(db, tenantId) {
+  const { data, error } = await db.from("tenants").select("slug, status, left_empty_at").eq("id", tenantId).maybeSingle();
+  if (error) throw new Error(`cannot read the workspace: ${error.message}`);
+  if (!data) return null;
+  const open = openToCustomersOf({ paused: data.status === "paused", ended: !!data.left_empty_at, billing: null });
+  return hasPublicPages(data.status, open) ? data.slug : null;
 }
 async function workspaceNamed(db, tenantId) {
   const { data, error } = await db.from("tenants").select("name, slug").eq("id", tenantId).maybeSingle();
@@ -4608,7 +4803,7 @@ async function deleteList(db, id) {
 
 // src/repositories/touches.ts
 import {
-  DEFAULT_TIMEZONE,
+  DEFAULT_TIMEZONE as DEFAULT_TIMEZONE2,
   PLAYBOOK_BREATH_MS,
   followUpKey,
   heardWithin,
@@ -4642,7 +4837,7 @@ async function touchesOf(db, tenantId, since, now, followUpsOnly) {
       return (followUpsOnly ? q.contains("params", FOLLOW_UP_PARAMS) : q).order("id").range(from, to);
     }),
     db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle().then(
-      (r) => r.error ? null : r.data?.timezone || DEFAULT_TIMEZONE,
+      (r) => r.error ? null : r.data?.timezone || DEFAULT_TIMEZONE2,
       () => null
     )
   ]);
@@ -5101,6 +5296,11 @@ async function ownLineOf(db, tenantId) {
   if (error) throw new Error(`cannot read the workspace's own line: ${error.message}`);
   return data;
 }
+async function businessOnRecordOf(db, tenantId) {
+  const { data, error } = await db.from("business_records").select("*").eq("tenant_id", tenantId).maybeSingle();
+  if (error) throw new Error(`cannot read the business on record: ${error.message}`);
+  return data;
+}
 
 // src/realtime.ts
 var EVERY = ["INSERT", "UPDATE", "DELETE"];
@@ -5116,8 +5316,8 @@ var WATCHED = [
   // opened by the edge, resolved elsewhere
   { table: "calls", events: EVERY },
   // a call starting, each live turn, its end, its analysis: told with its statuses
-  { table: "notifications", events: INSERTS },
-  // an alert the edge kept: the bell repaints
+  // an alert the edge kept, or one closed when what it asked for ended (00421, told when closed_at moved): the bell repaints
+  { table: "notifications", events: INSERTS_AND_UPDATES },
   { table: "lines", events: EVERY },
   // a line's saga step, its failure, its answer, its release: Setup repaints
   { table: "google_listings", events: EVERY },
@@ -5642,6 +5842,7 @@ export {
   assembleHistory,
   becomePartner,
   bookedVisitsOf,
+  businessOnRecordOf,
   callBackMessage,
   callerNameOf,
   callersOf,
@@ -5649,6 +5850,7 @@ export {
   campaignMonthSent,
   campaignSeries,
   campaignStuck,
+  cancelBroadcastFrom,
   claimCallActivity,
   claimCallNotification,
   claimControl,
@@ -5660,6 +5862,7 @@ export {
   claimSends,
   claimVoiceTurn,
   clearForwardingConfirmation,
+  closeMendedNotices,
   closedRunSends,
   coldReceiptsOwed,
   contactEmailOf,
@@ -5737,6 +5940,7 @@ export {
   heldMessageOf,
   heldNoticeDue,
   heldNoticesOf,
+  heldSendCounts,
   heldStale,
   holdFactsOf,
   holdRecipients,
@@ -5765,6 +5969,7 @@ export {
   keepMessageCost,
   keepModelTurn,
   keepProviderEvent,
+  keptPersonOf,
   lastInboundEmail,
   lastOutboundEmailSubject,
   leadAddressBounced,
@@ -5819,6 +6024,7 @@ export {
   offerLanguageOf,
   offersAnswerOf,
   offersEmailReach,
+  olderUnreadFor,
   oldestActiveChannel,
   openConversation,
   openDoubtsOf,
@@ -5852,6 +6058,7 @@ export {
   playbookTotals,
   playbooksOnList,
   providerEventOf,
+  publicWorkspaceBySlug,
   purgeAiUsage,
   putTenantConfig,
   queuedOutcomes,
@@ -5899,6 +6106,7 @@ export {
   recordPartnerSecondFactorReset,
   recordProviderDomain,
   recordStatusByExternalId,
+  recordSystemDecision,
   recordWhatsAppOffersStop,
   refreshWaitlistRow,
   relayEvents,
@@ -6007,10 +6215,13 @@ export {
   uncheckedWaiting,
   undoPersonName,
   undoReplyReading,
+  unreadOfReaders,
   updateAppointment,
   updatePlaybook,
   usageMonth,
   visitsOver,
+  waitingPlaybookRuns,
+  waitingRunsOf,
   waitlistWaiting,
   watchedEvents,
   watchedTables,
@@ -6030,7 +6241,9 @@ export {
   workspaceMayUseModels,
   workspaceNameAndConfig,
   workspaceNamed,
+  workspaceOpenToCustomers,
   workspacePaused,
+  workspacePublicSlug,
   workspaceZoneOf,
   writePlaybookChange,
   writtenEmail,

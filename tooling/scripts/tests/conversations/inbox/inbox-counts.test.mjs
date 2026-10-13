@@ -718,7 +718,15 @@ const todayWire = (rows, replies) => {
     ...(replies ? { "/api/v1/reach-out-replies": { replies, mailbox: null } } : {}),
   };
   globalThis.fetch = async (url) => {
-    const data = answers[new URL(String(url), "https://app.chanlytics.com").pathname];
+    const u = new URL(String(url), "https://app.chanlytics.com");
+    let data = answers[u.pathname];
+    // A read of threads by their ids (Today's of the holds past the hundred) is answered with those threads alone, as the
+    // route answers it.
+    const ids = u.searchParams.get("ids");
+    if (data && u.pathname === "/api/v1/conversations" && ids) {
+      const wanted = new Set(ids.split(","));
+      data = { conversations: data.conversations.filter((c) => wanted.has(c.id)) };
+    }
     return new Response(
       JSON.stringify(data ? { ok: true, data } : { ok: false, error: { code: "not_found", message: "no" } }),
       {
@@ -771,8 +779,15 @@ test("Today's headline says the badge's number, and a flagged thread older than 
     todayWire(rows);
     const wire = globalThis.fetch;
     globalThis.fetch = async (url) => {
+      const u = new URL(String(url), "https://app.chanlytics.com");
+      // Today reads that customer's thread by its id too (readHeldThreads), as the Inbox does.
+      if (u.pathname === "/api/v1/conversations" && u.searchParams.get("ids")?.split(",").includes(old.dto.id))
+        return new Response(JSON.stringify({ ok: true, data: { conversations: [old.dto] } }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
       const res = await wire(url);
-      if (new URL(String(url), "https://app.chanlytics.com").pathname !== "/api/v1/escalations") return res;
+      if (u.pathname !== "/api/v1/escalations") return res;
       const body = await res.json();
       body.data.escalations.push({ ...old.esc, conversation_id: old.dto.id });
       return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });

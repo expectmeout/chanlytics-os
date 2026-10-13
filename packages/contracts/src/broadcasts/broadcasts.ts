@@ -100,6 +100,12 @@ export type { RunFigureId, RunFigure, RunFilterId, RunTone, RunPersonVM, RunRepl
 export const BROADCAST_STATES = ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"] as const;
 export type BroadcastState = (typeof BROADCAST_STATES)[number];
 
+/**
+ * A run that is going: scheduled, or sending. A reach-out's held emails wait for their owner's say only in a run that is
+ * going (the held notice, reach-out-sheet heldNoticeDue); a run waiting for approval is counted as the run.
+ */
+export const RUN_GOING_STATES = ["scheduled", "sending"] as const satisfies readonly BroadcastState[];
+
 export const RECIPIENT_STATES = ["queued", "sent", "skipped", "failed"] as const;
 export type RecipientState = (typeof RECIPIENT_STATES)[number];
 
@@ -289,6 +295,11 @@ export interface BroadcastDto {
   playbook_id: string | null;
   run_for: string | null;
   counts: BroadcastCounts;
+  /**
+   * A reach-out's run that is going: how many of its emails the check holds for its owner's say. Absent on any other run,
+   * and where it could not be counted (the wiring's second audit, W-campaign-run-template-reachout-4).
+   */
+  held?: number;
 }
 
 export interface BroadcastVM extends BroadcastDto {

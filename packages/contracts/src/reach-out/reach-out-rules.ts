@@ -77,6 +77,26 @@ export function isReachOutRun(audience: unknown): boolean {
   return !!audience && typeof audience === "object" && (audience as { kind?: unknown }).kind === "reach_out";
 }
 
+/**
+ * The reach-out a moment's id opens: the chain whose root it is, or whose step it is (the wiring's second audit,
+ * W-campaign-run-template-reachout-3). A reach-out's later emails each run as their own step, so their runs, their Activity
+ * lines and the links kept from them name the step, and the drawer opened on one said "This campaign is gone". Read where
+ * the address is read, it opens the links already kept too (bell rows, mails, bookmarks, the ledger).
+ */
+export function chainOfMoment<C extends { root_id: string; steps: ReadonlyArray<{ id: string }> }>(
+  chains: readonly C[],
+  id: string,
+): C | null {
+  return chains.find((c) => c.root_id === id || c.steps.some((s) => s.id === id)) ?? null;
+}
+
+/** The reach-out a run is of, by its root step's id, or null for any other run (the one reading of the audience's root). */
+export function reachOutRootOf(audience: unknown): string | null {
+  if (!isReachOutRun(audience)) return null;
+  const root = (audience as { root_id?: unknown }).root_id;
+  return typeof root === "string" && root ? root : null;
+}
+
 /** The language a reach-out's emails are filed in: the one spelling it has always used (00211), kept as it is stored. */
 export const REACH_OUT_LANGUAGE = "en";
 

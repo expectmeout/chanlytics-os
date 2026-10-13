@@ -69,6 +69,8 @@ import { lastWordsOf, type LastWordVM } from "../person-page/last-words";
 import { personNoticesOf, type NoticeVM } from "../person-page/notices";
 import { personTabsOf, type PersonTabVM } from "../person-page/route";
 import { personVisitsOf, type PersonVisitsVM } from "../person-page/visits";
+import { callBackWaits } from "../person-page/call";
+import { holderOf } from "./person-state";
 import { callFactsOf } from "../person-page/call-facts";
 import { contactEvidenceOf, personOriginOf, reachRowsOf } from "../person-page/origin";
 import { WORKS_AT_WORDS } from "../person-page/words";
@@ -173,6 +175,8 @@ export interface PersonVM extends PersonRowVM {
    * disabled Yes's caption. Null for anyone else.
    */
   yesLocked: string | null;
+  /** They asked for a call back and it is still open (callBackWaits): the call sheet asks whether a call was it (X3-1). */
+  callBackOpen: boolean;
   /**
    * How a message can go to them now, wire by wire (writeWaysOf): the New conversation sheet's own answer, drawn on More
    * before anything opens. The workspace's lines are judged only where the page read them (People's ChannelsReady).
@@ -504,6 +508,7 @@ export function toPersonVM(
     lead: leadOf(d, base, tz, nowMs),
     // The doors' own test, as far as the page can see it: a lead names them, or they work at one.
     yesLocked: d.lead || base.worksAt ? LEAD_CONSENT_REFUSAL : null,
+    callBackOpen: callBackWaits(d.escalations, holderOf(ctx.row, nowMs, viewerId) === "theirs"),
     doubts: doubtsOf(d),
     deal: ctx.current,
     deals: ctx.deals,

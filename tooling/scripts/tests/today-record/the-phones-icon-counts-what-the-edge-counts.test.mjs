@@ -73,6 +73,23 @@ test("a Mark all read this device has made counts before the re-read lands, and 
   assert.equal(keptUnreadOf(dto, 0), keptUnreadOf(dto), "and none of its own changes nothing");
 });
 
+test("a row the server closed counts on neither side, and the unread rows past the bell's list count on both (00421)", () => {
+  const closed = row("n7", 3, { closed_at: iso(1) });
+  const dto = { notifications: [...ROWS, closed], seen_at: null };
+  const edge = unreadFor(
+    dto.notifications.map((n) => ({ id: n.id, created_at: n.created_at, closed_at: n.closed_at ?? null })),
+    null,
+    [],
+  );
+  assert.equal(edge, 6, "the edge leaves out the closed row (no marks are given here: the six others count)");
+  assert.equal(keptUnreadOf(dto), 4, "the page leaves it out too: what a hold's resolve closed asks nobody");
+  // The bell lists its newest rows; the server counts the unread ones it did not list (`unread`), and the icon says them.
+  assert.equal(keptUnreadOf({ ...dto, unread: 7 }), 7, "four listed and three older");
+  assert.equal(keptUnreadOf({ ...dto, unread: 7 }, NOW), 0, "a Mark all read on this device covers the older rows too");
+  // What the surfaces this tab holds settle (a run approved, a hold a teammate took) leaves the icon too.
+  assert.equal(keptUnreadOf(dto, 0, new Set(["n1"])), 3);
+});
+
 /* ------------------------------------------------------ the bridge's bell ------------------------------------------------------ */
 
 const bridge = await importSrc("apps/dashboard/src/legacy-bridge/notifications.ts");

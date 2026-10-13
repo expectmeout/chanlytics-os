@@ -4,7 +4,7 @@
  */
 
 import { isReachOutRun } from "../reach-out/reach-out-rules";
-import { RUN_WAITING_WORDS, runStopWords } from "../shell/campaign-rooms";
+import { RUN_WAITING_WORDS, heldEmailsWords, runStopWords } from "../shell/campaign-rooms";
 
 /* ------------------------------ the runs' words ------------------------------ */
 
@@ -17,6 +17,8 @@ export interface RunLike {
   counts: { sent: number; replied: number };
   /** Whom it goes to: a reach-out's run (kind `reach_out`) writes to businesses, and says so. */
   audience?: unknown;
+  /** How many of a going run's emails the check holds for your say (waits.ts runHeldEmails). */
+  held?: number | null;
 }
 
 export interface TodayRunWordsVM {
@@ -31,6 +33,8 @@ export interface TodayRunWordsVM {
   late: { meta: string; status: string[] };
   /** A run under the veto window: scheduled, not yet sending. */
   soon: { meta: string; sentence: string; status: string[] };
+  /** A going run whose emails the check holds: they wait for your say on the run, and the rest goes as planned. */
+  held: { meta: string; sentence: string; status: string[] };
   /** A run that went out today: what it earned so far, and whether it is still sending. */
   done: { counts: string; still: boolean };
 }
@@ -68,12 +72,22 @@ export function todayRunWords(r: RunLike): TodayRunWordsVM {
       status: ["Scheduled", `sends ${r.when}`],
     },
     done: { counts: r.counts.replied ? `${sent}, ${r.counts.replied} replied` : sent, still: r.state === "sending" },
+    held: {
+      meta: `${kind} · going`,
+      sentence: `${heldEmailsWords(r.held ?? 0)}. The rest of the run goes as planned.`,
+      status: ["Held for your say"],
+    },
   };
 }
 
 /** "2 runs waiting" beside the queue's own parts; null when none waits. */
 export function todayRunsSub(n: number): string | null {
   return n ? `${n} run${n === 1 ? "" : "s"} waiting` : null;
+}
+
+/** "1 run too late to approve" beside the queue's parts: a run whose day has passed, which waits on nobody; null for none. */
+export function todayLateRunsSub(n: number): string | null {
+  return n ? `${n} run${n === 1 ? "" : "s"} too late to approve` : null;
 }
 
 /**

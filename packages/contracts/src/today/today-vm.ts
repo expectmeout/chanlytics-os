@@ -135,6 +135,19 @@ export interface TodayNoReplyVM {
   to: string;
 }
 
+/**
+ * The calm rung's words before the runs are known (the wiring's second audit, S7-1): what the queue holds besides the
+ * people (todayAlsoWaiting), the day's traffic ("3 messages from 2 people and 1 call"), whether the receptionist handled
+ * all of it, and how it answered, with no subject ("answered 3 of the 3 on its own, typically in about 20s."). Kept on
+ * the standing so a page that holds the runs says the head again with them (standingWithRuns), and a run waiting leads.
+ */
+export interface TodayCalmVM {
+  also: string[];
+  traffic: string | null;
+  handled_all: boolean;
+  answered: string | null;
+}
+
 export interface TodayVM {
   standing: {
     chips: Array<{ text: string; ok: boolean }>;
@@ -152,9 +165,26 @@ export interface TodayVM {
     headline: string;
     detail: string | null;
     tone: "needs" | "calm" | "alert";
+    /** The calm rung's words, on the last rung and the quiet day; null on the alert and needs rungs (standingWithRuns). */
+    calm: TodayCalmVM | null;
   };
-  /** Ask's rows: the same escalations the queue draws, read once. */
-  needsYou: { count: number; hint: string; rows: TodayNeedsRowVM[]; empty: string | null } | null;
+  /**
+   * The campaign runs waiting for your word that a word can still send (waits.ts runsThatWait), where the brief was
+   * handed the runs; null where it was not (the browser's brief, whose page holds Sent's runs and says the head with them).
+   */
+  runs_waiting: number | null;
+  /**
+   * Ask's rows: the same escalations the queue draws, read once. `count` is the threads' part of the one count (holds
+   * and replies counting down, waits.ts), and `holds` and `sends` its two parts: a held send has no row.
+   */
+  needsYou: {
+    count: number;
+    holds: number;
+    sends: number;
+    hint: string;
+    rows: TodayNeedsRowVM[];
+    empty: string | null;
+  } | null;
   windowClosing: { label: string; hint: string; rows: Array<{ id: string; text: string; to: string }> } | null;
   /** Ask reads the sentences and the facts; the page draws the sentences that are not numbers and the receipts. */
   recap: {
@@ -180,23 +210,24 @@ export interface TodayVM {
   /** Whether the calls read succeeded; false means the rows above omit the phone, and the card says so. */
   callsRead: boolean;
   /**
-   * Everything that asks for a person, in one row grammar, longest wait first: the rows, the rest as a count, what the
-   * rows hold in words, and how many people are waiting on you across the whole queue (a handoff, a call-back or a
-   * closing window; a call worth a listen is nobody waiting), which Ask's Right now says.
+   * Everything that asks for a person, in one row grammar, longest wait first: the rows, the rest as a count, and what
+   * the rows hold in words. How many wait on you is the one count's (needsYou and runs_waiting; waits.ts), never a sum of
+   * rows: a closing window is a window, a call worth a listen nobody waiting, and a held send has no row.
    */
   queue: {
     rows: TodayQueueRowVM[];
     /** Every row past the six, whatever it is. */
     more: number;
-    /** The people past the six (a handoff, a call-back, a closing window), apart from the calls and the searches: what "more" says of who needs you. */
+    /** The people past the six (a handoff, a call-back, a closing window, a reply read), apart from the calls and the searches. */
     more_people: number;
     /** The calls worth a listen, drawn or not. */
     calls: number;
     /** The searches waiting for your answer, drawn or not. */
     searches: number;
+    /** The reply windows closing, drawn or not: said as windows, never as people who need you. */
+    windows: number;
     parts: string[];
     empty: TodayQueueEmptyVM;
-    waiting: number;
   };
   quiet: {
     headline: string;

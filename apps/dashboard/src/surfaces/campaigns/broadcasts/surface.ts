@@ -27,6 +27,7 @@ import {
   numberHealth,
   optInLink,
   reachCountsOf,
+  takesSignUps,
   toBroadcastVM,
   whatsappLineOf,
   type AudienceKind,
@@ -36,6 +37,7 @@ import {
   type ConsentChannel,
   type MonthSent,
   type NumberHealth,
+  type OpenToCustomers,
   type AskedPurpose,
   type ReachCounts,
 } from "@chanlytics/contracts";
@@ -151,7 +153,15 @@ export interface BroadcastsSurface {
   /** How a customer says yes in their own words: the phrase, the link that
    *  opens WhatsApp with it ready, and the QR of that link. Null link without
    *  a number. */
-  optIn: { phrase: string; phraseEs: string; link: string | null; qrPath: string | null; pageUrl: string | null };
+  optIn: {
+    phrase: string;
+    phraseEs: string;
+    link: string | null;
+    qrPath: string | null;
+    pageUrl: string | null;
+    /** Whether the workspace is open to its customers; null where it was not read (no code is withheld then). */
+    open: OpenToCustomers | null;
+  };
   /** Where that yes is got in this product (contracts GET_YES_ROUTE): the ledger's card, which the send screen's
    *  "nobody has said yes" is a door to. */
   getYes: string;
@@ -247,6 +257,28 @@ function optionReadings(
  * offer — computed here by the same contracts predicate the route enrols
  * with, so the number on the chip is the number the route will find.
  */
+
+/**
+ * How a customer says yes, for the card that gets it: the phrase, the link that opens WhatsApp with it ready, the code of
+ * that link, and the public page the same yes lives on (what a carrier is shown when they ask how this business gets
+ * permission to text). No link and no code while the workspace is paused or ended (contracts takesSignUps: nobody answers
+ * on its behalf), nor without a number.
+ */
+function optInOf(
+  number: string | null | undefined,
+  slug: string | null,
+  open: OpenToCustomers | null,
+): BroadcastsSurface["optIn"] {
+  const link = takesSignUps(open) ? optInLink(number) : null;
+  return {
+    phrase: OFFERS_OPT_IN_PHRASES.en,
+    phraseEs: OFFERS_OPT_IN_PHRASES.es,
+    link,
+    qrPath: link ? api().url("GET consent/qr") : null,
+    pageUrl: slug ? `${window.location.origin}/yes/${slug}` : null,
+    open,
+  };
+}
 export const broadcastsOverride: SurfaceOverride = {
   key: "broadcasts",
   value: "broadcasts",
@@ -404,15 +436,7 @@ export const broadcastsOverride: SurfaceOverride = {
       bookingLink: !!brain?.booking_link,
       // A read that failed, a broken config and an older server's answer all say nothing of the listing: none.
       reviewLink: !(cfg instanceof Error) && !cfg.configBroken && cfg.review_link === true,
-      optIn: {
-        phrase: OFFERS_OPT_IN_PHRASES.en,
-        phraseEs: OFFERS_OPT_IN_PHRASES.es,
-        link: optInLink(wa?.number_e164),
-        qrPath: optInLink(wa?.number_e164) ? api().url("GET consent/qr") : null,
-        // The public page the same yes lives on: what a carrier is shown when
-        // they ask how this business gets permission to text.
-        pageUrl: slug ? `${window.location.origin}/yes/${slug}` : null,
-      },
+      optIn: optInOf(wa?.number_e164, slug, bc.open_to_customers ?? null),
       getYes: GET_YES_ROUTE,
       fetchedAt: now.getTime(),
     });

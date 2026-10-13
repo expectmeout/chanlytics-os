@@ -138,6 +138,23 @@ export function apiFor(win: Window): Api {
   });
 }
 
+/**
+ * How far the database's clock (a notice's `at`, a kept row's `created_at`) and the servers' may disagree: both are kept by
+ * NTP, so a few milliseconds apart. Allowed for on the side of reading again.
+ */
+const CLOCK_SKEW_MS = 250;
+
+/**
+ * A moment of this browser's clock as the servers' and the database's clocks read it, on the early side: less how far this
+ * clock runs ahead of the servers' (clockLead, measured on every answer) and the margin the two may disagree by. A read
+ * stamped by this browser is judged by it against a database time: the live feed's readAfter (surface-runner.ts) and the
+ * bell's wait judges (notifications.ts whatWaits). A browser a few seconds fast took a change made just after its read for
+ * one the read held (the wiring's second audit, S2-1).
+ */
+export function serversClockOf(browserMs: number): number {
+  return browserMs - api().clockLead() - CLOCK_SKEW_MS;
+}
+
 export function api(): Api {
   instance ??= createApi({
     fetch: (url, init) => window.fetch(url, init),

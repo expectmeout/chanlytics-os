@@ -4,6 +4,8 @@ import {
   answersToRuns,
   firstNameOf,
   isAutomatedSend,
+  isReachOutRun,
+  RUN_GOING_STATES,
   isPersonsWords,
   isReplyTo,
   parseParamSpecs,
@@ -21,7 +23,8 @@ import {
   type RecipientState,
   type RunAnswer,
 } from "@chanlytics/contracts";
-import { readAllRows, runCounts } from "@chanlytics/db";
+import { heldSendCounts, readAllRows, runCounts } from "@chanlytics/db";
+import { log } from "@/server/log";
 import { reachOutRunOf } from "@/server/campaigns/reach-outs";
 import type { RouteContext } from "@/server/with-route";
 
@@ -416,7 +419,31 @@ export async function listBroadcasts(
     .limit(RECENT + 1);
   if (error) throw new Error(error.message);
   const all = (rows ?? []) as BroadcastRow[];
-  return { broadcasts: await withCounts(ctx, tenantId, all.slice(0, RECENT)), more: all.length > RECENT };
+  const counted = await withCounts(ctx, tenantId, all.slice(0, RECENT));
+  return { broadcasts: await withHeld(ctx, tenantId, counted), more: all.length > RECENT };
+}
+
+/**
+ * A going reach-out run says how many of its emails the check holds for its owner's say (`held`): the run's row, the bell's
+ * held notice (contracts notice-closes.ts, which reads it as read once none is held) and Campaigns' chain row read it. A
+ * count that cannot be read leaves `held` absent, logged, and the rows stand (the wiring's second audit,
+ * W-campaign-run-template-reachout-4).
+ */
+async function withHeld(ctx: RouteContext, tenantId: string, rows: BroadcastDto[]): Promise<BroadcastDto[]> {
+  const going = rows.filter(
+    (b) => isReachOutRun(b.audience) && (RUN_GOING_STATES as readonly string[]).includes(b.state),
+  );
+  if (!going.length) return rows;
+  try {
+    const held = await heldSendCounts(ctx.supabase, { tenantId, runIds: going.map((b) => b.id) });
+    return rows.map((b) => (held.has(b.id) ? { ...b, held: held.get(b.id) ?? 0 } : b));
+  } catch (e) {
+    log.error("broadcasts_held_read_failed", {
+      tenant_id: tenantId,
+      error: e instanceof Error ? e.message : String(e),
+    });
+    return rows;
+  }
 }
 
 /**

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { consentFormMetadata, consentFormVM } from "@chanlytics/contracts";
 import { consentPageFor } from "@/server/public/consent-page";
 import { printableOrigin } from "@/server/origin";
+import { PaperForm } from "@/yes/PaperForm";
 
 /**
  * A workspace's "say yes" page, on paper.
@@ -49,62 +50,5 @@ export default async function ConsentFormPage({ params }: { params: Promise<{ sl
   const h = await headers();
   const origin = printableOrigin(h.get("x-forwarded-proto"), h.get("x-forwarded-host") ?? h.get("host"));
 
-  return (
-    <main className="yes yes-paper">
-      <h1>{vm.title}</h1>
-      <p className="yes-lead">{vm.lead}</p>
-
-      <div className="yes-paper-fields">
-        {vm.fields.map((f) => (
-          <div className="yes-paper-line" key={f}>
-            {f}
-          </div>
-        ))}
-      </div>
-
-      {vm.sections.map((s) => (
-        <section className="yes-ask yes-paper-section" key={s.purpose} data-testid={`form-${s.purpose}`}>
-          <h2 className="yes-ask-title">{s.title}</h2>
-          <p className="yes-paper-box">
-            <span className="yes-paper-tick" aria-hidden="true" />
-            <span>{s.box}</span>
-          </p>
-          {s.optional && <p className="yes-ask-optional">{s.optional}</p>}
-          <ul className="yes-terms">
-            {s.terms.map((t) => (
-              <li key={t}>{t}</li>
-            ))}
-          </ul>
-          <div className="yes-paper-sign">
-            <div className="yes-paper-line">{s.sign}</div>
-            <div className="yes-paper-line">Date</div>
-          </div>
-        </section>
-      ))}
-
-      <ul className="yes-terms">
-        {vm.terms.map((t) => (
-          <li key={t}>{t}</li>
-        ))}
-      </ul>
-
-      <p className="yes-paper-office">{vm.office}</p>
-
-      <p className="yes-foot">
-        Texts are sent for {facts.businessName} by a receptionist operated by Chanlytics (RJ Capital LLC). Privacy:{" "}
-        <a href={vm.links.privacy}>
-          {origin}
-          {vm.links.privacy}
-        </a>{" "}
-        · Terms:{" "}
-        <a href={vm.links.terms}>
-          {origin}
-          {vm.links.terms}
-        </a>
-      </p>
-      <p className="yes-foot yes-paper-noprint">
-        Print this page to use it as a form, or <a href={`/yes/${slug}`}>say yes by text instead</a>.
-      </p>
-    </main>
-  );
+  return <PaperForm vm={vm} origin={origin} slug={slug} businessName={facts.businessName} />;
 }

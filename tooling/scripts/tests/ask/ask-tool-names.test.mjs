@@ -816,6 +816,28 @@ function withoutPersonState(old, got) {
   return { ...got, result: JSON.stringify(rest) };
 }
 
+/** The old tools that read the open escalations through their reader: two halves since 13 Oct 2026 (R2). */
+const ESCALATION_HALVES = new Set(["get_today", "list_threads", "get_thread"]);
+
+/**
+ * 13 Oct 2026 (the wiring's second audit, R2: S7-1, W-thread-wait-step-4): Today's answer says the one count's parts -- the
+ * holds and the replies counting down under needs_you, the runs waiting that an approval can still send, and the searches
+ * waiting -- in this world one hold, no reply on its way, no run and no search.
+ */
+function withTheOneCount(frozen) {
+  const said = JSON.parse(frozen);
+  if (!said.needs_you || !("period" in said)) return frozen;
+  const { period, ...rest } = said;
+  const { count, rows, ...more } = said.needs_you;
+  return JSON.stringify({
+    ...rest,
+    needs_you: { count, holds: count, replies_on_their_way: 0, ...more, rows },
+    campaign_runs_waiting: { count: 0, runs: [] },
+    searches_waiting: [],
+    period,
+  });
+}
+
 /** The frozen answer's side of the right-now change withoutPersonState makes (the 2 Oct audit, C3). */
 function withoutRightNowDetail(frozen) {
   const said = JSON.parse(frozen);
@@ -1086,6 +1108,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     if (NAMES[old] === "report")
       result = withPeople(withReceptionist(withReachOuts(withReviews(withCampaigns(withHold(result))))));
     if (NAMES[old] === "inbox.list" && input.filter === "held") result = withNothingHeld(result);
+    if (old === "get_today") result = withTheOneCount(result);
     if (old === "list_threads" || old === "get_thread") result = withNoHeldDraft(result);
     if (NAMES[old] === "calls.list" || NAMES[old] === "calls.get") result = withCallDirection(result);
     if (NAMES[old] === "campaigns.audiences") result = withHeldListWord(withChannels(result));
@@ -1235,10 +1258,27 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // 10 Oct 2026 (Reports, the Receptionist lens, C2 T13): and the Receptionist lens's own: one rpc more (withReceptionistReads).
     // 10 Oct 2026 (Reports, the People lens, C3 T13): and the People lens's: its series and the channels the book is judged against.
     // 11 Oct 2026 (Reports, the Campaigns lens, C4 T16): and the Campaigns lens's ledger, what is stuck and the number (withCampaignReads).
+    // 13 Oct 2026 (the wiring's second audit, R2): the open escalations are read in two halves (readers/escalations.ts: the
+    // holds that wait on a person, and the hand-backs), one read more where the old tool read them through the reader; and
+    // Today reads the runs waiting for approval (readers/broadcasts.ts waitingRuns), one `broadcasts` read more. Its bytes
+    // gain the one count's parts (withTheOneCount).
+    const halves =
+      ESCALATION_HALVES.has(old) && withBreath.includes("escalations.select")
+        ? [...withBreath, "escalations.select"]
+        : withBreath;
+    // 13 Oct 2026 (Ruben: held emails count): and the going runs, whose check may hold emails for your say (db
+    // waitingRunsOf): one `broadcasts` read more. Nobody here has a going reach-out run, so no held count is asked.
+    const withRunsWaiting = old === "get_today" ? [...halves, "broadcasts.select", "broadcasts.select"] : halves;
+    // 13 Oct 2026 (the wiring's second audit, R3, S5-3): a person the workspace does not show is asked once more whether
+    // they were combined into another (db keptPersonOf), so their old address opens the person they became: one
+    // `contacts` read more where the profile is refused. Its bytes are unchanged for nobody combined.
+    const followsACombine =
+      NAMES[old] === "people.get" && want.isError ? [...withRunsWaiting, "contacts.select"] : null;
+    const withKept = followsACombine ?? withRunsWaiting;
     const reads =
       NAMES[old] === "report"
-        ? withCampaignReads(withPeopleReads(withReceptionistReads(withReviewReads(withBreath))))
-        : withBreath;
+        ? withCampaignReads(withPeopleReads(withReceptionistReads(withReviewReads(withKept))))
+        : withKept;
     const [gotResult, wantResult] =
       NAMES[old] === "campaigns.playbooks"
         ? againstOffered(got.result, withLastThirtyDays(result))

@@ -113,7 +113,7 @@ test("you-are-live: the owner is told, at the workspace's own address, what the 
         "From now on, calls to +1 (305) 555-0100 that nobody picks up reach your receptionist.\n\n" +
         "A caller who asks for a person is put through to +1 (786) 555-0199.\n\n" +
         "We'll email you here when someone needs you.\n\n" +
-        "Open Today: https://app.example.com/w/harbor-moving#/today\n",
+        "Open Today: https://app.example.com/w/harbor-moving/today\n",
     );
   } finally {
     net.restore();

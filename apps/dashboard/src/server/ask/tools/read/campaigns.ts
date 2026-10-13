@@ -29,6 +29,7 @@ import {
   numberHealth,
   numberHealthWithStanding,
   optInLink,
+  takesSignUps,
   type ChannelDto,
   playbookListRef,
   policyClassOffered,
@@ -52,6 +53,8 @@ import {
   type LifecycleGroup,
   type LifecyclePlaybooks,
   type LifecycleStage,
+  runDaysAt,
+  runWaitsOnYou,
 } from "@chanlytics/contracts";
 import { load } from "../../../readers";
 import { audiencePool } from "../../../readers/audience-pool";
@@ -430,7 +433,13 @@ function broadcastLine(b: BroadcastDto, tz: string, now: Date) {
     audience: b.audience.label,
     template: b.template_name,
     state: vm.stateLabel,
-    ...(b.state === "pending_approval" ? { waiting_on_you: true } : {}),
+    // Waiting on you only while an approval can still send it (contracts runWaitsOnYou, the verb's own day rule): a run
+    // whose day has passed can only be skipped, and the hourly sweep skips it itself (the wiring's second audit, S7-3).
+    ...(runWaitsOnYou(b, runDaysAt(tz, now))
+      ? { waiting_on_you: true }
+      : b.state === "pending_approval"
+        ? { too_late_to_approve: true }
+        : {}),
     when: vm.when || null,
     people: b.recipient_count,
     sent: b.counts.sent,
@@ -567,7 +576,11 @@ function homeBroadcastsOf(
     rows: bc.broadcasts.map((b) => toBroadcastVM(b, at.tz, at.now)),
     number: { present: !!wa },
     ready: bc.ready,
-    optIn: { phrase: OFFERS_OPT_IN_PHRASES.en, link: optInLink(wa?.number_e164) },
+    // No link while the workspace is paused or ended, by the rule the card follows (contracts takesSignUps).
+    optIn: {
+      phrase: OFFERS_OPT_IN_PHRASES.en,
+      link: takesSignUps(bc.open_to_customers ?? null) ? optInLink(wa?.number_e164) : null,
+    },
     reach: null,
   };
 }
@@ -674,7 +687,7 @@ export const campaignsTool = defineActions({
       examples: [{}],
       label: "Reading the broadcasts",
       words:
-        "Action broadcasts takes nothing more and reads the broadcasts as the Broadcasts page lists them, the recent fifty, with older saying whether there are more: each with its name, whether a campaign or a person sent it, its audience and template, its state in the page's words (a run waiting for a person to approve it is Waiting for your approval, with waiting_on_you), when, how many it was for, how many were sent (sent_by_channel, where it went by more than one), the share of those delivered, the share of those sent by WhatsApp that were read (a text or an email keeps no read receipt), and how many replied, were held back and failed, with why one failed. Call it for what went out and how it did, and for a run that waits on someone; action broadcast for one broadcast's people and replies.",
+        "Action broadcasts takes nothing more and reads the broadcasts as the Broadcasts page lists them, the recent fifty, with older saying whether there are more: each with its name, whether a campaign or a person sent it, its audience and template, its state in the page's words (a run waiting for a person to approve it is Waiting for your approval, with waiting_on_you; a run whose day has passed is too_late_to_approve: it can only be skipped, and the hourly sweep skips it itself), when, how many it was for, how many were sent (sent_by_channel, where it went by more than one), the share of those delivered, the share of those sent by WhatsApp that were read (a text or an email keeps no read receipt), and how many replied, were held back and failed, with why one failed. Call it for what went out and how it did, and for a run that waits on someone; action broadcast for one broadcast's people and replies.",
       run: readBroadcasts,
     }),
     broadcast: readAction({

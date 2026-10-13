@@ -175,8 +175,43 @@ export function mayUseModels(
   status: BillingStatus,
   workspace: { paused: boolean; ended: boolean },
 ): boolean {
-  if (workspace.paused || workspace.ended) return false;
-  return mode !== "stripe" || receptionistOn(status);
+  return openToCustomersOf({ ...workspace, billing: { mode, status } }) === "open";
+}
+
+/**
+ * Whether a workspace is open to its customers (the wiring's second audit, X4-1): `open`; `paused`, by billing or by a
+ * person (tenants.status), or by a plan billed through Stripe in a state that stops the receptionist (receptionistOn);
+ * or `ended`, its last member gone (00262, left_empty_at). One rule for what answers on the business's behalf: the
+ * model's spend (mayUseModels), the receptionist's public replies (packages/db workspaceAnswersOnItsOwn), the public
+ * pages and the code that ask a customer for a yes (takesSignUps, hasPublicPages), and the carrier filing nobody presses
+ * (the edge's registrations sweep). A workspace with no billing row is judged by its own standing alone.
+ */
+export type OpenToCustomers = "open" | "paused" | "ended";
+
+export function openToCustomersOf(f: {
+  paused: boolean;
+  ended: boolean;
+  billing: { mode: BillingMode; status: BillingStatus } | null;
+}): OpenToCustomers {
+  if (f.ended) return "ended";
+  if (f.paused) return "paused";
+  return !f.billing || f.billing.mode !== "stripe" || receptionistOn(f.billing.status) ? "open" : "paused";
+}
+
+/**
+ * Whether a workspace's pages ask a customer for a yes: not while it is paused or ended, since nobody answers on its
+ * behalf. Null is not read (an older server), which keeps the page as it was.
+ */
+export function takesSignUps(open: OpenToCustomers | null | undefined): boolean {
+  return open !== "paused" && open !== "ended";
+}
+
+/**
+ * Whether a workspace has public pages at all: not a fixture (`test`), and not ended (its pages are Not found and
+ * unindexed: X4-2). A paused workspace keeps them, readable for the carriers' re-vet, and asks nobody for a yes.
+ */
+export function hasPublicPages(status: string, open: OpenToCustomers): boolean {
+  return status !== "test" && open !== "ended";
 }
 
 /**

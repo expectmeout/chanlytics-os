@@ -5,7 +5,7 @@
  * hosts and the request's shape are wire.ts.
  */
 import { businessTypeOf, companyTypeOf, industryOf } from "@chanlytics/contracts";
-import type { BusinessRecord } from "./business-record";
+import { brandNameOf, type BusinessRecord } from "./business-record";
 import { A2P_POLICIES, TRUSTHUB, type A2PRequest } from "./wire";
 
 const attrs = (o: Record<string, unknown>) => JSON.stringify(o);
@@ -105,10 +105,10 @@ export function soleProprietorEndUserRequest(r: BusinessRecord, industry: string
     url: `${TRUSTHUB}/EndUsers`,
     method: "POST",
     form: {
-      FriendlyName: `${r.tradeName || r.legalName} · sole proprietor`.slice(0, 64),
+      FriendlyName: `${brandNameOf(r)} · sole proprietor`.slice(0, 64),
       Type: "sole_proprietor_information",
       Attributes: attrs({
-        brand_name: r.tradeName || r.legalName,
+        brand_name: brandNameOf(r),
         mobile_phone_number: r.contactPhone,
         vertical: industry,
       }),

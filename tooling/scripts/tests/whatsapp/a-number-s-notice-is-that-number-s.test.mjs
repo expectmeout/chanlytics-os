@@ -97,3 +97,33 @@ test("a reader that knows no number is answered by the workspace's oldest active
   assert.equal(facts.number, "+13055550971", "REGRESSION: an unordered read answered with the newer row");
   assert.deepEqual(facts.config, { standing_note: "ch-old" });
 });
+
+test("a number's good news mends that number's warning, and no other number's (the wiring's second audit, W-channel-team-plus-4)", async () => {
+  const w = world();
+  const lowered = (id, channel) => ({
+    id,
+    tenant_id: T,
+    kind: "number",
+    title: "WhatsApp messaging limit lowered",
+    body: "x",
+    route: "admin/integrations",
+    subject_type: "channel",
+    subject_id: channel,
+    created_at: new Date(Date.now() - 3_600_000).toISOString(),
+    closed_at: null,
+  });
+  w.tables.notifications.push(
+    lowered("eeeeeeee-0000-4000-8000-000000000001", "ch-new"),
+    lowered("eeeeeeee-0000-4000-8000-000000000002", "ch-old"),
+  );
+  // The new number's limit is raised: news told to nobody, which still mends that number's "lowered".
+  assert.equal(await handleWabaChange(w.db, WABA, rating("13055550972"), async () => null), "kept");
+  assert.deepEqual(
+    w.tables.notifications.map((n) => [n.subject_id, n.closed_at != null]),
+    [
+      ["ch-new", true],
+      ["ch-old", false],
+    ],
+    "REGRESSION: 'raised' kept no row and closed nothing, so 'lowered' stayed amber for good",
+  );
+});

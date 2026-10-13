@@ -14,6 +14,7 @@ import {
   PERSON_CALL_WORDS as W,
   callDays,
   clockTime,
+  personCallClosesBack,
   personCallDays,
   personCallFoot,
   personCallOf,
@@ -104,6 +105,21 @@ export function usePersonCall(p: PersonVM | null, phone: boolean): PersonCallCtl
   };
 }
 
+/**
+ * "This was the call back they asked for" (X3-1): shown while they have a call-back request open, on whichever outcome is
+ * picked, and on, Save hands back their thread holding it (person_call_logged, 00422), so Today, the badge and the bell stop
+ * asking.
+ */
+function ClosesBack({ on, onChange, busy }: { on: boolean; onChange: (on: boolean) => void; busy: boolean }) {
+  const id = useId();
+  return (
+    <div className="cl-prof-call-tell" title={W.closesCallBackHint}>
+      <span id={id}>{W.closesCallBack}</span>
+      <RecordSwitch on={on} onChange={onChange} labelledBy={id} readOnly={busy} testid="person-call-closes-back" />
+    </div>
+  );
+}
+
 /** The day a call back is for, as the composer holds one: a day chosen, or Pick a day with none yet. */
 type Day = { picking: boolean; day: string | null };
 
@@ -118,6 +134,9 @@ function CallAsk({ c, vm, onDone }: { c: PageCtx; vm: PersonCallVM; onDone: () =
   const [said, setSaid] = useState("");
   const [tell, setTell] = useState(false);
   const [who, setWho] = useState("");
+  // Whether this call was the call back they asked for: the member's answer, else the outcome's (personCallClosesBack).
+  const [closes, setCloses] = useState<boolean | null>(null);
+  const closesBack = c.p.callBackOpen && (closes ?? personCallClosesBack(outcome));
   const [busy, setBusy] = useState(false);
   const tellId = useId();
   const saidId = useId();
@@ -141,6 +160,7 @@ function CallAsk({ c, vm, onDone }: { c: PageCtx; vm: PersonCallVM; onDone: () =
       ...(due ? { due_on: due } : {}),
       tell,
       ...(vm.asksWho && outcome === "interested" && who.trim() ? { spoke_with: who.trim() } : {}),
+      ...(closesBack ? { closes_call_back: true } : {}),
     });
     setBusy(false);
     if (!r.ok) {
@@ -214,6 +234,7 @@ function CallAsk({ c, vm, onDone }: { c: PageCtx; vm: PersonCallVM; onDone: () =
         </div>
       ) : null}
       {c.phone ? back : null}
+      {c.p.callBackOpen && outcome ? <ClosesBack on={closesBack} onChange={setCloses} busy={busy} /> : null}
       <div className="cl-prof-call-foot">
         {/* Where the call goes, beside Save on a desk; a phone's sheet keeps its foot for Save alone (canvas A, D1). */}
         {c.phone ? null : (

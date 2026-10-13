@@ -21,6 +21,8 @@ import { Search } from "../../kit/search/search";
 import { useSwapMotion } from "../../kit/motion/use-swap-motion";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { ixKeepPlace, ixPlace } from "../place";
+import { useNeedsYouParts } from "../../needs-you";
+import { InboxRunsWaiting } from "./inbox-runs";
 import { threadRow } from "./list-rows";
 import { pickAll, pickArchiveAsk, pickBar, pickKeys } from "./pick";
 import { askOnScreenKey, demoSession, setAskOnScreen, surfaceState } from "../shell";
@@ -127,6 +129,8 @@ export interface ListCtx extends ReturnType<typeof listProps> {
   inNeedsBucket: boolean;
   tabStopId: string | undefined;
   onRowKey: (e: KeyboardEvent<HTMLDivElement>, i: number) => void;
+  /** The campaign runs waiting for your word (the badge counts them; the band above Needs you says them). */
+  runsWaiting: number;
 }
 
 /**
@@ -190,6 +194,8 @@ export function InboxList(props: InboxListProps) {
   // search box and every realtime reseed. It is constant for the whole list.
   const multipleAgents = new Set(threads.map((x) => x.agent && x.agent.name)).size > 1;
   const inNeedsBucket = activeBucket === "needs";
+  // The badge's runs, which the list's threads do not hold: Needs you says them, and no longer "Nobody's waiting".
+  const runsWaiting = useNeedsYouParts()?.runs ?? 0;
   // The list's head is a line of its own only when it says what the chips and the rows don't: what a search found,
   // what a saved view holds, or what is picked. It said the chip's number again, "3 need you · 1 being answered"
   // under Needs you 3 and over rows whose pills say whose, and once "3 threads" under a chip counting 1 (I2).
@@ -234,6 +240,7 @@ export function InboxList(props: InboxListProps) {
     inNeedsBucket,
     tabStopId,
     onRowKey,
+    runsWaiting,
   };
 
   return (
@@ -246,6 +253,7 @@ export function InboxList(props: InboxListProps) {
       {archiveAsk(L)}
       {/* Threads */}
       <div className="ix-threads" ref={swap}>
+        {activeBucket === "escalated" && <InboxRunsWaiting />}
         {unreadEscalated()}
         {visible.length === 0 && emptyThreads(L)}
         {visible.length > 0 && (
@@ -454,8 +462,11 @@ interface EmptyWords {
   cta?: { label: string; to: string };
 }
 
-/** The words of each empty bucket: a real workspace's, or the mockup's. */
-function emptyWords(isReal: boolean): Record<string, EmptyWords> {
+/**
+ * The words of each empty bucket: a real workspace's, or the mockup's. With a campaign run waiting, Needs you says no
+ * customer is waiting, never that nobody is (the band above it says the run).
+ */
+function emptyWords(isReal: boolean, runsWaiting: number): Record<string, EmptyWords> {
   return {
     done: isReal
       ? {
@@ -491,7 +502,7 @@ function emptyWords(isReal: boolean): Record<string, EmptyWords> {
     escalated: isReal
       ? {
           icon: "check",
-          title: "Nobody's waiting on you",
+          title: runsWaiting > 0 ? "No customer is waiting on you" : "Nobody's waiting on you",
           body: "The receptionist is answering on its own. Anything it can't handle lands here.",
         }
       : { icon: "flag", title: "No escalations", body: "Sensitive threads that need a human land here." },
@@ -507,7 +518,7 @@ function emptyThreads(L: ListCtx) {
   // empty Snoozed bucket reading "7 snoozed… Elena's win-back".
   const surface = surfaceState("inbox");
   const isReal = surface !== undefined ? surface === "real" && !demoSession() : threads.some((t) => t.real);
-  const meta: EmptyWords = emptyWords(isReal)[activeView ? "view" : activeBucket] || {
+  const meta: EmptyWords = emptyWords(isReal, L.runsWaiting)[activeView ? "view" : activeBucket] || {
     icon: "filter",
     title: "Nothing in this view",
     body: "No threads match this saved view right now.",

@@ -131,7 +131,7 @@ test("the Inbox's thread, People's person and the badge's count do not hold a ST
 test("Today's queue holds no row, no count and no name for a STOP, and still holds the person who asked for one", () => {
   const stop = toTodayVM(metrics(), [stopped()], [stopHold()], [], NOW);
   assert.deepEqual(stop.queue.rows, [], "no row for a STOP");
-  assert.equal(stop.queue.waiting, 0);
+  assert.equal(stop.needsYou?.holds ?? 0, 0, "and the one count holds nobody for it");
   assert.deepEqual(
     stop.queue.parts.filter((p) => /need you/.test(p)),
     [],
@@ -144,7 +144,7 @@ test("Today's queue holds no row, no count and no name for a STOP, and still hol
     both.queue.rows.map((r) => [r.id, r.who, r.cta.label]),
     [["q-e-a", "Ana Reyes", "Open and reply"]],
   );
-  assert.equal(both.queue.waiting, 1);
+  assert.equal(both.needsYou?.holds, 1, "the one count holds the one person");
 
   // Control: the same thread, held for a person, is a row (the hold's reason is the only thing that differs).
   const asked = toTodayVM(metrics(), [stopped()], [stopHold({ reason: "human_token" })], [], NOW);

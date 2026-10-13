@@ -8,7 +8,7 @@
  * is one mount across every view of it: the Leads page follows its own address (../leads/page/leads-real.tsx).
  */
 import { useEffect, useRef, useState } from "react";
-import { parsePeopleRoute, peopleRoute, personRouteOf, routeOfPath } from "@chanlytics/contracts";
+import { addressOf, parsePeopleRoute, peopleRoute, personRouteOf, routeOfPath } from "@chanlytics/contracts";
 import { demoSession, navigate } from "../legacy-verbs";
 import { usePartShown, useSurface } from "../use-surface";
 import { takeOwnAddress } from "./page/own-address";
@@ -84,7 +84,12 @@ function LeadsScopePage({ param }: { param: string }) {
   // Leads' first part (client/page-speed.ts): its rows drawn, which wait for both its read and its chunk.
   usePartShown("leads", "table", !!(leads && Page));
   return leads && Page ? (
-    <Page key="leads" leadsRoute={param} onNavigate={ownGo} onOpenProfile={(id) => navigate(`clients/${id}`)} />
+    <Page
+      key="leads"
+      leadsRoute={param}
+      onNavigate={ownGo}
+      onOpenProfile={(id) => navigate(addressOf({ kind: "person", id }))}
+    />
   ) : null;
 }
 
@@ -132,10 +137,15 @@ export function PeopleRoute({ pathname }: { pathname: string | null }) {
         key="pipeline"
         pipelineRoute={param}
         onNavigate={ownGo}
-        onOpenProfile={(id) => navigate(`clients/${id}`)}
+        onOpenProfile={(id) => navigate(addressOf({ kind: "person", id }))}
       />
     );
   return (
-    <PeopleReal key={mount} {...viewOf(param)} onNavigate={ownGo} onOpenProfile={(id) => navigate(`clients/${id}`)} />
+    <PeopleReal
+      key={mount}
+      {...viewOf(param)}
+      onNavigate={ownGo}
+      onOpenProfile={(id) => navigate(addressOf({ kind: "person", id }))}
+    />
   );
 }

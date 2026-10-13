@@ -19,6 +19,8 @@ import {
   todayPeriodLine,
   todayRunWords,
   todayRunsSub,
+  todayLateRunsSub,
+  todayDraftsSub,
   todayRunApproved,
   withReplies,
   withoutWrongPerson,
@@ -37,6 +39,9 @@ export const TODAY_HELPERS = {
   periodLine: todayPeriodLine,
   runs: todayRunWords,
   runsSub: todayRunsSub,
+  // The runs too late to approve, and the replies counting down to send (which have no row): the head's own words for them.
+  lateRunsSub: todayLateRunsSub,
+  draftsSub: todayDraftsSub,
   runApproved: todayRunApproved,
   leaks: todayLeaks,
   awayGrouped: todayAwayGrouped,

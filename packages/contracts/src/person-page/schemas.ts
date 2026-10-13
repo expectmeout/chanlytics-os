@@ -30,6 +30,8 @@ export const PersonCallSchema = z
     tell: z.boolean().optional(),
     /** Who answered a stand-in's number, under Interested (0052). */
     spoke_with: z.string().trim().max(80).optional(),
+    /** This call was the call back they asked for: the door hands back their thread holding the request (00422, X3-1). */
+    closes_call_back: z.boolean().optional(),
   })
   .strict();
 export type PersonCallBody = z.infer<typeof PersonCallSchema>;

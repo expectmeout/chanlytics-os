@@ -33,6 +33,7 @@ import {
   DEFAULT_INDUSTRY,
 } from "./a2p-enums";
 import { registrationPathOf, SOLE_PROP_LIMITS, type RegistrationPath } from "./registration-path";
+import { isPublishedFact } from "./published-facts";
 import { E164 } from "../config/workspace-config/config-rules";
 
 export interface BusinessRecordDto {
@@ -81,10 +82,12 @@ export interface BusinessFieldVM {
   multiline?: boolean;
   /** Which part of the form it belongs to. */
   group: "business" | "address" | "contact";
+  /** Its answer goes on the business's public page, which anyone can open (./published-facts). */
+  published: boolean;
 }
 
 /** The part of a field that is the same whoever is filing: its words, its list, where it sits. */
-type FieldShape = Omit<BusinessFieldVM, "name" | "required">;
+type FieldShape = Omit<BusinessFieldVM, "name" | "required" | "published">;
 
 /**
  * Every field a path may ask for. Not every path asks for all of them.
@@ -126,7 +129,7 @@ const FIELD = {
   },
   website_url: {
     label: "Website",
-    hint: "Yours, if you have one. Without it we publish a page for you at chanlytics.com carrying your name, address and the wording the carriers require — which is what they check.",
+    hint: "Yours, if you have one: your public page links to it, and the carriers check it. Without one, the carriers are given your public page instead, which carries your name, address and the wording they require.",
     placeholder: "https://",
     group: "business",
   },
@@ -139,13 +142,13 @@ const FIELD = {
   contact_last_name: { label: "Last name", group: "contact" },
   contact_email: {
     label: "Email",
-    hint: "The carriers write here if they need something.",
+    hint: "The carriers write here if they need something, and customers can write to it from your public page.",
     placeholder: "you@business.com",
     group: "contact",
   },
   contact_phone: {
     label: "Mobile",
-    hint: "Yours, not the business line.",
+    hint: "Yours, not the business line. It is not published.",
     placeholder: "+1 646 555 0123",
     group: "contact",
   },
@@ -208,7 +211,7 @@ const PATH_FIELDS: Record<RegistrationPath, readonly Ask[]> = {
     {
       name: "website_url",
       required: false,
-      hint: "Optional: nothing in this registration sends it. Worth having anyway, if a customer ever looks you up.",
+      hint: "Optional: nothing in this registration sends it. If you give one, your public page links to it.",
     },
     { name: "street", required: true },
     { name: "street_secondary", required: false },
@@ -222,7 +225,7 @@ const PATH_FIELDS: Record<RegistrationPath, readonly Ask[]> = {
       name: "contact_phone",
       required: true,
       label: "Your mobile",
-      hint: "Your own handset, not the number Chanlytics answers for you. The carriers text a code to it and you reply from that phone.",
+      hint: "Your own handset, not the number Chanlytics answers for you. The carriers text a code to it and you reply from that phone. It is not published.",
     },
   ],
 };
@@ -242,6 +245,7 @@ export function businessFieldsFor(path: RegistrationPath): readonly BusinessFiel
     ...FIELD[a.name],
     name: a.name,
     required: a.required,
+    published: isPublishedFact(a.name),
     ...(a.label ? { label: a.label } : {}),
     ...(a.hint ? { hint: a.hint } : {}),
   }));
@@ -256,7 +260,10 @@ export function businessGroupWordsFor(
   if (path === "sole_proprietor") {
     return {
       business: { title: "What you do", sub: "as customers know it" },
-      address: { title: "Where you are", sub: "your own address — the carriers check it" },
+      address: {
+        title: "Where you are",
+        sub: "your own address — the carriers check it, and your public page shows it",
+      },
       contact: { title: "You", sub: "the carriers text this mobile, and you answer from it" },
     };
   }
@@ -265,6 +272,14 @@ export function businessGroupWordsFor(
     address: { title: "Where it is registered", sub: "the address on the filing, not a mailbox" },
     contact: { title: "Who signs for it", sub: "a person the carriers can reach" },
   };
+}
+
+/** What a column is called where a person reads it (the activity log's line for a save): the form's label, or its name in words. */
+export function businessFieldLabel(column: string): string {
+  const asked: Partial<Record<string, FieldShape>> = FIELD;
+  const label =
+    asked[column]?.label ?? (column === "contact_job_position" ? "Job position" : column.replace(/_/g, " "));
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 /** An empty record, with the defaults the carriers accept already chosen. */
