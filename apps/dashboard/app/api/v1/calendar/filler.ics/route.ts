@@ -9,9 +9,11 @@
  */
 import { fillerCalendar, zoneOk } from "@/server/calendar/filler-calendar";
 
-export const dynamic = "force-dynamic";
-
-export async function GET(req: Request): Promise<Response> {
+/**
+ * Made from the clock at each request: it reads its zone from the request's address first, which Next counts as reading
+ * the request, so the build never writes it once to stand still at its day (cacheComponents, decision 0053 step 5).
+ */
+export function GET(req: Request): Response {
   const asked = new URL(req.url).searchParams.get("tz") ?? "";
   const tz = asked && zoneOk(asked) ? asked : "America/New_York";
   return new Response(fillerCalendar(Date.now(), tz), {

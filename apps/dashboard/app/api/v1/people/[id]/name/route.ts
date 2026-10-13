@@ -19,5 +19,3 @@ export const POST = write({
   input: PersonNameActSchema,
   handle: ({ ctx, row: person, input }) => actOnPersonName(ctx, person.id, input),
 });
-
-export const dynamic = "force-dynamic";

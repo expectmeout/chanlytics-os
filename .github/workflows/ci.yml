@@ -209,6 +209,9 @@ jobs:
           # build stops at /signup. Vercel builds with the real public values.
           NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-build-placeholder
+      # The signed-in frame is one prerender for every person and workspace (decision 0053, step 5): every page under
+      # app/(os) built whole, nothing left to a request (tooling/scripts/checks/static-shell.mjs).
+      - run: pnpm check:static-shell
       # What a browser loads to open a workspace grows only on purpose
       # (tooling/scripts/checks/bundle-budget.mjs). The build is deterministic to the byte.
       #

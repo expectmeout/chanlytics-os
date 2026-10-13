@@ -3,8 +3,11 @@
 **Status:** Built, steps 1 and 2 (12 October 2026; Ruben: "go with all of your best decisions do the work yourself",
 then "go ahead as you recommend"): step 1 (#1565, 00412) the shell's own measures, the browser's five said for the page
 they were of, Server-Timing by reader and by database call, and the back office's card; step 2 for Today, one read for
-its first screen, and the boot's accept no longer asking every read again. Steps 3 to 10 are decided, each its own
-change, ordered by what the numbers say.
+its first screen, and the boot's accept no longer asking every read again. Step 3 is deferred on the numbers. Step 5 is
+built (12 and 13 October 2026; Ruben: "go ahead with step 5 as you recommend", then "continue as you suggest your best
+approach"): the warms kept warm, and the signed-in frame one prerender for everyone, its gate the proxy;
+`partialPrefetching` is not taken, on the numbers. Steps 4 and 6 to 10 are decided, each its own change, ordered by
+what the numbers say.
 Written against commit `b220a8b74` (main, 12 October 2026, after #1563). Where this note and the code disagree, the
 code wins.
 
@@ -52,8 +55,9 @@ outside the repository) found the speed machinery sound and its measurement blin
    - **The query cache: TanStack Query, behind the seam** (step 6, under 0054). `useSurface` stays the one way a page
      reads, so no page changes when the engine under it does; the six caches leave surface by surface, each proved
      equal by value. Undone by putting the old engine back under the same seam.
-   - **Next's flags**: `cacheComponents`, then `partialPrefetching`, in step 5, once its layout no longer reads the
-     session; the React Compiler in step 7, on `src/surfaces` first, its build time measured beside its gain, since the
+   - **Next's flags**: `cacheComponents` in step 5, once its layout no longer reads the session (built);
+     `partialPrefetching` was decided beside it and is not taken (step 5 says why, and when it would be); the React
+     Compiler in step 7, on `src/surfaces` first, its build time measured beside its gain, since the
      build is what Vercel bills. `experimental.webVitalsAttribution` is not set: it feeds Next's own reporter, which the
      shell no longer uses. Each is one line of `next.config.ts`.
    - **A realtime notice may carry the changed row's id** (step 4): an amendment to 0019's "never carries a row". An
@@ -117,12 +121,92 @@ production numbers, and the one whose page is slowest goes first.
      many of them cold, which the laptop does not show: the field data will.
    - Not yet: a part's own Server-Timing reaches the page only as the whole read's, so a page's wait says `open`.
 3. **People and Pipeline as projections**: their counts and the board in SQL, no read of everyone at boot; the
-   Calendar stops drawing People.
+   Calendar stops drawing People. **Deferred, 12 October 2026, on the numbers**: production holds 52 people across
+   its workspaces, 29 in the biggest, so the read of everyone has never asked for a second page (it pages at 1,000),
+   and a move to People drew its table in 214 ms at the median (27 moves). In SQL the lists' rules would be said twice
+   for nothing yet. Taken when a workspace passes 500 people, or People's READY passes 500 ms at the 75th percentile.
 4. **The Inbox's threads as a projection**, messages read on open, and a notice that names its row patches it in place.
-5. **A static shell**: the layout stops reading the session (the proxy and the routes verify), then
-   `cacheComponents` and `partialPrefetching`.
+5. **A static shell** (built): the layout stops reading the session (the proxy and the routes verify), then
+   `cacheComponents`. Its first part kept the moves warm that the frame already warmed, since every move asked the
+   server for its page while the frame was a render per request:
+   - **A warm was never repeated.** The frame kept a list of the pages it had warmed and let one go only on Next's
+     `onInvalidate`, which Next calls for a refresh, a server action or a rewrite's retry and never for age; Next keeps
+     a page warmed in full for five minutes (`staleTimes.static`), so after five minutes in a tab no page was warmed
+     again and every move asked the server at the press. Now every reach asks and Next's cache decides: a page it still
+     keeps is not fetched (its scheduler skips a fulfilled segment), one it has let go is (workspace.ts `warmRoute`).
+     The tab bar's places (`keepWarm`, #1571) waited on the same list and on `onInvalidate`, so they were never warmed
+     again either; now they are as the tab comes back to the screen and, on a tab left on screen, at the first press or
+     key once Next has let them go, so a tab nobody touches asks for nothing.
+   - **Settings was warmed at an address it does not open**: the phone's drawer warmed `admin/workspace`
+     (`/settings/workspace`), and Settings opens at `admin` (`/settings`), another entry of Next's cache.
+   - **A door warmed nothing but a person**: a name, a face or a chip that opens another page (data-bits `routeDoor`)
+     now warms that page as a pointer reaches it or it takes focus, as the sidebar's rows do.
+   - **A move's wait could be another page's warm**: step 1 counted any router fetch that landed inside a move as the
+     page's; one of another page (a warm beside it) is now `warm`, and only the fetch of the page moved to is `page`.
+   - Measured on a production build on a laptop: a warm is one request for the route's tree and one for the page
+     (about 520 bytes and 2 KB), and Next still held it at 71 seconds. At 336 seconds, a pointer on Inbox's row fetched
+     it again, and the press asked for nothing; a press with no warm (Reports) fetched its page at the press, the
+     80 to 155 ms the field data says a move waits on in production. Opening the phone's drawer warmed `/settings`, and
+     Settings then opened asking for nothing.
+   - **Its second part makes the frame one prerender for everyone** (planned by three independent designs, a judge
+     who checked them against Next 16.3.8's source and four refuters, none of whose claims fell; the plan is
+     `docs/2026-10-12-chanlytics-static-frame-plan.md`, outside the repository). The `(os)` layout reads no request,
+     so `cacheComponents` prerenders every workspace page once, for any address of its route: a document is the
+     build's file, and a warm is the build's segment files behind the proxy (`router.prefetch` with no kind, where it
+     was a render in full for one address). What it took:
+     - **The proxy is the page gate.** Its matcher covers every `/w/` path in either case (`/(w|W)/:path*`): an address
+       ending in `.png`, `.css` or `.js` skipped its first pattern, and the layout's own check was all that stood in
+       front of it; signed out, the router's request for `/w/acme/people/x.png` was answered with the page's payload
+       (the spinner and its scripts, no one's data). Vercel routes `/W/...` to the same page (production, 12 October
+       2026), so the pattern takes both cases. The layout's check, kept as a guarantee should the proxy be bypassed,
+       guarded a frame with no one's data in it and never ran on a move or a prefetch; every read verifies the session
+       itself (`withRoute`). The proxy is held by running it (`auth-gate.test.mjs`, "the gate, run": every ending and case, signed out,
+       a token signed by a key the project does not hold, a key it does, the auth server down), the `(os)` tree by the
+       lint (no session, header or database), and the build by `check:static-shell`.
+     - **A workspace's documents are never stored**: `private, no-store` from `next.config.ts` for `/` and `/w/...`
+       when the request is not the router's, which Next answers itself. Until now they were no-store only by being a
+       render per request.
+     - **What cacheComponents refuses**: 17 route handlers drop `dynamic = "force-dynamic"`, which it rejects; the five
+       public pages of a business (`/b`, `/yes`) say `instant = false` and render per request as before; the voice
+       route drops `runtime = "nodejs"`, which it also rejects (Node is the default); `/api/version` and the filler's
+       feed await `connection()`, so the deploy probe names the deploy that answers, and the feed its own day.
+     - **The frame reads the address only in the browser**: `LegacyHost` draws the frame, the first reader of the
+       router's address, once the address is placed, which a prerender never does, and the hash-to-path move sits in a
+       boundary, as Next asks of a read a prerender cannot know. The server's frame is today's spinner.
+     - **`next` pinned exactly** at 16.3.8 (0054, rule 3): the plan rests on this release's scheduler and segment cache.
+     - **A warm on its own goes on 3g too**: a warm is the build's files now, about 3 KB a page, and on a slow line the
+       round trip it saves at the press is the longest. Save-Data and 2g still warm only what a pointer or a finger
+       reaches (`warmsOnItsOwn`). Chrome reads a desk's line as 3g when its round trips run long for a moment, and the
+       idle warms stopped there.
+     - **A page's idle warms skip its own addresses, as judged when it asked**: Reports' strip warmed its lenses, the
+       warm went once the Inbox was on screen, and Next asked the prerender for each lens's head alone, which it answers 404. A move between a page's addresses never asks the router.
+   - Measured on production builds on a laptop, this build against main's, the same workspace:
+     - **Moves**: after the idle warms, a press on People or the Calendar asked the server for nothing, and a
+       person's address after People was warmed asked for nothing either: one warm serves every address of a route.
+       A warm is the route's tree (about 800 bytes) and its page's segment (about 2.5 KB), and the frame's own segment
+       once. In production a warmed move loses the router's wait, 80 to 155 ms of a move's 190 to 335 at the median.
+     - **Loads** (five each, the median): the first byte 8 ms against 17, then one request for the frame's payload,
+       which a frame prerendered for any address does not carry (in by 36 ms, from the build's segment files); the
+       frame booted at 386 ms against 372, and Today's first screen was in at 638 ms against 612. Level on a laptop,
+       where a render is cheap and the scripts arrive at once. In production the payload's 5 KB arrives while the
+       frame's scripts still are, and the document no longer waits on a function: the slowest tenth of loads waited
+       261 ms for a first byte (294 on a phone, 14 days to 12 October 2026), a cold function, which a prerendered file
+       never is. The field data by build says whether loads moved; a rise there is undone by `instant = false` on the
+       workspace layout, which renders documents per request again and keeps every warm static.
+     - Signed out, every address under `/w` (`x.png`, `.js`, a capital W, the router's own request) was the proxy's
+       redirect, with its `?w=` and fragment and `private, no-store`.
+   - **`partialPrefetching` is not taken.** Its one gain here, a warm that serves every address of its route, came
+     with `cacheComponents` and Next's default prefetch (varyParams re-keys a client page's segment across params):
+     the person's address above asked for nothing without it. What it adds is a runtime prerender beside each dynamic
+     render of a route that reads the request (Next's app-render), and nothing under `(os)` does. Taken when a page
+     under `(os)` reads its params on the server, or when Next makes it the default.
 6. **One persisted query cache** behind the seam (TanStack Query, IndexedDB), replacing the six, surface by surface.
-7. **The shell's stylesheets and chunks split by surface; the React Compiler** on `src/surfaces`.
+7. **The shell's stylesheets and chunks split by surface; the React Compiler** on `src/surfaces`. Measured 12 October
+   2026 (`next experimental-analyze`): of what a cold load fetches at boot, contracts' browser entry is about 30%, Next
+   itself about 17%, Supabase's client about 7%, and every surface's code the rest, Settings' included on Today. Handing
+   the bundler contracts' sources with `sideEffects: false` saved nothing (route JS 809,607 bytes against 806,913): the
+   shell imports every surface's data and its view at boot (LegacyApp, the manifest, seed-globals), so what it carries
+   is used. The split is the shell's own, surface by surface as each leaves it (decision 0015), not the packages'.
 8. **Claims carry the memberships**; the JWKS warm at boot; `preconnect` to Supabase; a list unchanged answers 304.
 9. **Felt**: the route fade at most 120 ms, or a view transition; the last page kept under `<Activity>`.
 10. **On a phone**: Live's list kept for a reload; the glass's paint measured on a low-end Android.

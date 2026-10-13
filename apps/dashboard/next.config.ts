@@ -37,10 +37,26 @@ const SECURITY_HEADERS = [
   },
 ];
 
+/** Never stored, by any cache: a shared one, the browser's, or its back-button page cache. */
+const NO_STORE = [{ key: "Cache-Control", value: "private, no-store, max-age=0" }];
+
+/**
+ * A document of the signed-in OS, and not the router's own request for a page (`rsc`: a move or a prefetch, whose
+ * cache Next keeps itself). The frame is prerendered for everyone (cacheComponents, below), so nothing about the
+ * request keeps its document out of a cache any more: until 12 October 2026 it was dynamic, and Next said no-store for
+ * it. Said here, where the proxy cannot say it (Next takes the router's headers off the request the proxy sees).
+ */
+const OS_DOCUMENT = { missing: [{ type: "header" as const, key: "rsc" }], headers: NO_STORE };
+
 const nextConfig: NextConfig = {
   // Workspace packages ship built dist/ (tsup); no transpilePackages needed.
   // The legacy mockup bridge (Slice 0B) mounts client-only under app/(os).
   reactStrictMode: true,
+  // Every route is prerendered as far as it reads nothing of the request (decision 0053, step 5): the OS's frame whole,
+  // so a document of it is served without running a function and a page warmed is warmed for every address of its
+  // route (workspace.ts warmRoute). What reads the request (a route handler, a business's public page) is rendered
+  // for it, as before; `check:static-shell` holds the frame to its prerender after every build.
+  cacheComponents: true,
   // The framework advertises its own version to every visitor; there is no
   // reason to hand an attacker the exact build to look up CVEs against.
   poweredByHeader: false,
@@ -58,19 +74,19 @@ const nextConfig: NextConfig = {
         // reflects the email being entered and its state decides what an
         // attacker with the device can resume.
         source: "/login",
-        headers: [{ key: "Cache-Control", value: "private, no-store, max-age=0" }],
+        headers: NO_STORE,
       },
       {
         // The other two credential pages, for the same reason and more of it:
         // both now hold a password field, and the reset page holds a code that
         // opens an account.
         source: "/signup",
-        headers: [{ key: "Cache-Control", value: "private, no-store, max-age=0" }],
+        headers: NO_STORE,
       },
-      {
-        source: "/reset-password",
-        headers: [{ key: "Cache-Control", value: "private, no-store, max-age=0" }],
-      },
+      { source: "/reset-password", headers: NO_STORE },
+      // The OS's documents: the home, and every workspace's address.
+      { source: "/", ...OS_DOCUMENT },
+      { source: "/w/:path*", ...OS_DOCUMENT },
     ];
   },
   async rewrites() {

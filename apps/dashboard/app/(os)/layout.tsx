@@ -1,5 +1,3 @@
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 // The legacy design system, hoisted out of the client-only chunk (see
 // LegacyApp). Next emits it as a stylesheet <link> on this route, so first
 // paint is not waiting on the dynamic import to resolve first.
@@ -8,15 +6,17 @@ import "@/legacy-bridge/legacy.css";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 /**
- * Server-side auth gate for every OS surface (middleware is the first line; this is the guarantee). The token's
- * signature verified as proxy.ts verifies it -- locally where the project signs with an asymmetric key -- so the
- * document no longer waits on a round trip to the Auth server before its body streams (about 900 ms of a cold
- * load's HTML, measured 25 Sep 2026).
+ * The signed-in OS's frame, the same for every person and workspace: it reads no request, so the build prerenders it
+ * once and a move between pages asks the server for nothing (decision 0053, step 5).
+ *
+ * The gate is the proxy (proxy.ts), which verifies the session's signature for every OS address, document, move and
+ * prefetch alike, and sends anyone without one to sign in; and every read verifies it again (withRoute: signed out,
+ * not a member, a second factor owed). This layout verified it too, until 12 October 2026, as a guarantee should the
+ * proxy be bypassed (CVE-2025-29927's class). What it guarded is this frame's HTML, a spinner with no one's data in
+ * it, which Next's client never asked it for on a move or a prefetch; the data behind the frame is the reads', and
+ * the build holds the frame to reading nothing (eslint.config.mjs, "the (os) frame reads no request").
  */
-export default async function OsLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient();
-  const { data: verified } = await supabase.auth.getClaims();
-  if (!verified?.claims) redirect("/login");
+export default function OsLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
       {children}

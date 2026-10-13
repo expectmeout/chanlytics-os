@@ -211,23 +211,32 @@ test("a door is a link: its address in the href, the app's own way there on a pl
   assert.deepEqual(navs, ["calendar/2026-09-28"], "without a way of the page's own, the app's navigation");
 });
 
-test("a door to a person reads them as a pointer reaches it or it takes focus; a door anywhere else reads nothing", () => {
+test("a door warms the page it opens as a pointer reaches it or it takes focus, and a door to a person reads them too", () => {
   // A person the tab does not hold opens on nothing of theirs until their page is whole (client-profile.jsx), so every
-  // door to one starts their read before the press, as People's rows do.
+  // door to one starts their read before the press, as People's rows do. And a name on a thread that opens People asked
+  // the server for People's page on the press, where the sidebar's row had warmed it (workspace.ts warmRoute).
   const ID = "ed2244f3-9f88-49c5-863e-fbdea4b60e12";
   const warmed = [];
+  const pages = [];
+  const was = globalThis.window.CHANLY;
   globalThis.window.__warmPerson = (id) => warmed.push(id);
+  globalThis.window.CHANLY = { ...was, address: { href: (to) => `/w/acme/${to}`, warm: (to) => pages.push(to) } };
   try {
     const door = routeDoor(`clients/${ID}`);
     door.onPointerEnter();
     door.onFocus();
     assert.deepEqual(warmed, [ID, ID]);
-    for (const to of ["calendar/2026-09-28", "clients/leads", "clients/pipeline", "clients/c-ana", "inbox/th-1"]) {
-      const other = routeDoor(to);
-      assert.equal(other.onPointerEnter, undefined, `${to} reads nothing`);
-      assert.equal(other.onFocus, undefined);
-    }
+    assert.deepEqual(pages, [`clients/${ID}`, `clients/${ID}`]);
+    pages.length = 0;
+    const others = ["calendar/2026-09-28", "clients/leads", "clients/pipeline", "clients/c-ana", "inbox/th-1"];
+    for (const to of others) routeDoor(to).onPointerEnter();
+    assert.deepEqual(pages, others, "every door warms its page");
+    assert.deepEqual(warmed, [ID, ID], "and reads no one where it opens no person");
+    // The standalone mockup has no address to warm with: a door still opens, and warms nothing.
+    globalThis.window.CHANLY = was;
+    routeDoor("calendar").onFocus();
   } finally {
     delete globalThis.window.__warmPerson;
+    globalThis.window.CHANLY = was;
   }
 });

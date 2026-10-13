@@ -43,6 +43,7 @@ UPDATE_BASELINES=1 corepack pnpm test         # the same, banking every ratchet'
 UPDATE_BASELINES=raise corepack pnpm test     # the same, raising a number that rose: argued under "Rises" in docs/debt.md
 corepack pnpm check:dead-exports              # knip against a baseline that may only fall; -- --update banks a fall, -- --raise a rise
 corepack pnpm check:bundle                    # after a dashboard build: the route's JS and CSS and each page's own JS, gzipped bytes, against the ceilings; CI holds each change to what it adds against main's own build, and growth past its line (route 1 KB, a page 2 KB) passes when the PR's description has a line `Bundle: <why>`; nothing in the repository changes for it
+corepack pnpm check:static-shell              # after a dashboard build: every page under app/(os) prerendered whole, one frame for every person and workspace, and /api/version answered per request
 corepack pnpm check:local                     # before a push, on a committed branch holding all of origin/main: what CI's lint, hygiene and tests jobs and its typecheck run (the tests of what the branch changes), then an empty commit "Checked locally" whose line names the tree; pushed while main has not moved past it, CI skips those and runs the build and bundle alone (tooling/scripts/checks/checked-locally.mjs)
 corepack pnpm check:style-equality -- record <file> --against <file>   # a change that must move nothing on screen, recorded and compared (docs/runbook.md)
 corepack pnpm test:db                         # the database suites, against a running Supabase stack
@@ -89,11 +90,16 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
   palette in `charts.css` is counted, and kept), and may only fall. `inline-styles.json` counts the `style` props in
   the shell's markup, and may only fall too. A page stylesheet with its layout alone is the plan's Phase 4 target, and
   no test holds it yet.
+- **The signed-in frame reads no request.** Every page under `apps/dashboard/app/(os)` is one prerender for every
+  person and workspace (decision 0053, step 5): a document is served without a function, and one warm of a page serves
+  every address of its route. The proxy is its gate (`auth-gate.test.mjs` runs it); a read is a route's, behind
+  `withRoute`. The lint refuses the `(os)` tree the session, a header and the database, and `check:static-shell` fails a
+  build in which any of its pages is left to a request.
 - **Every page says what it opens on.** A page's first reads are named in
   `packages/contracts/src/shell/route-prefetch.ts` (`PREFETCH_READS`), started from the document's head and taken by the
   page's own read, and a surface read only where it is drawn is read as its page is reached for. `tooling/scripts/tests/shell/surfaces/route-prefetch.test.mjs` runs
   each page's surfaces against the list and fails a page with no entry. `docs/architecture.md`, "How a page opens",
-  says the five things a new page takes.
+  says the six things a new page takes.
 - **Storage says tenant, everything a person or the API sees says workspace.** Never both in one layer.
 - **Names follow `docs/naming.md`.** Storage keeps its words, the wire is snake_case, every closed set is
   declared once. The tests it names hold it, and it marks the ones still owed.

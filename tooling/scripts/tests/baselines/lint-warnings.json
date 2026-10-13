@@ -2,9 +2,6 @@
   "apps/dashboard/app/api/v1/ask/messages/[id]/proposals/[pid]/route.ts": {
     "@typescript-eslint/no-unsafe-assignment": 1
   },
-  "apps/dashboard/app/api/v1/calendar/filler.ics/route.ts": {
-    "@typescript-eslint/require-await": 1
-  },
   "apps/dashboard/app/api/v1/calendar/preview/route.ts": {
     "@typescript-eslint/no-unnecessary-type-assertion": 1
   },

@@ -8,8 +8,12 @@
  *
  *   1. a new route under /auth shipping public because the gate matched a PREFIX
  *   2. a new /api/v1 route shipping without the wrapper that verifies the user
- *   3. the layout's own check being deleted as "redundant with middleware"
- *      (it is not — middleware bypass is a recurring Next.js CVE class)
+ *   3. a workspace's address escaping the proxy. The (os) layout checked the session too, as a guarantee should the
+ *      proxy be bypassed (a recurring Next.js CVE class), until the frame became one prerender for every person
+ *      (decision 0053, step 5): what it guarded was a spinner with no one's data in it, and every read verifies the
+ *      session itself (2, below). The proxy is the page gate now, and it is held by running it
+ *      ("the gate, run", below: every address and ending, signed out, forged, or with the auth server down), and the
+ *      frame by the lint, which refuses it the session, a header and the database (lint-boundaries.test.mjs).
  *   4. getSession() replacing the verified check, which trusts an unverified cookie.
  *      The check is getClaims() (25 Sep 2026): the token's SIGNATURE verified, locally over
  *      the project's public signing key where it signs asymmetrically, over the Auth server
@@ -19,16 +23,18 @@
  *   6. the sign-out CSRF check going back to being skippable by omitting a header
  *   7. the hosted auth settings drifting back to their unsafe defaults
  *
- * These are text assertions against source, not behavioural tests, because the
+ * Most are text assertions against source, not behavioural tests, because the
  * failure they guard is "someone edits this file and no one notices" — the edit
- * IS the bug, and the text is where it lands.
+ * IS the bug, and the text is where it lands. The proxy itself is RUN, at the
+ * end ("the gate, run"), since it is the page gate.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { readCode, readRaw } from "../_source.mjs";
+import { createRequire } from "node:module";
+import { importSrc, readCode, readRaw } from "../_source.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(here, "../../../..");
@@ -41,7 +47,6 @@ const read = (p) => readCode(p);
 const middleware = read("apps/dashboard/proxy.ts");
 const signout = read("apps/dashboard/app/auth/signout/route.ts");
 const login = read("apps/dashboard/app/login/page.tsx");
-const osLayout = read("apps/dashboard/app/(os)/layout.tsx");
 const withRoute = read("apps/dashboard/src/server/with-route.ts");
 const nextConfig = read("apps/dashboard/next.config.ts");
 /**
@@ -298,7 +303,6 @@ test("the session is VERIFIED, never read from the cookie", () => {
   for (const [name, src] of [
     ["middleware", middleware],
     ["withRoute", withRoute],
-    ["(os) layout", osLayout],
   ]) {
     assert.ok(!/getSession\(/.test(src), `${name} must not use getSession()`);
     assert.match(src, /getClaims\(/, `${name} must verify with getClaims()`);
@@ -343,15 +347,6 @@ test("every /api/v1 route verifies the user itself", () => {
     [],
     "these routes bypass withRoute, so they depend on middleware alone for auth",
   );
-});
-
-/* ---------------------------------------------------------------------- 3 -- */
-
-test("the signed-in layout gates independently of middleware", () => {
-  // If middleware is bypassed (CVE-2025-29927 and its successors), this is the
-  // gate that still holds. It is not redundant.
-  assert.match(osLayout, /getClaims\(/);
-  assert.match(osLayout, /redirect\(\s*["']\/login["']\s*\)/);
 });
 
 /* ---------------------------------------------------------------------- 5 -- */
@@ -499,4 +494,221 @@ test("the dashboard cannot be framed", () => {
 test("the sign-in page is never stored in a shared cache", () => {
   assert.match(nextConfig, /source:\s*["']\/login["']/);
   assert.match(nextConfig, /no-store/);
+});
+
+/* ------------------------------------------------------------ the gate, run -- */
+
+/**
+ * THE GATE, RUN. The OS's page gate is the proxy (decision 0053, step 5).
+ *
+ * The (os) layout read the session too, as a guarantee should the proxy be bypassed, until the frame became one
+ * prerender for every person and workspace. What it guarded is that frame's HTML, a spinner with no one's data in it,
+ * which Next's client never asked it for on a move or a prefetch; every read verifies the session itself
+ * (with-route.ts). So the proxy is held here by running it, not by reading it:
+ *
+ *   - every address of a workspace, whatever it ends in and however the router asks for it, signed out, is sent to
+ *     sign in, and the answer is never stored;
+ *   - a session whose token is signed by a key the project does not hold is no session, and one it does hold passes;
+ *   - an auth server that cannot be reached is "try again", never "signed out";
+ *   - Next's own matcher says the proxy runs for every one of those addresses, and not for the build's own files;
+ *   - next.config's headers keep a workspace's documents out of every cache, and leave the router's requests to Next.
+ */
+const SUPABASE = "https://gate-test.supabase.example";
+const APP = "https://app.example.com";
+process.env.NEXT_PUBLIC_SUPABASE_URL = SUPABASE;
+process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-test-only";
+
+const require = createRequire(import.meta.url);
+const { NextRequest } = require("next/server");
+const {
+  unstable_doesMiddlewareMatch,
+  unstable_getResponseFromNextConfig,
+} = require("next/experimental/testing/server");
+const { proxy, config } = await importSrc("apps/dashboard/proxy.ts");
+const configModule = await importSrc("apps/dashboard/next.config.ts");
+// The config is TypeScript loaded through tsx, which may hand its default export back wrapped once more.
+const loadedConfig = configModule.default?.headers ? configModule.default : configModule.default?.default;
+
+/* ------------------------------------------------------------ a project's keys -- */
+
+const { subtle } = globalThis.crypto;
+const ES256 = { name: "ECDSA", namedCurve: "P-256" };
+const b64url = (bytes) => Buffer.from(bytes).toString("base64url");
+const KID = "project-key-1";
+const projectKey = await subtle.generateKey(ES256, true, ["sign", "verify"]);
+const strangerKey = await subtle.generateKey(ES256, true, ["sign", "verify"]);
+const JWKS = {
+  keys: [{ ...(await subtle.exportKey("jwk", projectKey.publicKey)), kid: KID, alg: "ES256", use: "sig" }],
+};
+
+/** An access token signed with `key` under the project's key id, as Supabase signs one with an asymmetric key. */
+async function signed(key, alg = "ES256") {
+  const now = Math.floor(Date.now() / 1000);
+  const header = b64url(JSON.stringify({ alg, kid: KID, typ: "JWT" }));
+  const payload = b64url(
+    JSON.stringify({ sub: "u1", aud: "authenticated", role: "authenticated", iat: now, exp: now + 3600, aal: "aal1" }),
+  );
+  const sig =
+    alg === "ES256"
+      ? await subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key.privateKey, Buffer.from(`${header}.${payload}`))
+      : Buffer.from("not-a-signature");
+  return `${header}.${payload}.${b64url(sig)}`;
+}
+
+/** The session cookie @supabase/ssr reads, holding `accessToken`. */
+function sessionCookie(accessToken) {
+  const now = Math.floor(Date.now() / 1000);
+  const session = {
+    access_token: accessToken,
+    token_type: "bearer",
+    expires_in: 3600,
+    expires_at: now + 3600,
+    refresh_token: "refresh-test-only",
+    user: { id: "u1", aud: "authenticated", role: "authenticated", email: "ada@example.com", app_metadata: {} },
+  };
+  return `sb-gate-test-auth-token=base64-${b64url(JSON.stringify(session))}`;
+}
+
+/** The project's auth server: its public keys, a 401 for anything asked of it, or nothing at all while it is down. */
+let authDown = false;
+const realFetch = globalThis.fetch;
+globalThis.fetch = async (input, init) => {
+  const url = String(input instanceof Request ? input.url : input);
+  if (!url.startsWith(SUPABASE)) return realFetch(input, init);
+  if (authDown) throw new TypeError("fetch failed");
+  if (url.endsWith("/auth/v1/.well-known/jwks.json")) return Response.json(JWKS);
+  return Response.json({ code: 401, error_code: "bad_jwt", msg: "invalid JWT" }, { status: 401 });
+};
+
+/* ------------------------------------------------------------------ requests -- */
+
+/** What the router sends for a page it moves to or warms: the page's own address, asking for its payload. */
+const ROUTER = { rsc: "1", "next-router-prefetch": "1", "next-router-segment-prefetch": "/_tree" };
+
+const ask = (path, headers = {}) => proxy(new NextRequest(new URL(path, APP), { headers }));
+
+/** A redirect to sign in, its answer never stored. */
+function sentToSignIn(res, path, workspace) {
+  assert.equal(res.status, 307, `${path}: a redirect`);
+  const to = new URL(res.headers.get("location"));
+  assert.equal(to.pathname, "/login", `${path}: to sign in`);
+  assert.equal(to.searchParams.get("w"), workspace, `${path}: in the workspace it named`);
+  assert.equal(res.headers.get("cache-control"), "private, no-store", `${path}: never stored`);
+}
+
+const passed = (res) => res.headers.get("x-middleware-next") === "1";
+
+/* --------------------------------------------------------------------- tests -- */
+
+test("signed out, every address of a workspace is sent to sign in, whatever it ends in, and the home too", async () => {
+  for (const path of ["/w/acme", "/w/acme/inbox/th-1?private=1", "/w/acme/people/x.png", "/w/acme/settings/x.css"]) {
+    sentToSignIn(await ask(path), path, "acme");
+  }
+  // A workspace whose slug ends in an extension's letters, and an address in capitals, which Vercel routes to the same
+  // page: the gate's first pattern skipped both by their ending.
+  for (const path of ["/w/acme.js", "/W/acme/people/x.png"]) {
+    const res = await ask(path);
+    assert.equal(res.status, 307, path);
+    assert.equal(new URL(res.headers.get("location")).pathname, "/login", path);
+    assert.equal(res.headers.get("cache-control"), "private, no-store", path);
+  }
+  sentToSignIn(await ask("/"), "/", null);
+  // The query never rides to the sign-in page: a conversation's id in it would reach the logs.
+  const deep = new URL((await ask("/w/acme/inbox/th-1?private=1")).headers.get("location"));
+  assert.ok(!deep.search.includes("private"));
+});
+
+test("signed out, the router's own requests for a page, a move or a warm, are sent to sign in, never answered", async () => {
+  for (const path of ["/w/acme/inbox", "/w/acme/people/x.png", "/w/acme.js", "/"]) {
+    const res = await ask(path, ROUTER);
+    assert.equal(res.status, 307, `${path} as the router asks for it`);
+    assert.ok(!passed(res), `${path}: nothing of the page is served`);
+  }
+});
+
+test("a read signed out is a 401 the client can read, and a page outside the OS passes", async () => {
+  const api = await ask("/api/v1/workspaces");
+  assert.equal(api.status, 401);
+  assert.equal((await api.json()).error.code, "unauthorized");
+  assert.equal(api.headers.get("cache-control"), "private, no-store");
+  for (const path of ["/login", "/privacy", "/b/acme", "/yes/acme/form"]) assert.ok(passed(await ask(path)), path);
+});
+
+test("a token signed by a key the project does not hold is no session; one signed by its own key passes", async () => {
+  const forged = sessionCookie(await signed(strangerKey));
+  for (const path of ["/w/acme/inbox", "/w/acme/people/x.png"]) {
+    sentToSignIn(await ask(path, { cookie: forged }), path, "acme");
+    sentToSignIn(await ask(path, { cookie: forged, ...ROUTER }), path, "acme");
+  }
+  assert.equal((await ask("/api/v1/workspaces", { cookie: forged })).status, 401);
+  const real = sessionCookie(await signed(projectKey));
+  for (const path of ["/w/acme/inbox", "/w/acme/people/x.png", "/"]) {
+    const res = await ask(path, { cookie: real });
+    assert.ok(passed(res), `${path}: a verified session passes`);
+    assert.ok(res.headers.get("content-security-policy") ?? res.headers.get("content-security-policy-report-only"));
+  }
+  // A signed-in person is sent from the sign-in page to the app.
+  const login = await ask("/login", { cookie: real });
+  assert.equal(login.status, 307);
+  assert.equal(new URL(login.headers.get("location")).pathname, "/");
+});
+
+test("an auth server that cannot be reached is 'try again', never 'signed out'", async () => {
+  // A token signed with the shared secret is verified by the auth server, so it is asked, and does not answer.
+  const cookie = sessionCookie(await signed(projectKey, "HS256"));
+  authDown = true;
+  try {
+    const page = await ask("/w/acme/inbox", { cookie });
+    assert.equal(page.status, 503);
+    assert.equal(page.headers.get("cache-control"), "private, no-store");
+    const api = await ask("/api/v1/workspaces", { cookie });
+    assert.equal(api.status, 503);
+    assert.equal((await api.json()).error.code, "upstream_auth");
+  } finally {
+    authDown = false;
+  }
+});
+
+test("Next's own matcher runs the proxy for every address of a workspace, and never for the build's own files", () => {
+  const runs = (path) => unstable_doesMiddlewareMatch({ config, url: `${APP}${path}` });
+  for (const path of [
+    "/",
+    "/w/acme",
+    "/w/acme/inbox",
+    "/w/acme/people/x.png",
+    "/w/acme/settings/x.css",
+    "/w/acme.js",
+    // Vercel routes a workspace's address in either case (production, 12 Oct 2026).
+    "/W/acme/people/x.png",
+    "/W/acme.js",
+    "/w/acme/inbox.rsc",
+    "/api/v1/workspaces",
+    "/login",
+  ]) {
+    assert.equal(runs(path), true, path);
+  }
+  for (const path of [
+    "/_next/static/chunks/a.js",
+    "/_next/image",
+    "/icons/a.png",
+    "/fonts/a.woff2",
+    "/favicon.ico",
+    "/www/a.png",
+  ]) {
+    assert.equal(runs(path), false, path);
+  }
+});
+
+test("a workspace's documents and the home are never stored; the router's requests keep what Next says of them", async () => {
+  const cacheOf = async (path, headers = {}) =>
+    (await unstable_getResponseFromNextConfig({ url: `${APP}${path}`, nextConfig: loadedConfig, headers })).headers.get(
+      "cache-control",
+    );
+  for (const path of ["/", "/w/acme", "/w/acme/inbox/th-1", "/login", "/signup", "/reset-password"]) {
+    assert.equal(await cacheOf(path), "private, no-store, max-age=0", path);
+  }
+  for (const path of ["/w/acme/inbox", "/"]) {
+    assert.equal(await cacheOf(path, { rsc: "1" }), null, `${path}: the router's request is Next's to say`);
+  }
+  assert.equal(await cacheOf("/b/acme"), null, "a business's public page says its own");
 });

@@ -735,22 +735,22 @@ const holdStill = (control, change) => {
 // ---- A door is a link -------------------------------------------------------------------------------------------------
 // A name, a face or a chip with a page of its own is a link to that page: `<a {...window.routeDoor(to, go)}>`. Its
 // address is in the href, so a long press, a middle click or a new tab opens it too, and a plain press takes the app's
-// own way there (`go`, else CHANLY.nav), which keeps Back the app's. A thread's person was reachable only through its
-// Actions menu, "Open profile", under a name that looked like a link and was not one. A door to a person reads them as
-// a pointer reaches it or it takes focus, as People's rows do: their page opens on nothing of theirs until it is whole.
+// own way there (`go`, else CHANLY.nav), which keeps Back the app's. As a pointer reaches a door or it takes focus, its
+// page is warmed as the sidebar's rows are (workspace.ts warmRoute: a name on a thread asked for People's page on the
+// press), and a door to a person reads them, as People's rows do: their page is drawn only once it is whole.
 const RD_PERSON = /^clients\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 const routeDoor = (to, go = null) => {
   const person = RD_PERSON.exec(to);
-  const warm = person ? () => { if (window.__warmPerson) window.__warmPerson(person[1]); } : null;
+  const a = window.CHANLY && window.CHANLY.address;
+  const warm = () => { if (person && window.__warmPerson) window.__warmPerson(person[1]); if (a && a.warm) a.warm(to); };
   return {
-    href: window.CHANLY && window.CHANLY.address ? window.CHANLY.address.href(to) : `#/${to}`,
+    href: a ? a.href(to) : `#/${to}`,
     onClick: (e) => {
       if (e && (e.defaultPrevented || e.button > 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)) return;
       if (e && e.preventDefault) e.preventDefault();
-      if (go) go(to);
-      else if (window.CHANLY) window.CHANLY.nav(to);
+      if (go) go(to); else if (window.CHANLY) window.CHANLY.nav(to);
     },
-    ...(warm ? { onPointerEnter: warm, onFocus: warm } : {}),
+    onPointerEnter: warm, onFocus: warm,
   };
 };
 Object.assign(window, { holdStill, routeDoor });

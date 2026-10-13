@@ -25,5 +25,3 @@ export const POST = write({
   input: Body,
   handle: ({ ctx, row: contact, input: body }) => mergeRecords(ctx, contact.id, body.merge),
 });
-
-export const dynamic = "force-dynamic";

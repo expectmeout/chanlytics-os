@@ -105,7 +105,7 @@ holds it.
 Every request proves who is knocking before anything is read.
 
 1. **Provider to edge.** HMAC over the raw body (Meta), Retell's signature, Twilio's signature with the line's own token, Svix headers (Resend), Stripe's signature. Apify signs nothing, so each run is started with a per-run token in its webhook URL, kept only as a hash and compared in constant time. A webhook whose write the database did not accept is not acknowledged, so the provider retries.
-2. **Browser to dashboard.** A Supabase session cookie verified with `getUser()` on every request; same origin required for every write.
+2. **Browser to dashboard.** A Supabase session cookie, its token's signature verified (`getClaims()`) by the proxy for every page, move and prefetch, and again by `withRoute` for every read; same origin required for every write. The signed-in frame reads nothing of the request, so it is one prerender for everyone (decision 0053, step 5).
 3. **Dashboard to edge.** A token minted for one door, one workspace, one person, one minute (`x-edge-token`). The dashboard proves who the person is; the edge spends the provider key. The platform's shared key (`x-diag-key`) opens only the diagnostic and the sending-domains lift of a domain held twice on an edge that holds the secret, and every key-only knock there is logged (`admin_door_key_only`).
 4. **Database to edge.** `x-cron-key` on `/api/cron/*` and `/api/jobs/tick`, read from Vault on both sides.
 5. **Provider to dashboard.** The ElevenLabs agent's custom-LLM requests to `/api/ask/voice/llm`, one per spoken turn of a voice conversation with Ask (`docs/decisions/0026-a-provider-calls-the-dashboard.md`). Two credentials, neither enough alone: the agent's static secret in its own header, compared in constant time, and the session's id the browser gave the agent at the start, found as a row the member wrote (`ask_voice_sessions`). The row carries the member's access token sealed with a secret the database does not hold; opened and verified as a bearer request is, it runs the turn as the member under RLS. The proxy exempts the door's three exact paths and nothing else under `/api/ask`. (Reading aloud is not this door: Today's Listen and an answer's Read aloud are a one-way clip the dashboard asks the edge for, door 3, `/api/admin/voice/speech`, in the same voice; nobody speaks back, so no agent and no session row.)
@@ -403,8 +403,8 @@ Today, the Inbox and People are on it. The hand-written `surface:*` listeners th
 names) either do something a redraw does not (reseed a list and keep a thread open, say what a re-read did to it) or wait
 for their page to move to `useSurface`; a new page names its surfaces.
 
-**How a page opens.** Five things decide how soon a page has its rows, each with one owner, and a new page takes all
-five. Measured on production, 9 October 2026: the Inbox had its rows 350 ms into a load and the Calendar its weeks at
+**How a page opens.** Six things decide how soon a page has its rows, each with one owner, and a new page takes all
+six. Measured on production, 9 October 2026: the Inbox had its rows 350 ms into a load and the Calendar its weeks at
 900, with the same page code drawing in 30 ms once the rows were in; the difference was when each was asked for.
 
 - _Its first reads leave from the document's head._ `packages/contracts/src/shell/route-prefetch.ts` (`PREFETCH_READS`)
@@ -425,6 +425,11 @@ five. Measured on production, 9 October 2026: the Inbox had its rows 350 ms into
   (`surface-registry.ts` `warmWhatItDraws`), so the press finds them in or on their way.
 - _The tab keeps what it read._ The last read of every surface paints before React draws (`surface-cache.ts`), and a
   view the tab has held paints at once and is read again behind (`apps/dashboard/src/legacy-bridge/held-views.ts`).
+- _Its page is the build's, and a press on it asks for nothing._ Every page under `apps/dashboard/app/(os)` reads no
+  request, so it is prerendered once for every person and workspace (decision 0053, step 5): a document is the build's
+  file, and a warm (`apps/dashboard/src/legacy-bridge/workspace.ts` `warmRoute`) is the build's segment files, which
+  serve every address of the page's route. A page that read the request would be a render per request again;
+  `check:static-shell` fails the build that makes one.
 - _Round trips that need nothing of each other go together._ A reader asks for them at once and waits for all
   (`apps/dashboard/src/server/readers/`): one after the other, the Calendar's read spent 180 ms on the server for a
   workspace with no calendar.

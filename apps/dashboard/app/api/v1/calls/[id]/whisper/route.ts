@@ -51,5 +51,3 @@ export const POST = write({
     return { ok: true, decision_id: decisionId };
   },
 });
-
-export const dynamic = "force-dynamic";
