@@ -95,14 +95,14 @@ async function getToday(t: ToolContext): Promise<unknown> {
     quiet: vm.quiet ? { headline: vm.quiet.headline, sub: vm.quiet.sub } : null,
     // The runs waiting for your approval that an approval can still send (null where they could not be read).
     campaign_runs_waiting:
-      vm.runsWaiting === null
+      vm.runs_waiting === null
         ? null
         : {
-            count: vm.runsWaiting,
+            count: vm.runs_waiting,
             runs: waitingRunsNamed(
               t,
               runsThatWait(runs ?? [], runDaysAt(metrics.workspace.timezone, t.now)),
-              vm.runsWaiting,
+              vm.runs_waiting,
             ),
           },
     searches_waiting: searchRows.map((r) => ({ name: r.who, question: r.sentence, route: r.cta.to })),

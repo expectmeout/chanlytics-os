@@ -32050,6 +32050,13 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.messages REFERENCING
 
 
 --
+-- Name: notifications workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE OF closed_at ON public.notifications FOR EACH ROW WHEN ((old.closed_at IS DISTINCT FROM new.closed_at)) EXECUTE FUNCTION public.workspace_tell_row_change();
+
+
+--
 -- Name: person_notes workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
 --
 

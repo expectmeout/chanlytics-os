@@ -417,6 +417,8 @@ const notice = (to, event, table, statuses) => ({
  * a page draws. `null` is a table with no list: the settings are told when their version moved, whatever was named.
  */
 const NARROWED = {
+  // A notice closed when what it asked for ended (00421): the bell reads it as read, on every tab.
+  notifications: ["closed_at"],
   contacts: [
     "display_name",
     "wa_profile_name",

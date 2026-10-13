@@ -24,6 +24,9 @@
 --                             before its early returns, so a list or a chosen search closes its question too.
 --   resume_email_offers      replaced whole from its latest body (00299), closing the bell's pause notice of the workspace
 --                             (contracts OFFERS_NOTICE_WORDS.paused's title; the db test holds the two equal).
+--   workspace_tell_update    on notifications: a row's closed_at moving is told on the live feed (00408's row function,
+--                             narrowed to that column), so every tab's bell and badge drop a notice another member's act
+--                             ended, where only a new row was told. A member's own read is notification_marks', not told.
 --
 -- Then the bell's window is closed once over what already ended: hold rows whose thread's hold resolved after the row was
 -- kept and has no open hold now (a row kept because the hold could not be written -- a deadman's or a failed delivery's --
@@ -193,6 +196,11 @@ end $$;
 
 comment on function public.resume_email_offers(p_tenant_id uuid) is
   'The back office''s: turns a workspace''s offers by email back on, once its list is fixed, stamps offers_resumed_at (the gates are then judged over the offers sent after it), writes a mailbox.offers_resumed event and closes the bell''s pause notice (00421). True when they were paused. Service role only.';
+
+-- The bell hears a close: told when closed_at moved, by the row function, as 00408's narrowed updates are.
+create or replace trigger workspace_tell_update after update of closed_at on public.notifications
+  for each row when (old.closed_at is distinct from new.closed_at)
+  execute function public.workspace_tell_row_change();
 
 -- Once, over the bell's window: what already ended is closed.
 update public.notifications n

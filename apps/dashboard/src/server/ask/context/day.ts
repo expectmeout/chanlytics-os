@@ -71,7 +71,7 @@ export const today: Provider = async (rc, ctx) => {
   ).data;
   const vm = toTodayVM(metrics, conversations, escalations, calls, rc.now, searches, { runs, heldThreads });
   // What the queue holds, and what waits with no row: the replies counting down and the runs waiting for a word.
-  const parts = [...vm.queue.parts, todayDraftsSub(vm.needsYou?.sends ?? 0), todayRunsSub(vm.runsWaiting ?? 0)].filter(
+  const parts = [...vm.queue.parts, todayDraftsSub(vm.needsYou?.sends ?? 0), todayRunsSub(vm.runs_waiting ?? 0)].filter(
     (p): p is string => !!p,
   );
   const rows: ContextRow[] = [];

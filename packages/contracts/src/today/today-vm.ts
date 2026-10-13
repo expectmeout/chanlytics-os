@@ -144,7 +144,7 @@ export interface TodayNoReplyVM {
 export interface TodayCalmVM {
   also: string[];
   traffic: string | null;
-  handledAll: boolean;
+  handled_all: boolean;
   answered: string | null;
 }
 
@@ -172,7 +172,7 @@ export interface TodayVM {
    * The campaign runs waiting for your word that a word can still send (waits.ts runsThatWait), where the brief was
    * handed the runs; null where it was not (the browser's brief, whose page holds Sent's runs and says the head with them).
    */
-  runsWaiting: number | null;
+  runs_waiting: number | null;
   /**
    * Ask's rows: the same escalations the queue draws, read once. `count` is the threads' part of the one count (holds
    * and replies counting down, waits.ts), and `holds` and `sends` its two parts: a held send has no row.
@@ -211,7 +211,7 @@ export interface TodayVM {
   callsRead: boolean;
   /**
    * Everything that asks for a person, in one row grammar, longest wait first: the rows, the rest as a count, and what
-   * the rows hold in words. How many wait on you is the one count's (needsYou and runsWaiting; waits.ts), never a sum of
+   * the rows hold in words. How many wait on you is the one count's (needsYou and runs_waiting; waits.ts), never a sum of
    * rows: a closing window is a window, a call worth a listen nobody waiting, and a held send has no row.
    */
   queue: {

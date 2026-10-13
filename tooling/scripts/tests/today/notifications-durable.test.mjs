@@ -115,7 +115,11 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
       readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx"),
     ),
   );
-  assert.deepEqual(toldFor("notifications"), ["INSERT"], "the live feed is told of a note kept");
+  assert.deepEqual(
+    toldFor("notifications"),
+    ["INSERT", "UPDATE"],
+    "the live feed is told of a note kept, and of one closed when what it asked for ended (00421)",
+  );
   const bell = readCode("apps/dashboard/src/legacy-bridge/notifications.ts");
   assert.ok(
     /bellFeed\(\{\s*derived: feedFromGlobals\(win, Date\.now\(\)\),\s*device: deviceState\(\),\s*kept: win\.__NOTIFICATIONS\?\.dto,\s*waits: whatWaits\(\),?\s*\}\)\.sort\(\(a, b\) => b\.at - a\.at\)/.test(

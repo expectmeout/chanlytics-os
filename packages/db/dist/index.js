@@ -5296,8 +5296,8 @@ var WATCHED = [
   // opened by the edge, resolved elsewhere
   { table: "calls", events: EVERY },
   // a call starting, each live turn, its end, its analysis: told with its statuses
-  { table: "notifications", events: INSERTS },
-  // an alert the edge kept: the bell repaints
+  // an alert the edge kept, or one closed when what it asked for ended (00421, told when closed_at moved): the bell repaints
+  { table: "notifications", events: INSERTS_AND_UPDATES },
   { table: "lines", events: EVERY },
   // a line's saga step, its failure, its answer, its release: Setup repaints
   { table: "google_listings", events: EVERY },

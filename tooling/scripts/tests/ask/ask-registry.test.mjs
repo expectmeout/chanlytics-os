@@ -168,6 +168,14 @@ const RUN_CHANNEL_WORDS = [
  */
 const RUN_WAITING_WORDS = ["is Needs you, with waiting_on_you", "is Waiting for your approval, with waiting_on_you"];
 /**
+ * 13 Oct 2026 (the wiring's second audit, S7-3): a run whose day has passed waits on nobody (contracts runWaitsOnYou), so the
+ * listing marks it too_late_to_approve in place of waiting_on_you, and the sentence that names the state says so. Once.
+ */
+const TOO_LATE_WORDS = [
+  "is Waiting for your approval, with waiting_on_you)",
+  "is Waiting for your approval, with waiting_on_you; a run whose day has passed is too_late_to_approve: it can only be skipped, and the hourly sweep skips it itself)",
+];
+/**
  * 12 Oct 2026 (D1-hold-words): People's list of the threads the member looking has is worded as the Inbox words them,
  * "You have it", so the people tool names that list in the same words; its id, waiting_on_you, stays. The one phrase, once.
  */
@@ -578,7 +586,8 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
         (said, [from, to]) => said.replace(from, to),
         was(role, "campaigns")
           .description.replace(...RUN_CHANNEL_WORDS)
-          .replace(...RUN_WAITING_WORDS),
+          .replace(...RUN_WAITING_WORDS)
+          .replace(...TOO_LATE_WORDS),
         // Said over the message words above ("its message (template)"), so after them.
       )
         .replace(...PLAYBOOK_CHANNELS_WORDS)

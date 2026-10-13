@@ -29377,14 +29377,14 @@ function calmOf({ period, speed }, also) {
     traffic: bits2.length ? bits2.join(" and ") : null,
     // "Handled everything" only when the receptionist did: a message you
     // answered yourself, or one nobody answered, is not the receptionist's.
-    handledAll: period.unanswered_in_window === 0 && period.messages_out_you === 0,
+    handled_all: period.unanswered_in_window === 0 && period.messages_out_you === 0,
     answered: speed !== null && period.messages_in > 0 ? `answered ${period.answered_by_ai} of the ${period.messages_in} on its own, typically ${speedIn(speed, true)}.` : null
   };
 }
 function calmStanding(c, runs) {
   const also = [...runs > 0 ? [runsWaitingSentence(runs)] : [], ...c.also];
-  const headline = also.length ? [...also, ...c.traffic ? [`${c.traffic} today.`] : []].join(" ") : c.traffic ? c.handledAll ? `The receptionist handled everything \u2014 ${c.traffic} today. Nothing needs you.` : `${c.traffic} today. Nothing needs you right now.` : "Nothing needs you.";
-  const named = !also.length && !!c.traffic && c.handledAll;
+  const headline = also.length ? [...also, ...c.traffic ? [`${c.traffic} today.`] : []].join(" ") : c.traffic ? c.handled_all ? `The receptionist handled everything \u2014 ${c.traffic} today. Nothing needs you.` : `${c.traffic} today. Nothing needs you right now.` : "Nothing needs you.";
+  const named = !also.length && !!c.traffic && c.handled_all;
   const detail = c.answered ? `${named ? "It" : "The receptionist"} ${c.answered}` : null;
   return { headline, detail, tone: "calm" };
 }
@@ -42379,7 +42379,7 @@ function quietFigures(live, tz, now) {
 }
 
 // src/today/today-brief.ts
-var QUIET_CALM = { also: [], traffic: null, handledAll: true, answered: null };
+var QUIET_CALM = { also: [], traffic: null, handled_all: true, answered: null };
 function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ new Date(), searches = null, beside = {}) {
   const f = todayFacts({
     metrics: m,
@@ -42414,7 +42414,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
         },
         runsWaiting ?? 0
       ),
-      runsWaiting,
+      runs_waiting: runsWaiting,
       needsYou: null,
       windowClosing: null,
       recap: {
@@ -42445,7 +42445,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
   const figures = figuresOf(m, conversations, f.callsInWindow, escalations, f.tz, now);
   return {
     standing,
-    runsWaiting,
+    runs_waiting: runsWaiting,
     needsYou,
     windowClosing: todayWindowClosing(f),
     recap: {

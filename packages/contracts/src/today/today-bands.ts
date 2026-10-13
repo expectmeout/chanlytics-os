@@ -312,7 +312,7 @@ function calmOf({ period, speed }: TodayFacts, also: readonly string[]): TodayCa
     traffic: bits.length ? bits.join(" and ") : null,
     // "Handled everything" only when the receptionist did: a message you
     // answered yourself, or one nobody answered, is not the receptionist's.
-    handledAll: period.unanswered_in_window === 0 && period.messages_out_you === 0,
+    handled_all: period.unanswered_in_window === 0 && period.messages_out_you === 0,
     answered:
       speed !== null && period.messages_in > 0
         ? `answered ${period.answered_by_ai} of the ${period.messages_in} on its own, typically ${speedIn(speed, true)}.`
@@ -332,13 +332,13 @@ function calmStanding(c: TodayCalmVM, runs: number): TodayHeadline {
   const headline = also.length
     ? [...also, ...(c.traffic ? [`${c.traffic} today.`] : [])].join(" ")
     : c.traffic
-      ? c.handledAll
+      ? c.handled_all
         ? `The receptionist handled everything — ${c.traffic} today. Nothing needs you.`
         : `${c.traffic} today. Nothing needs you right now.`
       : "Nothing needs you.";
   // "It" only after a headline that named the receptionist ("The receptionist handled everything"); after any other
   // (what still waits, or the traffic alone) the sentence names it itself.
-  const named = !also.length && !!c.traffic && c.handledAll;
+  const named = !also.length && !!c.traffic && c.handled_all;
   const detail = c.answered ? `${named ? "It" : "The receptionist"} ${c.answered}` : null;
   return { headline, detail, tone: "calm" };
 }

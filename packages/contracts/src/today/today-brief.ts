@@ -50,12 +50,12 @@ import type { TodayCalmVM, TodayVM } from "./today-vm";
 /* ------------------------------ the brief ---------------------------------- */
 
 /** A quiet day's calm words: nothing else waits and nothing came in, so only a run waiting changes its head. */
-const QUIET_CALM: TodayCalmVM = { also: [], traffic: null, handledAll: true, answered: null };
+const QUIET_CALM: TodayCalmVM = { also: [], traffic: null, handled_all: true, answered: null };
 
 /**
  * What the brief may be handed beside its reads: the campaign runs that may wait for your word (GET broadcasts' rows, or
  * the waiting runs a server reads), and the threads of open holds past the newest page, read by their ids. Optional, as
- * `searches` is: a brief handed neither says the head as it did, and leaves `runsWaiting` null.
+ * `searches` is: a brief handed neither says the head as it did, and leaves `runs_waiting` null.
  */
 interface TodayBeside {
   runs?: readonly WaitingRun[] | null;
@@ -117,7 +117,7 @@ export function toTodayVM(
         },
         runsWaiting ?? 0,
       ),
-      runsWaiting,
+      runs_waiting: runsWaiting,
       needsYou: null,
       windowClosing: null,
       recap: {
@@ -149,7 +149,7 @@ export function toTodayVM(
   const figures = figuresOf(m, conversations, f.callsInWindow, escalations, f.tz, now);
   return {
     standing,
-    runsWaiting,
+    runs_waiting: runsWaiting,
     needsYou,
     windowClosing: todayWindowClosing(f),
     recap: {

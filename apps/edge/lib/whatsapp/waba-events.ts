@@ -456,19 +456,17 @@ async function tellWabaChange(
   db: SupabaseClient<Database>,
   routed: Routed,
   field: string,
-  described: WabaWords,
+  said: WabaWords,
   loadNotifications: (tenantId: string) => Promise<NotificationsConfig | null>,
 ): Promise<"kept" | "alerted"> {
-  const told =
-    field === "phone_number_quality_update"
-      ? { ...described, about: { type: "channel", id: routed.channelId } }
-      : described;
-  if (!told.alert) {
+  const described =
+    field === "phone_number_quality_update" ? { ...said, about: { type: "channel", id: routed.channelId } } : said;
+  if (!described.alert) {
     // Never throws: a close that fails is logged and the warning stays until it is read.
     await mendWarnings(db, {
       tenantId: routed.tenantId,
-      by: { kind: told.kind, title: told.subject },
-      subject: told.about ?? null,
+      by: { kind: described.kind, title: described.subject },
+      subject: described.about ?? null,
       keptId: null,
     });
     return "kept";
@@ -479,11 +477,11 @@ async function tellWabaChange(
     isEnvDefault: false,
   };
   await notify(target, {
-    kind: told.kind,
-    route: told.route,
-    ...(told.about ? { about: told.about } : {}),
-    subject: told.subject,
-    body: told.body,
+    kind: described.kind,
+    route: described.route,
+    ...(described.about ? { about: described.about } : {}),
+    subject: described.subject,
+    body: described.body,
   });
   return "alerted";
 }
