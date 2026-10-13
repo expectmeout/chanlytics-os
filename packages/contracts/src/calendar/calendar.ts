@@ -144,6 +144,7 @@ function noticesVM(n: CalendarFeedDto["notices"], now: Date): CalendarVM["feed"]
   const state = n?.last_at ? "working" : n?.tool ? "waiting" : "none";
   const heldList = (n?.held_list ?? []).map((h) => ({
     id: h.id,
+    noticeId: h.notice_id ?? null,
     tool: bookingToolName(h.tool),
     from: h.from,
     subject: h.subject,

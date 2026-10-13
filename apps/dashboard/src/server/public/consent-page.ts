@@ -32,9 +32,15 @@ export async function consentPageFor(slug: string): Promise<ConsentPageRow | nul
   const clean = slug.trim().toLowerCase();
   if (!SLUG.test(clean)) return null;
   const db = serviceDb();
-  const { data: tenant, error } = await db.from("tenants").select("id, name, status").eq("slug", clean).maybeSingle();
+  const { data: tenant, error } = await db
+    .from("tenants")
+    .select("id, name, status, left_empty_at")
+    .eq("slug", clean)
+    .maybeSingle();
   if (error) throw new Error(`reading the workspace: ${error.message}`);
-  if (!tenant || tenant.status === "test") return null;
+  // A workspace its last member left is ended (00262): nobody answers its customers, so it asks nobody for a yes, and its
+  // pages are Not found and unindexed (the wiring's second audit, X4-2).
+  if (!tenant || tenant.status === "test" || tenant.left_empty_at) return null;
 
   const { data: channels, error: chErr } = await db
     .from("tenant_channels")

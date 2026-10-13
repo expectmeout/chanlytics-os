@@ -5,7 +5,9 @@
  *
  * A read that threw used to fail the job at the first throw (the kind had no wait to be tried again after), and a
  * failed job was all there was of the delivery: nothing on the notices ledger, so nothing in the fold, and a booking
- * the owner was never shown. Now a throw is the next try's, twice, and the last try holds the notice for a person.
+ * the owner was never shown. Now a throw is the next try's, twice, and the last try holds the notice for a person and
+ * rings the bell once (the wiring's second audit, S6-7): the booking reached no calendar, and nothing reads it again by
+ * itself.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -39,7 +41,7 @@ const answer = (over = {}) => ({
 });
 
 /** One run of the job: the tables it wrote, what the bell was told, and how often the reader was asked. */
-function world({ ask = async () => answer(), faults = {}, tables = {} } = {}) {
+function world({ ask = async () => answer(), mayRead = async () => null, faults = {}, tables = {} } = {}) {
   const held = {
     tenants: [{ id: T, timezone: "America/New_York" }],
     appointments: [],
@@ -57,7 +59,7 @@ function world({ ask = async () => answer(), faults = {}, tables = {} } = {}) {
         asked += 1;
         return ask(...args);
       },
-      mayRead: async () => null,
+      mayRead,
       personFor: async () => null,
       tell: async (_tenantId, notice) => {
         told.push(notice);
@@ -103,7 +105,34 @@ test("REGRESSION: the last try that cannot read holds the notice for a person --
   assert.equal(kept.subject, DELIVERY.subject);
   assert.equal(kept.appointment_id, null);
   assert.deepEqual(last.tables.appointments, []);
-  assert.deepEqual(last.told, [], "the reader's absence is on the list, and is not news for the bell");
+  assert.equal(last.told.length, 1, "a booking that reached no calendar is news: the bell says so once");
+  assert.equal(last.told[0].noticeId, "rcv_1");
+  assert.match(last.told[0].reason, /Press Read again/);
+});
+
+test("REGRESSION: a last try whose reader answered, and whose write failed after the visit was written, is not told as a reader that was unavailable (the review's H2)", async () => {
+  let faulted = 0;
+  // The ledger's write fails once, after the visit is on the calendar; the catch's own write then succeeds.
+  const faults = {
+    get "appointment_notices.upsert"() {
+      return faulted++ === 0 ? { message: "connection reset", code: "08006" } : undefined;
+    },
+  };
+  const w = world({ faults });
+  assert.equal(await w.run(MAX_ATTEMPTS), "done");
+  assert.equal(w.tables.appointments.length, 1, "the visit is on the calendar");
+  assert.deepEqual(w.told, [], "the reader answered: no bell row says it was unavailable");
+});
+
+test("a read the reader was never asked for (no key, the spend paused) is held and is not news: the card lists it", async () => {
+  for (const reason of ["no_model", "may_not_spend"]) {
+    const w = world({ mayRead: async () => reason });
+    assert.equal(await w.run(1), "done");
+    assert.equal(w.asked(), 0);
+    assert.equal(w.tables.appointment_notices.length, 1);
+    assert.equal(w.tables.appointment_notices[0].hold_reason, reason);
+    assert.deepEqual(w.told, [], `${reason}: held before any try, on the card, not on the bell`);
+  }
 });
 
 test("a visit the table refuses is held at once, on any try: no second try would write it", async () => {

@@ -291,10 +291,17 @@ test("the bridge reads the surfaces: approving the run drops the badge, and a li
   assert.equal(api.feed().find((r) => r.id === `n:${a.id}`).unread, false);
   assert.equal(api.feed().find((r) => r.id === `n:${a.id}`).tone, "");
   // Twenty-one held, the card lists twenty: the notice is not among them and is held still, so nothing is settled.
-  hold({ held: { held: 21, heldList: Array.from({ length: 20 }, (_, i) => ({ id: `x${i}` })) } });
+  hold({ held: { held: 21, heldList: Array.from({ length: 20 }, (_, i) => ({ id: `x${i}`, noticeId: `y${i}` })) } });
   assert.equal(api.unread(), 2, "a list cut short is not the whole of them");
-  hold({ held: { held: 1, heldList: [{ id: MAIL2 }] } });
+  // REGRESSION (the wiring's second audit, S6-2): the card lists a held email by its own row, and the bell's row is about the
+  // delivery it was read from (the edge's tell keeps that id). Held still, under its row's id: it waits, and is not read.
+  hold({ held: { held: 1, heldList: [{ id: "row-of-mail", noticeId: MAIL }] } });
+  assert.equal(api.unread(), 2, "held still: the row waits");
+  hold({ held: { held: 1, heldList: [{ id: "row-of-mail2", noticeId: MAIL2 }] } });
   assert.equal(api.unread(), 1, "the whole list, and the email is not in it: dismissed");
+  // A server from before the list said each email's delivery cannot say this one is gone.
+  hold({ held: { held: 1, heldList: [{ id: "row-of-mail2", noticeId: null }] } });
+  assert.equal(api.unread(), 2, "a list that does not name the deliveries settles nothing");
   hold({ rows: [{ id: RUN, state: "scheduled" }], held: { held: 0, heldList: [] } });
   assert.equal(api.unread(), 0);
   hold();

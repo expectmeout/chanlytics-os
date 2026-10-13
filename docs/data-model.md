@@ -1932,7 +1932,7 @@ What needed the workspace's attention, kept: each alert the edge raised, where t
 | `subject_id` | text | yes |  |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `recipient_user_id` | uuid | yes |  | The one member this is for (0007); null for everyone in the workspace. Only the recipient reads an addressed row. |
-| `source_event` | uuid | yes |  | The event this notice answers (decision 0043, 00396): a hold's notice keeps its escalation event, so a second delivery of it tells nobody. Null for a notice no event raised. |
+| `source_event` | uuid | yes |  | The event this notice answers (decision 0043, 00396): a hold's notice keeps its escalation event, so a second delivery of it tells nobody. A sweep's once-only notice keeps, in its place, a uuid made from the name of what it answers (the edge's notify.ts onceKey: the deadman's warning of one hold, the warning before a number is given back, a booking email held for a look), so a retry finds it and sends only the mail it still owes (00419). Null for a notice nothing keys. |
 | `mail_due_at` | timestamp with time zone | yes |  | When this notice's mail became owed (decision 0048, 00409): set with the row when a mail is to go, cleared once it has gone, so a retry sends the mail alone and the bell keeps one row. Null for a notice nothing owes. |
 
 Foreign keys:
@@ -2894,6 +2894,7 @@ Foreign keys:
 | `updated_at` | timestamp with time zone | no | `now()` |  |
 | `updated_by` | uuid | yes |  | Who last wrote this config. Null for rows written before 00085, and for writes the platform makes on a workspace's behalf. The change itself is in events (kind = settings.changed). |
 | `calendar_checked_at` | timestamp with time zone | yes |  | When the calendar sweep last read this workspace's feed. Null = never, and never is served first. Ordering on this is what stops the sweep serving the same early tenants every hour once there are more workspaces than fit in one tick. |
+| `calendar_feed_kept_at` | timestamp with time zone | yes |  | When the hourly sweep first kept a read of this workspace's calendar, an empty read included (00419): appointments_feed_sync answers first for it, and the sweep stamps it. Null with no calendar_feed row: no read kept yet, so the additions of the read that follows connecting a calendar are its first read, which the bell tells none of. Null with calendar_feed rows: reads were kept before 00419. The service role's, like calendar_checked_at (00089: no member's UPDATE grant names it). |
 
 Foreign keys:
 

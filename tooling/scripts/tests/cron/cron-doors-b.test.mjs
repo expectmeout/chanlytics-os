@@ -1969,7 +1969,7 @@ test("lines: a tick that cannot provision says so — no line provider, no recep
 });
 
 /** The sweep's second half with no workspace that stopped paying: nothing ended, and (the grace unset) only reporting. */
-const NONE_ENDED = { ended: 0, due: 0, warned: 0, released: 0, failed: 0, report_only: true };
+const NONE_ENDED = { ended: 0, due: 0, warned: 0, undelivered: 0, released: 0, failed: 0, report_only: true };
 
 test("lines: a line 'setting up' past its deadline is taken and resumed by scheduling a line_provision job — two a tick, oldest first — and the platform hears once; one past its three automatic tries is handed to a person: the workspace's bell, the platform's mail, the ledger", async () => {
   const T = tenant(301);
@@ -2233,7 +2233,7 @@ test("lines (A2): with no grace set, a number whose subscription ended is only r
       assert.equal(status, 200);
       assert.deepEqual(
         body.release,
-        { ended: 1, due: 1, warned: 0, released: 0, failed: 0, report_only: true },
+        { ended: 1, due: 1, warned: 0, undelivered: 0, released: 0, failed: 0, report_only: true },
         `LINE_RELEASE_AFTER_DAYS=${grace}: under the least grace, or not a number, is unset`,
       );
     });
@@ -2256,7 +2256,15 @@ test("lines (A2): with a grace set, the owner is warned once -- the day, the for
     // Ended 40 days ago against a 30-day grace: past it, and never warned -- so warned first, never released at once.
     const [s1, b1] = await answer(await knock("lines"));
     assert.equal(s1, 200);
-    assert.deepEqual(b1.release, { ended: 1, due: 0, warned: 1, released: 0, failed: 0, report_only: false });
+    assert.deepEqual(b1.release, {
+      ended: 1,
+      due: 0,
+      warned: 1,
+      undelivered: 0,
+      released: 0,
+      failed: 0,
+      report_only: false,
+    });
     const warned = tables.lines.find((l) => l.id === own).facts.release_warning;
     assert.equal(warned.ended_at, ago(40 * DAY), "the latest the billing row says it stopped paying");
     const on = Date.parse(warned.on);
@@ -2280,14 +2288,30 @@ test("lines (A2): with a grace set, the owner is warned once -- the day, the for
 
     // The next quarter hour: warned already, and the week not over.
     const [, b2] = await answer(await knock("lines"));
-    assert.deepEqual(b2.release, { ended: 1, due: 0, warned: 0, released: 0, failed: 0, report_only: false });
+    assert.deepEqual(b2.release, {
+      ended: 1,
+      due: 0,
+      warned: 0,
+      undelivered: 0,
+      released: 0,
+      failed: 0,
+      report_only: false,
+    });
     assert.equal(tables.notifications.length, 1, "warned once");
 
     // A week on.
     const line = tables.lines.find((l) => l.id === own);
     line.facts = { ...line.facts, release_warning: { ...warned, at: ago(8 * DAY) } };
     const [, b3] = await answer(await knock("lines"));
-    assert.deepEqual(b3.release, { ended: 1, due: 1, warned: 0, released: 1, failed: 0, report_only: false });
+    assert.deepEqual(b3.release, {
+      ended: 1,
+      due: 1,
+      warned: 0,
+      undelivered: 0,
+      released: 1,
+      failed: 0,
+      report_only: false,
+    });
   });
   assert.deepEqual(
     net.to("retellai").map((r) => [r.method, r.url, r.headers.Authorization]),
@@ -2325,6 +2349,244 @@ test("lines (A2): with a grace set, the owner is warned once -- the day, the for
   );
 });
 
+test("lines (A2): a warning whose mail fails is owed, not kept -- one bell row, the mail alone tried again the next quarter hour, and the week runs from the warning that reached them (the wiring's second audit, S6-1)", async () => {
+  const { T, own, tables } = endedWorld(355);
+  use(tables, VAULT_TOKEN);
+  let mailUp = false;
+  const net = wired((req) => {
+    if (req.url === "https://api.resend.com/emails")
+      return mailUp ? { status: 200, body: { id: "email-1" } } : { status: 500, body: { message: "down" } };
+    throw new Error(`unexpected ${req.method} ${req.url}`);
+  });
+  await withEnv({ LINE_RELEASE_AFTER_DAYS: "30" }, async () => {
+    const [s1, b1] = await answer(await knock("lines"));
+    assert.equal(s1, 200);
+    assert.deepEqual(b1.release, {
+      ended: 1,
+      due: 0,
+      warned: 0,
+      undelivered: 1,
+      released: 0,
+      failed: 0,
+      report_only: false,
+    });
+    assert.equal(tables.lines.find((l) => l.id === own).facts.release_warning, undefined, "not warned: not kept");
+    assert.equal(tables.notifications.length, 1, "the bell has the warning");
+    assert.ok(tables.notifications[0].mail_due_at, "and says its mail is owed");
+    // One failed mail pages nobody: the first try is kept on the line, and the platform hears only after a day of it.
+    assert.deepEqual(
+      net.mail().map((m) => m.to),
+      [["owner@example.com"]],
+    );
+    assert.equal(tables.lines.find((l) => l.id === own).facts.release_warning_tried.ended_at, ago(40 * DAY));
+
+    // The provider is back: the same row, its mail sent alone, and the warning kept now.
+    mailUp = true;
+    const [, b2] = await answer(await knock("lines"));
+    assert.deepEqual(b2.release, {
+      ended: 1,
+      due: 0,
+      warned: 1,
+      undelivered: 0,
+      released: 0,
+      failed: 0,
+      report_only: false,
+    });
+    assert.equal(tables.notifications.length, 1, "no second row on the bell");
+    assert.equal(tables.notifications[0].mail_due_at, null, "its mail went");
+    assert.deepEqual(
+      net.mail().map((m) => m.to),
+      [["owner@example.com"], ["owner@example.com"]],
+    );
+    const warned = tables.lines.find((l) => l.id === own).facts.release_warning;
+    assert.ok(warned, "kept once the owner was told");
+    assert.ok(
+      Date.parse(warned.on) >= Date.parse(warned.at) + 7 * DAY - 1000,
+      "a week after the warning that reached them",
+    );
+
+    // The next quarter hour: warned, and nothing more is said.
+    const [, b3] = await answer(await knock("lines"));
+    assert.deepEqual(b3.release, {
+      ended: 1,
+      due: 0,
+      warned: 0,
+      undelivered: 0,
+      released: 0,
+      failed: 0,
+      report_only: false,
+    });
+    assert.equal(net.mail().length, 2);
+    assert.equal(tables.notifications.filter((n) => n.tenant_id === T).length, 1);
+  });
+});
+
+test("lines (A2): a workspace with no address the warning can be mailed to has it on its bell, kept, and the platform hears that a number goes with nobody told", async () => {
+  const { T, own, tables } = endedWorld(357);
+  tables.tenant_config[0].config.notifications = {};
+  use(tables, VAULT_TOKEN);
+  const net = wired((req) => {
+    if (req.url === "https://api.resend.com/emails") return { status: 200, body: { id: "email-1" } };
+    throw new Error(`unexpected ${req.method} ${req.url}`);
+  });
+  await withEnv({ LINE_RELEASE_AFTER_DAYS: "30" }, async () => {
+    const [, b1] = await answer(await knock("lines"));
+    assert.deepEqual(b1.release, {
+      ended: 1,
+      due: 0,
+      warned: 1,
+      undelivered: 0,
+      released: 0,
+      failed: 0,
+      report_only: false,
+    });
+  });
+  assert.ok(tables.lines.find((l) => l.id === own).facts.release_warning);
+  assert.equal(tables.notifications.filter((n) => n.tenant_id === T).length, 1);
+  const platform = net.mail().filter((m) => m.subject.startsWith("A number goes back with nobody told"));
+  assert.equal(platform.length, 1);
+  assert.deepEqual(platform[0].to, ["ops@platform.test"]);
+});
+
+test("lines (A2): when the platform's alert for a workspace nobody can be mailed at does not go, the warning is not kept, and the next quarter hour says the alert again and keeps it (the review's N3)", async () => {
+  const { T, own, tables } = endedWorld(358);
+  tables.tenant_config[0].config.notifications = {};
+  use(tables, VAULT_TOKEN);
+  let mailUp = false;
+  const net = wired((req) => {
+    if (req.url === "https://api.resend.com/emails")
+      return mailUp ? { status: 200, body: { id: "email-1" } } : { status: 500, body: { message: "down" } };
+    throw new Error(`unexpected ${req.method} ${req.url}`);
+  });
+  const nobodyTold = () => net.mail().filter((m) => m.subject.startsWith("A number goes back with nobody told"));
+  await withEnv({ LINE_RELEASE_AFTER_DAYS: "30" }, async () => {
+    const [, b1] = await answer(await knock("lines"));
+    assert.deepEqual(b1.release, {
+      ended: 1,
+      due: 0,
+      warned: 0,
+      undelivered: 1,
+      released: 0,
+      failed: 0,
+      report_only: false,
+    });
+    assert.equal(tables.lines.find((l) => l.id === own).facts.release_warning, undefined, "not kept: nobody heard");
+    assert.equal(nobodyTold().length, 1, "the alert was tried");
+    mailUp = true;
+    const [, b2] = await answer(await knock("lines"));
+    assert.deepEqual(b2.release, {
+      ended: 1,
+      due: 0,
+      warned: 1,
+      undelivered: 0,
+      released: 0,
+      failed: 0,
+      report_only: false,
+    });
+    assert.ok(tables.lines.find((l) => l.id === own).facts.release_warning, "kept once the platform heard");
+    assert.equal(nobodyTold().length, 2, "said again, and it went");
+    assert.equal(tables.notifications.filter((n) => n.tenant_id === T).length, 1, "the bell's row once");
+  });
+});
+
+test("lines (A2): at most ten warnings are asked for a quarter hour, told or not, so a mailer that is down costs a tick ten tries; the rest are asked on the next (the review's N5)", async () => {
+  const { tables } = endedWorld(380);
+  // Eleven more ended workspaces like the first, each with its own number and its owner on file.
+  const base = {
+    tenant: tables.tenants[0],
+    bill: tables.billing_accounts[0],
+    cfg: tables.tenant_config[0],
+    line: tables.lines[0],
+  };
+  for (let i = 1; i <= 11; i++) {
+    const t = tenant(380 * 100 + i);
+    tables.tenants.push({ ...base.tenant, id: t, slug: `ended-${i}` });
+    tables.billing_accounts.push({ ...base.bill, tenant_id: t });
+    tables.tenant_config.push({ ...base.cfg, tenant_id: t });
+    tables.lines.push({
+      ...base.line,
+      id: uuid(380 * 100 + i),
+      tenant_id: t,
+      e164: `+1305555${String(2000 + i)}`,
+      created_at: new Date(Date.parse(base.line.created_at ?? ago(60 * DAY)) + i * 1000).toISOString(),
+      facts: {},
+    });
+  }
+  use(tables, VAULT_TOKEN);
+  let mailUp = false;
+  const net = wired((req) => {
+    if (req.url === "https://api.resend.com/emails")
+      return mailUp ? { status: 200, body: { id: "email-1" } } : { status: 500, body: { message: "down" } };
+    throw new Error(`unexpected ${req.method} ${req.url}`);
+  });
+  const owners = () => net.mail().filter((m) => m.subject.startsWith("Your number")).length;
+  await withEnv({ LINE_RELEASE_AFTER_DAYS: "30" }, async () => {
+    const [, b1] = await answer(await knock("lines"));
+    assert.equal(b1.release.warned, 0);
+    assert.equal(b1.release.undelivered, 10, "ten asked, none told");
+    assert.equal(owners(), 10, "ten tries of the owners' mail, not twelve");
+    assert.equal(net.mail().length, 10, "and nothing else: no page for a first failure");
+    mailUp = true;
+    const [, b2] = await answer(await knock("lines"));
+    assert.equal(b2.release.warned, 10);
+    const [, b3] = await answer(await knock("lines"));
+    assert.equal(b3.release.warned, 2, "the rest, a quarter hour on");
+  });
+});
+
+test("lines (A2): a warning that has failed for a day pages the platform that the number is held only because its warning reaches nobody, once per pager window (the review's N2)", async () => {
+  const { own, tables } = endedWorld(359);
+  const line = tables.lines.find((l) => l.id === own);
+  line.facts = { ...line.facts, release_warning_tried: { at: ago(2 * DAY), ended_at: ago(40 * DAY) } };
+  tables.operator_pages = [];
+  use(tables, VAULT_TOKEN);
+  const net = wired((req) => {
+    if (req.url === "https://api.resend.com/emails") {
+      const to = JSON.parse(req.body).to;
+      return to.includes("owner@example.com") ? { status: 500, body: { message: "down" } } : { status: 200, body: {} };
+    }
+    throw new Error(`unexpected ${req.method} ${req.url}`);
+  });
+  const pages = () =>
+    net.mail().filter((m) => m.subject.includes("A number is held: its warning has not reached the owner"));
+  await withEnv({ LINE_RELEASE_AFTER_DAYS: "30" }, async () => {
+    const [, b1] = await answer(await knock("lines"));
+    assert.equal(b1.release.undelivered, 1);
+    assert.equal(pages().length, 1, "a day of failing: paged");
+    assert.deepEqual(pages()[0].to, ["ops@platform.test"]);
+    await answer(await knock("lines"));
+    assert.equal(pages().length, 1, "once per pager window, not each quarter hour");
+  });
+});
+
+test("lines (A2): a warning whose recipients cannot be read is not taken for one with nobody to tell: nothing is kept, an owed mail stays owed, and no 'nobody told' alert goes (the review's N1)", async () => {
+  const { own, tables } = endedWorld(361);
+  use(tables, VAULT_TOKEN);
+  let mailUp = false;
+  const net = wired((req) => {
+    if (req.url === "https://api.resend.com/emails")
+      return mailUp ? { status: 200, body: { id: "email-1" } } : { status: 500, body: { message: "down" } };
+    throw new Error(`unexpected ${req.method} ${req.url}`);
+  });
+  await withEnv({ LINE_RELEASE_AFTER_DAYS: "30" }, async () => {
+    await answer(await knock("lines"));
+    assert.ok(tables.notifications[0].mail_due_at, "the mail is owed");
+    // The next quarter hour, the workspace's settings cannot be read.
+    mailUp = true;
+    use(tables, VAULT_TOKEN, { "tenant_config.select": { message: "statement timeout" } });
+    const [, b2] = await answer(await knock("lines"));
+    assert.equal(b2.release.warned, 0);
+    assert.equal(b2.release.undelivered, 1);
+    assert.equal(tables.lines.find((l) => l.id === own).facts.release_warning, undefined, "not kept");
+    assert.ok(tables.notifications[0].mail_due_at, "still owed");
+    assert.equal(net.mail().filter((m) => m.subject.startsWith("A number goes back with nobody told")).length, 0);
+    // Read again, it goes.
+    use(tables, VAULT_TOKEN);
+    const [, b3] = await answer(await knock("lines"));
+    assert.equal(b3.release.warned, 1);
+  });
+});
+
 test("lines (A2): a release Retell refuses stops before the carrier, keeps the row for the next quarter hour, and the platform hears", async () => {
   const { own, tables } = endedWorld(360);
   const line = tables.lines.find((l) => l.id === own);
@@ -2337,7 +2599,15 @@ test("lines (A2): a release Retell refuses stops before the carrier, keeps the r
   });
   await withEnv({ LINE_RELEASE_AFTER_DAYS: "30" }, async () => {
     const [, body] = await answer(await knock("lines"));
-    assert.deepEqual(body.release, { ended: 1, due: 1, warned: 0, released: 0, failed: 1, report_only: false });
+    assert.deepEqual(body.release, {
+      ended: 1,
+      due: 1,
+      warned: 0,
+      undelivered: 0,
+      released: 0,
+      failed: 1,
+      report_only: false,
+    });
   });
   assert.ok(
     tables.lines.some((l) => l.id === own),

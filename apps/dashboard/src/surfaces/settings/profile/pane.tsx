@@ -11,7 +11,7 @@
  * wrong. This browser's alerts are Settings › Notifications' (the account menu says where they stand and opens it).
  */
 import { useRef, useState } from "react";
-import { identityWords, ROLE_SAYS, roleSays } from "@chanlytics/contracts";
+import { identityWords, ROLE_SAYS, roleSays, WORKSPACE_ENDED_WORDS } from "@chanlytics/contracts";
 import { meVerbs } from "@/legacy-bridge/identity";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { RecordField } from "../../kit/record/field";
@@ -170,7 +170,7 @@ function DeleteAccountRow({ flash }: { flash: Flash }) {
         refused
           ? refused
           : armed
-            ? "Removes you from every workspace and deletes your sign-in. A workspace you alone were in keeps its records for the business."
+            ? `Removes you from every workspace and deletes your sign-in. A workspace you alone were in ends: ${WORKSPACE_ENDED_WORDS}. Its records are kept until hi@chanlytics.com is asked to delete it.`
             : "Yours to do here, any time. A workspace with other members needs another owner first."
       }
     />

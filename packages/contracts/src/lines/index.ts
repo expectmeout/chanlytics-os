@@ -8,7 +8,7 @@ export {
   CHANNEL_KIND_WORDS,
   CHANNEL_ANSWERED,
 } from "./channels";
-export { callerSentence, lineOffGets, PHONE_LINE_OFF, WORKSPACE_PAUSED } from "./caller-gets";
+export { callerSentence, lineOffGets, PHONE_LINE_OFF, WORKSPACE_ENDED_WORDS, WORKSPACE_PAUSED } from "./caller-gets";
 export type { CallerGets } from "./caller-gets";
 export type { ChannelDto, ChannelPickable, ChannelHealth, ChannelVM } from "./channels";
 export {

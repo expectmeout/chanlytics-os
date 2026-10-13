@@ -34,8 +34,18 @@ export const VISIT_REFUSALS: Record<string, string> = {
  * drawn on the board, struck, and is none anywhere a visit is counted or said to be booked (Today's day, People's visits,
  * Ask's calendar).
  */
-export function visitStands(visit: Pick<VisitMark, "status"> | null | undefined): boolean {
+export function visitStands(visit: { status: string } | null | undefined): boolean {
   return visit?.status !== "cancelled";
+}
+
+/**
+ * Whether a sighting of a visit still stands for the same-visit rule (booking-notice.ts): not cancelled (visitStands) and,
+ * for the calendar's copy, still named by the calendar. A visit cancelled or gone at that time and booked again is a
+ * booking of its own, so the sweep's `twin` and the bell's told-once take only a sighting that stands. (The board still
+ * folds the copy of a cancelled booking: it draws the booking itself, struck.)
+ */
+export function sightingStands(row: { status: string; vanished_at?: string | null }): boolean {
+  return visitStands(row) && !row.vanished_at;
 }
 
 /** The word for a visit that has ended and nobody has said what became of: said once, by every page (D1-visit-match-words). */

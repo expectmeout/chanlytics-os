@@ -105,7 +105,8 @@ export interface BellRow {
 /**
  * What the surfaces this tab holds say still waits on the owner (contracts notice-closes.ts): the runs Sent holds, the booking emails
  * the Calendar's read holds, the reviews Google's read holds, each with when it was read, and none before it is. A booking email list
- * the card cut at its twenty (or never listed) is not the whole of them, and settles nothing.
+ * the card cut at its twenty (or never listed) is not the whole of them, and settles nothing; nor does one from a server that did not
+ * say each email's delivery, which is what the bell's row is about (the row's own id is the card's).
  */
 function whatWaits(): WhatWaits {
   // A value the tab kept from an earlier visit may predate a field: each is read only as the shape it is known to have.
@@ -119,8 +120,11 @@ function whatWaits(): WhatWaits {
         ? { readAt: sent.fetchedAt, held: new Map(sent.rows.map((r) => [r.id, r.state])) }
         : null,
     heldEmails:
-      calendar && Array.isArray(list) && list.length >= (calendar.vm.feed.notices.held ?? 0)
-        ? { readAt: calendar.fetchedAt, held: new Set(list.map((h) => h.id)) }
+      calendar &&
+      Array.isArray(list) &&
+      list.length >= (calendar.vm.feed.notices.held ?? 0) &&
+      list.every((h) => typeof h.noticeId === "string")
+        ? { readAt: calendar.fetchedAt, held: new Set(list.flatMap((h) => [h.id, h.noticeId ?? h.id])) }
         : null,
     reviews:
       google && Array.isArray(google.dto?.reviews)

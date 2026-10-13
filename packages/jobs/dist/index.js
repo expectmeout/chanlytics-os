@@ -246,6 +246,7 @@ import {
   eventTold,
   bookedVisitsOf,
   feedAdditionsWith,
+  twinTold,
   memberJoinedOf,
   noticeKept
 } from "../../db/dist/index.js";
@@ -877,10 +878,19 @@ async function bookingRead(ctx, job) {
     return;
   }
   const tz = await tenantZoneOf(db, job.tenant_id) ?? DEFAULT_TIMEZONE2;
+  let triedAndFailed = false;
+  let readerAnswered = false;
   const outcome = await readBookingNotice(
     {
       mayRead: (tenantId, at) => bookings.mayRead(tenantId, new Date(at)),
-      ask: (system, user) => bookings.ask(system, user, ctx.deadline, { tenantId: job.tenant_id, subjectId: receivedId }),
+      ask: async (system, user) => {
+        const answer = await bookings.ask(system, user, ctx.deadline, {
+          tenantId: job.tenant_id,
+          subjectId: receivedId
+        });
+        readerAnswered = true;
+        return answer;
+      },
       noticeOf: async (tenantId, noticeId) => {
         const row = await appointmentNoticeOf(db, tenantId, noticeId);
         return row ? ledgerOf(row) : null;
@@ -922,6 +932,7 @@ async function bookingRead(ctx, job) {
     const refused = err?.code === "23514";
     if (!refused && (job.attempts ?? 1) < MAX_ATTEMPTS) throw err;
     const reason = refused ? "unreadable" : "no_model";
+    triedAndFailed = !readerAnswered;
     await keepAppointmentNotice(db, {
       tenant_id: job.tenant_id,
       notice_id: receivedId,
@@ -952,13 +963,14 @@ async function bookingRead(ctx, job) {
   });
   if (outcome.startsWith("held:")) {
     const reason = outcome.slice("held:".length);
-    if (reason !== "no_model" && reason !== "may_not_spend")
+    if (triedAndFailed || reason !== "no_model" && reason !== "may_not_spend")
       await bookings.tell(job.tenant_id, {
         noticeId: receivedId,
         // The tool as the product says it ("Booksy"), the words the bell shows.
         tool: bookingToolName(notice.tool) ?? notice.tool,
         subject: e.subject,
-        reason: NOTICE_HOLD_WORDS[isNoticeHold(reason) ? reason : "unreadable"]
+        reason: NOTICE_HOLD_WORDS[isNoticeHold(reason) ? reason : "unreadable"],
+        hold: reason
       });
   } else if (outcome !== "already") {
     const mailboxId = typeof job.payload.mailbox_id === "string" ? job.payload.mailbox_id : null;
@@ -1294,6 +1306,7 @@ async function eventDeliver(ctx, job) {
     eventTold: (tenantId, eventId) => eventTold(ctx.db, { tenantId, eventId }),
     bookedVisits: (tenantId, ids, nowMs) => bookedVisitsOf(ctx.db, tenantId, ids, nowMs),
     feedAdditionsWith: (tenantId, event2) => feedAdditionsWith(ctx.db, tenantId, event2),
+    twinTold: (tenantId, appointmentId) => twinTold(ctx.db, tenantId, appointmentId),
     memberJoined: (tenantId, invitationId) => memberJoinedOf(ctx.db, tenantId, invitationId),
     memberTold: (tenantId, invitationId) => noticeKept(ctx.db, { tenantId, kind: "member_joined", subjectType: "invitation", subjectId: invitationId }),
     // The delivery is the event's workspace's job, so the runtime addresses the notice to it (job-alert.ts).

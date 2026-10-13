@@ -22,6 +22,7 @@
  * it gets a REDACTED platform notice instead, so the operator learns a tenant
  * needs configuring without the customer's words travelling to a stranger.
  */
+import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   forgetNotification,
@@ -82,13 +83,37 @@ export interface NotifyMessage {
    *  address. Must contain no customer content. Omit to send nothing at all. */
   redactedBody?: string;
   /** False keeps the row and sends the mail but tells no phone: for news about the phones themselves, whose push
-   *  would be the thing that failed (job-alert.ts). "after_mail" tells the phone only once the mail has gone: for a
-   *  notice a sweep raises again until its mail goes (the deadman), so a failing provider does not push it to every
-   *  phone on every tick (decision 0040). Unsaid, a kept row of a PUSH_KINDS kind is pushed at once, mail or not. */
-  push?: boolean | "after_mail";
+   *  would be the thing that failed (job-alert.ts). Unsaid, a kept row of a PUSH_KINDS kind is pushed at once, mail or
+   *  not; a notice told once (notifyOnce) is pushed with its row, once, however often its mail is tried. */
+  push?: boolean;
   /** The event this notice answers (decision 0043): kept on the row, unique, so a second delivery of it tells nobody. */
   sourceEvent?: string;
+  /**
+   * For a notice told once that no event raises, the name of what it answers (`deadman:<escalation>`): kept on the row in
+   * the event's place as a uuid made from the name (onceKeyId), unique as an event's is, so a sweep that asks again finds
+   * the row and sends only the mail it still owes (notifyOnce). Read by notifyOnce and notifyEvent alone.
+   */
+  onceKey?: string;
 }
+
+/** The namespace a once-only notice's name is made a uuid in (RFC 9562, name-based with SHA-1): fixed, and ours. */
+const ONCE_NAMESPACE = Buffer.from("8c3b2f6e4d7a4e1b9a5c0d2e3f4a5b6c", "hex");
+
+/**
+ * The uuid a once-only notice keeps in `source_event` (00419): made from its name, the same name always the same uuid,
+ * and never an event's (an event's id is random, version 4; this one is version 5).
+ */
+function onceKeyId(name: string): string {
+  const h = createHash("sha1").update(ONCE_NAMESPACE).update(name, "utf8").digest().subarray(0, 16);
+  h.writeUInt8((h.readUInt8(6) & 0x0f) | 0x50, 6);
+  h.writeUInt8((h.readUInt8(8) & 0x3f) | 0x80, 8);
+  const x = h.toString("hex");
+  return `${x.slice(0, 8)}-${x.slice(8, 12)}-${x.slice(12, 16)}-${x.slice(16, 20)}-${x.slice(20)}`;
+}
+
+/** What a told-once notice is kept under: the event it answers, else the uuid of its name, else nothing. */
+const keptUnder = (msg: NotifyMessage): string | undefined =>
+  msg.sourceEvent ?? (msg.onceKey ? onceKeyId(msg.onceKey) : undefined);
 
 export function platformFrom(): string | null {
   return env.LEAD_FROM || null;
@@ -314,15 +339,12 @@ export async function notify(target: NotifyTarget, msg: NotifyMessage, ports: No
     },
     db,
   );
-  if (kept && target.tenantId && msg.push !== false && msg.push !== "after_mail")
-    await schedulePush(target.tenantId, kept, db);
+  if (kept && target.tenantId && msg.push !== false) await schedulePush(target.tenantId, kept, db);
   // Mailed only if contracts keeps the kind for email and the business has not turned it off (emailsFor: the topics
   // Settings › Notifications draws, so what the page says is emailed is what is). A kind kept for the bell, or one the
   // business turned off, is a row and no more, and the row is the notice.
   if (!emailsFor(target.notifications, msg.kind)) return kept !== null;
-  const sent = await mailNotice(target, msg, ports, db);
-  if (sent && kept && target.tenantId && msg.push === "after_mail") await schedulePush(target.tenantId, kept, db);
-  return sent;
+  return mailNotice(target, msg, ports, db);
 }
 
 /** The mail half of a notice that is also kept: the mail, ending with the link to the page the notice names (openItLink). */
@@ -358,12 +380,13 @@ export async function notifyEvent(
 }
 
 /**
- * What finds a notice again when its mail is owed: the event it answers, else what it is about with its title. A notice
- * that names neither cannot be told from a new one on a second try.
+ * What finds a notice again when its mail is owed: the event it answers or the name it is told once under (keptUnder),
+ * else what it is about with its title. A notice that names none of them cannot be told from a new one on a second try.
  */
 function retryKey(tenantId: string, msg: NotifyMessage): Parameters<typeof noticeFor>[1] | null {
   const kind = keptKind(msg.kind);
-  if (msg.sourceEvent) return { tenantId, kind, sourceEvent: msg.sourceEvent };
+  const under = keptUnder(msg);
+  if (under) return { tenantId, kind, sourceEvent: under };
   if (msg.about?.type && msg.about.id)
     return { tenantId, kind, subjectType: msg.about.type, subjectId: msg.about.id, title: msg.subject.slice(0, 200) };
   return null;
@@ -417,7 +440,8 @@ async function keepThenMail(
     return true;
   }
   if (!(await mailNotice(target, msg, ports, db))) return false;
-  await owedNoMore(db, tenantId, kept);
+  // A retry's mail says the notice as it stands now: the row takes its words, so the bell says what the mail said.
+  await owedNoMore(db, tenantId, kept, earlier ? { title: msg.subject, body: msg.body } : undefined);
   return true;
 }
 
@@ -429,14 +453,19 @@ function noticeOf(msg: NotifyMessage, mailOwed: boolean): Parameters<typeof reco
     body: msg.body,
     route: msg.route,
     about: msg.about,
-    sourceEvent: msg.sourceEvent,
+    sourceEvent: keptUnder(msg),
     mailOwed,
   };
 }
 
 /** Say the notice's mail is done with. A row that could not be written leaves the mail owed: said, and never thrown. */
-async function owedNoMore(db: Db, tenantId: string, kept: { id: string; kind: string }): Promise<void> {
-  await mailSent(db, { tenantId, id: kept.id }).catch((e: unknown) =>
+async function owedNoMore(
+  db: Db,
+  tenantId: string,
+  kept: { id: string; kind: string },
+  words?: { title: string; body: string },
+): Promise<void> {
+  await mailSent(db, { tenantId, id: kept.id, ...(words ? { words } : {}) }).catch((e: unknown) =>
     logger({ tenant_id: tenantId }).error("notification_record_failed", { kind: kept.kind, error: errField(e) }),
   );
 }

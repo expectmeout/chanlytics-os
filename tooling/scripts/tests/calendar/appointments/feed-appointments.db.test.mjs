@@ -168,6 +168,125 @@ test(
 );
 
 test(
+  "an addition says what the bell asks of it (00419): the first read of a calendar says first; after it, a visit linked to a living person is named and one that is not is not; series and twin are the sweep's, and null from a sweep that did not say; a move says none of it",
+  { skip },
+  async () => {
+    const C = ok(
+      await db
+        .from("tenants")
+        .insert({ slug: `appt-c-${RUN}`, name: "Appointments c" })
+        .select("id")
+        .single(),
+    ).id;
+    try {
+      const soon = Date.now() + 5 * D;
+      const who = await person(C);
+      const said = { series: false, twin: false };
+      const factsOf = async (key) => {
+        const a = await kept(key, C);
+        const ev = ok(
+          await db
+            .from("events")
+            .select("data")
+            .eq("subject_id", a.id)
+            .eq("kind", "appointment.changed")
+            .order("created_at"),
+        );
+        return ev.map((e) => e.data);
+      };
+      const pick = (d) => [d.named, d.series, d.twin, d.first];
+
+      // The workspace's first read: every addition of it says so. (Its settings row, made with the workspace, keeps that a
+      // read was kept: tenant_config.calendar_feed_kept_at.)
+      await sync([row(`c-first-${RUN}`, soon, { contact_id: who, ...said })], { tenant: C });
+      const [first] = await factsOf(`c-first-${RUN}`);
+      assert.equal(first.change, "added");
+      assert.deepEqual(pick(first), [true, false, false, true]);
+
+      await sync(
+        [
+          row(`c-first-${RUN}`, soon, { contact_id: who, ...said }),
+          row(`c-booked-${RUN}`, soon + D, { contact_id: who, ...said }),
+          row(`c-staff-${RUN}`, soon + 2 * D, { series: true, twin: false }),
+          row(`c-copy-${RUN}`, soon + 3 * D, { contact_id: who, series: false, twin: true }),
+          row(`c-old-sweep-${RUN}`, soon + 4 * D, { contact_id: who }),
+        ],
+        { tenant: C },
+      );
+      assert.deepEqual(
+        pick((await factsOf(`c-booked-${RUN}`))[0]),
+        [true, false, false, false],
+        "a customer's booking",
+      );
+      assert.deepEqual(
+        pick((await factsOf(`c-staff-${RUN}`))[0]),
+        [false, true, false, false],
+        "the owner's staff meeting",
+      );
+      assert.deepEqual(pick((await factsOf(`c-copy-${RUN}`))[0]), [true, false, true, false], "a booking's copy");
+      assert.deepEqual(
+        pick((await factsOf(`c-old-sweep-${RUN}`))[0]),
+        [true, null, null, false],
+        "a sweep from before 00419 said neither: unknown",
+      );
+
+      // A move is the change alone.
+      await sync([row(`c-booked-${RUN}`, soon + D + 2 * H, { contact_id: who, ...said })], { tenant: C });
+      const moved = (await factsOf(`c-booked-${RUN}`)).at(-1);
+      assert.equal(moved.change, "moved");
+      assert.ok(!("named" in moved) && !("first" in moved), "only an addition carries the facts");
+    } finally {
+      await db.from("events").delete().eq("tenant_id", C);
+      await db.from("tenants").delete().eq("id", C);
+    }
+  },
+);
+
+test(
+  "REGRESSION: a calendar empty when it was connected has had its first read once that read is kept, so the first booking it later names is told as one (the review of the wiring's second audit, M2)",
+  { skip },
+  async () => {
+    const E = ok(
+      await db
+        .from("tenants")
+        .insert({ slug: `appt-e-${RUN}`, name: "Appointments e" })
+        .select("id")
+        .single(),
+    ).id;
+    try {
+      const keptAt = async () =>
+        ok(await db.from("tenant_config").select("calendar_feed_kept_at").eq("tenant_id", E).single())
+          .calendar_feed_kept_at;
+      assert.equal(await keptAt(), null, "never read");
+      // The read that follows connecting it names nothing in the season: the door answers that it was the first kept,
+      // and the sweep stamps it (packages/db control-plane.ts markCalendarFeedKept), as here.
+      const firstRead = await sync([], { tenant: E });
+      assert.equal(firstRead.first, true);
+      ok(
+        await db
+          .from("tenant_config")
+          .update({ calendar_feed_kept_at: new Date().toISOString() })
+          .eq("tenant_id", E)
+          .is("calendar_feed_kept_at", null),
+      );
+      const who = await person(E);
+      await sync([row(`e-booked-${RUN}`, Date.now() + 4 * D, { contact_id: who, series: false, twin: false })], {
+        tenant: E,
+      });
+      const a = await kept(`e-booked-${RUN}`, E);
+      const [added] = ok(
+        await db.from("events").select("data").eq("subject_id", a.id).eq("kind", "appointment.changed"),
+      ).map((e) => e.data);
+      assert.deepEqual([added.named, added.series, added.twin, added.first], [true, false, false, false]);
+      assert.equal((await sync([], { tenant: E })).first, false, "the door answers first once");
+    } finally {
+      await db.from("events").delete().eq("tenant_id", E);
+      await db.from("tenants").delete().eq("id", E);
+    }
+  },
+);
+
+test(
   "nothing is inferred from time (kept is step 8's, with a person's missed); outside the window a read covered nothing is vanished; a person who is not this workspace's or not living is no one's match; a title is never kept",
   { skip },
   async () => {

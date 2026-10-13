@@ -54,6 +54,14 @@ export const PHONE_LINE_OFF: CallerGets = {
 /** What a call to a paused workspace gets, on its own: the back office says only this (its reader is Chanlytics staff). */
 export const PAUSED_CALL = "calls are answered only to take a message";
 
+/**
+ * What ends with a workspace its last member leaves (00262: paused, its plan cancelled), as deleting an account says it
+ * before the press and the data-deletion page says it: its public pages are Not found (the public readers, left_empty_at),
+ * and a call to its number is still picked up to take a message, since its line goes back only by the lines sweep. Said
+ * from PAUSED_CALL, never "stops answering" (the wiring's second audit review, C1).
+ */
+export const WORKSPACE_ENDED_WORDS = `its receptionist stops replying to messages and ${PAUSED_CALL}, its plan is cancelled, and its public pages go offline`;
+
 /** A paused workspace: a call is answered only to take a message, and every other message waits for a person. */
 export const WORKSPACE_PAUSED: CallerGets = {
   state: "workspace_paused",

@@ -27,6 +27,7 @@ test("the notice of a booking email held for a person opens the Business row tha
     subject: "Your booking is confirmed",
     tool: "Calendly",
     reason: "it names no day",
+    hold: "no_time",
   });
   assert.equal(told, undefined, "best effort: the port answers nothing");
   assert.equal(tables.notifications.length, 1, "one row on the bell");
@@ -36,6 +37,27 @@ test("the notice of a booking email held for a person opens the Business row tha
   assert.equal(row.route, "admin/workspace/calendar");
   assert.deepEqual([row.subject_type, row.subject_id], ["booking_notice", NOTICE]);
   assert.equal(row.title, "A booking email needs a look");
+});
+
+test("REGRESSION: one delivery held again for the same reason (a Read again during an outage) keeps one row on the bell; held for another reason, it is news (the wiring's second audit review, H1)", async () => {
+  const tables = { notifications: [], jobs: [], tenants: [], tenant_config: [], tenant_channels: [] };
+  const reader = bookingReader(fakeDb(tables));
+  const held = (hold, reason) =>
+    reader.tell(T, { noticeId: NOTICE, subject: "Your booking", tool: "Calendly", reason, hold });
+  await held("no_model", "The reader was unavailable. Press Read again.");
+  await held("no_model", "The reader was unavailable. Press Read again.");
+  assert.equal(tables.notifications.length, 1, "the same hold of the same email: one row");
+  await held("no_time", "No appointment time could be read from it.");
+  assert.equal(tables.notifications.length, 2, "a new reason is news");
+  // Another workspace's delivery under the same id is its own notice.
+  await bookingReader(fakeDb(tables)).tell("cccccccc-cccc-4ccc-8ccc-cccccccccccc", {
+    noticeId: NOTICE,
+    subject: "Your booking",
+    tool: "Calendly",
+    reason: "No appointment time could be read from it.",
+    hold: "no_time",
+  });
+  assert.equal(tables.notifications.length, 3);
 });
 
 test("the bell opens that row for the one notice, and the Business tab for a kind of notice with none of its own", () => {

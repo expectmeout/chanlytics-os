@@ -563,6 +563,13 @@ const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base: string
 ]);
 
 /**
+ * What an export took: the workspace's file is its customer record, not everything it holds (the wiring's second audit,
+ * X1).
+ */
+const exportedWords = (what: string): string =>
+  what === "workspace" ? "the records" : what === "people" ? "everyone as a CSV" : `a ${what}`;
+
+/**
  * The sentence for a row: the kind's words, then the one or two fields a
  * reader wants and nothing else of the payload.
  */
@@ -623,7 +630,7 @@ export function activityWords(kind: string, payload: unknown): string {
     }
     case "export": {
       const what = textAt(p, "what");
-      if (what) bits.push(what === "workspace" ? "everything" : what === "people" ? "everyone as a CSV" : `a ${what}`);
+      if (what) bits.push(exportedWords(what));
       const rows = numberAt(p, "rows");
       if (rows !== null) bits.push(`${rows} rows`);
       break;
