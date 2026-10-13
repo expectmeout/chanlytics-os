@@ -30,6 +30,19 @@ export interface KeyDoors {
   canFind?: boolean;
   find?: () => void;
   call?: ((id: string) => void) | null;
+  /** Under Leads, while the pile is on (00426): A, L and N press its rail, Z undoes, Esc leaves it. */
+  pile?: { press: (key: "a" | "l" | "n") => void; undo: () => void; leave: () => void } | null;
+}
+
+/** The pile's keys: its rail's three, Undo, and the way out; false for any other key. */
+function pileKey(k: NonNullable<KeyDoors["pile"]>, e: KeyboardEvent): boolean {
+  const key = e.key.toLowerCase();
+  if (key === "a" || key === "l" || key === "n") k.press(key);
+  else if (key === "z") k.undo();
+  else if (key === "escape") k.leave();
+  else return false;
+  e.preventDefault();
+  return true;
 }
 
 /**
@@ -100,6 +113,7 @@ export function onPageKey(k: KeyDoors | null, e: KeyboardEvent): void {
   // Anything else open over the page has the keys: a menu, the notifications or a sidebar menu listens from when it
   // opens, after this listener, so it is still on the page as this one hears the key; the ? sheet takes its Esc.
   if (document.querySelector(PL_OVERLAY)) return;
+  if (k.pile && pileKey(k.pile, e)) return;
   if (e.key === "/") {
     e.preventDefault();
     k.focusSearch();

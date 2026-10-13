@@ -2160,6 +2160,57 @@
     },
     {
       "table": "reach_out_sends",
+      "name": "reach_out_sends_one_first",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "lead_id"
+        }
+      ],
+      "where": {
+        "and": [
+          {
+            "cmp": "=",
+            "left": {
+              "column": "playbook_id"
+            },
+            "right": {
+              "column": "root_id"
+            }
+          },
+          {
+            "not": {
+              "and": [
+                {
+                  "cmp": "=",
+                  "left": {
+                    "column": "state"
+                  },
+                  "right": {
+                    "value": "skipped"
+                  }
+                },
+                {
+                  "in": {
+                    "column": "reason"
+                  },
+                  "values": [
+                    "run_canceled",
+                    "owner_took_back"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "table": "reach_out_sends",
       "name": "reach_out_sends_pkey",
       "primary": true,
       "nullsNotDistinct": false,
@@ -2531,6 +2582,9 @@
     },
     "person_notes": {
       "source": "page"
+    },
+    "reach_out_sends": {
+      "state": "planned"
     }
   },
   "unmodelled": []

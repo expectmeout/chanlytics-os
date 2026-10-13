@@ -28,12 +28,15 @@ export const useLeadsRead = ({
   sortBy,
   sortDir,
   plFlash,
+  pileList = null,
 }: {
   leadView: LeadView;
   viewRoute: string;
   sortBy: string;
   sortDir: string;
   plFlash: Flash;
+  /** The pile's list (00426): under its sort, the list its adds go to, which the read puts with the decided. */
+  pileList?: string | null;
 }) => {
   useEffect(() => {
     void leadsView({
@@ -43,8 +46,9 @@ export const useLeadsRead = ({
       chips: {},
       sort: sortBy as LeadSort,
       dir: sortDir === "desc" ? "desc" : "asc",
+      pileList,
     });
-  }, [viewRoute, sortBy, sortDir]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [viewRoute, sortBy, sortDir, pileList]); // eslint-disable-line react-hooks/exhaustive-deps
   // The next page, its own flag, so the button says Loading… while THIS is out and not while a Keep is, and a second press
   // while it loads asks for nothing.
   const [leadsMoreBusy, setLeadsMoreBusy] = useState(false);

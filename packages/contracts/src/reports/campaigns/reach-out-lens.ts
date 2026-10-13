@@ -61,6 +61,8 @@ export interface ReachOutLensSourceLine {
   wroteBack: string;
   interested: string;
   booked: string;
+  /** Won (00426): a dash on a database before it. */
+  won: string;
   saidNo: string;
   bounced: string;
   last: string;
@@ -246,7 +248,7 @@ function emailsPart(dto: ReachOutReportDto, when: WhenWords): MixPartVM {
 
 /** The businesses written to and what came of each: a share of the businesses, from five. */
 function businessesPart(dto: ReachOutReportDto, when: WhenWords): MixPartVM {
-  const { wrote_back, interested, booked, said_no } = dto.totals;
+  const { wrote_back, interested, booked, won, said_no } = dto.totals;
   const businesses = countedBusinesses(dto.totals);
   if (businesses === undefined) return noMix(NO_BUSINESSES);
   if (businesses === 0) return noMix(`No business was written to ${when.these}.`);
@@ -255,13 +257,15 @@ function businessesPart(dto: ReachOutReportDto, when: WhenWords): MixPartVM {
     ["wrote_back", "Wrote back", wrote_back],
     ["interested", "Interested", interested],
     ["booked", "Booked", booked],
+    // Won (00426): a deal naming the business, won; not said where the database does not count it.
+    ...(isCount(won) ? ([["won", "Won", won]] as MixEntry[]) : []),
     ["said_no", "Said no", said_no],
   ];
   const shares =
     businesses >= REPORT_MIN_N
       ? `: ${pct(wrote_back, businesses)}% wrote back and ${pct(interested, businesses)}% were interested`
       : "";
-  const line = `Of ${plural(businesses, "business", "businesses")} written to ${when.within}${shares}. Each counts once, at the last email that wrote to it; a question counts as interested. Who wrote back, was interested, booked or said no is as it stands now.`;
+  const line = `Of ${plural(businesses, "business", "businesses")} written to ${when.within}${shares}. Each counts once, at the last email that wrote to it; a question counts as interested. Who wrote back, was interested, booked${isCount(won) ? ", won" : ""} or said no is as it stands now.`;
   return mixOf(entries, line);
 }
 
@@ -330,6 +334,7 @@ function cellsOf(c: ReachOutReportCounts, businesses: number | undefined) {
     wroteBack: answered,
     interested: String(c.interested),
     booked: String(c.booked),
+    won: isCount(c.won) ? String(c.won) : DASH,
     saidNo: String(c.said_no),
     bounced: String(c.bounced),
   };
@@ -342,6 +347,7 @@ const HAND_CELLS = {
   wroteBack: DASH,
   interested: DASH,
   booked: DASH,
+  won: DASH,
   saidNo: DASH,
   bounced: DASH,
 };
@@ -359,7 +365,8 @@ function summed(steps: ReachOutReportStepDto[]): ReachOutReportCounts {
     total.said_no += s.said_no;
     total.handed += s.handed;
   }
-  return total;
+  // Won is summed only where every step counted it (a database before 00426 counts none: a dash, not a zero).
+  return steps.every((s) => isCount(s.won)) ? { ...total, won: sumOf(steps.map((s) => s.won ?? 0)) } : total;
 }
 
 /**

@@ -1034,6 +1034,7 @@ test("the sources say a business once: the Businesses column, a door on a reach-
     "Wrote back",
     "Interested",
     "Booked",
+    "Won",
     "Said no",
     "Bounced",
     "Last",
@@ -1051,6 +1052,7 @@ test("the sources say a business once: the Businesses column, a door on a reach-
     l.wroteBack,
     l.interested,
     l.booked,
+    l.won,
     l.saidNo,
     l.bounced,
     l.last,
@@ -1083,6 +1085,7 @@ test("the sources say a business once: the Businesses column, a door on a reach-
     "Wrote back",
     "Interested",
     "Booked",
+    "Won",
     "Said no",
     "Bounced",
   ]);

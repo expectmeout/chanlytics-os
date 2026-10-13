@@ -461,6 +461,40 @@ test("a reach-out's numbers: written, businesses and wrote back from its own tot
   );
 });
 
+test("a reach-out's People cell is who is in it now (00426): its waiting and writing in words, sorted by both, the done alone where nobody else is left, — where not counted; its hint says what feeds it and its steps in words", () => {
+  const call = { hand: { kind: "call", words: "Ring them" } };
+  const note = { hand: { kind: "note", words: "Drop by" } };
+  const l = ledger({
+    reachOuts: [
+      chain("ro-list", { fed_by: "list", people: { waiting: 17, writing: 9, done: 5 }, steps: [{}, {}, {}, call] }),
+      chain("ro-search", { fed_by: "search", people: { waiting: 0, writing: 5, done: 2 } }),
+      chain("ro-done", { people: { waiting: 0, writing: 0, done: 4 }, steps: [{}, call, note] }),
+      chain("ro-none", { people: { waiting: 0, writing: 0, done: 0 }, steps: [{}, call, call] }),
+      chain("ro-failed", { people: null }),
+      chain("ro-old"),
+    ],
+  });
+  const at = (id) => row(l, id);
+  assert.deepEqual(at("ro-list").people, { n: 26, unit: "businesses", words: "17 waiting · 9 writing" });
+  assert.equal(at("ro-list").hint, "Its own list · 3 emails and a call", "a list its owner adds to");
+  assert.equal(
+    C.ledgerPeopleWords(at("ro-list").people),
+    "17 waiting · 9 writing",
+    "the phone's line and the fold say it",
+  );
+  assert.match(C.ledgerPhoneLine(at("ro-list"), "Reach-outs"), /17 waiting · 9 writing$/);
+  assert.equal(at("ro-search").people.words, "5 writing", "nobody waiting: not said");
+  assert.equal(at("ro-search").hint, "Cold email to Trainers · 2 emails", "a search's says the search");
+  assert.equal(at("ro-done").people.words, "4 done");
+  assert.equal(at("ro-done").hint, "Cold email to Trainers · 1 email, a call and a note");
+  assert.equal(at("ro-none").people.words, "Nobody yet");
+  assert.equal(at("ro-none").hint, "Cold email to Trainers · 1 email and 2 calls");
+  for (const id of ["ro-failed", "ro-old"]) {
+    assert.deepEqual(at(id).people, { n: null, unit: "businesses" }, `${id}: never a zero nobody counted`);
+    assert.equal(C.ledgerPeopleWords(at(id).people), null);
+  }
+});
+
 test("the sort keys: Next puts a waiting run first, then the soonest, paused last; Name; People now; Replied", () => {
   const mk = (id, over) => ({
     id,

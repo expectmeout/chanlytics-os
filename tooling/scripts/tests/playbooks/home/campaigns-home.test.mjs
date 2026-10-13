@@ -71,6 +71,7 @@ const { setSurfaceValue, surfaceValue } = await import(`${SRC}/surfaces/surface-
 const { standingSaid } = await import(`${SRC}/surfaces/kit/head/standing.ts`);
 const { PlaybookPane } = await import(`${SRC}/surfaces/campaigns/playbooks/card-detail.tsx`);
 const { PlaybookComposer } = await import(`${SRC}/surfaces/campaigns/playbooks/composer.tsx`);
+const { WriteToLeads } = await import(`${SRC}/surfaces/campaigns/reach-out/sources.tsx`);
 const { ReachOutPane } = await import(`${SRC}/surfaces/campaigns/reach-out/row.tsx`);
 const { PaneSheet } = await import(`${SRC}/surfaces/campaigns/home/pane-sheet.tsx`);
 const { Segmented } = await import(`${SRC}/surfaces/kit/segmented/segmented.tsx`);
@@ -777,7 +778,7 @@ test("a link to a playbook that is gone says so once the chains were read, and a
   assert.equal(sheet(tree).props.title, "Reach-outs", "the drawer's kicker is the campaign's group");
 });
 
-test("New message hosts the send screen under Send once and the playbook composer under Every time", () => {
+test("New message hosts the send screen under Send once, the playbook composer under Every time, and where a reach-out starts under Write to leads", () => {
   surfaces();
   fresh();
   const once = page("new");
@@ -791,6 +792,7 @@ test("New message hosts the send screen under Send once and the playbook compose
     [
       ["once", "Send once"],
       ["every", "Every time"],
+      ["leads", "Write to leads"],
     ],
   );
   seg.props.onValueChange("every");
@@ -799,6 +801,13 @@ test("New message hosts the send screen under Send once and the playbook compose
   const every = page("new:every");
   assert.equal(find(sheet(every).props.tools, (n) => n.type === Segmented).props.value, "every");
   assert.ok(find(every, (n) => n.type === PlaybookComposer));
+  fresh();
+  const leads = page("new:leads");
+  assert.equal(find(sheet(leads).props.tools, (n) => n.type === Segmented).props.value, "leads");
+  assert.ok(
+    find(leads, (n) => n.type === WriteToLeads),
+    "the reach-out's sources, read when it is chosen",
+  );
 });
 
 test("Turn on lands the composer on its moment, and a playbook changed has no choice of kind", () => {

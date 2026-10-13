@@ -568,6 +568,29 @@
       }
     },
     {
+      "why": "Which reach-out a lead is with (00426 lead_chain_of, which leads_page's chain_id and the pile's order read): the reach-out's playbook and its first sends. A reach-out made from a list, added to or taken back re-reads Leads in the writer's tab (refresh-map.ts: POST reach-outs, POST reach-outs/[id]/leads, POST lead-operations/[id]/undo); a send leaving is read on the next read. Hearing every playbook would re-read Leads on each run's stamp.",
+      "reads": {
+        "leads": [
+          "playbooks",
+          "reach_out_sends"
+        ]
+      }
+    },
+    {
+      "why": "Won (00426): a deal naming its lead, won, counted once in the reach-outs' report and in each reach-out's People cell (reach_out_report, reach_out_people_counts over reach_out_people_of). A deal moved on a person's page re-reads neither; they are read again when their page opens. Owed: hear the deal kind on their page.",
+      "reads": {
+        "campaign_results": [
+          "deals"
+        ],
+        "reach_outs": [
+          "deals"
+        ],
+        "reports_campaigns": [
+          "deals"
+        ]
+      }
+    },
+    {
       "why": "The emails the check holds in a going reach-out run, counted beside each run of Sent (withHeld over heldSendCounts, the wiring's second audit W-campaign-run-template-reachout-4). A held email is decided on the run's page (POST reach-out-sends/[id]/decide) or sent to be checked again (POST broadcasts/[id]/recheck), writes whose rows re-read Sent; the check that holds one ticks the run's own row, which the feed tells. The feed does not tell reach_out_sends, which a run writes once for each email.",
       "reads": {
         "broadcasts": [

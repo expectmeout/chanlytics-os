@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-248 handlers in 48 domains.
+255 handlers in 48 domains.
 
 ## activity
 
@@ -800,7 +800,7 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 
 ### `POST /api/v1/lead-operations/[id]/undo`
 
-Writes; for a member of the workspace the request names, partner or above; counts against the `lead_member` rate; spends nothing.
+Writes; for a member of the workspace the request names, operator or above; counts against the `lead_member` rate; spends nothing.
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
@@ -930,11 +930,12 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 | `list` | one of `"all"`, `"ready"`, `"nurture"`, `"converted"`, `"said_no"`, `"not_a_fit"` | no |  |
 | `search` | string (uuid) | no |  |
 | `class` | one of `"qualified"`, `"review"`, `"excluded"` | no |  |
-| `sort` | one of `"fit"`, `"found"`, `"distance"`, `"business"`, `"rating"`, `"stage"` | no |  |
+| `sort` | one of `"fit"`, `"found"`, `"distance"`, `"business"`, `"rating"`, `"stage"`, `"pile"` | no |  |
 | `dir` | one of `"asc"`, `"desc"` | no |  |
 | `after_key` | string | no | at most 80 characters |
 | `after_id` | string (uuid) | no |  |
 | `limit` | integer | no | ≥ 1; ≤ 500 |
+| `pile_list` | string (uuid) | no |  |
 
 ### `GET /api/v1/leads/[id]`
 
@@ -970,6 +971,14 @@ Writes; for a member of the workspace the request names, partner or above; count
 ### `POST /api/v1/leads/[id]/keep`
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `lead_member` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `search_id` | string (uuid) | yes |  |
+
+### `POST /api/v1/leads/[id]/later`
+
+Writes; for a member of the workspace the request names, operator or above; counts against the `lead_member` rate; spends nothing.
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
@@ -1024,6 +1033,12 @@ Body 5:
 | --- | --- | --- | --- |
 | `kind` | `"emailed"` | yes |  |
 
+### `GET /api/v1/leads/back`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/leads/back/route.ts`).
+
 ### `POST /api/v1/leads/bulk`
 
 Writes; for a member of the workspace the request names, operator or above; counts against the `lead_bulk` rate; spends nothing.
@@ -1064,8 +1079,9 @@ Writes; for a member of the workspace the request names, owner or above; counts 
 | `list` | one of `"all"`, `"ready"`, `"nurture"`, `"converted"`, `"said_no"`, `"not_a_fit"` | no |  |
 | `search` | string (uuid) | no |  |
 | `class` | one of `"qualified"`, `"review"`, `"excluded"` | no |  |
-| `sort` | one of `"fit"`, `"found"`, `"distance"`, `"business"`, `"rating"`, `"stage"` | no |  |
+| `sort` | one of `"fit"`, `"found"`, `"distance"`, `"business"`, `"rating"`, `"stage"`, `"pile"` | no |  |
 | `dir` | one of `"asc"`, `"desc"` | no |  |
+| `pile_list` | string (uuid) | no |  |
 
 ## lines
 
@@ -1691,6 +1707,38 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/reach-outs/[id]/route.ts`).
 
+### `POST /api/v1/reach-outs/[id]/leads`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `lead_member` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `lead_ids` | array of string (uuid) | yes | at least 1; at most 500 |
+
+### `POST /api/v1/reach-outs/[id]/leads/check`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `lead_member` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `lead_ids` | array of string (uuid) | yes | at least 1; at most 500 |
+
+### `POST /api/v1/reach-outs/[id]/leads/leave`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `lead_member` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `lead_id` | string (uuid) | yes |  |
+
+### `GET /api/v1/reach-outs/[id]/people`
+
+Reads; for a member of the row's own workspace; no rate bucket; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `limit` | integer | no | ≥ 1; ≤ 200 |
+
 ### `GET /api/v1/reach-outs/leads`
 
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
@@ -1726,6 +1774,12 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `search` | string (uuid) | yes |  |
+
+### `GET /api/v1/reach-outs/sources`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/reach-outs/sources/route.ts`).
 
 ## reports
 

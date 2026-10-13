@@ -36,6 +36,15 @@ const SENT = { label: "Sent", to: "broadcasts" };
 test("the home's address says a moment open, or the composer, and spells back to the same words", () => {
   assert.deepEqual(parseHome(null), { group: null, moment: null, message: null, compose: null });
   assert.deepEqual(parseHome("moment:pb-1"), { group: null, moment: "pb-1", message: null, compose: null });
+  // A reach-out open at who is in it (00426): the part is the address's, spelled back; any other part is its top.
+  assert.deepEqual(parseHome("moment:ro-1:people"), {
+    group: null,
+    moment: "ro-1",
+    part: "people",
+    message: null,
+    compose: null,
+  });
+  assert.deepEqual(parseHome("moment:ro-1:elsewhere"), parseHome("moment:ro-1"));
   assert.deepEqual(parseHome("new"), { group: null, moment: null, message: null, compose: { mode: "once", to: null } });
   assert.deepEqual(
     parseHome("new:to:s1"),
@@ -74,6 +83,9 @@ test("the home's address says a moment open, or the composer, and spells back to
   for (const odd of ["surprise", "moment:", "message:", "new:edit:", "run:b-1", ""])
     assert.deepEqual(parseHome(odd), parseHome(null), odd);
   assert.equal(momentRoute("pb-1"), "campaigns/moment:pb-1");
+  // Write to leads, New message's third choice (00426), spelled as it is read.
+  assert.equal(composeRoute("leads"), "campaigns/new:leads");
+  assert.deepEqual(parseHome("new:leads"), { group: null, moment: null, message: null, compose: { mode: "leads" } });
   assert.equal(composeRoute("once"), "campaigns/new");
   assert.equal(composeRoute("once", { to: "s1" }), "campaigns/new:to:s1");
   assert.equal(composeRoute("once", { to: null }), "campaigns/new", "none named");

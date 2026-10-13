@@ -6355,3 +6355,81 @@ div.tpl-slotbox:not([data-lines="1"]) {
     inset: 0 -7px;
   }
 }
+
+/* Who is in a reach-out (00426): its drawer's People, three groups, each lead a door to its peek on Leads. */
+.ro-people {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.ro-people-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 12px;
+}
+.ro-people-head h3 {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.ro-people-head span {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+.ro-people-group h4 {
+  margin: 0 0 4px;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--ink-muted);
+}
+.ro-people-group h4 span {
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+.ro-people-group ul {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ro-people-group li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px 12px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+  font-size: var(--text-sm);
+}
+.ro-people-group li > a:first-child {
+  grid-column: 1;
+  color: var(--ink);
+  text-decoration: none;
+}
+.ro-people-group li > a:first-child:hover {
+  text-decoration: underline;
+}
+.ro-people-group li > span:nth-child(2) {
+  grid-column: 1;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+/* A row's door (person-door.tsx) stands at its end beside both lines; Stop writing's question takes the row's width. */
+.ro-person-door {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  justify-self: end;
+}
+.ro-person-ask {
+  grid-column: 1 / -1;
+}
+.ro-people-came {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}

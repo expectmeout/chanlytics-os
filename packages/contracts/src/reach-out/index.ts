@@ -117,6 +117,7 @@ export type {
   ReachOutNextFacts,
   ReachOutMailboxFacts,
   ReachOutChainDto,
+  ReachOutPeopleCountsDto,
   ReachOutStepCounts,
   ReachOutRunLine,
   ReachOutChainReportDto,
@@ -237,7 +238,7 @@ export {
   replyFromLineOf,
   replyLeftAsOf,
 } from "./reach-out-reply-words";
-export { ReachOutRepliesQuerySchema } from "./reach-out-schemas";
+export { ReachOutRepliesQuerySchema, ReachOutAddSchema } from "./reach-out-schemas";
 export type {
   ReplyUndoRefusal,
   ReplyFrom,
@@ -246,7 +247,7 @@ export type {
   ReplyStrip,
   ReplyDoor,
 } from "./reach-out-reply-words";
-export type { ReachOutRepliesQuery } from "./reach-out-schemas";
+export type { ReachOutRepliesQuery, ReachOutAddInput } from "./reach-out-schemas";
 export { replyRowOf, withReplies, withoutWrongPerson, bellActionOf } from "./reach-out-reply-today";
 export type {
   ReplyIntent,
@@ -267,6 +268,17 @@ export {
   reachOutTimelineOf,
   reachOutPersonOf,
   REACH_OUT_STOP_WORDS,
+  reachOutStandingOf,
+  reachOutWhenOf,
+  reachOutAddWords,
+  reachOutPeopleRoute,
+  reachOutCameWords,
+  askedDayOf,
+  reachOutSourceOf,
+  REACH_OUT_SOURCE_WORDS,
+  REACH_OUT_WHY_NOT,
+  REACH_OUT_WHY_NOT_WORDS,
+  REACH_OUT_ADD_WORDS,
 } from "./reach-out-leads";
 export type {
   ReachOutLineReplyDto,
@@ -281,4 +293,13 @@ export type {
   ReachOutStoryLine,
   ReachOutTimelineVM,
   ReachOutPersonVM,
+  ReachOutFedBy,
+  ReachOutChainStepDto,
+  ReachOutTimelineChainDto,
+  ReachOutStandingVM,
+  ReachOutWhyNot,
+  ReachOutAddLeadDto,
+  ReachOutAddDto,
+  ReachOutChainPeopleDto,
+  ReachOutSourceDto,
 } from "./reach-out-leads";

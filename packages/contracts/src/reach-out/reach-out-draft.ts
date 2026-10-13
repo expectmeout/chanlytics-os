@@ -224,7 +224,8 @@ export function previewRefusedWords(reason: string): string {
     case "unknown_slot":
       return "Your words name a slot that isn't one of the six.";
     case "missing_value":
-      return "This business is missing a value your words name, so its email would wait.";
+      // The send door skips that one email (edge request.ts: missing_value), never holds it: it would not wait.
+      return "This business is missing a value your words name, so its email would be skipped.";
     case "no_business_address":
       return "Add your business's address in Settings › Business: every email carries it at the foot.";
     default:

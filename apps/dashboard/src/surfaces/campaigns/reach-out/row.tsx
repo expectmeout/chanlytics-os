@@ -24,6 +24,7 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { StatePill } from "../../kit/pill/state-pill";
 import { CmPane, useCmPhone } from "../parts/split";
 import { reachOuts } from "./surface";
+import { ReachOutPeople } from "./people";
 import { ReachOutSheet } from "./sheet";
 
 type Words = typeof reachOuts.words;
@@ -259,10 +260,14 @@ interface OpenProps {
   acts: ReactNode;
   editing: boolean;
   onEditDone: () => void;
+  /** The part the address opens at: its People, scrolled to once they are read. */
+  at: "people" | null;
+  /** The toast, for what a person's door in its People did. */
+  flash: Flash | undefined;
 }
 
 /** The open row: the chain's path, its report as read, and its acts where the body holds them. */
-function ReachOutOpen({ chain, canAct, W, read, retry, said, acts, editing, onEditDone }: OpenProps) {
+function ReachOutOpen({ chain, canAct, W, read, retry, said, acts, editing, onEditDone, at, flash }: OpenProps) {
   const RW = W.REACH_OUT_ROW_WORDS;
   return (
     <div className="ro-open" data-testid="ro-open-body">
@@ -276,6 +281,8 @@ function ReachOutOpen({ chain, canAct, W, read, retry, said, acts, editing, onEd
         <FailedRead kind="line" what={RW.failed} onRetry={retry} testid="ro-failed" />
       )}
       {said && <ReachOutReport said={said} />}
+      {/* Who is in it (00426): waiting, writing and done, each a door to the lead; a list-fed one takes more. */}
+      {chain.search ? <ReachOutPeople chain={chain} focus={at === "people"} flash={flash} /> : null}
       {acts}
       {/* Who may is the role store's one answer (contracts roleGate, a partner included), never a copy of it. */}
       {!canAct && (
@@ -295,6 +302,8 @@ interface PaneProps {
   onClose: () => void;
   /** The host's Edit: it opens the chain's sheet where the pane's own would stand under a modal. */
   onEdit?: (chain: ReachOutChainDto) => void;
+  /** The part the address opens at (`moment:<id>:people`). */
+  at?: "people" | null;
 }
 
 /**
@@ -302,7 +311,7 @@ interface PaneProps {
  * On a phone its acts are the pane's foot, Edit and Pause an equal pair a thumb reaches, as a playbook's drawer has them
  * (Ruben, 11 Oct 2026: two small buttons stood in the body under the report), and its head has no glyph.
  */
-export function ReachOutPane({ chain, canAct, flash, onClose, onEdit }: PaneProps) {
+export function ReachOutPane({ chain, canAct, flash, onClose, onEdit, at = null }: PaneProps) {
   const W = reachOuts.words;
   const pace = W.chainPaceOf(chain);
   const phone = useCmPhone();
@@ -349,6 +358,8 @@ export function ReachOutPane({ chain, canAct, flash, onClose, onEdit }: PaneProp
         acts={phone && canAct ? null : acts}
         editing={editing}
         onEditDone={() => setEditing(false)}
+        at={at}
+        flash={flash}
       />
     </CmPane>
   );

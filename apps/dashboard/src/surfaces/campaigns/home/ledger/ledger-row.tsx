@@ -24,8 +24,12 @@ export function resultsWords(r: LifecycleRow, W: Words): { words: string; dim: b
   return { words: W.results(r.results), dim: typeof r.results !== "object" };
 }
 
-/** Who is at a row's moment now, or a dash where it was not counted: never a zero nobody counted. */
-const peopleWords = (r: LifecycleRow, W: Words): string => (r.people.n === null ? W.dash : String(r.people.n));
+/**
+ * Who is at a row's moment now, or a dash where it was not counted: never a zero nobody counted. A row that says more than
+ * one number (a reach-out's waiting and writing) says its words.
+ */
+const peopleWords = (r: LifecycleRow, W: Words): string =>
+  r.people.words ?? (r.people.n === null ? W.dash : String(r.people.n));
 
 /**
  * A row's name: its door where it opens something (a drawer, the call's text's message in its own, a run, the

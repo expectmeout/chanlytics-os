@@ -10,6 +10,7 @@ import {
   leadNamesByIds,
   outreachModeOf,
   reachOutAudience,
+  reachOutFedByOf,
   reachOutFollowers,
   workspaceMaySpend,
   type Database,
@@ -35,9 +36,9 @@ const firstWords = (tz: string, atMs: number): string =>
   );
 
 /**
- * The step as the verb reads it: its chain's root, and the chain's state (a paused root pauses every step of it). A
- * hand step (00228) has its hand and no template. Null when its root cannot be found within a chain's length, or the
- * row is neither.
+ * The step as the verb reads it: its chain's root, the chain's state (a paused root pauses every step of it), and what
+ * feeds it (the root's search: a list of via chosen or import, else the finder's, 00426). A hand step (00228) has its
+ * hand and no template. Null when its root cannot be found within a chain's length, or the row is neither.
  */
 async function stepOf(db: Db, row: ReachOutRow): Promise<ReachOutStep | HandStep | null> {
   let root = row;
@@ -53,6 +54,7 @@ async function stepOf(db: Db, row: ReachOutRow): Promise<ReachOutStep | HandStep
     root = data;
   }
   if (root.after_playbook_id) return null;
+  const fedBy = await reachOutFedByOf(db, row.tenant_id, root.lead_search_id);
   const common: Omit<HandStep, "hand"> = {
     id: row.id,
     root_id: root.id,
@@ -61,6 +63,7 @@ async function stepOf(db: Db, row: ReachOutRow): Promise<ReachOutStep | HandStep
     trigger: row.trigger === "after_step" ? "after_step" : "lead_first",
     state: row.state === "running" && root.state === "running" ? "running" : "paused",
     lead_search_id: row.lead_search_id,
+    fed_by: fedBy,
     include_unconfirmed: root.include_unconfirmed === true,
     after_playbook_id: row.after_playbook_id,
     after_days: row.after_days,

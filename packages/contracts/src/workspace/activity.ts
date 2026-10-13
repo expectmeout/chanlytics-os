@@ -101,6 +101,8 @@ export const ACTIVITY_NOISE_PREFIXES = ["usage.", "webhook.", "ingest."] as cons
 export const ACTIVITY_NOISE_KINDS = [
   "escalation.changed",
   "lead.set_aside",
+  // Later, in a pass of the pile (00426): a soft word for this sitting, not a decision the owner reads back.
+  "lead.later",
   // The ideas for a search, written or asked for again (00400): how often is Reports', not the owner's day.
   "lead.ideas_written",
   "call.transferred",
@@ -217,9 +219,12 @@ const WORDS: Record<string, string> = {
   "member.left": "Left the workspace",
   "reach_out.lead_stopped": "A reach-out stopped writing to a lead",
   "reach_out.send_decided": "A held reach-out email was decided",
+  "reach_out.lead_added": "Leads were added to a reach-out",
+  "reach_out.lead_taken_back": "Leads were taken back from a reach-out",
   "lead.kept": "A lead was kept from Needs review",
   "lead.excluded": "A lead was left out of Needs review",
   "lead.put_back": "A lead was put back in Needs review",
+  "lead.later": "A lead was put off for later",
   "lead.search_renamed": "A search was renamed",
   "lead.search_removed": "A search was removed",
   "contact.kept_apart": "Two records were kept as two people",

@@ -122,6 +122,10 @@ function agoShort(atMs, nowMs) {
   return spanLabel(nowMs - atMs);
 }
 
+// src/leads/lead-words.ts
+var LEAD_VIEW_SORTS = ["fit", "found", "distance", "business", "rating", "stage"];
+var LEAD_SORTS = [...LEAD_VIEW_SORTS, "pile"];
+
 // src/leads/lead-plan.ts
 var LEAD_QUESTION_WAIT_LINE = "Nothing is spent while this waits. With no answer in a day, it stops and keeps what it found.";
 

@@ -15,7 +15,7 @@ import { MIN_MS } from "../shared/time";
 import { personName } from "../people/person-name";
 import type { PersonBusinessDto, PersonSignerDto } from "../people/person-dto";
 import type { PersonRowVM } from "../people/person-row";
-import type { ReachOutLeadTimelineDto } from "../reach-out/reach-out-leads";
+import { reachOutStandingOf, type ReachOutLeadTimelineDto } from "../reach-out/reach-out-leads";
 import { BUSINESS_DOOR_LABEL, PERSON_NAME_WORDS, WORKS_AT_WORDS, type NameSource } from "./words";
 
 /** A face as the page draws it: a person's initials, or a business's tile (its tint and the listing's photo). */
@@ -224,20 +224,6 @@ export interface BusinessRecordVM {
   to: string;
 }
 
-/** What the reach-out did, in one line: "stopped Oct 6, read as interested", "writing", "said no Oct 6". */
-function reachOutLineOf(t: ReachOutLeadTimelineDto, tz: string, nowMs: number): string {
-  const day = (iso: string | null) =>
-    iso && Number.isFinite(Date.parse(iso)) ? clockDate(Date.parse(iso), tz, nowMs) : null;
-  const reading = t.readings.find((r) => !r.undone) ?? null;
-  const read = reading
-    ? `read as ${reading.intent === "not_now" ? "not now" : reading.intent.replace(/_/g, " ")}`
-    : null;
-  const stopped = day(t.stopped_at);
-  if (stopped) return [`stopped ${stopped}`, read].filter(Boolean).join(", ");
-  if (t.chain?.state === "active" || t.can_stop) return "still writing";
-  return read ?? "";
-}
-
 /**
  * The business sheet of a person who works somewhere (whose page it is, and the reach-out that wrote to it), built on
  * Leads' own peek view model.
@@ -287,7 +273,8 @@ export function businessRecordOf(
     reachOut: reachOut?.chain
       ? {
           chain: reachOut.chain.name,
-          line: reachOutLineOf(reachOut, tz, nowMs),
+          // Where the business stands in it, said once for every page (00426): never "still writing" after an answer.
+          line: reachOutStandingOf(reachOut, nowMs, tz)?.line ?? "",
           to: reachOut.conversation_id ? `inbox/th-${reachOut.conversation_id}` : null,
         }
       : null,

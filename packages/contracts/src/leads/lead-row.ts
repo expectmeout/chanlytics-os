@@ -156,6 +156,9 @@ export interface LeadRowVM {
   card: LeadRowCard;
   /** Where it sits, when the door gave coordinates. */
   point: { lat: number; lng: number } | null;
+  /** The pile's facts (00426): the reach-out it goes with (lead_chain_of) and when it was put off (Later). */
+  chainId?: string | null;
+  laterAt?: string | null;
 }
 
 /** A key from a plan ("chain", "wrong_kind") as a person would read it. */
@@ -342,6 +345,12 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
     card,
     point: typeof r.lat === "number" && typeof r.lng === "number" ? { lat: r.lat, lng: r.lng } : null,
   };
+}
+
+/** A row as Leads publishes it: its words (toLeadRowVM) and the pile's facts (00426), the reach-out it goes with and when
+ * it was put off in this pass. */
+export function leadRowOf(r: LeadRowDto, tz: string, now: Date, search: LeadSearchDto | null = null): LeadRowVM {
+  return { ...toLeadRowVM(r, tz, now, search), chainId: r.chain_id ?? null, laterAt: r.member.later_at ?? null };
 }
 
 /** A round that is still going; one waiting on the owner is its own mark. */

@@ -4,6 +4,7 @@
  */
 import {
   AppError,
+  REACH_OUT_ADD_WORDS,
   estimateRoundUsd,
   LEAD_ASSUMED_YIELD,
   LEAD_PROBE_PLACES,
@@ -48,6 +49,10 @@ export interface DoorAnswer {
   round_id?: string;
   op_id?: string;
   version?: number;
+  /** lead_undo of an add (00426): leads taken back off the list, and those whose email is on its way or gone. */
+  taken?: number;
+  leaving?: number;
+  sent?: number;
 }
 
 /** The jsonb a door answers, as an object; anything else is an empty answer. */
@@ -61,6 +66,9 @@ const MEMBER_NOW: Record<string, string> = {
   review: "in Needs review",
   excluded: "left out",
 };
+
+/** An add taken back too late (lead_undo, 00426): its email is on its way, or gone; Stop writing is the correction. */
+const TOO_LATE = { on_its_way: REACH_OUT_ADD_WORDS.onItsWay, sent: REACH_OUT_ADD_WORDS.sent } as const;
 
 /** A door's refusal, in a sentence the owner can act on; null when the door did not refuse. */
 export function refusalOf(a: DoorAnswer): AppError | null {
@@ -129,6 +137,7 @@ export function refusalOf(a: DoorAnswer): AppError | null {
     case "kind":
       return new AppError("conflict", "That change cannot be undone.", 409);
     default:
+      if (a.error in TOO_LATE) return new AppError("conflict", TOO_LATE[a.error as keyof typeof TOO_LATE], 409);
       // A door said something this build has no sentence for. The owner gets
       // one plain sentence rather than a de-underscored word out of the
       // database; the code goes to the log, where it can be looked up.

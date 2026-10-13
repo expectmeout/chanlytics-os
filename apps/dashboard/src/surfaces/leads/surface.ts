@@ -14,18 +14,19 @@
  * found, where they append after what is already read.
  */
 import {
-  LEAD_SORTS,
+  LEAD_VIEW_SORTS,
   MIN_MS,
   leadsRoute,
   parseLeadsRoute,
   stageArgs,
   toLeadPeekVM,
-  toLeadRowVM,
+  leadRowOf,
   type LeadChips,
   type LeadClass,
   type LeadCounts,
   type LeadMonthDto,
   type LeadList,
+  type LeadPileCountsDto,
   type LeadPeekVM,
   type LeadRowDto,
   type LeadRowVM,
@@ -57,6 +58,8 @@ export interface LeadsView {
   chips: Partial<LeadChips>;
   sort: LeadSort;
   dir: "asc" | "desc";
+  /** The pile's list (sort pile, 00426): the list its adds go to, whose leads it puts with the decided. */
+  pileList?: string | null;
 }
 export interface LeadsSurface {
   searches: LeadSearchDto[];
@@ -71,6 +74,8 @@ export interface LeadsSurface {
   suggestions: LeadSuggestionsDto | null;
   /** The month's standing (D5): what the workbench says a press costs. Null until a first page has answered. */
   month: LeadMonthDto | null;
+  /** The pile's progress line (sort pile of one search, 00426), from whichever first page last answered one. */
+  pile: LeadPileCountsDto | null;
   /**
    * The leads the peek read on their own because no page loaded holds them (PR 9: a link to a lead, one far down a
    * view), as rows: what the page's acts look a lead up in when it is not among `rows`. Never drawn as rows.
@@ -96,6 +101,7 @@ interface LeadsPageAnswer {
   next: { key: string; id: string } | null;
   counts?: LeadCounts;
   month?: LeadMonthDto;
+  pile?: LeadPileCountsDto;
 }
 
 const NO_COUNTS: LeadCounts = { all: 0, ready: 0, nurture: 0, converted: 0, said_no: 0, not_a_fit: 0 };
@@ -146,6 +152,8 @@ interface LeadsLoaded {
   key: string;
   /** The month's standing (D5), from whichever first page last answered one. */
   month: LeadMonthDto | null;
+  /** The pile's progress line (00426), from whichever first page of a pile last answered one. */
+  pile: LeadPileCountsDto | null;
   searches: LeadSearchDto[];
   counts: LeadCounts;
   rows: LeadRowDto[];
@@ -198,13 +206,14 @@ export function forgetLeadsViews(): void {
 
 /** The key a read is made under: the workspace and every part of the view. */
 function viewKey(v: LeadsView): string {
-  return `${getActiveWorkspace() ?? ""}|${leadsRoute(v)}|${v.sort}|${v.dir}`;
+  return `${getActiveWorkspace() ?? ""}|${leadsRoute(v)}|${v.sort}|${v.dir}|${v.sort === "pile" ? (v.pileList ?? "") : ""}`;
 }
 
 function queryOf(v: LeadsView, after?: { key: string; id: string } | null): Record<string, string> {
   const q: Record<string, string> = { list: v.list, sort: v.sort, dir: v.dir, limit: String(LEADS_PAGE) };
   if (v.searchId) q.search = v.searchId;
   if (v.cls) q.class = v.cls;
+  if (v.sort === "pile" && v.pileList) q.pile_list = v.pileList;
   for (const [k, val] of Object.entries(v.chips))
     if (val !== undefined && val !== null && val !== "") q[k] = String(val);
   if (after) {
@@ -223,7 +232,7 @@ function publishLeads(failed = false): void {
   const shown = L?.view ?? view;
   // Each row is handed its own search (D5): a review row names what it waits on in the queue's words.
   const vmOf = (r: LeadRowDto) =>
-    toLeadRowVM(r, L?.tz ?? "UTC", now, (L?.searches ?? []).find((s) => s.id === r.search_id) ?? null);
+    leadRowOf(r, L?.tz ?? "UTC", now, (L?.searches ?? []).find((s) => s.id === r.search_id) ?? null);
   // An erased lead is gone from every view this tab holds at once: a view read before the erase still has it.
   const rows = (L?.rows ?? []).filter((r) => !erased.has(r.id));
   const drawn = new Set(rows.map((r) => r.id));
@@ -237,6 +246,7 @@ function publishLeads(failed = false): void {
     route: leadsRoute(shown),
     suggestions: L?.suggestions ?? null,
     month: L?.month ?? null,
+    pile: L?.pile ?? null,
     peeked: peekedHere()
       .filter((r) => !drawn.has(r.id))
       .map(vmOf),
@@ -284,6 +294,7 @@ async function readPageOne(v: LeadsView): Promise<LeadsLoaded> {
     searches: searches.searches,
     counts: page.counts ?? searches.counts ?? NO_COUNTS,
     month: page.month ?? null,
+    pile: page.pile ?? null,
     rows: page.rows,
     next: page.next,
     offered: [],
@@ -351,7 +362,7 @@ export function leadsBootView(route: string, restored: unknown): LeadsView {
   const known =
     !!was &&
     typeof was === "object" &&
-    (LEAD_SORTS as readonly unknown[]).includes(was.sort) &&
+    (LEAD_VIEW_SORTS as readonly unknown[]).includes(was.sort) &&
     (was.dir === "asc" || was.dir === "desc");
   return {
     ...DEFAULT_VIEW,
@@ -384,6 +395,7 @@ async function refreshView(): Promise<void> {
   L.counts = page.counts ?? searches.counts ?? L.counts;
   // The month moves with a refresh (D5): a Keep just spent one, so the workbench's "5 of your 238 left" follows.
   L.month = page.month ?? L.month;
+  L.pile = page.pile ?? L.pile; // the pile's numbers move with it (00426): an add or a Later just decided one
   L.rows = rows;
   publishLeads();
   // A lead the peek read on its own is not in any page this re-read patched: it is read again too, behind.
@@ -463,6 +475,7 @@ export async function leadsTakeOffered(): Promise<void> {
     searches: fresh.searches,
     counts: fresh.counts,
     month: fresh.month,
+    pile: fresh.pile,
     rows: fresh.rows,
     next: fresh.next,
     offered: [],
@@ -577,6 +590,13 @@ export async function excludeLead(searchId: string, id: string) {
 export async function putBackLead(searchId: string, id: string) {
   return actAtOnce([id], kept, () =>
     api()("POST leads/[id]/put-back", { params: { id }, body: { search_id: searchId }, refresh: "behind" }),
+  );
+}
+/** Later (00426): put off in this pass; the pile brings it back at the end, and its undo is the operator's own. */
+export async function laterLead(searchId: string, id: string) {
+  const later = (r: LeadRowDto): LeadRowDto => ({ ...r, member: { ...r.member, later_at: new Date().toISOString() } });
+  return actAtOnce([id], later, () =>
+    api()("POST leads/[id]/later", { params: { id }, body: { search_id: searchId }, refresh: "behind" }),
   );
 }
 /** Undo names the operation and the version the page saw (E9): the server refuses when anyone changed it since. */

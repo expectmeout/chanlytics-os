@@ -52,7 +52,7 @@ export type LeadMemberClass = (typeof LEAD_MEMBER_CLASSES)[number];
 export const LEAD_FITS = ["strong", "look", "long"] as const;
 export type LeadFit = (typeof LEAD_FITS)[number];
 export const LEAD_COUNTER_KINDS = ["allowance", "budget", "day"] as const;
-/** A's six, and release B's two: a lead's stage, and many at once. */
+/** A's six, release B's two (a lead's stage, and many at once), and the workbench's three (00426): an add, a Later, a leave. */
 export const LEAD_OPERATION_KINDS = [
   "undo_search",
   "keep",
@@ -62,6 +62,9 @@ export const LEAD_OPERATION_KINDS = [
   "stop",
   "stage",
   "bulk",
+  "add",
+  "later",
+  "leave",
 ] as const;
 export const LEAD_PREFERENCE_KINDS = ["chain", "wrong_kind", "too_far"] as const;
 export const LEAD_SUPPRESSION_KINDS = ["email", "place", "phone", "domain"] as const;

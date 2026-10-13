@@ -17,6 +17,7 @@ import {
 } from "./reach-out-words";
 import { HAND_KINDS, HAND_WORDS_MAX } from "./reach-out-hand";
 import { REACH_OUT_PREVIEW_INDEX_MAX, REACH_OUT_DECISIONS } from "./reach-out-dtos";
+import { LEAD_LIST_MAX } from "../leads/lead-import";
 
 /** GET reach-out-replies: since when (at most the reading's window back), and one thread's alone. */
 export const ReachOutRepliesQuerySchema = z.object({
@@ -87,3 +88,9 @@ export const ReachOutPreviewSchema = z.object({
 export type ReachOutPreviewInput = z.infer<typeof ReachOutPreviewSchema>;
 
 export const ReachOutDecideSchema = z.object({ decision: z.enum(REACH_OUT_DECISIONS) });
+
+/** POST reach-outs/:id/leads and its check (00426): the leads to add, as many as a list takes. */
+export const ReachOutAddSchema = z.object({
+  lead_ids: z.array(z.uuid()).min(1).max(LEAD_LIST_MAX),
+});
+export type ReachOutAddInput = z.infer<typeof ReachOutAddSchema>;

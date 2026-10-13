@@ -29,6 +29,7 @@ const root = (over = {}) => ({
   trigger: "lead_first",
   state: "running",
   lead_search_id: "s1",
+  fed_by: "search",
   include_unconfirmed: false,
   after_playbook_id: null,
   after_days: null,
@@ -100,6 +101,44 @@ test("a chain's first run waits for its owner, with every send planned in its le
     assert.equal(s.id, await sendIdFor(RUN, s.lead_id), "a replayed run meets its own rows");
   }
   assert.deepEqual(made.told, [[RUN, 2, Date.parse("2026-09-28T14:30:00Z")]]);
+});
+
+test("a chain fed by a list asks before every first email, approved or not; its later steps give thirty minutes", async () => {
+  const inHours = Date.parse("2026-09-28T15:00:00Z"); // 10 AM in Austin
+  const first = ports({ chainState: async () => "approved", now: () => inHours, audience: async () => [lead("a")] });
+  const out = await runReachOut(first.ports, root({ fed_by: "list" }), day);
+  assert.deepEqual(
+    out,
+    { outcome: "held", reason: "waiting_for_you", planned: 1 },
+    "every lead on it was added by hand",
+  );
+  assert.equal(first.made.runs[0].state, "pending_approval");
+  assert.equal(first.made.sends[0].send_at, "2026-09-28T15:00:00.000Z", "no thirty minutes: it goes when they say yes");
+  assert.equal(first.made.told.length, 1, "its owner is told a run waits");
+  const later = ports({
+    chainState: async () => "approved",
+    now: () => inHours,
+    followers: async () => [
+      {
+        ...lead("a"),
+        contact_id: "ka",
+        parent_message_id: "ma",
+        facts: { lead_stage: "ready", suppressed: false, wrote_back: false },
+        bounced: false,
+      },
+    ],
+  });
+  const step = root({
+    id: "p2",
+    trigger: "after_step",
+    fed_by: "list",
+    lead_search_id: null,
+    after_playbook_id: "p1",
+    after_days: 3,
+  });
+  const next = await runReachOut(later.ports, step, day);
+  assert.deepEqual(next, { outcome: "sent", planned: 1 }, "a follow-up was said yes to with its chain");
+  assert.equal(later.made.runs[0].state, "scheduled");
 });
 
 test("a later run of an approved chain gives thirty minutes and tells nobody; one whose owner asks for every run waits", async () => {

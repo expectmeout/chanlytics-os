@@ -377,6 +377,12 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { group: "People", keys: ["Esc"], does: "Clear the selection" },
   { group: "People", keys: ["F"], does: "Find leads (on Leads)" },
   { group: "People", keys: ["C"], does: "Call the lead under the cursor (on Leads)" },
+  // The pile, on Leads (00426): its rail by key, left to right, and its Undo; drawn nowhere but here.
+  { group: "The pile, on Leads", keys: ["A"], does: "Add the lead to its reach-out, or keep it" },
+  { group: "The pile, on Leads", keys: ["L"], does: "Later: it comes back at the end" },
+  { group: "The pile, on Leads", keys: ["N"], does: "Not a fit, or leave it out" },
+  { group: "The pile, on Leads", keys: ["Z"], does: "Undo the last" },
+  { group: "The pile, on Leads", keys: ["Esc"], does: "Done for now" },
   // A person's page, on a desk (person-real.tsx useWalkKeys): the list they were opened from, walked as its rows are.
   { group: "A person", keys: ["J", "K"], does: "Next and previous person in the list you opened them from" },
   { group: "Inbox", keys: ["J", "K"], does: "Next and previous conversation" },

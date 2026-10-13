@@ -455,6 +455,7 @@ test(
       wrote_back: 1,
       interested: 1,
       booked: 1,
+      won: 0,
       said_no: 1,
       handed: 0,
     });
@@ -545,7 +546,21 @@ test(
     const story = ok(
       await as.viewer.c.rpc("reach_out_lead_timeline", { p_tenant_id: A, p_lead_id: w.leads.interested }),
     );
-    assert.deepEqual(story.chain, { root_id: w.root, name: "Reach out · Movers", state: "running" });
+    // 00426: the chain says what feeds it, its steps and its next run, for the standing line.
+    assert.deepEqual(story.chain, {
+      root_id: w.root,
+      name: "Reach out · Movers",
+      state: "running",
+      fed_by: "search",
+      run_hour: 9,
+      last_run_for: null,
+      waiting_run_id: null,
+      steps: [
+        { n: 0, after_days: null, hand: null },
+        { n: 1, after_days: 4, hand: null },
+      ],
+    });
+    assert.equal(story.added_at, null, "found by its search, never added");
     assert.deepEqual(story.search, { id: w.s, name: "Movers · Austin", asked: "movers in Austin", fit: "strong" });
     assert.equal(story.conversation_id, w.threads.interested);
     assert.deepEqual(

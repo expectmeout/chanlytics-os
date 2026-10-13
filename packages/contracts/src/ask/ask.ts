@@ -183,6 +183,7 @@ export interface AskProposal {
     | "broadcast"
     | "playbook"
     | "lead_search"
+    | "reach_out_add"
     | "deal"
     | "note"
     | "person_details"

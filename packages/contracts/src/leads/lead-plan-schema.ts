@@ -31,6 +31,8 @@ export const LeadsQuerySchema = z.object({
   after_key: z.string().max(80).optional(),
   after_id: z.string().uuid().optional(),
   limit: z.coerce.number().int().min(1).max(500).default(500),
+  /** The pile (sort=pile, 00426): the list its adds go to, whose leads it puts last, and its progress line's numbers. */
+  pile_list: z.uuid().optional(),
 });
 
 export type LeadsQuery = z.infer<typeof LeadsQuerySchema>;

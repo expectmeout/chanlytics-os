@@ -5,17 +5,19 @@ import {
   LEAD_CLASS_WORDS,
   LEAD_ENDING_WORDS,
   LEAD_LISTS,
-  LEAD_SORTS,
+  LEAD_VIEW_SORTS,
   LeadsQuerySchema,
   leadSearchWords,
   leadsRoute,
   noteRows,
   personName,
+  reachOutStandingOf,
   toLeadPeekVM,
   toLeadRowVM,
   type LeadRowVM,
   type LeadSearchDto,
 } from "@chanlytics/contracts";
+import { leadTimelineOf } from "../../../campaigns/reach-out-leads";
 import { toSearchDto, waitingQuestionOf } from "../../../leads/leads";
 import { load } from "../../../readers";
 import { lead as leadReader, leadPeople, leads as leadsReader } from "../../../readers/leads";
@@ -205,11 +207,13 @@ async function getLead(t: ToolContext, input: { lead_id: string; search_id?: str
   const searchId = str(input.search_id, 40);
   if (!UUID.test(id)) return { error: "lead_id must be an id leads with action leads returned" };
   if (searchId && !UUID.test(searchId)) return { error: "search_id must be an id leads with action searches returned" };
-  const [read, bySearch, people] = await Promise.all([
+  const [read, bySearch, people, story] = await Promise.all([
     unlessNotFound(load(t.rc, leadReader, { id, ...(searchId ? { search: searchId } : {}) })),
     searchesById(t, "leads.lead"),
     // Who works there (0052), as their business sheet lists them; a lead whose people cannot be read is the lead alone.
     load(t.rc, leadPeople, { id }).then((r) => r, unread(t, "leads.lead", "the people at the lead")),
+    // Its reach-out's story (00426): where it stands, said as every page says it; one that cannot be read says nothing.
+    leadTimelineOf(t.ctx, t.tenantId, id).catch(() => null),
   ]);
   if (!read) return { error: "no such lead in this workspace" };
   const r = read.data.row;
@@ -232,6 +236,17 @@ async function getLead(t: ToolContext, input: { lead_id: string; search_id?: str
     email_address: peek.reach.email.address,
     email_note: cut(peek.reach.email.note) || null,
     website: peek.links.website?.label ?? null,
+    // Where it stands in its reach-out (reachOutStandingOf, the line the card, the peek and a person's page say), and
+    // which one (its id, for propose_reach_out_add; fed_by list: it takes more leads); null for a lead in none.
+    reach_out:
+      story && story.chain
+        ? {
+            root_id: story.chain.root_id,
+            name: story.chain.name,
+            fed_by: story.chain.fed_by ?? null,
+            standing: reachOutStandingOf(story, t.now.getTime(), t.timezone)?.line ?? null,
+          }
+        : null,
     // The people at the business, each a person People holds; null where they could not be read, never "nobody".
     people: people
       ? people.data.map((p) => ({
@@ -292,7 +307,7 @@ export const leadsTool = defineActions({
         list: z.enum(LEAD_LISTS).optional(),
         search_id: z.string().optional(),
         class: z.enum(LEAD_CLASSES).optional(),
-        sort: z.enum(LEAD_SORTS).optional(),
+        sort: z.enum(LEAD_VIEW_SORTS).optional(),
         dir: z.enum(["asc", "desc"]).optional(),
         words: z.string().optional(),
         after: z.string().optional(),

@@ -3537,7 +3537,7 @@ async function runReachOut(ports, step, cmd) {
   if (await ports.alreadyRan(step.id, cmd.runFor)) return { outcome: "empty", reason: "already_ran", planned: 0 };
   const chain = await ports.chainState(step.root_id);
   if (chain === "waiting") return { outcome: "held", reason: "waiting_for_you", planned: 0 };
-  const asks = chain === "none" || ports.mode === "ask";
+  const asks = chain === "none" || ports.mode === "ask" || step.trigger === "lead_first" && step.fed_by === "list";
   const skips = [];
   let leads = [];
   const keeps = /* @__PURE__ */ new Map();

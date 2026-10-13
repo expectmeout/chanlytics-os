@@ -43,6 +43,7 @@ export {
   LEAD_CLASSES,
   LEAD_LISTS,
   LEAD_SORTS,
+  LEAD_VIEW_SORTS,
   LEAD_CALL_OUTCOMES,
   LEAD_NOT_A_FIT_WHYS,
   LEAD_STAGE_WORDS,
@@ -177,6 +178,7 @@ export {
   LEAD_MARK_PATH,
   leadMarkSrc,
   toLeadRowVM,
+  leadRowOf,
   leadRail,
   leadsStanding,
 } from "./lead-row";

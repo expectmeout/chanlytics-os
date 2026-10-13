@@ -37,6 +37,7 @@ export const ADDED_SINCE = [
   "people.pipeline",
   "propose_campaign.change",
   "propose_campaign.channels",
+  "propose_campaign.leads",
   "propose_campaign.message",
   "propose_campaign.plan",
   "propose_campaign.run",

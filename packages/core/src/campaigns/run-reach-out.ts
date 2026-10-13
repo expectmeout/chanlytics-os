@@ -1,8 +1,9 @@
 /**
  * One step of a reach-out, on its day (Reach out §4.1, §4.5): who it writes to, a run for them, and when each email
- * goes. The first run of a chain waits for its owner (the class outreach asks, §4.8); a later run gives thirty minutes
- * to be stopped, or waits too when its owner asked for every run to (E7), and while any run of the chain waits nothing
- * more is made. A lead the door would refuse (outreachRefusalOf, the door's own mapping), one whose email from the
+ * goes. The first run of a chain waits for its owner (the class outreach asks, §4.8), and so does every first-email run
+ * of a chain fed by a list (00426: each of its leads was added by hand, so each run is a new say); a later run gives
+ * thirty minutes to be stopped, or waits too when its owner asked for every run to (E7), and while any run of the chain
+ * waits nothing more is made. A lead the door would refuse (outreachRefusalOf, the door's own mapping), one whose email from the
  * chain bounced (C4), and one that keeps no open hour all week are skipped with why, so none of them heads the step's
  * page every day. What the timetable cannot place within its horizon waits for the next day's run. The run and its
  * sends are written whole. Nothing here sends: the reach-out clock claims what is due (Part 3, PR 5 and 6).
@@ -34,7 +35,7 @@ export async function runReachOut(
   const chain = await ports.chainState(step.root_id);
   // A run of the chain waits for its owner: nothing more is assembled until they have answered it.
   if (chain === "waiting") return { outcome: "held", reason: "waiting_for_you", planned: 0 };
-  const asks = chain === "none" || ports.mode === "ask";
+  const asks = chain === "none" || ports.mode === "ask" || (step.trigger === "lead_first" && step.fed_by === "list");
 
   // Who it may write to, and who it skips with why: a later step's leads the door would refuse, or whose email from the
   // chain bounced; any lead that keeps no open hour all week.

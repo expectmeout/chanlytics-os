@@ -2697,6 +2697,11 @@ interface ReachOutStep {
     /** The chain's: paused when the step or its root is (a paused root pauses every step of it). */
     state: "running" | "paused";
     lead_search_id: string | null;
+    /**
+     * What the chain's first step writes to (00426): a search the finder keeps current, or a list its owner adds leads to
+     * by hand (a search of via chosen or import). Every first-email run of a list-fed chain waits for its owner's say.
+     */
+    fed_by: "search" | "list";
     /** The chain's (its root's): its catch-all addresses are written to too, as its owner chose (Part 4, F9). */
     include_unconfirmed: boolean;
     after_playbook_id: string | null;

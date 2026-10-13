@@ -37,7 +37,7 @@
   "apps/dashboard/src/server/workspace/billing.ts": 2,
   "apps/dashboard/src/surfaces/campaigns/parts/channels.ts": 1,
   "apps/dashboard/src/surfaces/kit/record/field.tsx": 1,
-  "apps/dashboard/src/surfaces/legacy-verbs.ts": 2,
+  "apps/dashboard/src/surfaces/legacy-verbs.ts": 1,
   "apps/dashboard/src/surfaces/settings/business/tab.tsx": 1,
   "apps/dashboard/src/surfaces/settings/connections/whatsapp.ts": 1,
   "apps/dashboard/src/surfaces/settings/platform/cards.tsx": 1,

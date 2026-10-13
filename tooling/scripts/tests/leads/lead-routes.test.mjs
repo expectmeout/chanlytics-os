@@ -170,7 +170,7 @@ test("release A's eleven declare their policy: the reads open to every member; a
     rate: "lead_answer",
     spend: false,
   });
-  for (const r of [keep, exclude, putBack, undo])
+  for (const r of [keep, exclude, putBack])
     assert.deepEqual(r.POST.policy, {
       kind: "write",
       scope: "workspace",
@@ -178,6 +178,15 @@ test("release A's eleven declare their policy: the reads open to every member; a
       rate: "lead_member",
       spend: false,
     });
+  // An undo is the operator's since 00426: the door says whose act it is to take back (its maker's add, later, stage or
+  // bulk; keep, exclude and put back find's alone), so the route opens at the lowest rung any of them needs.
+  assert.deepEqual(undo.POST.policy, {
+    kind: "write",
+    scope: "workspace",
+    role: "operator",
+    rate: "lead_member",
+    spend: false,
+  });
 });
 
 test("the permission `find` and the routes agree: the roles that may find are the ones at or above the rung the counting routes name", () => {
@@ -191,7 +200,7 @@ test("the permission `find` and the routes agree: the roles that may find are th
     .sort();
   // The ladder requireRole climbs (with-route.ts ROLE_RANK): a route names its lowest rung.
   const ladder = ["viewer", "operator", "partner", "owner"];
-  for (const r of [searches.POST, more.POST, keep.POST, putBack.POST, undo.POST])
+  for (const r of [searches.POST, more.POST, keep.POST, putBack.POST])
     assert.deepEqual(
       ladder.slice(ladder.indexOf(r.policy.role)).sort(),
       may,
@@ -321,7 +330,7 @@ test("a search from an Ask card names the thread it was planned in to the door, 
   );
 });
 
-test("who is refused before any door: a viewer cannot search, an operator cannot search, keep, put back or undo, a workspace that cannot spend is refused before the rate is counted", async () => {
+test("who is refused before any door: a viewer cannot search or undo, an operator cannot search, keep or put back, a workspace that cannot spend is refused before the rate is counted", async () => {
   const never = {
     lead_search_create: () => {
       throw new Error("must not be reached");
@@ -340,7 +349,7 @@ test("who is refused before any door: a viewer cannot search, an operator cannot
   await refused(searches.POST.run(send(PLAN), ctxFor("operator", never)), "forbidden", 403);
   await refused(keep.POST.run(send({ search_id: S1 }), ctxFor("operator", never, { id: L1 })), "forbidden", 403);
   await refused(putBack.POST.run(send({ search_id: S1 }), ctxFor("operator", never, { id: L1 })), "forbidden", 403);
-  await refused(undo.POST.run(send({ version: 2 }), ctxFor("operator", never, { id: O1 })), "forbidden", 403);
+  await refused(undo.POST.run(send({ version: 2 }), ctxFor("viewer", never, { id: O1 })), "forbidden", 403);
   await refused(exclude.POST.run(send({ search_id: S1 }), ctxFor("viewer", never, { id: L1 })), "forbidden", 403);
   const unpaid = {
     supabase: fakeDb(

@@ -495,6 +495,11 @@ interface ReachOutReportCounts {
     wrote_back: number;
     interested: number;
     booked: number;
+    /**
+     * The businesses whose deal naming them was won (00426): a count, never an amount, as the other outcomes are. Absent on
+     * a database before it, where the cell says a dash, never a zero nobody counted.
+     */
+    won?: number;
     said_no: number;
     handed: number;
 }
@@ -599,6 +604,8 @@ interface ReachOutLensSourceLine {
     wroteBack: string;
     interested: string;
     booked: string;
+    /** Won (00426): a dash on a database before it. */
+    won: string;
     saidNo: string;
     bounced: string;
     last: string;
