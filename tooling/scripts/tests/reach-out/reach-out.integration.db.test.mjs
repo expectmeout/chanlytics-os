@@ -1,38 +1,42 @@
 /**
- * Reach out, end to end, on a replayed stack (Part 3's proof): one workspace, one chain (a first email, and a nudge
- * three days on), one lead search, one own domain. Every step runs the real code over the real database, with only
- * the mail provider's HTTP stubbed:
+ * Reach out, end to end, on a replayed stack (Part 3's proof; from a mailbox the business connected since decision
+ * 0056): one workspace, one chain (a first email, and a nudge three days on), one lead search, one Gmail mailbox. Every
+ * step runs the real code over the real database, with only Gmail's HTTP stubbed:
  *
  *   1. the step's run (the edge's run context and core runReachOut) plans a first run that waits for its owner, with
  *      the two leads it may write to, never the one whose address a person already has, and tells the owner;
  *   2. the owner approves it (core approveRun with the dashboard's own ports);
  *   3. the clock claims both and writes them: two people made (their leads stay ready), two queued rows naming their
  *      leads, two outbound_send jobs;
- *   4. the jobs send them through the one door, from the own domain on the cold key, each unsubscribe sealed for its
- *      person, marked auto-generated;
- *   5. their receipts stamp the Message-IDs, and the clock reads them sent: both leads written to (nurture, emailed);
- *   6. three days on, the nudge: the lead who wrote back is not written to; the other is, "Re:" and threaded under
- *      the first email;
- *   7. the nudge bounces for good: its lead's address is invalid, and its run waits on it;
+ *   4. the jobs send them through the one door, from the connected mailbox on its own token, each unsubscribe sealed
+ *      for its person, one person's plain email (no Auto-Submitted, no Reply-To), each stamped with the Message-ID and
+ *      the thread Gmail kept;
+ *   5. the clock reads them sent: both leads written to (nurture, emailed);
+ *   6. three days on, the nudge: the lead who wrote back is not written to; the other is, "Re:", threaded under the
+ *      first email and sent in its Gmail thread;
+ *   7. the nudge bounces for good: the mailbox's sync reads the delivery report in that thread, its lead's address is
+ *      invalid, and its run waits on it;
  *   8. the clock reads the bounce and finishes the nudge's run (the first run finished at 5);
- *   9. at the domain's day's share, a due send is not claimed, and a cold email written at it by hand is refused at
- *      the door as sending_domain_at_cap and planned again by the clock, never skipped.
+ *   9. its owner lowers the mailbox's day to one, which the nudge spent: a due send is not claimed, and a cold email
+ *      written at it by hand is refused at the door as sending_mailbox_at_cap and planned again by the clock, never
+ *      skipped.
  *
  * Each tick checks before it claims (Part 4): the check's own tick (lib/reach-out/check.ts) runs first, over a model
  * that is never asked, since these words name no opening; the claim takes only what it checked.
  *
  * The second test is Part 4's proof, from the sheet's door, in a workspace of its own and from its owner's session:
  *
- *   1. reach_out_save makes a two-step chain whose words name {{opening}}, {{your name}} and {{booking link}}, over a
- *      search with two ready businesses, one of which shares its website with two more of the workspace's leads;
+ *   1. reach_out_save makes a two-step chain whose first words name {{opening}} and {{your name}}, and its nudge's
+ *      {{booking link}} (a first email carries no link), over a search with two ready businesses, one of which shares
+ *      its website with two more of the workspace's leads;
  *   2. runReachOutStep (what Start asks through the run-now door) plans the first run, which waits for its owner;
  *   3. the check's tick (checkSends), over a scripted model, writes and reads an opening for each: one is planned with
  *      its opening, the other held `chain`;
  *   4. the dashboard's reachOutRunOf, on the owner's session, answers one for today, one held with its words, and the
  *      first email as it reads, its opening in;
  *   5. reach_out_send_decide(include) puts the held one back, checked, its opening kept;
- *   6. approved, ticked and its jobs run: both emails leave, each body opening with its own sentence and ending with the
- *      name it signs with, the booking link filled in;
+ *   6. approved, ticked and its jobs run: both emails leave from the workspace's mailbox, each body opening with its
+ *      own sentence and ending with the name it signs with, no link in it or its foot;
  *   7. reach_out_remove is refused: the chain wrote.
  *
  * Each is kept to its own workspace (every clock and claim call takes it). Local stack only: they make workspaces and
@@ -43,8 +47,9 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
-import { emailReceiptFrom, verifyUnsubscribeToken } from "@chanlytics/channels";
+import { verifyUnsubscribeToken } from "@chanlytics/channels";
 import { REACH_OUT_REFUSALS, ReachOutChainSchema, holdWords, validateReachOutChain } from "@chanlytics/contracts";
+import { MAILBOX_ENV, gmailFake, gmailReceived, liveCredentials, withEnv } from "../email/mailboxes/_mailbox-world.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -57,12 +62,9 @@ const skip =
 const ANON = process.env.SUPABASE_ANON_KEY;
 const skipSheet = skip || (!ANON ? "no SUPABASE_ANON_KEY in env: the owner this proof signs in as needs it" : false);
 
-// The deployment's email, for this process: the platform's and the cold account's keys (the fetch below answers for
-// both), the mail domain the replies come back on, the seal. Made-up values.
-process.env.EMAIL_DOMAIN = "mail.chanlytics.com";
-process.env.RESEND_API_KEY = "platform-key-for-this-suite";
-process.env.RESEND_COLD_API_KEY = "cold-key-for-this-suite";
-process.env.RESEND_COLD_WEBHOOK_SECRET = "cold-webhook-for-this-suite";
+// The deployment, for this process: the providers' mail clients (each mailbox's token lasts the hour, so none is
+// refreshed), and the seal. Made-up values.
+const restoreEnv = withEnv(MAILBOX_ENV);
 const SEAL = "unsubscribe-seal-for-this-suite";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
@@ -72,11 +74,9 @@ const DAY = 86_400_000;
 const stamp = Date.now().toString(36);
 const iso = (ms) => new Date(ms).toISOString();
 const HOST = `e2e-${stamp}.example`;
-const LANE = {
-  unsubscribeSecret: SEAL,
-  unsubscribeOrigin: "https://app.chanlytics.com",
-  replyDomain: "mail.chanlytics.com",
-};
+const ADDRESS = `sam@${HOST}`;
+const TOKEN = "ya29.e2e-mailbox-token";
+const LANE = { unsubscribeSecret: SEAL, unsubscribeOrigin: "https://app.chanlytics.com" };
 
 let db;
 let A;
@@ -85,7 +85,9 @@ let ownerSession;
 let root;
 let step;
 let search;
-let domain;
+let mailbox;
+/** Gmail, as it answers the connected mailboxes (_mailbox-world gmailFake): what they sent, and what they received. */
+let gmail;
 let lib;
 let dash;
 let L;
@@ -96,44 +98,29 @@ const ok = (res) => {
 };
 const one = async (q) => ok(await q.select("id").single()).id;
 
-/**
- * Every send to the mail provider, answered as it answers one, its id kept by the row its tag names. Any other call
- * to the provider fails the suite: nothing else here may reach it.
- */
-const sent = [];
-const providerIdOf = new Map();
-const realFetch = globalThis.fetch;
-function stubProvider() {
-  globalThis.fetch = async (url, init) => {
-    const u = String(url);
-    if (u === "https://api.resend.com/emails" && init?.method === "POST") {
-      const body = JSON.parse(init.body);
-      sent.push({ key: init.headers.Authorization, idempotency: init.headers["Idempotency-Key"], body });
-      const id = `re_${sent.length}`;
-      providerIdOf.set(body.tags?.find((t) => t.name === "cl_message")?.value, id);
-      return new Response(JSON.stringify({ id }), { status: 200 });
-    }
-    if (u.startsWith("https://api.resend.com")) throw new Error(`the suite does not answer ${init?.method} ${u}`);
-    return realFetch(url, init);
-  };
+/** A mailbox the business connected, its token in Vault (00421), read back from history 100 on. */
+async function connect(tenantId, address) {
+  const id = await one(
+    db.from("mailbox_connections").insert({
+      tenant_id: tenantId,
+      provider: "google",
+      provider_account: `acct-${address}`,
+      address,
+      host: address.split("@")[1],
+      from_name: "Sam at Harbor",
+      scopes: ["https://www.googleapis.com/auth/gmail.send", "https://www.googleapis.com/auth/gmail.readonly"],
+      sync_cursor: "100",
+    }),
+  );
+  ok(
+    await db.rpc("put_mailbox_credentials", {
+      p_connection_id: id,
+      p_secret: liveCredentials(TOKEN),
+      p_if_refresh_token: null,
+    }),
+  );
+  return id;
 }
-const coldSent = () => sent.filter((s) => s.key === `Bearer ${process.env.RESEND_COLD_API_KEY}`);
-
-/** A receipt, as the webhook hands it on: the provider's id for the email, and its tags naming the row. */
-const receipt = (type, m, over = {}) =>
-  emailReceiptFrom({
-    type: `email.${type}`,
-    created_at: iso(Date.now()),
-    data: {
-      email_id: providerIdOf.get(m.id) ?? assert.fail(`the provider never took ${m.id}`),
-      message_id: `<${m.id}@${HOST}>`,
-      from: m.meta.email.request.from,
-      to: m.meta.email.request.to,
-      subject: m.meta.email.request.subject,
-      tags: { cl_message: m.id, cl_tenant: A },
-      ...over,
-    },
-  });
 
 async function sendsOf(runId) {
   return ok(await db.from("reach_out_sends").select("*").eq("broadcast_id", runId));
@@ -177,7 +164,7 @@ const tick = async (now = new Date()) => {
 before(async () => {
   if (skipSheet) return;
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
-  stubProvider();
+  gmail = gmailFake({ address: ADDRESS });
   lib = {
     ...(await import(at("apps/edge/lib/reach-out/run-context.ts"))),
     ...(await import(at("apps/edge/lib/reach-out/run-step.ts"))),
@@ -187,6 +174,7 @@ before(async () => {
     ...(await import(at("apps/edge/lib/reach-out/request.ts"))),
     ...(await import(at("apps/edge/lib/email/email.ts"))),
     ...(await import(at("apps/edge/lib/email/email-receipts.ts"))),
+    ...(await import(at("apps/edge/lib/email/mailbox/mailbox-sync.ts"))),
     ...(await import(at("apps/dashboard/src/server/ports/campaign-ports.ts"))),
     ...(await import(at("packages/core/dist/index.js"))),
     ...(await import(at("packages/jobs/dist/index.js"))),
@@ -229,30 +217,7 @@ before(async () => {
       },
     }),
   );
-  const token = Array.from(
-    crypto.getRandomValues(new Uint8Array(24)),
-    (b) => "abcdefghijklmnopqrstuvwxyz234567"[b % 32],
-  ).join("");
-  ok(
-    await db
-      .from("mailboxes")
-      .insert({ tenant_id: A, local_part: `e2e-${stamp}`, reply_token: token, from_name: "Harbor Moving Co" }),
-  );
-  domain = await one(
-    db.from("sending_domains").insert({
-      tenant_id: A,
-      host: HOST,
-      from_local: "sam",
-      from_name: "Sam at Harbor",
-      state: "verified",
-      provider_status: "verified",
-      dmarc: "found",
-      verified_at: iso(Date.now() - 40 * DAY),
-      clean_since: iso(Date.now() - 40 * DAY),
-      counted_since: iso(Date.now() - 40 * DAY),
-      provider_domain_id: `pd-${stamp}`,
-    }),
-  );
+  mailbox = await connect(A, ADDRESS);
   search = await one(
     db
       .from("lead_searches")
@@ -339,7 +304,8 @@ before(async () => {
   await lead("customer", "TX", "Dallas", `owner@dallas-movers-${stamp}.example`);
 });
 after(async () => {
-  globalThis.fetch = realFetch;
+  gmail?.restore();
+  restoreEnv();
   if (skipSheet) return;
   if (A) ok(await db.from("tenants").delete().eq("id", A));
   if (user) await db.auth.admin.deleteUser(user);
@@ -410,14 +376,22 @@ test(
       assert.deepEqual([m.status, m.meta.reach_out.lead_id], ["queued", s.lead_id]);
     }
 
-    // 4. The jobs send them through the door: the own domain, the cold key, each unsubscribe sealed for its person.
+    // 4. The jobs send them through the door: from the connected mailbox on its own token, each unsubscribe sealed for
+    // its person; one person's plain email, marked as nothing else and answered at the mailbox itself; each stamped with
+    // the Message-ID and the thread Gmail kept, which no receipt brings later.
     assert.equal(await runJobs(), 2);
-    const first = coldSent();
-    assert.equal(first.length, 2);
-    for (const s of first) {
-      assert.match(s.body.from, new RegExp(`<sam@${HOST.replace(/\./g, "\\.")}>$`));
-      assert.equal(s.body.headers["Auto-Submitted"], "auto-generated");
-      const tokenOf = /\/u\/([A-Za-z0-9_-]{87})>$/.exec(s.body.headers["List-Unsubscribe"])[1];
+    assert.equal(gmail.sent.length, 2);
+    for (const s of gmail.sent) {
+      assert.equal(s.authorization, `Bearer ${TOKEN}`);
+      assert.equal(s.headers.from, `"Sam at Harbor" <${ADDRESS}>`);
+      assert.equal(
+        s.headers["auto-submitted"],
+        undefined,
+        "a first touch from a person's mailbox is marked as nothing",
+      );
+      assert.equal(s.headers["reply-to"], undefined, "its replies come back to the mailbox it left from");
+      assert.equal(s.headers["list-unsubscribe-post"], "List-Unsubscribe=One-Click");
+      const tokenOf = /\/u\/([A-Za-z0-9_-]{87})>/.exec(s.headers["list-unsubscribe"])[1];
       const claims = verifyUnsubscribeToken([SEAL], tokenOf);
       const send = queued.find((q) => q.message_id === claims.messageId);
       assert.deepEqual(
@@ -425,15 +399,14 @@ test(
         [A, send.contact_id],
         "sealed for its person and its email",
       );
+      const m = ok(await db.from("messages").select("status, external_id, meta").eq("id", send.message_id).single());
+      assert.deepEqual(
+        [m.status, m.external_id, m.meta.email.message_id, m.meta.email.thread_id, m.meta.email.mailbox_id],
+        ["sent", s.id, s.headers["message-id"], s.threadId, mailbox],
+      );
     }
 
-    // 5. Their receipts, then the clock: both sent, both leads written to.
-    for (const s of queued) {
-      const m = ok(await db.from("messages").select("*").eq("id", s.message_id).single());
-      assert.equal(m.status, "sent");
-      for (const type of ["sent", "delivered"])
-        assert.equal(await lib.applyEmailReceipt(db, receipt(type, m), iso(Date.now())), "applied");
-    }
+    // 5. The clock reads them sent: both leads written to.
     await tick();
     for (const s of await sendsOf(run1.id)) {
       assert.equal(s.state, "sent");
@@ -486,17 +459,48 @@ test(
     const c6 = await tick();
     assert.equal(c6.written, 1);
     assert.equal(await runJobs(), 1);
-    const nudge = coldSent().at(-1).body;
+    const nudge = gmail.sent.at(-1);
     const ca = queued.find((s) => s.lead_id === leads.ca);
     const caEmail = ok(await db.from("messages").select("*").eq("id", ca.message_id).single());
-    assert.equal(nudge.subject, `Re: ${caEmail.meta.email.request.subject}`);
-    assert.equal(nudge.headers["In-Reply-To"], caEmail.meta.email.message_id);
+    assert.equal(nudge.headers.subject, `Re: ${caEmail.meta.email.request.subject}`);
+    assert.equal(nudge.headers["in-reply-to"], caEmail.meta.email.message_id);
+    assert.equal(nudge.threadId, caEmail.meta.email.thread_id, "in the first email's Gmail thread");
 
-    // 7. The nudge bounces for good: the California lead's address is invalid.
+    // 7. The nudge bounces for good: its delivery report lands in its Gmail thread, and the mailbox's sync reads it as
+    // the bounce it is. The California lead's address is invalid.
     const [nudgeSend] = (await sendsOf(run2.id)).filter((s) => s.state === "queued");
-    const nudgeRow = ok(await db.from("messages").select("*").eq("id", nudgeSend.message_id).single());
-    const bounce = { bounce: { type: "Permanent", subType: "General", message: "550 5.1.1 no such user" } };
-    assert.equal(await lib.applyEmailReceipt(db, receipt("bounced", nudgeRow, bounce), iso(Date.now())), "applied");
+    const b64 = (t) => Buffer.from(t).toString("base64url");
+    gmail.received.push(
+      gmailReceived({
+        id: "dsn-1",
+        threadId: nudge.threadId,
+        from: "Mail Delivery Subsystem <mailer-daemon@googlemail.com>",
+        to: ADDRESS,
+        subject: "Delivery Status Notification (Failure)",
+        messageId: `<dsn-1-${stamp}@mail-delivery.example>`,
+        headers: { "Content-Type": 'multipart/report; report-type=delivery-status; boundary="r"' },
+        parts: [
+          { mimeType: "text/plain", body: { data: b64("Your message wasn't delivered.") } },
+          {
+            mimeType: "message/delivery-status",
+            body: {
+              data: b64(
+                `Final-Recipient: rfc822; owner@fresno-movers-${stamp}.example\nAction: failed\nStatus: 5.1.1\nDiagnostic-Code: smtp; 550 5.1.1 no such user`,
+              ),
+            },
+          },
+          {
+            mimeType: "text/rfc822-headers",
+            body: { data: b64(`Message-ID: ${nudge.headers["message-id"]}\nSubject: ${nudge.headers.subject}`) },
+          },
+        ],
+      }),
+    );
+    const box = ok(await db.from("mailbox_connections").select("*").eq("id", mailbox).single());
+    const synced = await lib.syncMailbox(db, box, L);
+    assert.deepEqual([synced.outcome, synced.read, synced.bounced, synced.replies], ["synced", 1, 1, 0]);
+    const nudgeRow = ok(await db.from("messages").select("status, error").eq("id", nudgeSend.message_id).single());
+    assert.deepEqual([nudgeRow.status, nudgeRow.error?.provider], ["failed", "bounced"]);
     assert.equal((await leadOf(leads.ca)).email_state, "invalid");
     assert.equal(await state(run2.id), "sending", "the nudge's run waits on its one open send");
 
@@ -507,30 +511,9 @@ test(
     assert.deepEqual([after.state, after.reason], ["failed", "bounced"]);
     for (const id of [run1.id, run2.id]) assert.equal(await state(id), "sent", id);
 
-    // 9. At the domain's day's share (30 on its first ramp step: the three above, and twenty-seven more): a due send is
-    // not claimed; one written at the share by hand is refused at the door, and the clock plans it again, never skips it.
-    const other = await one(db.from("contacts").insert({ tenant_id: A, email: `bulk-${stamp}@fixture-e2e.example` }));
-    const thread = await one(db.from("conversations").insert({ tenant_id: A, contact_id: other }));
-    ok(
-      await db.from("messages").insert(
-        Array.from({ length: 27 }, () => ({
-          tenant_id: A,
-          conversation_id: thread,
-          contact_id: other,
-          channel: "email",
-          direction: "outbound",
-          sender: "human",
-          type: "text",
-          body: "Earlier today.",
-          status: "sent",
-          meta: {
-            source: "reach_out",
-            email: { request: { from: `"Sam at Harbor" <sam@${HOST}>`, to: [`bulk-${stamp}@fixture-e2e.example`] } },
-            status_at: { sent: iso(Date.now() - 60 * MIN) },
-          },
-        })),
-      ),
-    );
+    // 9. Its owner lowers the mailbox's day to one, which the nudge spent (it left, and bounced): a due send is not
+    // claimed; one written at the share by hand is refused at the door, and the clock plans it again, never skips it.
+    ok(await db.from("mailbox_connections").update({ daily_cap: 1 }).eq("id", mailbox));
     const late = await one(
       db.from("leads").insert({
         tenant_id: A,
@@ -566,7 +549,7 @@ test(
             id: sendId,
             lead_id: late,
             contact_id: null,
-            domain_id: domain,
+            mailbox_id: mailbox,
             send_at: iso(Date.now() - MIN),
             state: "planned",
             reason: null,
@@ -574,13 +557,13 @@ test(
         ],
       }),
     );
-    // The three emails above were stamped by the database's clock, which may run a moment ahead of this machine's: the
-    // claim reads the day from a moment past the last of them, or it could miss one and claim into the share.
+    // The emails above were stamped by the database's clock, which may run a moment ahead of this machine's: the claim
+    // reads the day from a moment past the last of them, or it could miss one and claim into the share.
     const { last_sent_at } = ok(
-      await db.rpc("sending_domain_capacity", { p_domain_id: domain, p_at: iso(Date.now() + MIN) }),
+      await db.rpc("mailbox_capacity", { p_mailbox_id: mailbox, p_at: iso(Date.now() + MIN) }),
     );
     const c9 = await tick(new Date(Math.max(Date.now(), Date.parse(last_sent_at) + 1)));
-    assert.equal(c9.claimed, 0, "the domain's day is spent: nothing is claimed");
+    assert.equal(c9.claimed, 0, "the mailbox's day is spent: nothing is claimed");
     // By hand, at the share: the send claimed and its email written as the writer writes one.
     ok(
       await db
@@ -598,9 +581,8 @@ test(
       words: { subject: "A moving quote for {{business}}", body: "Hi {{business}}." },
       lead: { business_name: "Waco Movers", city: "Waco" },
       workspace: { businessName: "Harbor Moving Co", address: "100 Example St, Austin, TX 78701" },
-      domain: { host: HOST, from_local: "sam", from_name: "Sam at Harbor" },
-      mailbox: { reply_token: (await lib.mailboxOfTenant(db, A)).reply_token },
-      replyDomain: "mail.chanlytics.com",
+      opening: null,
+      from: { address: ADDRESS, from_name: "Sam at Harbor", signature: null },
       unsubscribe: { secret: SEAL, origin: LANE.unsubscribeOrigin },
       parent: null,
     });
@@ -642,11 +624,11 @@ test(
         .update({ state: "queued", message_id: messageId, contact_id: person.contact_id })
         .eq("id", sendId),
     );
-    const before9 = coldSent().length;
+    const before9 = gmail.sent.length;
     await runJobs();
-    assert.equal(coldSent().length, before9, "nothing leaves once the share is spent");
+    assert.equal(gmail.sent.length, before9, "nothing leaves once the share is spent");
     const refused = ok(await db.from("messages").select("status, error").eq("id", messageId).single());
-    assert.deepEqual([refused.status, refused.error], ["canceled", { reason: "sending_domain_at_cap" }]);
+    assert.deepEqual([refused.status, refused.error], ["canceled", { reason: "sending_mailbox_at_cap" }]);
     await tick();
     const waiting = ok(
       await db.from("reach_out_sends").select("state, reason, attempts, message_id").eq("id", sendId).single(),
@@ -744,30 +726,7 @@ test(
         },
       }),
     );
-    const token = Array.from(
-      crypto.getRandomValues(new Uint8Array(24)),
-      (b) => "abcdefghijklmnopqrstuvwxyz234567"[b % 32],
-    ).join("");
-    ok(
-      await db
-        .from("mailboxes")
-        .insert({ tenant_id: B, local_part: `e2e-sheet-${stamp}`, reply_token: token, from_name: "Harbor Moving Co" }),
-    );
-    ok(
-      await db.from("sending_domains").insert({
-        tenant_id: B,
-        host: HOST_B,
-        from_local: "sam",
-        from_name: "Sam at Harbor",
-        state: "verified",
-        provider_status: "verified",
-        dmarc: "found",
-        verified_at: iso(Date.now() - 40 * DAY),
-        clean_since: iso(Date.now() - 40 * DAY),
-        counted_since: iso(Date.now() - 40 * DAY),
-        provider_domain_id: `pd-sheet-${stamp}`,
-      }),
-    );
+    await connect(B, `sam@${HOST_B}`);
     const s = await one(
       db
         .from("lead_searches")
@@ -835,15 +794,19 @@ test(
       search_id: s,
       include_unconfirmed: false,
       gap_minutes: 5,
-      domain_ids: [],
+      mailbox_ids: [],
       signed_by: SIGNED,
       steps: [
         {
           subject: "A quick one for {{business}}",
-          body: "{{opening}}\n\nWe help movers in {{city}} fill their quiet weeks. Pick a time: {{booking link}}\n\n{{your name}}",
+          body: "{{opening}}\n\nWe help movers in {{city}} fill their quiet weeks.\n\n{{your name}}",
           after_days: null,
         },
-        { subject: null, body: "Just following up, {{business}}.\n\n{{your name}}", after_days: 4 },
+        {
+          subject: null,
+          body: "Just following up, {{business}}. Pick a time: {{booking link}}\n\n{{your name}}",
+          after_days: 4,
+        },
       ],
     };
     assert.deepEqual(validateReachOutChain(ReachOutChainSchema.parse(chain), { bookingLink: true }), []);
@@ -912,11 +875,11 @@ test(
     );
     assert.equal(
       r4.first.body,
-      `${OPENINGS["Austin Movers"].opening}\n\nWe help movers in Austin fill their quiet weeks. Pick a time: ${BOOKING}\n\n${SIGNED}`,
+      `${OPENINGS["Austin Movers"].opening}\n\nWe help movers in Austin fill their quiet weeks.\n\n${SIGNED}`,
     );
     assert.deepEqual(
-      r4.domains.map((d) => d.host),
-      [HOST_B],
+      r4.mailboxes.map((m) => m.address),
+      [`sam@${HOST_B}`],
     );
 
     // 5. The owner includes the held one: planned again, still checked, its opening kept; never held for it again (R7).
@@ -948,9 +911,9 @@ test(
     await lib.reachOutClock(db, new Date(), L, Date.now(), B);
     const c6 = await lib.claimAndWrite({ db, now: new Date(), started: Date.now(), lane: LANE, log: L, tenantId: B });
     assert.deepEqual([c6.claimed, c6.written, c6.errors], [2, 2, 0], JSON.stringify(c6));
-    const before6 = coldSent().length;
+    const before6 = gmail.sent.length;
     assert.equal(await runJobs(B), 2);
-    const out = coldSent().slice(before6);
+    const out = gmail.sent.slice(before6);
     assert.equal(out.length, 2);
     for (const [key, id] of [
       ["Austin Movers", ids.austin],
@@ -960,13 +923,13 @@ test(
       assert.equal(x.state, "queued");
       const m = ok(await db.from("messages").select("body, meta").eq("id", x.message_id).single());
       assert.ok(m.body.startsWith(`${OPENINGS[key].opening}\n\n`), m.body);
-      assert.ok(m.body.includes(`Pick a time: ${BOOKING}`), m.body);
       assert.ok(m.body.endsWith(`\n\n${SIGNED}`), m.body);
       assert.equal(m.meta.email.request.subject, `A quick one for ${key}`);
-      const wire = out.find((o) => o.body.subject === `A quick one for ${key}`);
-      assert.ok(wire, `the provider took ${key}'s email`);
-      assert.match(wire.body.from, new RegExp(`<sam@${HOST_B.replace(/\./g, "\\.")}>$`));
-      assert.ok(wire.body.text.startsWith(OPENINGS[key].opening), wire.body.text);
+      const wire = out.find((o) => o.headers.subject === `A quick one for ${key}`);
+      assert.ok(wire, `Gmail took ${key}'s email`);
+      assert.equal(wire.headers.from, `"Sam at Harbor" <sam@${HOST_B}>`);
+      assert.ok(wire.text.startsWith(OPENINGS[key].opening), wire.text);
+      assert.ok(!/https?:\/\//.test(wire.text), `a first email carries no link, nor does its foot: ${wire.text}`);
     }
 
     // 7. The chain wrote, so it is not removed: its owner pauses it instead (R16).

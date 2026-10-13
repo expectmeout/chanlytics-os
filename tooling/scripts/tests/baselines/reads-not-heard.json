@@ -553,8 +553,7 @@
           "contacts",
           "leads",
           "messages",
-          "reach_out_sends",
-          "sending_domains"
+          "reach_out_sends"
         ]
       }
     },

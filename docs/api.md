@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-244 handlers in 48 domains.
+248 handlers in 48 domains.
 
 ## activity
 
@@ -1115,6 +1115,63 @@ Writes; for a member of the workspace the request names, partner or above; count
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/lines/search/route.ts`).
 
+## mailbox-connections
+
+### `GET /api/v1/mailbox-connections`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/mailbox-connections/route.ts`).
+
+### `PATCH /api/v1/mailbox-connections/[id]`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `paused` | boolean | no |  |
+| `from_name` | string | no | at most 200 characters |
+| `signature` | string or null | no |  |
+| `daily_cap` | integer | no | ≥ -9007199254740991; ≤ 9007199254740991 |
+
+### `DELETE /api/v1/mailbox-connections/[id]`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/mailbox-connections/[id]/route.ts`).
+
+### `POST /api/v1/mailbox-connections/[id]/check`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/mailbox-connections/[id]/check/route.ts`).
+
+### `POST /api/v1/mailbox-connections/[id]/resume`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/mailbox-connections/[id]/resume/route.ts`).
+
+### `POST /api/v1/mailbox-connections/[id]/test`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/mailbox-connections/[id]/test/route.ts`).
+
+### `GET /api/v1/mailbox-connections/callback`
+
+Reads; for any signed-in person, for themselves; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/mailbox-connections/callback/route.ts`).
+
+### `GET /api/v1/mailbox-connections/connect`
+
+Reads; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `provider` | one of `"google"`, `"microsoft"` | yes |  |
+
 ## mailboxes
 
 ### `POST /api/v1/mailboxes`
@@ -1603,7 +1660,7 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | `search_id` | string (uuid) | yes |  |
 | `include_unconfirmed` | boolean | yes |  |
 | `gap_minutes` | integer | yes | ≥ -9007199254740991; ≤ 9007199254740991 |
-| `domain_ids` | array of string (uuid) | yes | at most 5 |
+| `mailbox_ids` | array of string (uuid) | yes | at most 10 |
 | `signed_by` | string or null | yes |  |
 | `steps` | array of object | yes | at least 1; at most 5 |
 
@@ -1623,7 +1680,7 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | `search_id` | string (uuid) | yes |  |
 | `include_unconfirmed` | boolean | yes |  |
 | `gap_minutes` | integer | yes | ≥ -9007199254740991; ≤ 9007199254740991 |
-| `domain_ids` | array of string (uuid) | yes | at most 5 |
+| `mailbox_ids` | array of string (uuid) | yes | at most 10 |
 | `signed_by` | string or null | yes |  |
 | `steps` | array of object | yes | at least 1; at most 5 |
 
@@ -1782,36 +1839,6 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `words` | string | yes | at least 4 characters; at most 300 characters |
-
-## sending-domains
-
-### `POST /api/v1/sending-domains`
-
-Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
-
-| Body field | Type | Required | Limits |
-| --- | --- | --- | --- |
-| `host` | string | yes | at most 253 characters |
-| `from_local` | string | yes | at most 64 characters |
-| `from_name` | string | yes | at most 200 characters |
-
-### `DELETE /api/v1/sending-domains/[id]`
-
-Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
-
-Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/sending-domains/[id]/route.ts`).
-
-### `POST /api/v1/sending-domains/[id]/check`
-
-Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
-
-Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/sending-domains/[id]/check/route.ts`).
-
-### `POST /api/v1/sending-domains/[id]/resume`
-
-Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
-
-Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/sending-domains/[id]/resume/route.ts`).
 
 ## settings
 

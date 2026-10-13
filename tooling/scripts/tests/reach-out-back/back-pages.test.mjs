@@ -86,10 +86,10 @@ const reportDto = (over = {}) => ({
   angles: [{ angle: "their rating", written: 12, businesses: 8, wrote_back: 2 }],
   other_angles: { written: 0, businesses: 0, wrote_back: 0 },
   no_angle: 0,
-  domains: [
+  mailboxes: [
     {
-      host: "mail.example.com",
-      state: "verified",
+      address: "sam@mail.example.com",
+      state: "connected",
       held_why: null,
       held_at: null,
       sent: 12,
@@ -110,15 +110,15 @@ const section = (reachOuts) => {
   return again(() => reachOutsSection(fold));
 };
 
-test("Reports draws the reach-outs' section: the strip, the emails, the businesses, the angles, the domains, the days and each step on its line", () => {
+test("Reports draws the reach-outs' section: the strip, the emails, the businesses, the angles, the mailboxes, the days and each step on its line", () => {
   const tree = section(reportDto());
   assert.ok(byTestId(tree, "rpt-reach-outs"));
-  for (const id of ["ro-strip", "ro-emails", "ro-funnel", "ro-angles", "ro-domains", "ro-written", "ro-sources"])
+  for (const id of ["ro-strip", "ro-emails", "ro-funnel", "ro-angles", "ro-mailboxes", "ro-written", "ro-sources"])
     assert.ok(byTestId(tree, id), id);
   assert.equal(all(tree, (n) => n.props?.["data-testid"] === "ro-source-row").length, 1);
   assert.equal(all(tree, (n) => n.props?.["data-testid"] === "ro-step-row").length, 2);
-  assert.equal(all(tree, (n) => n.props?.["data-testid"] === "ro-domain-row").length, 1);
-  assert.match(textOf(byTestId(tree, "ro-domains")), /mail\.example\.com.*Verified/);
+  assert.equal(all(tree, (n) => n.props?.["data-testid"] === "ro-mailbox-row").length, 1);
+  assert.match(textOf(byTestId(tree, "ro-mailboxes")), /sam@mail\.example\.com.*Connected/);
   // The businesses are counted apart from the emails: 8 businesses wrote to by 12 emails.
   assert.match(textOf(byTestId(tree, "ro-sources")), /Businesses/);
   assert.match(textOf(byTestId(tree, "ro-funnel")), /Written to.*8/);
@@ -138,7 +138,7 @@ test("Reports says a failed read, an empty period, and draws nothing where there
   assert.equal(section(undefined), null);
   assert.equal(section(reportDto({ has_reach_out: false })), null);
   const empty = section(
-    reportDto({ totals: counts({ businesses: 0 }), chains: [], angles: [], domains: [], series: [] }),
+    reportDto({ totals: counts({ businesses: 0 }), chains: [], angles: [], mailboxes: [], series: [] }),
   );
   assert.ok(byTestId(empty, "ro-report-empty"));
   assert.equal(byTestId(empty, "ro-funnel"), null);
@@ -180,7 +180,7 @@ const leadsDto = (over = {}) => ({
     ],
     ...over,
   },
-  chain: { domains: [{ host: "mail.example.com", sent_days: 0 }] },
+  chain: { mailboxes: [{ address: "sam@mail.example.com", sent_days: 14, daily_cap: 40, customer_domain: false }] },
   timeline: null,
 });
 /** The bridge, its reads and writes stubbed: each asked recorded. */

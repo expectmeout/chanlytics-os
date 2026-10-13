@@ -166,7 +166,7 @@ test("the name beside the address changes; another workspace's mailbox is not fo
   );
 });
 
-test("where the deployment names no mail domain, email is off: nothing can be made, and the pages are told so without a query", async () => {
+test("where the deployment names no mail domain, hosted email is off: nothing can be made, and the pages are told so without a query of its own", async () => {
   delete process.env.EMAIL_DOMAIN;
   try {
     const ctx = world({ memberships: [membership(A, "owner", "harbor")], mailboxes: [] });
@@ -176,8 +176,18 @@ test("where the deployment names no mail domain, email is off: nothing can be ma
       /not available here yet/,
     );
     const db = fakeDb({ mailboxes: [row(A)] });
-    assert.deepEqual(await emailSetupFor(db, A), { ready: false, domain: null, mailbox: null, sending: null });
-    assert.deepEqual(db.seen, []);
+    // The mailboxes a reach-out writes from are the business's own (decision 0056): read whatever the hosted line.
+    assert.deepEqual(await emailSetupFor(db, A), {
+      ready: false,
+      domain: null,
+      mailbox: null,
+      sending: { providers: [], mailboxes: [] },
+    });
+    assert.deepEqual(
+      db.seen.map((q) => q.table ?? q.rpc).filter((t) => t !== "mailbox_connections"),
+      [],
+      "the hosted mailbox is never read",
+    );
   } finally {
     process.env.EMAIL_DOMAIN = "mail.chanlytics.com";
   }
@@ -192,8 +202,8 @@ test("where the deployment names no mail domain, email is off: nothing can be ma
       last_received_at: "2026-09-17T12:00:00Z",
       last_error: null,
     },
-    // Own domains are the edge's to switch on (the cold key); with no edge here, the block is not drawn.
-    sending: { ready: false, domains: [] },
+    // The providers are the edge's to offer; with no edge here none is, and the business has connected no mailbox.
+    sending: { providers: [], mailboxes: [] },
   });
   assert.deepEqual(
     (await emailSetupFor(db, B)).mailbox,

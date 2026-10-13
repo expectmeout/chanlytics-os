@@ -20,6 +20,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { doorOf, localDate, localHour, playbookFailedWords } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
+import { rows } from "../_rows.mjs";
 import { withoutRequestId } from "../_log-lines.mjs";
 import { at, knock, answer, refusedAtTheDoor, vault, wire, withEnv } from "../_cron-doors-world.mjs";
 
@@ -156,7 +157,7 @@ function world({ people = {}, ticks = 1, faults = {}, rpcs = {} } = {}) {
     operator_pages: [],
     // Reach out (Part 3): what a reach-out step's run reads and writes.
     billing_accounts: [],
-    sending_domains: [],
+    mailbox_connections: [],
     reach_out_sends: [],
   };
   latest.tables = tables;
@@ -762,22 +763,20 @@ const reachOut = (tenant, id, over = {}) =>
     after_playbook_id: null,
     after_days: null,
     gap_minutes: 12,
-    domain_ids: [],
+    mailbox_ids: [],
     ...over,
   });
-/** A workspace that may send cold email: its outreach class at its default, a verified domain, and billing. */
+/** A workspace that may send cold email: its outreach class at its default, a mailbox it connected, and billing. */
 function coldWorkspace(tables, id, tz, mode = "veto") {
   workspace(tables, id, tz, "auto");
   tables.policies.push({ ...tables.policies.at(-1), id: `pol-o-${id.slice(0, 8)}`, class: "outreach", mode });
   tables.billing_accounts.push({ tenant_id: id, mode: "direct", status: "active" });
-  tables.sending_domains.push({
-    id: `dom-${id.slice(0, 8)}`,
-    tenant_id: id,
-    host: "getharbor.example",
-    state: "verified",
-    clean_since: iso(20 * D),
-  });
+  tables.mailbox_connections.push(
+    rows.mailboxConnection({ tenant_id: id, provider_account: `acct-${id.slice(0, 8)}`, clean_since: iso(20 * D) }),
+  );
 }
+/** The mailbox a workspace's reach-outs write from (coldWorkspace's). */
+const mailboxOf = (tables, id) => tables.mailbox_connections.find((m) => m.tenant_id === id)?.id;
 const coldRpcs = (leads) => ({
   reach_out_audience: () => leads,
   // 00185's door, as the database answers it: the run and its sends together, or {exists} for the step's day.
@@ -800,14 +799,18 @@ const coldRpcs = (leads) => ({
       });
     return { id: a.p_run.id };
   },
-  sending_domain_capacity: (a) => ({
-    state: "verified",
+  // 00422's day of a mailbox: a new one, connected, nothing sent yet.
+  mailbox_capacity: () => ({
+    state: "connected",
     clean_since: iso(20 * D),
+    resting_until: null,
+    daily_cap: 40,
+    customer_domain: false,
     sent_days: 0,
+    sent_today: 0,
     used: 0,
     recent: [],
     last_sent_at: null,
-    domain: a.p_domain_id,
   }),
 });
 const coldLead = (id) => ({
@@ -836,7 +839,10 @@ test("a reach-out's first run waits for its owner: one pending run, its sends pl
   );
   assert.equal(w.tables.reach_out_sends.length, 3);
   for (const s of w.tables.reach_out_sends)
-    assert.deepEqual([s.state, s.broadcast_id, s.root_id, s.domain_id], ["planned", run.id, R, `dom-${A.slice(0, 8)}`]);
+    assert.deepEqual(
+      [s.state, s.broadcast_id, s.root_id, s.mailbox_id],
+      ["planned", run.id, R, mailboxOf(w.tables, A)],
+    );
   // The one job is the phone's: a run that waits for a person is told to their phone too (contracts PUSH_KINDS).
   assert.deepEqual(
     w.tables.jobs.map((j) => j.kind),

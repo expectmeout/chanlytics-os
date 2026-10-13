@@ -407,7 +407,7 @@ test("each Reports page hears the tables it counts, on its page: the overview it
     ["reports", "reports", ["calls", "tenant_config", "deals", "appointments", "contacts"]],
     ["reports_receptionist", "reports/receptionist", ["appointments", "contacts", "tenant_config"]],
     ["reports_people", "reports/people", ["contacts", "tenant_channels", "lines", "mailboxes"]],
-    ["reports_campaigns", "reports/campaigns", ["reach_out_replies", "tenant_channels", "sending_domains"]],
+    ["reports_campaigns", "reports/campaigns", ["reach_out_replies", "tenant_channels", "mailbox_connections"]],
     ["campaign_results", "campaigns", ["reach_out_replies"]],
   ];
   for (const [key, route, list] of WANTED)

@@ -69,7 +69,7 @@ const tables = (role = "operator") => ({
       after_playbook_id: ROOT_ID,
       after_days: 4,
       gap_minutes: 12,
-      domain_ids: [],
+      mailbox_ids: [],
       signed_by: null,
       include_unconfirmed: false,
       template_id: T2,
@@ -88,7 +88,7 @@ const tables = (role = "operator") => ({
       after_playbook_id: null,
       after_days: null,
       gap_minutes: 12,
-      domain_ids: [],
+      mailbox_ids: [],
       signed_by: "Sam",
       include_unconfirmed: false,
       template_id: T1,
@@ -122,7 +122,7 @@ const tables = (role = "operator") => ({
   ],
   broadcasts: [],
   reach_out_sends: [],
-  sending_domains: [],
+  mailbox_connections: [],
   decisions: [],
 });
 const ctxFor = (t) => ({ supabase: fakeDb(t, {}, {}), userId: USER, email: "ada@example.com", params: {} });
@@ -172,7 +172,7 @@ const CHAIN = (first = {}, nudge = {}) => ({
   search_id: SEARCH,
   include_unconfirmed: false,
   gap_minutes: 12,
-  domain_ids: [],
+  mailbox_ids: [],
   signed_by: "Sam",
   steps: [
     {
@@ -279,10 +279,17 @@ test("what only the chain knows is refused too: a name to sign with when the wor
   const noLink = tables();
   noLink.tenant_config = [{ tenant_id: A, config: config(null) }];
   await refused(
-    post(noLink, write({ body: "{{opening}} {{booking link}}\n\n{{your name}}" })),
+    post(noLink, write({ name: NUDGE, body: "Bumping this: {{booking link}}\n\n{{your name}}" })),
     "validation",
     422,
     "Your words name {{booking link}}. Add your booking link in Settings › Business first.",
+  );
+  // And a first email carries no link at all (decision 0056), whatever the workspace holds.
+  await refused(
+    post(tables(), write({ body: "{{opening}} {{booking link}}\n\n{{your name}}" })),
+    "validation",
+    422,
+    "Keep your first email free of links: put your booking link in the nudge.",
   );
   assert.deepEqual(asked, []);
 });

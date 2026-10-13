@@ -3,9 +3,9 @@
  * never-again list and a reply's reading, with the rows they name (reach_out_replies is typed here; lead_suppressions
  * and reach_out_sends are read here). Groups, top to bottom:
  *
- *   the send door's facts   outreachFactsOf (outreach_facts): the lead's stage, whether the address is suppressed,
- *                           whether the person wrote back, an out-of-office or a stop in force, and the From domain's
- *                           state and what left from it, in one answer. core's deliver() asks it for a reach-out email
+ *   the send door's facts   outreachFactsOf (outreach_mailbox_facts): the lead's stage, whether the address is
+ *                           suppressed, whether the person wrote back, an out-of-office or a stop in force, and the
+ *                           connected mailbox the From is, with its day (00422), in one answer. core's deliver() asks it for a reach-out email
  *                           alone, on the service role.
  *   the never-again list    addressesSuppressed (lead_addresses_suppressed): an address's own row, or its business's
  *                           own domain after a no. The finder (apps/edge/lib/leads/lead-db.ts) asks it through this
@@ -38,6 +38,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { conversationPatch, type SchemaSet } from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
+import { mailboxCapacityFrom, type MailboxCapacity } from "./mailboxes/day";
 import { erasureDigests } from "./people";
 
 type Db = SupabaseClient<Database>;
@@ -57,12 +58,10 @@ export interface OutreachFactsRow {
   /** Its owner stopped writing to this lead (00241, Reach out Part 6's H10). A database before 00241 says nothing. */
   stopped: boolean;
   /**
-   * The From host's row as Connections set it up, with the days it has sent on since it was clean (D15, 00184); null
-   * when the workspace owns no such domain.
+   * The workspace's connected mailbox the From is (00422), with its day (mailbox_capacity now); null when the From is
+   * none of its mailboxes, or one removed.
    */
-  domain: { state: string; from_local: string; clean_since: string | null; sent_days: number } | null;
-  /** What left from that domain since `since`. */
-  sent_since: number;
+  mailbox: ({ id: string; address: string } & MailboxCapacity) | null;
 }
 
 export async function outreachFactsOf(
@@ -71,20 +70,17 @@ export async function outreachFactsOf(
     tenantId: string;
     contactId: string;
     to: string;
-    host: string;
-    since: string;
+    /** The From address of the frozen request: which of the workspace's mailboxes it leaves from. */
+    from: string;
     /** The lead the send is for (a reach-out's always names one): its own stage, not any lead of this person's. */
     leadId?: string | null;
   },
 ): Promise<OutreachFactsRow> {
-  const { data, error } = await db.rpc("outreach_facts", {
+  const { data, error } = await db.rpc("outreach_mailbox_facts", {
     p_tenant_id: p.tenantId,
     p_contact_id: p.contactId,
     p_to: p.to,
-    p_host: p.host,
-    p_since: p.since,
-    // Named only when there is a lead: a database before 00184 knows five arguments, and a sixth it has never heard of
-    // would fail every cold send rather than answer as it did.
+    p_from: p.from,
     ...(p.leadId ? { p_lead_id: p.leadId } : {}),
   });
   if (error) throw new Error(`cannot read the outreach facts: ${error.message}`);
@@ -102,17 +98,17 @@ export async function outreachFactsOf(
     // Absent before 00241: not stopped. The stop still holds without it: its planned and held sends are skipped, and
     // the followers leave the lead out, both in SQL.
     stopped: f.stopped === true,
-    domain:
-      f.domain && typeof f.domain === "object" && typeof f.domain.state === "string"
+    mailbox:
+      f.mailbox && typeof f.mailbox === "object" && typeof (f.mailbox as { id?: unknown }).id === "string"
         ? {
-            state: f.domain.state,
-            from_local: String(f.domain.from_local ?? ""),
-            clean_since: typeof f.domain.clean_since === "string" ? f.domain.clean_since : null,
-            // A database before 00184 says nothing of it: no days sent, the ramp's first step.
-            sent_days: Math.max(0, Number((f.domain as { sent_days?: unknown }).sent_days ?? 0) || 0),
+            id: (f.mailbox as { id: string }).id,
+            address:
+              typeof (f.mailbox as { address?: unknown }).address === "string"
+                ? (f.mailbox as { address: string }).address
+                : "",
+            ...mailboxCapacityFrom(f.mailbox),
           }
         : null,
-    sent_since: Number(f.sent_since ?? 0) || 0,
   };
 }
 

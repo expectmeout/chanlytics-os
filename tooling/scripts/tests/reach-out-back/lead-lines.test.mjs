@@ -99,18 +99,29 @@ const lines = (over = {}) => ({
   chain: { root_id: "r1", name: "Trainers in Austin", state: "running" },
   written_to: 44,
   today: 18,
-  next: { at: "2026-09-28T16:12:00.000Z", business: "Zilker Kettlebell Club", host: "mail.example.com" },
+  next: {
+    at: "2026-09-28T16:12:00.000Z",
+    business: "Zilker Kettlebell Club",
+    host: "mail.example.com",
+    from: "sam@mail.example.com",
+  },
   held: 0,
   waiting_run_id: null,
   leads: [],
   ...over,
 });
-const chain = { domains: [{ host: "mail.example.com", sent_days: 0 }] };
+// Fourteen days sent: the ramp's third step, thirty a day (contracts mailboxDailyCap).
+const chain = {
+  mailboxes: [{ address: "sam@mail.example.com", sent_days: 14, daily_cap: 40, customer_domain: false }],
+};
 
 test("the strip says how many, today's of the day's share, the next and where from", () => {
   const s = reachOutStripOf(lines(), chain, NOW, TZ);
   assert.equal(s.title, "Writing to 44 businesses");
-  assert.deepEqual(s.parts, ["18 of 30 today", "next 11:12 AM, Zilker Kettlebell Club", "from mail.example.com"]);
+  assert.deepEqual(s.parts, ["18 of 30 today", "next 11:12 AM, Zilker Kettlebell Club", "from sam@mail.example.com"]);
+  // A line from before 00422 names its domain alone, and says that.
+  const older = reachOutStripOf(lines({ next: { ...lines().next, from: undefined } }), chain, NOW, TZ);
+  assert.equal(older.parts[2], "from mail.example.com");
   assert.equal(s.running, true);
   assert.equal(s.progress, 0.6);
   assert.deepEqual(s.going, { label: "How it's going", to: "outbound/r1" });

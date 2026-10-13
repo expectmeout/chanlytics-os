@@ -32,7 +32,6 @@ export const CLOCKS = {
     kind: "reconcile",
     why: "reconciles what a crash left, which no row's time says: a message no turn finished, a reply no job was left to send, a run no job started; and tells of a hold still open two hours after its own time, once",
   },
-  domains: { kind: "reconcile", why: "checks each sending domain's verification, bounces and holds with the provider" },
   google: { kind: "reconcile", why: "reads each workspace's listings and profiles from Google" },
   health: { kind: "judge", why: "judges every clock, and mails and pages when one falls silent" },
   jobs: {
@@ -43,6 +42,10 @@ export const CLOCKS = {
   lines: {
     kind: "event-shaped",
     why: "resumes stuck line sagas and releases ended lines; the workflow runtime resuming its own steps replaces it",
+  },
+  mailboxes: {
+    kind: "reconcile",
+    why: "keeps each connected mailbox's watch, reads back what a push may have missed, and judges its own mail hourly",
   },
   notes: {
     kind: "event-shaped",
@@ -92,7 +95,6 @@ export const CLOCKS = {
     why: "checks each opening every minute; a step started when a send is planned replaces it",
   },
   registration: { kind: "reconcile", why: "reads carrier registration status from Twilio" },
-  sending_domain_days: { kind: "roll", why: "files each sending domain's day of counters" },
   snoozes: {
     kind: "due",
     why: "wakes a snoozed thread at the time the snooze kept on the row (00098)",

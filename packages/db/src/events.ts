@@ -123,6 +123,14 @@ interface TableData {
   "line.texting_approved": TextingData;
   "line.texting_on": TextingData;
   "line.texting_rejected": TextingData;
+  /** A mailbox the business writes from (00421, decision 0056): its address, never its token. */
+  "mailbox_connection.connected": { address: string; provider: string; again: boolean; by: string | null };
+  "mailbox_connection.signed_out": { address: string; provider: string };
+  "mailbox_connection.held": { address: string; why: string; sent: number; bounced: number; unsubscribed: number };
+  "mailbox_connection.resumed": { address: string; why: string | null; by: string };
+  "mailbox_connection.paused": { address: string; by: string };
+  "mailbox_connection.unpaused": { address: string; by: string };
+  "mailbox_connection.removed": { address: string; by: string | null };
   "message.send_blocked": { reason: string | null } & JsonObject;
   /** `http_status` is the send's own answer: absent when the failure came later, in the provider's receipt (reason "receipt"). */
   "message.send_failed": { http_status?: number; body: string | null; reason: string } & JsonObject;
@@ -136,12 +144,6 @@ interface TableData {
   "reach_out.lead_stopped": { by: string };
   "reach_out.send_decided": { decision: string; by: string };
   "policy.veto_window_skipped": { delay_ms: number; source: string; reason: string };
-  "sending_domain.added": { host: string; by?: string | null };
-  "sending_domain.held": { host: string } & JsonObject;
-  "sending_domain.released": { host: string } & JsonObject;
-  "sending_domain.removed": { host: string; why?: string; by?: string | null };
-  "sending_domain.resumed": { host: string; why?: string; by: string };
-  "sending_domain.verified": { host: string } & JsonObject;
   "settings.changed": { fields: string[]; by: string; version: number | string | null; via?: string };
   /** A message deleted from the Library, and one sent to WhatsApp for approval: its name, its language, and who. */
   "template.removed": { name: string; language: string; by: string };
@@ -211,6 +213,13 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "line.texting_approved": { category: "setup", version: 1 },
   "line.texting_on": { category: "setup", version: 1 },
   "line.texting_rejected": { category: "setup", version: 1 },
+  "mailbox_connection.connected": { category: "setup", version: 1 },
+  "mailbox_connection.signed_out": { category: "setup", version: 1 },
+  "mailbox_connection.held": { category: "setup", version: 1 },
+  "mailbox_connection.resumed": { category: "setup", version: 1 },
+  "mailbox_connection.paused": { category: "setup", version: 1 },
+  "mailbox_connection.unpaused": { category: "setup", version: 1 },
+  "mailbox_connection.removed": { category: "setup", version: 1 },
   "message.send_blocked": { category: "message", version: 1 },
   "message.send_failed": { category: "message", version: 1 },
   "message.send_raced_cancel": { category: "message", version: 1 },
@@ -222,12 +231,6 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "policy.veto_window_skipped": { category: "policy", version: 1 },
   "reach_out.lead_stopped": { category: "lead", version: 1 },
   "reach_out.send_decided": { category: "lead", version: 1 },
-  "sending_domain.added": { category: "setup", version: 1 },
-  "sending_domain.held": { category: "setup", version: 1 },
-  "sending_domain.released": { category: "setup", version: 1 },
-  "sending_domain.removed": { category: "setup", version: 1 },
-  "sending_domain.resumed": { category: "setup", version: 1 },
-  "sending_domain.verified": { category: "setup", version: 1 },
   "settings.changed": { category: "system", version: 1 },
   "template.removed": { category: "message", version: 1 },
   "template.submitted": { category: "message", version: 1 },

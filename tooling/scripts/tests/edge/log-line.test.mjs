@@ -281,11 +281,11 @@ test("an id or a moment under a contact key is not a number: a workspace in `fro
   const from = "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa";
   const to = "bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb";
   const { lines } = await written(async () =>
-    L.warn("sending_domain_taken_over", { from, to, at: "2026-09-29T16:20:00.000Z", day: "2026-09-29" }),
+    L.warn("mailbox_synced", { from, to, at: "2026-09-29T16:20:00.000Z", day: "2026-09-29" }),
   );
   assert.deepEqual(fieldsOf(lines[0]), { from, to, at: "2026-09-29T16:20:00.000Z", day: "2026-09-29" });
   const { lines: moments } = await written(async () =>
-    L.warn("sending_domain_taken_over", { from: "2026-09-29", to: "2026-09-29T16:20:00Z" }),
+    L.warn("mailbox_synced", { from: "2026-09-29", to: "2026-09-29T16:20:00Z" }),
   );
   assert.deepEqual(fieldsOf(moments[0]), { from: "2026-09-29", to: "2026-09-29T16:20:00Z" });
 });

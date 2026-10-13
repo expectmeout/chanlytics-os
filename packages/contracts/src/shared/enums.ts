@@ -310,15 +310,16 @@ export const EVENT_KINDS = [
   /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00299). The reason, never an address. */
   "mailbox.offers_paused",
   "mailbox.offers_resumed",
-  /** A workspace's own sending domain (Reach out, 00175): added, verified, held by the domains clock, sending again,
-   * removed. The host and the reason, never the provider's id. */
-  "sending_domain.added",
-  "sending_domain.verified",
-  "sending_domain.held",
-  "sending_domain.released",
-  /** The owner resumed a domain held for its bounces or a complaint (00176): 30 a day again. */
-  "sending_domain.resumed",
-  "sending_domain.removed",
+  /** A mailbox the business writes cold email from (00421, decision 0056): connected (or connected again), signed out
+   * by its provider, held for its own mail, resumed by its owner, paused and unpaused by its owner, removed. Its
+   * address and the reason, never its token. */
+  "mailbox_connection.connected",
+  "mailbox_connection.signed_out",
+  "mailbox_connection.held",
+  "mailbox_connection.resumed",
+  "mailbox_connection.paused",
+  "mailbox_connection.unpaused",
+  "mailbox_connection.removed",
   /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
   /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */

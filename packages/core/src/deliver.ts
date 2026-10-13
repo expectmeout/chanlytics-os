@@ -37,7 +37,8 @@ import {
 } from "@chanlytics/channels";
 import {
   CARRIER_CONSENT_SOURCE,
-  domainDailyCap,
+  mailboxDailyCap,
+  mailboxSendsNow,
   isAutomatedSend,
   isEmailStopped,
   isOfferByEmail,
@@ -52,6 +53,7 @@ import {
   emailOffersPause,
   emitEvent,
   outreachFactsOf,
+  stampEmailFromMailbox,
   stampEmailLeftAs,
   recordCarrierOptOut,
   recordOutbound,
@@ -106,13 +108,13 @@ export interface WirePayload {
    * queued (channels email/request.ts). Present on the email wire and nowhere else.
    */
   email?: EmailRequest;
-  /** The send's purpose, on the email wire: only outreach may take an own domain's route (emailSender). */
+  /** The send's purpose, on the email wire: only outreach may take a connected mailbox's route (emailSender). */
   purpose?: SendPurpose;
-  /** A person's reply (the door's kindOf), the one other send that may leave by an own domain: by its twin below. */
+  /** A person's reply (the door's kindOf), the one other send that may leave by a connected mailbox: by its twin below. */
   reply?: boolean;
   /**
-   * A person's reply to a reach-out, frozen a second time on the own domain the chain wrote from (G15): it leaves by
-   * that domain's route when the route still holds it, and as `email` on the mailbox otherwise (N5).
+   * A person's reply to a reach-out, frozen a second time on the connected mailbox the chain wrote from (G15): it
+   * leaves by that mailbox's route when the route still holds it, and as `email` on the hosted mailbox otherwise (N5).
    */
   ownEmail?: EmailRequest;
   /**
@@ -169,8 +171,8 @@ export interface Delivery {
   /** The frozen request, on the email wire (WirePayload.email). */
   email?: EmailRequest;
   /**
-   * A person's reply to a reach-out, frozen again on the own domain the chain wrote from (WirePayload.ownEmail): it
-   * may leave by that domain only as a reply (kindOf), and under the same row's id as `email`.
+   * A person's reply to a reach-out, frozen again on the connected mailbox the chain wrote from (WirePayload.ownEmail):
+   * it may leave by that mailbox only as a reply (kindOf), and under the same row's id as `email`.
    */
   ownEmail?: EmailRequest;
   /**
@@ -355,32 +357,30 @@ interface OutreachFacts {
   /** The request carries RFC 8058's one-click unsubscribe, both headers. */
   unsubscribable: boolean;
   /**
-   * The state of the workspace's own domain the request's From is, as Connections set it up (its host and its
-   * from_local); null when the From is no such address.
+   * The workspace's connected mailbox the request's From is (decision 0056), with its day: its state, its provider's
+   * rest, its owner's cap, its customer domain, the days it has sent (D15) and what left from it in the rolling day.
+   * Null when the From is none of its mailboxes.
    */
-  domainState: string | null;
-  /** When that domain was last clean: a domain never clean has no day's share at all. */
-  cleanSince: string | null;
-  /** The days that domain has sent on since it was clean (D15): its day's share is domainDailyCap of them. */
-  sentDays: number;
-  /** What left from that domain in the last day. */
-  sentSince: number;
+  mailbox: {
+    state: string;
+    resting_until: string | null;
+    daily_cap: number;
+    customer_domain: boolean;
+    sent_days: number;
+    sent_today: number;
+  } | null;
 }
-
-/** The window a domain's day's share is counted over: a rolling day, so there is no midnight to argue about. */
-const SHARE_WINDOW_MS = 24 * 3_600_000;
 
 /**
  * The facts outreach adds, in one question to the database (00177 outreach_facts), and only for an outreach email: a
  * conversational send never pays for it. A read that fails throws, as wireFacts does: "we could not check" is not
  * "yes".
  */
-async function outreachFacts(db: Db, d: Delivery, f: WireFacts, nowMs: number): Promise<OutreachFacts> {
+async function outreachFacts(db: Db, d: Delivery, f: WireFacts): Promise<OutreachFacts> {
   const headers = d.email?.headers ?? {};
   const unsubscribable =
     !!headers["List-Unsubscribe"] && headers["List-Unsubscribe-Post"] === "List-Unsubscribe=One-Click";
   const from = addressOf(d.email?.from)?.address ?? null;
-  const host = from ? from.slice(from.lastIndexOf("@") + 1) : null;
   if (!f.contactId)
     return {
       leadStage: null,
@@ -389,10 +389,7 @@ async function outreachFacts(db: Db, d: Delivery, f: WireFacts, nowMs: number): 
       away: false,
       stopped: false,
       unsubscribable,
-      domainState: null,
-      cleanSince: null,
-      sentDays: 0,
-      sentSince: 0,
+      mailbox: null,
     };
   let facts;
   try {
@@ -400,9 +397,8 @@ async function outreachFacts(db: Db, d: Delivery, f: WireFacts, nowMs: number): 
       tenantId: d.tenantId,
       contactId: f.contactId,
       to: d.to,
-      // A From that cannot be read names no domain: the lead is still asked, and the door refuses the domain.
-      host: host ?? "",
-      since: new Date(nowMs - SHARE_WINDOW_MS).toISOString(),
+      // A From that cannot be read names no mailbox: the lead is still asked, and the door refuses the mailbox.
+      from: from ?? "",
       leadId: d.leadId ?? null,
     });
   } catch (e) {
@@ -410,9 +406,8 @@ async function outreachFacts(db: Db, d: Delivery, f: WireFacts, nowMs: number): 
       cause: e,
     });
   }
-  // The whole address, as the wire will hold it (emailSender): another name on an own domain is not the address the
-  // workspace set up, and would only fail at the wire rather than be refused here with its reason.
-  const own = host && facts.domain && `${facts.domain.from_local}@${host}` === from ? facts.domain : null;
+  // The whole address, as the wire will hold it (emailSender): the database found the mailbox by it.
+  const own = facts.mailbox && facts.mailbox.address === from ? facts.mailbox : null;
   return {
     leadStage: facts.lead_stage,
     suppressed: facts.suppressed,
@@ -420,10 +415,7 @@ async function outreachFacts(db: Db, d: Delivery, f: WireFacts, nowMs: number): 
     away: facts.away,
     stopped: facts.stopped,
     unsubscribable,
-    domainState: own?.state ?? null,
-    cleanSince: own?.clean_since ?? null,
-    sentDays: own?.sent_days ?? 0,
-    sentSince: facts.sent_since,
+    mailbox: own,
   };
 }
 
@@ -458,8 +450,8 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number, o: OutreachFacts |
   const may = mayMessageFor(f.contact, d.purpose, asked);
   if (!may.ok) return may.reason;
   // Outreach's own rules, after the person's no and before any pause: only to a business the finder found, only with
-  // the one-click unsubscribe the large mailbox providers require, only from a domain the workspace owns and has
-  // verified, never from the hosted address every workspace's replies share.
+  // the one-click unsubscribe the large mailbox providers require, only from a mailbox the business connected and
+  // that sends now (decision 0056), never from the hosted address every workspace's replies share.
   if (d.purpose === "outreach") {
     if (!o) throw new Error(`deliver: an outreach email is judged with its facts (conversation ${d.conversationId})`);
     // The lead's own facts, in the one mapping the reach-out clock also asks before it claims a send.
@@ -472,11 +464,11 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number, o: OutreachFacts |
     });
     if (lead) return lead;
     if (!o.unsubscribable) return "outreach_without_unsubscribe";
-    if (!o.domainState) return "outreach_needs_own_domain";
-    if (o.domainState !== "verified") return "sending_domain_not_ready";
-    // The day's share is the ramp's (contracts domainDailyCap). The batch writer claims within it (Part 3); this is
-    // the backstop, so a run that miscounts cannot spend a domain's reputation past its share.
-    if (o.sentSince >= (o.cleanSince ? domainDailyCap(o.sentDays) : 0)) return "sending_domain_at_cap";
+    if (!o.mailbox) return "outreach_needs_own_mailbox";
+    if (!mailboxSendsNow(o.mailbox, nowMs)) return "sending_mailbox_not_ready";
+    // The day's share is the mailbox's (contracts mailboxDailyCap). The writer claims within it; this is the backstop,
+    // so a run that miscounts cannot spend a mailbox's reputation past its share.
+    if (o.mailbox.sent_today >= mailboxDailyCap(o.mailbox)) return "sending_mailbox_at_cap";
   }
   const kind = kindOf(d);
   // A person's own reply goes out even when the machine is told to stop: the
@@ -559,6 +551,29 @@ async function stampThread(db: Db, d: Delivery, nowMs: number): Promise<void> {
  * as the first left a sent message queued for ever under a false race event.
  */
 /**
+ * What a mailbox kept of an email it sent (decision 0056), on its row: the Message-ID a reply will cite and the thread
+ * the sync reads by, which no receipt brings later. The words already left, so a write that fails is logged, never
+ * thrown.
+ */
+async function fromMailbox(db: Db, d: Delivery, sent: SendResult): Promise<void> {
+  if (!sent.email || !d.messageId) return;
+  await stampEmailFromMailbox(db, {
+    tenantId: d.tenantId,
+    messageId: d.messageId,
+    providerId: sent.wamid,
+    rfcMessageId: sent.email.messageId,
+    threadId: sent.email.threadId,
+    mailboxId: sent.email.mailboxId,
+  }).catch((e: unknown) => {
+    deliverLog.error("deliver_mailbox_stamp_failed", {
+      tenant_id: d.tenantId,
+      message_id: d.messageId,
+      error: errField(e),
+    });
+  });
+}
+
+/**
  * How a person's reply left (G15, N5), on its row: the words already left, so a write that fails is logged, never
  * thrown, the way a failed finalize is.
  */
@@ -591,8 +606,7 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
   assertFrozenFor(d);
   const nowMs = (ports.now ?? Date.now)();
   const facts = await wireFacts(ports, d);
-  const outreach =
-    d.purpose === "outreach" && d.channel === "email" ? await outreachFacts(ports.db, d, facts, nowMs) : null;
+  const outreach = d.purpose === "outreach" && d.channel === "email" ? await outreachFacts(ports.db, d, facts) : null;
 
   const refusal = refusalFor(d, facts, nowMs, outreach);
   const overtakenBy = !refusal && kindOf(d) === "draft" ? await overtakenByHuman(ports.db, d) : null;
@@ -670,6 +684,7 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
         d.purpose === "outreach" ? Promise.resolve() : stampThread(ports.db, d, nowMs),
         event(ports.db, d, "message.sent", d.messageId, { sender: d.sender }),
         leftAs(ports.db, d, sent),
+        fromMailbox(ports.db, d, sent),
       ]);
       return { outcome: "sent", messageId: d.messageId, externalId: sent.wamid };
     }

@@ -275,6 +275,15 @@ before(async () => {
     from_local: "sam",
     from_name: "Tenancy",
   });
+  // A mailbox the business connected (00421): what a reach-out writes from now; the domain above is 00175's, kept.
+  ctx.mailbox = await seed("mailbox_connections", {
+    tenant_id: A,
+    provider: "google",
+    provider_account: `tenancy-${Date.now().toString(36)}`,
+    address: `sam@tenancy-mail-${Date.now().toString(36)}.example`,
+    host: `tenancy-mail-${Date.now().toString(36)}.example`,
+    from_name: "Tenancy",
+  });
   // One day of that domain (00314): the clock's function writes it, a member of the workspace reads it.
   await seed(
     "sending_domain_days",
@@ -380,7 +389,7 @@ before(async () => {
       playbook_id: ctx.reachRoot,
       root_id: ctx.reachRoot,
       lead_id: ctx.lead,
-      domain_id: ctx.domain,
+      mailbox_id: ctx.mailbox,
       send_at: new Date().toISOString(),
     },
     null,
@@ -646,7 +655,7 @@ const TENANT_TABLES = {
       playbook_id: ctx.reachRoot,
       root_id: ctx.reachRoot,
       lead_id: ctx.lead,
-      domain_id: ctx.domain,
+      mailbox_id: ctx.mailbox,
       send_at: new Date().toISOString(),
     }),
   ],
@@ -750,6 +759,19 @@ const TENANT_TABLES = {
       tenant_id: A,
       host: `stranger-${Date.now().toString(36)}.example`,
       from_local: "sam",
+      from_name: "Stranger",
+    }),
+  ],
+  // A mailbox a business connected (00421, decision 0056): members read their workspace's, and only the edge's service
+  // role writes one, once the provider's grant is in hand.
+  mailbox_connections: [
+    "member",
+    () => ({
+      tenant_id: A,
+      provider: "google",
+      provider_account: `stranger-${Date.now().toString(36)}`,
+      address: `sam@stranger-mail-${Date.now().toString(36)}.example`,
+      host: `stranger-mail-${Date.now().toString(36)}.example`,
       from_name: "Stranger",
     }),
   ],

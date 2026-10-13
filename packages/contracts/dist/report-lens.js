@@ -83,9 +83,9 @@ var HELD_REASONS = {
   outreach_away: "away until the day they're back",
   outreach_stopped: "you stopped writing to them",
   outreach_without_unsubscribe: "no unsubscribe link",
-  outreach_needs_own_domain: "not from your own domain",
-  sending_domain_not_ready: "the domain isn't sending",
-  sending_domain_at_cap: "the domain's day is full"
+  outreach_needs_own_mailbox: "not from a mailbox you connected",
+  sending_mailbox_not_ready: "the mailbox isn't sending",
+  sending_mailbox_at_cap: "the mailbox's day is full"
 };
 var DELIVERY_RECEIPTS_WORDS = "each channel's own receipts";
 
@@ -1130,20 +1130,34 @@ function toPeopleReportVM(dto) {
   };
 }
 
-// src/email/sending-domains.ts
+// src/email/mailbox-connections.ts
 var DAY_FMT = formatterOnUse("en-US", { month: "short", day: "numeric" });
-var REPUTATION_MEMORY_MS = 30 * 864e5;
+var MAILBOX_CONNECTIONS_MAX = 10;
+var MAILBOXES_PER_DOMAIN_MAX = 3;
 var HOLD_WORDS = {
-  verification: "it stopped verifying",
-  dmarc: "its DMARC record is missing",
-  bounces: "more than 2% of its recent emails bounced",
+  bounces: "more than 3% of its recent emails bounced",
   complaint: "someone marked an email from it as spam",
-  provider: "the mail provider no longer has it",
-  unsubscribes: "more than 2% of the people it wrote to unsubscribed"
+  unsubscribes: "more than 3% of the businesses it wrote to said no or unsubscribed"
 };
-function domainHoldWords(why) {
+function mailboxHoldWords(why) {
   return why && HOLD_WORDS[why] || "it was held";
 }
+var CLOCK_FMT = formatterOnUse("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" });
+var CONNECT_FAILED = "That didn't go through. Try again in a minute.";
+var MAILBOX_CONNECT_WORDS = {
+  connected: "Connected. Its ramp starts at 10 a day.",
+  reconnected: "Connected again: its emails go on where they waited.",
+  declined: "Nothing was connected: the sign-in was cancelled.",
+  scopes_missing: "Nothing was connected: send and read access are both needed. Connect again and leave both ticked.",
+  no_refresh_token: "Nothing was connected: the provider gave no lasting access. Connect again.",
+  taken: "Another workspace writes from this mailbox. Remove it there first.",
+  too_many: `A workspace writes from ${MAILBOX_CONNECTIONS_MAX} mailboxes at most. Remove one to add another.`,
+  too_many_on_domain: `A workspace writes from ${MAILBOXES_PER_DOMAIN_MAX} mailboxes on one domain at most.`,
+  free_mail: "A free mailbox (Gmail.com, Outlook.com and the like) isn't for writing to businesses: connect one on your own domain.",
+  not_available: "Connecting a mailbox isn't switched on here yet.",
+  not_owner: "Only the workspace's owner or a manager connects a mailbox.",
+  failed: CONNECT_FAILED
+};
 
 // src/leads/search/plan.ts
 var US_STATES = {
@@ -2136,10 +2150,11 @@ var REACH_OUT_SLOT_SET = namedSlots(
   REACH_OUT_SLOTS,
   REACH_OUT_SLOTS.map((s) => REACH_OUT_SLOT_LABELS[s])
 );
+var COUNTRY_NAMES = new Intl.DisplayNames(["en"], { type: "region" });
 
 // src/reach-out/reach-out-sheet.ts
 var REACH_OUT_SHEET_WORDS = {
-  sub: "Your email, opened for each business, from your own domain. Replies land in your Inbox.",
+  sub: "Your email, opened for each business, from your own mailbox. Replies come back to it, and to your Inbox.",
   who: "Ready, with a checked address, never written to. Keeps itself current.",
   opening: "The receptionist opens each email from the finder's record. It never invents a fact: anything it can't back is held.",
   stops: "Stops when they reply, book, unsubscribe, bounce or say no.",
@@ -2150,7 +2165,7 @@ var REACH_OUT_SHEET_WORDS = {
   footHint: "as the law asks",
   repliesHint: "into your Inbox",
   checkLater: "Each email is checked before it goes. The first run waits for you.",
-  noDomain: "Add a domain you send from in Settings \u203A Connections \u203A Email first.",
+  noMailbox: "Connect the mailbox you'll write from first: Google or Microsoft, here or in Settings \u203A Connections \u203A Email.",
   anotherStep: "Another step",
   anotherStepHint: "\xB7 another email",
   /** The last step may hand each business it reaches to you instead (Part 5, G20). */
@@ -2184,7 +2199,7 @@ var REACH_OUT_REFUSALS = {
   /** reach_out_report (00241, 00360): any count of days Reports reads, as its other functions take them. */
   period: "A period is 1 to 90 days.",
   searchNotFound: "Search not found.",
-  domainNotFound: "Domain not found.",
+  mailboxNotFound: "Mailbox not found.",
   sendNotFound: "Email not found.",
   runNotFound: "Run not found.",
   runOver: "That run is over.",
@@ -2215,7 +2230,7 @@ var isCount = (v) => typeof v === "number" && Number.isInteger(v) && v >= 0;
 
 // src/reports/campaigns/reach-out-lens.ts
 var NO_BUSINESSES = "This database does not count businesses yet.";
-var DOMAINS_LINE = "Where it left from, and how it landed. Past 2% bounced, a domain holds itself.";
+var MAILBOXES_LINE = "Where it left from, and how it landed. Past 3% bounced, a mailbox holds itself.";
 var STANDS_NOW = "as they stand now";
 var SOURCES_LINE = "A business counts once, at the last email that wrote to it. What came of each is as it stands now.";
 var DASH = "\u2014";
@@ -2251,7 +2266,7 @@ function wholeOf(raw) {
     angles: raw.angles ?? [],
     other_angles: raw.other_angles ?? { written: 0, wrote_back: 0 },
     no_angle: raw.no_angle ?? 0,
-    domains: raw.domains ?? []
+    mailboxes: raw.mailboxes ?? []
   };
 }
 function whenOf(dto) {
@@ -2447,36 +2462,37 @@ function sourceLines(dto, nowMs) {
     ...c.steps.map((s) => stepSourceLine(c.root_id, s))
   ]);
 }
-function domainStateWords(d, nowMs, tz) {
-  if (d.host === null) return "Since removed";
-  if (d.state === "verified") return "Verified";
+function mailboxStateWords(d, nowMs, tz) {
+  if (d.address === null || d.state === "removed") return "Since removed";
+  if (d.state === "connected") return "Connected";
   if (d.state === "held") {
     const held = d.held_at ? Date.parse(d.held_at) : NaN;
     const since = Number.isFinite(held) ? ` since ${clockNear(held, tz, nowMs)}` : "";
-    return `Held${since}: ${domainHoldWords(d.held_why)}`;
+    return `Held${since}: ${mailboxHoldWords(d.held_why)}`;
   }
-  return "Not sending yet";
+  if (d.state === "reconnect") return "Signed out: reconnect it";
+  return "Paused";
 }
-function domainCell(n, sent2, share) {
+function mailboxCell(n, sent2, share) {
   return shareSaid(share(n, sent2), n, sent2) ?? DASH;
 }
-function domainRows(dto, nowMs) {
-  return dto.domains.map((d) => ({
-    id: d.host ?? "removed",
-    host: d.host ?? "A domain since removed",
-    state: domainStateWords(d, nowMs, dto.timezone),
+function mailboxRows(dto, nowMs) {
+  return dto.mailboxes.map((d) => ({
+    id: d.address ?? "removed",
+    address: d.address ?? "A mailbox since removed",
+    state: mailboxStateWords(d, nowMs, dto.timezone),
     held: d.state === "held",
     sent: d.sent,
-    landed: domainCell(d.delivered, d.sent, pct),
-    bounced: domainCell(d.bounced, d.sent, tenthOf),
-    complained: domainCell(d.complained, d.sent, tenthOf)
+    landed: mailboxCell(d.delivered, d.sent, pct),
+    bounced: mailboxCell(d.bounced, d.sent, tenthOf),
+    complained: mailboxCell(d.complained, d.sent, tenthOf)
   }));
 }
 function periodLines(dto, when) {
   const handed = dto.totals.handed;
   return {
     written: handed ? `${plural(handed, "business", "businesses")} handed to you as a call or a note, too.` : "",
-    domains: DOMAINS_LINE,
+    mailboxes: MAILBOXES_LINE,
     empty: `No reach-out wrote ${withinWords(dto.days, when.until)}.`,
     sources: SOURCES_LINE
   };
@@ -2497,7 +2513,7 @@ function toReachOutLensVM(raw, nowMs = Date.now()) {
     emails: emailsPart(dto, when),
     businesses: businessesPart(dto, when),
     angles: anglesPart(dto, when),
-    domains: domainRows(dto, nowMs),
+    mailboxes: mailboxRows(dto, nowMs),
     points,
     table: { columns: ["Day", "Written"], rows: points.map((p) => [p.label, p.written]) },
     sources: sourceLines(dto, nowMs),

@@ -5,9 +5,8 @@
  * The dashboard carried DIAG_KEY beside its token on every call, and the key alone opened every door on an edge that
  * could have verified a token -- so the token bought nothing while the key rode with it, and a key that leaked opened
  * twenty-two doors for any workspace. On an edge with the secret the key now opens only a knock the door names as
- * the platform's (the diagnostic, which nothing mints a token for, and the sending-domains lift the runbook reserves
- * for the platform), and every key-only knock on such an edge logs admin_door_key_only, so what still relies on the
- * key can be read off the log. An edge without the secret (a preview) still lets the key decide.
+ * the platform's (the diagnostic, which nothing mints a token for), and every key-only knock on such an edge logs
+ * admin_door_key_only, so what still relies on the key can be read off the log. An edge without the secret (a preview) still lets the key decide.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -260,7 +259,7 @@ test("a token that names a body opens the door for that body only: another body,
   for (const other of [JSON.stringify({ tenant_id: "ws-2", op: "status" }), `${raw} `, "", "{}"]) {
     assert.deepEqual(await refused(post({ "x-edge-token": t() }, other)), [403, { ok: false, error: "token_body" }]);
   }
-  // A door that read its body before asking (sending-domains) hands the text over; the request is not read twice.
+  // A door that read its body before asking (mailboxes) hands the text over; the request is not read twice.
   const spent = new Request(`https://edge.test${AUD}`, { method: "POST", body: raw });
   await spent.text();
   assert.equal((await authorizeAdmin(spent, AUD, { body: raw })).ok, false, "no token, no key: nothing opens");

@@ -1,10 +1,10 @@
 /**
  * The reach-out sheet's draft (Reach out, Part 4 PR 6): what the sheet holds while a chain is written or changed, the
  * body it saves (ReachOutChainSchema's shape), its problems at the field they belong to (validateReachOutChain, in
- * chainIssueWords), a slot put in at the caret, the pace its domains allow, the preview's lines, and the Leads door.
+ * chainIssueWords), a slot put in at the caret, the pace its mailboxes allow, the preview's lines, and the Leads door.
  * Pure: the page draws these and says every sentence from here.
  */
-import { domainDailyCap } from "../email/sending-domains";
+import { mailboxDailyCap, mailboxRampShare, MAILBOX_RAMP } from "../email/mailbox-connections";
 import {
   REACH_OUT_PREVIEW_INDEX_MAX,
   type ReachOutChainDto,
@@ -16,7 +16,7 @@ import type { HandKind, StepHand } from "./reach-out-hand";
 import { REACH_OUT_SHEET_WORDS, startWords } from "./reach-out-sheet";
 import {
   REACH_OUT_AFTER_DAYS,
-  REACH_OUT_DOMAINS_MAX,
+  REACH_OUT_MAILBOXES_MAX,
   REACH_OUT_STEPS_MAX,
   chainIssueWords,
   holdWords,
@@ -40,8 +40,8 @@ export interface ReachOutDraft {
   name: string;
   include_unconfirmed: boolean;
   gap_minutes: number;
-  /** Empty: every verified domain of the workspace (00183). */
-  domain_ids: string[];
+  /** Empty: every connected mailbox of the workspace (00422). */
+  mailbox_ids: string[];
   signed_by: string;
   steps: ReachOutDraftStep[];
 }
@@ -74,7 +74,7 @@ export function reachOutDraftOf(p: {
       name: c.name,
       include_unconfirmed: c.include_unconfirmed,
       gap_minutes: c.gap_minutes,
-      domain_ids: c.domain_ids,
+      mailbox_ids: c.mailbox_ids,
       signed_by: c.signed_by ?? p.signedBy ?? "",
       steps: c.steps.map((s) => ({
         id: s.id,
@@ -88,7 +88,7 @@ export function reachOutDraftOf(p: {
     name: reachOutDefaultName(p.searchName),
     include_unconfirmed: !!p.includeUnconfirmed,
     gap_minutes: REACH_OUT_GAP_FIRST,
-    domain_ids: [],
+    mailbox_ids: [],
     signed_by: p.signedBy ?? "",
     steps: [
       {
@@ -151,7 +151,7 @@ export function reachOutChainBodyOf(d: ReachOutDraft, searchId: string): ReachOu
     search_id: searchId,
     include_unconfirmed: d.include_unconfirmed,
     gap_minutes: d.gap_minutes,
-    domain_ids: d.domain_ids,
+    mailbox_ids: d.mailbox_ids,
     signed_by: d.signed_by.trim() || null,
     // An email carries no hand at all: the door reads a step with the key as a hand step (00228).
     steps: d.steps.map((s, i) => ({
@@ -192,18 +192,24 @@ export function reachOutDraftIssues(d: ReachOutDraft, has: { bookingLink: boolea
 }
 
 /**
- * How many a day the chosen domains allow each (the sheet's "a day per domain"): the least of their ramps, since a
- * run's day is paced by the domain that may send least; and the days that one has sent. None chosen is every verified
- * domain. Nothing to send from is a share of 0.
+ * How many a day the chosen mailboxes write between them (the sheet's pace): each one's day (contracts mailboxDailyCap),
+ * added up, since a run's new leads take turns across them; the fewest days any has sent, which says when the pace next
+ * rises; and how many there are. None chosen is every connected one. Nothing to write from is a share of 0.
  */
 export function reachOutSheetPaceOf(
-  domains: Array<{ id: string; state: string; sent_days: number }>,
+  mailboxes: Array<{ id: string; state: string; sent_days: number; daily_cap: number; customer_domain: boolean }>,
   picked: string[],
-): { share: number; sentDays: number; domains: number } {
-  const from = domains.filter((d) => d.state === "verified" && (picked.length === 0 || picked.includes(d.id)));
-  if (from.length === 0) return { share: 0, sentDays: 0, domains: 0 };
-  const least = from.reduce((a, b) => (domainDailyCap(b.sent_days) < domainDailyCap(a.sent_days) ? b : a));
-  return { share: domainDailyCap(least.sent_days), sentDays: least.sent_days, domains: from.length };
+): { share: number; sentDays: number; mailboxes: number; rises: number | null } {
+  const from = mailboxes.filter((m) => m.state === "connected" && (picked.length === 0 || picked.includes(m.id)));
+  if (from.length === 0) return { share: 0, sentDays: 0, mailboxes: 0, rises: null };
+  const share = from.reduce((t, m) => t + mailboxDailyCap(m), 0);
+  const sentDays = Math.min(...from.map((m) => m.sent_days));
+  // The pace rises when the newest mailbox reaches its ramp's next step, unless its owner's cap stands below it.
+  const next = MAILBOX_RAMP.find((s) => s.days > sentDays);
+  const youngest = from.find((m) => m.sent_days === sentDays);
+  const rises =
+    next && youngest && mailboxDailyCap(youngest) >= mailboxRampShare(sentDays) ? next.days - sentDays : null;
+  return { share, sentDays, mailboxes: from.length, rises };
 }
 
 /** Why the preview could not write this business's email, as the sender would hold or skip it. */
@@ -277,22 +283,22 @@ export function reachOutWhoWords(includeUnconfirmed: boolean): string {
     : REACH_OUT_SHEET_WORDS.who;
 }
 
-/** Whether another domain may be picked: a chain names five at most (ReachOutChainSchema). */
-export function reachOutMayPickDomain(d: ReachOutDraft): boolean {
-  return d.domain_ids.length < REACH_OUT_DOMAINS_MAX;
+/** Whether another mailbox may be picked (ReachOutChainSchema's most). */
+export function reachOutMayPickMailbox(d: ReachOutDraft): boolean {
+  return d.mailbox_ids.length < REACH_OUT_MAILBOXES_MAX;
 }
 
 /** A read the sheet draws from: in, still out, or failed. */
 type ReachOutSheetRead = "in" | "reading" | "failed";
 
 /**
- * What the sheet cannot say yet because a read it draws from is not in: the sending domains (Setup's read) and the
- * booking link (Settings' read). Unread is never "none": the sheet says it is reading, and Start waits.
+ * What the sheet cannot say yet because a read it draws from is not in: the mailboxes (Setup's read) and the booking
+ * link (Settings' read). Unread is never "none": the sheet says it is reading, and Start waits.
  */
-export function reachOutSheetUnreadOf(r: { domains: ReachOutSheetRead; settings: ReachOutSheetRead }): string | null {
-  if (r.domains === "failed" || r.settings === "failed")
-    return "Your sending domains or your booking link couldn't be read. Start waits until they are; reload to try again.";
-  if (r.domains === "reading" || r.settings === "reading") return "Reading your sending domains and your booking link…";
+export function reachOutSheetUnreadOf(r: { mailboxes: ReachOutSheetRead; settings: ReachOutSheetRead }): string | null {
+  if (r.mailboxes === "failed" || r.settings === "failed")
+    return "Your mailboxes or your booking link couldn't be read. Start waits until they are; reload to try again.";
+  if (r.mailboxes === "reading" || r.settings === "reading") return "Reading your mailboxes and your booking link…";
   return null;
 }
 
@@ -341,8 +347,10 @@ export const REACH_OUT_SHEET_PARTS = {
   afterTail: "with nothing back · in the same thread",
   dayOne: "Day one · the pace below",
   remove: "Remove this step",
-  everyDomain: "Every verified domain",
-  domainsMax: `Up to ${REACH_OUT_DOMAINS_MAX} domains, or every verified one.`,
+  everyMailbox: "Every connected mailbox",
+  mailboxesMax: `Up to ${REACH_OUT_MAILBOXES_MAX} mailboxes, or every connected one.`,
+  connectGoogle: "Connect Google",
+  connectMicrosoft: "Connect Microsoft",
   close: "Close",
   recommended: "Recommended",
   start: "Start it",

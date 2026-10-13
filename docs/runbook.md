@@ -617,8 +617,7 @@ only; the dashboard holds none.
 holds it signs every edge call and sends no key, and an edge without it
 refuses those calls. On an edge that holds it, `DIAG_KEY` opens only
 `GET /api/diag`, the pager's door `POST /api/admin/page` (the two conditions
-only a workflow sees) and the sending-domains lift of a domain held twice
-(`op: resume`, `by: platform`); `admin_door_key_only` in the edge log names
+only a workflow sees); `admin_door_key_only` in the edge log names
 every door the key alone still knocks on, and whether it came in. The eval
 harness (`tooling/scripts/eval-brain.mjs`) mints a token for its door from
 `EDGE_CALL_SECRET`, as the dashboard does; there is no raw key knock to make.
@@ -635,66 +634,93 @@ entry per switch the edge holds: whether its weaker mode is open on the deployme
 Start the 3 October read there. `RETELL_DOORS_SIGNED` closes the voice secret on any value but an explicit off (`0`,
 `false`, `off`, `no`); the edge never sets it, and the build fails a month after a switch's day.
 
-## Turn on cold email
+## Connect a mailbox
 
-Reach out sends from a workspace's own domains through a second Resend
-account, apart from the one every reply and every page uses, so a cold
-complaint never touches the platform's reputation. Reach out Part 3 built
-the engine that sends it; nothing sends cold until these switches are set, in
-order, and a reach-out exists (step 8).
+Reach out writes from a mailbox the business connected: its own Google
+Workspace or Microsoft 365 mailbox, on its own domain, connected with OAuth on
+Connections › Email (decision 0056). Each email leaves through that mailbox's
+own provider, as one person's email, and the replies land in it, where the
+mailboxes clock reads them back into the Inbox. The platform's own mail
+account (Resend) carries only what a person or the receptionist answers and
+the offers a customer asked for; no cold email ever leaves on it. Nothing
+sends cold until these are set, in order, and a reach-out exists (step 8).
 
-1. **The cold account.** Create the second Resend account on a plan with
-   enough domains (five per workspace at most).
-2. **Its key, on the edge:** `RESEND_COLD_API_KEY`. Connections › Email then
-   offers "Domains you send from", and the `domains` sweep reads them.
-3. **Its webhook.** In the cold account, point a webhook at
-   `https://<edge>/api/resend-webhook` for its sending events (`email.sent`,
-   `email.delivered`, `email.delivery_delayed`, `email.bounced`,
-   `email.complained`, `email.failed` and `email.suppressed`; not opens or
-   clicks, which nothing reads, nor `email.received`: replies come back to the
-   workspace's mailbox, on the platform account), and set its
-   signing secret on the edge as `RESEND_COLD_WEBHOOK_SECRET`. The door takes
-   either account's signature. Cold routes open only when the key and this
-   secret are both set, so no cold email leaves while its receipts would be
-   refused. A secret set wrong is found for you: the sweep pages
-   `email_cold_receipts_missing` once a domain's emails of the last day have
-   heard nothing back.
-4. **The unsubscribe secret, the same value on both projects:**
+1. **Google: a Cloud project of its own** (never Business Profile's, whose
+   review is its own). Enable the Gmail API and Cloud Pub/Sub. On the OAuth
+   consent screen: External, the app's name and support address, the
+   authorised domain `chanlytics.com`, the privacy policy and terms pages, and
+   the scopes `openid`, `email`, `profile`, `gmail.send` (sensitive) and
+   `gmail.readonly` (restricted: the replies are read with it). A restricted
+   scope needs Google's verification and a yearly security assessment (CASA,
+   Tier 2, by an authorised lab); until both pass the app is capped at 100
+   users and shows the unverified-app screen, and in testing only the listed
+   test users may grant. Make a web-application OAuth client whose one
+   redirect URI is `https://app.chanlytics.com/api/v1/mailbox-connections/callback`,
+   and set `GOOGLE_MAIL_CLIENT_ID` and `GOOGLE_MAIL_CLIENT_SECRET` on the edge.
+2. **Microsoft: an app registration** in Entra for accounts in any
+   organisation's directory (a personal Outlook.com mailbox is refused anyway:
+   free mail never writes to businesses). The same redirect URI, as a web
+   platform; delegated Microsoft Graph permissions `Mail.Send`,
+   `Mail.ReadWrite` (the email is written as MIME, then sent), `User.Read` and
+   `offline_access`; publisher verification, so a business's users may consent
+   without an unverified warning (an organisation that allows only admin
+   consent asks its admin once). Set `MICROSOFT_MAIL_CLIENT_ID` and
+   `MICROSOFT_MAIL_CLIENT_SECRET` on the edge, and diary the secret's expiry
+   (24 months at most): rotate it before then.
+3. **The callback, on the edge:** `MAILBOX_OAUTH_REDIRECT`, the URI above
+   exactly. The dashboard signs the round trip's state with its
+   `GOOGLE_OAUTH_STATE_SECRET` (already set for Google Business Profile), and
+   hands the code to the edge, which alone holds the clients' secrets and
+   keeps each mailbox's token in Vault (`mailbox-creds-<id>`).
+4. **Gmail's push (optional, sooner replies).** In the same project, a Pub/Sub
+   topic, with `gmail-api-push@system.gserviceaccount.com` allowed to publish
+   to it, and a push subscription to `https://<edge>/api/mailbox/gmail` with
+   authentication on (a service account of the project) and an audience of
+   your choosing. Set `GMAIL_PUSH_TOPIC=projects/<project>/topics/<name>` and
+   `GMAIL_PUSH_AUDIENCE=<that audience>` on the edge. Without them every
+   mailbox is read by the five-minute clock alone, and a watch is still kept.
+5. **Graph's push (optional).** `GRAPH_NOTIFY_SECRET`, any long random value:
+   every subscription the clock makes carries it as its clientState, and
+   `/api/mailbox/graph` checks it on each notification (and echoes the
+   validation token when Graph first asks).
+6. **The unsubscribe secret, the same value on both projects:**
    `UNSUBSCRIBE_SECRET`, generated once with
    `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`.
-   The dashboard's `/u/<token>` page opens the links; the edge seals them.
-   Without it the page says it cannot record anything, and logs
-   `unsubscribe_unavailable` once a minute at most. A value that differs
-   between the two is found for you: every `domains` sweep seals a link that
-   names nobody, opens it on the page, and pages
+   The dashboard's `/u/<token>` page opens the links in each cold email's
+   one-click header; the edge seals them. Without it the page says it cannot
+   record anything, and logs `unsubscribe_unavailable` once a minute at most.
+   A value that differs between the two is found for you: the mailboxes clock
+   seals a link that names nobody, opens it on the page, and pages
    `email_unsubscribe_links_broken` when the page refuses it.
-5. **Redeploy both projects**, then check `GET /api/diag` on the edge:
-   `env.emailDomain`, `env.resendWebhook`, `env.resendCold`,
-   `env.resendColdWebhook` and `env.unsubscribe` all `true`. Cold routes also
-   need `env.resend` (the platform account's key) and the workspace's mailbox:
-   a cold email's replies come back to it.
-6. **The first domain.** Add it on Connections › Email, publish its records at
-   the registrar, and press Check until it reads verified (the sweep reads it
-   every ten minutes too).
-7. **The DKIM check, once, with Ruben's yes:** one real email from that domain
-   to an inbox you own. Its headers show `dkim=pass`, with
-   `List-Unsubscribe` and `List-Unsubscribe-Post` among the signed headers:
-   Gmail and Yahoo honour a one-click unsubscribe only when DKIM signs both
-   (RFC 8058 §4).
+7. **Redeploy the edge, then connect the first mailbox.** `GET /api/diag`
+   shows which providers are offered. On Connections › Email, **Connect
+   Google** or **Connect Microsoft** signs in with the mailbox and comes back
+   with it connected; its row says its ramp (10 a day, then 20, 30 and 40
+   after 7, 14 and 21 days it actually sent), its records (SPF, DKIM, DMARC
+   and MX, read daily: the provider's own DKIM must be on), and its health.
+   **Send a test** writes one email from it to itself, through the same wire.
 8. **The first reach-out, made from the sheet.** On Leads, open a search
    and press **Write to the N ready** (an owner, an operator or a partner).
    The sheet takes who gets it, the email with its slots, the nudge after it,
-   the pace and the domains; **Before it goes** shows the email as the first
-   business would read it, its opening written by the check. A booking link
-   in the words needs one on Settings › Business, and the sheet says so
-   before Start. **Start** saves the chain and plans its first run at once,
-   which waits for its owner on Broadcasts: the reach-out block there counts
-   what is ready today, what the check still reads, and what it held, each
-   with its doors. The `reach-out-check-sweep` clock (every minute) checks
-   each email before it may go, and after Approve the `reach-out-sweep` clock
-   (every minute) sends what is due and checked, each email through the jobs
-   tick and the door. `tooling/scripts/tests/reach-out/reach-out.integration.db.test.mjs`
-   runs the same path on a local stack, from the save to two emails sent.
+   the pace and the mailboxes it writes from (each lead hears from one, for
+   the whole chain); **Before it goes** shows the email as the first business
+   would read it, its opening written by the check. A first email carries no
+   link: a booking link goes in a nudge, and it needs one on Settings ›
+   Business, which the sheet says before Start. **Start** saves the chain and
+   plans its first run at once, which waits for its owner on Broadcasts: the
+   reach-out block there counts what is ready today, what the check still
+   reads, and what it held, each with its doors. The `reach-out-check-sweep`
+   clock (every minute) checks each email before it may go, and after Approve
+   the `reach-out-sweep` clock (every minute) sends what is due and checked
+   within each mailbox's day, each email through the jobs tick and the door.
+   `tooling/scripts/tests/reach-out/reach-out.integration.db.test.mjs` runs the
+   same path on a local stack, Gmail answered by the test, from the save to
+   two emails sent, a bounce read back and the day's share held.
+
+**A lead abroad.** The check holds a lead outside the United States, Canada
+and the United Kingdom (`abroad`, its country named) for its owner to include,
+and refuses one in Germany or Austria (`outreach_country`), where a first cold
+email to a business needs its consent.
 
 **The model the check needs.** The check writes and reads each opening with
 Haiku through `ANTHROPIC_API_KEY` on the edge, the key the notes sweep already
@@ -712,19 +738,19 @@ held again** on the run's block does it at once. A hold that names a rule
 its owner's Rewrite, Include, Skip or Not a fit.
 
 **What the reach-out clock's 503 means.** `POST /api/cron/reach-out` answers
-`503 cold_lane_unset` with the variables it lacks (`RESEND_API_KEY`,
-`RESEND_COLD_API_KEY`, `RESEND_COLD_WEBHOOK_SECRET`, `UNSUBSCRIBE_SECRET`,
-`EMAIL_DOMAIN`) while a send is due: nothing is claimed until they are set,
-and the sends keep. With nothing due it answers 200 and names them under
-`lane_missing`. A workspace at its month's allowance (2,000) claims nothing
-until the month turns in its zone (`reach_out_month_spent` in the logs); one
-without a mailbox or a business address claims nothing either
-(`reach_out_workspace_held`).
+`503 lane_unset` with the variables it lacks (`UNSUBSCRIBE_SECRET`) while a
+send is due: nothing is claimed until it is set, and the sends keep. With
+nothing due it answers 200 and names it under `lane_missing`. A workspace at
+its month's allowance (2,000) claims nothing until the month turns in its zone
+(`reach_out_month_spent` in the logs); one without a business address claims
+nothing either (`reach_out_workspace_held`). A mailbox that does not send now
+(paused, held, signed out, or resting until its provider's day turns) is not
+due, and its sends keep their places.
 
 **What the reach-out check's 503 means.** `POST /api/cron/reach-out-check`
 answers `503 check_unset` while a send waits to be checked and the edge has no
 `ANTHROPIC_API_KEY` (it touches nothing: `reach_out_check_unset`), `503
-cold_lane_unset` while one waits and the cold lane lacks a secret (nothing
+lane_unset` while one waits and the edge lacks the unsubscribe's seal (nothing
 checked could leave), and `503 model_unavailable` for a tick in which every
 model call failed (`reach_out_check_unanswered`). A send whose tries fail for an
 hour is held `check_unavailable` for its owner (`reach_out_check_held`, warn),
@@ -784,22 +810,21 @@ the workspace once (`reach_out_replied`). The readings are rows of
   `off` (the reply mode is never), `budget` (the day's tokens are spent),
   `may_not_spend`, or `not_drafted` (the brain handed off, refused or failed).
   The edge logs `reach_out_reply_draft` with `drafted` and `why`.
-- **A reply that left from the mailbox, and why.** An owner's reply to a
-  reach-out's thread is frozen twice: the mailbox's request, and a twin from
-  the domain the reach-out wrote from while that domain is verified. The wire
-  sends the twin when it can and records which left on the row:
-  `meta.email.left_as` is `own` or `mailbox`, with the reason
-  (00226 `stamp_email_left_as`). The reasons for `mailbox` are
-  `domain_held` (the twin's domain was held after the freeze; the Inbox line
-  says so), `no_own_route` (no own domain is bound: the cold lane's keys are
-  unset, the domains could not be read that tick, `email_own_domains_unread`,
-  or none is verified now), `domain_has_no_route` (the twin's domain was
-  removed after the freeze, or is being verified again), `route_refuses_twin` (its Reply-To is on a reply domain
-  the edge has retired) and `twin_names_another_recipient`. A reply with no
-  `left_as` left as every reply did before: the dashboard froze no twin
-  (the domain held or removed at Send, or no reach-out email on the thread),
-  or the edge predates Part 5. A stamp that fails is logged
-  (`deliver_left_as_failed`) and never thrown: the words already left.
+- **A reply that left as the hosted address, and why.** An owner's reply to
+  a reach-out's thread is frozen twice: the hosted address's request, and a
+  twin from the mailbox the reach-out wrote from while that mailbox sends. The
+  wire sends the twin when it can, in the mailbox's own thread, and records
+  which left on the row: `meta.email.left_as` is `own` or `mailbox`, with the
+  reason (00226 `stamp_email_left_as`). The reasons for `mailbox` are
+  `own_not_sending` (the twin's mailbox was paused, held, signed out or
+  resting after the freeze; the Inbox line says so), `no_own_route` (no
+  connected mailbox sends now, or the mailboxes could not be read that tick),
+  `own_has_no_route` (the twin's mailbox was removed after the freeze),
+  `route_refuses_twin` and `twin_names_another_recipient`. A reply with no
+  `left_as` left as every reply did before: the dashboard froze no twin (the
+  mailbox removed or not sending at Send, or no reach-out email on the
+  thread). A stamp that fails is logged (`deliver_left_as_failed`) and never
+  thrown: the words already left.
 - **Microsoft 365's out-of-office stops a chain.** Its documented headers
   claim `automated`, not `auto_reply`, so it counts as writing back and the
   chain stops, with a step for the day they are back, rather than pausing.
@@ -807,19 +832,21 @@ the workspace once (`reach_out_replied`). The readings are rows of
   `auto_reply`, the change is to `classifyReceived` alone.
 - **The proof.** The nightly's run of a reply is
   `tooling/scripts/tests/reach-out-replies/replies.integration.db.test.mjs`:
-  on a stack, a chain written to four businesses, each reply read by the
-  real job, the owner's answer by the own domain and then the mailbox, and
-  the undo of a no. It runs with the database suites, locally with
+  on a stack, a chain written to four businesses from a connected mailbox,
+  each reply read back by the mailbox's sync and then by the real job, the
+  owner's answer from the mailbox and then as the hosted address, and the undo
+  of a no. It runs with the database suites, locally with
   `corepack pnpm test:db`.
 
-**A domain held twice in 30 days.** Its owner cannot resume it: the platform
-is paged (`sending_domain_held_twice:<host>`, naming the workspace and the
-domain). Look at what it sent, then lift it:
-`POST /api/admin/sending-domains` with `x-diag-key` and
-`{ "op": "resume", "tenant_id": "…", "domain_id": "…", "by": "platform" }`.
-The owner is told it sends again, from 30 a day. Only the platform's
-`DIAG_KEY` opens this lift, a dashboard's token never does: keep `DIAG_KEY` on
-the edge, even once every caller carries a token.
+**A mailbox held by its own mail.** The mailboxes clock judges each mailbox
+once an hour on its own reach-out email (`mailbox_connection_counts`): any
+complaint holds it, and so do permanent bounces or noes (an unsubscribe, or a
+reply's no) past 3% of at least 150 sent. Its sends wait, it is said in the
+Activity log (`mailbox_connection.held`), and its owner is told once; only
+their **Resume** on Connections lifts it, and its count starts again from
+then. A mailbox its provider signed out (a revoked grant, a changed password)
+is set to reconnect and its owner told once; **Reconnect** signs in again and
+keeps its row, its ramp and its sends.
 
 **Rotating the unsubscribe secret.** A link already in someone's inbox must
 keep working for at least thirty days (CAN-SPAM). The dashboard first: move
@@ -830,43 +857,26 @@ one the page cannot open, and the sweep pages
 `email_unsubscribe_links_broken`. Clear the previous value no sooner than
 thirty days later.
 
-**Before scale: a cold-only domain (D17).** Until these are set, a cold
-email's unsubscribe link points at `app.chanlytics.com/u/…` and its replies
-come back on `EMAIL_DOMAIN`. Both are judged by the mail they appear in. Before
-cold mail is sent at scale, give it a domain of its own, so the app's links and
-every workspace's replies never answer for it:
+**Before scale: a links domain (D17).** Until it is set, a cold email's
+one-click unsubscribe points at `app.chanlytics.com/u/…`, and a link in a
+cold email's header is judged by the mail it appears in. Before cold mail is
+sent at scale, give the links a domain of their own:
 
-1. Buy a domain for cold mail's links and replies: not a workspace's, and not
-   chanlytics.com.
+1. Buy a domain for the links: not a workspace's, and not chanlytics.com.
 2. Add it to the dashboard's Vercel project, so `https://<it>/u/<token>` is the
    unsubscribe page, and set `UNSUBSCRIBE_ORIGIN=https://<it>` on the
    dashboard: on that host it then answers `/u/` and nothing else (a 404),
    so no sign-in form stands on a domain cold mail names.
 3. Set the same `UNSUBSCRIBE_ORIGIN=https://<it>` on the edge, then redeploy
-   both. The domains sweep's probe then opens the page there. A value that is
-   not an https origin is ignored and logged once (`email_switch_rejected`),
+   both. The mailboxes clock's probe then opens the page there. A value that
+   is not an https origin is ignored and logged once (`email_switch_rejected`),
    and the links stay on the dashboard; `GET /api/diag` shows the origin in
    use (`unsubscribeOrigin`, `unsubscribeOriginRejected`).
-4. Receive mail on a subdomain of it on the platform's Resend account (MX to
-   Resend, as for `mail.chanlytics.com`). The platform account's existing
-   webhook, already pointed at the edge's `/api/resend-webhook`, carries its
-   deliveries: add no second one, whose signing secret the door would not
-   know. Wait until the provider reads it verified for receiving.
-5. Set `COLD_REPLY_DOMAIN=<that subdomain>` on the edge. New cold emails'
-   Reply-To moves to `r+<token>@<it>`. Replies to older ones still arrive on
-   `EMAIL_DOMAIN`, which keeps receiving, and an email queued before the
-   switch still leaves as it was frozen. Only reply routes route there: no
-   workspace publishes an address on it. The health sweep checks it receives,
-   and pages `cold_reply_domain:<it>` when it does not.
 
-**Moving it, or turning it off.** Never simply change or unset
-`COLD_REPLY_DOMAIN`: every cold email already sent is answered there, and a
-reply that no longer routes is dropped, a lead's "no thanks" among them. Set
-`COLD_REPLY_DOMAIN_PREVIOUS` to the old value in the same change, keep it
-receiving, and clear it no sooner than 30 days plus the longest chain's length
-later. Keep an old link host on the dashboard's project for at least 30 days
-after `UNSUBSCRIBE_ORIGIN` moves too: the law wants every link already in an
-inbox working that long.
+Keep an old link host on the dashboard's project for at least 30 days after
+`UNSUBSCRIBE_ORIGIN` moves: the law wants every link already in an inbox
+working that long. A reply needs no domain of its own any more: it lands in
+the mailbox the email left from.
 
 ## Turn on push
 

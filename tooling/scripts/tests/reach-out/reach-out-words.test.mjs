@@ -20,7 +20,8 @@ const cold = (f) => emailFoot(f.business, f.address, { kind: "cold", why: f.why,
 const coldHtml = (f) =>
   emailFootHtml(f.business, f.address, { kind: "cold", why: f.why, unsubscribeUrl: f.unsubscribeUrl });
 
-test("the foot says why, that it is marketing, who and where, and the two ways to say no, in five lines", () => {
+test("the foot says why, that it is marketing, who and where, and how to say no, in four lines with no link (decision 0056)", () => {
+  // One person's email from their own mailbox carries no link at all: the one-click way out is its header's.
   assert.equal(
     cold(FOOT),
     [
@@ -28,9 +29,9 @@ test("the foot says why, that it is marketing, who and where, and the two ways t
       "This is a marketing email.",
       "Chanlytics · 410 Baylor St, Austin, TX 78703",
       `Not interested? Reply "no thanks" and I won't write again.`,
-      `Unsubscribe: ${URL_}`,
     ].join("\n"),
   );
+  assert.ok(!cold(FOOT).includes(URL_));
   assert.equal(
     cold({ ...FOOT, business: "  Chanlytics  " }).split("\n")[2],
     "Chanlytics · 410 Baylor St, Austin, TX 78703",

@@ -249,7 +249,7 @@ const send = (over = {}) => {
     playbook_id: "root-1",
     root_id: "root-1",
     lead_id: `lead-${n}`,
-    domain_id: "dom-1",
+    mailbox_id: "mbx-1",
     send_at: ahead(10 * MIN),
     state: "planned",
     reason: null,

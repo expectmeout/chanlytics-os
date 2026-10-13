@@ -143,18 +143,18 @@ test("the row's chip: what it was read as, and Wrote back when it was not or was
   assert.equal(replyChipOf({ intent: "other", unread: "day_spent", undone: false }), "Wrote back");
 });
 
-test("the composer's line: the own address, or why it goes from the mailbox; nothing for any other reply", () => {
+test("the composer's line: the connected mailbox's address, or why it goes from the hosted mailbox; nothing for any other reply", () => {
   const box = "hello@mail.example.com";
   assert.equal(
     replyFromLineOf({ from: "own", address: "sam@owndomain.example.com" }, box),
     "Goes from sam@owndomain.example.com.",
   );
   assert.equal(
-    replyFromLineOf({ from: "mailbox", because: "domain_held", own: "sam@owndomain.example.com" }, box),
-    "sam@owndomain.example.com is held, so this goes from hello@mail.example.com.",
+    replyFromLineOf({ from: "mailbox", because: "own_not_sending", own: "sam@owndomain.example.com" }, box),
+    "sam@owndomain.example.com isn't sending right now, so this goes from hello@mail.example.com.",
   );
   assert.equal(
-    replyFromLineOf({ from: "mailbox", because: "domain_removed", own: "sam@owndomain.example.com" }, box),
+    replyFromLineOf({ from: "mailbox", because: "own_removed", own: "sam@owndomain.example.com" }, box),
     "sam@owndomain.example.com was removed, so this goes from hello@mail.example.com.",
   );
   assert.equal(replyFromLineOf({ from: "mailbox", because: null }, box), null);
@@ -174,9 +174,9 @@ test("a sent reply that went from the mailbox says so; one that went as frozen s
     "Went from hello@mail.example.com: sam@owndomain.example.com could not send it.",
   );
   assert.equal(
-    replyLeftAsOf(meta("mailbox", "domain_held")),
-    "Went from hello@mail.example.com: sam@owndomain.example.com's domain is held.",
-    "a domain held between the freeze and the send says so",
+    replyLeftAsOf(meta("mailbox", "own_not_sending")),
+    "Went from hello@mail.example.com: sam@owndomain.example.com isn't sending right now.",
+    "a mailbox that stopped sending between the freeze and the send says so",
   );
   assert.equal(replyLeftAsOf(meta("own")), null);
   assert.equal(replyLeftAsOf({ email: { request: { from: "hello@mail.example.com" } } }), null);

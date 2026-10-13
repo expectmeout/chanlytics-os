@@ -268,7 +268,7 @@ var ALERT_TOPICS = [
     key: "sweep",
     group: "worth_knowing",
     title: "Sending is paused",
-    what: "Offers and news by email, or a sending domain, are held after bounces or complaints, and you are told when they send again. Messages about a visit and everything on WhatsApp go on.",
+    what: "Offers and news by email, or a mailbox your reach-outs write from, are held after bounces or complaints, or when its provider signs it out, and you are told. Messages about a visit and everything on WhatsApp go on.",
     email: "choice",
     phone: false,
     kinds: ["sweep"]

@@ -3,7 +3,7 @@
  * a person's, not the business's own) and by the domains a workspace may send from (nobody can publish records at
  * one, and a cold email from one is the spam it looks like).
  */
-export const FREE_MAIL_DOMAINS: ReadonlySet<string> = new Set([
+const FREE_MAIL_DOMAINS: ReadonlySet<string> = new Set([
   "gmail.com",
   "googlemail.com",
   "yahoo.com",

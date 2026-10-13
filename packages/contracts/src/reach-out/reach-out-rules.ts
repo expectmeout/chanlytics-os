@@ -46,13 +46,14 @@ export function outreachRefusalOf(f: OutreachLeadFacts): DeliveryRefusal | null 
 }
 
 /**
- * A wait, never an end: the domain's day is full or the domain is not ready, the domain was removed (another sends
- * it), or the workspace is paused (billing). None is a fact about the lead, so none may end what its owner approved.
+ * A wait, never an end: the mailbox's day is full or it is not sending (signed out, held, paused, resting), the mailbox
+ * was removed (another of the chain's takes the lead), or the workspace is paused (billing). None is a fact about the
+ * lead, so none may end what its owner approved.
  */
 export const OUTREACH_WAIT_REFUSALS = [
-  "sending_domain_at_cap",
-  "sending_domain_not_ready",
-  "outreach_needs_own_domain",
+  "sending_mailbox_at_cap",
+  "sending_mailbox_not_ready",
+  "outreach_needs_own_mailbox",
   "paused",
 ] as const satisfies readonly DeliveryRefusal[];
 export function isWaitRefusal(reason: string | null | undefined): boolean {

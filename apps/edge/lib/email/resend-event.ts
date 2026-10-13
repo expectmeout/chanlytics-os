@@ -28,7 +28,7 @@ import { json, refuse } from "../http.js";
 import { pg } from "../pg.js";
 import { digestId, keepDelivery, signatureHeaders } from "../intake/keep.js";
 import { logger, errField } from "../log.js";
-import { coldReplyDomains, emailDomain } from "./email.js";
+import { emailDomain } from "./email.js";
 import { planResendEvent } from "./email-ingress.js";
 import { applyEmailReceipt } from "./email-receipts.js";
 import { emitEvent } from "../packages/db.js";
@@ -63,9 +63,8 @@ export async function receiveResendEvent(request: Request): Promise<Response> {
         timestamp: request.headers.get("svix-timestamp"),
         signature: request.headers.get("svix-signature"),
       },
-      secrets: [env.RESEND_WEBHOOK_SECRET, env.RESEND_COLD_WEBHOOK_SECRET].filter((s): s is string => !!s),
+      secrets: [env.RESEND_WEBHOOK_SECRET].filter((s): s is string => !!s),
       domain,
-      coldReplyDomains: coldReplyDomains(),
       db,
       nowMs: Date.now(),
     });

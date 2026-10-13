@@ -19,7 +19,7 @@ import {
 import { reachOutRunIdFor, sendIdFor } from "./reach-out-ids";
 import type { PlannedSend, ReachOutLead, ReachOutRunOutcome, ReachOutRunPorts, ReachOutStep } from "./reach-out-ports";
 
-/** A week with no hour a cold email may arrive in (closed every day): never placeable, whatever the domains' room. */
+/** A week with no hour a cold email may arrive in (closed every day): never placeable, whatever the mailboxes' room. */
 const neverOpen = (week: WeekHours): boolean => Object.values(sendWindowsOf(week)).every((w) => w.length === 0);
 
 export async function runReachOut(
@@ -40,9 +40,12 @@ export async function runReachOut(
   // chain bounced; any lead that keeps no open hour all week.
   const skips: Array<{ lead: ReachOutLead; reason: string }> = [];
   let leads: ReachOutLead[] = [];
+  // A later step's lead keeps the mailbox its chain wrote from (decision 0056, 3): the nudge goes in the same thread.
+  const keeps = new Map<string, string>();
   if (step.trigger === "lead_first") leads = await ports.audience(step);
   else
     for (const f of await ports.followers(step)) {
+      if (f.mailbox_id) keeps.set(f.lead_id, f.mailbox_id);
       const refused = f.bounced
         ? "outreach_bounced"
         : outreachRefusalOf({
@@ -61,8 +64,13 @@ export async function runReachOut(
   leads = leads.filter((l) => !skipped.has(l.lead_id)).slice(0, step.cap_per_run);
   if (leads.length === 0) return { outcome: "empty", reason: "nobody", planned: 0 };
 
-  const domains = (await ports.domains(step)).filter((d) => d.cap > 0);
-  if (domains.length === 0) return { outcome: "held", reason: "no_domain", planned: 0 };
+  const { senders, gone } = await ports.mailboxes(step, [...new Set(keeps.values())]);
+  // A lead whose mailbox was removed has no thread to be nudged in: skipped, never written to from another.
+  for (const l of leads) if (gone.has(keeps.get(l.lead_id) ?? "")) skips.push({ lead: l, reason: "mailbox_gone" });
+  leads = leads.filter((l) => !gone.has(keeps.get(l.lead_id) ?? ""));
+  if (leads.length === 0) return { outcome: "empty", reason: "nobody", planned: 0 };
+  const sending = senders.filter((d) => d.cap > 0);
+  if (sending.length === 0) return { outcome: "held", reason: "no_mailbox", planned: 0 };
 
   // A run its owner approves goes from the moment they do (the clock plans a stale send again); one that is not asked
   // gives its owner thirty minutes to stop it first.
@@ -72,8 +80,9 @@ export async function runReachOut(
       id: l.lead_id,
       zone: zoneOfRegion(l.region) ?? ports.workspaceZone,
       week: weeks.get(l.lead_id)!,
+      only: keeps.get(l.lead_id) ?? null,
     })),
-    domains,
+    senders: sending,
     gapMinutes: step.gap_minutes,
     nowMs: asks ? now : now + PLAYBOOK_VETO_DELAY_MS,
   });
@@ -115,7 +124,7 @@ export async function runReachOut(
       plan.placed.map(async (p) => ({
         ...(await row(p.id)),
         state: "planned" as const,
-        domain_id: p.domainId,
+        mailbox_id: p.senderId,
         send_at: new Date(p.sendAtMs).toISOString(),
       })),
     )),
@@ -123,7 +132,7 @@ export async function runReachOut(
       skips.map(async (s) => ({
         ...(await row(s.lead.lead_id)),
         state: "skipped" as const,
-        domain_id: null,
+        mailbox_id: null,
         send_at: null,
         reason: s.reason,
       })),

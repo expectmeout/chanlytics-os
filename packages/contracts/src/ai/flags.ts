@@ -132,7 +132,7 @@ export const FLAGS: readonly Flag[] = [
   {
     name: "DIAG_KEY",
     mechanism: "edge_env",
-    does: "The platform's shared key: with EDGE_CALL_SECRET set it opens only the knocks that name it (the diagnostic, the pager, the sending-domains lift); on an edge without the secret it opens every admin door.",
+    does: "The platform's shared key: with EDGE_CALL_SECRET set it opens only the knocks that name it (the diagnostic and the pager); on an edge without the secret it opens every admin door.",
     owner: "Ruben",
     sunset: "2026-10-17",
     weaker: {
@@ -141,7 +141,7 @@ export const FLAGS: readonly Flag[] = [
         "key alone opens every admin door (lib/admin-auth.ts).",
       readiness: {
         event: "admin_door_key_only",
-        when: "no ok: true line but the diagnostic's, the pager's and the sending-domains lift's, read from 3 October 2026",
+        when: "no ok: true line but the diagnostic's and the pager's, read from 3 October 2026",
       },
       closes:
         "EDGE_CALL_SECRET on the preview projects (Ruben's switch); then the change that deletes DIAG_KEY from every " +

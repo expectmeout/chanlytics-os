@@ -4,21 +4,22 @@
  * changed from its Playbooks row or its Templates row. On the house RecordSheet, keeping what was typed in the tab
  * (useUnsavedWork). Its parts, in the canvas's order: who gets it (the search's reach as the database counts it, the
  * unconfirmed addresses a door), what you'd say (the first email's subject and words, the six slots as chips, each
- * problem under its field), then (up to five steps, each after its days), the pace, the domains it sends from, and before
+ * problem under its field), then (up to five steps, each after its days), the pace, the mailboxes it writes from, and before
  * it goes (one business's email at a time, by a press: the preview spends the model, R12). Start saves and runs the
  * first step, and the sheet stays open to say what happened (R14), with the one door on: the run that waits, or the
- * chain's row. The domains and the booking link are Setup's and Settings' reads: until they are in, the sheet says it is
+ * chain's row. The mailboxes and the booking link are Setup's and Settings' reads: until they are in, the sheet says it is
  * reading them and Start waits, never "none". Every sentence is contracts' (`reachOuts.words`); every act goes through
  * `reachOuts`. Never a fetch here. Its parts are sheet-fields.tsx and sheet-plan.tsx, its state sheet-draft.ts.
  */
 import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type {
+  MailboxConnectionDto,
+  MailboxProvider,
   ReachOutChainDto,
   ReachOutDraft,
   ReachOutPreviewInput,
   ReachOutSavedDto,
-  SendingDomainDto,
 } from "@chanlytics/contracts";
 import type { SettingsRecord } from "@/legacy-bridge/surfaces/settings";
 import { gate, navigate, setupDto, setupFailed, surfaceFailed } from "../../legacy-verbs";
@@ -36,11 +37,11 @@ import { reachOuts } from "./surface";
 
 type Words = typeof reachOuts.words;
 
-/** The sending domains, as Setup read them. */
-function roDomains(): SendingDomainDto[] {
+/** The mailboxes the workspace connected, and the providers it may connect at, as Setup read them. */
+function roMailboxes(): { mailboxes: MailboxConnectionDto[]; providers: MailboxProvider[] } {
   const setup = setupDto();
-  const e = setup && setup.email;
-  return (e && e.sending && e.sending.domains) || [];
+  const s = setup && setup.email && setup.email.sending;
+  return { mailboxes: (s && s.mailboxes) || [], providers: (s && s.providers) || [] };
 }
 
 /** Whether the workspace has a booking link, as Settings read it. */
@@ -52,10 +53,10 @@ function roBookingLink(settings: SettingsRecord | null | undefined): boolean {
 /** A read the sheet draws from: in, still out, or failed. */
 type SheetRead = "in" | "reading" | "failed";
 
-/** Whether a read the sheet draws from is in, still out, or failed (the domains are Setup's; the link, Settings'). */
-function roReads(settings: SettingsRecord | null | undefined): { domains: SheetRead; settings: SheetRead } {
+/** Whether a read the sheet draws from is in, still out, or failed (the mailboxes are Setup's; the link, Settings'). */
+function roReads(settings: SettingsRecord | null | undefined): { mailboxes: SheetRead; settings: SheetRead } {
   return {
-    domains: setupDto() ? "in" : setupFailed() || surfaceFailed("start") ? "failed" : "reading",
+    mailboxes: setupDto() ? "in" : setupFailed() || surfaceFailed("start") ? "failed" : "reading",
     settings:
       settings && settings.config
         ? "in"
@@ -151,22 +152,19 @@ function RoFoot({ W, work, say, ready, busy, editing, onStart, saved, onClose, o
   );
 }
 
-/** What the sheet reads of Setup and Settings, and what the draft and the domains make of it. */
+/** What the sheet reads of Setup and Settings, and what the draft and the mailboxes make of it. */
 function sheetFacts(W: Words, draft: ReachOutDraft, settings: SettingsRecord | null | undefined) {
-  const domains = roDomains();
+  const { mailboxes, providers } = roMailboxes();
   const reads = roReads(settings);
   const unread = W.reachOutSheetUnreadOf(reads);
-  const pace = W.reachOutSheetPaceOf(
-    domains.map((d) => ({ id: d.id, state: d.state, sent_days: Number(d.sent_days) || 0 })),
-    draft.domain_ids,
-  );
+  const pace = W.reachOutSheetPaceOf(mailboxes, draft.mailbox_ids);
   // An unread link is not a missing one: its problem is not said until Settings is in, and Start waits for it.
   const issues = W.reachOutDraftIssues(draft, { bookingLink: reads.settings !== "in" || roBookingLink(settings) });
-  const ready = !unread && issues.ready && pace.domains > 0;
-  const first = domains.find(
-    (d) => d.state === "verified" && (draft.domain_ids.length === 0 || draft.domain_ids.includes(d.id)),
+  const ready = !unread && issues.ready && pace.mailboxes > 0;
+  const first = mailboxes.find(
+    (m) => m.state === "connected" && (draft.mailbox_ids.length === 0 || draft.mailbox_ids.includes(m.id)),
   );
-  return { domains, reads, unread, pace, issues, ready, first };
+  return { mailboxes, providers, reads, unread, pace, issues, ready, first };
 }
 
 type Facts = ReturnType<typeof sheetFacts>;
@@ -211,7 +209,7 @@ interface ComposeProps {
 function composeParts(p: ComposeProps) {
   const { W, st, search, facts, ask, reachN, stale } = p;
   const { draft, setDraft } = st;
-  const { issues, first, pace, domains, reads, unread } = facts;
+  const { issues, first, pace, mailboxes, providers, reads, unread } = facts;
   return (
     <div className="pb-compose ro-compose">
       <RoWho
@@ -243,10 +241,11 @@ function composeParts(p: ComposeProps) {
       <RoPace W={W} pace={pace} gap={draft.gap_minutes} onGap={(v) => setDraft((d) => ({ ...d, gap_minutes: v }))} />
       <RoFrom
         W={W}
-        domains={domains}
-        unread={reads.domains === "in" ? null : unread}
+        mailboxes={mailboxes}
+        providers={providers}
+        unread={reads.mailboxes === "in" ? null : unread}
         draft={draft}
-        onPick={(ids) => setDraft((d) => ({ ...d, domain_ids: ids }))}
+        onPick={(ids) => setDraft((d) => ({ ...d, mailbox_ids: ids }))}
       />
       <RoBefore W={W} ask={ask} of={W.reachOutPreviewOf(reachN)} stale={stale} />
     </div>

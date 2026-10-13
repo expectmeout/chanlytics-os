@@ -112,7 +112,7 @@ const RUN = (over = {}) => ({
     opening: "A 4.9 from 16 reviews says people find you.",
     angle: "their reviews",
   },
-  domains: [{ host: "harbor-mail.example", sent_days: 3 }],
+  mailboxes: [{ address: "sam@harbor-mail.example", sent_days: 3, daily_cap: 40, customer_domain: false }],
   ...over,
 });
 const DETAIL = (state, run = RUN()) => ({
@@ -193,7 +193,11 @@ test("a run waiting on its owner: today's share and the rest, the held, the skip
   ]);
   const rules = textOf(byTestId(tree, "ro-run-rules"));
   assert.match(rules, /each has a checked address/, "R22: said while no unconfirmed address is included");
-  assert.match(rules, /all from harbor-mail\.example, 3 clean days/, "R22: the run's own domain, its days sent");
+  assert.match(
+    rules,
+    /all from sam@harbor-mail\.example, 3 days of sending/,
+    "R22: the run's own mailbox, its days sent",
+  );
   assert.equal(textOf(byTestId(tree, "ro-run-opening")), "A 4.9 from 16 reviews says people find you.");
   assert.match(textOf(byTestId(tree, "ro-run-reader")), /^as Studio Two reads it/);
   assert.equal(textOf(byTestId(tree, "ro-run-approve")).trim(), `Approve — 30 from ${FIRST_TIME}`);

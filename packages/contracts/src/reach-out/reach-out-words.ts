@@ -14,7 +14,7 @@
  *   validateReachOutWords    one step's words: its subject (the first step's only), its body, its slots, its length,
  *                            one link at most, no line in capitals
  *   validateReachOutChain    a chain as the sheet saves it (reach-out-schemas.ts ReachOutChainSchema): its name, its
- *                            search, its steps and their days, its pace, its domains, and what its words ask the
+ *                            search, its steps and their days, its pace, its mailboxes, and what its words ask the
  *                            workspace to have
  *   checkOpening             an opening as the writer wrote it, read by code (F2)
  *   chainOf, customerDomainOf    the check's two code holds (F4, F6); a business's own site is the lead cleaner's siteHost
@@ -71,8 +71,8 @@ export const OPENING_WORDS_MAX = 40;
 export const OPENING_CHARS_MAX = 400;
 export const ANGLE_WORDS_MAX = 3;
 export const REACH_OUT_STEPS_MAX = 5;
-/** The most domains a chain names; none named is every verified domain. */
-export const REACH_OUT_DOMAINS_MAX = 5;
+/** The most mailboxes a chain names (as many as a workspace connects); none named is every connected one. */
+export const REACH_OUT_MAILBOXES_MAX = 10;
 export const REACH_OUT_NAME_MAX = 80;
 export const SIGNED_BY_MAX = 60;
 /** The gap's choices on the sheet, in minutes; the database holds 5–120 (00183). */
@@ -262,7 +262,8 @@ export type ChainProblem =
   | "no_booking_link"
   | "hand_not_last"
   | "hand_words_empty"
-  | "hand_words_long";
+  | "hand_words_long"
+  | "first_has_a_link";
 
 export interface ChainIssue {
   /** The step's index, or null for the chain's own. */
@@ -284,6 +285,14 @@ export function validateReachOutChain(c: ReachOutChainInput, has: { bookingLink:
     else
       for (const w of validateReachOutWords({ subject: s.subject, body: s.body }, i === 0)) out.push({ step: i, ...w });
     if (i === 0 && s.after_days !== null) out.push({ step: 0, field: "after_days", problem: "first_has_a_delay" });
+    // A first email to a business that never heard of you carries no link (decision 0056, 7): a link in a first touch
+    // from a mailbox is what spam filters weigh most. The booking link goes in the nudge.
+    if (
+      i === 0 &&
+      !s.hand &&
+      (linksIn(`${s.subject ?? ""}\n${s.body}`).length > 0 || slotCount(s.body, "booking link") > 0)
+    )
+      out.push({ step: 0, field: "body", problem: "first_has_a_link" });
     if (i > 0 && s.after_days === null) out.push({ step: i, field: "after_days", problem: "step_needs_a_delay" });
   });
   // Only the emails' words are sent: a call's or a note's are the team's own, and name no slot.
@@ -327,6 +336,8 @@ export function chainIssueWords(i: ChainIssue): string {
       return "Your words name {{your name}}. Say the name you sign with.";
     case "no_booking_link":
       return "Your words name {{booking link}}. Add your booking link in Settings › Business first.";
+    case "first_has_a_link":
+      return "Keep your first email free of links: put your booking link in the nudge.";
     default:
       return wordsIssueWords({ field: i.field === "subject" ? "subject" : "body", problem: i.problem, slot: i.slot });
   }
@@ -504,6 +515,8 @@ export const REACH_OUT_HOLDS = [
   "unbacked_fact",
   "reads_like_spam",
   "check_unavailable",
+  // A business outside the countries cold email goes to without asking (decision 0056, 9): the owner may include it.
+  "abroad",
 ] as const;
 export type ReachOutHold = (typeof REACH_OUT_HOLDS)[number];
 export function isReachOutHold(r: string | null | undefined): r is ReachOutHold {
@@ -541,6 +554,35 @@ export function holdWords(h: ReachOutHold, detail: string | null, stepLanguage =
       return isOpeningProblem(detail)
         ? `the opening couldn't be written to the rules: ${openingProblemWords(detail)}`
         : "the check couldn't run";
+    case "abroad":
+      return `they're in ${countryWords(detail)}, where writing to a business first may need its say`;
+  }
+}
+
+/** The countries a cold email goes to without asking (decision 0056, 9): the US, Canada and the United Kingdom. */
+export const REACH_OUT_COUNTRIES_FREE: ReadonlySet<string> = new Set(["US", "CA", "GB"]);
+/** The countries a cold email never goes to, even business to business: their law asks consent first. */
+export const REACH_OUT_COUNTRIES_REFUSED: ReadonlySet<string> = new Set(["DE", "AT"]);
+
+/**
+ * Where a lead's country puts it (decision 0056, 9): free to write to, held for its owner's say, or never written to.
+ * A lead with no country is the finder's, which searches the United States.
+ */
+export function reachOutCountryOf(country: string | null | undefined): "free" | "held" | "refused" {
+  const c = (country ?? "US").trim().toUpperCase() || "US";
+  if (REACH_OUT_COUNTRIES_REFUSED.has(c)) return "refused";
+  return REACH_OUT_COUNTRIES_FREE.has(c) ? "free" : "held";
+}
+
+const COUNTRY_NAMES = new Intl.DisplayNames(["en"], { type: "region" });
+/** A country's name, from its code; the code itself when it is not one. */
+function countryWords(code: string | null): string {
+  const c = (code ?? "").trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(c)) return "another country";
+  try {
+    return COUNTRY_NAMES.of(c) ?? c;
+  } catch {
+    return c;
   }
 }
 
@@ -558,6 +600,8 @@ export function holdDoors(h: ReachOutHold): HoldDoor[] {
       return ["rewrite", "include", "skip"];
     case "check_unavailable":
       return ["rewrite", "skip"];
+    case "abroad":
+      return ["include", "skip"];
   }
 }
 

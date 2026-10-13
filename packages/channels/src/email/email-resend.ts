@@ -33,7 +33,7 @@ export interface ResendConfig {
 }
 
 /** The provider's API, once: every call in this package goes to a path under it (resendRequest). */
-export const RESEND_API = "https://api.resend.com";
+const RESEND_API = "https://api.resend.com";
 /** The longest one request to the provider waits: a send's try, a domain's read. The domains sweep's budget counts it. */
 export const SEND_TIMEOUT_MS = 15_000;
 /**
@@ -83,7 +83,7 @@ export interface ResendAnswer {
  * (status 0) is kept apart from any answer it gave. The one place this package builds a request, so a timeout, a key
  * and a base URL are each spelled once.
  */
-export async function resendRequest(
+async function resendRequest(
   cfg: ResendConfig,
   method: "GET" | "POST" | "DELETE" | "PATCH",
   path: string,

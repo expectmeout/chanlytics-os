@@ -80,7 +80,7 @@ const reachOutReport = (written, businesses) => ({
   angles: [],
   other_angles: { written: 0, businesses: 0, wrote_back: 0 },
   no_angle: 0,
-  domains: [],
+  mailboxes: [],
 });
 
 /** Every string the fold's own parts hold (the sends' report and the reach-outs' fold are tested where they live). */

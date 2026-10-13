@@ -113,15 +113,17 @@ test("each problem is said in the owner's words", () => {
 });
 
 const SEARCH = "00000000-0000-4000-8000-000000000001";
+/** A first email as the sheet saves one: no link in it (decision 0056), the booking link the nudge's. */
+const FIRST = "{{opening}}\n\nI run Harbor Moving: we answer your phone while you're on a job.\n\n{{your name}}";
 const chain = (over = {}) => ({
   name: "Reach out · Movers",
   search_id: SEARCH,
   include_unconfirmed: false,
   gap_minutes: 12,
-  domain_ids: [],
+  mailbox_ids: [],
   signed_by: "Sam",
   steps: [
-    { subject: "The calls you miss mid-job", body: BODY, after_days: null },
+    { subject: "The calls you miss mid-job", body: FIRST, after_days: null },
     { subject: null, body: "Bumping this in case it got buried: {{booking link}}\n\n{{your name}}", after_days: 4 },
   ],
   ...over,
@@ -132,7 +134,7 @@ test("a chain as the sheet saves it parses, and its bounds are the database's", 
   assert.equal(ReachOutChainSchema.safeParse(chain({ gap_minutes: 4 })).success, false);
   assert.equal(ReachOutChainSchema.safeParse(chain({ steps: [] })).success, false);
   assert.equal(ReachOutChainSchema.safeParse(chain({ steps: Array(6).fill(chain().steps[1]) })).success, false);
-  assert.equal(ReachOutChainSchema.safeParse(chain({ domain_ids: Array(6).fill(SEARCH) })).success, false);
+  assert.equal(ReachOutChainSchema.safeParse(chain({ mailbox_ids: Array(11).fill(SEARCH) })).success, false);
 });
 
 test("the first step goes on day one, each after it waits its days; a name to sign with and a booking link when named", () => {
@@ -149,10 +151,16 @@ test("the first step goes on day one, each after it waits its days; a name to si
   ).map((i) => `${i.step}:${i.field}:${i.problem}`);
   assert.deepEqual(issues.sort(), [
     "0:after_days:first_has_a_delay",
+    "0:body:first_has_a_link",
     "1:after_days:step_needs_a_delay",
     "null:body:no_booking_link",
     "null:signed_by:no_name_to_sign",
   ]);
+  // A first email carries no link (decision 0056): the booking link is a nudge's.
+  assert.equal(
+    chainIssueWords({ step: 0, field: "body", problem: "first_has_a_link" }),
+    "Keep your first email free of links: put your booking link in the nudge.",
+  );
   assert.equal(
     chainIssueWords({ step: null, field: "body", problem: "no_booking_link" }),
     "Your words name {{booking link}}. Add your booking link in Settings › Business first.",

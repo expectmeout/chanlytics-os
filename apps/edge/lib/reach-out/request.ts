@@ -1,10 +1,11 @@
 /**
- * The email a reach-out send leaves as, frozen before its row is written (Reach out, Part 3; C9, C10, D19): the step's
- * words with the lead's values in, the workspace's own domain as From and its mailbox's reply route as Reply-To (so a
- * reply lands in the Inbox), the foot the law asks for, and the one-click unsubscribe sealed for this person and this
- * email. A step after the first answers the email before it: "Re:" and its Message-ID, so the nudge reads as the same
- * thread (D19). Pure over its inputs; the sender (sender.ts) reads them, and so does the sheet's preview (preview.ts),
- * so a preview holds what a send holds.
+ * The email a reach-out send leaves as, frozen before its row is written (Reach out, Part 3; C9, C10, D19; decision
+ * 0056): the step's words with the lead's values in, from the mailbox the business connected (its name, its address,
+ * its address again to answer, so a reply lands in that mailbox and is read back into the Inbox), its signature, the
+ * foot the law asks for, and the one-click unsubscribe sealed for this person and this email. Plain text, with no HTML
+ * twin and no Auto-Submitted mark: one person's email from their own mailbox. A step after the first answers the email
+ * before it: "Re:" and its Message-ID, so the nudge reads as the same thread (D19). Pure over its inputs; the sender
+ * (sender.ts) reads them, and so does the sheet's preview (preview.ts), so a preview holds what a send holds.
  *
  * The six slots (Part 4) are filled with their real values: the lead's name and city, the workspace's name, the name
  * the chain signs with, the workspace's booking link, and the opening the check wrote for this send.
@@ -12,7 +13,7 @@
 import { createHash } from "node:crypto";
 import {
   buildEmailRequest,
-  ownDomainIdentity,
+  connectedIdentity,
   signUnsubscribeToken,
   unsubscribeUrl,
   type EmailParent,
@@ -20,7 +21,6 @@ import {
 } from "../packages/channels.js";
 import {
   emailFoot,
-  emailFootHtml,
   REACH_OUT_LANGUAGE,
   reachOutEmailOf,
   reachOutSlotFault,
@@ -45,10 +45,8 @@ export interface RequestInput {
   workspace: Required<SlotWorkspace> & { address: string | null };
   /** The opening the check wrote for this send; null when it has none. */
   opening: string | null;
-  domain: { host: string; from_local: string; from_name: string };
-  mailbox: { reply_token: string };
-  /** The domain its replies come back on: the mail domain, or the cold reply domain when it is set (D17). */
-  replyDomain: string;
+  /** The mailbox it leaves from: the name it sends as, its address, and the signature its owner gave it. */
+  from: { address: string; from_name: string; signature: string | null };
   unsubscribe: { secret: string; origin: string };
   /** The lead's email on the step before, for a step after the first; null for the first. */
   parent: EmailParent | null;
@@ -128,19 +126,20 @@ export function reachOutRequest(
   let request: EmailRequest;
   try {
     request = buildEmailRequest({
-      identity: ownDomainIdentity(i.domain, i.mailbox, i.replyDomain),
+      identity: connectedIdentity(i.from),
       to: i.to,
       parent: i.parent,
       ...(words.subject !== null ? { subject: words.subject } : {}),
       body: words.body,
-      signature: null,
-      // The owner's words, sent by the machine: the campaign marks it auto-generated either way.
+      signature: i.from.signature,
+      // The owner's words, from the owner's own mailbox: one person's email, so it is marked as nothing else.
       actor: "human",
+      plain: true,
+      autoSubmitted: false,
       campaign: {
         unsubscribeUrl: url,
         // In the language every reach-out email is filed in, the one its words are filled under (reachOutEmailOf).
         footer: emailFoot(business, address, foot, REACH_OUT_LANGUAGE),
-        footerHtml: emailFootHtml(business, address, foot, REACH_OUT_LANGUAGE),
       },
       messageId: i.messageId,
       tenantId: i.tenantId,

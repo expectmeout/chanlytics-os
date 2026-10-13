@@ -19,7 +19,7 @@ export {
   SEND_DAY_FRAME,
   TIMETABLE_HORIZON_DAYS,
 } from "./reach-out-timetable";
-export type { TimetableSend, TimetableDomain, TimetableInput, Placed, TimetableResult } from "./reach-out-timetable";
+export type { TimetableSend, TimetableSender, TimetableInput, Placed, TimetableResult } from "./reach-out-timetable";
 export {
   outreachRefusalOf,
   isWaitRefusal,
@@ -85,6 +85,9 @@ export {
   chainOf,
   customerDomainOf,
   REACH_OUT_HOLDS,
+  REACH_OUT_COUNTRIES_FREE,
+  REACH_OUT_COUNTRIES_REFUSED,
+  reachOutCountryOf,
   isReachOutHold,
   holdWords,
   holdDoors,
@@ -110,6 +113,7 @@ export { ReachOutPreviewSchema, ReachOutDecideSchema } from "./reach-out-schemas
 export type {
   ReachOutStepDto,
   ReachOutNextFacts,
+  ReachOutMailboxFacts,
   ReachOutChainDto,
   ReachOutStepCounts,
   ReachOutRunLine,
@@ -166,7 +170,7 @@ export {
   previewRefusedWords,
   previewLinesOf,
   reachOutDoorOf,
-  reachOutMayPickDomain,
+  reachOutMayPickMailbox,
   reachOutPreviewOf,
   reachOutSavedWords,
   reachOutEditedWords,

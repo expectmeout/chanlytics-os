@@ -80,7 +80,7 @@ const NO_REACH_OUTS = {
   angles: [],
   other_angles: { written: 0, wrote_back: 0 },
   no_angle: 0,
-  domains: [],
+  mailboxes: [],
 };
 const BOOKING = { calendar: "ok", days: 30, asked: 140, booked: 60 };
 const BODIES = {

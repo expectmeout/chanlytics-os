@@ -1,10 +1,10 @@
 import dns from 'node:dns';
 import https from 'node:https';
-import { ModelPurpose, ModelUsage, SystemOneQuestion, SystemOneAnswer, SchemaSet, LineCodeDto, EmailClaim, DomainRecord, GoogleListingFacts, LeadSearchPlan, PlaceFacts, JudgePlaceAnswer } from '@chanlytics/contracts';
+import { ModelPurpose, ModelUsage, SystemOneQuestion, SystemOneAnswer, SchemaSet, LineCodeDto, EmailClaim, GoogleListingFacts, MailboxProvider, LeadSearchPlan, PlaceFacts, JudgePlaceAnswer } from '@chanlytics/contracts';
 export { EmailClaim, GREETING_DEFAULT, greetingFor } from '@chanlytics/contracts';
 
 /** Every provider a call leaves for: the breaker keeps one state per name. */
-declare const PROVIDER_NAMES: readonly ["meta", "twilio", "retell", "resend", "google", "apify", "expo", "anthropic", "typesafe", "elevenlabs"];
+declare const PROVIDER_NAMES: readonly ["meta", "twilio", "retell", "resend", "google", "apify", "expo", "anthropic", "typesafe", "elevenlabs", "microsoft"];
 type Provider = (typeof PROVIDER_NAMES)[number];
 /** What a call to a provider came to (the header says each). */
 type SendOutcome = "ok" | "refused" | "retryable" | "unknown";
@@ -474,11 +474,20 @@ interface SendResult {
     /** The provider's own error code when it gives one: a text's carrier says 21610 for a person who opted out (sms.ts smsRefusalOf). */
     code?: number | null;
     /**
-     * A person's email reply only (core emailSender): whether it left by the own domain it was frozen with, or as the
-     * mailbox's request, and why not by its own when it could not.
+     * A person's email reply only (core emailSender): whether it left by the connected mailbox it was frozen with, or as
+     * the workspace's hosted mailbox's request, and why not by its own when it could not.
      */
     leftAs?: "own" | "mailbox";
     leftAsWhy?: EmailLeftAsWhy;
+    /**
+     * An email sent from a connected mailbox (decision 0056): the Message-ID it went under and the provider's thread it
+     * sits in, which no receipt will bring later. The door stamps both on its row (meta.email.message_id, thread_id).
+     */
+    email?: {
+        messageId: string | null;
+        threadId: string | null;
+        mailboxId: string;
+    };
     /**
      * What the send came to (provider-fetch SendOutcome): `retryable` left nothing and may be tried again later;
      * `unknown` may have been taken, and is never sent again blind. Absent from a wire's own refusal (no credentials, a
@@ -487,10 +496,11 @@ interface SendResult {
     outcome?: SendOutcome;
 }
 /**
- * Why a person's reply frozen with an own domain left as the mailbox's request instead (N5, G15). `domain_held`: the
- * domain it was frozen with was held between the freeze and the send.
+ * Why a person's reply frozen with a connected mailbox left as the hosted mailbox's request instead (N5, G15).
+ * `own_not_sending`: the mailbox it was frozen with stopped sending (signed out, paused, held) between the freeze and
+ * the send; `own_has_no_route`: it was removed.
  */
-type EmailLeftAsWhy = "no_own_route" | "domain_has_no_route" | "domain_held" | "twin_names_another_recipient" | "route_refuses_twin";
+type EmailLeftAsWhy = "no_own_route" | "own_has_no_route" | "own_not_sending" | "twin_names_another_recipient" | "route_refuses_twin";
 /**
  * Every Graph send goes through here. Two reasons:
  *
@@ -1211,7 +1221,7 @@ interface ElevenLabsConfig {
     apiKey: string;
     agentId: string;
 }
-type Deps = Parameters<typeof providerFetch>[3];
+type Deps$4 = Parameters<typeof providerFetch>[3];
 type ConversationMint = {
     outcome: "ok";
     token: string;
@@ -1226,7 +1236,7 @@ type ConversationMint = {
  * `GET /v1/convai/conversation/token?agent_id=…` with the key. The answer names the conversation too, which the
  * post-call webhook will name again.
  */
-declare function mintConversationToken(cfg: ElevenLabsConfig, deps?: Deps): Promise<ConversationMint>;
+declare function mintConversationToken(cfg: ElevenLabsConfig, deps?: Deps$4): Promise<ConversationMint>;
 type SpeechStream = {
     outcome: "ok";
     body: ReadableStream<Uint8Array>;
@@ -1253,9 +1263,9 @@ declare function speakText(cfg: Pick<ElevenLabsConfig, "apiKey">, input: {
     modelId: string;
     text: string;
     previousText?: string;
-}, deps?: Deps): Promise<SpeechStream>;
+}, deps?: Deps$4): Promise<SpeechStream>;
 /** The vendor's record of a conversation, erased (`DELETE /v1/convai/conversations/{id}`): what door D does once the minutes are written. */
-declare function deleteConversation(cfg: Pick<ElevenLabsConfig, "apiKey">, conversationId: string, deps?: Deps): Promise<{
+declare function deleteConversation(cfg: Pick<ElevenLabsConfig, "apiKey">, conversationId: string, deps?: Deps$4): Promise<{
     outcome: "ok" | "rejected" | "unreachable";
     status: number;
 }>;
@@ -1913,6 +1923,16 @@ interface EmailRequestInput {
     /** The queued row this request belongs to: the idempotency key, and the tag every receipt names it by. */
     messageId: string;
     tenantId: string;
+    /**
+     * Words alone, with no HTML twin: a cold email from a business's own mailbox (decision 0056, 7), which reads as a
+     * person's email and carries no link markup. Its foot is the text foot.
+     */
+    plain?: boolean;
+    /**
+     * Whether a campaign is marked Auto-Submitted (RFC 3834): true by default. A cold email from a business's own mailbox
+     * is not (decision 0056), so an out-of-office answers it and the chain hears they are away (00226).
+     */
+    autoSubmitted?: boolean;
 }
 /** `"Name" <address>`, the name quoted so a comma or a bracket in it cannot end it early. */
 declare function mailboxHeader(name: string, address: string): string;
@@ -1928,30 +1948,6 @@ declare function replySubject(parentSubject: string | null | undefined): string;
 declare function emailHtml(text: string): string;
 /** The chain a reply carries: the parent's chain, then the parent. Bounded, oldest dropped first, the root kept. */
 declare function referencesFor(parent: Pick<EmailParent, "rfcMessageId" | "references">): string[];
-/**
- * The request one email leaves as: a reply, or a first email.
- *
- * - From and Reply-To are the workspace's identity; To is the person's stored
- *   address. Neither is read from the parent's headers or from the words.
- * - A reply threads under its parent (In-Reply-To, References) and carries the
- *   parent's subject once, with Re:. A first email has no parent and names its
- *   own subject; one without a subject is a mistake in the code, not an email.
- *   No Message-ID is minted here: the provider assigns one and reports it on
- *   the sent event, which is where the ledger learns it.
- * - The header a mail system reads says what the email is (RFC 3834): a
- *   receptionist's reply is auto-replied; mail a program sends on its own -- a
- *   campaign, or a first email the receptionist wrote -- is auto-generated, so
- *   an auto-responder on the other side does not answer it and start a loop.
- *   A person's own words carry no such mark.
- * - A campaign carries the way to stop it: List-Unsubscribe with an https
- *   address and a mail address, and List-Unsubscribe-Post for one click
- *   (RFC 8058), which the large mailbox providers require of bulk mail; and
- *   its footer, after the signature. Both addresses are checked here, because
- *   a header value that is not one line is a second header.
- * - The tags name the row and the workspace, so a receipt finds its message
- *   without a lookup by the provider's id, even one that arrives before the
- *   send's own write.
- */
 declare function buildEmailRequest(i: EmailRequestInput): EmailRequest;
 /** Is this stored value a request the wire may send? The row's meta is JSON; the wire trusts its shape, not its type. */
 declare function isEmailRequest(v: unknown): v is EmailRequest;
@@ -2004,31 +2000,18 @@ declare function campaignsIdentity(mailbox: {
     from_name: string;
 }, campaignsDomain: string, mailDomain: string): EmailIdentity;
 /**
- * What one of a workspace's own domains sends as (Reach out): From on the
- * workspace's domain, answered at the mailbox's own reply routes, so a reply
- * to a cold email lands in the same Inbox as every other. With cold reply
- * domains (D17) the routes are on them too: a cold email is frozen with the
- * one set now, and one frozen before a switch still leaves as it was.
+ * What a mailbox the business connected sends as (decision 0056): From its own address, and answered at the same
+ * address, since a reply to it lands in it and the sync reads it back. The wire holds a request frozen for it to that
+ * address alone.
  */
-declare function sendsAsOwnDomain(domain: {
-    host: string;
-    from_local: string;
-}, mailbox: {
-    local_part: string;
-    reply_token: string;
-    reply_token_prev: string | null;
-}, mailDomain: string, coldReplyDomains?: string | readonly string[] | null): EmailSendsAs;
-/**
- * The identity a cold email is frozen with: the own domain's name and address, and the mailbox's live reply route on
- * the domain its replies come back on (the mail domain, or the cold reply domain when it is set, D17).
- */
-declare function ownDomainIdentity(domain: {
-    host: string;
-    from_local: string;
+declare function sendsAsConnected(mailbox: {
+    address: string;
+}): EmailSendsAs;
+/** The identity a request leaving from a connected mailbox is frozen with: its name, its address, its address again to answer. */
+declare function connectedIdentity(mailbox: {
+    address: string;
     from_name: string;
-}, mailbox: {
-    reply_token: string;
-}, replyDomain: string): EmailIdentity;
+}): EmailIdentity;
 /**
  * Does this frozen request leave as this workspace and nobody else? The
  * request is JSON on a row; the wire is bound to a workspace's mailbox. A
@@ -2082,11 +2065,9 @@ type PlatformRecipient = {
  * An address on the platform's mail domain, read for what it routes to; null
  * for any other address. Exact: the domain must be the deployment's, the local
  * part one the table could hold (00126). Nothing is inferred from a display
- * name, and a plus tag on a published address is not a second mailbox. On the
- * cold reply domain (Reach out D17), when there is one, a reply route routes
- * and nothing else: no workspace publishes an address there.
+ * name, and a plus tag on a published address is not a second mailbox.
  */
-declare function platformRecipient(address: string, domain: string, coldReplyDomains?: string | readonly string[] | null): PlatformRecipient | null;
+declare function platformRecipient(address: string, domain: string): PlatformRecipient | null;
 /** One received email as the webhook announces it: a pointer, and who it was delivered to. */
 interface EmailReceivedEvent {
     type: "email.received";
@@ -2278,8 +2259,6 @@ declare function emailPlainText(e: Pick<ReceivedEmail, "text" | "html">): string
 interface ResendConfig {
     apiKey: string;
 }
-/** The provider's API, once: every call in this package goes to a path under it (resendRequest). */
-declare const RESEND_API = "https://api.resend.com";
 /** The longest one request to the provider waits: a send's try, a domain's read. The domains sweep's budget counts it. */
 declare const SEND_TIMEOUT_MS = 15000;
 /**
@@ -2304,17 +2283,6 @@ interface ResendAnswer {
     /** What the call came to (provider-fetch SendOutcome). */
     outcome: SendOutcome;
 }
-/**
- * One call to the provider. It never throws: every answer is a status the caller reads, and "we could not ask"
- * (status 0) is kept apart from any answer it gave. The one place this package builds a request, so a timeout, a key
- * and a base URL are each spelled once.
- */
-declare function resendRequest(cfg: ResendConfig, method: "GET" | "POST" | "DELETE" | "PATCH", path: string, opts?: {
-    body?: unknown;
-    timeoutMs?: number;
-    idempotencyKey?: string;
-    breaker?: "hold" | "count";
-}): Promise<ResendAnswer>;
 interface SendEmailOptions {
     /** How a short wait is waited (a test hands its own). */
     wait?: (ms: number) => Promise<void>;
@@ -2354,60 +2322,477 @@ declare function fetchReceivedEmail(cfg: ResendConfig, receivedId: string): Prom
  */
 declare function fetchMailDomains(cfg: ResendConfig): Promise<MailDomainFacts[]>;
 
+declare const PLACES_BASE = "https://places.googleapis.com/v1";
+declare const PLACES_SEARCH_MASK: string;
+declare const PLACES_DETAILS_MASK: string;
+/** Candidates shown to the owner: a handful, never a page of twenty. */
+declare const PLACES_SEARCH_LIMIT = 5;
+declare const PLACES_TIMEOUT_MS = 10000;
+interface PlacesRequest {
+    url: string;
+    method: "GET" | "POST" | "PUT" | "DELETE";
+    headers: Record<string, string>;
+    body?: string;
+}
+/** One HTTP round trip. The real one is placesFetch(); tests hand in a fake. */
+type PlacesHttp = (req: PlacesRequest) => Promise<{
+    status: number;
+    body: string;
+}>;
+declare class PlacesError extends Error {
+    readonly status: number;
+    constructor(status: number, message: string);
+}
+interface PlaceCandidate {
+    place_id: string;
+    name: string;
+    address: string | null;
+    maps_uri: string | null;
+    business_status: string | null;
+    /** Google's name for the kind of place ("Moving company"), when it gives one. */
+    category: string | null;
+}
+interface PlaceReview {
+    review_id: string;
+    rating: number | null;
+    author: string | null;
+    author_uri: string | null;
+    author_photo_uri: string | null;
+    text: string | null;
+    language_code: string | null;
+    published_at: string | null;
+    maps_uri: string | null;
+}
+interface PlaceDetails {
+    place_id: string;
+    name: string;
+    address: string | null;
+    maps_uri: string | null;
+    business_status: string | null;
+    rating: number | null;
+    review_count: number | null;
+    reviews: PlaceReview[];
+    /** What the listing says beyond its name and address, for the owner to check. */
+    facts: GoogleListingFacts;
+}
+/** Text Search: the query as the owner or the facts give it; a handful of results. */
+declare function placesSearchRequest(key: string, query: string, opts?: {
+    limit?: number;
+    languageCode?: string;
+}): PlacesRequest;
+/** Place Details: the listing by its id, with the reviews. */
+declare function placesDetailsRequest(key: string, placeId: string, opts?: {
+    languageCode?: string;
+}): PlacesRequest;
+/** A review's id is the last segment of its resource name, places/{place}/reviews/{review}. */
+declare function reviewIdOf(name: unknown): string | null;
+declare function parsePlacesSearch(json: unknown): PlaceCandidate[];
+declare function parsePlaceDetails(json: unknown): PlaceDetails;
+declare function searchPlaces(http: PlacesHttp, key: string, query: string, opts?: {
+    limit?: number;
+    languageCode?: string;
+}): Promise<PlaceCandidate[]>;
+declare function getPlace(http: PlacesHttp, key: string, placeId: string, opts?: {
+    languageCode?: string;
+}): Promise<PlaceDetails>;
 /**
- * A workspace's own sending domains at the mail provider (Resend's domains API): create one, read where it stands,
- * ask for it to be checked, remove it. Reach out, Part 2 (docs/superpowers/plans/2026-09-25-reach-out-part-2-the-wire.md).
+ * The real port: providerFetch with a timeout, the body as text whatever the status. A call that got no answer throws
+ * the network's words, as the bare fetch it replaces did; a read (a GET) is asked twice first.
+ */
+declare function placesFetch(fetchImpl?: typeof fetch, timeoutMs?: number): PlacesHttp;
+/** A place id as Google issues them: letters, digits, dashes and underscores. */
+declare const PLACE_ID: RegExp;
+
+/**
+ * Google OAuth for a web server, pinned to the documented shapes.
  *
- * These run on the COLD account's key only (the edge's RESEND_COLD_API_KEY): a business's own domains send its cold
- * mail, apart from the account every reminder and reply leaves on. Opens and clicks are switched off by name: the
- * provider's own example domain has open tracking on, and the product counts neither (decision 8 of the spec).
+ * The owner signs in to Google once; what comes back is a refresh token
+ * that the edge keeps in Vault and trades for an hour's access token when
+ * it needs one. `access_type=offline` and `prompt=consent` are what make
+ * Google return the refresh token, and it does so on the first
+ * authorization only — a reconnect goes through consent again on purpose.
  *
- * Like postEmail, nothing here throws for an answer: each call returns what the provider said, and "we could not
- * ask" (status 0) is kept apart from any answer it gave.
+ * The state is the CSRF proof: the workspace, the person and a nonce,
+ * signed with a secret the dashboard holds, checked on the way back before
+ * the code is trusted. Everything here is pure or Web Crypto, so the tests
+ * run it without a network.
  */
 
-/** One domain as the provider holds it: its id, the word for where it stands, and the records to publish. */
-interface ProviderDomain {
-    id: string;
-    name: string;
-    status: string;
-    records: DomainRecord[];
-    /** When the provider made it (its ISO time), or null when its answer did not say: how an add knows a domain is its own. */
-    createdAt: string | null;
+declare const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
+declare const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
+declare const GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke";
+/** Business Profile, plus the email so the card can say whose account it is. */
+declare const PROFILE_SCOPES: readonly ["openid", "email", "https://www.googleapis.com/auth/business.manage"];
+/** How long the way to Google and back may take. */
+declare const STATE_TTL_MS: number;
+interface OAuthClient {
+    clientId: string;
+    clientSecret: string;
+    redirectUri: string;
 }
-type ProviderAnswer<T> = {
+declare function authorizeUrl(cfg: Pick<OAuthClient, "clientId" | "redirectUri">, state: string, loginHint?: string | null): string;
+declare function tokenExchangeRequest(cfg: OAuthClient, code: string): PlacesRequest;
+declare function tokenRefreshRequest(cfg: Pick<OAuthClient, "clientId" | "clientSecret">, refreshToken: string): PlacesRequest;
+/** Either token may be revoked; revoking the refresh token ends the grant. */
+declare function revokeRequest(token: string): PlacesRequest;
+interface TokenGrant {
+    access_token: string;
+    /** Present on the first authorization (and whenever consent was forced). */
+    refresh_token: string | null;
+    expires_in: number;
+    scope: string;
+    id_token: string | null;
+}
+declare function parseTokenResponse(json: unknown): TokenGrant;
+/** The grant's scopes, one by one, so a missing one can be named. */
+declare function grantHasScope(grant: Pick<TokenGrant, "scope">, scope: string): boolean;
+declare function b64url(bytes: Uint8Array | string): string;
+declare function unb64url(s: string): Uint8Array;
+/**
+ * The id token's claims, read without verification: it arrived in the token
+ * endpoint's own answer over TLS, so its issuer is not in question, and the
+ * one claim read from it — the email — is shown on a card, never trusted for
+ * access. A malformed token yields nothing.
+ */
+declare function idTokenClaims(idToken: string | null | undefined): {
+    email: string | null;
+    sub: string | null;
+};
+interface OAuthState {
+    /** The workspace. */
+    t: string;
+    /** The person. */
+    u: string;
+    /** A nonce. */
+    n: string;
+    /** Expiry, epoch ms. */
+    exp: number;
+    /** Which provider a mailbox is being connected at (decision 0056); absent for Google Business Profile's. */
+    p?: string;
+}
+declare function signState(secret: string, s: OAuthState): Promise<string>;
+/** The state back from Google: its signature, its expiry, then its claims — or the reason it is refused. */
+declare function verifyState(secret: string, state: string | null | undefined, nowMs: number): Promise<{
     ok: true;
-    value: T;
+    state: OAuthState;
 } | {
     ok: false;
+    reason: "missing" | "malformed" | "signature" | "expired";
+}>;
+declare function newNonce(): string;
+
+/**
+ * A mailbox connected with OAuth (decision 0056): the way to the provider's consent screen, the code traded for a grant,
+ * the grant refreshed, and the scopes a grant must hold. Google's and Microsoft's, side by side; pure, so the tests run
+ * it without a network, and the edge makes each request (lib/email/mailbox/mailbox-credentials.ts).
+ *
+ * Google asks the least that does the job: gmail.send (a sensitive scope: Google's review only) and gmail.readonly (a
+ * restricted one: the review and its security assessment), never gmail.modify or the whole mailbox. Microsoft asks
+ * Mail.Send and Mail.ReadWrite (a draft is made from the MIME, its Message-ID read, then sent), and offline_access for a
+ * lasting grant. The state that rides the way out and back is google-oauth.ts's (signState, verifyState), with the
+ * provider in it.
+ */
+
+/** What each provider is asked for. */
+declare const MAILBOX_SCOPES: Record<MailboxProvider, readonly string[]>;
+interface MailboxOAuthClient {
+    clientId: string;
+    clientSecret: string;
+    /** The dashboard's callback, registered with the provider as it is written here. */
+    redirectUri: string;
+}
+/** One request to a provider, made by the edge (its http) and read back here. */
+interface MailboxRequest {
+    url: string;
+    method: "GET" | "POST" | "PATCH" | "DELETE";
+    headers: Record<string, string>;
+    body?: string;
+}
+/**
+ * The provider's consent screen, asked for this mailbox's grant. Google: offline access, consent every time (it hands a
+ * refresh token on a first consent only, and a reconnect is a first consent on purpose), no scopes granted before folded
+ * in. Microsoft: offline_access already asks for the refresh token; select_account so a person signed in to two picks.
+ */
+declare function mailboxAuthorizeUrl(provider: MailboxProvider, cfg: Pick<MailboxOAuthClient, "clientId" | "redirectUri">, state: string, loginHint?: string | null): string;
+declare function mailboxTokenRequest(provider: MailboxProvider, cfg: MailboxOAuthClient, code: string): MailboxRequest;
+declare function mailboxRefreshRequest(provider: MailboxProvider, cfg: Pick<MailboxOAuthClient, "clientId" | "clientSecret">, refreshToken: string): MailboxRequest;
+/**
+ * The grant given back: Google revokes a token (the refresh token ends the grant); Microsoft has no single-token
+ * revocation for a delegated grant, so there is nothing to ask, and removing the mailbox drops the token here.
+ */
+declare function mailboxRevokeRequest(provider: MailboxProvider, token: string): MailboxRequest | null;
+type MailboxGrant = TokenGrant;
+/** The token endpoint's answer, read: the same shape at both providers (RFC 6749). Throws on an answer with no token. */
+declare function parseMailboxGrant(json: unknown): MailboxGrant;
+/** The required scopes a grant does not hold: none missing is a mailbox that can send and be read. */
+declare function grantScopesMissing(provider: MailboxProvider, granted: string): string[];
+/** The grant's scopes, as the row keeps them. */
+declare function grantScopes(granted: string): string[];
+
+/** The Message-ID a mailbox's email is sent under: the row's id, on the mailbox's own host, so it is ours to find. */
+declare function mailboxMessageId(rowId: string, host: string): string;
+/**
+ * The message, written out. `messageId` is the one it is sent under (mailboxMessageId); `boundary` is the
+ * multipart's, given by the caller so the same request writes the same bytes.
+ */
+declare function buildMime(r: EmailRequest, p: {
+    messageId: string;
+    at: Date;
+    boundary?: string;
+}): string;
+
+type Deps$3 = Parameters<typeof providerFetch>[3];
+/**
+ * Whether a refusal is the mailbox's own day used up (Gmail's sending limits): the mailbox rests until tomorrow, and
+ * its sends wait. `rateLimitExceeded` alone is a pace (the next tick sends), never a day.
+ */
+declare function gmailDayUsed(r: Pick<ProviderReply, "status" | "json" | "text">): boolean;
+/** Whether the grant is gone (revoked, expired for good, the account suspended): the owner connects it again. */
+declare function gmailSignedOut(r: Pick<ProviderReply, "status" | "json">): boolean;
+interface GmailSent {
+    ok: boolean;
     status: number;
-    message: string;
-};
-/** A domain in a provider's answer; null when the answer is not a domain at all. */
-declare function providerDomainFrom(body: unknown): ProviderDomain | null;
-/** Register a domain at the cold account: sending on, receiving off, opens and clicks off. */
-declare function createMailDomain(cfg: ResendConfig, host: string): Promise<ProviderAnswer<ProviderDomain>>;
-/** Where a domain stands. `value: null` is the provider saying it has no such domain (404): a fact, not a failure. */
-declare function getMailDomain(cfg: ResendConfig, id: string): Promise<ProviderAnswer<ProviderDomain | null>>;
-/**
- * The account's own domain by that name, or null when the account has none: the truth about whether a create whose
- * answer was lost (a timeout, a 5xx, a shape that is not a domain) made one anyway, and what an adoption reads. The
- * list carries no records; the caller reads the domain by its id for them.
- */
-declare function findMailDomain(cfg: ResendConfig, name: string): Promise<ProviderAnswer<{
+    outcome: SendOutcome;
+    /** Gmail's id for the sent message, and its thread. */
+    id: string | null;
+    threadId: string | null;
+    error: string | null;
+    reply: ProviderReply;
+}
+declare function gmailSend(token: string, mime: string, threadId: string | null, p?: {
+    deadlineMs?: number;
+}, deps?: Deps$3): Promise<GmailSent>;
+/** The message (and its thread) Gmail holds under this Message-ID, or null; throws when Gmail could not be asked. */
+declare function gmailThreadOf(token: string, rfcMessageId: string, deps?: Deps$3): Promise<{
     id: string;
-    name: string;
-    status: string;
-} | null>>;
-/** Ask the provider to check the records now. Asynchronous at the provider: the answer is read by getMailDomain. */
-declare function verifyMailDomain(cfg: ResendConfig, id: string): Promise<ProviderAnswer<true>>;
-/** Remove a domain. Already gone (404) is gone: the removal the caller wanted. */
-declare function removeMailDomain(cfg: ResendConfig, id: string): Promise<ProviderAnswer<"removed" | "gone">>;
+    threadId: string;
+} | null>;
+/** A sent message's Message-ID header as Gmail kept it, or null; throws when Gmail could not be asked. */
+declare function gmailSentIds(token: string, id: string, deps?: Deps$3): Promise<{
+    messageId: string | null;
+}>;
+declare function gmailProfile(token: string, deps?: Deps$3): Promise<ProviderReply>;
+/** What history said: the messages added since the cursor, with their threads, and the cursor to read from next. */
+type GmailHistory = {
+    ok: true;
+    added: Array<{
+        id: string;
+        threadId: string;
+    }>;
+    next: string | null;
+    nextPage: string | null;
+} | {
+    ok: false;
+    expired: boolean;
+    reply: ProviderReply;
+};
 /**
- * Whether a set of TXT answers holds a DMARC record: any whose chunks, joined, begin `v=DMARC1` (RFC 7489 §6.4).
- * A record is split into 255-byte chunks on the wire, so the chunks are joined before the test.
+ * The messages added to the inbox since `startHistoryId`, a page at a time. A cursor Gmail no longer keeps (404) is
+ * `expired`: the caller starts again from the profile's cursor, after reading the threads it knows directly.
  */
-declare function dmarcOf(txt: readonly (readonly string[])[]): "found" | "missing";
+declare function gmailHistory(token: string, startHistoryId: string, pageToken: string | null, deps?: Deps$3): Promise<GmailHistory>;
+/** One message, in full: its headers and its parts (mailbox-read.ts gmailEmailOf reads it). */
+declare function gmailMessage(token: string, id: string, deps?: Deps$3): Promise<ProviderReply>;
+/** The inbox's changes, published to the topic: the history cursor it starts from, and when it lapses (epoch ms). */
+declare function gmailWatch(token: string, topic: string, deps?: Deps$3): Promise<{
+    ok: true;
+    historyId: string;
+    expiresAt: number;
+} | {
+    ok: false;
+    reply: ProviderReply;
+}>;
+declare function gmailStop(token: string, deps?: Deps$3): Promise<ProviderReply>;
+
+type Deps$2 = Parameters<typeof providerFetch>[3];
+/** The mailbox's day used up: Exchange's sending limits answer a send so. */
+declare function graphDayUsed(r: Pick<ProviderReply, "status" | "json" | "text">): boolean;
+/** Whether the grant is gone, or the mailbox cannot be reached by Graph: the owner connects it again. */
+declare function graphSignedOut(r: Pick<ProviderReply, "status" | "json">): boolean;
+/** Who the grant is: the account's id, its address and its name; null when Graph could not say. */
+declare function graphMe(token: string, deps?: Deps$2): Promise<{
+    id: string;
+    address: string | null;
+    name: string | null;
+} | null>;
+interface GraphSent {
+    ok: boolean;
+    status: number;
+    outcome: SendOutcome;
+    /** Graph's id for the message, its Message-ID and its conversation: known from the draft, before it left. */
+    id: string | null;
+    messageId: string | null;
+    threadId: string | null;
+    error: string | null;
+    reply: ProviderReply;
+}
+/**
+ * The MIME as a draft (POST /me/messages, text/plain, base64), then the draft sent (POST .../send). A draft that could
+ * not be made sent nothing; one made and not sent is gone at the next try's draft, unsent. Only the second call may
+ * leave an email whose outcome is unknown.
+ */
+declare function graphSend(token: string, mime: string, p?: {
+    deadlineMs?: number;
+}, deps?: Deps$2): Promise<GraphSent>;
+/** One message, its body as text, with its headers (mailbox-read.ts graphEmailOf reads it). */
+declare function graphMessage(token: string, id: string, deps?: Deps$2): Promise<ProviderReply>;
+/** What a delta read said: the messages added to the inbox, with their conversations, and where to read from next. */
+type GraphDelta = {
+    ok: true;
+    added: Array<{
+        id: string;
+        threadId: string | null;
+        from: string | null;
+    }>;
+    nextLink: string | null;
+    deltaLink: string | null;
+} | {
+    ok: false;
+    expired: boolean;
+    reply: ProviderReply;
+};
+/**
+ * The inbox's messages since a delta link; with none, those received since `sinceIso` (a delta started from now, so
+ * the messages already there are never enumerated). A link Graph no longer keeps is `expired`.
+ */
+declare function graphDelta(token: string, link: string | null, deps?: Deps$2, sinceIso?: string): Promise<GraphDelta>;
+/** A subscription to the inbox's new messages, told to `url` with `clientState`; its id and when it lapses. */
+declare function graphSubscribe(token: string, url: string, clientState: string, nowMs: number, deps?: Deps$2): Promise<{
+    ok: true;
+    id: string;
+    expiresAt: number;
+} | {
+    ok: false;
+    reply: ProviderReply;
+}>;
+/** A subscription kept for another six days; `gone` when Graph no longer has it, and a new one is made. */
+declare function graphRenew(token: string, id: string, nowMs: number, deps?: Deps$2): Promise<{
+    ok: true;
+    expiresAt: number;
+} | {
+    ok: false;
+    gone: boolean;
+    reply: ProviderReply;
+}>;
+declare function graphUnsubscribe(token: string, id: string, deps?: Deps$2): Promise<ProviderReply>;
+
+/** A received email from a mailbox, with the provider's thread it sits in and every report part's words. */
+interface MailboxEmail extends ReceivedEmail {
+    /** Gmail's threadId, Graph's conversationId: what a reach-out's email was stamped with when it left. */
+    threadId: string | null;
+    /** The delivery-status and original-headers parts of a report, as text; null for an email that carries none. */
+    reportText: string | null;
+}
+/** Gmail's message, read in full (users.messages.get, format=full); null for an answer that is not one. */
+declare function gmailEmailOf(json: unknown): MailboxEmail | null;
+/**
+ * Graph's message (users/{id}/messages/{id}, with its internetMessageHeaders and its body as text); null for an answer
+ * that is not one. Graph hands a report's words as its body; its original's headers, Exchange quotes in them.
+ */
+declare function graphEmailOf(json: unknown): MailboxEmail | null;
+/** What a delivery report says of an email of ours: which, to whom, and whether for good. */
+interface DeliveryReport {
+    /** Our row's id, read off the Message-ID we sent it under (mailboxMessageId: <cl.<id>@host>); null when not quoted. */
+    rowId: string | null;
+    /** The original's Message-ID as the report quotes it, ours or not. */
+    originalMessageId: string | null;
+    recipient: string | null;
+    /** RFC 3463's status ("5.1.1"); null when the report gives none. */
+    status: string | null;
+    /** A permanent failure (5.x.x, or Action: failed with no status): the address is not one to write to. */
+    permanent: boolean;
+    /** Only a delay (Action: delayed, or a 4.x.x not yet given up on): nothing failed yet, and nothing is applied. */
+    delayed: boolean;
+    /** The receiving server's own words, cut to a line, for the log. */
+    diagnostic: string | null;
+}
+/** Our row id in a Message-ID we minted (mailbox-mime.ts mailboxMessageId), as a uuid. */
+declare function rowIdOfMessageId(id: string | null | undefined): string | null;
+/**
+ * A delivery report, read (RFC 3464, and Exchange's own words where it writes none): null for an email that is not
+ * one. The original is found by the Message-ID the report quotes; ours are minted so that the row is in the id itself.
+ */
+declare function deliveryReportOf(e: Pick<MailboxEmail, "headers" | "from" | "subject" | "text" | "reportText">): DeliveryReport | null;
+
+/**
+ * One frozen request sent from a connected mailbox (decision 0056): the wire the email door's `own` route calls.
+ *
+ * The request is the one approved and kept on its row; it leaves as MIME under a Message-ID minted from the row's id on
+ * the mailbox's own host (mailboxMessageId), so a reply and a delivery report find its row by the id alone. A nudge, or
+ * a person's answer, goes in the thread of the email it answers: Gmail is asked which thread holds the Message-ID its
+ * In-Reply-To names. What the provider kept is read back (Gmail may keep its own Message-ID; Graph's is known from the
+ * draft before it leaves) and handed to the door to stamp, since no receipt comes from a mailbox.
+ *
+ * Returns, never throws. A refusal that is the mailbox's own day used up, or its grant gone, says so (`cause`): the
+ * edge rests the mailbox until tomorrow, or asks its owner to connect it again, and the send waits either way.
+ */
+
+type Deps$1 = Parameters<typeof gmailSend>[4];
+interface MailboxSendInput {
+    provider: MailboxProvider;
+    /** An access token the edge holds now (mailbox-credentials.ts tokenFor). */
+    token: string;
+    mailbox: {
+        id: string;
+        host: string;
+    };
+    request: EmailRequest;
+    /** The caller's ceiling, when it has one (Delivery.sendBy). */
+    deadlineMs?: number;
+    now?: () => number;
+}
+/** A send from a mailbox, as the door hears it, with why a refusal was the mailbox's own and not the email's. */
+type MailboxSendResult = SendResult & {
+    cause?: "day_used" | "signed_out";
+};
+declare function sendFromMailbox(i: MailboxSendInput, deps?: Deps$1): Promise<MailboxSendResult>;
+
+/**
+ * What DNS says of a connected mailbox's domain, judged (decision 0056): SPF names the provider's servers, a DKIM key is
+ * published under the provider's selector, DMARC has a record, and the domain receives mail. Pure over the answers the
+ * edge reads (lib/email/mailbox/mailbox-dns.ts); "could not read" is the edge's to keep apart, never "missing".
+ */
+
+/** TXT answers as a resolver gives them: each record's chunks, which are joined before a test (a record is split at 255). */
+type TxtAnswer = readonly (readonly string[])[];
+/** Whether a set of TXT answers holds a DMARC record: one beginning `v=DMARC1` (RFC 7489 §6.4). */
+declare function dmarcOf(txt: TxtAnswer): "found" | "missing";
+/** Whether the domain's SPF record names the provider's servers: a `v=spf1` record with its include. */
+declare function spfOf(txt: TxtAnswer, provider: MailboxProvider): "found" | "missing";
+/** The selectors each provider signs under: Google's default, Microsoft's two (published as CNAMEs to its keys). */
+declare const DKIM_SELECTORS: Record<MailboxProvider, readonly string[]>;
+/** Whether a selector's TXT answer is a DKIM key: `v=DKIM1`, or a `p=` with a key in it. */
+declare function dkimOf(txt: TxtAnswer): "found" | "missing";
+
+type Deps = Parameters<typeof providerFetch>[3];
+/** Why a push's token was refused, for the door's line; null when it stands. */
+type PushTokenRefusal = "no_token" | "malformed" | "unknown_key" | "bad_signature" | "wrong_audience" | "expired" | "wrong_issuer";
+/**
+ * A Pub/Sub push's bearer token, checked: signed by Google (RS256, a published key), issued by Google, for `audience`,
+ * and live. Returns the token's email (the subscription's service account) when it stands.
+ */
+declare function verifyGooglePushToken(authorization: string | null, audience: string, p?: {
+    now?: number;
+    deps?: Deps;
+}): Promise<{
+    ok: true;
+    email: string | null;
+} | {
+    ok: false;
+    why: PushTokenRefusal;
+}>;
+/** A Gmail push's message: the mailbox that changed, and its history id then. Null for a body that is not one. */
+declare function gmailPushOf(body: unknown): {
+    address: string;
+    historyId: string | null;
+} | null;
+/** Graph's notifications: each subscription that says it changed, with the clientState it carries. */
+declare function graphNotificationsOf(body: unknown): Array<{
+    subscriptionId: string;
+    clientState: string | null;
+}>;
+/** A notification's clientState against the one the subscriptions were made with, in constant time (as hashes). */
+declare function clientStateMatches(a: string | null, b: string): boolean;
 
 /**
  * A2P 10DLC: registering one workspace with the carriers, as pure parts.
@@ -2908,87 +3293,6 @@ type A2PResult = {
 };
 declare function runA2PSaga(start: A2PState, p: A2PPorts): Promise<A2PResult>;
 
-declare const PLACES_BASE = "https://places.googleapis.com/v1";
-declare const PLACES_SEARCH_MASK: string;
-declare const PLACES_DETAILS_MASK: string;
-/** Candidates shown to the owner: a handful, never a page of twenty. */
-declare const PLACES_SEARCH_LIMIT = 5;
-declare const PLACES_TIMEOUT_MS = 10000;
-interface PlacesRequest {
-    url: string;
-    method: "GET" | "POST" | "PUT" | "DELETE";
-    headers: Record<string, string>;
-    body?: string;
-}
-/** One HTTP round trip. The real one is placesFetch(); tests hand in a fake. */
-type PlacesHttp = (req: PlacesRequest) => Promise<{
-    status: number;
-    body: string;
-}>;
-declare class PlacesError extends Error {
-    readonly status: number;
-    constructor(status: number, message: string);
-}
-interface PlaceCandidate {
-    place_id: string;
-    name: string;
-    address: string | null;
-    maps_uri: string | null;
-    business_status: string | null;
-    /** Google's name for the kind of place ("Moving company"), when it gives one. */
-    category: string | null;
-}
-interface PlaceReview {
-    review_id: string;
-    rating: number | null;
-    author: string | null;
-    author_uri: string | null;
-    author_photo_uri: string | null;
-    text: string | null;
-    language_code: string | null;
-    published_at: string | null;
-    maps_uri: string | null;
-}
-interface PlaceDetails {
-    place_id: string;
-    name: string;
-    address: string | null;
-    maps_uri: string | null;
-    business_status: string | null;
-    rating: number | null;
-    review_count: number | null;
-    reviews: PlaceReview[];
-    /** What the listing says beyond its name and address, for the owner to check. */
-    facts: GoogleListingFacts;
-}
-/** Text Search: the query as the owner or the facts give it; a handful of results. */
-declare function placesSearchRequest(key: string, query: string, opts?: {
-    limit?: number;
-    languageCode?: string;
-}): PlacesRequest;
-/** Place Details: the listing by its id, with the reviews. */
-declare function placesDetailsRequest(key: string, placeId: string, opts?: {
-    languageCode?: string;
-}): PlacesRequest;
-/** A review's id is the last segment of its resource name, places/{place}/reviews/{review}. */
-declare function reviewIdOf(name: unknown): string | null;
-declare function parsePlacesSearch(json: unknown): PlaceCandidate[];
-declare function parsePlaceDetails(json: unknown): PlaceDetails;
-declare function searchPlaces(http: PlacesHttp, key: string, query: string, opts?: {
-    limit?: number;
-    languageCode?: string;
-}): Promise<PlaceCandidate[]>;
-declare function getPlace(http: PlacesHttp, key: string, placeId: string, opts?: {
-    languageCode?: string;
-}): Promise<PlaceDetails>;
-/**
- * The real port: providerFetch with a timeout, the body as text whatever the status. A call that got no answer throws
- * the network's words, as the bare fetch it replaces did; a read (a GET) is asked twice first.
- */
-declare function placesFetch(fetchImpl?: typeof fetch, timeoutMs?: number): PlacesHttp;
-/** A place id as Google issues them: letters, digits, dashes and underscores. */
-declare const PLACE_ID: RegExp;
-
 /**
  * Google Business Profile: the owner's own listing, with every review and
  * the right to answer them. Three APIs, pinned to the documented shapes:
@@ -3205,82 +3509,6 @@ interface ProfileSyncPlan {
     prune: boolean;
 }
 declare function planProfileSync(before: ProfileBefore, known: ReadonlyMap<string, KnownReview>, page: GbpReviewsPage, day: string, nowMs: number): ProfileSyncPlan;
-
-/**
- * Google OAuth for a web server, pinned to the documented shapes.
- *
- * The owner signs in to Google once; what comes back is a refresh token
- * that the edge keeps in Vault and trades for an hour's access token when
- * it needs one. `access_type=offline` and `prompt=consent` are what make
- * Google return the refresh token, and it does so on the first
- * authorization only — a reconnect goes through consent again on purpose.
- *
- * The state is the CSRF proof: the workspace, the person and a nonce,
- * signed with a secret the dashboard holds, checked on the way back before
- * the code is trusted. Everything here is pure or Web Crypto, so the tests
- * run it without a network.
- */
-
-declare const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
-declare const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
-declare const GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke";
-/** Business Profile, plus the email so the card can say whose account it is. */
-declare const PROFILE_SCOPES: readonly ["openid", "email", "https://www.googleapis.com/auth/business.manage"];
-/** How long the way to Google and back may take. */
-declare const STATE_TTL_MS: number;
-interface OAuthClient {
-    clientId: string;
-    clientSecret: string;
-    redirectUri: string;
-}
-declare function authorizeUrl(cfg: Pick<OAuthClient, "clientId" | "redirectUri">, state: string, loginHint?: string | null): string;
-declare function tokenExchangeRequest(cfg: OAuthClient, code: string): PlacesRequest;
-declare function tokenRefreshRequest(cfg: Pick<OAuthClient, "clientId" | "clientSecret">, refreshToken: string): PlacesRequest;
-/** Either token may be revoked; revoking the refresh token ends the grant. */
-declare function revokeRequest(token: string): PlacesRequest;
-interface TokenGrant {
-    access_token: string;
-    /** Present on the first authorization (and whenever consent was forced). */
-    refresh_token: string | null;
-    expires_in: number;
-    scope: string;
-    id_token: string | null;
-}
-declare function parseTokenResponse(json: unknown): TokenGrant;
-/** The grant's scopes, one by one, so a missing one can be named. */
-declare function grantHasScope(grant: Pick<TokenGrant, "scope">, scope: string): boolean;
-declare function b64url(bytes: Uint8Array | string): string;
-declare function unb64url(s: string): Uint8Array;
-/**
- * The id token's claims, read without verification: it arrived in the token
- * endpoint's own answer over TLS, so its issuer is not in question, and the
- * one claim read from it — the email — is shown on a card, never trusted for
- * access. A malformed token yields nothing.
- */
-declare function idTokenClaims(idToken: string | null | undefined): {
-    email: string | null;
-    sub: string | null;
-};
-interface OAuthState {
-    /** The workspace. */
-    t: string;
-    /** The person. */
-    u: string;
-    /** A nonce. */
-    n: string;
-    /** Expiry, epoch ms. */
-    exp: number;
-}
-declare function signState(secret: string, s: OAuthState): Promise<string>;
-/** The state back from Google: its signature, its expiry, then its claims — or the reason it is refused. */
-declare function verifyState(secret: string, state: string | null | undefined, nowMs: number): Promise<{
-    ok: true;
-    state: OAuthState;
-} | {
-    ok: false;
-    reason: "missing" | "malformed" | "signature" | "expired";
-}>;
-declare function newNonce(): string;
 
 declare const EDGE_TOKEN_TTL_MS = 60000;
 interface EdgeClaims {
@@ -3528,4 +3756,4 @@ interface LeadJudge {
 }
 declare function leadJudge(client: LeadJudgeClient, model: string, fallbacks: boolean): LeadJudge;
 
-export { type A2PAnswer, type A2PPorts, type A2PRequest, type A2PResult, type A2PState, type A2PStep, A2P_POLICIES, A2P_STEPS, APIFY_BASE, APIFY_RUN_END_EVENTS, APIFY_TIMEOUT_MS, type AgentPlan, type ApifyClient, ApifyRefused, ApifyRetryable, type ApifyRun, type AvailableNumber, BOT_USER_AGENT, type BrandType, type BusinessRecord, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, type CampaignError, type CampaignFacts, type CarrierConsent, type ConversationMint, type DryCall, type DryProvider, EDGE_TOKEN_TTL_MS, ELEVENLABS_SIGNATURE_HEADER, ELEVENLABS_WEBHOOK_TOLERANCE_S, EMPTY_A2P_STATE, type EdgeClaims, type EdgeTokenVerdict, type ElevenLabsConfig, type EmailCampaign, type EmailIdentity, type EmailLeftAsWhy, type EmailParent, type EmailReceipt, type EmailReceiptEffect, type EmailReceiptType, type EmailReceivedEvent, type EmailRequest, type EmailRequestInput, type EmailSendsAs, type EmailSuppressionReason, FACTS_UNAVAILABLE, FRESH_SLACK_MS, GBP_ACCOUNTS_URL, GBP_INFO_BASE, GBP_LOCATIONS_READ_MASK, GBP_REPLY_MAX, GBP_REVIEWS_MAX_PAGES, GBP_REVIEWS_PAGE, GBP_V4_BASE, GOOGLE_AUTH_URL, GOOGLE_REVOKE_URL, GOOGLE_TOKEN_URL, type GbpAccount, type GbpLocation, type GbpReview, type GbpReviewsPage, HANDOFF_VAR, type KnownReview, LEAD_JUDGE_DEFAULT_MODEL, LEAD_JUDGE_FALLBACK_BETA, LEAD_JUDGE_MAX_TOKENS, LINE_COSTS, LINE_STEPS, LOW_VOLUME_USECASE, type LeadJudge, type LeadJudgeAnswer, type LeadJudgeClient, type LinePorts, type LineProvider, type LineProviderName, type LineRow, type LineSecrets, type LineStep, type LineVoiceState, type ListCallsPage, type ListingBefore, type ListingCheckPlan, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, type LogFields, type LogLevel, type Logger, MESSAGING, type MailCapability, type MailDomainFacts, type ModelAsk, type ModelBlock, type ModelDeps, type ModelMessage, type ModelOutcome, type ModelReply, type ModelStreamReply, type NormalizedCall, type NormalizedInbound, NotPublicError, type OAuthClient, type OAuthState, PLACES_BASE, PLACES_DETAILS_MASK, PLACES_SEARCH_LIMIT, PLACES_SEARCH_MASK, PLACES_TIMEOUT_MS, PLACE_ID, PROFILE_SCOPES, type PlaceCandidate, type PlaceDetails, type PlaceReview, PlacesError, type PlacesHttp, type PlacesRequest, type PlatformRecipient, type ProfileBefore, type ProfileSyncPlan, type Provider, type ProviderAccount, type ProviderAnswer, type ProviderCall, type ProviderDomain, type ProviderReply, type ProvisionAction, type ProvisionSecrets, type ProvisionStep, type ProvisionStepId, type PublicFetchDeps, REQUEST_ID_HEADER, RESEND_API, RETELL_ORIGINATION, REVIEW_BELL_MAX, type ReceivedEmail, type ReceivedText, type RecordingFetch, type RequestTiming, type ResendAnswer, type ResendConfig, type ResendLimit, type Resolve, type Resolved, type RetellAgentConfig, type RetellCall, type RetellCallRead, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type RetellWrite, type ReviewBell, SEND_DEADLINE_MS, SEND_MIN_MS, SEND_TIMEOUT_MS, SMS_FOOTER, SMS_HELD_DETAILS, SMS_HELD_REASON, SMS_MAX_CHARS, SMS_OPTED_OUT_CODE, STATE_TTL_MS, SYSTEM_ONE_URL, type SagaResult, type SendEmailOptions, type SendOutcome, type SendResult, type SmsInbound, type SmsRegistrationState, type SmsSendResult, type SmsStatus, type SpeechStream, type SvixHeaders, type SystemOneAsk, type SystemOneReply, TRUSTHUB, TWILIO_TIMEOUT_MS, type TokenGrant, type TwilioAnswer, TwilioError, type TwilioHttp, UNSUBSCRIBE_PATH, type UnsubscribeClaims, VOICE_AGENT_DEFAULTS, VOICE_LLM_DEFAULTS, VOICE_NUMBER_DEFAULTS, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceProvisionPlan, type VoiceProvisionRequest, type VoiceProvisionState, type VoiceShellTarget, WEBHOOK_TOLERANCE_S, WHATSAPP_SEND_TIMEOUT_MS, type WaChangeValue, type WaConfig, type WaMediaRef, type WaPricing, type WaRawMessage, a2pProfileEndUserRequest, a2pProfileRequest, accountsRequest, addressOf, addressRequest, agentSettingsDrift, answerObject, apifyClient, askModel, askSystemOne, assignRequest, authorizeUrl, availabilityUrl, b64url, brandRequest, brandTypeFor, breakerOf, breakerStates, buildEmailRequest, businessAttributes, businessEndUserRequest, callSummaryLine, campaignRequest, campaignsIdentity, carrierConsent, chooseLineProvider, classifyReceived, cleanReply, createAgent, createAgentVersion, createMailDomain, createPhoneNumber, createRetellLlm, customerProfileRequest, deleteCampaignRequest, deleteConversation, deletePhoneNumber, deleteReplyRequest, desiredVoiceShell, dmarcOf, dryProvider, edgeBodyMatches, elevenLabsWebhookSignature, emailHtml, emailPlainText, emailReceiptEffect, emailReceiptFrom, emailReceivedEventFrom, encodeForm, errField, evaluateRequest, evaluateTrustProductRequest, fetchMailDomains, fetchMediaBytes, fetchReceivedEmail, fetchRecording, fetchTwilio, findMailDomain, formatRejected, getAgent, getAgentRaw, getCall, getMailDomain, getPhoneNumber, getPlace, getRetellLlm, grantHasScope, graphThrottled, hostedAddress, hostedIdentity, idTokenClaims, imageBytes, importPhoneNumber, isAreaCode, isBrandNotReady, isEmailRequest, isPublicAddress, isValidSipPassword, keywordsFor, leadJudge, lineCodesFrom, listAccounts, listCalls, listLocations, listReviews, liveTurns, locationsRequest, logger, mailDomainsFrom, mailboxHeader, mergeConsent, messageIdHeader, messageIdsIn, mintConversationToken, newDraftNote, newNonce, nextA2PStep, nextLineStep, normalizeCall, normalizeInbound, noteTenant, noteTiming, oneTimeCodeOf, ownDomainIdentity, pageText, parseAccounts, parseLocations, parsePlaceDetails, parsePlacesSearch, parseReviewsPage, parseTokenResponse, parseTranscriptText, placesDetailsRequest, placesFetch, placesSearchRequest, planAgentSettings, planListingCheck, planProfileSync, planVoiceConvergence, planVoiceProvision, platformRecipient, providerDomainFrom, providerFetch, publicFetch, publicFetcher, publicLookup, publishAgentVersion, readLocation, receivedEmailFrom, referencesFor, refusalWords, registrationVerdict, removeMailDomain, replyRequest, replyRouteAddress, replySubject, replyToReview, representativeAttributes, representativeEndUserRequest, requestId, requestIdOf, requestIdShaped, requestLeavesAs, requestTenant, requestTimings, resendLimitOf, resendRequest, resendWebhookSignature, resetBreakers, retellImportBody, retellLocalesFor, reviewBells, reviewIdOf, reviewParent, reviewsRequest, revokeRequest, runA2PSaga, runLineSaga, sameSignature, searchPlaces, sendEmail, sendTemplate, sendText, senderAuthenticated, sendsAs, sendsAsCampaigns, sendsAsOwnDomain, setPublicFetch, signEdgeToken, signState, signUnsubscribeToken, sipPassword, sipUsername, smsAsWaMessage, smsBody, smsInboundFrom, smsInboundUrl, smsKeywordConsent, smsRefusalOf, smsStateFor, smsStatusFrom, smsStatusToRow, smsStatusUrl, soleProprietorEndUserRequest, soleProprietorProfileRequest, speakText, starRatingNumber, starterAttributes, starterEndUserRequest, starterProfileRequest, stopCall, streamModel, stripKey, subaccountName, submitProfileRequest, submitTrustProductRequest, supportingDocumentRequest, tokenExchangeRequest, tokenRefreshRequest, trunkDomain, trustProductAssignRequest, twilioProvider, twilioRequest, twilioSignature, twilioSignedString, twilioUrls, unb64url, unpublishedLatestNote, unsubscribeUrl, updateAgent, updateCampaignRequest, updateEndUserRequest, updateLiveCall, updatePhoneNumber, verifyEdgeToken, verifyElevenLabsWebhook, verifyMailDomain, verifyResendWebhook, verifyRetellSignature, verifyState, verifyTwilioSignature, verifyUnsubscribeToken, voiceAgentCreateBody, voiceEndpoints, voiceLlmCreateBody, voiceNumberBindBody, voiceNumberBinding, voiceNumberCreateBody, voiceShellDrift, voiceShellTools, waPricingOf, waStoppedMarketing, withCarrierConsent, withKey, withRequestId };
+export { type A2PAnswer, type A2PPorts, type A2PRequest, type A2PResult, type A2PState, type A2PStep, A2P_POLICIES, A2P_STEPS, APIFY_BASE, APIFY_RUN_END_EVENTS, APIFY_TIMEOUT_MS, type AgentPlan, type ApifyClient, ApifyRefused, ApifyRetryable, type ApifyRun, type AvailableNumber, BOT_USER_AGENT, type BrandType, type BusinessRecord, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, type CampaignError, type CampaignFacts, type CarrierConsent, type ConversationMint, DKIM_SELECTORS, type DeliveryReport, type DryCall, type DryProvider, EDGE_TOKEN_TTL_MS, ELEVENLABS_SIGNATURE_HEADER, ELEVENLABS_WEBHOOK_TOLERANCE_S, EMPTY_A2P_STATE, type EdgeClaims, type EdgeTokenVerdict, type ElevenLabsConfig, type EmailCampaign, type EmailIdentity, type EmailLeftAsWhy, type EmailParent, type EmailReceipt, type EmailReceiptEffect, type EmailReceiptType, type EmailReceivedEvent, type EmailRequest, type EmailRequestInput, type EmailSendsAs, type EmailSuppressionReason, FACTS_UNAVAILABLE, FRESH_SLACK_MS, GBP_ACCOUNTS_URL, GBP_INFO_BASE, GBP_LOCATIONS_READ_MASK, GBP_REPLY_MAX, GBP_REVIEWS_MAX_PAGES, GBP_REVIEWS_PAGE, GBP_V4_BASE, GOOGLE_AUTH_URL, GOOGLE_REVOKE_URL, GOOGLE_TOKEN_URL, type GbpAccount, type GbpLocation, type GbpReview, type GbpReviewsPage, type GmailHistory, type GmailSent, type GraphDelta, type GraphSent, HANDOFF_VAR, type KnownReview, LEAD_JUDGE_DEFAULT_MODEL, LEAD_JUDGE_FALLBACK_BETA, LEAD_JUDGE_MAX_TOKENS, LINE_COSTS, LINE_STEPS, LOW_VOLUME_USECASE, type LeadJudge, type LeadJudgeAnswer, type LeadJudgeClient, type LinePorts, type LineProvider, type LineProviderName, type LineRow, type LineSecrets, type LineStep, type LineVoiceState, type ListCallsPage, type ListingBefore, type ListingCheckPlan, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, type LogFields, type LogLevel, type Logger, MAILBOX_SCOPES, MESSAGING, type MailCapability, type MailDomainFacts, type MailboxEmail, type MailboxGrant, type MailboxOAuthClient, type MailboxRequest, type MailboxSendInput, type MailboxSendResult, type ModelAsk, type ModelBlock, type ModelDeps, type ModelMessage, type ModelOutcome, type ModelReply, type ModelStreamReply, type NormalizedCall, type NormalizedInbound, NotPublicError, type OAuthClient, type OAuthState, PLACES_BASE, PLACES_DETAILS_MASK, PLACES_SEARCH_LIMIT, PLACES_SEARCH_MASK, PLACES_TIMEOUT_MS, PLACE_ID, PROFILE_SCOPES, type PlaceCandidate, type PlaceDetails, type PlaceReview, PlacesError, type PlacesHttp, type PlacesRequest, type PlatformRecipient, type ProfileBefore, type ProfileSyncPlan, type Provider, type ProviderAccount, type ProviderCall, type ProviderReply, type ProvisionAction, type ProvisionSecrets, type ProvisionStep, type ProvisionStepId, type PublicFetchDeps, type PushTokenRefusal, REQUEST_ID_HEADER, RETELL_ORIGINATION, REVIEW_BELL_MAX, type ReceivedEmail, type ReceivedText, type RecordingFetch, type RequestTiming, type ResendAnswer, type ResendConfig, type ResendLimit, type Resolve, type Resolved, type RetellAgentConfig, type RetellCall, type RetellCallRead, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type RetellWrite, type ReviewBell, SEND_DEADLINE_MS, SEND_MIN_MS, SEND_TIMEOUT_MS, SMS_FOOTER, SMS_HELD_DETAILS, SMS_HELD_REASON, SMS_MAX_CHARS, SMS_OPTED_OUT_CODE, STATE_TTL_MS, SYSTEM_ONE_URL, type SagaResult, type SendEmailOptions, type SendOutcome, type SendResult, type SmsInbound, type SmsRegistrationState, type SmsSendResult, type SmsStatus, type SpeechStream, type SvixHeaders, type SystemOneAsk, type SystemOneReply, TRUSTHUB, TWILIO_TIMEOUT_MS, type TokenGrant, type TwilioAnswer, TwilioError, type TwilioHttp, type TxtAnswer, UNSUBSCRIBE_PATH, type UnsubscribeClaims, VOICE_AGENT_DEFAULTS, VOICE_LLM_DEFAULTS, VOICE_NUMBER_DEFAULTS, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceProvisionPlan, type VoiceProvisionRequest, type VoiceProvisionState, type VoiceShellTarget, WEBHOOK_TOLERANCE_S, WHATSAPP_SEND_TIMEOUT_MS, type WaChangeValue, type WaConfig, type WaMediaRef, type WaPricing, type WaRawMessage, a2pProfileEndUserRequest, a2pProfileRequest, accountsRequest, addressOf, addressRequest, agentSettingsDrift, answerObject, apifyClient, askModel, askSystemOne, assignRequest, authorizeUrl, availabilityUrl, b64url, brandRequest, brandTypeFor, breakerOf, breakerStates, buildEmailRequest, buildMime, businessAttributes, businessEndUserRequest, callSummaryLine, campaignRequest, campaignsIdentity, carrierConsent, chooseLineProvider, classifyReceived, cleanReply, clientStateMatches, connectedIdentity, createAgent, createAgentVersion, createPhoneNumber, createRetellLlm, customerProfileRequest, deleteCampaignRequest, deleteConversation, deletePhoneNumber, deleteReplyRequest, deliveryReportOf, desiredVoiceShell, dkimOf, dmarcOf, dryProvider, edgeBodyMatches, elevenLabsWebhookSignature, emailHtml, emailPlainText, emailReceiptEffect, emailReceiptFrom, emailReceivedEventFrom, encodeForm, errField, evaluateRequest, evaluateTrustProductRequest, fetchMailDomains, fetchMediaBytes, fetchReceivedEmail, fetchRecording, fetchTwilio, formatRejected, getAgent, getAgentRaw, getCall, getPhoneNumber, getPlace, getRetellLlm, gmailDayUsed, gmailEmailOf, gmailHistory, gmailMessage, gmailProfile, gmailPushOf, gmailSend, gmailSentIds, gmailSignedOut, gmailStop, gmailThreadOf, gmailWatch, grantHasScope, grantScopes, grantScopesMissing, graphDayUsed, graphDelta, graphEmailOf, graphMe, graphMessage, graphNotificationsOf, graphRenew, graphSend, graphSignedOut, graphSubscribe, graphThrottled, graphUnsubscribe, hostedAddress, hostedIdentity, idTokenClaims, imageBytes, importPhoneNumber, isAreaCode, isBrandNotReady, isEmailRequest, isPublicAddress, isValidSipPassword, keywordsFor, leadJudge, lineCodesFrom, listAccounts, listCalls, listLocations, listReviews, liveTurns, locationsRequest, logger, mailDomainsFrom, mailboxAuthorizeUrl, mailboxHeader, mailboxMessageId, mailboxRefreshRequest, mailboxRevokeRequest, mailboxTokenRequest, mergeConsent, messageIdHeader, messageIdsIn, mintConversationToken, newDraftNote, newNonce, nextA2PStep, nextLineStep, normalizeCall, normalizeInbound, noteTenant, noteTiming, oneTimeCodeOf, pageText, parseAccounts, parseLocations, parseMailboxGrant, parsePlaceDetails, parsePlacesSearch, parseReviewsPage, parseTokenResponse, parseTranscriptText, placesDetailsRequest, placesFetch, placesSearchRequest, planAgentSettings, planListingCheck, planProfileSync, planVoiceConvergence, planVoiceProvision, platformRecipient, providerFetch, publicFetch, publicFetcher, publicLookup, publishAgentVersion, readLocation, receivedEmailFrom, referencesFor, refusalWords, registrationVerdict, replyRequest, replyRouteAddress, replySubject, replyToReview, representativeAttributes, representativeEndUserRequest, requestId, requestIdOf, requestIdShaped, requestLeavesAs, requestTenant, requestTimings, resendLimitOf, resendWebhookSignature, resetBreakers, retellImportBody, retellLocalesFor, reviewBells, reviewIdOf, reviewParent, reviewsRequest, revokeRequest, rowIdOfMessageId, runA2PSaga, runLineSaga, sameSignature, searchPlaces, sendEmail, sendFromMailbox, sendTemplate, sendText, senderAuthenticated, sendsAs, sendsAsCampaigns, sendsAsConnected, setPublicFetch, signEdgeToken, signState, signUnsubscribeToken, sipPassword, sipUsername, smsAsWaMessage, smsBody, smsInboundFrom, smsInboundUrl, smsKeywordConsent, smsRefusalOf, smsStateFor, smsStatusFrom, smsStatusToRow, smsStatusUrl, soleProprietorEndUserRequest, soleProprietorProfileRequest, speakText, spfOf, starRatingNumber, starterAttributes, starterEndUserRequest, starterProfileRequest, stopCall, streamModel, stripKey, subaccountName, submitProfileRequest, submitTrustProductRequest, supportingDocumentRequest, tokenExchangeRequest, tokenRefreshRequest, trunkDomain, trustProductAssignRequest, twilioProvider, twilioRequest, twilioSignature, twilioSignedString, twilioUrls, unb64url, unpublishedLatestNote, unsubscribeUrl, updateAgent, updateCampaignRequest, updateEndUserRequest, updateLiveCall, updatePhoneNumber, verifyEdgeToken, verifyElevenLabsWebhook, verifyGooglePushToken, verifyResendWebhook, verifyRetellSignature, verifyState, verifyTwilioSignature, verifyUnsubscribeToken, voiceAgentCreateBody, voiceEndpoints, voiceLlmCreateBody, voiceNumberBindBody, voiceNumberBinding, voiceNumberCreateBody, voiceShellDrift, voiceShellTools, waPricingOf, waStoppedMarketing, withCarrierConsent, withKey, withRequestId };

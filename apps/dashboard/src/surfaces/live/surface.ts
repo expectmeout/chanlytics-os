@@ -38,8 +38,8 @@ export const liveOverride: SurfaceOverride = {
     fresh: "live",
     omit: [
       {
-        tables: ["lines", "mailboxes", "sending_domains", "capability_activations", "business_records"],
-        why: "it draws the line's number and its switch (tenant_channels); a line's saga, a mailbox, a domain, an activation and the carriers' record are not among them",
+        tables: ["lines", "mailboxes", "mailbox_connections", "capability_activations", "business_records"],
+        why: "it draws the line's number and its switch (tenant_channels); a line's saga, a mailbox, a connected mailbox, an activation and the carriers' record are not among them",
       },
     ],
   }),

@@ -42,6 +42,7 @@ import {
 import {
   ingestInboundEmail,
   mailboxById,
+  mailboxConnectionOf,
   markProcessed,
   reachOutReplyOf,
   sentEmailWithMessageId,
@@ -178,8 +179,56 @@ export function incomingEmailOf(e: ReceivedEmail): IncomingEmail {
   };
 }
 
+/**
+ * email_ingest from a mailbox the business connected (decision 0056): the same verb, over the mailbox's row and its
+ * own provider. The sync schedules one only for a message in a thread a reach-out started, so what it reads is a reply
+ * (or a report about one of its emails, which the sync applies itself and never schedules). A booking notice, a
+ * forwarding confirmation and a member's forward are the hosted address's alone.
+ */
+async function mailboxIngest(ctx: JobContext, job: ClaimedJob): Promise<void> {
+  const intake = ctx.mailboxIntake;
+  if (!intake) throw new Error("email_ingest: this runtime holds no mailbox intake");
+  const { db } = ctx;
+  const outcome = await ingestEmail(
+    {
+      mailbox: async (id) => {
+        const m = await mailboxConnectionOf(db, job.tenant_id, id);
+        return m && m.state !== "removed" ? { id: m.id, tenant_id: m.tenant_id, address: m.address } : null;
+      },
+      fetch: async (providerId) => {
+        const mailboxId = typeof job.payload.mailbox_id === "string" ? job.payload.mailbox_id : "";
+        const e = await intake.fetch(mailboxId, providerId);
+        return e ? incomingEmailOf(e) : null;
+      },
+      readBooking: () => Promise.resolve(undefined),
+      bookingTool: () => Promise.resolve(null),
+      memberAddress: () => Promise.resolve(false),
+      keepForwarding: () => Promise.resolve(undefined),
+      erasedBefore: intake.erasedBefore,
+      ours: (tenantId, rfcMessageId) => sentEmailWithMessageId(db, tenantId, rfcMessageId),
+      record: (p) => ingestInboundEmail(db, p),
+      escalate: (tenantId, conversationId, reason, details) =>
+        upsertEscalation(db, tenantId, conversationId, reason, details),
+      tell: intake.tell,
+      reachOutReply: async (tenantId, messageId) =>
+        (await reachOutReplyOf(db, { tenantId, messageId, days: REACH_OUT_REPLY_DAYS })) !== null,
+      readReply: async (_tenantId, messageId) => {
+        await ctx.scheduleOnce("reply_read", new Date(), { message_id: messageId });
+      },
+      markProcessed: (tenantId, messageId) => markProcessed(db, tenantId, messageId),
+      // The mailbox's own clock says when it was read (its sync); a taken email stamps nothing more.
+      received: () => Promise.resolve(undefined),
+      now: Date.now,
+    },
+    { payload: job.payload },
+  );
+  logger().info("email_ingested", { tenant_id: job.tenant_id, job: job.id, outcome, source: "mailbox" });
+}
+
 /** email_ingest: core's ingestEmail, over the rows and the provider fetch the edge injects. */
 async function emailIngest(ctx: JobContext, job: ClaimedJob): Promise<void> {
+  // A reply read from a mailbox the business connected has its own intake (decision 0056).
+  if (job.payload.source === "mailbox") return mailboxIngest(ctx, job);
   const email = ctx.email;
   if (!email) throw new Error("email_ingest: this runtime holds no email provider");
   const { db } = ctx;

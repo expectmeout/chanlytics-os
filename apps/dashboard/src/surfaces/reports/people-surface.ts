@@ -66,8 +66,8 @@ export const reportsPeople = periodSurface({
     omit: [
       { tables: ["conversations"], why: "it counts the messages, not the threads they are in" },
       {
-        tables: ["sending_domains", "capability_activations", "business_records"],
-        why: "who can receive an offer is told by the number, the text line and the mailbox; a sending domain, a capability or the business record changes none of them",
+        tables: ["mailbox_connections", "capability_activations", "business_records"],
+        why: "who can receive an offer is told by the number, the text line and the mailbox; a connected mailbox, a capability or the business record changes none of them",
       },
     ],
     when: (change) => !isLiveCallTurn(change),

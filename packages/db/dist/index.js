@@ -100,6 +100,13 @@ var WRITES = {
   "line.texting_approved": { category: "setup", version: 1 },
   "line.texting_on": { category: "setup", version: 1 },
   "line.texting_rejected": { category: "setup", version: 1 },
+  "mailbox_connection.connected": { category: "setup", version: 1 },
+  "mailbox_connection.signed_out": { category: "setup", version: 1 },
+  "mailbox_connection.held": { category: "setup", version: 1 },
+  "mailbox_connection.resumed": { category: "setup", version: 1 },
+  "mailbox_connection.paused": { category: "setup", version: 1 },
+  "mailbox_connection.unpaused": { category: "setup", version: 1 },
+  "mailbox_connection.removed": { category: "setup", version: 1 },
   "message.send_blocked": { category: "message", version: 1 },
   "message.send_failed": { category: "message", version: 1 },
   "message.send_raced_cancel": { category: "message", version: 1 },
@@ -111,12 +118,6 @@ var WRITES = {
   "policy.veto_window_skipped": { category: "policy", version: 1 },
   "reach_out.lead_stopped": { category: "lead", version: 1 },
   "reach_out.send_decided": { category: "lead", version: 1 },
-  "sending_domain.added": { category: "setup", version: 1 },
-  "sending_domain.held": { category: "setup", version: 1 },
-  "sending_domain.released": { category: "setup", version: 1 },
-  "sending_domain.removed": { category: "setup", version: 1 },
-  "sending_domain.resumed": { category: "setup", version: 1 },
-  "sending_domain.verified": { category: "setup", version: 1 },
   "settings.changed": { category: "system", version: 1 },
   "template.removed": { category: "message", version: 1 },
   "template.submitted": { category: "message", version: 1 },
@@ -778,6 +779,23 @@ var ERASURE_STRATEGIES = {
   // Gmail's pending confirmation of a forward to the workspace's address (00345): the owner's own account, and
   // Google's code and link for it; the name its mail is sent from. The workspace's address on the platform's domain,
   // its reply tokens and its intake's error code are nobody's.
+  // A mailbox a member connected to write from: its address and name are the business's, kept with the workspace; its
+  // token's name, its state and its clocks are not personal.
+  mailbox_connections: {
+    ...all(WITH_WORKSPACE, "address", "host", "from_name", "signature", "provider_account"),
+    ...all(
+      NOT_PERSONAL,
+      "provider",
+      "scopes",
+      "state",
+      "held_why",
+      "credentials_ref",
+      "dns",
+      "sync_cursor",
+      "watch_id",
+      "last_error"
+    )
+  },
   mailboxes: {
     ...all(WITH_WORKSPACE, "forward_confirm_account", "from_name"),
     ...all(
@@ -2317,142 +2335,194 @@ async function failStrandedRun(db, p) {
   return true;
 }
 
-// src/repositories/sending-domains.ts
-var must = (what, r) => {
-  if (r.error) throw new Error(`sending_domains: ${what}: ${r.error.message}`);
-  return r.data;
-};
-async function sendingDomainsOf(db, tenantId) {
-  return must(
-    "read a workspace's domains",
-    await db.from("sending_domains").select("*").eq("tenant_id", tenantId).order("created_at", { ascending: true })
-  ) ?? [];
+// src/repositories/mailboxes/connections.ts
+async function mailboxConnectionsOf(db, tenantId) {
+  const { data, error } = await db.from("mailbox_connections").select("*").eq("tenant_id", tenantId).neq("state", "removed").order("connected_at", { ascending: true });
+  if (error) throw new Error(`cannot read the workspace's mailboxes: ${error.message}`);
+  return data ?? [];
 }
-async function sendingDomainOf(db, tenantId, id) {
-  return must(
-    "read a domain",
-    await db.from("sending_domains").select("*").eq("tenant_id", tenantId).eq("id", id).maybeSingle()
-  );
+async function mailboxConnectionOf(db, tenantId, id) {
+  const { data, error } = await db.from("mailbox_connections").select("*").eq("tenant_id", tenantId).eq("id", id).maybeSingle();
+  if (error) throw new Error(`cannot read the mailbox: ${error.message}`);
+  return data;
 }
-async function sendingDomainByHost(db, tenantId, host) {
-  return must(
-    "read a domain by host",
-    await db.from("sending_domains").select("*").eq("tenant_id", tenantId).eq("host", host.trim().toLowerCase()).maybeSingle()
-  );
+async function liveMailboxByAddress(db, address) {
+  const { data, error } = await db.from("mailbox_connections").select("*").eq("address", address.trim().toLowerCase()).neq("state", "removed").maybeSingle();
+  if (error) throw new Error(`cannot read the mailbox: ${error.message}`);
+  return data;
 }
-async function dueSendingDomains(db, limit) {
-  return must(
-    "read the due domains",
-    await db.from("sending_domains").select("*").in("state", ["verifying", "verified", "held"]).or("held_why.is.null,held_why.neq.complaint").order("checked_at", { ascending: true, nullsFirst: true }).limit(limit)
-  ) ?? [];
+async function liveMailboxByWatch(db, watchId) {
+  const { data, error } = await db.from("mailbox_connections").select("*").eq("watch_id", watchId).neq("state", "removed").maybeSingle();
+  if (error) throw new Error(`cannot read the mailbox: ${error.message}`);
+  return data;
 }
-async function coldReceiptsOwed(db, from, to) {
-  return must(
-    "count the receipts owed",
-    await db.rpc("cold_receipts_owed", { p_from: from.toISOString(), p_to: to.toISOString() })
-  ) ?? [];
+async function mailboxesToTend(db, limit, skip = []) {
+  let q = db.from("mailbox_connections").select("*").in("state", ["connected", "paused", "held"]).order("synced_at", { ascending: true, nullsFirst: true }).limit(limit);
+  const done = [...skip];
+  if (done.length) q = q.not("id", "in", `(${done.join(",")})`);
+  const { data, error } = await q;
+  if (error) throw new Error(`cannot read the mailboxes to tend: ${error.message}`);
+  return data ?? [];
 }
-async function countSendingDomains(db, tenantId) {
-  const r = await db.from("sending_domains").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId);
-  if (r.error) throw new Error(`sending_domains: count a workspace's domains: ${r.error.message}`);
-  return r.count ?? 0;
-}
-async function reserveSendingDomain(db, i) {
-  const r = await db.from("sending_domains").insert({
-    tenant_id: i.tenantId,
-    host: i.host,
-    from_local: i.fromLocal,
-    from_name: i.fromName,
-    created_by: i.by,
-    // Where every domain starts: its records to publish. Said, not left to the column's default.
-    state: "records"
-  }).select("*").single();
-  const code = r.error?.code;
-  if (code === "P0001" && r.error.hint === "too_many") return { ok: false, reason: "too_many" };
-  if (code === "23505") {
-    const holder = must(
-      "read who holds a host",
-      await db.from("sending_domains").select("id, tenant_id, state, created_at, provider_domain_id, provider_status, updated_at, records").eq("host", i.host).maybeSingle()
-    );
-    return { ok: false, reason: "taken", holder: holder ?? null };
+async function connectMailbox(db, p) {
+  const { data, error } = await db.rpc("mailbox_connection_connect", {
+    p_tenant_id: p.tenantId,
+    p_user_id: p.userId,
+    p_provider: p.provider,
+    p_account: p.account,
+    p_address: p.address,
+    p_from_name: p.fromName,
+    p_scopes: p.scopes,
+    p_customer_domain: p.customerDomain
+  });
+  if (error) {
+    const hint = error.hint ?? "";
+    if (hint === "taken" || hint === "too_many" || hint === "too_many_on_domain") return { ok: false, refused: hint };
+    throw new Error(`cannot connect the mailbox: ${error.message}`);
   }
-  return { ok: true, row: must("reserve a domain", r) };
+  const r = data ?? {};
+  if (!r.id) throw new Error("cannot connect the mailbox: no row came back");
+  return { ok: true, id: r.id, made: r.made === true, state: String(r.state ?? "connected") };
 }
-async function touchSendingDomain(db, row) {
-  return must(
-    "touch a domain",
-    await db.from("sending_domains").update({ checked_at: row.checked_at }).eq("id", row.id).eq("tenant_id", row.tenant_id).select("*").maybeSingle()
-  );
+async function patchMailboxConnection(db, p) {
+  let q = db.from("mailbox_connections").update(p.patch).eq("tenant_id", p.tenantId).eq("id", p.id);
+  if (p.from?.length) q = q.in("state", [...p.from]);
+  const { data, error } = await q.select("*");
+  if (error) throw new Error(`cannot change the mailbox: ${error.message}`);
+  return data?.[0] ?? null;
 }
-async function recordProviderDomain(db, id, p) {
-  return must(
-    "record the provider's domain",
-    await db.from("sending_domains").update({ provider_domain_id: p.providerDomainId, records: p.records, provider_status: p.providerStatus }).eq("id", id).select("*").single()
-  );
-}
-async function applyDomainCheck(db, row, patch) {
-  const r = await db.from("sending_domains").update(patch).eq("id", row.id).eq("updated_at", row.updated_at).select("*").maybeSingle();
-  return must("write a domain's check", r);
-}
-async function sendingDomainCounts(db, tenantId, host, since) {
-  const r = await db.rpc("sending_domain_counts", { p_tenant_id: tenantId, p_host: host, p_since: since });
-  const c = must("count a domain's sends", r) ?? {};
-  const n = (k) => typeof c[k] === "number" ? c[k] : Number(c[k] ?? 0) || 0;
-  return {
-    sent: n("sent"),
-    bounced: n("bounced"),
-    complained: n("complained"),
-    unsubscribed: n("unsubscribed"),
-    // A count from before 00188 says none apart: every complaint is taken as new, as it was.
-    complained_new: "complained_new" in c ? n("complained_new") : n("complained")
-  };
-}
-async function reputationHoldsSince(db, p) {
-  const r = await db.from("events").select("id").eq("tenant_id", p.tenantId).eq("kind", "sending_domain.held").gte("created_at", p.sinceIso).eq("data->>host", p.host).in("data->>why", [...p.whys]).limit(20);
-  if (r.error) throw new Error(`sending_domains: read a domain's reputation holds: ${r.error.message}`);
-  return (r.data ?? []).length;
-}
-async function platformHoldStands(db, p) {
-  const r = await db.from("events").select("kind, data, created_at").eq("tenant_id", p.tenantId).in("kind", ["sending_domain.held", "sending_domain.resumed"]).gte("created_at", p.sinceIso).eq("data->>host", p.host).order("created_at", { ascending: false }).limit(20);
-  if (r.error) throw new Error(`sending_domains: read a domain's platform holds: ${r.error.message}`);
-  for (const e of r.data ?? []) {
-    const d = e.data ?? {};
-    if (e.kind === "sending_domain.held" && d.resume_by === "platform") return true;
-    if (e.kind === "sending_domain.resumed" && d.by === "platform") return false;
+async function putMailboxCredentials(db, p) {
+  const { error } = await db.rpc("put_mailbox_credentials", {
+    p_connection_id: p.id,
+    p_secret: p.secret,
+    ...p.ifRefreshToken ? { p_if_refresh_token: p.ifRefreshToken } : {}
+  });
+  if (error) {
+    if (error.code === "40001") return "changed";
+    throw new Error(`cannot store the mailbox's token: ${error.message}`);
   }
-  return false;
+  return "stored";
 }
-async function deleteSendingDomainAsRead(db, row) {
-  const r = must(
-    "remove a domain as it was read",
-    await db.from("sending_domains").delete().eq("tenant_id", row.tenant_id).eq("id", row.id).eq("updated_at", row.updated_at).select("id")
-  );
-  return (r ?? []).length > 0;
+async function getMailboxCredentials(db, id) {
+  const { data, error } = await db.rpc("get_mailbox_credentials", { p_connection_id: id });
+  if (error) throw new Error(`cannot read the mailbox's token: ${error.message}`);
+  return data ?? null;
 }
-async function domainHeldSince(db, tenantId, domainId, sinceIso, whys) {
-  const r = await db.from("events").select("data").eq("tenant_id", tenantId).eq("kind", "sending_domain.held").eq("subject_id", domainId).gte("created_at", sinceIso).limit(20);
-  if (r.error) throw new Error(`sending_domains: read a domain's holds: ${r.error.message}`);
-  return (r.data ?? []).some((e) => whys.includes(String(e.data?.why ?? "")));
+async function dropMailboxCredentials(db, id) {
+  const { data, error } = await db.rpc("drop_mailbox_credentials", { p_connection_id: id });
+  if (error) throw new Error(`cannot drop the mailbox's token: ${error.message}`);
+  return data === true;
 }
-async function deleteSendingDomain(db, tenantId, id) {
-  const r = must(
-    "remove a domain",
-    await db.from("sending_domains").delete().eq("tenant_id", tenantId).eq("id", id).select("id")
-  );
-  return (r ?? []).length > 0;
+async function mailboxCountsOf(db, id, since) {
+  const { data, error } = await db.rpc("mailbox_connection_counts", { p_mailbox_id: id, p_since: since });
+  if (error) throw new Error(`cannot count the mailbox's emails: ${error.message}`);
+  const c = data ?? {};
+  const n = (k) => Math.max(0, Number(c[k] ?? 0) || 0);
+  if (typeof c.sent !== "number") throw new Error("cannot count the mailbox's emails: the database answered no count");
+  return { sent: n("sent"), bounced: n("bounced"), complained: n("complained"), unsubscribed: n("unsubscribed") };
+}
+async function stampEmailFromMailbox(db, p) {
+  const { data, error } = await db.rpc("stamp_email_from_mailbox", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_provider_id: p.providerId,
+    p_rfc_message_id: p.rfcMessageId,
+    p_thread_id: p.threadId,
+    p_mailbox_id: p.mailboxId
+  });
+  if (error) throw new Error(`cannot stamp the email the mailbox sent: ${error.message}`);
+  return data === true;
+}
+
+// src/repositories/mailboxes/sync.ts
+async function takeMailboxSync(db, id, at, leaseMs) {
+  const until = new Date(at.getTime() + leaseMs).toISOString();
+  const { data, error } = await db.from("mailbox_connections").update({ sync_lease_until: until }).eq("id", id).neq("state", "removed").or(`sync_lease_until.is.null,sync_lease_until.lt.${at.toISOString()}`).select("id");
+  if (error) throw new Error(`cannot take the mailbox's sync: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+async function endMailboxSync(db, p) {
+  const { error } = await db.from("mailbox_connections").update({
+    ...p.cursor !== null ? { sync_cursor: p.cursor } : {},
+    synced_at: p.at.toISOString(),
+    sync_lease_until: null,
+    ...p.error !== void 0 ? { last_error: p.error, last_error_at: p.error ? p.at.toISOString() : null } : {}
+  }).eq("id", p.id);
+  if (error) throw new Error(`cannot end the mailbox's sync: ${error.message}`);
+}
+async function keepMailboxWatch(db, p) {
+  const { error } = await db.from("mailbox_connections").update({
+    watch_id: p.watchId,
+    watch_expires_at: p.expiresAt.toISOString(),
+    ...p.cursor ? { sync_cursor: p.cursor } : {}
+  }).eq("id", p.id);
+  if (error) throw new Error(`cannot keep the mailbox's watch: ${error.message}`);
+}
+async function mailboxConnectionById(db, id) {
+  const { data, error } = await db.from("mailbox_connections").select("*").eq("id", id).maybeSingle();
+  if (error) throw new Error(`cannot read the mailbox: ${error.message}`);
+  return data;
+}
+async function sentEmailIdByMessageId(db, tenantId, rfcMessageId) {
+  const { data, error } = await db.from("messages").select("id").eq("tenant_id", tenantId).eq("channel", "email").eq("direction", "outbound").eq("meta->email->>message_id", rfcMessageId).limit(1);
+  if (error) throw new Error(`cannot find the email the report is about: ${error.message}`);
+  return data?.[0]?.id ?? null;
+}
+async function knownThreads(db, tenantId, threadIds) {
+  if (threadIds.length === 0) return /* @__PURE__ */ new Set();
+  const { data, error } = await db.rpc("mailbox_threads_known", {
+    p_tenant_id: tenantId,
+    p_thread_ids: [...new Set(threadIds)]
+  });
+  if (error) throw new Error(`cannot read which threads are the workspace's: ${error.message}`);
+  return new Set(data ?? []);
 }
 
 // src/repositories/outreach.ts
 import { conversationPatch as conversationPatch2 } from "../../contracts/dist/index.js";
+
+// src/repositories/mailboxes/day.ts
+async function mailboxCapacityOf(db, mailboxId, at) {
+  const { data, error } = await db.rpc("mailbox_capacity", { p_mailbox_id: mailboxId, p_at: at.toISOString() });
+  if (error) throw new Error(`cannot read the mailbox's day: ${error.message}`);
+  return mailboxCapacityFrom(data);
+}
+function mailboxCapacityFrom(data) {
+  const c = data ?? {};
+  if (typeof c.used !== "number" || typeof c.sent_days !== "number" || typeof c.daily_cap !== "number")
+    throw new Error("cannot read the mailbox's day: the database answered without its counts");
+  return {
+    state: String(c.state ?? ""),
+    clean_since: typeof c.clean_since === "string" ? c.clean_since : null,
+    resting_until: typeof c.resting_until === "string" ? c.resting_until : null,
+    daily_cap: c.daily_cap,
+    customer_domain: c.customer_domain === true,
+    sent_days: c.sent_days,
+    sent_today: Math.max(0, Number(c.sent_today ?? 0) || 0),
+    used: c.used,
+    recent: Array.isArray(c.recent) ? c.recent.map(Number).filter(Number.isFinite) : [],
+    last_sent_at: typeof c.last_sent_at === "string" ? c.last_sent_at : null
+  };
+}
+async function dueMailboxes(db, at, limit, opts = {}) {
+  const { data, error } = await db.rpc("reach_out_due_mailboxes", {
+    p_at: at.toISOString(),
+    p_limit: limit,
+    ...opts.tenantId ? { p_tenant_id: opts.tenantId } : {},
+    p_skip_tenants: [...opts.skipTenants ?? []],
+    p_skip_mailboxes: [...opts.skipMailboxes ?? []]
+  });
+  if (error) throw new Error(`cannot read the mailboxes with sends due: ${error.message}`);
+  return data ?? [];
+}
+
+// src/repositories/outreach.ts
 async function outreachFactsOf(db, p) {
-  const { data, error } = await db.rpc("outreach_facts", {
+  const { data, error } = await db.rpc("outreach_mailbox_facts", {
     p_tenant_id: p.tenantId,
     p_contact_id: p.contactId,
     p_to: p.to,
-    p_host: p.host,
-    p_since: p.since,
-    // Named only when there is a lead: a database before 00184 knows five arguments, and a sixth it has never heard of
-    // would fail every cold send rather than answer as it did.
+    p_from: p.from,
     ...p.leadId ? { p_lead_id: p.leadId } : {}
   });
   if (error) throw new Error(`cannot read the outreach facts: ${error.message}`);
@@ -2468,14 +2538,11 @@ async function outreachFactsOf(db, p) {
     // Absent before 00241: not stopped. The stop still holds without it: its planned and held sends are skipped, and
     // the followers leave the lead out, both in SQL.
     stopped: f.stopped === true,
-    domain: f.domain && typeof f.domain === "object" && typeof f.domain.state === "string" ? {
-      state: f.domain.state,
-      from_local: String(f.domain.from_local ?? ""),
-      clean_since: typeof f.domain.clean_since === "string" ? f.domain.clean_since : null,
-      // A database before 00184 says nothing of it: no days sent, the ramp's first step.
-      sent_days: Math.max(0, Number(f.domain.sent_days ?? 0) || 0)
-    } : null,
-    sent_since: Number(f.sent_since ?? 0) || 0
+    mailbox: f.mailbox && typeof f.mailbox === "object" && typeof f.mailbox.id === "string" ? {
+      id: f.mailbox.id,
+      address: typeof f.mailbox.address === "string" ? f.mailbox.address : "",
+      ...mailboxCapacityFrom(f.mailbox)
+    } : null
   };
 }
 async function addressesSuppressed(db, tenantId, addresses) {
@@ -2667,7 +2734,7 @@ import { maySpend } from "../../contracts/dist/index.js";
 
 // src/repositories/reach-out-sheet.ts
 import { versionWords } from "../../contracts/dist/index.js";
-var STEP_COLUMNS = "id, name, state, trigger, lead_search_id, after_playbook_id, after_days, gap_minutes, domain_ids, signed_by, include_unconfirmed, template_id, hand, run_hour, last_run_for, created_at";
+var STEP_COLUMNS = "id, name, state, trigger, lead_search_id, after_playbook_id, after_days, gap_minutes, mailbox_ids, signed_by, include_unconfirmed, template_id, hand, run_hour, last_run_for, created_at";
 async function reachOutStepsOf(db, tenantId) {
   const { data, error } = await db.from("playbooks").select(STEP_COLUMNS).eq("tenant_id", tenantId).eq("kind", "reach_out");
   if (error) throw new Error(`cannot read the reach-outs: ${error.message}`);
@@ -2741,7 +2808,7 @@ async function runsWaitingOf(db, tenantId) {
 }
 async function reachOutRunSendsOf(db, tenantId, runId) {
   const { data, error } = await db.from("reach_out_sends").select(
-    "id, lead_id, state, reason, hold_detail, opening, angle, send_at, checked_at, created_at, domain_id, lead:leads(business_name, email, city)"
+    "id, lead_id, state, reason, hold_detail, opening, angle, send_at, checked_at, created_at, mailbox_id, lead:leads(business_name, email, city)"
   ).eq("tenant_id", tenantId).eq("broadcast_id", runId);
   if (error) throw new Error(`cannot read the run's emails: ${error.message}`);
   return data ?? [];
@@ -2815,24 +2882,6 @@ async function markHeldNotice(db, p) {
 }
 
 // src/repositories/reach-out.ts
-async function domainCapacityOf(db, domainId, at) {
-  const { data, error } = await db.rpc("sending_domain_capacity", {
-    p_domain_id: domainId,
-    p_at: at.toISOString()
-  });
-  if (error) throw new Error(`cannot read the domain's capacity: ${error.message}`);
-  const c = data ?? {};
-  if (typeof c.used !== "number" || typeof c.sent_days !== "number")
-    throw new Error("cannot read the domain's capacity: the database answered without its counts");
-  return {
-    state: String(c.state ?? ""),
-    clean_since: typeof c.clean_since === "string" ? c.clean_since : null,
-    sent_days: c.sent_days,
-    used: c.used,
-    recent: Array.isArray(c.recent) ? c.recent.map(Number).filter(Number.isFinite) : [],
-    last_sent_at: typeof c.last_sent_at === "string" ? c.last_sent_at : null
-  };
-}
 async function reachOutAudience(db, p) {
   const { data, error } = await db.rpc("reach_out_audience", {
     p_tenant_id: p.tenantId,
@@ -2855,14 +2904,14 @@ async function reachOutPerson(db, tenantId, leadId) {
 }
 async function claimSends(db, p) {
   if (!Number.isInteger(p.cap) || !Number.isInteger(p.limit) || Number.isNaN(p.at.getTime()))
-    throw new Error(`cannot claim the domain's due sends: a cap and a limit are whole numbers (${p.cap}, ${p.limit})`);
-  const { data, error } = await db.rpc("reach_out_claim", {
-    p_domain_id: p.domainId,
+    throw new Error(`cannot claim the mailbox's due sends: a cap and a limit are whole numbers (${p.cap}, ${p.limit})`);
+  const { data, error } = await db.rpc("reach_out_claim_from", {
+    p_mailbox_id: p.mailboxId,
     p_cap: p.cap,
     p_at: p.at.toISOString(),
     p_limit: p.limit
   });
-  if (error) throw new Error(`cannot claim the domain's due sends: ${error.message}`);
+  if (error) throw new Error(`cannot claim the mailbox's due sends: ${error.message}`);
   return data ?? [];
 }
 async function moveSend(db, p) {
@@ -2945,17 +2994,6 @@ async function withdrawEmail(db, p) {
     reason: { reason: p.reason }
   });
   return withdrawn.length > 0;
-}
-async function dueDomains(db, at, limit, opts = {}) {
-  const { data, error } = await db.rpc("reach_out_due_domains", {
-    p_at: at.toISOString(),
-    p_limit: limit,
-    ...opts.tenantId ? { p_tenant_id: opts.tenantId } : {},
-    p_skip_tenants: [...opts.skipTenants ?? []],
-    p_skip_domains: [...opts.skipDomains ?? []]
-  });
-  if (error) throw new Error(`cannot read the domains with sends due: ${error.message}`);
-  return data ?? [];
 }
 async function monthSent(db, tenantId, at) {
   const { data, error } = await db.rpc("reach_out_month_sent", {
@@ -5094,6 +5132,16 @@ async function ideasBasis(db, tenantId) {
   if (error) throw new Error(`lead_rounds: ${error.message}`);
   return data ? data.ended_at : null;
 }
+async function leadCountriesOf(db, ids) {
+  const out = /* @__PURE__ */ new Map();
+  const unique = [...new Set(ids)];
+  for (let i = 0; i < unique.length; i += 100) {
+    const { data, error } = await db.from("leads").select("id, country").in("id", unique.slice(i, i + 100));
+    if (error) throw new Error(`cannot read the leads' countries: ${error.message}`);
+    for (const r of data ?? []) out.set(r.id, r.country?.trim().toUpperCase() || null);
+  }
+  return out;
+}
 
 // src/lines.ts
 async function ownLineOf(db, tenantId) {
@@ -5134,8 +5182,8 @@ var WATCHED = [
   // the record the carriers read, saved on Connections: Setup repaints (00075)
   { table: "google_connections", events: EVERY },
   // the profile connected, synced or failing by the hourly sweep: Connections repaints (00070)
-  { table: "sending_domains", events: EVERY },
-  // a domain added, checked, verified, held or removed: Connections repaints (00175)
+  { table: "mailbox_connections", events: EVERY },
+  // a mailbox connected, signed out, held, paused or removed, its day or records when they moved: Connections and the sheet repaint (00421)
   // a round's page committed, a check landed, a class changed: the Leads scope repaints (00140)
   { table: "leads", events: EVERY },
   { table: "lead_searches", events: EVERY },
@@ -5623,7 +5671,6 @@ export {
   aiFailuresHour,
   answeredReachOutEmail,
   applyBilling,
-  applyDomainCheck,
   applyReplyReading,
   appointmentByClientStart,
   appointmentByKey,
@@ -5661,12 +5708,11 @@ export {
   claimVoiceTurn,
   clearForwardingConfirmation,
   closedRunSends,
-  coldReceiptsOwed,
+  connectMailbox,
   contactEmailOf,
   contactIdByEmail,
   contactIdByPhone,
   contactSeen,
-  countSendingDomains,
   countSentToday,
   createList,
   createMessageVersion,
@@ -5678,20 +5724,16 @@ export {
   declinePersonName,
   deleteList,
   deleteSecondFactor,
-  deleteSendingDomain,
-  deleteSendingDomainAsRead,
   deliveryOf,
   describeLead,
   dismissAppointmentNotice,
   dismissPersonDoubt,
-  domainCapacityOf,
-  domainHeldSince,
   doubtOn,
   dropFromList,
+  dropMailboxCredentials,
   dueCalendars,
-  dueDomains,
+  dueMailboxes,
   duePlaybooks,
-  dueSendingDomains,
   earlierVisitRows,
   emailOfferCounts,
   emailOffersPause,
@@ -5699,6 +5741,7 @@ export {
   emailWordsFrom,
   emailWordsOf,
   emitEvent,
+  endMailboxSync,
   endVoiceSession,
   erasureDigests,
   eventOfDelivery,
@@ -5718,6 +5761,7 @@ export {
   forgetActivityTokens,
   forgetNotification,
   getHandoverInvite,
+  getMailboxCredentials,
   getOpenHandovers,
   getOwnPartner,
   getPartnerBalance,
@@ -5762,12 +5806,15 @@ export {
   keepIdeas,
   keepIdempotencyReceipt,
   keepInvoiceAmount,
+  keepMailboxWatch,
   keepMessageCost,
   keepModelTurn,
   keepProviderEvent,
+  knownThreads,
   lastInboundEmail,
   lastOutboundEmailSubject,
   leadAddressBounced,
+  leadCountriesOf,
   leadNamesByIds,
   leadSlotsOf,
   leadWritten,
@@ -5778,11 +5825,20 @@ export {
   listPolicies,
   listRow,
   listSecondFactors,
+  liveMailboxByAddress,
+  liveMailboxByWatch,
   logPersonCall,
   mailSent,
   mailboxById,
+  mailboxCapacityFrom,
+  mailboxCapacityOf,
+  mailboxConnectionById,
+  mailboxConnectionOf,
+  mailboxConnectionsOf,
+  mailboxCountsOf,
   mailboxFor,
   mailboxOfTenant,
+  mailboxesToTend,
   markCalendarFeedKept,
   markContact,
   markHeldNotice,
@@ -5833,6 +5889,7 @@ export {
   pageSpots,
   pageVitalsP75,
   parentEmailOf,
+  patchMailboxConnection,
   pauseConversation,
   pauseEmailOffers,
   peopleAtLead,
@@ -5844,7 +5901,6 @@ export {
   personReplyMode,
   personRow,
   platformDay,
-  platformHoldStands,
   platformWide,
   playbookChannels,
   playbookForChange,
@@ -5853,6 +5909,7 @@ export {
   playbooksOnList,
   providerEventOf,
   purgeAiUsage,
+  putMailboxCredentials,
   putTenantConfig,
   queuedOutcomes,
   queuedRecipients,
@@ -5897,7 +5954,6 @@ export {
   recordOutbound,
   recordOver,
   recordPartnerSecondFactorReset,
-  recordProviderDomain,
   recordStatusByExternalId,
   recordWhatsAppOffersStop,
   refreshWaitlistRow,
@@ -5915,9 +5971,7 @@ export {
   replyReadingRefOf,
   replyUndoableOf,
   reportSeries,
-  reputationHoldsSince,
   resendHandover,
-  reserveSendingDomain,
   resolveChannel,
   resolveChannelDetailed,
   resolveEscalationByReason,
@@ -5946,10 +6000,7 @@ export {
   sendJobScheduled,
   sendNow,
   sendStanding,
-  sendingDomainByHost,
-  sendingDomainCounts,
-  sendingDomainOf,
-  sendingDomainsOf,
+  sentEmailIdByMessageId,
   sentEmailOf,
   sentEmailWithMessageId,
   sessionHoldsPartnerSeat,
@@ -5970,6 +6021,7 @@ export {
   signersOf,
   staleSends,
   stampEmailComplaint,
+  stampEmailFromMailbox,
   stampEmailLeftAs,
   stampEmailSent,
   stampHandled,
@@ -5987,6 +6039,7 @@ export {
   syncFeedAppointments,
   takeCheckAttempt,
   takeIdempotencyKey,
+  takeMailboxSync,
   takeOverThread,
   takeReplyRead,
   templateIdOf,
@@ -6000,7 +6053,6 @@ export {
   textLineFacts,
   textReached,
   touchIndex,
-  touchSendingDomain,
   touchesSince,
   twinTold,
   uncheckedSends,

@@ -42,7 +42,7 @@ what the script writes.
 | [`event_deliveries`](#event_deliveries) | `packages/db/src/events.ts` | on, no policy, so only the service role reaches it |
 | [`event_outbox`](#event_outbox) | none | on, no policy, so only the service role reaches it |
 | [`event_subscriptions`](#event_subscriptions) | `packages/db/src/events.ts` | on, no policy, so only the service role reaches it |
-| [`events`](#events) | `packages/db/src/events.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notifications.ts`, `packages/db/src/repositories/sending-domains.ts` | on, 1 policy |
+| [`events`](#events) | `packages/db/src/events.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notifications.ts` | on, 1 policy |
 | [`google_connections`](#google_connections) | none | on, 1 policy |
 | [`google_listing_days`](#google_listing_days) | none | on, 1 policy |
 | [`google_listings`](#google_listings) | `packages/db/src/repositories/campaigns/workspace.ts` | on, 1 policy |
@@ -68,7 +68,7 @@ what the script writes.
 | [`lines`](#lines) | `packages/db/src/lines.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 1 policy |
 | [`mailboxes`](#mailboxes) | `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/email.ts` | on, 1 policy |
 | [`memberships`](#memberships) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/notifications.ts` | on, 2 policies |
-| [`messages`](#messages) | `packages/db/src/events.ts`, `packages/db/src/jobs.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notifications.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 3 policies |
+| [`messages`](#messages) | `packages/db/src/events.ts`, `packages/db/src/jobs.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/mailboxes/sync.ts`, `packages/db/src/repositories/notifications.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 3 policies |
 | [`model_prompts`](#model_prompts) | none | on, no policy, so only the service role reaches it |
 | [`model_turns`](#model_turns) | none | on, no policy, so only the service role reaches it |
 | [`notification_marks`](#notification_marks) | none | on, 1 policy |
@@ -100,7 +100,7 @@ what the script writes.
 | [`segment_members`](#segment_members) | `packages/db/src/repositories/lists.ts` | on, 3 policies |
 | [`segments`](#segments) | `packages/db/src/events.ts`, `packages/db/src/repositories/lists.ts` | on, 4 policies |
 | [`sending_domain_days`](#sending_domain_days) | none | on, 1 policy |
-| [`sending_domains`](#sending_domains) | `packages/db/src/repositories/sending-domains.ts` | on, 1 policy |
+| [`sending_domains`](#sending_domains) | none | on, 1 policy |
 | [`sweep_status`](#sweep_status) | none | on, no policy, so only the service role reaches it |
 | [`templates`](#templates) | `packages/db/src/events.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/templates.ts` | on, 1 policy |
 | [`tenant_channels`](#tenant_channels) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/sweeps.ts` | on, 1 policy |
@@ -110,6 +110,8 @@ what the script writes.
 | [`waitlist`](#waitlist) | `packages/db/src/waitlist.ts` | on, no policy, so only the service role reaches it |
 | [`lead_searches_view`](#lead_searches_view) (view) | none | |
 | [`usage_ledger`](#usage_ledger) (view) | none | |
+
+Named in a `.from("…")` in `packages/db/src` and not a table or view here: `mailbox_connections` (`packages/db/src/repositories/mailboxes/connections.ts`, `packages/db/src/repositories/mailboxes/sync.ts`).
 
 ## Tables
 
@@ -964,7 +966,7 @@ Who reacts to an event kind (decision 0032): a subscriber's name, the lane its d
 
 ### events
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notifications.ts`, `packages/db/src/repositories/sending-domains.ts`
+- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notifications.ts`
 - Primary key: `id`, `created_at`
 - Row-level security: on, 1 policy
 - Partitioned by range (created_at): `events_default` (default); and one per month, `events_yYYYYmMM`, made as the months come (not in the snapshot)
@@ -1784,7 +1786,7 @@ Foreign keys:
 
 ### messages
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/jobs.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notifications.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/tenant-db.type-test.ts`
+- Owned by: `packages/db/src/events.ts`, `packages/db/src/jobs.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/mailboxes/sync.ts`, `packages/db/src/repositories/notifications.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/tenant-db.type-test.ts`
 - Primary key: `id`
 - Row-level security: on, 3 policies
 
@@ -2750,7 +2752,7 @@ Foreign keys:
 
 The domains a workspace sends cold email from (Reach out): the identity, the provider's records, and where each stands. Members read; the service role writes (apps/edge lib/email/sending-domains.ts).
 
-- Owned by: `packages/db/src/repositories/sending-domains.ts`
+- Owned by: none
 - Primary key: `id`
 - Row-level security: on, 1 policy
 

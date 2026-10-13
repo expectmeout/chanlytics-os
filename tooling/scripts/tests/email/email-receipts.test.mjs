@@ -13,7 +13,7 @@ import { pathToFileURL, fileURLToPath } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 import {
   buildEmailRequest,
-  ownDomainIdentity,
+  connectedIdentity,
   emailReceiptFrom,
   emailReceiptEffect,
   emailReceivedEventFrom,
@@ -185,7 +185,7 @@ test("what a mailbox sends as: its address, and every reply route that still rou
 /* ------------------------------------------------------------ through the door */
 
 /** One workspace, one person, one sent email; stamp_email_sent modelled as 00128 writes it. */
-function world({ status = "sent", email = ADDRESS, faults = {}, meta = null, domains = [], counts = null } = {}) {
+function world({ status = "sent", email = ADDRESS, faults = {}, meta = null } = {}) {
   const tables = {
     mailboxes: [],
     messages: [
@@ -202,7 +202,6 @@ function world({ status = "sent", email = ADDRESS, faults = {}, meta = null, dom
         meta: meta ?? { email: { subject: "Re: Quote" } },
       },
     ],
-    sending_domains: domains,
     tenant_config: [{ tenant_id: T, config: { notifications: { escalation_emails: ["owner@harbor.test"] } } }],
     tenant_channels: [],
     notifications: [],
@@ -233,8 +232,6 @@ function world({ status = "sent", email = ADDRESS, faults = {}, meta = null, dom
       tables.emailNoes.push(a);
       return { changed: true, found: true };
     },
-    // 00176, answered per host by the case: what the domain sent since it was clean.
-    sending_domain_counts: () => counts ?? { sent: 0, bounced: 0, complained: 0 },
     // 00176: once, on this workspace's outbound email. Records whether the address was already stopped when it ran.
     stamp_email_complaint: (a) => {
       const m = tables.messages.find(
@@ -402,50 +399,21 @@ test("a first email's receipts find its row by the tags its request left with: t
   assert.ok(bounced.contacts[0].email_suppressed_at, "and a permanent bounce stops the address");
 });
 
-test("a complaint on an email from the workspace's own domain holds that domain when the receipt lands, not at the next sweep (Part 2.5 D7)", async () => {
+test("a complaint on an email from a connected mailbox is the person's no, said once, and holds nothing at the receipt: the mailboxes clock judges its mailbox within the hour (decision 0056)", async () => {
   const from = '"Sam at Harbor" <sam@getharbor.example>';
   const t = world({
     status: "delivered",
     meta: { email: { subject: "Your moving quotes", request: { from, to: [ADDRESS] } } },
-    domains: [
-      {
-        id: "d1",
-        tenant_id: T,
-        host: "getharbor.example",
-        from_local: "sam",
-        from_name: "Sam at Harbor",
-        provider_domain_id: "pd-1",
-        records: [],
-        state: "verified",
-        provider_status: "verified",
-        dmarc: "found",
-        held_why: null,
-        held_at: null,
-        verified_at: "2026-09-01T00:00:00Z",
-        clean_since: "2026-09-01T00:00:00Z",
-        checked_at: null,
-        created_by: null,
-        created_at: "2026-08-30T00:00:00Z",
-        updated_at: "2026-09-17T11:00:00Z",
-      },
-    ],
-    counts: { sent: 12, bounced: 0, complained: 1 },
   });
   assert.equal(await post(receipt("complained")), 200);
-  const d = t.sending_domains[0];
-  assert.deepEqual([d.state, d.held_why, d.complaints], ["held", "complaint", 1]);
-  assert.equal(t.events.filter((e) => e.kind === "sending_domain.held").length, 1);
-  assert.equal(t.notifications.length, 1, "its owner told once");
-
-  // A complaint on an email that did not leave from an own domain holds nothing, even with a domain there to hold.
-  const hosted = world({
-    status: "delivered",
-    domains: [{ ...t.sending_domains[0], state: "verified", held_why: null, held_at: null }],
-    counts: { sent: 1, bounced: 0, complained: 1 },
-  });
-  assert.equal(await post(receipt("complained")), 200);
-  assert.equal(hosted.events.filter((e) => e.kind === "sending_domain.held").length, 0);
-  assert.equal(hosted.sending_domains[0].state, "verified");
+  assert.equal(t.emailNoes.length, 1, "the no is recorded through the unsubscribe's own door");
+  assert.equal(t.contacts[0].email_suppressed_reason, "complaint");
+  assert.equal(t.messages[0].status, "delivered", "a complaint arrives after delivery and leaves the row delivered");
+  assert.deepEqual(
+    t.events.filter((e) => /held/.test(e.kind)),
+    [],
+    "nothing is held at the receipt: the count is the mailboxes clock's",
+  );
 });
 
 test("a complaint stops the address first: a no that cannot be recorded sends the receipt back, with the address already stopped", async () => {
@@ -459,22 +427,20 @@ test("a complaint stops the address first: a no that cannot be recorded sends th
 });
 
 test("a campaign's email that bounces fails its row and stops the address, and flags no thread: nobody there wrote (Part 2.6, D4)", async () => {
-  // Frozen as the send path freezes a reach-out: a first email from an own domain, with its unsubscribe.
+  // Frozen as the send path freezes a reach-out: a first email from a connected mailbox, plain, with its unsubscribe.
   const request = buildEmailRequest({
-    identity: ownDomainIdentity(
-      { host: "getharbor.example", from_local: "sam", from_name: "Sam at Harbor" },
-      { local_part: "harbor", reply_token: "a".repeat(24), from_name: "Harbor" },
-      "mail.chanlytics.com",
-    ),
+    identity: connectedIdentity({ address: "sam@getharbor.example", from_name: "Sam at Harbor" }),
     to: ADDRESS,
     parent: null,
     subject: "Your moving quotes",
     body: "Saw your shop on the map.",
     signature: null,
-    actor: "ai",
+    actor: "human",
+    plain: true,
+    autoSubmitted: false,
     campaign: {
       unsubscribeUrl: "https://app.chanlytics.com/u/t",
-      footer: "Unsubscribe: https://app.chanlytics.com/u/t",
+      footer: 'Not interested? Reply "no thanks" and I won\'t write again.',
     },
     messageId: M,
     tenantId: T,

@@ -115,7 +115,7 @@ const PREFIX_FAMILY: Record<EventPrefix, ActivityFamily> = {
   line: "connections",
   channel: "connections",
   mailbox: "connections",
-  sending_domain: "connections",
+  mailbox_connection: "connections",
   setup: "connections",
   google: "google",
   lead: "leads",

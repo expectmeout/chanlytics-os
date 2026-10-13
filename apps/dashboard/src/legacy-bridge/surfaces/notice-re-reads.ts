@@ -68,7 +68,8 @@ const OPENS_CAMPAIGNS = /^(outbound|campaigns)(\/|$)/;
 
 /**
  * Each kind the edge keeps: the surfaces it is about, or the reason none is read (which page hears the table behind it already). A
- * function when the row's route tells a kind's rows apart: a sweep row is a sending domain held (Connections) or offers paused.
+ * function when the row's route tells a kind's rows apart: a sweep row is a connected mailbox held or signed out (Connections)
+ * or offers paused.
  */
 export const NOTICE_ABOUT: Record<ServerNotificationKind, About | string | ((row: Row) => About | string)> = {
   template_ready: TEMPLATE_HEARD,
@@ -79,7 +80,7 @@ export const NOTICE_ABOUT: Record<ServerNotificationKind, About | string | ((row
   sweep: (row) =>
     OPENS_CAMPAIGNS.test(row.route ?? "")
       ? OFFERS_PAUSED
-      : "A sending domain held or resumed opens Connections, which hears sending_domains.",
+      : "A connected mailbox held or signed out opens Connections, which hears mailbox_connections.",
   // Heard by the page the row opens (the trace of N2): nothing is read on arrival.
   handoff: "The Inbox, which the row opens, hears the escalation and the message.",
   deadman: "The Inbox, which the row opens, hears the hold it raised.",

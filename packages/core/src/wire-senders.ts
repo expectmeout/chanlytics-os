@@ -114,17 +114,25 @@ export function whatsappWire(read: CredentialsRead<WaConfig>): Sender | null | W
 }
 
 /**
- * One address a workspace's email may leave as, and the provider account it leaves through. "hosted" is the mailbox
- * on the platform's account, for replies, visit messages and everything but the two below; "campaigns" is the same mailbox
- * on the deployment's campaigns domain (the platform's account too), for offers (and the business's own news, which is one at
- * the door: decision D2) and nothing else, so a complaint about an offer never touches the domain replies leave from; "own" is one of the workspace's own verified domains on the cold
- * account, for outreach and nothing else.
+ * One address a workspace's email may leave as, and the wire it leaves through. "hosted" is the mailbox on the
+ * platform's account, for replies, visit messages and everything but the two below; "campaigns" is the same mailbox on
+ * the deployment's campaigns domain (the platform's account too), for offers (and the business's own news, which is one
+ * at the door: decision D2) and nothing else, so a complaint about an offer never touches the domain replies leave
+ * from; "own" is a mailbox the business connected (decision 0056), for outreach and a person's answer to it, and
+ * nothing else: it sends through that mailbox's own provider (`send`, bound by the edge with its token), never an
+ * account of the platform's.
  */
-export interface EmailRoute {
-  lane: "hosted" | "campaigns" | "own";
-  cfg: ResendConfig;
-  as: EmailSendsAs;
-}
+export type EmailRoute =
+  | { lane: "hosted" | "campaigns"; cfg: ResendConfig; as: EmailSendsAs }
+  | {
+      lane: "own";
+      send: (request: EmailRequest, bound: { deadlineMs?: number }) => Promise<SendResult>;
+      as: EmailSendsAs;
+    };
+
+/** The route's own send: the platform's account for its lanes, the mailbox's provider for its own. */
+const sendBy = (route: EmailRoute, request: EmailRequest, bound: { deadlineMs?: number }): Promise<SendResult> =>
+  route.lane === "own" ? route.send(request, bound) : sendEmail(route.cfg, request, bound);
 
 /**
  * Email's wire, bound to ONE workspace's addresses. It sends the frozen request
@@ -132,16 +140,16 @@ export interface EmailRoute {
  * somebody other than `to`, or one that would leave as another workspace, is a
  * failure the caller hears about, never a send. The provider keys are the
  * deployment's; the routes are what make the wire this workspace's: the hosted
- * mailbox on the platform's account, and each of its own verified domains on
- * the cold account (Reach out), so a cold email never spends the reputation
- * every workspace's replies share. The route is chosen by the request's From,
- * within the send's lane: an own domain carries outreach only, so a reply
- * frozen with an own domain's From never leaves around outreach's rules, and a
- * cold email never leaves as the hosted mailbox. That route's own Reply-To rule
- * still applies. No routes, no email line (null, like a number with no
- * credentials). `held` is the addresses of the workspace's own domains that
- * are held: no route, but a reply frozen with one says why it went as the
- * mailbox.
+ * mailbox on the platform's account, and each mailbox the business connected
+ * that sends now (decision 0056), through its own provider, so a cold email
+ * never spends the reputation every workspace's replies share. The route is
+ * chosen by the request's From, within the send's lane: a connected mailbox
+ * carries outreach only, so a reply frozen with its From never leaves around
+ * outreach's rules, and a cold email never leaves as the hosted mailbox. That
+ * route's own Reply-To rule still applies. No routes, no email line (null, like
+ * a number with no credentials). `held` is the addresses of the workspace's
+ * connected mailboxes that do not send now (signed out, paused, held, resting):
+ * no route, but a reply frozen with one says why it went as the hosted mailbox.
  */
 export function emailSender(routes: EmailRoute[], held: readonly string[] = []): Sender | null {
   if (routes.length === 0) return null;
@@ -154,12 +162,12 @@ export function emailSender(routes: EmailRoute[], held: readonly string[] = []):
     // The caller's own ceiling, when it has one (a batch's, Delivery.sendBy): the send never outlives it, but is never given
     // less than a request needs: a send started when none is left would only time out with the email possibly taken.
     const bound = p.deadlineMs === undefined ? {} : { deadlineMs: Math.max(SEND_MIN_MS, p.deadlineMs) };
-    if (own && "route" in own) return { ...(await sendEmail(own.route.cfg, p.ownEmail!, bound)), leftAs: "own" };
+    if (own && "route" in own) return { ...(await sendBy(own.route, p.ownEmail!, bound)), leftAs: "own" };
     const from = addressOf(p.email.from)?.address;
     const lane = p.purpose === "outreach" ? "own" : p.purpose === "marketing" ? "campaigns" : "hosted";
     const route = routes.find((r) => r.lane === lane && r.as.address === from);
     if (!route || !requestLeavesAs(p.email, route.as)) return refuse("request_leaves_as_another_sender");
-    const sent = await sendEmail(route.cfg, p.email, bound);
+    const sent = await sendBy(route, p.email, bound);
     return own ? { ...sent, leftAs: "mailbox", leftAsWhy: own.why } : sent;
   };
 }
@@ -177,10 +185,10 @@ function ownRouteOf(
   const owns = routes.filter((r) => r.lane === "own");
   const from = addressOf(twin.from)?.address;
   const isHeld = from !== undefined && held.includes(from);
-  if (owns.length === 0) return { why: isHeld ? "domain_held" : "no_own_route" };
+  if (owns.length === 0) return { why: isHeld ? "own_not_sending" : "no_own_route" };
   if (twin.to.length !== 1 || twin.to[0] !== to) return { why: "twin_names_another_recipient" };
   const route = owns.find((r) => r.as.address === from);
-  if (!route) return { why: isHeld ? "domain_held" : "domain_has_no_route" };
+  if (!route) return { why: isHeld ? "own_not_sending" : "own_has_no_route" };
   return requestLeavesAs(twin, route.as) ? { route } : { why: "route_refuses_twin" };
 }
 
@@ -210,7 +218,7 @@ type WireResult = SendResult & { reason?: "no_sender_for_channel" | "no_credenti
  * The words on this workspace's wire for the channel, or why there is none (deliver's last step, once the send may
  * go). A wire that could not be BOUND (its credentials could not be read) throws before anything is written: asked only
  * of words that may go, so a refusal is still recorded during an outage, and the row stays queued for the caller's next
- * try. Not the same fact as `null`. Only a person's reply (`asReply`) may leave by an own domain (G15); any other send
+ * try. Not the same fact as `null`. Only a person's reply (`asReply`) may leave by a connected mailbox (G15); any other send
  * never carries the twin. A send the provider did not take throws too, for a delivery that asked (NotTakenError).
  */
 export async function putOnWire(

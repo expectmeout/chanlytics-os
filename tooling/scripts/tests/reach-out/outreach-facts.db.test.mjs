@@ -1,13 +1,12 @@
 /**
- * What the send door asks of a cold email (00177 outreach_facts), proved on the database: the lead's stage (the one
- * still being written to wins), the never-again list by the finder's own hash, the From domain as Connections set it
- * up, and what that domain sent in the window. Rows are written the way the send path writes them, by the real
- * buildEmailRequest with ownDomainIdentity, so the From the count reads is the real shape. Local stack only.
+ * What the send door asks of a cold email (00422 outreach_mailbox_facts, over 00177's and 00181's lead facts), proved on
+ * the database: the lead's stage (the one still being written to wins), the never-again list by the finder's own hash,
+ * whether the person wrote back, and the mailbox the business connected that the From is, with its day
+ * (mailbox_capacity, proved in mailbox-connections.db.test.mjs). Local stack only.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
-import { buildEmailRequest, ownDomainIdentity } from "@chanlytics/channels";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -21,24 +20,22 @@ const skip =
 let db;
 let A;
 let B;
-let thread;
 let person;
 const stamp = Date.now().toString(36);
 const HOST = `getharbor-${stamp}.example`;
+const FROM = `sam@${HOST}`;
 const TO = `owner-${stamp}@fixture-facts.example`;
-const MAILBOX = { local_part: "harbor", reply_token: "a".repeat(24), from_name: "Harbor" };
 const ok = (res) => {
   assert.equal(res.error, null, res.error?.message);
   return res.data;
 };
 const facts = async (over = {}) =>
   ok(
-    await db.rpc("outreach_facts", {
+    await db.rpc("outreach_mailbox_facts", {
       p_tenant_id: A,
       p_contact_id: person,
       p_to: TO,
-      p_host: HOST,
-      p_since: new Date(Date.now() - 86_400_000).toISOString(),
+      p_from: FROM,
       ...over,
     }),
   );
@@ -61,18 +58,14 @@ before(async () => {
       .single(),
   ).id;
   person = ok(await db.from("contacts").insert({ tenant_id: A, email: TO }).select("id").single()).id;
-  thread = ok(await db.from("conversations").insert({ tenant_id: A, contact_id: person }).select("id").single()).id;
   ok(
-    await db.from("sending_domains").insert({
+    await db.from("mailbox_connections").insert({
       tenant_id: A,
+      provider: "google",
+      provider_account: `acct-${stamp}`,
+      address: FROM,
       host: HOST,
-      from_local: "sam",
       from_name: "Sam at Harbor",
-      state: "verified",
-      provider_status: "verified",
-      dmarc: "found",
-      verified_at: new Date(Date.now() - 20 * 86_400_000).toISOString(),
-      clean_since: new Date(Date.now() - 20 * 86_400_000).toISOString(),
     }),
   );
 });
@@ -102,66 +95,6 @@ const lead = (stage, over = {}) =>
     .select("id")
     .single();
 
-/** One outbound email from the own domain, frozen as the send path freezes it. */
-async function sent({ status = "sent", error = null, tenant = A, writtenAt = null, sentAt = null } = {}) {
-  const id = crypto.randomUUID();
-  const request = buildEmailRequest({
-    identity: ownDomainIdentity({ host: HOST, from_local: "sam", from_name: "Sam" }, MAILBOX, "mail.chanlytics.com"),
-    to: TO,
-    parent: null,
-    subject: "Your moving quotes",
-    body: "Saw your shop on the map.",
-    signature: null,
-    actor: "ai",
-    campaign: {
-      unsubscribeUrl: "https://app.chanlytics.com/u/t",
-      footer: "Unsubscribe: https://app.chanlytics.com/u/t",
-    },
-    messageId: id,
-    tenantId: tenant,
-  });
-  const conv =
-    tenant === A
-      ? thread
-      : ok(
-          await db
-            .from("conversations")
-            .insert({
-              tenant_id: B,
-              contact_id: ok(
-                await db
-                  .from("contacts")
-                  .insert({ tenant_id: B, email: `b-${id}@fixture-facts.example` })
-                  .select("id")
-                  .single(),
-              ).id,
-            })
-            .select("id")
-            .single(),
-        ).id;
-  ok(
-    await db.from("messages").insert({
-      id,
-      tenant_id: tenant,
-      conversation_id: conv,
-      channel: "email",
-      direction: "outbound",
-      sender: "ai",
-      type: "text",
-      body: "Saw your shop on the map.",
-      status,
-      error,
-      ...(writtenAt ? { created_at: writtenAt } : {}),
-      meta: {
-        email: { subject: request.subject, to: request.to[0], request },
-        // messages_guard's stamp, as a queued row that later went out carries it (00111).
-        ...(sentAt ? { status_at: { sent: sentAt } } : {}),
-      },
-    }),
-  );
-  return id;
-}
-
 test(
   "a person the finder never found has no lead; the one still being written to wins over one closed",
   { skip },
@@ -175,14 +108,19 @@ test(
 );
 
 test(
-  "the domain as Connections set it up, by host in any case; another workspace's domain is none",
+  "the mailbox the From is, by its address in any case or spacing, with its day; another workspace's, or another address, is none",
   { skip },
   async () => {
-    const f = await facts({ p_host: HOST.toUpperCase() });
-    assert.equal(f.domain.state, "verified");
-    assert.equal(f.domain.from_local, "sam");
-    assert.ok(f.domain.clean_since, "the ramp's clock, which the cap reads");
-    assert.equal((await facts({ p_tenant_id: B })).domain, null);
+    const f = await facts({ p_from: `  ${FROM.toUpperCase()} ` });
+    assert.equal(f.mailbox.address, FROM);
+    assert.equal(f.mailbox.state, "connected");
+    assert.deepEqual(
+      [f.mailbox.daily_cap, f.mailbox.customer_domain, f.mailbox.sent_days, f.mailbox.sent_today],
+      [40, false, 0, 0],
+    );
+    assert.ok(f.mailbox.clean_since, "the ramp's clock, which the cap reads");
+    assert.equal((await facts({ p_tenant_id: B })).mailbox, null);
+    assert.equal((await facts({ p_from: `dana@${HOST}` })).mailbox, null);
   },
 );
 
@@ -203,58 +141,18 @@ test("an address on the never-again list reads suppressed, in any case or spacin
 });
 
 test(
-  "what left the domain: sent, delivered, a receipt's failure, an unknown outcome; never a refusal or a send the provider never took",
-  { skip },
-  async () => {
-    const base = (await facts()).sent_since;
-    await sent({ status: "sent" });
-    await sent({ status: "delivered" });
-    await sent({ status: "failed", error: { provider: "bounced", kind: "Permanent" } });
-    await sent({ status: "failed", error: { http_status: 0, body: "timeout", outcome: "unknown" } });
-    await sent({ status: "failed", error: { http_status: 500, body: "boom" } });
-    await sent({ status: "canceled", error: { reason: "outreach_not_a_lead" } });
-    assert.equal((await facts()).sent_since - base, 4);
-    assert.equal(
-      (await facts({ p_since: new Date(Date.now() + 60_000).toISOString() })).sent_since,
-      0,
-      "the window cuts",
-    );
-    await sent({ tenant: B });
-    assert.equal((await facts()).sent_since - base, 4, "another workspace's sends are not this domain's");
-  },
-);
-
-test(
   "no one without the service role may ask it: it is the send door's question",
   { skip: skip || (!process.env.SUPABASE_ANON_KEY && "no SUPABASE_ANON_KEY in env") },
   async () => {
     const anon = process.env.SUPABASE_ANON_KEY;
     const pub = createClient(URL_, anon, { auth: { persistSession: false } });
-    const r = await pub.rpc("outreach_facts", {
+    const r = await pub.rpc("outreach_mailbox_facts", {
       p_tenant_id: A,
       p_contact_id: person,
       p_to: TO,
-      p_host: HOST,
-      p_since: new Date().toISOString(),
+      p_from: FROM,
     });
     assert.ok(r.error, "refused without the service role");
-  },
-);
-
-test(
-  "the day's share is counted by when an email left, not when it was queued: a run held for its approval counts on the day it sends (00180)",
-  { skip },
-  async () => {
-    const hoursAgo = (h) => new Date(Date.now() - h * 3_600_000).toISOString();
-    const base = (await facts()).sent_since;
-    // Queued a day and more ago behind the first run's approval, sent an hour ago: today's.
-    await sent({ writtenAt: hoursAgo(30), sentAt: hoursAgo(1) });
-    await sent({ writtenAt: hoursAgo(30), sentAt: hoursAgo(1) });
-    // Queued and sent 26 hours ago: yesterday's.
-    await sent({ writtenAt: hoursAgo(26), sentAt: hoursAgo(26) });
-    // Queued four days ago behind an approval that came this morning: today's, however long it waited.
-    await sent({ writtenAt: hoursAgo(96), sentAt: hoursAgo(2) });
-    assert.equal((await facts()).sent_since - base, 3);
   },
 );
 

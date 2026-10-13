@@ -31,13 +31,13 @@ export const ASK_CITATION_KINDS = [
   "broadcast",
   "playbook",
   "template",
-  "domain",
+  "mailbox",
 ] as const;
 export type AskCitationKind = (typeof ASK_CITATION_KINDS)[number];
 
 /** The rows an answer's items may name, in words: said once, by the prompt's rules and the format's items alike. */
 export const ASK_ROW_WORDS =
-  "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
+  "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, mailboxes";
 
 export interface AskCitation {
   kind: AskCitationKind;
@@ -50,7 +50,8 @@ export interface AskCitation {
 
 /**
  * A row a reader returned: its kind and id, where it opens as its page opens it -- a deal at its person's page, a
- * template on Templates, a list at `clients/list:<id>` or `clients/seg:<id>`, a domain on Connections -- and its name.
+ * template on Templates, a list at `clients/list:<id>` or `clients/seg:<id>`, a connected mailbox on Connections -- and
+ * its name.
  * The server's readers return these (server/readers RowRef), and the read set keeps them.
  */
 export interface AskRowRef {

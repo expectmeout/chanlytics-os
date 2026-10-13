@@ -2,9 +2,9 @@
  * Every admin door reads its body through admin-door.ts's reader (review C:0). #1254 made `readBody` read a body that
  * is JSON but not an object as an empty one, but only the lines, Google and billing doors used it (edge/admin-door
  * .test.mjs); fourteen more parsed by hand into `let body = {}`, kept a JSON `null`, and threw on its first `body.x`:
- * the platform's 500 where the door's own validation answers a bad body. `sending-domains` reads the body before it
- * asks who is knocking (the platform's lift of a hold is decided by the body), so an anonymous `null` threw there
- * before any credential was looked at.
+ * the platform's 500 where the door's own validation answers a bad body. A door that reads its body before it asks
+ * who is knocking (the token's body hash is checked over those bytes: `mailboxes`) must refuse an anonymous `null` as
+ * a stranger before any credential is looked at.
  *
  * Table-driven, as that file does it: each door is knocked with a body that is not JSON, whose answer is the door's
  * own for an empty body, and then with each body that is JSON and not an object; every answer is the first one.
@@ -29,7 +29,6 @@ for (const k of [
   "TWILIO_ACCOUNT_SID",
   "TWILIO_AUTH_TOKEN",
   "RESEND_API_KEY",
-  "RESEND_COLD_API_KEY",
   "WHATSAPP_ACCESS_TOKEN",
   "META_APP_SECRET",
   "META_APP_ID",
@@ -57,9 +56,9 @@ const DOORS = [
   "handover-invite",
   "intake/replay",
   "llm",
+  "mailboxes",
   "playbooks-run",
   "reach-out-preview",
-  "sending-domains",
   "setup-request",
   "signup-notify",
   "steer",
@@ -121,10 +120,10 @@ for (const name of DOORS) {
   });
 }
 
-test("REGRESSION: an anonymous null at sending-domains is refused as a stranger, before anything is read", async () => {
-  const door = await importSrc("apps/edge/api/admin/sending-domains.ts");
+test("REGRESSION: an anonymous null at mailboxes is refused as a stranger, before anything is read", async () => {
+  const door = await importSrc("apps/edge/api/admin/mailboxes.ts");
   const stranger = () => ({});
-  const [status, text] = await knock(door, "/api/admin/sending-domains", "null", stranger);
+  const [status, text] = await knock(door, "/api/admin/mailboxes", "null", stranger);
   assert.equal(status, 403, text);
-  assert.deepEqual(await knock(door, "/api/admin/sending-domains", "not json", stranger), [status, text]);
+  assert.deepEqual(await knock(door, "/api/admin/mailboxes", "not json", stranger), [status, text]);
 });

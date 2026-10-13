@@ -1,13 +1,14 @@
 /**
  * A reach-out step's run on the database (00185, Reach out Part 3 PR 4): the run and its sends written whole under the
- * run's own id, never a run with nothing planned in it; a replay or another tick answered {exists}; the sends kept to
- * the run's workspace; and a step's followers kept to the ones the door would write to before their limit, so a lead
- * that may not be written to never heads the page ahead of those behind it. Local stack only: it makes workspaces.
+ * run's own id, never a run with nothing planned in it; a replay or another tick answered {exists}; the sends, and
+ * the mailbox each leaves from (00422), kept to the run's workspace; and a step's followers kept to the ones the door
+ * would write to before their limit, so a lead that may not be written to never heads the page ahead of those behind
+ * it, each with the mailbox its chain wrote to it from and its country. Local stack only: it makes workspaces.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
-import { buildEmailRequest, ownDomainIdentity } from "@chanlytics/channels";
+import { buildEmailRequest, connectedIdentity } from "@chanlytics/channels";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -20,7 +21,6 @@ const skip =
 
 const DAY = 86_400_000;
 const stamp = Date.now().toString(36);
-const MAILBOX = { local_part: "harbor", reply_token: "c".repeat(24), from_name: "Harbor" };
 const iso = (ms) => new Date(ms).toISOString();
 
 let db;
@@ -30,7 +30,7 @@ let template;
 let search;
 let root;
 let step;
-let domain;
+let mailbox;
 let host;
 let n = 0;
 const ok = (res) => {
@@ -51,6 +51,7 @@ const lead = (tenant = A, over = {}) => {
       email: `owner-${stamp}-${n}@fixture-run.example`,
       email_state: "ok",
       stage: "ready",
+      country: "US",
       ...over,
     }),
   );
@@ -74,7 +75,7 @@ const planned = (leadId, over = {}) => ({
   id: crypto.randomUUID(),
   lead_id: leadId,
   contact_id: null,
-  domain_id: domain,
+  mailbox_id: mailbox,
   send_at: iso(Date.now() + DAY),
   state: "planned",
   reason: null,
@@ -128,16 +129,14 @@ before(async () => {
       .insert({ ...chain, name: "Nudge", trigger: "after_step", after_playbook_id: root, after_days: 3 }),
   );
   host = `run-${stamp}.example`;
-  domain = await one(
-    db.from("sending_domains").insert({
+  mailbox = await one(
+    db.from("mailbox_connections").insert({
       tenant_id: A,
+      provider: "google",
+      provider_account: `acct-a-${stamp}`,
+      address: `sam@${host}`,
       host,
-      from_local: "sam",
       from_name: "Sam at Harbor",
-      state: "verified",
-      provider_status: "verified",
-      dmarc: "found",
-      verified_at: iso(Date.now() - 10 * DAY),
       clean_since: iso(Date.now() - 10 * DAY),
     }),
   );
@@ -153,7 +152,7 @@ test("a run and its sends are written whole, under the run's own id, the sends t
   const sends = [
     planned(a),
     planned(b),
-    planned(c, { state: "skipped", domain_id: null, send_at: null, reason: "closed_every_day" }),
+    planned(c, { state: "skipped", mailbox_id: null, send_at: null, reason: "closed_every_day" }),
   ];
   assert.deepEqual(ok(await plan(run, sends)), { id: run.id });
   const b0 = ok(
@@ -166,7 +165,7 @@ test("a run and its sends are written whole, under the run's own id, the sends t
   const rows = ok(
     await db
       .from("reach_out_sends")
-      .select("id, tenant_id, broadcast_id, playbook_id, root_id, lead_id, state, reason, domain_id")
+      .select("id, tenant_id, broadcast_id, playbook_id, root_id, lead_id, state, reason, mailbox_id")
       .eq("broadcast_id", run.id)
       .order("state"),
   );
@@ -174,11 +173,11 @@ test("a run and its sends are written whole, under the run's own id, the sends t
   for (const r of rows)
     assert.deepEqual([r.tenant_id, r.broadcast_id, r.playbook_id, r.root_id], [A, run.id, root, root]);
   // By lead, whatever order the rows come back in: one state is no order within it.
-  const byLead = Object.fromEntries(rows.map((r) => [r.lead_id, [r.state, r.reason]]));
+  const byLead = Object.fromEntries(rows.map((r) => [r.lead_id, [r.state, r.reason, r.mailbox_id]]));
   assert.deepEqual(byLead, {
-    [a]: ["planned", null],
-    [b]: ["planned", null],
-    [c]: ["skipped", "closed_every_day"],
+    [a]: ["planned", null, mailbox],
+    [b]: ["planned", null, mailbox],
+    [c]: ["skipped", "closed_every_day", null],
   });
   // A replay (the same id) and another tick's run for the step's day (another id) meet what was made, and add nothing.
   assert.deepEqual(ok(await plan(run, [planned(await lead())])), { exists: true });
@@ -201,18 +200,23 @@ test(
 );
 
 test(
-  "the sends are the run's workspace's: another's lead or domain is left out, another's step refused",
+  "the sends are the run's workspace's: another's lead or mailbox is left out, another's step refused",
   { skip },
   async () => {
     const theirs = await lead(B);
-    const theirDomain = await one(
-      db
-        .from("sending_domains")
-        .insert({ tenant_id: B, host: `b-${stamp}.example`, from_local: "sam", from_name: "Sam", state: "records" }),
+    const theirMailbox = await one(
+      db.from("mailbox_connections").insert({
+        tenant_id: B,
+        provider: "google",
+        provider_account: `acct-b-${stamp}`,
+        address: `sam@b-${stamp}.example`,
+        host: `b-${stamp}.example`,
+        from_name: "Sam",
+      }),
     );
     const mine = await lead();
     const run = runRow({ run_for: "2026-09-30" });
-    ok(await plan(run, [planned(mine), planned(theirs), planned(await lead(), { domain_id: theirDomain })]));
+    ok(await plan(run, [planned(mine), planned(theirs), planned(await lead(), { mailbox_id: theirMailbox })]));
     assert.deepEqual(
       ok(await db.from("reach_out_sends").select("lead_id").eq("broadcast_id", run.id)).map((r) => r.lead_id),
       [mine],
@@ -236,7 +240,7 @@ test(
       const p = await person(l);
       const id = crypto.randomUUID();
       const request = buildEmailRequest({
-        identity: ownDomainIdentity({ host, from_local: "sam", from_name: "Sam" }, MAILBOX, "mail.chanlytics.com"),
+        identity: connectedIdentity({ address: `sam@${host}`, from_name: "Sam" }),
         to: `x-${stamp}@fixture-run.example`,
         parent: null,
         subject: "Your moving quotes",
@@ -274,7 +278,7 @@ test(
           root_id: root,
           lead_id: l,
           contact_id: p.contact_id,
-          domain_id: domain,
+          mailbox_id: mailbox,
           send_at: iso(Date.now() - daysAgo * DAY),
           // Checked before it went (00197): a claim takes a checked send only.
           checked_at: iso(Date.now() - daysAgo * DAY),
@@ -320,6 +324,11 @@ test(
       rows.map((r) => r.lead_id),
       [due],
       "at a limit of one, the one the door would write to, not the oldest",
+    );
+    assert.deepEqual(
+      [rows[0].mailbox_id, rows[0].country],
+      [mailbox, "US"],
+      "the nudge leaves from the mailbox its chain wrote from, and is checked by the lead's country",
     );
     assert.deepEqual(rows[0].facts, {
       lead_stage: "ready",

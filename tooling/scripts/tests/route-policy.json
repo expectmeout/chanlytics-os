@@ -903,6 +903,62 @@
       "rate": "lines_search",
       "spend": false
     },
+    "POST mailbox-connections/[id]/check": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST mailbox-connections/[id]/resume": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "PATCH mailbox-connections/[id]": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "DELETE mailbox-connections/[id]": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST mailbox-connections/[id]/test": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "GET mailbox-connections/callback": {
+      "kind": "read",
+      "scope": "account",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "GET mailbox-connections/connect": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "GET mailbox-connections": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
     "PUT mailboxes/[id]": {
       "kind": "write",
       "scope": "workspace",
@@ -1451,34 +1507,6 @@
       "scope": "workspace",
       "role": "operator",
       "rate": "lists",
-      "spend": false
-    },
-    "POST sending-domains/[id]/check": {
-      "kind": "write",
-      "scope": "workspace",
-      "role": "partner",
-      "rate": "settings",
-      "spend": false
-    },
-    "POST sending-domains/[id]/resume": {
-      "kind": "write",
-      "scope": "workspace",
-      "role": "partner",
-      "rate": "settings",
-      "spend": false
-    },
-    "DELETE sending-domains/[id]": {
-      "kind": "write",
-      "scope": "workspace",
-      "role": "partner",
-      "rate": "settings",
-      "spend": false
-    },
-    "POST sending-domains": {
-      "kind": "write",
-      "scope": "workspace",
-      "role": "partner",
-      "rate": "settings",
       "spend": false
     },
     "POST settings/receptionist": {

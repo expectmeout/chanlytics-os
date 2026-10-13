@@ -371,8 +371,8 @@ export const playbooksOverride: SurfaceOverride = {
         why: "a booking email held for a look is the Calendar's and Settings'; the pools read the appointments themselves",
       },
       {
-        tables: ["sending_domains", "capability_activations", "business_records"],
-        why: "Send by is worded from the number, the line, the mailbox's pause and the workspace's pause (channels-ready.ts); a domain, an activation and the carriers' record are not among them",
+        tables: ["mailbox_connections", "capability_activations", "business_records"],
+        why: "Send by is worded from the number, the line, the mailbox's pause and the workspace's pause (channels-ready.ts); a connected mailbox, an activation and the carriers' record are not among them",
       },
     ],
   }),

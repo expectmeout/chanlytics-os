@@ -13,9 +13,8 @@
  *     a body opens the door for that body only (`token_body`);
  *   - the edge has the secret and no token: the key opens nothing, unless
  *     the door names the platform's key as its credential for this knock
- *     (`platformKey`: the diagnostic, which nothing mints a token for, and
- *     the one sending-domains op the runbook reserves for the platform, the
- *     lift of a domain held twice). Either way the knock logs
+ *     (`platformKey`: the diagnostic, which nothing mints a token for).
+ *     Either way the knock logs
  *     `admin_door_key_only` with the door and whether it came in, so what
  *     still relies on the key can be read off the log;
  *   - the edge has no secret (a preview; production refuses to load without
@@ -92,10 +91,10 @@ export async function authorizeAdmin(
   opts: {
     /**
      * This knock is the platform's: the key opens it on an edge that holds the secret too. Say why at the call, and
-     * decide it per knock where only one op is the platform's (sending-domains reads the body first).
+     * decide it per knock where only one op is the platform's (a door that reads the body first).
      */
     platformKey?: boolean;
-    /** The body as received, for a door that read it before asking (sending-domains); otherwise read here. */
+    /** The body as received, for a door that read it before asking (mailboxes); otherwise read here. */
     body?: string;
   } = {},
 ): Promise<AdminAuth> {

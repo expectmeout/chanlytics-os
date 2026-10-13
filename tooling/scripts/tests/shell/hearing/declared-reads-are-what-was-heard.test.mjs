@@ -161,7 +161,7 @@ const HEARD_BEFORE = {
     "broadcasts",
     "reach_out_replies",
     "tenant_channels",
-    "sending_domains",
+    "mailbox_connections",
   ],
   live: ["calls", "tenant_channels"],
   broadcasts: [...SENT_PAGE, "broadcasts"],
@@ -181,7 +181,7 @@ const HEARD_BEFORE = {
     "billing_accounts",
     "google_connections",
     "calls",
-    "sending_domains",
+    "mailbox_connections",
   ],
   google: ["google_listings", "google_reviews", "google_connections"],
   billing: ["billing_accounts"],
@@ -291,7 +291,7 @@ test("liveTablesOf: the tables of the kinds, each once, in the order the kinds a
 });
 
 test("a declaration hears the tables of its kinds, less what it omits and plus what it adds", () => {
-  const omit = [{ tables: ["mailboxes", "sending_domains"], why: "a reason" }];
+  const omit = [{ tables: ["mailboxes", "mailbox_connections"], why: "a reason" }];
   assert.deepEqual(heardTables({ reads: ["channel"], fresh: "live" }), RECORD_KINDS.channel);
   assert.deepEqual(heardTables({ reads: ["channel"], fresh: "live", omit }), [
     "tenant_channels",

@@ -461,32 +461,14 @@ test("the fetched email carries the provider's verdict as the provider gave it: 
   }
 });
 
-test("on the cold reply domain (D17) a reply route routes and nothing else: no workspace publishes an address there", () => {
-  const COLD = "reply.coldlinks.example";
-  assert.deepEqual(platformRecipient(`r+${"b".repeat(24)}@Reply.ColdLinks.example`, DOMAIN, COLD), {
-    kind: "reply",
-    token: "b".repeat(24),
-  });
-  assert.equal(platformRecipient("bestmovers@reply.coldlinks.example", DOMAIN, COLD), null);
-  assert.equal(platformRecipient(`r+${"b".repeat(24)}@reply.coldlinks.example`, DOMAIN), null, "unset: not ours");
-  assert.deepEqual(platformRecipient("bestmovers@mail.chanlytics.com", DOMAIN, COLD), {
+test("only the deployment's mail domain routes: a reply route on any other names nobody, whatever was passed (decision 0056)", () => {
+  // The cold lane's own reply domain (D17) went with it: a reach-out's reply lands in the mailbox it left from.
+  const route = `r+${"b".repeat(24)}`;
+  assert.equal(platformRecipient(`${route}@reply.coldlinks.example`, DOMAIN, "reply.coldlinks.example"), null);
+  assert.equal(platformRecipient(`${route}@reply-a.coldlinks.example`, DOMAIN, ["reply-a.coldlinks.example"]), null);
+  assert.deepEqual(platformRecipient(`${route}@Mail.Chanlytics.com`, DOMAIN), { kind: "reply", token: "b".repeat(24) });
+  assert.deepEqual(platformRecipient("bestmovers@mail.chanlytics.com", DOMAIN), {
     kind: "mailbox",
     localPart: "bestmovers",
   });
-  // The same domain named twice is the mail domain, with its published addresses.
-  assert.deepEqual(platformRecipient("bestmovers@mail.chanlytics.com", DOMAIN, DOMAIN), {
-    kind: "mailbox",
-    localPart: "bestmovers",
-  });
-});
-
-test("the cold reply domain before the one set now still routes its replies while it winds down (D17)", () => {
-  const both = ["reply-b.coldlinks.example", "reply-a.coldlinks.example"];
-  for (const host of both)
-    assert.deepEqual(
-      platformRecipient(`r+${"b".repeat(24)}@${host}`, DOMAIN, both),
-      { kind: "reply", token: "b".repeat(24) },
-      host,
-    );
-  assert.equal(platformRecipient(`r+${"b".repeat(24)}@reply-c.coldlinks.example`, DOMAIN, both), null);
 });

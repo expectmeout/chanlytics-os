@@ -218,7 +218,7 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // Templates says which playbooks send each template (messages.jsx), and Broadcasts names a run's playbook.
   messages: ["reach_outs", "playbooks"],
   broadcasts: ["playbooks"],
-  // A search's reach-out sheet (Part 4 PR 6) sends from Setup's sending domains and checks Settings' booking link: both
+  // A search's reach-out sheet (Part 4 PR 6) writes from Setup's connected mailboxes and checks Settings' booking link: both
   // read next on Leads, so a sheet opened on a cold boot is not left saying it is reading them.
   leads: ["setup", "settings"],
   // The Reviews, Receptionist, People and Campaigns lenses draw their own reads beside Reports' (surfaces/reports/reviews-surface.ts,

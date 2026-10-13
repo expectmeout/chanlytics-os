@@ -224,6 +224,7 @@ import {
 import {
   ingestInboundEmail,
   mailboxById,
+  mailboxConnectionOf,
   markProcessed,
   reachOutReplyOf as reachOutReplyOf2,
   sentEmailWithMessageId,
@@ -1078,7 +1079,45 @@ function incomingEmailOf(e) {
     senderAuthenticated: senderAuthenticated(e)
   };
 }
+async function mailboxIngest(ctx, job) {
+  const intake = ctx.mailboxIntake;
+  if (!intake) throw new Error("email_ingest: this runtime holds no mailbox intake");
+  const { db } = ctx;
+  const outcome = await ingestEmail(
+    {
+      mailbox: async (id) => {
+        const m = await mailboxConnectionOf(db, job.tenant_id, id);
+        return m && m.state !== "removed" ? { id: m.id, tenant_id: m.tenant_id, address: m.address } : null;
+      },
+      fetch: async (providerId) => {
+        const mailboxId = typeof job.payload.mailbox_id === "string" ? job.payload.mailbox_id : "";
+        const e = await intake.fetch(mailboxId, providerId);
+        return e ? incomingEmailOf(e) : null;
+      },
+      readBooking: () => Promise.resolve(void 0),
+      bookingTool: () => Promise.resolve(null),
+      memberAddress: () => Promise.resolve(false),
+      keepForwarding: () => Promise.resolve(void 0),
+      erasedBefore: intake.erasedBefore,
+      ours: (tenantId, rfcMessageId) => sentEmailWithMessageId(db, tenantId, rfcMessageId),
+      record: (p) => ingestInboundEmail(db, p),
+      escalate: (tenantId, conversationId, reason, details) => upsertEscalation(db, tenantId, conversationId, reason, details),
+      tell: intake.tell,
+      reachOutReply: async (tenantId, messageId) => await reachOutReplyOf2(db, { tenantId, messageId, days: REACH_OUT_REPLY_DAYS2 }) !== null,
+      readReply: async (_tenantId, messageId) => {
+        await ctx.scheduleOnce("reply_read", /* @__PURE__ */ new Date(), { message_id: messageId });
+      },
+      markProcessed: (tenantId, messageId) => markProcessed(db, tenantId, messageId),
+      // The mailbox's own clock says when it was read (its sync); a taken email stamps nothing more.
+      received: () => Promise.resolve(void 0),
+      now: Date.now
+    },
+    { payload: job.payload }
+  );
+  logger6().info("email_ingested", { tenant_id: job.tenant_id, job: job.id, outcome, source: "mailbox" });
+}
 async function emailIngest(ctx, job) {
+  if (job.payload.source === "mailbox") return mailboxIngest(ctx, job);
   const email = ctx.email;
   if (!email) throw new Error("email_ingest: this runtime holds no email provider");
   const { db } = ctx;

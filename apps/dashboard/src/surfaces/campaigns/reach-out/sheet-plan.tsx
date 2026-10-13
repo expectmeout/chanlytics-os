@@ -1,29 +1,38 @@
 /**
  * The reach-out sheet's plan (moved from legacy/pages/reach-out/reach-out-sheet.jsx, decision 0015; Reach out, Part 4 PR
- * 6): the pace, the domains it sends from, and what one business's email reads as before it goes. The preview spends the
+ * 6): the pace, the mailboxes it writes from, and what one business's email reads as before it goes. The preview spends the
  * model (R12), so it is asked for by a press and never on its own.
  */
-import { useState } from "react";
-import type { ReachOutDraft, ReachOutPreviewDto, ReachOutPreviewInput, SendingDomainDto } from "@chanlytics/contracts";
+import { Fragment, useState } from "react";
+import {
+  mailboxDailyCap,
+  mailboxWords,
+  type MailboxConnectionDto,
+  type MailboxProvider,
+  type ReachOutDraft,
+  type ReachOutPreviewDto,
+  type ReachOutPreviewInput,
+} from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Picker } from "../../kit/picker/picker";
 import { Switch } from "../../kit/switch/switch";
 import { cmChevron, cmNumbers } from "../parts/picks";
+import { connectedMailboxes } from "../../settings/connections/connected-mailboxes";
 import { reachOuts } from "./surface";
 
 type Words = typeof reachOuts.words;
 
 interface PaceProps {
   W: Words;
-  pace: { share: number; sentDays: number; domains: number };
+  pace: { share: number; mailboxes: number; rises: number | null };
   gap: number;
   onGap: (minutes: number) => void;
 }
 
-/** The pace: the domain's day and the gap, why it is recommended, and when the first run goes. */
+/** The pace: the mailboxes' day and the gap, why it is recommended, and when the first run goes. */
 export function RoPace({ W, pace, gap, onGap }: PaceProps) {
-  const words = W.paceWords({ share: pace.share, sentDays: pace.sentDays, gapMinutes: gap });
+  const words = W.paceWords({ share: pace.share, mailboxes: pace.mailboxes, rises: pace.rises, gapMinutes: gap });
   const gaps = W.REACH_OUT_GAP_MINUTES.map((m) => ({ v: m, t: `${m} min` }));
   return (
     <section className="pb-sec" data-testid="ro-pace">
@@ -51,29 +60,50 @@ export function RoPace({ W, pace, gap, onGap }: PaceProps) {
 
 interface FromProps {
   W: Words;
-  domains: SendingDomainDto[];
+  mailboxes: MailboxConnectionDto[];
+  providers: MailboxProvider[];
   unread: string | null;
   draft: ReachOutDraft;
   onPick: (ids: string[]) => void;
 }
 
-/** From: every verified domain, or up to five picked; unread is said as reading, none verified as none, and Start waits. */
-export function RoFrom({ W, domains, unread, draft, onPick }: FromProps) {
+/** What a mailbox writes in a day as the picker says it, or why it writes nothing now (contracts' words). */
+function mailboxDayWords(m: MailboxConnectionDto, now: number): string {
+  if (m.state !== "connected") return mailboxWords(m, now).pill;
+  return `${mailboxDailyCap(m)} a day${m.customer_domain ? " · customer domain" : ""}`;
+}
+
+/**
+ * From: every connected mailbox, or up to ten picked, each with what it writes in a day; unread is said as reading,
+ * none connected as none (with Connect beside it), and Start waits. Each business hears from one mailbox for its chain.
+ */
+export function RoFrom({ W, mailboxes, providers, unread, draft, onPick }: FromProps) {
   const P = W.REACH_OUT_SHEET_PARTS;
-  const verified = domains.filter((d) => d.state === "verified");
-  const say = unread || (verified.length === 0 ? W.REACH_OUT_SHEET_WORDS.noDomain : null);
+  const say = unread || (mailboxes.length === 0 ? W.REACH_OUT_SHEET_WORDS.noMailbox : null);
   if (say)
     return (
       <section className="pb-sec" data-testid="ro-from">
         <span className="pb-sec-k">{P.from}</span>
-        <p className={unread ? "pb-note" : "pb-warn"} data-testid={unread ? "ro-unread" : "ro-no-domain"}>
+        <p className={unread ? "pb-note" : "pb-warn"} data-testid={unread ? "ro-unread" : "ro-no-mailbox"}>
           {say}
         </p>
+        {!unread && providers.length > 0 && (
+          <p className="pb-note">
+            {providers.map((p) => (
+              <Fragment key={p}>
+                <Button size="sm" onClick={() => connectedMailboxes.connect(p)} data-testid={`ro-connect-${p}`}>
+                  {p === "google" ? P.connectGoogle : P.connectMicrosoft}
+                </Button>{" "}
+              </Fragment>
+            ))}
+          </p>
+        )}
       </section>
     );
-  const picked = draft.domain_ids;
-  const more = W.reachOutMayPickDomain(draft);
+  const picked = draft.mailbox_ids;
+  const more = W.reachOutMayPickMailbox(draft);
   const toggle = (id: string) => onPick(picked.includes(id) ? picked.filter((x) => x !== id) : [...picked, id]);
+  const now = Date.now();
   return (
     <section className="pb-sec" data-testid="ro-from">
       <span className="pb-sec-k">{P.from}</span>
@@ -81,28 +111,28 @@ export function RoFrom({ W, domains, unread, draft, onPick }: FromProps) {
         <Switch
           checked={picked.length === 0}
           onCheckedChange={() => onPick([])}
-          labelledBy="ro-domain-every-name"
-          data-testid="ro-domain-every"
+          labelledBy="ro-mailbox-every-name"
+          data-testid="ro-mailbox-every"
         />
-        <span id="ro-domain-every-name">{P.everyDomain}</span>
+        <span id="ro-mailbox-every-name">{P.everyMailbox}</span>
       </label>
-      {verified.map((d) => (
-        <label key={d.id} className="ro-domain">
+      {mailboxes.map((m) => (
+        <label key={m.id} className="ro-domain">
           <Switch
-            checked={picked.includes(d.id)}
-            readOnly={!more && !picked.includes(d.id)}
-            onCheckedChange={() => toggle(d.id)}
-            labelledBy={`ro-domain-${d.id}-name`}
-            data-testid={`ro-domain-${d.id}`}
+            checked={picked.includes(m.id)}
+            readOnly={!more && !picked.includes(m.id)}
+            onCheckedChange={() => toggle(m.id)}
+            labelledBy={`ro-mailbox-${m.id}-name`}
+            data-testid={`ro-mailbox-${m.id}`}
           />
-          <span id={`ro-domain-${d.id}-name`}>
-            {d.from_name} · {d.address}
+          <span id={`ro-mailbox-${m.id}-name`}>
+            {m.from_name} · {m.address} <small className="dim">· {mailboxDayWords(m, now)}</small>
           </span>
         </label>
       ))}
       {!more && (
-        <p className="pb-note" data-testid="ro-domains-max">
-          {P.domainsMax}
+        <p className="pb-note" data-testid="ro-mailboxes-max">
+          {P.mailboxesMax}
         </p>
       )}
     </section>

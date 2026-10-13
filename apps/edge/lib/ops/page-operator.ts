@@ -15,11 +15,8 @@
  * for six hours, and the mail domain losing its standing (api/cron/health.ts);
  * a customer waiting in a workspace with nobody on file to tell
  * (api/cron/deadman.ts); the receptionist having no model key
- * (core/inbound/model-turn.ts); and cold email's own: a sending domain another
- * workspace holds, one the cold account already holds verified with no
- * workspace's row, or one the provider no longer knows (lib/email/sending-domains.ts, sending-domain-holds.ts),
- * receipts that never arrive (lib/email/cold-receipts.ts), and unsubscribe links
- * that do not open (lib/email/unsubscribe-probe.ts); and a carrier's report on a
+ * (core/inbound/model-turn.ts); a reach-out's unsubscribe links that do not
+ * open (lib/email/unsubscribe-probe.ts); and a carrier's report on a
  * text that the database would not take, which Twilio never sends again
  * (lib/sms/sms-status.ts). Each reaches the platform, never an owner.
  *

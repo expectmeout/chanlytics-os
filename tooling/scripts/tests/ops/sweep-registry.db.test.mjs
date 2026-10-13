@@ -83,9 +83,9 @@ const EVERY_CLOCK = {
   // The receptionist's note suggestions (00159): a thirty-minute clock that asks the edge only when a call's
   // analysis is in or a conversation has gone quiet, and records that it looked otherwise.
   notes: "notes-sweep",
-  // A workspace's own sending domains (00175): a ten-minute clock that asks the edge only when a domain is being
-  // checked or can send, and records that it looked otherwise.
-  domains: "domains-sweep",
+  // The mailboxes a business connected (00421): a five-minute clock that asks the edge only when one is connected,
+  // paused or held, and records that it looked otherwise.
+  mailboxes: "mailboxes-sweep",
   // The reach-out clock (00186): every minute, asking the edge only when a send is due, one is claimed or queued, a
   // closed run keeps open sends, or a run is ready to finish, and recording that it looked otherwise.
   reach_out: "reach-out-sweep",
@@ -102,8 +102,6 @@ const EVERY_CLOCK = {
   platform_metrics_roll: "platform-metrics-roll",
   // A voice conversation's row, a day after its token expired (00288): nightly, judged by its run.
   sweep_voice_sessions: "sweep-voice-sessions",
-  // Each sending domain's day (00314): nightly at 00:23 UTC, judged by its run.
-  sending_domain_days: "sending-domain-days",
   // A connected WhatsApp number's rating (00315): a six-hour clock that asks the edge only when a number is connected,
   // and records that it looked otherwise.
   channel_quality: "channel-quality-sweep",
@@ -137,7 +135,6 @@ const RUN_JUDGED = [
   "purge_page_vitals",
   "purge_provider_events",
   "purge_rate_hits",
-  "sending_domain_days",
   "snoozes",
   "sweep_voice_sessions",
 ];
@@ -332,9 +329,10 @@ test(
       -- channel quality: a connected WhatsApp number.
       insert into public.tenant_channels (tenant_id, kind, status, external_id)
            values (t, 'whatsapp', 'active', 'every-clock-' || tag);
-      -- domains: a domain being checked.
-      insert into public.sending_domains (tenant_id, host, from_local, from_name, state)
-           values (t, 'every-clock-' || tag || '.example.com', 'hello', 'Every clock', 'verifying');
+      -- mailboxes: a mailbox the business connected.
+      insert into public.mailbox_connections (tenant_id, provider, provider_account, address, host, from_name)
+           values (t, 'google', 'every-clock-' || tag, 'hello@every-clock-' || tag || '.example.com',
+                   'every-clock-' || tag || '.example.com', 'Every clock');
       -- jobs: one due.
       insert into public.jobs (tenant_id, kind, due_at) values (t, 'push_receipts', now() - interval '1 minute');
       -- notes: a conversation quiet for seven hours.

@@ -654,7 +654,7 @@ test("the Campaigns lens hears messages, conversations, escalations and runs onl
       // A reach-out's reply read or undone, the number's standing and a sending domain.
       ["reach_out_replies", "INSERT"],
       ["tenant_channels", "UPDATE"],
-      ["sending_domains", "UPDATE"],
+      ["mailbox_connections", "UPDATE"],
     ]) {
       r.asked.length = 0;
       await r.change(table, event);

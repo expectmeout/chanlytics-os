@@ -2373,7 +2373,7 @@ test("report says the Reach-outs section as the page does (the Campaigns lens, C
     ],
     other_angles: { written: 0, businesses: 0, wrote_back: 0 },
     no_angle: 10,
-    domains: [],
+    mailboxes: [],
     ...over,
   });
   const rpcs = {
@@ -7053,7 +7053,7 @@ test("thirteen names move five spans of the request (PR 4.2): the format's kind 
     assert.deepEqual(source.properties.kind.enum, [...ASK_CITATION_KINDS, "none"], "a page, twelve rows, and none");
     assert.ok(source.description.includes("(a page's id is its route; a run is kind broadcast)"), source.description);
   }
-  const every = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
+  const every = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, mailboxes";
   assert.equal(ASK_ROW_WORDS, every, "the rows an answer's items may name, said once");
   assert.ok(
     show.properties.items.description.startsWith(`The rows the answer names (${every}), at most 5;`),
