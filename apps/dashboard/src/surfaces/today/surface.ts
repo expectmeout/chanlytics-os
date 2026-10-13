@@ -54,8 +54,8 @@ export const todayOverride: SurfaceOverride = {
         why: "the queue draws a search waiting on you, which its round says (a stop to ask, its answer); the leads it found and the people it kept are not in it",
       },
       {
-        tables: ["mailboxes", "sending_domains", "capability_activations", "business_records"],
-        why: "the chips and bands draw a channel's number, its line and the workspace's pause, not the mailbox's offers, a domain, an activation or the record the carriers read",
+        tables: ["mailboxes", "mailbox_connections", "capability_activations", "business_records"],
+        why: "the chips and bands draw a channel's number, its line and the workspace's pause, not the mailbox's offers, a connected mailbox, an activation or the record the carriers read",
       },
     ],
     // A transcript turn of a call in progress is an update that changes nothing the day counts (isLiveCallTurn); asked first.

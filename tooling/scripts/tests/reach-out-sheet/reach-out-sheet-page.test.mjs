@@ -3,9 +3,9 @@
  * (surfaces/campaigns/reach-out/surface.ts, contracts reach-out-draft.ts and reach-out-sheet.ts) and its verbs stubbed
  * on the one `reachOuts` object the TSX sheet and door import: who gets it as the database counts it; each field's problems in contracts' words and Start held
  * until there are none; a slot put in at the caret by the editor's own menu (the Templates page's, step 5); the steps;
- * the pace and the domains; one business's email at a time,
+ * the pace and the mailboxes; one business's email at a time,
  * asked for by a press, its refusals said; Start saving exactly ReachOutChainSchema's shape and the sheet staying open
- * to say what the run did (R14); an edit passing its steps' ids; the domains and the booking link unread said as
+ * to say what the run did (R14); an edit passing its steps' ids; the mailboxes and the booking link unread said as
  * reading, never as none; and the door on a search, by role and by what the search holds (F10). The bridge's verbs
  * press the routes they name, and a search's reach is held by read-cache.ts until a write. The shell's own toast
  * (data-bits usePPToast) is the real one here: nothing the sheet says rides on it.
@@ -14,6 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again, all, find, byTestId, textOf, press, settle } from "../_legacy-react.mjs";
+import { rows } from "../_rows.mjs";
 
 installLegacyReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
 const W = globalThis;
@@ -55,20 +56,26 @@ settingsRead({ config: { brain: { business_name: "Harbor Moving Co" } }, broken:
 
 const SEARCH = { id: "44444444-4444-4444-8444-444444444444", name: "Personal trainers · Austin" };
 const REACH = { ready: 44, with_unconfirmed: 88, phone_only: 72, of: 160, chain: null };
-const DOMAIN = (over = {}) => ({
-  id: "d1",
-  host: "harbor-mail.example",
-  from_local: "sam",
-  from_name: "Sam at Harbor",
-  address: "sam@harbor-mail.example",
-  state: "verified",
-  sent_days: 0,
-  ...over,
-});
+/** A mailbox the business connected, as Setup's read carries it (contracts mailboxConnectionDtoOf over its row). */
+const MAILBOX = (over = {}) =>
+  contracts.mailboxConnectionDtoOf(
+    rows.mailboxConnection({
+      id: "d1",
+      address: "sam@harbor-mail.example",
+      host: "harbor-mail.example",
+      from_name: "Sam at Harbor",
+      ...over,
+    }),
+  );
 // Setup's read, through the seam (decision 0015 step 10: the sheet reads `setupDto()`, the seam's setup value).
-const setup = (domains = [DOMAIN()]) => {
+const setup = (mailboxes = [MAILBOX()]) => {
   setSurfaceValue("setup", {
-    dto: { email: { mailbox: { address: "harbor@mail.example" }, sending: { ready: true, domains } } },
+    dto: {
+      email: {
+        mailbox: { address: "harbor@mail.example" },
+        sending: { providers: ["google", "microsoft"], mailboxes },
+      },
+    },
   });
 };
 
@@ -273,7 +280,7 @@ test("Start saves exactly the chain's shape, with the unconfirmed included when 
   const [, body] = calls.find((c) => c[0] === "save");
   assert.equal(contracts.ReachOutChainSchema.safeParse(body).success, true, JSON.stringify(body));
   assert.deepEqual(
-    [body.search_id, body.include_unconfirmed, body.gap_minutes, body.domain_ids, body.signed_by, body.steps.length],
+    [body.search_id, body.include_unconfirmed, body.gap_minutes, body.mailbox_ids, body.signed_by, body.steps.length],
     [SEARCH.id, true, 12, [], "Sam", 1],
   );
   assert.ok(
@@ -331,7 +338,7 @@ test("editing a chain passes its steps' ids and says Save", async () => {
     state: "running",
     include_unconfirmed: false,
     gap_minutes: 20,
-    domain_ids: [],
+    mailbox_ids: [],
     signed_by: "Ruben",
     steps: [
       {
@@ -345,7 +352,7 @@ test("editing a chain passes its steps' ids and says Save", async () => {
       },
       { id: "n1", n: 1, after_days: 5, subject: null, body: "Checking in.", template_id: "t2", state: "running" },
     ],
-    domains: [],
+    mailboxes: [],
     next: { run_hour: 9, last_run_for: null, mode: "ask", may_spend: true, waiting_run_id: null },
     created_at: "2026-09-20T00:00:00Z",
   };
@@ -369,20 +376,23 @@ test("editing a chain passes its steps' ids and says Save", async () => {
   assert.equal(textOf(byTestId(s.draw(), "ro-saved")), "Saved. Its next run writes these words.");
 });
 
-test("with no verified domain it says where to add one, and Start waits", async () => {
-  setup([DOMAIN({ state: "pending" })]);
+test("with no mailbox connected it says where to connect one, and Start waits; one signed out writes nothing", async () => {
+  setup([]);
   verbs();
-  const s = sheet();
+  let s = sheet();
   await settle();
-  const tree = s.draw();
-  assert.equal(
-    textOf(byTestId(tree, "ro-no-domain")),
-    "Add a domain you send from in Settings › Connections › Email first.",
-  );
+  let tree = s.draw();
+  assert.equal(textOf(byTestId(tree, "ro-no-mailbox")), contracts.REACH_OUT_SHEET_WORDS.noMailbox);
   assert.equal(byTestId(tree, "ro-start").props.disabled, true);
+  setup([MAILBOX({ state: "reconnect" })]);
+  s = sheet();
+  await settle();
+  tree = s.draw();
+  assert.equal(byTestId(tree, "ro-start").props.disabled, true, "a mailbox to reconnect writes nothing");
+  setup();
 });
 
-test("the domains and the booking link unread are said as reading, never as none, and Start waits for them", async () => {
+test("the mailboxes and the booking link unread are said as reading, never as none, and Start waits for them", async () => {
   verbs();
   const keepSettings = { config: { brain: { business_name: "Harbor Moving Co" } }, broken: null };
   try {
@@ -390,16 +400,16 @@ test("the domains and the booking link unread are said as reading, never as none
     let s = sheet();
     await settle();
     let tree = s.draw();
-    assert.equal(textOf(byTestId(tree, "ro-unread")), "Reading your sending domains and your booking link…");
-    assert.equal(byTestId(tree, "ro-no-domain"), null, "not read is not none");
+    assert.equal(textOf(byTestId(tree, "ro-unread")), "Reading your mailboxes and your booking link…");
+    assert.equal(byTestId(tree, "ro-no-mailbox"), null, "not read is not none");
     assert.equal(byTestId(tree, "ro-start").props.disabled, true);
-    assert.equal(textOf(byTestId(tree, "ro-foot-say")), "Reading your sending domains and your booking link…");
-    // Setup's read lands: the sheet draws the domains as the surface says so.
+    assert.equal(textOf(byTestId(tree, "ro-foot-say")), "Reading your mailboxes and your booking link…");
+    // Setup's read lands: the sheet draws the mailboxes as the surface says so.
     setup();
     W.dispatchEvent(new Event("surface:setup"));
     tree = s.draw();
     assert.equal(byTestId(tree, "ro-unread"), null);
-    assert.ok(byTestId(tree, "ro-domain-d1"));
+    assert.ok(byTestId(tree, "ro-mailbox-d1"));
     // Settings not in yet: words naming the booking link are not told it is missing, and Start still waits.
     setSurfaceValue("settings", undefined);
     s = sheet();
@@ -422,18 +432,21 @@ test("the domains and the booking link unread are said as reading, never as none
   }
 });
 
-test("From: up to five domains picked, as the chain's schema allows, and said so at the cap", async () => {
-  const six = ["d1", "d2", "d3", "d4", "d5", "d6"].map((id) => DOMAIN({ id, address: `sam@${id}.example` }));
-  setup(six);
+test("From: up to ten mailboxes picked, as the chain's schema allows, and said so at the cap", async () => {
+  const ten = Array.from({ length: 10 }, (_, i) =>
+    MAILBOX({ id: `d${i + 1}`, address: `sam@d${i + 1}.example`, host: `d${i + 1}.example` }),
+  );
+  setup(ten);
   verbs();
   const s = sheet();
   await settle();
-  // Each domain is the kit's Switch (surfaces/kit/switch/), which is read-only, never disabled, once five are picked.
-  for (const id of ["d1", "d2", "d3", "d4", "d5"]) byTestId(s.draw(), `ro-domain-${id}`).props.onCheckedChange(true);
+  // Each mailbox is the kit's Switch (surfaces/kit/switch/), which is read-only, never disabled, once the most are picked.
+  for (const m of ten.slice(0, 9)) byTestId(s.draw(), `ro-mailbox-${m.id}`).props.onCheckedChange(true);
+  assert.equal(byTestId(s.draw(), "ro-mailboxes-max"), null, "nine of ten: more may be picked");
+  byTestId(s.draw(), "ro-mailbox-d10").props.onCheckedChange(true);
   const tree = s.draw();
-  assert.equal(byTestId(tree, "ro-domain-d6").props.readOnly, true);
-  assert.equal(byTestId(tree, "ro-domain-d1").props.readOnly, false, "a picked one may still be let go");
-  assert.equal(textOf(byTestId(tree, "ro-domains-max")), "Up to 5 domains, or every verified one.");
+  assert.equal(byTestId(tree, "ro-mailbox-d1").props.readOnly, false, "a picked one may still be let go");
+  assert.equal(textOf(byTestId(tree, "ro-mailboxes-max")), "Up to 10 mailboxes, or every connected one.");
   setup();
 });
 

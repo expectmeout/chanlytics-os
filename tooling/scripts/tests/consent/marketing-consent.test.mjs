@@ -753,8 +753,8 @@ test("a cold email to a business asks no yes: only that they did not stop everyt
     "outreach_is_email_only",
     "outreach_not_a_lead",
     "outreach_without_unsubscribe",
-    "outreach_needs_own_domain",
-    "sending_domain_not_ready",
+    "outreach_needs_own_mailbox",
+    "sending_mailbox_not_ready",
   ])
     assert.ok(PURPOSE_REFUSALS[r], r);
 });

@@ -194,3 +194,22 @@ export async function ideasBasis(db: Db, tenantId: string): Promise<string | nul
   if (error) throw new Error(`lead_rounds: ${error.message}`);
   return data ? data.ended_at : null;
 }
+
+/**
+ * Each lead's country (two letters, as the finder kept it; null where it kept none), by id: what the reach-out check
+ * reads a lead's place by (decision 0056, 9). Service role; a read that fails throws.
+ */
+export async function leadCountriesOf(db: Db, ids: readonly string[]): Promise<Map<string, string | null>> {
+  const out = new Map<string, string | null>();
+  const unique = [...new Set(ids)];
+  // A hundred at a time: an id list rides in the request's address.
+  for (let i = 0; i < unique.length; i += 100) {
+    const { data, error } = await db
+      .from("leads")
+      .select("id, country")
+      .in("id", unique.slice(i, i + 100));
+    if (error) throw new Error(`cannot read the leads' countries: ${error.message}`);
+    for (const r of data ?? []) out.set(r.id, r.country?.trim().toUpperCase() || null);
+  }
+  return out;
+}

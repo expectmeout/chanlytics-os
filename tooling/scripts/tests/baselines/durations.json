@@ -14,7 +14,6 @@
   "apps/edge/lib/reach-out/check.ts": 6,
   "apps/edge/lib/reach-out/clock.ts": 3,
   "apps/edge/lib/reach-out/held-notice.ts": 2,
-  "apps/edge/lib/reach-out/replan.ts": 2,
   "apps/edge/lib/reach-out/sender.ts": 2,
   "apps/edge/lib/tenant-runtime.ts": 1,
   "apps/edge/lib/voice/call-recording.ts": 1,
@@ -26,8 +25,6 @@
   "packages/contracts/src/calendar/feed.ts": 6,
   "packages/contracts/src/calendar/zone-math.ts": 2,
   "packages/contracts/src/config/workspace-config/compose.ts": 1,
-  "packages/contracts/src/email/sending-domains.ts": 1,
-  "packages/core/src/deliver.ts": 1,
   "packages/core/src/inbound/reply-gates.ts": 1,
   "packages/core/src/inbound/steps.ts": 2,
   "packages/core/src/messages/broadcast.ts": 1

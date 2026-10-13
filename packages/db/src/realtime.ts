@@ -49,7 +49,7 @@ const WATCHED: ReadonlyArray<{ table: string; events: readonly Event[] }> = [
   { table: "capability_activations", events: EVERY }, // the owner's act, in another tab: Setup repaints (00108)
   { table: "business_records", events: EVERY }, // the record the carriers read, saved on Connections: Setup repaints (00075)
   { table: "google_connections", events: EVERY }, // the profile connected, synced or failing by the hourly sweep: Connections repaints (00070)
-  { table: "sending_domains", events: EVERY }, // a domain added, checked, verified, held or removed: Connections repaints (00175)
+  { table: "mailbox_connections", events: EVERY }, // a mailbox connected, signed out, held, paused or removed, its day or records when they moved: Connections and the sheet repaint (00423)
   // a round's page committed, a check landed, a class changed: the Leads scope repaints (00140)
   { table: "leads", events: EVERY },
   { table: "lead_searches", events: EVERY },

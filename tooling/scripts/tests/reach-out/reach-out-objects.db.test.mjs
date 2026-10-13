@@ -22,7 +22,7 @@ let A;
 let B;
 let search;
 let template;
-let domain;
+let mailbox;
 let root;
 let run;
 const users = [];
@@ -77,7 +77,7 @@ const send = async (over = {}) => {
       playbook_id: root,
       root_id: root,
       lead_id: await lead(),
-      domain_id: domain,
+      mailbox_id: mailbox,
       send_at: new Date().toISOString(),
       // Checked (00197): a claim takes a checked send only.
       checked_at: new Date().toISOString(),
@@ -140,19 +140,16 @@ before(async () => {
       .select("id")
       .single(),
   ).id;
-  domain = ok(
+  mailbox = ok(
     await db
-      .from("sending_domains")
+      .from("mailbox_connections")
       .insert({
         tenant_id: A,
+        provider: "google",
+        provider_account: `acct-objects-${stamp}`,
+        address: `sam@getharbor-${stamp}.example`,
         host: `getharbor-${stamp}.example`,
-        from_local: "sam",
         from_name: "Sam at Harbor",
-        state: "verified",
-        provider_status: "verified",
-        dmarc: "found",
-        verified_at: new Date().toISOString(),
-        clean_since: new Date().toISOString(),
       })
       .select("id")
       .single(),
@@ -282,7 +279,7 @@ test(
 );
 
 test(
-  "a planned send knows when (its domain may be one that was removed), and one lead is in a run once",
+  "a planned send knows when (its mailbox may be one that was removed), and one lead is in a run once",
   { skip },
   async () => {
     const noTime = await db.from("reach_out_sends").insert({
@@ -303,7 +300,7 @@ test(
       playbook_id: root,
       root_id: root,
       lead_id: l,
-      domain_id: domain,
+      mailbox_id: mailbox,
       send_at: new Date().toISOString(),
     });
     assert.match(twice.error?.message ?? "", /duplicate key/);
@@ -337,7 +334,7 @@ test("a member reads their own workspace's sends and nobody else's, and no sessi
     playbook_id: root,
     root_id: root,
     lead_id: await lead(),
-    domain_id: domain,
+    mailbox_id: mailbox,
     send_at: new Date().toISOString(),
   });
   assert.ok(write.error, "a session never writes a send");
@@ -355,21 +352,39 @@ test(
 );
 
 test(
-  "a removed domain and an erased email leave their sends standing: the clock re-plans or skips them, nothing aborts",
+  "a removed mailbox and an erased email leave their sends standing: the clock re-plans or skips them, nothing aborts",
   { skip },
   async () => {
-    // A domain removed on Connections with a send planned on it: the send stays planned, with no domain.
+    // A mailbox removed on Connections with a send planned on it: the row is kept, so the send still names it, and
+    // stays planned for the sender to re-plan (a first step) or skip (a later one, mailbox_gone).
     const gone = ok(
       await db
-        .from("sending_domains")
-        .insert({ tenant_id: A, host: `gone-${stamp}.example`, from_local: "sam", from_name: "Sam", state: "records" })
+        .from("mailbox_connections")
+        .insert({
+          tenant_id: A,
+          provider: "google",
+          provider_account: `acct-gone-${stamp}`,
+          address: `sam@gone-${stamp}.example`,
+          host: `gone-${stamp}.example`,
+          from_name: "Sam",
+        })
         .select("id")
         .single(),
     ).id;
-    const planned = await send({ domain_id: gone });
-    ok(await db.from("sending_domains").delete().eq("id", gone));
-    assert.deepEqual(ok(await db.from("reach_out_sends").select("state, domain_id").eq("id", planned)), [
-      { state: "planned", domain_id: null },
+    const planned = await send({ mailbox_id: gone });
+    ok(
+      await db
+        .from("mailbox_connections")
+        .update({ state: "removed", removed_at: new Date().toISOString() })
+        .eq("id", gone),
+    );
+    assert.deepEqual(ok(await db.from("reach_out_sends").select("state, mailbox_id").eq("id", planned)), [
+      { state: "planned", mailbox_id: gone },
+    ]);
+    // And its row deleted outright (its workspace's erasure): the send stays planned, with no mailbox.
+    ok(await db.from("mailbox_connections").delete().eq("id", gone));
+    assert.deepEqual(ok(await db.from("reach_out_sends").select("state, mailbox_id").eq("id", planned)), [
+      { state: "planned", mailbox_id: null },
     ]);
 
     // An erasure deletes the person's messages (erase_contact): a sent send keeps when it left, a queued one waits to be skipped.

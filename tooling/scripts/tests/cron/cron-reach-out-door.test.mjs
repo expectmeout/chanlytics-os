@@ -2,13 +2,15 @@
  * The reach-out clock, run: POST /api/cron/reach-out over a database in memory (Reach out, Part 3). Each step, each
  * outcome: a queued send reads its email's fate once; a claim left mid-way is adopted or freed; a closed run's sends
  * are skipped; a stale one is planned again (and, after two weeks without room, given up); a run with nothing open
- * finishes. Then the sender (PR 6): a due send is claimed and becomes one email and one job; the lane refuses without
- * its secrets; the month's allowance holds; a refused person or request skips; a step's send answers its lead's email
- * before; a claim left mid-way is written again as the same email.
+ * finishes. Then the sender (PR 6; decision 0056): a due send is claimed from its mailbox and becomes one email and one
+ * job; the lane refuses without its seal; the month's allowance holds; a refused person or request skips; a step's send
+ * answers its lead's email before, from the mailbox its chain writes from; a claim left mid-way is written again as the
+ * same email.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { fakeDb } from "../_fake-db.mjs";
+import { rows } from "../_rows.mjs";
 import { withoutRequestId } from "../_log-lines.mjs";
 import { at, knock, answer, refusedAtTheDoor, vault, withEnv } from "../_cron-doors-world.mjs";
 
@@ -25,15 +27,11 @@ const DAY = 86_400_000;
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const ROOT = "11111111-1111-4111-8111-111111111111";
 const RUN = "22222222-2222-4222-8222-222222222222";
-const DOM = "33333333-3333-4333-8333-333333333333";
+const MBX = "33333333-3333-4333-8333-333333333333";
 const TPL = "44444444-aaaa-4aaa-8aaa-444444444444";
-/** The cold lane, set: what the sender needs to write an email (sender.ts coldLane). Made-up values. */
+/** The lane, set: what the sender needs to write an email beside its mailbox (sender.ts mailboxLane). Made up. */
 const LANE = {
-  RESEND_API_KEY: "platform-key-for-this-file",
-  RESEND_COLD_API_KEY: "cold-key-for-this-file",
-  RESEND_COLD_WEBHOOK_SECRET: "cold-webhook-for-this-file",
   UNSUBSCRIBE_SECRET: "unsubscribe-seal-for-this-file",
-  EMAIL_DOMAIN: "mail.chanlytics.com",
 };
 /** The lane unset: every variable it reads, absent. The clock's steps run without it. */
 const NO_LANE = Object.fromEntries(Object.keys(LANE).map((k) => [k, undefined]));
@@ -65,7 +63,7 @@ const send = (over = {}) => {
     root_id: ROOT,
     lead_id: `lead-${n}`,
     contact_id: null,
-    domain_id: DOM,
+    mailbox_id: MBX,
     message_id: null,
     send_at: ago(MIN),
     state: "planned",
@@ -190,12 +188,12 @@ function clockReads(t) {
 }
 
 /**
- * The sender's doors over the tables, as 00184 and 00187 make them (their SQL is proved on a stack,
- * reach-out-sender.db.test.mjs): the domains with sends due (clean, verified, longest waiting first, past the ones the
- * sender skips), the month's count, the claim (on a verified domain, within its share), and the person made once.
- * `failClaim` names the domains whose claim the database refuses.
+ * The sender's doors over the tables, as 00424 and 00187 make them (their SQL is proved on a stack,
+ * mailbox-connections.db.test.mjs): the mailboxes with sends due (connected, rested, longest waiting first, past the
+ * ones the sender skips), the month's count, the claim (from a connected mailbox, within its share), and the person
+ * made once. `failClaim` names the mailboxes whose claim the database refuses.
  */
-function senderReads(t, { monthSent = 0, failClaim = [] } = {}) {
+function senderReads(t, { monthSent = 0, failClaim = [], onClaim = () => {} } = {}) {
   const runOf = (s) => t.broadcasts.find((b) => b.id === s.broadcast_id);
   const running = (id) => t.playbooks.some((p) => p.id === id && p.state === "running");
   // 00197: a checked send only.
@@ -207,35 +205,36 @@ function senderReads(t, { monthSent = 0, failClaim = [] } = {}) {
     running(s.playbook_id) &&
     running(s.root_id);
   return {
-    reach_out_due_domains: (a) => {
+    reach_out_due_mailboxes: (a) => {
       const first = (d) =>
         t.reach_out_sends
-          .filter((s) => s.domain_id === d.id && due(s, a.p_at))
+          .filter((s) => s.mailbox_id === d.id && due(s, a.p_at))
           .map((s) => s.send_at)
           .sort()[0];
-      return t.sending_domains
+      return t.mailbox_connections
         .filter(
           (d) =>
-            d.state === "verified" &&
-            d.clean_since &&
+            d.state === "connected" &&
+            (!d.resting_until || d.resting_until <= a.p_at) &&
             first(d) &&
             (!a.p_tenant_id || d.tenant_id === a.p_tenant_id) &&
             !(a.p_skip_tenants ?? []).includes(d.tenant_id) &&
-            !(a.p_skip_domains ?? []).includes(d.id),
+            !(a.p_skip_mailboxes ?? []).includes(d.id),
         )
         .sort((x, y) => (first(x) < first(y) ? -1 : first(x) > first(y) ? 1 : 0))
         .slice(0, a.p_limit)
         .map((d) => ({ id: d.id, tenant_id: d.tenant_id }));
     },
     reach_out_month_sent: () => monthSent,
-    reach_out_claim: (a) => {
-      if (failClaim.includes(a.p_domain_id)) throw new Error("canceling statement due to lock timeout");
-      if (!t.sending_domains.some((d) => d.id === a.p_domain_id && d.state === "verified")) return [];
+    reach_out_claim_from: (a) => {
+      if (failClaim.includes(a.p_mailbox_id)) throw new Error("canceling statement due to lock timeout");
+      if (!t.mailbox_connections.some((d) => d.id === a.p_mailbox_id && d.state === "connected")) return [];
       const picked = t.reach_out_sends
-        .filter((s) => s.domain_id === a.p_domain_id && due(s, a.p_at))
+        .filter((s) => s.mailbox_id === a.p_mailbox_id && due(s, a.p_at))
         .sort((x, y) => (x.send_at < y.send_at ? -1 : 1))
         .slice(0, Math.min(a.p_limit, a.p_cap));
       for (const s of picked) Object.assign(s, { state: "claimed", claimed_at: a.p_at });
+      onClaim(a.p_mailbox_id);
       return picked.map((s) => ({ ...s }));
     },
     reach_out_person: (a) => {
@@ -263,12 +262,25 @@ function senderReads(t, { monthSent = 0, failClaim = [] } = {}) {
   };
 }
 
+/** A Google mailbox the business connected twenty days ago, sending: what the sender writes from. */
+const mailboxRow = (id, address, over = {}) =>
+  rows.mailboxConnection({
+    id,
+    tenant_id: T,
+    address,
+    host: address.split("@")[1],
+    provider_account: `acct-${id.slice(0, 8)}`,
+    from_name: "Sam at Harbor",
+    clean_since: ago(20 * DAY),
+    ...over,
+  });
+
 function world({
   sends = [],
   messages = [],
   runs = null,
   playbooks = null,
-  domains = null,
+  boxes = null,
   leads = [],
   contacts = [],
   conversations = [],
@@ -277,6 +289,7 @@ function world({
   config = CONFIG(),
   monthSent = 0,
   failClaim = [],
+  onClaim,
 } = {}) {
   const leadIds = [...new Set(sends.map((s) => s.lead_id))].filter((id) => !leads.some((l) => l.id === id));
   const tables = {
@@ -302,7 +315,7 @@ function world({
         kind: "reach_out",
         state: "running",
         gap_minutes: 12,
-        domain_ids: [],
+        mailbox_ids: [],
         template_id: TPL,
         after_playbook_id: null,
       },
@@ -338,18 +351,7 @@ function world({
     contacts,
     conversations,
     jobs,
-    sending_domains: domains ?? [
-      {
-        id: DOM,
-        tenant_id: T,
-        state: "verified",
-        host: "getharbor.example",
-        from_local: "sam",
-        from_name: "Sam at Harbor",
-        clean_since: ago(20 * DAY),
-        sent_days: 0,
-      },
-    ],
+    mailbox_connections: boxes ?? [mailboxRow(MBX, "sam@getharbor.example")],
     events: [],
   };
   const db = fakeDb(
@@ -357,15 +359,23 @@ function world({
     {},
     {
       ...vault,
-      ...senderReads(tables, { monthSent, failClaim }),
-      sending_domain_capacity: () => ({
-        state: "verified",
-        clean_since: ago(20 * DAY),
-        sent_days: 0,
-        used: 0,
-        recent: [],
-        last_sent_at: null,
-      }),
+      ...senderReads(tables, { monthSent, failClaim, onClaim: onClaim && ((id) => onClaim(tables, id)) }),
+      // 00424's day of a mailbox, as its row stands: a new one, nothing sent yet today.
+      mailbox_capacity: (a) => {
+        const m = tables.mailbox_connections.find((x) => x.id === a.p_mailbox_id);
+        return {
+          state: m?.state ?? "removed",
+          clean_since: m?.clean_since ?? null,
+          resting_until: m?.resting_until ?? null,
+          daily_cap: m?.daily_cap ?? 40,
+          customer_domain: m?.customer_domain ?? false,
+          sent_days: 0,
+          sent_today: 0,
+          used: 0,
+          recent: [],
+          last_sent_at: null,
+        };
+      },
       ...clockReads(tables),
     },
     { unique: ["messages"] },
@@ -417,7 +427,7 @@ async function reconcileAt(t, now) {
     failed: send({ state: "queued", message_id: "m-failed" }),
     atCap: send({ state: "queued", message_id: "m-cap", attempts: 1 }),
     wrote: send({ state: "queued", message_id: "m-wrote" }),
-    noDomain: send({ state: "queued", message_id: "m-nodomain" }),
+    noMailbox: send({ state: "queued", message_id: "m-nomailbox" }),
     erased: send({ state: "queued", message_id: "m-gone" }),
     waiting: send({ state: "queued", message_id: "m-queued" }),
     delivered: send({ state: "queued", message_id: "m-delivered" }),
@@ -434,9 +444,9 @@ async function reconcileAt(t, now) {
       email("m-unknown", "failed", { error: { outcome: "unknown", http_status: 0 } }),
       email("m-bounced", "failed", { error: { provider: "bounced" } }),
       email("m-failed", "failed", { error: { http_status: 422 } }),
-      email("m-cap", "canceled", { error: { reason: "sending_domain_at_cap" } }),
+      email("m-cap", "canceled", { error: { reason: "sending_mailbox_at_cap" } }),
       email("m-wrote", "canceled", { error: { reason: "outreach_wrote_back" } }),
-      email("m-nodomain", "canceled", { error: { reason: "outreach_needs_own_domain" } }),
+      email("m-nomailbox", "canceled", { error: { reason: "outreach_needs_own_mailbox" } }),
       email("m-queued", "queued"),
       email("m-delivered", "delivered", { meta: { status_at: { sent: sentAt } } }),
       email("m-429", "failed", { error: { http_status: 429, body: "rate_limit_exceeded" } }),
@@ -473,7 +483,7 @@ async function reconcileAt(t, now) {
   // (The rows are the tables' own, moved in place: the numbers they started at are 1 and 0.)
   for (const [k, next] of [
     ["atCap", 2],
-    ["noDomain", 1],
+    ["noMailbox", 1],
   ]) {
     const r = got(k);
     assert.equal(r.state, "planned", k);
@@ -481,7 +491,7 @@ async function reconcileAt(t, now) {
     assert.equal(r.attempts, next, k);
     // Not before the tick: inside its business's hours the new moment may be the tick's own.
     assert.ok(Date.parse(r.send_at) >= ticked, `${k}: a new moment, not the old one`);
-    assert.equal(r.domain_id, DOM, k);
+    assert.equal(r.mailbox_id, MBX, k);
   }
   assert.deepEqual([got("wrote").state, got("wrote").reason], ["skipped", "outreach_wrote_back"]);
   assert.deepEqual([got("erased").state, got("erased").reason], ["skipped", "erased"]);
@@ -518,7 +528,7 @@ test("reconcile: each queued send reads what became of its email, once; outside 
 test("reconcile inside its business's hours: a send planned again is due at once, and with the lane unset the tick says so", async (t) => {
   // Noon on a Tuesday in Chicago. On the wall clock this case answered one or the other by the hour the suite ran.
   const [status, body] = await reconcileAt(t, Date.parse("2026-09-15T17:00:00Z"));
-  assert.deepEqual([status, body.ok, body.error], [503, false, "cold_lane_unset"]);
+  assert.deepEqual([status, body.ok, body.error], [503, false, "lane_unset"]);
 });
 
 test("unstick: a claim left mid-way is its email's when the email was written, and planned again when it was not", async () => {
@@ -602,8 +612,8 @@ test("restale: a send left long past its time in a run that goes ahead is planne
   const w = world({
     sends: [stale, due, paused],
     playbooks: [
-      { id: ROOT, tenant_id: T, kind: "reach_out", state: "running", gap_minutes: 12, domain_ids: [] },
-      { id: PAUSED, tenant_id: T, kind: "reach_out", state: "paused", gap_minutes: 12, domain_ids: [] },
+      { id: ROOT, tenant_id: T, kind: "reach_out", state: "running", gap_minutes: 12, mailbox_ids: [] },
+      { id: PAUSED, tenant_id: T, kind: "reach_out", state: "paused", gap_minutes: 12, mailbox_ids: [] },
     ],
     runs: [
       {
@@ -637,13 +647,16 @@ test("restale: a send left long past its time in a run that goes ahead is planne
 test("a send with no room tries again tomorrow; after two weeks waiting it is given up, and says why", async () => {
   const young = send({ send_at: ago(20 * MIN), created_at: ago(DAY) });
   const old = send({ send_at: ago(20 * MIN), created_at: ago(15 * DAY) });
-  // No verified domain: nowhere to go.
-  const w = world({ sends: [young, old], domains: [{ id: DOM, tenant_id: T, state: "held" }] });
+  // No mailbox that sends: nowhere to go.
+  const w = world({
+    sends: [young, old],
+    boxes: [mailboxRow(MBX, "sam@getharbor.example", { state: "held", held_why: "bounces", held_at: ago(DAY) })],
+  });
   const [, body] = await w.tick();
   const y = w.row(young.id);
   assert.equal(y.state, "planned");
   assert.ok(Date.parse(y.send_at) > Date.now() + DAY - 5 * MIN, "tomorrow");
-  assert.equal(y.domain_id, null, "no domain: only the timetable places it, in its lead's hours");
+  assert.equal(y.mailbox_id, null, "no mailbox: only the timetable places it, in its lead's hours");
   assert.deepEqual([w.row(old.id).state, w.row(old.id).reason], ["skipped", "kept_waiting"]);
   assert.deepEqual([body.waiting, body.gave_up], [1, 1]);
 });
@@ -738,6 +751,9 @@ test("the claim: a due send becomes one person, one queued email under its own i
   assert.deepEqual(m.meta.email.to, [person.email]);
   assert.equal(m.meta.email.request.idempotency_key, id, "the request is frozen for this row");
   assert.equal(m.meta.email.request.from, `"Sam at Harbor" <sam@getharbor.example>`);
+  assert.deepEqual(m.meta.email.request.reply_to, ["sam@getharbor.example"], "replies come back to the mailbox");
+  assert.equal(m.meta.email.request.html, "", "plain: one person's email from their own mailbox");
+  assert.equal(m.meta.email.request.headers["Auto-Submitted"], undefined);
   assert.deepEqual(m.meta.reach_out, {
     send_id: s.id,
     lead_id: s.lead_id,
@@ -765,25 +781,62 @@ test("the claim: a due send becomes one person, one queued email under its own i
   assert.equal(jobsOf(w).length, 1);
 });
 
-test("the lane: without a secret nothing is claimed, and a send due says what is missing (503); nothing due is a 200", async () => {
+test("the lane: without its seal nothing is claimed, and a send due says what is missing (503); nothing due is a 200", async () => {
   const s = send();
   const w = world({ sends: [s] });
   const [status, body] = await w.send({ UNSUBSCRIBE_SECRET: undefined });
-  assert.deepEqual([status, body.error, body.missing], [503, "cold_lane_unset", ["UNSUBSCRIBE_SECRET"]]);
+  assert.deepEqual([status, body.error, body.missing], [503, "lane_unset", ["UNSUBSCRIBE_SECRET"]]);
   assert.equal(w.row(s.id).state, "planned", "nothing claimed");
   assert.equal(w.tables.messages.length, 0);
   const [, all] = await w.tick();
-  assert.deepEqual(all.missing, [
-    "RESEND_API_KEY",
-    "RESEND_COLD_API_KEY",
-    "RESEND_COLD_WEBHOOK_SECRET",
-    "UNSUBSCRIBE_SECRET",
-    "EMAIL_DOMAIN",
-  ]);
+  assert.deepEqual(all.missing, ["UNSUBSCRIBE_SECRET"], "the platform's own mail keys are not the lane's");
   const idle = world({ sends: [send({ send_at: ahead(DAY) })] });
-  const [quiet, said] = await idle.send({ RESEND_COLD_API_KEY: undefined });
+  const [quiet, said] = await idle.send({ UNSUBSCRIBE_SECRET: undefined });
   assert.equal(quiet, 200, "no send due: nothing to say yet");
-  assert.deepEqual(said.lane_missing, ["RESEND_COLD_API_KEY"]);
+  assert.deepEqual(said.lane_missing, ["UNSUBSCRIBE_SECRET"]);
+});
+
+test("a mailbox paused or removed between the claim and the write writes nothing: a first email is planned again now on the step's other", async () => {
+  const OTHER = "3c3c3c3c-3c3c-4c3c-8c3c-3c3c3c3c3c3c";
+  const both = () => [mailboxRow(MBX, "sam@getharbor.example"), mailboxRow(OTHER, "dana@getharbor.example")];
+  // Its owner pauses it the moment its send is claimed: the writer reads it paused, and nothing is written from it.
+  const s = send();
+  const paused = world({
+    sends: [s],
+    boxes: both(),
+    onClaim: (t, id) =>
+      Object.assign(
+        t.mailbox_connections.find((m) => m.id === id),
+        { state: "paused" },
+      ),
+  });
+  const [, held] = await paused.send();
+  assert.equal(held.claim.waited, 1, "it waits, never written");
+  assert.equal(paused.tables.messages.length, 0, "nothing is written from a mailbox that does not send now");
+  assert.deepEqual(
+    [paused.row(s.id).state, paused.row(s.id).mailbox_id],
+    ["planned", OTHER],
+    "a first email has no thread to keep: planned again on the step's other mailbox",
+  );
+  assert.ok(Date.parse(paused.row(s.id).send_at) < Date.now() + 59 * MIN, "from now, not an hour on");
+
+  // Removed the moment its send is claimed: a first email is planned again, now, on the step's other mailbox.
+  const r = send();
+  const removed = world({
+    sends: [r],
+    boxes: both(),
+    onClaim: (t, id) =>
+      Object.assign(
+        t.mailbox_connections.find((m) => m.id === id),
+        {
+          state: "removed",
+          removed_at: new Date().toISOString(),
+        },
+      ),
+  });
+  const [, moved] = await removed.send();
+  assert.equal(moved.claim.waited, 1);
+  assert.deepEqual([removed.row(r.id).state, removed.row(r.id).mailbox_id], ["planned", OTHER]);
 });
 
 test("the month: a workspace at its allowance claims nothing; one with three left claims three at most", async () => {
@@ -863,17 +916,18 @@ test("the step's or the workspace's fault holds its sends, and nobody is made; a
     "nobody is made for an email that cannot be written",
   );
 
-  // No address for the foot, or no mailbox for the replies: the workspace claims nothing, and its sends keep.
+  // No address for the foot: the workspace claims nothing, and its sends keep.
   const noAddress = world({ sends: [send()], config: CONFIG("") });
-  const noMailbox = world({ sends: [send()] });
-  noMailbox.tables.mailboxes.length = 0;
-  for (const w of [noAddress, noMailbox]) {
-    const [, quiet] = await w.send();
-    assert.deepEqual(
-      [w.tables.reach_out_sends[0].state, quiet.claim.claimed, quiet.claim.workspaces_held],
-      ["planned", 0, 1],
-    );
-  }
+  const [, quiet] = await noAddress.send();
+  assert.deepEqual(
+    [noAddress.tables.reach_out_sends[0].state, quiet.claim.claimed, quiet.claim.workspaces_held],
+    ["planned", 0, 1],
+  );
+  // No hosted mailbox is no hold: a reach-out writes from the mailbox the business connected, and replies come back to it.
+  const noHosted = world({ sends: [send()] });
+  noHosted.tables.mailboxes.length = 0;
+  const [, wrote] = await noHosted.send();
+  assert.deepEqual([wrote.claim.written, wrote.claim.workspaces_held], [1, 0]);
 
   // A lead with no city, for words that name one: that lead alone is skipped, and the next is written.
   const bare = send();
@@ -896,7 +950,7 @@ test("the step's or the workspace's fault holds its sends, and nobody is made; a
   await w.send();
   assert.deepEqual([w.row(bare.id).state, w.row(bare.id).reason], ["skipped", "missing_value"]);
   assert.equal(w.row(next.id).state, "queued");
-  assert.equal(slot.tables.messages.length + noAddress.tables.messages.length + noMailbox.tables.messages.length, 0);
+  assert.equal(slot.tables.messages.length + noAddress.tables.messages.length, 0);
 });
 
 /** A chain of two: the root's email to the lead left (sent), and the step's send is due in its own run. */
@@ -954,7 +1008,7 @@ async function stepWorld({ stamped = true, created = ago(DAY) } = {}) {
         kind: "reach_out",
         state: "running",
         gap_minutes: 12,
-        domain_ids: [],
+        mailbox_ids: [],
         template_id: TPL,
         after_playbook_id: null,
       },
@@ -964,7 +1018,7 @@ async function stepWorld({ stamped = true, created = ago(DAY) } = {}) {
         kind: "reach_out",
         state: "running",
         gap_minutes: 12,
-        domain_ids: [],
+        mailbox_ids: [],
         template_id: TPL2,
         after_playbook_id: ROOT,
       },
@@ -1092,7 +1146,7 @@ test("after the claim, before the email: a run closed since skips the send; a ch
         kind: "reach_out",
         state: "running",
         gap_minutes: 12,
-        domain_ids: [],
+        mailbox_ids: [],
         template_id: TPL,
         after_playbook_id: null,
       },
@@ -1102,7 +1156,7 @@ test("after the claim, before the email: a run closed since skips the send; a ch
         kind: "reach_out",
         state: "paused",
         gap_minutes: 12,
-        domain_ids: [],
+        mailbox_ids: [],
         template_id: TPL,
         after_playbook_id: null,
       },
@@ -1165,7 +1219,7 @@ test("a claim whose email a dead tick wrote is that email's, whatever changed si
         kind: "reach_out",
         state: "running",
         gap_minutes: 12,
-        domain_ids: [],
+        mailbox_ids: [],
         template_id: TPL,
         after_playbook_id: null,
       },
@@ -1175,7 +1229,7 @@ test("a claim whose email a dead tick wrote is that email's, whatever changed si
         kind: "reach_out",
         state: "paused",
         gap_minutes: 12,
-        domain_ids: [],
+        mailbox_ids: [],
         template_id: TPL,
         after_playbook_id: null,
       },
@@ -1224,45 +1278,33 @@ test("a claim whose email a dead tick wrote is that email's, whatever changed si
   assert.deepEqual([w.row(queued.id).state, w.row(queued.id).reason], ["skipped", "run_canceled"]);
 });
 
-test("one domain the database refuses is its own: the next domain still claims, and the tick answers", async () => {
-  const DOM2 = "9a9a9a9a-9a9a-4a9a-8a9a-9a9a9a9a9a9a";
-  const first = send({ domain_id: DOM2, send_at: ago(3 * MIN) });
+test("one mailbox the database refuses is its own: the next mailbox still claims, and the tick answers", async () => {
+  const MBX2 = "9a9a9a9a-9a9a-4a9a-8a9a-9a9a9a9a9a9a";
+  const first = send({ mailbox_id: MBX2, send_at: ago(3 * MIN) });
   const next = send({ send_at: ago(MIN) });
-  const domain = (id, host) => ({
-    id,
-    tenant_id: T,
-    state: "verified",
-    host,
-    from_local: "sam",
-    from_name: "Sam at Harbor",
-    clean_since: ago(20 * DAY),
-    sent_days: 0,
-  });
   const w = world({
     sends: [first, next],
-    domains: [domain(DOM, "getharbor.example"), domain(DOM2, "harbor-two.example")],
-    failClaim: [DOM2],
+    boxes: [mailboxRow(MBX, "sam@getharbor.example"), mailboxRow(MBX2, "sam@harbor-two.example")],
+    failClaim: [MBX2],
   });
   const [status, body] = await w.send();
   assert.equal(status, 200);
   assert.deepEqual([body.claim.errors, body.claim.written], [1, 1]);
-  assert.equal(w.row(first.id).state, "planned", "the refused domain's send keeps");
-  assert.equal(w.row(next.id).state, "queued", "the next domain's is written");
+  assert.equal(w.row(first.id).state, "planned", "the refused mailbox's send keeps");
+  assert.equal(w.row(next.id).state, "queued", "the next mailbox's is written");
 });
 
-test("the switches (D17): set, a cold email's links point at the cold origin and its replies come back on the cold reply domain", async () => {
+test("the unsubscribe's origin: set, a reach-out's one-click way out points there; unset, at the dashboard's", async () => {
   const s = send();
   const w = world({ sends: [s] });
-  await w.send({ UNSUBSCRIBE_ORIGIN: "https://links.coldmail.example", COLD_REPLY_DOMAIN: "reply.coldlinks.example" });
+  await w.send({ UNSUBSCRIBE_ORIGIN: "https://links.example-unsubscribe.example" });
   const r = emailOf(w, await sendMessageId(s.id, 0)).meta.email.request;
-  assert.deepEqual(r.reply_to, ["r+abcdefghijklmnopqrstuvwx@reply.coldlinks.example"]);
-  assert.match(r.headers["List-Unsubscribe"], /^<https:\/\/links\.coldmail\.example\/u\//);
-  // Unset, as today: the dashboard's origin and the mail domain.
+  assert.match(r.headers["List-Unsubscribe"], /^<https:\/\/links\.example-unsubscribe\.example\/u\//);
+  assert.doesNotMatch(r.text, /https?:\/\//, "its words carry no link: the way out is a reply, and the header's");
   const t = send();
   const today = world({ sends: [t] });
   await today.send();
   const q = emailOf(today, await sendMessageId(t.id, 0)).meta.email.request;
-  assert.deepEqual(q.reply_to, ["r+abcdefghijklmnopqrstuvwx@mail.chanlytics.com"]);
   assert.match(q.headers["List-Unsubscribe"], /^<https:\/\/app\.chanlytics\.com\/u\//);
 });
 
@@ -1288,7 +1330,7 @@ const rootWith = (over = {}) => [
     kind: "reach_out",
     state: "running",
     gap_minutes: 12,
-    domain_ids: [],
+    mailbox_ids: [],
     template_id: TPL,
     after_playbook_id: null,
     signed_by: null,

@@ -1,7 +1,8 @@
 /**
- * The email a reach-out send leaves as (apps/edge lib/reach-out/request.ts, Reach out Part 3 C9, C10, D19), run over
- * the real request builder, the real identity and the real unsubscribe seal: a first step's email, a step's that
- * answers the one before, and the two refusals that hold one back.
+ * The email a reach-out send leaves as (apps/edge lib/reach-out/request.ts, Reach out Part 3 C9, C10, D19; from a
+ * mailbox the business connected since decision 0056), run over the real request builder, the real identity and the
+ * real unsubscribe seal: a first step's email, a step's that answers the one before, and the two refusals that hold one
+ * back.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -33,21 +34,19 @@ const input = (over = {}) => ({
     bookingLink: null,
   },
   opening: null,
-  domain: { host: "getharbor.example", from_local: "sam", from_name: "Sam at Harbor" },
-  mailbox: { reply_token: "abcdefghijklmnopqrstuvwx" },
-  replyDomain: "mail.chanlytics.com",
+  from: { address: "sam@getharbor.example", from_name: "Sam at Harbor", signature: null },
   unsubscribe: { secret: SECRET, origin: "https://app.chanlytics.com" },
   parent: null,
   ...over,
 });
 
-test("a first step's email: its own domain, the Inbox's reply route, the lead's values, the foot, and one click to stop", () => {
+test("a first step's email: from the mailbox the business connected and answered there, the lead's values, the foot, and one click to stop", () => {
   const out = reachOutRequest(input());
   assert.equal(out.ok, true);
   const r = out.request;
   assert.equal(r.from, `"Sam at Harbor" <sam@getharbor.example>`);
   assert.deepEqual(r.to, ["owner@fixture-movers.example"]);
-  assert.deepEqual(r.reply_to, ["r+abcdefghijklmnopqrstuvwx@mail.chanlytics.com"], "a reply lands in the Inbox");
+  assert.deepEqual(r.reply_to, ["sam@getharbor.example"], "a reply lands in the mailbox, and its sync reads it back");
   assert.equal(r.subject, "A quote for Fixture Movers");
   assert.equal(out.subject, r.subject);
   assert.equal(out.body, "Hi Fixture Movers,\n\nMovers in Austin ask us for this.", "the words, without the foot");
@@ -63,17 +62,25 @@ test("a first step's email: its own domain, the Inbox's reply route, the lead's 
     "I found your business on Google Maps.",
     "This is a marketing email.",
     "Harbor Moving Co · 100 Example St, Austin, TX 78701",
-    `Unsubscribe: https://app.chanlytics.com/u/${token}`,
+    `Not interested? Reply "no thanks" and I won't write again.`,
   ])
     assert.ok(r.text.includes(line), `the foot says: ${line}`);
-  assert.match(r.html, new RegExp(`<a href="https://app\\.chanlytics\\.com/u/${token}">Unsubscribe</a>`));
+  assert.ok(
+    !r.text.includes("https://"),
+    "no link in the words, nor the foot: the way out in one click is the header's",
+  );
+  assert.equal(r.html, "", "plain text, as one person writes: no HTML twin");
 
   assert.equal(r.idempotency_key, M);
   assert.deepEqual(r.tags, [
     { name: "cl_message", value: M },
     { name: "cl_tenant", value: T },
   ]);
-  assert.equal(r.headers["Auto-Submitted"], "auto-generated");
+  assert.equal(
+    r.headers["Auto-Submitted"],
+    undefined,
+    "one person's email from their own mailbox: marked as nothing else",
+  );
   assert.equal(r.headers["In-Reply-To"], undefined, "a first email answers nothing");
 });
 
@@ -133,14 +140,19 @@ test("no business address, or no business name, on the profile: no_business_addr
     });
 });
 
-test("with a cold reply domain (D17) the replies come back there, to the mailbox's own route", () => {
-  const out = reachOutRequest(input({ replyDomain: "reply.coldlinks.example" }));
-  assert.deepEqual(out.request.reply_to, ["r+abcdefghijklmnopqrstuvwx@reply.coldlinks.example"]);
-  const links = reachOutRequest(input({ unsubscribe: { secret: SECRET, origin: "https://links.coldmail.example" } }));
-  assert.match(
-    links.request.headers["List-Unsubscribe"],
-    /^<https:\/\/links\.coldmail\.example\/u\/[A-Za-z0-9_-]{87}>$/,
+test("the signature its owner gave the mailbox closes the words, before the foot; the one click is on the origin given", () => {
+  const out = reachOutRequest(input({ from: { ...input().from, signature: "Sam Rivera\nHarbor Moving Co" } }));
+  assert.equal(
+    out.body,
+    "Hi Fixture Movers,\n\nMovers in Austin ask us for this.",
+    "the words alone, as the sheet shows them",
   );
+  assert.ok(
+    out.request.text.startsWith(`${out.body}\n\nSam Rivera\nHarbor Moving Co\n\nI found your business on Google Maps.`),
+    out.request.text,
+  );
+  const links = reachOutRequest(input({ unsubscribe: { secret: SECRET, origin: "https://links.example.com" } }));
+  assert.match(links.request.headers["List-Unsubscribe"], /^<https:\/\/links\.example\.com\/u\/[A-Za-z0-9_-]{87}>$/);
 });
 
 /* ------------------------------------------------------------ Part 4: the six slots -- */

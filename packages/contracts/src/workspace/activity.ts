@@ -9,7 +9,7 @@ import {
   LEAD_NOT_A_FIT_WORDS,
   LEAD_STAGE_WORDS,
 } from "../leads/lead-words";
-import { domainHoldWords } from "../email/sending-domains";
+import { mailboxHoldWords } from "../email/mailbox-connections";
 import { reviewHeldWords } from "../google/review-reply";
 import { standingChangeWords } from "../lines/number-standing";
 import { businessFieldLabel } from "../lines/business-record";
@@ -270,12 +270,13 @@ const WORDS: Record<string, string> = {
   "mailbox.renamed": "The name on the workspace's email changed",
   "mailbox.offers_paused": "Offers by email were paused",
   "mailbox.offers_resumed": "Offers by email were turned back on",
-  "sending_domain.added": "A domain to send from was added",
-  "sending_domain.verified": "A domain to send from was verified",
-  "sending_domain.held": "A domain to send from was held",
-  "sending_domain.released": "A domain to send from is sending again",
-  "sending_domain.resumed": "A domain to send from was resumed",
-  "sending_domain.removed": "A domain to send from was removed",
+  "mailbox_connection.connected": "A mailbox to write from was connected",
+  "mailbox_connection.signed_out": "A mailbox to write from was signed out",
+  "mailbox_connection.held": "A mailbox to write from was held",
+  "mailbox_connection.resumed": "A mailbox to write from was resumed",
+  "mailbox_connection.paused": "A mailbox to write from was paused",
+  "mailbox_connection.unpaused": "A mailbox to write from writes again",
+  "mailbox_connection.removed": "A mailbox to write from was removed",
   "channel.connected": "A WhatsApp number was connected",
   "lead.stage": "A lead moved",
   "lead.emailed": "A lead was marked as emailed",
@@ -540,6 +541,26 @@ const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base: string
   ["lead.emailed", leadEmailedWords],
   ["lead.call", (p, base) => joinBits(base, [wordOf(LEAD_CALL_OUTCOME_WORDS, textAt(p, "outcome"))])],
   ["channel.connected", (p, base) => joinBits(base, [textAt(p, "verified_name")])],
+  // A mailbox a business connected (decision 0056): its address, and a hold with why.
+  ...[
+    "mailbox_connection.connected",
+    "mailbox_connection.signed_out",
+    "mailbox_connection.held",
+    "mailbox_connection.resumed",
+    "mailbox_connection.paused",
+    "mailbox_connection.unpaused",
+    "mailbox_connection.removed",
+  ].map(
+    (k) =>
+      [
+        k,
+        (p: Record<string, unknown>, base: string) =>
+          joinBits(base, [
+            textAt(p, "address"),
+            k === "mailbox_connection.held" && textAt(p, "why") ? mailboxHoldWords(textAt(p, "why") ?? "") : null,
+          ]),
+      ] as const,
+  ),
   ["business.recorded", (p, base) => joinBits(base, [recordChangedWords(p)])],
   // A run the hourly sweep skipped because its day had passed (no approval could send it, S7-3): the system's, named.
   [
@@ -612,18 +633,6 @@ export function activityWords(kind: string, payload: unknown): string {
   switch (kind) {
     case "take_over": {
       if (textAt(p, "how") === "transfer") bits.push("passed to the business's line");
-      break;
-    }
-    case "sending_domain.added":
-    case "sending_domain.verified":
-    case "sending_domain.held":
-    case "sending_domain.released":
-    case "sending_domain.resumed":
-    case "sending_domain.removed": {
-      const host = textAt(p, "host");
-      if (host) bits.push(host);
-      const why = textAt(p, "why");
-      if (kind === "sending_domain.held" && why) bits.push(domainHoldWords(why));
       break;
     }
     case "consent_change":

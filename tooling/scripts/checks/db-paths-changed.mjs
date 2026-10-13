@@ -42,6 +42,8 @@ export const DB_PATHS = [
   "tooling/scripts/tests/google/_db-stack.mjs",
   // and the campaign answers' world, which campaign-answers.db.test.mjs builds and holds the rule against (00403)
   "tooling/scripts/tests/reports/campaigns/_*.mjs",
+  // and a connected mailbox's world (Vault's doors, Gmail as it answers), which the reach-out stack suites send through
+  "tooling/scripts/tests/email/mailboxes/_*.mjs",
   // what the suites run against it: the packages that write rows, their sources and the dists built from them (a change
   // to contracts or channels that reaches a suite through one of them rewrites that dist, and so replays)
   "packages/core/**",

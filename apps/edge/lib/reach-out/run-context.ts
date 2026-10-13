@@ -5,7 +5,6 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  domainCapacityOf,
   emitEvent,
   handRun,
   leadNamesByIds,
@@ -18,7 +17,8 @@ import {
   type Json,
 } from "../packages/db.js";
 import type { HandStep, HandStepPorts, ReachOutRunPorts, ReachOutStep } from "../packages/core.js";
-import { domainDailyCap, handOf, reachOutSendsFrom, type TimetableDomain } from "../packages/contracts.js";
+import { handOf } from "../packages/contracts.js";
+import { stepSenders } from "./senders.js";
 import { notify } from "../ops/notify.js";
 import { loadTenantNotifications } from "../tenant-runtime.js";
 import { logger } from "../log.js";
@@ -68,7 +68,7 @@ async function stepOf(db: Db, row: ReachOutRow): Promise<ReachOutStep | HandStep
     after_playbook_id: row.after_playbook_id,
     after_days: row.after_days,
     gap_minutes: row.gap_minutes ?? 0,
-    domain_ids: row.domain_ids ?? [],
+    mailbox_ids: row.mailbox_ids ?? [],
     cap_per_run: row.cap_per_run,
   };
   const hand = handOf(row.hand);
@@ -174,18 +174,8 @@ export async function reachOutRunContext(
         includeUnconfirmed: s.include_unconfirmed,
       }),
     ...laterStepPorts(db, tenantId),
-    domains: async (s) => {
-      let q = db.from("sending_domains").select("id, state, clean_since").eq("tenant_id", tenantId);
-      if (s.domain_ids.length > 0) q = q.in("id", s.domain_ids);
-      const { data, error } = await q;
-      if (error) throw new Error(`cannot read the workspace's domains: ${error.message}`);
-      const out: TimetableDomain[] = [];
-      for (const d of (data ?? []).filter((r) => reachOutSendsFrom(r, s.domain_ids))) {
-        const c = await domainCapacityOf(db, d.id, now);
-        out.push({ id: d.id, cap: c.clean_since ? domainDailyCap(c.sent_days) : 0, recent: c.recent });
-      }
-      return out;
-    },
+    // The step's mailboxes and those its later leads keep, with their days (senders.ts, as the replan reads them).
+    mailboxes: (s, also) => stepSenders(db, { tenantId, named: s.mailbox_ids, also, at: now }),
     planRun: async (run, sends) => {
       const { data, error } = await db.rpc("reach_out_plan_run", {
         p_run: run as unknown as Json,

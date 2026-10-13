@@ -9,8 +9,8 @@
  * code the set declares and no refusal answers, a code handed on that nothing names (a cast to the type compiles),
  * and a sentence written into an `error`.
  *
- * A refusal is an object literal with `ok: false` and an `error`, a call `refuse(status, code, detail?)`, or
- * sending-domains' `say(status, code, message)`. Its codes are the string literals its code is written as (a
+ * A refusal is an object literal with `ok: false` and an `error`, or a call `refuse(status, code, detail?)`. Its codes
+ * are the string literals its code is written as (a
  * conditional's branches, a fallback's), and only these count as answering a declared code. A code that is not a
  * literal is a value handed on, named in FORWARDED: a code typed `EdgeErrorCode` where it is built (`r.error`, the
  * family `token_${v.reason}`, whose members are the reasons its verifier refuses a token with), or a result's words
@@ -32,11 +32,8 @@ const TREE = "apps/edge";
 /** A code: snake_case, lower-case words joined by underscores (`line_retry_taken`), never a sentence. */
 const CODE = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/;
 
-/** The calls that refuse, and where each is spelled: `refuse` anywhere on the edge, `say` in sending-domains only. */
-const BUILDERS = new Map([
-  ["refuse", null],
-  ["say", "apps/edge/lib/email/sending-domains.ts"],
-]);
+/** The calls that refuse, and where each is spelled: `refuse`, anywhere on the edge. */
+const BUILDERS = new Map([["refuse", null]]);
 
 /**
  * The refusals whose code is not a literal, by file, as it is written: a code handed on, typed `EdgeErrorCode` where
@@ -49,7 +46,6 @@ const FORWARDED = {
   "apps/edge/lib/receptionist/eval.ts": ["String(e instanceof Error ? e.message : e).slice(0, 200)"],
   "apps/edge/lib/ops/ask-turn.ts": ["v.error"], // validateGatewayRequest's (ask-gateway.ts)
   "apps/edge/lib/admin-auth.ts": ["`token_${v.reason}`"], // the token family (TOKEN, below)
-  "apps/edge/lib/email/sending-domain-ports.ts": ["error"], // say()'s code
   // connectAnswer's, chosenLocation's and bindFailedAnswer's, from profile-connection.ts
   "apps/edge/lib/google/google-ops.ts": ["r.error", "r.error", "bound.error"],
   "apps/edge/lib/google/listing-check.ts": ["error"], // a listing's read (CheckResult): Google's words
@@ -257,8 +253,8 @@ test("every refusal on the edge answers a code in EDGE_ERROR_CODES, with a liter
     "answered but not in EDGE_ERROR_CODES: reuse a code that says it, or add one (snake_case) and put the words in `detail`",
   );
   assert.ok(
-    refusals.some((r) => r.via === "refuse") && refusals.some((r) => r.via === "say"),
-    "the measure sees refuse(status, code, detail?), the edge's one way to refuse, and sending-domains' say()",
+    refusals.some((r) => r.via === "refuse"),
+    "the measure sees refuse(status, code, detail?), the edge's one way to refuse",
   );
 
   const forwarded = {};

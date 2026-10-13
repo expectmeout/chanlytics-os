@@ -26,16 +26,14 @@ import {
 } from "../../../../packages/jobs/src/ledger.ts";
 import { WHATSAPP_SEND_TIMEOUT_MS } from "../../../../packages/channels/src/whatsapp.ts";
 import { TWILIO_TIMEOUT_MS } from "../../../../packages/channels/src/lines/lines-twilio.ts";
-import { YIELD_AT_MS as DOMAINS_YIELD_AT_MS } from "../../../../apps/edge/api/cron/domains.ts";
+import { READS_UNTIL_MS as MAILBOXES_READS_UNTIL_MS } from "../../../../apps/edge/api/cron/mailboxes.ts";
+import { PUSH_READS_UNTIL_MS } from "../../../../apps/edge/api/mailbox/gmail.ts";
+import { MAILBOX_READ_MS } from "../../../../packages/channels/src/mailbox/mailbox-read.ts";
 import { YIELD_AT_MS as QUALITY_YIELD_AT_MS } from "../../../../apps/edge/api/cron/channel-quality.ts";
 import { GRAPH_TIMEOUT_MS } from "../../../../apps/edge/lib/whatsapp/meta-graph.ts";
 import { CHECK_CALLS_UNTIL_MS, CHECK_CALL_MS, CHECK_DONE_BY_MS } from "../../../../apps/edge/lib/reach-out/check.ts";
 import { PREVIEW_LIMITS } from "../../../../apps/edge/lib/reach-out/preview.ts";
-import {
-  SEND_DEADLINE_MS,
-  SEND_MIN_MS,
-  SEND_TIMEOUT_MS,
-} from "../../../../packages/channels/src/email/email-resend.ts";
+import { SEND_DEADLINE_MS, SEND_MIN_MS } from "../../../../packages/channels/src/email/email-resend.ts";
 import { NOTIFY_TIMEOUT_MS } from "../../../../apps/edge/lib/ops/notify.ts";
 import { EVENT_EVIDENCE_KINDS, RETENTION_DAYS } from "@chanlytics/contracts";
 
@@ -262,17 +260,24 @@ test("an edge door's time limit is set in one place: vercel.json, never in the d
     assert.ok(functions[f.slice("apps/edge/".length)], `${f}: a sweep's limit is written in apps/edge/vercel.json`);
 });
 
-test("the domains sweep yields before its limit, with a row's whole check still to come", () => {
-  // Its last batch may start just before DOMAINS_YIELD_AT_MS (counted from the door's first line) and wait out one
-  // provider read (DNS is read beside it), the notice a hold sends (a page or the owner's mail), then write. Past the
-  // limit the platform kills the function mid-write, and the tick is red for nothing it did.
-  const ceiling = FUNCTIONS["api/cron/domains.ts"].maxDuration * 1000;
+test("the mailboxes sweep and the providers' pushes start no read after their line, so what is in flight still ends inside each limit", () => {
+  // No provider or DNS read of any mailbox starts after its line (counted from the door's first line), so the worst
+  // still to come is the one read in flight then: a try, the wait provider-fetch allows between two (2 s at most), and
+  // a second try. After it, the sweep's health may tell an owner of a hold (one notice), and both write. Past the limit
+  // the platform kills the function mid-write, and the tick is red for nothing it did.
   const WRITES_MS = 3_000;
-  const worst = DOMAINS_YIELD_AT_MS + SEND_TIMEOUT_MS + NOTIFY_TIMEOUT_MS + WRITES_MS;
+  const READ_MS = 2 * MAILBOX_READ_MS + 2_000;
+  const sweep = FUNCTIONS["api/cron/mailboxes.ts"].maxDuration * 1000;
+  const worst = MAILBOXES_READS_UNTIL_MS + READ_MS + NOTIFY_TIMEOUT_MS + WRITES_MS;
   assert.ok(
-    worst <= ceiling,
-    `${DOMAINS_YIELD_AT_MS} + ${SEND_TIMEOUT_MS} + ${NOTIFY_TIMEOUT_MS} + ${WRITES_MS} = ${worst} ms must fit in ${ceiling} ms`,
+    worst <= sweep,
+    `${MAILBOXES_READS_UNTIL_MS} + ${READ_MS} + ${NOTIFY_TIMEOUT_MS} + ${WRITES_MS} = ${worst} ms must fit in ${sweep} ms`,
   );
+  for (const door of ["api/mailbox/gmail.ts", "api/mailbox/graph.ts"]) {
+    const ceiling = FUNCTIONS[door].maxDuration * 1000;
+    const pushed = PUSH_READS_UNTIL_MS + READ_MS + WRITES_MS;
+    assert.ok(pushed <= ceiling, `${door}: ${pushed} ms must fit in ${ceiling} ms`);
+  }
 });
 
 test("the channel-quality sweep yields before its limit, with a read of Meta and a notice to the owner still to come", () => {

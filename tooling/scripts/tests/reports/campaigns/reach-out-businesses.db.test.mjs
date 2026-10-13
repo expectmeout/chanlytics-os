@@ -133,7 +133,7 @@ async function reachOut(w, name, steps = 2) {
     search_id: search,
     include_unconfirmed: false,
     gap_minutes: 12,
-    domain_ids: [],
+    mailbox_ids: [],
     signed_by: "Sam",
     steps: Array.from({ length: steps }, (_, i) =>
       i === 0

@@ -459,6 +459,21 @@ const NARROWED = {
     "variables",
   ],
   mailboxes: ["offers_paused_at", "offers_paused_reason", "offers_resumed_at"],
+  // A mailbox the business connected (00423, decision 0056): what Connections draws, never the sync's cursor, its watch
+  // or the stamp of a send, which the clocks move all day.
+  mailbox_connections: [
+    "state",
+    "held_why",
+    "resting_until",
+    "daily_cap",
+    "customer_domain",
+    "sent_days",
+    "dns",
+    "last_error",
+    "from_name",
+    "signature",
+    "address",
+  ],
   memberships: ["role"],
   tenants: ["status"],
 };

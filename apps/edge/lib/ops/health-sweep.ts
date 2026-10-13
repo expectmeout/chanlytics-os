@@ -30,14 +30,9 @@ import { notify } from "./notify.js";
 import { pageOperator } from "./page-operator.js";
 import { chooseSweepAlerts, describeSweepTrouble, type SweepHealthRow } from "./sweep-health.js";
 import { whatsappWithoutReceipts, describeSilentReceipts } from "../whatsapp/receipts-watch.js";
-import {
-  checkMailDomain,
-  describeCampaignsDomainTrouble,
-  describeColdReplyDomainTrouble,
-  describeMailDomainTrouble,
-} from "../email/mail-domain.js";
+import { checkMailDomain, describeCampaignsDomainTrouble, describeMailDomainTrouble } from "../email/mail-domain.js";
 import { campaignsDomain } from "../email/campaigns-domain.js";
-import { coldReplyDomains, emailDomain } from "../email/email.js";
+import { emailDomain } from "../email/email.js";
 import { watchAnswerSilence, watchTargets } from "./day-watch.js";
 import { watchModels } from "./model-watch.js";
 import { env } from "../env.js";
@@ -141,20 +136,6 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
     const page = describeMailDomainTrouble(mail.trouble, mailDomain);
     await pageOperator({ db }, "mail_domain", page.subject, page.body);
   }
-  // And each cold reply domain (D17), which must receive as the mail domain does: every cold email's Reply-To is on
-  // one, and a reply dropped there is a "no thanks" nobody reads. Received on the platform's account, so asked with
-  // its key; sending switched off there is no trouble.
-  const coldTrouble: string[] = [];
-  for (const cold of coldReplyDomains()) {
-    const c = await checkMailDomain({ domain: cold, apiKey: env.RESEND_API_KEY, receiveOnly: true });
-    if (c.error) L.error("cold_reply_domain_unreadable", { domain: cold, error: c.error });
-    if (c.trouble) {
-      coldTrouble.push(cold);
-      const page = describeColdReplyDomainTrouble(c.trouble, cold);
-      await pageOperator({ db }, `cold_reply_domain:${cold}`, page.subject, page.body);
-    }
-  }
-
   await watchCampaignsDomain({ db, L });
 
   // Workspaces whose customers wrote all day and got no answer from anyone (00277), paged once per silent day.
@@ -170,7 +151,6 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
     recovered: plan.recovered.length,
     unreceipted,
     mail_domain: mail.trouble?.kind ?? mail.skipped ?? (mail.error ? "unreadable" : "ok"),
-    cold_reply_trouble: coldTrouble,
     answer_silent: answerSilent,
     past_targets: pastTargets,
     model_failures_paged: models.paged,

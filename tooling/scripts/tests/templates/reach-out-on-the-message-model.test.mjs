@@ -214,9 +214,7 @@ test("a reach-out's email for one business is renderOwnVersion over the six, and
     lead: LEAD,
     workspace: { ...WORKSPACE, address: "100 Example St, Austin, TX 78701" },
     opening: OPENING,
-    domain: { host: "getharbor.example", from_local: "sam", from_name: "Sam at Harbor" },
-    mailbox: { reply_token: "abcdefghijklmnopqrstuvwx" },
-    replyDomain: "mail.chanlytics.com",
+    from: { address: "sam@getharbor.example", from_name: "Sam at Harbor", signature: null },
     unsubscribe: { secret: "a-secret-only-this-file-holds", origin: "https://app.chanlytics.com" },
     parent: null,
   });

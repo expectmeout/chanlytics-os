@@ -34,6 +34,14 @@ export interface ReachOutNextFacts {
   waiting_run_id: string | null;
 }
 
+/** A mailbox a chain or a run writes from, as the sheet and the approval say its day (contracts mailboxDailyCap). */
+export interface ReachOutMailboxFacts {
+  address: string;
+  sent_days: number;
+  daily_cap: number;
+  customer_domain: boolean;
+}
+
 export interface ReachOutChainDto {
   root_id: string;
   name: string;
@@ -41,14 +49,14 @@ export interface ReachOutChainDto {
   state: "running" | "paused";
   include_unconfirmed: boolean;
   gap_minutes: number;
-  domain_ids: string[];
+  mailbox_ids: string[];
   signed_by: string | null;
   steps: ReachOutStepDto[];
   /**
-   * The domains its run sends from (contracts reachOutSendsFrom: its own, or every one when it names none, verified and
-   * clean), with the days each has sent.
+   * The mailboxes its run writes from (contracts reachOutWritesFrom: its own, or every one when it names none, that
+   * sends now), each with what its day is made of (contracts mailboxDailyCap).
    */
-  domains: Array<{ host: string; sent_days: number }>;
+  mailboxes: ReachOutMailboxFacts[];
   next: ReachOutNextFacts;
   created_at: string;
   /** What feeds it (00426): a list its owner adds to, or the search that keeps it current; absent before it. */
@@ -198,6 +206,6 @@ export interface ReachOutRunDto {
     opening: string | null;
     angle: string | null;
   } | null;
-  /** The domains its sends go from, with the days each has sent (R22). */
-  domains: Array<{ host: string; sent_days: number }>;
+  /** The mailboxes its sends go from, each with what its day is made of (R22). */
+  mailboxes: ReachOutMailboxFacts[];
 }

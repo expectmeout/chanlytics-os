@@ -111,7 +111,7 @@ const SUBJECT_OPENS = {
   tenant_channel: { kind: "channel" },
   line: { kind: "channel" },
   mailbox: { kind: "channel" },
-  sending_domain: { kind: "channel" },
+  mailbox_connection: { kind: "channel" },
   listing: { kind: "channel" },
   subscription: { kind: "billing" },
 };

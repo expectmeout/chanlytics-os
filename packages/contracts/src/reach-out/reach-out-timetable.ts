@@ -1,15 +1,17 @@
 /**
- * When each email of a run goes, and from which domain (Reach out §4.5): a pure plan. Each send takes the earliest
- * moment that is inside its lead's own open hours (half an hour clear of each end) and inside the day (eight to eight,
- * the lead's time: a business open all night is not written to at one in the morning), at least a gap after every
- * other send on the same domain (the gap moved by up to a quarter either way, so runs keep no rhythm), and inside the
- * domain's share of any rolling day. The domain is whichever gives the earliest such moment: the domains share a run
- * without a fixed turn. What finds no moment within the horizon is left unplaced, and the run says so: nothing is
- * forced into a closed day or past a domain's share. `recent` is every time the domain already spends, planned sends
- * ahead included, read once for the run (db sending_domain_capacity); the claim is what enforces it (C7).
+ * When each email of a run goes, and from which sender, a connected mailbox (Reach out §4.5, decision 0056): a pure
+ * plan. Each send takes the earliest moment that is inside its lead's own open hours (half an hour clear of each end)
+ * and inside the day (eight to eight, the lead's time: a business open all night is not written to at one in the
+ * morning), at least a gap after every other send from the same mailbox (the gap moved by up to a quarter either way,
+ * so runs keep no rhythm), and inside the mailbox's share of any rolling day. The sender is whichever gives the earliest
+ * such moment, so a run's new leads take turns across its mailboxes; a send that names its one sender (`only`: a later
+ * step's lead keeps the mailbox its chain wrote from, so the nudge is in the same thread) takes that one or none. What
+ * finds no moment within the horizon is left unplaced, and the run says so: nothing is forced into a closed day or past
+ * a mailbox's share. `recent` is every time the mailbox already spends, planned sends ahead included, read once for
+ * the run (db mailbox_capacity); the claim is what enforces it (C7).
  *
- * A run is a few hundred leads over a few domains, planned inside one request: the times are kept sorted and searched,
- * and a lead's open spans are worked out once per zone and week, since most leads share both.
+ * A run is a few hundred leads over a few mailboxes, planned inside one request: the times are kept sorted and
+ * searched, and a lead's open spans are worked out once per zone and week, since most leads share both.
  */
 import { dayPlusInZone, localToUtcMs } from "../calendar/zone-math";
 import { DEFAULT_WEEK, type OpenWindow, type WeekHours, type WeekdayKey } from "./lead-hours";
@@ -24,17 +26,19 @@ export interface TimetableSend {
   id: string;
   zone: string;
   week: WeekHours;
+  /** The one sender this send may take (a later step's lead keeps its chain's mailbox); any of them when absent. */
+  only?: string | null;
 }
-export interface TimetableDomain {
+export interface TimetableSender {
   id: string;
-  /** The domain's share of a day now (contracts domainDailyCap). */
+  /** The mailbox's share of a day now (contracts mailboxDailyCap). */
   cap: number;
   /** When it already spends a send: left, of unknown outcome, queued, claimed or planned (ms). */
   recent: number[];
 }
 export interface TimetableInput {
   sends: TimetableSend[];
-  domains: TimetableDomain[];
+  senders: TimetableSender[];
   gapMinutes: number;
   nowMs: number;
   horizonDays?: number;
@@ -43,7 +47,7 @@ export interface TimetableInput {
 }
 export interface Placed {
   id: string;
-  domainId: string;
+  senderId: string;
   sendAtMs: number;
 }
 export interface TimetableResult {
@@ -104,7 +108,7 @@ function lowerBound(times: number[], x: number): number {
 }
 
 /**
- * Whether one more send at `t` keeps every rolling day on this domain within its cap. A day that holds `t` ends at `t`
+ * Whether one more send at `t` keeps every rolling day on this mailbox within its cap. A day that holds `t` ends at `t`
  * or at a later send less than a day after it, so those are the only days to count.
  */
 function fitsCap(times: number[], t: number, cap: number): boolean {
@@ -116,7 +120,7 @@ function fitsCap(times: number[], t: number, cap: number): boolean {
   return true;
 }
 
-/** The earliest moment for this send on this domain, or null within the horizon. */
+/** The earliest moment for this send from this mailbox, or null within the horizon. */
 function earliest(
   spans: Array<[number, number]>,
   times: number[],
@@ -138,7 +142,7 @@ function earliest(
       }
       if (!fitsCap(times, t, cap)) {
         // Wait for the oldest send of the day before it to leave the window: a day is (q - 24 h, q], as the claim
-        // counts it (db sending_domain_capacity), so the moment it leaves is a day after it.
+        // counts it (db mailbox_capacity), so the moment it leaves is a day after it.
         const j = lowerBound(times, t - DAY_MS + 1);
         t = (j < times.length && times[j] <= t ? times[j] : t) + DAY_MS;
         floor = t;
@@ -170,7 +174,7 @@ export function timetable(input: TimetableInput): TimetableResult {
     const j = draw();
     return Number.isFinite(j) ? Math.max(-1, Math.min(1, j)) : 0;
   };
-  const domains = input.domains
+  const senders = input.senders
     .filter((d) => d.cap > 0)
     .map((d) => ({ ...d, times: [...d.recent].sort((a, b) => a - b), placed: 0 }));
   const spansOf = new Map<string, Array<[number, number]>>();
@@ -184,8 +188,9 @@ export function timetable(input: TimetableInput): TimetableResult {
       spans = spansOrNone(s.zone, s.week, input.nowMs, horizon);
       spansOf.set(key, spans);
     }
-    let best: { d: (typeof domains)[number]; t: number } | null = null;
-    for (const d of domains) {
+    let best: { d: (typeof senders)[number]; t: number } | null = null;
+    for (const d of senders) {
+      if (s.only && d.id !== s.only) continue;
       const t = earliest(spans, d.times, d.cap, gapMs, limitMs);
       if (t === null) continue;
       if (!best || t < best.t || (t === best.t && d.placed < best.d.placed)) best = { d, t };
@@ -196,7 +201,7 @@ export function timetable(input: TimetableInput): TimetableResult {
     }
     best.d.times.splice(lowerBound(best.d.times, best.t), 0, best.t);
     best.d.placed += 1;
-    placed.push({ id: s.id, domainId: best.d.id, sendAtMs: best.t });
+    placed.push({ id: s.id, senderId: best.d.id, sendAtMs: best.t });
   }
   return { placed, unplaced };
 }

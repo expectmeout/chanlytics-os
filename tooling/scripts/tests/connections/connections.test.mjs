@@ -424,7 +424,7 @@ test("texting's states, in the owner's words, with the carriers' vocabulary kept
 test("the wiring: the page draws rows from the same facts Setup reads, the old cards are gone, the edge says the audience", () => {
   // The pane moved to TSX (decision 0015 step 11): the pane, its row, its parts and the business record's form, read in one
   // go, and the text of any of them is "the page".
-  const parts = ["pane", "row", "record-form", "google-choose", "email-setup", "domains-block"].map((f) =>
+  const parts = ["pane", "row", "record-form", "google-choose", "email-setup", "mailboxes-block"].map((f) =>
     readCode(`apps/dashboard/src/surfaces/settings/connections/${f}.tsx`),
   );
   const [pane, row, form] = parts;
@@ -581,7 +581,7 @@ test("a WhatsApp number Meta flagged needs attention on Connections, in the word
   assert.deepEqual([off.state, off.stateWords], ["off", "Off"], "off is off, whatever Meta said before");
 });
 
-test("the Email row says a domain is held, so a hold is not a green 'On' above it", async () => {
+test("the Email row says a mailbox reach-outs write from is held or signed out, so neither is a green 'On' above it", async () => {
   const { connectionRows } = await import("@chanlytics/contracts");
   const mailbox = {
     id: "mb1",
@@ -598,13 +598,26 @@ test("the Email row says a domain is held, so a hold is not a green 'On' above i
         ready: true,
         domain: "mail.chanlytics.com",
         mailbox,
-        sending: { ready: true, domains: [held, { id: "d2", state: "verified" }] },
+        sending: { providers: ["google"], mailboxes: [held, { id: "d2", state: "connected" }] },
       },
     },
     NOW,
   );
   const email = rows.find((r) => r.kind === "email");
-  assert.deepEqual([email.state, email.stateWords], ["attention", "On · 1 domain held"]);
+  assert.deepEqual([email.state, email.stateWords], ["attention", "On · 1 mailbox to look at"]);
+  const two = connectionRows(
+    {
+      ...base(),
+      email: {
+        ready: true,
+        domain: "mail.chanlytics.com",
+        mailbox,
+        sending: { providers: ["google"], mailboxes: [held, { id: "d3", state: "reconnect" }] },
+      },
+    },
+    NOW,
+  ).find((r) => r.kind === "email");
+  assert.equal(two.stateWords, "On · 2 mailboxes to look at", "a signed-out one is said too");
   const calm = connectionRows(
     {
       ...base(),
@@ -612,7 +625,7 @@ test("the Email row says a domain is held, so a hold is not a green 'On' above i
         ready: true,
         domain: "mail.chanlytics.com",
         mailbox,
-        sending: { ready: true, domains: [{ id: "d2", state: "verified" }] },
+        sending: { providers: ["google"], mailboxes: [{ id: "d2", state: "paused" }] },
       },
     },
     NOW,

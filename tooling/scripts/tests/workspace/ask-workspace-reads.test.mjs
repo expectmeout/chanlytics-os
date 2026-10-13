@@ -1,13 +1,14 @@
 /**
  * Ask's workspace reads (Ask Rewired, PR 4.3, D13): workspace.connections, .notifications and .activity answer what
  * their pages' builders answer over the same readers -- Setup's rows (contracts setupSteps) and Connections' words for
- * a sending domain (sendingDomainWords), the bell's kept rows (serverNotificationRows), and Settings › Activity's lines --
+ * a connected mailbox (mailboxWords), the bell's kept rows (serverNotificationRows), and Settings › Activity's lines --
  * over the database in memory, the registry dispatching as a turn does. Money stays out (the charter, §7): no billing
  * row, no price, no billing notice, no entry about money (billing's or a partner's share). The activity log is an owner's: refused below one by the registry
  * and again by its handler. The readers themselves are GET setup's, GET notifications' and GET activity's
  * (ask/readers.test.mjs).
  */
 import { test, beforeEach } from "node:test";
+import { rows } from "../_rows.mjs";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -16,7 +17,7 @@ import {
   clockStamp,
   isActivityMoney,
   newReceptionistDefaults,
-  sendingDomainWords,
+  mailboxWords,
   serverNotificationRows,
   setupSteps,
   unreadCount,
@@ -121,24 +122,14 @@ const sendingWorld = () => {
       last_error: null,
     },
   ];
-  w.tables.sending_domains = [
-    {
+  w.tables.mailbox_connections = [
+    rows.mailboxConnection({
       id: D1,
       tenant_id: A,
+      address: "sam@send.example.com",
       host: "send.example.com",
-      from_local: "sam",
       from_name: "Sam",
-      records: [],
-      state: "records",
-      provider_status: "not_started",
-      dmarc: null,
-      held_why: null,
-      held_at: null,
-      verified_at: null,
-      clean_since: null,
-      checked_at: null,
-      created_at: "2026-09-25T12:00:00Z",
-    },
+    }),
   ];
   return w;
 };
@@ -146,7 +137,7 @@ const SETUP_NOW = new Date("2026-09-07T15:00:00Z");
 /** Setup's rows that are connections, as the tool keeps them. */
 const CONNECTION_ROWS = ["line", "keep", "whatsapp", "email", "calendar", "google"];
 
-test("workspace.connections answers Setup's own rows for the connections over GET setup's reader -- whether the receptionist answers, then the line, the number it keeps, WhatsApp, email, the calendar and Google, each in the page's words -- and each sending domain in Connections' words, a row in the read set; for every role", async () => {
+test("workspace.connections answers Setup's own rows for the connections over GET setup's reader -- whether the receptionist answers, then the line, the number it keeps, WhatsApp, email, the calendar and Google, each in the page's words -- and each connected mailbox in Connections' words, a row in the read set; for every role", async () => {
   const was = process.env.EMAIL_DOMAIN;
   process.env.EMAIL_DOMAIN = "mail.example.com";
   try {
@@ -168,27 +159,25 @@ test("workspace.connections answers Setup's own rows for the connections over GE
             says: r.sentence,
             ...(r.details.length ? { details: r.details } : {}),
           })),
-        sending_domains: setup.email.sending.domains.map((d) => {
-          const words = sendingDomainWords(d);
+        mailboxes: setup.email.sending.mailboxes.map((m) => {
+          const words = mailboxWords(m, SETUP_NOW.getTime());
           return {
-            domain_id: d.id,
+            mailbox_id: m.id,
             route: "admin/integrations",
-            host: d.host,
+            address: m.address,
             state: words.pill,
-            says: words.line,
-            ...(words.stats ? { stats: words.stats } : {}),
-            cap: words.cap,
+            says: words.day,
+            ...(words.ramp ? { ramp: words.ramp } : {}),
             ...(words.fix ? { fix: words.fix } : {}),
-            ...(words.next ? { next: words.next } : {}),
           };
         }),
       });
       assert.ok(out.connections.length > 0, `${role}: some connection is said`);
-      assert.deepEqual(tc.read.domain.get(D1), {
-        kind: "domain",
+      assert.deepEqual(tc.read.mailbox.get(D1), {
+        kind: "mailbox",
         id: D1,
         route: "admin/integrations",
-        label: "send.example.com",
+        label: "sam@send.example.com",
       });
     }
   } finally {

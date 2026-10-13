@@ -9,7 +9,8 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
-import { REACH_OUT_REFUSALS, reachOutSendsFrom, startWords } from "@chanlytics/contracts";
+import { rows } from "../_rows.mjs";
+import { REACH_OUT_REFUSALS, reachOutWritesFrom, startWords } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -73,7 +74,7 @@ const tables = (role = "operator", over = {}) => ({
       after_playbook_id: ROOT_ID,
       after_days: 4,
       gap_minutes: 12,
-      domain_ids: [],
+      mailbox_ids: [],
       signed_by: null,
       include_unconfirmed: false,
       template_id: T2,
@@ -92,7 +93,7 @@ const tables = (role = "operator", over = {}) => ({
       after_playbook_id: null,
       after_days: null,
       gap_minutes: 12,
-      domain_ids: [],
+      mailbox_ids: [],
       signed_by: "Sam",
       include_unconfirmed: false,
       template_id: T1,
@@ -142,11 +143,22 @@ const tables = (role = "operator", over = {}) => ({
     },
   ],
   reach_out_sends: [],
-  sending_domains: [],
+  mailbox_connections: [],
   decisions: [],
   ...over,
 });
 const CLEAN = "2026-09-01T00:00:00Z";
+/** A mailbox the workspace connected (decision 0056), sending unless a case says otherwise. */
+const box = (id, address, over = {}) =>
+  rows.mailboxConnection({
+    id,
+    tenant_id: A,
+    address,
+    host: address.split("@")[1],
+    provider_account: `acct-${id}`,
+    clean_since: CLEAN,
+    ...over,
+  });
 const ctxFor = (t, params = {}, rpcs = {}) => ({
   supabase: fakeDb(t, {}, rpcs),
   userId: USER,
@@ -213,7 +225,7 @@ const CHAIN = (over = {}) => ({
   search_id: SEARCH,
   include_unconfirmed: false,
   gap_minutes: 12,
-  domain_ids: [],
+  mailbox_ids: [],
   signed_by: "Sam",
   steps: [
     { subject: "Quick one for {{business}}", body: "{{opening}}\n\n{{your name}}", after_days: null },
@@ -367,7 +379,20 @@ test("POST reach-outs refuses before the door: a viewer, a slot that is none of 
     422,
     "{{first name}} isn't one of the slots. Use one of the six.",
   );
-  const link = CHAIN({ steps: [{ subject: "Hi", body: "Book here: {{booking link}}", after_days: null }] });
+  // A first email carries no link (decision 0056): the booking link is a nudge's.
+  const first = CHAIN({ steps: [{ subject: "Hi", body: "Book here: {{booking link}}", after_days: null }] });
+  await refused(
+    chains.POST.run(send("POST", first), ctxFor(tables())),
+    "validation",
+    422,
+    "Keep your first email free of links: put your booking link in the nudge.",
+  );
+  const link = CHAIN({
+    steps: [
+      { subject: "Hi", body: "Saw your shop on the map.", after_days: null },
+      { subject: null, body: "Book here: {{booking link}}", after_days: 3 },
+    ],
+  });
   await refused(
     chains.POST.run(send("POST", link), ctxFor(tables("operator", { tenant_config: [] }))),
     "validation",
@@ -669,7 +694,7 @@ test("a reach-out run's block: today and later from the checked only, the still-
     send_at: iso(now + 60_000),
     checked_at: null,
     created_at: iso(now - 3_600_000),
-    domain_id: DOM,
+    mailbox_id: DOM,
     lead: lead(`Studio ${id}`),
     ...over,
   });
@@ -684,9 +709,9 @@ test("a reach-out run's block: today and later from the checked only, the still-
       s("b", { checked_at: iso(now), send_at: iso(now + 3 * 86_400_000) }),
       s("c", {}),
       s("d", { state: "held", reason: "chain", hold_detail: "site:3" }),
-      s("e", { state: "skipped", reason: "closed_every_day", domain_id: null }),
+      s("e", { state: "skipped", reason: "closed_every_day", mailbox_id: null }),
     ],
-    sending_domains: [{ id: DOM, tenant_id: A, host: "harbor-mail.example", sent_days: 12 }],
+    mailbox_connections: [box(DOM, "sam@harbor-mail.example", { sent_days: 12 })],
   });
   const run = await server.reachOutRunOf(ctxFor(t), A, t.broadcasts[0]);
   assert.deepEqual([run.today, run.later, run.checking], [1, 1, 1]);
@@ -703,7 +728,9 @@ test("a reach-out run's block: today and later from the checked only, the still-
     opening: "A 4.9 from 16 reviews.",
     angle: "reviews",
   });
-  assert.deepEqual(run.domains, [{ host: "harbor-mail.example", sent_days: 12 }]);
+  assert.deepEqual(run.mailboxes, [
+    { address: "sam@harbor-mail.example", sent_days: 12, daily_cap: 40, customer_domain: false },
+  ]);
   assert.deepEqual([run.step_n, run.chain_name, run.include_unconfirmed], [0, "Reach out · Personal trainers", false]);
   assert.equal(await server.reachOutRunOf(ctxFor(t), A, { ...t.broadcasts[0], audience: { kind: "everyone" } }), null);
   // A run whose step was dropped from the chain since: no step, said so by the words (R17).
@@ -733,44 +760,47 @@ test("the chains read the step's run's own readings: a paused workspace may not 
     ),
   );
   assert.equal(never.chains[0].next.mode, "never");
-  // The domains it sends from: every verified one when it names none, with the days each has sent (PR 8's pace).
-  const withDomains = await chains.GET.run(
+  // The mailboxes it writes from: every connected one when it names none, with what its day is made of (PR 8's pace).
+  const withMailboxes = await chains.GET.run(
     get(),
     ctxFor(
       tables("viewer", {
-        sending_domains: [
-          { id: "d1", tenant_id: A, host: "harbor-mail.example", state: "verified", clean_since: CLEAN, sent_days: 12 },
-          { id: "d2", tenant_id: A, host: "pending.example", state: "pending", clean_since: null, sent_days: 0 },
+        mailbox_connections: [
+          box("d1", "sam@harbor-mail.example", { sent_days: 12 }),
+          box("d2", "dana@harbor-mail.example", { state: "paused" }),
         ],
       }),
     ),
   );
-  assert.deepEqual(withDomains.chains[0].domains, [{ host: "harbor-mail.example", sent_days: 12 }]);
-  // A domain the chain names is its pace only as the run reads it (contracts reachOutSendsFrom): verified and clean. A
-  // named held one, a named one still verifying and a named verified one with no clean clock (the run's share of 0) are
-  // not said, and neither is a verified one it does not name.
-  const domains = [
-    { id: "d1", tenant_id: A, host: "harbor-mail.example", state: "verified", clean_since: CLEAN, sent_days: 12 },
-    { id: "d2", tenant_id: A, host: "other.example", state: "verified", clean_since: CLEAN, sent_days: 30 },
-    { id: "d3", tenant_id: A, host: "held.example", state: "held", clean_since: CLEAN, sent_days: 40 },
-    { id: "d4", tenant_id: A, host: "verifying.example", state: "verifying", clean_since: null, sent_days: 0 },
-    { id: "d5", tenant_id: A, host: "unclean.example", state: "verified", clean_since: null, sent_days: 0 },
+  assert.deepEqual(withMailboxes.chains[0].mailboxes, [
+    { address: "sam@harbor-mail.example", sent_days: 12, daily_cap: 40, customer_domain: false },
+  ]);
+  // A mailbox the chain names is its pace only as the run reads it (contracts reachOutWritesFrom) and while it sends:
+  // a named paused or held one is not said, nor a connected one it does not name, nor one removed.
+  const boxes = [
+    box("d1", "sam@harbor-mail.example", { sent_days: 12, customer_domain: true }),
+    box("d2", "other@other.example", { sent_days: 30 }),
+    box("d3", "held@harbor-mail.example", { state: "held", held_why: "bounces", held_at: CLEAN }),
+    box("d4", "paused@harbor-mail.example", { state: "paused" }),
+    box("d5", "gone@harbor-mail.example", { state: "removed", removed_at: CLEAN }),
   ];
   const names = ["d1", "d3", "d4", "d5"];
   const named = await chains.GET.run(
     get(),
     ctxFor(
       tables("viewer", {
-        playbooks: tables("viewer").playbooks.map((p) => (p.id === ROOT_ID ? { ...p, domain_ids: names } : p)),
-        sending_domains: domains,
+        playbooks: tables("viewer").playbooks.map((p) => (p.id === ROOT_ID ? { ...p, mailbox_ids: names } : p)),
+        mailbox_connections: boxes,
       }),
     ),
   );
-  assert.deepEqual(named.chains[0].domains, [{ host: "harbor-mail.example", sent_days: 12 }]);
-  // The run's own rule, the same function: the edge's timetable and re-plan filter by it (run-context.ts, replan.ts).
+  assert.deepEqual(named.chains[0].mailboxes, [
+    { address: "sam@harbor-mail.example", sent_days: 12, daily_cap: 40, customer_domain: true },
+  ]);
+  // The run's own rule, the same function: the edge's timetable and re-plan read by it (reach-out/senders.ts).
   assert.deepEqual(
-    domains.map((d) => reachOutSendsFrom(d, names)),
-    [true, false, false, false, false],
+    boxes.map((m) => reachOutWritesFrom(m, names)),
+    [true, false, true, true, false],
   );
   const none = await chains.GET.run(get(), ctxFor(tables("viewer", { policies: [] })));
   assert.equal(none.chains[0].next.mode, "ask", "no row reads as ask, as the run reads it");

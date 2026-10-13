@@ -476,6 +476,8 @@ test("Setup asks for each source once, in one order, whichever viewer reads -- a
       "billing_accounts.select",
       "invitations.select",
       "lines.select",
+      // The mailboxes a reach-out writes from (decision 0056): read with the email line, whatever the hosted one.
+      "mailbox_connections.select",
       "tenant_channels.select",
       "templates.select",
       "contacts.select",

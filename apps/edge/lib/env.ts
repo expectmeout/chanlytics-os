@@ -110,14 +110,6 @@ export const env = {
   get RESEND_API_KEY() {
     return trimmedEnv(process.env.RESEND_API_KEY);
   },
-  /**
-   * The cold mail account's key (Reach out): a workspace's own sending domains are created, checked and sent from on
-   * it, so one business's cold mail cannot touch the reminders and replies every workspace sends on RESEND_API_KEY.
-   * Absent, own domains are off here: the Connections block is not drawn and the domains clock answers 503.
-   */
-  get RESEND_COLD_API_KEY() {
-    return trimmedEnv(process.env.RESEND_COLD_API_KEY);
-  },
   get LEAD_TO() {
     return trimmedEnv(process.env.LEAD_TO);
   },
@@ -138,13 +130,10 @@ export const env = {
   get RESEND_WEBHOOK_SECRET() {
     return trimmedEnv(process.env.RESEND_WEBHOOK_SECRET);
   },
-  /** The cold account's webhook secret (Reach out): its receipts come to the same door, proven with this one. */
-  get RESEND_COLD_WEBHOOK_SECRET() {
-    return trimmedEnv(process.env.RESEND_COLD_WEBHOOK_SECRET);
-  },
   /**
    * The key that seals a cold email's unsubscribe link (Reach out): the SAME value as the dashboard's, whose /u/ page
-   * opens them. The domains sweep probes that the two agree (email/unsubscribe-probe.ts).
+   * opens them. The mailboxes sweep probes that the two agree (email/unsubscribe-probe.ts). A reach-out writes nothing
+   * without it: every cold email carries its one-click unsubscribe in its headers (decision 0056, 7).
    */
   get UNSUBSCRIBE_SECRET() {
     return trimmedEnv(process.env.UNSUBSCRIBE_SECRET);
@@ -156,20 +145,38 @@ export const env = {
   get UNSUBSCRIBE_ORIGIN() {
     return trimmedEnv(process.env.UNSUBSCRIBE_ORIGIN);
   },
-  /**
-   * The domain a cold email's replies come back on (Reach out D17): the mailbox's reply routes there, received on the
-   * platform's account like EMAIL_DOMAIN, which keeps receiving the replies to older emails. Blank = EMAIL_DOMAIN.
-   */
-  get COLD_REPLY_DOMAIN() {
-    return trimmedEnv(process.env.COLD_REPLY_DOMAIN);
+
+  // Connected mailboxes (decision 0056): the OAuth clients a business connects its Gmail or Microsoft 365 mailbox
+  // with, the callback both return to, and how each provider tells the edge a mailbox changed.
+  /** Google's OAuth client for mail: a Google Cloud project of its own, apart from Business Profile's. */
+  get GOOGLE_MAIL_CLIENT_ID() {
+    return trimmedEnv(process.env.GOOGLE_MAIL_CLIENT_ID);
   },
-  /**
-   * The cold reply domain before the one set now (D17): replies to the cold emails already sent from it keep routing
-   * to their workspace, and an email queued before the move still leaves, while it winds down (docs/runbook.md). Set
-   * it when COLD_REPLY_DOMAIN moves or is unset; clear it once no reply can still come there. Blank = none.
-   */
-  get COLD_REPLY_DOMAIN_PREVIOUS() {
-    return trimmedEnv(process.env.COLD_REPLY_DOMAIN_PREVIOUS);
+  get GOOGLE_MAIL_CLIENT_SECRET() {
+    return trimmedEnv(process.env.GOOGLE_MAIL_CLIENT_SECRET);
+  },
+  /** Microsoft's app registration for mail (multi-tenant, delegated Mail.Send and Mail.ReadWrite). */
+  get MICROSOFT_MAIL_CLIENT_ID() {
+    return trimmedEnv(process.env.MICROSOFT_MAIL_CLIENT_ID);
+  },
+  get MICROSOFT_MAIL_CLIENT_SECRET() {
+    return trimmedEnv(process.env.MICROSOFT_MAIL_CLIENT_SECRET);
+  },
+  /** The dashboard's callback both providers return to, registered on each exactly as written here. */
+  get MAILBOX_OAUTH_REDIRECT() {
+    return trimmedEnv(process.env.MAILBOX_OAUTH_REDIRECT);
+  },
+  /** The Pub/Sub topic Gmail publishes a mailbox's changes to (projects/<project>/topics/<name>). */
+  get GMAIL_PUSH_TOPIC() {
+    return trimmedEnv(process.env.GMAIL_PUSH_TOPIC);
+  },
+  /** The audience the topic's push subscription signs its token for: the push door checks it. */
+  get GMAIL_PUSH_AUDIENCE() {
+    return trimmedEnv(process.env.GMAIL_PUSH_AUDIENCE);
+  },
+  /** The clientState every Graph subscription carries, checked on each notification it sends. */
+  get GRAPH_NOTIFY_SECRET() {
+    return trimmedEnv(process.env.GRAPH_NOTIFY_SECRET);
   },
   // Push (Expo's push service)
   get EXPO_ACCESS_TOKEN() {

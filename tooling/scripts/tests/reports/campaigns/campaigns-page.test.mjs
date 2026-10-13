@@ -95,7 +95,7 @@ const RO_IDS = [
   "ro-emails",
   "ro-funnel",
   "ro-angles",
-  "ro-domains",
+  "ro-mailboxes",
   "ro-written",
   "ro-sources",
 ];
@@ -1129,10 +1129,10 @@ test("a share of fewer than five businesses or emails is a count on the reach-ou
         steps: [reachStep("p1", 0, { written: 4, delivered: 3, bounced: 1, businesses: 3, wrote_back: 1 })],
       },
     ],
-    domains: [
+    mailboxes: [
       {
-        host: "mail.example.com",
-        state: "verified",
+        address: "sam@mail.example.com",
+        state: "connected",
         held_why: null,
         held_at: null,
         sent: 3,
@@ -1152,7 +1152,7 @@ test("a share of fewer than five businesses or emails is a count on the reach-ou
     textOf(byTestId(tree, "ro-funnel")),
     textOf(byTestId(tree, "ro-angles")),
     textOf(byTestId(tree, "ro-sources")),
-    textOf(byTestId(tree, "ro-domains")).replace("Past 2% bounced, a domain holds itself.", ""),
+    textOf(byTestId(tree, "ro-mailboxes")).replace("Past 3% bounced, a mailbox holds itself.", ""),
   ].join(" ");
   assert.doesNotMatch(said, /\d%/, "REGRESSION: a share of fewer than five said as a percentage");
   assert.deepEqual(
@@ -1160,7 +1160,7 @@ test("a share of fewer than five businesses or emails is a count on the reach-ou
     [["1 of 3", "var(--chart-prior)"]],
   );
   assert.deepEqual(
-    cellsOfRows(tree, "ro-domain-row").map((c) => c.slice(1)),
+    cellsOfRows(tree, "ro-mailbox-row").map((c) => c.slice(1)),
     [["3", "2 of 3", "1 of 3", "0 of 3"]],
   );
 });
@@ -1205,7 +1205,7 @@ test("a database before 00404 says it does not count businesses and draws the em
   assert.doesNotMatch(textOf(tree), /NaN|null|undefined/);
 });
 
-test("the days written and the domains are the fold's, said aloud in its words", () => {
+test("the days written and the mailboxes are the fold's, said aloud in its words", () => {
   const v = liveFoldOf({ reachOuts: reachOuts() }).reachOuts;
   const tree = draw({ own: everything() });
   assert.equal(titleOf(tree, "ro-written"), "Written, day by day");
@@ -1224,21 +1224,21 @@ test("the days written and the domains are the fold's, said aloud in its words",
     lineOf(draw({ own: held(dtoWith(), "7d", { reachOuts: handed }) }), "ro-written"),
     "4 businesses handed to you as a call or a note, too.",
   );
-  assert.equal(titleOf(tree, "ro-domains"), "By domain");
-  assert.equal(lineOf(tree, "ro-domains"), v.lines.domains);
-  assert.deepEqual(headersOf(tree, "ro-domains"), ["Domain", "Sent", "Landed", "Bounced", "Spam"]);
+  assert.equal(titleOf(tree, "ro-mailboxes"), "By mailbox");
+  assert.equal(lineOf(tree, "ro-mailboxes"), v.lines.mailboxes);
+  assert.deepEqual(headersOf(tree, "ro-mailboxes"), ["Mailbox", "Sent", "Landed", "Bounced", "Spam"]);
   assert.deepEqual(
-    cellsOfRows(tree, "ro-domain-row").map((c) => [c[0], ...c.slice(1)]),
-    v.domains.map((d) => [`${d.host}${d.state}`, String(d.sent), d.landed, d.bounced, d.complained]),
+    cellsOfRows(tree, "ro-mailbox-row").map((c) => [c[0], ...c.slice(1)]),
+    v.mailboxes.map((d) => [`${d.address}${d.state}`, String(d.sent), d.landed, d.bounced, d.complained]),
   );
-  // No domain sent: the card is not drawn (it would say a sentence of the page's own), and the days take the row.
-  const none = draw({ own: held(dtoWith(), "7d", { reachOuts: reachOuts({ domains: [] }) }) });
-  assert.equal(byTestId(none, "ro-domains"), null);
+  // No mailbox sent: the card is not drawn (it would say a sentence of the page's own), and the days take the row.
+  const none = draw({ own: held(dtoWith(), "7d", { reachOuts: reachOuts({ mailboxes: [] }) }) });
+  assert.equal(byTestId(none, "ro-mailboxes"), null);
   assert.deepEqual(rowsOfSpans(none).slice(-2), [[12], [12]]);
 });
 
 test("a period in which only calls and notes were handed to you says nothing was written once, and draws no days card of its own", () => {
-  // Hand steps alone ran: handed > 0, written = 0, so the period is not empty but no email left (and so none from any domain).
+  // Hand steps alone ran: handed > 0, written = 0, so the period is not empty but no email left (and so none from any mailbox).
   const handed = (over = {}) =>
     reachOuts({
       totals: reachCounts({ businesses: 0, handed: 4 }),
@@ -1246,7 +1246,7 @@ test("a period in which only calls and notes were handed to you says nothing was
       series: [],
       angles: [],
       no_angle: 0,
-      domains: [],
+      mailboxes: [],
       chains: [
         {
           ...reachOuts().chains[0],
@@ -1266,7 +1266,7 @@ test("a period in which only calls and notes were handed to you says nothing was
     "the emails card and the step on its line stand",
   );
   assert.equal(byTestId(tree, "ro-written"), null, "no days card of a sentence");
-  assert.equal(byTestId(tree, "ro-domains"), null, "and no domain sent");
+  assert.equal(byTestId(tree, "ro-mailboxes"), null, "and no mailbox sent");
   assert.equal(lineOf(tree, "ro-sources"), v.lines.sources);
   assert.deepEqual(
     all(byTestId(tree, "rpt-reach-outs"), (n) => n.type === "div" && classes(n).includes("rpt-grid")).map((g) =>
@@ -1275,13 +1275,13 @@ test("a period in which only calls and notes were handed to you says nothing was
     [[4, 4, 4], [12]],
     "the sources stand alone in their row",
   );
-  // A domain that sent nothing is still a card, and takes the whole row.
-  const quietDomain = reachOuts({
+  // A mailbox that sent nothing is still a card, and takes the whole row.
+  const quietMailbox = reachOuts({
     ...handed(),
-    domains: [
+    mailboxes: [
       {
-        host: "mail.example.com",
-        state: "verified",
+        address: "sam@mail.example.com",
+        state: "connected",
         held_why: null,
         held_at: null,
         sent: 0,
@@ -1291,14 +1291,14 @@ test("a period in which only calls and notes were handed to you says nothing was
       },
     ],
   });
-  const withDomain = draw({ own: held(dtoWith(), "7d", { reachOuts: quietDomain }) });
-  assert.equal(byTestId(withDomain, "ro-written"), null);
+  const withMailbox = draw({ own: held(dtoWith(), "7d", { reachOuts: quietMailbox }) });
+  assert.equal(byTestId(withMailbox, "ro-written"), null);
   assert.deepEqual(
-    all(byTestId(withDomain, "rpt-reach-outs"), (n) => n.type === "div" && classes(n).includes("rpt-grid")).map((g) =>
+    all(byTestId(withMailbox, "rpt-reach-outs"), (n) => n.type === "div" && classes(n).includes("rpt-grid")).map((g) =>
       cardsOfGrid(g).map(spanOf),
     ),
     [[4, 4, 4], [12], [12]],
-    "the domain takes its row, and the sources theirs",
+    "the mailbox takes its row, and the sources theirs",
   );
 });
 

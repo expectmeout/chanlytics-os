@@ -1,14 +1,15 @@
 /**
- * Reach out's doors on the database (00184, Reach out Part 3 PR 3): one capacity per domain (D15's days sent, the
- * day's use, the timetable's times), the send door keyed by the lead a send is for, the leads a chain's first step may
- * write to, the person a first send makes without converting its lead, a step's followers, and the claim that never
- * spends a domain's day twice. Email rows are frozen as the send path freezes them (buildEmailRequest with
- * ownDomainIdentity), so the From every door reads is the real shape. Local stack only: it makes workspaces.
+ * Reach out's doors on the database (00184, Reach out Part 3 PR 3; a connected mailbox's since 00424): one capacity per
+ * mailbox (D15's days sent, the day's use, the timetable's times, all from its own sends), the send door keyed by the
+ * lead a send is for, the leads a chain's first step may write to, the person a first send makes without converting
+ * its lead, a step's followers with the mailbox each was written from, and the claim that never spends a mailbox's day
+ * twice. Email rows are frozen as the send path freezes them (buildEmailRequest with connectedIdentity), so the From
+ * every door reads is the real shape. Local stack only: it makes workspaces.
  */
 import { test, before, after, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
-import { buildEmailRequest, ownDomainIdentity } from "@chanlytics/channels";
+import { buildEmailRequest, connectedIdentity } from "@chanlytics/channels";
 import { claimSends } from "@chanlytics/db";
 
 const URL_ = process.env.SUPABASE_URL;
@@ -23,7 +24,6 @@ const skip =
 const H = 3_600_000;
 const DAY = 24 * H;
 const stamp = Date.now().toString(36);
-const MAILBOX = { local_part: "harbor", reply_token: "b".repeat(24), from_name: "Harbor" };
 // A fixed noon (UTC) today: the days a row left on are the UTC days either side of it, whatever the hour of the run.
 const NOON = Math.floor(Date.now() / DAY) * DAY + 12 * H;
 const iso = (ms) => new Date(ms).toISOString();
@@ -44,28 +44,30 @@ const ok = (res) => {
 };
 const one = async (q) => ok(await q.select("id").single()).id;
 
-const domainRow = (over = {}) =>
-  one(
-    db.from("sending_domains").insert({
+/** A mailbox the business connected, on a host of its own (three a host, ten a workspace: 00423). */
+const mailboxRow = (over = {}) => {
+  n += 1;
+  return one(
+    db.from("mailbox_connections").insert({
       tenant_id: A,
-      host: `d${++n}-${stamp}.example`,
-      from_local: "sam",
+      provider: "google",
+      provider_account: `acct-${n}-${stamp}`,
+      address: `sam@d${n}-${stamp}.example`,
+      host: `d${n}-${stamp}.example`,
       from_name: "Sam at Harbor",
-      state: "verified",
-      provider_status: "verified",
-      dmarc: "found",
-      verified_at: iso(Date.now() - 10 * DAY),
       clean_since: iso(Date.now() - 10 * DAY),
       ...over,
     }),
   );
-const hostOf = async (id) => ok(await db.from("sending_domains").select("host").eq("id", id).single()).host;
+};
+const addressOf = async (id) =>
+  ok(await db.from("mailbox_connections").select("address").eq("id", id).single()).address;
 
-/** One outbound email from an own domain, frozen as the send path freezes it. */
-async function emailFrom(host, { status = "sent", error = null, sentAt = null, conv = thread } = {}) {
+/** One outbound email from a connected mailbox, frozen as the send path freezes it. */
+async function emailFrom(address, { status = "sent", error = null, sentAt = null, conv = thread } = {}) {
   const id = crypto.randomUUID();
   const request = buildEmailRequest({
-    identity: ownDomainIdentity({ host, from_local: "sam", from_name: "Sam" }, MAILBOX, "mail.chanlytics.com"),
+    identity: connectedIdentity({ address, from_name: "Sam" }),
     to: `owner-${stamp}@fixture-doors.example`,
     parent: null,
     subject: "Your moving quotes",
@@ -93,7 +95,7 @@ async function emailFrom(host, { status = "sent", error = null, sentAt = null, c
       error,
       ...(sentAt ? { created_at: iso(sentAt - 60_000) } : {}),
       meta: {
-        email: { subject: request.subject, to: request.to[0], request, message_id: `<${id}@mail.chanlytics.com>` },
+        email: { subject: request.subject, to: request.to[0], request, message_id: `<${id}@getharbor.example>` },
         ...(sentAt ? { status_at: { sent: iso(sentAt) } } : {}),
       },
     }),
@@ -114,6 +116,7 @@ const lead = (over = {}) => {
       email: `owner-${stamp}-${n}@fixture-doors.example`,
       email_state: "ok",
       stage: "ready",
+      country: "US",
       ...over,
     }),
   );
@@ -164,8 +167,20 @@ async function sendIn(over = {}, to = "planned", at = {}) {
   }
   return id;
 }
-const capacity = async (domain, at = NOON) =>
-  ok(await db.rpc("sending_domain_capacity", { p_domain_id: domain, p_at: iso(at) }));
+/**
+ * What a mailbox's day counts is its own reach-out sends (00424): an email it sent, frozen, and its send moved along
+ * the guard's path to where the email is (written and waiting, or gone).
+ */
+async function sentFrom(mailbox, { status = "sent", error = null, sentAt = null } = {}) {
+  const m = await emailFrom(await addressOf(mailbox), { status, error, sentAt });
+  await sendIn({ mailbox_id: mailbox, lead_id: await lead() }, status === "queued" ? "queued" : "sent", {
+    messageId: m,
+    sentAt: sentAt ?? Date.now(),
+  });
+  return m;
+}
+const capacity = async (mailbox, at = NOON) =>
+  ok(await db.rpc("mailbox_capacity", { p_mailbox_id: mailbox, p_at: iso(at) }));
 const hash = async (value) => ok(await db.rpc("lead_suppression_hash", { p_tenant_id: A, p_value: value }));
 
 before(async () => {
@@ -239,73 +254,81 @@ before(async () => {
   );
   thread = await one(db.from("conversations").insert({ tenant_id: A, contact_id: person }));
 });
-// A workspace sends from five domains at most (00175): each case removes its own, and its sends keep their place.
+// A workspace connects ten mailboxes at most (00423): each case removes its own, and its sends keep their place.
 afterEach(async () => {
-  if (!skip && A) ok(await db.from("sending_domains").delete().eq("tenant_id", A));
+  if (!skip && A) ok(await db.from("mailbox_connections").delete().eq("tenant_id", A));
 });
 after(async () => {
   if (skip) return;
   if (A) ok(await db.from("tenants").delete().eq("id", A));
 });
 
-test("capacity: a domain's day, its days sent (D15), and the times it spends, from one read", { skip }, async () => {
-  const d = await domainRow();
-  const host = await hostOf(d);
+test("capacity: a mailbox's day, its days sent (D15), and the times it spends, from one read", { skip }, async () => {
+  const d = await mailboxRow();
   assert.deepEqual(await capacity(d), {
-    state: "verified",
-    clean_since: (await db.from("sending_domains").select("clean_since").eq("id", d).single()).data.clean_since,
+    state: "connected",
+    clean_since: ok(await db.from("mailbox_connections").select("clean_since").eq("id", d).single()).clean_since,
+    resting_until: null,
+    daily_cap: 40,
+    customer_domain: false,
     sent_days: 0,
+    sent_today: 0,
     used: 0,
     recent: [],
     last_sent_at: null,
   });
   // Two left on this UTC day, one the day before: one day sent before today (today's counts from tomorrow, so a
-  // domain's share holds all day), two spent in the rolling day.
-  await emailFrom(host, { sentAt: NOON - 1 * H });
-  await emailFrom(host, { sentAt: NOON - 2 * H });
-  await emailFrom(host, { sentAt: NOON - 25 * H });
+  // mailbox's share holds all day), two spent in the rolling day.
+  await sentFrom(d, { sentAt: NOON - 1 * H });
+  await sentFrom(d, { sentAt: NOON - 2 * H });
+  await sentFrom(d, { sentAt: NOON - 25 * H });
   let c = await capacity(d);
-  assert.deepEqual([c.sent_days, c.used], [1, 2]);
+  assert.deepEqual([c.sent_days, c.sent_today, c.used], [1, 2, 2]);
   assert.equal((await capacity(d, NOON + DAY)).sent_days, 2, "tomorrow, today is a day sent");
-  // Written and not yet left, and claimed with no row yet: each spends the day too.
-  await emailFrom(host, { status: "queued" });
-  await sendIn({ domain_id: d, lead_id: await lead() }, "claimed");
+  // Written and not yet left, and claimed with no email yet: each spends the day too, and neither has left.
+  await sentFrom(d, { status: "queued" });
+  await sendIn({ mailbox_id: d, lead_id: await lead() }, "claimed");
   c = await capacity(d);
-  assert.equal(c.used, 4);
+  assert.deepEqual([c.sent_today, c.used], [2, 4]);
   // A planned send is a time the timetable keeps clear, never a send spent.
   const later = NOON + 1 * H;
-  await sendIn({ domain_id: d, lead_id: await lead(), send_at: iso(later) });
+  await sendIn({ mailbox_id: d, lead_id: await lead(), send_at: iso(later) });
   c = await capacity(d);
   assert.equal(c.used, 4);
   assert.ok(c.recent.includes(later), "the planned time is in recent");
   assert.ok(c.recent.includes(NOON - 1 * H) && !c.recent.includes(NOON - 25 * H), "the rolling day's, not yesterday's");
-  // Another domain's mail counts nothing here.
-  await emailFrom(await hostOf(await domainRow()), { sentAt: NOON - 3 * H });
+  // Another mailbox's mail counts nothing here, and neither does an email of this address no send of it wrote.
+  await sentFrom(await mailboxRow(), { sentAt: NOON - 3 * H });
+  await emailFrom(await addressOf(d), { sentAt: NOON - 4 * H });
   assert.equal((await capacity(d)).used, 4);
   assert.equal(Date.parse((await capacity(d)).last_sent_at), NOON - 1 * H);
+  // A bounce left, and counts; a refusal at the provider did not.
+  await sentFrom(d, { status: "failed", error: { provider: "bounced" }, sentAt: NOON - 5 * H });
+  await sentFrom(d, { status: "failed", error: { provider: "rejected" }, sentAt: NOON - 6 * H });
+  assert.equal((await capacity(d)).used, 5);
 
   // The rolling day is (at - 24 h, at], as the timetable counts it: one left exactly a day before is out, one at the
   // moment is in.
-  const edge = await domainRow();
-  const edgeHost = await hostOf(edge);
-  await emailFrom(edgeHost, { sentAt: NOON - DAY });
-  await emailFrom(edgeHost, { sentAt: NOON });
+  const edge = await mailboxRow();
+  await sentFrom(edge, { sentAt: NOON - DAY });
+  await sentFrom(edge, { sentAt: NOON });
   assert.equal((await capacity(edge)).used, 1);
+  // And a mailbox nobody connected has no day at all.
+  assert.equal(await capacity(crypto.randomUUID()), null);
 });
 
 test(
-  "D15 counts the days sent in the last 90 since it was clean: a domain idle for months warms again",
+  "D15 counts the days sent in the last 90 since it was clean: a mailbox idle for months warms again",
   { skip },
   async () => {
-    const d = await domainRow({ clean_since: iso(NOON - 200 * DAY), verified_at: iso(NOON - 200 * DAY) });
-    const host = await hostOf(d);
-    for (const daysBack of [150, 120, 100]) await emailFrom(host, { sentAt: NOON - daysBack * DAY });
-    await emailFrom(host, { sentAt: NOON - 5 * DAY });
+    const d = await mailboxRow({ clean_since: iso(NOON - 200 * DAY) });
+    for (const daysBack of [150, 120, 100]) await sentFrom(d, { sentAt: NOON - daysBack * DAY });
+    await sentFrom(d, { sentAt: NOON - 5 * DAY });
     assert.equal((await capacity(d)).sent_days, 1, "only the day inside the last 90");
     // And never before it was clean: a Resume starts the count again.
     ok(
       await db
-        .from("sending_domains")
+        .from("mailbox_connections")
         .update({ clean_since: iso(NOON - 2 * DAY) })
         .eq("id", d),
     );
@@ -317,32 +340,52 @@ test(
   "the send door is keyed by the lead a send is for; without one, the lead still being written to wins",
   { skip },
   async () => {
-    const d = await domainRow();
-    const host = await hostOf(d);
+    const d = await mailboxRow();
+    const from = await addressOf(d);
     const person = await one(db.from("contacts").insert({ tenant_id: A, email: `two-${stamp}@fixture-doors.example` }));
     const closed = await lead({ contact_id: person, stage: "archived", closed_reason: "not_a_fit" });
     await lead({ contact_id: person, stage: "ready" });
     const facts = async (over) =>
       ok(
-        await db.rpc("outreach_facts", {
+        await db.rpc("outreach_mailbox_facts", {
           p_tenant_id: A,
           p_contact_id: person,
           p_to: `two-${stamp}@fixture-doors.example`,
-          p_host: host,
-          p_since: iso(Date.now() - DAY),
+          p_from: from,
           ...over,
         }),
       );
     assert.equal((await facts({ p_lead_id: closed })).lead_stage, "archived", "the send's own lead");
     assert.equal((await facts({})).lead_stage, "ready", "00181's rule without one");
-    // The five arguments an edge built before this answers with, and the domain's days sent beside its state: the
-    // ramp's days as the domains clock wrote them on the row (none until written).
-    const five = await facts({});
-    assert.deepEqual(Object.keys(five.domain).sort(), ["clean_since", "from_local", "sent_days", "state"]);
-    assert.equal(five.domain.sent_days, 0);
-    ok(await db.from("sending_domains").update({ sent_days: 16 }).eq("id", d));
-    assert.equal((await facts({})).domain.sent_days, 16);
-    // The lead's own facts, as a step's followers ask them: the same answer, without the domain's.
+    // The mailbox the From is, with its day beside it: the ramp's days counted from its own sends, never the number
+    // the health clock keeps on its row for the page.
+    const f = await facts({});
+    assert.deepEqual(Object.keys(f.mailbox).sort(), [
+      "address",
+      "clean_since",
+      "customer_domain",
+      "daily_cap",
+      "id",
+      "last_sent_at",
+      "recent",
+      "resting_until",
+      "sent_days",
+      "sent_today",
+      "state",
+      "used",
+    ]);
+    assert.deepEqual([f.mailbox.id, f.mailbox.sent_days], [d, 0]);
+    ok(await db.from("mailbox_connections").update({ sent_days: 16 }).eq("id", d));
+    assert.equal((await facts({})).mailbox.sent_days, 0);
+    // A removed mailbox is no mailbox to send from.
+    ok(
+      await db
+        .from("mailbox_connections")
+        .update({ state: "removed", removed_at: iso(Date.now()) })
+        .eq("id", d),
+    );
+    assert.equal((await facts({})).mailbox, null);
+    // The lead's own facts, as a step's followers ask them: the same answer, without the mailbox's.
     const own = ok(
       await db.rpc("outreach_lead_facts", {
         p_tenant_id: A,
@@ -433,11 +476,11 @@ test(
     );
     out.inChain = await lead();
     await member(out.inChain);
-    await sendIn({ lead_id: out.inChain, domain_id: await domainRow() });
+    await sendIn({ lead_id: out.inChain, mailbox_id: await mailboxRow() });
     // A lead in a run its owner skipped is the chain's again.
     const skipped = await lead();
     await member(skipped, { fit: "long" });
-    const s = await sendIn({ lead_id: skipped, domain_id: await domainRow() });
+    const s = await sendIn({ lead_id: skipped, mailbox_id: await mailboxRow() });
     ok(await db.from("reach_out_sends").update({ state: "skipped", reason: "run_canceled" }).eq("id", s));
     want.push(skipped);
 
@@ -592,13 +635,13 @@ test(
   "a step's followers: sent the step before long enough ago, not on this step yet, and only those the door would write to (00185)",
   { skip },
   async () => {
-    const d = await domainRow();
-    const host = await hostOf(d);
-    const sentTo = async ({ daysAgo, status = "sent", error = null }) => {
-      const l = await lead();
+    const d = await mailboxRow();
+    const from = await addressOf(d);
+    const sentTo = async ({ daysAgo, status = "sent", error = null, over = {} }) => {
+      const l = await lead(over);
       const p = ok(await db.rpc("reach_out_person", { p_tenant_id: A, p_lead_id: l }));
-      const m = await emailFrom(host, { status, error, sentAt: Date.now() - daysAgo * DAY, conv: p.conversation_id });
-      await sendIn({ lead_id: l, contact_id: p.contact_id, domain_id: d }, "sent", {
+      const m = await emailFrom(from, { status, error, sentAt: Date.now() - daysAgo * DAY, conv: p.conversation_id });
+      await sendIn({ lead_id: l, contact_id: p.contact_id, mailbox_id: d }, "sent", {
         messageId: m,
         sentAt: Date.now() - daysAgo * DAY,
       });
@@ -612,7 +655,7 @@ test(
       playbook_id: step,
       lead_id: already.lead,
       contact_id: already.contact_id,
-      domain_id: d,
+      mailbox_id: d,
     });
     const bounced = await sentTo({ daysAgo: 5, status: "failed", error: { provider: "bounced" } });
     const failed = await sentTo({ daysAgo: 5, status: "failed", error: { provider: "failed" } });
@@ -649,6 +692,26 @@ test(
       [due.contact_id, due.message, false, false],
     );
     assert.equal(by[due.lead].facts.lead_stage, "ready", "the door's own answer, keyed by the lead");
+    assert.deepEqual(
+      [by[due.lead].mailbox_id, by[due.lead].country],
+      [d, "US"],
+      "the mailbox the step before wrote from, so the nudge leaves from it in the thread, and the lead's country",
+    );
+    // A mailbox removed since keeps its sends, and its followers come back with none: the sender skips them.
+    const abroad = await sentTo({ daysAgo: 4, over: { country: "FR" } });
+    ok(await db.from("mailbox_connections").delete().eq("id", d));
+    const after = Object.fromEntries(
+      ok(
+        await db.rpc("reach_out_followers", {
+          p_tenant_id: A,
+          p_step_id: step,
+          p_parent_id: root,
+          p_after_days: 3,
+          p_limit: 50,
+        }),
+      ).map((r) => [r.lead_id, r]),
+    );
+    assert.deepEqual([after[due.lead].mailbox_id, after[abroad.lead].country], [null, "FR"]);
     // 00185: one the door would refuse never comes back to hold a place at the head of the page.
     assert.ok(!by[bounced.lead], "any bounce in the chain stops it (C4)");
     assert.ok(!by[failed.lead], "an email that failed for good stops it too");
@@ -675,34 +738,34 @@ test(
   { skip },
   async () => {
     // Each claim at its own moment, after its sends were planned a minute ago.
-    const claim = async (domain, cap, limit = 10) =>
+    const claim = async (mailbox, cap, limit = 10) =>
       ok(
-        await db.rpc("reach_out_claim", {
-          p_domain_id: domain,
+        await db.rpc("reach_out_claim_from", {
+          p_mailbox_id: mailbox,
           p_cap: cap,
           p_at: new Date().toISOString(),
           p_limit: limit,
         }),
       );
     // Cap 2 with one already left today: room for one of three due.
-    const d1 = await domainRow();
-    await emailFrom(await hostOf(d1), { sentAt: Date.now() - H });
-    for (let i = 0; i < 3; i += 1) await sendIn({ domain_id: d1, lead_id: await lead() });
+    const d1 = await mailboxRow();
+    await sentFrom(d1, { sentAt: Date.now() - H });
+    for (let i = 0; i < 3; i += 1) await sendIn({ mailbox_id: d1, lead_id: await lead() });
     const got = await claim(d1, 2);
     assert.equal(got.length, 1);
     assert.equal(got[0].state, "claimed");
     assert.equal((await claim(d1, 2)).length, 0, "the claimed one spends the day as well");
 
     // Two ticks at once, cap 3, five due: three claimed between them, never more.
-    const d2 = await domainRow();
-    for (let i = 0; i < 5; i += 1) await sendIn({ domain_id: d2, lead_id: await lead() });
+    const d2 = await mailboxRow();
+    for (let i = 0; i < 5; i += 1) await sendIn({ mailbox_id: d2, lead_id: await lead() });
     const [x, y] = await Promise.all([claim(d2, 3), claim(d2, 3)]);
     assert.equal(x.length + y.length, 3);
     assert.equal(new Set([...x, ...y].map((r) => r.id)).size, 3);
 
-    // Not yet due, a paused chain's, a run waiting for its owner's yes, a held domain's: none of them.
-    const d3 = await domainRow();
-    const notDue = await sendIn({ domain_id: d3, lead_id: await lead(), send_at: iso(Date.now() + H) });
+    // Not yet due, a paused chain's, a run waiting for its owner's yes, a held mailbox's: none of them.
+    const d3 = await mailboxRow();
+    const notDue = await sendIn({ mailbox_id: d3, lead_id: await lead(), send_at: iso(Date.now() + H) });
     const paused = await one(
       db.from("playbooks").insert({
         tenant_id: A,
@@ -739,7 +802,7 @@ test(
       }),
     );
     await sendIn({
-      domain_id: d3,
+      mailbox_id: d3,
       lead_id: await lead(),
       broadcast_id: pausedRun,
       playbook_id: paused,
@@ -759,15 +822,25 @@ test(
         run_for: "2026-09-29",
       }),
     );
-    await sendIn({ domain_id: d3, lead_id: await lead(), broadcast_id: waiting });
+    await sendIn({ mailbox_id: d3, lead_id: await lead(), broadcast_id: waiting });
     assert.equal((await claim(d3, 30)).length, 0);
     assert.equal(ok(await db.from("reach_out_sends").select("state").eq("id", notDue).single()).state, "planned");
-    const held = await domainRow({ state: "held", held_why: "bounces", held_at: iso(Date.now()) });
-    await sendIn({ domain_id: held, lead_id: await lead() });
-    assert.equal((await claim(held, 30)).length, 0, "a held domain claims nothing");
+    const held = await mailboxRow({ state: "held", held_why: "bounces", held_at: iso(Date.now()) });
+    await sendIn({ mailbox_id: held, lead_id: await lead() });
+    assert.equal((await claim(held, 30)).length, 0, "a held mailbox claims nothing");
+    // Nor one its owner paused, one to reconnect, or one its provider has rested until later today.
+    for (const over of [{ state: "paused" }, { state: "reconnect" }, { resting_until: iso(Date.now() + H) }]) {
+      const quiet = await mailboxRow(over);
+      await sendIn({ mailbox_id: quiet, lead_id: await lead() });
+      assert.equal((await claim(quiet, 30)).length, 0, JSON.stringify(over));
+    }
+    // A rest that has passed is no rest.
+    const rested = await mailboxRow({ resting_until: iso(Date.now() - 60_000) });
+    await sendIn({ mailbox_id: rested, lead_id: await lead() });
+    assert.equal((await claim(rested, 30)).length, 1, "rested, and due again");
 
     // A step still running under a paused root: the chain is paused, every step of it.
-    const d4 = await domainRow();
+    const d4 = await mailboxRow();
     const pausedStep = await one(
       db.from("playbooks").insert({
         tenant_id: A,
@@ -799,7 +872,7 @@ test(
       }),
     );
     await sendIn({
-      domain_id: d4,
+      mailbox_id: d4,
       lead_id: await lead(),
       broadcast_id: pausedStepRun,
       playbook_id: pausedStep,
@@ -808,7 +881,7 @@ test(
     assert.equal((await claim(d4, 30)).length, 0, "a paused root holds its steps");
 
     // No share or no limit is no claim, never "no cap": least() would read a null as none at all.
-    await sendIn({ domain_id: d4, lead_id: await lead() });
+    await sendIn({ mailbox_id: d4, lead_id: await lead() });
     for (const [cap, limit] of [
       [null, 10],
       [30, null],
@@ -818,7 +891,7 @@ test(
     ])
       assert.deepEqual(await claim(d4, cap, limit), [], JSON.stringify({ cap, limit }));
     await assert.rejects(
-      claimSends(db, { domainId: d4, cap: Number.NaN, at: new Date(), limit: 10 }),
+      claimSends(db, { mailboxId: d4, cap: Number.NaN, at: new Date(), limit: 10 }),
       /whole numbers/,
       "the repository refuses what JSON would send as null",
     );

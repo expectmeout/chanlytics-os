@@ -1057,7 +1057,7 @@ test("Campaigns' reach-outs (A2): each one the ledger shows is a row of its own,
     after_playbook_id: null,
     after_days: null,
     gap_minutes: 12,
-    domain_ids: [],
+    mailbox_ids: [],
     signed_by: "Sam",
     include_unconfirmed: false,
     template_id: EMAIL,
@@ -1121,7 +1121,7 @@ test("Campaigns' reach-outs (A2): each one the ledger shows is a row of its own,
         recipient_count: 3,
       },
     ],
-    sending_domains: [],
+    mailbox_connections: [],
   });
   // Campaigns' own 30 days of the reach-outs (GET reports/reach-outs?period=30d): the report, and each chain's own totals.
   const reach = {

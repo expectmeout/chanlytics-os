@@ -231,15 +231,16 @@ var EVENT_KINDS = [
   /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00299). The reason, never an address. */
   "mailbox.offers_paused",
   "mailbox.offers_resumed",
-  /** A workspace's own sending domain (Reach out, 00175): added, verified, held by the domains clock, sending again,
-   * removed. The host and the reason, never the provider's id. */
-  "sending_domain.added",
-  "sending_domain.verified",
-  "sending_domain.held",
-  "sending_domain.released",
-  /** The owner resumed a domain held for its bounces or a complaint (00176): 30 a day again. */
-  "sending_domain.resumed",
-  "sending_domain.removed",
+  /** A mailbox the business writes cold email from (00423, decision 0056): connected (or connected again), signed out
+   * by its provider, held for its own mail, resumed by its owner, paused and unpaused by its owner, removed. Its
+   * address and the reason, never its token. */
+  "mailbox_connection.connected",
+  "mailbox_connection.signed_out",
+  "mailbox_connection.held",
+  "mailbox_connection.resumed",
+  "mailbox_connection.paused",
+  "mailbox_connection.unpaused",
+  "mailbox_connection.removed",
   /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
   /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
@@ -679,9 +680,9 @@ var DELIVERY_REFUSALS = [
   "outreach_away",
   "outreach_stopped",
   "outreach_without_unsubscribe",
-  "outreach_needs_own_domain",
-  "sending_domain_not_ready",
-  "sending_domain_at_cap"
+  "outreach_needs_own_mailbox",
+  "sending_mailbox_not_ready",
+  "sending_mailbox_at_cap"
 ];
 var PURPOSE_REFUSALS = {
   opted_out: OPT_OUT_REFUSAL,
@@ -714,9 +715,9 @@ var PURPOSE_REFUSALS = {
   outreach_away: "Away: their automatic reply says they're out. This email waits, and goes to them after the day they're back.",
   outreach_stopped: "You stopped writing to this business, so this email was not sent. Nothing more goes to it.",
   outreach_without_unsubscribe: "This email was built without its unsubscribe link, so it was not sent.",
-  outreach_needs_own_domain: "Cold email leaves only from a domain you own. Add one on Connections, under Email.",
-  sending_domain_not_ready: "The domain this email was to leave from isn't sending right now. Connections, under Email, says why.",
-  sending_domain_at_cap: "The domain this email was to leave from has sent its day's share. It goes when there is room."
+  outreach_needs_own_mailbox: "Cold email leaves only from a mailbox you connected. Connect Google or Microsoft on Connections, under Email.",
+  sending_mailbox_not_ready: "The mailbox this email was to leave from isn't sending right now. Connections, under Email, says why.",
+  sending_mailbox_at_cap: "The mailbox this email was to leave from has written its day's share. It goes when there is room."
 };
 function consentChangeOf(e) {
   const d = e.data ?? {};
@@ -2518,382 +2519,238 @@ function outcomeMove(o) {
   }
 }
 
-// src/email/free-mail.ts
-var FREE_MAIL_DOMAINS = /* @__PURE__ */ new Set([
-  "gmail.com",
-  "googlemail.com",
-  "yahoo.com",
-  "ymail.com",
-  "outlook.com",
-  "hotmail.com",
-  "live.com",
-  "msn.com",
-  "icloud.com",
-  "me.com",
-  "mac.com",
-  "aol.com",
-  "proton.me",
-  "protonmail.com",
-  "gmx.com",
-  "zoho.com",
-  "yandex.com",
-  "mail.com"
-]);
-function isFreeMail(host) {
-  return !!host && FREE_MAIL_DOMAINS.has(host.trim().toLowerCase());
-}
-
-// src/email/sending-domains.ts
+// src/email/mailbox-connections.ts
 var DAY_FMT = formatterOnUse("en-US", { month: "short", day: "numeric" });
-var SENDING_DOMAIN_STATES = ["records", "verifying", "verified", "held"];
-var DOMAIN_HOLDS = ["verification", "dmarc", "bounces", "complaint", "provider", "unsubscribes"];
-var REPUTATION_HOLDS = ["bounces", "complaint", "unsubscribes"];
-var DOMAIN_RESUMERS = ["owner", "platform"];
-var REPUTATION_MEMORY_MS = 30 * 864e5;
-var PLATFORM_HOLD_REFUSAL = "Held twice in 30 days: we lift this hold, and we've been told.";
-var PLATFORM_HOLD_READD = "This domain was held twice in the last 30 days, and removed before we lifted it. It can be added again 30 days after it was held.";
-var DMARC_STATES = ["found", "missing"];
-var DNS_HOLDS = ["verification", "dmarc"];
-var SELF_LIFTING_HOLDS = ["verification", "dmarc", "provider"];
-var PROVIDER_STATUSES = /* @__PURE__ */ new Set([
-  "not_started",
-  "pending",
-  "verified",
-  "partially_verified",
-  "partially_failed",
-  "failed",
-  "temporary_failure"
-]);
-var SENDING_DOMAINS_MAX = 5;
-var DMARC_RECOMMENDED = "v=DMARC1; p=none;";
-var DOMAIN_RAMP = [
-  { days: 0, perDay: 30 },
-  { days: 14, perDay: 100 },
-  { days: 30, perDay: 200 }
+var MAILBOX_PROVIDERS = ["google", "microsoft"];
+var MAILBOX_CONNECTION_STATES = ["connected", "reconnect", "paused", "held", "removed"];
+var MAILBOX_HOLDS = ["bounces", "complaint", "unsubscribes"];
+var MAILBOX_DNS_RECORDS = ["spf", "dkim", "dmarc", "mx"];
+var MAILBOX_CONNECTIONS_MAX = 10;
+var MAILBOXES_PER_DOMAIN_MAX = 3;
+var MAILBOX_DAILY_CAP_MAX = 50;
+var CUSTOMER_DOMAIN_DAILY_MAX = 20;
+var MAILBOX_RAMP = [
+  { days: 0, perDay: 10 },
+  { days: 7, perDay: 20 },
+  { days: 14, perDay: 30 },
+  { days: 21, perDay: 40 }
 ];
-var sentDaysOf = (d) => Math.max(0, Math.floor(Number(d.sent_days) || 0));
-function domainDailyCap(sentDays) {
+function mailboxRampShare(sentDays) {
+  const days = Math.max(0, Math.floor(Number(sentDays) || 0));
   let cap = 0;
-  for (const step2 of DOMAIN_RAMP) if (sentDays >= step2.days) cap = step2.perDay;
+  for (const step2 of MAILBOX_RAMP) if (days >= step2.days) cap = step2.perDay;
   return cap;
 }
-function reachOutSendsFrom(d, named) {
-  return d.state === "verified" && !!d.clean_since && (named.length === 0 || named.includes(d.id));
+function mailboxDailyCap(m) {
+  const owner = Math.max(0, Math.min(MAILBOX_DAILY_CAP_MAX, Math.floor(Number(m.daily_cap) || 0)));
+  const ceiling = m.customer_domain ? CUSTOMER_DOMAIN_DAILY_MAX : MAILBOX_DAILY_CAP_MAX;
+  return Math.min(mailboxRampShare(m.sent_days), owner, ceiling);
 }
-function normalizeHost(typed) {
-  return typed.trim().toLowerCase().replace(/\.$/, "");
+function mailboxSendsNow(m, nowMs) {
+  return m.state === "connected" && (!m.resting_until || Date.parse(m.resting_until) <= nowMs);
 }
-var DOMAIN_NAME = /^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
-function whyNotASendingHost(typed, platform) {
-  const h = normalizeHost(typed);
-  if (!h) return "Write the domain you'll send from, like getyourbusiness.com.";
-  if (/[/:@\s]/.test(h)) return "Write the domain alone, like getyourbusiness.com: no https://, no address, no path.";
-  if (h.startsWith("www.")) return "Write the domain without www.";
-  if (h.length > 253 || !DOMAIN_NAME.test(h)) return "That isn't a domain name. It looks like getyourbusiness.com.";
-  if (FREE_MAIL_DOMAINS.has(h)) return `${h} is free mail: nobody can add records to it. Use a domain you own.`;
-  const mine = platform.mailDomain?.toLowerCase() ?? null;
-  const parent = mine ? mine.split(".").slice(-2).join(".") : null;
-  if (mine && (h === mine || h === parent || h.endsWith(`.${parent}`)))
-    return "That domain is Chanlytics' own. Use a domain your business owns.";
-  return null;
+function reachOutWritesFrom(m, named) {
+  return m.state !== "removed" && (named.length === 0 || named.includes(m.id));
 }
-var RESERVED_FROM = /* @__PURE__ */ new Set([
-  "r",
-  "postmaster",
-  "abuse",
-  "mailer-daemon",
-  "noreply",
-  "no-reply"
-]);
-function normalizeFromLocal(typed) {
-  return typed.trim().toLowerCase();
-}
-function whyNotAFromLocal(typed) {
-  const s = normalizeFromLocal(typed);
-  if (!s) return "Write the part before the @, like your first name.";
-  if (s.length > 40) return "Keep it to 40 characters or fewer.";
-  if (!/^[a-z0-9]+([.-][a-z0-9]+)*$/.test(s)) return "Use letters and numbers, with dots or hyphens between them.";
-  if (RESERVED_FROM.has(s)) return `\u201C${s}\u201D is kept for the mail system. Use a name people can write back to.`;
-  return null;
-}
-function reputationHoldOf(c) {
-  if (!c) return null;
-  if (c.complained >= 1) return "complaint";
-  if (c.bounced * 50 > Math.max(c.sent, 150)) return "bounces";
-  if ((c.unsubscribed ?? 0) * 50 > Math.max(c.sent, 150)) return "unsubscribes";
-  return null;
-}
-var REPUTATION_RANK = { unsubscribes: 1, bounces: 2, complaint: 3 };
-var CHECKING = /* @__PURE__ */ new Set(["pending", "temporary_failure", "partially_verified"]);
-function judgeDomain(row2, facts, nowIso) {
-  const same2 = { ...row2, dmarc: facts.dmarc ?? row2.dmarc, change: null };
-  const judgeable = row2.state === "verified" || row2.state === "held" && row2.held_why !== "complaint";
-  const reputation = judgeable ? reputationHoldOf(facts.counts) : null;
-  const heldFor3 = row2.state === "held" && row2.held_why && REPUTATION_HOLDS.includes(row2.held_why) ? REPUTATION_RANK[row2.held_why] : 0;
-  if (reputation && REPUTATION_RANK[reputation] > heldFor3)
-    return { ...same2, state: "held", held_why: reputation, held_at: nowIso, change: "held" };
-  if (facts.provider === null) return { ...row2, change: null };
-  const verified = facts.provider === "verified";
-  if (row2.state === "records" || row2.state === "verifying") {
-    if (verified && facts.dmarc === "found")
-      return {
-        ...row2,
-        state: "verified",
-        held_why: null,
-        held_at: null,
-        verified_at: nowIso,
-        clean_since: nowIso,
-        counted_since: nowIso,
-        dmarc: "found",
-        change: "verified"
-      };
-    if (verified) return facts.dmarc === "missing" ? { ...same2, state: "records" } : same2;
-    return { ...same2, state: CHECKING.has(facts.provider) ? "verifying" : "records" };
-  }
-  if (row2.state === "verified") {
-    if (!PROVIDER_STATUSES.has(facts.provider))
-      return row2.provider_status && !PROVIDER_STATUSES.has(row2.provider_status) ? { ...same2, state: "held", held_why: "provider", held_at: nowIso, change: "held" } : same2;
-    if (facts.provider === "temporary_failure" && row2.provider_status !== "temporary_failure") return same2;
-    if (!verified && facts.provider !== "pending")
-      return { ...same2, state: "held", held_why: "verification", held_at: nowIso, change: "held" };
-    if (facts.dmarc === "missing" && row2.dmarc === "missing")
-      return { ...same2, state: "held", held_why: "dmarc", held_at: nowIso, change: "held" };
-    return same2;
-  }
-  if (row2.held_why && SELF_LIFTING_HOLDS.includes(row2.held_why) && verified && facts.dmarc === "found")
-    return {
-      ...row2,
-      state: "verified",
-      held_why: null,
-      held_at: null,
-      // Records that broke restart the ramp; the account not answering for a while was never the domain's doing.
-      clean_since: row2.held_why === "provider" ? row2.clean_since : nowIso,
-      dmarc: "found",
-      change: "released"
-    };
-  return same2;
-}
-function resumeDomain(row2, nowIso) {
-  if (row2.state !== "held" || !row2.held_why || SELF_LIFTING_HOLDS.includes(row2.held_why))
-    return { ...row2, change: null };
-  return {
-    ...row2,
-    state: "verified",
-    held_why: null,
-    held_at: null,
-    clean_since: nowIso,
-    counted_since: nowIso,
-    change: "resumed"
-  };
-}
-function domainPatchOf(j) {
-  return {
-    state: j.state,
-    held_why: j.held_why,
-    held_at: j.held_at,
-    verified_at: j.verified_at,
-    clean_since: j.clean_since,
-    counted_since: j.counted_since,
-    dmarc: j.dmarc
-  };
-}
-function ownDomainAddress(d) {
-  return `${d.from_local}@${d.host}`.toLowerCase();
-}
-function sendingDomainActs(d) {
-  const held = d.state === "held" && !!d.held_why;
-  const dnsHold = held && DNS_HOLDS.includes(d.held_why);
-  const selfLifting = held && SELF_LIFTING_HOLDS.includes(d.held_why);
-  const waiting = d.state === "records" || d.state === "verifying";
-  return {
-    check: waiting || selfLifting,
-    // A second reputation hold in thirty days is the platform's to lift (D16): the owner's door refuses it too.
-    resume: held && !selfLifting && d.resume_by !== "platform",
-    remove: true,
-    records: waiting || dnsHold
-  };
-}
-function sendingDomainDtoOf(r2) {
+function mailboxConnectionDtoOf(r2) {
+  const dns = {};
+  if (r2.dns && typeof r2.dns === "object")
+    for (const k of MAILBOX_DNS_RECORDS) {
+      const v = r2.dns[k];
+      if (v === "found" || v === "missing") dns[k] = v;
+    }
   return {
     id: r2.id,
+    provider: r2.provider === "microsoft" ? "microsoft" : "google",
+    address: r2.address,
     host: r2.host,
-    from_local: r2.from_local,
     from_name: r2.from_name,
-    address: ownDomainAddress(r2),
-    state: r2.state,
-    held_why: r2.held_why ?? null,
+    signature: r2.signature,
+    state: MAILBOX_CONNECTION_STATES.includes(r2.state) ? r2.state : "removed",
+    held_why: MAILBOX_HOLDS.includes(r2.held_why ?? "") ? r2.held_why : null,
     held_at: r2.held_at,
-    verified_at: r2.verified_at,
-    clean_since: r2.clean_since,
-    counted_since: r2.counted_since ?? null,
-    provider_status: r2.provider_status,
-    dmarc: r2.dmarc ?? null,
-    records: Array.isArray(r2.records) ? r2.records : [],
-    checked_at: r2.checked_at,
-    created_at: r2.created_at,
-    sent_recent: r2.sent_recent,
-    bounced_recent: r2.bounced_recent,
-    complaints: r2.complaints,
-    sent_days: Math.max(0, Number(r2.sent_days ?? 0) || 0),
-    resume_by: r2.resume_by === "platform" ? "platform" : "owner"
+    resting_until: r2.resting_until,
+    daily_cap: r2.daily_cap,
+    customer_domain: r2.customer_domain,
+    sent_days: Math.max(0, Math.floor(Number(r2.sent_days) || 0)),
+    dns,
+    dns_checked_at: r2.dns_checked_at,
+    last_error: r2.last_error,
+    connected_at: r2.connected_at,
+    sent_at: r2.sent_at
   };
 }
-function domainStatsWords(d) {
-  if (!d.sent_recent) return null;
-  const pct2 = Math.round((d.bounced_recent ?? 0) / d.sent_recent * 1e3) / 10;
-  const spam = d.complaints ? `${d.complaints} marked as spam` : "none marked as spam";
-  return `${pct2}% bounced \xB7 ${spam}`;
+var COUNT_FLOOR = 150;
+var HOLD_PERCENT = 3;
+function mailboxHoldOf(c) {
+  if (!c) return null;
+  const of = Math.max(c.sent, COUNT_FLOOR);
+  if (c.complained > 0) return "complaint";
+  if (c.bounced * 100 > HOLD_PERCENT * of) return "bounces";
+  if (c.unsubscribed * 100 > HOLD_PERCENT * of) return "unsubscribes";
+  return null;
 }
 var HOLD_WORDS = {
-  verification: "it stopped verifying",
-  dmarc: "its DMARC record is missing",
-  bounces: "more than 2% of its recent emails bounced",
+  bounces: "more than 3% of its recent emails bounced",
   complaint: "someone marked an email from it as spam",
-  provider: "the mail provider no longer has it",
-  unsubscribes: "more than 2% of the people it wrote to unsubscribed"
+  unsubscribes: "more than 3% of the businesses it wrote to said no or unsubscribed"
 };
-function domainHoldWords(why) {
+function mailboxHoldWords(why) {
   return why && HOLD_WORDS[why] || "it was held";
 }
-function sendingDomainWords(d) {
-  const who = `${d.from_name} \xB7 ${d.address}`;
-  if (d.state === "records") {
-    const line = d.provider_status === "not_found" ? "The mail provider no longer has this domain. Remove it and add it again." : d.provider_status === "verified" && d.dmarc === "missing" ? "SPF and DKIM pass. Add the DMARC record below, then Check." : d.provider_status === "failed" || d.provider_status === "partially_failed" ? "The records weren't found. Check each one below at your registrar, then Check again." : "Add the records below at your registrar, then Check.";
-    return { pill: "Records to add", tone: "warn", line, stats: null, fix: null, cap: "Not sending yet", next: null };
-  }
-  if (d.state === "verifying")
-    return {
-      pill: "Checking",
-      tone: "info",
-      line: "Checking the records. It usually takes minutes, and can take a few hours. We look again every ten minutes.",
-      stats: null,
-      fix: null,
-      cap: "Not sending yet",
-      next: null
-    };
-  if (d.state === "verified") {
-    const days = sentDaysOf(d);
-    const cap = domainDailyCap(days);
-    const step2 = DOMAIN_RAMP.find((s) => s.perDay > cap);
-    const left = step2 ? step2.days - days : 0;
-    return {
-      pill: "Verified",
-      tone: "ok",
-      line: `${who} \xB7 ${days ? `${days} day${days === 1 ? "" : "s"} sending` : "nothing sent yet"}`,
-      stats: domainStatsWords(d),
-      fix: null,
-      cap: `Up to ${cap} a day`,
-      // The next step by the days still to send (D15): a date would be a promise the days it rests on cannot keep.
-      next: step2 ? `${step2.perDay} a day after ${left} more day${left === 1 ? "" : "s"} of sending` : null
-    };
-  }
-  const why = domainHoldWords(d.held_why);
-  const since = d.held_at ? DAY_FMT.format(new Date(d.held_at)) : null;
-  const was = d.clean_since ? domainDailyCap(sentDaysOf(d)) : 0;
-  return {
-    pill: "Held",
-    tone: "warn",
-    line: `${since ? `Held since ${since}` : "Held"} \xB7 ${why}`,
-    stats: null,
-    // Only a hold the owner lifts says what to do: a DNS hold shows its records just below, a provider hold lifts
-    // itself (its line says so), and a hold the platform lifts (D16) has nothing for the owner to press, so none says
-    // anything twice or tells the owner to do what is not theirs.
-    fix: d.held_why && SELF_LIFTING_HOLDS.includes(d.held_why) || d.resume_by === "platform" ? null : domainHoldFixWords(d.held_why),
-    cap: was > 0 ? `Sending nothing \xB7 was ${was} a day` : "Sending nothing",
-    next: d.held_why === "provider" ? "We've been told. If it doesn't come back on its own, remove it and add it again." : d.held_why && DNS_HOLDS.includes(d.held_why) ? `It sends again by itself once the records read right, starting at ${DOMAIN_RAMP[0].perDay} a day.` : d.resume_by === "platform" ? "Held twice in 30 days \xB7 we were told, and we lift this hold." : "Nothing leaves from it until you resume it."
-  };
-}
 var HOLD_FIX_WORDS = {
-  verification: "One of its records stopped reading right at your registrar: check them below.",
-  dmarc: "Its DMARC record is missing: add the one below.",
-  bounces: "Check the addresses you write to before you resume it.",
-  complaint: "Read the email again before you resume it: a clear reason for writing, and fewer a day.",
-  provider: "It usually comes back by itself.",
-  unsubscribes: "Write to fewer, and to the ones it fits best, before you resume it."
+  bounces: "Check the addresses it writes to, then resume it.",
+  complaint: "Read the email again (a clear reason for writing, and fewer a day), then resume it.",
+  unsubscribes: "Write to fewer, and to the ones it fits best, then resume it."
 };
-function domainHoldFixWords(why) {
+function mailboxHoldFixWords(why) {
   return why && HOLD_FIX_WORDS[why] || null;
 }
-var HOLD_NOTICE_WORDS = {
-  verification: "One of its records stopped reading right at your registrar: Connections shows which, under Email.",
-  dmarc: "Its DMARC record is missing: Connections shows the one to add, under Email.",
-  bounces: "Check the addresses you write to, then resume it on Connections, under Email.",
-  complaint: "Read the email again (a clear reason for writing, and fewer a day), then resume it on Connections, under Email.",
-  provider: "It usually comes back by itself; if it doesn't, remove it and add it again on Connections, under Email.",
-  unsubscribes: "Write to fewer, and to the ones it fits best, then resume it on Connections, under Email."
-};
-var PLATFORM_HOLD_NOTICE = "It was held twice in 30 days, so we lift this hold ourselves, and we've been told. We'll write when it sends again.";
-function domainHoldNoticeWords(why) {
-  return why && HOLD_NOTICE_WORDS[why] || null;
+var MAILBOX_PROVIDER_WORDS = { google: "Google", microsoft: "Microsoft" };
+function mailboxHealthWords(c) {
+  if (!c || !c.sent) return null;
+  const pct2 = Math.round(c.bounced / c.sent * 1e3) / 10;
+  const no = c.unsubscribed ? `${c.unsubscribed} said no` : "nobody said no";
+  const spam = c.complained ? `${c.complained} marked as spam` : "none marked as spam";
+  return `${pct2}% bounced \xB7 ${no} \xB7 ${spam}`;
 }
-var KIND_OF_RECORD = { DKIM: "Signing (DKIM)", SPF: "Sender (SPF)", DMARC: "Policy (DMARC)" };
-function domainRecordRows(d) {
-  const host = d.host.toLowerCase();
-  const relative = (name) => {
-    const n = name.trim().toLowerCase().replace(/\.$/, "");
-    if (n === host) return "@";
-    return n.endsWith(`.${host}`) ? n.slice(0, -(host.length + 1)) : n;
-  };
-  const rows2 = d.records.map((r2) => {
-    const name = relative(r2.name);
+function mailboxWords(m, nowMs, sentToday = null) {
+  const cap = mailboxDailyCap(m);
+  const step2 = MAILBOX_RAMP.find((s) => s.perDay > mailboxRampShare(m.sent_days));
+  const left = step2 ? step2.days - m.sent_days : 0;
+  const ceiling = m.customer_domain && cap >= CUSTOMER_DOMAIN_DAILY_MAX;
+  const ramp = ceiling ? `Customer domain: kept to ${CUSTOMER_DOMAIN_DAILY_MAX} a day` : `${m.sent_days ? `Day ${m.sent_days + 1} of its ramp` : "New: its ramp starts today"} \xB7 ${cap} a day${step2 && cap < m.daily_cap ? `, ${step2.perDay} after ${left} more day${left === 1 ? "" : "s"} of sending` : ""}`;
+  if (m.state === "reconnect")
     return {
-      kind: r2.type === "MX" ? "Return path" : KIND_OF_RECORD[r2.label] ?? r2.label,
-      type: r2.type,
-      name,
-      value: r2.value,
-      priority: r2.priority,
-      found: r2.status === "verified",
-      key: `${name}-${r2.type}`
+      pill: "Reconnect",
+      tone: "danger",
+      day: `${MAILBOX_PROVIDER_WORDS[m.provider]} signed it out, so nothing leaves from it.`,
+      ramp: null,
+      health: null,
+      fix: "Connect it again: its emails wait for it."
     };
-  });
-  if (d.dmarc !== "found")
-    rows2.push({
+  if (m.state === "paused")
+    return {
+      pill: "Paused",
+      tone: "plain",
+      day: "You paused it: nothing leaves from it.",
+      ramp,
+      health: null,
+      fix: null
+    };
+  if (m.state === "held") {
+    const since = m.held_at ? DAY_FMT.format(new Date(m.held_at)) : null;
+    return {
+      pill: "Held",
+      tone: "warn",
+      day: `${since ? `Held since ${since}` : "Held"}: ${mailboxHoldWords(m.held_why)}.`,
+      ramp: null,
+      health: null,
+      fix: mailboxHoldFixWords(m.held_why)
+    };
+  }
+  if (m.state === "removed")
+    return { pill: "Removed", tone: "plain", day: "Removed.", ramp: null, health: null, fix: null };
+  if (m.resting_until && Date.parse(m.resting_until) > nowMs)
+    return {
+      pill: "Done for today",
+      tone: "warn",
+      day: `${MAILBOX_PROVIDER_WORDS[m.provider]}'s own daily limit: it sends again from ${clockOf(m.resting_until)}.`,
+      ramp,
+      health: null,
+      fix: null
+    };
+  const missing = MAILBOX_DNS_RECORDS.filter((k) => k !== "mx" && m.dns[k] === "missing");
+  return {
+    pill: sentToday !== null && sentToday >= cap ? "Done for today" : "Connected",
+    tone: sentToday !== null && sentToday >= cap ? "warn" : "ok",
+    day: sentToday === null ? `Up to ${cap} a day` : `${sentToday} of ${cap} today`,
+    ramp,
+    health: null,
+    fix: missing.length ? `Add its ${missing.map((k) => k.toUpperCase()).join(" and ")} record below.` : null
+  };
+}
+var CLOCK_FMT = formatterOnUse("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" });
+var clockOf = (iso) => CLOCK_FMT.format(new Date(iso));
+function mailboxActs(m) {
+  return {
+    reconnect: m.state === "reconnect",
+    resume: m.state === "held",
+    pause: m.state === "connected",
+    unpause: m.state === "paused",
+    test: m.state === "connected" || m.state === "paused",
+    remove: m.state !== "removed"
+  };
+}
+var DMARC_RECOMMENDED = "v=DMARC1; p=none;";
+var SPF_INCLUDE = {
+  google: "v=spf1 include:_spf.google.com ~all",
+  microsoft: "v=spf1 include:spf.protection.outlook.com -all"
+};
+var DKIM_WHERE = {
+  google: {
+    name: "google._domainkey",
+    value: "Made in the Google Admin console: Apps \u203A Google Workspace \u203A Gmail \u203A Authenticate email"
+  },
+  microsoft: {
+    name: "selector1._domainkey",
+    value: "Turned on in Microsoft Defender: Email authentication settings \u203A DKIM"
+  }
+};
+function mailboxRecordRows(m) {
+  return [
+    {
+      key: "spf",
+      kind: "Sender (SPF)",
+      type: "TXT",
+      name: "@",
+      value: SPF_INCLUDE[m.provider],
+      found: m.dns.spf === "found"
+    },
+    {
+      key: "dkim",
+      kind: "Signing (DKIM)",
+      type: m.provider === "microsoft" ? "CNAME" : "TXT",
+      name: DKIM_WHERE[m.provider].name,
+      value: DKIM_WHERE[m.provider].value,
+      found: m.dns.dkim === "found"
+    },
+    {
+      key: "dmarc",
       kind: "Policy (DMARC)",
       type: "TXT",
       name: "_dmarc",
       value: DMARC_RECOMMENDED,
-      priority: null,
-      found: false,
-      key: "_dmarc-TXT"
-    });
-  return rows2;
+      found: m.dns.dmarc === "found"
+    }
+  ];
 }
-function domainRecordsIntro(host) {
-  return `These records tell Gmail and others that Chanlytics may send as ${host}. Add each one where you bought the domain, then press Check.`;
+var CONNECT_FAILED = "That didn't go through. Try again in a minute.";
+var MAILBOX_CONNECT_WORDS = {
+  connected: "Connected. Its ramp starts at 10 a day.",
+  reconnected: "Connected again: its emails go on where they waited.",
+  declined: "Nothing was connected: the sign-in was cancelled.",
+  scopes_missing: "Nothing was connected: send and read access are both needed. Connect again and leave both ticked.",
+  no_refresh_token: "Nothing was connected: the provider gave no lasting access. Connect again.",
+  taken: "Another workspace writes from this mailbox. Remove it there first.",
+  too_many: `A workspace writes from ${MAILBOX_CONNECTIONS_MAX} mailboxes at most. Remove one to add another.`,
+  too_many_on_domain: `A workspace writes from ${MAILBOXES_PER_DOMAIN_MAX} mailboxes on one domain at most.`,
+  free_mail: "A free mailbox (Gmail.com, Outlook.com and the like) isn't for writing to businesses: connect one on your own domain.",
+  not_available: "Connecting a mailbox isn't switched on here yet.",
+  not_owner: "Only the workspace's owner or a manager connects a mailbox.",
+  failed: CONNECT_FAILED
+};
+function mailboxConnectWords(code2) {
+  return code2 && MAILBOX_CONNECT_WORDS[code2] || CONNECT_FAILED;
 }
-function domainRegistrarHint(host) {
-  return `Some registrars add ${host} for you. If yours does, type only the part shown.`;
-}
-function checkResultWords(d, before) {
-  if (d.state === "verified") {
-    const cap = domainDailyCap(sentDaysOf(d));
-    const again = before?.state === "held" || cap !== DOMAIN_RAMP[0].perDay;
-    return {
-      tone: "ok",
-      msg: again ? `${d.host} is sending again, ${cap === DOMAIN_RAMP[0].perDay ? "starting at" : "up to"} ${cap} a day.` : `${d.host} is verified. It starts at ${cap} a day.`
-    };
-  }
-  if (d.state === "verifying")
-    return { tone: "info", msg: `${d.host}: checking the records. We look again every ten minutes; nothing to press.` };
-  if (d.state === "records")
-    return {
-      tone: "warn",
-      msg: d.provider_status === "not_found" ? `${d.host}: the mail provider no longer has this domain. Remove it and add it again.` : `${d.host}: not found yet. DNS changes can take a few hours. Press Check again later.`
-    };
-  const why = domainHoldWords(d.held_why);
-  if (d.held_why && DNS_HOLDS.includes(d.held_why))
-    return {
-      tone: "warn",
-      msg: `${d.host} is still held: ${why}. It sends again by itself once the records read right.`
-    };
-  return { tone: "warn", msg: `${d.host} is held: ${why}.` };
-}
-function sendingDomainsFootWords(count2, max) {
-  const where = "Replies come back to the Inbox. Mail sent straight to a domain's own address goes wherever that domain's mail goes.";
-  if (count2 >= max) return `${max === 5 ? "Five" : max} is the most. Remove one to add another. ${where}`;
+function mailboxesFootWords(count2) {
+  if (count2 >= MAILBOX_CONNECTIONS_MAX) return `${MAILBOX_CONNECTIONS_MAX} is the most. Remove one to add another.`;
   if (count2 === 0)
-    return "Cold email to the businesses you find leaves only from a domain you own, so cold email's reputation stays apart from your everyday email's. No spare domain? Buy one like get<yourbusiness>.com, then add it here.";
-  return `A new domain starts at ${DOMAIN_RAMP[0].perDay} a day and grows with the days it sends. ${where}`;
+    return `Reach out writes from your own mailbox, through Google or Microsoft, so every email is yours and every reply comes back to it. A mailbox on the domain your customers write to sends ${CUSTOMER_DOMAIN_DAILY_MAX} a day at most; for more, use a second domain such as get<yourbusiness>.com.`;
+  return `A new mailbox starts at ${MAILBOX_RAMP[0].perDay} a day and grows with the days it sends, to ${Math.max(...MAILBOX_RAMP.map((s) => s.perDay))}. Replies come back to it, and to your Inbox here.`;
+}
+function customerDomainWords(host) {
+  return `Your customers write to ${host}, so this mailbox sends ${CUSTOMER_DOMAIN_DAILY_MAX} a day at most to keep their mail and bookings safe. For more, connect a mailbox on a second domain, such as get${host}.`;
 }
 
 // src/config/policy.ts
@@ -4259,9 +4116,9 @@ var HELD_REASONS = {
   outreach_away: "away until the day they're back",
   outreach_stopped: "you stopped writing to them",
   outreach_without_unsubscribe: "no unsubscribe link",
-  outreach_needs_own_domain: "not from your own domain",
-  sending_domain_not_ready: "the domain isn't sending",
-  sending_domain_at_cap: "the domain's day is full"
+  outreach_needs_own_mailbox: "not from a mailbox you connected",
+  sending_mailbox_not_ready: "the mailbox isn't sending",
+  sending_mailbox_at_cap: "the mailbox's day is full"
 };
 var DELIVERY_RECEIPTS_WORDS = "each channel's own receipts";
 var DELIVERY_RECEIPTS_TIP = "Each channel's own receipts";
@@ -5162,6 +5019,31 @@ function clipAtWord(text, max) {
   return `${(space > max * 0.6 ? cut.slice(0, space) : t.slice(0, max)).replace(/[\s,;:—-]+$/u, "")}\u2026`;
 }
 
+// src/email/free-mail.ts
+var FREE_MAIL_DOMAINS = /* @__PURE__ */ new Set([
+  "gmail.com",
+  "googlemail.com",
+  "yahoo.com",
+  "ymail.com",
+  "outlook.com",
+  "hotmail.com",
+  "live.com",
+  "msn.com",
+  "icloud.com",
+  "me.com",
+  "mac.com",
+  "aol.com",
+  "proton.me",
+  "protonmail.com",
+  "gmx.com",
+  "zoho.com",
+  "yandex.com",
+  "mail.com"
+]);
+function isFreeMail(host) {
+  return !!host && FREE_MAIL_DOMAINS.has(host.trim().toLowerCase());
+}
+
 // src/google/booking-page.ts
 function onDomain(host, domain) {
   return host === domain || host.endsWith(`.${domain}`);
@@ -6017,7 +5899,7 @@ var OPENING_WORDS_MAX = 40;
 var OPENING_CHARS_MAX = 400;
 var ANGLE_WORDS_MAX = 3;
 var REACH_OUT_STEPS_MAX = 5;
-var REACH_OUT_DOMAINS_MAX = 5;
+var REACH_OUT_MAILBOXES_MAX = 10;
 var REACH_OUT_NAME_MAX = 80;
 var SIGNED_BY_MAX = 60;
 var REACH_OUT_GAP_MINUTES = [5, 8, 12, 20, 30, 60];
@@ -6136,6 +6018,9 @@ function validateReachOutChain(c, has3) {
     else
       for (const w of validateReachOutWords({ subject: s.subject, body: s.body }, i === 0)) out.push({ step: i, ...w });
     if (i === 0 && s.after_days !== null) out.push({ step: 0, field: "after_days", problem: "first_has_a_delay" });
+    if (i === 0 && !s.hand && (linksIn(`${s.subject ?? ""}
+${s.body}`).length > 0 || slotCount(s.body, "booking link") > 0))
+      out.push({ step: 0, field: "body", problem: "first_has_a_link" });
     if (i > 0 && s.after_days === null) out.push({ step: i, field: "after_days", problem: "step_needs_a_delay" });
   });
   const said = c.steps.filter((s) => !s.hand).map((s, i) => `${i === 0 ? s.subject ?? "" : ""}
@@ -6170,6 +6055,8 @@ function chainIssueWords(i) {
       return "Your words name {{your name}}. Say the name you sign with.";
     case "no_booking_link":
       return "Your words name {{booking link}}. Add your booking link in Settings \u203A Business first.";
+    case "first_has_a_link":
+      return "Keep your first email free of links: put your booking link in the nudge.";
     default:
       return wordsIssueWords({ field: i.field === "subject" ? "subject" : "body", problem: i.problem, slot: i.slot });
   }
@@ -6280,7 +6167,9 @@ var REACH_OUT_HOLDS = [
   "language",
   "unbacked_fact",
   "reads_like_spam",
-  "check_unavailable"
+  "check_unavailable",
+  // A business outside the countries cold email goes to without asking (decision 0056, 9): the owner may include it.
+  "abroad"
 ];
 function isReachOutHold(r2) {
   return REACH_OUT_HOLDS.includes(r2 ?? "");
@@ -6301,6 +6190,25 @@ function holdWords(h, detail, stepLanguage = "en") {
       return isOpeningProblem(detail) ? `the opening read like a pitch: ${openingProblemWords(detail)}` : "the opening read like a pitch";
     case "check_unavailable":
       return isOpeningProblem(detail) ? `the opening couldn't be written to the rules: ${openingProblemWords(detail)}` : "the check couldn't run";
+    case "abroad":
+      return `they're in ${countryWords(detail)}, where writing to a business first may need its say`;
+  }
+}
+var REACH_OUT_COUNTRIES_FREE = /* @__PURE__ */ new Set(["US", "CA", "GB"]);
+var REACH_OUT_COUNTRIES_REFUSED = /* @__PURE__ */ new Set(["DE", "AT"]);
+function reachOutCountryOf(country) {
+  const c = (country ?? "US").trim().toUpperCase() || "US";
+  if (REACH_OUT_COUNTRIES_REFUSED.has(c)) return "refused";
+  return REACH_OUT_COUNTRIES_FREE.has(c) ? "free" : "held";
+}
+var COUNTRY_NAMES = new Intl.DisplayNames(["en"], { type: "region" });
+function countryWords(code2) {
+  const c = (code2 ?? "").trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(c)) return "another country";
+  try {
+    return COUNTRY_NAMES.of(c) ?? c;
+  } catch {
+    return c;
   }
 }
 function holdDoors(h) {
@@ -6316,6 +6224,8 @@ function holdDoors(h) {
       return ["rewrite", "include", "skip"];
     case "check_unavailable":
       return ["rewrite", "skip"];
+    case "abroad":
+      return ["include", "skip"];
   }
 }
 var HOLD_DOOR_WORDS = {
@@ -8347,12 +8257,13 @@ var WORDS = {
   "mailbox.renamed": "The name on the workspace's email changed",
   "mailbox.offers_paused": "Offers by email were paused",
   "mailbox.offers_resumed": "Offers by email were turned back on",
-  "sending_domain.added": "A domain to send from was added",
-  "sending_domain.verified": "A domain to send from was verified",
-  "sending_domain.held": "A domain to send from was held",
-  "sending_domain.released": "A domain to send from is sending again",
-  "sending_domain.resumed": "A domain to send from was resumed",
-  "sending_domain.removed": "A domain to send from was removed",
+  "mailbox_connection.connected": "A mailbox to write from was connected",
+  "mailbox_connection.signed_out": "A mailbox to write from was signed out",
+  "mailbox_connection.held": "A mailbox to write from was held",
+  "mailbox_connection.resumed": "A mailbox to write from was resumed",
+  "mailbox_connection.paused": "A mailbox to write from was paused",
+  "mailbox_connection.unpaused": "A mailbox to write from writes again",
+  "mailbox_connection.removed": "A mailbox to write from was removed",
   "channel.connected": "A WhatsApp number was connected",
   "lead.stage": "A lead moved",
   "lead.emailed": "A lead was marked as emailed",
@@ -8530,6 +8441,24 @@ var WHOLE_SENTENCE = new Map([
   ["lead.emailed", leadEmailedWords],
   ["lead.call", (p, base) => joinBits(base, [wordOf(LEAD_CALL_OUTCOME_WORDS, textAt(p, "outcome"))])],
   ["channel.connected", (p, base) => joinBits(base, [textAt(p, "verified_name")])],
+  // A mailbox a business connected (decision 0056): its address, and a hold with why.
+  ...[
+    "mailbox_connection.connected",
+    "mailbox_connection.signed_out",
+    "mailbox_connection.held",
+    "mailbox_connection.resumed",
+    "mailbox_connection.paused",
+    "mailbox_connection.unpaused",
+    "mailbox_connection.removed"
+  ].map(
+    (k) => [
+      k,
+      (p, base) => joinBits(base, [
+        textAt(p, "address"),
+        k === "mailbox_connection.held" && textAt(p, "why") ? mailboxHoldWords(textAt(p, "why") ?? "") : null
+      ])
+    ]
+  ),
   ["business.recorded", (p, base) => joinBits(base, [recordChangedWords(p)])],
   // A run the hourly sweep skipped because its day had passed (no approval could send it, S7-3): the system's, named.
   [
@@ -8583,18 +8512,6 @@ function activityWords(kind, payload) {
   switch (kind) {
     case "take_over": {
       if (textAt(p, "how") === "transfer") bits2.push("passed to the business's line");
-      break;
-    }
-    case "sending_domain.added":
-    case "sending_domain.verified":
-    case "sending_domain.held":
-    case "sending_domain.released":
-    case "sending_domain.resumed":
-    case "sending_domain.removed": {
-      const host = textAt(p, "host");
-      if (host) bits2.push(host);
-      const why = textAt(p, "why");
-      if (kind === "sending_domain.held" && why) bits2.push(domainHoldWords(why));
       break;
     }
     case "consent_change":
@@ -8729,9 +8646,9 @@ var TONES = {
   "billing.resumed": "ok",
   "mailbox.created": "ok",
   "mailbox.offers_resumed": "ok",
-  "sending_domain.verified": "ok",
-  "sending_domain.released": "ok",
-  "sending_domain.resumed": "ok",
+  "mailbox_connection.connected": "ok",
+  "mailbox_connection.resumed": "ok",
+  "mailbox_connection.unpaused": "ok",
   "workspace.created": "ok",
   approve: "ok",
   resolve: "ok",
@@ -8747,7 +8664,8 @@ var TONES = {
   "line.released": "warn",
   "google.unlinked": "warn",
   "google.disconnected": "warn",
-  "sending_domain.held": "warn",
+  "mailbox_connection.held": "warn",
+  "mailbox_connection.signed_out": "warn",
   "mailbox.offers_paused": "warn",
   "capability.deactivated": "warn",
   "member.left": "warn",
@@ -8870,7 +8788,7 @@ var PREFIX_FAMILY = {
   line: "connections",
   channel: "connections",
   mailbox: "connections",
-  sending_domain: "connections",
+  mailbox_connection: "connections",
   setup: "connections",
   google: "google",
   lead: "leads",
@@ -11715,12 +11633,13 @@ var ACTIVITY_SUBJECT_HOMES = {
   review: { door: (id) => addressOf({ kind: "review", id }) },
   membership: { door: page(addressOf({ kind: "team" })) },
   invitation: { door: page(addressOf({ kind: "team" })) },
-  // Connections holds the numbers, the lines, the address mail is sent from, the domains and the Google listing.
+  // Connections holds the numbers, the lines, the address mail is sent from, the mailboxes reach-outs write from and the
+  // Google listing.
   channel: { door: page(CONNECTIONS) },
   tenant_channel: { door: page(CONNECTIONS) },
   line: { door: page(CONNECTIONS) },
   mailbox: { door: page(CONNECTIONS) },
-  sending_domain: { door: page(CONNECTIONS) },
+  mailbox_connection: { door: page(CONNECTIONS) },
   listing: { door: page(CONNECTIONS) },
   subscription: { door: page(addressOf({ kind: "billing" })) },
   // The subjects whose page the server finds.
@@ -11908,7 +11827,14 @@ var RECORD_KINDS = {
   review: ["google_reviews", "google_listings", "google_connections"],
   facts: ["tenant_config"],
   rules: ["policies"],
-  channel: ["tenant_channels", "lines", "mailboxes", "sending_domains", "capability_activations", "business_records"],
+  channel: [
+    "tenant_channels",
+    "lines",
+    "mailboxes",
+    "mailbox_connections",
+    "capability_activations",
+    "business_records"
+  ],
   team: ["memberships", "invitations"],
   workspace: ["tenants"],
   notification: ["notifications"],
@@ -12028,14 +11954,14 @@ var FLAGS = [
   {
     name: "DIAG_KEY",
     mechanism: "edge_env",
-    does: "The platform's shared key: with EDGE_CALL_SECRET set it opens only the knocks that name it (the diagnostic, the pager, the sending-domains lift); on an edge without the secret it opens every admin door.",
+    does: "The platform's shared key: with EDGE_CALL_SECRET set it opens only the knocks that name it (the diagnostic and the pager); on an edge without the secret it opens every admin door.",
     owner: "Ruben",
     sunset: "2026-10-17",
     weaker: {
       allows: "On an edge without EDGE_CALL_SECRET (a preview: a production edge refuses to boot without it), the platform key alone opens every admin door (lib/admin-auth.ts).",
       readiness: {
         event: "admin_door_key_only",
-        when: "no ok: true line but the diagnostic's, the pager's and the sending-domains lift's, read from 3 October 2026"
+        when: "no ok: true line but the diagnostic's and the pager's, read from 3 October 2026"
       },
       closes: "EDGE_CALL_SECRET on the preview projects (Ruben's switch); then the change that deletes DIAG_KEY from every door but the platform's, the runbook's knock minting a token instead."
     }
@@ -18353,9 +18279,9 @@ var ASK_CITATION_KINDS = [
   "broadcast",
   "playbook",
   "template",
-  "domain"
+  "mailbox"
 ];
-var ASK_ROW_WORDS = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
+var ASK_ROW_WORDS = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, mailboxes";
 function emptyReadSet() {
   return Object.fromEntries(
     ASK_CITATION_KINDS.filter((k) => k !== "page").map((k) => [k, /* @__PURE__ */ new Map()])
@@ -18782,7 +18708,7 @@ var KIND_WORDS = {
     broadcast: "Broadcast",
     playbook: "Campaign",
     template: "Template",
-    domain: "Domain"
+    mailbox: "Mailbox"
   },
   es: {
     thread: "Hilo",
@@ -18797,7 +18723,7 @@ var KIND_WORDS = {
     broadcast: "Difusi\xF3n",
     playbook: "Campa\xF1a",
     template: "Plantilla",
-    domain: "Dominio"
+    mailbox: "Buz\xF3n"
   }
 };
 function answerFromV1(m) {
@@ -21235,9 +21161,7 @@ function emailFoot(business, address, foot, language) {
   const w = senderWords(language);
   if (foot.kind === "cold") {
     const p = coldParts(business, address, foot);
-    return [p.why, w.marketing, `${p.business} \xB7 ${p.address}`, `${w.noThanks}.`, `${w.unsubscribe}: ${p.url}`].join(
-      "\n"
-    );
+    return [p.why, w.marketing, `${p.business} \xB7 ${p.address}`, `${w.noThanks}.`].join("\n");
   }
   const who = business.trim() || w.us;
   if (foot.kind === "offer") {
@@ -25400,9 +25324,9 @@ function outreachRefusalOf(f) {
   return null;
 }
 var OUTREACH_WAIT_REFUSALS = [
-  "sending_domain_at_cap",
-  "sending_domain_not_ready",
-  "outreach_needs_own_domain",
+  "sending_mailbox_at_cap",
+  "sending_mailbox_not_ready",
+  "outreach_needs_own_mailbox",
   "paused"
 ];
 function isWaitRefusal(reason) {
@@ -25822,7 +25746,7 @@ function replyFromLineOf(from, mailbox) {
   if (from.from === "own") return `Goes from ${from.address}.`;
   if (from.because === null) return null;
   const box = mailbox ?? "your mailbox";
-  return from.because === "domain_held" ? `${from.own} is held, so this goes from ${box}.` : `${from.own} was removed, so this goes from ${box}.`;
+  return from.because === "own_not_sending" ? `${from.own} isn't sending right now, so this goes from ${box}.` : `${from.own} was removed, so this goes from ${box}.`;
 }
 var bareAddress = (from) => {
   if (typeof from !== "string" || !from.trim()) return null;
@@ -25836,7 +25760,7 @@ function replyLeftAsOf(meta) {
   const own = bareAddress(email.own_request?.from);
   if (!went) return null;
   if (!own) return `Went from ${went}.`;
-  return email.left_as_why === "domain_held" ? `Went from ${went}: ${own}'s domain is held.` : `Went from ${went}: ${own} could not send it.`;
+  return email.left_as_why === "own_not_sending" ? `Went from ${went}: ${own} isn't sending right now.` : `Went from ${went}: ${own} could not send it.`;
 }
 
 // src/conversations/inbox-thread.ts
@@ -31619,7 +31543,7 @@ var DOUBT_WORDS = {
 
 // src/reach-out/reach-out-sheet.ts
 var REACH_OUT_SHEET_WORDS = {
-  sub: "Your email, opened for each business, from your own domain. Replies land in your Inbox.",
+  sub: "Your email, opened for each business, from your own mailbox. Replies come back to it, and to your Inbox.",
   who: "Ready, with a checked address, never written to. Keeps itself current.",
   opening: "The receptionist opens each email from the finder's record. It never invents a fact: anything it can't back is held.",
   stops: "Stops when they reply, book, unsubscribe, bounce or say no.",
@@ -31630,7 +31554,7 @@ var REACH_OUT_SHEET_WORDS = {
   footHint: "as the law asks",
   repliesHint: "into your Inbox",
   checkLater: "Each email is checked before it goes. The first run waits for you.",
-  noDomain: "Add a domain you send from in Settings \u203A Connections \u203A Email first.",
+  noMailbox: "Connect the mailbox you'll write from first: Google or Microsoft, here or in Settings \u203A Connections \u203A Email.",
   anotherStep: "Another step",
   anotherStepHint: "\xB7 another email",
   /** The last step may hand each business it reaches to you instead (Part 5, G20). */
@@ -31664,7 +31588,7 @@ var REACH_OUT_REFUSALS = {
   /** reach_out_report (00241, 00360): any count of days Reports reads, as its other functions take them. */
   period: "A period is 1 to 90 days.",
   searchNotFound: "Search not found.",
-  domainNotFound: "Domain not found.",
+  mailboxNotFound: "Mailbox not found.",
   sendNotFound: "Email not found.",
   runNotFound: "Run not found.",
   runOver: "That run is over.",
@@ -31713,13 +31637,12 @@ function reachLineOf(r2, includeUnconfirmed) {
   };
 }
 function paceWords(p) {
-  const next = DOMAIN_RAMP.find((s) => s.days > p.sentDays);
-  const why = next ? `${p.sentDays < 1 ? "The pace for a new domain. " : ""}Rises to ${next.perDay} a day after ${next.days} clean days.` : "The most a domain sends in a day.";
+  const why = p.rises !== null ? `A new mailbox starts slow and grows with the days it sends: the pace rises in ${plural(p.rises, "more day", "more days")} of sending.` : "As much as your mailboxes write in a day.";
   return {
     parts: [
       "",
       String(p.share),
-      " a day per domain, one every ",
+      ` a day${p.mailboxes > 1 ? ` across ${p.mailboxes} mailboxes` : ""}, one every `,
       `${p.gapMinutes} min`,
       " or so, in each business's open hours. Never on their closed days."
     ],
@@ -31755,12 +31678,12 @@ function startWords(s) {
           return s.planned > 0 ? { tone: "good", text: `Planned ${n}. The first run waits on you: open it to approve.` } : { tone: "plain", text: "A run of this reach-out already waits on you. Answer it first." };
         case "billing":
           return { tone: "warn", text: "Saved. Nothing is planned until billing is sorted: open Billing." };
-        case "no_domain":
-          return { tone: "warn", text: `Saved. Nothing is planned yet. ${REACH_OUT_SHEET_WORDS.noDomain}` };
+        case "no_mailbox":
+          return { tone: "warn", text: `Saved. Nothing is planned yet. ${REACH_OUT_SHEET_WORDS.noMailbox}` };
         case "no_room":
           return {
             tone: "plain",
-            text: "Saved. Your domains have sent all they may today, so the first run is tomorrow."
+            text: "Saved. Your mailboxes have written all they may today, so the first run is tomorrow."
           };
         default:
           return { tone: "plain", text: "Saved. The first run is held." };
@@ -31820,7 +31743,7 @@ function approvalWordsOf(r2, p) {
   if (r2.later > 0)
     why.push({
       tone: "plain",
-      text: `${r2.later} wait for the coming days \u2014 ${p.share} a day on this domain`,
+      text: `${r2.later} wait for the coming days \u2014 ${p.share} a day from ${r2.mailboxes.length === 1 ? "this mailbox" : "these mailboxes"}`,
       door: null
     });
   if (r2.held.length > 0) why.push({ tone: "warn", text: `${r2.held.length} held by the check`, door: "See them" });
@@ -31833,8 +31756,9 @@ function approvalWordsOf(r2, p) {
     if (leads) words2.push({ text: open, opening: true });
     if (rest.trim()) words2.push({ text: rest.replace(/^\s+/, ""), opening: false });
   }
-  const hosts = r2.domains.map((d) => d.host);
-  const from = r2.domains.length === 1 ? `all from ${r2.domains[0].host}, ${plural(r2.domains[0].sent_days, "clean day", "clean days")}` : r2.domains.length > 1 ? `from ${hosts.slice(0, -1).join(", ")} and ${hosts[hosts.length - 1]}` : null;
+  const addresses = r2.mailboxes.map((m) => m.address);
+  const [only, ...others] = r2.mailboxes;
+  const from = only && others.length === 0 ? `all from ${only.address}, ${plural(only.sent_days, "day of sending", "days of sending")}` : r2.mailboxes.length > 1 ? `from ${addresses.slice(0, -1).join(", ")} and ${addresses[addresses.length - 1]}` : null;
   const goes = earlier ? " \xB7 goes from now, re-timed in their hours, once you approve it" : passed ? " \xB7 goes from now, in their hours, once you approve it" : at3 ? ` \xB7 goes from ${at3} once you approve it` : "";
   const step2 = r2.step_n === null ? "a step since removed" : `step ${r2.step_n + 1}, ${stepLabel(r2.step_n).toLowerCase()}`;
   return {
@@ -31867,9 +31791,10 @@ function approvalWordsOf(r2, p) {
 }
 var runDayWords = (runFor) => dateFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(/* @__PURE__ */ new Date(`${runFor}T12:00:00Z`));
 function chainPaceOf(c) {
+  const [only, ...others] = c.mailboxes;
   return {
-    host: c.domains.length === 1 ? c.domains[0].host : null,
-    share: c.domains.reduce((t, d) => t + domainDailyCap(d.sent_days), 0)
+    from: only && others.length === 0 ? only.address : null,
+    share: c.mailboxes.reduce((t, m) => t + mailboxDailyCap(m), 0)
   };
 }
 function chainPathWords(c) {
@@ -31897,9 +31822,9 @@ var REACH_OUT_ROW_WORDS = {
   noRun: "No run yet",
   edit: "Edit"
 };
-function chainHintOf(c, host) {
+function chainHintOf(c, from) {
   const labels = c.steps.map((s) => stepLabelOf(s).toLowerCase());
-  return `${labels.join(", ").replace(/^your email/, "Your email")}${host ? ` \xB7 from ${host}` : ""}`;
+  return `${labels.join(", ").replace(/^your email/, "Your email")}${from ? ` \xB7 from ${from}` : ""}`;
 }
 function reportRowOf(s, step2) {
   const label = stepLabelOf({ n: s.n, hand: step2?.hand ?? null });
@@ -31941,7 +31866,7 @@ function chainReportWordsOf(c, report, reach, p) {
     },
     head: ["Step", "When", "Written", "Delivered", "Wrote back", "Interested", "Booked", "Said no", "Bounced"],
     table: report.steps.map((s) => reportRowOf(s, stepOf.get(s.id))),
-    sentence: p.share > 0 ? `${p.share} a day${p.host ? ` from ${p.host}` : ""}, one every ${c.gap_minutes} minutes in each business's hours. ${clauses.join("; ")}.` : `${REACH_OUT_SHEET_WORDS.noDomain} ${clauses.join("; ")}.`,
+    sentence: p.share > 0 ? `${p.share} a day${p.from ? ` from ${p.from}` : ""}, one every ${c.gap_minutes} minutes in each business's hours. ${clauses.join("; ")}.` : `${REACH_OUT_SHEET_WORDS.noMailbox} ${clauses.join("; ")}.`,
     // The held wait for their owner in their run (R20): the newest run that holds some opens them.
     waiting: held > 0 ? { text: `${held} wait for your say`, run_id: report.runs.find((r2) => r2.held > 0)?.id ?? null } : null,
     history: report.runs.map((r2) => ({
@@ -31959,7 +31884,7 @@ function emailTemplateWords(p) {
     sends: p.chainName,
     sendsNote: p.stepN === 0 ? "step 1 \xB7 writes daily, in their hours" : `step ${p.stepN + 1} \xB7 after ${p.afterDays} days with nothing back`,
     checkNote: "Checked before each send: every slot filled or the email held; the opening's facts in the finder's record; under 120 words; the footer present; the language theirs.",
-    /** The act that opens the whole reach-out, whose days, pace and domains are its own. */
+    /** The act that opens the whole reach-out, whose days, pace and mailboxes are its own. */
     edit: "Edit the reach-out"
   };
 }
@@ -32015,6 +31940,10 @@ function skippedReasonWords(reason) {
       return "taken back before it was sent";
     case "erased":
       return "their record was erased";
+    case "mailbox_gone":
+      return "the mailbox their emails came from was removed";
+    case "outreach_country":
+      return "are where a cold email may not go without their say";
     default:
       return HELD_REASONS[reason] ?? "could not be written to";
   }
@@ -32144,7 +32073,7 @@ function reachOutStripOf(s, chain, nowMs, tz) {
   else if (s.next && next !== null) {
     const when = zoneDayKey(next, tz) === zoneDayKey(nowMs, tz) ? clockTime(next, tz) : clockNearWhen(next, tz, nowMs);
     parts2.push(`next ${when}${s.next.business ? `, ${s.next.business}` : ""}`);
-    if (s.next.host) parts2.push(`from ${s.next.host}`);
+    if (s.next.from || s.next.host) parts2.push(`from ${s.next.from ?? s.next.host}`);
   } else parts2.push("nothing more planned yet");
   if (s.held > 0) parts2.push(`${s.held} held for your say`);
   return {
@@ -32176,7 +32105,7 @@ function sendLine(s, tz, nowMs) {
     text
   });
   if (s.left) {
-    const from = s.host ? ` \xB7 from ${s.host}` : "";
+    const from = s.from || s.host ? ` \xB7 from ${s.from ?? s.host}` : "";
     const angle = s.angle ? ` \xB7 angle: ${s.angle}` : "";
     return line(`${name}${from}${angle} \xB7 ${emailWords(s)}`);
   }
@@ -32236,7 +32165,7 @@ function reachOutPersonOf(t, nowMs, tz) {
     if (!s.left || !s.message_id) continue;
     const parts2 = [stepName(s.n, s.hand)];
     if (s.angle) parts2.push(`angle: ${s.angle}`);
-    if (s.host) parts2.push(`from ${s.host}`);
+    if (s.from || s.host) parts2.push(`from ${s.from ?? s.host}`);
     parts2.push(emailWords(s));
     emails.set(s.message_id, { who: chain ? `Reach out \xB7 ${chain}` : "Your reach-out", sub: parts2.join(" \xB7 ") });
   }
@@ -36080,7 +36009,7 @@ function reachOutDraftOf(p) {
       name: c.name,
       include_unconfirmed: c.include_unconfirmed,
       gap_minutes: c.gap_minutes,
-      domain_ids: c.domain_ids,
+      mailbox_ids: c.mailbox_ids,
       signed_by: c.signed_by ?? p.signedBy ?? "",
       steps: c.steps.map((s) => ({
         id: s.id,
@@ -36094,7 +36023,7 @@ function reachOutDraftOf(p) {
     name: reachOutDefaultName(p.searchName),
     include_unconfirmed: !!p.includeUnconfirmed,
     gap_minutes: REACH_OUT_GAP_FIRST,
-    domain_ids: [],
+    mailbox_ids: [],
     signed_by: p.signedBy ?? "",
     steps: [
       {
@@ -36145,7 +36074,7 @@ function reachOutChainBodyOf(d, searchId) {
     search_id: searchId,
     include_unconfirmed: d.include_unconfirmed,
     gap_minutes: d.gap_minutes,
-    domain_ids: d.domain_ids,
+    mailbox_ids: d.mailbox_ids,
     signed_by: d.signed_by.trim() || null,
     // An email carries no hand at all: the door reads a step with the key as a hand step (00228).
     steps: d.steps.map((s, i) => ({
@@ -36172,11 +36101,15 @@ function reachOutDraftIssues(d, has3) {
   }
   return out;
 }
-function reachOutSheetPaceOf(domains, picked) {
-  const from = domains.filter((d) => d.state === "verified" && (picked.length === 0 || picked.includes(d.id)));
-  if (from.length === 0) return { share: 0, sentDays: 0, domains: 0 };
-  const least = from.reduce((a, b) => domainDailyCap(b.sent_days) < domainDailyCap(a.sent_days) ? b : a);
-  return { share: domainDailyCap(least.sent_days), sentDays: least.sent_days, domains: from.length };
+function reachOutSheetPaceOf(mailboxes, picked) {
+  const from = mailboxes.filter((m) => m.state === "connected" && (picked.length === 0 || picked.includes(m.id)));
+  if (from.length === 0) return { share: 0, sentDays: 0, mailboxes: 0, rises: null };
+  const share2 = from.reduce((t, m) => t + mailboxDailyCap(m), 0);
+  const sentDays = Math.min(...from.map((m) => m.sent_days));
+  const next = MAILBOX_RAMP.find((s) => s.days > sentDays);
+  const youngest = from.find((m) => m.sent_days === sentDays);
+  const rises = next && youngest && mailboxDailyCap(youngest) >= mailboxRampShare(sentDays) ? next.days - sentDays : null;
+  return { share: share2, sentDays, mailboxes: from.length, rises };
 }
 function previewRefusedWords(reason) {
   switch (reason) {
@@ -36230,13 +36163,13 @@ function reachOutDoorOf(r2) {
 function reachOutWhoWords(includeUnconfirmed) {
   return includeUnconfirmed ? "Ready, and those whose address is unconfirmed, never written to. Keeps itself current as the search grows." : REACH_OUT_SHEET_WORDS.who;
 }
-function reachOutMayPickDomain(d) {
-  return d.domain_ids.length < REACH_OUT_DOMAINS_MAX;
+function reachOutMayPickMailbox(d) {
+  return d.mailbox_ids.length < REACH_OUT_MAILBOXES_MAX;
 }
 function reachOutSheetUnreadOf(r2) {
-  if (r2.domains === "failed" || r2.settings === "failed")
-    return "Your sending domains or your booking link couldn't be read. Start waits until they are; reload to try again.";
-  if (r2.domains === "reading" || r2.settings === "reading") return "Reading your sending domains and your booking link\u2026";
+  if (r2.mailboxes === "failed" || r2.settings === "failed")
+    return "Your mailboxes or your booking link couldn't be read. Start waits until they are; reload to try again.";
+  if (r2.mailboxes === "reading" || r2.settings === "reading") return "Reading your mailboxes and your booking link\u2026";
   return null;
 }
 function reachOutEditedWords(rechecked) {
@@ -36261,8 +36194,10 @@ var REACH_OUT_SHEET_PARTS = {
   afterTail: "with nothing back \xB7 in the same thread",
   dayOne: "Day one \xB7 the pace below",
   remove: "Remove this step",
-  everyDomain: "Every verified domain",
-  domainsMax: `Up to ${REACH_OUT_DOMAINS_MAX} domains, or every verified one.`,
+  everyMailbox: "Every connected mailbox",
+  mailboxesMax: `Up to ${REACH_OUT_MAILBOXES_MAX} mailboxes, or every connected one.`,
+  connectGoogle: "Connect Google",
+  connectMicrosoft: "Connect Microsoft",
   close: "Close",
   recommended: "Recommended",
   start: "Start it",
@@ -36409,7 +36344,7 @@ function timetable(input) {
     const j = draw();
     return Number.isFinite(j) ? Math.max(-1, Math.min(1, j)) : 0;
   };
-  const domains = input.domains.filter((d) => d.cap > 0).map((d) => ({ ...d, times: [...d.recent].sort((a, b) => a - b), placed: 0 }));
+  const senders = input.senders.filter((d) => d.cap > 0).map((d) => ({ ...d, times: [...d.recent].sort((a, b) => a - b), placed: 0 }));
   const spansOf = /* @__PURE__ */ new Map();
   const placed = [];
   const unplaced = [];
@@ -36422,7 +36357,8 @@ function timetable(input) {
       spansOf.set(key, spans);
     }
     let best = null;
-    for (const d of domains) {
+    for (const d of senders) {
+      if (s.only && d.id !== s.only) continue;
       const t = earliest2(spans, d.times, d.cap, gapMs, limitMs);
       if (t === null) continue;
       if (!best || t < best.t || t === best.t && d.placed < best.d.placed) best = { d, t };
@@ -36433,7 +36369,7 @@ function timetable(input) {
     }
     best.d.times.splice(lowerBound(best.d.times, best.t), 0, best.t);
     best.d.placed += 1;
-    placed.push({ id: s.id, domainId: best.d.id, sendAtMs: best.t });
+    placed.push({ id: s.id, senderId: best.d.id, sendAtMs: best.t });
   }
   return { placed, unplaced };
 }
@@ -37410,13 +37346,13 @@ var ROUTE_KEYS = [
   "DELETE google/link",
   "DELETE lead-searches/[id]",
   "DELETE leads/[id]",
+  "DELETE mailbox-connections/[id]",
   "DELETE me",
   "DELETE me/devices",
   "DELETE people/[id]/business",
   "DELETE playbooks/[id]",
   "DELETE reach-outs/[id]",
   "DELETE segments/[id]",
-  "DELETE sending-domains/[id]",
   "DELETE team/[id]",
   "DELETE team/partner",
   "DELETE templates/[id]",
@@ -37457,6 +37393,9 @@ var ROUTE_KEYS = [
   "GET leads/[id]",
   "GET leads/back",
   "GET lines/codes",
+  "GET mailbox-connections",
+  "GET mailbox-connections/callback",
+  "GET mailbox-connections/connect",
   "GET me/alerts",
   "GET messages/[id]/media",
   "GET metrics",
@@ -37496,6 +37435,7 @@ var ROUTE_KEYS = [
   "GET views",
   "GET workspaces",
   "PATCH lead-searches/[id]",
+  "PATCH mailbox-connections/[id]",
   "PATCH partner",
   "PATCH team/[id]",
   "PATCH workspaces",
@@ -37576,6 +37516,9 @@ var ROUTE_KEYS = [
   "POST lines/register",
   "POST lines/retry",
   "POST lines/search",
+  "POST mailbox-connections/[id]/check",
+  "POST mailbox-connections/[id]/resume",
+  "POST mailbox-connections/[id]/test",
   "POST mailboxes",
   "POST me/invitations/accept",
   "POST messages/[id]/cancel-send",
@@ -37611,9 +37554,6 @@ var ROUTE_KEYS = [
   "POST reach-outs/preview",
   "POST segments",
   "POST segments/draft",
-  "POST sending-domains",
-  "POST sending-domains/[id]/check",
-  "POST sending-domains/[id]/resume",
   "POST settings/receptionist",
   "POST setup/request",
   "POST team/invite",
@@ -37914,6 +37854,9 @@ var SCHEMA_SETS = {
   "lines.step": ["subaccount", "number", "trunk", "agent", "import", "messaging", "channel"],
   "lines.voice_state": ["none", "provisioning", "answering", "failed"],
   "lines.whatsapp_state": ["none", "connecting", "connected", "coexistence", "failed"],
+  "mailbox_connections.held_why": ["bounces", "complaint", "unsubscribes"],
+  "mailbox_connections.provider": ["google", "microsoft"],
+  "mailbox_connections.state": ["connected", "reconnect", "paused", "held", "removed"],
   "mailboxes.offers_paused_reason": ["complaints", "bounces"],
   "mailboxes.reply_mode": ["draft", "veto", "auto"],
   "memberships.role": ["owner", "operator", "partner", "viewer"],
@@ -40213,12 +40156,14 @@ function emailRow(i, { nowMs }) {
   if (mailbox) {
     const last = mailbox.last_received_at ? ` Last email ${agoWords(Date.parse(mailbox.last_received_at), nowMs)}.` : "";
     const working = `Customers write to this address and you reply from the Inbox, as ${mailbox.from_name}.${last}`;
-    const heldDomains = (i.email?.sending?.domains ?? []).filter((d) => d.state === "held").length;
+    const needs2 = (i.email?.sending?.mailboxes ?? []).filter(
+      (m) => m.state === "held" || m.state === "reconnect"
+    ).length;
     return {
       ...base,
       detail: mailbox.address,
-      state: mailbox.last_error || heldDomains ? "attention" : "connected",
-      stateWords: mailbox.last_error ? SETUP_STATE_WORDS.waiting_them : heldDomains ? `On \xB7 ${heldDomains} domain${heldDomains === 1 ? "" : "s"} held` : "On",
+      state: mailbox.last_error || needs2 ? "attention" : "connected",
+      stateWords: mailbox.last_error ? SETUP_STATE_WORDS.waiting_them : needs2 ? `On \xB7 ${needs2} mailbox${needs2 === 1 ? "" : "es"} to look at` : "On",
       sentence: mailbox.last_error ? `${mailbox.last_error} ${working}` : working,
       verb: { label: "Change the name", to: "verb:email-setup", who: "owner" },
       body: "email_setup"
@@ -40765,7 +40710,6 @@ var EDGE_ERROR_CODES = [
   "channel_read_failed",
   "channel_write_failed",
   "check_unset",
-  "cold_lane_unset",
   "config_broken",
   "connection_write_failed",
   "context_failed",
@@ -40773,25 +40717,25 @@ var EDGE_ERROR_CODES = [
   "could_not_retire_old_draft",
   "credentials_failed",
   "direct",
-  "dns_hold",
   "email_off",
   "empty_draft",
   "erasure_unreadable",
   "exchange_failed",
+  "free_mail",
   "google_refused",
   "grant_unreadable",
-  "host_elsewhere",
-  "host_taken",
   "in_flight",
   "ingest_failed",
   "invalid",
   "key_unavailable",
+  "lane_unset",
   "line_exists",
   "line_failed_retry",
   "line_not_retryable",
   "line_retry_taken",
   "listing_read_failed",
   "listing_write_failed",
+  "mailbox_taken",
   "message_read_failed",
   "meta_failed",
   "meta_refused",
@@ -40799,18 +40743,15 @@ var EDGE_ERROR_CODES = [
   "model_failed",
   "model_unavailable",
   "model_unreachable",
-  "moved",
   "no_account",
   "no_app_credentials",
   "no_billing_record",
   "no_business_record",
   "no_campaign_to_resubmit",
   "no_channel",
-  "no_cold_key",
   "no_credentials",
   "no_customer",
   "no_database",
-  "no_domain_readable",
   "no_fn_secret",
   "no_line_credentials",
   "no_line_provider",
@@ -40864,7 +40805,6 @@ var EDGE_ERROR_CODES = [
   "policy_block_price",
   "policy_never",
   "preview_failed",
-  "provider",
   "provider_refused",
   "provider_unauthorized",
   "provider_unreachable",
@@ -40896,6 +40836,7 @@ var EDGE_ERROR_CODES = [
   "token_signature",
   "too_large",
   "too_many",
+  "too_many_on_domain",
   "unauthorized",
   "unavailable",
   "unfile_failed",
@@ -41871,7 +41812,7 @@ var ALERT_TOPICS = [
     key: "sweep",
     group: "worth_knowing",
     title: "Sending is paused",
-    what: "Offers and news by email, or a sending domain, are held after bounces or complaints, and you are told when they send again. Messages about a visit and everything on WhatsApp go on.",
+    what: "Offers and news by email, or a mailbox your reach-outs write from, are held after bounces or complaints, or when its provider signs it out, and you are told. Messages about a visit and everything on WhatsApp go on.",
     email: "choice",
     phone: false,
     kinds: ["sweep"]
@@ -43591,10 +43532,28 @@ var NOTICE_MENDS = [
     by: { kind: "template_ready", title: templateTitle2("approved") },
     sameSubject: true
   },
-  // A domain held is mended however its hold lifts: the platform's resume or the owner's (sending_domain.resumed), or a
-  // check that passes (sending_domain.released).
-  { warns: { kind: "sweep", title: /^.+ is held: /u }, by: { change: "sending_domain.resumed" }, sameSubject: true },
-  { warns: { kind: "sweep", title: /^.+ is held: /u }, by: { change: "sending_domain.released" }, sameSubject: true },
+  // A connected mailbox held for its own mail is mended by its owner's resume, one signed out by connecting it again, and
+  // either by its removal (decision 0056, mailbox-notices.ts words them).
+  {
+    warns: { kind: "sweep", title: /^.+ is held: /u },
+    by: { change: "mailbox_connection.resumed" },
+    sameSubject: true
+  },
+  {
+    warns: { kind: "sweep", title: /^.+ is held: /u },
+    by: { change: "mailbox_connection.removed" },
+    sameSubject: true
+  },
+  {
+    warns: { kind: "sweep", title: /^.+ needs reconnecting$/u },
+    by: { change: "mailbox_connection.connected" },
+    sameSubject: true
+  },
+  {
+    warns: { kind: "sweep", title: /^.+ needs reconnecting$/u },
+    by: { change: "mailbox_connection.removed" },
+    sameSubject: true
+  },
   {
     warns: { kind: "billing", title: /^Your receptionist is paused$/u },
     by: { kind: "billing", title: /^Your receptionist is back$/u },
@@ -44479,6 +44438,7 @@ export {
   CONVERSATION_PHRASE,
   CONVERSATION_STATES,
   CONVERSATION_UNDER_WAY,
+  CUSTOMER_DOMAIN_DAILY_MAX,
   DATA_NOT_INSTRUCTIONS,
   DAYS,
   DAY_MS,
@@ -44517,11 +44477,6 @@ export {
   DISCONNECTION_LABELS,
   DISPLAY_NAME_MAX,
   DMARC_RECOMMENDED,
-  DMARC_STATES,
-  DNS_HOLDS,
-  DOMAIN_HOLDS,
-  DOMAIN_RAMP,
-  DOMAIN_RESUMERS,
   DOUBT_SEEN,
   DOUBT_SETTLED_AS,
   DOUBT_WORDS,
@@ -44584,7 +44539,6 @@ export {
   FORWARDING_MODE_WORDS,
   FORWARDING_TEST_WINDOW_MS,
   FORWARD_IS_HANDOFF,
-  FREE_MAIL_DOMAINS,
   GET_YES_PAUSED_WORDS,
   GET_YES_ROUTE,
   GMAIL_FORWARD_NOTE,
@@ -44780,8 +44734,16 @@ export {
   ListConditionSchema,
   ListFactSchema,
   ListRuleSchema,
+  MAILBOX_CONNECTIONS_MAX,
+  MAILBOX_CONNECTION_STATES,
+  MAILBOX_CONNECT_WORDS,
+  MAILBOX_DAILY_CAP_MAX,
   MAILBOX_FROM_NAME_MAX,
+  MAILBOX_HOLDS,
   MAILBOX_LOCAL_PART_MAX,
+  MAILBOX_PROVIDERS,
+  MAILBOX_PROVIDER_WORDS,
+  MAILBOX_RAMP,
   MAILBOX_RESERVED,
   MARKETING_OPT_IN_PATTERN,
   MAX_CLOSURES,
@@ -44948,9 +44910,6 @@ export {
   PLAN_NOTE_MAX,
   PLAN_WORDS,
   PLATFORM_DAYS_READ,
-  PLATFORM_HOLD_NOTICE,
-  PLATFORM_HOLD_READD,
-  PLATFORM_HOLD_REFUSAL,
   PLATFORM_NEW_DAYS,
   PLATFORM_NUMBERS,
   PLATFORM_QUIET_DAYS,
@@ -44996,7 +44955,6 @@ export {
   PROPOSAL_GATE,
   PROPOSAL_SPECS,
   PROPOSAL_WORDS,
-  PROVIDER_STATUSES,
   PROVISIONING_DEADLINE_MS,
   PUBLIC_FIELD_MARK,
   PURPOSE_REFUSALS,
@@ -45016,6 +44974,8 @@ export {
   REACH_OUT_AWAY_MAX_DAYS,
   REACH_OUT_BODY_MAX,
   REACH_OUT_CHECKS_PER_DAY,
+  REACH_OUT_COUNTRIES_FREE,
+  REACH_OUT_COUNTRIES_REFUSED,
   REACH_OUT_DAY_ROUTE,
   REACH_OUT_DECISIONS,
   REACH_OUT_EMAILED_WORDS,
@@ -45098,8 +45058,6 @@ export {
   REPORT_RANGES,
   REPORT_WEEK_LONG,
   REPORT_WEEK_SHORT,
-  REPUTATION_HOLDS,
-  REPUTATION_MEMORY_MS,
   RETELL_MODELS,
   RETENTION_DAYS,
   REVIEWS_WAITING_SHOWN,
@@ -45130,15 +45088,12 @@ export {
   SECOND_FACTOR_PATH,
   SECOND_FACTOR_REQUIRED_PATH,
   SECOND_FACTOR_WORDS,
-  SELF_LIFTING_HOLDS,
   SELLS_BY,
   SELLS_BY_FIRST,
   SELLS_BY_QUESTION,
   SELLS_BY_REFUSAL,
   SELLS_BY_WORDS,
   SENDER_WORDS,
-  SENDING_DOMAINS_MAX,
-  SENDING_DOMAIN_STATES,
   SENDING_HOURS_WORDS,
   SEND_DAY_FRAME,
   SEND_WHEN_WORDS,
@@ -45469,7 +45424,6 @@ export {
   checkChipsOf,
   checkNoteSuggestion,
   checkOpening,
-  checkResultWords,
   checkedWords,
   chipsMoreWords,
   citationRoute,
@@ -45541,6 +45495,7 @@ export {
   coversSpan,
   csvCell,
   customerDomainOf,
+  customerDomainWords,
   customerWords,
   dailyLimit,
   dataSentences,
@@ -45593,15 +45548,6 @@ export {
   deviceTimezone,
   disclosureFacts,
   divertedNumbers,
-  domainDailyCap,
-  domainHoldFixWords,
-  domainHoldNoticeWords,
-  domainHoldWords,
-  domainPatchOf,
-  domainRecordRows,
-  domainRecordsIntro,
-  domainRegistrarHint,
-  domainStatsWords,
   doorNamesNoAudience,
   doorOf,
   draftExcerpt,
@@ -45900,7 +45846,6 @@ export {
   journeyGuide,
   journeyOf,
   journeyStageOf,
-  judgeDomain,
   keptPhoneKind,
   keptUnreadOf,
   kindListDoor,
@@ -46050,6 +45995,19 @@ export {
   logoLayout,
   logoLookupWords,
   lookPrefOf,
+  mailboxActs,
+  mailboxConnectWords,
+  mailboxConnectionDtoOf,
+  mailboxDailyCap,
+  mailboxHealthWords,
+  mailboxHoldFixWords,
+  mailboxHoldOf,
+  mailboxHoldWords,
+  mailboxRampShare,
+  mailboxRecordRows,
+  mailboxSendsNow,
+  mailboxWords,
+  mailboxesFootWords,
   markOn,
   maskedEmail,
   matchColumns,
@@ -46134,8 +46092,6 @@ export {
   nonBlankOrNull,
   normalizeAnswer,
   normalizeEmail,
-  normalizeFromLocal,
-  normalizeHost,
   normalizeLink,
   normalizeLocalPart,
   normalizePhone,
@@ -46195,7 +46151,6 @@ export {
   outreachRefusalOf,
   overLimitRefusal,
   ownAddressesOf,
-  ownDomainAddress,
   ownMessageRefusal,
   ownWordsOf,
   ownedDomainOf,
@@ -46427,6 +46382,7 @@ export {
   reachOutAfterDayChoices,
   reachOutCameWords,
   reachOutChainBodyOf,
+  reachOutCountryOf,
   reachOutDayWords,
   reachOutDefaultName,
   reachOutDoorOf,
@@ -46438,7 +46394,7 @@ export {
   reachOutExampleValues,
   reachOutLineOf,
   reachOutMayAddStep,
-  reachOutMayPickDomain,
+  reachOutMayPickMailbox,
   reachOutPeopleRoute,
   reachOutPersonOf,
   reachOutPreviewOf,
@@ -46447,7 +46403,6 @@ export {
   reachOutRules,
   reachOutRunWordsOf,
   reachOutSavedWords,
-  reachOutSendsFrom,
   reachOutSetHandWords,
   reachOutSheetPaceOf,
   reachOutSheetUnreadOf,
@@ -46459,6 +46414,7 @@ export {
   reachOutTimelineOf,
   reachOutWhenOf,
   reachOutWhoWords,
+  reachOutWritesFrom,
   reachSplit,
   reachSplitWords,
   reachedCustomer,
@@ -46521,7 +46477,6 @@ export {
   reportRangeOfKey,
   reportsParamParts,
   reportsRouteParts,
-  reputationHoldOf,
   requestCodeWords,
   rereadAt,
   resendLeft,
@@ -46531,7 +46486,6 @@ export {
   resolveSteps,
   resolveSystemPrompt,
   resolveTheme,
-  resumeDomain,
   retentionWords,
   reviewHeldWords,
   reviewIsNew,
@@ -46609,10 +46563,6 @@ export {
   sendableTemplates,
   senderLanguage,
   senderWords,
-  sendingDomainActs,
-  sendingDomainDtoOf,
-  sendingDomainWords,
-  sendingDomainsFootWords,
   sendingEndsAt,
   sendsWaitWords,
   sentByWords,
@@ -46914,13 +46864,11 @@ export {
   whoseWords,
   whyCannotSpend,
   whyFrom,
-  whyNotAFromLocal,
   whyNotAFromName,
   whyNotAHandoff,
   whyNotALink,
   whyNotALocalPart,
   whyNotAPhone,
-  whyNotASendingHost,
   whyNotAnEmail,
   whyNotForward,
   whyNotLook,

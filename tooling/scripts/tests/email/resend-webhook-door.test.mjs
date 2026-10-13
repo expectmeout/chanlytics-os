@@ -213,46 +213,27 @@ test("what the workspace's people are told: who wrote and about what, the first 
   );
 });
 
-test("the cold account's receipts come to the same door, proven with its own secret; one signed with neither is refused", async () => {
-  const COLD = `whsec_${Buffer.from("the-cold-accounts-signing-secret").toString("base64")}`;
+test("a delivery is proven by the platform's own secret alone: one signed by any other account is refused, whatever a variable once named it (decision 0056)", async () => {
+  const OTHER = `whsec_${Buffer.from("another-accounts-signing-secret!").toString("base64")}`;
   const ev = received(["bestmovers@mail.chanlytics.com"]);
-  // Only the platform's secret set: its deliveries still work, and a cold-signed one is not proven.
-  let t = world();
-  assert.equal(await post(ev), 200);
-  assert.equal(await post(ev, { secret: COLD }), 401);
-  assert.equal(t.jobs.length, 1);
-  process.env.RESEND_COLD_WEBHOOK_SECRET = COLD;
+  const t = world();
+  process.env.RESEND_COLD_WEBHOOK_SECRET = OTHER;
   try {
-    t = world();
-    // Two emails: the same one twice is one job, whoever signed it (the ledger's key is the mailbox and the received id).
-    const other = received(["bestmovers@mail.chanlytics.com"], { email_id: "rcv_2" });
-    assert.equal(await post(ev, { secret: COLD }), 200, "signed by the cold account");
-    assert.equal(await post(other), 200, "and the platform's, still");
-    assert.equal(
-      await post(ev, { secret: `whsec_${Buffer.from("somebody-else's-signing-secret!!").toString("base64")}` }),
-      401,
-    );
-    assert.equal(t.jobs.length, 2, "one for each proven delivery; the stranger's is none");
-    // A cold secret set wrong refuses only what it would have proven: the platform's receipts still land.
-    process.env.RESEND_COLD_WEBHOOK_SECRET = "whsec_";
-    assert.equal(await post(ev), 200, "a bad second secret does not stop the first");
-    assert.equal(t.jobs.length, 2, "and the same email again is the job it already was");
+    assert.equal(await post(ev), 200, "the platform's");
+    assert.equal(await post(ev, { secret: OTHER }), 401, "the cold account's secret proves nothing any more");
+    assert.equal(t.jobs.length, 1);
   } finally {
     delete process.env.RESEND_COLD_WEBHOOK_SECRET;
   }
 });
 
-test("a reply to a cold email on the cold reply domain (D17) names its workspace by the same route; unset, it names nobody", async () => {
+test("a reply route on another domain names nobody: only the deployment's mail domain routes, whatever a variable once named it", async () => {
   const t = world();
-  process.env.COLD_REPLY_DOMAIN = "reply.coldlinks.example";
+  process.env.COLD_REPLY_DOMAIN = "reply.example-replies.example";
   try {
-    assert.equal(await post(received([`r+${"b".repeat(24)}@reply.coldlinks.example`])), 200);
+    assert.equal(await post(received([`r+${"b".repeat(24)}@reply.example-replies.example`])), 200);
   } finally {
     delete process.env.COLD_REPLY_DOMAIN;
   }
-  assert.equal(await post(received([`r+${"b".repeat(24)}@reply.coldlinks.example`], { email_id: "rcv_2" })), 200);
-  assert.deepEqual(
-    jobsOf(t).map((j) => [j[0], j[2].received_id]),
-    [["t-b", "rcv_1"]],
-  );
+  assert.deepEqual(jobsOf(t), [], "acknowledged, and for nobody");
 });

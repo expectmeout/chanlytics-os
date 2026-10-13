@@ -143,8 +143,8 @@ export type {
   ReachOutReportCounts,
   ReachOutReportStepDto,
   ReachOutReportChainDto,
-  ReachOutReportDomainDto,
+  ReachOutReportMailboxDto,
   ReachOutReportDto,
-  ReachOutDomainRow,
+  ReachOutMailboxRow,
   ReachOutDayNumbers,
 } from "./reach-out-report";

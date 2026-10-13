@@ -1,0 +1,152 @@
+/**
+ * A mailbox connected with OAuth (decision 0056): the way to the provider's consent screen, the code traded for a grant,
+ * the grant refreshed, and the scopes a grant must hold. Google's and Microsoft's, side by side; pure, so the tests run
+ * it without a network, and the edge makes each request (lib/email/mailbox/mailbox-credentials.ts).
+ *
+ * Google asks the least that does the job: gmail.send (a sensitive scope: Google's review only) and gmail.readonly (a
+ * restricted one: the review and its security assessment), never gmail.modify or the whole mailbox. Microsoft asks
+ * Mail.Send and Mail.ReadWrite (a draft is made from the MIME, its Message-ID read, then sent), and offline_access for a
+ * lasting grant. The state that rides the way out and back is google-oauth.ts's (signState, verifyState), with the
+ * provider in it.
+ */
+import type { MailboxProvider } from "@chanlytics/contracts";
+import { parseTokenResponse, type TokenGrant } from "../google/google-oauth";
+
+const GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send";
+const GMAIL_READ_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
+
+/** What each provider is asked for. */
+export const MAILBOX_SCOPES: Record<MailboxProvider, readonly string[]> = {
+  google: ["openid", "email", "profile", GMAIL_SEND_SCOPE, GMAIL_READ_SCOPE],
+  microsoft: ["offline_access", "openid", "email", "profile", "User.Read", "Mail.ReadWrite", "Mail.Send"],
+};
+
+/** What a grant must hold for its mailbox to send and be read; the rest (who it is) only names it. */
+const REQUIRED: Record<MailboxProvider, readonly string[]> = {
+  google: [GMAIL_SEND_SCOPE, GMAIL_READ_SCOPE],
+  microsoft: ["mail.readwrite", "mail.send"],
+};
+
+const MAILBOX_AUTH_URL: Record<MailboxProvider, string> = {
+  google: "https://accounts.google.com/o/oauth2/v2/auth",
+  // "common": a work or school account in any tenant, or a personal Microsoft account (refused later as free mail).
+  microsoft: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+};
+const MAILBOX_TOKEN_URL: Record<MailboxProvider, string> = {
+  google: "https://oauth2.googleapis.com/token",
+  microsoft: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+};
+const GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke";
+
+export interface MailboxOAuthClient {
+  clientId: string;
+  clientSecret: string;
+  /** The dashboard's callback, registered with the provider as it is written here. */
+  redirectUri: string;
+}
+
+/** One request to a provider, made by the edge (its http) and read back here. */
+export interface MailboxRequest {
+  url: string;
+  method: "GET" | "POST" | "PATCH" | "DELETE";
+  headers: Record<string, string>;
+  body?: string;
+}
+
+const FORM = { "Content-Type": "application/x-www-form-urlencoded" };
+const form = (p: Record<string, string>): string => new URLSearchParams(p).toString();
+
+/**
+ * The provider's consent screen, asked for this mailbox's grant. Google: offline access, consent every time (it hands a
+ * refresh token on a first consent only, and a reconnect is a first consent on purpose), no scopes granted before folded
+ * in. Microsoft: offline_access already asks for the refresh token; select_account so a person signed in to two picks.
+ */
+export function mailboxAuthorizeUrl(
+  provider: MailboxProvider,
+  cfg: Pick<MailboxOAuthClient, "clientId" | "redirectUri">,
+  state: string,
+  loginHint?: string | null,
+): string {
+  const q = new URLSearchParams({
+    client_id: cfg.clientId,
+    redirect_uri: cfg.redirectUri,
+    response_type: "code",
+    scope: MAILBOX_SCOPES[provider].join(" "),
+    state,
+  });
+  if (provider === "google") {
+    q.set("access_type", "offline");
+    q.set("prompt", "consent");
+    q.set("include_granted_scopes", "false");
+  } else {
+    q.set("response_mode", "query");
+    q.set("prompt", "select_account");
+  }
+  if (loginHint) q.set("login_hint", loginHint);
+  return `${MAILBOX_AUTH_URL[provider]}?${q.toString()}`;
+}
+
+export function mailboxTokenRequest(provider: MailboxProvider, cfg: MailboxOAuthClient, code: string): MailboxRequest {
+  return {
+    url: MAILBOX_TOKEN_URL[provider],
+    method: "POST",
+    headers: FORM,
+    body: form({
+      code,
+      client_id: cfg.clientId,
+      client_secret: cfg.clientSecret,
+      redirect_uri: cfg.redirectUri,
+      grant_type: "authorization_code",
+      ...(provider === "microsoft" ? { scope: MAILBOX_SCOPES.microsoft.join(" ") } : {}),
+    }),
+  };
+}
+
+export function mailboxRefreshRequest(
+  provider: MailboxProvider,
+  cfg: Pick<MailboxOAuthClient, "clientId" | "clientSecret">,
+  refreshToken: string,
+): MailboxRequest {
+  return {
+    url: MAILBOX_TOKEN_URL[provider],
+    method: "POST",
+    headers: FORM,
+    body: form({
+      refresh_token: refreshToken,
+      client_id: cfg.clientId,
+      client_secret: cfg.clientSecret,
+      grant_type: "refresh_token",
+      ...(provider === "microsoft" ? { scope: MAILBOX_SCOPES.microsoft.join(" ") } : {}),
+    }),
+  };
+}
+
+/**
+ * The grant given back: Google revokes a token (the refresh token ends the grant); Microsoft has no single-token
+ * revocation for a delegated grant, so there is nothing to ask, and removing the mailbox drops the token here.
+ */
+export function mailboxRevokeRequest(provider: MailboxProvider, token: string): MailboxRequest | null {
+  if (provider !== "google") return null;
+  return { url: GOOGLE_REVOKE_URL, method: "POST", headers: FORM, body: form({ token }) };
+}
+
+export type MailboxGrant = TokenGrant;
+
+/** The token endpoint's answer, read: the same shape at both providers (RFC 6749). Throws on an answer with no token. */
+export function parseMailboxGrant(json: unknown): MailboxGrant {
+  return parseTokenResponse(json);
+}
+
+/** A scope as the grant names it, compared without Graph's resource prefix or case. */
+const scopeKey = (s: string): string => s.replace(/^https:\/\/graph\.microsoft\.com\//i, "").toLowerCase();
+
+/** The required scopes a grant does not hold: none missing is a mailbox that can send and be read. */
+export function grantScopesMissing(provider: MailboxProvider, granted: string): string[] {
+  const have = new Set(granted.split(/\s+/).filter(Boolean).map(scopeKey));
+  return REQUIRED[provider].filter((s) => !have.has(scopeKey(s)));
+}
+
+/** The grant's scopes, as the row keeps them. */
+export function grantScopes(granted: string): string[] {
+  return [...new Set(granted.split(/\s+/).filter(Boolean))].slice(0, 20);
+}

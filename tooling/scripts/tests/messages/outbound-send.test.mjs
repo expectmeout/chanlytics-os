@@ -599,7 +599,7 @@ test("a cold email's job asks the door about the lead its row was written for (m
     {},
     {
       // The person's other lead is open; the one this email was written for closed since.
-      outreach_facts: (a) => {
+      outreach_mailbox_facts: (a) => {
         asked.push(a);
         return {
           lead_stage: a.p_lead_id === "l-closed" ? "archived" : "ready",

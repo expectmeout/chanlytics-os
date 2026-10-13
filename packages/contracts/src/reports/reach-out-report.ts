@@ -48,15 +48,16 @@ export interface ReachOutReportChainDto {
   steps: ReachOutReportStepDto[];
 }
 
-export interface ReachOutReportDomainDto {
-  /** Null for the emails of a domain since removed. */
-  host: string | null;
+export interface ReachOutReportMailboxDto {
+  /** Null for the emails of a mailbox since gone. */
+  address: string | null;
   state: string | null;
   held_why: string | null;
   held_at: string | null;
   sent: number;
+  /** What left and did not fail: no provider tells a mailbox it delivered (00424). */
   delivered: number;
-  /** Permanent bounces, the domain's own rule (00220 sending_domain_counts). */
+  /** Permanent bounces, the mailbox's own rule (00424 mailbox_connection_counts). */
   bounced: number;
   complained: number;
 }
@@ -80,7 +81,8 @@ export interface ReachOutReportDto {
   angles: Array<{ angle: string; written: number; businesses?: number; wrote_back: number }>;
   other_angles: { written: number; businesses?: number; wrote_back: number };
   no_angle: number;
-  domains: ReachOutReportDomainDto[];
+  /** Where its emails left from (00424); a database before it says none. */
+  mailboxes: ReachOutReportMailboxDto[];
 }
 
 /**
@@ -135,10 +137,10 @@ export function chainTotalsFromReport(report: Pick<ReachOutReportDto, "chains">)
   return { complete: false, by_root };
 }
 
-/** A domain's row in the Reach-outs part (H5): its state in words, and how its emails landed, as shares the lens words. */
-export interface ReachOutDomainRow {
+/** A mailbox's row in the Reach-outs part (H5): its state in words, and how its emails landed, as shares the lens words. */
+export interface ReachOutMailboxRow {
   id: string;
-  host: string;
+  address: string;
   state: string;
   held: boolean;
   sent: number;

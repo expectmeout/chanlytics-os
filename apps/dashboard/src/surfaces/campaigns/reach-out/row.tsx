@@ -344,7 +344,7 @@ export function ReachOutPane({ chain, canAct, flash, onClose, onEdit, at = null 
       }
       title={chain.name}
       badge={<StatePill kind="tone" value={state.tone} label={state.words} />}
-      sub={W.chainHintOf(chain, pace.host)}
+      sub={W.chainHintOf(chain, pace.from)}
       foot={phone && canAct ? acts : undefined}
       onClose={onClose}
     >

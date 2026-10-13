@@ -28,10 +28,12 @@ import {
   OPENING_CHARS_MAX,
   REACH_OUT_CHECKS_PER_DAY,
   REACH_OUT_MONTH_EMAILS,
+  reachOutCountryOf,
   type WrittenOpening,
 } from "../packages/contracts.js";
 import {
   emailWordsOf,
+  leadCountriesOf,
   monthSent,
   recordCheck,
   releaseUnavailableHolds,
@@ -117,6 +119,8 @@ export interface CheckCounts {
   read: number;
   checked: number;
   held: number;
+  /** Never written to: the business is in a country whose law asks consent first (decision 0056, 9). */
+  skipped: number;
   rewritten: number;
   /** A model failed: tried again later, backing off. */
   failed: number;
@@ -134,6 +138,18 @@ export interface CheckCounts {
   calls: number;
   calls_failed: number;
   tokens: Tokens;
+}
+
+/** A check that failed: asked again after its backoff, or, a day of tries on, held for its owner (R4). */
+function failedCheck(s: ReachOutSendRow, now: Date, at: string) {
+  const tries = Math.min((s.check_tries ?? 0) + 1, 100);
+  const first = s.check_first_at ?? at;
+  if (now.getTime() - Date.parse(first) < CHECK_GIVE_UP_MS) {
+    const after = new Date(now.getTime() + backoffMs(tries)).toISOString();
+    return { gaveUp: false, tries, patch: { check_tries: tries, check_first_at: first, check_after: after } };
+  }
+  const held = { state: "held", reason: "check_unavailable", hold_detail: null, checked_at: at } as const;
+  return { gaveUp: true, tries, patch: { ...held, check_tries: tries, check_first_at: first } };
 }
 
 /**
@@ -158,6 +174,7 @@ export async function checkSends(p: {
     read: 0,
     checked: 0,
     held: 0,
+    skipped: 0,
     rewritten: 0,
     failed: 0,
     gave_up: 0,
@@ -222,6 +239,15 @@ export async function checkSends(p: {
     else go.push(...sends);
   }
 
+  /* each lead's country, once (decision 0056, 9): one where the law asks consent first is never asked about */
+  const leadIds = go.map((u) => u.send.lead_id);
+  const countries = await leadCountriesOf(db, leadIds).catch((e: unknown) => {
+    // Nothing is checked without them: the leases lapse in two minutes, and the next tick asks again.
+    error("reach_out_check_error", { stage: "countries" }, e);
+    go.length = 0;
+    return new Map<string, string | null>();
+  });
+
   /* each send's check, a few at once */
   const words = new Map<string, Promise<{ subject: string | null; body: string } | null>>();
   const workspaces = new Map<string, Promise<CheckWorkspace>>();
@@ -241,6 +267,12 @@ export async function checkSends(p: {
         if (await write(u, {})) out.late += 1;
         return;
       }
+      const country = countries.get(s.lead_id) ?? null;
+      if (reachOutCountryOf(country) === "refused") {
+        if (await write(u, { state: "skipped", reason: "outreach_country", checked_at: at, check_after: null }))
+          out.skipped += 1;
+        return;
+      }
       const w = await once(words, u.template_id, () => emailWordsOf(db, s.tenant_id, u.template_id));
       // No words to check: marked checked, so the sender holds it as it always has (no_template).
       if (!w) {
@@ -248,7 +280,7 @@ export async function checkSends(p: {
         return;
       }
       const ws = await once(workspaces, s.tenant_id, () => checkWorkspaceOf(db, s.tenant_id));
-      const input = checkInputOf(u.record, w, ws.opening, u.template_language, u.included_for);
+      const input = checkInputOf(u.record, w, ws.opening, u.template_language, u.included_for, country);
       // One attempt of the workspace's UTC day, taken before the model is asked (a rewrite is the same attempt, a
       // failure spends it): words that name no opening cost nothing and take none.
       const cap = REACH_OUT_CHECKS_PER_DAY;
@@ -258,42 +290,18 @@ export async function checkSends(p: {
       }
       const c = await checkOne(input, ask, budget, { tenantId: s.tenant_id, subjectId: s.id });
       out.calls += c.calls;
-      out.tokens.input += c.tokens.input;
-      out.tokens.output += c.tokens.output;
+      out.tokens = { input: out.tokens.input + c.tokens.input, output: out.tokens.output + c.tokens.output };
       if (c.kind === "late") {
         if (await write(u, {})) out.late += 1;
         return;
       }
       const failed = async (why: string) => {
-        const tries = Math.min((s.check_tries ?? 0) + 1, 100);
-        const first = s.check_first_at ?? at;
-        if (now.getTime() - Date.parse(first) >= CHECK_GIVE_UP_MS) {
-          const patch = {
-            state: "held",
-            reason: "check_unavailable",
-            hold_detail: null,
-            checked_at: at,
-            check_tries: tries,
-            check_first_at: first,
-          } as const;
-          if (await write(u, patch)) {
-            out.gave_up += 1;
-            log.warn("reach_out_check_held", {
-              tenant_id: s.tenant_id,
-              send_id: s.id,
-              broadcast_id: s.broadcast_id,
-              tries,
-              why,
-            });
-          }
-          return;
-        }
-        const patch = {
-          check_tries: tries,
-          check_first_at: first,
-          check_after: new Date(now.getTime() + backoffMs(tries)).toISOString(),
-        };
-        if (await write(u, patch)) out.failed += 1;
+        const f = failedCheck(s, now, at);
+        if (!(await write(u, f.patch))) return;
+        if (!f.gaveUp) return void (out.failed += 1);
+        out.gave_up += 1;
+        const { tenant_id, id: send_id, broadcast_id } = s;
+        log.warn("reach_out_check_held", { tenant_id, send_id, broadcast_id, tries: f.tries, why });
       };
       if (c.kind === "failed") {
         out.calls_failed += 1;

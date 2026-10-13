@@ -11,7 +11,7 @@ import {
   REACH_OUT_AFTER_DAYS,
   REACH_OUT_NAME_MAX,
   REACH_OUT_GAP_MINUTES,
-  REACH_OUT_DOMAINS_MAX,
+  REACH_OUT_MAILBOXES_MAX,
   SIGNED_BY_MAX,
   REACH_OUT_STEPS_MAX,
 } from "./reach-out-words";
@@ -54,8 +54,8 @@ export const ReachOutChainSchema = z.object({
     .refine((g) => (REACH_OUT_GAP_MINUTES as readonly number[]).includes(g), {
       message: `One of ${REACH_OUT_GAP_MINUTES.join(", ")} minutes.`,
     }),
-  /** Empty: every verified domain of the workspace (00183). */
-  domain_ids: z.array(z.string().uuid()).max(REACH_OUT_DOMAINS_MAX),
+  /** Empty: every connected mailbox of the workspace (00424). */
+  mailbox_ids: z.array(z.string().uuid()).max(REACH_OUT_MAILBOXES_MAX),
   signed_by: z.string().trim().max(SIGNED_BY_MAX).nullable(),
   steps: z.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX),
 });

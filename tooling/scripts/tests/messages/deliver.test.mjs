@@ -70,15 +70,15 @@ function wireOf(result = { ok: true, wamid: "wamid.1", status: 200 }) {
   };
 }
 /**
- * The send door's one question for a cold email (00177 outreach_facts), answered from the world's tables the way the
- * SQL answers it; the SQL itself is proved on a database (outreach-facts.db.test.mjs). `t.suppressed` lists the
- * addresses on the never-again list; `t.sent_since` is what the domain sent in the window; a person wrote back when an
+ * The send door's one question for a cold email (00424 outreach_mailbox_facts), answered from the world's tables the
+ * way the SQL answers it; the SQL itself is proved on a database (outreach-facts.db.test.mjs). `t.suppressed` lists the
+ * addresses on the never-again list; `t.sent_today` is what the mailbox sent in the rolling day; a person wrote back when an
  * inbound message of theirs is on one of their threads, an email's automatic reply aside (00181; a reply from another
  * address, and a call, are the SQL's, proved there). A send that names its lead (p_lead_id, 00184) is asked about
  * that lead alone, and only when it is this person's.
  */
 const outreachRpc = (t) => ({
-  outreach_facts: (a) => {
+  outreach_mailbox_facts: (a) => {
     const theirs = new Set(
       (t.conversations ?? [])
         .filter((c) => c.tenant_id === a.p_tenant_id && c.contact_id === a.p_contact_id)
@@ -96,8 +96,9 @@ const outreachRpc = (t) => ({
       .filter((l) => !a.p_lead_id || l.id === a.p_lead_id)
       .map((l) => ({ ...l, stage: l.stage ?? "ready" }))
       .sort((x, y) => Number(["ready", "nurture"].includes(y.stage)) - Number(["ready", "nurture"].includes(x.stage)));
-    const d = (t.sending_domains ?? []).find(
-      (s) => s.tenant_id === a.p_tenant_id && s.host === String(a.p_host).trim().toLowerCase(),
+    const m = (t.mailbox_connections ?? []).find(
+      (x) =>
+        x.tenant_id === a.p_tenant_id && x.state !== "removed" && x.address === String(a.p_from).trim().toLowerCase(),
     );
     return {
       lead_stage: live[0]?.stage ?? null,
@@ -105,10 +106,22 @@ const outreachRpc = (t) => ({
       wrote_back: wroteBack,
       // Its owner stopped writing to the send's own lead (00241).
       stopped: !!(a.p_lead_id && live.find((l) => l.id === a.p_lead_id)?.reach_out_stopped_at),
-      domain: d
-        ? { state: d.state, from_local: d.from_local, clean_since: d.clean_since ?? null, sent_days: d.sent_days ?? 0 }
+      mailbox: m
+        ? {
+            id: m.id,
+            address: m.address,
+            state: m.state,
+            clean_since: m.clean_since ?? null,
+            resting_until: m.resting_until ?? null,
+            daily_cap: m.daily_cap ?? 40,
+            customer_domain: m.customer_domain ?? false,
+            sent_days: m.sent_days ?? 0,
+            sent_today: t.sent_today ?? 0,
+            used: t.sent_today ?? 0,
+            recent: [],
+            last_sent_at: null,
+          }
         : null,
-      sent_since: t.sent_since ?? 0,
     };
   },
 });
@@ -1032,7 +1045,7 @@ test("a wire that cannot be read is a failure with its own name, never a throw p
 const { emailSender, sendBroadcastBatch } = await import(
   pathToFileURL(path.join(ROOT, "packages/core/dist/index.js")).href
 );
-const { buildEmailRequest, ownDomainIdentity, sendsAsOwnDomain, sendsAs } = await import(
+const { buildEmailRequest, connectedIdentity, sendsAsConnected, sendsAs } = await import(
   pathToFileURL(path.join(ROOT, "packages/channels/dist/index.js")).href
 );
 
@@ -1383,38 +1396,48 @@ const MAILBOX = {
   reply_token: "abcdefghijklmnopqrstuvwx",
   reply_token_prev: null,
 };
-const OWN = { host: "getharbor.com", from_local: "sam", from_name: "Sam at Harbor" };
+/** The mailbox the business connected (decision 0056): the name it sends as, and its address. */
+const OWN = { address: "sam@getharbor.com", from_name: "Sam at Harbor" };
 const OWNER = "owner@example.com";
-/** A cold email as Part 3's writer freezes it: the own domain's identity, a campaign's unsubscribe and footer. */
+/** A cold email as Part 3's writer freezes it: the connected mailbox's identity, plain, its one-click way out. */
 const coldRequest = (over = {}) =>
   buildEmailRequest({
-    identity: ownDomainIdentity(OWN, MAILBOX, "mail.chanlytics.com"),
+    identity: connectedIdentity(OWN),
     to: OWNER,
     parent: null,
     subject: "Your moving quotes",
     body: "Saw your shop on the map.",
     signature: null,
-    actor: "ai",
+    actor: "human",
+    plain: true,
+    autoSubmitted: false,
     campaign: {
       unsubscribeUrl: "https://app.chanlytics.com/u/token",
-      footer:
-        "You're hearing from us because your business is listed on Maps. Unsubscribe: https://app.chanlytics.com/u/token",
+      footer: 'You\'re hearing from us because your business is listed on Maps. Not interested? Reply "no thanks".',
     },
     messageId: "m1",
     tenantId: T,
     ...over,
   });
-/** Twenty clean days: the ramp's 100 a day. */
+/** Twenty clean days; the ramp counts the days it actually sent on (D15). */
 const CLEAN_SINCE = new Date(NOW - 20 * 86_400_000).toISOString();
-const HARBOR = { tenant_id: T, host: "getharbor.com", from_local: "sam", state: "verified", clean_since: CLEAN_SINCE };
-const coldWorld = ({ who = {}, leads, domains } = {}) =>
+const HARBOR = {
+  id: "mbx-harbor",
+  tenant_id: T,
+  address: "sam@getharbor.com",
+  state: "connected",
+  clean_since: CLEAN_SINCE,
+  daily_cap: 40,
+  customer_domain: false,
+  sent_days: 0,
+  resting_until: null,
+};
+const coldWorld = ({ who = {}, leads, boxes } = {}) =>
   tables({
     conversations: [thread({ contact_id: "k1", contacts: onEmail({ email: OWNER, consent: "unknown", ...who }) })],
     messages: [queuedEmail({ sender: "ai" })],
     leads: leads ?? [{ id: "l1", tenant_id: T, contact_id: "k1" }],
-    sending_domains: domains ?? [
-      { tenant_id: T, host: "getharbor.com", from_local: "sam", state: "verified", clean_since: CLEAN_SINCE },
-    ],
+    mailbox_connections: boxes ?? [{ ...HARBOR }],
   });
 const cold = (over = {}) =>
   words({
@@ -1446,43 +1469,28 @@ test("a cold email goes only as its rules allow: each refusal, in order, cancels
     replyTo: "r+abcdefghijklmnopqrstuvwx@mail.chanlytics.com",
   };
   const cases = [
-    // The person's own no outranks every wire rule, a domain on hold included.
-    [
-      "unsubscribed",
-      {
-        who: { email_marketing: "opted_out" },
-        domains: [{ tenant_id: T, host: "getharbor.com", from_local: "sam", state: "held" }],
-      },
-      {},
-    ],
+    // The person's own no outranks every wire rule, a mailbox on hold included.
+    ["unsubscribed", { who: { email_marketing: "opted_out" }, boxes: [{ ...HARBOR, state: "held" }] }, {}],
     ["opted_out", { who: { dnc: true } }, {}],
     ["outreach_not_a_lead", { leads: [{ id: "l1", tenant_id: T, contact_id: "someone-else" }] }, {}],
     ["outreach_not_a_lead", { leads: [{ id: "l1", tenant_id: "another-workspace", contact_id: "k1" }] }, {}],
     ["outreach_without_unsubscribe", {}, { email: coldRequest({ campaign: undefined }) }],
-    ["outreach_needs_own_domain", {}, { email: coldRequest({ identity: hosted }) }],
+    ["outreach_needs_own_mailbox", {}, { email: coldRequest({ identity: hosted }) }],
+    ["outreach_needs_own_mailbox", { boxes: [{ ...HARBOR, tenant_id: "another-workspace" }] }, {}],
+    ["outreach_needs_own_mailbox", { boxes: [{ ...HARBOR, state: "removed" }] }, {}],
+    // Another name on the workspace's own domain is not the mailbox the business connected.
     [
-      "outreach_needs_own_domain",
-      { domains: [{ tenant_id: "another-workspace", host: "getharbor.com", from_local: "sam", state: "verified" }] },
+      "outreach_needs_own_mailbox",
       {},
+      { email: coldRequest({ identity: connectedIdentity({ ...OWN, address: "other@getharbor.com" }) }) },
     ],
-    // Another name on the workspace's own domain is not the address Connections set up.
+    ["sending_mailbox_not_ready", { boxes: [{ ...HARBOR, state: "paused" }] }, {}],
+    ["sending_mailbox_not_ready", { boxes: [{ ...HARBOR, state: "held" }] }, {}],
+    ["sending_mailbox_not_ready", { boxes: [{ ...HARBOR, state: "reconnect" }] }, {}],
+    // Its provider's own day used up: it rests until then.
     [
-      "outreach_needs_own_domain",
-      {},
-      {
-        email: coldRequest({
-          identity: ownDomainIdentity({ ...OWN, from_local: "other" }, MAILBOX, "mail.chanlytics.com"),
-        }),
-      },
-    ],
-    [
-      "sending_domain_not_ready",
-      { domains: [{ tenant_id: T, host: "getharbor.com", from_local: "sam", state: "records" }] },
-      {},
-    ],
-    [
-      "sending_domain_not_ready",
-      { domains: [{ tenant_id: T, host: "getharbor.com", from_local: "sam", state: "held" }] },
+      "sending_mailbox_not_ready",
+      { boxes: [{ ...HARBOR, resting_until: new Date(NOW + 3_600_000).toISOString() }] },
       {},
     ],
     // Email's own facts still hold for a cold email.
@@ -1501,7 +1509,7 @@ test("a cold email goes only as its rules allow: each refusal, in order, cancels
   }
 });
 
-test("a cold email to a business the finder found, from the workspace's own verified domain, is sent; a reply never reads outreach's facts", async () => {
+test("a cold email to a business the finder found, from a mailbox the business connected, is sent; a reply never reads outreach's facts", async () => {
   const t = coldWorld();
   const w = emailWire();
   const d = cold();
@@ -1516,7 +1524,9 @@ test("a cold email to a business the finder found, from the workspace's own veri
   const replied = await deliver({ db, wire: emailWire().wire, now: () => NOW }, emailed());
   assert.equal(replied.outcome, "sent");
   assert.deepEqual(
-    db.seen.filter((s) => s.rpc === "outreach_facts" || s.table === "leads" || s.table === "sending_domains"),
+    db.seen.filter(
+      (s) => s.rpc === "outreach_mailbox_facts" || s.table === "leads" || s.table === "mailbox_connections",
+    ),
     [],
     "a conversational send pays for no outreach read",
   );
@@ -1526,7 +1536,7 @@ test("a read of outreach's facts that fails is not a yes: the door throws and th
   const t = coldWorld();
   const w = emailWire();
   const refusing = {
-    outreach_facts: () => {
+    outreach_mailbox_facts: () => {
       throw new Error("the database went away");
     },
   };
@@ -1538,14 +1548,27 @@ test("a read of outreach's facts that fails is not a yes: the door throws and th
   assert.equal(t.messages[0].status, "queued", "left for the retry");
 });
 
-test("email's wire picks its route by the request's From: the hosted mailbox on the platform's key, an own domain on the cold key, and nothing else", async () => {
+/** A connected mailbox's route, as the edge binds one (mailbox-wire.ts): its sends recorded, each answered `answer`. */
+const ownRoute = (address = OWN.address, answer = { ok: true, wamid: "g-1", status: 200 }) => {
+  const sent = [];
+  return {
+    sent,
+    route: {
+      lane: "own",
+      as: sendsAsConnected({ address }),
+      send: async (request, bound) => {
+        sent.push({ request, bound });
+        return answer;
+      },
+    },
+  };
+};
+
+test("email's wire picks its route by the request's From: the hosted mailbox on the platform's key, a connected mailbox by its own send, and nothing else", async () => {
   const hosted = { lane: "hosted", cfg: { apiKey: "platform-key" }, as: sendsAs(MAILBOX, "mail.chanlytics.com") };
-  const own = { lane: "own", cfg: { apiKey: "cold-key" }, as: sendsAsOwnDomain(OWN, MAILBOX, "mail.chanlytics.com") };
-  assert.deepEqual(own.as, {
-    address: "sam@getharbor.com",
-    replyRoutes: ["r+abcdefghijklmnopqrstuvwx@mail.chanlytics.com"],
-  });
-  const send = emailSender([hosted, own]);
+  const own = ownRoute();
+  assert.deepEqual(own.route.as, { address: "sam@getharbor.com", replyRoutes: ["sam@getharbor.com"] });
+  const send = emailSender([hosted, own.route]);
   const real = globalThis.fetch;
   const keys = [];
   globalThis.fetch = async (_url, init) => {
@@ -1554,41 +1577,43 @@ test("email's wire picks its route by the request's From: the hosted mailbox on 
   };
   const refused = { ok: false, wamid: null, status: 0, errorBody: "request_leaves_as_another_sender" };
   try {
-    assert.equal((await send(OWNER, { body: "x", email: coldRequest(), purpose: "outreach" })).ok, true);
+    assert.equal(
+      (await send(OWNER, { body: "x", email: coldRequest(), purpose: "outreach", deadlineMs: 30_000 })).ok,
+      true,
+    );
+    assert.equal(own.sent.length, 1, "the connected mailbox's own send took it");
+    assert.equal(own.sent[0].request.from, '"Sam at Harbor" <sam@getharbor.com>');
+    assert.deepEqual(own.sent[0].bound, { deadlineMs: 30_000 }, "with the caller's ceiling");
     assert.equal((await send(ADDRESS, { body: "x", email: frozen() })).ok, true);
-    assert.deepEqual(keys, ["Bearer cold-key", "Bearer platform-key"], "each leaves on its own account");
-    // A domain this workspace has no route for (not verified, or somebody else's) is not sent from.
-    const elsewhere = coldRequest({
-      identity: ownDomainIdentity({ ...OWN, host: "other.example" }, MAILBOX, "mail.chanlytics.com"),
-    });
+    assert.deepEqual(keys, ["Bearer platform-key"], "only the hosted mailbox reaches the platform's account");
+    // A mailbox this workspace has no route for (paused, held, removed, or somebody else's) is not sent from.
+    const elsewhere = coldRequest({ identity: connectedIdentity({ ...OWN, address: "sam@other.example" }) });
     assert.deepEqual(await send(OWNER, { body: "x", email: elsewhere, purpose: "outreach" }), refused);
     // The chosen route's own Reply-To rule still holds: an answer must come back to this mailbox.
     const strayReply = coldRequest({
-      identity: {
-        ...ownDomainIdentity(OWN, MAILBOX, "mail.chanlytics.com"),
-        replyTo: "r+aaaaaaaaaaaaaaaaaaaaaaaa@mail.chanlytics.com",
-      },
+      identity: { ...connectedIdentity(OWN), replyTo: "r+aaaaaaaaaaaaaaaaaaaaaaaa@mail.chanlytics.com" },
     });
     assert.deepEqual(await send(OWNER, { body: "x", email: strayReply, purpose: "outreach" }), refused);
-    // The lanes: an own domain carries outreach only, and outreach never leaves as the hosted mailbox. A reply frozen
-    // with an own domain's From (or a job that forgot its purpose) would otherwise leave around outreach's rules.
+    // The lanes: a connected mailbox carries outreach only, and outreach never leaves as the hosted mailbox. A reply
+    // frozen with a mailbox's From (or a job that forgot its purpose) would otherwise leave around outreach's rules.
     assert.deepEqual(await send(OWNER, { body: "x", email: coldRequest() }), refused, "no purpose: hosted lane only");
     assert.deepEqual(await send(OWNER, { body: "x", email: coldRequest(), purpose: "conversational" }), refused);
     assert.deepEqual(await send(ADDRESS, { body: "x", email: frozen(), purpose: "outreach" }), refused);
-    assert.equal(keys.length, 2, "no refusal reached a provider");
+    assert.equal(keys.length + own.sent.length, 2, "no refusal reached a provider");
   } finally {
     globalThis.fetch = real;
   }
 });
 
-/* ------------------------------------------ Part 5.4: a person's reply may leave by its own domain (G15, N5) */
+/* ------------------------- Part 5.4: a person's reply may leave by the mailbox the chain wrote from (G15, N5) */
 
-/** A person's reply to a reach-out, frozen a second time on the chain's own domain: the same row, the same words. */
-const ownTwin = (over = {}) => frozen({ identity: ownDomainIdentity(OWN, MAILBOX, "mail.chanlytics.com"), ...over });
+/** A person's reply to a reach-out, frozen a second time on the chain's connected mailbox: the same row, the same words. */
+const ownTwin = (over = {}) => frozen({ identity: connectedIdentity(OWN), ...over });
 
-test("a person's reply leaves by its own domain when that route still holds it, and as the mailbox's request otherwise, saying why", async () => {
+test("a person's reply leaves by its connected mailbox when that route still holds it, and as the hosted mailbox's request otherwise, saying why", async () => {
   const hosted = { lane: "hosted", cfg: { apiKey: "platform-key" }, as: sendsAs(MAILBOX, "mail.chanlytics.com") };
-  const own = { lane: "own", cfg: { apiKey: "cold-key" }, as: sendsAsOwnDomain(OWN, MAILBOX, "mail.chanlytics.com") };
+  const mine = ownRoute(OWN.address, { ok: true, wamid: "g-7", status: 200 });
+  const own = mine.route;
   const real = globalThis.fetch;
   const sent = [];
   globalThis.fetch = async (_url, init) => {
@@ -1607,10 +1632,10 @@ test("a person's reply leaves by its own domain when that route still holds it, 
     const both = emailSender([hosted, own]);
     const byOwn = await both(ADDRESS, reply(ownTwin()));
     assert.deepEqual([byOwn.ok, byOwn.leftAs, byOwn.leftAsWhy], [true, "own", undefined]);
-    assert.deepEqual(
-      sent.pop(),
-      ["Bearer cold-key", '"Sam at Harbor" <sam@getharbor.com>'],
-      "the twin, on the cold key",
+    assert.equal(
+      mine.sent.pop().request.from,
+      '"Sam at Harbor" <sam@getharbor.com>',
+      "the twin, by the mailbox's own send",
     );
 
     const asMailbox = async (send, twin, why) => {
@@ -1618,25 +1643,20 @@ test("a person's reply leaves by its own domain when that route still holds it, 
       assert.deepEqual([r.ok, r.leftAs, r.leftAsWhy], [true, "mailbox", why], why);
       assert.deepEqual(sent.pop(), ["Bearer platform-key", '"Best Movers" <bestmovers@mail.chanlytics.com>'], why);
     };
-    // No own route at all: the cold lane's keys unset.
+    // No connected mailbox at all.
     await asMailbox(emailSender([hosted]), ownTwin(), "no_own_route");
-    // The twin's domain has no route: held or removed after the freeze, or somebody else's.
-    const elsewhere = ownTwin({
-      identity: ownDomainIdentity({ ...OWN, host: "other.example" }, MAILBOX, "mail.chanlytics.com"),
-    });
-    await asMailbox(both, elsewhere, "domain_has_no_route");
-    // A domain of the workspace's that is held has no route either, and the row says it was held: its only one, or
-    // one beside a domain that still sends.
+    // The twin's mailbox has no route: removed after the freeze, or somebody else's.
+    const elsewhere = ownTwin({ identity: connectedIdentity({ ...OWN, address: "sam@other.example" }) });
+    await asMailbox(both, elsewhere, "own_has_no_route");
+    // A mailbox of the workspace's that does not send now has no route either, and the row says so: its only one, or
+    // one beside a mailbox that still sends.
     const heldAt = /<([^<>]+)>/.exec(elsewhere.from)[1];
-    await asMailbox(emailSender([hosted], [heldAt]), elsewhere, "domain_held");
-    await asMailbox(emailSender([hosted, own], [heldAt]), elsewhere, "domain_held");
+    await asMailbox(emailSender([hosted], [heldAt]), elsewhere, "own_not_sending");
+    await asMailbox(emailSender([hosted, own], [heldAt]), elsewhere, "own_not_sending");
     await asMailbox(emailSender([hosted, own], [heldAt]), ownTwin({ to: OWNER }), "twin_names_another_recipient");
-    // The route refuses the twin's Reply-To: a retired reply route.
+    // The route refuses the twin's Reply-To: one that is not the mailbox itself.
     const retired = ownTwin({
-      identity: {
-        ...ownDomainIdentity(OWN, MAILBOX, "mail.chanlytics.com"),
-        replyTo: "r+aaaaaaaaaaaaaaaaaaaaaaaa@mail.chanlytics.com",
-      },
+      identity: { ...connectedIdentity(OWN), replyTo: "r+aaaaaaaaaaaaaaaaaaaaaaaa@mail.chanlytics.com" },
     });
     await asMailbox(both, retired, "route_refuses_twin");
     // A twin to somebody else is never sent: the reply goes to the address it was written to, as the mailbox.
@@ -1646,7 +1666,7 @@ test("a person's reply leaves by its own domain when that route still holds it, 
     const plain = await both(ADDRESS, { body: "x", email: mailbox, ownEmail: ownTwin() });
     assert.deepEqual([plain.ok, plain.leftAs], [true, undefined]);
     assert.equal(sent.pop()[0], "Bearer platform-key");
-    // And a reply whose own request names an own domain is still refused: the twin is the one way out by it.
+    // And a reply whose own request names a connected mailbox is still refused: the twin is the one way out by it.
     const refused = { ok: false, wamid: null, status: 0, errorBody: "request_leaves_as_another_sender" };
     assert.deepEqual(await both(ADDRESS, { body: "x", email: ownTwin(), reply: true }), refused);
     // Outreach is outreach's lane, never the twin's: it leaves by its own route only, as before.
@@ -1658,8 +1678,8 @@ test("a person's reply leaves by its own domain when that route still holds it, 
       ownEmail: ownTwin(),
     });
     assert.deepEqual([coldOut.ok, coldOut.leftAs], [true, undefined]);
-    assert.equal(sent.pop()[0], "Bearer cold-key");
-    assert.equal(sent.length, 0, "no refusal reached a provider");
+    assert.equal(mine.sent.pop().request.from, '"Sam at Harbor" <sam@getharbor.com>');
+    assert.equal(sent.length + mine.sent.length, 0, "no refusal reached a provider");
   } finally {
     globalThis.fetch = real;
   }
@@ -1692,12 +1712,12 @@ test("the door hands the twin to the wire only for a person's reply, and records
   assert.deepEqual([own.p.reply, own.p.ownEmail?.from], [true, '"Sam at Harbor" <sam@getharbor.com>']);
   const mailbox = await run(
     { delivery: { sender: "human", proactive: false } },
-    { ok: true, wamid: "re_1", status: 200, leftAs: "mailbox", leftAsWhy: "domain_has_no_route" },
+    { ok: true, wamid: "re_1", status: 200, leftAs: "mailbox", leftAsWhy: "own_has_no_route" },
   );
   assert.equal(mailbox.out.outcome, "sent");
   assert.deepEqual(stamped, [
     { p_tenant_id: T, p_message_id: "m1", p_left_as: "own", p_why: null },
-    { p_tenant_id: T, p_message_id: "m1", p_left_as: "mailbox", p_why: "domain_has_no_route" },
+    { p_tenant_id: T, p_message_id: "m1", p_left_as: "mailbox", p_why: "own_has_no_route" },
   ]);
   // A draft the receptionist wrote, a person's first email and a system send never carry it.
   for (const delivery of [
@@ -1746,14 +1766,15 @@ test("the door asks the spec's send-time questions: the lead still being written
     ["outreach_lead_closed", { leads: [{ id: "l1", tenant_id: T, contact_id: "k1", stage: "archived" }] }, {}],
     ["outreach_not_a_lead", { leads: [] }, {}],
     ["outreach_suppressed", {}, { suppressed: [OWNER] }],
-    // The ramp counts the days a domain sent (D15): clean twenty days and sent on none, it has the first step's 30;
-    // sent on fourteen, the second's 100.
-    ["sending_domain_at_cap", {}, { sent_since: 30 }],
-    [null, {}, { sent_since: 29 }],
-    ["sending_domain_at_cap", { domains: [{ ...HARBOR, sent_days: 14 }] }, { sent_since: 100 }],
-    [null, { domains: [{ ...HARBOR, sent_days: 14 }] }, { sent_since: 99 }],
-    // A domain not yet clean has no day's share at all.
-    ["sending_domain_at_cap", { domains: [{ ...HARBOR, clean_since: null, sent_days: 20 }] }, {}],
+    // The ramp counts the days a mailbox sent (D15): sent on none, it has the first step's 10; on fourteen, 30; and
+    // never past its owner's cap, nor past 20 on the domain its customers write to.
+    ["sending_mailbox_at_cap", {}, { sent_today: 10 }],
+    [null, {}, { sent_today: 9 }],
+    ["sending_mailbox_at_cap", { boxes: [{ ...HARBOR, sent_days: 14 }] }, { sent_today: 30 }],
+    [null, { boxes: [{ ...HARBOR, sent_days: 14 }] }, { sent_today: 29 }],
+    ["sending_mailbox_at_cap", { boxes: [{ ...HARBOR, sent_days: 30, daily_cap: 25 }] }, { sent_today: 25 }],
+    ["sending_mailbox_at_cap", { boxes: [{ ...HARBOR, sent_days: 30, customer_domain: true }] }, { sent_today: 20 }],
+    [null, { boxes: [{ ...HARBOR, sent_days: 30, customer_domain: true }] }, { sent_today: 19 }],
   ];
   for (const [reason, world, extra] of cases) {
     const t = Object.assign(coldWorld(world), extra);
@@ -1765,7 +1786,7 @@ test("the door asks the spec's send-time questions: the lead still being written
   // The person's own no still outranks every wire rule.
   const both = Object.assign(coldWorld({ who: { email_marketing: "opted_out" } }), {
     suppressed: [OWNER],
-    sent_since: 500,
+    sent_today: 500,
   });
   assert.equal((await deliver(ports(both, emailWire()), cold())).reason, "unsubscribed");
 });
@@ -1799,12 +1820,12 @@ test("a send that timed out is failed with its outcome unknown, so its receipt m
   assert.equal("outcome" in u.messages[0].error, false, "a request that never left is plainly failed");
 });
 
-test("a cold email whose From cannot be read is refused for its domain, not as a person the finder never found", async () => {
+test("a cold email whose From cannot be read is refused for its mailbox, not as a person the finder never found", async () => {
   const t = coldWorld();
   const unreadable = cold();
   unreadable.email = { ...unreadable.email, from: "not an address" };
   const out = await deliver(ports(t, emailWire()), unreadable);
-  assert.deepEqual([out.outcome, out.reason], ["refused", "outreach_needs_own_domain"]);
+  assert.deepEqual([out.outcome, out.reason], ["refused", "outreach_needs_own_mailbox"]);
 });
 
 /* ------------------------------------------------ Part 2.6: a business that wrote back is in a conversation (00181) */
@@ -1848,8 +1869,8 @@ test("a database that cannot say whether the business wrote back is not a no: th
   const t = coldWorld();
   const w = emailWire();
   const older = {
-    outreach_facts: (a) => {
-      const { wrote_back: _gone, ...rest } = outreachRpc(t).outreach_facts(a);
+    outreach_mailbox_facts: (a) => {
+      const { wrote_back: _gone, ...rest } = outreachRpc(t).outreach_mailbox_facts(a);
       return rest;
     },
   };
@@ -1875,7 +1896,11 @@ test("a cold email that names its lead is judged by that lead: a business closed
   const out = await deliver({ db, wire: w.wire, now: () => NOW }, cold({ leadId: "l1" }));
   assert.deepEqual([out.outcome, out.reason], ["refused", "outreach_lead_closed"]);
   assert.equal(w.calls.length, 0);
-  assert.equal(db.seen.find((s) => s.rpc === "outreach_facts").args.p_lead_id, "l1", "asked by the send's own lead");
+  assert.equal(
+    db.seen.find((s) => s.rpc === "outreach_mailbox_facts").args.p_lead_id,
+    "l1",
+    "asked by the send's own lead",
+  );
   // Named or not, the open lead lets it go; unnamed, the door asks about any lead of this person's (a reply's way).
   for (const over of [{ leadId: "l2" }, {}]) {
     const u = both();
@@ -1910,8 +1935,8 @@ test("a lead its owner stopped writing to is refused its cold email, a skip and 
   // A database before 00241 answers without the fact: not stopped, as it was, and the SQL halves of the stop hold.
   const u = stopped();
   const older = {
-    outreach_facts: (a) => {
-      const { stopped: _gone, ...rest } = outreachRpc(u).outreach_facts(a);
+    outreach_mailbox_facts: (a) => {
+      const { stopped: _gone, ...rest } = outreachRpc(u).outreach_mailbox_facts(a);
       return rest;
     },
   };

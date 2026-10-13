@@ -144,7 +144,7 @@ const BODIES = {
     "ro-emails",
     "ro-funnel",
     "ro-angles",
-    "ro-domains",
+    "ro-mailboxes",
     "ro-written",
     "ro-sources",
   ],

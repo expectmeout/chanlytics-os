@@ -9,7 +9,7 @@
  * by id (another workspace's is a 404) and takes one of two paths, by its kind.
  *
  *   A reach-out's root (kind reach_out, trigger lead_first) runs its first step through the playbooks sweep's own step
- *   runner, lib/reach-out/run-step.ts, and answers the outcome with its reason (billing, never, no_domain, no_room,
+ *   runner, lib/reach-out/run-step.ts, and answers the outcome with its reason (billing, never, no_mailbox, no_room,
  *   nobody, waiting_for_you, ...), the run it planned and the day it is for. A later step of a chain runs on its day
  *   only, so a step that is not a root is a 409 (reach_out_step).
  *

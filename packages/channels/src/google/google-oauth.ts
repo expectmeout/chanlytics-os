@@ -167,6 +167,8 @@ export interface OAuthState {
   n: string;
   /** Expiry, epoch ms. */
   exp: number;
+  /** Which provider a mailbox is being connected at (decision 0056); absent for Google Business Profile's. */
+  p?: string;
 }
 
 async function hmac(secret: string, data: string): Promise<string> {

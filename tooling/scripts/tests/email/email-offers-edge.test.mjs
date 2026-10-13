@@ -348,7 +348,7 @@ test("the readiness door says whether email can send and whether OFFERS can: fal
 
 test("a job is bound with email by what the campaigns domain came to: the lane when open, the reason it could not be asked when unread (a run of offers waits, a visit's email goes), the reason when closed (the run stops), and nothing of it for a job that sends no offer", async () => {
   setEnv(WIRED);
-  const db = fakeDb({ mailboxes: [MAILBOX], sending_domains: [] });
+  const db = fakeDb({ mailboxes: [MAILBOX], mailbox_connections: [] });
   const said = [];
   const L = { error: (event, fields) => said.push([event, fields]) };
   const lane = { domain: CAMPAIGNS, unsubscribeSecret: "unsub-secret", unsubscribeOrigin: "https://app.example.com" };
@@ -381,7 +381,7 @@ test("a job is bound with email by what the campaigns domain came to: the lane w
   assert.equal(typeof none.email, "function");
   assert.equal("campaigns" in none.intake || "campaignsClosed" in none.intake, false);
   // A workspace with no mailbox has no email line at all, as before.
-  const noMailbox = await bound({ state: "none" }, fakeDb({ mailboxes: [], sending_domains: [] }));
+  const noMailbox = await bound({ state: "none" }, fakeDb({ mailboxes: [], mailbox_connections: [] }));
   assert.equal(noMailbox.email, null);
   assert.deepEqual(said, []);
 });
@@ -417,7 +417,7 @@ const offerRequest = (over = {}) =>
 
 test("a job that sends offers gets the campaigns route and the lane, and any other job gets neither: nothing else can leave from the domain", async () => {
   setEnv(WIRED);
-  const db = fakeDb({ mailboxes: [MAILBOX], sending_domains: [] });
+  const db = fakeDb({ mailboxes: [MAILBOX], mailbox_connections: [] });
   const lane = { domain: CAMPAIGNS, unsubscribeSecret: "unsub-secret", unsubscribeOrigin: "https://app.example.com" };
   const sent = [];
   globalThis.fetch = async (url, init) => (
@@ -455,7 +455,7 @@ function gateWorld({ counts = {}, host = CAMPAIGNS, paused = null, failCounts = 
   const tables = {
     mailboxes: [{ ...MAILBOX, offers_paused_at: paused, offers_paused_reason: paused ? "bounces" : null }],
     messages: [],
-    sending_domains: [],
+    mailbox_connections: [],
     notifications: [],
     events: [],
     jobs: [],
@@ -706,7 +706,7 @@ function receiptWorld(counts, { from = FROM } = {}) {
     contacts: [
       { id: "k1", tenant_id: T, email: "ana@example.com", email_suppressed_at: null, email_suppressed_reason: null },
     ],
-    sending_domains: [],
+    mailbox_connections: [],
     tenant_config: [{ tenant_id: T, config: { notifications: { escalation_emails: ["owner@example.com"] } } }],
     tenant_channels: [],
     notifications: [],
@@ -726,7 +726,6 @@ function receiptWorld(counts, { from = FROM } = {}) {
       m.meta = { ...m.meta, email: { ...m.meta.email, complained_at: a.p_at } };
       return true;
     },
-    sending_domain_counts: () => ({ sent: 0, bounced: 0, complained: 0 }),
     email_offer_counts: (a) => ({
       complaint_sample: 0,
       complaints: 0,

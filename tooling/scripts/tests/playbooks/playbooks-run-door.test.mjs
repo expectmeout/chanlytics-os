@@ -878,7 +878,7 @@ test("a reach-out's root runs its first step now through the sweep's step runner
       lead_search_id: "44444444-4444-4444-8444-444444444444",
       after_playbook_id: null,
       gap_minutes: 12,
-      domain_ids: [],
+      mailbox_ids: [],
     }),
   );
   const [status, body] = await answer(await knock(press));
@@ -904,7 +904,7 @@ test("a reach-out's Start in a paused workspace says the workspace is paused, no
       lead_search_id: "44444444-4444-4444-8444-444444444444",
       after_playbook_id: null,
       gap_minutes: 12,
-      domain_ids: [],
+      mailbox_ids: [],
     }),
   );
   const [status, body] = await answer(await knock(press));

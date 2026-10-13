@@ -39,7 +39,7 @@ let A;
 let root;
 let template;
 let search;
-let domain;
+let mailbox;
 let thread;
 let n = 0;
 const ok = (res) => {
@@ -100,7 +100,7 @@ async function planned(runId, leadIds, sendAt, over = {}) {
     playbook_id: root,
     root_id: root,
     lead_id: lead,
-    domain_id: domain,
+    mailbox_id: mailbox,
     send_at: iso(sendAt),
     checked_at: iso(Date.now() - MIN),
     ...over,
@@ -194,16 +194,14 @@ before(async () => {
       lead_search_id: search,
     }),
   );
-  domain = await one(
-    db.from("sending_domains").insert({
+  mailbox = await one(
+    db.from("mailbox_connections").insert({
       tenant_id: A,
+      provider: "google",
+      provider_account: `acct-clock-${stamp}`,
+      address: `sam@clock-${stamp}.example`,
       host: `clock-${stamp}.example`,
-      from_local: "sam",
       from_name: "Sam",
-      state: "verified",
-      provider_status: "verified",
-      dmarc: "found",
-      verified_at: iso(Date.now() - 40 * DAY),
       clean_since: iso(Date.now() - 40 * DAY),
     }),
   );

@@ -92,8 +92,11 @@ test("a customer's domain is a person's own domain, never free mail's", () => {
 test("each hold says why in a line, and offers only the doors that can answer it", () => {
   assert.deepEqual(
     [...REACH_OUT_HOLDS],
-    ["customer_domain", "chain", "language", "unbacked_fact", "reads_like_spam", "check_unavailable"],
+    ["customer_domain", "chain", "language", "unbacked_fact", "reads_like_spam", "check_unavailable", "abroad"],
   );
+  // A lead outside the countries a cold email goes to without asking (decision 0056): its owner's to include or skip.
+  assert.equal(holdWords("abroad", "FR"), "they're in France, where writing to a business first may need its say");
+  assert.deepEqual(holdDoors("abroad"), ["include", "skip"]);
   assert.equal(holdWords("chain", "site:3"), "reads like a chain: 3 listings share their website");
   assert.equal(holdWords("language", "es"), "their listing reads in Spanish; the email is in English");
   assert.equal(holdWords("customer_domain", "hydepark.example"), "a person in People writes from hydepark.example");

@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { ResendConfig, EmailSendsAs, WaConfig, EmailRequest, ResendLimit, SendResult, ApifyClient, LeadJudge, NormalizedInbound, CarrierConsent } from '@chanlytics/channels';
-import { SendPurpose, MessageAbout, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, ConsentChannel, WriteRow, ChannelsReady, WriteWay, AppointmentState, FeedNames, JobNews, EmailClaim, BookingTool, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, PurposeRefusal, PurposeBearing, AskedPurpose, AppointmentStatus, NoticeHold, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, CampaignMessage, CampaignHow, AppointmentWord, PlaybookTrigger, PlaybookPolicyClass, PlaybookState, triggerOf, PlaybookPatch, PLAYBOOK_LIMITS, StepHand, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts, Handled, BrainIntent, EventSubscriber, HoldFacts, OptOutPerson, BookedVisit, MemberJoined } from '@chanlytics/contracts';
+import { ResendConfig, EmailSendsAs, EmailRequest, SendResult, WaConfig, ResendLimit, ApifyClient, LeadJudge, NormalizedInbound, CarrierConsent } from '@chanlytics/channels';
+import { SendPurpose, MessageAbout, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, ConsentChannel, WriteRow, ChannelsReady, WriteWay, AppointmentState, FeedNames, JobNews, EmailClaim, BookingTool, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, PurposeRefusal, PurposeBearing, AskedPurpose, AppointmentStatus, NoticeHold, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, CampaignMessage, CampaignHow, AppointmentWord, PlaybookTrigger, PlaybookPolicyClass, PlaybookState, triggerOf, PlaybookPatch, PLAYBOOK_LIMITS, StepHand, TimetableSender, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts, Handled, BrainIntent, EventSubscriber, HoldFacts, OptOutPerson, BookedVisit, MemberJoined } from '@chanlytics/contracts';
 export { AppointmentStatus, DeliveryRefusal, EmailClaim } from '@chanlytics/contracts';
 import { Json, Database, MessageVersionRow, RoutedChannel, LeadContext, IngestResult, DeliveredEvent } from '@chanlytics/db';
 
@@ -80,33 +80,41 @@ declare function whatsappSender(cfg: WaConfig | null): Sender | null;
 /** WhatsApp's wire from a credentials READ: the sender, none to refuse with, or a wire that could not be bound. */
 declare function whatsappWire(read: CredentialsRead<WaConfig>): Sender | null | WireUnavailable;
 /**
- * One address a workspace's email may leave as, and the provider account it leaves through. "hosted" is the mailbox
- * on the platform's account, for replies, visit messages and everything but the two below; "campaigns" is the same mailbox
- * on the deployment's campaigns domain (the platform's account too), for offers (and the business's own news, which is one at
- * the door: decision D2) and nothing else, so a complaint about an offer never touches the domain replies leave from; "own" is one of the workspace's own verified domains on the cold
- * account, for outreach and nothing else.
+ * One address a workspace's email may leave as, and the wire it leaves through. "hosted" is the mailbox on the
+ * platform's account, for replies, visit messages and everything but the two below; "campaigns" is the same mailbox on
+ * the deployment's campaigns domain (the platform's account too), for offers (and the business's own news, which is one
+ * at the door: decision D2) and nothing else, so a complaint about an offer never touches the domain replies leave
+ * from; "own" is a mailbox the business connected (decision 0056), for outreach and a person's answer to it, and
+ * nothing else: it sends through that mailbox's own provider (`send`, bound by the edge with its token), never an
+ * account of the platform's.
  */
-interface EmailRoute {
-    lane: "hosted" | "campaigns" | "own";
+type EmailRoute = {
+    lane: "hosted" | "campaigns";
     cfg: ResendConfig;
     as: EmailSendsAs;
-}
+} | {
+    lane: "own";
+    send: (request: EmailRequest, bound: {
+        deadlineMs?: number;
+    }) => Promise<SendResult>;
+    as: EmailSendsAs;
+};
 /**
  * Email's wire, bound to ONE workspace's addresses. It sends the frozen request
  * and nothing it assembled itself: a delivery without one, one addressed to
  * somebody other than `to`, or one that would leave as another workspace, is a
  * failure the caller hears about, never a send. The provider keys are the
  * deployment's; the routes are what make the wire this workspace's: the hosted
- * mailbox on the platform's account, and each of its own verified domains on
- * the cold account (Reach out), so a cold email never spends the reputation
- * every workspace's replies share. The route is chosen by the request's From,
- * within the send's lane: an own domain carries outreach only, so a reply
- * frozen with an own domain's From never leaves around outreach's rules, and a
- * cold email never leaves as the hosted mailbox. That route's own Reply-To rule
- * still applies. No routes, no email line (null, like a number with no
- * credentials). `held` is the addresses of the workspace's own domains that
- * are held: no route, but a reply frozen with one says why it went as the
- * mailbox.
+ * mailbox on the platform's account, and each mailbox the business connected
+ * that sends now (decision 0056), through its own provider, so a cold email
+ * never spends the reputation every workspace's replies share. The route is
+ * chosen by the request's From, within the send's lane: a connected mailbox
+ * carries outreach only, so a reply frozen with its From never leaves around
+ * outreach's rules, and a cold email never leaves as the hosted mailbox. That
+ * route's own Reply-To rule still applies. No routes, no email line (null, like
+ * a number with no credentials). `held` is the addresses of the workspace's
+ * connected mailboxes that do not send now (signed out, paused, held, resting):
+ * no route, but a reply frozen with one says why it went as the hosted mailbox.
  */
 declare function emailSender(routes: EmailRoute[], held?: readonly string[]): Sender | null;
 
@@ -168,13 +176,13 @@ interface WirePayload {
      * queued (channels email/request.ts). Present on the email wire and nowhere else.
      */
     email?: EmailRequest;
-    /** The send's purpose, on the email wire: only outreach may take an own domain's route (emailSender). */
+    /** The send's purpose, on the email wire: only outreach may take a connected mailbox's route (emailSender). */
     purpose?: SendPurpose;
-    /** A person's reply (the door's kindOf), the one other send that may leave by an own domain: by its twin below. */
+    /** A person's reply (the door's kindOf), the one other send that may leave by a connected mailbox: by its twin below. */
     reply?: boolean;
     /**
-     * A person's reply to a reach-out, frozen a second time on the own domain the chain wrote from (G15): it leaves by
-     * that domain's route when the route still holds it, and as `email` on the mailbox otherwise (N5).
+     * A person's reply to a reach-out, frozen a second time on the connected mailbox the chain wrote from (G15): it
+     * leaves by that mailbox's route when the route still holds it, and as `email` on the hosted mailbox otherwise (N5).
      */
     ownEmail?: EmailRequest;
     /**
@@ -228,8 +236,8 @@ interface Delivery {
     /** The frozen request, on the email wire (WirePayload.email). */
     email?: EmailRequest;
     /**
-     * A person's reply to a reach-out, frozen again on the own domain the chain wrote from (WirePayload.ownEmail): it
-     * may leave by that domain only as a reply (kindOf), and under the same row's id as `email`.
+     * A person's reply to a reach-out, frozen again on the connected mailbox the chain wrote from (WirePayload.ownEmail):
+     * it may leave by that mailbox only as a reply (kindOf), and under the same row's id as `email`.
      */
     ownEmail?: EmailRequest;
     /**
@@ -625,8 +633,9 @@ interface EmailReplyPorts {
     }): Promise<EmailParentFacts | null>;
     /**
      * The request this reply leaves as, frozen, and the subject it carries; null when the workspace has no mailbox to send
-     * from. A reply to a reach-out on one of the workspace's own domains, verified now, is frozen a second time on that
-     * domain (`own`, C15): the edge sends it when that route still holds it, and the mailbox's request otherwise (N5).
+     * from. A reply to a reach-out from a mailbox the business connected, that sends now, is frozen a second time on
+     * that mailbox (`own`, C15): the edge sends it when that route still holds it, and the hosted mailbox's request
+     * otherwise (N5).
      */
     freeze(input: {
         tenantId: TenantId;
@@ -2698,7 +2707,8 @@ interface ReachOutStep {
     after_playbook_id: string | null;
     after_days: number | null;
     gap_minutes: number;
-    domain_ids: string[];
+    /** The mailboxes it writes from (00424); none named is every connected one. */
+    mailbox_ids: string[];
     cap_per_run: number;
     template_id: string;
     template_name: string;
@@ -2756,6 +2766,8 @@ interface ReachOutFollower extends ReachOutLead {
     };
     /** Any email of the chain to them bounced or failed for good (C4). */
     bounced: boolean;
+    /** The mailbox the step before wrote to them from (00424): this step writes from it too, in its thread. */
+    mailbox_id: string | null;
 }
 interface NewReachOutRun {
     /** Its step and its day (reachOutRunIdFor): a replay meets its own run. */
@@ -2778,7 +2790,7 @@ interface NewReachOutRun {
     };
 }
 /**
- * One lead in a run: planned, with its time and domain; or skipped, with why, so a lead the step may never write to
+ * One lead in a run: planned, with its time and mailbox; or skipped, with why, so a lead the step may never write to
  * (the door refuses it, or it keeps no open hour all week) leaves the step's page rather than heading it every day.
  */
 type PlannedSend = {
@@ -2791,12 +2803,12 @@ type PlannedSend = {
     contact_id: string | null;
 } & ({
     state: "planned";
-    domain_id: string;
+    mailbox_id: string;
     send_at: string;
     reason?: null;
 } | {
     state: "skipped";
-    domain_id: null;
+    mailbox_id: null;
     send_at: null;
     reason: string;
 });
@@ -2816,8 +2828,15 @@ interface ReachOutRunPorts {
     chainState(rootId: string): Promise<"none" | "waiting" | "approved">;
     audience(step: ReachOutStep): Promise<ReachOutLead[]>;
     followers(step: FollowedStep): Promise<ReachOutFollower[]>;
-    /** The step's verified domains, each with its day's share and the times it already spends (db capacity). */
-    domains(step: ReachOutStep): Promise<TimetableDomain[]>;
+    /**
+     * The mailboxes the step writes from (contracts reachOutWritesFrom), and those named in `also` (a later step's
+     * leads' own, whichever the step names), each with its day's share now (0 for one that does not send today) and the
+     * times it already spends (db mailbox_capacity); `gone` is those of `also` that are removed, or not the workspace's.
+     */
+    mailboxes(step: ReachOutStep, also: readonly string[]): Promise<{
+        senders: TimetableSender[];
+        gone: Set<string>;
+    }>;
     /**
      * The run and its sends, written whole (db reach_out_plan_run): never a run with nothing planned in it. "exists" when
      * this step already has its run for the day.
@@ -2840,7 +2859,7 @@ type ReachOutRunOutcome = {
     planned: number;
 } | {
     outcome: "held";
-    reason: "waiting_for_you" | "no_domain" | "no_room" | "billing";
+    reason: "waiting_for_you" | "no_mailbox" | "no_room" | "billing";
     planned: number;
 } | {
     outcome: "empty";

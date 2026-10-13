@@ -43,18 +43,17 @@ test("its words, in a thread and on a run's line", () => {
   assert.equal(HELD_REASONS.outreach_away, "away until the day they're back");
 });
 
-/** A database that answers outreach_facts with these facts. */
+/** A database that answers outreach_mailbox_facts with these facts. */
 const answering = (data) => ({
   rpc: async (name) => {
-    assert.equal(name, "outreach_facts");
+    assert.equal(name, "outreach_mailbox_facts");
     return { data, error: null };
   },
 });
-const ask = (db) =>
-  outreachFactsOf(db, { tenantId: "t1", contactId: "c1", to: "office@example.com", host: "", since: "2026-09-01" });
+const ask = (db) => outreachFactsOf(db, { tenantId: "t1", contactId: "c1", to: "office@example.com", from: "" });
 
 test("the facts read away as the database says it, and a database before 00226 as not away", async () => {
-  const base = { lead_stage: "ready", suppressed: false, wrote_back: false, domain: null, sent_since: 0 };
+  const base = { lead_stage: "ready", suppressed: false, wrote_back: false, mailbox: null };
   assert.equal((await ask(answering({ ...base, away: true }))).away, true);
   assert.equal((await ask(answering({ ...base, away: false }))).away, false);
   assert.equal((await ask(answering(base))).away, false, "absent: not away, as before this part");

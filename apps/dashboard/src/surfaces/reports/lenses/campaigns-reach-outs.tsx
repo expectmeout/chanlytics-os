@@ -9,7 +9,7 @@
  * headers are the page's. A share of fewer than five is a count (the fold words it; a bar of one is greyed by contracts'
  * one predicate), and a read that failed is the lens's own failed read in this section, with its Retry.
  */
-import type { ReachOutDomainRow } from "@chanlytics/contracts";
+import type { ReachOutMailboxRow } from "@chanlytics/contracts";
 import type { CampaignLensVM, ReachOutLensSourceLine, ReachOutLensVM } from "@chanlytics/contracts/report-lens";
 import { routeDoor } from "../../legacy-verbs";
 import { BarChart, BarList } from "../../kit/charts/bar";
@@ -27,14 +27,14 @@ const FULL_SHARE = 100;
 /** The colour the angles' bars wear (charts.css: the ramp's third step, as the old section drew them). */
 const ANGLE_BAR = "var(--chart-ramp-3)";
 
-/** Each domain: its emails, how they landed, and its state now (H5). */
-function DomainsTable({ rows }: { rows: ReachOutDomainRow[] }) {
+/** Each mailbox: its emails, how they landed, and its state now (H5; decision 0056). */
+function MailboxesTable({ rows }: { rows: ReachOutMailboxRow[] }) {
   return (
     <div className="ck-table-wrap">
       <table className="ck-table">
         <thead>
           <tr>
-            <th>Domain</th>
+            <th>Mailbox</th>
             <th className="num">Sent</th>
             <th className="num">Landed</th>
             <th className="num">Bounced</th>
@@ -43,9 +43,9 @@ function DomainsTable({ rows }: { rows: ReachOutDomainRow[] }) {
         </thead>
         <tbody>
           {rows.map((d) => (
-            <tr key={d.id} data-testid="ro-domain-row">
+            <tr key={d.id} data-testid="ro-mailbox-row">
               <td>
-                {d.host}
+                {d.address}
                 <span className="rpt-src-meta">{d.state}</span>
               </td>
               <td className="num">{d.sent}</td>
@@ -157,17 +157,17 @@ function anglesCard(ro: ReachOutLensVM, className: string) {
   );
 }
 
-/** Where it left from (H5): drawn where an email left a domain. */
-function domainsCard(ro: ReachOutLensVM, className: string) {
+/** Where it left from (H5): drawn where an email left a mailbox. */
+function mailboxesCard(ro: ReachOutLensVM, className: string) {
   return (
     <ChartCard
       className={className}
-      title="By domain"
-      testid="ro-domains"
-      takeaway={ro.lines.domains}
+      title="By mailbox"
+      testid="ro-mailboxes"
+      takeaway={ro.lines.mailboxes}
       switchable={false}
     >
-      <DomainsTable rows={ro.domains} />
+      <MailboxesTable rows={ro.mailboxes} />
     </ChartCard>
   );
 }
@@ -239,18 +239,18 @@ function sourcesCard(ro: ReachOutLensVM) {
 }
 
 /**
- * Where it left from beside the days it was written: a domain's card where an email left one, and the days where any were
+ * Where it left from beside the days it was written: a mailbox's card where an email left one, and the days where any were
  * written. A period in which only calls and notes were handed to you wrote none (the emails card says so; a card of the same
- * words is not drawn again), and then the domain, if there is one, takes the row.
+ * words is not drawn again), and then the mailbox, if there is one, takes the row.
  */
 function daysRow(ro: ReachOutLensVM) {
   const wrote = ro.emails.empty === null;
-  const domains = ro.domains.length > 0;
-  if (!wrote && !domains) return null;
+  const mailboxes = ro.mailboxes.length > 0;
+  if (!wrote && !mailboxes) return null;
   return (
     <div className="rpt-grid">
-      {domains && domainsCard(ro, wrote ? "rpt-span-5" : "rpt-span-12")}
-      {wrote && writtenCard(ro, domains ? "rpt-span-7" : "rpt-span-12")}
+      {mailboxes && mailboxesCard(ro, wrote ? "rpt-span-5" : "rpt-span-12")}
+      {wrote && writtenCard(ro, mailboxes ? "rpt-span-7" : "rpt-span-12")}
     </div>
   );
 }

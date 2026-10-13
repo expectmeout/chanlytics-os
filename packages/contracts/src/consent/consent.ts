@@ -203,7 +203,7 @@ export function mayMessageFor(
   if (isOptedOutContact(c)) return { ok: false, reason: "opted_out" };
   // Cold email to a business: US law lets a business write until it is told to stop (CAN-SPAM), so no recorded yes
   // is asked for. What is asked: that they did not stop everything, and did not unsubscribe from this business's
-  // email. The wire's own rules (email only, a lead, an own domain, the unsubscribe) are the door's.
+  // email. The wire's own rules (email only, a lead, a mailbox it connected, the unsubscribe) are the door's.
   if (purpose === "outreach")
     return c.email_marketing === "opted_out" ? { ok: false, reason: "unsubscribed" } : { ok: true, reason: null };
   // THE CHANNEL IS REQUIRED: a yes covers the channels it was given for (consent-channels.ts). A yes to offers covers
@@ -289,9 +289,9 @@ export const DELIVERY_REFUSALS = [
   "outreach_away",
   "outreach_stopped",
   "outreach_without_unsubscribe",
-  "outreach_needs_own_domain",
-  "sending_domain_not_ready",
-  "sending_domain_at_cap",
+  "outreach_needs_own_mailbox",
+  "sending_mailbox_not_ready",
+  "sending_mailbox_at_cap",
 ] as const;
 export type DeliveryRefusal = (typeof DELIVERY_REFUSALS)[number];
 
@@ -336,11 +336,12 @@ export const PURPOSE_REFUSALS: Record<DeliveryRefusal, string> & Record<string, 
     "Away: their automatic reply says they're out. This email waits, and goes to them after the day they're back.",
   outreach_stopped: "You stopped writing to this business, so this email was not sent. Nothing more goes to it.",
   outreach_without_unsubscribe: "This email was built without its unsubscribe link, so it was not sent.",
-  outreach_needs_own_domain: "Cold email leaves only from a domain you own. Add one on Connections, under Email.",
-  sending_domain_not_ready:
-    "The domain this email was to leave from isn't sending right now. Connections, under Email, says why.",
-  sending_domain_at_cap:
-    "The domain this email was to leave from has sent its day's share. It goes when there is room.",
+  outreach_needs_own_mailbox:
+    "Cold email leaves only from a mailbox you connected. Connect Google or Microsoft on Connections, under Email.",
+  sending_mailbox_not_ready:
+    "The mailbox this email was to leave from isn't sending right now. Connections, under Email, says why.",
+  sending_mailbox_at_cap:
+    "The mailbox this email was to leave from has written its day's share. It goes when there is room.",
 };
 
 /**

@@ -411,6 +411,17 @@ interface JobContext {
         tell: (tenantId: string, note: Parameters<EmailIngestPorts["tell"]>[1]) => Promise<void>;
     };
     /**
+     * The intake of the mailboxes businesses connected (decision 0056), as the edge holds it: a message fetched from the
+     * mailbox's own provider with its token, by the connection and the provider's id for it. INJECTED like `email`: the
+     * tokens live on the edge. An email_ingest job whose payload says `source: "mailbox"` reads through this one, and in
+     * a runtime without it fails loudly. Erasure and the owner's note are `email`'s, or these when `email` is absent.
+     */
+    mailboxIntake?: {
+        fetch: (connectionId: string, providerId: string) => Promise<ReceivedEmail | null>;
+        erasedBefore: (tenantId: string, address: string, receivedAtIso: string) => Promise<boolean>;
+        tell: (tenantId: string, note: Parameters<EmailIngestPorts["tell"]>[1]) => Promise<void>;
+    };
+    /**
      * The owner's calendar feed, as the edge reads it (kept five minutes). INJECTED like email's intake: the fetch, its cache
      * and the workspace's feed address live on the edge. Optional so a test context need not supply one; a broadcast's
      * reminders then go on the record alone.

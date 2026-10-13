@@ -58,7 +58,7 @@ const isRowFocus = (k: string): k is AskScopeKind => k !== "page" && (ASK_SCOPE_
  * The row an answer's n-th item names, as a focus (the Phase 5 plan, D7): "open the second", asked in an open thread,
  * is its last answer's second item, in the answer's order -- an answer made before the Line has the rows it cited
  * (answerFromV1). A broadcast is the run its page spells; a thread, a conversation, a call, a person, a lead, a search
- * and a playbook are as they are. Null for an item of any other kind (a deal, a list, a template, a domain, a page):
+ * and a playbook are as they are. Null for an item of any other kind (a deal, a list, a template, a mailbox, a page):
  * the words point at no row a focus may be, and never at the page's row at that place. Undefined when the answer has
  * fewer items: then the page's rows are asked. The tab's context and the eval's both read the words by it.
  */

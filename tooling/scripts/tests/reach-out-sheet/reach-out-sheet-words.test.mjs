@@ -50,19 +50,25 @@ test("who gets it: the count, the held with its door, the phone-only kept for ca
   assert.equal(REACH_OUT_SHEET_WORDS.who, "Ready, with a checked address, never written to. Keeps itself current.");
 });
 
-test("the pace: the domain's day and the gap, why it is recommended, and the foot", () => {
-  assert.deepEqual(paceWords({ share: 30, sentDays: 0, gapMinutes: 12 }), {
+test("the pace: the mailboxes' day and the gap, why it is what it is, and the foot", () => {
+  assert.deepEqual(paceWords({ share: 10, mailboxes: 1, rises: 7, gapMinutes: 12 }), {
     parts: [
       "",
-      "30",
-      " a day per domain, one every ",
+      "10",
+      " a day, one every ",
       "12 min",
       " or so, in each business's open hours. Never on their closed days.",
     ],
-    why: "The pace for a new domain. Rises to 100 a day after 14 clean days.",
+    why: "A new mailbox starts slow and grows with the days it sends: the pace rises in 7 more days of sending.",
   });
-  assert.equal(paceWords({ share: 100, sentDays: 20, gapMinutes: 8 }).why, "Rises to 200 a day after 30 clean days.");
-  assert.equal(paceWords({ share: 200, sentDays: 40, gapMinutes: 8 }).why, "The most a domain sends in a day.");
+  assert.equal(
+    paceWords({ share: 60, mailboxes: 2, rises: null, gapMinutes: 8 }).parts[2],
+    " a day across 2 mailboxes, one every ",
+  );
+  assert.equal(
+    paceWords({ share: 80, mailboxes: 2, rises: null, gapMinutes: 8 }).why,
+    "As much as your mailboxes write in a day.",
+  );
   assert.equal(
     sheetFootWords({ share: 30, gapMinutes: 12, ready: 44, editing: false }),
     "Goes to 30 a day, one every 12 minutes or so as each business opens. The first run waits on you.",
@@ -83,7 +89,7 @@ test("a chain's pace is one the sheet offers, as the database's CHECK holds it",
     search_id: "44444444-4444-4444-8444-444444444444",
     include_unconfirmed: false,
     gap_minutes: gap,
-    domain_ids: [],
+    mailbox_ids: [],
     signed_by: "Sam",
     steps: [{ subject: "Hi {{business}}", body: "{{opening}}", after_days: null }],
   });
@@ -107,12 +113,12 @@ test("Start says what really happened, each reason in its own words; within the 
   assert.equal(said("held", "billing"), "Saved. Nothing is planned until billing is sorted: open Billing.");
   assert.equal(said("off", "never"), "Saved. Outreach is set to Never in Settings › Autonomy, so nothing runs.");
   assert.equal(
-    said("held", "no_domain"),
-    "Saved. Nothing is planned yet. Add a domain you send from in Settings › Connections › Email first.",
+    said("held", "no_mailbox"),
+    "Saved. Nothing is planned yet. Connect the mailbox you'll write from first: Google or Microsoft, here or in Settings › Connections › Email.",
   );
   assert.equal(
     said("held", "no_room"),
-    "Saved. Your domains have sent all they may today, so the first run is tomorrow.",
+    "Saved. Your mailboxes have written all they may today, so the first run is tomorrow.",
   );
   assert.equal(said("empty", "nobody"), "Saved. Nobody on this search can be written to yet; it looks again each day.");
   assert.equal(
@@ -127,7 +133,7 @@ test("Start says what really happened, each reason in its own words; within the 
     "the workspace's pause is said as the workspace's",
   );
   const within = ["sent", "held", "empty", "off", "failed", "preview"].flatMap((o) =>
-    ["billing", "never", "no_domain", "no_room", "nobody", "waiting_for_you", "already_ran", "paused", null].map((r) =>
+    ["billing", "never", "no_mailbox", "no_room", "nobody", "waiting_for_you", "already_ran", "paused", null].map((r) =>
       said(o, r, 3),
     ),
   );
@@ -203,7 +209,7 @@ const RUN = (over = {}) => ({
     opening: "You're a one-person studio.",
     angle: "mid-session",
   },
-  domains: [{ host: "chanlytics-mail.example", sent_days: 12 }],
+  mailboxes: [{ address: "sam@chanlytics-mail.example", sent_days: 12, daily_cap: 40, customer_domain: false }],
   ...over,
 });
 
@@ -218,14 +224,14 @@ test("the approval sheet says who today, who later, what the check held, and nam
   );
   assert.deepEqual([w.will, w.of], ["30 will get it today", "of 42"]);
   assert.deepEqual(w.why, [
-    { tone: "plain", text: "11 wait for the coming days — 30 a day on this domain", door: null },
+    { tone: "plain", text: "11 wait for the coming days — 30 a day from this mailbox", door: null },
     { tone: "warn", text: "1 held by the check", door: "See them" },
   ]);
   assert.deepEqual(w.rules, [
     "each has a checked address",
     "none is on a person in People",
     "none heard from you before",
-    "all from chanlytics-mail.example, 12 clean days",
+    "all from sam@chanlytics-mail.example, 12 days of sending",
   ]);
   assert.deepEqual(w.words[0], { text: "You're a one-person studio.", opening: true });
   assert.equal(
@@ -366,7 +372,7 @@ const CHAIN = {
   state: "running",
   include_unconfirmed: false,
   gap_minutes: 12,
-  domain_ids: [],
+  mailbox_ids: [],
   signed_by: "Sam",
   created_at: "2026-09-20T00:00:00Z",
   next: { run_hour: 9, last_run_for: "2026-09-24", mode: "ask", may_spend: true, waiting_run_id: null },
@@ -398,10 +404,15 @@ const REPORT = {
 
 test("the Playbooks row and its open row say what the database holds, no more (R16, R23)", () => {
   assert.equal(
-    chainHintOf(CHAIN, "chanlytics-mail.example"),
-    "Your email, a short nudge · from chanlytics-mail.example",
+    chainHintOf(CHAIN, "sam@chanlytics-mail.example"),
+    "Your email, a short nudge · from sam@chanlytics-mail.example",
   );
-  const w = chainReportWordsOf(CHAIN, REPORT, { ...REACH, ready: 0 }, { host: "chanlytics-mail.example", share: 30 });
+  const w = chainReportWordsOf(
+    CHAIN,
+    REPORT,
+    { ...REACH, ready: 0 },
+    { from: "sam@chanlytics-mail.example", share: 30 },
+  );
   assert.deepEqual(w.reaches, { n: 44, of: "of 160 on the search" });
   assert.deepEqual(w.head, [
     "Step",
@@ -439,7 +450,7 @@ test("the Playbooks row and its open row say what the database holds, no more (R
   ]);
   assert.equal(
     w.sentence,
-    "30 a day from chanlytics-mail.example, one every 12 minutes in each business's hours. 72 written; 8 wrote back; 4 said no; 2 bounced and their addresses were dropped.",
+    "30 a day from sam@chanlytics-mail.example, one every 12 minutes in each business's hours. 72 written; 8 wrote back; 4 said no; 2 bounced and their addresses were dropped.",
   );
   assert.deepEqual(w.history[0], { id: "b", text: "Sep 24 · 30 written" });
   assert.deepEqual([w.canRemove, w.remove], [false, null], "one that wrote is paused, never removed");
@@ -452,7 +463,7 @@ test("the Playbooks row and its open row say what the database holds, no more (R
       can_remove: true,
     },
     REACH,
-    { host: null, share: 30 },
+    { from: null, share: 30 },
   );
   assert.equal(fresh.canRemove, true);
   assert.equal(fresh.sentence, "30 a day, one every 12 minutes in each business's hours. 0 written.");
@@ -483,20 +494,27 @@ test("the doors' refusals are one set of sentences, the ones the database raises
     assert.equal(isReachOutRefusal(w), true, w);
 });
 
-test("the chain row's own words: its pace from its domains, its path, the held with their run (PR 8)", () => {
+test("the chain row's own words: its pace from its mailboxes, its path, the held with their run (PR 8)", () => {
   const { chainPaceOf, chainPathWords, chainReportWordsOf: report, REACH_OUT_ROW_WORDS } = contracts;
-  assert.deepEqual(chainPaceOf({ domains: [{ host: "a.example", sent_days: 0 }] }), { host: "a.example", share: 30 });
+  const box = (address, sent_days, over = {}) => ({
+    address,
+    sent_days,
+    daily_cap: 40,
+    customer_domain: false,
+    ...over,
+  });
+  assert.deepEqual(chainPaceOf({ mailboxes: [box("sam@a.example", 0)] }), { from: "sam@a.example", share: 10 });
   assert.deepEqual(
-    chainPaceOf({
-      domains: [
-        { host: "a.example", sent_days: 20 },
-        { host: "b.example", sent_days: 40 },
-      ],
-    }),
-    { host: null, share: 300 },
-    "two domains: their days summed, no one host",
+    chainPaceOf({ mailboxes: [box("sam@a.example", 20), box("dana@b.example", 40, { customer_domain: true })] }),
+    { from: null, share: 50 },
+    "two mailboxes: their days summed (30 at 20 days sent; 20 at most on the customer's own domain), no one address",
   );
-  assert.deepEqual(chainPaceOf({ domains: [] }), { host: null, share: 0 });
+  assert.deepEqual(
+    chainPaceOf({ mailboxes: [box("sam@a.example", 40, { daily_cap: 15 })] }).share,
+    15,
+    "its owner's cap",
+  );
+  assert.deepEqual(chainPaceOf({ mailboxes: [] }), { from: null, share: 0 });
   assert.deepEqual(chainPathWords(CHAIN), {
     steps: [
       { id: "r", label: "Your email", after: null },
@@ -512,15 +530,15 @@ test("the chain row's own words: its pace from its domains, its path, the held w
       ...REPORT.runs,
     ],
   };
-  assert.deepEqual(report(CHAIN, held, REACH, { host: null, share: 30 }).waiting, {
+  assert.deepEqual(report(CHAIN, held, REACH, { from: null, share: 30 }).waiting, {
     text: "3 wait for your say",
     run_id: "b3",
   });
-  assert.equal(report(CHAIN, REPORT, REACH, { host: null, share: 30 }).waiting, null);
+  assert.equal(report(CHAIN, REPORT, REACH, { from: null, share: 30 }).waiting, null);
   assert.match(
-    report(CHAIN, REPORT, REACH, { host: null, share: 0 }).sentence,
-    /^Add a domain you send from in Settings › Connections › Email first\. 72 written/,
-    "no domain: never a pace of 0 a day",
+    report(CHAIN, REPORT, REACH, { from: null, share: 0 }).sentence,
+    /^Connect the mailbox you'll write from first: Google or Microsoft, here or in Settings › Connections › Email\. 72 written/,
+    "no mailbox: never a pace of 0 a day",
   );
   assert.equal(REACH_OUT_ROW_WORDS.paused("Movers"), "Movers is paused — nothing more is planned until you resume it");
 });

@@ -788,7 +788,7 @@ test("the Campaigns lens's read repaints on the tables of the live feed that mov
     "broadcasts",
     "reach_out_replies",
     "tenant_channels",
-    "sending_domains",
+    "mailbox_connections",
   ]);
   // Asked for five seconds; the runner never waits more than three after the first change (campaigns-surface.test.mjs runs it).
   assert.equal(reportsCampaignsOverride.debounceMs, 5_000);

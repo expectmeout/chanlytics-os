@@ -319,10 +319,6 @@ const NOT_READ = {
     "channelChange() names the Campaigns lens for the connected number's health; a settings save writes tenant_config (the hours, the postal address), which the lens does not read. Premature. Owed: drop reportsCampaigns() from settingsWrite, with CAMPAIGNS_WRITES in refresh-coverage.test.mjs.",
   "POST settings/receptionist -> reports_campaigns":
     "channelChange() names the Campaigns lens for the connected number's health; the first receptionist writes tenant_config (the hours, the postal address), which the lens does not read. Premature. Owed: drop reportsCampaigns() from settingsWrite, with CAMPAIGNS_WRITES in refresh-coverage.test.mjs.",
-  "POST mailboxes -> reports_campaigns":
-    "channelChange() names the Campaigns lens for the connected number's health; a mailbox made is not the number, and the lens reads no mailbox. Premature. Owed: name reportsCampaigns() only where the number changes, with CAMPAIGNS_WRITES in refresh-coverage.test.mjs.",
-  "PUT mailboxes/[id] -> reports_campaigns":
-    "channelChange() names the Campaigns lens for the connected number's health; a mailbox saved is not the number, and the lens reads no mailbox. Premature. Owed: name reportsCampaigns() only where the number changes, with CAMPAIGNS_WRITES in refresh-coverage.test.mjs.",
   "POST calendar/visits/[id] -> reports_people":
     "visits() names the People lens with the other readers of a visit; the lens's read (GET reports/people) reads no appointment. Premature. Owed: drop reportsPeople() from visits(), with its assertions in a-visit-reaches-every-reader.test.mjs.",
 };
@@ -401,7 +397,7 @@ test("each Reports page hears the tables it counts, on its page: the overview it
     ["reports", "reports", ["calls", "tenant_config", "deals", "appointments", "contacts"]],
     ["reports_receptionist", "reports/receptionist", ["appointments", "contacts", "tenant_config"]],
     ["reports_people", "reports/people", ["contacts", "tenant_channels", "lines", "mailboxes"]],
-    ["reports_campaigns", "reports/campaigns", ["reach_out_replies", "tenant_channels", "sending_domains"]],
+    ["reports_campaigns", "reports/campaigns", ["reach_out_replies", "tenant_channels", "mailbox_connections"]],
     ["campaign_results", "campaigns", ["reach_out_replies"]],
   ];
   for (const [key, route, list] of WANTED)

@@ -5,7 +5,7 @@
  */
 import { addressOf } from "../activity/record-address";
 import { clockTime, clockWhen, zoneDayKey } from "../shared/clock";
-import { DOMAIN_RAMP, domainDailyCap } from "../email/sending-domains";
+import { mailboxDailyCap } from "../email/mailbox-connections";
 import { nextRunLabel } from "../playbooks/playbook-schedule";
 import { PLAYBOOK_VETO_DELAY_WORDS } from "../playbooks/playbook-triggers";
 // The one "3 emails" (shared/words.ts), not an eleventh copy of it.
@@ -25,7 +25,7 @@ import { dateFormat } from "../shared/time";
 // Each sentence says what an owner acts on, once, and stops (Ruben, 10 Oct 2026: the sheet said each thing at length,
 // in nine notes).
 export const REACH_OUT_SHEET_WORDS = {
-  sub: "Your email, opened for each business, from your own domain. Replies land in your Inbox.",
+  sub: "Your email, opened for each business, from your own mailbox. Replies come back to it, and to your Inbox.",
   who: "Ready, with a checked address, never written to. Keeps itself current.",
   opening:
     "The receptionist opens each email from the finder's record. It never invents a fact: anything it can't back is held.",
@@ -37,7 +37,8 @@ export const REACH_OUT_SHEET_WORDS = {
   footHint: "as the law asks",
   repliesHint: "into your Inbox",
   checkLater: "Each email is checked before it goes. The first run waits for you.",
-  noDomain: "Add a domain you send from in Settings › Connections › Email first.",
+  noMailbox:
+    "Connect the mailbox you'll write from first: Google or Microsoft, here or in Settings › Connections › Email.",
   anotherStep: "Another step",
   anotherStepHint: "· another email",
   /** The last step may hand each business it reaches to you instead (Part 5, G20). */
@@ -76,7 +77,7 @@ export const REACH_OUT_REFUSALS = {
   /** reach_out_report (00241, 00360): any count of days Reports reads, as its other functions take them. */
   period: "A period is 1 to 90 days.",
   searchNotFound: "Search not found.",
-  domainNotFound: "Domain not found.",
+  mailboxNotFound: "Mailbox not found.",
   sendNotFound: "Email not found.",
   runNotFound: "Run not found.",
   runOver: "That run is over.",
@@ -132,16 +133,16 @@ export function reachLineOf(r: ReachOutReachDto, includeUnconfirmed: boolean) {
 }
 
 /** The pace sentence as tokens (the odd places are the sheet's editable tokens), and why its day is what it is. */
-export function paceWords(p: { share: number; sentDays: number; gapMinutes: number }) {
-  const next = DOMAIN_RAMP.find((s) => s.days > p.sentDays);
-  const why = next
-    ? `${p.sentDays < 1 ? "The pace for a new domain. " : ""}Rises to ${next.perDay} a day after ${next.days} clean days.`
-    : "The most a domain sends in a day.";
+export function paceWords(p: { share: number; mailboxes: number; rises: number | null; gapMinutes: number }) {
+  const why =
+    p.rises !== null
+      ? `A new mailbox starts slow and grows with the days it sends: the pace rises in ${plural(p.rises, "more day", "more days")} of sending.`
+      : "As much as your mailboxes write in a day.";
   return {
     parts: [
       "",
       String(p.share),
-      " a day per domain, one every ",
+      ` a day${p.mailboxes > 1 ? ` across ${p.mailboxes} mailboxes` : ""}, one every `,
       `${p.gapMinutes} min`,
       " or so, in each business's open hours. Never on their closed days.",
     ],
@@ -189,12 +190,12 @@ export function startWords(s: ReachOutStartDto): { tone: "good" | "warn" | "plai
             : { tone: "plain", text: "A run of this reach-out already waits on you. Answer it first." };
         case "billing":
           return { tone: "warn", text: "Saved. Nothing is planned until billing is sorted: open Billing." };
-        case "no_domain":
-          return { tone: "warn", text: `Saved. Nothing is planned yet. ${REACH_OUT_SHEET_WORDS.noDomain}` };
+        case "no_mailbox":
+          return { tone: "warn", text: `Saved. Nothing is planned yet. ${REACH_OUT_SHEET_WORDS.noMailbox}` };
         case "no_room":
           return {
             tone: "plain",
-            text: "Saved. Your domains have sent all they may today, so the first run is tomorrow.",
+            text: "Saved. Your mailboxes have written all they may today, so the first run is tomorrow.",
           };
         default:
           return { tone: "plain", text: "Saved. The first run is held." };
@@ -293,7 +294,7 @@ export function approvalWordsOf(r: ReachOutRunDto, p: { timezone: string; share:
   if (r.later > 0)
     why.push({
       tone: "plain",
-      text: `${r.later} wait for the coming days — ${p.share} a day on this domain`,
+      text: `${r.later} wait for the coming days — ${p.share} a day from ${r.mailboxes.length === 1 ? "this mailbox" : "these mailboxes"}`,
       door: null,
     });
   if (r.held.length > 0) why.push({ tone: "warn", text: `${r.held.length} held by the check`, door: "See them" });
@@ -306,12 +307,13 @@ export function approvalWordsOf(r: ReachOutRunDto, p: { timezone: string; share:
     if (leads) words.push({ text: open, opening: true });
     if (rest.trim()) words.push({ text: rest.replace(/^\s+/, ""), opening: false });
   }
-  const hosts = r.domains.map((d) => d.host);
+  const addresses = r.mailboxes.map((m) => m.address);
+  const [only, ...others] = r.mailboxes;
   const from =
-    r.domains.length === 1
-      ? `all from ${r.domains[0].host}, ${plural(r.domains[0].sent_days, "clean day", "clean days")}`
-      : r.domains.length > 1
-        ? `from ${hosts.slice(0, -1).join(", ")} and ${hosts[hosts.length - 1]}`
+    only && others.length === 0
+      ? `all from ${only.address}, ${plural(only.sent_days, "day of sending", "days of sending")}`
+      : r.mailboxes.length > 1
+        ? `from ${addresses.slice(0, -1).join(", ")} and ${addresses[addresses.length - 1]}`
         : null;
   const goes = earlier
     ? " · goes from now, re-timed in their hours, once you approve it"
@@ -361,13 +363,14 @@ const runDayWords = (runFor: string): string =>
   dateFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(`${runFor}T12:00:00Z`));
 
 /**
- * A chain's pace as its domains allow it: how many a day across them (each domain's ramp, D15), and the one domain's
- * name when it sends from one. Nothing to send from is a share of 0 and no host.
+ * A chain's pace as its mailboxes allow it: how many a day across them (each one's day, contracts mailboxDailyCap), and
+ * the one mailbox's address when it writes from one. Nothing to write from is a share of 0 and no address.
  */
-export function chainPaceOf(c: Pick<ReachOutChainDto, "domains">): { host: string | null; share: number } {
+export function chainPaceOf(c: Pick<ReachOutChainDto, "mailboxes">): { from: string | null; share: number } {
+  const [only, ...others] = c.mailboxes;
   return {
-    host: c.domains.length === 1 ? c.domains[0].host : null,
-    share: c.domains.reduce((t, d) => t + domainDailyCap(d.sent_days), 0),
+    from: only && others.length === 0 ? only.address : null,
+    share: c.mailboxes.reduce((t, m) => t + mailboxDailyCap(m), 0),
   };
 }
 
@@ -401,9 +404,9 @@ export const REACH_OUT_ROW_WORDS = {
 } as const;
 
 /** Playbooks' row for a chain (F14; canvas board 07): what the list says before the row is opened. */
-export function chainHintOf(c: ReachOutChainDto, host: string | null): string {
+export function chainHintOf(c: ReachOutChainDto, from: string | null): string {
   const labels = c.steps.map((s) => stepLabelOf(s).toLowerCase());
-  return `${labels.join(", ").replace(/^your email/, "Your email")}${host ? ` · from ${host}` : ""}`;
+  return `${labels.join(", ").replace(/^your email/, "Your email")}${from ? ` · from ${from}` : ""}`;
 }
 
 /**
@@ -436,7 +439,7 @@ export function chainReportWordsOf(
   c: ReachOutChainDto,
   report: ReachOutChainReportDto,
   reach: ReachOutReachDto,
-  p: { host: string | null; share: number },
+  p: { from: string | null; share: number },
 ) {
   const sum = (k: "written" | "wrote_back" | "said_no" | "bounced" | "held" | "handed") =>
     report.steps.reduce((t, s) => t + (s[k] ?? 0), 0);
@@ -463,8 +466,8 @@ export function chainReportWordsOf(
     table: report.steps.map((s) => reportRowOf(s, stepOf.get(s.id))),
     sentence:
       p.share > 0
-        ? `${p.share} a day${p.host ? ` from ${p.host}` : ""}, one every ${c.gap_minutes} minutes in each business's hours. ${clauses.join("; ")}.`
-        : `${REACH_OUT_SHEET_WORDS.noDomain} ${clauses.join("; ")}.`,
+        ? `${p.share} a day${p.from ? ` from ${p.from}` : ""}, one every ${c.gap_minutes} minutes in each business's hours. ${clauses.join("; ")}.`
+        : `${REACH_OUT_SHEET_WORDS.noMailbox} ${clauses.join("; ")}.`,
     // The held wait for their owner in their run (R20): the newest run that holds some opens them.
     waiting:
       held > 0 ? { text: `${held} wait for your say`, run_id: report.runs.find((r) => r.held > 0)?.id ?? null } : null,
@@ -492,7 +495,7 @@ export function emailTemplateWords(p: { chainName: string; stepN: number; afterD
         : `step ${p.stepN + 1} · after ${p.afterDays} days with nothing back`,
     checkNote:
       "Checked before each send: every slot filled or the email held; the opening's facts in the finder's record; under 120 words; the footer present; the language theirs.",
-    /** The act that opens the whole reach-out, whose days, pace and domains are its own. */
+    /** The act that opens the whole reach-out, whose days, pace and mailboxes are its own. */
     edit: "Edit the reach-out",
   };
 }

@@ -716,10 +716,10 @@ const chainOf = (over = {}) => ({
   state: "running",
   include_unconfirmed: false,
   gap_minutes: 12,
-  domain_ids: [],
+  mailbox_ids: [],
   signed_by: "Sam",
   created_at: "2026-09-20T00:00:00Z",
-  domains: [{ host: "mail.example.com", sent_days: 0 }],
+  mailboxes: [{ address: "sam@mail.example.com", sent_days: 0, daily_cap: 40, customer_domain: false }],
   steps: [
     {
       id: "ch-1",
@@ -1366,7 +1366,7 @@ test("the Library's count is the Library page's own: the same templates, languag
       { id: `n-${n}`, n: 1, after_days: 4, subject: null, body: "Checking in", template_id: `t-${n}b` },
     ],
     next: { run_hour: 9, last_run_for: null, mode: "ask", may_spend: true, waiting_run_id: null },
-    domains: [],
+    mailboxes: [],
   });
   const messages = contracts.campaignMessagesOf(rows);
   surfaces({ reachOuts: [email(1)], settings: { templatesAll: rows, messages } });

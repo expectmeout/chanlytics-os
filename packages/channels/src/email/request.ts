@@ -97,6 +97,16 @@ export interface EmailRequestInput {
   /** The queued row this request belongs to: the idempotency key, and the tag every receipt names it by. */
   messageId: string;
   tenantId: string;
+  /**
+   * Words alone, with no HTML twin: a cold email from a business's own mailbox (decision 0056, 7), which reads as a
+   * person's email and carries no link markup. Its foot is the text foot.
+   */
+  plain?: boolean;
+  /**
+   * Whether a campaign is marked Auto-Submitted (RFC 3834): true by default. A cold email from a business's own mailbox
+   * is not (decision 0056), so an out-of-office answers it and the chain hears they are away (00226).
+   */
+  autoSubmitted?: boolean;
 }
 
 /** `"Name" <address>`, the name quoted so a comma or a bracket in it cannot end it early. */
@@ -197,6 +207,16 @@ function unsubscribeHeaders(c: EmailCampaign): Record<string, string> {
  *   without a lookup by the provider's id, even one that arrives before the
  *   send's own write.
  */
+/**
+ * The mark an email carries for the machines that read it (RFC 3834): a campaign's, or the receptionist's first word,
+ * is generated, its answer a reply; one person's own words, a reach-out from the owner's own mailbox included, none.
+ */
+function autoSubmittedOf(i: EmailRequestInput): "auto-generated" | "auto-replied" | null {
+  if (i.campaign && i.autoSubmitted === false) return null;
+  if (i.campaign || (i.actor === "ai" && !i.parent)) return "auto-generated";
+  return i.actor === "ai" ? "auto-replied" : null;
+}
+
 export function buildEmailRequest(i: EmailRequestInput): EmailRequest {
   const subject = i.parent ? replySubject(i.parent.subject) : oneLine(i.subject ?? "").slice(0, SUBJECT_MAX);
   if (!subject) throw new Error("buildEmailRequest: a first email names its subject");
@@ -209,13 +229,14 @@ export function buildEmailRequest(i: EmailRequestInput): EmailRequest {
   const footerHtml = i.campaign?.footerHtml?.trim() || null;
   if (footerHtml && !footerHtml.includes(`href="${escapeHtml(i.campaign!.unsubscribeUrl.trim())}"`))
     throw new Error("buildEmailRequest: a campaign's HTML footer carries its unsubscribe link");
-  const html = footerHtml
-    ? `${emailHtml([i.body.trim(), i.signature?.trim()].filter(Boolean).join("\n\n"))}\n${footerHtml}`
-    : emailHtml(text);
+  const html = i.plain
+    ? ""
+    : footerHtml
+      ? `${emailHtml([i.body.trim(), i.signature?.trim()].filter(Boolean).join("\n\n"))}\n${footerHtml}`
+      : emailHtml(text);
   const inReplyTo = i.parent ? messageIdHeader(i.parent.rfcMessageId) : null;
   const references = i.parent ? referencesFor(i.parent) : [];
-  const autoSubmitted =
-    i.campaign || (i.actor === "ai" && !i.parent) ? "auto-generated" : i.actor === "ai" ? "auto-replied" : null;
+  const autoSubmitted = autoSubmittedOf(i);
   const headers: Record<string, string> = {
     ...(inReplyTo ? { "In-Reply-To": inReplyTo } : {}),
     ...(references.length ? { References: references.join(" ") } : {}),

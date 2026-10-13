@@ -176,20 +176,6 @@
   "apps/dashboard/src/surfaces/people/surface.ts": {
     "unknownAs": 2
   },
-  "apps/edge/lib/email/dmarc.ts": {
-    "nonNull": 2
-  },
-  "apps/edge/lib/email/sending-domain-check.ts": {
-    "unknownAs": 2,
-    "nonNull": 1
-  },
-  "apps/edge/lib/email/sending-domain-provider.ts": {
-    "unknownAs": 1
-  },
-  "apps/edge/lib/email/sending-domains.ts": {
-    "unknownAs": 1,
-    "nonNull": 1
-  },
   "apps/edge/lib/google/profile-connection.ts": {
     "nonNull": 1
   },
@@ -311,9 +297,6 @@
   "packages/contracts/src/deals/pipeline/pipeline-board.ts": {
     "nonNull": 1
   },
-  "packages/contracts/src/email/sending-domains.ts": {
-    "nonNull": 2
-  },
   "packages/contracts/src/people/lists/list-rules.ts": {
     "nonNull": 1
   },
@@ -392,8 +375,5 @@
   },
   "packages/db/src/repositories/reach-out-sheet.ts": {
     "nonNull": 1
-  },
-  "packages/db/src/repositories/sending-domains.ts": {
-    "never": 1
   }
 }

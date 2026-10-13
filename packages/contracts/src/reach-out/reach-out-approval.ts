@@ -40,6 +40,10 @@ export function skippedReasonWords(reason: string): string {
       return "taken back before it was sent";
     case "erased":
       return "their record was erased";
+    case "mailbox_gone":
+      return "the mailbox their emails came from was removed";
+    case "outreach_country":
+      return "are where a cold email may not go without their say";
     default:
       return HELD_REASONS[reason] ?? "could not be written to";
   }
@@ -63,7 +67,7 @@ const STATE_WORDS: Record<string, string> = {
 /**
  * The block a live reach-out run draws (R20): approvalWordsOf for a run waiting on its owner, and for one that is
  * scheduled or sending, the same facts without an Approve (it was approved, or its mode was veto). `today` is the
- * workspace's day, `now` the moment it is said and `timezone` the zone; the share a day is the run's own domains' (R22).
+ * workspace's day, `now` the moment it is said and `timezone` the zone; the share a day is the run's own mailboxes' (R22).
  */
 export function reachOutRunWordsOf(
   r: ReachOutRunDto,

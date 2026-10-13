@@ -10,22 +10,22 @@
  * is a count under that; the strip carries the count a share is of, for the kit to grey it. A database before 00404 sends no
  * `businesses`: the part says so in words and the emails part stands.
  *
- * The day series, the domains and the handed line were the first fold's (before 11 Oct 2026, reach-out-report.ts held it), and
- * are said here now. A domain's cells follow the same rule as the rest: a share only of five emails sent or more, the count
+ * The day series, the mailboxes and the handed line were the first fold's (before 11 Oct 2026, reach-out-report.ts held it), and
+ * are said here now. A mailbox's cells follow the same rule as the rest: a share only of five emails sent or more, the count
  * under that.
  * Pure, and only Reports' page reads it (PAGE_ONLY in tooling/scripts/gen/contracts-browser-entry.mjs).
  */
-import { domainHoldWords } from "../../email/sending-domains";
+import { mailboxHoldWords } from "../../email/mailbox-connections";
 import { stepLabelOf } from "../../reach-out/reach-out-sheet";
 import { clockDate, clockNear } from "../../shared/clock";
 import { pct, sumOf } from "../../shared/numbers";
 import { isCount } from "../../shared/unknown";
 import { plural } from "../../shared/words";
 import type {
-  ReachOutDomainRow,
+  ReachOutMailboxRow,
   ReachOutReportChainDto,
   ReachOutReportCounts,
-  ReachOutReportDomainDto,
+  ReachOutReportMailboxDto,
   ReachOutReportDto,
   ReachOutReportStepDto,
 } from "../reach-out-report";
@@ -91,14 +91,14 @@ export interface ReachOutLensVM {
     line: string | null;
     empty: string | null;
   };
-  domains: ReachOutDomainRow[];
+  mailboxes: ReachOutMailboxRow[];
   /** A day written, with what a screen reader says of it (`writtenWords`). */
   points: Array<{ day: string; label: string; short: string; written: number; writtenWords: string }>;
   table: { columns: string[]; rows: Array<Array<string | number>> };
   /** A line a reach-out and a line a step under it, in businesses. */
   sources: ReachOutLensSourceLine[];
   /** `sources` is the line under the sources table: each business counts once, and what came of it is as it stands now. */
-  lines: { written: string; domains: string; empty: string; sources: string };
+  lines: { written: string; mailboxes: string; empty: string; sources: string };
 }
 
 type AngleRow = ReachOutLensVM["angles"]["rows"][number];
@@ -114,7 +114,7 @@ interface WhenWords {
 }
 
 const NO_BUSINESSES = "This database does not count businesses yet.";
-const DOMAINS_LINE = "Where it left from, and how it landed. Past 2% bounced, a domain holds itself.";
+const MAILBOXES_LINE = "Where it left from, and how it landed. Past 3% bounced, a mailbox holds itself.";
 /** Who answered, was interested, booked or said no is state now; the cards that show it by angle and by step say so. */
 const STANDS_NOW = "as they stand now";
 const SOURCES_LINE =
@@ -165,7 +165,7 @@ function wholeOf(raw: Partial<ReachOutReportDto>): ReachOutReportDto {
     angles: raw.angles ?? [],
     other_angles: raw.other_angles ?? { written: 0, wrote_back: 0 },
     no_angle: raw.no_angle ?? 0,
-    domains: raw.domains ?? [],
+    mailboxes: raw.mailboxes ?? [],
   };
 }
 
@@ -417,38 +417,39 @@ function sourceLines(dto: ReachOutReportDto, nowMs: number): ReachOutLensSourceL
   ]);
 }
 
-/* ------------------------------------------------------------------------------------------ domains and lines */
+/* ---------------------------------------------------------------------------------------- mailboxes and lines */
 
-/** A domain's state as the card says it: verified, held since a day and why, or not sending yet. */
-function domainStateWords(d: ReachOutReportDomainDto, nowMs: number, tz: string): string {
-  if (d.host === null) return "Since removed";
-  if (d.state === "verified") return "Verified";
+/** A mailbox's state as the card says it: connected, held since a day and why, or not sending. */
+function mailboxStateWords(d: ReachOutReportMailboxDto, nowMs: number, tz: string): string {
+  if (d.address === null || d.state === "removed") return "Since removed";
+  if (d.state === "connected") return "Connected";
   if (d.state === "held") {
     const held = d.held_at ? Date.parse(d.held_at) : NaN;
     const since = Number.isFinite(held) ? ` since ${clockNear(held, tz, nowMs)}` : "";
-    return `Held${since}: ${domainHoldWords(d.held_why)}`;
+    return `Held${since}: ${mailboxHoldWords(d.held_why)}`;
   }
-  return "Not sending yet";
+  if (d.state === "reconnect") return "Signed out: reconnect it";
+  return "Paused";
 }
 
 /**
- * A domain's cell, as shareSaid says a share: of what it sent from five (REPORT_MIN_N) the share, the count it is of under that
+ * A mailbox's cell, as shareSaid says a share: of what it sent from five (REPORT_MIN_N) the share, the count it is of under that
  * ("2 of 3"), a dash where it sent none (D9: a share of fewer than five is never said). The limit its state words name is not a share.
  */
-function domainCell(n: number, sent: number, share: (n: number, of: number) => number | null): string {
+function mailboxCell(n: number, sent: number, share: (n: number, of: number) => number | null): string {
   return shareSaid(share(n, sent), n, sent) ?? DASH;
 }
 
-function domainRows(dto: ReachOutReportDto, nowMs: number): ReachOutDomainRow[] {
-  return dto.domains.map((d) => ({
-    id: d.host ?? "removed",
-    host: d.host ?? "A domain since removed",
-    state: domainStateWords(d, nowMs, dto.timezone),
+function mailboxRows(dto: ReachOutReportDto, nowMs: number): ReachOutMailboxRow[] {
+  return dto.mailboxes.map((d) => ({
+    id: d.address ?? "removed",
+    address: d.address ?? "A mailbox since removed",
+    state: mailboxStateWords(d, nowMs, dto.timezone),
     held: d.state === "held",
     sent: d.sent,
-    landed: domainCell(d.delivered, d.sent, pct),
-    bounced: domainCell(d.bounced, d.sent, tenthOf),
-    complained: domainCell(d.complained, d.sent, tenthOf),
+    landed: mailboxCell(d.delivered, d.sent, pct),
+    bounced: mailboxCell(d.bounced, d.sent, tenthOf),
+    complained: mailboxCell(d.complained, d.sent, tenthOf),
   }));
 }
 
@@ -456,7 +457,7 @@ function periodLines(dto: ReachOutReportDto, when: WhenWords): ReachOutLensVM["l
   const handed = dto.totals.handed;
   return {
     written: handed ? `${plural(handed, "business", "businesses")} handed to you as a call or a note, too.` : "",
-    domains: DOMAINS_LINE,
+    mailboxes: MAILBOXES_LINE,
     empty: `No reach-out wrote ${withinWords(dto.days, when.until)}.`,
     sources: SOURCES_LINE,
   };
@@ -479,7 +480,7 @@ export function toReachOutLensVM(raw: ReachOutReportDto, nowMs: number = Date.no
     emails: emailsPart(dto, when),
     businesses: businessesPart(dto, when),
     angles: anglesPart(dto, when),
-    domains: domainRows(dto, nowMs),
+    mailboxes: mailboxRows(dto, nowMs),
     points,
     table: { columns: ["Day", "Written"], rows: points.map((p) => [p.label, p.written]) },
     sources: sourceLines(dto, nowMs),

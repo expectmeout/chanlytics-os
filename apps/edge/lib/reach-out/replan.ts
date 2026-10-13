@@ -1,26 +1,22 @@
 /**
  * A send planned again (Reach out, Part 3; C5: a wait defers, never cancels). A send that went stale (its run approved
- * late, its chain resumed, its domain's day full so the claim left it), one whose domain was removed, one the door
- * sent back with a wait (the domain's day full, the domain not ready), and one claimed and never written: each takes
- * a new moment from the timetable, in its lead's own hours, on the step's verified domains, from now. The domains'
- * times are read afresh with these sends' own old times taken out, so a send never waits for itself. A send that finds
- * no moment within the horizon tries again tomorrow. One that has waited two weeks, or that the door sent back ten
- * times, is skipped, `kept_waiting`, and its run says so.
+ * late, its chain resumed, its mailbox's day full so the claim left it), one whose mailbox was removed, one the door
+ * sent back with a wait (the mailbox's day full, the mailbox not sending now), and one claimed and never written: each
+ * takes a new moment from the timetable, in its lead's own hours, from now: a first email on any of the step's
+ * mailboxes, a later one on the mailbox its lead's chain writes from (decision 0056), or skipped `mailbox_gone` when
+ * that mailbox is no more. The mailboxes' times are read afresh with these sends' own old times taken out
+ * (senders.ts), so a send never waits for itself. A send that finds no moment within the horizon tries again
+ * tomorrow. One that has waited two weeks, or that the door sent back ten times, is skipped, `kept_waiting`, and its
+ * run says so.
  *
  * `attempts` counts the emails written for a send (its next email's id is its send and that number, core sendMessageId):
  * only a send the door sent back, whose email row exists, moves it on. A send planned again without an email row
  * keeps its number, so its next email is the one it never wrote.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { domainCapacityOf, moveSend, type Database, type ReachOutSendRow } from "../packages/db.js";
-import {
-  domainDailyCap,
-  reachOutSendsFrom,
-  timetable,
-  weekHoursOf,
-  zoneOfRegion,
-  type TimetableDomain,
-} from "../packages/contracts.js";
+import { moveSend, type Database, type ReachOutSendRow } from "../packages/db.js";
+import { DAY_MS, timetable, weekHoursOf, zoneOfRegion } from "../packages/contracts.js";
+import { stepSenders } from "./senders.js";
 import type { Logger } from "../log.js";
 
 type Db = SupabaseClient<Database>;
@@ -28,8 +24,7 @@ type Db = SupabaseClient<Database>;
 /** Emails written for a send before it is given up on: the door sent it back this often, it is not going. */
 export const REPLAN_MAX_ATTEMPTS = 10;
 /** How long a send may wait for room before it is given up on: a reach-out two weeks late is not the one approved. */
-export const REPLAN_GIVE_UP_MS = 14 * 86_400_000;
-const DAY_MS = 86_400_000;
+export const REPLAN_GIVE_UP_MS = 14 * DAY_MS;
 
 /** A send to plan again, and whether an email row was written for it (a door's wait), which moves its number on. */
 export interface Replan {
@@ -51,7 +46,7 @@ export async function replanSends(db: Db, items: Replan[], now: Date, log: Logge
   // A send moves from wherever it stands (planned, claimed, queued), and only as it was read.
   const move = (s: ReachOutSendRow, patch: Partial<ReachOutSendRow>): Promise<boolean> =>
     moveSend(db, { tenantId: s.tenant_id, id: s.id, from: s.state, patch });
-  // By step: its pace and its domains are the step's.
+  // By step: its pace and its mailboxes are the step's.
   const byStep = new Map<string, [...ReachOutSendRow[], ReachOutSendRow]>();
   for (const s of sends) {
     const key = s.playbook_id ?? "";
@@ -68,7 +63,7 @@ export async function replanSends(db: Db, items: Replan[], now: Date, log: Logge
     try {
       const { data: step, error: se } = await db
         .from("playbooks")
-        .select("gap_minutes, domain_ids")
+        .select("gap_minutes, mailbox_ids, after_playbook_id")
         .eq("tenant_id", tenantId)
         .eq("id", stepId)
         .maybeSingle();
@@ -89,46 +84,42 @@ export async function replanSends(db: Db, items: Replan[], now: Date, log: Logge
         const { data: t } = await db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle();
         zones.set(tenantId, t?.timezone || "America/New_York");
       }
-      let dq = db.from("sending_domains").select("id, state, clean_since").eq("tenant_id", tenantId);
-      const named = step?.domain_ids ?? [];
-      if (named.length > 0) dq = dq.in("id", named);
-      const { data: domainRows, error: de } = await dq;
-      if (de) throw new Error(`the domains: ${de.message}`);
-      // Each domain's times, less these sends' own: a send planned again never waits for the time it held.
+      // A later step's send keeps the mailbox its lead's chain writes from; a first one may take any of the step's.
+      const keeps = !!step?.after_playbook_id;
+      // Each mailbox's times, less these sends' own: a send planned again never waits for the time it held.
       const own = new Map<string, number[]>();
       for (const s of group) {
-        // What it holds in its domain's times (00184): a planned send its time, a claim the moment it was claimed.
+        // What it holds in its mailbox's times (00424): a planned send its time, a claim the moment it was claimed.
         const held = s.state === "planned" ? s.send_at : s.state === "claimed" ? s.claimed_at : null;
-        if (s.domain_id && held) own.set(s.domain_id, [...(own.get(s.domain_id) ?? []), Date.parse(held)]);
+        if (s.mailbox_id && held) own.set(s.mailbox_id, [...(own.get(s.mailbox_id) ?? []), Date.parse(held)]);
       }
-      const domains: TimetableDomain[] = [];
-      for (const d of (domainRows ?? []).filter((r) => reachOutSendsFrom(r, named))) {
-        const c = await domainCapacityOf(db, d.id, now);
-        const recent = [...c.recent];
-        for (const t of own.get(d.id) ?? []) {
-          const i = recent.indexOf(t);
-          if (i >= 0) recent.splice(i, 1);
-        }
-        domains.push({ id: d.id, cap: c.clean_since ? domainDailyCap(c.sent_days) : 0, recent });
-      }
+      const kept = keeps ? group.map((s) => s.mailbox_id).filter((m): m is string => !!m) : [];
+      const named = step?.mailbox_ids ?? [];
+      const { senders, gone } = await stepSenders(db, { tenantId, named, also: kept, at: now, own });
+      // A later step whose lead's mailbox is no more: its chain ends there, as its run's would (core runReachOut).
+      const ended = new Set(group.filter((s) => keeps && (!s.mailbox_id || gone.has(s.mailbox_id))).map((s) => s.id));
+      for (const s of group)
+        if (ended.has(s.id) && (await move(s, { state: "skipped", reason: "mailbox_gone" }))) out.gave_up += 1;
+      const placing = group.filter((s) => !ended.has(s.id));
       const leadOf = new Map(leads.map((l) => [l.id, l]));
       const plan = timetable({
-        sends: group.map((s) => ({
+        sends: placing.map((s) => ({
           id: s.id,
           zone: zoneOfRegion(leadOf.get(s.lead_id)?.region ?? null) ?? zones.get(tenantId)!,
           week: weekHoursOf(leadOf.get(s.lead_id)?.hours).week,
+          only: keeps ? s.mailbox_id : null,
         })),
-        domains: domains.filter((d) => d.cap > 0),
+        senders: senders.filter((d) => d.cap > 0),
         gapMinutes: step?.gap_minutes || 12,
         nowMs: now.getTime(),
       });
       const placed = new Map(plan.placed.map((p) => [p.id, p]));
-      for (const s of group) {
+      for (const s of placing) {
         const p = placed.get(s.id);
         const attempts = (s.attempts ?? 0) + (wrote.has(s.id) ? 1 : 0);
         const tooLong = now.getTime() - Date.parse(s.created_at) > REPLAN_GIVE_UP_MS;
         // Two weeks is the end whether or not a moment was found: a send that fails every time it is written (its
-        // claim left, planned again, claimed again) would otherwise circle for good, holding its domain's day.
+        // claim left, planned again, claimed again) would otherwise circle for good, holding its mailbox's day.
         if (attempts >= REPLAN_MAX_ATTEMPTS || tooLong) {
           if (await move(s, { state: "skipped", reason: "kept_waiting", attempts: Math.min(attempts, 20) }))
             out.gave_up += 1;
@@ -137,7 +128,7 @@ export async function replanSends(db: Db, items: Replan[], now: Date, log: Logge
             await move(s, {
               state: "planned",
               send_at: new Date(p.sendAtMs).toISOString(),
-              domain_id: p.domainId,
+              mailbox_id: p.senderId,
               attempts,
               message_id: null,
               claimed_at: null,
@@ -145,12 +136,13 @@ export async function replanSends(db: Db, items: Replan[], now: Date, log: Logge
           )
             out.replanned += 1;
         } else if (
-          // No domain: only the timetable places it, in its lead's hours, when it is planned again tomorrow (a claim
-          // would otherwise take it at this clock time, whatever the hour where the lead is).
+          // No moment: only the timetable places it, in its lead's hours, when it is planned again tomorrow (a claim
+          // would otherwise take it at this clock time, whatever the hour where the lead is). A later step keeps its
+          // lead's mailbox; a first one is placed afresh.
           await move(s, {
             state: "planned",
             send_at: new Date(now.getTime() + DAY_MS).toISOString(),
-            domain_id: null,
+            mailbox_id: keeps ? s.mailbox_id : null,
             attempts,
             message_id: null,
             claimed_at: null,

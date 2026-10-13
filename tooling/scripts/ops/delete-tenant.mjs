@@ -117,6 +117,8 @@ const TABLES = [
   "lead_suppressions",
   "leads",
   "lines",
+  // The mailboxes a business connected to write its reach-outs from (00423, decision 0056).
+  "mailbox_connections",
   "mailboxes",
   "memberships",
   "messages",
@@ -255,6 +257,12 @@ for (const d of byTable.get("sending_domains") ?? []) {
   if (d.provider_domain_id)
     orphans.push(
       `a sending domain, ${d.host}, at the cold mail account (${d.provider_domain_id}). Remove it on Connections first, which removes it at the provider.`,
+    );
+}
+for (const m of byTable.get("mailbox_connections") ?? []) {
+  if (m.state !== "removed")
+    orphans.push(
+      `a connected mailbox, ${m.address}: its grant at ${m.provider === "microsoft" ? "Microsoft" : "Google"}, its watch there, and its mailbox-creds Vault secret. Remove it on Connections first, which hands the grant back and drops the secret.`,
     );
 }
 for (const c of byTable.get("tenant_channels") ?? []) {

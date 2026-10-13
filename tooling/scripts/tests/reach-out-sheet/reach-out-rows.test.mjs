@@ -22,6 +22,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again, all, find, byTestId, textOf, press, settle } from "../_legacy-react.mjs";
+import { rows } from "../_rows.mjs";
 
 installLegacyReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
 const W = globalThis;
@@ -65,10 +66,10 @@ const chainOf = (over = {}, next = {}) => ({
   state: "running",
   include_unconfirmed: false,
   gap_minutes: 12,
-  domain_ids: [],
+  mailbox_ids: [],
   signed_by: "Sam",
   created_at: "2026-09-20T00:00:00Z",
-  domains: [{ host: "harbor-mail.example", sent_days: 0 }],
+  mailboxes: [{ address: "sam@harbor-mail.example", sent_days: 0, daily_cap: 40, customer_domain: false }],
   steps: [
     {
       id: ROOT,
@@ -192,7 +193,7 @@ test("the open pane is the report's: its steps counted, its sentence, its runs, 
   assert.deepEqual(cells.slice(18, 27).slice(5, 7), ["—", "—"]);
   assert.match(
     textOf(byTestId(tree, "ro-sentence")),
-    /^30 a day from harbor-mail\.example, one every 12 minutes in each business's hours\. 72 written; 8 wrote back; 4 said no; 2 bounced and their addresses were dropped\. 2 wait for your say\.$/,
+    /^10 a day from sam@harbor-mail\.example, one every 12 minutes in each business's hours\. 72 written; 8 wrote back; 4 said no; 2 bounced and their addresses were dropped\. 2 wait for your say\.$/,
   );
   went.length = 0;
   press(byTestId(tree, "ro-waiting"));
@@ -628,7 +629,7 @@ test("who may press is the role store's one answer: a viewer is told by it, and 
 
 test("Edit opens the reach-out sheet over the chain as read, saves through its own door, and is out of a viewer's sight", async () => {
   const pressed = verbs();
-  // The sheet reads the business's words through the settings seam, and its sending domains from Setup (still the shell's).
+  // The sheet reads the business's words through the settings seam, and the mailboxes it connected from Setup.
   setSurfaceValue("settings", {
     settings: { config: { brain: { business_name: "Harbor" } } },
     facts: null,
@@ -642,15 +643,16 @@ test("Edit opens the reach-out sheet over the chain as read, saves through its o
       email: {
         mailbox: null,
         sending: {
-          domains: [
-            {
-              id: "d1",
-              host: "harbor-mail.example",
-              from_name: "Sam",
-              address: "sam@harbor-mail.example",
-              state: "verified",
-              sent_days: 0,
-            },
+          providers: ["google", "microsoft"],
+          mailboxes: [
+            contracts.mailboxConnectionDtoOf(
+              rows.mailboxConnection({
+                id: "d1",
+                address: "sam@harbor-mail.example",
+                host: "harbor-mail.example",
+                from_name: "Sam",
+              }),
+            ),
           ],
         },
       },

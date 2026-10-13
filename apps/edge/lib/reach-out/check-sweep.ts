@@ -11,8 +11,8 @@
  * It does nothing it could not finish, and says so:
  *   - no ANTHROPIC_API_KEY: nothing is touched; while a send waits to be checked it answers 503 `check_unset`, so the
  *     clock is red and pages (R4);
- *   - no cold lane (sender.ts coldLane): nothing checked could leave, so nothing is checked; while a send waits it
- *     answers 503 `cold_lane_unset` naming what is missing, as the reach-out clock does (R2);
+ *   - no lane (sender.ts mailboxLane): nothing checked could leave, so nothing is checked; while a send waits it
+ *     answers 503 `lane_unset` naming what is missing, as the reach-out clock does (R2);
  *   - a tick in which every model call failed answers 503 `model_unavailable` (R4). sweep_health judges the status.
  *
  * Auth: x-cron-key against the Vault-held sweep key, like the other sweeps.
@@ -21,7 +21,7 @@ import { json } from "../http.js";
 import { env } from "../env.js";
 import { uncheckedWaiting } from "../packages/db.js";
 import { checkSends } from "./check.js";
-import { coldLane } from "./sender.js";
+import { mailboxLane } from "./sender.js";
 import type { SweepTick } from "../ops/sweep-door.js";
 
 export async function sweepReachOutChecks({ db, L, started }: SweepTick): Promise<Response> {
@@ -31,13 +31,13 @@ export async function sweepReachOutChecks({ db, L, started }: SweepTick): Promis
       L.warn("reach_out_check_unset", { waiting });
       return waiting ? json(503, { ok: false, error: "check_unset" }) : json(200, { ok: true, unset: true });
     }
-    const cold = coldLane();
-    if (!cold.ok) {
+    const lane = mailboxLane();
+    if (!lane.ok) {
       const waiting = await uncheckedWaiting(db);
-      L.info("reach_out_check_lane_unset", { lane_missing: cold.missing, waiting });
+      L.info("reach_out_check_lane_unset", { lane_missing: lane.missing, waiting });
       return waiting
-        ? json(503, { ok: false, error: "cold_lane_unset", missing: cold.missing })
-        : json(200, { ok: true, lane_missing: cold.missing });
+        ? json(503, { ok: false, error: "lane_unset", missing: lane.missing })
+        : json(200, { ok: true, lane_missing: lane.missing });
     }
     const out = await checkSends({ db, now: new Date(), started, log: L });
     const took_ms = Date.now() - started;

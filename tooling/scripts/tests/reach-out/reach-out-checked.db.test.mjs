@@ -1,7 +1,7 @@
 /**
  * A send is checked before it goes (00197, Reach out Part 4 PRs 2–3), on a real database: the guard claims a checked
  * send only and holds one with a reason its owner can answer; a held send keeps its run open, closes with its canceled
- * run, and is found stale fourteen days from its planning (R10); the claim's due domains skip what waits to be checked
+ * run, and is found stale fourteen days from its planning (R10); the claim's due mailboxes skip what waits to be checked
  * (R8); the audience takes a catch-all address only when asked, never a lead another chain of the workspace planned, and
  * its four-argument form still answers (R9); a search has one chain; a business's record carries the check's two code
  * facts; the sends to check are leased, round-robin by workspace, within the horizon, past their backoff, each with the
@@ -46,21 +46,21 @@ const ok = (res) => {
 };
 const one = async (q) => ok(await q.select("id").single()).id;
 
-const domainRow = (over = {}) =>
-  one(
-    db.from("sending_domains").insert({
+const mailboxRow = (over = {}) => {
+  n += 1;
+  return one(
+    db.from("mailbox_connections").insert({
       tenant_id: A,
-      host: `checked-${stamp}-${++n}.example`,
-      from_local: "sam",
+      provider: "google",
+      provider_account: `acct-checked-${stamp}-${n}`,
+      address: `sam@checked-${stamp}-${n}.example`,
+      host: `checked-${stamp}-${n}.example`,
       from_name: "Sam at Harbor",
-      state: "verified",
-      provider_status: "verified",
-      dmarc: "found",
-      verified_at: iso(Date.now() - 10 * DAY),
       clean_since: iso(Date.now() - 10 * DAY),
       ...over,
     }),
   );
+};
 const lead = (over = {}, tenant = A) => {
   n += 1;
   return one(
@@ -185,7 +185,7 @@ before(async () => {
 afterEach(async () => {
   if (skip || !A) return;
   for (const t of [A, B]) ok(await db.from("reach_out_sends").delete().eq("tenant_id", t));
-  ok(await db.from("sending_domains").delete().eq("tenant_id", A));
+  ok(await db.from("mailbox_connections").delete().eq("tenant_id", A));
 });
 after(async () => {
   if (skip) return;
@@ -196,9 +196,9 @@ test(
   "a held send says why its owner can answer; nothing unchecked is claimed, by the claim or by hand",
   { skip },
   async () => {
-    const d = await domainRow();
-    const id = await sendIn({ domain_id: d });
-    assert.deepEqual(await claimSends(db, { domainId: d, cap: 30, at: new Date(), limit: 5 }), []);
+    const d = await mailboxRow();
+    const id = await sendIn({ mailbox_id: d });
+    assert.deepEqual(await claimSends(db, { mailboxId: d, cap: 30, at: new Date(), limit: 5 }), []);
     const byHand = await db
       .from("reach_out_sends")
       .update({ state: "claimed", claimed_at: iso(Date.now()) })
@@ -214,7 +214,7 @@ test(
         .update({ state: "held", reason: "chain", hold_detail: "site:3", checked_at: iso(Date.now()) })
         .eq("id", id),
     );
-    assert.deepEqual(await claimSends(db, { domainId: d, cap: 30, at: new Date(), limit: 5 }), []);
+    assert.deepEqual(await claimSends(db, { mailboxId: d, cap: 30, at: new Date(), limit: 5 }), []);
     assert.match(
       (await db.from("reach_out_sends").update({ state: "claimed" }).eq("id", id)).error?.message ?? "",
       /held -> claimed refused/,
@@ -226,7 +226,7 @@ test(
         .update({ state: "planned", reason: null, included_for: ["chain"] })
         .eq("id", id),
     );
-    const claimed = await claimSends(db, { domainId: d, cap: 30, at: new Date(), limit: 5 });
+    const claimed = await claimSends(db, { mailboxId: d, cap: 30, at: new Date(), limit: 5 });
     assert.deepEqual(
       claimed.map((s) => s.id),
       [id],
@@ -237,11 +237,13 @@ test(
   },
 );
 
-test("the claim's due domains skip a send not yet checked (R8)", { skip }, async () => {
-  const d = await domainRow();
-  const id = await sendIn({ domain_id: d, send_at: iso(Date.now() - H) });
+test("the claim's due mailboxes skip a send not yet checked (R8)", { skip }, async () => {
+  const d = await mailboxRow();
+  const id = await sendIn({ mailbox_id: d, send_at: iso(Date.now() - H) });
   const due = async () =>
-    ok(await db.rpc("reach_out_due_domains", { p_at: iso(Date.now()), p_limit: 50, p_tenant_id: A })).map((x) => x.id);
+    ok(await db.rpc("reach_out_due_mailboxes", { p_at: iso(Date.now()), p_limit: 50, p_tenant_id: A })).map(
+      (x) => x.id,
+    );
   assert.deepEqual(await due(), []);
   ok(
     await db

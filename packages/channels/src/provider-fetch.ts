@@ -1,5 +1,6 @@
 /**
- * The one way a call leaves for a provider (Meta, Twilio, Retell, Resend, Google, Apify, Expo, Anthropic, TypeSafe, ElevenLabs): bounded, never
+ * The one way a call leaves for a provider (Meta, Twilio, Retell, Resend, Google, Apify, Expo, Anthropic, TypeSafe, ElevenLabs,
+ * Microsoft): bounded, never
  * throwing, and said as one of four outcomes a caller can act on without reading the provider's answer itself.
  *
  * Before it, each adapter had its own fetch. Sixteen calls had no bound at all, and one hung connection held a
@@ -53,6 +54,8 @@ const PROVIDER_NAMES = [
   "anthropic",
   "typesafe",
   "elevenlabs",
+  // A connected Microsoft 365 mailbox's mail (Graph, decision 0056); a Gmail mailbox's is Google's.
+  "microsoft",
 ] as const;
 export type Provider = (typeof PROVIDER_NAMES)[number];
 

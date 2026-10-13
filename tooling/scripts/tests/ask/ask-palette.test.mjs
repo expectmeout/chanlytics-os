@@ -3157,7 +3157,7 @@ test("a row of every kind an answer names draws its kind's mark, from the one ma
     broadcast: "wave",
     playbook: "bolt",
     template: "content",
-    domain: "globe",
+    mailbox: "mail",
   };
   assert.deepEqual(Object.keys(marks), [...ASK_CITATION_KINDS], "every kind a citation names");
   const answer = {

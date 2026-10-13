@@ -26,8 +26,6 @@ import {
 import { metaAppId } from "../whatsapp/meta-graph.js";
 import { env } from "../env.js";
 import { edgeFnUrl, unsubscribeOrigin, unsubscribeOriginRejected } from "../dashboard-origin.js";
-import { coldReplyDomains } from "../email/email.js";
-import { emailDomainOf } from "../packages/contracts.js";
 
 const META_APP_ID = metaAppId();
 
@@ -49,7 +47,7 @@ const REPORT: (() => Section | Promise<Section>)[] = [
   memoryBackend,
   envPresence,
   securitySwitches,
-  coldMailRouting,
+  reachOutLinks,
   sweepHealth,
   pagerMemory,
   numberDrift,
@@ -90,14 +88,17 @@ function envPresence(): Section {
       metaSecret: !!env.META_APP_SECRET,
       retellKey: !!env.RETELL_API_KEY,
       diagKey: !!env.DIAG_KEY,
-      // Email's switches: the mail domain, the platform account's receipts, cold email's account and receipts, and
-      // the key its unsubscribe links are sealed under. Cold routes open only with both of the account and its
-      // receipts (email.ts), so a pair that disagrees is the thing to see.
+      // Email's switches: the mail domain, the platform account's receipts, the key a reach-out's unsubscribe links
+      // are sealed under, and the connected mailboxes' (decision 0056): each provider's client and how it tells the
+      // edge a mailbox changed. A client without its push is a mailbox read every five minutes only.
       emailDomain: !!env.EMAIL_DOMAIN,
       resendWebhook: !!env.RESEND_WEBHOOK_SECRET,
-      resendCold: !!env.RESEND_COLD_API_KEY,
-      resendColdWebhook: !!env.RESEND_COLD_WEBHOOK_SECRET,
       unsubscribe: !!env.UNSUBSCRIBE_SECRET,
+      mailboxRedirect: !!env.MAILBOX_OAUTH_REDIRECT,
+      googleMail: !!env.GOOGLE_MAIL_CLIENT_ID && !!env.GOOGLE_MAIL_CLIENT_SECRET,
+      gmailPush: !!env.GMAIL_PUSH_TOPIC && !!env.GMAIL_PUSH_AUDIENCE,
+      microsoftMail: !!env.MICROSOFT_MAIL_CLIENT_ID && !!env.MICROSOFT_MAIL_CLIENT_SECRET,
+      graphPush: !!env.GRAPH_NOTIFY_SECRET && !!env.EDGE_ORIGIN,
     },
   };
 }
@@ -108,16 +109,14 @@ function securitySwitches(): Section {
 }
 
 /**
- * Where cold email's links and replies go (D17), as the edge reads them: values, not presence, since neither is a
- * secret and a value set and ignored (not an origin, not a domain) is the thing to see.
+ * Where a reach-out's unsubscribe links go, as the edge reads it: a value, not presence, since it is no secret and a
+ * value set and ignored (not an origin) is the thing to see.
  */
-function coldMailRouting(): Section {
+function reachOutLinks(): Section {
   return {
-    coldMail: {
+    reachOutLinks: {
       unsubscribeOrigin: unsubscribeOrigin(),
       unsubscribeOriginRejected: unsubscribeOriginRejected(),
-      coldReplyDomains: coldReplyDomains(),
-      coldReplyDomainRejected: !!env.COLD_REPLY_DOMAIN && !emailDomainOf(env.COLD_REPLY_DOMAIN),
     },
   };
 }

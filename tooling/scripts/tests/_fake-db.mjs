@@ -1630,16 +1630,22 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       // A handler that throws is the test saying "the database refused", so it
       // becomes an error envelope rather than a rejected promise -- carrying the
       // `code` the test put on the error, since a route maps the function's own
-      // codes (22023, 54000) to the wire.
+      // codes (22023, 54000) to the wire, and its `hint`, which a door raising
+      // P0001 names its refusal by (00423's mailbox_connection_connect).
       const run = () => {
         if (missing) return { data: null, error: missing };
         try {
           return { data: fn(args, derived[name]), error: null };
         } catch (e) {
           const code = e && typeof e === "object" && "code" in e ? String(e.code) : undefined;
+          const hint = e && typeof e === "object" && "hint" in e ? String(e.hint) : undefined;
           return {
             data: null,
-            error: { message: e instanceof Error ? e.message : String(e), ...(code ? { code } : {}) },
+            error: {
+              message: e instanceof Error ? e.message : String(e),
+              ...(code ? { code } : {}),
+              ...(hint ? { hint } : {}),
+            },
           };
         }
       };

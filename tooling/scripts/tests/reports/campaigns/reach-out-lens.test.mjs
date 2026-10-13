@@ -2,7 +2,7 @@
  * The Campaigns lens's Reach-outs part, in businesses (contracts reports/campaigns/reach-out-lens.ts): the page-only fold
  * that says every sentence the part draws from the ReachOutReportDto -- the strip of emails written, landed and bounced
  * against the period before, the emails and the businesses counted apart (an outcome is a share of businesses, never of
- * emails), the angles of the businesses whose last email had them, the sources a chain and a step at a time, the domains
+ * emails), the angles of the businesses whose last email had them, the sources a chain and a step at a time, the mailboxes
  * and the days. EXECUTED: the real fold over a salon with a reach-out built here. Run it under TEST_TZ=Pacific/Auckland
  * too: the fold reads a clock only through the workspace's own zone.
  *
@@ -91,10 +91,10 @@ const report = (over = {}) => ({
   ],
   other_angles: { written: 0, businesses: 0, wrote_back: 0 },
   no_angle: 10,
-  domains: [
+  mailboxes: [
     {
-      host: "mail.example.com",
-      state: "verified",
+      address: "sam@mail.example.com",
+      state: "connected",
       held_why: null,
       held_at: null,
       sent: 40,
@@ -116,7 +116,7 @@ const before00404 = () => {
   return dto;
 };
 /** A period that wrote nothing (on a database that counts businesses, so it has 0 of them). */
-const NOTHING = { totals: counts({ businesses: 0 }), chains: [], angles: [], domains: [], no_angle: 0, series: [] };
+const NOTHING = { totals: counts({ businesses: 0 }), chains: [], angles: [], mailboxes: [], no_angle: 0, series: [] };
 const tile = (t) => [t.id, t.metric, t.label, t.value, t.meta, t.compare];
 const rows = (part) => part.rows.map((r) => [r.label, r.value]);
 const vm = (over, nowMs = NOW) => toReachOutLensVM(report(over), nowMs);
@@ -232,7 +232,7 @@ test("on a database before 00404 the strip counts emails alone, and says nothing
       ["2", "2 of 40 emails bounced", null],
     ],
   );
-  const quiet = { ...before00404(), totals: counts(), chains: [], angles: [], series: [], domains: [] };
+  const quiet = { ...before00404(), totals: counts(), chains: [], angles: [], series: [], mailboxes: [] };
   assert.equal(toReachOutLensVM(quiet, NOW).strip[0].meta, "none in this period");
 });
 
@@ -462,16 +462,16 @@ test("sources: a hand step is dashes, a paused chain says so, a step that wrote 
   assert.deepEqual([q2.written, q2.delivered, q2.businesses, q2.wroteBack], ["0", "—", "0", "0"]);
 });
 
-test("domains, the days written and the handed line are the old fold's, said the same from five sent", () => {
-  const { domains, points, table, lines } = vm();
+test("mailboxes, the days written and the handed line are the old fold's, said the same from five sent", () => {
+  const { mailboxes, points, table, lines } = vm();
   assert.deepEqual(
-    domains.map((d) => [d.id, d.host, d.state, d.held, d.sent, d.landed, d.bounced, d.complained]),
-    [["mail.example.com", "mail.example.com", "Verified", false, 40, "90%", "5%", "0%"]],
+    mailboxes.map((d) => [d.id, d.address, d.state, d.held, d.sent, d.landed, d.bounced, d.complained]),
+    [["sam@mail.example.com", "sam@mail.example.com", "Connected", false, 40, "90%", "5%", "0%"]],
   );
   const held = vm({
-    domains: [
+    mailboxes: [
       {
-        host: "hi.example.com",
+        address: "sam@hi.example.com",
         state: "held",
         held_why: "bounces",
         held_at: "2026-09-26T15:00:00.000Z",
@@ -480,14 +480,14 @@ test("domains, the days written and the handed line are the old fold's, said the
         bounced: 1,
         complained: 0,
       },
-      { host: null, state: null, held_why: null, held_at: null, sent: 5, delivered: 5, bounced: 0, complained: 0 },
+      { address: null, state: null, held_why: null, held_at: null, sent: 5, delivered: 5, bounced: 0, complained: 0 },
     ],
-  }).domains;
+  }).mailboxes;
   assert.deepEqual(
-    held.map((d) => [d.host, d.state, d.held, d.landed, d.bounced]),
+    held.map((d) => [d.address, d.state, d.held, d.landed, d.bounced]),
     [
-      ["hi.example.com", "Held since Sat: more than 2% of its recent emails bounced", true, "80%", "20%"],
-      ["A domain since removed", "Since removed", false, "100%", "0%"],
+      ["sam@hi.example.com", "Held since Sat: more than 3% of its recent emails bounced", true, "80%", "20%"],
+      ["A mailbox since removed", "Since removed", false, "100%", "0%"],
     ],
   );
   assert.deepEqual(
@@ -510,7 +510,7 @@ test("domains, the days written and the handed line are the old fold's, said the
     ["Sep 22: 10 written", "Sep 23: 30 written"],
   );
   assert.equal(lines.written, "");
-  assert.equal(lines.domains, "Where it left from, and how it landed. Past 2% bounced, a domain holds itself.");
+  assert.equal(lines.mailboxes, "Where it left from, and how it landed. Past 3% bounced, a mailbox holds itself.");
   // Under the sources table: each business counts once, and what came of it is state now (the angles' line says it likewise).
   assert.equal(
     lines.sources,
@@ -522,10 +522,10 @@ test("domains, the days written and the handed line are the old fold's, said the
   );
 });
 
-/** A domain as the report sends it: `sent` emails, of which `delivered` landed, `bounced` bounced for good, `complained` drew a complaint. */
-const domain = (host, sent, delivered, bounced, complained = 0) => ({
-  host,
-  state: "verified",
+/** A mailbox as the report sends it: `sent` emails, of which `delivered` landed, `bounced` bounced for good, `complained` drew a complaint. */
+const mailbox = (address, sent, delivered, bounced, complained = 0) => ({
+  address,
+  state: "connected",
   held_why: null,
   held_at: null,
   sent,
@@ -534,19 +534,19 @@ const domain = (host, sent, delivered, bounced, complained = 0) => ({
   complained,
 });
 
-test("a domain's cells are counts under five sent, shares from five, and a dash at none (D9)", () => {
-  const cells = (d) => vm({ domains: [d] }).domains.map((r) => [r.sent, r.landed, r.bounced, r.complained]);
+test("a mailbox's cells are counts under five sent, shares from five, and a dash at none (D9)", () => {
+  const cells = (d) => vm({ mailboxes: [d] }).mailboxes.map((r) => [r.sent, r.landed, r.bounced, r.complained]);
   // Three sent: 67%, 33.3% would be shares of three.
-  assert.deepEqual(cells(domain("a.example.com", 3, 2, 1)), [[3, "2 of 3", "1 of 3", "0 of 3"]]);
-  assert.deepEqual(cells(domain("a.example.com", 4, 4, 0, 1)), [[4, "4 of 4", "0 of 4", "1 of 4"]]);
-  assert.deepEqual(cells(domain("a.example.com", 1, 0, 1)), [[1, "0 of 1", "1 of 1", "0 of 1"]]);
+  assert.deepEqual(cells(mailbox("sam@a.example.com", 3, 2, 1)), [[3, "2 of 3", "1 of 3", "0 of 3"]]);
+  assert.deepEqual(cells(mailbox("sam@a.example.com", 4, 4, 0, 1)), [[4, "4 of 4", "0 of 4", "1 of 4"]]);
+  assert.deepEqual(cells(mailbox("sam@a.example.com", 1, 0, 1)), [[1, "0 of 1", "1 of 1", "0 of 1"]]);
   // Exactly five is enough, as everywhere else: the landed share to the unit, the rates to a tenth.
-  assert.deepEqual(cells(domain("a.example.com", 5, 4, 1)), [[5, "80%", "20%", "0%"]]);
-  assert.deepEqual(cells(domain("a.example.com", 7, 6, 1, 1)), [[7, "86%", "14.3%", "14.3%"]]);
+  assert.deepEqual(cells(mailbox("sam@a.example.com", 5, 4, 1)), [[5, "80%", "20%", "0%"]]);
+  assert.deepEqual(cells(mailbox("sam@a.example.com", 7, 6, 1, 1)), [[7, "86%", "14.3%", "14.3%"]]);
   // Nothing sent: nothing to take a share or a count of.
-  assert.deepEqual(cells(domain("a.example.com", 0, 0, 0)), [[0, "—", "—", "—"]]);
-  // The cells stay the strings the Domains card draws; the removed domain's line follows the same rule.
-  assert.deepEqual(cells({ ...domain(null, 2, 2, 0), state: null }), [[2, "2 of 2", "0 of 2", "0 of 2"]]);
+  assert.deepEqual(cells(mailbox("sam@a.example.com", 0, 0, 0)), [[0, "—", "—", "—"]]);
+  // The cells stay the strings the Mailboxes card draws; the removed mailbox's line follows the same rule.
+  assert.deepEqual(cells({ ...mailbox(null, 2, 2, 0), state: null }), [[2, "2 of 2", "0 of 2", "0 of 2"]]);
 });
 
 test("a period that wrote nothing says so, a workspace with no reach-out draws nothing", () => {
@@ -560,7 +560,7 @@ test("a period that wrote nothing says so, a workspace with no reach-out draws n
     line: null,
     empty: "No email in these days had an opening, so there is no angle to compare.",
   });
-  assert.deepEqual([empty.sources, empty.points, empty.domains], [[], [], []]);
+  assert.deepEqual([empty.sources, empty.points, empty.mailboxes], [[], [], []]);
   assert.equal(vm({ has_reach_out: false }).present, false);
   // Only handed to the team is not empty: the steps say so.
   const handed = vm({ ...NOTHING, totals: counts({ handed: 2, businesses: 0 }) });
@@ -568,9 +568,9 @@ test("a period that wrote nothing says so, a workspace with no reach-out draws n
     [handed.empty, handed.lines.written],
     [false, "2 businesses handed to you as a call or a note, too."],
   );
-  // Nothing in a quiet period is a NaN, an undefined, or a share of nothing (the domains' line names the 2% a domain holds
+  // Nothing in a quiet period is a NaN, an undefined, or a share of nothing (the mailboxes' line names the 3% a mailbox holds
   // itself at: a limit, not a share).
-  const said = JSON.stringify({ ...empty, lines: { ...empty.lines, domains: "" } });
+  const said = JSON.stringify({ ...empty, lines: { ...empty.lines, mailboxes: "" } });
   assert.doesNotMatch(said, /NaN|undefined|Infinity|%/);
   // A server before 00241 answers the route with nothing of it: a workspace with nothing to draw, never a throw.
   const bare = toReachOutLensVM({}, NOW);
@@ -624,10 +624,10 @@ const stringsOf = (v) =>
 
 test("no share of fewer than five is said anywhere in the vm, and nothing is a NaN", () => {
   // A small reach-out: four emails to three businesses (one wrote back), a period before of three emails, an angle of three
-  // businesses and the rest of two, a chain of one step (four emails), and four domains: one that sent 3,
+  // businesses and the rest of two, a chain of one step (four emails), and four mailboxes: one that sent 3,
   // one that sent 4 and is held, the removed one that sent 2, and one that sent none.
   const held = {
-    ...domain("held.example.com", 4, 3, 1),
+    ...mailbox("sam@held.example.com", 4, 3, 1),
     state: "held",
     held_why: "bounces",
     held_at: "2026-09-26T15:00:00.000Z",
@@ -643,24 +643,24 @@ test("no share of fewer than five is said anywhere in the vm, and nothing is a N
         steps: [step("p1", 0, { written: 4, delivered: 3, bounced: 1, businesses: 3, wrote_back: 1 })],
       },
     ],
-    domains: [
-      domain("a.example.com", 3, 2, 1),
+    mailboxes: [
+      mailbox("sam@a.example.com", 3, 2, 1),
       held,
-      { ...domain(null, 2, 2, 0), state: null },
-      domain("c.example.com", 0, 0, 0),
+      { ...mailbox(null, 2, 2, 0), state: null },
+      mailbox("sam@c.example.com", 0, 0, 0),
     ],
   });
   const small = toReachOutLensVM(dto, NOW);
-  // The whole vm: its totals, lines, points, table, domains and sources too. Two kinds of "%" are named and taken out.
+  // The whole vm: its totals, lines, points, table, mailboxes and sources too. Two kinds of "%" are named and taken out.
   const exceptions = {
     // The strip's values are a share the kit greys by `n` under `minN` (D9), not a sentence; assert the greying instead.
     strip: small.strip.map((t) => ({ ...t, value: "" })),
   };
   assert.deepEqual([small.strip[1].n, small.strip[1].minN], [4, 5], "the landed share is greyed by the kit");
   const said = stringsOf({ ...small, ...exceptions })
-    // The 2% a domain holds itself at is a limit, not a share: in the Domains card's line and in a held domain's state.
-    .filter((s) => s !== small.lines.domains && s !== small.domains[1].state);
-  assert.equal(small.domains[1].state, "Held since Sat: more than 2% of its recent emails bounced");
+    // The 3% a mailbox holds itself at is a limit, not a share: in the Mailboxes card's line and in a held mailbox's state.
+    .filter((s) => s !== small.lines.mailboxes && s !== small.mailboxes[1].state);
+  assert.equal(small.mailboxes[1].state, "Held since Sat: more than 3% of its recent emails bounced");
   assert.ok(said.length > 40, "the whole vm was read");
   assert.deepEqual(
     said.filter((s) => /%|NaN|undefined|Infinity/.test(s)),
@@ -668,7 +668,7 @@ test("no share of fewer than five is said anywhere in the vm, and nothing is a N
   );
   // And what it says instead of a share.
   assert.deepEqual(
-    small.domains.map((d) => [d.landed, d.bounced, d.complained]),
+    small.mailboxes.map((d) => [d.landed, d.bounced, d.complained]),
     [
       ["2 of 3", "1 of 3", "0 of 3"],
       ["3 of 4", "1 of 4", "0 of 4"],
@@ -688,17 +688,17 @@ test("no share of fewer than five is said anywhere in the vm, and nothing is a N
     ],
   );
   assert.equal(small.strip[1].compare, "was 2 of 3 the 30 days before");
-  // The boundary: at exactly five, the shares are said (a domain that sent 5, five businesses, five emails).
+  // The boundary: at exactly five, the shares are said (a mailbox that sent 5, five businesses, five emails).
   const five = toReachOutLensVM(
     report({
       totals: counts({ written: 5, delivered: 4, bounced: 1, businesses: 5, wrote_back: 1, interested: 1 }),
       before: { written: 5, delivered: 5, bounced: 0 },
-      domains: [domain("e.example.com", 5, 4, 1)],
+      mailboxes: [mailbox("sam@e.example.com", 5, 4, 1)],
     }),
     NOW,
   );
   assert.deepEqual(
-    [five.domains[0].landed, five.strip[1].compare, five.emails.line.includes("80% were delivered")],
+    [five.mailboxes[0].landed, five.strip[1].compare, five.emails.line.includes("80% were delivered")],
     ["80%", "was 100% the 30 days before", true],
   );
 });

@@ -425,7 +425,10 @@
     "00420_a_combined_person_keeps_their_own_name.sql": "86eaac65eb654c7971e39c0fd5e4e8eb102a159a378d96377e951259cc59198c",
     "00421_a_wait_that_ends_closes_its_notice.sql": "46863862b96741c939deaed5de55726167085c2fa281efbb8eb5e6c4536d0c52",
     "00422_a_call_that_was_the_call_back_closes_it.sql": "a95d3a6440a442c275e4120b3cea796f08422e4348d7238af2fcb14c8d735c3f",
-    "00426_a_reach_out_takes_the_leads_you_add.sql": "3d1dada36c573a88858ae3354a8daa72c1b349ee8c757c7ae95cd59bb2cf496a",
+    "00423_a_business_connects_the_mailbox_it_writes_from.sql": "725b74e3b6624922a50e29a9ebe242205004452324afda9f6360ca5a9478d72e",
+    "00424_a_reach_out_writes_from_a_connected_mailbox.sql": "a53bb4c587c73f8141d50715dc39a14b6fa69d944ace26a13ad7fa7021d420c8",
+    "00425_a_mailbox_s_threads_are_found_by_their_id.sql": "40c65064bee46415d1870855bc21993fe025199d596bfda464c89919ed4fa2bd",
+    "00426_a_reach_out_takes_the_leads_you_add.sql": "bff8fd95b5502eade17e46b0365e77466b94ac87416670b622d17fd920e0413d",
     "00427_a_lead_has_one_first_email.sql": "54e6d0e76d4adbb424e22b2021a54855655c44812330e9b8ee1e2cd937511419"
   }
 }

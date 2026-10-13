@@ -33,7 +33,7 @@
 --   reach_out_leave_out            the drawer's Leave out: one lead off a list-fed reach-out's list before anything left
 --   appointments_lead_stamp        a visit names the lead its person was found as, so its origin can be said
 --   reach_out_day_due              the 6 PM line counts the visits a reach-out's leads booked today
---   reach_out_report               won: each business written to whose deal naming its lead was won
+--   reach_out_report               won: each business written to whose deal naming its lead was won (on 00424's body)
 --   leads_back_today               Leads' Back today: the leads who asked to hear back by now (decision 9)
 --
 -- Every function is replaced whole, its body copied from schema.sql with the change; the grants and comments are made
@@ -946,7 +946,7 @@ begin
   v_midnight := date_trunc('day', now() at time zone v_tz) at time zone v_tz;
   return (
     with sends as (
-      select s.id, s.lead_id, s.state, s.send_at, s.checked_at, s.domain_id,
+      select s.id, s.lead_id, s.state, s.send_at, s.checked_at, s.mailbox_id,
              case when s.state = 'sent' then s.sent_at
                   when s.state = 'failed' and public.email_left(m.status, m.error)
                     then public.email_sent_at(m.meta, m.status_updated_at, m.created_at) end as left_at,
@@ -964,10 +964,10 @@ begin
       'fed_by', case when v_via in ('chosen', 'import') then 'list' else 'search' end,
       'written_to', (select count(*) from rl where (rl.line->>'sent')::int > 0),
       'today', (select count(*) from sends where left_at >= v_midnight),
-      'next', (select jsonb_build_object('at', x.send_at, 'business', l.business_name, 'host', d.host)
+      'next', (select jsonb_build_object('at', x.send_at, 'business', l.business_name, 'host', b.host, 'from', b.address)
                  from sends x
                  join public.leads l on l.id = x.lead_id
-                 left join public.sending_domains d on d.id = x.domain_id
+                 left join public.mailbox_connections b on b.id = x.mailbox_id
                 where x.state = 'planned' and x.live and x.checked_at is not null
                 order by x.send_at
                 limit 1),
@@ -1104,7 +1104,8 @@ begin
                                                   then public.email_sent_at(m.meta, m.status_updated_at, m.created_at) end),
                'left', s.state = 'sent' or (s.state = 'failed' and coalesce(public.email_left(m.status, m.error), false)),
                'angle', s.angle,
-               'host', d.host,
+               'host', b.host,
+               'from', b.address,
                'message_id', s.message_id,
                'email_status', m.status,
                'bounced', coalesce(m.status = 'failed' and m.error->>'provider' = 'bounced', false))
@@ -1115,7 +1116,7 @@ begin
                limit 20) s
         left join c on c.id = s.playbook_id
         left join public.playbooks p on p.id = s.playbook_id
-        left join public.sending_domains d on d.id = s.domain_id
+        left join public.mailbox_connections b on b.id = s.mailbox_id
         left join public.messages m on m.id = s.message_id), '[]'::jsonb),
     'readings', coalesce((
       select jsonb_agg(jsonb_build_object(
@@ -1297,7 +1298,6 @@ begin
   if p_run->'audience'->>'kind' is distinct from 'reach_out' then
     raise exception 'reach_out_plan_run: a run of a reach-out says so in its audience';
   end if;
-  -- The step and its chain's root are this workspace's reach-outs.
   if not exists (select 1 from public.playbooks where id = v_step and tenant_id = v_tenant and kind = 'reach_out')
      or not exists (select 1 from public.playbooks where id = v_root and tenant_id = v_tenant and kind = 'reach_out') then
     raise exception 'reach_out_plan_run: step % or root % is no reach-out of workspace %', v_step, v_root, v_tenant;
@@ -1309,20 +1309,19 @@ begin
             p_run->>'template_name', p_run->>'template_language', p_run->>'state',
             (p_run->>'scheduled_for')::timestamptz, (p_run->>'recipient_count')::int, p_run->'audience');
   exception when unique_violation then
-    -- Its id (a replay) or its step and day (broadcasts_playbook_run): made already, whole.
     return jsonb_build_object('exists', true);
   end;
-  -- A send any unique rule refuses (a replay's, or a lead another reach-out planned first: one first send per lead,
-  -- 00427) is left out of this run, never the run's failure.
-  insert into public.reach_out_sends (id, tenant_id, broadcast_id, playbook_id, root_id, lead_id, contact_id, domain_id,
+  insert into public.reach_out_sends (id, tenant_id, broadcast_id, playbook_id, root_id, lead_id, contact_id, mailbox_id,
                                       send_at, state, reason)
-  select x.id, v_tenant, v_run, v_step, v_root, x.lead_id, x.contact_id, x.domain_id, x.send_at,
+  select x.id, v_tenant, v_run, v_step, v_root, x.lead_id, x.contact_id, x.mailbox_id, x.send_at,
          coalesce(x.state, 'planned'), x.reason
     from jsonb_to_recordset(coalesce(p_sends, '[]'::jsonb))
-         as x(id uuid, lead_id uuid, contact_id uuid, domain_id uuid, send_at timestamptz, state text, reason text)
+         as x(id uuid, lead_id uuid, contact_id uuid, mailbox_id uuid, send_at timestamptz, state text, reason text)
    where exists (select 1 from public.leads l where l.id = x.lead_id and l.tenant_id = v_tenant)
-     and (x.domain_id is null
-          or exists (select 1 from public.sending_domains d where d.id = x.domain_id and d.tenant_id = v_tenant))
+     and (x.mailbox_id is null
+          or exists (select 1 from public.mailbox_connections b where b.id = x.mailbox_id and b.tenant_id = v_tenant))
+  -- A send any unique rule refuses (a replay's, or a lead another reach-out planned first: one first send per lead,
+  -- 00427) is left out of this run, never the run's failure.
   on conflict do nothing;
   return jsonb_build_object('id', v_run);
 end $$;
@@ -1703,13 +1702,10 @@ grant execute on function public.reach_out_day_due(timestamp with time zone, int
 comment on function public.reach_out_day_due(timestamp with time zone, integer) is
   'The 6 PM line (Reach out Part 6, H12): each workspace with a reach-out, past 6 PM in its zone and not told today, with today''s numbers: written, wrote back, interested, said no, bounced, held, and booked (00426: the visits made today whose lead a reach-out wrote to before the visit''s start). A day with none of written, wrote back, said no, held or booked is not told. Service role only.';
 
-create or replace function public.reach_out_report(p_tenant_id uuid, p_days integer, p_end date default null)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = public
-as $$
+CREATE OR REPLACE FUNCTION public.reach_out_report(p_tenant_id uuid, p_days integer, p_end date DEFAULT NULL::date) RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
 declare
   v_tz    text;
   v_today date;
@@ -1743,7 +1739,7 @@ begin
     -- window's `sent` and the period before), so not materialized (00404): each read takes the rows it needs, and the
     -- tenant's whole history of emails is never held for the second.
     with left_ as not materialized (
-      select s.id, s.root_id, s.playbook_id, s.lead_id, s.contact_id, s.domain_id,
+      select s.id, s.root_id, s.playbook_id, s.lead_id, s.contact_id, s.mailbox_id,
              coalesce(s.sent_at, public.email_sent_at(m.meta, m.status_updated_at, m.created_at)) as sent_at,
              lower(nullif(btrim(s.angle), '')) as angle, m.status, m.error, m.meta
         from public.reach_out_sends s
@@ -1794,15 +1790,15 @@ begin
        where x.angle is not null
        group by x.angle
     ),
-    domains as (
-      select x.domain_id, d.host, d.state, d.held_why, d.held_at, count(*) as sent,
-             count(*) filter (where x.status in ('delivered', 'read')) as delivered,
+    mailboxes as (
+      select x.mailbox_id, b.address, b.state, b.held_why, b.held_at, count(*) as sent,
+             count(*) filter (where x.status in ('sent', 'delivered', 'read')) as delivered,
              count(*) filter (where x.status = 'failed' and x.error->>'provider' = 'bounced'
                                 and lower(coalesce(x.error->>'kind', '')) = 'permanent') as bounced,
              count(*) filter (where x.meta->'email'->>'complained_at' is not null) as complained
         from sent x
-        left join public.sending_domains d on d.id = x.domain_id and d.tenant_id = p_tenant_id
-       group by x.domain_id, d.host, d.state, d.held_why, d.held_at
+        left join public.mailbox_connections b on b.id = x.mailbox_id and b.tenant_id = p_tenant_id
+       group by x.mailbox_id, b.address, b.state, b.held_why, b.held_at
     )
     select jsonb_build_object(
       'timezone', v_tz,
@@ -1815,7 +1811,7 @@ begin
       'totals', jsonb_build_object(
         'written', (select count(*) from sent),
         'businesses', (select count(*) from last_sent),
-        'delivered', (select count(*) from sent where status in ('delivered', 'read')),
+        'delivered', (select count(*) from sent where status in ('sent', 'delivered', 'read')),
         'bounced', (select count(*) from sent where status = 'failed' and error->>'provider' = 'bounced'),
         'wrote_back', (select count(*) from answers where wrote_back),
         'interested', (select count(*) from answers where interested),
@@ -1827,7 +1823,7 @@ begin
       'before', (
         select jsonb_build_object(
                  'written', count(*),
-                 'delivered', count(*) filter (where x.status in ('delivered', 'read')),
+                 'delivered', count(*) filter (where x.status in ('sent', 'delivered', 'read')),
                  'bounced', count(*) filter (where x.status = 'failed' and x.error->>'provider' = 'bounced'))
           from left_ x where x.sent_at >= v_prior and x.sent_at < v_since),
       'series', (
@@ -1863,7 +1859,7 @@ begin
                          'hand', p.hand->>'kind',
                          'written', (select count(*) from sent x where x.playbook_id = c.id),
                          'delivered', (select count(*) from sent x where x.playbook_id = c.id
-                                         and x.status in ('delivered', 'read')),
+                                         and x.status in ('sent', 'delivered', 'read')),
                          'bounced', (select count(*) from sent x where x.playbook_id = c.id
                                        and x.status = 'failed' and x.error->>'provider' = 'bounced'),
                          'businesses', (select count(*) from answers a where a.playbook_id = c.id),
@@ -1892,12 +1888,14 @@ begin
         'businesses', coalesce((select sum(a.businesses) from angles a where a.rank > 8), 0),
         'wrote_back', coalesce((select sum(a.wrote_back) from angles a where a.rank > 8), 0)),
       'no_angle', (select count(*) from sent where angle is null),
-      'domains', coalesce((
+      -- An edge or a page from before mailboxes reads `domains`: none now (decision 0056).
+      'domains', '[]'::jsonb,
+      'mailboxes', coalesce((
         select jsonb_agg(jsonb_build_object(
-                 'host', d.host, 'state', d.state, 'held_why', d.held_why, 'held_at', d.held_at,
+                 'address', d.address, 'state', d.state, 'held_why', d.held_why, 'held_at', d.held_at,
                  'sent', d.sent, 'delivered', d.delivered, 'bounced', d.bounced, 'complained', d.complained)
-               order by d.sent desc, d.host)
-          from (select * from domains order by sent desc, host limit 10) d), '[]'::jsonb))
+               order by d.sent desc, d.address)
+          from (select * from mailboxes order by sent desc, address limit 10) d), '[]'::jsonb))
   );
 end $$;
 
