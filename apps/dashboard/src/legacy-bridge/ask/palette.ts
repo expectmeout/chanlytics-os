@@ -17,11 +17,13 @@ import {
   callsAnswer,
   callsToday,
   detectLanguage,
+  isHoldRow,
   needsAnswer,
   oneDoor,
   openingsAnswer,
   rightNowCounts,
   rightNowLine,
+  runsThatWait,
   sameQuestion,
   scopeFromRoute,
   type AskAnswer,
@@ -35,8 +37,12 @@ import {
   type FeedLive,
   type JumpEntry,
   type TodayQueueRowVM,
+  type Waits,
 } from "@chanlytics/contracts";
 import { surfaceValue } from "@/surfaces/surface-values";
+import { needsYouParts } from "@/surfaces/needs-you";
+import { approvalDaysNow } from "@/surfaces/campaigns/broadcasts/when-words";
+import { pageClock } from "@/legacy-bridge/zone";
 import { focusAsDrawn } from "@/surfaces/legacy-verbs";
 import { feedFromGlobals } from "../notifications";
 import type { Workspace } from "../surface-data";
@@ -45,6 +51,9 @@ import type { Workspace } from "../surface-data";
 interface Run {
   id: string;
   state: string;
+  /** The playbook that made it, and the day it was made for: what the approve verb asks of its day. */
+  playbook_id: string | null;
+  run_for?: string | null;
   recipient_count: number;
   when: string;
   counts: { sent: number; replied: number };
@@ -71,9 +80,9 @@ export interface PaletteGlobals {
           "id" | "kind" | "conversationId" | "callId" | "who" | "channel" | "when" | "sentence" | "quoted" | "cta"
         >
       >;
-      /** How many wait across the whole queue (the people and the searches), past the six rows drawn. */
-      waiting?: number;
     };
+    /** The threads' part of what waits on you: the holds, and the replies counting down (which have no row). */
+    needsYou?: { count: number; holds?: number; sends?: number } | null;
   } | null;
   __BROADCASTS?: { rows?: Run[] } | null;
   /**
@@ -150,45 +159,54 @@ export function jumpIndexFrom(win: Window): JumpEntry[] {
   return out;
 }
 
+/** One queue row as Ask draws a person: who, where, when, and their own words or the row's sentence. */
+const askRowOf = (
+  r: Pick<
+    TodayQueueRowVM,
+    "id" | "conversationId" | "callId" | "who" | "channel" | "when" | "sentence" | "quoted" | "cta"
+  >,
+) => ({
+  id: r.conversationId ?? r.callId ?? r.id,
+  kind: r.conversationId ? ("thread" as const) : ("call" as const),
+  who: r.who,
+  channel: r.channel,
+  when: r.when,
+  line: r.quoted ? `“${r.sentence}”` : r.sentence,
+  to: r.cta.to,
+});
+
 /**
- * Who is waiting on you: the people in Today's queue (a call worth a listen is not someone waiting) and how many more
- * wait past its six rows, the playbook runs waiting for a yes, which the queue draws the same way
- * (dashboard-a-command.jsx runsPending), and the searches that stopped to ask, which the queue draws as its own
- * rows. Null until Today's queue has been read: nobody is claimed to be waiting.
+ * Who is waiting on you: the holds in Today's queue (isHoldRow: a closing window is said as a window, a call worth a
+ * listen is nobody waiting) and how many more wait past them (the one count's holds and replies counting down, the
+ * badge's parts), the playbook runs waiting for a yes that an approval can still send (the count's own rule), the
+ * searches that stopped to ask, and the reply windows closing (the wiring's second audit, S7-8 and W-thread-wait-step-4).
+ * Null until Today's queue has been read: nobody is claimed to be waiting.
  */
-export function waitingFrom(win: Window): AskWaiting | null {
+export function waitingFrom(win: Window, parts: Waits | null = needsYouParts()): AskWaiting | null {
   const w = win as unknown as PaletteGlobals;
   const queue = w.TODAY_DATA?.queue;
   if (!queue) return null;
   const rows = queue.rows ?? [];
-  const people = rows
-    .filter((r) => r.kind !== "call" && r.kind !== "search")
-    .map((r) => ({
-      id: r.conversationId ?? r.callId ?? r.id,
-      kind: r.conversationId ? ("thread" as const) : ("call" as const),
-      who: r.who,
-      channel: r.channel,
-      when: r.when,
-      line: r.quoted ? `“${r.sentence}”` : r.sentence,
-      to: r.cta.to,
-    }));
+  const people = rows.filter(isHoldRow).map(askRowOf);
+  const windows = rows.filter((r) => r.kind === "window").map(askRowOf);
   const searches = rows
     .filter((r) => r.kind === "search")
     .map((r) => ({ id: r.id, name: r.who, question: r.sentence, to: r.cta.to }));
+  const threadsWaiting = parts ? parts.holds + parts.sends : (w.TODAY_DATA?.needsYou?.count ?? people.length);
+  const pending = (w.__BROADCASTS?.rows ?? []).filter((r) => r.state === "pending_approval");
+  // The business's days, by this window's clock, asked only over runs to judge.
+  const runs = pending.length ? runsThatWait(pending, approvalDaysNow(Date.now(), pageClock(win))) : [];
   return {
     people,
-    // The queue's waiting counts the searches too; one past its six rows is counted here as one more, since the
-    // queue does not say which kind it hid.
-    more: Math.max(0, (queue.waiting ?? people.length) - people.length - searches.length),
-    runs: (w.__BROADCASTS?.rows ?? [])
-      .filter((r) => r.state === "pending_approval")
-      .map((r) => ({
-        id: r.id,
-        label: r.audience?.label || "Campaign",
-        reach: r.recipient_count,
-        to: `broadcasts/run:${r.id}`,
-      })),
+    more: Math.max(0, threadsWaiting - people.length),
+    runs: runs.map((r) => ({
+      id: r.id,
+      label: r.audience?.label || "Campaign",
+      reach: r.recipient_count,
+      to: `broadcasts/run:${r.id}`,
+    })),
     searches,
+    windows,
   };
 }
 
@@ -248,7 +266,9 @@ export function askPalette(win: Window, storage: Storage | null) {
     /** Right now, in a sentence: Today's queue itself (the Line, D7), on every page. */
     rightNow: (lang?: AskLanguage) => rightNowLine(waiting(), lang ?? lastLanguage()),
     /** The sentence and the counts it was built from (the Stage's pills, spec 4.3). */
-    rightNowParts: (lang?: AskLanguage): { sentence: string; people: number; runs: number; searches: number } => {
+    rightNowParts: (
+      lang?: AskLanguage,
+    ): { sentence: string; people: number; runs: number; searches: number; windows: number } => {
       const w = waiting();
       return { sentence: rightNowLine(w, lang ?? lastLanguage()), ...rightNowCounts(w) };
     },

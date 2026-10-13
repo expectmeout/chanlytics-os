@@ -1,6 +1,9 @@
 import "server-only";
 import type { CallDto, ConversationDto, EscalationDto, LeadSearchDto, MetricsSummaryDto } from "@chanlytics/contracts";
+import type { WaitingRunRow } from "@chanlytics/db";
 import { load, stamp, type Reader } from "./index";
+import { waitingRuns } from "./broadcasts";
+import { heldThreadsBeyond } from "./inbox";
 import { metrics } from "./metrics";
 import { conversations } from "./conversations";
 import { escalations } from "./escalations";
@@ -18,27 +21,25 @@ interface TodayRead {
   calls: CallDto[] | null;
   /** Null: the searches read failed, and the queue says nothing about them. */
   searches: LeadSearchDto[] | null;
+  /** The runs waiting for approval (toTodayVM counts those that can still be sent); null where the read failed. */
+  runs: WaitingRunRow[] | null;
+  /** The threads of open holds past the hundred, read by their ids; null where that read failed. */
+  heldThreads: ConversationDto[] | null;
 }
 
 /**
- * Today, as the browser composes the page (legacy-bridge/surface-data.ts,
- * todayOverride): the day's metrics, the newest hundred conversations, the
- * open escalations, the calls and the searches, five reads at once. The calls
- * and the searches are additive, as on the page: a failed read is null, logged
- * under the page's own event, and the rest stands.
- *
- * No escalated thread outside the hundred is fetched here. The Today page
- * makes no such read, and toTodayVM already counts an open escalation whose
- * thread it was not handed as a customer waiting, named "Unknown": that is the
- * page's number, so it is Ask's. The Inbox's fetch by id lives in `inbox`, for
- * inbox.list; when both run in a turn they share the hundred and the
- * escalations through the turn cache. No route answers this; Ask is its only
- * server-side reader until the context plane (Phase 2) is.
+ * Today, as the browser composes the page (surfaces/today/surface.ts): the day's metrics, the newest hundred
+ * conversations, the open escalations, the calls, the searches and the runs waiting for approval, six reads at once;
+ * then, only where an open hold's thread is outside the hundred, those threads by their ids (heldThreadsBeyond, the
+ * Inbox's own read, which the turn cache shares). The calls, the searches, the runs and the held threads are additive,
+ * as on the page: a failed read is null, logged under the page's own event, and the rest stands (a hold whose thread
+ * was not read counts as waiting). The brief is then said with the runs and the held threads beside it (toTodayVM's
+ * `beside`), so Ask's Today counts what the badge counts (the wiring's second audit, S7-1 and S7-7).
  */
 export const today: Reader<undefined, TodayRead> = {
   name: "today",
   async read(rc) {
-    const [m, c, e, k, s] = await Promise.all([
+    const [m, c, e, k, s, r] = await Promise.all([
       load(rc, metrics, { days: 1 }),
       load(rc, conversations, { ids: null }),
       load(rc, escalations, { state: "open" }),
@@ -50,7 +51,13 @@ export const today: Reader<undefined, TodayRead> = {
         log.error("today_searches_fetch_failed", { error: err });
         return null;
       }),
+      load(rc, waitingRuns, undefined).catch((err: unknown) => {
+        log.error("today_runs_fetch_failed", { error: err });
+        return null;
+      }),
     ]);
+    const held = await heldThreadsBeyond(rc, c.data.conversations, e.data.escalations);
+    if (held.threads === null) log.error("today_held_threads_fetch_failed", { asked: held.missing.length });
     return {
       data: {
         metrics: m.data.metrics,
@@ -58,8 +65,10 @@ export const today: Reader<undefined, TodayRead> = {
         escalations: e.data.escalations,
         calls: k ? k.data.calls : null,
         searches: s ? s.data.searches : null,
+        runs: r ? r.data.runs : null,
+        heldThreads: held.threads,
       },
-      rows: [...c.rows, ...(k?.rows ?? [])],
+      rows: [...c.rows, ...(k?.rows ?? []), ...(r?.rows ?? [])],
       stamp: stamp(),
     };
   },

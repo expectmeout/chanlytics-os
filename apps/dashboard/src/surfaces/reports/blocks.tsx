@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import {
+  addressOf,
   BOOKED_NEEDS_A_LINK,
   CALENDAR_SETTING_ROUTE,
   bookedTileOf,
@@ -286,7 +287,9 @@ function sourceRow(s: CampaignSourceVM) {
       <td>
         <LinkButton
           className="rpt-src"
-          {...routeDoor(s.kind === "broadcast" ? `broadcasts/run:${s.id}` : `outbound/${s.id}`)}
+          {...routeDoor(
+            addressOf(s.kind === "broadcast" ? { kind: "send", id: s.id } : { kind: "campaign", id: s.id }),
+          )}
           data-testid="source-open"
         >
           {s.name}

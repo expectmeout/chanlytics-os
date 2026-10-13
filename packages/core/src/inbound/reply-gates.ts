@@ -27,7 +27,13 @@
  * and copy are steps.ts's; the token count comes through the budget port.
  */
 import { errField } from "@chanlytics/channels";
-import { offersAfterStart, optInConfirmation, tokenBudgetSpent, tokenCapOf } from "@chanlytics/contracts";
+import {
+  offersAfterStart,
+  optInConfirmation,
+  tokenBudgetSpent,
+  tokenCapOf,
+  YES_WHILE_PAUSED,
+} from "@chanlytics/contracts";
 import type { SendPurpose } from "@chanlytics/contracts";
 import { ageVerdict, holdCopy } from "./steps";
 import { GO, type Answering } from "./context";
@@ -165,16 +171,21 @@ export async function confirmedYes(at: Answering, bodyText: string): Promise<typ
       // did not land would otherwise leave a customer subscribed to nothing,
       // told nothing, with a log line as the only trace.
       const why = confirmed.outcome === "failed" ? `${confirmed.reason}, HTTP ${confirmed.status}` : confirmed.reason;
+      // A yes taken while the workspace is paused: the door refuses every message but a reply (deliver.ts `paused`), so the
+      // hold is the pause's, in its words, not a reply that failed to deliver (the wiring's second audit, X4-1).
+      const paused = confirmed.outcome === "refused" && confirmed.reason === "paused";
       asked = sink.escalate(
-        "send_failed",
-        `The customer said yes and their confirmation did not go out (${why}), so they have no record of what they signed up for, how often, or how to stop. Send it from the Inbox.`,
+        paused ? "paused" : "send_failed",
+        paused
+          ? YES_WHILE_PAUSED.details
+          : `The customer said yes and their confirmation did not go out (${why}), so they have no record of what they signed up for, how often, or how to stop. Send it from the Inbox.`,
       );
       await Promise.all([
         asked,
         tell(asked, {
           said: bodyText,
-          answered: `(the confirmation of their yes was not delivered — ${why})`,
-          why: "opt-in not confirmed",
+          answered: paused ? YES_WHILE_PAUSED.answered : `(the confirmation of their yes was not delivered — ${why})`,
+          why: paused ? "paused" : "opt-in not confirmed",
         }),
       ]);
     }

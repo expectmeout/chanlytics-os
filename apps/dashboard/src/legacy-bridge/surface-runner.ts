@@ -10,12 +10,19 @@
  * side-effecting half.
  */
 import type { subscribeWorkspaceChanges, SubscribeOptions } from "@chanlytics/db/realtime";
-import { MIN_MS } from "@chanlytics/contracts";
+import { MIN_MS, sendingEndsAt } from "@chanlytics/contracts";
 import { activateOverride, readSlot, type SurfaceOverride } from "./surface-data";
 import { ApiError } from "../client/api";
-import { api, dropPrefetched } from "./api";
+import { api, dropPrefetched, serversClockOf } from "./api";
 import { cachedTenant, sealSurfaceCache, snapshotSurface } from "./surface-cache";
-import { getConnection, getSurfaceStatuses, isSurfaceReady, setConnection, setStatus } from "./surface-status";
+import {
+  getConnection,
+  getSurfaceStatuses,
+  isSurfaceReady,
+  setConnection,
+  setStatus,
+  surfaceMoved,
+} from "./surface-status";
 import { ROUTE_WAIT_MS, keepForItsPage, routeDrawsFor, routeSurfaceFor } from "./surface-registry";
 import { feedWatch, REALTIME_GRACE_MS, subscribesToRealtime, wantsRefresh, type FeedWatch } from "./surface-realtime";
 import { getActiveWorkspace, routeOnScreen, signInHref } from "./workspace";
@@ -61,11 +68,6 @@ const REFRESH_DEBOUNCE_MS = 400;
  * A surface whose read is dear names a longer one of its own (`maxWaitMs`).
  */
 const REFRESH_MAX_WAIT_MS = 3_000;
-/**
- * How far the database's clock (a notice's `at`) and this browser's may disagree, and a notice still be judged by the two
- * (readAfter). Allowed for on the side of reading: a notice is dropped only when it is older than a read by more than this.
- */
-const CLOCK_SKEW_MS = 250;
 
 /**
  * Once the boot is in: when work nobody is waiting for may start (people.ts reading a list's people ahead) without
@@ -331,10 +333,14 @@ function noteRead(run: SurfaceRun, o: SurfaceOverride): (landed: boolean) => voi
  * Whether this surface holds what a notice of the live feed tells of: it was read after the change was made, so the notice asks
  * for nothing (your own change is read once, 0047). The write's re-read (refresh-map.ts) and the notice its commits send are two
  * reads of one change otherwise -- the notice's always a fresh request of its own (refreshSoon), up to 22 requests for one reply.
- * Judged by the notice's `at`, the database's clock when it told, against the surface's own last read (`readFrom`): older than
- * it by more than the clocks may disagree (CLOCK_SKEW_MS). `at` is taken a moment before the commit, so this reads on the side
- * of reading; and a notice that reached the tab before the read began is judged by noteRead, by when it arrived, which is
- * after its commit whatever either clock says.
+ * Judged by the notice's `at`, the database's clock when it told, against the surface's own last read (`readFrom`, this
+ * browser's clock), once the read is put on the servers' clock (api.ts serversClockOf: less the margin the clocks may
+ * disagree by and how far this browser's runs ahead, measured on every answer). A browser a few seconds fast dropped
+ * the notice of a change made just after its read began, and nothing read it again (the wiring's second audit, S2-1).
+ * `at` is the clock of the first statement of the transaction that told (00408), not of its commit: a transaction that ran
+ * longer than a read's start can tell of a change the read did not hold with an `at` before it, and is not covered here. A
+ * notice that reached the tab before the read began is judged by noteRead, by when it arrived, which is after its commit
+ * whatever either clock says.
  * A notice with no `at` (a database from before 00408), and any notice while the boot is out (its answers are held: a read
  * during it may be the boot's), is read as it always was.
  */
@@ -342,7 +348,7 @@ function readAfter(run: SurfaceRun, o: SurfaceOverride, told: string | undefined
   if (!told || run.held) return false;
   const from = run.readFrom.get(readSlot(o));
   const at = Date.parse(told);
-  return from !== undefined && Number.isFinite(at) && at < from - CLOCK_SKEW_MS;
+  return from !== undefined && Number.isFinite(at) && at < serversClockOf(from);
 }
 
 /**
@@ -655,6 +661,9 @@ function listenForReturns(run: SurfaceRun): () => void {
   };
 }
 
+/** How far past the end of the sending hours their re-judging waits: a timer that fires a hair early judges the hour it leaves. */
+const PAST_THE_HOUR_MS = 1_000;
+
 /**
  * The business's day turns: the surfaces that count the day so far (`readAtMidnight`) are read again, a second past its midnight by
  * the workspace's zone, and the timer is armed again for the next (a day the clocks change is 23 or 25 hours, so it is the zone's
@@ -662,11 +671,16 @@ function listenForReturns(run: SurfaceRun): () => void {
  * under "Today so far" until its first message. A tab nobody is looking at reads as it is shown; a surface read only where it is
  * drawn is read where its page is on screen and kept for its page elsewhere (readHere), as a return to the tab does. A zone saved
  * moves the next midnight: the workspace's change (`workspace:changed`, told once the new zone is published) arms the timer again.
+ * And Sent's runs are said to have moved: a run waiting for approval whose day has just passed waits on nobody now (contracts
+ * runWaitsOnYou), so every count of what needs you and every page that draws the runs asks again, with no read (S7-3); and
+ * so they are once today's sending hours end, when a visit's run made for today is too late (sendingEndsAt).
  */
 function watchTheDayTurn(run: SurfaceRun): () => void {
   const counting = run.overrides.filter((o) => o.readAtMidnight);
   if (!counting.length) return () => {};
   let timer: ReturnType<typeof setTimeout> | null = null;
+  // The end of today's sending hours: a visit's run made for today waits on nobody after it (sendingEndsAt).
+  let sendingTimer: ReturnType<typeof setTimeout> | null = null;
   let owed = false;
   let stopped = false;
   /** Which arming is the latest: one still waiting for the zone when another begins gives way to it. */
@@ -682,13 +696,24 @@ function watchTheDayTurn(run: SurfaceRun): () => void {
     const zone = knownZone() ?? (await workspaceZone().catch(() => pageClock().zone()));
     if (stopped || run.cancelled || mine !== armings) return;
     if (timer) clearTimeout(timer);
+    if (sendingTimer) clearTimeout(sendingTimer);
     let wait: number;
+    let sendingEnds: Date | null;
     try {
       wait = msUntilTheDayTurns(zone, Date.now());
+      sendingEnds = sendingEndsAt(zone, new Date());
     } catch {
       return; // a zone the browser cannot read: the day is not turned by a clock here
     }
+    // Once today's sending hours end, the runs that wait for a word are judged again (the count, the head, the bell's "is
+    // ready" row): a visit's run made for today is too late from then, and Approve would be refused.
+    if (sendingEnds)
+      sendingTimer = setTimeout(
+        () => surfaceMoved("broadcasts"),
+        sendingEnds.getTime() - Date.now() + PAST_THE_HOUR_MS,
+      );
     timer = setTimeout(() => {
+      surfaceMoved("broadcasts");
       if (document.visibilityState === "visible") read();
       else owed = true;
       void arm();
@@ -704,6 +729,7 @@ function watchTheDayTurn(run: SurfaceRun): () => void {
   return () => {
     stopped = true;
     if (timer) clearTimeout(timer);
+    if (sendingTimer) clearTimeout(sendingTimer);
     document.removeEventListener("visibilitychange", onShown);
     window.removeEventListener("workspace:changed", onZone);
   };

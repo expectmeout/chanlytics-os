@@ -13,7 +13,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../packages/db.js";
-import { leadQuestionMail, leadQuestionRoute } from "../packages/contracts.js";
+import { appLink, leadQuestionMail, leadQuestionRoute } from "../packages/contracts.js";
 import { dashboardOrigin } from "../dashboard-origin.js";
 import { mail, reachesTenant, type NotifyPorts } from "../ops/notify.js";
 import { loadTenantNotifications } from "../tenant-runtime.js";
@@ -41,11 +41,11 @@ export async function tellLeadQuestion(
       db.from("lead_searches").select("name").eq("id", r.search_id).eq("tenant_id", r.tenant_id).maybeSingle(),
       db.from("tenants").select("slug").eq("id", r.tenant_id).maybeSingle(),
     ]);
-    const page = t?.slug ? `/w/${encodeURIComponent(t.slug)}` : "/";
     const words = leadQuestionMail({
       name: s?.name ?? "leads",
       sentence: q.sentence,
-      link: `${dashboardOrigin()}${page}#/${leadQuestionRoute(r.search_id)}`,
+      // The one writer of a link to a page of the workspace (contracts appLink), as every other mail's.
+      link: `${dashboardOrigin()}${appLink(t?.slug, leadQuestionRoute(r.search_id))}`,
     });
     // Its kind, so the business's choice holds (decision 0040): a question it turned off by email is on the bell alone.
     return await mail(target, { ...words, kind: "leads_question" }, ports);

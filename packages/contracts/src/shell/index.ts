@@ -102,6 +102,7 @@ export {
   BROADCAST_WORDS,
   runStoppedWords,
   RUN_WAITING_WORDS,
+  runsWaitingSentence,
   runStopWords,
   OFFERS_IN_WRITING_WORDS,
 } from "./campaign-rooms";

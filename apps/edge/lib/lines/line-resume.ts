@@ -56,6 +56,12 @@ export function retryRequestedBy(raw: unknown): "owner" | "support" {
   return raw === "owner" ? "owner" : "support";
 }
 
+/**
+ * The name a line's brand was filed under (channels brandNameOf), kept by the filing that made the brand: what the save of
+ * the business on record says the carriers hold after the record moves on (the wiring's second audit, X4-3).
+ */
+export const FILED_NAME_FACT = "a2p_filed_name";
+
 /** A line's facts as an object to read or spread into a write: anything else stored there (null, an array) is none. */
 export const factsOf = (row: Pick<LineDbRow, "facts">): Record<string, unknown> =>
   row.facts && typeof row.facts === "object" && !Array.isArray(row.facts)

@@ -480,6 +480,18 @@ test(
       ok(
         await db.from("notifications").select("id, title, body, route, subject_id").eq("tenant_id", A).eq("kind", kind),
       );
+    // Whether a round's question row is closed for everyone (00421: lead_rounds_notify closes it as the round leaves
+    // waiting_on_owner).
+    const closed = async (round) =>
+      ok(
+        await db
+          .from("notifications")
+          .select("closed_at")
+          .eq("tenant_id", A)
+          .eq("kind", "leads_question")
+          .eq("subject_id", round)
+          .single(),
+      ).closed_at !== null;
     // A phone hears what the bell hears (00162's push_send): these rows are the trigger's, so their jobs are too.
     const pushes = async (id) =>
       ok(await db.from("jobs").select("payload").eq("tenant_id", A).eq("kind", "push_send")).filter(
@@ -519,6 +531,7 @@ test(
         .eq("id", ids.round),
     );
     assert.equal((await bell("leads_question")).length, 1, "one question row per round");
+    assert.equal(await closed(ids.round), false, "the question asks while its round waits on its owner");
     // A search the owner stopped, or removed, ends its round 'stopped'.
     const other = ok(
       await db
@@ -617,8 +630,14 @@ test(
         .update({ state: "ended", ending: "question_unanswered", ended_at: new Date().toISOString() })
         .eq("id", unanswered),
     );
+    assert.equal(await closed(unanswered), true, "a question left unanswered is settled: its round asks no more");
     assert.deepEqual(await bell("leads_ready"), [], "nothing rings 'is done' for a question nobody answered");
     ok(await db.from("lead_rounds").update({ state: "running" }).eq("id", ids.round));
+    assert.equal(
+      await closed(ids.round),
+      true,
+      "REGRESSION (S6-3): answered, the round runs again, and its question stayed unread and amber for every member",
+    );
     ok(
       await db
         .from("lead_rounds")

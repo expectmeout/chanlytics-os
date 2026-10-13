@@ -4,69 +4,35 @@ import "server-only";
  * The public facts of one workspace's opt-in page, read by slug.
  *
  * This page has no session — a customer opens it from a QR at the desk or a
- * link in a bio — so it reads with the service role, and returns EXACTLY the
- * three facts the page shows: the business's name and the numbers customers
- * already write to. Nothing else crosses this boundary, and nothing here
- * writes. A workspace that does not exist, or is a test fixture, has no page.
- *
- * This is the third place the dashboard holds the service role (service-db.ts
- * for jobs, signup.ts for the one door a stranger may open), and like the
- * second it touches no tenant data.
+ * link in a bio — so it reads with the service role (public-facts.ts), and
+ * returns EXACTLY the facts the page shows: the business's name, the numbers
+ * customers already write to, whether its own page publishes, and whether it is
+ * open to its customers. Nothing else crosses this boundary, and nothing here
+ * writes. A workspace that does not exist, is a test fixture or has ended has no
+ * page; a paused one keeps it, and asks nobody for a yes (contracts takesSignUps).
  */
-import { serviceDb } from "../service-db";
+import { publishesBusinessPage, type ConsentPageFacts } from "@chanlytics/contracts";
+import type { PublicWorkspaceRead } from "@chanlytics/db";
+import { activeNumberOf, publicFactsFor } from "./public-facts";
 
-interface ConsentPageRow {
-  businessName: string;
-  /** The workspace's slug, for the links to its own privacy page and terms. */
-  slug: string;
-  /** Whether `/b/<slug>` publishes: a legal name and an address on record. */
-  businessPage: boolean;
-  whatsappE164: string | null;
-  smsE164: string | null;
+type ConsentPageRow = Required<Pick<ConsentPageFacts, "slug" | "businessPage" | "open">> &
+  Omit<ConsentPageFacts, "slug" | "businessPage" | "open">;
+
+/** The page's facts, from the one load. */
+function consentFactsOf(w: PublicWorkspaceRead): ConsentPageRow {
+  const r = w.record;
+  return {
+    businessName: w.name,
+    slug: w.slug,
+    // Whether `/b/<slug>` publishes, so the policy links beside the asks are the business's own.
+    businessPage: publishesBusinessPage(r),
+    whatsappE164: activeNumberOf(w, "whatsapp"),
+    smsE164: activeNumberOf(w, "sms"),
+    open: w.open,
+  };
 }
 
-/** A slug as `create_workspace` mints them: lowercase letters, digits and dashes. */
-const SLUG = /^[a-z0-9][a-z0-9-]{0,62}$/;
-
 export async function consentPageFor(slug: string): Promise<ConsentPageRow | null> {
-  const clean = slug.trim().toLowerCase();
-  if (!SLUG.test(clean)) return null;
-  const db = serviceDb();
-  const { data: tenant, error } = await db
-    .from("tenants")
-    .select("id, name, status, left_empty_at")
-    .eq("slug", clean)
-    .maybeSingle();
-  if (error) throw new Error(`reading the workspace: ${error.message}`);
-  // A workspace its last member left is ended (00262): nobody answers its customers, so it asks nobody for a yes, and its
-  // pages are Not found and unindexed (the wiring's second audit, X4-2).
-  if (!tenant || tenant.status === "test" || tenant.left_empty_at) return null;
-
-  const { data: channels, error: chErr } = await db
-    .from("tenant_channels")
-    .select("kind, number_e164")
-    .eq("tenant_id", tenant.id)
-    .eq("status", "active")
-    .in("kind", ["whatsapp", "sms"])
-    // Oldest first, so a workspace with two numbers of a kind names the one Connections shows, every time.
-    .order("created_at", { ascending: true });
-  if (chErr) throw new Error(`reading the channels: ${chErr.message}`);
-  const numberOf = (kind: string) => channels?.find((c) => c.kind === kind && c.number_e164)?.number_e164 ?? null;
-  // Whether the business's own page publishes -- it needs a legal name and an
-  // address -- so the privacy and terms links beside the asks are the
-  // business's own rather than Chanlytics'. Read, never written; no record is
-  // simply no page.
-  const { data: record } = await db
-    .from("business_records")
-    .select("legal_name, street, city")
-    .eq("tenant_id", tenant.id)
-    .maybeSingle();
-  const businessPage = !!(record && record.legal_name.trim() && record.street.trim() && record.city.trim());
-  return {
-    businessName: tenant.name,
-    slug: clean,
-    businessPage,
-    whatsappE164: numberOf("whatsapp"),
-    smsE164: numberOf("sms"),
-  };
+  const w = await publicFactsFor(slug);
+  return w ? consentFactsOf(w) : null;
 }

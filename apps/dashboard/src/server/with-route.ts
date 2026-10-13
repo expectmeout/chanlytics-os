@@ -10,6 +10,7 @@ import {
   secondFactorShown,
   SECOND_FACTOR_WORDS,
   SESSION_ENDED,
+  SERVED_AT_HEADER,
   type BillingMode,
   type BillingStatus,
   type ErrorCode,
@@ -84,10 +85,14 @@ const PRIVATE = { "cache-control": "private, no-store" } as const;
 /**
  * The answer's own timing beside the cache rule: the session check and the handler, apart, then where the handler's time
  * went, its database calls and its readers (server-timing.ts; decision 0053). Called inside the request, which holds them.
+ * And this server's clock when the request began (`x-served-at`, ms), before anything it reads: the browser measures how far
+ * its own clock leads the servers' by it (client/api.ts clockLead), so the live feed's notices are judged by one clock (the
+ * wiring's second audit, S2-1).
  */
 const timed = (authMs: number, started: number) => ({
   ...PRIVATE,
   "server-timing": serverTimingHeader({ auth: authMs, app: Date.now() - started - authMs }, requestTimings()),
+  [SERVED_AT_HEADER]: String(started),
 });
 
 /**
@@ -221,6 +226,7 @@ function answerOf<T>(
         const asked = data.headers.get("cache-control");
         if (!asked || !/^private\b/i.test(asked)) data.headers.set("cache-control", PRIVATE["cache-control"]);
         data.headers.set("server-timing", timed(authMs, started)["server-timing"]);
+        data.headers.set(SERVED_AT_HEADER, String(started));
         return data;
       }
       return NextResponse.json(ok(data), { headers: timed(authMs, started) });

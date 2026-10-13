@@ -40,6 +40,7 @@ import {
 import { emailDomain } from "./email.js";
 import { checkSendingDomain } from "./sending-domain-check.js";
 import { tellDomainResumed } from "./sending-domain-holds.js";
+import { mendWarnings } from "../ops/notify.js";
 import { domainDto, say, stateOf, type DoorAnswer, type DomainPorts } from "./sending-domain-ports.js";
 import { adoptByName, takeOver } from "./sending-domain-provider.js";
 
@@ -172,6 +173,13 @@ export async function resumeSendingDomain(
   if (!written) return say(409, "moved", `${row.host} changed just now. Look again, then resume it.`);
   const data = { host: row.host, ...(row.held_why ? { why: row.held_why } : {}), by };
   await emitEvent(p.db, row.tenant_id, "sending_domain.resumed", "sending_domain", row.id, data);
+  // The hold's warning is mended, whoever lifted it (contracts NOTICE_MENDS).
+  await mendWarnings(p.db, {
+    tenantId: row.tenant_id,
+    by: { change: "sending_domain.resumed" },
+    subject: { type: "sending_domain", id: row.id },
+    keptId: null,
+  });
   // The platform lifted what its owner could not: the owner is told, as the hold's notice promised.
   if (by === "platform") await tellDomainResumed(p, written);
   // Read now, not at the next tick: a reputation hold is never read while it stands, so records that broke meanwhile

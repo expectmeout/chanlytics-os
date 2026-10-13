@@ -83,6 +83,14 @@ const useTbnEscape = (onClose) => React.useEffect(() => {
   return () => window.removeEventListener("keydown", onKey);
 }, [onClose]);
 
+// Mark all read is offered while anything is unread: a row listed, or an older one the bell does not list (S6-10).
+const tbnCanReadAll = (items) =>
+  items.some((n) => n.unread) || !!(window.__notifs && window.__notifs.older && window.__notifs.older() > 0);
+// The unread rows the real bell does not list (S6-10): its badge counts them, as the bell's number everywhere else does.
+const tbOlderOf = (real) => (real && window.__notifs && window.__notifs.older ? window.__notifs.older() : 0);
+// "All caught up" only over a bell with nothing in it, listed or not.
+const tbnCaughtUp = (items) => items.length === 0 && !tbnCanReadAll(items);
+
 const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onRead = null, onClose, alerts = null, onAlerts = () => {} }) => {
   const [openGroup, setOpenGroup] = React.useState(null);
   useTbnEscape(onClose);
@@ -201,10 +209,10 @@ const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onRead = null, on
         <div className="tbn-handle" aria-hidden="true" />
         <header className="tbn-head">
           <span className="tbn-title">Notifications</span>
-          {items.some((n) => n.unread) && <button className="tbn-readall" onClick={onReadAll}>Mark all read</button>}
+          {tbnCanReadAll(items) && <button className="tbn-readall" onClick={onReadAll}>Mark all read</button>}
         </header>
         <div className="tbn-list">
-          {items.length === 0 && (
+          {tbnCaughtUp(items) && (
             <div className="tbn-empty">
               <Icon name="check" size={18} />
               <span>All caught up</span>
@@ -402,7 +410,7 @@ const Topbar = ({
   // milestone, a Gmail outage — none of it happened. Outside demo we show no
   // count rather than a badge promising five things to read that don't exist.
   const shown = real ? realRows : window.__DEMO_MODE ? notifs.map(tbOverlay) : [];
-  const unread = shown.filter(n => n.unread).length;
+  const unread = shown.filter(n => n.unread).length + tbOlderOf(real);
 
   // The bell swings when something new needs you (real feed).
   const prevUnread = React.useRef(unread);

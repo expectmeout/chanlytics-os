@@ -1,6 +1,6 @@
 import "server-only";
-import { addressOf, type ConversationDto, type EscalationDto } from "@chanlytics/contracts";
-import { load, stamp, type Reader, type RowRef } from "./index";
+import { addressOf, heldThreadIds, type ConversationDto, type EscalationDto } from "@chanlytics/contracts";
+import { load, stamp, type Reader, type ReaderContext, type RowRef } from "./index";
 import { conversations, whoOf } from "./conversations";
 import { escalations } from "./escalations";
 import { log } from "@/server/log";
@@ -10,6 +10,26 @@ interface InboxRead {
   conversations: ConversationDto[];
   /** The open escalations, newest first, as GET escalations answers them. */
   escalations: Array<EscalationDto & { conversation_id: string }>;
+}
+
+/**
+ * The threads of open holds past the newest page, in one read by their ids (contracts heldThreadIds: the holds that
+ * wait on a person first, a hundred at most): the Inbox's read and Today's, so a turn that asks both reads them once
+ * (the reader cache shares the read by its ids) and the two judge every hold by its own thread. `threads` is null where
+ * the read failed (each hold then counts as waiting: unknown is not handled); `missing` the ids it asked for.
+ */
+export async function heldThreadsBeyond(
+  rc: ReaderContext,
+  newest: readonly ConversationDto[],
+  open: ReadonlyArray<EscalationDto & { conversation_id: string }>,
+): Promise<{ threads: ConversationDto[] | null; missing: string[] }> {
+  const missing = heldThreadIds(new Set(newest.map((c) => c.id)), open);
+  if (!missing.length) return { threads: [], missing };
+  const threads = await load(rc, conversations, { ids: missing }).then(
+    (r) => r.data.conversations,
+    () => null,
+  );
+  return { threads, missing };
 }
 
 /**
@@ -27,16 +47,10 @@ export const inbox: Reader<undefined, InboxRead> = {
       load(rc, conversations, { ids: null }),
       load(rc, escalations, { state: "open" }),
     ]);
-    const listed = new Set(newest.data.conversations.map((c) => c.id));
-    const missing = [...new Set(open.data.escalations.map((e) => e.conversation_id))].filter((id) => !listed.has(id));
-    // One read for all of them, by id: the escalations read holds a hundred at most.
-    const extra = missing.length
-      ? await load(rc, conversations, { ids: missing.slice(0, 100) }).then(
-          (r) => r.data.conversations,
-          () => [] as ConversationDto[],
-        )
-      : [];
-    const unread = missing.length - extra.length;
+    // One read for all of them, by id (heldThreadsBeyond, Today's read too).
+    const held = await heldThreadsBeyond(rc, newest.data.conversations, open.data.escalations);
+    const extra = held.threads ?? [];
+    const unread = held.missing.length - extra.length;
     if (unread) log.error("inbox_escalated_fetch_failed", { unread });
     const all = [...extra, ...newest.data.conversations];
     return {

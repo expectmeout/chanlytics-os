@@ -793,7 +793,11 @@ test("the Inbox as the page composes it: the newest hundred and the open escalat
     2,
     "the messages in one read for each",
   );
-  assert.equal(selects(ctx, "escalations").length, 1);
+  assert.equal(
+    selects(ctx, "escalations").length,
+    2,
+    "the open escalations in two halves: the holds that wait on a person, and the hand-backs (escalations.ts)",
+  );
   assert.deepEqual(
     r.rows.map((x) => x.id),
     r.data.conversations.map((c) => c.id),
@@ -819,16 +823,29 @@ test("the Inbox as the page composes it: the newest hundred and the open escalat
   assert.deepEqual(lines, [{ unread: 1 }], "one waiting customer the read could not bring, counted");
 });
 
-test("Today for Ask as the page composes it: the day's metrics, the newest hundred, the open escalations, the calls and the searches at once -- no escalated thread fetched by id, which is the Inbox's read -- each read once in the turn and shared with the Inbox; a failed calls or searches read is null and the rest stands", async () => {
+test("Today for Ask as the page composes it: the day's metrics, the newest hundred, the open escalations, the calls, the searches and the runs waiting at once, then the threads of the holds past the hundred by id -- each read once in the turn and shared with the Inbox; a failed calls or searches read is null and the rest stands", async () => {
   const ctx = dayCtx(dayTables(), { rpcs: dayDoors });
   const rc = turnIn(ctx);
   const r = await kernel.load(rc, today, undefined);
-  assert.deepEqual(Object.keys(r.data), ["metrics", "conversations", "escalations", "calls", "searches"]);
+  assert.deepEqual(Object.keys(r.data), [
+    "metrics",
+    "conversations",
+    "escalations",
+    "calls",
+    "searches",
+    "runs",
+    "heldThreads",
+  ]);
+  assert.deepEqual(
+    r.data.heldThreads.map((c) => c.id),
+    [OUTSIDE],
+    "the thread of the hold past the hundred, read by id: Ask's Today counts it as the badge does (S7-7)",
+  );
   assert.deepEqual(r.data.metrics, SUMMARY);
   assert.deepEqual(
     r.data.conversations.map((c) => c.id),
     Array.from({ length: 100 }, (_, i) => uuid(i)),
-    "the newest hundred, as the Today page reads them: the quiet thread that waits is not fetched",
+    "the newest hundred, as the Today page reads them: the quiet thread that waits is read apart (heldThreads)",
   );
   assert.deepEqual(
     r.data.escalations.map((e) => e.id),
@@ -852,7 +869,11 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
   ]);
   const reads = () =>
     ["conversations", "escalations", "calls", "lead_searches_view"].map((t) => selects(ctx, t).length);
-  assert.deepEqual(reads(), [1, 1, 1, 1], "Today alone reads each once");
+  assert.deepEqual(
+    reads(),
+    [2, 2, 1, 1],
+    "Today alone: the hundred and the held thread by id, the escalations in their two halves, the calls, the searches",
+  );
   assert.deepEqual(
     ctx.supabase.seen.filter((q) => q.rpc === "metrics_summary").map((q) => q.args.p_days),
     [1],
@@ -864,8 +885,8 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
   assert.equal(theInbox.data.conversations[0].id, OUTSIDE);
   assert.deepEqual(
     reads(),
-    [2, 1, 1, 1],
-    "the hundred, the escalations and the calls shared; the missing ids read once, for the Inbox",
+    [2, 2, 1, 1],
+    "the hundred, the held thread, the escalations and the calls shared: the Inbox reads nothing again",
   );
 
   const { result: noCalls, lines: callLines } = await logged("today_calls_fetch_failed", () =>
@@ -4393,7 +4414,11 @@ test("the broadcasts, for Ask and for the page: GET broadcasts answers its reade
       "ready",
       "month_sent",
       "month_sent_next",
+      "open_to_customers",
     ]);
+    // 13 Oct 2026: and whether the workspace is open to its customers (contracts openToCustomersOf), which the card that
+    // gets a yes reads: these workspaces are active, with no plan on record, so open.
+    assert.equal(r.data.open_to_customers, "open");
     assert.equal(r.data.ready.whatsapp.why, "Connect a WhatsApp number first.");
     assert.deepEqual(
       r.data.month_sent,
@@ -5486,8 +5511,37 @@ test("the notifications, for the page: GET notifications answers its reader's pa
   // No row this month: no mark is read at all.
   const quiet = dayCtx(notificationsWorld(NOW, { rows: [] }));
   const none = await kernel.load(turnIn(quiet), notificationsReader, undefined);
-  assert.deepEqual(none.data, { notifications: [], seen_at: "2026-09-10T12:00:00Z" });
+  assert.deepEqual(none.data, { notifications: [], seen_at: "2026-09-10T12:00:00Z", unread: 0 });
   assert.deepEqual(asked(quiet), ["notification_reads.select", "notifications.select"]);
+});
+
+test("the bell's read lists its newest sixty and counts the unread rows past them, less the ones the server closed (00421)", async () => {
+  const NOW = Date.parse("2026-09-20T12:00:00Z");
+  const many = Array.from({ length: 62 }, (_, i) => ({
+    id: `00000000-0000-4000-8000-${String(i + 1).padStart(12, "0")}`,
+    tenant_id: A,
+    kind: "alert",
+    title: `Row ${i}`,
+    body: "…",
+    route: null,
+    subject_type: null,
+    subject_id: null,
+    recipient_user_id: null,
+    created_at: new Date(NOW - (i + 1) * 3_600_000).toISOString(),
+    closed_at: i === 61 ? new Date(NOW).toISOString() : null,
+  }));
+  const r = await kernel.load(
+    memberIn(dayCtx(notificationsWorld(NOW, { rows: many })), A, "viewer", new Date(NOW)),
+    notificationsReader,
+    undefined,
+  );
+  assert.equal(r.data.notifications.length, 60, "the newest sixty, listed");
+  assert.equal(
+    r.data.unread,
+    61,
+    "the sixty listed and the sixty-first, past the list; the sixty-second was closed when what it asked for ended",
+  );
+  assert.equal(r.data.notifications[0].closed_at, null, "each listed row says whether the server closed it");
 });
 
 /**
@@ -5905,10 +5959,10 @@ test("the templates, for the composers, Settings and Ask: GET templates answers 
       r.data.templates.map((t) => ({
         kind: "template",
         id: t.id,
-        route: "messages",
+        route: `campaigns/message:${t.name}`,
         label: t.title || t.name,
       })),
-      "a template opens Templates, from Settings' read and the composers' alike",
+      "a template opens its own message in the Library, from Settings' read and the composers' alike (W-campaign-run-template-reachout-6)",
     );
     assert.deepEqual(asked(ctx), reads);
     assert.deepEqual(asked(routed), ["memberships.select", ...reads], "the workspace's door, then the same reads");

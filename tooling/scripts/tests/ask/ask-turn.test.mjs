@@ -4824,8 +4824,8 @@ test("inbox.thread and calls.get read through the readers (ledger #5): the threa
   const selects = (table) => ctx.supabase.seen.filter((q) => q.table === table && q.op === "select");
   assert.deepEqual(
     ["conversations", "messages", "escalations", "calls"].map((x) => selects(x).length),
-    [1, 1, 1, 1],
-    "the thread's row once, through the loader the page's scope uses; its messages once; the open escalations once; the call once",
+    [1, 1, 2, 1],
+    "the thread's row once, through the loader the page's scope uses; its messages once; the open escalations once (in their two halves: escalations.ts); the call once",
   );
   assert.deepEqual(
     selects("calls")[0].filters,

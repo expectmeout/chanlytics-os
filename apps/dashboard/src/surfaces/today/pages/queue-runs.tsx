@@ -13,9 +13,12 @@ import {
   LIFECYCLE_WORDS,
   runStopWords,
   runStoppedWords,
+  runsThatWait,
+  runTooLate,
   type BroadcastVM,
 } from "@chanlytics/contracts";
 import type { BroadcastsSurface } from "@/surfaces/campaigns/broadcasts/surface";
+import { approvalDaysNow } from "@/surfaces/campaigns/broadcasts/when-words";
 import { AttnRow } from "../../kit/attention/attn-row";
 import { Confirm } from "../../kit/confirm/confirm";
 import { gatedProps } from "../../legacy-verbs";
@@ -46,12 +49,20 @@ export type VerbKind = () => "primary" | "ghost";
 /** The broadcasts surface as the bridge published it, or nothing before its first read (`window.__BROADCASTS`). */
 export const broadcastsRead = () => borrowed<BroadcastsSurface>("__BROADCASTS");
 
-/** The runs that want a seat: one waiting for a word, and one inside the veto window, about to send. */
+/**
+ * The runs that want a seat: one waiting for a word an approval can still send (`waiting`, the count's own rule:
+ * contracts runWaitsOnYou), one whose day has passed and can only be skipped (`late`, which waits on nobody and the hourly
+ * sweep skips), and one inside the veto window, about to send (`soon`).
+ */
 export const runsPending = () => {
   const s = broadcastsRead();
   const all = (s && s.rows) || [];
+  const pending = all.filter((r) => r.state === "pending_approval");
+  // The business's days, asked only over runs to judge.
+  const days = pending.length ? approvalDaysNow() : null;
   return {
-    waiting: all.filter((r) => r.state === "pending_approval"),
+    waiting: days ? runsThatWait(pending, days) : [],
+    late: days ? pending.filter((r) => runTooLate(r, days)) : [],
     soon: all.filter((r) => r.state === "scheduled" && r.playbook_id && Date.parse(r.scheduled_for) > Date.now()),
   };
 };
@@ -61,7 +72,7 @@ export const runsPending = () => {
  * contracts runApprovalRefusal): its row says so in the verb's sentence and opens the run, where Skip is, instead of an
  * Approve that answers 409. A reach-out's run has no day to pass (the predicate's own exemption).
  */
-export const runLate = (r: BroadcastVM): string | null => bcLateWords(r);
+const runLate = (r: BroadcastVM): string | null => bcLateWords(r);
 
 interface SoonRunProps {
   r: BroadcastVM;
@@ -115,7 +126,7 @@ function SoonRun({ r, nav, verbKind, stop }: SoonRunProps) {
 export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, room: number) => {
   const api = broadcastVerbs();
   const refreshed = () => refreshPlaybooks();
-  const { waiting, soon } = runsPending();
+  const { waiting, late: tooLate, soon } = runsPending();
   const words = (r: BroadcastVM) => TODAY_HELPERS.runs(r);
   const can = canDo("approve");
   // A paused workspace sends nothing, and approving is refused (core approveRun): the row says so, in the words every
@@ -165,10 +176,12 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, room: number) 
     // The JSX called `say(res.data)` with whatever the server answered: an accepted approve always carries its data.
     else if (!said) say(res.data as NonNullable<VerbAnswer["data"]>);
   };
-  // Each row opens its own run (broadcasts/run:<id>): who is on it, and what it has done so far.
-  const count = waiting.length + soon.length;
+  // Each row opens its own run (broadcasts/run:<id>): who is on it, and what it has done so far. The runs waiting first,
+  // then the ones too late to approve, through the same row (which says it is too late and opens the run, where Skip is).
+  const asked = [...waiting, ...tooLate];
+  const count = asked.length + soon.length;
   const drawn = [
-    ...waiting.slice(0, room).map((r) => {
+    ...asked.slice(0, room).map((r) => {
       const late = runLate(r);
       // Decided on its sheet alone, as Sent's row and the ledger's door decide it (the run's offer, contracts
       // waitingRunOffer): a reach-out's run, or one whose day has passed and is skipped there.
@@ -203,7 +216,7 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, room: number) 
       );
     }),
     ...soon
-      .slice(0, Math.max(0, room - Math.min(waiting.length, room)))
+      .slice(0, Math.max(0, room - Math.min(asked.length, room)))
       .map((r) => <SoonRun key={`run-${r.id}`} r={r} nav={nav} verbKind={verbKind} stop={stop} />),
   ];
   return { drawn, count, cut: count - drawn.length };

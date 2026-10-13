@@ -105,7 +105,9 @@ const PR_4_3 = fixture("ask-tools-4-3.json");
 /**
  * The tools PR 4.7 changed, on purpose: propose_list is new; propose_campaign gained action run (its description, tail,
  * schema and examples); propose_thread_verb no longer points every role to a person's mode, which only an owner is
- * offered since PR 4.6. people since 12 Oct 2026 names one list as the Inbox words it (HELD_LIST_WORDS).
+ * offered since PR 4.6. people since 12 Oct 2026 names one list as the Inbox words it (HELD_LIST_WORDS). today since
+ * 13 Oct 2026 says the one count's parts (the holds, the replies on their way, the runs waiting that can still be approved,
+ * the searches waiting), and campaigns a run too late to approve (the wiring's second audit, S7-1, W-thread-wait-step-4).
  */
 const CHANGED = [
   "calendar",
@@ -117,6 +119,7 @@ const CHANGED = [
   "propose_settings",
   "propose_thread_verb",
   "report",
+  "today",
 ];
 /**
  * 6 Oct 2026 (decision 0030, a campaign counted by its channel): report says the Campaigns lens beside the Deals
@@ -467,7 +470,7 @@ test("every role is offered exactly the actions it may use (D2): a tool with non
         assert.ok(usable(name, ROLES[i]).includes(a), `${name}.${a}: ${ROLES[i - 1]}'s, so ${ROLES[i]}'s`);
 });
 
-test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, propose_thread_verb, propose_autonomy (the modes a class takes), propose_settings (a note's last day), report (its reply times say the hold, and it says the Campaigns lens, the Reviews lens, the Receptionist lens and the People lens), campaigns (a run's channels, a message where it said a template, the library whole and the journey), calendar (the room in the book) and people (a list in the Inbox's words) reads to every role byte for byte as PR 4.6 and PR 4.5 sent it -- per tool, per role, with its examples and without -- and every tool they offered a role is offered it still", () => {
+test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, propose_thread_verb, propose_autonomy (the modes a class takes), propose_settings (a note's last day), report (its reply times say the hold, and it says the Campaigns lens, the Reviews lens, the Receptionist lens and the People lens), campaigns (a run's channels, a message where it said a template, the library whole and the journey), calendar (the room in the book), people (a list in the Inbox's words) and today (the one count's parts) reads to every role byte for byte as PR 4.6 and PR 4.5 sent it -- per tool, per role, with its examples and without -- and every tool they offered a role is offered it still", () => {
   const bare = ({ input_examples: _, ...t }) => t;
   for (const role of ROLES) {
     const was = new Map(TODAY[role].map((t) => [t.name, t]));

@@ -54,7 +54,8 @@ test("a search that stops to ask mails the workspace's own addresses: the questi
       "",
       "Nothing is spent while this waits. With no answer in a day, it stops and keeps what it found.",
       "",
-      `Answer it: https://app.chanlytics.com/w/harbor-studio#/clients/leads:s-${S}:c-excluded`,
+      // The one writer of a link to a workspace's page (contracts appLink): its path, in the product's word.
+      `Answer it: https://app.chanlytics.com/w/harbor-studio/people/leads:s-${S}:c-excluded`,
     ].join("\n"),
   );
 });

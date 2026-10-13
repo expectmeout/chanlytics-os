@@ -85,6 +85,7 @@ import {
   offersBookingLink,
   COMMON_LANGUAGES,
   sameListed,
+  SERVICES_ON_PUBLIC_PAGE,
   type PromptBlockVM,
   type ProfileCrossing,
 } from "@chanlytics/contracts";
@@ -319,7 +320,8 @@ export function saveIssues(part: unknown): Array<{ path: Array<string | number>;
 
 // openWeekWords and closuresAheadWords are the When you're open card's two sentences with a number in them, and
 // hoursZoneWords is the line over the week while it is edited, which names the zone the way that card names it; the
-// services row's and sheet's (servicesWords, servicesToldWords, blockShareWords) and the booking
+// services row's and sheet's (servicesWords, servicesToldWords, blockShareWords, and SERVICES_ON_PUBLIC_PAGE: the
+// business's own page lists them too, the wiring's second audit X4-4) and the booking
 // rules' (bookingRulesWords, BOOKING_RULE_HINTS) are What you offer's. The prompt sheet's are promptBlocks (above) with
 // the share it draws a block's cost by, promptCostWords (the exact count, for its description only), promptTotalWords,
 // PROMPT_READERS (who reads it, per channel) and PROMPT_NOW (what is sent beside it, and why it is apart).
@@ -383,6 +385,7 @@ export const BUSINESS_TAB = {
   closuresAheadWords,
   servicesWords,
   servicesToldWords,
+  SERVICES_ON_PUBLIC_PAGE,
   blockShareWords,
   promptCostWords,
   promptTotalWords,

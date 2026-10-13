@@ -30,7 +30,7 @@
 import { json, refuse } from "../http.js";
 import { personFor, workspaceFor, type Admitted } from "../admin-auth.js";
 import { errorMessage, respond, stop, workspaceOf, workspaceRow, type Refused } from "../admin-door.js";
-import { emitEvent, type Database } from "../packages/db.js";
+import { businessOnRecordOf, emitEvent, type Database } from "../packages/db.js";
 import { SPEND_NUMBER, SPEND_TEXTING, UUID, type SpendWords } from "../packages/contracts.js";
 import { lineForClient, lineProviderFromEnv, type LineProviderChoice } from "./lines.js";
 import { releaseLine } from "./line-release.js";
@@ -61,6 +61,7 @@ import {
   planRecord,
   recordRefusal,
   recordAnswer,
+  recordSaved,
   filingPages,
   filingFlags,
   planFiling,
@@ -77,6 +78,7 @@ import {
 } from "./line-ops.js";
 
 type Db = SupabaseClient<Database>;
+type RecordRow = Database["public"]["Tables"]["business_records"]["Row"];
 
 /** A writing op's call: the knock verified, the provider chosen, the keys and the database present, the workspace on record. */
 interface LineCall {
@@ -258,19 +260,34 @@ async function releaseOp(c: LineCall): Promise<Response> {
 async function record(c: LineCall): Promise<Response> {
   const plan = planRecord(c.body.record, c.body.path, c.tenantId);
   if (plan.kind === "refuse") return respond(plan.answer);
-  const ours = await c.db.from("lines").select("e164").eq("tenant_id", c.tenantId);
-  const ourNumbers = (ours.data ?? []).map((r) => r.e164).filter((n): n is string => !!n);
+  // The workspace's numbers, which the record is checked against, and where each line's filing stands, which the save
+  // speaks of. A read that fails checks against no number, as it did, and says nothing of a filing.
+  const ours = await c.db
+    .from("lines")
+    .select("e164, sms_state, reg_mock, brand_sid, facts")
+    .eq("tenant_id", c.tenantId);
+  const lines = ours.error ? null : (ours.data ?? []);
+  const ourNumbers = (lines ?? []).map((r) => r.e164).filter((n): n is string => !!n);
   const refused = recordRefusal(plan.row, plan.path, ourNumbers);
   if (refused) return respond(refused);
+  // What was on record, so the save can say what it moved (the wiring's second audit, X4-3).
+  let before: RecordRow | null;
+  try {
+    before = await businessOnRecordOf(c.db, c.tenantId);
+  } catch (e) {
+    return refuse(503, "read_failed", errorMessage(e));
+  }
   const up = await c.db.from("business_records").upsert(plan.row, { onConflict: "tenant_id" }).select("*").single();
   if (up.error) return refuse(503, "write_failed", up.error.message);
+  const saved = recordSaved(before, up.data, lines);
   await emitEvent(c.db, c.tenantId, "business.recorded", "tenant", c.tenantId, {
     legal_name: plan.row.legal_name,
     path: plan.path,
     // Who saved it: the ledger said the record changed and never whose hand it was.
     by: c.person,
+    changed: saved.first ? null : saved.changed,
   }).catch(() => {});
-  return respond(recordAnswer(up.data));
+  return respond(recordAnswer(up.data, saved));
 }
 
 /* ------------------------------------------------------------ register */
@@ -285,9 +302,13 @@ async function register(c: LineCall): Promise<Response> {
     const refused = await spendGate(c, SPEND_TEXTING);
     if (refused) return refused;
   }
-  const rec = await c.db.from("business_records").select("*").eq("tenant_id", c.tenantId).maybeSingle();
-  if (rec.error) return refuse(503, "read_failed", rec.error.message);
-  if (!rec.data) {
+  let onRecord: RecordRow | null;
+  try {
+    onRecord = await businessOnRecordOf(c.db, c.tenantId);
+  } catch (e) {
+    return refuse(503, "read_failed", errorMessage(e));
+  }
+  if (!onRecord) {
     await c.db
       .from("lines")
       .update({ sms_state: "needs_record", state_since: new Date().toISOString() })
@@ -309,7 +330,7 @@ async function register(c: LineCall): Promise<Response> {
     .in("kind", ["whatsapp", "sms"]);
   const plan = planFiling({
     row,
-    record: rec.data,
+    record: onRecord,
     workspaceName: c.tenant.name,
     saysYes: saysYes.data ?? [],
     flags,
@@ -373,12 +394,13 @@ async function registrationStatus(c: LineCall): Promise<Response> {
   if (!read.ok) return read.response;
   const r = await syncRegistration(c.db, read.row);
   if (!campaignHeldFor(r, read.row)) return respond(syncAnswer(r));
-  const rec = await c.db.from("business_records").select("*").eq("tenant_id", c.tenantId).maybeSingle();
+  // A record that cannot be read files nothing this time, as one that is missing: the next status read tries again.
+  const onRecord = await businessOnRecordOf(c.db, c.tenantId).catch(() => null);
   const fresh = await c.db.from("lines").select("*").eq("id", read.row.id).eq("tenant_id", c.tenantId).single();
-  if (!rec.data || !fresh.data) return respond(syncAnswer(r));
+  if (!onRecord || !fresh.data) return respond(syncAnswer(r));
   const filed = await registerLine(c.db, {
     line: fresh.data,
-    record: rec.data,
+    record: onRecord,
     workspaceName: c.tenant.name,
     ...filingPages(dashboardOrigin(), c.tenant.slug),
     mock: fresh.data.reg_mock,

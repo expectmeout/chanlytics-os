@@ -195,10 +195,9 @@ async function requeueFailedJob(db, tenantId, jobId, record) {
 import {
   noticeRoute,
   pushFor,
-  isForReader,
-  unreadFor,
   PUSH_RECEIPTS_AFTER_MS,
   BELL_WINDOW_DAYS,
+  DAY_MS as DAY_MS2,
   REACH_OUT_REPLY_DAYS as REACH_OUT_REPLY_DAYS2,
   EVENT_SUBSCRIBERS,
   isBookingTool
@@ -248,7 +247,8 @@ import {
   feedAdditionsWith,
   twinTold,
   memberJoinedOf,
-  noticeKept
+  noticeKept,
+  unreadOfReaders
 } from "../../db/dist/index.js";
 
 // src/escalate.ts
@@ -1148,9 +1148,9 @@ async function pushSend(ctx, job) {
   if (!id) throw new Error("push_send: no notification named");
   const n = must(
     "push_send: cannot read the notification",
-    await ctx.db.from("notifications").select("id, tenant_id, kind, title, body, route, recipient_user_id").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle()
+    await ctx.db.from("notifications").select("id, tenant_id, kind, title, body, route, recipient_user_id, closed_at").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle()
   );
-  if (!n) return;
+  if (!n || n.closed_at) return;
   const readers = await membersPushedFor(ctx.db, {
     tenantId: job.tenant_id,
     userIds: n.recipient_user_id ? [n.recipient_user_id] : null,
@@ -1162,7 +1162,11 @@ async function pushSend(ctx, job) {
     await ctx.db.from("push_devices").select("token, user_id").in("user_id", readers)
   ) ?? [];
   if (!devices.length) return;
-  const badges = await badgesFor(ctx, job.tenant_id, [...new Set(devices.map((d) => d.user_id))]);
+  const badges = await unreadOfReaders(ctx.db, {
+    tenantId: job.tenant_id,
+    readers: [...new Set(devices.map((d) => d.user_id))],
+    fromIso: new Date(Date.now() - BELL_WINDOW_DAYS * DAY_MS2).toISOString()
+  });
   const receipts = await ctx.push.send(
     pushFor(
       // The phone opens the place the bell does (contracts noticeRoute): a row kept with no route opens its kind's list.
@@ -1192,49 +1196,6 @@ async function pushSend(ctx, job) {
       });
     }
   }
-}
-var READ_PAGE = 1e3;
-var IN_BATCH = 100;
-async function badgesFor(ctx, tenantId, readers) {
-  const since = new Date(Date.now() - BELL_WINDOW_DAYS * 864e5).toISOString();
-  const rows = [];
-  for (let from = 0; ; from += READ_PAGE) {
-    const page = must(
-      "push_send: cannot read the bell",
-      await ctx.db.from("notifications").select("id, created_at, recipient_user_id").eq("tenant_id", tenantId).gte("created_at", since).order("created_at", { ascending: true }).range(from, from + READ_PAGE - 1)
-    ) ?? [];
-    rows.push(...page);
-    if (page.length < READ_PAGE) break;
-  }
-  const seen = must(
-    "push_send: cannot read when the bell was opened",
-    await ctx.db.from("notification_reads").select("user_id, seen_at").eq("tenant_id", tenantId).in("user_id", readers)
-  ) ?? [];
-  const marks = [];
-  for (let i = 0; i < rows.length; i += IN_BATCH) {
-    marks.push(
-      ...must(
-        "push_send: cannot read the bell's marks",
-        await ctx.db.from("notification_marks").select("notification_id, user_id, read_at, dismissed_at").in("user_id", readers).in(
-          "notification_id",
-          rows.slice(i, i + IN_BATCH).map((r) => r.id)
-        )
-      ) ?? []
-    );
-  }
-  const out = /* @__PURE__ */ new Map();
-  for (const u of readers) {
-    const mine = seen.find((s) => s.user_id === u);
-    out.set(
-      u,
-      unreadFor(
-        rows.filter((r) => isForReader(r, u)),
-        mine?.seen_at ?? null,
-        marks.filter((m) => m.user_id === u)
-      )
-    );
-  }
-  return out;
 }
 async function pushReceipts(ctx, job) {
   if (!ctx.push) throw new Error("push_receipts: this runtime holds no push transport");
@@ -1491,7 +1452,7 @@ function saySettled(results) {
 }
 
 // src/tick.ts
-import { jittered as jittered2, jobNewsWords } from "../../contracts/dist/index.js";
+import { jittered as jittered2, jobNewsWords, jobRecordOf } from "../../contracts/dist/index.js";
 var errText = (e) => e instanceof Error ? e.message : String(e);
 function noteLate(c, job, now) {
   if (job.attempts !== 1) return;
@@ -1647,9 +1608,11 @@ async function conclude(ports, job, reason, certain, end) {
   try {
     const words = jobNewsWords(job.kind, end, { attempts: job.attempts, resumed });
     const reference = `Reference: job ${job.id} (${job.kind}): ${reason}.`;
+    const record = jobRecordOf(job.kind, job.payload);
     await ports.alert(job, {
       kind: "job_failed",
-      route: words.to,
+      route: record?.route ?? words.to,
+      about: record?.about ?? null,
       subject: words.title,
       body: [words.lead, wreckage, reference].filter(Boolean).join("\n\n")
     });

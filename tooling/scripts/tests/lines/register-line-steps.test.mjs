@@ -67,7 +67,7 @@ const FILING_ENV = {
  * Runs one filing, or `times` of them at once over the same row as each read it: `answer(req, n)` is Twilio; `seen` is
  * each request with the row as it stood when it was made.
  */
-async function file({ env = FILING_ENV, line = unfiled(), answer = () => null, times = 1 } = {}) {
+async function file({ env = FILING_ENV, line = unfiled(), record = RECORD, answer = () => null, times = 1 } = {}) {
   const saved = { ...process.env };
   for (const k of [...Object.keys(FILING_ENV), "LINES_DRY_RUN"]) delete process.env[k];
   Object.assign(process.env, env);
@@ -86,7 +86,7 @@ async function file({ env = FILING_ENV, line = unfiled(), answer = () => null, t
       Array.from({ length: times }, () =>
         registerLine(db, {
           line,
-          record: RECORD,
+          record,
           workspaceName: "Harbor Moving",
           optInUrl: "https://app.example.com/yes/harbor-moving",
           privacyUrl: "https://app.example.com/privacy",
@@ -131,6 +131,8 @@ test("the row says registering before the first request, and every receipt joins
     row.facts,
     {
       trunk_ready: true,
+      // The name the brand goes under, kept by the filing that made it (the wiring's second audit, X4-3).
+      a2p_filed_name: "Harbor Moving LLC",
       a2p_business_sid: "SID2",
       a2p_representative_sid: "SID4",
       a2p_address_sid: "SID6",
@@ -145,6 +147,62 @@ test("the row says registering before the first request, and every receipt joins
     ["SID1", "SID14", "SID20", "SID21"],
   );
   assert.deepEqual([row.sms_state, row.reg_step, row.last_error], ["registering", null, null]);
+});
+
+test("the name a brand is filed under is kept by the filing that makes it, and only that one: a sole proprietor goes under the trading name the carriers show, and a line whose brand exists keeps the name it was filed with (the wiring's second audit, X4-3)", async () => {
+  const sole = await file({ record: { ...RECORD, ein: null, trade_name: "Harbor Movers" } });
+  assert.equal(sole.out.ok, true);
+  assert.equal(sole.row.facts.a2p_filed_name, "Harbor Movers", "the name the end user names the brand by");
+  const plain = await file({ record: { ...RECORD, ein: null, trade_name: null } });
+  assert.equal(plain.row.facts.a2p_filed_name, "Harbor Moving LLC", "no trading name: the one name given");
+
+  // A line whose brand the carriers already hold (a campaign filed again, the held one the sweep files): the new record
+  // is not what the brand was filed under, so the name stays.
+  const kept = await file({
+    line: unfiled({ brand_sid: "BNkept", facts: { trunk_ready: true, a2p_filed_name: "Old Harbor LLC" } }),
+    record: { ...RECORD, legal_name: "New Harbor LLC" },
+  });
+  assert.equal(kept.row.facts.a2p_filed_name, "Old Harbor LLC");
+});
+
+test("REGRESSION (review of X4-3): a filing that resumes past the step that sends the name keeps the name sent then, and one that resumes before it keeps the name it sends now", async () => {
+  // The brand request names no business: the standard path's name rides on the business end user, refreshed from the
+  // record until the profile is submitted. A run that stopped after the submit and is filed again under a renamed
+  // record makes the brand under the old name.
+  const made = {
+    profile_sid: "BUcust",
+    facts: {
+      trunk_ready: true,
+      a2p_filed_name: "Harbor Moving",
+      a2p_business_sid: "ITbiz",
+      a2p_representative_sid: "ITrep",
+      a2p_address_sid: "ADaddr",
+      a2p_document_sid: "RDdoc",
+      a2p_primary_assigned: true,
+    },
+  };
+  const renamed = { ...RECORD, legal_name: "Harbor Moving Group LLC" };
+  const past = await file({
+    line: unfiled({ ...made, facts: { ...made.facts, a2p_profile_submitted: true } }),
+    record: renamed,
+  });
+  assert.equal(past.out.ok, true);
+  assert.equal(past.row.facts.a2p_filed_name, "Harbor Moving", "the name the submitted profile carries");
+
+  const before = await file({ line: unfiled(made), record: renamed });
+  assert.equal(before.out.ok, true);
+  assert.equal(before.row.facts.a2p_filed_name, "Harbor Moving Group LLC", "the submit sends the record as it is now");
+
+  // The narrow path's name rides on the sole proprietor's end user, made with the messaging profile.
+  const sole = { ...RECORD, ein: null, trade_name: "Harbor Movers" };
+  const soleFacts = { ...made.facts, a2p_profile_submitted: true, a2p_filed_name: "Harbor Moves" };
+  const narrowPast = await file({
+    line: unfiled({ ...made, a2p_profile_sid: "BUa2p", facts: soleFacts }),
+    record: sole,
+  });
+  assert.equal(narrowPast.row.facts.a2p_filed_name, "Harbor Moves", "its end user was made before");
+  const narrowBefore = await file({ line: unfiled({ ...made, facts: soleFacts }), record: sole });
+  assert.equal(narrowBefore.row.facts.a2p_filed_name, "Harbor Movers", "made now, under the trading name");
 });
 
 test("a campaign held for the brand leaves a wait on the row, not the carrier's words", async () => {

@@ -9,7 +9,7 @@ import { appointmentWords } from "../journey/appointment-word";
 import { RUN_WAITING_WORDS } from "../shell/campaign-rooms";
 import { todayAlsoWaiting } from "./today-bands";
 import type { TodayDayItemVM, TodayDayVM } from "./today-day";
-import { isPersonRow } from "./today-queue";
+import { isHoldRow } from "./today-queue";
 import type { TodayVM } from "./today-vm";
 
 /** A run of words, in bold where the canvas sets a name so (read through TodayBriefWords; not exported on its own). */
@@ -48,16 +48,26 @@ function names(who: readonly string[], rest: number): TodayBriefSegment[] {
   return out;
 }
 
-/** Who needs you, with the oldest wait as the headline's detail says it; then the calls worth a listen and the searches. */
+/**
+ * Who needs you, with the oldest wait as the headline's detail says it; then the closing windows, the calls worth a
+ * listen and the searches. Who needs you is the holds (isHoldRow) and the count's own number (needsYou.count: the holds
+ * and the replies counting down, which have no row), never a closing window, which is said as a window (the wiring's
+ * second audit, S7-8).
+ */
 function needsSentences(vm: TodayVM): TodayBriefSegment[][] {
   const rows = vm.queue.rows;
-  const people = [...new Set(rows.filter(isPersonRow).map((r) => r.who))];
+  const people = [...new Set(rows.filter(isHoldRow).map((r) => r.who))];
   // The calls worth a listen and the searches waiting, all of them: counting the drawn rows alone said nothing of four
   // calls the queue's head had counted, because they sort after everyone waiting (the 2 Oct 2026 audit).
-  const { calls, searches } = vm.queue;
+  const { calls, searches, windows } = vm.queue;
+  const total = vm.needsYou?.count ?? people.length;
+  // The ones not named: the holds past the six and the replies counting down.
+  const rest = Math.max(0, total - people.length);
   const out: TodayBriefSegment[][] = [];
+  if (!people.length && total > 0)
+    out.push([plain(total === 1 ? "One conversation needs you." : `${total} conversations need you.`)]);
   if (people.length) {
-    const one = people.length === 1 && vm.queue.more_people === 0;
+    const one = people.length === 1 && rest === 0;
     const detail = vm.standing.detail;
     // One person: the headline's detail names them again ("Ana Reyes has been waiting since 2:20 PM."), so the two
     // sentences are one: "Ana Reyes needs you, waiting since 2:20 PM."
@@ -67,11 +77,11 @@ function needsSentences(vm: TodayVM): TodayBriefSegment[][] {
       out.push([bold(first), plain(` needs you, ${detail.slice(lead.length)}`)]);
     else {
       // The people not named, never the calls and the searches past the six: "and 20 more" over sixteen people.
-      out.push([...names(people, vm.queue.more_people), plain(one ? " needs you." : " need you.")]);
+      out.push([...names(people, rest), plain(one ? " needs you." : " need you.")]);
       if (detail) out.push([plain(detail)]);
     }
   }
-  for (const sentence of todayAlsoWaiting({ calls, searches })) out.push([plain(sentence)]);
+  for (const sentence of todayAlsoWaiting({ windows, calls, searches })) out.push([plain(sentence)]);
   return out;
 }
 

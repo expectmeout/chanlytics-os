@@ -319,22 +319,12 @@ test("the sign's markup carries every word of its view model, the code as given,
 test("the wiring: public by one prefix, read by slug, writes nothing, and the owner is given the link", async () => {
   const page = readCode("apps/dashboard/app/yes/[slug]/page.tsx");
   assert.ok(page.includes("const facts = await consentPageFor(slug);") && page.includes("if (!facts) notFound();"));
-  assert.ok(!/<form|<input|useState|"POST"/.test(page), "no field, no write: a number typed into a box is not consent");
   assert.ok(
     page.includes("return consentPageMetadata(await consentPageFor(slug));"),
     "for the people given the link, not for a search result: contracts' rule, run in public-page-titles.test.mjs",
   );
-  const server = readCode("apps/dashboard/src/server/public/consent-page.ts");
-  assert.ok(server.includes('import "server-only";') && server.includes('import { serviceDb } from "../service-db";'));
-  assert.ok(
-    server.includes('if (!tenant || tenant.status === "test" || tenant.left_empty_at) return null;'),
-    "a fixture workspace has no page, nor an ended one (run in public/an-ended-workspace-publishes-nothing.test.mjs)",
-  );
-  assert.ok(
-    server.includes('.select("id, name, status, left_empty_at")') && server.includes('.select("kind, number_e164")'),
-    "exactly the facts the page shows leave this boundary",
-  );
-  assert.ok(!/insert|update|delete|upsert/i.test(server), "the public page's reader may not write");
+  // What the reader reads (one load, every read thrown, only selects) and what the page draws (no field, no form) are run
+  // in public/a-paused-workspace-asks-nobody-for-a-yes.test.mjs, over the real readers and the drawn pages.
   // The owner's Broadcasts page names that address, and says why it is there: drawn (the ledger's Get their yes section,
   // surfaces/campaigns/broadcasts) over a surface that holds it, from this test's workspace.
   const { installLegacyReact, fresh, byTestId, textOf } = await import("../_legacy-react.mjs");
@@ -438,15 +428,8 @@ test("the pages a carrier reviewer lands on say who the business is", () => {
     !SMS_CLAUSES.some((c) => /standard rates/i.test(c)),
     'carriers refuse "standard" -- it implies premium-rate messaging',
   );
-
-  // The opt-in page is the URL on every registration, so a reviewer lands
-  // there too and has to be able to tell who is sending.
-  const yes = readRaw("apps/dashboard/app/yes/[slug]/page.tsx");
-  assert.ok(yes.includes("RJ Capital LLC") && yes.includes("193 Jamaica Ave"), "the opt-in page names the operator");
-  assert.ok(
-    yes.includes("on behalf of {facts.businessName}"),
-    "and still names the business the customer is agreeing to hear from",
-  );
+  // The opt-in page is the URL on every registration, so a reviewer lands there too and has to be able to tell who is
+  // sending: drawn, with the operator and the business named, in public/a-paused-workspace-asks-nobody-for-a-yes.test.mjs.
 });
 
 test("the privacy and terms links beside the asks are the business's own, once it has said who it is", () => {

@@ -17,7 +17,12 @@ export const GET = read({
   rate: "aggregate",
   handle: async ({ ctx, member }) => {
     const rc = readerContext(ctx, member);
-    const { metrics, conversations, escalations, calls, searches } = (await load(rc, today, undefined)).data;
-    return { today: toTodayVM(metrics, conversations, escalations, calls, rc.now, searches) };
+    const { metrics, conversations, escalations, calls, searches, runs, heldThreads } = (
+      await load(rc, today, undefined)
+    ).data;
+    // With the runs waiting and the held threads beside it, so the head counts what the badge counts.
+    return {
+      today: toTodayVM(metrics, conversations, escalations, calls, rc.now, searches, { runs, heldThreads }),
+    };
   },
 });

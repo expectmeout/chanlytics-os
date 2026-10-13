@@ -10,7 +10,7 @@
  * this owns them once. Pure: no `window`, so it runs under node with a fake
  * fetch, and the bridge instantiates it with the real one.
  */
-import { refusalOf, sessionEnded, type Refusal } from "@chanlytics/contracts";
+import { refusalOf, SERVED_AT_HEADER, sessionEnded, type Refusal } from "@chanlytics/contracts";
 import type { InputOf, OutputOf } from "../server/route";
 import { ROUTES, type Routes } from "./routes.generated";
 
@@ -151,6 +151,39 @@ const INFLIGHT_MS = 2_000;
  * answered from it; a write clears every held read anyway (forget).
  */
 const PREFETCH_SHARE_MS = 10_000;
+
+/** How many answers the clock's lead is measured over: the newest, so a clock set again is followed within a few reads. */
+const LEAD_SAMPLES = 20;
+
+/** The server's clock when it began an answer (contracts SERVED_AT_HEADER), or null where the answer does not say. */
+function servedAtOf(res: Response): number | null {
+  // A stand-in answer (a test's) may carry no headers at all: it measures nothing.
+  const headers = (res as { headers?: Headers | undefined }).headers;
+  const served = Number(headers?.get(SERVED_AT_HEADER));
+  return Number.isFinite(served) && served > 0 ? served : null;
+}
+
+/**
+ * How far this browser's clock runs ahead of the servers', measured on every answer (the wiring's second audit, S2-1,
+ * S4-2, S10-1). `note` takes an answer's measure: when its headers reached this tab, less when the server began it. `lead`
+ * is the least of the newest LEAD_SAMPLES measures, never less than nothing. Each measure is the lead plus that answer's
+ * time on the wire and in its handler, so the least is never less than the lead, and a notice is never taken for older
+ * than a read on its account (surface-runner.ts readAfter). A clock behind the servers' only makes a read look older than
+ * it is, the side of reading again. Nothing measured yet is nothing: the runner judges as it did before an answer carried
+ * the server's clock.
+ */
+function leadMeter(now: () => number) {
+  const leads: number[] = [];
+  return {
+    note(res: Response): void {
+      const served = servedAtOf(res);
+      if (served === null) return;
+      leads.push(now() - served);
+      if (leads.length > LEAD_SAMPLES) leads.shift();
+    },
+    lead: (): number => (leads.length ? Math.max(0, Math.min(...leads)) : 0),
+  };
+}
 const READ_TIMEOUT_MS = 15_000;
 const WRITE_TIMEOUT_MS = 30_000;
 
@@ -253,6 +286,7 @@ export function createApi(deps: ApiDeps) {
   const now = deps.now ?? (() => Date.now());
   const inFlight: InFlight = new Map();
   let holds = 0;
+  const lead = leadMeter(now);
 
   function urlFor<K extends RouteKey>(key: K, opts: Options<K> = {}): string {
     const params = (opts.params ?? {}) as Record<string, string>;
@@ -293,6 +327,7 @@ export function createApi(deps: ApiDeps) {
         const timedOut = name === "TimeoutError" || name === "AbortError";
         return { ok: false, ...refusalOf({ code: timedOut ? "timeout" : "network", status: 0, write: !isRead }) };
       }
+      lead.note(res);
       if (res.status === 401) {
         await signedOut(deps, res);
         return { ok: false, ...refusalOf({ code: "unauthorized", status: 401, write: !isRead }) };
@@ -379,7 +414,8 @@ export function createApi(deps: ApiDeps) {
   /** The oldest moment a read asked for now could be answered from (oldestShared). */
   const sharesFrom = (): number => oldestShared(inFlight, now());
 
-  return Object.assign(send, { raw, url: urlFor, forget, holdAnswers, sharesFrom });
+  // How far this browser's clock runs ahead of the servers' (leadMeter), in ms.
+  return Object.assign(send, { raw, url: urlFor, forget, holdAnswers, sharesFrom, clockLead: lead.lead });
 }
 
 export type Api = ReturnType<typeof createApi>;

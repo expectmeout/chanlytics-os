@@ -76,6 +76,11 @@ export function todayRunsSub(n: number): string | null {
   return n ? `${n} run${n === 1 ? "" : "s"} waiting` : null;
 }
 
+/** "1 run too late to approve" beside the queue's parts: a run whose day has passed, which waits on nobody; null for none. */
+export function todayLateRunsSub(n: number): string | null {
+  return n ? `${n} run${n === 1 ? "" : "s"} too late to approve` : null;
+}
+
 /**
  * The toast when a waiting run is approved: the audience's name, which the page sets in bold, then who it reaches
  * and when it really goes (bcWhenWords). Two parts, so the page keeps its typography without composing the number.

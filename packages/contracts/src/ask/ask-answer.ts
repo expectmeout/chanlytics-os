@@ -19,6 +19,7 @@ import {
 } from "./citations";
 import { PROPOSAL_SPECS, proposalSpec } from "../ask-proposals/proposals";
 import { planCountWords } from "./plan-steps";
+import { rightNowCounts, rightNowLine, type AskWaiting } from "./ask-waiting";
 import { canonicalRoute } from "../shell/address";
 
 /* ------------------------------------------------------------------ the shape */
@@ -252,89 +253,8 @@ export function answerFromV1(
 /* ------------------------------------------------------------- quick answers */
 
 /**
- * Who is waiting, as Today's queue draws them (TodayVM.queue.rows, six at most), how many more wait past those
- * (queue.waiting), and the runs waiting for a yes. Null is a queue not read yet: nobody is claimed to be waiting.
- */
-export interface AskWaiting {
-  people: Array<{
-    id: string;
-    kind: "thread" | "call";
-    who: string;
-    channel: string;
-    when: string;
-    line: string;
-    to: string;
-  }>;
-  /** People waiting past the rows the queue draws. */
-  more: number;
-  /** A run's reach is the people it would send to. */
-  runs: Array<{ id: string; label: string; reach: number; to: string }>;
-  /** Searches that stopped to ask, waiting on the owner (Today's queue's search rows). */
-  searches: Array<{ id: string; name: string; question: string; to: string }>;
-}
-
-/** Up to two names, then how many others: "Ana, Sam and 3 others"; a count alone when fewer names are drawn. */
-const names = (list: string[], total: number, es: boolean) => {
-  if (total <= 2 && list.length === total) return list.join(es ? " y " : " and ");
-  if (list.length < 2)
-    return es ? `${total} ${total === 1 ? "persona" : "personas"}` : `${total} ${total === 1 ? "person" : "people"}`;
-  const rest = total - 2;
-  return es
-    ? `${list[0]}, ${list[1]} y ${rest} más`
-    : `${list[0]}, ${list[1]} and ${rest} ${rest === 1 ? "other" : "others"}`;
-};
-
-const unread = (es: boolean) => (es ? "La cola de hoy aún no se ha leído." : "Today's queue hasn't been read yet.");
-
-/**
- * Right now, in a sentence: the people waiting, then the runs waiting for a yes, then the searches waiting for an
- * answer -- three populations, three clauses.
- */
-export function rightNowLine(w: AskWaiting | null, language: AskLanguage): string {
-  const es = language === "es";
-  if (!w) return unread(es);
-  const who = w.people.map((p) => p.who);
-  const total = who.length + w.more;
-  const people = total
-    ? es
-      ? `${names(who, total, true)} ${total === 1 ? "te espera" : "te esperan"}`
-      : `${names(who, total, false)} ${total === 1 ? "needs" : "need"} you`
-    : "";
-  const n = w.runs.length;
-  const runs = n
-    ? es
-      ? `${n === 1 ? "un envío de campaña espera" : `${n} envíos de campaña esperan`} tu aprobación`
-      : `${n === 1 ? "one campaign run is" : `${n} campaign runs are`} waiting for your approval`
-    : "";
-  // One search is named, since its question is the thing waiting; several are only counted, like the runs.
-  const k = w.searches.length;
-  const searchesLine = k
-    ? es
-      ? k === 1
-        ? `tu búsqueda de ${w.searches[0].name} espera tu respuesta`
-        : `${k} búsquedas esperan tu respuesta`
-      : k === 1
-        ? `your search for ${w.searches[0].name} is waiting for your answer`
-        : `${k} searches are waiting for your answer`
-    : "";
-  if (!people && !runs && !searchesLine) return es ? "Nadie te espera ahora mismo." : "Nobody needs you right now.";
-  const s = [people, runs, searchesLine].filter(Boolean).join("; ");
-  return `${s.charAt(0).toUpperCase()}${s.slice(1)}.`;
-}
-
-/**
- * The counts rightNowLine's sentence is built from, so pills beside it never disagree: people waiting (drawn and past
- * the rows), runs waiting and searches waiting.
- */
-export function rightNowCounts(w: AskWaiting | null): { people: number; runs: number; searches: number } {
-  return w
-    ? { people: w.people.length + w.more, runs: w.runs.length, searches: w.searches.length }
-    : { people: 0, runs: 0, searches: 0 };
-}
-
-/**
- * Who needs me: the sentence; the people, then the searches, then the runs, as their own doors; the Inbox only for
- * the people past what is drawn. A queue not read yet says so, and points at Today.
+ * Who needs me: the sentence; the people, then the searches, then the runs, then the closing windows, as their own
+ * doors; the Inbox only for the people past what is drawn. A queue not read yet says so, and points at Today.
  */
 export function needsAnswer(w: AskWaiting | null, language: AskLanguage): AskAnswer {
   const es = language === "es";
@@ -365,10 +285,18 @@ export function needsAnswer(w: AskWaiting | null, language: AskLanguage): AskAns
         : `${r.reach} ${r.reach === 1 ? "person" : "people"}`,
       source: { kind: "page" as const, id: r.to, label: r.label, to: r.to, door: true },
     })),
+    // A reply window closing: its thread is the door, and it is never one of the people who need you.
+    ...w.windows.map((p) => ({
+      title: p.who,
+      meta: es ? "Ventana de respuesta por cerrar" : "Reply window closing",
+      line: p.line,
+      source: { kind: "thread" as const, id: p.id, label: p.who, to: p.to, door: true },
+    })),
   ];
   a.show.items = all.slice(0, ASK_ANSWER_CAPS.items);
   const total = rightNowCounts(w).people;
-  const shownPeople = a.show.items.filter((i) => i.source.kind !== "page").length;
+  // The people come first, so the ones drawn are the first of them: a window drawn is never counted as one.
+  const shownPeople = Math.min(w.people.length, ASK_ANSWER_CAPS.items);
   if (total > shownPeople)
     a.do.open = {
       to: "inbox",

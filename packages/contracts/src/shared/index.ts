@@ -2,7 +2,7 @@
  * The plumbing every domain uses: time and the clock, the three normalizers, what an id looks like, the small words,
  * HTML escaping, CSV, reading a value from outside, bytes and sums, the envelope and its errors, the closed sets.
  */
-export { ok, err } from "./envelope";
+export { ok, err, SERVED_AT_HEADER } from "./envelope";
 export type { Ok, Err, Envelope } from "./envelope";
 export { ERROR_CODES, AppError } from "./errors";
 export type { ErrorCode } from "./errors";

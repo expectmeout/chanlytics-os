@@ -335,9 +335,9 @@ test("a day with only steps due is not an empty queue; no step due draws nothing
   clear();
   const vm = handoffDay();
   vm.queue.rows = [];
-  vm.queue.waiting = 0;
+  vm.queue.windows = 0;
   // And the one count of what needs you (0048), which the head says: nobody is held for a person.
-  if (vm.needsYou) vm.needsYou = { ...vm.needsYou, count: 0, rows: [] };
+  if (vm.needsYou) vm.needsYou = { ...vm.needsYou, count: 0, holds: 0, sends: 0, rows: [] };
   vm.queue.parts = [];
   setSurfaceValue("today", vm);
   const tree = draw();

@@ -17,6 +17,7 @@ import {
   isPersonRow,
   namesAPerson,
   needsYouCount,
+  verbForRoute,
   type AppointmentWord,
   type TodayQueueRowVM,
   type TodayVM,
@@ -26,7 +27,7 @@ import { AttnRow } from "../../kit/attention/attn-row";
 import { Button } from "../../kit/button/button";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
-import { useNeedsYou } from "../../needs-you";
+import { needsYouOnToday, useNeedsYouParts } from "../../needs-you";
 import { businessTrailFor } from "../../people/business-trail";
 import { surfaceValue } from "../../surface-values";
 import { usePartShown } from "../../use-surface";
@@ -139,16 +140,26 @@ function personRows(rows: TodayQueueRowVM[], nav: Nav, acts: RowActs) {
   });
 }
 
+/** What the head says and where its door goes: the count, and each part said in its own words. */
+interface QueueHeadFacts {
+  count: number;
+  steps: number;
+  visits: number;
+  word: AppointmentWord;
+  /** Replies counting down to send, which have no row. */
+  sends: number;
+  /** Runs waiting for a word that can still send them, and runs too late to approve (which wait on nobody). */
+  runs: { waiting: number; late: number };
+  door: { to: string; label: string };
+}
+
 /**
- * The head: the title, what the rows hold in words (contracts', with the runs waiting), and the door to the Inbox. In
- * Glass the count stands before the title as its canvas draws it (E3), and the door carries its arrow.
+ * The head: the title, what the rows hold in words (contracts', with the replies on their way and the runs waiting), and
+ * the door to where what waits is: the Inbox, or the run or Sent when only runs wait (the wiring's second audit, S7-2). In
+ * Glass the count stands before the title as its canvas draws it (E3), and the door carries its arrow. "Nothing needs
+ * you" is said only under a count of none.
  */
-function queueHead(
-  vm: TodayVM,
-  runsCount: number,
-  nav: Nav,
-  head: { count: number; steps: number; visits: number; word: AppointmentWord },
-) {
+function queueHead(vm: TodayVM, nav: Nav, head: QueueHeadFacts) {
   return (
     <div className="tq-head">
       <span className="tq-num tabular" data-testid="today-queue-count">
@@ -158,23 +169,33 @@ function queueHead(
       <span className="tq-sub">
         {[
           ...vm.queue.parts,
+          TODAY_HELPERS.draftsSub(head.sends),
           head.steps > 0 ? TODAY_HELPERS.stepsSub(head.steps) : "",
           head.visits > 0 ? TODAY_HELPERS.visitsSub(head.visits, head.word) : "",
-          TODAY_HELPERS.runsSub(runsCount),
+          TODAY_HELPERS.runsSub(head.runs.waiting),
+          TODAY_HELPERS.lateRunsSub(head.runs.late),
         ]
           .filter(Boolean)
-          .join(" · ") || vm.queue.empty.sub}
+          .join(" · ") || (head.count === 0 ? vm.queue.empty.sub : "")}
       </span>
-      <button type="button" className="tq-open" onClick={() => nav("inbox")}>
-        Open Inbox
+      <button type="button" className="tq-open" onClick={() => nav(head.door.to)} data-testid="today-queue-door">
+        {head.door.label}
         <Icon name={doorGlyph()} size={11} />
       </button>
     </div>
   );
 }
 
-/** The rows, the runs, and what stands where they would be: a read that failed, or what an empty queue means. */
-function queueList(vm: TodayVM, drawn: ReactElement[], runs: ReactElement[], total: number) {
+/**
+ * The rows, the runs, and what stands where they would be: a read that failed, or what an empty queue means, said only
+ * when nothing waits either (a held send has no row, and "all caught up" was drawn under a count of one: S7-1).
+ */
+function queueList(
+  vm: TodayVM,
+  drawn: ReactElement[],
+  runs: ReactElement[],
+  { total, waiting }: { total: number; waiting: number },
+) {
   return (
     <div className="tq-list">
       {drawn}
@@ -192,7 +213,7 @@ function queueList(vm: TodayVM, drawn: ReactElement[], runs: ReactElement[], tot
       )}
       {/* What an empty queue means is a sentence about the wires, so contracts says it: a dark line, no line, a line
           the receptionist does not answer (email), or the receptionist holding the floor. */}
-      {total === 0 && (
+      {total === 0 && waiting === 0 && (
         <EmptyState
           kind="line"
           glyph={vm.queue.empty.glyph}
@@ -210,12 +231,15 @@ function queueList(vm: TodayVM, drawn: ReactElement[], runs: ReactElement[], tot
  * and says so when the card holds everything: the Inbox has nothing more that needs a person.
  */
 function queueFoot(
-  cut: { rows: number; runs: number; steps: number; visits: number },
+  cut: { rows: number; runs: number; steps: number; visits: number; sends: number },
   doors: { steps: string | null; visits: string | null; word: AppointmentWord },
   nav: Nav,
 ) {
+  // The replies counting down have no row on the card: the Inbox holds them, and the foot says so (S7-1).
+  const sends = TODAY_HELPERS.draftsSub(cut.sends);
   const parts = [
     cut.rows > 0 ? `${cut.rows} more in the Inbox` : "",
+    sends ? `${sends} in the Inbox` : "",
     cut.runs > 0 ? `${cut.runs} more run${cut.runs === 1 ? "" : "s"} in Campaigns` : "",
   ].filter(Boolean);
   // The steps cut are their own door, People's Steps due (the list the row for the rest opens), and the visits to mark that
@@ -254,8 +278,8 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
   // People too: a person's next step come due is a row (queue-steps.tsx), read from People's rows. The Calendar too: yesterday's
   // visits nobody has marked are rows (queue-visits.tsx), read from its blocks, which `useDayVm` hears as the day's card does.
   useMoved(["broadcasts", "people", "calendar"]);
-  // What needs you, as the badge says it: null until the Inbox has been read.
-  const published = useNeedsYou();
+  // What needs you, by its parts, as the badge counts them: null until the Inbox has been read (redrawn when a part moves).
+  const live = useNeedsYouParts();
   const [toastNode, ppFlash] = useToast();
   // The steps marked done here, gone from the card at once while People is read again behind the verb.
   const [done, setDone] = useState<readonly string[]>([]);
@@ -281,7 +305,7 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
   };
   // The run's seat, held only while a run wants it (CARD_MAX).
   const wants = runsPending();
-  const peopleRoom = wants.waiting.length + wants.soon.length > 0 ? PEOPLE_MAX : CARD_MAX;
+  const peopleRoom = wants.waiting.length + wants.late.length + wants.soon.length > 0 ? PEOPLE_MAX : CARD_MAX;
   const drawn = personRows(rows.slice(0, peopleRoom), nav, {
     kind: verbKind,
     done: (r) => stepDone(r, ppFlash, (noteId) => setDone((was) => [...was, noteId])),
@@ -293,6 +317,7 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
     count: runsCount,
     cut: runsCut,
   } = runRows(nav, ppFlash, verbKind, Math.max(0, CARD_MAX - drawn.length));
+  const parts = needsYouOnToday(vm, live);
   // What the card could not hold is counted, never dropped: the rows past the cap and the ones the view
   // model already counted for the Inbox are the same kind of thing to a reader. The PEOPLE among them, since the foot
   // names the Inbox: it said "28 more in the Inbox" counting four calls and a search that live elsewhere, and the
@@ -308,16 +333,33 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
   // a word, under a title that says "Need you"; a reply window closing, a search that stopped to ask, a call worth a listen,
   // a step due and a visit to mark are said in the sub-line beside it, each in its own words (the head counted the calls too,
   // so it read 24 over 19: the 2 Oct 2026 audit). Until the Inbox has been read, it is Today's own copy of the same threads
-  // (the headline's count, the wire rule) and the runs on this card.
-  const waiting = published ?? needsYouCount({ holds: vm.needsYou?.count ?? 0, sends: 0, runs: wants.waiting.length });
+  // (the brief's holds and sends) and the runs on this card (needsYouOnToday).
+  const waiting = needsYouCount(parts);
+  // Where the door goes: the Inbox while a person waits, else the run (one) or Sent (several) when only runs wait.
+  const [onlyRun] = wants.waiting;
+  const doorTo =
+    parts.holds + parts.sends === 0 && parts.runs > 0
+      ? wants.waiting.length === 1 && onlyRun
+        ? `broadcasts/run:${onlyRun.id}`
+        : "broadcasts"
+      : "inbox";
+  const door = { to: doorTo, label: doorTo === "inbox" ? "Open Inbox" : (verbForRoute(doorTo) ?? "Open Sent") };
   return (
     <section className="tq today-queue" data-testid="today-queue">
       {/* No count over the rows: the sentence says what they hold, and the rows are right under it. */}
-      {queueHead(vm, runsCount, nav, { count: waiting, steps: left.due, visits: toMark.due, word })}
+      {queueHead(vm, nav, {
+        count: waiting,
+        steps: left.due,
+        visits: toMark.due,
+        word,
+        sends: parts.sends,
+        runs: { waiting: wants.waiting.length, late: wants.late.length },
+        door,
+      })}
       <LiveRail nav={nav} />
-      {queueList(vm, drawn, runs, total)}
+      {queueList(vm, drawn, runs, { total, waiting })}
       {queueFoot(
-        { rows: rowsCut, runs: runsCut, steps: left.cut, visits: toMark.cut },
+        { rows: rowsCut, runs: runsCut, steps: left.cut, visits: toMark.cut, sends: parts.sends },
         { steps: steps ? steps.to : null, visits: visits ? visits.to : null, word },
         nav,
       )}

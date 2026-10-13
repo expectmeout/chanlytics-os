@@ -34,6 +34,7 @@ export {
   businessPageMetadata,
   textingTermsMetadata,
   registrationPreflight,
+  publishesBusinessPage,
   SMS_CLAUSES,
 } from "./business-page";
 export type {
@@ -77,6 +78,19 @@ export {
   ABOUT_MAX,
 } from "./business-record";
 export type { BusinessRecordDto, BusinessFieldVM, RecordCheckFacts } from "./business-record";
+export {
+  isPublishedFact,
+  changedRecordFields,
+  publicPagePath,
+  recordFilingOf,
+  recordSavedOf,
+  recordSavedWords,
+  RECORD_REVIEW_CONFIRM,
+  PUBLIC_FIELD_MARK,
+  BUSINESS_PAGE_NOTE,
+  SERVICES_ON_PUBLIC_PAGE,
+} from "./published-facts";
+export type { BusinessRecordColumn, PublishedRecordColumn, RecordFiling, RecordSavedDto } from "./published-facts";
 export {
   lineReleaseAfterDays,
   billingEndedAt,

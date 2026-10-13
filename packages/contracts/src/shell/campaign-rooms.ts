@@ -184,6 +184,14 @@ export function runStoppedWords(was: string | null | undefined): string {
 export const RUN_WAITING_WORDS = "Waiting for your approval";
 
 /**
+ * How many campaign runs wait for your approval, as a sentence: what Today's calm head leads with and the Inbox's
+ * Needs-you band says, and what Ask's Right now says in its run clause, so a run waiting is said in one set of words.
+ */
+export function runsWaitingSentence(n: number): string {
+  return n === 1 ? "A campaign run is waiting for your approval." : `${n} campaign runs are waiting for your approval.`;
+}
+
+/**
  * What each stop of a run asks and promises, by the run's state: stopping a send, skipping a run nobody approved and
  * canceling one still to come are three acts and none of them is one click (the audit's D13). Sent's run and its sheet draw
  * them, and Today's queue draws the one for a run still to come, which was a "Stop" at one tap while Sent asked

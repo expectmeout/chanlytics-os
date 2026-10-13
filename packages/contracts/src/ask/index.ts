@@ -76,14 +76,14 @@ export type { AskCitationKind, AskCitation, AskReadSet, AskRowRef } from "./cita
 export { cacheHitOf } from "./ask-shape";
 export type { AskTurnShape, AskTurnTokens } from "./ask-shape";
 export { askModelProfile, ASK_EFFORT, ASK_MODEL } from "./ask-model";
+export { rightNowLine, rightNowCounts } from "./ask-waiting";
+export type { AskWaiting } from "./ask-waiting";
 export type { AskModelProfile } from "./ask-model";
 export {
   answerText,
   cardOpenRoute,
   oneDoor,
   answerFromV1,
-  rightNowLine,
-  rightNowCounts,
   needsAnswer,
   callsAnswer,
   openingsAnswer,
@@ -105,7 +105,6 @@ export type {
   AskBreakdown,
   AskOpen,
   AskAnswer,
-  AskWaiting,
   AskOpeningsView,
   AskSourceRef,
   AskAnswerRead,

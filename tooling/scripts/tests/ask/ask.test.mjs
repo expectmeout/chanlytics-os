@@ -804,7 +804,7 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
   assert.ok(idx.some((j) => j.to === "conversations/cv-k1" && j.sub === "missed"));
   assert.equal(
     api.rightNow("en"),
-    "Nora needs you; one campaign run is waiting for your approval.",
+    "Nora needs you; a campaign run is waiting for your approval.",
     "the queue's people (a call worth a listen is nobody waiting) and the run waiting for a yes",
   );
   assert.deepEqual(api.waiting().people, [
@@ -827,9 +827,11 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
   win.__BROADCASTS.rows[0].audience = null;
   assert.equal(api.waiting().runs[0].label, "Campaign");
   win.__BROADCASTS.rows[0].audience = named;
-  win.TODAY_DATA.queue.waiting = 9;
-  assert.equal(api.waiting().more, 8, "the people waiting past the rows the queue draws (queue.waiting)");
-  delete win.TODAY_DATA.queue.waiting;
+  // How many more wait past the rows is the one count's threads (Today's own copy until the Inbox is read), not a sum of rows.
+  const counted = win.TODAY_DATA.needsYou;
+  win.TODAY_DATA.needsYou = { ...(counted ?? { hint: "", rows: [], empty: null }), count: 9, holds: 9, sends: 0 };
+  assert.equal(api.waiting().more, 8, "the people waiting past the rows the queue draws (the one count's threads)");
+  win.TODAY_DATA.needsYou = counted;
   assert.deepEqual(api.intent("who needs me?"), { kind: "needs" });
   const needs = await api.quick("who needs me?");
   assert.deepEqual(

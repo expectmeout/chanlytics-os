@@ -44,7 +44,7 @@ import {
 } from "@chanlytics/contracts";
 import { LOW_VOLUME_USECASE } from "@chanlytics/channels";
 import { fakeDb } from "../_fake-db.mjs";
-import { withoutRequestId } from "../_log-lines.mjs";
+import { fieldsOf, logLineOf, withoutRequestId } from "../_log-lines.mjs";
 
 // Each test file is its own process, so this is the whole environment. Every
 // variable is declared in apps/edge/.env.example except VERCEL_ENV, which the
@@ -2042,7 +2042,8 @@ test("lines: a line 'setting up' past its deadline is taken and resumed by sched
   const bell = tables.notifications[0];
   assert.deepEqual(
     [bell.tenant_id, bell.kind, bell.route, bell.subject_type, bell.subject_id],
-    [T, "alert", "admin/setup", "line", worn],
+    // The first run's page (contracts FIRST_RUN_ROUTE), where the retired admin/setup moved.
+    [T, "alert", "start", "line", worn],
   );
   assert.equal(bell.title, "Your phone line hit a snag — a person at Chanlytics has it");
   assert.equal(
@@ -3018,6 +3019,8 @@ test("registrations: once the carriers approve the brand, the campaign they were
     tenants: [tenantRow(T)],
     lines: [waiting(T, id)],
     business_records: [{ tenant_id: T, ...RECORD }],
+    // A plan that may spend on texting (the sweep asks the owner's own rules before it files: X4-8).
+    billing_accounts: [{ tenant_id: T, mode: "stripe", status: "active" }],
     notifications: [],
     events: [],
   };
@@ -3107,6 +3110,8 @@ test("registrations: once the carriers approve the brand, the campaign they were
     tenants: [tenantRow(T)],
     lines: [waiting(T, uuid(421))],
     business_records: [{ tenant_id: T, ...RECORD }],
+    // A plan that may spend on texting (the sweep asks the owner's own rules before it files: X4-8).
+    billing_accounts: [{ tenant_id: T, mode: "stripe", status: "active" }],
     notifications: [],
     events: [],
   };
@@ -3129,4 +3134,77 @@ test("registrations: once the carriers approve the brand, the campaign they were
     ["approved", null],
     "the wait is recorded honestly; the next tick with the profile files it",
   );
+});
+
+test("registrations: the campaign an approved brand was holding is not filed for a workspace that has paused or ended since, or whose plan may not spend on texting: it waits, said in the log, and is filed once the workspace may (the wiring's second audit, X4-8)", async () => {
+  for (const [n, over, why] of [
+    [0, { tenant: { status: "paused" }, bill: { status: "active" } }, "paused"],
+    [1, { tenant: { left_empty_at: ago(DAY) }, bill: { status: "active" } }, "ended"],
+    [2, { bill: { status: "canceled" } }, "paused"],
+    [3, { bill: { status: "trialing" } }, "payment_required"],
+    [4, { bill: null }, "no_billing_record"],
+  ]) {
+    const T = tenant(430 + n);
+    const id = uuid(4300 + n);
+    const tables = {
+      tenants: [tenantRow(T, over.tenant ?? {})],
+      lines: [waiting(T, id)],
+      business_records: [{ tenant_id: T, ...RECORD }],
+      billing_accounts: over.bill ? [{ tenant_id: T, mode: "stripe", ...over.bill }] : [],
+      notifications: [],
+      events: [],
+    };
+    use(tables, VAULT);
+    const carrier = wired((req) => {
+      if (req.url.endsWith("/BrandRegistrations/BN0001")) return { status: 200, body: { status: "APPROVED" } };
+      if (req.method === "GET" && req.url.endsWith("/Compliance/Usa2p"))
+        return { status: 200, body: { compliance: [], meta: {} } };
+      throw new Error(`nothing may be filed (${why}): ${req.method} ${req.url}`);
+    });
+    // The sweep's own lines, read back: the hold is said in the log with its reason, and counted (the operator's signal).
+    const said = [];
+    const wasLog = console.log;
+    console.log = (...args) => {
+      const line = logLineOf(args);
+      if (line) said.push(line);
+      else wasLog(...args);
+    };
+    try {
+      await withEnv(FILING, async () => {
+        assert.deepEqual(
+          await answer(await knock("registrations")),
+          [200, { ok: true, checked: 1, campaigns_filed: 0, states_moved: 1, unreadable: 0 }],
+          why,
+        );
+      });
+    } finally {
+      console.log = wasLog;
+    }
+    assert.deepEqual(
+      said.filter((l) => l.event === "registration_filing_held").map((l) => [fieldsOf(l).tenant_id, fieldsOf(l).why]),
+      [[T, why]],
+      why,
+    );
+    assert.equal(said.find((l) => l.event === "registration_sweep")?.campaigns_held, 1, `${why}: counted`);
+    assert.equal(carrier.calls.filter((c) => c.method === "POST").length, 0, `${why}: nothing filed, nothing spent`);
+    assert.deepEqual([tables.lines[0].sms_state, tables.lines[0].campaign_sid], ["approved", null], why);
+
+    // The workspace runs again on a plan that may spend: the next tick files it.
+    if (n === 0) {
+      tables.tenants[0].status = "active";
+      const filing = wired((req) => {
+        if (req.url.endsWith("/BrandRegistrations/BN0001")) return { status: 200, body: { status: "APPROVED" } };
+        if (req.method === "GET" && req.url.endsWith("/Compliance/Usa2p"))
+          return { status: 200, body: { compliance: [], meta: {} } };
+        if (req.method === "POST" && req.url.endsWith("/Compliance/Usa2p"))
+          return { status: 201, body: { sid: "QE0010", campaign_status: "PENDING" } };
+        throw new Error(`unexpected ${req.method} ${req.url}`);
+      });
+      await withEnv(FILING, async () => {
+        const [, body] = await answer(await knock("registrations"));
+        assert.equal(body.campaigns_filed, 1, "open again: filed");
+      });
+      assert.equal(filing.calls.filter((c) => c.method === "POST").length, 1);
+    }
+  }
 });

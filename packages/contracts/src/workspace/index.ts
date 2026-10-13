@@ -99,6 +99,9 @@ export {
   billingDoorOpen,
   maySpend,
   mayUseModels,
+  openToCustomersOf,
+  takesSignUps,
+  hasPublicPages,
   whyCannotSpend,
   tenantStatusFor,
   planBilling,
@@ -130,6 +133,7 @@ export {
   CHECKOUT_OUTCOME_WORDS,
 } from "./billing";
 export type {
+  OpenToCustomers,
   BillingMode,
   BillingStatus,
   BillingAccountDto,

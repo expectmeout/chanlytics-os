@@ -47,11 +47,15 @@ import {
   holdMarksOf,
   keptUnreadOf,
   nameKnownCustomers,
+  bellOlderOf,
   serverNotificationRows,
+  settledNoticeIds,
   unreadCount,
+  type RunDays,
 } from "@chanlytics/contracts";
 import { surfaceValue } from "../surfaces/surface-values";
-import { api as client } from "./api";
+import { approvalDaysNow } from "../surfaces/campaigns/broadcasts/when-words";
+import { api as client, serversClockOf } from "./api";
 import type { Input } from "../client/api";
 import { onSurfaceMoved } from "./surface-status";
 import { getActiveWorkspace, goToRoute } from "./workspace";
@@ -66,10 +70,12 @@ export const FEED_EVENTS = [
 
 /**
  * The surfaces that say whether a kept row's subject still waits (whatWaits): the runs in Sent, the booking emails the Calendar
- * holds, the reviews Google's read holds. The bell is drawn again when one of them moves, as when its own pages do; they alert no
- * one (the rows' own kinds do), so they are heard as surfaces moving and not as feed events.
+ * holds, the reviews Google's read holds, the searches Leads holds. The bell is drawn again when one of them moves, as when its
+ * own pages do; they alert no one (the rows' own kinds do), so they are heard as surfaces moving and not as feed events. The
+ * Inbox's threads say whether a hold still waits too, and are heard already (FEED_EVENTS' surface:inbox): listed here they
+ * would draw the bell twice per Inbox read.
  */
-const WAITS_SURFACES = ["broadcasts", "calendar", "google"] as const;
+const WAITS_SURFACES = ["broadcasts", "calendar", "google", "leads"] as const;
 
 interface StorageLike {
   getItem(key: string): string | null;
@@ -102,34 +108,91 @@ export interface BellRow {
   actions: Array<{ label: string; to: string; primary: boolean }>;
 }
 
+/** The runs Sent holds, with what the verb asks of each and the emails the check holds in a going reach-out run. */
+function runsHeld(): WhatWaits["runs"] {
+  const sent = surfaceValue("broadcasts");
+  if (!sent || !Array.isArray(sent.rows)) return null;
+  return {
+    readAt: serversClockOf(sent.fetchedAt),
+    held: new Map(
+      sent.rows.map((r) => [
+        r.id,
+        {
+          state: r.state,
+          playbook_id: r.playbook_id,
+          run_for: r.run_for,
+          audience: r.audience,
+          held: typeof r.held === "number" ? r.held : null,
+        },
+      ]),
+    ),
+  };
+}
+
+/** The business's days a waiting run is judged by: asked only over runs to judge, and none where the clock cannot say. */
+function runDays(runs: WhatWaits["runs"]): RunDays | null {
+  if (!runs || !runs.held.size) return null;
+  try {
+    return approvalDaysNow();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The threads the Inbox holds, by conversation id, and whether each needs you now: only from a read that took every hold that
+ * waits on a person with its thread (holdsWhole), since a hold the read did not take would read as no longer waiting.
+ */
+function holdsHeld(): WhatWaits["holds"] {
+  const inbox = surfaceValue("inbox");
+  if (!inbox || typeof inbox.readAt !== "number" || inbox.holdsWhole !== true || !Array.isArray(inbox.THREADS))
+    return null;
+  return {
+    readAt: serversClockOf(inbox.readAt),
+    held: new Map(inbox.THREADS.flatMap((t) => (t.real ? [[t.conversationId, !!t.needsYou] as const] : []))),
+  };
+}
+
+/** The searches Leads holds, by id, with their newest round's id and state, from when the read was asked. */
+function searchesHeld(): WhatWaits["searches"] {
+  const leads = surfaceValue("leads");
+  if (!leads || typeof leads.readAt !== "number" || !Array.isArray(leads.searches)) return null;
+  return {
+    readAt: serversClockOf(leads.readAt),
+    held: new Map(leads.searches.map((s) => [s.id, { roundId: s.round?.id ?? null, state: s.round?.state ?? null }])),
+  };
+}
+
 /**
  * What the surfaces this tab holds say still waits on the owner (contracts notice-closes.ts): the runs Sent holds, the booking emails
- * the Calendar's read holds, the reviews Google's read holds, each with when it was read, and none before it is. A booking email list
- * the card cut at its twenty (or never listed) is not the whole of them, and settles nothing; nor does one from a server that did not
- * say each email's delivery, which is what the bell's row is about (the row's own id is the card's).
+ * the Calendar's read holds, the reviews Google's read holds, the threads the Inbox holds and the searches Leads holds, each with
+ * when it was read, and none before it is. A booking email list the card cut at its twenty (or never listed) is not the whole of
+ * them, and settles nothing; nor does one from a server that did not say each email's delivery, which is what the bell's row is
+ * about (the row's own id is the card's). Each read's moment is this browser's, and a kept row's is the database's: the read is
+ * put on the servers' clock first (serversClockOf), so a fast clock does not judge a new row by a read that never saw it.
  */
 function whatWaits(): WhatWaits {
   // A value the tab kept from an earlier visit may predate a field: each is read only as the shape it is known to have.
-  const sent = surfaceValue("broadcasts");
   const calendar = surfaceValue("calendar");
   const list = calendar?.vm?.feed?.notices?.heldList;
   const google = surfaceValue("google");
+  const runs = runsHeld();
   return {
-    runs:
-      sent && Array.isArray(sent.rows)
-        ? { readAt: sent.fetchedAt, held: new Map(sent.rows.map((r) => [r.id, r.state])) }
-        : null,
+    runs,
+    days: runDays(runs),
+    holds: holdsHeld(),
+    searches: searchesHeld(),
     heldEmails:
       calendar &&
       Array.isArray(list) &&
       list.length >= (calendar.vm.feed.notices.held ?? 0) &&
       list.every((h) => typeof h.noticeId === "string")
-        ? { readAt: calendar.fetchedAt, held: new Set(list.flatMap((h) => [h.id, h.noticeId ?? h.id])) }
+        ? { readAt: serversClockOf(calendar.fetchedAt), held: new Set(list.flatMap((h) => [h.id, h.noticeId ?? h.id])) }
         : null,
     reviews:
       google && Array.isArray(google.dto?.reviews)
         ? {
-            readAt: google.fetchedAt,
+            readAt: serversClockOf(google.fetchedAt),
             held: google.dto.reviews.map((r) => ({ id: r.id, reviewId: r.review_id, replied: !!r.reply_text })),
           }
         : null,
@@ -200,7 +263,10 @@ export function toRows(rows: NotificationRow[], now: number): BellRow[] {
 export interface BellApi {
   /** The rows as this device sees them, now. */
   feed(): BellRow[];
+  /** The bell's number: the rows' unread and the older unread rows it does not list (older). */
   unread(): number;
+  /** The unread kept rows the bell does not list (older than its newest BELL_LIST_ROWS). */
+  older(): number;
   /** The kept rows' unread count alone, by the rule the edge counts a push's badge by (contracts unreadFor): the phone app's icon. */
   keptUnread(): number;
   seenAll(): void;
@@ -231,6 +297,36 @@ function serverIdsOf(key: string, dto: NotificationsDto | null | undefined): str
     : holdMarksOf(key, dto).map((n) => n.id);
 }
 
+/** The phone app's icon: the kept rows' unread, less the ones the surfaces settle now (contracts settledNoticeIds). */
+const keptUnreadIn = (win: Window & Globals, seenMs: number): number =>
+  keptUnreadOf(win.__NOTIFICATIONS?.dto, seenMs, settledNoticeIds(win.__NOTIFICATIONS?.dto, whatWaits()));
+
+/**
+ * Device alerts asked for: on, by the browser's own permission (asked once, where it is not yet decided), or off. The
+ * device's answer is kept (`save`).
+ */
+async function askAlerts(
+  win: Window,
+  on: boolean,
+  save: (patch: Partial<NotificationReadState>) => void,
+): Promise<{ on: boolean; permission: string }> {
+  const N = notificationOf(win);
+  if (!on || !N) {
+    save({ alerts: false });
+    return { on: false, permission: N ? N.permission : "unsupported" };
+  }
+  let permission = N.permission;
+  if (permission === "default") {
+    try {
+      permission = await N.requestPermission();
+    } catch {
+      permission = "denied";
+    }
+  }
+  save({ alerts: permission === "granted" });
+  return { on: permission === "granted", permission };
+}
+
 /**
  * Install the bell. `win` and `storage` are injectable so the rule can be
  * executed in a test without a browser.
@@ -252,6 +348,8 @@ export function installNotifications(
    * read on one the badge is the same number on both.
    */
   const seenAt = () => Math.max(state().seenAt, Date.parse(win.__NOTIFICATIONS?.dto?.seen_at ?? "") || 0);
+  // The unread kept rows the bell does not list, less the holds it draws itself (contracts bellOlderOf; S6-10).
+  const older = () => bellOlderOf(win.__NOTIFICATIONS?.dto, seenAt(), rows());
   const deviceState = (): NotificationReadState => ({ ...state(), seenAt: seenAt() });
   /**
    * Marks for rows that have left the feed go, once the source that would
@@ -345,12 +443,13 @@ export function installNotifications(
 
   const api: BellApi = {
     feed: () => toRows(rows(), Date.now()),
-    unread: () => unreadCount(rows()),
+    unread: () => unreadCount(rows()) + older(),
+    older,
     seenAll: () => {
       save({ seenAt: Date.now() });
       void mark({ seen: true });
     },
-    keptUnread: () => keptUnreadOf(win.__NOTIFICATIONS?.dto, seenAt()),
+    keptUnread: () => keptUnreadIn(win, seenAt()),
     read: (key) => {
       if (!markOnServer(key, { read: true })) save({ read: [...new Set([...state().read, key])] });
     },
@@ -368,23 +467,7 @@ export function installNotifications(
         permission: N ? N.permission : "unsupported",
       };
     },
-    setAlerts: async (on) => {
-      const N = notificationOf(win);
-      if (!on || !N) {
-        save({ alerts: false });
-        return { on: false, permission: N ? N.permission : "unsupported" };
-      }
-      let permission = N.permission;
-      if (permission === "default") {
-        try {
-          permission = await N.requestPermission();
-        } catch {
-          permission = "denied";
-        }
-      }
-      save({ alerts: permission === "granted" });
-      return { on: permission === "granted", permission };
-    },
+    setAlerts: (on) => askAlerts(win, on, save),
     readWhere: (match) => {
       for (const n of win.__NOTIFICATIONS?.dto?.notifications ?? []) {
         if (n.read || n.dismissed || !n.subject_type || !n.subject_id) continue;
@@ -396,7 +479,7 @@ export function installNotifications(
       listeners.add(cb);
       return () => listeners.delete(cb);
     },
-    sections: (list) => bellSections(list),
+    sections: (list) => bellSections(list, older()),
   };
   (win as unknown as { __notifs?: BellApi }).__notifs = api;
   installed = api;

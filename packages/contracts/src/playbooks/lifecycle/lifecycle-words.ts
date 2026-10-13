@@ -380,6 +380,8 @@ export const LIFECYCLE_WORDS = {
     nobody: "Nobody",
     /** A run waiting for the owner, in the run's one phrase (broadcasts.ts BROADCAST_STATE_LABELS reads it too). */
     waiting: RUN_WAITING_WORDS,
+    /** A reach-out's going run whose emails the check holds for the owner's say. */
+    held: (n: number): string => `${plural(n, "email", "emails")} ${n === 1 ? "waits" : "wait"} for your say`,
     /**
      * A run waiting on the person, approved or skipped on its own line: the two acts, and what Skip asks. What the line
      * says of the run is Today's own sentence for it (today-runs.ts todayRunWords: "7 people. Nothing sends until you

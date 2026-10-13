@@ -50,7 +50,29 @@ test("the standing sentence counts what waits on you and names the oldest's hour
 test("a draft counting down waits on you, and the sentence says it is on its way in place of the oldest", () => {
   const threads = [waiting("a", 96), waiting("b", 42), sending("c"), handled("e")];
   assert.equal(inboxStanding(threads, NOW, ZONE), "3 need you · 1 draft on its way");
-  assert.equal(inboxStanding([sending("c"), sending("d")], NOW, ZONE), "2 need you · 2 drafts on its way");
+  assert.equal(
+    inboxStanding([sending("c"), sending("d")], NOW, ZONE),
+    "2 need you · 2 drafts on their way",
+    "Today's words for them (contracts todayDraftsSub), in the plural",
+  );
+});
+
+test("the head says the badge's other parts: a hold whose thread was not read needs you, and a run waiting is said after (S7-2)", () => {
+  assert.equal(
+    inboxStanding([], NOW, ZONE, { runs: 1, unreadHolds: 0 }),
+    "No customer needs you · 1 run waiting",
+    "REGRESSION: the head said 'Nothing needs you' under a badge of one, a campaign run waiting for a yes",
+  );
+  assert.equal(inboxStanding([], NOW, ZONE, { runs: 0, unreadHolds: 2 }), "2 need you");
+  assert.equal(
+    inboxStanding([waiting("a", 96)], NOW, ZONE, { runs: 2, unreadHolds: 1 }),
+    "2 need you · the oldest since 2:26 PM · 2 runs waiting",
+  );
+  assert.equal(
+    inboxStanding([sending("c")], NOW, ZONE, { runs: 1, unreadHolds: 0 }),
+    "1 need you · 1 draft on its way · 1 run waiting",
+  );
+  assert.equal(inboxStanding([], NOW, ZONE, { runs: 0, unreadHolds: 0 }), "Nothing needs you");
 });
 
 test("nothing waiting is said plainly, and a thread with no wait yet says no hour", () => {

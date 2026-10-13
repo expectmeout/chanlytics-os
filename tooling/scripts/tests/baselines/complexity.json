@@ -9,18 +9,13 @@
     "branches": 1,
     "depth": 0
   },
-  "apps/dashboard/app/yes/[slug]/page.tsx::ConsentPage#1": {
-    "lines": 155,
-    "branches": 13,
-    "depth": 1
-  },
   "apps/dashboard/src/legacy-bridge/LegacyApp.tsx::LegacyApp#1": {
     "lines": 154,
     "branches": 11,
     "depth": 1
   },
   "apps/dashboard/src/legacy-bridge/notifications.ts::installNotifications#1": {
-    "lines": 167,
+    "lines": 154,
     "branches": 4,
     "depth": 1
   },

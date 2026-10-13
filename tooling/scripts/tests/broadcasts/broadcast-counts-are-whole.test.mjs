@@ -459,11 +459,17 @@ const wire = ({
   lists = [],
   templates = { templates: [] },
   settings = {},
+  channels = [],
+  open,
 } = {}) => {
   const offsets = [];
   globalThis.window.fetch = async (url) => {
     const u = new URL(String(url), "https://app.chanlytics.com");
-    if (u.pathname === "/api/v1/broadcasts") return json(200, { ok: true, data: { broadcasts: [], more } });
+    if (u.pathname === "/api/v1/broadcasts")
+      return json(200, {
+        ok: true,
+        data: { broadcasts: [], more, ...(open === undefined ? {} : { open_to_customers: open }) },
+      });
     if (u.pathname === "/api/v1/contacts") {
       const offset = Number(u.searchParams.get("offset") || 0);
       offsets.push(offset);
@@ -478,7 +484,7 @@ const wire = ({
     }
     if (u.pathname === "/api/v1/segments") return json(200, { ok: true, data: { lists } });
     if (u.pathname === "/api/v1/templates") return json(200, { ok: true, data: templates });
-    if (u.pathname === "/api/v1/channels") return json(200, { ok: true, data: { channels: [] } });
+    if (u.pathname === "/api/v1/channels") return json(200, { ok: true, data: { channels } });
     if (u.pathname === "/api/v1/settings")
       return json(200, { ok: true, data: { config: { brain: {} }, version: 1, ...settings } });
     return json(404, { ok: false, error: { code: "not_found", message: `no ${u.pathname}` } });
@@ -512,6 +518,25 @@ test("the surface says whether the workspace's Google listing keeps a review lin
     wire({ settings });
     await broadcastsOverride.apply();
     assert.equal(surfaceValue("broadcasts").reviewLink, said, JSON.stringify(settings));
+  }
+});
+
+test("the card that gets a yes offers the code only while the workspace is open to its customers: none while it is paused or ended, and an older server's answer keeps it (the wiring's second audit, X4-1)", async () => {
+  const { optInLink } = await import("@chanlytics/contracts");
+  const channels = [{ id: "c-wa", kind: "whatsapp", status: "active", number_e164: "+13055550100" }];
+  for (const [open, link] of [
+    ["open", true],
+    ["paused", false],
+    ["ended", false],
+    [undefined, true],
+  ]) {
+    wire({ channels, open });
+    await broadcastsOverride.apply();
+    const optIn = surfaceValue("broadcasts").optIn;
+    assert.equal(optIn.link, link ? optInLink("+13055550100") : null, String(open));
+    assert.equal(!!optIn.qrPath, link, String(open));
+    assert.equal(optIn.open, open ?? null);
+    assert.equal(optIn.pageUrl, `${globalThis.window.location.origin}/yes/salon`, "the page is named either way");
   }
 });
 

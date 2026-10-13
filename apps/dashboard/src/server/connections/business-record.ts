@@ -6,32 +6,37 @@
 import {
   AppError,
   businessRecordProblems,
+  publicPagePath,
+  recordSavedOf,
   registrationPathOf,
   REGISTRATION_PATHS,
   type BusinessRecordDto,
   type RegistrationPath,
 } from "@chanlytics/contracts";
+import { businessOnRecordOf, workspacePublicSlug } from "@chanlytics/db";
 import { edgeLines } from "@/server/connections/lines";
 import { edgeRefusalWords } from "@/server/edge";
 import type { Member } from "@/server/route";
 import type { RouteContext } from "@/server/with-route";
 
 export async function readBusinessRecord(ctx: RouteContext, member: Member) {
-  const { data, error } = await ctx.supabase
-    .from("business_records")
-    .select("*")
-    .eq("tenant_id", member.tenantId)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
+  const [data, slug] = await Promise.all([
+    businessOnRecordOf(ctx.supabase, member.tenantId),
+    workspacePublicSlug(ctx.supabase, member.tenantId),
+  ]);
+  // Where the business's own page is, while the workspace has public pages (not a fixture, not ended): the form links to
+  // it once the record publishes it (contracts publishesBusinessPage; the wiring's second audit, X4-4).
+  const page = slug ? publicPagePath(slug) : null;
   // Null record AND null path: "nothing on file" is not "a business with no
   // tax id", and the page must not render either registration's form until it
   // has been told which one this is.
-  if (!data) return { record: null, path: null, problems: {} };
+  if (!data) return { record: null, path: null, problems: {}, page };
   const { tenant_id: _tenant, created_at: _created, ...record } = data;
   const path = registrationPathOf(record) ?? "standard";
   return {
     record,
     path,
+    page,
     problems: businessRecordProblems(record, path, {
       ourNumbers: await ourNumbers(ctx, member.tenantId),
     }),
@@ -89,5 +94,7 @@ export async function saveBusinessRecord(ctx: RouteContext, req: Request, member
   if (a.status === 503 && typeof b.error === "string" && b.error === "preview")
     throw new AppError("conflict", "Saving the business on record only works on the production dashboard.", 409);
   if (a.status !== 200) throw new AppError("internal", "The record could not be saved. Try again in a moment.", 502);
-  return { record: b.record ?? null };
+  // What the save moved and what the carriers hold of it, from the edge's answer: null from an edge deployed before it
+  // said (the wiring's second audit, X4-3).
+  return { record: b.record ?? null, saved: recordSavedOf(b.record) };
 }

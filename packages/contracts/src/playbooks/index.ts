@@ -69,6 +69,7 @@ export {
   reachLines,
   runDayPassed,
   runApprovalRefusal,
+  runDaysAt,
   waitingRunOffer,
   toApprovalVM,
 } from "./playbooks";
@@ -90,6 +91,7 @@ export {
   campaignEnded,
   effectiveMode,
   newCampaignTrialUntil,
+  sendingEndsAt,
   trialDayWords,
 } from "./playbook-schedule";
 export type { PlaybookPatch, PlaybookPatchKey } from "./playbook-patch";

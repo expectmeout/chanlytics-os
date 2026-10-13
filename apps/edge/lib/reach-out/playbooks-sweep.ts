@@ -28,6 +28,14 @@
  * something that can run is waiting for. Last, tellReachOutDays writes the day's line once per workspace, until
  * REACH_OUT_DAY_UNTIL_MS.
  *
+ * First of all, a missed day's run ends itself (endRunsWhoseDayPassed): a playbook's run still waiting for approval after
+ * the day it was made for can only be skipped (the approve verb refuses it, contracts runApprovalRefusal), so the sweep
+ * skips it through the cancel verb, as the system (a decision with no hand on it, reason `day_passed`), up to
+ * DAY_PASSED_BATCH a tick and until DAY_PASSED_UNTIL_MS. A paused or ended workspace's are skipped too: the day passed
+ * whatever the standing. Nothing is mailed or pushed: Sent shows the run canceled, the Activity log says the system
+ * skipped it, and its "is ready" line on the bell reads as read (contracts notice-closes.ts). A read that fails is logged
+ * (runs_day_passed_read_failed) and the moments still run (the wiring's second audit, S7-3).
+ *
  * `remaining` is what was due beyond the two pages plus the steps yielded before. noteBacklog (note_sweep_backlog,
  * 00089) counts the ticks in a row that left some; at BACKLOG_TICKS_BEFORE_ALARM the sweep still runs its page and
  * answers 503 (playbooks_backlog), which sweep_health() reads and the health sweep mails to the platform. Other
@@ -51,8 +59,15 @@ import { CONTEXT_PAUSED, loadTenantRunContext, runPlaybook, type PlaybookRow } f
 import { tellPlaybookFailed } from "./playbook-failed.js";
 import { runReachOutStep } from "./run-step.js";
 import { tellReachOutDays } from "./day-numbers.js";
-import { stampPlaybooksTried, stampReachOutStep } from "../packages/db.js";
-import { localDate, runDueNow, type PlaybookDto } from "../packages/contracts.js";
+import {
+  cancelBroadcastFrom,
+  recordSystemDecision,
+  stampPlaybooksTried,
+  stampReachOutStep,
+  waitingPlaybookRuns,
+} from "../packages/db.js";
+import { cancelBroadcast } from "../packages/core.js";
+import { AppError, localDate, runDaysAt, runDueNow, runTooLate, type PlaybookDto } from "../packages/contracts.js";
 import type { SweepTick } from "../ops/sweep-door.js";
 
 /**
@@ -68,8 +83,14 @@ export const REACH_OUT_YIELD_AT_MS = 40_000;
 /** When the day's reach-out lines at 6 PM stop being written for the tick: inside the function's sixty seconds. */
 const REACH_OUT_DAY_UNTIL_MS = 50_000;
 
+/** The runs waiting for approval read a tick, oldest day first: the rest are read on the hours after. */
+const DAY_PASSED_BATCH = 50;
+
+/** When the tick stops ending missed days' runs, so the moments keep their time: what is left ends next hour. */
+const DAY_PASSED_UNTIL_MS = 5_000;
+
 type SweepCounts = Record<
-  "tenants" | "due" | "sent" | "held" | "empty" | "off" | "failed" | "remaining" | "told",
+  "tenants" | "due" | "sent" | "held" | "empty" | "off" | "failed" | "remaining" | "told" | "ended",
   number
 >;
 
@@ -80,6 +101,48 @@ interface Tick {
   L: Logger;
   out: SweepCounts;
   started: number;
+}
+
+/**
+ * A missed day's run ends itself: each playbook's run still waiting for approval whose day has passed in its workspace's
+ * zone (contracts runTooLate, the approve verb's own rule, in the zone the verb reads) is skipped through the cancel
+ * verb, as the system. A run approved or skipped since the read is left as it is (the verb's conflict), quietly. Counted
+ * as `ended`.
+ */
+async function endRunsWhoseDayPassed(tick: Tick): Promise<void> {
+  const { db, now, L, out } = tick;
+  let runs: Awaited<ReturnType<typeof waitingPlaybookRuns>>;
+  try {
+    runs = await waitingPlaybookRuns(db, { limit: DAY_PASSED_BATCH });
+  } catch (e) {
+    L.error("runs_day_passed_read_failed", { error: e instanceof Error ? e.message : String(e) });
+    return;
+  }
+  for (const r of runs) {
+    if (Date.now() - tick.started > DAY_PASSED_UNTIL_MS) return;
+    if (!runTooLate(r, runDaysAt(r.timezone, now))) continue;
+    try {
+      await cancelBroadcast(
+        {
+          // A run waiting for approval never had a send job: nothing to withdraw.
+          withdraw: () => Promise.resolve(0),
+          cancel: (id, from) => cancelBroadcastFrom(db, { tenantId: r.tenant_id, id, from }),
+          record: (subjectType, subjectId, verb, payload) =>
+            recordSystemDecision(db, { tenantId: r.tenant_id, subjectType, subjectId, verb, payload }),
+        },
+        { row: { id: r.id, state: r.state, name: r.name }, reason: "day_passed" },
+      );
+      out.ended += 1;
+      L.info("run_day_passed_skipped", { tenant_id: r.tenant_id, broadcast_id: r.id, run_for: r.run_for });
+    } catch (e) {
+      if (e instanceof AppError && e.code === "conflict") continue;
+      L.error("run_day_passed_failed", {
+        tenant_id: r.tenant_id,
+        broadcast_id: r.id,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
 }
 
 /**
@@ -225,8 +288,10 @@ export async function sweepPlaybooks({ db, L, started }: SweepTick): Promise<Res
     failed: 0,
     remaining: page.remaining,
     told: 0,
+    ended: 0,
   };
   const tick: Tick = { db, now, L, out, started };
+  await endRunsWhoseDayPassed(tick);
   await runMoments(tick, page);
 
   const reach = await reachOutsDue(db, now, PLAYBOOKS_PER_TICK).catch((e: unknown): DuePage<DuePlaybook> => {

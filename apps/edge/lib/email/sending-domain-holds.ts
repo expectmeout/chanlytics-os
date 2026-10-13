@@ -16,7 +16,7 @@ import {
   type DomainCounts,
   type DomainHold,
 } from "../packages/contracts.js";
-import { notify } from "../ops/notify.js";
+import { mendWarnings, notify } from "../ops/notify.js";
 import { loadTenantNotifications } from "../tenant-runtime.js";
 import type { DomainJudgementChange, DomainPorts } from "./sending-domain-ports.js";
 
@@ -109,6 +109,14 @@ export async function sayDomainChange(
       row.id,
       data,
     );
+    // A hold that lifted itself (a check that reads right again) mends its warning (contracts NOTICE_MENDS).
+    if (judged.change !== "verified" && judged.change !== "held")
+      await mendWarnings(p.db, {
+        tenantId: row.tenant_id,
+        by: { change: "sending_domain.released" },
+        subject: { type: "sending_domain", id: row.id },
+        keptId: null,
+      });
     if (judged.change === "held" && judged.held_why === "provider")
       await p.page?.(
         "sending_domain_provider_lost",

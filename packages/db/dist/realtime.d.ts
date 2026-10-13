@@ -4210,6 +4210,7 @@ type Database = {
             notifications: {
                 Row: {
                     body: string;
+                    closed_at: string | null;
                     created_at: string;
                     id: string;
                     kind: string;
@@ -4224,6 +4225,7 @@ type Database = {
                 };
                 Insert: {
                     body: string;
+                    closed_at?: string | null;
                     created_at?: string;
                     id?: string;
                     kind: string;
@@ -4238,6 +4240,7 @@ type Database = {
                 };
                 Update: {
                     body?: string;
+                    closed_at?: string | null;
                     created_at?: string;
                     id?: string;
                     kind?: string;
@@ -7886,6 +7889,16 @@ type Database = {
                     p_read?: boolean;
                 };
                 Returns: Json;
+            };
+            notifications_close_about: {
+                Args: {
+                    p_kinds: string[];
+                    p_subject_id: string;
+                    p_subject_type: string;
+                    p_tenant_id: string;
+                    p_title?: string;
+                };
+                Returns: number;
             };
             notifications_seen: {
                 Args: {

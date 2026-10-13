@@ -18,7 +18,7 @@
  */
 import {
   MIN_MS,
-  doorOf,
+  canonicalRoute,
   movedAddress,
   routeOfAddress,
   routeOfHash,
@@ -224,8 +224,11 @@ export function onRouteAsked(fn: ((route: string) => void) | null): void {
  * there, so that is a pushed or replaced entry like any other, with no request for a page that is drawn.
  */
 export function goToRoute(asked: string, opts: GoOptions = {}, win: AddressWindow = window): void {
-  // A route that retired lands on the one that replaced it (`outbound/pb-1` on `campaigns/moment:pb-1`) in one move.
-  const route = doorOf(asked) ?? asked;
+  // A route as one place is spelled once (contracts canonicalRoute): the product's word is the shell's name (a mail link's
+  // `people/c1` is `clients/c1`), and a route that retired lands on the one that replaced it (`outbound/pb-1` on
+  // `campaigns/moment:pb-1`), in one move. The tables a move is judged by (a page of its own, the page on screen) are
+  // keyed by the shell's names, so a product word left the address moved and the page as it was (S5-4, S8-1).
+  const route = canonicalRoute(asked);
   // A move is timed from its ask, and a page with a page of its own is drawn only once the router has fetched it.
   routeAsked?.(route);
   const to = hrefOfRoute(route, win);
@@ -256,7 +259,7 @@ export function goToRoute(asked: string, opts: GoOptions = {}, win: AddressWindo
  * server (decision 0053, step 5).
  */
 export function warmRoute(asked: string, win: AddressWindow = window): void {
-  const route = doorOf(asked) ?? asked;
+  const route = canonicalRoute(asked);
   if (!appRouter?.prefetch || !routeHasPage(route)) return;
   const to = hrefOfRoute(route, win);
   if (to.startsWith("#") || onOnePage(routeOnScreen(win), route)) return;
@@ -306,7 +309,7 @@ export function warmSoon(routes: readonly string[], win: AddressWindow = window)
     typeof requestIdleCallback === "function"
       ? requestIdleCallback(fn, { timeout: WARM_IDLE_MS })
       : setTimeout(fn, WARM_FALLBACK_MS);
-  const elsewhere = routes.filter((route) => !onOnePage(askedFrom, doorOf(route) ?? route));
+  const elsewhere = routes.filter((route) => !onOnePage(askedFrom, canonicalRoute(route)));
   elsewhere.forEach((route, at) => later(() => void setTimeout(() => warmRoute(route, win), WARM_GAP_MS * at)));
 }
 
@@ -339,7 +342,7 @@ function warmKept(win: AddressWindow): void {
 /** Keep routes warm: warmed as warmSoon warms them, and again as the tab comes back or is used after Next let them go. */
 export function keepWarm(routes: readonly string[], win: AddressWindow = window): void {
   if (!warmsOnItsOwn()) return;
-  for (const route of routes) keptWarm.add(doorOf(route) ?? route);
+  for (const route of routes) keptWarm.add(canonicalRoute(route));
   if (hearsTheScreen !== win && typeof document !== "undefined") {
     hearsTheScreen = win;
     document.addEventListener("visibilitychange", () => {
@@ -369,7 +372,7 @@ export function onRouteReachedFor(fn: ((route: string) => void) | null): void {
 /** A page reached for, said by whatever stands at its door: its page warmed, and what it reads only when drawn begun. */
 export function reachFor(route: string, win: AddressWindow = window): void {
   warmRoute(route, win);
-  reachedFor?.(doorOf(route) ?? route);
+  reachedFor?.(canonicalRoute(route));
 }
 
 /** The four of them on `window.__shell`, for the pages that cannot import (shell.ts installShell). */

@@ -19,7 +19,10 @@ import type { CallDto } from "../conversations/call-dto";
 import type { EscalationDto } from "../conversations/escalations";
 import type { ConversationDto } from "../conversations/thread-dto";
 import type { LeadSearchDto } from "../leads/leads";
+import { runDaysAt } from "../playbooks/playbook-approval";
+import { runsThatWait, type WaitingRun } from "../waits/waits";
 import {
+  standingWithRuns,
   todayAskFacts,
   todayAlsoWaiting,
   todayHeadline,
@@ -42,9 +45,22 @@ import {
   todayReceipts,
   todayWindowClosing,
 } from "./today-rows";
-import type { TodayVM } from "./today-vm";
+import type { TodayCalmVM, TodayVM } from "./today-vm";
 
 /* ------------------------------ the brief ---------------------------------- */
+
+/** A quiet day's calm words: nothing else waits and nothing came in, so only a run waiting changes its head. */
+const QUIET_CALM: TodayCalmVM = { also: [], traffic: null, handledAll: true, answered: null };
+
+/**
+ * What the brief may be handed beside its reads: the campaign runs that may wait for your word (GET broadcasts' rows, or
+ * the waiting runs a server reads), and the threads of open holds past the newest page, read by their ids. Optional, as
+ * `searches` is: a brief handed neither says the head as it did, and leaves `runsWaiting` null.
+ */
+interface TodayBeside {
+  runs?: readonly WaitingRun[] | null;
+  heldThreads?: readonly ConversationDto[] | null;
+}
 
 /**
  * Today's brief: the facts read once, then one builder per band. The quiet day (no traffic, nobody waiting, no
@@ -59,8 +75,19 @@ export function toTodayVM(
   now = new Date(),
   // After `now`, so every caller that never read the searches stands; null is "not read", the queue says nothing.
   searches: LeadSearchDto[] | null = null,
+  beside: TodayBeside = {},
 ): TodayVM {
-  const f = todayFacts({ metrics: m, conversations, escalations, calls, now, searches });
+  const f = todayFacts({
+    metrics: m,
+    conversations,
+    escalations,
+    calls,
+    now,
+    searches,
+    heldThreads: [...(beside.heldThreads ?? [])],
+  });
+  // The runs waiting for a word that can still send them, by the business's days (the verb's own rule): null unread.
+  const runsWaiting = beside.runs ? runsThatWait(beside.runs, runDaysAt(f.tz, now)).length : null;
   const { chips, lines, alert } = todayStanding(f);
   const proof = todayProof(f.live, f.tz, now);
   const noReply = todayNoReply(f);
@@ -77,14 +104,20 @@ export function toTodayVM(
     // A reply that failed is no traffic, but its line is never quiet (today-bands.ts todaySendFailure).
     const failed = todaySendFailure(f);
     return {
-      standing: {
-        chips,
-        lines,
-        alert: null,
-        headline: "Nothing has come in yet today.",
-        detail: null,
-        tone: "calm",
-      },
+      // The quiet gate is about traffic, and decides the card; a run waiting still leads the head.
+      standing: standingWithRuns(
+        {
+          chips,
+          lines,
+          alert: null,
+          headline: "Nothing has come in yet today.",
+          detail: null,
+          tone: "calm" as const,
+          calm: QUIET_CALM,
+        },
+        runsWaiting ?? 0,
+      ),
+      runsWaiting,
       needsYou: null,
       windowClosing: null,
       recap: {
@@ -100,27 +133,29 @@ export function toTodayVM(
       noReply,
       calls: null,
       callsRead: f.callsRead,
-      queue: { rows: [], more: 0, more_people: 0, calls: 0, searches: 0, parts: [], empty, waiting: 0 },
+      queue: { rows: [], more: 0, more_people: 0, calls: 0, searches: 0, windows: 0, parts: [], empty },
       quiet: { ...todayQuietDay(f, proof), figures: quietFigures(f.live, f.tz, now) },
     };
   }
 
   const needsYou = todayNeedsYou(f);
-  const { headline, detail, tone } = todayHeadline(
+  const head = todayHeadline(
     f,
     alert,
     needsYou.rows,
     todayAlsoWaiting({ windows: f.closingConvs.length, calls: queue.calls, searches: queue.searches }),
   );
+  const standing = standingWithRuns({ chips, lines, alert, ...head }, runsWaiting ?? 0);
   const figures = figuresOf(m, conversations, f.callsInWindow, escalations, f.tz, now);
   return {
-    standing: { chips, lines, alert, headline, detail, tone },
+    standing,
+    runsWaiting,
     needsYou,
     windowClosing: todayWindowClosing(f),
     recap: {
       label: "Today so far",
       line: todayTrafficLine(f),
-      sentences: todaySentences(f, tone, alert),
+      sentences: todaySentences(f, standing.tone, alert),
       facts,
       receipts: todayReceipts(f),
     },

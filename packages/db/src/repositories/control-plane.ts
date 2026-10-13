@@ -5,7 +5,13 @@
  * enforcement lives in RLS + the DB triggers + requireRole at the routes.
  */
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
-import { receptionistOn, type BillingStatus } from "@chanlytics/contracts";
+import {
+  hasPublicPages,
+  openToCustomersOf,
+  type BillingMode,
+  type BillingStatus,
+  type OpenToCustomers,
+} from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
 import { isMissingDoor } from "./templates";
 
@@ -255,21 +261,133 @@ export async function setPersonReplyMode(
   return was?.mode ?? null;
 }
 
+/** A workspace's standing toward its customers (contracts openToCustomersOf), with the plan it was judged by. */
+export interface OpenToCustomersRead {
+  open: OpenToCustomers;
+  billing: { mode: BillingMode; status: BillingStatus } | null;
+}
+
+/** The plan as the one rule reads it: null for no billing row. */
+const billingPlanOf = (row: { mode: string; status: string } | null): OpenToCustomersRead["billing"] =>
+  row ? { mode: row.mode as BillingMode, status: row.status as BillingStatus } : null;
+
 /**
- * Whether the receptionist may speak under the business's name on its own right now, with nobody reading it first (a
- * public reply): not while the workspace is paused (tenants.status: billing stopped it, or a person did), not once its
- * last member has left (ended, 00262: left_empty_at), and not while a plan billed through Stripe is in a state that
- * stops the receptionist (contracts receptionistOn). A read that fails throws: "we could not check" is not "yes".
+ * Whether a workspace is open to its customers right now, by contracts' one rule: not while it is paused (tenants.status:
+ * billing stopped it, or a person did), not once its last member has left (ended, 00262: left_empty_at), and not while a
+ * plan billed through Stripe is in a state that stops the receptionist. A read that fails throws: "we could not check"
+ * is not "yes".
  */
-export async function workspaceAnswersOnItsOwn(db: Db, tenantId: string): Promise<boolean> {
+export async function workspaceOpenToCustomers(db: Db, tenantId: string): Promise<OpenToCustomersRead> {
   const [tenant, billing] = await Promise.all([
     db.from("tenants").select("status, left_empty_at").eq("id", tenantId).maybeSingle(),
     db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle(),
   ]);
   if (tenant.error) throw new Error(`cannot read the workspace: ${tenant.error.message}`);
   if (billing.error) throw new Error(`cannot read the workspace's billing: ${billing.error.message}`);
-  if (tenant.data?.status === "paused" || tenant.data?.left_empty_at) return false;
-  return !(billing.data?.mode === "stripe" && !receptionistOn(billing.data.status as BillingStatus));
+  const plan = billingPlanOf(billing.data);
+  return {
+    open: openToCustomersOf({
+      paused: tenant.data?.status === "paused",
+      ended: !!tenant.data?.left_empty_at,
+      billing: plan,
+    }),
+    billing: plan,
+  };
+}
+
+/**
+ * Whether the receptionist may speak under the business's name on its own right now, with nobody reading it first (a
+ * public reply): only while the workspace is open to its customers (workspaceOpenToCustomers). A read that fails throws.
+ */
+export async function workspaceAnswersOnItsOwn(db: Db, tenantId: string): Promise<boolean> {
+  return (await workspaceOpenToCustomers(db, tenantId)).open === "open";
+}
+
+/** The business on record as a public page may show it: never the EIN, the contact's own phone or their names. */
+const PUBLIC_RECORD_COLUMNS =
+  "legal_name, trade_name, street, street_secondary, city, region, postal_code, country, contact_email, website_url, about, industry";
+
+/** The one load's read of the record: its type is what the select reads, which the dashboard's type test holds. */
+const publicRecordOf = (db: Db, tenantId: string) =>
+  db.from("business_records").select(PUBLIC_RECORD_COLUMNS).eq("tenant_id", tenantId).maybeSingle();
+type PublicRecordRead = NonNullable<Awaited<ReturnType<typeof publicRecordOf>>["data"]>;
+
+/** One workspace's public facts, read by its slug for the pages that have no session (the dashboard's server/public). */
+export interface PublicWorkspaceRead {
+  id: string;
+  name: string;
+  slug: string;
+  status: string;
+  open: OpenToCustomers;
+  /**
+   * The record's public columns, as the select reads them: exactly those contracts lets the page show (the dashboard's
+   * server/public/public-facts.type-test.ts holds it).
+   */
+  record: PublicRecordRead | null;
+  config: Json | null;
+  channels: { kind: string; number_e164: string | null }[];
+}
+
+/**
+ * Everything a workspace's public pages show, in one load (the wiring's second audit, X4-7): the workspace, its standing
+ * toward its customers, the business on record (its public columns), its configuration (for the services it lists), and
+ * its active channels, oldest first so a workspace with two numbers of a kind names the one Connections shows. Null when
+ * no workspace answers to the slug. EVERY read that fails throws: a page that cannot read a fact is a failed page, never
+ * a page with Chanlytics' own policy links or no phone.
+ *
+ * Cross-workspace: the public pages resolve one workspace by slug, with the service role, and read only its public facts.
+ */
+export async function publicWorkspaceBySlug(db: Db, slug: string): Promise<PublicWorkspaceRead | null> {
+  const t = await db.from("tenants").select("id, name, slug, status, left_empty_at").eq("slug", slug).maybeSingle();
+  if (t.error) throw new Error(`reading the workspace: ${t.error.message}`);
+  if (!t.data) return null;
+  const id = t.data.id;
+  const [billing, record, cfg, channels] = await Promise.all([
+    db.from("billing_accounts").select("mode, status").eq("tenant_id", id).maybeSingle(),
+    publicRecordOf(db, id),
+    db.from("tenant_config").select("config").eq("tenant_id", id).maybeSingle(),
+    db
+      .from("tenant_channels")
+      .select("kind, number_e164")
+      .eq("tenant_id", id)
+      .eq("status", "active")
+      .order("created_at", { ascending: true }),
+  ]);
+  if (billing.error) throw new Error(`reading the workspace's billing: ${billing.error.message}`);
+  if (record.error) throw new Error(`reading the business on record: ${record.error.message}`);
+  if (cfg.error) throw new Error(`reading the workspace's configuration: ${cfg.error.message}`);
+  if (channels.error) throw new Error(`reading the workspace's channels: ${channels.error.message}`);
+  return {
+    id,
+    name: t.data.name,
+    slug: t.data.slug,
+    status: t.data.status,
+    open: openToCustomersOf({
+      paused: t.data.status === "paused",
+      ended: !!t.data.left_empty_at,
+      billing: billingPlanOf(billing.data),
+    }),
+    record: record.data ?? null,
+    config: cfg.data?.config ?? null,
+    channels: channels.data ?? [],
+  };
+}
+
+/**
+ * The workspace's slug while it has public pages (contracts hasPublicPages: not a fixture, not ended), for a page that
+ * links to its own (the business record's form, the wiring's second audit X4-4); null when it has none. A paused workspace
+ * keeps its pages, so its billing is not read. A read that fails throws.
+ */
+export async function workspacePublicSlug(db: Db, tenantId: string): Promise<string | null> {
+  const { data, error } = await db
+    .from("tenants")
+    .select("slug, status, left_empty_at")
+    .eq("id", tenantId)
+    .maybeSingle();
+  if (error) throw new Error(`cannot read the workspace: ${error.message}`);
+  if (!data) return null;
+  const open = openToCustomersOf({ paused: data.status === "paused", ended: !!data.left_empty_at, billing: null });
+  return hasPublicPages(data.status, open) ? data.slug : null;
 }
 
 /** The workspace's name and its address, for a message that names it and links to it; null when there is no such workspace. A read that fails throws. */

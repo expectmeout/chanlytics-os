@@ -33,7 +33,7 @@ import { edgeFnUrl } from "../dashboard-origin.js";
 import { pg } from "../pg.js";
 import { recordNotification } from "../ops/notify.js";
 import { emitEvent } from "../packages/db.js";
-import { formatPhoneDisplay, isE164, type EdgeErrorCode } from "../packages/contracts.js";
+import { FIRST_RUN_ROUTE, formatPhoneDisplay, isE164, type EdgeErrorCode } from "../packages/contracts.js";
 import { createVoiceAgent } from "./voice-agent.js";
 import {
   planVoiceProvision,
@@ -392,7 +392,7 @@ async function announceLeg(
     kind: "number",
     title: `Your phone line is ready: ${shown}`,
     body: `The receptionist answers calls on ${shown}. Call it from your own phone to hear it; the Live page shows the call as it happens, and Setup now reads the line as ready.`,
-    route: "admin/setup",
+    route: FIRST_RUN_ROUTE,
     about: { type: "setup", id: channelId },
   });
   try {

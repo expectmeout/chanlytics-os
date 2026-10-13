@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { textingTermsMetadata, textingTermsVM } from "@chanlytics/contracts";
 import { businessPageFor } from "@/server/public/business-page";
+import { TextingTerms } from "@/yes/TextingTerms";
 
 /**
  * A workspace's text-messaging terms: `/b/<slug>/terms`.
@@ -31,17 +32,6 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 // and this says it may (decision 0053, step 5).
 export const instant = false;
 
-/** HELP and STOP in bold, which the reviewers' guide asks of a program's terms. */
-function Emphasised({ text }: { text: string }) {
-  return (
-    <>
-      {text
-        .split(/(\bHELP\b|\bSTOP\b)/)
-        .map((part, i) => (part === "HELP" || part === "STOP" ? <b key={i}>{part}</b> : <span key={i}>{part}</span>))}
-    </>
-  );
-}
-
 export default async function TextingTermsPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const facts = await businessPageFor(slug);
@@ -49,26 +39,5 @@ export default async function TextingTermsPage({ params }: { params: Promise<{ s
   const vm = textingTermsVM(facts);
   if (vm.empty) notFound();
 
-  return (
-    <main className="legal biz-public">
-      <h1>{vm.title}</h1>
-      <p className="legal-meta">{vm.lead}</p>
-      <ul data-testid="bt-items">
-        {vm.items.map((it) => (
-          <li key={it.label}>
-            <b>{it.label}</b>: <Emphasised text={it.text} />
-          </li>
-        ))}
-      </ul>
-      <p>
-        Privacy policy:{" "}
-        <a href={vm.privacyUrl} data-testid="bt-privacy">
-          {vm.privacyUrl}
-        </a>
-        . These messages are sent for the business named above by a receptionist operated by Chanlytics (RJ Capital LLC,
-        193 Jamaica Ave, Brooklyn, NY 11207, <a href="tel:+19175746416">+1 (917) 574-6416</a>); what Chanlytics holds as
-        their processor is in the <a href="/privacy">Chanlytics privacy policy</a>.
-      </p>
-    </main>
-  );
+  return <TextingTerms vm={vm} />;
 }

@@ -126,3 +126,32 @@ export function addressOf(ref: RecordRef): string {
       return PANE.billing;
   }
 }
+
+/** The record a job names, and its door. */
+export interface JobRecord {
+  route: string;
+  about: { type: string; id: string };
+}
+
+/**
+ * The record a job's payload names, for the news of a job that did not finish (packages/jobs conclude; the wiring's second
+ * audit, S5-5): a send's thread, a broadcast's run. "A message may not have been sent" opened the Inbox's list and "A
+ * broadcast stopped partway" Sent's, though the job knew the thread and the run. Null for every other kind, whose news
+ * keeps its list's door (jobNewsWords): a lead job names its round and not its search, a booking email is not a visit until
+ * it is read, a reply's job names a message, and the rest are a list's or the platform's.
+ */
+export function jobRecordOf(kind: string, payload: unknown): JobRecord | null {
+  const named = (key: string): string | null => {
+    const v = payload && typeof payload === "object" ? (payload as Record<string, unknown>)[key] : null;
+    return typeof v === "string" && v ? v : null;
+  };
+  if (kind === "outbound_send") {
+    const id = named("conversation_id");
+    return id ? { route: addressOf({ kind: "conversation", id }), about: { type: "conversation", id } } : null;
+  }
+  if (kind === "broadcast_send") {
+    const id = named("broadcast_id");
+    return id ? { route: addressOf({ kind: "send", id }), about: { type: "broadcast", id } } : null;
+  }
+  return null;
+}

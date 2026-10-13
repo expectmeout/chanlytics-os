@@ -26,7 +26,7 @@ import {
   type SubscriptionFacts,
   MIN_MS,
 } from "../packages/contracts.js";
-import { keepAndPush } from "../ops/notify.js";
+import { keepAndPush, mendWarnings } from "../ops/notify.js";
 import { logger, errField } from "../log.js";
 import { env } from "../env.js";
 import { dashboardOrigin } from "../dashboard-origin.js";
@@ -775,6 +775,8 @@ export async function notePayment(
   } else if (amountPaid === undefined || amountPaid > 0) {
     await keepOnRow(db, row.tenant_id, { last_paid_at: now.toISOString() });
     await emitEvent(db, row.tenant_id, "billing.paid", "subscription", null, {}).catch(() => {});
+    // A paid invoice mends "A payment did not go through" and the trial's warning (contracts NOTICE_MENDS).
+    await mendWarnings(db, { tenantId: row.tenant_id, by: { change: "billing.paid" }, subject: null, keptId: null });
   }
 }
 
