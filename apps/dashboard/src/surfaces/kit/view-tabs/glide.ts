@@ -27,7 +27,9 @@ interface Place {
 const between = (a: number, b: number, share: number) => a + (b - a) * share;
 const pillShape = (x: number, width: number) => `translate3d(${x}px, 0, 0) scaleX(${width / PILL_BASE})`;
 const corners = (width: number, radius: number) => `${radius / (width / PILL_BASE)}px / ${radius}px`;
-const pillOf = (strip: Element) => strip.querySelector<HTMLElement>(".stabs-pill");
+/** The highlight: a strip's own, or the tab bar's lozenge, which is carried the same way (../tab-bar/tab-bar.tsx). */
+const pillOf = (strip: Element) =>
+  strip.querySelector<HTMLElement>(".stabs-pill") ?? strip.querySelector<HTMLElement>(".tab-bar-pill");
 
 /** The glide a strip is in: its animations, which a newer glide replaces and only its own end clears. */
 const gliding = new WeakMap<Element, Animation[]>();
@@ -99,7 +101,8 @@ export function showPicked(strip: Element | null): void {
 /**
  * A press: the highlight goes from the tab lit (or from where it is, part way through another change) to the tab
  * pressed, on the change's own timeline, and the strip scrolls with it. With no change to follow (reduced motion, no
- * page to move) nothing glides, and the tab's class lights it.
+ * page to move) nothing glides, and the tab's class lights it. The tab bar's lozenge goes the same way, on a timeline of
+ * its own (motion/view-deck.ts `alone`).
  */
 export function glideTo(strip: HTMLElement, from: Place, to: Place, move: Follow | null): void {
   const pill = pillOf(strip);

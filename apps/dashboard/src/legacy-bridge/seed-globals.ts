@@ -89,11 +89,12 @@ if (typeof window !== "undefined") {
     CV_ROUTE: INBOX_GLOBALS.CV_ROUTE,
     CV_IN_CHANNEL: INBOX_GLOBALS.CV_IN_CHANNEL,
     threadVerbs,
-    // The strip of views, the page a swipe walks and the deck a view moves by, which the frame draws and asks by name
-    // until it moves itself (surface-tabs.jsx, app-shell.jsx).
+    // The strip of views, the page a swipe walks, the deck a view moves by and the phone's tab bar, which the frame draws
+    // and asks by name until it moves itself (surface-tabs.jsx, app-shell.jsx).
     ViewTabs: KIT_GLOBALS.ViewTabs,
     viewPager: KIT_GLOBALS.viewPager,
     viewDeck: KIT_GLOBALS.viewDeck,
+    TabBar: KIT_GLOBALS.TabBar,
     // Leads' plan card, which Ask's palette draws for a lead_search card until Ask moves (surfaces/leads/globals.ts).
     LeadPlanCard: LEADS_GLOBALS.LeadPlanCard,
     // The Business tab's parts the first run draws and the saver it saves through (settings/business/globals.ts).

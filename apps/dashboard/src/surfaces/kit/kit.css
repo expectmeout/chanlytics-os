@@ -3920,6 +3920,138 @@ a.list-row {
   box-shadow: var(--focus-ring);
 }
 
+/* ---- The tab bar (liquid.py tabbar; tab-bar/tab-bar.tsx) ----
+   The places a thumb goes on a phone: one capsule of the control layer's glass over the page, its fill, sheen, depth
+   and blur, and the rim on a layer over its edge. The page places it and says where it shows (mobile.css). A place is
+   50px tall by its height, not a floor: the house's 44px touch floor outranked a floor written for it, and the bar stood
+   56px beside Ask's 62px circle (Ruben, 1 Oct 2026, "the container around the ask is bigger than the container around
+   the menu"). Its glyph (the page's own, at the size it draws it) over its word at the scale's smallest step; the lit
+   one the lozenge, the selected fill with its specular edge alone (the canvases draw no shadow under it), its glyph in
+   the tab's coral and its word in the ink at 600; the count on its place's corner, the neutral figure with no ring. A
+   place is a link with no long press of its own (a press has moved before a long one could open a link's menu over the
+   page it moved to).
+   A change of place carries the lozenge from the lit place to the one pressed (view-tabs/glide.ts): one element, moved
+   by transform alone on a timeline of its own (motion/view-deck.ts `alone`), and drawn only while the bar says a change
+   is under way (data-glide), the lit place's own fill clear meanwhile; at rest the lit place draws its own, with
+   nothing measured. Its width is a fixed one, which a glide scales across to a place's, as the strip's is. */
+.tab-bar {
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  isolation: isolate;
+  padding: 6px;
+  border-radius: var(--radius-full);
+  background-color: var(--surface-control-fill);
+  background-image: var(--surface-control-sheen);
+  box-shadow: var(--surface-control-depth);
+  backdrop-filter: var(--surface-control-blur);
+}
+.tab-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-control-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+.tab-bar-tab {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 50px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  appearance: none;
+  background: none;
+  font: inherit;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-medium);
+  color: var(--ink-muted);
+  text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    color var(--duration-base) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+.tab-bar-tab:active {
+  transform: scale(0.94);
+}
+.tab-bar-tab:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+/* The lit place's word is the ink at 600, as a strip's lit tab's is, and its glyph the tab's coral: the coral word read
+   3.6:1 on the dark lozenge, under the 4.5 a word needs (the gallery's check, 12 Oct 2026), where the glyph needs 3. */
+.tab-bar-tab.active {
+  background: var(--selected-fill);
+  box-shadow: var(--surface-inset-depth);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.tab-bar-tab.active:focus-visible {
+  box-shadow: var(--focus-ring), var(--surface-inset-depth);
+}
+.tab-bar-glyph {
+  display: inline-flex;
+  transition: color var(--duration-base) var(--ease-out);
+}
+.tab-bar-tab.active > .tab-bar-glyph {
+  color: var(--tab-ink);
+}
+/* The count is the neutral count on an icon (.tally-icon, below); the place's corner is where it stands. */
+.tab-bar-count {
+  position: absolute;
+  top: 4px;
+  right: 10px;
+}
+.tab-bar-pill {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 0;
+  z-index: -1;
+  width: 100px;
+  transform-origin: 0 50%;
+  border-radius: var(--radius-full);
+  background: var(--selected-fill);
+  box-shadow: var(--surface-inset-depth);
+  pointer-events: none;
+  visibility: hidden;
+}
+.tab-bar[data-glide] .tab-bar-pill {
+  visibility: visible;
+}
+.tab-bar[data-glide] .tab-bar-tab.active {
+  background: transparent;
+  box-shadow: none;
+}
+.tab-bar[data-glide] .tab-bar-tab.active:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tab-bar-tab,
+  .tab-bar-glyph {
+    transition: none;
+  }
+  .tab-bar-tab:active {
+    transform: none;
+  }
+}
+
 /* ---- Clear panes and inset rows (E3's clear tiles; inbox3.py and people3.py panes) ----
    A pane is clear glass: its fill, its rim over its edge, and the specular edge, contour and shadow its depth, with no
    hairline (its rim is its edge). The panel's inset and pop are no pane; the record card is one. Inside a pane, an

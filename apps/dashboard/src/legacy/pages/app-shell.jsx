@@ -1,4 +1,4 @@
-/* global React, Icon, AskBar, Sidebar, Topbar, ShellStatusBar, LiveCallBar, SurfaceTabs, ShortcutsSheet, FailedRead, useSurface */
+/* global React, Icon, AskBar, Sidebar, Topbar, ShellStatusBar, LiveCallBar, SurfaceTabs, TabBar, ShortcutsSheet, FailedRead, useSurface */
 // Chanlytics — App Shell
 // The live product frame: routing by the address, sidebar click-throughs, page transitions,
 // global Ask Chanlytics (⌘K), and intentional landings for unbuilt surfaces.
@@ -138,21 +138,29 @@ class ShellErrorBoundary extends React.Component {
 
 // ---- Phone tab bar --------------------------------------------------------
 // On a phone the drawer hid the four places an owner actually goes behind a
-// menu button. A bar at the thumb instead, with the two counts that matter
-// on the salon floor: what needs you, and who is on the line. Real surfaces
-// only; everything else stays behind More. Rendered always, shown only
-// under the phone breakpoint (mobile.css).
+// menu button. A bar at the thumb instead (the kit's TabBar), with the count
+// that matters on the salon floor: what needs you. Real surfaces only;
+// everything else stays behind More. Rendered always, shown only under the
+// phone breakpoint (mobile.css .phone-places).
+// A place holds its pages (`holds`): the Inbox its views, Conversations and
+// Live; People its own. It is lit on every page it holds, so the lozenge never
+// leaves for a view of the place, and pressed there again it goes back to its
+// first page, or up to the top of that page when it is on it already, as a
+// phone's tab bar does.
 const PHONE_TABS = [
-  { id: "home", route: "today", icon: "home", label: "Today" },
-  { id: "inbox", route: "inbox", icon: "inbox", label: "Inbox" },
+  { id: "home", route: "today", icon: "home", label: "Today", holds: ["today"] },
+  { id: "inbox", route: "inbox", icon: "inbox", label: "Inbox", holds: ["inbox", "conversations", "live"] },
   // Calendar, not Live. A call is live for minutes a week and holding a slot the
   // rest of the time; "when is my next opening" is asked between every client.
   // A call in progress is the shell's own bar while it is happening
   // (topbar.jsx LiveCallBar) — which is also the only place with room for it to
   // say who is on the line.
-  { id: "calendar", route: "calendar", icon: "calendar", label: "Calendar" },
-  { id: "people", route: "clients", icon: "users", label: "People" },
+  { id: "calendar", route: "calendar", icon: "calendar", label: "Calendar", holds: ["calendar"] },
+  { id: "people", route: "clients", icon: "users", label: "People", holds: ["clients", "segments"] },
 ];
+// How long after the tab bar asks for a place the view that arrives is still its move, and cut in (useViewFade): the
+// tab's own wait for its address (the kit's TabBar, PENDING_MS).
+const PLACE_CUT_MS = 3000;
 // Where the phone's drawer goes that its tab bar does not.
 const DRAWER_ONLY = ["campaigns", "reports", "admin/workspace"];
 // A pointer that reaches a sidebar item warms its page (workspace.ts warmRoute), so the press that follows asks the server
@@ -162,39 +170,66 @@ const sideWarm = (e) => {
   const a = window.CHANLY && window.CHANLY.address;
   if (item && a && a.warm) a.warm(NAV_ROUTE[item.dataset.nav] || item.dataset.nav);
 };
-const PhoneTabs = ({ page, inboxNeeds, onNavigate, onMenu }) => {
-  // The four places a thumb goes, warmed once the page is idle and when a finger reaches one (workspace.ts warmRoute).
+/**
+ * The page on screen back to its top: whatever scrolls in it, the route view itself (Today) or the list a page of panes
+ * scrolls in (the Inbox's threads, People's table). The tab bar's place pressed again, and the phone app's tab (shell:top).
+ */
+const pageToTop = () => {
+  const main = document.getElementById("main");
+  if (!main) return;
+  const still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  for (const el of [main, ...main.querySelectorAll("*")]) {
+    if (el.scrollTop > 0) el.scrollTo({ top: 0, behavior: still ? "auto" : "smooth" });
+  }
+};
+
+/**
+ * The tab bar's places, drawn by the kit (TabBar: it lights a place and moves its lozenge as the finger lands, then asks
+ * for the place a painted frame on). A place another holds is moved to with the page cut in (`onPlace`: no fade, as a
+ * phone's tab bar draws the page it opens); the place on screen pressed again goes to its first page, or to the top.
+ */
+const PhoneTabs = ({ page, param, inboxNeeds, onNavigate, onMenu, onPlace }) => {
+  // The four places a thumb goes, kept warm: warmed once the page is idle, again when the router lets one go or the tab
+  // comes back to the screen, and when a pointer reaches one (workspace.ts keepWarm, warmRoute).
   useShellEffect(() => {
     const a = window.CHANLY && window.CHANLY.address;
-    if (a && a.warmSoon) a.warmSoon(PHONE_TABS.map((t) => t.route));
+    if (a && a.keepWarm) a.keepWarm(PHONE_TABS.map((t) => t.route));
   }, [page]);
-  const warm = (route) => { const a = window.CHANLY && window.CHANLY.address; if (a && a.warm) a.warm(route); };
-  const activeOf = (t) => page === t.route;
-  const badge = (t) => (t.id === "inbox" && inboxNeeds > 0 ? String(inboxNeeds) : null);
+  const address = () => (window.CHANLY && window.CHANLY.address) || null;
+  const warm = (route) => { const a = address(); if (a && a.warm) a.warm(route); };
+  const href = (route) => { const a = address(); return a && a.href ? a.href(route) : `#/${route}`; };
+  const here = PHONE_TABS.find((t) => t.holds.includes(page)) || null;
+  const pick = (id) => {
+    const t = PHONE_TABS.find((x) => x.id === id);
+    if (!t) return;
+    if (here && here.id === t.id) {
+      if (page === t.route && !param) pageToTop();
+      else onNavigate(t.route);
+      return;
+    }
+    onPlace();
+    onNavigate(t.route);
+  };
+  if (typeof TabBar === "undefined") return null;
   return (
-    <nav className="phone-tabs" aria-label="Main" data-testid="phone-tabs">
-      {PHONE_TABS.map((t) => (
-        <button
-          key={t.id}
-          type="button"
-          className={`phone-tab ${activeOf(t) ? "active" : ""}`}
-          onTouchStart={() => warm(t.route)}
-          onClick={() => onNavigate(t.route)}
-          aria-current={activeOf(t) ? "page" : undefined}
-        >
-          <span className="phone-tab-icon">
-            <Icon name={t.icon} size={18} />
-            {/* Only the Inbox tab has a count, and it counts people who need you: amber, as the sidebar's is. */}
-            {badge(t) && <span className="phone-tab-badge tally tally-icon tally-warn">{badge(t)}</span>}
-          </span>
-          <span className="phone-tab-label">{t.label}</span>
-        </button>
-      ))}
-      <button type="button" className="phone-tab" onClick={onMenu} aria-label="Menu">
-        <span className="phone-tab-icon"><Icon name="menu" size={18} /></span>
-        <span className="phone-tab-label">More</span>
-      </button>
-    </nav>
+    <TabBar
+      label="Main"
+      testid="phone-tabs"
+      className="phone-places"
+      picked={here ? here.id : null}
+      places={PHONE_TABS.map((t) => ({
+        id: t.id,
+        label: t.label,
+        href: href(t.route),
+        glyph: <Icon name={t.icon} size={18} />,
+        // Only the Inbox has a count, and it counts people who need you: amber, as the sidebar's is.
+        count: t.id === "inbox" && inboxNeeds > 0 ? inboxNeeds : null,
+        tone: t.id === "inbox" ? "warn" : undefined,
+        warm: () => warm(t.route),
+      }))}
+      onPick={pick}
+      more={{ label: "Menu", word: "More", glyph: <Icon name="menu" size={18} />, onPress: onMenu }}
+    />
   );
 };
 
@@ -374,7 +409,7 @@ const useNavDrawer = () => {
   // Inside the native shell (legacy-bridge/app-bridge.ts): the More tab asks for the drawer, a re-tap for the top.
   useShellEffect(() => {
     const onMenu = () => setNavOpen(true);
-    const onTop = () => { const el = document.querySelector(".main-scroll"); if (el) el.scrollTo({ top: 0, behavior: "smooth" }); };
+    const onTop = pageToTop;
     window.addEventListener("shell:menu", onMenu);
     window.addEventListener("shell:top", onTop);
     return () => { window.removeEventListener("shell:menu", onMenu); window.removeEventListener("shell:top", onTop); };
@@ -474,11 +509,13 @@ const usePageFocus = (page, routeLoading) => {
  * A view that follows another of the same family and is no strip's move (one person's page to the next) draws at once;
  * a page landing where the reading pane stood, or arriving from somewhere else, fades in (components.css route-in). A
  * person's profile is somewhere else, though its route starts with the list's word.
+ * A place the phone's tab bar moved to is cut in, drawn at once with no fade, as a phone's tab bar opens a place (its
+ * press says so in `placed`, the moment it asked); a place still reading when it lands fades in as any page does.
  * Decided as the view changes, in the draw that mounts it, and kept for that view's life: decided after the mount
  * (an effect, a state) it re-drew the same element with the class, which cancelled the fade on every page one
  * frame in. `mountKey` is what the view is mounted under, the route table's answer (drawRoute).
  */
-const useViewFade = ({ page, param }, mountKey, routeLoading) => {
+const useViewFade = ({ page, param }, mountKey, routeLoading, placed) => {
   const viewKey = routeLoading ? `${mountKey}/reading` : mountKey;
   const family = page === "clients" && param && !/^(leads(:|$)|pipeline(:|$)|seg:|list:|state:)/.test(param) ? "clients/person" : page;
   // Where the view stands on a strip (surface-tabs.jsx stripPlace): a view from the tab beside comes in from its side,
@@ -488,12 +525,15 @@ const useViewFade = ({ page, param }, mountKey, routeLoading) => {
   if (viewRef.current.key !== viewKey) {
     const prev = viewRef.current;
     const slide = prev.key !== null && !prev.reading && window.stripSlide ? window.stripSlide(prev.place, place) : null;
+    // The tab bar's move, taken by the first view to arrive after it, if it arrived while the move is still the last ask.
+    const cut = placed.current !== null && performance.now() - placed.current < PLACE_CUT_MS;
+    placed.current = null;
     viewRef.current = {
       key: viewKey,
       family,
       reading: routeLoading,
       place,
-      stay: !routeLoading && prev.key !== null && prev.family === family && !prev.reading && !slide,
+      stay: !routeLoading && prev.key !== null && ((prev.family === family && !prev.reading) || cut) && !slide,
       slide,
     };
   }
@@ -568,7 +608,7 @@ const glassHead = ({ glass, pane, where, page, param, views, navigate, primaryAc
 };
 
 const appChrome = (s) => {
-  const { theme, themePref, onTheme, look, onLook, sidebar, onSidebar, navOpen, setNavOpen, askOpen, setAskOpen, openAsk, inboxNeeds, navigate, PhoneFace } = s;
+  const { theme, themePref, onTheme, look, onLook, sidebar, onSidebar, navOpen, setNavOpen, askOpen, setAskOpen, openAsk, inboxNeeds, navigate, onPlace, PhoneFace } = s;
   const { page, param, views, activeNav, crumbs, pane, primaryAction, content, viewKey, routeStay, routeSlide, routeStrip, routeLoading, surfaceUnavailable } = s;
   const glass = look === "glass";
   return (
@@ -639,7 +679,7 @@ const appChrome = (s) => {
         </main>
         {/* Inside the app the native tab bar stands here (window.__IN_APP, stamped before paint). */}
         {!window.__IN_APP && (
-          <PhoneTabs page={page} inboxNeeds={inboxNeeds} onNavigate={navigate} onMenu={() => setNavOpen(true)} />
+          <PhoneTabs page={page} param={param} inboxNeeds={inboxNeeds} onNavigate={navigate} onMenu={() => setNavOpen(true)} onPlace={onPlace} />
         )}
         {!askOpen && !navOpen && (
           <button type="button" className="phone-ask" onClick={openAsk} aria-label="Ask Chanlytics" title="Ask Chanlytics" data-testid="phone-ask">
@@ -720,7 +760,10 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, look, onLook, sideba
   }, [drawn.crumbs, look, leadsScope, familyTab]);
   // A route change: the drawer closes, and the gate's clocks start for the new route.
   useShellEffect(() => { setNavOpen(false); return gate.arm(); }, [at.routeKey]);
-  const fade = useViewFade(at, drawn.mountKey, gate.routeLoading);
+  // When the tab bar last asked for a place (PhoneTabs `onPlace`): the view that arrives for it is cut in.
+  const placed = useShellRef(null);
+  const onPlace = useShellCallback(() => { placed.current = performance.now(); }, [placed]);
+  const fade = useViewFade(at, drawn.mountKey, gate.routeLoading, placed);
   usePageFocus(page, gate.routeLoading);
   // The shell is mounted and listening (useNavDrawer above): the native app's bridge replays a menu ask that arrived
   // while this was still compiling (legacy-bridge/app-bridge.ts). After the route effect, so the first route's close
@@ -732,7 +775,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, look, onLook, sideba
   if (page === "start" && !demoGated && routePage) return firstRunScreen({ theme, look, routePage, askOpen, setAskOpen });
 
   return appChrome({
-    theme, themePref, onTheme, look, onLook, sidebar, onSidebar, navOpen, setNavOpen, askOpen, setAskOpen, openAsk, inboxNeeds, navigate, PhoneFace,
+    theme, themePref, onTheme, look, onLook, sidebar, onSidebar, navOpen, setNavOpen, askOpen, setAskOpen, openAsk, inboxNeeds, navigate, onPlace, PhoneFace,
     page, param, ...drawn, ...fade, routeLoading: gate.routeLoading, surfaceUnavailable: gate.surfaceUnavailable,
   });
 };

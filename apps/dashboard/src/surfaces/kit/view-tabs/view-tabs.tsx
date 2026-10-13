@@ -19,6 +19,7 @@
  */
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from "react";
 import { viewDeck } from "../motion/view-deck";
+import { afterPaint } from "../press";
 import { cx } from "../variants";
 import { glideTo, showPicked } from "./glide";
 
@@ -59,15 +60,6 @@ export type ViewTabsProps = {
   testid?: string;
   className?: string;
 };
-
-/** After the frame the press was answered in has been painted, where there are frames. */
-function afterPaint(then: () => void): void {
-  if (typeof requestAnimationFrame !== "function") {
-    then();
-    return;
-  }
-  requestAnimationFrame(() => setTimeout(then, 0));
-}
 
 /** A plain press of the main button: one with a key held, or another button, is the browser's own. */
 const ownPress = (e: MouseEvent) =>

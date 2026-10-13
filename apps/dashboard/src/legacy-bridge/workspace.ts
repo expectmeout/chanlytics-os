@@ -249,7 +249,13 @@ export function warmRoute(asked: string, win: AddressWindow = window): void {
   const to = hrefOfRoute(route, win);
   if (to.startsWith("#") || warmed.has(to) || onOnePage(routeOnScreen(win), route)) return;
   warmed.add(to);
-  appRouter.prefetch(to, { onInvalidate: () => warmed.delete(to) });
+  appRouter.prefetch(to, {
+    onInvalidate: () => {
+      warmed.delete(to);
+      // A place kept warm is warmed again at once while the tab is on screen; a tab put away warms it on its return.
+      if (keptWarm.has(route) && onScreen()) warmSoon([route], win);
+    },
+  });
 }
 
 /** What a connection says about itself, where the browser says it (Chrome and Android's, not Safari's). */
@@ -257,6 +263,17 @@ interface Link {
   saveData?: boolean;
   effectiveType?: string;
 }
+
+/** Whether a route may be warmed with nobody reaching for it: not where a person has asked to save data, or on 2g or 3g. */
+function warmsOnItsOwn(): boolean {
+  const link =
+    (typeof navigator === "undefined" ? undefined : (navigator as Navigator & { connection?: Link }).connection) ??
+    null;
+  return !(link && (link.saveData || /(^|-)[23]g$/.test(link.effectiveType ?? "")));
+}
+
+/** Whether the tab is on screen: a document hidden behind another tab or a locked phone is not. */
+const onScreen = (): boolean => typeof document === "undefined" || document.visibilityState !== "hidden";
 
 /** How long an idle page may wait before a warm goes, the wait where the browser has no idle callback, and the gap between two. */
 const WARM_IDLE_MS = 2500;
@@ -269,15 +286,36 @@ const WARM_GAP_MS = 120;
  * is warmed only when a pointer or a finger reaches it (warmRoute).
  */
 export function warmSoon(routes: readonly string[], win: AddressWindow = window): void {
-  const link =
-    (typeof navigator === "undefined" ? undefined : (navigator as Navigator & { connection?: Link }).connection) ??
-    null;
-  if (link && (link.saveData || /(^|-)[23]g$/.test(link.effectiveType ?? ""))) return;
+  if (!warmsOnItsOwn()) return;
   const later = (fn: () => void) =>
     typeof requestIdleCallback === "function"
       ? requestIdleCallback(fn, { timeout: WARM_IDLE_MS })
       : setTimeout(fn, WARM_FALLBACK_MS);
   routes.forEach((route, at) => later(() => void setTimeout(() => warmRoute(route, win), WARM_GAP_MS * at)));
+}
+
+/**
+ * The routes kept warm: the phone's tab bar's places, which a thumb goes to from anywhere (app-shell.jsx PhoneTabs). The
+ * router lets a warmed page go after five minutes, and nothing warmed it again until the page on screen changed: a phone
+ * put away and taken out came back to places that each waited on the server first (12% of the bar's moves on
+ * production, 5 to 12 Oct 2026). A place kept warm is warmed again as the router lets it go while the tab is on screen,
+ * and every one as the tab comes back to the screen, a breath apart and at once: the press is likely the next thing.
+ */
+const keptWarm = new Set<string>();
+let hearsTheScreen = false;
+
+/** Keep routes warm: warmed as warmSoon warms them, and again whenever the router lets one go or the tab comes back. */
+export function keepWarm(routes: readonly string[], win: AddressWindow = window): void {
+  if (!warmsOnItsOwn()) return;
+  for (const route of routes) keptWarm.add(doorOf(route) ?? route);
+  if (!hearsTheScreen && typeof document !== "undefined") {
+    hearsTheScreen = true;
+    document.addEventListener("visibilitychange", () => {
+      if (!onScreen()) return;
+      [...keptWarm].forEach((route, at) => void setTimeout(() => warmRoute(route, win), WARM_GAP_MS * at));
+    });
+  }
+  warmSoon(routes, win);
 }
 
 /**
@@ -305,5 +343,6 @@ export function addressApi(win: AddressWindow = window) {
     hear: (fn: () => void) => hearAddress(fn, win),
     warm: (route: string) => reachFor(route, win),
     warmSoon: (routes: readonly string[]) => warmSoon(routes, win),
+    keepWarm: (routes: readonly string[]) => keepWarm(routes, win),
   };
 }

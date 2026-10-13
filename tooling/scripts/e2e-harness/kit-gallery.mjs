@@ -829,6 +829,30 @@ const kitSubtabs = (name, tabs, { attrs = "", left = "18px", width = "78px", dir
   `<span role="presentation" class="subtab-bar" data-activation-direction="${direction}" ` +
   `style="--active-tab-left: ${left}; --active-tab-width: ${width};"></span></div></div>`;
 
+/** The phone's places, as the frame hands them to TabBar (app-shell.jsx PHONE_TABS): each word with its glyph. */
+const TAB_BAR_PLACES = [
+  ["Today", "home"],
+  ["Inbox", "inbox"],
+  ["Calendar", "calendar"],
+  ["People", "users"],
+];
+
+/**
+ * The tab bar as TabBar draws it, as wide as a phone's (the gallery's own layout): the four places and More, `lit` the
+ * place lit and `page` the one the address names, a place's count over its glyph; `glide` the lozenge's place part way.
+ */
+const kitTabBar = (lit, counts = {}, { glide = null, page = lit } = {}) =>
+  `<div class="gx-phone-bar"><nav class="tab-bar" aria-label="Main"${glide ? ' data-glide=""' : ""}>` +
+  `<span class="tab-bar-pill" aria-hidden="true"${glide ? ` style="transform: ${glide};"` : ""}></span>` +
+  TAB_BAR_PLACES.map(
+    ([word, glyph]) =>
+      `<a class="tab-bar-tab${word === lit ? " active" : ""}" href="#"${word === page ? ' aria-current="page"' : ""} draggable="false">` +
+      `<span class="tab-bar-glyph">${icon(glyph, 18)}` +
+      `${counts[word] ? `<span class="tab-bar-count tally tally-icon tally-warn">${counts[word]}</span>` : ""}</span>${word}</a>`,
+  ).join("") +
+  `<button type="button" class="tab-bar-tab" aria-label="Menu"><span class="tab-bar-glyph">${icon("menu", 18)}</span>More</button>` +
+  `</nav></div>`;
+
 /** The kit's segmented control: a radio group of three, the second chosen. */
 const kitSegmented = () =>
   `<div role="radiogroup" aria-label="How often" class="rec-seg">` +
@@ -1316,6 +1340,28 @@ export const FAMILIES = [
           `<span class="stabs-pill" aria-hidden="true" style="transform: translate3d(48px, 0, 0) scaleX(1);"></span>` +
           `<a class="stabs-tab" href="#" aria-current="page">Needs you</a><a class="stabs-tab active" href="#">Conversations</a>` +
           `<a class="stabs-tab" href="#">Live</a></nav>`,
+      },
+    ],
+  },
+  {
+    family: "Tab bar",
+    about:
+      "The places a thumb goes on a phone, TabBar (surfaces/kit/tab-bar/tab-bar.tsx): links on one capsule of glass, each a glyph over its word, the place on screen the lozenge in the tab's coral, the count over a glyph that has one, and More, which is no place, as a button after them. The lozenge a change of place carries is in it, unseen at rest. A page places the bar (mobile.css): here it stands as wide as a phone's.",
+    entries: [
+      {
+        id: "tab-bar",
+        html: kitTabBar("Today", { Inbox: 3 }),
+      },
+    ],
+  },
+  {
+    family: "Tab bar, as a place changes",
+    about:
+      "The lozenge a change of place carries from the place lit to the one pressed (surfaces/kit/view-tabs/glide.ts, on a timeline of its own: motion/view-deck.ts alone): one element, placed by transform while the bar says it glides, the lit place's own fill clear meanwhile. Here it is half way from Today to the Inbox, which is lit as the finger lands, before the address has moved.",
+    entries: [
+      {
+        id: "tab-bar-glide",
+        html: kitTabBar("Inbox", {}, { glide: "translate3d(34px, 0, 0) scaleX(0.56)", page: "Today" }),
       },
     ],
   },
@@ -2162,6 +2208,7 @@ const GALLERY_CSS = `
     .gx-caption { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--ink-dim); }
     .gx-end { display: flex; justify-content: flex-end; }
     .gx-row { display: flex; align-items: center; gap: var(--space-2); }
+    .gx-phone-bar { width: 290px; }
     .gx-anchor { position: relative; }
     .gx-panel-row { padding: var(--space-2) var(--space-3); }
     .gx-panel-row + .gx-panel-row { border-top: 1px solid var(--line); }

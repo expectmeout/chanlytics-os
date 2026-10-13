@@ -1810,10 +1810,6 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   .conversations[data-takeover][data-going] > .ix-thread-pane { grid-area: 1 / 1; z-index: 1; box-shadow: -12px 0 32px oklch(0 0 0 / 0.18); }
 }
 
-/* The phone's tab bar answers a press and eases into its state, as the section tabs do (kit.css). */
-.phone-tab { transition: color var(--duration-base) var(--ease-out), transform var(--duration-fast) var(--ease-out); }
-.phone-tab:active { transform: scale(0.94); }
-
 /* A message that arrives while its thread is open rises into place; the ones it opened with are simply there. */
 .tl-arrived { animation: nudge-in 260ms var(--ease-out); }
 
@@ -1822,8 +1818,8 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   .ld-lightbox-backdrop, .nav-backdrop, .cl-health-pop, .confirm, .confirm-block, .tc-receipt, .tl-arrived,
   .tbn-pop, .tbn-backdrop, [data-leaving="true"] { animation: none; }
   .tbn-slot { transition: none; }
-  .stabs-tab, .phone-tab { transition: none; }
-  .stabs-tab:active, .phone-tab:active { transform: none; }
+  .stabs-tab { transition: none; }
+  .stabs-tab:active { transform: none; }
 }
 
 /* ============================================================

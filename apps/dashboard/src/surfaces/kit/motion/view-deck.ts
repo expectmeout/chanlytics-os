@@ -146,6 +146,12 @@ interface Deck {
   leave(dir: Side): Move | null;
   /** The view that was leaving stays after all (the press was taken back): it comes back at once. */
   stay(): void;
+  /**
+   * A timeline for a highlight that moves with no view under it: the tab bar's, whose places are cut in, never slid
+   * (tab-bar/tab-bar.tsx). The spring a tapped strip's highlight rides, begun now. Null under reduced motion, where the
+   * tab's own class lights it at once.
+   */
+  alone(): Follow | null;
 }
 
 const clamp = (n: number) => Math.max(0, Math.min(1, n));
@@ -500,6 +506,21 @@ function comeBack(table: Table, el: HTMLElement, move: Timeline): void {
   comeHome(table, el, { from, level, width: el.getBoundingClientRect().width });
 }
 
+/** A highlight's own timeline: from where it is to where it goes on the spring a change of view rides, from rest. */
+function alone(table: Table): Follow | null {
+  if (table.env.reduced()) return null;
+  const run: Run = { ms: TIMELINE_MS, t0: table.env.now(), keep: true };
+  const share = (t: number) => (t >= TIMELINE_MS ? 1 : 1 - springAt(1, 0, 0, t));
+  return {
+    follow: (el, frame) =>
+      startAt(
+        el,
+        frames(TIMELINE_MS, (t) => frame(share(t))),
+        run,
+      ),
+  };
+}
+
 function leave(table: Table, dir: Side): Move | null {
   const el = liveOf(table);
   if (!el) return null;
@@ -558,6 +579,7 @@ export function createDeck(env: DeckEnv): Deck {
       const was = el ? table.held.get(el) : undefined;
       if (el && was && was.role === "out" && was.move) comeBack(table, el, was.move);
     },
+    alone: () => alone(table),
   };
 }
 

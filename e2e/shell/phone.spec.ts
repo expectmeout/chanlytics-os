@@ -92,7 +92,7 @@ test.describe("Phone shell on a real workspace", () => {
     ).toBe(true);
     const rightmost = await page
       .getByTestId("phone-tabs")
-      .getByRole("button")
+      .locator(".tab-bar-tab")
       .evaluateAll((els) => Math.max(...els.map((el) => el.getBoundingClientRect().right)));
     expect(rightmost, "no tab runs under it").toBeLessThanOrEqual((at?.x ?? 0) + 1);
     await expect(page.getByTestId("tb-ask")).toBeHidden();
@@ -210,7 +210,8 @@ test.describe("Phone shell on a real workspace", () => {
     // The four places a thumb reaches, and what is NOT among them: a call is
     // live for minutes a week, so it is a bar while it is happening rather
     // than a slot that is empty the rest of the time. Calendar took it.
-    const tabs = page.getByTestId("phone-tabs").getByRole("button");
+    // The places are links (a door is a link) and More, which is no place, a button after them: the kit's TabBar.
+    const tabs = page.getByTestId("phone-tabs").locator(".tab-bar-tab");
     await expect(tabs).toHaveText(["Today", "Inbox", "Calendar", "People", "More"]);
     await tabs.filter({ hasText: "Calendar" }).click();
     await expect(page).toHaveURL(atRoute(/^calendar/));
@@ -247,7 +248,7 @@ test.describe("Phone shell on a real workspace", () => {
   test("the tab bar navigates, and Conversations takes turns too", async ({ page }) => {
     await page.goto("/#/today");
     await page.waitForLoadState("networkidle");
-    await page.getByTestId("phone-tabs").getByRole("button", { name: "People" }).click();
+    await page.getByTestId("phone-tabs").getByRole("link", { name: "People" }).click();
     await expect(page).toHaveURL(atRoute(/^clients/));
     await page.goto("/#/conversations");
     await page.waitForLoadState("networkidle");
