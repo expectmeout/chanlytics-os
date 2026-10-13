@@ -240,6 +240,15 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // A font file is a static asset like an icon (public/fonts, Glass's Mona Sans): the gate skips it by extension too.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|css|js|map|woff2)$).*)"],
+  matcher: [
+    // A font file is a static asset like an icon (public/fonts, Glass's Mona Sans): the gate skips it by extension too.
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|css|js|map|woff2)$).*)",
+    // Every address of a workspace, whatever it ends in: public/ holds nothing under /w, and the (os) pages answer
+    // `/w/acme/people/x.png` and `/w/acme.js` as they answer `/w/acme/people` (decision 0053, step 5). The pattern
+    // above skipped them by their extension, and the layout's own check was all that stood in front of them; the
+    // layout reads nothing now, so the frame can be one prerender for everyone, and this is their gate. In both cases:
+    // Vercel routes `/W/example/people/x.png` to the same page (production, 12 Oct 2026: X-Matched-Path
+    // /w/[workspace]/people/[[...param]]), and Next's matcher, as `next start` runs it, minds the case.
+    "/(w|W)/:path*",
+  ],
 };

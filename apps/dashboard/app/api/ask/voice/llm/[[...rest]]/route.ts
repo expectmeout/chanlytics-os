@@ -7,10 +7,8 @@ import { voiceDoor } from "@/server/ask/voice-door";
  * caller is a provider with no cookie, so the proxy lets these three exact paths through (the vendor appends
  * /chat/completions to the address it is given) and the door proves the caller twice, by the agent's secret and by
  * the session's id, before it reads a byte of the body. Everything else is server/ask/voice-door.ts. Sixty seconds, as
- * /api/v1/ask has.
+ * /api/v1/ask has. On Node, as every route here is: cacheComponents refuses a route that names its runtime.
  */
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export const POST = (req: Request): Promise<Response> => voiceDoor(req);

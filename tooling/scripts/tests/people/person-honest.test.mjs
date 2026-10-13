@@ -3205,7 +3205,9 @@ test("a note may have a day (0007, amended): a day makes it a step and holds Tea
     type(byTestId(draw(), "person-notes-input"), "Follow up on the logo");
     let tree = draw();
     assert.equal(textOf(byTestId(tree, "person-notes-save")).trim(), W.add);
-    const days = contracts.composerDays(Date.now(), "UTC");
+    // By the workspace's clock, as the page counts them (pageClock): in UTC, from midnight there until midnight in New
+    // York, "Tomorrow" was a day later than the page's (13 October 2026, 03:55 UTC).
+    const days = contracts.composerDays(Date.now(), ZONE);
     assert.deepEqual(
       all(byTestId(tree, "person-note-day"), (n) => n.props?.role === "radio").map((n) => textOf(n).trim()),
       days.map((d) => d.label),

@@ -1359,8 +1359,11 @@ test("voice and the phone: hold to talk uses the browser's recogniser, the origi
     askCss.includes("html.in-app .phone-ask { bottom: calc(10px + var(--app-inset-bottom, 0px)); }"),
     "and inside the native shell it lifts by the shell's tab bar, whose height the shell sets on <html>",
   );
-  assert.ok(
-    readRaw("apps/dashboard/src/legacy/styles/mobile.css").includes("grid-template-columns: repeat(5, 1fr);"),
+  // The bar is the kit's TabBar since #1571 (kit/tab-bar/, its tabs run in shell/views/tab-bar.test.mjs): its places are
+  // columns of one width, however many it holds, so the circle beside it never moves them.
+  assert.match(
+    readRaw("apps/dashboard/src/surfaces/kit/kit.css"),
+    /\.tab-bar \{[^}]*grid-auto-flow: column;[^}]*grid-auto-columns: minmax\(0, 1fr\);/,
     "the five tabs keep their places",
   );
   assert.ok(

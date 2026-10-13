@@ -16,7 +16,15 @@
  * Its own module, importing only those pure words, so the client and the surfaces can both read it without either
  * importing the other.
  */
-import { doorOf, movedAddress, routeOfAddress, routeOfHash, routeOfPath, workspacePath } from "@chanlytics/contracts";
+import {
+  MIN_MS,
+  doorOf,
+  movedAddress,
+  routeOfAddress,
+  routeOfHash,
+  routeOfPath,
+  workspacePath,
+} from "@chanlytics/contracts";
 import type { AddressParts } from "@chanlytics/contracts";
 import { askedWorkspaceOf, returnQueryOf } from "../auth/workspace-return";
 import { onOnePage, routeHasPage } from "../surfaces/routes";
@@ -120,7 +128,7 @@ export interface AddressWindow {
     pushState(data: unknown, unused: string, url?: string | null): void;
     replaceState(data: unknown, unused: string, url?: string | null): void;
   };
-  addEventListener(type: string, fn: () => void): void;
+  addEventListener(type: string, fn: () => void, options?: AddEventListenerOptions): void;
   removeEventListener(type: string, fn: () => void): void;
 }
 
@@ -181,8 +189,8 @@ export interface GoOptions {
 export interface AppRouter {
   push(href: string): void;
   replace(href: string): void;
-  /** Warm a route's page: its code and its payload, in full, so a move there asks the server for nothing. */
-  prefetch?(href: string, options?: { onInvalidate?: () => void }): void;
+  /** Warm a route's page: its code and its prerendered payload, so a move there asks the server for nothing. */
+  prefetch?(href: string): void;
 }
 
 let appRouter: AppRouter | null = null;
@@ -232,30 +240,27 @@ export function goToRoute(asked: string, opts: GoOptions = {}, win: AddressWindo
   if (!(opts.replace && opts.quiet)) notifyAddress();
 }
 
-/** The hrefs warmed, each until Next says its payload has gone stale (it lives five minutes). */
-const warmed = new Set<string>();
-
 /**
- * Warm a route that has a page of its own, so a move there is a commit and not a round trip. Next prefetches a dynamic
- * route's page only when asked in full (a <Link> skips it, without a loading boundary), and every route here is
- * dynamic: the frame's pages draw from data the frame has read, but a press on the strip's Conversations waited on a
- * server render for a page that draws nothing of its own (27 to 57 ms on localhost, a round trip and a cold function
- * on a phone, with the swiped page already gone off the screen). Warmed in full, the same move asks for nothing.
- * Nothing for the page already on screen, a route the frame draws itself, or one warmed already.
+ * Warm a route that has a page of its own, so a move there is a commit and not a round trip. The shell moves with
+ * presses and goToRoute, never a <Link>, so nothing warms a page unless it is asked: a press on the strip's
+ * Conversations waited on the server for a page that draws nothing of its own (27 to 57 ms on localhost, a round trip
+ * and a cold function on a phone, with the swiped page already gone off the screen). The pages are prerendered, one
+ * for every address of their route (cacheComponents, decision 0053 step 5), so a warm is the build's files behind the
+ * proxy, and one warm of People serves every person's address too. Nothing for the page already on screen or a route
+ * the frame draws itself.
+ *
+ * Every reach asks, and Next's cache decides: a page it still keeps (its `staleTimes.static`, five minutes) is not
+ * fetched again (segment-cache scheduler, a Fulfilled segment), and one it has let go is. The frame once kept its own
+ * list of what it had warmed, cleared only by `onInvalidate`, which Next calls for a refresh, a server action or a
+ * rewrite's retry and never for age: after five minutes in a tab no route was warmed again, and every move asked the
+ * server (decision 0053, step 5).
  */
 export function warmRoute(asked: string, win: AddressWindow = window): void {
   const route = doorOf(asked) ?? asked;
   if (!appRouter?.prefetch || !routeHasPage(route)) return;
   const to = hrefOfRoute(route, win);
-  if (to.startsWith("#") || warmed.has(to) || onOnePage(routeOnScreen(win), route)) return;
-  warmed.add(to);
-  appRouter.prefetch(to, {
-    onInvalidate: () => {
-      warmed.delete(to);
-      // A place kept warm is warmed again at once while the tab is on screen; a tab put away warms it on its return.
-      if (keptWarm.has(route) && onScreen()) warmSoon([route], win);
-    },
-  });
+  if (to.startsWith("#") || onOnePage(routeOnScreen(win), route)) return;
+  appRouter.prefetch(to);
 }
 
 /** What a connection says about itself, where the browser says it (Chrome and Android's, not Safari's). */
@@ -264,12 +269,17 @@ interface Link {
   effectiveType?: string;
 }
 
-/** Whether a route may be warmed with nobody reaching for it: not where a person has asked to save data, or on 2g or 3g. */
+/**
+ * Whether a route may be warmed with nobody reaching for it: not where a person has asked to save data, or on 2g. A warm
+ * is the build's own files, about 3 KB a page since the frame is prerendered (decision 0053, step 5), and on a slow line
+ * the round trip it saves at the press is the longest, so 3g warms: it was refused while a warm was a render of the page.
+ * Chrome's own reading of the line says 3g on a desk whose round trips run long for a moment.
+ */
 function warmsOnItsOwn(): boolean {
   const link =
     (typeof navigator === "undefined" ? undefined : (navigator as Navigator & { connection?: Link }).connection) ??
     null;
-  return !(link && (link.saveData || /(^|-)[23]g$/.test(link.effectiveType ?? "")));
+  return !(link && (link.saveData || /(^|-)2g$/.test(link.effectiveType ?? "")));
 }
 
 /** Whether the tab is on screen: a document hidden behind another tab or a locked phone is not. */
@@ -282,39 +292,67 @@ const WARM_GAP_MS = 120;
 
 /**
  * Routes warmed once the page is idle, a breath apart, so none competes with the page's own reads: the strip's
- * siblings, the phone's tab bar. Never where a person has asked to save data or the connection says 2g or 3g: then a route
+ * siblings, the phone's tab bar. Never where a person has asked to save data or the connection says 2g: then a route
  * is warmed only when a pointer or a finger reaches it (warmRoute).
+ *
+ * Nor an address of the page that asked, judged as it asked: a move within one page never asks the router (goToRoute),
+ * and the warm may go after the person has left it. Reports' strip warmed its lenses, they went once the Inbox was on
+ * screen, and Next asked the prerender for each lens's head alone, which it answered 404 (13 October 2026).
  */
 export function warmSoon(routes: readonly string[], win: AddressWindow = window): void {
   if (!warmsOnItsOwn()) return;
+  const askedFrom = routeOnScreen(win);
   const later = (fn: () => void) =>
     typeof requestIdleCallback === "function"
       ? requestIdleCallback(fn, { timeout: WARM_IDLE_MS })
       : setTimeout(fn, WARM_FALLBACK_MS);
-  routes.forEach((route, at) => later(() => void setTimeout(() => warmRoute(route, win), WARM_GAP_MS * at)));
+  const elsewhere = routes.filter((route) => !onOnePage(askedFrom, doorOf(route) ?? route));
+  elsewhere.forEach((route, at) => later(() => void setTimeout(() => warmRoute(route, win), WARM_GAP_MS * at)));
 }
+
+/**
+ * How long Next keeps a page warmed before a move to it asks the server again: its `staleTimes.static`, five minutes
+ * (next.config.ts sets none). Next says nothing when it lets one go (`onInvalidate` is for a refresh, a server action or
+ * a rewrite's retry, never for age, and the app has none of the three), so the frame counts the time itself.
+ */
+const NEXT_KEEPS_A_WARM_MS = 5 * MIN_MS;
 
 /**
  * The routes kept warm: the phone's tab bar's places, which a thumb goes to from anywhere (app-shell.jsx PhoneTabs). The
  * router lets a warmed page go after five minutes, and nothing warmed it again until the page on screen changed: a phone
  * put away and taken out came back to places that each waited on the server first (12% of the bar's moves on
- * production, 5 to 12 Oct 2026). A place kept warm is warmed again as the router lets it go while the tab is on screen,
- * and every one as the tab comes back to the screen, a breath apart and at once: the press is likely the next thing.
+ * production, 5 to 12 Oct 2026). They are warmed again as the tab comes back to the screen, and, on a tab left on
+ * screen, by the first touch, click or key once Next has let them go: a press is likely the next thing, and a tab
+ * nobody touches asks for nothing.
  */
 const keptWarm = new Set<string>();
-let hearsTheScreen = false;
+/** When the kept places were last warmed (Date.now()), and the window whose screen and presses are heard. */
+let keptAt = 0;
+let hearsTheScreen: AddressWindow | null = null;
 
-/** Keep routes warm: warmed as warmSoon warms them, and again whenever the router lets one go or the tab comes back. */
+/** Warm every kept place now, a breath apart: Next fetches only those it has let go (warmRoute). */
+function warmKept(win: AddressWindow): void {
+  keptAt = Date.now();
+  [...keptWarm].forEach((route, at) => void setTimeout(() => warmRoute(route, win), WARM_GAP_MS * at));
+}
+
+/** Keep routes warm: warmed as warmSoon warms them, and again as the tab comes back or is used after Next let them go. */
 export function keepWarm(routes: readonly string[], win: AddressWindow = window): void {
   if (!warmsOnItsOwn()) return;
   for (const route of routes) keptWarm.add(doorOf(route) ?? route);
-  if (!hearsTheScreen && typeof document !== "undefined") {
-    hearsTheScreen = true;
+  if (hearsTheScreen !== win && typeof document !== "undefined") {
+    hearsTheScreen = win;
     document.addEventListener("visibilitychange", () => {
-      if (!onScreen()) return;
-      [...keptWarm].forEach((route, at) => void setTimeout(() => warmRoute(route, win), WARM_GAP_MS * at));
+      if (onScreen()) warmKept(win);
     });
+    const used = () => {
+      if (Date.now() - keptAt >= NEXT_KEEPS_A_WARM_MS) warmKept(win);
+    };
+    for (const type of ["pointerdown", "keydown"] as const) {
+      win.addEventListener(type, used, { capture: true, passive: true });
+    }
   }
+  keptAt = Date.now();
   warmSoon(routes, win);
 }
 

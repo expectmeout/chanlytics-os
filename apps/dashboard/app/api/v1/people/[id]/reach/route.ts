@@ -3,8 +3,6 @@ import { requireUuid } from "@/server/request-guards";
 import { load, readerContext } from "@/server/readers";
 import { personReach } from "@/server/readers/person";
 
-export const dynamic = "force-dynamic";
-
 /**
  * GET /api/v1/people/:id/reach — how one person can be written to and called now.
  *

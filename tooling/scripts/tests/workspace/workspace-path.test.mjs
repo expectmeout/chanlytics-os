@@ -363,34 +363,29 @@ test("a move between two addresses of one page is the page's own; a move to it f
   assert.equal(onOnePage("settings", "settings/x"), false, "no page, so no page to stay on");
 });
 
-test("a route with a page of its own is warmed in full before anyone goes there: once, never the page on screen, never a route the frame draws, and never past what the router says is stale", () => {
+test("a route with a page of its own is warmed in full at every reach, as a link to its path, and Next's cache decides whether that fetches; never the page on screen, never a route the frame draws", () => {
   const w = windowAt({ pathname: "/w/acme/inbox" });
   const asked = [];
-  const stale = [];
   // Nothing to warm with: the standalone mockup's address, a test's window.
   setAppRouter(null);
   warmRoute("conversations", w.win);
-  setAppRouter({
-    push: () => {},
-    replace: () => {},
-    prefetch: (href, options) => {
-      asked.push(href);
-      stale.push(options?.onInvalidate);
-    },
-  });
+  setAppRouter({ push: () => {}, replace: () => {}, prefetch: (href) => asked.push(href) });
   try {
     warmRoute("conversations", w.win);
+    assert.deepEqual(asked, ["/w/acme/conversations"], "a route is warmed as a link to its path");
+    // Six minutes on, Next has let it go: the next reach asks again. (A reach while it is kept asks too, and Next's
+    // scheduler skips a page it still holds.) The frame's own list of what it had warmed never let a route go.
     warmRoute("conversations", w.win);
-    assert.deepEqual(asked, ["/w/acme/conversations"], "a route is warmed once, as a link to its path");
+    assert.deepEqual(
+      asked,
+      ["/w/acme/conversations", "/w/acme/conversations"],
+      "every reach asks; nothing is held back",
+    );
     warmRoute("inbox", w.win);
     warmRoute("inbox/th-1", w.win);
-    assert.equal(asked.length, 1, "the page on screen is already drawn, whichever of its addresses is asked");
+    assert.equal(asked.length, 2, "the page on screen is already drawn, whichever of its addresses is asked");
     warmRoute("settings", w.win);
-    assert.equal(asked.length, 1, "a route the frame's table draws has no page to warm");
-    // The router says the payload has gone stale (it lives five minutes): the next ask warms it again.
-    stale[0]();
-    warmRoute("conversations", w.win);
-    assert.deepEqual(asked, ["/w/acme/conversations", "/w/acme/conversations"], "warmed again once it is stale");
+    assert.equal(asked.length, 2, "a route the frame's table draws has no page to warm");
     // On the address API the pages that cannot import reach it by.
     addressApi(w.win).warm("live");
     assert.equal(asked.at(-1), "/w/acme/live");
@@ -416,10 +411,23 @@ test("routes are warmed once the page is idle, a breath apart, and not at all wh
     warmSoon(["reports", "calendar"], w.win);
     await new Promise((r) => setTimeout(r, 60));
     assert.deepEqual(asked, [], "2g: nothing warmed on its own");
-    link({ effectiveType: "4g" });
+    link({ effectiveType: "slow-2g" });
+    warmSoon(["reports", "calendar"], w.win);
+    await new Promise((r) => setTimeout(r, 60));
+    assert.deepEqual(asked, [], "slow-2g: nothing warmed on its own");
+    // A warm is the build's own files, a few KB, so 3g warms: the round trip it saves at the press is the longest there.
+    link({ effectiveType: "3g" });
     warmSoon(["reports", "calendar"], w.win);
     await new Promise((r) => setTimeout(r, 400));
     assert.deepEqual(asked, ["/w/acme/reports", "/w/acme/calendar"], "otherwise each, in the order asked");
+    // Asked on Reports, its own lenses are not warmed, even when the warm goes once the person has left for the Inbox:
+    // a move between them never asks the router.
+    asked.length = 0;
+    const onReports = windowAt({ pathname: "/w/acme/reports" });
+    warmSoon(["reports/people", "reports/campaigns", "calendar"], onReports.win);
+    onReports.win.location.pathname = "/w/acme/inbox";
+    await new Promise((r) => setTimeout(r, 400));
+    assert.deepEqual(asked, ["/w/acme/calendar"], "the page that asked is the one judged");
   } finally {
     setAppRouter(null);
     globalThis.requestIdleCallback = was.idle;
@@ -428,57 +436,77 @@ test("routes are warmed once the page is idle, a breath apart, and not at all wh
   }
 });
 
-test("the tab bar's places are kept warm: again when the router lets one go while the tab is on screen, and all of them as it comes back", async () => {
+test("the tab bar's places are kept warm: all of them as the tab comes back, and on a tab left on screen by the first press once Next has let them go", async () => {
   const w = windowAt({ pathname: "/w/acme/today" });
+  const presses = [];
+  w.win.addEventListener = (type, fn, options) => presses.push({ type, fn, options });
   const asked = [];
-  const stale = new Map();
-  setAppRouter({
-    push: () => {},
-    replace: () => {},
-    prefetch: (href, options) => {
-      asked.push(href);
-      stale.set(href, options?.onInvalidate);
-    },
-  });
-  const was = { idle: globalThis.requestIdleCallback, doc: Object.getOwnPropertyDescriptor(globalThis, "document") };
+  setAppRouter({ push: () => {}, replace: () => {}, prefetch: (href) => asked.push(href) });
+  const was = {
+    idle: globalThis.requestIdleCallback,
+    doc: Object.getOwnPropertyDescriptor(globalThis, "document"),
+    now: Date.now,
+  };
   const heard = [];
   const screen = {
     visibilityState: "visible",
     addEventListener: (type, fn) => type === "visibilitychange" && heard.push(fn),
   };
   Object.defineProperty(globalThis, "document", { value: screen, configurable: true });
+  let clock = 1_000_000;
+  Date.now = () => clock;
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const press = (type = "pointerdown") => presses.filter((p) => p.type === type).forEach((p) => p.fn());
   try {
     globalThis.requestIdleCallback = (fn) => setTimeout(fn, 0);
     keepWarm(["inbox", "clients"], w.win);
     await wait(400);
     assert.deepEqual(asked, ["/w/acme/inbox", "/w/acme/people"], "warmed as warmSoon warms them");
-    assert.equal(heard.length, 1, "and the tab coming back to the screen is heard, once");
     keepWarm(["inbox", "clients"], w.win);
-    assert.equal(heard.length, 1, "however often the bar asks");
-    // The router lets the Inbox's page go while the tab is on screen: it is warmed again, with nobody reaching for it.
-    stale.get("/w/acme/inbox")();
+    await wait(400);
+    assert.equal(heard.length, 1, "the screen is heard once, however often the bar asks");
+    assert.deepEqual(
+      presses.map((p) => [p.type, p.options]),
+      [
+        ["pointerdown", { capture: true, passive: true }],
+        ["keydown", { capture: true, passive: true }],
+      ],
+      "and a press or a key, before anything on the page takes it, without holding the scroll",
+    );
+    asked.length = 0;
+    // A press while Next still keeps them asks for nothing more.
+    clock += 4 * 60_000;
+    press();
     await wait(300);
-    assert.deepEqual(asked.slice(2), ["/w/acme/inbox"]);
-    // A route warmed by a strip, and not kept: let go, it waits for a reach as before.
+    assert.deepEqual(asked, [], "four minutes on, the places are still kept");
+    // A route warmed by a strip, and not kept, is no press's business.
     warmSoon(["broadcasts"], w.win);
     await wait(300);
-    stale.get("/w/acme/broadcasts")();
-    await wait(300);
-    assert.deepEqual(asked.slice(3), ["/w/acme/broadcasts"], "warmed once, and not again by itself");
-    // Put away: what the router lets go waits for the tab's return, and then every place kept goes again at once.
+    asked.length = 0;
+    // Five minutes after the bar last warmed them, Next has let them go: the first press warms every place kept, once.
+    clock += 60_000;
+    press("keydown");
+    press();
+    await wait(400);
+    assert.deepEqual(
+      asked,
+      ["/w/acme/inbox", "/w/acme/people"],
+      "the first press warms them again, the second nothing",
+    );
+    asked.length = 0;
+    // Put away and taken out: every place kept goes again at once, as the tab comes back to the screen.
     screen.visibilityState = "hidden";
-    stale.get("/w/acme/people")();
-    stale.get("/w/acme/inbox")();
+    heard[0]();
     await wait(300);
-    assert.deepEqual(asked.slice(4), [], "nothing is asked for a tab nobody is looking at");
+    assert.deepEqual(asked, [], "nothing is asked for a tab nobody is looking at");
     screen.visibilityState = "visible";
     heard[0]();
     await wait(400);
-    assert.deepEqual(asked.slice(4).sort(), ["/w/acme/inbox", "/w/acme/people"]);
+    assert.deepEqual(asked, ["/w/acme/inbox", "/w/acme/people"]);
   } finally {
     setAppRouter(null);
     globalThis.requestIdleCallback = was.idle;
+    Date.now = was.now;
     if (was.doc) Object.defineProperty(globalThis, "document", was.doc);
     else delete globalThis.document;
   }

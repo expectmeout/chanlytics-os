@@ -41,7 +41,10 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   return consentPageMetadata(await consentPageFor(slug));
 }
-export const dynamic = "force-dynamic";
+// Rendered for each request, as it always was: it reads its slug and the workspace's record before anything is drawn,
+// and a business's page must say what is true now. Under cacheComponents a page that reads before it draws may block,
+// and this says it may (decision 0053, step 5).
+export const instant = false;
 
 export default async function ConsentPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;

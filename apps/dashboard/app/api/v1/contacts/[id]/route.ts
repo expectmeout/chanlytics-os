@@ -39,8 +39,6 @@ export const DELETE = write({
   handle: ({ ctx, row }) => eraseContact(ctx, row),
 });
 
-export const dynamic = "force-dynamic";
-
 /**
  * GET /api/v1/contacts/:id — one person, in full.
  *

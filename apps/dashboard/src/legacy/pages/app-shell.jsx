@@ -161,8 +161,10 @@ const PHONE_TABS = [
 // How long after the tab bar asks for a place the view that arrives is still its move, and cut in (useViewFade): the
 // tab's own wait for its address (the kit's TabBar, PENDING_MS).
 const PLACE_CUT_MS = 3000;
-// Where the phone's drawer goes that its tab bar does not.
-const DRAWER_ONLY = ["campaigns", "reports", "admin/workspace"];
+// Where the phone's drawer goes that its tab bar does not, as its items go there: Settings is `admin` (the sidebar's and the
+// account menu's), whose page opens on its first pane itself. Warmed as `admin/workspace`, it was another address, and the
+// press on Settings still asked the server.
+const DRAWER_ONLY = ["campaigns", "reports", "admin"];
 // A pointer that reaches a sidebar item warms its page (workspace.ts warmRoute), so the press that follows asks the server
 // for nothing. The item says which it is (sidebar.jsx data-nav).
 const sideWarm = (e) => {
@@ -189,8 +191,8 @@ const pageToTop = () => {
  * phone's tab bar draws the page it opens); the place on screen pressed again goes to its first page, or to the top.
  */
 const PhoneTabs = ({ page, param, inboxNeeds, onNavigate, onMenu, onPlace }) => {
-  // The four places a thumb goes, kept warm: warmed once the page is idle, again when the router lets one go or the tab
-  // comes back to the screen, and when a pointer reaches one (workspace.ts keepWarm, warmRoute).
+  // The four places a thumb goes, kept warm: warmed once the page is idle, again when the tab comes back to the screen or
+  // is first pressed after the router let them go, and when a finger reaches one (workspace.ts keepWarm, warmRoute).
   useShellEffect(() => {
     const a = window.CHANLY && window.CHANLY.address;
     if (a && a.keepWarm) a.keepWarm(PHONE_TABS.map((t) => t.route));
