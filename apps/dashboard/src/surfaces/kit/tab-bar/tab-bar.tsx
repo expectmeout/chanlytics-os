@@ -17,8 +17,8 @@
  */
 import { useEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import { viewDeck } from "../motion/view-deck";
-import { afterPaint } from "../press";
 import { cx } from "../variants";
+import { afterPaint } from "../view-tabs/after-paint";
 import { glideTo } from "../view-tabs/glide";
 
 /** How long a tab pressed stays lit while the address has not followed, before the bar says where it is again. */

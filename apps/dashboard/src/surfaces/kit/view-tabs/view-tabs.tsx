@@ -19,8 +19,8 @@
  */
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from "react";
 import { viewDeck } from "../motion/view-deck";
-import { afterPaint } from "../press";
 import { cx } from "../variants";
+import { afterPaint } from "./after-paint";
 import { glideTo, showPicked } from "./glide";
 
 /** How long a tab pressed stays lit while the address has not followed, before the strip says where it is again. */
