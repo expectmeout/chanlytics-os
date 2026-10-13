@@ -22,6 +22,7 @@ import { alertFor } from "./job-alert.js";
 import { whatsappWireForTenant } from "../tenant-runtime.js";
 import { smsSenderForTenant } from "../sms/sms.js";
 import { emailBoundFor, emailIntake } from "../email/email.js";
+import { mailboxIntake } from "../email/mailbox/mailbox-intake.js";
 import { campaignsBinding } from "../email/campaigns-domain.js";
 import { isWireUnavailable } from "../packages/core.js";
 import { pageOperator } from "./page-operator.js";
@@ -107,10 +108,8 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
           // has two (whatsappWireForTenant), and the texting line's sender when
           // the workspace has one. Null on either is a refusal at the door, not
           // a guess; a read that FAILED is neither (core WireUnavailable): the
-          // reply waits for a heartbeat that can read the vault. Email's provider key
-          // is the deployment's, so its wire is bound to the tenant's MAILBOX:
-          // it sends a frozen request only when that request leaves as this
-          // workspace, and a workspace without a mailbox has no email line.
+          // reply waits for a heartbeat that can read the vault. Email's wire is bound to the workspace's own addresses
+          // (its hosted mailbox, each mailbox it connected): it sends a frozen request only when it leaves as one.
           const line = await smsSenderForTenant(db, job.tenant_id);
           // Each wire is bound on its own: a mailbox that could not be read is email's wire unbound (core
           // WireUnavailable), never a throw that fails a WhatsApp or SMS reply that needed no email at all.
@@ -152,6 +151,7 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
               push: expoPush(),
               provisionLine: (lineId, by, until) => provisionLineJob(db, job.tenant_id, lineId, by, undefined, until),
               ...(intake ? { email: intake } : {}),
+              mailboxIntake: mailboxIntake(db), // a reply read back from a connected mailbox, with its grant (0056)
               ...(leads ? { leads } : {}),
               // The reading of a reach-out's reply (model, spend, notice): with no model key it says no_model and is read later.
               replies: replyReader(db),

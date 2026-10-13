@@ -9,13 +9,13 @@ export const ROUTES = {
   "DELETE google/link": { method: "DELETE", path: "/api/v1/google/link" },
   "DELETE lead-searches/[id]": { method: "DELETE", path: "/api/v1/lead-searches/[id]" },
   "DELETE leads/[id]": { method: "DELETE", path: "/api/v1/leads/[id]" },
+  "DELETE mailbox-connections/[id]": { method: "DELETE", path: "/api/v1/mailbox-connections/[id]" },
   "DELETE me": { method: "DELETE", path: "/api/v1/me" },
   "DELETE me/devices": { method: "DELETE", path: "/api/v1/me/devices" },
   "DELETE people/[id]/business": { method: "DELETE", path: "/api/v1/people/[id]/business" },
   "DELETE playbooks/[id]": { method: "DELETE", path: "/api/v1/playbooks/[id]" },
   "DELETE reach-outs/[id]": { method: "DELETE", path: "/api/v1/reach-outs/[id]" },
   "DELETE segments/[id]": { method: "DELETE", path: "/api/v1/segments/[id]" },
-  "DELETE sending-domains/[id]": { method: "DELETE", path: "/api/v1/sending-domains/[id]" },
   "DELETE team/[id]": { method: "DELETE", path: "/api/v1/team/[id]" },
   "DELETE team/partner": { method: "DELETE", path: "/api/v1/team/partner" },
   "DELETE templates/[id]": { method: "DELETE", path: "/api/v1/templates/[id]" },
@@ -55,6 +55,9 @@ export const ROUTES = {
   "GET leads": { method: "GET", path: "/api/v1/leads" },
   "GET leads/[id]": { method: "GET", path: "/api/v1/leads/[id]" },
   "GET lines/codes": { method: "GET", path: "/api/v1/lines/codes" },
+  "GET mailbox-connections": { method: "GET", path: "/api/v1/mailbox-connections" },
+  "GET mailbox-connections/callback": { method: "GET", path: "/api/v1/mailbox-connections/callback" },
+  "GET mailbox-connections/connect": { method: "GET", path: "/api/v1/mailbox-connections/connect" },
   "GET me/alerts": { method: "GET", path: "/api/v1/me/alerts" },
   "GET messages/[id]/media": { method: "GET", path: "/api/v1/messages/[id]/media" },
   "GET metrics": { method: "GET", path: "/api/v1/metrics" },
@@ -92,6 +95,7 @@ export const ROUTES = {
   "GET views": { method: "GET", path: "/api/v1/views" },
   "GET workspaces": { method: "GET", path: "/api/v1/workspaces" },
   "PATCH lead-searches/[id]": { method: "PATCH", path: "/api/v1/lead-searches/[id]" },
+  "PATCH mailbox-connections/[id]": { method: "PATCH", path: "/api/v1/mailbox-connections/[id]" },
   "PATCH partner": { method: "PATCH", path: "/api/v1/partner" },
   "PATCH team/[id]": { method: "PATCH", path: "/api/v1/team/[id]" },
   "PATCH workspaces": { method: "PATCH", path: "/api/v1/workspaces" },
@@ -171,6 +175,9 @@ export const ROUTES = {
   "POST lines/register": { method: "POST", path: "/api/v1/lines/register" },
   "POST lines/retry": { method: "POST", path: "/api/v1/lines/retry" },
   "POST lines/search": { method: "POST", path: "/api/v1/lines/search" },
+  "POST mailbox-connections/[id]/check": { method: "POST", path: "/api/v1/mailbox-connections/[id]/check" },
+  "POST mailbox-connections/[id]/resume": { method: "POST", path: "/api/v1/mailbox-connections/[id]/resume" },
+  "POST mailbox-connections/[id]/test": { method: "POST", path: "/api/v1/mailbox-connections/[id]/test" },
   "POST mailboxes": { method: "POST", path: "/api/v1/mailboxes" },
   "POST me/invitations/accept": { method: "POST", path: "/api/v1/me/invitations/accept" },
   "POST messages/[id]/cancel-send": { method: "POST", path: "/api/v1/messages/[id]/cancel-send" },
@@ -203,9 +210,6 @@ export const ROUTES = {
   "POST reach-outs/preview": { method: "POST", path: "/api/v1/reach-outs/preview" },
   "POST segments": { method: "POST", path: "/api/v1/segments" },
   "POST segments/draft": { method: "POST", path: "/api/v1/segments/draft" },
-  "POST sending-domains": { method: "POST", path: "/api/v1/sending-domains" },
-  "POST sending-domains/[id]/check": { method: "POST", path: "/api/v1/sending-domains/[id]/check" },
-  "POST sending-domains/[id]/resume": { method: "POST", path: "/api/v1/sending-domains/[id]/resume" },
   "POST settings/receptionist": { method: "POST", path: "/api/v1/settings/receptionist" },
   "POST setup/request": { method: "POST", path: "/api/v1/setup/request" },
   "POST team/invite": { method: "POST", path: "/api/v1/team/invite" },
@@ -257,13 +261,13 @@ export type Routes = {
   "DELETE google/link": typeof import("../../app/api/v1/google/link/route").DELETE;
   "DELETE lead-searches/[id]": typeof import("../../app/api/v1/lead-searches/[id]/route").DELETE;
   "DELETE leads/[id]": typeof import("../../app/api/v1/leads/[id]/route").DELETE;
+  "DELETE mailbox-connections/[id]": typeof import("../../app/api/v1/mailbox-connections/[id]/route").DELETE;
   "DELETE me": typeof import("../../app/api/v1/me/route").DELETE;
   "DELETE me/devices": typeof import("../../app/api/v1/me/devices/route").DELETE;
   "DELETE people/[id]/business": typeof import("../../app/api/v1/people/[id]/business/route").DELETE;
   "DELETE playbooks/[id]": typeof import("../../app/api/v1/playbooks/[id]/route").DELETE;
   "DELETE reach-outs/[id]": typeof import("../../app/api/v1/reach-outs/[id]/route").DELETE;
   "DELETE segments/[id]": typeof import("../../app/api/v1/segments/[id]/route").DELETE;
-  "DELETE sending-domains/[id]": typeof import("../../app/api/v1/sending-domains/[id]/route").DELETE;
   "DELETE team/[id]": typeof import("../../app/api/v1/team/[id]/route").DELETE;
   "DELETE team/partner": typeof import("../../app/api/v1/team/partner/route").DELETE;
   "DELETE templates/[id]": typeof import("../../app/api/v1/templates/[id]/route").DELETE;
@@ -303,6 +307,9 @@ export type Routes = {
   "GET leads": typeof import("../../app/api/v1/leads/route").GET;
   "GET leads/[id]": typeof import("../../app/api/v1/leads/[id]/route").GET;
   "GET lines/codes": typeof import("../../app/api/v1/lines/codes/route").GET;
+  "GET mailbox-connections": typeof import("../../app/api/v1/mailbox-connections/route").GET;
+  "GET mailbox-connections/callback": typeof import("../../app/api/v1/mailbox-connections/callback/route").GET;
+  "GET mailbox-connections/connect": typeof import("../../app/api/v1/mailbox-connections/connect/route").GET;
   "GET me/alerts": typeof import("../../app/api/v1/me/alerts/route").GET;
   "GET messages/[id]/media": typeof import("../../app/api/v1/messages/[id]/media/route").GET;
   "GET metrics": typeof import("../../app/api/v1/metrics/route").GET;
@@ -340,6 +347,7 @@ export type Routes = {
   "GET views": typeof import("../../app/api/v1/views/route").GET;
   "GET workspaces": typeof import("../../app/api/v1/workspaces/route").GET;
   "PATCH lead-searches/[id]": typeof import("../../app/api/v1/lead-searches/[id]/route").PATCH;
+  "PATCH mailbox-connections/[id]": typeof import("../../app/api/v1/mailbox-connections/[id]/route").PATCH;
   "PATCH partner": typeof import("../../app/api/v1/partner/route").PATCH;
   "PATCH team/[id]": typeof import("../../app/api/v1/team/[id]/route").PATCH;
   "PATCH workspaces": typeof import("../../app/api/v1/workspaces/route").PATCH;
@@ -419,6 +427,9 @@ export type Routes = {
   "POST lines/register": typeof import("../../app/api/v1/lines/register/route").POST;
   "POST lines/retry": typeof import("../../app/api/v1/lines/retry/route").POST;
   "POST lines/search": typeof import("../../app/api/v1/lines/search/route").POST;
+  "POST mailbox-connections/[id]/check": typeof import("../../app/api/v1/mailbox-connections/[id]/check/route").POST;
+  "POST mailbox-connections/[id]/resume": typeof import("../../app/api/v1/mailbox-connections/[id]/resume/route").POST;
+  "POST mailbox-connections/[id]/test": typeof import("../../app/api/v1/mailbox-connections/[id]/test/route").POST;
   "POST mailboxes": typeof import("../../app/api/v1/mailboxes/route").POST;
   "POST me/invitations/accept": typeof import("../../app/api/v1/me/invitations/accept/route").POST;
   "POST messages/[id]/cancel-send": typeof import("../../app/api/v1/messages/[id]/cancel-send/route").POST;
@@ -451,9 +462,6 @@ export type Routes = {
   "POST reach-outs/preview": typeof import("../../app/api/v1/reach-outs/preview/route").POST;
   "POST segments": typeof import("../../app/api/v1/segments/route").POST;
   "POST segments/draft": typeof import("../../app/api/v1/segments/draft/route").POST;
-  "POST sending-domains": typeof import("../../app/api/v1/sending-domains/route").POST;
-  "POST sending-domains/[id]/check": typeof import("../../app/api/v1/sending-domains/[id]/check/route").POST;
-  "POST sending-domains/[id]/resume": typeof import("../../app/api/v1/sending-domains/[id]/resume/route").POST;
   "POST settings/receptionist": typeof import("../../app/api/v1/settings/receptionist/route").POST;
   "POST setup/request": typeof import("../../app/api/v1/setup/request/route").POST;
   "POST team/invite": typeof import("../../app/api/v1/team/invite/route").POST;

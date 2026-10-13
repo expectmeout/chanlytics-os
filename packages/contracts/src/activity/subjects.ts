@@ -42,12 +42,13 @@ export const ACTIVITY_SUBJECT_HOMES = {
   review: { door: (id) => addressOf({ kind: "review", id }) },
   membership: { door: page(addressOf({ kind: "team" })) },
   invitation: { door: page(addressOf({ kind: "team" })) },
-  // Connections holds the numbers, the lines, the address mail is sent from, the domains and the Google listing.
+  // Connections holds the numbers, the lines, the address mail is sent from, the mailboxes reach-outs write from and the
+  // Google listing.
   channel: { door: page(CONNECTIONS) },
   tenant_channel: { door: page(CONNECTIONS) },
   line: { door: page(CONNECTIONS) },
   mailbox: { door: page(CONNECTIONS) },
-  sending_domain: { door: page(CONNECTIONS) },
+  mailbox_connection: { door: page(CONNECTIONS) },
   listing: { door: page(CONNECTIONS) },
   subscription: { door: page(addressOf({ kind: "billing" })) },
   // The subjects whose page the server finds.

@@ -11,12 +11,12 @@
  *               one the provider refused, or that may have left, fails; any other refusal is the door's word for why
  *               this lead is not written to, and skips it; a row gone (an erasure) skips it.
  *   unstick     a send claimed and never queued: its email written (adopted, queued) or never written (planned
- *               again), so a writer that died mid-send neither loses it nor spends its domain's day for good.
+ *               again), so a writer that died mid-send neither loses it nor spends its mailbox's day for good.
  *   close       a canceled or failed run's open sends are skipped, `run_canceled`; an email still queued is withdrawn
  *               first, so its job sends nothing; one its job has begun to send is its job's, and reconcile reads it.
  *   finish      a run that goes ahead with no send left open is sent, and says when it finished.
  *   restale     a planned send long past its time in a run that goes ahead (approved late, its chain resumed, its
- *               domain's day full or its domain removed) is planned again from now.
+ *               mailbox's day full or its mailbox removed) is planned again from now.
  *   give up     a send the check held (Part 4) that its owner never answered is skipped, kept_waiting, fourteen days
  *               from when it was planned: the one clock every send gives up by (replan.ts REPLAN_GIVE_UP_MS, R10).
  */
@@ -67,7 +67,7 @@ export interface ClockCounts extends ReplanCounts {
 }
 
 /**
- * An email that never left, so another try costs its domain nothing and cannot send twice: the provider's limit (a
+ * An email that never left, so another try costs its mailbox nothing and cannot send twice: the provider's limit (a
  * 429 is a refusal before the send), a job that died knowing it had not sent (settle's never_delivered), and a row
  * whose job was gone (the unfinished sweep's orphaned). A 5xx, a network error or a timeout may have left, and fails.
  */

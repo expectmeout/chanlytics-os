@@ -118,7 +118,7 @@ const chainOf = (s, over = {}) => ({
   search_id: s,
   include_unconfirmed: false,
   gap_minutes: 12,
-  domain_ids: [],
+  mailbox_ids: [],
   signed_by: "Sam",
   steps: [
     { subject: "Quick one for {{business}}", body: "{{opening}}\n\n{{your name}}", after_days: null },

@@ -33,7 +33,7 @@ const root = (over = {}) => ({
   after_playbook_id: null,
   after_days: null,
   gap_minutes: 12,
-  domain_ids: [],
+  mailbox_ids: [],
   cap_per_run: 25,
   template_id: "tpl1",
   template_name: "reach_first",
@@ -53,7 +53,7 @@ function ports(over = {}) {
       chainState: async () => "none",
       audience: async () => [lead("a"), lead("b", { region: "CA" })],
       followers: async () => [],
-      domains: async () => [{ id: "d1", cap: 30, recent: [] }],
+      mailboxes: async () => ({ senders: [{ id: "d1", cap: 30, recent: [] }], gone: new Set() }),
       planRun: async (run, sends) => (made.runs.push(run), made.sends.push(...sends), { id: run.id }),
       recordRun: async (run, counts) => void made.recorded.push([run.id, run.state, counts]),
       notifyWaiting: async (runId, n, firstAt) => void made.told.push([runId, n, firstAt]),
@@ -94,7 +94,7 @@ test("a chain's first run waits for its owner, with every send planned in its le
   assert.equal(run.scheduled_for, "2026-09-28T14:30:00.000Z", "the run says when its first email goes");
   for (const s of made.sends) {
     assert.deepEqual(
-      [s.state, s.domain_id, s.root_id, s.playbook_id, s.broadcast_id, s.tenant_id, s.contact_id],
+      [s.state, s.mailbox_id, s.root_id, s.playbook_id, s.broadcast_id, s.tenant_id, s.contact_id],
       ["planned", "d1", "p1", "p1", RUN, "t1", null],
     );
     assert.equal(s.id, await sendIdFor(RUN, s.lead_id), "a replayed run meets its own rows");
@@ -134,11 +134,15 @@ test("nothing is assembled while the chain's first run waits, a chain is paused,
     [{ maySpend: false }, root(), { outcome: "held", reason: "billing", planned: 0 }],
     [{ alreadyRan: async () => true }, root(), { outcome: "empty", reason: "already_ran", planned: 0 }],
     [{ audience: async () => [] }, root(), { outcome: "empty", reason: "nobody", planned: 0 }],
-    [{ domains: async () => [] }, root(), { outcome: "held", reason: "no_domain", planned: 0 }],
     [
-      { domains: async () => [{ id: "d1", cap: 0, recent: [] }] },
+      { mailboxes: async () => ({ senders: [], gone: new Set() }) },
       root(),
-      { outcome: "held", reason: "no_domain", planned: 0 },
+      { outcome: "held", reason: "no_mailbox", planned: 0 },
+    ],
+    [
+      { mailboxes: async () => ({ senders: [{ id: "d1", cap: 0, recent: [] }], gone: new Set() }) },
+      root(),
+      { outcome: "held", reason: "no_mailbox", planned: 0 },
     ],
   ];
   for (const [over, step, want] of cases) {
@@ -148,7 +152,7 @@ test("nothing is assembled while the chain's first run waits, a chain is paused,
   }
 });
 
-test("leads with no hour to be written in, or no room on any domain, make no run; a run another tick made first plans nothing", async () => {
+test("leads with no hour to be written in, or no room in any mailbox, make no run; a run another tick made first plans nothing", async () => {
   const closed = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((d) => ({
     day: d,
     hours: "Closed",
@@ -156,9 +160,9 @@ test("leads with no hour to be written in, or no room on any domain, make no run
   const shut = ports({ audience: async () => [lead("a", { hours: closed })] });
   assert.deepEqual(await runReachOut(shut.ports, root(), day), { outcome: "empty", reason: "nobody", planned: 0 });
   assert.deepEqual(shut.made.runs, []);
-  // A domain whose day is spent for the week: the leads wait for tomorrow's run.
+  // A mailbox whose day is spent for the week: the leads wait for tomorrow's run.
   const week = Array.from({ length: 8 * 30 }, (_, i) => NOW - 60_000 + i * 45 * 60_000);
-  const full = ports({ domains: async () => [{ id: "d1", cap: 1, recent: week }] });
+  const full = ports({ mailboxes: async () => ({ senders: [{ id: "d1", cap: 1, recent: week }], gone: new Set() }) });
   assert.deepEqual(await runReachOut(full.ports, root(), day), { outcome: "held", reason: "no_room", planned: 0 });
   assert.deepEqual(full.made.runs, []);
   const raced = ports({ planRun: async () => "exists" });
@@ -189,6 +193,8 @@ test("a step writes to the leads sent the step before, less anyone the door woul
     parent_message_id: `m${id}`,
     facts: { lead_stage: "ready", suppressed: false, wrote_back: false },
     bounced: false,
+    mailbox_id: "d1",
+    country: "US",
     ...over,
   });
   const { ports: p, made } = ports({
@@ -218,7 +224,7 @@ test("a step writes to the leads sent the step before, less anyone the door woul
   assert.deepEqual(
     made.sends
       .filter((s) => s.state === "skipped")
-      .map((s) => [s.lead_id, s.reason, s.domain_id, s.send_at, s.contact_id]),
+      .map((s) => [s.lead_id, s.reason, s.mailbox_id, s.send_at, s.contact_id]),
     [
       ["b", "outreach_wrote_back", null, null, "kb"],
       ["c", "outreach_bounced", null, null, "kc"],
@@ -263,4 +269,43 @@ test("the run is its step and its day, whatever tick makes it: a replay meets th
     two.made.sends.map((s) => s.id),
   );
   assert.notEqual(one.made.runs[0].id, await reachOutRunIdFor("p1", "2026-09-29"), "the next day's is another");
+});
+
+test("a later step's lead keeps the mailbox its chain wrote from; one whose mailbox is gone is skipped, never written to from another (decision 0056)", async () => {
+  const step = root({ id: "p2", trigger: "after_step", lead_search_id: null, after_playbook_id: "p1", after_days: 3 });
+  const f = (id, mailbox) => ({
+    lead_id: id,
+    contact_id: `k${id}`,
+    email: `${id}@x.example`,
+    region: "TX",
+    hours: [],
+    parent_message_id: `m${id}`,
+    facts: { lead_stage: "ready", suppressed: false, wrote_back: false },
+    bounced: false,
+    mailbox_id: mailbox,
+    country: "US",
+  });
+  const asked = [];
+  const { ports: p, made } = ports({
+    chainState: async () => "approved",
+    followers: async () => [f("a", "d1"), f("b", "d2"), f("c", "gone-1")],
+    mailboxes: async (_step, also) => {
+      asked.push([...also].sort());
+      return {
+        senders: [
+          { id: "d1", cap: 30, recent: [] },
+          { id: "d2", cap: 30, recent: [] },
+          { id: "d3", cap: 30, recent: [] },
+        ],
+        gone: new Set(["gone-1"]),
+      };
+    },
+  });
+  const out = await runReachOut(p, step, day);
+  assert.equal(out.planned, 2);
+  assert.deepEqual(asked, [["d1", "d2", "gone-1"]], "the step's mailboxes, and every one its leads keep");
+  const by = Object.fromEntries(made.sends.map((s) => [s.lead_id, s]));
+  assert.deepEqual([by.a.state, by.a.mailbox_id], ["planned", "d1"], "the same mailbox, so the nudge is in its thread");
+  assert.deepEqual([by.b.state, by.b.mailbox_id], ["planned", "d2"]);
+  assert.deepEqual([by.c.state, by.c.reason, by.c.mailbox_id], ["skipped", "mailbox_gone", null]);
 });

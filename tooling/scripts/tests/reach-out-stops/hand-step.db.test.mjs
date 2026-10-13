@@ -52,7 +52,7 @@ const chainOf = (search, steps) => ({
   search_id: search,
   include_unconfirmed: false,
   gap_minutes: 12,
-  domain_ids: [],
+  mailbox_ids: [],
   signed_by: "Sam",
   steps,
 });

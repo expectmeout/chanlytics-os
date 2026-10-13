@@ -25,7 +25,7 @@ const step = (over = {}) => ({
   after_playbook_id: "p2",
   after_days: 5,
   gap_minutes: 12,
-  domain_ids: [],
+  mailbox_ids: [],
   cap_per_run: 25,
   hand: { kind: "call", words: "ask whether the quote suited them" },
   ...over,

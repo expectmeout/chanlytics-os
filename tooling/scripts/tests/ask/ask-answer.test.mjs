@@ -704,7 +704,7 @@ const NEW_ROWS = [
   ref("broadcast", RUN, `broadcasts/run:${RUN}`, "Monday offer"),
   ref("playbook", PLAYBOOK, `outbound/${PLAYBOOK}`, "Win-back"),
   ref("template", TEMPLATE, "messages", "spring_offer"),
-  ref("domain", DOMAIN, "admin/integrations", "mail.example.com"),
+  ref("mailbox", DOMAIN, "admin/integrations", "sam@mail.example.com"),
 ];
 
 test("thirteen names: the format's kinds are a page and twelve rows, and a run is none of them; the format is measured under the edge's 8,000", () => {
@@ -725,7 +725,7 @@ test("thirteen names: the format's kinds are a page and twelve rows, and a run i
       "broadcast",
       "playbook",
       "template",
-      "domain",
+      "mailbox",
     ],
   );
   assert.ok(!kinds.includes("run"), "a Broadcasts row is cited as a broadcast; run is its address's word");

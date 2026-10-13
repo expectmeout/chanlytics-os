@@ -1,7 +1,7 @@
 /**
  * The reach-out check's clock, run: POST /api/cron/reach-out-check over a database in memory, the model answered by the
  * test through the platform's one transport (lib/model.ts, over a scripted API). Its own clock (R1): who may knock; with no
- * ANTHROPIC_API_KEY nothing is touched and a waiting send says 503 (R4); with no cold lane nothing is checked, since
+ * ANTHROPIC_API_KEY nothing is touched and a waiting send says 503 (R4); with no lane nothing is checked, since
  * nothing checked could leave (R2); a tick where every call failed is a 503 (R4); a tick that checks says what it did.
  */
 import { test, after } from "node:test";
@@ -22,14 +22,10 @@ after(() => {
 const MIN = 60_000;
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const TPL = "44444444-aaaa-4aaa-8aaa-444444444444";
-/** The cold lane and the model's key, set. Made-up values. */
+/** The lane (the unsubscribe's seal) and the model's key, set. Made-up values. */
 const SET = {
   ANTHROPIC_API_KEY: "model-key-for-this-file",
-  RESEND_API_KEY: "platform-key-for-this-file",
-  RESEND_COLD_API_KEY: "cold-key-for-this-file",
-  RESEND_COLD_WEBHOOK_SECRET: "cold-webhook-for-this-file",
   UNSUBSCRIBE_SECRET: "unsubscribe-seal-for-this-file",
-  EMAIL_DOMAIN: "mail.chanlytics.com",
 };
 
 const send = (over = {}) => ({
@@ -152,11 +148,11 @@ test("no model key: nothing is touched; a send waiting says so with a 503, and n
   assert.deepEqual(await knockWith({ ...SET, ANTHROPIC_API_KEY: undefined }), [200, { ok: true, unset: true }]);
 });
 
-test("no cold lane: nothing checked could leave, so nothing is checked; a send waiting names what is missing (R2)", async () => {
+test("no lane: nothing checked could leave, so nothing is checked; a send waiting names what is missing (R2)", async () => {
   const asked = model();
   const w = world();
   const [status, body] = await knockWith({ ...SET, UNSUBSCRIBE_SECRET: undefined });
-  assert.deepEqual([status, body.error, body.missing], [503, "cold_lane_unset", ["UNSUBSCRIBE_SECRET"]]);
+  assert.deepEqual([status, body.error, body.missing], [503, "lane_unset", ["UNSUBSCRIBE_SECRET"]]);
   assert.deepEqual([w.row("send-1").check_started_at, asked.length], [null, 0]);
 });
 

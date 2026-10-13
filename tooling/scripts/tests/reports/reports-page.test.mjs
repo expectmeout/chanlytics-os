@@ -614,7 +614,7 @@ test("every card is drawn, under the testids the e2e, Today and the Google tests
     "ro-emails",
     "ro-funnel",
     "ro-angles",
-    "ro-domains",
+    "ro-mailboxes",
     "ro-written",
     "ro-sources",
   ])

@@ -2,7 +2,7 @@
  * A warning closes when the news that mends it is kept (the wiring's second audit, W-channel-team-plus-4).
  *
  * The bell keeps the bad news and the good: a number flagged and back to normal, a messaging limit lowered and raised, an
- * account review rejected and approved, a message refused and approved, a sending domain held and sending again, the
+ * account review rejected and approved, a message refused and approved, a mailbox held or signed out and sending again, the
  * receptionist paused and back, a payment that did not go through and a paid invoice. The good news was kept and the warning
  * beside it stayed unread and amber for ever. Each pair is said here once: the warning by its kind and title, and what mends
  * it (a kind and title the edge keeps after it, or a change the edge records). The edge closes the warning when its mend is
@@ -17,7 +17,11 @@ import type { ServerNotificationKind } from "../today/notifications";
 
 /** A change the edge records that mends a warning, where no row of good news is kept for it. */
 export type MendChange =
-  "billing.paid" | "mailbox.offers_resumed" | "sending_domain.resumed" | "sending_domain.released";
+  | "billing.paid"
+  | "mailbox.offers_resumed"
+  | "mailbox_connection.resumed"
+  | "mailbox_connection.connected"
+  | "mailbox_connection.removed";
 
 /** What mends a warning: a kind and title kept after it, or a change. */
 export type MendBy = { kind: ServerNotificationKind; title: RegExp } | { change: MendChange };
@@ -59,10 +63,28 @@ export const NOTICE_MENDS: readonly NoticeMend[] = [
     by: { kind: "template_ready", title: templateTitle("approved") },
     sameSubject: true,
   },
-  // A domain held is mended however its hold lifts: the platform's resume or the owner's (sending_domain.resumed), or a
-  // check that passes (sending_domain.released).
-  { warns: { kind: "sweep", title: /^.+ is held: /u }, by: { change: "sending_domain.resumed" }, sameSubject: true },
-  { warns: { kind: "sweep", title: /^.+ is held: /u }, by: { change: "sending_domain.released" }, sameSubject: true },
+  // A connected mailbox held for its own mail is mended by its owner's resume, one signed out by connecting it again, and
+  // either by its removal (decision 0056, mailbox-notices.ts words them).
+  {
+    warns: { kind: "sweep", title: /^.+ is held: /u },
+    by: { change: "mailbox_connection.resumed" },
+    sameSubject: true,
+  },
+  {
+    warns: { kind: "sweep", title: /^.+ is held: /u },
+    by: { change: "mailbox_connection.removed" },
+    sameSubject: true,
+  },
+  {
+    warns: { kind: "sweep", title: /^.+ needs reconnecting$/u },
+    by: { change: "mailbox_connection.connected" },
+    sameSubject: true,
+  },
+  {
+    warns: { kind: "sweep", title: /^.+ needs reconnecting$/u },
+    by: { change: "mailbox_connection.removed" },
+    sameSubject: true,
+  },
   {
     warns: { kind: "billing", title: /^Your receptionist is paused$/u },
     by: { kind: "billing", title: /^Your receptionist is back$/u },

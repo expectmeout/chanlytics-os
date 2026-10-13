@@ -6,26 +6,26 @@ const NY = "America/New_York";
 const LA = "America/Los_Angeles";
 const at = (iso) => Date.parse(iso);
 const send = (id, zone = NY, week = DEFAULT_WEEK) => ({ id, zone, week });
-const domain = (id, cap, recent = []) => ({ id, cap, recent });
+const mailbox = (id, cap, recent = []) => ({ id, cap, recent });
 const none = () => 0; // no jitter: the tests read exact times
 
 test("a send goes at the lead's own next open moment, half an hour inside the window", () => {
   // Monday 7:00 in New York: the window opens at 9:00, so the first send is 9:30 local (13:30Z in September).
   const out = timetable({
     sends: [send("a")],
-    domains: [domain("d1", 30)],
+    senders: [mailbox("d1", 30)],
     gapMinutes: 12,
     nowMs: at("2026-09-28T11:00:00Z"),
     jitter: none,
   });
-  assert.deepEqual(out.placed, [{ id: "a", domainId: "d1", sendAtMs: at("2026-09-28T13:30:00Z") }]);
+  assert.deepEqual(out.placed, [{ id: "a", senderId: "d1", sendAtMs: at("2026-09-28T13:30:00Z") }]);
   assert.equal(SEND_WINDOW_MARGIN_MIN, 30);
 });
 
 test("each lead in its own zone: a Los Angeles lead waits for Los Angeles' morning", () => {
   const out = timetable({
     sends: [send("ny"), send("la", LA)],
-    domains: [domain("d1", 30)],
+    senders: [mailbox("d1", 30)],
     gapMinutes: 12,
     nowMs: at("2026-09-28T11:00:00Z"),
     jitter: none,
@@ -35,10 +35,10 @@ test("each lead in its own zone: a Los Angeles lead waits for Los Angeles' morni
   assert.equal(by.la, at("2026-09-28T16:30:00Z"), "9:30 in Los Angeles");
 });
 
-test("the gap between two sends on one domain, and the second domain takes the next lead meanwhile", () => {
+test("the gap between two sends on one mailbox, and the second mailbox takes the next lead meanwhile", () => {
   const one = timetable({
     sends: [send("a"), send("b")],
-    domains: [domain("d1", 30)],
+    senders: [mailbox("d1", 30)],
     gapMinutes: 12,
     nowMs: at("2026-09-28T11:00:00Z"),
     jitter: none,
@@ -46,13 +46,13 @@ test("the gap between two sends on one domain, and the second domain takes the n
   assert.equal(one.placed[1].sendAtMs - one.placed[0].sendAtMs, 12 * 60_000);
   const two = timetable({
     sends: [send("a"), send("b")],
-    domains: [domain("d1", 30), domain("d2", 30)],
+    senders: [mailbox("d1", 30), mailbox("d2", 30)],
     gapMinutes: 12,
     nowMs: at("2026-09-28T11:00:00Z"),
     jitter: none,
   });
   assert.deepEqual(
-    two.placed.map((p) => [p.domainId, p.sendAtMs]),
+    two.placed.map((p) => [p.senderId, p.sendAtMs]),
     [
       ["d1", at("2026-09-28T13:30:00Z")],
       ["d2", at("2026-09-28T13:30:00Z")],
@@ -60,11 +60,11 @@ test("the gap between two sends on one domain, and the second domain takes the n
   );
 });
 
-test("a domain's day is its cap, counted with what it already sent; what does not fit waits for room", () => {
+test("a mailbox's day is its cap, counted with what it already sent; what does not fit waits for room", () => {
   // Cap 2, one already sent at 13:00Z: one more today, and the third a day after the first of the two.
   const out = timetable({
     sends: [send("a"), send("b")],
-    domains: [domain("d1", 2, [at("2026-09-28T13:00:00Z")])],
+    senders: [mailbox("d1", 2, [at("2026-09-28T13:00:00Z")])],
     gapMinutes: 12,
     nowMs: at("2026-09-28T11:00:00Z"),
     jitter: none,
@@ -77,7 +77,7 @@ test("a closed day is skipped, and a lead with no room within the horizon is lef
   const fridayOnly = { ...DEFAULT_WEEK, mon: [], tue: [], wed: [], thu: [] };
   const out = timetable({
     sends: [send("f", NY, fridayOnly)],
-    domains: [domain("d1", 30)],
+    senders: [mailbox("d1", 30)],
     gapMinutes: 12,
     nowMs: at("2026-09-28T11:00:00Z"),
     jitter: none,
@@ -86,7 +86,7 @@ test("a closed day is skipped, and a lead with no room within the horizon is lef
   const closed = { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] };
   const never = timetable({
     sends: [send("x", NY, closed)],
-    domains: [domain("d1", 30)],
+    senders: [mailbox("d1", 30)],
     gapMinutes: 12,
     nowMs: at("2026-09-28T11:00:00Z"),
     jitter: none,
@@ -94,10 +94,10 @@ test("a closed day is skipped, and a lead with no room within the horizon is lef
   assert.deepEqual([never.placed, never.unplaced], [[], ["x"]]);
 });
 
-test("no domain with a day's share places nothing", () => {
+test("no mailbox with a day's share places nothing", () => {
   const out = timetable({
     sends: [send("a")],
-    domains: [domain("d1", 0)],
+    senders: [mailbox("d1", 0)],
     gapMinutes: 12,
     nowMs: at("2026-09-28T11:00:00Z"),
     jitter: none,
@@ -108,7 +108,7 @@ test("no domain with a day's share places nothing", () => {
 test("jitter moves each gap by at most a quarter, so no two runs keep one rhythm", () => {
   const out = timetable({
     sends: [send("a"), send("b"), send("c")],
-    domains: [domain("d1", 30)],
+    senders: [mailbox("d1", 30)],
     gapMinutes: 12,
     nowMs: at("2026-09-28T11:00:00Z"),
     jitter: () => 1,
@@ -130,7 +130,7 @@ test("the day's frame: a business open all night is written to from eight, its o
   // Monday 3:00 in New York (7:00Z): the first send is 8:00 local, 12:00Z.
   const out = timetable({
     sends: [send("a", NY, allDay)],
-    domains: [domain("d1", 30)],
+    senders: [mailbox("d1", 30)],
     gapMinutes: 12,
     nowMs: at("2026-09-28T07:00:00Z"),
     jitter: none,
@@ -156,7 +156,7 @@ test("a business open only at night takes the default week's hours; one closed e
   assert.deepEqual(sendWindowsOf(night).wed, [{ from: 570, to: 990 }], "nine to five, half an hour in");
   const out = timetable({
     sends: [send("bar", NY, night)],
-    domains: [domain("d1", 30)],
+    senders: [mailbox("d1", 30)],
     gapMinutes: 12,
     nowMs: at("2026-09-28T11:00:00Z"),
     jitter: none,
@@ -166,7 +166,7 @@ test("a business open only at night takes the default week's hours; one closed e
   assert.deepEqual(sendWindowsOf(closed), closed);
 });
 
-test("a run of five hundred over two domains keeps every gap and every rolling day's cap, inside the leads' windows", () => {
+test("a run of five hundred over two mailboxes keeps every gap and every rolling day's cap, inside the leads' windows", () => {
   const zones = [NY, LA, "America/Chicago", "America/Denver"];
   const sends = Array.from({ length: 500 }, (_, i) => send(`s${i}`, zones[i % 4]));
   const already = Array.from({ length: 20 }, (_, i) => at("2026-09-27T14:00:00Z") + i * 15 * 60_000);
@@ -176,7 +176,7 @@ test("a run of five hundred over two domains keeps every gap and every rolling d
   const started = performance.now();
   const out = timetable({
     sends,
-    domains: [domain("d1", 30, already), domain("d2", 20)],
+    senders: [mailbox("d1", 30, already), mailbox("d2", 20)],
     gapMinutes: 12,
     nowMs: at("2026-09-28T11:00:00Z"),
     jitter,
@@ -188,7 +188,7 @@ test("a run of five hundred over two domains keeps every gap and every rolling d
     ["d1", 30, already],
     ["d2", 20, []],
   ]) {
-    const times = [...recent, ...out.placed.filter((p) => p.domainId === id).map((p) => p.sendAtMs)].sort(
+    const times = [...recent, ...out.placed.filter((p) => p.senderId === id).map((p) => p.sendAtMs)].sort(
       (a, b) => a - b,
     );
     for (let i = 1; i < times.length; i += 1)
@@ -219,7 +219,7 @@ test("each zone's own morning across both clock changes, and in the zones that k
   // Fall back: Sunday 1 November; Monday's 9:30 in New York is 14:30Z (EST), in Phoenix 16:30Z, in Honolulu 19:30Z.
   const fall = timetable({
     sends: [send("ny"), send("az", "America/Phoenix"), send("hi", "Pacific/Honolulu")],
-    domains: [domain("d1", 30), domain("d2", 30), domain("d3", 30)],
+    senders: [mailbox("d1", 30), mailbox("d2", 30), mailbox("d3", 30)],
     gapMinutes: 12,
     nowMs: at("2026-11-01T06:00:00Z"),
     jitter: none,
@@ -232,7 +232,7 @@ test("each zone's own morning across both clock changes, and in the zones that k
   // Spring forward: Sunday 8 March; Monday's 9:30 in New York is 13:30Z (EDT), and Phoenix stays at 16:30Z.
   const spring = timetable({
     sends: [send("ny"), send("az", "America/Phoenix")],
-    domains: [domain("d1", 30), domain("d2", 30)],
+    senders: [mailbox("d1", 30), mailbox("d2", 30)],
     gapMinutes: 12,
     nowMs: at("2026-03-08T05:00:00Z"),
     jitter: none,
@@ -246,7 +246,7 @@ test("each zone's own morning across both clock changes, and in the zones that k
 test("a send already planned ahead keeps its gap too, on either side", () => {
   const out = timetable({
     sends: [send("a")],
-    domains: [domain("d1", 30, [at("2026-09-28T13:35:00Z")])],
+    senders: [mailbox("d1", 30, [at("2026-09-28T13:35:00Z")])],
     gapMinutes: 12,
     nowMs: at("2026-09-28T11:00:00Z"),
     jitter: none,
@@ -257,7 +257,7 @@ test("a send already planned ahead keeps its gap too, on either side", () => {
 test("the cap's day ends a day after its oldest send, to the minute", () => {
   const out = timetable({
     sends: [send("a"), send("b")],
-    domains: [domain("d1", 2, [at("2026-09-28T13:00:00Z")])],
+    senders: [mailbox("d1", 2, [at("2026-09-28T13:00:00Z")])],
     gapMinutes: 12,
     nowMs: at("2026-09-28T11:00:00Z"),
     jitter: none,
@@ -274,7 +274,7 @@ test("a part of a day in the horizon counts: half a day from Saturday evening in
   );
   const out = timetable({
     sends: [send("hi", "Pacific/Honolulu", allWeek)],
-    domains: [domain("d1", 30)],
+    senders: [mailbox("d1", 30)],
     gapMinutes: 12,
     nowMs: at("2026-11-01T06:30:00Z"),
     horizonDays: 0.5,
@@ -289,7 +289,7 @@ test("a part of a day in the horizon counts: half a day from Saturday evening in
 test("a zone the runtime does not know leaves its send unplaced and plans the rest; a broken jitter moves nothing", () => {
   const out = timetable({
     sends: [send("bad", ""), send("a"), send("b")],
-    domains: [domain("d1", 30)],
+    senders: [mailbox("d1", 30)],
     gapMinutes: 12,
     nowMs: at("2026-09-28T11:00:00Z"),
     jitter: () => NaN,
@@ -302,8 +302,25 @@ test("no plan without a pace: a gap that is not a number of minutes above zero i
   for (const gapMinutes of [0, -5, Number.NaN, undefined]) {
     assert.throws(
       () =>
-        timetable({ sends: [send("a")], domains: [domain("d1", 30)], gapMinutes, nowMs: at("2026-09-28T11:00:00Z") }),
+        timetable({ sends: [send("a")], senders: [mailbox("d1", 30)], gapMinutes, nowMs: at("2026-09-28T11:00:00Z") }),
       /a gap is a number of minutes/,
     );
   }
+});
+
+test("a later step's lead keeps its chain's mailbox: placed on it alone, and waits for its room, never on another", () => {
+  const out = timetable({
+    sends: [{ ...send("kept"), only: "d2" }, { ...send("full"), only: "d1" }, send("any")],
+    senders: [mailbox("d1", 1, [at("2026-09-28T12:00:00Z")]), mailbox("d2", 30)],
+    gapMinutes: 12,
+    nowMs: at("2026-09-28T11:00:00Z"),
+    horizonDays: 1,
+    jitter: none,
+  });
+  const by = Object.fromEntries(out.placed.map((p) => [p.id, p.senderId]));
+  assert.equal(by.kept, "d2", "on its own mailbox");
+  assert.equal(by.any, "d2", "a first email takes any with room");
+  assert.ok(!("full" in by) || by.full === "d1", "never moved to another mailbox");
+  // Its own mailbox has no other room before its rolling day turns: it waits for that, or stays unplaced.
+  if (!("full" in by)) assert.deepEqual(out.unplaced, ["full"]);
 });

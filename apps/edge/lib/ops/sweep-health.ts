@@ -89,8 +89,8 @@ const CONSEQUENCE: Record<string, string> = {
     "each workspace's day stops being counted, so the back office's card goes stale and the alarm for a workspace nobody answered all day has nothing to read",
   channel_quality:
     "a WhatsApp number's refreshed rating and the history of its changes stop being kept and go stale; no send is gated on them, and broadcasts and the channels page keep reading the rating stored at connection either way",
-  sending_domain_days:
-    "a day's counters for each sending domain are not kept, and a missed day is never filled in later (the counters are only ever the row's current ones), so how a domain's reputation went that day cannot be read afterwards",
+  mailboxes:
+    "a connected mailbox's replies and bounces are read only when its provider pushes them, a lost push is never read, a mailbox whose mail earned a hold keeps sending, and its watch lapses within the week",
 };
 
 /**

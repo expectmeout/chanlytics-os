@@ -1387,6 +1387,79 @@
       "where": null
     },
     {
+      "table": "mailbox_connections",
+      "name": "mailbox_connections_live_account",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "provider"
+        },
+        {
+          "column": "provider_account"
+        }
+      ],
+      "where": {
+        "cmp": "<>",
+        "left": {
+          "column": "state"
+        },
+        "right": {
+          "value": "removed"
+        }
+      }
+    },
+    {
+      "table": "mailbox_connections",
+      "name": "mailbox_connections_live_address",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "address"
+        }
+      ],
+      "where": {
+        "cmp": "<>",
+        "left": {
+          "column": "state"
+        },
+        "right": {
+          "value": "removed"
+        }
+      }
+    },
+    {
+      "table": "mailbox_connections",
+      "name": "mailbox_connections_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "mailbox_connections",
+      "name": "mailbox_connections_tenant_id_id",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "mailboxes",
       "name": "mailboxes_local_part_uq",
       "primary": false,
@@ -2452,6 +2525,9 @@
     },
     "lines": {
       "voice_state": "none"
+    },
+    "mailbox_connections": {
+      "state": "connected"
     },
     "person_notes": {
       "source": "page"

@@ -65,15 +65,15 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
     }),
     "A consent answer changed · no to marketing email · unsubscribe",
   );
-  // A sending domain (00175): the host, and why when it was held, in the words Connections says.
+  // A mailbox the business connected (00423): its address, and why when it was held, in the words Connections says.
   assert.equal(
-    activityWords("sending_domain.held", { host: "getharbor.com", why: "dmarc" }),
-    "A domain to send from was held · getharbor.com · its DMARC record is missing",
+    activityWords("mailbox_connection.held", { address: "sam@getharbor.com", why: "bounces", sent: 150 }),
+    "A mailbox to write from was held · sam@getharbor.com · more than 3% of its recent emails bounced",
   );
   assert.equal(
-    activityWords("sending_domain.added", { host: "getharbor.com", provider_domain_id: "pd-1" }),
-    "A domain to send from was added · getharbor.com",
-    "the host, never the provider's id",
+    activityWords("mailbox_connection.connected", { address: "sam@getharbor.com", provider: "google", again: false }),
+    "A mailbox to write from was connected · sam@getharbor.com",
+    "the address, never the provider's account",
   );
   // The file is the customer record, not everything the workspace holds (the wiring's second audit, X1).
   assert.equal(activityWords("export", { what: "workspace" }), "Exported data · the records");
@@ -202,7 +202,9 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
 // 54: a thread handed to the team is info; a member joining and answering switched on are ok; switched off is warn.
 // 61: a payment that failed is danger; a member leaving, a booking cancelled and a reach-out stopped are warn; a
 // booking that arrived and a payment that went through are ok; the owner answering from their own app is info.
-const TONED_KINDS = 61;
+// 62: the cold lane's four toned domain kinds went (decision 0056); a mailbox connected, resumed and writing again are
+// ok, and one held or signed out is warn.
+const TONED_KINDS = 62;
 test("the tone: said only where the product knows one, and never for a kind that does not exist", () => {
   // A log where every line is the same grey is read rather than scanned, and
   // the line an owner opens it to find is the one that went wrong.

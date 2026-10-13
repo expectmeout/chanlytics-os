@@ -77,7 +77,7 @@ const tables = (role = "operator", over = {}) => ({
     { id: STEP2, tenant_id: A, kind: "reach_out", name: "Reach out · Movers · a nudge", after_playbook_id: ROOT_ID },
   ],
   messages: [],
-  sending_domains: [],
+  mailbox_connections: [],
   mailboxes: [{ id: "mb1", tenant_id: A, local_part: "harbor", from_name: "Harbor", reply_token: "tok1" }],
   ...over,
 });

@@ -31,13 +31,14 @@ export const isReplyUndoRefusal = (v: unknown): v is ReplyUndoRefusal =>
   typeof v === "string" && Object.prototype.hasOwnProperty.call(REPLY_UNDO_REFUSALS, v);
 
 /**
- * Where a person's answer to a reach-out's reply goes out from (C15, N5): the reach-out's own address when its domain
- * is verified now; otherwise the mailbox, and why (the domain held, or removed) with the own address it would have
- * gone from. `because` is null when the thread answers no reach-out at all, which is every other email reply.
+ * Where a person's answer to a reach-out's reply goes out from (C15, N5; decision 0056): the connected mailbox the
+ * reach-out wrote from, in its thread, when that mailbox sends now; otherwise the workspace's address here, and why
+ * (the mailbox is not sending: signed out, paused or held; or it was removed) with the address it would have gone
+ * from. `because` is null when the thread answers no reach-out at all, which is every other email reply.
  */
 export type ReplyFrom =
   | { from: "own"; address: string }
-  | { from: "mailbox"; because: "domain_held" | "domain_removed"; own: string }
+  | { from: "mailbox"; because: "own_not_sending" | "own_removed"; own: string }
   | { from: "mailbox"; because: null };
 
 /** One reading as the Inbox and Today read it. */
@@ -208,8 +209,8 @@ export function replyFromLineOf(from: ReplyFrom, mailbox: string | null): string
   if (from.from === "own") return `Goes from ${from.address}.`;
   if (from.because === null) return null;
   const box = mailbox ?? "your mailbox";
-  return from.because === "domain_held"
-    ? `${from.own} is held, so this goes from ${box}.`
+  return from.because === "own_not_sending"
+    ? `${from.own} isn't sending right now, so this goes from ${box}.`
     : `${from.own} was removed, so this goes from ${box}.`;
 }
 
@@ -221,8 +222,8 @@ const bareAddress = (from: unknown): string | null => {
 };
 
 /**
- * A sent reply's line when it could not leave by its own domain (PR 4's `left_as`, N5): which address it went from,
- * and which could not send it, or that its domain was held. Null for every other row.
+ * A sent reply's line when it could not leave by its own mailbox (PR 4's `left_as`, N5): which address it went from,
+ * and which could not send it, or that it was not sending. Null for every other row.
  */
 export function replyLeftAsOf(meta: unknown): string | null {
   const email = (meta as { email?: Record<string, unknown> } | null)?.email;
@@ -231,7 +232,7 @@ export function replyLeftAsOf(meta: unknown): string | null {
   const own = bareAddress((email.own_request as { from?: unknown } | undefined)?.from);
   if (!went) return null;
   if (!own) return `Went from ${went}.`;
-  return email.left_as_why === "domain_held"
-    ? `Went from ${went}: ${own}'s domain is held.`
+  return email.left_as_why === "own_not_sending"
+    ? `Went from ${went}: ${own} isn't sending right now.`
     : `Went from ${went}: ${own} could not send it.`;
 }

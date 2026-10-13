@@ -50,8 +50,8 @@ for (const k of [
   "WHATSAPP_TEST_ALLOWLIST",
   "EMAIL_DOMAIN",
   "RESEND_WEBHOOK_SECRET",
-  "RESEND_COLD_API_KEY",
-  "RESEND_COLD_WEBHOOK_SECRET",
+  "GRAPH_NOTIFY_SECRET",
+  "EDGE_ORIGIN",
 ])
   delete process.env[k];
 
@@ -205,13 +205,18 @@ test("the environment report is booleans only and carries no value; the memory i
     SUPABASE_URL: "https://xyz.supabase.co",
     SUPABASE_SERVICE_ROLE_KEY: "service-role-value-nobody-may-see",
     META_APP_SECRET: "meta-secret-value-nobody-may-see",
-    // Email's switches (Reach out): the mail domain, and the cold account's key and webhook secret. The platform
-    // account's webhook secret is left unset, so one of the four reads false.
+    // Email's switches: the mail domain, the key the unsubscribe links are sealed under (which the dashboard must hold
+    // too), and the connected mailboxes' (decision 0056): Google's client and its push, and Microsoft's client without
+    // its push. The platform account's webhook secret is left unset, so it reads false.
     EMAIL_DOMAIN: "mail.value-nobody-may-see.example",
-    RESEND_COLD_API_KEY: "re_cold_value_nobody_may_see",
-    RESEND_COLD_WEBHOOK_SECRET: "whsec_cold_value_nobody_may_see",
-    // The key the unsubscribe links are sealed under, which the dashboard must hold too.
     UNSUBSCRIBE_SECRET: "unsubscribe_value_nobody_may_see",
+    MAILBOX_OAUTH_REDIRECT: "https://app.value-nobody-may-see.example/api/v1/mailbox-connections/callback",
+    GOOGLE_MAIL_CLIENT_ID: "google-client-value-nobody-may-see",
+    GOOGLE_MAIL_CLIENT_SECRET: "google-secret-value-nobody-may-see",
+    GMAIL_PUSH_TOPIC: "projects/value-nobody-may-see/topics/mail",
+    GMAIL_PUSH_AUDIENCE: "audience-value-nobody-may-see",
+    MICROSOFT_MAIL_CLIENT_ID: "microsoft-client-value-nobody-may-see",
+    MICROSOFT_MAIL_CLIENT_SECRET: "microsoft-secret-value-nobody-may-see",
   };
   const body = await withEnv(secrets, read);
   // Postgres, always. It used to be read off PG_READS and BLOB_SHADOW and
@@ -230,9 +235,12 @@ test("the environment report is booleans only and carries no value; the memory i
     diagKey: true,
     emailDomain: true,
     resendWebhook: false,
-    resendCold: true,
-    resendColdWebhook: true,
     unsubscribe: true,
+    mailboxRedirect: true,
+    googleMail: true,
+    gmailPush: true,
+    microsoftMail: true,
+    graphPush: false,
   });
   const printed = JSON.stringify(body);
   for (const v of Object.values(secrets))
@@ -753,46 +761,22 @@ test("the receptionist's last 24 hours, from the usage events every reply writes
   assert.deepEqual((await read()).brain, { error: "canceling statement due to statement timeout" });
 });
 
-test("where cold mail's links and replies go (D17), as values: what the edge uses, and a value set and ignored", async () => {
+test("where a reach-out's unsubscribe links go, as a value: what the edge uses, and a value set and ignored", async () => {
   use();
   const unset = await read();
-  assert.deepEqual(unset.coldMail, {
+  assert.deepEqual(unset.reachOutLinks, {
     unsubscribeOrigin: "https://app.chanlytics.com",
     unsubscribeOriginRejected: false,
-    coldReplyDomains: [],
-    coldReplyDomainRejected: false,
   });
-  const set = await withEnv(
-    {
-      EMAIL_DOMAIN: "mail.chanlytics.com",
-      UNSUBSCRIBE_ORIGIN: "https://links.coldmail.example",
-      COLD_REPLY_DOMAIN: "Reply.ColdLinks.example",
-      COLD_REPLY_DOMAIN_PREVIOUS: "reply-a.coldlinks.example",
-    },
-    read,
-  );
-  assert.deepEqual(set.coldMail, {
-    unsubscribeOrigin: "https://links.coldmail.example",
+  const set = await withEnv({ UNSUBSCRIBE_ORIGIN: "https://links.example-unsubscribe.example" }, read);
+  assert.deepEqual(set.reachOutLinks, {
+    unsubscribeOrigin: "https://links.example-unsubscribe.example",
     unsubscribeOriginRejected: false,
-    coldReplyDomains: ["reply.coldlinks.example", "reply-a.coldlinks.example"],
-    coldReplyDomainRejected: false,
   });
-  const wrong = await withEnv(
-    {
-      EMAIL_DOMAIN: "mail.chanlytics.com",
-      UNSUBSCRIBE_ORIGIN: "links.coldmail.example",
-      COLD_REPLY_DOMAIN: "https://reply.x.example",
-    },
-    read,
-  );
+  const wrong = await withEnv({ UNSUBSCRIBE_ORIGIN: "links.example-unsubscribe.example" }, read);
   assert.deepEqual(
-    [
-      wrong.coldMail.unsubscribeOrigin,
-      wrong.coldMail.unsubscribeOriginRejected,
-      wrong.coldMail.coldReplyDomains,
-      wrong.coldMail.coldReplyDomainRejected,
-    ],
-    ["https://app.chanlytics.com", true, [], true],
+    [wrong.reachOutLinks.unsubscribeOrigin, wrong.reachOutLinks.unsubscribeOriginRejected],
+    ["https://app.chanlytics.com", true],
     "set and unreadable: ignored, and said so",
   );
 });
@@ -849,7 +833,7 @@ test("the report answers part by part in one order; a part that cannot read says
     "memory",
     "env",
     "securitySwitches",
-    "coldMail",
+    "reachOutLinks",
     "sweeps",
     "jobs_backlog",
     "pages",

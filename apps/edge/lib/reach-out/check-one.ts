@@ -1,8 +1,9 @@
 /**
  * One send's check (Reach out, Part 4; spec §4.4; F2–F6, R1–R7, R12): when its step's words name {{opening}}, the writer
  * writes the opening from the business's record and code reads it (checkOpening); the reader reads it against the same
- * record; a failed rule asks for one rewrite, told why, then holds (openingVerdict). The two code holds come first: a
- * person in People writes from the business's domain (F6), and the business reads like a chain (F4); the opening is still
+ * record; a failed rule asks for one rewrite, told why, then holds (openingVerdict). The three code holds come first: a
+ * person in People writes from the business's domain (F6), the business reads like a chain (F4), and the business is
+ * abroad, in a country its owner says yes to first (decision 0056, 9: contracts reachOutCountryOf); the opening is still
  * written for them, so an owner's Include sends it as it reads. A hold its owner already included this send, or its lead
  * in this chain, past is never made again (R7).
  *
@@ -28,6 +29,7 @@ import {
   parseTenantConfig,
   readingSystemPrompt,
   readingUserContent,
+  reachOutCountryOf,
   wordsNeedOpening,
   type OpeningRecord,
   type OpeningWorkspace,
@@ -108,6 +110,8 @@ export interface CheckInput {
   needsOpening: boolean;
   chain: { by: "site" | "name"; listings: number } | null;
   customerDomain: string | null;
+  /** The lead's country when it is one its owner says yes to first (contracts reachOutCountryOf: held); else null. */
+  abroad: string | null;
   /** The holds this send's owner included it (or its lead in this chain) past: never made again (R7). */
   included: string[];
 }
@@ -221,7 +225,9 @@ export async function checkOne(
       ? { hold: "customer_domain", detail: i.customerDomain }
       : i.chain && !i.included.includes("chain")
         ? { hold: "chain", detail: `${i.chain.by}:${i.chain.listings}` }
-        : null;
+        : i.abroad && !i.included.includes("abroad")
+          ? { hold: "abroad", detail: i.abroad }
+          : null;
   if (code) {
     if (hold) opening = null;
     hold = code.hold;
@@ -260,13 +266,17 @@ export function openingRecordOf(r: ReachOutRecordRow): OpeningRecord {
   };
 }
 
-/** The check's input for one business and one step's words. The clock and the preview both build it here. */
+/**
+ * The check's input for one business and one step's words. The clock and the preview both build it here. `country` is
+ * the lead's (db leadCountriesOf); a country never written to is the clock's to skip before it asks (check.ts).
+ */
 export function checkInputOf(
   r: ReachOutRecordRow,
   words: { subject: string | null; body: string },
   workspace: OpeningWorkspace,
   language: string,
   included: string[] = [],
+  country: string | null = null,
 ): CheckInput {
   return {
     record: openingRecordOf(r),
@@ -276,6 +286,7 @@ export function checkInputOf(
     needsOpening: wordsNeedOpening(words),
     chain: chainOf({ website: r.website_host, site_listings: r.site_listings, name_listings: r.name_listings }),
     customerDomain: customerDomainOf(r.email, r.email_domain_shared),
+    abroad: reachOutCountryOf(country) === "held" ? (country ?? "").trim().toUpperCase() : null,
     included,
   };
 }

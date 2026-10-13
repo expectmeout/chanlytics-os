@@ -38,7 +38,7 @@ const tables = (role = "operator") => ({
   ],
   playbooks: [],
   templates: [],
-  sending_domains: [],
+  mailbox_connections: [],
   policies: [],
   broadcasts: [],
 });

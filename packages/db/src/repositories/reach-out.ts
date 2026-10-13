@@ -15,38 +15,6 @@ type Db = SupabaseClient<Database>;
 export type ReachOutSendRow = Database["public"]["Tables"]["reach_out_sends"]["Row"];
 export type ReachOutSendInsert = Database["public"]["Tables"]["reach_out_sends"]["Insert"];
 
-/** What a domain may still send (00184 sending_domain_capacity): the one reading the timetable, the claim and the door share. */
-export interface DomainCapacity {
-  state: string;
-  clean_since: string | null;
-  /** The days it sent on since it was clean, within the last 90 (D15). */
-  sent_days: number;
-  /** What it spends in the rolling day: left, of unknown outcome, queued, claimed. */
-  used: number;
-  /** When it spends each (ms): those of the rolling day, the waiting ones, and the planned ones ahead. */
-  recent: number[];
-  last_sent_at: string | null;
-}
-
-export async function domainCapacityOf(db: Db, domainId: string, at: Date): Promise<DomainCapacity> {
-  const { data, error } = await db.rpc("sending_domain_capacity", {
-    p_domain_id: domainId,
-    p_at: at.toISOString(),
-  });
-  if (error) throw new Error(`cannot read the domain's capacity: ${error.message}`);
-  const c = (data ?? {}) as Partial<DomainCapacity>;
-  if (typeof c.used !== "number" || typeof c.sent_days !== "number")
-    throw new Error("cannot read the domain's capacity: the database answered without its counts");
-  return {
-    state: String(c.state ?? ""),
-    clean_since: typeof c.clean_since === "string" ? c.clean_since : null,
-    sent_days: c.sent_days,
-    used: c.used,
-    recent: Array.isArray(c.recent) ? c.recent.map(Number).filter(Number.isFinite) : [],
-    last_sent_at: typeof c.last_sent_at === "string" ? c.last_sent_at : null,
-  };
-}
-
 export interface AudienceLead {
   lead_id: string;
   email: string;
@@ -99,21 +67,21 @@ export async function reachOutPerson(db: Db, tenantId: string, leadId: string): 
   return { ok: true, contactId: r.contact_id, conversationId: r.conversation_id, made: r.made === true };
 }
 
-/** Up to `limit` due sends of a running chain on one domain, claimed under its lock within `cap` (00184, C7). */
+/** Up to `limit` due sends of a running chain from one mailbox, claimed under its lock within `cap` (00424, C7). */
 export async function claimSends(
   db: Db,
-  p: { domainId: string; cap: number; at: Date; limit: number },
+  p: { mailboxId: string; cap: number; at: Date; limit: number },
 ): Promise<ReachOutSendRow[]> {
   // A share or a limit that is not a whole number is a caller's mistake, never "no cap" (JSON would send NaN as null).
   if (!Number.isInteger(p.cap) || !Number.isInteger(p.limit) || Number.isNaN(p.at.getTime()))
-    throw new Error(`cannot claim the domain's due sends: a cap and a limit are whole numbers (${p.cap}, ${p.limit})`);
-  const { data, error } = await db.rpc("reach_out_claim", {
-    p_domain_id: p.domainId,
+    throw new Error(`cannot claim the mailbox's due sends: a cap and a limit are whole numbers (${p.cap}, ${p.limit})`);
+  const { data, error } = await db.rpc("reach_out_claim_from", {
+    p_mailbox_id: p.mailboxId,
     p_cap: p.cap,
     p_at: p.at.toISOString(),
     p_limit: p.limit,
   });
-  if (error) throw new Error(`cannot claim the domain's due sends: ${error.message}`);
+  if (error) throw new Error(`cannot claim the mailbox's due sends: ${error.message}`);
   return data ?? [];
 }
 
@@ -147,6 +115,10 @@ export interface FollowerLead {
   facts: { lead_stage: string | null; suppressed: boolean; wrote_back: boolean; away?: boolean };
   /** Any email of the chain to them bounced or failed for good (C4): the chain stops. */
   bounced: boolean;
+  /** The mailbox the step before wrote to them from (00424): the nudge leaves from it, in its thread. */
+  mailbox_id: string | null;
+  /** The lead's country (decision 0056, 9). A database before 00424 says none: the finder's, the United States. */
+  country: string | null;
 }
 
 /** A step's leads: sent the step before at least `afterDays` ago, not on this step yet (00184 reach_out_followers). */
@@ -271,34 +243,6 @@ export async function withdrawEmail(db: Db, p: { tenantId: string; id: string; r
 }
 
 /* ------------------------------------------------------------ the sender -- */
-
-/** A verified domain with a send due, and its workspace. */
-export interface DueDomain {
-  id: string;
-  tenant_id: string;
-}
-
-/**
- * The clean, verified domains with sends due in runs that go ahead on running chains, longest waiting first (00187),
- * past the workspaces and domains the caller is done with this tick. The lists ride in the call's body, not its
- * address, so their length is no URL's.
- */
-export async function dueDomains(
-  db: Db,
-  at: Date,
-  limit: number,
-  opts: { tenantId?: string; skipTenants?: Iterable<string>; skipDomains?: Iterable<string> } = {},
-): Promise<DueDomain[]> {
-  const { data, error } = await db.rpc("reach_out_due_domains", {
-    p_at: at.toISOString(),
-    p_limit: limit,
-    ...(opts.tenantId ? { p_tenant_id: opts.tenantId } : {}),
-    p_skip_tenants: [...(opts.skipTenants ?? [])],
-    p_skip_domains: [...(opts.skipDomains ?? [])],
-  });
-  if (error) throw new Error(`cannot read the domains with sends due: ${error.message}`);
-  return data ?? [];
-}
 
 /** The cold emails a workspace wrote this calendar month, in its zone, that left or may still leave (00187). */
 export async function monthSent(db: Db, tenantId: string, at: Date): Promise<number> {

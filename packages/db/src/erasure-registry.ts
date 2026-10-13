@@ -376,6 +376,13 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     // The tool's own sender and its id for the delivery: nobody's.
     ...all(NOT_PERSONAL, "notice_id", "tool", "from_address"),
   },
+  // A mailbox a member connected to write from (00423): its address and name are the business's, kept with the
+  // workspace; its token's name, its records and its clocks are not personal (its provider, state and hold are closed
+  // sets, no words).
+  mailbox_connections: {
+    ...all(WITH_WORKSPACE, "address", "host", "from_name", "signature", "provider_account"),
+    ...all(NOT_PERSONAL, "scopes", "credentials_ref", "dns", "sync_cursor", "watch_id", "last_error"),
+  },
   // Gmail's pending confirmation of a forward to the workspace's address (00345): the owner's own account, and
   // Google's code and link for it; the name its mail is sent from. The workspace's address on the platform's domain,
   // its reply tokens and its intake's error code are nobody's.

@@ -1,16 +1,17 @@
 /**
  * Reach out's replies, end to end, on a replayed stack (Part 5's proof, Task 12.1): §7's nightly run in its stack form.
- * One workspace, one chain (a first email, and a nudge three days on), four businesses, one own domain. Every step runs
- * the real code over the real database; what is scripted is the reader (the model that reads a reply), the brain (the
- * receptionist that drafts), the received emails the provider would hand the intake, and the mail provider's HTTP:
+ * One workspace, one chain (a first email, and a nudge three days on), four businesses, one Gmail mailbox the business
+ * connected (decision 0056). Every step runs the real code over the real database; what is scripted is the reader
+ * (the model that reads a reply), the brain (the receptionist that drafts), and the providers' HTTP (Gmail, and the
+ * platform's own mail for the notices and the hosted address):
  *
  *   1. the chain writes to four businesses by Part 4's path: the step's run, approved, checked and claimed, its jobs
- *      run through the one door from the own domain, their receipts stamping each email's Message-ID, the clock
- *      reading them sent;
- *   2. each replies, through the intake's own job (email_ingest: core ingestEmail through packages/jobs, over the
- *      edge's intake with its provider fetch answering the scripted email), each threaded under the email it answers:
- *      one interested and one no, from a person; one automatic out-of-office that names the day they are back; one
- *      automatic "remove us";
+ *      run through the one door from the connected mailbox, each email stamped with the Message-ID and the thread Gmail
+ *      kept, the clock reading them sent;
+ *   2. each replies into the mailbox, in the thread of the email it answers; the mailbox's sync reads those threads
+ *      (only those) and hands each reply to the intake's own job (email_ingest from the mailbox: core ingestEmail
+ *      through packages/jobs, over the edge's mailbox intake reading it from Gmail): one interested and one no, from a
+ *      person; one automatic out-of-office that names the day they are back; one automatic "remove us";
  *   3. the reply_read jobs the intake scheduled run, over the edge's reader (lib/reach-out/reply-read.ts) with its ask
  *      scripted and its draft the edge's drafter (lib/reach-out/reply-draft.ts) over a scripted brain, so the spend,
  *      the draft's gates and the notice (notifyOnce) are the real ones. Interested is Talking, with a draft kept and one
@@ -18,11 +19,11 @@
  *      with one notice; the away is told nobody and the next step's followers leave it out; the automatic "remove us"
  *      is Said no, with one notice. The model is never called: any request to its API fails the suite;
  *   4. after the day they are back (the reading's until_at moved back), the next step takes the away business, and its
- *      nudge leaves;
+ *      nudge leaves, in the first email's thread;
  *   5. the owner's reply to the interested thread, through the dashboard's reply route on the owner's session, is
- *      frozen with its own twin (meta.email.own_request) and leaves through the wire's own route (the dry wire: the
- *      outbound_send job with the provider stubbed) from the own domain. A second reply, with the domain held between
- *      the freeze and the send, leaves from the mailbox, and its row says so (00226 stamp_email_left_as);
+ *      frozen with its own twin (meta.email.own_request, from the connected mailbox) and leaves through the wire's own
+ *      route (the outbound_send job, Gmail stubbed), in the thread. A second reply, with the mailbox paused between the
+ *      freeze and the send, leaves as the hosted address, and its row says why (00226 stamp_email_left_as);
  *   6. the undo of the no, through the dashboard's undo route on the owner's session, puts the lead back to its stage
  *      and takes its addresses off the list; the chain still does not write to them, since they wrote back.
  *
@@ -35,8 +36,8 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
-import { emailReceiptFrom } from "@chanlytics/channels";
 import { LEAD_CLOSED_WORDS, LEAD_STAGE_WORDS } from "@chanlytics/contracts";
+import { MAILBOX_ENV, gmailFake, gmailReceived, liveCredentials, withEnv } from "../email/mailboxes/_mailbox-world.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -50,13 +51,13 @@ const skip =
         ? "no SUPABASE_ANON_KEY in env: the owner this proof signs in as needs it"
         : false;
 
-// The deployment, for this process: the platform's and the cold account's keys (the fetch below answers for both), the
-// mail domain replies come back on, the platform's sender for notices, a model key so the reader's and the drafter's
+// The deployment, for this process: the providers' mail clients (the mailbox's token lasts the hour, so it is never
+// refreshed), the platform's own key and the mail domain the hosted address is on (the notices, and a reply that
+// cannot leave from the mailbox), the platform's sender for notices, a model key so the reader's and the drafter's
 // gates open (the model itself is never called), and the dashboard's service client. Made-up values.
+const restoreEnv = withEnv(MAILBOX_ENV);
 process.env.EMAIL_DOMAIN = "mail.chanlytics.com";
 process.env.RESEND_API_KEY = "platform-key-for-this-suite";
-process.env.RESEND_COLD_API_KEY = "cold-key-for-this-suite";
-process.env.RESEND_COLD_WEBHOOK_SECRET = "cold-webhook-for-this-suite";
 process.env.LEAD_FROM = "Notices <notices@example.com>";
 process.env.ANTHROPIC_API_KEY = "model-key-for-this-suite";
 if (URL_) process.env.NEXT_PUBLIC_SUPABASE_URL = URL_;
@@ -71,11 +72,8 @@ const stamp = Date.now().toString(36);
 const iso = (ms) => new Date(ms).toISOString();
 const dayIn = (ms) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(ms);
 const HOST = `replies-${stamp}.example`;
-const LANE = {
-  unsubscribeSecret: "unsubscribe-seal-for-this-suite",
-  unsubscribeOrigin: "https://app.chanlytics.com",
-  replyDomain: "mail.chanlytics.com",
-};
+const ADDRESS = `sam@${HOST}`;
+const LANE = { unsubscribeSecret: "unsubscribe-seal-for-this-suite", unsubscribeOrigin: "https://app.chanlytics.com" };
 const BACK = dayIn(Date.now() + 5 * DAY);
 const DRAFT = "Happy to send the details. Would Thursday at 10 suit you for a short call?\n\nSam";
 
@@ -85,8 +83,9 @@ let owner;
 let session;
 let root;
 let step;
-let domain;
+/** The mailbox the business connected, and Gmail as it answers it (_mailbox-world gmailFake). */
 let mailbox;
+let gmail;
 let lib;
 let dash;
 let L;
@@ -136,47 +135,23 @@ const siteOf = (key) => `${key}-movers-${stamp}.example`;
 const addressOf = (key) => `owner@${siteOf(key)}`;
 
 /**
- * Every send to the mail provider, answered as it answers one, its id kept by the row its tag names. Any other call to
- * the provider fails the suite, and so does any call to the model's API: the reader and the brain are scripted.
+ * Every send the platform's own mail account takes (the notices, the hosted address), answered as it answers one; Gmail
+ * answers the mailbox (before). Any other call to a mail provider fails the suite, and so does any call to the model's
+ * API: the reader and the brain are scripted.
  */
-const sent = [];
+const platform = [];
 const modelCalls = [];
-const providerIdOf = new Map();
-const realFetch = globalThis.fetch;
-function stubProvider() {
-  globalThis.fetch = async (url, init) => {
-    const u = String(url);
-    if (u === "https://api.resend.com/emails" && init?.method === "POST") {
-      const body = JSON.parse(init.body);
-      sent.push({ key: init.headers.Authorization, body });
-      const id = `re_${sent.length}`;
-      providerIdOf.set(body.tags?.find((t) => t.name === "cl_message")?.value, id);
-      return new Response(JSON.stringify({ id }), { status: 200 });
-    }
-    if (u.startsWith("https://api.resend.com")) throw new Error(`the suite does not answer ${init?.method} ${u}`);
-    if (u.includes("api.anthropic.com")) {
-      modelCalls.push(u);
-      throw new Error("the model was called: the reader and the brain are scripted here");
-    }
-    return realFetch(url, init);
-  };
-}
-const byKey = (k) => sent.filter((s) => s.key === `Bearer ${process.env[k]}`);
-
-/** A receipt, as the webhook hands it on: the provider's id for the email, and its tags naming the row. */
-const receipt = (type, m) =>
-  emailReceiptFrom({
-    type: `email.${type}`,
-    created_at: iso(Date.now()),
-    data: {
-      email_id: providerIdOf.get(m.id) ?? assert.fail(`the provider never took ${m.id}`),
-      message_id: `<${m.id}@${HOST}>`,
-      from: m.meta.email.request.from,
-      to: m.meta.email.request.to,
-      subject: m.meta.email.request.subject,
-      tags: { cl_message: m.id, cl_tenant: A },
-    },
-  });
+const other = async (u, init) => {
+  if (u === "https://api.resend.com/emails" && init?.method === "POST") {
+    platform.push({ key: init.headers.Authorization, body: JSON.parse(init.body) });
+    return new Response(JSON.stringify({ id: `re_${platform.length}` }), { status: 200 });
+  }
+  if (u.includes("api.anthropic.com")) {
+    modelCalls.push(u);
+    throw new Error("the model was called: the reader and the brain are scripted here");
+  }
+  return undefined;
+};
 
 const messageRow = async (id) => ok(await db.from("messages").select("*").eq("id", id).single());
 const leadOf = async (id) => ok(await db.from("leads").select("*").eq("id", id).single());
@@ -210,6 +185,7 @@ async function jobContext(extra) {
   return {
     db,
     wire: { email: await lib.emailWireFor(db, A) },
+    mailboxIntake: lib.mailboxIntake(db),
     alert: async (news) => {
       alerts.push(news);
     },
@@ -322,24 +298,30 @@ async function makeWorkspace() {
     crypto.getRandomValues(new Uint8Array(24)),
     (b) => "abcdefghijklmnopqrstuvwxyz234567"[b % 32],
   ).join("");
-  mailbox = await one(
-    db
+  // The hosted address every workspace has, and the Gmail mailbox the business connected, its token in Vault (00423),
+  // read back from history 100 on.
+  ok(
+    await db
       .from("mailboxes")
       .insert({ tenant_id: A, local_part: `replies-${stamp}`, reply_token: token, from_name: "Harbor Moving Co" }),
   );
-  domain = await one(
-    db.from("sending_domains").insert({
+  mailbox = await one(
+    db.from("mailbox_connections").insert({
       tenant_id: A,
+      provider: "google",
+      provider_account: `acct-replies-${stamp}`,
+      address: ADDRESS,
       host: HOST,
-      from_local: "sam",
       from_name: "Sam at Harbor",
-      state: "verified",
-      provider_status: "verified",
-      dmarc: "found",
-      verified_at: iso(Date.now() - 40 * DAY),
-      clean_since: iso(Date.now() - 40 * DAY),
-      counted_since: iso(Date.now() - 40 * DAY),
-      provider_domain_id: `pd-${stamp}`,
+      scopes: ["https://www.googleapis.com/auth/gmail.send", "https://www.googleapis.com/auth/gmail.readonly"],
+      sync_cursor: "100",
+    }),
+  );
+  ok(
+    await db.rpc("put_mailbox_credentials", {
+      p_connection_id: mailbox,
+      p_secret: liveCredentials("ya29.replies-token"),
+      p_if_refresh_token: null,
     }),
   );
 }
@@ -427,7 +409,7 @@ async function makeChain() {
 before(async () => {
   if (skip) return;
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
-  stubProvider();
+  gmail = gmailFake({ address: ADDRESS, other });
   lib = {
     ...(await import(at("apps/edge/lib/reach-out/run-context.ts"))),
     ...(await import(at("apps/edge/lib/reach-out/clock.ts"))),
@@ -436,7 +418,8 @@ before(async () => {
     ...(await import(at("apps/edge/lib/reach-out/reply-read.ts"))),
     ...(await import(at("apps/edge/lib/reach-out/reply-draft.ts"))),
     ...(await import(at("apps/edge/lib/email/email.ts"))),
-    ...(await import(at("apps/edge/lib/email/email-receipts.ts"))),
+    ...(await import(at("apps/edge/lib/email/mailbox/mailbox-sync.ts"))),
+    ...(await import(at("apps/edge/lib/email/mailbox/mailbox-intake.ts"))),
     ...(await import(at("apps/dashboard/src/server/ports/campaign-ports.ts"))),
     ...(await import(at("packages/core/dist/index.js"))),
     ...(await import(at("packages/jobs/dist/index.js"))),
@@ -452,7 +435,8 @@ before(async () => {
   await makeChain();
 });
 after(async () => {
-  globalThis.fetch = realFetch;
+  gmail?.restore();
+  restoreEnv();
   if (skip) return;
   if (A) {
     await db.from("events").delete().eq("tenant_id", A);
@@ -471,87 +455,110 @@ test("1. the chain writes to four businesses: planned, approved, claimed, sent, 
   const c = await tick();
   assert.deepEqual([c.claimed, c.written, c.errors], [4, 4, 0], JSON.stringify(c));
   assert.equal(await runJobs(), 4);
-  assert.equal(byKey("RESEND_COLD_API_KEY").length, 4, "four cold emails, from the own domain");
+  assert.equal(gmail.sent.length, 4, "four cold emails, from the connected mailbox");
   for (const s of await sendsOf(run.id)) {
     const m = await messageRow(s.message_id);
-    assert.equal(m.status, "sent");
-    for (const type of ["sent", "delivered"])
-      assert.equal(await lib.applyEmailReceipt(db, receipt(type, m), iso(Date.now())), "applied");
     const key = Object.keys(leads).find((k) => leads[k] === s.lead_id);
-    firstEmail[key] = await messageRow(s.message_id);
+    const wire = gmail.sent.find((g) => g.headers.to === addressOf(key));
+    assert.equal(m.status, "sent");
+    assert.equal(wire.headers.from, `"Sam at Harbor" <${ADDRESS}>`);
+    assert.deepEqual(
+      [m.meta.email.message_id, m.meta.email.thread_id],
+      [wire.headers["message-id"], wire.threadId],
+      "stamped with what Gmail kept, as it left",
+    );
+    firstEmail[key] = m;
   }
   await tick();
   for (const s of await sendsOf(run.id)) {
     assert.equal(s.state, "sent");
     assert.equal((await leadOf(s.lead_id)).stage, "nurture", "written to");
   }
-  for (const key of Object.keys(BUSINESSES))
-    assert.equal(firstEmail[key].meta.email.message_id, `<${firstEmail[key].id}@${HOST}>`, "stamped by its receipt");
 });
 
-/** The email a business replies with, as the provider hands it over: threaded under the email it answers. */
+/** The email a business replies with, as Gmail holds it in the mailbox: in the thread of the email it answers. */
 function receivedFrom(key) {
   const answered = firstEmail[key];
   const r = READS[key];
   const mid = answered.meta.email.message_id;
-  return {
+  return gmailReceived({
     id: `received-${key}-${stamp}`,
-    from: { address: addressOf(key), name: BUSINESSES[key].name },
-    to: answered.meta.email.request.reply_to,
-    cc: [],
+    threadId: answered.meta.email.thread_id,
+    from: `"${BUSINESSES[key].name}" <${addressOf(key)}>`,
+    to: ADDRESS,
     subject: `Re: ${answered.meta.email.request.subject}`,
-    text: r.text,
-    html: null,
-    headers: {
-      "in-reply-to": mid,
-      references: mid,
-      ...(r.auto ? { "auto-submitted": "auto-replied" } : {}),
-    },
     messageId: `<reply-${key}-${stamp}@${siteOf(key)}>`,
-    createdAt: iso(Date.now()),
-    attachments: [],
-  };
+    text: r.text,
+    headers: {
+      "In-Reply-To": mid,
+      References: mid,
+      ...(r.auto ? { "Auto-Submitted": "auto-replied" } : {}),
+    },
+  });
 }
 
-test("2. each replies through the intake's own job, threaded under the email it answers", { skip }, async () => {
-  const received = new Map(Object.keys(BUSINESSES).map((k) => [`received-${k}-${stamp}`, receivedFrom(k)]));
-  // The edge's intake, its provider fetch answering the scripted emails (the key is made up; nothing is fetched).
-  const email = { ...lib.emailIntake(db), fetch: async (id) => received.get(id) ?? null };
-  for (const id of received.keys())
-    await lib.scheduleJob(db, {
-      tenantId: A,
-      kind: "email_ingest",
-      dueAt: new Date(),
-      payload: { mailbox_id: mailbox, received_id: id },
-    });
-  assert.equal(await runJobs("email_ingest", { email }), 4);
-  for (const key of Object.keys(BUSINESSES)) {
-    const [m] = ok(
-      await db
-        .from("messages")
-        .select("*")
-        .eq("tenant_id", A)
-        .eq("direction", "inbound")
-        .eq("channel", "email")
-        .eq("meta->email->>message_id", received.get(`received-${key}-${stamp}`).messageId),
+test(
+  "2. each replies into the mailbox; its sync hands each to the intake's own job, threaded under the email it answers",
+  { skip },
+  async () => {
+    // Something else the business received meanwhile, in a thread no reach-out started: never read.
+    gmail.received.push(
+      gmailReceived({
+        id: `elsewhere-${stamp}`,
+        threadId: `their-own-${stamp}`,
+        from: `"A supplier" <orders@supplier-${stamp}.example>`,
+        to: ADDRESS,
+        subject: "Your order",
+        messageId: `<order-${stamp}@supplier-${stamp}.example>`,
+        text: "Your boxes ship Monday.",
+      }),
     );
-    assert.ok(m, `${key}'s reply was kept`);
-    assert.equal(m.conversation_id, firstEmail[key].conversation_id, `${key}: on the thread of the email it answers`);
-    assert.equal(m.meta.email.in_reply_to, firstEmail[key].meta.email.message_id);
-    assert.equal(m.meta.email.claim, READS[key].auto ? "auto_reply" : "person");
-    replyOf[key] = m;
-  }
-  const scheduled = ok(
-    await db.from("jobs").select("payload").eq("tenant_id", A).eq("kind", "reply_read").eq("state", "scheduled"),
-  );
-  assert.deepEqual(
-    scheduled.map((j) => j.payload.message_id).sort(),
-    Object.values(replyOf)
-      .map((m) => m.id)
-      .sort(),
-    "one reading each, scheduled by the intake",
-  );
-});
+    for (const key of Object.keys(BUSINESSES)) gmail.received.push(receivedFrom(key));
+    const box = ok(await db.from("mailbox_connections").select("*").eq("id", mailbox).single());
+    const synced = await lib.syncMailbox(db, box, L);
+    assert.deepEqual([synced.outcome, synced.read, synced.replies, synced.bounced], ["synced", 4, 4, 0]);
+    const ingest = ok(await db.from("jobs").select("payload").eq("tenant_id", A).eq("kind", "email_ingest"));
+    assert.deepEqual(
+      ingest.map((j) => [j.payload.source, j.payload.mailbox_id, j.payload.received_id]).sort(),
+      Object.keys(BUSINESSES)
+        .map((k) => ["mailbox", mailbox, `received-${k}-${stamp}`])
+        .sort(),
+      "one intake job each, and none for the supplier's",
+    );
+    assert.equal(
+      ok(await db.from("mailbox_connections").select("sync_cursor").eq("id", mailbox).single()).sync_cursor,
+      String(100 + gmail.received.length),
+      "read up to here",
+    );
+    assert.equal(await runJobs("email_ingest"), 4);
+    for (const key of Object.keys(BUSINESSES)) {
+      const [m] = ok(
+        await db
+          .from("messages")
+          .select("*")
+          .eq("tenant_id", A)
+          .eq("direction", "inbound")
+          .eq("channel", "email")
+          .eq("meta->email->>message_id", `<reply-${key}-${stamp}@${siteOf(key)}>`),
+      );
+      assert.ok(m, `${key}'s reply was kept`);
+      assert.equal(m.conversation_id, firstEmail[key].conversation_id, `${key}: on the thread of the email it answers`);
+      assert.equal(m.meta.email.in_reply_to, firstEmail[key].meta.email.message_id);
+      assert.equal(m.meta.email.claim, READS[key].auto ? "auto_reply" : "person");
+      replyOf[key] = m;
+    }
+    const scheduled = ok(
+      await db.from("jobs").select("payload").eq("tenant_id", A).eq("kind", "reply_read").eq("state", "scheduled"),
+    );
+    assert.deepEqual(
+      scheduled.map((j) => j.payload.message_id).sort(),
+      Object.values(replyOf)
+        .map((m) => m.id)
+        .sort(),
+      "one reading each, scheduled by the intake",
+    );
+  },
+);
 
 test(
   "3. the jobs tick reads each: Talking with a draft, Said no, away untold, remove us Said no",
@@ -561,7 +568,7 @@ test(
       ...lib.replyReader(db, { draft: lib.replyDrafter(db, { brain: scriptedBrain }) }),
       ask: scriptedAsk,
     };
-    const mailsBefore = byKey("RESEND_API_KEY").length;
+    const mailsBefore = platform.length;
     assert.equal(await runJobs("reply_read", { replies }), 4);
     assert.deepEqual(modelCalls, [], "the model's API was never called");
     assert.deepEqual(alerts, [], "no job told the workspace it stopped");
@@ -618,7 +625,7 @@ test(
     assert.equal((await noticesOn(replyOf.remove.conversation_id)).length, 1);
 
     // The three notices reached the workspace's own address, through the provider, once each.
-    const mailed = byKey("RESEND_API_KEY").slice(mailsBefore);
+    const mailed = platform.slice(mailsBefore);
     assert.equal(mailed.length, 3, JSON.stringify(mailed.map((m) => m.body.subject)));
     for (const m of mailed) assert.deepEqual(m.body.to, [owner.email]);
   },
@@ -656,11 +663,12 @@ test(
     await due(run2.id);
     const c = await tick();
     assert.deepEqual([c.claimed, c.written], [1, 1], JSON.stringify(c));
-    const before4 = byKey("RESEND_COLD_API_KEY").length;
+    const before4 = gmail.sent.length;
     assert.equal(await runJobs(), 1);
-    const [nudge] = byKey("RESEND_COLD_API_KEY").slice(before4);
-    assert.deepEqual(nudge.body.to, [addressOf("away")]);
-    assert.equal(nudge.body.headers["In-Reply-To"], firstEmail.away.meta.email.message_id, "threaded under the first");
+    const [nudge] = gmail.sent.slice(before4);
+    assert.equal(nudge.headers.to, addressOf("away"));
+    assert.equal(nudge.headers["in-reply-to"], firstEmail.away.meta.email.message_id, "threaded under the first");
+    assert.equal(nudge.threadId, firstEmail.away.meta.email.thread_id, "in its Gmail thread");
   },
 );
 
@@ -678,51 +686,53 @@ async function ownerReplies(text) {
 }
 
 test(
-  "5. the owner's reply is frozen with its twin and leaves from the own domain; held, from the mailbox",
+  "5. the owner's reply is frozen with its twin and leaves from the connected mailbox; paused, as the hosted address",
   { skip },
   async () => {
-    const mailboxAddress = `replies-${stamp}@mail.chanlytics.com`;
+    const hostedAddress = `replies-${stamp}@mail.chanlytics.com`;
     const row = await ownerReplies("Happy to. Thursday at 10?");
-    assert.match(row.meta.email.request.from, new RegExp(`<${mailboxAddress}>$`), "the mailbox's request, as ever");
+    assert.match(
+      row.meta.email.request.from,
+      new RegExp(`<${hostedAddress}>$`),
+      "the hosted address's request, as ever",
+    );
     const twin = row.meta.email.own_request;
     assert.ok(twin, "and its own twin");
-    assert.match(twin.from, new RegExp(`<sam@${HOST.replace(/\./g, "\\.")}>$`));
+    assert.equal(twin.from, `"Sam at Harbor" <${ADDRESS}>`, "from the mailbox the thread began in");
+    assert.deepEqual(twin.reply_to, [ADDRESS]);
     assert.equal(twin.idempotency_key, row.id, "frozen for this row");
     assert.equal(row.meta.email.in_reply_to, replyOf.yes.meta.email.message_id);
     assert.deepEqual(twin.to, row.meta.email.request.to);
 
-    const cold = byKey("RESEND_COLD_API_KEY").length;
-    const hosted = byKey("RESEND_API_KEY").length;
+    const fromMailbox = gmail.sent.length;
+    const hosted = platform.length;
     assert.equal(await runJobs(), 1);
-    const [own] = byKey("RESEND_COLD_API_KEY").slice(cold);
-    assert.ok(own, "it left through the own domain's route");
-    assert.equal(byKey("RESEND_API_KEY").length, hosted, "and not as the mailbox");
-    assert.match(own.body.from, new RegExp(`<sam@${HOST.replace(/\./g, "\\.")}>$`));
-    assert.deepEqual(own.body.to, [addressOf("yes")]);
-    assert.equal(own.body.headers["In-Reply-To"], replyOf.yes.meta.email.message_id);
+    const [own] = gmail.sent.slice(fromMailbox);
+    assert.ok(own, "it left through the connected mailbox's route");
+    assert.equal(platform.length, hosted, "and not as the hosted address");
+    assert.equal(own.headers.from, `"Sam at Harbor" <${ADDRESS}>`);
+    assert.equal(own.headers.to, addressOf("yes"));
+    assert.equal(own.headers["in-reply-to"], replyOf.yes.meta.email.message_id);
+    assert.equal(own.threadId, firstEmail.yes.meta.email.thread_id, "in the thread, in the mailbox");
     const left = await messageRow(row.id);
     assert.deepEqual([left.status, left.meta.email.left_as, left.meta.email.left_as_why], ["sent", "own", null]);
 
-    // The second: frozen while the domain is verified, held before its job runs.
+    // The second: frozen while the mailbox sends, paused by its owner before its job runs.
     const second = await ownerReplies("One more thing: does Thursday still suit?");
     assert.ok(second.meta.email.own_request, "frozen with its twin");
-    ok(
-      await db
-        .from("sending_domains")
-        .update({ state: "held", held_why: "bounces", held_at: iso(Date.now()) })
-        .eq("id", domain),
-    );
+    ok(await db.from("mailbox_connections").update({ state: "paused" }).eq("id", mailbox));
     assert.equal(await runJobs(), 1);
-    assert.equal(byKey("RESEND_COLD_API_KEY").length, cold + 1, "nothing more left by the own domain");
-    const [mailboxSend] = byKey("RESEND_API_KEY").slice(hosted);
-    assert.ok(mailboxSend, "it left as the mailbox");
-    assert.match(mailboxSend.body.from, new RegExp(`<${mailboxAddress}>$`));
+    assert.equal(gmail.sent.length, fromMailbox + 1, "nothing more left from the mailbox");
+    const [hostedSend] = platform.slice(hosted);
+    assert.ok(hostedSend, "it left as the hosted address");
+    assert.match(hostedSend.body.from, new RegExp(`<${hostedAddress}>$`));
     const stamped = await messageRow(second.id);
-    // The held domain is not among the wire's routes, and the row says it was held.
+    // The paused mailbox is not among the wire's routes, and the row says it does not send now.
     assert.deepEqual(
       [stamped.status, stamped.meta.email.left_as, stamped.meta.email.left_as_why],
-      ["sent", "mailbox", "domain_held"],
+      ["sent", "mailbox", "own_not_sending"],
     );
+    ok(await db.from("mailbox_connections").update({ state: "connected" }).eq("id", mailbox));
   },
 );
 

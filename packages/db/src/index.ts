@@ -106,24 +106,28 @@ export {
 } from "./repositories/campaigns/stranded-runs";
 export type { StrandedRun, WaitingPlaybookRun, WaitingRunRow } from "./repositories/campaigns/stranded-runs";
 export {
-  sendingDomainsOf,
-  sendingDomainOf,
-  sendingDomainByHost,
-  dueSendingDomains,
-  coldReceiptsOwed,
-  countSendingDomains,
-  reserveSendingDomain,
-  touchSendingDomain,
-  recordProviderDomain,
-  applyDomainCheck,
-  sendingDomainCounts,
-  reputationHoldsSince,
-  platformHoldStands,
-  deleteSendingDomainAsRead,
-  domainHeldSince,
-  deleteSendingDomain,
-} from "./repositories/sending-domains";
-export type { SendingDomainRow, ColdReceiptsOwed, SendingDomainHolder } from "./repositories/sending-domains";
+  mailboxConnectionsOf,
+  mailboxConnectionOf,
+  liveMailboxByAddress,
+  liveMailboxByWatch,
+  mailboxesToTend,
+  connectMailbox,
+  patchMailboxConnection,
+  putMailboxCredentials,
+  getMailboxCredentials,
+  dropMailboxCredentials,
+  mailboxCountsOf,
+  stampEmailFromMailbox,
+} from "./repositories/mailboxes/connections";
+export type { MailboxConnectionRow, ConnectRefusal } from "./repositories/mailboxes/connections";
+export {
+  takeMailboxSync,
+  endMailboxSync,
+  keepMailboxWatch,
+  knownThreads,
+  mailboxConnectionById,
+  sentEmailIdByMessageId,
+} from "./repositories/mailboxes/sync";
 export {
   outreachFactsOf,
   addressesSuppressed,
@@ -149,8 +153,9 @@ export type {
   ReplyListRow,
   ReachOutDayDue,
 } from "./repositories/outreach";
+export { mailboxCapacityOf, mailboxCapacityFrom, dueMailboxes } from "./repositories/mailboxes/day";
+export type { MailboxCapacity, DueMailbox } from "./repositories/mailboxes/day";
 export {
-  domainCapacityOf,
   reachOutAudience,
   reachOutPerson,
   claimSends,
@@ -163,7 +168,6 @@ export {
   finishableRuns,
   writtenEmails,
   withdrawEmail,
-  dueDomains,
   monthSent,
   insertQueuedEmail,
   writtenEmail,
@@ -191,12 +195,10 @@ export {
 export type {
   ReachOutSendRow,
   ReachOutSendInsert,
-  DomainCapacity,
   AudienceLead,
   PersonForSend,
   FollowerLead,
   QueuedOutcome,
-  DueDomain,
   MessageInsert,
   WrittenEmail,
   SendStanding,
@@ -560,6 +562,7 @@ export {
   saveIdeasLine,
   ideasBasis,
   ideasClockAndLanguage,
+  leadCountriesOf,
 } from "./repositories/leads";
 export { ownLineOf, businessOnRecordOf } from "./lines";
 export type { LeadOneLead, LeadOneMember, IdeasKept } from "./repositories/leads";

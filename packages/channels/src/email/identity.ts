@@ -1,6 +1,6 @@
 /**
- * Who a workspace's email leaves as and is answered at: its hosted address and reply route, the identity a reply or
- * a cold email is frozen with, and the addresses the wire holds a frozen request to (sendsAs, requestLeavesAs). The
+ * Who a workspace's email leaves as and is answered at: its hosted address and reply route, a mailbox it connected
+ * (decision 0056), the identity a reply or a cold email is frozen with, and the addresses the wire holds a frozen request to (sendsAs, requestLeavesAs). The
  * request itself is request.ts.
  */
 import { addressOf } from "./header-values";
@@ -79,42 +79,19 @@ export function campaignsIdentity(
 }
 
 /**
- * What one of a workspace's own domains sends as (Reach out): From on the
- * workspace's domain, answered at the mailbox's own reply routes, so a reply
- * to a cold email lands in the same Inbox as every other. With cold reply
- * domains (D17) the routes are on them too: a cold email is frozen with the
- * one set now, and one frozen before a switch still leaves as it was.
+ * What a mailbox the business connected sends as (decision 0056): From its own address, and answered at the same
+ * address, since a reply to it lands in it and the sync reads it back. The wire holds a request frozen for it to that
+ * address alone.
  */
-export function sendsAsOwnDomain(
-  domain: { host: string; from_local: string },
-  mailbox: { local_part: string; reply_token: string; reply_token_prev: string | null },
-  mailDomain: string,
-  coldReplyDomains: string | readonly string[] | null = null,
-): EmailSendsAs {
-  const cold = typeof coldReplyDomains === "string" ? [coldReplyDomains] : (coldReplyDomains ?? []);
-  return {
-    address: `${domain.from_local}@${domain.host}`.toLowerCase(),
-    replyRoutes: [
-      ...sendsAs(mailbox, mailDomain).replyRoutes,
-      ...cold.filter((d) => d !== mailDomain).flatMap((d) => sendsAs(mailbox, d).replyRoutes),
-    ],
-  };
+export function sendsAsConnected(mailbox: { address: string }): EmailSendsAs {
+  const address = mailbox.address.trim().toLowerCase();
+  return { address, replyRoutes: [address] };
 }
 
-/**
- * The identity a cold email is frozen with: the own domain's name and address, and the mailbox's live reply route on
- * the domain its replies come back on (the mail domain, or the cold reply domain when it is set, D17).
- */
-export function ownDomainIdentity(
-  domain: { host: string; from_local: string; from_name: string },
-  mailbox: { reply_token: string },
-  replyDomain: string,
-): EmailIdentity {
-  return {
-    fromName: domain.from_name,
-    fromAddress: `${domain.from_local}@${domain.host}`.toLowerCase(),
-    replyTo: replyRouteAddress(mailbox.reply_token, replyDomain),
-  };
+/** The identity a request leaving from a connected mailbox is frozen with: its name, its address, its address again to answer. */
+export function connectedIdentity(mailbox: { address: string; from_name: string }): EmailIdentity {
+  const address = mailbox.address.trim().toLowerCase();
+  return { fromName: mailbox.from_name, fromAddress: address, replyTo: address };
 }
 
 /**

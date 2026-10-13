@@ -117,7 +117,7 @@ const reachOutTiles = () => {
     angles: [],
     other_angles: { written: 0, businesses: 0, wrote_back: 0 },
     no_angle: 0,
-    domains: [],
+    mailboxes: [],
   };
   return toReachOutLensVM(dto, NOW).strip;
 };

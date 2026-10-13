@@ -622,7 +622,8 @@ test("the one foot builder, by kind: an offer says why they get it, who and wher
     emailFoot("Northside Studio", null, { kind: "visit", facts: { proposal_link: "https://x.example/p" } }, "en"),
     /^You're getting this about your proposal from Northside Studio\.\nReply STOP/,
   );
-  // A cold email's foot (the reach-out's): the finder's reason, that it is marketing, who and where, both ways to say no.
+  // A cold email's foot (the reach-out's): the finder's reason, that it is marketing, who and where, and a reply's no. It
+  // carries no link (decision 0056): the one-click way out is the email's header, and the HTML twin's link is for a page.
   const cold = { kind: "cold", why: "I found your business on Google Maps.", unsubscribeUrl: url };
   assert.equal(
     emailFoot("Northside Studio", "12 Main St, Springfield", cold, "en"),
@@ -631,7 +632,6 @@ test("the one foot builder, by kind: an offer says why they get it, who and wher
       "This is a marketing email.",
       "Northside Studio · 12 Main St, Springfield",
       'Not interested? Reply "no thanks" and I won\'t write again.',
-      `Unsubscribe: ${url}`,
     ].join("\n"),
   );
   // A cold foot is never built with a part missing: the law asks for each; a visit's foot, which carries no link, does not refuse.
@@ -782,7 +782,6 @@ test("the email foot speaks the version's language, each kind, text and HTML; th
       "Este es un correo de marketing.",
       "Estudio Norte · Calle Mayor 12",
       '¿No te interesa? Responde "no, gracias" y no volveré a escribirte.',
-      `Darme de baja: ${url}`,
     ].join("\n"),
   );
   assert.match(

@@ -1,17 +1,20 @@
 /**
- * The reach-out clock's claim (Reach out, Part 3; C7, C8, C9, C10, E8): for each domain with a send due, the sends it
- * may take within its day's share and its workspace's month, claimed under the domain's lock (00184); then for each,
- * its email written before the send leaves `claimed` (rows first, C8):
+ * The reach-out clock's claim (Reach out, Part 3; C7, C8, C9, C10, E8; decision 0056): for each mailbox the business
+ * connected with a send due, the sends it may take within its day's share (contracts mailboxDailyCap) and its
+ * workspace's month, claimed under the mailbox's lock (00424 reach_out_claim_from); then for each, its email written
+ * before the send leaves `claimed` (rows first, C8):
  *
  *   0. an email this send already wrote (a tick that died after writing it) is adopted, whatever has changed since:
  *      it may be in somebody's inbox, so the send goes on as its email's, and the clock reads what became of it;
  *   1. the run and its chain as they stand now: a run closed since is skipped, a chain paused since waits;
- *   2. the words, the lead, the workspace and the domain, judged before anyone is made: words changed since the send
+ *   2. the words, the lead, the workspace and the mailbox, judged before anyone is made: words changed since the send
  *      was checked, or an opening it names and the send has none of, send it back to be checked (Part 4, R5); a
  *      lead's own refusal (a slot it has no value for) skips it; the step's or the workspace's (no template, a slot no
- *      lead could fill, no address for the foot, no mailbox for the replies, no name to sign with, no booking link)
- *      holds the send, an hour on, in its lead's hours, and the lead keeps its place, so a fault the owner can fix
- *      never spends a run's audience;
+ *      lead could fill, no address for the foot, no name to sign with, no booking link) holds the send, an hour on, in
+ *      its lead's hours, and the lead keeps its place, so a fault the owner can fix never spends a run's audience; a
+ *      first email whose mailbox was removed or stopped sending since (paused, held, signed out, resting) is planned
+ *      again now on another of the step's; a later one keeps its lead's mailbox, its chain ended with one removed
+ *      (mailbox_gone) and waiting an hour for one that does not send now;
  *   3. for a step after the first, the lead's email on the step before (D19), waited for while its receipt has not
  *      stamped its Message-ID;
  *   4. the person (made once, E5: reach_out_person), refused for a lead that closed or a customer's address;
@@ -19,21 +22,21 @@
  *      that sends it through the one door (deliver.ts);
  *   6. the send `claimed → queued`, and its run `scheduled → sending`.
  *
- * The email row comes first: the domain's capacity counts a claim and a queued row each (00184), so this order only
+ * The email row comes first: the mailbox's capacity counts a claim and a queued row each (00424), so this order only
  * ever counts one twice for a moment, which sends less, never more. A claim a tick left mid-way (it died after the
  * claim) is written again five minutes on: its email's id is the same, so it is the same email, never a second.
- * One domain's failure is its own: the rest of the page, and every other workspace, still claim.
+ * One mailbox's failure is its own: the rest of the page, and every other workspace, still claim.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   claimSends,
   contactEmailOf,
-  domainCapacityOf,
-  dueDomains,
+  dueMailboxes,
   emailWordsOf,
   insertQueuedEmail,
   leadSlotsOf,
-  mailboxOfTenant,
+  mailboxCapacityOf,
+  mailboxConnectionOf,
   monthSent,
   moveSend,
   parentEmailOf,
@@ -43,22 +46,21 @@ import {
   sendJobScheduled,
   sendNow,
   sendStanding,
-  sendingDomainOf,
   stuckClaims,
   withdrawEmail,
   workspaceNameAndConfig,
   writtenEmail,
   type Database,
   type Json,
+  type MailboxConnectionRow,
   type ParentEmail,
   type ReachOutSendRow,
   type WrittenEmail,
 } from "../packages/db.js";
 import { sendMessageId } from "../packages/core.js";
 import { scheduleJob } from "../packages/jobs.js";
-import { REACH_OUT_MONTH_EMAILS, domainDailyCap, emailDomainOf, parseTenantConfig } from "../packages/contracts.js";
+import { REACH_OUT_MONTH_EMAILS, mailboxDailyCap, mailboxSendsNow, parseTenantConfig } from "../packages/contracts.js";
 import { unsubscribeOrigin } from "../dashboard-origin.js";
-import { coldReplyDomain } from "../email/email.js";
 import { env } from "../env.js";
 import { checkedWordsOf, reachOutRequest, reachOutWords } from "./request.js";
 import { REPLAN_GIVE_UP_MS, replanSends, type Replan } from "./replan.js";
@@ -66,12 +68,12 @@ import type { LogEvent, Logger } from "../log.js";
 
 type Db = SupabaseClient<Database>;
 
-/** The most one domain's claim takes in a tick: its gap spaces its sends minutes apart, so a tick finds one or two. */
-export const CLAIM_PER_DOMAIN_PER_TICK = 5;
-/** When the claim stops taking domains: its door has 60 s (vercel.json), and a domain's writes take a few seconds. */
+/** The most one mailbox's claim takes in a tick: its gap spaces its sends minutes apart, so a tick finds one or two. */
+export const CLAIM_PER_MAILBOX_PER_TICK = 5;
+/** When the claim stops taking mailboxes: its door has 60 s (vercel.json), and a mailbox's writes take a few seconds. */
 export const CLAIM_YIELD_AT_MS = 40_000;
-/** How many domains with sends due one page reads, and how many pages a tick reads past the ones it holds. */
-export const DUE_DOMAINS_PAGE = 50;
+/** How many mailboxes with sends due one page reads, and how many pages a tick reads past the ones it holds. */
+export const DUE_MAILBOXES_PAGE = 50;
 const DUE_PAGES = 4;
 /** A claim this old was left by a tick that died after it (a tick lives 60 s at most): it is written again. */
 export const REWRITE_AFTER_MS = 5 * 60_000;
@@ -81,11 +83,10 @@ const REWRITE_PAGE = 100;
 
 /**
  * Refusals that are the step's or the workspace's, never the lead's: the send waits and the lead keeps its place. A
- * missing address, a mailbox not yet made or a template with a slot no lead can fill would otherwise skip every lead
- * the run holds, for good, at five a domain a minute.
+ * missing address or a template with a slot no lead can fill would otherwise skip every lead the run holds, for good,
+ * at five a mailbox a minute.
  */
 const HOLDS = new Set([
-  "no_mailbox",
   "no_business_address",
   "no_template",
   "no_subject",
@@ -96,40 +97,21 @@ const HOLDS = new Set([
   "no_booking_link",
 ]);
 
-/**
- * What the cold lane needs to write an email: the seal for its unsubscribe, the origin its page answers on, and the
- * domain its replies come back on (D17: a cold-only domain before scale, when they are set).
- */
+/** What a reach-out needs to write an email beside its mailbox: the seal for its unsubscribe, and the origin its page answers on. */
 export interface Lane {
   unsubscribeSecret: string;
   unsubscribeOrigin: string;
-  replyDomain: string;
 }
 
 /**
- * The cold lane as this deployment holds it (C13), or what it lacks by the variables' names: the cold account's key
- * and its webhook secret (a cold email whose bounces could not be read could never hold its domain), the unsubscribe's
- * seal, the mail domain the replies come back to, and the platform's own key the email wire is bound with.
+ * The reach-out lane as this deployment holds it (C13), or what it lacks by the variables' names: the unsubscribe's
+ * seal, without which no email may carry its one-click way out. Each email leaves from the mailbox its business
+ * connected (decision 0056), so the platform's own mail keys are not asked.
  */
-export function coldLane(): { ok: true; lane: Lane } | { ok: false; missing: string[] } {
-  const mailDomain = emailDomainOf(env.EMAIL_DOMAIN);
+export function mailboxLane(): { ok: true; lane: Lane } | { ok: false; missing: string[] } {
   const secret = env.UNSUBSCRIBE_SECRET;
-  const missing = [
-    !env.RESEND_API_KEY && "RESEND_API_KEY",
-    !env.RESEND_COLD_API_KEY && "RESEND_COLD_API_KEY",
-    !env.RESEND_COLD_WEBHOOK_SECRET && "RESEND_COLD_WEBHOOK_SECRET",
-    !secret && "UNSUBSCRIBE_SECRET",
-    !mailDomain && "EMAIL_DOMAIN",
-  ].filter((x): x is string => !!x);
-  if (missing.length > 0 || !secret || !mailDomain) return { ok: false, missing };
-  return {
-    ok: true,
-    lane: {
-      unsubscribeSecret: secret,
-      unsubscribeOrigin: unsubscribeOrigin(),
-      replyDomain: coldReplyDomain() ?? mailDomain,
-    },
-  };
+  if (!secret) return { ok: false, missing: ["UNSUBSCRIBE_SECRET"] };
+  return { ok: true, lane: { unsubscribeSecret: secret, unsubscribeOrigin: unsubscribeOrigin() } };
 }
 
 export interface SenderCounts {
@@ -138,7 +120,7 @@ export interface SenderCounts {
   /** Claims a tick left mid-way: written now, or their email adopted. */
   rewritten: number;
   skipped: number;
-  /** Planned again: a chain paused since, a domain gone, an email before not yet stamped. */
+  /** Planned again: a chain paused since, a mailbox gone or not sending, an email before not yet stamped. */
   waited: number;
   /** Planned again an hour on for the step's or the workspace's words (HOLDS). */
   held: number;
@@ -149,7 +131,7 @@ export interface SenderCounts {
   errors: number;
   /** Workspaces whose month's allowance is spent: their sends wait for the next month. */
   month_spent: number;
-  /** Workspaces that cannot write an email's foot or take its replies: nothing of theirs is claimed. */
+  /** Workspaces that cannot write an email's foot: nothing of theirs is claimed. */
   workspaces_held: number;
 }
 
@@ -160,13 +142,11 @@ interface Workspace {
   address: string | null;
   /** The booking link the words' {{booking link}} names (brain.booking_link). */
   bookingLink: string | null;
-  mailbox: { reply_token: string } | null;
   /** Why no email of this workspace can be written now (a HOLDS reason), or null. */
   missing: string | null;
 }
-type Domain = NonNullable<Awaited<ReturnType<typeof sendingDomainOf>>>;
 
-/** One tick's reads that hold for the whole tick, each made once: a workspace's facts, a template's words, a domain. */
+/** One tick's reads that hold for the whole tick, each made once: a workspace's facts, a template's words, a mailbox. */
 function tickReads(db: Db) {
   const once = <T>(m: Map<string, Promise<T>>, key: string, read: () => Promise<T>): Promise<T> => {
     let p = m.get(key);
@@ -180,11 +160,11 @@ function tickReads(db: Db) {
   };
   const workspaces = new Map<string, Promise<Workspace>>();
   const words = new Map<string, Promise<{ subject: string | null; body: string } | null>>();
-  const domains = new Map<string, Promise<Domain | null>>();
+  const mailboxes = new Map<string, Promise<MailboxConnectionRow | null>>();
   return {
     workspace: (tenantId: string) =>
       once(workspaces, tenantId, async () => {
-        const [w, mailbox] = await Promise.all([workspaceNameAndConfig(db, tenantId), mailboxOfTenant(db, tenantId)]);
+        const w = await workspaceNameAndConfig(db, tenantId);
         // The address drafts put at their foot (the dashboard's workspaceOffer): the profile's, as the owner wrote it.
         const brain = parseTenantConfig(w.config)?.brain;
         const address = brain?.profile?.address?.trim() || null;
@@ -193,14 +173,13 @@ function tickReads(db: Db) {
           businessName,
           address,
           bookingLink: brain?.booking_link?.trim() || null,
-          mailbox: mailbox ? { reply_token: mailbox.reply_token } : null,
-          missing: !mailbox ? "no_mailbox" : !businessName || !address ? "no_business_address" : null,
+          missing: !businessName || !address ? "no_business_address" : null,
         };
       }),
     words: (tenantId: string, templateId: string) =>
       once(words, templateId, () => emailWordsOf(db, tenantId, templateId)),
-    domain: (tenantId: string, domainId: string) =>
-      once(domains, domainId, () => sendingDomainOf(db, tenantId, domainId)),
+    mailbox: (tenantId: string, mailboxId: string) =>
+      once(mailboxes, mailboxId, () => mailboxConnectionOf(db, tenantId, mailboxId)),
   };
 }
 
@@ -210,7 +189,7 @@ interface Tick {
   lane: Lane;
   log: Logger;
   reads: ReturnType<typeof tickReads>;
-  /** Planned again from now, at the tick's end: their domain went away since their claim. */
+  /** Planned again from now, at the tick's end: their mailbox went away since their claim. */
   replan: Replan[];
   /** Planned again an hour on, in their lead's hours, at the tick's end: held, or waiting for the email before. */
   later: Replan[];
@@ -254,6 +233,21 @@ async function adopt(t: Tick, s: ReachOutSendRow, id: string, was: WrittenEmail)
   return moved ? "adopted" : "lost";
 }
 
+/**
+ * Its mailbox since the claim. A first email has no thread yet: its mailbox removed or not sending now, it is planned
+ * again on another of the step's. A later one answers its lead's thread from that lead's mailbox (each lead hears from
+ * one): removed, its chain ends with it; not sending now, it waits for it, an hour on.
+ */
+function mailboxTurn(
+  mailbox: MailboxConnectionRow | null,
+  later: boolean,
+  nowMs: number,
+): { go: MailboxConnectionRow } | { wait: "replan" | "later" } | { gone: true } {
+  if (!mailbox || mailbox.state === "removed") return later ? { gone: true } : { wait: "replan" };
+  if (mailboxSendsNow(mailbox, nowMs)) return { go: mailbox };
+  return { wait: later ? "later" : "replan" };
+}
+
 /** One claimed send, written: its email and its job, then its move. Only from `claimed`, as it was read. */
 async function writeOne(t: Tick, s: ReachOutSendRow): Promise<Outcome> {
   const { db } = t;
@@ -293,11 +287,11 @@ async function writeOne(t: Tick, s: ReachOutSendRow): Promise<Outcome> {
     return (await move({ state: "planned", claimed_at: null })) ? "waited" : "lost";
 
   // 2. What the email is made of, judged before anyone is made.
-  const [lead, workspace, words, domain] = await Promise.all([
+  const [lead, workspace, words, mailbox] = await Promise.all([
     leadSlotsOf(db, s.tenant_id, s.lead_id),
     t.reads.workspace(s.tenant_id),
     t.reads.words(s.tenant_id, standing.step.template_id),
-    s.domain_id ? t.reads.domain(s.tenant_id, s.domain_id) : Promise.resolve(null),
+    s.mailbox_id ? t.reads.mailbox(s.tenant_id, s.mailbox_id) : Promise.resolve(null),
   ]);
   if (!lead) return skip("lead_gone");
   if (workspace.missing) return hold(workspace.missing);
@@ -305,11 +299,13 @@ async function writeOne(t: Tick, s: ReachOutSendRow): Promise<Outcome> {
   // Checked against other words than these (its step's, the name it signs with, whether a booking link exists): the
   // check reads it again before it goes (R5). Never a skip: nothing about the lead changed.
   if (s.checked_words !== checkedWordsOf(words, standing.signedBy, workspace.bookingLink !== null)) return recheck();
-  // Its domain removed or held since the claim: planned again on another of the step's domains.
-  if (!domain || domain.state !== "verified") {
-    t.replan.push({ send: s, wrote: false });
+  const turn = mailboxTurn(mailbox, standing.step.after_playbook_id !== null, t.now.getTime());
+  if ("gone" in turn) return skip("mailbox_gone");
+  if ("wait" in turn) {
+    (turn.wait === "replan" ? t.replan : t.later).push({ send: s, wrote: false });
     return "waited";
   }
+  const from = turn.go;
 
   // 3. A step after the first answers the lead's email on the step before (D19).
   let parent: ParentEmail | null = null;
@@ -344,7 +340,6 @@ async function writeOne(t: Tick, s: ReachOutSendRow): Promise<Outcome> {
   // The address the door will compare the request with (deliver.ts recipient_changed): the person's, as stored.
   const to = await contactEmailOf(db, s.tenant_id, person.contactId);
   if (!to) return skip("no_address");
-  if (!workspace.mailbox) return hold("no_mailbox");
 
   // 5. The request, frozen; the row; the job.
   const r = reachOutRequest({
@@ -356,9 +351,7 @@ async function writeOne(t: Tick, s: ReachOutSendRow): Promise<Outcome> {
     lead: slots,
     workspace: { ...workspaceSlots, address: workspace.address },
     opening: s.opening ?? null,
-    domain,
-    mailbox: workspace.mailbox,
-    replyDomain: t.lane.replyDomain,
+    from,
     unsubscribe: { secret: t.lane.unsubscribeSecret, origin: t.lane.unsubscribeOrigin },
     parent,
   });
@@ -490,22 +483,22 @@ export async function claimAndWrite(p: {
     failed("reach_out_rewrite_failed", {}, e);
   }
 
-  // The claim, a page of domains at a time, past the workspaces held this tick and the domains already done.
+  // The claim, a page of mailboxes at a time, past the workspaces held this tick and the mailboxes already done.
   const allowance = new Map<string, number>();
   const skipTenants = new Set<string>();
   const done = new Set<string>();
   for (let page = 0; page < DUE_PAGES && !late(); page += 1) {
-    const domains = await dueDomains(p.db, p.now, DUE_DOMAINS_PAGE, {
+    const due = await dueMailboxes(p.db, p.now, DUE_MAILBOXES_PAGE, {
       tenantId: p.tenantId,
       skipTenants,
-      skipDomains: done,
+      skipMailboxes: done,
     });
-    for (const d of domains) {
+    for (const d of due) {
       if (late()) break;
       done.add(d.id);
       if (skipTenants.has(d.tenant_id)) continue;
       try {
-        // A workspace that cannot write an email's foot or take its replies claims nothing: its sends keep.
+        // A workspace that cannot write an email's foot claims nothing: its sends keep.
         const workspace = await t.reads.workspace(d.tenant_id);
         if (workspace.missing) {
           skipTenants.add(d.tenant_id);
@@ -522,28 +515,32 @@ export async function claimAndWrite(p: {
           p.log.info("reach_out_month_spent", { tenant_id: d.tenant_id, allowance: REACH_OUT_MONTH_EMAILS });
           continue;
         }
-        const [c, domain] = await Promise.all([domainCapacityOf(p.db, d.id, p.now), t.reads.domain(d.tenant_id, d.id)]);
-        if (!domain || domain.state !== "verified" || !domain.clean_since || !c.clean_since) continue;
-        // The day's share the door judges by (the days the domains clock wrote, deliver.ts), never past the live count:
-        // a claim past the door's share would only be sent back, and cost each send one of its tries.
-        const cap = domainDailyCap(Math.min(c.sent_days, domain.sent_days ?? 0));
+        // Read for the claim and not kept: its writer reads the row as it stands after the claim, so a mailbox paused
+        // or signed out in between holds its sends rather than writing from it.
+        const [c, mailbox] = await Promise.all([
+          mailboxCapacityOf(p.db, d.id, p.now),
+          mailboxConnectionOf(p.db, d.tenant_id, d.id),
+        ]);
+        if (!mailbox || !mailboxSendsNow(c, p.now.getTime())) continue;
+        // The day's share the door judges by (mailbox_capacity's own days, deliver.ts): a claim past the door's share
+        // would only be sent back, and cost each send one of its tries.
         const claimed = await claimSends(p.db, {
-          domainId: d.id,
-          cap,
+          mailboxId: d.id,
+          cap: mailboxDailyCap(c),
           at: p.now,
-          limit: Math.min(CLAIM_PER_DOMAIN_PER_TICK, left),
+          limit: Math.min(CLAIM_PER_MAILBOX_PER_TICK, left),
         });
         out.claimed += claimed.length;
         allowance.set(d.tenant_id, left - claimed.length);
         for (const s of claimed) await write(s, false);
       } catch (e) {
-        failed("reach_out_claim_failed", { domain_id: d.id, tenant_id: d.tenant_id }, e);
+        failed("reach_out_claim_failed", { mailbox_id: d.id, tenant_id: d.tenant_id }, e);
       }
     }
-    if (domains.length < DUE_DOMAINS_PAGE) break;
+    if (due.length < DUE_MAILBOXES_PAGE) break;
   }
 
-  // Planned again: from now on another domain, and an hour on in their leads' hours.
+  // Planned again: from now on another mailbox, and an hour on in their leads' hours.
   const replans: Array<[Replan[], Date]> = [
     [t.replan, p.now],
     [t.later, new Date(p.now.getTime() + HOLD_MS)],

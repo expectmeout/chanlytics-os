@@ -10,7 +10,8 @@
  * an operator's (twenty for an owner), gave propose_campaign a waiting run's approval (run), and made
  * propose_thread_verb's words true for every role; 9 Oct 2026 gave propose_campaign a change in place (change), 10 Oct
  * 2026 a new message written for the Library (message) and 11 Oct 2026 an offer or a whole setup made into its cards
- * (plan), and 11 Oct 2026 gave a list's rule a missed visit (missed_visit, decision 0002). What the model is sent is frozen per role in
+ * (plan), and 11 Oct 2026 gave a list's rule a missed visit (missed_visit, decision 0002); 13 Oct 2026 the connections action
+ * names the mailboxes a business connected in place of its sending domains (decision 0056). What the model is sent is frozen per role in
  * fixtures/ask-tools-4-7.json, and every other tool reads to every role as fixtures/ask-tools-4-6.json froze it (which
  * PR 4.6 and PR 4.5 held to fixtures/ask-tools-4-3.json, and PR 4.3 to PR 3.4's, for the tools each did not change --
  * inbox too, less its search); the rest is held as structure: the order, the four prefixes, the flattened

@@ -144,7 +144,7 @@ const chainOf = (s) => ({
   search_id: s,
   include_unconfirmed: false,
   gap_minutes: 12,
-  domain_ids: [],
+  mailbox_ids: [],
   signed_by: "Sam",
   steps: [
     { subject: "Quick one for {{business}}", body: "{{opening}}\n\n{{your name}}", after_days: null },
@@ -195,21 +195,21 @@ async function build() {
   const saved = ok(await db.rpc("reach_out_save", { p_tenant_id: A, p_user_id: as.operator.id, p_chain: chainOf(s) }));
   const root = saved.root_id;
   const step2 = saved.step_ids[1];
-  const domain = await one(
-    db.from("sending_domains").insert({
+  const mailbox = await one(
+    db.from("mailbox_connections").insert({
       tenant_id: A,
+      provider: "google",
+      provider_account: `acct-back-${stamp}`,
+      address: `sam@back-${stamp}.example`,
       host: `back-${stamp}.example`,
-      from_local: "sam",
       from_name: "Sam",
-      state: "verified",
-      verified_at: iso(Date.now() - 20 * DAY),
       clean_since: iso(Date.now() - 20 * DAY),
     }),
   );
   const run1 = await runOf(root, root);
   const run2 = await runOf(root, step2);
   const names = ["interested", "saidNo", "bounced", "stopped", "quiet", "planned", "leaving"];
-  const W0 = { s, root, step2, run1, run2, domain, leads: {}, persons: {}, threads: {} };
+  const W0 = { s, root, step2, run1, run2, mailbox, leads: {}, persons: {}, threads: {} };
   for (const k of names) {
     const personId = await one(
       db
@@ -247,7 +247,7 @@ async function build() {
     sendIn(run1, root, root, {
       lead_id: W0.leads[k],
       contact_id: W0.persons[k],
-      domain_id: domain,
+      mailbox_id: mailbox,
       state: "sent",
       sent_at: iso(Date.now() - 2 * DAY),
       angle,
@@ -262,7 +262,7 @@ async function build() {
   await sendIn(run1, root, root, {
     lead_id: W0.leads.bounced,
     contact_id: W0.persons.bounced,
-    domain_id: domain,
+    mailbox_id: mailbox,
     state: "failed",
     reason: "bounced",
     angle: "their reviews",
@@ -275,7 +275,7 @@ async function build() {
   W0.plannedSend = await sendIn(run1, root, root, {
     lead_id: W0.leads.planned,
     contact_id: W0.persons.planned,
-    domain_id: domain,
+    mailbox_id: mailbox,
     state: "held",
     reason: "check_unavailable",
   });
@@ -283,7 +283,7 @@ async function build() {
   W0.leavingSend = await sendIn(run1, root, root, {
     lead_id: W0.leads.leaving,
     contact_id: W0.persons.leaving,
-    domain_id: domain,
+    mailbox_id: mailbox,
     state: "queued",
     message_id: await email("leaving", "queued"),
   });
@@ -483,8 +483,9 @@ test(
     ]);
     assert.deepEqual(rep.other_angles, { written: 0, businesses: 0, wrote_back: 0 });
     assert.equal(rep.no_angle, 1);
-    const dom = rep.domains.find((d) => d.host === `back-${stamp}.example`);
-    assert.deepEqual([dom.state, dom.sent, dom.delivered, dom.bounced, dom.complained], ["verified", 5, 4, 1, 0]);
+    const box = rep.mailboxes.find((m) => m.address === `sam@back-${stamp}.example`);
+    assert.deepEqual([box.state, box.sent, box.delivered, box.bounced, box.complained], ["connected", 5, 4, 1, 0]);
+    assert.deepEqual(rep.domains, [], "an edge or a page from before mailboxes reads none");
     // A period is any count of days a report reads, 1 to 90 (00359): it refused all but 7, 30 and 90, so the month so
     // far read nothing of the reach-outs. None and more than ninety are still refused, in contracts' words.
     assert.equal(ok(await as.viewer.c.rpc("reach_out_report", { p_tenant_id: A, p_days: 14 })).days, 14);
@@ -680,12 +681,18 @@ test("each function re-created whole is its source's body but for the lines it m
     );
   assert.equal(was, bodyIn(migration("00228"), "create or replace function public.reach_out_chain_report("));
 
-  for (const name of ["outreach_lead_facts", "reach_out_followers", "reach_out_booked"])
+  for (const name of ["outreach_lead_facts", "reach_out_booked"])
     assert.equal(
       liveBody(name),
       bodyIn(now, `create or replace function public.${name}(`),
       `${name}: the database runs 00241's`,
     );
+  // 00424 made the followers a step's from its lead's own mailbox (decision 0056): the database runs that one.
+  assert.equal(
+    liveBody("reach_out_followers"),
+    bodyIn(migration("00424"), "create function public.reach_out_followers("),
+    "reach_out_followers: the database runs 00424's",
+  );
   // 00261 gave the report's membership guard a partner's second factor (0013), and changed nothing else.
   const gated = bodyIn(migration("00261"), "create or replace function public.reach_out_chain_report(");
   assert.equal(

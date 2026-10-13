@@ -20,13 +20,14 @@ import {
   reachOutDraftOf,
   reachOutEmailOf,
   reachOutRootOf,
-  reachOutSendsFrom,
   reachOutStepOf,
+  reachOutWritesFrom,
   validateReachOutChain,
   type ReachOutChainDto,
   type ReachOutChainInput,
   type ReachOutChainReportDto,
   type ReachOutDecision,
+  type ReachOutMailboxFacts,
   type ReachOutReachDto,
   type ReachOutRunDto,
   type ReachOutSavedDto,
@@ -37,13 +38,13 @@ import {
   emailWordsByTemplate,
   emailWordsOf,
   emitEvent,
+  mailboxConnectionsOf,
   outreachModeOf,
   reachOutRunSendsOf,
   reachOutStepsOf,
   runsWaitingOf,
   saveReachOutChain,
   searchNamesByIds,
-  sendingDomainsOf,
   workspaceMaySpend,
   type ReachOutRunSend,
   type ReachOutStepRow,
@@ -110,19 +111,19 @@ export async function chainsOf(ctx: RouteContext, tenantId: string): Promise<Rea
   if (roots.length === 0) return [];
   const templateIds = steps.map((s) => s.template_id).filter((x): x is string => !!x);
   const searchIds = roots.map((r) => r.lead_search_id).filter((x): x is string => !!x);
-  const [words, names, waiting, domains, mode, spend] = await Promise.all([
+  const [words, names, waiting, mailboxes, mode, spend] = await Promise.all([
     emailWordsByTemplate(sb, tenantId, templateIds),
     searchNamesByIds(sb, tenantId, searchIds),
     runsWaitingOf(sb, tenantId),
-    sendingDomainsOf(sb, tenantId),
+    mailboxConnectionsOf(sb, tenantId),
     // The step's run's own readings (packages/db): its outreach mode, and whether the workspace may spend.
     outreachModeOf(sb, tenantId),
     workspaceMaySpend(sb, tenantId),
   ]);
-  // The domains the chain's run sends from, by the run's own rule (contracts reachOutSendsFrom): its named ones, or every
-  // one when it names none, verified and clean. A held or unverified domain it names is not its pace.
-  const domainsOf = (ids: string[]) =>
-    domains.filter((d) => reachOutSendsFrom(d, ids)).map((d) => ({ host: d.host, sent_days: d.sent_days ?? 0 }));
+  // The mailboxes the chain's run writes from, by the run's own rule (contracts reachOutWritesFrom): its named ones, or
+  // every one when it names none. One that does not send now (paused, held, signed out) is not its pace.
+  const mailboxesOf = (ids: string[]) =>
+    mailboxes.filter((m) => m.state === "connected" && reachOutWritesFrom(m, ids)).map(mailboxFactsOf);
   const waitingOf = new Map<string, string>();
   for (const w of waiting) {
     const root = reachOutRootOf(w.audience);
@@ -151,10 +152,10 @@ export async function chainsOf(ctx: RouteContext, tenantId: string): Promise<Rea
       state: root.state === "running" ? "running" : "paused",
       include_unconfirmed: root.include_unconfirmed === true,
       gap_minutes: root.gap_minutes ?? 0,
-      domain_ids: root.domain_ids ?? [],
+      mailbox_ids: root.mailbox_ids ?? [],
       signed_by: root.signed_by,
       steps: stepDtos,
-      domains: domainsOf(root.domain_ids ?? []),
+      mailboxes: mailboxesOf(root.mailbox_ids ?? []),
       next: {
         run_hour: root.run_hour,
         last_run_for: root.last_run_for,
@@ -361,13 +362,28 @@ async function firstEmailOf(
   };
 }
 
-/** The domains a run's sends go from, with the days each has sent (R22). */
-async function runDomainsOf(ctx: RouteContext, tenantId: string, rows: SendRow[]): Promise<ReachOutRunDto["domains"]> {
-  const ids = new Set(rows.map((s) => s.domain_id).filter((x): x is string => !!x));
+/** A mailbox as the sheet and the approval say its day (contracts mailboxDailyCap): never its token's name. */
+const mailboxFactsOf = (m: {
+  address: string;
+  sent_days: number | null;
+  daily_cap: number;
+  customer_domain: boolean;
+}): ReachOutMailboxFacts => ({
+  address: m.address,
+  sent_days: m.sent_days ?? 0,
+  daily_cap: m.daily_cap,
+  customer_domain: m.customer_domain,
+});
+
+/** The mailboxes a run's sends go from, with what each one's day is made of (R22). */
+async function runMailboxesOf(
+  ctx: RouteContext,
+  tenantId: string,
+  rows: SendRow[],
+): Promise<ReachOutRunDto["mailboxes"]> {
+  const ids = new Set(rows.map((s) => s.mailbox_id).filter((x): x is string => !!x));
   if (ids.size === 0) return [];
-  return (await sendingDomainsOf(ctx.supabase, tenantId))
-    .filter((d) => ids.has(d.id))
-    .map((d) => ({ host: d.host, sent_days: d.sent_days ?? 0 }));
+  return (await mailboxConnectionsOf(ctx.supabase, tenantId)).filter((m) => ids.has(m.id)).map(mailboxFactsOf);
 }
 
 /** A run's sends counted as its approval sheet says them (R21): checked and due today, later, still being checked. */
@@ -392,7 +408,7 @@ function approvalCountsOf(rows: SendRow[], tz: string) {
 
 /**
  * A reach-out run as its approval sheet reads it (F13, R20–R22): who today, who later, who is still being checked,
- * what the check held, the first checked business's email as it reads, and the domains its sends go from. A run holds
+ * what the check held, the first checked business's email as it reads, and the mailboxes its sends go from. A run holds
  * at most a step's cap (200) sends, well under a read's thousand rows.
  */
 export async function reachOutRunOf(
@@ -415,9 +431,9 @@ export async function reachOutRunOf(
   const stepN = at < 0 ? null : at;
   const step = stepN === null ? null : steps[stepN];
   const c = approvalCountsOf(rows, facts.timezone);
-  const [first, domains] = await Promise.all([
+  const [first, mailboxes] = await Promise.all([
     firstEmailOf(ctx, tenantId, { lead: c.checked[0], step, first: stepN === 0, signedBy: root.signed_by }),
-    runDomainsOf(ctx, tenantId, rows),
+    runMailboxesOf(ctx, tenantId, rows),
   ]);
   return {
     root_id: root.id,
@@ -449,7 +465,7 @@ export async function reachOutRunOf(
     ),
     skipped: c.skipped,
     first,
-    domains,
+    mailboxes,
   };
 }
 

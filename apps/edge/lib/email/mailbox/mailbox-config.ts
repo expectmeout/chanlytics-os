@@ -1,0 +1,52 @@
+/**
+ * The connected mailboxes' switches, as this deployment holds them (decision 0056): which providers a business may
+ * connect (each one's OAuth client and the callback both return to), and how each tells the edge a mailbox changed
+ * (Gmail's Pub/Sub topic and its push's audience; Graph's clientState and the edge's own origin its notifications
+ * reach). A provider whose client is unset is not offered; a push that is unset leaves a mailbox to the five-minute
+ * sweep, which reads every one whatever its push.
+ */
+import type { MailboxProvider } from "../../packages/contracts.js";
+import type { MailboxOAuthClient } from "../../packages/channels.js";
+import { env } from "../../env.js";
+
+/** One provider's OAuth client, or null when this deployment does not offer it. */
+export function mailboxClient(provider: MailboxProvider): MailboxOAuthClient | null {
+  const redirectUri = env.MAILBOX_OAUTH_REDIRECT;
+  const [clientId, clientSecret] =
+    provider === "google"
+      ? [env.GOOGLE_MAIL_CLIENT_ID, env.GOOGLE_MAIL_CLIENT_SECRET]
+      : [env.MICROSOFT_MAIL_CLIENT_ID, env.MICROSOFT_MAIL_CLIENT_SECRET];
+  return clientId && clientSecret && redirectUri ? { clientId, clientSecret, redirectUri } : null;
+}
+
+/** The providers a business may connect here. */
+function mailboxProviders(): MailboxProvider[] {
+  return (["google", "microsoft"] as const).filter((p) => mailboxClient(p) !== null);
+}
+
+/** What the dashboard is told to start a connect with: the public half of each client offered. */
+export function mailboxReadiness(): {
+  providers: MailboxProvider[];
+  oauth: Partial<Record<MailboxProvider, { client_id: string; redirect_uri: string }>>;
+} {
+  const oauth: Partial<Record<MailboxProvider, { client_id: string; redirect_uri: string }>> = {};
+  for (const p of mailboxProviders()) {
+    const c = mailboxClient(p);
+    if (c) oauth[p] = { client_id: c.clientId, redirect_uri: c.redirectUri };
+  }
+  return { providers: mailboxProviders(), oauth };
+}
+
+/** Gmail's push: the topic it publishes to, and the audience its subscription's token is signed for. */
+export function gmailPush(): { topic: string; audience: string } | null {
+  const topic = env.GMAIL_PUSH_TOPIC;
+  const audience = env.GMAIL_PUSH_AUDIENCE;
+  return topic && audience ? { topic, audience } : null;
+}
+
+/** Graph's notifications: where they reach the edge, and the clientState each carries. */
+export function graphPush(): { url: string; clientState: string } | null {
+  const origin = env.EDGE_ORIGIN;
+  const clientState = env.GRAPH_NOTIFY_SECRET;
+  return origin && clientState ? { url: `${origin.replace(/\/+$/, "")}/api/mailbox/graph`, clientState } : null;
+}

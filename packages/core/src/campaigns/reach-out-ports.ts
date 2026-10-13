@@ -2,7 +2,7 @@
  * What assembling a reach-out step's run needs (Part 3), as ports: the edge's run context builds them over the database
  * (apps/edge lib/reach-out/run-context.ts); tests build them from arrays.
  */
-import type { StepHand, TimetableDomain } from "@chanlytics/contracts";
+import type { StepHand, TimetableSender } from "@chanlytics/contracts";
 
 export interface ReachOutStep {
   id: string;
@@ -19,7 +19,8 @@ export interface ReachOutStep {
   after_playbook_id: string | null;
   after_days: number | null;
   gap_minutes: number;
-  domain_ids: string[];
+  /** The mailboxes it writes from (00424); none named is every connected one. */
+  mailbox_ids: string[];
   cap_per_run: number;
   template_id: string;
   template_name: string;
@@ -74,6 +75,8 @@ export interface ReachOutFollower extends ReachOutLead {
   facts: { lead_stage: string | null; suppressed: boolean; wrote_back: boolean; away?: boolean; stopped?: boolean };
   /** Any email of the chain to them bounced or failed for good (C4). */
   bounced: boolean;
+  /** The mailbox the step before wrote to them from (00424): this step writes from it too, in its thread. */
+  mailbox_id: string | null;
 }
 
 export interface NewReachOutRun {
@@ -93,7 +96,7 @@ export interface NewReachOutRun {
 }
 
 /**
- * One lead in a run: planned, with its time and domain; or skipped, with why, so a lead the step may never write to
+ * One lead in a run: planned, with its time and mailbox; or skipped, with why, so a lead the step may never write to
  * (the door refuses it, or it keeps no open hour all week) leaves the step's page rather than heading it every day.
  */
 export type PlannedSend = {
@@ -105,8 +108,8 @@ export type PlannedSend = {
   lead_id: string;
   contact_id: string | null;
 } & (
-  | { state: "planned"; domain_id: string; send_at: string; reason?: null }
-  | { state: "skipped"; domain_id: null; send_at: null; reason: string }
+  | { state: "planned"; mailbox_id: string; send_at: string; reason?: null }
+  | { state: "skipped"; mailbox_id: null; send_at: null; reason: string }
 );
 
 export interface ReachOutRunPorts {
@@ -125,8 +128,12 @@ export interface ReachOutRunPorts {
   chainState(rootId: string): Promise<"none" | "waiting" | "approved">;
   audience(step: ReachOutStep): Promise<ReachOutLead[]>;
   followers(step: FollowedStep): Promise<ReachOutFollower[]>;
-  /** The step's verified domains, each with its day's share and the times it already spends (db capacity). */
-  domains(step: ReachOutStep): Promise<TimetableDomain[]>;
+  /**
+   * The mailboxes the step writes from (contracts reachOutWritesFrom), and those named in `also` (a later step's
+   * leads' own, whichever the step names), each with its day's share now (0 for one that does not send today) and the
+   * times it already spends (db mailbox_capacity); `gone` is those of `also` that are removed, or not the workspace's.
+   */
+  mailboxes(step: ReachOutStep, also: readonly string[]): Promise<{ senders: TimetableSender[]; gone: Set<string> }>;
   /**
    * The run and its sends, written whole (db reach_out_plan_run): never a run with nothing planned in it. "exists" when
    * this step already has its run for the day.
@@ -142,6 +149,6 @@ export interface ReachOutRunPorts {
 
 export type ReachOutRunOutcome =
   | { outcome: "sent"; planned: number }
-  | { outcome: "held"; reason: "waiting_for_you" | "no_domain" | "no_room" | "billing"; planned: number }
+  | { outcome: "held"; reason: "waiting_for_you" | "no_mailbox" | "no_room" | "billing"; planned: number }
   | { outcome: "empty"; reason: "already_ran" | "nobody"; planned: 0 }
   | { outcome: "off"; reason: "paused" | "never"; planned: 0 };

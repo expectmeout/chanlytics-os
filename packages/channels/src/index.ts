@@ -217,10 +217,10 @@ export {
   replyRouteAddress,
   hostedIdentity,
   sendsAs,
-  sendsAsOwnDomain,
+  sendsAsConnected,
   sendsAsCampaigns,
   campaignsIdentity,
-  ownDomainIdentity,
+  connectedIdentity,
   requestLeavesAs,
 } from "./email/identity";
 export type { EmailSendsAs } from "./email/identity";
@@ -240,27 +240,53 @@ export type { EmailReceiptType, EmailReceipt, EmailSuppressionReason, EmailRecei
 export { resendLimitOf, mailDomainsFrom } from "./email/provider-answers";
 export type { ResendLimit, MailCapability, MailDomainFacts } from "./email/provider-answers";
 export { emailPlainText } from "./email/email-text";
-export {
-  resendRequest,
-  sendEmail,
-  fetchReceivedEmail,
-  fetchMailDomains,
-  RESEND_API,
-  SEND_TIMEOUT_MS,
-  SEND_DEADLINE_MS,
-  SEND_MIN_MS,
-} from "./email/email-resend";
+export { sendEmail, fetchReceivedEmail, fetchMailDomains, SEND_DEADLINE_MS, SEND_MIN_MS } from "./email/email-resend";
 export type { ResendConfig, ResendAnswer, SendEmailOptions } from "./email/email-resend";
 export {
-  providerDomainFrom,
-  createMailDomain,
-  getMailDomain,
-  findMailDomain,
-  verifyMailDomain,
-  removeMailDomain,
-  dmarcOf,
-} from "./email/email-domains";
-export type { ProviderDomain, ProviderAnswer } from "./email/email-domains";
+  MAILBOX_SCOPES,
+  mailboxAuthorizeUrl,
+  mailboxTokenRequest,
+  mailboxRefreshRequest,
+  mailboxRevokeRequest,
+  parseMailboxGrant,
+  grantScopesMissing,
+  grantScopes,
+} from "./mailbox/mailbox-oauth";
+export type { MailboxOAuthClient, MailboxRequest, MailboxGrant } from "./mailbox/mailbox-oauth";
+export { mailboxMessageId, buildMime } from "./mailbox/mailbox-mime";
+export {
+  gmailDayUsed,
+  gmailSignedOut,
+  gmailSend,
+  gmailThreadOf,
+  gmailSentIds,
+  gmailProfile,
+  gmailHistory,
+  gmailMessage,
+  gmailWatch,
+  gmailStop,
+} from "./mailbox/mailbox-gmail";
+export type { GmailSent, GmailHistory } from "./mailbox/mailbox-gmail";
+export {
+  graphDayUsed,
+  graphSignedOut,
+  graphMe,
+  graphSend,
+  graphMessage,
+  graphDelta,
+  graphSubscribe,
+  graphRenew,
+  graphUnsubscribe,
+} from "./mailbox/mailbox-graph";
+export type { GraphSent, GraphDelta } from "./mailbox/mailbox-graph";
+export { gmailEmailOf, graphEmailOf, rowIdOfMessageId, deliveryReportOf } from "./mailbox/mailbox-read";
+export type { MailboxEmail, DeliveryReport } from "./mailbox/mailbox-read";
+export { sendFromMailbox } from "./mailbox/mailbox-send";
+export type { MailboxSendInput, MailboxSendResult } from "./mailbox/mailbox-send";
+export { dmarcOf, spfOf, dkimOf, DKIM_SELECTORS } from "./mailbox/mailbox-dns";
+export type { TxtAnswer } from "./mailbox/mailbox-dns";
+export { verifyGooglePushToken, gmailPushOf, graphNotificationsOf, clientStateMatches } from "./mailbox/mailbox-push";
+export type { PushTokenRefusal } from "./mailbox/mailbox-push";
 export { A2P_POLICIES, TRUSTHUB, MESSAGING, encodeForm } from "./lines/a2p/wire";
 export type { A2PRequest } from "./lines/a2p/wire";
 export { brandTypeFor, brandNameOf } from "./lines/a2p/business-record";

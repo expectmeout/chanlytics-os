@@ -10,7 +10,7 @@
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { REACH_OUT_PREVIEW_INDEX_MAX, type ReachOutHold } from "../packages/contracts.js";
-import { reachOutAudience, reachOutRecord, type Database } from "../packages/db.js";
+import { leadCountriesOf, reachOutAudience, reachOutRecord, type Database } from "../packages/db.js";
 import {
   askReachOutModel,
   checkBudget,
@@ -60,9 +60,7 @@ export interface Preview {
 
 // Stand-ins for what only a real send has: the preview's email is assembled, read, and dropped.
 const STAND_IN = {
-  domain: { host: "preview.invalid", from_local: "preview", from_name: "Preview" },
-  mailbox: { reply_token: "p".repeat(24) },
-  replyDomain: "preview.invalid",
+  from: { address: "preview@preview.invalid", from_name: "Preview", signature: null },
   origin: "https://preview.invalid",
 };
 
@@ -96,12 +94,14 @@ export async function previewOne(
   });
   const lead = leads[index];
   if (!lead) return none;
-  const [record, workspace] = await Promise.all([
+  const [record, workspace, countries] = await Promise.all([
     reachOutRecord(db, { tenantId: i.tenantId, searchId: i.searchId, leadId: lead.lead_id }),
     checkWorkspaceOf(db, i.tenantId),
+    leadCountriesOf(db, [lead.lead_id]),
   ]);
   if (!record) return none;
-  const c = await checkOne(checkInputOf(record, i.words, workspace.opening, i.language), ask, budget, {
+  const input = checkInputOf(record, i.words, workspace.opening, i.language, [], countries.get(lead.lead_id) ?? null);
+  const c = await checkOne(input, ask, budget, {
     tenantId: i.tenantId,
     subjectId: lead.lead_id,
   });
@@ -121,9 +121,7 @@ export async function previewOne(
       bookingLink: workspace.bookingLink,
     },
     opening,
-    domain: STAND_IN.domain,
-    mailbox: STAND_IN.mailbox,
-    replyDomain: STAND_IN.replyDomain,
+    from: STAND_IN.from,
     unsubscribe: { secret: randomUUID(), origin: STAND_IN.origin },
     parent: null,
   });

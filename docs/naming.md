@@ -96,7 +96,7 @@ today's exceptions by name; `database/migrations.test.mjs` holds the file names.
 - **Branches** are `<kind>/<topic>` (`fix/`, `docs/`, `design/`, `perf/`, `scale/`) or a program's name
   (`ask-rewired/…`). Nothing checks them: a branch is deleted on merge.
 - **Environment variables** are SCREAMING_SNAKE_CASE, the provider first (`RETELL_API_KEY`), `_PREVIOUS` for the one
-  being rotated out (`COLD_REPLY_DOMAIN_PREVIOUS`). `repo/env-manifest.test.mjs` holds each app's list to what it
+  being rotated out (`UNSUBSCRIBE_SECRET_PREVIOUS`). `repo/env-manifest.test.mjs` holds each app's list to what it
   reads.
 
 ## The shell

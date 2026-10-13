@@ -1,7 +1,7 @@
 /**
- * The reach-out sender on a real database (00187, Reach out Part 3 PR 6). Its two reads, at the sizes a page would have
- * failed at: the domains with sends due are filtered before their limit, so six hundred sends a paused chain holds on
- * one domain never keep another's due send out of the page; the month's count is the workspace's own calendar month in
+ * The reach-out sender on a real database (00187, Reach out Part 3 PR 6; from a connected mailbox since 00424). Its two
+ * reads, at the sizes a page would have failed at: the mailboxes with sends due are filtered before their limit, so six
+ * hundred sends a paused chain holds on one mailbox never keep another's due send out of the page; the month's count is the workspace's own calendar month in
  * its own zone, and only what left, may have left, or waits to go. Then the writer itself, over the real guards: a due
  * send is claimed, its person made, its email row written, its job scheduled, its send queued and its run sending,
  * each through the constraint or the trigger that holds it; and a second tick writes nothing more. A claim a dead tick
@@ -10,7 +10,7 @@
  * to this suite's workspace (its reads take one). Local stack only: it makes workspaces.
  *
  * Part 4 (00197): a send is claimed only once it is checked, so each send here is planned checked, stamped with the
- * words it was checked against (checked_words, R5); one not yet checked makes no domain due (R8); and a checked send's
+ * words it was checked against (checked_words, R5); one not yet checked makes no mailbox due (R8); and a checked send's
  * opening is its email's.
  */
 import { test, before, after } from "node:test";
@@ -34,9 +34,6 @@ const MIN = 60_000;
 const DAY = 86_400_000;
 const stamp = Date.now().toString(36);
 const iso = (ms) => new Date(ms).toISOString();
-/** 24 characters of base32, as a mailbox's reply route is made. */
-const token = () =>
-  Array.from(crypto.getRandomValues(new Uint8Array(24)), (b) => "abcdefghijklmnopqrstuvwxyz234567"[b % 32]).join("");
 
 let db;
 let claimAndWrite;
@@ -79,21 +76,22 @@ const chain = async (tenant, state = "running", tpl = template) =>
       state,
     }),
   );
-const domain = (tenant, over = {}) =>
-  one(
-    db.from("sending_domains").insert({
+/** A mailbox the business connected, on a host of its own (ten a workspace, 00423). */
+const mailbox = (tenant, over = {}) => {
+  n += 1;
+  return one(
+    db.from("mailbox_connections").insert({
       tenant_id: tenant,
-      host: `sender-${stamp}-${(n += 1)}.example`,
-      from_local: "sam",
+      provider: "google",
+      provider_account: `acct-sender-${stamp}-${n}`,
+      address: `sam@sender-${stamp}-${n}.example`,
+      host: `sender-${stamp}-${n}.example`,
       from_name: "Sam at Harbor",
-      state: "verified",
-      provider_status: "verified",
-      dmarc: "found",
-      verified_at: iso(Date.now() - 40 * DAY),
       clean_since: iso(Date.now() - 40 * DAY),
       ...over,
     }),
   );
+};
 async function leads(tenant, count) {
   const rows = Array.from({ length: count }, () => {
     n += 1;
@@ -136,7 +134,7 @@ const run = (tenant, root, day, state = "scheduled") =>
     }),
   );
 /** Sends planned in a run, checked against the suite's words (unless `check` says otherwise). */
-async function planned(tenant, runId, root, domainId, leadIds, sendAt, check = {}) {
+async function planned(tenant, runId, root, mailboxId, leadIds, sendAt, check = {}) {
   const rows = leadIds.map((lead) => ({
     id: crypto.randomUUID(),
     tenant_id: tenant,
@@ -144,7 +142,7 @@ async function planned(tenant, runId, root, domainId, leadIds, sendAt, check = {
     playbook_id: root,
     root_id: root,
     lead_id: lead,
-    domain_id: domainId,
+    mailbox_id: mailboxId,
     send_at: iso(sendAt),
     checked_at: iso(Date.now() - MIN),
     checked_words: checkedWordsOf(WORDS, null, false),
@@ -190,16 +188,16 @@ after(async () => {
 });
 
 test(
-  "the domains with sends due are filtered before their limit: 600 a paused chain holds never keep a due one out",
+  "the mailboxes with sends due are filtered before their limit: 600 a paused chain holds never keep a due one out",
   { skip },
   async () => {
     const paused = await chain(A, "paused");
     const going = await chain(A);
     const [crowded, due, held, later] = [
-      await domain(A),
-      await domain(A),
-      await domain(A, { state: "held", held_at: iso(Date.now()), held_why: "bounces" }),
-      await domain(A),
+      await mailbox(A),
+      await mailbox(A),
+      await mailbox(A, { state: "held", held_at: iso(Date.now()), held_why: "bounces" }),
+      await mailbox(A),
     ];
     const heldRun = await run(A, paused, "2026-09-20");
     const goRun = await run(A, going, "2026-09-21");
@@ -212,36 +210,37 @@ test(
     const waiting = await run(A, going, "2026-09-22", "pending_approval");
     await planned(A, waiting, going, crowded, await leads(A, 1), Date.now() - DAY);
     // Nor does a send not yet checked (00197, R8): the claim would pass it by.
-    const unchecked = await domain(A);
+    const unchecked = await mailbox(A);
     await planned(A, goRun, going, unchecked, await leads(A, 1), Date.now() - 4 * DAY, {
       checked_at: null,
       checked_words: null,
     });
+    // Nor a mailbox its owner paused, or one its provider has rested until later (00424).
+    const pausedBox = await mailbox(A, { state: "paused" });
+    const resting = await mailbox(A, { resting_until: iso(Date.now() + 60 * MIN) });
+    await planned(A, goRun, going, pausedBox, await leads(A, 1), Date.now() - 5 * DAY);
+    await planned(A, goRun, going, resting, await leads(A, 1), Date.now() - 5 * DAY);
 
-    const page = ok(await db.rpc("reach_out_due_domains", { p_at: iso(Date.now()), p_limit: 1, p_tenant_id: A }));
-    assert.deepEqual(page, [{ id: due, tenant_id: A }], "the longest-waiting due send's domain, past 600 held");
-    const all = ok(await db.rpc("reach_out_due_domains", { p_at: iso(Date.now()), p_limit: 50, p_tenant_id: A }));
+    const dueMailboxes = (over) =>
+      db.rpc("reach_out_due_mailboxes", { p_at: iso(Date.now()), p_limit: 50, p_tenant_id: A, ...over });
+    const page = ok(await dueMailboxes({ p_limit: 1 }));
+    assert.deepEqual(page, [{ id: due, tenant_id: A }], "the longest-waiting due send's mailbox, past 600 held");
     assert.deepEqual(
-      all.map((d) => d.id),
+      ok(await dueMailboxes({})).map((d) => d.id),
       [due, later],
-      "a held domain is none, nor one whose due send waits to be checked; the one waiting longest goes first",
+      "a held, paused or resting mailbox is none, nor one whose due send waits to be checked; the one waiting longest goes first",
     );
+    assert.deepEqual(ok(await dueMailboxes({ p_tenant_id: B })), []);
+    // Past what the sender is done with this tick: a mailbox it did, and a workspace it holds.
     assert.deepEqual(
-      ok(await db.rpc("reach_out_due_domains", { p_at: iso(Date.now()), p_limit: 50, p_tenant_id: B })),
-      [],
-    );
-    // Past what the sender is done with this tick: a domain it did, and a workspace it holds.
-    const past = (skip) =>
-      db.rpc("reach_out_due_domains", { p_at: iso(Date.now()), p_limit: 50, p_tenant_id: A, ...skip });
-    assert.deepEqual(
-      ok(await past({ p_skip_domains: [due] })).map((d) => d.id),
+      ok(await dueMailboxes({ p_skip_mailboxes: [due] })).map((d) => d.id),
       [later],
       "the next page starts past it",
     );
-    assert.deepEqual(ok(await past({ p_skip_tenants: [A] })), [], "a workspace held is none of the page");
-    // Tidy, so the writer's case below starts from nothing due, and the workspace keeps within its five domains.
+    assert.deepEqual(ok(await dueMailboxes({ p_skip_tenants: [A] })), [], "a workspace held is none of the page");
+    // Tidy, so the writer's case below starts from nothing due, and the workspace keeps well within its ten mailboxes.
     ok(await db.from("reach_out_sends").delete().eq("tenant_id", A));
-    ok(await db.from("sending_domains").delete().eq("id", unchecked));
+    ok(await db.from("mailbox_connections").delete().in("id", [unchecked, pausedBox, resting]));
   },
 );
 
@@ -310,21 +309,15 @@ test(
         },
       }),
     );
-    const reply = token();
-    ok(
-      await db
-        .from("mailboxes")
-        .insert({ tenant_id: A, local_part: `sender-${stamp}`, reply_token: reply, from_name: "Harbor Moving Co" }),
-    );
     const root = await chain(A);
-    const dom = await domain(A);
+    const dom = await mailbox(A);
+    const from = ok(await db.from("mailbox_connections").select("address").eq("id", dom).single()).address;
     const runId = await run(A, root, "2026-09-25");
     const [lead] = await leads(A, 1);
     const [sendId] = await planned(A, runId, root, dom, [lead], Date.now() - MIN);
     const lane = {
       unsubscribeSecret: "unsubscribe-seal-for-this-suite",
       unsubscribeOrigin: "https://app.chanlytics.com",
-      replyDomain: "mail.chanlytics.com",
     };
     const L = log({ suite: "reach_out_sender" });
     const out = await claimAndWrite({ db, now: new Date(), started: Date.now(), lane, log: L, tenantId: A });
@@ -336,8 +329,8 @@ test(
     assert.deepEqual([send.state, send.message_id, send.contact_id], ["queued", id, l.contact_id]);
     const m = ok(await db.from("messages").select("*").eq("id", id).single());
     assert.deepEqual([m.status, m.channel, m.sender, m.contact_id], ["queued", "email", "human", l.contact_id]);
-    assert.match(m.meta.email.request.from, /^"Sam at Harbor" <sam@sender-[a-z0-9-]+\.example>$/);
-    assert.deepEqual(m.meta.email.request.reply_to, [`r+${reply}@mail.chanlytics.com`]);
+    assert.equal(m.meta.email.request.from, `"Sam at Harbor" <${from}>`);
+    assert.deepEqual(m.meta.email.request.reply_to, [from], "answered at the mailbox it left from");
     assert.equal(m.meta.reach_out.send_id, sendId);
     const jobs = ok(
       await db.from("jobs").select("kind, state, payload").eq("tenant_id", A).eq("payload->>message_id", id),
@@ -347,8 +340,8 @@ test(
       [["outbound_send", "scheduled", "outreach", true, m.conversation_id]],
     );
     assert.equal(ok(await db.from("broadcasts").select("state").eq("id", runId).single()).state, "sending");
-    // The domain's capacity counts the queued email (its From host), so the day's share already knows it.
-    const cap = ok(await db.rpc("sending_domain_capacity", { p_domain_id: dom, p_at: iso(Date.now()) }));
+    // The mailbox's capacity counts the queued email (its send), so the day's share already knows it.
+    const cap = ok(await db.rpc("mailbox_capacity", { p_mailbox_id: dom, p_at: iso(Date.now()) }));
     assert.equal(cap.used, 1);
 
     const again = await claimAndWrite({ db, now: new Date(), started: Date.now(), lane, log: L, tenantId: A });
@@ -364,9 +357,9 @@ test(
   async () => {
     const { reachOutClock } = await import(at("apps/edge/lib/reach-out/clock.ts"));
     const root = await chain(A);
-    // A workspace sends from five domains at most, and the cases above made them: one of theirs.
+    // One of the mailboxes the cases above connected.
     const [{ id: dom }] = ok(
-      await db.from("sending_domains").select("id").eq("tenant_id", A).eq("state", "verified").limit(1),
+      await db.from("mailbox_connections").select("id").eq("tenant_id", A).eq("state", "connected").limit(1),
     );
     const runId = await run(A, root, "2026-09-26");
     const [lead] = await leads(A, 1);
@@ -404,7 +397,6 @@ test(
     const lane = {
       unsubscribeSecret: "unsubscribe-seal-for-this-suite",
       unsubscribeOrigin: "https://app.chanlytics.com",
-      replyDomain: "mail.chanlytics.com",
     };
     const L = log({ suite: "reach_out_sender" });
     const out = await claimAndWrite({ db, now: new Date(), started: Date.now(), lane, log: L, tenantId: A });
@@ -444,7 +436,7 @@ test(
     );
     const root = await chain(A, "running", tpl);
     const [{ id: dom }] = ok(
-      await db.from("sending_domains").select("id").eq("tenant_id", A).eq("state", "verified").limit(1),
+      await db.from("mailbox_connections").select("id").eq("tenant_id", A).eq("state", "connected").limit(1),
     );
     const runId = await run(A, root, "2026-09-27");
     const [lead, stale] = await leads(A, 2);
@@ -460,7 +452,6 @@ test(
     const lane = {
       unsubscribeSecret: "unsubscribe-seal-for-this-suite",
       unsubscribeOrigin: "https://app.chanlytics.com",
-      replyDomain: "mail.chanlytics.com",
     };
     const out = await claimAndWrite({
       db,

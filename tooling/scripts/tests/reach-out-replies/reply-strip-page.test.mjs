@@ -181,10 +181,10 @@ test("nothing new: no reading, a thread not real, readings unread, or a person's
 });
 
 test("the composer's line says why an answer goes from the mailbox; a reply to nothing says nothing", () => {
-  world([reading({ reply_from: { from: "mailbox", because: "domain_held", own: "sam@owndomain.example.com" } })]);
+  world([reading({ reply_from: { from: "mailbox", because: "own_not_sending", own: "sam@owndomain.example.com" } })]);
   assert.equal(
     textOf(byTestId(strip().tree, "ix-th-reply-from")),
-    "sam@owndomain.example.com is held, so this goes from hello@mail.example.com.",
+    "sam@owndomain.example.com isn't sending right now, so this goes from hello@mail.example.com.",
   );
   world([reading({ reply_from: { from: "mailbox", because: null } })]);
   assert.equal(byTestId(strip().tree, "ix-th-reply-from"), null);

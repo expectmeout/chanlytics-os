@@ -412,11 +412,13 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST mailboxes": () => [setupOverride, todayOverride, calendarOverride, ...channelChange()],
   // The mailbox's own facts are what email's readiness reads (its offers pause among them), so a save of it re-reads them.
   "PUT mailboxes/[id]": setupAndReadiness,
-  // A sending domain added, checked or removed: the Email row's block reads again from Setup.
-  "POST sending-domains": setup,
-  "POST sending-domains/[id]/check": setup,
-  "POST sending-domains/[id]/resume": setup,
-  "DELETE sending-domains/[id]": setup,
+  // A connected mailbox paused, set, checked, resumed, tested or removed: the Email row's block reads again from Setup
+  // (a connect comes back from the provider to a page that reads it afresh).
+  "PATCH mailbox-connections/[id]": setup,
+  "POST mailbox-connections/[id]/check": setup,
+  "POST mailbox-connections/[id]/resume": setup,
+  "POST mailbox-connections/[id]/test": setup,
+  "DELETE mailbox-connections/[id]": setup,
   "POST billing/resume": billing,
   "POST billing/sync": billing,
   // The plan starting now ends the trial: the pane's rows and Setup's billing row.

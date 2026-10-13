@@ -54,6 +54,8 @@ export async function googleCallback(ctx: RouteContext, req: Request) {
   const proof = await verifyState(secret, url.searchParams.get("state"), Date.now());
   if (!proof.ok) return back("error", `state_${proof.reason}`);
   if (proof.state.u !== ctx.userId) return back("error", "someone_else");
+  // A mailbox's connect signs its state with the same key and names its provider: it is never this door's.
+  if (proof.state.p) return back("error", "state_malformed");
 
   // The workspace named at connect time, and this person's standing in it now.
   let tenantId: string;

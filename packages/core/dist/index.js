@@ -7,7 +7,8 @@ import {
 } from "../../channels/dist/index.js";
 import {
   CARRIER_CONSENT_SOURCE,
-  domainDailyCap,
+  mailboxDailyCap,
+  mailboxSendsNow,
   isAutomatedSend,
   isEmailStopped,
   isOfferByEmail as isOfferByEmail3,
@@ -19,6 +20,7 @@ import {
   emailOffersPause,
   emitEvent,
   outreachFactsOf,
+  stampEmailFromMailbox,
   stampEmailLeftAs,
   recordCarrierOptOut,
   recordOutbound,
@@ -120,6 +122,7 @@ function whatsappWire(read) {
   if (read.outcome === "unavailable") return wireUnavailable(read.error);
   return whatsappSender(read.outcome === "present" ? read.credentials : null);
 }
+var sendBy = (route, request, bound) => route.lane === "own" ? route.send(request, bound) : sendEmail(route.cfg, request, bound);
 function emailSender(routes, held = []) {
   if (routes.length === 0) return null;
   const refuse = (errorBody) => Promise.resolve({ ok: false, wamid: null, status: 0, errorBody });
@@ -128,12 +131,12 @@ function emailSender(routes, held = []) {
     if (p.email.to.length !== 1 || p.email.to[0] !== to) return refuse("request_names_another_recipient");
     const own = p.reply && p.ownEmail && p.purpose !== "outreach" ? ownRouteOf(routes, held, to, p.ownEmail) : null;
     const bound = p.deadlineMs === void 0 ? {} : { deadlineMs: Math.max(SEND_MIN_MS, p.deadlineMs) };
-    if (own && "route" in own) return { ...await sendEmail(own.route.cfg, p.ownEmail, bound), leftAs: "own" };
+    if (own && "route" in own) return { ...await sendBy(own.route, p.ownEmail, bound), leftAs: "own" };
     const from = addressOf(p.email.from)?.address;
     const lane = p.purpose === "outreach" ? "own" : p.purpose === "marketing" ? "campaigns" : "hosted";
     const route = routes.find((r) => r.lane === lane && r.as.address === from);
     if (!route || !requestLeavesAs(p.email, route.as)) return refuse("request_leaves_as_another_sender");
-    const sent = await sendEmail(route.cfg, p.email, bound);
+    const sent = await sendBy(route, p.email, bound);
     return own ? { ...sent, leftAs: "mailbox", leftAsWhy: own.why } : sent;
   };
 }
@@ -141,10 +144,10 @@ function ownRouteOf(routes, held, to, twin) {
   const owns = routes.filter((r) => r.lane === "own");
   const from = addressOf(twin.from)?.address;
   const isHeld = from !== void 0 && held.includes(from);
-  if (owns.length === 0) return { why: isHeld ? "domain_held" : "no_own_route" };
+  if (owns.length === 0) return { why: isHeld ? "own_not_sending" : "no_own_route" };
   if (twin.to.length !== 1 || twin.to[0] !== to) return { why: "twin_names_another_recipient" };
   const route = owns.find((r) => r.as.address === from);
-  if (!route) return { why: isHeld ? "domain_held" : "domain_has_no_route" };
+  if (!route) return { why: isHeld ? "own_not_sending" : "own_has_no_route" };
   return requestLeavesAs(twin, route.as) ? { route } : { why: "route_refuses_twin" };
 }
 function namedFailure(channel, sent) {
@@ -219,12 +222,10 @@ async function wireFacts({ db, emailOffers }, d) {
     offers: await offerFacts(d, emailOffers, () => emailOffersPause(db, d.tenantId))
   };
 }
-var SHARE_WINDOW_MS = 24 * 36e5;
-async function outreachFacts(db, d, f, nowMs) {
+async function outreachFacts(db, d, f) {
   const headers = d.email?.headers ?? {};
   const unsubscribable = !!headers["List-Unsubscribe"] && headers["List-Unsubscribe-Post"] === "List-Unsubscribe=One-Click";
   const from = addressOf2(d.email?.from)?.address ?? null;
-  const host = from ? from.slice(from.lastIndexOf("@") + 1) : null;
   if (!f.contactId)
     return {
       leadStage: null,
@@ -233,10 +234,7 @@ async function outreachFacts(db, d, f, nowMs) {
       away: false,
       stopped: false,
       unsubscribable,
-      domainState: null,
-      cleanSince: null,
-      sentDays: 0,
-      sentSince: 0
+      mailbox: null
     };
   let facts;
   try {
@@ -244,9 +242,8 @@ async function outreachFacts(db, d, f, nowMs) {
       tenantId: d.tenantId,
       contactId: f.contactId,
       to: d.to,
-      // A From that cannot be read names no domain: the lead is still asked, and the door refuses the domain.
-      host: host ?? "",
-      since: new Date(nowMs - SHARE_WINDOW_MS).toISOString(),
+      // A From that cannot be read names no mailbox: the lead is still asked, and the door refuses the mailbox.
+      from: from ?? "",
       leadId: d.leadId ?? null
     });
   } catch (e) {
@@ -254,7 +251,7 @@ async function outreachFacts(db, d, f, nowMs) {
       cause: e
     });
   }
-  const own = host && facts.domain && `${facts.domain.from_local}@${host}` === from ? facts.domain : null;
+  const own = facts.mailbox && facts.mailbox.address === from ? facts.mailbox : null;
   return {
     leadStage: facts.lead_stage,
     suppressed: facts.suppressed,
@@ -262,10 +259,7 @@ async function outreachFacts(db, d, f, nowMs) {
     away: facts.away,
     stopped: facts.stopped,
     unsubscribable,
-    domainState: own?.state ?? null,
-    cleanSince: own?.clean_since ?? null,
-    sentDays: own?.sent_days ?? 0,
-    sentSince: facts.sent_since
+    mailbox: own
   };
 }
 function refusalFor(d, f, nowMs, o) {
@@ -294,9 +288,9 @@ function refusalFor(d, f, nowMs, o) {
     });
     if (lead) return lead;
     if (!o.unsubscribable) return "outreach_without_unsubscribe";
-    if (!o.domainState) return "outreach_needs_own_domain";
-    if (o.domainState !== "verified") return "sending_domain_not_ready";
-    if (o.sentSince >= (o.cleanSince ? domainDailyCap(o.sentDays) : 0)) return "sending_domain_at_cap";
+    if (!o.mailbox) return "outreach_needs_own_mailbox";
+    if (!mailboxSendsNow(o.mailbox, nowMs)) return "sending_mailbox_not_ready";
+    if (o.mailbox.sent_today >= mailboxDailyCap(o.mailbox)) return "sending_mailbox_at_cap";
   }
   const kind = kindOf(d);
   if (kind === "reply") return null;
@@ -324,6 +318,23 @@ async function stampThread(db, d, nowMs) {
       error: error.message
     });
 }
+async function fromMailbox(db, d, sent) {
+  if (!sent.email || !d.messageId) return;
+  await stampEmailFromMailbox(db, {
+    tenantId: d.tenantId,
+    messageId: d.messageId,
+    providerId: sent.wamid,
+    rfcMessageId: sent.email.messageId,
+    threadId: sent.email.threadId,
+    mailboxId: sent.email.mailboxId
+  }).catch((e) => {
+    deliverLog.error("deliver_mailbox_stamp_failed", {
+      tenant_id: d.tenantId,
+      message_id: d.messageId,
+      error: errField(e)
+    });
+  });
+}
 async function leftAs(db, d, sent) {
   if (!sent.leftAs) return;
   const why = sent.leftAsWhy ?? null;
@@ -346,7 +357,7 @@ async function deliver(ports, d) {
   assertFrozenFor(d);
   const nowMs = (ports.now ?? Date.now)();
   const facts = await wireFacts(ports, d);
-  const outreach = d.purpose === "outreach" && d.channel === "email" ? await outreachFacts(ports.db, d, facts, nowMs) : null;
+  const outreach = d.purpose === "outreach" && d.channel === "email" ? await outreachFacts(ports.db, d, facts) : null;
   const refusal = refusalFor(d, facts, nowMs, outreach);
   const overtakenBy = !refusal && kindOf(d) === "draft" ? await overtakenByHuman(ports.db, d) : null;
   const reason = refusal ?? (overtakenBy ? "superseded_by_human" : null);
@@ -394,7 +405,8 @@ async function deliver(ports, d) {
         // sends would push every customer off it. The thread rises when the business writes back.
         d.purpose === "outreach" ? Promise.resolve() : stampThread(ports.db, d, nowMs),
         event(ports.db, d, "message.sent", d.messageId, { sender: d.sender }),
-        leftAs(ports.db, d, sent)
+        leftAs(ports.db, d, sent),
+        fromMailbox(ports.db, d, sent)
       ]);
       return { outcome: "sent", messageId: d.messageId, externalId: sent.wamid };
     }
@@ -3528,9 +3540,11 @@ async function runReachOut(ports, step, cmd) {
   const asks = chain === "none" || ports.mode === "ask";
   const skips = [];
   let leads = [];
+  const keeps = /* @__PURE__ */ new Map();
   if (step.trigger === "lead_first") leads = await ports.audience(step);
   else
     for (const f of await ports.followers(step)) {
+      if (f.mailbox_id) keeps.set(f.lead_id, f.mailbox_id);
       const refused = f.bounced ? "outreach_bounced" : outreachRefusalOf2({
         leadStage: f.facts.lead_stage,
         suppressed: f.facts.suppressed,
@@ -3546,16 +3560,21 @@ async function runReachOut(ports, step, cmd) {
   const skipped = new Set(skips.map((s) => s.lead.lead_id));
   leads = leads.filter((l) => !skipped.has(l.lead_id)).slice(0, step.cap_per_run);
   if (leads.length === 0) return { outcome: "empty", reason: "nobody", planned: 0 };
-  const domains = (await ports.domains(step)).filter((d) => d.cap > 0);
-  if (domains.length === 0) return { outcome: "held", reason: "no_domain", planned: 0 };
+  const { senders, gone } = await ports.mailboxes(step, [...new Set(keeps.values())]);
+  for (const l of leads) if (gone.has(keeps.get(l.lead_id) ?? "")) skips.push({ lead: l, reason: "mailbox_gone" });
+  leads = leads.filter((l) => !gone.has(keeps.get(l.lead_id) ?? ""));
+  if (leads.length === 0) return { outcome: "empty", reason: "nobody", planned: 0 };
+  const sending = senders.filter((d) => d.cap > 0);
+  if (sending.length === 0) return { outcome: "held", reason: "no_mailbox", planned: 0 };
   const now = ports.now();
   const plan = timetable({
     sends: leads.map((l) => ({
       id: l.lead_id,
       zone: zoneOfRegion(l.region) ?? ports.workspaceZone,
-      week: weeks.get(l.lead_id)
+      week: weeks.get(l.lead_id),
+      only: keeps.get(l.lead_id) ?? null
     })),
-    domains,
+    senders: sending,
     gapMinutes: step.gap_minutes,
     nowMs: asks ? now : now + PLAYBOOK_VETO_DELAY_MS
   });
@@ -3596,7 +3615,7 @@ async function runReachOut(ports, step, cmd) {
       plan.placed.map(async (p) => ({
         ...await row(p.id),
         state: "planned",
-        domain_id: p.domainId,
+        mailbox_id: p.senderId,
         send_at: new Date(p.sendAtMs).toISOString()
       }))
     ),
@@ -3604,7 +3623,7 @@ async function runReachOut(ports, step, cmd) {
       skips.map(async (s) => ({
         ...await row(s.lead.lead_id),
         state: "skipped",
-        domain_id: null,
+        mailbox_id: null,
         send_at: null,
         reason: s.reason
       }))

@@ -117,7 +117,7 @@ export const reportsCampaigns = periodSurface({
     omit: [
       {
         tables: ["lines", "mailboxes", "capability_activations", "business_records"],
-        why: "it says the health of the connected number and a row for each sending domain; the text line, the mailbox, a capability or the business record are none of its figures",
+        why: "it says the health of the connected number and a row for each mailbox a reach-out writes from; the text line, the hosted mailbox, a capability or the business record are none of its figures",
       },
     ],
     page: heardOnTheLens,

@@ -88,10 +88,10 @@ export const reachOuts = (over = {}) => ({
   ],
   other_angles: { written: 0, businesses: 0, wrote_back: 0 },
   no_angle: 10,
-  domains: [
+  mailboxes: [
     {
-      host: "mail.example.com",
-      state: "verified",
+      address: "sam@mail.example.com",
+      state: "connected",
       held_why: null,
       held_at: null,
       sent: 40,
@@ -120,7 +120,7 @@ export const NOTHING_WRITTEN = {
   before: { written: 0, delivered: 0, bounced: 0 },
   chains: [],
   angles: [],
-  domains: [],
+  mailboxes: [],
   no_angle: 0,
   series: [],
 };

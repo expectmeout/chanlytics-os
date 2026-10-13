@@ -40,14 +40,12 @@ interface ResendIngressInput {
   rawBody: string;
   headers: SvixHeaders;
   /**
-   * Every endpoint secret that may have signed it: the platform account's and the cold account's (Reach out). Each
-   * account's webhook points at this one door; a delivery either signed is proven. None set, every delivery is refused.
+   * Every endpoint secret that may have signed it: the platform account's. A delivery any of them signed is proven.
+   * None set, every delivery is refused.
    */
   secrets: string[];
   /** The deployment's mail domain (email.ts emailDomain). */
   domain: string;
-  /** The cold reply domains (email.ts coldReplyDomains, D17): their reply routes route too. None when unset. */
-  coldReplyDomains?: readonly string[];
   db: Db;
   nowMs: number;
 }
@@ -78,10 +76,10 @@ export async function planResendEvent(i: ResendIngressInput): Promise<ResendVerd
   const event = emailReceivedEventFrom(payload);
   if (!event) return { kind: "ignore", log: "resend_webhook_no_work", unroutable: 0 };
 
-  // Only addresses on the platform's own mail domain route anywhere, and reply routes on the cold reply domain (D17);
-  // the rest are the other people an email was also sent to.
+  // Only addresses on the platform's own mail domain route anywhere; the rest are the other people an email was also
+  // sent to.
   const ours = event.recipients
-    .map((r) => platformRecipient(r, i.domain, i.coldReplyDomains ?? null))
+    .map((r) => platformRecipient(r, i.domain))
     .filter((r): r is NonNullable<typeof r> => r !== null);
   const jobs = new Map<string, { tenantId: string; mailboxId: string }>();
   let unroutable = 0;

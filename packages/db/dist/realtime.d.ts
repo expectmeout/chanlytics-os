@@ -3863,6 +3863,128 @@ type Database = {
                     }
                 ];
             };
+            mailbox_connections: {
+                Row: {
+                    address: string;
+                    clean_since: string;
+                    connected_at: string;
+                    connected_by: string | null;
+                    counted_since: string;
+                    created_at: string;
+                    credentials_ref: string | null;
+                    customer_domain: boolean;
+                    daily_cap: number;
+                    dns: Json;
+                    dns_checked_at: string | null;
+                    from_name: string;
+                    held_at: string | null;
+                    held_why: string | null;
+                    host: string;
+                    id: string;
+                    judged_at: string | null;
+                    last_error: string | null;
+                    last_error_at: string | null;
+                    provider: string;
+                    provider_account: string;
+                    removed_at: string | null;
+                    resting_until: string | null;
+                    scopes: string[];
+                    sent_at: string | null;
+                    sent_days: number;
+                    signature: string | null;
+                    state: string;
+                    sync_cursor: string | null;
+                    sync_lease_until: string | null;
+                    synced_at: string | null;
+                    tenant_id: string;
+                    updated_at: string;
+                    watch_expires_at: string | null;
+                    watch_id: string | null;
+                };
+                Insert: {
+                    address: string;
+                    clean_since?: string;
+                    connected_at?: string;
+                    connected_by?: string | null;
+                    counted_since?: string;
+                    created_at?: string;
+                    credentials_ref?: string | null;
+                    customer_domain?: boolean;
+                    daily_cap?: number;
+                    dns?: Json;
+                    dns_checked_at?: string | null;
+                    from_name: string;
+                    held_at?: string | null;
+                    held_why?: string | null;
+                    host: string;
+                    id?: string;
+                    judged_at?: string | null;
+                    last_error?: string | null;
+                    last_error_at?: string | null;
+                    provider: string;
+                    provider_account: string;
+                    removed_at?: string | null;
+                    resting_until?: string | null;
+                    scopes?: string[];
+                    sent_at?: string | null;
+                    sent_days?: number;
+                    signature?: string | null;
+                    state?: string;
+                    sync_cursor?: string | null;
+                    sync_lease_until?: string | null;
+                    synced_at?: string | null;
+                    tenant_id: string;
+                    updated_at?: string;
+                    watch_expires_at?: string | null;
+                    watch_id?: string | null;
+                };
+                Update: {
+                    address?: string;
+                    clean_since?: string;
+                    connected_at?: string;
+                    connected_by?: string | null;
+                    counted_since?: string;
+                    created_at?: string;
+                    credentials_ref?: string | null;
+                    customer_domain?: boolean;
+                    daily_cap?: number;
+                    dns?: Json;
+                    dns_checked_at?: string | null;
+                    from_name?: string;
+                    held_at?: string | null;
+                    held_why?: string | null;
+                    host?: string;
+                    id?: string;
+                    judged_at?: string | null;
+                    last_error?: string | null;
+                    last_error_at?: string | null;
+                    provider?: string;
+                    provider_account?: string;
+                    removed_at?: string | null;
+                    resting_until?: string | null;
+                    scopes?: string[];
+                    sent_at?: string | null;
+                    sent_days?: number;
+                    signature?: string | null;
+                    state?: string;
+                    sync_cursor?: string | null;
+                    sync_lease_until?: string | null;
+                    synced_at?: string | null;
+                    tenant_id?: string;
+                    updated_at?: string;
+                    watch_expires_at?: string | null;
+                    watch_id?: string | null;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "mailbox_connections_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
             mailboxes: {
                 Row: {
                     created_at: string;
@@ -4996,6 +5118,7 @@ type Database = {
                     lead_search_id: string | null;
                     list_id: string | null;
                     list_key: string | null;
+                    mailbox_ids: string[];
                     name: string;
                     params: Json;
                     policy_class: string;
@@ -5031,6 +5154,7 @@ type Database = {
                     lead_search_id?: string | null;
                     list_id?: string | null;
                     list_key?: string | null;
+                    mailbox_ids?: string[];
                     name: string;
                     params?: Json;
                     policy_class: string;
@@ -5066,6 +5190,7 @@ type Database = {
                     lead_search_id?: string | null;
                     list_id?: string | null;
                     list_key?: string | null;
+                    mailbox_ids?: string[];
                     name?: string;
                     params?: Json;
                     policy_class?: string;
@@ -5492,6 +5617,7 @@ type Database = {
                     id: string;
                     included_for: string[];
                     lead_id: string;
+                    mailbox_id: string | null;
                     message_id: string | null;
                     opening: string | null;
                     playbook_id: string | null;
@@ -5523,6 +5649,7 @@ type Database = {
                     id: string;
                     included_for?: string[];
                     lead_id: string;
+                    mailbox_id?: string | null;
                     message_id?: string | null;
                     opening?: string | null;
                     playbook_id?: string | null;
@@ -5554,6 +5681,7 @@ type Database = {
                     id?: string;
                     included_for?: string[];
                     lead_id?: string;
+                    mailbox_id?: string | null;
                     message_id?: string | null;
                     opening?: string | null;
                     playbook_id?: string | null;
@@ -5592,6 +5720,13 @@ type Database = {
                         columns: ["tenant_id", "lead_id"];
                         isOneToOne: false;
                         referencedRelation: "leads";
+                        referencedColumns: ["tenant_id", "id"];
+                    },
+                    {
+                        foreignKeyName: "reach_out_sends_mailbox_id_same_workspace";
+                        columns: ["tenant_id", "mailbox_id"];
+                        isOneToOne: false;
+                        referencedRelation: "mailbox_connections";
                         referencedColumns: ["tenant_id", "id"];
                     },
                     {
@@ -6820,6 +6955,12 @@ type Database = {
                 };
                 Returns: boolean;
             };
+            drop_mailbox_credentials: {
+                Args: {
+                    p_connection_id: string;
+                };
+                Returns: boolean;
+            };
             email_from_host: {
                 Args: {
                     p_meta: Json;
@@ -6960,6 +7101,12 @@ type Database = {
             get_line_credentials: {
                 Args: {
                     p_line_id: string;
+                };
+                Returns: Json;
+            };
+            get_mailbox_credentials: {
+                Args: {
+                    p_connection_id: string;
                 };
                 Returns: Json;
             };
@@ -7654,6 +7801,40 @@ type Database = {
                 };
                 Returns: string;
             };
+            mailbox_capacity: {
+                Args: {
+                    p_at: string;
+                    p_mailbox_id: string;
+                };
+                Returns: Json;
+            };
+            mailbox_connection_connect: {
+                Args: {
+                    p_account: string;
+                    p_address: string;
+                    p_customer_domain: boolean;
+                    p_from_name: string;
+                    p_provider: string;
+                    p_scopes: string[];
+                    p_tenant_id: string;
+                    p_user_id: string;
+                };
+                Returns: Json;
+            };
+            mailbox_connection_counts: {
+                Args: {
+                    p_mailbox_id: string;
+                    p_since: string;
+                };
+                Returns: Json;
+            };
+            mailbox_threads_known: {
+                Args: {
+                    p_tenant_id: string;
+                    p_thread_ids: string[];
+                };
+                Returns: string[];
+            };
             mark_processed: {
                 Args: {
                     p_message_id: string;
@@ -7934,6 +8115,16 @@ type Database = {
             outreach_lead_facts: {
                 Args: {
                     p_contact_id: string;
+                    p_lead_id?: string;
+                    p_tenant_id: string;
+                    p_to: string;
+                };
+                Returns: Json;
+            };
+            outreach_mailbox_facts: {
+                Args: {
+                    p_contact_id: string;
+                    p_from: string;
                     p_lead_id?: string;
                     p_tenant_id: string;
                     p_to: string;
@@ -8869,6 +9060,14 @@ type Database = {
                 };
                 Returns: string;
             };
+            put_mailbox_credentials: {
+                Args: {
+                    p_connection_id: string;
+                    p_if_refresh_token?: string;
+                    p_secret: Json;
+                };
+                Returns: string;
+            };
             reach_out_audience: {
                 Args: {
                     p_include_unconfirmed?: boolean;
@@ -8964,6 +9163,53 @@ type Database = {
                     id: string;
                     included_for: string[];
                     lead_id: string;
+                    mailbox_id: string | null;
+                    message_id: string | null;
+                    opening: string | null;
+                    playbook_id: string | null;
+                    reason: string | null;
+                    root_id: string;
+                    send_at: string | null;
+                    sent_at: string | null;
+                    state: string;
+                    tenant_id: string;
+                    updated_at: string;
+                }[];
+                SetofOptions: {
+                    from: "*";
+                    to: "reach_out_sends";
+                    isOneToOne: false;
+                    isSetofReturn: true;
+                };
+            };
+            reach_out_claim_from: {
+                Args: {
+                    p_at: string;
+                    p_cap: number;
+                    p_limit: number;
+                    p_mailbox_id: string;
+                };
+                Returns: {
+                    angle: string | null;
+                    attempts: number;
+                    broadcast_id: string;
+                    check_after: string | null;
+                    check_first_at: string | null;
+                    check_gen: number;
+                    check_started_at: string | null;
+                    check_tries: number;
+                    checked_at: string | null;
+                    checked_words: string | null;
+                    claimed_at: string | null;
+                    contact_id: string | null;
+                    created_at: string;
+                    domain_id: string | null;
+                    facts_used: string[];
+                    hold_detail: string | null;
+                    id: string;
+                    included_for: string[];
+                    lead_id: string;
+                    mailbox_id: string | null;
                     message_id: string | null;
                     opening: string | null;
                     playbook_id: string | null;
@@ -9017,6 +9263,19 @@ type Database = {
                     tenant_id: string;
                 }[];
             };
+            reach_out_due_mailboxes: {
+                Args: {
+                    p_at: string;
+                    p_limit: number;
+                    p_skip_mailboxes?: string[];
+                    p_skip_tenants?: string[];
+                    p_tenant_id?: string;
+                };
+                Returns: {
+                    id: string;
+                    tenant_id: string;
+                }[];
+            };
             reach_out_finishable: {
                 Args: {
                     p_limit: number;
@@ -9035,10 +9294,12 @@ type Database = {
                 Returns: {
                     bounced: boolean;
                     contact_id: string;
+                    country: string;
                     email: string;
                     facts: Json;
                     hours: Json;
                     lead_id: string;
+                    mailbox_id: string;
                     parent_message_id: string;
                     region: string;
                 }[];
@@ -9085,6 +9346,7 @@ type Database = {
                     id: string;
                     included_for: string[];
                     lead_id: string;
+                    mailbox_id: string | null;
                     message_id: string | null;
                     opening: string | null;
                     playbook_id: string | null;
@@ -9340,6 +9602,7 @@ type Database = {
                     id: string;
                     included_for: string[];
                     lead_id: string;
+                    mailbox_id: string | null;
                     message_id: string | null;
                     opening: string | null;
                     playbook_id: string | null;
@@ -9719,6 +9982,17 @@ type Database = {
                 };
                 Returns: boolean;
             };
+            stamp_email_from_mailbox: {
+                Args: {
+                    p_mailbox_id: string;
+                    p_message_id: string;
+                    p_provider_id: string;
+                    p_rfc_message_id: string;
+                    p_tenant_id: string;
+                    p_thread_id: string;
+                };
+                Returns: boolean;
+            };
             stamp_email_left_as: {
                 Args: {
                     p_left_as: string;
@@ -9993,6 +10267,10 @@ type Database = {
                 Returns: number;
             };
             trigger_lines_sweep: {
+                Args: never;
+                Returns: number;
+            };
+            trigger_mailboxes_sweep: {
                 Args: never;
                 Returns: number;
             };

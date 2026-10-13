@@ -28,8 +28,8 @@ const { recordNotification, mendWarnings } = await import(
 
 const TENANT = "11111111-0000-4000-8000-000000000001";
 const OTHER = "11111111-0000-4000-8000-000000000002";
-const DOMAIN = "22222222-0000-4000-8000-000000000001";
-const DOMAIN2 = "22222222-0000-4000-8000-000000000002";
+const MAILBOX = "22222222-0000-4000-8000-000000000001";
+const MAILBOX2 = "22222222-0000-4000-8000-000000000002";
 const CHANNEL = "33333333-0000-4000-8000-000000000001";
 const CHANNEL2 = "33333333-0000-4000-8000-000000000002";
 const HOUR = 3_600_000;
@@ -157,38 +157,53 @@ test("kept good news closes the warning it mends, for everyone: not another numb
   assert.equal(isClosed(rows, flagged), true);
 });
 
-test("a domain's hold is mended by its own domain's resume or release; one that names no domain mends none", async () => {
-  const held = warning("sweep", "mail.example.com is held: it bounced", {
-    subject_type: "sending_domain",
-    subject_id: DOMAIN,
+test("a mailbox's hold is mended by its own resume, its sign-out by connecting it again, and either by its removal", async () => {
+  const held = warning("sweep", "sam@example.com is held: it bounced", {
+    subject_type: "mailbox_connection",
+    subject_id: MAILBOX,
   });
-  const heldToo = warning("sweep", "news.example.com is held: it bounced", {
-    subject_type: "sending_domain",
-    subject_id: DOMAIN2,
+  const heldToo = warning("sweep", "jo@example.com is held: it bounced", {
+    subject_type: "mailbox_connection",
+    subject_id: MAILBOX2,
   });
-  const rows = [held, heldToo];
+  const signedOut = warning("sweep", "sam@example.com needs reconnecting", {
+    subject_type: "mailbox_connection",
+    subject_id: MAILBOX,
+  });
+  const rows = [held, heldToo, signedOut];
   const db = fakeDb({ notifications: rows });
   await mendWarnings(db, {
     tenantId: TENANT,
-    by: { change: "sending_domain.resumed" },
+    by: { change: "mailbox_connection.resumed" },
     subject: null,
     keptId: null,
   });
-  assert.deepEqual([isClosed(rows, held), isClosed(rows, heldToo)], [false, false], "a hold is about one domain");
+  assert.deepEqual([isClosed(rows, held), isClosed(rows, heldToo)], [false, false], "a hold is about one mailbox");
   await mendWarnings(db, {
     tenantId: TENANT,
-    by: { change: "sending_domain.resumed" },
-    subject: { type: "sending_domain", id: DOMAIN },
+    by: { change: "mailbox_connection.resumed" },
+    subject: { type: "mailbox_connection", id: MAILBOX },
     keptId: null,
   });
-  assert.deepEqual([isClosed(rows, held), isClosed(rows, heldToo)], [true, false], "the resumed domain's, alone");
+  assert.deepEqual(
+    [isClosed(rows, held), isClosed(rows, heldToo), isClosed(rows, signedOut)],
+    [true, false, false],
+    "the resumed mailbox's hold, alone: a resume mends no sign-out",
+  );
   await mendWarnings(db, {
     tenantId: TENANT,
-    by: { change: "sending_domain.released" },
-    subject: { type: "sending_domain", id: DOMAIN2 },
+    by: { change: "mailbox_connection.connected" },
+    subject: { type: "mailbox_connection", id: MAILBOX },
     keptId: null,
   });
-  assert.equal(isClosed(rows, heldToo), true, "a check that passes lifts the hold, and mends its warning too");
+  assert.equal(isClosed(rows, signedOut), true, "connected again, its sign-out is mended");
+  await mendWarnings(db, {
+    tenantId: TENANT,
+    by: { change: "mailbox_connection.removed" },
+    subject: { type: "mailbox_connection", id: MAILBOX2 },
+    keptId: null,
+  });
+  assert.equal(isClosed(rows, heldToo), true, "a mailbox removed leaves no warning about it");
 });
 
 test("a paid invoice closes the payment that did not go through and the trial's warning; the receptionist's pause waits for 'is back'", async () => {

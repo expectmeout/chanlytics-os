@@ -280,9 +280,9 @@ export const HELD_REASONS: Record<DeliveryRefusal, string> & Record<string, stri
   outreach_away: "away until the day they're back",
   outreach_stopped: "you stopped writing to them",
   outreach_without_unsubscribe: "no unsubscribe link",
-  outreach_needs_own_domain: "not from your own domain",
-  sending_domain_not_ready: "the domain isn't sending",
-  sending_domain_at_cap: "the domain's day is full",
+  outreach_needs_own_mailbox: "not from a mailbox you connected",
+  sending_mailbox_not_ready: "the mailbox isn't sending",
+  sending_mailbox_at_cap: "the mailbox's day is full",
 };
 
 /**

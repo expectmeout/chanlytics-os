@@ -180,13 +180,13 @@ installBilling(globalThis.window);
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 const { PaneBillingReal } = await import("../../../../apps/dashboard/src/surfaces/settings/billing/pane.tsx");
 // Settings › Connections (surfaces/settings/connections): the pane, the business record's form, and the verbs each takes
-// from a module object of its own (record.ts, domains.ts, mailbox.ts, whatsapp.ts, and the bridge's googleVerbs), which a
-// test stubs by assigning onto it.
+// from a module object of its own (record.ts, connected-mailboxes.ts, mailbox.ts, whatsapp.ts, and the bridge's
+// googleVerbs), which a test stubs by assigning onto it.
 const SETTINGS = "../../../../apps/dashboard/src/surfaces/settings/connections";
 const { PaneIntegrationsReal } = await import(`${SETTINGS}/pane.tsx`);
 const { BusinessRecordForm } = await import(`${SETTINGS}/record-form.tsx`);
 const { businessRecord } = await import(`${SETTINGS}/record.ts`);
-const { sendingDomains } = await import(`${SETTINGS}/domains.ts`);
+const { connectedMailboxes } = await import(`${SETTINGS}/connected-mailboxes.ts`);
 const { mailbox } = await import(`${SETTINGS}/mailbox.ts`);
 const { waConnect, lineCodes, waStanding } = await import(`${SETTINGS}/whatsapp.ts`);
 const { googleVerbs } = await import("../../../../apps/dashboard/src/legacy-bridge/google.ts");
@@ -198,6 +198,8 @@ Object.assign(waConnect, { config: async () => null });
 Object.assign(lineCodes, { read: async () => [] });
 Object.assign(waStanding, { check: async () => true });
 Object.assign(googleVerbs, { outcome: () => null, outcomeWords: {} });
+// Nor from a mailbox's provider, unless a case says so.
+Object.assign(connectedMailboxes, { outcome: () => null });
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -1309,86 +1311,32 @@ test("inside the app the billing page keeps its status and says where billing li
   assert.equal(byTestId(tree, "billing-in-app"), null);
 });
 
-/* ------------------------------ the domains you send from ------------------------------ */
+/* ------------------------------ the mailboxes you write from ------------------------------ */
 
-test("the domains you send from: under the Email row, each in contracts' words, its records to copy, and an add judged under its own box", async () => {
-  asRole("owner");
-  const added = [];
-  // The domains' acts are the module's object (domains.ts); the words and rules it holds stay contracts' own.
-  Object.assign(sendingDomains, {
-    add: async (input) => {
-      added.push(input);
-      return {
-        ok: false,
-        code: "conflict",
-        status: 409,
-        title: "Not possible",
-        message: "This workspace already sends from that domain.",
-      };
-    },
-    check: async () => ({ ok: true, data: { domain: null } }),
-    remove: async () => ({ ok: true, data: { removed: true } }),
-  });
-  const now = Date.now();
-  const iso = (daysAgo) => new Date(now - daysAgo * 86_400_000).toISOString();
-  const base = {
-    from_local: "sam",
-    from_name: "Sam at Harbor",
-    held_why: null,
-    held_at: null,
-    checked_at: null,
-    created_at: iso(3),
-  };
-  const email = {
-    ready: true,
-    domain: "mail.chanlytics.com",
-    mailbox: {
-      id: "mb1",
-      address: "harbor@mail.chanlytics.com",
-      from_name: "Harbor Moving",
-      last_received_at: null,
-      last_error: null,
-    },
-    sending: {
-      ready: true,
-      domains: [
-        {
-          ...base,
-          id: "d1",
-          host: "getharbor.com",
-          address: "sam@getharbor.com",
-          state: "records",
-          provider_status: "not_started",
-          dmarc: "missing",
-          verified_at: null,
-          clean_since: null,
-          records: [
-            {
-              label: "DKIM",
-              type: "TXT",
-              name: "resend._domainkey",
-              value: "p=MIGf",
-              priority: null,
-              status: "not_started",
-            },
-          ],
-        },
-        {
-          ...base,
-          id: "d2",
-          host: "harbor-mail.com",
-          address: "sam@harbor-mail.com",
-          state: "verified",
-          provider_status: "verified",
-          dmarc: "found",
-          verified_at: iso(20),
-          clean_since: iso(20),
-          sent_days: 16,
-          records: [],
-        },
-      ],
-    },
-  };
+/** A mailbox the business connected, as the page is told of it (contracts MailboxConnectionDto). */
+const mbx = (over = {}) => ({
+  id: "m1",
+  provider: "google",
+  address: "sam@getharbor.com",
+  host: "getharbor.com",
+  from_name: "Sam at Harbor",
+  signature: null,
+  state: "connected",
+  held_why: null,
+  held_at: null,
+  resting_until: null,
+  daily_cap: 40,
+  customer_domain: false,
+  sent_days: 9,
+  dns: { spf: "found", dkim: "found", dmarc: "found", mx: "found" },
+  dns_checked_at: null,
+  last_error: null,
+  connected_at: "2026-09-20T00:00:00.000Z",
+  sent_at: null,
+  ...over,
+});
+/** Setup as the pane reads it, with this email line. */
+const emailSeam = (sending, mailbox = null) =>
   seam({
     channels: [],
     google: null,
@@ -1398,252 +1346,155 @@ test("the domains you send from: under the Email row, each in contracts' words, 
         lines: { rows: [], ready: false },
         requests: { line: null },
         calendar: null,
-        email,
+        email: { ready: true, domain: "mail.chanlytics.com", mailbox, sending },
       },
     },
   });
-  Object.assign(globalThis.window, { refusalToast: (r) => ({ tone: "danger", msg: r.message }) });
-  let tree = render(Connections);
-  const block = byTestId(tree, "sending-domains");
-  assert.ok(block, "drawn under the Email row");
-  assert.match(textOf(block), /Domains you send from/);
-  assert.match(textOf(block), /replies come back to harbor@mail\.chanlytics\.com/);
 
-  const pending = byTestId(tree, "domain-getharbor.com");
-  assert.match(textOf(pending), /Records to add/);
-  assert.match(textOf(pending), /Not sending yet/);
-  assert.ok(byTestId(tree, "domain-check-getharbor.com"), "a domain with records to add can be checked");
-  const records = byTestId(tree, "domain-records-getharbor.com");
-  // The part before the domain, as most registrars ask for it (they add the domain), and the hint that says so.
-  assert.match(textOf(records), /resend\._domainkey/);
-  assert.doesNotMatch(textOf(records), /resend\._domainkey\.getharbor\.com/, "never the domain twice");
-  assert.match(textOf(records), /Some registrars add getharbor\.com for you/);
-  assert.match(textOf(records), /_dmarc/, "and the DMARC record we recommend while it has none");
-  assert.match(textOf(records), /v=DMARC1; p=none;/);
-
-  const verified = byTestId(tree, "domain-harbor-mail.com");
-  assert.match(textOf(verified), /Verified/);
-  // The ramp reads the days it sent (D15): sixteen of the twenty since it was clean.
-  assert.match(textOf(verified), /16 days sending/);
-  assert.match(textOf(verified), /Up to 100 a day/);
-  assert.match(textOf(verified), /200 a day after 14 more days of sending/);
-  assert.equal(
-    byTestId(tree, "domain-check-harbor-mail.com"),
-    null,
-    "the clock checks a verified domain; nobody needs to",
-  );
-  assert.equal(byTestId(tree, "domain-records-harbor-mail.com"), null);
-
-  press(byTestId(tree, "domain-add-open"));
-  tree = settle(Connections);
-  const host = () => find(byTestId(tree, "domain-host"), (n) => n.type === "input");
-  const local = () => find(byTestId(tree, "domain-local"), (n) => n.type === "input");
-  const name = () => find(byTestId(tree, "domain-name"), (n) => n.type === "input");
-  // The kit field draws what is wrong under its box, named by the field (rec-<id>-problem).
-  const hostProblem = () => find(byTestId(tree, "domain-host"), (n) => n.props?.id === "rec-domain-host-problem");
-  assert.equal(name().props.value, "Harbor Moving", "the mailbox's name to start from");
-  host().props.onChange({ target: { value: "gmail.com" } });
-  local().props.onChange({ target: { value: "sam" } });
-  tree = settle(Connections);
-  press(byTestId(tree, "domain-save"));
-  await flush();
-  tree = settle(Connections);
-  assert.match(textOf(hostProblem()), /free mail/);
-  assert.deepEqual(added, [], "nothing is asked about what the rules already refuse");
-
-  host().props.onChange({ target: { value: "getharbor.com" } });
-  tree = settle(Connections);
-  assert.match(textOf(byTestId(tree, "domain-local")), /@getharbor\.com/);
-  press(byTestId(tree, "domain-save"));
-  await flush();
-  tree = settle(Connections);
-  assert.deepEqual(added, [{ host: "getharbor.com", fromLocal: "sam", fromName: "Harbor Moving" }]);
-  assert.equal(
-    textOf(hostProblem()),
-    "This workspace already sends from that domain.",
-    "the door's refusal lands under the box that caused it",
-  );
-});
-
-test("the block is not drawn where own domains are off and there are none, nor before the mailbox exists", () => {
+test("the mailboxes you write from: under the Email row, each in contracts' words, and a Connect for each provider offered", () => {
   asRole("owner");
-  for (const email of [
-    {
-      ready: true,
-      domain: "mail.chanlytics.com",
-      mailbox: {
-        id: "mb1",
-        address: "harbor@mail.chanlytics.com",
-        from_name: "Harbor",
-        last_received_at: null,
-        last_error: null,
-      },
-      sending: { ready: false, domains: [] },
-    },
-    { ready: true, domain: "mail.chanlytics.com", mailbox: null, sending: { ready: true, domains: [] } },
-  ]) {
-    seam({
-      setup: {
-        dto: {
-          business: { name: "Harbor Moving" },
-          lines: { rows: [], ready: false },
-          requests: { line: null },
-          calendar: null,
-          email,
-        },
-      },
-    });
-    const tree = render(Connections);
-    assert.equal(byTestId(tree, "sending-domains"), null, JSON.stringify(email.sending));
-  }
-});
-
-test("a held domain: a DNS hold shows its records and Check, a reputation hold offers Resume instead, and a non-owner is told once why they can't act", () => {
-  const now = Date.now();
-  const iso = (d) => new Date(now - d * 86_400_000).toISOString();
-  const held = (id, host, why) => ({
-    id,
-    host,
-    address: `sam@${host}`,
-    from_local: "sam",
-    from_name: "Sam",
-    state: "held",
-    held_why: why,
-    held_at: iso(1),
-    provider_status: why === "verification" ? "temporary_failure" : "verified",
-    dmarc: "found",
-    verified_at: iso(30),
-    clean_since: iso(9),
-    checked_at: null,
-    created_at: iso(31),
-    records: [
-      { label: "DKIM", type: "TXT", name: "resend._domainkey", value: "p=MIGf", priority: null, status: "failed" },
+  const went = [];
+  Object.assign(connectedMailboxes, { connect: (p) => went.push(p) });
+  emailSeam({
+    providers: ["google", "microsoft"],
+    mailboxes: [
+      mbx(),
+      mbx({
+        id: "m2",
+        provider: "microsoft",
+        address: "dana@getharbor.com",
+        provider_account: undefined,
+        state: "reconnect",
+      }),
+      mbx({
+        id: "m3",
+        address: "kim@getharbor.com",
+        state: "held",
+        held_why: "bounces",
+        held_at: "2026-10-01T00:00:00Z",
+      }),
     ],
   });
-  const email = {
-    ready: true,
-    domain: "mail.chanlytics.com",
-    mailbox: {
-      id: "mb1",
-      address: "harbor@mail.chanlytics.com",
-      from_name: "Harbor",
-      last_received_at: null,
-      last_error: null,
-    },
-    sending: {
-      ready: true,
-      domains: [held("h1", "broke.example", "verification"), held("h2", "spam.example", "complaint")],
-    },
-  };
-  seam({
-    setup: {
-      dto: {
-        business: { name: "Harbor" },
-        lines: { rows: [], ready: false },
-        requests: { line: null },
-        calendar: null,
-        email,
-      },
-    },
+  let tree = render(Connections);
+  const block = byTestId(tree, "connected-mailboxes");
+  assert.ok(block, "drawn under the Email row, with no hosted mailbox needed");
+  assert.match(textOf(block), /Mailboxes you write from/);
+  const sam = byTestId(tree, "mailbox-sam@getharbor.com");
+  // The ramp reads the days it sent (D15): nine, so its second step's 20 a day, and 30 after five more.
+  assert.match(textOf(sam), /Up to 20 a day/);
+  assert.match(textOf(sam), /Day 10 of its ramp · 20 a day, 30 after 5 more days of sending/);
+  assert.match(textOf(sam), /Connected/);
+  assert.ok(byTestId(tree, "mailbox-test-sam@getharbor.com"), "a sending mailbox can send a test to itself");
+  assert.ok(byTestId(tree, "mailbox-pause-sam@getharbor.com"));
+  assert.match(textOf(byTestId(tree, "mailbox-dana@getharbor.com")), /Microsoft signed it out/);
+  press(byTestId(tree, "mailbox-reconnect-dana@getharbor.com"));
+  assert.deepEqual(went, ["microsoft"], "Reconnect goes back to its own provider");
+  assert.match(textOf(byTestId(tree, "mailbox-kim@getharbor.com")), /more than 3% of its recent emails bounced/);
+  assert.ok(byTestId(tree, "mailbox-resume-kim@getharbor.com"), "the owner resumes a hold");
+  assert.equal(byTestId(tree, "mailbox-test-kim@getharbor.com"), null, "a held mailbox sends nothing, not even a test");
+  press(byTestId(tree, "mailbox-connect-google"));
+  press(byTestId(tree, "mailbox-connect-microsoft"));
+  assert.deepEqual(went, ["microsoft", "google", "microsoft"]);
+  tree = settle(Connections);
+  assert.equal(byTestId(tree, "mailbox-records-sam@getharbor.com"), null, "every record found: none to add");
+});
+
+test("the block is not drawn where no provider is offered and none is connected, nor where the mailboxes could not be read", () => {
+  asRole("owner");
+  for (const sending of [{ providers: [], mailboxes: [] }, null]) {
+    emailSeam(sending);
+    assert.equal(byTestId(render(Connections), "connected-mailboxes"), null, JSON.stringify(sending));
+  }
+  // Ten is the most: no Connect is offered past it.
+  emailSeam({
+    providers: ["google"],
+    mailboxes: Array.from({ length: 10 }, (_, i) => mbx({ id: `m${i}`, address: `s${i}@getharbor.com` })),
+  });
+  const tree = render(Connections);
+  assert.ok(byTestId(tree, "connected-mailboxes"));
+  assert.equal(byTestId(tree, "mailbox-connect-google"), null);
+  assert.match(textOf(byTestId(tree, "connected-mailboxes")), /10 is the most/);
+});
+
+test("its domain's records draw while one is missing: SPF and DMARC to copy, DKIM where to turn it on, each found or not", () => {
+  asRole("owner");
+  emailSeam({
+    providers: ["google"],
+    mailboxes: [mbx({ dns: { spf: "found", dkim: "missing", dmarc: "missing" } })],
+  });
+  const tree = render(Connections);
+  const table = byTestId(tree, "mailbox-records-sam@getharbor.com");
+  assert.ok(table, "the records are drawn");
+  const text = textOf(table);
+  assert.match(text, /Sender \(SPF\)/);
+  assert.match(text, /include:_spf\.google\.com/);
+  assert.match(text, /Signing \(DKIM\)/);
+  assert.match(text, /Google Admin console/);
+  assert.match(text, /v=DMARC1; p=none;/);
+  assert.ok(byTestId(tree, "mailbox-copy-spf"), "SPF has its Copy");
+  assert.ok(byTestId(tree, "mailbox-copy-dmarc"), "and DMARC");
+  assert.equal(byTestId(tree, "mailbox-copy-dkim"), null, "DKIM is made where the mailbox lives: nothing to paste");
+  assert.ok(byTestId(tree, "mailbox-check-sam@getharbor.com"), "and Check reads them again now");
+  assert.match(textOf(byTestId(tree, "mailbox-sam@getharbor.com")), /Add its DKIM and DMARC record below/);
+});
+
+test("the owner's acts: pause at once, settings judged before they are sent, remove asked first; a non-owner is told once why they can't act", async () => {
+  const set = [];
+  const removed = [];
+  Object.assign(connectedMailboxes, {
+    set: async (id, s) => (set.push([id, s]), { ok: true, data: { mailbox: null } }),
+    remove: async (id) => (removed.push(id), { ok: true, data: { removed: true } }),
   });
   asRole("owner");
+  emailSeam({ providers: ["google"], mailboxes: [mbx()] });
   let tree = render(Connections);
-  assert.ok(byTestId(tree, "domain-records-broke.example"), "the records to fix are shown");
-  assert.ok(byTestId(tree, "domain-check-broke.example"));
-  assert.match(textOf(byTestId(tree, "domain-broke.example")), /it stopped verifying/);
-  assert.equal(byTestId(tree, "domain-records-spam.example"), null);
-  assert.equal(byTestId(tree, "domain-check-spam.example"), null, "a reputation hold is not lifted by Check");
-  assert.match(textOf(byTestId(tree, "domain-spam.example")), /until you resume it/);
-  assert.ok(byTestId(tree, "domain-resume-spam.example"), "the owner resumes a reputation hold");
-  assert.equal(byTestId(tree, "domain-resume-broke.example"), null, "a DNS hold lifts itself: nothing to resume");
+  press(byTestId(tree, "mailbox-pause-sam@getharbor.com"));
+  await flush();
+  assert.deepEqual(set, [["m1", { paused: true }]]);
+
+  tree = settle(Connections);
+  press(byTestId(tree, "mailbox-settings-open-sam@getharbor.com"));
+  tree = settle(Connections);
+  const field = (id) => find(byTestId(tree, id), (n) => n.type === "input" || n.type === "textarea");
+  field("mailbox-cap").props.onChange({ target: { value: "80" } });
+  tree = settle(Connections);
+  press(byTestId(tree, "mailbox-save"));
+  await flush();
+  tree = settle(Connections);
+  assert.match(textOf(byTestId(tree, "mailbox-cap")), /Between 1 and 50 a day/, "judged under its box");
+  assert.equal(set.length, 1, "nothing is sent that the rules already refuse");
+  field("mailbox-cap").props.onChange({ target: { value: "25" } });
+  field("mailbox-signature").props.onChange({ target: { value: "Sam · Harbor Moving" } });
+  tree = settle(Connections);
+  press(byTestId(tree, "mailbox-save"));
+  await flush();
+  assert.deepEqual(set[1], ["m1", { from_name: "Sam at Harbor", signature: "Sam · Harbor Moving", daily_cap: 25 }]);
+
+  tree = settle(Connections);
+  press(byTestId(tree, "mailbox-remove-sam@getharbor.com"));
+  tree = settle(Connections);
+  assert.deepEqual(removed, [], "asked first");
+  assert.match(textOf(tree), /Remove sam@getharbor\.com\?/);
 
   asRole("operator");
   tree = render(Connections);
-  const block = byTestId(tree, "sending-domains");
-  assert.match(textOf(block), /add, check, resume or remove a domain/i, "the reason, said once");
-  assert.equal(byTestId(tree, "domain-remove-broke.example"), null);
+  assert.match(textOf(byTestId(tree, "connected-mailboxes")), /connect, pause, resume or remove a mailbox/i);
+  assert.equal(byTestId(tree, "mailbox-remove-sam@getharbor.com"), null);
   asRole("owner");
 });
 
-test("the records draw as a table a registrar can take: each name and value copied on its own, labelled for a screen reader", () => {
-  const now = Date.now();
-  const iso = (d) => new Date(now - d * 86_400_000).toISOString();
-  const setup = {
-    dto: {
-      business: { name: "Harbor" },
-      lines: { rows: [], ready: false },
-      requests: { line: null },
-      calendar: null,
-      email: {
-        ready: true,
-        domain: "mail.chanlytics.com",
-        mailbox: {
-          id: "mb1",
-          address: "harbor@mail.chanlytics.com",
-          from_name: "Harbor",
-          last_received_at: null,
-          last_error: null,
-        },
-        sending: {
-          ready: true,
-          domains: [
-            {
-              id: "r1",
-              host: "getharbor.com",
-              address: "sam@getharbor.com",
-              from_local: "sam",
-              from_name: "Sam",
-              state: "records",
-              held_why: null,
-              held_at: null,
-              provider_status: "not_started",
-              dmarc: "missing",
-              verified_at: null,
-              clean_since: null,
-              counted_since: null,
-              checked_at: null,
-              created_at: iso(1),
-              sent_recent: null,
-              bounced_recent: null,
-              complaints: null,
-              records: [
-                {
-                  label: "SPF",
-                  type: "MX",
-                  name: "send",
-                  value: "feedback-smtp.us-east-1.amazonses.com",
-                  priority: 10,
-                  status: "not_started",
-                },
-                {
-                  label: "DKIM",
-                  type: "TXT",
-                  name: "resend._domainkey",
-                  value: "p=MIGf",
-                  priority: null,
-                  status: "verified",
-                },
-              ],
-            },
-          ],
-        },
-      },
-    },
-  };
-  seam({ setup });
+test("back from the provider: what it came to is said once under the Email row, in contracts' words", () => {
   asRole("owner");
-  const tree = render(Connections);
-  const table = byTestId(tree, "domain-records-getharbor.com");
-  assert.ok(table, "the records are drawn");
-  const text = textOf(table);
-  assert.match(text, /Return path/);
-  assert.match(text, /Signing \(DKIM\)/);
-  assert.match(text, /Policy \(DMARC\)/);
-  assert.match(text, /These records tell Gmail and others/);
-  assert.ok(byTestId(tree, "domain-copy-name-send-MX"), "the name has its own Copy");
-  assert.ok(byTestId(tree, "domain-copy-value-send-MX"), "and so does the value");
-  assert.equal(byTestId(tree, "domain-copy-value-send-MX").props["aria-label"], "Copy the Return path value");
-  assert.ok(byTestId(tree, "domain-found-resend._domainkey-TXT"), "a record the provider reads says so");
+  Object.assign(connectedMailboxes, {
+    outcome: () => ({ ok: false, words: "A free mailbox isn't for writing to businesses." }),
+  });
+  try {
+    emailSeam({ providers: ["google"], mailboxes: [] });
+    const tree = render(Connections);
+    assert.equal(textOf(byTestId(tree, "mailbox-note")).includes("A free mailbox"), true);
+  } finally {
+    Object.assign(connectedMailboxes, { outcome: () => null });
+  }
 });
 
 test("a person deletes their own account from Settings, in two steps, and the door's refusal is said where it happened (App Store 5.1.1(v), 00190)", async () => {

@@ -23,7 +23,7 @@ export interface ReachOutStepRow {
   after_playbook_id: string | null;
   after_days: number | null;
   gap_minutes: number | null;
-  domain_ids: string[] | null;
+  mailbox_ids: string[] | null;
   signed_by: string | null;
   include_unconfirmed: boolean | null;
   template_id: string | null;
@@ -35,7 +35,7 @@ export interface ReachOutStepRow {
 }
 
 const STEP_COLUMNS =
-  "id, name, state, trigger, lead_search_id, after_playbook_id, after_days, gap_minutes, domain_ids, signed_by, include_unconfirmed, template_id, hand, run_hour, last_run_for, created_at";
+  "id, name, state, trigger, lead_search_id, after_playbook_id, after_days, gap_minutes, mailbox_ids, signed_by, include_unconfirmed, template_id, hand, run_hour, last_run_for, created_at";
 
 /** Every reach-out step of a workspace, each chain's root among them (trigger lead_first). */
 export async function reachOutStepsOf(db: Db, tenantId: string): Promise<ReachOutStepRow[]> {
@@ -226,7 +226,7 @@ export interface ReachOutRunSend {
   send_at: string | null;
   checked_at: string | null;
   created_at: string;
-  domain_id: string | null;
+  mailbox_id: string | null;
   lead: { business_name: string | null; email: string | null; city: string | null } | null;
 }
 
@@ -234,7 +234,7 @@ export async function reachOutRunSendsOf(db: Db, tenantId: string, runId: string
   const { data, error } = await db
     .from("reach_out_sends")
     .select(
-      "id, lead_id, state, reason, hold_detail, opening, angle, send_at, checked_at, created_at, domain_id, lead:leads(business_name, email, city)",
+      "id, lead_id, state, reason, hold_detail, opening, angle, send_at, checked_at, created_at, mailbox_id, lead:leads(business_name, email, city)",
     )
     .eq("tenant_id", tenantId)
     .eq("broadcast_id", runId);

@@ -56,7 +56,8 @@ export interface ReachOutSearchLinesDto {
   written_to: number;
   /** Emails that left since the business's midnight. */
   today: number;
-  next: { at: string; business: string | null; host: string | null } | null;
+  /** The next email: when, to whom, and the mailbox it leaves from (`host` its domain, from before 00424). */
+  next: { at: string; business: string | null; host: string | null; from?: string | null } | null;
   held: number;
   waiting_run_id: string | null;
   leads: ReachOutLeadLineDto[];
@@ -73,7 +74,9 @@ export interface ReachOutTimelineSendDto {
   send_at: string | null;
   sent_at: string | null;
   angle: string | null;
+  /** Its mailbox's domain, and its address (00424); a send from before 00424 names neither. */
   host: string | null;
+  from?: string | null;
   message_id: string | null;
   email_status: string | null;
   bounced: boolean;
@@ -209,7 +212,7 @@ export interface ReachOutStripVM {
 /** The strip over an open search while its reach-out writes (H8), by the business's clock. */
 export function reachOutStripOf(
   s: ReachOutSearchLinesDto,
-  chain: Pick<ReachOutChainDto, "domains"> | null,
+  chain: Pick<ReachOutChainDto, "mailboxes"> | null,
   nowMs: number,
   tz: string,
 ): ReachOutStripVM {
@@ -221,7 +224,7 @@ export function reachOutStripOf(
   else if (s.next && next !== null) {
     const when = zoneDayKey(next, tz) === zoneDayKey(nowMs, tz) ? clockTime(next, tz) : clockNearWhen(next, tz, nowMs);
     parts.push(`next ${when}${s.next.business ? `, ${s.next.business}` : ""}`);
-    if (s.next.host) parts.push(`from ${s.next.host}`);
+    if (s.next.from || s.next.host) parts.push(`from ${s.next.from ?? s.next.host}`);
   } else parts.push("nothing more planned yet");
   if (s.held > 0) parts.push(`${s.held} held for your say`);
   return {
@@ -273,7 +276,7 @@ function sendLine(s: ReachOutTimelineSendDto, tz: string, nowMs: number): ReachO
     text,
   });
   if (s.left) {
-    const from = s.host ? ` · from ${s.host}` : "";
+    const from = s.from || s.host ? ` · from ${s.from ?? s.host}` : "";
     const angle = s.angle ? ` · angle: ${s.angle}` : "";
     return line(`${name}${from}${angle} · ${emailWords(s)}`);
   }
@@ -388,7 +391,7 @@ export function reachOutPersonOf(t: ReachOutLeadTimelineDto, nowMs: number, tz: 
     if (!s.left || !s.message_id) continue;
     const parts = [stepName(s.n, s.hand)];
     if (s.angle) parts.push(`angle: ${s.angle}`);
-    if (s.host) parts.push(`from ${s.host}`);
+    if (s.from || s.host) parts.push(`from ${s.from ?? s.host}`);
     parts.push(emailWords(s));
     emails.set(s.message_id, { who: chain ? `Reach out · ${chain}` : "Your reach-out", sub: parts.join(" · ") });
   }

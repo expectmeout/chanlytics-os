@@ -14,27 +14,28 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   addressOf,
   buildEmailRequest,
+  connectedIdentity,
   hostedAddress,
   hostedIdentity,
-  ownDomainIdentity,
   type EmailIdentity,
   type EmailRequest,
 } from "@chanlytics/channels";
 import {
   AppError,
   emailDomainOf,
+  mailboxSendsNow,
   normalizeLocalPart,
   whyNotAFromName,
   whyNotALocalPart,
   type EmailSetupDto,
+  type MailboxConnectionDto,
   type MailboxDto,
   type ReplyFrom,
-  type SendingDomainDto,
 } from "@chanlytics/contracts";
 import { answeredReachOutEmail, mailboxOfTenant, type Database, type Json, type MailboxRow } from "@chanlytics/db";
 import type { EmailReplyPorts } from "@chanlytics/core";
 import { dbRefusal, type RouteContext } from "../with-route";
-import { domainsReadiness, sendingDomainsFor } from "./sending-domains";
+import { mailboxConnectionsFor, mailboxesReadiness } from "./mailbox-connections";
 import { env } from "../env";
 
 /** The deployment's mail domain, lower-cased; null when email is off here (contracts emailDomainOf, as the edge reads it). */
@@ -42,18 +43,12 @@ export function emailDomain(): string | null {
   return emailDomainOf(env.EMAIL_DOMAIN);
 }
 
-/** The host of an address, lower-cased; null when it names none. */
-const hostOf = (address: string | null): string | null =>
-  addressOf(address ?? "")
-    ?.address.split("@")[1]
-    ?.toLowerCase() ?? null;
-
 /**
- * Where a person's answer on this thread goes out from (C15, N5): the domain the reach-out it answers left from, when
- * that domain is one of the workspace's and verified now, with the reply domain that email was answered on; else the
- * mailbox, and why. The freeze and the readings' read both ask this, so the composer never names an address the
- * dashboard will not freeze. `references` are the reply's References; the latest reach-out email on the thread
- * answers when none of them names one (db answeredReachOutEmail).
+ * Where a person's answer on this thread goes out from (C15, N5; decision 0056): the mailbox the business connected
+ * that the reach-out it answers left from, when it is still the workspace's and sends now; else the hosted mailbox, and
+ * why. The freeze and the readings' read both ask this, so the composer never names an address the dashboard will not
+ * freeze. `references` are the reply's References; the latest reach-out email on the thread answers when none of them
+ * names one (db answeredReachOutEmail).
  */
 export async function replyIdentityOf(
   supabase: SupabaseClient<Database>,
@@ -61,24 +56,19 @@ export async function replyIdentityOf(
     tenantId: string;
     conversationId: string;
     references: string[];
-    /** The workspace's domains, when the caller already read them for many threads. */
-    domains?: SendingDomainDto[];
+    /** The workspace's connected mailboxes, when the caller already read them for many threads. */
+    mailboxes?: MailboxConnectionDto[];
   },
-): Promise<
-  | { from: "own"; address: string; domain: SendingDomainDto; replyDomain: string }
-  | Extract<ReplyFrom, { from: "mailbox" }>
-> {
-  const { tenantId, domains } = p;
+): Promise<{ from: "own"; address: string; mailbox: MailboxConnectionDto } | Extract<ReplyFrom, { from: "mailbox" }>> {
   const answered = await answeredReachOutEmail(supabase, p);
   const own = addressOf(answered?.from ?? "")?.address.toLowerCase() ?? null;
-  const host = hostOf(own);
-  if (!answered || !own || !host) return { from: "mailbox", because: null };
-  const domain = (domains ?? (await sendingDomainsFor(supabase, tenantId))).find((d) => d.host.toLowerCase() === host);
-  if (!domain) return { from: "mailbox", because: "domain_removed", own };
-  if (domain.state !== "verified") return { from: "mailbox", because: "domain_held", own: domain.address };
-  const replyDomain = hostOf(answered.replyTo) ?? emailDomain();
-  if (!replyDomain) return { from: "mailbox", because: null };
-  return { from: "own", address: domain.address, domain, replyDomain };
+  if (!answered || !own) return { from: "mailbox", because: null };
+  const mailbox = (p.mailboxes ?? (await mailboxConnectionsFor(supabase, p.tenantId))).find(
+    (m) => m.address.toLowerCase() === own,
+  );
+  if (!mailbox) return { from: "mailbox", because: "own_removed", own };
+  if (!mailboxSendsNow(mailbox, Date.now())) return { from: "mailbox", because: "own_not_sending", own };
+  return { from: "own", address: mailbox.address, mailbox };
 }
 
 /** The workspace's mailbox address on this deployment, as the composer names it; null with no mailbox or no email. */
@@ -88,7 +78,7 @@ export async function mailboxAddressOf(ctx: RouteContext, tenantId: string): Pro
   return mailbox && domain ? hostedAddress(mailbox.local_part, domain) : null;
 }
 
-/** What the composer is told of where an answer goes out from: the address, never the domain's row. */
+/** What the composer is told of where an answer goes out from: the address, never the mailbox's row. */
 export function replyFromOf(r: Awaited<ReturnType<typeof replyIdentityOf>>): ReplyFrom {
   return r.from === "own" ? { from: "own", address: r.address } : r;
 }
@@ -99,20 +89,19 @@ const requestJson = (r: EmailRequest): Json => r as unknown as Json;
 /**
  * A person's own reply, as the request it leaves as. No signature is added:
  * what a person typed is what is sent, the way it is on every other wire.
- * An answer to a reach-out whose own domain is verified now is frozen twice
- * (C15): the mailbox's request, which every edge sends, and its twin on that
- * domain, the same words, parent and id, answered at the mailbox's reply route
- * on the reply domain the reach-out was answered on. The edge sends the twin
- * while that domain's route holds it, and the mailbox's otherwise (N5).
+ * An answer to a reach-out whose connected mailbox sends now is frozen twice
+ * (C15, decision 0056): the hosted mailbox's request, which every edge sends,
+ * and its twin from the connected mailbox, the same words, parent and id. The
+ * edge sends the twin while that mailbox's route holds it, and the hosted
+ * mailbox's otherwise (N5). A workspace with no hosted mailbox answers from the
+ * connected one alone. Null when neither can.
  */
 export async function freezeReply(
   ctx: RouteContext,
   i: Parameters<EmailReplyPorts["freeze"]>[0],
 ): Promise<{ request: Json; subject: string; own: Json | null } | null> {
   const domain = emailDomain();
-  if (!domain) return null;
-  const mailbox = await mailboxOfTenant(ctx.supabase, i.tenantId);
-  if (!mailbox) return null;
+  const mailbox = domain ? await mailboxOfTenant(ctx.supabase, i.tenantId) : null;
   const frozen = (identity: EmailIdentity) =>
     buildEmailRequest({
       identity,
@@ -129,13 +118,14 @@ export async function freezeReply(
       messageId: i.messageId,
       tenantId: i.tenantId,
     });
-  const request = frozen(hostedIdentity(mailbox, domain));
   const who = await replyIdentityOf(ctx.supabase, {
     tenantId: i.tenantId,
     conversationId: i.conversationId,
     references: [...i.parent.references, ...(i.parent.rfcMessageId ? [i.parent.rfcMessageId] : [])],
   });
-  const own = who.from === "own" ? frozen(ownDomainIdentity(who.domain, mailbox, who.replyDomain)) : null;
+  const own = who.from === "own" ? frozen(connectedIdentity(who.mailbox)) : null;
+  const request = mailbox && domain ? frozen(hostedIdentity(mailbox, domain)) : own;
+  if (!request) return null;
   return { request: requestJson(request), subject: request.subject, own: own ? requestJson(own) : null };
 }
 
@@ -188,10 +178,10 @@ function mailboxDto(
 /**
  * The workspace's email line and nothing of how it sends: whether this deployment has email, and the mailbox the owner
  * made. What Today counts as a wire (contracts emailWires), which is all its read asks of email. It took the whole of
- * emailSetupFor, so every read of Today from a workspace with a mailbox also read its sending domains and asked the
- * edge whether own domains are switched on, an answer kept for five minutes by each instance and waited on for up to
- * four seconds by the first read after that (9 Oct 2026). One read, of one row: `mailbox`, where the caller reads the
- * row for more than this (workspace/setup.ts), is how to ask for it, so it is asked once.
+ * emailSetupFor, so every read of Today from a workspace with a mailbox also read what it sends reach-outs from and
+ * asked the edge what it offers, an answer kept for five minutes by each instance and waited on for up to four seconds
+ * by the first read after that (9 Oct 2026). One read, of one row: `mailbox`, where the caller reads the row for more
+ * than this (workspace/setup.ts), is how to ask for it, so it is asked once.
  */
 export async function emailLineFor(
   supabase: SupabaseClient<Database>,
@@ -214,15 +204,14 @@ export async function emailSetupFor(
   tenantId: string,
   mailbox?: () => Promise<MailboxRow | null>,
 ): Promise<EmailSetupDto> {
-  const line = await emailLineFor(supabase, tenantId, mailbox);
-  if (!line.mailbox) return line;
-  // The block draws only under a mailbox, so nothing else waits on the edge. A domains read that fails draws no
-  // block rather than failing Setup (and Today's email line with it).
-  const [domains, ready] = await Promise.all([
-    sendingDomainsFor(supabase, tenantId).catch(() => null),
-    domainsReadiness().catch(() => false),
+  // The mailboxes a reach-out writes from (decision 0056) are the business's own, through Google or Microsoft, so they
+  // are read whatever the hosted mailbox. A read that fails draws no block rather than failing Setup.
+  const [line, mailboxes, ready] = await Promise.all([
+    emailLineFor(supabase, tenantId, mailbox),
+    mailboxConnectionsFor(supabase, tenantId).catch(() => null),
+    mailboxesReadiness().catch(() => ({ providers: [] })),
   ]);
-  return { ...line, sending: domains ? { ready, domains } : null };
+  return { ...line, sending: mailboxes ? { providers: ready.providers, mailboxes } : null };
 }
 
 /** An owner gives the workspace its address (00129). Judged here first, so the refusal says which kind of not-an-address it was. */

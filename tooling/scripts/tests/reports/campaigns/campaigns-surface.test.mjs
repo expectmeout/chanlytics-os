@@ -85,7 +85,7 @@ const reachOutReport = (over) => ({
   angles: [],
   other_angles: { written: 0, businesses: 0, wrote_back: 0 },
   no_angle: 12,
-  domains: [],
+  mailboxes: [],
 });
 /** What the three routes answer for the days a read named: the sends' report, the ledger and the reach-outs, in the shape of each route. */
 const campaignsFor = (over) => {
@@ -436,7 +436,7 @@ test("its live-feed rule is the lens's own: messages, conversations, escalations
     "broadcasts",
     "reach_out_replies",
     "tenant_channels",
-    "sending_domains",
+    "mailbox_connections",
   ]);
   for (const table of reportsCampaignsOverride.refreshOnTables)
     assert.ok(watchedTables().includes(table), `${table}: the feed tells of it`);

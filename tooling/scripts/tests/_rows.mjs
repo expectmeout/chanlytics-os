@@ -1,7 +1,7 @@
 /**
- * Rows as the database holds them, for the thirteen tables the suite's fixtures seed most (messages, tenants, tenant_config,
- * conversations, events, contacts, tenant_channels, lines, memberships, billing_accounts, and Google's listing, connection
- * and reviews): every column the table has, each the database's own default or a made-up value, so a fixture names only
+ * Rows as the database holds them, for the fourteen tables the suite's fixtures seed most (messages, tenants, tenant_config,
+ * conversations, events, contacts, tenant_channels, lines, memberships, billing_accounts, Google's listing, connection
+ * and reviews, and a connected mailbox): every column the table has, each the database's own default or a made-up value, so a fixture names only
  * what its test is about.
  *
  *   const t = rows.tenant({ timezone: "America/Chicago" });
@@ -156,6 +156,28 @@ const DEFAULTS = {
       last_seen_at: AT,
     };
   },
+  // A Google mailbox the business connected at the made-up instant (decision 0056): sending, on a second domain, new to
+  // its ramp, its records not read yet, and never synced.
+  mailbox_connections: () => ({
+    id: uuid(),
+    tenant_id: TENANT,
+    provider: "google",
+    provider_account: "100000000000000000001",
+    address: "sam@getharbor.example",
+    host: "getharbor.example",
+    from_name: "Sam",
+    scopes: [],
+    state: "connected",
+    daily_cap: 40,
+    customer_domain: false,
+    clean_since: AT,
+    counted_since: AT,
+    sent_days: 0,
+    dns: {},
+    connected_at: AT,
+    created_at: AT,
+    updated_at: AT,
+  }),
 };
 
 /** One row of `table`: the factory's defaults under the test's own values, every other column null. */
@@ -178,7 +200,7 @@ function rowOf(table, overrides) {
   return row;
 }
 
-/** A row for each of the thirteen tables, the test's own values over the database's. */
+/** A row for each of the fourteen tables, the test's own values over the database's. */
 export const rows = {
   tenant: (o = {}) => rowOf("tenants", o),
   config: (o = {}) => rowOf("tenant_config", o),
@@ -193,4 +215,5 @@ export const rows = {
   googleListing: (o = {}) => rowOf("google_listings", o),
   googleConnection: (o = {}) => rowOf("google_connections", o),
   googleReview: (o = {}) => rowOf("google_reviews", o),
+  mailboxConnection: (o = {}) => rowOf("mailbox_connections", o),
 };

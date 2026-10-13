@@ -27,10 +27,11 @@ import { useAdsShown } from "../../campaigns/ads/shown";
 import { useSurface } from "../../use-surface";
 import type { SetupSurface } from "../../setup/surface";
 import { retryLineInPlace } from "../../setup/retry-line";
-import { SendingDomains } from "./domains-block";
+import { connectedMailboxes } from "./connected-mailboxes";
 import { EmailSetupForm } from "./email-setup";
 import { GoogleChoose } from "./google-choose";
 import { useLineCodes, useSignupAhead, useStandingCheck } from "./live";
+import { ConnectedMailboxes } from "./mailboxes-block";
 import { BusinessRecordForm } from "./record-form";
 import { ConnectionRow, type Arm } from "./row";
 import { signupLeftOpenAt, waConnect, type SignupDoor } from "./whatsapp";
@@ -263,6 +264,8 @@ export const PaneIntegrationsReal = () => {
   // The email row's form, open only once its verb is pressed.
   const [emailOpen, setEmailOpen] = useState(false);
   const [note, setNote] = useState<string | null>(googleNote);
+  // What the browser came back from a mailbox's provider with, said once under the Email row.
+  const [mailboxNote, setMailboxNote] = useState(() => connectedMailboxes.outcome());
   // Meta's sign-up window is open (this page began it and it has not ended), and the sign-up an earlier page began on this tab and
   // never finished, read once as this page opens: nothing a later press of Connect should bring back.
   const [signup, setSignup] = useState(false);
@@ -354,7 +357,9 @@ export const PaneIntegrationsReal = () => {
           onClose={() => setEmailOpen(false)}
         />
       )}
-      {r.kind === "email" && S && email && <SendingDomains email={email} flash={flash} />}
+      {r.kind === "email" && S && email && (
+        <ConnectedMailboxes email={email} flash={flash} note={mailboxNote} onNote={() => setMailboxNote(null)} />
+      )}
     </Fragment>
   );
   const groups = (["connected", "available", "later"] as const).map((g) => ({

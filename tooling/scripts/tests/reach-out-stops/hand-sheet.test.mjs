@@ -102,7 +102,7 @@ const CHAIN = {
   state: "running",
   include_unconfirmed: false,
   gap_minutes: 12,
-  domain_ids: [],
+  mailbox_ids: [],
   signed_by: "Sam",
   created_at: "2026-09-20T00:00:00Z",
   next: { run_hour: 9, last_run_for: "2026-10-05", mode: "ask", may_spend: true, waiting_run_id: null },

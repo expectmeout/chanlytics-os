@@ -693,16 +693,19 @@ function emailRow(i: ConnectionInputs, { nowMs }: ConnectionFacts): Draft {
     // keeps the verb it had; the next email that arrives clears it, so this is
     // never an old alarm about mail that has since been flowing for a week.
     const working = `Customers write to this address and you reply from the Inbox, as ${mailbox.from_name}.${last}`;
-    // A domain held below it is said here too: an owner looking at "On" would not look further.
-    const heldDomains = (i.email?.sending?.domains ?? []).filter((d) => d.state === "held").length;
+    // A mailbox reach-outs write from that is held or signed out is said here too: an owner looking at "On" would not
+    // look further down the row.
+    const needs = (i.email?.sending?.mailboxes ?? []).filter(
+      (m) => m.state === "held" || m.state === "reconnect",
+    ).length;
     return {
       ...base,
       detail: mailbox.address,
-      state: mailbox.last_error || heldDomains ? "attention" : "connected",
+      state: mailbox.last_error || needs ? "attention" : "connected",
       stateWords: mailbox.last_error
         ? SETUP_STATE_WORDS.waiting_them
-        : heldDomains
-          ? `On · ${heldDomains} domain${heldDomains === 1 ? "" : "s"} held`
+        : needs
+          ? `On · ${needs} mailbox${needs === 1 ? "" : "es"} to look at`
           : "On",
       sentence: mailbox.last_error ? `${mailbox.last_error} ${working}` : working,
       verb: { label: "Change the name", to: "verb:email-setup", who: "owner" },

@@ -5412,34 +5412,24 @@ test("connections, for the page: GET setup answers its reader's payload over set
       last_error: null,
     },
   ];
-  sending.tables.sending_domains = [
-    {
+  sending.tables.mailbox_connections = [
+    rows.mailboxConnection({
       id: D1,
       tenant_id: A,
+      address: "sam@send.example.com",
       host: "send.example.com",
-      from_local: "sam",
       from_name: "Sam",
-      records: [],
-      state: "records",
-      provider_status: "not_started",
-      dmarc: null,
-      held_why: null,
-      held_at: null,
-      verified_at: null,
-      clean_since: null,
-      checked_at: null,
-      created_at: "2026-09-25T12:00:00Z",
-    },
+    }),
   ];
   const was = process.env.EMAIL_DOMAIN;
   process.env.EMAIL_DOMAIN = "mail.example.com";
   try {
     const d = await kernel.load(memberIn(worldCtx(sending), A, "owner", NOW), connections, undefined);
     assert.deepEqual(
-      d.data.setup.email.sending.domains.map((x) => x.id),
+      d.data.setup.email.sending.mailboxes.map((x) => x.id),
       [D1],
     );
-    assert.deepEqual(d.rows, [{ kind: "domain", id: D1, route: "admin/integrations", label: "send.example.com" }]);
+    assert.deepEqual(d.rows, [{ kind: "mailbox", id: D1, route: "admin/integrations", label: "sam@send.example.com" }]);
   } finally {
     if (was === undefined) delete process.env.EMAIL_DOMAIN;
     else process.env.EMAIL_DOMAIN = was;

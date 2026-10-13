@@ -1,7 +1,9 @@
 /**
- * The probe of the unsubscribe links (Reach out, Part 2.6): run by the domains sweep, with no clock of its own.
+ * The probe of the unsubscribe links (Reach out, Part 2.6): run by the mailboxes sweep (mailbox/mailbox-sweep.ts), with
+ * no clock of its own.
  *
- * Every cold email carries a link the edge seals under UNSUBSCRIBE_SECRET, and the dashboard's page (/u/<token>) opens
+ * Every reach-out email carries a link the edge seals under UNSUBSCRIBE_SECRET (in its List-Unsubscribe header, which a
+ * mail client's one click posts to), and the dashboard's page (/u/<token>) opens
  * it under the same secret, or the one before it while a rotation settles. Set differently on the two projects, every
  * link in every inbox says "This link doesn't work" and every one-click stop is refused: the way out the law requires
  * is shut, and nothing else says so. So the sweep seals a link the way a send would and opens it the way a mail client

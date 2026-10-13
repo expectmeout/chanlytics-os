@@ -165,7 +165,7 @@
     "depth": 2
   },
   "apps/edge/lib/reach-out/check.ts::checkSends#1": {
-    "lines": 188,
+    "lines": 180,
     "branches": 13,
     "depth": 3
   },
@@ -175,12 +175,12 @@
     "depth": 4
   },
   "apps/edge/lib/reach-out/replan.ts::replanSends#1": {
-    "lines": 122,
-    "branches": 45,
+    "lines": 119,
+    "branches": 43,
     "depth": 5
   },
   "apps/edge/lib/reach-out/sender.ts::writeOne#1": {
-    "lines": 176,
+    "lines": 175,
     "branches": 42,
     "depth": 3
   },
@@ -274,11 +274,6 @@
     "branches": 69,
     "depth": 0
   },
-  "packages/contracts/src/email/sending-domains.ts::judgeDomain#1": {
-    "lines": 63,
-    "branches": 33,
-    "depth": 2
-  },
   "packages/contracts/src/leads/lead-peek.ts::toLeadPeekVM#1": {
     "lines": 165,
     "branches": 63,
@@ -340,8 +335,8 @@
     "depth": 0
   },
   "packages/contracts/src/workspace/activity.ts::activityWords#1": {
-    "lines": 147,
-    "branches": 70,
+    "lines": 135,
+    "branches": 61,
     "depth": 3
   },
   "packages/contracts/src/workspace/billing.ts::toBillingVM#1": {

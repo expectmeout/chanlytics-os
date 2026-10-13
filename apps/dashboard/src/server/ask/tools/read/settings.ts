@@ -12,8 +12,8 @@ import {
   noteRows,
   parseTenantConfig,
   policyClassOffered,
+  mailboxWords,
   roleAtLeast,
-  sendingDomainWords,
   serverNotificationRows,
   setupSteps,
   unreadCount,
@@ -82,7 +82,7 @@ const CONNECTION_ROWS = ["line", "keep", "whatsapp", "email", "calendar", "googl
 /**
  * What the workspace is connected to, in the Setup page's words (readers/connections.ts, GET setup's own read, then
  * contracts setupSteps as the page builds it): whether the receptionist answers and where, each connection's row, and
- * each domain it sends cold email from as Connections says it (contracts sendingDomainWords). Money stays out (the
+ * each mailbox it writes its reach-outs from as Connections says it (contracts mailboxWords). Money stays out (the
  * charter, §7): Setup's billing row is not one of these, the plan's price is never passed in, and a row that waits on
  * Billing says only its state.
  */
@@ -93,7 +93,7 @@ async function getConnections(t: ToolContext): Promise<unknown> {
     { ...setup, ...(setup.billing ? { billing: { ...setup.billing, price: null } } : {}), later: [] },
     t.now.getTime(),
   );
-  // Each domain it sends from is a row an answer may cite, opened on Connections: the reader's RowRefs.
+  // Each mailbox it writes from is a row an answer may cite, opened on Connections: the reader's RowRefs.
   noteRows(t.read, read.rows);
   return {
     route: "start",
@@ -108,18 +108,16 @@ async function getConnections(t: ToolContext): Promise<unknown> {
           ...(billing ? {} : { says: r.sentence, ...(r.details.length ? { details: r.details } : {}) }),
         };
       }),
-    sending_domains: (setup.email?.sending?.domains ?? []).map((d) => {
-      const w = sendingDomainWords(d);
+    mailboxes: (setup.email?.sending?.mailboxes ?? []).map((m) => {
+      const w = mailboxWords(m, t.now.getTime());
       return {
-        domain_id: d.id,
+        mailbox_id: m.id,
         route: "admin/integrations",
-        host: d.host,
+        address: m.address,
         state: w.pill,
-        says: w.line,
-        ...(w.stats ? { stats: w.stats } : {}),
-        cap: w.cap,
+        says: w.day,
+        ...(w.ramp ? { ramp: w.ramp } : {}),
         ...(w.fix ? { fix: w.fix } : {}),
-        ...(w.next ? { next: w.next } : {}),
       };
     }),
   };
@@ -230,7 +228,7 @@ export const workspaceTool = defineActions({
       examples: [{}],
       label: "Reading the connections",
       words:
-        "Action connections takes nothing more and reads what the workspace is connected to, in the Setup page's words: whether the receptionist answers and on which numbers; its phone line and whether the number its customers know is forwarded to it, WhatsApp, the email mailbox, the calendar and Google, each with its state and what the page says of it; and each domain it sends cold email from, with its state, what it has sent, its daily cap and what to do next. Call it for whether something is connected, or why not; action settings has the receptionist's own rules. Billing and the plan's price are not here: money stays out of Ask.",
+        "Action connections takes nothing more and reads what the workspace is connected to, in the Setup page's words: whether the receptionist answers and on which numbers; its phone line and whether the number its customers know is forwarded to it, WhatsApp, the email mailbox, the calendar and Google, each with its state and what the page says of it; and each mailbox it writes its reach-outs from, with its state, its day, its ramp and what to do next. Call it for whether something is connected, or why not; action settings has the receptionist's own rules. Billing and the plan's price are not here: money stays out of Ask.",
       run: getConnections,
     }),
     notifications: readAction({

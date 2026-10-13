@@ -359,8 +359,8 @@ export const peopleOverride: SurfaceOverride = {
     always: ["visit", "deal", "step", "list"],
     omit: [
       {
-        tables: ["lines", "mailboxes", "sending_domains", "capability_activations", "business_records"],
-        why: "its reach is counted against the numbers connected (tenant_channels) and the workspace's pause; a line's saga, a mailbox, a domain, an activation and the carriers' record are not among them",
+        tables: ["lines", "mailboxes", "mailbox_connections", "capability_activations", "business_records"],
+        why: "its reach is counted against the numbers connected (tenant_channels) and the workspace's pause; a line's saga, a mailbox, a connected mailbox, an activation and the carriers' record are not among them",
       },
       {
         tables: ["appointment_notices"],

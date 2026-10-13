@@ -16,7 +16,7 @@
  *                   the thread is flagged for a person in words that say what
  *                   to do, and THEN the row fails. A campaign's email (it
  *                   carries its unsubscribe) flags nothing: its row fails, and
- *                   counts toward the domain it left from. In that order: a flag that
+ *                   counts toward the mailbox it left from. In that order: a flag that
  *                   could not be written sends the receipt back with the row
  *                   untouched, and a row that already says failed is a receipt
  *                   seen before, which flags nothing twice.
@@ -49,12 +49,9 @@ import {
   suppressEmailOf,
   type Database,
 } from "../packages/db.js";
-import { addressOf, emailReceiptEffect, type EmailReceipt, type EmailReceiptType } from "../packages/channels.js";
+import { emailReceiptEffect, type EmailReceipt, type EmailReceiptType } from "../packages/channels.js";
 import { isCampaignEmail } from "../packages/contracts.js";
-import { holdForComplaint } from "./sending-domains.js";
 import { judgeOfferGates } from "./offer-gates.js";
-import { pageOperator } from "../ops/page-operator.js";
-import { logger, errField } from "../log.js";
 import { upsertEscalation } from "../packages/jobs.js";
 
 type Db = SupabaseClient<Database>;
@@ -92,8 +89,8 @@ export async function applyEmailReceipt(db: Db, r: EmailReceipt, nowIso: string)
   // The domain an email left from, read off its frozen request, for what a complaint or a permanent bounce may trip.
   let leftFrom: string | null = effect.suppress === "hard_bounce" ? requestFromOf(sent?.request) : null;
   if (effect.status) await recordEmailStatus(db, { ...row, status: effect.status, error: effect.error });
-  // A complaint arrives after delivery and moves no status: the row is stamped, so the domain it left from counts it
-  // (00176). Before the suppression, so a retry of a half-applied receipt still counts it once.
+  // A complaint arrives after delivery and moves no status: the row is stamped, so the mailbox it left from counts it
+  // (00176, 00424). Before the suppression, so a retry of a half-applied receipt still counts it once.
   if (r.type === "complained") await stampEmailComplaint(db, { ...row, at: nowIso });
   if (effect.suppress) {
     const contactId = await suppressEmailOf(db, { ...row, addresses: r.to, reason: effect.suppress, at: nowIso });
@@ -107,18 +104,9 @@ export async function applyEmailReceipt(db: Db, r: EmailReceipt, nowIso: string)
   if (r.type === "complained") {
     // A complaint is the person's no, as an unsubscribe is (00177): their address on the never-again list, their
     // leads closed. After the address stops (above), so a no that cannot be recorded -- the receipt then comes again --
-    // has already stopped what it could. Then the domain it left from is judged now, not at the next sweep.
+    // has already stopped what it could. A mailbox it left from is judged by the mailboxes clock, within the hour.
     const no = await recordEmailNo(db, { ...row, source: "complaint" });
     leftFrom = no.from;
-    const host = addressOf(no.from)?.address.split("@")[1] ?? null;
-    if (host) {
-      const log = logger({ tenant_id: r.tenantId });
-      // With the platform's pager: a complaint that holds a domain a second time in thirty days is the platform's (D16).
-      const page = (key: string, subject: string, body: string) => pageOperator({ db }, key, subject, body);
-      await holdForComplaint({ db, log, now: () => Date.parse(nowIso), page }, r.tenantId, host).catch((e) =>
-        log.error("sending_domain_complaint_hold_failed", { host, error: errField(e) }),
-      );
-    }
   }
   // Last: the receipt is applied, so a judgement that fails is logged there and never refuses it. Only an offer is judged.
   if (leftFrom) await judgeOfferGates(db, r.tenantId, leftFrom);

@@ -21,7 +21,7 @@
     "api/admin/reach-out-preview.ts": {
       "maxDuration": 30
     },
-    "api/admin/sending-domains.ts": {
+    "api/admin/mailboxes.ts": {
       "maxDuration": 60
     },
     "api/admin/voice-converge.ts": {
@@ -39,6 +39,12 @@
     "api/apify-webhook.ts": {
       "maxDuration": 30
     },
+    "api/mailbox/gmail.ts": {
+      "maxDuration": 30
+    },
+    "api/mailbox/graph.ts": {
+      "maxDuration": 30
+    },
     "api/cron/calendar.ts": {
       "maxDuration": 60
     },
@@ -51,7 +57,7 @@
     "api/cron/deadman.ts": {
       "maxDuration": 60
     },
-    "api/cron/domains.ts": {
+    "api/cron/mailboxes.ts": {
       "maxDuration": 60
     },
     "api/cron/reach-out.ts": {

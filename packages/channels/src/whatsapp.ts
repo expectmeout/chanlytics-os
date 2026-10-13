@@ -329,11 +329,16 @@ export interface SendResult {
   /** The provider's own error code when it gives one: a text's carrier says 21610 for a person who opted out (sms.ts smsRefusalOf). */
   code?: number | null;
   /**
-   * A person's email reply only (core emailSender): whether it left by the own domain it was frozen with, or as the
-   * mailbox's request, and why not by its own when it could not.
+   * A person's email reply only (core emailSender): whether it left by the connected mailbox it was frozen with, or as
+   * the workspace's hosted mailbox's request, and why not by its own when it could not.
    */
   leftAs?: "own" | "mailbox";
   leftAsWhy?: EmailLeftAsWhy;
+  /**
+   * An email sent from a connected mailbox (decision 0056): the Message-ID it went under and the provider's thread it
+   * sits in, which no receipt will bring later. The door stamps both on its row (meta.email.message_id, thread_id).
+   */
+  email?: { messageId: string | null; threadId: string | null; mailboxId: string };
   /**
    * What the send came to (provider-fetch SendOutcome): `retryable` left nothing and may be tried again later;
    * `unknown` may have been taken, and is never sent again blind. Absent from a wire's own refusal (no credentials, a
@@ -343,11 +348,12 @@ export interface SendResult {
 }
 
 /**
- * Why a person's reply frozen with an own domain left as the mailbox's request instead (N5, G15). `domain_held`: the
- * domain it was frozen with was held between the freeze and the send.
+ * Why a person's reply frozen with a connected mailbox left as the hosted mailbox's request instead (N5, G15).
+ * `own_not_sending`: the mailbox it was frozen with stopped sending (signed out, paused, held) between the freeze and
+ * the send; `own_has_no_route`: it was removed.
  */
 export type EmailLeftAsWhy =
-  "no_own_route" | "domain_has_no_route" | "domain_held" | "twin_names_another_recipient" | "route_refuses_twin";
+  "no_own_route" | "own_has_no_route" | "own_not_sending" | "twin_names_another_recipient" | "route_refuses_twin";
 
 /**
  * Every Graph send goes through here. Two reasons:

@@ -72,10 +72,10 @@ const chain = () => ({
   state: "running",
   include_unconfirmed: false,
   gap_minutes: 12,
-  domain_ids: [],
+  mailbox_ids: [],
   signed_by: "Sam",
   created_at: "2026-09-20T00:00:00Z",
-  domains: [],
+  mailboxes: [],
   steps: [
     {
       id: ROOT,
@@ -507,9 +507,7 @@ test("the page's preview and the edge's send fill the six the same way: the same
     lead: { business_name: at("business"), city: at("city") },
     workspace: { businessName: BIZ, yourName: "Sam", bookingLink: LINK, address: "100 Example St, Austin, TX 78701" },
     opening: at("opening"),
-    domain: { host: "getharbor.example", from_local: "sam", from_name: "Sam at Harbor" },
-    mailbox: { reply_token: "abcdefghijklmnopqrstuvwx" },
-    replyDomain: "mail.chanlytics.com",
+    from: { address: "sam@getharbor.example", from_name: "Sam at Harbor", signature: null },
     unsubscribe: { secret: "a-secret-only-this-file-holds", origin: "https://app.chanlytics.com" },
     parent: null,
   });

@@ -126,7 +126,7 @@ test("an empty period of reach-outs says which days nothing was written in", () 
     chains: [],
     angles: [],
     no_angle: 0,
-    domains: [],
+    mailboxes: [],
   };
   const words = (dto) => toReachOutLensVM(dto).lines.empty;
   assert.equal(words({ ...none, end: "2026-09-20" }), "No reach-out wrote in the 20 days to Sep 20.");

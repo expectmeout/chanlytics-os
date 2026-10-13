@@ -22,25 +22,15 @@ export type PlatformRecipient = { kind: "mailbox"; localPart: string } | { kind:
  * An address on the platform's mail domain, read for what it routes to; null
  * for any other address. Exact: the domain must be the deployment's, the local
  * part one the table could hold (00126). Nothing is inferred from a display
- * name, and a plus tag on a published address is not a second mailbox. On the
- * cold reply domain (Reach out D17), when there is one, a reply route routes
- * and nothing else: no workspace publishes an address there.
+ * name, and a plus tag on a published address is not a second mailbox.
  */
-export function platformRecipient(
-  address: string,
-  domain: string,
-  coldReplyDomains: string | readonly string[] | null = null,
-): PlatformRecipient | null {
+export function platformRecipient(address: string, domain: string): PlatformRecipient | null {
   const a = address.trim().toLowerCase();
   const at = a.lastIndexOf("@");
   if (at < 1) return null;
   const host = a.slice(at + 1);
   const local = a.slice(0, at);
   const token = /^r\+([a-z2-7]{24})$/.exec(local)?.[1];
-  const cold = (typeof coldReplyDomains === "string" ? [coldReplyDomains] : (coldReplyDomains ?? [])).map((d) =>
-    d.toLowerCase(),
-  );
-  if (host !== domain.toLowerCase() && cold.includes(host)) return token ? { kind: "reply", token } : null;
   if (host !== domain.toLowerCase()) return null;
   if (token) return { kind: "reply", token };
   return /^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$/.test(local) && local !== "r"

@@ -11,8 +11,10 @@
  *          an Unsubscribe link, the one the mail client's one click carries too. It refuses to build with the address or
  *          the link blank, as a cold foot does.
  *   cold   a reach-out's first email or nudge to a business the finder found (CAN-SPAM): why they are hearing from you,
- *          that it is marketing, who you are and where, and the two ways to say no. It refuses to build with a part blank
- *          rather than let an email go whose foot says less than the law needs.
+ *          that it is marketing, who you are and where, and the way to say no: a reply, in the words. Its text carries
+ *          no link (decision 0056: an email from a person's own mailbox reads as one person's, plain), and the one-click
+ *          unsubscribe rides in its List-Unsubscribe header, the link the HTML twin would carry. It refuses to build with
+ *          a part blank rather than let an email go whose foot says less than the law needs.
  */
 import { escapeHtml } from "../shared/html";
 import { senderWords, type SenderWords } from "./sender-words";
@@ -71,7 +73,7 @@ function coldParts(business: string, address: string | null | undefined, f: { wh
  * A visit's reason names what the message is about, from the words their row kept (a proposal's link, a visit's time), else
  * says only that they have been in touch; its way out is a reply of STOP. An offer's reason is its own (offerWhy), and its
  * way out the Unsubscribe link, after who and where. A cold foot's is the finder's reason, the marketing line, who and
- * where, the "no thanks" reply and the link.
+ * where, and the "no thanks" reply: its link is the header's alone.
  */
 export function emailFoot(
   business: string,
@@ -82,9 +84,7 @@ export function emailFoot(
   const w = senderWords(language);
   if (foot.kind === "cold") {
     const p = coldParts(business, address, foot);
-    return [p.why, w.marketing, `${p.business} · ${p.address}`, `${w.noThanks}.`, `${w.unsubscribe}: ${p.url}`].join(
-      "\n",
-    );
+    return [p.why, w.marketing, `${p.business} · ${p.address}`, `${w.noThanks}.`].join("\n");
   }
   const who = business.trim() || w.us;
   if (foot.kind === "offer") {

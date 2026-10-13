@@ -5,7 +5,8 @@
  *     at it, an email row that address alone, and the send door's facts, the audience and the set form agree;
  *   - the consent door's reply sources: a reply's no is recorded and closes the leads as an unsubscribe does, and its
  *     undo puts the answer back only while that reply is what holds it (never after an unsubscribe or a complaint);
- *   - D18: a reply's no counts beside an unsubscribe, until it is undone;
+ *   - D18 (a reply's no counts beside an unsubscribe, until it is undone) is a mailbox's count since 00424, proved in
+ *     email/mailboxes/mailbox-connections.db.test.mjs;
  *   - the dated-step door: a step for the team, once per source, the person's next step on People;
  *   - the converter: lead_convert_by, and the member's Interested through it (and, since 00346, the person door's link);
  *   - every re-created body equals its source's but for the lines it meant to change, and the new doors are closed to
@@ -120,37 +121,6 @@ const marketing = (contact, state, source, over = {}) =>
   });
 const consentOf = async (contact) =>
   ok(await db.from("contacts").select("email_marketing, email_marketing_source").eq("id", contact).single());
-/** A person's one thread (conversations are one per person). */
-const threads = new Map();
-/** An email that left from `host` to this person, in the shape the send path freezes (trimmed to what is read). */
-const sentTo = async (contact, host) => {
-  const id = crypto.randomUUID();
-  const thread =
-    threads.get(contact) ?? (await one(db.from("conversations").insert({ tenant_id: A, contact_id: contact })));
-  threads.set(contact, thread);
-  ok(
-    await db.from("messages").insert({
-      id,
-      tenant_id: A,
-      conversation_id: thread,
-      contact_id: contact,
-      channel: "email",
-      direction: "outbound",
-      sender: "ai",
-      type: "text",
-      body: "Saw your shop on the map.",
-      status: "sent",
-      meta: {
-        email: {
-          subject: "Hi",
-          to: "office@fixture-never.example",
-          request: { from: `"Sam" <sam@${host}>`, to: ["office@fixture-never.example"] },
-        },
-      },
-    }),
-  );
-  return id;
-};
 
 before(async () => {
   if (skip) return;
@@ -219,12 +189,11 @@ test(
     const person = await personOf(`someone-${stamp}@fixture-never.example`);
     const facts = async (to) =>
       ok(
-        await db.rpc("outreach_facts", {
+        await db.rpc("outreach_mailbox_facts", {
           p_tenant_id: A,
           p_contact_id: person,
           p_to: to,
-          p_host: `send.${own}`,
-          p_since: new Date(Date.now() - 86_400_000).toISOString(),
+          p_from: `sam@send.${own}`,
         }),
       ).suppressed;
     const set = async (addresses, tenant = A) =>
@@ -395,42 +364,6 @@ test(
     }
   },
 );
-
-test("D18: a reply's no counts beside an unsubscribe, and stops counting once it is undone", { skip }, async () => {
-  const host = `send-${stamp}.example`;
-  const p = await personOf(`d18-${stamp}@fixture-never.example`);
-  const q = await personOf(`d18b-${stamp}@fixture-never.example`);
-  const first = await sentTo(p, host);
-  const second = await sentTo(q, host);
-  await sentTo(q, host);
-  const third = await sentTo(p, host);
-  const unsubscribed = async () =>
-    ok(await db.rpc("sending_domain_counts", { p_tenant_id: A, p_host: host, p_since: null })).unsubscribed;
-  assert.equal(await unsubscribed(), 0);
-  ok(await marketing(p, "opted_out", "reply", { p_message_id: first }));
-  assert.equal(await unsubscribed(), 1, "the email the reply answered is counted");
-  // An undo that names another email is not this no's.
-  ok(
-    await db.from("events").insert({
-      tenant_id: A,
-      kind: "contact.consent_changed",
-      category: "contact",
-      subject_type: "contact",
-      subject_id: p,
-      data: { purpose: "email_marketing", consent: "unknown", source: "reply_undone", message_id: second },
-    }),
-  );
-  assert.equal(await unsubscribed(), 1, "a reply_undone naming another email leaves the reply counted");
-  ok(await marketing(p, "unknown", "reply_undone", { p_message_id: first }));
-  assert.equal(await unsubscribed(), 0, "a no undone was never a no");
-  ok(await marketing(q, "opted_out", "unsubscribe", { p_message_id: second }));
-  assert.equal(await unsubscribed(), 1, "an unsubscribe counts as before");
-  ok(await marketing(p, "opted_out", "reply", { p_message_id: first }));
-  assert.equal(await unsubscribed(), 2, "a no said again after its undo counts again");
-  // One person counts once in the window, however many of its emails their noes name.
-  ok(await marketing(p, "opted_out", "unsubscribe", { p_message_id: third }));
-  assert.equal(await unsubscribed(), 2, "a reply's no and then an unsubscribe are one person");
-});
 
 test(
   "the dated-step door: a step for the team, once per source, the person's next step, and only the service role's",

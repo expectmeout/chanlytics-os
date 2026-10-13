@@ -106,7 +106,7 @@ Every request proves who is knocking before anything is read.
 
 1. **Provider to edge.** HMAC over the raw body (Meta), Retell's signature, Twilio's signature with the line's own token, Svix headers (Resend), Stripe's signature. Apify signs nothing, so each run is started with a per-run token in its webhook URL, kept only as a hash and compared in constant time. A webhook whose write the database did not accept is not acknowledged, so the provider retries.
 2. **Browser to dashboard.** A Supabase session cookie, its token's signature verified (`getClaims()`) by the proxy for every page, move and prefetch, and again by `withRoute` for every read; same origin required for every write. The signed-in frame reads nothing of the request, so it is one prerender for everyone (decision 0053, step 5).
-3. **Dashboard to edge.** A token minted for one door, one workspace, one person, one minute (`x-edge-token`). The dashboard proves who the person is; the edge spends the provider key. The platform's shared key (`x-diag-key`) opens only the diagnostic and the sending-domains lift of a domain held twice on an edge that holds the secret, and every key-only knock there is logged (`admin_door_key_only`).
+3. **Dashboard to edge.** A token minted for one door, one workspace, one person, one minute (`x-edge-token`). The dashboard proves who the person is; the edge spends the provider key. The platform's shared key (`x-diag-key`) opens only the diagnostic on an edge that holds the secret, and every key-only knock there is logged (`admin_door_key_only`).
 4. **Database to edge.** `x-cron-key` on `/api/cron/*` and `/api/jobs/tick`, read from Vault on both sides.
 5. **Provider to dashboard.** The ElevenLabs agent's custom-LLM requests to `/api/ask/voice/llm`, one per spoken turn of a voice conversation with Ask (`docs/decisions/0026-a-provider-calls-the-dashboard.md`). Two credentials, neither enough alone: the agent's static secret in its own header, compared in constant time, and the session's id the browser gave the agent at the start, found as a row the member wrote (`ask_voice_sessions`). The row carries the member's access token sealed with a secret the database does not hold; opened and verified as a bearer request is, it runs the turn as the member under RLS. The proxy exempts the door's three exact paths and nothing else under `/api/ask`. (Reading aloud is not this door: Today's Listen and an answer's Read aloud are a one-way clip the dashboard asks the edge for, door 3, `/api/admin/voice/speech`, in the same voice; nobody speaks back, so no agent and no session row.)
 
@@ -195,41 +195,71 @@ workspace's own credentials; the environment's keys never send for another
 business.
 
 A cold email (the `outreach` purpose, Reach out) is always a broadcast, and
-asks more of the door. One call, `outreach_facts` (00177), answers whether the
-business is a lead still being written to, whether its address is on the
-never-again list, whether the person ever wrote back or phoned (00181), and
-what its From domain is and has sent in the last day;
-the refusals are words in contracts (`PURPOSE_REFUSALS`). Email leaves by one
-of two lanes (`emailSender`, `packages/core/src/wire-senders.ts`): the hosted
-lane, the workspace's mailbox on the platform's mail account, for everything
-else; the own lane, a verified sending domain on the cold account, for
-outreach, and for a person's reply to a reach-out that can go from it. A cold
-send never moves its thread, and a failure is recorded on its row rather than
-flagged.
+asks more of the door. One call, `outreach_mailbox_facts` (00424), answers
+whether the business is a lead still being written to, whether its address is
+on the never-again list, whether the person ever wrote back or phoned (00181),
+and which of the workspace's connected mailboxes its From is, with that
+mailbox's day (`mailbox_capacity`); the refusals are words in contracts
+(`PURPOSE_REFUSALS`). Email leaves by one of three lanes (`emailSender`,
+`packages/core/src/wire-senders.ts`): the hosted lane, the workspace's address
+on the platform's mail account, for everything a person or the receptionist
+answers; the campaigns lane, for the offers a customer asked for; and the own
+lane, a mailbox the business connected (decision 0056), for outreach, and for a
+person's reply to a reach-out that can go from it. The own lane's route is not
+a key: it is a closure over the mailbox's row (`ownRoutesFor`,
+`apps/edge/lib/email/mailbox/mailbox-wire.ts`) that takes its token from Vault,
+writes the frozen request as MIME (`packages/channels/src/mailbox/`) and sends
+it through Gmail's or Graph's own send. What the send learns about the mailbox
+is applied at once: a provider's day used up rests it until the next UTC
+midnight, and a grant gone sets it to reconnect and tells its owner once; the
+send itself comes back as a wait. A sent email is stamped with the Message-ID
+and thread the mailbox kept (00424 `stamp_email_from_mailbox`), which no
+receipt brings later. A cold send never moves its thread, and a failure is
+recorded on its row rather than flagged.
 
-A person's reply to a business a reach-out wrote to leaves from the domain
-the reach-out wrote from, and from the mailbox whenever that domain cannot
-carry it (Reach out Part 5, C15, N5). The dashboard freezes the reply twice
-(`replyIdentityOf`, `apps/dashboard/src/server/connections/email.ts`): the
-mailbox's request, as every reply before, as `meta.email.request`, and, when
-the reach-out email it answers left one of the workspace's domains that is
-verified now, a twin from that domain as `meta.email.own_request`. The door
-marks only a person's own reply (`kindOf` is `reply`), and the wire's
-`emailSender` sends the twin by the own route whose address is its From when
-that route holds its Reply-To; otherwise it sends the mailbox's request, which
-every edge can send, so either deploy order and a rollback are safe. Which
-one left is stamped on the row (`meta.email.left_as`, `own` or `mailbox`, with
-the reason; 00226 `stamp_email_left_as`), and the thread says so when it was
-the mailbox.
+A person's reply to a business a reach-out wrote to leaves from the mailbox
+the reach-out wrote from, and as the hosted address whenever that mailbox
+cannot carry it (Reach out Part 5, C15, N5). The dashboard freezes the reply
+twice (`replyIdentityOf`, `apps/dashboard/src/server/connections/email.ts`):
+the hosted address's request, as every reply before, as `meta.email.request`,
+and, when the reach-out email it answers left one of the workspace's
+mailboxes that still sends, a twin from that mailbox as
+`meta.email.own_request`. The door marks only a person's own reply (`kindOf`
+is `reply`), and the wire's `emailSender` sends the twin by the own route
+whose address is its From; otherwise it sends the hosted request, which every
+edge can send, so either deploy order and a rollback are safe. Which one left
+is stamped on the row (`meta.email.left_as`, `own` or `mailbox`, with the
+reason; 00226 `stamp_email_left_as`), and the thread says so when it was the
+hosted address.
+
+A connected mailbox is read back, never forwarded (decision 0056). The
+mailboxes clock (`/api/cron/mailboxes`, every five minutes,
+`lib/email/mailbox/mailbox-sweep.ts`) keeps each one's watch (Gmail's
+`users.watch` on a Pub/Sub topic, Graph's subscription), reads what arrived
+since its cursor (Gmail's history, Graph's delta) and fetches only messages in
+a thread a reach-out started (`mailbox_threads_known`), and a delivery report
+however it is threaded: a report becomes the bounce it reports
+(`applyEmailReceipt`), a reply an `email_ingest` job whose payload says
+`source: mailbox`, read by the same intake verb over the mailbox's own fetch.
+The providers' pushes (`/api/mailbox/gmail`, a Pub/Sub OIDC token;
+`/api/mailbox/graph`, its clientState) only make a sync happen sooner, under
+the same lease. The clock also judges each mailbox's own mail once an hour
+(`mailbox_connection_counts`, contracts `mailboxHoldOf`: any complaint, or
+bounces or noes past 3% of at least 150 sent) and holds it until its owner's
+Resume, keeps its ramp's days (10, 20, 30, 40 a day at 0, 7, 14 and 21 days
+sent, 20 at most on the business's customer domain, never past its owner's
+cap) and reads its DNS daily.
 
 A reach-out (Part 3) is a chain of `playbooks` rows over a lead search, and
 each lead in a step's run is a send (`reach_out_sends`). The run is planned
 whole in SQL (00185); the reach-out clock (`/api/cron/reach-out`, every
 minute) reads what became of the emails it wrote, then claims what is due
-under each domain's lock and writes each email rows first: the email row
-under an id derived from the send, its `outbound_send` job, then the send
-queued. It leaves through the one door, which asks `outreach_facts` about
-that send's own lead. The reads that choose each step's work are bounded SQL
+under each mailbox's lock (`reach_out_claim_from`, within its day) and writes
+each email rows first: the email row under an id derived from the send, its
+`outbound_send` job, then the send queued. A lead keeps the mailbox its first
+email left from for the whole chain, so a nudge answers in the same thread;
+one whose mailbox was removed is not written to again. It leaves through the
+one door, which asks `outreach_mailbox_facts` about that send's own lead. The reads that choose each step's work are bounded SQL
 functions (00186, 00187), and any list of ids the clock still sends goes a
 hundred at a time: a list of ids in a URL breaks past about two hundred, and
 a page cut at a thousand rows would have finished a run with a send open.
@@ -576,6 +606,7 @@ apps/edge/api/
   admin/
   cron/
   jobs/
+  mailbox/
 apps/edge/lib/
   billing/
   calendar/
@@ -655,6 +686,7 @@ packages/channels/src/
   leads/
   lines/
   log/
+  mailbox/
   models/
   tokens/
   voice/
