@@ -285,7 +285,7 @@ edge statements naming no workspace   27   in 14 files
 doors importing db or channels        0   imports in 0 files
 unnamed durations                    58   in 29 files
 event-shaped clocks                   5   of the registered clocks (invariant 6)
-tables with more than one writer     58   411 writers among them
+tables with more than one writer     58   419 writers among them
 doors writing a record with no event   75   writing 85 tables (invariant 2)
 personal columns with no erasure strategy    2   in 1 table
 breakpoints outside the set          33   in 11 files
@@ -293,9 +293,9 @@ literal style values                878   in 22 stylesheets
 primitives outside the kit         1690   selectors naming 702 classes
 inline style props                  195   in 49 files
 wire names not in snake_case         54   in 27 routes
-dead exports, types and modules     269
+dead exports, types and modules     268
 source-text reads in tests          751
-lint warnings                       335   in 143 files, 56 of them exhaustive-deps
+lint warnings                       334   in 143 files, 56 of them exhaustive-deps
 route JS ceiling, KB gzipped        832   the shell included
 route CSS ceiling, KB gzipped       160
 each page's own JS ceiling, KB      256   gzipped, beyond the route
