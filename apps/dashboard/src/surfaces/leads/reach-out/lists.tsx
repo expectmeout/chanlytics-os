@@ -349,6 +349,8 @@ export interface LeadLists {
   /** Opens the import sheet: the first day's own door to it, where no rail is drawn. */
   openImport: () => void;
   writeAct: (a: { ids: string[]; phone?: boolean; shut?: () => void }) => ReactNode;
+  /** Writes to these leads: the list made of them, and its reach-out's sheet (the pile's held leads, 00423). */
+  writeTo: (ids: string[]) => void;
   node: ReactNode;
   stripOf: Lists["stripOf"] | (() => null);
   emptyOf: Lists["emptyOf"] | (() => null);
@@ -441,6 +443,7 @@ export const useLeadLists = ({ flash = null }: { flash?: ((f: PeopleFlash) => vo
     importDoor,
     openImport: () => setImporting(true),
     writeAct,
+    writeTo: (ids: string[]) => void choose(ids),
     node,
     stripOf: L.stripOf,
     emptyOf: L.emptyOf,

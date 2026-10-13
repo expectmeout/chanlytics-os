@@ -89,6 +89,8 @@ export const LIFECYCLE_WORDS = {
     once: "Send once",
     // Beside "Send once" at the sheet's head; the moment it comes on is the To row's (Ruben, 11 Oct 2026: shorter words).
     every: "Every time",
+    /** The third (00423, canvas B): a reach-out to leads, from a search, a list, or the ones the pile adds. */
+    leads: "Write to leads",
     /** The sheet a moment's Turn on opens, titled for the campaign it starts (spec §4.2): "Turn on Appointment reminder". */
     turnOn: (name: string): string => `Turn on ${name}`,
     /**
@@ -298,6 +300,18 @@ export const LIFECYCLE_WORDS = {
     archived: "Its list is archived",
     businesses: "businesses",
     chainNeeds: "Writes to the businesses a search found",
+    /** A reach-out fed by a list its owner adds to (00423), where a search's says the search's name. */
+    ownList: "Its own list",
+    /**
+     * Who is in a reach-out now (00423), its People cell: the waiting and the writing, "17 waiting · 9 writing"; the
+     * done alone where nobody else is left; "Nobody yet" before anyone is.
+     */
+    peopleNow: (p: { waiting: number; writing: number; done: number }): string => {
+      const now = [p.waiting ? `${p.waiting} waiting` : null, p.writing ? `${p.writing} writing` : null].filter(
+        (x): x is string => !!x,
+      );
+      return now.length ? now.join(" · ") : p.done ? `${p.done} done` : "Nobody yet";
+    },
     openRun: "Open the run",
     /**
      * A row's last 30 days, as its cell says them. A reach-out's is in the businesses it wrote to, which "wrote back" is a

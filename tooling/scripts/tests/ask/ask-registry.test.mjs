@@ -497,12 +497,13 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
     // 8 Oct 2026: and its channels, the channels a playbook that exists goes by, to every role its playbook reaches; 9
     // Oct 2026: and its change, a playbook that exists paused, resumed, renamed or retimed, to the same roles; 10 Oct
     // 2026: and its message, a new message written for the Library, to the same roles; 11 Oct 2026: and its plan, an
-    // offer or a whole setup made into its cards, to the same roles.
+    // offer or a whole setup made into its cards, to the same roles; 13 Oct 2026: and its leads, leads added to a
+    // reach-out fed by a list (00423), to the same roles.
     [
       null,
-      ["broadcast", "playbook", "run", "channels", "change", "message", "plan"],
-      ["broadcast", "playbook", "run", "channels", "change", "message", "plan"],
-      ["broadcast", "playbook", "run", "channels", "change", "message", "plan"],
+      ["broadcast", "playbook", "run", "channels", "change", "message", "plan", "leads"],
+      ["broadcast", "playbook", "run", "channels", "change", "message", "plan", "leads"],
+      ["broadcast", "playbook", "run", "channels", "change", "message", "plan", "leads"],
     ],
   );
   const was = (role, name) => TODAY[role].find((t) => t.name === name);
@@ -646,8 +647,16 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
       say: _y,
       stages: _g2,
       starter,
+      root_id: rootId,
+      lead_ids: leadIds,
       ...fields
     } = now.input_schema.properties;
+    // 13 Oct 2026 (00423): the leads action's own two fields, the reach-out and the leads it takes, as many as a list holds.
+    assert.deepEqual(
+      [rootId, leadIds].map(shapeOf),
+      [{ type: "string" }, { type: "array", items: { type: "string" }, maxItems: 500, minItems: 1 }],
+      `${role}: leads' root_id and lead_ids`,
+    );
     // 12 Oct 2026: a new playbook's starter, named by its key, the one field the playbook action gained of its own.
     assert.deepEqual(shapeOf(starter), STARTER, `${role}: the playbook's starter`);
     assert.ok(STARTER.enum.includes("after_visit_review"), "the day after's review ask among them");
@@ -736,7 +745,7 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
     // Less the examples of the actions added since, and the playbook's one naming its starter (12 Oct 2026).
     assert.deepEqual(
       now.input_examples.filter(
-        (ex) => !["run", "channels", "change", "message", "plan"].includes(ex.action) && !("starter" in ex),
+        (ex) => !["run", "channels", "change", "message", "plan", "leads"].includes(ex.action) && !("starter" in ex),
       ),
       before.input_examples,
     );
@@ -750,6 +759,7 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
     assert.ok(now.description.includes(` ${DEFS.get("propose_campaign").actions.change.words} `), role);
     assert.ok(now.description.includes(` ${DEFS.get("propose_campaign").actions.message.words} `), role);
     assert.ok(now.description.includes(` ${DEFS.get("propose_campaign").actions.plan.words} `), role);
+    assert.ok(now.description.includes(` ${DEFS.get("propose_campaign").actions.leads.words} `), role);
     assert.deepEqual(
       now.input_examples.filter((ex) => ex.action === "plan").map((ex) => ex.intent),
       ["offer", "cover_journey"],

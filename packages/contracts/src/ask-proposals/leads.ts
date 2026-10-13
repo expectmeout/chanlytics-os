@@ -1,8 +1,10 @@
 /**
- * The lead finder's card: a search planned in Ask, or the answer to a search that stopped to ask.
+ * The lead finder's cards: a search planned in Ask, or the answer to a search that stopped to ask; and leads added to a
+ * reach-out fed by a list (00423), whose first email still waits for its owner's say on its run (a card never approves
+ * a run).
  */
 import { leadQuestionRoute, leadsRoute } from "../leads/leads";
-import { asText, idIn, rec, type ProposalSpecAboveOperator } from "./spec";
+import { asText, idIn, rec, type ProposalSpec, type ProposalSpecAboveOperator } from "./spec";
 
 /** The search a lead card answers (spec G4), when it answers one rather than starting its own. */
 const amendsOf = (pl: Record<string, unknown> | undefined): { search_id: string; name?: unknown } | null => {
@@ -53,5 +55,45 @@ export const leadSearchSpec: ProposalSpecAboveOperator = {
     if (am) return leadQuestionRoute(am.search_id);
     const sid = idIn(rec(outcome?.undo), "search_id");
     return sid ? leadsRoute({ searchId: sid, list: "all", cls: null }) : "clients/leads";
+  },
+};
+
+/**
+ * Leads added to a reach-out fed by a list (00423 reach_out_add): an operator's, as the add door is. The add itself sends
+ * nothing: its reach-out's next run plans the first email, and that run waits for its owner's say (a list-fed one always
+ * does), so the receipt says so. Undo takes them back off the list, while nothing has left for them (lead_undo).
+ */
+export const reachOutAddSpec: ProposalSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => ({
+    route: "POST reach-outs/[id]/leads",
+    params: { id: asText(pl.root_id) },
+    body: { lead_ids: Array.isArray(pl.lead_ids) ? pl.lead_ids.filter((x) => typeof x === "string") : [] },
+  }),
+  receipt: ({ payload: pl }, data) => {
+    const added = Number(rec(data).added ?? 0);
+    const name = asText(pl.name) || "the reach-out";
+    return added > 0
+      ? `Added ${added === 1 ? "1 lead" : `${added} leads`} to “${name}”. Its next run waits for your say before anything goes.`
+      : `None could be added to “${name}”.`;
+  },
+  undo: {
+    label: () => "Take them back",
+    window: "ten_minutes",
+    record: (_p, data) => {
+      const d = rec(data);
+      return typeof d.op_id === "string" ? { op_id: d.op_id, version: Number(d.version ?? 1) } : null;
+    },
+    call: (u) => ({
+      route: "POST lead-operations/[id]/undo",
+      params: { id: asText(u.op_id) },
+      body: { version: Number(u.version ?? 1) },
+    }),
+    receipt: () => "Taken back off its list. Nothing had been written to them.",
+  },
+  open: ({ payload }) => {
+    const id = idIn(payload, "root_id");
+    return id ? `campaigns/moment:${id}` : "outbound";
   },
 };

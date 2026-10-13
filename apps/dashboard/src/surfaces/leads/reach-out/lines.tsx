@@ -140,6 +140,8 @@ export const LeadReachOut = ({ lead, flash }: { lead: LeadPeekVM | null; flash: 
   }, [leadId, tick]);
   if (!lead || !story || !story.chain || story.lead_id !== leadId) return null;
   const vm = reachOuts.timelineOf(story);
+  // Where it stands, the one line every page says (00423): what is next, or what its answer did.
+  const standing = vm.stopped ? null : reachOuts.standingOf(story);
   const W = reachOuts.words.REACH_OUT_STOP_WORDS;
   const said = (r: { ok: boolean } | null | undefined, ok: string) => {
     if (flash) flash(r && r.ok ? { tone: "ok", msg: ok } : refusalToast(r as Parameters<typeof refusalToast>[0]));
@@ -171,6 +173,11 @@ export const LeadReachOut = ({ lead, flash }: { lead: LeadPeekVM | null; flash: 
           <Icon name="chevron-down" size={12} />
         </span>
       </summary>
+      {standing ? (
+        <p className="pk-alt-why" data-testid="peek-reach-out-standing">
+          {standing.line}
+        </p>
+      ) : null}
       <ol className="pk-steps" data-testid="peek-reach-out-lines">
         {vm.lines.map((l) => (
           <li key={l.id} className="pk-step">

@@ -819,7 +819,13 @@ const SOURCES = {
  * suite holds it to the body before it: ingest_inbound's 00361 in intake/a-delivery-taken-in-again-changes-no-consent.
  */
 // lead_set_stage is re-created whole last by 00413 (decision 0052: who the call reached, p_spoke_with).
-const LATER = { outreach_lead_facts: "00241", lead_set_stage: "00413", ingest_inbound: "00361" };
+// reach_out_audience: 00423 builds it on the one predicate (reach_out_why_not); lead-workbench/reach-out-add.db.test.mjs proves it.
+const LATER = {
+  outreach_lead_facts: "00241",
+  lead_set_stage: "00413",
+  ingest_inbound: "00361",
+  reach_out_audience: "00423",
+};
 
 /**
  * 00344 (decision 0034, step 2) re-creates four doors whole, each its last body but for the person's block, which the

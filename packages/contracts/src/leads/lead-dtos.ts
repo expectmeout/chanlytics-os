@@ -82,6 +82,8 @@ export interface LeadRowDto {
   stage: LeadStage;
   closed_reason: string | null;
   contact_id: string | null;
+  /** The reach-out it goes with (00423): the one that wrote it last, else the one whose search holds it. */
+  chain_id?: string | null;
   /** How the lead has been worked, from `leads_page` (4.2): a fixture copies the real shape even where B draws none of it. */
   last_outcome: string | null;
   last_note: string | null;
@@ -102,6 +104,8 @@ export interface LeadRowDto {
     other_emails: { email: string; why: string }[];
     /** The class rule's reason tokens (D3): what Needs review is grouped by. Optional: a fixture from before carries none. */
     reasons?: string[];
+    /** Later (the pile, 00423): when a member put it off in a pass of this search. */
+    later_at?: string | null;
   };
 }
 

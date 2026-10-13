@@ -2,17 +2,25 @@ import "server-only";
 import { z } from "zod";
 import {
   AppError,
+  LEAD_LIST_MAX,
   ProposeLeadSearchSchema,
   planLeadSearch,
   planSentence,
   proposalBelowNeeds,
+  reachOutAddWords,
   type LeadSearchPlan,
+  type ReachOutAddDto,
 } from "@chanlytics/contracts";
+import { reachOutRootOf } from "@chanlytics/db";
+import { addToReachOut } from "../../../leads/lead-workbench";
 import { answerPlanOf, planFacts, searchRow, waitingQuestionOf, type SearchViewRow } from "../../../leads/leads";
 import { requireUuid } from "../../../request-guards";
 import {
+  UUID,
+  actAction,
   approvalWords,
   defineAct,
+  noteRow,
   offeredTo,
   propose,
   refuse,
@@ -198,4 +206,55 @@ export const propose_lead_search = defineAct({
   name: "propose_lead_search",
   description: LEAD_SEARCH_DESCRIPTION,
   ...leadSearchAct,
+});
+
+/* ------------------------------------------------------------- adding leads to a reach-out (00423) -- */
+
+/**
+ * Leads added to a reach-out fed by a list: the card says, before anything is written, what the add would do (the add
+ * door asked dry, by the same rule: how many would join, and why each other would not), and Approve makes the add. It
+ * never sends and never approves a run: the reach-out's next run plans the first email and waits for its owner's say.
+ */
+async function proposeReachOutAdd(
+  t: ToolContext,
+  input: { root_id: string; lead_ids: string[] },
+): Promise<ProposalOutcome> {
+  const rootId = str(input.root_id, 40);
+  const ids = [...new Set((input.lead_ids ?? []).map((x) => str(x, 40)))].filter((x) => UUID.test(x));
+  if (!UUID.test(rootId)) return refuse("root_id must be a reach-out's id a read returned");
+  if (!ids.length) return refuse("lead_ids must name at least one lead a read returned");
+  const root = await reachOutRootOf(t.ctx.supabase, rootId);
+  if (!root || root.tenant_id !== t.tenantId) return refuse("no such reach-out in this workspace");
+  let dry: ReachOutAddDto;
+  try {
+    dry = await addToReachOut(t.ctx, rootId, { lead_ids: ids }, true);
+  } catch (e) {
+    // A finder-fed reach-out (its search keeps it current), a removed list, a role the door refuses: in its own words.
+    return refuse(e instanceof Error ? e.message : String(e));
+  }
+  const said = reachOutAddWords(dry, root.name);
+  if (!dry.would_add) return refuse(`${said.text}. Say so; nothing was proposed`);
+  noteRow(t, "playbook", rootId, root.name, `campaigns/moment:${rootId}`);
+  return propose({
+    kind: "reach_out_add",
+    title: `Add to “${root.name}”`,
+    summary: `${said.text}. Nothing is written to them until its next run, which waits for your say.`,
+    payload: { root_id: rootId, name: root.name, lead_ids: ids },
+  });
+}
+
+/** Leads added to a reach-out fed by a list: an action of propose_campaign (the cap is twenty tools a role). */
+export const reachOutAddAction = actAction({
+  kind: "reach_out_add",
+  input: z.object({ root_id: z.string(), lead_ids: z.array(z.string()).min(1).max(LEAD_LIST_MAX) }),
+  examples: [
+    {
+      root_id: "3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f",
+      lead_ids: ["5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b", "6f7a8b9c-0d1e-4f2a-9b3c-4d5e6f7a8b9c"],
+    },
+  ],
+  label: "Checking who can be added",
+  words:
+    "Action leads adds leads to a reach-out fed by a list (one made from leads chosen or imported, not a search's own): root_id is the reach-out's id (reach_out on leads with action lead, or the reach-out the page has open), lead_ids the leads' ids from leads. The card says first what the add would do -- how many would join and why each other would not (already written to, a customer, no checked address, with another reach-out) -- by the add's own rule, and is refused in words when none would. It sends nothing and approves no run: the reach-out's next run plans the first email and waits for their say. A reach-out a search keeps current is refused: its search's new leads join it by themselves.",
+  build: proposeReachOutAdd,
 });

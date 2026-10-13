@@ -3,7 +3,7 @@
  * head and the table; the band, the map, the bench and the list's empty state; the selection and its bulk bar, and the
  * rail's doors; a kept search's acts, the plan panel and the peek; the strip, the next page and the first day.
  */
-import type { RefObject } from "react";
+import type { ReactNode, RefObject } from "react";
 import {
   isLeadList,
   type leadBand,
@@ -77,6 +77,9 @@ export type LeadsPage = Controls &
     cellCtxLeads: LeadCellCtx;
     reachOut: ReachOutLines | null;
     lists: LeadLists;
+    /** The pile where the rows stand while it is on, and the door into it under a search (00423). */
+    pileNode: ReactNode;
+    pileDoor: ReactNode;
   };
 
 /**
@@ -157,6 +160,8 @@ export const leadsListProps = (p: LeadsPage) => {
       lists.stripOf(openSearch) ||
       (!isOwnList(openSearch) ? p.ldStrip(openSearch, new Date(), { offered: leads.offered }) : null),
     reachOutStrip: openSearch && reachOut ? <ReachOutLeadsStrip leads={reachOut} /> : null,
+    pile: p.pileNode,
+    pileDoor: p.pileDoor,
     rows: leadShown,
     swapRef: p.swap,
     rowBudget: p.rowBudget,

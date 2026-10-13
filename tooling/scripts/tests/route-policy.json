@@ -680,7 +680,7 @@
     "POST lead-operations/[id]/undo": {
       "kind": "write",
       "scope": "workspace",
-      "role": "partner",
+      "role": "operator",
       "rate": "lead_member",
       "spend": false
     },
@@ -796,6 +796,13 @@
       "rate": "lead_member",
       "spend": false
     },
+    "POST leads/[id]/later": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "lead_member",
+      "spend": false
+    },
     "POST leads/[id]/put-back": {
       "kind": "write",
       "scope": "workspace",
@@ -823,6 +830,13 @@
       "scope": "row",
       "role": "operator",
       "rate": "lead_member",
+      "spend": false
+    },
+    "GET leads/back": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
       "spend": false
     },
     "POST leads/bulk": {
@@ -1320,6 +1334,34 @@
       "rate": "playbook",
       "spend": false
     },
+    "POST reach-outs/[id]/leads": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "lead_member",
+      "spend": false
+    },
+    "POST reach-outs/[id]/leads/check": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "lead_member",
+      "spend": false
+    },
+    "POST reach-outs/[id]/leads/leave": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "lead_member",
+      "spend": false
+    },
+    "GET reach-outs/[id]/people": {
+      "kind": "read",
+      "scope": "row",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
     "POST reach-outs/leads/[id]/stop": {
       "kind": "write",
       "scope": "row",
@@ -1342,6 +1384,13 @@
       "spend": true
     },
     "GET reach-outs/reach": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "GET reach-outs/sources": {
       "kind": "read",
       "scope": "workspace",
       "role": null,

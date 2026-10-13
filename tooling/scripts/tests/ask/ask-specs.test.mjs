@@ -39,7 +39,7 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const POLICY = JSON.parse(fs.readFileSync(path.join(ROOT, "tooling/scripts/tests/route-policy.json"), "utf8")).routes;
 
-/** The nineteen kinds, in AskProposal's order, and one no card has. */
+/** The twenty kinds, in AskProposal's order, and one no card has. */
 const KINDS = [
   "reply",
   "steer",
@@ -52,6 +52,7 @@ const KINDS = [
   "broadcast",
   "playbook",
   "lead_search",
+  "reach_out_add",
   "deal",
   "note",
   "person_details",
@@ -78,6 +79,7 @@ test("the gate each kind checks before Approve is the one it checked at a993b71d
     broadcast: "approve",
     playbook: "approve",
     lead_search: "find",
+    reach_out_add: "approve",
     deal: "approve",
     note: "approve",
     person_details: "approve",
@@ -125,6 +127,7 @@ const UNDO_OPEN = {
   broadcast: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
   playbook: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
   lead_search: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
+  reach_out_add: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
   deal: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
   note: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
   person_details: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
@@ -199,6 +202,8 @@ const OPEN = {
     "clients/leads",
     "clients/leads:s-s1",
   ],
+  // None of the table's payloads names a reach-out: the home. With one, its drawer (the spec's own test below).
+  reach_out_add: "outbound",
   deal: [null, null, null, "clients/p1", null, "clients/p1", null, null, null, null, null, null, null, null],
   note: [null, null, null, "clients/p1", null, "clients/p1", null, null, null, null, null, null, null, null],
   person_details: [null, null, null, "clients/p1", null, "clients/p1", null, null, null, null, null, null, null, null],
@@ -243,6 +248,8 @@ const ANSWER = {
   version: 4,
   id: "b1",
   search_id: "s1",
+  // POST reach-outs/[id]/leads's (ReachOutAddDto): the add, for its undo.
+  op_id: "op1",
   deal: { id: "deal1" },
   note: { id: "n1" },
   // POST templates/message's (WriteMessageAnswer): an email version filed, WhatsApp's in review.
@@ -292,6 +299,7 @@ const SHAPES = {
     card("lead_search", { plan: { count: 50, terms: ["dentists"] } }),
     card("lead_search", { plan: { count: 50 }, amends: { search_id: "s9", name: "Dentists" } }),
   ],
+  reach_out_add: [card("reach_out_add", { root_id: "r1", name: "Spring dentists", lead_ids: ["l1", "l2"] })],
   deal: [
     card("deal", { contact_id: "p1", stage: "won", who: "Maria" }, { step: { body: "Call", due_on: "2026-10-01" } }),
   ],
@@ -350,6 +358,34 @@ function routesOf(kind) {
   }
   return seen;
 }
+
+test("leads added to a reach-out from a card (00423): the add door with the leads alone, a receipt that says the run still waits for its say, an undo that takes them back at the version it made, and its drawer", () => {
+  const spec = PROPOSAL_SPECS.reach_out_add;
+  const p = card("reach_out_add", { root_id: "r1", name: "Spring dentists", lead_ids: ["l1", 7, "l2"] });
+  assert.deepEqual(spec.commit(p, TAB), {
+    route: "POST reach-outs/[id]/leads",
+    params: { id: "r1" },
+    body: { lead_ids: ["l1", "l2"] },
+  });
+  assert.equal(
+    spec.receipt(p, { added: 2 }),
+    "Added 2 leads to “Spring dentists”. Its next run waits for your say before anything goes.",
+  );
+  assert.equal(
+    spec.receipt(p, { added: 1 }),
+    "Added 1 lead to “Spring dentists”. Its next run waits for your say before anything goes.",
+  );
+  assert.equal(spec.receipt(p, { added: 0 }), "None could be added to “Spring dentists”.");
+  assert.deepEqual(spec.undo.record(p, { op_id: "op1", version: 2 }), { op_id: "op1", version: 2 });
+  assert.equal(spec.undo.record(p, { added: 0 }), null, "nothing added, nothing to take back");
+  assert.deepEqual(spec.undo.call({ op_id: "op1", version: 2 }), {
+    route: "POST lead-operations/[id]/undo",
+    params: { id: "op1" },
+    body: { version: 2 },
+  });
+  assert.equal(spec.open(p, null), "campaigns/moment:r1");
+  assert.equal(spec.needs, "operator");
+});
 
 test("a playbook's channels, changed from a card: the playbook's own PUT with the channels alone, the drawer's sentence as its receipt, and an undo that puts back the ones it had", () => {
   const spec = PROPOSAL_SPECS.playbook_channels;
@@ -430,8 +466,8 @@ test("Ask's new campaign opens its drawer once it is made, by the id the route a
   });
 });
 
-test("the nineteen kinds each have a spec, and every route a spec names is a route the app has", () => {
-  assert.deepEqual(Object.keys(PROPOSAL_SPECS), KINDS.slice(0, 19));
+test("the twenty kinds each have a spec, and every route a spec names is a route the app has", () => {
+  assert.deepEqual(Object.keys(PROPOSAL_SPECS), KINDS.slice(0, 20));
   const named = Object.fromEntries(
     Object.keys(PROPOSAL_SPECS).map((k) => [k, [...new Set(routesOf(k).map((x) => x.route))].sort()]),
   );
@@ -454,6 +490,7 @@ test("the nineteen kinds each have a spec, and every route a spec names is a rou
     broadcast: ["POST broadcasts", "POST broadcasts/[id]/cancel"],
     playbook: ["DELETE playbooks/[id]", "POST playbooks"],
     lead_search: ["POST lead-searches", "POST lead-searches/[id]/answer", "POST lead-searches/[id]/stop"],
+    reach_out_add: ["POST lead-operations/[id]/undo", "POST reach-outs/[id]/leads"],
     deal: ["POST contacts/[id]/deal", "POST contacts/[id]/notes"],
     note: ["POST contacts/[id]/notes", "POST contacts/[id]/notes/remove"],
     person_details: ["PUT contacts/[id]/details"],

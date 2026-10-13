@@ -61,7 +61,7 @@ what the script writes.
 | [`lead_rounds`](#lead_rounds) | `packages/db/src/repositories/leads.ts` | on, 1 policy |
 | [`lead_runs`](#lead_runs) | none | on, 1 policy |
 | [`lead_search_members`](#lead_search_members) | none | on, 1 policy |
-| [`lead_searches`](#lead_searches) | `packages/db/src/events.ts`, `packages/db/src/repositories/reach-out-sheet.ts` | on, 1 policy |
+| [`lead_searches`](#lead_searches) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/reach-out-leads.ts`, `packages/db/src/repositories/reach-out-sheet.ts` | on, 1 policy |
 | [`lead_suggestions`](#lead_suggestions) | none | on, 1 policy |
 | [`lead_suppressions`](#lead_suppressions) | `packages/db/src/repositories/outreach.ts` | on, 1 policy |
 | [`leads`](#leads) | `packages/db/src/events.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
@@ -95,7 +95,7 @@ what the script writes.
 | [`rate_hits`](#rate_hits) | none | on, no policy, so only the service role reaches it |
 | [`reach_out_check_spend`](#reach_out_check_spend) | none | on, no policy, so only the service role reaches it |
 | [`reach_out_replies`](#reach_out_replies) | `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/people.ts` | on, 1 policy |
-| [`reach_out_sends`](#reach_out_sends) | `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
+| [`reach_out_sends`](#reach_out_sends) | `packages/db/src/repositories/campaigns/reach-out-check.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
 | [`reply_turns`](#reply_turns) | none | on, no policy, so only the service role reaches it |
 | [`segment_members`](#segment_members) | `packages/db/src/repositories/lists.ts` | on, 3 policies |
 | [`segments`](#segments) | `packages/db/src/events.ts`, `packages/db/src/repositories/lists.ts` | on, 4 policies |
@@ -1496,6 +1496,7 @@ One lead in one search, with that search's judgment ({answer, reasons, shares}),
 | `blanked_at` | timestamp with time zone | yes |  |  |
 | `version` | integer | no | `1` |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
+| `later_at` | timestamp with time zone | yes |  | Later (the pile, 00423): when a member put this lead off in a pass, nothing written. Cleared by its undo, by an add, and by a decision. |
 
 Foreign keys:
 
@@ -1512,7 +1513,7 @@ Foreign keys:
 
 The saved object: who was asked for, in the owner's words, and the current plan. No state and no counters: lead_searches_view derives both from the rounds and the members.
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/reach-out-sheet.ts`
+- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/reach-out-leads.ts`, `packages/db/src/repositories/reach-out-sheet.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -2588,7 +2589,7 @@ Foreign keys:
 
 Reach out: one lead in one step's run. Planned (a time and a domain), claimed under the domain's capacity, queued as an email row with its outbound_send job, then what that row became. Written by the service role only (the reach-out clock, apps/edge/lib/reach-out).
 
-- Owned by: `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`
+- Owned by: `packages/db/src/repositories/campaigns/reach-out-check.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 

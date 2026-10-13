@@ -129,6 +129,35 @@ async function chain() {
     }),
   );
 }
+/**
+ * The chain's second step, made once per chain (a step has one next, playbooks_one_next): a later email is its, never
+ * the first step's again (one first email per lead, 00424).
+ */
+const nextSteps = new Map();
+async function stepAfter(root) {
+  if (!nextSteps.has(root))
+    nextSteps.set(
+      root,
+      await one(
+        db.from("playbooks").insert({
+          tenant_id: A,
+          kind: "reach_out",
+          policy_class: "outreach",
+          gap_minutes: 5,
+          template_id: template,
+          template_name: `reach_reply_${stamp}`,
+          template_language: "en",
+          params: [],
+          name: "Movers · a nudge",
+          trigger: "after_step",
+          after_playbook_id: root,
+          after_days: 3,
+          state: "running",
+        }),
+      ),
+    );
+  return nextSteps.get(root);
+}
 let days = 0;
 /** A run of the chain: each on a day of its own, as a chain has one run a day (broadcasts_playbook_run). */
 const run = (root, state) =>
@@ -226,7 +255,7 @@ async function wroteTo({
           id,
           tenant_id: A,
           broadcast_id: next,
-          playbook_id: root,
+          playbook_id: await stepAfter(root),
           root_id: root,
           lead_id: lead,
           contact_id: person,
@@ -266,7 +295,7 @@ async function sentAgain(ro) {
       id: crypto.randomUUID(),
       tenant_id: A,
       broadcast_id: next,
-      playbook_id: root,
+      playbook_id: await stepAfter(root),
       root_id: root,
       lead_id: ro.lead,
       contact_id: ro.person,

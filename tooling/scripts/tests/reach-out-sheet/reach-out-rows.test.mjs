@@ -373,7 +373,7 @@ test("a chain is a row of the ledger -- its name, its steps and search, its stat
     [ROOT, "r2"],
   );
   const said = textOf(lines[0]);
-  for (const part of ["Reach out · Personal trainers", "Personal trainers · Austin", "2 steps"])
+  for (const part of ["Reach out · Personal trainers", "Personal trainers · Austin", "2 emails"])
     assert.ok(said.includes(part), `${part}: ${said}`);
   assert.deepEqual(
     lines.map((l) => !!byTestId(l, "cmh-resume")),

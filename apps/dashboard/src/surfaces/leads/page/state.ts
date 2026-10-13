@@ -33,6 +33,7 @@ const PL_NO_LEADS: LeadsSurface = {
   route: "clients/leads",
   suggestions: null,
   month: null,
+  pile: null,
   peeked: [],
   tz: "UTC",
   readFailed: false,

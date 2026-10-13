@@ -7,13 +7,17 @@
  * primary act, so a role that may not (a viewer, or an owner viewing as one) is shown it gated by the one role table
  * (gate("approve")), and told why at the control, never offered a sheet it could not save. On a phone it is an accent word
  * at the end of the search's line, under its counts (a full-width coral bar pinned over the rows, then a second coral button, until 10 Oct 2026). Saved, the sheet stays open to say what the run did (R14); the door reads its search
- * again behind it.
+ * again behind it. Its reach-out opens at who is in it (`moment:<id>:people`, 00423). On a desk, a list that feeds its
+ * reach-out offers Add to its reach-out first: Leads, with that reach-out where the next pile's adds go, as the drawer's
+ * Add leads does.
  */
 import { useEffect, useState } from "react";
+import { REACH_OUT_ADD_WORDS, isLeadList, reachOutPeopleRoute } from "@chanlytics/contracts";
 import type { ReachOutReachDto } from "@chanlytics/contracts";
 import { gate, navigate } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
+import { addLeadsTo } from "./people";
 import { ReachOutSheet } from "./sheet";
 import { reachOuts } from "./surface";
 
@@ -34,7 +38,8 @@ function useReachOutReach(searchId: string | null, version: number) {
 }
 
 interface DoorProps {
-  search?: { id: string; name: string } | null;
+  /** The open search; its `via` says whether it is a list its owner adds to. */
+  search?: { id: string; name: string; via?: string | null } | null;
   phone?: boolean;
 }
 
@@ -48,14 +53,28 @@ export function ReachOutDoor({ search, phone = false }: DoorProps) {
   // The button that presses is drawn only where there is a door to press.
   const press = () => {
     if (!door) return;
-    return door.kind === "open" ? navigate(`outbound/${door.rootId}`) : setOpen({ include: door.include });
+    return door.kind === "open" ? navigate(reachOutPeopleRoute(door.rootId)) : setOpen({ include: door.include });
   };
   const gated = door && door.kind === "write" ? gate("approve", "write to these leads") : {};
+  // A list that feeds its reach-out takes more (00423): on a desk, adding comes first and opening it beside.
+  const adds = door && door.kind === "open" && !phone && isLeadList(search) ? door.rootId : null;
   return (
     <>
+      {adds && (
+        <Button
+          variant="primary"
+          size="sm"
+          className="ro-door"
+          onClick={() => addLeadsTo(adds)}
+          {...gate("approve", "add leads to a reach-out")}
+          data-testid="leads-add-to"
+        >
+          <Icon name="plus" size={12} /> {REACH_OUT_ADD_WORDS.door}
+        </Button>
+      )}
       {door && (
         <Button
-          variant={phone ? "plain" : "primary"}
+          variant={phone ? "plain" : adds ? "secondary" : "primary"}
           size="sm"
           className={`ro-door${phone ? " ro-door-phone" : ""}`}
           onClick={press}

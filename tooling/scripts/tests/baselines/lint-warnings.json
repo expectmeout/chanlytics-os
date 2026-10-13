@@ -447,7 +447,7 @@
     "@typescript-eslint/no-base-to-string": 13
   },
   "packages/db/src/repositories/reach-out.ts": {
-    "@typescript-eslint/no-base-to-string": 2
+    "@typescript-eslint/no-base-to-string": 1
   },
   "packages/db/src/repositories/sending-domains.ts": {
     "@typescript-eslint/no-base-to-string": 1

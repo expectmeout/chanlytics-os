@@ -1,9 +1,10 @@
 /**
- * Campaigns' home, New message (canvas L3): one door for everything a person writes, with a choice at its head between the two
- * things it can be. Send once is the send screen (broadcasts/broadcasts-page.tsx BroadcastSend: who, what and when, held by
- * the Broadcasts page's own state, so what is kept in the tab, the channels, the preview and the one Send are the page's);
- * Every time a moment comes is the playbook composer (playbooks/composer.tsx). Both are hosted as they are, in the kit's
- * sheet from the side; their insides are not changed here.
+ * Campaigns' home, New message (canvas L3): one door for everything a person writes, with a choice at its head between the
+ * three things it can be. Send once is the send screen (broadcasts/broadcasts-page.tsx BroadcastSend: who, what and when,
+ * held by the Broadcasts page's own state, so what is kept in the tab, the channels, the preview and the one Send are the
+ * page's); Every time a moment comes is the playbook composer (playbooks/composer.tsx); Write to leads (00423, canvas B) is
+ * where a reach-out starts (reach-out/sources.tsx). Each is hosted as it is, in the kit's sheet from the side; their
+ * insides are not changed here.
  *
  * The address says what is open (`campaigns/new`, `new:to:<audience>`, `new:every`, `new:moment:<trigger>`,
  * `new:edit:<playbook>`), so a Turn on lands on the moment it was pressed for, a "message these people" on the audience it
@@ -21,6 +22,7 @@ import { BroadcastSend } from "../broadcasts/broadcasts-page";
 import type { Flash } from "../broadcasts/page/types";
 import type { BroadcastsSurface } from "../broadcasts/surface";
 import { PlaybookComposer } from "../playbooks/composer";
+import { WriteToLeads } from "../reach-out/sources";
 import type { PlaybookCardVM, PlaybooksSurface } from "../playbooks/surface";
 import type { HomeAddress } from "./address";
 import { useKept } from "./drawer";
@@ -43,8 +45,8 @@ interface NewMessageProps {
   onClose: () => void;
   /** The send screen's door to where their yes is got: the sheet's address is replaced by the section's, never closed past. */
   onYes: (route: string) => void;
-  /** The choice at the head: Send once, or Every time a moment comes (the address is replaced, never pushed). */
-  onKind: (mode: "once" | "every") => void;
+  /** The choice at the head: Send once, Every time a moment comes, or Write to leads (the address is replaced, never pushed). */
+  onKind: (mode: "once" | "every" | "leads") => void;
   /** The server took a playbook: its id and name, and whether it was changed. */
   onSaved: (d: { id?: string; name?: string }, changed: boolean) => void;
 }
@@ -81,6 +83,7 @@ function NotAPlaybook({ reachOuts, home }: Pick<NewMessageProps, "reachOuts" | "
 function Held(p: NewMessageProps & { compose: Compose; onTrigger: (trigger: string) => void }) {
   const { compose, playbooks, onClose, onSaved } = p;
   if (compose.mode === "once") return <SendOnce {...p} />;
+  if (compose.mode === "leads") return <WriteToLeads />;
   if (!playbooks) return null;
   const editing = compose.edit ? (playbooks.rows.find((r: PlaybookCardVM) => r.id === compose.edit) ?? null) : null;
   if (compose.edit && !editing) return <NotAPlaybook reachOuts={p.reachOuts} home={p.home} />;
@@ -149,6 +152,7 @@ export function NewMessage(p: NewMessageProps) {
             options={[
               { value: "once", label: W.once, testid: "cmh-kind-once" },
               { value: "every", label: W.every, testid: "cmh-kind-every" },
+              { value: "leads", label: W.leads, testid: "cmh-kind-leads" },
             ]}
           />
         )

@@ -28,6 +28,8 @@ export function useKept<T>(value: T | null): T | null {
 interface DrawerProps {
   /** The playbook or reach-out the address names, or null while none is open. */
   id: string | null;
+  /** The part of it the address opens at (`moment:<id>:people`): a reach-out's People, scrolled to. */
+  part: "people" | null;
   home: LifecycleHome;
   playbooks: PlaybooksSurface | undefined;
   /** The chains; undefined before they are read, null where they could not be. */
@@ -45,6 +47,7 @@ interface DrawerProps {
 /** What a moment's id is in the sheet: a playbook, a reach-out's chain, or what its chains' read says it cannot yet be told. */
 function DrawerBody({
   id,
+  part,
   home,
   playbooks,
   reachOuts,
@@ -62,7 +65,10 @@ function DrawerBody({
     );
   }
   const chain = reachOuts ? (reachOuts.find((c) => c.root_id === id) ?? null) : null;
-  if (chain) return <ReachOutPane chain={chain} canAct={canAct} flash={flash} onClose={onClose} onEdit={onEditChain} />;
+  if (chain)
+    return (
+      <ReachOutPane chain={chain} canAct={canAct} flash={flash} onClose={onClose} onEdit={onEditChain} at={part} />
+    );
   // What is no playbook waits on the chains: unread, it is not yet known to be missing; failed, it cannot be told.
   if (reachOuts === undefined) return <HomeReading testid="cmh-drawer-reading" />;
   if (reachOuts === null) {

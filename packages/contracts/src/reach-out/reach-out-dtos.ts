@@ -5,6 +5,7 @@
  */
 import type { ReachOutHold } from "./reach-out-words";
 import type { StepHand } from "./reach-out-hand";
+import type { ReachOutFedBy } from "./reach-out-leads";
 
 /** A step's words and place, as the sheet edits them. */
 export interface ReachOutStepDto {
@@ -50,6 +51,20 @@ export interface ReachOutChainDto {
   domains: Array<{ host: string; sent_days: number }>;
   next: ReachOutNextFacts;
   created_at: string;
+  /** What feeds it (00423): a list its owner adds to, or the search that keeps it current; absent before it. */
+  fed_by?: ReachOutFedBy;
+  /**
+   * Who is in it now (00423 reach_out_people_counts): the ledger's People cell, apart from the last 30 days. Null where
+   * they could not be counted; absent from a server before it.
+   */
+  people?: ReachOutPeopleCountsDto | null;
+}
+
+/** How many of a reach-out's leads are in each group now (00423 reach_out_people_of, the one rule). */
+export interface ReachOutPeopleCountsDto {
+  waiting: number;
+  writing: number;
+  done: number;
 }
 
 export interface ReachOutStepCounts {

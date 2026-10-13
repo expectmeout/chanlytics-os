@@ -78,6 +78,8 @@ export interface TodayQueueRowVM {
    *  "Leads" is a search waiting on its owner (spec G6), the one row that is not a person. "Next step" is a step due: no
    *  wire at all, the kind of row. "Calendar" is a visit to mark, which the Calendar holds. */
   channel: "WhatsApp" | "Phone" | "Text" | "Email" | "Leads" | "Next step" | "Calendar";
+  /** What it came through, after the wire: a reply's reach-out (00423: "Email, Early gyms"), so it is never read alone. */
+  via?: string | null;
   /** "waited 2h" · "closes 5:10 PM · in 40m" · "2:14 PM · 1:35"; empty on a step, whose day is the first word of its state line. */
   when: string;
   sentence: string;

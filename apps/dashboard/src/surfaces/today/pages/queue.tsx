@@ -118,7 +118,7 @@ function personRows(rows: TodayQueueRowVM[], nav: Nav, acts: RowActs) {
         name={r.who}
         // The business they work at, dim after their name, from People's rows (0052).
         trail={namesAPerson(r) ? businessTrailFor(r.person_id) : null}
-        meta={[r.channel, r.when].filter(Boolean).join(", ")}
+        meta={[r.channel, r.via, r.when].filter(Boolean).join(", ")}
         sentence={r.sentence}
         quoted={r.quoted}
         status={r.status}

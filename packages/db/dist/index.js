@@ -2693,11 +2693,11 @@ async function emailWordsByTemplate(db, tenantId, ids) {
   if (error) throw new Error(`cannot read the reach-outs' words: ${error.message}`);
   return new Map((data ?? []).map((t) => [t.id, emailWordsFrom(t)]));
 }
-async function searchNamesByIds(db, tenantId, ids) {
+async function searchesByIds(db, tenantId, ids) {
   if (ids.length === 0) return /* @__PURE__ */ new Map();
-  const { data, error } = await db.from("lead_searches").select("id, name").eq("tenant_id", tenantId).in("id", ids);
+  const { data, error } = await db.from("lead_searches").select("id, name, via").eq("tenant_id", tenantId).in("id", ids);
   if (error) throw new Error(`cannot read the searches: ${error.message}`);
-  return new Map((data ?? []).map((s) => [s.id, s.name]));
+  return new Map((data ?? []).map((s) => [s.id, { name: s.name, via: s.via }]));
 }
 async function leadNamesByIds(db, tenantId, ids) {
   if (ids.length === 0) return /* @__PURE__ */ new Map();
@@ -3084,6 +3084,84 @@ async function leadWritten(db, p) {
   if (e3) throw new Error(`cannot record the lead's email: ${e3}`);
   return true;
 }
+async function recordCheck(db, p) {
+  const { data, error } = await db.from("reach_out_sends").update({ ...p.patch, check_started_at: null }).eq("tenant_id", p.tenantId).eq("id", p.id).eq("state", "planned").is("checked_at", null).eq("check_gen", p.gen).select("id");
+  if (error) throw new Error(`cannot record the send's check: ${error.message}`);
+  return (data ?? []).length === 1;
+}
+async function workspaceMaySpend(db, tenantId) {
+  const [tenant, billing] = await Promise.all([
+    db.from("tenants").select("status").eq("id", tenantId).maybeSingle(),
+    db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle()
+  ]);
+  if (tenant.error) throw new Error(`cannot read the workspace: ${tenant.error.message}`);
+  if (billing.error) throw new Error(`cannot read the workspace's billing: ${billing.error.message}`);
+  if (tenant.data?.status === "paused" || !billing.data) return false;
+  return maySpend(billing.data.mode, billing.data.status);
+}
+async function workspaceAbout(db, tenantId) {
+  const { data, error } = await db.from("business_records").select("about").eq("tenant_id", tenantId).maybeSingle();
+  if (error) throw new Error(`cannot read the business record: ${error.message}`);
+  return data?.about?.trim() || null;
+}
+
+// src/repositories/campaigns/reach-out-leads.ts
+import { isLeadList } from "../../contracts/dist/index.js";
+var answer = (data, error) => error ? { data: null, error: { code: error.code, message: error.message } } : { data, error: null };
+async function reachOutAdd(db, p) {
+  const { data, error } = await db.rpc("reach_out_add", { p_root_id: p.rootId, p_lead_ids: p.leadIds, p_dry: p.dry });
+  return answer(data, error);
+}
+async function leadMemberLater(db, p) {
+  const { data, error } = await db.rpc("lead_member_later", { p_search_id: p.searchId, p_lead_id: p.leadId });
+  return answer(data, error);
+}
+async function leadPileCounts(db, p) {
+  const { data, error } = await db.rpc("lead_pile_counts", {
+    p_tenant_id: p.tenantId,
+    p_search_id: p.searchId,
+    ...p.listId ? { p_list_id: p.listId } : {},
+    ...p.cls ? { p_class: p.cls } : {}
+  });
+  return answer(data, error);
+}
+async function reachOutChainPeople(db, p) {
+  const { data, error } = await db.rpc("reach_out_chain_people", {
+    p_tenant_id: p.tenantId,
+    p_root_id: p.rootId,
+    ...p.limit ? { p_limit: p.limit } : {}
+  });
+  return answer(data, error);
+}
+async function reachOutFedByOf(db, tenantId, searchId) {
+  if (!searchId) return "search";
+  const { data, error } = await db.from("lead_searches").select("via").eq("tenant_id", tenantId).eq("id", searchId).maybeSingle();
+  if (error) throw new Error(`cannot read the chain's search: ${error.message}`);
+  return isLeadList(data) ? "list" : "search";
+}
+async function leadsBackToday(db, tenantId) {
+  const { data, error } = await db.rpc("leads_back_today", { p_tenant_id: tenantId });
+  return answer(data, error);
+}
+async function reachOutLeaveOut(db, p) {
+  const { data, error } = await db.rpc("reach_out_leave_out", { p_root_id: p.rootId, p_lead_id: p.leadId });
+  return answer(data, error);
+}
+async function reachOutSources(db, tenantId) {
+  const { data, error } = await db.rpc("reach_out_sources", { p_tenant_id: tenantId });
+  return answer(data, error);
+}
+async function reachOutPeopleCounts(db, tenantId) {
+  try {
+    const { data, error } = await db.rpc("reach_out_people_counts", { p_tenant_id: tenantId });
+    const r = answer(data, error);
+    return r.error ? null : r.data;
+  } catch {
+    return null;
+  }
+}
+
+// src/repositories/campaigns/reach-out-check.ts
 var num = (v) => v === null || v === void 0 || v === "" ? null : Number(v);
 var text = (v) => typeof v === "string" ? v : null;
 function recordOf(r) {
@@ -3102,7 +3180,9 @@ function recordOf(r) {
     what_you_asked: text(r.what_you_asked),
     site_listings: Number(r.site_listings ?? 0),
     name_listings: Number(r.name_listings ?? 0),
-    email_domain_shared: r.email_domain_shared === true
+    email_domain_shared: r.email_domain_shared === true,
+    reviews_dist: r.reviews_dist ?? null,
+    claimed: typeof r.claimed === "boolean" ? r.claimed : null
   };
 }
 async function uncheckedSends(db, p) {
@@ -3119,7 +3199,7 @@ async function uncheckedSends(db, p) {
       send,
       check_gen: Number(r.check_gen ?? send.check_gen ?? 0),
       template_id: String(r.template_id),
-      template_language: String(r.template_language ?? "en"),
+      template_language: text(r.template_language) ?? "en",
       signed_by: text(r.signed_by),
       included_for: Array.isArray(r.included_for) ? r.included_for.filter((x) => typeof x === "string") : [],
       record: recordOf(r)
@@ -3142,11 +3222,6 @@ async function reachOutRecord(db, p) {
   if (error) throw new Error(`cannot read the business's record: ${error.message}`);
   const row = (data ?? [])[0];
   return row ? recordOf(row) : null;
-}
-async function recordCheck(db, p) {
-  const { data, error } = await db.from("reach_out_sends").update({ ...p.patch, check_started_at: null }).eq("tenant_id", p.tenantId).eq("id", p.id).eq("state", "planned").is("checked_at", null).eq("check_gen", p.gen).select("id");
-  if (error) throw new Error(`cannot record the send's check: ${error.message}`);
-  return (data ?? []).length === 1;
 }
 async function heldStale(db, before, limit, tenantId) {
   const { data, error } = await db.rpc("reach_out_held_stale", {
@@ -3173,21 +3248,6 @@ async function takeCheckAttempt(db, p) {
   });
   if (error) throw new Error(`cannot take the check's attempt: ${error.message}`);
   return data === true;
-}
-async function workspaceMaySpend(db, tenantId) {
-  const [tenant, billing] = await Promise.all([
-    db.from("tenants").select("status").eq("id", tenantId).maybeSingle(),
-    db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle()
-  ]);
-  if (tenant.error) throw new Error(`cannot read the workspace: ${tenant.error.message}`);
-  if (billing.error) throw new Error(`cannot read the workspace's billing: ${billing.error.message}`);
-  if (tenant.data?.status === "paused" || !billing.data) return false;
-  return maySpend(billing.data.mode, billing.data.status);
-}
-async function workspaceAbout(db, tenantId) {
-  const { data, error } = await db.from("business_records").select("about").eq("tenant_id", tenantId).maybeSingle();
-  if (error) throw new Error(`cannot read the business record: ${error.message}`);
-  return data?.about?.trim() || null;
 }
 
 // src/repositories/templates.ts
@@ -5768,9 +5828,12 @@ export {
   lastInboundEmail,
   lastOutboundEmailSubject,
   leadAddressBounced,
+  leadMemberLater,
   leadNamesByIds,
+  leadPileCounts,
   leadSlotsOf,
   leadWritten,
+  leadsBackToday,
   leavePersonLead,
   lineForwardingSet,
   linkCallMessage,
@@ -5856,11 +5919,16 @@ export {
   putTenantConfig,
   queuedOutcomes,
   queuedRecipients,
+  reachOutAdd,
   reachOutAudience,
   reachOutBookedFrom,
+  reachOutChainPeople,
   reachOutChainTotals,
   reachOutDayDue,
+  reachOutFedByOf,
   reachOutFollowers,
+  reachOutLeaveOut,
+  reachOutPeopleCounts,
   reachOutPerson,
   reachOutRecord,
   reachOutReplyOf,
@@ -5868,6 +5936,7 @@ export {
   reachOutRootOf,
   reachOutRunSendsOf,
   reachOutSendRefOf,
+  reachOutSources,
   reachOutStepsOf,
   readAllRows,
   readAllRowsByKey,
@@ -5941,7 +6010,7 @@ export {
   scrubPersonNotes,
   scrubProviderEvents,
   searchMessages,
-  searchNamesByIds,
+  searchesByIds,
   seePersonNote,
   sendJobScheduled,
   sendNow,

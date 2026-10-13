@@ -12,6 +12,7 @@ import {
   chainIssueWords,
   isReachOutHold,
   handOf,
+  isLeadList,
   isReachOutRefusal,
   isReachOutRun,
   localDate,
@@ -41,7 +42,8 @@ import {
   reachOutStepsOf,
   runsWaitingOf,
   saveReachOutChain,
-  searchNamesByIds,
+  searchesByIds,
+  reachOutPeopleCounts,
   sendingDomainsOf,
   workspaceMaySpend,
   type ReachOutRunSend,
@@ -99,7 +101,10 @@ function chainOf(root: StepRow, all: StepRow[]): StepRow[] {
   return out;
 }
 
-/** The chains of a workspace, without their reports (R23: a report is read when its row is opened). */
+/**
+ * The chains of a workspace, without their reports (R23: a report is read when its row is opened), each with what feeds
+ * it and who is in it now (00423: the ledger's People cell, counted by the drawer's one rule).
+ */
 export async function chainsOf(ctx: RouteContext, tenantId: string): Promise<ReachOutChainDto[]> {
   const sb = ctx.supabase;
   const steps = await reachOutStepsOf(sb, tenantId);
@@ -109,14 +114,16 @@ export async function chainsOf(ctx: RouteContext, tenantId: string): Promise<Rea
   if (roots.length === 0) return [];
   const templateIds = steps.map((s) => s.template_id).filter((x): x is string => !!x);
   const searchIds = roots.map((r) => r.lead_search_id).filter((x): x is string => !!x);
-  const [words, names, waiting, domains, mode, spend] = await Promise.all([
+  const [words, searches, waiting, domains, mode, spend, people] = await Promise.all([
     emailWordsByTemplate(sb, tenantId, templateIds),
-    searchNamesByIds(sb, tenantId, searchIds),
+    searchesByIds(sb, tenantId, searchIds),
     runsWaitingOf(sb, tenantId),
     sendingDomainsOf(sb, tenantId),
     // The step's run's own readings (packages/db): its outreach mode, and whether the workspace may spend.
     outreachModeOf(sb, tenantId),
     workspaceMaySpend(sb, tenantId),
+    // Who is in each now: a count that fails is a dash on the ledger, never the chains' failure.
+    reachOutPeopleCounts(sb, tenantId),
   ]);
   // The domains the chain's run sends from, by the run's own rule (contracts reachOutSendsFrom): its named ones, or every
   // one when it names none, verified and clean. A held or unverified domain it names is not its pace.
@@ -141,10 +148,13 @@ export async function chainsOf(ctx: RouteContext, tenantId: string): Promise<Rea
         state: s.state === "running" ? "running" : "paused",
       };
     });
+    const search = root.lead_search_id ? searches.get(root.lead_search_id) : undefined;
     return {
       root_id: root.id,
       name: root.name,
-      search: root.lead_search_id ? { id: root.lead_search_id, name: names.get(root.lead_search_id) ?? "" } : null,
+      search: root.lead_search_id ? { id: root.lead_search_id, name: search?.name ?? "" } : null,
+      fed_by: isLeadList(search) ? "list" : "search",
+      people: people ? (people[root.id] ?? { waiting: 0, writing: 0, done: 0 }) : null,
       state: root.state === "running" ? "running" : "paused",
       include_unconfirmed: root.include_unconfirmed === true,
       gap_minutes: root.gap_minutes ?? 0,

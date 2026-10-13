@@ -44,11 +44,14 @@ const reading = (over = {}) => ({
   ...over,
 });
 const strip = (over) => replyStripOf(reading(over), NOW, TZ);
+// What the reply answers (00423): the reach-out and its email, so a reply is never read alone.
+const FIRST = "Answers your first email of “Reach out · Movers”";
 
 test("interested and a question: talking now, and the draft is in the reply box", () => {
   assert.deepEqual(strip({ draft: "Thank you for writing.", draft_state: "written" }), {
     title: "Wrote back · interested",
     said: "“Wants more details”",
+    answers: FIRST,
     did: "Talking now. The receptionist drafted an answer: it's in the reply box.",
     doors: ["use_draft"],
   });
@@ -79,6 +82,7 @@ test("no: what it stopped, the domain when it was theirs, and the undo while the
   assert.deepEqual(strip({ ...no, said_no: { address: "office@example.com", domain: null } }), {
     title: "Said no",
     said: "“Asks to be taken off the list”",
+    answers: FIRST,
     did: "Nothing more will be written to office@example.com.",
     doors: ["undo"],
   });
@@ -98,6 +102,7 @@ test("an undone no says what stands now: a person wrote back; an automatic reply
   assert.deepEqual(strip(undone), {
     title: "Wrote back",
     said: "“Wants more details”",
+    answers: FIRST,
     did: "Read as no, then undone. The reach-out stays stopped: they wrote back.",
     doors: [],
   });
@@ -126,6 +131,7 @@ test("wrong person, other, and a reply not read yet", () => {
   assert.deepEqual(strip({ intent: "other", summary: null }), {
     title: "Wrote back",
     said: null,
+    answers: FIRST,
     did: null,
     doors: [],
   });
@@ -198,4 +204,10 @@ test("the notice for a no says it can be undone on the thread, and nothing else 
   assert.match(n("no").body, /If that's a misreading, undo it on the thread within seven days\./);
   assert.doesNotMatch(n("interested").body, /undo/);
   assert.doesNotMatch(n("no").redacted, /undo/);
+});
+
+test("a reply says which email of which reach-out it answers, and nothing when no reach-out wrote it", () => {
+  assert.equal(strip({}).answers, FIRST);
+  assert.equal(strip({ step: 3 }).answers, "Answers email 3 of “Reach out · Movers”");
+  assert.equal(strip({ chain: null }).answers, null);
 });

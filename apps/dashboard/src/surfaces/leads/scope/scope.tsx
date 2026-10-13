@@ -16,6 +16,7 @@ import { PeopleRail } from "../../people/rail/people-rail";
 import { PeopleStanding } from "../../people/rail/standing";
 import { PeopleTable, type TableSection } from "../../people/table/table";
 import { LeadBand } from "../bench/band";
+import { LeadsBackToday } from "../pile/back-today";
 import { LeadReviewBench } from "../bench/bench";
 import { LeadExcludedChips, LeadReviewGroups, ldExcludedChips } from "../bench/chips";
 import { LeadRowsCallMenu } from "../cells/call-menu";
@@ -286,6 +287,8 @@ const firstDayOf = (p: P, phone: boolean) => (
 const scopeBodyOf = (p: P, phone: boolean, table: ReactElement) => {
   const search = p.search;
   if (p.surface.readFailed) return <FailedRead kind="block" what="your leads" surface="leads" testid="leads-failed" />;
+  // The pile (00423): one lead at a time where the rows stand, while it is on.
+  if (p.pile) return p.pile;
   if (p.mapOpen && p.plot && p.plot.pins.length)
     return (
       <>
@@ -431,6 +434,9 @@ const newSearchOf = (p: P, phone: boolean) => (
 );
 
 /** The scope's main column: the phone's bar, the scroller and what is in it, and what stands over it. */
+/** Back today (00423, decision 9): who asked to hear back on a day that has come, over the lists, never over a search. */
+const backTodayOf = (p: P) => (!p.search && !p.firstDay && !p.surface.readFailed ? <LeadsBackToday /> : null);
+
 const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections) => {
   const search = p.search;
   const table = tableOf(p, phone, sections);
@@ -451,6 +457,7 @@ const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections
             {!phone && p.finderOpen && planPanelOf(p, false)}
 
             {!search && !phone && !p.firstDay && !L.readFailed ? listHeadOf(p) : null}
+            {backTodayOf(p)}
 
             {/* One line for the open search: what happened, its three piles as the tabs that open them, and the one next step.
             The band rides inside the strip; with no strip to hold it, it stands alone as it did. */}
@@ -465,6 +472,7 @@ const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections
               </LeadStrip>
             ) : null}
             {search && !p.strip && p.band && bandOf(p)}
+            {p.pileDoor}
             {p.reachOutStrip}
             {p.view.cls === "excluded" && (
               <LeadExcludedChips chips={ldExcludedChips(L.rows)} active={p.chip} onPick={p.onPickChip} />

@@ -469,8 +469,11 @@ export interface LifecycleRow {
   needs: LifecycleNeeds;
   needsWords: string;
   channels: readonly LifecycleChannelMark[];
-  /** Who its moment or list names now (the card's pool), and what the number counts; null where not counted. */
-  people: { n: number | null; unit: string };
+  /**
+   * Who its moment or list names now (the card's pool), and what the number counts; null where not counted. `words`, where
+   * a row says more than one number (a reach-out's "17 waiting · 9 writing", 00423), is said in its place; `n` still sorts.
+   */
+  people: { n: number | null; unit: string; words?: string };
   results: LifecycleRowResults;
   /** Its next run in words and the moment it is sorted by: a waiting run now, a paused one never (null). */
   next: { words: string; atMs: number | null };

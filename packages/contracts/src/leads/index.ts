@@ -102,6 +102,7 @@ export {
   LEAD_CLASSES,
   LEAD_LISTS,
   LEAD_SORTS,
+  LEAD_VIEW_SORTS,
   LEAD_CALL_OUTCOMES,
   LEAD_NOT_A_FIT_WHYS,
   LEAD_STAGE_WORDS,
@@ -309,3 +310,19 @@ export {
   JUDGE_OUTPUT_SCHEMA,
 } from "./lead-judge";
 export type { PlaceFacts, JudgeFactKey, JudgeCriterionAnswer, JudgePlaceAnswer } from "./lead-judge";
+export {
+  LEAD_BACK_WORDS,
+  LEAD_PILE_WORDS,
+  leadPileFactsOf,
+  leadPileOpen,
+  leadPileProgressOf,
+  leadPileRailOf,
+} from "./lead-pile";
+export type {
+  LeadPileAct,
+  LeadPileCountsDto,
+  LeadBackDto,
+  LeadPileFacts,
+  LeadPileProgressVM,
+  LeadPileSlot,
+} from "./lead-pile";

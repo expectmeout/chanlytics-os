@@ -332,6 +332,7 @@ test("businesses are counted once, at their last email, and every outcome is of 
     wrote_back: 2,
     interested: 1,
     booked: 1,
+    won: 0,
     said_no: 0,
     handed: 0,
   });
@@ -356,6 +357,7 @@ test("businesses are counted once, at their last email, and every outcome is of 
       wrote_back: 0,
       interested: 0,
       booked: 1,
+      won: 0,
       said_no: 0,
       handed: 0,
     },
@@ -370,6 +372,7 @@ test("businesses are counted once, at their last email, and every outcome is of 
       wrote_back: 2,
       interested: 1,
       booked: 0,
+      won: 0,
       said_no: 0,
       handed: 0,
     },
@@ -424,6 +427,7 @@ test(
       wrote_back: 2,
       interested: 1,
       booked: 1,
+      won: 0,
       said_no: 0,
       handed: 0,
     });
@@ -498,7 +502,7 @@ test(
   async () => {
     const w = await workspace("moved");
     const first = await reachOut(w, "Reach out · Moved on", 2);
-    const second = await reachOut(w, "Reach out · Also", 1);
+    const second = await reachOut(w, "Reach out · Also", 2);
     const [S1, S2] = first.steps;
     const M1 = await business(w, "m1");
     const M2 = await business(w, "m2");
@@ -506,8 +510,9 @@ test(
       await write(w, first, S1, m, dayAt(3), { angle: "m1" });
       await write(w, first, S2, m, dayAt(1), { angle: "m2" });
     }
-    // M1 is a business of the second reach-out as well, and wrote back.
-    await write(w, second, second.steps[0], M1, dayAt(2), { angle: "x1" });
+    // M1 is a business of the second reach-out as well, and wrote back: by its follow-up, since no lead has two first
+    // emails (00424), as the reach-outs before 00197 could leave behind.
+    await write(w, second, second.steps[1], M1, dayAt(2), { angle: "x1" });
     await wroteBack(w, M1);
 
     const rep = await report(w);

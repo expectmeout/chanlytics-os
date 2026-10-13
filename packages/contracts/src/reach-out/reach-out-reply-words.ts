@@ -91,12 +91,23 @@ function replyDayWords(key: string, tz: string, now: number): string {
 /** A door the strip offers: put the receptionist's draft in the reply box, or undo a no. */
 export type ReplyDoor = "use_draft" | "undo";
 
-/** The strip above a thread's composer: its title, their words, what the reading did, and its doors. */
+/** The strip above a thread's composer: its title, their words, what it answers, what the reading did, its doors. */
 export interface ReplyStrip {
   title: string;
   said: string | null;
+  /** Which email of which reach-out it answers (replyAnswersOf); null when no reach-out wrote the email. */
+  answers: string | null;
   did: string | null;
   doors: ReplyDoor[];
+}
+
+/**
+ * Which email of which reach-out a reply answers, so a reply is never read without what it answers: "Answers your
+ * first email of “Early gyms”", "Answers email 2 of “Early gyms”". Null for a reply to an email no reach-out wrote.
+ */
+export function replyAnswersOf(r: Pick<ReachOutReplyDto, "chain" | "step">): string | null {
+  if (!r.chain) return null;
+  return `Answers ${!r.step || r.step <= 1 ? "your first email" : `email ${r.step}`} of “${r.chain}”`;
 }
 
 /** What the reading did with the receptionist's draft, said after what it did with the lead. */
@@ -151,10 +162,12 @@ function didLine(r: ReachOutReplyDto, now: number, tz: string): string | null {
  */
 export function replyStripOf(r: ReachOutReplyDto, now: number, tz: string): ReplyStrip {
   const said = r.summary ? `“${r.summary}”` : null;
+  const answers = replyAnswersOf(r);
   if (r.undone) {
     return {
       title: "Wrote back",
       said,
+      answers,
       did:
         r.claim === "auto_reply"
           ? "Read as no, then undone. It was an automatic reply, so the reach-out goes on."
@@ -167,6 +180,7 @@ export function replyStripOf(r: ReachOutReplyDto, now: number, tz: string): Repl
     return {
       title: "Wrote back",
       said: null,
+      answers,
       did: last ? "We couldn't read it." : "We couldn't read it yet: we'll try again.",
       doors: [],
     };
@@ -182,6 +196,7 @@ export function replyStripOf(r: ReachOutReplyDto, now: number, tz: string): Repl
           ? "Wrote back"
           : `Wrote back · ${REPLY_INTENT_WORDS[r.intent]}`,
     said,
+    answers,
     did: didLine(r, now, tz),
     doors,
   };

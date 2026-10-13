@@ -422,6 +422,8 @@
     "00417_a_call_is_logged_on_the_person.sql": "415214e7cf7eda7ca4e810c509c48041f3432c6c17a972cd7513d04e07daeb44",
     "00418_a_business_s_other_addresses_find_its_person.sql": "63f902a7dfd297eb712aba8b2c74c6d0c68e0b5775183186b1782c389fb53827",
     "00419_the_bell_tells_the_truth.sql": "11bd834bc11fb2ce8ecc6bd85b7784071a08dff7dbdbdad3c3530ade2b57aaa3",
-    "00420_a_combined_person_keeps_their_own_name.sql": "86eaac65eb654c7971e39c0fd5e4e8eb102a159a378d96377e951259cc59198c"
+    "00420_a_combined_person_keeps_their_own_name.sql": "86eaac65eb654c7971e39c0fd5e4e8eb102a159a378d96377e951259cc59198c",
+    "00423_a_reach_out_takes_the_leads_you_add.sql": "3d1cd4a78a30c4b5e76e298c0e9525148091301ab98176e61c87d39d911cf4d2",
+    "00424_a_lead_has_one_first_email.sql": "c7ce189cc2127b99ef4d82486b8a8ff8bee7271c54a45ded7bdc1bcc671b324f"
   }
 }

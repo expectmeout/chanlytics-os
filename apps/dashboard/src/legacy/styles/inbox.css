@@ -426,7 +426,8 @@
 .ix-th-reply-title { flex: none; font-weight: 500; color: var(--ink); }
 .ix-th-reply-said { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ix-th-reply-doors { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
-.ix-th-reply-from { font-size: var(--text-xs); color: var(--ink-dim); }
+.ix-th-reply-from,
+.ix-th-reply-of { font-size: var(--text-xs); color: var(--ink-dim); }
 .ix-reply-chip { font-size: var(--text-xs); }
 /* Under a thumb the 44px floor would make the line a row of its own height: Done keeps the line's, and reaches past
    it for the thumb, without moving a word. */

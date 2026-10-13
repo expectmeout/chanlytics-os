@@ -68,6 +68,11 @@ test("a handoff whose reply was read becomes the reply's row, in its place, with
     "no draft, the thread",
   );
   assert.deepEqual(replyRowOf(rows[0], reading({ intent: "other", summary: null })).status, ["Wrote back"]);
+  // What it answers rides after the wire (00423): the reach-out, never a row read alone.
+  assert.deepEqual(
+    [replyRowOf(rows[0], reading({ chain: "Early gyms" })).via, replyRowOf(rows[0], reading({ chain: null })).via],
+    ["Early gyms", null],
+  );
 });
 
 test("no row is added for a reading without a handoff; a no, an automatic reply and an undone reading leave the row", () => {

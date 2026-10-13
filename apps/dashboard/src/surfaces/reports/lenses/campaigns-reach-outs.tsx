@@ -85,6 +85,7 @@ function SourcesTable({ rows }: { rows: ReachOutLensSourceLine[] }) {
             <th className="num">Wrote back</th>
             <th className="num">Interested</th>
             <th className="num">Booked</th>
+            <th className="num">Won</th>
             <th className="num">Said no</th>
             <th className="num">Bounced</th>
             <th className="num">Last</th>
@@ -103,6 +104,7 @@ function SourcesTable({ rows }: { rows: ReachOutLensSourceLine[] }) {
               <td className="num">{s.wroteBack}</td>
               <td className="num">{s.interested}</td>
               <td className="num">{s.booked}</td>
+              <td className="num">{s.won}</td>
               <td className="num">{s.saidNo}</td>
               <td className="num">{s.bounced}</td>
               <td className="num rpt-dim">{s.last}</td>
@@ -213,6 +215,7 @@ function sourcesCard(ro: ReachOutLensVM) {
           "Wrote back",
           "Interested",
           "Booked",
+          "Won",
           "Said no",
           "Bounced",
         ],
@@ -224,6 +227,7 @@ function sourcesCard(ro: ReachOutLensVM) {
           s.wroteBack,
           s.interested,
           s.booked,
+          s.won,
           s.saidNo,
           s.bounced,
         ]),

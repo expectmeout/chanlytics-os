@@ -156,6 +156,9 @@ export interface LeadRowVM {
   card: LeadRowCard;
   /** Where it sits, when the door gave coordinates. */
   point: { lat: number; lng: number } | null;
+  /** The pile's facts (00423, leadPileFactsOf), added where the page publishes its rows. */
+  chainId?: string | null;
+  laterAt?: string | null;
 }
 
 /** A key from a plan ("chain", "wrong_kind") as a person would read it. */

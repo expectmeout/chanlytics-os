@@ -13,11 +13,12 @@ import {
   leadMarkSrc,
   leadMonth,
   type LeadMonthDto,
+  type LeadPileCountsDto,
   type LeadRowDto,
   type LeadsQuery,
   type LeadStage,
 } from "@chanlytics/contracts";
-import { readLeadOne } from "@chanlytics/db";
+import { leadPileCounts, readLeadOne } from "@chanlytics/db";
 import { type DoorArgs, monthUsed, renewsOnOf } from "./lead-helpers";
 import { listCounts } from "./lead-searches";
 import { tenantFacts } from "../tenant";
@@ -85,6 +86,9 @@ interface LeadPageRow {
   places: number;
   version: number;
   page_key: string;
+  /** The pile (00423): when a member put it off for later in this search, and the reach-out it goes with. */
+  later_at?: string | null;
+  chain_id?: string | null;
 }
 
 /**
@@ -213,6 +217,7 @@ function toLeadRowDto(r: LeadPageRow, searchNames: Map<string, string>): LeadRow
     stage: r.stage as LeadStage,
     closed_reason: r.closed_reason,
     contact_id: r.contact_id,
+    chain_id: r.chain_id ?? null,
     last_outcome: r.last_outcome,
     last_note: r.last_note,
     contacted_at: r.contacted_at,
@@ -235,6 +240,7 @@ function toLeadRowDto(r: LeadPageRow, searchNames: Map<string, string>): LeadRow
       other_emails: others
         .filter((e) => typeof e.email === "string")
         .map((e) => ({ email: String(e.email), why: typeof e.why === "string" ? e.why : "another address" })),
+      later_at: r.later_at ?? null,
     },
   };
 }
@@ -257,6 +263,25 @@ export interface LeadsPageAnswer {
   counts?: LeadCounts;
   /** The month's standing (D5), with the first page only: what a Keep on the workbench costs is read from here. */
   month?: LeadMonthDto;
+  /** The pile's progress line (sort=pile of one search, 00423), with the first page only. */
+  pile?: LeadPileCountsDto;
+}
+
+/** The pile's progress line, read under the caller's row security (00423 lead_pile_counts). */
+async function pileOf(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+  searchId: string,
+  q: LeadsQuery,
+): Promise<LeadPileCountsDto> {
+  const { data, error } = await leadPileCounts(ctx.supabase, {
+    tenantId,
+    searchId,
+    listId: q.pile_list ?? null,
+    ...(q.class ? { cls: q.class } : {}),
+  });
+  if (error) throw new Error(`lead_pile_counts: ${error.message}`);
+  return data;
 }
 
 /**
@@ -287,7 +312,8 @@ export async function leadsPage(
   opts: { month?: boolean } = {},
 ): Promise<LeadsPageAnswer> {
   const first = !q.after_key && !q.after_id;
-  const [answer, names, counts, month] = await Promise.all([
+  const pile = first && q.sort === "pile" ? (q.search ?? null) : null;
+  const [answer, names, counts, month, piled] = await Promise.all([
     ctx.supabase.rpc("leads_page", {
       p_tenant_id: tenantId,
       p_search_id: q.search ?? null,
@@ -298,6 +324,7 @@ export async function leadsPage(
       p_list: q.list,
       p_dir: q.dir,
       p_after_id: q.after_id ?? null,
+      ...(q.pile_list ? { p_list_id: q.pile_list } : {}),
     } as DoorArgs<"leads_page">),
     searchNamesOf(ctx, tenantId),
     first ? listCounts(ctx, tenantId) : Promise.resolve(null),
@@ -305,6 +332,7 @@ export async function leadsPage(
     // its own, and paging through five hundred rows never asks for it again. Only for a member who may find: the
     // month's door (00143) is theirs, and refuses anyone else, which took the whole page down with it.
     first && opts.month !== false ? monthStanding(ctx, tenantId) : Promise.resolve(null),
+    pile ? pileOf(ctx, tenantId, pile, q) : Promise.resolve(null),
   ]);
   if (answer.error) throw new Error(`leads_page: ${answer.error.message}`);
   const raw = (Array.isArray(answer.data) ? answer.data : []) as unknown as LeadPageRow[];
@@ -314,6 +342,7 @@ export async function leadsPage(
     next: last && raw.length >= q.limit ? { key: last.page_key, id: last.member_id } : null,
     ...(counts ? { counts } : {}),
     ...(month ? { month } : {}),
+    ...(piled ? { pile: piled } : {}),
   };
 }
 

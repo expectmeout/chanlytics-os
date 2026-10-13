@@ -114,11 +114,19 @@ export async function emailWordsByTemplate(
 }
 
 /** The searches' names, by id. */
-export async function searchNamesByIds(db: Db, tenantId: string, ids: string[]): Promise<Map<string, string>> {
+export async function searchesByIds(
+  db: Db,
+  tenantId: string,
+  ids: string[],
+): Promise<Map<string, { name: string; via: string | null }>> {
   if (ids.length === 0) return new Map();
-  const { data, error } = await db.from("lead_searches").select("id, name").eq("tenant_id", tenantId).in("id", ids);
+  const { data, error } = await db
+    .from("lead_searches")
+    .select("id, name, via")
+    .eq("tenant_id", tenantId)
+    .in("id", ids);
   if (error) throw new Error(`cannot read the searches: ${error.message}`);
-  return new Map((data ?? []).map((s) => [s.id, s.name]));
+  return new Map((data ?? []).map((s) => [s.id, { name: s.name, via: s.via }]));
 }
 
 /** The businesses' names, by lead id: what a hand step's words call each lead (Part 5, G20). */

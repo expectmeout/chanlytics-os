@@ -15,6 +15,7 @@ import { CONSENT_CHANNELS } from "../../consent/consent-channels";
 import type { AppointmentWord } from "../../journey/appointment-word";
 import type { JourneyStage } from "../../journey/journey";
 import type { ReachOutChainDto } from "../../reach-out/reach-out-dtos";
+import { HAND_KINDS } from "../../reach-out/reach-out-hand";
 import type { ReachOutChainTotalsDto } from "../../reports/reach-out-report";
 import { CAMPAIGNS_RESULTS_PERIOD, fixedDaysOf } from "../../reports/report-periods";
 import { periodWords } from "../../reports/reports";
@@ -406,7 +407,21 @@ function offOfferRow(caps: string): LifecycleRow {
   };
 }
 
-/** A reach-out: a chain of cold emails to a search's leads. It goes by email; its run is decided on its own page. */
+/** A chain's steps in words, as the canvas says them: "3 emails and a call", "2 emails", "2 emails, a call and a note". */
+function chainStepsWords(steps: ReachOutChainDto["steps"]): string {
+  const emails = steps.filter((s) => !s.hand).length;
+  const hands = HAND_KINDS.map((k) => ({ k, n: steps.filter((s) => s.hand?.kind === k).length }));
+  const parts = [
+    emails ? plural(emails, "email") : null,
+    ...hands.map(({ k, n }) => (n === 0 ? null : n === 1 ? `a ${k}` : plural(n, k))),
+  ].filter((p): p is string => !!p);
+  return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : (parts[0] ?? "");
+}
+
+/**
+ * A reach-out: a chain of cold emails to a search's leads, or to a list its owner adds to (00423). It goes by email; its
+ * run is decided on its own page. Its People cell is who is in it now, apart from what came back in 30 days.
+ */
 function chainRow(
   c: ReachOutChainDto,
   at: { input: LifecycleInput; ready: ChannelsReady | null; caps: string },
@@ -418,7 +433,8 @@ function chainRow(
   const status: LifecycleRow["status"] = waitingRun ? "waiting" : paused ? "paused" : "on";
   const state = lifecycleChainStateOf(c);
   const stateWords = state.words;
-  const hint = `Cold email${c.search ? ` to ${c.search.name}` : ""} · ${plural(c.steps.length, "step")}`;
+  const feeds = c.fed_by === "list" ? W.ownList : `Cold email${c.search ? ` to ${c.search.name}` : ""}`;
+  const hint = `${feeds} · ${chainStepsWords(c.steps)}`;
   const resume: LifecycleAct = {
     kind: "resume",
     label: W.resume.label,
@@ -437,7 +453,9 @@ function chainRow(
     needs: "none",
     needsWords: W.chainNeeds,
     channels: chainMarksOf(at.ready, workspacePausedOf(at.input)),
-    people: { n: null, unit: W.businesses },
+    people: c.people
+      ? { n: c.people.waiting + c.people.writing, unit: W.businesses, words: W.peopleNow(c.people) }
+      : { n: null, unit: W.businesses },
     results: chainResultsOf(c.root_id, at.input.chains),
     next: waitingRun
       ? { words: LIFECYCLE_WORDS.coming.waiting, atMs: at.input.nowMs }
@@ -717,6 +735,7 @@ export function ledgerPhoneLine(r: LifecycleRow, caps: string): string {
  * never a zero.
  */
 export function ledgerPeopleWords(people: LifecycleRow["people"]): string | null {
+  if (people.words) return people.words;
   if (people.n === null) return null;
   if (people.unit === "people") return plural(people.n, "person", "people");
   return `${people.n} ${people.unit}`.trim();

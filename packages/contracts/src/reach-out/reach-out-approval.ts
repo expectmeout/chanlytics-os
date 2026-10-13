@@ -36,6 +36,8 @@ export function skippedReasonWords(reason: string): string {
       return "their step was removed";
     case "run_canceled":
       return "the run was stopped";
+    case "owner_took_back":
+      return "taken back before it was sent";
     case "erased":
       return "their record was erased";
     default:

@@ -18,6 +18,8 @@ import { leadPeekEscape } from "../peek/seams";
 import { useReachOutLeads } from "../reach-out/lines";
 import { useLeadLists } from "../reach-out/lists";
 import { LeadsScope } from "../scope/scope";
+import { useLeadPileView } from "../pile/page-pile";
+import { useLeadPile } from "../pile/use-pile";
 import { leadActs, type LeadActs } from "./acts";
 import { useLeadPeek, useLeadPeekAddress, type LeadsNav } from "./peek-hooks";
 import {
@@ -90,8 +92,14 @@ function useLeadsView({ leadsRoute, onNavigate }: { leadsRoute: string | null; o
   const st = useLeadsState();
   const { peekId, setPeekId, peekMode, setPeekMode, armed, setArmed, setLightboxId } = st;
   const { chip, setChip, fitChip, setFitChip, setBenchGroup, mapOpen, setMapOpen, setMapPick, setBulkWhy } = st;
-  const read = useLeadsRead({ leadView, viewRoute, sortBy, sortDir, plFlash });
-  const rows = useLeadRows({ leads, q, chip, fitChip, leadView, viewRoute, sortBy, sortDir });
+  // The pile (00423): while it is on for the search the address names, the read is the database's pile order, with the
+  // list its adds go to.
+  const pile = useLeadPile({ searches: leads.searches, flash: plFlash });
+  const piled = pile.on && pile.searchId === leadView.searchId;
+  const order = piled ? { sortBy: "pile", sortDir: "asc" } : { sortBy, sortDir };
+  const pileList = piled && pile.target ? pile.target.listId : null;
+  const read = useLeadsRead({ leadView, viewRoute, ...order, plFlash, pileList });
+  const rows = useLeadRows({ leads, q, chip, fitChip, leadView, viewRoute, ...order });
   const { leadShown, shownIds, viewLanded } = rows;
   // Each view keeps its place by the address's view (viewRoute), its map with it. A view opened after the first starts with
   // none of the last one's filters.
@@ -141,7 +149,7 @@ function useLeadsView({ leadsRoute, onNavigate }: { leadsRoute: string | null; o
     setDraft: st.setDraft,
     nav,
   });
-  return { people, leads, swap, nav, leadView, viewRoute, hasCenter, controls, st, read, rows, place, deckMove };
+  return { people, leads, swap, nav, leadView, viewRoute, hasCenter, controls, st, read, rows, place, deckMove, pile };
 }
 
 /**
@@ -149,7 +157,7 @@ function useLeadsView({ leadsRoute, onNavigate }: { leadsRoute: string | null; o
  * line, the open search's reach-out and the lists of one's own, the cells' context, and the strip's steps.
  */
 function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: string) => void): LeadsPage {
-  const { people, leads, swap, nav, leadView, hasCenter, controls, st, read, rows, place, deckMove } = v;
+  const { people, leads, swap, nav, leadView, hasCenter, controls, st, read, rows, place, deckMove, pile } = v;
   const { canExport, plFlash, setSel, setAllMatching, setSortBy, setSortDir, columns } = controls;
   const { peekId, setPeekId, finder, closeFinder, peekMode, setPeekMode, armed, setArmed } = st;
   const { values, lightboxId, setLightboxId } = st;
@@ -169,6 +177,22 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
       lightbox: lightboxId,
       setLightbox: setLightboxId,
     });
+  const openSearch = acts.searchById(leadView.searchId);
+  // Leads while a reach-out writes (Reach out Part 6, H8): the open search's lines, or null. Present from the first draw.
+  const reachOut = useReachOutLeads(openSearch ? openSearch.id : null);
+  // A list of your own (Reach out Part 7): the rail's Import leads, the bar's Write to them, and the sheets they open.
+  const lists = useLeadLists({ flash: plFlash });
+  // The pile (00423): where the rows stand while it is on, the door into it, and the keys it takes.
+  const piled = useLeadPileView({
+    pile,
+    leads,
+    openSearch,
+    cls: leadView.cls,
+    hasChain: !!(reachOut && reachOut.dto.lines),
+    phone: !!controls.phone,
+    setPeekId,
+    writeHeld: lists.writeTo,
+  });
   // What the keyboard's one listener reads (usePlPlace): Enter peeks the lead, and the Leads scope's own overlays.
   place.keysWith({
     open: setPeekId,
@@ -183,12 +207,8 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
     canFind,
     find: finderActs.openFind,
     call: callLead,
+    pile: piled.keys,
   });
-  const openSearch = acts.searchById(leadView.searchId);
-  // Leads while a reach-out writes (Reach out Part 6, H8): the open search's lines, or null. Present from the first draw.
-  const reachOut = useReachOutLeads(openSearch ? openSearch.id : null);
-  // A list of your own (Reach out Part 7): the rail's Import leads, the bar's Write to them, and the sheets they open.
-  const lists = useLeadLists({ flash: plFlash });
   // The band (D5): the search's whole shape, and whether its fits differ (which is when a row wears its fit).
   const band = leadBand(openSearch);
   // What a cell needs. The acts are this draw's closures (over the view, the busy flag), so the context hands out doors to
@@ -247,6 +267,8 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
     cellCtxLeads,
     reachOut,
     lists,
+    pileNode: piled.node,
+    pileDoor: piled.door,
   };
 }
 

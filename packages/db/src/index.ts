@@ -171,13 +171,7 @@ export {
   parentEmailOf,
   leadAddressBounced,
   leadWritten,
-  uncheckedSends,
-  uncheckedWaiting,
-  reachOutRecord,
   recordCheck,
-  heldStale,
-  releaseUnavailableHolds,
-  takeCheckAttempt,
   workspaceMaySpend,
   workspaceAbout,
 } from "./repositories/reach-out";
@@ -194,16 +188,35 @@ export type {
   WrittenEmail,
   SendStanding,
   ParentEmail,
-  ReachOutRecordRow,
-  UncheckedSend,
 } from "./repositories/reach-out";
+export {
+  reachOutAdd,
+  leadMemberLater,
+  leadPileCounts,
+  reachOutChainPeople,
+  reachOutPeopleCounts,
+  leadsBackToday,
+  reachOutLeaveOut,
+  reachOutSources,
+  reachOutFedByOf,
+} from "./repositories/campaigns/reach-out-leads";
+export type { DoorResult, ReachOutAddAnswer } from "./repositories/campaigns/reach-out-leads";
+export {
+  uncheckedSends,
+  uncheckedWaiting,
+  reachOutRecord,
+  heldStale,
+  releaseUnavailableHolds,
+  takeCheckAttempt,
+} from "./repositories/campaigns/reach-out-check";
+export type { ReachOutRecordRow, UncheckedSend } from "./repositories/campaigns/reach-out-check";
 export {
   reachOutStepsOf,
   reachOutRootOf,
   reachOutSendRefOf,
   emailWordsFrom,
   emailWordsByTemplate,
-  searchNamesByIds,
+  searchesByIds,
   runsWaitingOf,
   reachOutRunSendsOf,
   stampReachOutStep,

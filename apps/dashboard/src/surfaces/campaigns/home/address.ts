@@ -6,10 +6,12 @@
  *   campaigns/in:<group>             the ledger narrowed to one group: a journey stage's word-free id (`before`), `lists`,
  *                                    `reach_out` or `sent_once` (decision 46); a card's press or a phone's chip replaces it
  *   campaigns/moment:<id>            a playbook (or a reach-out) open in the drawer, the address every old `outbound/<id>` lands on
+ *   campaigns/moment:<id>:people     a reach-out open at who is in it (00423): where Today, the bell and Leads link
  *   campaigns/message:<name>         a message open in a drawer of its own, by its name (the call's text; a playbook's message)
  *   campaigns/new                    the composer, on Send once
  *   campaigns/new:to:<audience>      the same, on the list or audience it was asked for (every old `broadcasts/<audience>` lands here)
  *   campaigns/new:every              the composer, on Every time a moment comes
+ *   campaigns/new:leads              the composer, on Write to leads: where a reach-out starts (00423)
  *   campaigns/new:moment:<trigger>   the same, on the moment a Turn on was pressed for
  *   campaigns/new:edit:<id>          the same, changing the playbook the drawer showed; a reach-out's id opens its own sheet
  *
@@ -26,19 +28,25 @@ export interface HomeAddress {
   group: string | null;
   /** The playbook or reach-out open in the drawer. */
   moment: string | null;
+  /** The part of the drawer the address opens at: a reach-out's People, or its top. */
+  part: "people" | null;
   /** A message open in a drawer of its own, by its name: read and changed there, over the home (Ruben, 11 Oct 2026). */
   message: string | null;
   /**
    * The composer: Send once (on the audience asked for, or the one it opens on), or Every time a moment comes, on a moment,
    * or changing one.
    */
-  compose: null | { mode: "once"; to: string | null } | { mode: "every"; moment: string | null; edit: string | null };
+  compose:
+    | null
+    | { mode: "once"; to: string | null }
+    | { mode: "every"; moment: string | null; edit: string | null }
+    | { mode: "leads" };
 }
 
 /** The home itself. Read here alone: use-home.ts closes to `groupRoute(null)`, so an export would be a dead one. */
 const HOME_ROUTE = "campaigns";
 
-const NONE: HomeAddress = { group: null, moment: null, message: null, compose: null };
+const NONE: HomeAddress = { group: null, moment: null, part: null, message: null, compose: null };
 
 /** A group's id as an address writes it: word-free, lower case, words joined by underscores (`before`, `reach_out`). */
 const GROUP_ID = /^[a-z]+(?:_[a-z]+)*$/;
@@ -51,6 +59,7 @@ function composeOf(param: string): HomeAddress["compose"] | undefined {
     return { mode: "once", to: to || null };
   }
   if (param === "new:every") return { mode: "every", moment: null, edit: null };
+  if (param === "new:leads") return { mode: "leads" };
   if (param.startsWith("new:moment:")) {
     const moment = param.slice("new:moment:".length);
     return { mode: "every", moment: moment || null, edit: null };
@@ -70,8 +79,8 @@ export function parseHome(param: string | null): HomeAddress {
     return GROUP_ID.test(group) ? { ...NONE, group } : NONE;
   }
   if (param.startsWith("moment:")) {
-    const id = param.slice("moment:".length);
-    return id ? { ...NONE, moment: id } : NONE;
+    const [id = "", part] = param.slice("moment:".length).split(":");
+    return id ? { ...NONE, moment: id, part: part === "people" ? "people" : null } : NONE;
   }
   if (param.startsWith("message:")) {
     const name = param.slice("message:".length);
@@ -83,11 +92,12 @@ export function parseHome(param: string | null): HomeAddress {
 
 /** The route an address is spelled as: the shell's, `campaigns/moment:<id>`. */
 function homeRoute(a: HomeAddress): string {
-  if (a.moment) return `${HOME_ROUTE}/moment:${a.moment}`;
+  if (a.moment) return `${HOME_ROUTE}/moment:${a.moment}${a.part ? `:${a.part}` : ""}`;
   if (a.message) return `${HOME_ROUTE}/message:${a.message}`;
   const c = a.compose;
   if (!c) return a.group ? `${HOME_ROUTE}/in:${a.group}` : HOME_ROUTE;
   if (c.mode === "once") return c.to ? `${HOME_ROUTE}/new:to:${c.to}` : `${HOME_ROUTE}/new`;
+  if (c.mode === "leads") return `${HOME_ROUTE}/new:leads`;
   if (c.edit) return `${HOME_ROUTE}/new:edit:${c.edit}`;
   return c.moment ? `${HOME_ROUTE}/new:moment:${c.moment}` : `${HOME_ROUTE}/new:every`;
 }
@@ -108,9 +118,17 @@ interface ComposeOn {
   edit?: string | null;
 }
 
-/** The composer on a mode: Send once (on an audience), or Every time a moment comes, on a moment or changing one. */
-export const composeRoute = (mode: "once" | "every", on: ComposeOn = {}): string =>
+/**
+ * The composer on a mode: Send once (on an audience), Every time a moment comes (on a moment, or changing one), or Write
+ * to leads.
+ */
+export const composeRoute = (mode: "once" | "every" | "leads", on: ComposeOn = {}): string =>
   homeRoute({
     ...NONE,
-    compose: mode === "once" ? { mode, to: on.to ?? null } : { mode, moment: on.moment ?? null, edit: on.edit ?? null },
+    compose:
+      mode === "once"
+        ? { mode, to: on.to ?? null }
+        : mode === "leads"
+          ? { mode }
+          : { mode, moment: on.moment ?? null, edit: on.edit ?? null },
   });

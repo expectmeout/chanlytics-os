@@ -1065,7 +1065,7 @@ test("Campaigns' reach-outs (A2): each one the ledger shows is a row of its own,
   const t = tables({
     billing_accounts: [{ tenant_id: A, mode: "direct", status: "active" }],
     policies: [{ tenant_id: A, class: "outreach", mode: "ask", subject_type: null }],
-    lead_searches: [{ id: SEARCH, tenant_id: A, name: "Movers · Austin" }],
+    lead_searches: [{ id: SEARCH, tenant_id: A, name: "Movers · Austin", via: "people" }],
     playbooks: [
       {
         id: PB,

@@ -279,7 +279,11 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST leads/[id]/keep": leads,
   "POST leads/[id]/exclude": leads,
   "POST leads/[id]/put-back": leads,
-  "POST lead-operations/[id]/undo": leadsAnswered,
+  // Later, in a pass of the pile (00423): the row's later_at, its place in the pile and the progress line.
+  "POST leads/[id]/later": leads,
+  // An add taken back (00423) skips its lead's planned email in a waiting run and takes it off the reach-out's list:
+  // the run's counts and the reach-out's people move with the leads.
+  "POST lead-operations/[id]/undo": () => [...leadsAnswered(), reachOutsOverride, broadcastsOverride],
   "POST leads/bulk": leadsAnswered,
   // The leads a copy took are marked, so the month is not charged for them twice (§0.2): the rows and the month's count read again.
   "POST leads/export": leads,
@@ -299,12 +303,20 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST playbooks/[id]/run": runs,
   // A reach-out is a chain of playbooks over a search's leads (Part 4): its runs are broadcasts, its answers move leads,
   // and its chain is the reach-outs surface (Playbooks' row, and Templates' email rows drawn from it). Its own save writes the chain,
-  // its runs and its words and no lead: Leads carries nothing of a chain, and an answer that moves a lead is the lead's own write.
-  "POST reach-outs": () => [reachOutsOverride, playbooksOverride, broadcastsOverride],
+  // its runs and its words and no lead, and an answer that moves a lead is the lead's own write. Leads draws which reach-out a
+  // lead goes with (00423 lead_chain_of: its search's or its list's), so one made or removed re-reads it; a change in place
+  // moves no lead from one to another.
+  "POST reach-outs": () => [reachOutsOverride, playbooksOverride, broadcastsOverride, leadsOverride],
   "PUT reach-outs/[id]": () => [reachOutsOverride, playbooksOverride, broadcastsOverride],
-  "DELETE reach-outs/[id]": () => [reachOutsOverride, playbooksOverride, broadcastsOverride],
+  "DELETE reach-outs/[id]": () => [reachOutsOverride, playbooksOverride, broadcastsOverride, leadsOverride],
   // One held email decided moves its run and its lead, never its chain: the row's counts are its report, read on open.
   "POST reach-out-sends/[id]/decide": () => [broadcastsOverride, playbooksOverride, leadsOverride],
+  // Leads added to a reach-out's list (00423): each row's reach-out and the pile, and the reach-out's people and counts.
+  // Nothing is planned until its run is made, so no run moves yet, and the reach-out's own row is not written.
+  "POST reach-outs/[id]/leads": () => [reachOutsOverride, leadsOverride],
+  // One lead left out of it (00423): off its list, and the reach-out's people and Leads' rows with it. A run that waits
+  // reads its skipped email when it is opened (Sent reads no send of a reach-out's).
+  "POST reach-outs/[id]/leads/leave": () => [reachOutsOverride, leadsOverride],
   // "Stop writing to them" skips the lead's planned and held emails in their runs (Part 6, H10).
   "POST reach-outs/leads/[id]/stop": () => [broadcastsOverride, playbooksOverride, leadsOverride],
   // "Read as no · undo" moves the reading, the person's consent and the leads the no closed.
@@ -441,6 +453,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
  * decided, not forgotten: refresh-coverage.test.mjs holds every write in `routes.generated.ts` to one of the two.
  */
 export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
+  "POST reach-outs/[id]/leads/check":
+    "what an add would do (00423, dry): nothing is written; the caller says the answer",
   // Ask keeps its own thread and its cards; a card's own call goes through its verb's route, and that route's refresh.
   "POST ask": "a question: Ask draws its answer from the turn it streams",
   "POST ask/warm": "a warm read of the page before a question; it changes nothing",

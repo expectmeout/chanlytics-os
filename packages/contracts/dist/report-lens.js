@@ -1206,6 +1206,10 @@ var US_NAMES = Object.fromEntries(
   Object.entries(US_STATES).map(([name, code]) => [code, name])
 );
 
+// src/leads/lead-words.ts
+var LEAD_VIEW_SORTS = ["fit", "found", "distance", "business", "rating", "stage"];
+var LEAD_SORTS = [...LEAD_VIEW_SORTS, "pile"];
+
 // src/people/lists/list-rules.ts
 import * as z from "zod/mini";
 var LIST_NEEDS = ["calendar", "consult", "deals", "viewer"];
@@ -2315,7 +2319,7 @@ function emailsPart(dto, when) {
   );
 }
 function businessesPart(dto, when) {
-  const { wrote_back, interested, booked, said_no } = dto.totals;
+  const { wrote_back, interested, booked, won, said_no } = dto.totals;
   const businesses = countedBusinesses(dto.totals);
   if (businesses === void 0) return noMix(NO_BUSINESSES);
   if (businesses === 0) return noMix(`No business was written to ${when.these}.`);
@@ -2324,10 +2328,12 @@ function businessesPart(dto, when) {
     ["wrote_back", "Wrote back", wrote_back],
     ["interested", "Interested", interested],
     ["booked", "Booked", booked],
+    // Won (00430): a deal naming the business, won; not said where the database does not count it.
+    ...isCount(won) ? [["won", "Won", won]] : [],
     ["said_no", "Said no", said_no]
   ];
   const shares = businesses >= REPORT_MIN_N ? `: ${pct(wrote_back, businesses)}% wrote back and ${pct(interested, businesses)}% were interested` : "";
-  const line = `Of ${plural(businesses, "business", "businesses")} written to ${when.within}${shares}. Each counts once, at the last email that wrote to it; a question counts as interested. Who wrote back, was interested, booked or said no is as it stands now.`;
+  const line = `Of ${plural(businesses, "business", "businesses")} written to ${when.within}${shares}. Each counts once, at the last email that wrote to it; a question counts as interested. Who wrote back, was interested, booked${isCount(won) ? ", won" : ""} or said no is as it stands now.`;
   return mixOf(entries, line);
 }
 function angleRow(id, label, businesses, wroteBack) {
@@ -2379,6 +2385,7 @@ function cellsOf(c, businesses) {
     wroteBack: answered,
     interested: String(c.interested),
     booked: String(c.booked),
+    won: isCount(c.won) ? String(c.won) : DASH,
     saidNo: String(c.said_no),
     bounced: String(c.bounced)
   };
@@ -2390,6 +2397,7 @@ var HAND_CELLS = {
   wroteBack: DASH,
   interested: DASH,
   booked: DASH,
+  won: DASH,
   saidNo: DASH,
   bounced: DASH
 };
@@ -2405,7 +2413,7 @@ function summed(steps) {
     total.said_no += s.said_no;
     total.handed += s.handed;
   }
-  return total;
+  return steps.every((s) => isCount(s.won)) ? { ...total, won: sumOf(steps.map((s) => s.won ?? 0)) } : total;
 }
 function chainBusinesses(steps) {
   if (!steps.every((s) => s.hand !== null || countedBusinesses(s) !== void 0)) return void 0;

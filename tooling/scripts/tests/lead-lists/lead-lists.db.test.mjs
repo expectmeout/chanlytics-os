@@ -679,8 +679,10 @@ test(
       );
     assert.equal(was, bodyIn(migration("00163"), "create or replace function public.lead_rounds_notify("));
 
+    // 00423 gave a lead on a list, before any send, its chain and when it was added (lead-workbench/reach-out-add.db.test.mjs).
+    const live = bodyIn(migration("00423"), "create or replace function public.reach_out_lead_timeline(");
+    assert.equal(liveBody("reach_out_lead_timeline"), live, "the database runs 00423's");
     const latest = bodyIn(migration("00280"), "create or replace function public.reach_out_lead_timeline(");
-    assert.equal(liveBody("reach_out_lead_timeline"), latest, "the database runs 00280's");
     // 00280 is 00242's with a partner's second-factor clause on the membership check, and nothing else.
     const story = latest
       .replace(

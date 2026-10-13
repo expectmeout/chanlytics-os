@@ -78,6 +78,11 @@ export const ReplyStrip = ({ thread }: { thread: Thread }) => {
           </span>
         ) : null}
       </div>
+      {strip.answers ? (
+        <div className="ix-th-reply-of" data-testid="ix-th-reply-of">
+          {strip.answers}
+        </div>
+      ) : null}
       {strip.did ? (
         <div className="ix-th-reply-did" data-testid="ix-th-reply-did">
           {strip.did}

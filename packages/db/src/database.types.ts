@@ -3343,6 +3343,7 @@ export type Database = {
           judgment: Json
           kept_at: string | null
           kept_by: string | null
+          later_at: string | null
           lead_id: string
           reason: string
           round_id: string | null
@@ -3363,6 +3364,7 @@ export type Database = {
           judgment?: Json
           kept_at?: string | null
           kept_by?: string | null
+          later_at?: string | null
           lead_id: string
           reason?: string
           round_id?: string | null
@@ -3383,6 +3385,7 @@ export type Database = {
           judgment?: Json
           kept_at?: string | null
           kept_by?: string | null
+          later_at?: string | null
           lead_id?: string
           reason?: string
           round_id?: string | null
@@ -6855,6 +6858,10 @@ export type Database = {
         Returns: Json
       }
       lead_cap: { Args: { p_name: string }; Returns: number }
+      lead_chain_of: {
+        Args: { p_lead_id: string; p_tenant_id: string }
+        Returns: string
+      }
       lead_check_again: {
         Args: { p_lead_ids: string[]; p_tenant_id: string }
         Returns: Json
@@ -6938,6 +6945,10 @@ export type Database = {
         Args: { p_lead_id: string; p_search_id: string }
         Returns: Json
       }
+      lead_member_later: {
+        Args: { p_lead_id: string; p_search_id: string }
+        Returns: Json
+      }
       lead_member_move: {
         Args: { p_kind: string; p_lead_id: string; p_search_id: string }
         Returns: Json
@@ -6967,6 +6978,15 @@ export type Database = {
       lead_person_leg: {
         Args: { p_email: string; p_lead_id: string; p_phone: string }
         Returns: undefined
+      }
+      lead_pile_counts: {
+        Args: {
+          p_class?: string
+          p_list_id?: string
+          p_search_id: string
+          p_tenant_id: string
+        }
+        Returns: Json
       }
       lead_plan_check: { Args: { p_plan: Json }; Returns: undefined }
       lead_release: {
@@ -7129,6 +7149,7 @@ export type Database = {
         Returns: string
       }
       lead_undo: { Args: { p_op_id: string; p_version: number }; Returns: Json }
+      leads_back_today: { Args: { p_tenant_id: string }; Returns: Json }
       leads_page: {
         Args: {
           p_after_id?: string
@@ -7137,6 +7158,7 @@ export type Database = {
           p_dir?: string
           p_limit?: number
           p_list?: string
+          p_list_id?: string
           p_search_id?: string
           p_sort?: string
           p_tenant_id: string
@@ -7145,6 +7167,7 @@ export type Database = {
           about: string
           business_name: string
           category: string
+          chain_id: string
           city: string
           claimed: boolean
           class: string
@@ -7171,6 +7194,7 @@ export type Database = {
           last_note: string
           last_outcome: string
           lat: number
+          later_at: string
           lead_id: string
           linkedin_url: string
           lng: number
@@ -8125,6 +8149,10 @@ export type Database = {
         Args: { p_line_id: string; p_secret: Json }
         Returns: string
       }
+      reach_out_add: {
+        Args: { p_dry?: boolean; p_lead_ids: string[]; p_root_id: string }
+        Returns: Json
+      }
       reach_out_audience:
         | {
             Args: {
@@ -8165,6 +8193,10 @@ export type Database = {
       reach_out_booked_from: {
         Args: { p_appointment_id: string; p_tenant_id: string }
         Returns: number
+      }
+      reach_out_chain_people: {
+        Args: { p_limit?: number; p_root_id: string; p_tenant_id: string }
+        Returns: Json
       }
       reach_out_chain_report: {
         Args: { p_root_id: string; p_tenant_id: string }
@@ -8330,9 +8362,24 @@ export type Database = {
         Args: { p_lead_id: string; p_tenant_id: string }
         Returns: Json
       }
+      reach_out_leave_out: {
+        Args: { p_lead_id: string; p_root_id: string }
+        Returns: Json
+      }
       reach_out_month_sent: {
         Args: { p_at: string; p_tenant_id: string }
         Returns: number
+      }
+      reach_out_people_counts: { Args: { p_tenant_id: string }; Returns: Json }
+      reach_out_people_of: {
+        Args: { p_root_id: string; p_tenant_id: string }
+        Returns: {
+          grp: string
+          lead_id: string
+          line: Json
+          ord: string
+          pos: number
+        }[]
       }
       reach_out_person: {
         Args: { p_lead_id: string; p_tenant_id: string }
@@ -8375,6 +8422,7 @@ export type Database = {
           business_name: string
           category: string
           city: string
+          claimed: boolean
           email: string
           email_domain_shared: boolean
           hours: Json
@@ -8382,6 +8430,7 @@ export type Database = {
           rating: number
           region: string
           reviews: number
+          reviews_dist: Json
           site_listings: number
           website_host: string
           what_you_asked: string
@@ -8446,6 +8495,15 @@ export type Database = {
         Args: { p_days: number; p_end?: string; p_tenant_id: string }
         Returns: Json
       }
+      reach_out_root_lines: {
+        Args: { p_root_id: string; p_tenant_id: string }
+        Returns: {
+          done: boolean
+          lead_id: string
+          line: Json
+          ord: string
+        }[]
+      }
       reach_out_run_recheck: { Args: { p_broadcast_id: string }; Returns: Json }
       reach_out_save:
         | {
@@ -8469,6 +8527,10 @@ export type Database = {
       }
       reach_out_send_decide: {
         Args: { p_decision: string; p_send_id: string }
+        Returns: Json
+      }
+      reach_out_sources: {
+        Args: { p_limit?: number; p_tenant_id: string }
         Returns: Json
       }
       reach_out_stale_sends: {
@@ -8524,6 +8586,7 @@ export type Database = {
           category: string
           check_gen: number
           city: string
+          claimed: boolean
           email: string
           email_domain_shared: boolean
           hours: Json
@@ -8532,6 +8595,7 @@ export type Database = {
           rating: number
           region: string
           reviews: number
+          reviews_dist: Json
           send: Json
           signed_by: string
           site_listings: number
@@ -8540,6 +8604,17 @@ export type Database = {
           website_host: string
           what_you_asked: string
           why_it_fits: string
+        }[]
+      }
+      reach_out_why_not: {
+        Args: {
+          p_include_unconfirmed?: boolean
+          p_lead_ids: string[]
+          p_tenant_id: string
+        }
+        Returns: {
+          lead_id: string
+          why: string
         }[]
       }
       receptionist_series: {

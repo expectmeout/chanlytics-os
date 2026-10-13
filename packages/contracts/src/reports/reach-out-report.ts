@@ -23,6 +23,11 @@ export interface ReachOutReportCounts {
   wrote_back: number;
   interested: number;
   booked: number;
+  /**
+   * The businesses whose deal naming them was won (00423): a count, never an amount, as the other outcomes are. Absent on
+   * a database before it, where the cell says a dash, never a zero nobody counted.
+   */
+  won?: number;
   said_no: number;
   handed: number;
 }
@@ -150,6 +155,8 @@ export interface ReachOutDayNumbers {
   said_no: number;
   bounced: number;
   held: number;
+  /** The visits made today whose lead a reach-out wrote to before them (00423); absent before it. */
+  booked?: number;
 }
 
 /**
@@ -160,6 +167,7 @@ export function reachOutDayWords(n: ReachOutDayNumbers): { title: string; body: 
   const clauses: string[] = [];
   if (n.written) clauses.push(`${n.written} written`);
   if (n.wrote_back) clauses.push(`${n.wrote_back} wrote back${n.interested ? `, ${n.interested} interested` : ""}`);
+  if (n.booked) clauses.push(`${n.booked} booked`);
   if (n.said_no) clauses.push(`${n.said_no} said no`);
   if (n.bounced) clauses.push(`${n.bounced} bounced`);
   if (n.held) clauses.push(`${n.held} wait${n.held === 1 ? "s" : ""} for your say`);

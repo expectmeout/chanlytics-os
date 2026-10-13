@@ -435,7 +435,28 @@ test(
       checked_at: iso(Date.now() - DAY),
       included_for: ["chain"],
     });
-    const first = await sendIn({ lead_id: l, broadcast_id: await runOf(A, root), send_at: iso(Date.now() + H) });
+    // The nudge is its chain's second step's: no lead has two first emails (00424).
+    const nudge = await one(
+      db.from("playbooks").insert({
+        tenant_id: A,
+        kind: "reach_out",
+        trigger: "after_step",
+        policy_class: "outreach",
+        gap_minutes: 12,
+        after_playbook_id: root,
+        after_days: 3,
+        name: "Nudge",
+        template_id: template,
+        template_name: "t",
+        template_language: "en",
+      }),
+    );
+    const first = await sendIn({
+      lead_id: l,
+      broadcast_id: await runOf(A, root),
+      playbook_id: nudge,
+      send_at: iso(Date.now() + H),
+    });
     const got = await take();
     const ids = got.map((u) => u.send.id);
     for (const id of [soon, waiting, first]) assert.ok(ids.includes(id), `${id} is taken`);
@@ -463,6 +484,8 @@ test(
     // workspace would be taken from the suites beside this one.)
     ok(await db.from("reach_out_sends").update({ check_started_at: null }).eq("tenant_id", A));
     assert.equal((await take({ perWorkspace: 2 })).length, 2);
+    ok(await db.from("reach_out_sends").delete().eq("playbook_id", nudge));
+    ok(await db.from("playbooks").delete().eq("id", nudge));
   },
 );
 

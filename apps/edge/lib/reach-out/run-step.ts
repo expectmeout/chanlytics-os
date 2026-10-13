@@ -1,6 +1,9 @@
 /**
  * One reach-out step's run, planned now (Part 3's sweep loop body, moved so the sheet's Start can ask it too: Part 4
- * F11, R13). The run context, core's runReachOut (or runHandStep for a hand step), and the day stamped on the row. A step whose context cannot be read
+ * F11, R13). The run context, core's runReachOut (or runHandStep for a hand step), and the day stamped on the row once
+ * the day is settled: a run was made (or the day's run already was), or the step is off. A step that found nobody, or
+ * was held (no domain, no room, no spend), keeps its day open, so a lead added to its list after its hour is planned by
+ * the next hourly sweep, not tomorrow's (00423; a light read, until the day's end). A step whose context cannot be read
  * keeps its day open for the next hour, as the sweep always did. The playbooks sweep (api/cron/playbooks.ts) and the
  * run-now door (api/admin/playbooks-run.ts) both call it.
  */
@@ -48,8 +51,9 @@ export async function runReachOutStep(
       ? await runHandStep(ctx.ports, ctx.step, { runFor })
       : await runReachOut(ctx.ports, ctx.step, { runFor });
   log.info("reach_out_ran", { tenant_id: row.tenant_id, playbook_id: row.id, ...r });
-  await stampReachOutStep(db, row.id, { at: now, runFor }).catch(() => undefined);
   const reason = "reason" in r ? r.reason : undefined;
+  const settled = r.planned > 0 || reason === "already_ran" || r.outcome === "off";
+  await stampReachOutStep(db, row.id, settled ? { at: now, runFor } : { at: now }).catch(() => undefined);
   const runId = r.planned > 0 || reason === "already_ran" ? await reachOutRunIdFor(row.id, runFor) : null;
   return { outcome: r.outcome, reason, planned: r.planned, runFor, runId };
 }
