@@ -59,10 +59,11 @@ const CHANLY = {
         window.addEventListener("hashchange", fn);
         return () => window.removeEventListener("hashchange", fn);
       },
-      // A route's page warmed before anyone goes there, now or once the page is idle (workspace.ts warmRoute, warmSoon):
-      // nothing in the mockup, which draws every route itself.
+      // A route's page warmed before anyone goes there, now or once the page is idle, or kept warm (workspace.ts
+      // warmRoute, warmSoon, keepWarm): nothing in the mockup, which draws every route itself.
       warm(route) { const s = shell(); if (s && s.warm) s.warm(route); },
       warmSoon(routes) { const s = shell(); if (s && s.warmSoon) s.warmSoon(routes); },
+      keepWarm(routes) { const s = shell(); if (s && s.keepWarm) s.keepWarm(routes); },
     };
   })(),
 

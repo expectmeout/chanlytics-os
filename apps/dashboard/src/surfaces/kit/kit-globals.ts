@@ -21,7 +21,7 @@
  * The strip of views and what moves a view are the frame's to draw and to ask until the frame itself moves (decision 0015,
  * step 13): the strip (`ViewTabs`, which the shell's SurfaceTabs draws), the page a swipe walks (`viewPager`, which it
  * hands data-bits `touchSwipe`), and the deck the frame's `main` registers with (`viewDeck`). Settings and Reports
- * import them.
+ * import them. So is the phone's tab bar (`TabBar`), which the frame draws at a phone's foot (app-shell.jsx PhoneTabs).
  */
 import { SegmentBar } from "./charts/card";
 import { Confirm } from "./confirm/confirm";
@@ -33,6 +33,7 @@ import { StatePill } from "./pill/state-pill";
 import { useHoldToTalk } from "./talk/use-hold-to-talk";
 import { PolicyChip } from "./policy-chip/policy-chip";
 import { RecordSwitch } from "./record/field";
+import { TabBar } from "./tab-bar/tab-bar";
 import { viewPager } from "./view-tabs/pager";
 import { ViewTabs } from "./view-tabs/view-tabs";
 
@@ -49,4 +50,5 @@ export const KIT_GLOBALS = {
   ViewTabs,
   viewPager,
   viewDeck,
+  TabBar,
 };

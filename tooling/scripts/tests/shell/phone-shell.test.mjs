@@ -43,9 +43,9 @@ test("the Inbox and Conversations take turns on a phone, with a Back that only a
   );
 });
 
-test("the tab bar carries the real surfaces and the two counts that matter", () => {
+test("the tab bar carries the real surfaces and the count that matters, drawn by the kit's TabBar", () => {
   const shell = readRaw("apps/dashboard/src/legacy/pages/app-shell.jsx");
-  assert.ok(shell.includes('data-testid="phone-tabs"'));
+  assert.ok(shell.includes('testid="phone-tabs"'));
   for (const route of ['route: "today"', 'route: "inbox"', 'route: "clients"', 'route: "calendar"'])
     assert.ok(shell.includes(route), route);
   assert.ok(!/route: "(fleet|store|studio|outbound|broadcasts)"/.test(shell), "nothing seeded gets a tab");
@@ -53,10 +53,10 @@ test("the tab bar carries the real surfaces and the two counts that matter", () 
     !/route: "live"/.test(shell),
     "and not Live: a call is a bar while it is happening, not a slot that is empty the rest of the week",
   );
-  assert.ok(shell.includes('t.id === "inbox" && inboxNeeds > 0 ? String(inboxNeeds)'), "what needs you");
+  assert.ok(shell.includes('count: t.id === "inbox" && inboxNeeds > 0 ? inboxNeeds : null'), "what needs you");
   assert.ok(
     shell.includes(
-      "<PhoneTabs page={page} inboxNeeds={inboxNeeds} onNavigate={navigate} onMenu={() => setNavOpen(true)} />",
+      "<PhoneTabs page={page} param={param} inboxNeeds={inboxNeeds} onNavigate={navigate} onMenu={() => setNavOpen(true)} onPlace={onPlace} />",
     ),
   );
   assert.ok(
@@ -64,7 +64,7 @@ test("the tab bar carries the real surfaces and the two counts that matter", () 
     "and only outside the app: inside it the native tab bar stands there (window.__IN_APP, stamped before paint)",
   );
   const css = readRaw("apps/dashboard/src/legacy/styles/mobile.css");
-  assert.ok(css.includes(".phone-tabs { display: none; }"), "desktop never sees it");
+  assert.ok(css.includes(".phone-places { display: none; }"), "desktop never sees it");
   assert.ok(
     css.includes("--bar-foot: max(14px, calc(env(safe-area-inset-bottom, 0px) - 13px));") &&
       css.includes("bottom: var(--bar-foot);"),
@@ -73,7 +73,7 @@ test("the tab bar carries the real surfaces and the two counts that matter", () 
   assert.ok(css.includes("min-height: 44px;"), "thumb-sized");
   // Inside the app: the native tab bar stands where the web one did, and the shell says how tall it is.
   assert.ok(
-    css.includes("html.in-app .phone-tabs { display: none; }"),
+    css.includes("html.in-app .phone-places { display: none; }"),
     "belt and braces for the frame before the shell reads the global",
   );
   assert.ok(

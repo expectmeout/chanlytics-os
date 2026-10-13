@@ -234,6 +234,7 @@ TSX (Draw with the kit, step 2).
 | state pill | `StatePill` (`.pill`) |
 | name chip | `.chip`, its × `.chip-x` |
 | tab strip | `ViewTabs` (`.stabs`): a page's views as links; a view that is replaced as it changes registers with the kit's `viewDeck` and says its side with `data-slide` (`kit/motion/view-deck.ts`, `use-slide.ts`) |
+| a phone's tab bar | `TabBar` (`.tab-bar`): the places a thumb goes, as links, and More; a press answers at the touch and its lozenge glides on the strip's spring (`kit/tab-bar/`, `docs/superpowers/specs/2026-10-12-the-tab-bar-answers-at-the-touch-design.md`) |
 | card | `Panel`: `pane`, `inset` or `pop`; `sm` or `flush` |
 | meter, bar | `Meter` (`.meter`) |
 | tooltip, a native `title` | `Tooltip` (`.ui-tip`); on a legacy page a `data-tip` attribute, drawn by `.ui-tip` on hover and on keyboard focus, and `RecordTip` in the record kit |

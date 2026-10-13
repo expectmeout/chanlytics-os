@@ -39,6 +39,7 @@ import { DayRangePicker } from "../../../../apps/dashboard/src/surfaces/kit/date
 import { Panel } from "../../../../apps/dashboard/src/surfaces/kit/panel/panel.tsx";
 import { Search } from "../../../../apps/dashboard/src/surfaces/kit/search/search.tsx";
 import { ViewTabs } from "../../../../apps/dashboard/src/surfaces/kit/view-tabs/view-tabs.tsx";
+import { TabBar } from "../../../../apps/dashboard/src/surfaces/kit/tab-bar/tab-bar.tsx";
 import { cx } from "../../../../apps/dashboard/src/surfaces/kit/variants.ts";
 
 installLegacyReact();
@@ -1204,6 +1205,53 @@ test("ViewTabs draws the gallery's Tab strip family: links on one capsule, the h
       ["a", "stabs-tab", undefined],
     ],
     "a view has an address: a tab is a link, never a button",
+  );
+});
+
+/** The phone's places, as the frame hands them: an address and a glyph each (the glyph is the page's Icon). */
+const placesOf = (counts = {}) =>
+  ["Today", "Inbox", "Calendar", "People"].map((label) => ({
+    id: label.toLowerCase(),
+    label,
+    href: "#kit",
+    glyph: glyph(),
+    count: counts[label] ?? null,
+    tone: label === "Inbox" ? "warn" : undefined,
+  }));
+const MORE = { label: "Menu", word: "More", glyph: glyph(), onPress() {} };
+
+/** The gallery's Tab bar family, entry by entry. */
+const TAB_BARS = {
+  "tab-bar": () =>
+    h(TabBar, { label: "Main", picked: "today", onPick() {}, places: placesOf({ Inbox: 3 }), more: MORE }),
+};
+
+test("TabBar draws the gallery's Tab bar family: links on one capsule, the lozenge before them, a count over a glyph, More after them", () => {
+  assert.deepEqual(parting(FAMILIES, "Tab bar", TAB_BARS), HELD);
+  const bar = drawn(
+    h(TabBar, {
+      label: "Main",
+      testid: "phone-tabs",
+      className: "phone-places",
+      picked: null,
+      onPick() {},
+      places: placesOf(),
+    }),
+  );
+  assert.equal(bar.type, "nav");
+  assert.equal(bar.props.className, "tab-bar phone-places", "the page's layout class comes last");
+  assert.deepEqual(keysOf(bar), ["aria-label", "className", "data-testid", "ref"]);
+  const [pill, ...tabs] = bar.props.children.flat().filter(Boolean);
+  assert.equal(pill.props.className, "tab-bar-pill");
+  assert.deepEqual(
+    tabs.map((t) => [t.type, t.props.className, t.props["aria-current"]]),
+    [
+      ["a", "tab-bar-tab", undefined],
+      ["a", "tab-bar-tab", undefined],
+      ["a", "tab-bar-tab", undefined],
+      ["a", "tab-bar-tab", undefined],
+    ],
+    "a place has an address: a tab is a link; and where no place holds the page, none is lit or named as it",
   );
 });
 

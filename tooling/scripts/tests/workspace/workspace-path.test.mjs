@@ -26,6 +26,7 @@ const {
   setAppRouter,
   warmRoute,
   warmSoon,
+  keepWarm,
 } = await importSrc("apps/dashboard/src/legacy-bridge/workspace.ts");
 const { onOnePage, routeHasPage } = await importSrc("apps/dashboard/src/surfaces/routes.ts");
 const { signInReturnOf: signInReturn } = await importSrc("apps/dashboard/src/auth/sign-in-return.ts");
@@ -424,5 +425,61 @@ test("routes are warmed once the page is idle, a breath apart, and not at all wh
     globalThis.requestIdleCallback = was.idle;
     if (was.nav) Object.defineProperty(globalThis, "navigator", was.nav);
     else delete globalThis.navigator;
+  }
+});
+
+test("the tab bar's places are kept warm: again when the router lets one go while the tab is on screen, and all of them as it comes back", async () => {
+  const w = windowAt({ pathname: "/w/acme/today" });
+  const asked = [];
+  const stale = new Map();
+  setAppRouter({
+    push: () => {},
+    replace: () => {},
+    prefetch: (href, options) => {
+      asked.push(href);
+      stale.set(href, options?.onInvalidate);
+    },
+  });
+  const was = { idle: globalThis.requestIdleCallback, doc: Object.getOwnPropertyDescriptor(globalThis, "document") };
+  const heard = [];
+  const screen = {
+    visibilityState: "visible",
+    addEventListener: (type, fn) => type === "visibilitychange" && heard.push(fn),
+  };
+  Object.defineProperty(globalThis, "document", { value: screen, configurable: true });
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  try {
+    globalThis.requestIdleCallback = (fn) => setTimeout(fn, 0);
+    keepWarm(["inbox", "clients"], w.win);
+    await wait(400);
+    assert.deepEqual(asked, ["/w/acme/inbox", "/w/acme/people"], "warmed as warmSoon warms them");
+    assert.equal(heard.length, 1, "and the tab coming back to the screen is heard, once");
+    keepWarm(["inbox", "clients"], w.win);
+    assert.equal(heard.length, 1, "however often the bar asks");
+    // The router lets the Inbox's page go while the tab is on screen: it is warmed again, with nobody reaching for it.
+    stale.get("/w/acme/inbox")();
+    await wait(300);
+    assert.deepEqual(asked.slice(2), ["/w/acme/inbox"]);
+    // A route warmed by a strip, and not kept: let go, it waits for a reach as before.
+    warmSoon(["broadcasts"], w.win);
+    await wait(300);
+    stale.get("/w/acme/broadcasts")();
+    await wait(300);
+    assert.deepEqual(asked.slice(3), ["/w/acme/broadcasts"], "warmed once, and not again by itself");
+    // Put away: what the router lets go waits for the tab's return, and then every place kept goes again at once.
+    screen.visibilityState = "hidden";
+    stale.get("/w/acme/people")();
+    stale.get("/w/acme/inbox")();
+    await wait(300);
+    assert.deepEqual(asked.slice(4), [], "nothing is asked for a tab nobody is looking at");
+    screen.visibilityState = "visible";
+    heard[0]();
+    await wait(400);
+    assert.deepEqual(asked.slice(4).sort(), ["/w/acme/inbox", "/w/acme/people"]);
+  } finally {
+    setAppRouter(null);
+    globalThis.requestIdleCallback = was.idle;
+    if (was.doc) Object.defineProperty(globalThis, "document", was.doc);
+    else delete globalThis.document;
   }
 });

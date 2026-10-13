@@ -2406,7 +2406,7 @@
 }
 
 @media (max-width: 720px) {
-  /* At 720px and under the row stands on the tab bar (.phone-tabs, 64px), which clears the home bar for it, and
+  /* At 720px and under the row stands on the tab bar (.phone-places, 64px), which clears the home bar for it, and
      toasts sat 76px up (mobile.css): ON the row. Measured on production, 22 Sep: the row 687-748, the tabs 754-812. */
   .cl-bulk.pp-bulk { padding-bottom: 6px; }
   body:has(.cl-bulk.pp-bulk) .pp-toast-stack { bottom: calc(140px + env(safe-area-inset-bottom, 0px)); }

@@ -48,6 +48,8 @@ export { SubTabs } from "./sub-tabs/sub-tabs";
 export type { SubTab, SubTabsProps } from "./sub-tabs/sub-tabs";
 export { Switch } from "./switch/switch";
 export type { SwitchProps } from "./switch/switch";
+export { TabBar } from "./tab-bar/tab-bar";
+export type { TabBarMore, TabBarPlace, TabBarProps } from "./tab-bar/tab-bar";
 export { useToast } from "./toast/toast";
 export type { ToastFlash, ToastGlyphs } from "./toast/toast";
 export { Tooltip } from "./tooltip/tooltip";

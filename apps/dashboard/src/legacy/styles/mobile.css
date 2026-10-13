@@ -441,7 +441,7 @@
    the markup always and are shown only here.
    ==================================================================== */
 .ix-back { display: none; }
-.phone-tabs { display: none; }
+.phone-places { display: none; }
 
 @media (max-width: 720px) {
   /* Inbox: the list OR the thread, never both squeezed into one screen */
@@ -481,28 +481,13 @@
   .lm-whisper { margin-bottom: calc(6px + env(safe-area-inset-bottom)); }
   .lm-whisper .btn { min-height: 44px; }
 
-  /* The tab bar: real surfaces, two counts, More opens the drawer */
-  .phone-tabs {
+  /* The tab bar (the kit's TabBar, kit.css): the four places and More, which opens the drawer. Fixed, not flowed: the
+     shell's column can run taller than the phone's viewport, and a bar that lives at the end of it lives below the fold. */
+  .phone-places {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    /* Fixed, not flowed: the shell's column can run taller than the phone's
-       viewport, and a bar that lives at the end of it lives below the fold. */
     position: fixed;
-    
     z-index: 120;
-    background: var(--bg-raised);
-    /* The ✦ has its own place at the bar's right end (ask.css): no tab runs under it, and no page. */
-    padding-right: 60px;
   }
-  .phone-tab {
-    appearance: none; background: none; border: 0; font: inherit; 
-    display: flex; flex-direction: column; align-items: center; 
-    cursor: pointer;
-  }
-  .phone-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-  .phone-tab-icon { position: relative; display: inline-flex; }
-  /* The amber tally on the icon (.tally .tally-icon .tally-warn): it counts people who need you. */
-  .phone-tab-badge { position: absolute; }
   /* The tab bar's More replaces the hamburger */
   .tb-menu { display: none; }
   /* The top bar says each thing once on a phone: Ask is the ✦ in the tab bar and the theme is in More, under your
@@ -650,7 +635,7 @@
    the shell tells the page how tall it is in --app-inset-bottom on <html>.
    Outside the app the variable is unset and every rule below is inert.
    ==================================================================== */
-html.in-app .phone-tabs { display: none; }
+html.in-app .phone-places { display: none; }
 html.in-app .main-scroll { --page-foot: var(--app-inset-bottom, 0px); padding-bottom: var(--app-inset-bottom, 0px); }
 html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px)); }
 /* The ✦ lifts by the same inset; its rule lives with the palette's, in ask.css. */
@@ -756,73 +741,12 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     --bar-foot: max(14px, calc(env(safe-area-inset-bottom, 0px) - 13px));
   }
 
-  /* The tab bar is one capsule floating over the page, 14px clear of its sides and of the home bar, with the room for
-     Ask's circle at its right (liquid.py tabbar): its tabs lozenges when picked, the picked one's glyph and word in
-     coral at 600, and the count on the Inbox the neutral count, with no ring. */
-  .phone-tabs {
+  /* The tab bar (the kit's TabBar: its capsule, its places and the lozenge are kit.css's) floats over the page, 14px
+     clear of its sides and of the home bar, with the room for Ask's circle at its right (liquid.py tabbar). */
+  .phone-places {
     left: 14px;
     right: 86px;
     bottom: var(--bar-foot);
-    padding: 6px;
-    border-top: 0;
-    border-radius: var(--radius-full);
-    background-color: var(--surface-control-fill);
-    background-image: var(--surface-control-sheen);
-    box-shadow: var(--surface-control-depth);
-    backdrop-filter: var(--surface-control-blur);
-  }
-  .phone-tabs::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    padding: 1px;
-    border-radius: inherit;
-    background: var(--surface-control-rim);
-    mask:
-      linear-gradient(#000 0 0) content-box exclude,
-      linear-gradient(#000 0 0);
-    pointer-events: none;
-  }
-  /* A tab is 50px tall by its height, not a floor: the house's 44px touch floor (legacy.css) outranked the floor
-     written here, and the bar stood 56px beside Ask's 62px circle (Ruben, 1 Oct 2026: "the container around the ask
-     is bigger than the container around the menu"). The glyph at 19, the word at the scale's smallest step under it,
-     the picked one its lozenge with the specular edge alone (the canvases draw no shadow under it), in coral; the
-     count rides the tab's own corner. Reached by the bar's test id and the tab's place where their class is a
-     primitive's word (the kit-primitives ratchet). */
-  .phone-tab {
-    position: relative;
-    height: 50px;
-    min-height: 0;
-    justify-content: center;
-    gap: 3px;
-    padding: 0;
-    border-radius: var(--radius-full);
-    font-size: var(--text-2xs);
-    font-weight: var(--weight-medium);
-    color: var(--ink-muted);
-  }
-  .phone-tab.active {
-    background: var(--selected-fill);
-    box-shadow: var(--surface-inset-depth);
-    font-weight: var(--weight-semibold);
-    color: var(--tab-ink);
-  }
-  [data-testid="phone-tabs"] > button > :first-child {
-    position: static;
-  }
-  [data-testid="phone-tabs"] > button > :first-child > svg {
-    width: 19px;
-    height: 19px;
-  }
-  .phone-tab-badge {
-    top: 4px;
-    right: 10px;
-    min-width: 16px;
-    height: 16px;
-    padding: 0 6px;
-    box-shadow: none;
-    font-size: var(--text-2xs);
-    font-weight: var(--weight-semibold);
   }
 
   /* Room under every surface for the bar, 14px clear of it, and the toast above it. The room is the END of what scrolls,
