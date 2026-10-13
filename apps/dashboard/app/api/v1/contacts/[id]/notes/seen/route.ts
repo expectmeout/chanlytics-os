@@ -20,5 +20,3 @@ export const POST = write({
   input: Body,
   handle: ({ ctx, row: contact, input }) => seeNote(ctx, contact.id, input.note_id),
 });
-
-export const dynamic = "force-dynamic";

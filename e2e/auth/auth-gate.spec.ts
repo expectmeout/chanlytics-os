@@ -44,6 +44,25 @@ test.describe("unauthenticated", () => {
     expect(at.search, "the page's query is never copied onto the sign-in page").toBe("?w=acme");
   });
 
+  test("every address of a workspace is the proxy's to answer, whatever it ends in and however it is asked for", async ({
+    request,
+  }) => {
+    // The (os) frame is one prerender for everyone and reads no session (decision 0053, step 5): the proxy is its gate.
+    // An address ending in an extension skipped the proxy's first pattern, and Vercel routes a capital W to the same
+    // page; each is the proxy's now, so its answer carries the proxy's own cache-control, never the page's, and the
+    // router's request for a page (a move, a warm) is sent to sign in, never answered with the page.
+    const ROUTER = { rsc: "1", "next-router-prefetch": "1", "next-router-segment-prefetch": "/_tree" };
+    for (const path of ["/w/acme/people/x.png", "/w/acme.js", "/W/acme/people/x.png"]) {
+      for (const headers of [{}, ROUTER]) {
+        const res = await request.get(path, { maxRedirects: 0, headers });
+        const asked = `${path} ${Object.keys(headers).length ? "as the router asks" : "as a page"}`;
+        expect(res.status(), asked).toBe(307);
+        expect(new URL(res.headers().location ?? "", "https://x.example").pathname, asked).toBe("/login");
+        expect(res.headers()["cache-control"], `${asked}: the proxy's answer`).toBe("private, no-store");
+      }
+    }
+  });
+
   test("a hash address, which every email and bookmark says, carries its route and its workspace through the same redirect", async ({
     page,
   }) => {

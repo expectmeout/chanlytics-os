@@ -242,11 +242,32 @@ const SHARE_CEILING = 10 * MIN_MS;
 const DB_CALLS_CEILING = 10_000;
 const shareMs = (v: number) => Math.min(SHARE_CEILING, Math.max(0, Math.round(v)));
 
-/** A read's key as the table says it: the router's fetch of a page is `page`; one of the app's own, its route's words. */
-const waitKeyOf = (name: string): string | null => (name.includes("_rsc=") ? "page" : readKeyOf(name));
+const pagePathOf = (url: string): string | null => {
+  try {
+    return new URL(url, "http://x").pathname.replace(/\/+$/, "");
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * A read's key as the table says it: one of the app's own is its route's words; the router's fetch of the page the wait
+ * is on (`here`, its path) is `page`, and of another page `warm`, a page warmed beside it (workspace.ts warmRoute) that
+ * the move never asked for. With no address to hold it to, every router fetch is `page`.
+ */
+function waitKeyOf(name: string, here: string | undefined): string | null {
+  if (!name.includes("_rsc=")) return readKeyOf(name);
+  return here === undefined || pagePathOf(name) === here.replace(/\/+$/, "") ? "page" : "warm";
+}
+
+/** The page a wait is on: the reads that are its own (their keys), and its path, where the router's fetch of it is one. */
+interface WaitPage {
+  own?: ReadonlySet<string>;
+  here?: string;
+}
 
 /** Inside a wait: the page's own read that landed last, else any read's, and the longest chunk of script. */
-function landedIn(landed: readonly Landed[], from: number, to: number, own: ReadonlySet<string>) {
+function landedIn(landed: readonly Landed[], from: number, to: number, { own = new Set(), here }: WaitPage) {
   let read: Landed | null = null;
   let mine: Landed | null = null;
   let chunk: Landed | null = null;
@@ -254,7 +275,7 @@ function landedIn(landed: readonly Landed[], from: number, to: number, own: Read
     if (l.end <= from || l.end > to) continue;
     if (l.kind === "read") {
       if (!read || l.end > read.end) read = l;
-      const key = waitKeyOf(l.name);
+      const key = waitKeyOf(l.name, here);
       if (key && own.has(key) && (!mine || l.end > mine.end)) mine = l;
     } else if (!chunk || l.duration > chunk.duration) chunk = l;
   }
@@ -278,21 +299,21 @@ function serverShareOf(read: Landed): PageVitalDetailDto {
 }
 
 /**
- * What a wait from `from` to `to` went on: the read that landed last inside it among the page's own (`own`, the reads it
- * opens on and the router's fetch of it), else among any (the one the page could not draw without), the longest chunk of
- * script that had to arrive, and the time left for drawing after both.
+ * What a wait from `from` to `to` went on: the read that landed last inside it among the page's own (`page.own`, the reads
+ * it opens on and the router's fetch of it, the page at `page.here`), else among any (the one the page could not draw
+ * without), the longest chunk of script that had to arrive, and the time left for drawing after both.
  */
 export function waitOf(
   landed: readonly Landed[],
   from: number,
   to: number,
-  own: ReadonlySet<string> = new Set(),
+  page: WaitPage = {},
 ): PageVitalDetailDto | undefined {
-  const { read, chunk } = landedIn(landed, from, to, own);
+  const { read, chunk } = landedIn(landed, from, to, page);
   if (!read && !chunk) return undefined;
   const detail: PageVitalDetailDto = {};
   if (read) {
-    const key = waitKeyOf(read.name);
+    const key = waitKeyOf(read.name, page.here);
     if (key) detail.wait = key;
     detail.wait_ms = shareMs(read.duration);
     Object.assign(detail, serverShareOf(read));

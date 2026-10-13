@@ -29,5 +29,3 @@ export const PUT = write({
   handle: ({ ctx, row: contact, input }) =>
     markPersonSeen(ctx, contact.id, { seen: input.seen, heardAt: input.heard_at ?? null }),
 });
-
-export const dynamic = "force-dynamic";

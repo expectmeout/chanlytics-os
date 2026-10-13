@@ -201,7 +201,7 @@ test("a wait went on the page's own read that landed last, the chunk it waited f
     landed("chunk", "http://app/_next/static/chunks/leads.js", 380, 90),
     landed("read", "http://app/api/v1/views?workspace=acme", 50, 40),
   ];
-  assert.deepEqual(waitOf(reads, 100, 500, new Set(["contacts", "segments"])), {
+  assert.deepEqual(waitOf(reads, 100, 500, { own: new Set(["contacts", "segments"]) }), {
     wait: "contacts",
     wait_ms: 250,
     server_ms: 182,
@@ -213,7 +213,32 @@ test("a wait went on the page's own read that landed last, the chunk it waited f
   assert.equal(waitOf(reads, 100, 500).wait, "billing", "with no read of its own, the last to land");
   assert.equal(waitOf(reads, 600, 700), undefined, "nothing landed, nothing to say");
   const router = [landed("read", "http://app/w/acme/calendar?_rsc=1x2y", 260, 210)];
-  assert.deepEqual(waitOf(router, 50, 300, new Set(["page"])), { wait: "page", wait_ms: 210, render_ms: 40 });
+  assert.deepEqual(waitOf(router, 50, 300, { own: new Set(["page"]) }), { wait: "page", wait_ms: 210, render_ms: 40 });
+});
+
+test("a move waits on the router's fetch of the page it moved to, never on another page warmed beside it", () => {
+  const own = new Set(["page", "workspaces", "open"]);
+  const fetches = [
+    landed("read", "http://app/w/acme/people?_rsc=1x2y", 200, 120),
+    // The sidebar warmed the Calendar while People was on its way, and it landed after People's fetch.
+    landed("read", "http://app/w/acme/calendar?_rsc=3z4w", 280, 150),
+  ];
+  assert.deepEqual(waitOf(fetches, 50, 300, { own, here: "/w/acme/people" }), {
+    wait: "page",
+    wait_ms: 120,
+    render_ms: 100,
+  });
+  assert.equal(
+    waitOf(fetches, 50, 300, { own, here: "/w/acme/people/" }).wait,
+    "page",
+    "a trailing slash is the same page",
+  );
+  // Nothing of its own landed: the warm is what landed last, and says it was a warm.
+  assert.deepEqual(waitOf(fetches.slice(1), 50, 300, { own, here: "/w/acme/people" }), {
+    wait: "warm",
+    wait_ms: 150,
+    render_ms: 20,
+  });
 });
 
 test("a read is named by its route's words alone: never an id, a query or a workspace", () => {

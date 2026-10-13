@@ -105,6 +105,35 @@ test("the typed client and the sign-in screens are held to the same boundary", a
   }
 });
 
+test("the (os) frame reads no request and no database: not the session, a header, the server or a rule package", async () => {
+  // Decision 0053, step 5: the frame is prerendered once for every person and workspace, and the proxy is its gate.
+  for (const at of ["apps/dashboard/app/(os)/layout.tsx", "apps/dashboard/app/(os)/w/[workspace]/layout.tsx"]) {
+    for (const [from, name] of [
+      ["@/lib/supabase/server", "createClient"],
+      ["next/headers", "cookies"],
+      ["@chanlytics/db", "profileRepo"],
+      ["@/server/route", "route"],
+      ["@chanlytics/core", "deliver"],
+    ]) {
+      assert.deepEqual(
+        await rulesFiredOn(at, `import { ${name} } from "${from}";\nexport const x = ${name};\n`),
+        [IMPORTS],
+        `${at}: ${from}`,
+      );
+    }
+    assert.deepEqual(
+      await rulesFiredOn(at, 'import LegacyHost from "@/legacy-bridge/LegacyHost";\nexport const x = LegacyHost;\n'),
+      [],
+      `${at}: the frame's host is what it draws`,
+    );
+    assert.deepEqual(
+      await rulesFiredOn(at, 'import type { Database } from "@chanlytics/db";\nexport type X = Database;\n'),
+      [],
+      `${at}: a type crosses`,
+    );
+  }
+});
+
 /**
  * Where a surface's probes stand: a page that has left the shell and waits for no kit step (a folder no surface will
  * take, since each that leaves waits in KIT_PENDING: ESLint lints the text, so none of its files need exist, and Reports

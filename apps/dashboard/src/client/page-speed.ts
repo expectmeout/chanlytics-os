@@ -243,7 +243,8 @@ export function installPageSpeed(shell: SpeedShell, facts: { build: string; repo
     now: () => performance.now(),
     afterPaint,
     emit: (r) => fieldData.note({ id: `${loadKey}-${(said += 1)}`, ...r }),
-    waits: (page, from, to) => waitOf(landed, from, to, ownReads(page)),
+    // Asked as the page is drawn, so the address is already the page's own: the router's fetch of it is its wait.
+    waits: (page, from, to) => waitOf(landed, from, to, { own: ownReads(page), here: window.location.pathname }),
     measure: measureIn(performance),
   });
 

@@ -27,5 +27,3 @@ export const DELETE = write({
   rate: "person_edit",
   handle: ({ ctx, row: person }) => unlinkPersonFromLead(ctx, person.id),
 });
-
-export const dynamic = "force-dynamic";

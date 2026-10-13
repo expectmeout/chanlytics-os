@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
-import { memo, useCallback, useEffect, useLayoutEffect, useState, type ReactNode } from "react";
+import { Suspense, memo, useCallback, useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import { movedAddress, routeOfPath } from "@chanlytics/contracts";
 import { routeHasPage } from "@/surfaces/routes";
 import { speedHost } from "@/client/page-speed";
@@ -157,30 +157,22 @@ const Frame = memo(function Frame({ page, route }: { page: ReactNode; route: str
  * query and the route riding along; only an account with no workspace stays here, where the app shows the create
  * screen.
  */
-/**
- * A route warmed in full, page and all: every workspace route is dynamic, so a plain prefetch stops at nothing to keep.
- * The kind is the value Next's own enum holds ("full"), typed from the router's public prefetch, so nothing of Next's
- * internals is imported into the page: the value must be one the enum holds, so a release that renames it fails here
- * at the type, not in a tab.
- */
-type PrefetchOptions = NonNullable<Parameters<ReturnType<typeof useRouter>["prefetch"]>[1]>;
-const FULL: `${NonNullable<PrefetchOptions["kind"]>}` = "full";
-const FULL_PREFETCH = FULL as PrefetchOptions["kind"];
-
 export default function LegacyHost({ home = false, children }: { home?: boolean; children?: ReactNode }) {
   const [stay, setStay] = useState(!home);
   const router = useRouter();
-  const pathname = usePathname();
   const loaded = useLoaded();
   const [placed, setPlaced] = useState(home);
   const place = useCallback(() => setPlaced(true), []);
   // The frame moves to a route with a page of its own through the router (workspace.ts goToRoute).
   useEffect(() => {
-    // What the frame asks of the router: a move, and a route warmed in full (workspace.ts warmRoute).
+    // What the frame asks of the router: a move, and a route warmed (workspace.ts warmRoute). A warm is Next's own
+    // prefetch, of the route's prerendered page: the same for every address and workspace of the route, so one warm
+    // serves them all, and a move that finds it asks the server for nothing. It was a prefetch in full ("full"), a
+    // render of the page for its one address, while every page was dynamic (decision 0053, step 5).
     setAppRouter({
       push: (href) => router.push(href),
       replace: (href) => router.replace(href),
-      prefetch: (href, options) => router.prefetch(href, { kind: FULL_PREFETCH, onInvalidate: options?.onInvalidate }),
+      prefetch: (href) => router.prefetch(href),
     });
     return () => setAppRouter(null);
   }, [router]);
@@ -219,13 +211,27 @@ export default function LegacyHost({ home = false, children }: { home?: boolean;
     };
   }, [home]);
   if (!stay) return <Loading />;
+  // The address is read only here and in the frame below, and neither is drawn by the server: the build prerenders this
+  // spinner once for every workspace's address (decision 0053, step 5), and the address it does not know (`[workspace]`
+  // is any slug) is the browser's to say. In a boundary, as Next asks of a read of the address a prerender cannot know.
   if (!placed)
     return (
       <>
         <Loading />
-        <MovedOnLoad onPlaced={place} />
+        <Suspense fallback={null}>
+          <MovedOnLoad onPlaced={place} />
+        </Suspense>
       </>
     );
+  return <Placed home={home}>{children}</Placed>;
+}
+
+/**
+ * The frame once the address is placed, drawn by the browser alone: `page` is the layout's children while the address is a
+ * route with a page of its own, `route` the route of the router's pathname, so the frame and the page move in one render.
+ */
+function Placed({ home, children }: { home: boolean; children?: ReactNode }) {
+  const pathname = usePathname();
   return (
     <>
       {!home && <AddressFollower />}

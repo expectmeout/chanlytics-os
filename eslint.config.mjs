@@ -613,6 +613,30 @@ export default [
       "@typescript-eslint/no-restricted-imports": ["error", { patterns: SERVER_MAY_NOT_IMPORT }],
     },
   },
+  // The (os) frame reads no request: it is one prerender for every person and workspace (decision 0053, step 5), so
+  // nothing of it may reach a cookie, a header, the session or a database. The proxy gates it, and every read verifies
+  // itself; a layout that read the session would make the frame a render per request again, and one that read a
+  // database would put a person's data in a page built once for everyone.
+  {
+    files: ["apps/dashboard/app/(os)/**/*.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            ...BROWSER_MAY_NOT_IMPORT,
+            {
+              // The session's client (`@/lib/supabase/server`) is the browser layer's `**/server`, refused above.
+              group: ["next/headers", "@chanlytics/db", "@chanlytics/db/**"],
+              allowTypeImports: true,
+              message:
+                "The (os) frame reads no request and no database: it is prerendered once for everyone. The proxy gates it; a read is a route's (withRoute).",
+            },
+          ],
+        },
+      ],
+    },
+  },
 
   // A surface draws its controls with the kit's components (RAW_ELEMENTS above); the kit draws the raw elements, and
   // a surface moved before its kit step waits in KIT_PENDING.

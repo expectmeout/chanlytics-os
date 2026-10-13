@@ -10,8 +10,6 @@
  */
 import { PARTNER_COOKIE, PARTNER_COOKIE_DAYS, cleanPartnerCode, partnerCodeFromCookie } from "@chanlytics/contracts";
 
-export const dynamic = "force-dynamic";
-
 type Ctx = { params: Promise<{ code: string }> };
 
 /** Where the link lands. Sign-up; a signed-in person is sent on by the proxy, cookie in hand. */

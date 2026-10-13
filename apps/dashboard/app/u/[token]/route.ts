@@ -7,8 +7,6 @@
  */
 import { unsubscribeGet, unsubscribePost } from "@/server/public/unsubscribe";
 
-export const dynamic = "force-dynamic";
-
 type Ctx = { params: Promise<{ token: string }> };
 
 export async function GET(_req: Request, ctx: Ctx): Promise<Response> {

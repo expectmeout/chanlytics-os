@@ -21,5 +21,3 @@ export const POST = write({
   rate: "call_control",
   handle: ({ ctx, row: call }) => passCallToOwnerLine(ctx, call),
 });
-
-export const dynamic = "force-dynamic";

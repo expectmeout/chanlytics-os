@@ -26,7 +26,10 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return textingTermsMetadata(await businessPageFor(slug));
 }
 
-export const dynamic = "force-dynamic";
+// Rendered for each request, as it always was: it reads its slug and the workspace's record before anything is drawn,
+// and a business's page must say what is true now. Under cacheComponents a page that reads before it draws may block,
+// and this says it may (decision 0053, step 5).
+export const instant = false;
 
 /** HELP and STOP in bold, which the reviewers' guide asks of a program's terms. */
 function Emphasised({ text }: { text: string }) {

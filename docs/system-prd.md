@@ -179,6 +179,7 @@ Viewers read everything and change nothing. A control a role may not press says 
 - **A password is the everyday credential.** Twelve characters at least, seventy-two bytes at most (the hash reads no more), no composition rules; the real strength check is the hosted breach list. The emailed one-time code is the way back in (`/reset-password`), and confirming the address is what makes the account. **Sign in with Google** runs the PKCE flow through `/auth/callback`, which exchanges the code through the same cookie-backed client every route uses and lands the browser on this site only (`callbackPlan`). The login page says one sentence per failure and never reveals whether an address has an account; an address that was never confirmed is told so and sent a fresh code rather than "wrong password".
 - `middleware.ts` admits exactly these without a session: `/login`, `/auth/signout`, `/auth/callback`, `/api/version`, `/manifest.webmanifest`, `/signup`, `/api/v1/signup`, `/reset-password`, `/privacy`, `/terms`, `/data-deletion`, and anything under `/yes/` and `/b/`. Everything else requires a validated user; a signed-in visitor is kept off both auth doors.
 - An outage at the auth server answers 503, not 401 (`isRetryableAuthError`). A 401 makes the client clear its cache and sign the person out; a blip must not.
+- **The proxy is the OS's page gate** (decision 0053, step 5): it verifies the session's signature (`getClaims`) for every address of a workspace, whatever it ends in and in either case (`/(w|W)/:path*`), documents, moves and prefetches alike, and every read verifies it again (`withRoute`). The `(os)` layout reads no request, so the frame is one prerender for every person and workspace; it read the session too until 12 October 2026, as a guarantee should the proxy be bypassed, over a frame that holds no one's data. `auth-gate.test.mjs` runs the gate, and the lint refuses the `(os)` tree the session, a header and the database.
 - **The product has one address.** A workspace is a page, `/w/<slug>`; the client names its workspace on every request, and a tab off a workspace page asks the server which workspace the account may open before any other read is issued.
 
 ### 4.3 `route()`, the one definition
@@ -601,7 +602,7 @@ The operator UI is a ported HTML mockup — about 30,000 lines of hand-written R
 
 ```mermaid
 flowchart LR
-  L["(os) layout: auth gate"] --> H["LegacyHost (client only)"]
+  P["proxy: the page gate"] --> L["(os) layout: prerendered, reads nothing"] --> H["LegacyHost (client only)"]
   H --> S[seed-globals] --> M[manifest: 68 files in order]
   M --> C[hydrate the surface cache]
   C --> I["one typed client, the couriers on window"]
@@ -616,7 +617,7 @@ flowchart LR
 
 ### 11.1 Boot
 
-`app/(os)/layout.tsx` (the server-side auth gate) → `page.tsx`, or `w/[workspace]/layout.tsx` for a workspace's own address (its route the catch-all `[[...route]]/page.tsx`'s) → `LegacyHost` (client only, `ssr: false`, because the mockup touches `window` at module scope) → `LegacyApp`:
+The proxy (the page gate) → `app/(os)/layout.tsx` (prerendered: it reads nothing of the request) → `page.tsx`, or `w/[workspace]/layout.tsx` for a workspace's own address (its route the catch-all `[[...route]]/page.tsx`'s) → `LegacyHost` (client only, `ssr: false`, because the mockup touches `window` at module scope) → `LegacyApp`:
 
 1. `seed-globals.ts` makes the bundle's React the `window.React` (one hook dispatcher), sets `__DEMO_MODE = false`, and publishes the contracts helpers the pages call (`ROLE_PERMS`, `__FACT_WORDS`, the phone checks, the clock, the tone map, the gate).
 2. `manifest.ts` imports the 68 legacy files in the exact order the mockup's own script tags use; data files seed globals that pages read at module scope. The standalone harness loads the same list (11.5).

@@ -24,5 +24,3 @@ export const POST = write({
   input: Body,
   handle: ({ ctx, row: contact, input }) => settleDoubtApart(ctx, contact.tenant_id, contact.id, input.doubt_id),
 });
-
-export const dynamic = "force-dynamic";

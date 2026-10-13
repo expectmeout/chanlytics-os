@@ -32,5 +32,3 @@ export const GET = read({
     return new Response(null, { status: 302, headers: { location: url } });
   },
 });
-
-export const dynamic = "force-dynamic";
