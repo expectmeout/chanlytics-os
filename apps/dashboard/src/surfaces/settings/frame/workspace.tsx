@@ -20,12 +20,16 @@ import { BusinessTab } from "../business/tab";
 
 type Flash = (f: LegacyFlash) => void;
 
-/** What the file holds, said behind the mark beside the link and to a screen reader. */
+/**
+ * What the file holds, said behind the mark beside the link and to a screen reader: what is in it, and what is not yet (the
+ * wiring's second audit, X1: the card said "everything", above "Delete this workspace", and the file is the customer record
+ * alone).
+ */
 const DATA_HOLDS =
-  "People, conversations with their messages, calls with their transcripts, and every consent change with who recorded it. Call audio is not included: it is removed on the schedule the privacy policy states, and the transcript is here.";
+  "People, conversations with their messages, calls with their transcripts, and every consent change with who recorded it; each person's row also carries their newest deal and next step. Not in it yet: the rest of what the workspace holds, such as notes, bookings, leads, reviews, your business details, the team and campaigns; write to hi@chanlytics.com for a copy. Call audio is not included: it is removed on the schedule the privacy policy states, and the transcript is here.";
 
 /**
- * The owner's own copy of everything, and the one thing this page cannot do.
+ * The owner's own copy of the customer record, and the one thing this page cannot do.
  *
  * The privacy page has said "an owner can export a workspace's data" since it was written, and no page offered it: three
  * partial exports (everyone as a CSV on People, one thread, one call) were the whole of it. This is the door the
@@ -45,11 +49,11 @@ export function WorkspaceData() {
         <h2 className="rec-card-title" id="set-data-title">
           Your data
         </h2>
-        <span className="rec-card-sub">Everything this workspace holds, in one file you keep.</span>
+        <span className="rec-card-sub">People, conversations, calls and consent history, in one file you keep.</span>
       </div>
       <RecordRow
         id="data-export"
-        label="Download everything"
+        label="Download your records"
         value={
           <span className="set-data-val">
             {href && (

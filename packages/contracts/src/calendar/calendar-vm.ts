@@ -172,6 +172,8 @@ export interface CalendarVM {
       /** The notices held for a person, latest first, each with why in the owner's words (NOTICE_HOLD_WORDS). */
       heldList: Array<{
         id: string;
+        /** The delivery it was read from, which the bell's row of it is about; null from an older read. */
+        noticeId: string | null;
         tool: string | null;
         from: string | null;
         subject: string | null;

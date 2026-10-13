@@ -72,7 +72,8 @@ export function bookingReader(db: Db, over: { now?: () => number } = {}): Bookin
       return client.email ? contactIdByEmail(db, tenantId, client.email) : null;
     },
     // A notice held for a person: a row on the bell, once per delivery (notifyOnce), no mail. A notice the model could
-    // not be asked about (no key, no spend) is not news; the read runs again.
+    // not be asked about (no key, no spend) is not news: the card lists it, and it is read again when a person presses
+    // Read again. One the reader failed on every try is told (packages/jobs booking-read.ts).
     tell: async (tenantId, notice) => {
       try {
         const target = await loadTenantNotifications(db, tenantId);
@@ -80,6 +81,8 @@ export function bookingReader(db: Db, over: { now?: () => number } = {}): Bookin
           { tenantId, ...target },
           {
             kind: "booking_notice",
+            // Once per delivery and hold (00419): a Read again that holds it again for the same reason keeps no twin row.
+            onceKey: `booking_notice:${tenantId}:${notice.noticeId}:${notice.hold}`,
             // The Business row that shows the emails held for a look (the booking tool's), open: not the top of the tab.
             route: CALENDAR_SETTING_ROUTE,
             about: { type: "booking_notice", id: notice.noticeId },

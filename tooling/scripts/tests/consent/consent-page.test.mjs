@@ -327,11 +327,11 @@ test("the wiring: public by one prefix, read by slug, writes nothing, and the ow
   const server = readCode("apps/dashboard/src/server/public/consent-page.ts");
   assert.ok(server.includes('import "server-only";') && server.includes('import { serviceDb } from "../service-db";'));
   assert.ok(
-    server.includes('if (!tenant || tenant.status === "test") return null;'),
-    "a fixture workspace has no page",
+    server.includes('if (!tenant || tenant.status === "test" || tenant.left_empty_at) return null;'),
+    "a fixture workspace has no page, nor an ended one (run in public/an-ended-workspace-publishes-nothing.test.mjs)",
   );
   assert.ok(
-    server.includes('.select("id, name, status")') && server.includes('.select("kind, number_e164")'),
+    server.includes('.select("id, name, status, left_empty_at")') && server.includes('.select("kind, number_e164")'),
     "exactly the facts the page shows leave this boundary",
   );
   assert.ok(!/insert|update|delete|upsert/i.test(server), "the public page's reader may not write");

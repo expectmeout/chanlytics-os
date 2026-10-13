@@ -75,7 +75,8 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
     "A domain to send from was added · getharbor.com",
     "the host, never the provider's id",
   );
-  assert.equal(activityWords("export", { what: "workspace" }), "Exported data · everything");
+  // The file is the customer record, not everything the workspace holds (the wiring's second audit, X1).
+  assert.equal(activityWords("export", { what: "workspace" }), "Exported data · the records");
   assert.equal(activityWords("export", { what: "people", rows: 312 }), "Exported data · everyone as a CSV · 312 rows");
   assert.equal(activityWords("export", { what: "conversation", messages: 40 }), "Exported data · a conversation");
   assert.equal(

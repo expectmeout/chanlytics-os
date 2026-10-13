@@ -373,7 +373,7 @@ test("the pane is the record, the card that sets one up, or the broken one -- an
     fresh();
     let tree = draw("workspace");
     assert.ok(byTestId(tree, "the-business-page"), "the record is the pane");
-    assert.ok(byTestId(tree, "set-data"), "with the owner's own copy of everything under it");
+    assert.ok(byTestId(tree, "set-data"), "with the owner's own copy of the customer record under it");
     assert.equal(buttonSaying(tree, "Edit"), null, "and no button that opens a second editor of the same config");
 
     // No brain at all: the empty state and the fold that sets a receptionist up, never the record, never the demo.

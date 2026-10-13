@@ -282,6 +282,7 @@ async function noticesHealth(
         ? [
             {
               id: n.id,
+              notice_id: n.notice_id,
               tool: n.tool,
               from: n.from_address,
               subject: n.subject,

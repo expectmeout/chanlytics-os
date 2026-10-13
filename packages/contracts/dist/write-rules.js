@@ -56,6 +56,18 @@ var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
 
+// src/config/workspace-config/alerts.ts
+var ALERT_ADDRESSES_MAX = 10;
+var ALERT_ADDRESSES_MIN = 1;
+var ALERT_REFUSED_WORDS = {
+  last: "Someone has to get alerts. Add another address on Notifications first.",
+  full: `Alerts go to ${ALERT_ADDRESSES_MAX} addresses at most. Take one off on Notifications first.`,
+  address: "That doesn't look like an email address."
+};
+
+// src/calendar/calendar-people.ts
+var NEAR_VISIT_MS = 3 * DAY_MS;
+
 // src/calendar/booking-notice.ts
 var BOOKING_TOOLS = [
   { tool: "booksy", name: "Booksy", domains: ["booksy.com"], calendar: "none" },
@@ -105,15 +117,6 @@ function refuseUnknownFields(read, raw, ctx) {
   }
   for (const { path, keys } of byObject.values()) ctx.addIssue({ code: "unrecognized_keys", keys, path });
 }
-
-// src/config/workspace-config/alerts.ts
-var ALERT_ADDRESSES_MAX = 10;
-var ALERT_ADDRESSES_MIN = 1;
-var ALERT_REFUSED_WORDS = {
-  last: "Someone has to get alerts. Add another address on Notifications first.",
-  full: `Alerts go to ${ALERT_ADDRESSES_MAX} addresses at most. Take one off on Notifications first.`,
-  address: "That doesn't look like an email address."
-};
 
 // src/config/workspace-config/brain-config-schema.ts
 import { z as z2 } from "zod";

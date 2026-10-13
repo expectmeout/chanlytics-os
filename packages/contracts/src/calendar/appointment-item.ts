@@ -10,8 +10,8 @@ import type { CalendarItemDto, VisitMark } from "./calendar-dto";
 import { APPOINTMENT_STATUSES, type AppointmentStatus } from "./feed-appointments";
 import type { BusyBlock, FeedItem } from "./feed";
 import { visitStands } from "./calendar-words";
-import { extractContacts, replyFactsOf, type OwnAddresses, type PersonLike, type PersonMatch } from "./calendar-people";
-import { bookingToolName, SAME_VISIT_MS } from "./booking-notice";
+import { replyFactsOf, type OwnAddresses, type PersonLike, type PersonMatch } from "./calendar-people";
+import { bookingCopyTest, bookingToolName } from "./booking-notice";
 import { appointmentKeyOf, recordKeyOf } from "./appointment-key";
 import { shiftKey, zoneMidnight } from "./day-keys";
 
@@ -196,26 +196,12 @@ export function itemOfAppointment(row: AppointmentLike, people: PersonLike[]): C
 /**
  * The feed's events with those a row already draws left out: an event is a row's visit when it carries the row's
  * client (the number or the address the row names, found in the event the way the panel finds them) and starts within
- * SAME_VISIT_MS of it. A tool that both emails and writes a calendar then shows each visit once, from the notice.
+ * SAME_VISIT_MS of it (booking-notice.ts bookingCopyTest, the one rule). A tool that both emails and writes a calendar then shows each visit
+ * once, from the notice.
  */
 export function withoutVisitsRowsDraw(items: FeedItem[], rows: AppointmentLike[], own: OwnAddresses): FeedItem[] {
-  if (!rows.length) return items;
-  const byPhone = new Map<string, number[]>();
-  const byEmail = new Map<string, number[]>();
-  for (const r of rows) {
-    const at = Date.parse(r.starts_at);
-    if (r.client_phone) byPhone.set(r.client_phone, [...(byPhone.get(r.client_phone) ?? []), at]);
-    if (r.client_email) byEmail.set(r.client_email.toLowerCase(), [...(byEmail.get(r.client_email) ?? []), at]);
-  }
-  if (!byPhone.size && !byEmail.size) return items;
-  const near = (starts: number[] | undefined, at: number) => !!starts?.some((s) => Math.abs(s - at) <= SAME_VISIT_MS);
-  return items.filter((it) => {
-    const c = extractContacts(it, own);
-    const same =
-      c.phones.some((p) => near(byPhone.get(p), it.start)) ||
-      c.emails.some((e) => near(byEmail.get(e.toLowerCase()), it.start));
-    return !same;
-  });
+  const copy = bookingCopyTest(rows, own);
+  return copy ? items.filter((it) => !copy(it)) : items;
 }
 
 /**

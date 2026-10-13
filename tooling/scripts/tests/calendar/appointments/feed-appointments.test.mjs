@@ -160,6 +160,76 @@ test("the rows: inside the window the read covered only, one per key, the person
   );
 });
 
+test("what the bell asks of each row (00419): one occurrence of a repeating event is a series; the calendar's copy of a booking the record holds -- carrying its number or address, or matched to its person, within a quarter hour -- is a twin (the wiring's second audit, S11-1, S11-2)", () => {
+  const feed = parseIcs(
+    ics(
+      event([
+        "UID:staff-1",
+        `DTSTART:${stamp(T0)}`,
+        `DTEND:${stamp(T0 + 3600_000)}`,
+        "RRULE:FREQ=DAILY;COUNT=2",
+        "SUMMARY:Staff meeting",
+      ]),
+      event([
+        "UID:jane-1",
+        `DTSTART:${stamp(T0 + 2 * D)}`,
+        `DTEND:${stamp(T0 + 2 * D + 3600_000)}`,
+        "SUMMARY:Jane Roe",
+        "DESCRIPTION:Phone: +1 305 555 0150",
+      ]),
+      event([
+        "UID:ana-1",
+        `DTSTART:${stamp(T0 + 3 * D + 10 * 60_000)}`,
+        `DTEND:${stamp(T0 + 3 * D + 3600_000)}`,
+        "SUMMARY:Ana Ruiz",
+      ]),
+      event([
+        "UID:ana-2",
+        `DTSTART:${stamp(T0 + 4 * D + 40 * 60_000)}`,
+        `DTEND:${stamp(T0 + 4 * D + 3600_000)}`,
+        "SUMMARY:Ana Ruiz",
+      ]),
+      event(["UID:lunch-1", `DTSTART:${stamp(T0 + 5 * D)}`, `DTEND:${stamp(T0 + 5 * D + 3600_000)}`, "SUMMARY:Lunch"]),
+    ),
+    "UTC",
+    { horizon },
+  );
+  const people = [
+    { id: "p-jane", name: "Jane Roe", phone: "+13055550150", email: null },
+    { id: "p-ana", name: "Ana Ruiz", phone: null, email: null },
+  ];
+  const booking = (over) => ({ client_phone: null, client_email: null, contact_id: null, ...over });
+  const bookings = [
+    // Jane's booking from its tool's email: her number is in the calendar's copy.
+    booking({ client_phone: "+13055550150", starts_at: new Date(T0 + 2 * D).toISOString() }),
+    // Ana's, linked to her: the copy names only her, ten minutes on; her next visit is no copy of it.
+    booking({ contact_id: "p-ana", starts_at: new Date(T0 + 3 * D).toISOString() }),
+    booking({ contact_id: "p-ana", starts_at: new Date(T0 + 4 * D).toISOString() }),
+  ];
+  const rows = feedAppointmentRows(feed.items, {
+    people,
+    own: new Set(),
+    services: [],
+    rules: null,
+    window: horizon,
+    bookings,
+  });
+  assert.deepEqual(
+    rows.map((r) => [r.external_id, r.contact_id, r.series, r.twin]),
+    [
+      [`staff-1:${T0}`, null, true, false],
+      [`staff-1:${T0 + D}`, null, true, false],
+      ["jane-1", "p-jane", false, true],
+      ["ana-1", "p-ana", false, true],
+      ["ana-2", "p-ana", false, false],
+      ["lunch-1", null, false, false],
+    ],
+  );
+  // With no bookings over the season, nothing is a copy.
+  const alone = feedAppointmentRows(feed.items, { people, own: new Set(), services: [], rules: null, window: horizon });
+  assert.ok(alone.every((r) => r.twin === false));
+});
+
 test("the question a reminder asks at its send: a person's cancellation or a missed visit holds it; a row the feed stopped naming, or that moved, holds it only when the row read the calendar after the run did; a run drawn with no key, or an appointment the sync has not written, goes", () => {
   const start = new Date(T0).toISOString();
   const READ = T0 - 12 * 3600_000; // the run read the calendar the evening before

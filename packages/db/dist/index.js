@@ -3443,7 +3443,10 @@ async function pageSpots(db, window) {
 import {
   CATCH_UP_VISITS,
   HOUR_MS as HOUR_MS2,
-  MIN_MS
+  MIN_MS,
+  SAME_VISIT_MS,
+  sameVisitOnRecord,
+  sightingStands
 } from "../../contracts/dist/index.js";
 
 // src/repositories/thread.ts
@@ -3752,7 +3755,10 @@ async function noticeFor(db, p) {
   return row ? { id: row.id, kind: row.kind, mailOwed: row.mail_due_at !== null } : null;
 }
 async function mailSent(db, p) {
-  const { error } = await db.from("notifications").update({ mail_due_at: null }).eq("tenant_id", p.tenantId).eq("id", p.id);
+  const { error } = await db.from("notifications").update({
+    mail_due_at: null,
+    ...p.words ? { title: p.words.title.slice(0, 200), body: p.words.body.slice(0, 4e3) } : {}
+  }).eq("tenant_id", p.tenantId).eq("id", p.id);
   if (error) throw new Error(`cannot record that the notice was mailed: ${error.message}`);
 }
 async function noticeKept(db, p) {
@@ -3899,7 +3905,7 @@ async function bookedVisitsOf(db, tenantId, ids, nowMs) {
   if (ids.length === 0) return [];
   const { data, error } = await db.from("appointments").select("id, starts_at, ends_at, all_day, timezone, source, client_name, service, contact_id").eq("tenant_id", tenantId).in("id", [...ids]).eq("status", "booked").is("vanished_at", null).in("source", [...BOOKING_SOURCES]).gt("starts_at", new Date(nowMs).toISOString());
   if (error) throw new Error(`cannot read the visits: ${error.message}`);
-  const visits = data ?? [];
+  const visits = (data ?? []).filter((v) => v.source !== "calendar_feed" || v.contact_id);
   const personIds = [...new Set(visits.flatMap((v) => v.contact_id ? [v.contact_id] : []))];
   const people = /* @__PURE__ */ new Map();
   if (personIds.length) {
@@ -3927,9 +3933,35 @@ async function bookedVisitsOf(db, tenantId, ids, nowMs) {
   });
 }
 async function feedAdditionsWith(db, tenantId, event) {
-  const { data, error } = await db.from("events").select("id, subject_id").eq("tenant_id", tenantId).eq("kind", "appointment.changed").eq("created_at", event.at).eq("data->>source", "calendar_feed").eq("data->>change", "added").order("id").limit(CATCH_UP_VISITS + 1);
+  const { data, error } = await db.from("events").select("id, subject_id, data").eq("tenant_id", tenantId).eq("kind", "appointment.changed").eq("created_at", event.at).eq("data->>source", "calendar_feed").eq("data->>change", "added").order("id").limit(CATCH_UP_VISITS + 1);
   if (error) throw new Error(`cannot read the calendar's additions: ${error.message}`);
-  return (data ?? []).flatMap((e) => e.subject_id ? [{ eventId: e.id, appointmentId: e.subject_id }] : []);
+  return (data ?? []).flatMap(
+    (e) => e.subject_id ? [{ eventId: e.id, appointmentId: e.subject_id, data: e.data }] : []
+  );
+}
+var BOOKING_ROWS = ["booking_email", "booking_tool"];
+async function twinTold(db, tenantId, appointmentId) {
+  const visit = oneOr(
+    await db.from("appointments").select("source, contact_id, starts_at").eq("tenant_id", tenantId).eq("id", appointmentId).limit(1),
+    "the visit"
+  );
+  if (!visit?.contact_id) return false;
+  const others = visit.source === "calendar_feed" ? BOOKING_ROWS : ["calendar_feed"];
+  const at = Date.parse(visit.starts_at);
+  const sightings = await db.from("appointments").select("id, contact_id, starts_at, status, vanished_at").eq("tenant_id", tenantId).in("source", [...others]).eq("contact_id", visit.contact_id).gte("starts_at", new Date(at - SAME_VISIT_MS).toISOString()).lte("starts_at", new Date(at + SAME_VISIT_MS).toISOString());
+  if (sightings.error) throw new Error(`cannot read the visit's other sightings: ${sightings.error.message}`);
+  const ids = (sightings.data ?? []).filter((c) => sightingStands(c) && sameVisitOnRecord(visit, c)).map((c) => c.id);
+  if (!ids.length) return false;
+  const arrived = await db.from("events").select("id, data").eq("tenant_id", tenantId).eq("kind", "appointment.changed").in("subject_id", ids);
+  if (arrived.error) throw new Error(`cannot read how the visit arrived: ${arrived.error.message}`);
+  const events = (arrived.data ?? []).flatMap((e) => {
+    const change = e.data && typeof e.data === "object" && !Array.isArray(e.data) ? e.data.change : null;
+    return change === "added" || change === "confirmed" ? [e.id] : [];
+  });
+  if (!events.length) return false;
+  const told = await db.from("notifications").select("id").eq("tenant_id", tenantId).in("source_event", events).limit(1);
+  if (told.error) throw new Error(`cannot read what the workspace was told: ${told.error.message}`);
+  return (told.data ?? []).length > 0;
 }
 async function memberJoinedOf(db, tenantId, invitationId) {
   const invite = oneOr(
@@ -4325,6 +4357,10 @@ async function putTenantConfig(db, tenantId, config, expectedVersion, updatedBy)
   if (!isMissingDoor(door.error)) throw new Error(`putTenantConfig: ${door.error.message}`);
   const existing = await getTenantConfig(db, tenantId);
   return { ok: false, reason: existing ? "stale" : "missing" };
+}
+async function markCalendarFeedKept(db, tenantId, now) {
+  const { error } = await db.from("tenant_config").update({ calendar_feed_kept_at: now.toISOString() }).eq("tenant_id", tenantId).is("calendar_feed_kept_at", null);
+  if (error) throw new Error(`stamping the calendar's first read: ${error.message}`);
 }
 async function listPolicies(db, tenantId) {
   const { data, error } = await db.from("policies").select("id, class, mode, subject_type, subject_id, limits, updated_at").eq("tenant_id", tenantId).is("subject_type", null).order("class");
@@ -5391,13 +5427,16 @@ async function feedWordsOver(db, tenantId, fromIso, toIso) {
 }
 async function recordOver(db, tenantId, fromIso, toIso) {
   const [noted, feed] = await Promise.all([
-    readAllRows(
-      "appointments_noted",
-      (from, to) => db.from("appointments").select("*").eq("tenant_id", tenantId).neq("source", "calendar_feed").gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).order("id", { ascending: true }).range(from, to)
-    ),
+    notedOver(db, tenantId, fromIso, toIso),
     feedWordsOver(db, tenantId, fromIso, toIso)
   ]);
   return { noted, feed };
+}
+async function notedOver(db, tenantId, fromIso, toIso) {
+  return readAllRows(
+    "appointments_noted",
+    (from, to) => db.from("appointments").select("*").eq("tenant_id", tenantId).neq("source", "calendar_feed").gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).order("id", { ascending: true }).range(from, to)
+  );
 }
 async function appointmentWorkspace(db, id) {
   const { data, error } = await db.from("appointments").select("id, tenant_id").eq("id", id).maybeSingle();
@@ -5465,7 +5504,9 @@ async function syncFeedAppointments(db, p) {
       all_day: r.all_day,
       service: r.service,
       consultation: r.consultation,
-      contact_id: r.contact_id
+      contact_id: r.contact_id,
+      series: r.series,
+      twin: r.twin
     })),
     p_from: p.window.from.toISOString(),
     p_to: p.window.to.toISOString(),
@@ -5479,7 +5520,8 @@ async function syncFeedAppointments(db, p) {
     back: count(o, "back"),
     vanished: count(o, "vanished"),
     seen: count(o, "seen"),
-    stale: o.stale === true ? 1 : 0
+    stale: o.stale === true ? 1 : 0,
+    first: o.first === true ? 1 : 0
   };
 }
 var KEYS_PER_READ = 25;
@@ -5741,6 +5783,7 @@ export {
   mailboxById,
   mailboxFor,
   mailboxOfTenant,
+  markCalendarFeedKept,
   markContact,
   markHeldNotice,
   markPartnerPaid,
@@ -5768,6 +5811,7 @@ export {
   namedFetch,
   namesOfPeople,
   notePageVitals,
+  notedOver,
   notesForReceptionist,
   noticeFor,
   noticeKept,
@@ -5958,6 +6002,7 @@ export {
   touchIndex,
   touchSendingDomain,
   touchesSince,
+  twinTold,
   uncheckedSends,
   uncheckedWaiting,
   undoPersonName,

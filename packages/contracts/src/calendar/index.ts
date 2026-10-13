@@ -76,6 +76,8 @@ export {
   clientKeyOf,
   appointmentKey,
   SAME_VISIT_MS,
+  sameVisitOnRecord,
+  bookingCopyTest,
   BOOKING_TOOL_IDS,
   bookingToolCalendar,
   bookingToolOptions,
@@ -92,6 +94,8 @@ export type {
   NoticeKind,
   NoticeHold,
   NoticeReading,
+  BookingSighting,
+  VisitOnRecord,
 } from "./booking-notice";
 export {
   appointmentTitle,
@@ -133,6 +137,7 @@ export {
   visitStateOf,
   visitActsOf,
   visitStands,
+  sightingStands,
   VISIT_ASK_WORDS,
   visitLineOf,
   visitLineOfBlock,

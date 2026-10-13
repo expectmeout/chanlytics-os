@@ -40,6 +40,17 @@ const event = (over = {}) => ({
   ...over,
 });
 
+/** A calendar's addition as the sweep stamps a customer's booking (00419): a person's, one-off, no copy, not a first read. */
+const FEED_BOOKING = {
+  change: "added",
+  source: "calendar_feed",
+  starts_at: "2999-10-12T15:00:00Z",
+  named: true,
+  series: false,
+  twin: false,
+  first: false,
+};
+
 test("a booking arriving is a visit added or a hold confirmed, by a booking tool or the owner's calendar, and nothing else", () => {
   assert.deepEqual(bookingArriving(event()), {
     appointmentId: APPT,
@@ -47,11 +58,7 @@ test("a booking arriving is a visit added or a hold confirmed, by a booking tool
     startsAt: "2999-10-12T15:00:00Z",
   });
   assert.equal(bookingArriving(event({ data: { change: "confirmed", source: "booking_tool" } }))?.via, "booking_tool");
-  assert.equal(
-    bookingArriving(event({ data: { change: "added", source: "calendar_feed", starts_at: "2999-10-12T15:00:00Z" } }))
-      ?.via,
-    "calendar_feed",
-  );
+  assert.equal(bookingArriving(event({ data: FEED_BOOKING }))?.via, "calendar_feed");
   assert.equal(
     bookingArriving(event({ data: { change: "added", source: "booking_email" } }))?.startsAt,
     null,
@@ -81,6 +88,28 @@ test("a booking arriving is a visit added or a hold confirmed, by a booking tool
   assert.equal(bookingArriving(event({ kind: "appointment.booked" })), null);
   assert.equal(bookingArriving(event({ subject_type: "contact" })), null);
   assert.equal(bookingArriving(event({ subject_id: null })), null);
+});
+
+test("REGRESSION: what the calendar adds is a booking only by the facts the sweep stamped on it -- never the owner's staff meeting, their lunch, a copy of a booking already told, or a calendar just connected (the wiring's second audit, S11-1, S11-2)", () => {
+  for (const [why, over] of [
+    ["linked to nobody: the owner's own entry", { named: false }],
+    ["the next of a repeating series coming into the window", { series: true }],
+    ["the calendar's copy of a booking its tool's email told", { twin: true }],
+    ["one of a calendar's first read", { first: true }],
+    ["a sweep from before 00419, which said neither series nor twin", { series: null, twin: null }],
+  ]) {
+    assert.equal(bookingArriving(event({ data: { ...FEED_BOOKING, ...over } })), null, why);
+  }
+  // An event from before the facts were stamped says none of them: silent, the safe side.
+  assert.equal(
+    bookingArriving(event({ data: { change: "added", source: "calendar_feed", starts_at: "2999-10-12T15:00:00Z" } })),
+    null,
+  );
+  // The facts are the feed's alone: a booking tool's email is told as it always was.
+  assert.equal(
+    bookingArriving(event({ data: { change: "added", source: "booking_email", named: false, series: true } }))?.via,
+    "booking_email",
+  );
 });
 
 const visit = (over = {}) => ({

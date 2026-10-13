@@ -6061,6 +6061,7 @@ export type Database = {
       tenant_config: {
         Row: {
           calendar_checked_at: string | null
+          calendar_feed_kept_at: string | null
           config: Json
           tenant_id: string
           updated_at: string
@@ -6069,6 +6070,7 @@ export type Database = {
         }
         Insert: {
           calendar_checked_at?: string | null
+          calendar_feed_kept_at?: string | null
           config?: Json
           tenant_id: string
           updated_at?: string
@@ -6077,6 +6079,7 @@ export type Database = {
         }
         Update: {
           calendar_checked_at?: string | null
+          calendar_feed_kept_at?: string | null
           config?: Json
           tenant_id?: string
           updated_at?: string

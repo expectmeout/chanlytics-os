@@ -2390,51 +2390,6 @@ function connectModel(input) {
   );
 }
 
-// src/shared/email-address.ts
-var MAX_ADDRESS = 254;
-var MAX_LOCAL = 64;
-var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
-var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
-var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
-function normalizeEmail(raw) {
-  if (raw == null) return null;
-  const s = String(raw).trim().toLowerCase();
-  if (!s || s.length > MAX_ADDRESS) return null;
-  const m = SHAPE.exec(s);
-  if (!m || m[1].length > MAX_LOCAL) return null;
-  return s;
-}
-function whyNotAnEmail(raw) {
-  if (normalizeEmail(raw)) return null;
-  const s = String(raw ?? "").trim();
-  if (!s) return "An email address is needed.";
-  if (/[<>]/.test(s) || /\s/.test(s))
-    return "Only the address itself, like name@example.com, with no name or spaces around it.";
-  const at3 = s.split("@").length - 1;
-  if (at3 === 0) return "That is missing the @.";
-  if (at3 > 1) return "An address has one @.";
-  if (!/@[^@]*\./.test(s)) return "That needs a full domain after the @, like name@example.com.";
-  return "That is not an email address anyone can be reached at.";
-}
-var OWN_ADDRESS_WORDS = /\b(my|mine|it'?s|is|email|e-mail|mail|correo|mi|es|sure|here|aqu[ií])\b/i;
-function addressInMessage(body) {
-  const s = String(body ?? "").trim();
-  if (!s || s.length > 160) return null;
-  const tokens = s.split(/\s+/);
-  const found = /* @__PURE__ */ new Set();
-  for (const raw of tokens) {
-    const t = raw.replace(/^[("'<[]+|[)"'>\].,;:!?]+$/g, "");
-    if (!t.includes("@")) continue;
-    const e = normalizeEmail(t);
-    if (!e) return null;
-    found.add(e);
-  }
-  if (found.size !== 1) return null;
-  const alone = tokens.length === 1;
-  const theirs2 = tokens.length <= 8 && OWN_ADDRESS_WORDS.test(s);
-  return alone || theirs2 ? [...found][0] : null;
-}
-
 // src/shared/phone.ts
 function normalizePhone(raw) {
   if (raw == null) return null;
@@ -2509,6 +2464,561 @@ function formatPhoneDisplay(e164) {
   }
   if (digits2.length < 7) return `+${digits2}`;
   return `+${digits2.replace(/(\d{1,3})(?=(\d{3})+$)/g, "$1 ").trim()}`;
+}
+
+// src/people/person-name.ts
+function personName(c) {
+  return c?.display_name || c?.wa_profile_name || formatPhoneDisplay(c?.phone_e164) || c?.email || "Unknown";
+}
+function callerName(c) {
+  const withheld = !c.from_e164 && !c.from_raw;
+  const phone = formatPhoneDisplay(c.from_e164);
+  const name = c.contact?.display_name || c.contact?.wa_profile_name || null;
+  return withheld ? "Caller ID withheld" : name || phone || c.from_raw || "Unknown caller";
+}
+
+// src/conversations/thread-contact.ts
+function contactName(dto) {
+  return personName(dto.contact);
+}
+function isIdentifierName(name) {
+  return /^[+\d(]/.test(name) || name.includes("@");
+}
+function shortName(name) {
+  return isIdentifierName(name) ? name : name.split(" ")[0] || name;
+}
+function contactMeta(dto, channel = "WhatsApp") {
+  const id = formatPhoneDisplay(dto.contact.phone_e164) ?? dto.contact.email ?? null;
+  return contactName(dto) === id ? `${channel} \xB7 no name saved` : `${channel} \xB7 ${id ?? "no phone"}`;
+}
+function initialsOf(name) {
+  const digits2 = name.replace(/[^\d]/g, "");
+  if (digits2.length >= 7 && /^[+\d\s()-]+$/.test(name)) return digits2.slice(-2);
+  const parts2 = name.replace(/[^\p{L}\p{N} ]/gu, "").trim().split(/\s+/);
+  if (parts2.length >= 2 && parts2[0] && parts2[1]) return (parts2[0][0] + parts2[1][0]).toUpperCase();
+  const p = parts2[0] || "?";
+  return p.slice(0, 2).toUpperCase();
+}
+function personFaceOf(name, initials) {
+  const kind = !isIdentifierName(name) ? "named" : name.includes("@") ? "address" : "number";
+  return {
+    kind,
+    initials: initials ?? initialsOf(name),
+    glyph: kind === "number" ? "phone" : kind === "address" ? "mail" : null
+  };
+}
+function isEmailStopped(c) {
+  return !!c.email_suppressed_at;
+}
+function emailStoppedWords(c, tz, now) {
+  if (!isEmailStopped(c)) return null;
+  const at3 = Date.parse(c.email_suppressed_at);
+  const on = Number.isNaN(at3) ? "" : ` on ${clockDate(at3, tz, now.getTime())}`;
+  const why = c.email_suppressed_reason === "hard_bounce" ? `Their address bounced${on}.` : c.email_suppressed_reason === "complaint" ? `They marked a message as spam${on}.` : `The mail provider stopped sending to their address${on}.`;
+  return `${why} Email can't reach them: correct the address on their page, or reach them another way.`;
+}
+
+// src/calendar/day-keys.ts
+var DOW2 = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+var DAY_SHORT = {
+  mon: "Mon",
+  tue: "Tue",
+  wed: "Wed",
+  thu: "Thu",
+  fri: "Fri",
+  sat: "Sat",
+  sun: "Sun"
+};
+function keyParts(key) {
+  const [y, m, d] = key.split("-").map(Number);
+  return { y, m: m ?? 1, d: d ?? 1 };
+}
+function shiftKey(key, n) {
+  const { y, m, d } = keyParts(key);
+  const at3 = new Date(Date.UTC(y, m - 1, d + n));
+  return `${at3.getUTCFullYear()}-${String(at3.getUTCMonth() + 1).padStart(2, "0")}-${String(at3.getUTCDate()).padStart(2, "0")}`;
+}
+function mondayOf(key) {
+  const { y, m, d } = keyParts(key);
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return shiftKey(key, -((dow + 6) % 7));
+}
+function isDayKey(s) {
+  return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`));
+}
+function monthSpan(key) {
+  return { from: mondayOf(`${key.slice(0, 7)}-01`), days: 42 };
+}
+function shiftMonth(key, n) {
+  const { y, m } = keyParts(key);
+  const at3 = new Date(Date.UTC(y, m - 1 + n, 1));
+  return `${at3.getUTCFullYear()}-${String(at3.getUTCMonth() + 1).padStart(2, "0")}-01`;
+}
+function monthLabelOf(key) {
+  const { y, m } = keyParts(key);
+  return dateFormat("en-US", { timeZone: "UTC", month: "long", year: "numeric" }).format(
+    new Date(Date.UTC(y, m - 1, 1, 12))
+  );
+}
+function zoneMidnight(tz, key) {
+  const { y, m, d } = keyParts(key);
+  return localToUtcMs(tz, y, m, d, 0, 0);
+}
+
+// src/calendar/appointment-key.ts
+function appointmentKeyOf(item) {
+  if (!item.uid) return `ev:${item.start}`;
+  return item.occurrence === void 0 ? item.uid : `${item.uid}:${item.occurrence}`;
+}
+var RECORD_KEY = "appt:";
+function recordKeyOf(id) {
+  return `${RECORD_KEY}${id}`;
+}
+function recordIdOf(key) {
+  return key.startsWith(RECORD_KEY) ? key.slice(RECORD_KEY.length) : null;
+}
+var VISIT_ID = /^[A-Za-z0-9_-]+$/;
+function visitRoute(id, dayKey2) {
+  return dayKey2 && isDayKey(dayKey2) ? `calendar/${dayKey2}:a-${id}` : `calendar/a-${id}`;
+}
+function visitDoor(dayKey2, id) {
+  return id ? visitRoute(id, dayKey2) : `calendar/${dayKey2}`;
+}
+function visitLinkWords(id, word) {
+  return id ? `Open the ${word}` : "Open the day";
+}
+function calendarParamParts(param) {
+  const none = { day: null, visitId: null };
+  if (!param) return none;
+  const dayOf2 = (s) => isDayKey(s) ? s : null;
+  const alone = dayOf2(param);
+  if (alone) return { day: alone, visitId: null };
+  const at3 = param.indexOf(":");
+  const word = at3 < 0 ? param : param.slice(at3 + 1);
+  const id = word.startsWith("a-") ? word.slice(2) : "";
+  if (!VISIT_ID.test(id)) return none;
+  if (at3 < 0) return { day: null, visitId: id };
+  const day = dayOf2(param.slice(0, at3));
+  return day ? { day, visitId: id } : none;
+}
+
+// src/shared/email-address.ts
+var MAX_ADDRESS = 254;
+var MAX_LOCAL = 64;
+var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
+var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
+var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
+function normalizeEmail(raw) {
+  if (raw == null) return null;
+  const s = String(raw).trim().toLowerCase();
+  if (!s || s.length > MAX_ADDRESS) return null;
+  const m = SHAPE.exec(s);
+  if (!m || m[1].length > MAX_LOCAL) return null;
+  return s;
+}
+function whyNotAnEmail(raw) {
+  if (normalizeEmail(raw)) return null;
+  const s = String(raw ?? "").trim();
+  if (!s) return "An email address is needed.";
+  if (/[<>]/.test(s) || /\s/.test(s))
+    return "Only the address itself, like name@example.com, with no name or spaces around it.";
+  const at3 = s.split("@").length - 1;
+  if (at3 === 0) return "That is missing the @.";
+  if (at3 > 1) return "An address has one @.";
+  if (!/@[^@]*\./.test(s)) return "That needs a full domain after the @, like name@example.com.";
+  return "That is not an email address anyone can be reached at.";
+}
+var OWN_ADDRESS_WORDS = /\b(my|mine|it'?s|is|email|e-mail|mail|correo|mi|es|sure|here|aqu[ií])\b/i;
+function addressInMessage(body) {
+  const s = String(body ?? "").trim();
+  if (!s || s.length > 160) return null;
+  const tokens = s.split(/\s+/);
+  const found = /* @__PURE__ */ new Set();
+  for (const raw of tokens) {
+    const t = raw.replace(/^[("'<[]+|[)"'>\].,;:!?]+$/g, "");
+    if (!t.includes("@")) continue;
+    const e = normalizeEmail(t);
+    if (!e) return null;
+    found.add(e);
+  }
+  if (found.size !== 1) return null;
+  const alone = tokens.length === 1;
+  const theirs2 = tokens.length <= 8 && OWN_ADDRESS_WORDS.test(s);
+  return alone || theirs2 ? [...found][0] : null;
+}
+
+// src/config/workspace-config/alerts.ts
+var ALERT_ADDRESSES_MAX = 10;
+var ALERT_ADDRESSES_MIN = 1;
+var alertKey = (address) => String(address ?? "").trim().toLowerCase();
+function alertAddressesOf(notifications) {
+  const out = /* @__PURE__ */ new Set();
+  for (const e of notifications?.escalation_emails ?? []) {
+    const key = alertKey(e);
+    if (key) out.add(key);
+  }
+  return out;
+}
+function memberGetsAlerts(email, notifications) {
+  const key = alertKey(email);
+  return !!key && alertAddressesOf(notifications).has(key);
+}
+var ALERT_REFUSED_WORDS = {
+  last: "Someone has to get alerts. Add another address on Notifications first.",
+  full: `Alerts go to ${ALERT_ADDRESSES_MAX} addresses at most. Take one off on Notifications first.`,
+  address: "That doesn't look like an email address."
+};
+function withAlertAddress(notifications, email, on) {
+  const key = alertKey(email);
+  if (!key || !key.includes("@")) return { ok: false, reason: "address" };
+  const list2 = [...notifications?.escalation_emails ?? []];
+  const has3 = list2.some((e) => alertKey(e) === key);
+  const next = on ? has3 ? list2 : [...list2, key] : list2.filter((e) => alertKey(e) !== key);
+  if (on && !has3 && next.length > ALERT_ADDRESSES_MAX) return { ok: false, reason: "full" };
+  if (!on && has3 && next.length < ALERT_ADDRESSES_MIN) return { ok: false, reason: "last" };
+  return {
+    ok: true,
+    changed: has3 !== on,
+    notifications: { ...notifications ?? {}, escalation_emails: next }
+  };
+}
+
+// src/calendar/calendar-people.ts
+var MATCH_WORDS = {
+  phone: "matched by phone",
+  email: "matched by email",
+  name: "matched by name",
+  business: "matched by their business"
+};
+function matchWordsOf(via) {
+  return via ? MATCH_WORDS[via] : null;
+}
+function isGuess(via) {
+  return via === "name" || via === "business";
+}
+function threadOf(p) {
+  return p.thread ? { thread: p.thread, wa_inbound_at: p.waInboundAt ?? null } : {};
+}
+function replyFactsOf(p) {
+  return p.reach ? { reply_wire: p.reach.wire, email_stopped: p.reach.emailStopped, opted_out: p.reach.optedOut } : {};
+}
+var EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+var PHONE_RE = /\+?\(?\d{1,4}\)?(?:[\s.-]?\(?\d{2,4}\)?){2,5}/g;
+var ISO_DATE_RE = /^\d{4}[-./]\d{2}[-./]\d{2}/;
+function phoneFrom(raw) {
+  const s = raw.trim();
+  if (ISO_DATE_RE.test(s)) return null;
+  const digits2 = s.replace(/\D/g, "");
+  if (digits2.length < 10 || digits2.length > 15) return null;
+  const bare = /^\+?\d+$/.test(s);
+  if (bare && !s.startsWith("+") && !(digits2.length === 10 || digits2.length === 11 && digits2.startsWith("1")))
+    return null;
+  return normalizePhone(s.startsWith("+") ? `+${digits2}` : digits2);
+}
+var NO_OWN_ADDRESSES = /* @__PURE__ */ new Set();
+function calendarOwnerOf(url) {
+  const m = /^https:\/\/calendar\.google\.com\/calendar\/ical\/([^/]+)\//i.exec(url ?? "");
+  if (!m) return null;
+  let id;
+  try {
+    id = decodeURIComponent(m[1]).trim().toLowerCase();
+  } catch {
+    return null;
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(id) || /@(group|import)\.calendar\.google\.com$/.test(id)) return null;
+  return id;
+}
+function ownAddressesOf(cfg) {
+  const out = alertAddressesOf(cfg?.notifications);
+  const owner = calendarOwnerOf(cfg?.calendar?.ical_url);
+  if (owner) out.add(owner);
+  return out;
+}
+function isOwn(own, p) {
+  return !!p.email && own.has(p.email.toLowerCase());
+}
+function extractContacts(item, own) {
+  const text = [item.title, item.description ?? "", item.location ?? ""].join("\n");
+  const organizer = item.organizer?.toLowerCase() || null;
+  const emails = /* @__PURE__ */ new Set();
+  for (const m of text.match(EMAIL_RE) ?? []) emails.add(m.toLowerCase());
+  for (const a of item.attendees ?? []) if (a.email) emails.add(a.email.toLowerCase());
+  if (organizer) emails.delete(organizer);
+  for (const a of own) emails.delete(a);
+  const phones = /* @__PURE__ */ new Set();
+  for (const m of text.replace(EMAIL_RE, " ").match(PHONE_RE) ?? []) {
+    const p = phoneFrom(m);
+    if (p) phones.add(p);
+  }
+  const names3 = /* @__PURE__ */ new Set();
+  for (const a of item.attendees ?? []) {
+    if (organizer && a.email?.toLowerCase() === organizer) continue;
+    if (a.email && own.has(a.email.toLowerCase())) continue;
+    const n = (a.name ?? "").trim();
+    if (n && !EMAIL_RE.test(n)) names3.add(n);
+    EMAIL_RE.lastIndex = 0;
+  }
+  return { phones: [...phones], emails: [...emails], names: [...names3] };
+}
+var escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function nameMatcher(name) {
+  const n = name.trim();
+  if (n.length < 4 || isIdentifierName(n)) return null;
+  return new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRe(n)}(?=$|[^\\p{L}\\p{N}])`, "iu");
+}
+function personInText(text, people) {
+  let best = null;
+  for (const p of people) {
+    const re = nameMatcher(p.name);
+    if (re && re.test(text) && (!best || p.name.trim().length > best.name.trim().length)) best = p;
+  }
+  return best;
+}
+var labelOf = (p) => p.name.trim() || formatPhoneDisplay(p.phone) || p.email || "Unknown";
+function matchPerson(item, everyone, own) {
+  const c = extractContacts(item, own);
+  const people = everyone.filter((p2) => !isOwn(own, p2));
+  if (c.phones.length) {
+    const byPhone = /* @__PURE__ */ new Map();
+    for (const p2 of people) if (p2.phone) byPhone.set(p2.phone, p2);
+    for (const ph of c.phones) {
+      const p2 = byPhone.get(ph);
+      if (p2) return { id: p2.id, name: labelOf(p2), via: "phone", ...threadOf(p2), ...replyFactsOf(p2) };
+    }
+  }
+  if (c.emails.length) {
+    const byEmail = /* @__PURE__ */ new Map();
+    for (const p2 of people) if (p2.email) byEmail.set(p2.email.toLowerCase(), p2);
+    for (const em of c.emails) {
+      const p2 = byEmail.get(em);
+      if (p2) return { id: p2.id, name: labelOf(p2), via: "email", ...threadOf(p2), ...replyFactsOf(p2) };
+    }
+    const byBusiness2 = /* @__PURE__ */ new Map();
+    for (const p2 of people) for (const em of p2.businessEmails ?? []) byBusiness2.set(em, p2);
+    for (const em of c.emails) {
+      const p2 = byBusiness2.get(em);
+      if (p2) return { id: p2.id, name: labelOf(p2), via: "business", ...threadOf(p2), ...replyFactsOf(p2) };
+    }
+  }
+  const words3 = [item.title, ...c.names, item.description ?? ""].join("\n");
+  const p = personInText(words3, people);
+  if (p) return { id: p.id, name: labelOf(p), via: "name", ...threadOf(p), ...replyFactsOf(p) };
+  const byBusiness = personInText(words3, soleAtBusiness(people));
+  const b = byBusiness ? people.find((x) => x.id === byBusiness.id) : void 0;
+  return b ? { id: b.id, name: labelOf(b), via: "business", ...threadOf(b), ...replyFactsOf(b) } : null;
+}
+function soleAtBusiness(people) {
+  const key = (p) => p.business?.trim().toLowerCase() ?? "";
+  const n = /* @__PURE__ */ new Map();
+  for (const p of people) n.set(key(p), (n.get(key(p)) ?? 0) + 1);
+  return people.flatMap((p) => key(p) && n.get(key(p)) === 1 ? [{ ...p, name: p.business?.trim() ?? "" }] : []);
+}
+var NEAR_VISIT_MS = 3 * DAY_MS;
+function indexFeed(items, own) {
+  const byPhone = /* @__PURE__ */ new Map();
+  const byEmail = /* @__PURE__ */ new Map();
+  const texts = [];
+  for (const it of items) {
+    const c = extractContacts(it, own);
+    for (const ph of c.phones) byPhone.set(ph, [...byPhone.get(ph) ?? [], it]);
+    for (const em of c.emails) byEmail.set(em, [...byEmail.get(em) ?? [], it]);
+    if (!it.uid || recordIdOf(it.uid) === null)
+      texts.push({ item: it, text: [it.title, ...c.names, it.description ?? ""].join("\n") });
+  }
+  return { byPhone, byEmail, texts, own };
+}
+var visitOf = (it, via) => ({
+  id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`,
+  key: appointmentKeyOf(it),
+  start: it.start,
+  end: it.end,
+  title: it.title || "Busy",
+  allDay: it.allDay,
+  via,
+  ...it.said ? { said: it.said } : {},
+  ...it.recordId ? { recordId: it.recordId } : {}
+});
+function allVisitsIn(index, person) {
+  if (isOwn(index.own, person)) return [];
+  const out = [];
+  const seen = /* @__PURE__ */ new Set();
+  const take = (it, via) => {
+    if (seen.has(it)) return;
+    seen.add(it);
+    out.push(visitOf(it, via));
+  };
+  if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
+  if (person.email) for (const it of index.byEmail.get(person.email.toLowerCase()) ?? []) take(it, "email");
+  for (const em of person.businessEmails ?? []) for (const it of index.byEmail.get(em) ?? []) take(it, "business");
+  const re = nameMatcher(person.name);
+  if (re) {
+    for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
+  }
+  return out.sort((a, b) => a.start - b.start);
+}
+function visitsIn(index, person, nowMs) {
+  if (isOwn(index.own, person)) return { next: null, last: null, near: [], missed: null };
+  let next = null;
+  let last = null;
+  let missed = null;
+  const near3 = [];
+  const seen = /* @__PURE__ */ new Set();
+  const take = (it, via) => {
+    if (seen.has(it)) return;
+    seen.add(it);
+    const v = visitOf(it, via);
+    if (v.said === "missed") {
+      if (!missed || v.start > missed.start) missed = v;
+      return;
+    }
+    if (it.end >= nowMs) {
+      if (!next || v.start < next.start) next = v;
+    } else if (!last || v.end > last.end) last = v;
+    if (Math.abs(v.start - nowMs) <= NEAR_VISIT_MS) near3.push(v);
+  };
+  if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
+  if (person.email) for (const it of index.byEmail.get(person.email.toLowerCase()) ?? []) take(it, "email");
+  for (const em of person.businessEmails ?? []) for (const it of index.byEmail.get(em) ?? []) take(it, "business");
+  const re = nameMatcher(person.name);
+  if (re) {
+    for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
+  }
+  return { next, last, near: near3.sort((a, b) => a.start - b.start), missed };
+}
+function visitsOf(items, person, nowMs, own) {
+  return visitsIn(indexFeed(items, own), person, nowMs);
+}
+var ms = (t) => typeof t === "number" ? t : Date.parse(t);
+function visitDay(start, tz, nowMs) {
+  const key = dayInZone(tz, ms(start)).key;
+  const today = dayInZone(tz, nowMs).key;
+  const tomorrow = dayPlusInZone(tz, nowMs, 1).key;
+  if (key === today) return "Today";
+  if (key === tomorrow) return "Tomorrow";
+  return dateFormat("en-US", { timeZone: tz, weekday: "short", month: "short", day: "numeric" }).format(
+    new Date(ms(start))
+  );
+}
+function visitTime(v, tz) {
+  if (v.allDay || v.all_day) return "all day";
+  const f = dateFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
+  const a = f.format(new Date(ms(v.start)));
+  const b = f.format(new Date(ms(v.end)));
+  const sameHalf = a.slice(-2) === b.slice(-2);
+  return `${sameHalf ? a.slice(0, -3) : a} \u2013 ${b}`;
+}
+function visitDateKey(start, tz) {
+  return dayInZone(tz, ms(start)).key;
+}
+function visitStartTime(v, tz) {
+  if (v.allDay || v.all_day) return "all day";
+  return dateFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(new Date(ms(v.start)));
+}
+function visitLine(v, tz, nowMs) {
+  return `${visitDay(v.start, tz, nowMs)} \xB7 ${visitTime(v, tz)}`;
+}
+function describeVisits(visits, tz, nowMs, opts) {
+  const out = [];
+  if (visits.next) {
+    const n = visits.next;
+    out.push(
+      `Their next appointment on the calendar: ${visitLine(n, tz, nowMs)} (${n.title}).${n.via === "name" ? " Matched by name only \u2014 make sure it is them before confirming details." : n.via === "business" ? " Matched by their business only \u2014 make sure it is them before confirming details." : ""} If they ask, confirm it; to change or cancel it, ${opts.hasBookingLink ? "send the booking link" : "say the team will follow up"} \u2014 nothing is changed from here.`
+    );
+  }
+  if (visits.last) {
+    const l = visits.last;
+    out.push(
+      `Their last visit on the calendar: ${dateFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(l.start))} (${l.title}).`
+    );
+  }
+  return out.length ? out.join(" ") : null;
+}
+function toVisitDto(v) {
+  return v ? {
+    id: v.id,
+    start: new Date(v.start).toISOString(),
+    end: new Date(v.end).toISOString(),
+    title: v.title,
+    all_day: v.allDay,
+    via: v.via,
+    ...v.key ? { key: v.key } : {},
+    ...v.said ? { said: v.said } : {},
+    ...v.recordId ? { record_id: v.recordId } : {}
+  } : null;
+}
+var NAME_WORD = /^[\p{L}][\p{L}'’.-]*$/u;
+var CAPITAL = /^\p{Lu}/u;
+function guessName(item, services = []) {
+  const svc = new Set(services.map((s) => s.trim().toLowerCase()).filter(Boolean));
+  const organizer = item.organizer?.toLowerCase() || null;
+  const guest = (item.attendees ?? []).filter((a) => !organizer || a.email?.toLowerCase() !== organizer).map((a) => (a.name ?? "").trim()).find((n) => n && !n.includes("@"));
+  if (guest) return guest.slice(0, 80);
+  const title = item.title.replace(/\([^)]*\)/g, " ").replace(/\[[^\]]*\]/g, " ");
+  const parts2 = title.split(/\s+(?:-|–|—|·|\||:|\/)\s+|\s+(?:with|for|w\/)\s+|:\s+/i).map((p) => p.trim()).filter(Boolean);
+  for (const part of parts2) {
+    if (svc.has(part.toLowerCase())) continue;
+    const words3 = part.split(/\s+/);
+    if (words3.length < 2 || words3.length > 4) continue;
+    if (!words3.every((w) => NAME_WORD.test(w) && CAPITAL.test(w))) continue;
+    if (words3.some((w) => svc.has(w.toLowerCase()))) continue;
+    return part;
+  }
+  return null;
+}
+function peopleFromItems(items, services, nowMs, window = {}) {
+  const from = nowMs - (window.backDays ?? 30) * DAY_MS;
+  const to = nowMs + (window.aheadDays ?? 90) * DAY_MS;
+  const byPhone = /* @__PURE__ */ new Map();
+  const ridersOf = /* @__PURE__ */ new Map();
+  const better = (a, b) => {
+    const aUp = a.start >= nowMs;
+    const bUp = b.start >= nowMs;
+    if (aUp !== bUp) return aUp;
+    return aUp ? a.start < b.start : a.start > b.start;
+  };
+  for (const it of items) {
+    if (it.end < from || it.start > to) continue;
+    const found = extractContacts(it, NO_OWN_ADDRESSES);
+    const phones = found.phones;
+    if (!phones.length) continue;
+    for (const e of found.emails) {
+      const riders = ridersOf.get(e) ?? /* @__PURE__ */ new Set();
+      for (const phone of phones) riders.add(phone);
+      ridersOf.set(e, riders);
+    }
+    const email = phones.length === 1 && found.emails.length === 1 ? normalizeEmail(found.emails[0]) : null;
+    const name = guessName(it, services);
+    for (const phone of phones) {
+      const row2 = { phone, name, title: it.title || "Busy", uid: it.uid, start: it.start, email };
+      const have = byPhone.get(phone);
+      if (!have) {
+        byPhone.set(phone, row2);
+        continue;
+      }
+      const [keep, other] = better(row2, have) ? [row2, have] : [have, row2];
+      byPhone.set(phone, { ...keep, name: keep.name ?? other.name, email: keep.email ?? other.email });
+    }
+  }
+  return [...byPhone.values()].map((r2) => r2.email && (ridersOf.get(r2.email)?.size ?? 0) > 1 ? { ...r2, email: null } : r2).sort((a, b) => a.start - b.start);
+}
+function afterPersonRefused(code2) {
+  return code2 === "22023" || code2 === "PE001" ? "skip" : "stop";
+}
+function bookedAfterAsk(visits, askedMs) {
+  if (!visits) return false;
+  return visitAnswersAsk(visitStartOf(visits.next), begunOf(visits.last, visits.missed), askedMs);
+}
+function visitStartOf(v) {
+  const t = v ? ms(v.start) : NaN;
+  return Number.isFinite(t) ? t : null;
+}
+function begunOf(last, missed) {
+  const starts = [visitStartOf(last), visitStartOf(missed)].filter((t) => t !== null);
+  return starts.length ? Math.max(...starts) : null;
+}
+function visitAnswersAsk(nextStartMs, lastStartMs, askedMs) {
+  if (nextStartMs !== null) return true;
+  return lastStartMs !== null && lastStartMs >= askedMs - DAY_MS;
 }
 
 // src/calendar/booking-notice.ts
@@ -2715,6 +3225,30 @@ function appointmentKey(tool, client, startMs) {
   return `${tool}:${clientKeyOf(client)}:${Math.floor(startMs / MIN_MS) * MIN_MS}`;
 }
 var SAME_VISIT_MS = 15 * MIN_MS;
+var near = (starts, at3) => !!starts?.some((s) => Math.abs(s - at3) <= SAME_VISIT_MS);
+function sameVisitOnRecord(a, b) {
+  return !!a.contact_id && a.contact_id === b.contact_id && Math.abs(Date.parse(a.starts_at) - Date.parse(b.starts_at)) <= SAME_VISIT_MS;
+}
+function bookingCopyTest(bookings, own) {
+  if (!bookings.length) return null;
+  const byPhone = /* @__PURE__ */ new Map();
+  const byEmail = /* @__PURE__ */ new Map();
+  const byPerson = /* @__PURE__ */ new Map();
+  const add = (m, k, at3) => m.set(k, [...m.get(k) ?? [], at3]);
+  for (const b of bookings) {
+    const at3 = Date.parse(b.starts_at);
+    if (b.client_phone) add(byPhone, b.client_phone, at3);
+    if (b.client_email) add(byEmail, b.client_email.toLowerCase(), at3);
+    if (b.contact_id) add(byPerson, b.contact_id, at3);
+  }
+  if (!byPhone.size && !byEmail.size && !byPerson.size) return null;
+  return (item, contactId) => {
+    if (contactId && near(byPerson.get(contactId), item.start)) return true;
+    if (!byPhone.size && !byEmail.size) return false;
+    const c = extractContacts(item, own);
+    return c.phones.some((p) => near(byPhone.get(p), item.start)) || c.emails.some((e) => near(byEmail.get(e.toLowerCase()), item.start));
+  };
+}
 function bookingToolOptions() {
   return BOOKING_TOOLS.map((t) => ({ value: t.tool, label: t.name }));
 }
@@ -2940,53 +3474,6 @@ function priceNextStep(hasBookingLink) {
   return hasBookingLink ? "offer the booking link" : `take ${NO_LINK_DETAILS}`;
 }
 
-// src/calendar/day-keys.ts
-var DOW2 = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-var DAY_SHORT = {
-  mon: "Mon",
-  tue: "Tue",
-  wed: "Wed",
-  thu: "Thu",
-  fri: "Fri",
-  sat: "Sat",
-  sun: "Sun"
-};
-function keyParts(key) {
-  const [y, m, d] = key.split("-").map(Number);
-  return { y, m: m ?? 1, d: d ?? 1 };
-}
-function shiftKey(key, n) {
-  const { y, m, d } = keyParts(key);
-  const at3 = new Date(Date.UTC(y, m - 1, d + n));
-  return `${at3.getUTCFullYear()}-${String(at3.getUTCMonth() + 1).padStart(2, "0")}-${String(at3.getUTCDate()).padStart(2, "0")}`;
-}
-function mondayOf(key) {
-  const { y, m, d } = keyParts(key);
-  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
-  return shiftKey(key, -((dow + 6) % 7));
-}
-function isDayKey(s) {
-  return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`));
-}
-function monthSpan(key) {
-  return { from: mondayOf(`${key.slice(0, 7)}-01`), days: 42 };
-}
-function shiftMonth(key, n) {
-  const { y, m } = keyParts(key);
-  const at3 = new Date(Date.UTC(y, m - 1 + n, 1));
-  return `${at3.getUTCFullYear()}-${String(at3.getUTCMonth() + 1).padStart(2, "0")}-01`;
-}
-function monthLabelOf(key) {
-  const { y, m } = keyParts(key);
-  return dateFormat("en-US", { timeZone: "UTC", month: "long", year: "numeric" }).format(
-    new Date(Date.UTC(y, m - 1, 1, 12))
-  );
-}
-function zoneMidnight(tz, key) {
-  const { y, m, d } = keyParts(key);
-  return localToUtcMs(tz, y, m, d, 0, 0);
-}
-
 // src/calendar/availability.ts
 var BOOKING_DEFAULTS = { lead_hours: 2, buffer_min: 0, max_days_ahead: 14, slot_min: 30 };
 function hhmm(s) {
@@ -3167,469 +3654,6 @@ function hoursLines(hours) {
   });
 }
 
-// src/people/person-name.ts
-function personName(c) {
-  return c?.display_name || c?.wa_profile_name || formatPhoneDisplay(c?.phone_e164) || c?.email || "Unknown";
-}
-function callerName(c) {
-  const withheld = !c.from_e164 && !c.from_raw;
-  const phone = formatPhoneDisplay(c.from_e164);
-  const name = c.contact?.display_name || c.contact?.wa_profile_name || null;
-  return withheld ? "Caller ID withheld" : name || phone || c.from_raw || "Unknown caller";
-}
-
-// src/conversations/thread-contact.ts
-function contactName(dto) {
-  return personName(dto.contact);
-}
-function isIdentifierName(name) {
-  return /^[+\d(]/.test(name) || name.includes("@");
-}
-function shortName(name) {
-  return isIdentifierName(name) ? name : name.split(" ")[0] || name;
-}
-function contactMeta(dto, channel = "WhatsApp") {
-  const id = formatPhoneDisplay(dto.contact.phone_e164) ?? dto.contact.email ?? null;
-  return contactName(dto) === id ? `${channel} \xB7 no name saved` : `${channel} \xB7 ${id ?? "no phone"}`;
-}
-function initialsOf(name) {
-  const digits2 = name.replace(/[^\d]/g, "");
-  if (digits2.length >= 7 && /^[+\d\s()-]+$/.test(name)) return digits2.slice(-2);
-  const parts2 = name.replace(/[^\p{L}\p{N} ]/gu, "").trim().split(/\s+/);
-  if (parts2.length >= 2 && parts2[0] && parts2[1]) return (parts2[0][0] + parts2[1][0]).toUpperCase();
-  const p = parts2[0] || "?";
-  return p.slice(0, 2).toUpperCase();
-}
-function personFaceOf(name, initials) {
-  const kind = !isIdentifierName(name) ? "named" : name.includes("@") ? "address" : "number";
-  return {
-    kind,
-    initials: initials ?? initialsOf(name),
-    glyph: kind === "number" ? "phone" : kind === "address" ? "mail" : null
-  };
-}
-function isEmailStopped(c) {
-  return !!c.email_suppressed_at;
-}
-function emailStoppedWords(c, tz, now) {
-  if (!isEmailStopped(c)) return null;
-  const at3 = Date.parse(c.email_suppressed_at);
-  const on = Number.isNaN(at3) ? "" : ` on ${clockDate(at3, tz, now.getTime())}`;
-  const why = c.email_suppressed_reason === "hard_bounce" ? `Their address bounced${on}.` : c.email_suppressed_reason === "complaint" ? `They marked a message as spam${on}.` : `The mail provider stopped sending to their address${on}.`;
-  return `${why} Email can't reach them: correct the address on their page, or reach them another way.`;
-}
-
-// src/calendar/appointment-key.ts
-function appointmentKeyOf(item) {
-  if (!item.uid) return `ev:${item.start}`;
-  return item.occurrence === void 0 ? item.uid : `${item.uid}:${item.occurrence}`;
-}
-var RECORD_KEY = "appt:";
-function recordKeyOf(id) {
-  return `${RECORD_KEY}${id}`;
-}
-function recordIdOf(key) {
-  return key.startsWith(RECORD_KEY) ? key.slice(RECORD_KEY.length) : null;
-}
-var VISIT_ID = /^[A-Za-z0-9_-]+$/;
-function visitRoute(id, dayKey2) {
-  return dayKey2 && isDayKey(dayKey2) ? `calendar/${dayKey2}:a-${id}` : `calendar/a-${id}`;
-}
-function visitDoor(dayKey2, id) {
-  return id ? visitRoute(id, dayKey2) : `calendar/${dayKey2}`;
-}
-function visitLinkWords(id, word) {
-  return id ? `Open the ${word}` : "Open the day";
-}
-function calendarParamParts(param) {
-  const none = { day: null, visitId: null };
-  if (!param) return none;
-  const dayOf2 = (s) => isDayKey(s) ? s : null;
-  const alone = dayOf2(param);
-  if (alone) return { day: alone, visitId: null };
-  const at3 = param.indexOf(":");
-  const word = at3 < 0 ? param : param.slice(at3 + 1);
-  const id = word.startsWith("a-") ? word.slice(2) : "";
-  if (!VISIT_ID.test(id)) return none;
-  if (at3 < 0) return { day: null, visitId: id };
-  const day = dayOf2(param.slice(0, at3));
-  return day ? { day, visitId: id } : none;
-}
-
-// src/config/workspace-config/alerts.ts
-var ALERT_ADDRESSES_MAX = 10;
-var ALERT_ADDRESSES_MIN = 1;
-var alertKey = (address) => String(address ?? "").trim().toLowerCase();
-function alertAddressesOf(notifications) {
-  const out = /* @__PURE__ */ new Set();
-  for (const e of notifications?.escalation_emails ?? []) {
-    const key = alertKey(e);
-    if (key) out.add(key);
-  }
-  return out;
-}
-function memberGetsAlerts(email, notifications) {
-  const key = alertKey(email);
-  return !!key && alertAddressesOf(notifications).has(key);
-}
-var ALERT_REFUSED_WORDS = {
-  last: "Someone has to get alerts. Add another address on Notifications first.",
-  full: `Alerts go to ${ALERT_ADDRESSES_MAX} addresses at most. Take one off on Notifications first.`,
-  address: "That doesn't look like an email address."
-};
-function withAlertAddress(notifications, email, on) {
-  const key = alertKey(email);
-  if (!key || !key.includes("@")) return { ok: false, reason: "address" };
-  const list2 = [...notifications?.escalation_emails ?? []];
-  const has3 = list2.some((e) => alertKey(e) === key);
-  const next = on ? has3 ? list2 : [...list2, key] : list2.filter((e) => alertKey(e) !== key);
-  if (on && !has3 && next.length > ALERT_ADDRESSES_MAX) return { ok: false, reason: "full" };
-  if (!on && has3 && next.length < ALERT_ADDRESSES_MIN) return { ok: false, reason: "last" };
-  return {
-    ok: true,
-    changed: has3 !== on,
-    notifications: { ...notifications ?? {}, escalation_emails: next }
-  };
-}
-
-// src/calendar/calendar-people.ts
-var MATCH_WORDS = {
-  phone: "matched by phone",
-  email: "matched by email",
-  name: "matched by name",
-  business: "matched by their business"
-};
-function matchWordsOf(via) {
-  return via ? MATCH_WORDS[via] : null;
-}
-function isGuess(via) {
-  return via === "name" || via === "business";
-}
-function threadOf(p) {
-  return p.thread ? { thread: p.thread, wa_inbound_at: p.waInboundAt ?? null } : {};
-}
-function replyFactsOf(p) {
-  return p.reach ? { reply_wire: p.reach.wire, email_stopped: p.reach.emailStopped, opted_out: p.reach.optedOut } : {};
-}
-var EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
-var PHONE_RE = /\+?\(?\d{1,4}\)?(?:[\s.-]?\(?\d{2,4}\)?){2,5}/g;
-var ISO_DATE_RE = /^\d{4}[-./]\d{2}[-./]\d{2}/;
-function phoneFrom(raw) {
-  const s = raw.trim();
-  if (ISO_DATE_RE.test(s)) return null;
-  const digits2 = s.replace(/\D/g, "");
-  if (digits2.length < 10 || digits2.length > 15) return null;
-  const bare = /^\+?\d+$/.test(s);
-  if (bare && !s.startsWith("+") && !(digits2.length === 10 || digits2.length === 11 && digits2.startsWith("1")))
-    return null;
-  return normalizePhone(s.startsWith("+") ? `+${digits2}` : digits2);
-}
-var NO_OWN_ADDRESSES = /* @__PURE__ */ new Set();
-function calendarOwnerOf(url) {
-  const m = /^https:\/\/calendar\.google\.com\/calendar\/ical\/([^/]+)\//i.exec(url ?? "");
-  if (!m) return null;
-  let id;
-  try {
-    id = decodeURIComponent(m[1]).trim().toLowerCase();
-  } catch {
-    return null;
-  }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(id) || /@(group|import)\.calendar\.google\.com$/.test(id)) return null;
-  return id;
-}
-function ownAddressesOf(cfg) {
-  const out = alertAddressesOf(cfg?.notifications);
-  const owner = calendarOwnerOf(cfg?.calendar?.ical_url);
-  if (owner) out.add(owner);
-  return out;
-}
-function isOwn(own, p) {
-  return !!p.email && own.has(p.email.toLowerCase());
-}
-function extractContacts(item, own) {
-  const text = [item.title, item.description ?? "", item.location ?? ""].join("\n");
-  const organizer = item.organizer?.toLowerCase() || null;
-  const emails = /* @__PURE__ */ new Set();
-  for (const m of text.match(EMAIL_RE) ?? []) emails.add(m.toLowerCase());
-  for (const a of item.attendees ?? []) if (a.email) emails.add(a.email.toLowerCase());
-  if (organizer) emails.delete(organizer);
-  for (const a of own) emails.delete(a);
-  const phones = /* @__PURE__ */ new Set();
-  for (const m of text.replace(EMAIL_RE, " ").match(PHONE_RE) ?? []) {
-    const p = phoneFrom(m);
-    if (p) phones.add(p);
-  }
-  const names3 = /* @__PURE__ */ new Set();
-  for (const a of item.attendees ?? []) {
-    if (organizer && a.email?.toLowerCase() === organizer) continue;
-    if (a.email && own.has(a.email.toLowerCase())) continue;
-    const n = (a.name ?? "").trim();
-    if (n && !EMAIL_RE.test(n)) names3.add(n);
-    EMAIL_RE.lastIndex = 0;
-  }
-  return { phones: [...phones], emails: [...emails], names: [...names3] };
-}
-var escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-function nameMatcher(name) {
-  const n = name.trim();
-  if (n.length < 4 || isIdentifierName(n)) return null;
-  return new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRe(n)}(?=$|[^\\p{L}\\p{N}])`, "iu");
-}
-function personInText(text, people) {
-  let best = null;
-  for (const p of people) {
-    const re = nameMatcher(p.name);
-    if (re && re.test(text) && (!best || p.name.trim().length > best.name.trim().length)) best = p;
-  }
-  return best;
-}
-var labelOf = (p) => p.name.trim() || formatPhoneDisplay(p.phone) || p.email || "Unknown";
-function matchPerson(item, everyone, own) {
-  const c = extractContacts(item, own);
-  const people = everyone.filter((p2) => !isOwn(own, p2));
-  if (c.phones.length) {
-    const byPhone = /* @__PURE__ */ new Map();
-    for (const p2 of people) if (p2.phone) byPhone.set(p2.phone, p2);
-    for (const ph of c.phones) {
-      const p2 = byPhone.get(ph);
-      if (p2) return { id: p2.id, name: labelOf(p2), via: "phone", ...threadOf(p2), ...replyFactsOf(p2) };
-    }
-  }
-  if (c.emails.length) {
-    const byEmail = /* @__PURE__ */ new Map();
-    for (const p2 of people) if (p2.email) byEmail.set(p2.email.toLowerCase(), p2);
-    for (const em of c.emails) {
-      const p2 = byEmail.get(em);
-      if (p2) return { id: p2.id, name: labelOf(p2), via: "email", ...threadOf(p2), ...replyFactsOf(p2) };
-    }
-    const byBusiness2 = /* @__PURE__ */ new Map();
-    for (const p2 of people) for (const em of p2.businessEmails ?? []) byBusiness2.set(em, p2);
-    for (const em of c.emails) {
-      const p2 = byBusiness2.get(em);
-      if (p2) return { id: p2.id, name: labelOf(p2), via: "business", ...threadOf(p2), ...replyFactsOf(p2) };
-    }
-  }
-  const words3 = [item.title, ...c.names, item.description ?? ""].join("\n");
-  const p = personInText(words3, people);
-  if (p) return { id: p.id, name: labelOf(p), via: "name", ...threadOf(p), ...replyFactsOf(p) };
-  const byBusiness = personInText(words3, soleAtBusiness(people));
-  const b = byBusiness ? people.find((x) => x.id === byBusiness.id) : void 0;
-  return b ? { id: b.id, name: labelOf(b), via: "business", ...threadOf(b), ...replyFactsOf(b) } : null;
-}
-function soleAtBusiness(people) {
-  const key = (p) => p.business?.trim().toLowerCase() ?? "";
-  const n = /* @__PURE__ */ new Map();
-  for (const p of people) n.set(key(p), (n.get(key(p)) ?? 0) + 1);
-  return people.flatMap((p) => key(p) && n.get(key(p)) === 1 ? [{ ...p, name: p.business?.trim() ?? "" }] : []);
-}
-var NEAR_VISIT_MS = 3 * DAY_MS;
-function indexFeed(items, own) {
-  const byPhone = /* @__PURE__ */ new Map();
-  const byEmail = /* @__PURE__ */ new Map();
-  const texts = [];
-  for (const it of items) {
-    const c = extractContacts(it, own);
-    for (const ph of c.phones) byPhone.set(ph, [...byPhone.get(ph) ?? [], it]);
-    for (const em of c.emails) byEmail.set(em, [...byEmail.get(em) ?? [], it]);
-    if (!it.uid || recordIdOf(it.uid) === null)
-      texts.push({ item: it, text: [it.title, ...c.names, it.description ?? ""].join("\n") });
-  }
-  return { byPhone, byEmail, texts, own };
-}
-var visitOf = (it, via) => ({
-  id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`,
-  key: appointmentKeyOf(it),
-  start: it.start,
-  end: it.end,
-  title: it.title || "Busy",
-  allDay: it.allDay,
-  via,
-  ...it.said ? { said: it.said } : {},
-  ...it.recordId ? { recordId: it.recordId } : {}
-});
-function allVisitsIn(index, person) {
-  if (isOwn(index.own, person)) return [];
-  const out = [];
-  const seen = /* @__PURE__ */ new Set();
-  const take = (it, via) => {
-    if (seen.has(it)) return;
-    seen.add(it);
-    out.push(visitOf(it, via));
-  };
-  if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
-  if (person.email) for (const it of index.byEmail.get(person.email.toLowerCase()) ?? []) take(it, "email");
-  for (const em of person.businessEmails ?? []) for (const it of index.byEmail.get(em) ?? []) take(it, "business");
-  const re = nameMatcher(person.name);
-  if (re) {
-    for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
-  }
-  return out.sort((a, b) => a.start - b.start);
-}
-function visitsIn(index, person, nowMs) {
-  if (isOwn(index.own, person)) return { next: null, last: null, near: [], missed: null };
-  let next = null;
-  let last = null;
-  let missed = null;
-  const near2 = [];
-  const seen = /* @__PURE__ */ new Set();
-  const take = (it, via) => {
-    if (seen.has(it)) return;
-    seen.add(it);
-    const v = visitOf(it, via);
-    if (v.said === "missed") {
-      if (!missed || v.start > missed.start) missed = v;
-      return;
-    }
-    if (it.end >= nowMs) {
-      if (!next || v.start < next.start) next = v;
-    } else if (!last || v.end > last.end) last = v;
-    if (Math.abs(v.start - nowMs) <= NEAR_VISIT_MS) near2.push(v);
-  };
-  if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
-  if (person.email) for (const it of index.byEmail.get(person.email.toLowerCase()) ?? []) take(it, "email");
-  for (const em of person.businessEmails ?? []) for (const it of index.byEmail.get(em) ?? []) take(it, "business");
-  const re = nameMatcher(person.name);
-  if (re) {
-    for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
-  }
-  return { next, last, near: near2.sort((a, b) => a.start - b.start), missed };
-}
-function visitsOf(items, person, nowMs, own) {
-  return visitsIn(indexFeed(items, own), person, nowMs);
-}
-var ms = (t) => typeof t === "number" ? t : Date.parse(t);
-function visitDay(start, tz, nowMs) {
-  const key = dayInZone(tz, ms(start)).key;
-  const today = dayInZone(tz, nowMs).key;
-  const tomorrow = dayPlusInZone(tz, nowMs, 1).key;
-  if (key === today) return "Today";
-  if (key === tomorrow) return "Tomorrow";
-  return dateFormat("en-US", { timeZone: tz, weekday: "short", month: "short", day: "numeric" }).format(
-    new Date(ms(start))
-  );
-}
-function visitTime(v, tz) {
-  if (v.allDay || v.all_day) return "all day";
-  const f = dateFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
-  const a = f.format(new Date(ms(v.start)));
-  const b = f.format(new Date(ms(v.end)));
-  const sameHalf = a.slice(-2) === b.slice(-2);
-  return `${sameHalf ? a.slice(0, -3) : a} \u2013 ${b}`;
-}
-function visitDateKey(start, tz) {
-  return dayInZone(tz, ms(start)).key;
-}
-function visitStartTime(v, tz) {
-  if (v.allDay || v.all_day) return "all day";
-  return dateFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(new Date(ms(v.start)));
-}
-function visitLine(v, tz, nowMs) {
-  return `${visitDay(v.start, tz, nowMs)} \xB7 ${visitTime(v, tz)}`;
-}
-function describeVisits(visits, tz, nowMs, opts) {
-  const out = [];
-  if (visits.next) {
-    const n = visits.next;
-    out.push(
-      `Their next appointment on the calendar: ${visitLine(n, tz, nowMs)} (${n.title}).${n.via === "name" ? " Matched by name only \u2014 make sure it is them before confirming details." : n.via === "business" ? " Matched by their business only \u2014 make sure it is them before confirming details." : ""} If they ask, confirm it; to change or cancel it, ${opts.hasBookingLink ? "send the booking link" : "say the team will follow up"} \u2014 nothing is changed from here.`
-    );
-  }
-  if (visits.last) {
-    const l = visits.last;
-    out.push(
-      `Their last visit on the calendar: ${dateFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(l.start))} (${l.title}).`
-    );
-  }
-  return out.length ? out.join(" ") : null;
-}
-function toVisitDto(v) {
-  return v ? {
-    id: v.id,
-    start: new Date(v.start).toISOString(),
-    end: new Date(v.end).toISOString(),
-    title: v.title,
-    all_day: v.allDay,
-    via: v.via,
-    ...v.key ? { key: v.key } : {},
-    ...v.said ? { said: v.said } : {},
-    ...v.recordId ? { record_id: v.recordId } : {}
-  } : null;
-}
-var NAME_WORD = /^[\p{L}][\p{L}'’.-]*$/u;
-var CAPITAL = /^\p{Lu}/u;
-function guessName(item, services = []) {
-  const svc = new Set(services.map((s) => s.trim().toLowerCase()).filter(Boolean));
-  const organizer = item.organizer?.toLowerCase() || null;
-  const guest = (item.attendees ?? []).filter((a) => !organizer || a.email?.toLowerCase() !== organizer).map((a) => (a.name ?? "").trim()).find((n) => n && !n.includes("@"));
-  if (guest) return guest.slice(0, 80);
-  const title = item.title.replace(/\([^)]*\)/g, " ").replace(/\[[^\]]*\]/g, " ");
-  const parts2 = title.split(/\s+(?:-|–|—|·|\||:|\/)\s+|\s+(?:with|for|w\/)\s+|:\s+/i).map((p) => p.trim()).filter(Boolean);
-  for (const part of parts2) {
-    if (svc.has(part.toLowerCase())) continue;
-    const words3 = part.split(/\s+/);
-    if (words3.length < 2 || words3.length > 4) continue;
-    if (!words3.every((w) => NAME_WORD.test(w) && CAPITAL.test(w))) continue;
-    if (words3.some((w) => svc.has(w.toLowerCase()))) continue;
-    return part;
-  }
-  return null;
-}
-function peopleFromItems(items, services, nowMs, window = {}) {
-  const from = nowMs - (window.backDays ?? 30) * DAY_MS;
-  const to = nowMs + (window.aheadDays ?? 90) * DAY_MS;
-  const byPhone = /* @__PURE__ */ new Map();
-  const ridersOf = /* @__PURE__ */ new Map();
-  const better = (a, b) => {
-    const aUp = a.start >= nowMs;
-    const bUp = b.start >= nowMs;
-    if (aUp !== bUp) return aUp;
-    return aUp ? a.start < b.start : a.start > b.start;
-  };
-  for (const it of items) {
-    if (it.end < from || it.start > to) continue;
-    const found = extractContacts(it, NO_OWN_ADDRESSES);
-    const phones = found.phones;
-    if (!phones.length) continue;
-    for (const e of found.emails) {
-      const riders = ridersOf.get(e) ?? /* @__PURE__ */ new Set();
-      for (const phone of phones) riders.add(phone);
-      ridersOf.set(e, riders);
-    }
-    const email = phones.length === 1 && found.emails.length === 1 ? normalizeEmail(found.emails[0]) : null;
-    const name = guessName(it, services);
-    for (const phone of phones) {
-      const row2 = { phone, name, title: it.title || "Busy", uid: it.uid, start: it.start, email };
-      const have = byPhone.get(phone);
-      if (!have) {
-        byPhone.set(phone, row2);
-        continue;
-      }
-      const [keep, other] = better(row2, have) ? [row2, have] : [have, row2];
-      byPhone.set(phone, { ...keep, name: keep.name ?? other.name, email: keep.email ?? other.email });
-    }
-  }
-  return [...byPhone.values()].map((r2) => r2.email && (ridersOf.get(r2.email)?.size ?? 0) > 1 ? { ...r2, email: null } : r2).sort((a, b) => a.start - b.start);
-}
-function afterPersonRefused(code2) {
-  return code2 === "22023" || code2 === "PE001" ? "skip" : "stop";
-}
-function bookedAfterAsk(visits, askedMs) {
-  if (!visits) return false;
-  return visitAnswersAsk(visitStartOf(visits.next), begunOf(visits.last, visits.missed), askedMs);
-}
-function visitStartOf(v) {
-  const t = v ? ms(v.start) : NaN;
-  return Number.isFinite(t) ? t : null;
-}
-function begunOf(last, missed) {
-  const starts = [visitStartOf(last), visitStartOf(missed)].filter((t) => t !== null);
-  return starts.length ? Math.max(...starts) : null;
-}
-function visitAnswersAsk(nextStartMs, lastStartMs, askedMs) {
-  if (nextStartMs !== null) return true;
-  return lastStartMs !== null && lastStartMs >= askedMs - DAY_MS;
-}
-
 // src/calendar/calendar-words.ts
 var VISIT_WORDS = { kept: "Kept", missed: "Missed", cancelled: "Cancelled" };
 var VISIT_REFUSALS = {
@@ -3641,6 +3665,9 @@ var VISIT_REFUSALS = {
 };
 function visitStands(visit) {
   return visit?.status !== "cancelled";
+}
+function sightingStands(row2) {
+  return visitStands(row2) && !row2.vanished_at;
 }
 var VISIT_PAST_WORD = "Past";
 var VISIT_PILL_TONES = {
@@ -11579,8 +11606,8 @@ function stepDayOf(day, tz, nowMs) {
   if (!Number.isFinite(at3)) return null;
   const today = zoneDayKey(nowMs, tz);
   const due = day < today ? "past" : day === today ? "today" : "ahead";
-  const near2 = clockNear(at3, tz, nowMs);
-  return { day, due, near: near2, words: due === "past" ? `Overdue since ${near2}` : `Due ${near2}` };
+  const near3 = clockNear(at3, tz, nowMs);
+  return { day, due, near: near3, words: due === "past" ? `Overdue since ${near3}` : `Due ${near3}` };
 }
 function stepIsDue(step2) {
   return !!step2 && step2.due !== "ahead";
@@ -14223,6 +14250,7 @@ var PHONE_LINE_OFF = {
   gets: "calls are picked up without your facts and are not recorded"
 };
 var PAUSED_CALL = "calls are answered only to take a message";
+var WORKSPACE_ENDED_WORDS = `its receptionist stops replying to messages and ${PAUSED_CALL}, its plan is cancelled, and its public pages go offline`;
 var WORKSPACE_PAUSED = {
   state: "workspace_paused",
   tone: "danger",
@@ -23462,11 +23490,13 @@ var APPOINTMENT_STATUSES = ["proposed", "booked", "kept", "missed", "cancelled"]
 var APPOINTMENT_KEY_MAX = 512;
 function feedAppointmentRows(items, o) {
   const out = /* @__PURE__ */ new Map();
+  const copy = bookingCopyTest(o.bookings ?? [], o.own);
   for (const it of items) {
     if (it.start < o.window.from || it.start > o.window.to) continue;
     const key = appointmentKeyOf(it);
     if (key.length > APPOINTMENT_KEY_MAX || out.has(key)) continue;
     const title = it.title.trim() || null;
+    const contactId = matchPerson(it, o.people, o.own)?.id ?? null;
     out.set(key, {
       external_id: key,
       starts_at: new Date(it.start).toISOString(),
@@ -23474,7 +23504,9 @@ function feedAppointmentRows(items, o) {
       all_day: it.allDay,
       service: serviceNamedIn(title, o.services),
       consultation: isConsultationTitle(title, o.services, o.rules),
-      contact_id: matchPerson(it, o.people, o.own)?.id ?? null
+      contact_id: contactId,
+      series: it.occurrence !== void 0,
+      twin: copy ? copy(it, contactId) : false
     });
   }
   return [...out.values()];
@@ -23717,21 +23749,8 @@ function itemOfAppointment(row2, people) {
   };
 }
 function withoutVisitsRowsDraw(items, rows2, own) {
-  if (!rows2.length) return items;
-  const byPhone = /* @__PURE__ */ new Map();
-  const byEmail = /* @__PURE__ */ new Map();
-  for (const r2 of rows2) {
-    const at3 = Date.parse(r2.starts_at);
-    if (r2.client_phone) byPhone.set(r2.client_phone, [...byPhone.get(r2.client_phone) ?? [], at3]);
-    if (r2.client_email) byEmail.set(r2.client_email.toLowerCase(), [...byEmail.get(r2.client_email) ?? [], at3]);
-  }
-  if (!byPhone.size && !byEmail.size) return items;
-  const near2 = (starts, at3) => !!starts?.some((s) => Math.abs(s - at3) <= SAME_VISIT_MS);
-  return items.filter((it) => {
-    const c = extractContacts(it, own);
-    const same2 = c.phones.some((p) => near2(byPhone.get(p), it.start)) || c.emails.some((e) => near2(byEmail.get(e.toLowerCase()), it.start));
-    return !same2;
-  });
+  const copy = bookingCopyTest(rows2, own);
+  return copy ? items.filter((it) => !copy(it)) : items;
 }
 function daysWithAppointments(days, rows2, tz, people) {
   if (!rows2.length) return days;
@@ -23901,6 +23920,7 @@ function noticesVM(n, now) {
   const state = n?.last_at ? "working" : n?.tool ? "waiting" : "none";
   const heldList = (n?.held_list ?? []).map((h) => ({
     id: h.id,
+    noticeId: h.notice_id ?? null,
     tool: bookingToolName(h.tool),
     from: h.from,
     subject: h.subject,
@@ -33342,6 +33362,11 @@ var ARRIVES = /* @__PURE__ */ new Set(["added", "confirmed"]);
 var ARRIVES_BY = /* @__PURE__ */ new Set(["booking_email", "booking_tool", "calendar_feed"]);
 var CATCH_UP_VISITS = 8;
 var NAMED_IN_A_GROUP = 3;
+function feedAdditionIsBooking(data) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return false;
+  const d = data;
+  return d.change === "added" && d.source === "calendar_feed" && d.named === true && d.series === false && d.twin === false && d.first === false;
+}
 function bookingArriving(event) {
   if (event.kind !== "appointment.changed" || event.subject_type !== "appointment" || !event.subject_id) return null;
   const data = event.data && typeof event.data === "object" && !Array.isArray(event.data) ? event.data : null;
@@ -33349,7 +33374,7 @@ function bookingArriving(event) {
   const { change, source, starts_at: startsAt } = data;
   if (typeof change !== "string" || !ARRIVES.has(change)) return null;
   if (typeof source !== "string" || !ARRIVES_BY.has(source)) return null;
-  if (source === "calendar_feed" && change !== "added") return null;
+  if (source === "calendar_feed" && !feedAdditionIsBooking(data)) return null;
   return {
     appointmentId: event.subject_id,
     via: source,
@@ -33741,11 +33766,11 @@ function visitWordsOf(v, nowMs, person) {
   };
 }
 function visitKeysOf(v, nowMs, tz) {
-  const near2 = v ? v.near ?? [v.last, v.next].filter((x) => x !== null) : [];
+  const near3 = v ? v.near ?? [v.last, v.next].filter((x) => x !== null) : [];
   const missedMs = v?.missed ? Date.parse(v.missed.start) : NaN;
   return {
     missedVisitDays: Number.isFinite(missedMs) ? Math.max(0, localDaysBetween(missedMs, nowMs, tz)) : null,
-    visitDays: v ? near2.map((x) => ({ date: visitDateKey(x.start, v.timezone), via: x.via })) : [],
+    visitDays: v ? near3.map((x) => ({ date: visitDateKey(x.start, v.timezone), via: x.via })) : [],
     nextVisitDate: v?.next ? visitDateKey(v.next.start, v.timezone) : null,
     lastVisitDate: v?.last ? visitDateKey(v.last.start, v.timezone) : null,
     nextVisitId: v?.next?.record_id ?? null,
@@ -34402,17 +34427,17 @@ var at = (iso) => {
   const t = iso ? Date.parse(iso) : NaN;
   return Number.isFinite(t) ? t : null;
 };
-var near = (iso, tz, nowMs) => {
+var near2 = (iso, tz, nowMs) => {
   const t = at(iso);
   return t === null ? "" : clockNear(t, tz, nowMs);
 };
 var intentWords = (intent) => isReplyIntent(intent) ? REPLY_INTENT_WORDS[intent] : "wrote back";
 var personAnswered = (r2) => !!r2 && !r2.undone && r2.claim !== "auto_reply";
 function writtenWords(l, tz, nowMs) {
-  const parts2 = [`Written ${near(l.first_sent_at, tz, nowMs)}`];
-  if (l.sent > 1) parts2.push(`nudged ${near(l.last_sent_at, tz, nowMs)}`);
+  const parts2 = [`Written ${near2(l.first_sent_at, tz, nowMs)}`];
+  if (l.sent > 1) parts2.push(`nudged ${near2(l.last_sent_at, tz, nowMs)}`);
   if (l.held) parts2.push("a nudge waits for your say");
-  else if (l.next_at) parts2.push(`next ${near(l.next_at, tz, nowMs)}`);
+  else if (l.next_at) parts2.push(`next ${near2(l.next_at, tz, nowMs)}`);
   return parts2.join(" \xB7 ");
 }
 function reachOutLineOf(l, nowMs, tz) {
@@ -34420,19 +34445,19 @@ function reachOutLineOf(l, nowMs, tz) {
   if (booked !== null) return `Booked ${clockNearWhen(booked, tz, nowMs)}`;
   const r2 = l.reply;
   if (personAnswered(r2)) {
-    if (r2.intent === "no") return `Said no ${near(r2.read_at, tz, nowMs)}`;
+    if (r2.intent === "no") return `Said no ${near2(r2.read_at, tz, nowMs)}`;
     const resume = at(l.resume_at);
     if (r2.intent === "not_now" && resume !== null) return `Not now \xB7 until ${clockDate(resume, tz, nowMs)}`;
     if (r2.intent === "away" && resume !== null) return `Away \xB7 back ${clockDate(resume, tz, nowMs)}`;
-    return `Wrote back ${near(r2.read_at, tz, nowMs)} \xB7 ${intentWords(r2.intent)}`;
+    return `Wrote back ${near2(r2.read_at, tz, nowMs)} \xB7 ${intentWords(r2.intent)}`;
   }
   if (l.closed_reason === "said_no") return "Said no";
   if (l.bounced)
-    return `Bounced ${near(l.bounced_at, tz, nowMs)}${l.email_state === "invalid" ? " \xB7 address dropped" : ""}`;
-  if (l.stopped_at) return `Stopped ${near(l.stopped_at, tz, nowMs)}`;
+    return `Bounced ${near2(l.bounced_at, tz, nowMs)}${l.email_state === "invalid" ? " \xB7 address dropped" : ""}`;
+  if (l.stopped_at) return `Stopped ${near2(l.stopped_at, tz, nowMs)}`;
   const away = at(l.away_until);
   if (l.sent > 0 && away !== null && away > nowMs)
-    return `Written ${near(l.first_sent_at, tz, nowMs)} \xB7 away until ${clockDate(away, tz, nowMs)}`;
+    return `Written ${near2(l.first_sent_at, tz, nowMs)} \xB7 away until ${clockDate(away, tz, nowMs)}`;
   if (l.sent > 0) return writtenWords(l, tz, nowMs);
   if (l.held) return "Held for your say";
   const next = at(l.next_at);
@@ -34538,12 +34563,12 @@ function standingWords(t, tz, nowMs) {
   const reply = t.readings.find((r2) => !r2.undone && r2.claim !== "auto_reply") ?? null;
   const booked = at(t.booked_at);
   if (booked !== null) return `booked ${clockNearWhen(booked, tz, nowMs)}`;
-  if (reply) return `wrote back ${near(reply.read_at, tz, nowMs)} \xB7 ${intentWords(reply.intent)}`;
+  if (reply) return `wrote back ${near2(reply.read_at, tz, nowMs)} \xB7 ${intentWords(reply.intent)}`;
   if (t.closed_reason === "said_no") return "said no";
-  if (t.stopped_at) return `stopped ${near(t.stopped_at, tz, nowMs)}`;
+  if (t.stopped_at) return `stopped ${near2(t.stopped_at, tz, nowMs)}`;
   const sent2 = t.sends.filter((s) => s.state === "sent");
   const last = sent2.length ? sent2[sent2.length - 1] : null;
-  if (last) return `written ${near(last.sent_at, tz, nowMs)}`;
+  if (last) return `written ${near2(last.sent_at, tz, nowMs)}`;
   return "not written yet";
 }
 function reachOutPersonOf(t, nowMs, tz) {
@@ -49179,6 +49204,7 @@ var WHOLE_SENTENCE = new Map([
     ]
   )
 ]);
+var exportedWords = (what) => what === "workspace" ? "the records" : what === "people" ? "everyone as a CSV" : `a ${what}`;
 function activityWords(kind, payload) {
   const p = payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
   const base = kind === "take_over" && textAt(p, "how") === "transfer" ? "Took over a call" : WORDS2[kind] ?? humanize(kind);
@@ -49220,7 +49246,7 @@ function activityWords(kind, payload) {
     }
     case "export": {
       const what = textAt(p, "what");
-      if (what) bits2.push(what === "workspace" ? "everything" : what === "people" ? "everyone as a CSV" : `a ${what}`);
+      if (what) bits2.push(exportedWords(what));
       const rows2 = numberAt(p, "rows");
       if (rows2 !== null) bits2.push(`${rows2} rows`);
       break;
@@ -51418,6 +51444,7 @@ export {
   WHATSAPP_LANGUAGES,
   WHATSAPP_VERSION_ALONE,
   WHY_FROM_MAPS,
+  WORKSPACE_ENDED_WORDS,
   WORKSPACE_LOGOS_BUCKET,
   WORKSPACE_PAUSED,
   WORKS_AT_WORDS,
@@ -51546,6 +51573,7 @@ export {
   bookedSeenOf,
   bookedTileOf,
   bookingArriving,
+  bookingCopyTest,
   bookingEmailsHeldWords,
   bookingEmailsStep,
   bookingHeld,
@@ -51862,6 +51890,7 @@ export {
   fallbackMessages,
   fallbackModel,
   fallbacksWords,
+  feedAdditionIsBooking,
   feedAppointmentRows,
   feedBodyProblem,
   feedItemOfAppointment,
@@ -52822,6 +52851,7 @@ export {
   samePhone,
   sameQuestion,
   sameReportRange,
+  sameVisitOnRecord,
   savedListAction,
   savedListIds,
   savedListLookup,
@@ -52882,6 +52912,7 @@ export {
   shortcutGroups,
   shouldLandOnFirstRun,
   shoutingLine,
+  sightingStands,
   signerAgrees,
   signerOf,
   signupPosture,

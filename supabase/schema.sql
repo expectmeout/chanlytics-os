@@ -239,6 +239,10 @@ declare
   v_moved    integer := 0;
   v_back     integer := 0;
   v_vanished integer := 0;
+  -- No read of this workspace's calendar kept before this one (calendar_feed_kept_at, and no feed row from before
+  -- 00419): the read that follows connecting a calendar, every entry of it added at once, which is a calendar read and
+  -- no customer booking.
+  v_first    boolean;
 begin
   if p_tenant_id is null or not exists (select 1 from tenants t where t.id = p_tenant_id) then
     raise exception 'Workspace not found.' using errcode = 'P0002';
@@ -256,12 +260,14 @@ begin
   if exists (select 1 from tenant_config tc where tc.tenant_id = p_tenant_id and tc.calendar_checked_at > v_now) then
     return jsonb_build_object('added', 0, 'moved', 0, 'back', 0, 'vanished', 0, 'seen', 0, 'stale', true);
   end if;
+  v_first := not exists (select 1 from tenant_config tc where tc.tenant_id = p_tenant_id and tc.calendar_feed_kept_at is not null)
+             and not exists (select 1 from appointments a where a.tenant_id = p_tenant_id and a.source = 'calendar_feed');
 
   for v_in in
     select distinct on (r.external_id) r.*
       from jsonb_to_recordset(p_rows) as r(
              external_id text, starts_at timestamptz, ends_at timestamptz, all_day boolean, service text,
-             consultation boolean, contact_id uuid)
+             consultation boolean, contact_id uuid, series boolean, twin boolean)
      where nullif(btrim(r.external_id), '') is not null and char_length(r.external_id) <= 512
        and r.starts_at is not null and r.ends_at is not null and r.ends_at > r.starts_at
        and r.starts_at between p_from and p_to
@@ -322,9 +328,17 @@ begin
               or timezone is distinct from v_tz or vanished_at is not null);
     end if;
     if v_change is not null then
+      -- An addition carries what the bell asks of it (contracts visit-news.ts bookingArriving): whether the visit is a
+      -- person's of the workspace, one occurrence of a repeating event, the copy of a booking the record holds, and part of
+      -- a calendar's first read. A sweep from before 00419 sends no series or twin, and they are kept as null: unknown,
+      -- which the bell reads as no booking.
       insert into events (tenant_id, kind, category, subject_type, subject_id, data)
       values (p_tenant_id, 'appointment.changed', 'appointment', 'appointment', v_id,
-              jsonb_build_object('change', v_change, 'source', 'calendar_feed', 'starts_at', v_in.starts_at));
+              jsonb_build_object('change', v_change, 'source', 'calendar_feed', 'starts_at', v_in.starts_at)
+              || case when v_change = 'added'
+                      then jsonb_build_object('named', v_contact is not null, 'series', v_in.series, 'twin', v_in.twin,
+                                              'first', v_first)
+                      else '{}'::jsonb end);
     end if;
   end loop;
 
@@ -343,8 +357,10 @@ begin
             jsonb_build_object('change', 'vanished', 'source', 'calendar_feed', 'starts_at', v_row.starts_at));
   end loop;
 
+  -- The answer says when this was the first read kept, so the sweep stamps it (calendar_feed_kept_at) and the next read
+  -- is no first read, even when this one named nothing.
   return jsonb_build_object('added', v_added, 'moved', v_moved, 'back', v_back, 'vanished', v_vanished,
-                            'seen', cardinality(v_seen), 'stale', false);
+                            'seen', cardinality(v_seen), 'stale', false, 'first', v_first);
 end $$;
 
 
@@ -352,7 +368,7 @@ end $$;
 -- Name: FUNCTION appointments_feed_sync(p_tenant_id uuid, p_timezone text, p_rows jsonb, p_from timestamp with time zone, p_to timestamp with time zone, p_now timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.appointments_feed_sync(p_tenant_id uuid, p_timezone text, p_rows jsonb, p_from timestamp with time zone, p_to timestamp with time zone, p_now timestamp with time zone) IS 'The hourly sweep''s door (decision 0002, 00348): one read of a workspace''s feed kept on the appointments record (00345) as calendar_feed rows, in one transaction, never its titles. Each row inserted or updated by its key; a row the read no longer names, starting inside the window it covered, vanished (never cancelled). A read older than the workspace''s last (tenant_config.calendar_checked_at) is refused as stale. appointment.changed for each added, moved, vanished or back. Answers the counts. Service role only.';
+COMMENT ON FUNCTION public.appointments_feed_sync(p_tenant_id uuid, p_timezone text, p_rows jsonb, p_from timestamp with time zone, p_to timestamp with time zone, p_now timestamp with time zone) IS 'The hourly sweep''s door (decision 0002, 00348): one read of a workspace''s feed kept on the appointments record (00345) as calendar_feed rows, in one transaction, never its titles. Each row inserted or updated by its key; a row the read no longer names, starting inside the window it covered, vanished (never cancelled). A read older than the workspace''s last (tenant_config.calendar_checked_at) is refused as stale. appointment.changed for each added, moved, vanished or back; an addition''s also carries named (linked to a living person of the workspace), series and twin (as the sweep sent them: one occurrence of a repeating event, the copy of a booking the record holds; null from a sweep that did not say) and first (no read of the workspace''s calendar kept before this one: tenant_config.calendar_feed_kept_at, which the sweep stamps after the door answers first for a kept read, empty or not, and no feed row from before 00419), which the bell reads to tell a customer''s booking from the owner''s own entry (00419). Answers the counts, and whether the read was the first kept (first). Service role only.';
 
 
 --
@@ -26723,7 +26739,7 @@ COMMENT ON COLUMN public.notifications.recipient_user_id IS 'The one member this
 -- Name: COLUMN notifications.source_event; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.notifications.source_event IS 'The event this notice answers (decision 0043, 00396): a hold''s notice keeps its escalation event, so a second delivery of it tells nobody. Null for a notice no event raised.';
+COMMENT ON COLUMN public.notifications.source_event IS 'The event this notice answers (decision 0043, 00396): a hold''s notice keeps its escalation event, so a second delivery of it tells nobody. A sweep''s once-only notice keeps, in its place, a uuid made from the name of what it answers (the edge''s notify.ts onceKey: the deadman''s warning of one hold, the warning before a number is given back, a booking email held for a look), so a retry finds it and sends only the mail it still owes (00419). Null for a notice nothing keys.';
 
 
 --
@@ -28026,7 +28042,8 @@ CREATE TABLE public.tenant_config (
     version integer DEFAULT 1 NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_by uuid,
-    calendar_checked_at timestamp with time zone
+    calendar_checked_at timestamp with time zone,
+    calendar_feed_kept_at timestamp with time zone
 );
 
 
@@ -28042,6 +28059,13 @@ COMMENT ON COLUMN public.tenant_config.updated_by IS 'Who last wrote this config
 --
 
 COMMENT ON COLUMN public.tenant_config.calendar_checked_at IS 'When the calendar sweep last read this workspace''s feed. Null = never, and never is served first. Ordering on this is what stops the sweep serving the same early tenants every hour once there are more workspaces than fit in one tick.';
+
+
+--
+-- Name: COLUMN tenant_config.calendar_feed_kept_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.tenant_config.calendar_feed_kept_at IS 'When the hourly sweep first kept a read of this workspace''s calendar, an empty read included (00419): appointments_feed_sync answers first for it, and the sweep stamps it. Null with no calendar_feed row: no read kept yet, so the additions of the read that follows connecting a calendar are its first read, which the bell tells none of. Null with calendar_feed rows: reads were kept before 00419. The service role''s, like calendar_checked_at (00089: no member''s UPDATE grant names it).';
 
 
 --

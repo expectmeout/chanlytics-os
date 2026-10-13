@@ -113,6 +113,20 @@ export async function putTenantConfig(
   return { ok: false, reason: existing ? "stale" : "missing" };
 }
 
+/**
+ * Stamp a workspace's calendar as having had its first read kept (00419, tenant_config.calendar_feed_kept_at), when
+ * appointments_feed_sync answered `first` to the hourly sweep: the next read's additions are no first read, even when this
+ * one named nothing. Once per workspace (a stamp already there is left). A write that fails throws.
+ */
+export async function markCalendarFeedKept(db: Db, tenantId: string, now: Date): Promise<void> {
+  const { error } = await db
+    .from("tenant_config")
+    .update({ calendar_feed_kept_at: now.toISOString() })
+    .eq("tenant_id", tenantId)
+    .is("calendar_feed_kept_at", null);
+  if (error) throw new Error(`stamping the calendar's first read: ${error.message}`);
+}
+
 export interface PolicyRecord {
   id: string;
   class: string;

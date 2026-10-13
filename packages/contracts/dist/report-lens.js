@@ -536,11 +536,6 @@ var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
 
-// src/calendar/booking-notice.ts
-var NOTICE_LENGTH_MAX_MS = 12 * HOUR_MS;
-var NOTICE_TIME_REACH_MS = 400 * DAY_MS;
-var SAME_VISIT_MS = 15 * MIN_MS;
-
 // src/config/workspace-config/alerts.ts
 var ALERT_ADDRESSES_MAX = 10;
 var ALERT_REFUSED_WORDS = {
@@ -551,6 +546,11 @@ var ALERT_REFUSED_WORDS = {
 
 // src/calendar/calendar-people.ts
 var NEAR_VISIT_MS = 3 * DAY_MS;
+
+// src/calendar/booking-notice.ts
+var NOTICE_LENGTH_MAX_MS = 12 * HOUR_MS;
+var NOTICE_TIME_REACH_MS = 400 * DAY_MS;
+var SAME_VISIT_MS = 15 * MIN_MS;
 
 // src/calendar/calendar-words.ts
 var SHORT = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });

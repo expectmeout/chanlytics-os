@@ -10,6 +10,8 @@
  * claim, core's read, the board's row, Settings' words) cannot drift.
  */
 import { localToUtcMs } from "./zone-math";
+import type { FeedItem } from "./feed";
+import { extractContacts, type OwnAddresses } from "./calendar-people";
 import { normalizeEmail } from "../shared/email-address";
 import { normalizePhone } from "../shared/phone";
 import { DAY_MS, HOUR_MS, MIN_MS } from "../shared/time";
@@ -358,6 +360,83 @@ export function appointmentKey(
 
 /** Two visits are the same one when they are the same client's and start within this of each other. */
 export const SAME_VISIT_MS = 15 * MIN_MS;
+
+/*
+ * When two sightings of a visit are one visit (decision 0002): a booking tool that both emails the owner and writes their
+ * calendar puts the same visit on the record twice, once as the booking's own row (booking_email, booking_tool) and once
+ * as the calendar feed's. The board draws it once (appointment-item.ts withoutVisitsRowsDraw), the hourly sweep marks the
+ * feed's copy so the bell does not tell it again (feed-appointments.ts, `twin`), and a visit told as one sighting is not
+ * told again as the other (packages/db twinTold). One rule for all three, here.
+ *
+ * Two sightings are one visit when they are the same client's and start within SAME_VISIT_MS of each other. A calendar's
+ * event says its client by the number or the address in it (the way the panel finds them, extractContacts); a row of the
+ * record by the person it is linked to. The board folds by the number or the address alone, since it matches no event to
+ * a person before it draws; the sweep, which has, also by the person. So a copy that names its client only by name is one
+ * visit on the bell and two on the board.
+ */
+
+/** A booking's row as the rule reads it: its client's number and address, the person it is linked to, and its start. */
+export interface BookingSighting {
+  client_phone: string | null;
+  client_email: string | null;
+  contact_id: string | null;
+  /** An ISO instant. */
+  starts_at: string;
+}
+
+/** A visit on the record as the rule reads it: the person it is linked to, and its start. */
+export interface VisitOnRecord {
+  contact_id: string | null;
+  /** An ISO instant. */
+  starts_at: string;
+}
+
+const near = (starts: readonly number[] | undefined, at: number): boolean =>
+  !!starts?.some((s) => Math.abs(s - at) <= SAME_VISIT_MS);
+
+/**
+ * Whether two visits on the record are one: linked to the same person, and starting within SAME_VISIT_MS of each other.
+ * A visit linked to nobody is no other visit's: the record cannot say whose it is.
+ */
+export function sameVisitOnRecord(a: VisitOnRecord, b: VisitOnRecord): boolean {
+  return (
+    !!a.contact_id &&
+    a.contact_id === b.contact_id &&
+    Math.abs(Date.parse(a.starts_at) - Date.parse(b.starts_at)) <= SAME_VISIT_MS
+  );
+}
+
+/**
+ * The test of whether a calendar's event is a copy of one of these bookings, or null when none of them can have one: the
+ * event carries a booking's number or address and starts within SAME_VISIT_MS of it, or (given the person the sweep
+ * matched it to) is that booking's person's and starts as near. Built once for a read of many events.
+ */
+export function bookingCopyTest(
+  bookings: readonly BookingSighting[],
+  own: OwnAddresses,
+): ((item: FeedItem, contactId?: string | null) => boolean) | null {
+  if (!bookings.length) return null;
+  const byPhone = new Map<string, number[]>();
+  const byEmail = new Map<string, number[]>();
+  const byPerson = new Map<string, number[]>();
+  const add = (m: Map<string, number[]>, k: string, at: number) => m.set(k, [...(m.get(k) ?? []), at]);
+  for (const b of bookings) {
+    const at = Date.parse(b.starts_at);
+    if (b.client_phone) add(byPhone, b.client_phone, at);
+    if (b.client_email) add(byEmail, b.client_email.toLowerCase(), at);
+    if (b.contact_id) add(byPerson, b.contact_id, at);
+  }
+  if (!byPhone.size && !byEmail.size && !byPerson.size) return null;
+  return (item, contactId) => {
+    if (contactId && near(byPerson.get(contactId), item.start)) return true;
+    if (!byPhone.size && !byEmail.size) return false;
+    const c = extractContacts(item, own);
+    return (
+      c.phones.some((p) => near(byPhone.get(p), item.start)) ||
+      c.emails.some((e) => near(byEmail.get(e.toLowerCase()), item.start))
+    );
+  };
+}
 
 /* ------------------------------------------------------------------ the tool the owner names, and its steps */
 

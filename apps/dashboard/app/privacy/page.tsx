@@ -15,7 +15,7 @@ export default function PrivacyPage() {
   return (
     <main className="legal">
       <h1>Privacy policy</h1>
-      <p className="legal-meta">Chanlytics · last updated September 7, 2026</p>
+      <p className="legal-meta">Chanlytics · last updated October 12, 2026</p>
 
       <p>
         Chanlytics is a receptionist for small businesses: it answers a business's customers on WhatsApp, by phone and
@@ -151,9 +151,9 @@ export default function PrivacyPage() {
 
       <h2>How long we keep it</h2>
       <p>
-        {retentionWords()} An owner can download everything a workspace holds from Settings › Business, and can ask us
-        to delete the workspace, after which its data is removed within 30 days, except what the law requires us to
-        keep.
+        {retentionWords()} An owner can download a workspace&rsquo;s people, conversations, calls and consent history
+        from Settings › Business, ask us for the rest, and ask us to delete the workspace, after which its data is
+        removed within 30 days, except what the law requires us to keep.
       </p>
 
       <h2>Your rights</h2>

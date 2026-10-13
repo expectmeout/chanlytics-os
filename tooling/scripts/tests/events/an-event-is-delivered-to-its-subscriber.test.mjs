@@ -792,11 +792,19 @@ test("visit_notice tells what stands: a visit withdrawn, vanished, cancelled, al
 /** A made-up uuid of one kind of row, numbered: ordered the way the ledger orders ids. */
 const numbered = (prefix, i) => `${prefix}${String(i).padStart(7, "0")}-0000-4000-8000-000000000000`;
 
-/** The additions one read of the owner's calendar wrote together: n events of one transaction. `first` is the event the job delivers. */
-function aCalendarRead(n, { first = 0 } = {}) {
+/** What the sweep stamps on a calendar's addition that is a customer's booking (00419): a person's, one-off, no copy, not a first read. */
+const BOOKED_FACTS = { named: true, series: false, twin: false, first: false };
+
+/**
+ * The additions one read of the owner's calendar wrote together: n events of one transaction, each a visit linked to a person
+ * with no name on record, stamped with `facts` (or `facts(i)` for the i-th, the order event ids sort in). `first` is the
+ * event the job delivers.
+ */
+function aCalendarRead(n, { first = 0, facts = BOOKED_FACTS } = {}) {
   const w = world({ subscriber: "visit_notice" });
   w.tables.appointments.length = 0;
   w.tables.events.length = 0;
+  w.tables.contacts.push(rows.contact({ id: PERSON, tenant_id: T, display_name: null, wa_profile_name: null }));
   const at = "2026-10-06T00:00:00.123456+00:00";
   for (let i = 0; i < n; i++) {
     const day = String(12 + i).padStart(2, "0");
@@ -805,6 +813,7 @@ function aCalendarRead(n, { first = 0 } = {}) {
         id: numbered("a", i),
         source: "calendar_feed",
         client_name: null,
+        contact_id: PERSON,
         service: i === 0 ? "Consultation" : null,
         starts_at: `2999-10-${day}T15:00:00Z`,
         ends_at: `2999-10-${day}T16:00:00Z`,
@@ -818,7 +827,12 @@ function aCalendarRead(n, { first = 0 } = {}) {
         category: "appointment",
         subject_type: "appointment",
         subject_id: numbered("a", i),
-        data: { change: "added", source: "calendar_feed", starts_at: `2999-10-${day}T15:00:00Z` },
+        data: {
+          change: "added",
+          source: "calendar_feed",
+          starts_at: `2999-10-${day}T15:00:00Z`,
+          ...(typeof facts === "function" ? facts(i) : facts),
+        },
         created_at: at,
       }),
     );
@@ -865,6 +879,254 @@ test("visit_notice tells nobody of a read that adds more than a customer could b
   assert.equal(await dispatchJob(over.ctx, over.job), "done");
   assert.deepEqual(over.told, [], "beyond it, it is a calendar read and not customers booking");
   assert.equal(over.delivery().state, "done");
+});
+
+test("REGRESSION: visit_notice tells nobody of what the owner's calendar holds that is no customer's booking -- their own entry, the next of a series, the copy of a booking already told, a calendar just connected, an addition from before its facts were stamped (the wiring's second audit, S11-1)", async () => {
+  for (const [why, facts] of [
+    ["linked to nobody: the owner's own entry", { ...BOOKED_FACTS, named: false }],
+    ["the next of a repeating series coming into the window", { ...BOOKED_FACTS, series: true }],
+    ["the calendar's copy of a booking its tool's email told", { ...BOOKED_FACTS, twin: true }],
+    ["one of a calendar's first read", { ...BOOKED_FACTS, first: true }],
+    ["stamped before 00419: no facts at all", {}],
+  ]) {
+    const w = aCalendarRead(1, { facts });
+    assert.equal(await dispatchJob(w.ctx, w.job), "done", why);
+    assert.deepEqual(w.told, [], why);
+    assert.equal(w.delivery().state, "done");
+  }
+  // A visit linked to a person when it was added, and to nobody by the time the delivery runs (the person merged away):
+  // the record is read as it stands, and an entry nobody's is not a booking.
+  const unlinked = aCalendarRead(1);
+  unlinked.tables.appointments[0].contact_id = null;
+  assert.equal(await dispatchJob(unlinked.ctx, unlinked.job), "done");
+  assert.deepEqual(unlinked.told, []);
+});
+
+test("REGRESSION: a booking whose calendar copy was told first (its email held, then read again) is not told again; a copy not told, or of another visit, leaves it to be told (the wiring's second audit, S11-2)", async () => {
+  const COPY = "a2a2a2a2-a2a2-4a2a-8a2a-a2a2a2a2a2a2";
+  const COPY_EVENT = "e2e2e2e2-e2e2-4e2e-8e2e-e2e2e2e2e2e2";
+  /** The email's visit linked to the person, and the calendar's copy of it `minutes` later, told or not. */
+  const both = ({ minutes = 5, told = true, person = PERSON } = {}) => {
+    const w = world({ subscriber: "visit_notice" });
+    w.tables.contacts.push(rows.contact({ id: PERSON, tenant_id: T, display_name: "Rosa Diaz" }));
+    w.tables.appointments[0] = aVisit({ contact_id: PERSON });
+    const start = new Date(Date.parse("2999-10-12T15:00:00Z") + minutes * 60_000).toISOString();
+    w.tables.appointments.push(
+      aVisit({ id: COPY, source: "calendar_feed", client_name: null, contact_id: person, starts_at: start }),
+    );
+    w.tables.events.push(
+      rows.event({
+        id: COPY_EVENT,
+        tenant_id: T,
+        kind: "appointment.changed",
+        category: "appointment",
+        subject_type: "appointment",
+        subject_id: COPY,
+        data: { change: "added", source: "calendar_feed", starts_at: start, ...BOOKED_FACTS },
+        created_at: "2026-10-05T23:00:00Z",
+      }),
+    );
+    if (told)
+      w.tables.notifications.push({
+        id: "f2f2f2f2-f2f2-4f2f-8f2f-f2f2f2f2f2f2",
+        tenant_id: T,
+        kind: "booking",
+        title: "Rosa Diaz booked with you",
+        body: "From your calendar",
+        source_event: COPY_EVENT,
+        mail_due_at: null,
+        created_at: "2026-10-05T23:00:01Z",
+      });
+    return w;
+  };
+  const twice = both();
+  assert.equal(await dispatchJob(twice.ctx, twice.job), "done");
+  assert.deepEqual(twice.told, [], "the visit was told once, as the calendar's copy");
+
+  for (const [why, over] of [
+    ["the copy was never told (a series, a first read)", { told: false }],
+    ["another visit of the same person: half an hour apart", { minutes: 30 }],
+    ["another person's visit at the same time", { person: "d1d1d1d1-d1d1-4d1d-8d1d-d1d1d1d1d1d1" }],
+  ]) {
+    const w = both(over);
+    assert.equal(await dispatchJob(w.ctx, w.job), "done", why);
+    assert.equal(w.told.length, 1, why);
+  }
+  // A booking linked to nobody cannot be matched to a copy: it is told.
+  const nobody = both();
+  nobody.tables.appointments[0].contact_id = null;
+  assert.equal(await dispatchJob(nobody.ctx, nobody.job), "done");
+  assert.equal(nobody.told.length, 1);
+});
+
+test("REGRESSION: a read that adds a booking beside the owner's own entry, a booking's copy or a series' next occurrence tells the booking once, whichever event sorts first, and never names the other (the review of the wiring's second audit, M1, B1, B2)", async () => {
+  for (const [why, other] of [
+    ["the owner's own entry", { ...BOOKED_FACTS, named: false }],
+    ["a booking's copy", { ...BOOKED_FACTS, twin: true }],
+    ["a series' next occurrence", { ...BOOKED_FACTS, series: true }],
+  ]) {
+    for (const otherFirst of [true, false]) {
+      const booking = otherFirst ? 1 : 0;
+      const facts = (i) => (i === booking ? BOOKED_FACTS : other);
+      const told = [];
+      // Each addition's own delivery, run over the same read.
+      for (const deliver of [0, 1]) {
+        const w = aCalendarRead(2, { first: deliver, facts });
+        assert.equal(await dispatchJob(w.ctx, w.job), "done");
+        told.push(...w.told);
+      }
+      const order = otherFirst ? "sorting first" : "sorting second";
+      assert.equal(told.length, 1, `${why} ${order}: the booking is told, once`);
+      assert.equal(told[0].subject, "Someone booked with you", `${why} ${order}: one visit, in its own words`);
+      assert.deepEqual(told[0].about, { type: "appointment", id: numbered("a", booking) });
+    }
+  }
+});
+
+test("REGRESSION: the calendar's copy of a booking told first is not told again, even when the sweep read the calendar before the booking's row existed and could not mark it (the review's B4)", async () => {
+  const COPY = "a3a3a3a3-a3a3-4a3a-8a3a-a3a3a3a3a3a3";
+  const COPY_EVENT = "e3e3e3e3-e3e3-4e3e-8e3e-e3e3e3e3e3e3";
+  const copyOf = ({ told = true, minutes = 5, booking = {} } = {}) => {
+    const w = world({ subscriber: "visit_notice" });
+    w.tables.contacts.push(rows.contact({ id: PERSON, tenant_id: T, display_name: "Rosa Diaz" }));
+    // The booking email's visit, and its arrival (event E) told on the bell.
+    w.tables.appointments[0] = aVisit({ contact_id: PERSON, ...booking });
+    if (told)
+      w.tables.notifications.push({
+        id: "f3f3f3f3-f3f3-4f3f-8f3f-f3f3f3f3f3f3",
+        tenant_id: T,
+        kind: "booking",
+        title: "Rosa Diaz booked with you",
+        body: "From your booking tool's email",
+        source_event: E,
+        mail_due_at: null,
+        created_at: "2026-10-06T00:00:01Z",
+      });
+    // The calendar's copy, stamped a booking (no twin: the sweep had no row to match), and its addition delivered.
+    const start = new Date(Date.parse("2999-10-12T15:00:00Z") + minutes * 60_000).toISOString();
+    w.tables.appointments.push(
+      aVisit({ id: COPY, source: "calendar_feed", client_name: null, contact_id: PERSON, starts_at: start }),
+    );
+    w.tables.events.push(
+      rows.event({
+        id: COPY_EVENT,
+        tenant_id: T,
+        kind: "appointment.changed",
+        category: "appointment",
+        subject_type: "appointment",
+        subject_id: COPY,
+        data: { change: "added", source: "calendar_feed", starts_at: start, ...BOOKED_FACTS },
+        created_at: "2026-10-06T01:00:00Z",
+      }),
+    );
+    w.job.payload.event_id = COPY_EVENT;
+    w.tables.event_deliveries[0].event_id = COPY_EVENT;
+    return w;
+  };
+  const again = copyOf();
+  assert.equal(await dispatchJob(again.ctx, again.job), "done");
+  assert.deepEqual(again.told, [], "told as the booking: the copy says nothing");
+  // The booking not told (yet), another visit of the person, or a booking cancelled since and booked again at that time
+  // through the calendar (the review's follow-up: only a sighting that stands is the visit's): the copy is news.
+  for (const over of [{ told: false }, { minutes: 30 }, { booking: { status: "cancelled" } }]) {
+    const w = copyOf(over);
+    assert.equal(await dispatchJob(w.ctx, w.job), "done");
+    assert.equal(w.told.length, 1, JSON.stringify(over));
+  }
+});
+
+test("a read whose line holds a visit already told as its booking names only the rest, under the lead's event, whichever leads (the review's follow-up)", async () => {
+  const BOOKING = "a4a4a4a4-a4a4-4a4a-8a4a-a4a4a4a4a4a4";
+  const BOOKING_EVENT = "e4e4e4e4-e4e4-4e4e-8e4e-e4e4e4e4e4e4";
+  for (const toldFirst of [0, 1]) {
+    for (const deliver of [0, 1]) {
+      const w = aCalendarRead(2, { first: deliver });
+      // The visit at index `toldFirst` was booked through its tool's email and told before the sweep could mark its copy.
+      const copy = w.tables.appointments[toldFirst];
+      w.tables.appointments.push(
+        aVisit({
+          id: BOOKING,
+          source: "booking_email",
+          contact_id: PERSON,
+          starts_at: copy.starts_at,
+          ends_at: copy.ends_at,
+        }),
+      );
+      w.tables.events.push(
+        rows.event({
+          id: BOOKING_EVENT,
+          tenant_id: T,
+          kind: "appointment.changed",
+          category: "appointment",
+          subject_type: "appointment",
+          subject_id: BOOKING,
+          data: { change: "added", source: "booking_email", starts_at: copy.starts_at },
+          created_at: "2026-10-05T23:00:00Z",
+        }),
+      );
+      w.tables.notifications.push({
+        id: "f4f4f4f4-f4f4-4f4f-8f4f-f4f4f4f4f4f4",
+        tenant_id: T,
+        kind: "booking",
+        title: "Someone booked with you",
+        body: "From your booking tool's email",
+        source_event: BOOKING_EVENT,
+        mail_due_at: null,
+        created_at: "2026-10-05T23:00:01Z",
+      });
+      assert.equal(await dispatchJob(w.ctx, w.job), "done");
+      if (deliver !== 0) {
+        assert.deepEqual(w.told, [], "only the read's first event tells its line");
+        continue;
+      }
+      assert.equal(w.told.length, 1);
+      const [n] = w.told;
+      assert.equal(n.subject, "Someone booked with you", "one visit: the other was told as its booking");
+      assert.deepEqual(n.about, { type: "appointment", id: numbered("a", 1 - toldFirst) });
+      assert.equal(n.sourceEvent, numbered("e", 0), "under the lead's event");
+    }
+  }
+});
+
+test("a calendar copy told, then gone from the calendar, does not silence the booking that books that time again (the review's follow-up)", async () => {
+  const COPY = "a5a5a5a5-a5a5-4a5a-8a5a-a5a5a5a5a5a5";
+  const COPY_EVENT = "e5e5e5e5-e5e5-4e5e-8e5e-e5e5e5e5e5e5";
+  const w = world({ subscriber: "visit_notice" });
+  w.tables.contacts.push(rows.contact({ id: PERSON, tenant_id: T, display_name: "Rosa Diaz" }));
+  w.tables.appointments[0] = aVisit({ contact_id: PERSON });
+  w.tables.appointments.push(
+    aVisit({
+      id: COPY,
+      source: "calendar_feed",
+      client_name: null,
+      contact_id: PERSON,
+      vanished_at: "2026-10-05T22:00:00Z",
+    }),
+  );
+  w.tables.events.push(
+    rows.event({
+      id: COPY_EVENT,
+      tenant_id: T,
+      kind: "appointment.changed",
+      category: "appointment",
+      subject_type: "appointment",
+      subject_id: COPY,
+      data: { change: "added", source: "calendar_feed", starts_at: "2999-10-12T15:00:00Z", ...BOOKED_FACTS },
+      created_at: "2026-10-05T20:00:00Z",
+    }),
+  );
+  w.tables.notifications.push({
+    id: "f5f5f5f5-f5f5-4f5f-8f5f-f5f5f5f5f5f5",
+    tenant_id: T,
+    kind: "booking",
+    title: "Rosa Diaz booked with you",
+    body: "From your calendar",
+    source_event: COPY_EVENT,
+    mail_due_at: null,
+    created_at: "2026-10-05T20:00:01Z",
+  });
+  assert.equal(await dispatchJob(w.ctx, w.job), "done");
+  assert.equal(w.told.length, 1, "the booking is told");
 });
 
 /* --------------------------------------------------------------- a teammate who joined (S1-19, 00410) */

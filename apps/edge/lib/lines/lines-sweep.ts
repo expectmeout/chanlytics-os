@@ -36,7 +36,8 @@
  */
 import { json, refuse } from "../http.js";
 import { lineProviderFromEnv } from "./lines.js";
-import { notify } from "../ops/notify.js";
+import { notify, notifyOnce, reachesTenant } from "../ops/notify.js";
+import { pageOperator } from "../ops/page-operator.js";
 import { loadTenantNotifications } from "../tenant-runtime.js";
 import { dashboardOrigin } from "../dashboard-origin.js";
 import { releaseLine, sweepEndedLines, type EndedLinesResult } from "./line-release.js";
@@ -108,13 +109,18 @@ export async function sweepLines({ db, L }: SweepTick): Promise<Response> {
       {
         release: (tenantId, row, endedAt) =>
           releaseLine(db, choice, { apiKey }, tenantId, row, { by: "sweep", ended_at: endedAt }),
-        tell: async (tenantId, msg) =>
-          notify(
-            { tenantId, ...(await loadTenantNotifications(db, tenantId)) },
-            { kind: "billing", route: "admin/billing", about: null, ...msg },
-          ),
+        tell: async (tenantId, { once, ...words }) => {
+          const read = await loadTenantNotifications(db, tenantId);
+          // Who the warning goes to could not be read: not "nobody", so nothing is kept and the next quarter hour asks.
+          if (once && read.unread) return { told: false, reached: true };
+          const target = { tenantId, ...read };
+          const msg = { kind: "billing", route: "admin/billing", about: null, ...words };
+          const told = once ? await notifyOnce(target, { ...msg, onceKey: once }) : await notify(target, msg);
+          return { told, reached: reachesTenant(target) };
+        },
         alert: (subject, body) =>
           notify({ tenantId: null, notifications: null, isEnvDefault: true }, { kind: "alert", subject, body }),
+        page: (key, subject, body) => pageOperator({ db }, key, subject, body),
         billingUrl: (slug) => `${dashboardOrigin()}/w/${encodeURIComponent(slug)}#/admin/billing`,
         now: () => Date.now(),
         log: L,

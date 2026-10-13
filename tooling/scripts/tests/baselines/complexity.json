@@ -346,7 +346,7 @@
   },
   "packages/contracts/src/workspace/activity.ts::activityWords#1": {
     "lines": 147,
-    "branches": 72,
+    "branches": 70,
     "depth": 3
   },
   "packages/contracts/src/workspace/billing.ts::toBillingVM#1": {

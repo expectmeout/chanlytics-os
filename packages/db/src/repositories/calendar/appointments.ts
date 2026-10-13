@@ -235,21 +235,30 @@ export async function recordOver(
   toIso: string,
 ): Promise<{ noted: AppointmentRow[]; feed: FeedRowWord[] }> {
   const [noted, feed] = await Promise.all([
-    readAllRows<AppointmentRow>("appointments_noted", (from, to) =>
-      db
-        .from("appointments")
-        .select("*")
-        .eq("tenant_id", tenantId)
-        .neq("source", "calendar_feed")
-        .gt("ends_at", fromIso)
-        .lt("starts_at", toIso)
-        .order("starts_at", { ascending: true })
-        .order("id", { ascending: true })
-        .range(from, to),
-    ),
+    notedOver(db, tenantId, fromIso, toIso),
     feedWordsOver(db, tenantId, fromIso, toIso),
   ]);
   return { noted, feed };
+}
+
+/**
+ * A booking's rows over a span, however they stand, read whole: every row that is not the feed's own (a booking's
+ * notice, its tool, a person). What a pool joins to the feed (recordOver), and what the hourly sweep tells the feed's
+ * copies of a booking by (contracts booking-notice.ts bookingCopyTest). A failure throws.
+ */
+export async function notedOver(db: Db, tenantId: string, fromIso: string, toIso: string): Promise<AppointmentRow[]> {
+  return readAllRows<AppointmentRow>("appointments_noted", (from, to) =>
+    db
+      .from("appointments")
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .neq("source", "calendar_feed")
+      .gt("ends_at", fromIso)
+      .lt("starts_at", toIso)
+      .order("starts_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
 }
 
 /**
@@ -415,6 +424,8 @@ export interface AppointmentSync {
   vanished: number;
   seen: number;
   stale: number;
+  /** Reads that were the workspace's first kept (00419): the sweep stamps tenant_config.calendar_feed_kept_at for each. */
+  first: number;
 }
 
 const count = (o: Record<string, unknown>, k: keyof AppointmentSync): number => (typeof o[k] === "number" ? o[k] : 0);
@@ -440,6 +451,8 @@ export async function syncFeedAppointments(
       service: r.service,
       consultation: r.consultation,
       contact_id: r.contact_id,
+      series: r.series,
+      twin: r.twin,
     })),
     p_from: p.window.from.toISOString(),
     p_to: p.window.to.toISOString(),
@@ -454,6 +467,7 @@ export async function syncFeedAppointments(
     vanished: count(o, "vanished"),
     seen: count(o, "seen"),
     stale: o.stale === true ? 1 : 0,
+    first: o.first === true ? 1 : 0,
   };
 }
 
