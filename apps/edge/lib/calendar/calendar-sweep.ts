@@ -51,6 +51,7 @@ import {
 } from "../ops/sweep-rotation.js";
 import { feedItemsFor } from "./availability.js";
 import { addPeopleFromCalendar } from "./calendar-people.js";
+import { markCalendarFeedKept } from "../packages/db.js";
 import { keepAppointments } from "./calendar-appointments.js";
 import { bookedFromCalendar } from "./reach-out-booked.js";
 import { recordNotification } from "../ops/notify.js";
@@ -129,8 +130,17 @@ export async function sweepCalendar({ db, L }: SweepTick): Promise<Response> {
       out.booked += await bookedFromCalendar(db, row.tenant_id, items, ownAddressesOf(cfg));
       // After the people, so an appointment names the person this read just put in People.
       await keepAppointments(db, row.tenant_id, items, { timezone: tz, cfg, daysAhead, now }).then(
-        (r) => {
+        async (r) => {
           for (const k of Object.keys(kept) as (keyof typeof kept)[]) kept[k] += r[k];
+          // The workspace's first read kept (00419): stamped, so the next read's additions are no first read.
+          if (r.first)
+            // A stamp that fails leaves the read kept; the next read is taken for the first, and tells none of its own.
+            await markCalendarFeedKept(db, row.tenant_id, now).catch((e: unknown) =>
+              L.error("calendar_first_read_stamp_failed", {
+                tenant_id: row.tenant_id,
+                error: e instanceof Error ? e.message : String(e),
+              }),
+            );
         },
         (e: unknown) =>
           L.error("calendar_appointments_failed", {

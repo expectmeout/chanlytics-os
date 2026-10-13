@@ -48,8 +48,10 @@ control on it is one the code reads.
 4. **Three kinds `PUSH_KINDS` listed and never pushed are pushed.** The Stripe billing notices and a new review keep
    their row and queue the push (`keepAndPush` in notify.ts); `note_for_you_notify` queues it in SQL, as
    `lead_rounds_notify` does. "Still waiting" (`deadman`) joins `PUSH_KINDS`: it is the second alert about a customer
-   nobody answered, told to the phone with the mail that goes (`push: "after_mail"`), so a sweep that retries an
-   undelivered warning does not push it again on every tick. A line's own news of kind `number` (a number provisioned,
+   nobody answered, told once per hold (`notifyOnce` under `deadman:<escalation>`, 00419): the row and the phone go
+   with the first try, and a sweep that retries an undelivered warning sends the mail alone, so the phone is told once
+   and the bell keeps one row. (It was told with the mail that went, `push: "after_mail"`, until 12 October 2026: the
+   phone was spared, but each retry kept a new bell row.) A line's own news of kind `number` (a number provisioned,
    forwarding set, a texting verdict) stays the bell's, as before: it is mostly good news.
 5. **A test proves an address.** `POST /api/v1/notifications/test` (owner and partner, three an hour) asks the edge's
    `/api/admin/alert-test`, which emails the workspace's addresses once through `mail()`. Nothing goes to the platform

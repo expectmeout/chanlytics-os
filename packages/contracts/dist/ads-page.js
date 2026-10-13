@@ -1812,15 +1812,6 @@ var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
 
-// src/calendar/booking-notice.ts
-var NOTICE_LENGTH_MAX_MS = 12 * HOUR_MS;
-var NOTICE_TIME_REACH_MS = 400 * DAY_MS;
-var SAME_VISIT_MS = 15 * MIN_MS;
-
-// src/config/no-booking-link.ts
-var NO_LINK_DETAILS = "their name, what they need, and where and when";
-var NO_WAY_TO_SEND_LINK = `Booking: the booking link can only be sent by WhatsApp, and this business has no WhatsApp line, so never use send_booking_link and never promise a link or a message. When the caller wants to book, change or cancel a booking, take ${NO_LINK_DETAILS}, and say the team will follow up. If they would rather book themselves and a website is listed above, they can book there.`;
-
 // src/config/workspace-config/alerts.ts
 var ALERT_ADDRESSES_MAX = 10;
 var ALERT_REFUSED_WORDS = {
@@ -1831,6 +1822,15 @@ var ALERT_REFUSED_WORDS = {
 
 // src/calendar/calendar-people.ts
 var NEAR_VISIT_MS = 3 * DAY_MS;
+
+// src/calendar/booking-notice.ts
+var NOTICE_LENGTH_MAX_MS = 12 * HOUR_MS;
+var NOTICE_TIME_REACH_MS = 400 * DAY_MS;
+var SAME_VISIT_MS = 15 * MIN_MS;
+
+// src/config/no-booking-link.ts
+var NO_LINK_DETAILS = "their name, what they need, and where and when";
+var NO_WAY_TO_SEND_LINK = `Booking: the booking link can only be sent by WhatsApp, and this business has no WhatsApp line, so never use send_booking_link and never promise a link or a message. When the caller wants to book, change or cancel a booking, take ${NO_LINK_DETAILS}, and say the team will follow up. If they would rather book themselves and a website is listed above, they can book there.`;
 
 // src/calendar/calendar-words.ts
 var SHORT = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });

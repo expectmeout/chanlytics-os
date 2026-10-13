@@ -483,5 +483,10 @@ test("recipients that cannot be read ARE said as unknown, so notify withholds ra
       { tenant_config: [cfgRow({ escalation_emails: ["ada@example.com"] })], tenant_channels: [waRow()] },
       { "tenant_config.select": { message: "statement timeout" } },
     );
-    assert.deepEqual(await loadTenantNotifications(db, "t2"), { notifications: null, isEnvDefault: false });
+    // Said as unread too, so a caller that must not take "unknown" for "nobody" can wait (the line warning: the review's N1).
+    assert.deepEqual(await loadTenantNotifications(db, "t2"), {
+      notifications: null,
+      isEnvDefault: false,
+      unread: true,
+    });
   }));

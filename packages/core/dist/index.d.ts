@@ -4652,7 +4652,13 @@ interface SubscriberPorts {
     }): Promise<Array<{
         eventId: string;
         appointmentId: string;
+        data: unknown;
     }>>;
+    /**
+     * Whether this visit was told already as its other sighting (packages/db twinTold): a booking's row and the calendar's
+     * copy of it, whichever arrived first, the other's arrival answered by the bell.
+     */
+    twinTold(tenantId: string, appointmentId: string): Promise<boolean>;
     /** The invitation a member.joined event is about: who accepted it and as what (packages/db memberJoinedOf); null when it is gone. */
     memberJoined(tenantId: string, invitationId: string): Promise<MemberJoined | null>;
     /**

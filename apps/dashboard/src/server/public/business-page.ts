@@ -39,9 +39,15 @@ export const businessPageFor = cache(async function businessPageFor(slug: string
   if (!SLUG.test(clean)) return null;
   const db = serviceDb();
 
-  const { data: tenant, error } = await db.from("tenants").select("id, status").eq("slug", clean).maybeSingle();
+  const { data: tenant, error } = await db
+    .from("tenants")
+    .select("id, status, left_empty_at")
+    .eq("slug", clean)
+    .maybeSingle();
   if (error) throw new Error(`reading the workspace: ${error.message}`);
-  if (!tenant || tenant.status === "test") return null;
+  // A workspace its last member left is ended (00262): its legal name, street and email are not published for a business
+  // nobody runs here any more, and the page is Not found and unindexed (the wiring's second audit, X4-2).
+  if (!tenant || tenant.status === "test" || tenant.left_empty_at) return null;
 
   const [record, cfg, channels] = await Promise.all([
     db.from("business_records").select("*").eq("tenant_id", tenant.id).maybeSingle(),

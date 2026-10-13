@@ -65,6 +65,7 @@ import {
   eventTold,
   bookedVisitsOf,
   feedAdditionsWith,
+  twinTold,
   memberJoinedOf,
   noticeKept,
 } from "@chanlytics/db";
@@ -514,6 +515,7 @@ async function eventDeliver(ctx: JobContext, job: ClaimedJob): Promise<void> {
     eventTold: (tenantId, eventId) => eventTold(ctx.db, { tenantId, eventId }),
     bookedVisits: (tenantId, ids, nowMs) => bookedVisitsOf(ctx.db, tenantId, ids, nowMs),
     feedAdditionsWith: (tenantId, event) => feedAdditionsWith(ctx.db, tenantId, event),
+    twinTold: (tenantId, appointmentId) => twinTold(ctx.db, tenantId, appointmentId),
     memberJoined: (tenantId, invitationId) => memberJoinedOf(ctx.db, tenantId, invitationId),
     memberTold: (tenantId, invitationId) =>
       noticeKept(ctx.db, { tenantId, kind: "member_joined", subjectType: "invitation", subjectId: invitationId }),

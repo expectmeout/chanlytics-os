@@ -784,27 +784,58 @@ test("keepAndPush keeps the bell's row and queues one push_send naming it, and m
   assert.equal(jobs.length, 1);
 });
 
-// Review round (decision 0040): the deadman sweep raises an undelivered warning again on its next tick, and now that a
-// phone is told "still waiting", a push with every try would reach every phone of the workspace every ten minutes while
-// the provider fails. push: "after_mail" tells the phone with the mail that goes, and only then.
-test('push "after_mail": the phone is told once the mail has gone, and not at all while it fails (0040)', async () => {
-  const msg = { kind: "deadman", subject: "Still waiting", body: "…", push: "after_mail" };
+// The wiring's second audit (S6-4, S6-1): a sweep that asks again until its notice's mail goes (the deadman's "still waiting",
+// the warning before a number is given back) kept a new bell row on every tick while the provider failed. Told once under the
+// name of what it answers (onceKey), the row and the phones go with the first try, and every retry sends the mail alone.
+test("a notice told once under its name keeps one row and tells the phones once however often its mail fails, and the retry sends the mail alone (00419)", async () => {
+  const { notifyOnce } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/ops/notify.ts")).href);
+  // A uuid made from a name (version 5), never an event's (random, version 4).
+  const V5 = /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
   const target = { tenantId: TENANT, notifications: MAILBOX, isEnvDefault: false };
-  const failing = { notifications: [], jobs: [] };
-  const no = await withEnv(PLATFORM_ENV, () =>
-    notify(target, msg, { db: fakeDb(failing), send: transport(false).send }),
-  );
-  assert.equal(no, false);
-  assert.equal(failing.notifications.length, 1, "the bell keeps its row");
-  assert.equal(failing.jobs.length, 0, "and no phone is told of a warning that did not go");
-  const going = { notifications: [], jobs: [] };
-  const yes = await withEnv(PLATFORM_ENV, () => notify(target, msg, { db: fakeDb(going), send: transport(true).send }));
-  assert.equal(yes, true);
+  const tables = { notifications: [], jobs: [] };
+  const db = fakeDb(tables);
+  const pushes = () => tables.jobs.filter((j) => j.kind === "push_send").length;
+  // The title says how long the customer has waited, so it changes between tries: the name does not.
+  const msg = (hours) => ({
+    kind: "deadman",
+    route: "inbox/th-c1",
+    about: { type: "conversation", id: "c1" },
+    subject: `Still waiting: a customer has had no answer for ${hours} hours`,
+    body: "…",
+    onceKey: "deadman:e-1",
+  });
+  for (const hours of [2, 2, 3]) {
+    const told = await withEnv(PLATFORM_ENV, () => notifyOnce(target, msg(hours), { db, send: transport(false).send }));
+    assert.equal(told, false);
+  }
+  assert.equal(tables.notifications.length, 1, "one row, whatever the title says by now");
+  assert.match(tables.notifications[0].source_event, V5, "kept under the name's uuid");
+  assert.ok(tables.notifications[0].mail_due_at);
+  assert.equal(pushes(), 1, "the phones told once, with the row");
+
+  const up = transport(true);
+  assert.equal(await withEnv(PLATFORM_ENV, () => notifyOnce(target, msg(4), { db, send: up.send })), true);
   assert.deepEqual(
-    going.jobs.map((j) => [j.kind, j.payload]),
-    [["push_send", { notification_id: going.notifications[0].id }]],
-    "one push, with the mail",
+    [tables.notifications.length, tables.notifications[0].mail_due_at, up.sent.length, pushes()],
+    [1, null, 1, 1],
   );
+  // The row says what the mail that went said: the hours as they stood when it went (the review's N4).
+  assert.match(tables.notifications[0].title, /for 4 hours$/);
+  // Told in full: asked again, nothing more goes.
+  const after = transport(true);
+  assert.equal(await withEnv(PLATFORM_ENV, () => notifyOnce(target, msg(5), { db, send: after.send })), true);
+  assert.deepEqual([tables.notifications.length, after.sent.length], [1, 0]);
+
+  // The name's uuid: the same name always the same, another name another.
+  const other = { notifications: [], jobs: [] };
+  const otherDb = fakeDb(other);
+  for (const key of ["deadman:e-1", "deadman:e-2"])
+    await withEnv(PLATFORM_ENV, () =>
+      notifyOnce(target, { ...msg(2), onceKey: key }, { db: otherDb, send: transport(true).send }),
+    );
+  assert.equal(other.notifications[0].source_event, tables.notifications[0].source_event);
+  assert.notEqual(other.notifications[1].source_event, other.notifications[0].source_event);
+  assert.match(other.notifications[1].source_event, V5);
 });
 
 // Review round (decision 0040): email_off is read leniently by the edge, and the schema must be too: a stored value

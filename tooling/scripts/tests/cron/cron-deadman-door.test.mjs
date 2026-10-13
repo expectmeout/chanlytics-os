@@ -231,6 +231,38 @@ test("a mail the mailer refuses earns no stamp: the bell row stays (it is the wo
   }
 });
 
+test("REGRESSION: a mail refused tick after tick keeps one row on the bell for the hold, not one a tick; the mailer back, its mail goes alone, the hold is stamped, and the row is still one (the wiring's second audit, S6-4)", async () => {
+  const w = world([waiting("e-a3", A)]);
+  let up = false;
+  const mailer = wire(() =>
+    up
+      ? new Response(JSON.stringify({ id: "email-1" }), { status: 200 })
+      : new Response("rate limited", { status: 429 }),
+  );
+  try {
+    await w.tick();
+    await w.tick();
+    assert.equal(bell(w, A).length, 1, "one row for the hold however often its mail is refused");
+    assert.ok(bell(w, A)[0].mail_due_at, "and it says its mail is owed");
+    assert.equal(mailer.mail().length, 2, "each tick tried the mail");
+    assert.deepEqual(w.marks, []);
+    assert.equal(
+      w.tables.jobs.filter((j) => j.kind === "push_send").length,
+      1,
+      "the phones were told once, with the row",
+    );
+
+    up = true;
+    assert.deepEqual(await answer(await w.tick()), [200, { ok: true, candidates: 1, flagged: 1, ...quiet }]);
+    assert.equal(mailer.mail().length, 3);
+    assert.deepEqual(w.marks, [["e-a3"]], "told in full: stamped");
+    assert.equal(bell(w, A).length, 1, "still one row");
+    assert.equal(bell(w, A)[0].mail_due_at, null, "its mail went");
+  } finally {
+    mailer.restore();
+  }
+});
+
 /* ---------------------------------------------------------- nobody on file */
 
 test("a workspace with nobody on file: skipped -- no bell, no mail, never stamped -- and the platform paged once per workspace, by a row that remembers across ticks; the page names the workspace and never the customer", async () => {

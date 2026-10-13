@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { WORKSPACE_ENDED_WORDS } from "@chanlytics/contracts";
 
 /**
  * How to have data deleted, on a page of its own.
@@ -17,7 +18,7 @@ export default function DataDeletionPage() {
   return (
     <main className="legal">
       <h1>Deleting your data</h1>
-      <p className="legal-meta">Chanlytics · last updated September 8, 2026</p>
+      <p className="legal-meta">Chanlytics · last updated October 12, 2026</p>
 
       <p>
         Who to ask depends on whose data it is. A business that uses Chanlytics decides what it keeps about its own
@@ -28,7 +29,9 @@ export default function DataDeletionPage() {
       <p>
         Delete it yourself, in the app or on the web: Settings, then You, then Delete account. That removes you from
         every workspace and deletes your sign-in at once. If you are the only owner of a workspace that has other
-        members, make someone else an owner first.
+        members, make someone else an owner first. A workspace you alone were in ends with your account:{" "}
+        {WORKSPACE_ENDED_WORDS}. Its records are kept until the workspace is deleted, which you ask for as an owner
+        does, below.
       </p>
 
       <h2>If you own a Chanlytics workspace</h2>
@@ -39,8 +42,8 @@ export default function DataDeletionPage() {
         requires us to keep. There is nothing to pay and no notice period.
       </p>
       <p>
-        Take what you want to keep first. Contacts export from People, and any single conversation or call exports from
-        its own page.
+        Take what you want to keep first. Settings › Business downloads its people, conversations, calls and consent
+        history as one file; ask us for a copy of the rest.
       </p>
 
       <h2>If you wrote to a business that uses Chanlytics</h2>

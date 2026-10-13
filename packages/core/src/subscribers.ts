@@ -33,6 +33,7 @@
 import {
   bookingArriving,
   CATCH_UP_VISITS,
+  feedAdditionIsBooking,
   holdNotice,
   memberJoinedBy,
   memberJoinedNotice,
@@ -86,7 +87,12 @@ export interface SubscriberPorts {
   feedAdditionsWith(
     tenantId: string,
     event: { id: string; at: string },
-  ): Promise<Array<{ eventId: string; appointmentId: string }>>;
+  ): Promise<Array<{ eventId: string; appointmentId: string; data: unknown }>>;
+  /**
+   * Whether this visit was told already as its other sighting (packages/db twinTold): a booking's row and the calendar's
+   * copy of it, whichever arrived first, the other's arrival answered by the bell.
+   */
+  twinTold(tenantId: string, appointmentId: string): Promise<boolean>;
   /** The invitation a member.joined event is about: who accepted it and as what (packages/db memberJoinedOf); null when it is gone. */
   memberJoined(tenantId: string, invitationId: string): Promise<MemberJoined | null>;
   /**
@@ -186,16 +192,23 @@ export const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>> = {
     if (!arriving) return;
     let ids = [arriving.appointmentId];
     if (arriving.via === "calendar_feed") {
-      // One read of the owner's calendar adds its visits in one transaction, and each is an event of its own. They are
-      // one line, told by the first of them, and a read that adds more than customers book in an hour is a calendar
-      // newly connected or rebuilt: not news.
+      // One read of the owner's calendar adds its visits in one transaction, and each is an event of its own. A read that
+      // adds more than customers book in an hour, whatever it adds, is a calendar rebuilt or swapped: not news. Of the
+      // rest, the read's bookings are one line, told by the first of them (00419's facts, the one predicate): the owner's
+      // own entries, a series' next occurrence and a booking's copy neither lead the line nor join it.
       const together = await ports.feedAdditionsWith(event.tenant_id, { id: event.id, at: event.created_at });
       if (together.length > CATCH_UP_VISITS) return;
-      const lead = together.at(0);
+      const booked = together.filter((t) => feedAdditionIsBooking(t.data));
+      const lead = booked.at(0);
       if (lead && lead.eventId !== event.id) return;
-      if (lead) ids = together.map((t) => t.appointmentId);
+      if (lead) ids = booked.map((t) => t.appointmentId);
     }
     if (await ports.eventTold(event.tenant_id, event.id)) return;
+    // A visit told already as its other sighting (a booking's row, the calendar's copy) is told once.
+    const fresh: string[] = [];
+    for (const id of ids) if (!(await ports.twinTold(event.tenant_id, id))) fresh.push(id);
+    if (fresh.length === 0) return;
+    ids = fresh;
     const nowMs = Date.now();
     const visits = await ports.bookedVisits(event.tenant_id, ids, nowMs);
     if (visits.length === 0) return;

@@ -108,6 +108,11 @@ export interface CalendarFeedDto {
 /** A notice a person must look at, as the card lists it. */
 export interface HeldNoticeDto {
   id: string;
+  /**
+   * The delivery it was read from (appointment_notices.notice_id): what the bell's row of it is about (the edge's tell
+   * keeps `about.id` as the delivery's id), so the row closes when this one is dealt with. Absent from an older read.
+   */
+  notice_id?: string;
   tool: string | null;
   from: string | null;
   subject: string | null;

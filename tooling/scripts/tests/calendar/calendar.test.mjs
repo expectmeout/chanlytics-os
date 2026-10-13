@@ -234,6 +234,18 @@ test("the Business row says the next thing to do first: an address to make, a fo
     code: "4815162",
     link: null,
   });
+  // A held email carries the delivery it was read from, which the bell's row of it is about (S6-2); an older read, none.
+  const listed = (entry) => of(notices({ held: 1, held_list: [entry] })).heldList[0];
+  const entry = {
+    id: "row-1",
+    tool: "booksy",
+    from: null,
+    subject: null,
+    received_at: "2026-09-08T15:00:00.000Z",
+    reason: "no_time",
+  };
+  assert.equal(listed({ ...entry, notice_id: "rcv_1" }).noticeId, "rcv_1");
+  assert.equal(listed(entry).noticeId, null);
   // The board's card and the row read one view model: the tool as the product says it, and the line said whole.
   const held = of({ ...working, held: 1 });
   assert.equal(held.tool, "Booksy");

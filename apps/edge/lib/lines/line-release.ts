@@ -17,6 +17,7 @@
  */
 import {
   BILLING_STATUSES,
+  DAY_MS,
   LINE_RELEASE_REPORT_DAYS,
   lineReleaseDay,
   lineReleaseStep,
@@ -124,14 +125,24 @@ const ENDED_STATUSES = BILLING_STATUSES.filter((s) => !receptionistOn(s));
  * the stuck-lines half runs first. A backlog drains over the quarter hours.
  */
 const MAX_RELEASES_PER_TICK = 2;
+/** At most this many warnings asked for a tick, told or not: a mailer that is down is asked again next tick, not more now. */
 const MAX_WARNINGS_PER_TICK = 10;
 
 interface EndedLinesPorts {
   release(tenantId: string, row: LineDbRow, endedAt: string): Promise<LineReleaseResult>;
-  /** The bell and the workspace's alert addresses (notify). */
-  tell(tenantId: string, msg: { subject: string; body: string }): Promise<boolean>;
-  /** The platform's mailbox, for a release that failed. */
-  alert(subject: string, body: string): Promise<unknown>;
+  /**
+   * The bell and the workspace's alert addresses. With `once`, told once under that name (notifyOnce): a retry finds the
+   * row and sends only the mail it owes. `told` is the owner told in full; `reached` whether the workspace has anyone the
+   * mail can address at all.
+   */
+  tell(
+    tenantId: string,
+    msg: { subject: string; body: string; once?: string },
+  ): Promise<{ told: boolean; reached: boolean }>;
+  /** The platform's mailbox, for a release that failed and a warning nobody can be mailed: whether it went. */
+  alert(subject: string, body: string): Promise<boolean>;
+  /** The platform's pager (pageOperator): once per key per pager window, remembered across ticks. */
+  page(key: string, subject: string, body: string): Promise<unknown>;
   /** Where the workspace resumes: its Billing page. */
   billingUrl(slug: string): string;
   now(): number;
@@ -144,6 +155,8 @@ export interface EndedLinesResult {
   /** Of those, past the grace (or past it against LINE_RELEASE_REPORT_DAYS, while only reporting). */
   due: number;
   warned: number;
+  /** Warnings asked for and not told in full (a mail that failed, an alert that did not go): asked again next tick. */
+  undelivered: number;
   released: number;
   failed: number;
   report_only: boolean;
@@ -160,6 +173,122 @@ function warnedOf(row: LineDbRow): LineReleaseWarned | null {
 }
 
 /**
+ * A warning asked for that was not told in full: counted, logged, and asked again next tick. The first failure for this end
+ * is kept on the line (release_warning_tried), and once the warning has failed for a day the platform is paged that the
+ * number is held only because its warning reaches nobody (pageOperator: once per key per pager window, remembered across
+ * ticks): one failed mail pages nobody, and a mailer that is down costs a tick its ten tries and no more.
+ */
+async function notYetWarned(
+  db: Db,
+  ports: EndedLinesPorts,
+  row: LineDbRow,
+  endedAt: string,
+  now: number,
+  out: EndedLinesResult,
+  why: string,
+): Promise<void> {
+  out.undelivered += 1;
+  ports.log.warn("line_release_warning_undelivered", { tenant_id: row.tenant_id, line: row.id });
+  const tried = triedOf(row, endedAt);
+  if (tried === null) {
+    await keepFacts(
+      db,
+      row,
+      { ...factsOf(row), release_warning_tried: { at: new Date(now).toISOString(), ended_at: endedAt } },
+      "the warning's first try",
+    );
+    return;
+  }
+  if (now - tried < DAY_MS) return;
+  await ports.page(
+    `line_release_warning_undelivered:${row.id}:${endedAt}`,
+    `A number is held: its warning has not reached the owner for a day (workspace ${row.tenant_id})`,
+    `Line ${row.id}'s subscription ended, and the warning before its number goes back to the phone company has not been told in full since ${new Date(tried).toISOString().slice(0, 10)}: ${why}. The number is kept, and paid for, until the warning reaches the owner. The edge's logs say why (notify_rejected, line_release_warning_undelivered).`,
+  );
+}
+
+/** The line's facts written whole, the warning's beside the rest (lines.facts). A write that fails throws. */
+async function keepFacts(
+  db: Db,
+  row: LineDbRow,
+  facts: Database["public"]["Tables"]["lines"]["Update"]["facts"],
+  what: string,
+): Promise<void> {
+  const up = await db.from("lines").update({ facts }).eq("id", row.id).eq("tenant_id", row.tenant_id);
+  if (up.error) throw new Error(`keeping ${what}: ${up.error.message}`);
+}
+
+/** When the warning for this end was first asked for and did not go (lines.facts.release_warning_tried), or null. */
+function triedOf(row: LineDbRow, endedAt: string): number | null {
+  const t = factsOf(row).release_warning_tried;
+  if (!t || typeof t !== "object" || Array.isArray(t)) return null;
+  const { at, ended_at } = t as Record<string, unknown>;
+  if (ended_at !== endedAt || typeof at !== "string") return null;
+  const ms = Date.parse(at);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/**
+ * The warning before a number goes back: told once under its own name, and kept only once the owner was told in full. A
+ * mail that failed is owed on the bell's row, and the next tick finds the row, sends the mail alone and keeps the warning
+ * then, so the week before the release runs from a warning that reached them; a tick that dies between the telling and the
+ * keeping finds the warning told on the next, and keeps it, so nobody is warned twice. Counted in `out`: warned when kept,
+ * undelivered when not.
+ */
+async function warnOfRelease(
+  db: Db,
+  ports: EndedLinesPorts,
+  row: LineDbRow,
+  step: { endedAt: number; releaseAt: number },
+  words: { number: string; forwardedFrom: string | null; billingUrl: string | null },
+  now: number,
+  out: EndedLinesResult,
+): Promise<void> {
+  const on = lineReleaseDay(step.releaseAt, now);
+  const endedAt = new Date(step.endedAt).toISOString();
+  const said = await ports.tell(row.tenant_id, {
+    ...lineReleaseWarning({ ...words, on }),
+    once: `line.release_warned:${row.id}:${endedAt}`,
+  });
+  if (!said.told) {
+    await notYetWarned(db, ports, row, endedAt, now, out, "its mail to the owner fails");
+    return;
+  }
+  // Nobody the mail can address: the bell's row was the warning, and a lapsed owner seldom opens the bell. The
+  // platform hears of a number about to go for good from a workspace nobody can write to, so a person can; said
+  // before the warning is kept, so an alert that did not go is said again next tick (the bell's row is told already).
+  if (
+    !said.reached &&
+    !(await ports.alert(
+      `A number goes back with nobody told (workspace ${row.tenant_id})`,
+      `Line ${row.id} goes back to the phone company on ${new Date(on).toISOString().slice(0, 10)}. Its workspace's subscription ended and it has no address the warning could be mailed to: only its bell says so. Write to the owner if they can be found.`,
+    ))
+  ) {
+    await notYetWarned(
+      db,
+      ports,
+      row,
+      endedAt,
+      now,
+      out,
+      "nobody in the workspace can be mailed, and the platform's own alert of it fails",
+    );
+    return;
+  }
+  await keepFacts(
+    db,
+    row,
+    {
+      ...factsOf(row),
+      release_warning: { at: new Date(now).toISOString(), ended_at: endedAt, on: new Date(on).toISOString() },
+    },
+    "the warning",
+  );
+  out.warned += 1;
+  ports.log.info("line_release_warned", { tenant_id: row.tenant_id, line: row.id, on: new Date(on).toISOString() });
+}
+
+/**
  * One pass: each number of a workspace whose subscription ended is waited on, warned about, or given back, as
  * contracts' rule says. `afterDays` null only reports. Bounded per tick.
  */
@@ -172,10 +301,12 @@ export async function sweepEndedLines(
     ended: 0,
     due: 0,
     warned: 0,
+    undelivered: 0,
     released: 0,
     failed: 0,
     report_only: afterDays === null,
   };
+  let warningsAsked = 0;
   const bills = await db
     .from("billing_accounts")
     .select(BILLING_COLUMNS)
@@ -235,27 +366,9 @@ export async function sweepEndedLines(
     };
 
     if (step.step === "warn") {
-      if (out.warned >= MAX_WARNINGS_PER_TICK) continue;
-      const on = lineReleaseDay(step.releaseAt, now);
-      // Kept before the owner is told, so a tick that dies between the two warns nobody twice.
-      const up = await db
-        .from("lines")
-        .update({
-          facts: {
-            ...factsOf(row),
-            release_warning: {
-              at: new Date(now).toISOString(),
-              ended_at: new Date(step.endedAt).toISOString(),
-              on: new Date(on).toISOString(),
-            },
-          },
-        })
-        .eq("id", row.id)
-        .eq("tenant_id", row.tenant_id);
-      if (up.error) throw new Error(`keeping the warning: ${up.error.message}`);
-      await ports.tell(row.tenant_id, lineReleaseWarning({ ...words, on }));
-      out.warned += 1;
-      ports.log.info("line_release_warned", { tenant_id: row.tenant_id, line: row.id, on: new Date(on).toISOString() });
+      if (warningsAsked >= MAX_WARNINGS_PER_TICK) continue;
+      warningsAsked += 1;
+      await warnOfRelease(db, ports, row, step, words, now, out);
       continue;
     }
 

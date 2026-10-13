@@ -165,11 +165,21 @@ export async function bookingRead(ctx: JobContext, job: ClaimedJob): Promise<voi
     return;
   }
   const tz = (await tenantZoneOf(db, job.tenant_id)) ?? DEFAULT_TIMEZONE;
+  // Held after the reader tried on every try and failed, as against held before any try because it may not be asked; and
+  // whether the reader answered this try, after which a throw is a write's, not the reader's.
+  let triedAndFailed = false;
+  let readerAnswered = false;
   const outcome = await readBookingNotice(
     {
       mayRead: (tenantId, at) => bookings.mayRead(tenantId, new Date(at)),
-      ask: (system, user) =>
-        bookings.ask(system, user, ctx.deadline, { tenantId: job.tenant_id, subjectId: receivedId }),
+      ask: async (system, user) => {
+        const answer = await bookings.ask(system, user, ctx.deadline, {
+          tenantId: job.tenant_id,
+          subjectId: receivedId,
+        });
+        readerAnswered = true;
+        return answer;
+      },
       noticeOf: async (tenantId, noticeId) => {
         const row = await appointmentNoticeOf(db, tenantId, noticeId);
         return row ? ledgerOf(row) : null;
@@ -214,6 +224,9 @@ export async function bookingRead(ctx: JobContext, job: ClaimedJob): Promise<voi
     const refused = (err as { code?: unknown } | null)?.code === "23514";
     if (!refused && (job.attempts ?? 1) < MAX_ATTEMPTS) throw err;
     const reason = refused ? "unreadable" : "no_model";
+    // The reader failed: news. A write that failed after it answered is not "the reader was unavailable" (the visit may
+    // be on the calendar already), and is not told as it.
+    triedAndFailed = !readerAnswered;
     await keepAppointmentNotice(db, {
       tenant_id: job.tenant_id,
       notice_id: receivedId,
@@ -243,15 +256,18 @@ export async function bookingRead(ctx: JobContext, job: ClaimedJob): Promise<voi
     outcome,
   });
   if (outcome.startsWith("held:")) {
-    // A person must look: the bell says so once, except when the reader was simply not there, which is not news.
+    // A person must look: the bell says so once. Not for a read the reader was never asked for (no key, the spend paused),
+    // which the card lists and a person reads again; a read that failed on its last try is news, since the booking reached
+    // no calendar and nothing will read it again by itself.
     const reason = outcome.slice("held:".length);
-    if (reason !== "no_model" && reason !== "may_not_spend")
+    if (triedAndFailed || (reason !== "no_model" && reason !== "may_not_spend"))
       await bookings.tell(job.tenant_id, {
         noticeId: receivedId,
         // The tool as the product says it ("Booksy"), the words the bell shows.
         tool: bookingToolName(notice.tool) ?? notice.tool,
         subject: e.subject,
         reason: NOTICE_HOLD_WORDS[isNoticeHold(reason) ? reason : "unreadable"],
+        hold: reason,
       });
   } else if (outcome !== "already") {
     // A notice read whole proves the forward works: Gmail's pending confirmation, if one was kept, is let go of.

@@ -1671,7 +1671,16 @@ test("a person deletes their own account from Settings, in two steps, and the do
     press(byTestId(tree, "set-profile-delete"));
     tree = settle(Profile, { flash() {} });
     assert.ok(byTestId(tree, "set-profile-delete-confirm"), "armed: the sentence and the one button");
-    assert.ok(textOf(tree).includes("keeps its records for the business"), "what stays is said before the button");
+    // What ends and what stays is said before the button (the wiring's second audit, X4-2): the receptionist, the plan, and
+    // the public pages and QR, which go offline; the records, kept until someone asks for the workspace to be deleted.
+    for (const said of [
+      // Calls are still picked up to take a message (the review's C1): the paused line's own words.
+      "its receptionist stops replying to messages and calls are answered only to take a message",
+      "its plan is cancelled",
+      "its public pages go offline",
+      "Its records are kept until hi@chanlytics.com is asked to delete it",
+    ])
+      assert.ok(textOf(tree).includes(said), `said before the button: ${said}`);
     press(byTestId(tree, "set-profile-delete-go"));
     await flush();
     tree = settle(Profile, { flash() {} });

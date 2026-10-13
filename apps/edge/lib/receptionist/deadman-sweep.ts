@@ -21,11 +21,12 @@
  *      budget: a run still scheduled ten minutes past its time with no broadcast_send job to start it is marked not
  *      sent (run_interrupted) and its owner told once, with the run's own link. A reach-out's run is not one.
  *   3. deadman_candidates(UNANSWERED_AFTER): the open escalations nobody has been warned about, oldest first. Each
- *      workspace's people are looked up once (loadTenantNotifications) and told through notify: a row on its bell of
- *      kind `deadman` and a mail carrying the customer to the workspace's OWN recipients. Only a delivered warning
- *      earns the once-guard, and it lives on the ROW (escalations.deadman_alerted_at, set by deadman_mark_alerted),
- *      so a failed send is tried again next tick and an escalation is flagged at most once however long it stays
- *      open. The guard is written the moment its warning is delivered, and no warning is started past the tick's
+ *      workspace's people are looked up once (loadTenantNotifications) and told once per hold (notifyOnce, under
+ *      `deadman:<escalation>`): a row on its bell of kind `deadman`, its phones, and a mail carrying the customer to the
+ *      workspace's OWN recipients. Only a delivered warning earns the once-guard, and it lives on the ROW
+ *      (escalations.deadman_alerted_at, set by deadman_mark_alerted), so a failed mail is tried again next tick, alone:
+ *      the row and the phones went with the first try, and the bell keeps one row however long the mail fails. An
+ *      escalation is flagged at most once however long it stays open. The guard is written the moment its warning is delivered, and no warning is started past the tick's
  *      budget (WARN_BUDGET_MS): stamped only after the last of fifty, a tick the platform killed part way stamped
  *      nothing, and every owner was warned again ten minutes later. What the budget leaves is the next tick's,
  *      unstamped and oldest first. A workspace with nobody on file (reachesTenant) is not warned from here at all and
@@ -183,8 +184,11 @@ export async function sweepDeadman({ db, L, started }: SweepTick): Promise<Respo
         continue;
       }
 
-      const delivered = await notify(target, {
+      // Told once per hold (notifyOnce, under the hold's name): a mail the provider refused is owed on the row, and the
+      // next tick finds the row and sends the mail alone, where each tick used to keep another row on the bell.
+      const delivered = await notifyOnce(target, {
         kind: "deadman",
+        onceKey: `deadman:${c.escalation_id}`,
         // The conversation the sweep holds, not the Inbox's top: the bell, the phone and the mail open that customer's thread
         // (decision 0047), and the row says whose it is so the bell pairs it with the customer's own 'needs you' row.
         route: `inbox/th-${c.conversation_id}`,
@@ -198,15 +202,12 @@ export async function sweepDeadman({ db, L, started }: SweepTick): Promise<Respo
           `${c.details ? `Detail: ${c.details}\n` : ""}` +
           `\nOpen it in the Inbox to reply, or resolve it if it was handled elsewhere.`,
         redactedBody: `A customer in this workspace has waited ${waited} for a human reply.`,
-        // The phone is told with the mail that goes: an undelivered warning is raised again next tick, and its push
-        // with it would reach every phone of the workspace every ten minutes (decision 0040).
-        push: "after_mail",
       });
 
       // Only a DELIVERED warning earns the once-guard, and only this
       // workspace's own people count as delivery — the unaddressable case
-      // never reaches here. If the send failed, the next tick tries again
-      // rather than marking the customer as handled. Earned, it is written
+      // never reaches here. If the mail failed, the next tick tries the mail
+      // again rather than marking the customer as handled. Earned, it is written
       // now, before the next warning starts: a tick cut short after this one
       // never warns this owner about this customer again.
       if (delivered) {

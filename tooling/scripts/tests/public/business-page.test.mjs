@@ -201,8 +201,8 @@ test("the wiring: public, indexed, reads by slug, writes nothing", () => {
   const server = readCode("apps/dashboard/src/server/public/business-page.ts");
   assert.ok(server.includes('import "server-only";') && server.includes('import { serviceDb } from "../service-db";'));
   assert.ok(
-    server.includes('if (!tenant || tenant.status === "test") return null;'),
-    "a fixture workspace has no page",
+    server.includes('if (!tenant || tenant.status === "test" || tenant.left_empty_at) return null;'),
+    "a fixture workspace has no page, nor an ended one (run in an-ended-workspace-publishes-nothing.test.mjs)",
   );
   assert.ok(
     server.includes("if (!record.data) return null;"),
@@ -227,7 +227,9 @@ test("Chanlytics' own policy and a workspace's page cannot drift", () => {
     "the clauses, and the retention it prints, from contracts",
   );
   assert.ok(
-    /<p>\s*\{retentionWords\(\)\} An owner can download everything a workspace holds/.test(privacy),
+    /<p>\s*\{retentionWords\(\)\} An owner can download a workspace&rsquo;s people, conversations, calls and consent/.test(
+      privacy,
+    ),
     "the page prints the contract's paragraph, not its own numbers",
   );
   assert.ok(privacy.includes('{SMS_CLAUSES.join(" ")}'), "the policy renders them rather than repeating them");

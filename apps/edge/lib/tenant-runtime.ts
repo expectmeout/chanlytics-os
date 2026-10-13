@@ -515,7 +515,13 @@ export function waCfgFor(
 export async function loadTenantNotifications(
   db: SupabaseClient<Database>,
   tenantId: string,
-): Promise<{ notifications: NotificationsConfig | null; isEnvDefault: boolean; slug?: string }> {
+): Promise<{
+  notifications: NotificationsConfig | null;
+  isEnvDefault: boolean;
+  slug?: string;
+  /** The workspace's settings could not be read: who it is told by is unknown, which is not "nobody". */
+  unread?: true;
+}> {
   const L = logger();
   try {
     const [cfgQ, chQ, named] = await Promise.all([
@@ -566,7 +572,7 @@ export async function loadTenantNotifications(
   } catch (e) {
     L.error("tenant_notifications_load_failed", { tenant_id: tenantId, error: errField(e) });
     // Unknown recipients: notify() will withhold customer content rather than
-    // guess a mailbox.
-    return { notifications: null, isEnvDefault: false };
+    // guess a mailbox. Said, so a caller that must not take "unknown" for "nobody" can wait.
+    return { notifications: null, isEnvDefault: false, unread: true };
   }
 }

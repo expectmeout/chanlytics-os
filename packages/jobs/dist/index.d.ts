@@ -480,12 +480,13 @@ interface JobContext {
         mayRead: (tenantId: string, at: Date) => Promise<"no_model" | "may_not_spend" | null>;
         /** The person the booking is for, matched or made by the calendar sweep's rules; null when nobody can be. */
         personFor: BookingNoticePorts["personFor"];
-        /** Tell the workspace a notice is held for a person (the bell, once per delivery). Never throws. */
+        /** Tell the workspace a notice is held for a person (the bell, once per delivery and hold). Never throws. */
         tell: (tenantId: string, notice: {
             noticeId: string;
             tool: string;
             subject: string | null;
             reason: string;
+            hold: string;
         }) => Promise<void>;
     };
     /**

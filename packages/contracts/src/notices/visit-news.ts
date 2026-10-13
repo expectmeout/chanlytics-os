@@ -8,9 +8,11 @@
  *
  * `bookingArriving` reads the event: a visit ADDED, or a proposed one CONFIRMED, by a booking tool's email, a booking tool,
  * or the owner's calendar feed. A move, a cancellation, a visit that vanished from the feed or came back are not a booking,
- * and neither is a visit a member entered themselves (`person`): the owner did that. `visitNews` words it: one visit in
- * its own words, or the visits one read of the feed found together as one line, since the hourly sweep keeps everything
- * the calendar names and a calendar newly connected would otherwise ring once for each (CATCH_UP_VISITS).
+ * and neither is a visit a member entered themselves (`person`): the owner did that. Nor is most of what the calendar adds:
+ * the feed holds the owner's own entries too, so an addition is a booking only by the facts the sweep stamped on it when it
+ * wrote the row (00419, feedAdditionIsBooking): a visit with a person of the workspace, not the next of a repeating
+ * series, not the copy of a booking already told, and not one of a calendar's first read. `visitNews` words it: one visit
+ * in its own words, or the visits one read of the feed found together as one line (CATCH_UP_VISITS, a second guard).
  */
 import type { JobNews } from "../today/notifications";
 import { visitRoute } from "../calendar/appointment-key";
@@ -25,8 +27,9 @@ const ARRIVES_BY: ReadonlySet<string> = new Set<BookingVia>(["booking_email", "b
 
 /**
  * How many visits one read of the owner's calendar may add before it is not news. The hourly sweep keeps every entry the
- * calendar names in its window (appointments_feed_sync), so the read that follows connecting a calendar, or rebuilding
- * one, adds them all at once: that is a calendar read, not customers booking. A read adding more than this says nothing.
+ * calendar names in its window (appointments_feed_sync). The first read of a calendar says so on each addition (`first`);
+ * one that swaps the calendar for another, or rebuilds it, adds them all at once too: that is a calendar read, not
+ * customers booking. A read adding more than this says nothing.
  */
 export const CATCH_UP_VISITS = 8;
 
@@ -51,8 +54,30 @@ interface EventLike {
 }
 
 /**
+ * Whether an event's data says the calendar added a customer's booking, by what the sweep stamped on it when it wrote the
+ * row (00419): an addition of the feed, linked to a person of the workspace (`named`), no occurrence of a repeating event
+ * (`series`: the owner's weekly staff meeting coming into the window), no copy of a booking its tool's email already told
+ * (`twin`), and no part of the first read of a calendar newly connected (`first`). An event from before those facts were
+ * stamped says none of them, and is silent: a booking missed there is the cheaper error than "Someone booked with you"
+ * for the owner's lunch. The one predicate: what leads a read's line and what joins it (core visit_notice) ask it too.
+ */
+export function feedAdditionIsBooking(data: unknown): boolean {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return false;
+  const d = data as Record<string, unknown>;
+  return (
+    d.change === "added" &&
+    d.source === "calendar_feed" &&
+    d.named === true &&
+    d.series === false &&
+    d.twin === false &&
+    d.first === false
+  );
+}
+
+/**
  * The booking an `appointment.changed` event says arrived, or null for every other event and every other change. The feed
- * adds visits ("added") and never confirms one; a booking tool's email adds ("added") or confirms a hold ("confirmed").
+ * adds visits ("added") and never confirms one, and only some of what it adds is a booking (feedAdditionIsBooking); a
+ * booking tool's email adds ("added") or confirms a hold ("confirmed").
  */
 export function bookingArriving(event: EventLike): ArrivingBooking | null {
   if (event.kind !== "appointment.changed" || event.subject_type !== "appointment" || !event.subject_id) return null;
@@ -61,7 +86,7 @@ export function bookingArriving(event: EventLike): ArrivingBooking | null {
   const { change, source, starts_at: startsAt } = data as Record<string, unknown>;
   if (typeof change !== "string" || !ARRIVES.has(change)) return null;
   if (typeof source !== "string" || !ARRIVES_BY.has(source)) return null;
-  if (source === "calendar_feed" && change !== "added") return null;
+  if (source === "calendar_feed" && !feedAdditionIsBooking(data)) return null;
   return {
     appointmentId: event.subject_id,
     via: source as BookingVia,

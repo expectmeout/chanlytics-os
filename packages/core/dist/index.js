@@ -883,6 +883,7 @@ async function pageTheProvider(pager, f, about) {
 import {
   bookingArriving,
   CATCH_UP_VISITS,
+  feedAdditionIsBooking,
   holdNotice,
   memberJoinedBy,
   memberJoinedNotice,
@@ -953,11 +954,16 @@ var SUBSCRIBERS = {
     if (arriving.via === "calendar_feed") {
       const together = await ports.feedAdditionsWith(event2.tenant_id, { id: event2.id, at: event2.created_at });
       if (together.length > CATCH_UP_VISITS) return;
-      const lead = together.at(0);
+      const booked2 = together.filter((t) => feedAdditionIsBooking(t.data));
+      const lead = booked2.at(0);
       if (lead && lead.eventId !== event2.id) return;
-      if (lead) ids = together.map((t) => t.appointmentId);
+      if (lead) ids = booked2.map((t) => t.appointmentId);
     }
     if (await ports.eventTold(event2.tenant_id, event2.id)) return;
+    const fresh = [];
+    for (const id of ids) if (!await ports.twinTold(event2.tenant_id, id)) fresh.push(id);
+    if (fresh.length === 0) return;
+    ids = fresh;
     const nowMs = Date.now();
     const visits = await ports.bookedVisits(event2.tenant_id, ids, nowMs);
     if (visits.length === 0) return;

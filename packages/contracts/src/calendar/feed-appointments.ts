@@ -11,6 +11,7 @@
 import type { FeedItem } from "./feed";
 import { serviceNamedIn, type ConsultRules } from "./service-offer";
 import { matchPerson, type OwnAddresses, type PersonLike } from "./calendar-people";
+import { bookingCopyTest, type BookingSighting } from "./booking-notice";
 import { appointmentKeyOf, recordIdOf } from "./appointment-key";
 import { isConsultationTitle } from "../deals/deal-consultations";
 
@@ -50,6 +51,16 @@ export interface FeedAppointmentRow {
   service: string | null;
   consultation: boolean;
   contact_id: string | null;
+  /**
+   * One occurrence of a repeating event (FeedItem.occurrence): the next of a series coming into the window as the days
+   * pass is no booking, and the bell says nothing of it (contracts visit-news.ts bookingArriving).
+   */
+  series: boolean;
+  /**
+   * The calendar's copy of a booking the record already holds from its tool's email or its tool (booking-notice.ts bookingCopyTest): the
+   * visit was told when the booking arrived, and its copy is not told again.
+   */
+  twin: boolean;
 }
 
 /**
@@ -63,8 +74,10 @@ const APPOINTMENT_KEY_MAX = 512;
  * The rows a feed's events become, inside the window the sync covers: each keyed as appointment-key.ts keys it (the
  * first of two events under one key wins; one keyed past APPOINTMENT_KEY_MAX is left out), the person it is for by the match the board makes (calendar-people.ts
  * matchPerson: a number in the event, then an address, then a whole name), the service its title names (serviceNamedIn),
- * and whether it is a consultation (0004's one predicate, isConsultationTitle), decided once when the row is written. The
- * title itself is read and left (FeedAppointmentRow).
+ * and whether it is a consultation (0004's one predicate, isConsultationTitle), decided once when the row is written; and
+ * what the bell asks of an addition (00419): whether it is one occurrence of a repeating event, and whether it is the copy
+ * of one of `bookings`, the workspace's rows that are not the feed's (booking-notice.ts bookingCopyTest). The title itself is read and left
+ * (FeedAppointmentRow).
  */
 export function feedAppointmentRows(
   items: readonly FeedItem[],
@@ -74,14 +87,17 @@ export function feedAppointmentRows(
     services: readonly { name: string }[] | undefined;
     rules: ConsultRules | null | undefined;
     window: { from: number; to: number };
+    bookings?: readonly BookingSighting[];
   },
 ): FeedAppointmentRow[] {
   const out = new Map<string, FeedAppointmentRow>();
+  const copy = bookingCopyTest(o.bookings ?? [], o.own);
   for (const it of items) {
     if (it.start < o.window.from || it.start > o.window.to) continue;
     const key = appointmentKeyOf(it);
     if (key.length > APPOINTMENT_KEY_MAX || out.has(key)) continue;
     const title = it.title.trim() || null;
+    const contactId = matchPerson(it, o.people, o.own)?.id ?? null;
     out.set(key, {
       external_id: key,
       starts_at: new Date(it.start).toISOString(),
@@ -89,7 +105,9 @@ export function feedAppointmentRows(
       all_day: it.allDay,
       service: serviceNamedIn(title, o.services),
       consultation: isConsultationTitle(title, o.services, o.rules),
-      contact_id: matchPerson(it, o.people, o.own)?.id ?? null,
+      contact_id: contactId,
+      series: it.occurrence !== undefined,
+      twin: copy ? copy(it, contactId) : false,
     });
   }
   return [...out.values()];

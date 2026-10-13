@@ -8,6 +8,9 @@ import {
   CATCH_UP_VISITS,
   HOUR_MS,
   MIN_MS,
+  SAME_VISIT_MS,
+  sameVisitOnRecord,
+  sightingStands,
   type BookedVisit,
   type BookingVia,
   type MemberJoined,
@@ -75,11 +78,21 @@ export async function noticeFor(
   return row ? { id: row.id, kind: row.kind, mailOwed: row.mail_due_at !== null } : null;
 }
 
-/** The mail of a kept notice has gone (or nothing is owed any more): its row says so, and a retry sends nothing. A write that fails throws. */
-export async function mailSent(db: Db, p: { tenantId: string; id: string }): Promise<void> {
+/**
+ * The mail of a kept notice has gone (or nothing is owed any more): its row says so, and a retry sends nothing. With
+ * `words`, the row takes the words the mail went with: a retry said the notice again as it stands now (the hours a
+ * customer has waited, the day a number goes back), and the bell says what the mail said. A write that fails throws.
+ */
+export async function mailSent(
+  db: Db,
+  p: { tenantId: string; id: string; words?: { title: string; body: string } },
+): Promise<void> {
   const { error } = await db
     .from("notifications")
-    .update({ mail_due_at: null })
+    .update({
+      mail_due_at: null,
+      ...(p.words ? { title: p.words.title.slice(0, 200), body: p.words.body.slice(0, 4000) } : {}),
+    })
     .eq("tenant_id", p.tenantId)
     .eq("id", p.id);
   if (error) throw new Error(`cannot record that the notice was mailed: ${error.message}`);
@@ -453,7 +466,8 @@ const BOOKING_SOURCES: readonly BookingVia[] = ["booking_email", "booking_tool",
  * The visits of the record among `ids` that are booked and still ahead of `nowMs`, as the record says them now, and who
  * booked each: the name the booking states, else the person the visit is linked to, and nobody for a person who is erased or
  * being erased. A visit cancelled, vanished from the feed, past, or entered by a member is left out: a booking's notice
- * tells what stands. A read that fails throws.
+ * tells what stands. So is a visit of the calendar's that is linked to nobody now: the owner's own entry, never a customer's
+ * booking (contracts visit-news.ts asks it of the event too). A read that fails throws.
  */
 export async function bookedVisitsOf(
   db: Db,
@@ -472,7 +486,7 @@ export async function bookedVisitsOf(
     .in("source", [...BOOKING_SOURCES])
     .gt("starts_at", new Date(nowMs).toISOString());
   if (error) throw new Error(`cannot read the visits: ${error.message}`);
-  const visits = data ?? [];
+  const visits = (data ?? []).filter((v) => v.source !== "calendar_feed" || v.contact_id);
   const personIds = [...new Set(visits.flatMap((v) => (v.contact_id ? [v.contact_id] : [])))];
   const people = new Map<string, { name: string | null; erased: boolean }>();
   if (personIds.length) {
@@ -507,18 +521,19 @@ export async function bookedVisitsOf(
 
 /**
  * The calendar's additions one read of the owner's feed wrote in the same transaction as this event (appointments_feed_sync
- * writes them all in one, so they share the ledger's clock): the event ids and the appointments they are about, in event-id
- * order, so every delivery of the group computes the same first. At most CATCH_UP_VISITS + 1, enough to see that a read added
- * more than a customer could book without reading the rest. A read that fails throws.
+ * writes them all in one, so they share the ledger's clock): the event ids, the appointments they are about and what each
+ * event says of its addition (00419's facts), in event-id order, so every delivery of the group computes the same first. At
+ * most CATCH_UP_VISITS + 1, enough to see that a read added more than a customer could book without reading the rest. A
+ * read that fails throws.
  */
 export async function feedAdditionsWith(
   db: Db,
   tenantId: string,
   event: { id: string; at: string },
-): Promise<Array<{ eventId: string; appointmentId: string }>> {
+): Promise<Array<{ eventId: string; appointmentId: string; data: unknown }>> {
   const { data, error } = await db
     .from("events")
-    .select("id, subject_id")
+    .select("id, subject_id, data")
     .eq("tenant_id", tenantId)
     .eq("kind", "appointment.changed")
     .eq("created_at", event.at)
@@ -527,7 +542,72 @@ export async function feedAdditionsWith(
     .order("id")
     .limit(CATCH_UP_VISITS + 1);
   if (error) throw new Error(`cannot read the calendar's additions: ${error.message}`);
-  return (data ?? []).flatMap((e) => (e.subject_id ? [{ eventId: e.id, appointmentId: e.subject_id }] : []));
+  return (data ?? []).flatMap((e) =>
+    e.subject_id ? [{ eventId: e.id, appointmentId: e.subject_id, data: e.data }] : [],
+  );
+}
+
+/** The other sightings of a visit: a booking's row and the calendar's copy of it (contracts booking-notice.ts). */
+const BOOKING_ROWS: readonly BookingVia[] = ["booking_email", "booking_tool"];
+
+/**
+ * Whether a visit that arrived was told already as its other sighting: for a booking from its tool's email or its tool,
+ * the calendar's copy of it; for the calendar's addition, the booking's own row. The other sighting is a row of the same
+ * visit (contracts booking-notice.ts sameVisitOnRecord: one person, starting as near) whose arrival the bell answered. The
+ * copy is told first when the email was held and read again after the hourly sweep found the visit; the booking first
+ * when the sweep read the calendar before the booking's row existed, so it could not mark the copy (`twin`). Either way
+ * the visit is told once. A visit linked to nobody cannot be matched, and is told. A sighting told inside a group line
+ * (several additions of one read) is not found by its own event, and the visit is told: a twice-told visit is the cheaper
+ * error than a booking never told; so is the narrow case of two deliveries running side by side, each reading before the
+ * other told. A read that fails throws.
+ */
+export async function twinTold(db: Db, tenantId: string, appointmentId: string): Promise<boolean> {
+  const visit = oneOr(
+    await db
+      .from("appointments")
+      .select("source, contact_id, starts_at")
+      .eq("tenant_id", tenantId)
+      .eq("id", appointmentId)
+      .limit(1),
+    "the visit",
+  );
+  if (!visit?.contact_id) return false;
+  const others = visit.source === "calendar_feed" ? BOOKING_ROWS : ["calendar_feed" as const];
+  const at = Date.parse(visit.starts_at);
+  const sightings = await db
+    .from("appointments")
+    .select("id, contact_id, starts_at, status, vanished_at")
+    .eq("tenant_id", tenantId)
+    .in("source", [...others])
+    .eq("contact_id", visit.contact_id)
+    .gte("starts_at", new Date(at - SAME_VISIT_MS).toISOString())
+    .lte("starts_at", new Date(at + SAME_VISIT_MS).toISOString());
+  if (sightings.error) throw new Error(`cannot read the visit's other sightings: ${sightings.error.message}`);
+  // Only a sighting that stands (contracts sightingStands): one cancelled or gone at that time, and booked again, is a
+  // visit of its own, told as one.
+  const ids = (sightings.data ?? []).filter((c) => sightingStands(c) && sameVisitOnRecord(visit, c)).map((c) => c.id);
+  if (!ids.length) return false;
+  const arrived = await db
+    .from("events")
+    .select("id, data")
+    .eq("tenant_id", tenantId)
+    .eq("kind", "appointment.changed")
+    .in("subject_id", ids);
+  if (arrived.error) throw new Error(`cannot read how the visit arrived: ${arrived.error.message}`);
+  const events = (arrived.data ?? []).flatMap((e) => {
+    const change =
+      e.data && typeof e.data === "object" && !Array.isArray(e.data) ? (e.data as { change?: unknown }).change : null;
+    return change === "added" || change === "confirmed" ? [e.id] : [];
+  });
+  if (!events.length) return false;
+  const told = await db
+    .from("notifications")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .in("source_event", events)
+    .limit(1);
+  if (told.error) throw new Error(`cannot read what the workspace was told: ${told.error.message}`);
+  return (told.data ?? []).length > 0;
 }
 
 /**

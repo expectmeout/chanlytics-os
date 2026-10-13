@@ -601,6 +601,83 @@ test("a row whose calendar has no address is not a feed: it holds no place in th
 
 /* -------------------------------------------------------- the appointments */
 
+test("REGRESSION: the season's standing bookings make the calendar's copy of one a twin, so the bell does not tell it again; a cancelled booking at that time does not, and an event of nobody's is no copy (the review of the wiring's second audit, B5, B7)", async () => {
+  const w = world();
+  connected(w.tables, "copies", null, [
+    { uid: "c1", title: "Dana Rivera - Balayage", phone: "+1 305 555 0144" },
+    { uid: "c2", title: "Lee Park - Cut", phone: "+1 305 555 0155", inDays: 5 },
+    { uid: "c3", title: "Walk-in", inDays: 6 },
+  ]);
+  const at = (days) => new Date(Date.now() + days * D).toISOString();
+  const booking = (id, phone, days, status) => ({
+    id,
+    tenant_id: "copies",
+    source: "booking_email",
+    status,
+    client_phone: phone,
+    client_email: null,
+    contact_id: null,
+    starts_at: at(days),
+    ends_at: at(days + 0.05),
+  });
+  // Dana's booking stands; Lee's was cancelled, and the calendar's entry at that time is a booking of its own.
+  w.tables.appointments = [booking("b1", "+13055550144", 3, "booked"), booking("b2", "+13055550155", 5, "cancelled")];
+  const line = wire(reply);
+  try {
+    assert.equal((await w.tick()).status, 200);
+    const [k] = w.kept;
+    assert.deepEqual(
+      k.p_rows.map((r) => [r.external_id, r.twin]),
+      [
+        ["c1", true],
+        ["c2", false],
+        ["c3", false],
+      ],
+    );
+  } finally {
+    line.restore();
+  }
+});
+
+test("a calendar's first read kept, empty or not, is stamped once, so the next read's additions are no first read; a read that was not the first stamps nothing (the review of the wiring's second audit, M2)", async () => {
+  for (const first of [true, false]) {
+    const w = world({
+      rpcs: {
+        appointments_feed_sync: (a) => ({
+          added: a.p_rows.length,
+          moved: 0,
+          back: 0,
+          vanished: 0,
+          seen: 0,
+          stale: false,
+          first,
+        }),
+      },
+    });
+    connected(w.tables, "fresh", null, []);
+    const line = wire(reply);
+    try {
+      assert.equal((await w.tick()).status, 200);
+    } finally {
+      line.restore();
+    }
+    const stamped = w.tables.tenant_config.find((r) => r.tenant_id === "fresh").calendar_feed_kept_at ?? null;
+    assert.equal(stamped !== null, first, `the door answered first=${first}`);
+  }
+});
+
+test("a season's bookings that cannot be read keep nothing of the read: no copy is told as a booking for want of them (the review's follow-up to B7)", async () => {
+  const w = world({ faults: { "appointments.select": { message: "statement timeout" } } });
+  connected(w.tables, "unread", null, [{ uid: "u1", title: "Dana Rivera - Balayage", phone: "+1 305 555 0144" }]);
+  const line = wire(reply);
+  try {
+    assert.equal((await w.tick()).status, 200);
+  } finally {
+    line.restore();
+  }
+  assert.equal(w.kept.length, 0, "nothing handed to the door");
+});
+
 test("each read is kept as the workspace's appointments (decision 0002): every event inside the season the read covered, keyed by its UID, its person the one the board would name (after this read put them in People), its service and whether it is a consultation; a feed that cannot be read keeps nothing, and a keep that fails costs the workspace nothing it already did", async () => {
   const w = world();
   connected(
@@ -639,6 +716,14 @@ test("each read is kept as the workspace's appointments (decision 0002): every e
     assert.ok(
       k.p_rows.every((r) => !("title" in r)),
       "never the event's title: the owner's words about a visit name the person",
+    );
+    assert.deepEqual(
+      k.p_rows.map((r) => [r.series, r.twin]),
+      [
+        [false, false],
+        [false, false],
+      ],
+      "what the bell asks of each addition (00419): neither is a series, and the season holds no booking either copies",
     );
     assert.equal(
       k.p_now,
