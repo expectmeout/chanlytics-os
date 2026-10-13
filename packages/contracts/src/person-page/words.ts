@@ -122,6 +122,8 @@ export const WORKS_AT_WORDS = {
   saidNo: (day: string) => `Wrote back · ${day} · said no`,
   /** Combine (0052, amending 0028): the record we wrote to and the person who answered from another address. */
   answeredFrom: (name: string, address: string) => `${name} answered from ${address}`,
+  /** The same, for someone who answered without giving a name: their address is all the page knows them by. */
+  someoneAnswered: (address: string) => `Someone answered from ${address}`,
   combineWith: (name: string) => `Combine with ${name}`,
   wroteToFirst: (address: string) => `${address} is the record we wrote to`,
   combine: "Combine",

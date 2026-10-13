@@ -1549,9 +1549,9 @@ test("their own message is chosen from what they wrote: the way opens their rece
   }
 });
 
-test("a person opened from a People view steps to the one before and after (‹ 2 of 3 ›), the address replaced so Back still leaves the list; on a phone, from More's first rows (0052)", async () => {
+test("a person opened from a People view steps to the one before and after (‹ 2 of 3 ›), the address replaced so Back still leaves the list, at every width: never for one opened from anywhere else (0052)", async () => {
   const { tabMemoryFor } = await importSrc("apps/dashboard/src/legacy-bridge/tab-memory.ts");
-  const { keepWalk } = await importSrc("apps/dashboard/src/surfaces/people/walk.ts");
+  const { keepWalk, leaveWalk, takeStep } = await importSrc("apps/dashboard/src/surfaces/people/walk.ts");
   const keep = {
     memory: globalThis.window.__tabMemory,
     nav: globalThis.window.CHANLY.nav,
@@ -1562,11 +1562,12 @@ test("a person opened from a People view steps to the one before and after (‹ 
   globalThis.window.CHANLY.nav = (to, opts) => steps.push([to, opts]);
   try {
     const vm = toPersonVM(detail(), ZONE, new Date(NOW));
+    // The list on screen as they are opened (its clean-up comes after the page is drawn).
     keepWalk("all", ["p-before", vm.id, "p-after"]);
     let draw = await profile(vm);
     let tree = draw();
-    // On a desk the walk stands beside "‹ People" where the date stands (the standing's `back.after`, canvas A): the
-    // frame draws it, so it is drawn here from what the page said.
+    // The walk stands with "‹ People" where the date stands (the standing's `back.after`, canvas A): the frame draws it,
+    // so it is drawn here from what the page said.
     const walkOf = () => {
       const after = standingSaid()?.back?.after;
       return after ? after.type(after.props) : null;
@@ -1575,29 +1576,34 @@ test("a person opened from a People view steps to the one before and after (‹ 
     assert.equal(textOf(walk).replace(/\s+/g, ""), "2of3");
     press(byTestId(walk, "person-walk-next"));
     assert.deepEqual(steps.at(-1), ["clients/p-after", { replace: true }], "the next person, the address replaced");
+    assert.equal(takeStep("p-after"), "next", "and the page it lands on turns from the side it went");
     press(byTestId(walk, "person-walk-prev"));
     assert.deepEqual(steps.at(-1), ["clients/p-before", { replace: true }]);
+    assert.equal(takeStep("p-before"), "prev");
+    assert.equal(takeStep("p-before"), undefined, "taken once: a person opened any other way arrives unturned");
     assert.equal(byTestId(tree, "person-walk"), null, "the page itself draws no walk");
     // A person the view does not hold has no steps.
     keepWalk("all", ["p-before", "p-after"]);
     draw = await profile(vm);
     draw();
     assert.equal(walkOf(), null);
-    // On a phone the steps are More's first rows, and the head draws none.
+    // REGRESSION (13 Oct 2026): the list gone, a person opened from the Inbox or a link said the last list's "2 of 3".
+    keepWalk("all", ["p-before", "p-other", "p-after"]);
+    leaveWalk();
+    draw = await profile(vm);
+    draw();
+    assert.equal(walkOf(), null, "REGRESSION: a person not opened from the list stood in it");
+    // On a phone the same steps stand in the bell's place (components.css), and More holds none.
     keepWalk("all", ["p-before", vm.id, "p-after"]);
     globalThis.window.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
     draw = await profile(vm);
     tree = draw();
-    assert.equal(byTestId(tree, "person-walk"), null);
+    assert.equal(textOf(walkOf()).replace(/\s+/g, ""), "2of3");
     const more = find(byTestId(tree, "person-acts"), (n) => n.type === Menu);
-    const first = more.props.groups[0].items.map((i) => [i.label, i.hint ?? null]);
-    assert.deepEqual(first, [
-      ["Next person", "3 of 3"],
-      ["Previous person", null],
-    ]);
-    assert.equal(standingSaid()?.back?.after, null, "and the dateline carries none");
-    more.props.groups[0].items[0].onSelect();
-    assert.deepEqual(steps.at(-1), ["clients/p-after", { replace: true }]);
+    const labels = more.props.groups.flatMap((g) => g.items.map((i) => i.label));
+    assert.ok(!labels.includes("Next person") && !labels.includes("Previous person"), "More holds no steps");
+    // The people either side are read ahead (useWalk): let those reads land here, not in the next test's count.
+    await settle();
   } finally {
     globalThis.window.__tabMemory = keep.memory;
     globalThis.window.CHANLY.nav = keep.nav;

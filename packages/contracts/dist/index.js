@@ -27036,6 +27036,8 @@ var SHORTCUTS = [
   { group: "People", keys: ["Esc"], does: "Clear the selection" },
   { group: "People", keys: ["F"], does: "Find leads (on Leads)" },
   { group: "People", keys: ["C"], does: "Call the lead under the cursor (on Leads)" },
+  // A person's page, on a desk (person-real.tsx useWalkKeys): the list they were opened from, walked as its rows are.
+  { group: "A person", keys: ["J", "K"], does: "Next and previous person in the list you opened them from" },
   { group: "Inbox", keys: ["J", "K"], does: "Next and previous conversation" },
   { group: "Inbox", keys: ["N"], does: "New conversation" },
   { group: "Inbox", keys: ["A"], does: "Approve the draft" },
@@ -33541,6 +33543,8 @@ var WORKS_AT_WORDS = {
   saidNo: (day) => `Wrote back \xB7 ${day} \xB7 said no`,
   /** Combine (0052, amending 0028): the record we wrote to and the person who answered from another address. */
   answeredFrom: (name, address) => `${name} answered from ${address}`,
+  /** The same, for someone who answered without giving a name: their address is all the page knows them by. */
+  someoneAnswered: (address) => `Someone answered from ${address}`,
   combineWith: (name) => `Combine with ${name}`,
   wroteToFirst: (address) => `${address} is the record we wrote to`,
   combine: "Combine"
@@ -35559,20 +35563,30 @@ function personNoticesOf(f) {
     });
   const others = f.peopleHere.filter((p) => p.id && p.email && !(f.phone && p.phone && f.phone !== p.phone));
   if (f.head.standIn && !f.heardFrom) {
-    const human = others.find((p) => p.nameSource !== "lead" && p.named);
-    if (human && human.email)
+    const human = others.find((p) => p.nameSource !== "lead");
+    if (human && human.email) {
+      const named = !!human.named;
+      const address = shortAddress(human.email);
       out.push({
         id: `combine:${human.id}`,
         home: "name",
-        fact: WORKS_AT_WORDS.answeredFrom(human.name, shortAddress(human.email)),
+        fact: named ? WORKS_AT_WORDS.answeredFrom(human.name, address) : WORKS_AT_WORDS.someoneAnswered(address),
         source: null,
         act: {
-          label: WORKS_AT_WORDS.combineWith(human.name),
-          do: { kind: "combine", otherId: human.id, otherName: human.name, otherEmail: human.email, keepsOther: true }
+          label: named ? WORKS_AT_WORDS.combineWith(human.name) : WORKS_AT_WORDS.combine,
+          do: {
+            kind: "combine",
+            otherId: human.id,
+            otherName: human.name,
+            otherEmail: human.email,
+            keepsOther: true,
+            keptNamed: named
+          }
         },
         dismiss: null
       });
-  } else if (!f.head.standIn && f.named) {
+    }
+  } else if (!f.head.standIn) {
     const standIn = others.find((p) => p.nameSource === "lead");
     if (standIn && standIn.email)
       out.push({
@@ -35587,7 +35601,8 @@ function personNoticesOf(f) {
             otherId: standIn.id,
             otherName: standIn.name,
             otherEmail: standIn.email,
-            keepsOther: false
+            keepsOther: false,
+            keptNamed: !!f.named
           }
         },
         dismiss: null
@@ -36770,13 +36785,16 @@ var COMBINE_WORDS = {
   title: WORKS_AT_WORDS.combineWith,
   sub: (business) => `Two records at ${business}`,
   body: (kept, other) => `${other} and ${kept} are one person, so ${kept} keeps their own record and takes everything under ${other}.`,
+  /** The same, for someone who answered without giving a name. */
+  bodySomeone: (other) => `${other} and the person who answered are one person, so they keep their own record and take everything under ${other}.`,
   keeps: "Keeps their own name, number and address",
+  keepsNoName: "Keeps their own number and address, and no name until they give one",
   takesThread: (other) => `Takes the messages and calls on ${other}'s record, in one thread`,
   takesRecords: "Takes its notes, deals, visits and lists",
   takesReachOut: "Takes the emails we sent it, the replies, and the lead's link to it",
   answers: MERGE_ANSWERS,
   after: (other) => `${other}'s record stays as a merged record with no number or address`,
-  why: (business, wroteTo, answerer, from) => `Both work at ${business}. We wrote to ${wroteTo}, and ${answerer} answered from ${from}.`,
+  why: (business, wroteTo, answerer, from) => `Both work at ${business}. We wrote to ${wroteTo}, and ${answerer ?? "someone"} answered from ${from}.`,
   owner: NEEDS_TITLE.owner,
   cancel: "Cancel",
   yes: "Combine",
@@ -36799,15 +36817,24 @@ function combineOf(f) {
     name: k ? here.name : act2.otherName,
     email: k ? here.email : act2.otherEmail
   };
+  const named = act2.keptNamed;
   return {
     keepId: kept.id,
     dropId: drop.id,
     keptName: kept.name,
-    title: W.title(act2.otherName),
+    // "Combine with" names the other record, which is a name of no one where the person who answered gave none.
+    title: k && !named ? W.yes : W.title(act2.otherName),
     sub: W.sub(business),
-    body: W.body(kept.name, drop.name),
-    rows: [W.keeps, W.takesThread(drop.name), W.takesRecords, W.takesReachOut, W.answers, W.after(drop.name)],
-    why: drop.email && kept.email ? W.why(business, drop.email, kept.name, kept.email) : ""
+    body: named ? W.body(kept.name, drop.name) : W.bodySomeone(drop.name),
+    rows: [
+      named ? W.keeps : W.keepsNoName,
+      W.takesThread(drop.name),
+      W.takesRecords,
+      W.takesReachOut,
+      W.answers,
+      W.after(drop.name)
+    ],
+    why: drop.email && kept.email ? W.why(business, drop.email, named ? kept.name : null, kept.email) : ""
   };
 }
 

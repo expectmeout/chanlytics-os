@@ -5008,7 +5008,8 @@ textarea.rec-input,
   .pg-bartitle {
     position: absolute;
     top: 10px;
-    right: calc(var(--gutter-page) + 44px);
+    /* Clear of the bell, or of what stands in its place (a person's ‹ › , --bartitle-right, components.css). */
+    right: calc(var(--gutter-page) + var(--bartitle-right, 44px));
     left: calc(var(--gutter-page) + 96px);
     z-index: 1;
     display: flex;

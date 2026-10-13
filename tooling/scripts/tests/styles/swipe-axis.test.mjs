@@ -16,8 +16,8 @@ import { transform } from "lightningcss";
 import { ROOT } from "../_source.mjs";
 
 const SHEET = "apps/dashboard/src/legacy/styles/components.css";
-/** The element that scrolls under each strip on a phone: Reports, the Inbox, Conversations, People, Settings. */
-const SCROLLERS = ["rpt-body", "ix-threads", "cv-rows", "cl-main-scroll", "set-pane"];
+/** The element that scrolls under each strip on a phone: Reports, the Inbox, Conversations, People, Settings, a person. */
+const SCROLLERS = ["rpt-body", "ix-threads", "cv-rows", "cl-main-scroll", "set-pane", "cl-profile"];
 /** Where a finger walks a strip: a page of one column (tokens.css 720px; People's rows to 900px). */
 const PHONE_MAX = 900;
 

@@ -6,7 +6,6 @@ import type { Dispatch, SetStateAction } from "react";
 import type { CombineAct, PersonRowVM, PersonTab, PersonVM } from "@chanlytics/contracts";
 import type { useRecordFold } from "../../kit/record/hooks";
 import type { FlashFn } from "../person-verbs";
-import type { PersonWalk } from "../walk";
 import type { PersonCallCtl } from "./call";
 
 /** The typed-name confirmation to delete a person: open, what was typed, whether the delete is out, and what went wrong. */
@@ -95,10 +94,6 @@ export interface PageCtx {
   setSheet: Dispatch<SetStateAction<boolean>>;
   /** The History rows new since the reader last looked (0052, contracts newSinceOf): a dot on each, and on History's tab. */
   fresh: ReadonlySet<string>;
-  /** Where they stand in the People view they were opened from, and who is either side (walk.ts); null outside one. */
-  walk: PersonWalk | null;
-  /** Step to another person of that view, on the tab this one is on: the address replaced, so Back still leaves the list. */
-  step: (to: string) => void;
   /** Open their thread with words ready (hero.tsx openWith), for every send the page offers. */
   compose: (text?: string | null) => void;
   /** The member's own call to them (0052, canvas A M4): the number Call rings, and "How did the call go?" (call.tsx). */

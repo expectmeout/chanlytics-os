@@ -415,11 +415,38 @@ test("a page never moves from the screen's edges, where the page refuses the tou
   drag(h, own, [200, 300], [100, 300], [20, 300]);
   assert.deepEqual(went, []);
   for (const el of [left, right, own]) assert.equal(el.style.transform, undefined);
-  const both = touchSwipe({ onBack: () => {}, when: () => true, pages: () => pager({ go: (s) => went.push(s) }) });
+  const back = touchSwipe({ onBack: () => {}, when: () => true });
   const thread = element();
-  drag(both, thread, [60, 300], [140, 300], [260, 300]);
+  drag(back, thread, [60, 300], [140, 300], [260, 300]);
   assert.equal(thread.style.transform, "translate3d(100%, 0, 0)", "a swipe right in a thread is its Back");
   assert.deepEqual(went, []);
+});
+
+test("where a page has both, a page to the left is walked first, and Back is what lies left of the first (a person's tabs, then People)", () => {
+  const went = [];
+  const backs = [];
+  const grabs = [];
+  const at = { prev: true };
+  const h = touchSwipe({
+    onBack: () => backs.push(1),
+    when: () => true,
+    onGrab: (_, on) => grabs.push(on),
+    pages: () => pager({ prev: at.prev, go: (s) => went.push(s) }),
+  });
+  const onHistory = element();
+  drag(h, onHistory, [60, 300], [140, 300], [260, 300]);
+  assert.deepEqual(went, [-1], "History's swipe right is Overview");
+  assert.equal(onHistory.style.transform, undefined, "the tab's panes move themselves, never the page");
+  assert.deepEqual(grabs, [], "REGRESSION: a page walked marked the element lifted, and nothing let go of it");
+  at.prev = false;
+  const onOverview = element();
+  drag(h, onOverview, [60, 300], [140, 300], [260, 300]);
+  assert.equal(onOverview.style.transform, "translate3d(100%, 0, 0)", "Overview's swipe right is People");
+  assert.deepEqual(grabs, [true]);
+  // A swipe left still walks the next, and one reported only at its ends reads the same way.
+  const left = element();
+  drag(h, left, [300, 300], [220, 300], [120, 300]);
+  assert.deepEqual(went, [-1, 1]);
 });
 
 test("a page that stays (the Calendar's days) leaves, turns, and comes back in from the side it is going to", async () => {

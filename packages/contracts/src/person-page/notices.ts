@@ -20,6 +20,7 @@ export type NoticeHome = "name" | "reach" | "consent" | "next" | "last-words";
 /**
  * Combine's act (0052, amending 0028): the other record, by its id, name and address, and which of the two the door
  * keeps: the person who answered, whichever page it is pressed from (`keepsOther`: this page is the record we wrote to).
+ * `keptNamed`: the person kept has a name of their own; one who gave none keeps none (00420), and the sheet says so.
  */
 export interface CombineAct {
   kind: "combine";
@@ -27,6 +28,7 @@ export interface CombineAct {
   otherName: string;
   otherEmail: string;
   keepsOther: boolean;
+  keptNamed: boolean;
 }
 
 /** What a notice's act does; the page maps each kind to its verb. */
@@ -58,7 +60,7 @@ export interface NoticeFacts {
   email: string | null;
   /** This person's own number: a pair with two numbers is two people, and the merge door refuses it. */
   phone?: string | null;
-  /** They have a name of their own (one a member, a door or a signer gave): the kept person must, or Combine waits. */
+  /** They have a name of their own (one a member, a door or a signer gave): Combine says theirs, or says someone. */
   named?: boolean;
   /** They have written or called to us themselves. */
   heardFrom: boolean;
@@ -98,24 +100,34 @@ export function personNoticesOf(f: NoticeFacts): NoticeVM[] {
     });
   // One human, two doors: the record we wrote to (a stand-in that never wrote) and the person who answered from another
   // address at the same business. Each offers to combine with the other; the merge door judges the pair (0052, 0028)
-  // and keeps the person who answered. Offered only where it can hold: two numbers are two people (the door refuses
-  // them), and the person kept has a name of their own (the door would give them the business's otherwise).
+  // and keeps the person who answered, with their own name or none (00420). Offered only where it can hold: two numbers
+  // are two people, and the door refuses them.
   const others = f.peopleHere.filter((p) => p.id && p.email && !(f.phone && p.phone && f.phone !== p.phone));
   if (f.head.standIn && !f.heardFrom) {
-    const human = others.find((p) => p.nameSource !== "lead" && p.named);
-    if (human && human.email)
+    const human = others.find((p) => p.nameSource !== "lead");
+    if (human && human.email) {
+      const named = !!human.named;
+      const address = shortAddress(human.email);
       out.push({
         id: `combine:${human.id}`,
         home: "name",
-        fact: WORKS_AT_WORDS.answeredFrom(human.name, shortAddress(human.email)),
+        fact: named ? WORKS_AT_WORDS.answeredFrom(human.name, address) : WORKS_AT_WORDS.someoneAnswered(address),
         source: null,
         act: {
-          label: WORKS_AT_WORDS.combineWith(human.name),
-          do: { kind: "combine", otherId: human.id, otherName: human.name, otherEmail: human.email, keepsOther: true },
+          label: named ? WORKS_AT_WORDS.combineWith(human.name) : WORKS_AT_WORDS.combine,
+          do: {
+            kind: "combine",
+            otherId: human.id,
+            otherName: human.name,
+            otherEmail: human.email,
+            keepsOther: true,
+            keptNamed: named,
+          },
         },
         dismiss: null,
       });
-  } else if (!f.head.standIn && f.named) {
+    }
+  } else if (!f.head.standIn) {
     const standIn = others.find((p) => p.nameSource === "lead");
     if (standIn && standIn.email)
       out.push({
@@ -131,6 +143,7 @@ export function personNoticesOf(f: NoticeFacts): NoticeVM[] {
             otherName: standIn.name,
             otherEmail: standIn.email,
             keepsOther: false,
+            keptNamed: !!f.named,
           },
         },
         dismiss: null,
