@@ -13,6 +13,7 @@ import {
   LIFECYCLE_WORDS,
   runStopWords,
   runStoppedWords,
+  runHeldEmails,
   runsThatWait,
   runTooLate,
   type BroadcastVM,
@@ -50,18 +51,20 @@ export type VerbKind = () => "primary" | "ghost";
 export const broadcastsRead = () => borrowed<BroadcastsSurface>("__BROADCASTS");
 
 /**
- * The runs that want a seat: one waiting for a word an approval can still send (`waiting`, the count's own rule:
- * contracts runWaitsOnYou), one whose day has passed and can only be skipped (`late`, which waits on nobody and the hourly
- * sweep skips), and one inside the veto window, about to send (`soon`).
+ * The runs that want a seat: one waiting for your word (`waiting`, the count's own rule: contracts runWaitsOnYou), which is
+ * a run an approval can still send or a going run whose emails the check holds for your say, one whose day has passed and
+ * can only be skipped (`late`, which waits on nobody and the hourly sweep skips), and one inside the veto window, about to
+ * send (`soon`).
  */
 export const runsPending = () => {
   const s = broadcastsRead();
   const all = (s && s.rows) || [];
   const pending = all.filter((r) => r.state === "pending_approval");
   // The business's days, asked only over runs to judge.
-  const days = pending.length ? approvalDaysNow() : null;
+  const judged = all.filter((r) => r.state === "pending_approval" || runHeldEmails(r) > 0);
+  const days = judged.length ? approvalDaysNow() : null;
   return {
-    waiting: days ? runsThatWait(pending, days) : [],
+    waiting: days ? runsThatWait(judged, days) : [],
     late: days ? pending.filter((r) => runTooLate(r, days)) : [],
     soon: all.filter((r) => r.state === "scheduled" && r.playbook_id && Date.parse(r.scheduled_for) > Date.now()),
   };
@@ -182,19 +185,22 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, room: number) 
   const count = asked.length + soon.length;
   const drawn = [
     ...asked.slice(0, room).map((r) => {
-      const late = runLate(r);
+      // A going run whose emails the check holds is answered on the run, where each held email is put back or skipped.
+      const held = runHeldEmails(r) > 0 ? words(r).held : null;
+      const late = held ? null : runLate(r);
       // Decided on its sheet alone, as Sent's row and the ledger's door decide it (the run's offer, contracts
       // waitingRunOffer): a reach-out's run, or one whose day has passed and is skipped there.
-      const opens = bcOpensOnItsSheet(r) || !!late;
+      const opens = !!held || bcOpensOnItsSheet(r) || !!late;
+      const said = held ?? (late ? { ...words(r).late, sentence: late } : words(r).waiting);
       return (
         <AttnRow
           key={`run-${r.id}`}
           initials="▶"
           glyph="bolt"
           name={r.audience.label}
-          meta={late ? words(r).late.meta : words(r).waiting.meta}
-          sentence={late ?? (paused ? CAMPAIGNS_PAUSED_WORDS : words(r).waiting.sentence)}
-          status={late ? words(r).late.status : words(r).waiting.status}
+          meta={said.meta}
+          sentence={held || late ? said.sentence : paused ? CAMPAIGNS_PAUSED_WORDS : said.sentence}
+          status={said.status}
           tone="escalated"
           // A reach-out's run is opened, never approved from here (decision D6): its sheet counts and names each send
           // first, Ask refuses to approve one, and a one-tap send from Today is the wrong habit for a first cold email.

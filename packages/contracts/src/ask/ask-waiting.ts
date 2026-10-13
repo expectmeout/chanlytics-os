@@ -53,7 +53,7 @@ const unreadQueueWords = (es: boolean) =>
 /** The runs clause, in the words Today's head and the Inbox's band say (runsWaitingSentence), as a clause. */
 function runsClause(n: number, es: boolean): string {
   if (!n) return "";
-  if (es) return `${n === 1 ? "un envío de campaña espera" : `${n} envíos de campaña esperan`} tu aprobación`;
+  if (es) return `${n === 1 ? "un envío de campaña espera" : `${n} envíos de campaña esperan`} tu decisión`;
   const sentence = runsWaitingSentence(n);
   return `${sentence.charAt(0).toLowerCase()}${sentence.slice(1, -1)}`;
 }

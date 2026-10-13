@@ -21,7 +21,7 @@ interface TodayRead {
   calls: CallDto[] | null;
   /** Null: the searches read failed, and the queue says nothing about them. */
   searches: LeadSearchDto[] | null;
-  /** The runs waiting for approval (toTodayVM counts those that can still be sent); null where the read failed. */
+  /** The runs waiting for a word (toTodayVM counts those that still wait: runsThatWait); null where the read failed. */
   runs: WaitingRunRow[] | null;
   /** The threads of open holds past the hundred, read by their ids; null where that read failed. */
   heldThreads: ConversationDto[] | null;

@@ -106,8 +106,8 @@ const PR_4_3 = fixture("ask-tools-4-3.json");
  * The tools PR 4.7 changed, on purpose: propose_list is new; propose_campaign gained action run (its description, tail,
  * schema and examples); propose_thread_verb no longer points every role to a person's mode, which only an owner is
  * offered since PR 4.6. people since 12 Oct 2026 names one list as the Inbox words it (HELD_LIST_WORDS). today since
- * 13 Oct 2026 says the one count's parts (the holds, the replies on their way, the runs waiting that can still be approved,
- * the searches waiting), and campaigns a run too late to approve (the wiring's second audit, S7-1, W-thread-wait-step-4).
+ * 13 Oct 2026 says the one count's parts (the holds, the replies on their way, the runs waiting that can still be approved
+ * or whose check holds emails for your say, the searches waiting), and campaigns a run too late to approve (the wiring's second audit, S7-1, W-thread-wait-step-4).
  */
 const CHANGED = [
   "calendar",

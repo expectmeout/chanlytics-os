@@ -16,9 +16,10 @@
  * (recordSystemDecision), so a missed day's run waits on nobody (the wiring's second audit, S7-3).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DEFAULT_TIMEZONE, isReachOutRun } from "@chanlytics/contracts";
+import { DEFAULT_TIMEZONE, RUN_GOING_STATES, isReachOutRun } from "@chanlytics/contracts";
 import type { Database, Json } from "../../database.types";
 import { emitEvent } from "../../events";
+import { heldSendCounts } from "../reach-out-sheet";
 
 type Db = SupabaseClient<Database>;
 
@@ -187,7 +188,7 @@ export async function recordSystemDecision(
   return data.id;
 }
 
-/** A run waiting for approval as a workspace's own read takes it: what the count asks of it, and what names it. */
+/** A run waiting for a word as a workspace's own read takes it: what the count asks of it, and what names it. */
 export interface WaitingRunRow {
   id: string;
   name: string;
@@ -197,21 +198,39 @@ export interface WaitingRunRow {
   audience: unknown;
   recipient_count: number;
   created_at: string;
+  /** A going reach-out run's emails the check holds for the owner's say (contracts runHeldEmails). */
+  held?: number;
 }
 
+const WAITING_RUN_COLUMNS = "id, name, state, playbook_id, run_for, audience, recipient_count, created_at";
+
 /**
- * One workspace's runs waiting for approval, newest first, two hundred at most, on the session's client (RLS decides):
- * what the server's Today counts as waiting on you (contracts runsThatWait, by the verb's own day rule) and Ask's today
- * tool names. A read that fails throws.
+ * One workspace's runs waiting for a word, newest first, on the session's client (RLS decides): those waiting for
+ * approval (two hundred at most), and the going reach-out runs whose check holds emails for the owner's say, with how
+ * many (heldSendCounts). What the server's Today counts as waiting on you (contracts runsThatWait, by the verb's own day
+ * rule and runHeldEmails) and Ask's today tool names. A read that fails throws.
  */
 export async function waitingRunsOf(db: Db, tenantId: string): Promise<WaitingRunRow[]> {
-  const { data, error } = await db
-    .from("broadcasts")
-    .select("id, name, state, playbook_id, run_for, audience, recipient_count, created_at")
-    .eq("tenant_id", tenantId)
-    .eq("state", "pending_approval")
-    .order("created_at", { ascending: false })
-    .limit(200);
-  if (error) throw new Error(`cannot read the runs waiting for approval: ${error.message}`);
-  return data ?? [];
+  const [pending, going] = await Promise.all([
+    db
+      .from("broadcasts")
+      .select(WAITING_RUN_COLUMNS)
+      .eq("tenant_id", tenantId)
+      .eq("state", "pending_approval")
+      .order("created_at", { ascending: false })
+      .limit(200),
+    db
+      .from("broadcasts")
+      .select(WAITING_RUN_COLUMNS)
+      .eq("tenant_id", tenantId)
+      .in("state", [...RUN_GOING_STATES])
+      .order("created_at", { ascending: false })
+      .limit(200),
+  ]);
+  if (pending.error) throw new Error(`cannot read the runs waiting for approval: ${pending.error.message}`);
+  if (going.error) throw new Error(`cannot read the going runs: ${going.error.message}`);
+  const reaching = (going.data ?? []).filter((r) => isReachOutRun(r.audience));
+  const held = reaching.length ? await heldSendCounts(db, { tenantId, runIds: reaching.map((r) => r.id) }) : null;
+  const holding = reaching.flatMap((r) => ((held?.get(r.id) ?? 0) > 0 ? [{ ...r, held: held?.get(r.id) ?? 0 }] : []));
+  return [...(pending.data ?? []), ...holding].sort((a, b) => b.created_at.localeCompare(a.created_at));
 }

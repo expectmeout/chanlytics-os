@@ -1,5 +1,14 @@
 /** What waits on a person: counted once, the bell's one row for a hold, and the bell's rows closing when what they announced is settled. */
-export { threadWait, threadWaits, waitsOf, needsYouCount, runWaitsOnYou, runTooLate, runsThatWait } from "./waits";
+export {
+  threadWait,
+  threadWaits,
+  waitsOf,
+  needsYouCount,
+  runWaitsOnYou,
+  runHeldEmails,
+  runTooLate,
+  runsThatWait,
+} from "./waits";
 export type { WaitingThread, WaitingRun, RunDays, Waits } from "./waits";
 export { bellFeed, bellOlderOf, holdMarksOf } from "./hold-rows";
 export {

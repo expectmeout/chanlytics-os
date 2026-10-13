@@ -23,6 +23,7 @@ import {
   openingsAnswer,
   rightNowCounts,
   rightNowLine,
+  runHeldEmails,
   runsThatWait,
   sameQuestion,
   scopeFromRoute,
@@ -193,7 +194,8 @@ export function waitingFrom(win: Window, parts: Waits | null = needsYouParts()):
     .filter((r) => r.kind === "search")
     .map((r) => ({ id: r.id, name: r.who, question: r.sentence, to: r.cta.to }));
   const threadsWaiting = parts ? parts.holds + parts.sends : (w.TODAY_DATA?.needsYou?.count ?? people.length);
-  const pending = (w.__BROADCASTS?.rows ?? []).filter((r) => r.state === "pending_approval");
+  // A run waiting for approval, or a going one whose emails the check holds (the count's own rule, runWaitsOnYou).
+  const pending = (w.__BROADCASTS?.rows ?? []).filter((r) => r.state === "pending_approval" || runHeldEmails(r) > 0);
   // The business's days, by this window's clock, asked only over runs to judge.
   const runs = pending.length ? runsThatWait(pending, approvalDaysNow(Date.now(), pageClock(win))) : [];
   return {

@@ -12,7 +12,7 @@ import type { AppointmentWord } from "../../journey/appointment-word";
 import { CALENDAR_SETTING_ROUTE } from "../../setup/calendar-source";
 import { clockHour } from "../../shared/clock";
 import type { ReachOutChainDto } from "../../reach-out/reach-out-dtos";
-import { CAMPAIGN_ROOMS, RUN_WAITING_WORDS, runStoppedWords } from "../../shell/campaign-rooms";
+import { CAMPAIGN_ROOMS, RUN_WAITING_WORDS, heldEmailsWords, runStoppedWords } from "../../shell/campaign-rooms";
 import { joinWords, plural } from "../../shared/words";
 import { VERSION_CHANNEL_WORDS } from "../../templates/message-versions";
 import { WORKSPACE_PAUSED_FACT } from "../../workspace/billing";
@@ -381,7 +381,7 @@ export const LIFECYCLE_WORDS = {
     /** A run waiting for the owner, in the run's one phrase (broadcasts.ts BROADCAST_STATE_LABELS reads it too). */
     waiting: RUN_WAITING_WORDS,
     /** A reach-out's going run whose emails the check holds for the owner's say. */
-    held: (n: number): string => `${plural(n, "email", "emails")} ${n === 1 ? "waits" : "wait"} for your say`,
+    held: heldEmailsWords,
     /**
      * A run waiting on the person, approved or skipped on its own line: the two acts, and what Skip asks. What the line
      * says of the run is Today's own sentence for it (today-runs.ts todayRunWords: "7 people. Nothing sends until you

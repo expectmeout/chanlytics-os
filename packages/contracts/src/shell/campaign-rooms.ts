@@ -184,11 +184,17 @@ export function runStoppedWords(was: string | null | undefined): string {
 export const RUN_WAITING_WORDS = "Waiting for your approval";
 
 /**
- * How many campaign runs wait for your approval, as a sentence: what Today's calm head leads with and the Inbox's
- * Needs-you band says, and what Ask's Right now says in its run clause, so a run waiting is said in one set of words.
+ * How many campaign runs wait for your say, as a sentence: what Today's calm head leads with and the Inbox's Needs-you
+ * band says, and what Ask's Right now says in its run clause, so a run waiting is said in one set of words. A run waits
+ * for your approval, or for your say on the emails its check holds (waits.ts runWaitsOnYou): one word covers both.
  */
 export function runsWaitingSentence(n: number): string {
-  return n === 1 ? "A campaign run is waiting for your approval." : `${n} campaign runs are waiting for your approval.`;
+  return n === 1 ? "A campaign run is waiting for your say." : `${n} campaign runs are waiting for your say.`;
+}
+
+/** A reach-out's going run whose emails the check holds for the owner's say: "2 emails wait for your say". */
+export function heldEmailsWords(n: number): string {
+  return `${n} ${n === 1 ? "email waits" : "emails wait"} for your say`;
 }
 
 /**

@@ -83,5 +83,8 @@ closing rule half built. The amendment finishes both, in the shape above, with t
    the unread rows past them (`NotificationsDto.unread`), and the badge, the away card and the bell say them, with Mark
    all read as the act that clears them.
 
-Held emails in a going reach-out run are said on the Campaigns row ("2 emails wait for your say") and on their notice.
-They are not added to the badge: whether they should be is the owner's call, owed.
+Held emails in a going reach-out run count on the badge (Ruben, 13 October 2026): they go nowhere until the owner
+says, so they wait on a person. A going run whose check holds emails is one wait, however many it holds, as a run
+waiting for approval is (contracts `runWaitsOnYou`, `runHeldEmails`; db `waitingRunsOf` reads them for the server's
+Today and Ask). Today's queue, the Inbox's band and Ask's Right now list it with "2 emails wait for your say" and open
+the run, where each is put back or skipped; the runs' sentence says "waiting for your say", which covers both kinds.

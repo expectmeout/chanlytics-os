@@ -2302,7 +2302,168 @@ async function recordLateCarrierOptOut(db, p) {
 }
 
 // src/repositories/campaigns/stranded-runs.ts
-import { DEFAULT_TIMEZONE, isReachOutRun } from "../../contracts/dist/index.js";
+import { DEFAULT_TIMEZONE, RUN_GOING_STATES as RUN_GOING_STATES2, isReachOutRun } from "../../contracts/dist/index.js";
+
+// src/repositories/reach-out-sheet.ts
+import { RUN_GOING_STATES, versionWords } from "../../contracts/dist/index.js";
+var STEP_COLUMNS = "id, name, state, trigger, lead_search_id, after_playbook_id, after_days, gap_minutes, domain_ids, signed_by, include_unconfirmed, template_id, hand, run_hour, last_run_for, created_at";
+async function reachOutStepsOf(db, tenantId) {
+  const { data, error } = await db.from("playbooks").select(STEP_COLUMNS).eq("tenant_id", tenantId).eq("kind", "reach_out");
+  if (error) throw new Error(`cannot read the reach-outs: ${error.message}`);
+  return data ?? [];
+}
+async function reachOutRootOf(db, id) {
+  const { data, error } = await db.from("playbooks").select("id, tenant_id, name, state, trigger, lead_search_id").eq("id", id).eq("kind", "reach_out").eq("trigger", "lead_first").maybeSingle();
+  if (error) throw new Error(`cannot read the reach-out: ${error.message}`);
+  return data;
+}
+async function reachOutSendRefOf(db, id) {
+  const { data, error } = await db.from("reach_out_sends").select("id, tenant_id, broadcast_id, state, reason").eq("id", id).maybeSingle();
+  if (error) throw new Error(`cannot read the email: ${error.message}`);
+  return data;
+}
+function emailWordsFrom(row) {
+  const words = versionWords({ channel: "email", components: row.components, body_preview: row.body_preview });
+  return words.body.trim() ? words : null;
+}
+async function emailWordsByTemplate(db, tenantId, ids) {
+  if (ids.length === 0) return /* @__PURE__ */ new Map();
+  const { data, error } = await db.from("templates").select("id, components, body_preview").eq("tenant_id", tenantId).in("id", ids);
+  if (error) throw new Error(`cannot read the reach-outs' words: ${error.message}`);
+  return new Map((data ?? []).map((t) => [t.id, emailWordsFrom(t)]));
+}
+async function searchNamesByIds(db, tenantId, ids) {
+  if (ids.length === 0) return /* @__PURE__ */ new Map();
+  const { data, error } = await db.from("lead_searches").select("id, name").eq("tenant_id", tenantId).in("id", ids);
+  if (error) throw new Error(`cannot read the searches: ${error.message}`);
+  return new Map((data ?? []).map((s) => [s.id, s.name]));
+}
+async function leadNamesByIds(db, tenantId, ids) {
+  if (ids.length === 0) return /* @__PURE__ */ new Map();
+  const { data, error } = await db.from("leads").select("id, business_name").eq("tenant_id", tenantId).in("id", ids);
+  if (error) throw new Error(`cannot read the leads' names: ${error.message}`);
+  return new Map((data ?? []).map((l) => [l.id, l.business_name]));
+}
+async function handRun(db, p) {
+  const { data, error } = await db.rpc("reach_out_hand_run", {
+    p_tenant_id: p.tenantId,
+    p_step_id: p.stepId,
+    p_run_id: p.runId,
+    p_day: p.day,
+    p_items: p.items
+  });
+  if (error) throw new Error(`cannot write the hand step's run: ${error.message}`);
+  const r = data ?? {};
+  return { made: r.made ?? 0, already: r.already ?? 0 };
+}
+async function saveReachOutChain(db, p) {
+  const { data, error } = await db.rpc("reach_out_save", {
+    p_tenant_id: p.tenantId,
+    p_user_id: p.userId,
+    p_chain: p.chain,
+    p_decision: p.decision?.payload ?? null,
+    ...p.decision?.via ? { p_via: p.decision.via } : {},
+    ...p.decision?.undoOf ? { p_undo_of: p.decision.undoOf } : {}
+  });
+  if (error) return { data: null, error: { code: error.code, message: error.message } };
+  const saved = data;
+  if (!saved || typeof saved.root_id !== "string")
+    return { data: null, error: { message: "reach_out_save: no chain" } };
+  if (p.decision && typeof saved.decision_id !== "string")
+    return { data: null, error: { message: "reach_out_save: the door answered without its decision" } };
+  return { data: saved, error: null };
+}
+async function runsWaitingOf(db, tenantId) {
+  const { data, error } = await db.from("broadcasts").select("id, audience").eq("tenant_id", tenantId).eq("state", "pending_approval");
+  if (error) throw new Error(`cannot read the runs waiting: ${error.message}`);
+  return data ?? [];
+}
+async function reachOutRunSendsOf(db, tenantId, runId) {
+  const { data, error } = await db.from("reach_out_sends").select(
+    "id, lead_id, state, reason, hold_detail, opening, angle, send_at, checked_at, created_at, domain_id, lead:leads(business_name, email, city)"
+  ).eq("tenant_id", tenantId).eq("broadcast_id", runId);
+  if (error) throw new Error(`cannot read the run's emails: ${error.message}`);
+  return data ?? [];
+}
+async function stampReachOutStep(db, id, p) {
+  const { error } = await db.from("playbooks").update({ last_run_at: p.at.toISOString(), ...p.runFor ? { last_run_for: p.runFor } : {} }).eq("id", id);
+  if (error) throw new Error(`cannot stamp the step's day: ${error.message}`);
+}
+async function recheckSends(db, p) {
+  if (p.ids.length === 0) return 0;
+  const { data, error } = await db.rpc("reach_out_recheck", {
+    p_send_ids: p.ids,
+    p_tenant_id: p.tenantId,
+    ...p.fromState ? { p_from_state: p.fromState } : {}
+  });
+  if (error) throw new Error(`cannot put the sends back to be checked: ${error.message}`);
+  return typeof data === "number" ? data : 0;
+}
+async function outreachModeOf(db, tenantId) {
+  const { data, error } = await db.from("policies").select("mode").eq("tenant_id", tenantId).eq("class", "outreach").is("subject_type", null).maybeSingle();
+  if (error) throw new Error(`cannot read the outreach mode: ${error.message}`);
+  const said = data?.mode;
+  return said === "veto" || said === "never" ? said : "ask";
+}
+async function tenantZoneOf(db, tenantId) {
+  const { data, error } = await db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle();
+  return error ? null : data?.timezone ?? null;
+}
+var markOf = (v) => v && typeof v === "object" && !Array.isArray(v) && typeof v.claimed_at === "string" ? { claimed_at: v.claimed_at, ...typeof v.sent_at === "string" ? { sent_at: v.sent_at } : {} } : null;
+async function heldNoticeDue(db, p) {
+  let sends = db.from("reach_out_sends").select("tenant_id, broadcast_id, reason").eq("state", "held").gte("updated_at", p.since).limit(p.limit);
+  if (p.tenantId) sends = sends.eq("tenant_id", p.tenantId);
+  const held = await sends;
+  if (held.error) throw new Error(`cannot read the held: ${held.error.message}`);
+  const byRun = /* @__PURE__ */ new Map();
+  for (const s of held.data ?? []) {
+    if (!s.broadcast_id) continue;
+    const r = byRun.get(s.broadcast_id) ?? { held: 0, reasons: /* @__PURE__ */ new Set() };
+    r.held += 1;
+    if (s.reason) r.reasons.add(s.reason);
+    byRun.set(s.broadcast_id, r);
+  }
+  if (byRun.size === 0) return [];
+  const runs = await db.from("broadcasts").select("id, tenant_id, name, state, audience, updated_at").in("id", [...byRun.keys()]).in("state", [...RUN_GOING_STATES]);
+  if (runs.error) throw new Error(`cannot read the held's runs: ${runs.error.message}`);
+  return (runs.data ?? []).flatMap((b) => {
+    const audience = b.audience && typeof b.audience === "object" && !Array.isArray(b.audience) ? b.audience : {};
+    if (audience.kind !== "reach_out") return [];
+    const mark = markOf(audience.held_notice);
+    if (mark && (mark.sent_at || mark.claimed_at >= p.staleBefore)) return [];
+    const r = byRun.get(b.id);
+    return [
+      {
+        id: b.id,
+        tenant_id: b.tenant_id,
+        name: b.name,
+        audience,
+        updated_at: b.updated_at,
+        held: r.held,
+        reasons: [...r.reasons]
+      }
+    ];
+  });
+}
+async function markHeldNotice(db, p) {
+  let q = db.from("broadcasts").update({ audience: { ...p.audience, held_notice: { ...p.mark } } }).eq("tenant_id", p.tenantId).eq("id", p.id);
+  if (p.ifUpdatedAt) q = q.eq("updated_at", p.ifUpdatedAt);
+  const { data, error } = await q.select("id");
+  if (error) throw new Error(`cannot mark the run: ${error.message}`);
+  return (data ?? []).length === 1;
+}
+async function heldSendCounts(db, p) {
+  const counts = await Promise.all(
+    p.runIds.map(async (id) => {
+      const { count: count2, error } = await db.from("reach_out_sends").select("id", { count: "exact", head: true }).eq("tenant_id", p.tenantId).eq("broadcast_id", id).eq("state", "held");
+      if (error) throw new Error(`cannot count the held emails of run ${id}: ${error.message}`);
+      return [id, count2 ?? 0];
+    })
+  );
+  return new Map(counts);
+}
+
+// src/repositories/campaigns/stranded-runs.ts
 async function strandedRuns(db, p) {
   const { data, error } = await db.from("broadcasts").select("id, tenant_id, name, playbook_id, audience, scheduled_for").eq("state", "scheduled").gt("scheduled_for", p.since.toISOString()).lt("scheduled_for", p.before.toISOString()).or("audience->>kind.is.null,audience->>kind.neq.reach_out").order("scheduled_for", { ascending: true }).limit(p.limit);
   if (error) throw new Error(`stranded runs: cannot read the scheduled runs: ${error.message}`);
@@ -2369,10 +2530,18 @@ async function recordSystemDecision(db, p) {
   if (error) throw new Error(`cannot record the system's decision: ${error.message}`);
   return data.id;
 }
+var WAITING_RUN_COLUMNS = "id, name, state, playbook_id, run_for, audience, recipient_count, created_at";
 async function waitingRunsOf(db, tenantId) {
-  const { data, error } = await db.from("broadcasts").select("id, name, state, playbook_id, run_for, audience, recipient_count, created_at").eq("tenant_id", tenantId).eq("state", "pending_approval").order("created_at", { ascending: false }).limit(200);
-  if (error) throw new Error(`cannot read the runs waiting for approval: ${error.message}`);
-  return data ?? [];
+  const [pending, going] = await Promise.all([
+    db.from("broadcasts").select(WAITING_RUN_COLUMNS).eq("tenant_id", tenantId).eq("state", "pending_approval").order("created_at", { ascending: false }).limit(200),
+    db.from("broadcasts").select(WAITING_RUN_COLUMNS).eq("tenant_id", tenantId).in("state", [...RUN_GOING_STATES2]).order("created_at", { ascending: false }).limit(200)
+  ]);
+  if (pending.error) throw new Error(`cannot read the runs waiting for approval: ${pending.error.message}`);
+  if (going.error) throw new Error(`cannot read the going runs: ${going.error.message}`);
+  const reaching = (going.data ?? []).filter((r) => isReachOutRun(r.audience));
+  const held = reaching.length ? await heldSendCounts(db, { tenantId, runIds: reaching.map((r) => r.id) }) : null;
+  const holding = reaching.flatMap((r) => (held?.get(r.id) ?? 0) > 0 ? [{ ...r, held: held?.get(r.id) ?? 0 }] : []);
+  return [...pending.data ?? [], ...holding].sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
 // src/repositories/sending-domains.ts
@@ -2722,167 +2891,6 @@ async function reachOutDayDue(db, now, limit) {
 
 // src/repositories/reach-out.ts
 import { maySpend } from "../../contracts/dist/index.js";
-
-// src/repositories/reach-out-sheet.ts
-import { RUN_GOING_STATES, versionWords } from "../../contracts/dist/index.js";
-var STEP_COLUMNS = "id, name, state, trigger, lead_search_id, after_playbook_id, after_days, gap_minutes, domain_ids, signed_by, include_unconfirmed, template_id, hand, run_hour, last_run_for, created_at";
-async function reachOutStepsOf(db, tenantId) {
-  const { data, error } = await db.from("playbooks").select(STEP_COLUMNS).eq("tenant_id", tenantId).eq("kind", "reach_out");
-  if (error) throw new Error(`cannot read the reach-outs: ${error.message}`);
-  return data ?? [];
-}
-async function reachOutRootOf(db, id) {
-  const { data, error } = await db.from("playbooks").select("id, tenant_id, name, state, trigger, lead_search_id").eq("id", id).eq("kind", "reach_out").eq("trigger", "lead_first").maybeSingle();
-  if (error) throw new Error(`cannot read the reach-out: ${error.message}`);
-  return data;
-}
-async function reachOutSendRefOf(db, id) {
-  const { data, error } = await db.from("reach_out_sends").select("id, tenant_id, broadcast_id, state, reason").eq("id", id).maybeSingle();
-  if (error) throw new Error(`cannot read the email: ${error.message}`);
-  return data;
-}
-function emailWordsFrom(row) {
-  const words = versionWords({ channel: "email", components: row.components, body_preview: row.body_preview });
-  return words.body.trim() ? words : null;
-}
-async function emailWordsByTemplate(db, tenantId, ids) {
-  if (ids.length === 0) return /* @__PURE__ */ new Map();
-  const { data, error } = await db.from("templates").select("id, components, body_preview").eq("tenant_id", tenantId).in("id", ids);
-  if (error) throw new Error(`cannot read the reach-outs' words: ${error.message}`);
-  return new Map((data ?? []).map((t) => [t.id, emailWordsFrom(t)]));
-}
-async function searchNamesByIds(db, tenantId, ids) {
-  if (ids.length === 0) return /* @__PURE__ */ new Map();
-  const { data, error } = await db.from("lead_searches").select("id, name").eq("tenant_id", tenantId).in("id", ids);
-  if (error) throw new Error(`cannot read the searches: ${error.message}`);
-  return new Map((data ?? []).map((s) => [s.id, s.name]));
-}
-async function leadNamesByIds(db, tenantId, ids) {
-  if (ids.length === 0) return /* @__PURE__ */ new Map();
-  const { data, error } = await db.from("leads").select("id, business_name").eq("tenant_id", tenantId).in("id", ids);
-  if (error) throw new Error(`cannot read the leads' names: ${error.message}`);
-  return new Map((data ?? []).map((l) => [l.id, l.business_name]));
-}
-async function handRun(db, p) {
-  const { data, error } = await db.rpc("reach_out_hand_run", {
-    p_tenant_id: p.tenantId,
-    p_step_id: p.stepId,
-    p_run_id: p.runId,
-    p_day: p.day,
-    p_items: p.items
-  });
-  if (error) throw new Error(`cannot write the hand step's run: ${error.message}`);
-  const r = data ?? {};
-  return { made: r.made ?? 0, already: r.already ?? 0 };
-}
-async function saveReachOutChain(db, p) {
-  const { data, error } = await db.rpc("reach_out_save", {
-    p_tenant_id: p.tenantId,
-    p_user_id: p.userId,
-    p_chain: p.chain,
-    p_decision: p.decision?.payload ?? null,
-    ...p.decision?.via ? { p_via: p.decision.via } : {},
-    ...p.decision?.undoOf ? { p_undo_of: p.decision.undoOf } : {}
-  });
-  if (error) return { data: null, error: { code: error.code, message: error.message } };
-  const saved = data;
-  if (!saved || typeof saved.root_id !== "string")
-    return { data: null, error: { message: "reach_out_save: no chain" } };
-  if (p.decision && typeof saved.decision_id !== "string")
-    return { data: null, error: { message: "reach_out_save: the door answered without its decision" } };
-  return { data: saved, error: null };
-}
-async function runsWaitingOf(db, tenantId) {
-  const { data, error } = await db.from("broadcasts").select("id, audience").eq("tenant_id", tenantId).eq("state", "pending_approval");
-  if (error) throw new Error(`cannot read the runs waiting: ${error.message}`);
-  return data ?? [];
-}
-async function reachOutRunSendsOf(db, tenantId, runId) {
-  const { data, error } = await db.from("reach_out_sends").select(
-    "id, lead_id, state, reason, hold_detail, opening, angle, send_at, checked_at, created_at, domain_id, lead:leads(business_name, email, city)"
-  ).eq("tenant_id", tenantId).eq("broadcast_id", runId);
-  if (error) throw new Error(`cannot read the run's emails: ${error.message}`);
-  return data ?? [];
-}
-async function stampReachOutStep(db, id, p) {
-  const { error } = await db.from("playbooks").update({ last_run_at: p.at.toISOString(), ...p.runFor ? { last_run_for: p.runFor } : {} }).eq("id", id);
-  if (error) throw new Error(`cannot stamp the step's day: ${error.message}`);
-}
-async function recheckSends(db, p) {
-  if (p.ids.length === 0) return 0;
-  const { data, error } = await db.rpc("reach_out_recheck", {
-    p_send_ids: p.ids,
-    p_tenant_id: p.tenantId,
-    ...p.fromState ? { p_from_state: p.fromState } : {}
-  });
-  if (error) throw new Error(`cannot put the sends back to be checked: ${error.message}`);
-  return typeof data === "number" ? data : 0;
-}
-async function outreachModeOf(db, tenantId) {
-  const { data, error } = await db.from("policies").select("mode").eq("tenant_id", tenantId).eq("class", "outreach").is("subject_type", null).maybeSingle();
-  if (error) throw new Error(`cannot read the outreach mode: ${error.message}`);
-  const said = data?.mode;
-  return said === "veto" || said === "never" ? said : "ask";
-}
-async function tenantZoneOf(db, tenantId) {
-  const { data, error } = await db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle();
-  return error ? null : data?.timezone ?? null;
-}
-var markOf = (v) => v && typeof v === "object" && !Array.isArray(v) && typeof v.claimed_at === "string" ? { claimed_at: v.claimed_at, ...typeof v.sent_at === "string" ? { sent_at: v.sent_at } : {} } : null;
-async function heldNoticeDue(db, p) {
-  let sends = db.from("reach_out_sends").select("tenant_id, broadcast_id, reason").eq("state", "held").gte("updated_at", p.since).limit(p.limit);
-  if (p.tenantId) sends = sends.eq("tenant_id", p.tenantId);
-  const held = await sends;
-  if (held.error) throw new Error(`cannot read the held: ${held.error.message}`);
-  const byRun = /* @__PURE__ */ new Map();
-  for (const s of held.data ?? []) {
-    if (!s.broadcast_id) continue;
-    const r = byRun.get(s.broadcast_id) ?? { held: 0, reasons: /* @__PURE__ */ new Set() };
-    r.held += 1;
-    if (s.reason) r.reasons.add(s.reason);
-    byRun.set(s.broadcast_id, r);
-  }
-  if (byRun.size === 0) return [];
-  const runs = await db.from("broadcasts").select("id, tenant_id, name, state, audience, updated_at").in("id", [...byRun.keys()]).in("state", [...RUN_GOING_STATES]);
-  if (runs.error) throw new Error(`cannot read the held's runs: ${runs.error.message}`);
-  return (runs.data ?? []).flatMap((b) => {
-    const audience = b.audience && typeof b.audience === "object" && !Array.isArray(b.audience) ? b.audience : {};
-    if (audience.kind !== "reach_out") return [];
-    const mark = markOf(audience.held_notice);
-    if (mark && (mark.sent_at || mark.claimed_at >= p.staleBefore)) return [];
-    const r = byRun.get(b.id);
-    return [
-      {
-        id: b.id,
-        tenant_id: b.tenant_id,
-        name: b.name,
-        audience,
-        updated_at: b.updated_at,
-        held: r.held,
-        reasons: [...r.reasons]
-      }
-    ];
-  });
-}
-async function markHeldNotice(db, p) {
-  let q = db.from("broadcasts").update({ audience: { ...p.audience, held_notice: { ...p.mark } } }).eq("tenant_id", p.tenantId).eq("id", p.id);
-  if (p.ifUpdatedAt) q = q.eq("updated_at", p.ifUpdatedAt);
-  const { data, error } = await q.select("id");
-  if (error) throw new Error(`cannot mark the run: ${error.message}`);
-  return (data ?? []).length === 1;
-}
-async function heldSendCounts(db, p) {
-  const counts = await Promise.all(
-    p.runIds.map(async (id) => {
-      const { count: count2, error } = await db.from("reach_out_sends").select("id", { count: "exact", head: true }).eq("tenant_id", p.tenantId).eq("broadcast_id", id).eq("state", "held");
-      if (error) throw new Error(`cannot count the held emails of run ${id}: ${error.message}`);
-      return [id, count2 ?? 0];
-    })
-  );
-  return new Map(counts);
-}
-
-// src/repositories/reach-out.ts
 async function domainCapacityOf(db, domainId, at) {
   const { data, error } = await db.rpc("sending_domain_capacity", {
     p_domain_id: domainId,

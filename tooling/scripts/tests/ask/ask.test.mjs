@@ -804,7 +804,7 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
   assert.ok(idx.some((j) => j.to === "conversations/cv-k1" && j.sub === "missed"));
   assert.equal(
     api.rightNow("en"),
-    "Nora needs you; a campaign run is waiting for your approval.",
+    "Nora needs you; a campaign run is waiting for your say.",
     "the queue's people (a call worth a listen is nobody waiting) and the run waiting for a yes",
   );
   assert.deepEqual(api.waiting().people, [

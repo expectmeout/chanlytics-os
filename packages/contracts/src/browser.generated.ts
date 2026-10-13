@@ -318,7 +318,7 @@ export { MIN_MS, HOUR_MS, DAY_MS, WEEK_MS, jittered, spanUnits, spanLabel, waite
 export { finiteOrNull, finiteOrZero, trimmedOrNull, nonBlankOrNull, recordOrNull, lineOrNull } from "./shared/unknown";
 export { plural } from "./shared/words";
 export { routeOfPath, routeOfHash, routeOfAddress, movedAddress, workspacePath, appLink, doorOf, canonicalRoute, ROUTE_WORDS } from "./shell/address";
-export { CAMPAIGN_ROOMS, PLAYBOOK_DELETE_WORDS, NO_TEMPLATE_WORDS, noMessageWords, LIBRARY_WORDS, NEW_MESSAGE_WORDS, LIBRARY_STARTER_WORDS, BROADCAST_WORDS, runStoppedWords, RUN_WAITING_WORDS, runsWaitingSentence, runStopWords, OFFERS_IN_WRITING_WORDS } from "./shell/campaign-rooms";
+export { CAMPAIGN_ROOMS, PLAYBOOK_DELETE_WORDS, NO_TEMPLATE_WORDS, noMessageWords, LIBRARY_WORDS, NEW_MESSAGE_WORDS, LIBRARY_STARTER_WORDS, BROADCAST_WORDS, runStoppedWords, RUN_WAITING_WORDS, runsWaitingSentence, heldEmailsWords, runStopWords, OFFERS_IN_WRITING_WORDS } from "./shell/campaign-rooms";
 export { nextThemePref, themeButtonWords, resolveTheme, themeColorOf, themeBootScript, inAppFrom, inAppBootScript, isTypingTarget, pageTitle, notFoundPageMetadata, shellStatusLine, shortcutGroups, toastShape, THEME_OPTIONS, isThemePref, DEFAULT_THEME_PREF, themePrefOf, LOOK_OPTIONS, isLookPref, DEFAULT_LOOK_PREF, lookPrefOf, LOOK_OFFERED, DEVICE_PREFS_STORAGE, THEME_COLORS, THEME_INK, THEME_COLOR_META, IN_APP_UA_RE, IN_APP_CLASS, APP_KEYS_RESIZE_CLASS, isSidebarPref, SHORTCUTS, TOAST_TONES, TOAST_MS, TOAST_UNDO_MS, TOAST_MIN_MS, TOAST_ICONS } from "./shell/chrome";
 export { CLIENT_ERROR_BOUNDARIES, CLIENT_ERROR_LIMITS, clientErrorOf } from "./shell/client-error";
 export { personInitials, identityWords, memberWords, cleanDisplayName, providerNameOf, invitationWords, joinedWords, youJoinedWords, TEAM_INVITE_DAYS, ROLE_WORDS, DISPLAY_NAME_MAX } from "./shell/identity";
@@ -372,7 +372,7 @@ export { frameWhisper, frameGuardrail, frameSteer, whisperText, frameHandOver, i
 export { bellFeed, bellOlderOf, holdMarksOf } from "./waits/hold-rows";
 export { closeSettledNotices, noticeStillWaits, settledNoticeIds, kindsEndedBy, NOTICE_ENDS, NOTHING_WAITS_KNOWN } from "./waits/notice-closes";
 export { NOTICE_MENDS, warningsMendedBy } from "./waits/notice-mends";
-export { threadWait, threadWaits, waitsOf, needsYouCount, runWaitsOnYou, runTooLate, runsThatWait } from "./waits/waits";
+export { threadWait, threadWaits, waitsOf, needsYouCount, runWaitsOnYou, runHeldEmails, runTooLate, runsThatWait } from "./waits/waits";
 export { ACTIVATION_MILESTONES } from "./workspace/activation";
 export { activityWords, activityKindWords, REACH_OUT_EMAILED_WORDS, CALL_MISSED_WORDS, CALL_UNANSWERED_WORDS, isActivityMoney, isActivityNoise, ACTIVITY_NOISE_PREFIXES, ACTIVITY_NOISE_KINDS, ACTIVITY_KINDS } from "./workspace/activity";
 export { receptionistOn, billingDoorOpen, maySpend, mayUseModels, openToCustomersOf, takesSignUps, hasPublicPages, whyCannotSpend, tenantStatusFor, planBilling, dayWords, trialOffer, trialWords, priceWords, toBillingVM, billingPill, invoiceStatusWords, isCheckoutReturn, moneyWords, billingAccountDto, pausedVoiceFacts, BILLING_MODES, BILLING_STATUSES, BILLING_TRIAL_DAYS, SPEND_NUMBER, SPEND_LEADS, SPEND_TEXTING, PAUSED_WORDS, CAMPAIGNS_PAUSED_WORDS, BILLING_TEST_MODE_CLAUSE, TRIAL_COVERS, START_PLAN_WORDS, INVOICE_STATUS_WORDS, CHECKOUT_RETURNS, CHECKOUT_RETURN_ROUTE, CHECKOUT_OUTCOME_WORDS } from "./workspace/billing";

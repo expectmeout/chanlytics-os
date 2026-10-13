@@ -6,7 +6,8 @@
  * receptionist's reply counting down to go in the owner's name, which can still be stopped (standing.ts replyWaitsOnYou).
  * A run is a campaign waiting for a word before anything sends, while a word can still send it: a playbook's run whose
  * day has passed can only be skipped (runApprovalRefusal, which the verb refuses by), and the hourly sweep skips it
- * itself, so it waits on nobody (the wiring's second audit, S7-3).
+ * itself, so it waits on nobody (the wiring's second audit, S7-3). A reach-out's going run whose emails the check holds
+ * waits too, once however many it holds: those emails go nowhere until the owner says (Ruben, 13 Oct 2026).
  *
  * The Inbox's badge in the sidebar, the phone's Inbox tab, the title of the browser's tab, the phone app's badge and
  * Today's head each counted them their own way, and two pages published a number over each other's (the wiring
@@ -18,6 +19,7 @@
  */
 import { replyWaitsOnYou } from "../conversations/standing";
 import { runApprovalRefusal } from "../playbooks/playbook-approval";
+import { RUN_GOING_STATES } from "../broadcasts/broadcasts";
 
 /** One thread as the count reads it, however the page holds the thread: a view model, or a conversation off the wire. */
 export interface WaitingThread {
@@ -36,6 +38,8 @@ export interface WaitingRun {
   /** The business's day the run was made for (a playbook's run). */
   run_for?: string | null;
   audience?: unknown;
+  /** How many of a going run's emails the check holds for the owner's say (absent where Sent did not say). */
+  held?: number | null;
 }
 
 /** The business's day now and the day of the next open sending moment (contracts runDaysAt): what the verb asks by. */
@@ -50,17 +54,24 @@ export interface Waits {
   holds: number;
   /** Replies counting down that can still be stopped, on threads with no hold of their own. */
   sends: number;
-  /** Runs waiting for a word that can still send them. */
+  /** Runs waiting for a word that can still send them, and going runs whose emails the check holds (runWaitsOnYou). */
   runs: number;
 }
 
 /**
  * Whether a campaign's run waits for your word: it is waiting for approval, and an approval now would send it (contracts
- * runApprovalRefusal, THE predicate core approveRun refuses by, the reach-out exemption and all). A one-off broadcast has
- * no day to pass and waits until it is decided.
+ * runApprovalRefusal, THE predicate core approveRun refuses by, the reach-out exemption and all), or it is going and its
+ * check holds emails for your say (runHeldEmails). A one-off broadcast has no day to pass and waits until it is decided.
  */
 export function runWaitsOnYou(run: WaitingRun, days: RunDays): boolean {
+  if (runHeldEmails(run) > 0) return true;
   return run.state === "pending_approval" && runApprovalRefusal(runAsked(run), days) === null;
+}
+
+/** How many emails a going run's check holds for your say: none for a run that is not going, or where Sent did not say. */
+export function runHeldEmails(run: Pick<WaitingRun, "state" | "held">): number {
+  const going = (RUN_GOING_STATES as readonly string[]).includes(run.state);
+  return going && typeof run.held === "number" && run.held > 0 ? run.held : 0;
 }
 
 /** Whether a run waits for approval that an approval can no longer send: it can only be skipped, and the sweep skips it. */

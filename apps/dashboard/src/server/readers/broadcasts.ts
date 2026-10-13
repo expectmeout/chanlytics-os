@@ -102,7 +102,7 @@ export const broadcast: Reader<{ id: string }, BroadcastDetailDto> = {
 };
 
 /**
- * The runs waiting for approval, newest first (packages/db waitingRunsOf): what the server's Today counts as waiting on
+ * The runs waiting for a word, newest first (packages/db waitingRunsOf: for approval, or holding emails for your say): what the server's Today counts as waiting on
  * you, by the verb's own day rule (contracts runsThatWait), so Ask's Today says the head the page says and names the
  * runs. Each run is a row a citation names.
  */

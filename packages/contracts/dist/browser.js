@@ -13456,7 +13456,10 @@ function runStoppedWords(was) {
 }
 var RUN_WAITING_WORDS = "Waiting for your approval";
 function runsWaitingSentence(n) {
-  return n === 1 ? "A campaign run is waiting for your approval." : `${n} campaign runs are waiting for your approval.`;
+  return n === 1 ? "A campaign run is waiting for your say." : `${n} campaign runs are waiting for your say.`;
+}
+function heldEmailsWords(n) {
+  return `${n} ${n === 1 ? "email waits" : "emails wait"} for your say`;
 }
 var RUN_STOP_WORDS = {
   sending: {
@@ -13821,7 +13824,7 @@ var LIFECYCLE_WORDS = {
     /** A run waiting for the owner, in the run's one phrase (broadcasts.ts BROADCAST_STATE_LABELS reads it too). */
     waiting: RUN_WAITING_WORDS,
     /** A reach-out's going run whose emails the check holds for the owner's say. */
-    held: (n) => `${plural(n, "email", "emails")} ${n === 1 ? "waits" : "wait"} for your say`,
+    held: heldEmailsWords,
     /**
      * A run waiting on the person, approved or skipped on its own line: the two acts, and what Skip asks. What the line
      * says of the run is Today's own sentence for it (today-runs.ts todayRunWords: "7 people. Nothing sends until you
@@ -18516,7 +18519,7 @@ var names = (list2, total, es) => {
 var unreadQueueWords = (es) => es ? "La cola de hoy a\xFAn no se ha le\xEDdo." : "Today's queue hasn't been read yet.";
 function runsClause(n, es) {
   if (!n) return "";
-  if (es) return `${n === 1 ? "un env\xEDo de campa\xF1a espera" : `${n} env\xEDos de campa\xF1a esperan`} tu aprobaci\xF3n`;
+  if (es) return `${n === 1 ? "un env\xEDo de campa\xF1a espera" : `${n} env\xEDos de campa\xF1a esperan`} tu decisi\xF3n`;
   const sentence2 = runsWaitingSentence(n);
   return `${sentence2.charAt(0).toLowerCase()}${sentence2.slice(1, -1)}`;
 }
@@ -25613,7 +25616,12 @@ function toApprovalVM(d, opts) {
 
 // src/waits/waits.ts
 function runWaitsOnYou(run, days) {
+  if (runHeldEmails(run) > 0) return true;
   return run.state === "pending_approval" && runApprovalRefusal(runAsked(run), days) === null;
+}
+function runHeldEmails(run) {
+  const going = RUN_GOING_STATES.includes(run.state);
+  return going && typeof run.held === "number" && run.held > 0 ? run.held : 0;
 }
 function runTooLate(run, days) {
   return run.state === "pending_approval" && runApprovalRefusal(runAsked(run), days) !== null;
@@ -34425,7 +34433,12 @@ function todayRunWords(r2) {
       sentence: `${people}. ${runStopWords("scheduled").verb} it if you'd rather not.`,
       status: ["Scheduled", `sends ${r2.when}`]
     },
-    done: { counts: r2.counts.replied ? `${sent2}, ${r2.counts.replied} replied` : sent2, still: r2.state === "sending" }
+    done: { counts: r2.counts.replied ? `${sent2}, ${r2.counts.replied} replied` : sent2, still: r2.state === "sending" },
+    held: {
+      meta: `${kind} \xB7 going`,
+      sentence: `${heldEmailsWords(r2.held ?? 0)}. The rest of the run goes as planned.`,
+      status: ["Held for your say"]
+    }
   };
 }
 function todayRunsSub(n) {
@@ -45428,6 +45441,7 @@ export {
   heldByAllowance,
   heldDraftOf,
   heldDraftWaits,
+  heldEmailsWords,
   heldLine,
   heldNoticeWords,
   heldPill,
@@ -46226,6 +46240,7 @@ export {
   runDayPassed,
   runDaysAt,
   runDueNow,
+  runHeldEmails,
   runReadingOf,
   runStopWords,
   runStoppedWords,

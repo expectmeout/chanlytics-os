@@ -1,6 +1,6 @@
 /**
  * The campaign runs waiting for your word, said where the badge counts them (the wiring's second audit, S7-2). The
- * Needs-you badge counts the runs waiting for approval, and the Inbox under it listed threads only and said "Nobody's
+ * Needs-you badge counts the runs waiting for your say (an approval, or the emails a going run's check holds), and the Inbox under it listed threads only and said "Nobody's
  * waiting on you": one count, said nowhere it was counted. The band stands above Needs you while a run waits that an
  * approval can still send (needs-you.ts waitingRunsNow), in the words Today's head leads with (contracts
  * runsWaitingSentence), with the door to the run, or to Sent for several. Drawn from the kit alone.

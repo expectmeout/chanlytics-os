@@ -39257,7 +39257,7 @@ declare function recordSystemDecision(db: Db$s, p: {
     verb: string;
     payload: Json;
 }): Promise<string>;
-/** A run waiting for approval as a workspace's own read takes it: what the count asks of it, and what names it. */
+/** A run waiting for a word as a workspace's own read takes it: what the count asks of it, and what names it. */
 interface WaitingRunRow {
     id: string;
     name: string;
@@ -39267,11 +39267,14 @@ interface WaitingRunRow {
     audience: unknown;
     recipient_count: number;
     created_at: string;
+    /** A going reach-out run's emails the check holds for the owner's say (contracts runHeldEmails). */
+    held?: number;
 }
 /**
- * One workspace's runs waiting for approval, newest first, two hundred at most, on the session's client (RLS decides):
- * what the server's Today counts as waiting on you (contracts runsThatWait, by the verb's own day rule) and Ask's today
- * tool names. A read that fails throws.
+ * One workspace's runs waiting for a word, newest first, on the session's client (RLS decides): those waiting for
+ * approval (two hundred at most), and the going reach-out runs whose check holds emails for the owner's say, with how
+ * many (heldSendCounts). What the server's Today counts as waiting on you (contracts runsThatWait, by the verb's own day
+ * rule and runHeldEmails) and Ask's today tool names. A read that fails throws.
  */
 declare function waitingRunsOf(db: Db$s, tenantId: string): Promise<WaitingRunRow[]>;
 
