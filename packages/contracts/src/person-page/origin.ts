@@ -19,7 +19,7 @@ import { samePhone } from "../shared/phone";
 import { ORIGIN_WORDS, REACH_SOURCE_WORDS } from "./words";
 
 /** What the sources and the origin are read from: the person read's own rows, narrowed. */
-export interface ContactEvidence {
+interface ContactEvidence {
   phone: string | null;
   email: string | null;
   /** People's first contact for them: its moment, its words ("Jul 14", "Before Aug 27") and the wire it came by. */

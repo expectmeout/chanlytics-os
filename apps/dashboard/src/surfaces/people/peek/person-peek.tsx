@@ -25,7 +25,7 @@ import { PersonWalkNav, openWith, threadCtaOf } from "../person/hero";
 import { PersonNotes } from "../person/notes";
 import { LastWords, UpNext } from "../person/overview";
 
-export interface PersonPeekProps {
+interface PersonPeekProps {
   id: string;
   row: PersonRowVM | null;
   person: PersonVM | null;
