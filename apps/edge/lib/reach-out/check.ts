@@ -240,10 +240,8 @@ export async function checkSends(p: {
   }
 
   /* each lead's country, once (decision 0056, 9): one where the law asks consent first is never asked about */
-  const countries = await leadCountriesOf(
-    db,
-    go.map((u) => u.send.lead_id),
-  ).catch((e: unknown) => {
+  const leadIds = go.map((u) => u.send.lead_id);
+  const countries = await leadCountriesOf(db, leadIds).catch((e: unknown) => {
     // Nothing is checked without them: the leases lapse in two minutes, and the next tick asks again.
     error("reach_out_check_error", { stage: "countries" }, e);
     go.length = 0;
@@ -292,8 +290,7 @@ export async function checkSends(p: {
       }
       const c = await checkOne(input, ask, budget, { tenantId: s.tenant_id, subjectId: s.id });
       out.calls += c.calls;
-      out.tokens.input += c.tokens.input;
-      out.tokens.output += c.tokens.output;
+      out.tokens = { input: out.tokens.input + c.tokens.input, output: out.tokens.output + c.tokens.output };
       if (c.kind === "late") {
         if (await write(u, {})) out.late += 1;
         return;
