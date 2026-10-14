@@ -34597,19 +34597,19 @@ function dealFill(a) {
     value: amountOf(a.value),
     per: DEAL_PER_SET.includes(a.per) ? a.per : "",
     link: a.link.trim().slice(0, 600),
-    validUntil: isRealDate(day) ? day : "",
+    valid_until: isRealDate(day) ? day : "",
     reason: DEAL_REASON_SET.includes(a.lost_reason) ? a.lost_reason : "",
     note: a.note.trim().slice(0, 200)
   };
 }
 function noteFill(a) {
   const day = a.day.trim();
-  return { what: a.body.trim().slice(0, NOTE_MAX), day: isRealDate(day) ? day : "", teamOnly: a.team_only };
+  return { what: a.body.trim().slice(0, NOTE_MAX), day: isRealDate(day) ? day : "", team_only: a.team_only };
 }
 function sayItFilled(dto) {
   if (dto.verb === "note") return !!dto.note.what;
   const d = dto.deal;
-  return !!(d.service || d.value || d.per || d.link || d.validUntil || d.reason || d.note);
+  return !!(d.service || d.value || d.per || d.link || d.valid_until || d.reason || d.note);
 }
 function dealSheetFill(sheet, fill2) {
   const patch = {};
@@ -34618,14 +34618,14 @@ function dealSheetFill(sheet, fill2) {
   if (fill2.link && sheet.link) patch.link = fill2.link;
   if (fill2.value && sheet.value) patch.value = fill2.value;
   if (fill2.per && sheet.value) patch.per = fill2.per;
-  if (fill2.validUntil && sheet.validUntil) patch.validUntil = fill2.validUntil;
+  if (fill2.valid_until && sheet.validUntil) patch.validUntil = fill2.valid_until;
   if (fill2.reason && sheet.reason) patch.reason = fill2.reason;
   if (fill2.note && sheet.note) patch.note = fill2.note;
   return patch;
 }
 function noteSheetFill(sheet, fill2) {
   const day = fill2.day ? { day: fill2.day, picking: !sheet.days.some((c) => c.key === fill2.day) } : sheet.kind === "note" ? { day: NO_DAY, picking: false } : {};
-  return { what: fill2.what, teamOnly: fill2.teamOnly, ...day };
+  return { what: fill2.what, teamOnly: fill2.team_only, ...day };
 }
 
 // src/people/erasure.ts

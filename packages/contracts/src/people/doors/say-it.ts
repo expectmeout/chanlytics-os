@@ -71,13 +71,13 @@ export interface SayItNoteAnswer {
   team_only: boolean;
 }
 
-/** What a deal sheet is filled with: only what was said, each field as the sheet holds it. */
+/** What a deal sheet is filled with: only what was said, each field kept by its rule ("" for nothing said). */
 export interface SayItDealFill {
   service: string;
   value: string;
   per: DealPer | "";
   link: string;
-  validUntil: string;
+  valid_until: string;
   reason: DealLostReason | "";
   note: string;
 }
@@ -86,7 +86,7 @@ export interface SayItDealFill {
 export interface SayItNoteFill {
   what: string;
   day: string;
-  teamOnly: boolean;
+  team_only: boolean;
 }
 
 /** What POST people/[id]/say answers: one sheet's fill. */
@@ -127,7 +127,7 @@ export function dealFill(a: SayItDealAnswer): SayItDealFill {
     value: amountOf(a.value),
     per: DEAL_PER_SET.includes(a.per) ? (a.per as DealPer) : "",
     link: a.link.trim().slice(0, 600),
-    validUntil: isRealDate(day) ? day : "",
+    valid_until: isRealDate(day) ? day : "",
     reason: DEAL_REASON_SET.includes(a.lost_reason) ? (a.lost_reason as DealLostReason) : "",
     note: a.note.trim().slice(0, 200),
   };
@@ -136,14 +136,14 @@ export function dealFill(a: SayItDealAnswer): SayItDealFill {
 /** What a note sheet keeps of an answer: its words within a note's limit, a real day or none, who reads it. */
 export function noteFill(a: SayItNoteAnswer): SayItNoteFill {
   const day = a.day.trim();
-  return { what: a.body.trim().slice(0, NOTE_MAX), day: isRealDate(day) ? day : "", teamOnly: a.team_only };
+  return { what: a.body.trim().slice(0, NOTE_MAX), day: isRealDate(day) ? day : "", team_only: a.team_only };
 }
 
 /** Whether an answer filled anything at all: a fill of nothing is said, never drawn as a sheet emptied. */
 export function sayItFilled(dto: SayItDto): boolean {
   if (dto.verb === "note") return !!dto.note.what;
   const d = dto.deal;
-  return !!(d.service || d.value || d.per || d.link || d.validUntil || d.reason || d.note);
+  return !!(d.service || d.value || d.per || d.link || d.valid_until || d.reason || d.note);
 }
 
 /**
@@ -160,7 +160,7 @@ export function dealSheetFill(
   if (fill.link && sheet.link) patch.link = fill.link;
   if (fill.value && sheet.value) patch.value = fill.value;
   if (fill.per && sheet.value) patch.per = fill.per;
-  if (fill.validUntil && sheet.validUntil) patch.validUntil = fill.validUntil;
+  if (fill.valid_until && sheet.validUntil) patch.validUntil = fill.valid_until;
   if (fill.reason && sheet.reason) patch.reason = fill.reason;
   if (fill.note && sheet.note) patch.note = fill.note;
   return patch;
@@ -176,5 +176,5 @@ export function noteSheetFill(sheet: Pick<StepSheetVM, "kind" | "days">, fill: S
     : sheet.kind === "note"
       ? { day: NO_DAY, picking: false }
       : {};
-  return { what: fill.what, teamOnly: fill.teamOnly, ...day };
+  return { what: fill.what, teamOnly: fill.team_only, ...day };
 }

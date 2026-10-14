@@ -1233,7 +1233,7 @@ test("automatically: an hourly sweep on the edge puts the feed's people in Peopl
   // the same route, a number and a name, opening the person it made or found.
   assert.ok(
     readCode("apps/dashboard/src/surfaces/people/people-detail.ts").includes(
-      'return answered(await commitVerb("person_add", body));',
+      'return verbAnswer(await commitVerb("person_add", body));',
     ),
     "the bridge verb, through the same door",
   );
@@ -2053,7 +2053,7 @@ test("bulk actions: a selection becomes people on a list, a yes on record (one r
   // surface, is the one write that does).
   const bridge = readCode("apps/dashboard/src/surfaces/people/people-detail.ts");
   assert.ok(
-    bridge.includes('return answered(await commitVerb("answer", { contact_id: id, purpose, ...body }));') &&
+    bridge.includes('return verbAnswer(await commitVerb("answer", { contact_id: id, purpose, ...body }));') &&
       !bridge
         .slice(bridge.indexOf("async function recordMany"), bridge.indexOf("export type ReceptionistMany"))
         .includes("refresh: false"),

@@ -34159,13 +34159,13 @@ interface SayItNoteAnswer {
     day: string;
     team_only: boolean;
 }
-/** What a deal sheet is filled with: only what was said, each field as the sheet holds it. */
+/** What a deal sheet is filled with: only what was said, each field kept by its rule ("" for nothing said). */
 interface SayItDealFill {
     service: string;
     value: string;
     per: DealPer | "";
     link: string;
-    validUntil: string;
+    valid_until: string;
     reason: DealLostReason | "";
     note: string;
 }
@@ -34173,7 +34173,7 @@ interface SayItDealFill {
 interface SayItNoteFill {
     what: string;
     day: string;
-    teamOnly: boolean;
+    team_only: boolean;
 }
 /** What POST people/[id]/say answers: one sheet's fill. */
 type SayItDto = {

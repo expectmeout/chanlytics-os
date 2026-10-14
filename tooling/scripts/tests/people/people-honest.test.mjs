@@ -1649,9 +1649,9 @@ test("on a phone More opens the selection's sheet -- Messages and receptionist â
     // notes/step-sheet.test.mjs), asked with who is picked; once it says what it reached, the bar says it and clears.
     const asked = [];
     const hear = (e) => asked.push(e.detail);
-    globalThis.addEventListener("step:sheet", hear);
+    globalThis.window.addEventListener("step:sheet", hear);
     click(byTestId(draw(), "bulk-note"));
-    globalThis.removeEventListener("step:sheet", hear);
+    globalThis.window.removeEventListener("step:sheet", hear);
     assert.equal(openSheet(draw(), "bulk-sheet"), null, "the bar's own sheet stays shut: the note is the note sheet's");
     assert.deepEqual(
       asked.map((d) => [d.many, d.note]),
