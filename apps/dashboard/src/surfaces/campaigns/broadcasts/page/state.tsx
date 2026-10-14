@@ -202,11 +202,15 @@ export function useBcOpen(initialRun: string | null, initialToSend: boolean) {
     setOpenId(initialRun);
     setToSendOpen(initialToSend);
   }, [initialRun, initialToSend]);
-  // The address each writes is followed already: a run opened from To send keeps To send under it, to close back to.
-  const openRun = (id: string | null) => {
+  // `keep`: To send stays under a run opened from it (its own door says so), to close back to; a run opened from the list,
+  // or Send it again, leaves it. A run closed goes back to To send where it was kept. The address each writes is followed
+  // already, so the address's own change moves nothing.
+  const openRun = (id: string | null, keep = id === null) => {
+    const under = keep && toSendOpen;
     setOpenId(id);
-    followed.current = { run: id, toSend: !id && toSendOpen };
-    replaceRoute(id ? addressOf({ kind: "send", id }) : toSendOpen ? TO_SEND_ROUTE : "broadcasts");
+    if (!under) setToSendOpen(false);
+    followed.current = { run: id, toSend: !id && under };
+    replaceRoute(id ? addressOf({ kind: "send", id }) : under ? TO_SEND_ROUTE : "broadcasts");
   };
   const close = () => {
     setToSendOpen(false);

@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-const { toSendAllOf, toSendRunsOf, waitingRunsDoor, doorOf, TO_SEND_ROUTE, TO_SEND_ALL_WORDS } =
+const { toSendAllOf, toSendRunsOf, toSendEveryOf, waitingRunsDoor, doorOf, TO_SEND_ROUTE, TO_SEND_ALL_WORDS } =
   await import("@chanlytics/contracts");
 
 /** A run as Sent's list holds it, as far as the rules read it. */
@@ -47,13 +47,24 @@ test("Today draws two or more as one row; one alone, or one whose check holds em
     ["a", "b"],
   );
   assert.equal(two.count, 3);
+  assert.equal(two.from, 2);
   assert.equal(
     toSendRunsOf([run("a", { drafted: 2 }), run("b", { drafted: 1, held: 2 })]),
     null,
     "a run holding emails for a say is answered on the run first",
   );
+  // The row says the list it opens: a run that holds emails too is on it, though it keeps a row of its own.
+  const three = toSendRunsOf([run("a", { drafted: 2 }), run("b", { drafted: 1 }), run("c", { drafted: 3, held: 1 })]);
+  assert.deepEqual(
+    three.runs.map((r) => r.id),
+    ["a", "b"],
+  );
+  assert.equal(three.count, 6);
+  assert.equal(three.from, 3);
+  assert.deepEqual(toSendEveryOf([run("a", { drafted: 2 }), run("c", { drafted: 3, held: 1 })]), { count: 5, from: 2 });
+  assert.equal(toSendEveryOf([run("a", { drafted: 2 })]), null, "a run alone has no door to all of them");
   assert.equal(
-    TO_SEND_ALL_WORDS.sentence(two.count, two.runs.length),
+    TO_SEND_ALL_WORDS.sentence(two.count, two.from),
     "3 emails to send from your inbox, from 2 reach-outs, each written and checked.",
   );
   assert.equal(TO_SEND_ALL_WORDS.sub(1, 1), "1 email handed to you");

@@ -298,13 +298,23 @@ export function toSendAllOf<R extends ToSendRunLike>(runs: readonly R[]): { runs
 type WaitingToSend = ToSendRunLike & { held?: number | null };
 
 /**
- * The runs waiting for you that are the one To send: two or more going runs whose emails are handed to their owner, none
- * of them holding emails for a say too (a held email is answered on its run first). Today draws them as one row; null
- * where there are fewer, and each is its own run's row.
+ * The runs waiting for you that fold into the one To send's row on Today: two or more going runs whose emails are handed
+ * to their owner, none of them holding emails for a say too (a held email is answered on its run, its own row). Null
+ * where fewer would fold, and each is its own run's row. The row says the list it opens: every email handed over and
+ * every run with one (`count`, `from`: toSendAllOf), a run that holds emails too among them.
  */
-export function toSendRunsOf<R extends WaitingToSend>(waiting: readonly R[]): { runs: R[]; count: number } | null {
-  const all = toSendAllOf(waiting.filter((r) => runHeldEmails(r) === 0));
-  return all && all.runs.length > 1 ? all : null;
+export function toSendRunsOf<R extends WaitingToSend>(
+  waiting: readonly R[],
+): { runs: R[]; count: number; from: number } | null {
+  const folded = waiting.filter((r) => runHeldEmails(r) === 0 && runDraftedEmails(r) > 0);
+  const all = toSendAllOf(waiting);
+  return all && folded.length > 1 ? { runs: folded, count: all.count, from: all.runs.length } : null;
+}
+
+/** The door from a run's own To send to the one list: where two or more runs hand emails over, its numbers. */
+export function toSendEveryOf<R extends ToSendRunLike>(runs: readonly R[]): { count: number; from: number } | null {
+  const all = toSendAllOf(runs);
+  return all && all.runs.length > 1 ? { count: all.count, from: all.runs.length } : null;
 }
 
 /**

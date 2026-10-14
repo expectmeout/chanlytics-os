@@ -141,7 +141,7 @@ function toSendRow(t: NonNullable<ReturnType<typeof toSendRunsOf>>, nav: Nav, ve
       glyph="bolt"
       name={W.title}
       meta={W.meta}
-      sentence={W.sentence(t.count, t.runs.length)}
+      sentence={W.sentence(t.count, t.from)}
       status={[W.status]}
       tone="escalated"
       cta={{ label: "Open", kind: verbKind(), onClick: () => nav(TO_SEND_ROUTE) }}

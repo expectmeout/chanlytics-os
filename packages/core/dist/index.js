@@ -37668,6 +37668,15 @@ function companiesOf(found) {
 function endingOf(state, held) {
   return held === 0 && state !== "succeeded" ? "source_failed" : "searched_everything";
 }
+async function unreadableStart(p, at) {
+  const card = CARDS.people_at_companies;
+  const reaches = at.base < UNREADABLE_PAGE && at.base + at.items.length >= UNREADABLE_PAGE;
+  if (!reaches || at.found > 0) return false;
+  if (at.base === 0 || !at.datasetId) return true;
+  if (outOfTime(p)) throw new LeadRetry("out of time before reading the first people again");
+  const head = (await p.apify.listItems(at.datasetId, 0, at.base, [...card.fields])).items;
+  return head.every((it) => card.mapItem(it) === null);
+}
 async function collectPeople(p, round, run, owner, gen) {
   const card = CARDS.people_at_companies;
   const alreadyFinal = FINAL_RUN_STATES.has(run.state);
@@ -37695,14 +37704,14 @@ async function collectPeople(p, round, run, owner, gen) {
   const found = items.map((it) => card.mapItem(it)).filter((x) => x !== null);
   const companies = companiesOf(found);
   if (companies.length) await p.db.companyUpsert(round.id, companies);
-  const unreadable = base === 0 && items.length >= UNREADABLE_PAGE && found.length === 0;
-  if (unreadable) {
-    await p.apify.abortRun(run.apify_run_id).catch(() => void 0);
-    remoteState = "aborted";
+  if (await unreadableStart(p, { datasetId, base, items, found: found.length })) {
+    await p.apify.abortRun(run.apify_run_id).catch((e) => {
+      if (!isRefused(e)) throw e;
+    });
   }
   const to = base + items.length;
   const pageShort = items.length < PAGE_ITEMS;
-  const runOver = unreadable || pageShort && FINAL_RUN_STATES.has(remoteState);
+  const runOver = pageShort && FINAL_RUN_STATES.has(remoteState);
   const queued = round.state === "queued";
   const runDone = runOver && !queued;
   const held = runDone ? (await p.db.membersOfRound(round.id)).length : 0;
@@ -37711,8 +37720,7 @@ async function collectPeople(p, round, run, owner, gen) {
     places: [],
     usage_usd: usage,
     items_seen: run.items_seen + items.length,
-    // A run stopped for an unreadable page is final at once, so the collect after this one reads no more of it.
-    run_state: runDone || unreadable ? remoteState : null,
+    run_state: runDone ? remoteState : null,
     next: runDone ? null : { kind: "lead_collect", seq: `p${to}`, run_after_seconds: pageShort && !runOver ? POLL_SECONDS : 0 },
     round: runDone ? { state: "checking", question: null, ending: null, ending_pending: endingOf(remoteState, held) } : queued ? { state: "running", question: null, ending: null } : null
   };

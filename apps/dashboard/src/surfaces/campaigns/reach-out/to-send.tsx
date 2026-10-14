@@ -14,7 +14,7 @@ import { useState } from "react";
 import {
   TO_SEND_ALL_WORDS,
   TO_SEND_ROUTE,
-  toSendRunsOf,
+  toSendEveryOf,
   type BroadcastDetailDto,
   type OwnerSaidIntent,
   type ReachOutSaidOutcome,
@@ -254,14 +254,14 @@ export function RoToSend({
   ));
   if (bare) return <>{rows}</>;
   // Other runs hand emails over too: the door to all of them, the one list (Sent's To send).
-  const every = toSendRunsOf(surfaceValue("broadcasts")?.rows ?? []);
+  const every = toSendEveryOf(surfaceValue("broadcasts")?.rows ?? []);
   return (
     <section className="bc-touched bc-sheet-people bc-approval-people" data-testid="ro-to-send">
       <div className="bc-touched-head">
         <span className="bc-card-title">{vm.head}</span>
         {every && (
           <LinkButton onClick={() => navigate(TO_SEND_ROUTE)} data-testid="ro-to-send-every">
-            {TO_SEND_ALL_WORDS.everyRun(every.count, every.runs.length)}
+            {TO_SEND_ALL_WORDS.everyRun(every.count, every.from)}
           </LinkButton>
         )}
       </div>

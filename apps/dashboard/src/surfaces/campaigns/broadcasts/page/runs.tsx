@@ -191,7 +191,8 @@ export function bcAgainOf({
           setName("");
           setWhenAt(null);
           setWriting(true);
-          openRun(null);
+          // The composer, never the To send a run was opened from.
+          openRun(null, false);
         }}
         {...gate("approve", "send a broadcast")}
       >

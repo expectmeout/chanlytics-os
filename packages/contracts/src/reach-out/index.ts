@@ -204,6 +204,7 @@ export {
   reachOutRunMoving,
   reachOutRunWordsOf,
   toSendAllOf,
+  toSendEveryOf,
   toSendRunsOf,
   toSendSaidWords,
   toSendWordsOf,

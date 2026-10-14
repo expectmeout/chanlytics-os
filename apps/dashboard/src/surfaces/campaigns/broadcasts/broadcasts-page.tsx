@@ -244,7 +244,7 @@ function BroadcastsReal(props: BroadcastsRealProps) {
   const open = openId ? (
     bcRunSolo({ ...v, openId })
   ) : toSend.open ? (
-    <BcToSendAll rows={v.data.rows} onClose={toSend.close} onOpenRun={v.openRun} />
+    <BcToSendAll rows={v.data.rows} onClose={toSend.close} onOpenRun={(id) => v.openRun(id, true)} />
   ) : writing ? (
     bcComposerGlass(v)
   ) : null;

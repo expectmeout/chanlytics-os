@@ -26146,8 +26146,13 @@ function toSendAllOf(runs) {
   return { runs: waiting, count: waiting.reduce((n, r2) => n + runDraftedEmails(r2), 0) };
 }
 function toSendRunsOf(waiting) {
-  const all = toSendAllOf(waiting.filter((r2) => runHeldEmails(r2) === 0));
-  return all && all.runs.length > 1 ? all : null;
+  const folded2 = waiting.filter((r2) => runHeldEmails(r2) === 0 && runDraftedEmails(r2) > 0);
+  const all = toSendAllOf(waiting);
+  return all && folded2.length > 1 ? { runs: folded2, count: all.count, from: all.runs.length } : null;
+}
+function toSendEveryOf(runs) {
+  const all = toSendAllOf(runs);
+  return all && all.runs.length > 1 ? { count: all.count, from: all.runs.length } : null;
 }
 function waitingRunsDoor(waiting) {
   const [only] = waiting;
@@ -55512,6 +55517,7 @@ export {
   toReviewsReportVM,
   toRunReportVM,
   toSendAllOf,
+  toSendEveryOf,
   toSendRunsOf,
   toSendSaidWords,
   toSendWordsOf,

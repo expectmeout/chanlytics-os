@@ -7,7 +7,7 @@
  *
  *   startPeople     lead_round_start for a people plan: one run, asking for twice the count (two found make a lead)
  *   collectPeople   lead_collect for its run: a page of items to companies, kept (lead_company_upsert), then committed;
- *                   a first page it reads nothing of stops the run at the provider (the card's fields changed)
+ *                   a run whose first items it reads none of is stopped at the provider (the card's fields changed)
  *   companiesOf     a page's people by company: each company once, its people (five at most) and its addressee, the
  *                   most senior one with a work address; a company with nobody to write to is no lead
  */
@@ -48,8 +48,8 @@ const PEOPLE_TERM = "people";
 /** The most people one run asks for: the plan's count doubled, never past the provider's sensible page of work. */
 const PEOPLE_ASK_MAX = 1000;
 /**
- * A first page this long that the mapper reads none of is a provider writing fields the card does not know (a build
- * changed since its calibration): every person it charges for would be lost, so the run is stopped there.
+ * A run whose first items, this many, the mapper reads none of is a provider writing fields the card does not know (a
+ * build changed since its calibration): every person it charges for would be lost, so the run is stopped there.
  */
 const UNREADABLE_PAGE = 10;
 
@@ -200,6 +200,23 @@ function endingOf(state: LeadRunState, held: number): LeadRoundEnding {
 }
 
 /**
+ * Whether the run's first UNREADABLE_PAGE items, however many collects they came in, are all ones the card cannot read:
+ * judged once, on the read that reaches that many, with the earlier ones read again where they came in a read before.
+ */
+async function unreadableStart(
+  p: LeadPorts,
+  at: { datasetId: string | null; base: number; items: readonly unknown[]; found: number },
+): Promise<boolean> {
+  const card = CARDS.people_at_companies;
+  const reaches = at.base < UNREADABLE_PAGE && at.base + at.items.length >= UNREADABLE_PAGE;
+  if (!reaches || at.found > 0) return false;
+  if (at.base === 0 || !at.datasetId) return true;
+  if (outOfTime(p)) throw new LeadRetry("out of time before reading the first people again");
+  const head = (await p.apify.listItems(at.datasetId, 0, at.base, [...card.fields])).items;
+  return head.every((it) => card.mapItem(it) === null);
+}
+
+/**
  * lead_collect for a people run, under its lease: the run as the provider has it now, a page of its items to companies
  * kept (lead_company_upsert), then the commit that moves the offset, settles the usage and, once the run is over and
  * read, sends the round to its checks.
@@ -237,17 +254,19 @@ export async function collectPeople(
   const found = items.map((it) => card.mapItem(it)).filter((x): x is PersonAtCompany => x !== null);
   const companies = companiesOf(found);
   if (companies.length) await p.db.companyUpsert(round.id, companies);
-  // Nothing of a first page read: stopped at the provider now, and the round ends as the source's failure (endingOf),
-  // never as a search that found nobody, and never paid for to its cap.
-  const unreadable = base === 0 && items.length >= UNREADABLE_PAGE && found.length === 0;
-  if (unreadable) {
-    await p.apify.abortRun(run.apify_run_id as string).catch(() => undefined);
-    remoteState = "aborted";
+  // Nothing of the run's first items read: it is stopped at the provider now, never paid for to its cap. The provider's
+  // own state then ends it, read by the next collect with its last usage, and the round ends as the source's failure
+  // (endingOf: aborted, nobody held), never as a search that found nobody. A stop the provider did not answer leaves the
+  // page uncommitted, so the collect is tried again and asks again; one it refused (the run is over already) is an answer.
+  if (await unreadableStart(p, { datasetId, base, items, found: found.length })) {
+    await p.apify.abortRun(run.apify_run_id as string).catch((e: unknown) => {
+      if (!isRefused(e)) throw e;
+    });
   }
 
   const to = base + items.length;
   const pageShort = items.length < PAGE_ITEMS;
-  const runOver = unreadable || (pageShort && FINAL_RUN_STATES.has(remoteState));
+  const runOver = pageShort && FINAL_RUN_STATES.has(remoteState);
   // A round goes queued -> running -> checking (lead_rounds_guard refuses queued -> checking): a run already over at its
   // first collect is read as running here, and the collect this one schedules at once sends the round to its checks.
   const queued = round.state === "queued";
@@ -258,8 +277,7 @@ export async function collectPeople(
     places: [],
     usage_usd: usage,
     items_seen: run.items_seen + items.length,
-    // A run stopped for an unreadable page is final at once, so the collect after this one reads no more of it.
-    run_state: runDone || unreadable ? remoteState : null,
+    run_state: runDone ? remoteState : null,
     next: runDone
       ? null
       : { kind: "lead_collect", seq: `p${to}`, run_after_seconds: pageShort && !runOver ? POLL_SECONDS : 0 },
