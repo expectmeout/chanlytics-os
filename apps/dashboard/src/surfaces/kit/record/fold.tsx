@@ -69,7 +69,7 @@
  * saves: nothing asks whether to discard a change that is on its way (registry.ts says what happens to an ask
  * meanwhile), and the fold says it is busy.
  */
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import type { MouseEvent, ReactNode, RefObject } from "react";
 import { Icon } from "../icon/icon";
 import { useRecFocus, useRecDrawn, useRecPhone, useRecSheetEscape, recKeys, recPhoneQuery } from "./focus";
@@ -78,6 +78,7 @@ import { recPortalRoot, useRecLeaving } from "./leaving";
 import type { FoldId } from "./registry";
 import { RecordFoot, RecordSays } from "./says";
 import { touchSwipe } from "../../legacy-verbs";
+import { glideHeight } from "../motion/use-height-glide";
 import { portal, trapTab } from "./shell-verbs";
 
 /** A fold's Cancel: what Close, the foot's Cancel, a press on the wash and Escape all do. */
@@ -381,6 +382,8 @@ export function RecordFold(props: RecordFoldProps) {
   useRecDrawn(id);
   useRecSheetEscape(sheet, saving ? null : onCancel);
   const leaving = useRecLeaving(sheet, open, box);
+  // As a sheet, it is as tall as what it holds, and its height glides as that changes (a field's error, a part unfolding).
+  useEffect(() => (sheet && box.current ? glideHeight(box.current) : undefined), [sheet]);
   const refused = !!(gate && gate["aria-disabled"]);
   const keys = recKeys({ onCancel, onSave, saving, refused });
   // Close, the foot's Cancel and a press on a phone's wash are one Cancel, and none acts while the fold saves (recKeys

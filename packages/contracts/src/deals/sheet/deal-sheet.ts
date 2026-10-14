@@ -69,10 +69,10 @@ export const DEAL_SHEET_WORDS = {
   },
   agreed: {
     label: "Agreed amount",
-    hint: "Only you see it.",
     fromProposal: "The proposal's value, unless they agreed another.",
   },
-  validUntil: { label: "Valid until", hint: null },
+  // A day picked from the kit's month: what an empty one says, and the word that empties it (the fitted sheets).
+  validUntil: { label: "Valid until", hint: null, none: "No end date", clear: "Clear" },
   when: { won: "When they said yes", lost: "When they passed", ended: "When it ended" },
   reason: { label: "Why they passed" },
   note: { label: "Note", hint: "Only your team sees it.", placeholder: "In their words, or yours" },
@@ -161,12 +161,16 @@ export interface DealSheetVM {
   link: { label: string; hint: string; placeholder: string } | null;
   value: {
     label: string;
-    hint: string;
+    /** Who sees it, said beside the label with a lock: every amount is the team's alone. */
+    private: string;
+    /** A line under the box where there is one to say: that a yes starts from the proposal's value. */
+    hint: string | null;
     placeholder: string;
     perLabel: string;
     pers: { value: DealPer; label: string }[];
   } | null;
-  validUntil: { label: string; hint: string | null } | null;
+  /** The day it stands until, picked from a month that opens on `today` (the business's calendar). */
+  validUntil: { label: string; hint: string | null; none: string; clear: string; today: string } | null;
   when: { label: string; max: string } | null;
   reason: { label: string; options: { value: DealLostReason; label: string }[] } | null;
   note: { label: string; hint: string; placeholder: string; max: number } | null;
@@ -221,6 +225,13 @@ function targetOf(mode: DealSheetMode, p: DealPerson, dealId: string | null | un
   if (dealId) return deals.find((d) => d.id === dealId) ?? (p.deal && p.deal.id === dealId ? p.deal : null);
   return p.deal;
 }
+
+/** The amount's words every mode that asks it shares: who sees it, the box's example, and how often's label. */
+const VALUE_WORDS = {
+  private: DEAL_SHEET_WORDS.value.hint,
+  placeholder: DEAL_SHEET_WORDS.value.placeholder,
+  perLabel: DEAL_SHEET_WORDS.value.per,
+} as const;
 
 /**
  * The sheet for a mode (0008): its title, the fields it draws with their words, and what it opens with. A new
@@ -290,13 +301,12 @@ export function dealSheetFor(
       open && (shapes || mode === "won")
         ? {
             label: mode === "won" ? W.agreed.label : W.value.label,
-            hint: mode === "won" ? (valueOf ? W.agreed.fromProposal : W.agreed.hint) : W.value.hint,
-            placeholder: W.value.placeholder,
-            perLabel: W.value.per,
+            ...VALUE_WORDS,
+            hint: mode === "won" && valueOf ? W.agreed.fromProposal : null,
             pers,
           }
         : null,
-    validUntil: open && shapes ? { ...W.validUntil } : null,
+    validUntil: open && shapes ? { ...W.validUntil, today } : null,
     when: open && dated ? { label: W.when[mode], max: today } : null,
     reason:
       open && mode === "lost"

@@ -21,6 +21,11 @@
  * (`data-sheet`), since a card that isolates its layers (.rec-card) held it under the tab bar. There a pull down from its
  * top lets it go, following the finger, as the kit Menu's does (data-bits touchSwipe): it drew the handle and did not
  * answer a pull. The touch stays its own (keepTouch), so a pull on a menu opened in a sheet does not pull the sheet too.
+ * There a sentence beside an item's words (a `meta` or a `hint` longer than a few words) goes under them: at the line's
+ * end it broke both onto two lines, or was cut (Ruben, 14 Oct 2026, the fitted sheets: a choice reads with what it does).
+ * A `grid` menu is a set of short values (a day's times): on a phone they are chips four across under their headings,
+ * the one held lit, so a time is one tap with no scroll through thirty rows; a heading marked `fold` keeps its group
+ * shut behind it until it is pressed, or while its group holds the value (the night's hours, which few businesses keep).
  */
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
@@ -54,6 +59,8 @@ interface MoreMenuItem {
   start?: boolean;
   divider?: boolean;
   header?: ReactNode;
+  /** A heading whose group stays shut behind it in a `grid` menu on a phone, until pressed or while it holds the value. */
+  fold?: boolean;
 }
 
 interface MoreMenuProps {
@@ -77,7 +84,13 @@ interface MoreMenuProps {
   ariaLabel?: string;
   /** What a trigger that stands for a field carries besides: its id, its value, aria-invalid, aria-describedby. */
   boxAttrs?: Record<string, string | boolean | undefined>;
+  /** A set of short values (a day's times): chips four across under their headings, on a phone. */
+  grid?: boolean;
 }
+
+/** Past this many letters, a phone's menu says an item's second line under its words, not at the line's end. */
+const MORE_SHORT_WORDS = 20;
+const longWords = (n: ReactNode) => typeof n === "string" && n.length > MORE_SHORT_WORDS;
 
 /** The keys that walk a menu's items, and where each goes from the one at `at` of `n`. */
 const MORE_WALK: Record<string, (at: number, n: number) => number> = {
@@ -161,8 +174,42 @@ function moreWalk(e: { key: string; currentTarget: HTMLDivElement; preventDefaul
   items[to(items.indexOf(document.activeElement as HTMLElement), items.length)]?.focus();
 }
 
+/** How a menu is drawn: the item's press, whether it is a phone's sheet, and the headings of a grid opened to their group. */
+interface MoreDraw {
+  run: (it: MoreMenuItem) => void;
+  sheet: boolean;
+  open: (at: number) => void;
+}
+
+/** The entries a menu draws: in a phone's grid, a folded heading's group stays out until it is opened. */
+function moreEntries(items: MoreMenuItem[], d: MoreDraw, grid: boolean, opened: ReadonlySet<number>) {
+  const out: ReactNode[] = [];
+  let shut = false;
+  items.forEach((it, i) => {
+    if (it.header || it.divider) shut = false;
+    if (shut) return;
+    if (it.header && it.fold && grid && d.sheet) {
+      const group = items.slice(i + 1);
+      const end = group.findIndex((g) => g.header !== undefined || !!g.divider);
+      const holds = (end < 0 ? group : group.slice(0, end)).some((g) => g.checked);
+      if (!holds && !opened.has(i)) {
+        shut = true;
+        out.push(
+          <button key={i} type="button" className="more-header more-header-fold" onClick={() => d.open(i)}>
+            {it.header} <Icon name="chevron-down" size={10} />
+          </button>,
+        );
+        return;
+      }
+    }
+    out.push(moreItem(it, i, d));
+  });
+  return out;
+}
+
 /** One entry of a menu: a line between groups, a heading over the group under it, or an item that acts. */
-function moreItem(it: MoreMenuItem, i: number, run: (it: MoreMenuItem) => void) {
+function moreItem(it: MoreMenuItem, i: number, d: MoreDraw) {
+  const { run, sheet } = d;
   if (it.divider) return <div key={i} className="more-divider" />;
   if (it.header)
     return (
@@ -173,10 +220,13 @@ function moreItem(it: MoreMenuItem, i: number, run: (it: MoreMenuItem) => void) 
   // One of a set (a sort, say): a radio item with the tick drawn on every one, hidden where it is not the one chosen
   // (components.css), so the words stand in one column either way.
   const radio = typeof it.checked === "boolean";
+  // On a phone a sentence goes under the words, where at the line's end it broke them or was cut.
+  const hintUnder = sheet && longWords(it.hint);
+  const two = (it.meta && (it.metaBelow || (sheet && longWords(it.meta)))) || hintUnder;
   return (
     <button
       key={i}
-      className={`more-item${it.danger ? " danger" : ""}${it.meta && it.metaBelow ? " more-item-two" : ""}`}
+      className={`more-item${it.danger ? " danger" : ""}${two ? " more-item-two" : ""}`}
       role={radio ? "menuitemradio" : "menuitem"}
       aria-checked={radio ? it.checked : undefined}
       title={it.title || undefined}
@@ -188,7 +238,7 @@ function moreItem(it: MoreMenuItem, i: number, run: (it: MoreMenuItem) => void) 
       {radio ? <Icon name="check" size={13} /> : it.icon && <Icon name={it.icon} size={13} />}
       <span className="more-item-label">{it.label}</span>
       {it.meta && <span className="more-item-meta">{it.meta}</span>}
-      {it.hint && <span className="more-item-hint">{it.hint}</span>}
+      {it.hint && <span className={hintUnder ? "more-item-meta" : "more-item-hint"}>{it.hint}</span>}
     </button>
   );
 }
@@ -215,8 +265,11 @@ export function MoreMenu({
   testid = null,
   ariaLabel,
   boxAttrs,
+  grid = false,
 }: MoreMenuProps) {
   const [open, setOpen] = useState(false);
+  // The folded headings of a grid opened to their group, while the menu is open.
+  const [opened, setOpened] = useState<ReadonlySet<number>>(() => new Set());
   const wrapRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -286,14 +339,14 @@ export function MoreMenu({
       {/* eslint-disable-next-line jsx-a11y-x/interactive-supports-focus -- kept as the JSX drew it: the click is only kept from reaching what is under the menu; its items are the buttons, which the keys walk */}
       <div
         ref={menuRef}
-        className={`more-menu ${align === "left" ? "align-left" : "align-right"}${escape ? " escape" : ""}`}
+        className={`more-menu ${align === "left" ? "align-left" : "align-right"}${escape ? " escape" : ""}${grid ? " more-menu-grid" : ""}`}
         role="menu"
         data-sheet={sheet ? "" : undefined}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={moreWalk}
         {...(sheet ? keepTouch(touchSwipe({ onDown: () => setOpen(false), when: onAPhone })) : {})}
       >
-        {items.map((it, i) => moreItem(it, i, run))}
+        {moreEntries(items, { run, sheet, open: (at) => setOpened(new Set([...opened, at])) }, grid, opened)}
       </div>
     </>
   ) : null;
@@ -312,6 +365,7 @@ export function MoreMenu({
         onClick={(e) => {
           e.stopPropagation();
           byKey.current = e.detail === 0;
+          setOpened(new Set());
           setOpen((v) => !v);
         }}
         {...(gated ? gatedProps(gated) : {})}

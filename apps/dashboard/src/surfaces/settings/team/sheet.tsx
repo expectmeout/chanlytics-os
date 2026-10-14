@@ -62,8 +62,6 @@ export function PersonSheet({ person: p, k, onClose }: { person: TeamPerson; k: 
       onSave={mayRole || mayAlerts ? save : null}
       saveLabel="Save"
       cancelLabel="Cancel"
-      // A person's few choices, as tall as they are on a phone: they stood at the foot of a screen of blank.
-      fit
       testid="team-sheet"
     >
       {mayRole ? (

@@ -82,10 +82,17 @@ const BTO_TIMES = Array.from(
   (_, i) => `${String(Math.floor(i / 2)).padStart(2, "0")}:${i % 2 ? "30" : "00"}`,
 );
 
+/** Where the night's hours end: the morning's first minute. */
+const BTO_NIGHT_ENDS = 5 * 60;
+/**
+ * Where a time stands in the menu: the morning first, and the night's hours after the evening, folded on a phone
+ * (MoreMenu `fold`): few businesses open then, and they stood first, over midnight's rows (Ruben, 14 Oct 2026).
+ */
+const btoDayOrder = (t: string) => btoMinutes(t) + (btoMinutes(t) < BTO_NIGHT_ENDS ? 24 * 60 : 0);
 /** The part of the day each time falls in, from its first minute: a heading over its times, so a long list is read. */
 const BTO_PARTS: [number, string][] = [
   [0, "Night"],
-  [5 * 60, "Morning"],
+  [BTO_NIGHT_ENDS, "Morning"],
   [12 * 60, "Afternoon"],
   [17 * 60, "Evening"],
 ];
@@ -111,13 +118,13 @@ const btoTimeItems = (c: TimeChoice): NonNullable<ComponentProps<typeof MoreMenu
   const from = c.after ? btoMinutes(c.after) : -1;
   const times = [...new Set([...BTO_TIMES, ...(c.value ? [c.value] : [])])]
     .filter((t) => t === c.value || btoMinutes(t) > from)
-    .sort((a, b) => btoMinutes(a) - btoMinutes(b));
+    .sort((a, b) => btoDayOrder(a) - btoDayOrder(b));
   const items: NonNullable<ComponentProps<typeof MoreMenu>["items"]> = [];
   let part = "";
   for (const t of times) {
     const heading = [...BTO_PARTS].reverse().find(([at]) => btoMinutes(t) >= at)?.[1] ?? "";
     if (heading !== part) {
-      items.push({ header: heading });
+      items.push({ header: heading, fold: btoMinutes(t) < BTO_NIGHT_ENDS });
       part = heading;
     }
     items.push({
@@ -320,6 +327,7 @@ const BtoTime = ({
       btnClass="rec-input rec-select bt-time"
       align="left"
       escape
+      grid
       boxAttrs={{
         id,
         value: choice.value,

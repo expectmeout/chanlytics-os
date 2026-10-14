@@ -125,7 +125,7 @@ export function MessageDrawer(p: MessageDrawerProps) {
   const booking = library ? (bookingTemplate(library)?.name ?? null) : null;
   const kicker = booking === name ? LIFECYCLE_WORDS.callText.name : CAMPAIGN_ROOMS.library;
   return (
-    <PaneSheet open={p.name !== null} title={kicker} onClose={p.onClose} fit testid="cmh-message">
+    <PaneSheet open={p.name !== null} title={kicker} onClose={p.onClose} testid="cmh-message">
       <MessageBody name={name} flash={p.flash} onClose={p.onClose} />
     </PaneSheet>
   );

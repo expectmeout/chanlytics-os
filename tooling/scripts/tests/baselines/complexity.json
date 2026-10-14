@@ -260,7 +260,7 @@
     "depth": 3
   },
   "packages/contracts/src/deals/sheet/deal-sheet.ts::dealSheetFor#1": {
-    "lines": 103,
+    "lines": 102,
     "branches": 69,
     "depth": 0
   },

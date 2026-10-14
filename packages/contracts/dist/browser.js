@@ -12446,6 +12446,13 @@ var MERGE_WORDS = {
   pickReading: "People is still being read; the other records are offered once it lands.",
   question: (kept, other) => `Merge ${other} into ${kept}?`,
   detail: (kept, other) => `${kept} keeps their record and takes ${other}'s messages, calls, deals, notes and lists. ${MERGE_ANSWERS} ${other}'s record stays as a merged record with no number or address. This cannot be undone.`,
+  /**
+   * The sheet's own: what moves and that it cannot be undone, said first in two lines, and the rest of `detail` folded
+   * under `more` (the fitted sheets, 14 Oct 2026: seven lines stood between the pick and the name typed).
+   */
+  lead: (kept, other) => `${other}'s messages, calls, deals, notes and lists move to ${kept}. This cannot be undone.`,
+  more: "What else changes",
+  rest: (other) => `${MERGE_ANSWERS} ${other}'s record stays as a merged record with no number or address.`,
   typed: (kept) => `Type ${kept} to confirm.`,
   yes: "Merge the two records",
   busy: "Merging\u2026",
@@ -17247,7 +17254,13 @@ function leadImportEstimateUsd(addresses) {
 var LEAD_IMPORT_WORDS = {
   importDoor: "Import leads",
   importTitle: "Import leads",
-  importSub: "A file of businesses you want to write to: a name and an email on each row, and a phone, a website, a city or a state where you have them. Every address is checked before a reach-out may write to it.",
+  /**
+   * What a row needs, in one line under the title, and the rest under `importMore` (the fitted sheets, 14 Oct 2026:
+   * five lines on what a file holds opened the sheet).
+   */
+  importLine: "A name and an email on each row.",
+  importMore: "What a row can hold",
+  importRest: "A phone, a website, a city or a state, where you have them. Every address is checked before a reach-out may write to it.",
   file: "Choose a CSV file",
   paste: "Or paste the rows",
   pastePlaceholder: "Business,Email,Website,City,State\nZilker Kettlebell Club,hello@example.com,example.com,Austin,TX",
@@ -24618,6 +24631,8 @@ function emailTemplateWords(p) {
     chip: "Email",
     sends: p.chainName,
     sendsNote: p.stepN === 0 ? "step 1 \xB7 writes daily, in their hours" : `step ${p.stepN + 1} \xB7 after ${p.afterDays} days with nothing back`,
+    /** The fold the check is read under, where its sentence stood open under every email (the fitted sheets). */
+    checkLabel: "What is checked before each send",
     checkNote: "Checked before each send: every slot filled or the email held; the opening's facts in the finder's record; under 120 words; the footer present; the language theirs.",
     /** The act that opens the whole reach-out, whose days, pace and mailboxes are its own. */
     edit: "Edit the reach-out"
@@ -30174,10 +30189,10 @@ var DEAL_SHEET_WORDS = {
   },
   agreed: {
     label: "Agreed amount",
-    hint: "Only you see it.",
     fromProposal: "The proposal's value, unless they agreed another."
   },
-  validUntil: { label: "Valid until", hint: null },
+  // A day picked from the kit's month: what an empty one says, and the word that empties it (the fitted sheets).
+  validUntil: { label: "Valid until", hint: null, none: "No end date", clear: "Clear" },
   when: { won: "When they said yes", lost: "When they passed", ended: "When it ended" },
   reason: { label: "Why they passed" },
   note: { label: "Note", hint: "Only your team sees it.", placeholder: "In their words, or yours" },
@@ -30257,6 +30272,11 @@ function targetOf(mode, p, dealId) {
   if (dealId) return deals.find((d) => d.id === dealId) ?? (p.deal && p.deal.id === dealId ? p.deal : null);
   return p.deal;
 }
+var VALUE_WORDS = {
+  private: DEAL_SHEET_WORDS.value.hint,
+  placeholder: DEAL_SHEET_WORDS.value.placeholder,
+  perLabel: DEAL_SHEET_WORDS.value.per
+};
 function dealSheetFor(mode, p, nowMs, tz, target = {}) {
   const W = DEAL_SHEET_WORDS;
   const deal = targetOf(mode, p, target.dealId);
@@ -30300,12 +30320,11 @@ function dealSheetFor(mode, p, nowMs, tz, target = {}) {
     link: open && shapes ? { ...W.link } : null,
     value: open && (shapes || mode === "won") ? {
       label: mode === "won" ? W.agreed.label : W.value.label,
-      hint: mode === "won" ? valueOf ? W.agreed.fromProposal : W.agreed.hint : W.value.hint,
-      placeholder: W.value.placeholder,
-      perLabel: W.value.per,
+      ...VALUE_WORDS,
+      hint: mode === "won" && valueOf ? W.agreed.fromProposal : null,
       pers
     } : null,
-    validUntil: open && shapes ? { ...W.validUntil } : null,
+    validUntil: open && shapes ? { ...W.validUntil, today } : null,
     when: open && dated ? { label: W.when[mode], max: today } : null,
     reason: open && mode === "lost" ? {
       label: W.reason.label,

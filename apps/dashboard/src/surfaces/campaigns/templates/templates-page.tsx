@@ -305,7 +305,7 @@ function MessagesReal() {
 
 /**
  * What is open, on a phone: over the list in the drawer Campaigns' home opens its own in, whose Close asks the composer
- * first about what was written (its foot has no Cancel), and which a message alone fits.
+ * first about what was written (its foot has no Cancel).
  */
 function phoneDrawer({ pane, composing, onClose }: { pane: ReactNode; composing: boolean; onClose: () => void }) {
   return (
@@ -314,7 +314,6 @@ function phoneDrawer({ pane, composing, onClose }: { pane: ReactNode; composing:
       title={LIBRARY_WORDS.title}
       onClose={onClose}
       askFirst={composing}
-      fit={!composing}
       testid="tpl-drawer"
     >
       {pane}

@@ -944,6 +944,11 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   .ld-lightbox { inset: 0; border-radius: 0; border: 0; padding-top: env(safe-area-inset-top, 0px); }
   .ld-lb-body { grid-template-columns: 1fr; grid-template-rows: minmax(200px, 45%) minmax(0, 1fr); }
   .ld-lb-side { border-left: 0; border-top: 1px solid var(--line); }
+  /* With no photo it is what is about the place: a sheet from the bottom as tall as that, the tile a band of its initials
+     and the line that says so, where the whole screen held them over nothing (the fitted sheets, 14 Oct 2026). */
+  [data-photo="none"] { inset: auto 0 0 0; max-height: 88dvh; padding-top: 0; border-top: 1px solid var(--surface-pop-edge); border-radius: var(--surface-pane-radius) var(--surface-pane-radius) 0 0; }
+  .ld-lb-body:has(.ld-lb-nophoto) { grid-template-rows: 120px auto; }
+  .ld-lb-body:has(.ld-lb-nophoto) .ld-lb-nophoto { bottom: 10px; }
   .pk-band { height: 150px; }
 }
 

@@ -217,7 +217,8 @@ test("each mode's sheet says what it is for, draws only its fields, in contracts
     ["Any service", "Ad management", "SEO"],
   );
   assert.deepEqual([s.link.label, s.link.hint], ["Proposal link", "A doc, a PDF or any page."]);
-  assert.deepEqual([s.value.label, s.value.hint], ["Value", "Only you see it."]);
+  // Who sees it is the label's line (a lock and its words), and nothing stands under the box (the fitted sheets).
+  assert.deepEqual([s.value.label, s.value.private, s.value.hint], ["Value", "Only you see it.", null]);
   assert.deepEqual(
     s.value.pers.map((p) => [p.value, p.label]),
     [
@@ -271,10 +272,8 @@ test("each mode's sheet says what it is for, draws only its fields, in contracts
   assert.equal(s.draft.messageId, "m1", "their newest message, to choose from theirs");
   assert.deepEqual([s.link, s.send, s.validUntil], [null, null, null]);
   assert.equal(s.save.label, "Mark as client");
-  assert.deepEqual(
-    dealSheetFor("won", person({ deals: [dealDto({ amount_cents: null, per: null })] }), NOW, ZONE).value.hint,
-    "Only you see it.",
-  );
+  const unpriced = dealSheetFor("won", person({ deals: [dealDto({ amount_cents: null, per: null })] }), NOW, ZONE);
+  assert.deepEqual([unpriced.value.private, unpriced.value.hint], ["Only you see it.", null]);
 
   // A pass: the day, why, a note of the owner's.
   s = dealSheetFor("lost", out, NOW, ZONE);
@@ -984,6 +983,9 @@ const quietly = async (fn) => {
 };
 const { personDetail } = await import(`${PEOPLE}/people-detail.ts`);
 const { DealSheetHost, openDealSheet } = await import(`${PEOPLE}/deal-sheet/deal-sheet.tsx`);
+const { DatePicker } = await import("../../../../apps/dashboard/src/surfaces/kit/datepicker/datepicker.tsx");
+// The month behind a day's token loads as the sheet first draws one (fields.tsx loadDayPick): loaded here first.
+await (await import(`${PEOPLE}/deal-sheet/fields.tsx`)).loadDayPick();
 const { recFolds } = await import("../../../../apps/dashboard/src/surfaces/kit/record/registry.ts");
 const { installInboxVerbs } = await quietly(
   () => import("../../../../apps/dashboard/src/legacy-bridge/inbox-verbs.ts"),
@@ -1067,6 +1069,8 @@ const until = async (what, pred) => {
 };
 /** The box itself, not the kit's field that carries its test id down to it. */
 const input = (tree, id) => find(tree, (n) => typeof n.type === "string" && n.props?.["data-testid"] === id);
+/** A day's field (the kit's month behind a token, the fitted sheets): its day, and the pick that changes it. */
+const dayOf = (tree, f) => find(byTestId(tree, `deal-sheet-${f}`), (n) => n.type === DatePicker);
 const type = (node, value) => node.props.onChange({ target: { value } });
 const sheetOf = (tree) => byTestId(tree, "rec-sheet-deal-sheet");
 const saveOf = (tree) => byTestId(tree, "rec-sheet-save-deal-sheet");
@@ -1142,7 +1146,7 @@ test("a move opens on the deal as it stands, says it once when recorded and send
   assert.equal(title(tree), "Mark as client");
   assert.equal(sub(tree), "Daniela Reyes · Ad management");
   assert.equal(input(tree, "deal-sheet-value-input").props.value, "$1,200", "the proposal's value");
-  assert.match(input(tree, "deal-sheet-when-input").props.value, /^\d{4}-\d{2}-\d{2}$/, "today");
+  assert.match(dayOf(tree, "when").props.value, /^\d{4}-\d{2}-\d{2}$/, "today");
   assert.equal(byTestId(tree, "deal-sheet-send"), null);
   assert.equal(textOf(saveOf(tree)), "Mark as client");
   // Someone moved it since: the door refuses, the sheet says so by its Save and stays open, and reads them again.
@@ -1206,7 +1210,11 @@ test("read again with the sheet open -- after a refusal, or over the tab's held 
   const deals = () => calls.filter((c) => c.path === "/api/v1/contacts/p1/deal");
   const accept = (body) =>
     json(200, { ok: true, data: { deal: { id: "d1", stage: body.stage }, from: "proposed", decision_id: "x3" } });
-  const fields = (t) => ["link", "value", "valid"].map((f) => input(t, `deal-sheet-${f}-input`).props.value);
+  const fields = (t) => [
+    input(t, "deal-sheet-link-input").props.value,
+    input(t, "deal-sheet-value-input").props.value,
+    dayOf(t, "valid").props.value,
+  ];
 
   // A refusal: the link was changed here, the door says the deal moved on, and they are read again.
   open();
@@ -1248,7 +1256,7 @@ test("read again with the sheet open -- after a refusal, or over the tab's held 
   openDealSheet({ personId: "p1", mode: "edit", dealId: "d1" });
   tree = redraw();
   assert.deepEqual(fields(tree), [R.dealDto().proposal_url, "$1,200", "2026-09-30"], "the held copy, at once");
-  type(input(tree, "deal-sheet-valid-input"), "2026-10-09");
+  dayOf(tree, "valid").props.onValueChange("2026-10-09");
   tree = await until("the fresh read lands", (t) => input(t, "deal-sheet-value-input")?.props.value === "$1,500");
   assert.deepEqual(fields(tree), [R.dealDto().proposal_url, "$1,500", "2026-10-09"]);
   answers.deal = accept;

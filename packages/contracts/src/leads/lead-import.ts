@@ -198,8 +198,14 @@ export function leadImportEstimateUsd(addresses: number): number {
 export const LEAD_IMPORT_WORDS = {
   importDoor: "Import leads",
   importTitle: "Import leads",
-  importSub:
-    "A file of businesses you want to write to: a name and an email on each row, and a phone, a website, a city or a state where you have them. Every address is checked before a reach-out may write to it.",
+  /**
+   * What a row needs, in one line under the title, and the rest under `importMore` (the fitted sheets, 14 Oct 2026:
+   * five lines on what a file holds opened the sheet).
+   */
+  importLine: "A name and an email on each row.",
+  importMore: "What a row can hold",
+  importRest:
+    "A phone, a website, a city or a state, where you have them. Every address is checked before a reach-out may write to it.",
   file: "Choose a CSV file",
   paste: "Or paste the rows",
   pastePlaceholder: "Business,Email,Website,City,State\nZilker Kettlebell Club,hello@example.com,example.com,Austin,TX",

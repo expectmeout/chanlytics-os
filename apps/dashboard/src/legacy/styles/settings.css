@@ -1482,6 +1482,8 @@ html.legacy-on .bt-link { position: relative; }
 .bt-week-copy-menu[hidden] { display: none; }
 /* A sentence of the page's inside a fold: what a control does, what an address is, the one case a list cannot say. */
 .bt-fold-note { margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
+/* A rule's sentence under "How these rules work" (answers-fields.tsx BtaRuleHow): read as the fold's notes are. */
+.bt-rule-how { margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
 /* ---- A sheet's parts, in one shape (Ruben, 10 Oct 2026: the sheets "too wordy, too explanatory, too cluttered") ----
    Under the title, the fields. What a sheet holds that is a list of settings is one inset (the kit's Panel, inset and
    flush) of lines: each its name, and a quiet line under it, on the left, and its control on the right, a hairline
@@ -1496,6 +1498,8 @@ html.legacy-on .bt-link { position: relative; }
 .bt-line-name { font-size: var(--text-base); line-height: var(--leading-normal); color: var(--ink); }
 .bt-line-sub { font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
 .bt-line-end { flex: none; display: flex; align-items: center; gap: 8px; }
+/* A rule that is not a switch: its lock and "Always on" where the switch would be. */
+.bt-line-lock { display: inline-flex; align-items: center; gap: 4px; }
 /* A number's box with its unit, at the width of a few digits and a short word, so the line keeps its name. */
 .bt-number { display: grid; width: 8.5rem; }
 /* Which channel a line is about, as a glyph in a quiet square, named for a screen reader where it is drawn. */
