@@ -1,5 +1,5 @@
 /**
- * Calendar: an appointment opens as a dialog, a failed read says so, and the page names the days it shows.
+ * Calendar: an appointment opens in the desk's peek or the phone's sheet, a failed read says so, and the page names the days it shows.
  * The page is the TSX module (apps/dashboard/src/surfaces/calendar, decision 0015) executed on a stub React, over the view
  * models the seam gives it (surface-values.ts).
  *
@@ -27,7 +27,7 @@
  *   was shown the arrow keys.
  * Run against the contracts, the bridge's arithmetic and the page on a stub React.
  */
-import { test } from "node:test";
+import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import {
   DEAL_ACT_WORDS,
@@ -184,8 +184,18 @@ globalThis.React = {
   // A store outside React (the seam): the value it holds now, which each draw here asks again.
   useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
 };
-// A layout effect is an effect here, as it is on the kit's stub (_legacy-react.mjs): the board fits its hour in one.
-globalThis.React.useLayoutEffect = globalThis.React.useEffect;
+// A layout effect is an effect here, as it is on the kit's stub (_legacy-react.mjs): the board fits its hour in one. One
+// with no dependencies runs after every draw, as React runs it: the page says its bar to the frame so (kit/head/standing.ts
+// useStanding), and the frame draws what the last draw said.
+globalThis.React.useLayoutEffect = (fn, deps) => {
+  if (deps !== undefined) return globalThis.React.useEffect(fn, deps);
+  const k = frames.key();
+  const cell = cells[k];
+  if (cell) cell.cleanup?.();
+  else cleanups.push(() => cells[k]?.cleanup?.());
+  const done = fn();
+  cells[k] = { cleanup: typeof done === "function" ? done : null };
+};
 // The TSX surface imports its hooks from "react", which under this runner has none: the same stub is set on that module.
 const reactModule = createRequire(new URL("../../../../apps/dashboard/src/legacy-bridge/_.js", import.meta.url))(
   "react",
@@ -263,6 +273,8 @@ const { CALENDAR_PAGE, CR_WARM_MS, fitHourPx } = await import(`${S}/calendar/wor
 // The floor an hour never goes under on a phone: what the fit answers for no room at all (words.ts keeps the number).
 const CR_HOUR_MIN_PX = fitHourPx(0, 1);
 const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
+const { standingSaid } = await import(`${S}/kit/head/standing.ts`);
+const { calendarAddress, calendarParam } = await import(`${S}/calendar/address.ts`);
 const realVerbs = { ...calendar };
 globalThis.window.__calendar = calendar;
 // Today's day (TSX since decision 0015), the one derivation the strip and the brief read, which names the next open time
@@ -288,11 +300,18 @@ const all = (tree, pred) => {
 };
 const find = (tree, pred) => all(tree, pred)[0] ?? null;
 const byTestId = (tree, id) => find(tree, (n) => n.props?.["data-testid"] === id);
-// The kit's segmented control the four views are (each option carries the id the browser finds its button by), and a press
-// on one: the control hears the value chosen, not a click.
-const views = (tree) =>
-  find(tree, (n) => Array.isArray(n.props?.options) && n.props.options.some((o) => o.testid?.startsWith("cal-view-")));
-const pickView = (tree, id) => views(tree).props.onValueChange(id);
+// The views are the frame's strip (chrome.ts), each tab a link to its view's address, which the page follows: a press on
+// one is a move to that address (the stub's frame below adopts it on the next draw).
+const pickView = (_tree, id) => {
+  went.push(`calendar/${id}`);
+};
+// The view the page draws, by its body: the month, the agenda, a day's one column, or the week's seven.
+const shownView = (tree) => {
+  if (byTestId(tree, "cal-month")) return "month";
+  if (byTestId(tree, "cal-agenda")) return "agenda";
+  if (find(tree, (n) => /\bcal-grid-day\b/.test(String(n.props?.className ?? "")))) return "day";
+  return byTestId(tree, "cal-col") ? "week" : null;
+};
 // The kit's date picker, which the range opens: the one node that takes a day and today.
 const picker = (tree) =>
   find(tree, (n) => typeof n.props?.today === "string" && typeof n.props?.onValueChange === "function");
@@ -314,18 +333,54 @@ const textOf = (n) => {
 };
 // The element a node draws: a kit button is a component around a press around the <button>, and its classes are the element's.
 const hostOf = (n) => (n && n.rendered && !Array.isArray(n.rendered) ? hostOf(n.rendered) : n);
+// What a sheet holds: the kit's Sheet is Base UI's Dialog, which the suite stands in for with parts that draw nothing
+// (shared/_stand-in-base-ui.mjs), so its words are read off the children it was handed, each layer's (a word may be
+// counted more than once: ask whether it is there, never how often).
+const textIn = (n) => {
+  const out = [];
+  walk(n, (x) => {
+    for (const k of x.props?.children ?? []) if (typeof k === "string" || typeof k === "number") out.push(String(k));
+  });
+  return out.join("");
+};
 const tick = () => new Promise((r) => setTimeout(r, 0));
 const settle = async (n = 6) => {
   for (let i = 0; i < n; i += 1) await tick();
+};
+
+/**
+ * The frame, as far as the page needs one: the address it is drawn for (app/(os)/w/[workspace]/calendar/[[...param]]),
+ * which follows every move the page makes (a tab, a day, a visit opened, closed or walked), as the router does.
+ */
+let addr = {};
+let followed = 0;
+const addressOf = (route) => {
+  const param = calendarParam(route);
+  return { param, ...calendarAddress(param) };
+};
+/** Open the page at a route, as a link does. */
+const at = (route) => {
+  addr = addressOf(route);
 };
 
 let reads = [];
 let homes = 0;
 // The weeks the board asked to have read ahead of need: [view, anchor] each time its timer ran.
 let warmed = [];
+/** The page goes away: what its effects handed back runs, last first. */
+const leave = () => {
+  for (const done of cleanups.splice(0).reverse()) done();
+};
+// The last page goes too, and its timers with it.
+after(() => leave());
 /** A fresh page over `week`: each read the page asks for answers the next of `answers` (true once they run out). */
 const fresh = (week = dto(), answers = []) => {
+  // The page before goes, as React lets go of it: its effects' cleanups run, its minute's timer with them, which kept
+  // the file from ever ending.
+  leave();
   trapped.length = 0;
+  addr = {};
+  followed = went.length;
   cells = [];
   cleanups = [];
   reads = [];
@@ -349,18 +404,25 @@ const fresh = (week = dto(), answers = []) => {
     },
   });
 };
-/** The page goes away: what its effects handed back runs, last first. */
-const leave = () => {
-  for (const done of cleanups.splice(0).reverse()) done();
-};
-/** Draw the page again over the same cells; the board's five-minute timer is not started for real. */
+/**
+ * Draw the page again over the same cells, at the address the frame holds (where the page's last moves took it); the
+ * board's five-minute timer is not started for real.
+ */
 const page = (props = {}) => {
+  for (; followed < went.length; followed += 1) {
+    const to = went[followed];
+    if (typeof to === "string" && /^calendar(\/|$)/.test(to)) addr = addressOf(to);
+  }
   frames.begin();
   const [si, ci] = [globalThis.setInterval, globalThis.clearInterval];
   globalThis.setInterval = () => 0;
   globalThis.clearInterval = () => {};
   try {
-    return CalendarPage(props);
+    const drawn = CalendarPage({ ...addr, ...props });
+    // The frame draws the page's act on its row of views (board-parts.tsx calendarAct: the bar on a desk, Settings on a
+    // phone): here it hangs from the page's node, so a search of the page finds it where a person does, beside the board.
+    const act = standingSaid()?.act;
+    return act ? { ...drawn, props: { ...drawn.props, children: [...(drawn.props.children ?? []), act] } } : drawn;
   } finally {
     globalThis.setInterval = si;
     globalThis.clearInterval = ci;
@@ -387,8 +449,35 @@ const openTimes = (tree) => all(tree, (n) => n.props?.["data-testid"] === "cal-w
 /** The board's columns, by day. */
 const columns = (tree) => all(tree, (n) => n.props?.["data-testid"] === "cal-col");
 const classes = (n) => String(n.props.className).split(" ");
+/** The month's days: each a cell (its look: closed, unread, loading) round the button that opens it and names it. */
+const monthCells = (tree) => all(tree, (n) => String(n.props?.className ?? "").split(" ")[0] === "cal-month-cell");
+/** One day of the month, by its key: the button a reader hears it by. */
+const monthDay = (tree, key) => {
+  const cell = monthCells(tree).find((n) => n.props.key === key);
+  return cell ? find(cell, (n) => n.props?.["data-testid"] === "cal-month-cell") : null;
+};
+/** The lines of one group of Hours and rules (the kit's sheet Settings opens, drawn closed in the tree), by its name. */
+const ruleLines = (tree, name) => {
+  const group = all(byTestId(tree, "cal-rules"), (n) => n.props?.className === "cal-rules-group").find(
+    (g) => textOf(find(g, (n) => n.props?.className === "cal-rules-label")).trim() === name,
+  );
+  return all(group, (n) => n.props?.className === "cal-rules-line").map(textOf);
+};
+/** A menu of the bar's, by the name it is read by: Show's capsule ("Show") or Settings ("Calendar settings"). */
+const barMenu = (tree, label) => find(tree, (n) => n.props?.label === label && Array.isArray(n.props?.groups));
+/** The legend, Show's caption: what each look on the board means, where the switches that draw them are. */
+const legend = (tree) =>
+  (barMenu(tree, "Show") ?? barMenu(tree, "Calendar settings"))?.props.groups.find((g) => g.header === "Show")
+    ?.caption ?? "";
+/** An item of Settings' menu, by its words. */
+const settingsItem = (tree, label) =>
+  barMenu(tree, "Calendar settings")
+    .props.groups.flatMap((g) => g.items ?? [])
+    .find((i) => i.label === label);
 
-test("REGRESSION (D14): an appointment opens as a dialog named by its title; Escape closes it, and the board holds still behind it", () => {
+test("REGRESSION (D14): on a desk an appointment opens in the peek at the board's edge, named by its title; Escape closes it, and the board holds still behind it", () => {
+  // The visit opened as Ask's legacy modal (lane E): it is the peek People's, the Pipeline's and Leads' pages draw, beside
+  // a board that stays live, never a modal that holds the page.
   fresh();
   let tree = page();
   const range = () => textOf(byTestId(tree, "cal-range"));
@@ -398,21 +487,21 @@ test("REGRESSION (D14): an appointment opens as a dialog named by its title; Esc
   block.props.onClick();
   tree = page();
   const panel = byTestId(tree, "cal-panel");
-  assert.ok(panel, "the panel opened");
+  assert.ok(panel, "the peek opened");
+  assert.equal(panel.type, "aside");
+  assert.ok(classes(panel).includes("cal-side"));
   assert.equal(panel.props.role, "dialog");
-  assert.equal(panel.props["aria-modal"], "true");
-  assert.equal(panel.props.tabIndex, -1, "focus can be put on the dialog itself as it opens");
-  assert.equal(trapped.length, 1, "the dialog holds focus with the one helper every modal takes");
-  const title = find(tree, (n) => n !== panel && n.props?.id && n.props.id === panel.props["aria-labelledby"]);
-  assert.ok(title, "the dialog is named by an element on it");
-  assert.equal(textOf(title), "Ana Ruiz · Color");
+  assert.equal(panel.props["aria-modal"], undefined, "not modal: the board beside it stays live");
+  assert.equal(panel.props["aria-label"], "Color", "named by what it is for");
+  assert.equal(textOf(byTestId(panel, "cal-visit-door")), "Ana Ruiz", "who it is with, a door to their page");
+  assert.equal(byTestId(tree, "calendar-real").props["data-peek"], "", "the board makes room for it (calendar.css)");
 
   press("ArrowRight");
   tree = page();
   assert.equal(range(), "Sep 7 – 13", "REGRESSION: the arrows moved the week behind an open appointment");
   assert.ok(byTestId(tree, "cal-panel"), "and the appointment stays open");
 
-  assert.equal(press("Escape"), true, "Escape is the dialog's");
+  assert.equal(press("Escape"), true, "Escape is the peek's");
   tree = page();
   assert.equal(byTestId(tree, "cal-panel"), null, "Escape closes it");
 
@@ -421,49 +510,87 @@ test("REGRESSION (D14): an appointment opens as a dialog named by its title; Esc
   assert.equal(range(), "Sep 14 – 20", "with nothing open the arrows move the board again");
 });
 
-test("on a phone a pull down on an open appointment lets it go, as a sheet's does; a short drag keeps it, and a desk pulls nothing", () => {
-  // On a phone the card stands at the screen's foot, and Close, the wash and Escape were its only ways out (Ruben,
-  // 8 October 2026: everything that rises from the bottom edge goes back down by a pull).
+test("(lane E) the desk's peek walks the day's visits: its ‹ › and J and K open the next in its place, round the day, and say where it is", () => {
+  const week = dto();
+  week.days[1].items.push({
+    id: "e4",
+    start: "2026-09-08T20:00:00.000Z",
+    end: "2026-09-08T21:00:00.000Z",
+    title: "Bo Chen · Cut",
+    all_day: false,
+    person: null,
+  });
+  fresh(week);
+  let tree = page();
+  byTestId(tree, "cal-block").props.onClick();
+  tree = page();
+  const label = () => byTestId(tree, "cal-panel")?.props["aria-label"];
+  const where = () => textOf(byTestId(tree, "cal-side-walk"));
+  assert.equal(label(), "Color");
+  assert.match(where(), /1 of 2/);
+  assert.equal(press("j"), true, "J walks the day");
+  tree = page();
+  assert.equal(label(), "Bo Chen · Cut");
+  assert.match(where(), /2 of 2/);
+  press("j");
+  tree = page();
+  assert.equal(label(), "Color", "round the day");
+  press("k");
+  tree = page();
+  assert.equal(label(), "Bo Chen · Cut", "and back");
+  assert.equal(textOf(byTestId(tree, "cal-range")), "Sep 7 – 13", "the board holds still under the walk");
+});
+
+test("on a phone the visit is the kit's sheet from the bottom edge, its pull, handle and Escape the kit's; on a desk the peek", () => {
+  // On a phone the card stood at the screen's foot with its own touch handlers (8 October 2026); it is the kit's Sheet now,
+  // which every sheet a phone raises is, so a pull down lets it go as theirs does (kit/sheet/sheet.tsx touchSwipe).
   fresh();
   let tree = page();
   byTestId(tree, "cal-block").props.onClick();
   tree = page();
-  const el = { dataset: {} };
-  const pull = (dy) => {
-    const panel = byTestId(tree, "cal-panel");
-    panel.props.onTouchStart({ touches: [{ clientX: 180, clientY: 300 }], currentTarget: el, target: null });
-    panel.props.onTouchEnd({ changedTouches: [{ clientX: 184, clientY: 300 + dy }], currentTarget: el });
-    tree = page();
-  };
-  pull(140);
-  assert.ok(byTestId(tree, "cal-panel"), "on a desk the card stands in the page's middle, and nothing is pulled");
-  globalThis.window.matchMedia = (q) => ({ matches: /max-width:\s*720px/.test(q) });
+  assert.equal(byTestId(tree, "cal-panel").type, "aside", "a desk: the peek");
+  globalThis.window.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
   try {
     tree = page();
-    pull(40);
-    assert.ok(byTestId(tree, "cal-panel"), "a short drag keeps it");
-    pull(140);
+    const sheet = find(tree, (n) => n.props?.testid === "cal-panel" && typeof n.props.onClose === "function");
+    assert.ok(sheet, "a phone: the kit's sheet");
+    assert.equal(sheet.props.open, true);
+    assert.equal(sheet.props.title, "Color");
+    assert.ok(byTestId(tree, "cal-visit"), "the same parts, the same view model");
     assert.equal(
-      byTestId(tree, "cal-panel"),
+      find(tree, (n) => n.type === "aside"),
       null,
-      "REGRESSION: a pull down did nothing to a card at the screen's foot",
+      "and no peek beside it",
+    );
+    sheet.props.onClose();
+    tree = page();
+    assert.equal(
+      find(tree, (n) => n.props?.testid === "cal-panel" && n.props.open === true),
+      null,
+      "the kit's close lets it go",
     );
   } finally {
     delete globalThis.window.matchMedia;
   }
 });
 
-/**
- * An appointment's dialog, its controls in the order Tab walks them, for a consultation that is over, for someone in
- * People with no proposal since and no thread to text the booking link into, where deals are on and the deal sheet is
- * installed (0008): Open in People, the booking link, then the dialog's primary act, "Start a proposal", before Close.
- * The order drawn is proved against this list below.
- */
-const PEEK_FOCUS_ORDER = ["Open in People", "Copy the booking link", "Start a proposal", "Close"];
-
 /* ------------------------------ the peek knows the deal (0008) ------------------------------ */
 
 const HOUR = 3_600_000;
+/** Ana, as the board's read matched her in People, with what it knows of her (calendar-person-facts.ts). */
+const ANA = {
+  id: "p1",
+  name: "Ana Ruiz",
+  facts: {
+    state: "active",
+    business: null,
+    deal: null,
+    step: null,
+    last: { at: null, by: "No contact recorded" },
+    phone: null,
+    email: null,
+  },
+};
 /** Ana's consultation on Tuesday, 2 – 3:30 PM, its title naming a consult-first service, as the route marks it. */
 const consultWeek = (over = {}) => {
   const week = dto();
@@ -474,7 +601,7 @@ const consultWeek = (over = {}) => {
       end: "2026-09-08T19:30:00.000Z",
       title: "Kitchen remodel consult · Ana Ruiz",
       all_day: false,
-      person: { id: "p1", name: "Ana Ruiz" },
+      person: ANA,
       consultation: true,
       consult_service: "Kitchen remodel",
       ...over,
@@ -492,9 +619,7 @@ const peopleWith = (stage, dealsOn = true, sinceMs = END - 86_400_000) => ({
   rows: [{ id: "p1", name: "Ana Ruiz", deal: stage ? { stage, sinceMs } : null }],
 });
 let sheets = [];
-/** What the open dialog's own effects hand back, which React runs as it lets go of the dialog. */
-let peekCleanups = [];
-/** Draw with the clock at `nowMs`: the peek asks contracts whether the consultation is over by the clock it runs on. */
+/** Draw with the clock at `nowMs`: the visit asks contracts whether the consultation is over by the clock it runs on. */
 const drawnAt = (nowMs, draw) => {
   const real = Date.now;
   Date.now = () => nowMs;
@@ -505,31 +630,27 @@ const drawnAt = (nowMs, draw) => {
   }
 };
 /**
- * The board over `week` with Ana's appointment open; People as given; the deal sheet installed as a stand-in that
- * counts what it is asked for (or `sheet` itself, a function), or not at all; the clock at `nowMs`.
+ * The board over `week` with Ana's appointment open, in a workspace that sells by proposal (deals on) unless told not to;
+ * the deal sheet installed as a stand-in that counts what it is asked for; the clock at `nowMs`.
  */
-const peek = ({ week = consultWeek(), people = peopleWith(null), sheet = true, nowMs = END + HOUR } = {}) => {
+const peek = ({ week = consultWeek(), dealsOn = true, nowMs = END + HOUR } = {}) => {
   fresh(week);
   sheets = [];
-  if (people) globalThis.window.__PEOPLE = people;
-  else delete globalThis.window.__PEOPLE;
-  if (typeof sheet === "function") globalThis.window.openDealSheet = sheet;
-  else if (sheet) globalThis.window.openDealSheet = (args) => sheets.push(args);
-  else delete globalThis.window.openDealSheet;
+  globalThis.window.__WORKSPACES = [{ id: "t-salon", sells_by: dealsOn ? "proposal" : "booking" }];
+  globalThis.window.__ACTIVE_WORKSPACE = "t-salon";
+  globalThis.window.openDealSheet = (args) => sheets.push(args);
   let tree = drawnAt(nowMs, () => page());
-  const mark = cleanups.length;
   byTestId(tree, "cal-block").props.onClick();
   tree = drawnAt(nowMs, () => page());
-  peekCleanups = cleanups.slice(mark);
   assert.ok(byTestId(tree, "cal-panel"), "the appointment is open");
   return tree;
 };
 const forgetPeek = () => {
-  delete globalThis.window.__PEOPLE;
+  delete globalThis.window.__WORKSPACES;
+  delete globalThis.window.__ACTIVE_WORKSPACE;
   delete globalThis.window.openDealSheet;
 };
-const dealPill = (tree) => byTestId(tree, "cal-panel-deal");
-const startAct = (tree) => byTestId(tree, "cal-panel-propose");
+const startAct = (tree) => byTestId(tree, "cal-visit-primary-proposal");
 
 test("(0008) the peek's rule: the deal's stage where deals are on and People holds them, and the sheet's own act once a consultation is over with no proposal since", () => {
   const block = toCalendarVM(consultWeek(), new Date(END - 4 * HOUR)).days[1].blocks[0];
@@ -588,88 +709,40 @@ test("(0008) the peek's rule: the deal's stage where deals are on and People hol
   assert.deepEqual(calendarPeekDeal(block, { dealsOn: true, rows: [{ id: "p2", deal: null }] }, after), nothing);
   assert.deepEqual(calendarPeekDeal({ ...block, person: null }, peopleWith("lost"), after), nothing);
   assert.deepEqual(calendarPeekDeal(block, null, after), nothing);
-  // The page reaches the rule through the bridge, and the bridge's is contracts' own.
-  for (const people of [peopleWith(null), peopleWith("lost"), peopleWith("won"), peopleWith("won", false), null])
-    for (const nowMs of [END - HOUR, after])
-      assert.deepEqual(calendar.peekDeal(block, people, nowMs), calendarPeekDeal(block, people, nowMs));
 });
 
-test("REGRESSION (0008): the peek's act closes the dialog first and opens the one deal sheet on the next task, so focus lands in the sheet, and its way back is the appointment", async () => {
-  // Stand-ins for React and the record kit: the dialog's way back is its effect's cleanup, which React runs as it lets
-  // go of the dialog; the sheet, as it opens, takes focus and keeps what had it as its own way back (record-sheet.jsx).
-  // Opened in the same press, the sheet took focus first and the dialog's way back took it out of the sheet again.
-  const focusable = (name) => {
-    const el = {
-      name,
-      isConnected: true,
-      focus() {
-        globalThis.document.activeElement = el;
-      },
-    };
-    return el;
-  };
-  const board = focusable("the appointment on the board");
-  const inSheet = focusable("the deal sheet");
-  let sheetBack = null;
+test("REGRESSION (0008): the proposal act closes the visit first and opens the one deal sheet on the next task, in its own mode, so the sheet takes over from it", async () => {
+  // Opened in the same press, the sheet took focus first and the visit's way back took it out of the sheet again.
   try {
-    globalThis.document.activeElement = board;
-    const tree = peek({
-      sheet: (args) => {
-        sheets.push(args);
-        sheetBack = globalThis.document.activeElement;
-        inSheet.focus();
-      },
-    });
+    const tree = peek();
     const act = startAct(tree);
+    assert.ok(act, "a consultation over, no proposal since, deals on: the foot leads with it");
     assert.equal(textOf(act), "Start a proposal");
-    assert.ok(classes(hostOf(act)).includes("btn-primary"), "the dialog's one primary act");
-    globalThis.document.activeElement = focusable("Start a proposal");
+    assert.ok(classes(hostOf(act)).includes("btn-primary"), "the visit's one primary act");
     act.props.onClick();
-    assert.deepEqual(sheets, [], "not in the same press: the dialog goes first");
-    assert.equal(byTestId(page(), "cal-panel"), null, "the dialog closed");
-    for (const done of peekCleanups) done();
-    assert.equal(globalThis.document.activeElement, board, "the dialog's way back: the appointment that opened it");
+    assert.deepEqual(sheets, [], "not in the same press: the visit goes first");
+    assert.equal(byTestId(page(), "cal-panel"), null, "the visit closed");
     await settle(2);
     assert.deepEqual(sheets, [{ personId: "p1", mode: "propose", service: "Kitchen remodel" }], "the act's own mode");
-    assert.equal(globalThis.document.activeElement, inSheet, "focus is in the sheet");
-    assert.equal(sheetBack, board, "and the sheet goes back to the appointment, not to a button that has gone");
-  } finally {
-    globalThis.document.activeElement = null;
-    forgetPeek();
-  }
-});
-
-test("(D1-consult-held) a consultation marked Missed or Cancelled offers no proposal; one kept, booked or with no row does, as the Pipeline and Today already read it", () => {
-  try {
-    const start = (visit) => startAct(peek({ week: consultWeek({ visit }) }));
-    assert.equal(
-      start({ id: "v1", status: "missed" }),
-      null,
-      "REGRESSION: they did not come, and a proposal was offered",
-    );
-    assert.equal(start({ id: "v1", status: "cancelled" }), null);
-    assert.ok(start({ id: "v1", status: "kept" }));
-    assert.ok(start({ id: "v1", status: "booked" }), "past and unmarked is past, not missed");
-    assert.ok(startAct(peek()), "an event the record has not kept, as before");
   } finally {
     forgetPeek();
   }
 });
 
-test("(0008) the peek's act is gated as the sheet's Save is: a role that may not record a deal is told why at the button, and nothing opens", async () => {
+test("(0008) the proposal act is gated as the sheet's Save is: a role that may not record a deal is told why at the button, and nothing opens", async () => {
   const hadStore = globalThis.window.ST_STORE;
   globalThis.window.ST_STORE = { can: () => false, myRole: () => "viewer" };
   try {
     const tree = peek();
     const act = startAct(tree);
-    assert.ok(act, "the dialog's primary act is shown, gated, to a role that may not press it");
+    assert.ok(act, "the visit's primary act is shown, gated, to a role that may not press it");
     assert.equal(act.props["aria-disabled"], true);
     assert.equal(typeof act.props["aria-description"], "string", "the reason, at the control");
     assert.equal(act.props["aria-description"], act.props["data-tip"]);
     act.props.onClick({ preventDefault() {}, stopPropagation() {}, currentTarget: act });
     await settle(2);
     assert.deepEqual(sheets, [], "nothing opens");
-    assert.ok(byTestId(page(), "cal-panel"), "and the dialog stays");
+    assert.ok(byTestId(page(), "cal-panel"), "and the visit stays");
   } finally {
     if (hadStore === undefined) delete globalThis.window.ST_STORE;
     else globalThis.window.ST_STORE = hadStore;
@@ -677,75 +750,44 @@ test("(0008) the peek's act is gated as the sheet's Save is: a role that may not
   }
   // A role that may: no gate on it.
   try {
-    const act = startAct(peek());
-    assert.equal(act.props["aria-disabled"], undefined);
+    assert.equal(startAct(peek()).props["aria-disabled"], undefined);
   } finally {
     forgetPeek();
   }
 });
 
-test("(0008) the peek says the person's deal stage beside their name, in the one pill, and offers a proposal only where one is owed", () => {
+test("(lane D) the visit says the person's standing, business and deal from the board's own read, and the page reads no People for it -- it read People's whole book a second time, for one pill and a deal", () => {
+  // Which deal, standing and words a visit says is contracts' (calendar-panel.test.mjs, visitSheetOf); here, that the page
+  // draws them from the read it already has, and never reaches for People's.
+  const readsOfPeople = [];
+  Object.defineProperty(globalThis.window, "__PEOPLE", {
+    configurable: true,
+    get() {
+      readsOfPeople.push("read");
+      return undefined;
+    },
+  });
   try {
-    // Passed before this consultation: the stage, and a new proposal can start.
-    let tree = peek({ people: peopleWith("lost") });
-    assert.equal(textOf(dealPill(tree)), "Passed");
-    assert.equal(dealPill(tree).props["data-state"], "lost");
-    assert.ok(byTestId(byTestId(tree, "cal-panel-person"), "cal-panel-deal"), "beside the person");
-    assert.ok(startAct(tree));
-    // Its controls, drawn in the order Tab walks them, are the pinned order.
-    // A glyph's press is heard by its name (the copy is a glyph with its name and its tip, 10 Oct 2026).
-    const controls = all(byTestId(tree, "cal-panel"), (n) => n.type === "button").map(
-      (b) => b.props["aria-label"] || textOf(b).trim(),
+    const deal = {
+      deal_id: "d1",
+      deal_stage: "proposed",
+      deal_service: "Kitchen remodel",
+      deal_proposed_at: "2026-09-07T15:00:00.000Z",
+    };
+    const tree = peek({ week: consultWeek({ person: { ...ANA, facts: { ...ANA.facts, deal } } }) });
+    const person = byTestId(tree, "cal-visit-person");
+    assert.ok(person, "who it is with");
+    assert.match(textOf(person), /Active/, "their standing, in People's word");
+    assert.match(
+      textOf(byTestId(tree, "cal-visit-deal")),
+      /^Proposal out · Kitchen remodel/,
+      "their deal, a door to it",
     );
-    assert.deepEqual(controls, PEEK_FOCUS_ORDER);
-    // Passed after it: the proposal that followed it was answered.
-    tree = peek({ people: peopleWith("lost", true, END + HOUR) });
-    assert.equal(textOf(dealPill(tree)), "Passed");
-    assert.equal(startAct(tree), null, "a pass after the consultation answered its proposal");
-    // A proposal out: the stage in its tone, and nothing to start.
-    tree = peek({ people: peopleWith("proposed") });
-    assert.equal(textOf(dealPill(tree)), "Proposal out");
-    assert.equal(dealPill(tree).props["data-tone"], stateOf("deal", "proposed").tone);
-    assert.equal(startAct(tree), null, "an open proposal already is the next step");
-    tree = peek({ people: peopleWith("won") });
-    assert.equal(textOf(dealPill(tree)), "Client");
-    assert.equal(startAct(tree), null);
-    // Not over yet: the stage, nothing to start.
-    tree = peek({ people: peopleWith("lost"), nowMs: END - HOUR });
-    assert.equal(textOf(dealPill(tree)), "Passed");
-    assert.equal(startAct(tree), null, "the consultation has not ended");
-    // Not a consultation.
-    tree = peek({ week: consultWeek({ consultation: false, consult_service: null, title: "Ana Ruiz · Color" }) });
-    assert.equal(startAct(tree), null);
-    // No sheet installed: nothing to open, so nothing offered; the stage still shows.
-    tree = peek({ people: peopleWith("lost"), sheet: false });
-    assert.equal(startAct(tree), null);
-    assert.equal(textOf(dealPill(tree)), "Passed");
+    assert.equal(startAct(tree), null, "a proposal out already is the next step");
+    assert.deepEqual(readsOfPeople, [], "REGRESSION: the visit read People's book");
+    assert.equal((listeners["surface:clients"] ?? []).length, 0, "and listens for none");
   } finally {
-    forgetPeek();
-  }
-});
-
-test("(0008) where deals are off, or People does not hold the person, the peek says nothing of a deal; and it draws again when People lands", () => {
-  try {
-    let tree = peek({ people: peopleWith("proposed", false) });
-    assert.equal(dealPill(tree), null, "deals off: no stage, whatever is on file");
-    assert.equal(startAct(tree), null);
-    tree = peek({ people: { dealsOn: true, rows: [] } });
-    assert.equal(dealPill(tree), null, "no row: nothing it can say");
-    assert.equal(startAct(tree), null, "a deal it has not read is not one it can say is missing");
-    // Opened before People landed: nothing; People lands and says so; the dialog draws again, with the stage.
-    tree = peek({ people: null });
-    assert.equal(dealPill(tree), null);
-    assert.equal(startAct(tree), null);
-    const heard = listeners["surface:clients"] ?? [];
-    assert.ok(heard.length > 0, "the open dialog listens for People");
-    globalThis.window.__PEOPLE = peopleWith("lost");
-    for (const fn of heard) fn();
-    tree = drawnAt(END + HOUR, () => page());
-    assert.equal(textOf(dealPill(tree)), "Passed");
-    assert.ok(startAct(tree));
-  } finally {
+    delete globalThis.window.__PEOPLE;
     forgetPeek();
   }
 });
@@ -777,18 +819,35 @@ test("REGRESSION (0008): the board's keys hold still under anything open over th
   const hadQuery = globalThis.document.querySelector;
   globalThis.document.querySelector = (sel) => (open && sel.split(",").some((s) => s.trim() === open) ? {} : null);
   try {
-    // The appointment's own dialog sits in the app's root too, and keeps its Escape: the page asks it first.
+    // The board's own peek is no overlay over it: the board asks it first, and its Escape closes it.
     byTestId(tree, "cal-block").props.onClick();
     tree = page();
     assert.ok(byTestId(tree, "cal-panel"));
-    open = '.app-root [role="dialog"]';
-    assert.equal(key("Escape"), true, "Escape is the dialog's");
+    assert.equal(key("Escape"), true, "Escape is the peek's");
     tree = page();
     assert.equal(byTestId(tree, "cal-panel"), null, "and closes it");
-    // The deal sheet, or anything else open over the page, has the keys.
+    // Something open over the peek (its More, the deal sheet) has the keys, Escape too.
+    byTestId(tree, "cal-block").props.onClick();
+    tree = page();
+    open = '.app-root [role="menu"]';
+    assert.equal(key("Escape"), false, "Escape is the menu's over the peek");
+    assert.equal(key("j"), false, "and the walk waits for it");
+    tree = page();
+    assert.ok(byTestId(tree, "cal-panel"), "the peek stays under it");
+    open = null;
+    key("Escape");
+    tree = page();
+    // The deal sheet, the kit's sheets, or anything else open over the page, has the keys.
+    open = '.app-root [role="dialog"]:not(.cal-side)';
     for (const k of ["ArrowRight", "ArrowLeft", "t"]) assert.equal(key(k), false, `${k} is the sheet's`);
     tree = page();
     assert.equal(range(), "Sep 7 – 13", "REGRESSION: the arrows in the deal sheet moved the board behind it");
+    open = '.sheet[role="dialog"]';
+    assert.equal(
+      key("ArrowRight"),
+      false,
+      "REGRESSION: a kit sheet (Hours and rules) let the arrows move the days behind it",
+    );
     open = '.app-root [role="menu"]';
     assert.equal(key("ArrowRight"), false, "a menu has the keys too");
     open = null;
@@ -840,20 +899,26 @@ test("REGRESSION (B11): days that could not be read say so with a Retry, and are
   assert.equal(byTestId(tree, "cal-failed"), null, "a read that lands takes the line away");
 });
 
-test("the views are the bar's first: they stand where every page's row of views stands, before the range and the options", () => {
-  // They were the bar's last on a desk, at its right: the tabs crossed the page between the Inbox and the Calendar
-  // (Ruben, 7 Oct 2026). First in the bar, a keyboard meets them first too, as it meets the frame's strip.
+test("the views are the frame's strip, where every page's row of views stands, and not the page's: the bar is the range with its steps, then the page's options", () => {
+  // They were a segmented control of the page's own, dressed as the strip, inside the page's view: it wore the strip's glass
+  // a beat late on every arrival (Ruben, 11 Oct 2026). The frame draws them now (chrome.ts, calendar-surface.test.mjs).
   fresh();
-  const bar = byTestId(page(), "cal-bar");
+  const tree = page();
+  const bar = byTestId(tree, "cal-bar");
   const parts = (bar.props.children ?? []).flat().filter((n) => n && typeof n === "object");
-  assert.equal(parts[0], views(bar), "the four views come first");
-  assert.equal(parts[0].props.className, "cal-views");
   assert.deepEqual(
-    parts.slice(1).map((n) => n.props.className),
+    parts.map((n) => n.props.className),
     ["cal-when", "cal-tools"],
-    "then the range with its steps, then the page's options",
+    "the range with its steps, then the page's options",
   );
-  assert.equal(views(parts[2]), null, "and the options' group no longer holds them");
+  assert.equal(
+    find(
+      tree,
+      (n) => Array.isArray(n.props?.options) && n.props.options.some((o) => o.testid?.startsWith("cal-view-")),
+    ),
+    null,
+    "REGRESSION: a strip of views of the page's own",
+  );
 });
 
 test("REGRESSION (B12): the range names the days on screen in every view -- a line over the board said 'This week' of next week and 'This month' of any month", () => {
@@ -939,12 +1004,15 @@ test("the booking rules come as parts, and a read's unfollowable repeats and und
   fresh(counted(2, 3));
   const tree = page();
   assert.deepEqual(
-    all(tree, (n) => n.props?.["data-testid"] === "cal-rule").map(textOf),
+    ruleLines(tree, "Booking"),
     vm.ruleParts,
-    "each rule its own part, so a narrow screen wraps between rules, never inside one",
+    "each rule a line of its own in Hours and rules, so a narrow screen wraps between rules, never inside one",
   );
-  assert.ok(byTestId(tree, "cal-feed-note-repeats"), "the repeats explained on the page");
-  assert.ok(byTestId(tree, "cal-feed-note-undrawn"), "the undrawn events explained on the page");
+  // The board says one thing at a time over its days (CAL-12): the first the read left out, explained; the next when it is gone.
+  assert.match(textOf(byTestId(tree, "cal-notice-note-repeats")), /2 repeating events count only once\./);
+  assert.equal(byTestId(tree, "cal-notice-note-undrawn"), null, "one notice, never a stack of them over the first day");
+  fresh(counted(0, 3));
+  assert.match(textOf(byTestId(page(), "cal-notice-note-undrawn")), /3 more events aren't drawn\./);
 });
 
 test("the board is drawn in hours of the stylesheet's hour (--cal-hour): one value moves every block, band, tick and the now line, so a phone fits the day by setting it", () => {
@@ -1011,14 +1079,14 @@ test("REGRESSION (B28): a phone opens on the agenda -- it opened on a week grid 
   globalThis.window.matchMedia = (q) => ({ matches: /max-width:\s*720px/.test(q) });
   try {
     const tree = page();
-    assert.equal(views(tree).props.value, "agenda");
+    assert.equal(shownView(tree), "agenda");
     assert.ok(byTestId(tree, "cal-agenda"), "the days as a list");
     assert.equal(byTestId(tree, "cal-col"), null, "no week grid");
   } finally {
     delete globalThis.window.matchMedia;
   }
   fresh();
-  assert.equal(views(page()).props.value, "week", "a desk keeps the week");
+  assert.equal(shownView(page()), "week", "a desk keeps the week");
 });
 
 test("the agenda's rows ARE Today's rows, and a customer is named once: it drew its own grid, the event's whole title, and the name again under it", () => {
@@ -1060,10 +1128,11 @@ test("the agenda's rows ARE Today's rows, and a customer is named once: it drew 
 
 test("a link can name a day: the page opens it in Day view, on a phone too", () => {
   fresh();
-  globalThis.window.matchMedia = () => ({ matches: true });
+  globalThis.window.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
   try {
-    const tree = page({ initialDay: "2026-09-10" });
-    assert.equal(views(tree).props.value, "day");
+    at("calendar/2026-09-10");
+    const tree = page();
+    assert.equal(shownView(tree), "day");
     assert.equal(textOf(byTestId(tree, "cal-range")), "Thu · Sep 10");
   } finally {
     delete globalThis.window.matchMedia;
@@ -1086,40 +1155,61 @@ const withVisits = () => {
   });
   return week;
 };
+/** The open visit's name (the peek's), or null. */
+const openName = (tree) => byTestId(tree, "cal-panel")?.props["aria-label"] ?? null;
 
-test("(A1, D1) a link to a visit opens its panel once its block is drawn, on the day it names", () => {
+test("(A1, D1) a link to a visit opens its panel once its block is drawn, on the day it names; closed, the address is the day's again", () => {
   fresh(withVisits());
-  let tree = page({ initialDay: "2026-09-08", initialVisitId: "v-ana" });
-  assert.equal(views(tree).props.value, "day", "the day it names is opened");
-  tree = page({ initialDay: "2026-09-08", initialVisitId: "v-ana" });
-  const panel = byTestId(tree, "cal-panel");
-  assert.ok(panel, "and the visit's panel is open over it");
-  const title = find(tree, (n) => n !== panel && n.props?.id && n.props.id === panel.props["aria-labelledby"]);
-  assert.equal(textOf(title), "Ana Ruiz · Color", "the visit the id names, found by its row and not by its block's id");
+  at("calendar/2026-09-08:a-v-ana");
+  let tree = page();
+  assert.equal(shownView(tree), "day", "the day it names is opened");
+  tree = page();
+  assert.equal(openName(tree), "Color", "the visit the id names, found by its row and not by its block's id");
+  assert.equal(textOf(byTestId(tree, "cal-visit-door")), "Ana Ruiz");
+  went.length = followed = 0;
   assert.equal(press("Escape"), true, "closed as any panel is");
-  tree = page({ initialDay: "2026-09-08", initialVisitId: "v-ana" });
+  assert.deepEqual(went, ["calendar/2026-09-08"], "a panel a link opened closes to the place the board stands");
+  tree = page();
   assert.equal(byTestId(tree, "cal-panel"), null);
   press("ArrowRight");
-  tree = page({ initialDay: "2026-09-08", initialVisitId: "v-ana" });
+  tree = page();
   assert.equal(byTestId(tree, "cal-panel"), null, "and it opens once: a move of the board does not open it again");
+});
+
+test("(lane A) a visit opened on the board names the view and the day behind it in the address, so a refresh or a copied link opens the same; a walk replaces it", () => {
+  fresh(withVisits());
+  at("calendar/week");
+  let tree = page();
+  went.length = followed = 0;
+  byTestId(tree, "cal-block").props.onClick();
+  assert.deepEqual(went, ["calendar/week:2026-09-08:a-v-ana"], "the week stays the week behind it");
+  tree = page();
+  assert.equal(shownView(tree), "week");
+  assert.equal(openName(tree), "Color");
+  // Opened again from that address alone (a refresh): the same visit, over the same week.
+  fresh(withVisits());
+  at("calendar/week:2026-09-08:a-v-ana");
+  page();
+  tree = page();
+  assert.equal(shownView(tree), "week", "REGRESSION: a visit's link opened Day view, whatever it was opened over");
+  assert.equal(openName(tree), "Color");
 });
 
 test("(A1) calendar/a-<id>, which names no day, opens the panel of a visit among the days the board holds, and a cancelled visit is still a visit to read", () => {
   fresh(withVisits());
-  page({ initialVisitId: "v-gone" });
-  const tree = page({ initialVisitId: "v-gone" });
-  const panel = byTestId(tree, "cal-panel");
-  assert.ok(panel, "the Calendar's week holds it, struck as it is on the board");
-  assert.equal(
-    textOf(find(tree, (n) => n.props?.id && n.props.id === panel.props["aria-labelledby"])),
-    "Lia Mora · Cut",
-  );
+  at("calendar/a-v-gone");
+  page();
+  const tree = page();
+  assert.ok(byTestId(tree, "cal-panel"), "the Calendar's week holds it, struck as it is on the board");
+  assert.match(openName(tree), /Cut/);
+  assert.equal(textOf(byTestId(tree, "cal-visit-state")), "Cancelled");
 });
 
 test("(A1) a visit the days drawn do not hold opens nothing, and says nothing wrong", () => {
   fresh(withVisits());
-  page({ initialDay: "2026-09-08", initialVisitId: "v-nobody" });
-  const tree = page({ initialDay: "2026-09-08", initialVisitId: "v-nobody" });
+  at("calendar/2026-09-08:a-v-nobody");
+  page();
+  const tree = page();
   assert.equal(byTestId(tree, "cal-panel"), null, "no panel for a row the board does not draw");
   assert.ok(byTestId(tree, "calendar-real"), "the board is as it is for the day alone");
 });
@@ -1129,8 +1219,8 @@ test("(A1) a window the tab held does not decide for a visit it lacks: the fresh
   try {
     // The surface value fresh() sets is a held window: read before this page mounted (fetchedAt 1).
     fresh(withVisits());
-    const address = { initialDay: "2026-09-08", initialVisitId: "v-late" };
-    let tree = page(address);
+    at("calendar/2026-09-08:a-v-late");
+    let tree = page();
     assert.equal(byTestId(tree, "cal-panel"), null, "the held window does not hold the visit");
     // The read behind it lands, a visit richer.
     const week = withVisits();
@@ -1144,17 +1234,13 @@ test("(A1) a window the tab held does not decide for a visit it lacks: the fresh
       visit: { id: "v-late", status: "booked" },
     });
     setSurfaceValue("calendar", { vm: toCalendarVM(week, NOW), fetchedAt: Date.now() + 1000 });
-    page(address);
-    tree = page(address);
-    const panel = byTestId(tree, "cal-panel");
+    page();
+    tree = page();
     assert.ok(
-      panel,
+      byTestId(tree, "cal-panel"),
       "REGRESSION: the held window had marked the visit as not there, and the fresh one never opened it",
     );
-    assert.equal(
-      textOf(find(tree, (n) => n.props?.id && n.props.id === panel.props["aria-labelledby"])),
-      "Noor Ali · Gloss",
-    );
+    assert.match(openName(tree), /Gloss/);
   } finally {
     honourDeps = false;
   }
@@ -1169,7 +1255,7 @@ test("REGRESSION (B19): a sentence that sends the owner to the calendar's addres
   );
   // With no calendar the card names no tab now: its press opens the Business row itself (the one answer's door,
   // contracts CALENDAR_SETTING_ROUTE), where the sentence sent the owner to the top of a tab to find it.
-  const none = textOf(byTestId(page(), "cal-feed-card"));
+  const none = textOf(byTestId(page(), "cal-notice-feed"));
   assert.ok(!none.includes("Settings › Workspace"), none);
   went.length = 0;
   byTestId(page(), "cal-feed-door").props.onClick();
@@ -1186,7 +1272,7 @@ test("REGRESSION (B19): a sentence that sends the owner to the calendar's addres
       },
     }),
   );
-  const unread = textOf(byTestId(page(), "cal-feed-card"));
+  const unread = textOf(byTestId(page(), "cal-notice-feed"));
   assert.ok(unread.includes("Settings › Business") && !unread.includes("Settings › Workspace"), unread);
 });
 
@@ -1202,6 +1288,27 @@ const span = (from, n, over = {}) => ({
 });
 /** The receptionist's next open time as the route sends it: when it starts, or none. */
 const opening = (start) => ({ next_opening: start ? { start, end: start } : null });
+/**
+ * GET calendar/runs, answered at once: while the board draws its campaigns it reads them beside its weeks on every move
+ * (runs-surface.ts), and a test of the board's own reads neither waits on them nor counts them.
+ */
+const runsRead = (url) => {
+  const u = new URL(String(url), "https://app.chanlytics.com");
+  if (!u.pathname.endsWith("/calendar/runs")) return null;
+  const q = Object.fromEntries(u.searchParams);
+  const runs = {
+    timezone: TZ,
+    from: q.from ?? "2026-08-31",
+    days: Number(q.days ?? 63),
+    paused: false,
+    runs: [],
+    moments: [],
+  };
+  return new Response(JSON.stringify({ ok: true, data: { runs } }), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
+};
 
 test("REGRESSION (C1): Next opening is the receptionist's first open time from now, wherever the board is looking, and names its day past this week -- it came from the loaded weeks and said only a weekday", () => {
   const next = (start, over = {}) => toCalendarVM(dto({ ...opening(start), ...over }), NOW).stats.next;
@@ -1273,18 +1380,14 @@ test("REGRESSION (C1): the booking rules the receptionist follows are all on the
   assert.equal(toCalendarVM(dto(), NOW).closuresMore, 0);
   fresh(dto({ rules, closures }));
   const tree = page();
-  assert.deepEqual(
-    all(tree, (n) => n.props?.["data-testid"] === "cal-rule").map(textOf),
-    vm.ruleParts,
-    "REGRESSION: the party size was never said",
-  );
+  assert.deepEqual(ruleLines(tree, "Booking"), vm.ruleParts, "REGRESSION: the party size was never said");
   const consult = textOf(byTestId(tree, "cal-rules-consult"));
   assert.ok(
     consult.includes("Consultation first") && consult.includes("Balayage · Color correction"),
     `REGRESSION: which services need a consultation was said only inside the service picker: ${consult}`,
   );
   assert.match(
-    textOf(byTestId(tree, "cal-rules")),
+    textIn(byTestId(tree, "cal-rules")),
     /\+2 more/,
     "REGRESSION: the closures past the sixth vanished without a word",
   );
@@ -1316,7 +1419,7 @@ test("REGRESSION (C1): the page says only what it read -- an unreadable calendar
     }),
   );
   let tree = page();
-  assert.match(textOf(byTestId(tree, "cal-feed-card")), /Your calendar could not be read\./);
+  assert.match(textOf(byTestId(tree, "cal-notice-feed")), /Your calendar could not be read\./);
   fresh(
     dto({
       feed: { present: false, state: "none", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 },
@@ -1324,7 +1427,7 @@ test("REGRESSION (C1): the page says only what it read -- an unreadable calendar
     }),
   );
   tree = page();
-  assert.match(textOf(byTestId(tree, "cal-feed-card")), /No calendar connected\./);
+  assert.match(textOf(byTestId(tree, "cal-notice-feed")), /No calendar connected\./);
   fresh();
   tree = page();
   byTestId(tree, "cal-next").props.onClick();
@@ -1353,7 +1456,7 @@ test("REGRESSION (C1): a day past what the receptionist offers says so, and the 
     /nothing the receptionist would offer/,
     "a day inside the offer with no times still says that",
   );
-  assert.match(textOf(byTestId(tree, "cal-legend")), /through Sep 14/, "the legend names the last day it offers");
+  assert.match(legend(tree), /through Sep 14/, "the legend names the last day it offers");
 });
 
 test("REGRESSION (C1): leaving the Calendar takes the loaded weeks back to today's -- a board left on another month took Today's day and its next opening with it", async () => {
@@ -1505,7 +1608,7 @@ test("REGRESSION (C2): days on their way say so in words -- the board only dimme
   const reading = byTestId(tree, "cal-reading");
   assert.ok(reading, "REGRESSION: nothing said the board was reading");
   assert.equal(reading.props.role, "status");
-  assert.match(textOf(reading), /Reading those days/);
+  assert.match(textOf(reading), /^Reading…$/, "in the range, where the days on screen are named");
   // The one rule every page dims by (components.css [data-loading] [data-dims]): it dimmed its own way, at once.
   assert.equal(byTestId(tree, "calendar-real").props["data-loading"], "", "the page says its days are on their way");
   assert.equal(byTestId(tree, "cal-body").props["data-dims"], true, "the board is what dims");
@@ -1520,6 +1623,8 @@ test("REGRESSION (C2): days on their way say so in words -- the board only dimme
 });
 
 test("(C2) the bridge's fresh read asks the route for fresh=1 once, then reads as before", async () => {
+  // The board of the test before goes first: a page still drawn would read its campaigns on every move here.
+  leave();
   const { calendarOverride, setCalendarFresh } = await import(`${S}/calendar/surface.ts`);
   const seen = [];
   const was = {
@@ -1533,6 +1638,8 @@ test("(C2) the bridge's fresh read asks the route for fresh=1 once, then reads a
     __WORKSPACES: [{ id: "t1", timezone: TZ }],
     __ACTIVE_WORKSPACE: "t1",
     fetch: async (url) => {
+      const runs = runsRead(url);
+      if (runs) return runs;
       seen.push(String(url));
       return new Response(JSON.stringify({ ok: true, data: { calendar: dto() } }), {
         status: 200,
@@ -1558,6 +1665,8 @@ test("(C2) the bridge's fresh read asks the route for fresh=1 once, then reads a
 });
 
 test("(C2) the bridge's refresh reads through the runner, fresh when asked, says whether a read landed, and never leaves fresh behind", async () => {
+  // The board of the test before goes first: a page still drawn would read its campaigns on every move here.
+  leave();
   const { startSurfaces } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
   const { calendarOverride } = await import(`${S}/calendar/surface.ts`);
   const seen = [];
@@ -1573,6 +1682,8 @@ test("(C2) the bridge's refresh reads through the runner, fresh when asked, says
     __WORKSPACES: [{ id: "t1", timezone: TZ }],
     __ACTIVE_WORKSPACE: "t1",
     fetch: async (url) => {
+      const runs = runsRead(url);
+      if (runs) return runs;
       seen.push(String(url));
       return new Response(JSON.stringify({ ok: true, data: { calendar: dto() } }), {
         status: 200,
@@ -1617,6 +1728,8 @@ test("(C2) the bridge's refresh reads through the runner, fresh when asked, says
 });
 
 test("a window the board has read paints at once on the way back, and is read again behind -- each way was a read of its own", async () => {
+  // The board of the test before goes first: a page still drawn would read its campaigns on every move here.
+  leave();
   // Measured on the salon's workspace, 22 Sep: the board held one window, so back to this week, and back to December,
   // were 390-500ms of "Reading those days…" each, and leaving for Reports read today's weeks again besides.
   const { startSurfaces } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
@@ -1636,6 +1749,8 @@ test("a window the board has read paints at once on the way back, and is read ag
     __WORKSPACES: [{ id: "t1", timezone: TZ }],
     __ACTIVE_WORKSPACE: "t1",
     fetch: async (url) => {
+      const runs = runsRead(url);
+      if (runs) return runs;
       const q = Object.fromEntries(new URL(String(url), "https://app.chanlytics.com").searchParams);
       // The weeks around today are the route's to work out (`around`), as the board's first read asks for them.
       const w = q.around === "today" ? windowFor(zoneDayKey(Date.now(), TZ)) : { from: q.from, days: Number(q.days) };
@@ -1696,6 +1811,8 @@ test("a window the board has read paints at once on the way back, and is read ag
 });
 
 test("REGRESSION: two moves whose reads overlap land as the second, and neither says it could not read the days -- the first, its answer dropped, put the span back under the second, whose own answer was then dropped too", async () => {
+  // The board of the test before goes first: a page still drawn would read its campaigns on every move here.
+  leave();
   const { startSurfaces } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
   const { calendarOverride, getCalendarSpan, setCalendarSpan } = await import(`${S}/calendar/surface.ts`);
   const { windowFor, zoneDayKey } = await import("@chanlytics/contracts");
@@ -1713,6 +1830,8 @@ test("REGRESSION: two moves whose reads overlap land as the second, and neither 
     __WORKSPACES: [{ id: "t1", timezone: TZ }],
     __ACTIVE_WORKSPACE: "t1",
     fetch: async (url) => {
+      const runs = runsRead(url);
+      if (runs) return runs;
       const q = Object.fromEntries(new URL(String(url), "https://app.chanlytics.com").searchParams);
       const w = q.around === "today" ? windowFor(zoneDayKey(Date.now(), TZ)) : { from: q.from, days: Number(q.days) };
       await new Promise((r) => parked.push(r));
@@ -1809,6 +1928,8 @@ test("the weeks a few moves on are the ones to read ahead: none where the loaded
 });
 
 test("a window read ahead is held and paints at once when the board gets there; one for a workspace left is dropped", async () => {
+  // The board of the test before goes first: a page still drawn would read its campaigns on every move here.
+  leave();
   const { warmCalendar, calendarOverride, setCalendarSpan } = await import(`${S}/calendar/surface.ts`);
   const { startSurfaces } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
   // The weeks the board last looked at stay with the module: this one begins on the weeks around today.
@@ -1828,6 +1949,8 @@ test("a window read ahead is held and paints at once when the board gets there; 
     __WORKSPACES: [{ id: "t1", timezone: TZ }],
     __ACTIVE_WORKSPACE: "t1",
     fetch: async (url) => {
+      const runs = runsRead(url);
+      if (runs) return runs;
       const q = Object.fromEntries(new URL(String(url), "https://app.chanlytics.com").searchParams);
       // The weeks around today are the route's to work out (`around`), as the board's first read asks for them.
       const w = q.around === "today" ? windowFor(zoneDayKey(Date.now(), TZ)) : { from: q.from, days: Number(q.days) };
@@ -1956,28 +2079,33 @@ test("the view the member chose is the one the board opens on again in this tab;
       store[`${p}|${v}`] = place;
     },
   };
+  // The view kept follows the address's word as it changes, as React runs an effect whose dependency moved.
+  honourDeps = true;
   try {
     fresh();
     let tree = page();
-    assert.equal(views(tree).props.value, "week", "nothing kept: a desk opens on the week");
+    assert.equal(shownView(tree), "week", "nothing kept: a desk opens on the week");
     pickView(tree, "month");
+    page();
     assert.deepEqual(kept, [["calendar", "board", { view: "month" }]], "picking a view keeps it");
     fresh();
-    assert.equal(views(page()).props.value, "month", "a refresh, or a trip away and back, opens on it");
+    assert.equal(shownView(page()), "month", "a refresh, or a trip away and back, opens on it");
     globalThis.window.matchMedia = (q) => ({ matches: /max-width:\s*720px/.test(q) });
     try {
       fresh();
-      assert.equal(views(page()).props.value, "month", "and a phone that chose it keeps it over the agenda");
+      assert.equal(shownView(page()), "month", "and a phone that chose it keeps it over the agenda");
     } finally {
       delete globalThis.window.matchMedia;
     }
     fresh();
-    assert.equal(views(page({ initialDay: "2026-09-10" })).props.value, "day", "a link to a day opens the day");
+    at("calendar/2026-09-10");
+    assert.equal(shownView(page()), "day", "a link to a day opens the day");
     assert.equal(kept.length, 1, "which is where the board went, not a choice, and keeps nothing");
     store["calendar|board"] = { view: "year" };
     fresh();
-    assert.equal(views(page()).props.value, "week", "a view the board does not draw is not opened on");
+    assert.equal(shownView(page()), "week", "a view the board does not draw is not opened on");
   } finally {
+    honourDeps = false;
     delete globalThis.window.__tabMemory;
   }
 });
@@ -1991,7 +2119,7 @@ const withNext = (over = {}) =>
 test("REGRESSION (C3): the times the receptionist would offer are open times wherever they are named -- the strip said 'Open windows' and 'Next opening', the service picker 'Windows', and Today 'next opening', while Business and Ask say open times", () => {
   fresh(withNext({ services: [{ name: "Balayage", duration_min: 90, consult_first: false }] }));
   const tree = page();
-  assert.match(textOf(byTestId(tree, "cal-legend")), /Open — the receptionist would offer it/);
+  assert.match(legend(tree), /Open is a time the receptionist would offer, through/);
   assert.equal(
     byTestId(tree, "cal-service").props.label,
     "Open times that fit a service",
@@ -2022,7 +2150,9 @@ test("REGRESSION (C3): what could not be read is said one way -- a month's days 
     tree = page();
     const unread = all(
       tree,
-      (n) => n.props?.["data-testid"] === "cal-month-cell" && String(n.props.className).includes("unread"),
+      (n) =>
+        String(n.props?.className ?? "").split(" ")[0] === "cal-month-cell" &&
+        String(n.props.className).includes("unread"),
     );
     assert.ok(unread.length > 0, "the month's days outside the loaded week could not be read");
     assert.ok(
@@ -2057,12 +2187,17 @@ test("REGRESSION (C3): the rules bar says what Business calls each thing -- 'Rul
     "admin/workspace/booking_rules",
     "admin/workspace/calendar",
   ]);
-  assert.ok(textOf(bar).includes("Sep 12 (Wedding)"), `REGRESSION: 'Sep 12 Wedding': ${textOf(bar)}`);
-  const edit = find(bar, (n) => n.type === "button" && textOf(n).startsWith("Edit in"));
-  assert.equal(
-    textOf(edit).trim(),
-    "Edit in Settings › Business",
+  assert.ok(textIn(bar).includes("Sep 12 (Wedding)"), `REGRESSION: 'Sep 12 Wedding': ${textIn(bar)}`);
+  // Each door says where it goes, for a tab named Business: 'Edit in Settings' named a tab there is none of.
+  assert.deepEqual(
+    [...new Set(all(bar, (n) => /^cal-rules-door-/.test(n.props?.["data-testid"] ?? "")).map((n) => n.props.title))],
+    ["Change it in Settings › Business"],
     "REGRESSION: 'Edit in Settings', for a tab named Business",
+  );
+  assert.equal(
+    find(bar, (n) => n.type === "button" && textOf(n).startsWith("Edit in")),
+    null,
+    "and no second door",
   );
 });
 
@@ -2159,7 +2294,7 @@ test("REGRESSION (C3): the page's other words match the product's -- Try again b
       feed: { present: false, state: "none", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 },
     }),
   );
-  const card = byTestId(page(), "cal-feed-card");
+  const card = byTestId(page(), "cal-notice-feed");
   assert.deepEqual(
     all(card, (n) => n.type === "button").map(textOf),
     ["Connect your calendar"],
@@ -2187,9 +2322,14 @@ test("REGRESSION (C3): the page's other words match the product's -- Try again b
     ...over,
   });
   fresh(dto({ feed: { ...feedNone, notices: byEmail() } }));
-  assert.equal(byTestId(page(), "cal-feed-door"), null, "emails that work ask nothing: the card has no press");
-  assert.match(textOf(byTestId(page(), "cal-feed-notices")), /Bookings arrive by email from Booksy\./);
-  assert.doesNotMatch(textOf(byTestId(page(), "cal-feed-notices")), /need a look/);
+  tree = page();
+  assert.equal(byTestId(tree, "cal-feed-door"), null, "emails that work ask nothing: no press");
+  assert.equal(
+    byTestId(tree, "cal-notice-feed"),
+    null,
+    "and nothing over the board: the board says only the exception",
+  );
+  assert.match(textIn(byTestId(tree, "cal-rules")), /Booksy/, "Hours and rules says where the bookings come from");
   fresh(dto({ feed: { ...feedNone, notices: byEmail({ held: 2 }) } }));
   let door = byTestId(page(), "cal-feed-door");
   assert.equal(textOf(door), "Look at them");
@@ -2201,15 +2341,11 @@ test("REGRESSION (C3): the page's other words match the product's -- Try again b
   assert.equal(textOf(door), "See the steps");
   assert.equal(door.props.variant, "quiet");
   fresh(dto({ feed: { ...feedNone, by_hand: true } }));
-  assert.equal(byTestId(page(), "cal-feed-card"), null, "booked by hand, by the owner's own word: no card");
+  assert.equal(byTestId(page(), "cal-notice-feed"), null, "booked by hand, by the owner's own word: no card");
   fresh();
   tree = page();
   assert.equal(toCalendarVM(dto(), NOW).zoneCity, "New York");
-  assert.match(
-    textOf(byTestId(tree, "cal-legend")),
-    /Times are New York time/,
-    "REGRESSION: 'times in America/New_York'",
-  );
+  assert.match(legend(tree), /Times are New York time/, "REGRESSION: 'times in America/New_York'");
   assert.match(
     textOf(find(tree, (n) => n.props?.className === "cal-about-note")),
     /through your booking link/,
@@ -2276,8 +2412,9 @@ test("REGRESSION (C4): a day's head opens that day from the keyboard -- it was a
   assert.equal(opens()[1].props["aria-current"], "date", "today's head says it is today");
   assert.equal(opens()[0].props["aria-current"], undefined);
   opens()[3].props.onClick();
+  page();
   tree = page();
-  assert.equal(views(tree).props.value, "day");
+  assert.equal(shownView(tree), "day");
   assert.equal(textOf(byTestId(tree, "cal-range")), "Thu · Sep 10");
   assert.equal(opens().length, 0, "in Day view the head opens nothing");
 });
@@ -2291,8 +2428,7 @@ test("REGRESSION (C4): a month day names its date and what it holds -- a screen 
     page();
     await settle();
     tree = page();
-    const cell = (key) =>
-      all(tree, (n) => n.props?.["data-testid"] === "cal-month-cell").find((n) => n.props.key === key);
+    const cell = (key) => monthDay(tree, key);
     assert.equal(cell("2026-09-08").props["aria-label"], "Tuesday, September 8: 1 taken, 1 open");
     assert.equal(cell("2026-09-08").props["aria-current"], "date");
     assert.equal(cell("2026-09-09").props["aria-current"], undefined);
@@ -2333,10 +2469,11 @@ test("REGRESSION: the Calendar draws no key -- its legend said ← → move · T
     null,
     "the legend's keys",
   );
+  assert.match(legend(tree), /Times are New York time\.$/, "the zone, the legend's last word");
   assert.equal(
-    textOf(find(tree, (n) => n.props?.className === "cal-legend-rules")),
+    find(tree, (n) => n.props?.testid === "cal-rules")?.props.sub,
     "Times are New York time",
-    "the zone, a line of the legend on its own",
+    "and Hours and rules says it under its name",
   );
   assert.deepEqual(
     ["cal-prev", "cal-today", "cal-next"].map((id) => byTestId(tree, id).props.title),
@@ -2359,15 +2496,19 @@ test("REGRESSION: the Calendar shows the calendar first -- a title the top bar a
     null,
     "REGRESSION: the counts as three cards",
   );
-  // Every control in one bar, and the kit's date picker opened by the range.
+  // Every control in one bar, and the kit's date picker opened by the range; the views are the frame's strip over it.
   const bar = byTestId(tree, "cal-bar");
-  for (const id of ["cal-prev", "cal-today", "cal-next", "cal-range", "cal-jump", "cal-service"])
+  for (const id of [
+    "cal-prev",
+    "cal-today",
+    "cal-next",
+    "cal-range",
+    "cal-jump",
+    "cal-service",
+    "cal-show",
+    "cal-options",
+  ])
     assert.ok(byTestId(bar, id), `${id} is in the one bar`);
-  assert.deepEqual(
-    views(bar).props.options.map((o) => o.testid),
-    ["cal-view-week", "cal-view-day", "cal-view-month", "cal-view-agenda"],
-    "the four views are one segmented control of the kit's",
-  );
   assert.equal(
     find(bar, (n) => n.type === "select"),
     null,
@@ -2384,44 +2525,44 @@ test("REGRESSION: the Calendar shows the calendar first -- a title the top bar a
     null,
     "REGRESSION: a native date input",
   );
-  // The bar is the whole head: a line of counts under it said again what the board draws (22 Sep).
-  const head = find(tree, (n) => n.props?.className === "cal-head");
-  const inHead = [head.props.children].flat().filter(Boolean);
-  assert.ok(inHead.length === 1 && inHead[0] === bar, "the head holds the bar and nothing else");
-  // The hours, the rules, the calendar's source, Refresh and the booking link wait under the board, one tap away.
-  const about = () => byTestId(tree, "cal-about");
-  const toggle = () => byTestId(tree, "cal-about-toggle");
-  // A fold, not a hidden block: it folds away while the page glides up with it (calendar.css), shut to a reader and to
-  // the keyboard (aria-hidden, inert) while it is closed.
-  const shut = () =>
-    about().props["data-open"] === "false" && about().props["aria-hidden"] === "true" && about().props.inert === true;
-  assert.ok(shut(), "shut until asked for");
-  assert.equal(toggle().props["aria-expanded"], false);
-  assert.equal(toggle().props["aria-controls"], about().props.id);
-  for (const id of ["cal-rules", "cal-feed", "cal-refresh", "cal-copy-link"]) {
-    assert.ok(byTestId(about(), id), `${id} is behind the toggle`);
+  // On a desk the bar is the act on the frame's row of views (board-parts.tsx calendarAct), and the page draws no head of its
+  // own: a line of counts under the bar said again what the board draws (22 Sep), and the bar's own row stood between the
+  // views and the first day (Ruben, 14 Oct 2026: one row, where the tabs are).
+  assert.equal(
+    find(tree, (n) => n.props?.className === "cal-head"),
+    null,
+    "no head between the views and the board on a desk",
+  );
+  assert.equal(bar.props.className, "cal-act", "the bar is the act the frame draws beside the views");
+  // The hours, the rules, the calendar's source and Refresh are a sheet Settings opens (D6), never a fold under the board,
+  // whose foot took the room an eleven-hour day needed on a phone; the booking link is Settings' own two items.
+  const rules = () => find(tree, (n) => n.props?.testid === "cal-rules");
+  assert.equal(rules().props.open, false, "shut until asked for");
+  for (const id of ["cal-feed", "cal-refresh"]) {
+    assert.ok(byTestId(rules(), id), `${id} is in Hours and rules`);
     assert.equal(byTestId(bar, id), null, `${id} is not among the controls`);
   }
-  // It no longer holds the page still (data-bits holdStill): that kept the toggle where it was, so the sheet opened below
-  // the screen, and closed, it left the room it had taken as a blank at the foot.
-  const held = [];
-  const keepHold = globalThis.window.holdStill;
-  globalThis.window.holdStill = (...a) => held.push(a);
-  try {
-    toggle().props.onClick();
-    tree = page();
-    assert.equal(about().props["data-open"], "true", "one tap shows them");
-    assert.equal(about().props["aria-hidden"], undefined);
-    assert.equal(about().props.inert, undefined);
-    assert.equal(toggle().props["aria-expanded"], true);
-    toggle().props.onClick();
-    tree = page();
-    assert.ok(shut(), "and another puts them away");
-    assert.deepEqual(held, [], "REGRESSION: the fold held the page still and left a blank at its foot");
-  } finally {
-    globalThis.window.holdStill = keepHold;
-  }
-  // A calendar that can't be read still says so over the board, with its Retry, not behind the toggle.
+  assert.deepEqual(
+    barMenu(tree, "Calendar settings").props.groups.map((g) => [g.header, g.items.map((i) => i.label)]),
+    [
+      ["Booking link", ["Open the booking page", "Copy the link"]],
+      ["Calendar", ["Read it again now", "Hours and rules", "Booking tool"]],
+    ],
+    "what the calendar offers its owner, in one menu at the bar's end",
+  );
+  assert.ok(settingsItem(tree, "Copy the link").copy, "the link copied in place, the menu held open (CAL-23)");
+  settingsItem(tree, "Hours and rules").onSelect();
+  tree = page();
+  assert.equal(rules().props.open, true, "one tap shows them");
+  rules().props.onClose();
+  tree = page();
+  assert.equal(rules().props.open, false, "and the sheet's close puts them away");
+  assert.equal(
+    find(tree, (n) => n.props?.["data-testid"] === "cal-about"),
+    null,
+    "REGRESSION: the fold under the board",
+  );
+  // A calendar that can't be read still says so over the board, with its Retry, not in the sheet.
   fresh(
     dto({
       feed: {
@@ -2435,8 +2576,8 @@ test("REGRESSION: the Calendar shows the calendar first -- a title the top bar a
     }),
   );
   tree = page();
-  assert.ok(byTestId(tree, "cal-feed-card") && byTestId(tree, "cal-feed-retry"), "the card and its Retry");
-  assert.equal(byTestId(about(), "cal-feed-card"), null, "over the board, not behind the toggle");
+  assert.ok(byTestId(tree, "cal-notice-feed") && byTestId(tree, "cal-feed-retry"), "the notice and its Retry");
+  assert.equal(byTestId(rules(), "cal-notice-feed"), null, "over the board, not in the sheet");
 });
 
 /* ---------------- C5b: a service that needs a consultation first ---------------- */
@@ -2459,9 +2600,9 @@ test("REGRESSION (C5b): the board sizes a consultation-first service's open time
   byTestId(tree, "cal-service").props.onValueChange("Color correction");
   tree = page();
   assert.equal(openTimes(tree).length, 2, "REGRESSION: no open time fit Color correction");
-  assert.match(textOf(byTestId(tree, "cal-legend")), /would offer it for a consultation, through Sep 21/);
+  assert.match(legend(tree), /would offer for a consultation, through Sep 21/);
   assert.match(
-    textOf(byTestId(tree, "cal-consult-note")),
+    textOf(byTestId(tree, "cal-notice-consult")),
     /The open times here are for a consultation, about 30 minutes\./,
   );
   pickView(tree, "agenda");
@@ -2479,7 +2620,7 @@ test("REGRESSION (C5b): the board sizes a consultation-first service's open time
   byTestId(tree, "cal-service").props.onValueChange("Balayage");
   tree = page();
   assert.equal(openTimes(tree).length, 1);
-  assert.match(textOf(byTestId(tree, "cal-legend")), /would offer it for Balayage,/);
+  assert.match(legend(tree), /would offer for Balayage,/);
 });
 
 test("the page publishes how long it keeps a read and its words for a read that gives no reason, and says those words itself", () => {
@@ -2490,7 +2631,7 @@ test("the page publishes how long it keeps a read and its words for a read that 
   assert.deepEqual(Object.keys(keeps.words).sort(), ["stale", "unavailable"]);
   fresh(dto({ feed: { ...dto().feed, stale: true, reason: "unreachable", problem: null } }));
   assert.ok(
-    textOf(byTestId(page(), "cal-feed-stale")).includes(keeps.words.stale),
+    textOf(byTestId(page(), "cal-notice-stale")).includes(keeps.words.stale),
     "the card over a last good read says them",
   );
   fresh(
@@ -2507,12 +2648,12 @@ test("the page publishes how long it keeps a read and its words for a read that 
     }),
   );
   assert.ok(
-    textOf(byTestId(page(), "cal-feed-card")).includes(keeps.words.unavailable),
+    textOf(byTestId(page(), "cal-notice-feed")).includes(keeps.words.unavailable),
     "and the card over a calendar that could not be read",
   );
   // A reason of the read's own wins over both.
   fresh(dto({ feed: { ...dto().feed, stale: true, reason: "http", problem: "The calendar answered 503." } }));
-  const said = textOf(byTestId(page(), "cal-feed-stale"));
+  const said = textOf(byTestId(page(), "cal-notice-stale"));
   assert.ok(said.includes("The calendar answered 503.") && !said.includes(keeps.words.stale), said);
 });
 
@@ -2584,16 +2725,13 @@ test("every testid the page is known by is drawn in its view, the date picker fo
     "cal-col",
     "cal-block",
     "cal-window",
-    "cal-legend",
-    "cal-about-toggle",
-    "cal-about",
+    "cal-show",
+    "cal-options",
     "cal-rules",
     "cal-feed",
     "cal-feed-state",
     "cal-refresh",
-    "cal-copy-link",
-    "cal-feed-note-repeats",
-    "cal-feed-note-undrawn",
+    "cal-notice-note-repeats",
   ]);
   assert.equal(picker(tree).props.value, "2026-09-08", "the date picker follows the anchor");
   assert.equal(picker(tree).props.today, "2026-09-08", "and is told which day is today, the business's");
@@ -2606,7 +2744,7 @@ test("every testid the page is known by is drawn in its view, the date picker fo
   byTestId(tree, "cal-today").props.onClick();
   byTestId(tree, "cal-service").props.onValueChange("Balayage");
   tree = page();
-  expectIds("a service that needs a consultation", ["cal-consult-note"]);
+  expectIds("a service that needs a consultation", ["cal-notice-consult"]);
   pickView(tree, "month");
   tree = page();
   expectIds("month", ["cal-month", "cal-month-cell"]);
@@ -2618,14 +2756,14 @@ test("every testid the page is known by is drawn in its view, the date picker fo
   expectIds("day", ["cal-col", "cal-block"]);
   byTestId(tree, "cal-block").props.onClick();
   tree = page();
-  expectIds("the appointment", ["cal-panel", "cal-panel-when", "cal-panel-person", "cal-panel-copy-link"]);
+  expectIds("the appointment", ["cal-panel", "cal-panel-when", "cal-visit", "cal-visit-person", "cal-visit-foot"]);
   for (const feed of [
     { present: false, state: "none", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 },
     { ...dto().feed, stale: true, reason: "http" },
   ]) {
     fresh(dto({ feed }));
     tree = page();
-    expectIds(feed.state, [has("cal-feed-card") ? "cal-feed-card" : "cal-feed-stale"]);
+    expectIds(feed.state, [has("cal-notice-feed") ? "cal-notice-feed" : "cal-notice-stale"]);
   }
   // A viewer: the owner's booking link books, so nothing here moves, cancels, syncs two ways, or prices an appointment.
   assert.doesNotMatch(
@@ -2635,33 +2773,41 @@ test("every testid the page is known by is drawn in its view, the date picker fo
   );
 });
 
-test("what became of a visit (0002 step 8): a past one says Past, never Done, and offers Kept and Missed on its row; a word said shows on the block and in the panel, with its correction", () => {
+test("what became of a visit (0002 step 8): an ended one not marked yet says so quietly, never Done, and asks Kept or Missed; a word said shows on the block and in the visit, corrected from More", () => {
   const withVisit = (status) => {
     const week = dto();
     week.days[1].items[0].visit = { id: "a1", status };
     return week;
   };
+  /** What the visit's More offers, by its words. */
+  const more = (tree) =>
+    (
+      find(byTestId(tree, "cal-visit-foot"), (n) => n.props?.label === "More" && Array.isArray(n.props?.groups))?.props
+        .groups ?? []
+    ).flatMap((g) => g.items.map((i) => i.label));
   // Booked and over (the fixture's Tuesday is behind any clock this runs on): whether they came is the member's to say.
   fresh(withVisit("booked"));
   let tree = page();
-  // The board says which visits still wait for that word: Past on a block the record keeps a row for, in the word every page says it in.
+  // The board says which visits still wait for that word: a ring on a block the record keeps a row for, said to a reader.
   const waiting = byTestId(tree, "cal-block");
-  assert.equal(waiting.props["data-visit"], "past");
-  assert.match(waiting.props["aria-label"], /, past$/);
+  assert.equal(waiting.props["data-visit"], "unmarked");
+  assert.match(waiting.props["aria-label"], /, not marked yet$/);
   waiting.props.onClick();
   tree = page();
   assert.equal(
-    textOf(byTestId(tree, "cal-panel-state")),
-    "Past",
+    textOf(byTestId(tree, "cal-visit-state")),
+    "Not marked yet",
     "REGRESSION: an ended visit said Done, as if they came",
   );
-  const acts = byTestId(tree, "cal-panel-visit");
-  assert.ok(acts, "the acts are drawn on the record's row");
-  assert.ok(byTestId(acts, "cal-panel-visit-kept") && byTestId(acts, "cal-panel-visit-missed"));
-  assert.equal(byTestId(acts, "cal-panel-visit-cancelled"), null, "an ended visit is not cancelled now");
+  const ask = byTestId(tree, "cal-visit-ask");
+  assert.ok(ask, "the one question an ended visit asks");
+  assert.match(textOf(ask), /^Did Ana come/);
+  assert.ok(byTestId(ask, "cal-visit-ask-kept") && byTestId(ask, "cal-visit-ask-missed"));
+  assert.equal(byTestId(ask, "cal-visit-ask-cancelled"), null, "an ended visit is not cancelled now");
+  assert.ok(!more(tree).some((l) => /cancel/i.test(l)), "nor from More");
   leave();
 
-  // Said missed: the block says it, the panel says it, and offers the one correction.
+  // Said missed: the block says it, the visit says it, and More offers the one correction.
   fresh(withVisit("missed"));
   tree = page();
   const block = byTestId(tree, "cal-block");
@@ -2669,19 +2815,19 @@ test("what became of a visit (0002 step 8): a past one says Past, never Done, an
   assert.match(block.props["aria-label"], /, missed$/);
   block.props.onClick();
   tree = page();
-  assert.equal(textOf(byTestId(tree, "cal-panel-state")), "Missed");
-  const correct = byTestId(tree, "cal-panel-visit");
-  assert.ok(byTestId(correct, "cal-panel-visit-kept"));
-  assert.equal(byTestId(correct, "cal-panel-visit-missed"), null);
+  assert.equal(textOf(byTestId(tree, "cal-visit-state")), "Missed");
+  assert.equal(byTestId(tree, "cal-visit-ask"), null, "said: nothing asked");
+  assert.ok(more(tree).includes("Change to Kept"));
+  assert.ok(!more(tree).includes("Change to Missed"));
   leave();
 
-  // An event the record has not kept yet: nothing to say it on, and nothing offered.
+  // An event the record has not kept yet: nothing to say it on, and nothing offered or said.
   fresh();
   tree = page();
   byTestId(tree, "cal-block").props.onClick();
   tree = page();
-  assert.equal(byTestId(tree, "cal-panel-visit"), null);
-  assert.equal(textOf(byTestId(tree, "cal-panel-state")), "Past");
+  assert.equal(byTestId(tree, "cal-visit-ask"), null);
+  assert.equal(byTestId(tree, "cal-visit-state"), null);
   leave();
 });
 

@@ -34,6 +34,7 @@ export const ROUTE_KEYS = [
   "GET broadcasts/[id]",
   "GET business-record",
   "GET calendar",
+  "GET calendar/runs",
   "GET calls",
   "GET calls/[id]/export",
   "GET calls/[id]/recording",

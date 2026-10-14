@@ -28,7 +28,7 @@ interface DayBlockLike {
   dur: number;
   time: string;
   title: string;
-  /** The title with the person's name taken out of it (calendar.ts serviceOf). */
+  /** The title with the person's name taken out of it (visit-service.ts visitTitleWithout). */
   service: string;
   person: { id: string; name: string; via?: MatchVia | null } | null;
   /** ISO instants: when it begins and ends, which a visit line reads to say whether it is over (CalendarBlockVM has both). */
@@ -77,7 +77,7 @@ export interface TodayDayItemVM {
   /** "3h" · "1h 30m" · "45m"; empty for all-day. */
   dur: string;
   title: string;
-  /** What it is FOR, with the person's name taken out of the title (calendar.ts serviceOf): the row names them
+  /** What it is FOR, with the person's name taken out of the title (visit-service.ts visitTitleWithout): the row names them
    *  once. "Gloss" from "Gloss · Emily Chen". */
   service: string;
   person: { id: string; name: string } | null;

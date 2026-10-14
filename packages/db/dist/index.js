@@ -464,7 +464,7 @@ var ERASURE_LEGS = {
   email_trigger: "contact_email_on_erase: the address and why it was suppressed cleared (00125)",
   proposal_trigger: "contact_proposal_on_erase: the proposal's link cleared",
   deals_trigger: "deals_erase_on_contact: a deal's note, evidence and link cleared",
-  leads_trigger: "leads_erase_on_contact: their lead blanked (lead_blank), its places deleted, a reach-out's opening and a preference's example cleared (00391), its drafts cleared (00428), a company's people and key cleared (00429), its keys kept as digests; one of several people at a business takes only their own address, number and the call's note from it (lead_person_leg, 00413)",
+  leads_trigger: "leads_erase_on_contact: their lead blanked (lead_blank), its places deleted, a reach-out's opening and a preference's example cleared (00391), its drafts cleared (00428), a company's people and key cleared and its domain kept as a digest (00429), its keys kept as digests; one of several people at a business takes only their own address, number and the call's note from it (lead_person_leg, 00413); a person named at any company leaves it, its drafts to them cleared and their address kept as a digest (lead_person_forget, 00429)",
   signer_trigger: "person_signer_erase_on_contact: the name and title a reply's reading found as its signer, and what became of it, cleared (00413)",
   recipients_trigger: "broadcast_recipients_on_erase: the words each run kept for them, a visit's time, service and key and a proposal's link, cleared (00391)",
   jobs_scrub: "scrubErasedJobs and erase_contact: a job's payload that carried their number or words overwritten, and its error cleared",
@@ -718,8 +718,8 @@ var ERASURE_STRATEGIES = {
       "facts",
       "source_key"
     ),
-    // What lead_blank keeps: the country, the stage it came from, and what the lead is and where it was found (00429).
-    ...all(NOT_PERSONAL, "country", "stage_from", "kind", "source")
+    // What lead_blank keeps: the country and the stage it came from.
+    ...all(NOT_PERSONAL, "country", "stage_from")
   },
   // The workspace's own numbers and the carrier's and provider's ids for them.
   lines: {
@@ -4309,6 +4309,31 @@ async function reviewLinkOf(db, tenantId) {
   return data?.new_review_uri?.trim() || null;
 }
 
+// src/repositories/campaigns/calendar-runs.ts
+import { DAY_MS as DAY_MS3 } from "../../contracts/dist/index.js";
+var RUN_COLUMNS = "id, name, state, scheduled_for, started_at, finished_at, run_for, playbook_id, audience, recipient_count";
+var SEND_LEAD_MS = 2 * DAY_MS3;
+async function runsInSpan(db, tenantId, span) {
+  const sendsFrom = new Date(Date.parse(span.fromIso) - SEND_LEAD_MS).toISOString();
+  const [runs, sends] = await Promise.all([
+    readAllRows(
+      "calendar_runs_campaign",
+      (from, to) => db.from("broadcasts").select(RUN_COLUMNS).eq("tenant_id", tenantId).not("playbook_id", "is", null).gte("run_for", span.fromDay).lte("run_for", span.toDay).order("run_for", { ascending: true }).order("id", { ascending: true }).range(from, to)
+    ),
+    readAllRows(
+      "calendar_runs_send",
+      (from, to) => db.from("broadcasts").select(RUN_COLUMNS).eq("tenant_id", tenantId).is("playbook_id", null).gte("scheduled_for", sendsFrom).lt("scheduled_for", span.toIso).order("scheduled_for", { ascending: true }).order("id", { ascending: true }).range(from, to)
+    )
+  ]);
+  return [...runs, ...sends];
+}
+async function momentSchedules(db, tenantId) {
+  return readAllRows(
+    "calendar_moment_schedules",
+    (from, to) => db.from("playbooks").select("id, name, trigger, state, policy_class, run_hour, last_run_for, until, trial_until").eq("tenant_id", tenantId).order("id", { ascending: true }).range(from, to)
+  );
+}
+
 // src/repositories/routing.ts
 import { MIN_MS as MIN_MS2 } from "../../contracts/dist/index.js";
 var POS_TTL_MS = 5 * MIN_MS2;
@@ -5823,15 +5848,18 @@ async function appointmentsBetween(db, tenantId, fromIso, toIso) {
   if (error) throw new Error(`appointments_between: ${error.message}`);
   return data ?? [];
 }
-var FEED_SPAN_MAX = 1e4;
 async function visitsOver(db, tenantId, fromIso, toIso) {
   const [noted, feed] = await Promise.all([
-    db.from("appointments").select("*").eq("tenant_id", tenantId).neq("source", "calendar_feed").gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).limit(SPAN_MAX),
-    db.from("appointments").select("id, status, external_id, starts_at").eq("tenant_id", tenantId).eq("source", "calendar_feed").is("vanished_at", null).gt("ends_at", fromIso).lt("starts_at", toIso).limit(FEED_SPAN_MAX)
+    readAllRows(
+      "visits_over_noted",
+      (from, to) => db.from("appointments").select("*").eq("tenant_id", tenantId).neq("source", "calendar_feed").gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).order("id", { ascending: true }).range(from, to)
+    ),
+    readAllRows(
+      "visits_over_feed",
+      (from, to) => db.from("appointments").select("id, status, external_id, starts_at").eq("tenant_id", tenantId).eq("source", "calendar_feed").is("vanished_at", null).gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).order("id", { ascending: true }).range(from, to)
+    )
   ]);
-  if (noted.error) throw new Error(`visits_over: ${noted.error.message}`);
-  if (feed.error) throw new Error(`visits_over: ${feed.error.message}`);
-  return { noted: noted.data ?? [], feed: feed.data ?? [] };
+  return { noted, feed };
 }
 var SAID_STATUSES = ["kept", "missed", "cancelled"];
 async function feedWordsOver(db, tenantId, fromIso, toIso) {
@@ -6243,6 +6271,7 @@ export {
   messageSlots,
   messageVersionRowsOf,
   migrationHead,
+  momentSchedules,
   monthSent,
   moveSend,
   moveVoiceSessionContext,
@@ -6380,6 +6409,7 @@ export {
   runSending,
   runWaitingCounts,
   runningTwins,
+  runsInSpan,
   runsWaitingOf,
   saveIdeasLine,
   saveReachOutChain,

@@ -8,7 +8,7 @@ import { heardWithin } from "../broadcasts/run-words";
 import { POLICY_CLASS_WORDS } from "../config/workspace-config/policy-classes";
 import { visitDateKey, type MatchVia, type PersonVisitsDto, type VisitDto } from "../calendar/calendar-people";
 import { dayPlusInZone } from "../calendar/zone-math";
-import { fullNameKey } from "../calendar/visit-service";
+import { fullNameKey } from "../calendar/visit/visit-service";
 import { purposeOfPlaybook } from "../consent/consent";
 import type { DealPaceVM } from "../deals/deal-waits";
 import { GET_YES_ROUTE, saidYesWords } from "../people/people-lists";

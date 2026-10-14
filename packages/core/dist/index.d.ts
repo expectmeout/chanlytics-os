@@ -3419,7 +3419,7 @@ interface PersonAtCompany {
         name: string;
         first_name: string | null;
         title: string | null;
-        /** The provider's seniority word (owner, c_suite, manager…), which contracts roleOf reads. */
+        /** The provider's seniority word (owner, c_suite, manager…), which contracts leadRoleOf reads. */
         seniority: string | null;
         /** Their work address, lower case; never a free mail one. */
         email: string | null;

@@ -98,8 +98,14 @@ export interface AppointmentPhrases {
   needsCalendar: string;
   /** The question before one is said cancelled (the visit line's Cancel): "Cancel this appointment?". */
   cancelAsk: string;
+  /** The act that asks it, in the Calendar's More: "Cancel the appointment…". */
+  cancelAct: string;
   /** The words a booking link is handed to the customer in, ready in their thread's box: "Here's the link to book your appointment: <link>". */
   bookingLink: (link: string) => string;
+  /** After one they kept: "Here's the link to book your next appointment: <link>". */
+  nextLink: (link: string) => string;
+  /** After one they missed or that was cancelled: "Here's a link to pick a new time for your appointment: <link>". */
+  newTimeLink: (link: string) => string;
 }
 
 export function appointmentWords(word: AppointmentWord): AppointmentPhrases {
@@ -132,6 +138,9 @@ export function appointmentWords(word: AppointmentWord): AppointmentPhrases {
     byMany: `by ${many}`,
     needsCalendar: `${capitalize(many)} are read from your calendar, and none is connected. Connect one under Settings › Business.`,
     cancelAsk: `Cancel this ${word}?`,
+    cancelAct: `Cancel the ${word}…`,
     bookingLink: (link) => `Here's the link to book your ${word}: ${link}`,
+    nextLink: (link) => `Here's the link to book your next ${word}: ${link}`,
+    newTimeLink: (link) => `Here's a link to pick a new time for your ${word}: ${link}`,
   };
 }

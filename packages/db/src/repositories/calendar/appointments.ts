@@ -153,14 +153,13 @@ export async function appointmentsBetween(
   return data ?? [];
 }
 
-/** The most feed rows a span's read carries: four short columns each, for a calendar a whole team writes. */
-const FEED_SPAN_MAX = 10_000;
-
 /**
- * The record over a span, as the board says what became of each visit (00397), in two reads with their own caps: a
- * booking's rows whole, however they stand (a cancelled one is drawn struck, and leaves the feed's copy of it out), and
- * the feed's rows the feed still names, as their ids and statuses by key (the board draws the feed itself, which is why
- * appointmentsBetween leaves them out).
+ * The record over a span, as the board says what became of each visit (00397), in two reads, each read whole and in a
+ * stable order (paged.ts: a select answers a thousand rows at most, silently, and a `.limit` only lowers that): a
+ * booking's rows however they stand (a cancelled one is drawn struck, and leaves the feed's copy of it out), and the
+ * feed's rows the feed still names, as their ids and statuses by key (the board draws the feed itself, which is why
+ * appointmentsBetween leaves them out). It read each under one select's cap, so on a busy calendar's nine weeks the
+ * marks past the thousandth row were dropped and their visits read as nobody's word.
  */
 export async function visitsOver(
   db: Db,
@@ -172,28 +171,33 @@ export async function visitsOver(
   feed: Array<{ id: string; status: string; external_id: string | null; starts_at: string }>;
 }> {
   const [noted, feed] = await Promise.all([
-    db
-      .from("appointments")
-      .select("*")
-      .eq("tenant_id", tenantId)
-      .neq("source", "calendar_feed")
-      .gt("ends_at", fromIso)
-      .lt("starts_at", toIso)
-      .order("starts_at", { ascending: true })
-      .limit(SPAN_MAX),
-    db
-      .from("appointments")
-      .select("id, status, external_id, starts_at")
-      .eq("tenant_id", tenantId)
-      .eq("source", "calendar_feed")
-      .is("vanished_at", null)
-      .gt("ends_at", fromIso)
-      .lt("starts_at", toIso)
-      .limit(FEED_SPAN_MAX),
+    readAllRows<AppointmentRow>("visits_over_noted", (from, to) =>
+      db
+        .from("appointments")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .neq("source", "calendar_feed")
+        .gt("ends_at", fromIso)
+        .lt("starts_at", toIso)
+        .order("starts_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to),
+    ),
+    readAllRows<FeedRowWord>("visits_over_feed", (from, to) =>
+      db
+        .from("appointments")
+        .select("id, status, external_id, starts_at")
+        .eq("tenant_id", tenantId)
+        .eq("source", "calendar_feed")
+        .is("vanished_at", null)
+        .gt("ends_at", fromIso)
+        .lt("starts_at", toIso)
+        .order("starts_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to),
+    ),
   ]);
-  if (noted.error) throw new Error(`visits_over: ${noted.error.message}`);
-  if (feed.error) throw new Error(`visits_over: ${feed.error.message}`);
-  return { noted: noted.data ?? [], feed: feed.data ?? [] };
+  return { noted, feed };
 }
 
 /** The words a member says of a feed's visit (00397): what a reader lays on its event. A booked row says nothing. */

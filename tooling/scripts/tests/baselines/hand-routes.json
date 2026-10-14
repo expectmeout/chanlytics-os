@@ -34,7 +34,6 @@
   "apps/dashboard/src/server/metrics/activity.ts": 3,
   "apps/dashboard/src/server/readers/people.ts": 1,
   "apps/dashboard/src/surfaces/addresses.ts": 2,
-  "apps/dashboard/src/surfaces/calendar/shell-verbs.ts": 1,
   "apps/dashboard/src/surfaces/campaigns/broadcasts/broadcasts-page.tsx": 1,
   "apps/dashboard/src/surfaces/campaigns/broadcasts/ledger.tsx": 1,
   "apps/dashboard/src/surfaces/campaigns/broadcasts/page/acts.tsx": 1,

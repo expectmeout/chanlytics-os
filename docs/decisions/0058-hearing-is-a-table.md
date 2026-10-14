@@ -86,7 +86,8 @@ checked:
   moves out with the folder's split by domain.
 - **The tracer is a module at `tooling/scripts`' root, not in `lib/`.** The audit named `lib/`, but a folder earns its
   place at its second module. It moves into a folder with its second sibling.
-- **A cell names a surface, not a surface's kinds.** Kind-aware cells (ownsKind) come with lane R5a, their first user.
+- **A cell names a surface, not a surface's kinds.** Kind-aware cells (ownsKind) come with their first user, Campaigns'
+  home in lane R5b (Sent's runs heard there for some kinds and left to Sent for a message).
   The golden is already per notice, so the change will show as lines.
 - **The audit's age bound on unfed tables (`maxAgeMin`) is not written.**
   - A number nothing enforces is the kind of claim S3-8 found false.
@@ -114,10 +115,31 @@ checked:
 - `shell/hearing/a-route-is-followed-to-its-tables.test.mjs`: the tracer and `registeredSurfaces` on a repository in
   miniature.
 
+## Amended on 14 October 2026: a person's page hears its person (R5a)
+
+- **A person's page is a surface of its own** (`personOverride`, people-detail.ts): the one person on screen, read again
+  when what the page draws of them that People hears on its own list alone changes. That is the person, a hold, a call,
+  a run, the campaigns, the rules, the facts, their business and a reach-out reply. It closes W-thread-wait-step-1,
+  W-person-list-lead-1 and W-review-facts-rules-7.
+  - Its family's row is `clients/person: ["workspace", "person"]`. People's whole book is still not read again for one
+    person.
+  - A row made now (a lead run's leads, an import's people) is not the person on screen and reads nothing. Neither does
+    a live call's transcript turn.
+- **A take-over, a hand-back, a snooze and a wake** move no message clock. The page reads its person again when a thread of
+  theirs the Inbox held stands otherwise, in the fields the Inbox's own derivation wrote (their-thread.ts).
+- **A new claim, `heardBy`, in `reads-not-heard.json`:** an over-read drawn only as another surface that hears it on this
+  surface's page reads the page again. The test checks that the named surface hears the table there. A person's visits,
+  deals and steps are People's (heard on every page). Their messages and threads are the Inbox's.
+- **The person's read is a registered surface's now**, and it left `on-demand-reads.json`.
+- **The owed count rose from 121 to 125** with the new surface's honest rows:
+  - the roster's names, People's and Sent's;
+  - the search names a business card shows (R5: a search's name told apart from its members);
+  - the mailbox a lead's emails left from (R6).
+
 ## What comes next
 
 - **R5** changes cells one at a time and reads each golden's difference:
-  - a person's page becomes a surface of its own;
+  - a person's page becomes a surface of its own (done, R5a, above);
   - Campaigns' home hears the people, facts and channels it counts;
   - Setup, Settings and Reports declare the rest.
 - **R6** removes the false omits the baseline now names.

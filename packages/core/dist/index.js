@@ -37552,7 +37552,7 @@ import {
   LEAD_PEOPLE_MAX,
   PEOPLE_RUN_FLOOR_USD,
   firstNameOf as firstNameOf3,
-  roleOf
+  leadRoleOf
 } from "../../contracts/dist/index.js";
 var PEOPLE_TERM = "people";
 var PEOPLE_ASK_MAX = 1e3;
@@ -37621,7 +37621,7 @@ async function startPeople(p, round, plan, owner, leftUsd) {
 var reasonOf = (who, size) => [who?.title, size ? `${size} people` : null].filter((x) => !!x).join(" \xB7 ");
 function companiesOf(found) {
   const by = /* @__PURE__ */ new Map();
-  const ranked = found.map((f, i) => ({ f, i, rank: rankOf(roleOf(f.person.seniority, f.person.title)) })).sort((a, b) => Number(!a.f.person.email) - Number(!b.f.person.email) || a.rank - b.rank || a.i - b.i).map((x) => x.f);
+  const ranked = found.map((f, i) => ({ f, i, rank: rankOf(leadRoleOf(f.person.seniority, f.person.title)) })).sort((a, b) => Number(!a.f.person.email) - Number(!b.f.person.email) || a.rank - b.rank || a.i - b.i).map((x) => x.f);
   for (const f of ranked) {
     const at = by.get(f.company.key) ?? { company: f.company, people: [] };
     const named = f.person.name.toLowerCase();
@@ -37633,7 +37633,7 @@ function companiesOf(found) {
         name: f.person.name,
         first_name: f.person.first_name ?? firstNameOf3(f.person.name, null),
         title: f.person.title,
-        role: roleOf(f.person.seniority, f.person.title),
+        role: leadRoleOf(f.person.seniority, f.person.title),
         email: f.person.email,
         profile_url: f.person.profile_url
       });

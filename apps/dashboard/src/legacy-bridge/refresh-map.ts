@@ -20,6 +20,7 @@
 import type { RouteKey } from "../client/api";
 import { broadcastsOverride } from "@/surfaces/campaigns/broadcasts/surface";
 import { calendarOverride } from "@/surfaces/calendar/surface";
+import { calendarRunsOverride } from "@/surfaces/calendar/runs-surface";
 import { conversationsOverride } from "@/surfaces/inbox/conversations-surface";
 import { inboxOverride } from "@/surfaces/inbox/surface";
 import { notificationsOverride } from "./surfaces/notifications";
@@ -107,7 +108,8 @@ const notes = () => [peopleOverride, ...reportsPeople()];
 // to stop (thread-dto.ts `contact`). An edit of those re-reads the threads with People, as a delete always did.
 const personAndThreads = () => [peopleOverride, ...thread()];
 // A run approved, skipped or made moves what the Campaigns lens says of the runs waiting on you and its funnel: its read goes with them.
-const runs = () => [playbooksOverride, broadcastsOverride, ...reportsCampaigns()];
+// And the Calendar's marks, where the Calendar is drawn (a run waiting is its one amber; a campaign saved moves its forecast).
+const runs = () => [playbooksOverride, broadcastsOverride, ...reportsCampaigns(), ...calendarRunsIfDrawn()];
 // Who a campaign reaches is counted from people's answers and from who exists: the composers' audience counts and a
 // playbook's "N will get it" (broadcasts, playbooks). A write that moves either re-reads them, or a yes recorded and
 // New message opened showed the audience as it was before.
@@ -124,10 +126,14 @@ const campaignsIfDrawn = (): SurfaceOverride[] =>
 const consentWrite = () => [...personAndThreads(), ...audiences(), ...reportsPeople()];
 // A person added or imported is on an audience or off it, as one deleted is, and is in the book the People lens counts or not.
 const peopleAndAudiences = () => [peopleOverride, ...audiences(), ...reportsPeople()];
-// A person added from the Calendar's panel ("Add to People": a read of the board adds nobody, 0047 lane 6) is the person the board then
-// matches that visit to: the board is read again where it is drawn, and kept for its page elsewhere (the hourly sweep's people reach it
-// the same way, through the calendar_people bell row).
+// A person added from the Calendar's sheet ("Add to People": a read of the board adds nobody, 0047 lane 6) is the person the board then
+// matches that visit to: the board is read again where it is drawn, and kept for its page elsewhere. The people the hourly sweep adds
+// reach an open board only on its own five-minute read (the calendar_people bell row re-reads no surface).
 const calendarIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? whereDrawn([calendarOverride]) : []);
+// The Calendar's campaign marks (runs-surface.ts), where the Calendar is drawn: kept for its page elsewhere.
+function calendarRunsIfDrawn(): SurfaceOverride[] {
+  return typeof window !== "undefined" ? whereDrawn([calendarRunsOverride]) : [];
+}
 // A playbook made, changed or removed moves what People's rows say of it (their `follow_up`, 0006), with its own pages.
 const runsAndPeople = () => [...runs(), peopleOverride];
 // What also moves a reach-out's row (Part 4 PR 8): its chain's pause and resume are the playbook's own door on its
@@ -344,7 +350,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   ],
   // "Read as no · undo" moves the reading, the person's consent and the leads the no closed.
   "POST reach-out-replies/[id]/undo": () => [repliesOverride, ...thread(), leadsOverride],
-  "POST broadcasts/[id]/recheck": runs,
+  // A recheck moves what a reach-out's run holds for its owner (its sends), which the Calendar's marks never say.
+  "POST broadcasts/[id]/recheck": () => [playbooksOverride, broadcastsOverride, ...reportsCampaigns()],
   "POST templates": templates,
   "PUT templates/[id]": templates,
   "DELETE templates/[id]": templates,
@@ -384,7 +391,13 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // A class's mode is what lets a playbook send by itself, ask, or never: People's rows say it of the follow-up (0006), and the Reviews
   // lens's, of a review, whether its composer asks the receptionist for a draft. Campaigns' Resume question says 'It sends on its own'
   // for a class that is Auto, from the modes the playbooks read held (campaignsIfDrawn).
-  "PUT policies": () => [settingsOverride, peopleOverride, reviewsOverride, ...campaignsIfDrawn()],
+  "PUT policies": () => [
+    settingsOverride,
+    peopleOverride,
+    reviewsOverride,
+    ...campaignsIfDrawn(),
+    ...calendarRunsIfDrawn(),
+  ],
   // The zone is the workspace's, saved through its own route, and the prompt names it: the settings read's preview
   // carries the zone every fold's consequence is resolved with (business-tab.ts), and the prompt card states it. Not
   // re-read, they kept the old zone until something else was saved. How its customers buy is saved there too (0008),

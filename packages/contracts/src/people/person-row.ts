@@ -32,9 +32,10 @@ import {
   type VisitDto,
 } from "../calendar/calendar-people";
 import { visitDoor } from "../calendar/appointment-key";
+import { visitTitleWithout } from "../calendar/visit/visit-service";
 import { visitLineOf, visitMarkOfDto, type VisitLineVM } from "../calendar/calendar-words";
 import { nextStepOf, stepIsDue, type PersonNextStepVM } from "../notes/steps";
-import { initialsOf, isEmailStopped, isIdentifierName } from "../conversations/thread-contact";
+import { initialsOf, isEmailStopped } from "../conversations/thread-contact";
 import { dealOf, openDealsOf, type DealVM } from "../deals/deal-vm";
 import { dealStageOf, dealStagesOf, type DealStandingStage } from "../deals/deal-consultations";
 import type { PersonConsent } from "./person-consent";
@@ -356,29 +357,6 @@ export interface PersonRowVM {
 }
 
 /**
- * A visit's title as a calendar wrote it, without the person's own name at its end: a booking app titles an
- * appointment "Consultation · Tom Baker", and on Tom's page and his row the name is said already. Only the whole name,
- * next to a separator, at either end, goes; a title that is the name alone, or says anything else, is the calendar's.
- */
-export function visitTitleFor(title: string, name: string): string {
-  const n = name.trim().toLowerCase();
-  if (!n || isIdentifierName(name)) return title;
-  const t = title.trim();
-  const low = t.toLowerCase();
-  // At its end: what comes before the name ends in a separator, so the name is a part of its own.
-  if (low.endsWith(n)) {
-    const m = t.slice(0, t.length - n.length).match(/^(.*\S)\s*[·•|:,\-–—]\s*$/);
-    if (m) return m[1].trim();
-  }
-  // Or at its start ("Maria Lopez - Balayage"), with a separator after it.
-  if (low.startsWith(n)) {
-    const m = t.slice(n.length).match(/^\s*[·•|:,\-–—]\s*(\S.*)$/);
-    if (m) return m[1].trim();
-  }
-  return title;
-}
-
-/**
  * A visit a person's read carries (VisitDto) as the one visit line every page draws (calendar-words.ts visitLineOf): the
  * row's next and last, the person page's History, Coming up and Next visit. Its title without the person's own name, its
  * day by the business's clock, its mark from the record's row (visitMarkOfDto), and the door that opens it on the Calendar.
@@ -393,7 +371,7 @@ export function visitLineForDto(
       mark: visitMarkOfDto(v),
       startMs: Date.parse(v.start),
       endMs: Date.parse(v.end),
-      title: visitTitleFor(v.title, o.person.name),
+      title: visitTitleWithout(v.title, [o.person.name]),
       day: visitDay(v.start, o.zone, o.nowMs),
       time: visitTime(v, o.zone),
       person: o.person,
@@ -417,7 +395,7 @@ function visitWordsOf(
     d
       ? {
           day: visitDay(d.start, zone, nowMs),
-          line: `${visitLine(d, zone, nowMs)} · ${visitTitleFor(d.title, person.name)}`,
+          line: `${visitLine(d, zone, nowMs)} · ${visitTitleWithout(d.title, [person.name])}`,
           vm: visitLineForDto(d, { zone, nowMs, person }),
         }
       : null;

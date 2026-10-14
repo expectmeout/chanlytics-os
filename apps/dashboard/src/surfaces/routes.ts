@@ -154,12 +154,15 @@ export const SURFACE_ROUTES: Readonly<Record<string, SurfaceRoute>> = {
     takes: () => true,
     chrome: liveChrome,
   },
+  // The Calendar: its views (calendar/week, /day, /month, /agenda), a day's address and an appointment's, one mount across
+  // them all (calendar/chrome.ts).
   calendar: {
     activeNav: "calendar",
     crumbs: ["Calendar"],
     pane: true,
     takes: () => true,
-    chrome: () => calendarChrome(),
+    mount: "calendar",
+    chrome: (at) => calendarChrome(at),
   },
   // People, the shell's `clients` (path word `people`): the list, its views, the New list door, its Leads scope, the
   // Pipeline and a person's page (people/chrome.ts).

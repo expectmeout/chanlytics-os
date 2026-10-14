@@ -123,8 +123,9 @@ function isPageRoute(route: string): boolean {
   const param = at < 0 ? "" : route.slice(at + 1);
   switch (at < 0 ? route : route.slice(0, at)) {
     case "calendar": {
+      // A view (`calendar/month`) or a day is a page; a visit, in any view, is a row.
       const named = calendarParamParts(param);
-      return named.day !== null && named.visitId === null;
+      return named.visitId === null && (named.day !== null || named.view !== null);
     }
     case "conversations":
       return route === CALLS_ROUTE;

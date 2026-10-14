@@ -2260,6 +2260,12 @@ var TEMPLATE_BODY_WORDS = `The message must be under ${TEMPLATE_BODY_MAX} charac
 var REACH_OUT_DRAFTS_PER_DAY = 30;
 var REACH_OUT_DRAFTS_OPEN_MAX = 2 * REACH_OUT_DRAFTS_PER_DAY;
 
+// src/reach-out/lead-hours.ts
+var NINE_TO_FIVE = [{ from: 9 * 60, to: 17 * 60 }];
+
+// src/reach-out/reach-out-timetable.ts
+var SEND_DAY_FRAME = { from: 9 * 60, to: 17 * 60 };
+
 // src/reach-out/reach-out-sheet.ts
 var REACH_OUT_SHEET_WORDS = {
   sub: "Your email, opened for each business, from your own mailbox. Replies come back to it, and to your Inbox.",

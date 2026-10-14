@@ -31,6 +31,7 @@ import type { ReportHeadlineVM, TodayVM } from "@chanlytics/contracts";
 import type { LiveSurface } from "./live/surface";
 import type { PeopleSurface } from "./people/surface";
 import type { CalendarSurface } from "./calendar/surface";
+import type { CalendarRunsSurface } from "./calendar/runs-surface";
 import type { LeadsSurface } from "./leads/surface";
 import type { SetupSurface } from "./setup/surface";
 import type { BillingSurface } from "./settings/billing/surface";
@@ -63,6 +64,8 @@ export interface SurfaceValues {
   live: LiveSurface;
   people: PeopleSurface;
   calendar: CalendarSurface;
+  /** Campaigns over the Calendar's days, read where the Calendar draws them (calendar/runs-surface.ts). */
+  calendar_runs: CalendarRunsSurface;
   leads: LeadsSurface;
   /** Undefined until read; null when the read failed, so a page shows a retry rather than "Reading…" for ever. */
   setup: SetupSurface | null;
@@ -214,6 +217,7 @@ const SURFACE_KEYS: Record<SurfaceKey, true> = {
   live: true,
   people: true,
   calendar: true,
+  calendar_runs: true,
   leads: true,
   setup: true,
   billing: true,

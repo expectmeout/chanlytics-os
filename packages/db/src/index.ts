@@ -311,6 +311,8 @@ export {
 } from "./repositories/notifications";
 export type { MemberAlertsRow, KeptNotice } from "./repositories/notifications";
 export { reviewLinkOf, workspacePaused } from "./repositories/campaigns/workspace";
+export { momentSchedules, runsInSpan } from "./repositories/campaigns/calendar-runs";
+export type { MomentScheduleRow, SpanRunRow } from "./repositories/campaigns/calendar-runs";
 export {
   resolveChannelDetailed,
   resolveChannel,

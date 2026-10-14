@@ -301,8 +301,8 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
   }
   @media (prefers-reduced-motion: reduce) { .phone-ask, body:has([data-dock]) .phone-ask { transition: none; } }
 
-  /* Every dialog on the ask overlay sits on the bottom edge on a phone: the Calendar's event panel (calendar-real.jsx)
-     shares .ask-overlay and was docked here by this rule before the Line. The Line itself is the whole screen. Behind
+  /* Every dialog on the ask overlay sits on the bottom edge on a phone (the Calendar's visit drew on it until it moved to
+     the kit's Sheet, calendar/visit/visit-sheet.tsx). The Line itself is the whole screen. Behind
      a dialog the page wears the phone's one veil (tokens.css --surface-veil): it wore the ink's wash, which lightened
      a dark page. */
   .ask-overlay { padding: 0; align-items: flex-end; background: var(--surface-veil); }

@@ -175,10 +175,8 @@ export function personRouteId(page: string, param?: string | null): string | nul
  * and again when it lands (surface:clients). Measured on the salon
  * (22 Sep 2026): the calendar was read eleventh, behind Settings, People and
  * Leads that nobody was looking at, so the day popped in 1.6 s after the queue
- * beside it. The Calendar draws an appointment's person's deal from People
- * (its peek's stage and "Start a proposal", 0008), and whether deals are on at
- * all, so a cold Calendar reads People next. A route absent here draws only its
- * own surface.
+ * beside it. The Calendar draws its campaign marks from their own span read. A
+ * route absent here draws only its own surface.
  */
 export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // Setup first: what is left to set up is drawn ABOVE the queue (surfaces/today/pages/setup-card.tsx TodaySetup), and read seventh it
@@ -196,13 +194,16 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
     // A reply to a reach-out, read: its queue row and the bell's door (Reach out Part 5, PR 8).
     "reach_out_replies",
   ],
-  calendar: ["people"],
+  // The Calendar's campaign marks (surfaces/calendar/runs-surface.ts): their own span read, on demand. It read People's whole
+  // book here for one pill and the deal beside a visit; the visit's person now carries those facts on the board's own read
+  // (contracts calendar-person-facts.ts), so a cold Calendar reads no People.
+  calendar: ["calendar_runs"],
   // The first run's receptionist card fills in from the settings read: the brain and the resolved numbers. Try it
   // watches the Live page's calls for the test call (first-run-try.ts).
   start: ["settings", "live"],
   // A person's page reads its own person (people-detail.ts); People's row gives it their name in the crumbs and the
-  // head while that read is out, so People is read next.
-  [PERSON_ROUTE]: ["people"],
+  // head while that read is out, so People is read next. The person surface is the page's own read, heard there.
+  [PERSON_ROUTE]: ["people", "person"],
   // A reply to a reach-out, read: the Inbox's strip, composer line and row chip (Reach out Part 5, PR 7). A call in a
   // thread is drawn from the calls Conversations reads (surfaces/inbox/thread/call.tsx tlCallFor), the same door as the Inbox's own.
   // And Sent's runs: the Needs-you band and the badge say the runs waiting for your word (needs-you.ts), on the Inbox.
@@ -322,7 +323,9 @@ export const PAGE_HEARS: Readonly<Record<string, readonly string[]>> = {
   inbox: ["inbox"],
   conversations: ["conversations"],
   live: ["live"],
-  calendar: ["calendar"],
+  // The Calendar owns the campaign marks it draws over its days (surfaces/calendar/runs-surface.ts): a run made, approved or done,
+  // a campaign saved or a class's mode changed is read again while the Calendar is open, and once as it comes back elsewhere.
+  calendar: ["calendar", "calendar_runs"],
   // Campaigns' home is one page of four surfaces: the playbooks' moments, its own 30 days (campaign_results), the reach-outs'
   // chains and the settings read's templates. Sent's runs are drawn there too, for Coming up and a row's waiting run, and left
   // to Sent: what a message moves of them (a run's replies) the home reads from its own 30 days (spec 2026-10-09 §4.5), so a
@@ -333,10 +336,10 @@ export const PAGE_HEARS: Readonly<Record<string, readonly string[]>> = {
   broadcasts: ["broadcasts"],
   clients: ["people"],
   segments: ["people"],
-  // A person's page reads its own person (people-detail.ts) and waits for who is looking; People's rows are drawn beside it
-  // (their name in the crumbs while the person's read is out) and are not its own here (the wiring's second audit,
-  // W-thread-wait-step-1).
-  "clients/person": ["workspace"],
+  // A person's page waits for who is looking and hears its own person (people-detail.ts personOverride): a rename, a stop, a
+  // hold, their rules and business, read for the one person on screen. People's rows are drawn beside it (their name in the
+  // crumbs while the person's read is out) and are not its own here: its whole book is not read again for one person.
+  "clients/person": ["workspace", "person"],
   "clients/leads": ["leads"],
   // The retired address of Leads, which lands on its scope (SURFACE_RETIRED): its own surface, as its scope's.
   leads: ["leads"],

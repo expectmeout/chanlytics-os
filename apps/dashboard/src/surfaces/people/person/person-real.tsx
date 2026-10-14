@@ -74,9 +74,11 @@ function useHeld(id: string): [PageRead, Dispatch<SetStateAction<PageRead>>] {
 /**
  * The read of the person, and what reads it again: People landing or changing (`surface:clients`: their row's follow-up, their
  * lists, and every write that names People in the refresh map or that the live feed tells of: a deal recorded or moved, a step set,
- * changed or done -- the sheets say nothing of their own, 0047), and this person writing or phoning: the Inbox or Conversations
- * holding something of theirs newer than the page does (their-thread.ts;
- * People's own list does not hear a message while another page is open, and this page is another).
+ * changed or done -- the sheets say nothing of their own, 0047), the page's own surface (`surface:person`: their record, a hold,
+ * their rules or business changed, people-detail.ts personOverride), and this person writing or phoning, or their thread
+ * changing hands: the Inbox or Conversations holding something of theirs newer than the page does, or the Inbox's row of
+ * them standing otherwise (their-thread.ts; People's own list does not hear a message while another page is open, and this
+ * page is another).
  */
 function useLoad(id: string, vm: PersonVM | null, setSt: Dispatch<SetStateAction<PageRead>>): () => void {
   const load = useCallback(() => {
@@ -95,6 +97,17 @@ function useLoad(id: string, vm: PersonVM | null, setSt: Dispatch<SetStateAction
     load();
   }, [load]);
   useEffect(() => hear("surface:clients", () => load()), [load]);
+  // The page's own surface read them again (people-detail.ts personOverride: their record, a hold, their rules and business
+  // changed): what it left in the tab is painted, with no second read; a read that left nothing (they are gone) is the page's own.
+  useEffect(
+    () =>
+      hear("surface:person", () => {
+        const held = heldPerson(id);
+        if (held) setSt({ loading: false, vm: held, missing: false, error: null });
+        else load();
+      }),
+    [id, load, setSt],
+  );
   // The latest moment of theirs the page has read for: their last contact when the page was read, or what told it of a later one
   // (so a thread whose clock runs ahead of their row's is read once for it, never on every message after).
   const held = useRef(vm);

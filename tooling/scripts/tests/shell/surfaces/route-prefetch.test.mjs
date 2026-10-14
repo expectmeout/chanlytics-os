@@ -278,6 +278,26 @@ test("a page that opens on what only the page can work out, or one nobody named,
     assert.deepEqual(headRuns({ pathname, hash: `#/clients/${ID}` }).calls, [], pathname);
 });
 
+test("a Calendar address that names a view or a visit with no day opens on the weeks around today, as the route alone does", () => {
+  for (const route of [
+    "calendar/week",
+    "calendar/month",
+    "calendar/agenda",
+    "calendar/a-priya",
+    "calendar/week:a-priya",
+  ])
+    assert.deepEqual(
+      headRuns({ pathname: `/w/acme/${route}`, hash: "" }).calls.map(([u]) => u),
+      opensOn("acme", "calendar"),
+      route,
+    );
+  // A view on a day is that day's weeks: the page's own read.
+  assert.deepEqual(
+    headRuns({ pathname: "/w/acme/calendar/week:2026-10-02:a-priya", hash: "" }).calls.map(([u]) => u),
+    ["/api/v1/workspaces?workspace=acme"],
+  );
+});
+
 test("run twice, the head starts nothing twice; a fetch that throws leaves the page alone", () => {
   const first = headRuns({ pathname: "/w/acme", hash: `#/clients/${ID}` });
   const again = headRuns({ pathname: "/w/acme", hash: `#/clients/${ID}`, window: first.win });
@@ -598,6 +618,7 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
       (await importSrc(`${S}/surfaces/campaigns/reach-out/surface.ts`)).reachOutsOverride,
       (await importSrc(`${S}/legacy-bridge/surfaces/settings.ts`)).settingsOverride,
       (await importSrc(`${S}/surfaces/calendar/surface.ts`)).calendarOverride,
+      (await importSrc(`${S}/surfaces/calendar/runs-surface.ts`)).calendarRunsOverride,
       (await importSrc(`${S}/surfaces/reports/surface.ts`)).reportsOverride,
       (await importSrc(`${S}/surfaces/leads/surface.ts`)).leadsOverride,
       // Who is looking: Reports' strip waits for it (ROUTE_WAITS), and its read is every page's.
@@ -617,8 +638,13 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
   // What a page draws on its first screen from another page's surface, started with its own: Today's strip (the next
   // visit, the next opening) is the calendar's weeks, which the frame reads right after Today's own (ROUTE_DRAWS); and
   // Campaigns' home draws Sent's runs, its own 30 days (campaign_results), the reach-outs' chains and the settings read, which holds
-  // the templates its call's text and Library count are made of (the one read of them, task 3.3).
-  const alsoDrawn = { today: ["calendar"], campaigns: ["broadcasts", "campaign_results", "reach_outs", "settings"] };
+  // the templates its call's text and Library count are made of (the one read of them, task 3.3); and the Calendar's campaign
+  // marks are their own span's read, started beside the board's (the Calendar's lane C).
+  const alsoDrawn = {
+    today: ["calendar"],
+    campaigns: ["broadcasts", "campaign_results", "reach_outs", "settings"],
+    calendar: ["calendar_runs"],
+  };
   for (const [route, drawn] of Object.entries(alsoDrawn))
     for (const k of drawn) assert.ok(registry.ROUTE_DRAWS[route].includes(k), `${route} draws ${k} beside its own`);
   for (const route of Object.keys(PREFETCH_READS)) {

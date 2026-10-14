@@ -4,6 +4,7 @@
  * Types only; calendar.ts builds it (toCalendarVM).
  */
 import type { VisitMark } from "./calendar-dto";
+import type { CalendarPersonFactsDto } from "./visit/calendar-person-facts";
 import type { MatchVia } from "./calendar-people";
 import type { BookingLinkAction } from "../people/person-reach";
 import type { CalendarSourceVM } from "../setup/calendar-source";
@@ -36,6 +37,8 @@ export interface CalendarBlockVM {
     bookingLinkAction: BookingLinkAction;
     /** They asked to stop, or are on do-not-contact (the match's `opted_out`, isOptedOutContact over their row): the panel says it beside their name. */
     stopped: boolean;
+    /** What the read knows of them beyond who they are (calendar-person-facts.ts), said at the sheet's minute; null without. */
+    facts: CalendarPersonFactsDto | null;
   } | null;
   description: string | null;
   location: string | null;
@@ -43,6 +46,8 @@ export interface CalendarBlockVM {
   contacts: { phones: string[]; e164: string[]; emails: string[] };
   /** The client's name as the event gives it, or null. */
   guess: string | null;
+  /** One occurrence of a repeating event (CalendarItemDto.series): the sheet says "Repeats". */
+  series: boolean;
   /** A consultation (0008), as the server found it (isConsultationTitle): once it is over, a proposal may follow. */
   consultation: boolean;
   /** The consult-first service its title names, as Settings spells it, or null: what a proposal after it is for. */
@@ -116,6 +121,11 @@ export interface CalendarVM {
   timezone: string;
   /** "New York": the zone by the name Settings gives it (C3). */
   zoneCity: string;
+  /**
+   * Whether Settings holds the business's hours at all (availability.ts hasHours). Without them no day is drawn closed
+   * and no band is drawn; the board says once that hours are not set, with the door to set them.
+   */
+  hoursSet: boolean;
   from: string;
   to: string;
   /** "Sep 7 – 13" */

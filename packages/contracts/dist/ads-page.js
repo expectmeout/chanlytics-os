@@ -1374,7 +1374,10 @@ function appointmentWords(word) {
     byMany: `by ${many}`,
     needsCalendar: `${capitalize(many)} are read from your calendar, and none is connected. Connect one under Settings \u203A Business.`,
     cancelAsk: `Cancel this ${word}?`,
-    bookingLink: (link) => `Here's the link to book your ${word}: ${link}`
+    cancelAct: `Cancel the ${word}\u2026`,
+    bookingLink: (link) => `Here's the link to book your ${word}: ${link}`,
+    nextLink: (link) => `Here's the link to book your next ${word}: ${link}`,
+    newTimeLink: (link) => `Here's a link to pick a new time for your ${word}: ${link}`
   };
 }
 

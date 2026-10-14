@@ -280,7 +280,18 @@ test("without a feed the board still shows the hours and says so; a feed that co
   assert.equal(down.feed.line, "Your calendar could not be read · last read 4h ago");
   const noHours = toCalendarVM(dto({ hours: null }), new Date("2026-09-08T16:00:00.000Z"));
   assert.deepEqual(noHours.hours, { start: 7, end: 21 }, "no hours on file: a plain working day, with air");
-  assert.equal(noHours.days[1].closed.yes, true, "a day with no hours is closed");
+  // No hours on file is hours not set, never a week closed (the Calendar's lane B): every day read as Closed, and the
+  // page's one notice says the hours are not set.
+  assert.equal(noHours.days[1].closed.yes, false, "REGRESSION: hours not set closed every day");
+  assert.deepEqual(
+    noHours.days.filter((d) => d.closed.yes).map((d) => d.key),
+    ["2026-09-12"],
+    "no day of the week is closed by the hours: only the closure the owner set",
+  );
+  // Hours set with a day left out: that day is closed, as it always was.
+  const sundayOff = toCalendarVM(dto(), new Date("2026-09-08T16:00:00.000Z"));
+  const sunday = sundayOff.days.find((d) => d.key === "2026-09-13");
+  assert.equal(sunday.closed.yes, true, "a day the hours leave out is closed");
 });
 
 test("day keys, the words, and the zone", () => {
@@ -568,6 +579,8 @@ test("the board drawn right: overlapping blocks take lanes, a block outside the 
         true,
       ),
       stopped: false,
+      // What the board knows of them beside their name (calendar-person-facts.ts): none where the read carried none.
+      facts: null,
     },
     "a thread and an open reply window: the link is carried in",
   );
@@ -585,6 +598,7 @@ test("the board drawn right: overlapping blocks take lanes, a block outside the 
         false,
       ),
       stopped: false,
+      facts: null,
     },
     "a thread whose window closed a week ago: the thread offers the approved message",
   );
@@ -597,6 +611,7 @@ test("the board drawn right: overlapping blocks take lanes, a block outside the 
       threadId: null,
       bookingLinkAction: blocks[2].person.bookingLinkAction,
       stopped: false,
+      facts: null,
     },
     "in People, no thread yet",
   );
@@ -605,4 +620,228 @@ test("the board drawn right: overlapping blocks take lanes, a block outside the 
   assert.equal(vm.hours.start, 8);
   const plain = toCalendarVM(dto(), now);
   assert.deepEqual([plain.hours.start, plain.hours.end], [8, 20], "the hours' own air when nothing falls outside them");
+});
+
+/* ------------------------- campaigns on the board (the Calendar's lane C, contracts calendar-runs.ts) ------------------------- */
+
+const { calendarRunMarksOf, runMarkShown, CALENDAR_SHOW_WORDS } = await import("@chanlytics/contracts");
+// Tuesday noon in New York; the span is the week.
+const RUNS_NOW = new Date("2026-09-08T16:00:00.000Z");
+/** A run as GET calendar/runs carries it: a campaign's sent run for today unless `over` says otherwise. */
+const runOf = (id, over = {}) => ({
+  id,
+  name: "Message",
+  state: "sent",
+  scheduled_for: "2026-09-08T14:00:00.000Z",
+  started_at: "2026-09-08T14:00:00.000Z",
+  finished_at: "2026-09-08T14:05:00.000Z",
+  run_for: "2026-09-08",
+  playbook_id: null,
+  reach_out: false,
+  sent: 0,
+  recipient_count: 0,
+  ...over,
+});
+/** A running campaign that sends by itself at 3 PM, last run yesterday, unless `over` says otherwise. */
+const momentOf = (id, over = {}) => ({
+  id,
+  name: id,
+  trigger: "visit_tomorrow",
+  state: "running",
+  mode: "auto",
+  run_hour: 15,
+  last_run_for: "2026-09-07",
+  until: null,
+  trial_until: null,
+  reach_out: false,
+  ...over,
+});
+const runsWeek = (runs, moments, over = {}) => ({
+  timezone: TZ,
+  from: "2026-09-07",
+  days: 7,
+  paused: false,
+  runs,
+  moments,
+  ...over,
+});
+const marksOn = (dto, day) => calendarRunMarksOf(dto, RUNS_NOW).get(day) ?? [];
+const said = (m) => [m.time, m.name, m.words].filter(Boolean).join(" · ");
+const tueSaid = (dto) => marksOn(dto, "2026-09-08").map(said);
+
+test("(lane C) a one-off send stands at its time in Sent's words; a campaign's run waiting for approval is the day's amber, at no hour; the runs that went are one quiet mark", () => {
+  const dto = runsWeek(
+    [
+      runOf("s1", {
+        name: "Autumn offer",
+        state: "scheduled",
+        run_for: null,
+        scheduled_for: "2026-09-11T14:00:00.000Z",
+        started_at: null,
+        finished_at: null,
+        recipient_count: 42,
+      }),
+      runOf("s2", { name: "Old news", state: "canceled", run_for: null }),
+      runOf("w1", {
+        name: "We miss you",
+        playbook_id: "c-win",
+        state: "pending_approval",
+        run_for: "2026-09-09",
+        started_at: null,
+        finished_at: null,
+      }),
+      runOf("w0", { playbook_id: "c-win", state: "pending_approval", run_for: "2026-09-07", started_at: null }),
+      runOf("r1", { playbook_id: "c-rem", sent: 6 }),
+      runOf("r2", { playbook_id: "c-thanks", sent: 3 }),
+      runOf("f1", {
+        playbook_id: "c-fail",
+        state: "failed",
+        run_for: "2026-09-10",
+        finished_at: "2026-09-10T15:00:00.000Z",
+      }),
+    ],
+    [
+      momentOf("c-win", { name: "We miss you", mode: "ask", last_run_for: "2026-09-09" }),
+      momentOf("c-rem", { name: "Appointment reminder", last_run_for: "2026-09-08" }),
+      momentOf("c-thanks", { name: "Thank you", last_run_for: "2026-09-08" }),
+      momentOf("c-fail", { name: "Review ask", state: "paused" }),
+    ],
+  );
+  const fri = marksOn(dto, "2026-09-11");
+  assert.deepEqual(fri.map(said), ["10 AM · Autumn offer · Scheduled · 42 people"]);
+  assert.deepEqual([fri[0].tone, fri[0].ahead, fri[0].kind], ["info", true, "send"]);
+  assert.ok(
+    !JSON.stringify([...calendarRunMarksOf(dto, RUNS_NOW).values()]).includes("Old news"),
+    "a cancelled send is not drawn",
+  );
+  const wed = marksOn(dto, "2026-09-09");
+  assert.deepEqual(
+    wed.map(said),
+    ["We miss you · Waiting for your approval", "3 PM · Appointment reminder · to come", "3 PM · Thank you · to come"],
+    "what waits first, then by the clock: the two that ran today run again tomorrow",
+  );
+  assert.ok(
+    !tueSaid(dto).some((s) => s.startsWith("We miss you")),
+    "REGRESSION: a run made for tomorrow was forecast again today as 'to approve today'",
+  );
+  assert.deepEqual([wed[0].t, wed[0].tone, wed[0].route], [null, "warn", "broadcasts/run:w1"]);
+  assert.deepEqual(
+    marksOn(dto, "2026-09-07").map(said),
+    ["We miss you · Too late to approve"],
+    "its day passed: no longer amber",
+  );
+  const tue = marksOn(dto, "2026-09-08");
+  const went = tue.find((m) => m.kind === "campaigns");
+  assert.equal(said(went), "Campaigns · 9 sent", "the day's runs that went, one mark");
+  assert.deepEqual(
+    went.items.map((i) => `${i.name} · ${i.words}`),
+    ["Appointment reminder · 6 sent", "Thank you · 3 sent"],
+    "its sheet names each",
+  );
+  assert.equal(went.named, false, "a month does not name what went");
+  assert.deepEqual(
+    marksOn(dto, "2026-09-10").map((m) => [said(m), m.tone]),
+    [["11 AM · Review ask · Failed", "danger"]],
+  );
+});
+
+test("(lane C) a running campaign's next run is forecast today or tomorrow, its hour first and said once: never where a run is made for that day or a later one, past its last day, or while the workspace is paused", () => {
+  const forecast = (moment, runs = [], over = {}) =>
+    [...calendarRunMarksOf(runsWeek(runs, [moment], over), RUNS_NOW).values()].flat().filter((m) => m.kind === "next");
+  const today = forecast(momentOf("Appointment reminder"));
+  assert.deepEqual(
+    today.map(said),
+    ["3 PM · Appointment reminder · to come"],
+    "REGRESSION: the hour was said twice ('3 PM · … · runs 3 PM · to come')",
+  );
+  assert.deepEqual([today[0].t, today[0].ahead, today[0].route], [15, true, "campaigns/moment:Appointment reminder"]);
+  assert.deepEqual(
+    forecast(momentOf("We miss you", { mode: "ask" })).map(said),
+    ["We miss you · to approve today"],
+    "a class that waits for a person: the day alone",
+  );
+  assert.deepEqual(
+    forecast(momentOf("Late", { run_hour: 9 })).map((m) => [said(m), m.t]),
+    [["Late · runs within the hour · to come", null]],
+    "past its hour and not run yet today: it catches up, with no hour to promise",
+  );
+  assert.deepEqual(forecast(momentOf("Done today", { last_run_for: "2026-09-08" })).map(said), [
+    "3 PM · Done today · to come",
+  ]);
+  assert.equal(forecast(momentOf("Done today", { last_run_for: "2026-09-08" }))[0].key, "next:Done today");
+  assert.deepEqual(
+    forecast(momentOf("Made ahead", { mode: "ask", last_run_for: "2026-09-09" })),
+    [],
+    "REGRESSION: a run already made for tomorrow, waiting for approval, was forecast as today's",
+  );
+  assert.deepEqual(
+    forecast(momentOf("Stands", { run_hour: 9 }), [
+      runOf("x", { playbook_id: "Stands", state: "scheduled", run_for: "2026-09-08", started_at: null }),
+    ]),
+    [],
+    "a run row already stands for it that day",
+  );
+  assert.deepEqual(forecast(momentOf("Over", { until: "2026-09-07" })), [], "past its last day");
+  assert.deepEqual(forecast(momentOf("Off", { mode: "never" })), [], "a class that never sends");
+  assert.deepEqual(forecast(momentOf("Paused", { state: "paused" })), [], "a paused campaign");
+  assert.deepEqual(forecast(momentOf("Any"), [], { paused: true }), [], "the workspace paused: nothing goes out");
+  assert.deepEqual(forecast(momentOf("Chain", { reach_out: true })), [], "cold email has no forecast here");
+});
+
+test("(lane C) a campaign's last day, and cold email on its own switch: a chain's runs a day, counted, never at an hour", () => {
+  const dto = runsWeek(
+    [
+      runOf("c1", { name: "Businesses nearby", playbook_id: "chain", reach_out: true, run_for: "2026-09-07", sent: 8 }),
+      runOf("c2", { name: "Businesses nearby", playbook_id: "chain", reach_out: true, run_for: "2026-09-07", sent: 4 }),
+      runOf("c3", {
+        playbook_id: "chain",
+        reach_out: true,
+        run_for: "2026-09-10",
+        state: "scheduled",
+        recipient_count: 9,
+        started_at: null,
+        finished_at: null,
+      }),
+    ],
+    [
+      momentOf("chain", { name: "Businesses nearby", reach_out: true, mode: "ask" }),
+      momentOf("c-win", { name: "We miss you", until: "2026-09-12", last_run_for: "2026-09-08" }),
+    ],
+  );
+  const mon = marksOn(dto, "2026-09-07");
+  assert.deepEqual(
+    mon.map((m) => [said(m), m.cold, m.t]),
+    [["Businesses nearby · 12 written", true, null]],
+  );
+  assert.deepEqual(marksOn(dto, "2026-09-10").map(said), ["Businesses nearby · 9 planned"]);
+  assert.deepEqual(
+    marksOn(dto, "2026-09-12").map((m) => [said(m), m.named]),
+    [["We miss you · last day", true]],
+  );
+  assert.equal(
+    runMarkShown(mon[0], { campaigns: true, cold: false }),
+    false,
+    "cold email is off unless Show turns it on",
+  );
+  assert.equal(runMarkShown(mon[0], { campaigns: false, cold: true }), true);
+  assert.equal(runMarkShown(marksOn(dto, "2026-09-12")[0], { campaigns: true, cold: false }), true);
+  // Show's value says what is on beside the visits, in its own words.
+  const value = CALENDAR_SHOW_WORDS.value;
+  const both = { campaigns: true, cold: true };
+  assert.equal(value({ open: true, campaigns: true, cold: false }, both), "Open times, campaigns");
+  assert.equal(
+    value({ open: true, campaigns: true, cold: false }, { campaigns: true, cold: false }),
+    "Everything",
+    "no cold email to offer",
+  );
+  assert.equal(
+    value({ open: true, campaigns: true, cold: false }, { campaigns: false, cold: false }),
+    "Everything",
+    "a workspace with no campaign: Show is open times alone, and says nothing of campaigns it has none of",
+  );
+  assert.equal(
+    value({ open: false, campaigns: true, cold: false }, { campaigns: false, cold: false }),
+    "Bookings only",
+  );
+  assert.equal(value({ open: false, campaigns: false, cold: false }, both), "Bookings only");
 });
