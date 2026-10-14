@@ -1,12 +1,13 @@
 /**
  * The business a person works at, as it trails their name wherever a page names them (0052): the Inbox's list and
  * Conversations, Today's queue, the Calendar's appointment and Live. One reading of People's rows (contracts
- * businessTrailOf), so every page says what People says. Nothing before People is read, and nothing here asks for it to
- * be read: a page that names someone People has not read yet shows their business once it has.
+ * businessTrailOf), so every page says what People says. Nothing before People is read; someone People does not hold yet
+ * (linked or made since its last read) asks for it to be read again, once (want-person.ts; the wiring's second audit, R10).
  */
 import { useSyncExternalStore } from "react";
 import { businessTrailOf } from "@chanlytics/contracts";
 import { onSurfaceValue, surfaceValue } from "../surface-values";
+import { wantPerson } from "./want-person";
 
 /** People's rows as they stand: nothing before their first read. */
 const peopleRows = () => surfaceValue("people")?.rows;
@@ -31,7 +32,10 @@ export function businessTrailFor(personId: string | null | undefined): string | 
       }),
     );
   }
-  return trails.get(personId) ?? null;
+  const trail = trails.get(personId);
+  // Someone with no trail may simply work nowhere; one People does not hold asks for its next read (want-person.ts).
+  if (trail === undefined) wantPerson(personId);
+  return trail ?? null;
 }
 
 const heardPeople = (moved: () => void) => onSurfaceValue("people", moved);

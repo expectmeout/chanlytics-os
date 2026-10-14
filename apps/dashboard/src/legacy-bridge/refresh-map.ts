@@ -35,6 +35,7 @@ import { forgetReviews, reviews as reviewsLens, reviewsOverride } from "@/surfac
 import { settingsOverride } from "./surfaces/settings";
 import { channelsOverride } from "@/surfaces/channels/surface";
 import { todayOverride } from "@/surfaces/today/surface";
+import { todayPinsOverride } from "@/surfaces/today/pins-surface";
 import { workspaceOverride, type SurfaceOverride } from "./surface-data";
 import { billingOverride } from "@/surfaces/settings/billing/surface";
 import { partnerOverride } from "@/surfaces/settings/partner/surface";
@@ -81,6 +82,9 @@ const reportsCampaigns = ifDrawn(reportsCampaignsLens);
 // each), a visit marked and the calendar link or the zone saved (the booking pair, and the Booking gap line it makes). Today is where it
 // is drawn.
 const headlineIfDrawn = ifDrawn(headline);
+// The counts of the lists pinned to Today (surfaces/today/pins-surface.ts; R10), where Today is on screen, and left for it elsewhere:
+// a write the feed does not tell (a person erased takes their messages) moves them.
+const pinsIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([todayPinsOverride]) : []);
 // What the Reviews lens says of a review's reply mode (whether its composer asks the receptionist for a draft) is made wrong by a mode
 // saved, which is saved on Autonomy or from a chip, never from the lens: read where the lens is on screen, forgotten elsewhere
 // (the wiring's second audit, W-review-facts-rules-9: a mode saved read the lens nobody had open).
@@ -252,6 +256,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
     ...reportsIfDrawn(),
     ...campaignResultsIfDrawn(),
     ...setupIfDrawn(),
+    ...pinsIfDrawn(),
   ],
   // Two records became one (0028): the kept person's page and People, the threads that folded, and every count by
   // consent, Reports' included: the merge may change an answer, as a consent write does. The bell's lines about the folded thread
@@ -535,6 +540,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
  * decided, not forgotten: refresh-coverage.test.mjs holds every write in `routes.generated.ts` to one of the two.
  */
 export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
+  // The ideas for a first search, written where they are due (S11-8): the answer is the ideas themselves, which the Leads surface
+  // lays on the view on screen (readSuggestions), as it does a read of them; nothing else draws them.
+  "POST lead-suggestions": "the ideas written for a first search: the page lays the answer on its view itself",
   "POST reach-outs/[id]/leads/check":
     "what an add would do (00426, dry): nothing is written; the caller says the answer",
   // Ask keeps its own thread and its cards; a card's own call goes through its verb's route, and that route's refresh.

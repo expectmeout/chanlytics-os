@@ -5,10 +5,12 @@ import { LIST_GROUP_WORDS, type PeopleListsLike } from "@chanlytics/contracts";
 import { appNavigate, borrowed, pinnedLists, useMoved } from "../shell";
 
 // The lists this member pinned to Today (decision 0009: any list is a door here, built-in or their own), each with its
-// count from People, the page it opens. One quiet row, drawn only when something is pinned; a list that isn't here now
+// count (Today's own read of them, People's until it lands), the page it opens. One quiet row, drawn only when something is pinned; a list that isn't here now
 // is left out (contracts todayPins), and comes back with its list.
 export const TodayPins = () => {
   useMoved("people");
+  // Their counts, read on Today (today/pins-surface.ts; R10).
+  useMoved("today_pins");
   const P = borrowed<PeopleListsLike>("__PEOPLE");
   if (!P) return null;
   const pins = pinnedLists();

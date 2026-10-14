@@ -121,9 +121,11 @@ test("a message re-reads the Inbox, Conversations and Today, and the headline To
   const r = await running();
   try {
     await r.message();
+    // And the counts of the lists pinned here (R10), which ask the server nothing where nothing is pinned, and People's whole book
+    // never: the pins are counted on the server.
     assert.deepEqual(
       [...r.asked].sort(),
-      ["conversations", "inbox", "reports_headline", "today"],
+      ["conversations", "inbox", "reports_headline", "today", "today_pins"],
       "REGRESSION: seven surfaces per message (People, Reports, Broadcasts and Playbooks are not Today's to read)",
     );
   } finally {
@@ -172,8 +174,8 @@ test("a notice reaches the surfaces as the live feed decodes it: each status it 
     await r.notice({ table: "messages", op: "INSERT" });
     assert.deepEqual(
       [...r.asked].sort(),
-      ["conversations", "inbox", "reports_headline", "today"],
-      "an arrival is read as ever, and Worth a look with it",
+      ["conversations", "inbox", "reports_headline", "today", "today_pins"],
+      "an arrival is read as ever, and Worth a look with it, and the pinned lists' counts (R10)",
     );
   } finally {
     r.stop();
@@ -297,8 +299,8 @@ test("the page on screen hears messages too, and a surface that let one pass is 
     await settle();
     assert.deepEqual(
       [...r.asked].sort(),
-      ["google", "people", "reports_headline"],
-      "People once, as nothing passed it since; and what Today draws that a run that opened on People never read (they are on demand): the headline and Google's, once as Today came on screen",
+      ["google", "people", "reports_headline", "today_pins"],
+      "People once, as nothing passed it since; and what Today draws that a run that opened on People never read (they are on demand): the headline, Google's and the pinned lists' counts, once as Today came on screen",
     );
   } finally {
     r.stop();
@@ -313,10 +315,16 @@ test("a surface's own tables reach it wherever the page is, and a thread's updat
     // A teammate's deal moves People's rows and the Pipeline: People's own table, heard off its page. And Setup's count of who can
     // receive an offer, which reads the deals, on the page its band is drawn (the wiring's second audit, S4-3).
     await r.change("deals", "UPDATE");
-    assert.deepEqual([...r.asked].sort(), ["people", "setup"]);
+    // And the counts of the lists pinned here (R10): the deal lists are among them.
+    assert.deepEqual([...r.asked].sort(), ["people", "setup", "today_pins"]);
     r.asked.length = 0;
     await r.change("conversations", "UPDATE");
-    assert.deepEqual([...r.asked].sort(), ["conversations", "inbox", "today"], "a snooze or a pause: the three");
+    // A snooze or a pause: the three, and the pinned lists' counts (R10): who needs you is among them.
+    assert.deepEqual(
+      [...r.asked].sort(),
+      ["conversations", "inbox", "today", "today_pins"],
+      "a snooze or a pause: the three",
+    );
   } finally {
     r.stop();
   }
@@ -340,13 +348,19 @@ test("Campaigns' home owns what it draws but Sent's runs: a message re-reads the
     await settle();
     assert.deepEqual(
       [...r.asked].sort(),
-      ["google", "reports_headline"],
-      "nothing Today owns was missed; the headline and Google's read, which Today draws and a run that opened on Campaigns never read, once",
+      ["google", "reports_headline", "today_pins"],
+      "nothing Today owns was missed; the headline, Google's and the pinned lists' counts, which Today draws and a run that opened on Campaigns never read, once",
     );
     r.asked.length = 0;
     await r.message();
     await r.message();
-    assert.deepEqual([...new Set(r.asked)].sort(), ["conversations", "inbox", "reports_headline", "today"]);
+    assert.deepEqual([...new Set(r.asked)].sort(), [
+      "conversations",
+      "inbox",
+      "reports_headline",
+      "today",
+      "today_pins",
+    ]);
     r.asked.length = 0;
 
     win.location.hash = "#/campaigns";

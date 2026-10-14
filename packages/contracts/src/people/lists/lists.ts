@@ -583,9 +583,19 @@ export function pinTokens(view: unknown): string[] {
 }
 
 /**
+ * GET people/list-counts' answer (the wiring's second audit, R10): each pinned list's count by its token, counted on the
+ * server over the pool People's lists are counted on, for the member asking; null where the list can't be counted there, or
+ * is no list. Today's pins read it, so their numbers follow what moves them without People's whole book.
+ */
+export interface ListCountsDto {
+  counts: Record<string, number | null>;
+}
+
+/**
  * Today's pinned lists (decision 0009: any list is a door on Today), over the People surface: one of People's lists
  * shown here, or one of the workspace's own that is live. A pin to a list that isn't here now is left out; the pin
- * itself stays, and comes back with the list.
+ * itself stays, and comes back with the list. `counts` (ListCountsDto, R10), where it holds a token, is the count Today
+ * draws: People's is as of its last read, which nothing on Today reads again.
  */
 export function todayPins(
   view: unknown,
@@ -593,15 +603,19 @@ export function todayPins(
     lists: readonly { id: string; label: string; count: number }[];
     saved: readonly { id: string; name: string; count: number; unknown?: string | null }[];
   },
+  counts?: ListCountsDto["counts"] | null,
 ): TodayPin[] {
+  const counted = (token: string, own: number | null) => (counts && token in counts ? (counts[token] ?? null) : own);
   return pinTokens(view).flatMap((token): TodayPin[] => {
     const ref = parseListToken(token)!;
     if (ref.kind === "builtin") {
       const l = people.lists.find((x) => x.id === ref.id);
-      return l ? [{ token, label: l.label, count: l.count, to: `clients/seg:${l.id}` }] : [];
+      return l ? [{ token, label: l.label, count: counted(token, l.count), to: `clients/seg:${l.id}` }] : [];
     }
     const s = people.saved.find((x) => x.id.toLowerCase() === ref.id);
-    return s ? [{ token, label: s.name, count: s.unknown ? null : s.count, to: `clients/list:${s.id}` }] : [];
+    return s
+      ? [{ token, label: s.name, count: counted(token, s.unknown ? null : s.count), to: `clients/list:${s.id}` }]
+      : [];
   });
 }
 

@@ -212,6 +212,7 @@ export const SURFACE_LABELS: Readonly<Record<string, string>> = {
   campaign_results: "Campaigns' last 30 days",
   calendar: "Calendar",
   calendar_runs: "Campaigns on the Calendar",
+  today_pins: "Lists pinned to Today",
   notifications: "Notifications",
   setup: "Setup",
   google: "Google",

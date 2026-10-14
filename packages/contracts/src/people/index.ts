@@ -158,6 +158,7 @@ export type {
   ListDef,
   SavedListRowLike,
   TodayPin,
+  ListCountsDto,
 } from "./lists/lists";
 export {
   personLikeOf,
