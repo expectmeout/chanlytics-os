@@ -86,9 +86,8 @@ checked:
   moves out with the folder's split by domain.
 - **The tracer is a module at `tooling/scripts`' root, not in `lib/`.** The audit named `lib/`, but a folder earns its
   place at its second module. It moves into a folder with its second sibling.
-- **A cell names a surface, not a surface's kinds.** Kind-aware cells (ownsKind) come with their first user, Campaigns'
-  home in lane R5b (Sent's runs heard there for some kinds and left to Sent for a message).
-  The golden is already per notice, so the change will show as lines.
+- **A cell names a surface, not a surface's kinds.** Kind-aware cells came with their first user, Campaigns' home in lane
+  R5b (amended below).
 - **The audit's age bound on unfed tables (`maxAgeMin`) is not written.**
   - A number nothing enforces is the kind of claim S3-8 found false.
   - An unfed group says instead what reads it again (`heardWith`, `rereadAfter`), which is checked.
@@ -136,11 +135,40 @@ checked:
   - the search names a business card shows (R5: a search's name told apart from its members);
   - the mailbox a lead's emails left from (R6).
 
+## Amended on 14 October 2026: Campaigns' home hears what it counts (R5b)
+
+- **A cell may name kinds** (`PageCell = true | RecordKind[]`). This replaces "a cell names a surface" above. A page that
+  draws part of what a surface counts hears what moves that part, and leaves the rest to the surface's own page
+  (`ownsTable`).
+  - The first such cell is Sent's runs on Campaigns' home:
+    `broadcasts: ["person", "facts", "rules", "channel", "billing", "visit"]`. These kinds repaint who can hear you, the
+    pause on offers and the send-once composer.
+  - A message, a thread or a hold is left to Sent. The home reads its replies from its own 30 days, so a message there
+    never re-reads the runs and every page of People behind them.
+- **What a surface let pass is kept by table** (`missedWhileAway` holds the tables, or `"all"` for a pass kept whole).
+  The page that owns one of those tables reads it once as it comes on screen. A message the runs let pass on Campaigns
+  waits for Sent. A person's answer they let pass on Today is read as Campaigns comes back.
+- **The pause line and Today's runs read one source.**
+  - The home's pause line reads the playbooks' reading first (contracts `readyOf`), as the channels line does, so a pause
+    by the gates reaches it while the home is open.
+  - Today's runs take `paused` from Today's own standing, the flag its band reads, and fall back to Sent's reading.
+- **Campaigns' 30 days and the Campaigns lens hear a person's answer.** That is an update of a person, never a person made:
+  the feed tells an answer as an update, and a person made would read the dearest of the lenses for every arrival. The
+  owed group W-person-list-lead-8 left the baseline, and the owed count fell from 125 to 123.
+- **Closed:** W-review-facts-rules-2, W-campaign-run-template-reachout-1, W-person-list-lead-2, W-person-list-lead-8 and
+  S3-2.
+- **Left, each with its reason:**
+  - The Calendar's cells (W-person-list-lead-6, W-thread-wait-step-7, W-visit-deal-2) wait for the Calendar's own lane,
+    which is rebuilding the visit panel they draw.
+  - Today's People cell is R10's: its cost is the heaviest read there is, and R10 weighs it on the numbers.
+  - Delivered and read ticks (S3-5) are R9's: the runner has no quiet window by status, and a tick per message would read
+    Sent's ledger once per receipt.
+
 ## What comes next
 
 - **R5** changes cells one at a time and reads each golden's difference:
   - a person's page becomes a surface of its own (done, R5a, above);
-  - Campaigns' home hears the people, facts and channels it counts;
-  - Setup, Settings and Reports declare the rest.
+  - Campaigns' home hears the people, facts and channels it counts (done, R5b, above);
+  - Setup, Settings and Reports declare the rest (R5c).
 - **R6** removes the false omits the baseline now names.
 - The owed count falls as they land.

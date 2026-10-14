@@ -83,7 +83,7 @@
     "appointments UPDATE": "broadcasts calendar people playbooks · 13 routes",
     "appointments DELETE": "broadcasts calendar people playbooks · 13 routes",
     "contacts INSERT": "broadcasts conversations inbox playbooks today · 19 routes",
-    "contacts UPDATE": "broadcasts conversations inbox playbooks today · 19 routes",
+    "contacts UPDATE": "broadcasts campaign_results conversations inbox playbooks today · 21 routes",
     "tenant_config UPDATE": "broadcasts calendar playbooks settings · 15 routes",
     "policies INSERT": "broadcasts playbooks settings · 14 routes",
     "policies UPDATE": "broadcasts playbooks settings · 14 routes",

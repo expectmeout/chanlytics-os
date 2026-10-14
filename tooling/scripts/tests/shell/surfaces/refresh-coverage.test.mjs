@@ -789,6 +789,7 @@ test("the Campaigns lens's read repaints on the tables of the live feed that mov
     "reach_out_replies",
     "tenant_channels",
     "mailbox_connections",
+    "contacts",
   ]);
   // Asked for five seconds; the runner never waits more than three after the first change (campaigns-surface.test.mjs runs it).
   assert.equal(reportsCampaignsOverride.debounceMs, 5_000);
@@ -803,7 +804,6 @@ test("the Campaigns lens's read repaints on the tables of the live feed that mov
     "google_reviews",
     "google_listings",
     "events",
-    "contacts",
     "deals",
     "lines",
     "mailboxes",

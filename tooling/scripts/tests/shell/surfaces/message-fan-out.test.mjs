@@ -630,6 +630,8 @@ test("the Campaigns lens hears messages, conversations, escalations and runs onl
       ["reach_out_replies", "INSERT"],
       ["tenant_channels", "UPDATE"],
       ["mailbox_connections", "UPDATE"],
+      // A person's answer: the yeses and stops it counts (the wiring's second audit, W-person-list-lead-8).
+      ["contacts", "UPDATE"],
     ]) {
       r.asked.length = 0;
       await r.change(table, event);
@@ -641,12 +643,16 @@ test("the Campaigns lens hears messages, conversations, escalations and runs onl
       await r.change("messages", "UPDATE", status);
       assert.deepEqual(lensReads(), [], `a message ${status}: not the lens's`);
     }
-    // It is told of no table it does not name: a call (a call is the Receptionist's and the People lens's), a note, a review, a person's row.
-    for (const table of ["calls", "person_notes", "contacts", "google_reviews", "deals", "lines", "mailboxes"]) {
+    // It is told of no table it does not name: a call (a call is the Receptionist's and the People lens's), a note, a review; and
+    // a person made is no answer.
+    for (const table of ["calls", "person_notes", "google_reviews", "deals", "lines", "mailboxes"]) {
       r.asked.length = 0;
       await r.change(table, "UPDATE");
       assert.deepEqual(lensReads(), [], `${table}: not the lens's`);
     }
+    r.asked.length = 0;
+    await r.change("contacts", "INSERT");
+    assert.deepEqual(lensReads(), [], "a person made: not the lens's");
     r.asked.length = 0;
 
     // Elsewhere it hears none of them, and what passed is read once, when the lens comes back.

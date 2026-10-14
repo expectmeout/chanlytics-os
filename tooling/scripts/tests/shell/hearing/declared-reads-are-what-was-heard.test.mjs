@@ -138,12 +138,15 @@ const HEARD_BEFORE = {
     "reach_out_replies",
     "tenant_channels",
     "mailbox_connections",
+    // A person's answer (the wiring's second audit, W-person-list-lead-8): an update of one, never a person made.
+    "contacts",
   ],
   live: ["calls", "tenant_channels"],
   broadcasts: [...SENT_PAGE, "broadcasts"],
   playbooks: [...COMPOSER_PAGE, "broadcasts", "playbooks"],
   reach_outs: ["playbooks", "broadcasts", "reach_out_replies"],
-  campaign_results: ["messages", "conversations", "escalations", "broadcasts", "reach_out_replies"],
+  // A person's answer, by an update of them (the wiring's second audit, S3-2).
+  campaign_results: ["messages", "conversations", "escalations", "broadcasts", "reach_out_replies", "contacts"],
   reach_out_replies: ["reach_out_replies"],
   partner: [],
   alerts: [],

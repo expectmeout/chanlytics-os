@@ -237,8 +237,11 @@ test("each keeps the tables it had: People its own, the composers their runs and
 });
 
 test("the Reports pages that count people hear the book; the lenses that count no person do not", () => {
+  // The Campaigns lens counts the yeses and stops, columns of the people: a person's answer moved is heard on the lens, a person
+  // made is no answer (the wiring's second audit, W-person-list-lead-8).
   at("#/reports/campaigns");
-  assert.equal(hears(reportsCampaignsOverride, "contacts"), false, "the Campaigns lens counts sends, not the book");
+  assert.equal(hears(reportsCampaignsOverride, "contacts"), true, "the Campaigns lens: an answer moved");
+  assert.equal(hears(reportsCampaignsOverride, "contacts", "INSERT"), false, "and not a person made");
   at("#/reports/reviews");
   assert.equal(hears(reviewsOverride, "contacts"), false, "the Reviews lens counts reviews");
   assert.equal(hears(reviewsOverride, "tenant_config"), false);

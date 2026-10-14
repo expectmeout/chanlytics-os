@@ -74,11 +74,15 @@ export const campaignResults = periodSurface({
     };
   },
   // Read again only while Campaigns is on screen, 800 ms after the last change (Reports' debounce, reports/surface.ts), and
-  // once when it comes back (surface-registry.ts). What moves the numbers: the messages a reply is, the runs a send is, and a
-  // reach-out's reply read or undone (What came back counts the chains' replies, 0047). Heard on Campaigns alone.
+  // once when it comes back (surface-registry.ts). What moves the numbers: the messages a reply is, the runs a send is, a
+  // reach-out's reply read or undone (What came back counts the chains' replies, 0047), and a person's answer: What came back
+  // counts who said yes and who asked to stop, by the unsubscribe link, a carrier's STOP or a teammate's hand (the wiring's
+  // second audit, S3-2). A person made is no answer: only an update of one is heard (the feed tells it when an answer moved).
+  // Heard on Campaigns alone.
   live: {
-    reads: ["conversation", "hold", "send", "reach_out"],
+    reads: ["conversation", "hold", "send", "reach_out", "person"],
     fresh: "its-page",
+    when: (c) => c.table !== "contacts" || c.event !== "INSERT",
     debounceMs: 800,
   },
 });

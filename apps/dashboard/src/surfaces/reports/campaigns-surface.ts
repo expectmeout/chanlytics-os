@@ -108,12 +108,13 @@ export const reportsCampaigns = periodSurface({
   // Read again only while the Campaigns lens is on screen, and once when it comes back (surface-registry.ts), a burst of messages
   // later. No call is among its tables, so no transcript turn of one in progress can be heard.
   // What the Campaigns reads draw from: the messages, conversations and escalations a reply is made of, the runs a send is, a
-  // reach-out's replies read or undone, and the number it says the health of and the domains its reach-outs send from (0047). Not the
-  // book: the yeses and stops it counts are columns of the people, and a person arriving would read the dearest of the lenses (the
-  // baseline says so, reads-not-heard.json); a yes or a stop recorded in the writer's tab forgets it (refresh-map.ts consentWrite).
+  // reach-out's replies read or undone, the number it says the health of and the domains its reach-outs send from (0047), and a
+  // person's answer: the yeses and stops it counts are columns of the people (the wiring's second audit, W-person-list-lead-8). A
+  // person made is no answer and would read the dearest of the lenses for every arrival: only an update of one is heard.
   live: {
-    reads: ["conversation", "hold", "send", "reach_out", "channel"],
+    reads: ["conversation", "hold", "send", "reach_out", "channel", "person"],
     fresh: "its-page",
+    when: (c) => c.table !== "contacts" || c.event !== "INSERT",
     omit: [
       {
         tables: ["lines", "mailboxes", "capability_activations", "business_records"],
