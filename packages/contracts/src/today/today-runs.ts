@@ -4,7 +4,7 @@
  */
 
 import { isReachOutRun } from "../reach-out/reach-out-rules";
-import { RUN_WAITING_WORDS, heldEmailsWords, runStopWords } from "../shell/campaign-rooms";
+import { RUN_WAITING_WORDS, heldEmailsWords, runApprovedTail, runStopWords } from "../shell/campaign-rooms";
 import { plural } from "../shared/words";
 import { runDraftedEmails, runHeldEmails } from "../waits/waits";
 
@@ -117,8 +117,9 @@ export function todayLateRunsSub(n: number): string | null {
 
 /**
  * The toast when a waiting run is approved: the audience's name, which the page sets in bold, then who it reaches
- * and when it really goes (bcWhenWords). Two parts, so the page keeps its typography without composing the number.
+ * and when it really goes, as every receipt of an approve says it (shell/campaign-rooms.ts runApprovedTail). Two parts, so
+ * the page keeps its typography without composing the number.
  */
 export function todayRunApproved(label: string, n: number, when: string): { lead: string; rest: string } {
-  return { lead: label, rest: `approved: ${n} ${n === 1 ? "person" : "people"}, ${when}` };
+  return { lead: label, rest: runApprovedTail(n, when) };
 }

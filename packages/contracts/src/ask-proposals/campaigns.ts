@@ -13,10 +13,10 @@ import {
 } from "../consent/consent-channels";
 import { LIFECYCLE_TOAST, LIFECYCLE_WORDS, channelsGoesByWords } from "../playbooks/lifecycle/lifecycle-words";
 import { PLAYBOOK_PATCH_CLEARS, PLAYBOOK_PATCH_KEYS } from "../playbooks/playbook-patch";
-import { PLAYBOOK_VETO_DELAY_WORDS, SENDING_HOURS_WORDS } from "../playbooks/playbook-triggers";
+import { PLAYBOOK_VETO_DELAY_WORDS, whenItGoes } from "../playbooks/playbook-triggers";
 import { clockWhen } from "../shared/clock";
-import { joinWords, plural } from "../shared/words";
-import { CAMPAIGN_ROOMS, LIBRARY_STARTER_WORDS, LIBRARY_WORDS } from "../shell/campaign-rooms";
+import { joinWords } from "../shared/words";
+import { CAMPAIGN_ROOMS, LIBRARY_STARTER_WORDS, LIBRARY_WORDS, runApprovedTail } from "../shell/campaign-rooms";
 import { MESSAGE_BEGIN_WORDS, metaStatusOf } from "../templates/campaign-message";
 import { OWN_VERSION_CHANNELS, versionWord, type OwnVersionChannel } from "../templates/message-versions";
 import { languageName } from "../templates/template-languages";
@@ -371,18 +371,22 @@ export const playbookChangeSpec: ProposalSpec = {
 };
 
 /**
- * When an approved run goes, as the Broadcasts page says it (bcWhenWords): now, or -- approved outside the hours a
- * message may go out in -- when they open, by the business's clock, which the card carries. The route answers when it
- * was approved (moved_from) beside when it goes, so the day is said from the moment of the approval.
+ * When an approved run goes, in the one sentence every receipt says it (playbook-triggers.ts whenItGoes): now, or --
+ * approved outside the hours a message may go out in -- when they open, by the business's clock, which the card carries.
+ * The route answers when it was approved (moved_from) beside when it goes, so the day is said from the moment of the
+ * approval; a card that names no zone is told in UTC rather than said to be sending now.
  */
 function runGoes(pl: Record<string, unknown>, data: unknown): string {
   const d = rec(data);
   const at = Date.parse(asText(d.scheduled_for));
   const from = Date.parse(asText(d.moved_from));
-  const tz = asText(pl.timezone);
-  return tz && Number.isFinite(at) && Number.isFinite(from)
-    ? `scheduled for ${clockWhen(at, tz, from)} — messages go out ${SENDING_HOURS_WORDS.between} by your clock`
-    : "sending now";
+  const tz = asText(pl.timezone) || "UTC";
+  const asked = Number.isFinite(from) ? from : at;
+  return whenItGoes(
+    { scheduled_for: asText(d.scheduled_for) || null, moved_from: asText(d.moved_from) || null },
+    (ms) => clockWhen(ms, tz, asked),
+    asked,
+  );
 }
 
 /** What a skip did to the run, as the Broadcasts page says a cancel: skipped, or, had it moved on since, what it became. */
@@ -413,7 +417,7 @@ export const runSpec: ProposalSpec = {
     const name = asText(pl.name) || "The run";
     if (pl.verb !== "approve") return `${name} ${skipped(data)}`;
     const n = Number(rec(data).recipient_count ?? pl.people ?? 0);
-    return `${name} approved — ${plural(n, "person", "people")}, ${runGoes(pl, data)}`;
+    return `${name} ${runApprovedTail(n, runGoes(pl, data))}`;
   },
   // An approved run is canceled as a broadcast is; a skip has nothing to undo.
   undo: {

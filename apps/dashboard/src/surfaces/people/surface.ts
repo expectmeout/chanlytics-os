@@ -22,7 +22,7 @@ import { read } from "@/legacy-bridge/api";
 import { workspaceZone } from "@/legacy-bridge/zone";
 import { declareReads } from "@/legacy-bridge/surface-registry";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { DEAR_READ_LONGEST_WAIT_MS } from "@/legacy-bridge/surface-realtime";
+import { DEAR_READ_LONGEST_WAIT_MS, isLiveCallTurn } from "@/legacy-bridge/surface-realtime";
 import { holderName } from "../holder-names";
 import { peopleSurfaceOf, personRowOf } from "./surface-map";
 import type { PeopleLoaded } from "./surface-map";
@@ -373,12 +373,16 @@ export const peopleOverride: SurfaceOverride = {
   // pause on offers; the wiring's second audit, S3-3, W-channel-team-plus-3); the rules and templates its labels and sends read; and the
   // business's facts it draws (the booking link, the deal pace, the postal address an offer by email names) (0047); since 0052,
   // the business a person works at (the lead's name, its "Works at"); and the runs a row's "Follow-up to approve" names, approved
-  // or skipped elsewhere (the wiring's second audit, W-campaign-run-template-reachout-9).
+  // or skipped elsewhere (the wiring's second audit, W-campaign-run-template-reachout-9). And the calls a row's last contact and
+  // call count are made of (people_list's last call), a call's start and end, never a transcript turn of one in progress; and the
+  // team, whose names say who wrote a note and whom a step is for (teamNames): a teammate who joins, leaves or changes role.
   ...declareReads("people", {
     reads: [
       "conversation",
       "hold",
       "person",
+      "call",
+      "team",
       "campaign",
       "channel",
       "billing",
@@ -408,7 +412,12 @@ export const peopleOverride: SurfaceOverride = {
         tables: ["lead_searches", "lead_rounds", "lead_search_members"],
         why: "a row draws the lead its person works at, by name; the searches that found leads, their rounds and members are the Leads page's",
       },
+      {
+        tables: ["invitations"],
+        why: "a row names who wrote a note or whom a step is for among the members; an invitation not yet taken names no one",
+      },
     ],
+    when: (c) => !isLiveCallTurn(c),
   }),
   apply: async () => {
     // A view saved while this read is out, or before it with its reply still to come, may be missing from what the read

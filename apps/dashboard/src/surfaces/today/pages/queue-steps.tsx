@@ -13,6 +13,7 @@ import { NOTE_WORDS, type TodayQueueRowVM, type TodayStepsVM } from "@chanlytics
 import type { PeopleSurface } from "@/surfaces/people/surface";
 import { TODAY_HELPERS } from "../helpers";
 import { completeStep, type StepSay } from "../../step-done";
+import { refreshSurface } from "../../legacy-verbs";
 import { borrowed, gate, personNotes, workspaceClock } from "../shell";
 
 /**
@@ -54,7 +55,8 @@ export function stepAct(row: TodayQueueRowVM, kind: "primary" | "ghost", done: (
 
 /**
  * Mark a step done. The row goes at once (`hide`), as the thread header's line does, and People is read again behind the verb
- * (the route's refresh); the toast says it, and its Undo brings the row back (`show`).
+ * (the route's refresh); the toast says it, and its Undo brings the row back (`show`). Refused, People is read again: the
+ * row is People's, and the step it drew may be the one a teammate moved (the wiring's second audit, S9-10).
  */
 export async function stepDone(
   row: TodayQueueRowVM,
@@ -72,5 +74,6 @@ export async function stepDone(
     say,
     onDone: () => page.hide(step.note_id),
     onUndone: () => page.show(step.note_id),
+    onRefused: () => void refreshSurface("people"),
   });
 }

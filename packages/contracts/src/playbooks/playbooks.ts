@@ -27,6 +27,7 @@ export {
   PLAYBOOK_CAP_CHOICES,
   SENDING_HOURS_WORDS,
   sendsWaitWords,
+  whenItGoes,
   PLAYBOOK_BREATH_MS,
   PLAYBOOK_VETO_DELAY_MS,
   PLAYBOOK_VETO_DELAY_WORDS,
@@ -45,7 +46,13 @@ export {
   winBackWords,
   policyClassOffered,
 } from "./playbook-triggers";
-export type { PlaybookTrigger, PlaybookTriggerKind, PlaybookPolicyClass, PlaybookState } from "./playbook-triggers";
+export type {
+  PlaybookTrigger,
+  PlaybookTriggerKind,
+  PlaybookPolicyClass,
+  PlaybookState,
+  WhenItGoesReceipt,
+} from "./playbook-triggers";
 export {
   FOLLOW_UP_NEEDS_DEALS,
   FOLLOW_UP_NEEDS_LINK,

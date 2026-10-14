@@ -27,7 +27,17 @@ export const repliesOverride: SurfaceOverride = {
   key: "reach_out_replies",
   globals: ["__REPLIES"],
   events: ["surface:reach_out_replies"],
-  ...declareReads("reach_out_replies", { reads: ["reach_out"], fresh: "live" }),
+  // And the mailbox a reply came to, which the strip names (decision 0056): a mailbox connected, renamed or paused, a few a year.
+  ...declareReads("reach_out_replies", {
+    reads: ["reach_out", "channel"],
+    fresh: "live",
+    omit: [
+      {
+        tables: ["tenant_channels", "lines", "capability_activations", "business_records"],
+        why: "the strip names the mailbox a reply came to; the numbers, the lines, an activation and the carriers' record are none of its words",
+      },
+    ],
+  }),
   apply: async () => {
     const w = window as WithReplies;
     try {

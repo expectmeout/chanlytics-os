@@ -127,7 +127,12 @@ export const reachOutsOverride: SurfaceOverride = {
   // its Approve: heard wherever the tab is. A message is no chain's, and is never heard here. A reply read, drafted or undone
   // (reach_out_replies, 00222) is, since the reading ends a held email and a 'no' ends the person's offers (0047, S1-14): a few a day.
   // And the rule that says whether a chain's reply is answered on its own, its mode (W-review-facts-rules-8): a few saves a month.
-  ...declareReads("reach_outs", { reads: ["campaign", "send", "reach_out", "rules"], fresh: "live" }),
+  // And the templates a chain's emails are written from (Meta's verdict, the words), and a deal: a lead's deal won counts once in
+  // a reach-out's People cell (00426). Each a few a week.
+  ...declareReads("reach_outs", {
+    reads: ["campaign", "send", "reach_out", "rules", "template", "deal"],
+    fresh: "live",
+  }),
   apply: async () => {
     try {
       setSurfaceValue("reach_outs", (await read("GET reach-outs")).chains);

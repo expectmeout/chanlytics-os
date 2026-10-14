@@ -1841,7 +1841,49 @@ var NO_WAY_TO_SEND_LINK = `Booking: the booking link can only be sent by WhatsAp
 var SHORT = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
 var LONG = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
 
+// src/lines/caller-gets.ts
+var PAUSED_CALL = "calls are answered only to take a message";
+var WORKSPACE_ENDED_WORDS = `its receptionist stops replying to messages and ${PAUSED_CALL}, its plan is cancelled, and its public pages go offline`;
+var WORKSPACE_PAUSED = {
+  state: "workspace_paused",
+  tone: "danger",
+  gets: `${PAUSED_CALL}, and new messages wait in the Inbox for you to answer`
+};
+
+// src/workspace/billing.ts
+var WORKSPACE_PAUSED_FACT = "This workspace is paused, so nothing is sent until billing resumes";
+var CAMPAIGNS_PAUSED_WORDS = `${WORKSPACE_PAUSED_FACT}. Resume it from Settings \u203A Billing.`;
+var DATE_FMT2 = formatterOnUse("en-US", { month: "short", day: "numeric" });
+
+// src/lines/registration-path.ts
+var SOLE_PROP_LIMITS = {
+  campaignsPerBrand: 1,
+  numbersPerCampaign: 1,
+  messagesPerSecond: 1,
+  perDayTMobile: 1e3,
+  perMinuteAtt: 15,
+  mobileUsesEver: 3,
+  emailUsesEver: 10,
+  addressUsesEver: 10
+};
+var REGISTRATION_COST_WORDS = {
+  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
+  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second.`
+};
+
+// src/setup/setup.ts
+var PROVISIONING_DEADLINE_MS = 5 * MIN_MS;
+var SETUP_STATE_WORDS = {
+  not_started: "Not started",
+  waiting_you: "Waiting on you",
+  waiting_them: "Waiting on us",
+  ready: "Ready"
+};
+var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
+var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
+
 // src/setup/calendar-source.ts
+var CALENDAR_OWED_WORD = SETUP_STATE_WORDS.waiting_you;
 var CALENDAR_SETTING_ROUTE = "admin/workspace/calendar";
 var FORWARD_CONFIRM_SHOWN_MS = 3 * DAY_MS;
 
@@ -3717,6 +3759,8 @@ var STOP_WORDS = {
   pill: "Opted out",
   mark: "Stopped",
   short: ASKED_TO_STOP_SHORT,
+  /** The short words as a heading over a count ("Asked to stop · 3"): a run's figure. */
+  heading: `${ASKED_TO_STOP_SHORT.charAt(0).toUpperCase()}${ASKED_TO_STOP_SHORT.slice(1)}`,
   line: ASKED_TO_STOP,
   tone: "plain",
   /** The clause after a name ("Dana asked to stop receiving messages"), or on its own with a capital when none is given. */

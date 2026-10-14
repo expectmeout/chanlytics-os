@@ -5,9 +5,10 @@
  * same grammar, with Approve or Cancel where the button goes. What already went out is a line of the day's card. The
  * page keeps deciding WHICH rows wait or are scheduled; the words are contracts' (todayRunWords, runStopWords). Cancel
  * asks what Sent asks before the same cancel ("Cancel X? Nothing will send."): it was a "Stop" at one tap here
- * (D1-run-words).
+ * (D1-run-words). A run's Approve or Cancel waits while it is on its way (useRunsActing), as Sent's does: a second press
+ * was a second request (the wiring's second audit, S9-10).
  */
-import { useState } from "react";
+import { useMemo, useReducer, useRef, useState } from "react";
 import {
   CAMPAIGNS_PAUSED_WORDS,
   LIFECYCLE_WORDS,
@@ -53,6 +54,40 @@ type Say = (flash: Flash) => void;
 /** The kind the next verb is drawn as: the page's one primary verb is the first row's, every other is quiet. */
 export type VerbKind = () => "primary" | "ghost";
 
+/** The runs with a press on its way: whether one is, and the press, which does nothing while one is. */
+interface RunsActing {
+  busy: (runId: string) => boolean;
+  run: (runId: string, act: () => Promise<unknown>) => Promise<void>;
+}
+
+/**
+ * Which runs have an Approve or a Cancel on its way, for the queue's run rows (the wiring's second audit, S9-10). Their buttons
+ * wait until the server answers, and a second press of either does nothing: the steps and visits leave the card at once, but
+ * a run stays, since what it becomes (approved, going, canceled) is the read's to say. Held in a ref, so a second press before
+ * the redraw is refused too; the redraw draws the buttons waiting.
+ */
+export function useRunsActing(): RunsActing {
+  const onTheirWay = useRef(new Set<string>());
+  const [, redraw] = useReducer((n: number) => n + 1, 0);
+  return useMemo(
+    () => ({
+      busy: (runId) => onTheirWay.current.has(runId),
+      run: async (runId, act) => {
+        if (onTheirWay.current.has(runId)) return;
+        onTheirWay.current.add(runId);
+        redraw();
+        try {
+          await act();
+        } finally {
+          onTheirWay.current.delete(runId);
+          redraw();
+        }
+      },
+    }),
+    [],
+  );
+}
+
 /** The broadcasts surface as the bridge published it, or nothing before its first read (`window.__BROADCASTS`). */
 export const broadcastsRead = () => borrowed<BroadcastsSurface>("__BROADCASTS");
 
@@ -88,13 +123,15 @@ interface SoonRunProps {
   nav: Nav;
   verbKind: VerbKind;
   stop: (r: BroadcastVM) => unknown;
+  /** A Cancel of this run is on its way: the button waits. */
+  busy: boolean;
 }
 
 /**
  * A run under the veto window: its row, and, once Cancel is pressed, the question Sent asks before the same cancel (contracts
  * runStopWords: "Cancel X?", "Nothing will send."), in the kit's Confirm under it.
  */
-function SoonRun({ r, nav, verbKind, stop }: SoonRunProps) {
+function SoonRun({ r, nav, verbKind, stop, busy }: SoonRunProps) {
   const [asking, setAsking] = useState(false);
   const W = runStopWords("scheduled");
   const words = TODAY_HELPERS.runs(r).soon;
@@ -109,7 +146,7 @@ function SoonRun({ r, nav, verbKind, stop }: SoonRunProps) {
         status={words.status}
         tone="warn"
         cta={{ label: "Open", kind: verbKind(), onClick: () => nav(`broadcasts/run:${r.id}`) }}
-        also={{ label: W.verb, onClick: () => setAsking(true), gate: gate("approve", "cancel a run") }}
+        also={{ label: W.verb, onClick: () => setAsking(true), busy, gate: gate("approve", "cancel a run") }}
         onOpen={() => nav(`broadcasts/run:${r.id}`)}
         testid="brief-run-soon"
       />
@@ -152,7 +189,13 @@ function toSendRow(t: NonNullable<ReturnType<typeof toSendRunsOf>>, nav: Nav, ve
   );
 }
 
-export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, room: number) => {
+/** The run rows the queue has room for, and the runs with a press on its way (useRunsActing). */
+interface RunSeat {
+  room: number;
+  acting: RunsActing;
+}
+
+export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, { room, acting }: RunSeat) => {
   const api = broadcastVerbs();
   const refreshed = () => refreshPlaybooks();
   const { waiting, late: tooLate, soon } = runsPending();
@@ -164,7 +207,9 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, room: number) 
   const paused = (surfaceValue("today")?.standing.paused ?? broadcastsRead()?.ready?.paused) === true;
   // Each is said the moment the server takes it, from what it answered, not once the runs are read again behind it.
   // What a verb returns is the caller's (the tests await it), so it is typed as nothing React would read.
-  const stop: (r: BroadcastVM) => unknown = async (r) => {
+  const stop: (r: BroadcastVM) => unknown = (r) => acting.run(r.id, () => stopNow(r));
+  const approve: (r: BroadcastVM) => unknown = (r) => acting.run(r.id, () => approveNow(r));
+  const stopNow = async (r: BroadcastVM) => {
     if (!can || !api) return;
     let said = false;
     // What the server stopped, said as Sent says it (runStoppedWords): a run still to come is canceled, nothing will send.
@@ -183,7 +228,7 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, room: number) 
     if (!res.ok) flash(refusalFlash(res, "Not canceled"));
     else if (!said) say();
   };
-  const approve: (r: BroadcastVM) => unknown = async (r) => {
+  const approveNow = async (r: BroadcastVM) => {
     if (!can || !api || paused) return;
     let said = false;
     const say = (data: NonNullable<VerbAnswer["data"]>) => {
@@ -246,6 +291,7 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, room: number) 
                   label: LIFECYCLE_WORDS.ledger.approve(r.recipient_count),
                   kind: verbKind(),
                   onClick: () => approve(r),
+                  busy: acting.busy(r.id),
                   gate: paused ? gatedProps(CAMPAIGNS_PAUSED_WORDS) : gate("approve", "approve a run"),
                 }
           }
@@ -257,7 +303,9 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, room: number) 
     }),
     ...soon
       .slice(0, Math.max(0, left - Math.min(asked.length, left)))
-      .map((r) => <SoonRun key={`run-${r.id}`} r={r} nav={nav} verbKind={verbKind} stop={stop} />),
+      .map((r) => (
+        <SoonRun key={`run-${r.id}`} r={r} nav={nav} verbKind={verbKind} stop={stop} busy={acting.busy(r.id)} />
+      )),
   ];
   return { drawn, count, cut: count - drawn.length };
 };

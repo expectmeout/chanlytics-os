@@ -92,6 +92,24 @@ interface Globals {
   __ACTIVE_WORKSPACE?: string;
 }
 
+/** Where a row the browser derives comes from: the Inbox's threads, the calls, the invitations. */
+type FeedSource = "threads" | "calls" | "invites";
+const FEED_SOURCES: readonly FeedSource[] = ["threads", "calls", "invites"];
+
+/** The source of a derived row, by its key: a call's, an invitation's, else a thread's. */
+const sourceOfKey = (key: string): FeedSource =>
+  key.startsWith("call:") ? "calls" : key.startsWith("invite:") ? "invites" : "threads";
+
+/**
+ * Which sources the browser has read. The Inbox's threads are its read's alone, published under INBOX_DATA as it lands: a real
+ * session holds no seeded thread there before it (the wiring's second audit, X6-1), so a thread list there is a read.
+ */
+const loadedSources = (g: Globals): Record<FeedSource, boolean> => ({
+  threads: Array.isArray(g.INBOX_DATA?.THREADS),
+  calls: !!g.__LIVE,
+  invites: Array.isArray(g.__TEAM_INVITES),
+});
+
 /** The row the popover draws: the mockup's own shape. */
 export interface BellRow {
   id: string;
@@ -359,14 +377,8 @@ export function installNotifications(
    */
   const prune = (s: NotificationReadState): NotificationReadState => {
     const live = new Set(feedFromGlobals(win, Date.now()).map((i) => i.key));
-    const loaded = {
-      threads: Array.isArray(win.INBOX_DATA?.THREADS),
-      calls: !!win.__LIVE,
-      invites: Array.isArray(win.__TEAM_INVITES),
-    };
-    const keep = (k: string) =>
-      live.has(k) ||
-      !(k.startsWith("call:") ? loaded.calls : k.startsWith("invite:") ? loaded.invites : loaded.threads);
+    const loaded = loadedSources(win);
+    const keep = (k: string) => live.has(k) || !loaded[sourceOfKey(k)];
     return { ...s, read: s.read.filter(keep), dismissed: s.dismissed.filter(keep) };
   };
   const save = (patch: Partial<NotificationReadState>) => {
@@ -406,9 +418,11 @@ export function installNotifications(
     return ids.length > 0;
   };
 
-  // Device alerts. The keys seen at the first computation are the backlog
-  // and never alert; only what appears AFTER, while the app is not in view.
-  let known: Set<string> | null = null;
+  // Device alerts. What each source holds when it is first read is its backlog and never alerts; only what appears AFTER,
+  // while the app is not in view. Each source takes its own first look: one first look for all of them, taken before the
+  // Inbox's read landed (the calls' and invitations' come first, and a read that failed comes back later), made every thread
+  // already waiting a new one, and a hidden tab alerted for them (the wiring's second audit, X6-2).
+  const known = new Map<FeedSource, ReadonlySet<string>>();
   // The same rule for the rows the workspace keeps, with its own first look: those arrive with the bell's own
   // surface, often after the Inbox's, and a backlog read late is still a backlog. Only an alerting kind the person
   // has not read wakes the device (a search waiting a day on its question is one; its row is the trigger's).
@@ -423,17 +437,17 @@ export function installNotifications(
     return out;
   };
   const notice = () => {
-    const now = Date.now();
-    const items = feedFromGlobals(win, now);
-    const keys = new Set(items.map((i) => i.key));
-    const kept = freshKept();
-    if (known === null) {
-      known = keys;
-      emit();
-      return;
+    const items = feedFromGlobals(win, Date.now());
+    const loaded = loadedSources(win);
+    const fresh: NotificationItem[] = [];
+    for (const source of FEED_SOURCES) {
+      if (!loaded[source]) continue;
+      const theirs = items.filter((i) => sourceOfKey(i.key) === source);
+      const before = known.get(source);
+      if (before) fresh.push(...theirs.filter((i) => !before.has(i.key) && ALERT_KINDS.includes(i.kind)));
+      known.set(source, new Set(theirs.map((i) => i.key)));
     }
-    const fresh = [...items.filter((i) => !known!.has(i.key) && ALERT_KINDS.includes(i.kind)), ...kept];
-    known = keys;
+    fresh.push(...freshKept());
     emit();
     if (fresh.length) alertDevice(win, fresh, state().alerts);
   };

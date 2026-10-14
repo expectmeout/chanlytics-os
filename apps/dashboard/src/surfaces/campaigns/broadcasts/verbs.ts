@@ -51,12 +51,14 @@ export const broadcasts = {
   // One intent per broadcast (decision 0035): a send pressed again after a timeout is the same request, answered once.
   send: (body: SendBody) => api()("POST broadcasts", { body, once: true }),
   // Each act says so the moment the server takes it (`onAccepted`, with what it answered), not once the broadcasts and
-  // the playbooks are read again behind it; the page repaints from that re-read.
+  // the playbooks are read again behind it; the page repaints from that re-read. Each is one intent (decision 0035): a
+  // press again before it lands, from any page that draws the run (Today, Sent, a drawer, the ledger), is the same request,
+  // which the server answers once (the wiring's second audit, S9-10).
   cancel: (id: string, opts: { onAccepted?: (data: Output<"POST broadcasts/[id]/cancel">) => void } = {}) =>
-    api()("POST broadcasts/[id]/cancel", { params: { id }, onAccepted: opts.onAccepted }),
+    api()("POST broadcasts/[id]/cancel", { params: { id }, onAccepted: opts.onAccepted, once: true }),
   /** A playbook's run that waited for a person goes out now. */
   approve: (id: string, opts: { onAccepted?: (data: Output<"POST broadcasts/[id]/approve">) => void } = {}) =>
-    api()("POST broadcasts/[id]/approve", { params: { id }, onAccepted: opts.onAccepted }),
+    api()("POST broadcasts/[id]/approve", { params: { id }, onAccepted: opts.onAccepted, once: true }),
   /** One broadcast and every person on it. A read: nothing refreshes. Kept for the run, so its next open is at once. */
   detail: (id: string) => details.through(id, () => api()("GET broadcasts/[id]", { params: { id } })),
   /** The last answer this tab holds for a run, to paint while it is read again; null when it has none. */

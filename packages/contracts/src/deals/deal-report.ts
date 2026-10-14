@@ -6,7 +6,7 @@
 import { leadAnd } from "../leads/leads";
 import { plural } from "../shared/words";
 import type { PersonCameFrom } from "../people/person-words";
-import { isDealLostReason, type DealLostReason } from "./deal-words";
+import { DEAL_STAGE_WORDS, isDealLostReason, type DealLostReason } from "./deal-words";
 import { amountTotalsWords, amountWords, type AmountFact } from "./deal-amount";
 import { yesWaitWords } from "./deal-waits";
 
@@ -70,7 +70,7 @@ const DEAL_OUTCOMES_TITLE = "What became of the proposals";
 const DEAL_OUTCOME_WORDS: Record<DealOutcomeVM["id"], string> = {
   won: "Became clients",
   waiting: "Still waiting",
-  lost: "Passed",
+  lost: DEAL_STAGE_WORDS.lost,
 };
 
 /**

@@ -17,6 +17,7 @@ import {
   type ListRule,
 } from "./list-rules";
 import { SELLS_BY_QUESTION, SELLS_BY_WORDS } from "../../deals/sells-by";
+import { DEAL_STAGE_WORDS } from "../../deals/deal-words";
 import { STOP_WORDS } from "../../consent/consent";
 import { HELD_WORDS, NEEDS_YOU_WORD } from "../../conversations/standing";
 import type { PersonRowVM } from "../person-row";
@@ -165,7 +166,8 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   },
   {
     id: "proposal_out",
-    label: "Proposal out",
+    // A stage's list says its stage's word (S9-9); Clients names the people, not the stage.
+    label: DEAL_STAGE_WORDS.proposed,
     tip: "A proposal went out and is waiting on their answer",
     group: "journey",
     onProfile: false,
@@ -181,7 +183,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   },
   {
     id: "deal_passed",
-    label: "Passed",
+    label: DEAL_STAGE_WORDS.lost,
     tip: "They passed on a proposal",
     group: "journey",
     onProfile: false,
@@ -189,7 +191,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   },
   {
     id: "deal_ended",
-    label: "Ended",
+    label: DEAL_STAGE_WORDS.ended,
     tip: "An engagement that ended — the win-back list for clients",
     group: "journey",
     onProfile: false,

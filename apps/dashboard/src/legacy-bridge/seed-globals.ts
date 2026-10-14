@@ -56,6 +56,8 @@ declare global {
 }
 
 if (typeof window !== "undefined") {
+  // A session that declared itself a demo before the seeds (the standalone mockup): only it draws the demo's seeded rows.
+  const demo = window.__DEMO_MODE === true;
   // React, and the one hook a page redraws on when a surface it draws moves (surface-status.ts): a key, a list, or a
   // route's, as the registry names them. Over this React, before any page loads.
   // And the kit's components the pages that have not moved still draw, under the names they read (kit-globals.ts).
@@ -79,9 +81,10 @@ if (typeof window !== "undefined") {
     appAsk: DOOR_NAMES.appAsk,
     appNavigate: DOOR_NAMES.appNavigate,
     // The Inbox's and Conversations' names for the pages that have not moved (surfaces/inbox/legacy-globals.ts), and the
-    // one thread's verbs, which the deal sheet sends its proposal through (surfaces/inbox/thread/thread-verbs.tsx).
-    INBOX_DATA: INBOX_GLOBALS.INBOX_DATA,
-    CONVERSATIONS_DATA: INBOX_GLOBALS.CONVERSATIONS_DATA,
+    // one thread's verbs, which the deal sheet sends its proposal through (surfaces/inbox/thread/thread-verbs.tsx). Their
+    // seeded rows are a demo's: a real session's are its reads', published under these names as they land
+    // (declareSurfaceValue), and nothing stands in for them before (the wiring's second audit, X6-1).
+    ...(demo ? { INBOX_DATA: INBOX_GLOBALS.INBOX_DATA, CONVERSATIONS_DATA: INBOX_GLOBALS.CONVERSATIONS_DATA } : {}),
     IX_STORE: INBOX_GLOBALS.IX_STORE,
     // What needs you, the one number the sidebar's badge, the strip's tab, the phone's tab and the tab's title read, as a hook
     // (surfaces/needs-you.ts); the Inbox's rule it is made of (ixWaitsOnYou) is no page's to call by name now.

@@ -110,6 +110,7 @@ export {
   LIBRARY_STARTER_WORDS,
   BROADCAST_WORDS,
   runStoppedWords,
+  runApprovedTail,
   RUN_WAITING_WORDS,
   runsWaitingSentence,
   heldEmailsWords,

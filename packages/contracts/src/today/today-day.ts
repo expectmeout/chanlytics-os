@@ -93,6 +93,11 @@ export interface TodayDayItemVM {
    * cancelled visit is none and never reaches an item.
    */
   said: { status: "kept" | "missed"; word: string } | null;
+  /**
+   * Where it opens: the visit, by its record's row, else its day on the Calendar (visitDoor). Every link to a visit opens it
+   * (the wiring's second audit, S9-7): the strip's Next named one and opened nothing.
+   */
+  to: string;
 }
 
 export interface TodayDayFrameVM {
@@ -195,7 +200,7 @@ export function todayDay(
   const idx = cal.days.findIndex((d) => d.today);
   const picked = idx >= 0 ? cal.days.slice(idx, idx + 2) : [];
   const stateOf = new Map((people?.rows ?? []).map((r) => [r.id, r.state]));
-  const item = (b: DayBlockLike, allDay: boolean, phase: TodayDayItemVM["phase"]): TodayDayItemVM => ({
+  const item = (b: DayBlockLike, dayKey: string, allDay: boolean, phase: TodayDayItemVM["phase"]): TodayDayItemVM => ({
     id: b.id,
     start: allDay ? "All day" : clockLabel(b.t),
     time: b.time,
@@ -207,6 +212,7 @@ export function todayDay(
     phase,
     flag: b.person ? (FLAG_WORDS[stateOf.get(b.person.id) ?? ""] ?? null) : null,
     said: markedOf(b),
+    to: visitDoor(dayKey, b.visit?.id),
   });
   const frames: TodayDayFrameVM[] = picked.map((d) => {
     // A cancelled visit is none: not listed, not counted, never the next.
@@ -228,9 +234,9 @@ export function todayDay(
             nextTaken = true;
           }
         }
-        return item(b, false, phase);
+        return item(b, d.key, false, phase);
       });
-    const items = [...standing(d.allDay).map((b) => item(b, true, "later")), ...timed];
+    const items = [...standing(d.allDay).map((b) => item(b, d.key, true, "later")), ...timed];
     const flagged = items.filter((i) => i.flag).length;
     const missed = items.filter((i) => i.said?.status === "missed").length;
     const booked = items.length - missed;

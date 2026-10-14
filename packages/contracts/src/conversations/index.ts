@@ -94,6 +94,8 @@ export {
   replyWaitsOnYou,
   HELD_WORDS,
   NEEDS_YOU_WORD,
+  INBOX_BUCKET_WORDS,
+  inboxBucketWord,
   heldPill,
   seenBy,
   isUnseen,

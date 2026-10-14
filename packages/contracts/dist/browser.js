@@ -618,6 +618,8 @@ var STOP_WORDS = {
   pill: "Opted out",
   mark: "Stopped",
   short: ASKED_TO_STOP_SHORT,
+  /** The short words as a heading over a count ("Asked to stop · 3"): a run's figure. */
+  heading: `${ASKED_TO_STOP_SHORT.charAt(0).toUpperCase()}${ASKED_TO_STOP_SHORT.slice(1)}`,
   line: ASKED_TO_STOP,
   tone: "plain",
   /** The clause after a name ("Dana asked to stop receiving messages"), or on its own with a capital when none is given. */
@@ -4480,6 +4482,12 @@ var SENDING_HOURS_WORDS = {
   between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
 };
 var sendsWaitWords = (hours = SENDING_HOURS_WORDS) => `sends wait for ${hours.range}`;
+function whenItGoes(receipt, when, nowMs) {
+  const at3 = receipt?.scheduled_for ? Date.parse(receipt.scheduled_for) : NaN;
+  if (Number.isNaN(at3)) return "sending now";
+  if (receipt?.moved_from) return `scheduled for ${when(at3)} \u2014 messages go out ${SENDING_HOURS_WORDS.between} by your clock`;
+  return at3 - nowMs > MIN_MS ? `scheduled for ${when(at3)}` : "sending now";
+}
 var PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
 function delayWords(ms2) {
   const minutes = Math.round(ms2 / MIN_MS);
@@ -9745,6 +9753,10 @@ var HELD_WORDS = {
   }
 };
 var NEEDS_YOU_WORD = "Needs you";
+var INBOX_BUCKET_WORDS = { escalated: NEEDS_YOU_WORD, done: "Handled", snoozed: "Snoozed" };
+function inboxBucketWord(state) {
+  return state === "escalated" || state === "done" || state === "snoozed" ? INBOX_BUCKET_WORDS[state] : null;
+}
 function heldPill(holder, name) {
   if (holder === "yours") return HELD_WORDS.yours.pill;
   const said = typeof name === "string" ? name.trim() : "";
@@ -10350,7 +10362,8 @@ var BUILTIN_LISTS = [
   },
   {
     id: "proposal_out",
-    label: "Proposal out",
+    // A stage's list says its stage's word (S9-9); Clients names the people, not the stage.
+    label: DEAL_STAGE_WORDS.proposed,
     tip: "A proposal went out and is waiting on their answer",
     group: "journey",
     onProfile: false,
@@ -10366,7 +10379,7 @@ var BUILTIN_LISTS = [
   },
   {
     id: "deal_passed",
-    label: "Passed",
+    label: DEAL_STAGE_WORDS.lost,
     tip: "They passed on a proposal",
     group: "journey",
     onProfile: false,
@@ -10374,7 +10387,7 @@ var BUILTIN_LISTS = [
   },
   {
     id: "deal_ended",
-    label: "Ended",
+    label: DEAL_STAGE_WORDS.ended,
     tip: "An engagement that ended \u2014 the win-back list for clients",
     group: "journey",
     onProfile: false,
@@ -13347,6 +13360,7 @@ function eventText(raw, max = 1500) {
 }
 
 // src/setup/calendar-source.ts
+var CALENDAR_OWED_WORD = SETUP_STATE_WORDS.waiting_you;
 var CALENDAR_SETTING_ROUTE = "admin/workspace/calendar";
 var FORWARD_CONFIRM_SHOWN_MS = 3 * DAY_MS;
 function forwardStillAsked(at3, now) {
@@ -13387,7 +13401,7 @@ function emailsNeedYou(step2, f, e, by, times) {
       by,
       state: "needs_you",
       tone: "warn",
-      words: "Needs you",
+      words: CALENDAR_OWED_WORD,
       ...leadAndRest(`${tool} needs an address to send its booking emails to.`),
       times,
       next: TO_THE_ROW("Finish setting up")
@@ -13397,7 +13411,7 @@ function emailsNeedYou(step2, f, e, by, times) {
       by,
       state: "needs_you",
       tone: "warn",
-      words: "Needs you",
+      words: CALENDAR_OWED_WORD,
       ...leadAndRest("Gmail is waiting for you to confirm the forward."),
       times,
       next: TO_THE_ROW("Confirm the forward")
@@ -13671,6 +13685,9 @@ var BROADCAST_WORDS = {
 function runStoppedWords(was) {
   if (was === "sending") return "stops after this batch";
   return was === "pending_approval" ? "skipped \u2014 nothing will send" : "canceled \u2014 nothing will send";
+}
+function runApprovedTail(people, when) {
+  return `approved \u2014 ${people} ${people === 1 ? "person" : "people"}, ${when}`;
 }
 var RUN_WAITING_WORDS = "Waiting for your approval";
 function runsWaitingSentence(n) {
@@ -14113,7 +14130,7 @@ var LIFECYCLE_TOAST = {
    */
   approved: (name, people, when) => [
     { b: name },
-    ` approved \u2014 ${plural(people, "person", "people")}, ${when}`
+    ` ${runApprovedTail(people, when)}`
   ],
   /**
    * A run stopped from its line or its card: what the server stopped, by what the run was when it did (campaign-rooms.ts
@@ -15638,8 +15655,13 @@ function runGoes(pl, data) {
   const d = rec(data);
   const at3 = Date.parse(asText(d.scheduled_for));
   const from = Date.parse(asText(d.moved_from));
-  const tz = asText(pl.timezone);
-  return tz && Number.isFinite(at3) && Number.isFinite(from) ? `scheduled for ${clockWhen(at3, tz, from)} \u2014 messages go out ${SENDING_HOURS_WORDS.between} by your clock` : "sending now";
+  const tz = asText(pl.timezone) || "UTC";
+  const asked = Number.isFinite(from) ? from : at3;
+  return whenItGoes(
+    { scheduled_for: asText(d.scheduled_for) || null, moved_from: asText(d.moved_from) || null },
+    (ms2) => clockWhen(ms2, tz, asked),
+    asked
+  );
 }
 var skipped = (data) => {
   const was = rec(data).was;
@@ -15663,7 +15685,7 @@ var runSpec = {
     const name = asText(pl.name) || "The run";
     if (pl.verb !== "approve") return `${name} ${skipped(data)}`;
     const n = Number(rec(data).recipient_count ?? pl.people ?? 0);
-    return `${name} approved \u2014 ${plural(n, "person", "people")}, ${runGoes(pl, data)}`;
+    return `${name} ${runApprovedTail(n, runGoes(pl, data))}`;
   },
   // An approved run is canceled as a broadcast is; a skip has nothing to undo.
   undo: {
@@ -21030,7 +21052,7 @@ var RUN_FILTERS = [
   { id: "all", label: "All" },
   { id: "replied", label: "Replied" },
   { id: "held", label: "Held back" },
-  { id: "stopped", label: "Stopped" }
+  { id: "stopped", label: STOP_WORDS.mark }
 ];
 function consentAnswerWords(consent, purpose) {
   if (purpose === "email_marketing")
@@ -21300,11 +21322,11 @@ var saidYesFigure = (f) => ({
 });
 var stoppedFigure = (f) => ({
   id: "stopped",
-  label: "Asked to stop",
+  label: STOP_WORDS.heading,
   n: f.stopped.length,
   pct: pctOf(f, f.stopped.length),
-  sub: f.stopped.length > 0 ? answersWords(f.stopped, "opted_out") : "nobody asked to stop",
-  tone: f.stopped.length > 0 ? "warn" : "plain",
+  sub: f.stopped.length > 0 ? answersWords(f.stopped, "opted_out") : `nobody ${STOP_WORDS.short}`,
+  tone: STOP_WORDS.tone,
   bars: barsOf(
     f,
     f.stopped.map((r2) => r2.consent_at)
@@ -22922,7 +22944,7 @@ var emailsFactsOf = (n, forwarding) => ({
   held: n?.held ?? 0
 });
 function noticeRowOf(e, lastAgo) {
-  const needsYou = (words2) => ({ tone: "warn", label: "Needs you", words: words2 });
+  const needsYou = (words2) => ({ tone: "warn", label: CALENDAR_OWED_WORD, words: words2 });
   const last = `Last booking email ${lastAgo ?? "just now"}`;
   const step2 = bookingEmailsStep(e);
   if (step2 === "address") return needsYou("Needs a workspace email address");
@@ -29332,7 +29354,7 @@ var DEAL_OUTCOMES_TITLE = "What became of the proposals";
 var DEAL_OUTCOME_WORDS = {
   won: "Became clients",
   waiting: "Still waiting",
-  lost: "Passed"
+  lost: DEAL_STAGE_WORDS.lost
 };
 function cameFromSaid(key, n) {
   switch (key) {
@@ -30599,14 +30621,17 @@ var DEAL_SHEET_WORDS = {
   gone: "This person is not in your workspace.",
   moved: "Their deal has moved on since this was opened. Close this and look again.",
   failed: "Could not record this.",
-  /** The stage's word a recorded move is said in. */
+  /**
+   * The stage's word a recorded move is said in: the stage's own (DEAL_STAGE_WORDS), so a sheet, a card and People say one
+   * word (the wiring's second audit, S9-9). An edit moves no stage, and says what it did.
+   */
   done: {
-    propose: "Proposal out",
+    propose: DEAL_STAGE_WORDS.proposed,
     edit: "Proposal saved",
-    again: "Proposal out",
-    won: "Client",
-    lost: "Passed",
-    ended: "Ended"
+    again: DEAL_STAGE_WORDS.proposed,
+    won: DEAL_STAGE_WORDS.won,
+    lost: DEAL_STAGE_WORDS.lost,
+    ended: DEAL_STAGE_WORDS.ended
   },
   /** A deal marked as passed, its lead words in the toast before the service (canvas A, M5), with Propose again. */
   passed: "Marked as passed",
@@ -36873,7 +36898,7 @@ function todayLateRunsSub(n) {
   return n ? `${n} run${n === 1 ? "" : "s"} too late to approve` : null;
 }
 function todayRunApproved(label, n, when) {
-  return { lead: label, rest: `approved: ${n} ${n === 1 ? "person" : "people"}, ${when}` };
+  return { lead: label, rest: runApprovedTail(n, when) };
 }
 
 // src/playbooks/playbook-run-split.ts
@@ -45097,7 +45122,7 @@ function todayDay(cal, playbooks, people = null, max = TODAY_DAY_MAX) {
   const idx = cal.days.findIndex((d) => d.today);
   const picked = idx >= 0 ? cal.days.slice(idx, idx + 2) : [];
   const stateOf2 = new Map((people?.rows ?? []).map((r2) => [r2.id, r2.state]));
-  const item = (b, allDay, phase) => ({
+  const item = (b, dayKey2, allDay, phase) => ({
     id: b.id,
     start: allDay ? "All day" : clockLabel(b.t),
     time: b.time,
@@ -45108,7 +45133,8 @@ function todayDay(cal, playbooks, people = null, max = TODAY_DAY_MAX) {
     allDay,
     phase,
     flag: b.person ? FLAG_WORDS[stateOf2.get(b.person.id) ?? ""] ?? null : null,
-    said: markedOf(b)
+    said: markedOf(b),
+    to: visitDoor(dayKey2, b.visit?.id)
   });
   const frames = picked.map((d) => {
     const standing2 = (blocks) => blocks.filter((b) => visitStands(b.visit));
@@ -45124,9 +45150,9 @@ function todayDay(cal, playbooks, people = null, max = TODAY_DAY_MAX) {
           nextTaken = true;
         }
       }
-      return item(b, false, phase);
+      return item(b, d.key, false, phase);
     });
-    const items = [...standing2(d.allDay).map((b) => item(b, true, "later")), ...timed];
+    const items = [...standing2(d.allDay).map((b) => item(b, d.key, true, "later")), ...timed];
     const flagged = items.filter((i) => i.flag).length;
     const missed = items.filter((i) => i.said?.status === "missed").length;
     const booked = items.length - missed;
@@ -46712,6 +46738,7 @@ export {
   HOLD_DOOR_WORDS,
   HOUR_MS,
   IDENTITY_ASSURANCES,
+  INBOX_BUCKET_WORDS,
   INSTRUCTIONS_MAX,
   INTENT_LABELS,
   INVOICE_STATUS_WORDS,
@@ -47940,6 +47967,7 @@ export {
   inAppFrom,
   inLastSendingHour,
   inLocalWeek,
+  inboxBucketWord,
   inboxSlots,
   inboxTemplates,
   indexFeed,
@@ -48745,6 +48773,7 @@ export {
   rulesLine,
   rulesWithoutFieldsWords,
   runApprovalRefusal,
+  runApprovedTail,
   runCountsOf,
   runDayPassed,
   runDaysAt,
@@ -49103,6 +49132,7 @@ export {
   whatsappLineOf,
   whatsappOffersOpen,
   whatsappStoppedRunWords,
+  whenItGoes,
   whenLabel,
   whisperText,
   wholeDaysSince,

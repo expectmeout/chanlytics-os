@@ -29,6 +29,7 @@ import { visitTitleWithout } from "./visit/visit-service";
 import { DAY_SHORT, DOW, keyParts, monthLabelOf, shiftKey, zoneMidnight } from "./day-keys";
 import { bookingToolName, NOTICE_HOLD_WORDS } from "./booking-notice";
 import {
+  CALENDAR_OWED_WORD,
   bookingEmailsStep,
   calendarSourceOf,
   forwardStillAsked,
@@ -154,7 +155,8 @@ const emailsFactsOf = (n: CalendarFeedDto["notices"], forwarding: boolean): Book
  * or waiting for the first (plain).
  */
 function noticeRowOf(e: BookingEmailsFacts, lastAgo: string | null): NonNullable<CalendarVM["feed"]["notices"]["row"]> {
-  const needsYou = (words: string) => ({ tone: "warn" as const, label: "Needs you", words });
+  // The owner's to do, in the word every page gives a step that waits on them (setup/calendar-source.ts CALENDAR_OWED_WORD).
+  const needsYou = (words: string) => ({ tone: "warn" as const, label: CALENDAR_OWED_WORD, words });
   const last = `Last booking email ${lastAgo ?? "just now"}`;
   // The order is the one rule's (setup/calendar-source.ts bookingEmailsStep), which every page's status asks too.
   const step = bookingEmailsStep(e);

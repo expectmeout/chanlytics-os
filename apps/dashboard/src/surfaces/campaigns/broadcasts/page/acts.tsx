@@ -2,7 +2,7 @@
  * What a press on the broadcasts page does (moved from legacy/pages/broadcasts.jsx, decision 0015): stop and approve on
  * a run, the send itself, and the starter set added from the send screen. Each says so the moment the server takes it.
  */
-import { goesToOf, heardWords, runStoppedWords } from "@chanlytics/contracts";
+import { goesToOf, heardWords, runApprovedTail, runStoppedWords } from "@chanlytics/contracts";
 import type { Output } from "@/client/api";
 import { starterWords } from "../../templates/composer";
 import { templates } from "../../templates/verbs";
@@ -65,8 +65,7 @@ export function bcRunActs({
             <>{words}</>
           ) : (
             <>
-              <b>{row.name}</b> approved — {data.recipient_count} {data.recipient_count === 1 ? "person" : "people"},{" "}
-              {bcWhenWords(data)}
+              <b>{row.name}</b> {runApprovedTail(data.recipient_count ?? 0, bcWhenWords(data))}
             </>
           ),
       });

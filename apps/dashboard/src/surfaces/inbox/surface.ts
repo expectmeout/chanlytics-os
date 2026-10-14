@@ -23,8 +23,7 @@ import { followSettings, heldBackOf, offeredWhatsApp } from "../offered-template
 import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
 import { namedByRoute } from "./address";
 import { readHeldThreads } from "./held-threads";
-import { inboxData } from "./store";
-import type { InboxBucket } from "./types";
+import { inboxData, REAL_BUCKETS, REAL_CHANNEL_LABELS } from "./store";
 
 // The pages that have not moved (the sidebar, the bell, Ask, Today) still read this under its old name.
 declareSurfaceValue("inbox", "INBOX_DATA");
@@ -37,24 +36,6 @@ declareSurfaceValue("inbox", "INBOX_DATA");
 interface EscalationRow extends EscalationDto {
   conversation_id: string;
 }
-
-/** The only buckets real threads can reach (Blueprint honesty rule). */
-const REAL_BUCKETS: InboxBucket[] = [
-  {
-    id: "escalated",
-    label: "Needs you",
-    hint: "The receptionist stopped and asked for a human",
-    icon: "flag",
-    accent: true,
-  },
-  {
-    id: "done",
-    label: "Handled",
-    hint: "Answered by the receptionist, or a teammate has it — nothing for you to do",
-    icon: "check",
-  },
-  { id: "snoozed", label: "Snoozed", hint: "Hidden until they wake", icon: "clock" },
-];
 
 /**
  * The approved templates a reply can use are the settings read's (offered-templates.ts), not a read of the Inbox's own. It
@@ -160,14 +141,9 @@ export const inboxOverride: SurfaceOverride = {
       THREADS: threads,
       INBOX_BUCKETS: REAL_BUCKETS,
       INBOX_VIEWS: [], // saved views are all structurally zero on real data
-      CHANNEL_LABELS: {
-        ...prev.CHANNEL_LABELS,
-        whatsapp: "WhatsApp",
-        phone: "Phone",
-        sms: "Text",
-        email: "Email",
-      },
-      INBOX_BASELINE: { ...prev.INBOX_BASELINE, doneThisWeek: 0 },
+      // The wires a real thread travels: the demo's labels are never laid under them (X6-1).
+      CHANNEL_LABELS: REAL_CHANNEL_LABELS,
+      INBOX_BASELINE: { doneThisWeek: 0 },
       UNREAD_ESCALATED: unreadEscalated,
       UNREAD_HOLDS: unreadHolds,
       readAt,

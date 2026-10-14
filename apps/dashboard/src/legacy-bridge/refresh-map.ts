@@ -114,9 +114,13 @@ const reportsPeople = ifDrawn(reportsPeopleLens);
 const people = () => [peopleOverride];
 // A note may be a step, and the lens counts the steps overdue and due today: written, done, removed or decided, they move the lens too.
 const notes = () => [peopleOverride, ...reportsPeople()];
+// People's rows where the page on screen draws them (drawnHere: People's pages, a person's, Today), and left for the next page that
+// draws them elsewhere, read once as it comes on screen; the feed tells every other tab by table. A name edit, a yes, a Settings save
+// or a mailbox's rename read every page of the book behind it, wherever it was pressed (the wiring's second audit, S4-6).
+const peopleIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([peopleOverride]) : []);
 // What a thread says of its person: their name, number, address and proposal link, and whether they said yes or asked
-// to stop (thread-dto.ts `contact`). An edit of those re-reads the threads with People, as a delete always did.
-const personAndThreads = () => [peopleOverride, ...thread()];
+// to stop (thread-dto.ts `contact`). An edit of those re-reads the threads, and People where it is drawn.
+const personAndThreads = () => [...peopleIfDrawn(), ...thread()];
 // A run approved, skipped or made moves what the Campaigns lens says of the runs waiting on you and its funnel: its read goes with them.
 // And the Calendar's marks, where the Calendar is drawn (a run waiting is its one amber; a campaign saved moves its forecast).
 const runs = () => [playbooksOverride, broadcastsOverride, ...reportsCampaigns(), ...calendarRunsIfDrawn()];
@@ -138,7 +142,7 @@ const audiences = composersIfDrawn;
 // report's own read no longer counts them: the campaigns are the lens's.
 const consentWrite = () => [...personAndThreads(), ...audiences(), ...reportsPeople()];
 // A person added or imported is on an audience or off it, as one deleted is, and is in the book the People lens counts or not.
-const peopleAndAudiences = () => [peopleOverride, ...audiences(), ...reportsPeople()];
+const peopleAndAudiences = () => [...peopleIfDrawn(), ...audiences(), ...reportsPeople()];
 // A person added from the Calendar's sheet ("Add to People": a read of the board adds nobody, 0047 lane 6) is the person the board then
 // matches that visit to: the board is read again where it is drawn (the Calendar, the Business pane, Today's day card), and left for
 // those pages elsewhere. The people the hourly sweep adds reach an open board only on its own five-minute read (the calendar_people bell
@@ -160,9 +164,9 @@ const runsAndChains = () => [...runs(), reachOutsOverride];
 // What the composers and People's reach read of the workspace's channels (server/campaigns/channels-ready.ts): the number's
 // health, the text line, the mailbox and its offers pause, and the postal address an offer by email names. A write that
 // changes one of them moves the Send by row, the count of who each campaign reaches and People's own reach, so it
-// re-reads all three, or a channel just opened stays closed on the composer until something else reads it again: People's reach
-// always, the composers where they are drawn and left for the pages that draw them elsewhere (composersIfDrawn).
-const readiness = () => [...composersIfDrawn(), peopleOverride];
+// re-reads all three, or a channel just opened stays closed on the composer until something else reads it again: each where it is
+// drawn, and left for the pages that draw it elsewhere (composersIfDrawn, peopleIfDrawn; S4-6).
+const readiness = () => [...composersIfDrawn(), ...peopleIfDrawn()];
 // A channel opened or closed (a number connected, a line got or filed, the mailbox made or changed) moves who can receive offers too, which
 // the People lens counts against the same channels (`ChannelsReady`): its read goes with the three. So does a settings save (settingsWrite),
 // whose postal address is the one an offer by email names. The Campaigns lens says the connected number's health ("your number"):

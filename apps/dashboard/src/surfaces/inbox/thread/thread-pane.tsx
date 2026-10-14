@@ -11,6 +11,7 @@
  * run. The mockup's seeded threads keep the Inbox's own handlers, which the Inbox passes in as `mock`.
  */
 import { useEffect, useReducer, useRef, useState, type ReactNode } from "react";
+import { inboxBucketWord } from "@chanlytics/contracts";
 import { EmptyState } from "../../kit/empty/empty";
 import { useSurface } from "../../use-surface";
 import { TICK_MS } from "../constants";
@@ -36,8 +37,8 @@ const tpVetoLeft = (t: Thread | null | undefined, nowMs: number = Date.now()): n
 // ---- What changed on the open thread between two reads ----
 
 // What changed on the open thread between two reads, in the words the pane shows. The Inbox is
-// read again whenever anything moves, and each read used to repaint the open thread in silence.
-const IX_BUCKET_WORDS: Record<string, string> = { escalated: "Needs you", done: "Handled", snoozed: "Snoozed" };
+// read again whenever anything moves, and each read used to repaint the open thread in silence. A thread that moved to a
+// list says the list in its tab's words (contracts inboxBucketWord).
 export const ixRepaintNotice = (
   before: Thread | null | undefined,
   after: Thread | null | undefined,
@@ -49,7 +50,7 @@ export const ixRepaintNotice = (
     if (after.archived) return "Archived";
     if (after.state === "snoozed") return after.wake ? `Snoozed until ${after.wake}` : "Snoozed";
     if (before.state === "snoozed" && after.state === "escalated") return "Back in Needs you";
-    return `Moved to ${IX_BUCKET_WORDS[after.state] || after.state}`;
+    return `Moved to ${inboxBucketWord(after.state) ?? after.state}`;
   }
   const was = (before.timeline || []).length;
   const now = (after.timeline || []).length;
