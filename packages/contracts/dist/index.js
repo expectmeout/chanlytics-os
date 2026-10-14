@@ -33808,7 +33808,10 @@ function peopleIndustriesNear(typed) {
 var industry = z12.string().transform((typed, ctx) => {
   const name = peopleIndustryOf(typed);
   if (name) return name;
-  ctx.addIssue({ code: "custom", message: PEOPLE_FIND_WORDS.industryUnread(typed.trim(), peopleIndustriesNear(typed)) });
+  ctx.addIssue({
+    code: "custom",
+    message: PEOPLE_FIND_WORDS.industryUnread(typed.trim(), peopleIndustriesNear(typed))
+  });
   return z12.NEVER;
 });
 var LeadPeoplePlanSchema = z12.object({
