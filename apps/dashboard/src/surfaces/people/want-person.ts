@@ -14,9 +14,9 @@ import { surfaceValue } from "../surface-values";
 
 /** People's ids, kept for the rows they were made of: a page names many people. */
 let heldRows: unknown = null;
-let held: ReadonlySet<string> = new Set();
+let heldIds: ReadonlySet<string> = new Set();
 /** Each person asked for once in this tab. */
-const asked = new Set<string>();
+const askedFor = new Set<string>();
 /** When People was last asked for on someone's account. */
 let askedAt = -Infinity;
 
@@ -26,12 +26,12 @@ export function wantPerson(personId: string | null | undefined): void {
   if (!personId || !rows) return;
   if (rows !== heldRows) {
     heldRows = rows;
-    held = new Set(rows.map((r) => r.id));
+    heldIds = new Set(rows.map((r) => r.id));
   }
-  if (held.has(personId) || asked.has(personId)) return;
+  if (heldIds.has(personId) || askedFor.has(personId)) return;
   const now = Date.now();
   if (now - askedAt < MIN_MS) return;
-  asked.add(personId);
+  askedFor.add(personId);
   askedAt = now;
   // After the page has drawn: a read is never asked for from inside a draw.
   setTimeout(() => void refreshSurface("people"), 0);
@@ -40,7 +40,7 @@ export function wantPerson(personId: string | null | undefined): void {
 /** For tests: forget who was asked for, and when. */
 export function forgetWantedPeople(): void {
   heldRows = null;
-  held = new Set();
-  asked.clear();
+  heldIds = new Set();
+  askedFor.clear();
   askedAt = -Infinity;
 }

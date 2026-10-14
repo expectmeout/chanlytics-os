@@ -39029,6 +39029,7 @@ var ROUTE_KEYS = [
   "GET partner/invitations",
   "GET partner/workspaces",
   "GET people/[id]/reach",
+  "GET people/list-counts",
   "GET platform/overview",
   "GET platform/tenants/[id]",
   "GET playbooks",

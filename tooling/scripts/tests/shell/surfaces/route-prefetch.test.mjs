@@ -630,6 +630,8 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
       (await importSrc(`${S}/legacy-bridge/surfaces/notifications.ts`)).notificationsOverride,
       (await importSrc(`${S}/legacy-bridge/google.ts`)).googleOverride,
       (await importSrc(`${S}/legacy-bridge/reach-out/replies.ts`)).repliesOverride,
+      // And the counts of the lists pinned there (R10), which ask nothing where nothing is pinned.
+      (await importSrc(`${S}/surfaces/today/pins-surface.ts`)).todayPinsOverride,
     ].map((o) => [o.key, o]),
   );
   const settle = async () => {

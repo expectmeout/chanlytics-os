@@ -187,6 +187,25 @@ const HEARD_BEFORE = {
   calendar: ["appointments", "appointment_notices", "tenant_config", "contacts", "mailboxes"],
   // The Calendar's campaign marks (its lane C): the runs, the campaigns, the classes' modes and the workspace's pause.
   calendar_runs: ["broadcasts", "playbooks", "policies", "tenants"],
+  // The counts of the lists pinned to Today (the wiring's second audit, R10): what the lists are made of, a person's threads,
+  // holds and calls, visits, steps and deals, the lists kept by hand, who can be reached, the settings and the workspace's row.
+  today_pins: [
+    "contacts",
+    "messages",
+    "conversations",
+    "escalations",
+    "calls",
+    "appointments",
+    "person_notes",
+    "deals",
+    "segments",
+    "segment_members",
+    "tenant_channels",
+    "lines",
+    "mailboxes",
+    "tenant_config",
+    "tenants",
+  ],
   // Not the bell's rows, which Setup's read never read. And what its rows state (the wiring's second audit, S4-3, S3-6,
   // W-review-facts-rules-4): the team, the templates, the settings and rules, a visit, a person's answer and their deals, the first
   // WhatsApp message and the Google listing.
@@ -257,6 +276,7 @@ const ON_ITS_PAGE_BEFORE = {
   campaign_results: HEARD_BEFORE.campaign_results,
   person: HEARD_BEFORE.person,
   calendar_runs: HEARD_BEFORE.calendar_runs,
+  today_pins: HEARD_BEFORE.today_pins,
   // The Library's counts, on the Library and Settings' panes (W-campaign-run-template-reachout-2), and the Business pane's facts
   // (R6).
   settings: ["playbooks", "broadcasts", "tenant_channels", "lines", "google_listings"],

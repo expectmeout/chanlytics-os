@@ -27,7 +27,7 @@
   "leads/reach-out": "",
   "leads/scope": "",
   "live": "live settings",
-  "people": "conversations inbox leads people workspace",
+  "people": "conversations inbox leads people today_pins workspace",
   "people/bulk": "",
   "people/cells": "",
   "people/deal": "",
@@ -61,6 +61,6 @@
   "setup": "live settings setup",
   "setup/first-run": "live settings setup",
   "setup/rows": "",
-  "today": "broadcasts calendar google live people playbooks reach_out_replies reports_headline setup today workspace",
-  "today/pages": "broadcasts calendar google live people playbooks reach_out_replies reports_headline setup today"
+  "today": "broadcasts calendar google live people playbooks reach_out_replies reports_headline setup today today_pins workspace",
+  "today/pages": "broadcasts calendar google live people playbooks reach_out_replies reports_headline setup today today_pins"
 }
