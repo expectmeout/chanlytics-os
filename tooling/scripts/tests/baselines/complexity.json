@@ -175,7 +175,7 @@
     "depth": 4
   },
   "apps/edge/lib/reach-out/replan.ts::replanSends#1": {
-    "lines": 116,
+    "lines": 114,
     "branches": 43,
     "depth": 5
   },

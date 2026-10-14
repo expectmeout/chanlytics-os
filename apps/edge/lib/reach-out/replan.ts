@@ -73,6 +73,28 @@ async function replanOwnerSends(
   }
 }
 
+/**
+ * An owner's sends planned again as theirs (replanOwnerSends), and the rest handed back for their mailboxes: a chain its
+ * owner sends, every one; a mailbox's, a later step planned with no mailbox while its owner sent the chain, whose thread
+ * is in their own inbox (the draft claim takes it, sender.ts hands it over by its parent), never ended as a mailbox's
+ * gone (00428).
+ */
+async function keepTheirs(
+  group: readonly ReachOutSendRow[],
+  p: {
+    ownerSends: boolean;
+    step: { after_playbook_id: string | null } | null;
+    now: Date;
+    wrote: ReadonlySet<string>;
+    move: Move;
+    out: ReplanCounts;
+  },
+): Promise<ReachOutSendRow[]> {
+  const theirs = p.ownerSends ? group : p.step?.after_playbook_id ? group.filter((s) => !s.mailbox_id) : [];
+  if (theirs.length) await replanOwnerSends(theirs, p);
+  return group.filter((s) => !theirs.includes(s));
+}
+
 export async function replanSends(db: Db, items: Replan[], now: Date, log: Logger): Promise<ReplanCounts> {
   const out: ReplanCounts = { replanned: 0, waiting: 0, gave_up: 0 };
   if (items.length === 0) return out;
@@ -96,12 +118,7 @@ export async function replanSends(db: Db, items: Replan[], now: Date, log: Logge
     }
     try {
       const { step, ownerSends } = await stepAndRootOf(db, tenantId, stepId, group[0].root_id);
-      // A later step planned while its owner sent the chain has no mailbox, and its thread is in their own inbox: it
-      // stays theirs whoever sends the chain now (the draft claim takes it, and sender.ts hands it over by its parent),
-      // never ended as a mailbox's gone (00428).
-      const theirs = ownerSends ? group : step?.after_playbook_id ? group.filter((s) => !s.mailbox_id) : [];
-      if (theirs.length) await replanOwnerSends(theirs, { now, wrote, move, out });
-      const mine = group.filter((s) => !theirs.includes(s));
+      const mine = await keepTheirs(group, { ownerSends, step, now, wrote, move, out });
       if (mine.length === 0) continue;
       // A hundred at a time: an id list rides in the request's address, and a step's mine can hold five hundred.
       const leads: Array<{ id: string; region: string | null; hours: unknown }> = [];
