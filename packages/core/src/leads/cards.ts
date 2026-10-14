@@ -280,7 +280,7 @@ function workEmailOf(raw: unknown): string | null {
 }
 
 /** A capped line of a company's own words, with no control or format characters in it. */
-const wordsOf = (v: unknown, max: number): string | null =>
+const providerWords = (v: unknown, max: number): string | null =>
   trimmedOrNull(v)
     ?.replace(/[\p{Cc}\p{Cf}]/gu, " ")
     .trim()
@@ -293,7 +293,7 @@ const wordsOf = (v: unknown, max: number): string | null =>
  * Texan's company may stand in New York, and one with no state said has none.
  */
 function companyOf(o: Record<string, unknown>): PersonAtCompany["company"] | null {
-  const name = wordsOf(o.organizationName, 120);
+  const name = providerWords(o.organizationName, 120);
   const key = websiteHostOf(trimmedOrNull(o.organizationWebsite));
   // None said is the card's own country; one said that reads as none is not the US.
   const where = trimmedOrNull(o.organizationCountry);
@@ -302,14 +302,14 @@ function companyOf(o: Record<string, unknown>): PersonAtCompany["company"] | nul
   return {
     key,
     name,
-    industry: wordsOf(o.organizationIndustry, 120),
-    city: wordsOf(o.organizationCity, 120),
+    industry: providerWords(o.organizationIndustry, 120),
+    city: providerWords(o.organizationCity, 120),
     region: usStateCode(trimmedOrNull(o.organizationState)),
     country,
     linkedin: trimmedOrNull(o.organizationLinkedinUrl)?.slice(0, 300) ?? null,
     // The range it writes ("11 - 50"), else its head count put in a range.
     size: sizeOf(trimmedOrNull(o.organizationEmployeeRange) ?? o.organizationSize ?? null),
-    about: wordsOf(o.organizationDescription, 600),
+    about: providerWords(o.organizationDescription, 600),
   };
 }
 
@@ -318,13 +318,13 @@ function companyOf(o: Record<string, unknown>): PersonAtCompany["company"] | nul
  * provider's first item is a note to read its log, in `firstName`: with no company it never reads.
  */
 function personOf(o: Record<string, unknown>): PersonAtCompany["person"] | null {
-  const first = wordsOf(o.firstName, 60);
-  const name = [first, wordsOf(o.lastName, 60)].filter(Boolean).join(" ").slice(0, 120);
+  const first = providerWords(o.firstName, 60);
+  const name = [first, providerWords(o.lastName, 60)].filter(Boolean).join(" ").slice(0, 120);
   if (!name) return null;
   return {
     name,
     first_name: first,
-    title: wordsOf(o.title, 120),
+    title: providerWords(o.title, 120),
     seniority: trimmedOrNull(o.seniority)?.toLowerCase().slice(0, 20) ?? null,
     email: workEmailOf(o.email),
     profile_url: trimmedOrNull(o.linkedinUrl)?.slice(0, 300) ?? null,

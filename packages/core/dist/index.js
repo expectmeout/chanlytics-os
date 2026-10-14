@@ -37011,9 +37011,9 @@ function workEmailOf(raw) {
   const e = trimmedOrNull(raw)?.toLowerCase() ?? null;
   return e && EMAIL_SHAPE.test(e) && !isFreeMail(e.slice(e.lastIndexOf("@") + 1)) ? e : null;
 }
-var wordsOf = (v, max) => trimmedOrNull(v)?.replace(/[\p{Cc}\p{Cf}]/gu, " ").trim().slice(0, max) || null;
+var providerWords = (v, max) => trimmedOrNull(v)?.replace(/[\p{Cc}\p{Cf}]/gu, " ").trim().slice(0, max) || null;
 function companyOf(o) {
-  const name = wordsOf(o.organizationName, 120);
+  const name = providerWords(o.organizationName, 120);
   const key = websiteHostOf(trimmedOrNull(o.organizationWebsite));
   const where = trimmedOrNull(o.organizationCountry);
   const country = where === null ? "US" : countryOf(where);
@@ -37021,24 +37021,24 @@ function companyOf(o) {
   return {
     key,
     name,
-    industry: wordsOf(o.organizationIndustry, 120),
-    city: wordsOf(o.organizationCity, 120),
+    industry: providerWords(o.organizationIndustry, 120),
+    city: providerWords(o.organizationCity, 120),
     region: usStateCode(trimmedOrNull(o.organizationState)),
     country,
     linkedin: trimmedOrNull(o.organizationLinkedinUrl)?.slice(0, 300) ?? null,
     // The range it writes ("11 - 50"), else its head count put in a range.
     size: sizeOf(trimmedOrNull(o.organizationEmployeeRange) ?? o.organizationSize ?? null),
-    about: wordsOf(o.organizationDescription, 600)
+    about: providerWords(o.organizationDescription, 600)
   };
 }
 function personOf(o) {
-  const first = wordsOf(o.firstName, 60);
-  const name = [first, wordsOf(o.lastName, 60)].filter(Boolean).join(" ").slice(0, 120);
+  const first = providerWords(o.firstName, 60);
+  const name = [first, providerWords(o.lastName, 60)].filter(Boolean).join(" ").slice(0, 120);
   if (!name) return null;
   return {
     name,
     first_name: first,
-    title: wordsOf(o.title, 120),
+    title: providerWords(o.title, 120),
     seniority: trimmedOrNull(o.seniority)?.toLowerCase().slice(0, 20) ?? null,
     email: workEmailOf(o.email),
     profile_url: trimmedOrNull(o.linkedinUrl)?.slice(0, 300) ?? null
@@ -39187,7 +39187,7 @@ async function unreadableGate(at, seen) {
   }
   return GO;
 }
-function wordsOf2(at, seen) {
+function wordsOf(at, seen) {
   const { n } = at;
   const { maySee } = seen;
   const bodyText = maySee ? n.media?.caption?.trim() || "[photo]" : n.body ?? "";
@@ -39725,7 +39725,7 @@ async function answerInbound(input, ports) {
   if (await tooLate(at) !== GO) return;
   const seen = seeingOf(at);
   if (await unreadableGate(at, seen) !== GO) return;
-  const bodyText = wordsOf2(at, seen);
+  const bodyText = wordsOf(at, seen);
   if (await confirmedYes(at, bodyText) !== GO) return;
   if (await heldForThePerson(at, bodyText) !== GO) return;
   const shown = await photoOf(at, seen);
