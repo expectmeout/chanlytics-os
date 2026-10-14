@@ -3,8 +3,8 @@
  * three things it can be. Send once is the send screen (broadcasts/broadcasts-page.tsx BroadcastSend: who, what and when,
  * held by the Broadcasts page's own state, so what is kept in the tab, the channels, the preview and the one Send are the
  * page's); Every time a moment comes is the playbook composer (playbooks/composer.tsx); Write to leads (00426, canvas B) is
- * where a reach-out starts (reach-out/sources.tsx). Each is hosted as it is, in the kit's sheet from the side; their
- * insides are not changed here.
+ * where a reach-out starts (reach-out/sources.tsx), whose search, chosen, is the page's to open the reach-out sheet over
+ * (`onWrite`). Each is hosted as it is, in the kit's sheet from the side; their insides are not changed here.
  *
  * The address says what is open (`campaigns/new`, `new:to:<audience>`, `new:every`, `new:moment:<trigger>`,
  * `new:edit:<playbook>`), so a Turn on lands on the moment it was pressed for, a "message these people" on the audience it
@@ -23,6 +23,7 @@ import type { Flash } from "../broadcasts/page/types";
 import type { BroadcastsSurface } from "../broadcasts/surface";
 import { PlaybookComposer } from "../playbooks/composer";
 import { WriteToLeads } from "../reach-out/sources";
+import type { ReachOutStart } from "../reach-out/sources";
 import type { PlaybookCardVM, PlaybooksSurface } from "../playbooks/surface";
 import type { HomeAddress } from "./address";
 import { useKept } from "./drawer";
@@ -49,6 +50,8 @@ interface NewMessageProps {
   onKind: (mode: "once" | "every" | "leads") => void;
   /** The server took a playbook: its id and name, and whether it was changed. */
   onSaved: (d: { id?: string; name?: string }, changed: boolean) => void;
+  /** Write to leads' search, chosen: the page opens the reach-out sheet over it in this sheet's place. */
+  onWrite: (start: ReachOutStart) => void;
 }
 
 /** The send screen, once the broadcasts it is made of are read: reading while they are out, said when they could not be. */
@@ -83,7 +86,7 @@ function NotAPlaybook({ reachOuts, home }: Pick<NewMessageProps, "reachOuts" | "
 function Held(p: NewMessageProps & { compose: Compose; onTrigger: (trigger: string) => void }) {
   const { compose, playbooks, onClose, onSaved } = p;
   if (compose.mode === "once") return <SendOnce {...p} />;
-  if (compose.mode === "leads") return <WriteToLeads />;
+  if (compose.mode === "leads") return <WriteToLeads onWrite={p.onWrite} />;
   if (!playbooks) return null;
   const editing = compose.edit ? (playbooks.rows.find((r: PlaybookCardVM) => r.id === compose.edit) ?? null) : null;
   if (compose.edit && !editing) return <NotAPlaybook reachOuts={p.reachOuts} home={p.home} />;

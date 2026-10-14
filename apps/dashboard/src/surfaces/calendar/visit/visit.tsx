@@ -252,6 +252,16 @@ function noteOnThem(b: CalendarBlockVM): void {
   void import("../../people/person/notes").then((m) => m.askNoteFocus());
 }
 
+/**
+ * A sheet that takes over from the visit, and focus with it: the visit closes first and gives focus back to its block, and
+ * the sheet opens after. The deal's and the step's are record sheets, which stand on the page: opened over the visit's
+ * modal, the step's was drawn hidden behind it, and nothing seemed to happen.
+ */
+function handOff(c: VisitCtx, open: () => void): void {
+  c.close();
+  setTimeout(open, 0);
+}
+
 /** The lead act, by how the visit stands. */
 function PrimaryAct({ c }: { c: VisitCtx }) {
   const { vm, b } = c;
@@ -266,9 +276,7 @@ function PrimaryAct({ c }: { c: VisitCtx }) {
     if (pa.act === "add") return void adding.press();
     const ask = vm.proposal;
     if (!ask) return undefined;
-    // The sheet takes over from the visit, and focus with it: the visit closes first and gives focus back to its block.
-    c.close();
-    setTimeout(() => openDealSheet(ask as DealSheetAsk), 0);
+    handOff(c, () => openDealSheet(ask as DealSheetAsk));
     return undefined;
   };
   const gated =
@@ -312,7 +320,11 @@ function moreItem(c: VisitCtx, m: { act: VisitMoreAct; label: string; danger: bo
       };
     }
     case "step":
-      return { label, glyph: <Icon name="flag" size={13} />, onSelect: () => p && openStepSheet({ personId: p.id }) };
+      return {
+        label,
+        glyph: <Icon name="flag" size={13} />,
+        onSelect: () => p && handOff(c, () => openStepSheet({ personId: p.id })),
+      };
     case "note":
       return { label, glyph: <Icon name="note" size={13} />, onSelect: () => noteOnThem(c.b) };
     case "deal":

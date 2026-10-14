@@ -274,8 +274,8 @@ const swipeScrollerAtTop = (from, upTo) => {
   }
   return true;
 };
-// A touch that began in something that takes a drag of its own -- a field (moving the caret, choosing words), or a
-// row that scrolls across -- is that thing's, never a let-go.
+// A touch begun in what takes a drag of its own (a field's caret, a row that scrolls across) is that thing's, never a
+// let-go; so is one begun outside the element's nodes: a portal's, which React hands up the tree it was drawn from.
 const swipeOwnDrag = (from, upTo) => {
   for (let n = from; n; n = n.parentElement) {
     if (n.matches && n.matches("input, textarea, select, [contenteditable='true']")) return true;
@@ -283,9 +283,9 @@ const swipeOwnDrag = (from, upTo) => {
       const over = window.getComputedStyle ? window.getComputedStyle(n).overflowX : "visible";
       if (over === "auto" || over === "scroll") return true;
     }
-    if (n === upTo) break;
+    if (n === upTo) return false;
   }
-  return false;
+  return !!(from && from.nodeType);
 };
 const motionReduced = () => !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 const touches = new WeakMap();

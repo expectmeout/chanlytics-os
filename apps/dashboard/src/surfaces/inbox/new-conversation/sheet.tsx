@@ -231,6 +231,8 @@ export function NewConversationSheet(p: Opened) {
       onClose={s.sent ? p.onClose : s.work.leave}
       title={W.title}
       close={{ label: W.close, glyph: <Icon name="x" size={13} /> }}
+      // Where its foot holds Cancel (or the question Cancel asked), that is the way out on a phone, not a second ✕ too.
+      footCloses={!s.sent && (s.step !== "who" || s.work.asking)}
       foot={foot(s)}
       testid="ix-new"
     >

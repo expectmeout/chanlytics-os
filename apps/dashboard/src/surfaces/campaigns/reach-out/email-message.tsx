@@ -7,14 +7,14 @@
  * examples in the slots, the check as it is typed, and a save that writes the step's own row through its chain's save
  * (POST templates/versions, which keeps what the reach-out's save guarantees: new words send what waits for the step back
  * to the check). It has no Remove, Rename or Hide of its own, no WhatsApp or Text version, and its chain's days, pace and
- * domains stay where the chain is: Edit the reach-out opens the reach-out sheet (PR 6) over its chain as the reach_outs
- * surface read it, for a role that may change it; for anyone else, or a chain whose search is gone, it opens the chain's
- * Playbooks row. How many it has written is its chain's report, read when the row opens (`useReachOutReport`, row.tsx;
- * R23), and said only once read: nothing while it reads or when it could not be read, never a 0 it did not read. Every
- * sentence is contracts'. The rows are contracts' emailTemplateRowsOf over the reach_outs surface's chains, which the
- * settings surface's WhatsApp templates never hold.
+ * domains stay where the chain is: Edit the reach-out hands its chain as the reach_outs surface read it to the page, which
+ * opens the reach-out sheet (PR 6) over it (`onEdit`; on a phone in the drawer's place: the record sheet stands on the
+ * page, and opened under the drawer's modal it was hidden behind it), for a role that may change it; for anyone else, or
+ * a chain whose search is gone, it opens the chain's Playbooks row. How many it has written is its chain's report, read
+ * when the row opens (`useReachOutReport`, row.tsx; R23), and said only once read: nothing while it reads or when it
+ * could not be read, never a 0 it did not read. Every sentence is contracts'. The rows are contracts' emailTemplateRowsOf
+ * over the reach_outs surface's chains, which the settings surface's WhatsApp templates never hold.
  */
-import { useState } from "react";
 import {
   addressOf,
   REACH_OUT_LANGUAGE,
@@ -25,6 +25,7 @@ import {
   reachOutRules,
   templateSentWords,
 } from "@chanlytics/contracts";
+import type { ReachOutChainDto } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
 import { canDo, navigate } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
@@ -37,7 +38,6 @@ import { VersionView } from "../templates/version-view";
 import type { VersionDraft } from "../templates/verbs";
 import { tplLangLabel, tplOneLine, tplOwn } from "../templates/words";
 import { useReachOutReport } from "./row";
-import { ReachOutSheet } from "./sheet";
 import { reachOuts } from "./surface";
 
 /** One email of a reach-out as Templates lists it: its words, and the chain and step that send it. */
@@ -101,14 +101,15 @@ interface PaneProps {
   /** The save, answered with the server's word; null when it did not start (the page's one act at a time). */
   onSave: (draft: VersionDraft) => Promise<ApiResult<unknown> | null>;
   onClose: () => void;
+  /** Edit the reach-out, for a role that may: its chain, whose sheet the page opens. */
+  onEdit: (chain: ReachOutChainDto) => void;
 }
 
 /**
  * The email open, in the pane beside the list: its version view, on the reach-out's own slots and rules, and under it what
  * checks it and where the whole reach-out is changed.
  */
-export function ReachOutEmailPane({ t, busy, onSave, onClose }: PaneProps) {
-  const [editing, setEditing] = useState(false);
+export function ReachOutEmailPane({ t, busy, onSave, onClose, onEdit }: PaneProps) {
   const chains = useSurface("reach_outs");
   const W = reachOuts.words;
   const w = W.emailTemplateWords({ chainName: t.chain_name, stepN: t.step_n, afterDays: t.after_days });
@@ -155,14 +156,11 @@ export function ReachOutEmailPane({ t, busy, onSave, onClose }: PaneProps) {
         </p>
         <div className="msg-card-foot">
           <span className="msg-card-spacer" />
-          <Button size="sm" onClick={mayEdit ? () => setEditing(true) : go} data-testid="reach-out-email-edit">
+          <Button size="sm" onClick={mayEdit && chain ? () => onEdit(chain) : go} data-testid="reach-out-email-edit">
             {w.edit}
           </Button>
         </div>
       </div>
-      {editing && chain && chain.search && (
-        <ReachOutSheet search={chain.search} chain={chain} onClose={() => setEditing(false)} />
-      )}
     </CmPane>
   );
 }
