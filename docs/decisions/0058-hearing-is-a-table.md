@@ -471,6 +471,26 @@ the feed never tells. Each was then kept as it was first read.
   - R10's condition is met: Today's pinned lists still count from People's last read (W-person-list-lead-3). A count that
     agrees with People's rail needs the rail's own rows, visits and context on the server, which is R10's lane.
 
+## Amended on 14 October 2026: borrowed figures from small reads (R10)
+
+- **Today's pinned lists are counted on their own.** `GET people/list-counts?lists=…` counts each pinned list on the
+  server over the pool People's lists are counted on (`readers/audience-pool.ts` `listCounts`, `poolList`, contracts'
+  `membersOf`), for the member asking, with the calendar's last good read (a count decides nothing). A list that can't be
+  counted there, or a token that names none, is null.
+- **`today_pins` reads it.** It is drawn on Today alone and on demand, and asks the server nothing when nothing is pinned.
+  It hears on Today what the lists are made of: a person, a thread, a hold, a call, a visit, a step, a deal, a list, the
+  channels, the settings and the workspace's row. Its waits are a dear read's (2 s, at most 12 s).
+- **The chips take its counts** where it holds a token (contracts `todayPins`), and People's otherwise. Erasing a person,
+  which the feed is not told of, reads it where it is drawn (`pinsIfDrawn`).
+- **A page that names someone People does not hold asks for People again.** This covers Leads' Talking door and the people
+  at a lead, the business trailing a name, and the Inbox header's facts (`want-person.ts`). It asks once for each person,
+  at most once a minute whoever asks, and nothing before People's first read.
+- **Closed:** W-person-list-lead-3, W-person-list-lead-5.
+- **Left, with its reason:**
+  - People's own rows still come from its whole book: a person's facts read by id (`people/facts?ids=`) is what the audit
+    named for the Inbox header and the Calendar panel. The Calendar reads no People any more (its board carries the person's
+    facts), and the Inbox header now asks for People once where it names someone new.
+
 ## What comes next
 
 - **R5** changes cells one at a time and reads each golden's difference:
@@ -483,6 +503,6 @@ the feed never tells. Each was then kept as it was first read.
 - **R8** makes time a notice: one clock, and one rule for whether a campaign runs (done, above).
 - **R9** makes the feed heal and a hidden page cost nothing: one pass, retries, the rolling heal, a hidden page's hold (done,
   above); the feed's replay is owed.
-- **S3-5 and S11-8** (done, above). **R10** is due: Today's pinned lists and Leads' Talking door, read from a few people's
-  facts rather than People's whole book.
+- **S3-5 and S11-8** (done, above).
+- **R10:** Today's pinned lists counted on their own, and the pages that name someone new asking for People (done, above).
 - The owed count falls as they land.

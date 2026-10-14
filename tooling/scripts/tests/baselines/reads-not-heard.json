@@ -46,6 +46,9 @@
         ],
         "today": [
           "memberships"
+        ],
+        "today_pins": [
+          "memberships"
         ]
       }
     },
@@ -756,6 +759,24 @@
         ],
         "reports_receptionist": [
           "policies"
+        ],
+        "today_pins": [
+          "policies"
+        ]
+      }
+    },
+    {
+      "kind": "over-read",
+      "why": "The business a person works at (leads) and the signer a reply of theirs offers (reach_out_replies), which people_list() joins to each row of the book. Today's pinned lists count people, and no list counts either column: they ride with the person's own row, which the pins hear (a person linked to a business or unlinked is an update of the person, 00413).",
+      "reads": {
+        "today_pins": [
+          "leads",
+          "reach_out_replies"
+        ]
+      },
+      "heardWith": {
+        "today_pins": [
+          "contacts"
         ]
       }
     },

@@ -503,4 +503,24 @@ test("Today's pins: tokens kept in order and capped, toggled in and out, and rea
       { token: "seg:quiet", label: "Quiet 30+ days", count: 2, to: "clients/seg:quiet" },
     ],
   );
+  // Counted on Today's own read where it holds a token (R10): People's count stands as of its last read, which nothing on
+  // Today reads again. A token it read and could not count draws no number; one it did not read keeps People's.
+  const people = {
+    lists: [
+      { id: "quiet", label: "Quiet 30+ days", count: 2 },
+      { id: "new_week", label: "New this week", count: 1 },
+    ],
+    saved: [{ id: S, name: "VIPs", count: 3 }],
+  };
+  assert.deepEqual(
+    todayPins({ pins: ["seg:quiet", "seg:new_week", `list:${S}`] }, people, {
+      "seg:quiet": 5,
+      [`list:${S}`]: null,
+    }).map((p) => [p.token, p.count]),
+    [
+      ["seg:quiet", 5],
+      ["seg:new_week", 1],
+      [`list:${S}`, null],
+    ],
+  );
 });

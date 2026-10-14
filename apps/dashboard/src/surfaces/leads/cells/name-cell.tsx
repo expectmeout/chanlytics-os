@@ -13,6 +13,7 @@ import { LeadCallMenu, ldCallProps } from "./call-menu";
 import { LeadCard, LeadHover } from "./hover";
 import { LeadTile } from "./tile";
 import type { LeadCellCtx } from "./types";
+import { wantPerson } from "../../people/want-person";
 
 // The name's card: enough to decide without opening the peek, and the one hover that carries links, because it is the one
 // you can keep the pointer inside.
@@ -104,6 +105,9 @@ export const ldPeopleOf = (
 ): LeadPeopleVM | null => {
   const rows = x && x.peopleRows;
   if (!rows) return null;
+  // The person the lead was made with, where People does not hold them yet (a reply made them since its last read): People is
+  // asked for once, so the Talking door and the client follow (want-person.ts; the wiring's second audit, R10).
+  wantPerson(l.contactId);
   let index = peopleIndexes.get(rows);
   if (!index) peopleIndexes.set(rows, (index = leadPeopleIndex(rows)));
   return leadPeopleOf(l, index);

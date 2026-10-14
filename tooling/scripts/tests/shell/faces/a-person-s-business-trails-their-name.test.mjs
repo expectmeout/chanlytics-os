@@ -441,3 +441,54 @@ test("Leads' row: a Talking lead's stage is the door to the person it is talking
   assert.equal(byTestId(cold, "lead-talking-door"), null);
   assert.equal(textOf(byTestId(cold, "lead-sub")), l.sub);
 });
+
+test("a page that names someone People does not hold yet asks for People again: once for each person, once a minute whoever asks, and nothing before People's first read (the wiring's second audit, R10, W-person-list-lead-5)", async (t) => {
+  // Leads' Talking door, the business beside a name, the people at a lead and the Inbox header read People's rows, and
+  // People is not read again on those pages: a person a reply made, or linked to a business since, had no door and no
+  // business until People was opened.
+  const { wantPerson } = await import(`${S}/surfaces/people/want-person.ts`);
+  const asked = [];
+  const keep = globalThis.window.__refreshSurface;
+  globalThis.window.__refreshSurface = async (key) => {
+    asked.push(key);
+  };
+  // An hour past now: whatever an earlier case asked for is more than a minute behind.
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.now() + 3_600_000 });
+  const settle = () => t.mock.timers.tick(1);
+  try {
+    setSurfaceValue("people", undefined);
+    wantPerson("p-new");
+    settle();
+    assert.deepEqual(asked, [], "before People's first read: that read is on its way");
+    setSurfaceValue("people", { rows: ROWS });
+    wantPerson("p-priya");
+    wantPerson(null);
+    settle();
+    assert.deepEqual(asked, [], "someone People holds, or no one: nothing asked");
+    // Asked from a draw: the read is asked for after it.
+    assert.equal(businessTrailFor("p-new"), null, "the trail draws nothing yet");
+    assert.deepEqual(asked, [], "never from inside the draw");
+    settle();
+    assert.deepEqual(asked, ["people"], "and then People is read again");
+    wantPerson("p-new");
+    t.mock.timers.tick(2 * 60_000);
+    assert.deepEqual(asked, ["people"], "once for each person: one People will never hold costs one read");
+    // Another, within the minute of an ask: waits for the minute.
+    wantPerson("p-other");
+    settle();
+    wantPerson("p-third");
+    settle();
+    assert.deepEqual(asked, ["people", "people"], "a minute after the last, another person asks again");
+    wantPerson("p-fourth");
+    settle();
+    assert.deepEqual(asked, ["people", "people"], "and the next waits for its minute");
+    t.mock.timers.tick(60_000);
+    wantPerson("p-fourth");
+    settle();
+    assert.deepEqual(asked, ["people", "people", "people"]);
+  } finally {
+    t.mock.timers.reset();
+    globalThis.window.__refreshSurface = keep;
+    setSurfaceValue("people", { rows: ROWS });
+  }
+});

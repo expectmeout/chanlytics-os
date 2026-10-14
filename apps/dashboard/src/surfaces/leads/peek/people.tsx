@@ -22,6 +22,7 @@ import { chooseAddressee } from "../surface";
 import { surfaceValue } from "../../surface-values";
 import { NameOffer } from "../../people/person/name-offer";
 import type { PeekActs } from "./types";
+import { wantPerson } from "../../people/want-person";
 
 /**
  * The people People holds who work at this lead, in the order the row names them (contracts leadPeopleOf): the one a
@@ -29,6 +30,8 @@ import type { PeekActs } from "./types";
  */
 function peopleAt(lead: { id: string; contactId: string | null }): PersonRowVM[] {
   const rows = surfaceValue("people")?.rows ?? [];
+  // Its own person, where People does not hold them yet: asked for once (want-person.ts; R10).
+  wantPerson(lead.contactId);
   const index = leadPeopleIndex(rows);
   const byId = new Map(rows.map((r) => [r.id, r]));
   return leadPeopleOf(lead, index)

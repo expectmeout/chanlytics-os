@@ -62,11 +62,12 @@ export async function audiencePool(
    * own (readers/everyone.ts, which the Playbooks page's pools share); and the calendar's zone and settings, which the
    * calendar's lookup then reads neither of (withVisits). The send reads its own.
    */
-  opts: { sellsBy?: SellsBy | null; people?: Lazy<PersonRowDto[]>; known?: ZoneAndSettings } = {},
+  opts: { sellsBy?: SellsBy | null; people?: Lazy<PersonRowDto[]>; known?: ZoneAndSettings; stale?: boolean } = {},
 ): Promise<AudiencePool> {
   const [{ people, calendar, consult_first }, sellsBy] = await Promise.all([
     (opts.people === undefined ? everyone(ctx, tenantId) : lazily(opts.people)).then((rows) =>
-      withVisits(ctx, tenantId, rows, now, opts.known),
+      // `stale`: the calendar's last good read may answer, for a caller that only counts (readers/list-counts.ts).
+      withVisits(ctx, tenantId, rows, now, opts.known, opts.stale ? { stale: true } : {}),
     ),
     opts.sellsBy !== undefined ? opts.sellsBy : sellsByOf(ctx, tenantId),
   ]);

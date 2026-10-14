@@ -33,7 +33,9 @@ export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCel
   // contacts are the heaviest read there is, and a message on Today re-reads the three that draw messages and nothing else, and
   // Setup only while the first WhatsApp message is awaited (shell/surfaces/message-fan-out.test.mjs). What it leaves is read once as
   // its own page comes back.
-  today: { today: true, reports_headline: true, reach_out_replies: true, setup: true },
+  // And the counts of the lists pinned here (surfaces/today/pins-surface.ts; R10): what the lists are made of moves them, heard
+  // here, where they are drawn.
+  today: { today: true, reports_headline: true, reach_out_replies: true, setup: true, today_pins: true },
   inbox: { inbox: true },
   conversations: { conversations: true },
   live: { live: true },

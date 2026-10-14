@@ -90,10 +90,13 @@ export const lists = {
     };
     return listRuleWhy(spec, row, name);
   },
-  /** The lists this member pinned to Today (contracts todayPins), over the People surface; none before it is read. */
+  /**
+   * The lists this member pinned to Today (contracts todayPins), over the People surface; none before it is read. Each
+   * counted by Today's own read of them where it holds one (today/pins-surface.ts; R10), People's otherwise.
+   */
   pinned: (): ReturnType<typeof todayPins> => {
     const P = pinSurface();
-    return P ? todayPins(P.views?.today, P) : [];
+    return P ? todayPins(P.views?.today, P, surfaceValue("today_pins")?.counts) : [];
   },
   /** Whether a list (by its token) is pinned to Today. */
   isPinned: (token: string): boolean =>

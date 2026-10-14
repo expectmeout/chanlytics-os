@@ -202,6 +202,9 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
     "reach_out_replies",
     // The line and the runs' number: Live's strip and Sent's are made of the channels read (surfaces/channels/surface.ts).
     "channels",
+    // The counts of the lists pinned here, read on their own (surfaces/today/pins-surface.ts; R10): People's are as of its
+    // last read, which nothing on Today reads again.
+    "today_pins",
   ],
   // The Calendar's campaign marks (surfaces/calendar/runs-surface.ts): their own span read, on demand. It read People's whole
   // book here for one pill and the deal beside a visit; the visit's person now carries those facts on the board's own read

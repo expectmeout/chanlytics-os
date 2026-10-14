@@ -33,6 +33,7 @@ import type { LiveSurface } from "./live/surface";
 import type { PeopleSurface } from "./people/surface";
 import type { CalendarSurface } from "./calendar/surface";
 import type { CalendarRunsSurface } from "./calendar/runs-surface";
+import type { TodayPinsSurface } from "./today/pins-surface";
 import type { LeadsSurface } from "./leads/surface";
 import type { SetupSurface } from "./setup/surface";
 import type { BillingSurface } from "./settings/billing/surface";
@@ -69,6 +70,8 @@ export interface SurfaceValues {
   calendar: CalendarSurface;
   /** Campaigns over the Calendar's days, read where the Calendar draws them (calendar/runs-surface.ts). */
   calendar_runs: CalendarRunsSurface;
+  /** The counts of the lists pinned to Today, read where Today draws them (today/pins-surface.ts; R10). */
+  today_pins: TodayPinsSurface;
   leads: LeadsSurface;
   /** Undefined until read; null when the read failed, so a page shows a retry rather than "Reading…" for ever. */
   setup: SetupSurface | null;
@@ -221,6 +224,7 @@ const SURFACE_KEYS: Record<SurfaceKey, true> = {
   people: true,
   calendar: true,
   calendar_runs: true,
+  today_pins: true,
   leads: true,
   setup: true,
   billing: true,

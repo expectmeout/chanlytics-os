@@ -10589,15 +10589,16 @@ function pinTokens(view) {
   const pins = view && typeof view === "object" ? view.pins : null;
   return Array.isArray(pins) ? pins.filter((t) => typeof t === "string" && parseListToken(t) !== null).slice(0, TODAY_PINS_MAX) : [];
 }
-function todayPins(view, people) {
+function todayPins(view, people, counts) {
+  const counted2 = (token2, own) => counts && token2 in counts ? counts[token2] ?? null : own;
   return pinTokens(view).flatMap((token2) => {
     const ref = parseListToken(token2);
     if (ref.kind === "builtin") {
       const l = people.lists.find((x) => x.id === ref.id);
-      return l ? [{ token: token2, label: l.label, count: l.count, to: `clients/seg:${l.id}` }] : [];
+      return l ? [{ token: token2, label: l.label, count: counted2(token2, l.count), to: `clients/seg:${l.id}` }] : [];
     }
     const s = people.saved.find((x) => x.id.toLowerCase() === ref.id);
-    return s ? [{ token: token2, label: s.name, count: s.unknown ? null : s.count, to: `clients/list:${s.id}` }] : [];
+    return s ? [{ token: token2, label: s.name, count: counted2(token2, s.unknown ? null : s.count), to: `clients/list:${s.id}` }] : [];
   });
 }
 function togglePin(view, token2) {
@@ -39028,6 +39029,7 @@ var ROUTE_KEYS = [
   "GET partner/invitations",
   "GET partner/workspaces",
   "GET people/[id]/reach",
+  "GET people/list-counts",
   "GET platform/overview",
   "GET platform/tenants/[id]",
   "GET playbooks",

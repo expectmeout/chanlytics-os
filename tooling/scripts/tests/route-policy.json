@@ -789,6 +789,13 @@
       "rate": "lead_suggest",
       "spend": false
     },
+    "GET people/list-counts": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": "aggregate",
+      "spend": false
+    },
     "PUT lead-suggestions": {
       "kind": "write",
       "scope": "workspace",
