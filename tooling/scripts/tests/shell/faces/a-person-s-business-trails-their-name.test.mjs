@@ -446,16 +446,16 @@ test("a page that names someone People does not hold yet asks for People again: 
   // Leads' Talking door, the business beside a name, the people at a lead and the Inbox header read People's rows, and
   // People is not read again on those pages: a person a reply made, or linked to a business since, had no door and no
   // business until People was opened.
-  const { wantPerson, forgetWantedPeople } = await import(`${S}/surfaces/people/want-person.ts`);
+  const { wantPerson } = await import(`${S}/surfaces/people/want-person.ts`);
   const asked = [];
   const keep = globalThis.window.__refreshSurface;
   globalThis.window.__refreshSurface = async (key) => {
     asked.push(key);
   };
-  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: 1_000_000 });
+  // An hour past now: whatever an earlier case asked for is more than a minute behind.
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.now() + 3_600_000 });
   const settle = () => t.mock.timers.tick(1);
   try {
-    forgetWantedPeople();
     setSurfaceValue("people", undefined);
     wantPerson("p-new");
     settle();
@@ -489,7 +489,6 @@ test("a page that names someone People does not hold yet asks for People again: 
   } finally {
     t.mock.timers.reset();
     globalThis.window.__refreshSurface = keep;
-    forgetWantedPeople();
     setSurfaceValue("people", { rows: ROWS });
   }
 });

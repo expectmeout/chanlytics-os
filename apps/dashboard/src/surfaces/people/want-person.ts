@@ -36,11 +36,3 @@ export function wantPerson(personId: string | null | undefined): void {
   // After the page has drawn: a read is never asked for from inside a draw.
   setTimeout(() => void refreshSurface("people"), 0);
 }
-
-/** For tests: forget who was asked for, and when. */
-export function forgetWantedPeople(): void {
-  heldRows = null;
-  heldIds = new Set();
-  askedFor.clear();
-  askedAt = -Infinity;
-}
