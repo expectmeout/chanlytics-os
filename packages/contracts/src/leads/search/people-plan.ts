@@ -326,9 +326,7 @@ export function peoplePlanOf(raw: unknown): LeadPeoplePlan | null {
     seniority: strs(o.seniority, PEOPLE_SENIORITIES.length, 20).filter((s): s is PeopleSeniority =>
       (PEOPLE_SENIORITIES as readonly string[]).includes(s),
     ),
-    industries: strs(o.industries, PEOPLE_INDUSTRIES_MAX, PEOPLE_INDUSTRY_CHARS)
-      .map(peopleIndustryOf)
-      .filter((s): s is PeopleIndustry => !!s),
+    industries: strs(o.industries, PEOPLE_INDUSTRIES_MAX, PEOPLE_INDUSTRY_CHARS),
     sizes: strs(o.sizes, PEOPLE_COMPANY_SIZES.length, 20).filter((s): s is PeopleCompanySize =>
       (PEOPLE_COMPANY_SIZES as readonly string[]).includes(s),
     ),
@@ -381,11 +379,14 @@ const industryKey = (s: string): string =>
     .replace(/\band\b/g, "&")
     .replace(/[^a-z0-9&]+/g, "");
 
-const INDUSTRY_BY_KEY = new Map<string, PeopleIndustry>(PEOPLE_INDUSTRIES.map((i) => [industryKey(i), i]));
+let industryByKey: Map<string, PeopleIndustry> | null = null;
 
 /** The directory's own name for an industry as typed, or null for one it does not list. */
 export function peopleIndustryOf(raw: string | null | undefined): PeopleIndustry | null {
-  return INDUSTRY_BY_KEY.get(industryKey(raw ?? "")) ?? null;
+  // Made at the first ask: a Map built as the module loads is a side effect, which every page that loads contracts
+  // would keep, the list with it, where only the Find people sheet and the server read it.
+  industryByKey ??= new Map(PEOPLE_INDUSTRIES.map((i) => [industryKey(i), i]));
+  return industryByKey.get(industryKey(raw ?? "")) ?? null;
 }
 
 const wordsIn = (s: string): string[] =>

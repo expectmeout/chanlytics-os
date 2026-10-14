@@ -31487,7 +31487,7 @@ function peoplePlanOf(raw) {
     seniority: strs(o.seniority, PEOPLE_SENIORITIES.length, 20).filter(
       (s) => PEOPLE_SENIORITIES.includes(s)
     ),
-    industries: strs(o.industries, PEOPLE_INDUSTRIES_MAX, PEOPLE_INDUSTRY_CHARS).map(peopleIndustryOf).filter((s) => !!s),
+    industries: strs(o.industries, PEOPLE_INDUSTRIES_MAX, PEOPLE_INDUSTRY_CHARS),
     sizes: strs(o.sizes, PEOPLE_COMPANY_SIZES.length, 20).filter(
       (s) => PEOPLE_COMPANY_SIZES.includes(s)
     ),
@@ -31515,9 +31515,10 @@ function usStatesTyped(text) {
   return { codes, unread: parts2.filter((p) => !usStateCode(p)) };
 }
 var industryKey = (s) => s.toLowerCase().replace(/\band\b/g, "&").replace(/[^a-z0-9&]+/g, "");
-var INDUSTRY_BY_KEY = new Map(PEOPLE_INDUSTRIES.map((i) => [industryKey(i), i]));
+var industryByKey = null;
 function peopleIndustryOf(raw) {
-  return INDUSTRY_BY_KEY.get(industryKey(raw ?? "")) ?? null;
+  industryByKey ??= new Map(PEOPLE_INDUSTRIES.map((i) => [industryKey(i), i]));
+  return industryByKey.get(industryKey(raw ?? "")) ?? null;
 }
 var wordsIn = (s) => s.toLowerCase().split(/[^a-z]+/).filter((w) => w.length >= 3 && w !== "and" && w !== "the");
 var sharedStart = (a, b) => {
