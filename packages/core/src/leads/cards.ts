@@ -16,10 +16,10 @@
  * for people by title, seniority, industry, company size and state, and maps
  * each item to a person at a company (PersonAtCompany): their name, title,
  * seniority, work address and profile link, and their company's name, domain,
- * industry, size and place. Its items' field names are read in each spelling
- * such databases use, since its provider publishes no schema; an item with no
- * company key, no name or no work address does not read. Both cards share the
- * one mailbox checker.
+ * industry, size and place. Its items are read as its provider writes them at
+ * the pinned build, which its calibration run read (14 Oct 2026: 81 people,
+ * every filter held); an item with no company key or no name does not read.
+ * Both cards share the one mailbox checker.
  */
 import type { LeadEmailState, LeadPeoplePlan, LeadSearchPlan } from "@chanlytics/contracts";
 import { zctaCenter } from "./geo";
@@ -207,80 +207,40 @@ const CHECKER: LeadCheckerRunner = {
 };
 
 /**
- * The people card's item fields, in each spelling a B2B contact database writes them (its provider publishes no
- * schema): a field it does not have is left out of the answer, never an error.
+ * The people card's item fields, as its provider writes them at the pinned build (its calibration run's items). The
+ * person's own place, phone and skills, and the company's money, address and phone, are never asked for. `email` is
+ * sometimes the provider's guess at the company's pattern (`emailPatternGuess` beside it says so: 36 of the 81): the
+ * mailbox check decides either way, so the guess is not read.
  */
 const PEOPLE_FIELDS = [
-  "first_name",
   "firstName",
-  "last_name",
   "lastName",
-  "name",
-  "full_name",
-  "fullName",
   "title",
-  "job_title",
-  "jobTitle",
-  "headline",
   "seniority",
   "email",
-  "work_email",
-  "workEmail",
-  "email_address",
-  "linkedin",
-  "linkedin_url",
   "linkedinUrl",
-  "city",
-  "state",
-  "country",
-  "company",
-  "company_name",
-  "companyName",
-  "organization_name",
-  "company_domain",
-  "companyDomain",
-  "organization_domain",
-  "company_website",
-  "companyWebsite",
-  "organization_website_url",
-  "domain",
-  "website",
-  "industry",
-  "company_industry",
-  "companyIndustry",
-  "company_size",
-  "companySize",
-  "employee_count",
-  "employees",
-  "organization_num_employees",
-  "company_linkedin",
-  "company_linkedin_url",
-  "companyLinkedin",
-  "organization_linkedin_url",
-  "company_description",
-  "companyDescription",
-  "organization_short_description",
-  "company_city",
-  "companyCity",
-  "company_state",
-  "companyState",
-  "company_country",
-  "companyCountry",
+  "organizationName",
+  "organizationWebsite",
+  "organizationIndustry",
+  "organizationEmployeeRange",
+  "organizationSize",
+  "organizationLinkedinUrl",
+  "organizationCity",
+  "organizationState",
+  "organizationCountry",
+  "organizationDescription",
 ] as const;
 
 /** A people run may hold the provider this long before the sweep aborts it: about a thousand people in ten minutes. */
 export const PEOPLE_RUN_TIMEOUT_SECS = 30 * 60;
 /** The least a people run's cap is: the provider's start and a page of people. */
 export const PEOPLE_CAP_FLOOR_USD = 0.5;
-
-/** The first of a record's fields that has words, in the order given. */
-const firstText = (o: Record<string, unknown>, keys: readonly string[]): string | null => {
-  for (const k of keys) {
-    const v = trimmedOrNull(o[k]);
-    if (v) return v;
-  }
-  return null;
-};
+/**
+ * The fewest people the provider takes a run for: it refuses `maxResults` under 100 (its calibration, 14 Oct 2026). A
+ * round that wants fewer asks for this many, and keeps every company they name: each was paid for. At $0.002 a person
+ * the 100 cost $0.21 with the start, under the cap's floor and inside the floors every people estimate already holds.
+ */
+const PEOPLE_PROVIDER_LEAST = 100;
 
 /** A country's two letters from what a database writes ("United States", "USA", "us"); null for one it cannot read. */
 function countryOf(raw: string | null): string | null {
@@ -306,87 +266,81 @@ function sizeOf(raw: unknown): string | null {
   return bands.find(([max]) => n <= max)?.[1] ?? "10001+";
 }
 
-const EMAIL_SHAPE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+/**
+ * An address a mail server takes as it is: printable ASCII, one @, a dotted domain. One with a letter outside ASCII in
+ * it (the calibration's "málvarez@…") needs a server that speaks SMTPUTF8, and is never sent to.
+ */
+const EMAIL_SHAPE = /^[!-?A-~]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/;
 
-/** A work address only, the first well-formed one in the order a database means them: a person's own mailbox (a free
- * mail one) is never their company's door, and one in `email` never hides the `work_email` beside it. */
-const workEmailOf = (o: Record<string, unknown>): string | null =>
-  ["work_email", "workEmail", "email", "email_address"]
-    .map((k) => trimmedOrNull(o[k])?.toLowerCase() ?? null)
-    .find((e): e is string => !!e && EMAIL_SHAPE.test(e) && !isFreeMail(e.slice(e.lastIndexOf("@") + 1))) ?? null;
+/** A person's work address, or null: a well-formed one only, and never a free mailbox, which is no company's door. */
+function workEmailOf(raw: unknown): string | null {
+  const e = trimmedOrNull(raw)?.toLowerCase() ?? null;
+  return e && EMAIL_SHAPE.test(e) && !isFreeMail(e.slice(e.lastIndexOf("@") + 1)) ? e : null;
+}
+
+/** A capped line of a company's own words, with no control or format characters in it. */
+const wordsOf = (v: unknown, max: number): string | null =>
+  trimmedOrNull(v)
+    ?.replace(/[\p{Cc}\p{Cf}]/gu, " ")
+    .trim()
+    .slice(0, max) || null;
 
 /**
  * The company an item of the people card names: its name and its domain (the lead's key), or nothing. The card searches
- * the US (its rights note says so): a company elsewhere is not read, whatever the filter let by.
+ * the US (its rights note says so): a company elsewhere is not read, whatever the person's filter let by (the
+ * calibration's one company in India, its person in Texas). Its place is the company's own, never its person's: a
+ * Texan's company may stand in New York, and one with no state said has none.
  */
 function companyOf(o: Record<string, unknown>): PersonAtCompany["company"] | null {
-  const name = firstText(o, ["company_name", "companyName", "organization_name", "company"])?.slice(0, 120) ?? null;
-  const key = websiteHostOf(
-    firstText(o, [
-      "company_domain",
-      "companyDomain",
-      "organization_domain",
-      "company_website",
-      "companyWebsite",
-      "organization_website_url",
-      "domain",
-      "website",
-    ]),
-  );
+  const name = wordsOf(o.organizationName, 120);
+  const key = websiteHostOf(trimmedOrNull(o.organizationWebsite));
   // None said is the card's own country; one said that reads as none is not the US.
-  const said = firstText(o, ["company_country", "companyCountry", "country"]);
-  const country = said === null ? "US" : countryOf(said);
+  const where = trimmedOrNull(o.organizationCountry);
+  const country = where === null ? "US" : countryOf(where);
   if (!name || !key || country !== "US") return null;
   return {
     key,
     name,
-    industry: firstText(o, ["industry", "company_industry", "companyIndustry"])?.slice(0, 120) ?? null,
-    city: firstText(o, ["company_city", "companyCity", "city"])?.slice(0, 120) ?? null,
-    region: usStateCode(firstText(o, ["company_state", "companyState", "state"])),
+    industry: wordsOf(o.organizationIndustry, 120),
+    city: wordsOf(o.organizationCity, 120),
+    region: usStateCode(trimmedOrNull(o.organizationState)),
     country,
-    linkedin:
-      firstText(o, ["company_linkedin_url", "company_linkedin", "companyLinkedin", "organization_linkedin_url"])?.slice(
-        0,
-        300,
-      ) ?? null,
-    size: sizeOf(
-      o.company_size ?? o.companySize ?? o.employee_count ?? o.employees ?? o.organization_num_employees ?? null,
-    ),
-    about:
-      firstText(o, ["company_description", "companyDescription", "organization_short_description"])
-        ?.replace(/[\p{Cc}\p{Cf}]/gu, " ")
-        .slice(0, 600) ?? null,
+    linkedin: trimmedOrNull(o.organizationLinkedinUrl)?.slice(0, 300) ?? null,
+    // The range it writes ("11 - 50"), else its head count put in a range.
+    size: sizeOf(trimmedOrNull(o.organizationEmployeeRange) ?? o.organizationSize ?? null),
+    about: wordsOf(o.organizationDescription, 600),
   };
 }
 
-/** The person an item of the people card names: a name, or nothing; their work address where they have one. */
+/**
+ * The person an item of the people card names: a name, or nothing; their work address where they have one. The
+ * provider's first item is a note to read its log, in `firstName`: with no company it never reads.
+ */
 function personOf(o: Record<string, unknown>): PersonAtCompany["person"] | null {
-  const first = firstText(o, ["first_name", "firstName"]);
-  const last = firstText(o, ["last_name", "lastName"]);
-  const name = (firstText(o, ["full_name", "fullName", "name"]) ?? [first, last].filter(Boolean).join(" "))
-    .trim()
-    .slice(0, 120);
+  const first = wordsOf(o.firstName, 60);
+  const name = [first, wordsOf(o.lastName, 60)].filter(Boolean).join(" ").slice(0, 120);
   if (!name) return null;
   return {
     name,
-    first_name: first?.slice(0, 60) ?? null,
-    title: firstText(o, ["title", "job_title", "jobTitle", "headline"])?.slice(0, 120) ?? null,
-    seniority: firstText(o, ["seniority"])?.toLowerCase().slice(0, 20) ?? null,
-    email: workEmailOf(o),
-    profile_url: firstText(o, ["linkedin_url", "linkedinUrl", "linkedin"])?.slice(0, 300) ?? null,
+    first_name: first,
+    title: wordsOf(o.title, 120),
+    seniority: trimmedOrNull(o.seniority)?.toLowerCase().slice(0, 20) ?? null,
+    email: workEmailOf(o.email),
+    profile_url: trimmedOrNull(o.linkedinUrl)?.slice(0, 300) ?? null,
   };
 }
 
 /** The people card's runner (00430): a B2B contact database on Apify, asked by the plan's own filters. */
 const PEOPLE_CARD: PeopleCardRunner = {
   actor: "olympus/b2b-leads-finder",
-  // Pinned once its calibration run has read the items it writes (the card's owed run, decision 0057's lane 5).
-  build: "latest",
+  // The build its calibration run read (14 Oct 2026; contracts LEAD_CARDS' `calibrated`). A new one is calibrated again
+  // before it is pinned: collectPeople stops a run whose first items it reads none of.
+  build: "0.0.259",
   fields: PEOPLE_FIELDS,
   buildInput(plan, people) {
     const states = plan.states.map(usStateName).filter((s): s is string => !!s);
     return {
-      maxResults: people,
+      maxResults: Math.max(PEOPLE_PROVIDER_LEAST, people),
       personTitle: plan.titles,
       // An intern is never written to cold.
       excludeSeniority: ["intern"],

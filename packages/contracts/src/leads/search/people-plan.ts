@@ -52,6 +52,170 @@ export const PEOPLE_COMPANY_SIZES = [
 ] as const;
 export type PeopleCompanySize = (typeof PEOPLE_COMPANY_SIZES)[number];
 
+/**
+ * The industries the card's provider filters companies by, in its own names, as its pinned build lists them (its input
+ * schema, 14 Oct 2026): a run naming any other is refused before it starts, so a plan names these alone
+ * (LeadPeoplePlanSchema), and an industry typed otherwise is said with the nearest of them (peopleIndustriesTyped).
+ */
+export const PEOPLE_INDUSTRIES = [
+  "Accounting",
+  "Agriculture",
+  "Airlines/Aviation",
+  "Alternative Dispute Resolution",
+  "Alternative Medicine",
+  "Animation",
+  "Apparel & Fashion",
+  "Architecture & Planning",
+  "Arts & Crafts",
+  "Automotive",
+  "Aviation & Aerospace",
+  "Banking",
+  "Biotechnology",
+  "Broadcast Media",
+  "Building Materials",
+  "Business Supplies & Equipment",
+  "Capital Markets",
+  "Chemicals",
+  "Civic & Social Organization",
+  "Civil Engineering",
+  "Commercial Real Estate",
+  "Computer & Network Security",
+  "Computer Games",
+  "Computer Hardware",
+  "Computer Networking",
+  "Computer Software",
+  "Construction",
+  "Consumer Electronics",
+  "Consumer Goods",
+  "Consumer Services",
+  "Cosmetics",
+  "Dairy",
+  "Defense & Space",
+  "Design",
+  "E-Learning",
+  "Education Management",
+  "Electrical/Electronic Manufacturing",
+  "Entertainment",
+  "Environmental Services",
+  "Events Services",
+  "Executive Office",
+  "Facilities Services",
+  "Farming",
+  "Financial Services",
+  "Fine Art",
+  "Fishery",
+  "Food & Beverages",
+  "Food Production",
+  "Fund-Raising",
+  "Furniture",
+  "Gambling & Casinos",
+  "Glass",
+  "Government Administration",
+  "Government Relations",
+  "Graphic Design",
+  "Health",
+  "Higher Education",
+  "Hospital & Health Care",
+  "Hospitality",
+  "Human Resources",
+  "Import & Export",
+  "Individual & Family Services",
+  "Industrial Automation",
+  "Information Services",
+  "Information Technology & Services",
+  "Insurance",
+  "International Affairs",
+  "International Trade & Development",
+  "Internet",
+  "Investment Banking",
+  "Investment Management",
+  "Judiciary",
+  "Law Enforcement",
+  "Law Practice",
+  "Legal Services",
+  "Legislative Office",
+  "Leisure",
+  "Libraries",
+  "Logistics & Supply Chain",
+  "Luxury Goods & Jewelry",
+  "Machinery",
+  "Management Consulting",
+  "Maritime",
+  "Market Research",
+  "Marketing & Advertising",
+  "Mechanical or Industrial Engineering",
+  "Media Production",
+  "Medical Devices",
+  "Medical Practice",
+  "Mental Health Care",
+  "Military",
+  "Mining & Metals",
+  "Motion Pictures & Film",
+  "Museums & Institutions",
+  "Music",
+  "Nanotechnology",
+  "Newspapers",
+  "Nonprofit Organization Management",
+  "Oil & Energy",
+  "Online Media",
+  "Outsourcing/Offshoring",
+  "Package/Freight Delivery",
+  "Packaging & Containers",
+  "Paper & Forest Products",
+  "Performing Arts",
+  "Pharmaceuticals",
+  "Philanthropy",
+  "Photography",
+  "Plastics",
+  "Political Organization",
+  "Primary/Secondary Education",
+  "Printing",
+  "Professional Training & Coaching",
+  "Program Development",
+  "Public Policy",
+  "Public Relations & Communications",
+  "Public Safety",
+  "Publishing",
+  "Railroad Manufacture",
+  "Ranching",
+  "Real Estate",
+  "Recreational Facilities & Services",
+  "Religious Institutions",
+  "Renewables & Environment",
+  "Research",
+  "Restaurants",
+  "Retail",
+  "Security & Investigations",
+  "Semiconductors",
+  "Shipbuilding",
+  "Sporting Goods",
+  "Sports",
+  "Staffing & Recruiting",
+  "Supermarkets",
+  "Telecommunications",
+  "Textiles",
+  "Think Tanks",
+  "Tobacco",
+  "Translation & Localization",
+  "Transportation/Trucking/Railroad",
+  "Utilities",
+  "Venture Capital & Private Equity",
+  "Veterinary",
+  "Warehousing",
+  "Wholesale",
+  "Wine & Spirits",
+  "Wireless",
+  "Writing & Editing",
+  "Other",
+  "Specialty",
+  "Services",
+  "Rentals/Leasing",
+  "Other Vehicles",
+  "Professional Services software",
+  "eBusiness Software",
+] as const;
+export type PeopleIndustry = (typeof PEOPLE_INDUSTRIES)[number];
+
 export const PEOPLE_COUNT_MAX = 500;
 /** The least a run's cap is, the provider's and the checker's alike: what a people search reserves for each. */
 export const PEOPLE_RUN_FLOOR_USD = 0.5;
@@ -77,7 +241,7 @@ export type LeadPeoplePlan = {
   /** What the people are called ("marketing manager", "office manager"): one to five. */
   titles: string[];
   seniority: PeopleSeniority[];
-  /** The companies' industries, in the provider's words ("Marketing & Advertising"). */
+  /** The companies' industries, in the provider's own names ("Marketing & Advertising"): PEOPLE_INDUSTRIES alone. */
   industries: string[];
   sizes: PeopleCompanySize[];
   /** Two-letter US states; none is the whole country. */
@@ -121,7 +285,9 @@ export function peoplePlanFrom(i: PeoplePlanInput): LeadPeoplePlan {
     count: i.count,
     titles: i.titles,
     seniority: i.seniority,
-    industries: i.industries,
+    // In the directory's own names where they read as one ("marketing and advertising"); one that does not is kept as
+    // typed, for the schema to refuse and the sheet and Ask to say.
+    industries: [...new Set(i.industries.map((x) => peopleIndustryOf(x) ?? x))],
     sizes: i.sizes,
     states: i.states,
     contact: "email",
@@ -160,7 +326,9 @@ export function peoplePlanOf(raw: unknown): LeadPeoplePlan | null {
     seniority: strs(o.seniority, PEOPLE_SENIORITIES.length, 20).filter((s): s is PeopleSeniority =>
       (PEOPLE_SENIORITIES as readonly string[]).includes(s),
     ),
-    industries: strs(o.industries, PEOPLE_INDUSTRIES_MAX, 80),
+    industries: strs(o.industries, PEOPLE_INDUSTRIES_MAX, PEOPLE_INDUSTRY_CHARS)
+      .map(peopleIndustryOf)
+      .filter((s): s is PeopleIndustry => !!s),
     sizes: strs(o.sizes, PEOPLE_COMPANY_SIZES.length, 20).filter((s): s is PeopleCompanySize =>
       (PEOPLE_COMPANY_SIZES as readonly string[]).includes(s),
     ),
@@ -206,6 +374,57 @@ export function usStatesTyped(text: string): { codes: string[]; unread: string[]
   return { codes, unread: parts.filter((p) => !usStateCode(p)) };
 }
 
+/** An industry's key: any case, and "and" for "&", is one ("marketing and advertising" is Marketing & Advertising). */
+const industryKey = (s: string): string =>
+  s
+    .toLowerCase()
+    .replace(/\band\b/g, "&")
+    .replace(/[^a-z0-9&]+/g, "");
+
+const INDUSTRY_BY_KEY = new Map<string, PeopleIndustry>(PEOPLE_INDUSTRIES.map((i) => [industryKey(i), i]));
+
+/** The directory's own name for an industry as typed, or null for one it does not list. */
+export function peopleIndustryOf(raw: string | null | undefined): PeopleIndustry | null {
+  return INDUSTRY_BY_KEY.get(industryKey(raw ?? "")) ?? null;
+}
+
+const wordsIn = (s: string): string[] =>
+  s
+    .toLowerCase()
+    .split(/[^a-z]+/)
+    .filter((w) => w.length >= 3 && w !== "and" && w !== "the");
+
+/** How many letters two words begin with alike. */
+const sharedStart = (a: string, b: string): number => {
+  let n = 0;
+  while (n < a.length && a[n] === b[n]) n++;
+  return n;
+};
+
+/**
+ * Up to three of the directory's industries nearest what was typed: those whose words begin as a typed word does, five
+ * letters alike at least (a shorter word whole), the longest likeness first. "marketing agencies" finds Marketing &
+ * Advertising, never Capital Markets; "law firms" Law Enforcement and Law Practice; "dentists" none.
+ */
+export function peopleIndustriesNear(typed: string): PeopleIndustry[] {
+  const typedWords = wordsIn(typed);
+  const scored = PEOPLE_INDUSTRIES.map((industry) => {
+    let best = 0;
+    for (const w of typedWords)
+      for (const v of wordsIn(industry)) {
+        const n = sharedStart(w, v);
+        if (n >= Math.min(5, w.length) && n > best) best = n;
+      }
+    return { industry, best };
+  }).filter((x) => x.best > 0);
+  const top = Math.max(0, ...scored.map((x) => x.best));
+  return scored
+    .filter((x) => x.best >= top - 1)
+    .sort((a, b) => b.best - a.best)
+    .slice(0, 3)
+    .map((x) => x.industry);
+}
+
 /**
  * What is wrong with the Find people sheet as typed, by its box, in its words (the route's schema, said before it is
  * asked): a title or an industry out of its length, a state that reads as none, a count out of its range. Empty when
@@ -229,10 +448,11 @@ export function peopleSheetProblems(t: {
   else if (short) out.titles = PEOPLE_FIND_WORDS.titleShort(short);
   else if (t.titles.trim().length > PEOPLE_ASKED_CHARS) out.titles = PEOPLE_FIND_WORDS.titlesLong;
   const industries = listTyped(t.industries, Infinity);
-  const odd = industries.find((x) => x.length < 2 || x.length > PEOPLE_INDUSTRY_CHARS);
+  // The directory filters by its own industries alone: one it does not list is said with the nearest, never dropped.
+  const odd = industries.find((x) => !peopleIndustryOf(x));
   if (industries.length > PEOPLE_INDUSTRIES_MAX)
     out.industries = PEOPLE_FIND_WORDS.tooMany("industries", PEOPLE_INDUSTRIES_MAX, industries.length);
-  else if (odd) out.industries = PEOPLE_FIND_WORDS.industryOdd(odd);
+  else if (odd) out.industries = PEOPLE_FIND_WORDS.industryUnread(odd, peopleIndustriesNear(odd));
   const typed = usStatesTyped(t.states);
   const unread = typed.unread[0];
   const states = listTyped(t.states, Infinity).length;
@@ -265,7 +485,7 @@ export const PEOPLE_FIND_WORDS = {
   seniority: "How senior",
   seniorityAny: "Any seniority",
   industries: "Their companies' industries",
-  industriesHint: "Up to five, with commas between, as a directory says them: Marketing & Advertising, Accounting",
+  industriesHint: "Up to five, with commas between, as the directory names them: Marketing & Advertising, Accounting",
   sizes: "Company size",
   sizesAny: "Any size",
   states: "Where they work",
@@ -281,7 +501,12 @@ export const PEOPLE_FIND_WORDS = {
   titleShort: (t: string) => `“${t}” is too short to be a title.`,
   tooMany: (what: string, max: number, n: number) => `Up to ${max} ${what}: this has ${n}.`,
   titlesLong: `What they are called is too long: ${PEOPLE_ASKED_CHARS} characters at most.`,
-  industryOdd: (t: string) => `“${t}”: an industry is 2 to ${PEOPLE_INDUSTRY_CHARS} characters.`,
+  industryUnread: (t: string, near: readonly string[]) => {
+    const tried = near.map((n) => `“${n}”`);
+    return tried.length
+      ? `“${t}” isn't one of the directory's industries: try ${tried.length > 1 ? `${tried.slice(0, -1).join(", ")} or ` : ""}${tried[tried.length - 1]}.`
+      : `“${t}” isn't one of the directory's industries. Say it as the directory names it (Accounting, Construction, Real Estate), or leave industries empty and say who by what they are called.`;
+  },
   stateUnread: (s: string) => `${s} isn't a US state: use its name or its two letters.`,
   more: "Find more like these",
   closed: "Finding people at companies opens once it has been checked. Nothing was started.",

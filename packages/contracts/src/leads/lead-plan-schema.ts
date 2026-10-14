@@ -30,6 +30,8 @@ import {
   PEOPLE_TITLES_MAX,
   PEOPLE_TITLE_CHARS,
   listTyped,
+  peopleIndustriesNear,
+  peopleIndustryOf,
   peoplePlanFrom,
   usStatesTyped,
 } from "./search/people-plan";
@@ -303,6 +305,18 @@ export function planPeopleSearch(input: ProposePeopleSearch): PeoplePlanned {
         kind: "not_a_plan",
         text: PEOPLE_FIND_WORDS.tooMany("states", PEOPLE_STATES_MAX, listTyped(where, Infinity).length),
         what: where,
+      },
+    };
+  // An industry the directory does not list is said with its nearest, never dropped: dropped, a search meant for one
+  // industry would search them all.
+  const odd = input.industries.find((i) => !peopleIndustryOf(i));
+  if (odd !== undefined)
+    return {
+      ok: false,
+      refusal: {
+        kind: "not_a_plan",
+        text: PEOPLE_FIND_WORDS.industryUnread(odd, peopleIndustriesNear(odd)),
+        what: odd,
       },
     };
   const plan = peoplePlanFrom({

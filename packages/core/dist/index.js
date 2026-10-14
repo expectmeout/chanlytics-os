@@ -36966,71 +36966,26 @@ var CHECKER = {
   }
 };
 var PEOPLE_FIELDS = [
-  "first_name",
   "firstName",
-  "last_name",
   "lastName",
-  "name",
-  "full_name",
-  "fullName",
   "title",
-  "job_title",
-  "jobTitle",
-  "headline",
   "seniority",
   "email",
-  "work_email",
-  "workEmail",
-  "email_address",
-  "linkedin",
-  "linkedin_url",
   "linkedinUrl",
-  "city",
-  "state",
-  "country",
-  "company",
-  "company_name",
-  "companyName",
-  "organization_name",
-  "company_domain",
-  "companyDomain",
-  "organization_domain",
-  "company_website",
-  "companyWebsite",
-  "organization_website_url",
-  "domain",
-  "website",
-  "industry",
-  "company_industry",
-  "companyIndustry",
-  "company_size",
-  "companySize",
-  "employee_count",
-  "employees",
-  "organization_num_employees",
-  "company_linkedin",
-  "company_linkedin_url",
-  "companyLinkedin",
-  "organization_linkedin_url",
-  "company_description",
-  "companyDescription",
-  "organization_short_description",
-  "company_city",
-  "companyCity",
-  "company_state",
-  "companyState",
-  "company_country",
-  "companyCountry"
+  "organizationName",
+  "organizationWebsite",
+  "organizationIndustry",
+  "organizationEmployeeRange",
+  "organizationSize",
+  "organizationLinkedinUrl",
+  "organizationCity",
+  "organizationState",
+  "organizationCountry",
+  "organizationDescription"
 ];
 var PEOPLE_RUN_TIMEOUT_SECS = 30 * 60;
 var PEOPLE_CAP_FLOOR_USD = 0.5;
-var firstText = (o, keys) => {
-  for (const k of keys) {
-    const v = trimmedOrNull(o[k]);
-    if (v) return v;
-  }
-  return null;
-};
+var PEOPLE_PROVIDER_LEAST = 100;
 function countryOf(raw) {
   const s = (raw ?? "").trim();
   if (!s) return null;
@@ -37051,65 +37006,54 @@ function sizeOf(raw) {
   ];
   return bands.find(([max]) => n <= max)?.[1] ?? "10001+";
 }
-var EMAIL_SHAPE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-var workEmailOf = (o) => ["work_email", "workEmail", "email", "email_address"].map((k) => trimmedOrNull(o[k])?.toLowerCase() ?? null).find((e) => !!e && EMAIL_SHAPE.test(e) && !isFreeMail(e.slice(e.lastIndexOf("@") + 1))) ?? null;
+var EMAIL_SHAPE = /^[!-?A-~]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/;
+function workEmailOf(raw) {
+  const e = trimmedOrNull(raw)?.toLowerCase() ?? null;
+  return e && EMAIL_SHAPE.test(e) && !isFreeMail(e.slice(e.lastIndexOf("@") + 1)) ? e : null;
+}
+var wordsOf = (v, max) => trimmedOrNull(v)?.replace(/[\p{Cc}\p{Cf}]/gu, " ").trim().slice(0, max) || null;
 function companyOf(o) {
-  const name = firstText(o, ["company_name", "companyName", "organization_name", "company"])?.slice(0, 120) ?? null;
-  const key = websiteHostOf(
-    firstText(o, [
-      "company_domain",
-      "companyDomain",
-      "organization_domain",
-      "company_website",
-      "companyWebsite",
-      "organization_website_url",
-      "domain",
-      "website"
-    ])
-  );
-  const said = firstText(o, ["company_country", "companyCountry", "country"]);
-  const country = said === null ? "US" : countryOf(said);
+  const name = wordsOf(o.organizationName, 120);
+  const key = websiteHostOf(trimmedOrNull(o.organizationWebsite));
+  const where = trimmedOrNull(o.organizationCountry);
+  const country = where === null ? "US" : countryOf(where);
   if (!name || !key || country !== "US") return null;
   return {
     key,
     name,
-    industry: firstText(o, ["industry", "company_industry", "companyIndustry"])?.slice(0, 120) ?? null,
-    city: firstText(o, ["company_city", "companyCity", "city"])?.slice(0, 120) ?? null,
-    region: usStateCode(firstText(o, ["company_state", "companyState", "state"])),
+    industry: wordsOf(o.organizationIndustry, 120),
+    city: wordsOf(o.organizationCity, 120),
+    region: usStateCode(trimmedOrNull(o.organizationState)),
     country,
-    linkedin: firstText(o, ["company_linkedin_url", "company_linkedin", "companyLinkedin", "organization_linkedin_url"])?.slice(
-      0,
-      300
-    ) ?? null,
-    size: sizeOf(
-      o.company_size ?? o.companySize ?? o.employee_count ?? o.employees ?? o.organization_num_employees ?? null
-    ),
-    about: firstText(o, ["company_description", "companyDescription", "organization_short_description"])?.replace(/[\p{Cc}\p{Cf}]/gu, " ").slice(0, 600) ?? null
+    linkedin: trimmedOrNull(o.organizationLinkedinUrl)?.slice(0, 300) ?? null,
+    // The range it writes ("11 - 50"), else its head count put in a range.
+    size: sizeOf(trimmedOrNull(o.organizationEmployeeRange) ?? o.organizationSize ?? null),
+    about: wordsOf(o.organizationDescription, 600)
   };
 }
 function personOf(o) {
-  const first = firstText(o, ["first_name", "firstName"]);
-  const last = firstText(o, ["last_name", "lastName"]);
-  const name = (firstText(o, ["full_name", "fullName", "name"]) ?? [first, last].filter(Boolean).join(" ")).trim().slice(0, 120);
+  const first = wordsOf(o.firstName, 60);
+  const name = [first, wordsOf(o.lastName, 60)].filter(Boolean).join(" ").slice(0, 120);
   if (!name) return null;
   return {
     name,
-    first_name: first?.slice(0, 60) ?? null,
-    title: firstText(o, ["title", "job_title", "jobTitle", "headline"])?.slice(0, 120) ?? null,
-    seniority: firstText(o, ["seniority"])?.toLowerCase().slice(0, 20) ?? null,
-    email: workEmailOf(o),
-    profile_url: firstText(o, ["linkedin_url", "linkedinUrl", "linkedin"])?.slice(0, 300) ?? null
+    first_name: first,
+    title: wordsOf(o.title, 120),
+    seniority: trimmedOrNull(o.seniority)?.toLowerCase().slice(0, 20) ?? null,
+    email: workEmailOf(o.email),
+    profile_url: trimmedOrNull(o.linkedinUrl)?.slice(0, 300) ?? null
   };
 }
 var PEOPLE_CARD = {
   actor: "olympus/b2b-leads-finder",
-  // Pinned once its calibration run has read the items it writes (the card's owed run, decision 0057's lane 5).
-  build: "latest",
+  // The build its calibration run read (14 Oct 2026; contracts LEAD_CARDS' `calibrated`). A new one is calibrated again
+  // before it is pinned: collectPeople stops a run whose first items it reads none of.
+  build: "0.0.259",
   fields: PEOPLE_FIELDS,
   buildInput(plan, people) {
     const states = plan.states.map(usStateName).filter((s) => !!s);
     return {
-      maxResults: people,
+      maxResults: Math.max(PEOPLE_PROVIDER_LEAST, people),
       personTitle: plan.titles,
       // An intern is never written to cold.
       excludeSeniority: ["intern"],
@@ -39243,7 +39187,7 @@ async function unreadableGate(at, seen) {
   }
   return GO;
 }
-function wordsOf(at, seen) {
+function wordsOf2(at, seen) {
   const { n } = at;
   const { maySee } = seen;
   const bodyText = maySee ? n.media?.caption?.trim() || "[photo]" : n.body ?? "";
@@ -39781,7 +39725,7 @@ async function answerInbound(input, ports) {
   if (await tooLate(at) !== GO) return;
   const seen = seeingOf(at);
   if (await unreadableGate(at, seen) !== GO) return;
-  const bodyText = wordsOf(at, seen);
+  const bodyText = wordsOf2(at, seen);
   if (await confirmedYes(at, bodyText) !== GO) return;
   if (await heldForThePerson(at, bodyText) !== GO) return;
   const shown = await photoOf(at, seen);

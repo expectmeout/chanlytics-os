@@ -10,8 +10,8 @@ import {
   PEOPLE_COMPANY_SIZES,
   PEOPLE_COUNT_MAX,
   PEOPLE_ASKED_CHARS,
+  PEOPLE_INDUSTRIES,
   PEOPLE_INDUSTRIES_MAX,
-  PEOPLE_INDUSTRY_CHARS,
   PEOPLE_SENIORITIES,
   PEOPLE_STATES_MAX,
   PEOPLE_TITLES_MAX,
@@ -28,7 +28,8 @@ export const LeadPeoplePlanSchema: z.ZodType<LeadPeoplePlan> = z.object({
   count: z.number().int().min(1).max(PEOPLE_COUNT_MAX),
   titles: z.array(words(2, PEOPLE_TITLE_CHARS)).min(1).max(PEOPLE_TITLES_MAX),
   seniority: z.array(z.enum(PEOPLE_SENIORITIES)).max(PEOPLE_SENIORITIES.length),
-  industries: z.array(words(2, PEOPLE_INDUSTRY_CHARS)).max(PEOPLE_INDUSTRIES_MAX),
+  // The directory's own names alone: it refuses a run naming any other (peoplePlanFrom spells a typed one as it does).
+  industries: z.array(z.enum(PEOPLE_INDUSTRIES)).max(PEOPLE_INDUSTRIES_MAX),
   sizes: z.array(z.enum(PEOPLE_COMPANY_SIZES)).max(PEOPLE_COMPANY_SIZES.length),
   states: z
     .array(
