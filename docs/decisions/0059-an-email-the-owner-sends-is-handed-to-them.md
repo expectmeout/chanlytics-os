@@ -27,16 +27,29 @@ order they were due, so a nudge could wait behind a day of first emails.
    it is claimed by its own claim (`reach_out_claim_drafts`), written as a mailbox's would be up to its words, and kept
    on the send as a draft (`drafted`): the address, the subject, the words and the cold foot, whose way out is the
    reply its words ask for, with no link (the owner's client carries no List-Unsubscribe header). Nothing is sent and
-   nobody is made at the draft.
+   nobody is made at the draft. No send door stands between the owner's inbox and the business, so a draft is judged
+   as the door would judge it (contracts `draftRefusalOf` over `reach_out_draft_facts`: the lead closed, stopped, wrote
+   back, on the never-again list, or a customer's address) when it is handed over, when To send is read (a refused
+   draft is never offered) and on each tick of the clock (which skips it with why). A step after the first whose email
+   before it the owner sent is handed to them too, whoever sends the chain now: the thread is theirs.
 3. **The owner says whether it went** (`reach_out_send_said`, the run's To send: Sent or Skip). Sent writes, in one
-   transaction, the person, the email as sent (no provider, no Message-ID), the send and the lead, as the clock does
-   for an email that left. The never-again list is asked again first.
+   transaction (the lead locked before the send), the person, the email as sent under an id of its own (no provider,
+   no Message-ID), the send and the lead, as the clock does for an email that left. Sent is the truth whatever changed
+   since the draft was handed, since the email left the owner's inbox: a draft skipped since (given up, its lead
+   closed or stopped) is recorded sent all the same, and what would refuse its lead now is said beside it (`since`),
+   never instead of it. A follow-up's Sent asks first whether the business wrote back, with They wrote back… beside it.
 4. **What came back is the owner's to say** (Leads' peek, "They wrote back…"): read through the one reading door
    (`reach_out_reply_said` → `reach_out_reply_apply` with `p_said`), with the plan the reply job makes (contracts
-   `readingPlan`, claim `owner`: it tells nobody and drafts nothing). The reading is keyed to a note in the owner's
-   words on the person's email thread, and undone as any reading is.
+   `readingPlan`, claim `owner`: it tells nobody and drafts nothing). The door is the service role's, for the member the
+   route checked, so no plan reaches the reading door but the one rule's; it is said once per email that went (a
+   second word answers `already`). The reading is keyed to a note in the owner's words on the person's email thread
+   (source `owner_said`, never counted as an email), and undone as any reading is. The owner's word is writing back:
+   `outreach_wrote_back` reads it, so the followers, the send door and Reports all stop for it. Not now asks the day,
+   and Wrong person who instead.
 5. **The owner is the pace**: thirty drafts a day per chain (`REACH_OUT_DRAFTS_PER_DAY`), all due when the run goes
-   ahead. A draft waits fourteen days, then is given up (`kept_waiting`), as a hold is. A paused chain keeps its drafts.
+   ahead, and never more waiting for them than two days' share (`REACH_OUT_DRAFTS_OPEN_MAX`): an owner who falls behind
+   is handed nothing new until they catch up. A draft waits fourteen days, then is given up (`kept_waiting`), as a hold
+   is. A paused chain keeps its drafts. Reports counts none of the owner's emails delivered: nobody can know they landed.
 6. **Drafts need no seal.** The send clock claims drafts before it asks for `UNSUBSCRIBE_SECRET`, and the check runs
    without it; a mailbox's send checked without the seal waits, planned, and the send clock answers 503 `lane_unset`
    while one is due, as before.
@@ -71,7 +84,9 @@ files.
 
 ## Risks
 
-- An owner who never says Sent leaves a draft for fourteen days; its run stays open until then.
+- An owner who never says Sent leaves a draft for fourteen days; its run stays open until then. A draft given up, or
+  skipped by its owner, still counts as the lead's first email (00427's one-first rule): the lead is not written to
+  again by another reach-out. Releasing such a lead to the pile is owed (a new index over the rule, built alone).
 - An owner's word is the only proof an email went; a bounce or a complaint reaches their inbox, never ours, so Reports
   says no share for their row.
 

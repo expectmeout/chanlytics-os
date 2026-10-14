@@ -55,18 +55,32 @@ What it built (00426, 00427; the plan in `docs/superpowers/plans/2026-10-13-the-
   companies with people named on them (call 8: built with them, 00429, below); a visit's origin drawn on the Calendar's
   visit sheet (the data is stamped); Today's "N added since your last approval" on a list-fed run; the card's
   first-email preview and the place's signals.
-- **Call 8, as built (00429, 14 October 2026):**
+- **Call 8, as built (00429, 13 October 2026):**
   - What a lead is: `leads.kind` (place | company), `source` (the card or a file), `source_key` (a company's domain,
     one lead per workspace and source), and `facts` (the people a source named, five at most, and the addressee).
   - The first new card, `people_at_companies`, approved with its source-rights note
     (`docs/plans/2026-09-18-lead-finder-source-rights.md`): a B2B contact database on Apify, by title, seniority,
     industry, company size and US state. It runs one provider run, its companies kept through `lead_company_upsert`,
-    each waiting on its address as a list's rows do.
-  - Leads' Find people sheet starts one (`POST /api/v1/lead-searches/people`). The peek names a company's people, and
-    the row leads with the addressee.
-  - The person slots {{first name}}, {{company}}, {{title}} and {{role}}, each with its fallback.
+    each waiting on its address as a list's rows do. Of a company's people, nobody on the never-again list or in People
+    is kept; a company whose domain is on that list is never made; one that shares a website with a place is marked.
+  - It finds nothing until its calibration run: `lead_platform.cards_on` (one predicate, `lead_card_live`) names it
+    only once that run has proved the provider reads its filters and the mapper its fields. Until then its door refuses
+    (`no_card`), Leads draws no Find people and Ask says it is not open yet. Switching it on is one update of that row,
+    by hand, after the run (`docs/runbook.md`).
+  - Erasure reaches a company's people: a person erased leaves every company that names them, their drafts go and
+    their address goes on the never-again list (`lead_person_forget`); an erased company's domain goes on it too, so
+    no search makes it again.
+  - Leads' Find people sheet starts one (`POST /api/v1/lead-searches/people`), checking what the route checks first (a
+    state it cannot read is said, never dropped into a search of the whole US). A people search has its own plan on the
+    page (`LeadSearchDto.people`, never read as a places plan), its own strip, and Find more like these, which opens the
+    sheet filled in. The peek names a company's people, and the row leads with the addressee.
+  - The person slots {{first name}}, {{company}}, {{title}} and {{role}}, after the six (a slot's place is its number
+    in a stored version); {{first name}} greets with "there" where nobody is named, {{company}} is the business's name,
+    and {{title}} and {{role}} hold the email where nobody is named.
   - The foot says where a lead was found (`whyFrom`, from its source), and the person a company's email makes is its
     addressee, by name.
+  - Ask proposes a people search (`propose_lead_search`, looking_for `people_at_companies`, its own schema), its card
+    saying the month's leads it uses and the source's note.
   - Owed: the card's calibration run, which pins the provider's build and checks its field names (one small paid run,
-    on Ruben's word), and Ask proposing a people search.
+    on Ruben's word), then `cards_on`.
 - `lead_operations`, `lead_search_members` and `reach_out_sends` gained writers (argued under Rises in `docs/debt.md`).

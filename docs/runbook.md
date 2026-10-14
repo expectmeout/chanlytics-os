@@ -882,6 +882,25 @@ Keep an old link host on the dashboard's project for at least 30 days after
 working that long. A reply needs no domain of its own any more: it lands in
 the mailbox the email left from.
 
+## Turn on a lead card
+
+A card finds leads only once `lead_platform.cards_on` names it (00429; the one predicate is `lead_card_live`): the Maps
+card ships on, the people card (`people_at_companies`) off. While a card is off its door refuses (`no_card`), Leads draws
+no door to it, and Ask says it is not open yet.
+
+Before the people card goes on, its calibration run, one small paid run on Ruben's word: run the card's actor once with
+a plan's filters (`CARDS.people_at_companies.buildInput` in `packages/core/src/leads/cards.ts`), read its items, check
+that `mapItem` and `companiesOf` keep most of them and that its filters held, then pin the actor's build there and record
+`calibrated` on its brief (`packages/contracts/src/leads/search/cards.ts`). Then, on production (the Supabase
+connector):
+
+```sql
+update public.lead_platform set cards_on = array['local_businesses', 'people_at_companies'] where id;
+```
+
+Find people appears on Leads at its next read, and Ask proposes people searches. Off again is the same update with the
+card left out; a search already running finishes.
+
 ## Turn on push
 
 The phone app is told through Expo's push service (`apps/edge/lib/ops/push.ts`, PR 0 and PR 2 of the phone app).
