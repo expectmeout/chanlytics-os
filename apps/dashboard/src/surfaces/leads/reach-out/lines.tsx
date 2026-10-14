@@ -8,7 +8,7 @@
  * read that failed draws nothing of it, never a line it did not read. Who may press is the role store's answer (canDo
  * "approve", and the role gate).
  */
-import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useEffect, useMemo, useReducer, useState } from "react";
 import type { LeadPeekVM, OwnerSaidIntent, ReachOutLeadTimelineDto, ReachOutLeadsDto } from "@chanlytics/contracts";
 import { replies } from "@/legacy-bridge/reach-out/replies";
 import { useReadAgain } from "../../campaigns/reach-out/read-again";
