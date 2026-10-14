@@ -187,9 +187,10 @@ test("a receipt never reads People, Reports or Campaigns on their own pages, and
   for (const hash of ["#/clients", "#/reports", "#/campaigns"]) {
     win.location.hash = hash;
     // Campaigns' own 30 days are read on demand and again once aged (results-surface.ts, a period surface), and so is the Campaigns
-    // lens's, which the Overview draws too: a read recorded holds nothing and would always say it has aged, so each is held fresh
-    // here, and what this asks is what was kept.
-    const r = await running({ fresh: ["campaign_results", "reports_campaigns"] });
+    // lens's, which the Overview draws too, and the Calendar's campaign marks (runs-surface.ts), which the page this leaves for
+    // draws: a read recorded holds nothing and would always say it has aged, so each is held fresh here, and what this asks is
+    // what was kept.
+    const r = await running({ fresh: ["campaign_results", "reports_campaigns", "calendar_runs"] });
     try {
       await away("#/calendar", hash);
       r.asked.length = 0;
