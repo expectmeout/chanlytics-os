@@ -2312,10 +2312,10 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   white-space: pre;
 }
 /* A rule with a :has() over the element it styles names that element by its tag or class, never by its place alone
-   (`> :first-child`, `> *`): the browser cannot narrow such a rule, and a press anywhere on the page restyled all of it
-   (tooling/scripts/tests/styles/has-subjects.test.mjs). The act is a button or a link. */
-.pg-act-slot:has(> #pg-act:not(:empty)) > button:not(#pg-act),
-.pg-act-slot:has(> #pg-act:not(:empty)) > a:not(#pg-act) {
+   (tooling/scripts/tests/styles/has-subjects.test.mjs). The act is a button or a link. The Calendar's act is its bar
+   (calendar.css), never an act of the frame's: a demo's Book keeps its place beside it. */
+.pg-slot:not([data-strip="calendar"]) > .pg-act-slot:has(> #pg-act:not(:empty)) > button:not(#pg-act),
+.pg-slot:not([data-strip="calendar"]) > .pg-act-slot:has(> #pg-act:not(:empty)) > a:not(#pg-act) {
   display: none;
 }
 /* The way back above the name (a person's People): the quiet link, in the muted ink. It takes a press wherever it stands:

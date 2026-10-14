@@ -184,8 +184,18 @@ globalThis.React = {
   // A store outside React (the seam): the value it holds now, which each draw here asks again.
   useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
 };
-// A layout effect is an effect here, as it is on the kit's stub (_legacy-react.mjs): the board fits its hour in one.
-globalThis.React.useLayoutEffect = globalThis.React.useEffect;
+// A layout effect is an effect here, as it is on the kit's stub (_legacy-react.mjs): the board fits its hour in one. One
+// with no dependencies runs after every draw, as React runs it: the page says its bar to the frame so (kit/head/standing.ts
+// useStanding), and the frame draws what the last draw said.
+globalThis.React.useLayoutEffect = (fn, deps) => {
+  if (deps !== undefined) return globalThis.React.useEffect(fn, deps);
+  const k = frames.key();
+  const cell = cells[k];
+  if (cell) cell.cleanup?.();
+  else cleanups.push(() => cells[k]?.cleanup?.());
+  const done = fn();
+  cells[k] = { cleanup: typeof done === "function" ? done : null };
+};
 // The TSX surface imports its hooks from "react", which under this runner has none: the same stub is set on that module.
 const reactModule = createRequire(new URL("../../../../apps/dashboard/src/legacy-bridge/_.js", import.meta.url))(
   "react",
@@ -263,6 +273,7 @@ const { CALENDAR_PAGE, CR_WARM_MS, fitHourPx } = await import(`${S}/calendar/wor
 // The floor an hour never goes under on a phone: what the fit answers for no room at all (words.ts keeps the number).
 const CR_HOUR_MIN_PX = fitHourPx(0, 1);
 const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
+const { standingSaid } = await import(`${S}/kit/head/standing.ts`);
 const { calendarAddress, calendarParam } = await import(`${S}/calendar/address.ts`);
 const realVerbs = { ...calendar };
 globalThis.window.__calendar = calendar;
@@ -407,7 +418,11 @@ const page = (props = {}) => {
   globalThis.setInterval = () => 0;
   globalThis.clearInterval = () => {};
   try {
-    return CalendarPage({ ...addr, ...props });
+    const drawn = CalendarPage({ ...addr, ...props });
+    // The frame draws the page's act on its row of views (board-parts.tsx calendarAct: the bar on a desk, Settings on a
+    // phone): here it hangs from the page's node, so a search of the page finds it where a person does, beside the board.
+    const act = standingSaid()?.act;
+    return act ? { ...drawn, props: { ...drawn.props, children: [...(drawn.props.children ?? []), act] } } : drawn;
   } finally {
     globalThis.setInterval = si;
     globalThis.clearInterval = ci;
@@ -2510,10 +2525,15 @@ test("REGRESSION: the Calendar shows the calendar first -- a title the top bar a
     null,
     "REGRESSION: a native date input",
   );
-  // The bar is the whole head: a line of counts under it said again what the board draws (22 Sep).
-  const head = find(tree, (n) => n.props?.className === "cal-head");
-  const inHead = [head.props.children].flat().filter(Boolean);
-  assert.ok(inHead.length === 1 && inHead[0] === bar, "the head holds the bar and nothing else");
+  // On a desk the bar is the act on the frame's row of views (board-parts.tsx calendarAct), and the page draws no head of its
+  // own: a line of counts under the bar said again what the board draws (22 Sep), and the bar's own row stood between the
+  // views and the first day (Ruben, 14 Oct 2026: one row, where the tabs are).
+  assert.equal(
+    find(tree, (n) => n.props?.className === "cal-head"),
+    null,
+    "no head between the views and the board on a desk",
+  );
+  assert.equal(bar.props.className, "cal-act", "the bar is the act the frame draws beside the views");
   // The hours, the rules, the calendar's source and Refresh are a sheet Settings opens (D6), never a fold under the board,
   // whose foot took the room an eleven-hour day needed on a phone; the booking link is Settings' own two items.
   const rules = () => find(tree, (n) => n.props?.testid === "cal-rules");
