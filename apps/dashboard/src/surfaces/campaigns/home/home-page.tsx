@@ -27,6 +27,7 @@ import { CmDot, CmHead } from "../parts/head";
 import { useCmPhone } from "../parts/split";
 import type { PlaybookCardVM } from "../playbooks/surface";
 import { ReachOutSheet } from "../reach-out/sheet";
+import type { ReachOutStart } from "../reach-out/sources";
 import { composeRoute, messageRoute, momentRoute, parseHome } from "./address";
 import { AskDoor, SetUpAsk, useLedgerOnScreen } from "./ask-on-campaigns";
 import type { HomeAddress } from "./address";
@@ -303,6 +304,9 @@ export function CampaignsHome({ param, nowMs }: CampaignsHomeProps) {
   const ledger = useLedgerPage(home, address, { group, nav, phone });
   const { onAct, onCopy, door } = useActs(home, nav, flash, ledger.marks.settle);
   const approval = useApproval(flash, canAct, ledger.marks.settle);
+  // A reach-out started from Write to leads: its search, handed over as New message closes, and its sheet drawn here
+  // once the address no longer names the composer, in its place, as a chain's change is (below).
+  const [starting, setStarting] = useState<ReachOutStart | null>(null);
   if (!playbooks) return null;
   const acts: RailActs & { onCopy: (phrase: string) => void } = {
     onAct,
@@ -377,6 +381,14 @@ export function CampaignsHome({ param, nowMs }: CampaignsHomeProps) {
       {chain && chain.search ? (
         <ReachOutSheet key={chain.root_id} search={chain.search} chain={chain} onClose={nav.close} onGo={nav.swap} />
       ) : null}
+      {starting && address.compose === null ? (
+        <ReachOutSheet
+          key={starting.search.id}
+          search={starting.search}
+          includeUnconfirmed={starting.includeUnconfirmed}
+          onClose={() => setStarting(null)}
+        />
+      ) : null}
       <NewMessage
         compose={chain ? null : address.compose}
         home={home}
@@ -392,6 +404,10 @@ export function CampaignsHome({ param, nowMs }: CampaignsHomeProps) {
           composerDone(flash)(d, changed);
           // Held until no sheet stands (useRowMarks): a change made from a drawer closes back to it first.
           if (d.id) ledger.marks.arrive(d.id);
+        }}
+        onWrite={(start) => {
+          setStarting(start);
+          nav.close();
         }}
       />
       {toastNode}

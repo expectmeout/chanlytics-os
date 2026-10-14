@@ -2742,6 +2742,31 @@ test("the card's settings are one line each, and Change opens the editor under i
   }
 });
 
+test("REGRESSION: on a phone a deal's row folds open as a desk's does -- its press opened the deal sheet to edit the proposal, which a client's deal cannot take (the sheet said only that the deal had moved on), and its moves and next step were out of reach (census, 13 Oct 2026)", async () => {
+  recFolds.reset();
+  const asked = sheetAsks();
+  const mm = globalThis.window.matchMedia;
+  globalThis.window.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
+  try {
+    const client = withDeals([dealRow({ stage: "won", decided_at: iso(2 * D), per: "month", amount_cents: 250_000 })]);
+    let tree = await openedRow(client);
+    assert.deepEqual(asked, [], "the row opens no sheet");
+    assert.equal(byTestId(cardOf(tree), "person-deal-title").props["aria-expanded"], true, "it folds open");
+    assert.deepEqual(movesOf(tree).map(textOf), ["End the engagement"], "a client's one move, under its row");
+    tree = await openedRow(withDeals([dealRow()]));
+    assert.deepEqual(asked, []);
+    const acts = [byTestId(tree, "person-deal-next"), ...movesOf(tree)].filter(Boolean).map(textOf);
+    assert.deepEqual(
+      acts,
+      ["Mark as client", "Mark as passed"],
+      "a proposal's moves, which the sheet's edit never offered",
+    );
+  } finally {
+    globalThis.window.matchMedia = mm;
+    delete globalThis.window.openDealSheet;
+  }
+});
+
 test("REGRESSION: on a phone a row stays in the card behind its sheet -- taken out, the card was a row shorter under the wash, and everything under it moved up and back down", async () => {
   const vm = toPersonVM(detail(), ZONE, new Date(NOW));
   const mm = globalThis.window.matchMedia;

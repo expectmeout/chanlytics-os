@@ -3,8 +3,10 @@
  * Leads you add first, which opens Leads, where a search is gone through one lead at a time and the ones added become a
  * list of the owner's own ("Write to the N" makes it and opens this same sheet); then each search or list with no
  * reach-out yet that has someone to write to, newest first, read when the choice is made (reach_out_sources), each
- * opening the reach-out sheet over it, as Leads' own door does. Writing is an operator's: a role that may not is told
- * why once, and its rows open nothing.
+ * handing its search to the page (`onWrite`), which opens the reach-out sheet over it, as Leads' own door does: in New
+ * message's place, since the record sheet stands on the page and could not stand under that sheet's modal (it opened
+ * hidden behind it, its Start out of reach). Writing is an operator's: a role that may not is told why once, and its
+ * rows open nothing.
  */
 import { useEffect, useReducer, useState } from "react";
 import { REACH_OUT_SOURCE_WORDS, leadsRoute, reachOutSourceOf } from "@chanlytics/contracts";
@@ -13,8 +15,13 @@ import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { ListRow } from "../../kit/list-row/list-row";
 import { canDo, gateTitle, keyPress, navigate } from "../../legacy-verbs";
-import { ReachOutSheet } from "./sheet";
 import { PILE_NEW_LIST, PILE_TARGET_KEY, reachOuts } from "./surface";
+
+/** A search a reach-out is to start on, as a row of Write to leads hands it over: with its unconfirmed, where the row says so. */
+export interface ReachOutStart {
+  search: { id: string; name: string };
+  includeUnconfirmed: boolean;
+}
 
 /** Leads you add: Leads, where the next pile holds what is added for a list of its own. */
 function addYourOwn() {
@@ -32,10 +39,9 @@ function pressOf(may: boolean, fn: () => void) {
   return { role: "button", tabIndex: 0, onClick: fn, onKeyDown: keyPress(fn) };
 }
 
-export function WriteToLeads() {
+export function WriteToLeads({ onWrite }: { onWrite: (start: ReachOutStart) => void }) {
   const [sources, setSources] = useState<ReachOutSourceDto[] | null | undefined>(undefined);
   const [tick, again] = useReducer((n: number) => n + 1, 0);
-  const [open, setOpen] = useState<{ source: ReachOutSourceDto; include: boolean } | null>(null);
   useEffect(() => {
     let live = true;
     void reachOuts.sources().then((s) => {
@@ -77,19 +83,11 @@ export function WriteToLeads() {
               name={v.title}
               said={v.sub}
               data-testid="ro-source"
-              {...pressOf(may, () => setOpen({ source: s, include: v.include }))}
+              {...pressOf(may, () => onWrite({ search: { id: s.id, name: s.name }, includeUnconfirmed: v.include }))}
             />
           );
         })
       )}
-      {open ? (
-        <ReachOutSheet
-          search={{ id: open.source.id, name: open.source.name }}
-          includeUnconfirmed={open.include}
-          onClose={() => setOpen(null)}
-          onDone={again}
-        />
-      ) : null}
     </div>
   );
 }

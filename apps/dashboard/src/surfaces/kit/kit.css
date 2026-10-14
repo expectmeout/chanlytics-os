@@ -854,6 +854,60 @@ a.more-item {
     animation: none;
   }
 }
+/* A list to choose one from (the kit's Picker and Select, `data-sheet` on its popup: picker/phone-list.ts) is the same
+   phone sheet under 900px as the Menu's: from the bottom edge, a thumb's rows, a handle that says a pull down closes it,
+   and over the keyboard where it has a search. It hung from its token as a desk's list, a column in the middle of a
+   sentence over the words it covered (census, 13 Oct 2026). The veil behind any list or menu on its positioner stands
+   over the sheet it was opened from, as the house's MoreMenu's does: under it, the sheet stood clear beside the list. */
+@media (max-width: 900px) {
+  .pop-place:has(> .rec-combo-pop[data-sheet]) {
+    position: fixed !important;
+    inset: auto 0 var(--kb, 0px) 0 !important;
+    transform: none !important;
+  }
+  .pop-place > .rec-combo-pop[data-sheet] {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    max-width: none;
+    max-height: calc(72dvh - var(--kb, 0px));
+    padding-bottom: env(safe-area-inset-bottom);
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+    border-bottom: 0;
+    animation: more-sheet-in 220ms var(--ease-out);
+  }
+  .pop-place > .rec-combo-pop[data-sheet]::before {
+    content: "";
+    flex: none;
+    display: block;
+    width: 36px;
+    height: 4px;
+    margin: 10px auto 6px;
+    border-radius: var(--radius-full);
+    background: var(--line-strong);
+  }
+  .pop-place > .rec-combo-pop[data-sheet] > .rec-combo-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    padding: 4px 10px 12px;
+  }
+  .pop-place > .rec-combo-pop[data-sheet] .rec-combo-opt {
+    align-items: center;
+    min-height: 52px;
+    padding: 0 12px;
+    font-size: var(--text-md);
+  }
+  .more-backdrop:has(~ .pop-place) {
+    z-index: 419;
+    background: var(--surface-veil);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pop-place > .rec-combo-pop[data-sheet] {
+    animation: none;
+  }
+}
 
 /* ---- Confirm — the one armed question (kit/confirm/confirm.tsx) ----
    A line where the control that armed it was, or a panel under the row when `block`: the question in ink, what happens
@@ -2019,9 +2073,13 @@ a.more-item {
   visibility: visible;
   transition: grid-template-rows var(--duration-base) var(--ease-out);
 }
+/* Clipped, never a scroller: a row's ground reaches 12px past its words on each side, so what it holds is wider than the
+   box, and a box that hides it can be scrolled across, by a focus or a scroll into view, with no way back (the rows
+   behind a fold's sheet stood cut off at their first letters). Hidden is for a browser with no clip. */
 .rec-disclosure-inner {
   min-height: 0;
   overflow: hidden;
+  overflow: clip;
 }
 .rec-disclosure[data-open="true"] .rec-disclosure-inner {
   display: flex;

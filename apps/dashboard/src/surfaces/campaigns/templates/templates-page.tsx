@@ -30,6 +30,7 @@
 import { useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { LIBRARY_WORDS } from "@chanlytics/contracts";
+import type { ReachOutChainDto } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { canDo, demoSession, gateTitle, useLegacyToast } from "../../legacy-verbs";
 import { FailedRead } from "../../kit/empty/empty";
@@ -39,6 +40,7 @@ import { CmHead } from "../parts/head";
 import { CmSplit, useCmPhone } from "../parts/split";
 import { PaneSheet } from "../home/pane-sheet";
 import { ReachOutEmailPane } from "../reach-out/email-message";
+import { ReachOutSheet } from "../reach-out/sheet";
 import { tplEmailOpen, tplEmails, tplEmailsMatching } from "./emails";
 import { listingOf } from "./group";
 import type { TemplateGroup } from "./group";
@@ -105,6 +107,8 @@ function usePageState() {
   // What the search box holds: the rows whose words have it stay, the rest stand down.
   const [q, setQ] = useState("");
   const [toastNode, flash] = useLegacyToast();
+  // The reach-out one of its emails is changing (Edit the reach-out): its sheet is the page's, over the list.
+  const [changing, setChanging] = useState<ReachOutChainDto | null>(null);
   return {
     doing,
     setDoing,
@@ -119,7 +123,25 @@ function usePageState() {
     setQ,
     toastNode,
     flash,
+    changing,
+    setChanging,
   };
+}
+
+/**
+ * Edit the reach-out, from one of its emails: the record sheet stands on the page, so on a phone the drawer gives way to
+ * it first (a modal held it hidden behind), as a drawer gives way on Campaigns' home; beside the list, the email stays.
+ */
+const changeChain =
+  (phone: boolean, closeOpen: () => void, setChanging: (c: ReachOutChainDto) => void) => (c: ReachOutChainDto) => {
+    if (phone) closeOpen();
+    setChanging(c);
+  };
+
+/** The reach-out being changed from one of its emails: its sheet, over the list. */
+function ChainSheet({ chain, onClose }: { chain: ReachOutChainDto | null; onClose: () => void }) {
+  if (!chain || !chain.search) return null;
+  return <ReachOutSheet key={chain.root_id} search={chain.search} chain={chain} onClose={onClose} />;
 }
 
 function MessagesReal() {
@@ -135,7 +157,7 @@ function MessagesReal() {
   const state = usePageState();
   const phone = useCmPhone();
   const { doing, setDoing, doingRef, composing, setComposing, showHidden, setShowHidden } = state;
-  const { openKey, setOpenKey, q, setQ, toastNode, flash } = state;
+  const { openKey, setOpenKey, q, setQ, toastNode, flash, changing, setChanging } = state;
   const busy = doing !== null;
   // Who may add, change or remove a message: the role store's answer, View-as included.
   const canAct = canDo("approve");
@@ -221,6 +243,7 @@ function MessagesReal() {
       busy={busy}
       onSave={acts.saveEmail}
       onClose={closeOpen}
+      onEdit={changeChain(phone, closeOpen, setChanging)}
     />
   ) : null;
 
@@ -266,6 +289,7 @@ function MessagesReal() {
     <>
       <CmSplit className="tpl-page" testid="messages-real" list={list} open={phone ? null : pane} />
       {phone ? phoneDrawer({ pane, composing, onClose: composing ? () => setComposing(false) : closeOpen }) : null}
+      <ChainSheet chain={changing} onClose={() => setChanging(null)} />
       {toastNode}
     </>
   );

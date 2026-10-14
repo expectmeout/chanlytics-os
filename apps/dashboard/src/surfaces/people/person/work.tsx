@@ -202,7 +202,7 @@ export function TabBody({ c, past, about }: { c: PageCtx; past: PersonVM["timeli
   if (c.tab === "history") return historySection(c, past);
   if (c.tab === "visits") return <VisitsTab c={c} />;
   if (c.tab === "deals")
-    return <PersonDealCard p={c.dealP} canRecord={c.canRecord} onCompose={c.compose} flash={c.flash} phone={c.phone} />;
+    return <PersonDealCard p={c.dealP} canRecord={c.canRecord} onCompose={c.compose} flash={c.flash} />;
   if (c.tab === "campaigns") return campaignsCard(c.p) || null;
   if (c.tab === "about") return about;
   return <Overview c={c} />;

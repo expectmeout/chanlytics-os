@@ -10,6 +10,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createRequire } from "node:module";
 import { hookFrames } from "../_hook-frames.mjs";
 import { kitHooks, kitPages } from "../_legacy-react.mjs";
 
@@ -271,6 +272,50 @@ test("the menu wears .escape only when asked, and an escaped one closes on a scr
     listeners.map((l) => l.type),
     ["keydown"],
   );
+});
+
+test("a phone's menu is pulled down to close, as the kit Menu's is, and the pull is its own", () => {
+  const items = [{ label: "Rename", icon: "pencil", onClick() {} }];
+  let swipe = null;
+  const kept = [];
+  // A phone's menu is drawn on the document's body; under this runner's react-server condition react-dom has no
+  // createPortal, so the portal is the menu itself, as the shared stub has it (_legacy-react.mjs).
+  const reactDom = createRequire(new URL("../../../../apps/dashboard/package.json", import.meta.url))("react-dom");
+  const portal = reactDom.createPortal;
+  reactDom.createPortal = (node) => node;
+  globalThis.window.matchMedia = () => ({ matches: true });
+  // data-bits' reader of a thumb, as the page has it: what the menu asks of it.
+  globalThis.window.touchSwipe = (o) => {
+    swipe = o;
+    return { onTouchStart() {}, onTouchEnd() {} };
+  };
+  try {
+    cells = { ":0": true, ":1": { current: null } }; // drawn open, as the page holds it once its trigger is pressed
+    frames.begin();
+    const menu = menuOf(MoreMenu({ items }));
+    assert.equal(menu.props["data-sheet"], "", "a phone's menu is the bottom sheet");
+    assert.equal(
+      typeof menu.props.onTouchStart,
+      "function",
+      "which takes a pull: it drew the handle and did not answer one",
+    );
+    menu.props.onTouchStart({ stopPropagation: () => kept.push(1) });
+    assert.deepEqual(kept, [1], "kept its own: a pull on a menu opened in a sheet did not pull the sheet too");
+    assert.equal(swipe.when(), true, "on a phone");
+    swipe.onDown();
+    assert.equal(cells[":0"], false, "the pull closes it");
+    // A desk's menu hangs from its trigger, and nothing reads a thumb on it.
+    globalThis.window.matchMedia = () => ({ matches: false });
+    cells = { ":0": true, ":1": { current: null } };
+    frames.begin();
+    const desk = menuOf(MoreMenu({ items }));
+    assert.equal(desk.props["data-sheet"], undefined);
+    assert.equal(desk.props.onTouchStart, undefined);
+  } finally {
+    delete globalThis.window.matchMedia;
+    delete globalThis.window.touchSwipe;
+    reactDom.createPortal = portal;
+  }
 });
 
 test("an item with `checked` is one of a set: a menuitemradio, ticked when chosen, its words in one column with the rest", () => {

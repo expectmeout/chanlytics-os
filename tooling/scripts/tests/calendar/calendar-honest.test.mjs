@@ -729,6 +729,28 @@ test("REGRESSION (0008): the proposal act closes the visit first and opens the o
   }
 });
 
+test("REGRESSION: More's Set a step closes the visit first and opens the step sheet on the next task, as the proposal act does -- opened over the visit, the record sheet stood hidden behind it, and nothing seemed to happen (census, 13 Oct 2026)", async () => {
+  const steps = [];
+  globalThis.window.openStepSheet = (ask) => steps.push(ask);
+  try {
+    const tree = peek();
+    const more = find(
+      byTestId(tree, "cal-visit-foot"),
+      (n) => n.props?.label === "More" && Array.isArray(n.props?.groups),
+    );
+    const item = (more?.props.groups ?? []).flatMap((g) => g.items).find((i) => /step/i.test(String(i.label)));
+    assert.ok(item, "More offers it");
+    item.onSelect();
+    assert.deepEqual(steps, [], "not in the same press: the visit goes first");
+    assert.equal(byTestId(page(), "cal-panel"), null, "the visit closed");
+    await settle(2);
+    assert.deepEqual(steps, [{ personId: "p1" }], "the step sheet, for them");
+  } finally {
+    delete globalThis.window.openStepSheet;
+    forgetPeek();
+  }
+});
+
 test("(0008) the proposal act is gated as the sheet's Save is: a role that may not record a deal is told why at the button, and nothing opens", async () => {
   const hadStore = globalThis.window.ST_STORE;
   globalThis.window.ST_STORE = { can: () => false, myRole: () => "viewer" };
