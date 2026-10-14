@@ -34,10 +34,11 @@ import { backToPeople, hear, saidBy, usePersonToast } from "../person-verbs";
 import { personMovedTo, warmPerson } from "../people-detail";
 import { armWalk, noteStep, takeStep, walkOf, type PersonWalk } from "../walk";
 import { dealPersonOf } from "./ctx";
-import type { CombineState, DelState, DoubtState, MergeState, PageCtx, RmState } from "./ctx";
+import { MERGE_CLOSED } from "./ctx";
+import type { DelState, DoubtState, MergeState, PageCtx, RmState } from "./ctx";
 import { BusinessSheet, WorksAtCard } from "./business";
 import { ListsSheet } from "./sheets/lists-sheet";
-import { CombineSheet, useArrivalToast } from "./sheets/combine-sheet";
+import { useArrivalToast } from "./sheets/combine";
 import { CallSheet, usePersonCall } from "./call";
 import { PersonWalkNav, PhoneDock, hero, openWith, useNameAway } from "./hero";
 import { NotesSection } from "./overview";
@@ -132,7 +133,7 @@ function useLoad(id: string, vm: PersonVM | null, setSt: Dispatch<SetStateAction
  * their old address -- a bell row, a note's link, a tab left open -- is replaced by the kept person's, on the tab it
  * asked for, never "not in your workspace" (the wiring's second audit, S5-3). True while that move is under way (the
  * kept person's page is mounted afresh: people-route.tsx keys it by id). Not while this page's own Combine is out
- * (`combining`): its sheet moves to the kept person itself, with the toast that says so (combine-sheet.tsx arrival).
+ * (`combining`): its sheet moves to the kept person itself, with the toast that says so (sheets/combine.tsx arrival).
  */
 function useCombinedInto(id: string, missing: boolean, tab: PersonTab, combining: boolean): boolean {
   const to = missing && !combining ? personMovedTo(id) : null;
@@ -219,6 +220,7 @@ function listsGroup(c: PageCtx) {
       flash={flash}
       smart={p.smartLists || []}
       row={c.phone}
+      onPick={() => c.setListsOpen(true)}
     />
   );
 }
@@ -280,7 +282,6 @@ function personPage(
       <BusinessSheet c={c} />
       <CallSheet c={c} />
       <ListsSheet c={c} />
-      <CombineSheet c={c} />
       {phoneFolds(c)}
       {toastNode}
     </div>
@@ -297,7 +298,7 @@ function ClientProfileReal({ id, tab: asked }: { id: string; tab: PersonTab }) {
   // undone. The one Confirm draws it; the typed text and the match stay here, with the record.
   const [del, setDel] = useState<DelState>({ open: false, typed: "", busy: false, error: null });
   // "Merge with another record" is the same kind of act (0028): the other record chosen, then the kept name typed.
-  const [merge, setMerge] = useState<MergeState>({ open: false, pick: null, typed: "", busy: false, error: null });
+  const [merge, setMerge] = useState<MergeState>(MERGE_CLOSED);
   // "Not the same" on a doubt the door raised (0034 step 4): which row's press is out, and what went wrong.
   const [doubt, setDoubt] = useState<DoubtState>({ busy: null, error: null });
   const [rm, setRm] = useState<RmState>({ busy: false, error: null });
@@ -312,9 +313,8 @@ function ClientProfileReal({ id, tab: asked }: { id: string; tab: PersonTab }) {
   };
   const load = useLoad(id, st.vm, setSt);
   const people = usePeopleSeam();
-  const [combine, setCombine] = useState<CombineState>({ act: null, busy: false, error: null });
   // A person combined away is read on the kept one's page: "Reading…" while the address moves, never "not here".
-  const moving = useCombinedInto(id, st.missing, asked, combine.busy);
+  const moving = useCombinedInto(id, st.missing, asked, merge.busy && !!merge.combine);
   const { vm, error } = st;
   const [missing, loading] = [st.missing && !moving, st.loading || moving];
   const phone = usePhone();
@@ -431,8 +431,6 @@ function ClientProfileReal({ id, tab: asked }: { id: string; tab: PersonTab }) {
     wide,
     listsOpen,
     setListsOpen,
-    combine,
-    setCombine,
   };
   // Every send the page offers opens their thread through one path (the More menu's, the deal card's, Up next's).
   c.compose = openWith(c);

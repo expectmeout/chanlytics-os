@@ -9,27 +9,55 @@ import type { LeadPeekVM } from "@chanlytics/contracts";
 import { confirmPart } from "../../legacy-parts";
 import { Menu } from "../../kit/menu/menu";
 import { MenuInPlace, menuGroups, moreButton } from "../../people/menu-groups";
+import { PhoneSheetRow } from "../../people/sheets/phone-sheet";
 import type { Armed, Deck, PeekActs, PeekMode } from "./types";
 
-/** "What makes it not a fit?" -- five whys, one tap each (PRD 9.5). It teaches nothing in this release. */
-export const LeadNotFitWhy = ({ busy, on }: { busy?: boolean; on: Pick<PeekActs, "onWhy"> }) => (
-  <div className="pk-nf pl-peek panel panel-pop" role="menu" aria-label={W.notFitTitle} data-testid="peek-why">
-    <div className="pop-h">{W.notFitTitle}</div>
-    {W.whys.map((w) => (
-      <button
-        key={w.id}
-        type="button"
-        role="menuitem"
-        className="pop-row"
-        disabled={busy}
-        data-testid={`peek-why-${w.id}`}
-        onClick={() => on.onWhy(w.id)}
-      >
-        {w.label}
-      </button>
-    ))}
-  </div>
-);
+/**
+ * "What makes it not a fit?" -- five whys, one tap each (PRD 9.5). It teaches nothing in this release. The one drawing
+ * of them, for one lead or a selection (the sheets as verbs, 14 Oct 2026: a phone's selection drew its own rows): a pop
+ * under the press on a desk and in the peek, or a phone sheet's rows (`rows`), its title the sheet's.
+ */
+export const LeadNotFitWhy = ({
+  busy,
+  on,
+  rows = false,
+  testid = "peek-why",
+}: {
+  busy?: boolean;
+  on: Pick<PeekActs, "onWhy">;
+  rows?: boolean;
+  testid?: string;
+}) =>
+  rows ? (
+    <div className="pp-sheet-rows">
+      {W.whys.map((w) => (
+        <PhoneSheetRow
+          key={w.id}
+          label={w.label}
+          disabled={busy}
+          onClick={() => on.onWhy(w.id)}
+          testid={`${testid}-${w.id}`}
+        />
+      ))}
+    </div>
+  ) : (
+    <div className="pk-nf pl-peek panel panel-pop" role="menu" aria-label={W.notFitTitle} data-testid={testid}>
+      <div className="pop-h">{W.notFitTitle}</div>
+      {W.whys.map((w) => (
+        <button
+          key={w.id}
+          type="button"
+          role="menuitem"
+          className="pop-row"
+          disabled={busy}
+          data-testid={`${testid}-${w.id}`}
+          onClick={() => on.onWhy(w.id)}
+        >
+          {w.label}
+        </button>
+      ))}
+    </div>
+  );
 
 /**
  * The lead's ⋯ (PR 9): what contracts' leadPeekMenu offers this member -- Erase, to the owner alone. A role that may

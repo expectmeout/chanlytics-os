@@ -84,7 +84,8 @@ test("the sheet opens a new step on its deal, or a change to one of theirs with 
     { mode: add.mode, title: add.title, sub: add.sub, save: add.save, note: add.note, dealId: add.dealId },
     { mode: "add", title: "Set a next step", sub: "Tove Lind · Website", save: "Set it", note: null, dealId: "d1" },
   );
-  assert.deepEqual(add.draft, { what: "", day: null, picking: false, forId: null });
+  assert.deepEqual(add.draft, { what: "", day: null, picking: false, forId: null, teamOnly: false });
+  assert.equal(add.kind, "step", "a deal's next step is a step: a day to pick, never No day");
   assert.deepEqual(
     add.team.map((m) => m.label),
     ["Anyone on the team", "Me", "Sam"],
@@ -98,15 +99,74 @@ test("the sheet opens a new step on its deal, or a change to one of theirs with 
   const edit = stepSheetFor(person, { noteId: "n1" }, now, ZONE);
   assert.deepEqual([edit.mode, edit.title, edit.save, edit.dealId], ["edit", "Change the step", "Save", "d1"]);
   assert.deepEqual(edit.note, { id: "n1", version: 4 });
-  assert.deepEqual(edit.draft, { what: "Step n1", day: "2026-09-25", picking: false, forId: "u-sam" });
+  assert.deepEqual(edit.draft, { what: "Step n1", day: "2026-09-25", picking: false, forId: "u-sam", teamOnly: false });
   assert.equal(stepSheetFor(person, { noteId: "n-far" }, now, ZONE).draft.picking, true, "a day no choice is");
   assert.equal(stepSheetFor(person, { noteId: "n-theirs" }, now, ZONE).blocked, NOTE_REFUSALS.not_yours);
   assert.equal(stepSheetFor(person, { noteId: "gone" }, now, ZONE).blocked, STEP_SHEET_WORDS.noStep);
   assert.equal(edit.blocked, null);
 });
 
+test("opened as a note, the sheet's first day is No day, a note of theirs with none opens as a note, and its Save says which", () => {
+  const now = Date.parse("2026-09-24T15:00:00Z");
+  const person = {
+    id: "p1",
+    name: "Tove Lind",
+    noteTeam: [],
+    noteList: [noteVM("plain", { teamOnly: true, version: 2 })],
+  };
+  const note = stepSheetFor(person, { note: true }, now, ZONE);
+  assert.deepEqual([note.kind, note.mode, note.title, note.save], ["note", "add", "Add a note", "Add it"]);
+  assert.deepEqual(
+    note.days.map((c) => c.label),
+    ["No day", "Today", "Tomorrow", "Next week", "Pick a day"],
+  );
+  assert.deepEqual(note.draft, { what: "", day: contracts.NO_DAY, picking: false, forId: null, teamOnly: false });
+  const plain = stepSheetFor(person, { noteId: "plain" }, now, ZONE);
+  assert.deepEqual(
+    [plain.kind, plain.title, plain.draft.day, plain.draft.teamOnly],
+    ["note", "Change the note", contracts.NO_DAY, true],
+  );
+  // A note with no day is the receptionist's to read unless it is kept from it; a day makes it a step, the team's.
+  const body = (d) =>
+    stepSheetBody({ note: null, dealId: null, kind: "note" }, { ...note.draft, what: "Prefers mornings", ...d });
+  assert.deepEqual(body({}).body, { body: "Prefers mornings", for_user_id: null, team_only: false });
+  assert.deepEqual(body({ teamOnly: true }).body, { body: "Prefers mornings", for_user_id: null, team_only: true });
+  assert.deepEqual(body({ day: "2026-09-25" }).body, {
+    body: "Prefers mornings",
+    due_on: "2026-09-25",
+    for_user_id: null,
+    team_only: true,
+  });
+  assert.deepEqual(body({ what: " " }).problem, { field: "what", words: STEP_SHEET_WORDS.problems.note });
+  // A picked date field with no day yet is a step waiting for its day, never a note.
+  assert.deepEqual(body({ picking: true }).problem, { field: "day", words: STEP_SHEET_WORDS.problems.day });
+  const done = contracts.stepSheetDone;
+  assert.deepEqual(
+    [
+      done({ mode: "add" }, { day: contracts.NO_DAY, picking: false }),
+      done({ mode: "add" }, { day: "2026-09-25", picking: false }),
+      done({ mode: "edit" }, { day: contracts.NO_DAY, picking: false }),
+      done({ mode: "edit" }, { day: "2026-09-25", picking: false }),
+    ],
+    ["Note added", "Next step set", "Note saved", "Step saved"],
+  );
+  // Many people: one line, within the batch door's limit.
+  assert.deepEqual(contracts.noteManyLine("  class of 12 Sep "), { line: "class of 12 Sep", problem: null });
+  assert.deepEqual(contracts.noteManyLine(" "), { line: null, problem: STEP_SHEET_WORDS.problems.note });
+  assert.deepEqual(contracts.noteManyLine("x".repeat(contracts.NOTE_LINE_MAX + 1)), {
+    line: null,
+    problem: STEP_SHEET_WORDS.problems.tooLong(contracts.NOTE_LINE_MAX),
+  });
+});
+
 test("a Save sends the notes route a step -- its words, its day, for whom, the team's, on its deal -- or says what is wrong first", () => {
-  const draft = { what: "  Call about the timeline  ", day: "2026-09-25", picking: false, forId: "u-sam" };
+  const draft = {
+    what: "  Call about the timeline  ",
+    day: "2026-09-25",
+    picking: false,
+    forId: "u-sam",
+    teamOnly: false,
+  };
   assert.deepEqual(stepSheetBody({ note: null, dealId: "d1" }, draft), {
     problem: null,
     body: {
@@ -136,27 +196,30 @@ test("a Save sends the notes route a step -- its words, its day, for whom, the t
   assert.deepEqual(problem({ day: "2026-02-30" }), { field: "day", words: P.day });
   // Read again while open: what was typed stays, every field left alone takes the fresh value; the day and its
   // date field are one field.
-  const was = { what: "Call", day: "2026-09-25", picking: false, forId: null };
-  const fresh = { what: "Call them", day: "2026-10-01", picking: true, forId: "u-sam" };
+  const was = { what: "Call", day: "2026-09-25", picking: false, forId: null, teamOnly: false };
+  const fresh = { what: "Call them", day: "2026-10-01", picking: true, forId: "u-sam", teamOnly: false };
   assert.deepEqual(contracts.stepSheetMerge({ ...was, what: "Call Tove" }, was, fresh), {
     what: "Call Tove",
     day: "2026-10-01",
     picking: true,
     forId: "u-sam",
+    teamOnly: false,
   });
   assert.deepEqual(contracts.stepSheetMerge({ ...was, picking: true }, was, fresh), {
     what: "Call them",
     day: "2026-09-25",
     picking: true,
     forId: "u-sam",
+    teamOnly: false,
   });
   assert.deepEqual(contracts.stepSheetMerge(was, was, fresh), fresh, "nothing typed: all of it fresh");
   // Changed is judged against what it opened with.
-  const opened = { what: "Call", day: null, picking: false, forId: null };
+  const opened = { what: "Call", day: null, picking: false, forId: null, teamOnly: false };
   assert.equal(stepSheetDirty({ ...opened, what: " Call " }, opened), false);
   assert.equal(stepSheetDirty({ ...opened, day: "2026-09-25" }, opened), true);
   assert.equal(stepSheetDirty({ ...opened, forId: "" }, opened), false);
   assert.equal(stepSheetDirty({ ...opened, forId: "u-sam" }, opened), true);
+  assert.equal(stepSheetDirty({ ...opened, teamOnly: true }, opened), true);
 });
 
 /* ------------------------------------ the sheet, drawn by the shell's host ------------------------------------ */
@@ -388,6 +451,62 @@ test("the sheet opens where it is asked for, reads the person, says what is wron
   );
   assert.equal(sheetOf(tree), null, "and the sheet has closed");
   assert.equal(recFolds.dirty(), false);
+});
+
+test("opened as a note (a visit's Add a note), the sheet writes a note with no day, read by the receptionist unless kept from it", async () => {
+  const now = Date.now();
+  const { calls } = wire(() => personDto(now));
+  open();
+  assert.equal(openStepSheet({ personId: "p1", note: true }), true);
+  let tree = await until("the person is read", (t) => input(t, "step-sheet-what-input"));
+  assert.equal(title(tree), "Add a note");
+  assert.equal(dayButton(tree, "No day")?.props["aria-checked"], true, "No day is chosen as it opens");
+  assert.ok(byTestId(tree, "step-sheet-team-only"), "with no day, Team only says who reads it");
+  type(input(tree, "step-sheet-what-input"), "Prefers mornings");
+  tree = redraw();
+  press(byTestId(tree, "step-sheet-team-only"));
+  press(saveOf(redraw()));
+  tree = await until("written", written);
+  const writes = calls.filter((c) => c.method === "POST");
+  assert.deepEqual(
+    writes.map((c) => [c.path, c.body]),
+    [["/api/v1/contacts/p1/notes", { body: "Prefers mornings", for_user_id: null, team_only: true }]],
+  );
+  assert.equal(textOf(toasts.at(-1).msg), STEP_SHEET_WORDS.done.note);
+  assert.equal(sheetOf(tree), null);
+});
+
+test("opened for many (a selection's Add a note), the sheet takes one line, writes it once through the batch door, and hands the selection what it reached", async () => {
+  const calls = [];
+  W.fetch = async (url, init = {}) => {
+    const u = new URL(String(url), "https://app.chanlytics.com");
+    const body = init.body ? JSON.parse(init.body) : null;
+    calls.push({ method: init.method || "GET", path: u.pathname, body });
+    await settle();
+    if (u.pathname === "/api/v1/contacts/notes")
+      return json(200, { ok: true, data: { done: 2, failed: [], skipped: [] } });
+    return json(404, { ok: false, error: { code: "not_found", message: `no ${u.pathname}` } });
+  };
+  const done = [];
+  open();
+  assert.equal(openStepSheet({ personIds: ["p1", "p2", "p1"], onDone: (r) => done.push(r) }), true);
+  let tree = redraw();
+  assert.equal(title(tree), "Add a note");
+  assert.equal(sub(tree), "2 people", "each person once");
+  assert.equal(calls.length, 0, "nobody is read: one line goes to all of them");
+  press(saveOf(tree));
+  tree = redraw();
+  assert.match(textOf(byTestId(tree, "step-sheet-what")), new RegExp(STEP_SHEET_WORDS.problems.note));
+  type(input(tree, "step-sheet-what-input"), "  class of 12 Sep ");
+  press(saveOf(redraw()));
+  tree = await until("written", () => done.length > 0);
+  assert.deepEqual(
+    calls.map((c) => [c.method, c.path, c.body]),
+    [["PUT", "/api/v1/contacts/notes", { ids: ["p1", "p2"], append: "class of 12 Sep" }]],
+  );
+  assert.deepEqual(done, [{ done: 2, failed: 0, line: "class of 12 Sep" }]);
+  assert.equal(toasts.length, 0, "the selection says it, as its bar says its acts");
+  assert.equal(sheetOf(tree), null);
 });
 
 test("a change opens on the step as it stands and saves with the version it opened over, which the door refuses if a teammate changed it since; someone else's step is not changed here", async () => {

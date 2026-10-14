@@ -200,6 +200,7 @@ export const ROUTES = {
   "POST people/[id]/draft": { method: "POST", path: "/api/v1/people/[id]/draft" },
   "POST people/[id]/message": { method: "POST", path: "/api/v1/people/[id]/message" },
   "POST people/[id]/name": { method: "POST", path: "/api/v1/people/[id]/name" },
+  "POST people/[id]/say": { method: "POST", path: "/api/v1/people/[id]/say" },
   "POST platform/jobs/requeue": { method: "POST", path: "/api/v1/platform/jobs/requeue" },
   "POST platform/lines/refile": { method: "POST", path: "/api/v1/platform/lines/refile" },
   "POST platform/lines/release": { method: "POST", path: "/api/v1/platform/lines/release" },
@@ -466,6 +467,7 @@ export type Routes = {
   "POST people/[id]/draft": typeof import("../../app/api/v1/people/[id]/draft/route").POST;
   "POST people/[id]/message": typeof import("../../app/api/v1/people/[id]/message/route").POST;
   "POST people/[id]/name": typeof import("../../app/api/v1/people/[id]/name/route").POST;
+  "POST people/[id]/say": typeof import("../../app/api/v1/people/[id]/say/route").POST;
   "POST platform/jobs/requeue": typeof import("../../app/api/v1/platform/jobs/requeue/route").POST;
   "POST platform/lines/refile": typeof import("../../app/api/v1/platform/lines/refile/route").POST;
   "POST platform/lines/release": typeof import("../../app/api/v1/platform/lines/release/route").POST;

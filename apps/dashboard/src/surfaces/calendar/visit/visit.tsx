@@ -27,7 +27,7 @@ import {
   type VisitSheetVM,
   type VisitWord,
 } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
+import { commitVerb } from "@/legacy-bridge/verbs/commit";
 import { carryReply } from "../../inbox/carried-reply";
 import { openNewConversation } from "../../inbox/new-conversation/store";
 import { Button } from "../../kit/button/button";
@@ -184,7 +184,10 @@ function visitRows(vm: VisitSheetVM) {
   );
 }
 
-/** The person's own add (POST contacts, the door "Add a person" uses), for a visit People cannot match. */
+/**
+ * The person's own add (the person_add verb, which People's "Add a person" and New conversation's commit too: contracts
+ * personAddSpec), for a visit People cannot match.
+ */
 function useAddToPeople(c: VisitCtx) {
   const [busy, setBusy] = useState(false);
   const add = addToPeopleOf(c.b);
@@ -192,20 +195,18 @@ function useAddToPeople(c: VisitCtx) {
     if (!add) return;
     setBusy(true);
     try {
-      const r = await api()("POST contacts", {
-        body: {
+      const r = await commitVerb(
+        "person_add",
+        {
           ...(add.phone ? { phone: add.phone } : {}),
           ...(add.email ? { email: add.email } : {}),
           ...(add.name ? { name: add.name } : {}),
         },
-        refresh: "behind",
-      });
+        { refresh: "behind" },
+      );
+      const existed = r.ok && !!r.data && typeof r.data === "object" && Reflect.get(r.data, "existed") === true;
       c.flash(
-        !r.ok
-          ? r.message
-          : r.data.existed
-            ? ADD_TO_PEOPLE_WORDS.existed(add.name)
-            : ADD_TO_PEOPLE_WORDS.added(add.name),
+        !r.ok ? r.message : existed ? ADD_TO_PEOPLE_WORDS.existed(add.name) : ADD_TO_PEOPLE_WORDS.added(add.name),
       );
     } finally {
       setBusy(false);
@@ -242,14 +243,6 @@ function callThem(b: CalendarBlockVM): void {
     m.askPersonCall(p.id);
     navigate(addressOf({ kind: "person", id: p.id }));
   });
-}
-
-/** Their page, with its note's composer brought into view. */
-function noteOnThem(b: CalendarBlockVM): void {
-  const p = b.person;
-  if (!p) return;
-  navigate(addressOf({ kind: "person", id: p.id }));
-  void import("../../people/person/notes").then((m) => m.askNoteFocus());
 }
 
 /**
@@ -326,7 +319,12 @@ function moreItem(c: VisitCtx, m: { act: VisitMoreAct; label: string; danger: bo
         onSelect: () => p && handOff(c, () => openStepSheet({ personId: p.id })),
       };
     case "note":
-      return { label, glyph: <Icon name="note" size={13} />, onSelect: () => noteOnThem(c.b) };
+      // The note sheet, over the calendar: a note without leaving it (the sheets as verbs: it was their page's composer).
+      return {
+        label,
+        glyph: <Icon name="note" size={13} />,
+        onSelect: () => p && handOff(c, () => openStepSheet({ personId: p.id, note: true })),
+      };
     case "deal":
       return {
         label,

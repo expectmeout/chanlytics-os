@@ -1,11 +1,6 @@
-import { z } from "zod";
+import { ReceptionistManyBody } from "@chanlytics/contracts";
 import { workspace, write } from "@/server/route";
-import { RECEPTIONIST_MODES, setReceptionistMany } from "@/server/people/people-many";
-
-const Body = z.object({
-  ids: z.array(z.string().uuid()).min(1, "Pick at least one person.").max(50, "Fifty at a time."),
-  mode: z.enum(RECEPTIONIST_MODES, { message: "Mode must be one of: auto, ask, never, inherit." }),
-});
+import { setReceptionistMany } from "@/server/people/people-many";
 
 /**
  * PUT /api/v1/contacts/receptionist -- { ids, mode }
@@ -19,6 +14,6 @@ export const PUT = write({
   scope: workspace,
   role: "owner",
   rate: "person_mode",
-  input: Body,
+  input: ReceptionistManyBody,
   handle: async ({ ctx, member, input }) => setReceptionistMany(ctx, member.tenantId, input.ids, input.mode),
 });

@@ -481,6 +481,7 @@ const { Icon: KitIcon } = await importSrc("apps/dashboard/src/surfaces/kit/icon/
 const P = "../../../../apps/dashboard/src/surfaces/people";
 const { ClientProfile } = await import(`${P}/person/person-real.tsx`);
 const { PersonLists } = await import(`${P}/person/lists.tsx`);
+const { ListsSheet } = await import(`${P}/person/sheets/lists-sheet.tsx`);
 const { PersonDealCard } = await import(`${P}/deal/person-deal.tsx`);
 const { personDetail } = await import(`${P}/people-detail.ts`);
 const { setSurfaceValue, surfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
@@ -668,9 +669,10 @@ test("REGRESSION (B15): the bulk bar's receptionist menu uses the one set of wor
   let tree = draw();
   byTestId(tree, "select-all").props.onChange();
   tree = draw();
-  const menu = menuByWords(tree, "Receptionist");
+  const menu = menuByWords(tree, "Messages");
+  const modes = menu.props.groups.find((g) => /^Receptionist/.test(g.header ?? ""));
   assert.deepEqual(
-    itemsIn(menu).map((i) => i.label),
+    modes.items.map((i) => i.label),
     ["Answer", "Ask me first", "Never", "Follow the workspace"],
   );
 });
@@ -887,18 +889,38 @@ test("REGRESSION: a profile's Add to a list opens over the card -- the card clip
   );
   cells = [];
   frames.begin();
-  const lists = PersonLists({ personId: "p1", canEdit: true, first: "Daniela", flash: () => {} });
-  const add = find(lists, (n) => n.type === Menu);
-  assert.equal(add.props.trigger.props["data-testid"], "person-list-add");
-  assert.deepEqual(
-    add.props.groups.flatMap((g) => [g.header, ...g.items.map((i) => i.label)]).filter(Boolean),
-    ["Best buyers"],
-    "the lists they are not on, and no header saying Add to under a link that says it",
+  const picked = [];
+  const lists = PersonLists({
+    personId: "p1",
+    canEdit: true,
+    first: "Daniela",
+    flash: () => {},
+    onPick: () => picked.push("lists"),
+  });
+  assert.equal(
+    find(lists, (n) => n.type === Menu),
+    null,
+    "one picker: the lists sheet, never a menu of its own",
   );
+  const add = byTestId(lists, "person-list-add");
   assert.ok(
-    add.props.trigger.props.className.split(" ").includes("is-plain"),
+    String(add.props.className).split(" ").includes("is-plain"),
     "a quiet link under the chips, as Add an email is, not a button among them",
   );
+  add.props.onClick();
+  assert.deepEqual(picked, ["lists"], "it opens the lists sheet, which More's Add to a list opens too");
+  // The sheet: a switch for each list kept by hand, on for the ones that hold them, and a new list made in place.
+  frames.begin();
+  const sheet = ListsSheet({
+    c: { p: { id: "p1", smartLists: [] }, first: "Daniela", flash: () => {}, listsOpen: true, setListsOpen: () => {} },
+  });
+  const switches = all(sheet, (n) => n.props?.testid === "person-lists-sheet-switch");
+  assert.deepEqual(
+    switches.map((n) => n.props.on),
+    [true, false],
+    "Regulars holds them, Best buyers does not: each is a switch, in the one picker",
+  );
+  assert.ok(byTestId(sheet, "person-lists-sheet-new"), "and a new list is made where they are");
 });
 
 test("REGRESSION: a person's page says who they are once -- the header held two buttons to one thread and two pills, a card quoted the timeline's first two messages, and six cells said the rail again", async () => {
@@ -1276,7 +1298,8 @@ test("a person known by number is invited to name them; an empty Lists section i
   const saved = surfaceValue("people");
   setSurfaceValue("people", { ...(saved || {}), saved: [], savedRead: true });
   try {
-    const tree = (await profile(vm))();
+    const draw = await profile(vm);
+    const tree = draw();
     const rename = byTestId(tree, "person-rename");
     assert.equal(
       textOf(rename).trim(),
@@ -1292,8 +1315,14 @@ test("a person known by number is invited to name them; an empty Lists section i
     press(byTestId(lists, "person-lists-make"));
     assert.deepEqual(
       went,
-      ["clients/new-list"],
-      "REGRESSION: 'make one on the People rail' -- a rail a phone does not have; the door says in the address that the box opens, never a timer",
+      [],
+      "REGRESSION: 'make one on the People rail' -- a rail a phone does not have; a list is made in the picker, where they are",
+    );
+    await settle(2);
+    assert.equal(
+      find(draw(), (n) => n.props?.testid === "person-lists-sheet")?.props.open,
+      true,
+      "the door opens the lists sheet, with its new list at its foot",
     );
   } finally {
     setSurfaceValue("people", saved);
@@ -2137,11 +2166,25 @@ test("a smart list rides the rail with who its rule holds for, and says its rule
     null,
     "no cross on a rule",
   );
-  const menu = find(lists, (n) => n.type === Menu);
+  frames.begin();
+  const sheet = ListsSheet({
+    c: {
+      p: { id: "p1", smartLists: [{ id: "s2", label: "WhatsApp people", why: "Reaches you by WhatsApp" }] },
+      first: "Daniela",
+      flash: () => {},
+      listsOpen: true,
+      setListsOpen: () => {},
+    },
+  });
+  const rows = all(sheet, (n) => n.props?.className === "cl-prof-listpick-row");
   assert.deepEqual(
-    itemsIn(menu).map((i) => i.label),
-    ["Regulars"],
-    "Add to offers only the lists kept by hand",
+    all(sheet, (n) => n.props?.testid === "person-lists-sheet-switch").length,
+    1,
+    "a switch for Regulars alone: the picker offers only the lists kept by hand",
+  );
+  assert.ok(
+    rows.some((r) => textOf(r).includes("WhatsApp people") && textOf(r).includes("Keeps itself")),
+    "the smart list is said as it stands, a door to it on People",
   );
 });
 

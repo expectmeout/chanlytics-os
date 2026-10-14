@@ -1,3 +1,5 @@
+import type { z } from "zod";
+
 /** Closed error-code enum for the /api/v1 envelope (Blueprint §4). */
 export const ERROR_CODES = [
   "unauthorized",
@@ -94,3 +96,18 @@ const DEFAULT_STATUS: Record<ErrorCode, number> = {
   upstream_voice: 503,
   internal: 500,
 };
+
+/**
+ * The first thing a body breaks, as a sentence a refusal can say: the field and its schema's own words, or null where
+ * the body holds. One reading for every door's schema (deals/deal-body.ts, people/doors/person-bodies.ts), so an act
+ * tool refuses a card in the words the route would have answered with (the sheets as verbs, 14 Oct 2026).
+ */
+export function bodyRefusal(schema: z.ZodType, body: unknown): string | null {
+  const r = schema.safeParse(body);
+  if (r.success) return null;
+  const issue = r.error.issues[0];
+  if (!issue) return "that is not something this door takes";
+  const field = issue.path.map(String).join(".");
+  // A schema's own words that name their field already ("valid_until must be a day") are said as they are.
+  return field && !issue.message.startsWith(field) ? `${field}: ${issue.message}` : issue.message;
+}

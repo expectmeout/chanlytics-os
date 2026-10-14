@@ -7,12 +7,11 @@
  * useLeadLists, whose answer is the rail's doors, the bar's act and the sheets they open. Beside Import leads the rail
  * offers Find people (the people card, 00430: finder/people-sheet.tsx), the other door that brings leads in.
  */
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
 import { leadsRoute, type LeadPeoplePlan } from "@chanlytics/contracts";
 import { reachOuts } from "../../campaigns/reach-out/surface";
 import { ReachOutSheet } from "../../campaigns/reach-out/sheet";
-import { Button } from "../../kit/button/button";
 import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
 import { RecordDisclosure } from "../../kit/record/disclosure";
@@ -20,6 +19,7 @@ import { RecordSheet } from "../../kit/record/sheet";
 import { canDo, gate, navigate } from "../../legacy-verbs";
 import { PhoneSheetRow } from "../../people/sheets/phone-sheet";
 import { useFindPeople } from "../finder/people-sheet";
+import { ImportSource, ImportTaste } from "../../people/import/frame";
 import type { PeopleFlash } from "../../people/types";
 
 type Lists = typeof reachOuts.lists;
@@ -29,11 +29,7 @@ type ImportRow = ImportPlan["rows"][number];
 // Rows drawn before the import, as a taste of what was read.
 const LL_TASTE = 5;
 
-/**
- * Where the rows come from: a file, chosen from the kit's button over the browser's own picker (its "Choose File · No
- * file chosen" was the one control on the sheet the kit did not draw), or rows pasted and read; what else a row can hold
- * under a fold.
- */
+/** Where the rows come from (the import frame, which People's import draws too), and what else a row can hold. */
 const LlImportPick = ({
   W,
   text,
@@ -48,57 +44,21 @@ const LlImportPick = ({
   onFile: (e: ChangeEvent<HTMLInputElement>) => void;
   onText: (text: string) => void;
   onRead: () => void;
-}) => {
-  const picker = useRef<HTMLInputElement | null>(null);
-  return (
-    <>
-      <input
-        ref={picker}
-        type="file"
-        accept=".csv,text/csv,text/plain"
-        hidden
-        onChange={onFile}
-        disabled={busy}
-        data-testid="lead-import-file"
-      />
-      <Button
-        className="pl-import-file"
-        disabled={busy}
-        onClick={() => picker.current?.click()}
-        data-testid="lead-import-choose"
-      >
-        <Icon name="content" size={14} />
-        {W.file}
-      </Button>
-      <div className="rec-field">
-        <label>
-          <span className="rec-field-label">{W.paste}</span>
-          <textarea
-            className="rec-input"
-            rows={5}
-            value={text}
-            disabled={busy}
-            placeholder={W.pastePlaceholder}
-            onChange={(e) => onText(e.target.value)}
-            data-testid="lead-import-paste"
-          />
-        </label>
-        <button
-          type="button"
-          className="btn btn-sm pl-import-read"
-          disabled={busy || !text.trim()}
-          onClick={onRead}
-          data-testid="lead-import-read"
-        >
-          {W.read}
-        </button>
-      </div>
-      <RecordDisclosure id="lead-import-more" label={W.importMore} testid="lead-import-more">
-        <p className="pl-import-hint">{W.importRest}</p>
-      </RecordDisclosure>
-    </>
-  );
-};
+}) => (
+  <ImportSource
+    words={{ file: W.file, paste: W.paste, placeholder: W.pastePlaceholder, read: W.read }}
+    text={text}
+    busy={busy}
+    onFile={onFile}
+    onText={onText}
+    onRead={onRead}
+    testid="lead-import"
+  >
+    <RecordDisclosure id="lead-import-more" label={W.importMore} testid="lead-import-more">
+      <p className="pl-import-hint">{W.importRest}</p>
+    </RecordDisclosure>
+  </ImportSource>
+);
 
 /** What was read, before anything is written: the counts, where the columns are, a taste, the name, who they are. */
 const LlImportPreview = ({
@@ -120,34 +80,14 @@ const LlImportPreview = ({
   onName: (name: string) => void;
   onAsked: (asked: string) => void;
 }) => (
-  <div className="pl-import-preview" data-testid="lead-import-preview">
-    <p className="pl-import-counts" data-testid="lead-import-counts">
-      {L.countWords(plan.counts)}
-    </p>
-    <p className="pl-import-hint" data-testid="lead-import-columns">
-      {plan.counts.rows === 0 ? "No rows were read from that." : L.columnWords(plan)} {L.words.costs}
-    </p>
-    {ready.length > 0 && (
-      <table className="pl-import-table">
-        <thead>
-          <tr>
-            <th>Business</th>
-            <th>Email</th>
-            <th>Website</th>
-          </tr>
-        </thead>
-        <tbody>
-          {ready.slice(0, LL_TASTE).map((r) => (
-            <tr key={r.line}>
-              <td>{r.name}</td>
-              <td>{r.email}</td>
-              <td>{r.website_host || "—"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    )}
-    {ready.length > LL_TASTE && <p className="pl-import-hint">and {(ready.length - LL_TASTE).toLocaleString()} more</p>}
+  <ImportTaste
+    counts={L.countWords(plan.counts)}
+    columns={`${plan.counts.rows === 0 ? "No rows were read from that." : L.columnWords(plan)} ${L.words.costs}`}
+    heads={["Business", "Email", "Website"]}
+    rows={ready.slice(0, LL_TASTE).map((r) => ({ key: r.line, cells: [r.name, r.email, r.website_host || "—"] }))}
+    more={Math.max(0, ready.length - LL_TASTE)}
+    testid="lead-import"
+  >
     <div className="rec-field">
       <label>
         <span className="rec-field-label">{L.words.nameLabel}</span>
@@ -175,7 +115,7 @@ const LlImportPreview = ({
         />
       </label>
     </div>
-  </div>
+  </ImportTaste>
 );
 
 /** The import's own state: what was read, the list's name and who they are, and what came back. */
@@ -210,6 +150,20 @@ function useImportState(L: Lists) {
     ready,
   };
 }
+
+/** What an import came to: its title, and a line for each thing it says. */
+const LlImportSummary = ({ result }: { result: { title: string; lines: readonly string[] } }) => (
+  <div className="pl-import-summary" data-testid="lead-import-summary">
+    <p className="pl-import-counts">
+      <b>{result.title}</b>
+    </p>
+    {result.lines.map((l) => (
+      <p key={l} className="pl-import-hint">
+        {l}
+      </p>
+    ))}
+  </div>
+);
 
 /** The import sheet (J12): People's import's shape, the record kit's sheet, with the list's name and who they are. */
 export const LeadImportSheet = ({
@@ -300,6 +254,7 @@ export const LeadImportSheet = ({
   const problem = error || (tooMany ? W.tooMany : plan && plan.counts.rows > 0 && !ready.length ? W.nothing : null);
   return (
     <RecordSheet
+      backCloses
       id="lead-import"
       title={W.importTitle}
       sub={W.importLine}
@@ -346,18 +301,7 @@ export const LeadImportSheet = ({
             onAsked={setAsked}
           />
         )}
-        {result && (
-          <div className="pl-import-summary" data-testid="lead-import-summary">
-            <p className="pl-import-counts">
-              <b>{result.title}</b>
-            </p>
-            {result.lines.map((l) => (
-              <p key={l} className="pl-import-hint">
-                {l}
-              </p>
-            ))}
-          </div>
-        )}
+        {result && <LlImportSummary result={result} />}
       </div>
     </RecordSheet>
   );

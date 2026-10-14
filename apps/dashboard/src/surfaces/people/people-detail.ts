@@ -36,11 +36,12 @@ import {
   MIN_MS,
 } from "@chanlytics/contracts";
 import { api } from "@/legacy-bridge/api";
+import { commitVerb, type VerbResult } from "@/legacy-bridge/verbs/commit";
 import { ApiError, type ApiResult } from "@/client/api";
 import { workspaceZone } from "@/legacy-bridge/zone";
 import { readCache, staleReadCaches } from "@/legacy-bridge/read-cache";
 import { holderName } from "../holder-names";
-import { keepSavedView, peopleLoaded, placeDeal } from "./surface";
+import { keepSavedView, peopleLoaded } from "./surface";
 import { declareReads, personRouteId } from "@/legacy-bridge/surface-registry";
 import { isLiveCallTurn } from "@/legacy-bridge/surface-realtime";
 import { afterBoot, bootWaitsFor } from "@/legacy-bridge/surface-runner";
@@ -214,6 +215,15 @@ export const personOverride: SurfaceOverride = {
 type DeleteResult = ApiResult<unknown>;
 
 /**
+ * A verb's answer as this courier's callers read it: the door's answer, or its refusal. Each writer below commits through
+ * its verb's spec (legacy-bridge/verbs, contracts VERB_SPECS), the walk Ask's cards take too, so the same act makes the
+ * same call whichever hand pressed it (the sheets as verbs, 14 Oct 2026).
+ */
+function verbAnswer<O>(r: VerbResult): ApiResult<O> {
+  return r.ok ? { ok: true, data: r.data as O } : r;
+}
+
+/**
  * Delete this person.
  *
  * The route is the one the privacy policy promises — Postgres rows, Storage
@@ -269,7 +279,7 @@ export function personDeletedHere(id: string): boolean {
  * is a marked row now, which People does not show) and the kept person's page; the merged page the tab held is dropped.
  */
 export async function mergePerson(keep: string, merge: string): Promise<DeleteResult> {
-  const r = await api()("POST contacts/[id]/merge", { params: { id: keep }, body: { merge } });
+  const r = verbAnswer<unknown>(await commitVerb("person_merge", { contact_id: keep, merge }));
   // Combine (0052) keeps the person, whichever was named to keep: the record the door merged away is the one let go.
   if (r.ok) people().forget(keptOf(r.data, keep) === keep ? merge : keep);
   return r;
@@ -300,7 +310,7 @@ export async function setPersonReceptionist(
   id: string,
   mode: "auto" | "ask" | "never" | "inherit",
 ): Promise<DeleteResult> {
-  return api()("PUT contacts/[id]/receptionist", { params: { id }, body: { mode } });
+  return verbAnswer(await commitVerb("person_mode", { contact_id: id, mode }));
 }
 
 /**
@@ -329,15 +339,11 @@ interface ConsentBody {
   message_id?: string;
 }
 
-/** One transport, the route chosen by purpose, so neither answer can be posted to the other's door by a typo in a page. */
-type ConsentRoute = "PUT contacts/[id]/consent" | "PUT contacts/[id]/marketing-consent";
-const CONSENT_ROUTE: Record<AskedPurpose, ConsentRoute> = {
-  conversational: "PUT contacts/[id]/consent",
-  marketing: "PUT contacts/[id]/marketing-consent",
-};
+/* One verb, the door chosen by purpose in its spec (contracts answerSpec), so neither answer can be posted to the other's
+   door by a typo in a page. */
 
 async function recordOne(id: string, body: ConsentBody, purpose: AskedPurpose): Promise<DeleteResult> {
-  return api()(CONSENT_ROUTE[purpose], { params: { id }, body });
+  return verbAnswer(await commitVerb("answer", { contact_id: id, purpose, ...body }));
 }
 
 export async function setPersonConsent(id: string, body: ConsentBody): Promise<DeleteResult> {
@@ -364,12 +370,6 @@ interface ManyResult {
   message?: string;
 }
 
-type ManyRoute = "PUT contacts/consent" | "PUT contacts/marketing-consent";
-const MANY_ROUTE: Record<AskedPurpose, ManyRoute> = {
-  conversational: "PUT contacts/consent",
-  marketing: "PUT contacts/marketing-consent",
-};
-
 /** A batch door's answer, in the bar's words. Not ours, or gone: not done, and said so -- it is not an error to have selected a row that changed underneath you. */
 function manyResult(r: ApiResult<unknown>, asked: number, verb = "recorded"): ManyResult {
   if (!r.ok) return { ok: false, done: 0, failed: asked, message: r.message };
@@ -386,7 +386,7 @@ function manyResult(r: ApiResult<unknown>, asked: number, verb = "recorded"): Ma
 
 async function recordMany(ids: string[], body: ConsentBody, purpose: AskedPurpose): Promise<ManyResult> {
   const take = [...new Set(ids)].slice(0, 50);
-  return manyResult(await api()(MANY_ROUTE[purpose], { body: { ids: take, ...body } }), take.length);
+  return manyResult(verbAnswer(await commitVerb("answer_many", { ids: take, purpose, ...body })), take.length);
 }
 
 export type ReceptionistMany = "auto" | "ask" | "never" | "inherit";
@@ -394,13 +394,13 @@ export type ReceptionistMany = "auto" | "ask" | "never" | "inherit";
 /** The receptionist's mode for a selection. Owners; one request. */
 export async function setPersonReceptionistMany(ids: string[], mode: ReceptionistMany): Promise<ManyResult> {
   const take = [...new Set(ids)].slice(0, 50);
-  return manyResult(await api()("PUT contacts/receptionist", { body: { ids: take, mode } }), take.length, "changed");
+  return manyResult(verbAnswer(await commitVerb("person_mode_many", { ids: take, mode })), take.length, "changed");
 }
 
 /** One note line under a selection's notes. Operator or owner; one request. */
 export async function appendPersonNotesMany(ids: string[], line: string): Promise<ManyResult> {
   const take = [...new Set(ids)].slice(0, 50);
-  return manyResult(await api()("PUT contacts/notes", { body: { ids: take, append: line } }), take.length, "noted");
+  return manyResult(verbAnswer(await commitVerb("note_many", { ids: take, append: line })), take.length, "noted");
 }
 
 /**
@@ -414,7 +414,7 @@ export async function addPerson(body: {
   email?: string;
   name?: string;
 }): Promise<ApiResult<{ contact_id: string; existed: boolean }>> {
-  return api()("POST contacts", { body });
+  return verbAnswer(await commitVerb("person_add", body));
 }
 
 /**
@@ -501,19 +501,13 @@ export async function recordDeal(
   // for People to be read again, behind it.
   opts: { refresh?: false | "behind" } = {},
 ): Promise<ApiResult<{ deal: DealDto; from: string | null; decision_id: string; current: DealDto | null }>> {
-  return api()("POST contacts/[id]/deal", {
-    params: { id },
-    body,
-    once: true,
-    // The row moves as the door answers (0008): the door answers the deal the person's People row shows now (`current`,
-    // people_list's rule), which goes onto the row at once, and People and Reports are read again behind it, so the
-    // sheet closes when the server takes the move rather than once every person has been read again. Not the deal it
-    // recorded: a move on someone's older deal is not the one their row shows.
-    onAccepted: (d) => {
-      if (d && d.current) placeDeal(id, d.current, d.deal);
-    },
-    refresh: opts.refresh === false ? false : "behind",
-  });
+  // The row moves as the door answers (0008): the door answers the deal the person's People row shows now (`current`,
+  // people_list's rule), which the verb walk lays on the row at once (legacy-bridge/verbs/effects.ts), and People and
+  // Reports are read again behind it, so the sheet closes when the server takes the move rather than once every person
+  // has been read again. One intent, however often Save is pressed (decision 0035).
+  return verbAnswer(
+    await commitVerb("deal", { contact_id: id, ...body }, { refresh: opts.refresh === false ? false : "behind" }),
+  );
 }
 
 /**
@@ -585,7 +579,8 @@ interface NoteBody {
 // Each note write answers when the server takes it, and People (a row carries its next step) is read again behind it:
 // the whole list was being read before a note said it was added. The page reads the person itself.
 export async function writePersonNote(id: string, body: NoteBody): Promise<ApiResult<{ note: PersonNoteDto | null }>> {
-  return api()("POST contacts/[id]/notes", { params: { id }, body, refresh: "behind", once: true });
+  // Who reads it is the note's own word, the door's default (the receptionist's) where a caller says none.
+  return verbAnswer(await commitVerb("note", { contact_id: id, ...body, team_only: body.team_only ?? false }));
 }
 
 /**

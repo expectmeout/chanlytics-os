@@ -25,5 +25,14 @@ export {
   TODAY_STEPS_MAX,
 } from "./steps";
 export type { StepDue, StepDayVM, PersonNextStepVM, StepColumns, StepDayChoice } from "./steps";
-export { stepSheetFor, stepSheetBody, stepSheetDirty, stepSheetMerge, STEP_SHEET_WORDS } from "./step-sheet";
+export {
+  NO_DAY,
+  noteManyLine,
+  stepSheetFor,
+  stepSheetBody,
+  stepSheetDirty,
+  stepSheetDone,
+  stepSheetMerge,
+  STEP_SHEET_WORDS,
+} from "./step-sheet";
 export type { StepPerson, StepDraft, StepSheetVM, StepNoteBody } from "./step-sheet";

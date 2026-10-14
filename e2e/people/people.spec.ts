@@ -457,14 +457,15 @@ test.describe("People on a real workspace", () => {
     expect(seen.find((r) => r.method === "POST")?.body).toEqual({ name: "E2E bulk list" });
     // The bar is busy until the create settles (the intercepted list is never found again, and it says so).
     await expect(page.getByTestId("bulk-list-name")).toHaveCount(0);
-    await expect(bar.getByRole("button", { name: "Record a yes" })).toBeEnabled();
+    await expect(bar.getByRole("button", { name: "Messages" })).toBeEnabled();
 
     // A yes for both: ONE request through the batch door, both people in it,
     // saying how it was given. The bar has not sent one request per person
     // since #426.
     await boxes.nth(0).check();
     await boxes.nth(1).check();
-    await bar.getByRole("button", { name: "Record a yes" }).click();
+    // A yes on record is the Messages menu's first group (the sheets as verbs: it held Record a yes and Receptionist apart).
+    await bar.getByRole("button", { name: "Messages" }).click();
     await page.getByText("In person", { exact: true }).click();
     const consentWrites = () => seen.filter((r) => r.url.includes("consent"));
     await expect.poll(() => consentWrites().length).toBe(1);

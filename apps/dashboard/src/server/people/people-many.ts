@@ -1,4 +1,4 @@
-import { NOTE_REFUSALS } from "@chanlytics/contracts";
+import { NOTE_LINE_MAX, NOTE_REFUSALS, type PersonReceptionistMode } from "@chanlytics/contracts";
 import { setPersonReplyMode } from "@chanlytics/db";
 import type { RouteContext } from "@/server/with-route";
 import { recordDecision } from "@/server/verbs";
@@ -18,10 +18,6 @@ interface ManyOutcome {
   failed: { id: string; message: string }[];
   skipped: string[];
 }
-
-export const NOTE_LINE_MAX = 200;
-export const RECEPTIONIST_MODES = ["auto", "ask", "never", "inherit"] as const;
-type ReceptionistMode = (typeof RECEPTIONIST_MODES)[number];
 
 async function ours<T extends { id: string; tenant_id: string; erased_at: string | null }>(
   ctx: RouteContext,
@@ -45,7 +41,7 @@ export async function setReceptionistMany(
   ctx: RouteContext,
   tenantId: string,
   ids: string[],
-  mode: ReceptionistMode,
+  mode: PersonReceptionistMode,
 ): Promise<ManyOutcome> {
   const uniq = [...new Set(ids)];
   const { rows, skipped } = await ours<{ id: string; tenant_id: string; erased_at: string | null }>(

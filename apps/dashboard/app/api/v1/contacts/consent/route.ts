@@ -1,16 +1,6 @@
-import { z } from "zod";
-import { CONSENT_STATES } from "@chanlytics/contracts";
+import { ConsentManyBody } from "@chanlytics/contracts";
 import { workspace, write } from "@/server/route";
 import { recordConsentMany } from "@/server/people/consent";
-
-const Body = z.object({
-  ids: z.array(z.string().uuid()).min(1, "Pick at least one person.").max(50, "Fifty at a time."),
-  consent: z.enum(CONSENT_STATES as unknown as [string, ...string[]], {
-    message: "Consent must be one of: opted_in, opted_out, unknown.",
-  }),
-  source: z.string().optional(),
-  note: z.string().optional(),
-});
 
 /**
  * PUT /api/v1/contacts/consent -- { ids, consent, source?, note? }
@@ -25,6 +15,6 @@ export const PUT = write({
   scope: workspace,
   role: "operator",
   rate: "consent",
-  input: Body,
+  input: ConsentManyBody,
   handle: async ({ ctx, member, input }) => recordConsentMany(ctx, member.tenantId, "conversational", input),
 });

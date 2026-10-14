@@ -6,6 +6,7 @@ import type { AskProposal } from "../ask/ask";
 import { DEAL_STAGE_WORDS } from "../deals/deal-words";
 import { PERSON_MODE_WORDS } from "../people/person-receptionist";
 import { NOTE_WORDS } from "../notes/person-notes";
+import { STEP_SHEET_WORDS } from "../notes/step-sheet";
 import {
   PEOPLE_CHANGED,
   PROPOSAL_WORDS,
@@ -100,6 +101,8 @@ export const dealSpec: ProposalSpec = {
   // out of a request the route reads strictly. No undo: a mis-recorded stage is moved again on the person's page, and
   // a step is changed or done there.
   commit: ({ payload }) => {
+    // Judged by the door's own schema (contracts DealMoveBody), on the server: by the act tool before a card is
+    // proposed, by the route as it is sent, in the same words either way.
     const { who: _who, contact_id: _id, ...body } = payload;
     return {
       route: "POST contacts/[id]/deal",
@@ -134,31 +137,41 @@ export const dealSpec: ProposalSpec = {
   open: cardPersonRoute,
 };
 
+/** What the notes door takes of a note's payload: the rest (who it is about, the card's words) is the card's own. */
+const NOTE_KEYS = ["body", "for_user_id", "team_only", "note_id", "version", "due_on", "deal_id", "clear_due"] as const;
+
 export const noteSpec: ProposalSpec = {
   needs: "operator",
   gate: "approve",
   // The route's strict body, the words and who reads them (D8): a note not for the team alone is read by the receptionist
   // before it answers that person (00157). A card that does not say which is not sent, since the route's own default is
-  // the receptionist's and nobody chose it. No day and no deal: a step rides on a deal's card. It answers as the door
-  // takes it, People read again behind it, as the person page's composer writes one.
-  commit: ({ payload: pl }) =>
-    typeof pl.team_only !== "boolean" || !asText(pl.body)
-      ? refuseWith(PROPOSAL_WORDS.cannotApprove)
-      : {
-          route: "POST contacts/[id]/notes",
-          params: { id: asText(pl.contact_id) },
-          body: { body: asText(pl.body), team_only: pl.team_only },
-          refresh: "behind",
-          events: [PEOPLE_CHANGED],
-        },
-  receipt: ({ payload: pl }) =>
-    `${asText(pl.who)} · ${NOTE_WORDS.added}${pl.team_only === true ? ` · ${NOTE_WORDS.teamOnly}` : ""}`,
+  // the receptionist's and nobody chose it. A day makes it a step (00166), the team's, on the deal it names; a change
+  // names the note and the version it was read at (the note sheet's). Judged by the door's own schema (NoteWriteBody),
+  // as the route reads it. It answers as the door takes it, People read again behind it.
+  commit: ({ payload: pl }) => {
+    if (typeof pl.team_only !== "boolean" || !asText(pl.body)) return refuseWith(PROPOSAL_WORDS.cannotApprove);
+    const body = Object.fromEntries(NOTE_KEYS.filter((k) => pl[k] !== undefined).map((k) => [k, pl[k]]));
+    return {
+      route: "POST contacts/[id]/notes",
+      params: { id: asText(pl.contact_id) },
+      body,
+      refresh: "behind",
+      events: [PEOPLE_CHANGED],
+    };
+  },
+  receipt: ({ payload: pl }) => {
+    const step = typeof pl.due_on === "string" && !!pl.due_on;
+    if (step) return `${asText(pl.who)} · ${STEP_SHEET_WORDS.done[pl.note_id ? "edit" : "add"]}`;
+    if (pl.note_id) return `${asText(pl.who)} · ${NOTE_WORDS.saved}`;
+    return `${asText(pl.who)} · ${NOTE_WORDS.added}${pl.team_only === true ? ` · ${NOTE_WORDS.teamOnly}` : ""}`;
+  },
   undo: {
     label: () => "Delete it",
     window: "ten_minutes",
-    // The note the door wrote, by the id it answered with; an answer that names none leaves nothing to take away.
+    // The note the door wrote, by the id it answered with; a change, or an answer that names none, leaves nothing to
+    // take away (a change is changed again).
     record: (p, data) => {
-      const noteId = idIn(rec(rec(data).note), "id");
+      const noteId = p.payload.note_id ? null : idIn(rec(rec(data).note), "id");
       return noteId ? { contact_id: p.payload.contact_id, note_id: noteId } : null;
     },
     call: (u) => ({

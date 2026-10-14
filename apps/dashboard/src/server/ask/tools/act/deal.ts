@@ -6,13 +6,14 @@ import {
   DEAL_PERS,
   DEAL_STAGES,
   DEAL_STAGE_WORDS,
+  DealMoveBody,
   NOTE_MAX,
   NOTE_WORDS,
   amountWords,
+  bodyRefusal,
   clipAtWord,
   foldName,
   isDealLostReason,
-  isRealDate,
   linkHost,
   normalizeLink,
   personName,
@@ -35,6 +36,39 @@ function whichRowWords(open: number, rows: readonly { service: string | null }[]
     : `their ${open ? "open deal is" : "last deal is"} for ${names}; name that service or none`;
 }
 
+/**
+ * The card's body, the door's (contracts DealMoveBody), and the words the door would refuse it in: judged on what the
+ * card says, never on the row's id and version, the database's own. So a card is refused in the words the route would
+ * answer with, never proposed for the route to refuse.
+ */
+function dealBody(
+  said: {
+    stage: string;
+    service: string | null;
+    amount: number | null;
+    per: string | null;
+    note: string;
+    url: string | null;
+    day: string;
+    reason: string;
+  },
+  row: { id: string; version: number } | null,
+): { body: Record<string, unknown>; wrong: string | null } {
+  const { stage, service, amount, per, note, url, day, reason } = said;
+  const body = {
+    stage,
+    ...(service ? { service } : {}),
+    ...(amount !== null ? { amount_cents: amount } : {}),
+    ...(per ? { per } : {}),
+    ...(note ? { note } : {}),
+    ...(url ? { proposal_url: url } : {}),
+    ...(day ? { valid_until: day } : {}),
+    ...(reason ? { lost_reason: reason } : {}),
+  };
+  const wrong = bodyRefusal(DealMoveBody, body);
+  return { body: { ...body, ...(row ? { deal_id: row.id, version: row.version } : {}) }, wrong };
+}
+
 async function proposeDeal(
   t: ToolContext,
   input: {
@@ -55,13 +89,12 @@ async function proposeDeal(
   const stage = str(input.stage, 10);
   if (!UUID.test(id)) return refuse("contact_id must be an id a read returned");
   if (!(DEAL_STAGES as readonly string[]).includes(stage)) return refuse("stage must be proposed, won, lost or ended");
-  // The proposal's link, judged by the one normalizer the route uses; the day it stands until, a real one; and a reason
-  // only for a pass (0008). Each is refused in words before it becomes a card the route would refuse.
+  // The proposal's link, judged by the one normalizer the route uses, and a reason only for a pass (0008). The rest of
+  // what the door takes (a real day, the sets) is its own schema's, read once the card's body is built (below).
   const typedLink = str(input.proposal_url, 600);
   const url = typedLink ? normalizeLink(typedLink) : null;
   if (typedLink && !url) return refuse(`proposal_url: ${whyNotALink(typedLink) ?? "that is not a web address"}`);
   const day = str(input.valid_until, 10);
-  if (day && !isRealDate(day)) return refuse("valid_until must be a day, like 2026-09-30");
   const reason = str(input.lost_reason, 20);
   if (reason && !isDealLostReason(reason)) return refuse(`lost_reason must be one of ${DEAL_LOST_REASONS.join(", ")}`);
   if (reason && stage !== "lost") return refuse("lost_reason goes only with stage lost");
@@ -124,23 +157,14 @@ async function proposeDeal(
   const why = reason && isDealLostReason(reason) ? DEAL_LOST_REASON_WORDS[reason] : null;
   // The step as the card says it: "Next step: send the quote, due Fri" (its words clipped; the note keeps them whole).
   const next = stepDay ? `${NOTE_WORDS.next}: ${clipAtWord(stepWords, 80)}, due ${stepDay.near}` : null;
+  const said = { stage, service: sameRow ? null : service, amount, per, note, url, day, reason };
+  const { body, wrong } = dealBody(said, sameRow);
+  if (wrong) return refuse(wrong);
   return propose({
     kind: "deal",
     title: `${who} · ${words}`,
     summary: [words, service, money, url ? linkHost(url) : null, why, next].filter((x): x is string => !!x).join(" · "),
-    payload: {
-      contact_id: id,
-      stage,
-      ...(sameRow ? { deal_id: sameRow.id, version: sameRow.version } : {}),
-      ...(service && !sameRow ? { service } : {}),
-      ...(amount !== null ? { amount_cents: amount } : {}),
-      ...(per ? { per } : {}),
-      ...(note ? { note } : {}),
-      ...(url ? { proposal_url: url } : {}),
-      ...(day ? { valid_until: day } : {}),
-      ...(reason ? { lost_reason: reason } : {}),
-      who,
-    },
+    payload: { contact_id: id, ...body, who },
     ...(stepDay ? { step: { body: stepWords, due_on: stepDay.day } } : {}),
   });
 }

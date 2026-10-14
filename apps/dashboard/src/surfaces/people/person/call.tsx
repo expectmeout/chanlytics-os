@@ -352,6 +352,7 @@ export function CallSheet({ c }: { c: PageCtx }) {
   if (!c.phone || !vm || !c.canRecord) return null;
   return (
     <Sheet
+      backCloses
       open={c.call.open && c.call.asking}
       onClose={c.call.close}
       title={W.question}

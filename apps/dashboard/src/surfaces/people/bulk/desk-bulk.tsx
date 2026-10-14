@@ -1,16 +1,20 @@
 /**
  * The bulk bar on a desk (moved from legacy/pages/people.jsx PeopleBulkBar, decision 0015): the count, the page's own act
- * first (`lead`: the Pipeline's Mark as passed), then what a selection can become -- people on a list, a yes on record,
- * a receptionist mode, a note, a file -- each drawn where the role allows and says why when it does not.
+ * first (`lead`: the Pipeline's Mark as passed), then what a selection can become -- people on a list, a yes on record or
+ * a receptionist mode (one menu, Messages: messages.ts), a note, a file -- each drawn where the role allows and says why
+ * when it does not.
  */
 import { editorBox, focusAsDrawn, gateTitle } from "../../legacy-verbs";
 import { Icon } from "../../kit/icon/icon";
-import { PL_MODES, plModeWord } from "../words";
 import { addToListMenu as addMenu, barMenu } from "./bar-menu";
 import type { BulkActs } from "./bulk-acts";
 import type { BulkCtx } from "./bulk-state";
+import { messagesChoices } from "./messages";
 
-/** The three inline boxes a desk's acts ask their words in: a new list's name, which forms were signed, a note. */
+/**
+ * The two inline boxes a desk's acts ask their words in: a new list's name, and which forms were signed. A note is the
+ * note sheet's (step-sheet.tsx).
+ */
 function namingBox(b: BulkCtx, a: BulkActs) {
   const { st, canEdit } = b;
   const { busy, naming, setNaming, name, setName } = st;
@@ -79,86 +83,39 @@ function slipsBox(b: BulkCtx, a: BulkActs) {
   );
 }
 
-function noteBox(b: BulkCtx, a: BulkActs) {
-  const { st, canEdit } = b;
-  const { busy, noting, setNoting, note, setNote } = st;
-  return (
-    canEdit &&
-    noting && (
-      <span className="cl-bulk-naming" {...editorBox}>
-        <input
-          autoFocus={focusAsDrawn()}
-          value={note}
-          placeholder="One line, under their notes"
-          maxLength={200}
-          disabled={busy}
-          data-testid="bulk-note-line"
-          onChange={(e) => setNote(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") void a.addNote();
-            if (e.key === "Escape") {
-              setNoting(false);
-              setNote("");
-            }
-          }}
-        />
-        <button className="btn btn-sm btn-primary" disabled={busy || !note.trim()} onClick={a.addNote}>
-          Add
-        </button>
-      </span>
-    )
-  );
-}
-
 /** The menu of the lists kept by hand, and a new one. */
 function addToListMenu(b: BulkCtx, a: BulkActs) {
   const { st, canEdit, keeps } = b;
   return canEdit && keeps("lists") && !st.naming && addMenu(b, a, () => st.setNaming(true), "sm");
 }
 
-/** Record a yes: which yes, and how it was given -- the two are separate answers. */
-function yesMenu(b: BulkCtx, a: BulkActs) {
-  const { st, canEdit, keeps, sources, offersSources } = b;
-  const { busy, slips } = st;
+/**
+ * Messages: a yes on record -- which yes, and how it was given, the two separate answers -- and the receptionist's mode,
+ * one menu of the three sets (messages.ts), each under its heading. A yes on sign-up forms asks which forms in its box.
+ */
+function messagesMenu(b: BulkCtx, a: BulkActs) {
+  const { st } = b;
+  const groups = messagesChoices(b, { yes: a.yesBy, mode: (m) => void a.receptionist(m) });
   return (
-    canEdit &&
-    keeps("consent") &&
-    sources.length > 0 &&
-    !slips &&
+    groups.length > 0 &&
+    !st.slips &&
     barMenu({
-      words: "Record a yes",
-      hover: "Which yes, and how it was given — the two are separate answers",
-      busy,
+      words: "Messages",
+      hover: "A yes on record, and what the receptionist does for these people",
+      busy: st.busy,
       size: "sm",
-      groups: [
-        {
-          header: "Yes to messages about their visit…",
-          items: sources.map((s) => ({
-            label: s.label,
-            glyph: <Icon name="check" size={13} />,
-            onSelect: a.yesBy("conversational", s),
-          })),
-        },
-        ...(offersSources.length > 0
-          ? [
-              {
-                header: "Yes to offers and news…",
-                items: offersSources.map((s) => ({
-                  label: s.label,
-                  glyph: <Icon name="tag" size={13} />,
-                  onSelect: a.yesBy("marketing", s),
-                })),
-              },
-            ]
-          : []),
-      ],
+      groups: groups.map((g) => ({
+        header: `${g.header}…`,
+        items: g.items.map((i) => ({ label: i.label, glyph: <Icon name={i.icon} size={13} />, onSelect: i.onSelect })),
+      })),
+      testid: "bulk-messages",
     })
   );
 }
 
 export function deskBulk(b: BulkCtx, a: BulkActs) {
-  const { st, ids, lead, canEdit, canExport, activeSaved, keeps, isOwner, onClear } = b;
-  const { busy, naming, noting, setNoting } = st;
+  const { st, ids, lead, canEdit, canExport, activeSaved, keeps, onClear } = b;
+  const { busy, naming } = st;
   return (
     <div className="cl-bulk" role="toolbar" aria-label="Selected people" data-testid="bulk-bar">
       <span className="cl-bulk-count">
@@ -174,33 +131,13 @@ export function deskBulk(b: BulkCtx, a: BulkActs) {
           <Icon name="x" size={11} /> Take off {activeSaved.name}
         </button>
       )}
-      {yesMenu(b, a)}
+      {messagesMenu(b, a)}
       {slipsBox(b, a)}
-      {canEdit &&
-        keeps("receptionist") &&
-        isOwner &&
-        barMenu({
-          words: "Receptionist",
-          hover: "What the receptionist does for these people",
-          busy,
-          size: "sm",
-          groups: [
-            {
-              header: "For these people…",
-              items: PL_MODES.map((m) => ({
-                label: plModeWord(m.id),
-                glyph: <Icon name={m.icon} size={13} />,
-                onSelect: () => void a.receptionist({ ...m, label: plModeWord(m.id) }),
-              })),
-            },
-          ],
-        })}
-      {canEdit && keeps("note") && !noting && (
-        <button className="btn btn-sm" disabled={busy} onClick={() => setNoting(true)} data-testid="bulk-note">
+      {canEdit && keeps("note") && (
+        <button className="btn btn-sm" disabled={busy} onClick={a.addNote} data-testid="bulk-note">
           <Icon name="edit" size={12} /> Add a note
         </button>
       )}
-      {noteBox(b, a)}
       {canExport && keeps("export") && (
         <button className="btn btn-sm" disabled={busy} onClick={a.exportCsv} data-testid="bulk-export">
           <Icon name="external" size={12} /> Export CSV

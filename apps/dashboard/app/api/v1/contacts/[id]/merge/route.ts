@@ -1,11 +1,7 @@
-import { z } from "zod";
+import { PersonMergeBody } from "@chanlytics/contracts";
 import { write } from "@/server/route";
 import { contactScope } from "@/server/verbs";
 import { mergeRecords } from "@/server/people/merge-people";
-
-const Body = z.object({
-  merge: z.uuid({ message: "Choose the record to merge into this one." }),
-});
 
 /**
  * POST /api/v1/contacts/:id/merge — { merge }
@@ -22,6 +18,6 @@ export const POST = write({
   fresh: true,
   role: "owner",
   rate: "merge",
-  input: Body,
+  input: PersonMergeBody,
   handle: ({ ctx, row: contact, input: body }) => mergeRecords(ctx, contact.id, body.merge),
 });

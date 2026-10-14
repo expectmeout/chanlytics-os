@@ -8,16 +8,12 @@ import type { ReactNode } from "react";
 import { CONSENT_SOURCES, offersYesRefusal } from "@chanlytics/contracts";
 import { mayAtLeast, refusalToast } from "../../legacy-verbs";
 import type { ReceptionistMany } from "../people-detail";
-import {
-  appendPersonNotesMany,
-  setPersonConsentMany,
-  setPersonMarketingConsentMany,
-  setPersonReceptionistMany,
-} from "../people-detail";
+import { setPersonConsentMany, setPersonMarketingConsentMany, setPersonReceptionistMany } from "../people-detail";
 import { lists } from "../people-lists";
 import { plMakeListWith, plUndoList } from "../lists/doors";
 import { PL_BATCH, plCsv } from "../words";
 import { downloadCsv } from "../../kit/download";
+import { openStepSheet } from "../step-sheet/step-sheet";
 import type { BulkCtx, BulkProps, BulkState } from "./bulk-state";
 import type { SavedList } from "../types";
 
@@ -219,7 +215,7 @@ function yesActs(b: BulkCtx, run: Run) {
 /** A mode for the receptionist and a note for the selection, one request each; and the selection as a file. */
 function personActs(b: BulkCtx) {
   const { st, flash, batch, rest, restWords, onKeep, onClear, onSheet, picked } = b;
-  const { busy, setBusy, setNoting, note, setNote } = st;
+  const { busy, setBusy } = st;
   const exportCsv = () => {
     downloadCsv(`people-${new Date().toISOString().slice(0, 10)}.csv`, plCsv(picked, b.fileColumns ?? []));
     flash({ msg: <>{picked.length} exported as a CSV</> });
@@ -244,30 +240,27 @@ function personActs(b: BulkCtx) {
       else onClear();
     }
   };
-  const addNote = async () => {
-    const line = note.trim();
-    if (!line || busy) return;
-    setBusy(true);
-    const r = await appendPersonNotesMany(batch, line);
-    setBusy(false);
-    flash({
-      tone: r.ok ? "ok" : "danger",
-      msg: r.ok ? (
-        <>
-          Noted on {r.done} {r.done === 1 ? "person" : "people"}: <b>{line}</b>
-          {restWords}
-        </>
-      ) : (
-        <>{r.message}</>
-      ),
+  // A note for the selection is the note sheet's, for many (step-sheet.tsx): it takes the line, writes it through the
+  // note_many verb and hands back how many it reached, which the bar says as it says its other acts, keeping the rest.
+  const addNote = () => {
+    if (busy) return;
+    onSheet(null);
+    openStepSheet({
+      personIds: batch,
+      onDone: (r) => {
+        flash({
+          tone: "ok",
+          msg: (
+            <>
+              Noted on {r.done} {r.done === 1 ? "person" : "people"}: <b>{r.line}</b>
+              {restWords}
+            </>
+          ),
+        });
+        if (rest.length) onKeep(rest);
+        else onClear();
+      },
     });
-    if (r.ok) {
-      setNoting(false);
-      setNote("");
-      onSheet(null);
-      if (rest.length) onKeep(rest);
-      else onClear();
-    }
   };
   return { exportCsv, receptionist, addNote };
 }

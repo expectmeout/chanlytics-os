@@ -23,6 +23,7 @@ import {
   dealSheetDirty,
   dealSheetFor,
   dealSheetMerge,
+  dealSheetFill,
   dealSheetRefusal,
   isDealSheetMode,
   shortName,
@@ -36,11 +37,13 @@ import { FieldError } from "../../kit/field-error/field-error";
 import { useRecordFold } from "../../kit/record/hooks";
 import { recFolds } from "../../kit/record/registry";
 import { RecordSheet } from "../../kit/record/sheet";
+import { doAsked } from "../../kit/sheet/back";
 import { peekPerson, personDetail, recordDeal } from "../people-detail";
 import type { DealBody } from "../people-detail";
 import { hasThreadVerbs, hear, saidBy, announce, threadVerbs, usePersonToast } from "../person-verbs";
 import type { FlashFn, PersonFlash } from "../person-verbs";
 import { DealSheetFieldsGlass, loadDayPick } from "./fields";
+import { SayItLine } from "./say-it";
 
 const DEAL_SHEET_ID = "deal-sheet";
 
@@ -328,8 +331,25 @@ function sheetBody(
         {sheet.blocked}
       </p>
     );
-  // The fields as the canvas's one composer, in rows (D3).
-  return <DealSheetFieldsGlass sheet={sheet} draft={st.draft} set={set} problem={atField} busy={st.busy} />;
+  // Say it over the fields (the sheets as verbs, step 5): what was said fills the rows the sheet draws, and Save is theirs.
+  const ask = st.ask;
+  return (
+    <>
+      {ask ? (
+        <SayItLine
+          personId={ask.personId}
+          verb="deal"
+          busy={st.busy}
+          onFill={(dto) => {
+            if (dto.verb === "deal") set(dealSheetFill(sheet, dto.deal));
+          }}
+          testid="deal-sheet-say"
+        />
+      ) : null}
+      {/* The fields as the canvas's one composer, in rows (D3). */}
+      <DealSheetFieldsGlass sheet={sheet} draft={st.draft} set={set} problem={atField} busy={st.busy} />
+    </>
+  );
 }
 
 /** What the sheet's own presses do: leave, or ask first. */
@@ -374,6 +394,8 @@ function drawSheet(h: Host, { cancel, close }: Hands, toastNode: ReactNode) {
       <RecordSheet
         id={DEAL_SHEET_ID}
         className="deal-sheet"
+        // Back closes it; a new proposal is named in the address, so a reload or a link opens it again (kit sheet/back.ts).
+        backCloses={ask.mode === "propose" && !ask.dealId ? `deal:${ask.personId}` : true}
         title={sheet ? sheet.title : W.titles[ask.mode]}
         sub={sheet ? sheet.sub : null}
         onClose={cancel}
@@ -422,6 +444,11 @@ export function DealSheetHost() {
       }),
     [],
   );
+  // A proposal the address names (`?do=deal:<person>`: a reload, a link) opens as the frame does, once.
+  useEffect(() => {
+    const personId = doAsked("deal");
+    if (personId) openDealSheet({ personId, mode: "propose" });
+  }, []);
   const close = () => {
     setSt(DS_CLOSED);
     fold.close();

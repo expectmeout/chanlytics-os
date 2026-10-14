@@ -6,7 +6,8 @@
  * un-silencing the receptionist for one person. The route declares who may (owner-only: it changes what a real customer
  * experiences) and how often; the contact is its row (contactScope).
  */
-import { z } from "zod";
+import type { z } from "zod";
+import type { PersonReceptionistMode, ReceptionistModeBody } from "@chanlytics/contracts";
 import { setPersonReplyMode } from "@chanlytics/db";
 import { recordDecision, type contactScope } from "@/server/verbs";
 import type { RouteContext } from "@/server/with-route";
@@ -14,17 +15,13 @@ import type { RouteContext } from "@/server/with-route";
 /** The person a contactScope route acts on, as the scope read them. */
 type ContactRow = Awaited<ReturnType<typeof contactScope.load>>;
 
-const MODES = ["auto", "ask", "never", "inherit"] as const;
-
-type Mode = (typeof MODES)[number];
-
-export const PersonModeChange = z.object({
-  mode: z.enum(MODES, { message: "Mode must be one of: auto, ask, never, inherit." }),
-});
-
-export async function setPersonMode(ctx: RouteContext, contact: ContactRow, input: z.infer<typeof PersonModeChange>) {
+export async function setPersonMode(
+  ctx: RouteContext,
+  contact: ContactRow,
+  input: z.infer<typeof ReceptionistModeBody>,
+) {
   const id = contact.id;
-  const m: Mode = input.mode;
+  const m: PersonReceptionistMode = input.mode;
   const was = await setPersonReplyMode(ctx.supabase, contact.tenant_id, id, m === "inherit" ? null : m);
 
   // On the ledger as what it is: silencing or un-silencing the receptionist

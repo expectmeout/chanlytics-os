@@ -201,6 +201,7 @@ test("the page: the rail's Saved section is real, a name typed there is the only
   globalThis.CHANLY = { nav: (to) => went.push(to) };
   const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
   const { PersonLists } = await importSrc("apps/dashboard/src/surfaces/people/person/lists.tsx");
+  const picked = [];
   const section = (saved, smart = []) => {
     // Only what the section reads of People: the lists, and whether they could be read.
     setSurfaceValue("people", { saved, savedRead: true });
@@ -212,6 +213,7 @@ test("the page: the rail's Saved section is real, a name typed there is the only
         first: "Person",
         flash() {},
         smart,
+        onPick: () => picked.push("lists"),
       }),
     );
   };
@@ -223,12 +225,12 @@ test("the page: the rail's Saved section is real, a name typed there is the only
   );
   const empty = section([], [{ id: "needs", label: "Needs you now", why: "" }]);
   assert.ok(LR.textOf(empty).includes("No lists of your own yet."));
-  assert.ok(LR.textOf(empty).includes("Make one on People"));
+  assert.ok(LR.textOf(empty).includes("Make one"));
   LR.press(LR.byTestId(empty, "person-lists-make"));
   assert.deepEqual(
-    went,
-    ["clients/new-list"],
-    "the empty section is a door to People with the New list box opening; 'the People rail' is not a place a phone has",
+    [went, picked],
+    [[], ["lists"]],
+    "the empty section opens the lists sheet, where a list is made with them on it; 'the People rail' is not a place a phone has",
   );
   setSurfaceValue("people", undefined);
   assert.ok(readRaw("apps/dashboard/src/legacy/styles/clients.css").includes(".cl-rail-newlist input {"));

@@ -16,6 +16,7 @@ import {
   type PersonRowVM,
 } from "@chanlytics/contracts";
 import { api } from "@/legacy-bridge/api";
+import { commitVerb } from "@/legacy-bridge/verbs/commit";
 import { workspaceZone } from "@/legacy-bridge/zone";
 
 /**
@@ -30,16 +31,18 @@ export async function findPeople(q: string): Promise<PersonRowVM[]> {
 }
 
 /**
- * Someone the business meets before they ever write, added by number through People's own door (POST contacts): a
- * number already here answers with that person, never a second one.
+ * Someone the business meets before they ever write, added by number through People's own verb (person_add, contracts
+ * personAddSpec): a number already here answers with that person, never a second one.
  */
 export async function addByNumber(d: {
   name: string;
   phone: string;
 }): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   const name = d.name.trim();
-  const r = await api()("POST contacts", { body: { phone: d.phone.trim(), ...(name ? { name } : {}) } });
-  if (r.ok) return { ok: true, id: r.data.contact_id };
+  const r = await commitVerb("person_add", { phone: d.phone.trim(), ...(name ? { name } : {}) });
+  const id: unknown = r.ok && r.data && typeof r.data === "object" ? Reflect.get(r.data, "contact_id") : null;
+  if (r.ok && typeof id === "string") return { ok: true, id };
+  if (r.ok) return { ok: false, error: W.who.notAdded };
   // The field's own sentence where the route named one, else the refusal's.
   return { ok: false, error: (r.fields && Object.values(r.fields)[0]) || r.message || W.who.notAdded };
 }

@@ -81,6 +81,8 @@ export interface PersonNoteVM {
 
 /** How long a note may be, in characters: the table's CHECK (00157). */
 export const NOTE_MAX = 600;
+/** One line under many people's notes ("class of 12 Sep"), at most this long (PUT contacts/notes). */
+export const NOTE_LINE_MAX = 200;
 
 /** The notes card's words, once. */
 export const NOTE_WORDS = {

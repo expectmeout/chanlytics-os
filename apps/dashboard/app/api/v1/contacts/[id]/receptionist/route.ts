@@ -1,6 +1,7 @@
 import { write } from "@/server/route";
 import { contactScope } from "@/server/verbs";
-import { setPersonMode, PersonModeChange } from "@/server/people/person-mode";
+import { ReceptionistModeBody } from "@chanlytics/contracts";
+import { setPersonMode } from "@/server/people/person-mode";
 
 /**
  * PUT /api/v1/contacts/:id/receptionist — { mode: auto | ask | never | inherit }
@@ -23,6 +24,6 @@ export const PUT = write({
   scope: contactScope,
   role: "owner",
   rate: "person_mode",
-  input: PersonModeChange,
+  input: ReceptionistModeBody,
   handle: ({ ctx, row, input }) => setPersonMode(ctx, row, input),
 });

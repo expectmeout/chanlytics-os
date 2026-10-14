@@ -97,6 +97,7 @@ function phoneSheets(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
   const why = sheet === "why";
   return (
     <Sheet
+      backCloses
       open={sheet === "more" || why}
       shape="job"
       title={why ? W.notFitTitle || "Not a fit" : `${count.toLocaleString()} selected`}
@@ -106,17 +107,17 @@ function phoneSheets(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
       testid={why ? "leads-bulk-why" : "leads-bulk-sheet"}
     >
       {why ? (
-        <div className="pp-sheet-rows">
-          {(W.whys || []).map((w) => (
-            <PhoneSheetRow
-              key={w.id}
-              label={w.label}
-              disabled={busy}
-              onClick={shut(() => p.onNotAFit(w.id, scope("not_a_fit")))}
-              testid={`leads-bulk-why-${w.id}`}
-            />
-          ))}
-        </div>
+        <LeadNotFitWhy
+          rows
+          busy={busy}
+          on={{
+            onWhy: (w) => {
+              shut(() => p.onNotAFit(w, scope("not_a_fit")))();
+              return Promise.resolve();
+            },
+          }}
+          testid="leads-bulk-why"
+        />
       ) : (
         <div className="pp-sheet-rows">
           {!allMatching && total > rows.length ? (

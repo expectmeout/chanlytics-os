@@ -675,6 +675,7 @@ apps/dashboard/src/legacy-bridge/
   mascot/
   reach-out/
   surfaces/
+  verbs/
 apps/dashboard/src/legacy/
   components/
   data/

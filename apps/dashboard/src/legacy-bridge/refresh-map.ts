@@ -587,6 +587,7 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST google/search": "a search for the business on Google",
   "POST leads/[id]/draft": "a draft; the lead moves when the owner says it was sent, which is a stage",
   "POST people/[id]/draft": "a draft of a message or of a call's brief, shown in the sheet that asked",
+  "POST people/[id]/say": "a sheet's fields, filled from what was said; nothing is stored until the sheet's Save",
   "POST lines/search": "a search for numbers to buy",
   "POST reach-outs/preview": "a preview of a reach-out's email",
   "POST segments/draft": "a draft of a list's rule",

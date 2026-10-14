@@ -46,7 +46,8 @@ import { CallAct } from "./call";
 import { PersonName } from "./name";
 import { askNoteFocus } from "./notes";
 import { NameNotices, putNameBack } from "./signer";
-import { digitsOf } from "./ctx";
+import { MERGE_CLOSED, digitsOf } from "./ctx";
+import { combineAsk } from "./sheets/combine";
 import type { PageCtx } from "./ctx";
 import type { PersonActVM, PersonDoubtVM, PersonRowVM } from "@chanlytics/contracts";
 import type { PersonWalk } from "../walk";
@@ -130,12 +131,12 @@ function moreGroups(c: PageCtx, compose: (text?: string | null) => void): MenuGr
     },
     // One question at a time: opening either box closes the other.
     delete: () => {
-      setMerge({ open: false, pick: null, typed: "", busy: false, error: null });
+      setMerge(MERGE_CLOSED);
       setDel({ open: true, typed: "", busy: false, error: null });
     },
     merge: () => {
       setDel({ open: false, typed: "", busy: false, error: null });
-      setMerge({ open: true, pick: null, typed: "", busy: false, error: null });
+      setMerge({ ...MERGE_CLOSED, open: true, pick: null });
     },
   };
   // Call is the head's own act (canvas A: Call · Note · More), so the menu does not say it again; where the head has no
@@ -283,7 +284,7 @@ export function doubtRows(c: PageCtx) {
   };
   const mergeWith = (d: PersonDoubtVM) => {
     setDel({ open: false, typed: "", busy: false, error: null });
-    setMerge({ open: true, pick: d.otherId, typed: "", busy: false, error: null });
+    setMerge({ ...MERGE_CLOSED, open: true, pick: d.otherId });
   };
   return (
     <div className="cl-prof-doubts" role="group" aria-label={DOUBT_WORDS.heading} data-testid="doubts">
@@ -325,7 +326,7 @@ export function doubtRows(c: PageCtx) {
 function mergeAsk(c: PageCtx): SheetAsk {
   const { p, merge, setMerge, others, flash, load } = c;
   // People's other rows, and the other record of each doubt (0034 step 4) People has not read or does not list. Two
-  // records of one human at a business are Combine's, with a sheet of its own (sheets/combine-sheet.tsx).
+  // records of one human at a business, offered by their notice, are asked as Combine's question (sheets/combine.tsx).
   const rows: MergeOption[] = [
     ...(others ?? []),
     ...p.doubts
@@ -356,7 +357,7 @@ function mergeAsk(c: PageCtx): SheetAsk {
     }
     const kept = keptOf(r.data, p.id);
     flash({ msg: kept === p.id ? MERGE_WORDS.done(p.name, nameOf(other)) : MERGE_WORDS.done(nameOf(other), p.name) });
-    setMerge({ open: false, pick: null, typed: "", busy: false, error: null });
+    setMerge(MERGE_CLOSED);
     // The door kept the other record (a pair it takes as one human, 0052): this record is gone, and theirs is the page.
     if (kept !== p.id) navigate(`clients/${kept}`);
     else load();
@@ -407,7 +408,7 @@ function mergeAsk(c: PageCtx): SheetAsk {
         busy={merge.busy}
         error={merge.error}
         onYes={() => void confirmMerge()}
-        onNo={() => setMerge({ open: false, pick: null, typed: "", busy: false, error: null })}
+        onNo={() => setMerge(MERGE_CLOSED)}
         testid="merge"
       />
     ),
@@ -637,13 +638,16 @@ export function hero(c: PageCtx) {
   // Delete and Merge ask in the kit's sheet (canvas A): a side pane on a desk, from the foot on a phone, what each does in
   // its body and its typed question in its foot; drawn while open, so the head keeps its height under them.
   const del = c.del.open ? deleteAsk(c) : null;
-  const merge = c.merge.open ? mergeAsk(c) : null;
+  // Given the pair a Combine notice offered, the sheet asks Combine's question (sheets/combine.tsx); otherwise Merge's.
+  const combine = c.merge.open && c.merge.combine ? combineAsk(c) : null;
+  const merge = combine ?? (c.merge.open ? mergeAsk(c) : null);
   return (
     <div className="cl-prof-hero cl-prof-head">
       {/* The way back is the top bar's, ‹ People, at every width (the page's standing, person-real.tsx). */}
       {heroId(c)}
       {heroActs(c, more)}
       <Sheet
+        backCloses
         open={c.del.open}
         onClose={() => c.setDel({ open: false, typed: "", busy: false, error: null })}
         title={PERSON_DELETE_WORDS.title}
@@ -655,9 +659,13 @@ export function hero(c: PageCtx) {
         {del?.body}
       </Sheet>
       <Sheet
+        backCloses
         open={c.merge.open}
-        onClose={() => c.setMerge({ open: false, pick: null, typed: "", busy: false, error: null })}
-        title={MERGE_WORDS.act.replace(/…$/, "")}
+        onClose={() => {
+          if (!c.merge.busy) c.setMerge(MERGE_CLOSED);
+        }}
+        title={combine ? combine.title : MERGE_WORDS.act.replace(/…$/, "")}
+        sub={combine?.sub}
         close={{ label: "Close", glyph: <Icon name="x" size={13} /> }}
         foot={merge?.foot}
         footCloses

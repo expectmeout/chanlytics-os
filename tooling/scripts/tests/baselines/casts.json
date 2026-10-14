@@ -1,16 +1,4 @@
 {
-  "apps/dashboard/app/api/v1/contacts/[id]/consent/route.ts": {
-    "unknownAs": 1
-  },
-  "apps/dashboard/app/api/v1/contacts/[id]/marketing-consent/route.ts": {
-    "unknownAs": 1
-  },
-  "apps/dashboard/app/api/v1/contacts/consent/route.ts": {
-    "unknownAs": 1
-  },
-  "apps/dashboard/app/api/v1/contacts/marketing-consent/route.ts": {
-    "unknownAs": 1
-  },
   "apps/dashboard/app/api/v1/lead-searches/[id]/answer/route.ts": {
     "unknownAs": 1
   },
@@ -43,9 +31,6 @@
   },
   "apps/dashboard/src/legacy-bridge/ask.ts": {
     "unknownAs": 2
-  },
-  "apps/dashboard/src/legacy-bridge/ask/commit.ts": {
-    "unknownAs": 1
   },
   "apps/dashboard/src/legacy-bridge/ask/palette.ts": {
     "unknownAs": 3

@@ -17,14 +17,13 @@
 import { useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
 import { formatPhoneDisplay } from "@chanlytics/contracts";
-import { Button } from "../../kit/button/button";
 import { FieldError } from "../../kit/field-error/field-error";
-import { Icon } from "../../kit/icon/icon";
 import { RecordToggleGroup } from "../../kit/record/field";
 import { RecordSheet } from "../../kit/record/sheet";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { plAddExtras, plAddPerson, plAddedWords } from "../lists/doors";
 import { importPeople } from "../people-detail";
+import { ImportSource, ImportTaste } from "./frame";
 import type { Flash } from "../types";
 import { plImportColumnWords, plImportCountWords, plImportPlan } from "./plan";
 import type { ImportPlan } from "./plan";
@@ -76,44 +75,35 @@ function importLines<T extends { line: number }>(list: T[], testid: string, word
   );
 }
 
-/** What was read, before anything is written: the counts, the columns, and a taste of the rows. */
+/** What was read, before anything is written: the counts, the columns, and a taste of the rows (the import frame). */
 function previewOf(plan: ImportPlan, readable: ImportRow[], taste: ImportRow[]) {
+  const unreadable = plan.counts.unreadable;
   return (
-    <div className="pl-import-preview" data-testid="import-preview">
-      <p className="pl-import-counts" data-testid="import-counts">
-        {plImportCountWords(plan.counts)}
-      </p>
-      <p className="pl-import-hint" data-testid="import-columns">
-        {plan.counts.rows === 0 ? "No rows were read from that." : plImportColumnWords(plan)}
-        {plan.counts.unreadable
-          ? ` ${plan.counts.unreadable.toLocaleString()} ${plan.counts.unreadable === 1 ? "row has" : "rows have"} neither a number nor an address and will be skipped.`
-          : ""}
-        {plan.counts.rows > 0 && readable.length === 0 ? " There is nothing to import." : ""}
-      </p>
-      {taste.length > 0 && (
-        <table className="pl-import-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Mobile</th>
-              <th>Email</th>
-            </tr>
-          </thead>
-          <tbody>
-            {taste.map((p) => (
-              <tr key={p.line}>
-                <td>{p.name || "—"}</td>
-                <td className="tabular">{p.phone ? plImportPhone(p.phone) : "—"}</td>
-                <td>{p.email || "—"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-      {readable.length > taste.length && (
-        <p className="pl-import-hint">and {(readable.length - taste.length).toLocaleString()} more</p>
-      )}
-    </div>
+    <ImportTaste
+      counts={plImportCountWords(plan.counts)}
+      columns={
+        <>
+          {plan.counts.rows === 0 ? "No rows were read from that." : plImportColumnWords(plan)}
+          {unreadable
+            ? ` ${unreadable.toLocaleString()} ${unreadable === 1 ? "row has" : "rows have"} neither a number nor an address and will be skipped.`
+            : ""}
+          {plan.counts.rows > 0 && readable.length === 0 ? " There is nothing to import." : ""}
+        </>
+      }
+      heads={["Name", "Mobile", "Email"]}
+      rows={taste.map((p) => ({
+        key: p.line,
+        cells: [
+          p.name || "—",
+          <span key="phone" className="tabular">
+            {p.phone ? plImportPhone(p.phone) : "—"}
+          </span>,
+          p.email || "—",
+        ],
+      }))}
+      more={readable.length - taste.length}
+      testid="import"
+    />
   );
 }
 
@@ -538,6 +528,7 @@ export function PeopleAddSheet({
   const save = saveOf(listing, one, list);
   return (
     <RecordSheet
+      backCloses
       id="people-add"
       title="Add people"
       sub={ADD_SUBS[listing ? "list" : "one"]}
@@ -569,7 +560,7 @@ export function PeopleAddSheet({
   );
 }
 
-/** Where the rows come from: a file chosen, or pasted, and the button that reads them. */
+/** Where the rows come from: a file chosen, or pasted, and the button that reads them (the import frame). */
 function sourceFields(p: {
   busy: boolean;
   text: string;
@@ -579,49 +570,19 @@ function sourceFields(p: {
 }): ReactNode {
   const { busy, text, setText, onFile, read } = p;
   return (
-    <>
-      {/* The kit's button opens the browser's own picker, hidden beside it: its "Choose File · No file chosen" was the one
-          control on the sheet the kit did not draw (the fitted sheets, 14 Oct 2026). */}
-      <input
-        type="file"
-        accept=".csv,text/csv,text/plain"
-        hidden
-        onChange={onFile}
-        disabled={busy}
-        data-testid="import-file"
-      />
-      <Button
-        className="pl-import-file"
-        disabled={busy}
-        onClick={(e) => (e.currentTarget.previousElementSibling as HTMLInputElement | null)?.click()}
-        data-testid="import-choose"
-      >
-        <Icon name="content" size={14} />
-        Choose a CSV file
-      </Button>
-      <div className="rec-field">
-        <label>
-          <span className="rec-field-label">Or paste the rows</span>
-          <textarea
-            className="rec-input"
-            rows={5}
-            value={text}
-            disabled={busy}
-            placeholder={"Name,Mobile,Email\nAna Ruiz,(646) 555-0101,ana@example.com"}
-            onChange={(e) => setText(e.target.value)}
-            data-testid="import-paste"
-          />
-        </label>
-        <button
-          type="button"
-          className="btn btn-sm pl-import-read"
-          disabled={busy || !text.trim()}
-          onClick={() => read(text)}
-          data-testid="import-read"
-        >
-          Read the rows
-        </button>
-      </div>
-    </>
+    <ImportSource
+      words={{
+        file: "Choose a CSV file",
+        paste: "Or paste the rows",
+        placeholder: "Name,Mobile,Email\nAna Ruiz,(646) 555-0101,ana@example.com",
+        read: "Read the rows",
+      }}
+      text={text}
+      busy={busy}
+      onFile={onFile}
+      onText={setText}
+      onRead={() => read(text)}
+      testid="import"
+    />
   );
 }

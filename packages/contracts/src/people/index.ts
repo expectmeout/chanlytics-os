@@ -61,7 +61,7 @@ export {
   OWN_MESSAGE_REFUSALS,
 } from "./person-consent";
 export type { PersonConsent, NotReceived, ReceiveRow } from "./person-consent";
-export { personNotesVM, NOTE_MAX, NOTE_WORDS, NOTE_REFUSALS } from "../notes/person-notes";
+export { personNotesVM, NOTE_LINE_MAX, NOTE_MAX, NOTE_WORDS, NOTE_REFUSALS } from "../notes/person-notes";
 export type { PersonNoteDto, PersonNoteTeamDto, PersonNoteVM } from "../notes/person-notes";
 export {
   peopleListAction,
@@ -176,3 +176,36 @@ export { MERGE_ANSWERS, MERGE_CONSENT_SOURCE, MERGE_REFUSALS, MERGE_WORDS, merge
 export type { MergedAnswers, RecordAnswers } from "./person-merge";
 export { DOUBT_SEEN, DOUBT_SETTLED_AS, DOUBT_WORDS } from "./person-doubts";
 export type { DoubtSeen, DoubtSettledAs, PersonDoubtDto } from "./person-doubts";
+export {
+  ConsentAnswerBody,
+  ConsentManyBody,
+  NoteWriteBody,
+  NotesAppendManyBody,
+  PersonAddBody,
+  PersonMergeBody,
+  ReceptionistManyBody,
+  ReceptionistModeBody,
+} from "./doors/person-bodies";
+export type { ConsentAnswer, NoteWrite, PersonAdd, PersonReceptionistMode } from "./doors/person-bodies";
+export {
+  SAY_IT_DEAL_JSON_SCHEMA,
+  SAY_IT_MAX,
+  SAY_IT_NOTE_JSON_SCHEMA,
+  SAY_IT_VERBS,
+  SAY_IT_WORDS,
+  dealFill,
+  dealSheetFill,
+  noteFill,
+  noteSheetFill,
+  sayItFilled,
+} from "./doors/say-it";
+export type {
+  SayItDealAnswer,
+  SayItDealFill,
+  SayItDto,
+  SayItNoteAnswer,
+  SayItNoteFill,
+  SayItVerb,
+} from "./doors/say-it";
+export { SayItDealAnswerSchema, SayItInputSchema, SayItNoteAnswerSchema } from "./doors/say-it-schema";
+export type { SayItInput } from "./doors/say-it-schema";

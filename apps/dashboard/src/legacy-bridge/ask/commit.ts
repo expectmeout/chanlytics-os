@@ -40,15 +40,12 @@ import {
   type AskProposal,
   type AskProposalOutcome,
   type PlanMade,
-  type ProposalCall,
   type ProposalRefusal,
-  type ProposalTab,
-  type ProposalThen,
 } from "@chanlytics/contracts";
-import type { Api, ApiOptions, RouteKey } from "../../client/api";
+import type { Api } from "../../client/api";
 import { apiFor } from "../api";
+import { isRefusal, saidHere, undoVerb, walkVerb } from "../verbs/commit";
 import { goToRoute } from "../workspace";
-import { viaAsk } from "./api";
 
 /** What a commit did: its receipt, what its undo keeps, and the id it made that a later step of a plan names, or null. */
 export type CommitResult =
@@ -62,41 +59,6 @@ export type UndoResult = { ok: true; receipt: string; undo: null } | { ok: false
 interface CommitAt {
   nowMs?: number;
   made?: PlanMade;
-}
-
-interface Loaded {
-  __SETTINGS?: { config?: Record<string, unknown> | null; version?: number } | null;
-}
-
-/** What the tab holds now, as a spec reads it: taken once, so a re-read after the call cannot change what was kept. */
-function tabOf(win: Window): ProposalTab {
-  const st = (win as unknown as Loaded).__SETTINGS;
-  return { settings: st ? { config: st.config, version: st.version } : null };
-}
-
-const isRefusal = (c: object): c is ProposalRefusal => "refused" in c;
-/** An undo of several rows answers its calls as a list (contracts ProposalUndo.call). */
-const isCalls = (c: ProposalCall | readonly ProposalCall[] | ProposalRefusal): c is readonly ProposalCall[] =>
-  Array.isArray(c);
-
-/**
- * One of a spec's calls, through the typed client, marked as a card's, under a key that is the card's own (its
- * proposal id, or its plan's step's key, and a suffix for its second call or its undo): a card approved in two tabs, or
- * pressed twice, is one change, since the write routes keep a card's answer under its key (server/route.ts, onceForKey).
- */
-function send(client: Api, c: ProposalCall, cardKey: string, undoOf?: string) {
-  // Every key a spec may name is one the client knows: contracts' keys and the client's are one generated list
-  // (route-types.test.mjs), and this assignment is the compiler's side of that. What each route takes is the
-  // dashboard's (Input<K>), so the options are cast, as a key held in a variable must be.
-  const key: RouteKey = c.route;
-  const opts = { params: c.params, body: c.body, idempotencyKey: c.idempotencyKey ?? cardKey, refresh: c.refresh };
-  return viaAsk(client, key, opts as ApiOptions<typeof key>, undoOf);
-}
-
-/** The window events a call carries, once it has landed. */
-function tell(win: Window, c: ProposalCall): void {
-  for (const e of c.events ?? [])
-    win.dispatchEvent(e.detail ? new CustomEvent(e.type, { detail: e.detail }) : new CustomEvent(e.type));
 }
 
 /** A plan's step's key: one per step of one plan, whichever way the step is pressed (Review Focus 3). */
@@ -128,9 +90,10 @@ function withSteps(p: AskProposal, made: PlanMade): AskProposal | ProposalRefusa
 }
 
 /**
- * Approve a card: its spec's call under the card's key (a plan's step's, where it is one), the window told, the second
- * call where its spec makes one, and the receipt, what undo keeps and the id it made. `at.made` is what its plan's
- * earlier steps made, which fills its tokens; `at.nowMs` the clock it is judged fresh by.
+ * Approve a card: its spec's call under the card's key (a plan's step's, where it is one), marked as a card's, through
+ * the verb walk every press goes through (legacy-bridge/verbs walkVerb): the window told, the second call where its
+ * spec makes one, and the receipt, what undo keeps and the id it made. `at.made` is what its plan's earlier steps made,
+ * which fills its tokens; `at.nowMs` the clock it is judged fresh by.
  */
 export async function commitProposal(
   win: Window,
@@ -146,29 +109,11 @@ export async function commitProposal(
   const card = withSteps(p, at.made ?? {});
   if (isRefusal(card)) return { ok: false, message: card.refused };
   const key = card.plan ? stepKey(card.plan) : card.id;
-  const tab = tabOf(win);
-  const call = spec.commit(card, tab);
-  if (isRefusal(call)) return { ok: false, message: call.refused };
-  const r = await send(client, call, key);
-  if (!r.ok) return r;
-  tell(win, call);
-  // The second call (a deal's next step), on the first one's answer. The first stands either way, and the receipt
-  // says how the second went: refused by its route, or by its spec before anything was sent.
-  const next = spec.then?.(card, r.data) ?? null;
-  let then: ProposalThen | undefined;
-  if (next && isRefusal(next)) then = { ok: false, message: next.refused };
-  else if (next) {
-    const n = await send(client, next, `${key}:then`);
-    if (n.ok) tell(win, next);
-    then = n.ok ? { ok: true } : { ok: false, message: n.message };
-  }
-  const id = spec.made?.(card, r.data) ?? null;
-  return {
-    ok: true,
-    receipt: spec.receipt(card, r.data, then),
-    undo: spec.undo?.record(card, r.data, tab) ?? null,
-    made: id ? { kind: card.kind, id } : null,
-  };
+  const r = await walkVerb(card, { win, client, key, via: "ask" });
+  // A door's refusal is the card's answer whole: the kind of no beside the server's own sentence (refusals-in-our-words);
+  // the walk's own (nothing sent) is its words.
+  if (!r.ok) return saidHere(r) ? { ok: false, message: r.message } : r;
+  return { ok: true, receipt: r.receipt, undo: r.undo, made: r.made ? { kind: card.kind, id: r.made } : null };
 }
 
 /** A press's client and clock: the tab's own and now, unless a test hands its own. */
@@ -262,29 +207,12 @@ export async function undoProposal(
   client: Api = apiFor(win),
 ): Promise<UndoResult> {
   const record = (outcome.undo ?? null) as Record<string, unknown> | null;
-  const undo = proposalSpec(p.kind)?.undo;
-  if (!record || !undo) return { ok: false, message: PROPOSAL_WORDS.noUndo };
-  // The row this undo reverses, when the commit's route answered with one.
-  const undoOf = typeof record.decision_id === "string" && record.decision_id ? record.decision_id : undefined;
-  const made = undo.call(record, tabOf(win));
-  if (!isCalls(made) && isRefusal(made)) return { ok: false, message: made.refused };
-  // Several rows, each through its own door (a message's versions): one call each, in order, each under a key of its own,
-  // stopping at the first refused, and saying what landed before it. Pressed again, a call whose row an earlier press
-  // took answers 404 before its key is read (a row-scoped write reads its row first, server/route.ts), which a call that
-  // says so (`goneIsDone`) counts as done; a refused call let its key go, so it runs again.
-  const calls = isCalls(made) ? made : [made];
-  if (calls.length === 0) return { ok: false, message: PROPOSAL_WORDS.noUndo };
-  let data: unknown = null;
-  for (const [i, call] of calls.entries()) {
-    const r = await send(client, call, i === 0 ? `${p.id}:undo` : `${p.id}:undo:${i + 1}`, undoOf);
-    // Its row gone already (an earlier press took it): what it undoes is not there, so it is done; on to the next.
-    if (!r.ok && call.goneIsDone && r.status === 404) continue;
-    // Refused after some landed: what they did, then the refusal (the spec's words), never the refusal alone.
-    if (!r.ok) return i > 0 && undo.partial ? { ok: false, message: undo.partial(record, i, r.message) } : r;
-    tell(win, call);
-    data = r.data;
-  }
-  return { ok: true, receipt: undo.receipt(data, record), undo: null };
+  if (!record || !proposalSpec(p.kind)?.undo) return { ok: false, message: PROPOSAL_WORDS.noUndo };
+  // The verb walk's undo, marked as a card's, under the card's own key: the row it reverses is named by the commit's
+  // ledger row (`decision_id`), and a call whose row an earlier press took counts as done (verbs/commit.ts).
+  const r = await undoVerb(p.kind, record, { win, client, key: p.id, via: "ask" });
+  if (r.ok) return { ok: true, receipt: r.receipt, undo: null };
+  return saidHere(r) ? { ok: false, message: r.message } : r;
 }
 
 /** "Edit in the composer": open the thread with the words ready to change. */
