@@ -119,7 +119,8 @@ test("Live hears the line's number and switch beside the calls", () => {
 test("the composers hear the channel, the line and the billing account on their own page, and read what they missed as it comes on screen", () => {
   for (const [o, home, away] of [
     [playbooksOverride, "#/campaigns", "#/inbox"],
-    [broadcastsOverride, "#/broadcasts", "#/campaigns"],
+    // Campaigns' home hears the channels for Sent's runs too (who can hear you, Send by): away is the Inbox.
+    [broadcastsOverride, "#/broadcasts", "#/inbox"],
   ]) {
     for (const table of LINE_TABLES) {
       assert.ok(o.refreshOnTables.includes(table), `${o.key} names ${table}`);
@@ -152,10 +153,14 @@ test("the composers hear the channel, the line and the billing account on their 
     assert.deepEqual(read, [], "nothing is read from the Inbox");
     at("#/campaigns");
     win.on?.();
-    assert.deepEqual(read, ["playbooks"], "Campaigns' home reads the playbooks once");
+    assert.deepEqual(
+      read,
+      ["playbooks", "broadcasts"],
+      "Campaigns' home reads both once: a channel moves the playbooks' moments and Sent's runs it draws (who can hear you)",
+    );
     at("#/broadcasts");
     win.on?.();
-    assert.deepEqual(read, ["playbooks", "broadcasts"], "Sent reads the broadcasts once");
+    assert.deepEqual(read, ["playbooks", "broadcasts"], "and Sent owes nothing more: it was read");
   } finally {
     stop();
     at("#/today");
@@ -192,18 +197,18 @@ test("a mode saved on Autonomy re-reads Campaigns where it is on screen, and kee
   assert.deepEqual(keysOf("PUT policies"), kept, "from the Inbox it reads what it read before");
   assert.deepEqual(
     owedOn("#/campaigns"),
-    ["playbooks"],
-    "and the playbooks are read as Campaigns' home comes on screen",
+    ["playbooks", "broadcasts"],
+    "and both are read as Campaigns' home comes on screen: Sent's runs it draws hear the rules there",
   );
-  assert.deepEqual(owedOn("#/broadcasts"), ["broadcasts"], "and the broadcasts as Sent does");
+  assert.deepEqual(owedOn("#/broadcasts"), [], "and Sent owes nothing more");
 
   at("#/campaigns");
-  assert.deepEqual(keysOf("PUT policies"), [...kept, "playbooks"], "on Campaigns' home the playbooks are read at once");
   assert.deepEqual(
-    owedOn("#/broadcasts"),
-    ["broadcasts"],
-    "Sent is the broadcasts' own page, and keeps its read for it",
+    keysOf("PUT policies"),
+    [...kept, "playbooks", "broadcasts"],
+    "on Campaigns' home both are read at once",
   );
+  assert.deepEqual(owedOn("#/broadcasts"), [], "Sent owes nothing: its runs were read on the home");
   assert.deepEqual(owedOn("#/campaigns"), [], "and the playbooks owe nothing: they were read");
 
   at("#/broadcasts");

@@ -1280,11 +1280,15 @@ test("Copy the phrase says so where the browser would not copy it, and shows the
 });
 
 test("the head says offers by email are paused, from the email channel's own read, and says nothing otherwise", () => {
+  // The playbooks' reading first, as the channels line reads it (contracts readyOf): the home hears it, so a pause by the gates
+  // reaches the line while the home is open (the wiring's second audit, W-campaign-run-template-reachout-1). Sent's reading says
+  // the opposite here, and is not what the line says.
+  const pb = playbooksSample(new Date(NOW));
   const bc = broadcastsSample(new Date(NOW));
-  const withOffers = (offers) => ({ ready: { ...bc.ready, email: { ...bc.ready.email, offers } } });
-  surfaces({
-    broadcasts: withOffers({ ok: false, why: "paused", paused: { at: "2026-10-01T00:00:00Z", reason: "bounces" } }),
-  });
+  const offersIn = (ready, offers) => ({ ready: { ...ready, email: { ...ready.email, offers } } });
+  const paused = { ok: false, why: "paused", paused: { at: "2026-10-01T00:00:00Z", reason: "bounces" } };
+  const open = { ok: true, why: null, paused: null };
+  surfaces({ playbooks: offersIn(pb.ready, paused), broadcasts: offersIn(bc.ready, open) });
   fresh();
   page();
   assert.equal(
@@ -1292,7 +1296,7 @@ test("the head says offers by email are paused, from the email channel's own rea
     "Offers and news by email are paused: too many offers went to addresses that did not accept them. Appointment messages and replies still go by email.",
     "the quiet line, under the sentence",
   );
-  surfaces({ broadcasts: withOffers({ ok: true, why: null, paused: null }) });
+  surfaces({ playbooks: offersIn(pb.ready, open), broadcasts: offersIn(bc.ready, paused) });
   fresh();
   page();
   assert.equal(byTestId(headSaid(), "cmh-paused"), null, "offers open: a quiet page says nothing");

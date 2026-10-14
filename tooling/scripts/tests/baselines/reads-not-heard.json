@@ -1,5 +1,5 @@
 {
-  "owed": 125,
+  "owed": 123,
   "groups": [
     {
       "kind": "seat",
@@ -647,27 +647,6 @@
       "reads": {
         "conversations": [
           "calls"
-        ]
-      }
-    },
-    {
-      "kind": "owed",
-      "finding": "W-person-list-lead-8",
-      "why": "The yeses and stops the Campaigns lens and home count as answers are columns of the people (campaign_answers reads their consent). They do not hear contacts on purpose: the feed carries a person arriving as well as an answer, and the dearest of the lenses would be read for each. A yes or a stop recorded in the writer's tab re-reads the lens (rereadAfter: consentWrite) and not the home (S3-2); a teammate's is read on the next read. Owed: hear contacts when the feed can tell an answer from an arrival.",
-      "reads": {
-        "campaign_results": [
-          "contacts"
-        ],
-        "reports_campaigns": [
-          "contacts"
-        ]
-      },
-      "rereadAfter": {
-        "reports_campaigns": [
-          "PUT contacts/[id]/consent",
-          "PUT contacts/[id]/marketing-consent",
-          "PUT contacts/consent",
-          "PUT contacts/marketing-consent"
         ]
       }
     },

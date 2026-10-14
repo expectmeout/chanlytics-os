@@ -286,6 +286,19 @@ test("the head says offers by email are paused while the email channel's own rea
     null,
     "an email channel read before offers were asked says nothing of them",
   );
+  // The playbooks' own reading first, as the channels line reads it (readyOf): the home hears it, Sent's read is older there (the
+  // wiring's second audit, W-campaign-run-template-reachout-1). A pause the gates set reaches the line with the playbooks' read.
+  const withPlaybooksEmail = (o) => playbooks({ ready: ready({ email: { ready: true, why: null, offers: o } }) });
+  assert.equal(
+    home({ playbooks: withPlaybooksEmail(offers(pausedFor)), broadcasts: withEmail(offers(null)) }).head.pausedLine,
+    C.offersPausedLine({ paused: pausedFor }),
+    "paused in the playbooks' reading: said, whatever Sent's older read holds",
+  );
+  assert.equal(
+    home({ playbooks: withPlaybooksEmail(offers(null)), broadcasts: withEmail(offers(pausedFor)) }).head.pausedLine,
+    null,
+    "resumed in the playbooks' reading: nothing, whatever Sent's older read holds",
+  );
 });
 
 test("one off moment with people it would reach is the hint: Turn on · 3 tomorrow", () => {

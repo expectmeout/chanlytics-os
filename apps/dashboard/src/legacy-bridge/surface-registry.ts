@@ -19,7 +19,13 @@
  * (window.__DEMO_MODE). Flipping a surface to real later is a one-line change
  * here, made in the same directory as the override that makes it true.
  */
-import { FIRST_RUN_ROUTE, personRouteOf, reportsParamParts } from "@chanlytics/contracts";
+import {
+  FIRST_RUN_ROUTE,
+  RECORD_KINDS,
+  personRouteOf,
+  reportsParamParts,
+  type RecordKind,
+} from "@chanlytics/contracts";
 
 import {
   heardOnItsPage,
@@ -310,71 +316,85 @@ export function routeSurfaces(page: string, param?: string | null): string[] {
  * a person's page is one family whatever the person and the tab, a Reports lens one family over any days, a Settings pane one
  * family with any row after it.
  *
+ * A cell is every kind the surface hears only on its page (`true`), or some of them (`["person", "facts"]`): a page that draws
+ * part of what a surface counts hears what moves that part, and leaves the rest to the surface's own page (ownsTable).
+ *
  * Every family the registry names has a row, and every row is a family (hearing/page-hears.test.mjs); a page's own surface is on
  * its row; an address of no family hears nothing on its page alone (a demo page, a word nobody wrote).
  */
-export const PAGE_HEARS: Readonly<Record<string, readonly string[]>> = {
+/** A surface's cell on a page's row: every kind it hears only on its page (`true`), or these alone, the rest left to its own page. */
+export type PageCell = true | readonly RecordKind[];
+
+export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCell>>>> = {
   // Today owns the headline its period line and Worth a look are printed from, and the replies to a reach-out its queue draws:
   // the headline moves with a message, a call or a visit while Today is open, a long wait later (surfaces/reports/headline.ts).
   // It does not own the rest of what it draws (the setup band, the day, the runs, the playbooks, the bell, a call, Google's line,
   // People): People's pages of contacts are the heaviest read there is, and a message on Today re-reads the three that draw
   // messages and nothing else (shell/surfaces/message-fan-out.test.mjs). What it leaves is read once as its own page comes back.
-  today: ["today", "reports_headline", "reach_out_replies"],
-  inbox: ["inbox"],
-  conversations: ["conversations"],
-  live: ["live"],
+  today: { today: true, reports_headline: true, reach_out_replies: true },
+  inbox: { inbox: true },
+  conversations: { conversations: true },
+  live: { live: true },
   // The Calendar owns the campaign marks it draws over its days (surfaces/calendar/runs-surface.ts): a run made, approved or done,
   // a campaign saved or a class's mode changed is read again while the Calendar is open, and once as it comes back elsewhere.
-  calendar: ["calendar", "calendar_runs"],
+  calendar: { calendar: true, calendar_runs: true },
   // Campaigns' home is one page of four surfaces: the playbooks' moments, its own 30 days (campaign_results), the reach-outs'
-  // chains and the settings read's templates. Sent's runs are drawn there too, for Coming up and a row's waiting run, and left
-  // to Sent: what a message moves of them (a run's replies) the home reads from its own 30 days (spec 2026-10-09 §4.5), so a
-  // message here never re-reads the broadcasts and every page of People behind them. They are heard on Sent, their own page.
-  campaigns: ["playbooks", "campaign_results", "reach_outs", "settings"],
-  outbound: ["playbooks"],
-  messages: ["settings"],
-  broadcasts: ["broadcasts"],
-  clients: ["people"],
-  segments: ["people"],
+  // chains and the settings read's templates. Sent's runs are drawn there too: who can hear you, the pause on offers, the
+  // send-once composer and its Send by ticks. They hear here what moves those (a person's answer, the business's facts, the
+  // rules, a channel, the plan, a visit the audiences leave), and leave to Sent what moves a run's replies (a message, a thread,
+  // a hold): the home reads its replies from its own 30 days (spec 2026-10-09 §4.5), so a message here never re-reads the
+  // broadcasts and every page of People behind them (the wiring's second audit, W-review-facts-rules-2).
+  campaigns: {
+    playbooks: true,
+    campaign_results: true,
+    reach_outs: true,
+    settings: true,
+    broadcasts: ["person", "facts", "rules", "channel", "billing", "visit"],
+  },
+  outbound: { playbooks: true },
+  messages: { settings: true },
+  broadcasts: { broadcasts: true },
+  clients: { people: true },
+  segments: { people: true },
   // A person's page waits for who is looking and hears its own person (people-detail.ts personOverride): a rename, a stop, a
   // hold, their rules and business, read for the one person on screen. People's rows are drawn beside it (their name in the
   // crumbs while the person's read is out) and are not its own here: its whole book is not read again for one person.
-  "clients/person": ["workspace", "person"],
-  "clients/leads": ["leads"],
+  "clients/person": { workspace: true, person: true },
+  "clients/leads": { leads: true },
   // The retired address of Leads, which lands on its scope (SURFACE_RETIRED): its own surface, as its scope's.
-  leads: ["leads"],
-  start: ["setup"],
+  leads: { leads: true },
+  start: { setup: true },
   // Reports owns the Campaigns lens's read on its Overview, for the one fact it draws from it (which campaign drew the most
   // replies): the read's own rule asks for the lens and keeps what the Overview heard for it (keepForItsPage,
   // surfaces/reports/campaigns-surface.ts), read once as either comes on screen.
-  reports: ["reports", "reports_campaigns"],
+  reports: { reports: true, reports_campaigns: true },
   // Each lens owns the read it names, heard while that lens is on screen and on no other lens or page of Reports: a review seen for
   // the first time moves the Reviews lens's, a message, an escalation or a call the Receptionist lens's, a message, a call or a
   // note the People lens's, and a message, a conversation, an escalation or a run the Campaigns lens's.
-  "reports/reviews": ["reports", "reports_reviews"],
-  "reports/receptionist": ["reports", "reports_receptionist"],
-  "reports/people": ["reports", "reports_people"],
-  "reports/campaigns": ["reports", "reports_campaigns"],
-  "reports/pipeline": ["reports"],
-  "reports/ads": ["reports"],
+  "reports/reviews": { reports: true, reports_reviews: true },
+  "reports/receptionist": { reports: true, reports_receptionist: true },
+  "reports/people": { reports: true, reports_people: true },
+  "reports/campaigns": { reports: true, reports_campaigns: true },
+  "reports/pipeline": { reports: true },
+  "reports/ads": { reports: true },
   // Settings: a pane it does not list opens Profile, which the settings read feeds.
-  admin: ["settings"],
-  "admin/profile": ["settings"],
+  admin: { settings: true },
+  "admin/profile": { settings: true },
   // The Business pane lists the booking emails held for a look and states the calendar link's last read from the Calendar's read
   // (settings/business/open-bookings.tsx, open-calendar.tsx): a held email's bell row opens it, so a read of the Calendar is due
   // there, as it is on the board. Settings with no pane is this pane (SURFACE_DEFAULT_PARAM).
-  "admin/workspace": ["settings", "calendar"],
-  "admin/team": ["settings"],
-  "admin/autonomy": ["settings"],
-  "admin/notifications": ["settings"],
-  "admin/integrations": ["settings"],
-  "admin/billing": ["settings"],
-  "admin/memory": ["settings"],
-  "admin/activity": ["settings"],
-  "admin/platform": ["settings"],
-  "admin/partner": ["settings"],
+  "admin/workspace": { settings: true, calendar: true },
+  "admin/team": { settings: true },
+  "admin/autonomy": { settings: true },
+  "admin/notifications": { settings: true },
+  "admin/integrations": { settings: true },
+  "admin/billing": { settings: true },
+  "admin/memory": { settings: true },
+  "admin/activity": { settings: true },
+  "admin/platform": { settings: true },
+  "admin/partner": { settings: true },
   // An address that moved (ROUTES_MOVED: Setup is the first run now) draws nothing, so nothing is heard for it.
-  "admin/setup": [],
+  "admin/setup": {},
 };
 
 /* ------------------------- what a message re-reads ------------------------- */
@@ -405,20 +425,60 @@ export function routeFamilyOf(route: string): string {
   return named && named !== PERSON_ROUTE && Object.hasOwn(PAGE_HEARS, named) ? named : page;
 }
 
-/**
- * Whether this surface is the one the page on screen is of: one its family names in PAGE_HEARS, its own surface
- * and those it hears the way its own are. An address of no family is no surface's.
- */
-export function ownsTheScreen(key: string, route: string): boolean {
+/** This surface's cell on the family of the address: what it hears there of what it hears only on its page; undefined for none. */
+function cellOf(key: string, route: string): PageCell | undefined {
   const family = routeFamilyOf(route);
-  return Object.hasOwn(PAGE_HEARS, family) && (PAGE_HEARS[family] ?? []).includes(key);
+  const row = Object.hasOwn(PAGE_HEARS, family) ? PAGE_HEARS[family] : undefined;
+  return row && Object.hasOwn(row, key) ? row[key] : undefined;
 }
 
 /**
- * Surfaces that let a live event pass while their page was elsewhere, and ones a pass left for their page (keepForItsPage): read
- * once when it comes on screen.
+ * Whether this surface is the one the page on screen is of: one its family names in PAGE_HEARS, its own surface
+ * and those it hears the way its own are, whole or for some kinds. An address of no family is no surface's.
  */
-const missedWhileAway = new Set<string>();
+export function ownsTheScreen(key: string, route: string): boolean {
+  return cellOf(key, route) !== undefined;
+}
+
+/** Each table's kind (contracts RECORD_KINDS), for a cell that names kinds. */
+const KIND_OF: ReadonlyMap<string, RecordKind> = new Map(
+  (Object.entries(RECORD_KINDS) as [RecordKind, readonly string[]][]).flatMap(([kind, tables]) =>
+    tables.map((table) => [table, kind] as const),
+  ),
+);
+
+/**
+ * Whether a change to this table is this surface's to hear on the page on screen: its cell is every kind, or names the table's.
+ * Sent's runs on Campaigns' home hear a person's answer and leave a message to Sent.
+ */
+export function ownsTable(key: string, table: string, route: string): boolean {
+  const cell = cellOf(key, route);
+  if (cell === true) return true;
+  const kind = KIND_OF.get(table);
+  return !!cell && !!kind && cell.includes(kind);
+}
+
+/**
+ * Surfaces that let a live event pass while their page was elsewhere, with the tables they let pass, and ones a pass left for
+ * their page whole (keepForItsPage, `"all"`): read once when a page that owns what they missed comes on screen. A message that
+ * Sent's runs let pass on Campaigns waits for Sent; a person's answer they let pass on Today is read as Campaigns comes back.
+ */
+const missedWhileAway = new Map<string, Set<string> | "all">();
+
+/** Note a table a surface let pass. */
+function missed(key: string, table: string): void {
+  const was = missedWhileAway.get(key);
+  if (was === "all") return;
+  if (was) was.add(table);
+  else missedWhileAway.set(key, new Set([table]));
+}
+
+/** Whether the page on screen owns what this surface missed: the surface, where it was kept whole, else one of the tables it let pass. */
+function owesTheScreen(key: string, route: string): boolean {
+  const was = missedWhileAway.get(key);
+  if (!was) return false;
+  return was === "all" ? ownsTheScreen(key, route) : [...was].some((table) => ownsTable(key, table, route));
+}
 
 /**
  * A surface read only where it is drawn (`onDemand`), left out of a pass that read the others while its page was elsewhere (a
@@ -426,7 +486,7 @@ const missedWhileAway = new Set<string>();
  * screen (readWhatWasMissed) rather than show what the pass would have read again.
  */
 export function keepForItsPage(key: string): void {
-  missedWhileAway.add(key);
+  missedWhileAway.set(key, "all");
 }
 
 /**
@@ -454,8 +514,8 @@ export function onlyOnItsPage(
   route: () => string = () => routeOnScreen(),
 ): (change: { table: string }) => boolean {
   return (change) => {
-    if (!tables.includes(change.table) || ownsTheScreen(key, route())) return true;
-    missedWhileAway.add(key);
+    if (!tables.includes(change.table) || ownsTable(key, change.table, route())) return true;
+    missed(key, change.table);
     return false;
   };
 }
@@ -502,7 +562,7 @@ export function readWhatWasMissed(
     const due = overrides.filter((o) =>
       o.onDemand
         ? drawn.includes(o.key) && (missedWhileAway.has(o.key) || !readBefore(o.key) || !!o.isStale?.())
-        : missedWhileAway.has(o.key) && ownsTheScreen(o.key, route),
+        : owesTheScreen(o.key, route),
     );
     for (const o of due) missedWhileAway.delete(o.key);
     if (due.length) read(due.map((o) => o.key));

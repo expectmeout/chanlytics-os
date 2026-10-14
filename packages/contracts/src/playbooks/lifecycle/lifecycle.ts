@@ -296,8 +296,10 @@ function lifecycleHeadOf(input: LifecycleInput, count: { covered: number; of: nu
     sentence: parts,
     library: { label: LIFECYCLE_WORDS.library, count: libraryCount(input.messages, emailRowsOf(input.reachOuts)) },
     newMessage: LIFECYCLE_WORDS.newMessage,
-    // The email channel's own read carries whether its offers are paused: said under the sentence while they are.
-    pausedLine: offersPausedLine(input.broadcasts?.ready?.email.offers),
+    // The email channel's own read carries whether its offers are paused: said under the sentence while they are. Read as the
+    // channels line is (readyOf: the playbooks' reading first, which the home hears; the wiring's second audit,
+    // W-campaign-run-template-reachout-1), so a pause by the gates reaches the line while the home is open.
+    pausedLine: offersPausedLine(readyOf(input)?.email.offers),
     channels: channelsStandingParts(readyOf(input)),
   };
 }

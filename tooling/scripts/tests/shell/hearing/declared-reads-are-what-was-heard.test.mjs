@@ -38,7 +38,9 @@ const { watchedTables } = await importSrc("packages/db/src/realtime.ts");
 const { heardTables, heardOnItsPage, subscribesToRealtime, wantsRefresh } = await importSrc(
   "apps/dashboard/src/legacy-bridge/surface-realtime.ts",
 );
-const { declareReads, ownsTheScreen } = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+const { declareReads, ownsTable, ownsTheScreen } = await importSrc(
+  "apps/dashboard/src/legacy-bridge/surface-registry.ts",
+);
 const { ON_DEMAND_STALE_MIN } = await importSrc("apps/dashboard/src/legacy-bridge/surface-data.ts");
 
 /** Every surface the shell registers (LegacyApp.tsx), from the module it imports each from: the shell's own list, no copy of it. */
@@ -136,12 +138,15 @@ const HEARD_BEFORE = {
     "reach_out_replies",
     "tenant_channels",
     "mailbox_connections",
+    // A person's answer (the wiring's second audit, W-person-list-lead-8): an update of one, never a person made.
+    "contacts",
   ],
   live: ["calls", "tenant_channels"],
   broadcasts: [...SENT_PAGE, "broadcasts"],
   playbooks: [...COMPOSER_PAGE, "broadcasts", "playbooks"],
   reach_outs: ["playbooks", "broadcasts", "reach_out_replies"],
-  campaign_results: ["messages", "conversations", "escalations", "broadcasts", "reach_out_replies"],
+  // A person's answer, by an update of them (the wiring's second audit, S3-2).
+  campaign_results: ["messages", "conversations", "escalations", "broadcasts", "reach_out_replies", "contacts"],
   reach_out_replies: ["reach_out_replies"],
   partner: [],
   alerts: [],
@@ -232,7 +237,9 @@ const ROUTES = [
 ];
 /** The Campaigns lens hears the feed on the lens alone, though the Overview draws the surface too. */
 const HOME = { reports_campaigns: "reports/campaigns" };
-const homeOf = (o) => HOME[o.key] ?? ROUTES.find((route) => ownsTheScreen(o.key, route));
+/** The first route that owns every table the surface hears on its page alone: its own page, not one that owns some kinds of it. */
+const homeOf = (o) =>
+  HOME[o.key] ?? ROUTES.find((route) => (o.refreshOnTables ?? []).every((table) => ownsTable(o.key, table, route)));
 
 const at = (route) => {
   globalThis.location.hash = `#/${route}`;

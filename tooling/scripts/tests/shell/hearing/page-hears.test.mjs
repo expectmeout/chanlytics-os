@@ -198,14 +198,20 @@ test("the addresses whose family is not their first word are the family each is 
   );
 });
 
-test("each row holds its family's own surface, and only surfaces the shell registers; each family is asked at an address of it", () => {
-  for (const [family, keys] of Object.entries(PAGE_HEARS)) {
+test("each row holds its family's own surface whole, and only surfaces the shell registers; a cell of kinds names kinds its surface hears on its page alone; each family is asked at an address of it", () => {
+  for (const [family, cells] of Object.entries(PAGE_HEARS)) {
     assert.equal(routeFamilyOf(askedAt(family)), family, `${family} is asked at ${askedAt(family)}, of another family`);
     const [page, param] = askedAt(family).split("/");
     const own = routeSurfaceFor(page, param ?? null);
-    if (own) assert.ok(keys.includes(own), `${family}: its own surface ${own} is not on its row`);
-    for (const key of keys) assert.ok(KEYS.has(key), `${family}: ${key} is no surface the shell registers`);
-    assert.equal(new Set(keys).size, keys.length, `${family}: a surface twice`);
+    if (own) assert.equal(cells[own], true, `${family}: its own surface ${own} is on its row, every kind of it`);
+    for (const [key, cell] of Object.entries(cells)) {
+      assert.ok(KEYS.has(key), `${family}: ${key} is no surface the shell registers`);
+      if (cell === true) continue;
+      const o = SURFACES.find((s) => s.key === key).override;
+      assert.ok(Array.isArray(cell) && cell.length > 0, `${family}: ${key}'s cell is true or a list of kinds`);
+      assert.equal(o.fresh, "its-page", `${family}: ${key} hears on its page alone, or a cell of kinds says nothing`);
+      for (const kind of cell) assert.ok(o.reads.includes(kind), `${family}: ${key} draws no ${kind}`);
+    }
   }
 });
 
@@ -255,7 +261,11 @@ function goldenOf(family) {
       const routes = reads.reduce((sum, s) => sum + s.routes, 0);
       if (reads.length) notices[n.key] = `${line(reads.map((s) => s.key))} · ${routes} route${routes === 1 ? "" : "s"}`;
     }
-    const owns = SURFACES.filter((s) => registry.ownsTheScreen(s.key, route)).map((s) => s.key);
+    // A surface that owns some kinds here says which: `broadcasts(billing channel facts person rules visit)`.
+    const owns = SURFACES.filter((s) => registry.ownsTheScreen(s.key, route)).map((s) => {
+      const cell = PAGE_HEARS[family][s.key];
+      return Array.isArray(cell) ? `${s.key}(${[...cell].sort().join(" ")})` : s.key;
+    });
     return { family, route, owns: line(owns), notices };
   } finally {
     globalThis.location.hash = was;
