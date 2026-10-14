@@ -984,6 +984,8 @@ const quietly = async (fn) => {
 const { personDetail } = await import(`${PEOPLE}/people-detail.ts`);
 const { DealSheetHost, openDealSheet } = await import(`${PEOPLE}/deal-sheet/deal-sheet.tsx`);
 const { DatePicker } = await import("../../../../apps/dashboard/src/surfaces/kit/datepicker/datepicker.tsx");
+// The month behind a day's token loads as the sheet first draws one (fields.tsx loadDayPick): loaded here first.
+await (await import(`${PEOPLE}/deal-sheet/fields.tsx`)).loadDayPick();
 const { recFolds } = await import("../../../../apps/dashboard/src/surfaces/kit/record/registry.ts");
 const { installInboxVerbs } = await quietly(
   () => import("../../../../apps/dashboard/src/legacy-bridge/inbox-verbs.ts"),

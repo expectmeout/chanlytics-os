@@ -4,14 +4,14 @@
  * style that the step sheet draws too. Hookless: each field is a plain function returning its element (never a component),
  * so the tree is the one the JSX drew.
  */
+import { useState } from "react";
 import type { ReactNode } from "react";
 import { dealSheetMessage } from "@chanlytics/contracts";
 import type { DealSheetDraft, DealSheetProblem, DealSheetVM } from "@chanlytics/contracts";
-import { DatePicker } from "../../kit/datepicker/datepicker";
 import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
-import { Token } from "../../kit/picker/picker";
+import { Token } from "../../kit/picker/token";
 import { RecordBox, RecordField, RecordSwitch, RecordToggleGroup } from "../../kit/record/field";
 
 /** A select in the kit's input style, with its label above it, as RecordField draws a box: which service, how a yes was given. */
@@ -85,10 +85,21 @@ function pickedDayWords(day: string, today: string): string {
   }).format(new Date(`${day}T00:00:00Z`));
 }
 
+type DayPickModule = typeof import("./day-pick");
+let dayPick: DayPickModule | null = null;
+let dayPickLoading: Promise<DayPickModule> | null = null;
+
+/** The month a day is picked from, loaded once, as the sheet first draws a day (day-pick.tsx says why). */
+export function loadDayPick(): Promise<DayPickModule> {
+  // What it reads of the module is named, so the dead-exports check (knip) sees the use.
+  dayPickLoading ??= import("./day-pick").then(({ DayPick }) => (dayPick = { DayPick }));
+  return dayPickLoading;
+}
+
 /**
  * A day, picked from the kit's month over the sheet, its words a token under the label: the browser's own date box drew
  * "mm/dd/yyyy" in the system's type (the fitted sheets, 14 Oct 2026). A day that may be left empty says so while it is,
- * and a word beside it empties it again.
+ * and a word beside it empties it again. The token is drawn at once; the month behind it as its module lands.
  */
 function DayField(p: {
   id: string;
@@ -101,27 +112,27 @@ function DayField(p: {
   empty?: { none: string; clear: string };
   testid: string;
 }) {
-  const chevron = <Icon name="chevron" size={14} />;
+  const [, landed] = useState(0);
+  if (!dayPick) void loadDayPick().then(() => landed((n) => n + 1));
+  const token = (
+    <Token aria-labelledby={`${p.id}-label`} data-testid={`${p.testid}-input`}>
+      <Icon name="calendar" size={13} /> {p.value ? pickedDayWords(p.value, p.today) : (p.empty?.none ?? "")}
+    </Token>
+  );
+  const pick = (day: string) => {
+    if (!p.busy) p.onChange(day);
+  };
   return (
     <div className="rec-field deal-sheet-day" data-testid={p.testid}>
       <span className="rec-field-label" id={`${p.id}-label`}>
         {p.label}
       </span>
       <span className="ds-day-row">
-        <DatePicker
-          value={p.value || p.today}
-          onValueChange={(day) => {
-            if (!p.busy) p.onChange(day);
-          }}
-          today={p.today}
-          label={p.label}
-          glyphs={{ previous: chevron, next: chevron }}
-          trigger={
-            <Token aria-labelledby={`${p.id}-label`} data-testid={`${p.testid}-input`}>
-              <Icon name="calendar" size={13} /> {p.value ? pickedDayWords(p.value, p.today) : (p.empty?.none ?? "")}
-            </Token>
-          }
-        />
+        {dayPick ? (
+          <dayPick.DayPick value={p.value} today={p.today} label={p.label} onPick={pick} trigger={token} />
+        ) : (
+          token
+        )}
         {p.empty && p.value && !p.busy ? (
           <LinkButton onClick={() => p.onChange("")} data-testid={`${p.testid}-clear`}>
             {p.empty.clear}
