@@ -2,9 +2,9 @@
  * In People (decision 0052, canvas A §1.2): who works at this business, from People's own rows (each row's `worksAt`),
  * the one waiting on you first, each a door to their page; a stand-in's reply signer is offered there too, with the same
  * press, Undo and x as their page (people/person/name-offer.tsx). Nothing for a lead nobody works at, or before People
- * is read. A company the people card found (00429) says, beside it, the people its source named on it: the one its
+ * is read. A company the people card found (00430) says, beside it, the people its source named on it: the one its
  * reach-out writes to first, each with their title and public profile, and where they came from; and, for who may find
- * leads, Write to them instead beside another with a work address, while nothing was written to the company (00429
+ * leads, Write to them instead beside another with a work address, while nothing was written to the company (00430
  * lead_addressee_choose, whose refusals say the rest). Every word is contracts'.
  */
 import { useState } from "react";
@@ -37,7 +37,7 @@ function peopleAt(lead: { id: string; contactId: string | null }): PersonRowVM[]
 }
 
 /**
- * The people a company's source named on it (00429): the addressee first, each with what they do and their profile, and
+ * The people a company's source named on it (00430): the addressee first, each with what they do and their profile, and
  * the door that makes another of them the one its reach-out writes to. Only who may find leads is offered it: their
  * address is checked first, a fraction of a cent. What the door said is the page's toast.
  */

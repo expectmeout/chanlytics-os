@@ -2170,7 +2170,7 @@ var REACH_OUT_SLOTS = [
   "your name",
   "your business",
   "booking link",
-  // A company's addressee (00429), after the six: a slot's place is its number in a stored version ({{2}} is business),
+  // A company's addressee (00430), after the six: a slot's place is its number in a stored version ({{2}} is business),
   // so a slot is only ever added at the end.
   "first name",
   "company",
@@ -2282,7 +2282,7 @@ var REACH_OUT_SHEET_WORDS = {
   repliesHint: "into your Inbox",
   checkLater: "Each email is checked before it goes. The first run waits for you.",
   noMailbox: "Connect the mailbox you'll write from first: Google or Microsoft, here or in Settings \u203A Connections \u203A Email.",
-  /** From, when its owner sends it (00428): what they are handed, and how. */
+  /** From, when its owner sends it (00429): what they are handed, and how. */
   ownerSends: `Each email is handed to you written and checked, to send from your own inbox: Gmail, Outlook or your mail app. Up to ${REACH_OUT_DRAFTS_PER_DAY} a day.`,
   /** From, with no mailbox connected: the owner sends, and a mailbox would send for them. */
   ownerNoMailbox: "Or connect Google or Microsoft, and your mailbox sends them for you.",
@@ -2601,7 +2601,7 @@ function mailboxCell(n, sent2, share) {
 function mailboxRows(dto, nowMs) {
   return dto.mailboxes.map(
     (d) => d.yours ? (
-      // Sent from their own inbox (00428): a bounce or a complaint reaches them, never us, so no share is said.
+      // Sent from their own inbox (00429): a bounce or a complaint reaches them, never us, so no share is said.
       {
         id: "your-inbox",
         address: "Your own inbox",

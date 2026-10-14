@@ -464,7 +464,7 @@ var ERASURE_LEGS = {
   email_trigger: "contact_email_on_erase: the address and why it was suppressed cleared (00125)",
   proposal_trigger: "contact_proposal_on_erase: the proposal's link cleared",
   deals_trigger: "deals_erase_on_contact: a deal's note, evidence and link cleared",
-  leads_trigger: "leads_erase_on_contact: their lead blanked (lead_blank), its places deleted, a reach-out's opening and a preference's example cleared (00391), its drafts cleared (00428), a company's people and key cleared and its domain kept as a digest (00429), its keys kept as digests; one of several people at a business takes only their own address, number and the call's note from it (lead_person_leg, 00413); a person named at any company leaves it, its drafts to them cleared and their address kept as a digest (lead_person_forget, 00429)",
+  leads_trigger: "leads_erase_on_contact: their lead blanked (lead_blank), its places deleted, a reach-out's opening and a preference's example cleared (00391), its drafts cleared (00429), a company's people and key cleared and its domain kept as a digest (00430), its keys kept as digests; one of several people at a business takes only their own address, number and the call's note from it (lead_person_leg, 00413); a person named at any company leaves it, its drafts to them cleared and their address kept as a digest (lead_person_forget, 00430)",
   signer_trigger: "person_signer_erase_on_contact: the name and title a reply's reading found as its signer, and what became of it, cleared (00413)",
   recipients_trigger: "broadcast_recipients_on_erase: the words each run kept for them, a visit's time, service and key and a proposal's link, cleared (00391)",
   jobs_scrub: "scrubErasedJobs and erase_contact: a job's payload that carried their number or words overwritten, and its error cleared",
@@ -714,7 +714,7 @@ var ERASURE_STRATEGIES = {
       "neighborhood",
       "logo_url",
       "mark_path",
-      // A company's people (their names, titles, work addresses, profiles) and its key (00429).
+      // A company's people (their names, titles, work addresses, profiles) and its key (00430).
       "facts",
       "source_key"
     ),
@@ -846,7 +846,7 @@ var ERASURE_STRATEGIES = {
   reach_out_sends: {
     // Written from the lead's record (00391).
     ...all(scrubbedBy("leads_trigger"), "opening", "angle", "hold_detail"),
-    // A draft handed to its owner (00428): the business's address, name and the words written to it; lead_blank clears it.
+    // A draft handed to its owner (00429): the business's address, name and the words written to it; lead_blank clears it.
     ...all(scrubbedBy("leads_trigger"), "draft"),
     // A digest of the words checked, the facts' keys, and the hold's and the skip's codes.
     ...all(NOT_PERSONAL, "checked_words", "facts_used", "included_for", "reason")

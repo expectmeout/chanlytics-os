@@ -312,7 +312,7 @@ test("a stopped lead says so and offers no stop; a no that may be undone offers 
   assert.equal(bare.label, "Reach out · Trainers · Austin");
 });
 
-test("a reach-out its owner sends: a draft is theirs to send, an email they sent says so, and what came back is theirs to say (00428)", () => {
+test("a reach-out its owner sends: a draft is theirs to send, an email they sent says so, and what came back is theirs to say (00429)", () => {
   const [first, nudge] = story().sends;
   const mine = { ...first, host: null, from: null, said: true, email_status: "sent" };
   // A draft handed to them: its line, and its door to the run it waits in.

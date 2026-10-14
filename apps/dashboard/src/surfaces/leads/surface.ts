@@ -55,7 +55,7 @@ import type { LeadsSurface, LeadsView } from "./surface-types";
 interface LeadSearchesAnswer {
   searches: LeadSearchDto[];
   counts?: LeadCounts;
-  /** The cards that find leads now (00429). */
+  /** The cards that find leads now (00430). */
   cards_live?: string[];
 }
 interface LeadsPageAnswer {
@@ -118,7 +118,7 @@ interface LeadsLoaded {
   pile: LeadPileCountsDto | null;
   searches: LeadSearchDto[];
   counts: LeadCounts;
-  /** The cards that find leads now (00429), from the searches' read. */
+  /** The cards that find leads now (00430), from the searches' read. */
   cardsLive: string[];
   rows: LeadRowDto[];
   next: { key: string; id: string } | null;
@@ -567,7 +567,7 @@ export async function laterLead(searchId: string, id: string) {
   );
 }
 /**
- * Who a company's reach-out writes to (00429): one of the people its source named, by their place in its facts. Whether
+ * Who a company's reach-out writes to (00430): one of the people its source named, by their place in its facts. Whether
  * their address is checked first is the door's to say, so nothing is drawn ahead of it: Leads, and the lead the peek
  * holds, are read again behind its answer.
  */

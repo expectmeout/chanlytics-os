@@ -59,7 +59,7 @@ export const leadSearchSpec: ProposalSpecAboveOperator = {
 };
 
 /**
- * A people search planned in Ask (the people card, 00429): the owner's or a partner's, as a places search is, and
+ * A people search planned in Ask (the people card, 00430): the owner's or a partner's, as a places search is, and
  * committed through its own door (POST lead-searches/people), with the thread it was planned in. A people search never
  * stops to ask, so a card only starts one; its undo stops it, as a places search's does.
  */

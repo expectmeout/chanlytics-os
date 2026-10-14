@@ -67,7 +67,7 @@ const LeadSearchMenu = ({
           gate: canFind ? undefined : gate("find", "rename this search"),
         },
         // A list of your own (00242) is never searched again: its menu offers neither way back to the finder. A people
-        // search (00429) offers its own: Find people, filled in with what was asked.
+        // search (00430) offers its own: Find people, filled in with what was asked.
         ...(s.list
           ? []
           : s.people
@@ -158,7 +158,7 @@ interface RailRowsProps {
   exportFor: (s: RailSearch) => () => void;
   onNew: () => void;
   importDoor?: ReactNode;
-  /** Find people at companies (00429), beside Import leads: null while the people card finds nothing. */
+  /** Find people at companies (00430), beside Import leads: null while the people card finds nothing. */
   findPeopleDoor?: ReactNode;
   compact?: boolean;
 }
@@ -305,7 +305,7 @@ export const LeadsRailRows = (p: RailRowsProps) => {
           </button>
           {/* A list of your own (Reach out Part 7): a file of businesses, checked first, as a search. */}
           {importDoor}
-          {/* People at companies (00429): named people the people card finds, while it finds leads. */}
+          {/* People at companies (00430): named people the people card finds, while it finds leads. */}
           {findPeopleDoor}
         </div>
       )}

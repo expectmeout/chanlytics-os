@@ -1,12 +1,12 @@
 /**
  * The words of a lead's reach-out doors, on its peek and its person's page: Stop writing to them, and for a reach-out its
- * owner sends (00428) Send it and They wrote back….
+ * owner sends (00429) Send it and They wrote back….
  */
 import { clockDate } from "../../shared/clock";
 import { REPLY_INTENT_WORDS, type OwnerSaidIntent } from "../reach-out-replies";
 
 /**
- * They wrote back…, on a lead an email its owner sent went to (00428): what the business said, as the owner says it,
+ * They wrote back…, on a lead an email its owner sent went to (00429): what the business said, as the owner says it,
  * read through the one door a reply's reading takes (reach_out_reply_said, claim owner), with its undo.
  */
 export const REACH_OUT_SAID_WORDS = {
@@ -71,7 +71,7 @@ export const REACH_OUT_STOP_WORDS = {
   failed: "Couldn't stop it. Nothing changed; try again.",
 } as const;
 
-/** A no's undo on the peek, as whoever read it: a reply read as no, or the owner's own word (00428). */
+/** A no's undo on the peek, as whoever read it: a reply read as no, or the owner's own word (00429). */
 export const REACH_OUT_UNDO_WORDS = {
   read: { label: "Read as no · undo", done: "Undone: it no longer reads as a no." },
   owner: { label: "You said no · undo", done: "Undone: your no is taken back." },

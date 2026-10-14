@@ -1,5 +1,5 @@
 /**
- * A reach-out its owner sends (00428): its due sends claimed to be drafted, how much it holds of a day and in all, a
+ * A reach-out its owner sends (00429): its due sends claimed to be drafted, how much it holds of a day and in all, a
  * draft's lead as the send door would judge it, the owner's word on one (it went, or it did not), and what the business
  * wrote back as the owner says it. Sent is the member's own door, checked in SQL; what they wrote back is the service
  * role's, for the member the route checked, with the plan the server made. Each answers its refusal with its SQLSTATE
@@ -76,7 +76,7 @@ export async function chainDraftLoad(
 }
 
 /**
- * One lead's facts as the send door would judge them (00428 reach_out_draft_facts, contracts draftRefusalOf), on the
+ * One lead's facts as the send door would judge them (00429 reach_out_draft_facts, contracts draftRefusalOf), on the
  * service role: asked before a draft is handed over. Null for a lead gone.
  */
 export async function draftFactsOf(db: Db, tenantId: string, leadId: string): Promise<DraftLeadFacts | null> {
@@ -96,7 +96,7 @@ export interface DraftWaitingRow {
 }
 
 /**
- * The drafts waiting for their owners, oldest first, with their leads' facts (00428 reach_out_drafts_waiting), on the
+ * The drafts waiting for their owners, oldest first, with their leads' facts (00429 reach_out_drafts_waiting), on the
  * service role: one run's (its To send list) or every workspace's (the clock, which skips one the door would refuse).
  */
 export async function draftsWaiting(
@@ -119,7 +119,7 @@ export async function draftsWaiting(
   return (data ?? []).map((r) => ({ ...r, facts: (r.facts as DraftLeadFacts | null) ?? null }));
 }
 
-/** What a lead's story says of a send its owner sends (00428): the run a draft waits in, and whether it went on their word. */
+/** What a lead's story says of a send its owner sends (00429): the run a draft waits in, and whether it went on their word. */
 export interface OwnerSendFacts {
   runId: string | null;
   said: boolean;

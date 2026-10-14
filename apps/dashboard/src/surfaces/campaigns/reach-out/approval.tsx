@@ -8,7 +8,7 @@
  * and names the checked, ready sends only (R21), and Skip, which asks first; one that is not waiting keeps the run's own
  * verbs (Cancel, Stop). The same bc-sheet classes as a WhatsApp run's sheet, so a keyboard and a screen reader meet the
  * same sheet. Every sentence is contracts' (`reachOuts.run`: reachOutRunWordsOf over approvalWordsOf); never a fetch here.
- * A reach-out its owner sends (00428) adds its To send list (to-send.tsx): the emails handed to them, with their doors.
+ * A reach-out its owner sends (00429) adds its To send list (to-send.tsx): the emails handed to them, with their doors.
  */
 import { Fragment, useState } from "react";
 import type { ReactNode } from "react";
@@ -336,7 +336,7 @@ export function ReachOutRun({ d, sheet = null, acts = null, onDecided = () => un
           </p>
         )}
       </div>
-      {/* A reach-out its owner sends (00428): the emails handed to them, each to send from their own inbox. */}
+      {/* A reach-out its owner sends (00429): the emails handed to them, each to send from their own inbox. */}
       <RoToSend d={d} onSaid={onDecided} />
       {seeHeld && vm.held.length > 0 && (
         <RoRunHeld vm={vm} may={may} busy={doors.busy} said={doors.said} onDecide={doors.decide} />

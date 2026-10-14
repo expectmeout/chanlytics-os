@@ -8,7 +8,7 @@
  * day has passed can only be skipped (runApprovalRefusal, which the verb refuses by), and the hourly sweep skips it
  * itself, so it waits on nobody (the wiring's second audit, S7-3). A reach-out's going run whose emails the check holds
  * waits too, once however many it holds: those emails go nowhere until the owner says (Ruben, 13 Oct 2026). So does one
- * whose emails are handed to its owner to send from their own inbox (00428): they go nowhere until the owner sends them.
+ * whose emails are handed to its owner to send from their own inbox (00429): they go nowhere until the owner sends them.
  *
  * The Inbox's badge in the sidebar, the phone's Inbox tab, the title of the browser's tab, the phone app's badge and
  * Today's head each counted them their own way, and two pages published a number over each other's (the wiring
@@ -41,7 +41,7 @@ export interface WaitingRun {
   audience?: unknown;
   /** How many of a going run's emails the check holds for the owner's say (absent where Sent did not say). */
   held?: number | null;
-  /** How many of a going run's emails are handed to its owner to send from their inbox (00428; absent where not said). */
+  /** How many of a going run's emails are handed to its owner to send from their inbox (00429; absent where not said). */
   drafted?: number | null;
 }
 
@@ -77,7 +77,7 @@ export function runHeldEmails(run: Pick<WaitingRun, "state" | "held">): number {
   return going && typeof run.held === "number" && run.held > 0 ? run.held : 0;
 }
 
-/** How many of a going run's emails wait for its owner to send them from their inbox (00428): none for a run not going. */
+/** How many of a going run's emails wait for its owner to send them from their inbox (00429): none for a run not going. */
 export function runDraftedEmails(run: Pick<WaitingRun, "state" | "drafted">): number {
   const going = (RUN_GOING_STATES as readonly string[]).includes(run.state);
   return going && typeof run.drafted === "number" && run.drafted > 0 ? run.drafted : 0;

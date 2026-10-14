@@ -5,7 +5,7 @@
  * reach-out sheet opened on it). A reach-out writes to a search, so both are one. Every reading of a file and every word is
  * contracts' (lead-import.ts), through Campaigns' reach-out reads (`reachOuts.lists`); the page mounts it with one hook,
  * useLeadLists, whose answer is the rail's doors, the bar's act and the sheets they open. Beside Import leads the rail
- * offers Find people (the people card, 00429: finder/people-sheet.tsx), the other door that brings leads in.
+ * offers Find people (the people card, 00430: finder/people-sheet.tsx), the other door that brings leads in.
  */
 import { useMemo, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
@@ -348,14 +348,14 @@ export const LeadImportSheet = ({
 /** What the page draws of a list of your own: the rail's door, the bar's act, the sheets, and a list's strip and empty state. */
 export interface LeadLists {
   importDoor: ReactNode;
-  /** The rail's Find people (00429), beside Import leads; null while the people card finds nothing (lead_card_live). */
+  /** The rail's Find people (00430), beside Import leads; null while the people card finds nothing (lead_card_live). */
   findPeopleDoor: ReactNode;
   /** Whether the people card finds leads now: the first day and a phone's New search offer it only then. */
   peopleLive: boolean;
   /** Opens the import sheet: the first day's own door to it, where no rail is drawn. */
   openImport: () => void;
   /**
-   * Opens Find people (00429), filled in with a plan made before (a people search's Find more like these), or empty: the
+   * Opens Find people (00430), filled in with a plan made before (a people search's Find more like these), or empty: the
    * first day's and a phone's New search door to it, where no rail is drawn.
    */
   openFindPeople: (from?: LeadPeoplePlan | null) => void;
@@ -376,7 +376,7 @@ export const useLeadLists = ({
   peopleLive = false,
 }: {
   flash?: ((f: PeopleFlash) => void) | null;
-  /** Whether the people card finds leads now (the searches' cards_live, 00429 lead_card_live). */
+  /** Whether the people card finds leads now (the searches' cards_live, 00430 lead_card_live). */
   peopleLive?: boolean;
 } = {}): LeadLists => {
   const [importing, setImporting] = useState(false);

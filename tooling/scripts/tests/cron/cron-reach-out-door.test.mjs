@@ -5,7 +5,7 @@
  * finishes. Then the sender (PR 6; decision 0056): a due send is claimed from its mailbox and becomes one email and one
  * job; the lane refuses without its seal; the month's allowance holds; a refused person or request skips; a step's send
  * answers its lead's email before, from the mailbox its chain writes from; a claim left mid-way is written again as the
- * same email. A reach-out its owner sends is handed to them as a draft, with no seal and no mailbox (00428).
+ * same email. A reach-out its owner sends is handed to them as a draft, with no seal and no mailbox (00429).
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
@@ -184,7 +184,7 @@ function clockReads(t) {
         .filter((s) => s.state === "held" && s.created_at < a.p_before)
         .sort((x, y) => (x.created_at < y.created_at ? -1 : 1))
         .map((s) => ({ ...s })),
-    // 00428: the drafts waiting for their owners, each with its lead's facts as the send door would judge them.
+    // 00429: the drafts waiting for their owners, each with its lead's facts as the send door would judge them.
     reach_out_drafts_waiting: (a) =>
       t.reach_out_sends
         .filter(
@@ -207,7 +207,7 @@ function clockReads(t) {
   };
 }
 
-/** 00428 reach_out_draft_facts: a draft's lead as the send door would judge it, from the lead's own row. */
+/** 00429 reach_out_draft_facts: a draft's lead as the send door would judge it, from the lead's own row. */
 function draftFacts(t, tenantId, leadId) {
   const l = t.leads.find((x) => x.id === leadId && x.tenant_id === tenantId);
   if (!l) return null;
@@ -234,7 +234,7 @@ function draftFacts(t, tenantId, leadId) {
 function senderReads(t, { monthSent = 0, failClaim = [], onClaim = () => {} } = {}) {
   const runOf = (s) => t.broadcasts.find((b) => b.id === s.broadcast_id);
   const running = (id) => t.playbooks.some((p) => p.id === id && p.state === "running");
-  // 00428: a reach-out its owner sends, which no mailbox claims; a first email is its root's step.
+  // 00429: a reach-out its owner sends, which no mailbox claims; a first email is its root's step.
   const ownerSends = (s) => t.playbooks.some((p) => p.id === s.root_id && p.owner_sends);
   const first = (s) => (t.playbooks.find((p) => p.id === s.playbook_id)?.after_playbook_id ? 0 : 1);
   // 00197: a checked send only.
@@ -268,12 +268,12 @@ function senderReads(t, { monthSent = 0, failClaim = [], onClaim = () => {} } = 
     },
     reach_out_month_sent: () => monthSent,
     reach_out_draft_facts: (a) => draftFacts(t, a.p_tenant_id, a.p_lead_id),
-    // 00428: an owner's due sends, a step after the first before a first email, their mailbox let go.
+    // 00429: an owner's due sends, a step after the first before a first email, their mailbox let go.
     reach_out_claim_drafts: (a) => {
       const picked = t.reach_out_sends
         .filter(
           (s) =>
-            // An owner's chain, or a later step planned with no mailbox while its owner sent it (00428).
+            // An owner's chain, or a later step planned with no mailbox while its owner sent it (00429).
             (ownerSends(s) || (!s.mailbox_id && !first(s))) &&
             due(s, a.p_at) &&
             (!a.p_tenant_id || s.tenant_id === a.p_tenant_id),
@@ -854,7 +854,7 @@ test("the lane: without its seal nothing is claimed, and a send due says what is
   assert.deepEqual(said.lane_missing, ["UNSUBSCRIBE_SECRET"]);
 });
 
-test("a reach-out its owner sends: a due send is handed to them as a draft, with no seal, no mailbox, nobody made and nothing queued (00428)", async () => {
+test("a reach-out its owner sends: a due send is handed to them as a draft, with no seal, no mailbox, nobody made and nothing queued (00429)", async () => {
   const s = send();
   const w = world({
     sends: [s],
@@ -898,7 +898,7 @@ test("a reach-out its owner sends: a due send is handed to them as a draft, with
   assert.equal(w.row(s.id).state, "drafted");
 });
 
-test("an owner's chain is never a mailbox's: a send planned on one before the chain was handed over is drafted, its mailbox let go (00428)", async () => {
+test("an owner's chain is never a mailbox's: a send planned on one before the chain was handed over is drafted, its mailbox let go (00429)", async () => {
   const s = send();
   const w = world({
     sends: [s],
@@ -1019,7 +1019,7 @@ test("the person refused: a customer's address, or a lead closed since it was pl
 
 test("the step's or the workspace's fault holds its sends, and nobody is made; a lead with no value is skipped alone", async () => {
   // A slot no lead could fill is the step's to fix: the send waits an hour, in its lead's hours, and keeps its place.
-  // ({{first name}} is no longer one: it greets with "there" where nobody is named, 00429.)
+  // ({{first name}} is no longer one: it greets with "there" where nobody is named, 00430.)
   const slot = world({
     sends: [send()],
     templates: [

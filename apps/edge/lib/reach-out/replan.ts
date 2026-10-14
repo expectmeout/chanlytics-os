@@ -7,7 +7,7 @@
  * that mailbox is no more. The mailboxes' times are read afresh with these sends' own old times taken out
  * (senders.ts), so a send never waits for itself. A send that finds no moment within the horizon tries again
  * tomorrow. One that has waited two weeks, or that the door sent back ten times, is skipped, `kept_waiting`, and its
- * run says so. A send of a reach-out its owner sends (00428) has no mailbox and no timetable: it is due again from now,
+ * run says so. A send of a reach-out its owner sends (00429) has no mailbox and no timetable: it is due again from now,
  * to be drafted, its mailbox let go.
  *
  * `attempts` counts the emails written for a send (its next email's id is its send and that number, core sendMessageId):
@@ -41,7 +41,7 @@ export interface ReplanCounts {
 
 type Move = (s: ReachOutSendRow, patch: Partial<ReachOutSendRow>) => Promise<boolean>;
 
-/** A step's pace and mailboxes, and whether its chain's root says its owner sends it (00428), in one read. */
+/** A step's pace and mailboxes, and whether its chain's root says its owner sends it (00429), in one read. */
 async function stepAndRootOf(db: Db, tenantId: string, stepId: string, rootId: string) {
   const { data, error } = await db
     .from("playbooks")
@@ -56,7 +56,7 @@ async function stepAndRootOf(db: Db, tenantId: string, stepId: string, rootId: s
   };
 }
 
-/** A reach-out its owner sends (00428): each is due again from now, with no mailbox, or given up as any send is. */
+/** A reach-out its owner sends (00429): each is due again from now, with no mailbox, or given up as any send is. */
 async function replanOwnerSends(
   group: readonly ReachOutSendRow[],
   p: { now: Date; wrote: ReadonlySet<string>; move: Move; out: ReplanCounts },
@@ -77,7 +77,7 @@ async function replanOwnerSends(
  * An owner's sends planned again as theirs (replanOwnerSends), and the rest handed back for their mailboxes: a chain its
  * owner sends, every one; a mailbox's, a later step planned with no mailbox while its owner sent the chain, whose thread
  * is in their own inbox (the draft claim takes it, sender.ts hands it over by its parent), never ended as a mailbox's
- * gone (00428).
+ * gone (00429).
  */
 async function keepTheirs(
   group: readonly ReachOutSendRow[],

@@ -235,7 +235,7 @@ export const waitingQuestionOf = (r: Pick<SearchViewRow, "state" | "question">):
  * its id. `asked_on` is the view's own created_at: the day the owner asked, said once.
  */
 export function toSearchDto(r: SearchViewRow): LeadSearchDto {
-  // A people search's plan is the people card's (00429), never read as a places one.
+  // A people search's plan is the people card's (00430), never read as a places one.
   const people = peoplePlanOf(r.plan);
   const plans = { plan: people ? null : (r.plan as LeadSearchPlan), people };
   const q =
@@ -301,7 +301,7 @@ export async function searchesOf(
   const [rows, counts, live] = await Promise.all([
     listSearches(ctx, tenantId),
     listCounts(ctx, tenantId),
-    // Which cards find leads now (00429): what the rail, the first day and Ask may offer. Unread, the Maps card alone.
+    // Which cards find leads now (00430): what the rail, the first day and Ask may offer. Unread, the Maps card alone.
     leadCardsLive(ctx.supabase).catch(() => ["local_businesses"]),
   ]);
   return { searches: rows.map(toSearchDto), counts, cards_live: live };

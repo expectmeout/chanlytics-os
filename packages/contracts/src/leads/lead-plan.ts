@@ -60,7 +60,7 @@ export type LeadPlanned =
   | { ok: true; plan: LeadSearchPlan; view: LeadPlanView }
   | { ok: false; refusal: { kind: LeadPlanRefusalKind; text: string; what: string | null } };
 
-/** A people search's ask as its plan (00429), or a refusal in words, as a places one's. */
+/** A people search's ask as its plan (00430), or a refusal in words, as a places one's. */
 export type PeoplePlanned =
   | { ok: true; plan: LeadPeoplePlan; view: LeadPlanView }
   | { ok: false; refusal: { kind: LeadPlanRefusalKind; text: string; what: string | null } };

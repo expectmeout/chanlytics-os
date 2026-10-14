@@ -30,7 +30,7 @@ export type EmailFoot =
   | { kind: "offer"; why: "customer" | "asked"; unsubscribeUrl: string }
   /**
    * A cold email's: its link rides in the List-Unsubscribe header alone. An email its owner sends from their own inbox
-   * (a reach-out's draft, 00428) has no header, so no link: its way out is the reply its words ask for.
+   * (a reach-out's draft, 00429) has no header, so no link: its way out is the reply its words ask for.
    */
   | { kind: "cold"; why: string; unsubscribeUrl: string | null };
 

@@ -1,7 +1,7 @@
 /**
  * The lead workbench's doors (00426), on the member's own session: leads added to a reach-out fed by a list (dry, what
  * each would do; else what joined, with its undo), Later in a pass of the pile, who a company's reach-out writes to
- * (00429), and who is in a reach-out (its drawer's People), and what a reach-out could start from. The rules are SQL's (reach_out_add, lead_member_later,
+ * (00430), and who is in a reach-out (its drawer's People), and what a reach-out could start from. The rules are SQL's (reach_out_add, lead_member_later,
  * reach_out_chain_people and reach_out_sources, over reach_out_why_not and reach_out_root_lines); these say their
  * refusals in contracts' words, and a door's own SQLSTATE at its status (dbRefusal). Ask's tools call the same
  * functions, so what it adds is what the card adds.
@@ -62,7 +62,7 @@ export async function laterLead(
 }
 
 /**
- * Who a company's reach-out writes to (00429 lead_addressee_choose): one of the people its source named, by their place
+ * Who a company's reach-out writes to (00430 lead_addressee_choose): one of the people its source named, by their place
  * in its facts, chosen by its owner. The door's refusals in contracts' words (leadAddresseeRefusal); a workspace that may
  * not spend, in the spend's own sentence, at 402.
  */

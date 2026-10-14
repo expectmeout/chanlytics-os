@@ -218,7 +218,7 @@ const LEAD_FIRST_DAY = {
   linePlaceholder: "What you sell, and who buys it",
   haveList: "Have a list already?",
   importIt: "Import it",
-  /** The people card's door (00429), on a desk's first day and a phone's New search, where no rail is drawn. */
+  /** The people card's door (00430), on a desk's first day and a phone's New search, where no rail is drawn. */
   wantPeople: "Looking for people at companies?",
   findPeople: "Find people",
 } as const;

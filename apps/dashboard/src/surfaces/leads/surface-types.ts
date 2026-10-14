@@ -48,7 +48,7 @@ export interface LeadsSurface {
   tz: string;
   readFailed: boolean;
   fetchedAt: number;
-  /** The cards that find leads now (00429 lead_cards_live): the people card's doors are drawn only once it is one. */
+  /** The cards that find leads now (00430 lead_cards_live): the people card's doors are drawn only once it is one. */
   cardsLive: readonly string[];
   /**
    * When the searches were last asked for (LeadsLoaded.readAt), epoch ms: the bell judges a lead question's kept notice only

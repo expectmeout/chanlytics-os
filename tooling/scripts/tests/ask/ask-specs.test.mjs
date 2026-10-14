@@ -39,7 +39,7 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const POLICY = JSON.parse(fs.readFileSync(path.join(ROOT, "tooling/scripts/tests/route-policy.json"), "utf8")).routes;
 
-/** The twenty-one kinds, in AskProposal's order, and one no card has (people_search, the people card's, 00429). */
+/** The twenty-one kinds, in AskProposal's order, and one no card has (people_search, the people card's, 00430). */
 const KINDS = [
   "reply",
   "steer",
@@ -207,7 +207,7 @@ const OPEN = {
   ],
   // None of the table's payloads names a reach-out: the home. With one, its drawer (the spec's own test below).
   reach_out_add: "outbound",
-  // The people card (00429): Leads, and once it started, its search.
+  // The people card (00430): Leads, and once it started, its search.
   people_search: [
     "clients/leads",
     "clients/leads",

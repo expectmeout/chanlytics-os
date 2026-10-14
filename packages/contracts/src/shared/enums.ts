@@ -423,7 +423,7 @@ export const EVENT_KINDS = [
   "lead.later",
   /**
    * Who a company lead's reach-out writes to, chosen by its owner ({ person, checking, by }: the index of one of the people
-   * its source named, and whether their address is being checked first), on the lead (00429 lead_addressee_choose).
+   * its source named, and whether their address is being checked first), on the lead (00430 lead_addressee_choose).
    */
   "lead.addressee_chosen",
   /** A search renamed ({ name, by }) or removed ({ kept, archived, by }), on the search. */

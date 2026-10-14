@@ -1,5 +1,5 @@
 /**
- * A people search's round (the people card, 00429): one run at the provider for the plan's filters, its items read a
+ * A people search's round (the people card, 00430): one run at the provider for the plan's filters, its items read a
  * page at a time into companies with the people named on them, then the round goes to its checks. Nothing is probed or
  * judged: the provider's filters are the criteria, so what a run finds waits in Needs review on its address alone, and
  * the check promotes what checks out, as it does a list's rows (00242's J2). The rest is the places round's own: the
@@ -137,7 +137,7 @@ export async function startPeople(
 const reasonOf = (who: LeadPerson | undefined, size: string | null): string =>
   [who?.title, size ? `${size} people` : null].filter((x): x is string => !!x).join(" · ");
 
-/** A page's people by company (00429): each company once, with its people and its addressee. */
+/** A page's people by company (00430): each company once, with its people and its addressee. */
 export function companiesOf(found: readonly PersonAtCompany[]): CollectCompany[] {
   const by = new Map<string, { company: PersonAtCompany["company"]; people: LeadPerson[] }>();
   // Those with a work address first, the most senior first among them, so the five a company keeps are the ones it can

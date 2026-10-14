@@ -3,12 +3,12 @@
  *
  *   outreachRefusalOf   the lead's own facts, as the send door reads them (deliver.ts) and as the clock reads them
  *                       before it claims a send: one mapping, so the two never disagree about who may be written to.
- *   draftRefusalOf      the same, for an email its owner sends (00428): asked as it is handed over, as To send is read
+ *   draftRefusalOf      the same, for an email its owner sends (00429): asked as it is handed over, as To send is read
  *                       and on each tick of the clock, since no send door stands between the owner's inbox and the
  *                       business. A customer's address is refused too, as the person door refuses it at Sent.
  *   OUTREACH_WAIT_REFUSALS   the door's refusals that mean "not now": the send is planned again, never canceled (C5).
  *   reachOutEmailOf     a step's words with the lead's, the workspace's and the send's values in (§4.3's slots, and
- *                       00429's person slots from a company's addressee, each with its fallback), by
+ *                       00430's person slots from a company's addressee, each with its fallback), by
  *                       the one fill every email takes (templates/slot-sets.ts); a slot with no value holds the email
  *                       (missing_value, the reason that exists: broadcast.ts). The send, the sheet's preview and the
  *                       approval's first email read it.
@@ -69,18 +69,18 @@ export const REACH_OUT_MONTH_EMAILS = 2000;
 
 /**
  * The most emails a reach-out its owner sends hands them in a day, across its steps (the 4 Oct spec's decision 8;
- * 00428): a morning's work. Its steps after the first are planned first, so a nudge is never crowded out by new leads.
+ * 00429): a morning's work. Its steps after the first are planned first, so a nudge is never crowded out by new leads.
  */
 export const REACH_OUT_DRAFTS_PER_DAY = 30;
 
 /**
- * The most emails a reach-out its owner sends holds for them at once (00428): planned, being written or waiting in To
+ * The most emails a reach-out its owner sends holds for them at once (00429): planned, being written or waiting in To
  * send, two days' share. An owner who falls behind is handed nothing new until they catch up, so a draft is not left
  * to be given up (kept_waiting) and its lead with it.
  */
 export const REACH_OUT_DRAFTS_OPEN_MAX = 2 * REACH_OUT_DRAFTS_PER_DAY;
 
-/** A draft's lead as the send door would judge it (00428 reach_out_draft_facts), snake_case as SQL answers it. */
+/** A draft's lead as the send door would judge it (00429 reach_out_draft_facts), snake_case as SQL answers it. */
 export interface DraftLeadFacts {
   lead_stage: string | null;
   suppressed: boolean;
@@ -149,10 +149,10 @@ export const REACH_OUT_LANGUAGE = "en";
 export interface SlotLead {
   business_name: string | null;
   city: string | null;
-  /** A company's people (00429): its addressee fills the person slots. Absent, or a place: their fallbacks. */
+  /** A company's people (00430): its addressee fills the person slots. Absent, or a place: their fallbacks. */
   kind?: string | null;
   facts?: unknown;
-  /** Where it was found (00429 leads.source), which the foot's first line says (whyFrom). Absent: the Maps card. */
+  /** Where it was found (00430 leads.source), which the foot's first line says (whyFrom). Absent: the Maps card. */
   source?: string | null;
 }
 /** The workspace's slots: its name, the name the chain signs with, its booking link. */
@@ -164,7 +164,7 @@ export interface SlotWorkspace {
 
 /**
  * The slots' values, in the slot set's order, from the lead's, the workspace's and the send's: a blank one is a hole. A
- * person's slot is its addressee's (00429): {{first name}} greets with its fallback where nobody is named, and {{title}}
+ * person's slot is its addressee's (00430): {{first name}} greets with its fallback where nobody is named, and {{title}}
  * and {{role}}, which claim something of a person, are holes there.
  */
 function reachOutValues(lead: SlotLead, workspace: SlotWorkspace, opening: string | null): Array<string | undefined> {

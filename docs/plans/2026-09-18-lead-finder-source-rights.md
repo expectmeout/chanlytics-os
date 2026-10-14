@@ -162,7 +162,7 @@ advice.
 
 - **What the card is.** `people_at_companies` (contracts `LEAD_CARDS`, core `CARDS`): named people at companies, by
   title, seniority, industry, company size and US state, from `olympus/b2b-leads-finder` on Apify, a B2B contact
-  database ("like Apollo, LinkedIn", about 4,500 users). Each company is one lead (00429 `leads.kind = 'company'`), its
+  database ("like Apollo, LinkedIn", about 4,500 users). Each company is one lead (00430 `leads.kind = 'company'`), its
   people kept in `facts`, and its reach-out writes to one of them, the addressee.
 - **Where the data comes from.** The provider says it extracts from "a target B2B platform": aggregated professional
   profiles and company sites, LinkedIn's among them. Chanlytics never signs in to LinkedIn, never reads it, and never
@@ -181,7 +181,7 @@ advice.
   - Kept: a person's name, title, seniority, work address and public profile link, and their company's name, domain,
     industry, size and place.
   - Never kept: a personal address (free mail is dropped) or a phone.
-  - At most five people a company, cleared when the lead is blanked or erased (00429 `lead_blank`, the erasure
+  - At most five people a company, cleared when the lead is blanked or erased (00430 `lead_blank`, the erasure
     registry).
   - Every address is checked before anything is sent. The email's foot says where they were found ("I found your company
     in a business directory") and how to say no, and a no puts them on the never-again list.

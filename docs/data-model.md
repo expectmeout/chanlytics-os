@@ -1350,7 +1350,7 @@ One row. searches_on is the kill switch for every workspace; tenants_on lists th
 | `note` | text | yes |  |  |
 | `prices_checked_at` | timestamp with time zone | yes |  |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
-| `cards_on` | text[] | no | `ARRAY['local_businesses'::text]` | The cards that find leads now (00429): local_businesses, and people_at_companies once its calibration run proved its filters and fields. Switched by hand; lead_card_live reads it. |
+| `cards_on` | text[] | no | `ARRAY['local_businesses'::text]` | The cards that find leads now (00430): local_businesses, and people_at_companies once its calibration run proved its filters and fields. Switched by hand; lead_card_live reads it. |
 
 ### lead_preferences
 
@@ -1661,10 +1661,10 @@ A place: one physical location, outside contacts. Unique by place id in the work
 | `reach_out_stopped_at` | timestamp with time zone | yes |  | When its owner stopped a reach-out writing to this lead (Reach out Part 6, H10; reach_out_lead_stop). The send door refuses its email (outreach_lead_facts.stopped, outreach_stopped) and no later step reaches it (reach_out_followers). The lead is not closed: stopping is not a no. |
 | `stage_at` | timestamp with time zone | yes | `now()` | When the lead entered the stage it is in (K5): its birth for a new row, the move for any later one, stamped by leads_stamp_stage whoever writes the stage. Null for a lead from before 00309: unknown, never now. |
 | `stage_from` | text | yes |  | The stage the lead was in before the move that stamped stage_at (K5); null until it moves. The one place a lead's "from" is said: lead.set_aside and 00310's lead.stage event read it. |
-| `kind` | text | no | `'place'::text` | What the lead is (00429): a place a listing names (the Maps card's), or a company with the people its source named on it (the people card's, facts.people), one of whom its reach-out writes to. |
-| `source` | text | no | `'local_businesses'::text` | Where the lead came from (00429): the card that found it (local_businesses, people_at_companies), or a file of the owner's own (import). The foot of a cold email says it in its first line (contracts whyFrom). |
-| `source_key` | text | yes |  | The lead's own key at its source (00429): a company's domain for the people card. One lead per workspace, source and key (leads_tenant_source_key_uq); a place keeps its place_id instead. |
-| `facts` | jsonb | no | `'{}'::jsonb` | What the lead's source named beyond its columns (00429): {people: [{name, first_name, title, role, email, profile_url}] at most five, addressee: the index of the one the lead's address is, size: the company's size as its source gave it}. Read through contracts leadFactsOf; blanked with the lead. |
+| `kind` | text | no | `'place'::text` | What the lead is (00430): a place a listing names (the Maps card's), or a company with the people its source named on it (the people card's, facts.people), one of whom its reach-out writes to. |
+| `source` | text | no | `'local_businesses'::text` | Where the lead came from (00430): the card that found it (local_businesses, people_at_companies), or a file of the owner's own (import). The foot of a cold email says it in its first line (contracts whyFrom). |
+| `source_key` | text | yes |  | The lead's own key at its source (00430): a company's domain for the people card. One lead per workspace, source and key (leads_tenant_source_key_uq); a place keeps its place_id instead. |
+| `facts` | jsonb | no | `'{}'::jsonb` | What the lead's source named beyond its columns (00430): {people: [{name, first_name, title, role, email, profile_url}] at most five, addressee: the index of the one the lead's address is, size: the company's size as its source gave it}. Read through contracts leadFactsOf; blanked with the lead. |
 
 Foreign keys:
 
@@ -2438,7 +2438,7 @@ Foreign keys:
 | `until` | date | yes |  | The last day this campaign runs, on the business's clock: a run on a day past it sends nothing. Null: it runs until it is paused (00416). |
 | `trial_until` | timestamp with time zone | yes |  | Until when this campaign runs on trial: before it, a run its policy would send by itself (auto) waits for a person (veto). Null: no trial (00416). |
 | `mailbox_ids` | uuid[] | no | `'{}'::uuid[]` | A reach-out step's mailboxes (00424): the ones its owner picked, or none for every connected one of its workspace. |
-| `owner_sends` | boolean | no | `false` | A reach-out's root (00428): its owner sends its emails from their own inbox, each handed to them written and checked (state drafted), rather than its mailboxes (mailbox_ids). Its steps read it from the root. |
+| `owner_sends` | boolean | no | `false` | A reach-out's root (00429): its owner sends its emails from their own inbox, each handed to them written and checked (state drafted), rather than its mailboxes (mailbox_ids). Its steps read it from the root. |
 
 Foreign keys:
 
@@ -2631,7 +2631,7 @@ Reach out Part 5: one reading of one reply to a reach-out, keyed by the message 
 | `signer_was` | text | yes |  |  |
 | `signer_settled_at` | timestamp with time zone | yes |  |  |
 | `signer_settled_by` | uuid | yes |  |  |
-| `said_by` | uuid | yes |  | For a reading its owner gave (claim owner, 00428): the member who said what the business wrote back. Its message_id is the note that says so on the person's thread (reach_out_reply_said). |
+| `said_by` | uuid | yes |  | For a reading its owner gave (claim owner, 00429): the member who said what the business wrote back. Its message_id is the note that says so on the person's thread (reach_out_reply_said). |
 
 Foreign keys:
 
@@ -2690,10 +2690,10 @@ Reach out: one lead in one step's run. Planned (a time and a domain), claimed un
 | `checked_words` | text | yes |  |  |
 | `included_for` | text[] | no | `'{}'::text[]` |  |
 | `mailbox_id` | uuid | yes |  | The mailbox this send leaves from (00424): planned with it, claimed under its day, and kept by its lead for the whole chain. Null for a skipped send, or once its mailbox is gone. |
-| `drafted_at` | timestamp with time zone | yes |  | When this send was handed to its owner, written and checked (00428): its fourteen days to be sent start here. |
-| `draft` | jsonb | yes |  | The email handed to the owner (00428): {to, subject, body, text, parent_id?}, the words with their values in and, in text, with the foot. What the Sent door writes as the email. |
-| `said_at` | timestamp with time zone | yes |  | When the owner said this drafted email went, or did not (00428). |
-| `said_by` | uuid | yes |  | The member who said it (00428). |
+| `drafted_at` | timestamp with time zone | yes |  | When this send was handed to its owner, written and checked (00429): its fourteen days to be sent start here. |
+| `draft` | jsonb | yes |  | The email handed to the owner (00429): {to, subject, body, text, parent_id?}, the words with their values in and, in text, with the foot. What the Sent door writes as the email. |
+| `said_at` | timestamp with time zone | yes |  | When the owner said this drafted email went, or did not (00429). |
+| `said_by` | uuid | yes |  | The member who said it (00429). |
 
 Foreign keys:
 

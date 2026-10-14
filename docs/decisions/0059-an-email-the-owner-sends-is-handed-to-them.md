@@ -66,7 +66,7 @@ means the notice a reply sends (`reach_out_reply_told`).
 
 ## Shape
 
-00428 (working number): the column, the state and its guard (claimed → drafted; drafted → sent | skipped), the two
+00429 (taken above R6's 00428 at the claim, 14 Oct): the column, the state and its guard (claimed → drafted; drafted → sent | skipped), the two
 claims, the clock's reads (finishable, closed, held stale, the sweep's trigger), the two doors, the replies' `owner`
 claim with `said_by`, Stop writing, Leave out and Save taking a draft back, the lines' `drafted` and `to_send`, and
 Reports' mailboxes naming the owner's own inbox apart (`yours`), from the emails before 00424 that left from no mailbox

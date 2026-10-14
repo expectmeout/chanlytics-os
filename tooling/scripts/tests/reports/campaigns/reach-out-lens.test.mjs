@@ -481,7 +481,7 @@ test("mailboxes, the days written and the handed line are the old fold's, said t
         complained: 0,
       },
       { address: null, state: null, held_why: null, held_at: null, sent: 5, delivered: 5, bounced: 0, complained: 0 },
-      // Sent from their owner's own inbox (00428): no mailbox wrote them, and no receipt of theirs reaches us.
+      // Sent from their owner's own inbox (00429): no mailbox wrote them, and no receipt of theirs reaches us.
       {
         address: null,
         yours: true,

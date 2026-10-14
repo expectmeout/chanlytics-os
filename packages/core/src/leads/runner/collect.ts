@@ -1,7 +1,7 @@
 /**
  * lead_collect: one batch of a run's items per commit (clean, identity, judge, classify, distance, commit), a Stop,
  * and a checker run's answers. The places it commits are made in places.ts and marked in mark-places.ts; what
- * follows a run's last item is round-decision.ts. A people run's items are companies (00429): people.ts.
+ * follows a run's last item is round-decision.ts. A people run's items are companies (00430): people.ts.
  */
 
 import { peoplePlanOf, type LeadEmailState, type LeadRoundState, type LeadRunState } from "@chanlytics/contracts";
@@ -94,7 +94,7 @@ export async function collect(p: LeadPorts, runId: string, seq: string, owner: s
     return { kind: "busy" };
   }
   try {
-    // A people search's run (00429): its items are people at companies, kept as companies and never judged.
+    // A people search's run (00430): its items are people at companies, kept as companies and never judged.
     if (peoplePlanOf(round.plan)) return await collectPeople(p, round, run, owner, gen);
     return await collectHeld(p, round, run, owner, gen);
   } finally {

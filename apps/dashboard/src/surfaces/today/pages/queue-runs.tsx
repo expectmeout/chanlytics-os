@@ -208,7 +208,7 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, room: number) 
   // Each row opens its own run (broadcasts/run:<id>): who is on it, and what it has done so far. The runs waiting first,
   // then the ones too late to approve, through the same row (which says it is too late and opens the run, where Skip is).
   // Two or more whose emails are handed to you are one row, first: the one To send (broadcasts/to-send), the list the
-  // owner works down, never a row a run (00428). One alone opens its run.
+  // owner works down, never a row a run (00429). One alone opens its run.
   const toSend = toSendRunsOf(waiting);
   const asked = [...waiting.filter((r) => !toSend || !toSend.runs.includes(r)), ...tooLate];
   const count = asked.length + (toSend ? 1 : 0) + soon.length;
@@ -218,7 +218,7 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, room: number) 
     ...handed,
     ...asked.slice(0, left).map((r) => {
       // A going run whose emails the check holds is answered on the run, where each held email is put back or skipped;
-      // one whose emails are handed to you is sent from there, each from your own inbox (00428).
+      // one whose emails are handed to you is sent from there, each from your own inbox (00429).
       const held = runHeldEmails(r) > 0 ? words(r).held : runDraftedEmails(r) > 0 ? words(r).drafted : null;
       const late = held ? null : runLate(r);
       // Decided on its sheet alone, as Sent's row and the ledger's door decide it (the run's offer, contracts

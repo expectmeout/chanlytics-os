@@ -51,7 +51,7 @@ export interface ReachOutReportChainDto {
 export interface ReachOutReportMailboxDto {
   /** Null for the emails of a mailbox since gone, and for the ones their owner sent from their own inbox (`yours`). */
   address: string | null;
-  /** Sent from their owner's own inbox, on their word (00428): no mailbox wrote them. Absent from an older database. */
+  /** Sent from their owner's own inbox, on their word (00429): no mailbox wrote them. Absent from an older database. */
   yours?: boolean;
   state: string | null;
   held_why: string | null;

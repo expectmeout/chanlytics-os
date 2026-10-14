@@ -54,7 +54,7 @@ export interface ReachOutLeadLineDto {
   held: boolean;
   /** A hand step gave it to the team. */
   handed: boolean;
-  /** How many of its emails wait, handed to their owner, to be sent from their inbox (00428; absent before it). */
+  /** How many of its emails wait, handed to their owner, to be sent from their inbox (00429; absent before it). */
   drafted?: number;
   bounced: boolean;
   bounced_at: string | null;
@@ -82,7 +82,7 @@ export interface ReachOutSearchLinesDto {
   /** The next email: when, to whom, and the mailbox it leaves from (`host` its domain, from before 00424). */
   next: { at: string; business: string | null; host: string | null; from?: string | null } | null;
   held: number;
-  /** How many of its emails wait to be sent from their owner's inbox (00428; absent before it). */
+  /** How many of its emails wait to be sent from their owner's inbox (00429; absent before it). */
   to_send?: number;
   waiting_run_id: string | null;
   leads: ReachOutLeadLineDto[];
@@ -107,9 +107,9 @@ export interface ReachOutTimelineSendDto {
   bounced: boolean;
   /** The email left: sent, or failed by a receipt after it left (00179 email_left). */
   left: boolean;
-  /** The run a drafted email waits in, where its owner sends it (00428: the server reads it for a drafted send). */
+  /** The run a drafted email waits in, where its owner sends it (00429: the server reads it for a drafted send). */
   run_id?: string | null;
-  /** It left from its owner's own inbox, on their word (00428 said_at; the server reads it for one from no mailbox). */
+  /** It left from its owner's own inbox, on their word (00429 said_at; the server reads it for one from no mailbox). */
   said?: boolean;
 }
 
@@ -167,7 +167,7 @@ export interface ReachOutLeadTimelineDto {
   stopped_at: string | null;
   /** Found on a listing (the finder's); false for a lead a list of the owner's own brought (00242). Absent before it. */
   found_on_listing?: boolean;
-  /** What the lead is and where it came from (00429): a company the people card found was on no listing, nor a list. */
+  /** What the lead is and where it came from (00430): a company the people card found was on no listing, nor a list. */
   kind?: string;
   source?: string;
   /** When it was put on its reach-out's list, while nothing has been written to it (00426). */
@@ -248,7 +248,7 @@ export function reachOutLineOf(l: ReachOutLeadLineDto, nowMs: number, tz: string
     return `Written ${near(l.first_sent_at, tz, nowMs)} · away until ${clockDate(away, tz, nowMs)}`;
   if (l.sent > 0) return writtenWords(l, tz, nowMs);
   if (l.held) return "Held for your say";
-  // Handed to its owner, written and checked (00428): it waits for them to send it from their inbox.
+  // Handed to its owner, written and checked (00429): it waits for them to send it from their inbox.
   if ((l.drafted ?? 0) > 0) return "Drafted for you · to send from your inbox";
   const next = at(l.next_at);
   if (next !== null) return capitalize(clockNearWhen(next, tz, nowMs));
@@ -338,7 +338,7 @@ function sendLine(s: ReachOutTimelineSendDto, tz: string, nowMs: number): ReachO
     text,
   });
   if (s.left) {
-    // An email its owner sent from their own inbox (00428) says so; one from before 00424 names no sender.
+    // An email its owner sent from their own inbox (00429) says so; one from before 00424 names no sender.
     const from = s.from || s.host ? ` · from ${s.from ?? s.host}` : s.said ? " · from your inbox" : "";
     const angle = s.angle ? ` · angle: ${s.angle}` : "";
     return line(`${name}${from}${angle} · ${emailWords(s)}`);
@@ -375,9 +375,9 @@ export interface ReachOutTimelineVM {
   stop: { label: string } | null;
   /** The reading's undo: its door, and what it says once done. */
   undo: { label: string; messageId: string; done: string } | null;
-  /** A drafted email's run, where its owner sends it (00428). */
+  /** A drafted email's run, where its owner sends it (00429). */
   send: { label: string; to: string } | null;
-  /** They wrote back…: an email its owner sent is answered in their own inbox, so they say what came back (00428). */
+  /** They wrote back…: an email its owner sent is answered in their own inbox, so they say what came back (00429). */
   said: { label: string } | null;
 }
 

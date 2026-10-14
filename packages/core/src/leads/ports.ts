@@ -197,7 +197,7 @@ export interface CollectPlace {
 }
 
 /**
- * One company a people run found (00429), as lead_company_upsert takes it: the lead's columns, its addressee's work
+ * One company a people run found (00430), as lead_company_upsert takes it: the lead's columns, its addressee's work
  * address (the lead's own, checked before anyone is written to), its people, and the line Leads says of it.
  */
 export type CollectCompany = {
@@ -287,7 +287,7 @@ export interface LeadDb {
   ): Promise<{ ok: boolean }>;
   roundEnd(roundId: string, ending: LeadRoundEnding): Promise<boolean>;
   /**
-   * A people run's page of companies (00429 lead_company_upsert), before its own commit moves the run: a lead each, or
+   * A people run's page of companies (00430 lead_company_upsert), before its own commit moves the run: a lead each, or
    * the people a company already held gains. Idempotent, so a page read twice keeps each company once.
    */
   companyUpsert(

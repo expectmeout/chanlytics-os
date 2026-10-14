@@ -11302,7 +11302,7 @@ declare const ERASURE_LEGS: {
     readonly email_trigger: "contact_email_on_erase: the address and why it was suppressed cleared (00125)";
     readonly proposal_trigger: "contact_proposal_on_erase: the proposal's link cleared";
     readonly deals_trigger: "deals_erase_on_contact: a deal's note, evidence and link cleared";
-    readonly leads_trigger: "leads_erase_on_contact: their lead blanked (lead_blank), its places deleted, a reach-out's opening and a preference's example cleared (00391), its drafts cleared (00428), a company's people and key cleared and its domain kept as a digest (00429), its keys kept as digests; one of several people at a business takes only their own address, number and the call's note from it (lead_person_leg, 00413); a person named at any company leaves it, its drafts to them cleared and their address kept as a digest (lead_person_forget, 00429)";
+    readonly leads_trigger: "leads_erase_on_contact: their lead blanked (lead_blank), its places deleted, a reach-out's opening and a preference's example cleared (00391), its drafts cleared (00429), a company's people and key cleared and its domain kept as a digest (00430), its keys kept as digests; one of several people at a business takes only their own address, number and the call's note from it (lead_person_leg, 00413); a person named at any company leaves it, its drafts to them cleared and their address kept as a digest (lead_person_forget, 00430)";
     readonly signer_trigger: "person_signer_erase_on_contact: the name and title a reply's reading found as its signer, and what became of it, cleared (00413)";
     readonly recipients_trigger: "broadcast_recipients_on_erase: the words each run kept for them, a visit's time, service and key and a proposal's link, cleared (00391)";
     readonly jobs_scrub: "scrubErasedJobs and erase_contact: a job's payload that carried their number or words overwritten, and its error cleared";
@@ -40960,13 +40960,13 @@ interface WaitingRunRow {
     created_at: string;
     /** A going reach-out run's emails the check holds for the owner's say (contracts runHeldEmails). */
     held?: number;
-    /** And those handed to its owner to send from their inbox (contracts runDraftedEmails, 00428). */
+    /** And those handed to its owner to send from their inbox (contracts runDraftedEmails, 00429). */
     drafted?: number;
 }
 /**
  * One workspace's runs waiting for a word, newest first, on the session's client (RLS decides): those waiting for
  * approval (two hundred at most), and the going reach-out runs whose check holds emails for the owner's say, or whose
- * emails are handed to their owner to send (00428), with how many of each (runWaitingCounts). What the server's Today counts
+ * emails are handed to their owner to send (00429), with how many of each (runWaitingCounts). What the server's Today counts
  * as waiting on you (contracts runsThatWait, by the verb's own day rule, runHeldEmails and runDraftedEmails) and Ask's
  * today tool names. A read that fails throws.
  */
@@ -41581,7 +41581,7 @@ interface SendStanding {
     root: string | null;
     /** The name the chain signs with ({{your name}}): the root's. */
     signedBy: string | null;
-    /** Its owner sends its emails, each handed to them as a draft (the root's owner_sends, 00428). */
+    /** Its owner sends its emails, each handed to them as a draft (the root's owner_sends, 00429). */
     ownerSends: boolean;
 }
 declare function sendStanding(db: Db$t, s: ReachOutSendRow): Promise<SendStanding>;
@@ -41599,10 +41599,10 @@ declare function workspaceNameAndConfig(db: Db$t, tenantId: string): Promise<{
 declare function leadSlotsOf(db: Db$t, tenantId: string, leadId: string): Promise<{
     business_name: string | null;
     city: string | null;
-    /** The finder's checked address, and its check (00428: a draft its owner sends goes to it). */
+    /** The finder's checked address, and its check (00429: a draft its owner sends goes to it). */
     email: string | null;
     email_state: string | null;
-    /** A place or a company, where it was found, and a company's people (00429): the person slots and the foot read them. */
+    /** A place or a company, where it was found, and a company's people (00430): the person slots and the foot read them. */
     kind: string;
     source: string;
     facts: Json;
@@ -41618,7 +41618,7 @@ declare function sendNow(db: Db$t, p: {
     message_id: string | null;
 } | null>;
 /**
- * A run whose emails were handed to its owner, or taken back from them (00428): scheduled becomes sending, and its row is
+ * A run whose emails were handed to its owner, or taken back from them (00429): scheduled becomes sending, and its row is
  * touched either way, since a page hears a run by its row (the feed tells of broadcasts, never of their sends), so
  * Today's, the brief's and Ask's count of the emails waiting reads again.
  */
@@ -41640,7 +41640,7 @@ interface ParentEmail {
     /** The chain it carried, oldest first. */
     references: string[];
     subject: string | null;
-    /** Sent by its owner from their own inbox, on their word (00428): the thread is theirs, so the next email is too. */
+    /** Sent by its owner from their own inbox, on their word (00429): the thread is theirs, so the next email is too. */
     ownerSent: boolean;
 }
 /** The lead's sent email on the step before this one in its chain; null when it has none. */
@@ -41767,7 +41767,7 @@ declare function reachOutSources(db: Db$s, tenantId: string): Promise<DoorResult
 declare function reachOutPeopleCounts(db: Db$s, tenantId: string): Promise<Record<string, ReachOutPeopleCountsDto> | null>;
 
 /**
- * A reach-out its owner sends (00428): its due sends claimed to be drafted, how much it holds of a day and in all, a
+ * A reach-out its owner sends (00429): its due sends claimed to be drafted, how much it holds of a day and in all, a
  * draft's lead as the send door would judge it, the owner's word on one (it went, or it did not), and what the business
  * wrote back as the owner says it. Sent is the member's own door, checked in SQL; what they wrote back is the service
  * role's, for the member the route checked, with the plan the server made. Each answers its refusal with its SQLSTATE
@@ -41799,7 +41799,7 @@ declare function chainDraftLoad(db: Db$r, p: {
     runFor: string;
 }): Promise<DraftLoad>;
 /**
- * One lead's facts as the send door would judge them (00428 reach_out_draft_facts, contracts draftRefusalOf), on the
+ * One lead's facts as the send door would judge them (00429 reach_out_draft_facts, contracts draftRefusalOf), on the
  * service role: asked before a draft is handed over. Null for a lead gone.
  */
 declare function draftFactsOf(db: Db$r, tenantId: string, leadId: string): Promise<DraftLeadFacts | null>;
@@ -41813,7 +41813,7 @@ interface DraftWaitingRow {
     facts: DraftLeadFacts | null;
 }
 /**
- * The drafts waiting for their owners, oldest first, with their leads' facts (00428 reach_out_drafts_waiting), on the
+ * The drafts waiting for their owners, oldest first, with their leads' facts (00429 reach_out_drafts_waiting), on the
  * service role: one run's (its To send list) or every workspace's (the clock, which skips one the door would refuse).
  */
 declare function draftsWaiting(db: Db$r, p: {
@@ -41826,7 +41826,7 @@ declare function draftsWaiting(db: Db$r, p: {
         id: string;
     } | null;
 }): Promise<DraftWaitingRow[]>;
-/** What a lead's story says of a send its owner sends (00428): the run a draft waits in, and whether it went on their word. */
+/** What a lead's story says of a send its owner sends (00429): the run a draft waits in, and whether it went on their word. */
 interface OwnerSendFacts {
     runId: string | null;
     said: boolean;
@@ -41992,7 +41992,7 @@ interface ReachOutStepRow {
     after_days: number | null;
     gap_minutes: number | null;
     mailbox_ids: string[] | null;
-    /** Its owner sends its emails (a root's, 00428). */
+    /** Its owner sends its emails (a root's, 00429). */
     owner_sends: boolean | null;
     signed_by: string | null;
     include_unconfirmed: boolean | null;
@@ -42021,7 +42021,7 @@ declare function reachOutSendRefOf(db: Db$p, id: string): Promise<{
     broadcast_id: string;
     state: string;
     reason: string | null;
-    /** The emails written for it: an email its owner sent takes the next one's id (core sendMessageId, 00428). */
+    /** The emails written for it: an email its owner sent takes the next one's id (core sendMessageId, 00429). */
     attempts: number;
 } | null>;
 /**
@@ -42120,10 +42120,10 @@ interface ReachOutRunSend {
     checked_at: string | null;
     created_at: string;
     mailbox_id: string | null;
-    /** An email handed to its owner (00428): what they send, and when it was handed to them. */
+    /** An email handed to its owner (00429): what they send, and when it was handed to them. */
     draft: Json | null;
     drafted_at: string | null;
-    /** Its lead, and for a company its people (00429), which the first email's person slots read. */
+    /** Its lead, and for a company its people (00430), which the first email's person slots read. */
     lead: {
         business_name: string | null;
         email: string | null;
@@ -42202,7 +42202,7 @@ declare function markHeldNotice(db: Db$p, p: {
 /**
  * How many of each of a workspace's runs' emails wait on its owner, read in one: held, those the check holds for their
  * owner's say, which Sent's row, the bell's held notice and Campaigns' chain row say (the wiring's second audit,
- * W-campaign-run-template-reachout-4); drafted, those handed to their owner to send from their inbox (00428), which wait
+ * W-campaign-run-template-reachout-4); drafted, those handed to their owner to send from their inbox (00429), which wait
  * on them as the held do. A run with neither is absent. One read of the two states' rows (reach_out_sends_run, on
  * broadcast_id and state), never a count per run. Throws when it cannot read.
  */
@@ -45166,12 +45166,12 @@ declare function ideasClockAndLanguage(db: Db$3, tenantId: string): Promise<{
  */
 declare function ideasBasis(db: Db$3, tenantId: string): Promise<string | null>;
 /**
- * The cards that find leads now (00429 lead_cards_live: lead_platform.cards_on): the Maps card, and the people card once
+ * The cards that find leads now (00430 lead_cards_live: lead_platform.cards_on): the Maps card, and the people card once
  * its calibration run proved it. What the Leads page offers and Ask proposes; the door refuses the rest itself.
  */
 declare function leadCardsLive(db: Db$3): Promise<string[]>;
 /**
- * A people search (00429 lead_people_search_create), as the member signed in: the plan, where it was made, the estimate
+ * A people search (00430 lead_people_search_create), as the member signed in: the plan, where it was made, the estimate
  * the route worked out and the Ask thread it was planned in. The door's own refusals ({error, sentence}) come back as
  * its answer; a thrown one is a request it refused outright.
  */
@@ -45187,7 +45187,7 @@ declare function leadPeopleSearchCreate(db: Db$3, p: {
     error?: string;
     sentence?: string;
 }>;
-/** What the addressee door answers (00429 lead_addressee_choose): the choice made, or the door's refusal by its code. */
+/** What the addressee door answers (00430 lead_addressee_choose): the choice made, or the door's refusal by its code. */
 type LeadAddresseeAnswer = {
     ok: true;
     addressee: number;
@@ -45199,7 +45199,7 @@ type LeadAddresseeAnswer = {
     sentence?: string;
 };
 /**
- * The owner's choice of who a company lead's reach-out writes to (00429 lead_addressee_choose), as the member signed in:
+ * The owner's choice of who a company lead's reach-out writes to (00430 lead_addressee_choose), as the member signed in:
  * the index of one of the people its source named. The door's own refusals ({error}, and a spend's {error, sentence})
  * come back as its answer; a thrown one is a request it refused outright (not signed in, not this member's lead).
  */
@@ -45217,7 +45217,7 @@ declare function leadAddresseeChoose(db: Db$3, p: {
     };
 }>;
 /**
- * A people run's page of companies (00429 lead_company_upsert), service role: a lead for each new company, waiting in
+ * A people run's page of companies (00430 lead_company_upsert), service role: a lead for each new company, waiting in
  * Needs review on its address, and the people a company already held gains. Idempotent.
  */
 declare function leadCompanyUpsert(db: Db$3, roundId: string, companies: Json[]): Promise<{

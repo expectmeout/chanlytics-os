@@ -120,7 +120,7 @@ const planChip = (max: number) => z.string().trim().min(2).max(max);
 export const ProposeLeadSearchSchema = z.object({
   /**
    * What is asked for: local businesses (the Maps card), or people at home, online sellers and anything else, which are
-   * answered in words. Named people at companies are ProposePeopleSearchSchema's (00429).
+   * answered in words. Named people at companies are ProposePeopleSearchSchema's (00430).
    */
   looking_for: z.enum(["local_businesses", "people", "online_sellers", "other"]),
   country: z.string().trim().min(2).max(40),
@@ -153,7 +153,7 @@ export const ProposeLeadSearchSchema = z.object({
 export type ProposeLeadSearch = z.infer<typeof ProposeLeadSearchSchema>;
 
 /**
- * A people search's ask (the people card, 00429): what they are called (`terms`, one to five titles), where they work
+ * A people search's ask (the people card, 00430): what they are called (`terms`, one to five titles), where they work
  * (`region`: US states, or the US), how many companies, and how senior, which industries and what size of company, none
  * of which is any. Nothing of a places plan is asked of it: no kind's key, no city, no standard, no criteria.
  */
@@ -277,7 +277,7 @@ function planArea(input: ProposeLeadSearch): LeadArea | null {
 }
 
 /**
- * A people search's ask as its plan (the people card, 00429): its terms are what the people are called, its region the
+ * A people search's ask as its plan (the people card, 00430): its terms are what the people are called, its region the
  * US states they work in ("TX", "Texas, California", or the US for all), and its own fields how senior and which
  * companies. Refused in words outside the US, or when the plan does not read.
  */

@@ -200,7 +200,7 @@ export interface WaitingRunRow {
   created_at: string;
   /** A going reach-out run's emails the check holds for the owner's say (contracts runHeldEmails). */
   held?: number;
-  /** And those handed to its owner to send from their inbox (contracts runDraftedEmails, 00428). */
+  /** And those handed to its owner to send from their inbox (contracts runDraftedEmails, 00429). */
   drafted?: number;
 }
 
@@ -209,7 +209,7 @@ const WAITING_RUN_COLUMNS = "id, name, state, playbook_id, run_for, audience, re
 /**
  * One workspace's runs waiting for a word, newest first, on the session's client (RLS decides): those waiting for
  * approval (two hundred at most), and the going reach-out runs whose check holds emails for the owner's say, or whose
- * emails are handed to their owner to send (00428), with how many of each (runWaitingCounts). What the server's Today counts
+ * emails are handed to their owner to send (00429), with how many of each (runWaitingCounts). What the server's Today counts
  * as waiting on you (contracts runsThatWait, by the verb's own day rule, runHeldEmails and runDraftedEmails) and Ask's
  * today tool names. A read that fails throws.
  */

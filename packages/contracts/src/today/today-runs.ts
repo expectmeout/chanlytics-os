@@ -21,7 +21,7 @@ export interface RunLike {
   audience?: unknown;
   /** How many of a going run's emails the check holds for your say (waits.ts runHeldEmails). */
   held?: number | null;
-  /** How many of a going run's emails are handed to you to send from your inbox (waits.ts runDraftedEmails, 00428). */
+  /** How many of a going run's emails are handed to you to send from your inbox (waits.ts runDraftedEmails, 00429). */
   drafted?: number | null;
 }
 
@@ -39,7 +39,7 @@ export interface TodayRunWordsVM {
   soon: { meta: string; sentence: string; status: string[] };
   /** A going run whose emails the check holds: they wait for your say on the run, and the rest goes as planned. */
   held: { meta: string; sentence: string; status: string[] };
-  /** A going run whose emails are handed to you: they wait on the run for you to send them from your inbox (00428). */
+  /** A going run whose emails are handed to you: they wait on the run for you to send them from your inbox (00429). */
   drafted: { meta: string; sentence: string; status: string[] };
   /**
    * What the brief says after the run's name: what it waits for, and the queue's own sentence for it. A run waiting for

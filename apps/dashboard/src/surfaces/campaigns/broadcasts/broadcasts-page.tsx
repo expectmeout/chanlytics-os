@@ -49,7 +49,7 @@ interface BroadcastsPageProps {
   initialSegment?: string | null;
   initialRun?: string | null;
   initialYes?: boolean;
-  /** `broadcasts/to-send`: every email handed to its owner, from each reach-out they send themselves (00428). */
+  /** `broadcasts/to-send`: every email handed to its owner, from each reach-out they send themselves (00429). */
   initialToSend?: boolean;
 }
 

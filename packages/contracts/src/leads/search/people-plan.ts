@@ -1,5 +1,5 @@
 /**
- * A people search's plan (the people card, 00429): who, at which companies, where and how many. The provider's own
+ * A people search's plan (the people card, 00430): who, at which companies, where and how many. The provider's own
  * filters are its criteria, so a plan names them in the card's words, and nothing is probed or judged: the titles the
  * people go by, their seniority, their companies' industries and sizes, the US states they work in, and a count. Every
  * address it brings is checked before anyone is written to, as a list's are (00242's J2). Pure, and read in the
@@ -255,7 +255,7 @@ export function listTyped(text: string, max: number): string[] {
   ].slice(0, max);
 }
 
-/** The words of Leads' Find people sheet (the people card, 00429). */
+/** The words of Leads' Find people sheet (the people card, 00430). */
 export const PEOPLE_FIND_WORDS = {
   door: "Find people",
   title: "Find people at companies",
@@ -298,7 +298,7 @@ export function peopleWho(p: LeadPeoplePlan): string {
 }
 
 /**
- * A people search's strip (00429), in its own words: companies found while its run reads them, the addresses being
+ * A people search's strip (00430), in its own words: companies found while its run reads them, the addresses being
  * checked, then how it ended against the companies asked for. Never "found what you asked for" before the checks say so.
  */
 export const PEOPLE_STRIP_WORDS = {

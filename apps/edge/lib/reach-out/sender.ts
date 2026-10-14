@@ -27,7 +27,7 @@
  * claim) is written again five minutes on: its email's id is the same, so it is the same email, never a second.
  * One mailbox's failure is its own: the rest of the page, and every other workspace, still claim.
  *
- * A reach-out its owner sends (00428) is claimed apart (reach_out_claim_drafts: no mailbox, no day's room, a step after
+ * A reach-out its owner sends (00429) is claimed apart (reach_out_claim_drafts: no mailbox, no day's room, a step after
  * the first first) and written the same way up to its words, then, while the send door would let it go (contracts
  * draftRefusalOf), handed to its owner as a draft: claimed → drafted, its words with their values in and its foot
  * (request.ts reachOutDraft), its run's row touched so the pages that count its drafts read them again. A step after the
@@ -137,7 +137,7 @@ export function mailboxLane(): { ok: true; lane: Lane } | { ok: false; missing: 
 export interface SenderCounts {
   claimed: number;
   written: number;
-  /** Handed to their owner to send from their own inbox (00428). */
+  /** Handed to their owner to send from their own inbox (00429). */
   drafted: number;
   /** Claims a tick left mid-way: written now, or their email adopted. */
   rewritten: number;
@@ -316,7 +316,7 @@ interface Made {
 }
 
 /**
- * A reach-out its owner sends (00428), or a step after the first whose email before it they sent from their own inbox
+ * A reach-out its owner sends (00429), or a step after the first whose email before it they sent from their own inbox
  * (the thread is theirs, whoever sends the chain now): handed to them as a draft, to the lead's own checked address,
  * never sent from a mailbox, and only while the send door would let it go (contracts draftRefusalOf: nothing stands
  * between the owner's inbox and the business but this). A step after the first answers the email before by its subject;
@@ -404,7 +404,7 @@ async function writeOne(t: Tick, s: ReachOutSendRow): Promise<Outcome> {
     afterStep: after,
     lead,
     words,
-    // A company's addressee fills the person slots, and the foot says where it was found (00429).
+    // A company's addressee fills the person slots, and the foot says where it was found (00430).
     slots: {
       business_name: lead.business_name,
       city: lead.city,
@@ -608,7 +608,7 @@ export async function claimAndWrite(p: {
     failed("reach_out_rewrite_failed", {}, e);
   }
 
-  // The drafts due of reach-outs their owners send (00428), a page a tick: no mailbox's day and no seal, since their
+  // The drafts due of reach-outs their owners send (00429), a page a tick: no mailbox's day and no seal, since their
   // owner's own client sends them.
   try {
     if (!late())

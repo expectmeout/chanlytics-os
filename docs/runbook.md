@@ -884,7 +884,7 @@ the mailbox the email left from.
 
 ## Turn on a lead card
 
-A card finds leads only once `lead_platform.cards_on` names it (00429; the one predicate is `lead_card_live`): the Maps
+A card finds leads only once `lead_platform.cards_on` names it (00430; the one predicate is `lead_card_live`): the Maps
 card ships on, the people card (`people_at_companies`) off. While a card is off its door refuses (`no_card`), Leads draws
 no door to it, and Ask says it is not open yet.
 

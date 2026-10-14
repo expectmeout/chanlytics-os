@@ -71,7 +71,7 @@ export interface LeadPeekVM {
   sub: string;
   /** Who they are, from what the listing shows (D2): each null when the listing did not say. */
   about: string | null;
-  /** A company's people and where they came from (00429); null for a place. */
+  /** A company's people and where they came from (00430); null for a place. */
   company: LeadCompanyVM | null;
   where: { line: string; href: string | null } | null;
   today: string | null;
@@ -252,7 +252,7 @@ function dayIn(tz: string, iso: string | null, now: Date): string {
  */
 /**
  * What the peek reads of a lead's search: the words of its contact standard (an address alone for a people search,
- * 00429, as for an email plan) and its first phrase, which a found line names.
+ * 00430, as for an email plan) and its first phrase, which a found line names.
  */
 const peekPlanOf = (search: LeadSearchDto | null) => ({
   standard: LEAD_CONTACT_STANDARD_WORDS[(search?.plan ?? search?.people)?.contact === "email" ? "email" : "phone"],
@@ -261,7 +261,7 @@ const peekPlanOf = (search: LeadSearchDto | null) => ({
 
 /**
  * Where a lead was found, in the peek's words: the head's short line, the first step's, and the site's. A company the
- * people card found (00429) came from a business directory, its address with its people; a lead a list of the owner's
+ * people card found (00430) came from a business directory, its address with its people; a lead a list of the owner's
  * own brought (00242) has no place either: it was found on no listing, and its address came with the list.
  */
 function foundWords(

@@ -1,4 +1,4 @@
--- 00429 · A lead is a place or a company (the lead workbench's call 8, lane 5; decision 0057; canvas B's Model board).
+-- 00430 · A lead is a place or a company (the lead workbench's call 8, lane 5; decision 0057; canvas B's Model board).
 --
 -- A lead was a place a listing names. It may now be a company with the people its source named on it, one of whom is
 -- the addressee a reach-out writes to: the people card's (contracts LEAD_CARDS people_at_companies, core CARDS), the
@@ -76,13 +76,13 @@ create unique index if not exists leads_tenant_source_key_uq
   on public.leads (tenant_id, source, source_key) where source_key is not null;
 
 comment on column public.leads.kind is
-  'What the lead is (00429): a place a listing names (the Maps card''s), or a company with the people its source named on it (the people card''s, facts.people), one of whom its reach-out writes to.';
+  'What the lead is (00430): a place a listing names (the Maps card''s), or a company with the people its source named on it (the people card''s, facts.people), one of whom its reach-out writes to.';
 comment on column public.leads.source is
-  'Where the lead came from (00429): the card that found it (local_businesses, people_at_companies), or a file of the owner''s own (import). The foot of a cold email says it in its first line (contracts whyFrom).';
+  'Where the lead came from (00430): the card that found it (local_businesses, people_at_companies), or a file of the owner''s own (import). The foot of a cold email says it in its first line (contracts whyFrom).';
 comment on column public.leads.source_key is
-  'The lead''s own key at its source (00429): a company''s domain for the people card. One lead per workspace, source and key (leads_tenant_source_key_uq); a place keeps its place_id instead.';
+  'The lead''s own key at its source (00430): a company''s domain for the people card. One lead per workspace, source and key (leads_tenant_source_key_uq); a place keeps its place_id instead.';
 comment on column public.leads.facts is
-  'What the lead''s source named beyond its columns (00429): {people: [{name, first_name, title, role, email, profile_url}] at most five, addressee: the index of the one the lead''s address is, size: the company''s size as its source gave it}. Read through contracts leadFactsOf; blanked with the lead.';
+  'What the lead''s source named beyond its columns (00430): {people: [{name, first_name, title, role, email, profile_url}] at most five, addressee: the index of the one the lead''s address is, size: the company''s size as its source gave it}. Read through contracts leadFactsOf; blanked with the lead.';
 
 -- What is there: a lead a file of the owner's own brought (00242) is a member of that file's search (via import). A
 -- lead blanked since keeps no place either, and is not a file's for that.
@@ -107,7 +107,7 @@ begin
 end $$;
 revoke execute on function public.leads_source_of_a_list() from public, anon, authenticated;
 comment on function public.leads_source_of_a_list() is
-  'A lead made with no place id and no key is a file''s row (00242''s lead_search_import, the one door that makes one): its source is import (00429).';
+  'A lead made with no place id and no key is a file''s row (00242''s lead_search_import, the one door that makes one): its source is import (00430).';
 drop trigger if exists leads_source_of_a_list on public.leads;
 create trigger leads_source_of_a_list
   before insert on public.leads
@@ -132,7 +132,7 @@ declare
   v_start  numeric := 0.00005;
   v_margin numeric := 1.3;
   v_floor  numeric := 0.5;
-  -- The people card's (00429): a person found, and the run's start, at the provider's dearest tier.
+  -- The people card's (00430): a person found, and the run's start, at the provider's dearest tier.
   v_person numeric := 0.002;
   v_pstart numeric := 0.01;
   v_count  integer := least(greatest(coalesce(p_count, 1), 1), 1000);
@@ -158,15 +158,15 @@ end $$;
 revoke all on function public.lead_estimate_ceiling(text, integer, integer) from public, anon, authenticated;
 grant execute on function public.lead_estimate_ceiling(text, integer, integer) to service_role;
 comment on function public.lead_estimate_ceiling(text, integer, integer) is
-  'The most a finder door takes as its estimate (00364, 00429). search: ceil(((25 + least(1000, 2 x count)) x $0.00819 + 2 x terms x $0.00005) x 1.3, to the cent) + 2 x terms x $0.50; list: ceil(rows x $0.00089 x 1.3, to the cent) + $0.50; people: ceil((least(1000, 2 x count) x $0.00289 + $0.01) x 1.3, to the cent) + 2 x $0.50. What the route computes (estimateForRound, leadImportEstimateUsd, peopleEstimateUsd) never passes it.';
+  'The most a finder door takes as its estimate (00364, 00430). search: ceil(((25 + least(1000, 2 x count)) x $0.00819 + 2 x terms x $0.00005) x 1.3, to the cent) + 2 x terms x $0.50; list: ceil(rows x $0.00089 x 1.3, to the cent) + $0.50; people: ceil((least(1000, 2 x count) x $0.00289 + $0.01) x 1.3, to the cent) + 2 x $0.50. What the route computes (estimateForRound, leadImportEstimateUsd, peopleEstimateUsd) never passes it.';
 
--- Which cards find leads now (00429): the Maps card, and another once its calibration run has proved that the provider
+-- Which cards find leads now (00430): the Maps card, and another once its calibration run has proved that the provider
 -- reads its filters and the mapper reads its fields (contracts LEAD_CARDS' calibrated), switched on by hand here. Until
 -- then its door refuses, its page does not offer it and Ask does not propose it: a paid run with filters the provider
 -- ignores would charge the owner for people nobody asked for.
 alter table public.lead_platform add column if not exists cards_on text[] not null default array['local_businesses']::text[];
 comment on column public.lead_platform.cards_on is
-  'The cards that find leads now (00429): local_businesses, and people_at_companies once its calibration run proved its filters and fields. Switched by hand; lead_card_live reads it.';
+  'The cards that find leads now (00430): local_businesses, and people_at_companies once its calibration run proved its filters and fields. Switched by hand; lead_card_live reads it.';
 
 create or replace function public.lead_cards_live()
 returns text[]
@@ -180,7 +180,7 @@ $$;
 revoke execute on function public.lead_cards_live() from public, anon;
 grant execute on function public.lead_cards_live() to authenticated, service_role;
 comment on function public.lead_cards_live() is
-  'The cards that find leads now (lead_platform.cards_on, 00429): what the Leads page offers and Ask proposes.';
+  'The cards that find leads now (lead_platform.cards_on, 00430): what the Leads page offers and Ask proposes.';
 
 create or replace function public.lead_card_live(p_card text)
 returns boolean
@@ -194,9 +194,9 @@ $$;
 revoke execute on function public.lead_card_live(text) from public, anon;
 grant execute on function public.lead_card_live(text) to authenticated, service_role;
 comment on function public.lead_card_live(text) is
-  'Whether a card finds leads now (00429): the one predicate the people door, the page and Ask read.';
+  'Whether a card finds leads now (00430): the one predicate the people door, the page and Ask read.';
 
--- The owner's door to a people search (00429), as lead_search_create (00364) is to a places one: the plan's shape (the
+-- The owner's door to a people search (00430), as lead_search_create (00364) is to a places one: the plan's shape (the
 -- people card's: titles, seniority, industries, sizes, states, a count), the estimate under its ceiling, the switch,
 -- the spend, the reservation, then the search, its one round (main: nothing is probed, the provider's filters are the
 -- criteria), its start and its event.
@@ -290,11 +290,11 @@ end $$;
 revoke all on function public.lead_people_search_create(uuid, jsonb, text, numeric, uuid) from public, anon;
 grant execute on function public.lead_people_search_create(uuid, jsonb, text, numeric, uuid) to authenticated, service_role;
 comment on function public.lead_people_search_create(uuid, jsonb, text, numeric, uuid) is
-  'Owner (find). A people search (00429), as lead_search_create is a places one: checks the plan (version 1 of the people_at_companies card, a count of 1 to 500, one to five titles, a name), the estimate (at most lead_estimate_ceiling(people, count)), the switch ({error: paused}), the card''s ({error: no_card} until lead_card_live) and the spend (lead_spend_refusal), reserves the count and the estimate (lead_reserve''s errors), then inserts the search, its one main round (target the count: the provider''s filters are its criteria, so nothing is probed), the start job and the event. Returns {search_id, round_id}.';
+  'Owner (find). A people search (00430), as lead_search_create is a places one: checks the plan (version 1 of the people_at_companies card, a count of 1 to 500, one to five titles, a name), the estimate (at most lead_estimate_ceiling(people, count)), the switch ({error: paused}), the card''s ({error: no_card} until lead_card_live) and the spend (lead_spend_refusal), reserves the count and the estimate (lead_reserve''s errors), then inserts the search, its one main round (target the count: the provider''s filters are its criteria, so nothing is probed), the start job and the event. Returns {search_id, round_id}.';
 
 /* ------------------------------------------------------------------------ 3. a page of companies, kept -- */
 
--- The people card's commit of a page's companies (00429), the service role's, before the run's own commit
+-- The people card's commit of a page's companies (00430), the service role's, before the run's own commit
 -- (lead_collect_commit, which moves the offset and the round): idempotent, so a page read twice keeps each company once.
 -- A company whose domain is on the never-again list (an erased company, a business that said no) is never made again.
 -- Of its people, five at most, nobody on the never-again list or in People is kept (an erased person, a no, a
@@ -436,14 +436,14 @@ end $$;
 revoke all on function public.lead_company_upsert(uuid, jsonb) from public, anon, authenticated;
 grant execute on function public.lead_company_upsert(uuid, jsonb) to service_role;
 comment on function public.lead_company_upsert(uuid, jsonb) is
-  'The people card''s page of companies (00429), the service role''s, before lead_collect_commit moves the run: a company with a name and a key whose domain is not on the never-again list keeps its people (five at most) but anyone on that list or in People (lead_address_suppressed, lead_address_in_people), and its addressee is the one its source chose while still kept, else the first kept with an address; with one, it becomes a company lead (source people_at_companies, its people in facts, its address checking) and a member of the round in Needs review on its address, marked with the leads it shares a website with (judgment.shares), which the check promotes (00242''s J2). One the workspace holds already (by its key, or its address on any lead) keeps its place and gains the people it lacked, five at most. Idempotent. Returns {ok, made, held, left_out}.';
+  'The people card''s page of companies (00430), the service role''s, before lead_collect_commit moves the run: a company with a name and a key whose domain is not on the never-again list keeps its people (five at most) but anyone on that list or in People (lead_address_suppressed, lead_address_in_people), and its addressee is the one its source chose while still kept, else the first kept with an address; with one, it becomes a company lead (source people_at_companies, its people in facts, its address checking) and a member of the round in Needs review on its address, marked with the leads it shares a website with (judgment.shares), which the check promotes (00242''s J2). One the workspace holds already (by its key, or its address on any lead) keeps its place and gains the people it lacked, five at most. Idempotent. Returns {ok, made, held, left_out}.';
 
 /* --------------------------------------------------------------------- 4. the addressee is the person -- */
 
 -- 00344's reach_out_person: a company's email makes its addressee, by the name their source gave, come from Leads as any
 -- lead's person is (source lead), their name ranked as a client list's (name_source import: a real person's name, over a
 -- stand-in's, and kept when the business is blanked); a place's makes a stand-in named for the business. Whether a
--- person in People holds the address is the one predicate (lead_address_in_people, 00428).
+-- person in People holds the address is the one predicate (lead_address_in_people, 00429).
 create or replace function public.reach_out_person(p_tenant_id uuid, p_lead_id uuid)
 returns jsonb
 language plpgsql
@@ -483,7 +483,7 @@ begin
     -- the door finds instead of making (another lead's claim, an email in, between the look above and here) is
     -- somebody's already; an address People cannot hold is none; a person who asked to be forgotten is left alone.
     -- Each refuses, and the door's writes go back with the refusal (the block is its own transaction).
-    -- A company's email goes to its addressee (00429): the person is them, by the name their source gave; a place's is
+    -- A company's email goes to its addressee (00430): the person is them, by the name their source gave; a place's is
     -- a stand-in named for the business (0052).
     v_name := null;
     if v_lead.kind = 'company' then
@@ -526,7 +526,7 @@ end $$;
 
 /* ------------------------------------------------------------------------ 5. a blanked lead's people -- */
 
--- 00428's lead_blank: a company's people and its key go with the rest of the lead.
+-- 00429's lead_blank: a company's people and its key go with the rest of the lead.
 create or replace function public.lead_blank(p_lead_id uuid)
 returns integer
 language plpgsql
@@ -549,7 +549,7 @@ begin
          -- What the listing showed about the business goes with the rest (D2).
          about = null, hours = '[]'::jsonb, image_url = null, price = null, reviews_dist = null,
          facebook_url = null, linkedin_url = null, tiktok_url = null, claimed = null, maps_url = null, rank = null, neighborhood = null, logo_url = null, mark_path = null,
-         -- A company's people and its key go with the rest (00429), so the company found again is new, as a place is.
+         -- A company's people and its key go with the rest (00430), so the company found again is new, as a place is.
          facts = '{}'::jsonb, source_key = null
    where id = p_lead_id
   returning tenant_id into v_tenant;
@@ -564,7 +564,7 @@ begin
      set opening = null, angle = null, hold_detail = null
    where tenant_id = v_tenant and lead_id = p_lead_id
      and (opening is not null or angle is not null or hold_detail is not null);
-  -- A draft handed to its owner names them and their address (00428): one still waiting to be sent is skipped as its
+  -- A draft handed to its owner names them and their address (00429): one still waiting to be sent is skipped as its
   -- lead gone, and every draft of theirs is cleared. The email they sent is a message, and goes as messages go.
   update public.reach_out_sends
      set state = case when state = 'drafted' then 'skipped' else state end,
@@ -585,7 +585,7 @@ end $$;
 
 revoke execute on function public.lead_blank(uuid) from public, anon, authenticated;
 comment on function public.lead_blank(uuid) is
-  'Removes everything that names or reaches a place, and its memberships'' judgments, a reach-out''s opening, angle and note written from it, and a preference''s example copied from it (00391), a reach-out''s drafts, one still waiting skipped as its lead gone (00428), and a company''s people and key (00429), keeping the stage, the link to a person and the counts. The one function retention and erasure blank through.';
+  'Removes everything that names or reaches a place, and its memberships'' judgments, a reach-out''s opening, angle and note written from it, and a preference''s example copied from it (00391), a reach-out''s drafts, one still waiting skipped as its lead gone (00429), and a company''s people and key (00430), keeping the stage, the link to a person and the counts. The one function retention and erasure blank through.';
 
 /* ------------------------------------------------------------------- 6. a page of leads says what each is -- */
 
@@ -625,7 +625,7 @@ as $$
            m.later_at,
            -- The reach-out the lead goes with (lead_chain_of, the one rule).
            public.lead_chain_of(l.tenant_id, l.id) as chain_id,
-           -- A place or a company, and a company's people (00429).
+           -- A place or a company, and a company's people (00430).
            l.kind, l.facts,
            case coalesce(p_sort, 'found')
              when 'fit' then (case m.fit when 'strong' then '0' when 'look' then '1' when 'long' then '2' else '3' end)
@@ -690,11 +690,11 @@ revoke execute on function public.leads_page(uuid, uuid, text, text, text, integ
 grant execute on function public.leads_page(uuid, uuid, text, text, text, integer, text, text, uuid, uuid) to authenticated, service_role;
 
 comment on function public.leads_page(uuid, uuid, text, text, text, integer, text, text, uuid, uuid) is
-  'A page of members of one class (qualified: the counted ones; review; excluded) joined to their leads, narrowed to one of the rail''s lists (lead_in_list), keyset-paged on the sort key in either direction, under the caller''s row security. Seven sorts: found, fit, distance, business, rating, stage, and pile (00426: undecided first, then put off for later, oldest first, then the decided: on the list p_list_id, with a reach-out already, or no longer Ready; within each, the strongest fit, a checked address before a number alone, the newest). Each row says when it was put off (later_at), the reach-out it goes with (chain_id, lead_chain_of), and what the lead is with a company''s people (kind, facts: 00429). Hand the last row''s page_key and member_id back as p_after_key and p_after_id; A''s packed sort_key still works on its own, split here. Which memberships show is lead_member_shown (00212).';
+  'A page of members of one class (qualified: the counted ones; review; excluded) joined to their leads, narrowed to one of the rail''s lists (lead_in_list), keyset-paged on the sort key in either direction, under the caller''s row security. Seven sorts: found, fit, distance, business, rating, stage, and pile (00426: undecided first, then put off for later, oldest first, then the decided: on the list p_list_id, with a reach-out already, or no longer Ready; within each, the strongest fit, a checked address before a number alone, the newest). Each row says when it was put off (later_at), the reach-out it goes with (chain_id, lead_chain_of), and what the lead is with a company''s people (kind, facts: 00430). Hand the last row''s page_key and member_id back as p_after_key and p_after_id; A''s packed sort_key still works on its own, split here. Which memberships show is lead_member_shown (00212).';
 
 /* -------------------------------------------------------- 7. an erased person leaves every company -- */
 
--- An erased person, named at a company People never held them for (00429): their entry leaves each company that names
+-- An erased person, named at a company People never held them for (00430): their entry leaves each company that names
 -- them by their address; its addressee is the same person at their new place, or nobody when it was them, and then the
 -- lead's address goes with them. Their drafts first, while the lead still names them: one waiting is skipped as its lead
 -- gone, and each is cleared. Called by leads_erase_on_contact for every person erased. Answers how many companies.
@@ -742,7 +742,7 @@ begin
 end $$;
 revoke execute on function public.lead_person_forget(uuid, text) from public, anon, authenticated;
 comment on function public.lead_person_forget(uuid, text) is
-  'Erasure of a person named at companies (00429): their entry leaves every company lead of the workspace that names their address (leads.facts.people), its addressee re-pointed, or cleared with the lead''s address when it was them; their drafts are cleared, one still waiting skipped (lead_gone). Called by leads_erase_on_contact, which hashes their address onto lead_suppressions when a company named them. Answers how many companies.';
+  'Erasure of a person named at companies (00430): their entry leaves every company lead of the workspace that names their address (leads.facts.people), its addressee re-pointed, or cleared with the lead''s address when it was them; their drafts are cleared, one still waiting skipped (lead_gone). Called by leads_erase_on_contact, which hashes their address onto lead_suppressions when a company named them. Answers how many companies.';
 
 -- 00413's trigger: an erased company's domain and people go on the never-again list, and an erased person leaves every
 -- company that names them (lead_person_forget).
@@ -779,7 +779,7 @@ begin
       if r.email is not null then
         insert into public.lead_suppressions (tenant_id, kind, hash, what) values (NEW.tenant_id, 'email', public.lead_suppression_hash(NEW.tenant_id, r.email), 'erased') on conflict (tenant_id, kind, hash) do update set what = 'erased';
       end if;
-      -- A company's domain too (00429), before its blank takes its key: the people card never makes it again, and no
+      -- A company's domain too (00430), before its blank takes its key: the people card never makes it again, and no
       -- address at it is written to (lead_addresses_suppressed reads a domain row).
       if r.kind = 'company' and r.source_key is not null then
         insert into public.lead_suppressions (tenant_id, kind, hash, what) values (NEW.tenant_id, 'domain', public.lead_suppression_hash(NEW.tenant_id, r.source_key), 'erased') on conflict (tenant_id, kind, hash) do update set what = 'erased';
@@ -792,7 +792,7 @@ begin
        and not exists (select 1 from public.leads l where l.id = OLD.lead_id and l.contact_id = NEW.id) then
       perform public.lead_person_leg(OLD.lead_id, OLD.email, OLD.phone_e164);
     end if;
-    -- A person named at any company leaves it, and their drafts go (00429): a company names people People never held.
+    -- A person named at any company leaves it, and their drafts go (00430): a company names people People never held.
     -- Named at one, they would be named again by the next search that finds it: their address goes on the never-again
     -- list as erased, which the people card's commit keeps nobody of (lead_company_upsert).
     if public.lead_person_forget(NEW.tenant_id, OLD.email) > 0 then
@@ -845,7 +845,7 @@ begin
     values (v_lead.tenant_id, 'email', public.lead_suppression_hash(v_lead.tenant_id, v_lead.email), 'erased')
     on conflict (tenant_id, kind, hash) do nothing;
   end if;
-  -- A company's domain (00429), so the people card never makes it again and no address at it is written to.
+  -- A company's domain (00430), so the people card never makes it again and no address at it is written to.
   if v_lead.kind = 'company' and v_lead.source_key is not null then
     insert into public.lead_suppressions (tenant_id, kind, hash, what)
     values (v_lead.tenant_id, 'domain', public.lead_suppression_hash(v_lead.tenant_id, v_lead.source_key), 'erased')
@@ -857,7 +857,7 @@ begin
   return jsonb_build_object('erased', true, 'already', false);
 end $$;
 comment on function public.lead_erase(uuid) is
-  'Owner. Erases one lead for good: the place, the number and the address are hashed onto lead_suppressions as erased first, and a company''s domain (00429), so no search finds them again (§0.4), then lead_blank takes everything that names or reaches the place and erased_at is set. No operation row, because nothing undoes it. Idempotent.';
+  'Owner. Erases one lead for good: the place, the number and the address are hashed onto lead_suppressions as erased first, and a company''s domain (00430), so no search finds them again (§0.4), then lead_blank takes everything that names or reaches the place and erased_at is set. No operation row, because nothing undoes it. Idempotent.';
 
 /* ---------------------------------------------------------- 8. a lead's story says where it came from -- */
 
@@ -920,7 +920,7 @@ begin
     'stopped_at', v_lead.reach_out_stopped_at,
     -- Found on a listing (the finder's), or brought on a list of the owner's own with no place (00242).
     'found_on_listing', v_lead.place_id is not null,
-    -- What the lead is and where it came from (00429): a company found by the people card was on no listing, and is not
+    -- What the lead is and where it came from (00430): a company found by the people card was on no listing, and is not
     -- a list's either.
     'kind', v_lead.kind,
     'source', v_lead.source,
@@ -1021,7 +1021,7 @@ revoke execute on function public.reach_out_lead_timeline(uuid, uuid) from publi
 grant execute on function public.reach_out_lead_timeline(uuid, uuid) to authenticated, service_role;
 
 comment on function public.reach_out_lead_timeline(uuid, uuid) is
-  'One lead''s reach-out (Reach out Part 6, H9, H11), for a member: the lead''s stage, dates and search, whether it was found on a listing, what it is and where it came from (kind, source: 00429), its chain (with fed_by, its steps, run_hour, last_run_for and a waiting run: what the standing line needs, 00426), added_at while it waits on a list, its person''s email thread, its sends (at most 20), its readings (at most 10) and can_stop. A lead nothing was written to yet has the reach-out whose search holds it (00426). Null for a lead the workspace does not hold.';
+  'One lead''s reach-out (Reach out Part 6, H9, H11), for a member: the lead''s stage, dates and search, whether it was found on a listing, what it is and where it came from (kind, source: 00430), its chain (with fed_by, its steps, run_hour, last_run_for and a waiting run: what the standing line needs, 00426), added_at while it waits on a list, its person''s email thread, its sends (at most 20), its readings (at most 10) and can_stop. A lead nothing was written to yet has the reach-out whose search holds it (00426). Null for a lead the workspace does not hold.';
 
 /* -------------------------------------------------- 9. the owner chooses who a company's reach-out writes to -- */
 
@@ -1049,7 +1049,7 @@ end $$;
 revoke all on function public.lead_check_ask(uuid, uuid, uuid[]) from public, anon, authenticated;
 grant execute on function public.lead_check_ask(uuid, uuid, uuid[]) to service_role;
 comment on function public.lead_check_ask(uuid, uuid, uuid[]) is
-  'The mailbox check of the named leads under one of their rounds (00429): each goes to checking and one lead_check job is written with {round_id, batch 0, again <nonce>, lead_ids}, run by the engine under the round with a run id of its own and committed through lead_check_commit. The one writer of such a job: Check again (lead_check_again) and the addressee chosen (lead_addressee_choose) call it, having read the caller, the switch and the spend. Service role only.';
+  'The mailbox check of the named leads under one of their rounds (00430): each goes to checking and one lead_check job is written with {round_id, batch 0, again <nonce>, lead_ids}, run by the engine under the round with a run id of its own and committed through lead_check_commit. The one writer of such a job: Check again (lead_check_again) and the addressee chosen (lead_addressee_choose) call it, having read the caller, the switch and the spend. Service role only.';
 
 -- 00364's Check again, its job written by lead_check_ask, the one writer of a check asked again.
 create or replace function public.lead_check_again(p_tenant_id uuid, p_lead_ids uuid[])
@@ -1104,7 +1104,7 @@ end $$;
 revoke all on function public.lead_check_again(uuid, uuid[]) from public, anon;
 grant execute on function public.lead_check_again(uuid, uuid[]) to authenticated, service_role;
 comment on function public.lead_check_again(uuid, uuid[]) is
-  'Owner (permission find). Asks the mailbox check again for the named leads whose last check did not answer (email_state unknown), once their search has finished: one check per round through lead_check_ask (00429), each lead going to checking, run by the engine under the round with a run id of its own and committed through lead_check_commit. {error: paused} while searching is off; {error: payment_required, sentence} for a workspace that may not spend (lead_spend_refusal, 00364). Returns {scheduled, skipped}.';
+  'Owner (permission find). Asks the mailbox check again for the named leads whose last check did not answer (email_state unknown), once their search has finished: one check per round through lead_check_ask (00430), each lead going to checking, run by the engine under the round with a run id of its own and committed through lead_check_commit. {error: paused} while searching is off; {error: payment_required, sentence} for a workspace that may not spend (lead_spend_refusal, 00364). Returns {scheduled, skipped}.';
 
 -- The owner's choice of who a company's reach-out writes to (0057's call 8): one of the people its source named, with a
 -- work address on no never-again list, held by nobody in People and by no other lead. Only while nothing of any
@@ -1259,4 +1259,4 @@ end $$;
 revoke all on function public.lead_addressee_choose(uuid, integer) from public, anon;
 grant execute on function public.lead_addressee_choose(uuid, integer) to authenticated, service_role;
 comment on function public.lead_addressee_choose(uuid, integer) is
-  'The owner''s choice (permission find) of who a company lead''s reach-out writes to (00429, 0057''s call 8): p_person, the index of one of the people its source named (leads.facts.people), becomes its addressee and the lead''s address theirs. Refused, as {error}: gone, not_a_company, no_person, already, closed (not Ready or Not now, or made a person), written (written to by hand), in_reach_out (a send of any reach-out planned or made, bar a canceled run''s or one taken back), checking (a check of its address on its way), no_address, suppressed, in_people, address_taken (another lead''s), invalid (it did not check out within thirty days), paused, payment_required (with its sentence), no_round, searching (its last round still running). The address is checked before anything goes: the check it had with that person within thirty days stands, else one is asked under the lead''s last round (lead_check_ask); the person it leaves keeps their check in facts (check: {email, state, at}). Writes lead.addressee_chosen {person, checking, by}. Returns {ok, addressee, email_state, version}.';
+  'The owner''s choice (permission find) of who a company lead''s reach-out writes to (00430, 0057''s call 8): p_person, the index of one of the people its source named (leads.facts.people), becomes its addressee and the lead''s address theirs. Refused, as {error}: gone, not_a_company, no_person, already, closed (not Ready or Not now, or made a person), written (written to by hand), in_reach_out (a send of any reach-out planned or made, bar a canceled run''s or one taken back), checking (a check of its address on its way), no_address, suppressed, in_people, address_taken (another lead''s), invalid (it did not check out within thirty days), paused, payment_required (with its sentence), no_round, searching (its last round still running). The address is checked before anything goes: the check it had with that person within thirty days stands, else one is asked under the lead''s last round (lead_check_ask); the person it leaves keeps their check in facts (check: {email, state, at}). Writes lead.addressee_chosen {person, checking, by}. Returns {ok, addressee, email_state, version}.';

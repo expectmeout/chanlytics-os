@@ -234,7 +234,7 @@ async function runMoments(tick: Tick, page: DuePage<DuePlaybook>) {
  * but moves to the back of the page: it never holds a place a step that can run is waiting for. Steps the tick yields
  * before are left behind, and counted so. A chain's steps after the first run before first emails (the lead
  * workbench's call 10: follow-ups first), so a nudge takes its place in a mailbox's day, and in its owner's day's share
- * (00428), before new leads fill it; within each, the page's own order.
+ * (00429), before new leads fill it; within each, the page's own order.
  */
 async function runReachOuts({ db, now, L, out, started }: Tick, reach: DuePage<DuePlaybook>) {
   const rows = [...reach.rows].sort(

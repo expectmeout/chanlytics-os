@@ -1,5 +1,5 @@
 /**
- * The people card on the database (00429): a lead that is a company, with the people its source named.
+ * The people card on the database (00430): a lead that is a company, with the people its source named.
  *
  *   1. The door (lead_people_search_create): refused while the card finds no leads (lead_card_live), and once it does,
  *      the search, its one round and its start, the month reserved; an estimate past its ceiling is refused.

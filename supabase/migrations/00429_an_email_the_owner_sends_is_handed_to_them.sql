@@ -1,4 +1,4 @@
--- 00428 · An email the owner sends is handed to them (the lead workbench's calls 7 and 10; decision 0059).
+-- 00429 · An email the owner sends is handed to them (the lead workbench's calls 7 and 10; decision 0059).
 --
 -- A reach-out says who sends it: the mailboxes its business connected (decision 0056), or its owner, from their own
 -- inbox. An owner's reach-out plans, checks and approves as any other; when an email is due it is written and handed
@@ -42,7 +42,7 @@
 --   lead_undo                    an add taken back takes the lead's draft with it (owner_took_back).
 --   lead_blank                   a lead blanked takes its drafts: one waiting is skipped (lead_gone), each cleared.
 --
--- Applied before either app deploys (with 00429, whose columns both read): an edge without the draft claim drafts
+-- Applied before either app deploys (with 00430, whose columns both read): an edge without the draft claim drafts
 -- nothing, and a dashboard without the doors shows no To send. Production holds no reach-out send (13 October 2026).
 -- Re-runnable throughout.
 
@@ -55,7 +55,7 @@ alter table public.playbooks drop constraint if exists playbooks_owner_sends_is_
 alter table public.playbooks add constraint playbooks_owner_sends_is_a_root_s
   check (not owner_sends or (kind = 'reach_out' and trigger = 'lead_first'));
 comment on column public.playbooks.owner_sends is
-  'A reach-out''s root (00428): its owner sends its emails from their own inbox, each handed to them written and checked (state drafted), rather than its mailboxes (mailbox_ids). Its steps read it from the root.';
+  'A reach-out''s root (00429): its owner sends its emails from their own inbox, each handed to them written and checked (state drafted), rather than its mailboxes (mailbox_ids). Its steps read it from the root.';
 
 /* ------------------------------------------------------------------------- 2. a send handed to its owner -- */
 
@@ -77,13 +77,13 @@ alter table public.reach_out_sends add constraint reach_out_sends_drafted_is_who
   and (draft is null or (jsonb_typeof(draft) = 'object' and octet_length(draft::text) <= 16000)));
 
 comment on column public.reach_out_sends.drafted_at is
-  'When this send was handed to its owner, written and checked (00428): its fourteen days to be sent start here.';
+  'When this send was handed to its owner, written and checked (00429): its fourteen days to be sent start here.';
 comment on column public.reach_out_sends.draft is
-  'The email handed to the owner (00428): {to, subject, body, text, parent_id?}, the words with their values in and, in text, with the foot. What the Sent door writes as the email.';
+  'The email handed to the owner (00429): {to, subject, body, text, parent_id?}, the words with their values in and, in text, with the foot. What the Sent door writes as the email.';
 comment on column public.reach_out_sends.said_at is
-  'When the owner said this drafted email went, or did not (00428).';
+  'When the owner said this drafted email went, or did not (00429).';
 comment on column public.reach_out_sends.said_by is
-  'The member who said it (00428).';
+  'The member who said it (00429).';
 
 create index if not exists reach_out_sends_drafted on public.reach_out_sends (broadcast_id, drafted_at)
   where state = 'drafted';
@@ -155,7 +155,7 @@ end $$;
 revoke all on function public.reach_out_claim_drafts(timestamptz, integer, uuid) from public, anon, authenticated;
 grant execute on function public.reach_out_claim_drafts(timestamptz, integer, uuid) to service_role;
 comment on function public.reach_out_claim_drafts(timestamptz, integer, uuid) is
-  'The due sends of reach-outs their owners send (00428), claimed to be drafted, at most p_limit: planned, checked and due, in a running chain and a run that goes ahead, a step after the first before a first email. Their mailbox is let go. A step after the first planned with no mailbox while its owner sent the chain is taken too, whoever sends it now. Service role only.';
+  'The due sends of reach-outs their owners send (00429), claimed to be drafted, at most p_limit: planned, checked and due, in a running chain and a run that goes ahead, a step after the first before a first email. Their mailbox is let go. A step after the first planned with no mailbox while its owner sent the chain is taken too, whoever sends it now. Service role only.';
 
 -- 00424's claim: never an owner's send (its draft claim takes it), and a mailbox's steps after the first go before its
 -- first emails when both are due (the workbench's call 10: follow-ups first).
@@ -205,7 +205,7 @@ end $$;
 revoke all on function public.reach_out_claim_from(uuid, integer, timestamptz, integer) from public, anon, authenticated;
 grant execute on function public.reach_out_claim_from(uuid, integer, timestamptz, integer) to service_role;
 comment on function public.reach_out_claim_from(uuid, integer, timestamptz, integer) is
-  'A connected mailbox''s due reach-out sends, claimed within its day (p_cap less what it has used), at most p_limit, under the mailbox''s lock (C7, 00424): a step after the first before a first email, and never a send of a reach-out its owner sends (00428). Nothing for a mailbox that is not connected, or resting. Service role only.';
+  'A connected mailbox''s due reach-out sends, claimed within its day (p_cap less what it has used), at most p_limit, under the mailbox''s lock (C7, 00424): a step after the first before a first email, and never a send of a reach-out its owner sends (00429). Nothing for a mailbox that is not connected, or resting. Service role only.';
 
 /* ------------------------------------------------------------------------------------ 4. the clock's reads -- */
 
@@ -310,7 +310,7 @@ grant all on function public.trigger_reach_out_sweep() to service_role;
 
 -- Whether a person in People holds an address, as theirs or as one they wrote from: a customer's address is never
 -- written to cold (reach_out_person), never offered as a draft (reach_out_draft_facts) and never kept on a company's
--- lead (00429 lead_company_upsert). The one predicate each of them asks. Service role only.
+-- lead (00430 lead_company_upsert). The one predicate each of them asks. Service role only.
 create or replace function public.lead_address_in_people(p_tenant_id uuid, p_address text)
 returns boolean
 language sql
@@ -327,7 +327,7 @@ $$;
 revoke execute on function public.lead_address_in_people(uuid, text) from public, anon, authenticated;
 grant execute on function public.lead_address_in_people(uuid, text) to service_role;
 comment on function public.lead_address_in_people(uuid, text) is
-  'Whether a person in People holds the address (lower-cased and trimmed), as theirs or as one they wrote from (00428): a customer''s address, never written to cold, offered as a draft or kept on a company''s lead. Service role only.';
+  'Whether a person in People holds the address (lower-cased and trimmed), as theirs or as one they wrote from (00429): a customer''s address, never written to cold, offered as a draft or kept on a company''s lead. Service role only.';
 
 -- The owner's word on an email handed to them, an acting member's (as reach_out_send_decide is). Said once: a send
 -- already said answers how it stands. Not sent: a draft still waiting is skipped, with why (owner_skipped, or the reason
@@ -470,7 +470,7 @@ end $$;
 revoke execute on function public.reach_out_send_said(uuid, text, text) from public, anon;
 grant execute on function public.reach_out_send_said(uuid, text, text) to authenticated, service_role;
 comment on function public.reach_out_send_said(uuid, text, text) is
-  'The owner''s word on an email handed to them (00428), an acting member''s: not_sent skips a draft waiting (owner_skipped, or p_reason: the refusal the server read); sent records it went, on a draft waiting or one skipped since it was handed that nobody said, whatever changed since: in one transaction, the lead locked before the send, the person (reach_out_person, or the person in People who holds the address when it refuses; nobody for an erased person or a lead gone), the email as sent under an id of its own, the send sent with its said_at and said_by, and the lead written to (lead.emailed). Answers {said, state, message_id, contact_id, conversation_id, since: what would refuse it now, or null}; a send already said answers {said: false, state, reason}.';
+  'The owner''s word on an email handed to them (00429), an acting member''s: not_sent skips a draft waiting (owner_skipped, or p_reason: the refusal the server read); sent records it went, on a draft waiting or one skipped since it was handed that nobody said, whatever changed since: in one transaction, the lead locked before the send, the person (reach_out_person, or the person in People who holds the address when it refuses; nobody for an erased person or a lead gone), the email as sent under an id of its own, the send sent with its said_at and said_by, and the lead written to (lead.emailed). Answers {said, state, message_id, contact_id, conversation_id, since: what would refuse it now, or null}; a send already said answers {said: false, state, reason}.';
 
 /* ------------------------------------------------------------------- 6. what they wrote back, said by the owner -- */
 
@@ -483,7 +483,7 @@ alter table public.reach_out_replies validate constraint reach_out_replies_claim
 alter table public.reach_out_replies drop constraint if exists reach_out_replies_said_by_owner;
 alter table public.reach_out_replies add constraint reach_out_replies_said_by_owner check (said_by is null or claim = 'owner');
 comment on column public.reach_out_replies.said_by is
-  'For a reading its owner gave (claim owner, 00428): the member who said what the business wrote back. Its message_id is the note that says so on the person''s thread (reach_out_reply_said).';
+  'For a reading its owner gave (claim owner, 00429): the member who said what the business wrote back. Its message_id is the note that says so on the person''s thread (reach_out_reply_said).';
 
 -- 00413's reading door, given p_said ({send_id, by}): whose reply it is comes from that send, not from a received
 -- email, the row is the owner's word (claim owner, said_by), and it is never a re-read. The lead's drafts waiting for
@@ -771,9 +771,9 @@ end $$;
 revoke execute on function public.reach_out_reply_apply(uuid, uuid, jsonb, jsonb, int, int, jsonb) from public, anon, authenticated;
 grant execute on function public.reach_out_reply_apply(uuid, uuid, jsonb, jsonb, int, int, jsonb) to service_role;
 comment on function public.reach_out_reply_apply(uuid, uuid, jsonb, jsonb, int, int, jsonb) is
-  'A reply''s reading and its plan (contracts readingPlan), applied once in one transaction (Reach out Part 5, G6-G11): the lead''s waiting sends and drafts skipped (wrote back), Talking through lead_convert_by, resume_at, a no through set_email_marketing (reply) with the reply''s From and the business''s own domain on the never-again list, a dated step, and reach_out.replied. A reply that cites our email from another address at the business links its writer to the lead (0052); its no, its step and the leads it closes stay the lead''s own person''s. The signer the reading found is its writer''s: kept on the row and offered (the notice), or taken for the writer when the plan says adoptSigner (automatic naming). A re-read applies by compare-and-set on the row still unread. Given p_said ({send_id, by}, 00428) it is what the owner said the business wrote back about that sent email: claim owner, said_by, never re-read. Records what it changed for the undo. Answers {applied}. Service role only.';
+  'A reply''s reading and its plan (contracts readingPlan), applied once in one transaction (Reach out Part 5, G6-G11): the lead''s waiting sends and drafts skipped (wrote back), Talking through lead_convert_by, resume_at, a no through set_email_marketing (reply) with the reply''s From and the business''s own domain on the never-again list, a dated step, and reach_out.replied. A reply that cites our email from another address at the business links its writer to the lead (0052); its no, its step and the leads it closes stay the lead''s own person''s. The signer the reading found is its writer''s: kept on the row and offered (the notice), or taken for the writer when the plan says adoptSigner (automatic naming). A re-read applies by compare-and-set on the row still unread. Given p_said ({send_id, by}, 00429) it is what the owner said the business wrote back about that sent email: claim owner, said_by, never re-read. Records what it changed for the undo. Answers {applied}. Service role only.';
 
--- What the business wrote back, as its owner tells it on the lead (00428): the service role's, for the acting member the
+-- What the business wrote back, as its owner tells it on the lead (00429): the service role's, for the acting member the
 -- route checked (p_user_id), with the plan the server made of the reading (contracts readingPlan, claim owner), so no
 -- plan reaches the reading door but the one rule's. About the lead's latest email that went, read as a person's reply
 -- through the one door (reach_out_reply_apply with p_said). Said once: a reading of that email already standing (not
@@ -838,7 +838,7 @@ end $$;
 revoke execute on function public.reach_out_reply_said(uuid, uuid, uuid, jsonb, jsonb, text) from public, anon, authenticated;
 grant execute on function public.reach_out_reply_said(uuid, uuid, uuid, jsonb, jsonb, text) to service_role;
 comment on function public.reach_out_reply_said(uuid, uuid, uuid, jsonb, jsonb, text) is
-  'What the business wrote back, as its owner tells it on the lead (00428): the service role''s, for p_user_id, a member the route checked may act. Once per email that went: a reading of the lead''s latest sent email already standing (not undone, not an automatic reply''s) answers {applied: false, already: true}. Otherwise a note in the owner''s words on the person''s email thread (source owner_said, not counted as an email), and the reading and the server''s plan (claim owner) applied through reach_out_reply_apply about that email, keyed to the note; refused when nothing has gone. Answers the door''s {applied, intent, changed} with the note''s id (message_id) and the send.';
+  'What the business wrote back, as its owner tells it on the lead (00429): the service role''s, for p_user_id, a member the route checked may act. Once per email that went: a reading of the lead''s latest sent email already standing (not undone, not an automatic reply''s) answers {applied: false, already: true}. Otherwise a note in the owner''s words on the person''s email thread (source owner_said, not counted as an email), and the reading and the server''s plan (claim owner) applied through reach_out_reply_apply about that email, keyed to the note; refused when nothing has gone. Answers the door''s {applied, intent, changed} with the note''s id (message_id) and the send.';
 
 /* --------------------------------------------------- 7. a draft goes where a planned or held send goes -- */
 
@@ -890,7 +890,7 @@ end $$;
 revoke execute on function public.reach_out_lead_stop(uuid) from public, anon;
 grant execute on function public.reach_out_lead_stop(uuid) to authenticated, service_role;
 comment on function public.reach_out_lead_stop(uuid) is
-  '"Stop writing to them" (Reach out Part 6, H10), an acting member''s door: stamps leads.reach_out_stopped_at and skips the lead''s planned, held and drafted (00428) sends in live runs (owner_stopped). Answers {stopped, already, skipped, leaving}: leaving counts the claimed and queued emails, which the send door refuses by the stamp. Refused for a lead no chain ever planned (22023) or one the caller may not act on (P0002).';
+  '"Stop writing to them" (Reach out Part 6, H10), an acting member''s door: stamps leads.reach_out_stopped_at and skips the lead''s planned, held and drafted (00429) sends in live runs (owner_stopped). Answers {stopped, already, skipped, leaving}: leaving counts the claimed and queued emails, which the send door refuses by the stamp. Refused for a lead no chain ever planned (22023) or one the caller may not act on (P0002).';
 
 -- 00426's leave: a draft for the lead, not sent yet, is taken back with its planned and held sends: as
 -- draft_withdrawn, since a draft handed over may have left the owner's inbox, so the lead counts as written to (00427's
@@ -969,7 +969,7 @@ revoke execute on function public.reach_out_leave_out(uuid, uuid) from public, a
 grant execute on function public.reach_out_leave_out(uuid, uuid) to authenticated, service_role;
 
 comment on function public.reach_out_leave_out(uuid, uuid) is
-  'Leave out (00426), the drawer''s door on a lead waiting in a reach-out fed by a list: off its list (blanked), a send planned, held or drafted (00428) for it in a live run skipped as taken back, with an operation of kind leave whose undo (lead_undo, its maker''s or find''s) puts it back; one on its way or sent stays (on_its_way, sent: Stop writing is the correction there). An operator''s, as the add is.';
+  'Leave out (00426), the drawer''s door on a lead waiting in a reach-out fed by a list: off its list (blanked), a send planned, held or drafted (00429) for it in a live run skipped as taken back, with an operation of kind leave whose undo (lead_undo, its maker''s or find''s) puts it back; one on its way or sent stays (on_its_way, sent: Stop writing is the correction there). An operator''s, as the add is.';
 
 -- 00424's save: the chain says who sends it (owner_sends, its root's), and a dropped step's drafts go with its planned
 -- and held sends.
@@ -1289,7 +1289,7 @@ revoke execute on function public.reach_out_root_lines(uuid, uuid) from public, 
 grant execute on function public.reach_out_root_lines(uuid, uuid) to service_role;
 
 comment on function public.reach_out_root_lines(uuid, uuid) is
-  'One reach-out''s lines, one per lead (00426): every lead it has a send for (a canceled run''s and a taken-back send aside) and, for a list-fed one, each lead on its list not written yet with added_at. The line''s facts are 00241''s plus business_name, added_at and drafted (00428: how many of its emails wait in a live run for their owner to send them); ord is when it last left (else when it was added); done is booked, stopped, bounced, said no, no longer Ready or Contacted, or a person answered. reach_out_search_lines and reach_out_chain_people read it. Service role only.';
+  'One reach-out''s lines, one per lead (00426): every lead it has a send for (a canceled run''s and a taken-back send aside) and, for a list-fed one, each lead on its list not written yet with added_at. The line''s facts are 00241''s plus business_name, added_at and drafted (00429: how many of its emails wait in a live run for their owner to send them); ord is when it last left (else when it was added); done is booked, stopped, bounced, said no, no longer Ready or Contacted, or a person answered. reach_out_search_lines and reach_out_chain_people read it. Service role only.';
 
 -- 00426's strip: to_send, the chain's emails waiting for their owner to send them.
 create or replace function public.reach_out_search_lines(p_tenant_id uuid, p_search_id uuid)
@@ -1368,7 +1368,7 @@ revoke execute on function public.reach_out_search_lines(uuid, uuid) from public
 grant execute on function public.reach_out_search_lines(uuid, uuid) to authenticated, service_role;
 
 comment on function public.reach_out_search_lines(uuid, uuid) is
-  'Leads while it writes (Reach out Part 6, H8), for a member: an open search''s chain, or null when it has none. chain {root_id, name, state}, fed_by (list or search, 00426), owner_sends (00428), written_to, today (emails that left since the workspace''s midnight), next {at, business, host} (the earliest planned and checked email of a live run), held, to_send (drafts waiting for their owner in live runs, 00428), waiting_run_id, and leads: at most 2,000 lines from reach_out_root_lines, one per lead the chain has a send for and, for a list-fed one, each lead on its list not written yet.';
+  'Leads while it writes (Reach out Part 6, H8), for a member: an open search''s chain, or null when it has none. chain {root_id, name, state}, fed_by (list or search, 00426), owner_sends (00429), written_to, today (emails that left since the workspace''s midnight), next {at, business, host} (the earliest planned and checked email of a live run), held, to_send (drafts waiting for their owner in live runs, 00429), waiting_run_id, and leads: at most 2,000 lines from reach_out_root_lines, one per lead the chain has a send for and, for a list-fed one, each lead on its list not written yet.';
 
 /* ------------------------------------------------------------------------------- a lead blanked takes its drafts -- */
 
@@ -1408,7 +1408,7 @@ begin
      set opening = null, angle = null, hold_detail = null
    where tenant_id = v_tenant and lead_id = p_lead_id
      and (opening is not null or angle is not null or hold_detail is not null);
-  -- A draft handed to its owner names them and their address (00428): one still waiting to be sent is skipped as its
+  -- A draft handed to its owner names them and their address (00429): one still waiting to be sent is skipped as its
   -- lead gone, and every draft of theirs is cleared. The email they sent is a message, and goes as messages go.
   update public.reach_out_sends
      set state = case when state = 'drafted' then 'skipped' else state end,
@@ -1429,7 +1429,7 @@ end $$;
 
 revoke execute on function public.lead_blank(uuid) from public, anon, authenticated;
 comment on function public.lead_blank(uuid) is
-  'Removes everything that names or reaches a place, and its memberships'' judgments, a reach-out''s opening, angle and note written from it, and a preference''s example copied from it (00391), and a reach-out''s drafts, one still waiting skipped as its lead gone (00428), keeping the stage, the link to a person and the counts. The one function retention and erasure blank through.';
+  'Removes everything that names or reaches a place, and its memberships'' judgments, a reach-out''s opening, angle and note written from it, and a preference''s example copied from it (00391), and a reach-out''s drafts, one still waiting skipped as its lead gone (00429), keeping the stage, the link to a person and the counts. The one function retention and erasure blank through.';
 
 /* ------------------------------------------------------------------------------------ Reports: your own inbox -- */
 
@@ -1473,7 +1473,7 @@ begin
     -- tenant's whole history of emails is never held for the second.
     with left_ as not materialized (
       select s.id, s.root_id, s.playbook_id, s.lead_id, s.contact_id, s.mailbox_id,
-             -- Sent from its owner's own inbox, on their word (00428): from no mailbox, as an email from before 00424 is.
+             -- Sent from its owner's own inbox, on their word (00429): from no mailbox, as an email from before 00424 is.
              s.said_at is not null as yours,
              coalesce(s.sent_at, public.email_sent_at(m.meta, m.status_updated_at, m.created_at)) as sent_at,
              lower(nullif(btrim(s.angle), '')) as angle, m.status, m.error, m.meta
@@ -1639,11 +1639,11 @@ revoke execute on function public.reach_out_report(uuid, integer, date) from pub
 grant execute on function public.reach_out_report(uuid, integer, date) to authenticated, service_role;
 
 comment on function public.reach_out_report(uuid, integer, date) is
-  'Reports'' Reach-outs section (Reach out Part 6, H1, H3-H6), for a member: over p_days days (1 to 90; any other is refused) to the window''s last day in the workspace''s zone, the emails that left and what came of them. has_reach_out, totals, before (written, delivered and bounced over the same count of days before the window, 00404: outcomes are state now, so they have no period before), series (written per day), chains (at most 20, each with its steps; reach_out_chain_totals counts every chain over the same window, 00375), angles (the top 8, other_angles, no_angle) and domains (at most 10; a removed domain''s host is null). Emails are written, delivered and bounced; businesses are the leads written to, each once per chain at its last email of the period, and every outcome (wrote back, interested, booked, won, said no) is a count of them, so it is never more than `businesses`, on the totals, on a step (the businesses whose last email was that step), on an angle (the ones whose last email had it) and past the top 8 (00404); wrote back is outreach_wrote_back; won (00426) is a deal naming the lead, won, a count and never an amount. mailboxes (00428) names the emails their owners sent from their own inbox apart (`yours`), from no mailbox, as an email from before 00424 is, and none of them is counted delivered: nobody can know it landed. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
+  'Reports'' Reach-outs section (Reach out Part 6, H1, H3-H6), for a member: over p_days days (1 to 90; any other is refused) to the window''s last day in the workspace''s zone, the emails that left and what came of them. has_reach_out, totals, before (written, delivered and bounced over the same count of days before the window, 00404: outcomes are state now, so they have no period before), series (written per day), chains (at most 20, each with its steps; reach_out_chain_totals counts every chain over the same window, 00375), angles (the top 8, other_angles, no_angle) and domains (at most 10; a removed domain''s host is null). Emails are written, delivered and bounced; businesses are the leads written to, each once per chain at its last email of the period, and every outcome (wrote back, interested, booked, won, said no) is a count of them, so it is never more than `businesses`, on the totals, on a step (the businesses whose last email was that step), on an angle (the ones whose last email had it) and past the top 8 (00404); wrote back is outreach_wrote_back; won (00426) is a deal naming the lead, won, a count and never an amount. mailboxes (00429) names the emails their owners sent from their own inbox apart (`yours`), from no mailbox, as an email from before 00424 is, and none of them is counted delivered: nobody can know it landed. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
 
 /* ------------------------------------------------------------ 9. what its owner said is writing back -- */
 
--- 00222's predicate, widened (C16) by the owner's word (00428): a business its owner says wrote back, about an email they
+-- 00222's predicate, widened (C16) by the owner's word (00429): a business its owner says wrote back, about an email they
 -- sent from their own inbox, wrote back, for its person and the lead's, until the word is undone. The followers, the send
 -- door, a draft's facts and Reports' wrote back all read it, so a nudge is never planned, nor handed over, to a business
 -- that answered in the owner's own inbox.
@@ -1687,7 +1687,7 @@ as $$
   select rr.lead_contact_id from public.reach_out_replies rr
    where rr.tenant_id = p_tenant_id and rr.lead_contact_id = any (p_contact_ids)
      and rr.claim = 'auto_reply' and rr.intent in ('no', 'wrong_person') and rr.undone_at is null
-  -- What its owner said the business wrote back (00428), about an email they sent from their own inbox: whatever they
+  -- What its owner said the business wrote back (00429), about an email they sent from their own inbox: whatever they
   -- wrote, for the person who was written to and the lead's, until the word is undone.
   union
   select rr.contact_id from public.reach_out_replies rr
@@ -1704,7 +1704,7 @@ grant execute on function public.outreach_wrote_back(uuid, uuid[]) to service_ro
 /* --------------------------------------------------------------- 10. a draft, judged as the door would -- */
 
 -- A draft's lead as the send door would judge it (contracts outreachRefusalOf), when it is handed over, when To send is
--- read and on each tick of the clock (00428): its own stage (a draft's lead has no person until its email goes), and the
+-- read and on each tick of the clock (00429): its own stage (a draft's lead has no person until its email goes), and the
 -- door's own facts (outreach_lead_facts: the never-again list for its address, written back, away, stopped), and
 -- whether a person in People holds its address while it has none of its own (customer: never written to cold, as
 -- reach_out_person refuses at Sent). Null for a lead gone.
@@ -1726,10 +1726,10 @@ $$;
 revoke execute on function public.reach_out_draft_facts(uuid, uuid) from public, anon, authenticated;
 grant execute on function public.reach_out_draft_facts(uuid, uuid) to service_role;
 comment on function public.reach_out_draft_facts(uuid, uuid) is
-  'A draft''s lead as the send door judges it (00428): outreach_lead_facts with the lead''s own stage (lead_stage) and whether a person in People holds its address while it has no person of its own (customer). Null for a lead gone. Service role only.';
+  'A draft''s lead as the send door judges it (00429): outreach_lead_facts with the lead''s own stage (lead_stage) and whether a person in People holds its address while it has no person of its own (customer). Null for a lead gone. Service role only.';
 
 -- The drafts waiting for their owners, oldest first, each with its lead's facts (reach_out_draft_facts): a run's To
--- send list, or every workspace's for the clock, which skips one the send door would refuse now (00428). A page at a
+-- send list, or every workspace's for the clock, which skips one the send door would refuse now (00429). A page at a
 -- time after the last one read (p_after_at, p_after_id), so the clock reads every draft, never only the oldest.
 drop function if exists public.reach_out_drafts_waiting(integer, uuid, uuid);
 create or replace function public.reach_out_drafts_waiting(p_limit integer, p_tenant_id uuid default null,
@@ -1755,7 +1755,7 @@ $$;
 revoke execute on function public.reach_out_drafts_waiting(integer, uuid, uuid, timestamptz, uuid) from public, anon, authenticated;
 grant execute on function public.reach_out_drafts_waiting(integer, uuid, uuid, timestamptz, uuid) to service_role;
 comment on function public.reach_out_drafts_waiting(integer, uuid, uuid, timestamptz, uuid) is
-  'The drafts waiting for their owners (00428), oldest first, at most p_limit after the one named (p_after_at, p_after_id), of one workspace or every one, of one run or all, each with when it was handed and its lead''s facts (reach_out_draft_facts) for the send door''s rule (contracts draftRefusalOf). Service role only.';
+  'The drafts waiting for their owners (00429), oldest first, at most p_limit after the one named (p_after_at, p_after_id), of one workspace or every one, of one run or all, each with when it was handed and its lead''s facts (reach_out_draft_facts) for the send door''s rule (contracts draftRefusalOf). Service role only.';
 
 /* --------------------------------------------------------- 11. an add taken back takes its draft -- */
 
@@ -1973,12 +1973,12 @@ revoke execute on function public.lead_undo(uuid, integer) from public, anon;
 grant execute on function public.lead_undo(uuid, integer) to authenticated, service_role;
 
 comment on function public.lead_undo(uuid, integer) is
-  'Undoes one operation by its id and the version the client saw: {error: changed} when the operation or any touched row moved since; restores `before`. Who: an add, a later, a stage or a bulk act is undone by an acting member who made it (or one with find); keep, exclude, put back and a search''s undo need find (00426). A counted lead goes back to the allowance of the month it counted in, never the budget; a removed search, or a finished round the owner took back, comes back without the leads exported since and takes its credit again; a stage change goes back and takes its "Already a customer" suppression with it, unless it made a person, which is never unmade here; a bulk act restores every row nobody has touched and says how many it kept; a later is cleared; an add takes each lead back by what became of its email (off the list before a run planned it; a planned or held send of a live run, or a draft waiting for its owner (00428), skipped as owner_took_back and off the list; on its way or gone it stays, {error: on_its_way | sent} when none could be taken), with reach_out.lead_taken_back.';
+  'Undoes one operation by its id and the version the client saw: {error: changed} when the operation or any touched row moved since; restores `before`. Who: an add, a later, a stage or a bulk act is undone by an acting member who made it (or one with find); keep, exclude, put back and a search''s undo need find (00426). A counted lead goes back to the allowance of the month it counted in, never the budget; a removed search, or a finished round the owner took back, comes back without the leads exported since and takes its credit again; a stage change goes back and takes its "Already a customer" suppression with it, unless it made a person, which is never unmade here; a bulk act restores every row nobody has touched and says how many it kept; a later is cleared; an add takes each lead back by what became of its email (off the list before a run planned it; a planned or held send of a live run, or a draft waiting for its owner (00429), skipped as owner_took_back and off the list; on its way or gone it stays, {error: on_its_way | sent} when none could be taken), with reach_out.lead_taken_back.';
 
 /* ------------------------------------------- 12. a reach-out that handed a draft has written -- */
 
 -- 00211's remove, and 00261's chain report's can_remove: a draft handed to its owner may have left their inbox, so a
--- reach-out that handed one has written, and is paused rather than removed, as one whose email left is (00428). Removed,
+-- reach-out that handed one has written, and is paused rather than removed, as one whose email left is (00429). Removed,
 -- its sends would go with it, and nothing would say those businesses were written to.
 create or replace function public.reach_out_remove(p_tenant_id uuid, p_root_id uuid)
 returns jsonb

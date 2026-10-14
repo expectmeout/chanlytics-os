@@ -132,7 +132,7 @@ function endedStrip(s: PlacesSearch, nearby: readonly string[]): StripVM {
 }
 
 /**
- * A people search's strip (00429): its run reads companies (each waiting on its address, then checked), so it says the
+ * A people search's strip (00430): its run reads companies (each waiting on its address, then checked), so it says the
  * companies found so far and the addresses checked, then how it ended against the companies asked for, in its own
  * words. Its next step is Find more like these, the Find people sheet filled in with its plan: never a places door.
  */

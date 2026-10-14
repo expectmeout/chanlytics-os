@@ -28,7 +28,7 @@ interface PaceProps {
   pace: { share: number; mailboxes: number; rises: number | null };
   gap: number;
   onGap: (minutes: number) => void;
-  /** Its owner sends it (00428): their day's share, and no gap to choose. */
+  /** Its owner sends it (00429): their day's share, and no gap to choose. */
   ownerSends: boolean;
 }
 
@@ -84,7 +84,7 @@ interface FromProps {
   providers: MailboxProvider[];
   unread: string | null;
   draft: ReachOutDraft;
-  /** Its owner sends it (00428): chosen, or the one way it can go with no mailbox connected. */
+  /** Its owner sends it (00429): chosen, or the one way it can go with no mailbox connected. */
   ownerSends: boolean;
   onPick: (ids: string[]) => void;
   onOwner: (on: boolean) => void;
@@ -113,7 +113,7 @@ function RoConnect({ W, providers }: { W: Words; providers: MailboxProvider[] })
 }
 
 /**
- * From: you, from your own inbox (00428: each email handed to you written and checked), or the mailboxes it writes from:
+ * From: you, from your own inbox (00429: each email handed to you written and checked), or the mailboxes it writes from:
  * every connected one, or up to ten picked, each with what it writes in a day. With none connected the owner sends it,
  * the one way it can go, and Connect is beside it where this deployment offers one; unread is said as reading, and
  * Start waits. Each business hears from one sender for its chain.

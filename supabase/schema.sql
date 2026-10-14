@@ -6060,7 +6060,7 @@ $$;
 -- Name: FUNCTION lead_address_in_people(p_tenant_id uuid, p_address text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_address_in_people(p_tenant_id uuid, p_address text) IS 'Whether a person in People holds the address (lower-cased and trimmed), as theirs or as one they wrote from (00428): a customer''s address, never written to cold, offered as a draft or kept on a company''s lead. Service role only.';
+COMMENT ON FUNCTION public.lead_address_in_people(p_tenant_id uuid, p_address text) IS 'Whether a person in People holds the address (lower-cased and trimmed), as theirs or as one they wrote from (00429): a customer''s address, never written to cold, offered as a draft or kept on a company''s lead. Service role only.';
 
 
 --
@@ -6231,7 +6231,7 @@ end $_$;
 -- Name: FUNCTION lead_addressee_choose(p_lead_id uuid, p_person integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_addressee_choose(p_lead_id uuid, p_person integer) IS 'The owner''s choice (permission find) of who a company lead''s reach-out writes to (00429, 0057''s call 8): p_person, the index of one of the people its source named (leads.facts.people), becomes its addressee and the lead''s address theirs. Refused, as {error}: gone, not_a_company, no_person, already, closed (not Ready or Not now, or made a person), written (written to by hand), in_reach_out (a send of any reach-out planned or made, bar a canceled run''s or one taken back), checking (a check of its address on its way), no_address, suppressed, in_people, address_taken (another lead''s), invalid (it did not check out within thirty days), paused, payment_required (with its sentence), no_round, searching (its last round still running). The address is checked before anything goes: the check it had with that person within thirty days stands, else one is asked under the lead''s last round (lead_check_ask); the person it leaves keeps their check in facts (check: {email, state, at}). Writes lead.addressee_chosen {person, checking, by}. Returns {ok, addressee, email_state, version}.';
+COMMENT ON FUNCTION public.lead_addressee_choose(p_lead_id uuid, p_person integer) IS 'The owner''s choice (permission find) of who a company lead''s reach-out writes to (00430, 0057''s call 8): p_person, the index of one of the people its source named (leads.facts.people), becomes its addressee and the lead''s address theirs. Refused, as {error}: gone, not_a_company, no_person, already, closed (not Ready or Not now, or made a person), written (written to by hand), in_reach_out (a send of any reach-out planned or made, bar a canceled run''s or one taken back), checking (a check of its address on its way), no_address, suppressed, in_people, address_taken (another lead''s), invalid (it did not check out within thirty days), paused, payment_required (with its sentence), no_round, searching (its last round still running). The address is checked before anything goes: the check it had with that person within thirty days stands, else one is asked under the lead''s last round (lead_check_ask); the person it leaves keeps their check in facts (check: {email, state, at}). Writes lead.addressee_chosen {person, checking, by}. Returns {ok, addressee, email_state, version}.';
 
 
 --
@@ -6288,7 +6288,7 @@ begin
          -- What the listing showed about the business goes with the rest (D2).
          about = null, hours = '[]'::jsonb, image_url = null, price = null, reviews_dist = null,
          facebook_url = null, linkedin_url = null, tiktok_url = null, claimed = null, maps_url = null, rank = null, neighborhood = null, logo_url = null, mark_path = null,
-         -- A company's people and its key go with the rest (00429), so the company found again is new, as a place is.
+         -- A company's people and its key go with the rest (00430), so the company found again is new, as a place is.
          facts = '{}'::jsonb, source_key = null
    where id = p_lead_id
   returning tenant_id into v_tenant;
@@ -6303,7 +6303,7 @@ begin
      set opening = null, angle = null, hold_detail = null
    where tenant_id = v_tenant and lead_id = p_lead_id
      and (opening is not null or angle is not null or hold_detail is not null);
-  -- A draft handed to its owner names them and their address (00428): one still waiting to be sent is skipped as its
+  -- A draft handed to its owner names them and their address (00429): one still waiting to be sent is skipped as its
   -- lead gone, and every draft of theirs is cleared. The email they sent is a message, and goes as messages go.
   update public.reach_out_sends
      set state = case when state = 'drafted' then 'skipped' else state end,
@@ -6327,7 +6327,7 @@ end $$;
 -- Name: FUNCTION lead_blank(p_lead_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_blank(p_lead_id uuid) IS 'Removes everything that names or reaches a place, and its memberships'' judgments, a reach-out''s opening, angle and note written from it, and a preference''s example copied from it (00391), a reach-out''s drafts, one still waiting skipped as its lead gone (00428), and a company''s people and key (00429), keeping the stage, the link to a person and the counts. The one function retention and erasure blank through.';
+COMMENT ON FUNCTION public.lead_blank(p_lead_id uuid) IS 'Removes everything that names or reaches a place, and its memberships'' judgments, a reach-out''s opening, angle and note written from it, and a preference''s example copied from it (00391), a reach-out''s drafts, one still waiting skipped as its lead gone (00429), and a company''s people and key (00430), keeping the stage, the link to a person and the counts. The one function retention and erasure blank through.';
 
 
 --
@@ -6515,7 +6515,7 @@ $$;
 -- Name: FUNCTION lead_card_live(p_card text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_card_live(p_card text) IS 'Whether a card finds leads now (00429): the one predicate the people door, the page and Ask read.';
+COMMENT ON FUNCTION public.lead_card_live(p_card text) IS 'Whether a card finds leads now (00430): the one predicate the people door, the page and Ask read.';
 
 
 --
@@ -6534,7 +6534,7 @@ $$;
 -- Name: FUNCTION lead_cards_live(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_cards_live() IS 'The cards that find leads now (lead_platform.cards_on, 00429): what the Leads page offers and Ask proposes.';
+COMMENT ON FUNCTION public.lead_cards_live() IS 'The cards that find leads now (lead_platform.cards_on, 00430): what the Leads page offers and Ask proposes.';
 
 
 --
@@ -6624,7 +6624,7 @@ end $$;
 -- Name: FUNCTION lead_check_again(p_tenant_id uuid, p_lead_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_check_again(p_tenant_id uuid, p_lead_ids uuid[]) IS 'Owner (permission find). Asks the mailbox check again for the named leads whose last check did not answer (email_state unknown), once their search has finished: one check per round through lead_check_ask (00429), each lead going to checking, run by the engine under the round with a run id of its own and committed through lead_check_commit. {error: paused} while searching is off; {error: payment_required, sentence} for a workspace that may not spend (lead_spend_refusal, 00364). Returns {scheduled, skipped}.';
+COMMENT ON FUNCTION public.lead_check_again(p_tenant_id uuid, p_lead_ids uuid[]) IS 'Owner (permission find). Asks the mailbox check again for the named leads whose last check did not answer (email_state unknown), once their search has finished: one check per round through lead_check_ask (00430), each lead going to checking, run by the engine under the round with a run id of its own and committed through lead_check_commit. {error: paused} while searching is off; {error: payment_required, sentence} for a workspace that may not spend (lead_spend_refusal, 00364). Returns {scheduled, skipped}.';
 
 
 --
@@ -6652,7 +6652,7 @@ end $$;
 -- Name: FUNCTION lead_check_ask(p_tenant_id uuid, p_round_id uuid, p_lead_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_check_ask(p_tenant_id uuid, p_round_id uuid, p_lead_ids uuid[]) IS 'The mailbox check of the named leads under one of their rounds (00429): each goes to checking and one lead_check job is written with {round_id, batch 0, again <nonce>, lead_ids}, run by the engine under the round with a run id of its own and committed through lead_check_commit. The one writer of such a job: Check again (lead_check_again) and the addressee chosen (lead_addressee_choose) call it, having read the caller, the switch and the spend. Service role only.';
+COMMENT ON FUNCTION public.lead_check_ask(p_tenant_id uuid, p_round_id uuid, p_lead_ids uuid[]) IS 'The mailbox check of the named leads under one of their rounds (00430): each goes to checking and one lead_check job is written with {round_id, batch 0, again <nonce>, lead_ids}, run by the engine under the round with a run id of its own and committed through lead_check_commit. The one writer of such a job: Check again (lead_check_again) and the addressee chosen (lead_addressee_choose) call it, having read the caller, the switch and the spend. Service role only.';
 
 
 --
@@ -7158,7 +7158,7 @@ end $_$;
 -- Name: FUNCTION lead_company_upsert(p_round_id uuid, p_companies jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_company_upsert(p_round_id uuid, p_companies jsonb) IS 'The people card''s page of companies (00429), the service role''s, before lead_collect_commit moves the run: a company with a name and a key whose domain is not on the never-again list keeps its people (five at most) but anyone on that list or in People (lead_address_suppressed, lead_address_in_people), and its addressee is the one its source chose while still kept, else the first kept with an address; with one, it becomes a company lead (source people_at_companies, its people in facts, its address checking) and a member of the round in Needs review on its address, marked with the leads it shares a website with (judgment.shares), which the check promotes (00242''s J2). One the workspace holds already (by its key, or its address on any lead) keeps its place and gains the people it lacked, five at most. Idempotent. Returns {ok, made, held, left_out}.';
+COMMENT ON FUNCTION public.lead_company_upsert(p_round_id uuid, p_companies jsonb) IS 'The people card''s page of companies (00430), the service role''s, before lead_collect_commit moves the run: a company with a name and a key whose domain is not on the never-again list keeps its people (five at most) but anyone on that list or in People (lead_address_suppressed, lead_address_in_people), and its addressee is the one its source chose while still kept, else the first kept with an address; with one, it becomes a company lead (source people_at_companies, its people in facts, its address checking) and a member of the round in Needs review on its address, marked with the leads it shares a website with (judgment.shares), which the check promotes (00242''s J2). One the workspace holds already (by its key, or its address on any lead) keeps its place and gains the people it lacked, five at most. Idempotent. Returns {ok, made, held, left_out}.';
 
 
 --
@@ -7325,7 +7325,7 @@ begin
     values (v_lead.tenant_id, 'email', public.lead_suppression_hash(v_lead.tenant_id, v_lead.email), 'erased')
     on conflict (tenant_id, kind, hash) do nothing;
   end if;
-  -- A company's domain (00429), so the people card never makes it again and no address at it is written to.
+  -- A company's domain (00430), so the people card never makes it again and no address at it is written to.
   if v_lead.kind = 'company' and v_lead.source_key is not null then
     insert into public.lead_suppressions (tenant_id, kind, hash, what)
     values (v_lead.tenant_id, 'domain', public.lead_suppression_hash(v_lead.tenant_id, v_lead.source_key), 'erased')
@@ -7342,7 +7342,7 @@ end $$;
 -- Name: FUNCTION lead_erase(p_lead_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_erase(p_lead_id uuid) IS 'Owner. Erases one lead for good: the place, the number and the address are hashed onto lead_suppressions as erased first, and a company''s domain (00429), so no search finds them again (§0.4), then lead_blank takes everything that names or reaches the place and erased_at is set. No operation row, because nothing undoes it. Idempotent.';
+COMMENT ON FUNCTION public.lead_erase(p_lead_id uuid) IS 'Owner. Erases one lead for good: the place, the number and the address are hashed onto lead_suppressions as erased first, and a company''s domain (00430), so no search finds them again (§0.4), then lead_blank takes everything that names or reaches the place and erased_at is set. No operation row, because nothing undoes it. Idempotent.';
 
 
 --
@@ -7362,7 +7362,7 @@ declare
   v_start  numeric := 0.00005;
   v_margin numeric := 1.3;
   v_floor  numeric := 0.5;
-  -- The people card's (00429): a person found, and the run's start, at the provider's dearest tier.
+  -- The people card's (00430): a person found, and the run's start, at the provider's dearest tier.
   v_person numeric := 0.002;
   v_pstart numeric := 0.01;
   v_count  integer := least(greatest(coalesce(p_count, 1), 1), 1000);
@@ -7391,7 +7391,7 @@ end $$;
 -- Name: FUNCTION lead_estimate_ceiling(p_kind text, p_count integer, p_terms integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_estimate_ceiling(p_kind text, p_count integer, p_terms integer) IS 'The most a finder door takes as its estimate (00364, 00429). search: ceil(((25 + least(1000, 2 x count)) x $0.00819 + 2 x terms x $0.00005) x 1.3, to the cent) + 2 x terms x $0.50; list: ceil(rows x $0.00089 x 1.3, to the cent) + $0.50; people: ceil((least(1000, 2 x count) x $0.00289 + $0.01) x 1.3, to the cent) + 2 x $0.50. What the route computes (estimateForRound, leadImportEstimateUsd, peopleEstimateUsd) never passes it.';
+COMMENT ON FUNCTION public.lead_estimate_ceiling(p_kind text, p_count integer, p_terms integer) IS 'The most a finder door takes as its estimate (00364, 00430). search: ceil(((25 + least(1000, 2 x count)) x $0.00819 + 2 x terms x $0.00005) x 1.3, to the cent) + 2 x terms x $0.50; list: ceil(rows x $0.00089 x 1.3, to the cent) + $0.50; people: ceil((least(1000, 2 x count) x $0.00289 + $0.01) x 1.3, to the cent) + 2 x $0.50. What the route computes (estimateForRound, leadImportEstimateUsd, peopleEstimateUsd) never passes it.';
 
 
 --
@@ -7940,7 +7940,7 @@ end $$;
 -- Name: FUNCTION lead_people_search_create(p_tenant_id uuid, p_plan jsonb, p_via text, p_estimate_usd numeric, p_thread_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_people_search_create(p_tenant_id uuid, p_plan jsonb, p_via text, p_estimate_usd numeric, p_thread_id uuid) IS 'Owner (find). A people search (00429), as lead_search_create is a places one: checks the plan (version 1 of the people_at_companies card, a count of 1 to 500, one to five titles, a name), the estimate (at most lead_estimate_ceiling(people, count)), the switch ({error: paused}), the card''s ({error: no_card} until lead_card_live) and the spend (lead_spend_refusal), reserves the count and the estimate (lead_reserve''s errors), then inserts the search, its one main round (target the count: the provider''s filters are its criteria, so nothing is probed), the start job and the event. Returns {search_id, round_id}.';
+COMMENT ON FUNCTION public.lead_people_search_create(p_tenant_id uuid, p_plan jsonb, p_via text, p_estimate_usd numeric, p_thread_id uuid) IS 'Owner (find). A people search (00430), as lead_search_create is a places one: checks the plan (version 1 of the people_at_companies card, a count of 1 to 500, one to five titles, a name), the estimate (at most lead_estimate_ceiling(people, count)), the switch ({error: paused}), the card''s ({error: no_card} until lead_card_live) and the spend (lead_spend_refusal), reserves the count and the estimate (lead_reserve''s errors), then inserts the search, its one main round (target the count: the provider''s filters are its criteria, so nothing is probed), the start job and the event. Returns {search_id, round_id}.';
 
 
 --
@@ -7993,7 +7993,7 @@ end $$;
 -- Name: FUNCTION lead_person_forget(p_tenant_id uuid, p_email text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_person_forget(p_tenant_id uuid, p_email text) IS 'Erasure of a person named at companies (00429): their entry leaves every company lead of the workspace that names their address (leads.facts.people), its addressee re-pointed, or cleared with the lead''s address when it was them; their drafts are cleared, one still waiting skipped (lead_gone). Called by leads_erase_on_contact, which hashes their address onto lead_suppressions when a company named them. Answers how many companies.';
+COMMENT ON FUNCTION public.lead_person_forget(p_tenant_id uuid, p_email text) IS 'Erasure of a person named at companies (00430): their entry leaves every company lead of the workspace that names their address (leads.facts.people), its addressee re-pointed, or cleared with the lead''s address when it was them; their drafts are cleared, one still waiting skipped (lead_gone). Called by leads_erase_on_contact, which hashes their address onto lead_suppressions when a company named them. Answers how many companies.';
 
 
 --
@@ -10418,7 +10418,7 @@ end $$;
 -- Name: FUNCTION lead_undo(p_op_id uuid, p_version integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_undo(p_op_id uuid, p_version integer) IS 'Undoes one operation by its id and the version the client saw: {error: changed} when the operation or any touched row moved since; restores `before`. Who: an add, a later, a stage or a bulk act is undone by an acting member who made it (or one with find); keep, exclude, put back and a search''s undo need find (00426). A counted lead goes back to the allowance of the month it counted in, never the budget; a removed search, or a finished round the owner took back, comes back without the leads exported since and takes its credit again; a stage change goes back and takes its "Already a customer" suppression with it, unless it made a person, which is never unmade here; a bulk act restores every row nobody has touched and says how many it kept; a later is cleared; an add takes each lead back by what became of its email (off the list before a run planned it; a planned or held send of a live run, or a draft waiting for its owner (00428), skipped as owner_took_back and off the list; on its way or gone it stays, {error: on_its_way | sent} when none could be taken), with reach_out.lead_taken_back.';
+COMMENT ON FUNCTION public.lead_undo(p_op_id uuid, p_version integer) IS 'Undoes one operation by its id and the version the client saw: {error: changed} when the operation or any touched row moved since; restores `before`. Who: an add, a later, a stage or a bulk act is undone by an acting member who made it (or one with find); keep, exclude, put back and a search''s undo need find (00426). A counted lead goes back to the allowance of the month it counted in, never the budget; a removed search, or a finished round the owner took back, comes back without the leads exported since and takes its credit again; a stage change goes back and takes its "Already a customer" suppression with it, unless it made a person, which is never unmade here; a bulk act restores every row nobody has touched and says how many it kept; a later is cleared; an add takes each lead back by what became of its email (off the list before a run planned it; a planned or held send of a live run, or a draft waiting for its owner (00429), skipped as owner_took_back and off the list; on its way or gone it stays, {error: on_its_way | sent} when none could be taken), with reach_out.lead_taken_back.';
 
 
 --
@@ -10533,7 +10533,7 @@ begin
       if r.email is not null then
         insert into public.lead_suppressions (tenant_id, kind, hash, what) values (NEW.tenant_id, 'email', public.lead_suppression_hash(NEW.tenant_id, r.email), 'erased') on conflict (tenant_id, kind, hash) do update set what = 'erased';
       end if;
-      -- A company's domain too (00429), before its blank takes its key: the people card never makes it again, and no
+      -- A company's domain too (00430), before its blank takes its key: the people card never makes it again, and no
       -- address at it is written to (lead_addresses_suppressed reads a domain row).
       if r.kind = 'company' and r.source_key is not null then
         insert into public.lead_suppressions (tenant_id, kind, hash, what) values (NEW.tenant_id, 'domain', public.lead_suppression_hash(NEW.tenant_id, r.source_key), 'erased') on conflict (tenant_id, kind, hash) do update set what = 'erased';
@@ -10546,7 +10546,7 @@ begin
        and not exists (select 1 from public.leads l where l.id = OLD.lead_id and l.contact_id = NEW.id) then
       perform public.lead_person_leg(OLD.lead_id, OLD.email, OLD.phone_e164);
     end if;
-    -- A person named at any company leaves it, and their drafts go (00429): a company names people People never held.
+    -- A person named at any company leaves it, and their drafts go (00430): a company names people People never held.
     -- Named at one, they would be named again by the next search that finds it: their address goes on the never-again
     -- list as erased, which the people card's commit keeps nobody of (lead_company_upsert).
     if public.lead_person_forget(NEW.tenant_id, OLD.email) > 0 then
@@ -10615,7 +10615,7 @@ CREATE FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid DEFAULT NUL
            m.later_at,
            -- The reach-out the lead goes with (lead_chain_of, the one rule).
            public.lead_chain_of(l.tenant_id, l.id) as chain_id,
-           -- A place or a company, and a company's people (00429).
+           -- A place or a company, and a company's people (00430).
            l.kind, l.facts,
            case coalesce(p_sort, 'found')
              when 'fit' then (case m.fit when 'strong' then '0' when 'look' then '1' when 'long' then '2' else '3' end)
@@ -10681,7 +10681,7 @@ $$;
 -- Name: FUNCTION leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid, p_list_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid, p_list_id uuid) IS 'A page of members of one class (qualified: the counted ones; review; excluded) joined to their leads, narrowed to one of the rail''s lists (lead_in_list), keyset-paged on the sort key in either direction, under the caller''s row security. Seven sorts: found, fit, distance, business, rating, stage, and pile (00426: undecided first, then put off for later, oldest first, then the decided: on the list p_list_id, with a reach-out already, or no longer Ready; within each, the strongest fit, a checked address before a number alone, the newest). Each row says when it was put off (later_at), the reach-out it goes with (chain_id, lead_chain_of), and what the lead is with a company''s people (kind, facts: 00429). Hand the last row''s page_key and member_id back as p_after_key and p_after_id; A''s packed sort_key still works on its own, split here. Which memberships show is lead_member_shown (00212).';
+COMMENT ON FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid, p_list_id uuid) IS 'A page of members of one class (qualified: the counted ones; review; excluded) joined to their leads, narrowed to one of the rail''s lists (lead_in_list), keyset-paged on the sort key in either direction, under the caller''s row security. Seven sorts: found, fit, distance, business, rating, stage, and pile (00426: undecided first, then put off for later, oldest first, then the decided: on the list p_list_id, with a reach-out already, or no longer Ready; within each, the strongest fit, a checked address before a number alone, the newest). Each row says when it was put off (later_at), the reach-out it goes with (chain_id, lead_chain_of), and what the lead is with a company''s people (kind, facts: 00430). Hand the last row''s page_key and member_id back as p_after_key and p_after_id; A''s packed sort_key still works on its own, split here. Which memberships show is lead_member_shown (00212).';
 
 
 --
@@ -10704,7 +10704,7 @@ end $$;
 -- Name: FUNCTION leads_source_of_a_list(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.leads_source_of_a_list() IS 'A lead made with no place id and no key is a file''s row (00242''s lead_search_import, the one door that makes one): its source is import (00429).';
+COMMENT ON FUNCTION public.leads_source_of_a_list() IS 'A lead made with no place id and no key is a file''s row (00242''s lead_search_import, the one door that makes one): its source is import (00430).';
 
 
 --
@@ -13147,7 +13147,7 @@ CREATE FUNCTION public.outreach_wrote_back(p_tenant_id uuid, p_contact_ids uuid[
   select rr.lead_contact_id from public.reach_out_replies rr
    where rr.tenant_id = p_tenant_id and rr.lead_contact_id = any (p_contact_ids)
      and rr.claim = 'auto_reply' and rr.intent in ('no', 'wrong_person') and rr.undone_at is null
-  -- What its owner said the business wrote back (00428), about an email they sent from their own inbox: whatever they
+  -- What its owner said the business wrote back (00429), about an email they sent from their own inbox: whatever they
   -- wrote, for the person who was written to and the lead's, until the word is undone.
   union
   select rr.contact_id from public.reach_out_replies rr
@@ -19022,28 +19022,28 @@ COMMENT ON COLUMN public.reach_out_sends.mailbox_id IS 'The mailbox this send le
 -- Name: COLUMN reach_out_sends.drafted_at; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.reach_out_sends.drafted_at IS 'When this send was handed to its owner, written and checked (00428): its fourteen days to be sent start here.';
+COMMENT ON COLUMN public.reach_out_sends.drafted_at IS 'When this send was handed to its owner, written and checked (00429): its fourteen days to be sent start here.';
 
 
 --
 -- Name: COLUMN reach_out_sends.draft; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.reach_out_sends.draft IS 'The email handed to the owner (00428): {to, subject, body, text, parent_id?}, the words with their values in and, in text, with the foot. What the Sent door writes as the email.';
+COMMENT ON COLUMN public.reach_out_sends.draft IS 'The email handed to the owner (00429): {to, subject, body, text, parent_id?}, the words with their values in and, in text, with the foot. What the Sent door writes as the email.';
 
 
 --
 -- Name: COLUMN reach_out_sends.said_at; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.reach_out_sends.said_at IS 'When the owner said this drafted email went, or did not (00428).';
+COMMENT ON COLUMN public.reach_out_sends.said_at IS 'When the owner said this drafted email went, or did not (00429).';
 
 
 --
 -- Name: COLUMN reach_out_sends.said_by; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.reach_out_sends.said_by IS 'The member who said it (00428).';
+COMMENT ON COLUMN public.reach_out_sends.said_by IS 'The member who said it (00429).';
 
 
 --
@@ -19128,7 +19128,7 @@ end $$;
 -- Name: FUNCTION reach_out_claim_drafts(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_claim_drafts(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid) IS 'The due sends of reach-outs their owners send (00428), claimed to be drafted, at most p_limit: planned, checked and due, in a running chain and a run that goes ahead, a step after the first before a first email. Their mailbox is let go. A step after the first planned with no mailbox while its owner sent the chain is taken too, whoever sends it now. Service role only.';
+COMMENT ON FUNCTION public.reach_out_claim_drafts(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid) IS 'The due sends of reach-outs their owners send (00429), claimed to be drafted, at most p_limit: planned, checked and due, in a running chain and a run that goes ahead, a step after the first before a first email. Their mailbox is let go. A step after the first planned with no mailbox while its owner sent the chain is taken too, whoever sends it now. Service role only.';
 
 
 --
@@ -19182,7 +19182,7 @@ end $$;
 -- Name: FUNCTION reach_out_claim_from(p_mailbox_id uuid, p_cap integer, p_at timestamp with time zone, p_limit integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_claim_from(p_mailbox_id uuid, p_cap integer, p_at timestamp with time zone, p_limit integer) IS 'A connected mailbox''s due reach-out sends, claimed within its day (p_cap less what it has used), at most p_limit, under the mailbox''s lock (C7, 00424): a step after the first before a first email, and never a send of a reach-out its owner sends (00428). Nothing for a mailbox that is not connected, or resting. Service role only.';
+COMMENT ON FUNCTION public.reach_out_claim_from(p_mailbox_id uuid, p_cap integer, p_at timestamp with time zone, p_limit integer) IS 'A connected mailbox''s due reach-out sends, claimed within its day (p_cap less what it has used), at most p_limit, under the mailbox''s lock (C7, 00424): a step after the first before a first email, and never a send of a reach-out its owner sends (00429). Nothing for a mailbox that is not connected, or resting. Service role only.';
 
 
 --
@@ -19294,7 +19294,7 @@ $$;
 -- Name: FUNCTION reach_out_draft_facts(p_tenant_id uuid, p_lead_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_draft_facts(p_tenant_id uuid, p_lead_id uuid) IS 'A draft''s lead as the send door judges it (00428): outreach_lead_facts with the lead''s own stage (lead_stage) and whether a person in People holds its address while it has no person of its own (customer). Null for a lead gone. Service role only.';
+COMMENT ON FUNCTION public.reach_out_draft_facts(p_tenant_id uuid, p_lead_id uuid) IS 'A draft''s lead as the send door judges it (00429): outreach_lead_facts with the lead''s own stage (lead_stage) and whether a person in People holds its address while it has no person of its own (customer). Null for a lead gone. Service role only.';
 
 
 --
@@ -19321,7 +19321,7 @@ $$;
 -- Name: FUNCTION reach_out_drafts_waiting(p_limit integer, p_tenant_id uuid, p_run_id uuid, p_after_at timestamp with time zone, p_after_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_drafts_waiting(p_limit integer, p_tenant_id uuid, p_run_id uuid, p_after_at timestamp with time zone, p_after_id uuid) IS 'The drafts waiting for their owners (00428), oldest first, at most p_limit after the one named (p_after_at, p_after_id), of one workspace or every one, of one run or all, each with when it was handed and its lead''s facts (reach_out_draft_facts) for the send door''s rule (contracts draftRefusalOf). Service role only.';
+COMMENT ON FUNCTION public.reach_out_drafts_waiting(p_limit integer, p_tenant_id uuid, p_run_id uuid, p_after_at timestamp with time zone, p_after_id uuid) IS 'The drafts waiting for their owners (00429), oldest first, at most p_limit after the one named (p_after_at, p_after_id), of one workspace or every one, of one run or all, each with when it was handed and its lead''s facts (reach_out_draft_facts) for the send door''s rule (contracts draftRefusalOf). Service role only.';
 
 
 --
@@ -19623,7 +19623,7 @@ end $$;
 -- Name: FUNCTION reach_out_lead_stop(p_lead_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_lead_stop(p_lead_id uuid) IS '"Stop writing to them" (Reach out Part 6, H10), an acting member''s door: stamps leads.reach_out_stopped_at and skips the lead''s planned, held and drafted (00428) sends in live runs (owner_stopped). Answers {stopped, already, skipped, leaving}: leaving counts the claimed and queued emails, which the send door refuses by the stamp. Refused for a lead no chain ever planned (22023) or one the caller may not act on (P0002).';
+COMMENT ON FUNCTION public.reach_out_lead_stop(p_lead_id uuid) IS '"Stop writing to them" (Reach out Part 6, H10), an acting member''s door: stamps leads.reach_out_stopped_at and skips the lead''s planned, held and drafted (00429) sends in live runs (owner_stopped). Answers {stopped, already, skipped, leaving}: leaving counts the claimed and queued emails, which the send door refuses by the stamp. Refused for a lead no chain ever planned (22023) or one the caller may not act on (P0002).';
 
 
 --
@@ -19684,7 +19684,7 @@ begin
     'stopped_at', v_lead.reach_out_stopped_at,
     -- Found on a listing (the finder's), or brought on a list of the owner's own with no place (00242).
     'found_on_listing', v_lead.place_id is not null,
-    -- What the lead is and where it came from (00429): a company found by the people card was on no listing, and is not
+    -- What the lead is and where it came from (00430): a company found by the people card was on no listing, and is not
     -- a list's either.
     'kind', v_lead.kind,
     'source', v_lead.source,
@@ -19786,7 +19786,7 @@ end $$;
 -- Name: FUNCTION reach_out_lead_timeline(p_tenant_id uuid, p_lead_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_lead_timeline(p_tenant_id uuid, p_lead_id uuid) IS 'One lead''s reach-out (Reach out Part 6, H9, H11), for a member: the lead''s stage, dates and search, whether it was found on a listing, what it is and where it came from (kind, source: 00429), its chain (with fed_by, its steps, run_hour, last_run_for and a waiting run: what the standing line needs, 00426), added_at while it waits on a list, its person''s email thread, its sends (at most 20), its readings (at most 10) and can_stop. A lead nothing was written to yet has the reach-out whose search holds it (00426). Null for a lead the workspace does not hold.';
+COMMENT ON FUNCTION public.reach_out_lead_timeline(p_tenant_id uuid, p_lead_id uuid) IS 'One lead''s reach-out (Reach out Part 6, H9, H11), for a member: the lead''s stage, dates and search, whether it was found on a listing, what it is and where it came from (kind, source: 00430), its chain (with fed_by, its steps, run_hour, last_run_for and a waiting run: what the standing line needs, 00426), added_at while it waits on a list, its person''s email thread, its sends (at most 20), its readings (at most 10) and can_stop. A lead nothing was written to yet has the reach-out whose search holds it (00426). Null for a lead the workspace does not hold.';
 
 
 --
@@ -19866,7 +19866,7 @@ end $$;
 -- Name: FUNCTION reach_out_leave_out(p_root_id uuid, p_lead_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_leave_out(p_root_id uuid, p_lead_id uuid) IS 'Leave out (00426), the drawer''s door on a lead waiting in a reach-out fed by a list: off its list (blanked), a send planned, held or drafted (00428) for it in a live run skipped as taken back, with an operation of kind leave whose undo (lead_undo, its maker''s or find''s) puts it back; one on its way or sent stays (on_its_way, sent: Stop writing is the correction there). An operator''s, as the add is.';
+COMMENT ON FUNCTION public.reach_out_leave_out(p_root_id uuid, p_lead_id uuid) IS 'Leave out (00426), the drawer''s door on a lead waiting in a reach-out fed by a list: off its list (blanked), a send planned, held or drafted (00429) for it in a live run skipped as taken back, with an operation of kind leave whose undo (lead_undo, its maker''s or find''s) puts it back; one on its way or sent stays (on_its_way, sent: Stop writing is the correction there). An operator''s, as the add is.';
 
 
 --
@@ -20017,7 +20017,7 @@ begin
     -- the door finds instead of making (another lead's claim, an email in, between the look above and here) is
     -- somebody's already; an address People cannot hold is none; a person who asked to be forgotten is left alone.
     -- Each refuses, and the door's writes go back with the refusal (the block is its own transaction).
-    -- A company's email goes to its addressee (00429): the person is them, by the name their source gave; a place's is
+    -- A company's email goes to its addressee (00430): the person is them, by the name their source gave; a place's is
     -- a stand-in named for the business (0052).
     v_name := null;
     if v_lead.kind = 'company' then
@@ -20608,7 +20608,7 @@ end $_$;
 -- Name: FUNCTION reach_out_reply_apply(p_tenant_id uuid, p_message_id uuid, p_reading jsonb, p_plan jsonb, p_reread integer, p_days integer, p_said jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_reply_apply(p_tenant_id uuid, p_message_id uuid, p_reading jsonb, p_plan jsonb, p_reread integer, p_days integer, p_said jsonb) IS 'A reply''s reading and its plan (contracts readingPlan), applied once in one transaction (Reach out Part 5, G6-G11): the lead''s waiting sends and drafts skipped (wrote back), Talking through lead_convert_by, resume_at, a no through set_email_marketing (reply) with the reply''s From and the business''s own domain on the never-again list, a dated step, and reach_out.replied. A reply that cites our email from another address at the business links its writer to the lead (0052); its no, its step and the leads it closes stay the lead''s own person''s. The signer the reading found is its writer''s: kept on the row and offered (the notice), or taken for the writer when the plan says adoptSigner (automatic naming). A re-read applies by compare-and-set on the row still unread. Given p_said ({send_id, by}, 00428) it is what the owner said the business wrote back about that sent email: claim owner, said_by, never re-read. Records what it changed for the undo. Answers {applied}. Service role only.';
+COMMENT ON FUNCTION public.reach_out_reply_apply(p_tenant_id uuid, p_message_id uuid, p_reading jsonb, p_plan jsonb, p_reread integer, p_days integer, p_said jsonb) IS 'A reply''s reading and its plan (contracts readingPlan), applied once in one transaction (Reach out Part 5, G6-G11): the lead''s waiting sends and drafts skipped (wrote back), Talking through lead_convert_by, resume_at, a no through set_email_marketing (reply) with the reply''s From and the business''s own domain on the never-again list, a dated step, and reach_out.replied. A reply that cites our email from another address at the business links its writer to the lead (0052); its no, its step and the leads it closes stay the lead''s own person''s. The signer the reading found is its writer''s: kept on the row and offered (the notice), or taken for the writer when the plan says adoptSigner (automatic naming). A re-read applies by compare-and-set on the row still unread. Given p_said ({send_id, by}, 00429) it is what the owner said the business wrote back about that sent email: claim owner, said_by, never re-read. Records what it changed for the undo. Answers {applied}. Service role only.';
 
 
 --
@@ -20803,7 +20803,7 @@ end $$;
 -- Name: FUNCTION reach_out_reply_said(p_tenant_id uuid, p_user_id uuid, p_lead_id uuid, p_reading jsonb, p_plan jsonb, p_note text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_reply_said(p_tenant_id uuid, p_user_id uuid, p_lead_id uuid, p_reading jsonb, p_plan jsonb, p_note text) IS 'What the business wrote back, as its owner tells it on the lead (00428): the service role''s, for p_user_id, a member the route checked may act. Once per email that went: a reading of the lead''s latest sent email already standing (not undone, not an automatic reply''s) answers {applied: false, already: true}. Otherwise a note in the owner''s words on the person''s email thread (source owner_said, not counted as an email), and the reading and the server''s plan (claim owner) applied through reach_out_reply_apply about that email, keyed to the note; refused when nothing has gone. Answers the door''s {applied, intent, changed} with the note''s id (message_id) and the send.';
+COMMENT ON FUNCTION public.reach_out_reply_said(p_tenant_id uuid, p_user_id uuid, p_lead_id uuid, p_reading jsonb, p_plan jsonb, p_note text) IS 'What the business wrote back, as its owner tells it on the lead (00429): the service role''s, for p_user_id, a member the route checked may act. Once per email that went: a reading of the lead''s latest sent email already standing (not undone, not an automatic reply''s) answers {applied: false, already: true}. Otherwise a note in the owner''s words on the person''s email thread (source owner_said, not counted as an email), and the reading and the server''s plan (claim owner) applied through reach_out_reply_apply about that email, keyed to the note; refused when nothing has gone. Answers the door''s {applied, intent, changed} with the note''s id (message_id) and the send.';
 
 
 --
@@ -21085,7 +21085,7 @@ begin
     -- tenant's whole history of emails is never held for the second.
     with left_ as not materialized (
       select s.id, s.root_id, s.playbook_id, s.lead_id, s.contact_id, s.mailbox_id,
-             -- Sent from its owner's own inbox, on their word (00428): from no mailbox, as an email from before 00424 is.
+             -- Sent from its owner's own inbox, on their word (00429): from no mailbox, as an email from before 00424 is.
              s.said_at is not null as yours,
              coalesce(s.sent_at, public.email_sent_at(m.meta, m.status_updated_at, m.created_at)) as sent_at,
              lower(nullif(btrim(s.angle), '')) as angle, m.status, m.error, m.meta
@@ -21252,7 +21252,7 @@ end $$;
 -- Name: FUNCTION reach_out_report(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_report(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports'' Reach-outs section (Reach out Part 6, H1, H3-H6), for a member: over p_days days (1 to 90; any other is refused) to the window''s last day in the workspace''s zone, the emails that left and what came of them. has_reach_out, totals, before (written, delivered and bounced over the same count of days before the window, 00404: outcomes are state now, so they have no period before), series (written per day), chains (at most 20, each with its steps; reach_out_chain_totals counts every chain over the same window, 00375), angles (the top 8, other_angles, no_angle) and domains (at most 10; a removed domain''s host is null). Emails are written, delivered and bounced; businesses are the leads written to, each once per chain at its last email of the period, and every outcome (wrote back, interested, booked, won, said no) is a count of them, so it is never more than `businesses`, on the totals, on a step (the businesses whose last email was that step), on an angle (the ones whose last email had it) and past the top 8 (00404); wrote back is outreach_wrote_back; won (00426) is a deal naming the lead, won, a count and never an amount. mailboxes (00428) names the emails their owners sent from their own inbox apart (`yours`), from no mailbox, as an email from before 00424 is, and none of them is counted delivered: nobody can know it landed. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
+COMMENT ON FUNCTION public.reach_out_report(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports'' Reach-outs section (Reach out Part 6, H1, H3-H6), for a member: over p_days days (1 to 90; any other is refused) to the window''s last day in the workspace''s zone, the emails that left and what came of them. has_reach_out, totals, before (written, delivered and bounced over the same count of days before the window, 00404: outcomes are state now, so they have no period before), series (written per day), chains (at most 20, each with its steps; reach_out_chain_totals counts every chain over the same window, 00375), angles (the top 8, other_angles, no_angle) and domains (at most 10; a removed domain''s host is null). Emails are written, delivered and bounced; businesses are the leads written to, each once per chain at its last email of the period, and every outcome (wrote back, interested, booked, won, said no) is a count of them, so it is never more than `businesses`, on the totals, on a step (the businesses whose last email was that step), on an angle (the ones whose last email had it) and past the top 8 (00404); wrote back is outreach_wrote_back; won (00426) is a deal naming the lead, won, a count and never an amount. mailboxes (00429) names the emails their owners sent from their own inbox apart (`yours`), from no mailbox, as an email from before 00424 is, and none of them is counted delivered: nobody can know it landed. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
 
 
 --
@@ -21360,7 +21360,7 @@ $$;
 -- Name: FUNCTION reach_out_root_lines(p_tenant_id uuid, p_root_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_root_lines(p_tenant_id uuid, p_root_id uuid) IS 'One reach-out''s lines, one per lead (00426): every lead it has a send for (a canceled run''s and a taken-back send aside) and, for a list-fed one, each lead on its list not written yet with added_at. The line''s facts are 00241''s plus business_name, added_at and drafted (00428: how many of its emails wait in a live run for their owner to send them); ord is when it last left (else when it was added); done is booked, stopped, bounced, said no, no longer Ready or Contacted, or a person answered. reach_out_search_lines and reach_out_chain_people read it. Service role only.';
+COMMENT ON FUNCTION public.reach_out_root_lines(p_tenant_id uuid, p_root_id uuid) IS 'One reach-out''s lines, one per lead (00426): every lead it has a send for (a canceled run''s and a taken-back send aside) and, for a list-fed one, each lead on its list not written yet with added_at. The line''s facts are 00241''s plus business_name, added_at and drafted (00429: how many of its emails wait in a live run for their owner to send them); ord is when it last left (else when it was added); done is booked, stopped, bounced, said no, no longer Ready or Contacted, or a person answered. reach_out_search_lines and reach_out_chain_people read it. Service role only.';
 
 
 --
@@ -21729,7 +21729,7 @@ end $$;
 -- Name: FUNCTION reach_out_search_lines(p_tenant_id uuid, p_search_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_search_lines(p_tenant_id uuid, p_search_id uuid) IS 'Leads while it writes (Reach out Part 6, H8), for a member: an open search''s chain, or null when it has none. chain {root_id, name, state}, fed_by (list or search, 00426), owner_sends (00428), written_to, today (emails that left since the workspace''s midnight), next {at, business, host} (the earliest planned and checked email of a live run), held, to_send (drafts waiting for their owner in live runs, 00428), waiting_run_id, and leads: at most 2,000 lines from reach_out_root_lines, one per lead the chain has a send for and, for a list-fed one, each lead on its list not written yet.';
+COMMENT ON FUNCTION public.reach_out_search_lines(p_tenant_id uuid, p_search_id uuid) IS 'Leads while it writes (Reach out Part 6, H8), for a member: an open search''s chain, or null when it has none. chain {root_id, name, state}, fed_by (list or search, 00426), owner_sends (00429), written_to, today (emails that left since the workspace''s midnight), next {at, business, host} (the earliest planned and checked email of a live run), held, to_send (drafts waiting for their owner in live runs, 00429), waiting_run_id, and leads: at most 2,000 lines from reach_out_root_lines, one per lead the chain has a send for and, for a list-fed one, each lead on its list not written yet.';
 
 
 --
@@ -21919,7 +21919,7 @@ end $$;
 -- Name: FUNCTION reach_out_send_said(p_send_id uuid, p_outcome text, p_reason text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_send_said(p_send_id uuid, p_outcome text, p_reason text) IS 'The owner''s word on an email handed to them (00428), an acting member''s: not_sent skips a draft waiting (owner_skipped, or p_reason: the refusal the server read); sent records it went, on a draft waiting or one skipped since it was handed that nobody said, whatever changed since: in one transaction, the lead locked before the send, the person (reach_out_person, or the person in People who holds the address when it refuses; nobody for an erased person or a lead gone), the email as sent under an id of its own, the send sent with its said_at and said_by, and the lead written to (lead.emailed). Answers {said, state, message_id, contact_id, conversation_id, since: what would refuse it now, or null}; a send already said answers {said: false, state, reason}.';
+COMMENT ON FUNCTION public.reach_out_send_said(p_send_id uuid, p_outcome text, p_reason text) IS 'The owner''s word on an email handed to them (00429), an acting member''s: not_sent skips a draft waiting (owner_skipped, or p_reason: the refusal the server read); sent records it went, on a draft waiting or one skipped since it was handed that nobody said, whatever changed since: in one transaction, the lead locked before the send, the person (reach_out_person, or the person in People who holds the address when it refuses; nobody for an erased person or a lead gone), the email as sent under an id of its own, the send sent with its said_at and said_by, and the lead written to (lead.emailed). Answers {said, state, message_id, contact_id, conversation_id, since: what would refuse it now, or null}; a send already said answers {said: false, state, reason}.';
 
 
 --
@@ -28351,7 +28351,7 @@ COMMENT ON TABLE public.lead_platform IS 'One row. searches_on is the kill switc
 -- Name: COLUMN lead_platform.cards_on; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.lead_platform.cards_on IS 'The cards that find leads now (00429): local_businesses, and people_at_companies once its calibration run proved its filters and fields. Switched by hand; lead_card_live reads it.';
+COMMENT ON COLUMN public.lead_platform.cards_on IS 'The cards that find leads now (00430): local_businesses, and people_at_companies once its calibration run proved its filters and fields. Switched by hand; lead_card_live reads it.';
 
 
 --
@@ -28780,28 +28780,28 @@ COMMENT ON COLUMN public.leads.stage_from IS 'The stage the lead was in before t
 -- Name: COLUMN leads.kind; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.leads.kind IS 'What the lead is (00429): a place a listing names (the Maps card''s), or a company with the people its source named on it (the people card''s, facts.people), one of whom its reach-out writes to.';
+COMMENT ON COLUMN public.leads.kind IS 'What the lead is (00430): a place a listing names (the Maps card''s), or a company with the people its source named on it (the people card''s, facts.people), one of whom its reach-out writes to.';
 
 
 --
 -- Name: COLUMN leads.source; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.leads.source IS 'Where the lead came from (00429): the card that found it (local_businesses, people_at_companies), or a file of the owner''s own (import). The foot of a cold email says it in its first line (contracts whyFrom).';
+COMMENT ON COLUMN public.leads.source IS 'Where the lead came from (00430): the card that found it (local_businesses, people_at_companies), or a file of the owner''s own (import). The foot of a cold email says it in its first line (contracts whyFrom).';
 
 
 --
 -- Name: COLUMN leads.source_key; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.leads.source_key IS 'The lead''s own key at its source (00429): a company''s domain for the people card. One lead per workspace, source and key (leads_tenant_source_key_uq); a place keeps its place_id instead.';
+COMMENT ON COLUMN public.leads.source_key IS 'The lead''s own key at its source (00430): a company''s domain for the people card. One lead per workspace, source and key (leads_tenant_source_key_uq); a place keeps its place_id instead.';
 
 
 --
 -- Name: COLUMN leads.facts; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.leads.facts IS 'What the lead''s source named beyond its columns (00429): {people: [{name, first_name, title, role, email, profile_url}] at most five, addressee: the index of the one the lead''s address is, size: the company''s size as its source gave it}. Read through contracts leadFactsOf; blanked with the lead.';
+COMMENT ON COLUMN public.leads.facts IS 'What the lead''s source named beyond its columns (00430): {people: [{name, first_name, title, role, email, profile_url}] at most five, addressee: the index of the one the lead''s address is, size: the company''s size as its source gave it}. Read through contracts leadFactsOf; blanked with the lead.';
 
 
 --
@@ -30133,7 +30133,7 @@ COMMENT ON COLUMN public.playbooks.mailbox_ids IS 'A reach-out step''s mailboxes
 -- Name: COLUMN playbooks.owner_sends; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.playbooks.owner_sends IS 'A reach-out''s root (00428): its owner sends its emails from their own inbox, each handed to them written and checked (state drafted), rather than its mailboxes (mailbox_ids). Its steps read it from the root.';
+COMMENT ON COLUMN public.playbooks.owner_sends IS 'A reach-out''s root (00429): its owner sends its emails from their own inbox, each handed to them written and checked (state drafted), rather than its mailboxes (mailbox_ids). Its steps read it from the root.';
 
 
 --
@@ -30345,7 +30345,7 @@ COMMENT ON COLUMN public.reach_out_replies.signer_state IS 'What became of the s
 -- Name: COLUMN reach_out_replies.said_by; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.reach_out_replies.said_by IS 'For a reading its owner gave (claim owner, 00428): the member who said what the business wrote back. Its message_id is the note that says so on the person''s thread (reach_out_reply_said).';
+COMMENT ON COLUMN public.reach_out_replies.said_by IS 'For a reading its owner gave (claim owner, 00429): the member who said what the business wrote back. Its message_id is the note that says so on the person''s thread (reach_out_reply_said).';
 
 
 --

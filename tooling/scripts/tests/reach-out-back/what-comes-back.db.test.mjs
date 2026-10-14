@@ -714,8 +714,8 @@ test("each function re-created whole is its source's body but for the lines it m
     gated.replace("\n          and (m.role <> 'partner' or public.session_shows_second_factor())) then", ") then"),
     report,
   );
-  // 00428 kept a reach-out that handed its owner a draft from Remove (can_remove), and changed nothing else.
-  const handed = bodyIn(migration("00428"), "create or replace function public.reach_out_chain_report(");
+  // 00429 kept a reach-out that handed its owner a draft from Remove (can_remove), and changed nothing else.
+  const handed = bodyIn(migration("00429"), "create or replace function public.reach_out_chain_report(");
   assert.equal(
     handed.replace(
       "where s.root_id = p_root_id\n" +
@@ -725,7 +725,7 @@ test("each function re-created whole is its source's body but for the lines it m
     ),
     gated,
   );
-  assert.equal(liveBody("reach_out_chain_report"), handed, "reach_out_chain_report: the database runs 00428's");
+  assert.equal(liveBody("reach_out_chain_report"), handed, "reach_out_chain_report: the database runs 00429's");
 });
 
 test(

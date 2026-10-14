@@ -376,7 +376,7 @@ test("editing a chain passes its steps' ids and says Save", async () => {
   assert.equal(textOf(byTestId(s.draw(), "ro-saved")), "Saved. Its next run writes these words.");
 });
 
-test("with no mailbox connected its owner sends it, said so with Connect beside it, and Start saves it so (00428); a mailbox to reconnect waits", async () => {
+test("with no mailbox connected its owner sends it, said so with Connect beside it, and Start saves it so (00429); a mailbox to reconnect waits", async () => {
   setup([]);
   const calls = verbs();
   let s = sheet();

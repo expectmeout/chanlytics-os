@@ -145,7 +145,7 @@ interface SearchActsArgs {
   leadLine: LeadLine | null;
   setLeadLine: SetLeadLine;
   openFinder: (card: Partial<FinderState>) => void;
-  /** Find people, filled in with a people search's plan (00429): what its Search again opens. */
+  /** Find people, filled in with a people search's plan (00430): what its Search again opens. */
   openFindPeople: (from?: LeadPeoplePlan | null) => void;
 }
 
@@ -264,7 +264,7 @@ export const leadSearchActs = (a: SearchActsArgs) => {
   const searchAgain = (s: RailSearch) => {
     const dto = searchById(s.id);
     if (!dto) return;
-    // A people search opens its own sheet with what was asked (00429): a people plan never reaches the places card.
+    // A people search opens its own sheet with what was asked (00430): a people plan never reaches the places card.
     if (dto.people) {
       a.openFindPeople(dto.people);
       return;

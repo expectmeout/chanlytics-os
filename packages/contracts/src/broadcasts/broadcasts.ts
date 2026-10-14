@@ -114,7 +114,7 @@ export type RecipientState = (typeof RECIPIENT_STATES)[number];
  * queued as an email row with its job, then what that row became. A wait refusal plans it again (Reach out, Part 3).
  * The check before it goes may hold it (00197): held waits for its owner, who puts it back or skips it (Part 4).
  * A hand step's lead is handed to the team, and never moves (00228, Part 5). A reach-out its owner sends hands each
- * email to them, drafted, and the owner says whether it went: sent, or skipped (00428).
+ * email to them, drafted, and the owner says whether it went: sent, or skipped (00429).
  */
 export const REACH_OUT_SEND_STATES = [
   "planned",
@@ -302,7 +302,7 @@ export interface BroadcastDto {
    * and where it could not be counted (the wiring's second audit, W-campaign-run-template-reachout-4).
    */
   held?: number;
-  /** And how many are handed to its owner to send from their inbox (00428), counted as held is. */
+  /** And how many are handed to its owner to send from their inbox (00429), counted as held is. */
   drafted?: number;
 }
 

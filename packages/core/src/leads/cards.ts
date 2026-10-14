@@ -12,7 +12,7 @@
  * MAPS_FIELDS, including `location` (E7); an item without a name does not
  * read, and its offset still counts.
  *
- * The people card (00429, the workbench's call 8) asks a B2B contact database
+ * The people card (00430, the workbench's call 8) asks a B2B contact database
  * for people by title, seniority, industry, company size and state, and maps
  * each item to a person at a company (PersonAtCompany): their name, title,
  * seniority, work address and profile link, and their company's name, domain,
@@ -132,7 +132,7 @@ export interface LeadCardRunner {
   checker: LeadCheckerRunner;
 }
 
-/** One person a people run's item names, at their company (00429): what a company lead is made of. */
+/** One person a people run's item names, at their company (00430): what a company lead is made of. */
 export interface PersonAtCompany {
   company: {
     /** Its domain, lower case: the lead's source_key. */
@@ -377,7 +377,7 @@ function personOf(o: Record<string, unknown>): PersonAtCompany["person"] | null 
   };
 }
 
-/** The people card's runner (00429): a B2B contact database on Apify, asked by the plan's own filters. */
+/** The people card's runner (00430): a B2B contact database on Apify, asked by the plan's own filters. */
 const PEOPLE_CARD: PeopleCardRunner = {
   actor: "olympus/b2b-leads-finder",
   // Pinned once its calibration run has read the items it writes (the card's owed run, decision 0057's lane 5).

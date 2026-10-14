@@ -1,5 +1,5 @@
 /**
- * Sent's one To send (`broadcasts/to-send`, 00428): every email handed to its owner, from each reach-out they send
+ * Sent's one To send (`broadcasts/to-send`, 00429): every email handed to its owner, from each reach-out they send
  * themselves, in one pane beside the list, where a run opens. An owner with a reach-out a day, and its follow-ups, has a
  * run for each; this is the one list they work down, the oldest run first. The runs are Sent's own list's (contracts
  * toSendAllOf: the going runs with emails handed over); each run's part is its detail, read as the run's own pane reads it

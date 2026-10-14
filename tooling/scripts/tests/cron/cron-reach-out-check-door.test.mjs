@@ -148,7 +148,7 @@ test("no model key: nothing is touched; a send waiting says so with a 503, and n
   assert.deepEqual(await knockWith({ ...SET, ANTHROPIC_API_KEY: undefined }), [200, { ok: true, unset: true }]);
 });
 
-test("no lane: a send is checked all the same, since an owner's needs no seal; the send clock says what is missing (R2, 00428)", async () => {
+test("no lane: a send is checked all the same, since an owner's needs no seal; the send clock says what is missing (R2, 00429)", async () => {
   model();
   const w = world();
   const [status, body] = await knockWith({ ...SET, UNSUBSCRIBE_SECRET: undefined });

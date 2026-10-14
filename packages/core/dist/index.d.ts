@@ -1531,7 +1531,7 @@ declare function ingestEmail(ports: EmailIngestPorts, cmd: {
 /** The reply and the reach-out it answers, as the job reads them (packages/db reachOutReplyOf). */
 interface ReplyFacts {
     conversationId: string;
-    /** What the intake said of the email: never the owner's word (00428), which is no email and is never read here. */
+    /** What the intake said of the email: never the owner's word (00429), which is no email and is never read here. */
     claim: Exclude<ReplyClaim, "owner">;
     /** Their words as the thread keeps them; the quoted history is cut here (replyTextOf). */
     text: string | null;
@@ -2711,7 +2711,7 @@ interface ReachOutStep {
     /** The mailboxes it writes from (00424); none named is every connected one. */
     mailbox_ids: string[];
     /**
-     * The chain's (its root's, 00428): its owner sends its emails from their own inbox, each handed to them written and
+     * The chain's (its root's, 00429): its owner sends its emails from their own inbox, each handed to them written and
      * checked, so a run plans no mailbox and no timetable: its day's share, due as the run goes ahead.
      */
     owner_sends: boolean;
@@ -2796,7 +2796,7 @@ interface NewReachOutRun {
     };
 }
 /**
- * One lead in a run: planned, with its time and mailbox (none for a reach-out its owner sends, 00428); or skipped, with
+ * One lead in a run: planned, with its time and mailbox (none for a reach-out its owner sends, 00429); or skipped, with
  * why, so a lead the step may never write to (the door refuses it, or it keeps no open hour all week) leaves the step's
  * page rather than heading it every day.
  */
@@ -2845,7 +2845,7 @@ interface ReachOutRunPorts {
         gone: Set<string>;
     }>;
     /**
-     * What a reach-out its owner sends holds (db chainDraftLoad, 00428): the emails its runs for this day already hold,
+     * What a reach-out its owner sends holds (db chainDraftLoad, 00429): the emails its runs for this day already hold,
      * skipped aside (its day's share is counted against them, contracts REACH_OUT_DRAFTS_PER_DAY), and those waiting for
      * its owner across every run, not yet said (their pile, REACH_OUT_DRAFTS_OPEN_MAX).
      */
@@ -3115,7 +3115,7 @@ interface CollectPlace {
     shares: LeadShare[];
 }
 /**
- * One company a people run found (00429), as lead_company_upsert takes it: the lead's columns, its addressee's work
+ * One company a people run found (00430), as lead_company_upsert takes it: the lead's columns, its addressee's work
  * address (the lead's own, checked before anyone is written to), its people, and the line Leads says of it.
  */
 type CollectCompany = {
@@ -3207,7 +3207,7 @@ interface LeadDb {
     }>;
     roundEnd(roundId: string, ending: LeadRoundEnding): Promise<boolean>;
     /**
-     * A people run's page of companies (00429 lead_company_upsert), before its own commit moves the run: a lead each, or
+     * A people run's page of companies (00430 lead_company_upsert), before its own commit moves the run: a lead each, or
      * the people a company already held gains. Idempotent, so a page read twice keeps each company once.
      */
     companyUpsert(roundId: string, companies: CollectCompany[]): Promise<{
@@ -3316,7 +3316,7 @@ type Owner = string;
  * MAPS_FIELDS, including `location` (E7); an item without a name does not
  * read, and its offset still counts.
  *
- * The people card (00429, the workbench's call 8) asks a B2B contact database
+ * The people card (00430, the workbench's call 8) asks a B2B contact database
  * for people by title, seniority, industry, company size and state, and maps
  * each item to a person at a company (PersonAtCompany): their name, title,
  * seniority, work address and profile link, and their company's name, domain,
@@ -3398,7 +3398,7 @@ interface LeadCardRunner {
     fields: readonly string[];
     checker: LeadCheckerRunner;
 }
-/** One person a people run's item names, at their company (00429): what a company lead is made of. */
+/** One person a people run's item names, at their company (00430): what a company lead is made of. */
 interface PersonAtCompany {
     company: {
         /** Its domain, lower case: the lead's source_key. */
@@ -3775,7 +3775,7 @@ declare const targetOf: (round: LeadRoundRow) => number;
 /**
  * lead_round_start: a run row per term, made by its deterministic id, claimed (claim.ts), and only then started at
  * the provider. A round whose answer changed the plan re-judges its probe first (rejudge.ts). A people plan's round
- * (00429) starts its one run in people.ts.
+ * (00430) starts its one run in people.ts.
  */
 
 /** no_room: a term past the runs the round's reserve holds the actor's floor for (runCaps), said and never started. */
@@ -3846,7 +3846,7 @@ declare function takeBatch(card: LeadCardRunner, items: unknown[], cursor: numbe
 /**
  * lead_collect: one batch of a run's items per commit (clean, identity, judge, classify, distance, commit), a Stop,
  * and a checker run's answers. The places it commits are made in places.ts and marked in mark-places.ts; what
- * follows a run's last item is round-decision.ts. A people run's items are companies (00429): people.ts.
+ * follows a run's last item is round-decision.ts. A people run's items are companies (00430): people.ts.
  */
 
 type CollectOutcome = {

@@ -57,7 +57,7 @@ export const ReachOutChainSchema = z.object({
     }),
   /** Empty: every connected mailbox of the workspace (00424). */
   mailbox_ids: z.array(z.string().uuid()).max(REACH_OUT_MAILBOXES_MAX),
-  /** Its owner sends its emails from their own inbox, each handed to them written and checked (00428). */
+  /** Its owner sends its emails from their own inbox, each handed to them written and checked (00429). */
   owner_sends: z.boolean().default(false),
   signed_by: z.string().trim().max(SIGNED_BY_MAX).nullable(),
   steps: z.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX),
@@ -92,11 +92,11 @@ export type ReachOutPreviewInput = z.infer<typeof ReachOutPreviewSchema>;
 
 export const ReachOutDecideSchema = z.object({ decision: z.enum(REACH_OUT_DECISIONS) });
 
-/** POST reach-out-sends/:id/said (00428): the owner's word on an email handed to them, that it went or did not. */
+/** POST reach-out-sends/:id/said (00429): the owner's word on an email handed to them, that it went or did not. */
 export const ReachOutSaidSchema = z.object({ outcome: z.enum(REACH_OUT_SAID_OUTCOMES) });
 
 /**
- * POST reach-outs/leads/:id/said (00428): what the business wrote back to an email its owner sent, as the owner says it:
+ * POST reach-outs/leads/:id/said (00429): what the business wrote back to an email its owner sent, as the owner says it:
  * the intent, the day they named for not now, and who to write to instead for a wrong person.
  */
 export const ReachOutReplySaidSchema = z.object({

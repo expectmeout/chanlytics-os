@@ -1,5 +1,5 @@
 /**
- * The people card (00429) and the owner's drafts (00428), off the database:
+ * The people card (00430) and the owner's drafts (00429), off the database:
  *
  *   1. The mapper reads a company and a person off an item, a work address only, a US company only; companiesOf keeps
  *      each company once with its people, those with a work address and the most senior first, its addressee the first

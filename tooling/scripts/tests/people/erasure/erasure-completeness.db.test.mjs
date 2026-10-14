@@ -457,7 +457,7 @@ async function seed() {
       opening: WORDS,
       angle: `Ada ${DIGITS}`,
       hold_detail: WORDS,
-      // The draft its owner sent it from (00428): the address and the words, as handed to them.
+      // The draft its owner sent it from (00429): the address and the words, as handed to them.
       draft: { to: EMAIL, subject: WORDS, body: WORDS, text: WORDS },
     }),
     "reach_out_sends",

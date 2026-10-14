@@ -90,7 +90,7 @@ interface FirstDayProps {
   onNewIdeas?: () => void;
   /** Opens the sheet a list of the owner's own is brought in by. */
   onImport?: () => void;
-  /** Opens Find people (the people card, 00429): the page's door to it where no rail is drawn, a phone's included. */
+  /** Opens Find people (the people card, 00430): the page's door to it where no rail is drawn, a phone's included. */
   onFindPeople?: () => void;
   onOpenLine?: () => void;
   onLineDraft?: (draft: string) => void;

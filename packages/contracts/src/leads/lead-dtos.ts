@@ -85,7 +85,7 @@ export interface LeadRowDto {
   contact_id: string | null;
   /** The reach-out it goes with (00426): the one that wrote it last, else the one whose search holds it. */
   chain_id?: string | null;
-  /** A place or a company, and a company's people (00429, leads_page): read through contracts leadFactsOf. */
+  /** A place or a company, and a company's people (00430, leads_page): read through contracts leadFactsOf. */
   kind?: string;
   facts?: unknown;
   /** How the lead has been worked, from `leads_page` (4.2): a fixture copies the real shape even where B draws none of it. */
@@ -153,11 +153,11 @@ export interface LeadSearchDto {
    */
   via?: LeadSearchVia;
   /**
-   * The places plan (the Maps card's, or a list's): null for a people search (00429), whose plan is `people`. Every
+   * The places plan (the Maps card's, or a list's): null for a people search (00430), whose plan is `people`. Every
    * reader of a places plan narrows on it, so a people plan never reaches one.
    */
   plan: LeadSearchPlan | null;
-  /** A people search's plan (the people card, 00429), or null for a places search and a list. */
+  /** A people search's plan (the people card, 00430), or null for a places search and a list. */
   people?: LeadPeoplePlan | null;
   plan_version: number;
   /**

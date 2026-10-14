@@ -1,11 +1,11 @@
 /**
- * What a lead is (the lead workbench's call 8, 00429): a place a listing names, found by the Maps card, or a company with
+ * What a lead is (the lead workbench's call 8, 00430): a place a listing names, found by the Maps card, or a company with
  * the people its source named on it, found by the people card, one of whom is the addressee its reach-out writes to.
  * Where it came from (`source`: a card's id, or a file of the owner's own) and its key there are the lead's own, so a
  * company found twice is one lead; it is written to once, whoever works there (0057's call 9). Pure, and read in the
  * browser: no schema library.
  *
- *   LEAD_KINDS, LEAD_SOURCES   the stored sets (00429's CHECKs)
+ *   LEAD_KINDS, LEAD_SOURCES   the stored sets (00430's CHECKs)
  *   leadFactsOf                (its own) a lead's facts as stored, read safely: its people, the addressee, its size
  *   leadAddresseeOf            the person a company's email goes to; null for a place
  *   leadRoleOf                     a person's role from their source's seniority, else their title (their first name is
@@ -28,7 +28,7 @@ const LEAD_ROLES = ["owner", "founder", "executive", "partner", "director", "man
 export type LeadRole = (typeof LEAD_ROLES)[number];
 const isLeadRole = (r: unknown): r is LeadRole => (LEAD_ROLES as readonly unknown[]).includes(r);
 
-/** Where a company the people card found came from, as every page says it (00429): never "your list", nor Maps. */
+/** Where a company the people card found came from, as every page says it (00430): never "your list", nor Maps. */
 export const LEAD_DIRECTORY_WORDS = {
   found: "From a business directory",
   address: "the address came with its people",
@@ -36,7 +36,7 @@ export const LEAD_DIRECTORY_WORDS = {
 } as const;
 
 /**
- * Where a lead's story says it came from: a business directory for a company the people card found (00429), a list of
+ * Where a lead's story says it came from: a business directory for a company the people card found (00430), a list of
  * the owner's own for a lead found on no listing (00242), else Google Maps, by what was asked where it says.
  */
 export function leadFoundWords(t: {
@@ -60,7 +60,7 @@ export const LEAD_ROLE_WORDS: Record<LeadRole, string> = {
   staff: "team member",
 };
 
-/** The most people a company keeps (00429 lead_company_upsert): the addressee and a few around them. */
+/** The most people a company keeps (00430 lead_company_upsert): the addressee and a few around them. */
 export const LEAD_PEOPLE_MAX = 5;
 
 /** One person its source named at a company. A type, not an interface: it is stored as it is (leads.facts, Json). */
@@ -182,14 +182,14 @@ export interface LeadCompanyPersonVM {
   /** Their place in the company's people as stored (leads.facts.people): what choosing them names to the door. */
   index: number;
   /**
-   * Whether they may be chosen as the one its reach-out writes to (00429 lead_addressee_choose): someone else, with a
+   * Whether they may be chosen as the one its reach-out writes to (00430 lead_addressee_choose): someone else, with a
    * work address, at a company that is open, in nobody's People, written to by no one and with no check on its way. The
    * door says the rest (a reach-out that planned it already, an address on the never-again list).
    */
   choose: boolean;
 }
 
-/** A company on its peek (00429): its people, the addressee first, its size, and the line on where they came from. */
+/** A company on its peek (00430): its people, the addressee first, its size, and the line on where they came from. */
 export interface LeadCompanyVM {
   head: string;
   people: LeadCompanyPersonVM[];
@@ -206,7 +206,7 @@ export const LEAD_COMPANY_WORDS = {
 } as const;
 
 /**
- * Choosing who a company's reach-out writes to (00429 lead_addressee_choose): the peek's door beside one of its people,
+ * Choosing who a company's reach-out writes to (00430 lead_addressee_choose): the peek's door beside one of its people,
  * what it says once chosen, and each refusal of the door in words, by its code.
  */
 export const LEAD_ADDRESSEE_WORDS = {

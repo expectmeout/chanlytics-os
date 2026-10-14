@@ -14,7 +14,7 @@
  *   - a tick in which every model call failed answers 503 `model_unavailable` (R4). sweep_health judges the status.
  *
  * The mailbox lane's seal (sender.ts mailboxLane) is the send clock's to ask, not this one's: a reach-out its owner
- * sends needs none (00428), and its emails are checked before they are handed over as any are. A mailbox's send checked
+ * sends needs none (00429), and its emails are checked before they are handed over as any are. A mailbox's send checked
  * without the seal waits, planned, and the reach-out clock answers 503 `lane_unset` while it is due (R2).
  *
  * Auth: x-cron-key against the Vault-held sweep key, like the other sweeps.

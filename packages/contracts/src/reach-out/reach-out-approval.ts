@@ -48,7 +48,7 @@ export function skippedReasonWords(reason: string): string {
       return "the mailbox their emails came from was removed";
     case "outreach_country":
       return "are where a cold email may not go without their say";
-    // The person door's refusals when its owner said an email went (00428 reach_out_send_said).
+    // The person door's refusals when its owner said an email went (00429 reach_out_send_said).
     case "lead_closed":
       return "had closed before it went";
     case "already_yours":
@@ -118,7 +118,7 @@ export function reachOutRunWordsOf(
         name: x.business_name,
         // Its lead, where the name opens it (leadDoorOf).
         to: leadDoorOf(x.lead_id),
-        // An owner's email is handed to them once checked, at any hour (00428), never re-timed to the lead's.
+        // An owner's email is handed to them once checked, at any hour (00429), never re-timed to the lead's.
         at: owner ? HANDED : retimed ? RETIMED : clockWhen(ms, p.timezone, p.now),
       };
     }),
@@ -138,7 +138,7 @@ export function reachOutRunWordsOf(
 
 /** A send whose time has passed, or whose run is from an earlier day: it goes in their hours once it may. */
 const RETIMED = "re-timed in their hours";
-/** An owner's email (00428): handed to them once checked, whatever the hour. */
+/** An owner's email (00429): handed to them once checked, whatever the hour. */
 const HANDED = "handed to you once checked";
 
 /** One email handed to its owner, as the run's To send list draws it. */
@@ -147,7 +147,7 @@ export interface ToSendRowVM {
   /** Its lead's id: what They wrote back… is said on. */
   leadId: string;
   /**
-   * A step after the first (00428): its business may have answered the email before in the owner's own inbox, which
+   * A step after the first (00429): its business may have answered the email before in the owner's own inbox, which
    * nothing here reads, so its Sent asks first whether they did, and They wrote back… stands beside it.
    */
   followUp: boolean;
@@ -165,7 +165,7 @@ export interface ToSendRowVM {
 }
 
 /**
- * The emails of a reach-out its owner sends that are handed to them and not yet said to have gone (00428), oldest first:
+ * The emails of a reach-out its owner sends that are handed to them and not yet said to have gone (00429), oldest first:
  * each with its doors into a mail client (composeLinksOf) and the owner's Sent and Skip. Null when there are none.
  */
 export function toSendWordsOf(r: ReachOutRunDto, p: { timezone: string; now: number }) {
@@ -192,7 +192,7 @@ export function toSendWordsOf(r: ReachOutRunDto, p: { timezone: string; now: num
 }
 
 /**
- * What is true of a lead an owner's email went to since it was handed over (00428 reach_out_send_said's since): the
+ * What is true of a lead an owner's email went to since it was handed over (00429 reach_out_send_said's since): the
  * email is on the record all the same, and this says what follows from it.
  */
 const SENT_SINCE_WORDS: Record<string, string> = {
@@ -247,11 +247,11 @@ export interface ToSendRunLike {
   id: string;
   state: string;
   scheduled_for: string;
-  /** How many of a going run's emails are handed to its owner (waits.ts runDraftedEmails, 00428). */
+  /** How many of a going run's emails are handed to its owner (waits.ts runDraftedEmails, 00429). */
   drafted?: number | null;
 }
 
-/** Sent's one To send: every email handed to its owner, from each reach-out they send themselves (00428). */
+/** Sent's one To send: every email handed to its owner, from each reach-out they send themselves (00429). */
 export const TO_SEND_ROUTE = "broadcasts/to-send";
 
 /** The one To send's own words: Today's row that opens it, and Sent's pane that lists every run's emails. */
@@ -282,7 +282,7 @@ export const TO_SEND_ALL_WORDS = {
 } as const;
 
 /**
- * Every going run with emails handed to its owner (00428), as one To send: the runs, the oldest first, with how many of
+ * Every going run with emails handed to its owner (00429), as one To send: the runs, the oldest first, with how many of
  * their emails wait in all. Null when none has one. Each run's own emails are its detail's (toSendWordsOf), read as its
  * part of the list is drawn.
  */
@@ -346,14 +346,14 @@ export const REACH_OUT_RUN_REREAD_MS = 15_000;
 
 /**
  * Whether a live run is still moving under the page, so its block reads it again (R21): the check still has sends of it
- * to read, or, for a reach-out its owner sends, checked emails still wait to be handed over as drafts (00428).
+ * to read, or, for a reach-out its owner sends, checked emails still wait to be handed over as drafts (00429).
  */
 export function reachOutRunMoving(r: ReachOutRunDto): boolean {
   return r.checking > 0 || (r.owner_sends === true && r.today + r.later > 0);
 }
 
 /**
- * What the owner's word on a drafted email did, said at the To send list's head once the door answered (00428). Sent is
+ * What the owner's word on a drafted email did, said at the To send list's head once the door answered (00429). Sent is
  * always recorded, since the email left their inbox: what about its lead would refuse it now is said beside it.
  */
 export function toSendSaidWords(

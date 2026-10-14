@@ -13,7 +13,7 @@ const Body = z.object({
 });
 
 /**
- * POST /api/v1/leads/:id/addressee — who a company's reach-out writes to (00429 lead_addressee_choose): one of the people
+ * POST /api/v1/leads/:id/addressee — who a company's reach-out writes to (00430 lead_addressee_choose): one of the people
  * its source named, by their place in its facts, while nothing of a reach-out is planned or written to it. Their address
  * is checked before anything goes, a fraction of a cent, so the owner's (find) and the same billing state a search
  * needs, as Check again's.

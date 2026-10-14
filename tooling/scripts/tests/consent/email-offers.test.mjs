@@ -644,7 +644,7 @@ test("the one foot builder, by kind: an offer says why they get it, who and wher
     assert.throws(() => emailFootHtml(...args), /why, who, where and how to stop/, `${what} (HTML)`);
   }
   // Its text says the way out in words, so it needs no link: a draft its owner sends from their own inbox has none
-  // (00428). The HTML twin draws the link, and is never built without it.
+  // (00429). The HTML twin draws the link, and is never built without it.
   const unlinked = ["Northside Studio", "12 Main St", { ...cold, unsubscribeUrl: null }, "en"];
   assert.equal(emailFoot(...unlinked), emailFoot("Northside Studio", "12 Main St", cold, "en"));
   assert.throws(() => emailFootHtml(...unlinked), /why, who, where and how to stop/, "link (HTML)");

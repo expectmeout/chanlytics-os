@@ -78,7 +78,7 @@ const NO_PREVIEW: Preview = {
   tokens: { input: 0, output: 0 },
 };
 
-/** The lead as the send fills its slots: a company's addressee for the person slots, where it was found (00429). */
+/** The lead as the send fills its slots: a company's addressee for the person slots, where it was found (00430). */
 const slotLeadOf = (
   lead: { business_name: string | null; city: string | null },
   slots: { kind: string | null; facts: unknown; source: string | null } | null,
@@ -113,7 +113,7 @@ export async function previewOne(
     reachOutRecord(db, { tenantId: i.tenantId, searchId: i.searchId, leadId: lead.lead_id }),
     checkWorkspaceOf(db, i.tenantId),
     leadCountriesOf(db, [lead.lead_id]),
-    // A company's addressee, as the send fills the person slots from it (00429).
+    // A company's addressee, as the send fills the person slots from it (00430).
     leadSlotsOf(db, i.tenantId, lead.lead_id),
   ]);
   if (!record) return none;

@@ -53,7 +53,7 @@ import {
 /** The reply and the reach-out it answers, as the job reads them (packages/db reachOutReplyOf). */
 export interface ReplyFacts {
   conversationId: string;
-  /** What the intake said of the email: never the owner's word (00428), which is no email and is never read here. */
+  /** What the intake said of the email: never the owner's word (00429), which is no email and is never read here. */
   claim: Exclude<ReplyClaim, "owner">;
   /** Their words as the thread keeps them; the quoted history is cut here (replyTextOf). */
   text: string | null;

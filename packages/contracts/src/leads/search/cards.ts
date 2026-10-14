@@ -19,7 +19,7 @@ import type { LeadSearchPlan } from "./plan";
 /** The half of a card Claude reads (§0.3, 23). The half code holds is A2's `CARDS`. */
 export interface LeadCardBrief {
   id: "local_businesses" | "people_at_companies";
-  /** What a lead of the card is (00429): a place a listing names, or a company with the people named on it. */
+  /** What a lead of the card is (00430): a place a listing names, or a company with the people named on it. */
   finds: "places" | "people";
   goodFor: string[];
   notFor: string[];
@@ -43,7 +43,7 @@ export interface LeadCardBrief {
   approved: true;
   /**
    * The paid run that proved the provider reads the card's filters and its mapper the provider's fields, at the build the
-   * card pins: what lets lead_platform.cards_on name it (00429 lead_card_live). Null until it has run; absent for the Maps
+   * card pins: what lets lead_platform.cards_on name it (00430 lead_card_live). Null until it has run; absent for the Maps
    * card, which was proved before this was asked.
    */
   calibrated?: { build: string; on: string; items: number; mapped: number } | null;
@@ -88,8 +88,8 @@ export const LEAD_CARDS: readonly LeadCardBrief[] = [
     approved: true,
   },
   {
-    // The people card (the workbench's call 8, 00429), approved by Ruben on 13 Oct 2026 with its source-rights note. It
-    // finds nothing until its calibration run: lead_platform.cards_on (00429 lead_card_live) is switched on by hand once
+    // The people card (the workbench's call 8, 00430), approved by Ruben on 13 Oct 2026 with its source-rights note. It
+    // finds nothing until its calibration run: lead_platform.cards_on (00430 lead_card_live) is switched on by hand once
     // that run proves the provider reads its filters and the mapper its fields (calibrated, below).
     id: "people_at_companies",
     finds: "people",

@@ -61,7 +61,7 @@ const LeadSearchAsk = z.object({
   leave_out: z.array(z.object({ words: z.string() })).optional(),
   asked: z.string(),
   amends: z.string().optional(),
-  // A people search's own (the people card, 00429).
+  // A people search's own (the people card, 00430).
   seniority: z.array(z.string()).optional(),
   industries: z.array(z.string()).optional(),
   company_sizes: z.array(z.string()).optional(),
@@ -117,12 +117,12 @@ const shapeAsk = (input: LeadSearchAskInput) => {
 const LeadSearchPlanInput = z.preprocess((raw) => shapeAsk(raw as LeadSearchAskInput), ProposeAnySearchSchema);
 
 /**
- * Named people at companies (the people card, 00429), as a card: its own plan, its own facts and its own door. It never
+ * Named people at companies (the people card, 00430), as a card: its own plan, its own facts and its own door. It never
  * stops to ask, so nothing answers one; and while the card finds no leads (lead_card_live) it is said in words instead.
  */
 async function proposePeopleSearch(t: ToolContext, ask: ProposePeopleSearch, amends: string): Promise<ProposalOutcome> {
   if (amends) return refuse("a people search does not stop to ask; propose a new one instead");
-  // The people card finds leads only once its calibration run proved it (00429 lead_card_live): until then it is not
+  // The people card finds leads only once its calibration run proved it (00430 lead_card_live): until then it is not
   // offered, and the owner is told so rather than shown a card the door would refuse.
   const live = await leadCardsLive(t.ctx.supabase).catch(() => [] as string[]);
   if (!live.includes("people_at_companies"))
@@ -173,7 +173,7 @@ async function proposeLeadSearch(t: ToolContext, input: LeadSearchAskInput): Pro
       `the plan is not complete: ${shaped.error.issues[0]?.path.join(".")} ${shaped.error.issues[0]?.message}`,
     );
   const amends = str(input.amends, 40);
-  // Named people at companies (the people card, 00429): its own plan and its own card. A people search never stops to
+  // Named people at companies (the people card, 00430): its own plan and its own card. A people search never stops to
   // ask, so nothing answers one.
   if (shaped.data.looking_for === "people_at_companies") return proposePeopleSearch(t, shaped.data, amends);
   let row: SearchViewRow | null = null;

@@ -332,7 +332,7 @@ export async function decideSend(
 }
 
 /**
- * The owner's word on an email handed to them (00428): it went (Sent), or it did not (Skip). The door
+ * The owner's word on an email handed to them (00429): it went (Sent), or it did not (Skip). The door
  * (reach_out_send_said, checked again in SQL) records Sent whatever changed since the draft was handed, since the email
  * left their own inbox: the email, the send and the lead in one transaction, with what about its lead would refuse it
  * now (since), said beside it. Said once; a second word answers how it stands.
@@ -388,7 +388,7 @@ async function firstEmailOf(
   ]);
   if (!words) return null;
   const slots = { businessName: facts.name, yourName: p.signedBy, bookingLink: link };
-  // A company's addressee fills the person slots (00429), as the send fills them.
+  // A company's addressee fills the person slots (00430), as the send fills them.
   const leadSlots = {
     business_name: lead.lead?.business_name ?? null,
     city: lead.lead?.city ?? null,
@@ -520,7 +520,7 @@ export async function reachOutRunOf(
     first,
     mailboxes,
     owner_sends: root.owner_sends === true,
-    // Handed to its owner and not yet said to have gone (00428), oldest first: the run's To send list, never one the
+    // Handed to its owner and not yet said to have gone (00429), oldest first: the run's To send list, never one the
     // send door would refuse now (draftRefusalOf), which the clock skips on its next tick.
     drafted: rows
       .filter((s) => s.state === "drafted" && !refused.has(s.id))
@@ -547,7 +547,7 @@ export async function reachOutRunOf(
 }
 
 /**
- * The run's drafts the send door would refuse now (00428 reach_out_drafts_waiting, contracts draftRefusalOf): its lead
+ * The run's drafts the send door would refuse now (00429 reach_out_drafts_waiting, contracts draftRefusalOf): its lead
  * said no, closed, was stopped, went on the never-again list or became a customer since the draft was handed. Read on the
  * service role (the route checked the member), only for a run with drafts.
  */
@@ -557,7 +557,7 @@ async function draftsRefusedOf(tenantId: string, runId: string, rows: readonly S
   return new Set(waiting.filter((d) => draftRefusalOf(d.facts) !== null).map((d) => d.id));
 }
 
-/** A draft as it was handed over (00428 reach_out_sends.draft): its address, subject and words, or null when not whole. */
+/** A draft as it was handed over (00429 reach_out_sends.draft): its address, subject and words, or null when not whole. */
 function draftOf(v: unknown): { to: string; subject: string; text: string; follow_up: boolean } | null {
   if (!v || typeof v !== "object" || Array.isArray(v)) return null;
   const d = v as Record<string, unknown>;

@@ -41,7 +41,7 @@ export const REACH_OUT_SHEET_WORDS = {
   checkLater: "Each email is checked before it goes. The first run waits for you.",
   noMailbox:
     "Connect the mailbox you'll write from first: Google or Microsoft, here or in Settings › Connections › Email.",
-  /** From, when its owner sends it (00428): what they are handed, and how. */
+  /** From, when its owner sends it (00429): what they are handed, and how. */
   ownerSends: `Each email is handed to you written and checked, to send from your own inbox: Gmail, Outlook or your mail app. Up to ${REACH_OUT_DRAFTS_PER_DAY} a day.`,
   /** From, with no mailbox connected: the owner sends, and a mailbox would send for them. */
   ownerNoMailbox: "Or connect Google or Microsoft, and your mailbox sends them for you.",
@@ -157,7 +157,7 @@ export function paceWords(p: { share: number; mailboxes: number; rises: number |
 }
 
 /**
- * The pace of a reach-out its owner sends (00428): its day's share, handed at once as each run goes ahead. The owner is
+ * The pace of a reach-out its owner sends (00429): its day's share, handed at once as each run goes ahead. The owner is
  * the pace, so there is no gap to choose.
  */
 export function ownerPaceWords(): { line: string; why: string } {
@@ -308,7 +308,7 @@ export function leadDoorOf(leadId: string | null | undefined): string | null {
 }
 
 /**
- * Who sends a run's emails, as its approval sheet says it: its owner, each handed to them from their own inbox (00428),
+ * Who sends a run's emails, as its approval sheet says it: its owner, each handed to them from their own inbox (00429),
  * counting the ones already handed over; or its mailboxes, at their pace.
  */
 function runSenderWords(r: ReachOutRunDto, share: number) {
@@ -348,7 +348,7 @@ export function approvalWordsOf(r: ReachOutRunDto, p: { timezone: string; share:
   const passed = !earlier && !!r.first_at && Date.parse(r.first_at) <= p.now;
   const at = earlier || passed ? null : firstSendWhen(r.first_at, p.timezone, p.now);
   const total = r.today + r.later;
-  // An owner's emails already handed to them are this run's too (00428): counted with what is still to come.
+  // An owner's emails already handed to them are this run's too (00429): counted with what is still to come.
   const sender = runSenderWords(r, p.share);
   const why: Array<{ tone: "warn" | "plain" | "info"; text: string; door: string | null }> = [];
   if (r.later > 0) why.push({ tone: "plain", text: sender.later, door: null });
@@ -362,7 +362,7 @@ export function approvalWordsOf(r: ReachOutRunDto, p: { timezone: string; share:
     if (leads) words.push({ text: open, opening: true });
     if (rest.trim()) words.push({ text: rest.replace(/^\s+/, ""), opening: false });
   }
-  // An owner's run is handed to them as each is checked, at any hour (00428): their hours are theirs to keep.
+  // An owner's run is handed to them as each is checked, at any hour (00429): their hours are theirs to keep.
   const goes = r.owner_sends
     ? " · handed to you as each is checked, once you approve it"
     : earlier
@@ -417,7 +417,7 @@ const runDayWords = (runFor: string): string =>
  * from one. Each mailbox gives its day (contracts mailboxDailyCap), never more than fits in the working day at the
  * chain's gap (SEND_DAY_FRAME, nine to five in the lead's time: the timetable places no more), so the sheet, the report
  * and the approval say the number the timetable plans. Nothing to write from is a share of 0 and no address. A chain its
- * owner sends hands them its day's share, from no mailbox (00428).
+ * owner sends hands them its day's share, from no mailbox (00429).
  */
 export function chainPaceOf(c: Pick<ReachOutChainDto, "mailboxes" | "owner_sends" | "gap_minutes">): {
   from: string | null;

@@ -4,7 +4,7 @@ import "server-only";
  * chain as Playbooks reads it (chainsOf), so the strip's day's share is the number the chain's row says; a lead's story
  * is one definer read (00241 reach_out_lead_timeline), which a person's page reads too. "Stop writing to them" is the
  * acting member's door (00241 reach_out_lead_stop), and "They wrote back…" the reading door's, for an email its owner sent
- * (00428 reach_out_reply_said). Each read checks the member again in SQL; each refusal is said in contracts' words
+ * (00429 reach_out_reply_said). Each read checks the member again in SQL; each refusal is said in contracts' words
  * (reachOutRefusal).
  */
 import {
@@ -44,7 +44,7 @@ export async function leadLinesOf(ctx: RouteContext, tenantId: string, searchId:
 }
 
 /**
- * One lead's story; null when the workspace does not hold the lead. Of a reach-out its owner sends (00428): an email
+ * One lead's story; null when the workspace does not hold the lead. Of a reach-out its owner sends (00429): an email
  * handed to them names the run it waits in, where they send it (the peek's Send it), and one that left from no mailbox
  * says whether it went on their word (from their own inbox, not a mailbox before 00424). Read beside the story, which
  * never fails for it.
@@ -88,7 +88,7 @@ export async function stopLead(
 }
 
 /**
- * What the business wrote back, as its owner says it on the lead (00428): read as a person's reply through the one
+ * What the business wrote back, as its owner says it on the lead (00429): read as a person's reply through the one
  * reading door (reach_out_reply_said → reach_out_reply_apply), with the plan made here as the reply job makes it
  * (contracts readingPlan, claim owner: it tells nobody and drafts nothing). The door is the service role's, for the
  * member the route checked, so no plan reaches it but the one rule's; once per email that went, so a second word (another

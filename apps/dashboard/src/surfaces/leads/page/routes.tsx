@@ -76,7 +76,7 @@ export const leadStripActs = (a: {
   setSortBy: (by: string) => void;
   setSortDir: (dir: string) => void;
   openFinder: (card: Partial<FinderState>) => void;
-  /** Find people, filled in with a people search's plan: its strip's Find more like these (00429). */
+  /** Find people, filled in with a people search's plan: its strip's Find more like these (00430). */
   openFindPeople: (from?: LeadPeoplePlan | null) => void;
 }) => {
   const { openSearch, leadAct, searchAnswerOf, openPlanFor, goto, undoRound, setSortBy, setSortDir, openFinder } = a;
@@ -114,7 +114,7 @@ export const leadStripActs = (a: {
       setSortDir("asc");
       return undefined;
     }
-    // A people search's next step is its own sheet, filled in with its plan (00429): never a places door.
+    // A people search's next step is its own sheet, filled in with its plan (00430): never a places door.
     if (id === "people_more") {
       a.openFindPeople(s.people ?? null);
       return undefined;

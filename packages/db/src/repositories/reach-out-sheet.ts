@@ -25,7 +25,7 @@ export interface ReachOutStepRow {
   after_days: number | null;
   gap_minutes: number | null;
   mailbox_ids: string[] | null;
-  /** Its owner sends its emails (a root's, 00428). */
+  /** Its owner sends its emails (a root's, 00429). */
   owner_sends: boolean | null;
   signed_by: string | null;
   include_unconfirmed: boolean | null;
@@ -84,7 +84,7 @@ export async function reachOutSendRefOf(
   broadcast_id: string;
   state: string;
   reason: string | null;
-  /** The emails written for it: an email its owner sent takes the next one's id (core sendMessageId, 00428). */
+  /** The emails written for it: an email its owner sent takes the next one's id (core sendMessageId, 00429). */
   attempts: number;
 } | null> {
   const { data, error } = await db
@@ -246,10 +246,10 @@ export interface ReachOutRunSend {
   checked_at: string | null;
   created_at: string;
   mailbox_id: string | null;
-  /** An email handed to its owner (00428): what they send, and when it was handed to them. */
+  /** An email handed to its owner (00429): what they send, and when it was handed to them. */
   draft: Json | null;
   drafted_at: string | null;
-  /** Its lead, and for a company its people (00429), which the first email's person slots read. */
+  /** Its lead, and for a company its people (00430), which the first email's person slots read. */
   lead: {
     business_name: string | null;
     email: string | null;
@@ -429,7 +429,7 @@ export async function markHeldNotice(
 /**
  * How many of each of a workspace's runs' emails wait on its owner, read in one: held, those the check holds for their
  * owner's say, which Sent's row, the bell's held notice and Campaigns' chain row say (the wiring's second audit,
- * W-campaign-run-template-reachout-4); drafted, those handed to their owner to send from their inbox (00428), which wait
+ * W-campaign-run-template-reachout-4); drafted, those handed to their owner to send from their inbox (00429), which wait
  * on them as the held do. A run with neither is absent. One read of the two states' rows (reach_out_sends_run, on
  * broadcast_id and state), never a count per run. Throws when it cannot read.
  */

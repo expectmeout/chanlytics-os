@@ -421,7 +421,7 @@ function sourceLines(dto: ReachOutReportDto, nowMs: number): ReachOutLensSourceL
 
 /**
  * A mailbox's state as the card says it: connected, held since a day and why, or not sending; the emails their owner sent
- * from their own inbox (00428) are theirs.
+ * from their own inbox (00429) are theirs.
  */
 function mailboxStateWords(d: ReachOutReportMailboxDto, nowMs: number, tz: string): string {
   if (d.yours) return "You send these";
@@ -447,7 +447,7 @@ function mailboxCell(n: number, sent: number, share: (n: number, of: number) => 
 function mailboxRows(dto: ReachOutReportDto, nowMs: number): ReachOutMailboxRow[] {
   return dto.mailboxes.map((d) =>
     d.yours
-      ? // Sent from their own inbox (00428): a bounce or a complaint reaches them, never us, so no share is said.
+      ? // Sent from their own inbox (00429): a bounce or a complaint reaches them, never us, so no share is said.
         {
           id: "your-inbox",
           address: "Your own inbox",

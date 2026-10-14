@@ -394,7 +394,7 @@ const searchedAlready = (idea: LeadIdeaDto, searches: LeadSearchDto[]): boolean 
   const plan = idea.plan;
   if (!plan) return false;
   const place = plan.area.label.toLowerCase();
-  // A list brought in has a plan with no area (00242): it is no place searched; a people search (00429) has no places plan.
+  // A list brought in has a plan with no area (00242): it is no place searched; a people search (00430) has no places plan.
   return searches.some(
     (s) =>
       !!s.plan &&
@@ -530,7 +530,7 @@ export const leadsFootProps = (p: LeadsPage) => {
     // work, so its rail and its table stand: the first day drew over them (7 Oct 2026).
     firstDay: leads.searches.length === 0 && leads.counts.all === 0 && !leads.readFailed,
     onImport: p.lists.openImport,
-    // Only while the people card finds leads (00429 lead_card_live), and never handed the press as a plan.
+    // Only while the people card finds leads (00430 lead_card_live), and never handed the press as a plan.
     onFindPeople: p.lists.peopleLive ? () => p.lists.openFindPeople(null) : undefined,
     lineOpen: !!leadLine,
     lineDraft: leadLine ? leadLine.draft : "",

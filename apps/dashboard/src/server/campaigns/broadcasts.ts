@@ -425,7 +425,7 @@ export async function listBroadcasts(
 
 /**
  * A going reach-out run says how many of its emails the check holds for its owner's say (`held`), and how many are handed
- * to its owner to send from their inbox (`drafted`, 00428): the run's row, Today's (contracts runWaitsOnYou), the bell's
+ * to its owner to send from their inbox (`drafted`, 00429): the run's row, Today's (contracts runWaitsOnYou), the bell's
  * held notice (contracts notice-closes.ts, which reads it as read once none is held) and Campaigns' chain row read them.
  * Counts that cannot be read leave both absent, logged, and the rows stand (the wiring's second audit,
  * W-campaign-run-template-reachout-4).

@@ -125,7 +125,7 @@ export const ReachOutLeadsStrip = ({ leads }: { leads: ReachOutLines | null }) =
 
 type TimelineVM = ReturnType<typeof reachOuts.timelineOf>;
 
-/** An owner's doors on the peek (00428): Send it, to the run where a draft waits, and They wrote back…, which asks. */
+/** An owner's doors on the peek (00429): Send it, to the run where a draft waits, and They wrote back…, which asks. */
 const RoOwnerDoors = ({
   vm,
   busy,
@@ -193,7 +193,7 @@ const RoStory = ({ vm, standing }: { vm: TimelineVM; standing: string | null }) 
 
 /**
  * The peek's block (H9): a lead's story with the reach-out, and its doors. Nothing when no reach-out planned it. For a
- * reach-out its owner sends (00428): Send it, to the run where an email handed to them waits, and They wrote back…, what
+ * reach-out its owner sends (00429): Send it, to the run where an email handed to them waits, and They wrote back…, what
  * the business answered in their own inbox, said as one of five words and read as a reply is (its undo the same).
  */
 export const LeadReachOut = ({ lead, flash }: { lead: LeadPeekVM | null; flash: Flash | null }) => {

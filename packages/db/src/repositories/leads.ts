@@ -26,7 +26,7 @@ export type LeadOneLead = Omit<
   | "reach_out_stopped_at"
   | "stage_at"
   | "stage_from"
-  // A company's key is the finder's to dedupe by (00429); the page reads what the lead is and its people.
+  // A company's key is the finder's to dedupe by (00430); the page reads what the lead is and its people.
   | "source_key"
 >;
 
@@ -198,7 +198,7 @@ export async function ideasBasis(db: Db, tenantId: string): Promise<string | nul
 }
 
 /**
- * The cards that find leads now (00429 lead_cards_live: lead_platform.cards_on): the Maps card, and the people card once
+ * The cards that find leads now (00430 lead_cards_live: lead_platform.cards_on): the Maps card, and the people card once
  * its calibration run proved it. What the Leads page offers and Ask proposes; the door refuses the rest itself.
  */
 export async function leadCardsLive(db: Db): Promise<string[]> {
@@ -208,7 +208,7 @@ export async function leadCardsLive(db: Db): Promise<string[]> {
 }
 
 /**
- * A people search (00429 lead_people_search_create), as the member signed in: the plan, where it was made, the estimate
+ * A people search (00430 lead_people_search_create), as the member signed in: the plan, where it was made, the estimate
  * the route worked out and the Ask thread it was planned in. The door's own refusals ({error, sentence}) come back as
  * its answer; a thrown one is a request it refused outright.
  */
@@ -227,13 +227,13 @@ export async function leadPeopleSearchCreate(
   return (data ?? {}) as { search_id?: string; round_id?: string; error?: string; sentence?: string };
 }
 
-/** What the addressee door answers (00429 lead_addressee_choose): the choice made, or the door's refusal by its code. */
+/** What the addressee door answers (00430 lead_addressee_choose): the choice made, or the door's refusal by its code. */
 type LeadAddresseeAnswer =
   | { ok: true; addressee: number; email_state: string; version: number }
   | { ok?: undefined; error: string; sentence?: string };
 
 /**
- * The owner's choice of who a company lead's reach-out writes to (00429 lead_addressee_choose), as the member signed in:
+ * The owner's choice of who a company lead's reach-out writes to (00430 lead_addressee_choose), as the member signed in:
  * the index of one of the people its source named. The door's own refusals ({error}, and a spend's {error, sentence})
  * come back as its answer; a thrown one is a request it refused outright (not signed in, not this member's lead).
  */
@@ -247,7 +247,7 @@ export async function leadAddresseeChoose(
 }
 
 /**
- * A people run's page of companies (00429 lead_company_upsert), service role: a lead for each new company, waiting in
+ * A people run's page of companies (00430 lead_company_upsert), service role: a lead for each new company, waiting in
  * Needs review on its address, and the people a company already held gains. Idempotent.
  */
 export async function leadCompanyUpsert(

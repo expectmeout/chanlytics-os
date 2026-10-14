@@ -12,7 +12,7 @@
  * 2026 a new message written for the Library (message) and 11 Oct 2026 an offer or a whole setup made into its cards
  * (plan), and 11 Oct 2026 gave a list's rule a missed visit (missed_visit, decision 0002); 13 Oct 2026 the connections action
  * names the mailboxes a business connected in place of its sending domains (decision 0056), and propose_lead_search
- * proposes named people at companies too (the people card, 00429). What the model is sent is frozen per role in
+ * proposes named people at companies too (the people card, 00430). What the model is sent is frozen per role in
  * fixtures/ask-tools-4-7.json, and every other tool reads to every role as fixtures/ask-tools-4-6.json froze it (which
  * PR 4.6 and PR 4.5 held to fixtures/ask-tools-4-3.json, and PR 4.3 to PR 3.4's, for the tools each did not change --
  * inbox too, less its search); the rest is held as structure: the order, the four prefixes, the flattened
@@ -76,7 +76,7 @@ const CHANNELS = { type: "array", items: { type: "string", enum: ["whatsapp", "s
  * and the moment's starter to file at Approve (`starter`, 12 Oct 2026: the day after's review ask, named by its key).
  */
 /**
- * 13 Oct 2026 (the people card, 00429): the lead search proposes named people at companies too. Its places fields are
+ * 13 Oct 2026 (the people card, 00430): the lead search proposes named people at companies too. Its places fields are
  * optional (a people ask names none of them; the places schema still refuses a places ask without them), it takes how
  * senior, the industries and the sizes, and looking_for names the people card. Less those, its fields are the 3.1 tool's.
  */
@@ -141,7 +141,7 @@ const CHANGED = [
   "people",
   "propose_autonomy",
   "propose_campaign",
-  // 13 Oct 2026: named people at companies too (the people card, 00429): its own sentence, and its fields (asPlacesThen).
+  // 13 Oct 2026: named people at companies too (the people card, 00430): its own sentence, and its fields (asPlacesThen).
   "propose_lead_search",
   "propose_list",
   "propose_settings",

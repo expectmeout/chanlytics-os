@@ -1,5 +1,5 @@
 /**
- * The doors into a mail client for an email its owner sends from their own inbox (00428; the 4 Oct spec, §4.3): their
+ * The doors into a mail client for an email its owner sends from their own inbox (00429; the 4 Oct spec, §4.3): their
  * mail app (mailto:), Gmail's compose and Outlook's, each carrying the address, the subject and the words. Gmail cuts a
  * compose link at about 4,096 characters of the whole link, so when the longest of the three would pass COMPOSE_URL_MAX
  * all three carry the address and the subject alone (`bodyInLinks` false), and the page copies the words to the

@@ -133,7 +133,7 @@ export interface LeadRowVM {
   /* ---- D5: the row as the redesign reads it ---- */
   /**
    * "Book store · Hawthorne · 97214 · 1.2 mi": whatever the source gave, in that order; "" when it gave none. A company's
-   * starts with the person its reach-out writes to (00429).
+   * starts with the person its reach-out writes to (00430).
    */
   sub: string;
   /** The two reach slots, phone then mailbox. */
@@ -357,7 +357,7 @@ export function leadRowOf(r: LeadRowDto, tz: string, now: Date, search: LeadSear
 
 /**
  * The row's line about where: "Book store · Hawthorne · 97214 · 1.2 mi", whatever the source gave, in that order. A
- * company's (00429) leads with the person its reach-out writes to: "Dana Reyes, Owner · Marketing & Advertising".
+ * company's (00430) leads with the person its reach-out writes to: "Dana Reyes, Owner · Marketing & Advertising".
  */
 function subLineOf(r: LeadRowDto, distanceM: number | null): string {
   const who = leadAddresseeOf(r);
@@ -376,7 +376,7 @@ function subLineOf(r: LeadRowDto, distanceM: number | null): string {
 const roundIsLive = (state: string): boolean => state !== "ended" && state !== "waiting_on_owner";
 
 /**
- * Where a row's lead was found. A company the people card found (00429) came from a business directory; a lead a list
+ * Where a row's lead was found. A company the people card found (00430) came from a business directory; a lead a list
  * of the owner's own brought (00242) has no place: found on no listing.
  */
 function foundLine(r: Pick<LeadRowDto, "place_id" | "rank" | "kind">, term: string | null): string {
@@ -401,7 +401,7 @@ export function leadRail(
     undoable: boolean;
     /** A list of the owner's own (00242): its menu offers nothing that searches again. */
     list: boolean;
-    /** A people search (00429): its menu's way back is Find people, filled in, never the places card. */
+    /** A people search (00430): its menu's way back is Find people, filled in, never the places card. */
     people: boolean;
   }[];
 } {

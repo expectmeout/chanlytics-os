@@ -7,11 +7,11 @@
 /** Why a business the finder found is hearing from this one: the first line of the foot. */
 export const WHY_FROM_MAPS = "I found your business on Google Maps.";
 
-/** Why a company the people card found is hearing from this one (00429): a directory of companies and their people. */
+/** Why a company the people card found is hearing from this one (00430): a directory of companies and their people. */
 const WHY_FROM_DIRECTORY = "I found your company in a business directory.";
 
 /**
- * Why they are hearing from you, from where the finder found them (a lead's source, 00429: the Maps card's, the people
+ * Why they are hearing from you, from where the finder found them (a lead's source, 00430: the Maps card's, the people
  * card's, or a file of the owner's own): never a place the business was not found.
  */
 export function whyFrom(source: string | null | undefined): string {

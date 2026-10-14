@@ -9316,7 +9316,7 @@ var REACH_OUT_SLOTS = [
   "your name",
   "your business",
   "booking link",
-  // A company's addressee (00429), after the six: a slot's place is its number in a stored version ({{2}} is business),
+  // A company's addressee (00430), after the six: a slot's place is its number in a stored version ({{2}} is business),
   // so a slot is only ever added at the end.
   "first name",
   "company",
@@ -11158,8 +11158,8 @@ var LEAD_CARDS = [
     approved: true
   },
   {
-    // The people card (the workbench's call 8, 00429), approved by Ruben on 13 Oct 2026 with its source-rights note. It
-    // finds nothing until its calibration run: lead_platform.cards_on (00429 lead_card_live) is switched on by hand once
+    // The people card (the workbench's call 8, 00430), approved by Ruben on 13 Oct 2026 with its source-rights note. It
+    // finds nothing until its calibration run: lead_platform.cards_on (00430 lead_card_live) is switched on by hand once
     // that run proves the provider reads its filters and the mapper its fields (calibrated, below).
     id: "people_at_companies",
     finds: "people",
@@ -16125,7 +16125,7 @@ var EVENT_KINDS = [
   "lead.later",
   /**
    * Who a company lead's reach-out writes to, chosen by its owner ({ person, checking, by }: the index of one of the people
-   * its source named, and whether their address is being checked first), on the lead (00429 lead_addressee_choose).
+   * its source named, and whether their address is being checked first), on the lead (00430 lead_addressee_choose).
    */
   "lead.addressee_chosen",
   /** A search renamed ({ name, by }) or removed ({ kept, archived, by }), on the search. */
@@ -19036,7 +19036,7 @@ var LEAD_FIRST_DAY = {
   linePlaceholder: "What you sell, and who buys it",
   haveList: "Have a list already?",
   importIt: "Import it",
-  /** The people card's door (00429), on a desk's first day and a phone's New search, where no rail is drawn. */
+  /** The people card's door (00430), on a desk's first day and a phone's New search, where no rail is drawn. */
   wantPeople: "Looking for people at companies?",
   findPeople: "Find people"
 };
@@ -25619,7 +25619,7 @@ var REACH_OUT_SHEET_WORDS = {
   repliesHint: "into your Inbox",
   checkLater: "Each email is checked before it goes. The first run waits for you.",
   noMailbox: "Connect the mailbox you'll write from first: Google or Microsoft, here or in Settings \u203A Connections \u203A Email.",
-  /** From, when its owner sends it (00428): what they are handed, and how. */
+  /** From, when its owner sends it (00429): what they are handed, and how. */
   ownerSends: `Each email is handed to you written and checked, to send from your own inbox: Gmail, Outlook or your mail app. Up to ${REACH_OUT_DRAFTS_PER_DAY} a day.`,
   /** From, with no mailbox connected: the owner sends, and a mailbox would send for them. */
   ownerNoMailbox: "Or connect Google or Microsoft, and your mailbox sends them for you.",
@@ -26039,7 +26039,7 @@ function skippedReasonWords(reason) {
       return "the mailbox their emails came from was removed";
     case "outreach_country":
       return "are where a cold email may not go without their say";
-    // The person door's refusals when its owner said an email went (00428 reach_out_send_said).
+    // The person door's refusals when its owner said an email went (00429 reach_out_send_said).
     case "lead_closed":
       return "had closed before it went";
     case "already_yours":
@@ -26083,7 +26083,7 @@ function reachOutRunWordsOf(r2, p) {
         name: x.business_name,
         // Its lead, where the name opens it (leadDoorOf).
         to: leadDoorOf(x.lead_id),
-        // An owner's email is handed to them once checked, at any hour (00428), never re-timed to the lead's.
+        // An owner's email is handed to them once checked, at any hour (00429), never re-timed to the lead's.
         at: owner ? HANDED : retimed ? RETIMED : clockWhen(ms2, p.timezone, p.now)
       };
     }),
@@ -33714,7 +33714,7 @@ var planChip = (max) => z13.string().trim().min(2).max(max);
 var ProposeLeadSearchSchema = z13.object({
   /**
    * What is asked for: local businesses (the Maps card), or people at home, online sellers and anything else, which are
-   * answered in words. Named people at companies are ProposePeopleSearchSchema's (00429).
+   * answered in words. Named people at companies are ProposePeopleSearchSchema's (00430).
    */
   looking_for: z13.enum(["local_businesses", "people", "online_sellers", "other"]),
   country: z13.string().trim().min(2).max(40),
@@ -41319,7 +41319,7 @@ var ReachOutChainSchema = z19.object({
   }),
   /** Empty: every connected mailbox of the workspace (00424). */
   mailbox_ids: z19.array(z19.string().uuid()).max(REACH_OUT_MAILBOXES_MAX),
-  /** Its owner sends its emails from their own inbox, each handed to them written and checked (00428). */
+  /** Its owner sends its emails from their own inbox, each handed to them written and checked (00429). */
   owner_sends: z19.boolean().default(false),
   signed_by: z19.string().trim().max(SIGNED_BY_MAX).nullable(),
   steps: z19.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
@@ -41552,7 +41552,7 @@ var REACH_OUT_SHEET_PARTS = {
   dayOne: "Day one \xB7 the pace below",
   remove: "Remove this step",
   everyMailbox: "Every connected mailbox",
-  /** From's choice for a reach-out its owner sends (00428). */
+  /** From's choice for a reach-out its owner sends (00429). */
   youSend: "You send them, from your own inbox",
   mailboxesMax: `Up to ${REACH_OUT_MAILBOXES_MAX} mailboxes, or every connected one.`,
   connectGoogle: "Connect Google",
@@ -43409,7 +43409,7 @@ function mailboxCell(n, sent2, share2) {
 function mailboxRows(dto, nowMs) {
   return dto.mailboxes.map(
     (d) => d.yours ? (
-      // Sent from their own inbox (00428): a bounce or a complaint reaches them, never us, so no share is said.
+      // Sent from their own inbox (00429): a bounce or a complaint reaches them, never us, so no share is said.
       {
         id: "your-inbox",
         address: "Your own inbox",
@@ -49393,7 +49393,7 @@ var ROUTE_VERBS = [
   [/^campaigns/, "Open Campaigns"],
   // A row about one run opens that run (a playbook's waiting or about to go, a reach-out's held sends), and says so.
   [/^broadcasts\/run:/, "Open the run"],
-  // Every email handed to its owner, from each reach-out they send themselves (00428): one list.
+  // Every email handed to its owner, from each reach-out they send themselves (00429): one list.
   [/^broadcasts\/to-send$/, "Open To send"],
   [/^broadcasts/, "Open Sent"],
   // The route is still `messages`; the page is the Library (a room of Campaigns), and the door says the page's name.

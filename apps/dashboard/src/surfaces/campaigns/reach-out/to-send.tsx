@@ -1,5 +1,5 @@
 /**
- * Broadcasts: the To send list of a reach-out its owner sends (00428), in its run's block (approval.tsx). Each email
+ * Broadcasts: the To send list of a reach-out its owner sends (00429), in its run's block (approval.tsx). Each email
  * handed to them, oldest first: its business (its lead's door), its subject, its address and when it was handed over;
  * its doors into a mail client (Gmail, Outlook, their mail app), Copy, and its words to read; then the owner's word on
  * it, Sent or Skip. Opening or copying one asks "Did it go?" at its Sent, as the lead's own draft asks; a link too long

@@ -55,7 +55,7 @@ const SENT_OWN_WORDS: ReadonlySet<string> = new Set(["get-yes", "to-send"]);
  *
  * Sent has one way to write, the home's New message (`campaigns/new`), so `broadcasts/<audience>`, which People and a list
  * write when they ask to message these people, is a door to it: `campaigns/new:to:<audience>`. A run (`broadcasts/run:<id>`),
- * Get their yes (`broadcasts/get-yes`), the one To send (`broadcasts/to-send`, 00428) and the room itself stay where they are.
+ * Get their yes (`broadcasts/get-yes`), the one To send (`broadcasts/to-send`, 00429) and the room itself stay where they are.
  */
 export function doorOf(route: string): string | null {
   const head = headOf(route);

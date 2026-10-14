@@ -337,7 +337,7 @@
     },
     {
       "kind": "unfed",
-      "why": "Which cards find leads now (lead_cards_live over lead_platform, 00429): the platform's one switch row, for every workspace, switched by hand once a card's calibration run has proved it, which no workspace's topic carries. It is read with the searches each time Leads and Today read them (GET lead-searches), so a card switched on is offered at the next read, and nothing a member does changes it.",
+      "why": "Which cards find leads now (lead_cards_live over lead_platform, 00430): the platform's one switch row, for every workspace, switched by hand once a card's calibration run has proved it, which no workspace's topic carries. It is read with the searches each time Leads and Today read them (GET lead-searches), so a card switched on is offered at the next read, and nothing a member does changes it.",
       "reads": {
         "leads": [
           "lead_platform"

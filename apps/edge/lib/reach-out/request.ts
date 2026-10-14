@@ -9,10 +9,10 @@
  *
  * The slots (Part 4) are filled with their real values: the lead's name and city, the workspace's name, the name the
  * chain signs with, the workspace's booking link, the opening the check wrote for this send, and for a company the
- * person it writes to (00429: their first name, title and role, each with its fallback). The foot's first line says
+ * person it writes to (00430: their first name, title and role, each with its fallback). The foot's first line says
  * where the lead was found (whyFrom, from its source).
  *
- * A reach-out its owner sends (00428) is handed to them instead (reachOutDraft): the same words, the same foot with its
+ * A reach-out its owner sends (00429) is handed to them instead (reachOutDraft): the same words, the same foot with its
  * way out in words and no link (their own client carries no List-Unsubscribe header), a nudge under "Re:" the email
  * before, as plain text they open or paste.
  */
@@ -112,7 +112,7 @@ export function checkedWordsOf(
     .digest("hex");
 }
 
-/** What a reach-out its owner sends hands them for one lead (00428). */
+/** What a reach-out its owner sends hands them for one lead (00429). */
 interface DraftInput {
   words: { subject: string | null; body: string };
   lead: SlotLead;
@@ -126,7 +126,7 @@ interface DraftInput {
 const reOf = (subject: string): string => (/^re:/i.test(subject.trim()) ? subject.trim() : `Re: ${subject.trim()}`);
 
 /**
- * The email a reach-out its owner sends hands them (00428): the step's words with this lead's values in (reachOutWords,
+ * The email a reach-out its owner sends hands them (00429): the step's words with this lead's values in (reachOutWords,
  * the one fill), under "Re:" the email before for a step after the first, and the cold foot with its way out in words.
  * `text` is the whole email as the owner sends it: its words, a blank line, its foot. Refused as reachOutRequest refuses.
  */
@@ -165,7 +165,7 @@ export function reachOutRequest(
     messageId: i.messageId,
   });
   const url = unsubscribeUrl(i.unsubscribe.origin, token);
-  // Where the finder found the lead (its source, 00429): the map, a business directory, or a file of the owner's own.
+  // Where the finder found the lead (its source, 00430): the map, a business directory, or a file of the owner's own.
   const foot = { kind: "cold" as const, why: whyFrom(i.lead.source ?? "local_businesses"), unsubscribeUrl: url };
   let request: EmailRequest;
   try {

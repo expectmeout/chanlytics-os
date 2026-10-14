@@ -314,7 +314,7 @@ export interface SendStanding {
   root: string | null;
   /** The name the chain signs with ({{your name}}): the root's. */
   signedBy: string | null;
-  /** Its owner sends its emails, each handed to them as a draft (the root's owner_sends, 00428). */
+  /** Its owner sends its emails, each handed to them as a draft (the root's owner_sends, 00429). */
   ownerSends: boolean;
 }
 
@@ -380,10 +380,10 @@ export async function leadSlotsOf(
 ): Promise<{
   business_name: string | null;
   city: string | null;
-  /** The finder's checked address, and its check (00428: a draft its owner sends goes to it). */
+  /** The finder's checked address, and its check (00429: a draft its owner sends goes to it). */
   email: string | null;
   email_state: string | null;
-  /** A place or a company, where it was found, and a company's people (00429): the person slots and the foot read them. */
+  /** A place or a company, where it was found, and a company's people (00430): the person slots and the foot read them. */
   kind: string;
   source: string;
   facts: Json;
@@ -426,7 +426,7 @@ export async function sendNow(
 }
 
 /**
- * A run whose emails were handed to its owner, or taken back from them (00428): scheduled becomes sending, and its row is
+ * A run whose emails were handed to its owner, or taken back from them (00429): scheduled becomes sending, and its row is
  * touched either way, since a page hears a run by its row (the feed tells of broadcasts, never of their sends), so
  * Today's, the brief's and Ask's count of the emails waiting reads again.
  */
@@ -459,7 +459,7 @@ export interface ParentEmail {
   /** The chain it carried, oldest first. */
   references: string[];
   subject: string | null;
-  /** Sent by its owner from their own inbox, on their word (00428): the thread is theirs, so the next email is too. */
+  /** Sent by its owner from their own inbox, on their word (00429): the thread is theirs, so the next email is too. */
   ownerSent: boolean;
 }
 
@@ -554,7 +554,7 @@ export async function leadWritten(
     .eq("id", p.leadId)
     .maybeSingle();
   if (error) throw new Error(`cannot read the lead a send wrote to: ${error.message}`);
-  // A lead blanked or erased since keeps nothing of what was written to it, as the owner's Sent writes it (00428).
+  // A lead blanked or erased since keeps nothing of what was written to it, as the owner's Sent writes it (00429).
   if (!lead || lead.blanked_at || lead.erased_at) return false;
   const { data: moved, error: e2 } = await db
     .from("leads")

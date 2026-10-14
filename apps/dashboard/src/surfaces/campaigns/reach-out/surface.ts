@@ -250,10 +250,10 @@ export const reachOuts = {
   /** An owner's answer to one held email (R18). */
   decide: (sendId: string, decision: ReachOutDecision) =>
     api()("POST reach-out-sends/[id]/decide", { params: { id: sendId }, body: { decision } }),
-  /** The owner's word on an email handed to them (00428): it went from their inbox, or it did not. */
+  /** The owner's word on an email handed to them (00429): it went from their inbox, or it did not. */
   say: (sendId: string, outcome: ReachOutSaidOutcome) =>
     api()("POST reach-out-sends/[id]/said", { params: { id: sendId }, body: { outcome } }),
-  /** What the business wrote back to an email its owner sent, as the owner says it on the lead (00428). */
+  /** What the business wrote back to an email its owner sent, as the owner says it on the lead (00429). */
   sayReply: (leadId: string, body: ReachOutReplySaidInput) =>
     api()("POST reach-outs/leads/[id]/said", { params: { id: leadId }, body, once: true }),
   /** What the owner's word did, by the business's clock: a not now names the day the lead comes back. */
@@ -276,10 +276,10 @@ export const reachOuts = {
       now,
     });
   },
-  /** A run's emails handed to its owner, with their doors (00428): null where none waits, or the run is not a reach-out's. */
+  /** A run's emails handed to its owner, with their doors (00429): null where none waits, or the run is not a reach-out's. */
   toSend: (d: BroadcastDetailDto) =>
     d.reach_out ? toSendWordsOf(d.reach_out, { timezone: businessZone(), now: Date.now() }) : null,
-  /** What the owner's word on one did, in a sentence (00428). */
+  /** What the owner's word on one did, in a sentence (00429). */
   saidWords: toSendSaidWords,
   /** Whether a live run still moves under its block, so it is read again (the check, or drafts to come). */
   moving: reachOutRunMoving,

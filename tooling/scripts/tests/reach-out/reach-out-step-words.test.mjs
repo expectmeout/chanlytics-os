@@ -40,7 +40,7 @@ const BODY =
   "{{opening}}\n\nI run Harbor Moving: we answer your phone while you're on a job.\n\nFifteen minutes this week: {{booking link}}\n\n{{your name}}";
 
 test("the six slots, named in any case and spacing, and a brace without its pair", () => {
-  // The six, then a company's addressee's four after them (00429): a slot's place is its number in a stored version.
+  // The six, then a company's addressee's four after them (00430): a slot's place is its number in a stored version.
   assert.deepEqual(
     [...REACH_OUT_SLOTS],
     [

@@ -1,7 +1,7 @@
 /**
  * lead_round_start: a run row per term, made by its deterministic id, claimed (claim.ts), and only then started at
  * the provider. A round whose answer changed the plan re-judges its probe first (rejudge.ts). A people plan's round
- * (00429) starts its one run in people.ts.
+ * (00430) starts its one run in people.ts.
  */
 
 import { APIFY_RUN_END_EVENTS } from "@chanlytics/channels";
@@ -86,7 +86,7 @@ export async function startRound(p: LeadPorts, roundId: string, owner: string, r
     await p.db.roundEnd(round.id, "budget_used");
     return { kind: "spent" };
   }
-  // A people search (00429): one run for its filters, no probe and no terms.
+  // A people search (00430): one run for its filters, no probe and no terms.
   const people = peoplePlanOf(round.plan);
   if (people) return startPeople(p, round, people, owner, leftUsd);
   const plan = round.plan;

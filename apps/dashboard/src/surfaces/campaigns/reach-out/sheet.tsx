@@ -158,7 +158,7 @@ function sheetFacts(W: Words, draft: ReachOutDraft, settings: SettingsRecord | n
   const reads = roReads(settings);
   const unread = W.reachOutSheetUnreadOf(reads);
   const pace = W.reachOutSheetPaceOf(mailboxes, draft.mailbox_ids);
-  // With no mailbox connected its owner sends it (00428): the one way it can go, so Start needs no mailbox then.
+  // With no mailbox connected its owner sends it (00429): the one way it can go, so Start needs no mailbox then.
   const ownerSends = draft.owner_sends || (reads.mailboxes === "in" && mailboxes.length === 0);
   // An unread link is not a missing one: its problem is not said until Settings is in, and Start waits for it.
   const issues = W.reachOutDraftIssues(draft, { bookingLink: reads.settings !== "in" || roBookingLink(settings) });

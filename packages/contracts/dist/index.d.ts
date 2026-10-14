@@ -8299,7 +8299,7 @@ declare const ReachOutDecideSchema: z$1.ZodObject<{
         skip: "skip";
     }>;
 }, z$1.core.$strip>;
-/** POST reach-out-sends/:id/said (00428): the owner's word on an email handed to them, that it went or did not. */
+/** POST reach-out-sends/:id/said (00429): the owner's word on an email handed to them, that it went or did not. */
 declare const ReachOutSaidSchema: z$1.ZodObject<{
     outcome: z$1.ZodEnum<{
         sent: "sent";
@@ -8307,7 +8307,7 @@ declare const ReachOutSaidSchema: z$1.ZodObject<{
     }>;
 }, z$1.core.$strip>;
 /**
- * POST reach-outs/leads/:id/said (00428): what the business wrote back to an email its owner sent, as the owner says it:
+ * POST reach-outs/leads/:id/said (00429): what the business wrote back to an email its owner sent, as the owner says it:
  * the intent, the day they named for not now, and who to write to instead for a wrong person.
  */
 declare const ReachOutReplySaidSchema: z$1.ZodObject<{
@@ -8555,7 +8555,7 @@ interface ReachOutLeadLineDto {
     held: boolean;
     /** A hand step gave it to the team. */
     handed: boolean;
-    /** How many of its emails wait, handed to their owner, to be sent from their inbox (00428; absent before it). */
+    /** How many of its emails wait, handed to their owner, to be sent from their inbox (00429; absent before it). */
     drafted?: number;
     bounced: boolean;
     bounced_at: string | null;
@@ -8591,7 +8591,7 @@ interface ReachOutSearchLinesDto {
         from?: string | null;
     } | null;
     held: number;
-    /** How many of its emails wait to be sent from their owner's inbox (00428; absent before it). */
+    /** How many of its emails wait to be sent from their owner's inbox (00429; absent before it). */
     to_send?: number;
     waiting_run_id: string | null;
     leads: ReachOutLeadLineDto[];
@@ -8615,9 +8615,9 @@ interface ReachOutTimelineSendDto {
     bounced: boolean;
     /** The email left: sent, or failed by a receipt after it left (00179 email_left). */
     left: boolean;
-    /** The run a drafted email waits in, where its owner sends it (00428: the server reads it for a drafted send). */
+    /** The run a drafted email waits in, where its owner sends it (00429: the server reads it for a drafted send). */
     run_id?: string | null;
-    /** It left from its owner's own inbox, on their word (00428 said_at; the server reads it for one from no mailbox). */
+    /** It left from its owner's own inbox, on their word (00429 said_at; the server reads it for one from no mailbox). */
     said?: boolean;
 }
 /** One reading of a lead's reply (00241 reach_out_lead_timeline). */
@@ -8671,7 +8671,7 @@ interface ReachOutLeadTimelineDto {
     stopped_at: string | null;
     /** Found on a listing (the finder's); false for a lead a list of the owner's own brought (00242). Absent before it. */
     found_on_listing?: boolean;
-    /** What the lead is and where it came from (00429): a company the people card found was on no listing, nor a list. */
+    /** What the lead is and where it came from (00430): a company the people card found was on no listing, nor a list. */
     kind?: string;
     source?: string;
     /** When it was put on its reach-out's list, while nothing has been written to it (00426). */
@@ -8750,12 +8750,12 @@ interface ReachOutTimelineVM {
         messageId: string;
         done: string;
     } | null;
-    /** A drafted email's run, where its owner sends it (00428). */
+    /** A drafted email's run, where its owner sends it (00429). */
     send: {
         label: string;
         to: string;
     } | null;
-    /** They wrote back…: an email its owner sent is answered in their own inbox, so they say what came back (00428). */
+    /** They wrote back…: an email its owner sent is answered in their own inbox, so they say what came back (00429). */
     said: {
         label: string;
     } | null;
@@ -8962,7 +8962,7 @@ interface ReachOutChainDto {
     include_unconfirmed: boolean;
     gap_minutes: number;
     mailbox_ids: string[];
-    /** Its owner sends its emails, each handed to them as a draft (00428); absent from a server before it. */
+    /** Its owner sends its emails, each handed to them as a draft (00429); absent from a server before it. */
     owner_sends?: boolean;
     signed_by: string | null;
     steps: ReachOutStepDto[];
@@ -9123,15 +9123,15 @@ interface ReachOutRunDto {
     } | null;
     /** The mailboxes its sends go from, each with what its day is made of (R22). */
     mailboxes: ReachOutMailboxFacts[];
-    /** Its chain's owner sends its emails (00428); absent from a server before it. */
+    /** Its chain's owner sends its emails (00429); absent from a server before it. */
     owner_sends?: boolean;
     /**
-     * The emails handed to its owner and not yet said to have gone (00428), oldest first, each with the words as the
+     * The emails handed to its owner and not yet said to have gone (00429), oldest first, each with the words as the
      * owner sends them; absent from a server before it.
      */
     drafted?: ReachOutDraftedSend[];
 }
-/** One email handed to its owner (00428 reach_out_sends.draft): to whom, its subject, and its words with their foot. */
+/** One email handed to its owner (00429 reach_out_sends.draft): to whom, its subject, and its words with their foot. */
 interface ReachOutDraftedSend {
     send_id: string;
     lead_id: string;
@@ -9145,7 +9145,7 @@ interface ReachOutDraftedSend {
     /** A step after the first: it answers an email the business may have answered in the owner's own inbox. */
     follow_up?: boolean;
 }
-/** The owner's word on a drafted email (00428): it went, or it did not. */
+/** The owner's word on a drafted email (00429): it went, or it did not. */
 declare const REACH_OUT_SAID_OUTCOMES: readonly ["sent", "not_sent"];
 type ReachOutSaidOutcome = (typeof REACH_OUT_SAID_OUTCOMES)[number];
 /** What the door answered: whether it was the first word on it, and how the email stands now. */
@@ -9155,7 +9155,7 @@ interface ReachOutSaidDto {
     state: string;
     reason: string | null;
     /**
-     * Sent, what about its lead would refuse it now (00428 reach_out_send_said: lead_gone, erased, lead_closed,
+     * Sent, what about its lead would refuse it now (00429 reach_out_send_said: lead_gone, erased, lead_closed,
      * outreach_suppressed, outreach_stopped, already_yours, no_address): the email went from the owner's inbox all the
      * same, and is recorded; this is said beside it. Null when nothing would.
      */
@@ -11228,7 +11228,7 @@ declare function peopleSheetProblems(t: {
 }): Partial<Record<"titles" | "industries" | "states" | "count", string>>;
 /** What a list typed with commas holds: each part trimmed, once, at most `max` of them. */
 declare function listTyped(text: string, max: number): string[];
-/** The words of Leads' Find people sheet (the people card, 00429). */
+/** The words of Leads' Find people sheet (the people card, 00430). */
 declare const PEOPLE_FIND_WORDS: {
     readonly door: "Find people";
     readonly title: "Find people at companies";
@@ -11265,7 +11265,7 @@ declare const PEOPLE_FIND_WORDS: {
 /** Who a people search looks for, as its strip says it: "people called “marketing manager” at Accounting companies in TX". */
 declare function peopleWho(p: LeadPeoplePlan): string;
 /**
- * A people search's strip (00429), in its own words: companies found while its run reads them, the addresses being
+ * A people search's strip (00430), in its own words: companies found while its run reads them, the addresses being
  * checked, then how it ended against the companies asked for. Never "found what you asked for" before the checks say so.
  */
 declare const PEOPLE_STRIP_WORDS: {
@@ -11738,7 +11738,7 @@ declare const ProposeLeadSearchSchema: z$1.ZodObject<{
 }, z$1.core.$strip>;
 type ProposeLeadSearch = z$1.infer<typeof ProposeLeadSearchSchema>;
 /**
- * A people search's ask (the people card, 00429): what they are called (`terms`, one to five titles), where they work
+ * A people search's ask (the people card, 00430): what they are called (`terms`, one to five titles), where they work
  * (`region`: US states, or the US), how many companies, and how senior, which industries and what size of company, none
  * of which is any. Nothing of a places plan is asked of it: no kind's key, no city, no standard, no criteria.
  */
@@ -11845,7 +11845,7 @@ declare const LeadDraftAnswerSchema: z$1.ZodObject<{
     body: z$1.ZodString;
 }, z$1.core.$strip>;
 /**
- * A people search's ask as its plan (the people card, 00429): its terms are what the people are called, its region the
+ * A people search's ask as its plan (the people card, 00430): its terms are what the people are called, its region the
  * US states they work in ("TX", "Texas, California", or the US for all), and its own fields how senior and which
  * companies. Refused in words outside the US, or when the plan does not read.
  */
@@ -11891,7 +11891,7 @@ type LeadPlanned = {
         what: string | null;
     };
 };
-/** A people search's ask as its plan (00429), or a refusal in words, as a places one's. */
+/** A people search's ask as its plan (00430), or a refusal in words, as a places one's. */
 type PeoplePlanned = {
     ok: true;
     plan: LeadPeoplePlan;
@@ -12111,7 +12111,7 @@ interface LeadRowVM {
     version: number;
     /**
      * "Book store · Hawthorne · 97214 · 1.2 mi": whatever the source gave, in that order; "" when it gave none. A company's
-     * starts with the person its reach-out writes to (00429).
+     * starts with the person its reach-out writes to (00430).
      */
     sub: string;
     /** The two reach slots, phone then mailbox. */
@@ -12185,7 +12185,7 @@ declare function leadRail(counts: LeadCounts, searches: LeadSearchDto[], now?: D
         undoable: boolean;
         /** A list of the owner's own (00242): its menu offers nothing that searches again. */
         list: boolean;
-        /** A people search (00429): its menu's way back is Find people, filled in, never the places card. */
+        /** A people search (00430): its menu's way back is Find people, filled in, never the places card. */
         people: boolean;
     }[];
 };
@@ -12281,14 +12281,14 @@ type LeadSource = (typeof LEAD_SOURCES)[number];
 /** A person's place in their company, as the people card's seniority words come down to it. */
 declare const LEAD_ROLES: readonly ["owner", "founder", "executive", "partner", "director", "manager", "staff"];
 type LeadRole = (typeof LEAD_ROLES)[number];
-/** Where a company the people card found came from, as every page says it (00429): never "your list", nor Maps. */
+/** Where a company the people card found came from, as every page says it (00430): never "your list", nor Maps. */
 declare const LEAD_DIRECTORY_WORDS: {
     readonly found: "From a business directory";
     readonly address: "the address came with its people";
     readonly addressAlone: "The address came with its people";
 };
 /**
- * Where a lead's story says it came from: a business directory for a company the people card found (00429), a list of
+ * Where a lead's story says it came from: a business directory for a company the people card found (00430), a list of
  * the owner's own for a lead found on no listing (00242), else Google Maps, by what was asked where it says.
  */
 declare function leadFoundWords(t: {
@@ -12300,7 +12300,7 @@ declare function leadFoundWords(t: {
 }): string;
 /** A role as an email says it: "as the {{role}} at …". */
 declare const LEAD_ROLE_WORDS: Record<LeadRole, string>;
-/** The most people a company keeps (00429 lead_company_upsert): the addressee and a few around them. */
+/** The most people a company keeps (00430 lead_company_upsert): the addressee and a few around them. */
 declare const LEAD_PEOPLE_MAX = 5;
 /** One person its source named at a company. A type, not an interface: it is stored as it is (leads.facts, Json). */
 type LeadPerson = {
@@ -12338,13 +12338,13 @@ interface LeadCompanyPersonVM {
     /** Their place in the company's people as stored (leads.facts.people): what choosing them names to the door. */
     index: number;
     /**
-     * Whether they may be chosen as the one its reach-out writes to (00429 lead_addressee_choose): someone else, with a
+     * Whether they may be chosen as the one its reach-out writes to (00430 lead_addressee_choose): someone else, with a
      * work address, at a company that is open, in nobody's People, written to by no one and with no check on its way. The
      * door says the rest (a reach-out that planned it already, an address on the never-again list).
      */
     choose: boolean;
 }
-/** A company on its peek (00429): its people, the addressee first, its size, and the line on where they came from. */
+/** A company on its peek (00430): its people, the addressee first, its size, and the line on where they came from. */
 interface LeadCompanyVM {
     head: string;
     people: LeadCompanyPersonVM[];
@@ -12359,7 +12359,7 @@ declare const LEAD_COMPANY_WORDS: {
     readonly profile: "Profile";
 };
 /**
- * Choosing who a company's reach-out writes to (00429 lead_addressee_choose): the peek's door beside one of its people,
+ * Choosing who a company's reach-out writes to (00430 lead_addressee_choose): the peek's door beside one of its people,
  * what it says once chosen, and each refusal of the door in words, by its code.
  */
 declare const LEAD_ADDRESSEE_WORDS: {
@@ -12430,7 +12430,7 @@ interface LeadPeekVM {
     sub: string;
     /** Who they are, from what the listing shows (D2): each null when the listing did not say. */
     about: string | null;
-    /** A company's people and where they came from (00429); null for a place. */
+    /** A company's people and where they came from (00430); null for a place. */
     company: LeadCompanyVM | null;
     where: {
         line: string;
@@ -12855,7 +12855,7 @@ declare const LEAD_WORDS: {
         readonly linePlaceholder: "What you sell, and who buys it";
         readonly haveList: "Have a list already?";
         readonly importIt: "Import it";
-        /** The people card's door (00429), on a desk's first day and a phone's New search, where no rail is drawn. */
+        /** The people card's door (00430), on a desk's first day and a phone's New search, where no rail is drawn. */
         readonly wantPeople: "Looking for people at companies?";
         readonly findPeople: "Find people";
     };
@@ -12998,7 +12998,7 @@ interface LeadRowDto {
     contact_id: string | null;
     /** The reach-out it goes with (00426): the one that wrote it last, else the one whose search holds it. */
     chain_id?: string | null;
-    /** A place or a company, and a company's people (00429, leads_page): read through contracts leadFactsOf. */
+    /** A place or a company, and a company's people (00430, leads_page): read through contracts leadFactsOf. */
     kind?: string;
     facts?: unknown;
     /** How the lead has been worked, from `leads_page` (4.2): a fixture copies the real shape even where B draws none of it. */
@@ -13074,11 +13074,11 @@ interface LeadSearchDto {
      */
     via?: LeadSearchVia;
     /**
-     * The places plan (the Maps card's, or a list's): null for a people search (00429), whose plan is `people`. Every
+     * The places plan (the Maps card's, or a list's): null for a people search (00430), whose plan is `people`. Every
      * reader of a places plan narrows on it, so a people plan never reaches one.
      */
     plan: LeadSearchPlan | null;
-    /** A people search's plan (the people card, 00429), or null for a places search and a list. */
+    /** A people search's plan (the people card, 00430), or null for a places search and a list. */
     people?: LeadPeoplePlan | null;
     plan_version: number;
     /**
@@ -19526,7 +19526,7 @@ type RecipientState = (typeof RECIPIENT_STATES)[number];
  * queued as an email row with its job, then what that row became. A wait refusal plans it again (Reach out, Part 3).
  * The check before it goes may hold it (00197): held waits for its owner, who puts it back or skips it (Part 4).
  * A hand step's lead is handed to the team, and never moves (00228, Part 5). A reach-out its owner sends hands each
- * email to them, drafted, and the owner says whether it went: sent, or skipped (00428).
+ * email to them, drafted, and the owner says whether it went: sent, or skipped (00429).
  */
 declare const REACH_OUT_SEND_STATES: readonly ["planned", "held", "claimed", "queued", "drafted", "sent", "skipped", "failed", "handed"];
 type ReachOutSendState = (typeof REACH_OUT_SEND_STATES)[number];
@@ -19617,7 +19617,7 @@ interface BroadcastDto {
      * and where it could not be counted (the wiring's second audit, W-campaign-run-template-reachout-4).
      */
     held?: number;
-    /** And how many are handed to its owner to send from their inbox (00428), counted as held is. */
+    /** And how many are handed to its owner to send from their inbox (00429), counted as held is. */
     drafted?: number;
 }
 interface BroadcastVM extends BroadcastDto {
@@ -19739,7 +19739,7 @@ declare const REPLY_INTENTS: readonly ["interested", "question", "not_now", "no"
 type ReplyIntent = (typeof REPLY_INTENTS)[number];
 declare const isReplyIntent: (v: unknown) => v is ReplyIntent;
 /**
- * What an owner may say the business wrote back to an email they sent from their own inbox (00428): a person's reply,
+ * What an owner may say the business wrote back to an email they sent from their own inbox (00429): a person's reply,
  * so never away (an automatic reply's) and never other (the model's word for mail it could not place).
  */
 declare const OWNER_SAID_INTENTS: readonly ["interested", "question", "not_now", "no", "wrong_person"];
@@ -19911,7 +19911,7 @@ declare function ownedDomainOf(address: string | null | undefined, website: stri
 /**
  * What the intake claimed the email is, from its headers (channels' classifyReceived); a report is never kept, so
  * never read. `automated` counts as writing back (00181) and is read as a person's. `owner` is no email at all: what the
- * business wrote back to an email its owner sent from their own inbox, as the owner says it on the lead (00428). It is
+ * business wrote back to an email its owner sent from their own inbox, as the owner says it on the lead (00429). It is
  * read as a person's, tells nobody (the owner said it) and drafts nothing (there are no words to answer).
  */
 type ReplyClaim = "person" | "automated" | "auto_reply" | "owner";
@@ -21984,7 +21984,7 @@ declare const ASK_TURN_BUDGET_MS = 45000;
 /**
  * The most the owner's tools block may be, in characters as the model is sent it (66,050 on 11 October 2026; 70,426 on
  * 12 October, after the review of Ask's campaign cards, its reads and its plan; 72,542 on 13 October, the lead search
- * proposing named people at companies too, the people card's, 00429).
+ * proposing named people at companies too, the people card's, 00430).
  */
 declare const ASK_TOOLS_CHARS_CEILING = 73000;
 /**
@@ -27824,7 +27824,7 @@ interface WaitingRun {
     audience?: unknown;
     /** How many of a going run's emails the check holds for the owner's say (absent where Sent did not say). */
     held?: number | null;
-    /** How many of a going run's emails are handed to its owner to send from their inbox (00428; absent where not said). */
+    /** How many of a going run's emails are handed to its owner to send from their inbox (00429; absent where not said). */
     drafted?: number | null;
 }
 /** The business's day now and the day of the next open sending moment (contracts runDaysAt): what the verb asks by. */
@@ -27849,7 +27849,7 @@ interface Waits {
 declare function runWaitsOnYou(run: WaitingRun, days: RunDays): boolean;
 /** How many emails a going run's check holds for your say: none for a run that is not going, or where Sent did not say. */
 declare function runHeldEmails(run: Pick<WaitingRun, "state" | "held">): number;
-/** How many of a going run's emails wait for its owner to send them from their inbox (00428): none for a run not going. */
+/** How many of a going run's emails wait for its owner to send them from their inbox (00429): none for a run not going. */
 declare function runDraftedEmails(run: Pick<WaitingRun, "state" | "drafted">): number;
 /** Whether a run waits for approval that an approval can no longer send: it can only be skipped, and the sweep skips it. */
 declare function runTooLate(run: WaitingRun, days: RunDays): boolean;
@@ -30526,7 +30526,7 @@ declare function planSentence(plan: LeadSearchPlan): string;
 /** The half of a card Claude reads (§0.3, 23). The half code holds is A2's `CARDS`. */
 interface LeadCardBrief {
     id: "local_businesses" | "people_at_companies";
-    /** What a lead of the card is (00429): a place a listing names, or a company with the people named on it. */
+    /** What a lead of the card is (00430): a place a listing names, or a company with the people named on it. */
     finds: "places" | "people";
     goodFor: string[];
     notFor: string[];
@@ -30550,7 +30550,7 @@ interface LeadCardBrief {
     approved: true;
     /**
      * The paid run that proved the provider reads the card's filters and its mapper the provider's fields, at the build the
-     * card pins: what lets lead_platform.cards_on name it (00429 lead_card_live). Null until it has run; absent for the Maps
+     * card pins: what lets lead_platform.cards_on name it (00430 lead_card_live). Null until it has run; absent for the Maps
      * card, which was proved before this was asked.
      */
     calibrated?: {
@@ -30595,7 +30595,7 @@ declare function planCeiling(plan: LeadSearchPlan): number;
 declare function planMinutes(plan: LeadSearchPlan): number;
 
 /**
- * A people search's plan as the route and the door take it (the people card, 00429), apart from people-plan.ts's words.
+ * A people search's plan as the route and the door take it (the people card, 00430), apart from people-plan.ts's words.
  * zod is not built into the browser's contracts (decision 0024): a page that says the plan loads none of it.
  */
 
@@ -35755,7 +35755,7 @@ interface ReachOutReportChainDto {
 interface ReachOutReportMailboxDto {
     /** Null for the emails of a mailbox since gone, and for the ones their owner sent from their own inbox (`yours`). */
     address: string | null;
-    /** Sent from their owner's own inbox, on their word (00428): no mailbox wrote them. Absent from an older database. */
+    /** Sent from their owner's own inbox, on their word (00429): no mailbox wrote them. Absent from an older database. */
     yours?: boolean;
     state: string | null;
     held_why: string | null;
@@ -35982,7 +35982,7 @@ declare function isPlaybookTotalsDto(answer: unknown): answer is PlaybookTotalsD
 /** Why a business the finder found is hearing from this one: the first line of the foot. */
 declare const WHY_FROM_MAPS = "I found your business on Google Maps.";
 /**
- * Why they are hearing from you, from where the finder found them (a lead's source, 00429: the Maps card's, the people
+ * Why they are hearing from you, from where the finder found them (a lead's source, 00430: the Maps card's, the people
  * card's, or a file of the owner's own): never a place the business was not found.
  */
 declare function whyFrom(source: string | null | undefined): string;
@@ -36185,12 +36185,12 @@ declare function timetable(input: TimetableInput): TimetableResult;
  *
  *   outreachRefusalOf   the lead's own facts, as the send door reads them (deliver.ts) and as the clock reads them
  *                       before it claims a send: one mapping, so the two never disagree about who may be written to.
- *   draftRefusalOf      the same, for an email its owner sends (00428): asked as it is handed over, as To send is read
+ *   draftRefusalOf      the same, for an email its owner sends (00429): asked as it is handed over, as To send is read
  *                       and on each tick of the clock, since no send door stands between the owner's inbox and the
  *                       business. A customer's address is refused too, as the person door refuses it at Sent.
  *   OUTREACH_WAIT_REFUSALS   the door's refusals that mean "not now": the send is planned again, never canceled (C5).
  *   reachOutEmailOf     a step's words with the lead's, the workspace's and the send's values in (§4.3's slots, and
- *                       00429's person slots from a company's addressee, each with its fallback), by
+ *                       00430's person slots from a company's addressee, each with its fallback), by
  *                       the one fill every email takes (templates/slot-sets.ts); a slot with no value holds the email
  *                       (missing_value, the reason that exists: broadcast.ts). The send, the sheet's preview and the
  *                       approval's first email read it.
@@ -36219,16 +36219,16 @@ declare function isWaitRefusal(reason: string | null | undefined): boolean;
 declare const REACH_OUT_MONTH_EMAILS = 2000;
 /**
  * The most emails a reach-out its owner sends hands them in a day, across its steps (the 4 Oct spec's decision 8;
- * 00428): a morning's work. Its steps after the first are planned first, so a nudge is never crowded out by new leads.
+ * 00429): a morning's work. Its steps after the first are planned first, so a nudge is never crowded out by new leads.
  */
 declare const REACH_OUT_DRAFTS_PER_DAY = 30;
 /**
- * The most emails a reach-out its owner sends holds for them at once (00428): planned, being written or waiting in To
+ * The most emails a reach-out its owner sends holds for them at once (00429): planned, being written or waiting in To
  * send, two days' share. An owner who falls behind is handed nothing new until they catch up, so a draft is not left
  * to be given up (kept_waiting) and its lead with it.
  */
 declare const REACH_OUT_DRAFTS_OPEN_MAX: number;
-/** A draft's lead as the send door would judge it (00428 reach_out_draft_facts), snake_case as SQL answers it. */
+/** A draft's lead as the send door would judge it (00429 reach_out_draft_facts), snake_case as SQL answers it. */
 interface DraftLeadFacts {
     lead_stage: string | null;
     suppressed: boolean;
@@ -36274,10 +36274,10 @@ declare const REACH_OUT_LANGUAGE = "en";
 interface SlotLead {
     business_name: string | null;
     city: string | null;
-    /** A company's people (00429): its addressee fills the person slots. Absent, or a place: their fallbacks. */
+    /** A company's people (00430): its addressee fills the person slots. Absent, or a place: their fallbacks. */
     kind?: string | null;
     facts?: unknown;
-    /** Where it was found (00429 leads.source), which the foot's first line says (whyFrom). Absent: the Maps card. */
+    /** Where it was found (00430 leads.source), which the foot's first line says (whyFrom). Absent: the Maps card. */
     source?: string | null;
 }
 /** The workspace's slots: its name, the name the chain signs with, its booking link. */
@@ -36420,7 +36420,7 @@ type OpeningVerdict = {
 declare function openingVerdict(code: OpeningProblem | null, reading: Reading, stepLanguage: string): OpeningVerdict;
 
 /**
- * The doors into a mail client for an email its owner sends from their own inbox (00428; the 4 Oct spec, §4.3): their
+ * The doors into a mail client for an email its owner sends from their own inbox (00429; the 4 Oct spec, §4.3): their
  * mail app (mailto:), Gmail's compose and Outlook's, each carrying the address, the subject and the words. Gmail cuts a
  * compose link at about 4,096 characters of the whole link, so when the longest of the three would pass COMPOSE_URL_MAX
  * all three carry the address and the subject alone (`bodyInLinks` false), and the page copies the words to the
@@ -36456,7 +36456,7 @@ declare const REACH_OUT_SHEET_WORDS: {
     readonly repliesHint: "into your Inbox";
     readonly checkLater: "Each email is checked before it goes. The first run waits for you.";
     readonly noMailbox: "Connect the mailbox you'll write from first: Google or Microsoft, here or in Settings › Connections › Email.";
-    /** From, when its owner sends it (00428): what they are handed, and how. */
+    /** From, when its owner sends it (00429): what they are handed, and how. */
     readonly ownerSends: "Each email is handed to you written and checked, to send from your own inbox: Gmail, Outlook or your mail app. Up to 30 a day.";
     /** From, with no mailbox connected: the owner sends, and a mailbox would send for them. */
     readonly ownerNoMailbox: "Or connect Google or Microsoft, and your mailbox sends them for you.";
@@ -36542,7 +36542,7 @@ declare function paceWords(p: {
     why: string;
 };
 /**
- * The pace of a reach-out its owner sends (00428): its day's share, handed at once as each run goes ahead. The owner is
+ * The pace of a reach-out its owner sends (00429): its day's share, handed at once as each run goes ahead. The owner is
  * the pace, so there is no gap to choose.
  */
 declare function ownerPaceWords(): {
@@ -36630,7 +36630,7 @@ declare function approvalWordsOf(r: ReachOutRunDto, p: {
  * from one. Each mailbox gives its day (contracts mailboxDailyCap), never more than fits in the working day at the
  * chain's gap (SEND_DAY_FRAME, nine to five in the lead's time: the timetable places no more), so the sheet, the report
  * and the approval say the number the timetable plans. Nothing to write from is a share of 0 and no address. A chain its
- * owner sends hands them its day's share, from no mailbox (00428).
+ * owner sends hands them its day's share, from no mailbox (00429).
  */
 declare function chainPaceOf(c: Pick<ReachOutChainDto, "mailboxes" | "owner_sends" | "gap_minutes">): {
     from: string | null;
@@ -36746,7 +36746,7 @@ interface ReachOutDraft {
     gap_minutes: number;
     /** Empty: every connected mailbox of the workspace (00424). */
     mailbox_ids: string[];
-    /** Its owner sends its emails from their own inbox, each handed to them as a draft (00428). */
+    /** Its owner sends its emails from their own inbox, each handed to them as a draft (00429). */
     owner_sends: boolean;
     signed_by: string;
     steps: ReachOutDraftStep[];
@@ -36911,7 +36911,7 @@ declare const REACH_OUT_SHEET_PARTS: {
     readonly dayOne: "Day one · the pace below";
     readonly remove: "Remove this step";
     readonly everyMailbox: "Every connected mailbox";
-    /** From's choice for a reach-out its owner sends (00428). */
+    /** From's choice for a reach-out its owner sends (00429). */
     readonly youSend: "You send them, from your own inbox";
     readonly mailboxesMax: "Up to 10 mailboxes, or every connected one.";
     readonly connectGoogle: "Connect Google";
@@ -36998,7 +36998,7 @@ interface ToSendRowVM {
     /** Its lead's id: what They wrote back… is said on. */
     leadId: string;
     /**
-     * A step after the first (00428): its business may have answered the email before in the owner's own inbox, which
+     * A step after the first (00429): its business may have answered the email before in the owner's own inbox, which
      * nothing here reads, so its Sent asks first whether they did, and They wrote back… stands beside it.
      */
     followUp: boolean;
@@ -37015,7 +37015,7 @@ interface ToSendRowVM {
     links: ComposeLinks;
 }
 /**
- * The emails of a reach-out its owner sends that are handed to them and not yet said to have gone (00428), oldest first:
+ * The emails of a reach-out its owner sends that are handed to them and not yet said to have gone (00429), oldest first:
  * each with its doors into a mail client (composeLinksOf) and the owner's Sent and Skip. Null when there are none.
  */
 declare function toSendWordsOf(r: ReachOutRunDto, p: {
@@ -37065,10 +37065,10 @@ interface ToSendRunLike {
     id: string;
     state: string;
     scheduled_for: string;
-    /** How many of a going run's emails are handed to its owner (waits.ts runDraftedEmails, 00428). */
+    /** How many of a going run's emails are handed to its owner (waits.ts runDraftedEmails, 00429). */
     drafted?: number | null;
 }
-/** Sent's one To send: every email handed to its owner, from each reach-out they send themselves (00428). */
+/** Sent's one To send: every email handed to its owner, from each reach-out they send themselves (00429). */
 declare const TO_SEND_ROUTE = "broadcasts/to-send";
 /** The one To send's own words: Today's row that opens it, and Sent's pane that lists every run's emails. */
 declare const TO_SEND_ALL_WORDS: {
@@ -37095,7 +37095,7 @@ declare const TO_SEND_ALL_WORDS: {
     readonly gated: "say whether an email went";
 };
 /**
- * Every going run with emails handed to its owner (00428), as one To send: the runs, the oldest first, with how many of
+ * Every going run with emails handed to its owner (00429), as one To send: the runs, the oldest first, with how many of
  * their emails wait in all. Null when none has one. Each run's own emails are its detail's (toSendWordsOf), read as its
  * part of the list is drawn.
  */
@@ -37132,11 +37132,11 @@ declare function waitingRunsDoor(waiting: readonly WaitingToSend[]): string;
 declare const REACH_OUT_RUN_REREAD_MS = 15000;
 /**
  * Whether a live run is still moving under the page, so its block reads it again (R21): the check still has sends of it
- * to read, or, for a reach-out its owner sends, checked emails still wait to be handed over as drafts (00428).
+ * to read, or, for a reach-out its owner sends, checked emails still wait to be handed over as drafts (00429).
  */
 declare function reachOutRunMoving(r: ReachOutRunDto): boolean;
 /**
- * What the owner's word on a drafted email did, said at the To send list's head once the door answered (00428). Sent is
+ * What the owner's word on a drafted email did, said at the To send list's head once the door answered (00429). Sent is
  * always recorded, since the email left their inbox: what about its lead would refuse it now is said beside it.
  */
 declare function toSendSaidWords(name: string, a: {
@@ -37382,7 +37382,7 @@ declare const BOOKED_SEEN_CAP = 500;
 declare function bookedSeenOf(items: readonly FeedItem[], own: OwnAddresses): BookedSeen[];
 
 /**
- * They wrote back…, on a lead an email its owner sent went to (00428): what the business said, as the owner says it,
+ * They wrote back…, on a lead an email its owner sent went to (00429): what the business said, as the owner says it,
  * read through the one door a reply's reading takes (reach_out_reply_said, claim owner), with its undo.
  */
 declare const REACH_OUT_SAID_WORDS: {
@@ -37425,7 +37425,7 @@ declare const REACH_OUT_STOP_WORDS: {
     readonly already: (business: string) => string;
     readonly failed: "Couldn't stop it. Nothing changed; try again.";
 };
-/** A no's undo on the peek, as whoever read it: a reply read as no, or the owner's own word (00428). */
+/** A no's undo on the peek, as whoever read it: a reply read as no, or the owner's own word (00429). */
 declare const REACH_OUT_UNDO_WORDS: {
     readonly read: {
         readonly label: "Read as no · undo";
@@ -40979,7 +40979,7 @@ declare const ROUTE_WORDS: Readonly<Record<string, string>>;
  *
  * Sent has one way to write, the home's New message (`campaigns/new`), so `broadcasts/<audience>`, which People and a list
  * write when they ask to message these people, is a door to it: `campaigns/new:to:<audience>`. A run (`broadcasts/run:<id>`),
- * Get their yes (`broadcasts/get-yes`), the one To send (`broadcasts/to-send`, 00428) and the room itself stay where they are.
+ * Get their yes (`broadcasts/get-yes`), the one To send (`broadcasts/to-send`, 00429) and the room itself stay where they are.
  */
 declare function doorOf(route: string): string | null;
 /**
@@ -41420,7 +41420,7 @@ type EmailFoot = {
 }
 /**
  * A cold email's: its link rides in the List-Unsubscribe header alone. An email its owner sends from their own inbox
- * (a reach-out's draft, 00428) has no header, so no link: its way out is the reply its words ask for.
+ * (a reach-out's draft, 00429) has no header, so no link: its way out is the reply its words ask for.
  */
  | {
     kind: "cold";
@@ -42512,7 +42512,7 @@ interface RunLike {
     audience?: unknown;
     /** How many of a going run's emails the check holds for your say (waits.ts runHeldEmails). */
     held?: number | null;
-    /** How many of a going run's emails are handed to you to send from your inbox (waits.ts runDraftedEmails, 00428). */
+    /** How many of a going run's emails are handed to you to send from your inbox (waits.ts runDraftedEmails, 00429). */
     drafted?: number | null;
 }
 interface TodayRunWordsVM {
@@ -42544,7 +42544,7 @@ interface TodayRunWordsVM {
         sentence: string;
         status: string[];
     };
-    /** A going run whose emails are handed to you: they wait on the run for you to send them from your inbox (00428). */
+    /** A going run whose emails are handed to you: they wait on the run for you to send them from your inbox (00429). */
     drafted: {
         meta: string;
         sentence: string;

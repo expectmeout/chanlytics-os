@@ -1096,15 +1096,15 @@ test(
       now.slice(old.length - 1),
       /^\s*union\s+select rr\.contact_id from public\.reach_out_replies rr[\s\S]*union\s+select rr\.lead_contact_id from public\.reach_out_replies rr/,
     );
-    // 00428 added what an owner said the business wrote back (claim owner), for the person and the lead's, and nothing else.
-    const owners = bodyIn(migration("00428"), "create or replace function public.outreach_wrote_back(");
+    // 00429 added what an owner said the business wrote back (claim owner), for the person and the lead's, and nothing else.
+    const owners = bodyIn(migration("00429"), "create or replace function public.outreach_wrote_back(");
     assert.ok(owners.startsWith(now.replace(/\n$/, "")), "00222's four readings, unchanged");
     assert.match(
       owners.slice(now.length - 1),
       /^\s*-- What its owner said[^\n]*\n[^\n]*\n\s*union\s+select rr\.contact_id from public\.reach_out_replies rr[\s\S]*rr\.claim = 'owner' and rr\.undone_at is null\s+union\s+select rr\.lead_contact_id from public\.reach_out_replies rr[\s\S]*rr\.claim = 'owner' and rr\.undone_at is null\s*$/,
     );
     const [proc] = query("select prosrc from pg_proc where proname = 'outreach_wrote_back'");
-    assert.equal(proc.prosrc, owners, "and pg_proc runs what 00428 wrote");
+    assert.equal(proc.prosrc, owners, "and pg_proc runs what 00429 wrote");
 
     const rows = query(
       `select p.proname, has_function_privilege('anon', p.oid, 'execute') as anon,

@@ -44,7 +44,7 @@ test("a foot missing any part the law asks for is never made", () => {
     assert.throws(() => coldHtml({ ...FOOT, [k]: "  " }), /why, who, where and how to stop/, `${k} (HTML)`);
   }
   // The text's way out is its words, so it is made without a link: an email its owner sends from their own inbox has no
-  // header to carry one (00428). The HTML twin, which draws the link, is never made without it.
+  // header to carry one (00429). The HTML twin, which draws the link, is never made without it.
   for (const unsubscribeUrl of [null, "  "]) {
     assert.equal(cold({ ...FOOT, unsubscribeUrl }), cold(FOOT), `${unsubscribeUrl}`);
     assert.throws(

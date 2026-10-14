@@ -3,7 +3,7 @@ import { write, workspace } from "@/server/route";
 import { createPeopleSearch } from "@/server/leads/lead-people-search";
 
 /**
- * POST /api/v1/lead-searches/people: a people plan becomes a search and its one round (the people card, 00429).
+ * POST /api/v1/lead-searches/people: a people plan becomes a search and its one round (the people card, 00430).
  *
  * As POST lead-searches is for places: the owner's (it spends), on a workspace that may spend (402 before anything
  * else), counted against `lead_search`. The body is the validated plan (titles, seniority, industries, sizes, states, a

@@ -403,7 +403,7 @@ test("a named slot is called what the set calls it, and a name it does not list 
       slotKnown(SIX, k),
     ),
     [true, true, true, true, true, true, true, false],
-    "a company's addressee's first name is a slot too (00429)",
+    "a company's addressee's first name is a slot too (00430)",
   );
 });
 

@@ -1,12 +1,12 @@
 /**
- * Find people at companies (the people card, 00429; decision 0057's call 8): Leads' rail door beside Import leads, and
+ * Find people at companies (the people card, 00430; decision 0057's call 8): Leads' rail door beside Import leads, and
  * the record sheet it opens. The owner says who (what they are called, how senior), at which companies (industries,
  * sizes) and where (US states), and how many companies; the plan is contracts' (peoplePlanFrom), said back in one
  * sentence, and posted to POST lead-searches/people, whose door reserves the month's leads and starts the search. What
  * the route would refuse is said at its box before anything is asked (peopleSheetProblems): a state that reads as none is
  * never dropped into a search of the whole US. A search's own plan opens it filled in (Find more like these). The card's
  * source-rights note is said under the fields, before anything is spent. The door is drawn only while the card finds
- * leads (00429 lead_card_live). Every word is contracts'; every part the kit's.
+ * leads (00430 lead_card_live). Every word is contracts'; every part the kit's.
  */
 import { useRef, useState } from "react";
 import {
@@ -233,7 +233,7 @@ function FindPeopleSheet({
 
 /**
  * Leads' Find people: the rail's door, and the sheet it opens, filled in when it is opened with a plan. Only who may find
- * leads may open it, and only while the people card finds leads (`live`, 00429 lead_card_live): no door otherwise.
+ * leads may open it, and only while the people card finds leads (`live`, 00430 lead_card_live): no door otherwise.
  */
 export function useFindPeople({ flash = null, live }: { flash?: Flash | null; live: boolean }) {
   const [open, setOpen] = useState<{ from: LeadPeoplePlan | null } | null>(null);

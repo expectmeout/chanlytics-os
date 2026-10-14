@@ -44,7 +44,7 @@ Built on `reach-out/drafts-you-send` in `cm-phone`, locally; no commit or push u
 
 ## Parts
 
-1. **Database** (`00428_an_email_the_owner_sends_is_handed_to_them.sql`, working number): `playbooks.owner_sends`;
+1. **Database** (`00429_an_email_the_owner_sends_is_handed_to_them.sql`, working number): `playbooks.owner_sends`;
    `reach_out_sends` state `drafted`, `drafted_at`, `draft`, `said_at`, `said_by`; the guard's moves (claimed → drafted,
    drafted → sent | skipped); `reach_out_claim_drafts`; `reach_out_claim_from` follow-ups first and never an owner
    chain's send; `reach_out_finishable`, `reach_out_held_stale`, `reach_out_closed_sends` reading drafted;

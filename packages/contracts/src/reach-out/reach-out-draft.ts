@@ -42,7 +42,7 @@ export interface ReachOutDraft {
   gap_minutes: number;
   /** Empty: every connected mailbox of the workspace (00424). */
   mailbox_ids: string[];
-  /** Its owner sends its emails from their own inbox, each handed to them as a draft (00428). */
+  /** Its owner sends its emails from their own inbox, each handed to them as a draft (00429). */
   owner_sends: boolean;
   signed_by: string;
   steps: ReachOutDraftStep[];
@@ -361,7 +361,7 @@ export const REACH_OUT_SHEET_PARTS = {
   dayOne: "Day one · the pace below",
   remove: "Remove this step",
   everyMailbox: "Every connected mailbox",
-  /** From's choice for a reach-out its owner sends (00428). */
+  /** From's choice for a reach-out its owner sends (00429). */
   youSend: "You send them, from your own inbox",
   mailboxesMax: `Up to ${REACH_OUT_MAILBOXES_MAX} mailboxes, or every connected one.`,
   connectGoogle: "Connect Google",

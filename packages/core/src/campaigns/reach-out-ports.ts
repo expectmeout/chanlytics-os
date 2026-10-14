@@ -27,7 +27,7 @@ export interface ReachOutStep {
   /** The mailboxes it writes from (00424); none named is every connected one. */
   mailbox_ids: string[];
   /**
-   * The chain's (its root's, 00428): its owner sends its emails from their own inbox, each handed to them written and
+   * The chain's (its root's, 00429): its owner sends its emails from their own inbox, each handed to them written and
    * checked, so a run plans no mailbox and no timetable: its day's share, due as the run goes ahead.
    */
   owner_sends: boolean;
@@ -106,7 +106,7 @@ export interface NewReachOutRun {
 }
 
 /**
- * One lead in a run: planned, with its time and mailbox (none for a reach-out its owner sends, 00428); or skipped, with
+ * One lead in a run: planned, with its time and mailbox (none for a reach-out its owner sends, 00429); or skipped, with
  * why, so a lead the step may never write to (the door refuses it, or it keeps no open hour all week) leaves the step's
  * page rather than heading it every day.
  */
@@ -146,7 +146,7 @@ export interface ReachOutRunPorts {
    */
   mailboxes(step: ReachOutStep, also: readonly string[]): Promise<{ senders: TimetableSender[]; gone: Set<string> }>;
   /**
-   * What a reach-out its owner sends holds (db chainDraftLoad, 00428): the emails its runs for this day already hold,
+   * What a reach-out its owner sends holds (db chainDraftLoad, 00429): the emails its runs for this day already hold,
    * skipped aside (its day's share is counted against them, contracts REACH_OUT_DRAFTS_PER_DAY), and those waiting for
    * its owner across every run, not yet said (their pile, REACH_OUT_DRAFTS_OPEN_MAX).
    */

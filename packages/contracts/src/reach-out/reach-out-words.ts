@@ -8,7 +8,7 @@
  * this module's own is what a cold email adds to those rules, and its words.
  *
  *   REACH_OUT_SLOTS          the ten a step may name; any other {{…}} is refused at the save, never met at a send. The
- *                            person's four (00429: {{first name}}, {{company}}, {{title}}, {{role}}) are filled from a
+ *                            person's four (00430: {{first name}}, {{company}}, {{title}}, {{role}}) are filled from a
  *                            company's addressee, and each has its fallback for a lead with none (REACH_OUT_SLOT_FALLBACKS)
  *   REACH_OUT_SLOT_SET       the ten as a slot set, which every reader and the fill take
  *   reachOutRules            what a step's email keeps to, as an email's rules: the shared checks over this set, and the
@@ -42,7 +42,7 @@ export const REACH_OUT_SLOTS = [
   "your name",
   "your business",
   "booking link",
-  // A company's addressee (00429), after the six: a slot's place is its number in a stored version ({{2}} is business),
+  // A company's addressee (00430), after the six: a slot's place is its number in a stored version ({{2}} is business),
   // so a slot is only ever added at the end.
   "first name",
   "company",
