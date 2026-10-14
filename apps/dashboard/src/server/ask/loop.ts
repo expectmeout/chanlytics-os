@@ -270,6 +270,7 @@ function wordsBlock(
     text: turnWords({
       ...facts,
       since: live ? input.chain?.since : undefined,
+      replayedAt: live ? input.chain?.readAt : undefined,
       context: !dataDropped && (rode.built?.blocks.length ?? 0) > 0,
       crossPage: !dataDropped && rode.crossBlocks.length > 0,
       scopeRead: !dataDropped && !!rode.scopedRow,

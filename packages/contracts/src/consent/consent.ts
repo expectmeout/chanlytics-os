@@ -30,6 +30,16 @@ export function isOptedOutContact(c: ConsentBearing | null | undefined): boolean
   return !!c && (c.consent === "opted_out" || c.dnc === true);
 }
 
+/**
+ * May a member's phone ring this person? Only do-not-contact forbids it (decision 0008: no contact at all). A STOP is
+ * about messages: a person who asked to stop texts, and rang in, may be rung back. Said once (the wiring's second audit,
+ * R11 S9-6): the person page offered Call to someone on do-not-contact that the Pipeline and the acts refused, and the
+ * Inbox and Live, which knew only "stopped or do-not-contact" in one flag, could not tell the two apart.
+ */
+export function mayRing(c: ConsentBearing | null | undefined): boolean {
+  return !c || c.dnc !== true;
+}
+
 /** What an opt-out is, in the words the refusal below says it and a second reader is asked it (stopRequestQuestion). */
 const ASKED_TO_STOP_SHORT = "asked to stop";
 const ASKED_TO_STOP = `${ASKED_TO_STOP_SHORT} receiving messages`;

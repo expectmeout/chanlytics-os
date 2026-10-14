@@ -5,7 +5,7 @@
     "depth": 2
   },
   "apps/dashboard/app/privacy/page.tsx::PrivacyPage#1": {
-    "lines": 174,
+    "lines": 172,
     "branches": 1,
     "depth": 0
   },
@@ -158,11 +158,6 @@
     "lines": 154,
     "branches": 33,
     "depth": 4
-  },
-  "apps/edge/lib/lines/a2p-sync.ts::syncRegistration#1": {
-    "lines": 152,
-    "branches": 32,
-    "depth": 2
   },
   "apps/edge/lib/reach-out/check.ts::checkSends#1": {
     "lines": 180,

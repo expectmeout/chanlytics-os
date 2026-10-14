@@ -102,7 +102,7 @@
   "packages/contracts/src/templates/template-parts.ts": 2,
   "packages/contracts/src/templates/template-preview.ts": 1,
   "packages/contracts/src/templates/template-titles.ts": 1,
-  "packages/contracts/src/templates/templates.ts": 5,
+  "packages/contracts/src/templates/templates.ts": 3,
   "packages/contracts/src/today/notifications.ts": 2,
   "packages/contracts/src/today/today-away.ts": 1,
   "packages/contracts/src/today/today-figures.ts": 6,

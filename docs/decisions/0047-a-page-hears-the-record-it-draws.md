@@ -51,8 +51,12 @@ on events alone would leave those records silent today.
    declare what it changes.
 5. **The receptionist and the pages hear the same changes.** A database test holds WATCHED to include every table the
    runtime stamp reads.
-6. Notices from the events ledger replace table notices once 0031's invariant 2 reaches zero; ids in a notice (0021
-   step 5) wait for that note.
+6. The live feed's notices (the changes a page hears, not the bell's rows) are raised from the events ledger in place of
+   table notices once 0031's invariant 2 holds on both sides: `doors-without-events.json` (a SQL door that writes a
+   record and no event) and `ts-only-events.json` (an event kind written only from TypeScript, after its fact) both
+   empty. The first baseline alone could reach zero while the TypeScript side still wrote its facts apart (the wiring's
+   second audit, S11-9, 14 October 2026). Ids in a notice (0021 step 5) wait for that note. Moving the bell's notices
+   onto subscribers is 0031 Phase 3's, the escalation notice first.
 
 ## Shape
 

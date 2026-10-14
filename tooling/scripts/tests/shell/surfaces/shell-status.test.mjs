@@ -269,18 +269,24 @@ test("offline is said the moment the browser says so, and back online every surf
   assert.equal(status.getConnection().offline, false, "and listens to nothing");
 });
 
-test("the live feed: a blip it rejoins is not news, a drop that outlasts the grace is, and every rejoin reads what it missed", async () => {
+test("the live feed: a blip it rejoins is not news, a drop that outlasts the grace is, and every join reads what it missed", async () => {
   const said = [];
   let reads = 0;
+  let joins = 0;
   const feed = realtime.feedWatch({
     graceMs: 15,
     onDown: (down) => said.push(down),
     onReconnect: () => {
       reads += 1;
     },
+    onJoin: () => {
+      joins += 1;
+    },
   });
   feed.onStatus("SUBSCRIBED");
   assert.equal(reads, 0, "the first join is not a reconnect");
+  // But it reads what was read before it: the feed replays nothing from before the join (the wiring's second audit, S2-4).
+  assert.equal(joins, 1, "the first join is told as one");
   feed.onStatus("CHANNEL_ERROR");
   await sleep(4);
   feed.onStatus("SUBSCRIBED");
@@ -294,6 +300,7 @@ test("the live feed: a blip it rejoins is not news, a drop that outlasts the gra
   feed.onStatus("SUBSCRIBED");
   assert.deepEqual(said, [true, false], "back, and said at once");
   assert.equal(reads, 2);
+  assert.equal(joins, 1, "a rejoin is a reconnect, never a first join again");
   feed.onStatus("CLOSED");
   feed.stop();
   await sleep(30);
@@ -2009,4 +2016,23 @@ test("People › Pipeline is an address of People's route (clients/pipeline): th
   } finally {
     setSurfaceValue("people", undefined);
   }
+});
+
+test("every surface the shell starts says it stopped refreshing by a word of its own, but who is looking (S2-5)", async () => {
+  const { registeredSurfaces } = await import("../hearing/_reads.mjs");
+  const keys = [];
+  for (const { name, file } of registeredSurfaces()) keys.push((await importSrc(file))[name].key);
+  // Who is looking: a workspace read that fails is the shell's own state ("Can't reach your workspace"), never a line.
+  const UNSAID = new Set(["workspace"]);
+  assert.deepEqual(
+    keys.filter((k) => !UNSAID.has(k) && !shell.SURFACE_LABELS[k]),
+    [],
+    "a surface the status line cannot name stops refreshing in silence: give it a word in shell.ts SURFACE_LABELS",
+  );
+  assert.deepEqual(
+    Object.keys(shell.SURFACE_LABELS).filter((k) => !keys.includes(k)),
+    [],
+    "a word for a surface the shell does not start",
+  );
+  for (const [key, word] of Object.entries(shell.SURFACE_LABELS)) assert.ok(word.trim(), `${key}: a word`);
 });

@@ -29,7 +29,15 @@
 import type { IngestCallResult } from "../packages/db.js";
 import type { NormalizedCall, RetellCall } from "../packages/channels.js";
 import { callSummaryLine } from "../packages/channels.js";
-import { callerName, callOutcomeWords, guardSpokenTurns } from "../packages/contracts.js";
+import {
+  addressOf,
+  callAttemptWords,
+  callerName,
+  callOutcomeWords,
+  guardSpokenTurns,
+  missedCall,
+  neverConnected,
+} from "../packages/contracts.js";
 import type { NotifyMessage } from "../ops/notify.js";
 import type { ForwardingCall } from "./forwarding.js";
 import type { CallForActivity } from "./call-activity.js";
@@ -276,7 +284,8 @@ export function planCallEvent(e: CallEvent, f: CallEventFacts): CallEventPlan {
       kind: "hold",
       conversationId: res.conversation_id,
       retellCallId: n.retellCallId,
-      over: n.status === "ended" || n.status === "error" || analyzed,
+      // A call that never connected is over too: renewing its hold kept the receptionist off the thread until it lapsed.
+      over: n.status === "ended" || n.status === "error" || n.status === "not_connected" || analyzed,
     });
   }
 
@@ -302,12 +311,44 @@ export function planCallEvent(e: CallEvent, f: CallEventFacts): CallEventPlan {
 
   // The email and the memory note happen ONCE per call. Retell retries a
   // slow delivery and replays inside the signature window; the claim is what
-  // makes the second delivery a no-op.
-  if (analyzed) steps.push({ kind: "claim_notification", callId: res.call_id });
+  // makes the second delivery a no-op. A customer's call that never connected
+  // is told once by the same claim: it may never be analysed (missedCallNotice).
+  if (analyzed || (!res.skipped && isMissedCall(n))) steps.push({ kind: "claim_notification", callId: res.call_id });
 
   const copy = recordingCopy(n, res, analyzed);
   if (copy) steps.push(copy);
   return { steps, about, callId: res.call_id ?? null };
+}
+
+/**
+ * A customer's call that never connected (contracts missedCall over neverConnected): the one the receptionist placed and
+ * nobody answered is no one's missed call, and one the carrier flagged as spam is not news to the owner.
+ */
+export function isMissedCall(n: Pick<NormalizedCall, "status" | "direction" | "disconnectionReason">): boolean {
+  return (
+    missedCall({ missed: neverConnected(n), direction: n.direction }) && n.disconnectionReason !== "marked_as_spam"
+  );
+}
+
+/**
+ * The owner's notice of a customer's call that never connected (the wiring's second audit, R11 S6-8). The bell's
+ * "Missed call" row was derived in a browser that held the calls, so with the app closed nothing was kept, mailed or
+ * pushed, and a dial that never connected may never be analysed, which is when every other call is told. Kept as a
+ * call's notice, so the owner's choice for calls decides the mail and the phones are told; once per call, by the same
+ * claim as an analysed call's; opening the call. The bell shows it in place of the row it derived (dedupeFeed).
+ */
+export function missedCallNotice(n: NormalizedCall, saved: string | null, callId: string | null): NotifyMessage {
+  const who = saved || callerName({ from_e164: n.fromE164, from_raw: n.fromRaw, contact: null });
+  return {
+    kind: "call",
+    route: callId ? addressOf({ kind: "call", id: callId }) : "conversations/phone",
+    about: callId ? { type: "call", id: callId } : null,
+    subject: `${callAttemptWords("inbound")} · ${who}`,
+    body:
+      `${n.fromE164 ? `${n.fromE164} rang` : "A caller rang"} and the call never connected, so nobody spoke with them. ` +
+      "Call them back, or write to them from their thread.",
+    redactedBody: "A customer's call to a workspace never connected.",
+  };
 }
 
 /**
@@ -343,7 +384,7 @@ export function callNotice(
   const length = durationS >= 60 ? `${Math.round(durationS / 60)} min` : `${durationS} s`;
   return {
     kind: "call",
-    route: callId ? `conversations/cv-${callId}` : "conversations/phone",
+    route: callId ? addressOf({ kind: "call", id: callId }) : "conversations/phone",
     about,
     subject: `${who} phoned · ${length}${callback ? " · needs a call back" : ""}`,
     body:

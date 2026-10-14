@@ -79,6 +79,10 @@ test("a shell message is navigate, menu, top or close; a route is a hash route's
   assert.deepEqual(parseShellMessage({ t: "menu" }), { t: "menu" });
   assert.deepEqual(parseShellMessage({ t: "top" }), { t: "top" });
   assert.deepEqual(parseShellMessage({ t: "close", route: "inbox" }), { t: "close" }, "close carries nothing");
+  // Whether the page's tab is in front, and nothing else (S10-3).
+  assert.deepEqual(parseShellMessage({ t: "front", front: false }), { t: "front", front: false });
+  assert.deepEqual(parseShellMessage({ t: "front", front: true, route: "inbox" }), { t: "front", front: true });
+  assert.equal(parseShellMessage({ t: "front", front: "yes" }), null, "a word that is no yes or no is nothing");
   // The native thread's asks went with it: an old app's are nothing the page answers.
   assert.equal(parseShellMessage({ t: "token" }), null);
   assert.equal(parseShellMessage({ t: "back" }), null);

@@ -148,7 +148,9 @@ const TONE_OF: Record<StateKind, Record<string, Tone>> = /* @__PURE__ */ (() => 
   },
   person: {
     needs_you: "warn",
-    waiting_on_you: "warn",
+    // You have it: in hand, as the Inbox, Conversations and the person's page draw it -- one tone for one word (the wiring's
+    // second audit, R11 S9-5). The rail's amber count is People's own choice (lists.ts listAsks), not this tone.
+    waiting_on_you: "info",
     new: "info",
     active: "ok",
     quiet: "plain",

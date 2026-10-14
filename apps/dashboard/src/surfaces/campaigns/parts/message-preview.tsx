@@ -462,13 +462,14 @@ export function PreviewStepper({
   const p = people[index] || people[0];
   if (!p) return null;
   const go = (d: number) => () => onStep((index + d + people.length) % people.length);
-  // A person walked is drawn with their initials, as a thread names them; a channel is its words alone.
+  // A person walked is drawn with their face, as a thread draws them (a number is a glyph, never two digits); a channel
+  // is its words alone.
   const person = words === PREVIEW_WORDS.walk.people;
   return (
     <>
       <div className="mp-step" data-testid="mp-step">
         <span className="mp-step-who">
-          {person ? <Face initials={mpInitials(p.label)} size="sm" /> : null}
+          {person ? <Face person={{ name: p.label }} size="sm" /> : null}
           <span className="mp-step-name">{p.label}</span>
           <span className="mp-step-pos tabular">{p.position}</span>
         </span>

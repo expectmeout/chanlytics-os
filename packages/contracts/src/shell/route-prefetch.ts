@@ -57,10 +57,11 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   // own surface's (reports_campaigns), made where the lens is drawn and not by the head.
   reports: ["reports?period=30d"],
   live: ["calls", "channels"],
-  // Sent: the runs, who an audience reaches and the composers' reads. The messages a composer offers are the settings read's, the
-  // one read of the templates, which Sent draws when it is composing and reads in the boot's second pass.
-  broadcasts: ["broadcasts", "contacts", "segments", "channels", "settings"],
-  outbound: ["playbooks", "channels", "settings"],
+  // Sent: the runs, who an audience reaches, and the channels read the composers are made of (surfaces/channels/surface.ts). The
+  // messages a composer offers, the business's name and its links are the settings read's, which Sent draws when it is composing
+  // and reads in the boot's second pass.
+  broadcasts: ["broadcasts", "contacts", "segments", "channels"],
+  outbound: ["playbooks", "channels"],
   // Campaigns' home is the playbooks' moments first (surface-registry ROUTE_SURFACE), and beside them Sent's runs, its own
   // 30 days (campaign_results, the period named once), the reach-outs' chains and the settings read (ROUTE_DRAWS), which holds the
   // templates: its call's text and the Library's count, and the messages a composer offers. Each surface's first reads.
@@ -78,9 +79,10 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
     "policies",
     "templates?all=1",
   ],
-  // Templates and every pane of Settings are drawn from the settings surface.
+  // Templates and every pane of Settings are drawn from the settings surface; the Library's number notice from the channels read,
+  // which Connections draws too and asks for as its pane comes on screen.
   messages: ["settings", "team", "policies", "channels", "templates?all=1"],
-  admin: ["settings", "team", "policies", "channels", "templates?all=1"],
+  admin: ["settings", "team", "policies", "templates?all=1"],
   start: ["setup", "views"],
 };
 /**
@@ -94,14 +96,14 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
  */
 export const PREFETCH_BESIDE: Readonly<Record<string, readonly string[]>> = {
   // Sent's runs and who they reach, the playbooks' moments, the bell (notifications), the reach-outs' replies, Google's
-  // reviews, the receptionist's settings, and the period line: Reports' headline over the period this device last
-  // picked, as Reports reads it.
+  // reviews, the channels read Live's strip and the runs are made of, and the period line: Reports' headline over the period
+  // this device last picked, as Reports reads it. Not the settings read: nothing on Today draws it, and the composers that
+  // asked for it here follow it now (surfaces/offered-templates.ts), so it comes in the boot's second pass.
   today: [
     "broadcasts",
     "contacts",
     "segments",
     "channels",
-    "settings",
     `reports/headline?period=${REPORT_PERIOD_DEFAULT}`,
     "playbooks",
     "notifications",

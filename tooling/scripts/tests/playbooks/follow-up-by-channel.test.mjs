@@ -54,7 +54,7 @@ const version = (channel, over = {}) => ({
  * column the database before 00298 has not got, WhatsApp alone), its WhatsApp template at `status` with Meta, and a number
  * connected (`true`, or `"flagged"`: its quality RED) or not. `templates` are the message's rows where the test names them.
  */
-const world = ({ channels, status = "approved", number = true, templates } = {}) => ({
+const world = ({ channels, status = "approved", number = true, templates, until = null } = {}) => ({
   playbooks: [
     {
       id: "pb1",
@@ -65,6 +65,7 @@ const world = ({ channels, status = "approved", number = true, templates } = {})
       last_run_for: null,
       template_name: "proposal_follow_up",
       template_language: "en_US",
+      until,
       ...(channels ? { channels } : {}),
     },
   ],
@@ -87,7 +88,7 @@ const world = ({ channels, status = "approved", number = true, templates } = {})
   broadcasts: [],
   broadcast_recipients: [],
 });
-const factsOf = (over) => followUpFacts({ supabase: fakeDb(world(over)) }, A, NOW);
+const factsOf = (over) => followUpFacts({ supabase: fakeDb(world(over)) }, A, NOW, "UTC");
 
 test("a follow-up that goes by WhatsApp alone is stopped by a template Meta has not approved: no facts, as its run would send nothing", async () => {
   assert.equal(await factsOf({ channels: ["whatsapp"], status: "pending" }), null, "ticked WhatsApp alone");
@@ -222,4 +223,11 @@ test("playbookStopBy is the run's one reading of its ticks: the number stops it 
           }),
           `${channels.join("+")} ${templateStatus} ${numberCanSend}`,
         );
+});
+
+test("a follow-up past its last day has no facts, as its run would send nothing: the one rule every page asks (campaignRunsOn, S1-3)", async () => {
+  // NOW is 3 October in UTC: a last day of 2 October has passed, and the 3rd is still its day.
+  assert.equal(await factsOf({ until: "2026-10-02" }), null, "past its last day");
+  assert.notEqual(await factsOf({ until: "2026-10-03" }), null, "on its last day it still runs");
+  assert.notEqual(await factsOf({}), null, "with no last day");
 });

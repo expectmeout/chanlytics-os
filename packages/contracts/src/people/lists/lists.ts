@@ -269,6 +269,15 @@ export const PEOPLE_LISTS: readonly {
   };
 });
 
+/**
+ * Whether a list's count on People's rail asks for the reader (drawn in amber): the people who need a person and nobody
+ * has taken. Said here rather than read off a state's tone (the wiring's second audit, R11 S9-5): the rail took its
+ * amber from the tone map, so "You have it" was amber there and blue everywhere else.
+ */
+export function listAsks(id: string): boolean {
+  return id === "needs_you";
+}
+
 /* ------------------------------------------------------------------ what a list needs, and who is on it */
 
 /** What a workspace and a reader can give a list: the rows' calendar, deals, a consult-first service, and a viewer. */

@@ -340,13 +340,19 @@ test("a read that fails fails the surface: the lens says so, never a count of no
   assert.equal(reviews.isStale(), true, "and nothing is held for the period");
 });
 
-test("its live-feed rule is the lens's own: the listing's three tables, heard while the lens is on screen and left for it otherwise; Google's own surface lets them pass there", () => {
+test("its live-feed rule is the lens's own: the listing's three tables and the rules, heard while the lens is on screen and left for it otherwise; Google's own surface lets them pass there", () => {
   reset("30d");
-  assert.deepEqual(reviewsOverride.refreshOnTables, ["google_reviews", "google_listings", "google_connections"]);
+  // The rules: the reply box's choice to draft with the receptionist (the wiring's second audit, W-review-facts-rules-8).
+  assert.deepEqual(reviewsOverride.refreshOnTables, [
+    "google_reviews",
+    "google_listings",
+    "google_connections",
+    "policies",
+  ]);
   assert.equal(reviewsOverride.refreshOnMessageInserts, undefined, "a message is no review");
   assert.deepEqual(
     reportsHeadlineOverride.refreshOnTables,
-    ["messages", "calls", "appointments", "contacts"],
+    ["messages", "calls", "appointments", "contacts", "tenant_config"],
     "the headline has its own, Today's (headline-live.test.mjs)",
   );
   const change = (table) => ({ table, event: "INSERT", row: {} });

@@ -31,6 +31,7 @@ import { connectionOf, type ConnectionRow, type Db } from "./google-rows.js";
 import { grantFrom, readCredentials, storeCredentials, tokenFor } from "./profile-credentials.js";
 import type { CheckResult } from "./listing-check.js";
 import { syncProfile } from "./profile-sync.js";
+import { syncMended } from "./sync-notice.js";
 
 const BUSINESS_SCOPE = "https://www.googleapis.com/auth/business.manage";
 
@@ -292,6 +293,8 @@ export async function disconnectProfile(
   if (gone.error) throw new Error(gone.error.message);
   const del = await db.from("google_connections").delete().eq("tenant_id", tenantId);
   if (del.error) throw new Error(del.error.message);
+  // A notice that it had stopped syncing is about nothing now.
+  await syncMended(db, tenantId, "google_connection.removed");
   await emitEvent(db, tenantId, "google.disconnected", "listing", null, {
     email: conn.google_email,
     location: conn.location_name,

@@ -8,7 +8,8 @@
  */
 import { read } from "@/legacy-bridge/api";
 import { workspaceZone } from "@/legacy-bridge/zone";
-import { LEFT_THE_QUEUE } from "@/legacy-bridge/surface-realtime";
+import { deliveryTicksOnly, isLiveCallTurn, LEFT_THE_QUEUE } from "@/legacy-bridge/surface-realtime";
+import type { Output } from "@/client/api";
 import { declareReads } from "@/legacy-bridge/surface-registry";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { routeOnScreen } from "@/legacy-bridge/workspace";
@@ -56,6 +57,9 @@ export function conversationTabs(
   ];
 }
 
+/** The open holds and the calls as the last read answered them: what a read the receipts alone asked for keeps (S10-2). */
+let lastBeside: { holds: Output<"GET escalations">; calls: Output<"GET calls"> | Error } | null = null;
+
 export const conversationsOverride: SurfaceOverride = {
   key: "conversations",
   value: "conversations",
@@ -64,18 +68,27 @@ export const conversationsOverride: SurfaceOverride = {
   // The rows' last words carry the same ticks as the thread (00327): see the Inbox's.
   refreshOnMessageStatuses: LEFT_THE_QUEUE,
   // And the person each row names (0047): a teammate's rename, their number or address, a yes or a stop, a merge. A few a day,
-  // so heard on every page, as the messages are.
-  ...declareReads("conversations", { reads: ["conversation", "hold", "person"], fresh: "live" }),
-  apply: async () => {
+  // so heard on every page, as the messages are. And the calls its Calls tab draws: a call with no number, which no message or
+  // thread tells, and a recording that finishes after the call's note (the wiring's second audit, X3-2). A call starting,
+  // ending or filed again is heard; a transcript turn of one in progress is Live's, and moves no row here.
+  ...declareReads("conversations", {
+    reads: ["conversation", "hold", "person", "call"],
+    fresh: "live",
+    when: (c) => !isLiveCallTurn(c),
+  }),
+  apply: async (heard) => {
     // The open escalations too: a row's standing is the Inbox's rule over the thread AND its escalation
     // (contracts standingOf), and without the second this surface read an escalated thread as quiet. The Inbox
     // override reads the same two doors in the same tick, so the client's read-sharing window answers both once.
+    // A delivery's receipts move the rows' ticks alone: the holds and the calls are the last read's (S10-2), where it read them.
+    const kept = deliveryTicksOnly(heard) && lastBeside && !(lastBeside.calls instanceof Error) ? lastBeside : null;
     const [data, escData, callsRes, tz] = await Promise.all([
       read("GET conversations"),
-      read("GET escalations", { query: { state: "open" } }),
-      read("GET calls").catch((e: unknown) => e as Error),
+      kept?.holds ?? read("GET escalations", { query: { state: "open" } }),
+      kept?.calls ?? read("GET calls").catch((e: unknown) => e as Error),
       workspaceZone(),
     ]);
+    lastBeside = { holds: escData, calls: callsRes };
     const openByConv = new Map(escData.escalations.map((e) => [e.conversation_id, e]));
     // The chat or the call the address names, when it is older than the hundred each read holds (a bell row from last week,
     // an Activity line, a person's page, an Ask citation): read by its id, never looked for in the window (finding A2c).

@@ -11,11 +11,22 @@ import { retentionWords, SMS_CLAUSES } from "@chanlytics/contracts";
  */
 export const metadata: Metadata = { title: "Privacy · Chanlytics", robots: { index: true } };
 
+/**
+ * What an owner may take a copy of, and that the copy says what it leaves out and why (the export bundle's manifest,
+ * contracts EXPORT_SECTIONS; the wiring's second audit, R14: the download holds what it promises).
+ */
+const DOWNLOAD_WORDS =
+  "An owner can download a copy of a workspace’s records from Settings › Business: its people, conversations and " +
+  "the files customers sent, calls, consent history, notes, deals, bookings, campaigns, lists, the team and the " +
+  "business’s own details. The file names what it leaves out and why, such as call audio and the connections that " +
+  "hold a provider’s credentials; an owner can ask us for anything else, and ask us to delete the workspace, after " +
+  "which its data is removed within 30 days, except what the law requires us to keep.";
+
 export default function PrivacyPage() {
   return (
     <main className="legal">
       <h1>Privacy policy</h1>
-      <p className="legal-meta">Chanlytics · last updated October 12, 2026</p>
+      <p className="legal-meta">Chanlytics · last updated October 14, 2026</p>
 
       <p>
         Chanlytics is a receptionist for small businesses: it answers a business's customers on WhatsApp, by phone and
@@ -151,9 +162,7 @@ export default function PrivacyPage() {
 
       <h2>How long we keep it</h2>
       <p>
-        {retentionWords()} An owner can download a workspace&rsquo;s people, conversations, calls and consent history
-        from Settings › Business, ask us for the rest, and ask us to delete the workspace, after which its data is
-        removed within 30 days, except what the law requires us to keep.
+        {retentionWords()} {DOWNLOAD_WORDS}
       </p>
 
       <h2>Your rights</h2>

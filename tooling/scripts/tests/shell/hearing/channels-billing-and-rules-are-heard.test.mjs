@@ -95,7 +95,10 @@ test("Today hears the channel, the line and the billing account its chips and it
     ...DEFAULT_REFRESH_TABLES,
     "calls",
     "lead_rounds",
-    ...LINE_TABLES,
+    "tenant_channels",
+    "lines",
+    "mailboxes", // the email chip, drawn where a mailbox exists (the wiring's second audit)
+    "billing_accounts",
     "contacts", // the person each row of the queue names (the-pages-hear-the-silent-records)
   ]);
   for (const table of LINE_TABLES) {
@@ -108,12 +111,17 @@ test("Today hears the channel, the line and the billing account its chips and it
   assert.equal(wantsRefresh(todayOverride, "calls", turn), false);
 });
 
-test("Live hears the line's number and switch beside the calls", () => {
-  assert.deepEqual(liveOverride.refreshOnTables, ["calls", "tenant_channels"]);
-  assert.equal(wantsRefresh(liveOverride, "tenant_channels", change("tenant_channels")), true);
+test("Live hears the calls, and the line's number and switch are the channels read's, which hears them wherever the tab is (R6)", async () => {
+  const { channelsOverride } = await importSrc("apps/dashboard/src/surfaces/channels/surface.ts");
+  assert.deepEqual(liveOverride.refreshOnTables, ["calls"]);
   assert.equal(liveOverride.debounceMs, 300, "and waits as it did");
+  // The line's row is heard by the one read of the channels, which Live follows (live/surface.ts followChannels).
+  assert.deepEqual(channelsOverride.refreshOnTables, ["tenant_channels"]);
+  assert.equal(channelsOverride.fresh, "live", "on every page: Today's strip and Connections draw it too");
+  assert.equal(wantsRefresh(channelsOverride, "tenant_channels", change("tenant_channels")), true);
   // A line saga's step or the workspace's status is no part of the phone line right now.
-  for (const table of ["lines", "billing_accounts"]) assert.equal(wantsRefresh(liveOverride, table), false, table);
+  for (const table of ["lines", "billing_accounts", "tenant_channels"])
+    assert.equal(wantsRefresh(liveOverride, table), false, table);
 });
 
 test("the composers hear the channel, the line and the billing account on their own page, and read what they missed as it comes on screen", () => {
@@ -167,9 +175,9 @@ test("the composers hear the channel, the line and the billing account on their 
   }
 });
 
-test("a mode saved on Autonomy re-reads Campaigns where it is on screen, and keeps it for its page elsewhere", () => {
-  // Resume asks 'It sends on its own: nothing will wait for your approval' when the class is Auto, from the modes the playbooks read held.
-  const kept = ["settings", "people", "reports_reviews"];
+test("a mode saved reads the rules' own read, and what the page on screen draws of the rest; each of the rest is left for the pages that draw it, never read for a page nobody has open (W-review-facts-rules-9, S10-6)", () => {
+  // Resume asks 'It sends on its own: nothing will wait for your approval' when the class is Auto, from the modes the playbooks read held;
+  // People's follow-up column says the mode, and the Reviews lens whether a review's composer asks for a draft.
   const win = {
     location: globalThis.location,
     addEventListener(_t, fn) {
@@ -177,10 +185,10 @@ test("a mode saved on Autonomy re-reads Campaigns where it is on screen, and kee
     },
     removeEventListener() {},
   };
-  const owedOn = (hash) => {
+  const owedOn = (hash, overrides = [playbooksOverride, broadcastsOverride]) => {
     const read = [];
     at("#/__nowhere");
-    const stop = readWhatWasMissed([playbooksOverride, broadcastsOverride], (k) => read.push(...k), win);
+    const stop = readWhatWasMissed(overrides, (k) => read.push(...k), win);
     try {
       at(hash);
       win.on?.();
@@ -189,34 +197,65 @@ test("a mode saved on Autonomy re-reads Campaigns where it is on screen, and kee
     }
     return read;
   };
+  const settle = () => {
+    owedOn("#/campaigns");
+    owedOn("#/broadcasts");
+    owedOn("#/clients", [peopleOverride]);
+  };
   // Nothing is owed from before.
-  owedOn("#/campaigns");
-  owedOn("#/broadcasts");
+  settle();
 
-  at("#/inbox");
-  assert.deepEqual(keysOf("PUT policies"), kept, "from the Inbox it reads what it read before");
+  at("#/admin/autonomy");
+  assert.deepEqual(
+    keysOf("PUT policies"),
+    ["settings"],
+    "on Autonomy, where a mode is saved, the rules' own read alone",
+  );
   assert.deepEqual(
     owedOn("#/campaigns"),
     ["playbooks", "broadcasts"],
-    "and both are read as Campaigns' home comes on screen: Sent's runs it draws hear the rules there",
+    "both composers are read as Campaigns' home comes on screen: Sent's runs it draws hear the rules there",
   );
   assert.deepEqual(owedOn("#/broadcasts"), [], "and Sent owes nothing more");
+  assert.deepEqual(
+    owedOn("#/clients", [peopleOverride]),
+    ["people"],
+    "People's follow-up column, as People comes on screen",
+  );
+  settle();
+
+  at("#/inbox");
+  assert.deepEqual(
+    keysOf("PUT policies"),
+    ["settings", "broadcasts"],
+    "from the Inbox, the runs waiting for your word it draws beside the rules' own read",
+  );
+  assert.deepEqual(owedOn("#/campaigns"), ["playbooks"], "the playbooks as Campaigns' home comes on screen");
+  settle();
 
   at("#/campaigns");
   assert.deepEqual(
     keysOf("PUT policies"),
-    [...kept, "playbooks", "broadcasts"],
+    ["settings", "playbooks", "broadcasts"],
     "on Campaigns' home both are read at once",
   );
   assert.deepEqual(owedOn("#/broadcasts"), [], "Sent owes nothing: its runs were read on the home");
   assert.deepEqual(owedOn("#/campaigns"), [], "and the playbooks owe nothing: they were read");
+  settle();
 
   at("#/broadcasts");
-  assert.deepEqual(keysOf("PUT policies"), [...kept, "broadcasts"]);
+  assert.deepEqual(
+    keysOf("PUT policies"),
+    ["settings", "playbooks", "broadcasts"],
+    "Sent draws a run's playbook beside its runs",
+  );
   at("#/outbound");
-  assert.deepEqual(keysOf("PUT policies"), [...kept, "playbooks"], "Campaigns' old address is the playbooks' too");
-  owedOn("#/campaigns");
-  owedOn("#/broadcasts");
+  assert.deepEqual(keysOf("PUT policies"), ["settings", "playbooks"], "Campaigns' old address is the playbooks' too");
+  at("#/clients");
+  assert.deepEqual(keysOf("PUT policies"), ["settings", "people"], "People's follow-up column, on People");
+  at("#/reports/reviews");
+  assert.deepEqual(keysOf("PUT policies"), ["settings", "reports_reviews"], "the reply mode, on the Reviews lens");
+  settle();
   at("#/today");
 });
 

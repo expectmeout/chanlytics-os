@@ -42,6 +42,7 @@ import { conversationsOverride } from "@/surfaces/inbox/conversations-surface";
 import { inboxOverride } from "@/surfaces/inbox/surface";
 import { todayOverride } from "@/surfaces/today/surface";
 import { settingsOverride } from "./surfaces/settings";
+import { channelsOverride } from "@/surfaces/channels/surface";
 import { peopleOverride } from "@/surfaces/people/surface";
 import { reportsOverride } from "@/surfaces/reports/surface";
 import { reportsHeadlineOverride } from "@/surfaces/reports/headline";
@@ -94,7 +95,7 @@ import { alertsOverride } from "@/surfaces/settings/notifications/surface";
 import { partnerOverride } from "@/surfaces/settings/partner/surface";
 import { installIdentity } from "./identity";
 import { fillDoors } from "../surfaces/frame-doors";
-import { installShell, publishShellStatus, shellStatusOf } from "./shell";
+import { SURFACE_LABELS, installShell, publishShellStatus, shellStatusOf } from "./shell";
 import { installClock } from "./zone";
 import CreateWorkspace, { useHandoverAsk } from "./CreateWorkspace";
 import { JoinedNote } from "./invitations/joined-note";
@@ -193,6 +194,8 @@ const SURFACES = [
   inboxOverride,
   todayOverride,
   settingsOverride,
+  // The channels the workspace is reached on, read once for Connections, the Library, Live and the composers (surfaces/channels).
+  channelsOverride,
   peopleOverride,
   leadsOverride,
   reportsOverride,
@@ -245,20 +248,6 @@ onRouteReachedFor(
 );
 /** The runner's live feed: the workspace's topic, over this browser's Supabase client. */
 const joinLiveFeed: JoinLiveFeed = (onChange, opts) => subscribeWorkspaceChanges(createClient(), onChange, opts);
-const SURFACE_LABELS: Record<string, string> = {
-  conversations: "Conversations",
-  inbox: "Inbox",
-  today: "Today",
-  people: "People",
-  reports: "Reports",
-  reports_headline: "Today's period",
-  reports_reviews: "Reviews",
-  reports_receptionist: "Receptionist",
-  reports_people: "People report",
-  reports_campaigns: "Campaigns report",
-  live: "Calls",
-  calendar: "Calendar",
-};
 
 // Which flipped surface backs each route, and which routes are real at all —
 // both live in surface-registry.ts so the classification and the wiring cannot

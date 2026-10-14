@@ -1132,12 +1132,13 @@ const mountMessages = async ({ channels = [], templatesAll = [] } = {}) => {
       config: { brain: { business_name: "Marisa's Beauty Salon", booking_link: "https://book.example.com/marisa" } },
     },
     facts: null,
-    channels,
     templatesAll,
     messages: campaignMessagesOf(templatesAll),
     templateUse: null,
     templateSent: null,
   });
+  // The number is the channels read's (surfaces/channels/surface.ts): null is a read that failed, [] a workspace with none.
+  setSurfaceValue("channels", { rows: channels });
   // A template's title is looked up among the workspace's rows by its name (verbs.ts titleOf), as the app publishes them.
   globalThis.__TEMPLATES_ALL = templatesAll;
   freshTree();

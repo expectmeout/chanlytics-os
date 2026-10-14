@@ -1501,12 +1501,22 @@ test("the shape block: sorted and byte-stable -- the same workspace read in anot
   t.playbooks.reverse();
   const two = shapeBlock((await load(rcIn(ctxFor(t), A, { keep: false }), shape, undefined)).data);
   assert.equal(two, one, "the same bytes for a reordered fixture");
-  assert.match(one, /^The workspace: Harbor · zone America\/New_York\nLines: sms pending, whatsapp active\n/);
+  // The kinds alone: a line's status moves, and is the connections' read (R13 X5-6).
+  assert.match(one, /^The workspace: Harbor · zone America\/New_York\nLines: sms, whatsapp\n/);
   assert.match(one, /booking link set/);
   // 9 Oct 2026 (spec 2026-10-09 §4.8): the word the workspace calls an appointment (readers/facts.ts businessShape).
   assert.match(one, /the appointment word: appointment/);
   assert.match(one, /Lists: Brides \(archived\), Regulars\n/);
-  assert.match(one, /Playbooks: Reminder \(visit_tomorrow, paused\); Win-back \(quiet_30, running\)$/);
+  // By name and trigger: whether each runs moves, and is the campaigns' read (R13 X5-6).
+  assert.match(
+    one,
+    /Playbooks: Reminder \(visit_tomorrow\); Win-back \(quiet_30\)\nWhether a line is live and whether a playbook runs move by the minute and are not kept here: read them before you say them\.$/,
+  );
+  // A campaign paused, or a line that dropped, changes not a byte of the kept block.
+  const moved = shapeTables();
+  for (const p of moved.playbooks) p.state = p.state === "paused" ? "running" : "paused";
+  for (const c of moved.tenant_channels) c.status = "disconnected";
+  assert.equal(shapeBlock((await load(rcIn(ctxFor(moved), A, { keep: false }), shape, undefined)).data), one);
 
   const busier = shapeTables({
     messages: [...tables().messages, message("m9", C1, A, "One more")],

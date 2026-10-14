@@ -67,6 +67,12 @@ export type ShellMessage =
   /** Close what stands over the page, as a keyboard's Escape would: Android's Back, while the page says one is open. */
   | { t: "close" }
   /**
+   * Whether this page's tab is the one in front. Each tab is a page of its own, kept open behind the others once visited, and
+   * a covered page may still call itself visible: a page behind reads nothing for the live feed but what says itself on the
+   * icon, and reads what it held as it comes in front (the wiring's second audit, S8-9, S10-3; legacy-bridge/hearing/front.ts).
+   */
+  | { t: "front"; front: boolean }
+  /**
    * Register this phone for the person signed in: the page calls PUT me/devices through its own client, and forgets
    * it again on its own before a sign-out (legacy-bridge/app-bridge.ts forgetPhone), so no ask says "forget".
    */
@@ -134,6 +140,8 @@ export function parseShellMessage(v: unknown): ShellMessage | null {
       return { t: "top" };
     case "close":
       return { t: "close" };
+    case "front":
+      return typeof v.front === "boolean" ? { t: "front", front: v.front } : null;
     case "device": {
       const tok = token(v.token);
       const platform = v.platform === "ios" || v.platform === "android" ? v.platform : null;

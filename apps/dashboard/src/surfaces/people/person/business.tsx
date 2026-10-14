@@ -103,7 +103,8 @@ function peopleHere(b: BusinessRecordVM, from: "page" | "thread") {
           const said = x.here && from === "thread" ? WORKS_AT_WORDS.thisThread : x.line;
           const inner = (
             <>
-              <Face initials={x.initials} size="sm" />
+              {/* A person, so their face is decided as every page decides one (a number is a glyph, never two digits). */}
+              <Face person={{ name: x.name, initials: x.initials }} size="sm" />
               <span className="cl-prof-biz-name">{x.name}</span>
               <span className="cl-prof-biz-line">
                 {said}

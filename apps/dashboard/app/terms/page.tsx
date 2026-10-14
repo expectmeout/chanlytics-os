@@ -12,7 +12,7 @@ export default function TermsPage() {
   return (
     <main className="legal">
       <h1>Terms of service</h1>
-      <p className="legal-meta">Chanlytics · last updated October 12, 2026</p>
+      <p className="legal-meta">Chanlytics · last updated October 14, 2026</p>
 
       <p>
         These terms are the agreement between Chanlytics ("we", "us") and the business that opens a workspace in the
@@ -106,8 +106,8 @@ export default function TermsPage() {
       <h2>Your data</h2>
       <p>
         Your workspace's data is yours. We process it to run the service, as the <a href="/privacy">privacy policy</a>{" "}
-        describes. You can download its people, conversations, calls and consent history at any time, ask us for a copy
-        of the rest, and ask us to delete the workspace.
+        describes. You can download a copy of its records at any time, which names what it leaves out, ask us for
+        anything else, and ask us to delete the workspace.
       </p>
 
       <h2>Acceptable use</h2>

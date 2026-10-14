@@ -39,7 +39,9 @@ const win = {
 };
 globalThis.window = win;
 historyOf(win);
-globalThis.document = { visibilityState: "hidden", title: "", addEventListener() {}, removeEventListener() {} };
+// On screen: a hidden page reads, of what the feed tells, only what says itself in the tab's title and badge, and holds the
+// rest until it is in front (shell/feed/the-runner-heals.test.mjs).
+globalThis.document = { visibilityState: "visible", title: "", addEventListener() {}, removeEventListener() {} };
 globalThis.CustomEvent ??= class CustomEvent {
   constructor(type, init) {
     this.type = type;
@@ -283,9 +285,10 @@ test("a surface's own tables reach it wherever the page is, and a thread's updat
   win.location.hash = "#/today";
   const r = await running();
   try {
-    // A teammate's deal moves People's rows and the Pipeline: People's own table, heard off its page.
+    // A teammate's deal moves People's rows and the Pipeline: People's own table, heard off its page. And Setup's count of who can
+    // receive an offer, which reads the deals, on the page its band is drawn (the wiring's second audit, S4-3).
     await r.change("deals", "UPDATE");
-    assert.deepEqual(r.asked, ["people"]);
+    assert.deepEqual([...r.asked].sort(), ["people", "setup"]);
     r.asked.length = 0;
     await r.change("conversations", "UPDATE");
     assert.deepEqual([...r.asked].sort(), ["conversations", "inbox", "today"], "a snooze or a pause: the three");
@@ -796,6 +799,20 @@ test("the page that owns what it draws is an explicit one: the surface registry 
     "a person's answer moves who can hear you",
   );
   assert.equal(registry.ownsTable("broadcasts", "messages", "campaigns"), false, "a message is re-read on Sent");
+  assert.equal(
+    registry.ownsTable("broadcasts", "segments", "campaigns"),
+    true,
+    "a list To offers moves who can hear you",
+  );
+  // Settings is drawn there whole: a message's drawer is the Library's pane, which says what sends it (the playbooks and runs its
+  // read joins: W-campaign-run-template-reachout-2), as the Library itself does.
+  for (const route of ["campaigns", "messages"])
+    assert.equal(
+      registry.ownsTable("settings", "broadcasts", route),
+      true,
+      `a run moves what sends a message, on ${route}`,
+    );
+  assert.equal(registry.ownsTable("settings", "broadcasts", "today"), false, "and is kept for them elsewhere");
   // The reach-outs are drawn on the home too; they have no table of their own to refresh on a message, but a route that
   // draws them owns them for the refreshes that name a page. Settings is drawn there again: the templates a composer offers
   // and the Library counts are the settings read's, the one read of them (surfaces/offered-templates.ts).
@@ -803,21 +820,12 @@ test("the page that owns what it draws is an explicit one: the surface registry 
   assert.equal(owns("settings", "campaigns/new"), true);
   for (const key of ["people", "reports", "calendar"]) assert.equal(owns(key, "campaigns"), false, key);
   // Today draws a good many surfaces and owns its own, the headline its period line and Worth a look are printed from (it hears the
-  // feed there, a long wait later: reports/headline.ts), and the replies to a reach-out its queue draws.
-  for (const key of [
-    "broadcasts",
-    "reports",
-    "playbooks",
-    "people",
-    "calendar",
-    "setup",
-    "notifications",
-    "live",
-    "google",
-  ])
+  // feed there, a long wait later: reports/headline.ts), the replies to a reach-out its queue draws, and the setup band, which hears
+  // what its rows state there (the wiring's second audit, S4-3; a message only while the first WhatsApp message is awaited).
+  for (const key of ["broadcasts", "reports", "playbooks", "people", "calendar", "notifications", "live", "google"])
     assert.equal(owns(key, "today"), false, `today does not own ${key}`);
   assert.equal(owns("today", "today"), true);
-  for (const key of ["reports_headline", "reach_out_replies"]) assert.equal(owns(key, "today"), true, key);
+  for (const key of ["reports_headline", "reach_out_replies", "setup"]) assert.equal(owns(key, "today"), true, key);
   for (const route of ["inbox", "clients", "calendar", "campaigns", "reports"])
     assert.equal(owns("reports_headline", route), false, `${route} does not own the headline`);
   assert.equal(owns("broadcasts", "broadcasts/run:b-1"), true);

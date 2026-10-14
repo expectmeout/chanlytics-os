@@ -73,7 +73,15 @@ import { linkOfferedOn } from "../calendar/availability.js";
 import { env } from "../env.js";
 import { keptUrl, retellSigned } from "./voice-door-auth.js";
 import { logger, errField } from "../log.js";
-import { planCallEvent, callNotice, type CallAbout, type CallEventPlan, type CallStep } from "./call-event.js";
+import {
+  planCallEvent,
+  callNotice,
+  isMissedCall,
+  missedCallNotice,
+  type CallAbout,
+  type CallEventPlan,
+  type CallStep,
+} from "./call-event.js";
 
 type Db = NonNullable<ReturnType<typeof pg>>;
 
@@ -196,6 +204,7 @@ async function admitted(raw: string, signature: string | null): Promise<boolean>
 }
 
 /** A delivery with a call in it, read into the shape the row keeps. */
+/** A delivery as the door read it: the event, the call as the provider shaped it, and the key names it carried. */
 interface Delivery {
   event: string | undefined;
   call: RetellCall;
@@ -255,15 +264,16 @@ function readDelivery(raw: string): Delivery | null {
  * erasure: its events must not make the person again with the call's data,
  * nor mail the owner about them. A call begun after the request is the
  * person calling back, and is theirs to make. A check that cannot be MADE
- * sends the delivery back rather than proceeding. The answer is the
- * response that ends the delivery, or null when it may go on.
+ * sends the delivery back rather than proceeding. The answer is what ends the
+ * delivery ("erased", or "unreadable", which is tried again), or null when it
+ * may go on.
  */
-async function erasureRefusal(
+async function erasureOf(
   db: Db,
   n: NormalizedCall,
   routed: RoutedChannel | null,
   event: string | undefined,
-): Promise<Response | null> {
+): Promise<"erased" | "erasure_unreadable" | null> {
   const L = logger();
   if (!routed || !n.fromE164 || !n.startedAtIso) return null;
   // A read that FAILED is not "nobody asked to be forgotten". The comment
@@ -280,7 +290,7 @@ async function erasureRefusal(
       tenant_id: routed.tenantId,
       error: errField(e),
     });
-    return refuse(503, "erasure_unreadable");
+    return "erasure_unreadable";
   }
   if (erased) {
     L.info("retell_call_skipped_erased", {
@@ -288,7 +298,7 @@ async function erasureRefusal(
       tenant_id: routed.tenantId,
       retell_event: event,
     });
-    return json(200, { ok: true, skipped: "erased" });
+    return "erased";
   }
   return null;
 }
@@ -622,8 +632,37 @@ export async function receiveCallEvent(request: Request): Promise<Response> {
     L.error("retell_routing_unreadable", { call_id: n.retellCallId, agent_id: n.agentId, retell_event: event });
     return refuse(503, "routing_unreadable");
   }
-  const refusal = await erasureRefusal(db, n, routed, event);
-  if (refusal) return refusal;
+  const settled = await settleCall(db, routed, delivery);
+  if (settled.kind === "erasure_unreadable") return refuse(503, "erasure_unreadable");
+  if (settled.kind === "erased") return json(200, { ok: true, skipped: "erased" });
+  // A non-2xx is the only thing that earns a retry: see settleCall.
+  if (settled.kind === "ingest_failed") return refuse(503, "ingest_failed");
+  // A retry or a replay: the row says this call's email and note went out.
+  if (settled.kind === "duplicate") return json(200, { ok: true, duplicate: true });
+  return json(200, { ok: true });
+}
+
+/** What a call event came to once its workspace was known: the door answers by it, and the calls sweep counts it. */
+type CallSettled =
+  | { kind: "erasure_unreadable" }
+  | { kind: "erased" }
+  | { kind: "ingest_failed" }
+  | { kind: "duplicate" }
+  | { kind: "settled"; told: boolean };
+
+/**
+ * Everything a call event does once its workspace is known: the erasure guard, the ingest, the plan applied in order, and
+ * for an analysed call the claim and the owner's notice. The webhook's second half, callable, since a call whose "call
+ * analysed" delivery was lost is settled by the calls sweep through the same steps once the provider has the analysis
+ * (calls-sweep.ts; the wiring's second audit, R11 S11-3): a caller who asked to be called back was dropped, with no hold
+ * and no notice. The claim on the call (calls.notified_at) keeps the notice to once, whichever settles it first.
+ */
+export async function settleCall(db: Db, routed: RoutedChannel | null, delivery: Delivery): Promise<CallSettled> {
+  const L = logger();
+  const { event, call } = delivery;
+  const n = normalizeCall(call);
+  const erasure = await erasureOf(db, n, routed, event);
+  if (erasure) return { kind: erasure };
 
   // null = the plan made no claim (a dead letter makes none); true = this
   // delivery owns the post-call side effects; false = a retry or replay, they
@@ -664,17 +703,23 @@ export async function receiveCallEvent(request: Request): Promise<Response> {
     // a 503, as the WhatsApp and SMS doors give a write the database
     // refused: try again.
     L.error("ingest_call_failed", { error: errField(e) });
-    return refuse(503, "ingest_failed");
+    return { kind: "ingest_failed" };
   }
 
-  if (event === "call_analyzed") {
-    if (notifyClaim === false) {
-      // A retry or a replay: the row says this call's email and note went out.
-      L.info("retell_analyzed_duplicate", { call_id: n.retellCallId });
-      return json(200, { ok: true, duplicate: true });
-    }
-    const saved = await savedCallerName(db, routed, callerId, n.retellCallId);
-    await tellOwner(db, routed, callNotice(n, call, callAbout, saved, callId));
+  // The owner is told once per call, by the claim: of its analysis, or of a customer's call that never connected, which
+  // may never be analysed (R11 S6-8). A missed call the plan made no claim for (a stale delivery, a dead letter) tells
+  // nobody.
+  const missed = event !== "call_analyzed" && isMissedCall(n);
+  if (event !== "call_analyzed" && !(missed && notifyClaim !== null)) return { kind: "settled", told: false };
+  if (notifyClaim === false) {
+    L.info("retell_analyzed_duplicate", { call_id: n.retellCallId });
+    return { kind: "duplicate" };
   }
-  return json(200, { ok: true });
+  const saved = await savedCallerName(db, routed, callerId, n.retellCallId);
+  await tellOwner(
+    db,
+    routed,
+    missed ? missedCallNotice(n, saved, callId) : callNotice(n, call, callAbout, saved, callId),
+  );
+  return { kind: "settled", told: true };
 }

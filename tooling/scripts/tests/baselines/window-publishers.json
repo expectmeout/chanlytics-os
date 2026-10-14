@@ -9,7 +9,7 @@
   "apps/dashboard/src/legacy-bridge/surface-data.ts": 5,
   "apps/dashboard/src/legacy-bridge/surface-registry.ts": 6,
   "apps/dashboard/src/legacy-bridge/surfaces/notifications.ts": 1,
-  "apps/dashboard/src/legacy-bridge/surfaces/settings.ts": 16,
+  "apps/dashboard/src/legacy-bridge/surfaces/settings.ts": 14,
   "apps/dashboard/src/legacy/components/ask-face.jsx": 1,
   "apps/dashboard/src/legacy/components/data-bits.jsx": 11,
   "apps/dashboard/src/legacy/components/shortcuts.jsx": 1,

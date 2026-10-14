@@ -51,6 +51,7 @@
   "provision_tenant()": 3,
   "push_device_forget()": 1,
   "push_device_register()": 1,
+  "push_devices_forget_all()": 1,
   "put_channel_credentials()": 1,
   "put_google_credentials()": 1,
   "put_line_credentials()": 1,

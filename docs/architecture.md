@@ -670,6 +670,7 @@ apps/dashboard/src/server/
   workspace/
 apps/dashboard/src/legacy-bridge/
   ask/
+  hearing/
   invitations/
   mascot/
   reach-out/

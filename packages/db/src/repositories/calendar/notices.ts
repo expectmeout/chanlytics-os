@@ -102,6 +102,30 @@ export async function heldNoticesOf(db: Db, tenantId: string): Promise<Appointme
   return data ?? [];
 }
 
+/** More held notices than any workspace keeps: past it, the read is not the whole of them. */
+const HELD_KEYS_CAP = 1000;
+
+/**
+ * Every notice held for a person, by both the names a bell row may give it (its row id and the notice's own id): what Ask's
+ * read of the notices judges a held booking email's row by (contracts noticeStillWaits), as the bell does by the Calendar's
+ * list (the wiring's second audit, R13 X5-1). Null where the read is not the whole of them, which settles nothing. Throws when
+ * it cannot be read.
+ */
+export async function heldNoticeKeys(db: Db, tenantId: string): Promise<ReadonlySet<string> | null> {
+  const { data, error } = await db
+    .from("appointment_notices")
+    .select("id, notice_id")
+    .eq("tenant_id", tenantId)
+    .eq("outcome", "held")
+    .order("received_at", { ascending: false })
+    .order("id", { ascending: true })
+    .limit(HELD_KEYS_CAP);
+  if (error) throw new Error(`appointment_notices_held_keys: ${error.message}`);
+  const rows = data ?? [];
+  if (rows.length >= HELD_KEYS_CAP) return null;
+  return new Set(rows.flatMap((r) => [r.id, r.notice_id]));
+}
+
 /** One notice of the workspace by its row id, or null. */
 export async function appointmentNoticeById(
   db: Db,

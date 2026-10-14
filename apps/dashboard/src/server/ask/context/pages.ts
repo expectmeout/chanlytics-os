@@ -1,12 +1,13 @@
 import "server-only";
 import {
   addressOf,
+  campaignRunsOn,
   chainResultsOf,
   dealsAreOn,
   lifecycleChainStateOf,
   lifecycleChainsOf,
+  lifecyclePlaybooksOf,
   lifecycleStateOf,
-  nextRunLabel,
   plural,
   reportDaysAsked,
   reportRangeOfKey,
@@ -18,6 +19,9 @@ import {
   triggerOf,
   type AskContextRowKind,
   type LifecycleRowResults,
+  emailTemplateRowsOf,
+  isLibrarySample,
+  libraryCount,
 } from "@chanlytics/contracts";
 import { load, type ReaderContext } from "../../readers";
 import * as facts from "../../readers/facts";
@@ -103,12 +107,17 @@ function lastDaysPart(r: LifecycleRowResults | null): string {
 async function playbookContextRows(rc: ReaderContext, ids: string[]) {
   const [read, sources] = await Promise.all([load(rc, playbooksReader, undefined), lastDaysBySource(rc)]);
   const pb = read.data;
-  const byId = new Map(pb.playbooks.map((p) => [p.id, p]));
+  // Each card as the home reads it at this turn's clock (contracts lifecyclePlaybooksOf, the reading campaigns.playbooks makes):
+  // a campaign past its last day is Ended, one on trial says so, and its next run is none after its last day. The raw row said
+  // "On · daily 10:00 AM" with a run tomorrow of a campaign the home called Ended (the wiring's second audit, S1-3).
+  const home = lifecyclePlaybooksOf(pb, rc.now);
+  const byId = new Map(home.cards.map((c) => [c.playbook.id, c]));
   const refs = refsOf(read.rows);
   const rows: ContextRow[] = [];
   for (const id of ids) {
-    const p = byId.get(id);
-    if (!p) continue;
+    const card = byId.get(id);
+    if (!card) continue;
+    const p = card.playbook;
     // Nothing sent is the row's own rule (sentResultsOfSource): a reply to an older send is no sending in these days.
     const days = lastDaysOf(sources, id);
     const moment = triggerOf(p.trigger)?.label ?? p.trigger;
@@ -120,8 +129,8 @@ async function playbookContextRows(rc: ReaderContext, ids: string[]) {
           p.name,
           lastDaysPart(days ? sentResultsOfSource(days) : null),
           // The campaign's state as the home says it (lifecycleStateOf), a run waiting included, paused or not.
-          lifecycleStateOf(p).words,
-          `next run ${nextRunLabel(p, pb.timezone, rc.now, pb.ready?.paused === true)}`,
+          lifecycleStateOf({ ...p, ended: card.read.ended, trial: card.read.trial, off: card.read.off }).words,
+          `next run ${card.read.next}`,
           moment.trim().toLowerCase() === p.name.trim().toLowerCase() ? null : moment,
         ],
         `campaigns/moment:${id}`,
@@ -129,7 +138,9 @@ async function playbookContextRows(rc: ReaderContext, ids: string[]) {
       ref: refs.get(id) ?? null,
     });
   }
-  const running = pb.playbooks.filter((p) => p.state === "running").length;
+  // Running is the one rule's (campaignRunsOn): on, before its last day, and its moment one that may run here.
+  const at = { tz: home.timezone, now: rc.now, dealsOn: home.shape.dealsOn };
+  const running = pb.playbooks.filter((p) => campaignRunsOn(p, at)).length;
   return { rows, aggregate: `playbooks: ${pb.playbooks.length}, ${running} running` };
 }
 
@@ -191,9 +202,22 @@ async function broadcastRows(rc: ReaderContext, ids: string[]) {
   return { rows, aggregate: `broadcasts: ${vms.size}${list.more ? " recent" : ""}, ${open} still to come` };
 }
 
-/** The messages the page drew, each as the library lists one: its name, category, status and language. */
+/**
+ * The messages the page drew, each as the library lists one: its name, category, status and language. And the head's
+ * figure as the Library says it (the wiring's second audit, R13 X5-5): its templates, by contracts libraryCount (a message
+ * is a name in a language, whatever channels it has versions on, beside each email a reach-out writes), and how many of
+ * WhatsApp's own rows are approved. It counted every row of every channel as "messages": 14 and 11 approved where the
+ * Library said 9 templates and 7 approved.
+ */
 async function templateRows(rc: ReaderContext, ids: string[]) {
-  const read = await load(rc, templatesReader, { all: true });
+  const [read, chains] = await Promise.all([
+    load(rc, templatesReader, { all: true }),
+    // A reach-out's emails, which the Library counts beside the templates; one that could not be read is said.
+    load(rc, reachOutChains, undefined).then(
+      (r) => r.data.chains,
+      () => null,
+    ),
+  ]);
   const all = read.data.templates;
   const byId = new Map(all.map((t) => [t.id, t]));
   const refs = refsOf(read.rows);
@@ -210,8 +234,13 @@ async function templateRows(rc: ReaderContext, ids: string[]) {
       ref: refs.get(id) ?? null,
     });
   }
-  const approved = all.filter((t) => t.meta_status === "approved").length;
-  return { rows, aggregate: `messages: ${all.length}, ${approved} approved` };
+  const whatsapp = all.filter((t) => t.channel === "whatsapp" && !isLibrarySample(t.name) && !t.hidden_at);
+  const approved = whatsapp.filter((t) => t.meta_status === "approved").length;
+  const count = libraryCount(read.data.messages, chains ? emailTemplateRowsOf(chains).length : 0);
+  return {
+    rows,
+    aggregate: `templates: ${count}${chains ? "" : " (a reach-out's emails, which the Library counts too, could not be read)"}, ${approved} approved by WhatsApp`,
+  };
 }
 
 /**

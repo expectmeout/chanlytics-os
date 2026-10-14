@@ -609,6 +609,9 @@ function channelsWords(channels) {
 function isOptedOutContact(c) {
   return !!c && (c.consent === "opted_out" || c.dnc === true);
 }
+function mayRing(c) {
+  return !c || c.dnc !== true;
+}
 var ASKED_TO_STOP_SHORT = "asked to stop";
 var ASKED_TO_STOP = `${ASKED_TO_STOP_SHORT} receiving messages`;
 var STOP_WORDS = {
@@ -1753,6 +1756,13 @@ function describeVisits(visits, tz, nowMs, opts) {
     );
   }
   return out.length ? out.join(" ") : null;
+}
+function visitsAt(v, nowMs) {
+  if (!v?.next || !(Date.parse(v.next.end) < nowMs)) return v;
+  const ended = v.next;
+  const ahead = (v.all ?? v.near ?? []).filter((x) => x.said !== "missed" && x.id !== ended.id && Date.parse(x.end) >= nowMs).sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+  const last = !v.last || Date.parse(ended.end) > Date.parse(v.last.end) ? ended : v.last;
+  return { ...v, next: ahead.at(0) ?? null, last };
 }
 function toVisitDto(v) {
   return v ? {
@@ -4012,6 +4022,12 @@ function isReplyTo(sentAt, at3) {
   const s = Date.parse(sentAt);
   const a = Date.parse(at3);
   return Number.isFinite(s) && Number.isFinite(a) && a > s && a - s <= REPLY_WINDOW_MS;
+}
+var RUN_UNDERWAY = /* @__PURE__ */ new Set(["pending_approval", "scheduled", "sending"]);
+function runStillMoving(run, nowMs) {
+  if (RUN_UNDERWAY.has(run.state)) return true;
+  const ended = Date.parse(run.finished_at ?? run.started_at ?? "");
+  return Number.isFinite(ended) && nowMs - ended <= REPLY_WINDOW_MS;
 }
 var RECIPIENT_REASON_HEARD = "heard_this_week";
 var LEFT_OUT_FACTS = { breath: RECIPIENT_REASON_HEARD };
@@ -8918,6 +8934,16 @@ var ACTIVITY_PAGE_WORDS = {
   clearShort: "Clear",
   more: "Show more",
   moreReading: "Reading\u2026",
+  /**
+   * Lines newer than the ones on screen, read while the log is open: offered above it rather than moved in under the reader
+   * (the wiring's second audit, X2-3). Not counted: a burst of one kind is one line, and the rows read are not the lines drawn.
+   */
+  newer: {
+    fact: "Newer activity",
+    since: "since this was read",
+    show: "Show it",
+    label: "Newer activity since this was read"
+  },
   soFar: (n) => `${n} so far`,
   /** A fold's name to a screen reader: its sentence, then what a press on it does. */
   fold: {
@@ -10406,6 +10432,9 @@ var PEOPLE_LISTS = BUILTIN_LISTS.map((l) => {
     test: (vm) => listRuleMatches(l.rule, vm)
   };
 });
+function listAsks(id) {
+  return id === "needs_you";
+}
 function unmetNeed(needs2, ctx) {
   const met = {
     calendar: ctx.calendar === "ok",
@@ -11904,6 +11933,94 @@ function activityMemberWords(row2, about) {
   return row2.text === activityKindWords(row2.kind) ? about : `${row2.text} \xB7 ${about}`;
 }
 
+// src/activity/record-export.ts
+var EXPORT_SECTIONS = [
+  "people",
+  "conversations",
+  "files",
+  "calls",
+  "consent_history",
+  "notes_and_steps",
+  "deals",
+  "business",
+  "team",
+  "bookings",
+  "lists",
+  "list_members",
+  "campaigns",
+  "sends",
+  "templates",
+  "holds",
+  "rules",
+  "reviews",
+  "leads",
+  "reach_out_replies"
+];
+var EXPORT_OF = {
+  person: { section: "people" },
+  conversation: { section: "conversations" },
+  call: { section: "calls" },
+  hold: { section: "holds" },
+  visit: { section: "bookings" },
+  step: { section: "notes_and_steps" },
+  deal: { section: "deals" },
+  list: { section: "lists" },
+  lead: { section: "leads" },
+  campaign: { section: "campaigns" },
+  send: { section: "sends" },
+  template: { section: "templates" },
+  reach_out: { section: "reach_out_replies" },
+  review: { section: "reviews" },
+  facts: { section: "business" },
+  rules: { section: "rules" },
+  channel: {
+    not_exported: {
+      what: "The business's numbers, mailboxes and connections",
+      why: "They hold the providers' credentials, and each provider keeps its own record of them; Settings \u203A Connections lists them."
+    }
+  },
+  team: { section: "team" },
+  workspace: { derived: "The file's header: the workspace's name, zone and id, and when the copy was taken." },
+  notification: {
+    not_exported: {
+      what: "The bell's notices",
+      why: "Each one says again what a section of the file holds, and they are cleared as they are read."
+    }
+  },
+  billing: {
+    not_exported: {
+      what: "The subscription and its invoices",
+      why: "The payment provider holds them; Settings \u203A Billing opens them."
+    }
+  }
+};
+var LEFT_OUT_BESIDE_THE_KINDS = [
+  {
+    what: "Call audio",
+    why: "It is removed on the schedule the privacy policy states; each call's transcript is in calls."
+  },
+  {
+    what: "The activity log",
+    why: "Each change it records is in the section of the record it changed, and every consent change is in consent_history."
+  }
+];
+var EXPORT_HOLDS_WORDS = "People, conversations with their messages and a link to each file a customer sent, which opens for a day, calls with their transcripts, every consent change with who recorded it, notes and steps, deals, your business details, the team, bookings, lists, campaigns and what each sent, templates, holds, the receptionist's rules, Google reviews, leads, and how each reply to a reach-out was read.";
+function exportLeftOutWords() {
+  const what = exportLeftOut().map((l) => l.what.charAt(0).toLowerCase() + l.what.slice(1));
+  return `Not in it: ${what.slice(0, -1).join("; ")}; and ${what.at(-1) ?? ""}. The end of the file says why for each.`;
+}
+function exportLeftOut() {
+  const kinds = [];
+  for (const how of Object.values(EXPORT_OF))
+    if ("not_exported" in how) kinds.push(how.not_exported);
+  return [...kinds, ...LEFT_OUT_BESIDE_THE_KINDS];
+}
+function exportedSections() {
+  const named = /* @__PURE__ */ new Set();
+  for (const how of Object.values(EXPORT_OF)) if ("section" in how) named.add(how.section);
+  return EXPORT_SECTIONS.filter((s) => named.has(s));
+}
+
 // src/activity/record-kinds.ts
 var RECORD_KINDS = {
   person: ["contacts"],
@@ -12813,7 +12930,7 @@ function pageChips(input, t, add) {
   const waiting = rows2.find((r2) => r2.waiting);
   if (waiting) add(t.whyWaiting.replace("{name}", waiting.name), "ask", "clock");
   add(t.working, "ask", "trending-up");
-  if (!rows2.some((r2) => isWinBack(r2.trigger) && r2.state === "running")) add(t.winBackIdea, "ask", "bolt");
+  if (!rows2.some((r2) => isWinBack(r2.trigger) && r2.runs)) add(t.winBackIdea, "ask", "bolt");
   return true;
 }
 function buildAskSuggestions(input) {
@@ -14247,6 +14364,7 @@ function templateUsage(src) {
       id: p.id,
       name: p.name,
       paused: p.state === "paused",
+      ended: p.ended === true,
       waiting: asking.has(p.id),
       runs: p.runs ?? null
     });
@@ -14265,7 +14383,7 @@ var capital = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
 function templateUseWords(use) {
   const u = use ?? NOTHING;
   const parts2 = [];
-  for (const p of u.playbooks) parts2.push(p.paused ? `${p.name} (paused)` : p.name);
+  for (const p of u.playbooks) parts2.push(p.paused ? `${p.name} (paused)` : p.ended ? `${p.name} (ended)` : p.name);
   if (u.broadcasts > 0) parts2.push(`${u.broadcasts} broadcast${u.broadcasts === 1 ? "" : "s"}`);
   if (u.booking) parts2.push("the Inbox");
   if (parts2.length === 0) return "Nothing sends it";
@@ -14275,8 +14393,11 @@ function templateUseWords(use) {
 function templateUseNote(use) {
   const u = use ?? NOTHING;
   if (u.playbooks.some((p) => p.waiting)) return `a run is ${RUN_WAITING_WORDS.toLowerCase()}`;
-  if (u.playbooks.length === 1) return u.playbooks[0].paused ? "paused \u2014 nothing goes out" : u.playbooks[0].runs;
-  if (u.playbooks.length > 1) return u.playbooks.every((p) => p.paused) ? "all paused \u2014 nothing goes out" : null;
+  const [only] = u.playbooks;
+  if (only && u.playbooks.length === 1)
+    return only.paused ? "paused \u2014 nothing goes out" : only.ended ? "ended \u2014 nothing more goes out" : only.runs;
+  if (u.playbooks.length > 1)
+    return u.playbooks.every((p) => p.paused) ? "all paused \u2014 nothing goes out" : u.playbooks.every((p) => p.paused || p.ended) ? "none runs \u2014 nothing goes out" : null;
   if (u.recent.length > 0)
     return u.broadcasts > u.recent.length ? `${u.recent.join(", ")} and ${u.broadcasts - u.recent.length} more` : u.recent.join(", ");
   if (u.booking) return "what the receptionist sends to book";
@@ -19861,6 +19982,10 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     notes
   };
 }
+function callEndedWords(dto, now = /* @__PURE__ */ new Date()) {
+  const outcome = callOutcomeFor(dto, isLiveCall(dto, now));
+  return outcome === "missed" ? callAttemptWords(dto.direction === "outbound" ? "outbound" : "inbound") : CALL_OUTCOME_WORDS[outcome];
+}
 
 // src/voice/live.ts
 var LIVE_STALE_MS = 5 * MIN_MS;
@@ -19868,6 +19993,10 @@ var LIVE_OVERLONG_MS = 30 * MIN_MS;
 var ANALYSIS_GRACE_MS = 10 * MIN_MS;
 var RECENT_MAX = 8;
 var MISSED_CALL_NEWS_MS = DAY_MS;
+var callerMarks = (contact) => ({
+  stopped: isOptedOutContact(contact),
+  dnc: !mayRing(contact)
+});
 function missedCallIsNews(c, now) {
   return c.missed && !c.live && typeof c.startedAtMs === "number" && now - c.startedAtMs <= MISSED_CALL_NEWS_MS;
 }
@@ -19959,7 +20088,7 @@ function toLiveCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     who,
     whoShort,
     initials: withheld ? "\u2013" : initialsOf(who),
-    stopped: isOptedOutContact(dto.contact),
+    ...callerMarks(dto.contact),
     // The CUSTOMER's number: on a call the receptionist placed, that is the one it dialled. The bell's missed-call
     // row named the business's own line under an outbound dial that never connected (the 2 Oct 2026 audit).
     number: withheld ? null : dto.direction === "outbound" ? formatPhoneDisplay(dto.to_e164) : phone ?? dto.from_raw,
@@ -20949,6 +21078,11 @@ function newCampaignTrialUntil(now) {
 function campaignEnded(p, day) {
   return p.until && day > p.until ? p.until : null;
 }
+function campaignRunsOn(p, at3) {
+  if (p.state !== "running") return false;
+  if (campaignEnded(p, localDate(at3.tz, at3.now))) return false;
+  return triggerOf(p.trigger)?.kind !== "deal" || at3.dealsOn;
+}
 function campaignDayWords(day, tz, now) {
   return clockDate(zoneMidnight(tz, day) + 12 * HOUR_MS, tz, now.getTime());
 }
@@ -21031,10 +21165,13 @@ function runsWords(p) {
   return p.trigger === "everyone_monthly" ? `runs every ${p.cadence_days} days at ${at3}` : `runs daily at ${at3}`;
 }
 var NEXT_RUN_WORKSPACE_PAUSED = "after billing resumes";
+var NEXT_RUN_PAST_LAST_DAY = "none: its last day has passed";
 function nextRunLabel(p, tz, now, workspacePaused) {
   if (p.state !== "running") return "paused";
   if (workspacePaused) return NEXT_RUN_WORKSPACE_PAUSED;
   const next = nextRunOf(p, tz, now);
+  const today = localDate(tz, now);
+  if (campaignEnded(p, next.day === "today" ? today : shiftKey(today, 1))) return NEXT_RUN_PAST_LAST_DAY;
   return next.soon ? "today, within the hour" : `${next.day} ${clockHour(next.hour)}`;
 }
 function nextRunOf(p, tz, now) {
@@ -21304,8 +21441,8 @@ function offerNote(offer, line, dates, notes) {
   return { change: { op: "add_note", title, text: clip(text, PROFILE_LIMITS.noteText), until: dates.until } };
 }
 function monthsOfferPauses(world, until) {
-  const today = localDate(world.tz, world.now);
-  return world.playbooks.filter((p) => p.trigger === "everyone_monthly" && p.state === "running" && !campaignEnded(p, today)).map((p) => ({ input: { playbook_id: p.id, state: "paused" }, said: SAY.monthsOfferPaused(p.name, until) }));
+  const at3 = { tz: world.tz, now: world.now, dealsOn: false };
+  return world.playbooks.filter((p) => p.trigger === "everyone_monthly" && campaignRunsOn(p, at3)).map((p) => ({ input: { playbook_id: p.id, state: "paused" }, said: SAY.monthsOfferPaused(p.name, until) }));
 }
 function reminderDay(world, dates, paced) {
   if (paced || !world.journey?.some((s) => s.id === "before" || s.id === "after")) return null;
@@ -25901,7 +26038,8 @@ function reminderOf(i, ended) {
   if (b.person.stopped) return SHEET_WORDS.reminder.stopped;
   const before = i.moments.find((m) => m.trigger === "visit_tomorrow");
   if (!before) return null;
-  return before.state === "running" ? SHEET_WORDS.reminder.rule(before.run_hour, name) : SHEET_WORDS.reminder.off(name);
+  const runs = campaignRunsOn(before, { tz: i.tz, now: new Date(i.nowMs), dealsOn: i.dealsOn }) && !campaignEnded(before, shiftKey(i.day.key, -1));
+  return runs ? SHEET_WORDS.reminder.rule(before.run_hour, name) : SHEET_WORDS.reminder.off(name);
 }
 function visitRowsOf(i, ended, facts) {
   const b = i.block;
@@ -28597,6 +28735,7 @@ function heldDraftWaits(vm, nowMs) {
 function replyFacts(dto, primaryChannel, tz, now) {
   return {
     optedOut: isOptedOut(dto),
+    dnc: !mayRing(dto.contact),
     offersOk: dto.contact.marketing_consent === "opted_in",
     emailStopped: primaryChannel === "email" ? emailStoppedWords(dto.contact, tz, now) : null
   };
@@ -29031,7 +29170,9 @@ var TONE_OF = /* @__PURE__ */ (() => ({
   },
   person: {
     needs_you: "warn",
-    waiting_on_you: "warn",
+    // You have it: in hand, as the Inbox, Conversations and the person's page draw it -- one tone for one word (the wiring's
+    // second audit, R11 S9-5). The rail's amber count is People's own choice (lists.ts listAsks), not this tone.
+    waiting_on_you: "info",
     new: "info",
     active: "ok",
     quiet: "plain",
@@ -32142,6 +32283,8 @@ function parseShellMessage(v) {
       return { t: "top" };
     case "close":
       return { t: "close" };
+    case "front":
+      return typeof v.front === "boolean" ? { t: "front", front: v.front } : null;
     case "device": {
       const tok = token(v.token);
       const platform = v.platform === "ios" || v.platform === "android" ? v.platform : null;
@@ -32156,7 +32299,7 @@ function parseShellMessage(v) {
 
 // src/mobile/live-activity.ts
 var CALL_ACTIVITY_NAME = "CallActivity";
-var CALL_ACTIVITY_STALE_MS = 15 * MIN_MS;
+var CALL_ACTIVITY_STALE_MS = 4 * MIN_MS;
 var CALL_ACTIVITY_ROLES = ["owner", "operator"];
 function callActivityStart(props, now) {
   const seconds2 = Math.floor(now.getTime() / 1e3);
@@ -33663,6 +33806,18 @@ function stepSheetMerge(draft, opened, fresh) {
   };
 }
 
+// src/notices/connection-news.ts
+var GOOGLE_SYNC_TOLD_AFTER_MS = 2 * DAY_MS;
+var GOOGLE_SYNC_NOTICE_WORDS = {
+  title: "Google Business Profile stopped syncing",
+  body: (f) => (f.lasting ? "Google stopped letting Chanlytics read your Business Profile, so new reviews no longer arrive here." : `Your Business Profile ${f.lastSyncedMs === null ? "has not synced since it was connected" : `last synced ${agoWords(f.lastSyncedMs, f.nowMs)}`}, and every try since has failed, so new reviews no longer arrive here.`) + " Connections says what Google answered. Reconnecting it there, under Google, mends most causes."
+};
+var CALENDAR_UNREADABLE_TOLD_AFTER_MS = DAY_MS;
+var CALENDAR_UNREADABLE_WORDS = {
+  title: "Your calendar link stopped answering",
+  body: (f) => `Your calendar link stopped answering ${agoWords(f.sinceMs, f.nowMs)}. Until it answers again, the receptionist does not say which times are open, and new visits do not reach the Calendar. Check the link in Settings, under Business.`
+};
+
 // src/notices/hold-notice.ts
 var HOLD_CHANNEL_WORDS = {
   whatsapp: "WhatsApp",
@@ -33715,9 +33870,42 @@ function memberJoinedNotice(m) {
     redactedBody: "A teammate joined a workspace, and nobody could be told."
   };
 }
+function memberLeftBy(event) {
+  if (event.kind !== "member.left") return null;
+  const data = event.data && typeof event.data === "object" && !Array.isArray(event.data) ? event.data : null;
+  if (!data) return null;
+  const { by, how, had_role: hadRole } = data;
+  if (typeof by !== "string" || how !== "left" && how !== "account_deleted") return null;
+  return { by, how, hadRole: typeof hadRole === "string" ? hadRole : null };
+}
+function memberLeftNotice(m) {
+  const who = m.email ?? "A teammate";
+  const role = m.hadRole ? ROLE_WORDS[m.hadRole] ?? m.hadRole : null;
+  return {
+    kind: "member_left",
+    route: TEAM_ROUTE,
+    about: null,
+    subject: (m.how === "account_deleted" ? `${who} deleted their account` : `${who} left your team`).slice(0, 200),
+    body: [
+      m.how === "account_deleted" ? "Their account is gone, and their seat with it." : `They left the workspace${role ? `, where they were ${role}` : ""}.`,
+      "Settings > Team has who is left, and an invitation brings someone back."
+    ].join("\n"),
+    redactedBody: "A teammate left a workspace, and nobody could be told."
+  };
+}
 
 // src/notices/visit-news.ts
 var ARRIVES = /* @__PURE__ */ new Set(["added", "confirmed"]);
+var VISIT_CHANGES_TOLD = {
+  added: "A booking arriving (bookingArriving): told, unless it is the owner's own entry or a calendar's catching up.",
+  confirmed: "A proposed visit booked by the tool: told as a booking arriving.",
+  cancelled: "Told when the customer cancelled through their booking tool (bookingChanged); a member's cancel is theirs.",
+  moved: "Told when the customer moved it through their booking tool; the calendar's moves are the owner's own diary.",
+  kept: "A member's word on a visit that happened: theirs, not news.",
+  missed: "A member's word on a no-show: theirs, not news.",
+  vanished: "Gone from the owner's calendar, their own diary: not told, as a feed's rebuild would tell every visit.",
+  back: "Back on the owner's calendar, their own diary: not told."
+};
 var ARRIVES_BY = /* @__PURE__ */ new Set(["booking_email", "booking_tool", "calendar_feed"]);
 var CATCH_UP_VISITS = 8;
 var NAMED_IN_A_GROUP = 3;
@@ -33740,12 +33928,43 @@ function bookingArriving(event) {
     startsAt: typeof startsAt === "string" ? startsAt : null
   };
 }
+var CHANGES = /* @__PURE__ */ new Set(["cancelled", "moved"]);
+var CHANGES_BY = /* @__PURE__ */ new Set(["booking_email", "booking_tool"]);
+function bookingChanged(event) {
+  if (event.kind !== "appointment.changed" || event.subject_type !== "appointment" || !event.subject_id) return null;
+  const data = event.data && typeof event.data === "object" && !Array.isArray(event.data) ? event.data : null;
+  if (!data) return null;
+  const { change, source, by } = data;
+  if (typeof change !== "string" || !CHANGES.has(change)) return null;
+  if (typeof source !== "string" || !CHANGES_BY.has(source)) return null;
+  if (by !== "service") return null;
+  return { appointmentId: event.subject_id, change };
+}
 var VIA_WORDS = {
   booking_email: "From your booking tool's email",
   booking_tool: "From your booking tool",
   calendar_feed: "From your calendar"
 };
 var visitDayOf = (v) => visitDateKey(v.start, v.timezone);
+function visitChangeNews(v, change, nowMs) {
+  const when = visitLine({ start: v.start, end: v.end, allDay: v.allDay }, v.timezone, nowMs);
+  const who = v.who ?? "Someone";
+  const cancelled = change === "cancelled";
+  return {
+    kind: "booking",
+    route: visitRoute(v.id, visitDayOf(v)),
+    about: { type: "appointment", id: v.id },
+    subject: (cancelled ? `${who} cancelled their visit` : `${who} moved their visit`).slice(0, 200),
+    body: [
+      cancelled ? when : `Now ${when}`,
+      ...v.service ? [v.service] : [],
+      ...cancelled ? ["That time is free again."] : [],
+      "",
+      VIA_WORDS[v.via]
+    ].join("\n"),
+    redactedBody: cancelled ? "A booking was cancelled, and nobody could be told." : "A booking was moved, and nobody could be told."
+  };
+}
 function bookedLineOf(v, nowMs) {
   const when = visitLine({ start: v.start, end: v.end, allDay: v.allDay }, v.timezone, nowMs);
   return [v.who ?? "Someone", when, v.service].filter(Boolean).join(" \xB7 ");
@@ -33924,7 +34143,7 @@ function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null
   const first = firstContactOf(r2, tz, nowMs);
   const consent = consentOf(r2, tz, nowMs);
   const reach = rowReachOf(r2, consent, ready);
-  const v = r2.visits ?? null;
+  const v = visitsAt(r2.visits ?? null, nowMs);
   const calendar = v ? v.state : "none";
   const askedMs = heardAt(r2);
   const booked = !!v?.next;
@@ -35167,7 +35386,8 @@ function personCallOf(i) {
       listing: false,
       outcomes,
       onLead,
-      asksWho: false
+      asksWho: false,
+      rings: mayRing({ dnc: i.dnc })
     };
   const ph = b?.phone;
   if (!b || !ph || !ph.tel) return null;
@@ -35179,7 +35399,8 @@ function personCallOf(i) {
     listing: true,
     outcomes,
     onLead,
-    asksWho: i.standIn
+    asksWho: i.standIn,
+    rings: mayRing({ dnc: i.dnc })
   };
 }
 function personCallDays(o) {
@@ -36828,6 +37049,19 @@ function chainStepsWords(steps) {
   ].filter((p) => !!p);
   return parts2.length > 1 ? `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}` : parts2[0] ?? "";
 }
+function chainResumeOf(c) {
+  const W = LIFECYCLE_WORDS.ledger.resume;
+  return {
+    kind: "resume",
+    label: W.label,
+    playbookId: c.root_id,
+    ask: { question: W.question(c.name), detail: W.chain }
+  };
+}
+function rowResumeOf(home, id) {
+  const act2 = home.ledger.groups.flatMap((g) => g.rows).find((r2) => r2.id === id)?.act;
+  return act2?.kind === "resume" ? act2 : null;
+}
 function chainRow(c, at3) {
   const W = LIFECYCLE_WORDS.ledger;
   const paused = c.state !== "running";
@@ -36839,12 +37073,7 @@ function chainRow(c, at3) {
   const stateWords = state.words;
   const feeds = c.fed_by === "list" ? W.ownList : `Cold email${c.search ? ` to ${c.search.name}` : ""}`;
   const hint = `${feeds} \xB7 ${chainStepsWords(c.steps)}`;
-  const resume = {
-    kind: "resume",
-    label: W.resume.label,
-    playbookId: c.root_id,
-    ask: { question: W.resume.question(c.name), detail: W.resume.chain }
-  };
+  const resume = chainResumeOf(c);
   return {
     id: c.root_id,
     kind: "chain",
@@ -37326,7 +37555,8 @@ function cardReadOf(p, pb, at3) {
     // Why it runs nothing here: the card says it, and every rule of the home that skips what runs nothing skips it.
     off: ended ? LIFECYCLE_WORDS.ended(ended) : dealsOff,
     ended,
-    trial: trialDayWords(p, at3.tz, at3.now)
+    trial: trialDayWords(p, at3.tz, at3.now),
+    runs: campaignRunsOn(p, { tz: at3.tz, now: at3.now, dealsOn: at3.shape.dealsOn })
   };
 }
 function lifecyclePlaybooksOf(pb, now) {
@@ -39293,7 +39523,8 @@ var SCHEMA_SETS = {
     "booking_notice",
     "opted_out",
     "booking",
-    "member_joined"
+    "member_joined",
+    "member_left"
   ],
   "page_vitals.device": ["desk", "phone"],
   "page_vitals.metric": ["LCP", "INP", "CLS", "FCP", "TTFB", "READY", "SETTLED"],
@@ -41984,6 +42215,19 @@ function googleRow(i, ctx) {
   const title = "Your Google listing";
   const connected = i.google.connected === true;
   const reach = connected ? "Business Profile connected \u2014 every review, replies from Reports" : "New reviews reach your bell and Reports";
+  const c = i.google.connection;
+  if (c?.sync_error) {
+    return {
+      id: "google",
+      icon: "star",
+      title,
+      state: "waiting_you",
+      required: false,
+      sentence: `${connectionWords(c, nowMs)}. New reviews and their replies wait until it is connected again.`,
+      details: g ? [listingLine(g)] : [],
+      verb: { label: "Reconnect", to: "admin/integrations" }
+    };
+  }
   if (g && g.check_error) {
     return {
       id: "google",
@@ -42756,10 +43000,11 @@ var PREFETCH_READS = {
   // own surface's (reports_campaigns), made where the lens is drawn and not by the head.
   reports: ["reports?period=30d"],
   live: ["calls", "channels"],
-  // Sent: the runs, who an audience reaches and the composers' reads. The messages a composer offers are the settings read's, the
-  // one read of the templates, which Sent draws when it is composing and reads in the boot's second pass.
-  broadcasts: ["broadcasts", "contacts", "segments", "channels", "settings"],
-  outbound: ["playbooks", "channels", "settings"],
+  // Sent: the runs, who an audience reaches, and the channels read the composers are made of (surfaces/channels/surface.ts). The
+  // messages a composer offers, the business's name and its links are the settings read's, which Sent draws when it is composing
+  // and reads in the boot's second pass.
+  broadcasts: ["broadcasts", "contacts", "segments", "channels"],
+  outbound: ["playbooks", "channels"],
   // Campaigns' home is the playbooks' moments first (surface-registry ROUTE_SURFACE), and beside them Sent's runs, its own
   // 30 days (campaign_results, the period named once), the reach-outs' chains and the settings read (ROUTE_DRAWS), which holds the
   // templates: its call's text and the Library's count, and the messages a composer offers. Each surface's first reads.
@@ -42777,21 +43022,22 @@ var PREFETCH_READS = {
     "policies",
     "templates?all=1"
   ],
-  // Templates and every pane of Settings are drawn from the settings surface.
+  // Templates and every pane of Settings are drawn from the settings surface; the Library's number notice from the channels read,
+  // which Connections draws too and asks for as its pane comes on screen.
   messages: ["settings", "team", "policies", "channels", "templates?all=1"],
-  admin: ["settings", "team", "policies", "channels", "templates?all=1"],
+  admin: ["settings", "team", "policies", "templates?all=1"],
   start: ["setup", "views"]
 };
 var PREFETCH_BESIDE = {
   // Sent's runs and who they reach, the playbooks' moments, the bell (notifications), the reach-outs' replies, Google's
-  // reviews, the receptionist's settings, and the period line: Reports' headline over the period this device last
-  // picked, as Reports reads it.
+  // reviews, the channels read Live's strip and the runs are made of, and the period line: Reports' headline over the period
+  // this device last picked, as Reports reads it. Not the settings read: nothing on Today draws it, and the composers that
+  // asked for it here follow it now (surfaces/offered-templates.ts), so it comes in the boot's second pass.
   today: [
     "broadcasts",
     "contacts",
     "segments",
     "channels",
-    "settings",
     `reports/headline?period=${REPORT_PERIOD_DEFAULT}`,
     "playbooks",
     "notifications",
@@ -43075,10 +43321,11 @@ function pushFor(n, targets) {
   const body = firstLine(n.body);
   return targets.map((t) => ({
     to: t.token,
-    title: n.title,
+    // "Harbor · Dana needs a person": a person in several businesses was told who, never which business (R11 S8-7).
+    title: t.business ? `${t.business} \xB7 ${n.title}` : n.title,
     body,
     sound: "default",
-    badge: t.badge,
+    ...t.badge === null ? {} : { badge: t.badge },
     data: { route: n.route, notification_id: n.id, tenant_id: n.tenant_id }
   }));
 }
@@ -43112,7 +43359,9 @@ var NOTIFICATION_DELIVERY = {
   opted_out: "email",
   // A booking that arrived and a teammate who joined: news and no wait, a line on the bell and no mail, no phone.
   booking: "bell",
-  member_joined: "bell"
+  member_joined: "bell",
+  // A teammate who left: the same, the other way (00437).
+  member_left: "bell"
 };
 var EMAILED_NOTIFICATION_KINDS = Object.keys(NOTIFICATION_DELIVERY).filter((k) => NOTIFICATION_DELIVERY[k] === "email");
 function emailsNotificationKind(kind) {
@@ -43280,7 +43529,8 @@ var BELL_LINE_KINDS = [
   "reach_out_day",
   "alert",
   "booking",
-  "member_joined"
+  "member_joined",
+  "member_left"
 ];
 var EMAIL_CHOICE_KINDS = ALERT_TOPICS.flatMap(
   (t) => t.email === "choice" ? t.kinds : []
@@ -43368,7 +43618,7 @@ var ALERT_PANE_WORDS = {
       "a booking email that needs a look",
       "the day's reach-out numbers at 6 PM",
       "a problem with a line",
-      "a teammate who joins",
+      "a teammate who joins or leaves",
       "invitations not yet accepted"
     ];
     return `Also on the bell: ${all.slice(0, -1).join(", ")}, and ${all[all.length - 1]}.`;
@@ -43412,6 +43662,126 @@ function phoneLine(p, now) {
   if (Number.isNaN(at3)) return what;
   const ago3 = agoShort(at3, now);
   return `${what} \xB7 ${ago3 === "now" ? "seen just now" : `seen ${ago3} ago`}`;
+}
+
+// src/waits/notice-mends.ts
+var exactly = (title) => new RegExp(`^${title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "u");
+var templateTitle2 = (...statuses) => new RegExp(`^Template \u201C.*\u201D (?:${statuses.map((s) => TEMPLATE_STATUS_WORDS[s].toLowerCase()).join("|")})$`, "u");
+var NOTICE_MENDS = [
+  // A number's quality and its limit are that number's (its channel, waba-events.ts): one number's good news is not another's.
+  {
+    warns: { kind: "number", title: /^WhatsApp quality rating flagged$/u },
+    by: { kind: "number", title: /^WhatsApp quality rating back to normal$/u },
+    sameSubject: true
+  },
+  {
+    warns: { kind: "number", title: /^WhatsApp messaging limit lowered$/u },
+    by: { kind: "number", title: /^WhatsApp messaging limit raised$/u },
+    sameSubject: true
+  },
+  {
+    warns: { kind: "number", title: /^WhatsApp account review rejected$/u },
+    by: { kind: "number", title: /^WhatsApp account review approved$/u },
+    sameSubject: false
+  },
+  // A version refused, paused or disabled is mended by that version's approval (its name and language). A move to
+  // marketing is a restriction an approval does not lift, and a category change mends no refusal: neither is a pair.
+  {
+    warns: { kind: "template_blocked", title: templateTitle2("rejected", "paused", "disabled") },
+    by: { kind: "template_ready", title: templateTitle2("approved") },
+    sameSubject: true
+  },
+  // A connected mailbox held for its own mail is mended by its owner's resume, one signed out by connecting it again, and
+  // either by its removal (decision 0056, mailbox-notices.ts words them).
+  {
+    warns: { kind: "sweep", title: /^.+ is held: /u },
+    by: { change: "mailbox_connection.resumed" },
+    sameSubject: true
+  },
+  {
+    warns: { kind: "sweep", title: /^.+ is held: /u },
+    by: { change: "mailbox_connection.removed" },
+    sameSubject: true
+  },
+  {
+    warns: { kind: "sweep", title: /^.+ needs reconnecting$/u },
+    by: { change: "mailbox_connection.connected" },
+    sameSubject: true
+  },
+  {
+    warns: { kind: "sweep", title: /^.+ needs reconnecting$/u },
+    by: { change: "mailbox_connection.removed" },
+    sameSubject: true
+  },
+  {
+    warns: { kind: "billing", title: /^Your receptionist is paused$/u },
+    by: { kind: "billing", title: /^Your receptionist is back$/u },
+    sameSubject: false
+  },
+  {
+    warns: { kind: "billing", title: /^A payment did not go through$/u },
+    by: { kind: "billing", title: /^Your receptionist is back$/u },
+    sameSubject: false
+  },
+  {
+    warns: { kind: "billing", title: /^A payment did not go through$/u },
+    by: { change: "billing.paid" },
+    sameSubject: false
+  },
+  {
+    warns: { kind: "billing", title: /^Your trial ends in three days$/u },
+    by: { change: "billing.paid" },
+    sameSubject: false
+  },
+  // A Business Profile that stopped syncing is mended by a sync that works, or by the connection's removal; a calendar
+  // link that stopped answering by a read that works (the edge's sweeps record each). One of each per workspace.
+  {
+    warns: { kind: "sweep", title: exactly(GOOGLE_SYNC_NOTICE_WORDS.title) },
+    by: { change: "google_connection.synced" },
+    sameSubject: false
+  },
+  {
+    warns: { kind: "sweep", title: exactly(GOOGLE_SYNC_NOTICE_WORDS.title) },
+    by: { change: "google_connection.removed" },
+    sameSubject: false
+  },
+  {
+    warns: { kind: "sweep", title: exactly(CALENDAR_UNREADABLE_WORDS.title) },
+    by: { change: "calendar.readable" },
+    sameSubject: false
+  },
+  // Closed in SQL by resume_email_offers (00421): listed so the test holds the SQL's literal to these words.
+  {
+    warns: { kind: "sweep", title: exactly(OFFERS_NOTICE_WORDS.paused(null).title) },
+    by: { change: "mailbox.offers_resumed" },
+    sameSubject: false
+  }
+];
+function warningsMendedBy(by) {
+  return NOTICE_MENDS.filter(
+    (m) => "change" in by ? "change" in m.by && m.by.change === by.change : "kind" in m.by && m.by.kind === by.kind && m.by.title.test(by.title)
+  ).map((m) => ({ ...m.warns, sameSubject: m.sameSubject }));
+}
+
+// src/waits/notice-tones.ts
+var LISTED = [
+  // A line's own news (lines/provision.ts, voice/voice-provision.ts, voice/forwarding.ts, channels a2p verdict.ts).
+  { kind: "number", title: /^Your phone line is ready: /u, tone: "ok" },
+  { kind: "number", title: /^Forwarding works: /u, tone: "ok" },
+  { kind: "number", title: /^Texting is on: /u, tone: "ok" },
+  { kind: "number", title: /^Your business is approved by the carriers$/u, tone: "ok" },
+  // The subscription (contracts workspace/billing.ts planBilling's bell).
+  { kind: "billing", title: /^Your trial has started$/u, tone: "ok" },
+  // The carriers' refusals of a texting registration (channels a2p verdict.ts), kept as alerts: warnings.
+  { kind: "alert", title: /^The carriers sent your texting registration back$/u, tone: "warn" },
+  { kind: "alert", title: /^Your texting registration stopped$/u, tone: "warn" }
+];
+var MENDS = NOTICE_MENDS.flatMap(
+  (m) => "kind" in m.by ? [{ kind: m.by.kind, title: m.by.title, tone: "ok" }] : []
+);
+function noticeTone(kind, title) {
+  const hit = [...MENDS, ...LISTED].find((t) => t.kind === kind && t.title.test(title));
+  return hit ? hit.tone : null;
 }
 
 // src/today/notifications.ts
@@ -43464,7 +43834,7 @@ function buildNotificationFeed(input) {
   for (const c of input.calls ?? []) {
     if (!missedCallIsNews(c, now)) continue;
     items.push({
-      key: `call:${c.callId}`,
+      key: `${MISSED_KEY_PREFIX}${c.callId}`,
       kind: "missed_call",
       at: c.startedAtMs,
       title: `${callAttemptWords(c.direction)} \xB7 ${c.who}`,
@@ -43548,7 +43918,13 @@ var SERVER_NOTIFICATION_KINDS = [
    * A teammate accepted an invitation and joined (S1-19): news, a line on the bell that opens Settings > Team, told once
    * from the seat's member.joined event (core SUBSCRIBERS.team_notice). No mail, no phone.
    */
-  "member_joined"
+  "member_joined",
+  /**
+   * A teammate left the workspace, by their own hand or with their account (the wiring's second audit, R11
+   * W-channel-team-plus-5): news, a line on the bell that opens Settings > Team, told once from the member.left event
+   * (core SUBSCRIBERS.team_notice, 00437). No mail, no phone.
+   */
+  "member_left"
 ];
 function settledRow(row2) {
   return { ...row2, unread: false, tone: row2.tone === "warn" ? "" : row2.tone };
@@ -43655,6 +44031,8 @@ var SERVER_LOOK = {
   booking: { icon: "calendar", tone: "ok", action: "Open Calendar", to: "calendar" },
   /** A teammate joined: good news, on the Team pane, where the seat's role is looked after. */
   member_joined: { icon: "users", tone: "ok", action: "Open Team", to: "admin/team" },
+  /** A teammate left: news, neither good nor a warning, on the Team pane, where the seats are. */
+  member_left: { icon: "users", tone: "", action: "Open Team", to: "admin/team" },
   alert: ALERT_LOOK
 };
 function lookOf(kind) {
@@ -43708,6 +44086,7 @@ function verbForRoute(route) {
   return hit ? hit[1] : null;
 }
 var SERVER_KEY_PREFIX = "n:";
+var MISSED_KEY_PREFIX = "call:";
 var NEEDS_KEY_PREFIX = "needs:th-";
 function conversationOfNeedsKey(key) {
   return key.startsWith(NEEDS_KEY_PREFIX) ? key.slice(NEEDS_KEY_PREFIX.length) : null;
@@ -43731,6 +44110,7 @@ function serverNotificationRows(dto) {
   const seen = dto.seen_at ? Date.parse(dto.seen_at) : 0;
   return dto.notifications.filter((n) => !n.dismissed).map((n) => {
     const look = lookOf(n.kind) ?? ALERT_LOOK;
+    const tone = noticeTone(n.kind, n.title);
     const at3 = Date.parse(n.created_at);
     const job = jobRowWords(n);
     const route = job ? job.route : n.kind === "reach_out_day" ? REACH_OUT_DAY_ROUTE : n.route;
@@ -43741,8 +44121,8 @@ function serverNotificationRows(dto) {
       title: job ? job.title : n.title,
       message: job ? job.message : firstLine(n.body),
       to: noticeRoute(n.kind, route),
-      icon: look.icon,
-      tone: look.tone,
+      icon: tone === "ok" ? "check" : look.icon,
+      tone: tone ?? look.tone,
       action: look.own ? look.action : verbForRoute(route) ?? look.action,
       unread: at3 > seen && !n.read,
       about: n.subject_type && n.subject_id ? { type: n.subject_type, id: n.subject_id } : null
@@ -43754,8 +44134,11 @@ function dedupeFeed(rows2) {
   const covered = new Set(
     rows2.flatMap((r2) => r2.kind === "needs_you" ? [conversationOfNeedsKey(r2.key)] : []).filter((id) => !!id)
   );
+  const keptCalls = new Set(
+    rows2.flatMap((r2) => r2.key.startsWith(SERVER_KEY_PREFIX) && r2.about?.type === "call" ? [r2.about.id] : [])
+  );
   return rows2.filter(
-    (r2) => !(r2.key.startsWith(SERVER_KEY_PREFIX) && r2.about?.type === "conversation" && covered.has(r2.about.id))
+    (r2) => !(r2.key.startsWith(SERVER_KEY_PREFIX) && r2.about?.type === "conversation" && covered.has(r2.about.id)) && !(r2.kind === "missed_call" && keptCalls.has(r2.key.slice(MISSED_KEY_PREFIX.length)))
   );
 }
 var NUMBER_IN_WORDS = /\+\d{8,15}\b|(?:\+\d{1,3}\s?)?\(\d{3}\)\s?\d{3}[-.\s]\d{4}\b|(?:\+\d{1,3}\s)?\d{3}[-.\s]\d{3}[-.\s]\d{4}\b/;
@@ -43809,7 +44192,8 @@ var AWAY_NOUN = {
   // A day of bookings is one pattern, each its own visit (S1-01); a read of the calendar that found several is one row already.
   booking: ["new booking", "new bookings"],
   // Two invitations accepted the same morning read as a team that grew.
-  member_joined: ["teammate joined", "teammates joined"]
+  member_joined: ["teammate joined", "teammates joined"],
+  member_left: ["teammate left", "teammates left"]
 };
 function groupTitle(members, noun, idOf) {
   const subjects2 = new Set(members.map((m) => m.about ? `${m.about.type}:${m.about.id}` : idOf(m))).size;
@@ -44351,9 +44735,7 @@ function todayDay(cal, playbooks, people = null, max = TODAY_DAY_MAX) {
   });
   let reminders = null;
   if (feed === "ok" && playbooks) {
-    const visit = playbooks.rows.filter(
-      (p) => (p.trigger === "visit_tomorrow" || p.trigger === "visited") && p.state === "running"
-    );
+    const visit = playbooks.rows.filter((p) => (p.trigger === "visit_tomorrow" || p.trigger === "visited") && p.runs);
     const W = appointmentWords(word);
     reminders = visit.length === 0 ? {
       // "Write", not "text": a campaign goes by WhatsApp, text or email, whichever each person is reached on. A
@@ -44813,7 +45195,8 @@ var NOTICE_ENDS = {
   reach_out_day: { ends: "news", why: "The day's reach-out numbers are a line, told once at six." },
   opted_out: { ends: "news", why: "A customer's stop is news, told once; there is nothing to answer." },
   booking: { ends: "news", why: "A booking that arrived is news; the Calendar holds the visit." },
-  member_joined: { ends: "news", why: "A teammate who joined is news, told once." }
+  member_joined: { ends: "news", why: "A teammate who joined is news, told once." },
+  member_left: { ends: "news", why: "A teammate who left is news, told once." }
 };
 function kindsEndedBy(source) {
   return Object.keys(NOTICE_ENDS).filter((k) => NOTICE_ENDS[k].ends === source);
@@ -44923,88 +45306,6 @@ function bellFeed(input) {
     });
   }
   return dedupeFeed([...own, ...closeSettledNotices(serverNotificationRows(kept), input.waits ?? NOTHING_WAITS_KNOWN)]);
-}
-
-// src/waits/notice-mends.ts
-var exactly = (title) => new RegExp(`^${title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "u");
-var templateTitle2 = (...statuses) => new RegExp(`^Template \u201C.*\u201D (?:${statuses.map((s) => TEMPLATE_STATUS_WORDS[s].toLowerCase()).join("|")})$`, "u");
-var NOTICE_MENDS = [
-  // A number's quality and its limit are that number's (its channel, waba-events.ts): one number's good news is not another's.
-  {
-    warns: { kind: "number", title: /^WhatsApp quality rating flagged$/u },
-    by: { kind: "number", title: /^WhatsApp quality rating back to normal$/u },
-    sameSubject: true
-  },
-  {
-    warns: { kind: "number", title: /^WhatsApp messaging limit lowered$/u },
-    by: { kind: "number", title: /^WhatsApp messaging limit raised$/u },
-    sameSubject: true
-  },
-  {
-    warns: { kind: "number", title: /^WhatsApp account review rejected$/u },
-    by: { kind: "number", title: /^WhatsApp account review approved$/u },
-    sameSubject: false
-  },
-  // A version refused, paused or disabled is mended by that version's approval (its name and language). A move to
-  // marketing is a restriction an approval does not lift, and a category change mends no refusal: neither is a pair.
-  {
-    warns: { kind: "template_blocked", title: templateTitle2("rejected", "paused", "disabled") },
-    by: { kind: "template_ready", title: templateTitle2("approved") },
-    sameSubject: true
-  },
-  // A connected mailbox held for its own mail is mended by its owner's resume, one signed out by connecting it again, and
-  // either by its removal (decision 0056, mailbox-notices.ts words them).
-  {
-    warns: { kind: "sweep", title: /^.+ is held: /u },
-    by: { change: "mailbox_connection.resumed" },
-    sameSubject: true
-  },
-  {
-    warns: { kind: "sweep", title: /^.+ is held: /u },
-    by: { change: "mailbox_connection.removed" },
-    sameSubject: true
-  },
-  {
-    warns: { kind: "sweep", title: /^.+ needs reconnecting$/u },
-    by: { change: "mailbox_connection.connected" },
-    sameSubject: true
-  },
-  {
-    warns: { kind: "sweep", title: /^.+ needs reconnecting$/u },
-    by: { change: "mailbox_connection.removed" },
-    sameSubject: true
-  },
-  {
-    warns: { kind: "billing", title: /^Your receptionist is paused$/u },
-    by: { kind: "billing", title: /^Your receptionist is back$/u },
-    sameSubject: false
-  },
-  {
-    warns: { kind: "billing", title: /^A payment did not go through$/u },
-    by: { kind: "billing", title: /^Your receptionist is back$/u },
-    sameSubject: false
-  },
-  {
-    warns: { kind: "billing", title: /^A payment did not go through$/u },
-    by: { change: "billing.paid" },
-    sameSubject: false
-  },
-  {
-    warns: { kind: "billing", title: /^Your trial ends in three days$/u },
-    by: { change: "billing.paid" },
-    sameSubject: false
-  },
-  // Closed in SQL by resume_email_offers (00421): listed so the test holds the SQL's literal to these words.
-  {
-    warns: { kind: "sweep", title: exactly(OFFERS_NOTICE_WORDS.paused(null).title) },
-    by: { change: "mailbox.offers_resumed" },
-    sameSubject: false
-  }
-];
-function warningsMendedBy(by) {
-  return NOTICE_MENDS.filter(
-    (m) => "change" in by ? "change" in m.by && m.by.change === by.change : "kind" in m.by && m.by.kind === by.kind && m.by.title.test(by.title)
-  ).map((m) => ({ ...m.warns, sameSubject: m.sameSubject }));
 }
 
 // src/workspace/activation.ts
@@ -45805,6 +46106,8 @@ export {
   CALENDAR_RUN_SHEET_WORDS,
   CALENDAR_SETTING_ROUTE,
   CALENDAR_SHOW_WORDS,
+  CALENDAR_UNREADABLE_TOLD_AFTER_MS,
+  CALENDAR_UNREADABLE_WORDS,
   CALENDAR_VISIT_SHEET_WORDS,
   CALL_ACTIVITY_NAME,
   CALL_ACTIVITY_ROLES,
@@ -45937,6 +46240,9 @@ export {
   EVENT_SUBSCRIBERS,
   EVERYONE_HINT,
   EVERYONE_LABEL,
+  EXPORT_HOLDS_WORDS,
+  EXPORT_OF,
+  EXPORT_SECTIONS,
   FALLBACK_DEFAULTS,
   FALLBACK_DETAILS,
   FEED_CHECK_WORDS,
@@ -45966,6 +46272,8 @@ export {
   GET_YES_ROUTE,
   GMAIL_FORWARD_NOTE,
   GOOGLE_SHOWN_REVIEWS,
+  GOOGLE_SYNC_NOTICE_WORDS,
+  GOOGLE_SYNC_TOLD_AFTER_MS,
   GREETING_DEFAULT,
   GREETING_TEMPLATE,
   GUARDRAIL_KEYS,
@@ -46639,6 +46947,7 @@ export {
   VISION_STRENGTH,
   VISITS_TAB_WORDS,
   VISIT_ASK_WORDS,
+  VISIT_CHANGES_TOLD,
   VISIT_REFUSALS,
   VISIT_WORDS,
   VOICE_END_REASONS,
@@ -46763,6 +47072,7 @@ export {
   bookedSeenOf,
   bookedTileOf,
   bookingArriving,
+  bookingChanged,
   bookingCopyTest,
   bookingEmailsHeldWords,
   bookingEmailsStep,
@@ -46824,6 +47134,7 @@ export {
   callAttemptWords,
   callBackWaits,
   callDays,
+  callEndedWords,
   callJumpSub,
   callLength,
   callNoteLines,
@@ -46845,6 +47156,7 @@ export {
   campaignLedgerDtoOf,
   campaignMessageOf,
   campaignMessagesOf,
+  campaignRunsOn,
   campaignsHomeOf,
   cannotRows,
   canonicalRoute,
@@ -46859,6 +47171,7 @@ export {
   chainPathWords,
   chainReportWordsOf,
   chainResultsOf,
+  chainResumeOf,
   chainTotalsFromReport,
   chainTotalsOf,
   changedConfigFields,
@@ -47048,6 +47361,9 @@ export {
   estimateRoundUsd,
   eventText,
   exampleParams,
+  exportLeftOut,
+  exportLeftOutWords,
+  exportedSections,
   extractContacts,
   factConflicts,
   factNeeds,
@@ -47431,6 +47747,7 @@ export {
   linkCount,
   linkHost,
   linksIn,
+  listAsks,
   listConditionWords,
   listDraftFieldLines,
   listFactWords,
@@ -47481,6 +47798,7 @@ export {
   mayMessageFor,
   mayReach,
   mayReceive,
+  mayRing,
   maySpend,
   mayUseModels,
   mediaKind,
@@ -47489,6 +47807,8 @@ export {
   memberGetsAlerts,
   memberJoinedBy,
   memberJoinedNotice,
+  memberLeftBy,
+  memberLeftNotice,
   memberMetaOf,
   memberWords,
   membersOf,
@@ -47534,6 +47854,7 @@ export {
   needsAnswer,
   needsConsultation,
   needsYouCount,
+  neverConnected,
   newAdFromRoute,
   newAdRoute,
   newCampaignChannels,
@@ -47574,6 +47895,7 @@ export {
   noticePrompt,
   noticeRoute,
   noticeStillWaits,
+  noticeTone,
   numberHealth,
   numberHealthOfConfig,
   numberHealthWithStanding,
@@ -47981,6 +48303,7 @@ export {
   routeOfPath,
   routePrefetchScript,
   rowReachWords,
+  rowResumeOf,
   ruleFacts,
   ruleLists,
   ruleNeeds,
@@ -48000,6 +48323,7 @@ export {
   runLabelOf,
   runMarkShown,
   runReadingOf,
+  runStillMoving,
   runStopWords,
   runStoppedWords,
   runTooLate,
@@ -48105,6 +48429,7 @@ export {
   standingFromConfig,
   standingNeedsRead,
   standingOf,
+  standingOfThread,
   standingWithRuns,
   starsOf,
   startWords,
@@ -48184,6 +48509,7 @@ export {
   threadStanding,
   threadWait,
   threadWaits,
+  threadWaitsOf,
   threadsWaitingOnYou,
   tidyCallSummary,
   timelineFilterLabel,
@@ -48296,6 +48622,7 @@ export {
   viewerListWords,
   violatesNoPrices,
   visitActsOf,
+  visitChangeNews,
   visitDateKey,
   visitDay,
   visitDayWord,

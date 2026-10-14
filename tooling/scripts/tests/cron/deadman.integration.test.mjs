@@ -146,6 +146,67 @@ test("a RESOLVED escalation is never a candidate", { skip }, async () => {
   );
 });
 
+test(
+  "a SNOOZED thread's hold is not still waiting: no candidate while the snooze holds, one once it wakes (00433; R11 S7-6)",
+  { skip },
+  async () => {
+    // A thread of its own: a conversation holds one open hold at a time (escalations_one_open), and the first case's is
+    // still open on the shared one.
+    const { data: who, error: whoError } = await db
+      .from("contacts")
+      .insert({
+        tenant_id: tenantId,
+        phone_e164: `+1999557${String(Date.now()).slice(-4)}`,
+        display_name: "Deadman snooze probe",
+      })
+      .select("id")
+      .single();
+    assert.equal(whoError, null, whoError?.message);
+    try {
+      const { data: thread, error: threadError } = await db
+        .from("conversations")
+        .insert({ tenant_id: tenantId, contact_id: who.id, state: "needs_human" })
+        .select("id")
+        .single();
+      assert.equal(threadError, null, threadError?.message);
+      const { data: e3, error: holdError } = await db
+        .from("escalations")
+        .insert({
+          tenant_id: tenantId,
+          conversation_id: thread.id,
+          reason: "manual",
+          details: "snoozed probe",
+          state: "open",
+          created_at: new Date(Date.now() - 3 * 3600 * 1000).toISOString(),
+        })
+        .select("id")
+        .single();
+      assert.equal(holdError, null, holdError?.message);
+      await db
+        .from("conversations")
+        .update({ state: "snoozed", snooze_until: new Date(Date.now() + 3600 * 1000).toISOString() })
+        .eq("id", thread.id);
+      const snoozed = await db.rpc("deadman_candidates", { p_older_than: "2 hours" });
+      assert.equal(
+        (snoozed.data ?? []).some((c) => c.escalation_id === e3.id),
+        false,
+        "REGRESSION: 'Still waiting' mailed and pushed over a thread the owner snoozed on purpose",
+      );
+      await db.from("conversations").update({ state: "needs_human", snooze_until: null }).eq("id", thread.id);
+      const woke = await db.rpc("deadman_candidates", { p_older_than: "2 hours" });
+      assert.ok(
+        (woke.data ?? []).some((c) => c.escalation_id === e3.id),
+        "left unstamped, the hold is raised by itself once the snooze wakes",
+      );
+    } finally {
+      const { data: threads } = await db.from("conversations").select("id").eq("contact_id", who.id);
+      for (const t of threads ?? []) await db.from("escalations").delete().eq("conversation_id", t.id);
+      await db.from("conversations").delete().eq("contact_id", who.id);
+      await db.from("contacts").delete().eq("id", who.id);
+    }
+  },
+);
+
 test("the shared secret exists and the sweep is scheduled", { skip }, async () => {
   // Both ends read this one value; if it is absent the endpoint 503s rather
   // than accepting an unauthenticated sweep.

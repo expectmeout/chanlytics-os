@@ -88,3 +88,27 @@ says, so they wait on a person. A going run whose check holds emails is one wait
 waiting for approval is (contracts `runWaitsOnYou`, `runHeldEmails`; db `waitingRunsOf` reads them for the server's
 Today and Ask). Today's queue, the Inbox's band and Ask's Right now list it with "2 emails wait for your say" and open
 the run, where each is put back or skipped; the runs' sentence says "waiting for your say", which covers both kinds.
+
+## Amended, 14 October 2026
+
+The wiring's second audit, lane R13 ("Ask says what the page says"), found two of Ask's doors outside the count and
+the close.
+
+1. **Ask's Inbox doors count as the Inbox does.** The `inbox` tool's `needs_you` filter and the Inbox page's figure in
+   Ask's page context read the holds alone: 4 where the Inbox said "5 need you" and Ask's `today` said 5. Both now read
+   the Inbox's own rule (contracts `conversationWaitsOnYou` and `threadWaitsOf`, over `threadWait`): a hold nobody has
+   taken, or a reply counting down that can still be stopped. The doors that say the count are now:
+   - Today's head and its standing;
+   - the Inbox's head, the badge, the tab and the title;
+   - the phone's icon and the home-screen widget;
+   - the palette;
+   - Ask's Right now, its `today` tool, its `inbox` tool's `needs_you`, and the Inbox's figure in Ask's page context.
+2. **Ask closes what the bell closes.** Ask's read of the notifications listed a run approved, a booking email
+   dismissed or a review answered as still waiting, and counted it unread. It now closes them before it lists and
+   counts (contracts `closeSettledNotices`), over what still waits, read on the server
+   (`server/ask/tools/read/notice-waits.ts`):
+   - the runs the notices name (db `runsNamed`);
+   - every held booking email (`heldNoticeKeys`);
+   - the reviews the notices name (`reviewsNamed`).
+
+   A hold and a lead's question are closed by the server itself (point 2 above).

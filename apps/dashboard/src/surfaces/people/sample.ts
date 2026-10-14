@@ -232,6 +232,8 @@ function sampleLoaded(nowMs: number): PeopleLoaded {
     followUp: null,
     // A made-up workspace has no channels to read: counted by WhatsApp alone, as every People page was.
     channelsReady: null,
+    // Read now: the sample's visits are set about now, so its split of next and last stands from here.
+    readAt: nowMs,
     views: {},
     viewsRead: true,
   };

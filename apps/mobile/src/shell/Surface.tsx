@@ -128,7 +128,7 @@ export function Surface({ route, tab, onReady, post, onLanded }: Props) {
     [handle, onReady, ready],
   );
 
-  useFront(tab, ready && focused, handle);
+  useFront(tab, { ready, focused }, handle, ref);
   useInteractiveOnReady(ready);
 
   // The phone registers through the page in front: once per token pair per person (bridge.ts shouldRegister).
@@ -321,9 +321,19 @@ function openWindow(e: WebViewOpenWindowEvent): void {
 /**
  * The page a tab press reaches (front.ts): this one, whenever its tab is in front and its page is ready, forgotten as
  * it unmounts. It was set only as the page reported a route, and a tab already open reports none on its return, so
- * the record went stale after the first switch and re-tap-to-top stopped working.
+ * the record went stale after the first switch and re-tap-to-top stopped working. And the page is told whether its tab is
+ * in front: one behind holds what the live feed says until it comes back (the dashboard's hearing/front.ts).
  */
-function useFront(tab: Tab | undefined, inFront: boolean, handle: SurfaceHandle): void {
+function useFront(
+  tab: Tab | undefined,
+  at: { ready: boolean; focused: boolean },
+  handle: SurfaceHandle,
+  view: RefObject<WebView | null>,
+): void {
+  const inFront = at.ready && at.focused;
+  useEffect(() => {
+    if (at.ready) view.current?.injectJavaScript(askPage({ t: "front", front: at.focused }));
+  }, [at.ready, at.focused, view]);
   useEffect(() => {
     if (tab && inFront) front.set(tab, handle);
   }, [tab, inFront, handle]);

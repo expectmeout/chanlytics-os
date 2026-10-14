@@ -9,12 +9,19 @@
  * clock it used.
  */
 import {
+  THREAD_CHANNEL_WORDS,
   callLength,
+  callNoteLines,
+  callNotesOf,
+  callOutcomeWords,
+  coveredChannels,
   csvCell,
+  isChatMessage,
   mmss,
   personName,
   reachedVoicemail,
   whisperText,
+  writtenChannelOf,
   type CsvCell,
 } from "@chanlytics/contracts";
 import type { CallDto, ConversationDto, MessageDto, PersonRowDto } from "@chanlytics/contracts";
@@ -88,7 +95,25 @@ function speaker(m: Pick<MessageDto, "sender" | "direction">, customer: string):
   }
 }
 
-function messageLine(m: MessageDto, customer: string, tz: string): string {
+/** The wire a message travelled, in a thread's words (contracts writtenChannelOf: a row from before the column is WhatsApp). */
+const channelWord = (m: Pick<MessageDto, "channel">): string => THREAD_CHANNEL_WORDS[writtenChannelOf(m.channel)];
+
+/**
+ * The wires a thread's messages travelled, in the order it first used each: a person has one thread across every channel
+ * they write on, and the file said "WhatsApp" for all of them (the wiring's second audit, R14 X4). A call's note and a
+ * system note travelled no wire, and none of a thread's words is WhatsApp's.
+ */
+function wiresOf(messages: readonly MessageDto[]): string[] {
+  const said: string[] = [];
+  for (const m of messages) {
+    if (!isChatMessage(m)) continue;
+    const word = channelWord(m);
+    if (!said.includes(word)) said.push(word);
+  }
+  return said;
+}
+
+function messageLine(m: MessageDto, customer: string, tz: string, byChannel: boolean): string {
   const when = stamp(m.channel_ts ?? m.created_at, tz) || "time unknown";
   // Continuation lines are indented so a multi-line message reads as one entry.
   let body = (m.body ?? "").trim().replace(/\r?\n/g, "\n    ");
@@ -105,7 +130,9 @@ function messageLine(m: MessageDto, customer: string, tz: string): string {
         : m.status === "queued"
           ? "[queued] "
           : "";
-  return `[${when}] ${speaker(m, customer)}: ${flag}${body}`;
+  // Where a thread holds more than one wire, each line says which it came by.
+  const wire = byChannel && isChatMessage(m) ? `${channelWord(m)} · ` : "";
+  return `[${when}] ${wire}${speaker(m, customer)}: ${flag}${body}`;
 }
 
 function eventMs(m: MessageDto): number {
@@ -113,7 +140,7 @@ function eventMs(m: MessageDto): number {
   return Number.isNaN(t) ? Date.parse(m.created_at) : t;
 }
 
-/** A WhatsApp thread as plain text, oldest first, in channel time. */
+/** A thread as plain text, oldest first, in channel time, saying the wires it travelled. */
 export function transcriptText(
   conv: Pick<ConversationDto, "contact">,
   messages: MessageDto[],
@@ -124,12 +151,13 @@ export function transcriptText(
   const at = opts.exportedAt ?? new Date();
   const sorted = [...messages].sort((a, b) => eventMs(a) - eventMs(b));
   const n = sorted.length;
+  const wires = wiresOf(sorted);
   const head = [
     `Conversation with ${customer}${phone}`,
-    `${opts.business} · WhatsApp · ${n} message${n === 1 ? "" : "s"} · exported ${stamp(at.toISOString(), opts.tz)} · times in ${opts.tz}`,
+    `${opts.business}${wires.length ? ` · ${wires.join(", ")}` : ""} · ${n} message${n === 1 ? "" : "s"} · exported ${stamp(at.toISOString(), opts.tz)} · times in ${opts.tz}`,
     "",
   ];
-  const lines = n ? sorted.map((m) => messageLine(m, customer, opts.tz)) : ["(no messages)"];
+  const lines = n ? sorted.map((m) => messageLine(m, customer, opts.tz, wires.length > 1)) : ["(no messages)"];
   return [...head, ...lines, ""].join("\n");
 }
 
@@ -161,6 +189,15 @@ export function callText(call: CallDto, opts: ExportOpts): string {
   if (call.call_successful === true) facts.push("Marked successful");
   else if (call.call_successful === false) facts.push("Marked unsuccessful");
   if (call.sentiment) facts.push(`Caller sentiment: ${call.sentiment}`);
+  // What the call card leads with: what they wanted, how it ended, and what the call left to do or to know, in its words
+  // (contracts call-words.ts). The file held the summary and the turns, and none of it (the wiring's second audit, R14 X4).
+  const ended = callOutcomeWords(call.outcome);
+  const card = [
+    call.wanted?.trim() ? `Wanted: ${call.wanted.trim()}` : null,
+    // Voicemail is said in the facts above already.
+    ended && !facts.includes(ended) ? `How it ended: ${ended}` : null,
+    ...callNoteLines(callNotesOf(call)),
+  ].filter((line): line is string => !!line);
   const summary = call.summary ? ["Summary", call.summary.trim(), ""] : [];
   const turns = (call.transcript_object ?? []).map((t) => {
     const clock = mmssFromSeconds(t.start ?? t.words?.[0]?.start);
@@ -171,6 +208,7 @@ export function callText(call: CallDto, opts: ExportOpts): string {
   return [
     ...head,
     ...(facts.length ? [facts.join(" · "), ""] : []),
+    ...(card.length ? [...card, ""] : []),
     ...summary,
     "Transcript",
     ...(turns.length ? turns : ["(no transcript)"]),
@@ -209,6 +247,16 @@ export const PEOPLE_COLUMNS: ReadonlyArray<readonly [string, (r: PersonRowDto, t
   ["last_inbound", (r, tz) => stamp(r.last_inbound_at, tz)],
   ["last_call", (r, tz) => stamp(r.last_call_at, tz)],
   ["receptionist", (r) => r.effective_reply_mode ?? ""],
+  // Email's own answer about offers, how and when it was given, and when the address stopped being sent to: a customer who
+  // pressed Unsubscribe had the same row as anyone else, and a file taken to another mailing tool mailed them (the
+  // wiring's second audit, R14 X3). Appended, so a sheet that reads the columns above by place reads them as before.
+  ["email_offers", (r) => r.email_marketing ?? "unknown"],
+  ["email_offers_source", (r) => r.email_marketing_source ?? null],
+  ["email_offers_updated", (r, tz) => stamp(r.email_marketing_updated_at ?? null, tz)],
+  ["email_unreachable_since", (r, tz) => stamp(r.email_suppressed_at ?? null, tz)],
+  // The channels each yes covers: a yes recorded before the channels were covers WhatsApp alone (coveredChannels).
+  ["consent_covers", (r) => (r.consent === "opted_in" ? coveredChannels(r.consent_channels).join(" ") : "")],
+  ["offers_covers", (r) => (r.marketing_consent === "opted_in" ? coveredChannels(r.marketing_channels).join(" ") : "")],
 ];
 
 /** Everyone, as a UTF-8 CSV with a BOM (so a spreadsheet opens accents right) and CRLF rows. */

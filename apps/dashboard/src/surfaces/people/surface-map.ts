@@ -57,6 +57,8 @@ export interface PeopleLoaded {
   channelsReady: ChannelsReady | null;
   views: Record<string, unknown>;
   viewsRead: boolean;
+  /** When the read began: its split of next and last visit stands from then (surface.ts peopleValidUntil). */
+  readAt: number;
 }
 /**
  * A People row as the page reads it, for the member looking (__ME): a teammate's thread is theirs, not waiting on you.

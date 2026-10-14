@@ -282,6 +282,7 @@ const LIST_DOORS = {
   opted_out: "clients",
   booking: "calendar",
   member_joined: "admin/team",
+  member_left: "admin/team",
 };
 
 test("a group whose rows point at different records opens the list that holds them; one record, that record", () => {

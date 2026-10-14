@@ -145,10 +145,10 @@ const boxes = ({ trigger, w = 292, h = 296, alignLeft = true, offset = { x: 0, y
   };
   return { wrap, menu, classes };
 };
-/** An escaped menu drawn open over `wrap`, as the page would hold it: its state and its box, the first two hooks it calls. */
+/** An escaped menu drawn open over `wrap`, as the page would hold it: its state, the folded headings it opened (none) and its box, the first three hooks it calls. */
 const drawnOpenOver = (wrap, props = {}) => {
   listeners.length = 0;
-  cells = { ":0": true, ":1": { current: wrap } };
+  cells = { ":0": true, ":1": new Set(), ":2": { current: wrap } };
   frames.begin();
   return MoreMenu({ items: [], escape: true, ...props });
 };
@@ -243,7 +243,7 @@ test("the menu wears .escape only when asked, and an escaped one closes on a scr
   globalThis.window.innerHeight = 900;
   const b = boxes({ trigger: RAIL(300) });
   listeners.length = 0;
-  cells = { ":0": true, ":1": { current: b.wrap } }; // the menu's open state and its box, the first two hooks it calls at the root
+  cells = { ":0": true, ":1": new Set(), ":2": { current: b.wrap } }; // the menu's open state, the folded headings it opened and its box, the first three hooks it calls at the root
   frames.begin();
   MoreMenu({ items, escape: true, align: "left" });
   assert.ok(b.classes.has("placed"), "placed as it opens");
@@ -265,7 +265,7 @@ test("the menu wears .escape only when asked, and an escaped one closes on a scr
 
   // A menu that does not escape moves with its trigger, so it listens for Escape alone, as before.
   listeners.length = 0;
-  cells = { ":0": true, ":1": { current: null } }; // the menu's open state and its box, the first two hooks it calls at the root
+  cells = { ":0": true, ":1": new Set(), ":2": { current: null } }; // the menu's open state, the folded headings it opened and its box, the first three hooks it calls at the root
   frames.begin();
   MoreMenu({ items });
   assert.deepEqual(
@@ -290,7 +290,7 @@ test("a phone's menu is pulled down to close, as the kit Menu's is, and the pull
     return { onTouchStart() {}, onTouchEnd() {} };
   };
   try {
-    cells = { ":0": true, ":1": { current: null } }; // drawn open, as the page holds it once its trigger is pressed
+    cells = { ":0": true, ":1": new Set(), ":2": { current: null } }; // drawn open, as the page holds it once its trigger is pressed
     frames.begin();
     const menu = menuOf(MoreMenu({ items }));
     assert.equal(menu.props["data-sheet"], "", "a phone's menu is the bottom sheet");
@@ -306,7 +306,7 @@ test("a phone's menu is pulled down to close, as the kit Menu's is, and the pull
     assert.equal(cells[":0"], false, "the pull closes it");
     // A desk's menu hangs from its trigger, and nothing reads a thumb on it.
     globalThis.window.matchMedia = () => ({ matches: false });
-    cells = { ":0": true, ":1": { current: null } };
+    cells = { ":0": true, ":1": new Set(), ":2": { current: null } };
     frames.begin();
     const desk = menuOf(MoreMenu({ items }));
     assert.equal(desk.props["data-sheet"], undefined);
@@ -326,7 +326,7 @@ test("an item with `checked` is one of a set: a menuitemradio, ticked when chose
     { label: "Export everyone", icon: "external", onClick() {} },
   ];
   // Drawn open, as the page holds it once its trigger is pressed.
-  cells = { ":0": true, ":1": { current: null } }; // the menu's open state and its box, the first two hooks it calls at the root
+  cells = { ":0": true, ":1": new Set(), ":2": { current: null } }; // the menu's open state, the folded headings it opened and its box, the first three hooks it calls at the root
   frames.begin();
   const open = MoreMenu({ items });
   const rows = [];

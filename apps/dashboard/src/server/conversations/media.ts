@@ -24,6 +24,9 @@ export function inWorkspace(tenantId: string, storagePath: string): boolean {
   return parts.length >= 2 && parts[0] === tenantId && parts.every((p) => p !== "" && p !== "." && p !== "..");
 }
 
+/** The private bucket every stored file of a workspace is kept in, under its own folder (inWorkspace). */
+const mediaBucket = () => serviceDb().storage.from("media");
+
 /**
  * Short-lived signed URL for a private media object (an attachment, a call recording) of this workspace. A path outside
  * it is refused as not found, never signed: the member asked for this workspace's object, and there is none.
@@ -33,12 +36,34 @@ export async function signedMediaUrl(tenantId: string, storagePath: string, seco
     log.error("signed_media_url_refused", { tenant_id: tenantId });
     throw new AppError("not_found", "This workspace has no such attachment.");
   }
-  const { data, error } = await serviceDb().storage.from("media").createSignedUrl(storagePath, seconds);
+  const { data, error } = await mediaBucket().createSignedUrl(storagePath, seconds);
   if (error) {
     log.error("signed_media_url_failed", { error: error.message });
     return null;
   }
   return data?.signedUrl ?? null;
+}
+
+/**
+ * Signed URLs for many of this workspace's stored files at once, in the order asked (the owner's copy lists every file a
+ * customer sent with one: export-bundle.ts). A path outside the workspace is never signed and answers null, as one the
+ * store could not sign does: one bad path must not cost the copy every other link.
+ */
+export async function signedMediaUrls(
+  tenantId: string,
+  storagePaths: readonly string[],
+  seconds: number,
+): Promise<(string | null)[]> {
+  const own = storagePaths.filter((p) => inWorkspace(tenantId, p));
+  if (own.length < storagePaths.length) log.error("signed_media_url_refused", { tenant_id: tenantId });
+  if (!own.length) return storagePaths.map(() => null);
+  const { data, error } = await mediaBucket().createSignedUrls(own, seconds);
+  if (error) {
+    log.error("signed_media_url_failed", { error: error.message });
+    return storagePaths.map(() => null);
+  }
+  const byPath = new Map(data.map((d) => [d.path, d.error ? null : d.signedUrl]));
+  return storagePaths.map((p) => byPath.get(p) ?? null);
 }
 
 /**

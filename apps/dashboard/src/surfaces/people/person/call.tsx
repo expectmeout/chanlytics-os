@@ -67,14 +67,14 @@ export function askPersonCall(personId: string): void {
  */
 export function usePersonCall(p: PersonVM | null, phone: boolean): PersonCallCtl {
   const vm = useMemo(
-    () => (p ? personCallOf({ phone: p.phone, standIn: p.standIn, business: p.business }) : null),
+    () => (p ? personCallOf({ phone: p.phone, standIn: p.standIn, business: p.business, dnc: p.consent.dnc }) : null),
     [p],
   );
   const [open, setOpen] = useState(false);
   // A Call another page asked for (askPersonCall) opens as their page draws them, once.
   const id = p?.id ?? null;
   useEffect(() => {
-    if (!id || callAsked !== id || !vm) return;
+    if (!id || callAsked !== id || !vm?.rings) return;
     callAsked = null;
     setOpen(true);
   }, [id, vm]);
@@ -299,7 +299,8 @@ function CallDial({ c, vm }: { c: PageCtx; vm: PersonCallVM }) {
  */
 export function CallAct({ c, dock = false }: { c: PageCtx; dock?: boolean }) {
   const { vm } = c.call;
-  if (!vm) return null;
+  // Nothing to ring, or someone on do-not-contact: no Call (their More still logs a call already made).
+  if (!vm?.rings) return null;
   // A phone's Call is a circle (canvas A, P1): of the control layer's glass in the head's row, bare in the dock's capsule.
   if (c.phone)
     return (

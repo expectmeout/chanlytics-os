@@ -12,6 +12,9 @@ import {
   VERSION_CHANNEL_WORDS,
   WHATSAPP_VERSION_ALONE,
   campaignMessagesOf,
+  formatPhoneDisplay,
+  numberHealth,
+  whatsappLineOf,
   channelChoices,
   channelNeverCarries,
   channelsStandingParts,
@@ -24,6 +27,8 @@ import {
   readyOrWhatsApp,
   type AskedPurpose,
   type CampaignMessage,
+  type ChannelDto,
+  type NumberHealth,
   type ChannelStandingPart,
   type ChannelsReady,
   type ConsentChannel,
@@ -175,8 +180,79 @@ export function cmStandInOf(t: { channel: string }): ConsentChannel {
 }
 
 /** The business's postal address where its Business record holds one: what an email's foot names (contracts emailFoot). */
-export function cmAddressOf(brain: { profile?: { address?: string | null } | null } | null | undefined): string | null {
-  return brain?.profile?.address ?? null;
+function cmAddressOf(brain: { profile?: { address?: unknown } | null } | null | undefined): string | null {
+  const address = brain?.profile?.address;
+  return typeof address === "string" ? address : null;
+}
+
+/** What the slots that name the business may fill, as a composer says them. */
+interface CmBusiness {
+  businessName: string;
+  businessAddress: string | null;
+  bookingLink: boolean;
+  /** Whether the Google listing keeps a review link: what may fill a review-link slot. */
+  reviewLink: boolean;
+}
+
+/**
+ * What the slots that name the business may fill, from the settings read (the wiring's second audit, S10-9: each composer read
+ * GET settings again for it, beside the settings surface's own read): its name, the postal address an offer by email names,
+ * whether a booking link is on file, and whether the listing keeps a review link. A read not in yet, one that failed and a broken
+ * config say nothing of the listing and the link: none. The composers follow the settings read, so it is current as it lands.
+ */
+export function cmBusinessOf(settings: SettingsSurface | undefined): CmBusiness {
+  const record = settings?.settings ?? null;
+  const brain = record?.config?.brain ?? null;
+  return {
+    businessName: brain?.business_name || "the business",
+    businessAddress: cmAddressOf(brain),
+    bookingLink: !!brain?.booking_link,
+    reviewLink: !!record && !record.broken && record.reviewLink,
+  };
+}
+
+/** Whether two sayings of the business are the same: what a surface holds (its address unread before its first read) and what Settings says. */
+export function cmSameBusiness(
+  a: Omit<CmBusiness, "businessAddress"> & { businessAddress?: string | null },
+  b: CmBusiness,
+): boolean {
+  return (
+    a.businessName === b.businessName &&
+    a.businessAddress === b.businessAddress &&
+    a.bookingLink === b.bookingLink &&
+    a.reviewLink === b.reviewLink
+  );
+}
+
+/** The number a composer's WhatsApp goes out on, as it says it: whether there is one, how it reads, and its health. */
+interface CmNumber {
+  present: boolean;
+  display: string | null;
+  health: NumberHealth;
+}
+
+/**
+ * The workspace's WhatsApp line in the channels read (contracts whatsappLineOf) and its health as WhatsApp last said it (the
+ * wiring's second audit, S10-9: each composer read GET channels again for it). Undefined or null rows (not read yet, or a read
+ * that failed) are no line, which the number's banner judges.
+ */
+export function cmNumberOf(rows: readonly ChannelDto[] | null | undefined): CmNumber & { e164: string | null } {
+  const wa = whatsappLineOf(rows);
+  return {
+    present: !!wa,
+    display: wa?.number_e164 ? formatPhoneDisplay(wa.number_e164) : null,
+    health: numberHealth({
+      quality: wa?.quality ?? null,
+      event: wa?.quality_event ?? null,
+      limit: wa?.messaging_limit ?? null,
+    }),
+    e164: wa?.number_e164 ?? null,
+  };
+}
+
+/** Whether two sayings of the number are the same. */
+export function cmSameNumber(a: CmNumber, b: CmNumber): boolean {
+  return a.present === b.present && a.display === b.display && JSON.stringify(a.health) === JSON.stringify(b.health);
 }
 
 /** One tick of the Send by row as it is drawn. */

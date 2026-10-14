@@ -230,7 +230,7 @@ function campaignsRead() {
         rows: rows.map((r) => ({
           name: r.name,
           trigger: r.trigger,
-          state: r.state,
+          runs: r.runs,
           waiting: !!r.totals?.waiting,
         })),
       }

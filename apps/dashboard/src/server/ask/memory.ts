@@ -73,6 +73,12 @@ export interface Chain {
    * (`told`), never by the tab's clock, so one recorded while a turn ran is told next.
    */
   since: CardOutcome[];
+  /**
+   * When each replayed turn was asked, oldest first (epoch ms): what its reads hold is as old as that. The model saw them
+   * with no age for up to the warm window, and a list read at 10:00 was given as fact at 10:03 after a teammate took two of
+   * its threads at 10:02 (the wiring's second audit, R13 X5-4); this turn's words say their times (prompt.ts turnWords).
+   */
+  readAt: number[];
 }
 
 /**
@@ -355,7 +361,8 @@ function chainFrom(kept: Array<Kept | null>, ids: string[], now: number, rows: A
     )
     .filter((o) => !told.has(toldOf(o)));
   const { results, model, prefix } = newest;
-  return { messages, anchor, results, model, prefix, after: ids[0], lastId: newest.id, since };
+  const readAt = [...turns].reverse().map((t) => t.at);
+  return { messages, anchor, results, model, prefix, after: ids[0], lastId: newest.id, since, readAt };
 }
 
 /**

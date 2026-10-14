@@ -1045,10 +1045,10 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
   );
   const bridge = readCode("apps/dashboard/src/surfaces/setup/surface.ts");
   assert.ok(
-    /declareReads\("setup", \{\s*reads: \["channel", "notification", "billing", "review", "call"\],\s*fresh: "live",/.test(
+    /declareReads\("setup", \{\s*reads: \[\s*"channel",\s*"billing",\s*"review",\s*"call",\s*"team",\s*"template",\s*"facts",\s*"rules",\s*"visit",\s*"person",\s*"deal",\s*"conversation",?\s*\],\s*fresh: "its-page",\s*always: \["channel", "billing", "review", "call", "team"\],/.test(
       bridge,
     ),
-    "every kind of record a row derives from repaints the page (the tables are derived: declared-reads-are-what-was-heard.test.mjs)",
+    "every kind of record a row derives from repaints the page, the rarest everywhere and the rest where Setup is drawn (the tables are derived: declared-reads-are-what-was-heard.test.mjs)",
   );
   for (const pin of ['"POST lines/search"', '"POST lines/buy"', '"POST lines/retry"'])
     assert.ok(bridge.includes(pin), pin);
@@ -1274,14 +1274,16 @@ test("an activated capability offers to withdraw its activation from its row, an
 
 test("a save in Workspace and a WhatsApp connect repaint Setup too", async () => {
   const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
-  // Both also move what the composers and People's reach read of the channels (refresh-coverage.test.mjs says which).
+  // Both also move what the composers and People's reach read of the channels (refresh-coverage.test.mjs says which): People's reach
+  // here, the composers where a page draws them, and no page is on screen here. A connect repaints Connections' own rows, the channels
+  // read's (R6).
   assert.deepEqual(
     AFTER["PUT settings"]().map((o) => o.key),
-    ["settings", "calendar", "setup", "broadcasts", "playbooks", "people"],
+    ["settings", "calendar", "setup", "people"],
   );
   assert.deepEqual(
     AFTER["POST channels/whatsapp/connect"]().map((o) => o.key),
-    ["settings", "setup", "broadcasts", "playbooks", "people"],
+    ["channels", "settings", "setup", "people"],
   );
 });
 

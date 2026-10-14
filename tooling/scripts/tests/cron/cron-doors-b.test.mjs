@@ -318,6 +318,17 @@ const retellCall = (id, over = {}) => ({
   ...over,
 });
 /**
+ * A wire on which the provider has analysed no call yet: the sweep asks after a call that ended unanalysed and whose
+ * owner was never told (calls-sweep.ts, leg 4), and is told it has ended, nothing more. Anything else on the wire fails
+ * the case.
+ */
+const unanalysed = () =>
+  wired((req) => {
+    const m = /\/v2\/get-call\/call_(\w+)$/.exec(req.url);
+    if (!m) throw new Error(`only the provider's read of a call is expected here: ${req.method} ${req.url}`);
+    return { status: 200, body: retellCall(m[1], { call_status: "ended" }) };
+  });
+/**
  * ingest_call, as the double: the upsert writes what the provider reported
  * onto the row and answers the envelope the repository reads. The assertions
  * below are on the ARGUMENTS the sweep handed it -- that is the boundary --
@@ -1233,7 +1244,7 @@ test("calls: recordings past the ninety days the privacy page states are removed
     events: [],
   };
   const db = use(tables, { ingest_call: ingestRpc(tables) });
-  const net = silent("nothing here needs the provider");
+  const net = unanalysed();
   const call = (id) => tables.calls.find((c) => c.id === id);
 
   // Without the key: the purge runs, the reconcile does not, and the answer says which half is missing.
@@ -1321,14 +1332,23 @@ test("calls: recordings past the ninety days the privacy page states are removed
     "five minutes after ending the webhook still has ten to write it with the summary",
   );
   assert.equal(call("orphan").message_id, null, "no thread, no line");
-  assert.equal(net.calls.length, 0, "no ongoing call, no pending copy: the provider was never asked");
+  assert.deepEqual(
+    net.calls.map((c) => c.url),
+    ["https://api.retellai.com/v2/get-call/call_errored", "https://api.retellai.com/v2/get-call/call_unnoted"],
+    "no ongoing call and no pending copy; the provider is asked only after the two its owner was never told of, ended past the webhook's ten minutes and inside the two hours, the longest-waiting first (R11 S11-3)",
+  );
+  assert.deepEqual(
+    body.settles,
+    { candidates: 2, settled: 0, notYet: 2, unroutable: 0, deferred: 0 },
+    "it has analysed neither yet, so neither is settled, and the note leg still writes their lines",
+  );
 
   // The tick after: every call with a thread has its line, and none is written twice.
   const [s3, b3] = await answer(await knock("calls"));
   assert.equal(s3, 200);
   assert.deepEqual(b3.notes, { candidates: 0, written: 0 }, "the sweep reads the link on the row, not the thread");
   assert.equal(tables.messages.length, 2);
-  assert.equal(net.calls.length, 0);
+  assert.equal(net.calls.length, 4, "and asked again: still inside the two hours, still unanalysed");
 });
 
 test("calls: a purge the bucket refuses marks nothing and stops no other leg, then the sweep answers 500 in the bucket's own words, where its watcher reads them; the tick that removes the audio answers 200", async () => {
@@ -1360,7 +1380,7 @@ test("calls: a purge the bucket refuses marks nothing and stops no other leg, th
     events: [],
   };
   const db = use(tables, { ingest_call: ingestRpc(tables) });
-  const net = silent("nothing here needs the provider");
+  const net = unanalysed();
   const call = (id) => tables.calls.find((c) => c.id === id);
   let refusing = true;
   const bucketOf = db.storage.from;
@@ -1401,7 +1421,11 @@ test("calls: a purge the bucket refuses marks nothing and stops no other leg, th
   assert.deepEqual(again.purge, { candidates: 1, purged: 1, error: null });
   assert.deepEqual(db.bucket.removed, [`${T}/calls/old.wav`]);
   assert.equal(call("old").recording.fetch_state, "purged");
-  assert.equal(net.calls.length, 0, "no ongoing call, no pending copy: the provider was never asked");
+  assert.deepEqual(
+    net.calls.map((c) => c.url),
+    ["https://api.retellai.com/v2/get-call/call_unnoted", "https://api.retellai.com/v2/get-call/call_unnoted"],
+    "no ongoing call and no pending copy: the provider is asked only for the analysis the unnoted call never had, once a tick",
+  );
 });
 
 /* ----------------------------------------------------------------- google */
@@ -1820,8 +1844,19 @@ test("google: a connected profile not synced for twenty hours is synced as the o
     [[T1, dayIn("America/New_York", at), 4.6, 12]],
     "the profile's numbers, on the workspace's own day",
   );
-  assert.equal(tables.notifications.length, 0, "the first sync is history: nothing rings, nothing is answered");
+  assert.equal(
+    tables.notifications.filter((n) => n.tenant_id === T1).length,
+    0,
+    "the first sync is history: nothing rings, nothing is answered",
+  );
   assert.equal(tables.events.length, 0);
+  const toldT2 = () =>
+    tables.notifications.filter((n) => n.tenant_id === T2).map((n) => [n.kind, n.title, n.route, n.subject_type]);
+  assert.deepEqual(
+    toldT2(),
+    [["sweep", "Google Business Profile stopped syncing", "admin/integrations", "google_connection"]],
+    "a grant Google refused lasts until its owner reconnects: they are told at once, on the bell, with the door to Connections (R11 S11-4)",
+  );
 
   const c2 = tables.google_connections.find((c) => c.tenant_id === T2);
   assert.equal(
@@ -1841,6 +1876,7 @@ test("google: a connected profile not synced for twenty hours is synced as the o
   assert.equal(s2, 200);
   assert.deepEqual([b2.profiles_due, b2.profiles_synced, b2.failed], [1, 0, 1]);
   assert.equal(net.calls.length, 4, "one more token request, for the one profile still due");
+  assert.equal(toldT2().length, 1, "told once: the hour's next failure finds the notice kept under the same breakage");
 });
 
 test("google: past the tick's budget no listing or profile is started: the rest of the page is remaining, unread and unstamped, and keeps its place for the next hour", async (t) => {

@@ -522,8 +522,9 @@ test(
     // exact figure is another call's, and the suites beside this one may add feeds between the two.
     assert.ok(first.remaining >= 3, `what is left beyond a page of one: ${first.remaining}`);
     const kept = await dueCalendars(db, { before: new Date(before), limit: 1, tenantId: old.id });
+    // And since when its reads have failed (00435): null, as nothing here has failed.
     assert.deepEqual(kept, {
-      rows: [{ tenant_id: old.id, config: feed(old), timezone: "America/Chicago" }],
+      rows: [{ tenant_id: old.id, config: feed(old), timezone: "America/Chicago", failed_since: null }],
       remaining: 0,
     });
   },

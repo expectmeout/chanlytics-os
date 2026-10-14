@@ -5,7 +5,8 @@
  * F3b (retired by decision 0047, lane 6, task 6.3): the Calendar board used to make up to forty people from the owner's calendar every
  * time an owner or operator opened it, said how many it made (`people_added`), and the Calendar surface read People again when it was more
  * than none. A read of the board adds nobody now, so the count is gone and the surface reads nothing of People: an older server that still
- * says it changes nothing, whichever deploys first. The people the sweep adds reach People through the bell row (notice-re-reads.ts).
+ * says it changes nothing, whichever deploys first. The people the sweep adds reach People on its page, and are kept for it elsewhere
+ * (contacts, 00408).
  *
  * N1: an open person's page did not hear that person writing. People re-reads a message only while its own list is on screen (#1347,
  * which removed the cost of every page of People read for each message), and a person's page is another route. The page hears the

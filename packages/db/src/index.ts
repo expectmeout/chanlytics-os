@@ -35,8 +35,8 @@ export type { MigrationHead, PlatformDayPromises } from "./ops";
 export { signUpOnPublicKey, inviteUserByEmail, listSecondFactors, deleteSecondFactor } from "./auth";
 export { addToWaitlist, refreshWaitlistRow, waitlistWaiting, markWaitlistInvited } from "./waitlist";
 export { createServiceClient } from "./service-client";
-export { observeDb, namedFetch, DB_REQUEST_HEADER } from "./observe";
-export type { DbLog, DbObserver } from "./observe";
+export { observeDb, namedFetch, touchOfCall, DB_REQUEST_HEADER } from "./observe";
+export type { DbLog, DbObserver, DbTouch } from "./observe";
 export { tenantDb, platformWide } from "./tenant-db";
 export type { TenantDb } from "./tenant-db";
 export type { ServiceClientConfig } from "./service-client";
@@ -103,6 +103,7 @@ export {
   cancelBroadcastFrom,
   recordSystemDecision,
   waitingRunsOf,
+  runsNamed,
 } from "./repositories/campaigns/stranded-runs";
 export type { StrandedRun, WaitingPlaybookRun, WaitingRunRow } from "./repositories/campaigns/stranded-runs";
 export {
@@ -299,17 +300,25 @@ export {
   feedAdditionsWith,
   twinTold,
   memberJoinedOf,
-  activityTokensOf,
-  forgetActivityTokens,
-  memberAlertsOf,
+  memberEmailOf,
   reviewRowsByGoogleId,
-  setMemberPushOff,
-  membersPushedFor,
+  reviewsNamed,
   unreadOfReaders,
   olderUnreadFor,
   closeMendedNotices,
-} from "./repositories/notifications";
-export type { MemberAlertsRow, KeptNotice } from "./repositories/notifications";
+} from "./repositories/notices/notifications";
+export type { KeptNotice } from "./repositories/notices/notifications";
+export {
+  activityTokensOf,
+  forgetActivityTokens,
+  forgetEveryPhone,
+  memberAlertsOf,
+  setMemberPushOff,
+  membersPushedFor,
+  pushNamesFor,
+} from "./repositories/notices/member-alerts";
+export type { MemberAlertsRow } from "./repositories/notices/member-alerts";
+export { threadIdsWaitingOnYou } from "./repositories/waiting-on-you";
 export { reviewLinkOf, workspacePaused } from "./repositories/campaigns/workspace";
 export { momentSchedules, runsInSpan } from "./repositories/campaigns/calendar-runs";
 export type { MomentScheduleRow, SpanRunRow } from "./repositories/campaigns/calendar-runs";
@@ -337,6 +346,7 @@ export type { RoutedChannel, ChannelLookup, WhatsappNumberRow } from "./reposito
 export {
   ingestCall,
   linkCallMessage,
+  callsOwedAnAnalysis,
   callersOf,
   setCallRecording,
   recordCallNote,
@@ -535,6 +545,8 @@ export { touchesSince, recentTouches, followUpTouchesSince, touchIndex } from ".
 export type { Touch, TouchIndex } from "./repositories/touches";
 export { yesesSince, recordDeal } from "./repositories/deals";
 export type { YesRow, DealMove } from "./repositories/deals";
+export { exportSectionPages } from "./repositories/workspace-export";
+export type { ExportPage, ExportSectionPages } from "./repositories/workspace-export";
 export {
   getOwnPartner,
   sessionHoldsPartnerSeat,
@@ -604,7 +616,7 @@ export {
 } from "./repositories/leads";
 export { ownLineOf, businessOnRecordOf } from "./lines";
 export type { LeadOneLead, LeadOneMember, IdeasKept } from "./repositories/leads";
-export { watchedTables, watchedEvents, subscribeWorkspaceChanges } from "./realtime";
+export { watchedTables, watchedEvents, narrowedUpdates, subscribeWorkspaceChanges } from "./realtime";
 export type { SubscribeOptions } from "./realtime";
 export { readAllRows, readAllRowsByKey, MAX_ROWS, DEFAULT_ROW_CAP } from "./paged";
 export type { Page } from "./paged";
@@ -652,6 +664,7 @@ export {
   appointmentNoticesOf,
   memberHasAddress,
   heldNoticesOf,
+  heldNoticeKeys,
   appointmentNoticeById,
   dismissAppointmentNotice,
 } from "./repositories/calendar/notices";

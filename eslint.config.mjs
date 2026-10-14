@@ -351,6 +351,7 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/surfaces",
   "apps/dashboard/src/yes",
   "apps/dashboard/src/legacy-bridge/ask",
+  "apps/dashboard/src/legacy-bridge/hearing",
   "apps/dashboard/src/legacy-bridge/invitations",
   "apps/dashboard/src/legacy-bridge/mascot",
   "apps/dashboard/src/legacy-bridge/reach-out",
@@ -377,6 +378,7 @@ export const LIMITED_TREES = [
   "apps/edge/lib/email",
   "apps/edge/lib/google",
   "apps/edge/lib/intake",
+  "apps/edge/lib/lines",
   "apps/edge/lib/ops",
   "apps/edge/lib/packages",
   "apps/edge/lib/partners",
@@ -405,6 +407,7 @@ export const WIDE_PARAMS = [
   "apps/edge/lib/calendar",
   "apps/edge/lib/email",
   "apps/edge/lib/google",
+  "apps/edge/lib/lines",
   "apps/edge/lib/partners",
 ];
 

@@ -7,7 +7,7 @@
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { LIBRARY_STARTER_WORDS, LIBRARY_WORDS } from "@chanlytics/contracts";
 import { libraryCount } from "@chanlytics/contracts";
-import type { CampaignMessage, ChannelVM } from "@chanlytics/contracts";
+import type { CampaignMessage } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { gate } from "../../legacy-verbs";
@@ -170,13 +170,13 @@ interface ComposerPaneProps {
  * writes email and text versions all the same, and only its WhatsApp versions wait. A failed read of the numbers is not
  * "no number": say what could not be read.
  */
-export function numberNotice(p: { channels: ChannelVM[] | null | undefined; hasWhatsApp: boolean }) {
+export function numberNotice(p: { channels: readonly { kind: string }[] | null | undefined; hasWhatsApp: boolean }) {
   return p.channels === null ? (
     <FailedRead
       kind="card"
       what="your WhatsApp number"
       body="What is on file is below; adding and syncing wait until the number can be read."
-      surface="settings"
+      surface="channels"
       testid="messages-channels-failed"
     />
   ) : (

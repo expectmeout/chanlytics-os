@@ -15,7 +15,7 @@ import {
 } from "../packages/channels.js";
 import { formatPhoneDisplay, type EdgeErrorCode } from "../packages/contracts.js";
 import { emitEvent, tenantDb } from "../packages/db.js";
-import { recordNotification } from "../ops/notify.js";
+import { keepOnce } from "../ops/notify.js";
 import { lineProviderFromEnv } from "./lines.js";
 import { lineAccount, refreshLineToken } from "../sms/sms.js";
 import type { Db, LineRow } from "./a2p-register.js";
@@ -54,6 +54,37 @@ async function askRegistration(line: LineRow, acct: { sid: string; token: string
 }
 
 /** Ask Twilio where the brand and the campaign stand, and write it to the row. */
+/**
+ * The carriers' answer, kept on the line: its state, whether the filing is a rehearsal, or why it was refused, written only
+ * where one of them moved (the wiring's second audit, S4-6: every write of a line is told to the workspace's open tabs,
+ * realtime.ts, and each page that draws the line reads it again). An answer with no news still stamps the line
+ * (updated_at alone): the registrations sweep asks the least recently asked first, by that stamp, and a line it asked and did
+ * not stamp stood first every hour, so past a page of waiting lines the rest were never asked (cron-doors-b, "every line
+ * asked about is written"). That stamp is the one re-read an hour a waiting line still costs.
+ */
+async function keepAnswer(
+  db: Db,
+  line: LineRow,
+  answer: { smsState: string; mock: LineRow["reg_mock"]; reason: string | null },
+): Promise<void> {
+  const { smsState, mock, reason } = answer;
+  const moved = smsState !== line.sms_state;
+  const news = moved || mock !== line.reg_mock || reason !== line.last_error;
+  await tenantDb(db, line.tenant_id)
+    .from("lines")
+    .update({
+      // Asked: to the back of the sweep's queue, news or not (lines_set_updated_at stamps it too).
+      updated_at: new Date().toISOString(),
+      ...(news ? { sms_state: smsState, reg_mock: mock, last_error: reason } : {}),
+      // Only when the state actually MOVED. This sweep runs hourly and wrote it
+      // every time, so `state_since` meant "the last hour" rather than "when this
+      // wait began" -- and the Setup row reads it to say how long the carriers
+      // have had it, which therefore never got past an hour.
+      ...(moved ? { state_since: new Date().toISOString() } : {}),
+    })
+    .eq("id", line.id);
+}
+
 export async function syncRegistration(db: Db, line: LineRow): Promise<RegistrationSync> {
   const choice = lineProviderFromEnv();
   if (!choice || choice.name !== "twilio") return { ok: false, smsState: line.sms_state, error: "no_provider" };
@@ -155,54 +186,64 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<Registrat
         campaignErrors: Array.isArray(usa2p?.errors) ? (usa2p.errors as CampaignError[]) : null,
       }) ?? "the carriers sent the registration back")
     : null;
-  const moved = smsState !== line.sms_state;
-  await tenantDb(db, line.tenant_id)
-    .from("lines")
-    .update({
-      sms_state: smsState,
-      reg_mock: mock,
-      last_error: reason,
-      // Only when the state actually MOVED. This sweep runs hourly and wrote it
-      // every time, so `state_since` meant "the last hour" rather than "when this
-      // wait began" -- and the Setup row reads it to say how long the carriers
-      // have had it, which therefore never got past an hour.
-      ...(moved ? { state_since: new Date().toISOString() } : {}),
-    })
-    .eq("id", line.id);
-
-  // The carriers answering is the whole point of the wait, so the owner is
-  // told — once, on the change. The sweep runs hourly; a bell every hour
-  // would bury the one that matters.
-  // `mock`, not `line.reg_mock`: the value read from Twilio a few lines above is
-  // the authority, and the column is what it was BEFORE this sync. Passing the
-  // stale one announced a refile that had just become real as "this was a test
-  // filing, so nothing routes" -- telling an owner their working texting does
-  // not work, in the one message that exists to tell them it does.
-  const verdict = registrationVerdict(line.sms_state, smsState, {
-    number: formatPhoneDisplay(line.e164) ?? line.e164,
-    reason,
-    mock,
-  });
-  if (verdict) {
-    await recordNotification(line.tenant_id, {
-      kind: verdict.kind,
-      title: verdict.title,
-      body: verdict.body,
-      route: verdict.route,
-      about: { type: "line", id: line.id },
-    });
-    await emitEvent(db, line.tenant_id, verdict.event, "line", line.id, {
-      e164: line.e164,
-      from: line.sms_state,
-      to: smsState,
-      mock,
-    }).catch(() => {});
-  }
+  const told = await tellThenKeep(db, line, { smsState, mock, reason });
+  if (told === null)
+    return {
+      ok: false,
+      smsState: line.sms_state,
+      error: "write_failed",
+      detail: "the owner's notice of the carriers' answer could not be kept; asked again next hour",
+    };
   return {
     ok: true,
     smsState,
     brand: brandStatus ?? undefined,
     campaign: campaignStatus ?? undefined,
-    told: !!verdict,
+    told,
   };
+}
+
+/**
+ * The carriers' answer, told and then kept. The carriers answering is the whole point of the wait, so the owner is
+ * told — once, on the change. The sweep runs hourly; a bell every hour would bury the one that matters.
+ *
+ * Told BEFORE the state moves (the wiring's second audit, R11 S6-12). The change is judged against the line's stored
+ * state, so a notice lost after the state was written was lost for good. Kept under the change it tells (the state it
+ * left, since when, and the one it reached), a notice that could not be kept leaves the line as it was for the next tick
+ * to judge again (null), and that tick finds a notice kept already rather than keeping a twin. True when there was a
+ * change to tell.
+ *
+ * `mock`, not `line.reg_mock`: the value read from Twilio is the authority, and the column is what it was BEFORE this
+ * sync. Passing the stale one announced a refile that had just become real as "this was a test filing, so nothing
+ * routes" -- telling an owner their working texting does not work, in the one message that exists to tell them it does.
+ */
+async function tellThenKeep(
+  db: Db,
+  line: LineRow,
+  answer: { smsState: ReturnType<typeof smsStateFor>; mock: LineRow["reg_mock"]; reason: string | null },
+): Promise<boolean | null> {
+  const { smsState, mock, reason } = answer;
+  const verdict = registrationVerdict(line.sms_state, smsState, {
+    number: formatPhoneDisplay(line.e164) ?? line.e164,
+    reason,
+    mock,
+  });
+  const notice = verdict && {
+    kind: verdict.kind,
+    title: verdict.title,
+    body: verdict.body,
+    route: verdict.route,
+    about: { type: "line", id: line.id },
+    onceKey: `a2p_verdict:${line.id}:${line.sms_state}:${line.state_since}:${smsState}`,
+  };
+  if (notice && !(await keepOnce(line.tenant_id, notice))) return null;
+  await keepAnswer(db, line, answer);
+  if (!verdict) return false;
+  await emitEvent(db, line.tenant_id, verdict.event, "line", line.id, {
+    e164: line.e164,
+    from: line.sms_state,
+    to: smsState,
+    mock,
+  }).catch(() => {});
+  return true;
 }

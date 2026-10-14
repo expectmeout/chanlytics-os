@@ -155,7 +155,6 @@ const page = ({
   setSurfaceValue("settings", {
     settings: { config: { brain: { business_name: BIZ } }, reviewLink },
     facts: null,
-    channels,
     templatesAll: rows,
     templateVersions: versions,
     // The messages the surface holds, made of those rows as the bridge makes them where the read carries none.
@@ -163,6 +162,8 @@ const page = ({
     templateUse: null,
     templateSent: null,
   });
+  // The numbers are the channels read's (surfaces/channels/surface.ts), which the Library's number notice is drawn from.
+  setSurfaceValue("channels", { rows: channels });
   setSurfaceValue("reach_outs", []);
   setSurfaceValue("playbooks", undefined);
   fresh();
@@ -1119,7 +1120,10 @@ test("a message's marks: the offer mark is its purpose, whichever channel it has
   assert.equal(factsOf([], [ownRow("email", HOURS)], HOURS).marks.tag, null);
   const sends = (language) =>
     setSurfaceValue("playbooks", {
-      rows: [{ id: "pb-1", name: "Hours", template_name: HOURS, template_language: language, state: "running" }],
+      // `runs`: on, before its last day, on a moment that runs here (contracts campaignRunsOn), as the surface makes it.
+      rows: [
+        { id: "pb-1", name: "Hours", template_name: HOURS, template_language: language, state: "running", runs: true },
+      ],
     });
   const own = [ownRow("email", HOURS)];
   page({ rows: [], versions: own });

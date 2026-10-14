@@ -26,6 +26,8 @@ export interface InboxThreadVM {
   /** The customer asked to stop receiving messages. Stronger than a closed
    *  24h window: an approved template can't reach them either. */
   optedOut: boolean;
+  /** Of those, on do-not-contact: nothing rings them either (consent mayRing), where a STOP's caller may be rung back. */
+  dnc: boolean;
   /** They said yes to offers, so a promotional template may go to them: the composer offers only what can send (I4). */
   offersOk: boolean;
   /**

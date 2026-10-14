@@ -23,3 +23,5 @@ export {
 export type { WhatWaits, HeldRun, WaitSource, NoticeEnd } from "./notice-closes";
 export { NOTICE_MENDS, warningsMendedBy } from "./notice-mends";
 export type { NoticeMend, MendBy, MendChange } from "./notice-mends";
+export { noticeTone } from "./notice-tones";
+export type { NoticeTone } from "./notice-tones";

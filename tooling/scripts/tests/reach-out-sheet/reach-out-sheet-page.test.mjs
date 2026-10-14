@@ -658,7 +658,7 @@ test("Leads reads Setup and Settings next, after its own surface: the sheet send
 
 /* ------------------------------ the bridge ------------------------------ */
 
-test("the bridge's verbs press the routes they name, and a search's reach is read once until a chain changes", async () => {
+test("the bridge's verbs press the routes they name, and a search's reach is read each time it is asked, its last answer the next door's first paint", async () => {
   realVerbs();
   const calls = [];
   const was = W.fetch;
@@ -681,7 +681,9 @@ test("the bridge's verbs press the routes they name, and a search's reach is rea
     SEARCH.id,
   );
   try {
+    assert.equal(V.reachHeld("search-never-read"), null, "a search this tab never read paints nothing");
     await V.reach(SEARCH.id);
+    assert.deepEqual(V.reachHeld(SEARCH.id), REACH, "what it read paints the next door or sheet at once");
     await V.reach(SEARCH.id);
     await V.save(body);
     await V.reach(SEARCH.id);
@@ -701,12 +703,13 @@ test("the bridge's verbs press the routes they name, and a search's reach is rea
     calls.filter(([m, p]) => m !== "GET" || p === "reach-outs/reach"),
     [
       ["GET", "reach-outs/reach", SEARCH.id],
+      ["GET", "reach-outs/reach", SEARCH.id],
       ["POST", "reach-outs", null],
       ["GET", "reach-outs/reach", SEARCH.id],
       ["PUT", "reach-outs/r1", null],
       ["POST", "reach-outs/preview", null],
       ["POST", "reach-out-sends/s1/decide", null],
     ],
-    "a second read of the same search is the first one's; any write lets it go (api.ts refresh)",
+    "each ask is a read: a door and its sheet read it as they open and as Leads or the reach-outs move (the wiring's second audit, X2-1: it was kept as first read until a write)",
   );
 });

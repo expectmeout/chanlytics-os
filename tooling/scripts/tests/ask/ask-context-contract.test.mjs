@@ -153,15 +153,18 @@ test("Ask at rest on Campaigns (the moment spec, A3): three ideas on the first d
   // The chip and the page's own door (surfaces/campaigns/home/ask-on-campaigns.tsx SetUpAsk) say one sentence.
   assert.equal(first[0], LIFECYCLE_WORDS.ask.setUp);
   const rows = [
-    { name: "Win-back", trigger: "quiet_30", state: "running", waiting: true },
-    { name: "Monthly offer", trigger: "everyone_monthly", state: "paused", waiting: false },
+    { name: "Win-back", trigger: "quiet_30", runs: true, waiting: true },
+    { name: "Monthly offer", trigger: "everyone_monthly", runs: false, waiting: false },
   ];
   const later = qs({ campaigns: { rows } });
   assert.deepEqual(later.slice(0, 2), ["Why is Win-back waiting?", "What's working?"]);
   assert.ok(!later.includes("Win back customers who went quiet"), "a win-back runs");
   assert.ok(!later.includes("Start a win-back campaign for the quiet clients"), "nor its act");
-  const none = qs({ campaigns: { rows: [{ ...rows[0], state: "paused", waiting: false }] } });
-  assert.ok(none.includes("Win back customers who went quiet"), "a paused win-back runs nothing");
+  const none = qs({ campaigns: { rows: [{ ...rows[0], runs: false, waiting: false }] } });
+  assert.ok(
+    none.includes("Win back customers who went quiet"),
+    "a paused win-back runs nothing, nor one past its last day",
+  );
   // Offered once: the page's own chip is the win-back, and the Act group does not offer it again.
   assert.ok(!none.includes("Start a win-back campaign for the quiet clients"), "never twice");
   assert.ok(!first.includes("Start a win-back campaign for the quiet clients"), "nor on the first day");

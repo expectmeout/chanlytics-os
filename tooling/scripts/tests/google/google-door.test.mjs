@@ -1513,7 +1513,13 @@ test("refresh with the profile connected syncs it as the owner -- the expired to
     "invalid_grant: Token has been expired or revoked.",
     "on the row",
   );
-  assert.deepEqual([tables.notifications, tables.events], [[], []]);
+  // A grant Google refused lasts until its owner reconnects: they are told, once, with the door to Connections (R11 S11-4).
+  assert.deepEqual(
+    tables.notifications.map((n) => [n.kind, n.title, n.route]),
+    [["sweep", "Google Business Profile stopped syncing", "admin/integrations"]],
+  );
+  assert.deepEqual(tables.events, []);
+  const stopped = tables.notifications[0];
 
   // The owner reconnected at Google's end; the refresh is honoured and kept, the reviews read as the owner, and what is new rings.
   const NEW = {
@@ -1561,8 +1567,8 @@ test("refresh with the profile connected syncs it as the owner -- the expired to
   );
   assert.deepEqual(
     toldByTheLink,
-    [1, 1],
-    "the new review's bell and its event were kept before the location was read: the link's read is the sync's last",
+    [2, 1],
+    "the new review's bell (beside the stopped-syncing notice) and its event were kept before the location was read: the link's read is the sync's last",
   );
   assert.equal(
     tables.google_listings[0].new_review_uri,
@@ -1590,10 +1596,13 @@ test("refresh with the profile connected syncs it as the owner -- the expired to
   );
   const luis = tables.google_reviews.find((r) => r.review_id === "g-3");
   assert.deepEqual(
-    tables.notifications.map((n) => [n.kind, n.title, n.route, n.subject_type, n.subject_id]),
+    tables.notifications
+      .filter((n) => n.kind === "review")
+      .map((n) => [n.kind, n.title, n.route, n.subject_type, n.subject_id]),
     [["review", "New on Google: ★★★★★ from Luis", reviewRoute(luis.id), "review", luis.id]],
     "written since the last sync and not on record: news, about the review's row; Rosa's, on record, is not",
   );
+  assert.ok(stopped.closed_at, "and the sync that worked closed the stopped-syncing notice (contracts NOTICE_MENDS)");
   assert.deepEqual(
     tables.events.map((e) => [e.kind, e.data]),
     [["google.reviews", { source: "profile", fresh: 1, counted: 0, rating: 4.8, review_count: 2 }]],

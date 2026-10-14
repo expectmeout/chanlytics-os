@@ -4717,9 +4717,12 @@ declare function bookingPageLinkedFrom(html: string, pageUrl: string): string | 
  *                     owner's calendar feed: 00410, S1-01) is told once on the bell, opening the visit on its day. The
  *                     visits one read of the calendar added together are one line, told by the first of their events, and
  *                     a read that adds more than a customer could book in an hour (a calendar newly connected) tells
- *                     nobody. A visit withdrawn or already past by the time the delivery runs is not news.
+ *                     nobody. A visit withdrawn or already past by the time the delivery runs is not news. A booking the
+ *                     customer cancelled or moved through their booking tool (by the service, 00436: never a member's own
+ *                     word) is told once too, while the visit is still ahead (R11 S6-6, contracts bookingChanged).
  *   team_notice       a teammate who accepted an invitation and joined (member.joined: 00410, S1-19) is told once on the
- *                     bell, opening Settings > Team.
+ *                     bell, opening Settings > Team; so is one who left, by their own hand or with their account
+ *                     (member.left: 00437, R11 W-channel-team-plus-5).
  */
 
 /** What a subscriber acts through: the job's own database, behind the verbs it needs. */
@@ -4761,9 +4764,10 @@ interface SubscriberPorts {
     eventTold(tenantId: string, eventId: string): Promise<boolean>;
     /**
      * The visits of the record that are booked and still ahead among these, as the record says them now, with who booked
-     * (packages/db bookedVisitsOf). A visit cancelled, vanished from the feed, past, or a member's own entry is not among them.
+     * (packages/db bookedVisitsOf). A visit cancelled, vanished from the feed, past, or a member's own entry is not among them;
+     * with `status` "cancelled", the cancelled ones still ahead instead.
      */
-    bookedVisits(tenantId: string, ids: readonly string[], nowMs: number): Promise<BookedVisit[]>;
+    bookedVisits(tenantId: string, ids: readonly string[], nowMs: number, status?: "booked" | "cancelled"): Promise<BookedVisit[]>;
     /**
      * The calendar's additions one read of the feed wrote in the same transaction as this event, by event id (packages/db
      * feedAdditionsWith): at most CATCH_UP_VISITS + 1, so a read that added more is seen as more without reading all of it.
@@ -4788,6 +4792,8 @@ interface SubscriberPorts {
      * twice (two tabs at once) writes two member.joined events, and the owner is told of one arrival once.
      */
     memberTold(tenantId: string, invitationId: string): Promise<boolean>;
+    /** The address of a person who left, from the identity store (packages/db memberEmailOf); null for an account that is gone. */
+    memberEmail(userId: string): Promise<string | null>;
     /**
      * Tell the workspace: the bell, the email its settings allow, the phones each member allows (decision 0040), exactly
      * once for the event the news names. Throws when it could not, so the delivery tries again.

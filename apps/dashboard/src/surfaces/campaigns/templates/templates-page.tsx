@@ -138,6 +138,19 @@ const changeChain =
     setChanging(c);
   };
 
+/**
+ * The page's own acts stay where they are for every role and say who may (gate); a message's rename, hide and delete stay
+ * with those who may, and whoever may not is told so where there is a number to hold messages.
+ */
+function roleHint(canAct: boolean, hasWhatsApp: boolean): ReactNode {
+  if (canAct || !hasWhatsApp) return null;
+  return (
+    <span className="bc-excl-hint" data-testid="messages-role">
+      {gateTitle("approve", "rename, hide or delete a template")}
+    </span>
+  );
+}
+
 /** The reach-out being changed from one of its emails: its sheet, over the list. */
 function ChainSheet({ chain, onClose }: { chain: ReachOutChainDto | null; onClose: () => void }) {
   if (!chain || !chain.search) return null;
@@ -161,7 +174,8 @@ function MessagesReal() {
   const busy = doing !== null;
   // Who may add, change or remove a message: the role store's answer, View-as included.
   const canAct = canDo("approve");
-  const channels = settings ? settings.channels : undefined;
+  // The numbers, from the channels read (surfaces/channels/surface.ts): undefined while it is read, null where it failed.
+  const channels = useSurface("channels")?.rows;
   const hasWhatsApp = (channels || []).some((c) => c.kind === "whatsapp");
   const bizName = brainOf(settings ? settings.settings : undefined).business_name || null;
 
@@ -259,13 +273,7 @@ function MessagesReal() {
       />
       {/* The top of the list, as the Inbox's opens: the search, and beside it when WhatsApp was last asked. */}
       {listBar({ q, setQ, hasWhatsApp, lastSync: listing.lastSync, doing, busy, sync })}
-      {/* The page's own acts stay where they are for every role and say who may
-          (gate); a message's rename, hide and delete stay with those who may. */}
-      {!canAct && hasWhatsApp && (
-        <span className="bc-excl-hint" data-testid="messages-role">
-          {gateTitle("approve", "rename, hide or delete a template")}
-        </span>
-      )}
+      {roleHint(canAct, hasWhatsApp)}
       {numberNotice({ channels, hasWhatsApp })}
       {allMissing && startersOffer({ S, langs, busy, addingAll, addStarters, hasNumber: hasWhatsApp })}
       {templateList({

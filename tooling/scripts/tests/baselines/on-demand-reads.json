@@ -10,10 +10,9 @@
     "why": "A day is counted in the workspace's zone, and a page asked for it before the workspace surface landed must not guess it; the surface's own read, heard, is what holds it afterwards."
   },
   "apps/dashboard/src/legacy-bridge/activity.ts GET activity": {
-    "kind": "owed",
-    "finding": "X2-3",
-    "fresh": "Read as Settings > Activity opens and as a filter changes, a page at a time.",
-    "why": "Nothing re-reads it while the pane is open: a teammate's change or a visit booked appears only on a return to the tab or a new filter (the wiring's second audit X2-3, lane R5)."
+    "kind": "on-open",
+    "fresh": "Read as Settings > Activity opens and as a filter changes, a page at a time; while it is open, its first page is read again each minute and as the tab comes back, and what is newer is offered above the lines (settings/activity/newer.ts).",
+    "why": "The log is the events table, which the feed never tells (every write in the workspace makes one); a minute's age is what an owner reading a log looks for, and newer lines wait for a press rather than move the lines they are reading (the wiring's second audit, X2-3)."
   },
   "apps/dashboard/src/legacy-bridge/activity.ts GET contacts": {
     "kind": "search",
@@ -46,10 +45,10 @@
     "why": "A workspace's sheet in the back office is read across workspaces, which no workspace's topic carries; it is read again as it opens."
   },
   "apps/dashboard/src/surfaces/campaigns/broadcasts/verbs.ts GET broadcasts/[id]": {
-    "kind": "owed",
-    "finding": "X2-2",
-    "fresh": "Read as a run's sheet opens, painted from the last answer and read again behind; followed while the run is sending.",
-    "why": "Once a run is sent its sheet stops following, though its replies, yeses, stops and ticks arrive for 72 hours (the wiring's second audit X2-2, lane R5)."
+    "kind": "follows",
+    "follows": "broadcasts",
+    "fresh": "Read as a run's sheet opens, painted from the last answer and read again behind; then each time Sent's runs are read, while the run is underway and for the reply window after it ended (contracts runStillMoving).",
+    "why": "What a run's report says moves with its sends, and with the replies, yeses and stops counted to it for 72 hours after it ends, each a record Sent's runs hear; a run that ended longer ago is history (the wiring's second audit, X2-2). Its delivery ticks are read with the next of those (R9)."
   },
   "apps/dashboard/src/surfaces/inbox/held-threads.ts GET conversations": {
     "kind": "surface",

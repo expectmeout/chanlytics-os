@@ -941,7 +941,7 @@ test("the number's health: what WhatsApp said decides what may be sent; nothing 
   assert.equal(numberHealth({ quality: null, event: null, limit: "TIER_UNLIMITED" }).limitPerDay, Infinity);
 });
 
-test("the detail: every person on a broadcast, with what happened to them; the send route refuses what the number cannot carry; the thread says which broadcast", () => {
+test("the detail: every person on a broadcast, with what happened to them; the send route refuses what the number cannot carry; the thread says which broadcast", async () => {
   // The detail route answers getBroadcast's own answer: run through its reader in readers.test.mjs.
   const s = readCode("apps/dashboard/src/server/campaigns/broadcasts.ts");
   // With the two columns that say whether the person stands (00403's rule, contracts answersToRuns): an erased person answers
@@ -956,9 +956,15 @@ test("the detail: every person on a broadcast, with what happened to them; the s
   // The number's refusals are run: core-campaigns.test.mjs. Its quality, read from the row's config, is run through the
   // channels route in reads-routes.test.mjs ("the channels read") and through its reader in readers.test.mjs.
   const sd = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts");
-  assert.match(
-    sd,
-    /health: numberHealth\(\{\s*quality: wa\?\.quality \?\? null,\s*event: wa\?\.quality_event \?\? null,\s*limit: wa\?\.messaging_limit \?\? null,?\s*\}\),/,
+  // The number is the channels read's now (S10-9): its health is made where every composer's is, from the active
+  // WhatsApp line's quality, its last quality event and its messaging limit (parts/channels.ts cmNumberOf).
+  const { cmNumberOf } = await importSrc("apps/dashboard/src/surfaces/campaigns/parts/channels.ts");
+  const line = { kind: "whatsapp", status: "active", number_e164: "+13055550100" };
+  const said = cmNumberOf([{ ...line, quality: "YELLOW", quality_event: "FLAGGED", messaging_limit: "TIER_250" }]);
+  assert.deepEqual(said.health, numberHealth({ quality: "YELLOW", event: "FLAGGED", limit: "TIER_250" }));
+  assert.deepEqual(
+    cmNumberOf([{ ...line, status: "disconnected" }]).health,
+    numberHealth({ quality: null, event: null, limit: null }),
   );
   assert.ok(sd.includes("heldReasons: HELD_REASONS,"));
   // bc-detail, bc-person and bc-open-who are a run's and the ledger's (run.tsx, ledger.tsx);

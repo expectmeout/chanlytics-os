@@ -78,6 +78,10 @@ async function endSession(win: Window): Promise<void> {
   win.location.assign(signInHref(win.location));
 }
 
+/** When this page began to load: the head's reads began at it or after, so an answer of theirs is no newer (S2-4). */
+const pageBegan = (): number =>
+  typeof performance !== "undefined" && Number.isFinite(performance.timeOrigin) ? performance.timeOrigin : Date.now();
+
 /**
  * What the document head started for a URL (contracts routePrefetchScript), taken once: the slot forgets it as it is
  * handed over, so a later read of the same URL asks the server.
@@ -120,6 +124,7 @@ export function apiFor(win: Window): Api {
   return createApi({
     fetch: (url, init) => win.fetch(url, init),
     prefetched: (url) => takePrefetched(win, url),
+    prefetchedFrom: pageBegan,
     workspace: getActiveWorkspace,
     onSignedOut: () => toSignIn(win),
     onSessionEnded: () => void endSession(win),
@@ -159,6 +164,7 @@ export function api(): Api {
   instance ??= createApi({
     fetch: (url, init) => window.fetch(url, init),
     prefetched: (url) => takePrefetched(window, url),
+    prefetchedFrom: pageBegan,
     workspace: getActiveWorkspace,
     onSignedOut: () => toSignIn(window),
     onSessionEnded: () => void endSession(window),

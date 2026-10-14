@@ -201,7 +201,21 @@ async function surfaceFor({
   channels = [],
   settingsAnswer = {},
 }) {
-  setSurfaceValue("settings", settings);
+  // The settings read and the channels read, as they would have landed: the playbooks surface asks for neither (S10-9), and
+  // takes the business's name and the listing's review link from the one, the number from the other.
+  setSurfaceValue(
+    "settings",
+    settings && {
+      ...settings,
+      settings: {
+        config: { brain: { business_name: "Northside Studio" } },
+        version: 1,
+        broken: null,
+        reviewLink: settingsAnswer.review_link === true,
+      },
+    },
+  );
+  setSurfaceValue("channels", { rows: channels });
   const kept = globalThis.fetch;
   globalThis.fetch = async (url) => {
     const path = new URL(String(url), "https://app.chanlytics.com").pathname;

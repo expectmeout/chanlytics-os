@@ -114,7 +114,8 @@ const broadcastsSurface = (over = {}) => ({
   more: false,
   heldReasons: contracts.HELD_REASONS,
   chunk: contracts.BROADCAST_CHUNK,
-  number: null,
+  // No number, as the channels read says it (campaigns/parts/channels.ts cmNumberOf): never null.
+  number: { present: false, display: null, health: numberHealth({ quality: null, event: null, limit: null }) },
   optIn: null,
   getYes: contracts.GET_YES_ROUTE,
   listsRead: true,
@@ -128,6 +129,8 @@ const playbook = (over = {}) => ({
   id: "pb-1",
   name: "Win-back",
   trigger: "quiet_30",
+  // It runs on the business's day while it is on (contracts campaignRunsOn): Run now is offered.
+  runs: (over.state ?? "running") === "running",
   template_id: "tpl-1",
   template_name: "winback_offer",
   template_language: "en_US",
@@ -397,6 +400,10 @@ const settingsOf = (over = {}) => {
   // The messages the surface holds, made of the WhatsApp rows as the bridge makes them where the read carries none.
   held.messages ??= held.templatesAll ? contracts.campaignMessagesOf(held.templatesAll) : null;
   setSurfaceValue("settings", held);
+  // The channels are their own read now (surfaces/channels/surface.ts): the same rows, as GET channels answers them.
+  setSurfaceValue("channels", {
+    rows: held.channels === null ? null : (held.channels ?? []).map((c) => ({ status: "active", ...c })),
+  });
   globalThis.__TEMPLATES_ALL = held.templatesAll;
   return held;
 };
@@ -408,7 +415,8 @@ const settingsChanged = (over) => settingsOf({ ...surfaceValue("settings"), mess
  * Win-back, in English) would flag a starter it never set out to.
  */
 const messages = ({ playbooks: held, ...over } = {}) => {
-  setSurfaceValue("playbooks", held);
+  // The playbooks a test names, over the surface as its read publishes it whole (its shape and number beside the rows).
+  setSurfaceValue("playbooks", held === undefined ? undefined : playbooksSurface(held));
   settingsOf(over);
   fresh();
   return TemplatesPage();
@@ -2441,7 +2449,9 @@ test("A row asks for attention when a language a playbook sends is missing or no
   const es = templateRow({ id: "t-es", name: "offer", language: "es", meta_status: "pending" });
   const use = { offer: { words: "Offer", unused: false, playbook: "pb-1" } };
   const sends = (language) => ({
-    rows: [{ id: "pb-1", name: "Offer", template_name: "offer", template_language: language, state: "running" }],
+    rows: [
+      { id: "pb-1", name: "Offer", template_name: "offer", template_language: language, state: "running", runs: true },
+    ],
   });
   const attn = (t) => String(byTestId(t, "custom-row").props.className).split(" ").includes("is-attn");
   // A playbook sends Spanish and WhatsApp holds only English: every run of it is skipped.

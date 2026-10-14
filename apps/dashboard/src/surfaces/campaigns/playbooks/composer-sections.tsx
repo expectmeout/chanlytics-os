@@ -684,7 +684,8 @@ export function messageSection(x: SectionCtx) {
  */
 export function forecast(x: SectionCtx) {
   const { trig, f, editing, data } = x;
-  if (!trig || data.ready?.paused === true || (editing && editing.state !== "running")) return null;
+  // A campaign being changed forecasts only while it runs (its `runs`: on, and not past its last day; S1-3).
+  if (!trig || data.ready?.paused === true || (editing && !editing.runs)) return null;
   const S = LIFECYCLE_WORDS.compose.sentence;
   const tz = data.timezone || pageClock().zone();
   const when = nextRunLabel(
