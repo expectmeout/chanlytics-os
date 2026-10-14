@@ -59,7 +59,7 @@ const FILE_LINK_MS = DAY_MS;
 /** The same, as the store's signer takes it. */
 export const FILE_LINK_SECONDS = FILE_LINK_MS / 1000;
 
-export interface BundleConversation {
+interface BundleConversation {
   id: string;
   contact_id: string;
   state: string;
@@ -69,7 +69,7 @@ export interface BundleConversation {
 }
 
 /** A message as the bundle reads it: its conversation, and where a file it carried is stored, neither of them written. */
-export type BundleMessage = MessageDto & {
+type BundleMessage = MessageDto & {
   conversation_id: string;
   /** The stored file's path, for its link in `files`; never in the file itself. */
   stored_path: string | null;
