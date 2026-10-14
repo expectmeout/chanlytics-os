@@ -12,7 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { peopleRoute, personTabRoute } from "@chanlytics/contracts";
 import type { PersonRowVM } from "@chanlytics/contracts";
 import { navigate } from "../../legacy-verbs";
-import { warmPerson } from "../people-detail";
+import { personDeletedHere, warmPerson } from "../people-detail";
 import { walkIn } from "../walk";
 import { usePeekRead } from "./use-peek-read";
 
@@ -58,6 +58,11 @@ function usePeekAddress(f: PeekFacts, peekId: string | null, open: (id: string) 
       a.peek = addrPeek;
       a.asked = null;
       if (!addrPeek) a.pushed = false;
+      // Someone deleted from their page, which Back left by this entry: the view, with nobody peeked at (personDeletedHere).
+      if (addrPeek && personDeletedHere(addrPeek)) {
+        nav(viewRoute, { replace: true });
+        return;
+      }
       // The person the address names takes the cursor too, or the cursor this tab kept would walk the peek off them.
       if (peekId !== addrPeek) {
         if (addrPeek) open(addrPeek);

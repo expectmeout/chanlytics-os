@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
+import { openMessagesFold, openPersonPage } from "./open-person";
 
 /**
  * "Offers by WhatsApp" on the profile rail.
@@ -22,10 +23,11 @@ test.describe("Consent for one person", () => {
     await page.waitForLoadState("networkidle");
     const rows = page.locator(".cl-table tbody tr:not(:has(.empty))");
     test.skip((await rows.count()) === 0, "this workspace has nobody to open");
-    await rows.first().click();
-    await expect(page.locator(".cl-prof-name")).toBeVisible();
+    await openPersonPage(page, rows.first());
 
-    // Since #907 the answer in force is a row on the record kit, its control in the Visit messages fold behind it.
+    // Since #907 the answer in force is a row on the record kit, its control in the Visit messages fold behind it; since
+    // canvas A (#1574) the rows are inside the card's Messages and receptionist fold.
+    await openMessagesFold(page);
     await page.getByTestId("rec-row-act-person-visit").click();
     const control = page.getByTestId("consent-control");
     await expect(control).toBeVisible();
@@ -64,8 +66,11 @@ test.describe("Consent for one person", () => {
     expect(seen[0].url).toContain("workspace=");
     expect(seen[0].body).toEqual({ consent: "opted_in", source: "in_person" });
     // The second answer, offers, is its own control with its own words: since #907 its row's label ("Offers and news")
-    // is the record kit's, outside the control, and the control says what the answer is for.
-    await expect(page.getByTestId("consent-marketing")).toContainText("Separate and optional");
+    // is the record kit's, outside the control, and the control says what is on record for offers in a sentence of its
+    // own (settings-card.tsx offersHint): a yes only in writing while none is on record.
+    await expect(page.getByTestId("consent-marketing")).toContainText(
+      /a yes in writing|must come in writing|Yes — |No — |offers included/,
+    );
   });
 
   test("the People rail offers the list a broadcast may reach", async ({ page }) => {
@@ -81,8 +86,7 @@ test.describe("Consent for one person", () => {
     await page.waitForLoadState("networkidle");
     const rows = page.locator(".cl-table tbody tr:not(:has(.empty))");
     test.skip((await rows.count()) === 0, "this workspace has nobody to open");
-    await rows.first().click();
-    await expect(page.locator(".cl-prof-name")).toBeVisible();
+    await openPersonPage(page, rows.first());
 
     const seen: { method: string; url: string; body: unknown }[] = [];
     await page.route("**/api/v1/contacts/*/details*", async (route) => {
@@ -144,8 +148,7 @@ test.describe("Consent for one person", () => {
     await page.waitForLoadState("networkidle");
     const robin = page.locator(".cl-table tbody tr", { hasText: "Robin Example" });
     test.skip((await robin.count()) === 0, "the seeded person is not in this workspace");
-    await robin.first().click();
-    await expect(page.locator(".cl-prof-name")).toBeVisible();
+    await openPersonPage(page, robin.first());
 
     const row = page.getByTestId("person-email");
     await expect(row).toBeVisible();
@@ -199,8 +202,7 @@ test.describe("Consent for one person", () => {
     await page.waitForLoadState("networkidle");
     const robin = page.locator(".cl-table tbody tr", { hasText: "Robin Example" });
     test.skip((await robin.count()) === 0, "the seeded person is not in this workspace");
-    await robin.first().click();
-    await expect(page.locator(".cl-prof-name")).toBeVisible();
+    await openPersonPage(page, robin.first());
     await expect(page.getByTestId("person-email")).toBeVisible();
     test.skip(
       (await page.getByTestId("person-deal").count()) === 0,

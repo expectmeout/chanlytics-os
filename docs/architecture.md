@@ -415,7 +415,10 @@ and the API's nouns do not all agree yet; `docs/glossary.md` lists them.
 - _The workspace's rows_ are read through the seam into a surface's globals (`window.__PEOPLE`, and so on), never by a
   page. One read is out at a time for each surface, so the newest read lands last (`surface-data.ts`
   `activateOverride`); the workspace's own topic says what changed (decision 0019) and each tab re-reads only the surface
-  that changed; a write re-reads what it may have made stale, from one table (`refresh-map.ts`), which holds every write
+  that changed. A surface that hears a record only on its page hears it where its page's row in `surface-registry.ts`
+  (`PAGE_HEARS`, one row per family of addresses) names it, and keeps it for its page elsewhere; the goldens under
+  `tooling/scripts/tests/baselines/hearing/` say what every page reads, and at what cost, for each notice (decision 0058).
+  A write re-reads what it may have made stale, from one table (`refresh-map.ts`), which holds every write
   to a list of surfaces or to a reason it needs none (`refresh-coverage.test.mjs`). A tab keeps its last read in
   `sessionStorage` so a reload paints at once (`surface-cache.ts`), and a sign-out closes that cache before it clears it.
 - _A device's_ preferences (the theme, the look, the rail) live in `localStorage` and nowhere else

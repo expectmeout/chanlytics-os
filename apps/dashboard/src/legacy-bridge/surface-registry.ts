@@ -299,6 +299,81 @@ export function routeSurfaces(page: string, param?: string | null): string[] {
   return [...new Set(["workspace", ...(own ? [own] : []), ...routeDrawsFor(page, param)])];
 }
 
+/**
+ * What each page hears (decision 0058, amending 0047 point 4): for each family of addresses, the surfaces whose page it is, so a
+ * change to a record they hear only on their page (`fresh: "its-page"`, onlyOnItsPage) is read there and kept for their page
+ * elsewhere. A surface's own kinds (`always`) and a surface that is `live` are heard on every page; this says where the rest are.
+ *
+ * A page's hearing is a row anyone can read, a change to it is one cell, and the goldens (tooling/scripts/tests/baselines/hearing/)
+ * say what each cell costs in reads for every notice the feed sends. A family is what routeFamilyOf (below) makes of an address:
+ * a person's page is one family whatever the person and the tab, a Reports lens one family over any days, a Settings pane one
+ * family with any row after it.
+ *
+ * Every family the registry names has a row, and every row is a family (hearing/page-hears.test.mjs); a page's own surface is on
+ * its row; an address of no family hears nothing on its page alone (a demo page, a word nobody wrote).
+ */
+export const PAGE_HEARS: Readonly<Record<string, readonly string[]>> = {
+  // Today owns the headline its period line and Worth a look are printed from, and the replies to a reach-out its queue draws:
+  // the headline moves with a message, a call or a visit while Today is open, a long wait later (surfaces/reports/headline.ts).
+  // It does not own the rest of what it draws (the setup band, the day, the runs, the playbooks, the bell, a call, Google's line,
+  // People): People's pages of contacts are the heaviest read there is, and a message on Today re-reads the three that draw
+  // messages and nothing else (shell/surfaces/message-fan-out.test.mjs). What it leaves is read once as its own page comes back.
+  today: ["today", "reports_headline", "reach_out_replies"],
+  inbox: ["inbox"],
+  conversations: ["conversations"],
+  live: ["live"],
+  calendar: ["calendar"],
+  // Campaigns' home is one page of four surfaces: the playbooks' moments, its own 30 days (campaign_results), the reach-outs'
+  // chains and the settings read's templates. Sent's runs are drawn there too, for Coming up and a row's waiting run, and left
+  // to Sent: what a message moves of them (a run's replies) the home reads from its own 30 days (spec 2026-10-09 §4.5), so a
+  // message here never re-reads the broadcasts and every page of People behind them. They are heard on Sent, their own page.
+  campaigns: ["playbooks", "campaign_results", "reach_outs", "settings"],
+  outbound: ["playbooks"],
+  messages: ["settings"],
+  broadcasts: ["broadcasts"],
+  clients: ["people"],
+  segments: ["people"],
+  // A person's page reads its own person (people-detail.ts) and waits for who is looking; People's rows are drawn beside it
+  // (their name in the crumbs while the person's read is out) and are not its own here (the wiring's second audit,
+  // W-thread-wait-step-1).
+  "clients/person": ["workspace"],
+  "clients/leads": ["leads"],
+  // The retired address of Leads, which lands on its scope (SURFACE_RETIRED): its own surface, as its scope's.
+  leads: ["leads"],
+  start: ["setup"],
+  // Reports owns the Campaigns lens's read on its Overview, for the one fact it draws from it (which campaign drew the most
+  // replies): the read's own rule asks for the lens and keeps what the Overview heard for it (keepForItsPage,
+  // surfaces/reports/campaigns-surface.ts), read once as either comes on screen.
+  reports: ["reports", "reports_campaigns"],
+  // Each lens owns the read it names, heard while that lens is on screen and on no other lens or page of Reports: a review seen for
+  // the first time moves the Reviews lens's, a message, an escalation or a call the Receptionist lens's, a message, a call or a
+  // note the People lens's, and a message, a conversation, an escalation or a run the Campaigns lens's.
+  "reports/reviews": ["reports", "reports_reviews"],
+  "reports/receptionist": ["reports", "reports_receptionist"],
+  "reports/people": ["reports", "reports_people"],
+  "reports/campaigns": ["reports", "reports_campaigns"],
+  "reports/pipeline": ["reports"],
+  "reports/ads": ["reports"],
+  // Settings: a pane it does not list opens Profile, which the settings read feeds.
+  admin: ["settings"],
+  "admin/profile": ["settings"],
+  // The Business pane lists the booking emails held for a look and states the calendar link's last read from the Calendar's read
+  // (settings/business/open-bookings.tsx, open-calendar.tsx): a held email's bell row opens it, so a read of the Calendar is due
+  // there, as it is on the board. Settings with no pane is this pane (SURFACE_DEFAULT_PARAM).
+  "admin/workspace": ["settings", "calendar"],
+  "admin/team": ["settings"],
+  "admin/autonomy": ["settings"],
+  "admin/notifications": ["settings"],
+  "admin/integrations": ["settings"],
+  "admin/billing": ["settings"],
+  "admin/memory": ["settings"],
+  "admin/activity": ["settings"],
+  "admin/platform": ["settings"],
+  "admin/partner": ["settings"],
+  // An address that moved (ROUTES_MOVED: Setup is the first run now) draws nothing, so nothing is heard for it.
+  "admin/setup": [],
+};
+
 /* ------------------------- what a message re-reads ------------------------- */
 
 /** The page and its param a route names, as the shell parses it (app-shell.jsx parseRoute). */
@@ -307,60 +382,33 @@ function pageOfRoute(route: string): { page: string; param: string | null } {
   return { page: page || "today", param: param || null };
 }
 
-/**
- * The pages that own the refreshes of what they draw beside their own surface. Campaigns' home is one page of four surfaces (the
- * playbooks' moments, Sent's runs, its own 30 days, the reach-outs' chains), and a message moves the replies its rows and "What
- * came back" say: left to another page, its numbers stood where they were read for as long as the home was open. Today draws more (People, Reports, the Calendar) and does not own them, for a
- * message re-reads the three that draw messages and Today, and People's pages of contacts are the heaviest read there is
- * (shell/surfaces/message-fan-out.test.mjs). Reports owns the one it names for a lens (`reports/reviews`, `reports/receptionist`,
- * `reports/people`, `reports/campaigns`): a review seen for the first time moves the Reviews lens's read, a message, an escalation or
- * a call the Receptionist lens's, a message, a call or a note the People lens's, and a message, a conversation, an escalation or a run
- * the Campaigns lens's, each heard while that lens is on screen and not on Reports' other lenses or pages. The Overview owns the
- * Campaigns read too, for the one fact it draws from it, but does not read it for a burst: the read's own rule asks for the lens, and
- * keeps what the Overview heard for the lens (keepForItsPage, campaigns-surface.ts), read once as either comes on screen.
- * Today owns the headline its period line and Worth a look are printed from (and the replies to a reach-out its queue draws), and
- * only those: the headline moves with a message, a call or a visit while Today is open, a long wait later (headline.ts), and the
- * rest of what Today draws stays its own page's (LEFT_TO_THEIR_PAGE).
- */
-const OWNS_WHAT_IT_DRAWS: ReadonlySet<string> = new Set(["campaigns", "reports", "today"]);
+/** The scope of People that Leads is (`clients/leads…`), as PAGE_HEARS names it. */
+const LEADS_SCOPE = "clients/leads";
 
 /**
- * What a page that owns what it draws still leaves to the surface's own page. Campaigns draws Sent's runs for Coming up
- * and a row's waiting run, and what a message moves of them (a run's replies) it reads from its own 30 days now
- * (campaign_results, spec 2026-10-09 §4.5): so a message on Campaigns no longer re-reads the broadcasts and every page of
- * People behind them. They are heard on Sent, their own page, and read once as Sent comes back. Today leaves everything it
- * draws beside the headline and the replies to a reach-out: People's pages of contacts are the heaviest read there is, and a
- * message on Today re-reads the three that draw messages and nothing else (shell/surfaces/message-fan-out.test.mjs).
+ * The family an address is of, for what its pages hear (PAGE_HEARS): a person's page on any tab is one family
+ * (PERSON_ROUTE), Leads' scope under any view is one, a Reports lens over any days is its lens, a Settings pane with any row after
+ * it is its pane, and Settings with none is the pane it opens (SURFACE_DEFAULT_PARAM). Anything else is its page: a Campaigns
+ * moment is Campaigns, a thread is the Inbox. A pane or a word with no row of its own is its page's, as the shell draws it.
  */
-const LEFT_TO_THEIR_PAGE: Readonly<Partial<Record<string, readonly string[]>>> = {
-  campaigns: ["broadcasts"],
-  today: ["setup", "calendar", "broadcasts", "playbooks", "notifications", "live", "google", "people"],
-};
+export function routeFamilyOf(route: string): string {
+  const { page, param } = pageOfRoute(route);
+  const pane = paneOf(page, param);
+  if (page === "clients" && pane && /^leads(:|$)/.test(pane)) return LEADS_SCOPE;
+  if (personRouteId(page, pane)) return PERSON_ROUTE;
+  const at = pane || SURFACE_DEFAULT_PARAM[page];
+  const named = at ? `${page}/${at}` : null;
+  // A person's family is a person's id, never the word: `clients/person` typed by hand is People's, as the shell draws it.
+  return named && named !== PERSON_ROUTE && Object.hasOwn(PAGE_HEARS, named) ? named : page;
+}
 
 /**
- * The panes that draw a surface of another page and read it as their own. Settings' Business pane lists the booking emails held for a
- * look, and states the calendar link's last read, from the Calendar's read (settings/business/open-bookings.tsx, open-calendar.tsx):
- * a held email's bell row opens it, so a read of the Calendar is due there, as it is on the board.
- */
-const PANE_OWNS: Readonly<Record<string, readonly string[]>> = {
-  "admin/workspace": ["calendar"],
-};
-
-/**
- * Whether this surface is the one the page on screen is of: its own surface, and, on a page that owns what it draws
- * (OWNS_WHAT_IT_DRAWS), the surfaces it draws beside it (ROUTE_DRAWS), but those it leaves to their own page
- * (LEFT_TO_THEIR_PAGE); and the surfaces a pane reads as its own (PANE_OWNS).
+ * Whether this surface is the one the page on screen is of: one its family names in PAGE_HEARS, its own surface
+ * and those it hears the way its own are. An address of no family is no surface's.
  */
 export function ownsTheScreen(key: string, route: string): boolean {
-  const { page, param } = pageOfRoute(route);
-  if (routeSurfaceFor(page, param) === key) return true;
-  const pane = paneOf(page, param) || SURFACE_DEFAULT_PARAM[page];
-  if (pane && PANE_OWNS[`${page}/${pane}`]?.includes(key)) return true;
-  return (
-    OWNS_WHAT_IT_DRAWS.has(page) &&
-    routeDrawsFor(page, param).includes(key) &&
-    !(LEFT_TO_THEIR_PAGE[page] ?? []).includes(key)
-  );
+  const family = routeFamilyOf(route);
+  return Object.hasOwn(PAGE_HEARS, family) && (PAGE_HEARS[family] ?? []).includes(key);
 }
 
 /**

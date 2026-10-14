@@ -313,7 +313,7 @@ export const FUNCTION_LIMITS = { lines: 150, branches: 30, depth: 5, params: 4 }
  * in the change that banks its last entry, and a new tree with its first file (src/surfaces, where the shell's pages
  * land as decision 0015 moves them, joined with the kit's); a parent replaces its folders once all of it is held. The
  * shell (legacy/) is not here, since it leaves with decision 0015, and neither are the trees of the programs in flight
- * (Ask Rewired, the phone app), which join as those land, by the day repo/lint-boundaries.test.mjs's IN_FLIGHT names. repo/lint-boundaries.test.mjs holds each entry
+ * (Ask Rewired), which join as they land, by the day repo/lint-boundaries.test.mjs's IN_FLIGHT names. repo/lint-boundaries.test.mjs holds each entry
  * to real source with no entry left in the baseline, asks ESLint that the limits apply there, and fails a tree the
  * ratchet has emptied that is not here (its header says which folders are trees).
  */
@@ -322,6 +322,7 @@ export const LIMITED_TREES = [
   "packages/contracts/src/activity",
   "packages/contracts/src/ads",
   "packages/contracts/src/ai",
+  "packages/contracts/src/ask-proposals",
   "packages/contracts/src/broadcasts",
   "packages/contracts/src/consent",
   "packages/contracts/src/email",
@@ -329,6 +330,7 @@ export const LIMITED_TREES = [
   "packages/contracts/src/journey",
   "packages/contracts/src/lines",
   "packages/contracts/src/logo",
+  "packages/contracts/src/mobile",
   "packages/contracts/src/new-conversation",
   "packages/contracts/src/notes",
   "packages/contracts/src/notices",
@@ -348,6 +350,7 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/lib",
   "apps/dashboard/src/surfaces",
   "apps/dashboard/src/yes",
+  "apps/dashboard/src/legacy-bridge/ask",
   "apps/dashboard/src/legacy-bridge/invitations",
   "apps/dashboard/src/legacy-bridge/mascot",
   "apps/dashboard/src/legacy-bridge/reach-out",
@@ -388,6 +391,7 @@ export const LIMITED_TREES = [
 export const WIDE_PARAMS = [
   "packages/db/src",
   "packages/contracts/src/ai",
+  "packages/contracts/src/ask-proposals",
   "packages/contracts/src/broadcasts",
   "packages/contracts/src/playbooks",
   "packages/contracts/src/reach-out",

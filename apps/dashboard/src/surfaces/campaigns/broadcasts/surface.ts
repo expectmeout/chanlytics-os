@@ -286,7 +286,7 @@ export const broadcastsOverride: SurfaceOverride = {
   // A run made by the sweep, approved in another tab, sending or finished (00321) is this surface's own row: heard
   // wherever the tab is, since Today draws its Approve and Stop rows from here. A message moves a run's replies: read
   // again only while Sent is on screen, and once when it comes back (Campaigns reads its numbers from campaign_results,
-  // surface-registry.ts LEFT_TO_THEIR_PAGE). So does a visit, which the audiences' pools read (a visit marked missed or cancelled
+  // surface-registry.ts PAGE_HEARS). So does a visit, which the audiences' pools read (a visit marked missed or cancelled
   // leaves a reminder's: #1551), and a number, a line or the workspace's pause, which the Send by tick is worded from. And what the
   // composers read of the business (0047): who may be sent to (the person: an answer, a stop, people imported), the rules the
   // Send tick and the chips beside it say, the mailbox whose offers the gates paused and the business's facts, the postal address
