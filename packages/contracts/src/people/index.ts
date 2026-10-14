@@ -179,7 +179,6 @@ export {
   ConsentManyBody,
   NoteWriteBody,
   NotesAppendManyBody,
-  PERSON_RECEPTIONIST_MODES,
   PersonAddBody,
   PersonMergeBody,
   ReceptionistManyBody,

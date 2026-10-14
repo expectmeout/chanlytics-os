@@ -44,7 +44,7 @@ import {
 } from "@chanlytics/contracts";
 import type { Api } from "../../client/api";
 import { apiFor } from "../api";
-import { isRefusal, undoVerb, walkVerb } from "../verbs/commit";
+import { isRefusal, saidHere, undoVerb, walkVerb } from "../verbs/commit";
 import { goToRoute } from "../workspace";
 
 /** What a commit did: its receipt, what its undo keeps, and the id it made that a later step of a plan names, or null. */
@@ -110,7 +110,9 @@ export async function commitProposal(
   if (isRefusal(card)) return { ok: false, message: card.refused };
   const key = card.plan ? stepKey(card.plan) : card.id;
   const r = await walkVerb(card, { win, client, key, via: "ask" });
-  if (!r.ok) return { ok: false, message: r.message };
+  // A door's refusal is the card's answer whole: the kind of no beside the server's own sentence (refusals-in-our-words);
+  // the walk's own (nothing sent) is its words.
+  if (!r.ok) return saidHere(r) ? { ok: false, message: r.message } : r;
   return { ok: true, receipt: r.receipt, undo: r.undo, made: r.made ? { kind: card.kind, id: r.made } : null };
 }
 
@@ -209,7 +211,8 @@ export async function undoProposal(
   // The verb walk's undo, marked as a card's, under the card's own key: the row it reverses is named by the commit's
   // ledger row (`decision_id`), and a call whose row an earlier press took counts as done (verbs/commit.ts).
   const r = await undoVerb(p.kind, record, { win, client, key: p.id, via: "ask" });
-  return r.ok ? { ok: true, receipt: r.receipt, undo: null } : { ok: false, message: r.message };
+  if (r.ok) return { ok: true, receipt: r.receipt, undo: null };
+  return saidHere(r) ? { ok: false, message: r.message } : r;
 }
 
 /** "Edit in the composer": open the thread with the words ready to change. */

@@ -73,7 +73,7 @@ export const PROPOSAL_SPECS = {
  * legacy-bridge/verbs), so the same act makes the same call, says the same receipt and offers the same undo whichever
  * hand pressed it (the sheets as verbs, 14 Oct 2026). Marked pure, as the derived tables below are.
  */
-export const VERB_SPECS = /* @__PURE__ */ (() => ({
+const VERB_SPECS = /* @__PURE__ */ (() => ({
   ...PROPOSAL_SPECS,
   answer: answerSpec,
   answer_many: answerManySpec,

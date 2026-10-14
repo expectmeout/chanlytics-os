@@ -12,7 +12,7 @@ export const DealMoveBody = z
   .object({
     stage: z.enum(DEAL_STAGES),
     /** Absent: a new engagement, which starts proposed. Present: the row the page saw, with the version it saw. */
-    deal_id: z.string().uuid().optional(),
+    deal_id: z.uuid().optional(),
     version: z.number().int().min(1).optional(),
     service: z.string().trim().min(1).max(80).optional(),
     /** An ISO instant with a time (a bare date would land at UTC midnight, the previous evening in the Americas); absent means now. */
@@ -24,7 +24,7 @@ export const DealMoveBody = z
     per: z.enum(DEAL_PERS).optional(),
     note: z.string().trim().max(200).optional(),
     /** Evidence, the consent's shape: the inbound message they said it in, or a note saying where it was signed. */
-    message_id: z.string().uuid().optional(),
+    message_id: z.uuid().optional(),
     form_note: z.string().trim().min(1).max(200).optional(),
     /**
      * The proposal's web address (0008), judged by the one normalizer before the door, which holds the stored shape.

@@ -1225,15 +1225,15 @@ test("automatically: an hourly sweep on the edge puts the feed's people in Peopl
   );
   const page = readCode("apps/dashboard/src/surfaces/calendar/visit/visit.tsx");
   assert.ok(
-    page.includes("data-testid={`cal-visit-primary-${pa.act}`}") && page.includes('api()("POST contacts"'),
-    "a visit whose person the board cannot match offers a press, through the door 'Add a person' uses (drawn in reads-never-write/)",
+    page.includes("data-testid={`cal-visit-primary-${pa.act}`}") && /commitVerb\(\s*"person_add"/.test(page),
+    "a visit whose person the board cannot match offers a press, through the verb 'Add a person' commits (drawn in reads-never-write/)",
   );
   assert.ok(!page.includes("__addPerson"), "and not through a window global");
   // The hand's door has its screen on People now (slice D of the data program):
   // the same route, a number and a name, opening the person it made or found.
   assert.ok(
     readCode("apps/dashboard/src/surfaces/people/people-detail.ts").includes(
-      'return api()("POST contacts", { body });',
+      'return answered(await commitVerb("person_add", body));',
     ),
     "the bridge verb, through the same door",
   );
@@ -2053,7 +2053,7 @@ test("bulk actions: a selection becomes people on a list, a yes on record (one r
   // surface, is the one write that does).
   const bridge = readCode("apps/dashboard/src/surfaces/people/people-detail.ts");
   assert.ok(
-    bridge.includes("return api()(CONSENT_ROUTE[purpose], { params: { id }, body });") &&
+    bridge.includes('return answered(await commitVerb("answer", { contact_id: id, purpose, ...body }));') &&
       !bridge
         .slice(bridge.indexOf("async function recordMany"), bridge.indexOf("export type ReceptionistMany"))
         .includes("refresh: false"),
@@ -2091,11 +2091,14 @@ test("bulk actions: a selection becomes people on a list, a yes on record (one r
   assert.ok(byTestId(picking.draw(), "bulk-list-name"), "a new list is named where it is made");
   // WHICH yes, and how it was given. The bulk action was titled for offers and wrote the conversational column, so a
   // salon recording thirty signed marketing consents changed the one field that does not authorise a promotion.
-  const yes = menuOf("Record a yes").items;
+  const yes = menuOf("Messages").items;
   assert.deepEqual(
-    yes.filter((i) => i.header).map((i) => i.header),
+    yes
+      .filter((i) => i.header)
+      .map((i) => i.header)
+      .slice(0, 2),
     ["Yes to messages about their visit…", "Yes to offers and news…"],
-    "both asks are offered, and named",
+    "both asks are offered, and named, before the receptionist's modes the same menu holds",
   );
   const own = CONSENT_SOURCES.find((s) => s.id === "customer_message").label;
   assert.ok(!yes.some((i) => i.label === own), "their own message is not something a desk records for them");

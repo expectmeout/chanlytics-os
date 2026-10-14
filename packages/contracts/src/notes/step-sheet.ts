@@ -100,8 +100,24 @@ export interface StepSheetVM {
   save: string;
 }
 
+/** What the sheet opens with: a step's or a note's own, or a new one's (a note's day is No day, a step's unpicked). */
+function openedWith(
+  note: NonNullable<StepPerson["noteList"]>[number] | null,
+  kind: StepSheetVM["kind"],
+  days: readonly StepDayChoice[],
+): StepDraft {
+  const day = note?.step ? note.step.day.day : kind === "note" ? NO_DAY : null;
+  return {
+    what: note ? note.body : "",
+    day,
+    picking: !!day && !days.some((c) => c.key === day),
+    forId: note ? note.forUserId : null,
+    teamOnly: note?.teamOnly === true,
+  };
+}
+
 /** The sheet's title, by how it opened. */
-const titleOf = (mode: StepSheetVM["mode"], kind: StepSheetVM["kind"]) =>
+const titleKey = (mode: StepSheetVM["mode"], kind: StepSheetVM["kind"]) =>
   kind === "note" ? (mode === "add" ? "note" : "editNote") : mode;
 
 /**
@@ -123,24 +139,17 @@ export function stepSheetFor(
   const stepChoices = stepDays(nowMs, tz);
   const days =
     kind === "note" ? [{ key: NO_DAY, label: W.when.none, title: W.when.none }, ...stepChoices] : stepChoices;
-  const day = note?.step ? note.step.day.day : kind === "note" ? NO_DAY : null;
   return {
     mode,
     kind,
-    title: W.titles[titleOf(mode, kind)],
+    title: W.titles[titleKey(mode, kind)],
     sub: service ? `${p.name} · ${service}` : p.name,
     days,
     team: [
       { id: "", label: W.for.anyone },
       ...(p.noteTeam ?? []).map((m) => ({ id: m.id, label: m.me ? W.for.me : m.name })),
     ],
-    draft: {
-      what: note ? note.body : "",
-      day,
-      picking: !!day && !days.some((c) => c.key === day),
-      forId: note ? note.forUserId : null,
-      teamOnly: note?.teamOnly === true,
-    },
+    draft: openedWith(note, kind, days),
     note: note ? { id: note.id, version: note.version } : null,
     dealId,
     blocked: ask.noteId && !note ? W.noStep : note && !note.mine ? (NOTE_REFUSALS.not_yours ?? null) : null,

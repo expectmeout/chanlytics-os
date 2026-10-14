@@ -151,6 +151,20 @@ function useImportState(L: Lists) {
   };
 }
 
+/** What an import came to: its title, and a line for each thing it says. */
+const LlImportSummary = ({ result }: { result: { title: string; lines: readonly string[] } }) => (
+  <div className="pl-import-summary" data-testid="lead-import-summary">
+    <p className="pl-import-counts">
+      <b>{result.title}</b>
+    </p>
+    {result.lines.map((l) => (
+      <p key={l} className="pl-import-hint">
+        {l}
+      </p>
+    ))}
+  </div>
+);
+
 /** The import sheet (J12): People's import's shape, the record kit's sheet, with the list's name and who they are. */
 export const LeadImportSheet = ({
   onClose,
@@ -287,18 +301,7 @@ export const LeadImportSheet = ({
             onAsked={setAsked}
           />
         )}
-        {result && (
-          <div className="pl-import-summary" data-testid="lead-import-summary">
-            <p className="pl-import-counts">
-              <b>{result.title}</b>
-            </p>
-            {result.lines.map((l) => (
-              <p key={l} className="pl-import-hint">
-                {l}
-              </p>
-            ))}
-          </div>
-        )}
+        {result && <LlImportSummary result={result} />}
       </div>
     </RecordSheet>
   );

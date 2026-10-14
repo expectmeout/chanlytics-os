@@ -752,7 +752,7 @@ test("REGRESSION (B4): a yes recorded for more than fifty goes for fifty, says s
   let tree = draw();
   byTestId(tree, "select-all").props.onChange();
   tree = draw();
-  const way = barMenuOf(tree, "Record a yes").props.items.find((i) => i.label && !i.header);
+  const way = barMenuOf(tree, "Messages").props.items.find((i) => i.label && !i.header);
   await way.onClick();
   await settle();
   const [yes] = wrote(seen);
@@ -1596,28 +1596,30 @@ test("REGRESSION: on a phone a selection is one row in the tab bar's shape -- �
     assert.match(textOf(byTestId(sheet, "bulk-list-s1")), /Regulars/);
   }));
 
-test("on a phone More opens the selection's sheet -- Record a yes ›, Receptionist ›, Export -- Note is the dock's own, and a step asks, acts, then shuts", () =>
+test("on a phone More opens the selection's sheet -- Messages and receptionist ›, Export -- Note is the dock's own, and a step asks, acts, then shuts", () =>
   onPhone(async () => {
     const seen = await freshPage({ people: [person(1), person(2), person(3)] });
     let tree = bulkSheetOpen();
     let sheet = openSheet(tree, "bulk-sheet");
     assert.equal(sheet.props.title, "2 selected");
-    // The owner's Receptionist step is there too: the JSX drew it only where the shell had published its verb on the window (a
-    // name this harness never gave it); the TSX imports the verb, so the step is always drawn for the role that may take it.
-    // Select all is the bar's at the top, and the note is up front in the dock.
-    assert.deepEqual(sheetRows(sheet), ["bulk-yes", "bulk-receptionist", "bulk-export"]);
-    // Record a yes, on a sign-up form: the step asks which forms, then records, then the sheet shuts.
-    click(byTestId(sheet, "bulk-yes"));
+    // A yes on record and the receptionist's mode are one step, the person page's own group (Messages and receptionist):
+    // the owner's modes are in it. Select all is the bar's at the top, and the note is up front in the dock.
+    assert.deepEqual(sheetRows(sheet), ["bulk-messages", "bulk-export"]);
+    // A yes on a sign-up form: the step asks which forms, then records, then the sheet shuts.
+    click(byTestId(sheet, "bulk-messages"));
     tree = draw();
     sheet = openSheet(tree, "bulk-sheet");
-    assert.equal(sheet.props.title, "Record a yes");
-    // The yes to offers has its row in the step too (in writing only, a sign-up form): the JSX drew it only where the shell
-    // had published its verb on the window, which this harness had not; the TSX imports it.
+    assert.equal(sheet.props.title, "Messages and receptionist");
+    // The yes to offers has its row too (in writing only, a sign-up form), and the receptionist's four modes after it.
     assert.deepEqual(sheetRows(sheet), [
       "bulk-yes-conversational-in_person",
       "bulk-yes-conversational-phone",
       "bulk-yes-conversational-form",
       "bulk-yes-marketing-form",
+      "bulk-mode-auto",
+      "bulk-mode-ask",
+      "bulk-mode-never",
+      "bulk-mode-inherit",
     ]);
     click(byTestId(sheet, "bulk-yes-conversational-form"));
     tree = draw();
@@ -1634,7 +1636,7 @@ test("on a phone More opens the selection's sheet -- Record a yes ›, Reception
     assert.equal(dockSays(tree), "2 people selected", "the selection stays, as on a desktop");
     // A spoken yes is recorded at the tap.
     click(byTestId(tree, "bulk-more"));
-    click(byTestId(draw(), "bulk-yes"));
+    click(byTestId(draw(), "bulk-messages"));
     click(byTestId(draw(), "bulk-yes-conversational-in_person"));
     await settle();
     assert.deepEqual(wrote(seen).at(-1), [
@@ -1643,20 +1645,21 @@ test("on a phone More opens the selection's sheet -- Record a yes ›, Reception
       { ids: ["p1", "p2"], consent: "opted_in", source: "in_person" },
     ]);
     assert.equal(openSheet(draw(), "bulk-sheet"), null);
-    // Note, from the dock: one line, Add; noted, the selection is done with. Reached from the dock, it has no way back.
+    // Note, from the dock: the note sheet for the selection (step-sheet.tsx, which writes the line through the batch door:
+    // notes/step-sheet.test.mjs), asked with who is picked; once it says what it reached, the bar says it and clears.
+    const asked = [];
+    const hear = (e) => asked.push(e.detail);
+    globalThis.addEventListener("step:sheet", hear);
     click(byTestId(draw(), "bulk-note"));
-    tree = draw();
-    sheet = openSheet(tree, "bulk-sheet");
-    assert.equal(sheet.props.title, "Add a note");
-    assert.equal(sheet.props.back, null, "the dock's own step walks back to nothing");
-    byTestId(tree, "bulk-note-line").props.onChange({ target: { value: "Called about the move" } });
-    await byTestId(draw(), "bulk-note-save").props.onClick();
+    globalThis.removeEventListener("step:sheet", hear);
+    assert.equal(openSheet(draw(), "bulk-sheet"), null, "the bar's own sheet stays shut: the note is the note sheet's");
+    assert.deepEqual(
+      asked.map((d) => [d.many, d.note]),
+      [[["p1", "p2"], true]],
+    );
+    asked[0].onDone({ done: 2, failed: 0, line: "Called about the move" });
     await settle();
-    assert.deepEqual(wrote(seen).at(-1), [
-      "PUT",
-      "contacts/notes",
-      { ids: ["p1", "p2"], append: "Called about the move" },
-    ]);
+    assert.match(textOf(flashes.at(-1).msg), /Noted on 2 people: Called about the move/);
     assert.equal(byTestId(draw(), "bulk-bar"), null, "noted, the selection clears, as on a desktop");
   }));
 
@@ -1664,11 +1667,11 @@ test("on a phone Esc shuts the selection's sheet and keeps the selection; Back w
   onPhone(async () => {
     await freshPage({ people: [person(1), person(2), person(3)] });
     let tree = bulkSheetOpen();
-    click(byTestId(tree, "bulk-yes"));
+    click(byTestId(tree, "bulk-messages"));
     tree = draw();
     openSheet(tree, "bulk-sheet").props.back.onBack();
     tree = draw();
-    assert.ok(byTestId(openSheet(tree, "bulk-sheet"), "bulk-yes"), "back at More");
+    assert.ok(byTestId(openSheet(tree, "bulk-sheet"), "bulk-messages"), "back at More");
     assert.equal(openSheet(tree, "bulk-sheet").props.back, null, "More has no way back of its own");
     // The kit's sheet, open on the body: the page holds still behind it, and its Esc is its own (Base UI's), which asks.
     overlayOpen = { role: "dialog", inApp: false, className: "sheet" };
@@ -2358,7 +2361,7 @@ test("a selection's yes on a sign-up form is recorded with the note that says wh
     ]);
   let tree = draw();
   byTestId(tree, "select-all").props.onChange();
-  const menu = () => barMenuOf(draw(), "Record a yes");
+  const menu = () => barMenuOf(draw(), "Messages");
   assert.deepEqual(
     menu().props.items.map((i) => i.header || i.label),
     [
@@ -2368,8 +2371,10 @@ test("a selection's yes on a sign-up form is recorded with the note that says wh
       "Sign-up form",
       "Yes to offers and news…",
       "Sign-up form",
+      "Receptionist for these people…",
+      ...["auto", "ask", "never", "inherit"].map((m) => stateOf("mode", m).label),
     ],
-    "their own message names one message, so a selection is not offered it",
+    "their own message names one message, so a selection is not offered it; the receptionist's mode is the same menu's",
   );
   await menu()
     .props.items.find((i) => i.label === "Sign-up form")
@@ -3562,7 +3567,7 @@ test("REGRESSION: the bulk bar acts on the people shown -- a person a refresh mo
       "REGRESSION: the add wrote to a person the view no longer shows",
     );
     // The doors that take fifty at a time (a yes, the receptionist, a note, Take off) share one batch; a yes stands for them.
-    await barMenuOf(draw({ initialState: "needs_you" }), "Record a yes")
+    await barMenuOf(draw({ initialState: "needs_you" }), "Messages")
       .props.items.find((i) => i.label === "In person")
       .onClick();
     await settle();

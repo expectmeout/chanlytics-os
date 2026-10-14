@@ -212,7 +212,7 @@ type DeleteResult = ApiResult<unknown>;
  * its verb's spec (legacy-bridge/verbs, contracts VERB_SPECS), the walk Ask's cards take too, so the same act makes the
  * same call whichever hand pressed it (the sheets as verbs, 14 Oct 2026).
  */
-function answered<O>(r: VerbResult): ApiResult<O> {
+function verbAnswer<O>(r: VerbResult): ApiResult<O> {
   return r.ok ? { ok: true, data: r.data as O } : r;
 }
 
@@ -272,7 +272,7 @@ export function personDeletedHere(id: string): boolean {
  * is a marked row now, which People does not show) and the kept person's page; the merged page the tab held is dropped.
  */
 export async function mergePerson(keep: string, merge: string): Promise<DeleteResult> {
-  const r = answered<unknown>(await commitVerb("person_merge", { contact_id: keep, merge }));
+  const r = verbAnswer<unknown>(await commitVerb("person_merge", { contact_id: keep, merge }));
   // Combine (0052) keeps the person, whichever was named to keep: the record the door merged away is the one let go.
   if (r.ok) people().forget(keptOf(r.data, keep) === keep ? merge : keep);
   return r;
@@ -303,7 +303,7 @@ export async function setPersonReceptionist(
   id: string,
   mode: "auto" | "ask" | "never" | "inherit",
 ): Promise<DeleteResult> {
-  return answered(await commitVerb("person_mode", { contact_id: id, mode }));
+  return verbAnswer(await commitVerb("person_mode", { contact_id: id, mode }));
 }
 
 /**
@@ -336,7 +336,7 @@ interface ConsentBody {
    door by a typo in a page. */
 
 async function recordOne(id: string, body: ConsentBody, purpose: AskedPurpose): Promise<DeleteResult> {
-  return answered(await commitVerb("answer", { contact_id: id, purpose, ...body }));
+  return verbAnswer(await commitVerb("answer", { contact_id: id, purpose, ...body }));
 }
 
 export async function setPersonConsent(id: string, body: ConsentBody): Promise<DeleteResult> {
@@ -379,7 +379,7 @@ function manyResult(r: ApiResult<unknown>, asked: number, verb = "recorded"): Ma
 
 async function recordMany(ids: string[], body: ConsentBody, purpose: AskedPurpose): Promise<ManyResult> {
   const take = [...new Set(ids)].slice(0, 50);
-  return manyResult(answered(await commitVerb("answer_many", { ids: take, purpose, ...body })), take.length);
+  return manyResult(verbAnswer(await commitVerb("answer_many", { ids: take, purpose, ...body })), take.length);
 }
 
 export type ReceptionistMany = "auto" | "ask" | "never" | "inherit";
@@ -387,13 +387,13 @@ export type ReceptionistMany = "auto" | "ask" | "never" | "inherit";
 /** The receptionist's mode for a selection. Owners; one request. */
 export async function setPersonReceptionistMany(ids: string[], mode: ReceptionistMany): Promise<ManyResult> {
   const take = [...new Set(ids)].slice(0, 50);
-  return manyResult(answered(await commitVerb("person_mode_many", { ids: take, mode })), take.length, "changed");
+  return manyResult(verbAnswer(await commitVerb("person_mode_many", { ids: take, mode })), take.length, "changed");
 }
 
 /** One note line under a selection's notes. Operator or owner; one request. */
 export async function appendPersonNotesMany(ids: string[], line: string): Promise<ManyResult> {
   const take = [...new Set(ids)].slice(0, 50);
-  return manyResult(answered(await commitVerb("note_many", { ids: take, append: line })), take.length, "noted");
+  return manyResult(verbAnswer(await commitVerb("note_many", { ids: take, append: line })), take.length, "noted");
 }
 
 /**
@@ -407,7 +407,7 @@ export async function addPerson(body: {
   email?: string;
   name?: string;
 }): Promise<ApiResult<{ contact_id: string; existed: boolean }>> {
-  return answered(await commitVerb("person_add", body));
+  return verbAnswer(await commitVerb("person_add", body));
 }
 
 /**
@@ -498,7 +498,7 @@ export async function recordDeal(
   // people_list's rule), which the verb walk lays on the row at once (legacy-bridge/verbs/effects.ts), and People and
   // Reports are read again behind it, so the sheet closes when the server takes the move rather than once every person
   // has been read again. One intent, however often Save is pressed (decision 0035).
-  return answered(
+  return verbAnswer(
     await commitVerb("deal", { contact_id: id, ...body }, { refresh: opts.refresh === false ? false : "behind" }),
   );
 }
@@ -573,7 +573,7 @@ interface NoteBody {
 // the whole list was being read before a note said it was added. The page reads the person itself.
 export async function writePersonNote(id: string, body: NoteBody): Promise<ApiResult<{ note: PersonNoteDto | null }>> {
   // Who reads it is the note's own word, the door's default (the receptionist's) where a caller says none.
-  return answered(await commitVerb("note", { contact_id: id, ...body, team_only: body.team_only ?? false }));
+  return verbAnswer(await commitVerb("note", { contact_id: id, ...body, team_only: body.team_only ?? false }));
 }
 
 /**

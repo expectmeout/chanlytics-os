@@ -11,7 +11,7 @@ import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 
 /** Where the rows come from, in the sheet's own words. */
-export interface ImportSourceWords {
+interface ImportSourceWords {
   file: string;
   paste: string;
   placeholder: string;

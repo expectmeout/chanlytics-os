@@ -355,6 +355,7 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/legacy-bridge/mascot",
   "apps/dashboard/src/legacy-bridge/reach-out",
   "apps/dashboard/src/legacy-bridge/surfaces",
+  "apps/dashboard/src/legacy-bridge/verbs",
   "apps/dashboard/src/server/auth",
   "apps/dashboard/src/server/calendar",
   "apps/dashboard/src/server/connections",

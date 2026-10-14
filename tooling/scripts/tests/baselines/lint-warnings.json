@@ -5,15 +5,6 @@
   "apps/dashboard/app/api/v1/calendar/preview/route.ts": {
     "@typescript-eslint/no-unnecessary-type-assertion": 1
   },
-  "apps/dashboard/app/api/v1/contacts/[id]/consent/route.ts": {
-    "@typescript-eslint/no-deprecated": 1
-  },
-  "apps/dashboard/app/api/v1/contacts/[id]/deal/route.ts": {
-    "@typescript-eslint/no-deprecated": 2
-  },
-  "apps/dashboard/app/api/v1/contacts/[id]/marketing-consent/route.ts": {
-    "@typescript-eslint/no-deprecated": 1
-  },
   "apps/dashboard/app/api/v1/contacts/[id]/notes/decide/route.ts": {
     "@typescript-eslint/no-deprecated": 1
   },
@@ -23,22 +14,7 @@
   "apps/dashboard/app/api/v1/contacts/[id]/notes/remove/route.ts": {
     "@typescript-eslint/no-deprecated": 1
   },
-  "apps/dashboard/app/api/v1/contacts/[id]/notes/route.ts": {
-    "@typescript-eslint/no-deprecated": 3
-  },
-  "apps/dashboard/app/api/v1/contacts/consent/route.ts": {
-    "@typescript-eslint/no-deprecated": 1
-  },
   "apps/dashboard/app/api/v1/contacts/import/route.ts": {
-    "@typescript-eslint/no-deprecated": 1
-  },
-  "apps/dashboard/app/api/v1/contacts/marketing-consent/route.ts": {
-    "@typescript-eslint/no-deprecated": 1
-  },
-  "apps/dashboard/app/api/v1/contacts/notes/route.ts": {
-    "@typescript-eslint/no-deprecated": 1
-  },
-  "apps/dashboard/app/api/v1/contacts/receptionist/route.ts": {
     "@typescript-eslint/no-deprecated": 1
   },
   "apps/dashboard/app/api/v1/leads/[id]/exclude/route.ts": {
@@ -242,10 +218,10 @@
     "jsx-a11y-x/no-autofocus": 1
   },
   "apps/dashboard/src/surfaces/people/bulk/desk-bulk.tsx": {
-    "jsx-a11y-x/no-autofocus": 3
+    "jsx-a11y-x/no-autofocus": 2
   },
   "apps/dashboard/src/surfaces/people/bulk/phone-bulk.tsx": {
-    "jsx-a11y-x/no-autofocus": 3
+    "jsx-a11y-x/no-autofocus": 2
   },
   "apps/dashboard/src/surfaces/people/lists/list-title.tsx": {
     "jsx-a11y-x/no-autofocus": 1

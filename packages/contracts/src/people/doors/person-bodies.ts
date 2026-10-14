@@ -11,11 +11,11 @@ import { NOTE_LINE_MAX, NOTE_MAX } from "../../notes/person-notes";
 import { CONSENT_STATES } from "../../shared/enums";
 
 /** How the receptionist treats one person: its own way, asking first, never, or the workspace's (inherit). */
-export const PERSON_RECEPTIONIST_MODES = ["auto", "ask", "never", "inherit"] as const;
+const PERSON_RECEPTIONIST_MODES = ["auto", "ask", "never", "inherit"] as const;
 export type PersonReceptionistMode = (typeof PERSON_RECEPTIONIST_MODES)[number];
 
 /** A batch door's people: fifty at a time, as each batch door has always taken them. */
-const SOME_PEOPLE = z.array(z.string().uuid()).min(1, "Pick at least one person.").max(50, "Fifty at a time.");
+const SOME_PEOPLE = z.array(z.uuid()).min(1, "Pick at least one person.").max(50, "Fifty at a time.");
 const CONSENT = z.enum(CONSENT_STATES, { message: "Consent must be one of: opted_in, opted_out, unknown." });
 const MODE = z.enum(PERSON_RECEPTIONIST_MODES, { message: "Mode must be one of: auto, ask, never, inherit." });
 
@@ -27,7 +27,7 @@ export const ConsentAnswerBody = z.object({
   consent: CONSENT,
   source: z.string().optional(),
   note: z.string().optional(),
-  message_id: z.string().uuid({ message: "Choose one of their messages." }).optional(),
+  message_id: z.uuid({ message: "Choose one of their messages." }).optional(),
 });
 export type ConsentAnswer = z.infer<typeof ConsentAnswerBody>;
 
@@ -80,16 +80,16 @@ export const NoteWriteBody = z
   .object({
     body: z.string().trim().min(1).max(NOTE_MAX),
     /** The member it is for; absent or null is for everyone. */
-    for_user_id: z.string().uuid().nullable().optional(),
+    for_user_id: z.uuid().nullable().optional(),
     /** For the team only: the receptionist never reads it. */
     team_only: z.boolean().optional(),
     /** Absent: a new note. Present: its author's change, with the version the page saw. */
-    note_id: z.string().uuid().optional(),
+    note_id: z.uuid().optional(),
     version: z.number().int().min(1).optional(),
     /** Its day, which makes it a step, and the team's (00166): a real day by the business's calendar. */
     due_on: z.string().refine(isRealDate, "A day, as 2026-09-30.").nullable().optional(),
     /** The person's own deal it moves, when it names one. */
-    deal_id: z.string().uuid().nullable().optional(),
+    deal_id: z.uuid().nullable().optional(),
     /** On a change: take its day away. A change that does not name a day keeps the one it has. */
     clear_due: z.boolean().optional(),
   })

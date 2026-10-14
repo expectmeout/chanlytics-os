@@ -53,7 +53,7 @@ import type { FlashFn } from "../person-verbs";
 const STEP_SHEET_ID = "step-sheet";
 
 /** What a selection's note answers the selection that asked: how many it reached. */
-export interface NoteManyDone {
+interface NoteManyDone {
   done: number;
   failed: number;
   line: string;
@@ -136,7 +136,7 @@ export function openStepSheet({
 }
 
 /** An ask, from what the event said: nothing where it names no one. */
-function askOf(d: Record<string, unknown>): SsAsk | null {
+function sheetAsk(d: Record<string, unknown>): SsAsk | null {
   if (typeof d.personId !== "string" || !d.personId) return null;
   const many = Array.isArray(d.many) ? d.many.filter((id): id is string => typeof id === "string" && !!id) : [];
   return {
@@ -595,7 +595,7 @@ export function StepSheetHost() {
   useEffect(
     () =>
       hear("step:sheet", (d) => {
-        const asked = askOf(d);
+        const asked = sheetAsk(d);
         if (!asked) return;
         if (asked.many) {
           // Many: nobody to read, one line to write.

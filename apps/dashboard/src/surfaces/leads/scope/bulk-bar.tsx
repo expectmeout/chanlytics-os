@@ -110,7 +110,12 @@ function phoneSheets(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
         <LeadNotFitWhy
           rows
           busy={busy}
-          on={{ onWhy: async (w) => shut(() => p.onNotAFit(w, scope("not_a_fit")))() }}
+          on={{
+            onWhy: (w) => {
+              shut(() => p.onNotAFit(w, scope("not_a_fit")))();
+              return Promise.resolve();
+            },
+          }}
           testid="leads-bulk-why"
         />
       ) : (

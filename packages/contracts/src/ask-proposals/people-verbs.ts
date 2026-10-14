@@ -25,14 +25,14 @@ type AnswerPurpose = "conversational" | "marketing";
 type Answer = "opted_in" | "opted_out" | "unknown";
 
 const purposeOf = (v: unknown): AnswerPurpose | null => (v === "conversational" || v === "marketing" ? v : null);
-const answerOf = (v: unknown): Answer => (v === "opted_in" || v === "opted_out" ? v : "unknown");
+const consentIn = (v: unknown): Answer => (v === "opted_in" || v === "opted_out" ? v : "unknown");
 
 /** The fields of a payload a body takes, the rest (the card's own words, its ids) left out. */
-const bodyOf = (pl: Record<string, unknown>, keys: readonly string[]): Record<string, unknown> =>
+const fieldsOf = (pl: Record<string, unknown>, keys: readonly string[]): Record<string, unknown> =>
   Object.fromEntries(keys.filter((k) => pl[k] !== undefined).map((k) => [k, pl[k]]));
 
 /** Their answer, as the sheet and its receipt say it: to offers, or to messages about their visit. */
-export function answerSaid(purpose: AnswerPurpose, consent: Answer, who: string): string {
+function answerSaid(purpose: AnswerPurpose, consent: Answer, who: string): string {
   if (purpose === "marketing") {
     if (consent === "opted_in") return `${who} said yes to offers and news`;
     if (consent === "opted_out") return `${who} said no to offers — messages about their own visit still reach them`;
@@ -44,7 +44,7 @@ export function answerSaid(purpose: AnswerPurpose, consent: Answer, who: string)
 }
 
 /** A batch door's answer: how many it did, and the first reason one was not, in the bar's words. */
-export function manySaid(data: unknown, verb: string): { done: number; failed: number; said: string } {
+function manySaid(data: unknown, verb: string): { done: number; failed: number; said: string } {
   const d = rec(data);
   const done = typeof d.done === "number" ? d.done : 0;
   const failedRows = Array.isArray(d.failed) ? (d.failed as unknown[]) : [];
@@ -82,12 +82,12 @@ export const answerSpec: ProposalSpec = {
     return {
       route: ANSWER_DOOR[purpose],
       params: { id: asText(pl.contact_id) },
-      body: bodyOf(pl, ["consent", "source", "note", "message_id"]),
+      body: fieldsOf(pl, ["consent", "source", "note", "message_id"]),
       events: [PEOPLE_CHANGED],
     };
   },
   receipt: ({ payload: pl }) =>
-    answerSaid(purposeOf(pl.purpose) ?? "conversational", answerOf(pl.consent), asText(pl.who)),
+    answerSaid(purposeOf(pl.purpose) ?? "conversational", consentIn(pl.consent), asText(pl.who)),
   open: personRoute,
 };
 
@@ -100,14 +100,14 @@ export const answerManySpec: ProposalSpec = {
     if (!purpose) return refuseWith("Say which question this answers.");
     return {
       route: ANSWER_MANY_DOOR[purpose],
-      body: bodyOf(pl, ["ids", "consent", "source", "note"]),
+      body: fieldsOf(pl, ["ids", "consent", "source", "note"]),
       events: [PEOPLE_CHANGED],
     };
   },
   receipt: ({ payload: pl }, data) => {
     const m = manySaid(data, "recorded");
     const what = purposeOf(pl.purpose) === "marketing" ? "to offers" : "to messages about their visit";
-    const answer = answerOf(pl.consent);
+    const answer = consentIn(pl.consent);
     const head =
       answer === "unknown"
         ? `${m.done} back to "not asked"`
@@ -124,7 +124,7 @@ export const personModeManySpec: ProposalSpecAboveOperator = {
   gate: "settings",
   commit: ({ payload: pl }) => ({
     route: "PUT contacts/receptionist",
-    body: bodyOf(pl, ["ids", "mode"]),
+    body: fieldsOf(pl, ["ids", "mode"]),
     events: [PEOPLE_CHANGED],
   }),
   receipt: ({ payload: pl }, data) => {
@@ -142,7 +142,7 @@ export const noteManySpec: ProposalSpec = {
   gate: "approve",
   commit: ({ payload: pl }) => ({
     route: "PUT contacts/notes",
-    body: bodyOf(pl, ["ids", "append"]),
+    body: fieldsOf(pl, ["ids", "append"]),
     events: [PEOPLE_CHANGED],
   }),
   receipt: (_p, data) => {
@@ -162,7 +162,7 @@ export const personAddSpec: ProposalSpec = {
   gate: "approve",
   commit: ({ payload: pl }) => ({
     route: "POST contacts",
-    body: bodyOf(pl, ["phone", "email", "name", "source"]),
+    body: fieldsOf(pl, ["phone", "email", "name", "source"]),
     events: [PEOPLE_CHANGED],
   }),
   receipt: ({ payload: pl }, data) => {
@@ -184,7 +184,7 @@ export const personMergeSpec: ProposalSpecAboveOperator = {
   commit: ({ payload: pl }) => ({
     route: "POST contacts/[id]/merge",
     params: { id: asText(pl.contact_id) },
-    body: bodyOf(pl, ["merge"]),
+    body: fieldsOf(pl, ["merge"]),
     events: [PEOPLE_CHANGED],
   }),
   receipt: ({ payload: pl }) => MERGE_WORDS.done(asText(pl.who), asText(pl.other)),

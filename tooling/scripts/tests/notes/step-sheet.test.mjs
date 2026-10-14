@@ -488,9 +488,9 @@ test("opened for many (a selection's Add a note), the sheet takes one line, writ
     return json(404, { ok: false, error: { code: "not_found", message: `no ${u.pathname}` } });
   };
   const done = [];
-  let tree = open();
+  open();
   assert.equal(openStepSheet({ personIds: ["p1", "p2", "p1"], onDone: (r) => done.push(r) }), true);
-  tree = redraw();
+  let tree = redraw();
   assert.equal(title(tree), "Add a note");
   assert.equal(sub(tree), "2 people", "each person once");
   assert.equal(calls.length, 0, "nobody is read: one line goes to all of them");

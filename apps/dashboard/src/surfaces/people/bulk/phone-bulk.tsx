@@ -148,7 +148,7 @@ function messagesStep(b: BulkCtx, back: () => void, groups: { header: string; it
 }
 
 /** The steps that ask something first: which forms they signed, a new list's name. */
-function askSteps(b: BulkCtx, a: BulkActs, back: () => void) {
+function askSteps(b: BulkCtx, a: BulkActs) {
   const { st, onSheet } = b;
   const { busy, name, setName, setSlips, slipsNote, setSlipsNote } = st;
   return {
@@ -376,7 +376,7 @@ export function phoneBulk(b: BulkCtx, a: BulkActs) {
     more: moreStep(b, a, groups.length > 0),
     lists: listsStep(b, a, newList),
     messages: messagesStep(b, back, groups),
-    ...askSteps(b, a, back),
+    ...askSteps(b, a),
   };
   const step = n > 0 && sheet ? steps[sheet] : null;
   return (

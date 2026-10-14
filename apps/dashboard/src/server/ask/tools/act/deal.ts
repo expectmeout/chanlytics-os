@@ -36,6 +36,39 @@ function whichRowWords(open: number, rows: readonly { service: string | null }[]
     : `their ${open ? "open deal is" : "last deal is"} for ${names}; name that service or none`;
 }
 
+/**
+ * The card's body, the door's (contracts DealMoveBody), and the words the door would refuse it in: judged on what the
+ * card says, never on the row's id and version, the database's own. So a card is refused in the words the route would
+ * answer with, never proposed for the route to refuse.
+ */
+function dealBody(
+  said: {
+    stage: string;
+    service: string | null;
+    amount: number | null;
+    per: string | null;
+    note: string;
+    url: string | null;
+    day: string;
+    reason: string;
+  },
+  row: { id: string; version: number } | null,
+): { body: Record<string, unknown>; wrong: string | null } {
+  const { stage, service, amount, per, note, url, day, reason } = said;
+  const body = {
+    stage,
+    ...(service ? { service } : {}),
+    ...(amount !== null ? { amount_cents: amount } : {}),
+    ...(per ? { per } : {}),
+    ...(note ? { note } : {}),
+    ...(url ? { proposal_url: url } : {}),
+    ...(day ? { valid_until: day } : {}),
+    ...(reason ? { lost_reason: reason } : {}),
+  };
+  const wrong = bodyRefusal(DealMoveBody, body);
+  return { body: { ...body, ...(row ? { deal_id: row.id, version: row.version } : {}) }, wrong };
+}
+
 async function proposeDeal(
   t: ToolContext,
   input: {
@@ -124,20 +157,8 @@ async function proposeDeal(
   const why = reason && isDealLostReason(reason) ? DEAL_LOST_REASON_WORDS[reason] : null;
   // The step as the card says it: "Next step: send the quote, due Fri" (its words clipped; the note keeps them whole).
   const next = stepDay ? `${NOTE_WORDS.next}: ${clipAtWord(stepWords, 80)}, due ${stepDay.near}` : null;
-  // The card's body is the door's: judged by the door's own schema (contracts DealMoveBody), so a card is refused in the
-  // words the route would answer with, never proposed for the route to refuse.
-  const body = {
-    stage,
-    ...(sameRow ? { deal_id: sameRow.id, version: sameRow.version } : {}),
-    ...(service && !sameRow ? { service } : {}),
-    ...(amount !== null ? { amount_cents: amount } : {}),
-    ...(per ? { per } : {}),
-    ...(note ? { note } : {}),
-    ...(url ? { proposal_url: url } : {}),
-    ...(day ? { valid_until: day } : {}),
-    ...(reason ? { lost_reason: reason } : {}),
-  };
-  const wrong = bodyRefusal(DealMoveBody, body);
+  const said = { stage, service: sameRow ? null : service, amount, per, note, url, day, reason };
+  const { body, wrong } = dealBody(said, sameRow);
   if (wrong) return refuse(wrong);
   return propose({
     kind: "deal",

@@ -40,7 +40,7 @@ directories over 20 modules           3
 window globals                       75   names
 window publishers                   133   sites in 47 files
 copies                               67   of 19 names
-as unknown as                       128
+as unknown as                       123
 as never                             12
 non-null assertions, x!              96
 index reads the compiler lets pass  443   in 119 files
@@ -60,11 +60,11 @@ inline style props                  195   in 49 files
 wire names not in snake_case         54   in 27 routes
 dead exports, types and modules     268
 source-text reads in tests          751
-lint warnings                       334   in 143 files, 56 of them exhaustive-deps
+lint warnings                       321   in 135 files, 56 of them exhaustive-deps
 route JS ceiling, KB gzipped        832   the shell included
 route CSS ceiling, KB gzipped       160
 each page's own JS ceiling, KB      256   gzipped, beyond the route
-trees the lint's limits hold         63   17 of them with max-params waiting
+trees the lint's limits hold         64   17 of them with max-params waiting
 ```
 
 <!-- measured:end -->

@@ -20,6 +20,9 @@ const DO = "do";
 
 let seq = 0;
 
+/** How long a step back may take to say it landed before the next sheet stands its entry anyway. */
+const BACK_SETTLE_MS = 400;
+
 /** Back's own move settling: an entry taken back is gone before the next sheet stands one, never after it. */
 let settling: Promise<void> = Promise.resolve();
 
@@ -32,6 +35,12 @@ const historyOf = (): History | null =>
 function tokenNow(h: History): number | null {
   const s = h.state as { sheet?: unknown } | null;
   return s && typeof s.sheet === "number" ? s.sheet : null;
+}
+
+/** The address as it stands: an entry a sheet with no name stands is the page's own address again. */
+function addressHere(): string {
+  const l = window.location;
+  return `${l.pathname}${l.search}${l.hash}`;
 }
 
 /** The address with `?do=` set to a sheet's name, or taken off. */
@@ -59,7 +68,7 @@ function takeBack(h: History): void {
       done();
     };
     // A tab that never says it moved (a test's stand-in) does not hold the next sheet up for long.
-    const late = setTimeout(fin, 400);
+    const late = setTimeout(fin, BACK_SETTLE_MS);
     window.addEventListener("popstate", fin);
     h.back();
   });
@@ -98,7 +107,7 @@ export function useBackCloses(open: boolean, close: () => void, name: string | n
         const byAddress = !!name && new URLSearchParams(window.location.search).get(DO) === name && !tokenNow(h);
         adopted = byAddress;
         if (byAddress) h.replaceState(state, "");
-        else h.pushState(state, "", name ? addressWith(name) : undefined);
+        else h.pushState(state, "", name ? addressWith(name) : addressHere());
       });
     // A tick later: a strict draw's mount, unmount and mount again stands one entry, never two.
     const first = setTimeout(stand, 0);

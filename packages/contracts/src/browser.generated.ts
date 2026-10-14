@@ -23,9 +23,8 @@ export { MODEL_TURN_WRITE_MS, modelTurnRequestOf, modelTurnResponseOf } from "./
 export { MODEL_PRICES, MODEL_CALL_OUTCOMES, NO_USAGE, priceOf, usageDollars, usageTokens, usageOf, aiUsageBodyOf, usageMonthOf } from "./ai/usage";
 export { RUN_VERBS, PLAYBOOK_CARD_REFUSALS, PLAYBOOK_CARD_WORDS, MESSAGE_WORDS, proposalChannelsWords, stepOfferWords, twinRunsWords } from "./ask-proposals/campaigns";
 export { ASK_THREAD_ROUTES } from "./ask-proposals/inbox";
-export { answerSaid, manySaid } from "./ask-proposals/people-verbs";
 export { PERSON_DETAIL_WORDS } from "./ask-proposals/person";
-export { PROPOSAL_SPECS, VERB_SPECS, proposalSpec, verbSpec, proposalBelowNeeds, PROPOSAL_GATE, askUndoOpen } from "./ask-proposals/proposals";
+export { PROPOSAL_SPECS, proposalSpec, verbSpec, proposalBelowNeeds, PROPOSAL_GATE, askUndoOpen } from "./ask-proposals/proposals";
 export { PROPOSAL_WORDS } from "./ask-proposals/spec";
 export { ASK_ANSWER_FORMAT } from "./ask/answer-format";
 export { cleanAnswer, isUngrounded, sameQuestion, navigateLabel, FOLLOWUP_ECHO, claimsWrite, unquoted } from "./ask/answer-text";

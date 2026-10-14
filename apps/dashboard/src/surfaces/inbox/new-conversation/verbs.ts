@@ -40,7 +40,7 @@ export async function addByNumber(d: {
 }): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   const name = d.name.trim();
   const r = await commitVerb("person_add", { phone: d.phone.trim(), ...(name ? { name } : {}) });
-  const id = r.ok && r.data && typeof r.data === "object" ? Reflect.get(r.data, "contact_id") : null;
+  const id: unknown = r.ok && r.data && typeof r.data === "object" ? Reflect.get(r.data, "contact_id") : null;
   if (r.ok && typeof id === "string") return { ok: true, id };
   if (r.ok) return { ok: false, error: W.who.notAdded };
   // The field's own sentence where the route named one, else the refusal's.

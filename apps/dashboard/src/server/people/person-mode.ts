@@ -7,7 +7,7 @@
  * experiences) and how often; the contact is its row (contactScope).
  */
 import type { z } from "zod";
-import { ReceptionistModeBody, type PersonReceptionistMode } from "@chanlytics/contracts";
+import type { PersonReceptionistMode, ReceptionistModeBody } from "@chanlytics/contracts";
 import { setPersonReplyMode } from "@chanlytics/db";
 import { recordDecision, type contactScope } from "@/server/verbs";
 import type { RouteContext } from "@/server/with-route";

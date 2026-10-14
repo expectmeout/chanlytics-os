@@ -19642,8 +19642,8 @@ function receptionistOf(r2, tz, nowMs, viewerId, names3 = null) {
 
 // src/ask-proposals/people-verbs.ts
 var purposeOf = (v) => v === "conversational" || v === "marketing" ? v : null;
-var answerOf = (v) => v === "opted_in" || v === "opted_out" ? v : "unknown";
-var bodyOf = (pl, keys) => Object.fromEntries(keys.filter((k) => pl[k] !== void 0).map((k) => [k, pl[k]]));
+var consentIn = (v) => v === "opted_in" || v === "opted_out" ? v : "unknown";
+var fieldsOf = (pl, keys) => Object.fromEntries(keys.filter((k) => pl[k] !== void 0).map((k) => [k, pl[k]]));
 function answerSaid(purpose, consent, who) {
   if (purpose === "marketing") {
     if (consent === "opted_in") return `${who} said yes to offers and news`;
@@ -19684,11 +19684,11 @@ var answerSpec = {
     return {
       route: ANSWER_DOOR[purpose],
       params: { id: asText(pl.contact_id) },
-      body: bodyOf(pl, ["consent", "source", "note", "message_id"]),
+      body: fieldsOf(pl, ["consent", "source", "note", "message_id"]),
       events: [PEOPLE_CHANGED]
     };
   },
-  receipt: ({ payload: pl }) => answerSaid(purposeOf(pl.purpose) ?? "conversational", answerOf(pl.consent), asText(pl.who)),
+  receipt: ({ payload: pl }) => answerSaid(purposeOf(pl.purpose) ?? "conversational", consentIn(pl.consent), asText(pl.who)),
   open: personRoute
 };
 var answerManySpec = {
@@ -19699,14 +19699,14 @@ var answerManySpec = {
     if (!purpose) return refuseWith("Say which question this answers.");
     return {
       route: ANSWER_MANY_DOOR[purpose],
-      body: bodyOf(pl, ["ids", "consent", "source", "note"]),
+      body: fieldsOf(pl, ["ids", "consent", "source", "note"]),
       events: [PEOPLE_CHANGED]
     };
   },
   receipt: ({ payload: pl }, data) => {
     const m = manySaid(data, "recorded");
     const what = purposeOf(pl.purpose) === "marketing" ? "to offers" : "to messages about their visit";
-    const answer = answerOf(pl.consent);
+    const answer = consentIn(pl.consent);
     const head = answer === "unknown" ? `${m.done} back to "not asked"` : `${m.done} said ${answer === "opted_in" ? "yes" : "no"} ${what}`;
     return m.said ? `${head} \xB7 ${m.said}` : head;
   },
@@ -19718,7 +19718,7 @@ var personModeManySpec = {
   gate: "settings",
   commit: ({ payload: pl }) => ({
     route: "PUT contacts/receptionist",
-    body: bodyOf(pl, ["ids", "mode"]),
+    body: fieldsOf(pl, ["ids", "mode"]),
     events: [PEOPLE_CHANGED]
   }),
   receipt: ({ payload: pl }, data) => {
@@ -19734,7 +19734,7 @@ var noteManySpec = {
   gate: "approve",
   commit: ({ payload: pl }) => ({
     route: "PUT contacts/notes",
-    body: bodyOf(pl, ["ids", "append"]),
+    body: fieldsOf(pl, ["ids", "append"]),
     events: [PEOPLE_CHANGED]
   }),
   receipt: (_p, data) => {
@@ -19749,7 +19749,7 @@ var personAddSpec = {
   gate: "approve",
   commit: ({ payload: pl }) => ({
     route: "POST contacts",
-    body: bodyOf(pl, ["phone", "email", "name", "source"]),
+    body: fieldsOf(pl, ["phone", "email", "name", "source"]),
     events: [PEOPLE_CHANGED]
   }),
   receipt: ({ payload: pl }, data) => {
@@ -19766,7 +19766,7 @@ var personMergeSpec = {
   commit: ({ payload: pl }) => ({
     route: "POST contacts/[id]/merge",
     params: { id: asText(pl.contact_id) },
-    body: bodyOf(pl, ["merge"]),
+    body: fieldsOf(pl, ["merge"]),
     events: [PEOPLE_CHANGED]
   }),
   receipt: ({ payload: pl }) => MERGE_WORDS.done(asText(pl.who), asText(pl.other)),
@@ -19945,7 +19945,17 @@ var STEP_SHEET_WORDS = {
   }
 };
 var NO_DAY = "none";
-var titleOf = (mode, kind) => kind === "note" ? mode === "add" ? "note" : "editNote" : mode;
+function openedWith(note, kind, days) {
+  const day = note?.step ? note.step.day.day : kind === "note" ? NO_DAY : null;
+  return {
+    what: note ? note.body : "",
+    day,
+    picking: !!day && !days.some((c) => c.key === day),
+    forId: note ? note.forUserId : null,
+    teamOnly: note?.teamOnly === true
+  };
+}
+var titleKey = (mode, kind) => kind === "note" ? mode === "add" ? "note" : "editNote" : mode;
 function stepSheetFor(p, ask, nowMs, tz) {
   const W = STEP_SHEET_WORDS;
   const note = ask.noteId ? (p.noteList ?? []).find((n) => n.id === ask.noteId) ?? null : null;
@@ -19955,24 +19965,17 @@ function stepSheetFor(p, ask, nowMs, tz) {
   const service = dealId ? (p.deals ?? []).find((d) => d.id === dealId)?.service ?? null : null;
   const stepChoices = stepDays(nowMs, tz);
   const days = kind === "note" ? [{ key: NO_DAY, label: W.when.none, title: W.when.none }, ...stepChoices] : stepChoices;
-  const day = note?.step ? note.step.day.day : kind === "note" ? NO_DAY : null;
   return {
     mode,
     kind,
-    title: W.titles[titleOf(mode, kind)],
+    title: W.titles[titleKey(mode, kind)],
     sub: service ? `${p.name} \xB7 ${service}` : p.name,
     days,
     team: [
       { id: "", label: W.for.anyone },
       ...(p.noteTeam ?? []).map((m) => ({ id: m.id, label: m.me ? W.for.me : m.name }))
     ],
-    draft: {
-      what: note ? note.body : "",
-      day,
-      picking: !!day && !days.some((c) => c.key === day),
-      forId: note ? note.forUserId : null,
-      teamOnly: note?.teamOnly === true
-    },
+    draft: openedWith(note, kind, days),
     note: note ? { id: note.id, version: note.version } : null,
     dealId,
     blocked: ask.noteId && !note ? W.noStep : note && !note.mine ? NOTE_REFUSALS.not_yours ?? null : null,
@@ -19991,7 +19994,8 @@ function stepSheetBody(sheet, draft) {
   const dayless = draft.day === NO_DAY && !draft.picking;
   if (!what) return { body: null, problem: { field: "what", words: sheet.kind === "note" ? P.note : P.what } };
   if (what.length > NOTE_MAX) return { body: null, problem: { field: "what", words: P.tooLong(NOTE_MAX) } };
-  if (!dayless && (!draft.day || !isRealDate(draft.day))) return { body: null, problem: { field: "day", words: P.day } };
+  if (!dayless && (!draft.day || !isRealDate(draft.day)))
+    return { body: null, problem: { field: "day", words: P.day } };
   return {
     problem: null,
     body: {
@@ -33592,7 +33596,7 @@ import { z as z11 } from "zod";
 var DealMoveBody = z11.object({
   stage: z11.enum(DEAL_STAGES),
   /** Absent: a new engagement, which starts proposed. Present: the row the page saw, with the version it saw. */
-  deal_id: z11.string().uuid().optional(),
+  deal_id: z11.uuid().optional(),
   version: z11.number().int().min(1).optional(),
   service: z11.string().trim().min(1).max(80).optional(),
   /** An ISO instant with a time (a bare date would land at UTC midnight, the previous evening in the Americas); absent means now. */
@@ -33601,7 +33605,7 @@ var DealMoveBody = z11.object({
   per: z11.enum(DEAL_PERS).optional(),
   note: z11.string().trim().max(200).optional(),
   /** Evidence, the consent's shape: the inbound message they said it in, or a note saying where it was signed. */
-  message_id: z11.string().uuid().optional(),
+  message_id: z11.uuid().optional(),
   form_note: z11.string().trim().min(1).max(200).optional(),
   /**
    * The proposal's web address (0008), judged by the one normalizer before the door, which holds the stored shape.
@@ -39903,14 +39907,14 @@ function legacyLeadSuppressionHash(tenantId, value) {
 // src/people/doors/person-bodies.ts
 import { z as z19 } from "zod";
 var PERSON_RECEPTIONIST_MODES = ["auto", "ask", "never", "inherit"];
-var SOME_PEOPLE = z19.array(z19.string().uuid()).min(1, "Pick at least one person.").max(50, "Fifty at a time.");
+var SOME_PEOPLE = z19.array(z19.uuid()).min(1, "Pick at least one person.").max(50, "Fifty at a time.");
 var CONSENT = z19.enum(CONSENT_STATES, { message: "Consent must be one of: opted_in, opted_out, unknown." });
 var MODE = z19.enum(PERSON_RECEPTIONIST_MODES, { message: "Mode must be one of: auto, ask, never, inherit." });
 var ConsentAnswerBody = z19.object({
   consent: CONSENT,
   source: z19.string().optional(),
   note: z19.string().optional(),
-  message_id: z19.string().uuid({ message: "Choose one of their messages." }).optional()
+  message_id: z19.uuid({ message: "Choose one of their messages." }).optional()
 });
 var ConsentManyBody = z19.object({
   ids: SOME_PEOPLE,
@@ -39936,16 +39940,16 @@ var PersonAddBody = z19.object({
 var NoteWriteBody = z19.object({
   body: z19.string().trim().min(1).max(NOTE_MAX),
   /** The member it is for; absent or null is for everyone. */
-  for_user_id: z19.string().uuid().nullable().optional(),
+  for_user_id: z19.uuid().nullable().optional(),
   /** For the team only: the receptionist never reads it. */
   team_only: z19.boolean().optional(),
   /** Absent: a new note. Present: its author's change, with the version the page saw. */
-  note_id: z19.string().uuid().optional(),
+  note_id: z19.uuid().optional(),
   version: z19.number().int().min(1).optional(),
   /** Its day, which makes it a step, and the team's (00166): a real day by the business's calendar. */
   due_on: z19.string().refine(isRealDate, "A day, as 2026-09-30.").nullable().optional(),
   /** The person's own deal it moves, when it names one. */
-  deal_id: z19.string().uuid().nullable().optional(),
+  deal_id: z19.uuid().nullable().optional(),
   /** On a change: take its day away. A change that does not name a day keeps the one it has. */
   clear_due: z19.boolean().optional()
 }).strict();
@@ -40152,7 +40156,7 @@ function retryAfterOf(details, header, nowMs) {
   const s = Math.ceil((at3 - nowMs) / 1e3);
   return s > 0 ? s : null;
 }
-function fieldsOf(details) {
+function fieldsOf2(details) {
   const f = details && typeof details === "object" ? details.fields : void 0;
   if (!f || typeof f !== "object" || Array.isArray(f)) return null;
   const out = {};
@@ -40185,7 +40189,7 @@ function refusalOf(input) {
   const status = Number.isFinite(input.status) ? input.status : 0;
   const said = typeof input.message === "string" ? input.message.trim() : "";
   const retryAfterS = retryAfterOf(input.details, input.retryAfter, input.nowMs ?? Date.now());
-  const fields = fieldsOf(input.details);
+  const fields = fieldsOf2(input.details);
   const code2 = typeof input.code === "string" && input.code ? input.code : null;
   const aside = asideOf(input.details, status);
   const refusal = (c, title, message) => ({
@@ -53983,7 +53987,6 @@ export {
   PERSON_MODE_WORDS,
   PERSON_NAME_WORDS,
   PERSON_PEEK_WORDS,
-  PERSON_RECEPTIONIST_MODES,
   PERSON_STATE_LABELS,
   PERSON_TABS_LABEL,
   PERSON_TAB_WORDS,
@@ -54355,7 +54358,6 @@ export {
   US_STATE_ZONES,
   UUID3 as UUID,
   V0,
-  VERB_SPECS,
   VERSION_CHANNELS,
   VERSION_CHANNEL_WORDS,
   VISION_STRENGTH,
@@ -54445,7 +54447,6 @@ export {
   amountWords,
   answerForCards,
   answerFromV1,
-  answerSaid,
   answerText,
   answerWireOf,
   answerWords,
@@ -55261,7 +55262,6 @@ export {
   mailboxWords,
   mailboxesFootWords,
   mailtoOf,
-  manySaid,
   markOn,
   maskedEmail,
   matchColumns,

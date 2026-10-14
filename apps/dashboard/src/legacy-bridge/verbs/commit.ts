@@ -64,14 +64,18 @@ export type VerbResult = VerbDone | ApiRefusal;
 /** What an undo did. */
 export type UndoDone = { ok: true; data: unknown; receipt: string };
 
+/** The settings the tab loaded (window.__SETTINGS), as a spec reads them. */
 interface Loaded {
-  __SETTINGS?: { config?: Record<string, unknown> | null; version?: number } | null;
+  config?: Record<string, unknown> | null;
+  version?: number;
 }
 
 /** What the tab holds now, as a spec reads it: taken once, so a re-read after the call cannot change what was kept. */
 export function tabOf(win: Window): ProposalTab {
-  const st = (win as unknown as Loaded).__SETTINGS;
-  return { settings: st ? { config: st.config, version: st.version } : null };
+  const st: unknown = Reflect.get(win, "__SETTINGS");
+  if (!st || typeof st !== "object") return { settings: null };
+  const { config, version } = st as Loaded;
+  return { settings: { config, version } };
 }
 
 export const isRefusal = (c: object): c is ProposalRefusal => "refused" in c;
@@ -79,9 +83,19 @@ export const isRefusal = (c: object): c is ProposalRefusal => "refused" in c;
 const isCalls = (c: ProposalCall | readonly ProposalCall[] | ProposalRefusal): c is readonly ProposalCall[] =>
   Array.isArray(c);
 
+/** The refusals the walk says itself (nothing sent, or what landed before one): Ask says them as words alone. */
+const SAID_HERE = new WeakSet<object>();
+
+/** Whether a refusal is the walk's own words, not a door's answer. */
+export function saidHere(r: object): boolean {
+  return SAID_HERE.has(r);
+}
+
 /** A spec's refusal, as the client hands back one of its own: nothing was sent, said in the spec's words. */
 export function refusedHere(words: string): ApiRefusal {
-  return { ok: false, ...refusalOf({ code: "client", status: 0, message: words, write: true }) };
+  const r: ApiRefusal = { ok: false, ...refusalOf({ code: "client", status: 0, message: words, write: true }) };
+  SAID_HERE.add(r);
+  return r;
 }
 
 /**
@@ -161,7 +175,7 @@ export function commitVerb(kind: VerbKind, payload: Record<string, unknown>, use
  * where what it made is several rows), and the undo's receipt.
  */
 export async function undoVerb(
-  kind: VerbKind | string,
+  kind: string,
   record: Record<string, unknown>,
   use: VerbUse = {},
 ): Promise<UndoDone | ApiRefusal> {
@@ -181,7 +195,12 @@ export async function undoVerb(
     // Its row gone already (an earlier press took it): what it undoes is not there, so it is done; on to the next.
     if (!r.ok && call.goneIsDone && r.status === 404) continue;
     // Refused after some landed: what they did, then the refusal (the spec's words), never the refusal alone.
-    if (!r.ok) return i > 0 && undo.partial ? { ...r, message: undo.partial(record, i, r.message) } : r;
+    if (!r.ok && i > 0 && undo.partial) {
+      const partly: ApiRefusal = { ...r, message: undo.partial(record, i, r.message) };
+      SAID_HERE.add(partly);
+      return partly;
+    }
+    if (!r.ok) return r;
     if (use.tell !== false) tellCall(win, call);
     data = r.data;
   }

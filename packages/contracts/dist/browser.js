@@ -16202,139 +16202,6 @@ function receptionistOf(r2, tz, nowMs, viewerId, names3 = null) {
   return { tone: "answering", label: "Answering" };
 }
 
-// src/ask-proposals/people-verbs.ts
-var purposeOf = (v) => v === "conversational" || v === "marketing" ? v : null;
-var answerOf = (v) => v === "opted_in" || v === "opted_out" ? v : "unknown";
-var bodyOf = (pl, keys) => Object.fromEntries(keys.filter((k) => pl[k] !== void 0).map((k) => [k, pl[k]]));
-function answerSaid(purpose, consent, who) {
-  if (purpose === "marketing") {
-    if (consent === "opted_in") return `${who} said yes to offers and news`;
-    if (consent === "opted_out") return `${who} said no to offers \u2014 messages about their own visit still reach them`;
-    return `${who} has not been asked about offers`;
-  }
-  if (consent === "opted_in") return `${who} said yes to messages about their visit`;
-  if (consent === "opted_out") return `${who} said stop \u2014 nothing goes out to them at all`;
-  return `${who} is back to "not asked"`;
-}
-function manySaid(data, verb) {
-  const d = rec(data);
-  const done = typeof d.done === "number" ? d.done : 0;
-  const failedRows = Array.isArray(d.failed) ? d.failed : [];
-  const skipped2 = Array.isArray(d.skipped) ? d.skipped : [];
-  const failed = failedRows.length + skipped2.length;
-  const why = asText(rec(failedRows[0]).message) || (skipped2.length ? "no longer in this workspace" : "");
-  return { done, failed, said: failed ? `${failed} could not be ${verb}${why ? ` \u2014 ${why}` : ""}` : "" };
-}
-var ANSWER_DOOR = {
-  conversational: "PUT contacts/[id]/consent",
-  marketing: "PUT contacts/[id]/marketing-consent"
-};
-var ANSWER_MANY_DOOR = {
-  conversational: "PUT contacts/consent",
-  marketing: "PUT contacts/marketing-consent"
-};
-var personRoute = ({ payload }) => {
-  const id = idIn(payload, "contact_id");
-  return id ? `clients/${id}` : null;
-};
-var answerSpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: ({ payload: pl }) => {
-    const purpose = purposeOf(pl.purpose);
-    if (!purpose) return refuseWith("Say which question this answers.");
-    return {
-      route: ANSWER_DOOR[purpose],
-      params: { id: asText(pl.contact_id) },
-      body: bodyOf(pl, ["consent", "source", "note", "message_id"]),
-      events: [PEOPLE_CHANGED]
-    };
-  },
-  receipt: ({ payload: pl }) => answerSaid(purposeOf(pl.purpose) ?? "conversational", answerOf(pl.consent), asText(pl.who)),
-  open: personRoute
-};
-var answerManySpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: ({ payload: pl }) => {
-    const purpose = purposeOf(pl.purpose);
-    if (!purpose) return refuseWith("Say which question this answers.");
-    return {
-      route: ANSWER_MANY_DOOR[purpose],
-      body: bodyOf(pl, ["ids", "consent", "source", "note"]),
-      events: [PEOPLE_CHANGED]
-    };
-  },
-  receipt: ({ payload: pl }, data) => {
-    const m = manySaid(data, "recorded");
-    const what = purposeOf(pl.purpose) === "marketing" ? "to offers" : "to messages about their visit";
-    const answer = answerOf(pl.consent);
-    const head = answer === "unknown" ? `${m.done} back to "not asked"` : `${m.done} said ${answer === "opted_in" ? "yes" : "no"} ${what}`;
-    return m.said ? `${head} \xB7 ${m.said}` : head;
-  },
-  open: () => "clients"
-};
-var personModeManySpec = {
-  needs: "owner",
-  doing: "change how the receptionist treats these people",
-  gate: "settings",
-  commit: ({ payload: pl }) => ({
-    route: "PUT contacts/receptionist",
-    body: bodyOf(pl, ["ids", "mode"]),
-    events: [PEOPLE_CHANGED]
-  }),
-  receipt: ({ payload: pl }, data) => {
-    const m = manySaid(data, "changed");
-    const mode = asText(pl.mode);
-    const head = `Receptionist for ${m.done}: ${PERSON_MODE_WORDS[mode] ?? asText(pl.mode)}`;
-    return m.said ? `${head} \xB7 ${m.said}` : head;
-  },
-  open: () => "clients"
-};
-var noteManySpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: ({ payload: pl }) => ({
-    route: "PUT contacts/notes",
-    body: bodyOf(pl, ["ids", "append"]),
-    events: [PEOPLE_CHANGED]
-  }),
-  receipt: (_p, data) => {
-    const m = manySaid(data, "noted");
-    const head = `Note added for ${m.done}`;
-    return m.said ? `${head} \xB7 ${m.said}` : head;
-  },
-  open: () => "clients"
-};
-var personAddSpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: ({ payload: pl }) => ({
-    route: "POST contacts",
-    body: bodyOf(pl, ["phone", "email", "name", "source"]),
-    events: [PEOPLE_CHANGED]
-  }),
-  receipt: ({ payload: pl }, data) => {
-    const who = asText(pl.name).trim() || asText(pl.phone).trim() || asText(pl.email).trim();
-    return `${who} ${rec(data).existed === true ? "was already here \u2014 opened" : "added"}`;
-  },
-  made: (_p, data) => idIn(rec(data), "contact_id"),
-  open: () => "clients"
-};
-var personMergeSpec = {
-  needs: "owner",
-  doing: "merge two records of one person",
-  gate: "settings",
-  commit: ({ payload: pl }) => ({
-    route: "POST contacts/[id]/merge",
-    params: { id: asText(pl.contact_id) },
-    body: bodyOf(pl, ["merge"]),
-    events: [PEOPLE_CHANGED]
-  }),
-  receipt: ({ payload: pl }) => MERGE_WORDS.done(asText(pl.who), asText(pl.other)),
-  open: personRoute
-};
-
 // src/notes/person-notes.ts
 var NOTE_MAX = 600;
 var NOTE_LINE_MAX = 200;
@@ -16507,7 +16374,17 @@ var STEP_SHEET_WORDS = {
   }
 };
 var NO_DAY = "none";
-var titleOf = (mode, kind) => kind === "note" ? mode === "add" ? "note" : "editNote" : mode;
+function openedWith(note, kind, days) {
+  const day = note?.step ? note.step.day.day : kind === "note" ? NO_DAY : null;
+  return {
+    what: note ? note.body : "",
+    day,
+    picking: !!day && !days.some((c) => c.key === day),
+    forId: note ? note.forUserId : null,
+    teamOnly: note?.teamOnly === true
+  };
+}
+var titleKey = (mode, kind) => kind === "note" ? mode === "add" ? "note" : "editNote" : mode;
 function stepSheetFor(p, ask, nowMs, tz) {
   const W = STEP_SHEET_WORDS;
   const note = ask.noteId ? (p.noteList ?? []).find((n) => n.id === ask.noteId) ?? null : null;
@@ -16517,24 +16394,17 @@ function stepSheetFor(p, ask, nowMs, tz) {
   const service = dealId ? (p.deals ?? []).find((d) => d.id === dealId)?.service ?? null : null;
   const stepChoices = stepDays(nowMs, tz);
   const days = kind === "note" ? [{ key: NO_DAY, label: W.when.none, title: W.when.none }, ...stepChoices] : stepChoices;
-  const day = note?.step ? note.step.day.day : kind === "note" ? NO_DAY : null;
   return {
     mode,
     kind,
-    title: W.titles[titleOf(mode, kind)],
+    title: W.titles[titleKey(mode, kind)],
     sub: service ? `${p.name} \xB7 ${service}` : p.name,
     days,
     team: [
       { id: "", label: W.for.anyone },
       ...(p.noteTeam ?? []).map((m) => ({ id: m.id, label: m.me ? W.for.me : m.name }))
     ],
-    draft: {
-      what: note ? note.body : "",
-      day,
-      picking: !!day && !days.some((c) => c.key === day),
-      forId: note ? note.forUserId : null,
-      teamOnly: note?.teamOnly === true
-    },
+    draft: openedWith(note, kind, days),
     note: note ? { id: note.id, version: note.version } : null,
     dealId,
     blocked: ask.noteId && !note ? W.noStep : note && !note.mine ? NOTE_REFUSALS.not_yours ?? null : null,
@@ -16553,7 +16423,8 @@ function stepSheetBody(sheet, draft) {
   const dayless = draft.day === NO_DAY && !draft.picking;
   if (!what) return { body: null, problem: { field: "what", words: sheet.kind === "note" ? P.note : P.what } };
   if (what.length > NOTE_MAX) return { body: null, problem: { field: "what", words: P.tooLong(NOTE_MAX) } };
-  if (!dayless && (!draft.day || !isRealDate(draft.day))) return { body: null, problem: { field: "day", words: P.day } };
+  if (!dayless && (!draft.day || !isRealDate(draft.day)))
+    return { body: null, problem: { field: "day", words: P.day } };
   return {
     problem: null,
     body: {
@@ -18451,6 +18322,139 @@ var listMemberSpec = {
     receipt: (_data, u) => idsIn(u.add).length ? `Back on ${asText(u.name)}` : `Taken off ${asText(u.name)} again`
   },
   open: ({ payload: pl }) => asText(pl.list_id) ? `clients/${listToken({ kind: "saved", id: asText(pl.list_id) })}` : "clients"
+};
+
+// src/ask-proposals/people-verbs.ts
+var purposeOf = (v) => v === "conversational" || v === "marketing" ? v : null;
+var consentIn = (v) => v === "opted_in" || v === "opted_out" ? v : "unknown";
+var fieldsOf = (pl, keys) => Object.fromEntries(keys.filter((k) => pl[k] !== void 0).map((k) => [k, pl[k]]));
+function answerSaid(purpose, consent, who) {
+  if (purpose === "marketing") {
+    if (consent === "opted_in") return `${who} said yes to offers and news`;
+    if (consent === "opted_out") return `${who} said no to offers \u2014 messages about their own visit still reach them`;
+    return `${who} has not been asked about offers`;
+  }
+  if (consent === "opted_in") return `${who} said yes to messages about their visit`;
+  if (consent === "opted_out") return `${who} said stop \u2014 nothing goes out to them at all`;
+  return `${who} is back to "not asked"`;
+}
+function manySaid(data, verb) {
+  const d = rec(data);
+  const done = typeof d.done === "number" ? d.done : 0;
+  const failedRows = Array.isArray(d.failed) ? d.failed : [];
+  const skipped2 = Array.isArray(d.skipped) ? d.skipped : [];
+  const failed = failedRows.length + skipped2.length;
+  const why = asText(rec(failedRows[0]).message) || (skipped2.length ? "no longer in this workspace" : "");
+  return { done, failed, said: failed ? `${failed} could not be ${verb}${why ? ` \u2014 ${why}` : ""}` : "" };
+}
+var ANSWER_DOOR = {
+  conversational: "PUT contacts/[id]/consent",
+  marketing: "PUT contacts/[id]/marketing-consent"
+};
+var ANSWER_MANY_DOOR = {
+  conversational: "PUT contacts/consent",
+  marketing: "PUT contacts/marketing-consent"
+};
+var personRoute = ({ payload }) => {
+  const id = idIn(payload, "contact_id");
+  return id ? `clients/${id}` : null;
+};
+var answerSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const purpose = purposeOf(pl.purpose);
+    if (!purpose) return refuseWith("Say which question this answers.");
+    return {
+      route: ANSWER_DOOR[purpose],
+      params: { id: asText(pl.contact_id) },
+      body: fieldsOf(pl, ["consent", "source", "note", "message_id"]),
+      events: [PEOPLE_CHANGED]
+    };
+  },
+  receipt: ({ payload: pl }) => answerSaid(purposeOf(pl.purpose) ?? "conversational", consentIn(pl.consent), asText(pl.who)),
+  open: personRoute
+};
+var answerManySpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const purpose = purposeOf(pl.purpose);
+    if (!purpose) return refuseWith("Say which question this answers.");
+    return {
+      route: ANSWER_MANY_DOOR[purpose],
+      body: fieldsOf(pl, ["ids", "consent", "source", "note"]),
+      events: [PEOPLE_CHANGED]
+    };
+  },
+  receipt: ({ payload: pl }, data) => {
+    const m = manySaid(data, "recorded");
+    const what = purposeOf(pl.purpose) === "marketing" ? "to offers" : "to messages about their visit";
+    const answer = consentIn(pl.consent);
+    const head = answer === "unknown" ? `${m.done} back to "not asked"` : `${m.done} said ${answer === "opted_in" ? "yes" : "no"} ${what}`;
+    return m.said ? `${head} \xB7 ${m.said}` : head;
+  },
+  open: () => "clients"
+};
+var personModeManySpec = {
+  needs: "owner",
+  doing: "change how the receptionist treats these people",
+  gate: "settings",
+  commit: ({ payload: pl }) => ({
+    route: "PUT contacts/receptionist",
+    body: fieldsOf(pl, ["ids", "mode"]),
+    events: [PEOPLE_CHANGED]
+  }),
+  receipt: ({ payload: pl }, data) => {
+    const m = manySaid(data, "changed");
+    const mode = asText(pl.mode);
+    const head = `Receptionist for ${m.done}: ${PERSON_MODE_WORDS[mode] ?? asText(pl.mode)}`;
+    return m.said ? `${head} \xB7 ${m.said}` : head;
+  },
+  open: () => "clients"
+};
+var noteManySpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => ({
+    route: "PUT contacts/notes",
+    body: fieldsOf(pl, ["ids", "append"]),
+    events: [PEOPLE_CHANGED]
+  }),
+  receipt: (_p, data) => {
+    const m = manySaid(data, "noted");
+    const head = `Note added for ${m.done}`;
+    return m.said ? `${head} \xB7 ${m.said}` : head;
+  },
+  open: () => "clients"
+};
+var personAddSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => ({
+    route: "POST contacts",
+    body: fieldsOf(pl, ["phone", "email", "name", "source"]),
+    events: [PEOPLE_CHANGED]
+  }),
+  receipt: ({ payload: pl }, data) => {
+    const who = asText(pl.name).trim() || asText(pl.phone).trim() || asText(pl.email).trim();
+    return `${who} ${rec(data).existed === true ? "was already here \u2014 opened" : "added"}`;
+  },
+  made: (_p, data) => idIn(rec(data), "contact_id"),
+  open: () => "clients"
+};
+var personMergeSpec = {
+  needs: "owner",
+  doing: "merge two records of one person",
+  gate: "settings",
+  commit: ({ payload: pl }) => ({
+    route: "POST contacts/[id]/merge",
+    params: { id: asText(pl.contact_id) },
+    body: fieldsOf(pl, ["merge"]),
+    events: [PEOPLE_CHANGED]
+  }),
+  receipt: ({ payload: pl }) => MERGE_WORDS.done(asText(pl.who), asText(pl.other)),
+  open: personRoute
 };
 
 // src/ask/ask-settings-change.ts
@@ -36255,7 +36259,7 @@ function retryAfterOf(details, header, nowMs) {
   const s = Math.ceil((at3 - nowMs) / 1e3);
   return s > 0 ? s : null;
 }
-function fieldsOf(details) {
+function fieldsOf2(details) {
   const f = details && typeof details === "object" ? details.fields : void 0;
   if (!f || typeof f !== "object" || Array.isArray(f)) return null;
   const out = {};
@@ -36288,7 +36292,7 @@ function refusalOf(input) {
   const status = Number.isFinite(input.status) ? input.status : 0;
   const said = typeof input.message === "string" ? input.message.trim() : "";
   const retryAfterS = retryAfterOf(input.details, input.retryAfter, input.nowMs ?? Date.now());
-  const fields = fieldsOf(input.details);
+  const fields = fieldsOf2(input.details);
   const code2 = typeof input.code === "string" && input.code ? input.code : null;
   const aside = asideOf(input.details, status);
   const refusal = (c, title, message) => ({
@@ -46979,7 +46983,6 @@ export {
   UP_NEXT_WORDS,
   US_STATE_ZONES,
   UUID3 as UUID,
-  VERB_SPECS,
   VERSION_CHANNELS,
   VERSION_CHANNEL_WORDS,
   VISION_STRENGTH,
@@ -47052,7 +47055,6 @@ export {
   amountWords,
   answerForCards,
   answerFromV1,
-  answerSaid,
   answerText,
   answerWireOf,
   answerWords,
@@ -47822,7 +47824,6 @@ export {
   mailboxWords,
   mailboxesFootWords,
   mailtoOf,
-  manySaid,
   markOn,
   maskedEmail,
   matchColumns,
