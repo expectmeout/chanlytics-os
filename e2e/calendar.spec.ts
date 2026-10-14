@@ -66,10 +66,10 @@ test.describe("Calendar on a real workspace", () => {
     };
     expect(JSON.stringify(cal)).not.toContain("ical_url");
 
-    // Seven day columns, and Show, whose caption is the legend.
+    // Seven day columns, and Show, whose caption is the legend, in the bar on the frame's row of views.
     await expect(board.getByTestId("cal-dayhead")).toHaveCount(7);
     await expect(board.getByTestId("cal-col")).toHaveCount(7);
-    await expect(board.getByTestId("cal-show")).toBeVisible();
+    await expect(page.getByTestId("cal-bar").getByTestId("cal-show")).toBeVisible();
 
     // The blocks and windows are exactly the route's. With no calendar that reads, the route's items are the bookings
     // that arrived by email (the appointments record) and nothing else, and no open time is named.
@@ -112,6 +112,8 @@ test.describe("Calendar on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     const board = page.getByTestId("calendar-real");
     await expect(board).toBeVisible();
+    // The bar is the page's act on the frame's row of views, beside the views (board-parts.tsx calendarAct).
+    const bar = page.getByTestId("cal-bar");
 
     // The window around today is loaded once; every view is a slice of it.
     const reads: string[] = [];
@@ -122,7 +124,7 @@ test.describe("Calendar on a real workspace", () => {
     await page.getByTestId("cal-view-month").click();
     await expect(board.getByTestId("cal-month")).toBeVisible();
     await expect(board.getByTestId("cal-month-cell")).toHaveCount(42);
-    await expect(board.getByTestId("cal-range")).toContainText(/\d{4}/);
+    await expect(bar.getByTestId("cal-range")).toContainText(/\d{4}/);
     await page.getByTestId("cal-view-agenda").click();
     await expect(board.getByTestId("cal-agenda")).toBeVisible();
     await expect(board.getByTestId("cal-agenda-day")).toHaveCount(14);
@@ -130,13 +132,13 @@ test.describe("Calendar on a real workspace", () => {
     await expect(board.getByTestId("cal-col")).toHaveCount(1);
     await page.getByTestId("cal-view-week").click();
     await expect(board.getByTestId("cal-col")).toHaveCount(7);
-    const before = await board.getByTestId("cal-range").innerText();
-    await board.getByTestId("cal-next").click();
-    await expect(board.getByTestId("cal-range")).not.toHaveText(before);
-    await expect(board.getByTestId("cal-today")).toBeEnabled();
-    await board.getByTestId("cal-today").click();
-    await expect(board.getByTestId("cal-range")).toHaveText(before);
-    await expect(board.getByTestId("cal-today")).toBeDisabled();
+    const before = await bar.getByTestId("cal-range").innerText();
+    await bar.getByTestId("cal-next").click();
+    await expect(bar.getByTestId("cal-range")).not.toHaveText(before);
+    await expect(bar.getByTestId("cal-today")).toBeEnabled();
+    await bar.getByTestId("cal-today").click();
+    await expect(bar.getByTestId("cal-range")).toHaveText(before);
+    await expect(bar.getByTestId("cal-today")).toBeDisabled();
     expect(reads, "no read for a view switch, a week, or Today inside the window").toEqual([]);
 
     // Three months out is outside the window: one read, for a window around that day. The range opens the kit's date
