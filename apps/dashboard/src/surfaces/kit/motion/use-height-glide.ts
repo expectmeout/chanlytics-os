@@ -8,7 +8,9 @@
  * Nothing plays under reduced motion, or where the cap moved with the height (the keyboard rose, --kb): there the sheet
  * follows the keyboard at once. On a desk a sheet is the window's height, so its height never changes and nothing plays.
  * While a box in it is typed in, it does not shrink (a search narrowing its list would pull the box from under the
- * thumb): it holds its height (--sheet-hold, which kit.css and record.css read under the cap) until the box lets go.
+ * thumb): it holds its height (--sheet-hold, which kit.css and record.css read under the cap) until the box lets go, and
+ * then only once the press that took focus away has finished: let go at its mousedown, the sheet shrank and the row under
+ * the thumb moved before its click landed, so picking a search's result did nothing.
  */
 import { useCallback, useRef } from "react";
 
@@ -31,8 +33,25 @@ export function glideHeight(sheet: HTMLElement): () => void {
   let last = sheet.offsetHeight;
   let cap = getComputedStyle(sheet).maxHeight;
   let playing: Animation | null = null;
+  // Whether a press is down, anywhere: the hold is let go after it, once its click has been dispatched.
+  let down = false;
+  let waiting = false;
+  const release = () => {
+    if (!typingIn(sheet)) sheet.style.removeProperty("--sheet-hold");
+  };
   const letGo = () => {
-    if (sheet.style.getPropertyValue("--sheet-hold")) sheet.style.removeProperty("--sheet-hold");
+    if (!sheet.style.getPropertyValue("--sheet-hold")) return;
+    if (down) waiting = true;
+    else setTimeout(release, 0);
+  };
+  const pressed = () => {
+    down = true;
+  };
+  const lifted = () => {
+    down = false;
+    if (!waiting) return;
+    waiting = false;
+    setTimeout(release, 0);
   };
   const watch = new ResizeObserver(() => {
     if (playing) return;
@@ -59,9 +78,15 @@ export function glideHeight(sheet: HTMLElement): () => void {
   });
   watch.observe(sheet);
   sheet.addEventListener("focusout", letGo);
+  window.addEventListener("pointerdown", pressed, true);
+  window.addEventListener("pointerup", lifted, true);
+  window.addEventListener("pointercancel", lifted, true);
   return () => {
     watch.disconnect();
     sheet.removeEventListener("focusout", letGo);
+    window.removeEventListener("pointerdown", pressed, true);
+    window.removeEventListener("pointerup", lifted, true);
+    window.removeEventListener("pointercancel", lifted, true);
     if (playing) playing.cancel();
   };
 }

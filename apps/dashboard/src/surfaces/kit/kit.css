@@ -925,7 +925,7 @@ a.more-item {
     font-size: var(--text-sm);
   }
   .more-menu[data-sheet] .more-item-two > .icon ~ .more-item-meta {
-    padding-left: 32px;
+    padding-left: 27px;
   }
   /* A line written to follow a dash ("asks you first") starts a sentence of its own under the words. */
   .more-menu[data-sheet] .more-item-two > .more-item-meta::first-letter {
