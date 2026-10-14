@@ -34,9 +34,9 @@
  *     client, lib, surfaces, yes), but the shell's `legacy`, which leaves with
  *     decision 0015 rather than joining;
  *
- * less the trees of the programs in flight (IN_FLIGHT: Ask Rewired and the
- * phone app), which join as those land, as eslint.config.mjs says, each by the
- * day its program's entry names.
+ * less the trees of the programs in flight (IN_FLIGHT: Ask Rewired), which join
+ * as they land, as eslint.config.mjs says, each by the day its program's entry
+ * names.
  *
  * Nothing here reads the config's text; it asks ESLint.
  */
@@ -518,20 +518,13 @@ test("a tree is held once the ratchet holds nothing in it, and every tree it nam
  * Reach out (Part 7, #1329) and partners (0020, #1206) have landed: their emptied trees are held.
  */
 const IN_FLIGHT = {
+  // Moved from 13 to 31 October 2026 (the wiring audit's R4, 14 October): its proposals and its bridge are emptied and held
+  // (LIMITED_TREES), and four functions still stand over the limits: buildAskSuggestions (contracts), and the turn's loop, the
+  // stream's frame parse and the deal proposal (server/ask). The phone app's tree was emptied and is held; it left this list.
   "Ask Rewired": {
     since: "28 September 2026",
-    until: "13 October 2026",
-    trees: [
-      "packages/contracts/src/ask",
-      "packages/contracts/src/ask-proposals",
-      "apps/dashboard/src/server/ask",
-      "apps/dashboard/src/legacy-bridge/ask",
-    ],
-  },
-  "the phone app": {
-    since: "28 September 2026",
-    until: "13 October 2026",
-    trees: ["packages/contracts/src/mobile"],
+    until: "31 October 2026",
+    trees: ["packages/contracts/src/ask", "apps/dashboard/src/server/ask"],
   },
 };
 const inFlight = Object.values(IN_FLIGHT).flatMap((p) => p.trees);

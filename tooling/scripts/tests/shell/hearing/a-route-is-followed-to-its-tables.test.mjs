@@ -1,5 +1,6 @@
 /**
- * The tracer that holds a page to what it draws (_reads.mjs, ported from the Wiring Blueprint's deps.mjs) follows a route to its
+ * The tracer that holds a page to what it draws (tooling/scripts/trace-routes.mjs, ported from the Wiring Blueprint's deps.mjs; the
+ * hearing tests reach it through _reads.mjs) follows a route to its
  * tables as the code does -- and no further. Run on a repository in miniature (_reads-repo.mjs), so what it finds is known:
  * a table, an embed of two more, a SQL function reached through a namespace import and a view, a write with the event it makes
  * and the triggers made for that event, the exclusions that kept the trace exact (an erasure trigger, the ledger's own, the
@@ -20,6 +21,7 @@ import {
   getsOfFile,
   readsOf,
   registeredOverrides,
+  registeredSurfaces,
   traceRoutes,
   unheardReads,
   untoldWrites,
@@ -127,7 +129,15 @@ test("the routes a surface reads are the keys its source names, less its comment
   assert.deepEqual(registeredOverrides(root), ["workspaceOverride", "todayOverride", "peopleOverride"]);
 });
 
-test("a surface's unheard reads are the tables it reads that its kinds do not cover; a kind it declares covers its tables", () => {
+test("the shell's surfaces come with the module each is imported from, and one imported from nowhere there is has none", () => {
+  assert.deepEqual(registeredSurfaces(root), [
+    { name: "workspaceOverride", file: "apps/dashboard/src/legacy-bridge/surface-data.ts" },
+    { name: "todayOverride", file: null },
+    { name: "peopleOverride", file: "apps/dashboard/src/surfaces/people/surface.ts" },
+  ]);
+});
+
+test("a surface's unheard reads are the tables it reads and does not hear; a kind it declares covers its tables, and an omit covers none", () => {
   const people = { key: "people", reads: ["person"], gets: ["GET people"] };
   const unheard = unheardReads(people, routes, liveTablesOf);
   assert.deepEqual([...unheard.keys()].sort(), ["messages", "notes"], "contacts is the person's");
@@ -136,6 +146,24 @@ test("a surface's unheard reads are the tables it reads that its kinds do not co
     [...unheardReads({ ...people, reads: ["person", "thread"] }, routes, liveTablesOf).keys()],
     ["notes"],
   );
+  // The wiring's second audit, S3-8: a table the surface's own route reads is not covered by saying it is not drawn.
+  const omits = {
+    ...people,
+    reads: ["person", "thread"],
+    omit: [{ tables: ["messages"], why: "counts threads alone" }],
+  };
+  assert.deepEqual([...unheardReads(omits, routes, liveTablesOf).keys()].sort(), ["messages", "notes"]);
+  // A surface the feed tells nothing (read after an age, or on its owner's own change) hears none of its kinds' tables.
+  for (const fresh of [{ aged: 5 }, "own-change"])
+    assert.deepEqual([...unheardReads({ ...people, fresh }, routes, liveTablesOf).keys()].sort(), [
+      "contacts",
+      "messages",
+      "notes",
+    ]);
+  assert.deepEqual([...unheardReads({ ...people, fresh: "its-page" }, routes, liveTablesOf).keys()].sort(), [
+    "messages",
+    "notes",
+  ]);
   // A route the trace does not know reads nothing it can name; the coverage test fails a surface that names one.
   assert.deepEqual([...unheardReads({ ...people, gets: ["GET nowhere"] }, routes, liveTablesOf).keys()], []);
 });

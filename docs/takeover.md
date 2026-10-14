@@ -64,7 +64,7 @@ lint warnings                       334   in 143 files, 56 of them exhaustive-de
 route JS ceiling, KB gzipped        832   the shell included
 route CSS ceiling, KB gzipped       160
 each page's own JS ceiling, KB      256   gzipped, beyond the route
-trees the lint's limits hold         60   16 of them with max-params waiting
+trees the lint's limits hold         63   17 of them with max-params waiting
 ```
 
 <!-- measured:end -->

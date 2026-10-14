@@ -4,7 +4,9 @@
 Wiring Blueprint of 11 October 2026 (`Claude Video/docs/2026-10-11-chanlytics-wiring-blueprint.md`). Amends 0019 (what a
 notice carries and which tables are told) and builds the coverage test the 4 October Campaigns wiring review decided
 (its lane W3). Written against commit `132ab95eb` (main, 11 October 2026). Where this note and the code disagree, the
-code wins.
+code wins. Amended on 13 October 2026 by 0058: which page hears what is one table (`PAGE_HEARS`), an omit covers no table
+the surface's own routes read, the baseline says what kind each exception is, and the tracer lives at
+`tooling/scripts/trace-routes.mjs`.
 
 ## Context
 
