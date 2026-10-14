@@ -28,7 +28,9 @@ Object.assign(globalThis, {
   __WORKSPACES: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
   __ACTIVE_WORKSPACE: "t1",
 });
-globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
+// On screen: a hidden page reads, of what the feed tells, only what says itself in the tab's title and badge, and holds the
+// rest until it is in front (shell/feed/the-runner-heals.test.mjs).
+globalThis.document = { visibilityState: "visible", addEventListener() {}, removeEventListener() {} };
 // The shell's way of moving, as far as a pick needs it: the address says the route it was sent to.
 globalThis.window.CHANLY = {
   ...(globalThis.window.CHANLY ?? {}),
@@ -339,7 +341,7 @@ test("its live-feed rule is the lens's own: messages, calls and notes, a burst w
   );
   assert.deepEqual(
     reportsHeadlineOverride.refreshOnTables,
-    ["messages", "calls", "appointments", "contacts"],
+    ["messages", "calls", "appointments", "contacts", "tenant_config"],
     "the headline has its own, Today's (headline-live.test.mjs)",
   );
   const change = (table) => ({ table, event: "INSERT", row: {} });

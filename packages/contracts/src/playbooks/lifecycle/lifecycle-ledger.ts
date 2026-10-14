@@ -40,6 +40,7 @@ import type {
   LifecycleChains,
   LifecycleChannelMark,
   LifecycleGroup,
+  LifecycleHome,
   LifecycleInput,
   LifecycleLedger,
   LifecycleNeeds,
@@ -446,6 +447,33 @@ function chainStepsWords(steps: ReachOutChainDto["steps"]): string {
  * A reach-out: a chain of cold emails to a search's leads, or to a list its owner adds to (00426). It goes by email; its
  * run is decided on its own page. Its People cell is who is in it now, apart from what came back in 30 days.
  */
+/** Resume, as a row and its drawer ask it (decision 7). */
+export type LifecycleResume = Extract<LifecycleAct, { kind: "resume" }>;
+
+/**
+ * A reach-out's Resume, asked in place: its name, and that its next step goes on its own day. Its row asks it, and so does
+ * its drawer (reach-out/row.tsx), where Resume was a single tap with no question (the wiring's second audit, R11 S9-2).
+ */
+export function chainResumeOf(c: Pick<ReachOutChainDto, "name" | "root_id">): LifecycleResume {
+  const W = LIFECYCLE_WORDS.ledger.resume;
+  return {
+    kind: "resume",
+    label: W.label,
+    playbookId: c.root_id,
+    ask: { question: W.question(c.name), detail: W.chain },
+  };
+}
+
+/**
+ * A campaign's Resume as its row on the home asks it (resumeOf: when it runs next, to about how many, and an `auto` mode
+ * in full), for the drawer that opens it, which pressed Resume with no question (the wiring's second audit, R11 S9-2).
+ * Null where its row offers no Resume, or the home holds no row of that id.
+ */
+export function rowResumeOf(home: Pick<LifecycleHome, "ledger">, id: string): LifecycleResume | null {
+  const act = home.ledger.groups.flatMap((g) => g.rows).find((r) => r.id === id)?.act;
+  return act?.kind === "resume" ? act : null;
+}
+
 function chainRow(
   c: ReachOutChainDto,
   at: { input: LifecycleInput; ready: ChannelsReady | null; caps: string },
@@ -462,12 +490,7 @@ function chainRow(
   const stateWords = state.words;
   const feeds = c.fed_by === "list" ? W.ownList : `Cold email${c.search ? ` to ${c.search.name}` : ""}`;
   const hint = `${feeds} · ${chainStepsWords(c.steps)}`;
-  const resume: LifecycleAct = {
-    kind: "resume",
-    label: W.resume.label,
-    playbookId: c.root_id,
-    ask: { question: W.resume.question(c.name), detail: W.resume.chain },
-  };
+  const resume = chainResumeOf(c);
   return {
     id: c.root_id,
     kind: "chain",

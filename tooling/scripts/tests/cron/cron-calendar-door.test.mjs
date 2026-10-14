@@ -150,6 +150,8 @@ function connected(tables, id, checkedAt, events = [], services = []) {
   return url;
 }
 const checkedAt = (w, id) => w.tables.tenant_config.find((r) => r.tenant_id === id).calendar_checked_at;
+/** Since when the workspace's link has failed every read (00435), null while it answers. */
+const failedSince = (w, id) => w.tables.tenant_config.find((r) => r.tenant_id === id).calendar_failed_since ?? null;
 const people = (w, id) =>
   w.tables.contacts
     .filter((c) => c.tenant_id === id)
@@ -386,6 +388,61 @@ test("a feed that cannot be read fails that workspace only and moves it to the b
     assert.deepEqual(bell(w, G), []);
     assert.deepEqual(bell(w, K), [["calendar_people", "clients", "1 person added from your calendar"]]);
     assert.deepEqual(line.mail(), []);
+  } finally {
+    line.restore();
+  }
+});
+
+test("a link that stopped answering keeps since when from its first failure; a day on, its owner is told once, on the bell, with the door to the link; the read that works clears the stamp and closes the notice (the wiring's second audit, R11 S11-4)", async () => {
+  const w = world();
+  const G = "link-down";
+  const urlG = connected(w.tables, G, null);
+  feeds.delete(urlG);
+  const row = w.tables.tenant_config.find((r) => r.tenant_id === G);
+  /** The next hour: the workspace due again, the feed read afresh rather than from the five minutes' memory. */
+  const anHourOn = () => {
+    row.calendar_checked_at = ago(2 * H);
+    forgetFeeds();
+  };
+  const told = () => w.tables.notifications.filter((n) => n.tenant_id === G && n.kind === "sweep");
+
+  const line = wire(reply);
+  try {
+    // The first failure starts the stamp, and tells nobody: one read failing is routine.
+    const [s1, b1] = await answer(await w.tick());
+    assert.equal(s1, 200, JSON.stringify(b1));
+    assert.equal(b1.failed, 1);
+    const started = failedSince(w, G);
+    assert.ok(fresh(started), "since when, from the first read that failed");
+    assert.ok(fresh(checkedAt(w, G)), "and stamped as tried, as before");
+    assert.deepEqual(bell(w, G), []);
+
+    // A day of failures later (its start moved back, as a day of ticks would leave it): told, once.
+    row.calendar_failed_since = ago(25 * H);
+    const dayOld = row.calendar_failed_since;
+    anHourOn();
+    await answer(await w.tick());
+    assert.equal(failedSince(w, G), dayOld, "a link already failing keeps when it began");
+    assert.deepEqual(
+      bell(w, G),
+      [["sweep", "admin/workspace/calendar", "Your calendar link stopped answering"]],
+      "the owner told, with the door to the link in Settings",
+    );
+    assert.match(told()[0].body, /^Your calendar link stopped answering 1d ago\. Until it answers again/);
+    anHourOn();
+    await answer(await w.tick());
+    assert.equal(told().length, 1, "once: the next hour's failure finds the notice kept under the same breakage");
+
+    // It answers again: the stamp is cleared with the read's own, and the notice closes.
+    feeds.set(urlG, ics([]));
+    anHourOn();
+    const [s4, b4] = await answer(await w.tick());
+    assert.equal(s4, 200, JSON.stringify(b4));
+    assert.equal(b4.failed, 0);
+    assert.equal(failedSince(w, G), null, "answering: no stamp");
+    assert.ok(fresh(checkedAt(w, G)));
+    assert.ok(told()[0].closed_at, "the notice closed by the read that works (contracts NOTICE_MENDS)");
+    assert.deepEqual(line.mail(), [], "nobody on file to mail: the bell's row is the notice");
   } finally {
     line.restore();
   }

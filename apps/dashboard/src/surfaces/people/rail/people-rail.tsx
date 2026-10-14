@@ -8,7 +8,7 @@
  */
 import { Fragment } from "react";
 import type { ReactNode } from "react";
-import { LIST_GROUP_WORDS, stateOf } from "@chanlytics/contracts";
+import { LIST_GROUP_WORDS, listAsks } from "@chanlytics/contracts";
 import type { ListRule } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
 import { FailedRead } from "../../kit/empty/empty";
@@ -42,7 +42,7 @@ function smartSection(p: {
             {own
               .filter((l) => !quiet.includes(l))
               .map((l) => (
-                // A list of people who need you counts in amber (the tone map decides which: warn); every other count is a total.
+                // A list of people who need you counts in amber (contracts listAsks); every other count is a total.
                 <RailRow
                   key={l.id}
                   smart
@@ -51,7 +51,7 @@ function smartSection(p: {
                   active={active === l.id}
                   onPick={() => onPick(l.id)}
                   tip={l.tip || null}
-                  className={stateOf("person", l.id).tone === "warn" ? "asks" : ""}
+                  className={listAsks(l.id) ? "asks" : ""}
                 />
               ))}
           </RailGroup>

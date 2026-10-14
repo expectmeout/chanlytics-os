@@ -4,6 +4,7 @@ import {
   audienceTrigger,
   breathTouchOf,
   campaignMessageOf,
+  campaignRunsOn,
   FOLLOW_UP_ONE,
   parseParamSpecs,
   PLAYBOOK_TOUCH_WINDOW_MS,
@@ -193,13 +194,19 @@ function whatsappStops(
  * billing, its WhatsApp version not one Meta approved where WhatsApp is all it goes by, its number flagged (contracts
  * playbookStopBy) --
  * and where no proposal is out: every row then says what it said. A class with no row runs as ask, as the run reads
- * it (core run-playbook). A read that fails throws.
+ * it (core run-playbook). And past its last day (00416 `until`, by the business's day in `tz`), which the run refuses: the one
+ * rule every page asks of a campaign (contracts campaignRunsOn; the wiring's second audit, S1-3). A read that fails throws.
  */
-export async function followUpFacts(ctx: RouteContext, tenantId: string, now: Date): Promise<FollowUpFactsDto | null> {
+export async function followUpFacts(
+  ctx: RouteContext,
+  tenantId: string,
+  now: Date,
+  tz: string,
+): Promise<FollowUpFactsDto | null> {
   const [pb, cls, paused, number, out] = await Promise.all([
     ctx.supabase
       .from("playbooks")
-      .select("id, state, run_hour, last_run_for, template_name, template_language")
+      .select("id, state, run_hour, last_run_for, until, template_name, template_language")
       .eq("tenant_id", tenantId)
       .eq("trigger", "proposal_waiting")
       .maybeSingle(),
@@ -219,7 +226,9 @@ export async function followUpFacts(ctx: RouteContext, tenantId: string, now: Da
   if (cls.error) throw new Error(cls.error.message);
   const mode = cls.data?.mode ?? "ask";
   const p = pb.data;
-  if (!p || p.state !== "running" || mode === "never" || paused || !out) return null;
+  // It is the proposal follow-up, and runs only where deals are on, which is where this is read (readers/people.ts).
+  const runs = !!p && campaignRunsOn({ ...p, trigger: "proposal_waiting" }, { tz, now, dealsOn: true });
+  if (!p || !runs || mode === "never" || paused || !out) return null;
   // A moment always has its template (00228's CHECK); only a reach-out's hand step has none.
   if (!p.template_name || !p.template_language) return null;
   // The channels it ticks (step 3; null on a database before 00298, WhatsApp alone): the number and Meta's approval stop

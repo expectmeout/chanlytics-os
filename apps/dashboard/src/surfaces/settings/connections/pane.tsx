@@ -2,13 +2,13 @@
  * Settings › Connections, one row per connection (moved from legacy/pages/integrations-real.jsx, decision 0015 step 11).
  *
  * Every connection is the same row (contracts/connections.ts) computed from the surfaces already read -- channels (the
- * settings read), Setup's facts, Google -- so its rows cannot disagree with Setup. What it asks for itself (live.ts) is what
+ * channels read, surfaces/channels/surface.ts), Setup's facts, Google -- so its rows cannot disagree with Setup. What it asks for itself (live.ts) is what
  * only an open page wants: the one-time codes sent to the workspace's own line, and what Meta holds about the number when the
  * kept answer is missing or stale. Three
  * groups: Connected, Available, Later. "Later" is a row's state, not a list at the bottom. Settings' page (settings.jsx)
  * still draws it by its old name, which seed-globals publishes (settings/globals.ts), until Settings' frame moves.
  */
-import { Fragment, Suspense, lazy, useEffect, useState, type ReactNode } from "react";
+import { Fragment, Suspense, lazy, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   CONNECTION_GROUP_WORDS,
   connectionRows,
@@ -25,6 +25,7 @@ import { RecordRow } from "../../kit/record/row";
 import { refusalToast, useLegacyToast, type LegacyFlash } from "../../legacy-verbs";
 import { useAdsShown } from "../../campaigns/ads/shown";
 import { useSurface } from "../../use-surface";
+import { channelVMs } from "../../channels/surface";
 import type { SetupSurface } from "../../setup/surface";
 import { retryLineInPlace } from "../../setup/retry-line";
 import { connectedMailboxes } from "./connected-mailboxes";
@@ -253,7 +254,7 @@ function groupCard(o: {
 }
 
 export const PaneIntegrationsReal = () => {
-  const read = useSurface("settings");
+  const C = useSurface("channels");
   const S = useSurface("setup");
   const G = useSurface("google");
   const waCfg = useWhatsAppConfig();
@@ -272,7 +273,16 @@ export const PaneIntegrationsReal = () => {
   const [leftOpenAt, setLeftOpenAt] = useState<string | null>(() => signupLeftOpenAt());
   const [signupSaid, setSignupSaid] = useState<string | null>(null);
   const [toastNode, flash] = useLegacyToast();
-  const channels = read ? read.channels : undefined;
+  // The WhatsApp and phone rows, from the channels read (surfaces/channels/surface.ts), which hears them wherever the tab is:
+  // undefined while it is read, null where it failed (the wiring's second audit, W-channel-team-plus-1, S3-1). Each says when a
+  // customer last came in by the later of that read's time and Setup's, which hears the first call and the first message, so
+  // a row never says nothing has arrived while Start ticks the test call (X3-3).
+  const voiceHeard = S?.dto?.channels?.voice?.lastInboundAt ?? null;
+  const waHeard = S?.dto?.channels?.whatsapp?.lastInboundAt ?? null;
+  const channels = useMemo(
+    () => channelVMs(C, new Date(), { voice: voiceHeard, whatsapp: waHeard }),
+    [C, voiceHeard, waHeard],
+  );
   // The workspace's own line: what a registration is filed for, and where a code Meta texts arrives.
   const ownLine = ((S && S.dto.lines && S.dto.lines.rows) || []).find((l) => l.provider !== "carrier") || null;
   // What an owner reads about the number Meta is connecting: the codes sent to the line (once as this opens, every three seconds
@@ -287,7 +297,7 @@ export const PaneIntegrationsReal = () => {
         kind="card"
         what="your connections"
         body="The receptionist keeps answering; this page just can't show the connections at the moment."
-        surface="settings"
+        surface="channels"
         testid="connections-connected"
       />
     );

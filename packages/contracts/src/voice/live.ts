@@ -19,7 +19,7 @@ import { CALL_HEARTBEAT_MS, isLiveCall } from "../config/policy";
 import { formatPhoneDisplay } from "../shared/phone";
 import { callLength, mmss } from "../shared/clock";
 import { callerName } from "../people/person-name";
-import { isOptedOutContact } from "../consent/consent";
+import { isOptedOutContact, mayRing } from "../consent/consent";
 import {
   endedHowOf,
   neverConnected,
@@ -46,6 +46,12 @@ export const ANALYSIS_GRACE_MS = 10 * MIN_MS;
 export const RECENT_MAX = 8;
 /** How long a dial that never connected stays news to the bell (missedCallIsNews): a day. */
 const MISSED_CALL_NEWS_MS = DAY_MS;
+
+/** The caller's marks: a stop beside their name (isOptedOutContact), and do-not-contact, which keeps their number unrung. */
+const callerMarks = (contact: Parameters<typeof isOptedOutContact>[0]): Pick<LiveCallVM, "stopped" | "dnc"> => ({
+  stopped: isOptedOutContact(contact),
+  dnc: !mayRing(contact),
+});
 
 /**
  * Whether a call is one the bell still raises a "missed call" row for: a dial that never connected, no longer on the
@@ -78,6 +84,8 @@ export interface LiveCallVM {
   initials: string;
   /** The caller is a person who asked to stop, or is on do-not-contact (isOptedOutContact): the row says it beside the name. */
   stopped: boolean;
+  /** Of those, on do-not-contact: their number is shown, never offered to ring (consent mayRing). */
+  dnc: boolean;
   /** Display phone, or null when the caller ID was withheld. */
   number: string | null;
   /** The caller's number as stored (E.164), for a page that acts on it (the first run's transfer choice); null when withheld. */
@@ -313,7 +321,7 @@ export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCa
     who,
     whoShort,
     initials: withheld ? "–" : initialsOf(who),
-    stopped: isOptedOutContact(dto.contact),
+    ...callerMarks(dto.contact),
     // The CUSTOMER's number: on a call the receptionist placed, that is the one it dialled. The bell's missed-call
     // row named the business's own line under an outbound dial that never connected (the 2 Oct 2026 audit).
     number: withheld ? null : dto.direction === "outbound" ? formatPhoneDisplay(dto.to_e164) : (phone ?? dto.from_raw),

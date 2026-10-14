@@ -6,6 +6,7 @@ import {
   activityRowsForLines,
   agoLabel,
   clockStamp,
+  closeSettledNotices,
   dealsAreOn,
   isActivityMoney,
   memberWords,
@@ -18,6 +19,7 @@ import {
   setupSteps,
   unreadCount,
   zoneDayKey,
+  toChannelVM,
 } from "@chanlytics/contracts";
 import { ActivityQuerySchema } from "../../../metrics/activity";
 import { load } from "../../../readers";
@@ -28,6 +30,7 @@ import * as readers from "../../../readers/facts";
 import { notifications as notificationsReader } from "../../../readers/notifications";
 import { workspaceFacts } from "../../prompt";
 import { WHOSE, defineActions, readAction, unread, type ToolContext } from "../context";
+import { noticeWaitsOf } from "./notice-waits";
 
 async function getSettings(t: ToolContext): Promise<unknown> {
   // The facts the receptionist runs on, composed from the turn's reads -- never the settings page's own read
@@ -70,7 +73,10 @@ async function getSettings(t: ToolContext): Promise<unknown> {
       : null,
     policies: policies.map((p) => ({ class: p.class, mode: p.mode, limits: p.limits })),
     // The same three fields, in the page's order: by kind. Null: they could not be read, which is not none.
-    channels: chans ? chans.map((c) => ({ kind: c.kind, status: c.status, number: c.number_e164 })) : null,
+    // Each line's state as Connections says it (contracts toChannelVM healthLabel): "active" was the stored word (R13 X5-7).
+    channels: chans
+      ? chans.map((c) => ({ kind: c.kind, status: toChannelVM(c, t.now).healthLabel, number: c.number_e164 }))
+      : null,
     config_version: cfgRow?.version ?? null,
     ...(chans ? {} : { could_not_read: ["The channels could not be read just now."] }),
   };
@@ -128,10 +134,23 @@ async function getConnections(t: ToolContext): Promise<unknown> {
  * own read, then contracts serverNotificationRows as the bell builds its kept rows): the last thirty days, sixty at
  * most, newest first, with their own marks -- one dismissed is gone, unread by when they last opened the bell. What the
  * bell works out in the tab (threads, calls, invitations) is not the server's to read. A billing notice stays out.
+ *
+ * And closed as the bell closes them (contracts closeSettledNotices): a row whose run was approved, whose booking email was
+ * dismissed or whose review was answered reads as read, and no longer as waiting. Ask listed them as waiting and counted them
+ * unread, above the bell's number (the wiring's second audit, R13 X5-1). What still waits is read where the server reads it
+ * (notice-waits.ts).
  */
 async function getNotifications(t: ToolContext): Promise<unknown> {
-  const dto = (await load(t.rc, notificationsReader, undefined)).data;
-  const rows = serverNotificationRows({ ...dto, notifications: dto.notifications.filter((n) => n.kind !== "billing") });
+  const [dto, zone] = await Promise.all([
+    load(t.rc, notificationsReader, undefined).then((r) => r.data),
+    load(t.rc, readers.facts, undefined).then(
+      (r) => r.data.timezone,
+      () => null,
+    ),
+  ]);
+  const kept = dto.notifications.filter((n) => n.kind !== "billing");
+  const waits = await noticeWaitsOf(t.rc.ctx.supabase, t.rc.tenantId, kept, t.now, zone);
+  const rows = closeSettledNotices(serverNotificationRows({ ...dto, notifications: kept }), waits);
   const nowMs = t.now.getTime();
   return {
     unread: unreadCount(rows),

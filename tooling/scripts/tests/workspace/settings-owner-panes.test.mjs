@@ -79,6 +79,9 @@ globalThis.window = {
   },
   setTimeout: (fn, ms) => setTimeout(fn, ms),
   clearTimeout: (h) => clearTimeout(h),
+  // The open log's minute (activity/newer.ts): a pane the stub React never unmounts holds no run open.
+  setInterval: (fn, ms) => setInterval(fn, ms).unref(),
+  clearInterval: (h) => clearInterval(h),
   __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: "America/New_York" }],
   __ACTIVE_WORKSPACE: TID,
   // As the bridge publishes them (seed-globals.ts): the role table and the gate's sentence are contracts'.

@@ -118,7 +118,7 @@ const factOf = (c: PageCtx, k: string): PersonAboutFact | undefined => c.p.about
 /** Call, from the number's row: a phone dials and asks how it went when the app is back; a desk opens Call's popover. */
 function ring(c: PageCtx) {
   const vm = c.call.vm;
-  if (!vm) return;
+  if (!vm?.rings) return;
   if (!c.phone) {
     c.call.setOpen(true);
     return;
@@ -136,7 +136,8 @@ function numberRow(c: PageCtx) {
   const W = PERSON_ABOUT_WORDS;
   if (!p.phone) return null;
   const items: MenuItem[] = [];
-  if (c.call.vm) items.push({ label: W.callIt, glyph: <Icon name="phone" size={13} />, onSelect: () => ring(c) });
+  if (c.call.vm?.rings)
+    items.push({ label: W.callIt, glyph: <Icon name="phone" size={13} />, onSelect: () => ring(c) });
   // Text them as More says it: drawn and disabled with its reason where nothing can be sent (contracts personActs).
   const text = c.canRecord ? p.acts.find((a) => a.id === "text") : undefined;
   if (text)

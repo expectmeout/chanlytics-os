@@ -5,11 +5,13 @@
  *
  * Drawn with the kit's Field and Button, and with nothing of People's page: the Pipeline's own pick stays the
  * Pipeline's (people/pipeline/new.tsx), since sharing it pulls People's modules into this sheet's chunk (state.ts says
- * what that costs).
+ * what that costs). The kit's StoppedMark is the kit's, not People's: a person who said stop is marked here as in the
+ * Pipeline's pick (the wiring's second audit, R11 S9-3).
  */
 import { NEW_CONVERSATION_WORDS as W } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Field } from "../../kit/field/field";
+import { StoppedMark } from "../../kit/pill/stopped-mark";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { focusAsDrawn } from "../../legacy-verbs";
@@ -30,6 +32,7 @@ function found(s: SheetState) {
         <li key={p.id}>
           <Button variant="quiet" className="ix-new-row" onClick={() => s.choose(p.id)} data-testid="ix-new-who-pick">
             <span className="ix-new-name">{p.name}</span>
+            {p.stopped && <StoppedMark testid="ix-new-who-stopped" />}
             <span className="ix-new-said">{p.deal ? p.deal.line : p.lastContact.label}</span>
           </Button>
         </li>

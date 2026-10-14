@@ -10,6 +10,7 @@ import {
   REPLY_WINDOW_WORDS,
   PLAYBOOK_TRIGGERS,
   campaignMessagesOf,
+  campaignRunsOn,
   channelsReady,
   momentOffered,
   nextRunLabel,
@@ -71,6 +72,8 @@ function card(
     next: nextRunLabel(dto, DEMO_ZONE, now, false),
     named: null,
     off: null,
+    // The one rule (contracts campaignRunsOn), at the sample's clock: its campaigns have no last day.
+    runs: campaignRunsOn(dto, { tz: DEMO_ZONE, now, dealsOn: false }),
   };
 }
 

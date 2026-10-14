@@ -131,6 +131,8 @@ const playbook = (over = {}) => ({
   triggerHint: "anyone quiet for a month",
   schedule: "daily at 10:00 AM",
   next: "tomorrow 10:00 AM",
+  // On, before its last day, its moment one that runs here (contracts campaignRunsOn): Run now is offered.
+  runs: true,
   candidates: 4,
   held: 0,
   // Everyone its moment names, as the route counts them (server/campaigns/playbook-pools.ts triggerPools); null only when it could not.
@@ -549,7 +551,7 @@ test("REGRESSION (C23): a detail that could not be read says so with a Retry, an
   assert.equal(byTestId(tree, "bc-detail-failed"), null, "not offered a Retry that can only fail again");
 });
 
-test("REGRESSION (C23): an open detail keeps up while its broadcast is sending, and stops asking once it has sent", async () => {
+test("REGRESSION (C23, X2-2): an open detail keeps up while its broadcast is sending and for the reply window after it sent, and stops asking once that has closed", async () => {
   setSurfaceValue("broadcasts", broadcastsSurface());
   asked.length = 0;
   answers.set("b-sending", [
@@ -561,9 +563,17 @@ test("REGRESSION (C23): an open detail keeps up while its broadcast is sending, 
     { ok: false, code: "network", status: 0, message: "offline" },
     {
       ok: true,
-      data: detailOf(dto({ id: "b-sending", name: "Offers · 2026-09-15", state: "sent" }), [
-        person({ message_status: "read", read_at: iso(-1000) }),
-      ]),
+      // Sent a moment ago: the replies, yeses and stops counted to it arrive for three days yet.
+      data: detailOf(
+        dto({
+          id: "b-sending",
+          name: "Offers · 2026-09-15",
+          state: "sent",
+          started_at: iso(-60_000),
+          finished_at: iso(-1000),
+        }),
+        [person({ message_status: "read", read_at: iso(-1000) })],
+      ),
     },
   ]);
   const props = { initialSegment: null, initialRun: "b-sending" };
@@ -605,9 +615,23 @@ test("REGRESSION (C23): an open detail keeps up while its broadcast is sending, 
   await onSurfaceRead();
   assert.equal(
     asked.filter((id) => id === "b-sending").length,
-    reads,
-    "sent, it has nothing left to change, and is not read again",
+    reads + 1,
+    "REGRESSION (X2-2): sent, its replies still count to it, and it is read again as Sent's runs are",
   );
+
+  // A run that ended longer ago than the reply window has nothing left to change: it is not read again.
+  answers.set("b-sent", [{ ok: true, data: detailOf(dto(), [person()]) }]);
+  const old = { initialSegment: null, initialRun: "b-sent" };
+  page(old);
+  await settle();
+  again(old);
+  const before = asked.filter((id) => id === "b-sent").length;
+  for (let i = 0; i < 2; i += 1) {
+    globalThis.window.dispatchEvent({ type: "surface:broadcasts" });
+    again(old);
+    await settle();
+  }
+  assert.equal(asked.filter((id) => id === "b-sent").length, before, "ended five days ago, it is history");
 });
 
 test("REGRESSION (A21): Today's run rows open the run -- a run waiting for you opened Playbooks, and one about to send or sent today opened every broadcast", () => {

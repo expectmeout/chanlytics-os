@@ -11,6 +11,11 @@
  * `event(...)`, a direct `.from("events").insert({ kind })`, and a `*_KIND`
  * constant. Meta's account webhooks are the one computed
  * family, `channel.<field>`, held to WABA_FIELDS in contracts.
+ *
+ * And a ratchet on the same map (the wiring's second audit, R11 S11-9): the kinds no SQL door writes, told from
+ * TypeScript after the fact they announce, each with how many files write it. A fact and its event share a transaction
+ * (decision 0031, invariant 2), and doors-without-events.json sees only the SQL side of that: its baseline can reach
+ * nothing while these are still written apart. The kinds may only go away (a set: the numbers are a record).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -18,6 +23,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { EVENT_KINDS, WABA_FIELDS } from "@chanlytics/contracts";
 import { ROOT, readRaw } from "../_source.mjs";
+import { ratchet } from "../_ratchet.mjs";
 
 const KIND = /^[a-z_]+\.[a-z_]+$/;
 const declared = new Set(EVENT_KINDS);
@@ -139,4 +145,18 @@ test("the computed family is the contracts' list, and nothing else is computed",
     }
   }
   assert.equal(computed, 1);
+});
+
+ratchet({
+  name: "event kinds written only from TypeScript",
+  file: "ts-only-events.json",
+  mode: "set",
+  measure: () =>
+    Object.fromEntries(
+      [...emitted()]
+        .filter(([, files]) => [...files].every((f) => !f.startsWith("supabase/")))
+        .map(([kind, files]) => [kind, files.size]),
+    ),
+  advice:
+    "A fact and its event share a transaction (decision 0031, invariant 2; the wiring's second audit, S11-9): write the event in the SQL door that writes the fact, beside the write, rather than from TypeScript after it.",
 });

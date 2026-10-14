@@ -232,7 +232,6 @@ const SAMPLE_TEMPLATES = new Set(["hello_world"]);
  * sync. Labels a person gave a variable are kept when the positions match.
  */
 export async function syncWhatsappTemplates(auth: Admitted, body: Partial<{ tenant_id?: unknown }>): Promise<Response> {
-  const L = logger();
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
@@ -253,19 +252,46 @@ export async function syncWhatsappTemplates(auth: Admitted, body: Partial<{ tena
   if (chErr) return refuse(500, "channel_read_failed", chErr.message);
   if (!ch) return refuse(409, "no_channel");
   if (!ch.waba_id) return refuse(409, "no_waba");
+  const synced = await templatesSynced(db, tenantId, ch.waba_id);
+  if (!synced.ok) return refuse(synced.status, synced.code, synced.detail);
+  return json(200, {
+    ok: true,
+    seen: synced.seen,
+    approved: synced.approved,
+    marketing: synced.marketing,
+    synced_at: synced.syncedAt,
+  });
+}
 
+/** What a sync of a workspace's templates with Meta did, or why it could not. */
+type TemplatesSynced =
+  | { ok: true; seen: number; approved: number; marketing: number; syncedAt: string }
+  | { ok: false; status: 500 | 502 | 503; code: "no_token" | "meta_failed" | "write_failed"; detail?: string };
+
+/**
+ * The workspace's WhatsApp templates as Meta holds them, kept on its rows by name and language: the sync's body, which the
+ * Library's Sync door asks for by hand and a template's status notice asks for when the row it names is not on file (the
+ * wiring's second audit, R11 S11-6: the bell said "Template approved" over a Library still saying pending). Never throws
+ * for Meta's or the database's refusal: it answers why.
+ */
+export async function templatesSynced(
+  db: NonNullable<ReturnType<typeof pg>>,
+  tenantId: string,
+  wabaId: string,
+): Promise<TemplatesSynced> {
+  const L = logger();
   const creds = await waCredentialsForTenant(db, tenantId);
-  // None on file, or none readable just now: a 503 either way, since this door is tried again by hand.
-  if (creds.outcome !== "present") return refuse(503, "no_token");
+  // None on file, or none readable just now: a 503 either way, since the door is tried again by hand.
+  if (creds.outcome !== "present") return { ok: false, status: 503, code: "no_token" };
 
-  const listed = await listTemplates(creds.credentials.accessToken, ch.waba_id);
+  const listed = await listTemplates(creds.credentials.accessToken, wabaId);
   if (!listed.ok) {
     L.error("wa_templates_list_failed", {
       tenant_id: tenantId,
       status: listed.status,
       error: listed.error.slice(0, 200),
     });
-    return refuse(502, "meta_failed", listed.error);
+    return { ok: false, status: 502, code: "meta_failed", detail: listed.error };
   }
 
   const { data: existing } = await db
@@ -290,7 +316,7 @@ export async function syncWhatsappTemplates(auth: Admitted, body: Partial<{ tena
       })),
       { onConflict: "tenant_id,channel,name,language" },
     );
-    if (error) return refuse(500, "write_failed", error.message);
+    if (error) return { ok: false, status: 500, code: "write_failed", detail: error.message };
   }
   if (fresh.length) {
     const { error } = await db.from("templates").upsert(
@@ -302,10 +328,10 @@ export async function syncWhatsappTemplates(auth: Admitted, body: Partial<{ tena
       })),
       { onConflict: "tenant_id,channel,name,language" },
     );
-    if (error) return refuse(500, "write_failed", error.message);
+    if (error) return { ok: false, status: 500, code: "write_failed", detail: error.message };
   }
   const approved = rows.filter((r) => r.meta_status === "approved").length;
   const marketing = rows.filter((r) => r.meta_status === "approved" && r.category === "marketing").length;
   L.info("wa_templates_synced", { tenant_id: tenantId, seen: rows.length, approved, marketing });
-  return json(200, { ok: true, seen: rows.length, approved, marketing, synced_at: now.toISOString() });
+  return { ok: true, seen: rows.length, approved, marketing, syncedAt: now.toISOString() };
 }

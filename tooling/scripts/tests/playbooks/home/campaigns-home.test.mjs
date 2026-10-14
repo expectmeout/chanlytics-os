@@ -1770,3 +1770,30 @@ test("'Ask about this campaign' (A1) closes the drawer the way the drawer closes
     globalThis.matchMedia = matchWas;
   }
 });
+
+test("a paused campaign's drawer is handed Resume's question as its row asks it, and a running one none; a reach-out's drawer asks its own (the wiring's second audit, R11 S9-2)", () => {
+  const pb = playbooksSample(new Date(NOW));
+  const month = {
+    ...pb.rows[0],
+    id: "pb-month",
+    name: "The month's offer",
+    trigger: "everyone_monthly",
+    state: "paused",
+    next: "paused",
+    triggerLabel: "The month's offer",
+  };
+  surfaces({ playbooks: { rows: [...pb.rows, month] } });
+  fresh();
+  const paused = find(sheet(page("moment:pb-month")), (n) => n.type === PlaybookPane);
+  assert.equal(paused.props.resume?.kind, "resume", "the drawer's Resume asks first");
+  assert.match(paused.props.resume.ask.question, /The month's offer/, "in the row's own words");
+  fresh();
+  const running = find(sheet(page("moment:pb-sample-winback")), (n) => n.type === PlaybookPane);
+  assert.equal(running.props.resume, null, "a running campaign has no Resume to ask");
+
+  const chain = contracts.chainResumeOf({ name: "Spring follow-up", root_id: "ro-1" });
+  assert.deepEqual(
+    [chain.kind, chain.playbookId, chain.ask.question.includes("Spring follow-up"), chain.ask.detail],
+    ["resume", "ro-1", true, contracts.LIFECYCLE_WORDS.ledger.resume.chain],
+  );
+});

@@ -10,6 +10,7 @@ import { replyWindow } from "../config/policy";
 import { needsYouCount, threadWait, threadWaits, type WaitingThread, type Waits } from "../waits/waits";
 import { HELD_WORDS, readingOf, replyWaitsOnYou, standingOfThread } from "./standing";
 import { messageAt, isOptedOut, type ConversationDto, type MessageDto } from "./thread-dto";
+import { mayRing } from "../consent/consent";
 import { agentFor, answerWireOf, isChatMessage, writtenChannelOf, THREAD_CHANNEL_WORDS } from "./thread-channel";
 import { contactName, contactMeta, emailStoppedWords, initialsOf } from "./thread-contact";
 import { shortTime, bubbleTime, formatWaited } from "./thread-clock";
@@ -160,9 +161,10 @@ function replyFacts(
   primaryChannel: InboxThreadVM["primaryChannel"],
   tz: string,
   now: Date,
-): Pick<InboxThreadVM, "optedOut" | "offersOk" | "emailStopped"> {
+): Pick<InboxThreadVM, "optedOut" | "dnc" | "offersOk" | "emailStopped"> {
   return {
     optedOut: isOptedOut(dto),
+    dnc: !mayRing(dto.contact),
     offersOk: dto.contact.marketing_consent === "opted_in",
     emailStopped: primaryChannel === "email" ? emailStoppedWords(dto.contact, tz, now) : null,
   };

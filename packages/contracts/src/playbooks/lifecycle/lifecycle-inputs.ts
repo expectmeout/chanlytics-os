@@ -12,7 +12,14 @@
 import { appointmentWordOf, type AppointmentWord } from "../../journey/appointment-word";
 import { PEOPLE_LISTS } from "../../people/lists/lists";
 import { FOLLOW_UP_NEEDS_DEALS } from "../playbook-follow-ups";
-import { campaignDayWords, campaignEnded, localDate, nextRunLabel, trialDayWords } from "../playbook-schedule";
+import {
+  campaignDayWords,
+  campaignEnded,
+  campaignRunsOn,
+  localDate,
+  nextRunLabel,
+  trialDayWords,
+} from "../playbook-schedule";
 import { PLAYBOOK_TRIGGERS, momentOffered, triggerOf, triggerOffered, triggerWords } from "../playbook-triggers";
 import type { PlaybookDto } from "../playbooks";
 import type { LifecycleShape } from "./lifecycle-types";
@@ -50,6 +57,8 @@ interface LifecycleCardRead {
   off: string | null;
   ended: string | null;
   trial: string | null;
+  /** Whether it runs on the business's day (campaignRunsOn, the one rule): what Sent's week, the Library and Run now ask of it. */
+  runs: boolean;
 }
 
 /** A moment that may run here (triggerOffered), and whether a new campaign may start from it (momentOffered). */
@@ -130,6 +139,7 @@ function cardReadOf(
     off: ended ? LIFECYCLE_WORDS.ended(ended) : dealsOff,
     ended,
     trial: trialDayWords(p, at.tz, at.now),
+    runs: campaignRunsOn(p, { tz: at.tz, now: at.now, dealsOn: at.shape.dealsOn }),
   };
 }
 

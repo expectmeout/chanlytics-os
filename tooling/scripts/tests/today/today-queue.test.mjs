@@ -472,7 +472,8 @@ test("the wiring: one row component for People and Today, the queue in the comma
     'data-testid="brief-live-call"',
     // The call in progress is read through the one hook the strip reads too (live-now.ts), which watches Live.
     "useLiveNow()",
-    'useMoved(["broadcasts", "people", "calendar"])',
+    // A reach-out's reply read redraws the queue: it is that reply's row (the wiring's second audit, W-campaign-run-template-reachout-7).
+    'useMoved(["broadcasts", "people", "calendar", "reach_out_replies"])',
   ])
     assert.ok(queue.includes(s), s);
   const real = queue.slice(queue.indexOf("const LiveRail"));

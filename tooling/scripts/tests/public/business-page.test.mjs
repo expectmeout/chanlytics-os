@@ -201,9 +201,8 @@ test("Chanlytics' own policy and a workspace's page cannot drift", () => {
     "the clauses, and the retention it prints, from contracts",
   );
   assert.ok(
-    /<p>\s*\{retentionWords\(\)\} An owner can download a workspace&rsquo;s people, conversations, calls and consent/.test(
-      privacy,
-    ),
+    /<p>\s*\{retentionWords\(\)\} \{DOWNLOAD_WORDS\}/.test(privacy) &&
+      privacy.includes('"An owner can download a copy of a workspace’s records from Settings › Business:'),
     "the page prints the contract's paragraph, not its own numbers",
   );
   assert.ok(privacy.includes('{SMS_CLAUSES.join(" ")}'), "the policy renders them rather than repeating them");

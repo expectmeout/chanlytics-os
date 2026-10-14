@@ -127,6 +127,14 @@ test("a caller the workspace knows is named on the Lock Screen", async () => {
   assert.equal(p.sent[0].payload.aps.alert.body, "Rosa Díaz is on the line.");
 });
 
+test("a member who switched calls off for their phone is not shown a call on the Lock Screen either (the wiring's second audit, R11 S8-8)", async () => {
+  const tables = world();
+  tables.memberships[0] = { ...tables.memberships[0], push_off: ["call"] };
+  const p = port();
+  await tellPhonesCallStarted(fakeDb(tables), T, call, p, NOW);
+  assert.deepEqual(p.sent[0].tokens, ["a2"], "REGRESSION: the owner who turned calls off saw the caller's name");
+});
+
 test("no port, or nobody who takes calls with a phone: nothing is sent and nothing is claimed", async () => {
   assert.deepEqual(await tellPhonesCallStarted(fakeDb({}), T, call, null, NOW), {
     started: 0,

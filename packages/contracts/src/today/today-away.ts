@@ -112,6 +112,7 @@ const AWAY_NOUN: Record<string, [one: string, many: string]> = {
   booking: ["new booking", "new bookings"],
   // Two invitations accepted the same morning read as a team that grew.
   member_joined: ["teammate joined", "teammates joined"],
+  member_left: ["teammate left", "teammates left"],
 };
 
 /**

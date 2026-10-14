@@ -41,7 +41,7 @@
     "00322": "the tables leave Postgres Changes held this number in #1411 and landed as 00324, above the head by then; a stop ends the yes to offers had moved to 00323 to leave it room (#1409)",
     "00325": "unused: #1417 (a message's status is told to its workspace) held it, but 00326 (two records of one person become one) reached production first, so #1417 landed as 00327 above the head",
     "00378": "held for the doors lane (#1537), whose eleven moved above #1539's 00379 and 00380 when that merged first: they landed as 00381 to 00391",
-    "00428": "the silent records are told (the wiring's second audit, R6, cm-prd-channels) took it and was applied to production on 14 Oct before its merge, and main's head passed it (#1588): it lands under a number above the head, production's ledger row re-keyed to that number by migration repair, and this reason then says which"
+    "00428": "the silent records are told (the wiring's second audit, R6) took it and was applied to production on 14 Oct before its merge; main's head passed it (#1588), and it landed as 00431, production's ledger row re-keyed to it by migration repair"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -432,6 +432,13 @@
     "00426_a_reach_out_takes_the_leads_you_add.sql": "bff8fd95b5502eade17e46b0365e77466b94ac87416670b622d17fd920e0413d",
     "00427_a_lead_has_one_first_email.sql": "54e6d0e76d4adbb424e22b2021a54855655c44812330e9b8ee1e2cd937511419",
     "00429_an_email_the_owner_sends_is_handed_to_them.sql": "75ea3c6d20ce7a160f8a90cdcbd09e73da096c401e9947ee4e404a8b82b6f7c7",
-    "00430_a_lead_is_a_place_or_a_company.sql": "dba22de6f6f0f1414445cb26b4ef26b71ab4e334c29bd70655ce7d229792d1e1"
+    "00430_a_lead_is_a_place_or_a_company.sql": "dba22de6f6f0f1414445cb26b4ef26b71ab4e334c29bd70655ce7d229792d1e1",
+    "00431_the_silent_records_are_told.sql": "d37d6b39c018609fa856ab73b2138e7368e41710ac42b4a59ee01bd43a6ac0eb",
+    "00432_signing_out_forgets_every_phone.sql": "c48d23b23fe587223e0bba8d334ad523e322147124bd50104062db95b1f93371",
+    "00433_a_snoozed_hold_is_not_still_waiting.sql": "19c501b2ae019d2c28f4a37225056266e588b97242de6d953800933872b8ecb8",
+    "00434_a_lost_analysis_is_asked_for.sql": "8ae66b74b5a3d7f8617accdbb9ed9b82279d65fc35340c4acdc08213bd590b62",
+    "00435_a_calendar_link_that_stopped_answering.sql": "38b75300f1313cc30aaca31d61e641c5f8b1be2dc87b53f3c9c6fdb9160753c7",
+    "00436_a_visit_change_says_who_made_it.sql": "fba9614a061c48ce2984d129ea768dd432691a31f116759400e149c2dd752b0b",
+    "00437_a_teammate_who_leaves_is_told.sql": "35ce48decf1fc0016c0846207a13f1e1926f3768bbbfb54a6983093f9b134c10"
   }
 }

@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import {
+  clockStamp,
   ASK_ANSWER_CAPS,
   ASK_ROW_WORDS,
   BREATH_WHY,
@@ -381,6 +382,11 @@ export interface TurnFacts {
    */
   since?: CardOutcome[];
   /**
+   * On a live turn, when each earlier turn it replays was asked (memory.ts Chain.readAt): their reads are said as history,
+   * with their times, so the model reads again what may have moved since (R13 X5-4).
+   */
+  replayedAt?: readonly number[];
+  /**
    * The row their words point at, as the tab read them (PageContext.focus, the Phase 5 plan, D7): an earlier answer's
    * item by its place in an open thread, or the page's row by its place or its name; said when it is not the scope.
    */
@@ -434,6 +440,17 @@ const AFTER_APPROVAL_LINE =
  * turn never cost the page its cache; a request's last block carries the fourth
  * (bp4), so the turn's later rounds read them from the cache with the rest.
  */
+/**
+ * The line a live turn says of the turns it replays: when their reads were made, as history. What a read held at 10:00 is
+ * what was true at 10:00; a thread taken, a run approved or a booking made since is read again before it is said as now
+ * (the wiring's second audit, R13 X5-4).
+ */
+function replayedLine(at: readonly number[], tz: string, nowMs: number): string {
+  const times = [...new Set(at.map((ms) => clockStamp(ms, tz, nowMs)))];
+  const when = times.length > 1 ? `${times.slice(0, -1).join(", ")} and ${times.at(-1) ?? ""}` : (times[0] ?? "");
+  return `The earlier turns above, and every read in them, were made at ${when}, by the business's clock: they are what was true then. Read again what may have changed since (who needs you, a thread's state, a run, a booking) before you say it as now.`;
+}
+
 export function turnWords(t: TurnFacts): string {
   const lines: string[] = [];
   lines.push(describeNow(t.timezone, t.now ?? new Date(), t.closures));
@@ -442,6 +459,7 @@ export function turnWords(t: TurnFacts): string {
     lines.push(`Since the last answer, the person acted on cards from earlier in this thread: ${did.join("; ")}.`);
   }
   if (t.since?.some((o) => o.state === "done")) lines.push(AFTER_APPROVAL_LINE);
+  if (t.replayedAt?.length) lines.push(replayedLine(t.replayedAt, t.timezone, (t.now ?? new Date()).getTime()));
   if (t.context)
     lines.push(
       "The page they are on is in the search results before these words (page:// its figures, then its rows in the page's order): answer from it, and read only for what it does not hold.",

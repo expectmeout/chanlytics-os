@@ -14,7 +14,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { IN_APP_CLASS, ROLE_PERMS, roleGate, stateOf, billingAccountDto, toChannelVM } from "@chanlytics/contracts";
+import { IN_APP_CLASS, ROLE_PERMS, roleGate, stateOf, billingAccountDto } from "@chanlytics/contracts";
 import { kitPages, useStubHooks } from "../_legacy-react.mjs";
 
 /* ---------------------------------- the window ---------------------------------- */
@@ -563,16 +563,8 @@ const Connections = (props) => PaneIntegrationsReal(props);
  * (undefined before it is read, null where it failed) and Google's. A key a test does not name is held as it was.
  */
 const seam = (held) => {
-  if ("channels" in held) {
-    setSurfaceValue("settings", {
-      settings: null,
-      facts: null,
-      channels: held.channels,
-      templatesAll: null,
-      templateUse: null,
-      templateSent: null,
-    });
-  }
+  // The rows are the channels read's (surfaces/channels/surface.ts), which Connections draws its WhatsApp and phone rows from.
+  if ("channels" in held) setSurfaceValue("channels", { rows: held.channels });
   if ("setup" in held) setSurfaceValue("setup", held.setup);
   if ("google" in held) setSurfaceValue("google", held.google);
 };
@@ -837,18 +829,18 @@ const PRICES = [
 ];
 const MIN = 60_000;
 /** The WhatsApp channel as the settings read holds it, with what Meta holds about the number and when it was read. */
-const whatsappChannel = (standing, readAgoMs, over = {}) =>
-  toChannelVM({
-    id: "ch-wa",
-    kind: "whatsapp",
-    number_e164: "+13055550188",
-    status: "active",
-    created_at: "2026-09-01T00:00:00Z",
-    last_inbound_at: null,
-    standing,
-    standing_read_at: readAgoMs === null ? null : new Date(Date.now() - readAgoMs).toISOString(),
-    ...over,
-  });
+// A WhatsApp number as GET channels answers it: the row itself, which Connections makes its view of (channels/surface.ts).
+const whatsappChannel = (standing, readAgoMs, over = {}) => ({
+  id: "ch-wa",
+  kind: "whatsapp",
+  number_e164: "+13055550188",
+  status: "active",
+  created_at: "2026-09-01T00:00:00Z",
+  last_inbound_at: null,
+  standing,
+  standing_read_at: readAgoMs === null ? null : new Date(Date.now() - readAgoMs).toISOString(),
+  ...over,
+});
 
 test("a Connect row draws what Meta will ask under its sentence; a sign-up an earlier page left open is named first, and forgotten the moment Connect is pressed again", async () => {
   asRole("owner");

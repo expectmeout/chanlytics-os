@@ -105,3 +105,133 @@ test("each reader a request reads through is timed under its name, once for the 
   assert.equal(slow?.n, 1, "the second ask shares the first's read");
   assert.ok(slow.ms >= 10, `took ${slow.ms} ms`);
 });
+
+/* -------------------- what its database calls touched (decision 0058, lane R7) -------------------- */
+
+const { noteTouch, requestTouches } = await import("@chanlytics/channels");
+const { touchOfCall } = await import("@chanlytics/db");
+const { touchedLine } = await importSrc("apps/dashboard/src/server/server-timing.ts");
+
+test("a call of the database client is the table it touches and how, or the function it calls; nothing else is a touch", () => {
+  const rest = "https://db.test/rest/v1";
+  assert.deepEqual(touchOfCall(`${rest}/contacts?select=id,name`), { table: "contacts", how: "read" });
+  assert.deepEqual(touchOfCall(`${rest}/contacts`, { method: "HEAD" }), { table: "contacts", how: "read" });
+  assert.deepEqual(touchOfCall(`${rest}/messages`, { method: "POST" }), { table: "messages", how: "INSERT" });
+  assert.deepEqual(
+    touchOfCall(`${rest}/policies`, {
+      method: "POST",
+      headers: { Prefer: "resolution=merge-duplicates,return=representation" },
+    }),
+    { table: "policies", how: "INSERT UPDATE" },
+    "an insert that merges on a conflict is an update too",
+  );
+  assert.deepEqual(touchOfCall(`${rest}/tenants?id=eq.1`, { method: "PATCH" }), { table: "tenants", how: "UPDATE" });
+  assert.deepEqual(touchOfCall(`${rest}/segments?id=eq.1`, { method: "DELETE" }), { table: "segments", how: "DELETE" });
+  assert.deepEqual(touchOfCall(`${rest}/rpc/merge_contacts`, { method: "POST" }), {
+    table: "rpc:merge_contacts",
+    how: "call",
+  });
+  assert.deepEqual(touchOfCall(new URL(`${rest}/calls`)), { table: "calls", how: "read" });
+  assert.deepEqual(touchOfCall(new Request(`${rest}/calls`, { method: "PATCH" })), { table: "calls", how: "UPDATE" });
+  assert.equal(touchOfCall("https://db.test/auth/v1/user"), null, "the auth server is no table");
+  assert.equal(touchOfCall("https://db.test/storage/v1/object/logos/a.png"), null, "nor is storage");
+  assert.equal(touchOfCall("not a url at all"), null);
+});
+
+test("a request keeps what its calls touched, each table once with every way it was touched; outside one nothing is kept", async () => {
+  noteTouch("contacts", "read");
+  assert.equal(requestTouches().size, 0, "no request, no record");
+  const touched = await withRequestId("rq-touch", async () => {
+    noteTouch("contacts", "read");
+    noteTouch("contacts", "UPDATE");
+    noteTouch("contacts", "read");
+    noteTouch("rpc:merge_contacts", "call");
+    noteTouch("", "read");
+    return requestTouches();
+  });
+  assert.deepEqual(Object.fromEntries([...touched].map(([t, hows]) => [t, [...hows]])), {
+    contacts: ["read", "UPDATE"],
+    "rpc:merge_contacts": ["call"],
+  });
+  assert.equal(await withRequestId("rq-touch-2", async () => requestTouches().size), 0, "each request its own");
+});
+
+test("the database client tells what each call inside a request touched, and nothing outside one (packages/db namedFetch)", async () => {
+  const slot = Symbol.for("chanlytics.db.observer");
+  const was = globalThis[slot];
+  const heard = [];
+  try {
+    observeDb({
+      log: { info() {}, warn() {}, error() {} },
+      requestId: () => "rq-db",
+      touched: (table, how) => heard.push(`${table} ${how}`),
+    });
+    const send = namedFetch(async () => new Response("{}"));
+    await send("http://db.test/rest/v1/contacts?select=id");
+    await send("http://db.test/rest/v1/rpc/merge_contacts", { method: "POST" });
+    await send("http://db.test/auth/v1/user");
+    assert.deepEqual(heard, ["contacts read", "rpc:merge_contacts call"]);
+    observeDb({ log: { info() {}, warn() {}, error() {} }, requestId: () => null, touched: (t) => heard.push(t) });
+    await namedFetch(async () => new Response("{}"))("http://db.test/rest/v1/z");
+    assert.equal(heard.length, 2, "a call outside a request goes as it came");
+  } finally {
+    globalThis[slot] = was;
+  }
+});
+
+test("a sample of answers says what it touched, as one line of names, and the page it was asked from without the workspace", () => {
+  const touches = new Map([
+    ["messages", new Set(["INSERT"])],
+    ["contacts", new Set(["read", "INSERT UPDATE"])],
+    ["rpc:merge_contacts", new Set(["call"])],
+  ]);
+  const ids = Array.from({ length: 400 }, (_, i) => `rq-${i}`);
+  const said = ids.map((id) => touchedLine(id, touches, "https://app.chanlytics.com/w/studio/inbox"));
+  const sampled = said.filter(Boolean);
+  assert.ok(sampled.length > 5 && sampled.length < 45, `about one in twenty: ${sampled.length} of 400`);
+  assert.deepEqual(
+    ids.map((id) => touchedLine(id, touches, null) !== null),
+    said.map((s) => s !== null),
+    "a request is in the sample or not by its name alone",
+  );
+  const id = ids[said.findIndex(Boolean)];
+  assert.deepEqual(touchedLine(id, touches, "https://app.chanlytics.com/w/studio/inbox"), {
+    tables: "contacts:INSERT+UPDATE+read messages:INSERT rpc:merge_contacts:call",
+    page: "inbox",
+  });
+  const pageOf = (referer) => touchedLine(id, touches, referer).page;
+  assert.equal(
+    pageOf("https://app.chanlytics.com/w/studio/clients/0b9c4f6e-1d2a-4c3b-9e8f-7a6b5c4d3e2f/history"),
+    "clients/:id",
+  );
+  assert.equal(pageOf("https://app.chanlytics.com/w/studio/reports/reviews:2026-09-01~2026-09-20"), "reports/reviews");
+  assert.equal(pageOf("https://app.chanlytics.com/w/studio/admin/workspace/calendar"), "admin/workspace");
+  assert.equal(pageOf("https://app.chanlytics.com/w/studio/clients/leads:s-1:l-2"), "clients/leads");
+  assert.equal(pageOf("https://app.chanlytics.com/w/studio"), "today", "a workspace's own address is Today");
+  assert.equal(pageOf("https://app.chanlytics.com/login"), null, "not a page of a workspace");
+  assert.equal(pageOf("nonsense"), null);
+});
+
+test("the shadow script reads back what a sampled line says: its tables, the line inside a log export, and the route it was", async () => {
+  const { lineOf, touchesOf, routeKeyOf } = await importSrc("tooling/scripts/ops/write-shadow.mjs");
+  const { ROUTES } = await importSrc("apps/dashboard/src/client/routes.generated.ts");
+  const touches = new Map([
+    ["contacts", new Set(["read", "INSERT UPDATE"])],
+    ["rpc:merge_contacts", new Set(["call"])],
+  ]);
+  const id = Array.from({ length: 400 }, (_, i) => `rq-${i}`).find((x) => touchedLine(x, touches, null));
+  const said = touchedLine(id, touches, null);
+  assert.deepEqual(
+    Object.fromEntries([...touchesOf(said.tables)].map(([t, hows]) => [t, [...hows].sort()])),
+    { contacts: ["INSERT", "UPDATE", "read"], "rpc:merge_contacts": ["call"] },
+    "the line's tables, each with how it was touched",
+  );
+  const line = { event: "route_answered", route: "/api/v1/contacts/c-1/consent", method: "PUT", ...said };
+  assert.deepEqual(lineOf(JSON.stringify(line)), line, "the logger's own line");
+  assert.deepEqual(lineOf(JSON.stringify({ message: JSON.stringify(line) })), line, "and one a log export carries");
+  assert.equal(lineOf("not json"), null);
+  assert.equal(routeKeyOf(ROUTES, "PUT", "/api/v1/contacts/c-1/consent"), "PUT contacts/[id]/consent");
+  assert.equal(routeKeyOf(ROUTES, "POST", "/api/v1/contacts/import"), "POST contacts/import", "a word before an id");
+  assert.equal(routeKeyOf(ROUTES, "PATCH", "/api/v1/workspaces"), "PATCH workspaces");
+  assert.equal(routeKeyOf(ROUTES, "GET", "/api/v1/nowhere/at/all"), null);
+});

@@ -6,14 +6,22 @@
  * The hourly sweep, "Check now" and a location's bind call it.
  */
 import { emitEvent, reviewLinkOf, type Database } from "../packages/db.js";
-import { listReviews, planProfileSync, readLocation, reviewParent, type PlacesHttp } from "../packages/channels.js";
+import {
+  listReviews,
+  planProfileSync,
+  readLocation,
+  reviewParent,
+  type PlacesHttp,
+  type ProfileSyncPlan,
+} from "../packages/channels.js";
 import { autoReplyBell, lensRoute, localDate, reviewRoute, type EdgeRefusal } from "../packages/contracts.js";
-import { keepAndPush, recordNotification } from "../ops/notify.js";
+import { keepOnce, recordNotification } from "../ops/notify.js";
 import { errField, logger, type Logger } from "../log.js";
 import { readAllRows } from "../paged.js";
 import { http } from "./places.js";
 import { aboutReview, reviewRowIds, type ConnectionRow, type Db } from "./google-rows.js";
 import { tokenFor } from "./profile-credentials.js";
+import { causeOfRead, causeOfToken, syncMended, tellSyncStopped, type SyncCause } from "./sync-notice.js";
 import { answerNewReviews } from "./review-answers.js";
 import type { CheckResult } from "./listing-check.js";
 
@@ -23,16 +31,18 @@ const syncErrorOf = (r: EdgeRefusal): string => r.detail ?? r.error;
 /**
  * What the mirror lets go: on the first sync the public listing's five, whose ids are the public ones, the profile being
  * the record from then on; and after a read that listed every review, the profile's reviews it did not list, which Google
- * no longer shows (decision 0036, 00392). The rows a read listed carry its time, so the rest are older.
+ * no longer shows (decision 0036, 00392). The rows a read listed carry its time, so the rest are older. Or the reviews of
+ * these ids (`only`): the new ones a sync takes back off the record when their bell could not be kept (ringNewReviews).
  */
 async function letReviewsGo(
   db: Db,
   tenantId: string,
   origin: "places" | "profile",
-  seenBefore: string | null,
+  which: { seenBefore?: string | null; only?: readonly string[] } = {},
 ): Promise<void> {
   let q = db.from("google_reviews").delete().eq("tenant_id", tenantId).eq("origin", origin);
-  if (seenBefore) q = q.lt("last_seen_at", seenBefore);
+  if (which.seenBefore) q = q.lt("last_seen_at", which.seenBefore);
+  if (which.only) q = q.in("review_id", [...which.only]);
   const gone = await q;
   if (gone.error) throw new Error(gone.error.message);
 }
@@ -64,6 +74,45 @@ async function keepReviews(
     { onConflict: "tenant_id,review_id" },
   );
   if (up.error) throw new Error(up.error.message);
+}
+
+/**
+ * The new reviews' bells, kept before the sync is stamped (the wiring's second audit, R11 S6-12). A review is news only
+ * while it is not on record and was written since the last sync, so a bell lost after the stamp was lost for good. Each
+ * reaches the phones too (decision 0040), about the review's row and opening it (contracts reviewRoute), and is kept once
+ * under what it tells (notify keepOnce): the review, or the reviews a line groups. One that could not be kept takes the
+ * fresh reviews off the record again and fails the sync: unstamped, it is tried next hour, finds them new again, and keeps
+ * only the bells still owed.
+ */
+async function ringNewReviews(db: Db, conn: ConnectionRow, plan: ProfileSyncPlan): Promise<void> {
+  if (!plan.bells.length) return;
+  const rowIds = await reviewRowIds(
+    db,
+    conn.tenant_id,
+    plan.bells.flatMap((b) => (b.review_id ? [b.review_id] : [])),
+  );
+  const fresh = plan.fresh.map((r) => r.review_id).sort();
+  let lost = false;
+  for (const b of plan.bells) {
+    const kept = await keepOnce(
+      conn.tenant_id,
+      {
+        kind: "review",
+        title: b.title,
+        body: b.body,
+        ...aboutReview(rowIds, b.review_id),
+        onceKey: b.review_id
+          ? `review_bell:${conn.tenant_id}:${b.review_id}`
+          : `review_bells:${conn.tenant_id}:${fresh.join(",") || String(plan.listing?.review_count ?? "")}`,
+      },
+      { push: true },
+      db,
+    );
+    if (!kept) lost = true;
+  }
+  if (!lost) return;
+  if (fresh.length) await letReviewsGo(db, conn.tenant_id, "profile", { only: fresh });
+  throw new Error("a new review's bell could not be kept; the sync is tried again next hour");
 }
 
 /** What the bell is about: the review, when it tells of one by name. */
@@ -131,7 +180,9 @@ async function keepReviewLink(
  * record, written, and told. The first sync replaces the five the public
  * listing showed — their ids are the public listing's, not the profile's —
  * and is history: it raises nothing. A failed sync leaves its words on the
- * connection and is tried again next hour. A sync after the first, last of
+ * connection and is tried again next hour, and its owner is told once the
+ * breakage lasts (sync-notice.ts); the first sync that works closes that
+ * notice. A sync after the first, last of
  * all, once the reviews are kept, rung and told, reads the listing's review
  * link again from its location (keepReviewLink), which never fails it.
  */
@@ -144,7 +195,7 @@ export async function syncProfile(
 ): Promise<CheckResult> {
   const L = logger({ tenant_id: conn.tenant_id, location: conn.location_name ?? "" });
   if (!conn.location_name) return { ok: false, error: "no_location" };
-  const failed = async (error: string) => {
+  const failed = async (error: string, cause: SyncCause) => {
     // The stamp is NOT moved, for the reasons checkListing gives above: a
     // profile's `last_synced_at` is its last SUCCESSFUL sync, and moving it on
     // a failed first attempt made the next real sync think it had run before —
@@ -155,18 +206,21 @@ export async function syncProfile(
       .update({ sync_error: error.slice(0, 300) })
       .eq("tenant_id", conn.tenant_id);
     if (upErr) throw new Error(upErr.message);
-    L.warn("google_profile_sync_failed", { error });
+    L.warn("google_profile_sync_failed", { error, cause });
+    await tellSyncStopped(db, conn, { cause, now, L });
     return { ok: false as const, error };
   };
   const t = await tokenFor(db, conn.tenant_id, now.getTime(), net);
-  if (!t.ok) return failed(syncErrorOf(t));
+  if (!t.ok) return failed(syncErrorOf(t), causeOfToken(t));
   let page;
   try {
     page = await listReviews(net, t.token, reviewParent(conn.account_name, conn.location_name));
   } catch (e) {
-    return failed(e instanceof Error ? e.message : String(e));
+    return failed(e instanceof Error ? e.message : String(e), causeOfRead(e));
   }
   const first = !conn.last_synced_at;
+  // Read before anything is written: whether a notice of a breakage could be open, which the sync that works closes.
+  const wasFailing = !!conn.sync_error;
   const known = await readAllRows<{
     review_id: string;
     replied_at: string | null;
@@ -191,9 +245,9 @@ export async function syncProfile(
     localDate(tz, now),
     now.getTime(),
   );
-  if (first) await letReviewsGo(db, conn.tenant_id, "places", null);
+  if (first) await letReviewsGo(db, conn.tenant_id, "places");
   await keepReviews(db, conn.tenant_id, plan.reviews);
-  if (plan.prune) await letReviewsGo(db, conn.tenant_id, "profile", plan.synced_at);
+  if (plan.prune) await letReviewsGo(db, conn.tenant_id, "profile", { seenBefore: plan.synced_at });
   if (plan.listing) {
     const l = await changeListing(db, conn.tenant_id, plan.listing);
     if (l.error) throw new Error(l.error.message);
@@ -204,26 +258,15 @@ export async function syncProfile(
       .upsert({ tenant_id: conn.tenant_id, ...plan.day }, { onConflict: "tenant_id,day" });
     if (d.error) throw new Error(d.error.message);
   }
+  // The new reviews told before the stamp, so a bell that could not be kept is asked for again (ringNewReviews).
+  await ringNewReviews(db, conn, plan);
   const done = await db
     .from("google_connections")
     .update({ last_synced_at: plan.synced_at, sync_error: null, reviews_complete: plan.complete })
     .eq("tenant_id", conn.tenant_id);
   if (done.error) throw new Error(done.error.message);
-  // A new review reaches the phones too (decision 0040), about the review's row and opening it (contracts reviewRoute); what the
-  // receptionist answered is the bell's line alone.
-  const rowIds = await reviewRowIds(
-    db,
-    conn.tenant_id,
-    plan.bells.flatMap((b) => (b.review_id ? [b.review_id] : [])),
-  );
-  for (const b of plan.bells) {
-    await keepAndPush(conn.tenant_id, {
-      kind: "review",
-      title: b.title,
-      body: b.body,
-      ...aboutReview(rowIds, b.review_id),
-    });
-  }
+  // A notice of a breakage closes once a sync works: asked where one could be open (sync-notice.ts syncMended).
+  if (wasFailing || first) await syncMended(db, conn.tenant_id, "google_connection.synced");
   // The first sync is history, never answered. After that, the auto mode
   // answers what came in on duty; a failure here is logged, not thrown.
   const answered = first

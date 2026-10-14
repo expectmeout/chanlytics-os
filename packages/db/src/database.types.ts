@@ -6235,6 +6235,7 @@ export type Database = {
       tenant_config: {
         Row: {
           calendar_checked_at: string | null
+          calendar_failed_since: string | null
           calendar_feed_kept_at: string | null
           config: Json
           tenant_id: string
@@ -6244,6 +6245,7 @@ export type Database = {
         }
         Insert: {
           calendar_checked_at?: string | null
+          calendar_failed_since?: string | null
           calendar_feed_kept_at?: string | null
           config?: Json
           tenant_id: string
@@ -6253,6 +6255,7 @@ export type Database = {
         }
         Update: {
           calendar_checked_at?: string | null
+          calendar_failed_since?: string | null
           calendar_feed_kept_at?: string | null
           config?: Json
           tenant_id?: string
@@ -6581,6 +6584,7 @@ export type Database = {
         Returns: {
           config: Json
           due_total: number
+          failed_since: string
           tenant_id: string
           timezone: string
         }[]
@@ -8392,6 +8396,7 @@ export type Database = {
         }
         Returns: Json
       }
+      push_devices_forget_all: { Args: never; Returns: Json }
       put_channel_credentials: {
         Args: { p_channel_id: string; p_secret: Json }
         Returns: string

@@ -288,3 +288,29 @@ export async function isWorkspaceCall(db: Db, tenantId: string, retellCallId: st
   if (error) return null;
   return data !== null;
 }
+
+/**
+ * The calls whose analysis may have been lost, oldest first, at most `limit` (the calls sweep's settle leg, the wiring's
+ * second audit, R11 S11-3): ended or errored, longer than a hang-up (`minMs`), in the customer's thread, its owner never
+ * told (no claim on the row), with no summary yet or one that asked for a call back, ended between `toMs` and `fromMs`
+ * ago. trigger_call_reconcile (00434) wakes the sweep on the same window. A read that fails throws.
+ */
+export async function callsOwedAnAnalysis(
+  db: Db,
+  p: { nowMs: number; fromMs: number; toMs: number; minMs: number; limit: number },
+): Promise<Array<{ id: string; tenant_id: string; retell_call_id: string }>> {
+  const { data, error } = await db
+    .from("calls")
+    .select("id, tenant_id, retell_call_id")
+    .in("status", ["ended", "error"])
+    .is("notified_at", null)
+    .not("conversation_id", "is", null)
+    .gte("duration_ms", p.minMs)
+    .lt("ended_at", new Date(p.nowMs - p.fromMs).toISOString())
+    .gt("ended_at", new Date(p.nowMs - p.toMs).toISOString())
+    .or("summary.is.null,outcome.eq.callback_needed")
+    .order("ended_at", { ascending: true })
+    .limit(p.limit);
+  if (error) throw new Error(`cannot read the calls owed an analysis: ${error.message}`);
+  return data ?? [];
+}

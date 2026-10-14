@@ -2,9 +2,13 @@
  * Which write doors a GET route's handler reaches (decision 0047, lane 6: reads never write).
  *
  * A route's handler is traced the way a person would read it: from the function the GET gives to `read({ handle })`,
- * through every function it calls by name, in its own file and in the files it imports (the dashboard's `@/` alias and
- * relative paths; a package is a door's home, not followed), a function at a time, so a module that holds a reader beside
- * a writer is judged by the reader's own calls and not by what else the file does. It stops at what it can name:
+ * through every function it calls by name, in its own file and in the files it imports (the dashboard's `@/` alias,
+ * relative paths, and `@chanlytics/db`, whose functions are where a table is written; another package is a door's home,
+ * not followed), a function at a time, so a module that holds a reader beside a writer is judged by the reader's own
+ * calls and not by what else the file does. A call on a module's own object of functions (`store.claim(...)`, where
+ * `store` is declared as an object literal, or as another name for one) follows the member it names. Until 14 Oct the
+ * trace stopped at a package and at such an object, and GET lead-suggestions wrote unseen (the wiring's second audit, R11
+ * S11-8). It stops at what it can name:
  *
  *   - a row written through supabase-js: `.from("<table>")` followed by `.insert`, `.upsert`, `.update` or `.delete`;
  *   - a call to one of the named write helpers (`emitEvent`, `recordEvent`, `recordDecision`: a fact on the ledger);
@@ -60,12 +64,18 @@ export function checkout() {
   };
 }
 
-/** Where a specifier points in the checkout, or null for a package or a file that is not there. */
+/** The packages a trace follows into, by their source's entry: the one that writes tables. */
+const FOLLOWED_PACKAGES = new Map([["@chanlytics/db", "packages/db/src/index"]]);
+
+/** Where a specifier points in the checkout, or null for another package or a file that is not there. */
 function resolveModule(from, spec, exists) {
   let base;
   if (spec.startsWith("@/")) base = `apps/dashboard/src/${spec.slice(2)}`;
   else if (spec.startsWith(".")) base = path.posix.normalize(path.posix.join(path.posix.dirname(from), spec));
+  else if (FOLLOWED_PACKAGES.has(spec)) base = FOLLOWED_PACKAGES.get(spec);
   else return null;
+  // A source written for ESM names its sibling by the file it builds to.
+  if (base.endsWith(".js")) base = base.slice(0, -3);
   const hit = [`${base}.ts`, `${base}.tsx`, `${base}/index.ts`, `${base}/index.tsx`, base].find((c) => exists(c));
   return hit ?? null;
 }
@@ -207,6 +217,28 @@ export function writesReachedBy(world, entry) {
     scan(target.file, target.node, depth + 1);
   };
 
+  /**
+   * A call on a module's own object of functions (`store.claim`): the object as its file declares it, through the names
+   * that alias it there (`let store = SERVICE_STORE`), and the member it names, followed as a function is.
+   */
+  const followMember = (file, object, member, depth) => {
+    const mod = moduleOf(file);
+    let init = mod.decls.get(object);
+    for (let hops = 0; init && ts.isIdentifier(init) && hops < MAX_DEPTH; hops++) init = mod.decls.get(init.text);
+    if (!init || !ts.isObjectLiteralExpression(init)) return;
+    const key = `${file}::${object}.${member}`;
+    if (seen.has(key) || depth > MAX_DEPTH) return;
+    seen.add(key);
+    for (const p of init.properties) {
+      if (!p.name || p.name.getText() !== member) continue;
+      if (ts.isPropertyAssignment(p)) {
+        if (ts.isIdentifier(p.initializer)) follow(file, p.initializer.text, depth);
+        else scan(file, p.initializer, depth + 1);
+      } else if (ts.isShorthandPropertyAssignment(p)) follow(file, p.name.text, depth);
+      else if (ts.isMethodDeclaration(p)) scan(file, p, depth + 1);
+    }
+  };
+
   const scan = (file, node, depth) => {
     const visit = (n) => {
       if (ts.isCallExpression(n)) {
@@ -220,6 +252,8 @@ export function writesReachedBy(world, entry) {
             found.push(`.${method}() on a table (${lineOf(file, n)})`);
           } else if (method === "rpc" && n.arguments[0] && ts.isStringLiteralLike(n.arguments[0])) {
             if (rpcs.has(n.arguments[0].text)) found.push(`rpc ${n.arguments[0].text} (${lineOf(file, n)})`);
+          } else if (ts.isIdentifier(callee.expression)) {
+            followMember(file, callee.expression.text, method, depth);
           }
         }
       }

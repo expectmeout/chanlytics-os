@@ -44,8 +44,10 @@ export const reviews = periodSurface({
     publishGoogleRead(dto.google, readAt);
     return { vm: toReviewsReportVM(dto, { nowMs: readAt }), key: reportRangeKey(range) };
   },
-  // Read again only while the lens is on screen, and once when it comes back (surface-registry.ts).
-  live: { reads: ["review"], fresh: "its-page" },
+  // Read again only while the lens is on screen, and once when it comes back (surface-registry.ts). The reviews, and the rule
+  // that says whether a review is drafted by the receptionist (the reply box's choice): a teammate's save on Settings › Autonomy
+  // reaches the lens open in another tab (the wiring's second audit, W-review-facts-rules-8). A few a month.
+  live: { reads: ["review", "rules"], fresh: "its-page" },
 });
 
 export const reviewsOverride = reviews.override;

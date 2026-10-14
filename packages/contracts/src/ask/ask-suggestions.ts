@@ -52,7 +52,11 @@ export interface SuggestionInput {
    * On Campaigns (the moment spec, A3): its campaigns as the page read them, each by its name, moment, state and
    * whether a run of it waits; none read yet is null, and the page's own chips wait for it.
    */
-  campaigns?: { rows: ReadonlyArray<{ name: string; trigger: string; state: string; waiting: boolean }> } | null;
+  /**
+   * The campaigns as Campaigns holds them: each one's name, its moment, whether it runs on the business's day (its card's
+   * `runs`, contracts campaignRunsOn: on, and not past its last day) and whether a run of it waits on the person.
+   */
+  campaigns?: { rows: ReadonlyArray<{ name: string; trigger: string; runs: boolean; waiting: boolean }> } | null;
 }
 
 /**
@@ -212,8 +216,8 @@ function pageChips(
   const waiting = rows.find((r) => r.waiting);
   if (waiting) add(t.whyWaiting.replace("{name}", waiting.name), "ask", "clock");
   add(t.working, "ask", "trending-up");
-  // A win-back is offered where none runs, and then as the page's own chip alone.
-  if (!rows.some((r) => isWinBack(r.trigger) && r.state === "running")) add(t.winBackIdea, "ask", "bolt");
+  // A win-back is offered where none runs (on, and not past its last day: S1-3), and then as the page's own chip alone.
+  if (!rows.some((r) => isWinBack(r.trigger) && r.runs)) add(t.winBackIdea, "ask", "bolt");
   return true;
 }
 

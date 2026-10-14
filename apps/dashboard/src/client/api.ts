@@ -140,6 +140,12 @@ interface ApiDeps {
    * read takes it in place of its own fetch. Null for a URL the head did not start.
    */
   prefetched?: (url: string) => Promise<Response> | null;
+  /**
+   * When the document head's reads began, at the latest: what an answer it started is as new as, never newer. The page's own
+   * ask came seconds after, and a read dated by it was taken to hold changes made before it, which it never saw (the wiring's
+   * second audit, S2-4). Absent, a prefetched read is dated when it is taken.
+   */
+  prefetchedFrom?: () => number;
 }
 
 /** Identical reads inside this window share one request: three overrides asking for the same list at boot. */
@@ -246,7 +252,8 @@ function intentsOf(deps: ApiDeps): ReturnType<typeof intentKeys> {
  * The reads on their way, or answered and held, that an identical read shares. `kept`: settled, answered, and held
  * (holdAnswers) -- shared whatever its age until the hold is let go.
  */
-type InFlightRead = { p: Promise<unknown>; at: number; kept?: boolean; early?: boolean };
+/** `at`: when it was sent or taken, which sharing is measured from; `from`: what its answer is as new as, where that is older. */
+type InFlightRead = { p: Promise<unknown>; at: number; from?: number; kept?: boolean; early?: boolean };
 type InFlight = Map<string, InFlightRead>;
 
 /** Whether a read asked for at `t` shares this one: held, or sent within the burst (a prefetch's, the longer). */
@@ -262,7 +269,7 @@ function sharedAt(e: InFlightRead, t: number): boolean {
  */
 function oldestShared(inFlight: InFlight, t: number): number {
   let from = t;
-  for (const e of inFlight.values()) if (sharedAt(e, t)) from = Math.min(from, e.at);
+  for (const e of inFlight.values()) if (sharedAt(e, t)) from = Math.min(from, e.from ?? e.at);
   return from;
 }
 
@@ -366,7 +373,13 @@ export function createApi(deps: ApiDeps) {
     if (isRead) {
       // A refusal must not be shared beyond its burst, and neither is an answer unless answers are held: drop the
       // entry as it settles, or keep it for whoever asks next while the hold lasts.
-      const entry: InFlightRead = { p, at: now(), early: !!early };
+      const taken = now();
+      const entry: InFlightRead = {
+        p,
+        at: taken,
+        early: !!early,
+        ...(early && deps.prefetchedFrom ? { from: Math.min(taken, deps.prefetchedFrom()) } : {}),
+      };
       inFlight.set(url, entry);
       p.then(
         (r) => {

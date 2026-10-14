@@ -290,6 +290,12 @@ export interface SetupGoogleFacts {
   } | null;
   connected?: boolean;
   /**
+   * The Business Profile connection as Connections reads it (connectionWords): a sync that failed is said on Setup too, with
+   * the way back, where Setup called a lapsed authorisation "connected" and nothing else said it (the wiring's second
+   * audit, R11 S11-4). Absent reads as none.
+   */
+  connection?: Pick<GoogleConnectionDto, "google_email" | "location_name" | "last_synced_at" | "sync_error"> | null;
+  /**
    * The days Google gives hours for in a way the record cannot hold (hoursFromGoogle's `unsure`: past midnight, around
    * the clock) and the record does not state yet: the first run's Check asks about them. Absent reads as none.
    */
@@ -356,7 +362,10 @@ export function checkedWords(l: Pick<GoogleListingDto, "checked_at" | "check_err
 }
 
 /** The connection in words: whose account, and when it last synced or why it could not. */
-export function connectionWords(c: GoogleConnectionDto, nowMs: number): string {
+export function connectionWords(
+  c: Pick<GoogleConnectionDto, "google_email" | "location_name" | "last_synced_at" | "sync_error">,
+  nowMs: number,
+): string {
   const who = c.google_email ? `Connected as ${c.google_email}` : "Connected";
   if (!c.location_name) return `${who} · choose the location to finish`;
   if (c.sync_error && c.last_synced_at)

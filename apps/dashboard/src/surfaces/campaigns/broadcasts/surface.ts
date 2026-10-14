@@ -23,13 +23,10 @@ import {
   OFFERS_OPT_IN_PHRASES,
   DEFAULT_CAMPAIGN_CHANNELS,
   audiencePreview,
-  formatPhoneDisplay,
-  numberHealth,
   optInLink,
   reachCountsOf,
   takesSignUps,
   toBroadcastVM,
-  whatsappLineOf,
   type AudienceKind,
   type AudiencePreview,
   type BroadcastVM,
@@ -43,11 +40,21 @@ import {
 } from "@chanlytics/contracts";
 import { otherChannelSets } from "@/lib/campaign-channels";
 import { type SurfaceOverride, workspaceOverride } from "@/legacy-bridge/surface-data";
+import { DEAR_READ_LONGEST_WAIT_MS } from "@/legacy-bridge/surface-realtime";
 import { declareReads } from "@/legacy-bridge/surface-registry";
 import { everyPerson, viewerId } from "@/surfaces/people/surface";
 import { followSettings } from "../../offered-templates";
 import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../../surface-values";
-import { cmAddressOf, cmOfferedFrom, cmReadyOf, type CmOffered } from "../parts/channels";
+import { channelsHeld, followChannels } from "../../channels/surface";
+import {
+  cmBusinessOf,
+  cmNumberOf,
+  cmOfferedFrom,
+  cmReadyOf,
+  cmSameBusiness,
+  cmSameNumber,
+  type CmOffered,
+} from "../parts/channels";
 
 // The frame (its tab counts and the route table's crumbs) reads this under its old name until it moves.
 declareSurfaceValue("broadcasts", "__BROADCASTS");
@@ -170,7 +177,7 @@ export interface BroadcastsSurface {
   /** Its postal address where the Business record holds one: the foot of an email names it (contracts emailFoot). */
   businessAddress?: string | null;
   bookingLink: boolean;
-  /** Whether the Google listing keeps a review link (GET settings' `review_link`): what may fill a review-link slot. */
+  /** Whether the Google listing keeps a review link (the settings read's, parts/channels.ts cmBusinessOf): what may fill a review-link slot. */
   reviewLink: boolean;
   /** Older broadcasts exist beyond the rows: the history's numbers are the latest fifty, and the page says so. */
   more: boolean;
@@ -211,7 +218,41 @@ function listIsAnAudience(
  */
 followSettings("broadcasts", (held, settings) => {
   const templates = shareUnchanged(held.templates, cmOfferedFrom(settings));
-  return templates === held.templates ? held : { ...held, templates };
+  // And what the slots that name the business may fill: its name, address, booking link and the listing's review link.
+  const business = cmBusinessOf(settings);
+  const same = cmSameBusiness(held, business);
+  return templates === held.templates && same ? held : { ...held, templates, ...(same ? {} : business) };
+});
+
+/** What Sent's opt-in is made of beside the number: the workspace's address and whether it takes sign-ups, as last read. */
+let optInFrom: { slug: string | null; open: OpenToCustomers | null } | null = null;
+
+/**
+ * Sent's runs as the last read answered them, and the zone their times are said in: the clock says each run's time again from
+ * them each minute where Sent's runs are drawn (`rederive`), so "goes out in 5 min" does not stand an hour after it went. Who
+ * an audience counts is a read of everyone, and stays the read's.
+ */
+let lastRuns: { runs: Parameters<typeof toBroadcastVM>[0][]; tz: string } | null = null;
+
+/** The runs' words at `now`, published where any moved; whether one did. */
+function rederiveBroadcasts(now: Date): boolean {
+  const was = surfaceValue("broadcasts");
+  const held = lastRuns;
+  if (!was || !held) return false;
+  const next = shareUnchanged(was, { ...was, rows: held.runs.map((b) => toBroadcastVM(b, held.tz, now)) });
+  if (next === was) return false;
+  setSurfaceValue("broadcasts", next);
+  return true;
+}
+
+// The number a broadcast goes out on, its health and the opt-in's link are the channels read's (channels/surface.ts), which hears
+// the channel rows wherever the tab is: a number connected, switched off or flagged repaints the composer as it lands, with no read
+// of Sent's own (the wiring's second audit, S10-9).
+followChannels("broadcasts", (held, rows) => {
+  const wa = cmNumberOf(rows);
+  const number = { present: wa.present, display: wa.display, health: wa.health };
+  if (cmSameNumber(held.number, number)) return held;
+  return { ...held, number, ...(optInFrom ? { optIn: optInOf(wa.e164, optInFrom.slug, optInFrom.open) } : {}) };
 });
 
 /** What a saved list's chip says under its name: kept by hand, or keeping itself current. */
@@ -283,6 +324,10 @@ export const broadcastsOverride: SurfaceOverride = {
   key: "broadcasts",
   value: "broadcasts",
   events: ["surface:broadcasts"],
+  // Each run's time is the clock's (hearing/clock.ts).
+  rederive: rederiveBroadcasts,
+  // Its audiences are counted over everyone in People: a run's stream of receipts is waited out longer (S10-2).
+  maxWaitMs: DEAR_READ_LONGEST_WAIT_MS,
   // A run made by the sweep, approved in another tab, sending or finished (00321) is this surface's own row: heard
   // wherever the tab is, since Today draws its Approve and Stop rows from here. A message moves a run's replies: read
   // again only while Sent is on screen, and once when it comes back (Campaigns reads its numbers from campaign_results,
@@ -290,10 +335,11 @@ export const broadcastsOverride: SurfaceOverride = {
   // leaves a reminder's: #1551), and a number, a line or the workspace's pause, which the Send by tick is worded from. And what the
   // composers read of the business (0047): who may be sent to (the person: an answer, a stop, people imported), the rules the
   // Send tick and the chips beside it say, the mailbox whose offers the gates paused and the business's facts, the postal address
-  // an offer by email names and the booking link a slot fills. Not the templates: the messages it offers are the settings
-  // read's, which hears them and which this surface follows (followSettings above).
+  // an offer by email names and the booking link a slot fills. And the lists To offers and counts: a list made, renamed or emptied by a
+  // teammate or another tab (the wiring's second audit, W-person-list-lead-7). Not the templates: the messages it offers are the
+  // settings read's, which hears them and which this surface follows (followSettings above).
   ...declareReads("broadcasts", {
-    reads: ["conversation", "hold", "visit", "channel", "billing", "person", "rules", "facts", "send"],
+    reads: ["conversation", "hold", "visit", "channel", "billing", "person", "rules", "facts", "send", "list"],
     fresh: "its-page",
     always: ["send"],
     omit: [
@@ -308,21 +354,17 @@ export const broadcastsOverride: SurfaceOverride = {
     ],
   }),
   apply: async () => {
-    const [bc, people, saved, ch, cfg, tz] = await Promise.all([
+    // The number and the business's name and links are not read here: they are the channels read's and the settings read's,
+    // which this surface follows (above), so a re-read of the runs for a message asks for neither again (S10-9).
+    const [bc, people, saved, tz] = await Promise.all([
       read("GET broadcasts"),
       read("GET contacts"),
       read("GET segments").catch((e: unknown) => e as Error),
-      read("GET channels").catch((e: unknown) => e as Error),
-      // The business's name, whether a booking link is on file and whether the listing keeps a review link, for the
-      // slots that name them.
-      read("GET settings").catch((e: unknown) => e as Error),
       // When a broadcast went or goes, by the business's clock (zone.ts).
       workspaceZone(),
     ]);
     // The number they go out on: the workspace's WhatsApp line (contracts whatsappLineOf), as the playbooks surface reads it.
-    const wa = ch instanceof Error ? null : whatsappLineOf(ch.channels);
-    const brain = cfg instanceof Error ? null : (cfg.config?.brain ?? null);
-    if (ch instanceof Error) console.error("broadcasts_channels_fetch_failed", ch.message);
+    const wa = cmNumberOf(channelsHeld());
     const now = new Date();
     // Every page of people, not the first: the send enrols everyone, so an
     // audience counted over one page promised fewer people than the send reaches.
@@ -337,15 +379,7 @@ export const broadcastsOverride: SurfaceOverride = {
     });
     // The number's health as WhatsApp last said it, and whether each channel can send now (the read's own; where it could
     // not be read, WhatsApp as before, which the number's banner judges): who an audience reaches is judged against it.
-    const number = {
-      present: !!wa,
-      display: wa?.number_e164 ? formatPhoneDisplay(wa.number_e164) : null,
-      health: numberHealth({
-        quality: wa?.quality ?? null,
-        event: wa?.quality_event ?? null,
-        limit: wa?.messaging_limit ?? null,
-      }),
-    };
+    const number = { present: wa.present, display: wa.display, health: wa.health };
     const ready = cmReadyOf(bc.ready);
     // Both purposes, for every audience, so picking a template re-reads a number
     // rather than recomputing a list. Two passes over the people already in hand, for WhatsApp alone, as every broadcast
@@ -413,6 +447,8 @@ export const broadcastsOverride: SurfaceOverride = {
     if (saved instanceof Error) console.error("broadcasts_lists_fetch_failed", saved.message);
     // The workspace being VIEWED, for the public page's address.
     const slug = workspaceOverride.current()?.slug ?? null;
+    optInFrom = { slug, open: bc.open_to_customers ?? null };
+    lastRuns = { runs: bc.broadcasts, tz };
     setSurfaceValue("broadcasts", {
       rows: bc.broadcasts.map((b) => toBroadcastVM(b, tz, now)),
       scheduleMaxDays: BROADCAST_SCHEDULE_MAX_DAYS,
@@ -431,12 +467,9 @@ export const broadcastsOverride: SurfaceOverride = {
       heldReasons: HELD_REASONS,
       chunk: BROADCAST_CHUNK,
       replyWindow: REPLY_WINDOW_WORDS,
-      businessName: brain?.business_name || "the business",
-      businessAddress: cmAddressOf(brain),
-      bookingLink: !!brain?.booking_link,
-      // A read that failed, a broken config and an older server's answer all say nothing of the listing: none.
-      reviewLink: !(cfg instanceof Error) && !cfg.configBroken && cfg.review_link === true,
-      optIn: optInOf(wa?.number_e164, slug, bc.open_to_customers ?? null),
+      // The settings read's, as it stands now (followSettings above): a read not in yet says nothing of the listing.
+      ...cmBusinessOf(surfaceValue("settings")),
+      optIn: optInOf(wa.e164, slug, bc.open_to_customers ?? null),
       getYes: GET_YES_ROUTE,
       fetchedAt: now.getTime(),
     });

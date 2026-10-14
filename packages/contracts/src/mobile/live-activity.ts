@@ -8,8 +8,14 @@ import { formatPhoneDisplay, phoneTail } from "../shared/phone";
 import { MIN_MS } from "../shared/time";
 
 export const CALL_ACTIVITY_NAME = "CallActivity";
-/** A call that nobody ended is stale after this long: the phone stops trusting it (the app ends it earlier). */
-export const CALL_ACTIVITY_STALE_MS = 15 * MIN_MS;
+/**
+ * A call that nobody ended is stale after this long: the phone stops trusting it (the app ends it earlier). Nothing tells
+ * the Lock Screen a call ended while the app is shut (an end push needs a token per activity, which the app does not hand
+ * the site yet), so it said "Dana is on the line" for a quarter of an hour after a two-minute call (the wiring's second
+ * audit, R11 S8-5). About four minutes covers most calls a business takes; a longer one reads as "may have ended" before it
+ * does, which is the lesser wrong.
+ */
+export const CALL_ACTIVITY_STALE_MS = 4 * MIN_MS;
 /**
  * Whose phones are shown a call in progress: the people who take calls. A viewer reads the workspace and a partner
  * looks after it from outside; a stranger's number on their Lock Screen is not theirs to see.

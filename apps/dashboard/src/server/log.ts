@@ -1,5 +1,5 @@
 import "server-only";
-import { logger, noteTenant, noteTiming, requestId, withRequestId, type Logger } from "@chanlytics/channels";
+import { logger, noteTenant, noteTiming, noteTouch, requestId, withRequestId, type Logger } from "@chanlytics/channels";
 import { observeDb } from "@chanlytics/db";
 
 /**
@@ -43,6 +43,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "ask_model_unknown",
   "ask_model_warm_failed",
   "ask_model_warmed",
+  "ask_notice_waits_failed",
   "ask_openings_failed",
   "ask_proposal_failed",
   "ask_replay_malformed",
@@ -187,6 +188,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "setup_request_tell_failed",
   "signed_media_url_failed",
   "signed_media_url_refused",
+  "signout_phones_not_forgotten",
   "signup",
   "signup_code_not_sent",
   "signup_failed",
@@ -221,5 +223,11 @@ export const log: Logger<DashboardLogEvent> = logger<DashboardLogEvent>();
 export { withRequestId, requestId, noteTenant };
 
 // packages/db writes its lines through the one logger and names the request it writes for from the same store, and says
-// how long each of its calls took, which the request's answer says in Server-Timing as `db` (with-route.ts, decision 0053).
-observeDb({ log: logger(), requestId, timed: (ms) => noteTiming("db", ms) });
+// how long each of its calls took, which the request's answer says in Server-Timing as `db` (with-route.ts, decision 0053),
+// and what each touched, which a sample of answered lines says (with-route.ts touchedLine; decision 0058, lane R7).
+observeDb({
+  log: logger(),
+  requestId,
+  timed: (ms) => noteTiming("db", ms),
+  touched: (table, how) => noteTouch(table, how),
+});

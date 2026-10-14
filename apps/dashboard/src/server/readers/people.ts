@@ -86,13 +86,16 @@ export const people: Reader<{ q: string | null; offset: number; after?: PeopleCu
     const followUp = early(
       buys.then((s) =>
         dealsAreOn(s) && offset === 0 && !q
-          ? followUpFacts(ctx, tenantId, rc.now).catch((e: unknown) => {
-              log.error("follow_up_facts_failed", {
-                tenant_id: tenantId,
-                error: e instanceof Error ? e.message : String(e),
-              });
-              return null;
-            })
+          ? // By the business's day, the turn's zone (readers/facts.ts): a follow-up past its last day stands as none.
+            load(rc, facts.facts, undefined)
+              .then((zone) => followUpFacts(ctx, tenantId, rc.now, zone.data.timezone))
+              .catch((e: unknown) => {
+                log.error("follow_up_facts_failed", {
+                  tenant_id: tenantId,
+                  error: e instanceof Error ? e.message : String(e),
+                });
+                return null;
+              })
           : null,
       ),
     );

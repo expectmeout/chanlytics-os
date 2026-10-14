@@ -28,8 +28,8 @@ import { sessionHoldsPartnerSeat, type Database } from "@chanlytics/db";
 import { isSameOrigin } from "./request-guards";
 import { bearerOf, verifyBearer } from "./bearer";
 import { isRetryableAuthError } from "./auth-errors";
-import { serverTimingHeader } from "./server-timing";
-import { REQUEST_ID_HEADER, requestIdOf, requestTimings } from "@chanlytics/channels";
+import { serverTimingHeader, touchedLine } from "./server-timing";
+import { REQUEST_ID_HEADER, requestId, requestIdOf, requestTimings, requestTouches } from "@chanlytics/channels";
 import { log, noteTenant, withRequestId } from "./log";
 import { tenantFactsOf } from "./tenant";
 
@@ -94,6 +94,15 @@ const timed = (authMs: number, started: number) => ({
   "server-timing": serverTimingHeader({ auth: authMs, app: Date.now() - started - authMs }, requestTimings()),
   [SERVED_AT_HEADER]: String(started),
 });
+
+/**
+ * What a sampled answer adds to its line: its method, what its database calls touched and the page it was asked from
+ * (server-timing.ts touchedLine; decision 0058, lane R7). Nothing for an answer outside the sample. Called inside the request.
+ */
+function touchedFields(req: Request): { method?: string; tables?: string; page?: string | null } {
+  const touched = touchedLine(requestId() ?? "", requestTouches(), req.headers.get("referer"));
+  return touched ? { method: req.method, ...touched } : {};
+}
 
 /**
  * The one wrapper every /api/v1 handler goes through (Blueprint §4/§8):
@@ -214,7 +223,7 @@ function answerOf<T>(
         ...(via ? { via } : {}),
         ...(undoOf ? { undoOf } : {}),
       });
-      log.info("route_answered", { route, user: user.sub, ms: Date.now() - started });
+      log.info("route_answered", { route, user: user.sub, ms: Date.now() - started, ...touchedFields(req) });
       // A handler that built its own Response — a file to download — passes
       // through as it is. Its cache-control is overwritten with the no-store
       // rule every other exit uses, UNLESS the handler asked for a private

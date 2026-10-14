@@ -894,13 +894,17 @@ async function pageTheProvider(pager, f, about) {
 // src/subscribers.ts
 import {
   bookingArriving,
+  bookingChanged,
   CATCH_UP_VISITS,
   feedAdditionIsBooking,
   holdNotice,
   memberJoinedBy,
   memberJoinedNotice,
+  memberLeftBy,
+  memberLeftNotice,
   optOutNotice,
   optOutOf,
+  visitChangeNews,
   visitNews,
   waitsOnAPerson
 } from "../../contracts/dist/index.js";
@@ -960,6 +964,16 @@ var SUBSCRIBERS = {
     await ports.tell({ ...optOutNotice({ ...person, ...said, contactId: event2.subject_id }), sourceEvent: event2.id });
   },
   visit_notice: async (event2, ports) => {
+    const changed2 = bookingChanged(event2);
+    if (changed2) {
+      if (await ports.eventTold(event2.tenant_id, event2.id)) return;
+      const nowMs2 = Date.now();
+      const status = changed2.change === "cancelled" ? "cancelled" : "booked";
+      const visit = (await ports.bookedVisits(event2.tenant_id, [changed2.appointmentId], nowMs2, status)).at(0);
+      if (!visit) return;
+      await ports.tell({ ...visitChangeNews(visit, changed2.change, nowMs2), sourceEvent: event2.id });
+      return;
+    }
     const arriving = bookingArriving(event2);
     if (!arriving) return;
     let ids = [arriving.appointmentId];
@@ -982,6 +996,13 @@ var SUBSCRIBERS = {
     await ports.tell({ ...visitNews(visits, nowMs), sourceEvent: event2.id });
   },
   team_notice: async (event2, ports) => {
+    const left = memberLeftBy(event2);
+    if (left) {
+      if (await ports.eventTold(event2.tenant_id, event2.id)) return;
+      const email = left.how === "left" ? await ports.memberEmail(left.by) : null;
+      await ports.tell({ ...memberLeftNotice({ email, how: left.how, hadRole: left.hadRole }), sourceEvent: event2.id });
+      return;
+    }
     const invitationId = memberJoinedBy(event2);
     if (!invitationId) return;
     if (await ports.memberTold(event2.tenant_id, invitationId)) return;

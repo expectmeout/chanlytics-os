@@ -129,6 +129,18 @@ function noteTiming(name, ms) {
 function requestTimings() {
   return serving.getStore()?.timings ?? /* @__PURE__ */ new Map();
 }
+var TOUCHES_HELD = 64;
+function noteTouch(table, how) {
+  const store = serving.getStore();
+  if (!store || !table) return;
+  const touched = store.touched ??= /* @__PURE__ */ new Map();
+  const had = touched.get(table);
+  if (had) had.add(how);
+  else if (touched.size < TOUCHES_HELD) touched.set(table, /* @__PURE__ */ new Set([how]));
+}
+function requestTouches() {
+  return serving.getStore()?.touched ?? /* @__PURE__ */ new Map();
+}
 
 // src/log/logger.ts
 var ENVELOPE = /* @__PURE__ */ new Set(["level", "event", "request_id"]);
@@ -6084,6 +6096,7 @@ export {
   normalizeInbound,
   noteTenant,
   noteTiming,
+  noteTouch,
   oneTimeCodeOf,
   pageText,
   parseAccounts,
@@ -6125,6 +6138,7 @@ export {
   requestLeavesAs,
   requestTenant,
   requestTimings,
+  requestTouches,
   resendLimitOf,
   resendWebhookSignature,
   resetBreakers,

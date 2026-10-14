@@ -104,6 +104,11 @@ export interface DueCalendar {
   config: Json;
   /** The zone its feed is read in: the workspace's own (tenants.timezone), UTC when that is a name nobody knows. */
   timezone: string;
+  /**
+   * Since when every read of its link has failed (tenant_config.calendar_failed_since, 00435), null while they work.
+   * Absent from a database before 00435, which keeps no such stamp: the sweep then writes none.
+   */
+  failed_since?: string | null;
 }
 
 /**
@@ -121,9 +126,21 @@ export async function dueCalendars(
     ...(p.tenantId ? { p_tenant_id: p.tenantId } : {}),
   });
   if (error) throw new Error(`cannot read the calendars due: ${error.message}`);
-  const rows = (data ?? []) as Array<{ tenant_id: string; config: Json; timezone: string; due_total: number }>;
+  const rows = (data ?? []) as Array<{
+    tenant_id: string;
+    config: Json;
+    timezone: string;
+    due_total: number;
+    failed_since?: string | null;
+  }>;
   return {
-    rows: rows.map((r) => ({ tenant_id: r.tenant_id, config: r.config, timezone: r.timezone })),
+    rows: rows.map((r) => ({
+      tenant_id: r.tenant_id,
+      config: r.config,
+      timezone: r.timezone,
+      // A database before 00435 answers no such column: left out, so the sweep knows to write no stamp.
+      ...("failed_since" in r ? { failed_since: r.failed_since ?? null } : {}),
+    })),
     remaining: remainingOf(rows),
   };
 }

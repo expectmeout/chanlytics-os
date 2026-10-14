@@ -22,6 +22,7 @@ import { mapCategory, mapQuality, mapStatus } from "./meta-templates.js";
 import type { Database, Json } from "../packages/db.js";
 import { emitEvent, keepChannelStanding, setTemplateQuality } from "../packages/db.js";
 import { mendWarnings, notify, type NotifyTarget } from "../ops/notify.js";
+import { templatesSynced } from "./template-admin.js";
 import {
   addressOf,
   nameDecisionWords,
@@ -360,6 +361,47 @@ async function keepNameDecision(
  */
 const TEMPLATE_STATUS_EVENTS = new Set(["APPROVED", "REJECTED", "PAUSED", "DISABLED", "PENDING_DELETION", "IN_APPEAL"]);
 
+/**
+ * How long a status that found no row waits before it looks again: Meta can decide a template before the request that
+ * made it has written its row, and the notice would then say "approved" of a row still pending (R11 S11-6).
+ */
+const TEMPLATE_ROW_WAIT_MS = 2_000;
+
+/**
+ * Meta's status on the template's row, by name and language: written, looked for once more after a moment where no row
+ * took it, and where none is on file still, the workspace's templates synced from Meta before the notice is told, so the
+ * Library says what the bell says. The bell said "Template approved" over a Library that still said pending, and the
+ * campaign on it stayed blocked until someone pressed Sync (the wiring's second audit, R11 S11-6).
+ */
+async function keepTemplateStatus(
+  db: SupabaseClient<Database>,
+  p: { tenantId: string; waba: string; name: string; language: string; event: string; reason: string | null },
+  L: Logger,
+): Promise<void> {
+  const write = () =>
+    db
+      .from("templates")
+      .update({ meta_status: mapStatus(p.event), rejected_reason: p.reason })
+      .eq("tenant_id", p.tenantId)
+      .eq("channel", "whatsapp")
+      .eq("name", p.name)
+      .eq("language", p.language)
+      .select("id");
+  let kept = await write();
+  if (kept.error || !kept.data?.length) {
+    await new Promise((r) => setTimeout(r, TEMPLATE_ROW_WAIT_MS));
+    kept = await write();
+  }
+  if (kept.error) L.error("template_status_write_failed", { error: kept.error.message });
+  if (kept.data?.length) return;
+  const synced = await templatesSynced(db, p.tenantId, p.waba).catch((e: unknown) => ({
+    ok: false as const,
+    code: "write_failed" as const,
+    detail: e instanceof Error ? e.message : String(e),
+  }));
+  if (!synced.ok) L.error("template_status_sync_failed", { code: synced.code, error: synced.detail ?? null });
+}
+
 export async function handleWabaChange(
   db: SupabaseClient<Database>,
   entryId: string,
@@ -416,14 +458,11 @@ export async function handleWabaChange(
             event === "REJECTED" && typeof change.value.reason === "string" && change.value.reason !== "NONE"
               ? change.value.reason
               : null;
-          const { error } = await db
-            .from("templates")
-            .update({ meta_status: mapStatus(event), rejected_reason: reason })
-            .eq("tenant_id", routed.tenantId)
-            .eq("channel", "whatsapp")
-            .eq("name", name)
-            .eq("language", language);
-          if (error) L.error("template_status_write_failed", { error: error.message });
+          await keepTemplateStatus(
+            db,
+            { tenantId: routed.tenantId, waba: about.waba, name, language, event, reason },
+            L,
+          );
         }
       } else {
         const { error } = await db

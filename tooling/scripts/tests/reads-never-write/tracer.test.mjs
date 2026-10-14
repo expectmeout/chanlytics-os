@@ -162,3 +162,31 @@ test("the SQL functions that write are the ones whose body inserts, deletes or u
   ].join("\n");
   assert.deepEqual([...writingRpcs(sql)].sort(), ["changes_a_row", "makes_a_row", "removes_a_row"]);
 });
+
+test("a write one call into packages/db, and one behind a module's own object of functions, is found; another package is not followed (the wiring's second audit, R11 S11-8)", () => {
+  const SERVER = "apps/dashboard/src/server/things.ts";
+  const DB = "packages/db/src/index.ts";
+  const REPO = "packages/db/src/repositories/things.ts";
+  const files = {
+    [ROUTE]: routeOf(`({ ctx }) => ideasFor(ctx)`, `import { ideasFor } from "@/server/things";`),
+    [SERVER]: `
+      import { keepThing } from "@chanlytics/db";
+      import { wordsOf } from "@chanlytics/contracts";
+      const SERVICE_STORE = { keep: (t) => keepThing(t), read: (t) => wordsOf(t) };
+      let store = SERVICE_STORE;
+      export async function ideasFor(ctx) {
+        wordsOf("x");
+        await store.read(ctx);
+        return store.keep(ctx);
+      }
+    `,
+    [DB]: `export { keepThing } from "./repositories/things";`,
+    [REPO]: `export async function keepThing(db) { await db.from("things").upsert({ a: 1 }); }`,
+  };
+  const found = trace(files);
+  assert.equal(found.length, 1, found.join("; "));
+  assert.match(found[0], /^\.upsert\(\) on a table \(packages\/db\/src\/repositories\/things\.ts:\d+\)$/);
+  // The store's member that only reads, and a call into contracts, are passed by.
+  const reading = trace({ ...files, [SERVER]: files[SERVER].replace("return store.keep(ctx);", "return null;") });
+  assert.deepEqual(reading, []);
+});

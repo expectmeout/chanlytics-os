@@ -789,6 +789,75 @@ test("visit_notice tells what stands: a visit withdrawn, vanished, cancelled, al
   assert.deepEqual(gone.told, [], "a visit the record no longer holds");
 });
 
+test("visit_notice tells a booking the customer cancelled or moved through their booking tool, once, while it is ahead, opening the visit on its day; never a member's own word, and nothing from before 00436 (the wiring's second audit, R11 S6-6)", async () => {
+  const STARTS = "2999-10-12T15:00:00Z";
+  const cancelled = world({ subscriber: "visit_notice" });
+  cancelled.tables.appointments[0] = aVisit({ status: "cancelled" });
+  cancelled.tables.events[0].data = { change: "cancelled", source: "booking_email", starts_at: STARTS, by: "service" };
+  assert.equal(await dispatchJob(cancelled.ctx, cancelled.job), "done");
+  assert.equal(cancelled.told.length, 1);
+  const [c] = cancelled.told;
+  assert.deepEqual(
+    [c.kind, c.route, c.about, c.sourceEvent, c.subject],
+    [
+      "booking",
+      `calendar/2999-10-12:a-${APPT}`,
+      { type: "appointment", id: APPT },
+      E,
+      "Rosa Diaz cancelled their visit",
+    ],
+    "the time freed, at the visit on its day, answering the event",
+  );
+  assert.match(
+    c.body,
+    /^\w{3}, Oct 12 · 11:00\sAM – 12:00\sPM\nGel manicure\nThat time is free again\.\n\nFrom your booking tool's email$/,
+  );
+  assert.doesNotMatch(c.redactedBody, /Rosa|manicure/, "the platform's copy holds no customer");
+  assert.equal(await dispatchJob(cancelled.ctx, cancelled.job), "done");
+  assert.equal(cancelled.told.length, 1, "a second delivery of the same event tells nobody");
+
+  const moved = world({ subscriber: "visit_notice" });
+  moved.tables.appointments[0] = aVisit({ source: "booking_tool" });
+  moved.tables.events[0].data = { change: "moved", source: "booking_tool", starts_at: STARTS, by: "service" };
+  assert.equal(await dispatchJob(moved.ctx, moved.job), "done");
+  assert.deepEqual(
+    moved.told.map((n) => [
+      n.subject,
+      n.body.split("\n")[0].startsWith("Now "),
+      n.body.endsWith("From your booking tool"),
+    ]),
+    [["Rosa Diaz moved their visit", true, true]],
+    "the new time, said as now",
+  );
+
+  for (const [why, data, visit] of [
+    ["a member's own cancel", { change: "cancelled", source: "booking_email", by: "member" }, { status: "cancelled" }],
+    [
+      "an event from before 00436, which says no by",
+      { change: "cancelled", source: "booking_email" },
+      { status: "cancelled" },
+    ],
+    ["the owner's calendar moving its own diary", { change: "moved", source: "calendar_feed", by: "service" }, {}],
+    ["a member's own entry", { change: "moved", source: "person", by: "service" }, { source: "person" }],
+    [
+      "a cancelled visit already past",
+      { change: "cancelled", source: "booking_email", by: "service" },
+      { status: "cancelled", starts_at: "2020-01-01T15:00:00Z", ends_at: "2020-01-01T16:00:00Z" },
+    ],
+    [
+      "a move whose visit was cancelled since",
+      { change: "moved", source: "booking_email", by: "service" },
+      { status: "cancelled" },
+    ],
+  ]) {
+    const w = world({ subscriber: "visit_notice" });
+    w.tables.appointments[0] = aVisit(visit);
+    w.tables.events[0].data = { starts_at: STARTS, ...data };
+    assert.equal(await dispatchJob(w.ctx, w.job), "done", why);
+    assert.deepEqual(w.told, [], why);
+  }
+});
+
 /** A made-up uuid of one kind of row, numbered: ordered the way the ledger orders ids. */
 const numbered = (prefix, i) => `${prefix}${String(i).padStart(7, "0")}-0000-4000-8000-000000000000`;
 
@@ -1185,4 +1254,51 @@ test("team_notice tells an arrival once however many events wrote it, and nothin
     assert.equal(await dispatchJob(w.ctx, w.job), "done", JSON.stringify(over));
     assert.deepEqual(w.told, [], JSON.stringify(over));
   }
+});
+
+test("team_notice tells the workspace that a teammate left, once, on the bell, opening Settings > Team, named while their account stands; a deleted account is told without a name (the wiring's second audit, R11 W-channel-team-plus-5, 00437)", async () => {
+  const LEAVER = "c3c3c3c3-c3c3-4c3c-8c3c-c3c3c3c3c3c3";
+  const left = world({ subscriber: "team_notice" });
+  Object.assign(left.tables.events[0], {
+    kind: "member.left",
+    subject_type: "workspace",
+    subject_id: T,
+    data: { by: LEAVER, how: "left", had_role: "operator" },
+  });
+  const asked = [];
+  // The identity store, as the service role reads it (packages/db memberEmailOf).
+  left.ctx.db.auth = {
+    admin: {
+      getUserById: async (id) => {
+        asked.push(id);
+        return { data: { user: { id, email: "ada@example.com" } }, error: null };
+      },
+    },
+  };
+  assert.equal(await dispatchJob(left.ctx, left.job), "done");
+  assert.deepEqual(asked, [LEAVER]);
+  assert.equal(left.told.length, 1);
+  const [n] = left.told;
+  assert.deepEqual(
+    [n.kind, n.route, n.about, n.sourceEvent, n.subject],
+    ["member_left", "admin/team", null, E, "ada@example.com left your team"],
+  );
+  assert.match(n.body, /^They left the workspace, where they were /);
+  assert.doesNotMatch(n.redactedBody, /ada@/, "the platform's copy holds nobody");
+  assert.equal(await dispatchJob(left.ctx, left.job), "done");
+  assert.equal(left.told.length, 1, "a second delivery of the same event tells nobody");
+
+  const deleted = world({ subscriber: "team_notice" });
+  Object.assign(deleted.tables.events[0], {
+    kind: "member.left",
+    subject_type: "workspace",
+    subject_id: T,
+    data: { by: LEAVER, how: "account_deleted" },
+  });
+  assert.equal(await dispatchJob(deleted.ctx, deleted.job), "done");
+  assert.deepEqual(
+    deleted.told.map((t) => [t.kind, t.subject]),
+    [["member_left", "A teammate deleted their account"]],
+    "the account is gone: no address is asked for, and none is said",
+  );
 });

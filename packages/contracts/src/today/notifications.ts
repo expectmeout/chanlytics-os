@@ -7,6 +7,7 @@ import { lensRoute } from "../reports/lenses";
 import { firstLine } from "./push";
 import type { JobKind } from "../shared/enums";
 import { invitationExpired } from "../shell/identity";
+import { noticeTone } from "../waits/notice-tones";
 /**
  * The bell: what needs the owner, from what the browser already holds.
  *
@@ -156,7 +157,7 @@ export function buildNotificationFeed(input: FeedInput): NotificationItem[] {
   for (const c of input.calls ?? []) {
     if (!missedCallIsNews(c, now)) continue;
     items.push({
-      key: `call:${c.callId}`,
+      key: `${MISSED_KEY_PREFIX}${c.callId}`,
       kind: "missed_call",
       at: c.startedAtMs,
       title: `${callAttemptWords(c.direction)} · ${c.who}`,
@@ -282,6 +283,12 @@ export const SERVER_NOTIFICATION_KINDS = [
    * from the seat's member.joined event (core SUBSCRIBERS.team_notice). No mail, no phone.
    */
   "member_joined",
+  /**
+   * A teammate left the workspace, by their own hand or with their account (the wiring's second audit, R11
+   * W-channel-team-plus-5): news, a line on the bell that opens Settings > Team, told once from the member.left event
+   * (core SUBSCRIBERS.team_notice, 00437). No mail, no phone.
+   */
+  "member_left",
 ] as const;
 export type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];
 
@@ -299,7 +306,14 @@ export type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];
  */
 export type JobNewsKind = Extract<
   ServerNotificationKind,
-  "job_failed" | "broadcast_sent" | "broadcast_stopped" | "handoff" | "opted_out" | "booking" | "member_joined"
+  | "job_failed"
+  | "broadcast_sent"
+  | "broadcast_stopped"
+  | "handoff"
+  | "opted_out"
+  | "booking"
+  | "member_joined"
+  | "member_left"
 >;
 
 /**
@@ -525,6 +539,8 @@ const SERVER_LOOK: Record<string, ServerLook> = {
   booking: { icon: "calendar", tone: "ok", action: "Open Calendar", to: "calendar" },
   /** A teammate joined: good news, on the Team pane, where the seat's role is looked after. */
   member_joined: { icon: "users", tone: "ok", action: "Open Team", to: "admin/team" },
+  /** A teammate left: news, neither good nor a warning, on the Team pane, where the seats are. */
+  member_left: { icon: "users", tone: "", action: "Open Team", to: "admin/team" },
   alert: ALERT_LOOK,
 };
 
@@ -599,6 +615,9 @@ export function verbForRoute(route: string | null | undefined): string | null {
 /** A kept row's key on the bell, so the bridge can tell it from a derived one. */
 export const SERVER_KEY_PREFIX = "n:";
 
+/** A DERIVED missed-call row's key: this prefix plus the call's own row id (calls.id), as Live carries it. */
+const MISSED_KEY_PREFIX = "call:";
+
 /**
  * A DERIVED "needs you" row's key: this prefix plus the thread's own id, which
  * for a real workspace is "th-" plus the conversation's. So the conversation a
@@ -658,6 +677,8 @@ export function serverNotificationRows(dto: NotificationsDto | null | undefined)
     .filter((n) => !n.dismissed)
     .map((n) => {
       const look = lookOf(n.kind) ?? ALERT_LOOK;
+      // Good news under a kind that carries warnings too, or a warning kept as a plain alert (waits/notice-tones.ts).
+      const tone = noticeTone(n.kind, n.title);
       const at = Date.parse(n.created_at);
       const job = jobRowWords(n);
       // The day's reach-out numbers open the Reach-outs, whatever route their row was kept with.
@@ -671,8 +692,8 @@ export function serverNotificationRows(dto: NotificationsDto | null | undefined)
         title: job ? job.title : n.title,
         message: job ? job.message : firstLine(n.body),
         to: noticeRoute(n.kind, route),
-        icon: look.icon,
-        tone: look.tone,
+        icon: tone === "ok" ? "check" : look.icon,
+        tone: tone ?? look.tone,
         action: look.own ? look.action : (verbForRoute(route) ?? look.action),
         unread: at > seen && !n.read,
         about: n.subject_type && n.subject_id ? { type: n.subject_type, id: n.subject_id } : null,
@@ -695,8 +716,16 @@ export function dedupeFeed(rows: NotificationRow[]): NotificationRow[] {
       .flatMap((r) => (r.kind === "needs_you" ? [conversationOfNeedsKey(r.key)] : []))
       .filter((id): id is string => !!id),
   );
+  // A customer's call that never connected is kept on the server as well (the edge's missedCallNotice, the wiring's
+  // second audit, R11 S6-8): the kept row is the record, read or not, so the row derived from the calls this browser
+  // holds stands only where none was kept.
+  const keptCalls = new Set(
+    rows.flatMap((r) => (r.key.startsWith(SERVER_KEY_PREFIX) && r.about?.type === "call" ? [r.about.id] : [])),
+  );
   return rows.filter(
-    (r) => !(r.key.startsWith(SERVER_KEY_PREFIX) && r.about?.type === "conversation" && covered.has(r.about.id)),
+    (r) =>
+      !(r.key.startsWith(SERVER_KEY_PREFIX) && r.about?.type === "conversation" && covered.has(r.about.id)) &&
+      !(r.kind === "missed_call" && keptCalls.has(r.key.slice(MISSED_KEY_PREFIX.length))),
   );
 }
 

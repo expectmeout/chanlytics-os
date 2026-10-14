@@ -4141,7 +4141,7 @@ const PEOPLE_ASKED_AT_MAIN = [
   ["tenant_channels.select", "config, number_e164"],
   ["lines.select", "sms_state, reg_mock"],
   ["deals.select", "id, stage, proposed_at, decided_at"],
-  ["playbooks.select", "id, state, run_hour, last_run_for, template_name, template_language"],
+  ["playbooks.select", "id, state, run_hour, last_run_for, until, template_name, template_language"],
   ["policies.select", "mode"],
   ["tenants.select", "status"],
   ["tenant_channels.select", "config, number_e164"],
@@ -4185,7 +4185,7 @@ const PEOPLE_ASKED_NOW = [
   ["deals.select", "id, stage, proposed_at, decided_at"],
   ["policies.select", "subject_type, subject_id, mode"],
   ["contacts.select", "id"],
-  ["playbooks.select", "id, state, run_hour, last_run_for, template_name, template_language"],
+  ["playbooks.select", "id, state, run_hour, last_run_for, until, template_name, template_language"],
   ["policies.select", "mode"],
   ["tenants.select", "status"],
   ["tenant_channels.select", "config, number_e164"],
@@ -4282,11 +4282,8 @@ test("GET contacts through its reader asks what it asked at origin/main -- the p
     const heldWant = want
       .slice(1)
       .filter(([k, cols]) => k !== "tenant_config.select" && !(k === "tenants.select" && /sells_by|name/.test(cols)));
-    // Who each step is for waits on the page and its reply modes, which are read a page at a time; the follow-up's
-    // channels, asked beside it on its own chain, reach the database first when the turn holds the rest.
-    const roster = heldWant.findIndex(([k]) => k === "rpc:team_roster");
-    assert.deepEqual(heldWant[roster + 1], ["playbooks.select", "channels"]);
-    heldWant.splice(roster, 2, heldWant[roster + 1], heldWant[roster]);
+    // The follow-up's reads wait on the business's zone (its last day is judged by it: S1-3), which the turn holds but hands
+    // over a moment later: they reach the database after who each step is for, in the order the page asks them.
     assert.deepEqual(
       recordApart(askedWith(turn.ctx).slice(held)),
       recordApart(heldWant),
@@ -5955,6 +5952,8 @@ const TEMPLATES_ALL_ASKED = [
   "templates.select",
   "rpc:template_sends",
   ...TEMPLATES_ALL_ASKED_AT_MAIN.slice(1).filter((k) => k !== "broadcast_recipients.select" && k !== "messages.select"),
+  // 14 Oct 2026 (the wiring's second audit, S1-3): the business's zone, so a campaign past its last day reads ended.
+  "tenants.select",
 ];
 
 test("the templates, for the composers, Settings and Ask: GET templates answers its reader's payload over outbound-routes' fixtures, `all` as the route parses it -- the composers' read the approved and unhidden alone, each row the message as the customer receives it and why this product cannot send it, and nothing more read; Settings' every template, with what sends each and how many went out -- and each template a row a citation names, with no address of its own: it opens the page it came from", async () => {
@@ -6419,19 +6418,20 @@ test("campaigns.playbooks says a campaign's end and its trial as its card does: 
   const said = JSON.parse(out.result);
   assert.equal(said.modes.campaign, "auto", "the class sends on its own");
   const by = Object.fromEntries(said.playbooks.map((p) => [p.name, p]));
+  // Its state is the home's words (contracts lifecycleStateOf), never the stored "running" of one past its last day (R13 X5-7).
   const facts = (p) => [p.state, p.mode, p.next_run, p.runs_nothing, p.ended, p.on_trial_until, p.ends];
   assert.deepEqual(
     facts(by["November offer"]),
-    ["running", "auto", null, "Ended Nov 30", "Nov 30", undefined, undefined],
+    ["Ended Nov 30", "auto", null, "Ended Nov 30", "Nov 30", undefined, undefined],
     "REGRESSION: it said its next run was today at 10, a month after its last day",
   );
   assert.deepEqual(
     facts(by["Winter offer"]),
-    ["running", "veto", "today 10:00 AM", undefined, undefined, "Dec 8", "Dec 31"],
+    ["On trial until Dec 8", "veto", "today 10:00 AM", undefined, undefined, "Dec 8", "Dec 31"],
     "REGRESSION: it said a run sends on its own, where each waits 30 minutes with a Stop",
   );
   assert.deepEqual(facts(by["Always on"]), [
-    "running",
+    "On · every 30 days",
     "auto",
     "today 10:00 AM",
     undefined,

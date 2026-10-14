@@ -584,6 +584,20 @@ export interface PersonVisitsDto {
   earlier?: EarlierVisitsDto;
 }
 
+/**
+ * A person's visits as they stand at `nowMs`, not at the read (visitsIn's split, again): an ended next is their last where
+ * later than the read's, and the next is the first not ended of those carried (`all`, else `near`), never a missed one.
+ */
+export function visitsAt<V extends PersonVisitsDto>(v: V | null, nowMs: number): V | null {
+  if (!v?.next || !(Date.parse(v.next.end) < nowMs)) return v;
+  const ended = v.next;
+  const ahead = (v.all ?? v.near ?? [])
+    .filter((x) => x.said !== "missed" && x.id !== ended.id && Date.parse(x.end) >= nowMs)
+    .sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+  const last = !v.last || Date.parse(ended.end) > Date.parse(v.last.end) ? ended : v.last;
+  return { ...v, next: ahead.at(0) ?? null, last };
+}
+
 export function toVisitDto(v: Visit | null): VisitDto | null {
   return v
     ? {

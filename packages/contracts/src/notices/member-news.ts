@@ -50,3 +50,45 @@ export function memberJoinedNotice(m: MemberJoined): Omit<JobNews, "sourceEvent"
     redactedBody: "A teammate joined a workspace, and nobody could be told.",
   };
 }
+
+/**
+ * Who a `member.left` event says left, and how: by their own hand (`left`, team_leave, 00437, with the role they held)
+ * or with their account (`account_deleted`, the dashboard's saidLeft, which keeps no role). Null for every other event.
+ */
+export function memberLeftBy(
+  event: EventLike & { data: unknown },
+): { by: string; how: "left" | "account_deleted"; hadRole: string | null } | null {
+  if (event.kind !== "member.left") return null;
+  const data = event.data && typeof event.data === "object" && !Array.isArray(event.data) ? event.data : null;
+  if (!data) return null;
+  const { by, how, had_role: hadRole } = data as Record<string, unknown>;
+  if (typeof by !== "string" || (how !== "left" && how !== "account_deleted")) return null;
+  return { by, how, hadRole: typeof hadRole === "string" ? hadRole : null };
+}
+
+/**
+ * The owner's notice of a teammate who left (the wiring's second audit, R11 W-channel-team-plus-5): who, by their address
+ * where it is still known (a deleted account's is not), and the role they held, opening Settings > Team. News: a line on
+ * the bell, no mail, no phone.
+ */
+export function memberLeftNotice(m: {
+  email: string | null;
+  how: "left" | "account_deleted";
+  hadRole: string | null;
+}): Omit<JobNews, "sourceEvent"> {
+  const who = m.email ?? "A teammate";
+  const role = m.hadRole ? (ROLE_WORDS[m.hadRole] ?? m.hadRole) : null;
+  return {
+    kind: "member_left",
+    route: TEAM_ROUTE,
+    about: null,
+    subject: (m.how === "account_deleted" ? `${who} deleted their account` : `${who} left your team`).slice(0, 200),
+    body: [
+      m.how === "account_deleted"
+        ? "Their account is gone, and their seat with it."
+        : `They left the workspace${role ? `, where they were ${role}` : ""}.`,
+      "Settings > Team has who is left, and an invitation brings someone back.",
+    ].join("\n"),
+    redactedBody: "A teammate left a workspace, and nobody could be told.",
+  };
+}

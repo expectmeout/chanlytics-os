@@ -1,5 +1,5 @@
 {
-  "owed": 123,
+  "owed": 83,
   "groups": [
     {
       "kind": "seat",
@@ -115,7 +115,7 @@
     },
     {
       "kind": "account",
-      "why": "The workspace's own row: its status (every door that must not act on a paused workspace reads it: workspacePaused, workspaceMaySpend, metrics_summary), its zone (a day is counted in it: the series functions) and how its customers buy (sellsByOf). The feed tells a status change only (00408); the zone and the way of buying are saved by PATCH workspaces, whose row re-reads the pages that draw them (rereadAfter), and a teammate's change reaches another tab on its next read (S4-5: lane R6 tells the zone, the name and the way of buying).",
+      "why": "The workspace's own row: its status (every door that must not act on a paused workspace reads it: workspacePaused, workspaceMaySpend, metrics_summary), its zone (a day is counted in it: the series functions) and how its customers buy (sellsByOf). The feed tells its status, name, zone, buying model and logo (00431), and none of these surfaces hears the row: a zone or a way of buying saved re-reads each of them in the writer's tab where it is drawn, and forgets or leaves it for its page elsewhere (PATCH workspaces, rereadAfter; the Reviews lens is forgotten), and a teammate's change reaches another tab on its next read.",
       "reads": {
         "broadcasts": [
           "tenants"
@@ -123,16 +123,10 @@
         "campaign_results": [
           "tenants"
         ],
-        "leads": [
-          "tenants"
-        ],
         "people": [
           "tenants"
         ],
         "playbooks": [
-          "tenants"
-        ],
-        "reach_outs": [
           "tenants"
         ],
         "reports": [
@@ -158,12 +152,15 @@
         ],
         "today": [
           "tenants"
-        ],
-        "person": [
-          "tenants"
         ]
       },
       "rereadAfter": {
+        "broadcasts": [
+          "PATCH workspaces"
+        ],
+        "campaign_results": [
+          "PATCH workspaces"
+        ],
         "people": [
           "PATCH workspaces"
         ],
@@ -190,6 +187,21 @@
         ],
         "today": [
           "PATCH workspaces"
+        ]
+      }
+    },
+    {
+      "kind": "account",
+      "why": "The workspace's own row, read for its zone and its status: Leads' and the reach-outs' dates and a search's place, and a person's page's days. No write re-reads these three for a zone or a way of buying saved, and none hears the feed's notice of the row (00431): each reads it on its next read, and a zone changed while one is open keeps its old days until then (the wiring's second audit, W-visit-deal-4, found no visible effect on them).",
+      "reads": {
+        "leads": [
+          "tenants"
+        ],
+        "reach_outs": [
+          "tenants"
+        ],
+        "person": [
+          "tenants"
         ]
       }
     },
@@ -483,20 +495,6 @@
     },
     {
       "kind": "over-read",
-      "why": "People's campaigns card names the last run each person was sent (touchesOf: broadcasts and their recipients). The run's sends arrive as messages, which People hears on its page (heardWith); a run renamed is read on People's next read.",
-      "reads": {
-        "people": [
-          "broadcasts"
-        ]
-      },
-      "heardWith": {
-        "people": [
-          "messages"
-        ]
-      }
-    },
-    {
-      "kind": "over-read",
       "why": "A caller's name, embedded in the call row (CALL_COLUMNS): it rides with every notice of the call, which Live hears (heardWith). A rename during a call shows with the call's next turn.",
       "reads": {
         "live": [
@@ -522,12 +520,13 @@
     },
     {
       "kind": "over-read",
-      "why": "A person's visits, deals and steps (person-notes, earlierVisitRows) are People's kinds heard on every page: People's read of a visit, a deal or a step reloads the open person's page (person-real.tsx hears surface:clients), so the person surface does not read them a second time.",
+      "why": "A person's visits, deals and steps (person-notes, earlierVisitRows), and the signer a reach-out reply of theirs offers, are People's kinds heard on every page: People's read of a visit, a deal, a step or a reply reloads the open person's page (person-real.tsx hears surface:clients), so the person surface does not read them a second time.",
       "reads": {
         "person": [
           "appointments",
           "deals",
-          "person_notes"
+          "person_notes",
+          "reach_out_replies"
         ]
       },
       "heardBy": {
@@ -553,7 +552,7 @@
     },
     {
       "kind": "unfed",
-      "why": "The business a person works at, and its reach-out story: the place the lead was found at (lead_places) and the sends the lead was written (reach_out_sends, reach_out_lead_timeline), which the feed never tells. The person is read again when their business or a reply to it moves (heardWith).",
+      "why": "The business a person works at, and its reach-out story: the place the lead was found at (lead_places) and the sends the lead was written (reach_out_sends, reach_out_lead_timeline), which the feed never tells. The person is read again when their business moves (heardWith), and when a reply to it is read: People hears the reply on every page, and its read reloads the open person's page (person-real.tsx hears surface:clients).",
       "reads": {
         "person": [
           "lead_places",
@@ -562,8 +561,7 @@
       },
       "heardWith": {
         "person": [
-          "leads",
-          "reach_out_replies"
+          "leads"
         ]
       }
     },
@@ -645,7 +643,9 @@
           "reach_out_replies"
         ],
         "setup": [
+          "escalations",
           "leads",
+          "person_notes",
           "reach_out_replies"
         ]
       }
@@ -662,21 +662,10 @@
     },
     {
       "kind": "owed",
-      "finding": "X3-2",
-      "why": "Conversations draws the calls in its threads (GET calls). A call is told to Live and Today (the call kind); Conversations hears messages, conversations, escalations and the person, so a call ending is read on its next read. Owed: Conversations hears the call kind, less a live call's transcript turns.",
-      "reads": {
-        "conversations": [
-          "calls"
-        ]
-      }
-    },
-    {
-      "kind": "owed",
       "finding": "W-person-list-lead-6",
-      "why": "The Calendar matches a visit to a person by name, number and, since 0052, the business they work at (leads) from the book (people_list). A person added or renamed by a teammate is matched on the next read; the Calendar's own Add to People re-reads the board (refresh-map.ts calendarIfDrawn). Owed: the Calendar hears the person kind.",
+      "why": "The Calendar matches a visit to a person by name, number and, since 0052, the business they work at (leads) from the book (people_list). It hears a person changed (the wiring's second audit, R5c); a lead's business renamed, or a person linked to one, is matched on the next read. Owed: a lead's name told apart from a lead run's every batch (leads is told on each check of a run).",
       "reads": {
         "calendar": [
-          "contacts",
           "leads"
         ]
       }
@@ -705,7 +694,7 @@
     {
       "kind": "owed",
       "finding": "W-campaign-run-template-reachout-2",
-      "why": "A run's follow-up facts name the playbook that sends it (followUpFacts) and the Library's counts join the playbooks to each message (templatesOf, a playbook's name and mode): a playbook changed by a teammate is told to the Campaigns pages and read here on the next read. Owed where a figure of the page names one.",
+      "why": "A run's follow-up facts name the playbook that sends it (followUpFacts): a playbook renamed or retimed by a teammate is told to the Campaigns pages, and read here on the next read. The Library's counts hear the playbooks on its page (Settings, R5c). Owed where a figure of the page names one.",
       "reads": {
         "broadcasts": [
           "playbooks"
@@ -718,189 +707,45 @@
         ],
         "reports_campaigns": [
           "playbooks"
-        ],
-        "settings": [
-          "playbooks"
-        ]
-      }
-    },
-    {
-      "kind": "owed",
-      "finding": "W-campaign-run-template-reachout-2",
-      "why": "The Library's counts of where each message is used and how many it sent: the templates read joins the playbooks, the runs (broadcasts) and their recipients. The Library repaints on a template's own change (it hears templates); a run elsewhere moves a count on the next read.",
-      "reads": {
-        "settings": [
-          "broadcasts"
-        ]
-      }
-    },
-    {
-      "kind": "owed",
-      "finding": "W-person-list-lead-7",
-      "why": "The composers' lists, the audiences a list kept by hand offers (savedListsFor). A list changed in another tab is read on the next read; the writer's tab re-reads them (rereadAfter). Owed: the composers hear the list kind on their page.",
-      "reads": {
-        "broadcasts": [
-          "segment_members",
-          "segments"
-        ],
-        "playbooks": [
-          "segment_members",
-          "segments"
-        ]
-      },
-      "rereadAfter": {
-        "broadcasts": [
-          "POST segments",
-          "PUT segments/[id]",
-          "DELETE segments/[id]"
-        ],
-        "playbooks": [
-          "POST segments",
-          "PUT segments/[id]",
-          "DELETE segments/[id]"
-        ]
-      }
-    },
-    {
-      "kind": "owed",
-      "finding": "S1-4",
-      "why": "Carried by the settings read the composers use for the business's facts: the postal address an offer by email names, its name, and the listing's review link a review ask offers (the wiring's second audit S1-4). A listing linked, synced or given its review link is read on the composers' next read. Owed: the composers hear the review kind's listing on their page.",
-      "reads": {
-        "broadcasts": [
-          "google_listings"
-        ],
-        "playbooks": [
-          "google_listings"
         ]
       }
     },
     {
       "kind": "owed",
       "finding": "S3-1",
-      "why": "Settings' Connections and Business panes state how the business is reached and set up: the number, the text line, the last message and call each heard (GET channels, linesFor), the calendar's visits read and the Google listing (knownFacts). Settings hears the settings, rules, library and team; a channel changed by Meta, the line's saga or a teammate is read on its next read, and its own writes re-read it (refresh-map.ts). Owed: Settings hears the channel kind on its page.",
+      "why": "The Business pane states the calendar's visits read (knownFacts reads the appointments). Settings hears the channel rows, the line and the listing on its pages (R6), not the visits; a visit read is read on its next read. Owed: Settings hears the visit kind on its page.",
       "reads": {
         "settings": [
-          "appointments",
-          "calls",
-          "google_listings",
-          "lines",
-          "messages",
-          "tenant_channels"
+          "appointments"
         ]
       }
     },
     {
       "kind": "owed",
-      "finding": "R6",
-      "why": "The line's latest message beside the channel (GET channels: when the WhatsApp number last heard a customer). Live hears the calls and the channels; a text is read on the next call or channel change. Owed: one channels read, heard, feeds Live (lane R6).",
+      "finding": "W-campaign-run-template-reachout-2",
+      "why": "The Library's count of each message's sends (templateSendsRead): the database's count (template_sends, 00374), and on a database before it the runs' recipients and the templates the Inbox sent on their own message rows. The Library hears the runs (R5c), not a message: a template the Inbox sent into a closed window moves the count on the Library's next read. Owed: the Library hears a templated send, not every message.",
       "reads": {
-        "live": [
+        "settings": [
           "messages"
         ]
       }
     },
     {
       "kind": "owed",
-      "finding": "S3-6",
-      "why": "Setup's team step counts the seats and the open invitations (setup.ts teamCounts). A teammate joining or an invitation sent is read on Setup's next read. Owed: Setup declares the team kind.",
-      "reads": {
-        "setup": [
-          "invitations",
-          "memberships"
-        ]
-      }
-    },
-    {
-      "kind": "owed",
-      "finding": "S4-3",
-      "why": "Setup's rows state what is set up from the whole workspace: the calendar's visits and held emails, who can receive an offer, the last WhatsApp message, the templates' verdicts, the settings and the rules (setup.ts). It hears the channels, the line and billing, and reads the rest when it opens and after its own writes (refresh-map.ts setup()). Owed: Setup hears the facts, rules, template, visit and person kinds on its page.",
-      "reads": {
-        "setup": [
-          "appointment_notices",
-          "appointments",
-          "contacts",
-          "conversations",
-          "deals",
-          "escalations",
-          "messages",
-          "person_notes",
-          "policies",
-          "templates",
-          "tenant_config"
-        ]
-      }
-    },
-    {
-      "kind": "owed",
-      "finding": "W-review-facts-rules-4",
-      "why": "Setup's Google row says the listing's name, its rating and its count of reviews (listingFactsFor). The setup surface omits the listing on the claim that the row follows the profile's connection alone; its own read says otherwise. A listing read by the sweep or changed in another tab is read on Setup's next read. Owed: Setup hears the listing.",
-      "reads": {
-        "setup": [
-          "google_listings"
-        ]
-      }
-    },
-    {
-      "kind": "owed",
-      "finding": "S4-4",
-      "why": "Setup's Email row reads the workspace's mailbox (mailboxOfTenant): its address and whether email reaches it. The setup surface omits mailboxes on the claim that the row follows the domain's standing alone; its own read says otherwise. A mailbox made, or its forwarding confirmed, is read on Setup's next read (S4-4: lane R6 tells the forwarding and the error).",
-      "reads": {
-        "setup": [
-          "mailboxes"
-        ]
-      }
-    },
-    {
-      "kind": "owed",
       "finding": "W-channel-team-plus-3",
-      "why": "The workspace's own mailbox, read for its address (the Calendar's Booking tool row) and for whose inbox a reply came to. Made through POST mailboxes, whose row re-reads the Calendar (rereadAfter); the feed tells a mailbox's pause and nothing of one made or renamed, so another tab reads it on its next read (W-channel-team-plus-3: a new mailbox is told to nobody).",
+      "why": "The workspace's own mailbox, read for whose inbox a reply came to. The feed tells a mailbox made, renamed, paused and its forwarding code (00431), and the Calendar, Setup, Today, People and the composers hear it; the replies' read declares no channel kind, so a mailbox renamed reaches it on its next read. Owed: the replies hear the mailbox.",
       "reads": {
-        "calendar": [
-          "mailboxes"
-        ],
         "reach_out_replies": [
           "mailboxes"
         ]
-      },
-      "rereadAfter": {
-        "calendar": [
-          "POST mailboxes"
-        ]
       }
     },
     {
-      "kind": "owed",
-      "finding": "W-channel-team-plus-3",
-      "why": "Today counts every wire, the workspace's email line among them, which the metrics read adds beside the routing rows (server/metrics/metrics.ts over mailboxOfTenant). The Today surface omits mailboxes on the claim that its chips draw the number and the line alone; its own read says otherwise. A mailbox made is told to nobody.",
-      "reads": {
-        "today": [
-          "mailboxes"
-        ]
-      }
-    },
-    {
-      "kind": "owed",
-      "finding": "S3-3",
-      "why": "People's reach (who can hear from you by text and by email, and its lists by channel) is counted against the text line's standing and the mailbox's paused offers (GET contacts: textLineFacts, mailboxOfTenant). The People surface omits lines and mailboxes on the claim that they are not among what it counts; its own read says otherwise. The carriers approving texting, or a pause on offers by email, reach People on its next read (S3-3: lane R6 removes the false omit).",
-      "reads": {
-        "people": [
-          "lines",
-          "mailboxes"
-        ]
-      }
-    },
-    {
-      "kind": "owed",
-      "finding": "W-review-facts-rules-8",
-      "why": "The Autonomy rules, read by replyPolicies and listPolicies to say whether a reply, a review or a reach-out is answered by the receptionist on its own (the waiting-on-you figures, the review composer's draft, a reach-out's mode). A rule saved on Settings re-reads the Reviews lens in the writer's tab (rereadAfter), and every other page here reads it on its next read. Owed where a figure of the page depends on it: declare the rules kind.",
+      "kind": "over-read",
+      "field": "effective_reply_mode",
+      "why": "The Autonomy rules' reply class, read by everyone() (server/people/people.ts replyPolicies) to put each person's reply mode on their row of the book. These pages read the book to count people (who wrote, who booked, who can be reached) and never draw a person's mode, so a rule saved moves none of their figures. The pages that draw a rule hear it: Google's surface and the Reviews lens (the review reply's choice) and the reach-outs (a chain's mode), R5c.",
       "reads": {
         "calendar": [
-          "policies"
-        ],
-        "google": [
-          "policies"
-        ],
-        "reach_outs": [
           "policies"
         ],
         "reports": [
@@ -914,24 +759,6 @@
         ],
         "reports_receptionist": [
           "policies"
-        ],
-        "reports_reviews": [
-          "policies"
-        ]
-      },
-      "rereadAfter": {
-        "reports_reviews": [
-          "PUT policies"
-        ]
-      }
-    },
-    {
-      "kind": "owed",
-      "finding": "S3-4",
-      "why": "Today's period line states the booking pair, which reads the calendar's settings (readers/report.ts bookingOf). A settings save in another tab is read on the next read. Owed: the headline hears the facts kind.",
-      "reads": {
-        "reports_headline": [
-          "tenant_config"
         ]
       }
     },
@@ -948,12 +775,9 @@
     {
       "kind": "owed",
       "finding": "W-campaign-run-template-reachout-10",
-      "why": "A template's verdict and words: Meta's answer to it, what a stuck run is held on (campaign_stuck), the verdicts Setup states (templateVerdicts) and a chain's email words (emailWordsByTemplate). The pages that draw the Library hear templates; the reach-outs read the verdict when a version is written (rereadAfter) and the lens on its next read. Owed: hear the template kind on their page.",
+      "why": "A template's verdict and words: Meta's answer to it, what a stuck run is held on (campaign_stuck) and a chain's email words (emailWordsByTemplate). The Library and the Campaigns lens hear templates (R5c); the reach-outs read the verdict when a version is written (rereadAfter) and on their next read. Owed: the reach-outs hear the template kind.",
       "reads": {
         "reach_outs": [
-          "templates"
-        ],
-        "reports_campaigns": [
           "templates"
         ]
       },
@@ -1094,6 +918,17 @@
       "heardWith": {
         "calendar_runs": [
           "broadcasts"
+        ]
+      }
+    },
+    {
+      "kind": "owed",
+      "finding": "R9",
+      "why": "When a customer last came in on each channel (GET channels' last_inbound_at, over the calls and the messages), which Connections words as Receiving or Quiet with its age. Hearing them would read the channels for every message and call; the first of each is heard through Setup's read (X3-3, Connections takes the later of the two), and the later times are read with the channels' next read. Owed: an age bound on the read (lane R9's rolling heal).",
+      "reads": {
+        "channels": [
+          "calls",
+          "messages"
         ]
       }
     }

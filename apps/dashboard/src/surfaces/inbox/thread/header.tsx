@@ -586,6 +586,7 @@ export const ThreadHeader = (props: ThreadHeaderProps) => {
           thread.phone &&
           thread.primaryChannel === "phone" &&
           thread.optedOut &&
+          !thread.dnc &&
           !ixBandCallBack(thread) && (
             <Button variant="quiet" size="sm" href={`tel:${thread.phone}`} data-testid="ix-call-back">
               <Icon name="phone" size={12} /> Call back

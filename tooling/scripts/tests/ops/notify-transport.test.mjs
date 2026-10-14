@@ -625,6 +625,7 @@ test("notify mails exactly the kinds contracts lists as emailed, and the page's 
       "calendar_people",
       "leads_ready",
       "member_joined",
+      "member_left",
       "note_for_you",
       "review",
       "reach_out_day",
@@ -1051,4 +1052,63 @@ test("notifyOnce keeps the row and tells the phones first, owes a mail that fail
     true,
   );
   assert.deepEqual([bare.tables.notifications.length, pushes(bare)], [1, 1]);
+});
+
+test("an event's notice whose recipients could not be read waits for them: its delivery tries again, where it settled with the mail never sent (R11 S11-5)", async () => {
+  const { alertFor } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/ops/job-alert.ts")).href);
+  // The workspace's settings unreadable at this moment: who it is told by is unknown, which is not nobody.
+  const unreadable = fakeDb({ notifications: [] }, { "tenant_config.select": { message: "settings down" } });
+  const rows = [];
+  const t = transport();
+  const news = {
+    kind: "handoff",
+    route: "inbox/th-c1",
+    about: { type: "conversation", id: "c1" },
+    subject: "A customer needs a person",
+    body: "Dana asked for a person.",
+    sourceEvent: "ev-1",
+  };
+  await assert.rejects(
+    withEnv(PLATFORM_ENV, () =>
+      alertFor(
+        unreadable,
+        { tenant_id: TENANT, kind: "event_deliver" },
+        { db: fakeDb({ notifications: rows }), send: t.send },
+      )(news),
+    ),
+    /could not be read; its delivery tries again/,
+  );
+  assert.equal(rows.length, 0, "nothing settled: the delivery's next try tells it, mail and all");
+  assert.equal(t.sent.length, 0, "and no mail to a guessed address");
+});
+
+test("keepOnce keeps one row under its name and tells the phones with it where asked; asked again it finds the row and keeps no twin; a row it could not keep, or could not look for, is false, so its writer leaves its state to be judged again (R11 S6-12)", async () => {
+  const { keepOnce } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/ops/notify.ts")).href);
+  const tables = { notifications: [], jobs: [] };
+  const db = fakeDb(tables);
+  const pushes = () => tables.jobs.filter((j) => j.kind === "push_send").length;
+  const notice = {
+    kind: "review",
+    title: "New on Google: ★★★★★ from Rosa",
+    body: "“Careful movers.”",
+    route: "reports/reviews",
+    about: null,
+    onceKey: "review_bell:t1:g-1",
+  };
+  assert.equal(await keepOnce(TENANT, notice, { push: true }, db), true);
+  assert.equal(await keepOnce(TENANT, notice, { push: true }, db), true, "asked again: found");
+  assert.deepEqual([tables.notifications.length, pushes()], [1, 1], "one row, the phones told once");
+  assert.equal(await keepOnce(TENANT, { ...notice, onceKey: "review_bell:t1:g-2" }, {}, db), true);
+  assert.deepEqual([tables.notifications.length, pushes()], [2, 1], "another name is another row; no phones unasked");
+
+  const silenced = capture();
+  try {
+    const refused = fakeDb({ notifications: [] }, { "notifications.insert": { message: "the bell is down" } });
+    assert.equal(await keepOnce(TENANT, notice, {}, refused), false, "a row that could not be kept");
+    const unread = fakeDb({ notifications: [] }, { "notifications.select": { message: "the bell is down" } });
+    assert.equal(await keepOnce(TENANT, notice, {}, unread), false, "could not look: not taken for never told");
+  } finally {
+    silenced.restore();
+  }
+  assert.equal(await keepOnce(TENANT, notice, {}, null), false, "no database");
 });

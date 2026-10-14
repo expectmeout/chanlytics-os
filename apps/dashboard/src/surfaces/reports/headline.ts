@@ -41,11 +41,12 @@ export const headline = periodSurface({
   of: (value) => value.period,
   read: async (period) => toHeadlineVM((await read("GET reports/headline", { query: { period } })).headline),
   // What the headline counts: messages, calls and visits, and the people its booking line is "of the N people" (someone added,
-  // merged or erased, 0047). Heard where Today is on screen, the rest held for it (surface-registry.ts onlyOnItsPage). A transcript
-  // turn of a call in progress changes nothing it counts (surface-realtime.ts isLiveCallTurn, as Today's own rule leaves it out):
-  // asked first, so a turn heard on another page is not kept for Today either.
+  // merged or erased, 0047), and the calendar's settings its booking line reads (readers/report.ts bookingOf): a calendar linked on
+  // Settings is Worth a look's at once (the wiring's second audit, S3-4). Heard where Today is on screen, the rest held for it
+  // (surface-registry.ts onlyOnItsPage). A transcript turn of a call in progress changes nothing it counts (surface-realtime.ts
+  // isLiveCallTurn, as Today's own rule leaves it out): asked first, so a turn heard on another page is not kept for Today either.
   live: {
-    reads: ["conversation", "call", "visit", "person"],
+    reads: ["conversation", "call", "visit", "person", "facts"],
     fresh: "its-page",
     omit: [
       { tables: ["conversations"], why: "it counts the messages, not the threads they are in" },

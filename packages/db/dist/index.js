@@ -34,11 +34,37 @@ function dbRequestId() {
 function dbTimed(ms) {
   (observerHolder[OBSERVER_SLOT] ?? FALLBACK).timed?.(ms);
 }
+var REST_PATH = /\/rest\/v1\/(rpc\/)?([a-z_][a-z0-9_]*)\/?$/;
+function touchOfCall(input, init) {
+  const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  let path;
+  try {
+    path = new URL(url, "http://db.invalid").pathname;
+  } catch {
+    return null;
+  }
+  const [, rpc, name] = REST_PATH.exec(path) ?? [];
+  if (!name) return null;
+  if (rpc) return { table: `rpc:${name}`, how: "call" };
+  const method = (init?.method ?? (typeof input === "object" && "method" in input ? input.method : "GET")).toUpperCase();
+  if (method === "GET" || method === "HEAD") return { table: name, how: "read" };
+  if (method === "PATCH") return { table: name, how: "UPDATE" };
+  if (method === "DELETE") return { table: name, how: "DELETE" };
+  const prefer = new Headers(init?.headers).get("prefer") ?? "";
+  return { table: name, how: /resolution=merge-duplicates/.test(prefer) ? "INSERT UPDATE" : "INSERT" };
+}
+function dbTouched(input, init) {
+  const observer = observerHolder[OBSERVER_SLOT] ?? FALLBACK;
+  if (!observer.touched) return;
+  const touch = touchOfCall(input, init);
+  if (touch) observer.touched(touch.table, touch.how);
+}
 function namedFetch(base) {
   return (input, init) => {
     const send = base ?? globalThis.fetch;
     const id = dbRequestId();
     if (!id) return send(input, init);
+    dbTouched(input, init);
     const headers = new Headers(init?.headers);
     headers.set(DB_REQUEST_HEADER, id);
     const started = performance.now();
@@ -1033,12 +1059,64 @@ async function readAllRowsByKey(what, key, page, cap = DEFAULT_ROW_CAP, onCapped
     if (error) throw new Error(`${what}: ${error.message}`);
     const rows = data ?? [];
     out.push(...rows);
-    const last = rows.at(-1);
-    if (rows.length < size || last === void 0) return out;
-    after = key(last);
+    const last2 = rows.at(-1);
+    if (rows.length < size || last2 === void 0) return out;
+    after = key(last2);
   }
   onCapped(what, cap);
   return out;
+}
+
+// src/repositories/waiting-on-you.ts
+import { standingOfThread } from "../../contracts/dist/index.js";
+var IN_CHUNK = 200;
+var THREAD_COLUMNS = "id, contact_id, state, paused_until, assignee_user_id, last_message_at";
+async function threadsBy(db, tenantId, key, ids) {
+  const out = [];
+  for (let i = 0; i < ids.length; i += IN_CHUNK) {
+    const { data, error } = await db.from("conversations").select(THREAD_COLUMNS).eq("tenant_id", tenantId).in(key, ids.slice(i, i + IN_CHUNK));
+    if (error) throw new Error(`cannot read the threads: ${error.message}`);
+    out.push(...data ?? []);
+  }
+  return out;
+}
+async function openHoldsOf(db, tenantId, threadIds) {
+  const out = /* @__PURE__ */ new Map();
+  for (let i = 0; i < threadIds.length; i += IN_CHUNK) {
+    const { data, error } = await db.from("escalations").select("conversation_id, reason").eq("tenant_id", tenantId).eq("state", "open").in("conversation_id", threadIds.slice(i, i + IN_CHUNK));
+    if (error) throw new Error(`cannot read the open holds: ${error.message}`);
+    for (const h of data ?? []) if (h.conversation_id) out.set(h.conversation_id, h.reason);
+  }
+  return out;
+}
+async function waitingOf(db, tenantId, threads, nowMs) {
+  if (!threads.length) return [];
+  const holds = await openHoldsOf(
+    db,
+    tenantId,
+    threads.map((t) => t.id)
+  );
+  return threads.filter(
+    (t) => standingOfThread(
+      { state: t.state, paused_until: t.paused_until, assignee_user_id: t.assignee_user_id },
+      holds.has(t.id) ? { reason: holds.get(t.id) ?? null } : false,
+      nowMs
+    ).standing === "needs_you"
+  );
+}
+async function threadIdsWaitingOnYou(db, tenantId, threadIds, nowMs) {
+  if (!threadIds.length) return /* @__PURE__ */ new Set();
+  const threads = await threadsBy(db, tenantId, "id", threadIds);
+  return new Set((await waitingOf(db, tenantId, threads, nowMs)).map((t) => t.id));
+}
+async function personIdsWaitingOnYou(db, tenantId, contactIds, nowMs) {
+  if (!contactIds.length) return /* @__PURE__ */ new Set();
+  const latest = /* @__PURE__ */ new Map();
+  for (const t of await threadsBy(db, tenantId, "contact_id", contactIds)) {
+    const held = latest.get(t.contact_id);
+    if (!held || (t.last_message_at ?? "") > (held.last_message_at ?? "")) latest.set(t.contact_id, t);
+  }
+  return new Set((await waitingOf(db, tenantId, [...latest.values()], nowMs)).map((t) => t.contact_id));
 }
 
 // src/repositories/people.ts
@@ -1260,14 +1338,12 @@ async function peopleAtLead(db, tenantId, leadId) {
   const people = data ?? [];
   if (!people.length) return [];
   const ids = people.map((p) => p.id);
-  const [moments, waiting] = await Promise.all([
+  const [moments, needs] = await Promise.all([
     db.from("person_moments").select("contact_id, in_touch_at").eq("tenant_id", tenantId).in("contact_id", ids),
-    db.from("conversations").select("contact_id").eq("tenant_id", tenantId).eq("state", "needs_human").in("contact_id", ids)
+    personIdsWaitingOnYou(db, tenantId, ids, Date.now())
   ]);
   if (moments.error) throw new Error(`peopleAtLead: ${moments.error.message}`);
-  if (waiting.error) throw new Error(`peopleAtLead: ${waiting.error.message}`);
   const touched = new Map((moments.data ?? []).map((m) => [m.contact_id, m.in_touch_at]));
-  const needs = new Set((waiting.data ?? []).map((w) => w.contact_id));
   return people.map((p) => {
     const at = touched.get(p.id) ?? null;
     return { ...p, in_touch_at: at && !at.startsWith("-") ? at : null, needs_you: needs.has(p.id) };
@@ -2565,6 +2641,20 @@ async function waitingRunsOf(db, tenantId) {
   });
   return [...pending.data ?? [], ...holding].sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
+async function runsNamed(db, tenantId, ids) {
+  if (!ids.length) return [];
+  const { data, error } = await db.from("broadcasts").select(WAITING_RUN_COLUMNS).eq("tenant_id", tenantId).in("id", [...ids]);
+  if (error) throw new Error(`cannot read the runs the notices name: ${error.message}`);
+  const rows = data ?? [];
+  const reaching = rows.filter(
+    (r) => isReachOutRun(r.audience) && RUN_GOING_STATES2.includes(r.state)
+  );
+  const waiting = reaching.length ? await runWaitingCounts(db, { tenantId, runIds: reaching.map((r) => r.id) }) : null;
+  return rows.map((r) => {
+    const w = waiting?.get(r.id);
+    return w ? { ...r, held: w.held, drafted: w.drafted } : r;
+  });
+}
 
 // src/repositories/mailboxes/connections.ts
 async function mailboxConnectionsOf(db, tenantId) {
@@ -3699,7 +3789,7 @@ async function pageSpots(db, window) {
   return { data, error };
 }
 
-// src/repositories/notifications.ts
+// src/repositories/notices/notifications.ts
 import {
   BELL_WINDOW_DAYS,
   CATCH_UP_VISITS,
@@ -4005,7 +4095,7 @@ async function ourLastWire(db, tenantId, conversationId) {
   return data?.channel ?? null;
 }
 
-// src/repositories/notifications.ts
+// src/repositories/notices/notifications.ts
 async function forgetNotification(db, p) {
   const { error } = await db.from("notifications").delete().eq("tenant_id", p.tenantId).eq("id", p.id);
   if (error) throw new Error(`cannot take the notification back: ${error.message}`);
@@ -4030,62 +4120,27 @@ async function noticeKept(db, p) {
   if (error) throw new Error(`cannot read what the workspace was told: ${error.message}`);
   return (data ?? []).length > 0;
 }
+var ROW_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+async function reviewsNamed(db, tenantId, ids) {
+  if (!ids.length) return [];
+  const rowIds = ids.filter((id) => ROW_ID.test(id));
+  const read = (column, values) => db.from("google_reviews").select("id, review_id, reply_text").eq("tenant_id", tenantId).in(column, [...values]);
+  const [byRow, byGoogle] = await Promise.all([
+    rowIds.length ? read("id", rowIds) : Promise.resolve({ data: [], error: null }),
+    read("review_id", ids)
+  ]);
+  const error = byRow.error ?? byGoogle.error;
+  if (error) throw new Error(`cannot read the reviews the notices name: ${error.message}`);
+  const seen = /* @__PURE__ */ new Map();
+  for (const r of [...byRow.data ?? [], ...byGoogle.data ?? []])
+    seen.set(r.id, { id: r.id, reviewId: r.review_id, replied: !!r.reply_text?.trim() });
+  return [...seen.values()];
+}
 async function reviewRowsByGoogleId(db, tenantId, googleIds) {
   if (!googleIds.length) return /* @__PURE__ */ new Map();
   const { data, error } = await db.from("google_reviews").select("id, review_id").eq("tenant_id", tenantId).in("review_id", [...googleIds]);
   if (error) throw new Error(`cannot read the reviews on record: ${error.message}`);
   return new Map((data ?? []).map((r) => [r.review_id, r.id]));
-}
-async function activityTokensOf(db, tenantId, roles) {
-  const { data: members, error: me } = await db.from("memberships").select("user_id").eq("tenant_id", tenantId).in("role", [...roles]);
-  if (me) throw new Error(`cannot read who is in the workspace: ${me.message}`);
-  const people = (members ?? []).map((m) => m.user_id);
-  if (!people.length) return [];
-  const { data: devices, error: de } = await db.from("push_devices").select("activity_token").in("user_id", people).not("activity_token", "is", null);
-  if (de) throw new Error(`cannot read the phones: ${de.message}`);
-  return [...new Set((devices ?? []).map((d) => d.activity_token).filter((t) => !!t))];
-}
-async function forgetActivityTokens(db, tokens) {
-  if (!tokens.length) return;
-  const { error } = await db.from("push_devices").update({ activity_token: null }).in("activity_token", [...tokens]);
-  if (error) throw new Error(`cannot forget the gone activity tokens: ${error.message}`);
-}
-var UNDEFINED_COLUMN2 = "42703";
-async function memberAlertsOf(db, p) {
-  const [mine, phones] = await Promise.all([
-    db.from("memberships").select("push_off").eq("tenant_id", p.tenantId).eq("user_id", p.userId).maybeSingle(),
-    db.from("push_devices").select("platform, app_version, last_seen_at").eq("user_id", p.userId).order("last_seen_at", { ascending: false, nullsFirst: false })
-  ]);
-  if (phones.error) throw new Error(`cannot read your phones: ${phones.error.message}`);
-  if (mine.error && mine.error.code !== UNDEFINED_COLUMN2)
-    throw new Error(`cannot read your alert choices: ${mine.error.message}`);
-  return {
-    pushOff: mine.error ? [] : mine.data?.push_off ?? [],
-    phones: (phones.data ?? []).map((d) => ({
-      platform: d.platform,
-      app_version: d.app_version,
-      last_seen_at: d.last_seen_at
-    })),
-    choosable: !mine.error
-  };
-}
-async function setMemberPushOff(db, p) {
-  const { data, error } = await db.rpc("member_push_off_set", { p_tenant_id: p.tenantId, p_kinds: [...p.kinds] });
-  if (error) throw error;
-  return data ?? [];
-}
-async function membersPushedFor(db, p) {
-  if (p.userIds && !p.userIds.length) return [];
-  const ids = p.userIds ? [...p.userIds] : null;
-  const chosen = ids ? await db.from("memberships").select("user_id, push_off").eq("tenant_id", p.tenantId).in("user_id", ids) : await db.from("memberships").select("user_id, push_off").eq("tenant_id", p.tenantId);
-  if (!chosen.error)
-    return (chosen.data ?? []).filter((m) => !(m.push_off ?? []).includes(p.kind)).map((m) => m.user_id);
-  if (chosen.error.code !== UNDEFINED_COLUMN2)
-    throw new Error(`cannot read who is in the workspace: ${chosen.error.message}`);
-  if (ids) return ids;
-  const all2 = await db.from("memberships").select("user_id").eq("tenant_id", p.tenantId);
-  if (all2.error) throw new Error(`cannot read who is in the workspace: ${all2.error.message}`);
-  return (all2.data ?? []).map((m) => m.user_id);
 }
 var oneOr = (r, what) => {
   if (r.error) throw new Error(`cannot read ${what}: ${r.error.message}`);
@@ -4165,9 +4220,9 @@ async function eventTold(db, p) {
   return (answered.data ?? []).length > 0;
 }
 var BOOKING_SOURCES = ["booking_email", "booking_tool", "calendar_feed"];
-async function bookedVisitsOf(db, tenantId, ids, nowMs) {
+async function bookedVisitsOf(db, tenantId, ids, nowMs, status = "booked") {
   if (ids.length === 0) return [];
-  const { data, error } = await db.from("appointments").select("id, starts_at, ends_at, all_day, timezone, source, client_name, service, contact_id").eq("tenant_id", tenantId).in("id", [...ids]).eq("status", "booked").is("vanished_at", null).in("source", [...BOOKING_SOURCES]).gt("starts_at", new Date(nowMs).toISOString());
+  const { data, error } = await db.from("appointments").select("id, starts_at, ends_at, all_day, timezone, source, client_name, service, contact_id").eq("tenant_id", tenantId).in("id", [...ids]).eq("status", status).is("vanished_at", null).in("source", [...BOOKING_SOURCES]).gt("starts_at", new Date(nowMs).toISOString());
   if (error) throw new Error(`cannot read the visits: ${error.message}`);
   const visits = (data ?? []).filter((v) => v.source !== "calendar_feed" || v.contact_id);
   const personIds = [...new Set(visits.flatMap((v) => v.contact_id ? [v.contact_id] : []))];
@@ -4234,6 +4289,14 @@ async function memberJoinedOf(db, tenantId, invitationId) {
   );
   return invite ? { invitationId: invite.id, email: invite.email, role: invite.role } : null;
 }
+async function memberEmailOf(db, userId) {
+  const who = await db.auth.admin.getUserById(userId);
+  if (who.error) {
+    if (who.error.status === 404) return null;
+    throw new Error(`cannot read who left: ${who.error.message}`);
+  }
+  return who.data.user?.email ?? null;
+}
 var BELL_READ_PAGE = 1e3;
 var BELL_IN_BATCH = 100;
 async function unreadOfReaders(db, p) {
@@ -4295,6 +4358,87 @@ async function closeMendedNotices(db, p) {
     closed += (up.data ?? []).length;
   }
   return closed;
+}
+
+// src/repositories/notices/member-alerts.ts
+async function activityTokensOf(db, tenantId, roles) {
+  const { data: members, error: me } = await db.from("memberships").select("user_id, push_off").eq("tenant_id", tenantId).in("role", [...roles]);
+  if (me) throw new Error(`cannot read who is in the workspace: ${me.message}`);
+  const people = (members ?? []).filter((m) => !(m.push_off ?? []).includes("call")).map((m) => m.user_id);
+  if (!people.length) return [];
+  const { data: devices, error: de } = await db.from("push_devices").select("activity_token").in("user_id", people).not("activity_token", "is", null);
+  if (de) throw new Error(`cannot read the phones: ${de.message}`);
+  return [...new Set((devices ?? []).map((d) => d.activity_token).filter((t) => !!t))];
+}
+async function forgetEveryPhone(db) {
+  const { data, error } = await db.rpc("push_devices_forget_all");
+  if (error) {
+    if (error.code === "PGRST202") return null;
+    throw new Error(`cannot forget the phones: ${error.message}`);
+  }
+  const forgotten = data?.forgotten;
+  return typeof forgotten === "number" ? forgotten : 0;
+}
+async function forgetActivityTokens(db, tokens) {
+  if (!tokens.length) return;
+  const { error } = await db.from("push_devices").update({ activity_token: null }).in("activity_token", [...tokens]);
+  if (error) throw new Error(`cannot forget the gone activity tokens: ${error.message}`);
+}
+var UNDEFINED_COLUMN2 = "42703";
+async function memberAlertsOf(db, p) {
+  const [mine, phones] = await Promise.all([
+    db.from("memberships").select("push_off").eq("tenant_id", p.tenantId).eq("user_id", p.userId).maybeSingle(),
+    db.from("push_devices").select("platform, app_version, last_seen_at").eq("user_id", p.userId).order("last_seen_at", { ascending: false, nullsFirst: false })
+  ]);
+  if (phones.error) throw new Error(`cannot read your phones: ${phones.error.message}`);
+  if (mine.error && mine.error.code !== UNDEFINED_COLUMN2)
+    throw new Error(`cannot read your alert choices: ${mine.error.message}`);
+  return {
+    pushOff: mine.error ? [] : mine.data?.push_off ?? [],
+    phones: (phones.data ?? []).map((d) => ({
+      platform: d.platform,
+      app_version: d.app_version,
+      last_seen_at: d.last_seen_at
+    })),
+    choosable: !mine.error
+  };
+}
+async function setMemberPushOff(db, p) {
+  const { data, error } = await db.rpc("member_push_off_set", { p_tenant_id: p.tenantId, p_kinds: [...p.kinds] });
+  if (error) throw error;
+  return data ?? [];
+}
+async function membersPushedFor(db, p) {
+  if (p.userIds && !p.userIds.length) return [];
+  const ids = p.userIds ? [...p.userIds] : null;
+  const chosen = ids ? await db.from("memberships").select("user_id, push_off").eq("tenant_id", p.tenantId).in("user_id", ids) : await db.from("memberships").select("user_id, push_off").eq("tenant_id", p.tenantId);
+  if (!chosen.error)
+    return (chosen.data ?? []).filter((m) => !(m.push_off ?? []).includes(p.kind)).map((m) => m.user_id);
+  if (chosen.error.code !== UNDEFINED_COLUMN2)
+    throw new Error(`cannot read who is in the workspace: ${chosen.error.message}`);
+  if (ids) return ids;
+  const all2 = await db.from("memberships").select("user_id").eq("tenant_id", p.tenantId);
+  if (all2.error) throw new Error(`cannot read who is in the workspace: ${all2.error.message}`);
+  return (all2.data ?? []).map((m) => m.user_id);
+}
+async function pushNamesFor(db, p) {
+  if (!p.userIds.length) return { inMany: /* @__PURE__ */ new Set(), business: null };
+  const [members, tenant] = await Promise.all([
+    db.from("memberships").select("user_id, tenant_id").in("user_id", [...p.userIds]),
+    db.from("tenants").select("name").eq("id", p.tenantId).maybeSingle()
+  ]);
+  if (members.error) throw new Error(`cannot read whose workspaces these are: ${members.error.message}`);
+  if (tenant.error) throw new Error(`cannot read the workspace's name: ${tenant.error.message}`);
+  const workspaces = /* @__PURE__ */ new Map();
+  for (const m of members.data ?? []) {
+    const own = workspaces.get(m.user_id) ?? /* @__PURE__ */ new Set();
+    own.add(m.tenant_id);
+    workspaces.set(m.user_id, own);
+  }
+  return {
+    inMany: new Set([...workspaces].filter(([, own]) => own.size > 1).map(([user]) => user)),
+    business: tenant.data?.name?.trim() || null
+  };
 }
 
 // src/repositories/campaigns/workspace.ts
@@ -4487,6 +4631,11 @@ async function isWorkspaceCall(db, tenantId, retellCallId) {
   const { data, error } = await tenantDb(db, tenantId).from("calls").select("id").eq("retell_call_id", retellCallId).limit(1).maybeSingle();
   if (error) return null;
   return data !== null;
+}
+async function callsOwedAnAnalysis(db, p) {
+  const { data, error } = await db.from("calls").select("id, tenant_id, retell_call_id").in("status", ["ended", "error"]).is("notified_at", null).not("conversation_id", "is", null).gte("duration_ms", p.minMs).lt("ended_at", new Date(p.nowMs - p.fromMs).toISOString()).gt("ended_at", new Date(p.nowMs - p.toMs).toISOString()).or("summary.is.null,outcome.eq.callback_needed").order("ended_at", { ascending: true }).limit(p.limit);
+  if (error) throw new Error(`cannot read the calls owed an analysis: ${error.message}`);
+  return data ?? [];
 }
 
 // src/ask-voice-session.ts
@@ -4884,17 +5033,17 @@ async function writePlaybookChange(db, p) {
 var missingColumn = (message, column) => new RegExp(`\\b${column}\\b`).test(message) && /does not exist|could not find/i.test(message);
 var LIST_COLUMNS = ["rule, archived_at", "rule", ""];
 async function readWithFallback(read, base) {
-  let last = null;
+  let last2 = null;
   for (const extra of LIST_COLUMNS) {
     try {
       return await read(extra ? `${base}, ${extra}` : base);
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       if (!missingColumn(message, "archived_at") && !missingColumn(message, "rule")) throw e;
-      last = e;
+      last2 = e;
     }
   }
-  throw last;
+  throw last2;
 }
 async function listRows(db, tenantId) {
   const rows = await readWithFallback(
@@ -5132,6 +5281,95 @@ async function recordDeal(db, p) {
     ...p.undoOf ? { p_undo_of: p.undoOf } : {}
   });
   return { data, error };
+}
+
+// src/repositories/workspace-export.ts
+async function sectionRows(q) {
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+var last = (offset, limit) => offset + limit - 1;
+function recordSections(db, tenantId) {
+  return {
+    // The notes kept and suggested, and the steps with their due day and who did them.
+    notes_and_steps: (offset, limit) => sectionRows(
+      db.from("person_notes").select(
+        "id, contact_id, body, author_kind, author_user_id, for_user_id, team_only, state, source, due_on, done_at, done_by, deal_id, created_at, updated_at"
+      ).eq("tenant_id", tenantId).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
+    ),
+    deals: (offset, limit) => sectionRows(
+      db.from("deals").select(
+        "id, contact_id, lead_id, service, stage, proposed_at, decided_at, ended_at, amount_cents, per, currency, note, evidence, source, proposal_url, valid_until, lost_reason, created_by, created_at, updated_at"
+      ).eq("tenant_id", tenantId).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
+    ),
+    // The business's own details as saved: its facts, hours and services, what the receptionist may say, its alerts, its
+    // calendar and its booking tool. One row.
+    business: async (offset) => offset > 0 ? [] : sectionRows(db.from("tenant_config").select("config, updated_at, updated_by").eq("tenant_id", tenantId)),
+    bookings: (offset, limit) => sectionRows(
+      db.from("appointments").select(
+        "id, contact_id, lead_id, source, tool, external_id, status, starts_at, ends_at, all_day, timezone, title, service, staff, price, note, client_name, client_phone, client_email, consultation, vanished_at, created_by, created_at, updated_at"
+      ).eq("tenant_id", tenantId).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
+    ),
+    lists: (offset, limit) => sectionRows(
+      db.from("segments").select("id, name, rule, archived_at, created_by, created_at, updated_at").eq("tenant_id", tenantId).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
+    ),
+    // Who is on each list kept by hand (a list with a rule is its rule, in lists).
+    list_members: (offset, limit) => sectionRows(
+      db.from("segment_members").select("segment_id, contact_id, added_by, added_at").eq("tenant_id", tenantId).order("segment_id", { ascending: true }).order("contact_id", { ascending: true }).range(offset, last(offset, limit))
+    ),
+    campaigns: (offset, limit) => sectionRows(
+      db.from("playbooks").select(
+        "id, name, kind, trigger, state, template_id, template_name, template_language, params, hand, policy_class, channels, run_hour, cap_per_run, gap_days, cadence_days, gap_minutes, until, list_id, list_key, lead_search_id, after_playbook_id, after_days, signed_by, include_unconfirmed, last_run_for, last_run_at, created_by, created_at, updated_at"
+      ).eq("tenant_id", tenantId).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
+    )
+  };
+}
+function sendSections(db, tenantId) {
+  return {
+    // Each run of a campaign and each one-off send: who it was for, when it went and how many it reached.
+    sends: (offset, limit) => sectionRows(
+      db.from("broadcasts").select(
+        "id, name, playbook_id, run_for, template_id, template_name, template_language, params, audience, channels, state, scheduled_for, started_at, finished_at, recipient_count, failure, created_by, created_at, updated_at"
+      ).eq("tenant_id", tenantId).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
+    ),
+    templates: (offset, limit) => sectionRows(
+      db.from("templates").select(
+        "id, channel, name, title, language, category, meta_status, quality, rejected_reason, body_preview, variables, components, source, hidden_at, created_by, created_at, updated_at"
+      ).eq("tenant_id", tenantId).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
+    ),
+    // What was handed to a person, why, and how it was settled.
+    holds: (offset, limit) => sectionRows(
+      db.from("escalations").select(
+        "id, conversation_id, reason, details, state, resolved_by_user_id, resolved_at, created_at, updated_at"
+      ).eq("tenant_id", tenantId).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
+    ),
+    // What the receptionist may do on its own, asks first or leaves alone, for the workspace and for a list or a person.
+    rules: (offset, limit) => sectionRows(
+      db.from("policies").select("id, class, mode, subject_type, subject_id, limits, updated_at").eq("tenant_id", tenantId).order("id", { ascending: true }).range(offset, last(offset, limit))
+    ),
+    // The Google reviews as the mirror last saw them, with the reply.
+    reviews: (offset, limit) => sectionRows(
+      db.from("google_reviews").select(
+        "id, origin, rating, author, author_uri, body, language_code, published_at, reply_text, replied_at, maps_uri, first_seen_at, last_seen_at"
+      ).eq("tenant_id", tenantId).order("first_seen_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
+    ),
+    // The businesses the finder found, and how far each came; one erased at a person's request holds nothing to export.
+    leads: (offset, limit) => sectionRows(
+      db.from("leads").select(
+        "id, business_name, category, street, city, region, postal_code, country, neighborhood, phone_e164, email, website_host, instagram_url, facebook_url, linkedin_url, tiktok_url, maps_url, rating, reviews, about, price, stage, closed_reason, last_outcome, last_note, contacted_at, booked_at, converted_at, contact_id, found_at"
+      ).eq("tenant_id", tenantId).is("erased_at", null).order("found_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
+    ),
+    // How each answer to a reach-out was read: what they meant, the day they named, the draft made for it and who signed.
+    reach_out_replies: (offset, limit) => sectionRows(
+      db.from("reach_out_replies").select(
+        "message_id, conversation_id, contact_id, lead_id, intent, claim, summary, named_day, refer_to, until_at, draft, draft_state, signer_name, signer_title, read_at, undone_at"
+      ).eq("tenant_id", tenantId).order("read_at", { ascending: true }).order("message_id", { ascending: true }).range(offset, last(offset, limit))
+    )
+  };
+}
+function exportSectionPages(db, tenantId) {
+  return { ...recordSections(db, tenantId), ...sendSections(db, tenantId) };
 }
 
 // src/repositories/partner.ts
@@ -5550,7 +5788,6 @@ async function businessOnRecordOf(db, tenantId) {
 
 // src/realtime.ts
 var EVERY = ["INSERT", "UPDATE", "DELETE"];
-var INSERTS = ["INSERT"];
 var INSERTS_AND_UPDATES = ["INSERT", "UPDATE"];
 var UPDATES = ["UPDATE"];
 var WATCHED = [
@@ -5564,16 +5801,19 @@ var WATCHED = [
   // a call starting, each live turn, its end, its analysis: told with its statuses
   // an alert the edge kept, or one closed when what it asked for ended (00421, told when closed_at moved): the bell repaints
   { table: "notifications", events: INSERTS_AND_UPDATES },
+  // a line's saga step, its failure, its answer, its release: Setup, the channels read (Connections, the Library, Live, the
+  // composers) and People repaint. The hourly carriers' sweep writes a line only when its answer moved (a2p-sync.ts).
   { table: "lines", events: EVERY },
-  // a line's saga step, its failure, its answer, its release: Setup repaints
   { table: "google_listings", events: EVERY },
   // the listing linked, read, or removed: Setup and Reports repaint
-  { table: "google_reviews", events: INSERTS },
-  // a review seen for the first time
+  // a review seen for the first time, and one answered, by the receptionist, a teammate or on Google: Today's Google line,
+  // the bell and Reports' Reviews repaint. The update is told when the reply moved (00431), never for the sync's stamp.
+  { table: "google_reviews", events: INSERTS_AND_UPDATES },
   { table: "billing_accounts", events: EVERY },
   // Stripe's answer, applied by the webhook: Billing and Setup repaint
+  // a channel connected, switched off, flagged by Meta, or written by a line's saga: Setup and the channels read
+  // (Connections' WhatsApp and phone rows, the Library, Live, the composers) repaint (00117)
   { table: "tenant_channels", events: EVERY },
-  // a channel connected, switched off, or written by a line's saga: Setup and Connections repaint (00117)
   { table: "capability_activations", events: EVERY },
   // the owner's act, in another tab: Setup repaints (00108)
   { table: "business_records", events: EVERY },
@@ -5582,7 +5822,8 @@ var WATCHED = [
   // the profile connected, synced or failing by the hourly sweep: Connections repaints (00070)
   { table: "mailbox_connections", events: EVERY },
   // a mailbox connected, signed out, held, paused or removed, its day or records when they moved: Connections and the sheet repaint (00423)
-  // a round's page committed, a check landed, a class changed: the Leads scope repaints (00140)
+  // a round's page committed, a check landed, a class changed: the Leads scope repaints (00140). A round's update is told
+  // when its state, its question, its wait or its ending moved (00431), never for the counters each batch moves.
   { table: "leads", events: EVERY },
   { table: "lead_searches", events: EVERY },
   { table: "lead_rounds", events: EVERY },
@@ -5616,9 +5857,11 @@ var WATCHED = [
   // Meta's answer to a template, a sync, a hide, a template made or removed: the Library and the composers repaint. The
   // update is told when its status, rejection, quality, category, visibility or words moved.
   { table: "templates", events: EVERY },
-  // Offers by email paused by the gate or resumed by the back office: Campaigns' head line and send tick repaint. The
-  // update is told when the pause columns moved.
-  { table: "mailboxes", events: UPDATES },
+  // A mailbox made (Today's email line, Start's and Connections' Email row), and offers by email paused by the gate or
+  // resumed by the back office (Campaigns' head line and send tick, People), its address or sender renamed, the code Gmail
+  // mails to confirm a forward (the Calendar's Business tab) and its intake's error set or cleared (Connections). The
+  // update is told when one of those moved (00431), never for the stamp every email puts on it.
+  { table: "mailboxes", events: INSERTS_AND_UPDATES },
   // A booking email the reader held for a look, or settled: the Business tab's held list repaints.
   { table: "appointment_notices", events: INSERTS_AND_UPDATES },
   // A seat taken, changed or left, and an invitation sent, renewed, accepted or revoked: the Team pane and the workspace
@@ -5626,10 +5869,106 @@ var WATCHED = [
   // member's own saved views.
   { table: "memberships", events: EVERY },
   { table: "invitations", events: EVERY },
-  // The workspace paused or resumed (billing, the back office): the shell and Today's band repaint. Told when the status
-  // moved. The receptionist's stamp reads the row.
+  // The workspace paused or resumed (billing, the back office), renamed, its zone, buying model or logo changed: the
+  // shell, the sidebar and Today's band repaint. Told when one of those moved (00431). The receptionist's stamp reads the row.
   { table: "tenants", events: UPDATES }
 ];
+var NARROWED_UPDATES = {
+  // A notice closed when what it asked for ended (00421): the bell reads it as read, on every tab.
+  notifications: ["closed_at"],
+  // The identity, the answers, the merge and the erasure of a person, and where they work and where their name came from
+  // (0052). Not last_seen_at, offers_asked_at or the first-touch stamps, which a message writes.
+  contacts: [
+    "display_name",
+    "wa_profile_name",
+    "phone_e164",
+    "email",
+    "notes",
+    "proposal_url",
+    "consent",
+    "consent_source",
+    "consent_updated_at",
+    "dnc",
+    "marketing_consent",
+    "marketing_consent_source",
+    "marketing_consent_updated_at",
+    "email_marketing",
+    "email_marketing_source",
+    "email_marketing_updated_at",
+    "consent_channels",
+    "marketing_channels",
+    "email_suppressed_at",
+    "email_suppressed_reason",
+    "merged_into_contact_id",
+    "erased_at",
+    "lead_id",
+    "name_source"
+  ],
+  tenant_config: null,
+  // Meta's answer and why, its quality and category, whether the workspace hid it, and the words. Not synced_at.
+  templates: [
+    "meta_status",
+    "rejected_reason",
+    "quality",
+    "category",
+    "hidden_at",
+    "title",
+    "body_preview",
+    "components",
+    "variables"
+  ],
+  // Its address, sender and reply mode, the pause on offers, Gmail's forwarding code and the intake's error. Not
+  // last_received_at, which every email writes (00431).
+  mailboxes: [
+    "local_part",
+    "from_name",
+    "reply_mode",
+    "offers_paused_at",
+    "offers_paused_reason",
+    "offers_resumed_at",
+    "forward_confirm_account",
+    "forward_confirm_code",
+    "forward_confirm_link",
+    "forward_confirm_at",
+    "last_error"
+  ],
+  // A mailbox the business connected (00423): what Connections draws, never the sync's cursor, its watch or a send's stamp.
+  mailbox_connections: [
+    "state",
+    "held_why",
+    "resting_until",
+    "daily_cap",
+    "customer_domain",
+    "sent_days",
+    "dns",
+    "last_error",
+    "from_name",
+    "signature",
+    "address"
+  ],
+  // A seat's role. Not the member's saved views or push choices, which are their own.
+  memberships: ["role"],
+  // The workspace's status, name, zone, buying model and logo (00431).
+  tenants: ["status", "name", "timezone", "sells_by", "logo_path"],
+  // A review answered (00431). Not last_seen_at, which the sync stamps on every review.
+  google_reviews: ["reply_text", "replied_at"],
+  // What a round is and what it waits on (00431). Not its allowance, cost or judge's tokens and model.
+  lead_rounds: [
+    "state",
+    "ending",
+    "ending_pending",
+    "question",
+    "answered",
+    "target",
+    "nearby",
+    "waiting_since",
+    "ended_at",
+    "plan_version"
+  ]
+};
+function narrowedUpdates() {
+  return Object.fromEntries(Object.entries(NARROWED_UPDATES).map(([t, cols]) => [t, cols ? [...cols] : null]));
+}
 function watchedTables() {
   return WATCHED.map((w) => w.table);
 }
@@ -5750,7 +6089,13 @@ async function dueCalendars(db, p) {
   if (error) throw new Error(`cannot read the calendars due: ${error.message}`);
   const rows = data ?? [];
   return {
-    rows: rows.map((r) => ({ tenant_id: r.tenant_id, config: r.config, timezone: r.timezone })),
+    rows: rows.map((r) => ({
+      tenant_id: r.tenant_id,
+      config: r.config,
+      timezone: r.timezone,
+      // A database before 00435 answers no such column: left out, so the sweep knows to write no stamp.
+      ..."failed_since" in r ? { failed_since: r.failed_since ?? null } : {}
+    })),
     remaining: remainingOf(rows)
   };
 }
@@ -6035,6 +6380,14 @@ async function heldNoticesOf(db, tenantId) {
   if (error) throw new Error(`appointment_notices_held_list: ${error.message}`);
   return data ?? [];
 }
+var HELD_KEYS_CAP = 1e3;
+async function heldNoticeKeys(db, tenantId) {
+  const { data, error } = await db.from("appointment_notices").select("id, notice_id").eq("tenant_id", tenantId).eq("outcome", "held").order("received_at", { ascending: false }).order("id", { ascending: true }).limit(HELD_KEYS_CAP);
+  if (error) throw new Error(`appointment_notices_held_keys: ${error.message}`);
+  const rows = data ?? [];
+  if (rows.length >= HELD_KEYS_CAP) return null;
+  return new Set(rows.flatMap((r) => [r.id, r.notice_id]));
+}
 async function appointmentNoticeById(db, tenantId, id) {
   const { data, error } = await db.from("appointment_notices").select("*").eq("tenant_id", tenantId).eq("id", id).maybeSingle();
   if (error) throw new Error(`appointment_notice_by_id: ${error.message}`);
@@ -6094,6 +6447,7 @@ export {
   callBackMessage,
   callerNameOf,
   callersOf,
+  callsOwedAnAnalysis,
   campaignLedger,
   campaignMonthSent,
   campaignSeries,
@@ -6156,6 +6510,7 @@ export {
   eventTold,
   everyoneIn,
   everyoneOnceIn,
+  exportSectionPages,
   failIdeas,
   failQueuedSend,
   failStrandedRun,
@@ -6167,6 +6522,7 @@ export {
   followUpOnFile,
   followUpTouchesSince,
   forgetActivityTokens,
+  forgetEveryPhone,
   forgetNotification,
   getHandoverInvite,
   getMailboxCredentials,
@@ -6188,6 +6544,7 @@ export {
   hasNewerCopy,
   heldMessageOf,
   heldNoticeDue,
+  heldNoticeKeys,
   heldNoticesOf,
   heldStale,
   holdFactsOf,
@@ -6266,6 +6623,7 @@ export {
   markVisit,
   markWaitlistInvited,
   memberAlertsOf,
+  memberEmailOf,
   memberHasAddress,
   memberJoinedOf,
   memberWithdrawDrafts,
@@ -6284,6 +6642,7 @@ export {
   moveVoiceSessionContext,
   namedFetch,
   namesOfPeople,
+  narrowedUpdates,
   notePageVitals,
   notedOver,
   notesForReceptionist,
@@ -6330,6 +6689,7 @@ export {
   providerEventOf,
   publicWorkspaceBySlug,
   purgeAiUsage,
+  pushNamesFor,
   putMailboxCredentials,
   putTenantConfig,
   queuedOutcomes,
@@ -6410,6 +6770,7 @@ export {
   reviewLinkOf,
   reviewRowsByGoogleId,
   reviewsLedger,
+  reviewsNamed,
   runCounts,
   runGoesByOthers,
   runHanded,
@@ -6417,6 +6778,7 @@ export {
   runWaitingCounts,
   runningTwins,
   runsInSpan,
+  runsNamed,
   runsWaitingOf,
   saveIdeasLine,
   saveReachOutChain,
@@ -6485,7 +6847,9 @@ export {
   tenantZoneOf,
   textLineFacts,
   textReached,
+  threadIdsWaitingOnYou,
   touchIndex,
+  touchOfCall,
   touchesSince,
   twinTold,
   uncheckedSends,

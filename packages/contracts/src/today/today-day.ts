@@ -66,6 +66,8 @@ export interface PlaybookCardLike {
   /** How many its next run would reach; null when the server could not count them. */
   candidates: number | null;
   next: string;
+  /** Whether it runs on the business's day (contracts campaignRunsOn): on, and not past its last day. */
+  runs: boolean;
 }
 
 export interface TodayDayItemVM {
@@ -256,9 +258,8 @@ export function todayDay(
   let reminders: TodayDayVM["reminders"] = null;
   // While the playbooks are unread the day does not know whether a reminder runs, or what the workspace calls one.
   if (feed === "ok" && playbooks) {
-    const visit = playbooks.rows.filter(
-      (p) => (p.trigger === "visit_tomorrow" || p.trigger === "visited") && p.state === "running",
-    );
+    // The ones that run on the business's day (campaignRunsOn): a reminder past its last day is no reminder (S1-3).
+    const visit = playbooks.rows.filter((p) => (p.trigger === "visit_tomorrow" || p.trigger === "visited") && p.runs);
     const W = appointmentWords(word);
     reminders =
       visit.length === 0
