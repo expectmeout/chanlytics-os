@@ -780,7 +780,15 @@ test("the page that owns what it draws is an explicit one: the surface registry 
     assert.equal(owns(key, "reports/campaigns"), false, `${key} is not drawn on the Campaigns lens`);
   assert.equal(owns("reports", "reports/campaigns"), true, "and the page's own surface is still its own");
   for (const key of ["playbooks", "campaign_results"]) assert.equal(owns(key, "campaigns"), true, key);
-  assert.equal(owns("broadcasts", "campaigns"), false, "Sent's runs are drawn on the home and re-read on Sent");
+  // Sent's runs are drawn on the home for who can hear you, the pause on offers and the send-once composer: owned there for what moves
+  // those (a cell of kinds), and left to Sent for a message, which moves a run's replies.
+  assert.equal(owns("broadcasts", "campaigns"), true, "Sent's runs are drawn on the home, for some kinds");
+  assert.equal(
+    registry.ownsTable("broadcasts", "contacts", "campaigns"),
+    true,
+    "a person's answer moves who can hear you",
+  );
+  assert.equal(registry.ownsTable("broadcasts", "messages", "campaigns"), false, "a message is re-read on Sent");
   // The reach-outs are drawn on the home too; they have no table of their own to refresh on a message, but a route that
   // draws them owns them for the refreshes that name a page. Settings is drawn there again: the templates a composer offers
   // and the Library counts are the settings read's, the one read of them (surfaces/offered-templates.ts).

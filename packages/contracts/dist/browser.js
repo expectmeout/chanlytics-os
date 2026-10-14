@@ -29339,8 +29339,9 @@ function todayStanding(f) {
     short: metrics.linesRead === false ? "lines uncounted" : wires.length ? `${up} of ${wires.length} ${noun} on` : "no lines yet",
     down: down.length > 0
   };
-  const alert = metrics.workspace.status === "paused" ? `This workspace is paused. ${PAUSED_WORDS}` : down.length ? darkWires(down) : null;
-  return { chips, lines, alert };
+  const paused = metrics.workspace.status === "paused";
+  const alert = paused ? `This workspace is paused. ${PAUSED_WORDS}` : down.length ? darkWires(down) : null;
+  return { chips, lines, alert, paused };
 }
 function todayQueueEmpty(f) {
   const { metrics, wires } = f;
@@ -35666,8 +35667,10 @@ function lifecycleHeadOf(input, count2) {
     sentence: parts2,
     library: { label: LIFECYCLE_WORDS.library, count: libraryCount(input.messages, emailRowsOf(input.reachOuts)) },
     newMessage: LIFECYCLE_WORDS.newMessage,
-    // The email channel's own read carries whether its offers are paused: said under the sentence while they are.
-    pausedLine: offersPausedLine(input.broadcasts?.ready?.email.offers),
+    // The email channel's own read carries whether its offers are paused: said under the sentence while they are. Read as the
+    // channels line is (readyOf: the playbooks' reading first, which the home hears; the wiring's second audit,
+    // W-campaign-run-template-reachout-1), so a pause by the gates reaches the line while the home is open.
+    pausedLine: offersPausedLine(readyOf(input)?.email.offers),
     channels: channelsStandingParts(readyOf(input))
   };
 }
@@ -42695,7 +42698,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     heldThreads: [...beside.heldThreads ?? []]
   });
   const runsWaiting = beside.runs ? runsThatWait(beside.runs, runDaysAt(f.tz, now)).length : null;
-  const { chips, lines, alert } = todayStanding(f);
+  const { chips, lines, alert, paused } = todayStanding(f);
   const proof = todayProof(f.live, f.tz, now);
   const noReply = todayNoReply(f);
   const facts = todayAskFacts(f);
@@ -42711,6 +42714,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
           chips,
           lines,
           alert: null,
+          paused,
           headline: "Nothing has come in yet today.",
           detail: null,
           tone: "calm",
@@ -42745,7 +42749,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     needsYou.rows,
     todayAlsoWaiting({ windows: f.closingConvs.length, calls: queue.calls, searches: queue.searches })
   );
-  const standing2 = standingWithRuns({ chips, lines, alert, ...head }, runsWaiting ?? 0);
+  const standing2 = standingWithRuns({ chips, lines, alert, paused, ...head }, runsWaiting ?? 0);
   const figures = figuresOf(m, conversations, f.callsInWindow, escalations, f.tz, now);
   return {
     standing: standing2,

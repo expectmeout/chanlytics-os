@@ -163,6 +163,11 @@ export interface TodayVM {
      */
     lines: { text: string; short: string; down: boolean };
     alert: string | null;
+    /**
+     * The workspace is paused (its status, from Today's own read, which hears the plan): the band says so, and the queue's runs
+     * say it instead of offering Approve, from this one flag.
+     */
+    paused: boolean;
     /** Ask reads these three; the page draws none of them. */
     headline: string;
     detail: string | null;

@@ -38,7 +38,9 @@ const { watchedTables } = await importSrc("packages/db/src/realtime.ts");
 const { heardTables, heardOnItsPage, subscribesToRealtime, wantsRefresh } = await importSrc(
   "apps/dashboard/src/legacy-bridge/surface-realtime.ts",
 );
-const { declareReads, ownsTheScreen } = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+const { declareReads, ownsTable, ownsTheScreen } = await importSrc(
+  "apps/dashboard/src/legacy-bridge/surface-registry.ts",
+);
 const { ON_DEMAND_STALE_MIN } = await importSrc("apps/dashboard/src/legacy-bridge/surface-data.ts");
 
 /** Every surface the shell registers (LegacyApp.tsx), from the module it imports each from: the shell's own list, no copy of it. */
@@ -229,7 +231,9 @@ const ROUTES = [
 ];
 /** The Campaigns lens hears the feed on the lens alone, though the Overview draws the surface too. */
 const HOME = { reports_campaigns: "reports/campaigns" };
-const homeOf = (o) => HOME[o.key] ?? ROUTES.find((route) => ownsTheScreen(o.key, route));
+/** The first route that owns every table the surface hears on its page alone: its own page, not one that owns some kinds of it. */
+const homeOf = (o) =>
+  HOME[o.key] ?? ROUTES.find((route) => (o.refreshOnTables ?? []).every((table) => ownsTable(o.key, table, route)));
 
 const at = (route) => {
   globalThis.location.hash = `#/${route}`;

@@ -23,6 +23,7 @@ import { approvalDaysNow } from "@/surfaces/campaigns/broadcasts/when-words";
 import { AttnRow } from "../../kit/attention/attn-row";
 import { Confirm } from "../../kit/confirm/confirm";
 import { gatedProps } from "../../legacy-verbs";
+import { surfaceValue } from "../../surface-values";
 import { TODAY_HELPERS } from "../helpers";
 import {
   bcLateWords,
@@ -133,8 +134,9 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, room: number) 
   const words = (r: BroadcastVM) => TODAY_HELPERS.runs(r);
   const can = canDo("approve");
   // A paused workspace sends nothing, and approving is refused (core approveRun): the row says so, in the words every
-  // campaign says it, instead of a button that answers 402. The readiness is the one the broadcasts surface already holds.
-  const paused = broadcastsRead()?.ready?.paused === true;
+  // campaign says it, instead of a button that answers 402. Today's own read says it, as its band does (it hears the plan on
+  // every page; the wiring's second audit, W-campaign-run-template-reachout-1); Sent's reading where Today's is not in yet.
+  const paused = (surfaceValue("today")?.standing.paused ?? broadcastsRead()?.ready?.paused) === true;
   // Each is said the moment the server takes it, from what it answered, not once the runs are read again behind it.
   // What a verb returns is the caller's (the tests await it), so it is typed as nothing React would read.
   const stop: (r: BroadcastVM) => unknown = async (r) => {

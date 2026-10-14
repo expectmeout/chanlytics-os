@@ -195,7 +195,8 @@ test("People hears the appointments the live feed tells a workspace of on every 
 test("the playbooks and the broadcasts hear the appointments the live feed tells a workspace of, each on its own page", () => {
   for (const [o, home, away] of [
     [playbooksOverride, "#/campaigns", "#/inbox"],
-    [broadcastsOverride, "#/broadcasts", "#/campaigns"],
+    // Campaigns' home hears a visit for Sent's runs too (the audiences leave a missed one): away is the Inbox.
+    [broadcastsOverride, "#/broadcasts", "#/inbox"],
   ]) {
     assert.ok(o.refreshOnTables.includes("appointments"), `${o.key} names the table`);
     assert.equal(wantsRefresh(o, "appointments"), true, `${o.key} wants it`);
