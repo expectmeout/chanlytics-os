@@ -133,16 +133,15 @@ function SoonRun({ r, nav, verbKind, stop }: SoonRunProps) {
 
 /** The one To send's row: how many emails wait for you to send them, from how many reach-outs, and its door. */
 function toSendRow(t: NonNullable<ReturnType<typeof toSendRunsOf>>, nav: Nav, verbKind: VerbKind) {
-  const W = TO_SEND_ALL_WORDS;
   return (
     <AttnRow
       key="run-to-send"
       initials="▶"
       glyph="bolt"
-      name={W.title}
-      meta={W.meta}
-      sentence={W.sentence(t.count, t.from)}
-      status={[W.status]}
+      name={TO_SEND_ALL_WORDS.title}
+      meta={TO_SEND_ALL_WORDS.meta}
+      sentence={TO_SEND_ALL_WORDS.sentence(t.count, t.from)}
+      status={[TO_SEND_ALL_WORDS.status]}
       tone="escalated"
       cta={{ label: "Open", kind: verbKind(), onClick: () => nav(TO_SEND_ROUTE) }}
       also={null}

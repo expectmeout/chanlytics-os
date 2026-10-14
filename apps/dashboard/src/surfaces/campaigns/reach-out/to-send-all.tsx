@@ -21,8 +21,6 @@ import { broadcasts } from "../broadcasts/verbs";
 import { CmPane } from "../parts/split";
 import { RoToSend } from "./to-send";
 
-const W = TO_SEND_ALL_WORDS;
-
 /** A run's detail as its part last read it: kept through a re-read that fails, as the run's pane keeps it. */
 type PartAnswer = { ok: true; data: BroadcastDetailDto } | { ok: false };
 
@@ -64,16 +62,16 @@ function ToSendRunPart({
   return (
     <section className="bc-touched bc-sheet-people bc-approval-people" data-testid="ro-to-send-run">
       <div className="bc-touched-head">
-        <span className="bc-card-title">{W.runHead(name, n)}</span>
+        <span className="bc-card-title">{TO_SEND_ALL_WORDS.runHead(name, n)}</span>
         <LinkButton onClick={() => onOpenRun(run.id)} data-testid="ro-to-send-open-run">
-          {W.openRun}
+          {TO_SEND_ALL_WORDS.openRun}
         </LinkButton>
       </div>
       {d ? (
         <RoToSend d={d} onSaid={onSaid} bare />
       ) : (
         <p className="pb-note" role={answer ? "alert" : "status"} data-testid="ro-to-send-run-wait">
-          {answer ? W.unread : W.reading}
+          {answer ? TO_SEND_ALL_WORDS.unread : TO_SEND_ALL_WORDS.reading}
         </p>
       )}
     </section>
@@ -103,12 +101,12 @@ export function BcToSendAll({
       testid="bc-to-send"
       closeTestid="bc-to-send-close"
       className="bc-pane"
-      title={W.title}
-      sub={all ? W.sub(all.count, all.runs.length) : null}
+      title={TO_SEND_ALL_WORDS.title}
+      sub={all ? TO_SEND_ALL_WORDS.sub(all.count, all.runs.length) : null}
       onClose={onClose}
     >
       <div className="bc-report" data-testid="bc-to-send-body">
-        <p className="pb-note">{may ? W.note : gateTitle("approve", W.gated)}</p>
+        <p className="pb-note">{may ? TO_SEND_ALL_WORDS.note : gateTitle("approve", TO_SEND_ALL_WORDS.gated)}</p>
         {said && (
           <p className="pb-note" role="status" data-testid="ro-to-send-done">
             {said}
@@ -118,7 +116,7 @@ export function BcToSendAll({
           all.runs.map((r) => <ToSendRunPart key={r.id} run={r} onOpenRun={onOpenRun} onSaid={setSaid} />)
         ) : (
           <p className="pb-note" data-testid="bc-to-send-none">
-            {W.none}
+            {TO_SEND_ALL_WORDS.none}
           </p>
         )}
       </div>
