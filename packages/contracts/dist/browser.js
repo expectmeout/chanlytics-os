@@ -24207,6 +24207,8 @@ function skippedReasonWords(reason) {
       return "the run was stopped";
     case "owner_took_back":
       return "taken back before it was sent";
+    case "draft_withdrawn":
+      return "were handed to you, then taken back";
     case "erased":
       return "their record was erased";
     case "mailbox_gone":
@@ -24299,7 +24301,7 @@ var SENT_SINCE_WORDS = {
   lead_closed: "They had closed before it went, so nothing more is written to them.",
   outreach_suppressed: "Their address is on the never-again list, so nothing more is written to them.",
   outreach_stopped: "You had stopped writing to them, so nothing more is written to them.",
-  already_yours: "They are already yours, in People: it is on their thread.",
+  already_yours: "They are already yours, in People.",
   no_address: "Their address is gone, so nothing more is written to them."
 };
 var REACH_OUT_TO_SEND_LABELS = {
@@ -24326,6 +24328,8 @@ var REACH_OUT_TO_SEND_LABELS = {
   /** Sent, and recorded, though its lead would be refused now (reach_out_send_said's since). */
   sentSince: (name, since) => `${name}: sent from your inbox. ${SENT_SINCE_WORDS[since] ?? "Nothing more is written to them."}`,
   skippedDone: (name) => `${name}: left out of this run`,
+  /** Left out by the clock or a reply before the owner said a word: why, in the skip's own words. */
+  leftOut: (name, why) => `${name} was left out already: they ${why}.`,
   /** Another member, or another tab, said first. */
   already: (state) => state === "sent" ? "Already said: it went." : "Already said: it was left out."
 };
@@ -24345,9 +24349,13 @@ function reachOutRunMoving(r2) {
   return r2.checking > 0 || r2.owner_sends === true && r2.today + r2.later > 0;
 }
 function toSendSaidWords(name, a) {
+  if (!a.said && a.state === "skipped" && a.reason && a.reason !== "owner_skipped")
+    return REACH_OUT_TO_SEND_LABELS.leftOut(name, skippedReasonWords(a.reason));
   if (!a.said) return REACH_OUT_TO_SEND_LABELS.already(a.state);
   if (a.state !== "sent") return REACH_OUT_TO_SEND_LABELS.skippedDone(name);
-  return a.since ? REACH_OUT_TO_SEND_LABELS.sentSince(name, a.since) : REACH_OUT_TO_SEND_LABELS.sentDone(name);
+  if (!a.since) return REACH_OUT_TO_SEND_LABELS.sentDone(name);
+  const said = REACH_OUT_TO_SEND_LABELS.sentSince(name, a.since);
+  return a.since === "already_yours" && a.on_thread ? `${said} It is on their thread.` : said;
 }
 function heldNoticeWords(p) {
   const doors = [...new Set(p.reasons.flatMap(holdDoors))].map((d) => HOLD_DOOR_WORDS[d].toLowerCase());
@@ -31235,17 +31243,25 @@ function usStatesTyped(text) {
 }
 function peopleSheetProblems(t) {
   const out = {};
-  const titles = listTyped(t.titles, PEOPLE_TITLES_MAX);
-  const long = titles.find((x) => x.length > PEOPLE_TITLE_CHARS || x.length < 2);
+  const titles = listTyped(t.titles, Infinity);
+  const long = titles.find((x) => x.length > PEOPLE_TITLE_CHARS);
+  const short = titles.find((x) => x.length < 2);
   if (!titles.length) out.titles = PEOPLE_FIND_WORDS.needTitle;
+  else if (titles.length > PEOPLE_TITLES_MAX)
+    out.titles = PEOPLE_FIND_WORDS.tooMany("titles", PEOPLE_TITLES_MAX, titles.length);
   else if (long) out.titles = PEOPLE_FIND_WORDS.titleLong(long);
+  else if (short) out.titles = PEOPLE_FIND_WORDS.titleShort(short);
   else if (t.titles.trim().length > PEOPLE_ASKED_CHARS) out.titles = PEOPLE_FIND_WORDS.titlesLong;
-  const odd = listTyped(t.industries, PEOPLE_INDUSTRIES_MAX).find(
-    (x) => x.length < 2 || x.length > PEOPLE_INDUSTRY_CHARS
-  );
-  if (odd) out.industries = PEOPLE_FIND_WORDS.industryOdd(odd);
-  const unread = usStatesTyped(t.states).unread[0];
+  const industries = listTyped(t.industries, Infinity);
+  const odd = industries.find((x) => x.length < 2 || x.length > PEOPLE_INDUSTRY_CHARS);
+  if (industries.length > PEOPLE_INDUSTRIES_MAX)
+    out.industries = PEOPLE_FIND_WORDS.tooMany("industries", PEOPLE_INDUSTRIES_MAX, industries.length);
+  else if (odd) out.industries = PEOPLE_FIND_WORDS.industryOdd(odd);
+  const typed = usStatesTyped(t.states);
+  const unread = typed.unread[0];
+  const states = listTyped(t.states, Infinity).length;
   if (unread) out.states = PEOPLE_FIND_WORDS.stateUnread(unread);
+  else if (states > PEOPLE_STATES_MAX) out.states = PEOPLE_FIND_WORDS.tooMany("states", PEOPLE_STATES_MAX, states);
   const n = Number(t.count.trim());
   if (!Number.isInteger(n) || n < 1 || n > PEOPLE_COUNT_MAX) out.count = PEOPLE_FIND_WORDS.needCount;
   return out;
@@ -31279,16 +31295,19 @@ var PEOPLE_FIND_WORDS = {
   needTitle: "Say what they are called.",
   needCount: `Say how many, 1 to ${PEOPLE_COUNT_MAX}.`,
   titleLong: (t) => `\u201C${t}\u201D is longer than ${PEOPLE_TITLE_CHARS} characters: say it shorter.`,
+  titleShort: (t) => `\u201C${t}\u201D is too short to be a title.`,
+  tooMany: (what, max, n) => `Up to ${max} ${what}: this has ${n}.`,
   titlesLong: `What they are called is too long: ${PEOPLE_ASKED_CHARS} characters at most.`,
   industryOdd: (t) => `\u201C${t}\u201D: an industry is 2 to ${PEOPLE_INDUSTRY_CHARS} characters.`,
   stateUnread: (s) => `${s} isn't a US state: use its name or its two letters.`,
   more: "Find more like these",
+  closed: "Finding people at companies opens once it has been checked. Nothing was started.",
   done: "Looking now. They land on Leads as each address checks out.",
   failed: "Couldn't start the search. Nothing was spent; try again.",
   tick: "Chosen"
 };
 function peopleWho(p) {
-  const called = joinWords(p.titles.map((t) => /s$/i.test(t) ? t : `${t}s`));
+  const called = `people called ${joinWords(p.titles.map((t) => `\u201C${t}\u201D`))}`;
   const at3 = p.industries.length ? ` at ${joinWords(p.industries)} companies` : " at companies";
   return `${called}${at3}${p.states.length ? ` in ${joinWords(p.states)}` : " in the US"}`;
 }
@@ -31304,6 +31323,10 @@ var PEOPLE_STRIP_WORDS = {
       return "The directory could not be read. Nothing was counted for what was not found.";
     if (ending === "stopped")
       return `Stopped with ${plural(n, "company", "companies")} found. Their addresses were checked.`;
+    if (ending === "paused")
+      return `Lead searches are paused for now. ${plural(n, "company", "companies")} counted; nothing more is being counted.`;
+    if (ending === "budget_used" || ending === "month_leads_used")
+      return `Stopped at ${plural(n, "company", "companies")}: this month's searching is used up. It renews next month.`;
     if (n === 0) return "No company matched what you asked, with an address that checked out.";
     if (n >= target) return `Found ${plural(n, "company", "companies")}, each address checked`;
     return `Found ${n} of ${plural(target, "company", "companies")}: everything the filters cover, each address checked`;

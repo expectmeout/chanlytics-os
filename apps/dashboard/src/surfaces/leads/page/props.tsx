@@ -530,7 +530,8 @@ export const leadsFootProps = (p: LeadsPage) => {
     // work, so its rail and its table stand: the first day drew over them (7 Oct 2026).
     firstDay: leads.searches.length === 0 && leads.counts.all === 0 && !leads.readFailed,
     onImport: p.lists.openImport,
-    onFindPeople: p.lists.openFindPeople,
+    // Only while the people card finds leads (00429 lead_card_live), and never handed the press as a plan.
+    onFindPeople: p.lists.peopleLive ? () => p.lists.openFindPeople(null) : undefined,
     lineOpen: !!leadLine,
     lineDraft: leadLine ? leadLine.draft : "",
     lineError: leadLine ? leadLine.error : null,

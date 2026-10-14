@@ -21,6 +21,7 @@ import {
   leadsRoute,
   listTyped,
   peoplePlanFrom,
+  peoplePlanOf,
   peoplePlanSentence,
   peopleSheetProblems,
   usStatesTyped,
@@ -248,5 +249,11 @@ export function useFindPeople({ flash = null, live }: { flash?: Flash | null; li
     </Button>
   ) : null;
   const node = open ? <FindPeopleSheet onClose={() => setOpen(null)} flash={flash} from={open.from} /> : null;
-  return { door, node, open: (from: LeadPeoplePlan | null = null) => (live ? setOpen({ from }) : undefined) };
+  // Opened with a plan made before, or with nothing (whatever else a press hands it); while the card finds no leads it
+  // says so, for a search's Find more like these that was drawn before the card was shut.
+  const opens = (from: unknown = null) => {
+    if (live) setOpen({ from: peoplePlanOf(from) });
+    else if (flash) flash({ msg: <>{PW.closed}</> });
+  };
+  return { door, node, open: opens };
 }

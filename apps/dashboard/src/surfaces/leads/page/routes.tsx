@@ -103,23 +103,9 @@ export const leadStripActs = (a: {
       });
       return undefined;
     }
-    // Include takes the thing it asked about back out of the plan, which planVersionOf makes a new version of: the plan
-    // goes as the owner approved it; the route sets the version and the count the round reserved (G1).
     if (id === "excluded" || id === "review") return goto({ cls: arg as LeadClass });
-    // A people search's next step is its own sheet, filled in with its plan (00429): never a places door.
-    if (id === "people_more") {
-      a.openFindPeople(s.people ?? null);
-      return undefined;
-    }
-    const plan = s.plan;
-    if (!plan) return undefined;
-    if (id === "include")
-      return openPlanFor(
-        s,
-        planVersionOf(plan, { exclusions: plan.exclusions.filter((x) => x.key !== arg) }),
-        "answer",
-      );
-    if (LEAD_ROUND_MAKERS.indexOf(id) >= 0) return openPlanFor(s, isPlan(arg) ? arg : plan, "more");
+    // "12 new", Sort by fit and the round's undo need no plan, whatever the search.
+    if (id === "take_offered") return takeOffered();
     if (id === "undo") return undoRound(searchIdOf(arg));
     // Sort by fit is a new read of the same view, not a re-order of the rows on the page: the sort is the page's own
     // state and the read asks the surface for it (E8).
@@ -128,7 +114,22 @@ export const leadStripActs = (a: {
       setSortDir("asc");
       return undefined;
     }
-    if (id === "take_offered") return takeOffered();
+    // A people search's next step is its own sheet, filled in with its plan (00429): never a places door.
+    if (id === "people_more") {
+      a.openFindPeople(s.people ?? null);
+      return undefined;
+    }
+    const plan = s.plan;
+    if (!plan) return undefined;
+    // Include takes the thing it asked about back out of the plan, which planVersionOf makes a new version of: the plan
+    // goes as the owner approved it; the route sets the version and the count the round reserved (G1).
+    if (id === "include")
+      return openPlanFor(
+        s,
+        planVersionOf(plan, { exclusions: plan.exclusions.filter((x) => x.key !== arg) }),
+        "answer",
+      );
+    if (LEAD_ROUND_MAKERS.indexOf(id) >= 0) return openPlanFor(s, isPlan(arg) ? arg : plan, "more");
     return undefined;
   };
   return { ldStrip: leadStrip, takeOffered, onStripAction };

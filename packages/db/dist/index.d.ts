@@ -9446,12 +9446,15 @@ type Database = {
             };
             reach_out_drafts_waiting: {
                 Args: {
+                    p_after_at?: string;
+                    p_after_id?: string;
                     p_limit: number;
                     p_run_id?: string;
                     p_tenant_id?: string;
                 };
                 Returns: {
                     broadcast_id: string;
+                    drafted_at: string;
                     facts: Json;
                     id: string;
                     lead_id: string;
@@ -20631,12 +20634,15 @@ declare function builderOf<T extends TenantTable>(db: Db$D, table: T): _supabase
         };
         reach_out_drafts_waiting: {
             Args: {
+                p_after_at?: string;
+                p_after_id?: string;
                 p_limit: number;
                 p_run_id?: string;
                 p_tenant_id?: string;
             };
             Returns: {
                 broadcast_id: string;
+                drafted_at: string;
                 facts: Json;
                 id: string;
                 lead_id: string;
@@ -41773,6 +41779,7 @@ interface DraftWaitingRow {
     tenant_id: string;
     lead_id: string;
     broadcast_id: string;
+    drafted_at: string;
     facts: DraftLeadFacts | null;
 }
 /**
@@ -41783,6 +41790,11 @@ declare function draftsWaiting(db: Db$r, p: {
     limit: number;
     tenantId?: string | null;
     runId?: string | null;
+    /** The last draft a page read: the next page starts after it. */
+    after?: {
+        drafted_at: string;
+        id: string;
+    } | null;
 }): Promise<DraftWaitingRow[]>;
 /** What a lead's story says of a send its owner sends (00428): the run a draft waits in, and whether it went on their word. */
 interface OwnerSendFacts {

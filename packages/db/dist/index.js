@@ -3319,7 +3319,8 @@ async function draftsWaiting(db, p) {
   const { data, error } = await db.rpc("reach_out_drafts_waiting", {
     p_limit: p.limit,
     ...p.tenantId ? { p_tenant_id: p.tenantId } : {},
-    ...p.runId ? { p_run_id: p.runId } : {}
+    ...p.runId ? { p_run_id: p.runId } : {},
+    ...p.after ? { p_after_at: p.after.drafted_at, p_after_id: p.after.id } : {}
   });
   if (error) throw new Error(`cannot read the drafts waiting: ${error.message}`);
   return (data ?? []).map((r) => ({ ...r, facts: r.facts ?? null }));

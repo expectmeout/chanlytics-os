@@ -39,6 +39,8 @@ export function skippedReasonWords(reason: string): string {
       return "the run was stopped";
     case "owner_took_back":
       return "taken back before it was sent";
+    case "draft_withdrawn":
+      return "were handed to you, then taken back";
     case "erased":
       return "their record was erased";
     case "mailbox_gone":
@@ -198,7 +200,7 @@ const SENT_SINCE_WORDS: Record<string, string> = {
   lead_closed: "They had closed before it went, so nothing more is written to them.",
   outreach_suppressed: "Their address is on the never-again list, so nothing more is written to them.",
   outreach_stopped: "You had stopped writing to them, so nothing more is written to them.",
-  already_yours: "They are already yours, in People: it is on their thread.",
+  already_yours: "They are already yours, in People.",
   no_address: "Their address is gone, so nothing more is written to them.",
 };
 
@@ -228,6 +230,8 @@ const REACH_OUT_TO_SEND_LABELS = {
   sentSince: (name: string, since: string) =>
     `${name}: sent from your inbox. ${SENT_SINCE_WORDS[since] ?? "Nothing more is written to them."}`,
   skippedDone: (name: string) => `${name}: left out of this run`,
+  /** Left out by the clock or a reply before the owner said a word: why, in the skip's own words. */
+  leftOut: (name: string, why: string) => `${name} was left out already: they ${why}.`,
   /** Another member, or another tab, said first. */
   already: (state: string) => (state === "sent" ? "Already said: it went." : "Already said: it was left out."),
 } as const;
@@ -260,10 +264,18 @@ export function reachOutRunMoving(r: ReachOutRunDto): boolean {
  * What the owner's word on a drafted email did, said at the To send list's head once the door answered (00428). Sent is
  * always recorded, since the email left their inbox: what about its lead would refuse it now is said beside it.
  */
-export function toSendSaidWords(name: string, a: { said: boolean; state: string; since?: string | null }): string {
+export function toSendSaidWords(
+  name: string,
+  a: { said: boolean; state: string; reason?: string | null; since?: string | null; on_thread?: boolean },
+): string {
+  // Left out before the owner's word, by the clock or a reply (not another member's Skip): said with why.
+  if (!a.said && a.state === "skipped" && a.reason && a.reason !== "owner_skipped")
+    return REACH_OUT_TO_SEND_LABELS.leftOut(name, skippedReasonWords(a.reason));
   if (!a.said) return REACH_OUT_TO_SEND_LABELS.already(a.state);
   if (a.state !== "sent") return REACH_OUT_TO_SEND_LABELS.skippedDone(name);
-  return a.since ? REACH_OUT_TO_SEND_LABELS.sentSince(name, a.since) : REACH_OUT_TO_SEND_LABELS.sentDone(name);
+  if (!a.since) return REACH_OUT_TO_SEND_LABELS.sentDone(name);
+  const said = REACH_OUT_TO_SEND_LABELS.sentSince(name, a.since);
+  return a.since === "already_yours" && a.on_thread ? `${said} It is on their thread.` : said;
 }
 
 /** The notice the check sends the first time it holds a send in a run that is not waiting on its owner (R20). */

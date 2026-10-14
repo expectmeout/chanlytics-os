@@ -21,11 +21,14 @@ export const RoSaidAsk = ({
   business,
   busy,
   onSay,
+  onBack,
   testid,
 }: {
   business: string;
   busy: boolean;
   onSay: (i: OwnerSaidIntent, more: SaidMore) => void;
+  /** Where its own door does not close it (a To send row's): back to what the row offered before. */
+  onBack?: () => void;
   /** Where it stands, for its tests: the peek's (peek-reach-out-said) or a To send row's (ro-to-send-said). */
   testid: string;
 }) => {
@@ -82,6 +85,11 @@ export const RoSaidAsk = ({
             {SW.intents[i]}
           </Button>
         ))}
+        {onBack ? (
+          <Button size="sm" variant="quiet" disabled={busy} onClick={onBack} data-testid={`${testid}-back`}>
+            {SW.back}
+          </Button>
+        ) : null}
       </div>
     </div>
   );

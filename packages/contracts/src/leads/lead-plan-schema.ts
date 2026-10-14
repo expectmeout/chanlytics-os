@@ -26,8 +26,10 @@ import {
   PEOPLE_INDUSTRIES_MAX,
   PEOPLE_INDUSTRY_CHARS,
   PEOPLE_SENIORITIES,
+  PEOPLE_STATES_MAX,
   PEOPLE_TITLES_MAX,
   PEOPLE_TITLE_CHARS,
+  listTyped,
   peoplePlanFrom,
   usStatesTyped,
 } from "./search/people-plan";
@@ -293,6 +295,16 @@ export function planPeopleSearch(input: ProposePeopleSearch): PeoplePlanned {
   const states = typed.codes;
   if (!states.length && !US_NAMES.has(countryKey(where)))
     return { ok: false, refusal: { kind: "outside_us", text: LEAD_OUTSIDE_US_LINE, what: where } };
+  // More states than a plan takes is said, never cut to the first ten.
+  if (listTyped(where, Infinity).length > PEOPLE_STATES_MAX)
+    return {
+      ok: false,
+      refusal: {
+        kind: "not_a_plan",
+        text: PEOPLE_FIND_WORDS.tooMany("states", PEOPLE_STATES_MAX, listTyped(where, Infinity).length),
+        what: where,
+      },
+    };
   const plan = peoplePlanFrom({
     name: input.who,
     asked: input.asked,

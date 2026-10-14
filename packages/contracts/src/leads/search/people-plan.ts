@@ -218,17 +218,26 @@ export function peopleSheetProblems(t: {
   count: string;
 }): Partial<Record<"titles" | "industries" | "states" | "count", string>> {
   const out: Partial<Record<"titles" | "industries" | "states" | "count", string>> = {};
-  const titles = listTyped(t.titles, PEOPLE_TITLES_MAX);
-  const long = titles.find((x) => x.length > PEOPLE_TITLE_CHARS || x.length < 2);
+  // Every part typed, before any limit: more than a field takes is said, never dropped.
+  const titles = listTyped(t.titles, Infinity);
+  const long = titles.find((x) => x.length > PEOPLE_TITLE_CHARS);
+  const short = titles.find((x) => x.length < 2);
   if (!titles.length) out.titles = PEOPLE_FIND_WORDS.needTitle;
+  else if (titles.length > PEOPLE_TITLES_MAX)
+    out.titles = PEOPLE_FIND_WORDS.tooMany("titles", PEOPLE_TITLES_MAX, titles.length);
   else if (long) out.titles = PEOPLE_FIND_WORDS.titleLong(long);
+  else if (short) out.titles = PEOPLE_FIND_WORDS.titleShort(short);
   else if (t.titles.trim().length > PEOPLE_ASKED_CHARS) out.titles = PEOPLE_FIND_WORDS.titlesLong;
-  const odd = listTyped(t.industries, PEOPLE_INDUSTRIES_MAX).find(
-    (x) => x.length < 2 || x.length > PEOPLE_INDUSTRY_CHARS,
-  );
-  if (odd) out.industries = PEOPLE_FIND_WORDS.industryOdd(odd);
-  const unread = usStatesTyped(t.states).unread[0];
+  const industries = listTyped(t.industries, Infinity);
+  const odd = industries.find((x) => x.length < 2 || x.length > PEOPLE_INDUSTRY_CHARS);
+  if (industries.length > PEOPLE_INDUSTRIES_MAX)
+    out.industries = PEOPLE_FIND_WORDS.tooMany("industries", PEOPLE_INDUSTRIES_MAX, industries.length);
+  else if (odd) out.industries = PEOPLE_FIND_WORDS.industryOdd(odd);
+  const typed = usStatesTyped(t.states);
+  const unread = typed.unread[0];
+  const states = listTyped(t.states, Infinity).length;
   if (unread) out.states = PEOPLE_FIND_WORDS.stateUnread(unread);
+  else if (states > PEOPLE_STATES_MAX) out.states = PEOPLE_FIND_WORDS.tooMany("states", PEOPLE_STATES_MAX, states);
   const n = Number(t.count.trim());
   if (!Number.isInteger(n) || n < 1 || n > PEOPLE_COUNT_MAX) out.count = PEOPLE_FIND_WORDS.needCount;
   return out;
@@ -269,18 +278,21 @@ export const PEOPLE_FIND_WORDS = {
   needTitle: "Say what they are called.",
   needCount: `Say how many, 1 to ${PEOPLE_COUNT_MAX}.`,
   titleLong: (t: string) => `“${t}” is longer than ${PEOPLE_TITLE_CHARS} characters: say it shorter.`,
+  titleShort: (t: string) => `“${t}” is too short to be a title.`,
+  tooMany: (what: string, max: number, n: number) => `Up to ${max} ${what}: this has ${n}.`,
   titlesLong: `What they are called is too long: ${PEOPLE_ASKED_CHARS} characters at most.`,
   industryOdd: (t: string) => `“${t}”: an industry is 2 to ${PEOPLE_INDUSTRY_CHARS} characters.`,
   stateUnread: (s: string) => `${s} isn't a US state: use its name or its two letters.`,
   more: "Find more like these",
+  closed: "Finding people at companies opens once it has been checked. Nothing was started.",
   done: "Looking now. They land on Leads as each address checks out.",
   failed: "Couldn't start the search. Nothing was spent; try again.",
   tick: "Chosen",
 } as const;
 
-/** Who a people search looks for, as its strip says it: "marketing managers at Accounting companies in TX". */
+/** Who a people search looks for, as its strip says it: "people called “marketing manager” at Accounting companies in TX". */
 export function peopleWho(p: LeadPeoplePlan): string {
-  const called = joinWords(p.titles.map((t) => (/s$/i.test(t) ? t : `${t}s`)));
+  const called = `people called ${joinWords(p.titles.map((t) => `“${t}”`))}`;
   const at = p.industries.length ? ` at ${joinWords(p.industries)} companies` : " at companies";
   return `${called}${at}${p.states.length ? ` in ${joinWords(p.states)}` : " in the US"}`;
 }
@@ -301,6 +313,11 @@ export const PEOPLE_STRIP_WORDS = {
       return "The directory could not be read. Nothing was counted for what was not found.";
     if (ending === "stopped")
       return `Stopped with ${plural(n, "company", "companies")} found. Their addresses were checked.`;
+    // Ended before it searched, or before its companies were checked: said as it is, never as a search that found none.
+    if (ending === "paused")
+      return `Lead searches are paused for now. ${plural(n, "company", "companies")} counted; nothing more is being counted.`;
+    if (ending === "budget_used" || ending === "month_leads_used")
+      return `Stopped at ${plural(n, "company", "companies")}: this month's searching is used up. It renews next month.`;
     if (n === 0) return "No company matched what you asked, with an address that checked out.";
     if (n >= target) return `Found ${plural(n, "company", "companies")}, each address checked`;
     return `Found ${n} of ${plural(target, "company", "companies")}: everything the filters cover, each address checked`;

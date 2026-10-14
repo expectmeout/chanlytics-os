@@ -91,6 +91,7 @@ export interface DraftWaitingRow {
   tenant_id: string;
   lead_id: string;
   broadcast_id: string;
+  drafted_at: string;
   facts: DraftLeadFacts | null;
 }
 
@@ -100,12 +101,19 @@ export interface DraftWaitingRow {
  */
 export async function draftsWaiting(
   db: Db,
-  p: { limit: number; tenantId?: string | null; runId?: string | null },
+  p: {
+    limit: number;
+    tenantId?: string | null;
+    runId?: string | null;
+    /** The last draft a page read: the next page starts after it. */
+    after?: { drafted_at: string; id: string } | null;
+  },
 ): Promise<DraftWaitingRow[]> {
   const { data, error } = await db.rpc("reach_out_drafts_waiting", {
     p_limit: p.limit,
     ...(p.tenantId ? { p_tenant_id: p.tenantId } : {}),
     ...(p.runId ? { p_run_id: p.runId } : {}),
+    ...(p.after ? { p_after_at: p.after.drafted_at, p_after_id: p.after.id } : {}),
   });
   if (error) throw new Error(`cannot read the drafts waiting: ${error.message}`);
   return (data ?? []).map((r) => ({ ...r, facts: (r.facts as DraftLeadFacts | null) ?? null }));

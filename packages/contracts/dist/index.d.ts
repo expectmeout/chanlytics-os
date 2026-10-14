@@ -9160,6 +9160,8 @@ interface ReachOutSaidDto {
      * same, and is recorded; this is said beside it. Null when nothing would.
      */
     since?: string | null;
+    /** Sent: whether the email went on a person's thread (a customer's thread, or the person made for it). */
+    on_thread?: boolean;
 }
 
 /**
@@ -11249,15 +11251,18 @@ declare const PEOPLE_FIND_WORDS: {
     readonly needTitle: "Say what they are called.";
     readonly needCount: "Say how many, 1 to 500.";
     readonly titleLong: (t: string) => string;
+    readonly titleShort: (t: string) => string;
+    readonly tooMany: (what: string, max: number, n: number) => string;
     readonly titlesLong: "What they are called is too long: 400 characters at most.";
     readonly industryOdd: (t: string) => string;
     readonly stateUnread: (s: string) => string;
     readonly more: "Find more like these";
+    readonly closed: "Finding people at companies opens once it has been checked. Nothing was started.";
     readonly done: "Looking now. They land on Leads as each address checks out.";
     readonly failed: "Couldn't start the search. Nothing was spent; try again.";
     readonly tick: "Chosen";
 };
-/** Who a people search looks for, as its strip says it: "marketing managers at Accounting companies in TX". */
+/** Who a people search looks for, as its strip says it: "people called “marketing manager” at Accounting companies in TX". */
 declare function peopleWho(p: LeadPeoplePlan): string;
 /**
  * A people search's strip (00429), in its own words: companies found while its run reads them, the addresses being
@@ -37006,6 +37011,8 @@ declare function toSendWordsOf(r: ReachOutRunDto, p: {
         /** Sent, and recorded, though its lead would be refused now (reach_out_send_said's since). */
         readonly sentSince: (name: string, since: string) => string;
         readonly skippedDone: (name: string) => string;
+        /** Left out by the clock or a reply before the owner said a word: why, in the skip's own words. */
+        readonly leftOut: (name: string, why: string) => string;
         /** Another member, or another tab, said first. */
         readonly already: (state: string) => "Already said: it went." | "Already said: it was left out.";
     };
@@ -37024,7 +37031,9 @@ declare function reachOutRunMoving(r: ReachOutRunDto): boolean;
 declare function toSendSaidWords(name: string, a: {
     said: boolean;
     state: string;
+    reason?: string | null;
     since?: string | null;
+    on_thread?: boolean;
 }): string;
 /** The notice the check sends the first time it holds a send in a run that is not waiting on its owner (R20). */
 declare function heldNoticeWords(p: {

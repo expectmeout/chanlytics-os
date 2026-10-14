@@ -150,10 +150,22 @@ function RoToSendRow({ row, L, may, busy, said, onSay, onTell }: RowProps) {
           <LinkButton disabled={busy} onClick={() => setTelling(true)} data-testid="ro-to-send-wrote">
             {SW.door}
           </LinkButton>
+          <LinkButton disabled={busy} onClick={() => setChecking(false)} data-testid="ro-to-send-back">
+            {SW.back}
+          </LinkButton>
         </div>
       )}
       {may && telling && (
-        <RoSaidAsk business={row.name} busy={busy} onSay={(i, more) => onTell(row, i, more)} testid="ro-to-send-said" />
+        <RoSaidAsk
+          business={row.name}
+          busy={busy}
+          onSay={(i, more) => onTell(row, i, more)}
+          onBack={() => {
+            setTelling(false);
+            setChecking(false);
+          }}
+          testid="ro-to-send-said"
+        />
       )}
       {said && (
         <span className="pb-warn" role="alert" data-testid="ro-to-send-said">

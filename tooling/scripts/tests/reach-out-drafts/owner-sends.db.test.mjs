@@ -522,13 +522,59 @@ test("Stop writing and Leave out take a draft back; the lines count what waits t
   assert.deepEqual([(await send(a)).state, (await send(a)).reason], ["skipped", "owner_stopped"]);
   const out = ok(await as.owner.c.rpc("reach_out_leave_out", { p_root_id: c.root, p_lead_id: left }));
   assert.equal(out.ok, true);
-  assert.deepEqual([(await send(b)).state, (await send(b)).reason], ["skipped", "owner_took_back"]);
+  // A draft handed over may have left its owner's inbox: taken back, it counts as written (draft_withdrawn).
+  assert.deepEqual([(await send(b)).state, (await send(b)).reason], ["skipped", "draft_withdrawn"]);
   const lines = ok(await db.rpc("reach_out_root_lines", { p_tenant_id: A, p_root_id: c.root }));
   const of = new Map(lines.map((x) => [x.lead_id, x.line]));
   assert.equal(of.get(counted).drafted, 1, "one email of theirs waits to be sent");
   const strip = ok(await as.owner.c.rpc("reach_out_search_lines", { p_tenant_id: A, p_search_id: c.search }));
   assert.deepEqual([strip.owner_sends, strip.to_send], [true, 1]);
 });
+
+test(
+  "a handed draft has written: taken back it counts so, its reach-out is paused rather than removed, and a follow-up stays its owner's",
+  { skip },
+  async () => {
+    const c = await chain(true, `wrote${n}`);
+    const L = await lead();
+    ok(
+      await db.from("lead_search_members").insert({
+        search_id: c.search,
+        lead_id: L,
+        tenant_id: A,
+        class: "qualified",
+        counted: true,
+        counted_month: new Date().toISOString().slice(0, 7),
+        fit: "strong",
+        reason: "",
+        judgment: { answer: "yes", reasons: [], shares: [] },
+      }),
+    );
+    const handed = await drafted(c, L);
+    ok(await as.owner.c.rpc("reach_out_leave_out", { p_root_id: c.root, p_lead_id: L }));
+    assert.deepEqual([(await send(handed)).state, (await send(handed)).reason], ["skipped", "draft_withdrawn"]);
+    const why = ok(await db.rpc("reach_out_why_not", { p_tenant_id: A, p_lead_ids: [L] }));
+    assert.ok(
+      JSON.stringify(why).includes("written"),
+      "a handed draft taken back counts as written: " + JSON.stringify(why),
+    );
+    const removed = await as.owner.c.rpc("reach_out_remove", { p_tenant_id: A, p_root_id: c.root });
+    assert.equal(removed.error?.code, "23503", "a reach-out that handed a draft is paused, never removed");
+    const report = ok(await as.owner.c.rpc("reach_out_chain_report", { p_tenant_id: A, p_root_id: c.root }));
+    assert.equal(report.can_remove, false);
+
+    // Its owner hands the chain to its mailboxes: a nudge planned with no mailbox while they sent it is still theirs.
+    ok(await db.from("playbooks").update({ owner_sends: false }).eq("id", c.root));
+    const nudge = await planned(c, await lead(), { playbook_id: c.nudge, broadcast_id: c.nudgeRun, mailbox_id: null });
+    const claimed = ok(
+      await db.rpc("reach_out_claim_drafts", { p_at: new Date().toISOString(), p_limit: 50, p_tenant_id: A }),
+    );
+    assert.ok(
+      claimed.some((x) => x.id === nudge),
+      "the draft claim takes it, whoever sends the chain now",
+    );
+  },
+);
 
 test("a chain saves who sends it, its root's alone", { skip }, async () => {
   const search = await one(

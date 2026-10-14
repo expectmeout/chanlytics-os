@@ -356,6 +356,7 @@ export async function saySend(
     state: r.data.state,
     reason: r.data.reason ?? null,
     since: r.data.since ?? null,
+    on_thread: !!r.data.conversation_id,
   };
 }
 

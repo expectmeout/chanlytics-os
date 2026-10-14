@@ -250,4 +250,6 @@ export interface ReachOutSaidDto {
    * same, and is recorded; this is said beside it. Null when nothing would.
    */
   since?: string | null;
+  /** Sent: whether the email went on a person's thread (a customer's thread, or the person made for it). */
+  on_thread?: boolean;
 }

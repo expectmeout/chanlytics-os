@@ -84,9 +84,15 @@ const shapeAsk = (input: LeadSearchAskInput) => {
     .replace(/^[^a-z]+/, "")
     .replace(/_+$/, "")
     .slice(0, 40);
+  // An ask the places card does not answer (people at home, online sellers, anything else) names no kind, standard or
+  // criteria: its own words answer it (planLeadSearch's refusal), never a schema's.
+  const unplaced = input.looking_for !== "local_businesses" && input.looking_for !== "people_at_companies";
   return {
     ...input,
-    category_key: keyed || input.category_key,
+    ...(unplaced
+      ? { who_one: input.who_one ?? input.who, contact: input.contact ?? "phone", criteria: input.criteria ?? [] }
+      : {}),
+    category_key: keyed || input.category_key || (unplaced ? "other" : undefined),
     country: String(input.country ?? "")
       .replace(/\(.*?\)/g, "")
       .trim(),

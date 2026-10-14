@@ -6918,14 +6918,16 @@ begin
        limit 1;
     end if;
     if v_lead is not null then
-      -- A company keeps the people it lacked, five at most, by their address; its addressee stays who it was.
+      -- A company keeps the people it lacked, five at most, by their address (one with none never joins: who was erased is
+      -- known by their address alone); its addressee stays who it was.
       update public.leads l
          set facts = jsonb_set(l.facts, '{people}', (
                select coalesce(jsonb_agg(x.p order by x.n), '[]'::jsonb)
                  from (select p, n from jsonb_array_elements(coalesce(l.facts->'people', '[]'::jsonb)) with ordinality as a(p, n)
                        union all
                        select p, 100 + n from jsonb_array_elements(v_people) with ordinality as b(p, n)
-                        where not exists (select 1 from jsonb_array_elements(coalesce(l.facts->'people', '[]'::jsonb)) o
+                        where nullif(btrim(coalesce(b.p->>'email', '')), '') is not null
+                          and not exists (select 1 from jsonb_array_elements(coalesce(l.facts->'people', '[]'::jsonb)) o
                                            where lower(o->>'email') = lower(b.p->>'email')
                                               or (o->>'email' is null and lower(o->>'name') = lower(b.p->>'name')))
                        order by n
@@ -6955,12 +6957,14 @@ begin
       v_held := v_held + 1;
       continue;
     end if;
-    -- The leads it shares a website with (a place Maps found, a file's row), as a list's row is marked (00364).
+    -- The leads it shares a website or an address's domain with (a place Maps found, a file's row), as a list's row is
+    -- marked (00364): one business is written to once.
     select coalesce(jsonb_agg(jsonb_build_object('kind', 'host', 'lead_id', x.id)), '[]'::jsonb) into v_shares
       from (select l.id from public.leads l
              where v_host is not null and l.tenant_id = v_round.tenant_id and l.id <> v_lead
                and l.erased_at is null and l.blanked_at is null
-               and public.lead_site_key(l.website_host) = public.lead_site_key(v_host)
+               and (public.lead_site_key(l.website_host) = public.lead_site_key(v_host)
+                    or lower(split_part(coalesce(l.email, ''), '@', 2)) = v_host)
              limit 5) x;
     insert into public.lead_search_members (search_id, lead_id, round_id, tenant_id, judgment, class, reason)
     values (v_round.search_id, v_lead, v_round.id, v_round.tenant_id,
@@ -10131,8 +10135,9 @@ begin
         v_sent := v_sent + 1;
         continue;
       end if;
+      -- A draft handed over may have left its owner's inbox: withdrawn, it counts as written (00427's one-first rule).
       update public.reach_out_sends s
-         set state = 'skipped', reason = 'owner_took_back'
+         set state = 'skipped', reason = case when s.state = 'drafted' then 'draft_withdrawn' else 'owner_took_back' end
         from public.broadcasts b
        where b.id = s.broadcast_id and b.state in ('pending_approval', 'scheduled', 'sending')
          and s.tenant_id = op.tenant_id and s.root_id = v_root and s.lead_id = v_lead
@@ -18646,7 +18651,9 @@ begin
          order by b.run_for desc
          limit 5) x), '[]'::jsonb),
       'can_remove', not exists (select 1 from public.reach_out_sends s
-                                 where s.root_id = p_root_id and s.state in ('claimed', 'queued', 'sent', 'failed')))
+                                 where s.root_id = p_root_id
+                                   and (s.state in ('claimed', 'queued', 'sent', 'failed', 'drafted')
+                                        or (s.state = 'skipped' and s.drafted_at is not null))))
   );
 end $$;
 
@@ -18927,7 +18934,7 @@ begin
        join public.broadcasts b on b.id = s2.broadcast_id
       where s2.state = 'planned' and s2.send_at <= p_at and s2.checked_at is not null
         and (p_tenant_id is null or s2.tenant_id = p_tenant_id)
-        and r.owner_sends
+        and (r.owner_sends or (s2.mailbox_id is null and p.after_playbook_id is not null))
         and p.state = 'running' and r.state = 'running' and b.state in ('scheduled', 'sending')
       order by (p.after_playbook_id is null), s2.send_at
       limit p_limit
@@ -18944,7 +18951,7 @@ end $$;
 -- Name: FUNCTION reach_out_claim_drafts(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_claim_drafts(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid) IS 'The due sends of reach-outs their owners send (00428), claimed to be drafted, at most p_limit: planned, checked and due, in a running chain and a run that goes ahead, a step after the first before a first email. Their mailbox is let go. Service role only.';
+COMMENT ON FUNCTION public.reach_out_claim_drafts(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid) IS 'The due sends of reach-outs their owners send (00428), claimed to be drafted, at most p_limit: planned, checked and due, in a running chain and a run that goes ahead, a step after the first before a first email. Their mailbox is let go. A step after the first planned with no mailbox while its owner sent the chain is taken too, whoever sends it now. Service role only.';
 
 
 --
@@ -19114,28 +19121,30 @@ COMMENT ON FUNCTION public.reach_out_draft_facts(p_tenant_id uuid, p_lead_id uui
 
 
 --
--- Name: reach_out_drafts_waiting(integer, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+-- Name: reach_out_drafts_waiting(integer, uuid, uuid, timestamp with time zone, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.reach_out_drafts_waiting(p_limit integer, p_tenant_id uuid DEFAULT NULL::uuid, p_run_id uuid DEFAULT NULL::uuid) RETURNS TABLE(id uuid, tenant_id uuid, lead_id uuid, broadcast_id uuid, facts jsonb)
+CREATE FUNCTION public.reach_out_drafts_waiting(p_limit integer, p_tenant_id uuid DEFAULT NULL::uuid, p_run_id uuid DEFAULT NULL::uuid, p_after_at timestamp with time zone DEFAULT NULL::timestamp with time zone, p_after_id uuid DEFAULT NULL::uuid) RETURNS TABLE(id uuid, tenant_id uuid, lead_id uuid, broadcast_id uuid, drafted_at timestamp with time zone, facts jsonb)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-  select s.id, s.tenant_id, s.lead_id, s.broadcast_id, public.reach_out_draft_facts(s.tenant_id, s.lead_id)
+  select s.id, s.tenant_id, s.lead_id, s.broadcast_id, s.drafted_at,
+         public.reach_out_draft_facts(s.tenant_id, s.lead_id)
     from public.reach_out_sends s
    where s.state = 'drafted'
      and (p_tenant_id is null or s.tenant_id = p_tenant_id)
      and (p_run_id is null or s.broadcast_id = p_run_id)
-   order by s.drafted_at
+     and (p_after_at is null or (s.drafted_at, s.id) > (p_after_at, p_after_id))
+   order by s.drafted_at, s.id
    limit greatest(coalesce(p_limit, 0), 0)
 $$;
 
 
 --
--- Name: FUNCTION reach_out_drafts_waiting(p_limit integer, p_tenant_id uuid, p_run_id uuid); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION reach_out_drafts_waiting(p_limit integer, p_tenant_id uuid, p_run_id uuid, p_after_at timestamp with time zone, p_after_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_drafts_waiting(p_limit integer, p_tenant_id uuid, p_run_id uuid) IS 'The drafts waiting for their owners (00428), oldest first, at most p_limit, of one workspace or every one, of one run or all, each with its lead''s facts (reach_out_draft_facts) for the send door''s rule (contracts outreachRefusalOf). Service role only.';
+COMMENT ON FUNCTION public.reach_out_drafts_waiting(p_limit integer, p_tenant_id uuid, p_run_id uuid, p_after_at timestamp with time zone, p_after_id uuid) IS 'The drafts waiting for their owners (00428), oldest first, at most p_limit after the one named (p_after_at, p_after_id), of one workspace or every one, of one run or all, each with when it was handed and its lead''s facts (reach_out_draft_facts) for the send door''s rule (contracts draftRefusalOf). Service role only.';
 
 
 --
@@ -19656,7 +19665,7 @@ begin
   -- Planned, held or drafted (not sent yet) in a run still live: skipped as taken back, which its undo's next run plans
   -- again.
   update public.reach_out_sends s
-     set state = 'skipped', reason = 'owner_took_back'
+     set state = 'skipped', reason = case when s.state = 'drafted' then 'draft_withdrawn' else 'owner_took_back' end
     from public.broadcasts b
    where b.id = s.broadcast_id and b.state in ('pending_approval', 'scheduled', 'sending')
      and s.tenant_id = r.tenant_id and s.root_id = r.id and s.lead_id = p_lead_id
@@ -20128,7 +20137,9 @@ begin
   -- Held against a claim while it is judged: a claim waits, or finds the chain gone.
   perform 1 from public.reach_out_sends s where s.root_id = p_root_id for update;
   if exists (select 1 from public.reach_out_sends s
-              where s.root_id = p_root_id and s.state in ('claimed', 'queued', 'sent', 'failed')) then
+              where s.root_id = p_root_id
+                and (s.state in ('claimed', 'queued', 'sent', 'failed', 'drafted')
+                     or (s.state = 'skipped' and s.drafted_at is not null))) then
     raise exception 'This reach-out has written already. Pause it instead.' using errcode = '23503';
   end if;
   update public.broadcasts set state = 'canceled'
@@ -26476,6 +26487,8 @@ begin
      or exists (select 1 from public.reach_out_sends where state in ('claimed', 'queued'))
      or exists (select 1 from public.reach_out_sends where state = 'held' and created_at < now() - interval '14 days')
      or exists (select 1 from public.reach_out_sends where state = 'drafted' and drafted_at < now() - interval '14 days')
+     -- A draft waiting: every quarter hour, so the clock judges it as the send door would (draftRefusalOf).
+     or (extract(minute from now())::int % 15 = 0 and exists (select 1 from public.reach_out_sends where state = 'drafted'))
      or exists (
        select 1 from public.broadcasts b
         where b.audience->>'kind' = 'reach_out' and b.state in ('canceled', 'failed')
@@ -40728,11 +40741,11 @@ GRANT ALL ON FUNCTION public.reach_out_draft_facts(p_tenant_id uuid, p_lead_id u
 
 
 --
--- Name: FUNCTION reach_out_drafts_waiting(p_limit integer, p_tenant_id uuid, p_run_id uuid); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION reach_out_drafts_waiting(p_limit integer, p_tenant_id uuid, p_run_id uuid, p_after_at timestamp with time zone, p_after_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.reach_out_drafts_waiting(p_limit integer, p_tenant_id uuid, p_run_id uuid) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.reach_out_drafts_waiting(p_limit integer, p_tenant_id uuid, p_run_id uuid) TO service_role;
+REVOKE ALL ON FUNCTION public.reach_out_drafts_waiting(p_limit integer, p_tenant_id uuid, p_run_id uuid, p_after_at timestamp with time zone, p_after_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.reach_out_drafts_waiting(p_limit integer, p_tenant_id uuid, p_run_id uuid, p_after_at timestamp with time zone, p_after_id uuid) TO service_role;
 
 
 --

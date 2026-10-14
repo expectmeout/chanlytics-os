@@ -121,7 +121,7 @@ test("the plan: its sentence counts companies, its estimate keeps both floors, t
     states: ["TX", "CA"],
   });
   assert.match(peoplePlanSentence(plan), /^Up to 100 Marketing & Advertising companies of 11 - 50 people in TX and CA/);
-  assert.equal(peopleWho(plan), "marketing managers at Marketing & Advertising companies in TX and CA");
+  assert.equal(peopleWho(plan), "people called “marketing manager” at Marketing & Advertising companies in TX and CA");
   assert.ok(peopleEstimateUsd(100, { perPerson: 0.002, perCheck: 0.00089, start: 0.01 }) >= 1, "both runs' floors");
   assert.equal(PEOPLE_FIND_WORDS.start(100), "Find 100 companies");
 
@@ -137,6 +137,16 @@ test("the plan: its sentence counts companies, its estimate keeps both floors, t
     PEOPLE_FIND_WORDS.titleLong(long),
   );
   assert.deepEqual(peopleSheetProblems({ titles: "owner", industries: "", states: "TX", count: "10" }), {});
+  assert.equal(
+    peopleSheetProblems({ titles: "owner, -", industries: "", states: "", count: "10" }).titles,
+    PEOPLE_FIND_WORDS.titleShort("-"),
+  );
+  const eleven = "AL, AK, AZ, AR, CA, CO, CT, DE, FL, GA, HI";
+  assert.equal(
+    peopleSheetProblems({ titles: "owner", industries: "", states: eleven, count: "10" }).states,
+    PEOPLE_FIND_WORDS.tooMany("states", 10, 11),
+    "more states than a search takes is said, never dropped",
+  );
 });
 
 test("Ask's people ask: nothing of a places plan asked of it, and a state it cannot read refused in words", () => {
@@ -212,7 +222,7 @@ test("a people search's strip says its own words, and offers Find more like thes
     round: r,
   });
   const running = leadStrip(s(round({})), new Date());
-  assert.equal(running.title, PEOPLE_STRIP_WORDS.running("owners at companies in OH"));
+  assert.equal(running.title, PEOPLE_STRIP_WORDS.running("people called “owner” at companies in OH"));
   assert.deepEqual(running.parts, [PEOPLE_STRIP_WORDS.found(7), PEOPLE_STRIP_WORDS.checked(2)]);
   const ended = leadStrip(
     s(round({ state: "ended", ending: "searched_everything", counted: 5, qualified: 5, review: 0 })),
@@ -225,6 +235,8 @@ test("a people search's strip says its own words, and offers Find more like thes
     !ended.actions.some((a) => ["more", "nearby", "look_further", "carry_on", "try_again"].includes(a.id)),
     "never a places door",
   );
+  assert.match(PEOPLE_STRIP_WORDS.ended("paused", 0, 20), /paused/, "a paused round is never one that found none");
+  assert.match(PEOPLE_STRIP_WORDS.ended("budget_used", 3, 20), /used up/);
 });
 
 test("a draft's refusal is the door's, and a customer's address; Sent says what would refuse it now", () => {
@@ -249,6 +261,16 @@ test("a draft's refusal is the door's, and a customer's address; Sent says what 
   );
   assert.equal(toSendSaidWords("Acme", { said: true, state: "skipped" }), "Acme: left out of this run");
   assert.equal(toSendSaidWords("Acme", { said: false, state: "sent" }), "Already said: it went.");
+  assert.match(
+    toSendSaidWords("Acme", { said: false, state: "skipped", reason: "outreach_wrote_back" }),
+    /^Acme was left out already: they /,
+    "a skip the clock or a reply made is said with why, never as another member's word",
+  );
+  assert.doesNotMatch(toSendSaidWords("Acme", { said: true, state: "sent", since: "already_yours" }), /thread/);
+  assert.match(
+    toSendSaidWords("Acme", { said: true, state: "sent", since: "already_yours", on_thread: true }),
+    /thread/,
+  );
 });
 
 test("where a lead came from: a business directory for a company, a list for a file's lead, Maps for a place", () => {

@@ -96,7 +96,14 @@ const move = (db: Db, s: ReachOutSendRow, patch: Partial<ReachOutSendRow>): Prom
  * goes on as that email's, as unstick adopts one. Skipped instead, a send whose email reached the lead would say
  * run_canceled, and the lead would never be marked as written to.
  */
-async function closeRuns(db: Db, now: Date, out: ClockCounts, log: Logger, tenantId?: string): Promise<void> {
+async function closeRuns(
+  db: Db,
+  now: Date,
+  out: ClockCounts,
+  log: Logger,
+  late: () => boolean,
+  tenantId?: string,
+): Promise<void> {
   const closed = await closedRunSends(db, new Date(now.getTime() - CLAIM_STUCK_AFTER_MS), PAGE, tenantId);
   for (const { send: s, email_status } of closed) {
     if (s.state === "queued") {
@@ -115,10 +122,12 @@ async function closeRuns(db: Db, now: Date, out: ClockCounts, log: Logger, tenan
         continue;
       }
     }
-    if (await move(db, s, { state: "skipped", reason: "run_canceled" })) out.closed += 1;
+    // A draft handed to its owner may have left their inbox: withdrawn, never "never happened" (00427's one-first rule).
+    const reason = s.state === "drafted" ? "draft_withdrawn" : "run_canceled";
+    if (await move(db, s, { state: "skipped", reason })) out.closed += 1;
   }
   // A draft that still goes, and that the door would refuse now: skipped too, so To send stops offering it (00428).
-  await recheckDrafts(db, now, out, log, tenantId);
+  await recheckDrafts(db, now, out, log, late, tenantId);
 }
 
 /**
@@ -126,8 +135,26 @@ async function closeRuns(db: Db, now: Date, out: ClockCounts, log: Logger, tenan
  * door would judge it while it waits, and one it would refuse now is skipped with why. Its owner's Sent still records an
  * email that left their inbox meanwhile (reach_out_send_said takes a draft skipped since).
  */
-async function recheckDrafts(db: Db, now: Date, out: ClockCounts, log: Logger, tenantId?: string): Promise<void> {
-  for (const d of await draftsWaiting(db, { limit: PAGE, tenantId })) {
+async function recheckDrafts(
+  db: Db,
+  now: Date,
+  out: ClockCounts,
+  log: Logger,
+  late: () => boolean,
+  tenantId?: string,
+): Promise<void> {
+  // Every draft, a page at a time after the last read, while the tick has time: the drafts that may still go keep their
+  // place at the head, so one page of the oldest would never reach a newer one refused since.
+  const all: Awaited<ReturnType<typeof draftsWaiting>> = [];
+  let after: { drafted_at: string; id: string } | null = null;
+  while (!late()) {
+    const page = await draftsWaiting(db, { limit: PAGE, tenantId, after });
+    all.push(...page);
+    const last = page[page.length - 1];
+    if (page.length < PAGE || !last) break;
+    after = { drafted_at: last.drafted_at, id: last.id };
+  }
+  for (const d of all) {
     const reason = draftRefusalOf(d.facts);
     if (!reason) continue;
     if (
@@ -236,7 +263,7 @@ export async function reachOutClock(
   }
 
   /* close, and the drafts the door would refuse now */
-  if (!late()) await closeRuns(db, now, out, log, tenantId);
+  if (!late()) await closeRuns(db, now, out, log, late, tenantId);
 
   /* finish */
   if (!late())

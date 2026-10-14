@@ -9443,12 +9443,15 @@ type Database = {
             };
             reach_out_drafts_waiting: {
                 Args: {
+                    p_after_at?: string;
+                    p_after_id?: string;
                     p_limit: number;
                     p_run_id?: string;
                     p_tenant_id?: string;
                 };
                 Returns: {
                     broadcast_id: string;
+                    drafted_at: string;
                     facts: Json;
                     id: string;
                     lead_id: string;

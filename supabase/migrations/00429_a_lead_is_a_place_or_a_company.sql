@@ -373,14 +373,16 @@ begin
        limit 1;
     end if;
     if v_lead is not null then
-      -- A company keeps the people it lacked, five at most, by their address; its addressee stays who it was.
+      -- A company keeps the people it lacked, five at most, by their address (one with none never joins: who was erased is
+      -- known by their address alone); its addressee stays who it was.
       update public.leads l
          set facts = jsonb_set(l.facts, '{people}', (
                select coalesce(jsonb_agg(x.p order by x.n), '[]'::jsonb)
                  from (select p, n from jsonb_array_elements(coalesce(l.facts->'people', '[]'::jsonb)) with ordinality as a(p, n)
                        union all
                        select p, 100 + n from jsonb_array_elements(v_people) with ordinality as b(p, n)
-                        where not exists (select 1 from jsonb_array_elements(coalesce(l.facts->'people', '[]'::jsonb)) o
+                        where nullif(btrim(coalesce(b.p->>'email', '')), '') is not null
+                          and not exists (select 1 from jsonb_array_elements(coalesce(l.facts->'people', '[]'::jsonb)) o
                                            where lower(o->>'email') = lower(b.p->>'email')
                                               or (o->>'email' is null and lower(o->>'name') = lower(b.p->>'name')))
                        order by n
@@ -410,12 +412,14 @@ begin
       v_held := v_held + 1;
       continue;
     end if;
-    -- The leads it shares a website with (a place Maps found, a file's row), as a list's row is marked (00364).
+    -- The leads it shares a website or an address's domain with (a place Maps found, a file's row), as a list's row is
+    -- marked (00364): one business is written to once.
     select coalesce(jsonb_agg(jsonb_build_object('kind', 'host', 'lead_id', x.id)), '[]'::jsonb) into v_shares
       from (select l.id from public.leads l
              where v_host is not null and l.tenant_id = v_round.tenant_id and l.id <> v_lead
                and l.erased_at is null and l.blanked_at is null
-               and public.lead_site_key(l.website_host) = public.lead_site_key(v_host)
+               and (public.lead_site_key(l.website_host) = public.lead_site_key(v_host)
+                    or lower(split_part(coalesce(l.email, ''), '@', 2)) = v_host)
              limit 5) x;
     insert into public.lead_search_members (search_id, lead_id, round_id, tenant_id, judgment, class, reason)
     values (v_round.search_id, v_lead, v_round.id, v_round.tenant_id,

@@ -191,13 +191,17 @@ function clockReads(t) {
           (s) =>
             s.state === "drafted" &&
             (!a.p_tenant_id || s.tenant_id === a.p_tenant_id) &&
-            (!a.p_run_id || s.broadcast_id === a.p_run_id),
+            (!a.p_run_id || s.broadcast_id === a.p_run_id) &&
+            (!a.p_after_at || `${s.drafted_at}|${s.id}` > `${a.p_after_at}|${a.p_after_id}`),
         )
+        .sort((x, y) => (`${x.drafted_at}|${x.id}` < `${y.drafted_at}|${y.id}` ? -1 : 1))
+        .slice(0, a.p_limit)
         .map((s) => ({
           id: s.id,
           tenant_id: s.tenant_id,
           lead_id: s.lead_id,
           broadcast_id: s.broadcast_id,
+          drafted_at: s.drafted_at,
           facts: draftFacts(t, s.tenant_id, s.lead_id),
         })),
   };
@@ -267,7 +271,13 @@ function senderReads(t, { monthSent = 0, failClaim = [], onClaim = () => {} } = 
     // 00428: an owner's due sends, a step after the first before a first email, their mailbox let go.
     reach_out_claim_drafts: (a) => {
       const picked = t.reach_out_sends
-        .filter((s) => ownerSends(s) && due(s, a.p_at) && (!a.p_tenant_id || s.tenant_id === a.p_tenant_id))
+        .filter(
+          (s) =>
+            // An owner's chain, or a later step planned with no mailbox while its owner sent it (00428).
+            (ownerSends(s) || (!s.mailbox_id && !first(s))) &&
+            due(s, a.p_at) &&
+            (!a.p_tenant_id || s.tenant_id === a.p_tenant_id),
+        )
         .sort((x, y) => first(x) - first(y) || (x.send_at < y.send_at ? -1 : 1))
         .slice(0, a.p_limit);
       for (const s of picked) Object.assign(s, { state: "claimed", claimed_at: a.p_at, mailbox_id: null });

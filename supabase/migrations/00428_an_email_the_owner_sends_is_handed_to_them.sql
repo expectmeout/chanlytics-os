@@ -120,7 +120,9 @@ end $$;
 -- An owner's due sends, to be drafted: planned, checked and due, of a running step and chain in a run that goes ahead.
 -- A step after the first before a first email (a nudge keeps its thread warm). No room is counted: the run planned the
 -- day's share (core runReachOut, REACH_OUT_DRAFTS_PER_DAY), and the owner is the pace. A send planned on a mailbox before
--- its chain was handed to its owner is drafted too, its mailbox let go.
+-- its chain was handed to its owner is drafted too, its mailbox let go; and a step after the first planned with no
+-- mailbox while its owner sent the chain is still theirs once it is handed to its mailboxes: its thread is their inbox's
+-- (the sender hands it over by its parent, and the replan keeps it theirs).
 create or replace function public.reach_out_claim_drafts(p_at timestamptz, p_limit integer, p_tenant_id uuid default null)
 returns setof public.reach_out_sends
 language plpgsql
@@ -139,7 +141,7 @@ begin
        join public.broadcasts b on b.id = s2.broadcast_id
       where s2.state = 'planned' and s2.send_at <= p_at and s2.checked_at is not null
         and (p_tenant_id is null or s2.tenant_id = p_tenant_id)
-        and r.owner_sends
+        and (r.owner_sends or (s2.mailbox_id is null and p.after_playbook_id is not null))
         and p.state = 'running' and r.state = 'running' and b.state in ('scheduled', 'sending')
       order by (p.after_playbook_id is null), s2.send_at
       limit p_limit
@@ -153,7 +155,7 @@ end $$;
 revoke all on function public.reach_out_claim_drafts(timestamptz, integer, uuid) from public, anon, authenticated;
 grant execute on function public.reach_out_claim_drafts(timestamptz, integer, uuid) to service_role;
 comment on function public.reach_out_claim_drafts(timestamptz, integer, uuid) is
-  'The due sends of reach-outs their owners send (00428), claimed to be drafted, at most p_limit: planned, checked and due, in a running chain and a run that goes ahead, a step after the first before a first email. Their mailbox is let go. Service role only.';
+  'The due sends of reach-outs their owners send (00428), claimed to be drafted, at most p_limit: planned, checked and due, in a running chain and a run that goes ahead, a step after the first before a first email. Their mailbox is let go. A step after the first planned with no mailbox while its owner sent the chain is taken too, whoever sends it now. Service role only.';
 
 -- 00424's claim: never an owner's send (its draft claim takes it), and a mailbox's steps after the first go before its
 -- first emails when both are due (the workbench's call 10: follow-ups first).
@@ -262,8 +264,8 @@ $$;
 revoke execute on function public.reach_out_held_stale(timestamptz, int, uuid) from public, anon, authenticated;
 grant execute on function public.reach_out_held_stale(timestamptz, int, uuid) to service_role;
 
--- 00363's due check: a draft left fourteen days, and a canceled run's draft, are the clock's work too, and a run with a
--- draft open is not finished.
+-- 00363's due check: a draft left fourteen days, and a canceled run's draft, are the clock's work too, a run with a draft
+-- open is not finished, and while a draft waits the clock is woken every quarter hour to judge it as the door would.
 create or replace function public.trigger_reach_out_sweep()
 returns bigint
 language plpgsql
@@ -281,6 +283,8 @@ begin
      or exists (select 1 from public.reach_out_sends where state in ('claimed', 'queued'))
      or exists (select 1 from public.reach_out_sends where state = 'held' and created_at < now() - interval '14 days')
      or exists (select 1 from public.reach_out_sends where state = 'drafted' and drafted_at < now() - interval '14 days')
+     -- A draft waiting: every quarter hour, so the clock judges it as the send door would (draftRefusalOf).
+     or (extract(minute from now())::int % 15 = 0 and exists (select 1 from public.reach_out_sends where state = 'drafted'))
      or exists (
        select 1 from public.broadcasts b
         where b.audience->>'kind' = 'reach_out' and b.state in ('canceled', 'failed')
@@ -888,7 +892,9 @@ grant execute on function public.reach_out_lead_stop(uuid) to authenticated, ser
 comment on function public.reach_out_lead_stop(uuid) is
   '"Stop writing to them" (Reach out Part 6, H10), an acting member''s door: stamps leads.reach_out_stopped_at and skips the lead''s planned, held and drafted (00428) sends in live runs (owner_stopped). Answers {stopped, already, skipped, leaving}: leaving counts the claimed and queued emails, which the send door refuses by the stamp. Refused for a lead no chain ever planned (22023) or one the caller may not act on (P0002).';
 
--- 00426's leave: a draft for the lead, not sent yet, is taken back with its planned and held sends.
+-- 00426's leave: a draft for the lead, not sent yet, is taken back with its planned and held sends: as
+-- draft_withdrawn, since a draft handed over may have left the owner's inbox, so the lead counts as written to (00427's
+-- one-first rule lets only a send that never reached its owner go, run_canceled or owner_took_back).
 create or replace function public.reach_out_leave_out(p_root_id uuid, p_lead_id uuid)
 returns jsonb
 language plpgsql
@@ -940,7 +946,7 @@ begin
   -- Planned, held or drafted (not sent yet) in a run still live: skipped as taken back, which its undo's next run plans
   -- again.
   update public.reach_out_sends s
-     set state = 'skipped', reason = 'owner_took_back'
+     set state = 'skipped', reason = case when s.state = 'drafted' then 'draft_withdrawn' else 'owner_took_back' end
     from public.broadcasts b
    where b.id = s.broadcast_id and b.state in ('pending_approval', 'scheduled', 'sending')
      and s.tenant_id = r.tenant_id and s.root_id = r.id and s.lead_id = p_lead_id
@@ -1723,27 +1729,33 @@ comment on function public.reach_out_draft_facts(uuid, uuid) is
   'A draft''s lead as the send door judges it (00428): outreach_lead_facts with the lead''s own stage (lead_stage) and whether a person in People holds its address while it has no person of its own (customer). Null for a lead gone. Service role only.';
 
 -- The drafts waiting for their owners, oldest first, each with its lead's facts (reach_out_draft_facts): a run's To
--- send list, or every workspace's for the clock, which skips one the send door would refuse now (00428).
+-- send list, or every workspace's for the clock, which skips one the send door would refuse now (00428). A page at a
+-- time after the last one read (p_after_at, p_after_id), so the clock reads every draft, never only the oldest.
+drop function if exists public.reach_out_drafts_waiting(integer, uuid, uuid);
 create or replace function public.reach_out_drafts_waiting(p_limit integer, p_tenant_id uuid default null,
-                                                          p_run_id uuid default null)
-returns table (id uuid, tenant_id uuid, lead_id uuid, broadcast_id uuid, facts jsonb)
+                                                          p_run_id uuid default null,
+                                                          p_after_at timestamptz default null,
+                                                          p_after_id uuid default null)
+returns table (id uuid, tenant_id uuid, lead_id uuid, broadcast_id uuid, drafted_at timestamptz, facts jsonb)
 language sql
 stable
 security definer
 set search_path = public
 as $$
-  select s.id, s.tenant_id, s.lead_id, s.broadcast_id, public.reach_out_draft_facts(s.tenant_id, s.lead_id)
+  select s.id, s.tenant_id, s.lead_id, s.broadcast_id, s.drafted_at,
+         public.reach_out_draft_facts(s.tenant_id, s.lead_id)
     from public.reach_out_sends s
    where s.state = 'drafted'
      and (p_tenant_id is null or s.tenant_id = p_tenant_id)
      and (p_run_id is null or s.broadcast_id = p_run_id)
-   order by s.drafted_at
+     and (p_after_at is null or (s.drafted_at, s.id) > (p_after_at, p_after_id))
+   order by s.drafted_at, s.id
    limit greatest(coalesce(p_limit, 0), 0)
 $$;
-revoke execute on function public.reach_out_drafts_waiting(integer, uuid, uuid) from public, anon, authenticated;
-grant execute on function public.reach_out_drafts_waiting(integer, uuid, uuid) to service_role;
-comment on function public.reach_out_drafts_waiting(integer, uuid, uuid) is
-  'The drafts waiting for their owners (00428), oldest first, at most p_limit, of one workspace or every one, of one run or all, each with its lead''s facts (reach_out_draft_facts) for the send door''s rule (contracts outreachRefusalOf). Service role only.';
+revoke execute on function public.reach_out_drafts_waiting(integer, uuid, uuid, timestamptz, uuid) from public, anon, authenticated;
+grant execute on function public.reach_out_drafts_waiting(integer, uuid, uuid, timestamptz, uuid) to service_role;
+comment on function public.reach_out_drafts_waiting(integer, uuid, uuid, timestamptz, uuid) is
+  'The drafts waiting for their owners (00428), oldest first, at most p_limit after the one named (p_after_at, p_after_id), of one workspace or every one, of one run or all, each with when it was handed and its lead''s facts (reach_out_draft_facts) for the send door''s rule (contracts draftRefusalOf). Service role only.';
 
 /* --------------------------------------------------------- 11. an add taken back takes its draft -- */
 
@@ -1856,8 +1868,9 @@ begin
         v_sent := v_sent + 1;
         continue;
       end if;
+      -- A draft handed over may have left its owner's inbox: withdrawn, it counts as written (00427's one-first rule).
       update public.reach_out_sends s
-         set state = 'skipped', reason = 'owner_took_back'
+         set state = 'skipped', reason = case when s.state = 'drafted' then 'draft_withdrawn' else 'owner_took_back' end
         from public.broadcasts b
        where b.id = s.broadcast_id and b.state in ('pending_approval', 'scheduled', 'sending')
          and s.tenant_id = op.tenant_id and s.root_id = v_root and s.lead_id = v_lead
@@ -1961,3 +1974,145 @@ grant execute on function public.lead_undo(uuid, integer) to authenticated, serv
 
 comment on function public.lead_undo(uuid, integer) is
   'Undoes one operation by its id and the version the client saw: {error: changed} when the operation or any touched row moved since; restores `before`. Who: an add, a later, a stage or a bulk act is undone by an acting member who made it (or one with find); keep, exclude, put back and a search''s undo need find (00426). A counted lead goes back to the allowance of the month it counted in, never the budget; a removed search, or a finished round the owner took back, comes back without the leads exported since and takes its credit again; a stage change goes back and takes its "Already a customer" suppression with it, unless it made a person, which is never unmade here; a bulk act restores every row nobody has touched and says how many it kept; a later is cleared; an add takes each lead back by what became of its email (off the list before a run planned it; a planned or held send of a live run, or a draft waiting for its owner (00428), skipped as owner_took_back and off the list; on its way or gone it stays, {error: on_its_way | sent} when none could be taken), with reach_out.lead_taken_back.';
+
+/* ------------------------------------------- 12. a reach-out that handed a draft has written -- */
+
+-- 00211's remove, and 00261's chain report's can_remove: a draft handed to its owner may have left their inbox, so a
+-- reach-out that handed one has written, and is paused rather than removed, as one whose email left is (00428). Removed,
+-- its sends would go with it, and nothing would say those businesses were written to.
+create or replace function public.reach_out_remove(p_tenant_id uuid, p_root_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_steps uuid[];
+begin
+  if auth.uid() is null then raise exception 'Sign in required.' using errcode = '28000'; end if;
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  perform 1 from public.playbooks
+   where id = p_root_id and tenant_id = p_tenant_id and kind = 'reach_out' and trigger = 'lead_first' for update;
+  if not found then raise exception 'Reach-out not found.' using errcode = 'P0002'; end if;
+  with recursive c as (
+    select id from public.playbooks where id = p_root_id
+    union all
+    select p.id from public.playbooks p join c on p.after_playbook_id = c.id
+  )
+  select array_agg(id) into v_steps from c;
+  -- Held against a claim while it is judged: a claim waits, or finds the chain gone.
+  perform 1 from public.reach_out_sends s where s.root_id = p_root_id for update;
+  if exists (select 1 from public.reach_out_sends s
+              where s.root_id = p_root_id
+                and (s.state in ('claimed', 'queued', 'sent', 'failed', 'drafted')
+                     or (s.state = 'skipped' and s.drafted_at is not null))) then
+    raise exception 'This reach-out has written already. Pause it instead.' using errcode = '23503';
+  end if;
+  update public.broadcasts set state = 'canceled'
+   where tenant_id = p_tenant_id and audience->>'kind' = 'reach_out' and audience->>'root_id' = p_root_id::text
+     and state in ('pending_approval', 'scheduled', 'sending');
+  update public.templates set hidden_at = coalesce(hidden_at, now())
+   where id in (select p.template_id from public.playbooks p where p.id = any (v_steps));
+  delete from public.playbooks where id = p_root_id;
+  return jsonb_build_object('root_id', p_root_id, 'removed', cardinality(v_steps));
+end $$;
+revoke execute on function public.reach_out_remove(uuid, uuid) from public, anon;
+grant execute on function public.reach_out_remove(uuid, uuid) to authenticated, service_role;
+
+create or replace function public.reach_out_chain_report(p_tenant_id uuid, p_root_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null or not exists (
+       select 1 from public.memberships m where m.tenant_id = p_tenant_id and m.user_id = auth.uid()
+          and (m.role <> 'partner' or public.session_shows_second_factor())) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  if not exists (select 1 from public.playbooks p
+                  where p.id = p_root_id and p.tenant_id = p_tenant_id and p.kind = 'reach_out'
+                    and p.trigger = 'lead_first') then
+    raise exception 'Reach-out not found.' using errcode = 'P0002';
+  end if;
+  return (
+    with recursive c as (
+      select p.id, 0 as n from public.playbooks p where p.id = p_root_id
+      union all
+      select p.id, c.n + 1 from public.playbooks p join c on p.after_playbook_id = c.id
+    ),
+    -- Each lead's last send that left, in this chain: where its answer is counted.
+    last_sent as (
+      select distinct on (s.lead_id) s.lead_id, s.playbook_id, s.contact_id, l.email, l.closed_reason, l.booked_at
+        from public.reach_out_sends s
+        join public.leads l on l.id = s.lead_id and l.tenant_id = s.tenant_id
+       where s.root_id = p_root_id and s.tenant_id = p_tenant_id and s.state = 'sent'
+       order by s.lead_id, s.sent_at desc
+    ),
+    -- Who of them wrote back, asked once for all (the send door's own reading).
+    wrote as (
+      select w.contact_id from public.outreach_wrote_back(p_tenant_id, array(
+        select ls.contact_id from last_sent ls where ls.contact_id is not null)) w(contact_id)
+    ),
+    answered as (
+      select ls.playbook_id,
+             count(*) filter (where ls.contact_id in (select contact_id from wrote)) as wrote_back,
+             count(*) filter (where ls.closed_reason = 'said_no') as said_no,
+             -- Interested (00241, H1): a reading of the lead's reply, not undone, that wants more (Part 5's G6).
+             count(*) filter (where exists (
+               select 1 from public.reach_out_replies r
+                where r.tenant_id = p_tenant_id and r.lead_id = ls.lead_id and r.undone_at is null
+                  and r.claim <> 'auto_reply' and r.intent in ('interested', 'question'))) as interested,
+             -- Booked (00241, H2): an appointment seen after an email of the reach-out left.
+             count(*) filter (where ls.booked_at is not null) as booked
+        from last_sent ls
+       group by ls.playbook_id
+    )
+    select jsonb_build_object(
+      'steps', coalesce((select jsonb_agg(jsonb_build_object(
+        'id', c.id,
+        'n', c.n,
+        -- An email that left (00241): sent, or failed by a receipt after it left (email_left), as Reports counts it.
+        'written', (select count(*) from public.reach_out_sends s left join public.messages m on m.id = s.message_id
+                     where s.playbook_id = c.id
+                       and (s.state = 'sent' or (s.state = 'failed' and public.email_left(m.status, m.error)))),
+        'delivered', (select count(*) from public.reach_out_sends s join public.messages m on m.id = s.message_id
+                       where s.playbook_id = c.id and s.state = 'sent' and m.status in ('delivered', 'read')),
+        'bounced', (select count(*) from public.reach_out_sends s join public.messages m on m.id = s.message_id
+                     where s.playbook_id = c.id and m.status = 'failed' and m.error->>'provider' = 'bounced'),
+        'wrote_back', coalesce((select a.wrote_back from answered a where a.playbook_id = c.id), 0),
+        'said_no', coalesce((select a.said_no from answered a where a.playbook_id = c.id), 0),
+        'interested', coalesce((select a.interested from answered a where a.playbook_id = c.id), 0),
+        'booked', coalesce((select a.booked from answered a where a.playbook_id = c.id), 0),
+        'waiting', (select count(*) from public.reach_out_sends s
+                     where s.playbook_id = c.id and s.state in ('planned', 'claimed', 'queued')),
+        'held', (select count(*) from public.reach_out_sends s where s.playbook_id = c.id and s.state = 'held'),
+        'handed', (select count(*) from public.reach_out_sends s where s.playbook_id = c.id and s.state = 'handed'))
+        order by c.n) from c), '[]'::jsonb),
+      'runs', coalesce((select jsonb_agg(r order by r->>'run_for' desc) from (
+        select jsonb_build_object('id', b.id, 'step_id', b.playbook_id, 'run_for', b.run_for, 'state', b.state,
+                                  'planned', b.recipient_count,
+                                  'written', (select count(*) from public.reach_out_sends s
+                                                left join public.messages m on m.id = s.message_id
+                                               where s.broadcast_id = b.id
+                                                 and (s.state = 'sent' or (s.state = 'failed'
+                                                      and public.email_left(m.status, m.error)))),
+                                  'held', (select count(*) from public.reach_out_sends s
+                                            where s.broadcast_id = b.id and s.state = 'held'),
+                                  'handed', (select count(*) from public.reach_out_sends s
+                                              where s.broadcast_id = b.id and s.state = 'handed')) as r
+          from public.broadcasts b
+         where b.tenant_id = p_tenant_id and b.audience->>'kind' = 'reach_out'
+           and b.audience->>'root_id' = p_root_id::text
+         order by b.run_for desc
+         limit 5) x), '[]'::jsonb),
+      'can_remove', not exists (select 1 from public.reach_out_sends s
+                                 where s.root_id = p_root_id
+                                   and (s.state in ('claimed', 'queued', 'sent', 'failed', 'drafted')
+                                        or (s.state = 'skipped' and s.drafted_at is not null))))
+  );
+end $$;
