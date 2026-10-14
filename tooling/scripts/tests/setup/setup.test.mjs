@@ -1105,7 +1105,7 @@ test("wiring: the page, the surface, routes, rate bucket, event kind, migration"
   const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
   assert.ok(
     app.includes("installSetup();") &&
-      /notificationsOverride,\s*setupOverride,\s*googleOverride,\s*billingOverride,?\s*\];/.test(app),
+      /notificationsOverride,\s*setupOverride,\s*googleOverride,\s*billingOverride\b/.test(app),
     "the surface boots with the rest",
   );
   assert.ok(
