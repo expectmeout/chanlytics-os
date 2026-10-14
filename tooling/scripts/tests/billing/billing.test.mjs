@@ -495,7 +495,7 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
       bridge.includes("window.location.assign(r.data.url)"),
   );
   const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
-  assert.ok(/googleOverride,\s*billingOverride,?\s*\]/.test(app) && app.includes("installBilling();"));
+  assert.ok(/googleOverride,\s*billingOverride\b/.test(app) && app.includes("installBilling();"));
   for (const t of [
     "billing-real",
     "billing-headline",

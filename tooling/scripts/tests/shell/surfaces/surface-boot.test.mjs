@@ -823,7 +823,11 @@ test("a person's page waits only for who is looking, then reads People for their
   assert.equal(reg.routeSurfaceFor("clients", "c-ana"), "people", "the mockup's seeded people keep the list's gate");
   assert.equal(reg.routeSurfaceFor("clients", null), "people", "People itself waits for its rows");
   assert.equal(reg.routeSurfaceFor("clients", "leads:c-review"), "leads", "and the Leads scope for its own");
-  assert.deepEqual(reg.routeDrawsFor("clients", ID), ["people"]);
+  assert.deepEqual(
+    reg.routeDrawsFor("clients", ID),
+    ["people", "person"],
+    "People for their name, and the page's own read",
+  );
   assert.deepEqual(reg.routeDrawsFor("clients", null), [], "the list draws nothing beside its own surface");
   const keys = ["conversations", "inbox", "today", "settings", "people", "leads", "reports", "workspace", "calendar"];
   const { order, overrides } = crowd(keys, { hash: `#/clients/${ID}` });

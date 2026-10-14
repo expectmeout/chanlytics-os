@@ -202,8 +202,8 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // watches the Live page's calls for the test call (first-run-try.ts).
   start: ["settings", "live"],
   // A person's page reads its own person (people-detail.ts); People's row gives it their name in the crumbs and the
-  // head while that read is out, so People is read next.
-  [PERSON_ROUTE]: ["people"],
+  // head while that read is out, so People is read next. The person surface is the page's own read, heard there.
+  [PERSON_ROUTE]: ["people", "person"],
   // A reply to a reach-out, read: the Inbox's strip, composer line and row chip (Reach out Part 5, PR 7). A call in a
   // thread is drawn from the calls Conversations reads (surfaces/inbox/thread/call.tsx tlCallFor), the same door as the Inbox's own.
   // And Sent's runs: the Needs-you band and the badge say the runs waiting for your word (needs-you.ts), on the Inbox.
@@ -336,10 +336,10 @@ export const PAGE_HEARS: Readonly<Record<string, readonly string[]>> = {
   broadcasts: ["broadcasts"],
   clients: ["people"],
   segments: ["people"],
-  // A person's page reads its own person (people-detail.ts) and waits for who is looking; People's rows are drawn beside it
-  // (their name in the crumbs while the person's read is out) and are not its own here (the wiring's second audit,
-  // W-thread-wait-step-1).
-  "clients/person": ["workspace"],
+  // A person's page waits for who is looking and hears its own person (people-detail.ts personOverride): a rename, a stop, a
+  // hold, their rules and business, read for the one person on screen. People's rows are drawn beside it (their name in the
+  // crumbs while the person's read is out) and are not its own here: its whole book is not read again for one person.
+  "clients/person": ["workspace", "person"],
   "clients/leads": ["leads"],
   // The retired address of Leads, which lands on its scope (SURFACE_RETIRED): its own surface, as its scope's.
   leads: ["leads"],

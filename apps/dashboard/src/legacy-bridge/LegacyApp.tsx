@@ -69,7 +69,7 @@ import {
 import { hydrateSurfaceCache } from "./surface-cache";
 import { hearSurfaces, surfaceHook } from "./surface-status";
 import { installInboxVerbs } from "./inbox-verbs";
-import { installPeopleCourier, warmPersonOnScreen } from "@/surfaces/people/people-detail";
+import { installPeopleCourier, personOverride, warmPersonOnScreen } from "@/surfaces/people/people-detail";
 import { leadsOverride } from "@/surfaces/leads/surface";
 import { installLeadMap } from "@/surfaces/leads/map/lead-map";
 import { installTabMemory } from "./tab-memory";
@@ -225,6 +225,8 @@ const SURFACES = [
   setupOverride,
   googleOverride,
   billingOverride,
+  // A person's page: the one person on screen, read again when what the page draws of them changes (people-detail.ts).
+  personOverride,
 ];
 /**
  * Each surface's own signal (surface-status.ts): its events counted against its key, before React draws anything. The

@@ -2992,8 +2992,13 @@ test("a demo session draws a sample person's page and asks the workspace for no 
   // A demo has no workspace to read (surfaces/people/sample.ts): the page is the one page there is, over made-up people,
   // by the mockup's own ids.
   globalThis.window.__DEMO_MODE = true;
+  // What the demo asked the workspace for: People's list, or one of its own people. A read a test before it started can land
+  // here on a busy machine (a real person's, by their id); it is not the demo's, and is not counted.
+  const askedByDemo = () =>
+    world.seen.filter((q) => q.path === "/api/v1/contacts" || q.path.startsWith("/api/v1/contacts/c-")).length;
   try {
     await newTree();
+    world.seen.length = 0;
     pageFor("c-aisha");
     await settle();
     const tree = pageFor("c-aisha");
@@ -3004,7 +3009,7 @@ test("a demo session draws a sample person's page and asks the workspace for no 
       "and their Overview",
     );
     assert.equal(byTestId(tree, "person-reading"), null);
-    assert.equal(world.seen.filter((q) => q.path.startsWith("/api/v1/contacts")).length, 0, "no request went out");
+    assert.equal(askedByDemo(), 0, "no request went out");
 
     await newTree();
     pageFor("c-nobody");
@@ -3017,7 +3022,7 @@ test("a demo session draws a sample person's page and asks the workspace for no 
       "no one is drawn",
     );
     assert.equal(byTestId(gone, "person-now"), null);
-    assert.equal(world.seen.filter((q) => q.path.startsWith("/api/v1/contacts")).length, 0, "and still no request");
+    assert.equal(askedByDemo(), 0, "and still no request");
   } finally {
     delete globalThis.window.__DEMO_MODE;
   }
