@@ -22,7 +22,7 @@ const Query = z.object({
    * One person's own copy, by their id (the wiring's second audit, R14 X5): "Download their records" on their page, for
    * when they ask what the business holds. Without it, the workspace's.
    */
-  person: z.string().uuid().optional(),
+  person: z.uuid().optional(),
 });
 
 /**
@@ -68,9 +68,8 @@ export const GET = read({
         personBundle(
           {
             ...customerRecord(ctx, tenantId, person),
-            people: async function* () {
-              yield [them];
-            },
+            // Their row: the one page.
+            people: () => [[them]],
             ...personSections(supabase, tenantId, person),
           },
           { ...opts, personId: person },

@@ -98,8 +98,11 @@ type SectionPage = (offset: number, limit: number) => Promise<Record<string, unk
 
 /** The readers of the customer record, which the workspace's copy reads for everyone and a person's for them. */
 interface CustomerRecordReaders {
-  /** Every person exactly once, a page at a time: their order moves as they write, so it is not read by offset. */
-  people(): AsyncIterable<PersonRowDto[]>;
+  /**
+   * Every person exactly once, a page at a time: their order moves as they write, so it is not read by offset. One
+   * person's copy hands over their row as its one page.
+   */
+  people(): AsyncIterable<PersonRowDto[]> | Iterable<PersonRowDto[]>;
   conversations(offset: number, limit: number): Promise<BundleConversation[]>;
   /** The messages of these conversations, a page at a time: by conversation, then oldest first. */
   messages(conversationIds: readonly string[], offset: number, limit: number): Promise<BundleMessage[]>;
@@ -156,7 +159,7 @@ async function* paged<T>(read: (offset: number, limit: number) => Promise<T[]>, 
 }
 
 /** Every row of a sequence of pages, in order. */
-async function* each<T>(pages: AsyncIterable<T[]>): AsyncGenerator<T> {
+async function* each<T>(pages: AsyncIterable<T[]> | Iterable<T[]>): AsyncGenerator<T> {
   for await (const rows of pages) yield* rows;
 }
 
