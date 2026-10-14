@@ -2163,10 +2163,42 @@ function namedSlots(names, labels = names) {
 }
 
 // src/reach-out/reach-out-words.ts
-var REACH_OUT_SLOTS = ["opening", "business", "city", "your name", "your business", "booking link"];
+var REACH_OUT_SLOTS = [
+  "opening",
+  "business",
+  "city",
+  "your name",
+  "your business",
+  "booking link",
+  // A company's addressee (00430), after the six: a slot's place is its number in a stored version ({{2}} is business),
+  // so a slot is only ever added at the end.
+  "first name",
+  "company",
+  "title",
+  "role"
+];
+var REACH_OUT_SLOT_FALLBACKS = {
+  "first name": "there"
+};
+var REACH_OUT_SLOT_WORDS = {
+  opening: "written for each business",
+  "first name": `the person's first name at a company; \u201C${REACH_OUT_SLOT_FALLBACKS["first name"]}\u201D where nobody is named`,
+  business: "their name on Google, or their company's",
+  company: "their company's name, or their business's",
+  title: "the person's title at a company; a business with nobody named is not written to with it",
+  role: "the person's role (owner, director, manager); a business with nobody named is not written to with it",
+  city: "their city",
+  "your name": "the name you sign with",
+  "your business": "your business's name",
+  "booking link": "your booking link"
+};
 var REACH_OUT_SLOT_LABELS = {
   opening: "Opening",
+  "first name": "First name",
   business: "Their business",
+  company: "Their company",
+  title: "Their title",
+  role: "Their role",
   city: "Their city",
   "your name": "Your name",
   "your business": "Your business",
@@ -2177,6 +2209,64 @@ var REACH_OUT_SLOT_SET = namedSlots(
   REACH_OUT_SLOTS.map((s) => REACH_OUT_SLOT_LABELS[s])
 );
 var COUNTRY_NAMES = new Intl.DisplayNames(["en"], { type: "region" });
+
+// src/shared/unknown.ts
+var isCount = (v) => typeof v === "number" && Number.isInteger(v) && v >= 0;
+
+// src/shell/campaign-rooms.ts
+var CAMPAIGN_ROOMS = {
+  home: "Campaigns",
+  sent: "Sent",
+  library: "Library",
+  newMessage: "New message"
+};
+var { sent, library } = CAMPAIGN_ROOMS;
+var PLAYBOOK_DELETE_WORDS = {
+  /** The toast's tail, after the playbook's name. */
+  done: `deleted \u2014 its runs stay in ${sent} with their numbers`,
+  /** The question's detail. */
+  detail: `Its runs stay in ${sent} with their numbers.`
+};
+var LIBRARY_WORDS = {
+  title: library,
+  demo: `The ${library} reads a real workspace \u2014 the messages it holds, by email, text and WhatsApp.`,
+  reading: `Reading the ${library}\u2026`,
+  failed: `The ${library} couldn\u2019t be loaded right now`,
+  failedWhat: `the ${library}`,
+  failedBody: "The receptionist keeps sending; this page just can't show what it holds at the moment.",
+  /** The count's hover: what the Library holds is every message, on each channel it goes by, whoever writes its versions. */
+  headTip: "What the receptionist and your campaigns send, as the customer sees it. A WhatsApp version is approved by WhatsApp, usually within minutes, whether it is written here or in WhatsApp Manager; an email or a text is ready the moment it is saved. A marketing message can only go to people who said yes to offers.",
+  noNumber: "No WhatsApp number yet. Email and text versions are written here; WhatsApp versions wait until one is connected.",
+  /** A template is written to a number's account, which is the edge's own answer (no_channel) when it has none. */
+  writeNeedsNumber: "Connect a WhatsApp number first \u2014 templates belong to a number's account.",
+  /** Why a WhatsApp version, or a language of one, cannot be added with no number; an email or a text needs none. */
+  addNeedsNumber: "Connect a WhatsApp number to add a WhatsApp version."
+};
+var OFFERS_IN_WRITING_WORDS = {
+  lead: "The carriers require it: their own message, or a sign-up form they signed \u2014 ",
+  link: `print one in ${sent}`
+};
+
+// src/templates/templates.ts
+var TEMPLATE_STATUS_WORDS = {
+  approved: "Approved",
+  pending: "In review",
+  rejected: "Refused",
+  paused: "Paused",
+  disabled: "Disabled"
+};
+var TEMPLATE_BODY_MAX = 1024;
+var TEMPLATE_BODY_WORDS = `The message must be under ${TEMPLATE_BODY_MAX} characters.`;
+
+// src/reach-out/reach-out-rules.ts
+var REACH_OUT_DRAFTS_PER_DAY = 30;
+var REACH_OUT_DRAFTS_OPEN_MAX = 2 * REACH_OUT_DRAFTS_PER_DAY;
+
+// src/reach-out/lead-hours.ts
+var NINE_TO_FIVE = [{ from: 9 * 60, to: 17 * 60 }];
+
+// src/reach-out/reach-out-timetable.ts
+var SEND_DAY_FRAME = { from: 9 * 60, to: 17 * 60 };
 
 // src/reach-out/reach-out-sheet.ts
 var REACH_OUT_SHEET_WORDS = {
@@ -2192,6 +2282,10 @@ var REACH_OUT_SHEET_WORDS = {
   repliesHint: "into your Inbox",
   checkLater: "Each email is checked before it goes. The first run waits for you.",
   noMailbox: "Connect the mailbox you'll write from first: Google or Microsoft, here or in Settings \u203A Connections \u203A Email.",
+  /** From, when its owner sends it (00429): what they are handed, and how. */
+  ownerSends: `Each email is handed to you written and checked, to send from your own inbox: Gmail, Outlook or your mail app. Up to ${REACH_OUT_DRAFTS_PER_DAY} a day.`,
+  /** From, with no mailbox connected: the owner sends, and a mailbox would send for them. */
+  ownerNoMailbox: "Or connect Google or Microsoft, and your mailbox sends them for you.",
   anotherStep: "Another step",
   anotherStepHint: "\xB7 another email",
   /** The last step may hand each business it reaches to you instead (Part 5, G20). */
@@ -2250,9 +2344,6 @@ function stepLabelOf(s) {
   if (!s.hand) return stepLabel(s.n);
   return s.hand.kind === "call" ? REACH_OUT_SHEET_WORDS.anotherCall : REACH_OUT_SHEET_WORDS.anotherNote;
 }
-
-// src/shared/unknown.ts
-var isCount = (v) => typeof v === "number" && Number.isInteger(v) && v >= 0;
 
 // src/reports/campaigns/reach-out-lens.ts
 var NO_BUSINESSES = "This database does not count businesses yet.";
@@ -2493,6 +2584,7 @@ function sourceLines(dto, nowMs) {
   ]);
 }
 function mailboxStateWords(d, nowMs, tz) {
+  if (d.yours) return "You send these";
   if (d.address === null || d.state === "removed") return "Since removed";
   if (d.state === "connected") return "Connected";
   if (d.state === "held") {
@@ -2507,16 +2599,30 @@ function mailboxCell(n, sent2, share) {
   return shareSaid(share(n, sent2), n, sent2) ?? DASH;
 }
 function mailboxRows(dto, nowMs) {
-  return dto.mailboxes.map((d) => ({
-    id: d.address ?? "removed",
-    address: d.address ?? "A mailbox since removed",
-    state: mailboxStateWords(d, nowMs, dto.timezone),
-    held: d.state === "held",
-    sent: d.sent,
-    landed: mailboxCell(d.delivered, d.sent, pct),
-    bounced: mailboxCell(d.bounced, d.sent, tenthOf),
-    complained: mailboxCell(d.complained, d.sent, tenthOf)
-  }));
+  return dto.mailboxes.map(
+    (d) => d.yours ? (
+      // Sent from their own inbox (00429): a bounce or a complaint reaches them, never us, so no share is said.
+      {
+        id: "your-inbox",
+        address: "Your own inbox",
+        state: mailboxStateWords(d, nowMs, dto.timezone),
+        held: false,
+        sent: d.sent,
+        landed: DASH,
+        bounced: DASH,
+        complained: DASH
+      }
+    ) : {
+      id: d.address ?? "removed",
+      address: d.address ?? "A mailbox since removed",
+      state: mailboxStateWords(d, nowMs, dto.timezone),
+      held: d.state === "held",
+      sent: d.sent,
+      landed: mailboxCell(d.delivered, d.sent, pct),
+      bounced: mailboxCell(d.bounced, d.sent, tenthOf),
+      complained: mailboxCell(d.complained, d.sent, tenthOf)
+    }
+  );
 }
 function periodLines(dto, when) {
   const handed = dto.totals.handed;
@@ -3449,51 +3555,6 @@ function settledWords(e) {
   if (settled) return settled;
   return e.outcome === "unknown" ? "The provider didn't answer in time, so it may have gone: check the thread before sending it again." : null;
 }
-
-// src/shell/campaign-rooms.ts
-var CAMPAIGN_ROOMS = {
-  home: "Campaigns",
-  sent: "Sent",
-  library: "Library",
-  newMessage: "New message"
-};
-var { sent, library } = CAMPAIGN_ROOMS;
-var PLAYBOOK_DELETE_WORDS = {
-  /** The toast's tail, after the playbook's name. */
-  done: `deleted \u2014 its runs stay in ${sent} with their numbers`,
-  /** The question's detail. */
-  detail: `Its runs stay in ${sent} with their numbers.`
-};
-var LIBRARY_WORDS = {
-  title: library,
-  demo: `The ${library} reads a real workspace \u2014 the messages it holds, by email, text and WhatsApp.`,
-  reading: `Reading the ${library}\u2026`,
-  failed: `The ${library} couldn\u2019t be loaded right now`,
-  failedWhat: `the ${library}`,
-  failedBody: "The receptionist keeps sending; this page just can't show what it holds at the moment.",
-  /** The count's hover: what the Library holds is every message, on each channel it goes by, whoever writes its versions. */
-  headTip: "What the receptionist and your campaigns send, as the customer sees it. A WhatsApp version is approved by WhatsApp, usually within minutes, whether it is written here or in WhatsApp Manager; an email or a text is ready the moment it is saved. A marketing message can only go to people who said yes to offers.",
-  noNumber: "No WhatsApp number yet. Email and text versions are written here; WhatsApp versions wait until one is connected.",
-  /** A template is written to a number's account, which is the edge's own answer (no_channel) when it has none. */
-  writeNeedsNumber: "Connect a WhatsApp number first \u2014 templates belong to a number's account.",
-  /** Why a WhatsApp version, or a language of one, cannot be added with no number; an email or a text needs none. */
-  addNeedsNumber: "Connect a WhatsApp number to add a WhatsApp version."
-};
-var OFFERS_IN_WRITING_WORDS = {
-  lead: "The carriers require it: their own message, or a sign-up form they signed \u2014 ",
-  link: `print one in ${sent}`
-};
-
-// src/templates/templates.ts
-var TEMPLATE_STATUS_WORDS = {
-  approved: "Approved",
-  pending: "In review",
-  rejected: "Refused",
-  paused: "Paused",
-  disabled: "Disabled"
-};
-var TEMPLATE_BODY_MAX = 1024;
-var TEMPLATE_BODY_WORDS = `The message must be under ${TEMPLATE_BODY_MAX} characters.`;
 
 // src/reports/campaigns/campaign-words.ts
 var NO_FIGURE = "\u2014";

@@ -8,7 +8,8 @@
  * press, Enter, Space or an arrow, and the arrows, Home, End and a typed word walk it; Enter or a press chooses;
  * Escape and a press outside close it and give focus back to the box, and the page holds still while it is open. It
  * is named by `label`, or by the kit's Field it stands in, which also wires its hint and what is wrong with it. The
- * list is drawn in a portal on the document's body. The kit writes none of it.
+ * list is drawn in a portal on the document's body. The kit writes none of it. Under the kit's 900px the list is the
+ * phone's action sheet, over the phone's veil, pulled down to close, as the Picker's is (picker/phone-list.ts).
  *
  * It draws what the gallery's Select family draws (tooling/scripts/e2e-harness/kit-gallery.mjs), which
  * e2e/kit/kit-behaves.spec.ts holds to it in a browser. `className` is for the page's layout, and comes last; the
@@ -18,6 +19,7 @@ import { Select as BaseSelect } from "@base-ui/react/select";
 import type { ReactElement, Ref } from "react";
 import { chosen } from "../chosen";
 import { Panel } from "../panel/panel";
+import { usePhoneList } from "../picker/phone-list";
 import { cx } from "../variants";
 
 /** The room between the box and its list. */
@@ -55,6 +57,7 @@ export function Select<V extends string>({
   className,
   ref,
 }: SelectProps<V>) {
+  const list = usePhoneList();
   return (
     <BaseSelect.Root
       value={value}
@@ -63,6 +66,8 @@ export function Select<V extends string>({
       }}
       items={options}
       readOnly={readOnly}
+      open={list.open}
+      onOpenChange={list.onOpenChange}
     >
       <BaseSelect.Trigger
         ref={ref}
@@ -74,8 +79,9 @@ export function Select<V extends string>({
         <BaseSelect.Icon>{chevron}</BaseSelect.Icon>
       </BaseSelect.Trigger>
       <BaseSelect.Portal>
+        <BaseSelect.Backdrop className="more-backdrop" />
         <BaseSelect.Positioner className="pop-place" alignItemWithTrigger={false} sideOffset={LIST_GAP_PX}>
-          <BaseSelect.Popup className="rec-combo-pop" render={<Panel variant="pop" size="flush" />}>
+          <BaseSelect.Popup className="rec-combo-pop" render={<Panel variant="pop" size="flush" />} {...list.sheet}>
             <BaseSelect.List className="rec-combo-list">
               {options.map((option) => (
                 <BaseSelect.Item

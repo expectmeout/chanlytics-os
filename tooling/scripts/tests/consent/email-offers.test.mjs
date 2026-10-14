@@ -639,11 +639,15 @@ test("the one foot builder, by kind: an offer says why they get it, who and wher
     ["address", ["Northside Studio", "  ", cold, "en"]],
     ["business", ["  ", "12 Main St", cold, "en"]],
     ["reason", ["Northside Studio", "12 Main St", { ...cold, why: " " }, "en"]],
-    ["link", ["Northside Studio", "12 Main St", { ...cold, unsubscribeUrl: "" }, "en"]],
   ]) {
     assert.throws(() => emailFoot(...args), /why, who, where and how to stop/, what);
     assert.throws(() => emailFootHtml(...args), /why, who, where and how to stop/, `${what} (HTML)`);
   }
+  // Its text says the way out in words, so it needs no link: a draft its owner sends from their own inbox has none
+  // (00429). The HTML twin draws the link, and is never built without it.
+  const unlinked = ["Northside Studio", "12 Main St", { ...cold, unsubscribeUrl: null }, "en"];
+  assert.equal(emailFoot(...unlinked), emailFoot("Northside Studio", "12 Main St", cold, "en"));
+  assert.throws(() => emailFootHtml(...unlinked), /why, who, where and how to stop/, "link (HTML)");
   assert.equal(
     emailFootHtml("Northside Studio", "12 Main St", cold, "en"),
     `<p>I found your business on Google Maps.<br>This is a marketing email.<br>Northside Studio · 12 Main St<br>Not interested? Reply &quot;no thanks&quot; and I won&#39;t write again · <a href="${url}">Unsubscribe</a></p>`,

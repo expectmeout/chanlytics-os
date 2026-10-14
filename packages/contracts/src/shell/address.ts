@@ -41,6 +41,12 @@ export const ROUTE_WORDS: Readonly<Record<string, string>> = {
 const headOf = (route: string): string => (route.includes("/") ? route.slice(0, route.indexOf("/")) : route);
 
 /**
+ * Sent's own views, which are no audience: Get their yes (people-lists GET_YES_ROUTE), and the one To send of the emails
+ * handed to their owner (reach-out-approval TO_SEND_ROUTE).
+ */
+const SENT_OWN_WORDS: ReadonlySet<string> = new Set(["get-yes", "to-send"]);
+
+/**
  * The route a retired one lands on, or null when the route is where it always was (3 Oct 2026, Campaigns' home). Playbooks'
  * list was a page of its own, `outbound`; Campaigns is one page now, `campaigns`, and a playbook is a drawer over it:
  * `outbound` lands on `campaigns` and `outbound/<id>` on `campaigns/moment:<id>`, so every bell row, email link, Ask
@@ -49,13 +55,13 @@ const headOf = (route: string): string => (route.includes("/") ? route.slice(0, 
  *
  * Sent has one way to write, the home's New message (`campaigns/new`), so `broadcasts/<audience>`, which People and a list
  * write when they ask to message these people, is a door to it: `campaigns/new:to:<audience>`. A run (`broadcasts/run:<id>`),
- * Get their yes (`broadcasts/get-yes`) and the room itself stay where they are.
+ * Get their yes (`broadcasts/get-yes`), the one To send (`broadcasts/to-send`, 00429) and the room itself stay where they are.
  */
 export function doorOf(route: string): string | null {
   const head = headOf(route);
   const word = route.slice(head.length).replace(/^\//, "").split("/")[0] ?? "";
   if (head === "broadcasts") {
-    return word && !word.startsWith("run:") && word !== "get-yes" ? `campaigns/new:to:${word}` : null;
+    return word && !word.startsWith("run:") && !SENT_OWN_WORDS.has(word) ? `campaigns/new:to:${word}` : null;
   }
   if (head !== "outbound") return null;
   return word ? `campaigns/moment:${word}` : "campaigns";

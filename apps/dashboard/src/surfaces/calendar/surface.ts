@@ -146,7 +146,7 @@ export const calendarOverride: SurfaceOverride = {
   // The feed tells a person's update for their identity and answers alone (00408), a few a day, and the board is one read. A person
   // made is no visit's until the board's next read matches them (a lead run's leads, an import's people): not heard.
   // And the mailbox: the Business tab's Booking tool row names its address, and the code Gmail mails to confirm a forward is shown
-  // there with a one-press confirm (the wiring's second audit, S4-4): told when it is kept (00428), a few times a workspace.
+  // there with a one-press confirm (the wiring's second audit, S4-4): told when it is kept (00431), a few times a workspace.
   ...declareReads("calendar", {
     reads: ["visit", "facts", "person", "channel"],
     fresh: "live",

@@ -173,6 +173,8 @@ const CHAIN = (first = {}, nudge = {}) => ({
   include_unconfirmed: false,
   gap_minutes: 12,
   mailbox_ids: [],
+  // Who sends it is the root's, and saved as it stands (00429): its mailboxes, here.
+  owner_sends: false,
   signed_by: "Sam",
   steps: [
     {
@@ -248,10 +250,10 @@ test("every word is checked by the one email check over the reach-out's rules, i
     said("subject_poses_as_reply", "subject"),
   );
   await refused(
-    post(t, write({ body: "Hi {{first name}}" })),
+    post(t, write({ body: "Hi {{nickname}}" })),
     "validation",
     422,
-    said("unknown_slot", "body", "first name"),
+    said("unknown_slot", "body", "nickname"),
   );
   await refused(post(t, write({ body: "Hi {{{business}}}" })), "validation", 422, said("stray_brace"));
   await refused(

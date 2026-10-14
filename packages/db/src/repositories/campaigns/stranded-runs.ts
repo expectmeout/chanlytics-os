@@ -19,7 +19,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { DEFAULT_TIMEZONE, RUN_GOING_STATES, isReachOutRun } from "@chanlytics/contracts";
 import type { Database, Json } from "../../database.types";
 import { emitEvent } from "../../events";
-import { heldSendCounts } from "../reach-out-sheet";
+import { runWaitingCounts } from "../reach-out-sheet";
 
 type Db = SupabaseClient<Database>;
 
@@ -200,15 +200,18 @@ export interface WaitingRunRow {
   created_at: string;
   /** A going reach-out run's emails the check holds for the owner's say (contracts runHeldEmails). */
   held?: number;
+  /** And those handed to its owner to send from their inbox (contracts runDraftedEmails, 00429). */
+  drafted?: number;
 }
 
 const WAITING_RUN_COLUMNS = "id, name, state, playbook_id, run_for, audience, recipient_count, created_at";
 
 /**
  * One workspace's runs waiting for a word, newest first, on the session's client (RLS decides): those waiting for
- * approval (two hundred at most), and the going reach-out runs whose check holds emails for the owner's say, with how
- * many (heldSendCounts). What the server's Today counts as waiting on you (contracts runsThatWait, by the verb's own day
- * rule and runHeldEmails) and Ask's today tool names. A read that fails throws.
+ * approval (two hundred at most), and the going reach-out runs whose check holds emails for the owner's say, or whose
+ * emails are handed to their owner to send (00429), with how many of each (runWaitingCounts). What the server's Today counts
+ * as waiting on you (contracts runsThatWait, by the verb's own day rule, runHeldEmails and runDraftedEmails) and Ask's
+ * today tool names. A read that fails throws.
  */
 export async function waitingRunsOf(db: Db, tenantId: string): Promise<WaitingRunRow[]> {
   const [pending, going] = await Promise.all([
@@ -230,14 +233,18 @@ export async function waitingRunsOf(db: Db, tenantId: string): Promise<WaitingRu
   if (pending.error) throw new Error(`cannot read the runs waiting for approval: ${pending.error.message}`);
   if (going.error) throw new Error(`cannot read the going runs: ${going.error.message}`);
   const reaching = (going.data ?? []).filter((r) => isReachOutRun(r.audience));
-  const held = reaching.length ? await heldSendCounts(db, { tenantId, runIds: reaching.map((r) => r.id) }) : null;
-  const holding = reaching.flatMap((r) => ((held?.get(r.id) ?? 0) > 0 ? [{ ...r, held: held?.get(r.id) ?? 0 }] : []));
+  const runIds = reaching.map((r) => r.id);
+  const waiting = reaching.length ? await runWaitingCounts(db, { tenantId, runIds }) : null;
+  const holding = reaching.flatMap((r) => {
+    const w = waiting?.get(r.id);
+    return w ? [{ ...r, held: w.held, drafted: w.drafted }] : [];
+  });
   return [...(pending.data ?? []), ...holding].sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
 /**
  * The runs the bell's notices name, by id, in whatever state each is now, with how many emails a going reach-out run's check
- * holds: what Ask's read of the notices judges each by (contracts noticeStillWaits), as the bell judges by the runs Sent
+ * holds or has handed to its owner (runWaitingCounts): what Ask's read of the notices judges each by (contracts noticeStillWaits), as the bell judges by the runs Sent
  * holds, so a run approved, sent or stopped is no longer listed as waiting (the wiring's second audit, R13 X5-1). On the
  * session's client (RLS decides). A read that fails throws.
  */
@@ -253,6 +260,9 @@ export async function runsNamed(db: Db, tenantId: string, ids: readonly string[]
   const reaching = rows.filter(
     (r) => isReachOutRun(r.audience) && (RUN_GOING_STATES as readonly string[]).includes(r.state),
   );
-  const held = reaching.length ? await heldSendCounts(db, { tenantId, runIds: reaching.map((r) => r.id) }) : null;
-  return rows.map((r) => (held?.has(r.id) ? { ...r, held: held.get(r.id) ?? 0 } : r));
+  const waiting = reaching.length ? await runWaitingCounts(db, { tenantId, runIds: reaching.map((r) => r.id) }) : null;
+  return rows.map((r) => {
+    const w = waiting?.get(r.id);
+    return w ? { ...r, held: w.held, drafted: w.drafted } : r;
+  });
 }

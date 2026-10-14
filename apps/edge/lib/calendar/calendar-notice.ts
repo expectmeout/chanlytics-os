@@ -3,10 +3,10 @@
  * (the wiring's second audit, R11 S11-4). The receptionist quietly stopped saying which times are open and new visits
  * stopped reaching the Calendar, while the sweep stamped the link as read and counted it in a log line.
  *
- * Since when its reads have failed is kept on the workspace's row (tenant_config.calendar_failed_since, 00434), written
+ * Since when its reads have failed is kept on the workspace's row (tenant_config.calendar_failed_since, 00435), written
  * by the sweep's own stamp on the change (calendar-sweep.ts). A read failing is routine (a slow feed, the read's own
  * bound), so the owner is told once the failures are contracts CALENDAR_UNREADABLE_TOLD_AFTER_MS old, once per breakage
- * (kept under its start, notify's onceKey), with the door to the link in Settings. A database before 00434 keeps no
+ * (kept under its start, notify's onceKey), with the door to the link in Settings. A database before 00435 keeps no
  * stamp, and nothing is told from it. Best effort: a notice that could not be kept is logged, and asked again next hour.
  */
 import {

@@ -352,17 +352,13 @@ export const PersonDealQuiet = ({
   </div>
 );
 
-/** How a person page draws its deals: the Overview (Up next holds each next act), or the Deals tab; and the width. */
-interface DealRowWay {
-  rung: boolean;
-  phone: boolean;
-}
-
 /**
  * One open deal as the person page's row (canvas A, `.a-deal`; D2): its name, its steps, its value and the fold's chevron,
- * one 52px line on a desk and two on a phone. The name is the press, and covers the row. On a desk it folds the rest of
- * the card open under it: the link line, its moves (its next act too, where Up next does not hold it) and its next step,
- * and on the Deals tab what wants a look; on a phone it opens the deal's sheet.
+ * one 52px line on a desk and two on a phone. The name is the press, and covers the row. It folds the rest of the card
+ * open under it: the link line, its moves (its next act too, where Up next does not hold it; `rung`, the Overview's) and
+ * its next step, and on the Deals tab what wants a look. A phone folds it too: a press there once opened the deal sheet to
+ * edit the proposal, which a client's deal or a passed one cannot be (the sheet said only that the deal had moved on),
+ * and its other moves and its next step were out of reach.
  */
 function PersonDealRow({
   p,
@@ -371,7 +367,7 @@ function PersonDealRow({
   canRecord,
   onCompose,
   flash,
-  way,
+  rung,
 }: {
   p: PersonVM;
   c: DealCardVM;
@@ -379,12 +375,11 @@ function PersonDealRow({
   canRecord: boolean;
   onCompose: ComposeFn;
   flash: FlashFn | null;
-  way: DealRowWay;
+  rung: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const bodyId = useId();
-  const { rung, phone } = way;
-  const press = () => (phone ? openDealSheet({ personId: p.id, mode: "edit", dealId: c.id }) : setOpen((was) => !was));
+  const press = () => setOpen((was) => !was);
   return (
     <li className="cl-prof-deal-item" data-open={open || undefined} data-stage={c.stage} data-testid="person-deal-card">
       <div className="cl-prof-deal-row">
@@ -392,8 +387,8 @@ function PersonDealRow({
           variant="quiet"
           size="text"
           className="cl-prof-deal-title"
-          aria-expanded={phone ? undefined : open}
-          aria-controls={phone ? undefined : bodyId}
+          aria-expanded={open}
+          aria-controls={bodyId}
           onClick={press}
           data-testid="person-deal-title"
         >
@@ -407,7 +402,7 @@ function PersonDealRow({
           <Icon name="chevron" size={12} />
         </span>
       </div>
-      {open && !phone ? (
+      {open ? (
         <div className="cl-prof-deal-open" id={bodyId}>
           {c.link || c.facts.length || c.pace ? dealLine(c, W, true) : null}
           {/* What wants a look is Up next's on the Overview (its rung says it), said here only on the Deals tab. */}
@@ -436,7 +431,6 @@ export const PersonDealCard = ({
   onCompose = null,
   flash = null,
   rung = false,
-  phone = false,
 }: {
   p: PersonVM | null;
   canRecord?: boolean;
@@ -444,8 +438,6 @@ export const PersonDealCard = ({
   flash?: FlashFn | null;
   /** The page draws Up next, which holds each deal's next act (the person page's Overview). */
   rung?: boolean;
-  /** A phone: a row opens the deal's sheet rather than folding open. */
-  phone?: boolean;
 }) => {
   if (!p || !p.dealsOn) return null;
   const tz = pageClock().zone();
@@ -469,7 +461,7 @@ export const PersonDealCard = ({
               canRecord={canRecord}
               onCompose={onCompose}
               flash={flash}
-              way={{ rung, phone }}
+              rung={rung}
             />
           ))}
         </ol>

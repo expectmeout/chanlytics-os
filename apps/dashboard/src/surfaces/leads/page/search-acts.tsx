@@ -9,6 +9,7 @@ import {
   leadsRoute,
   type LeadIdeaDto,
   type LeadSearchDto,
+  type LeadPeoplePlan,
   type LeadSearchPlan,
 } from "@chanlytics/contracts";
 import { askAbout, openAsk, refusalToast } from "../../legacy-verbs";
@@ -144,6 +145,8 @@ interface SearchActsArgs {
   leadLine: LeadLine | null;
   setLeadLine: SetLeadLine;
   openFinder: (card: Partial<FinderState>) => void;
+  /** Find people, filled in with a people search's plan (00430): what its Search again opens. */
+  openFindPeople: (from?: LeadPeoplePlan | null) => void;
 }
 
 const NO_LINE: LeadLine = { draft: "", error: null, busy: false };
@@ -250,9 +253,10 @@ export const leadSearchActs = (a: SearchActsArgs) => {
   // Find new ones runs the same plan again, and only places not already in your leads count (P3).
   const findNewOnes = (s: RailSearch) => {
     const dto = searchById(s.id);
-    if (!dto) return undefined;
+    const plan = dto?.plan;
+    if (!dto || !plan) return undefined;
     return leadAct(
-      () => moreForSearch(dto.id, "renew", dto.plan),
+      () => moreForSearch(dto.id, "renew", plan),
       <>Looking for new ones. Only places not already in your leads count.</>,
     );
   };
@@ -260,12 +264,19 @@ export const leadSearchActs = (a: SearchActsArgs) => {
   const searchAgain = (s: RailSearch) => {
     const dto = searchById(s.id);
     if (!dto) return;
+    // A people search opens its own sheet with what was asked (00430): a people plan never reaches the places card.
+    if (dto.people) {
+      a.openFindPeople(dto.people);
+      return;
+    }
+    const plan = dto.plan;
+    if (!plan) return;
     // The card draws the plan it is handed: without it the card drew the last strip-born plan, or nothing at all.
     openFinder({
       stage: "plan",
       words: dto.asked,
-      proposal: { searchId: dto.id, plan: dto.plan, purpose: "renew" },
-      plan: dto.plan,
+      proposal: { searchId: dto.id, plan, purpose: "renew" },
+      plan,
       more: null,
     });
   };

@@ -26,6 +26,11 @@ export interface ReachOutStep {
   gap_minutes: number;
   /** The mailboxes it writes from (00424); none named is every connected one. */
   mailbox_ids: string[];
+  /**
+   * The chain's (its root's, 00429): its owner sends its emails from their own inbox, each handed to them written and
+   * checked, so a run plans no mailbox and no timetable: its day's share, due as the run goes ahead.
+   */
+  owner_sends: boolean;
   cap_per_run: number;
   template_id: string;
   template_name: string;
@@ -101,8 +106,9 @@ export interface NewReachOutRun {
 }
 
 /**
- * One lead in a run: planned, with its time and mailbox; or skipped, with why, so a lead the step may never write to
- * (the door refuses it, or it keeps no open hour all week) leaves the step's page rather than heading it every day.
+ * One lead in a run: planned, with its time and mailbox (none for a reach-out its owner sends, 00429); or skipped, with
+ * why, so a lead the step may never write to (the door refuses it, or it keeps no open hour all week) leaves the step's
+ * page rather than heading it every day.
  */
 export type PlannedSend = {
   id: string;
@@ -113,7 +119,7 @@ export type PlannedSend = {
   lead_id: string;
   contact_id: string | null;
 } & (
-  | { state: "planned"; mailbox_id: string; send_at: string; reason?: null }
+  | { state: "planned"; mailbox_id: string | null; send_at: string; reason?: null }
   | { state: "skipped"; mailbox_id: null; send_at: null; reason: string }
 );
 
@@ -139,6 +145,12 @@ export interface ReachOutRunPorts {
    * times it already spends (db mailbox_capacity); `gone` is those of `also` that are removed, or not the workspace's.
    */
   mailboxes(step: ReachOutStep, also: readonly string[]): Promise<{ senders: TimetableSender[]; gone: Set<string> }>;
+  /**
+   * What a reach-out its owner sends holds (db chainDraftLoad, 00429): the emails its runs for this day already hold,
+   * skipped aside (its day's share is counted against them, contracts REACH_OUT_DRAFTS_PER_DAY), and those waiting for
+   * its owner across every run, not yet said (their pile, REACH_OUT_DRAFTS_OPEN_MAX).
+   */
+  draftLoad(rootId: string, runFor: string): Promise<{ today: number; open: number }>;
   /**
    * The run and its sends, written whole (db reach_out_plan_run): never a run with nothing planned in it. "exists" when
    * this step already has its run for the day.

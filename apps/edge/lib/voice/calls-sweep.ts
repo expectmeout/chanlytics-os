@@ -47,7 +47,7 @@
  *      with the summary.
  *
  * Called by pg_cron every five minutes ('call-reconcile', 00020) through trigger_call_reconcile, which since 00149
- * (and 00433, for leg 4) wakes the edge only when the calls table owes one of those things, through request_sweep with the Vault sweep
+ * (and 00434, for leg 4) wakes the edge only when the calls table owes one of those things, through request_sweep with the Vault sweep
  * key in x-cron-key (authorizeCron), waiting 65 s, past this function's own 60. The request is recorded in
  * sweep_status and sweep_health() judges the edge's answer (registered in 00107): anything but a 2xx is an unhealthy
  * clock, a quiet line is not.
@@ -107,7 +107,7 @@ const MAX_NOTES_PER_TICK = 10;
  * A call is asked for its analysis from contracts ANALYSIS_GRACE_MS after it ended, the time the provider takes to
  * deliver it (the pages say "no summary" as a fact about the clock until then), and for no longer than this: a call the
  * provider never analyses is not asked about every five minutes all day. The window bounds the probe without a count
- * on the row; trigger_call_reconcile holds the same (00433).
+ * on the row; trigger_call_reconcile holds the same (00434).
  */
 const SETTLE_FOR_MS = 2 * HOUR_MS;
 

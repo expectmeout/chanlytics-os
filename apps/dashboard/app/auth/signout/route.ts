@@ -33,7 +33,7 @@ export async function POST(request: Request) {
   // call fails, and a failed sign-out must still end the local session rather
   // than 500 and leave the operator signed in.
   // Every phone of theirs is forgotten first, while the session still says who they are: the sign-out below ends every
-  // session of theirs, on every device, and a phone kept registered went on being pushed the customer's words (00431). It
+  // session of theirs, on every device, and a phone kept registered went on being pushed the customer's words (00432). It
   // never stands in the sign-out's way.
   await forgetPhonesOnSignOut(supabase);
   try {

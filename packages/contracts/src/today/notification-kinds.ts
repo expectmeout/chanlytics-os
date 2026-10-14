@@ -58,7 +58,7 @@ const NOTIFICATION_DELIVERY = {
   // A booking that arrived and a teammate who joined: news and no wait, a line on the bell and no mail, no phone.
   booking: "bell",
   member_joined: "bell",
-  // A teammate who left: the same, the other way (00436).
+  // A teammate who left: the same, the other way (00437).
   member_left: "bell",
 } as const satisfies Record<ServerNotificationKind, "email" | "bell">;
 

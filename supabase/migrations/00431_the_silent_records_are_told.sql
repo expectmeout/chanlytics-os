@@ -1,4 +1,4 @@
--- 00428 · The silent records are told: a mailbox made, a review answered, a round that moved, the workspace's own row.
+-- 00431 · The silent records are told: a mailbox made, a review answered, a round that moved, the workspace's own row.
 --
 -- The wiring's second audit, lane R6 (decision 0058; 0047's step 1 again, after 00408). Four records a page draws were
 -- still told too little, or too much:

@@ -115,7 +115,7 @@
     },
     {
       "kind": "account",
-      "why": "The workspace's own row: its status (every door that must not act on a paused workspace reads it: workspacePaused, workspaceMaySpend, metrics_summary), its zone (a day is counted in it: the series functions) and how its customers buy (sellsByOf). The feed tells its status, name, zone, buying model and logo (00428), and none of these surfaces hears the row: a zone or a way of buying saved re-reads each of them in the writer's tab where it is drawn, and forgets or leaves it for its page elsewhere (PATCH workspaces, rereadAfter; the Reviews lens is forgotten), and a teammate's change reaches another tab on its next read.",
+      "why": "The workspace's own row: its status (every door that must not act on a paused workspace reads it: workspacePaused, workspaceMaySpend, metrics_summary), its zone (a day is counted in it: the series functions) and how its customers buy (sellsByOf). The feed tells its status, name, zone, buying model and logo (00431), and none of these surfaces hears the row: a zone or a way of buying saved re-reads each of them in the writer's tab where it is drawn, and forgets or leaves it for its page elsewhere (PATCH workspaces, rereadAfter; the Reviews lens is forgotten), and a teammate's change reaches another tab on its next read.",
       "reads": {
         "broadcasts": [
           "tenants"
@@ -192,7 +192,7 @@
     },
     {
       "kind": "account",
-      "why": "The workspace's own row, read for its zone and its status: Leads' and the reach-outs' dates and a search's place, and a person's page's days. No write re-reads these three for a zone or a way of buying saved, and none hears the feed's notice of the row (00428): each reads it on its next read, and a zone changed while one is open keeps its old days until then (the wiring's second audit, W-visit-deal-4, found no visible effect on them).",
+      "why": "The workspace's own row, read for its zone and its status: Leads' and the reach-outs' dates and a search's place, and a person's page's days. No write re-reads these three for a zone or a way of buying saved, and none hears the feed's notice of the row (00431): each reads it on its next read, and a zone changed while one is open keeps its old days until then (the wiring's second audit, W-visit-deal-4, found no visible effect on them).",
       "reads": {
         "leads": [
           "tenants"
@@ -344,6 +344,26 @@
       "heardWith": {
         "leads": [
           "leads"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "why": "Which cards find leads now (lead_cards_live over lead_platform, 00430): the platform's one switch row, for every workspace, switched by hand once a card's calibration run has proved it, which no workspace's topic carries. It is read with the searches each time Leads and Today read them (GET lead-searches), so a card switched on is offered at the next read, and nothing a member does changes it.",
+      "reads": {
+        "leads": [
+          "lead_platform"
+        ],
+        "today": [
+          "lead_platform"
+        ]
+      },
+      "heardWith": {
+        "leads": [
+          "leads"
+        ],
+        "today": [
+          "lead_rounds"
         ]
       }
     },
@@ -713,7 +733,7 @@
     {
       "kind": "owed",
       "finding": "W-channel-team-plus-3",
-      "why": "The workspace's own mailbox, read for whose inbox a reply came to. The feed tells a mailbox made, renamed, paused and its forwarding code (00428), and the Calendar, Setup, Today, People and the composers hear it; the replies' read declares no channel kind, so a mailbox renamed reaches it on its next read. Owed: the replies hear the mailbox.",
+      "why": "The workspace's own mailbox, read for whose inbox a reply came to. The feed tells a mailbox made, renamed, paused and its forwarding code (00431), and the Calendar, Setup, Today, People and the composers hear it; the replies' read declares no channel kind, so a mailbox renamed reaches it on its next read. Owed: the replies hear the mailbox.",
       "reads": {
         "reach_out_replies": [
           "mailboxes"

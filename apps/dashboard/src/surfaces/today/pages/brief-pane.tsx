@@ -16,7 +16,14 @@
  * where the clip cannot be made the button says why, and nothing else speaks.
  */
 import { useRef, useState, useSyncExternalStore } from "react";
-import { mmss, type TodayBriefRun, type TodayBriefWords } from "@chanlytics/contracts";
+import {
+  TO_SEND_ALL_WORDS,
+  mmss,
+  runLabelOf,
+  toSendRunsOf,
+  type TodayBriefRun,
+  type TodayBriefWords,
+} from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { surfaceValue } from "../../surface-values";
@@ -127,10 +134,25 @@ export const TodayBriefPane = () => {
   const day = useDayVm();
   // The runs waiting for a word an approval can still send, said as the queue says them (todayRunWords). A run whose day
   // has passed waits on nobody: its row says so, and the brief says nothing of it (S7-3).
-  const runs: TodayBriefRun[] = runsPending().waiting.map((r) => ({
-    label: r.audience.label,
-    sentence: TODAY_HELPERS.runs(r).waiting.sentence,
-  }));
+  const waiting = runsPending().waiting;
+  // Two or more runs whose emails are handed to you are one line, as they are one row in the queue (toSendRunsOf).
+  const toSend = toSendRunsOf(waiting);
+  const runs: TodayBriefRun[] = [
+    ...(toSend
+      ? [
+          {
+            ...TO_SEND_ALL_WORDS.brief(toSend.from),
+            sentence: TO_SEND_ALL_WORDS.sentence(toSend.count, toSend.from),
+          },
+        ]
+      : []),
+    ...waiting
+      .filter((r) => !toSend || !toSend.runs.includes(r))
+      .map((r) => ({
+        label: runLabelOf(r),
+        ...TODAY_HELPERS.runs(r).brief,
+      })),
+  ];
   const words = vm ? TODAY_HELPERS.briefWords(vm, day, runs) : null;
   const line = words && words.sentences.length ? words.text : null;
   const speech = useSpeech(line);

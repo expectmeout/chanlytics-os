@@ -47,6 +47,7 @@ const S = "../../../../apps/dashboard/src/surfaces";
 const { ReachOutPane } = await import(`${S}/campaigns/reach-out/row.tsx`);
 const { CampaignsHome } = await import(`${S}/campaigns/home/home-page.tsx`);
 const { ReachOutSheet } = await import(`${S}/campaigns/reach-out/sheet.tsx`);
+const { WriteToLeads } = await import(`${S}/campaigns/reach-out/sources.tsx`);
 const { PaneSheet } = await import(`${S}/campaigns/home/pane-sheet.tsx`);
 const { playbooksSample } = await import(`${S}/campaigns/playbooks/sample.ts`);
 const { playbooks: playbookVerbs } = await import(`${S}/campaigns/playbooks/verbs.ts`);
@@ -475,6 +476,39 @@ test("a chain's drawer says it is reading, or that it could not read, in the she
     assert.equal(byTestId(failed, "cmh-drawer-reading"), null);
   });
   assert.equal(byTestId(homeAt(`moment:${ROOT}`, [chainOf()]), "cmh-drawer-reading"), null, "read: its pane");
+});
+
+test("Write to leads hands its search to the home, which closes New message and opens the reach-out's sheet in its place: under the composer's modal it opened hidden, its Start out of reach (census, 13 Oct 2026)", async () => {
+  verbs();
+  went.length = 0;
+  const search = { id: "s9", name: "Pilates studios · Denver" };
+  let tree = homeAt("new:leads");
+  const write = find(tree, (n) => n.type === WriteToLeads);
+  assert.ok(write, "Write to leads, in New message");
+  assert.equal(byTestId(tree, "ro-sheet"), null, "no sheet of its own under the composer");
+  write.props.onWrite({ search, includeUnconfirmed: true });
+  assert.deepEqual(went, ["campaigns"], "the composer's address let go of");
+  tree = homeAgain("new:leads");
+  assert.equal(
+    find(tree, (n) => n.type === ReachOutSheet),
+    null,
+    "never drawn while the address still names the composer",
+  );
+  // The address the close leaves: the composer closed, and the reach-out's sheet the page's, on the search handed over.
+  tree = homeAgain(null);
+  const sheet = find(tree, (n) => n.type === ReachOutSheet);
+  assert.ok(sheet, "the reach-out's sheet");
+  assert.deepEqual(sheet.props.search, search);
+  assert.equal(sheet.props.includeUnconfirmed, true, "with the unconfirmed, as the row said");
+  const composer = all(tree, (n) => n.type === PaneSheet).find((n) => n.props.testid === "cmh-composer");
+  assert.ok(!composer || composer.props.open === false, "New message is closed under it");
+  sheet.props.onClose();
+  tree = homeAgain(null);
+  assert.equal(
+    find(tree, (n) => n.type === ReachOutSheet),
+    null,
+    "and closed, it is gone",
+  );
 });
 
 test("Edit on a reach-out in the home's drawer opens its sheet at an address of its own, in the drawer's place: the record sheet stands on the page, so it could not stand under the drawer's modal", async () => {

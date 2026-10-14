@@ -70,6 +70,7 @@ const railRowsOf = (p: P, phone: boolean) => (
     removeError={p.removeError}
     onMore={p.onFindNewOnes}
     importDoor={p.importDoor}
+    findPeopleDoor={p.findPeopleDoor}
     onAgain={p.onSearchAgain}
     exportFor={p.exportFor}
     onNew={p.onFind}
@@ -275,6 +276,7 @@ const firstDayOf = (p: P, phone: boolean) => (
     onFind={p.onFind}
     onIdea={p.onIdea}
     onImport={p.onImport}
+    onFindPeople={p.onFindPeople}
     onOpenLine={p.onOpenLine}
     onNewIdeas={p.onNewIdeas}
     onLineDraft={p.onLineDraft}

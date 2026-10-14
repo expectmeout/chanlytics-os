@@ -1,4 +1,4 @@
--- 00431 · Signing out forgets every phone of the person who signed out.
+-- 00432 · Signing out forgets every phone of the person who signed out.
 --
 -- The wiring's second audit, lane R11 (S8-3). Sign-out ended the session and left the phone's push_devices row: the
 -- business went on pushing handoff and call alerts, with the customer's words, to a phone nobody was signed in to,

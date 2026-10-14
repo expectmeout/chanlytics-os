@@ -141,7 +141,9 @@ export async function finishAskTurn(p: PreparedTurn, emit: (ev: AskTurnLine) => 
   // A new search's card carries the thread it was planned in, so the search keeps it (00172) and the answer
   // to its question lands back here. An answer's card needs none: its search already has one or never will.
   const proposals: AskProposal[] = result.proposals.map((p) =>
-    p.kind === "lead_search" && !p.payload.amends ? { ...p, payload: { ...p.payload, thread_id: turn.id } } : p,
+    (p.kind === "lead_search" || p.kind === "people_search") && !p.payload.amends
+      ? { ...p, payload: { ...p.payload, thread_id: turn.id } }
+      : p,
   );
   const content = {
     v: 2,

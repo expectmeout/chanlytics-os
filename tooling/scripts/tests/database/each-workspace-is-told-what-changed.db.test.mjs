@@ -264,7 +264,7 @@ function world() {
       ${told("a_template_removed")}
 
       -- The mailbox. Made, its pause on offers and its end, Gmail's forwarding code and the intake's error are told; the
-      -- mail it receives is not (00428).
+      -- mail it receives is not (00431).
       insert into public.mailboxes (tenant_id, local_part, reply_token, from_name)
         values (a, 'told-' || left(md5(random()::text), 12), translate(left(md5(random()::text), 24), '0123456789', 'ghijklmnop'), 'Told A');
       ${told("a_mailbox_made")}
@@ -277,7 +277,10 @@ function world() {
       update public.mailboxes set last_received_at = now(), last_error = 'the intake could not read it' where tenant_id = a;
       ${told("the_same_error_written_again")}
 
-      -- A review: seen, seen again by the next sync, answered, and the same answer written again (00428).
+      -- A review: seen, seen again by the next sync, answered, and the same answer written again (00431). A review is of
+      -- the workspace's listing (its tenant_id names the listing's), linked first and told as its own step.
+      insert into public.google_listings (tenant_id, place_id, name) values (a, 'told-place', 'Told A');
+      ${told("a_listing_linked")}
       insert into public.google_reviews (tenant_id, review_id) values (a, 'told-review');
       ${told("a_review_seen")}
       update public.google_reviews set last_seen_at = now() where tenant_id = a;
@@ -437,7 +440,7 @@ test(
     const { watchedEvents, narrowedUpdates } = await import(
       pathToFileURL(path.join(ROOT, "packages/db/src/realtime.ts")).href
     );
-    // The updates told only when a column a page draws holds something else than it did (00408, 00428), and the columns
+    // The updates told only when a column a page draws holds something else than it did (00408, 00431), and the columns
     // each is narrowed to: realtime.ts says them once, and the triggers are held to it here.
     const NARROWED = narrowedUpdates();
     const triggers = query(`
@@ -671,7 +674,7 @@ test(
 );
 
 test(
-  "a mailbox made, a pause on offers and its end, Gmail's forwarding code and the intake's error are told; the mail it receives is not (00408, 00428)",
+  "a mailbox made, a pause on offers and its end, Gmail's forwarding code and the intake's error are told; the mail it receives is not (00408, 00431)",
   { skip },
   () => {
     const { steps } = world();
@@ -690,7 +693,7 @@ test(
 );
 
 test(
-  "a review seen and a review answered are told; the sync's stamp and the same answer again are not (00428)",
+  "a review seen and a review answered are told; the sync's stamp and the same answer again are not (00431)",
   { skip },
   () => {
     const { steps } = world();
@@ -731,7 +734,7 @@ test(
 );
 
 test(
-  "a workspace's status and name moving are told to it; a stamp no page draws, or the same status again, is not (00408, 00428)",
+  "a workspace's status and name moving are told to it; a stamp no page draws, or the same status again, is not (00408, 00431)",
   { skip },
   () => {
     const { steps } = world();

@@ -293,7 +293,7 @@ export async function isWorkspaceCall(db: Db, tenantId: string, retellCallId: st
  * The calls whose analysis may have been lost, oldest first, at most `limit` (the calls sweep's settle leg, the wiring's
  * second audit, R11 S11-3): ended or errored, longer than a hang-up (`minMs`), in the customer's thread, its owner never
  * told (no claim on the row), with no summary yet or one that asked for a call back, ended between `toMs` and `fromMs`
- * ago. trigger_call_reconcile (00433) wakes the sweep on the same window. A read that fails throws.
+ * ago. trigger_call_reconcile (00434) wakes the sweep on the same window. A read that fails throws.
  */
 export async function callsOwedAnAnalysis(
   db: Db,

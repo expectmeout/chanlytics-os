@@ -8,11 +8,13 @@
  * read that failed draws nothing of it, never a line it did not read. Who may press is the role store's answer (canDo
  * "approve", and the role gate).
  */
-import { useEffect, useMemo, useReducer, useState } from "react";
-import type { LeadPeekVM, ReachOutLeadTimelineDto, ReachOutLeadsDto } from "@chanlytics/contracts";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import type { LeadPeekVM, OwnerSaidIntent, ReachOutLeadTimelineDto, ReachOutLeadsDto } from "@chanlytics/contracts";
 import { replies } from "@/legacy-bridge/reach-out/replies";
 import { useReadAgain } from "../../campaigns/reach-out/read-again";
+import { RoSaidAsk, type SaidMore } from "../../campaigns/reach-out/said-ask";
 import { reachOuts } from "../../campaigns/reach-out/surface";
+import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { canDo, gate, navigate, refusalToast, useLegacyToast } from "../../legacy-verbs";
@@ -113,7 +115,79 @@ export const ReachOutLeadsStrip = ({ leads }: { leads: ReachOutLines | null }) =
   );
 };
 
-/** The peek's block (H9): a lead's story with the reach-out, and its doors. Nothing when no reach-out planned it. */
+type TimelineVM = ReturnType<typeof reachOuts.timelineOf>;
+
+/** An owner's doors on the peek (00429): Send it, to the run where a draft waits, and They wrote back…, which asks. */
+const RoOwnerDoors = ({
+  vm,
+  busy,
+  asking,
+  onAsk,
+}: {
+  vm: TimelineVM;
+  busy: boolean;
+  asking: boolean;
+  onAsk: () => void;
+}) => (
+  <>
+    {vm.send ? (
+      <Button size="sm" onClick={() => vm.send && navigate(vm.send.to)} data-testid="peek-reach-out-send">
+        {vm.send.label}
+      </Button>
+    ) : null}
+    {vm.said ? (
+      <Button
+        size="sm"
+        variant="quiet"
+        disabled={busy}
+        aria-expanded={asking}
+        onClick={onAsk}
+        data-testid="peek-reach-out-said"
+        {...gate("approve", "say what a business wrote back")}
+      >
+        {vm.said.label}
+      </Button>
+    ) : null}
+  </>
+);
+
+/** The block's head and its story: what the reach-out is, where the lead stands, each line, and its stop if any. */
+const RoStory = ({ vm, standing }: { vm: TimelineVM; standing: string | null }) => (
+  <>
+    <summary className="pk-box-head">
+      <span className="pk-box-line">
+        <Icon name="mail" size={12} />
+        <span className="pk-box-sum" data-testid="peek-reach-out-label">
+          {vm.label}
+        </span>
+        <Icon name="chevron-down" size={12} />
+      </span>
+    </summary>
+    {standing ? (
+      <p className="pk-alt-why" data-testid="peek-reach-out-standing">
+        {standing}
+      </p>
+    ) : null}
+    <ol className="pk-steps" data-testid="peek-reach-out-lines">
+      {vm.lines.map((l) => (
+        <li key={l.id} className="pk-step">
+          {l.when} · {l.text}
+        </li>
+      ))}
+    </ol>
+    {vm.stopped ? (
+      <p className="pk-alt-why" data-testid="peek-reach-out-stopped">
+        {vm.stopped}
+      </p>
+    ) : null}
+  </>
+);
+
+/**
+ * The peek's block (H9): a lead's story with the reach-out, and its doors. Nothing when no reach-out planned it. For a
+ * reach-out its owner sends (00429): Send it, to the run where an email handed to them waits, and They wrote back…, what
+ * the business answered in their own inbox, said as one of five words and read as a reply is (its undo the same).
+ */
 export const LeadReachOut = ({ lead, flash }: { lead: LeadPeekVM | null; flash: Flash | null }) => {
   const leadId = lead ? lead.id : null;
   const [story, setStory] = useState<ReachOutLeadTimelineDto | null>(null);
@@ -122,6 +196,7 @@ export const LeadReachOut = ({ lead, flash }: { lead: LeadPeekVM | null; flash: 
   const moved = useReadAgain(leadId);
   const [sure, setSure] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [asking, setAsking] = useState(false);
   useEffect(() => {
     if (!leadId) return undefined;
     let live = true;
@@ -150,40 +225,36 @@ export const LeadReachOut = ({ lead, flash }: { lead: LeadPeekVM | null; flash: 
   };
   const undo = async () => {
     if (busy || !vm.undo) return;
+    const done = vm.undo.done;
     setBusy(true);
     const r = await replies.undo(vm.undo.messageId).finally(() => setBusy(false));
-    said(r, "Undone: it no longer reads as a no.");
+    said(r, done);
+    bump();
+    roLeadsMoved();
+  };
+  const tell = async (intent: OwnerSaidIntent, more: SaidMore) => {
+    if (busy) return;
+    setAsking(false);
+    setBusy(true);
+    const r = await reachOuts.sayReply(lead.id, { intent, ...more }).finally(() => setBusy(false));
+    const SW = reachOuts.words.REACH_OUT_SAID_WORDS;
+    said(
+      r,
+      r && r.ok && r.data.already
+        ? SW.already(story.business_name)
+        : reachOuts.saidReplyWords(
+            story.business_name,
+            intent,
+            r && r.ok ? r.data.resume_at : null,
+            more.refer_to ?? null,
+          ),
+    );
     bump();
     roLeadsMoved();
   };
   return (
     <details className="pk-box" open data-testid="peek-reach-out">
-      <summary className="pk-box-head">
-        <span className="pk-box-line">
-          <Icon name="mail" size={12} />
-          <span className="pk-box-sum" data-testid="peek-reach-out-label">
-            {vm.label}
-          </span>
-          <Icon name="chevron-down" size={12} />
-        </span>
-      </summary>
-      {standing ? (
-        <p className="pk-alt-why" data-testid="peek-reach-out-standing">
-          {standing.line}
-        </p>
-      ) : null}
-      <ol className="pk-steps" data-testid="peek-reach-out-lines">
-        {vm.lines.map((l) => (
-          <li key={l.id} className="pk-step">
-            {l.when} · {l.text}
-          </li>
-        ))}
-      </ol>
-      {vm.stopped ? (
-        <p className="pk-alt-why" data-testid="peek-reach-out-stopped">
-          {vm.stopped}
-        </p>
-      ) : null}
+      <RoStory vm={vm} standing={standing ? standing.line : null} />
       {sure ? (
         <Confirm
           question={W.ask(story.business_name)}
@@ -231,8 +302,17 @@ export const LeadReachOut = ({ lead, flash }: { lead: LeadPeekVM | null; flash: 
               {vm.undo.label}
             </button>
           ) : null}
+          <RoOwnerDoors vm={vm} busy={busy} asking={asking} onAsk={() => setAsking((v) => !v)} />
         </div>
       )}
+      {asking && vm.said ? (
+        <RoSaidAsk
+          business={story.business_name}
+          busy={busy}
+          onSay={(i, more) => void tell(i, more)}
+          testid="peek-reach-out-said"
+        />
+      ) : null}
     </details>
   );
 };

@@ -381,7 +381,6 @@ export const LOG_EVENTS = [
   "reach_out_check_gate_failed",
   "reach_out_check_gated",
   "reach_out_check_held",
-  "reach_out_check_lane_unset",
   "reach_out_check_no_db",
   "reach_out_check_release_failed",
   "reach_out_check_sweep_failed",

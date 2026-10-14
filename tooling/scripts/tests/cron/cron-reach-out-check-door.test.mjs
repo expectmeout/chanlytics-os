@@ -148,12 +148,12 @@ test("no model key: nothing is touched; a send waiting says so with a 503, and n
   assert.deepEqual(await knockWith({ ...SET, ANTHROPIC_API_KEY: undefined }), [200, { ok: true, unset: true }]);
 });
 
-test("no lane: nothing checked could leave, so nothing is checked; a send waiting names what is missing (R2)", async () => {
-  const asked = model();
+test("no lane: a send is checked all the same, since an owner's needs no seal; the send clock says what is missing (R2, 00429)", async () => {
+  model();
   const w = world();
   const [status, body] = await knockWith({ ...SET, UNSUBSCRIBE_SECRET: undefined });
-  assert.deepEqual([status, body.error, body.missing], [503, "lane_unset", ["UNSUBSCRIBE_SECRET"]]);
-  assert.deepEqual([w.row("send-1").check_started_at, asked.length], [null, 0]);
+  assert.deepEqual([status, body.ok, body.checked, body.missing], [200, true, 1, undefined]);
+  assert.ok(w.row("send-1").checked_at, "checked, and waits planned for its clock");
 });
 
 test("a tick checks: the opening written and read, each call with its own deadline and no retry of its own (R1)", async () => {

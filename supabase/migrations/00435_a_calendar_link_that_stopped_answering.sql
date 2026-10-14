@@ -1,4 +1,4 @@
--- 00434 · A calendar link that stopped answering is a fact with a time, and its owner is told.
+-- 00435 · A calendar link that stopped answering is a fact with a time, and its owner is told.
 --
 -- The wiring's second audit, lane R11 (S11-4, step 3). When a workspace's calendar link stopped answering, the
 -- receptionist quietly stopped saying which times are open and new visits stopped reaching the Calendar, and nobody was
@@ -23,7 +23,7 @@
 
 alter table public.tenant_config add column if not exists calendar_failed_since timestamptz;
 comment on column public.tenant_config.calendar_failed_since is
-  'When the hourly sweep''s reads of this workspace''s calendar link began failing, kept through every failure after it and cleared by the first read that works (00434). The sweep tells the owner once it is a day old, and the read that works closes the notice. The service role''s, like calendar_checked_at (00089: no member''s UPDATE grant names it).';
+  'When the hourly sweep''s reads of this workspace''s calendar link began failing, kept through every failure after it and cleared by the first read that works (00435). The sweep tells the owner once it is a day old, and the read that works closes the notice. The service role''s, like calendar_checked_at (00089: no member''s UPDATE grant names it).';
 
 drop function if exists public.calendars_due(timestamptz, int, uuid);
 create or replace function public.calendars_due(p_before timestamptz, p_limit int, p_tenant_id uuid default null)
@@ -46,4 +46,4 @@ $$;
 revoke execute on function public.calendars_due(timestamptz, int, uuid) from public, anon, authenticated;
 grant execute on function public.calendars_due(timestamptz, int, uuid) to service_role;
 comment on function public.calendars_due(timestamptz, int, uuid) is
-  'The workspaces with a calendar feed never read or last read before p_before, never read first, then least recently read, each with its zone and since when its reads have failed (null while they work, 00434), with due_total the count of all that were due. The calendar sweep''s page (00245).';
+  'The workspaces with a calendar feed never read or last read before p_before, never read first, then least recently read, each with its zone and since when its reads have failed (null while they work, 00435), with due_total the count of all that were due. The calendar sweep''s page (00245).';

@@ -1,4 +1,4 @@
--- 00436 · A teammate who leaves is told to the owner, from the event (the wiring's second audit, R11 W-channel-team-plus-5).
+-- 00437 · A teammate who leaves is told to the owner, from the event (the wiring's second audit, R11 W-channel-team-plus-5).
 --
 -- A member who left a workspace by their own hand disappeared from Settings > Team in an open tab, and nothing else said
 -- so: no line on the bell, nothing on Today. Joining writes member.joined and is told from it (00410, core team_notice);
@@ -51,7 +51,7 @@ begin
                                   jsonb_build_object('removed_user_id', v_member.user_id, 'had_role', v_member.role,
                                                      'left', true),
                                   p_via, null);
-  -- The fact the owner is told from (core team_notice), in the leave's own transaction (00436).
+  -- The fact the owner is told from (core team_notice), in the leave's own transaction (00437).
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
   values (p_tenant_id, 'member.left', 'system', 'workspace', p_tenant_id,
           jsonb_build_object('by', p_actor, 'how', 'left', 'had_role', v_member.role));
@@ -59,7 +59,7 @@ begin
 end $$;
 
 comment on function public.team_leave(p_tenant_id uuid, p_actor uuid, p_via text) is
-  'A member leaves a workspace (00371, 00436): the membership, a remove_member decision with left, and member.left {by, how: left, had_role}, which the owner is told from, in one transaction; the last owner stays (last_owner). Service role: the route passes the session''s verified user as p_actor.';
+  'A member leaves a workspace (00371, 00437): the membership, a remove_member decision with left, and member.left {by, how: left, had_role}, which the owner is told from, in one transaction; the last owner stays (last_owner). Service role: the route passes the session''s verified user as p_actor.';
 
 insert into public.event_subscriptions (kind, subscriber, lane)
 values ('member.left', 'team_notice', 2)

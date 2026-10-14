@@ -22,14 +22,11 @@ import {
   toLeadPeekVM,
   leadRowOf,
   type LeadChips,
-  type LeadClass,
   type LeadCounts,
   type LeadMonthDto,
-  type LeadList,
   type LeadPileCountsDto,
   type LeadPeekVM,
   type LeadRowDto,
-  type LeadRowVM,
   type LeadSearchDto,
   type LeadSearchPlan,
   type LeadSort,
@@ -51,47 +48,15 @@ import { declareSurfaceValue, setSurfaceValue, surfaceValue } from "../surface-v
 // step 12): one line, deleted with its last reader.
 declareSurfaceValue("leads", "__LEADS");
 
-export interface LeadsView {
-  searchId: string | null;
-  list: LeadList;
-  cls: LeadClass | null;
-  chips: Partial<LeadChips>;
-  sort: LeadSort;
-  dir: "asc" | "desc";
-  /** The pile's list (sort pile, 00426): the list its adds go to, whose leads it puts with the decided. */
-  pileList?: string | null;
-}
-export interface LeadsSurface {
-  searches: LeadSearchDto[];
-  counts: LeadCounts;
-  rows: LeadRowVM[];
-  next: { key: string; id: string } | null;
-  /** How many rows a refresh found that are not drawn, under a sort that is not the order found. */
-  offered: number;
-  view: LeadsView;
-  /** The view as a route, for the address and for Ask's citations: clients/leads:s-<search>:l-<list>. */
-  route: string;
-  suggestions: LeadSuggestionsDto | null;
-  /** The month's standing (D5): what the workbench says a press costs. Null until a first page has answered. */
-  month: LeadMonthDto | null;
-  /** The pile's progress line (sort pile of one search, 00426), from whichever first page last answered one. */
-  pile: LeadPileCountsDto | null;
-  /**
-   * The leads the peek read on their own because no page loaded holds them (PR 9: a link to a lead, one far down a
-   * view), as rows: what the page's acts look a lead up in when it is not among `rows`. Never drawn as rows.
-   */
-  peeked: LeadRowVM[];
-  tz: string;
-  readFailed: boolean;
-  fetchedAt: number;
-  /** When the searches were last asked for (LeadsLoaded.readAt): the bell judges a lead question's notice by a later read. */
-  readAt?: number;
-}
+export type { LeadsSurface } from "./surface-types";
+import type { LeadsSurface, LeadsView } from "./surface-types";
 
 /** What `GET lead-searches` and `GET leads` answer (4.6's DTOs); the counts ride with whichever read made them. */
 interface LeadSearchesAnswer {
   searches: LeadSearchDto[];
   counts?: LeadCounts;
+  /** The cards that find leads now (00430). */
+  cards_live?: string[];
 }
 interface LeadsPageAnswer {
   rows: LeadRowDto[];
@@ -153,6 +118,8 @@ interface LeadsLoaded {
   pile: LeadPileCountsDto | null;
   searches: LeadSearchDto[];
   counts: LeadCounts;
+  /** The cards that find leads now (00430), from the searches' read. */
+  cardsLive: string[];
   rows: LeadRowDto[];
   next: { key: string; id: string } | null;
   offered: LeadRowDto[];
@@ -236,6 +203,7 @@ function publishLeads(failed = false): void {
   setSurfaceValue("leads", {
     searches: L?.searches ?? [],
     counts: L?.counts ?? NO_COUNTS,
+    cardsLive: L?.cardsLive ?? [],
     rows: rows.map(vmOf),
     next: L?.next ?? null,
     offered: L?.offered.filter((r) => !erased.has(r.id)).length ?? 0,
@@ -290,6 +258,7 @@ async function readPageOne(v: LeadsView): Promise<LeadsLoaded> {
     key,
     searches: searches.searches,
     counts: page.counts ?? searches.counts ?? NO_COUNTS,
+    cardsLive: searches.cards_live ?? [],
     month: page.month ?? null,
     pile: page.pile ?? null,
     rows: page.rows,
@@ -390,6 +359,7 @@ async function refreshView(): Promise<void> {
   else L.offered.push(...arrived); // any other order: offered, never sorted in
   L.searches = searches.searches;
   L.counts = page.counts ?? searches.counts ?? L.counts;
+  L.cardsLive = searches.cards_live ?? L.cardsLive;
   // The month moves with a refresh (D5): a Keep just spent one, so the workbench's "5 of your 238 left" follows.
   L.month = page.month ?? L.month;
   L.pile = page.pile ?? L.pile; // the pile's numbers move with it (00426): an add or a Later just decided one
@@ -596,6 +566,14 @@ export async function laterLead(searchId: string, id: string) {
   return actAtOnce([id], later, () =>
     api()("POST leads/[id]/later", { params: { id }, body: { search_id: searchId }, refresh: "behind" }),
   );
+}
+/**
+ * Who a company's reach-out writes to (00430): one of the people its source named, by their place in its facts. Whether
+ * their address is checked first is the door's to say, so nothing is drawn ahead of it: Leads, and the lead the peek
+ * holds, are read again behind its answer.
+ */
+export async function chooseAddressee(id: string, person: number) {
+  return api()("POST leads/[id]/addressee", { params: { id }, body: { person }, refresh: "behind" });
 }
 /** Undo names the operation and the version the page saw (E9): the server refuses when anyone changed it since. */
 export async function undoLeadOperation(opId: string, version: number) {

@@ -162,7 +162,7 @@ var NOTIFICATION_DELIVERY = {
   // A booking that arrived and a teammate who joined: news and no wait, a line on the bell and no mail, no phone.
   booking: "bell",
   member_joined: "bell",
-  // A teammate who left: the same, the other way (00436).
+  // A teammate who left: the same, the other way (00437).
   member_left: "bell"
 };
 var EMAILED_NOTIFICATION_KINDS = Object.keys(NOTIFICATION_DELIVERY).filter((k) => NOTIFICATION_DELIVERY[k] === "email");

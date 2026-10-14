@@ -24,6 +24,8 @@ import {
   rightNowCounts,
   rightNowLine,
   runHeldEmails,
+  runDraftedEmails,
+  runLabelOf,
   runsThatWait,
   sameQuestion,
   scopeFromRoute,
@@ -59,6 +61,8 @@ interface Run {
   when: string;
   counts: { sent: number; replied: number };
   audience?: { label?: string } | null;
+  /** Its own name: what says a reach-out's run, whose audience carries no label (contracts runLabelOf). */
+  name: string;
 }
 
 export interface PaletteGlobals {
@@ -195,7 +199,9 @@ export function waitingFrom(win: Window, parts: Waits | null = needsYouParts()):
     .map((r) => ({ id: r.id, name: r.who, question: r.sentence, to: r.cta.to }));
   const threadsWaiting = parts ? parts.holds + parts.sends : (w.TODAY_DATA?.needsYou?.count ?? people.length);
   // A run waiting for approval, or a going one whose emails the check holds (the count's own rule, runWaitsOnYou).
-  const pending = (w.__BROADCASTS?.rows ?? []).filter((r) => r.state === "pending_approval" || runHeldEmails(r) > 0);
+  const pending = (w.__BROADCASTS?.rows ?? []).filter(
+    (r) => r.state === "pending_approval" || runHeldEmails(r) > 0 || runDraftedEmails(r) > 0,
+  );
   // The business's days, by this window's clock, asked only over runs to judge.
   const runs = pending.length ? runsThatWait(pending, approvalDaysNow(Date.now(), pageClock(win))) : [];
   return {
@@ -203,7 +209,7 @@ export function waitingFrom(win: Window, parts: Waits | null = needsYouParts()):
     more: Math.max(0, threadsWaiting - people.length),
     runs: runs.map((r) => ({
       id: r.id,
-      label: r.audience?.label || "Campaign",
+      label: runLabelOf(r),
       reach: r.recipient_count,
       to: `broadcasts/run:${r.id}`,
     })),

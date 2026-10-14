@@ -8,6 +8,7 @@ import { leadSlots, leadTileSrc, leadTintOf, leadTodayLine, leadUndoable, leadWh
 import { clockIn, milesLabel } from "./lead-helpers";
 import { leadReviewGroups } from "./lead-review";
 import { isLeadList } from "./lead-import";
+import { LEAD_DIRECTORY_WORDS, leadAddresseeOf } from "./lead-kind";
 import type { LEAD_CLOSED_REASONS, LeadEmailState } from "./search/sets";
 import { siteHost } from "./search/clean";
 import {
@@ -130,7 +131,10 @@ export interface LeadRowVM {
   excludedBy: string | null;
   version: number;
   /* ---- D5: the row as the redesign reads it ---- */
-  /** "Book store · Hawthorne · 97214 · 1.2 mi": whatever the source gave, in that order; "" when it gave none. */
+  /**
+   * "Book store · Hawthorne · 97214 · 1.2 mi": whatever the source gave, in that order; "" when it gave none. A company's
+   * starts with the person its reach-out writes to (00430).
+   */
   sub: string;
   /** The two reach slots, phone then mailbox. */
   slots: { phone: LeadSlot; mailbox: LeadSlot };
@@ -232,9 +236,7 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
         : m.reason;
   const area = [r.postal_code ?? "", [r.city, r.state].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
   // D5: the row as the redesign reads it -- one line about where, two reach slots, the tile, its state, the card.
-  const sub = [r.category, r.neighborhood ?? null, r.postal_code ?? null, milesLabel(m.distance_m) || null]
-    .filter((x): x is string => !!x)
-    .join(" · ");
+  const sub = subLineOf(r, m.distance_m);
   const spread: LeadRowVM["spread"] = r.reviews_dist
     ? [r.reviews_dist.one, r.reviews_dist.two, r.reviews_dist.three, r.reviews_dist.four, r.reviews_dist.five]
     : null;
@@ -269,7 +271,7 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
               ? LEAD_LEFT_OUT_WORD
               : stageLabelOf(r.stage, r.closed_reason)
             : null;
-  const term = search?.plan.terms[0] ?? null;
+  const term = search?.plan?.terms[0] ?? null;
   const card: LeadRowCard = {
     about: r.about ?? null,
     today: leadTodayLine(r.hours ?? [], tz, now),
@@ -353,11 +355,32 @@ export function leadRowOf(r: LeadRowDto, tz: string, now: Date, search: LeadSear
   return { ...toLeadRowVM(r, tz, now, search), chainId: r.chain_id ?? null, laterAt: r.member.later_at ?? null };
 }
 
+/**
+ * The row's line about where: "Book store · Hawthorne · 97214 · 1.2 mi", whatever the source gave, in that order. A
+ * company's (00430) leads with the person its reach-out writes to: "Dana Reyes, Owner · Marketing & Advertising".
+ */
+function subLineOf(r: LeadRowDto, distanceM: number | null): string {
+  const who = leadAddresseeOf(r);
+  return [
+    who ? [who.name, who.title].filter(Boolean).join(", ") : null,
+    r.category,
+    r.neighborhood ?? null,
+    r.postal_code ?? null,
+    milesLabel(distanceM) || null,
+  ]
+    .filter((x): x is string => !!x)
+    .join(" · ");
+}
+
 /** A round that is still going; one waiting on the owner is its own mark. */
 const roundIsLive = (state: string): boolean => state !== "ended" && state !== "waiting_on_owner";
 
-/** Where a row's lead was found. A lead a list of the owner's own brought (00242) has no place: found on no listing. */
-function foundLine(r: Pick<LeadRowDto, "place_id" | "rank">, term: string | null): string {
+/**
+ * Where a row's lead was found. A company the people card found (00430) came from a business directory; a lead a list
+ * of the owner's own brought (00242) has no place: found on no listing.
+ */
+function foundLine(r: Pick<LeadRowDto, "place_id" | "rank" | "kind">, term: string | null): string {
+  if (r.kind === "company") return LEAD_DIRECTORY_WORDS.found;
   if (!r.place_id) return "From your list";
   if (!term) return "On a Google Maps listing";
   return r.rank ? `On Google Maps, #${r.rank} for “${term}”` : `On Google Maps, searching “${term}”`;
@@ -378,6 +401,8 @@ export function leadRail(
     undoable: boolean;
     /** A list of the owner's own (00242): its menu offers nothing that searches again. */
     list: boolean;
+    /** A people search (00430): its menu's way back is Find people, filled in, never the places card. */
+    people: boolean;
   }[];
 } {
   // Said no is a list only when somebody said no: an empty row in the rail
@@ -398,6 +423,7 @@ export function leadRail(
       count: s.round?.counted ?? 0,
       undoable: leadUndoable(s, now),
       list: isLeadList(s),
+      people: !!s.people,
       mark: !s.round
         ? null
         : s.round.state === "waiting_on_owner"

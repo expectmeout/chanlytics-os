@@ -117,7 +117,7 @@ test("REGRESSION: what the calendar adds is a booking only by the facts the swee
   );
 });
 
-test("a booking changed is one the customer cancelled or moved through their booking tool, said by the service (00435), and nothing else; every change of a visit says whether it is told (the wiring's second audit, R11 S6-6)", () => {
+test("a booking changed is one the customer cancelled or moved through their booking tool, said by the service (00436), and nothing else; every change of a visit says whether it is told (the wiring's second audit, R11 S6-6)", () => {
   const changed = (data) => bookingChanged(event({ data: { starts_at: "2999-10-12T15:00:00Z", ...data } }));
   assert.deepEqual(changed({ change: "cancelled", source: "booking_email", by: "service" }), {
     appointmentId: APPT,

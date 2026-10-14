@@ -8,7 +8,8 @@ import { stripUnsafe, KEY, US_CODES } from "./plan";
 import type { LeadSearchPlan } from "./plan";
 import { LEAD_MAX_PLACES } from "./caps";
 
-const words = (min: number, max: number) =>
+/** Words the plan keeps: what is unsafe taken out, trimmed, then held to a length (the people plan reads it too). */
+export const words = (min: number, max: number) =>
   z
     .string()
     .transform((s) => stripUnsafe(s).trim())

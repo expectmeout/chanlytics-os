@@ -119,11 +119,15 @@ function opensCampaigns(param: string): Opened | null {
   return at.group ? { view: "campaigns/in" } : null;
 }
 
-/** What Sent's param opens: a run, or the Get their yes section. Any other word is an audience, a door to the composer (doorOf). */
+/**
+ * What Sent's param opens: a run, the Get their yes section, or the one To send. Any other word is an audience, a door to the
+ * composer (doorOf).
+ */
 function opensSent(param: string): Opened | null {
   if (param === "") return { view: "broadcasts" };
   const at = broadcastsProps(param);
   if (at.initialRun) return { ref: { kind: "send", id: at.initialRun } };
+  if (at.initialToSend) return { view: "broadcasts/to-send" };
   return at.initialYes ? { view: "broadcasts/get-yes" } : null;
 }
 

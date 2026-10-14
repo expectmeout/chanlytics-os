@@ -5,11 +5,17 @@
  * thirty minutes to be stopped, or waits too when its owner asked for every run to (E7), and while any run of the chain
  * waits nothing more is made. A lead the door would refuse (outreachRefusalOf, the door's own mapping), one whose email from the
  * chain bounced (C4), and one that keeps no open hour all week are skipped with why, so none of them heads the step's
- * page every day. What the timetable cannot place within its horizon waits for the next day's run. The run and its
- * sends are written whole. Nothing here sends: the reach-out clock claims what is due (Part 3, PR 5 and 6).
+ * page every day. What the timetable cannot place within its horizon waits for the next day's run. A reach-out its owner
+ * sends (00429) plans no mailbox and no timetable: its day's share (REACH_OUT_DRAFTS_PER_DAY, less what the chain's runs
+ * of the day already hold, so the steps after the first, planned first, are never crowded out), never past the pile its
+ * owner can keep up with (REACH_OUT_DRAFTS_OPEN_MAX, less what waits for them already), each due as the run goes ahead,
+ * to be handed to the owner once checked. The run and its sends are written whole. Nothing here sends: the
+ * reach-out clock claims what is due (Part 3, PR 5 and 6).
  */
 import {
   PLAYBOOK_VETO_DELAY_MS,
+  REACH_OUT_DRAFTS_OPEN_MAX,
+  REACH_OUT_DRAFTS_PER_DAY,
   outreachRefusalOf,
   sendWindowsOf,
   timetable,
@@ -65,31 +71,42 @@ export async function runReachOut(
   leads = leads.filter((l) => !skipped.has(l.lead_id)).slice(0, step.cap_per_run);
   if (leads.length === 0) return { outcome: "empty", reason: "nobody", planned: 0 };
 
-  const { senders, gone } = await ports.mailboxes(step, [...new Set(keeps.values())]);
-  // A lead whose mailbox was removed has no thread to be nudged in: skipped, never written to from another.
-  for (const l of leads) if (gone.has(keeps.get(l.lead_id) ?? "")) skips.push({ lead: l, reason: "mailbox_gone" });
-  leads = leads.filter((l) => !gone.has(keeps.get(l.lead_id) ?? ""));
-  if (leads.length === 0) return { outcome: "empty", reason: "nobody", planned: 0 };
-  const sending = senders.filter((d) => d.cap > 0);
-  if (sending.length === 0) return { outcome: "held", reason: "no_mailbox", planned: 0 };
-
   // A run its owner approves goes from the moment they do (the clock plans a stale send again); one that is not asked
   // gives its owner thirty minutes to stop it first.
   const now = ports.now();
-  const plan = timetable({
-    sends: leads.map((l) => ({
-      id: l.lead_id,
-      zone: zoneOfRegion(l.region) ?? ports.workspaceZone,
-      week: weeks.get(l.lead_id)!,
-      only: keeps.get(l.lead_id) ?? null,
-    })),
-    senders: sending,
-    gapMinutes: step.gap_minutes,
-    nowMs: asks ? now : now + PLAYBOOK_VETO_DELAY_MS,
-  });
-  if (plan.placed.length === 0) return { outcome: "held", reason: "no_room", planned: 0 };
+  const startMs = asks ? now : now + PLAYBOOK_VETO_DELAY_MS;
+  let placed: Array<{ id: string; senderId: string | null; sendAtMs: number }>;
+  if (step.owner_sends) {
+    // Its owner sends (00429): the day's share left, and no more than their pile has room for, every email due as the
+    // run goes ahead; the owner is the pace, and one who falls behind is handed nothing new until they catch up.
+    const load = await ports.draftLoad(step.root_id, cmd.runFor);
+    const room = Math.min(REACH_OUT_DRAFTS_PER_DAY - load.today, REACH_OUT_DRAFTS_OPEN_MAX - load.open);
+    if (room <= 0) return { outcome: "held", reason: "no_room", planned: 0 };
+    placed = leads.slice(0, room).map((l) => ({ id: l.lead_id, senderId: null, sendAtMs: startMs }));
+  } else {
+    const { senders, gone } = await ports.mailboxes(step, [...new Set(keeps.values())]);
+    // A lead whose mailbox was removed has no thread to be nudged in: skipped, never written to from another.
+    for (const l of leads) if (gone.has(keeps.get(l.lead_id) ?? "")) skips.push({ lead: l, reason: "mailbox_gone" });
+    leads = leads.filter((l) => !gone.has(keeps.get(l.lead_id) ?? ""));
+    if (leads.length === 0) return { outcome: "empty", reason: "nobody", planned: 0 };
+    const sending = senders.filter((d) => d.cap > 0);
+    if (sending.length === 0) return { outcome: "held", reason: "no_mailbox", planned: 0 };
+    const plan = timetable({
+      sends: leads.map((l) => ({
+        id: l.lead_id,
+        zone: zoneOfRegion(l.region) ?? ports.workspaceZone,
+        week: weeks.get(l.lead_id)!,
+        only: keeps.get(l.lead_id) ?? null,
+      })),
+      senders: sending,
+      gapMinutes: step.gap_minutes,
+      nowMs: startMs,
+    });
+    if (plan.placed.length === 0) return { outcome: "held", reason: "no_room", planned: 0 };
+    placed = plan.placed;
+  }
 
-  const firstAt = Math.min(...plan.placed.map((p) => p.sendAtMs));
+  const firstAt = Math.min(...placed.map((p) => p.sendAtMs));
   const run = {
     id: await reachOutRunIdFor(step.id, cmd.runFor),
     tenant_id: step.tenant_id,
@@ -102,7 +119,7 @@ export async function runReachOut(
     template_language: step.template_language,
     state: asks ? ("pending_approval" as const) : ("scheduled" as const),
     scheduled_for: new Date(firstAt).toISOString(),
-    recipient_count: plan.placed.length,
+    recipient_count: placed.length,
     audience: {
       kind: "reach_out" as const,
       root_id: step.root_id,
@@ -122,7 +139,7 @@ export async function runReachOut(
   });
   const sends: PlannedSend[] = [
     ...(await Promise.all(
-      plan.placed.map(async (p) => ({
+      placed.map(async (p) => ({
         ...(await row(p.id)),
         state: "planned" as const,
         mailbox_id: p.senderId,
@@ -140,10 +157,10 @@ export async function runReachOut(
     )),
   ];
   if ((await ports.planRun(run, sends)) === "exists") return { outcome: "empty", reason: "already_ran", planned: 0 };
-  await ports.recordRun(run, { planned: plan.placed.length, skipped: skips.length });
+  await ports.recordRun(run, { planned: placed.length, skipped: skips.length });
   if (asks) {
-    await ports.notifyWaiting(run.id, plan.placed.length, firstAt);
-    return { outcome: "held", reason: "waiting_for_you", planned: plan.placed.length };
+    await ports.notifyWaiting(run.id, placed.length, firstAt);
+    return { outcome: "held", reason: "waiting_for_you", planned: placed.length };
   }
-  return { outcome: "sent", planned: plan.placed.length };
+  return { outcome: "sent", planned: placed.length };
 }

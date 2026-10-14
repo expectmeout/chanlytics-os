@@ -52,6 +52,8 @@ const { standingSaid } = await import(`${S}/kit/head/standing.ts`);
 const { FieldError } = await import(`${S}/kit/field-error/field-error.tsx`);
 const { SlotBox } = await import(`${S}/campaigns/templates/slots/slot-box.tsx`);
 const { SlotName } = await import(`${S}/campaigns/parts/slot.tsx`);
+const { PaneSheet } = await import(`${S}/campaigns/home/pane-sheet.tsx`);
+const { ReachOutSheet } = await import(`${S}/campaigns/reach-out/sheet.tsx`);
 
 const { REACH_OUT_SLOT_SET, reachOutRowName, reachOutRules, reachOutEditedWords, wordsIssueWords, renderOwnVersion } =
   contracts;
@@ -277,14 +279,14 @@ test("the preview beside the words follows each keystroke, with the same example
   tree = redraw();
   assert.equal(subjectOf(tree), `Hello ${at("business")} in ${at("city")}`);
   assert.equal(bodyOf(tree), `${at("opening")} Sign: Sam`, "a name in any case and spacing is read as the slot it is");
-  boxOf(tree, "Message").props.onValueChange("Hi {{first name}}");
+  boxOf(tree, "Message").props.onValueChange("Hi {{nickname}}");
   tree = redraw();
   // A name the six do not have is a hole: drawn by its name, as a problem, never as braces.
-  assert.equal(bodyOf(tree), "Hi first name");
+  assert.equal(bodyOf(tree), "Hi nickname");
   const hole = all(byTestId(tree, "template-version-body"), (n) => n.props?.className === "mp-slot");
   assert.deepEqual(
     hole.map((n) => [textOf(n), n.props["data-unknown"]]),
-    [["first name", "true"]],
+    [["nickname", "true"]],
   );
 });
 
@@ -303,8 +305,8 @@ test("the one check, in the reach-out's rules and sentences: what is wrong is th
   typed("Subject", "x".repeat(contracts.REACH_OUT_SUBJECT_MAX + 1));
   assert.equal(problemOf(tree), said("subject_too_long", "subject"));
   typed("Subject", "Fine");
-  typed("Message", "Hi {{first name}}");
-  assert.equal(problemOf(tree), said("unknown_slot", "body", "first name"));
+  typed("Message", "Hi {{nickname}}");
+  assert.equal(problemOf(tree), said("unknown_slot", "body", "nickname"));
   typed("Message", "SEE THIS NOW\n{{opening}}");
   assert.equal(problemOf(tree), said("shouting"));
   typed("Message", "See https://a.example and https://b.example");
@@ -481,6 +483,35 @@ test("an open email has nothing of a WhatsApp message's to rename, hide or delet
   assert.deepEqual(went, [], "no page change");
   assert.equal(byTestId(tree, "ro-name").props.value, chain().name);
   assert.equal(textOf(byTestId(tree, "ro-start")), "Save");
+});
+
+test("on a phone an email's Edit the reach-out lets the drawer go, and the reach-out's sheet is the page's, over the list: under the drawer's modal it stood hidden (census, 13 Oct 2026)", () => {
+  const was = W.matchMedia;
+  W.matchMedia = (q) => ({ matches: q === "(max-width: 900px)", addEventListener() {}, removeEventListener() {} });
+  try {
+    const drawerOf = (t) => all(t, (n) => n.type === PaneSheet).find((n) => n.props.testid === "tpl-drawer");
+    let tree = opened(page());
+    assert.equal(drawerOf(tree).props.open, true, "the email, in the drawer over the list");
+    assert.equal(
+      find(tree, (n) => n.type === ReachOutSheet),
+      null,
+    );
+    press(byTestId(tree, "reach-out-email-edit"));
+    tree = redraw();
+    assert.equal(drawerOf(tree).props.open, false, "the drawer let go of");
+    const sheet = find(tree, (n) => n.type === ReachOutSheet);
+    assert.ok(sheet, "the reach-out's sheet, drawn by the page");
+    assert.equal(sheet.props.chain.root_id, ROOT);
+    assert.deepEqual(went, [], "no page change");
+    sheet.props.onClose();
+    assert.equal(
+      find(redraw(), (n) => n.type === ReachOutSheet),
+      null,
+      "and closed, it is gone",
+    );
+  } finally {
+    W.matchMedia = was;
+  }
 });
 
 test("an email's Edit the reach-out, for a role that may not change the chain, opens the reach-out's drawer instead", () => {

@@ -789,7 +789,7 @@ test("visit_notice tells what stands: a visit withdrawn, vanished, cancelled, al
   assert.deepEqual(gone.told, [], "a visit the record no longer holds");
 });
 
-test("visit_notice tells a booking the customer cancelled or moved through their booking tool, once, while it is ahead, opening the visit on its day; never a member's own word, and nothing from before 00435 (the wiring's second audit, R11 S6-6)", async () => {
+test("visit_notice tells a booking the customer cancelled or moved through their booking tool, once, while it is ahead, opening the visit on its day; never a member's own word, and nothing from before 00436 (the wiring's second audit, R11 S6-6)", async () => {
   const STARTS = "2999-10-12T15:00:00Z";
   const cancelled = world({ subscriber: "visit_notice" });
   cancelled.tables.appointments[0] = aVisit({ status: "cancelled" });
@@ -833,7 +833,7 @@ test("visit_notice tells a booking the customer cancelled or moved through their
   for (const [why, data, visit] of [
     ["a member's own cancel", { change: "cancelled", source: "booking_email", by: "member" }, { status: "cancelled" }],
     [
-      "an event from before 00435, which says no by",
+      "an event from before 00436, which says no by",
       { change: "cancelled", source: "booking_email" },
       { status: "cancelled" },
     ],
@@ -1256,7 +1256,7 @@ test("team_notice tells an arrival once however many events wrote it, and nothin
   }
 });
 
-test("team_notice tells the workspace that a teammate left, once, on the bell, opening Settings > Team, named while their account stands; a deleted account is told without a name (the wiring's second audit, R11 W-channel-team-plus-5, 00436)", async () => {
+test("team_notice tells the workspace that a teammate left, once, on the bell, opening Settings > Team, named while their account stands; a deleted account is told without a name (the wiring's second audit, R11 W-channel-team-plus-5, 00437)", async () => {
   const LEAVER = "c3c3c3c3-c3c3-4c3c-8c3c-c3c3c3c3c3c3";
   const left = world({ subscriber: "team_notice" });
   Object.assign(left.tables.events[0], {

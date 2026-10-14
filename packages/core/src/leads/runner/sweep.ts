@@ -3,7 +3,7 @@
  * failed once its grace is over.
  */
 
-import { CARDS } from "../cards";
+import { actorsOf } from "../cards";
 import { runStateOf } from "../endings";
 import type { LeadPorts, LeadRunRow } from "../ports";
 import { findOurRun } from "./claim";
@@ -19,8 +19,8 @@ export async function reconcileUnknownRuns(p: LeadPorts, unknownRuns: LeadRunRow
   for (const row of unknownRuns) {
     if (outOfTime(p)) break;
     const round = await p.db.round(row.round_id);
-    const card = CARDS[round?.plan.card ?? "local_businesses"];
-    const found = await findOurRun(p, row.purpose === "check" ? card.checker.actor : card.actor, row);
+    const actors = actorsOf(round?.plan ?? { card: "local_businesses" });
+    const found = await findOurRun(p, row.purpose === "check" ? actors.check : actors.discover, row);
     if (found) {
       await p.db.runReconcile(row.id, found.id, found.datasetId, runStateOf(found.status));
       await p.schedule("lead_collect", { run_id: row.id, seq: `s${minute(p)}` }, 0);

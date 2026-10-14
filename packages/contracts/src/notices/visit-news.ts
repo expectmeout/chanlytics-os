@@ -16,7 +16,7 @@
  *
  * A booking the customer cancelled or moved through their booking tool is told too (the wiring's second audit, R11 S6-6):
  * a freed time is the one booking news an owner can act on, and the Calendar and Activity were the only places it showed.
- * `bookingChanged` reads the event, and only the service's word (`by`, 00435): a member who cancelled a visit
+ * `bookingChanged` reads the event, and only the service's word (`by`, 00436): a member who cancelled a visit
  * themselves did it, whatever source it came by. `visitChangeNews` words it. VISIT_CHANGES_TOLD says, for every change
  * the record makes, what the owner is told of it or why nothing.
  */
@@ -123,8 +123,8 @@ const CHANGES_BY: ReadonlySet<string> = new Set<BookingVia>(["booking_email", "b
 
 /**
  * The booking an `appointment.changed` event says the customer cancelled or moved, or null for every other event: a
- * visit that came by a booking tool or its email, changed by the service (`by`, 00435), which is the tool's email or its
- * door, never a member's own word. An event from before 00435 says no `by`, and is silent. A visit of the owner's
+ * visit that came by a booking tool or its email, changed by the service (`by`, 00436), which is the tool's email or its
+ * door, never a member's own word. An event from before 00436 says no `by`, and is silent. A visit of the owner's
  * calendar that vanished or moved is their own diary (VISIT_CHANGES_TOLD).
  */
 export function bookingChanged(event: EventLike): { appointmentId: string; change: VisitChange } | null {

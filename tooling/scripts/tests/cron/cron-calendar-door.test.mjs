@@ -150,7 +150,7 @@ function connected(tables, id, checkedAt, events = [], services = []) {
   return url;
 }
 const checkedAt = (w, id) => w.tables.tenant_config.find((r) => r.tenant_id === id).calendar_checked_at;
-/** Since when the workspace's link has failed every read (00434), null while it answers. */
+/** Since when the workspace's link has failed every read (00435), null while it answers. */
 const failedSince = (w, id) => w.tables.tenant_config.find((r) => r.tenant_id === id).calendar_failed_since ?? null;
 const people = (w, id) =>
   w.tables.contacts

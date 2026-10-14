@@ -23,6 +23,9 @@ const { NewCall } = await import("../../../../apps/dashboard/src/surfaces/inbox/
 const { approvedKey, firstMessageOf, noteDay, noteShown, onSendKey, sayQueued, typedAs, whoAnswers, writtenFor } =
   await import("../../../../apps/dashboard/src/surfaces/inbox/new-conversation/state.ts");
 const { NewWho } = await import("../../../../apps/dashboard/src/surfaces/inbox/new-conversation/who.tsx");
+const { NewConversationSheet } =
+  await import("../../../../apps/dashboard/src/surfaces/inbox/new-conversation/sheet.tsx");
+const { Sheet } = await import("../../../../apps/dashboard/src/surfaces/kit/sheet/sheet.tsx");
 
 const NOW = new Date("2026-10-07T15:00:00Z");
 const hoursAgo = (h) => new Date(NOW.getTime() - h * 3_600_000).toISOString();
@@ -419,6 +422,22 @@ test("the pick: who is found, each a press; nobody; never 'no one' while nobody 
   );
   press(all(adding, (n) => n.props?.["data-testid"] === "ix-new-who-go").find((n) => n.type === "button"));
   assert.equal(seen.added, 1);
+});
+
+test("the corner's ✕ steps aside where the foot holds Cancel, as a record sheet's does on a phone, and stays where nothing else closes it", () => {
+  // The census of 13 Oct 2026: writing to someone, the sheet showed a ✕ in its head and Cancel in its foot, two ways out.
+  const sheetOf = (tree) => all(tree, (n) => n.type === Sheet)[0];
+  const opened = (personId) => ({ open: true, personId, onClose() {}, flash() {} });
+  assert.equal(
+    sheetOf(draw(NewConversationSheet, opened(null))).props.footCloses,
+    false,
+    "choosing who: no foot, the ✕ is the way out",
+  );
+  assert.equal(
+    sheetOf(draw(NewConversationSheet, opened("k1"))).props.footCloses,
+    true,
+    "writing to them: the foot's Cancel",
+  );
 });
 
 test("on a touch screen no field of the pick takes focus as it is drawn; a mouse and keys keep it ready", () => {

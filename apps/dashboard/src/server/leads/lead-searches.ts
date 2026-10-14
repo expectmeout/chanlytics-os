@@ -4,6 +4,7 @@
  */
 import {
   AppError,
+  peoplePlanOf,
   type LeadArea,
   type LeadCounts,
   type LeadEmailState,
@@ -14,7 +15,7 @@ import {
   type LeadStage,
   type PersonLeadDto,
 } from "@chanlytics/contracts";
-import { emitEvent } from "@chanlytics/db";
+import { emitEvent, leadCardsLive } from "@chanlytics/db";
 import { answerOf, refusalOf } from "./lead-answers";
 import { leadTimelineOf } from "../campaigns/reach-out-leads";
 import { requireUuid } from "../request-guards";
@@ -234,6 +235,9 @@ export const waitingQuestionOf = (r: Pick<SearchViewRow, "state" | "question">):
  * its id. `asked_on` is the view's own created_at: the day the owner asked, said once.
  */
 export function toSearchDto(r: SearchViewRow): LeadSearchDto {
+  // A people search's plan is the people card's (00430), never read as a places one.
+  const people = peoplePlanOf(r.plan);
+  const plans = { plan: people ? null : (r.plan as LeadSearchPlan), people };
   const q =
     r.question && typeof r.question === "object"
       ? (r.question as { sentence?: unknown; criterionKey?: unknown; criterion_key?: unknown })
@@ -245,7 +249,7 @@ export function toSearchDto(r: SearchViewRow): LeadSearchDto {
       asked: r.asked,
       asked_on: r.created_at,
       via: r.via as LeadSearchVia,
-      plan: r.plan as LeadSearchPlan,
+      ...plans,
       plan_version: r.plan_version ?? 1,
       thread_id: r.thread_id ?? null,
       round: null,
@@ -257,7 +261,7 @@ export function toSearchDto(r: SearchViewRow): LeadSearchDto {
     asked_on: r.created_at,
     // A list of your own (00242) says so: the page draws its own strip and offers nothing that searches it again.
     via: r.via as LeadSearchVia,
-    plan: r.plan as LeadSearchPlan,
+    ...plans,
     plan_version: r.plan_version ?? 1,
     thread_id: r.thread_id ?? null,
     round: {
@@ -293,9 +297,14 @@ export function toSearchDto(r: SearchViewRow): LeadSearchDto {
 export async function searchesOf(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
-): Promise<{ searches: LeadSearchDto[]; counts: LeadCounts }> {
-  const [rows, counts] = await Promise.all([listSearches(ctx, tenantId), listCounts(ctx, tenantId)]);
-  return { searches: rows.map(toSearchDto), counts };
+): Promise<{ searches: LeadSearchDto[]; counts: LeadCounts; cards_live: string[] }> {
+  const [rows, counts, live] = await Promise.all([
+    listSearches(ctx, tenantId),
+    listCounts(ctx, tenantId),
+    // Which cards find leads now (00430): what the rail, the first day and Ask may offer. Unread, the Maps card alone.
+    leadCardsLive(ctx.supabase).catch(() => ["local_businesses"]),
+  ]);
+  return { searches: rows.map(toSearchDto), counts, cards_live: live };
 }
 
 /* --------------------------------------------------------- a search, kept */

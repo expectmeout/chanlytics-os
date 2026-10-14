@@ -164,7 +164,10 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
   const acts = leadActs({ leads, leadView, plFlash, setSel, setAllMatching, ...st });
   const { canFind, callLead } = acts;
   const finderActs = leadFinderActs({ leadView, nav, plFlash, ...st });
-  const searches = leadSearchActs({ leads, nav, plFlash, ...acts, ...st });
+  // A list of your own (Reach out Part 7): the rail's Import leads, the bar's Write to them, and the sheets they open; and
+  // Find people (00430), which a people search's Search again opens filled in.
+  const lists = useLeadLists({ flash: plFlash, peopleLive: leads.cardsLive.includes("people_at_companies") });
+  const searches = leadSearchActs({ leads, nav, plFlash, ...acts, ...st, openFindPeople: lists.openFindPeople });
   // One press backs out one step: the question the peek asked, then the pane it opened, then the peek itself
   // (leadPeekEscape, Task 12). Esc and the peek's own close.
   const closePeek = () =>
@@ -180,8 +183,6 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
   const openSearch = acts.searchById(leadView.searchId);
   // Leads while a reach-out writes (Reach out Part 6, H8): the open search's lines, or null. Present from the first draw.
   const reachOut = useReachOutLeads(openSearch ? openSearch.id : null);
-  // A list of your own (Reach out Part 7): the rail's Import leads, the bar's Write to them, and the sheets they open.
-  const lists = useLeadLists({ flash: plFlash });
   // The pile (00426): where the rows stand while it is on, the door into it, and the keys it takes.
   const piled = useLeadPileView({
     pile,
@@ -237,6 +238,7 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
     setSortBy,
     setSortDir,
     ...st,
+    openFindPeople: lists.openFindPeople,
   });
   return {
     ...controls,

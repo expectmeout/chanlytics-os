@@ -7,12 +7,15 @@
  */
 import {
   LEAD_QUESTION_WAIT_LINE,
+  PEOPLE_STRIP_WORDS,
   leadEndingLine,
   leadNearWhere,
+  peopleWho,
   planArea,
   planMinutes,
   planWhere,
   planWho,
+  type LeadPeoplePlan,
   type LeadSearchDto,
   type LeadSearchPlan,
 } from "@chanlytics/contracts";
@@ -37,9 +40,11 @@ const ldLeftOut = (plan: LeadSearchPlan, key: string) => {
 const ldLookStep = (id: string) => id === "nearby" || id === "look_further";
 
 type Round = NonNullable<LeadSearchDto["round"]>;
+/** A places search with its round: what every reader below the people branch is handed. */
+type PlacesSearch = LeadSearchDto & { round: Round; plan: LeadSearchPlan };
 
 /** What leadEndingLine needs, read off the search's latest round and its plan. */
-const ldEndingFacts = (s: LeadSearchDto & { round: Round }, nearby: readonly string[]) => {
+const ldEndingFacts = (s: PlacesSearch, nearby: readonly string[]) => {
   const r = s.round;
   const only = s.plan.exclusions.length === 1 && s.plan.exclusions[0] ? ldLowerFirst(s.plan.exclusions[0].text) : null;
   return {
@@ -88,7 +93,7 @@ function questionStrip(
 }
 
 /** A round that ended: the sentence's own next step, then Sort by fit where the table is worth re-ordering, then the piles. */
-function endedStrip(s: LeadSearchDto & { round: Round }, nearby: readonly string[]): StripVM {
+function endedStrip(s: PlacesSearch, nearby: readonly string[]): StripVM {
   const r = s.round;
   const plan = s.plan;
   const counted = r.counted;
@@ -126,8 +131,47 @@ function endedStrip(s: LeadSearchDto & { round: Round }, nearby: readonly string
   };
 }
 
+/**
+ * A people search's strip (00430): its run reads companies (each waiting on its address, then checked), so it says the
+ * companies found so far and the addresses checked, then how it ended against the companies asked for, in its own
+ * words. Its next step is Find more like these, the Find people sheet filled in with its plan: never a places door.
+ */
+const peopleStripOf = (s: LeadSearchDto, plan: LeadPeoplePlan): StripVM => {
+  const r = s.round;
+  const PW = PEOPLE_STRIP_WORDS;
+  const who = peopleWho(plan);
+  if (!r) return { state: "ended", alert: false, title: PW.none(who), parts: [], progress: null, actions: [] };
+  const seen = r.qualified + r.review + r.excluded;
+  const progress = r.target > 0 ? Math.min(1, r.counted / r.target) : null;
+  if (r.state === "checking")
+    return { state: "checking", alert: false, title: PW.checking(seen), parts: [], progress, actions: [] };
+  if (r.state !== "ended")
+    return {
+      state: "running",
+      alert: false,
+      title: PW.running(who),
+      parts: [PW.found(seen), PW.checked(r.emails_checked)],
+      progress,
+      actions: [{ id: "stop", label: PW.stop }],
+    };
+  const piles = [
+    ...(r.review > 0 ? [{ id: "review", label: `${r.review} need a look`, arg: "review", pile: true }] : []),
+    ...(r.excluded > 0 ? [{ id: "excluded", label: `${r.excluded} left out`, arg: "excluded", pile: true }] : []),
+  ];
+  return {
+    state: "ended",
+    alert: false,
+    title: PW.ended(r.ending, r.counted, r.target),
+    parts: [],
+    progress: 1,
+    actions: [{ id: "people_more", label: PW.more, primary: true, arg: plan }, ...piles],
+  };
+};
+
 const ldStripOf = (s: LeadSearchDto | null, nearby: readonly string[]): StripVM | null => {
-  if (!s || !s.plan) return null;
+  if (!s) return null;
+  if (s.people) return peopleStripOf(s, s.people);
+  if (!s.plan) return null;
   const r = s.round;
   const plan = s.plan;
   const who = planWho(plan);
@@ -141,7 +185,7 @@ const ldStripOf = (s: LeadSearchDto | null, nearby: readonly string[]): StripVM 
       progress: null,
       actions: [],
     };
-  const withRound = { ...s, round: r };
+  const withRound: PlacesSearch = { ...s, plan, round: r };
   const counted = r.counted;
   const progress = r.target > 0 ? Math.min(1, counted / r.target) : null;
   // Removing the untouched leads (POST lead-searches/[id]/undo) is the search menu's, named for what it removes and gives

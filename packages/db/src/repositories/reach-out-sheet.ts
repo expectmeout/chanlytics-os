@@ -10,6 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { RUN_GOING_STATES, versionWords } from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
 import type { JsonObject } from "../events";
+import { readAllRows } from "../paged";
 
 type Db = SupabaseClient<Database>;
 
@@ -24,6 +25,8 @@ export interface ReachOutStepRow {
   after_days: number | null;
   gap_minutes: number | null;
   mailbox_ids: string[] | null;
+  /** Its owner sends its emails (a root's, 00429). */
+  owner_sends: boolean | null;
   signed_by: string | null;
   include_unconfirmed: boolean | null;
   template_id: string | null;
@@ -35,7 +38,7 @@ export interface ReachOutStepRow {
 }
 
 const STEP_COLUMNS =
-  "id, name, state, trigger, lead_search_id, after_playbook_id, after_days, gap_minutes, mailbox_ids, signed_by, include_unconfirmed, template_id, hand, run_hour, last_run_for, created_at";
+  "id, name, state, trigger, lead_search_id, after_playbook_id, after_days, gap_minutes, mailbox_ids, owner_sends, signed_by, include_unconfirmed, template_id, hand, run_hour, last_run_for, created_at";
 
 /** Every reach-out step of a workspace, each chain's root among them (trigger lead_first). */
 export async function reachOutStepsOf(db: Db, tenantId: string): Promise<ReachOutStepRow[]> {
@@ -75,10 +78,18 @@ export async function reachOutRootOf(
 export async function reachOutSendRefOf(
   db: Db,
   id: string,
-): Promise<{ id: string; tenant_id: string; broadcast_id: string; state: string; reason: string | null } | null> {
+): Promise<{
+  id: string;
+  tenant_id: string;
+  broadcast_id: string;
+  state: string;
+  reason: string | null;
+  /** The emails written for it: an email its owner sent takes the next one's id (core sendMessageId, 00429). */
+  attempts: number;
+} | null> {
   const { data, error } = await db
     .from("reach_out_sends")
-    .select("id, tenant_id, broadcast_id, state, reason")
+    .select("id, tenant_id, broadcast_id, state, reason, attempts")
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(`cannot read the email: ${error.message}`);
@@ -235,14 +246,25 @@ export interface ReachOutRunSend {
   checked_at: string | null;
   created_at: string;
   mailbox_id: string | null;
-  lead: { business_name: string | null; email: string | null; city: string | null } | null;
+  /** An email handed to its owner (00429): what they send, and when it was handed to them. */
+  draft: Json | null;
+  drafted_at: string | null;
+  /** Its lead, and for a company its people (00430), which the first email's person slots read. */
+  lead: {
+    business_name: string | null;
+    email: string | null;
+    city: string | null;
+    kind: string;
+    source: string;
+    facts: Json;
+  } | null;
 }
 
 export async function reachOutRunSendsOf(db: Db, tenantId: string, runId: string): Promise<ReachOutRunSend[]> {
   const { data, error } = await db
     .from("reach_out_sends")
     .select(
-      "id, lead_id, state, reason, hold_detail, opening, angle, send_at, checked_at, created_at, mailbox_id, lead:leads(business_name, email, city)",
+      "id, lead_id, state, reason, hold_detail, opening, angle, send_at, checked_at, created_at, mailbox_id, draft, drafted_at, lead:leads(business_name, email, city, kind, source, facts)",
     )
     .eq("tenant_id", tenantId)
     .eq("broadcast_id", runId);
@@ -405,25 +427,35 @@ export async function markHeldNotice(
 }
 
 /**
- * How many emails the check holds for their owner's say in each of a workspace's runs (reach_out_sends in state held), one
- * head count per run, read together: what Sent's row, the bell's held notice and Campaigns' chain row say (the wiring's
- * second audit, W-campaign-run-template-reachout-4). Throws when it cannot read.
+ * How many of each of a workspace's runs' emails wait on its owner, read in one: held, those the check holds for their
+ * owner's say, which Sent's row, the bell's held notice and Campaigns' chain row say (the wiring's second audit,
+ * W-campaign-run-template-reachout-4); drafted, those handed to their owner to send from their inbox (00429), which wait
+ * on them as the held do. A run with neither is absent. One read of the two states' rows (reach_out_sends_run, on
+ * broadcast_id and state), never a count per run. Throws when it cannot read.
  */
-export async function heldSendCounts(
+export async function runWaitingCounts(
   db: Db,
   p: { tenantId: string; runIds: readonly string[] },
-): Promise<Map<string, number>> {
-  const counts = await Promise.all(
-    p.runIds.map(async (id) => {
-      const { count, error } = await db
+): Promise<Map<string, { held: number; drafted: number }>> {
+  const out = new Map<string, { held: number; drafted: number }>();
+  if (p.runIds.length === 0) return out;
+  const rows = await readAllRows<{ broadcast_id: string; state: string }>(
+    "cannot count the runs' waiting emails",
+    (from, to) =>
+      db
         .from("reach_out_sends")
-        .select("id", { count: "exact", head: true })
+        .select("broadcast_id, state")
         .eq("tenant_id", p.tenantId)
-        .eq("broadcast_id", id)
-        .eq("state", "held");
-      if (error) throw new Error(`cannot count the held emails of run ${id}: ${error.message}`);
-      return [id, count ?? 0] as const;
-    }),
+        .in("broadcast_id", [...p.runIds])
+        .in("state", ["held", "drafted"])
+        .order("id")
+        .range(from, to),
   );
-  return new Map(counts);
+  for (const r of rows) {
+    const c = out.get(r.broadcast_id) ?? { held: 0, drafted: 0 };
+    if (r.state === "held") c.held += 1;
+    else c.drafted += 1;
+    out.set(r.broadcast_id, c);
+  }
+  return out;
 }

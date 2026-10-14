@@ -419,8 +419,12 @@ function sourceLines(dto: ReachOutReportDto, nowMs: number): ReachOutLensSourceL
 
 /* ---------------------------------------------------------------------------------------- mailboxes and lines */
 
-/** A mailbox's state as the card says it: connected, held since a day and why, or not sending. */
+/**
+ * A mailbox's state as the card says it: connected, held since a day and why, or not sending; the emails their owner sent
+ * from their own inbox (00429) are theirs.
+ */
 function mailboxStateWords(d: ReachOutReportMailboxDto, nowMs: number, tz: string): string {
+  if (d.yours) return "You send these";
   if (d.address === null || d.state === "removed") return "Since removed";
   if (d.state === "connected") return "Connected";
   if (d.state === "held") {
@@ -441,16 +445,30 @@ function mailboxCell(n: number, sent: number, share: (n: number, of: number) => 
 }
 
 function mailboxRows(dto: ReachOutReportDto, nowMs: number): ReachOutMailboxRow[] {
-  return dto.mailboxes.map((d) => ({
-    id: d.address ?? "removed",
-    address: d.address ?? "A mailbox since removed",
-    state: mailboxStateWords(d, nowMs, dto.timezone),
-    held: d.state === "held",
-    sent: d.sent,
-    landed: mailboxCell(d.delivered, d.sent, pct),
-    bounced: mailboxCell(d.bounced, d.sent, tenthOf),
-    complained: mailboxCell(d.complained, d.sent, tenthOf),
-  }));
+  return dto.mailboxes.map((d) =>
+    d.yours
+      ? // Sent from their own inbox (00429): a bounce or a complaint reaches them, never us, so no share is said.
+        {
+          id: "your-inbox",
+          address: "Your own inbox",
+          state: mailboxStateWords(d, nowMs, dto.timezone),
+          held: false,
+          sent: d.sent,
+          landed: DASH,
+          bounced: DASH,
+          complained: DASH,
+        }
+      : {
+          id: d.address ?? "removed",
+          address: d.address ?? "A mailbox since removed",
+          state: mailboxStateWords(d, nowMs, dto.timezone),
+          held: d.state === "held",
+          sent: d.sent,
+          landed: mailboxCell(d.delivered, d.sent, pct),
+          bounced: mailboxCell(d.bounced, d.sent, tenthOf),
+          complained: mailboxCell(d.complained, d.sent, tenthOf),
+        },
+  );
 }
 
 function periodLines(dto: ReachOutReportDto, when: WhenWords): ReachOutLensVM["lines"] {

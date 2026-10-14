@@ -4,11 +4,12 @@
  * check, as a search of its own) and the bulk bar's *Write to them* (the chosen leads as a search of their own, with the
  * reach-out sheet opened on it). A reach-out writes to a search, so both are one. Every reading of a file and every word is
  * contracts' (lead-import.ts), through Campaigns' reach-out reads (`reachOuts.lists`); the page mounts it with one hook,
- * useLeadLists, whose answer is the rail's door, the bar's act and the sheets they open.
+ * useLeadLists, whose answer is the rail's doors, the bar's act and the sheets they open. Beside Import leads the rail
+ * offers Find people (the people card, 00430: finder/people-sheet.tsx), the other door that brings leads in.
  */
 import { useMemo, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
-import { leadsRoute } from "@chanlytics/contracts";
+import { leadsRoute, type LeadPeoplePlan } from "@chanlytics/contracts";
 import { reachOuts } from "../../campaigns/reach-out/surface";
 import { ReachOutSheet } from "../../campaigns/reach-out/sheet";
 import { FieldError } from "../../kit/field-error/field-error";
@@ -16,6 +17,7 @@ import { Icon } from "../../kit/icon/icon";
 import { RecordSheet } from "../../kit/record/sheet";
 import { canDo, gate, navigate } from "../../legacy-verbs";
 import { PhoneSheetRow } from "../../people/sheets/phone-sheet";
+import { useFindPeople } from "../finder/people-sheet";
 import type { PeopleFlash } from "../../people/types";
 
 type Lists = typeof reachOuts.lists;
@@ -346,8 +348,17 @@ export const LeadImportSheet = ({
 /** What the page draws of a list of your own: the rail's door, the bar's act, the sheets, and a list's strip and empty state. */
 export interface LeadLists {
   importDoor: ReactNode;
+  /** The rail's Find people (00430), beside Import leads; null while the people card finds nothing (lead_card_live). */
+  findPeopleDoor: ReactNode;
+  /** Whether the people card finds leads now: the first day and a phone's New search offer it only then. */
+  peopleLive: boolean;
   /** Opens the import sheet: the first day's own door to it, where no rail is drawn. */
   openImport: () => void;
+  /**
+   * Opens Find people (00430), filled in with a plan made before (a people search's Find more like these), or empty: the
+   * first day's and a phone's New search door to it, where no rail is drawn.
+   */
+  openFindPeople: (from?: LeadPeoplePlan | null) => void;
   writeAct: (a: { ids: string[]; phone?: boolean; shut?: () => void }) => ReactNode;
   /** Writes to these leads: the list made of them, and its reach-out's sheet (the pile's held leads, 00426). */
   writeTo: (ids: string[]) => void;
@@ -360,11 +371,19 @@ export interface LeadLists {
  * The page's one hook (J12): the rail's *Import leads*, the bar's *Write to them* for the rows chosen and shown, and the
  * sheet either opens. A list made lands the page on it; one chosen opens the reach-out sheet over it.
  */
-export const useLeadLists = ({ flash = null }: { flash?: ((f: PeopleFlash) => void) | null } = {}): LeadLists => {
+export const useLeadLists = ({
+  flash = null,
+  peopleLive = false,
+}: {
+  flash?: ((f: PeopleFlash) => void) | null;
+  /** Whether the people card finds leads now (the searches' cards_live, 00430 lead_card_live). */
+  peopleLive?: boolean;
+} = {}): LeadLists => {
   const [importing, setImporting] = useState(false);
   const [writing, setWriting] = useState<{ id: string; name: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const L = reachOuts.lists;
+  const people = useFindPeople({ flash, live: peopleLive });
   const open = (id: string) => navigate(leadsRoute({ searchId: id, list: "all" }));
   const may = canDo("approve");
   const choose = async (ids: string[]) => {
@@ -437,11 +456,15 @@ export const useLeadLists = ({ flash = null }: { flash?: ((f: PeopleFlash) => vo
     <>
       {importing ? <LeadImportSheet onClose={() => setImporting(false)} onDone={open} flash={flash} /> : null}
       {writing ? <ReachOutSheet search={writing} onClose={() => setWriting(null)} onDone={() => undefined} /> : null}
+      {people.node}
     </>
   );
   return {
     importDoor,
+    findPeopleDoor: people.door,
+    peopleLive,
     openImport: () => setImporting(true),
+    openFindPeople: people.open,
     writeAct,
     writeTo: (ids: string[]) => void choose(ids),
     node,

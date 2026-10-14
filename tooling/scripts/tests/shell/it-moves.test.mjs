@@ -209,6 +209,31 @@ test("what takes a drag of its own keeps it: a field, a row that scrolls across,
   assert.equal(scrolled.style.transform, undefined);
 });
 
+test("a touch begun in what a portal drew is that overlay's: a swipe on a sheet never walks the page it was opened from", async () => {
+  const went = [];
+  const h = touchSwipe({ onDown: () => went.push("down"), onBack: () => went.push("back"), when: () => true });
+  // A person's page, and a fold's sheet React drew from inside it on the app's root: React hands the sheet's touch up
+  // the tree it was drawn from, so the page's handlers hear it, but it began outside the page's own nodes.
+  const page = element({ nodeType: 1 });
+  const sheet = element({ nodeType: 1 });
+  page.contains = (n) => n === page;
+  page.__target = sheet;
+  drag(h, page, [60, 300], [140, 304], [260, 306]);
+  drag(h, page, [100, 100], [100, 200], [100, 400]);
+  await wait(260);
+  assert.deepEqual(
+    went,
+    [],
+    "a sideways swipe on the sheet took the page back to People; a pull closed the sheet under it",
+  );
+  assert.equal(page.style.transform, undefined, "and the page never moved under the finger");
+  // The same swipe begun on the page itself is the page's.
+  page.__target = page;
+  drag(h, page, [60, 300], [140, 304], [260, 306]);
+  await wait(260);
+  assert.deepEqual(went, ["back"]);
+});
+
 test("a flick read only at its ends still walks a pile, and still pulls down from the top", () => {
   const went = [];
   const h = touchSwipe({

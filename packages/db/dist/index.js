@@ -490,7 +490,7 @@ var ERASURE_LEGS = {
   email_trigger: "contact_email_on_erase: the address and why it was suppressed cleared (00125)",
   proposal_trigger: "contact_proposal_on_erase: the proposal's link cleared",
   deals_trigger: "deals_erase_on_contact: a deal's note, evidence and link cleared",
-  leads_trigger: "leads_erase_on_contact: their lead blanked (lead_blank), its places deleted, a reach-out's opening and a preference's example cleared (00391), its keys kept as digests; one of several people at a business takes only their own address, number and the call's note from it (lead_person_leg, 00413)",
+  leads_trigger: "leads_erase_on_contact: their lead blanked (lead_blank), its places deleted, a reach-out's opening and a preference's example cleared (00391), its drafts cleared (00429), a company's people and key cleared and its domain kept as a digest (00430), its keys kept as digests; one of several people at a business takes only their own address, number and the call's note from it (lead_person_leg, 00413); a person named at any company leaves it, its drafts to them cleared and their address kept as a digest (lead_person_forget, 00430)",
   signer_trigger: "person_signer_erase_on_contact: the name and title a reply's reading found as its signer, and what became of it, cleared (00413)",
   recipients_trigger: "broadcast_recipients_on_erase: the words each run kept for them, a visit's time, service and key and a proposal's link, cleared (00391)",
   jobs_scrub: "scrubErasedJobs and erase_contact: a job's payload that carried their number or words overwritten, and its error cleared",
@@ -739,9 +739,12 @@ var ERASURE_STRATEGIES = {
       "maps_url",
       "neighborhood",
       "logo_url",
-      "mark_path"
+      "mark_path",
+      // A company's people (their names, titles, work addresses, profiles) and its key (00430).
+      "facts",
+      "source_key"
     ),
-    // What lead_blank keeps: the country, and the stage it came from.
+    // What lead_blank keeps: the country and the stage it came from.
     ...all(NOT_PERSONAL, "country", "stage_from")
   },
   // The workspace's own numbers and the carrier's and provider's ids for them.
@@ -869,6 +872,8 @@ var ERASURE_STRATEGIES = {
   reach_out_sends: {
     // Written from the lead's record (00391).
     ...all(scrubbedBy("leads_trigger"), "opening", "angle", "hold_detail"),
+    // A draft handed to its owner (00429): the business's address, name and the words written to it; lead_blank clears it.
+    ...all(scrubbedBy("leads_trigger"), "draft"),
     // A digest of the words checked, the facts' keys, and the hold's and the skip's codes.
     ...all(NOT_PERSONAL, "checked_words", "facts_used", "included_for", "reason")
   },
@@ -2390,7 +2395,7 @@ import { DEFAULT_TIMEZONE, RUN_GOING_STATES as RUN_GOING_STATES2, isReachOutRun 
 
 // src/repositories/reach-out-sheet.ts
 import { RUN_GOING_STATES, versionWords } from "../../contracts/dist/index.js";
-var STEP_COLUMNS = "id, name, state, trigger, lead_search_id, after_playbook_id, after_days, gap_minutes, mailbox_ids, signed_by, include_unconfirmed, template_id, hand, run_hour, last_run_for, created_at";
+var STEP_COLUMNS = "id, name, state, trigger, lead_search_id, after_playbook_id, after_days, gap_minutes, mailbox_ids, owner_sends, signed_by, include_unconfirmed, template_id, hand, run_hour, last_run_for, created_at";
 async function reachOutStepsOf(db, tenantId) {
   const { data, error } = await db.from("playbooks").select(STEP_COLUMNS).eq("tenant_id", tenantId).eq("kind", "reach_out");
   if (error) throw new Error(`cannot read the reach-outs: ${error.message}`);
@@ -2402,7 +2407,7 @@ async function reachOutRootOf(db, id) {
   return data;
 }
 async function reachOutSendRefOf(db, id) {
-  const { data, error } = await db.from("reach_out_sends").select("id, tenant_id, broadcast_id, state, reason").eq("id", id).maybeSingle();
+  const { data, error } = await db.from("reach_out_sends").select("id, tenant_id, broadcast_id, state, reason, attempts").eq("id", id).maybeSingle();
   if (error) throw new Error(`cannot read the email: ${error.message}`);
   return data;
 }
@@ -2464,7 +2469,7 @@ async function runsWaitingOf(db, tenantId) {
 }
 async function reachOutRunSendsOf(db, tenantId, runId) {
   const { data, error } = await db.from("reach_out_sends").select(
-    "id, lead_id, state, reason, hold_detail, opening, angle, send_at, checked_at, created_at, mailbox_id, lead:leads(business_name, email, city)"
+    "id, lead_id, state, reason, hold_detail, opening, angle, send_at, checked_at, created_at, mailbox_id, draft, drafted_at, lead:leads(business_name, email, city, kind, source, facts)"
   ).eq("tenant_id", tenantId).eq("broadcast_id", runId);
   if (error) throw new Error(`cannot read the run's emails: ${error.message}`);
   return data ?? [];
@@ -2536,15 +2541,20 @@ async function markHeldNotice(db, p) {
   if (error) throw new Error(`cannot mark the run: ${error.message}`);
   return (data ?? []).length === 1;
 }
-async function heldSendCounts(db, p) {
-  const counts = await Promise.all(
-    p.runIds.map(async (id) => {
-      const { count: count2, error } = await db.from("reach_out_sends").select("id", { count: "exact", head: true }).eq("tenant_id", p.tenantId).eq("broadcast_id", id).eq("state", "held");
-      if (error) throw new Error(`cannot count the held emails of run ${id}: ${error.message}`);
-      return [id, count2 ?? 0];
-    })
+async function runWaitingCounts(db, p) {
+  const out = /* @__PURE__ */ new Map();
+  if (p.runIds.length === 0) return out;
+  const rows = await readAllRows(
+    "cannot count the runs' waiting emails",
+    (from, to) => db.from("reach_out_sends").select("broadcast_id, state").eq("tenant_id", p.tenantId).in("broadcast_id", [...p.runIds]).in("state", ["held", "drafted"]).order("id").range(from, to)
   );
-  return new Map(counts);
+  for (const r of rows) {
+    const c = out.get(r.broadcast_id) ?? { held: 0, drafted: 0 };
+    if (r.state === "held") c.held += 1;
+    else c.drafted += 1;
+    out.set(r.broadcast_id, c);
+  }
+  return out;
 }
 
 // src/repositories/campaigns/stranded-runs.ts
@@ -2623,8 +2633,12 @@ async function waitingRunsOf(db, tenantId) {
   if (pending.error) throw new Error(`cannot read the runs waiting for approval: ${pending.error.message}`);
   if (going.error) throw new Error(`cannot read the going runs: ${going.error.message}`);
   const reaching = (going.data ?? []).filter((r) => isReachOutRun(r.audience));
-  const held = reaching.length ? await heldSendCounts(db, { tenantId, runIds: reaching.map((r) => r.id) }) : null;
-  const holding = reaching.flatMap((r) => (held?.get(r.id) ?? 0) > 0 ? [{ ...r, held: held?.get(r.id) ?? 0 }] : []);
+  const runIds = reaching.map((r) => r.id);
+  const waiting = reaching.length ? await runWaitingCounts(db, { tenantId, runIds }) : null;
+  const holding = reaching.flatMap((r) => {
+    const w = waiting?.get(r.id);
+    return w ? [{ ...r, held: w.held, drafted: w.drafted }] : [];
+  });
   return [...pending.data ?? [], ...holding].sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 async function runsNamed(db, tenantId, ids) {
@@ -2635,8 +2649,11 @@ async function runsNamed(db, tenantId, ids) {
   const reaching = rows.filter(
     (r) => isReachOutRun(r.audience) && RUN_GOING_STATES2.includes(r.state)
   );
-  const held = reaching.length ? await heldSendCounts(db, { tenantId, runIds: reaching.map((r) => r.id) }) : null;
-  return rows.map((r) => held?.has(r.id) ? { ...r, held: held.get(r.id) ?? 0 } : r);
+  const waiting = reaching.length ? await runWaitingCounts(db, { tenantId, runIds: reaching.map((r) => r.id) }) : null;
+  return rows.map((r) => {
+    const w = waiting?.get(r.id);
+    return w ? { ...r, held: w.held, drafted: w.drafted } : r;
+  });
 }
 
 // src/repositories/mailboxes/connections.ts
@@ -3183,7 +3200,7 @@ async function sendJobScheduled(db, p) {
 async function sendStanding(db, s) {
   const [run, chain] = await Promise.all([
     db.from("broadcasts").select("state").eq("tenant_id", s.tenant_id).eq("id", s.broadcast_id).maybeSingle(),
-    db.from("playbooks").select("id, state, template_id, after_playbook_id, signed_by").eq("tenant_id", s.tenant_id).in("id", [s.playbook_id ?? s.root_id, s.root_id])
+    db.from("playbooks").select("id, state, template_id, after_playbook_id, signed_by, owner_sends").eq("tenant_id", s.tenant_id).in("id", [s.playbook_id ?? s.root_id, s.root_id])
   ]);
   if (run.error) throw new Error(`cannot read the send's run: ${run.error.message}`);
   if (chain.error) throw new Error(`cannot read the send's chain: ${chain.error.message}`);
@@ -3192,7 +3209,8 @@ async function sendStanding(db, s) {
     run: run.data?.state ?? null,
     step: step?.template_id ? { state: step.state, template_id: step.template_id, after_playbook_id: step.after_playbook_id } : null,
     root: (chain.data ?? []).find((p) => p.id === s.root_id)?.state ?? null,
-    signedBy: (chain.data ?? []).find((p) => p.id === s.root_id)?.signed_by ?? null
+    signedBy: (chain.data ?? []).find((p) => p.id === s.root_id)?.signed_by ?? null,
+    ownerSends: (chain.data ?? []).find((p) => p.id === s.root_id)?.owner_sends === true
   };
 }
 async function emailWordsOf(db, tenantId, templateId) {
@@ -3210,7 +3228,7 @@ async function workspaceNameAndConfig(db, tenantId) {
   return { name: t.data?.name ?? null, config: cfg.data?.config ?? null };
 }
 async function leadSlotsOf(db, tenantId, leadId) {
-  const { data, error } = await db.from("leads").select("business_name, city").eq("tenant_id", tenantId).eq("id", leadId).maybeSingle();
+  const { data, error } = await db.from("leads").select("business_name, city, email, email_state, kind, source, facts").eq("tenant_id", tenantId).eq("id", leadId).maybeSingle();
   if (error) throw new Error(`cannot read the lead: ${error.message}`);
   return data;
 }
@@ -3224,12 +3242,16 @@ async function sendNow(db, p) {
   if (error) throw new Error(`cannot read the send: ${error.message}`);
   return data;
 }
+async function runHanded(db, p) {
+  const { error } = await db.from("broadcasts").update({ state: "sending", updated_at: p.at.toISOString() }).eq("tenant_id", p.tenantId).eq("id", p.id).in("state", ["scheduled", "sending"]);
+  if (error) throw new Error(`cannot mark the run handed over: ${error.message}`);
+}
 async function runSending(db, p) {
   const { error } = await db.from("broadcasts").update({ state: "sending" }).eq("tenant_id", p.tenantId).eq("id", p.id).eq("state", "scheduled");
   if (error) throw new Error(`cannot start the run: ${error.message}`);
 }
 async function parentEmailOf(db, p) {
-  const { data: sends, error } = await db.from("reach_out_sends").select("message_id").eq("tenant_id", p.tenantId).eq("root_id", p.rootId).eq("lead_id", p.leadId).eq("playbook_id", p.stepId).eq("state", "sent").order("sent_at", { ascending: false }).limit(1);
+  const { data: sends, error } = await db.from("reach_out_sends").select("message_id, said_at").eq("tenant_id", p.tenantId).eq("root_id", p.rootId).eq("lead_id", p.leadId).eq("playbook_id", p.stepId).eq("state", "sent").order("sent_at", { ascending: false }).limit(1);
   if (error) throw new Error(`cannot read the step before's send: ${error.message}`);
   const id = sends?.[0]?.message_id;
   if (!id) return null;
@@ -3243,7 +3265,8 @@ async function parentEmailOf(db, p) {
     messageId: m.id,
     rfcMessageId: typeof e.message_id === "string" && e.message_id ? e.message_id : null,
     references: typeof refs === "string" ? refs.split(/\s+/).filter(Boolean) : [],
-    subject: typeof subject === "string" ? subject : null
+    subject: typeof subject === "string" ? subject : null,
+    ownerSent: sends?.[0]?.said_at != null
   };
 }
 async function leadAddressBounced(db, p) {
@@ -3259,9 +3282,9 @@ async function leadAddressBounced(db, p) {
   return true;
 }
 async function leadWritten(db, p) {
-  const { data: lead, error } = await db.from("leads").select("stage, version, contacted_at").eq("tenant_id", p.tenantId).eq("id", p.leadId).maybeSingle();
+  const { data: lead, error } = await db.from("leads").select("stage, version, contacted_at, blanked_at, erased_at").eq("tenant_id", p.tenantId).eq("id", p.leadId).maybeSingle();
   if (error) throw new Error(`cannot read the lead a send wrote to: ${error.message}`);
-  if (!lead) return false;
+  if (!lead || lead.blanked_at || lead.erased_at) return false;
   const { data: moved, error: e2 } = await db.from("leads").update({
     stage: lead.stage === "ready" ? "nurture" : lead.stage,
     contacted_at: lead.contacted_at ?? p.at,
@@ -3350,6 +3373,82 @@ async function reachOutPeopleCounts(db, tenantId) {
   } catch {
     return null;
   }
+}
+
+// src/repositories/campaigns/reach-out-drafts.ts
+async function claimDrafts(db, p) {
+  if (!Number.isInteger(p.limit) || Number.isNaN(p.at.getTime()))
+    throw new Error(`cannot claim the drafts due: a limit is a whole number (${p.limit})`);
+  const { data, error } = await db.rpc("reach_out_claim_drafts", {
+    p_at: p.at.toISOString(),
+    p_limit: p.limit,
+    ...p.tenantId ? { p_tenant_id: p.tenantId } : {}
+  });
+  if (error) throw new Error(`cannot claim the drafts due: ${error.message}`);
+  return data ?? [];
+}
+async function chainDraftLoad(db, p) {
+  const [runs, open] = await Promise.all([
+    db.from("broadcasts").select("id").eq("tenant_id", p.tenantId).eq("audience->>kind", "reach_out").eq("audience->>root_id", p.rootId).eq("run_for", p.runFor),
+    db.from("reach_out_sends").select("id", { count: "exact", head: true }).eq("tenant_id", p.tenantId).eq("root_id", p.rootId).in("state", ["planned", "held", "claimed", "drafted"])
+  ]);
+  if (runs.error) throw new Error(`cannot read the reach-out's runs of the day: ${runs.error.message}`);
+  if (open.error) throw new Error(`cannot count the reach-out's emails waiting: ${open.error.message}`);
+  const ids = (runs.data ?? []).map((r) => r.id);
+  if (ids.length === 0) return { today: 0, open: open.count ?? 0 };
+  const { count: count2, error } = await db.from("reach_out_sends").select("id", { count: "exact", head: true }).eq("tenant_id", p.tenantId).in("broadcast_id", ids).neq("state", "skipped");
+  if (error) throw new Error(`cannot count the reach-out's emails of the day: ${error.message}`);
+  return { today: count2 ?? 0, open: open.count ?? 0 };
+}
+async function draftFactsOf(db, tenantId, leadId) {
+  const { data, error } = await db.rpc("reach_out_draft_facts", { p_tenant_id: tenantId, p_lead_id: leadId });
+  if (error) throw new Error(`cannot read the draft's lead: ${error.message}`);
+  return data ?? null;
+}
+async function draftsWaiting(db, p) {
+  const { data, error } = await db.rpc("reach_out_drafts_waiting", {
+    p_limit: p.limit,
+    ...p.tenantId ? { p_tenant_id: p.tenantId } : {},
+    ...p.runId ? { p_run_id: p.runId } : {},
+    ...p.after ? { p_after_at: p.after.drafted_at, p_after_id: p.after.id } : {}
+  });
+  if (error) throw new Error(`cannot read the drafts waiting: ${error.message}`);
+  return (data ?? []).map((r) => ({ ...r, facts: r.facts ?? null }));
+}
+async function ownerSendFactsOf(db, p) {
+  if (p.sendIds.length === 0) return /* @__PURE__ */ new Map();
+  const { data, error } = await db.from("reach_out_sends").select("id, broadcast_id, state, said_at").eq("tenant_id", p.tenantId).in("id", [...p.sendIds]);
+  if (error) throw new Error(`cannot read the owner's sends: ${error.message}`);
+  return new Map(
+    (data ?? []).map((r) => [
+      r.id,
+      { runId: r.state === "drafted" ? r.broadcast_id : null, said: r.state === "sent" && r.said_at !== null }
+    ])
+  );
+}
+async function sendSaid(db, p) {
+  const { data, error } = await db.rpc("reach_out_send_said", {
+    p_send_id: p.sendId,
+    p_outcome: p.outcome,
+    ...p.reason ? { p_reason: p.reason } : {}
+  });
+  return answer(data, error);
+}
+async function replySaid(db, p) {
+  const { data, error } = await db.rpc("reach_out_reply_said", {
+    p_tenant_id: p.tenantId,
+    p_user_id: p.userId,
+    p_lead_id: p.leadId,
+    p_reading: p.reading,
+    p_plan: p.plan,
+    p_note: p.note
+  });
+  return answer(data, error);
+}
+async function leadReplyFactsOf(db, p) {
+  const { data, error } = await db.from("leads").select("business_name, email, website_host, website_root").eq("tenant_id", p.tenantId).eq("id", p.leadId).maybeSingle();
+  if (error) throw new Error(`cannot read the lead: ${error.message}`);
+  return data ? { ...data, business_name: data.business_name ?? "" } : null;
 }
 
 // src/repositories/campaigns/reach-out-check.ts
@@ -5555,7 +5654,7 @@ async function getPartnerInviteMail(db, tenantId) {
 }
 
 // src/repositories/leads.ts
-var ONE_LEAD_COLUMNS = "id, tenant_id, place_id, business_name, category, street, city, region, postal_code, neighborhood, lat, lng, mark_path, website_host, instagram_url, phone_e164, phone_sources, phone_wrong, email, email_alternates, email_state, email_checked_at, rating, reviews, stage, closed_reason, last_outcome, last_note, about, hours, image_url, price, reviews_dist, facebook_url, linkedin_url, tiktok_url, claimed, maps_url, rank, contact_id, contacted_at, converted_at, exported_at, found_at, version, blanked_at, erased_at";
+var ONE_LEAD_COLUMNS = "id, tenant_id, place_id, business_name, category, street, city, region, postal_code, neighborhood, lat, lng, mark_path, website_host, instagram_url, phone_e164, phone_sources, phone_wrong, email, email_alternates, email_state, email_checked_at, rating, reviews, stage, closed_reason, last_outcome, last_note, about, hours, image_url, price, reviews_dist, facebook_url, linkedin_url, tiktok_url, claimed, maps_url, rank, contact_id, contacted_at, converted_at, exported_at, found_at, version, blanked_at, erased_at, kind, source, facts";
 var jsonString = (v) => typeof v === "string" ? v : null;
 function memberOf(data) {
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
@@ -5637,6 +5736,33 @@ async function ideasBasis(db, tenantId) {
   if (error) throw new Error(`lead_rounds: ${error.message}`);
   return data ? data.ended_at : null;
 }
+async function leadCardsLive(db) {
+  const { data, error } = await db.rpc("lead_cards_live");
+  if (error) throw new Error(`cannot read which cards find leads: ${error.message}`);
+  return data ?? ["local_businesses"];
+}
+async function leadPeopleSearchCreate(db, p) {
+  const { data, error } = await db.rpc("lead_people_search_create", {
+    p_tenant_id: p.tenantId,
+    p_plan: p.plan,
+    p_via: p.via,
+    p_estimate_usd: p.estimateUsd,
+    ...p.threadId ? { p_thread_id: p.threadId } : {}
+  });
+  if (error) throw new Error(`lead_people_search_create: ${error.message}`);
+  return data ?? {};
+}
+async function leadAddresseeChoose(db, p) {
+  const { data, error } = await db.rpc("lead_addressee_choose", { p_lead_id: p.leadId, p_person: p.person });
+  if (error) return { data: null, error };
+  return { data: data ?? { error: "no_answer" }, error: null };
+}
+async function leadCompanyUpsert(db, roundId, companies) {
+  const { data, error } = await db.rpc("lead_company_upsert", { p_round_id: roundId, p_companies: companies });
+  if (error) throw new Error(`lead_company_upsert: ${error.message}`);
+  const r = data ?? {};
+  return { made: r.made ?? 0, held: r.held ?? 0, left_out: r.left_out ?? 0 };
+}
 async function leadCountriesOf(db, ids) {
   const out = /* @__PURE__ */ new Map();
   const unique = [...new Set(ids)];
@@ -5681,7 +5807,7 @@ var WATCHED = [
   { table: "google_listings", events: EVERY },
   // the listing linked, read, or removed: Setup and Reports repaint
   // a review seen for the first time, and one answered, by the receptionist, a teammate or on Google: Today's Google line,
-  // the bell and Reports' Reviews repaint. The update is told when the reply moved (00428), never for the sync's stamp.
+  // the bell and Reports' Reviews repaint. The update is told when the reply moved (00431), never for the sync's stamp.
   { table: "google_reviews", events: INSERTS_AND_UPDATES },
   { table: "billing_accounts", events: EVERY },
   // Stripe's answer, applied by the webhook: Billing and Setup repaint
@@ -5697,7 +5823,7 @@ var WATCHED = [
   { table: "mailbox_connections", events: EVERY },
   // a mailbox connected, signed out, held, paused or removed, its day or records when they moved: Connections and the sheet repaint (00423)
   // a round's page committed, a check landed, a class changed: the Leads scope repaints (00140). A round's update is told
-  // when its state, its question, its wait or its ending moved (00428), never for the counters each batch moves.
+  // when its state, its question, its wait or its ending moved (00431), never for the counters each batch moves.
   { table: "leads", events: EVERY },
   { table: "lead_searches", events: EVERY },
   { table: "lead_rounds", events: EVERY },
@@ -5734,7 +5860,7 @@ var WATCHED = [
   // A mailbox made (Today's email line, Start's and Connections' Email row), and offers by email paused by the gate or
   // resumed by the back office (Campaigns' head line and send tick, People), its address or sender renamed, the code Gmail
   // mails to confirm a forward (the Calendar's Business tab) and its intake's error set or cleared (Connections). The
-  // update is told when one of those moved (00428), never for the stamp every email puts on it.
+  // update is told when one of those moved (00431), never for the stamp every email puts on it.
   { table: "mailboxes", events: INSERTS_AND_UPDATES },
   // A booking email the reader held for a look, or settled: the Business tab's held list repaints.
   { table: "appointment_notices", events: INSERTS_AND_UPDATES },
@@ -5744,7 +5870,7 @@ var WATCHED = [
   { table: "memberships", events: EVERY },
   { table: "invitations", events: EVERY },
   // The workspace paused or resumed (billing, the back office), renamed, its zone, buying model or logo changed: the
-  // shell, the sidebar and Today's band repaint. Told when one of those moved (00428). The receptionist's stamp reads the row.
+  // shell, the sidebar and Today's band repaint. Told when one of those moved (00431). The receptionist's stamp reads the row.
   { table: "tenants", events: UPDATES }
 ];
 var NARROWED_UPDATES = {
@@ -5792,7 +5918,7 @@ var NARROWED_UPDATES = {
     "variables"
   ],
   // Its address, sender and reply mode, the pause on offers, Gmail's forwarding code and the intake's error. Not
-  // last_received_at, which every email writes (00428).
+  // last_received_at, which every email writes (00431).
   mailboxes: [
     "local_part",
     "from_name",
@@ -5822,11 +5948,11 @@ var NARROWED_UPDATES = {
   ],
   // A seat's role. Not the member's saved views or push choices, which are their own.
   memberships: ["role"],
-  // The workspace's status, name, zone, buying model and logo (00428).
+  // The workspace's status, name, zone, buying model and logo (00431).
   tenants: ["status", "name", "timezone", "sells_by", "logo_path"],
-  // A review answered (00428). Not last_seen_at, which the sync stamps on every review.
+  // A review answered (00431). Not last_seen_at, which the sync stamps on every review.
   google_reviews: ["reply_text", "replied_at"],
-  // What a round is and what it waits on (00428). Not its allowance, cost or judge's tokens and model.
+  // What a round is and what it waits on (00431). Not its allowance, cost or judge's tokens and model.
   lead_rounds: [
     "state",
     "ending",
@@ -5967,7 +6093,7 @@ async function dueCalendars(db, p) {
       tenant_id: r.tenant_id,
       config: r.config,
       timezone: r.timezone,
-      // A database before 00434 answers no such column: left out, so the sweep knows to write no stamp.
+      // A database before 00435 answers no such column: left out, so the sweep knows to write no stamp.
       ..."failed_since" in r ? { failed_since: r.failed_since ?? null } : {}
     })),
     remaining: remainingOf(rows)
@@ -6327,9 +6453,11 @@ export {
   campaignSeries,
   campaignStuck,
   cancelBroadcastFrom,
+  chainDraftLoad,
   claimCallActivity,
   claimCallNotification,
   claimControl,
+  claimDrafts,
   claimIdeas,
   claimIdempotencyKey,
   claimQueuedSend,
@@ -6361,6 +6489,8 @@ export {
   dismissAppointmentNotice,
   dismissPersonDoubt,
   doubtOn,
+  draftFactsOf,
+  draftsWaiting,
   dropFromList,
   dropMailboxCredentials,
   dueCalendars,
@@ -6416,7 +6546,6 @@ export {
   heldNoticeDue,
   heldNoticeKeys,
   heldNoticesOf,
-  heldSendCounts,
   heldStale,
   holdFactsOf,
   holdRecipients,
@@ -6451,10 +6580,15 @@ export {
   lastInboundEmail,
   lastOutboundEmailSubject,
   leadAddressBounced,
+  leadAddresseeChoose,
+  leadCardsLive,
+  leadCompanyUpsert,
   leadCountriesOf,
   leadMemberLater,
   leadNamesByIds,
+  leadPeopleSearchCreate,
   leadPileCounts,
+  leadReplyFactsOf,
   leadSlotsOf,
   leadWritten,
   leadsBackToday,
@@ -6529,6 +6663,7 @@ export {
   outreachModeOf,
   ownLineOf,
   ownVersionsFiled,
+  ownerSendFactsOf,
   pageSpeed,
   pageSpots,
   pageVitalsP75,
@@ -6622,6 +6757,7 @@ export {
   repliesFor,
   replyReadingOf,
   replyReadingRefOf,
+  replySaid,
   replyUndoableOf,
   reportSeries,
   resendHandover,
@@ -6637,7 +6773,9 @@ export {
   reviewsNamed,
   runCounts,
   runGoesByOthers,
+  runHanded,
   runSending,
+  runWaitingCounts,
   runningTwins,
   runsInSpan,
   runsNamed,
@@ -6655,6 +6793,7 @@ export {
   seePersonNote,
   sendJobScheduled,
   sendNow,
+  sendSaid,
   sendStanding,
   sentEmailIdByMessageId,
   sentEmailOf,

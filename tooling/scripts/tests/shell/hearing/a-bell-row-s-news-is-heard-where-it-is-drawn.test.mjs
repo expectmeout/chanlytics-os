@@ -208,7 +208,7 @@ const ANNOUNCES = {
   booking: "The Calendar, which the row opens at the appointment, hears appointments.",
   member_joined: "Settings, which the row opens at Team, hears memberships and invitations (00408).",
   member_left:
-    "Settings, which the row opens at Team, hears memberships: the one who left is gone from the roster (00436).",
+    "Settings, which the row opens at Team, hears memberships: the one who left is gone from the roster (00437).",
   // Not traced to the depth the others were (N2 says so): no read is owed until one is found to be.
   call: "Its page, the calls, is not traced to the depth the others were; the call's note lands in the thread.",
   job_failed:

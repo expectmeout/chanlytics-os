@@ -286,7 +286,7 @@ export const SERVER_NOTIFICATION_KINDS = [
   /**
    * A teammate left the workspace, by their own hand or with their account (the wiring's second audit, R11
    * W-channel-team-plus-5): news, a line on the bell that opens Settings > Team, told once from the member.left event
-   * (core SUBSCRIBERS.team_notice, 00436). No mail, no phone.
+   * (core SUBSCRIBERS.team_notice, 00437). No mail, no phone.
    */
   "member_left",
 ] as const;
@@ -591,6 +591,8 @@ const ROUTE_VERBS: Array<[RegExp, string]> = [
   [/^campaigns/, "Open Campaigns"],
   // A row about one run opens that run (a playbook's waiting or about to go, a reach-out's held sends), and says so.
   [/^broadcasts\/run:/, "Open the run"],
+  // Every email handed to its owner, from each reach-out they send themselves (00429): one list.
+  [/^broadcasts\/to-send$/, "Open To send"],
   [/^broadcasts/, "Open Sent"],
   // The route is still `messages`; the page is the Library (a room of Campaigns), and the door says the page's name.
   [/^messages/, "Open Library"],

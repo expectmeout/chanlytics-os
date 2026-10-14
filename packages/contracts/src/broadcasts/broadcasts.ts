@@ -113,13 +113,15 @@ export type RecipientState = (typeof RECIPIENT_STATES)[number];
  * A reach-out's send (00183 reach_out_sends): planned (a time and a domain), claimed under the domain's capacity,
  * queued as an email row with its job, then what that row became. A wait refusal plans it again (Reach out, Part 3).
  * The check before it goes may hold it (00197): held waits for its owner, who puts it back or skips it (Part 4).
- * A hand step's lead is handed to the team, and never moves (00228, Part 5).
+ * A hand step's lead is handed to the team, and never moves (00228, Part 5). A reach-out its owner sends hands each
+ * email to them, drafted, and the owner says whether it went: sent, or skipped (00429).
  */
 export const REACH_OUT_SEND_STATES = [
   "planned",
   "held",
   "claimed",
   "queued",
+  "drafted",
   "sent",
   "skipped",
   "failed",
@@ -301,6 +303,8 @@ export interface BroadcastDto {
    * and where it could not be counted (the wiring's second audit, W-campaign-run-template-reachout-4).
    */
   held?: number;
+  /** And how many are handed to its owner to send from their inbox (00429), counted as held is. */
+  drafted?: number;
 }
 
 export interface BroadcastVM extends BroadcastDto {
@@ -316,6 +320,16 @@ export interface BroadcastVM extends BroadcastDto {
   progress: number;
   /** A failed broadcast's reason in the owner's words; null in any other state. */
   failureLabel: string | null;
+}
+
+/**
+ * What a run is called where a sentence names it: its audience's label (a playbook's, a list's), else its own name. A
+ * reach-out's run carries no label (core run-reach-out.ts writes its ids alone), so its name says it ("Early gyms ·
+ * 2026-10-14"): read as the label alone, a line named nobody ("ran at 7:44 AM").
+ */
+export function runLabelOf(run: { audience?: unknown; name: string }): string {
+  const label = (run.audience as { label?: unknown } | null | undefined)?.label;
+  return typeof label === "string" && label.trim() ? label : run.name;
 }
 
 /** "today 9:00 AM" · "tomorrow 9:00 AM" · "Sep 12 · 10:00 AM", by the business's day and clock (clock.ts). */

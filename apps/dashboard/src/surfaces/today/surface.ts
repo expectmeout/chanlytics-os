@@ -68,7 +68,7 @@ export const todayOverride: SurfaceOverride = {
   // ongoing) must NOT re-run three plpgsql aggregates; a start or an end does.
   // Lead rounds too: a search that stops to ask is an UPDATE on its round, and
   // its answer another. A round is told when its state, its question, its wait or
-  // its ending moved (00428), never for the counters each batch of a run moves:
+  // its ending moved (00431), never for the counters each batch of a run moves:
   // each one told changes what the queue says about a search waiting on you.
   // And the channel, the line and the billing account: the chips for WhatsApp, text, voice and email and the red bands
   // ('WhatsApp is disconnected', 'This workspace is paused') are drawn from the metrics read, which nothing re-read for a

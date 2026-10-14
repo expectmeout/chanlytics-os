@@ -83,6 +83,7 @@ import type {
   LEAD_SUPPRESSION_KINDS,
   LEAD_SUPPRESSION_WHATS,
 } from "../leads/search/sets";
+import type { LEAD_KINDS, LEAD_SOURCES } from "../leads/lead-kind";
 
 export type SchemaSetKey = keyof typeof SCHEMA_SETS;
 /** The values one column's CHECK allows, e.g. SchemaSet<"lines.voice_state">. */
@@ -204,6 +205,8 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof LEAD_RUN_STATES>, SchemaSet<"lead_runs.state">>>,
   Holds<Exactly<Of<typeof LEAD_EMAIL_STATES>, SchemaSet<"leads.email_state">>>,
   Holds<Exactly<Of<typeof LEAD_STAGES>, SchemaSet<"leads.stage">>>,
+  Holds<Exactly<Of<typeof LEAD_KINDS>, SchemaSet<"leads.kind">>>,
+  Holds<Exactly<Of<typeof LEAD_SOURCES>, SchemaSet<"leads.source">>>,
   Holds<Exactly<Of<typeof LEAD_CLOSED_REASONS>, SchemaSet<"leads.closed_reason">>>,
   Holds<Exactly<Of<typeof LEAD_MEMBER_CLASSES>, SchemaSet<"lead_search_members.class">>>,
   Holds<Exactly<Of<typeof LEAD_FITS>, SchemaSet<"lead_search_members.fit">>>,

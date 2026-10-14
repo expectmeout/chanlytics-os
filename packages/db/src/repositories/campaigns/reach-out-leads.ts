@@ -23,7 +23,8 @@ type Db = SupabaseClient<Database>;
 /** A door's answer, or its refusal as the database raised it. */
 export type DoorResult<T> = { data: T; error: null } | { data: null; error: { code?: string; message: string } };
 
-const answer = <T>(data: unknown, error: { code?: string; message: string } | null): DoorResult<T> =>
+/** A door's answer as the database gave it, or its refusal (DoorResult): every reach-out door's, read once. */
+export const answer = <T>(data: unknown, error: { code?: string; message: string } | null): DoorResult<T> =>
   error ? { data: null, error: { code: error.code, message: error.message } } : { data: data as T, error: null };
 
 /** What the add door answers: what joined (or, dry, would), or why nothing could. */

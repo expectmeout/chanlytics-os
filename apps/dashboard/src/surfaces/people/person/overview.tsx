@@ -270,7 +270,7 @@ export function Overview({ c }: { c: PageCtx }) {
       <UpNext c={c} />
       <LastWords c={c} />
       {notes ? <NotesSection c={c} /> : null}
-      <PersonDealCard p={c.dealP} canRecord={c.canRecord} onCompose={c.compose} flash={c.flash} rung phone={c.phone} />
+      <PersonDealCard p={c.dealP} canRecord={c.canRecord} onCompose={c.compose} flash={c.flash} rung />
       {comingUpSection(c.p.comingUp || [])}
       {c.phone ? campaignsFold(c.p) : null}
     </>

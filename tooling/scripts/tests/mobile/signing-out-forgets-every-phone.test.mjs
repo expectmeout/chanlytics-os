@@ -1,5 +1,5 @@
 /**
- * Signing out forgets every phone of the person (00431; the wiring's second audit, R11 S8-3). The sign-out ends every
+ * Signing out forgets every phone of the person (00432; the wiring's second audit, R11 S8-3). The sign-out ends every
  * session of theirs on every device (the route's signOut is global), and their phones went on being pushed handoff and
  * call alerts, with the customer's words, until someone else signed in on them. The route asks the database to forget
  * them first, while the session still says who they are, and that step never stands in the sign-out's way.
@@ -27,7 +27,7 @@ test("the door forgets every phone of the person signed in, and says how many", 
   assert.equal(asked.length, 1, "one call, on the person's own session");
 });
 
-test("a database before 00431 forgets nothing and says so; any other failure is thrown", async () => {
+test("a database before 00432 forgets nothing and says so; any other failure is thrown", async () => {
   const before = { rpc: async () => ({ data: null, error: { code: "PGRST202", message: "no such function" } }) };
   assert.equal(await forgetEveryPhone(before), null);
   const down = { rpc: async () => ({ data: null, error: { code: "57P01", message: "terminating connection" } }) };

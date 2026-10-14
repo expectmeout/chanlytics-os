@@ -19,7 +19,7 @@ var WATCHED = [
   { table: "google_listings", events: EVERY },
   // the listing linked, read, or removed: Setup and Reports repaint
   // a review seen for the first time, and one answered, by the receptionist, a teammate or on Google: Today's Google line,
-  // the bell and Reports' Reviews repaint. The update is told when the reply moved (00428), never for the sync's stamp.
+  // the bell and Reports' Reviews repaint. The update is told when the reply moved (00431), never for the sync's stamp.
   { table: "google_reviews", events: INSERTS_AND_UPDATES },
   { table: "billing_accounts", events: EVERY },
   // Stripe's answer, applied by the webhook: Billing and Setup repaint
@@ -35,7 +35,7 @@ var WATCHED = [
   { table: "mailbox_connections", events: EVERY },
   // a mailbox connected, signed out, held, paused or removed, its day or records when they moved: Connections and the sheet repaint (00423)
   // a round's page committed, a check landed, a class changed: the Leads scope repaints (00140). A round's update is told
-  // when its state, its question, its wait or its ending moved (00428), never for the counters each batch moves.
+  // when its state, its question, its wait or its ending moved (00431), never for the counters each batch moves.
   { table: "leads", events: EVERY },
   { table: "lead_searches", events: EVERY },
   { table: "lead_rounds", events: EVERY },
@@ -72,7 +72,7 @@ var WATCHED = [
   // A mailbox made (Today's email line, Start's and Connections' Email row), and offers by email paused by the gate or
   // resumed by the back office (Campaigns' head line and send tick, People), its address or sender renamed, the code Gmail
   // mails to confirm a forward (the Calendar's Business tab) and its intake's error set or cleared (Connections). The
-  // update is told when one of those moved (00428), never for the stamp every email puts on it.
+  // update is told when one of those moved (00431), never for the stamp every email puts on it.
   { table: "mailboxes", events: INSERTS_AND_UPDATES },
   // A booking email the reader held for a look, or settled: the Business tab's held list repaints.
   { table: "appointment_notices", events: INSERTS_AND_UPDATES },
@@ -82,7 +82,7 @@ var WATCHED = [
   { table: "memberships", events: EVERY },
   { table: "invitations", events: EVERY },
   // The workspace paused or resumed (billing, the back office), renamed, its zone, buying model or logo changed: the
-  // shell, the sidebar and Today's band repaint. Told when one of those moved (00428). The receptionist's stamp reads the row.
+  // shell, the sidebar and Today's band repaint. Told when one of those moved (00431). The receptionist's stamp reads the row.
   { table: "tenants", events: UPDATES }
 ];
 var NARROWED_UPDATES = {
@@ -130,7 +130,7 @@ var NARROWED_UPDATES = {
     "variables"
   ],
   // Its address, sender and reply mode, the pause on offers, Gmail's forwarding code and the intake's error. Not
-  // last_received_at, which every email writes (00428).
+  // last_received_at, which every email writes (00431).
   mailboxes: [
     "local_part",
     "from_name",
@@ -160,11 +160,11 @@ var NARROWED_UPDATES = {
   ],
   // A seat's role. Not the member's saved views or push choices, which are their own.
   memberships: ["role"],
-  // The workspace's status, name, zone, buying model and logo (00428).
+  // The workspace's status, name, zone, buying model and logo (00431).
   tenants: ["status", "name", "timezone", "sells_by", "logo_path"],
-  // A review answered (00428). Not last_seen_at, which the sync stamps on every review.
+  // A review answered (00431). Not last_seen_at, which the sync stamps on every review.
   google_reviews: ["reply_text", "replied_at"],
-  // What a round is and what it waits on (00428). Not its allowance, cost or judge's tokens and model.
+  // What a round is and what it waits on (00431). Not its allowance, cost or judge's tokens and model.
   lead_rounds: [
     "state",
     "ending",

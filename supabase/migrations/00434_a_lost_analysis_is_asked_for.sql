@@ -1,4 +1,4 @@
--- 00433 · A call whose analysis was lost is asked for, and settled as if it had come.
+-- 00434 · A call whose analysis was lost is asked for, and settled as if it had come.
 --
 -- The wiring's second audit, lane R11 (S11-3). A caller who asked to be called back was dropped when the provider's
 -- "call analysed" message was lost: the hold, the owner's notice and the mail are all made by the webhook's plan for
@@ -41,7 +41,7 @@ begin
           and conversation_id is not null
           and ended_at < now() - interval '15 minutes')
       -- a call whose owner was never told, its analysis not here or asking for a call back: asked of the provider for
-      -- two hours after it ended (00433, the sweep's settle leg)
+      -- two hours after it ended (00434, the sweep's settle leg)
       or (status in ('ended', 'error')
           and notified_at is null
           and conversation_id is not null

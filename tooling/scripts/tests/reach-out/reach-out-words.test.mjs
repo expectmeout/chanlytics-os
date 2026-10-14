@@ -39,8 +39,20 @@ test("the foot says why, that it is marketing, who and where, and how to say no,
 });
 
 test("a foot missing any part the law asks for is never made", () => {
-  for (const k of ["why", "business", "address", "unsubscribeUrl"])
+  for (const k of ["why", "business", "address"]) {
     assert.throws(() => cold({ ...FOOT, [k]: "  " }), /why, who, where and how to stop/, k);
+    assert.throws(() => coldHtml({ ...FOOT, [k]: "  " }), /why, who, where and how to stop/, `${k} (HTML)`);
+  }
+  // The text's way out is its words, so it is made without a link: an email its owner sends from their own inbox has no
+  // header to carry one (00429). The HTML twin, which draws the link, is never made without it.
+  for (const unsubscribeUrl of [null, "  "]) {
+    assert.equal(cold({ ...FOOT, unsubscribeUrl }), cold(FOOT), `${unsubscribeUrl}`);
+    assert.throws(
+      () => coldHtml({ ...FOOT, unsubscribeUrl }),
+      /why, who, where and how to stop/,
+      `${unsubscribeUrl} (HTML)`,
+    );
+  }
 });
 
 test("the foot is the last thing a campaign email says, after the signature", () => {

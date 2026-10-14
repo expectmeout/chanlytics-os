@@ -1326,6 +1326,28 @@
       }
     },
     {
+      "table": "leads",
+      "name": "leads_tenant_source_key_uq",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "source"
+        },
+        {
+          "column": "source_key"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "source_key"
+        }
+      }
+    },
+    {
       "table": "lines",
       "name": "lines_e164_live_idx",
       "primary": false,
@@ -2573,6 +2595,9 @@
     },
     "lead_platform": {
       "id": true
+    },
+    "leads": {
+      "source": "local_businesses"
     },
     "lines": {
       "voice_state": "none"

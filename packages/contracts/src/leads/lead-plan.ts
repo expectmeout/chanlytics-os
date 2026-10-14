@@ -5,6 +5,7 @@
  */
 import type { LeadPlanFacts } from "./lead-dtos";
 import type { LeadArea, LeadSearchPlan } from "./search/plan";
+import type { LeadPeoplePlan } from "./search/people-plan";
 import { planWho } from "./search/sentence";
 import { planMinutes } from "./search/cards";
 import { LEAD_CLASSES, LEAD_LISTS, leadAllowanceFact, type LeadClass, type LeadList, outcomeMove } from "./lead-words";
@@ -57,6 +58,11 @@ export type LeadPlanRefusalKind = "outside_us" | "not_businesses" | "no_card" | 
 
 export type LeadPlanned =
   | { ok: true; plan: LeadSearchPlan; view: LeadPlanView }
+  | { ok: false; refusal: { kind: LeadPlanRefusalKind; text: string; what: string | null } };
+
+/** A people search's ask as its plan (00430), or a refusal in words, as a places one's. */
+export type PeoplePlanned =
+  | { ok: true; plan: LeadPeoplePlan; view: LeadPlanView }
   | { ok: false; refusal: { kind: LeadPlanRefusalKind; text: string; what: string | null } };
 
 /* ------------------------------------------- a view of the scope, as a route */

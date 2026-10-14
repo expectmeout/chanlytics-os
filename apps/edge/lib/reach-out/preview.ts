@@ -9,8 +9,8 @@
  */
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { REACH_OUT_PREVIEW_INDEX_MAX, type ReachOutHold } from "../packages/contracts.js";
-import { leadCountriesOf, reachOutAudience, reachOutRecord, type Database } from "../packages/db.js";
+import { REACH_OUT_PREVIEW_INDEX_MAX, type ReachOutHold, type SlotLead } from "../packages/contracts.js";
+import { leadCountriesOf, leadSlotsOf, reachOutAudience, reachOutRecord, type Database } from "../packages/db.js";
 import {
   askReachOutModel,
   checkBudget,
@@ -64,24 +64,39 @@ const STAND_IN = {
   origin: "https://preview.invalid",
 };
 
+/** No business to preview: past the audience's end, or a lead gone since. */
+const NO_PREVIEW: Preview = {
+  lead: null,
+  subject: null,
+  body: null,
+  opening: null,
+  angle: null,
+  hold: null,
+  detail: null,
+  refused: null,
+  unavailable: false,
+  tokens: { input: 0, output: 0 },
+};
+
+/** The lead as the send fills its slots: a company's addressee for the person slots, where it was found (00430). */
+const slotLeadOf = (
+  lead: { business_name: string | null; city: string | null },
+  slots: { kind: string | null; facts: unknown; source: string | null } | null,
+): SlotLead => ({
+  business_name: lead.business_name,
+  city: lead.city,
+  kind: slots?.kind ?? null,
+  facts: slots?.facts ?? null,
+  source: slots?.source ?? null,
+});
+
 export async function previewOne(
   db: Db,
   i: PreviewInput,
   ask: AskModel = askReachOutModel,
   budget: CheckBudget = checkBudget(Date.now(), PREVIEW_LIMITS),
 ): Promise<Preview> {
-  const none: Preview = {
-    lead: null,
-    subject: null,
-    body: null,
-    opening: null,
-    angle: null,
-    hold: null,
-    detail: null,
-    refused: null,
-    unavailable: false,
-    tokens: { input: 0, output: 0 },
-  };
+  const none = NO_PREVIEW;
   // The door refuses any other (a 400): never a silent clamp to a business the owner did not ask for.
   if (!Number.isInteger(i.index) || i.index < 0 || i.index > PREVIEW_INDEX_MAX)
     throw new RangeError(`a preview's index is a whole number from 0 to ${PREVIEW_INDEX_MAX}`);
@@ -94,10 +109,12 @@ export async function previewOne(
   });
   const lead = leads[index];
   if (!lead) return none;
-  const [record, workspace, countries] = await Promise.all([
+  const [record, workspace, countries, slots] = await Promise.all([
     reachOutRecord(db, { tenantId: i.tenantId, searchId: i.searchId, leadId: lead.lead_id }),
     checkWorkspaceOf(db, i.tenantId),
     leadCountriesOf(db, [lead.lead_id]),
+    // A company's addressee, as the send fills the person slots from it (00430).
+    leadSlotsOf(db, i.tenantId, lead.lead_id),
   ]);
   if (!record) return none;
   const input = checkInputOf(record, i.words, workspace.opening, i.language, [], countries.get(lead.lead_id) ?? null);
@@ -113,7 +130,7 @@ export async function previewOne(
     contactId: randomUUID(),
     to: lead.email,
     words: i.words,
-    lead: { business_name: lead.business_name, city: lead.city },
+    lead: slotLeadOf(lead, slots),
     workspace: {
       businessName: workspace.businessName,
       address: workspace.address,

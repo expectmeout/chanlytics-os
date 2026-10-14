@@ -1,7 +1,7 @@
 /**
  * The lead workbench's doors (00426), on the member's own session: leads added to a reach-out fed by a list (dry, what
- * each would do; else what joined, with its undo), Later in a pass of the pile, and who is in a reach-out (its drawer's
- * People), and what a reach-out could start from. The rules are SQL's (reach_out_add, lead_member_later,
+ * each would do; else what joined, with its undo), Later in a pass of the pile, who a company's reach-out writes to
+ * (00430), and who is in a reach-out (its drawer's People), and what a reach-out could start from. The rules are SQL's (reach_out_add, lead_member_later,
  * reach_out_chain_people and reach_out_sources, over reach_out_why_not and reach_out_root_lines); these say their
  * refusals in contracts' words, and a door's own SQLSTATE at its status (dbRefusal). Ask's tools call the same
  * functions, so what it adds is what the card adds.
@@ -9,12 +9,14 @@
 import {
   AppError,
   REACH_OUT_ADD_WORDS,
+  leadAddresseeRefusal,
   type LeadBackDto,
   type ReachOutAddDto,
   type ReachOutChainPeopleDto,
   type ReachOutSourceDto,
 } from "@chanlytics/contracts";
 import {
+  leadAddresseeChoose,
   leadMemberLater,
   leadsBackToday,
   reachOutAdd,
@@ -57,6 +59,25 @@ export async function laterLead(
   const refused = refusalOf(a);
   if (refused) throw refused;
   return { lead_id: leadId, op_id: String(a.op_id), version: Number(a.version) };
+}
+
+/**
+ * Who a company's reach-out writes to (00430 lead_addressee_choose): one of the people its source named, by their place
+ * in its facts, chosen by its owner. The door's refusals in contracts' words (leadAddresseeRefusal); a workspace that may
+ * not spend, in the spend's own sentence, at 402.
+ */
+export async function chooseAddressee(
+  ctx: Ctx,
+  leadId: string,
+  person: number,
+): Promise<{ lead_id: string; addressee: number; email_state: string; version: number }> {
+  const { data, error } = await leadAddresseeChoose(ctx.supabase, { leadId, person });
+  if (error) throw dbRefusal(error);
+  if (data.ok)
+    return { lead_id: leadId, addressee: data.addressee, email_state: data.email_state, version: data.version };
+  if (data.error === "payment_required" && data.sentence) throw new AppError("payment_required", data.sentence, 402);
+  if (data.error === "gone") throw new AppError("not_found", leadAddresseeRefusal(data.error), 404);
+  throw new AppError("conflict", leadAddresseeRefusal(data.error), 409);
 }
 
 /** Who is in a reach-out: waiting, writing and done, each at most `limit` lines, with their counts. */

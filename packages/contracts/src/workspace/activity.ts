@@ -225,6 +225,7 @@ const WORDS: Record<string, string> = {
   "lead.excluded": "A lead was left out of Needs review",
   "lead.put_back": "A lead was put back in Needs review",
   "lead.later": "A lead was put off for later",
+  "lead.addressee_chosen": "A company's reach-out was set to write to someone else",
   "lead.search_renamed": "A search was renamed",
   "lead.search_removed": "A search was removed",
   "contact.kept_apart": "Two records were kept as two people",

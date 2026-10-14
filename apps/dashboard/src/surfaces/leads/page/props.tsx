@@ -264,7 +264,7 @@ export const leadsBandProps = (p: LeadsPage) => {
     onBenchGroup: p.setBenchGroup,
     month: leads.month,
     onNearby: (area: LeadArea) => {
-      if (openSearch) void p.onStripAction("nearby", { ...openSearch.plan, area });
+      if (openSearch?.plan) void p.onStripAction("nearby", { ...openSearch.plan, area });
     },
     fit: p.fitChip,
     onPickFit: p.setFitChip,
@@ -370,6 +370,7 @@ export const leadsBulkProps = (p: LeadsPage) => {
     canFind: p.canFind,
     canExport: p.canExport,
     importDoor: p.lists.importDoor,
+    findPeopleDoor: p.lists.findPeopleDoor,
     listsNode: p.lists.node,
     // Write to them (Part 7): the rows chosen and shown, never all that match (a view is not a list of ids).
     writeToThem: p.lists.writeAct({
@@ -393,9 +394,10 @@ const searchedAlready = (idea: LeadIdeaDto, searches: LeadSearchDto[]): boolean 
   const plan = idea.plan;
   if (!plan) return false;
   const place = plan.area.label.toLowerCase();
-  // A list brought in has a plan with no area (00242): it is no place searched.
+  // A list brought in has a plan with no area (00242): it is no place searched; a people search (00430) has no places plan.
   return searches.some(
     (s) =>
+      !!s.plan &&
       leadKindKey(s.plan.category_key || s.plan.name) === idea.category_key &&
       !!s.plan.area &&
       s.plan.area.label.toLowerCase() === place,
@@ -528,6 +530,8 @@ export const leadsFootProps = (p: LeadsPage) => {
     // work, so its rail and its table stand: the first day drew over them (7 Oct 2026).
     firstDay: leads.searches.length === 0 && leads.counts.all === 0 && !leads.readFailed,
     onImport: p.lists.openImport,
+    // Only while the people card finds leads (00430 lead_card_live), and never handed the press as a plan.
+    onFindPeople: p.lists.peopleLive ? () => p.lists.openFindPeople(null) : undefined,
     lineOpen: !!leadLine,
     lineDraft: leadLine ? leadLine.draft : "",
     lineError: leadLine ? leadLine.error : null,

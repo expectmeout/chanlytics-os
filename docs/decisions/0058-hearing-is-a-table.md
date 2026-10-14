@@ -254,7 +254,7 @@ the feed never tells. Each was then kept as it was first read.
 
 ## Amended on 14 October 2026: the silent records are told, and one read of the channels (R6)
 
-- **00428 tells four records the feed held back or told too much of.** Each update is narrowed as 00408's are: told when a
+- **00431 tells four records the feed held back or told too much of.** Each update is narrowed as 00408's are: told when a
   column a page draws moved, never for a stamp.
   - **A mailbox:** told when it is made, and when its address, its sender, its reply mode, its pause, Gmail's forwarding
     code or its intake's error moved. Not the stamp every email puts on it.

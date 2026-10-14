@@ -154,8 +154,50 @@ Ruben's constraint: Chanlytics gets leads only through actors on Apify, never fr
      - The fallback actor.
      - A lawyer's opinion before lead packs, or before scaling past the invited pilot.
 
+## The people card: people at companies (14 October 2026)
+
+**Decision, Ruben, 14 October 2026:** the lead workbench's call 8 ("each new card approved by you, with a source-rights
+note for LinkedIn"), approved with lane 5's build. As above, this is the record and not a gate, and it is not legal
+advice.
+
+- **What the card is.** `people_at_companies` (contracts `LEAD_CARDS`, core `CARDS`): named people at companies, by
+  title, seniority, industry, company size and US state, from `olympus/b2b-leads-finder` on Apify, a B2B contact
+  database ("like Apollo, LinkedIn", about 4,500 users). Each company is one lead (00430 `leads.kind = 'company'`), its
+  people kept in `facts`, and its reach-out writes to one of them, the addressee.
+- **Where the data comes from.** The provider says it extracts from "a target B2B platform": aggregated professional
+  profiles and company sites, LinkedIn's among them. Chanlytics never signs in to LinkedIn, never reads it, and never
+  runs a scraper against it. As with Maps, Apify's terms make the customer responsible for the target site's terms
+  and for data-protection law.
+- **What LinkedIn's terms say.** Its User Agreement forbids scraping, bots and copying profiles, including through a
+  third party. The courts:
+  - Scraping public profiles is not a computer crime (hiQ v. LinkedIn, 9th Cir. 2022).
+  - On remand, the district court found hiQ in breach of the User Agreement it had accepted. The case ended in a
+    settlement and an injunction (December 2022).
+  - LinkedIn has since gone after data vendors themselves (Proxycurl, 2025).
+
+  The pattern is the Maps one: enforcement reaches the vendor that scrapes, and the business risk of a provider
+  withdrawn under pressure reaches its customers.
+- **What we keep, and what we never do.**
+  - Kept: a person's name, title, seniority, work address and public profile link, and their company's name, domain,
+    industry, size and place.
+  - Never kept: a personal address (free mail is dropped) or a phone.
+  - At most five people a company, cleared when the lead is blanked or erased (00430 `lead_blank`, the erasure
+    registry).
+  - Every address is checked before anything is sent. The email's foot says where they were found ("I found your company
+    in a business directory") and how to say no, and a no puts them on the never-again list.
+  - The card searches and writes in the US only.
+- **The laws that apply whatever the source.**
+  - CAN-SPAM, as for every cold email: the foot, the way out, a no honoured.
+  - State privacy law. California's has covered business contacts' data since 1 January 2023. A person's request to
+    know or delete is answered through People's erasure, which reaches the lead.
+- **What would change the call.**
+  - The provider withdrawn or sued: the card's runner is one entry in `CARDS`, and another B2B database takes its place.
+  - Workspaces outside the US: their own law first (GDPR's legitimate interest and its notice duty).
+
 ## Sources
 
+- LinkedIn User Agreement (scraping, §8.2): https://www.linkedin.com/legal/user-agreement
+- The people card's provider: https://apify.com/olympus/b2b-leads-finder
 - Google Terms of Service: https://policies.google.com/terms
 - Google Maps / Google Earth Additional Terms of Service: https://www.google.com/help/terms_maps/
 - Google Maps Platform Terms of Service: https://cloud.google.com/maps-platform/terms

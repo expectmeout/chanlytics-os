@@ -52,7 +52,7 @@ export function memberJoinedNotice(m: MemberJoined): Omit<JobNews, "sourceEvent"
 }
 
 /**
- * Who a `member.left` event says left, and how: by their own hand (`left`, team_leave, 00436, with the role they held)
+ * Who a `member.left` event says left, and how: by their own hand (`left`, team_leave, 00437, with the role they held)
  * or with their account (`account_deleted`, the dashboard's saidLeft, which keeps no role). Null for every other event.
  */
 export function memberLeftBy(

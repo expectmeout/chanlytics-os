@@ -30,7 +30,7 @@
  * A workspace read is stamped (markCalendarChecked, tenant_config.calendar_checked_at). So is one that could not be
  * read (a feed that fails, settings that do not parse, no address, a throw): it is retried next hour, behind the feeds
  * that can be read, instead of holding the first place of the page every hour. A link that does not answer also keeps
- * since when (tenant_config.calendar_failed_since, 00434, written with that stamp on the change, and cleared by the
+ * since when (tenant_config.calendar_failed_since, 00435, written with that stamp on the change, and cleared by the
  * first read that works), and its owner is told once its failures are a day old; the read that works closes the notice
  * (calendar-notice.ts, the wiring's second audit, R11 S11-4).
  *
@@ -151,7 +151,7 @@ export async function sweepCalendar({ db, L }: SweepTick): Promise<Response> {
     // A feed that could not be read, or a configuration that does not parse, is stamped as tried: retried the next
     // hour (the page's own gap), behind the feeds that can be read. Unstamped it kept the first place every hour, and
     // forty dead feeds held the page for every workspace.
-    // Since when this link's reads have failed (00434): null while they work, undefined where the database keeps no
+    // Since when this link's reads have failed (00435): null while they work, undefined where the database keeps no
     // such stamp, which is then never written. A link that does not answer starts the stamp; one already failing keeps it.
     const failing = row.failed_since;
     const tried = (unreadable = false) =>

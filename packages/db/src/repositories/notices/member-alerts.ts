@@ -1,6 +1,6 @@
 /**
  * The members' phones and what each chose for them, as the edge and Settings › Notifications read and write them: the
- * phones a call in progress is shown on (apps/edge/lib/voice/call-activity.ts), the phones a sign-out forgets (00431),
+ * phones a call in progress is shown on (apps/edge/lib/voice/call-activity.ts), the phones a sign-out forgets (00432),
  * the kinds a member's phones are not told (memberships.push_off, 00372), who a push is for and whether it names its
  * business. Moved out of notifications.ts whole, which had grown past a file's length. A read or write that fails
  * throws, except where a database before a migration is said to read as before.
@@ -32,9 +32,9 @@ export async function activityTokensOf(db: Db, tenantId: string, roles: readonly
 }
 
 /**
- * Forget every phone of the person signed in, as they sign out (00431; the wiring's second audit, R11 S8-3): a sign-out
+ * Forget every phone of the person signed in, as they sign out (00432; the wiring's second audit, R11 S8-3): a sign-out
  * ends every session of theirs, and their phones went on being pushed the customer's words. On the person's own session,
- * before it ends. Answers how many were forgotten, or null on a database 00431 has not reached; another failure throws.
+ * before it ends. Answers how many were forgotten, or null on a database 00432 has not reached; another failure throws.
  */
 export async function forgetEveryPhone(db: Db): Promise<number | null> {
   const { data, error } = await db.rpc("push_devices_forget_all");

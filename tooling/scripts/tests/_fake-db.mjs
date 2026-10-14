@@ -1219,7 +1219,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         config: c.config,
         timezone: zoneOf(c.tenant_id),
         due_total: due.length,
-        // Since when the link's reads have failed (00434), null while they work.
+        // Since when the link's reads have failed (00435), null while they work.
         failed_since: c.calendar_failed_since ?? null,
       }));
     },
