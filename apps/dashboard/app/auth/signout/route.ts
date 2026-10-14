@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 // One implementation, shared with withRoute — every mutating /api/v1 route
 // now makes the same check this route has made since the auth hardening pass.
 import { isSameOrigin } from "@/server/request-guards";
+import { forgetPhonesOnSignOut } from "@/server/auth/sign-out";
 
 /**
  * Is this request provably from our own pages?
@@ -31,6 +32,10 @@ export async function POST(request: Request) {
   // Errors are swallowed on purpose: if the refresh token is already dead the
   // call fails, and a failed sign-out must still end the local session rather
   // than 500 and leave the operator signed in.
+  // Every phone of theirs is forgotten first, while the session still says who they are: the sign-out below ends every
+  // session of theirs, on every device, and a phone kept registered went on being pushed the customer's words (00431). It
+  // never stands in the sign-out's way.
+  await forgetPhonesOnSignOut(supabase);
   try {
     await supabase.auth.signOut();
   } catch {

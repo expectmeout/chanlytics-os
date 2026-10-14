@@ -8,6 +8,7 @@ import {
   DAY_MS,
   DELIVERY_RECEIPTS_WORDS,
   HOUR_MS,
+  campaignRunsOn,
   clockHour,
   mmss,
   sentByWords,
@@ -291,11 +292,14 @@ export function BcWeek({ rows, now }: BcWeekProps) {
       playbook: r.playbook_id || null,
     });
   }
-  // A running playbook's runs to come, at its hour, every day it runs -- where the
-  // ledger does not already hold that day's run.
+  // A running playbook's runs to come, at its hour, every day it runs -- where the ledger does not already hold that day's
+  // run. Each day by the one rule (campaignRunsOn): never past its last day, nor for a moment that runs nothing here; it drew a
+  // campaign's daily runs on after it ended (the wiring's second audit, S1-3).
+  const dealsOn = surfaceValue("playbooks")?.shape.dealsOn === true;
   for (const p of playbookRows()) {
-    if (p.state !== "running" || p.trigger === "everyone_monthly") continue;
+    if (p.trigger === "everyone_monthly") continue;
     days.forEach((d, i) => {
+      if (!campaignRunsOn(p, { tz: c.zone(), now: new Date(now + i * DAY_MS), dealsOn })) return;
       if (i === 0 && p.last_run_for === today) return;
       const list = blocks.get(d);
       if (!list || list.some((b) => b.playbook === p.id)) return;

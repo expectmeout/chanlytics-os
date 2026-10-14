@@ -435,3 +435,23 @@ test("Live's row draws the caller's face by the same rule and says a stop beside
   const unnamedRow = find(list([unnamed]), (n) => n.props?.["data-testid"] === "live-row");
   assert.equal(glyphIn(find(unnamedRow, (n) => n.type === Face)), "phone");
 });
+
+test("the New conversation sheet's pick says a stop beside the name, as the Pipeline's pick does, and not for anyone who can be answered (the wiring's second audit, R11 S9-3)", async () => {
+  fresh();
+  const { NewWho } = await import(`${S}/surfaces/inbox/new-conversation/who.tsx`);
+  const rows = [vmOf("p-1", "Dana Cole", STOPPED), vmOf("p-2", "Rosa Example")];
+  const s = {
+    pick: { q: "", setQ() {}, rows, reading: false, add: { open: false }, setAdd() {} },
+    choose() {},
+    openAdd() {},
+  };
+  // One per person: the list's items (the pick is the kit's Button, drawn here with the button it renders).
+  const picks = all(byTestId(NewWho({ s }), "ix-new-who-list"), (n) => n.type === "li");
+  assert.equal(picks.length, 2);
+  assert.deepEqual(
+    picks.map((p) => hasMark(p)),
+    [true, false],
+    "the one who said stop, and nobody else",
+  );
+  assert.ok(byTestId(picks[0], "ix-new-who-stopped"));
+});

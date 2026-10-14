@@ -4,7 +4,6 @@ import {
   ASK_CAPS,
   BUILTIN_LISTS,
   PEOPLE_LISTS,
-  ago,
   asListRule,
   listMembers,
   listNamer,
@@ -23,6 +22,8 @@ import {
   type PersonRowDto,
   type PersonRowVM,
   visitLine,
+  callEndedWords,
+  toInboxThreadVM,
 } from "@chanlytics/contracts";
 import { poolList, type AudiencePool } from "../../../people/audience";
 import { load } from "../../../readers";
@@ -31,6 +32,7 @@ import * as facts from "../../../readers/facts";
 import { lists as listsReader } from "../../../readers/lists";
 import { dealBoard, people } from "../../../readers/people";
 import { person } from "../../../readers/person";
+import { threadState } from "../../thread-state";
 import {
   AUDIENCES_CALL,
   UUID,
@@ -57,16 +59,20 @@ function personLine(r: PersonRowDto, vm: PersonRowVM, tz: string, nowMs: number)
     // the member asking), and the line the row draws beside it, when it draws one.
     state: vm.stateLabel,
     state_detail: vm.stateDetail || null,
-    // The moment, not the time since it: handed the gap, ago read it as a moment in January 1970.
-    last_contact: r.last_message_at
-      ? ago(Date.parse(r.last_message_at), tz, nowMs)
-      : r.last_call_at
-        ? ago(Date.parse(r.last_call_at), tz, nowMs)
-        : "never",
+    // Their last contact as the row says it: who, and how long ago (contracts lastContactOf, "Phoned · 2h ago"). It read
+    // the last message first, so one who wrote last week and phoned this morning was "6d ago" here and "2h ago" on People
+    // and on their profile (the wiring's second audit, R13 X5-3).
+    last_contact: vm.lastContact.label,
     last_message: r.last_inbound_text ? r.last_inbound_text.slice(0, 120) : null,
     conversation_id: r.latest_conversation_id,
     channels: r.channels ?? [],
-    consent: r.consent,
+    // Both answers, as People's columns and the profile say them: a yes to messages about their visits is not a yes to
+    // offers, and one raw word read as both (R13 X5-3). Offers by email where the row says it.
+    consent: {
+      messages: vm.consent.answerLabel,
+      offers: vm.consent.marketingLabel,
+      ...(vm.consent.emailOffersLabel ? { offers_by_email: vm.consent.emailOffersLabel } : {}),
+    },
     receptionist_mode: r.effective_reply_mode ?? null,
     calls: r.call_count ?? 0,
     next_visit: r.visits?.next
@@ -186,10 +192,21 @@ async function getPerson(t: ToolContext, input: { contact_id: string }): Promise
     open_conversation_id: vm.openThread ? vm.openThread.replace(/^th-/, "") : null,
     conversations: detail.conversations
       .slice(0, 5)
-      .map((c) => ({ conversation_id: c.id, route: `inbox/th-${c.id}`, state: c.state, last_at: c.last_message_at })),
-    calls: detail.calls
-      .slice(0, 5)
-      .map((c) => ({ call_id: c.id, route: `conversations/cv-${c.id}`, at: c.started_at, status: c.status })),
+      // Each thread's state as the Inbox says it (thread-state.ts over the thread's own view model), and each call's end as
+      // Conversations and the History say it (contracts callEndedWords): "needs_human" for a thread a teammate holds and
+      // "not_connected" for a call that did not connect were the stored words (R13 X5-7).
+      .map((c) => ({
+        conversation_id: c.id,
+        route: `inbox/th-${c.id}`,
+        state: threadState(toInboxThreadVM(c, null, t.timezone, t.now)),
+        last_at: c.last_message_at,
+      })),
+    calls: detail.calls.slice(0, 5).map((c) => ({
+      call_id: c.id,
+      route: `conversations/cv-${c.id}`,
+      at: c.started_at,
+      status: callEndedWords(c, t.now),
+    })),
     timeline: vm.timeline
       .slice(0, 20)
       // A message that never reached them says so (`not_sent`), so Ask does not tell it as something they heard.

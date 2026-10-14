@@ -370,6 +370,9 @@ test("once the boot is in, the runner joins the live feed the page handed it -- 
   win.location.pathname = "/w/acme";
   win.location.hash = "";
   win.__ACTIVE_WORKSPACE = "id-a";
+  // On screen: a hidden page reads only what says itself in the tab's title and badge, and holds Today's notice until it is
+  // in front (shell/feed/the-runner-heals.test.mjs).
+  globalThis.document = { visibilityState: "visible", addEventListener() {}, removeEventListener() {} };
   const asked = [];
   const surface = (key, watches) => ({
     key,
@@ -414,6 +417,7 @@ test("once the boot is in, the runner joins the live feed the page handed it -- 
     assert.deepEqual([...asked].sort(), ["live", "today"], "a call ended: Today repaints too");
   } finally {
     stop();
+    globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
   }
   assert.equal(feed.joins[0].left, true, "a stopped runner leaves its feed");
 });
@@ -577,6 +581,7 @@ test("what the page on screen draws from other surfaces follows its own surface,
     "google",
     "billing",
     "reach_out_replies",
+    "channels",
   ];
   const draws = ROUTE_DRAWS.today;
   for (const k of ["calendar", "broadcasts", "reports_headline"])
@@ -611,6 +616,7 @@ test("what the page on screen draws from other surfaces follows its own surface,
         "google",
         "../surfaces/settings/billing/surface",
         "reach-out/replies",
+        "../surfaces/channels/surface",
       ].map((m) => importSrc(`apps/dashboard/src/legacy-bridge/${m}.ts`)),
     );
     known = new Set(
@@ -795,21 +801,41 @@ test("the Campaigns lens reads its own surface right after Reports' own, ahead o
   assert.equal(new Set(order).size, keys.length, "and every other surface still boots");
 });
 
-test("Settings' Connections pane reads Google right after Settings' own surface, ahead of every stranger, and no other pane does", async () => {
+test("Settings' Connections pane reads Google and the channels right after Settings' own surface, ahead of every stranger, and no other pane does", async () => {
   // The pane draws Google's listing and its connection beside the settings read (settings/connections/pane.tsx); Today draws its
-  // review line from it too, and no other page does (ROUTE_DRAWS).
+  // review line from it too, and no other page does (ROUTE_DRAWS). Its WhatsApp and phone rows are the channels read's
+  // (surfaces/channels/surface.ts; the wiring's second audit, R6).
   const reg = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
-  assert.deepEqual(reg.ROUTE_DRAWS["admin/integrations"], ["google"]);
-  assert.deepEqual(reg.routeDrawsFor("admin", "integrations"), ["google"], "asked as the shell asks: page and pane");
+  assert.deepEqual(reg.ROUTE_DRAWS["admin/integrations"], ["google", "channels"]);
+  assert.deepEqual(
+    reg.routeDrawsFor("admin", "integrations"),
+    ["google", "channels"],
+    "asked as the shell asks: page and pane",
+  );
   assert.equal(reg.routeSurfaceFor("admin", "integrations"), "settings", "the gate still waits for Settings' read");
   for (const pane of [undefined, null, "workspace", "team", "billing"])
     assert.deepEqual(reg.routeDrawsFor("admin", pane), [], String(pane));
-  const keys = ["conversations", "inbox", "today", "people", "calendar", "reports", "settings", "setup", "google"];
+  const keys = [
+    "conversations",
+    "inbox",
+    "today",
+    "people",
+    "calendar",
+    "reports",
+    "settings",
+    "setup",
+    "google",
+    "channels",
+  ];
   const { order, overrides } = crowd(keys, { hash: "#/admin/integrations" });
   const stop = startSurfaces(overrides);
   await settle(80);
   stop();
-  assert.deepEqual(order.slice(0, 2), ["settings", "google"], "its own surface, then Google's, before anyone else's");
+  assert.deepEqual(
+    order.slice(0, 3),
+    ["settings", "google", "channels"],
+    "its own surface, then Google's and the channels', before anyone else's",
+  );
   assert.equal(new Set(order).size, keys.length, "and every other surface still boots");
 });
 
@@ -1004,6 +1030,8 @@ test("the runner hears the tab and the network in order, and its stop undoes it 
     );
     assert.deepEqual(said, [
       "document +visibilitychange",
+      // The phone app's word that this page's tab is in front or behind (hearing/front.ts).
+      "window +chanly:front",
       'connection {"offline":true,"realtimeDown":false}',
       "window +offline",
       "window +online",
@@ -1020,6 +1048,7 @@ test("the runner hears the tab and the network in order, and its stop undoes it 
     stop = () => {};
     assert.deepEqual(said, [
       "document -visibilitychange",
+      "window -chanly:front",
       "window -offline",
       "window -online",
       "a pending refresh cleared",

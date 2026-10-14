@@ -131,7 +131,7 @@ export const reachOutsOverride: SurfaceOverride = {
   },
 };
 
-/** The reaches read in this tab, by search, in memory: one read each until the next write. */
+/** The reaches read in this tab, by search, in memory: the first paint of a door or a sheet, read again behind it. */
 const reaches = readCache<ReachOutReachDto>("reach_out_reach");
 
 /** Where the viewer's next pile on Leads adds (00426): a reach-out's Add leads names it (a per-viewer convenience). */
@@ -167,14 +167,15 @@ export const reachOuts = {
   update: (rootId: string, body: ReachOutChainInput) => api()("PUT reach-outs/[id]", { params: { id: rootId }, body }),
   /** One business's email as the chain would write it (R11): it spends the model, so it is asked for by a press. */
   preview: (body: ReachOutPreviewInput) => api()("POST reach-outs/preview", { body, once: true }),
+  /** A search's reach as this tab last read it, if it has: what a door or a sheet paints first. */
+  reachHeld: (searchId: string): ReachOutReachDto | null => reaches.peek(searchId),
   /**
-   * A search's reach (the Leads door, the sheet): the answer held for the tab through read-cache.ts, so a door and its
-   * sheet read it once, and let go of by the one rule every on-demand read keeps: any write lands, every answer goes
-   * (api.ts refresh). Null when it could not be read: the door draws nothing then, never a count it did not read.
+   * A search's reach (the Leads door, the sheet), read now and kept for the next paint (read-cache.ts). A door and its sheet
+   * read it as they open and again as Leads or the reach-outs move (read-again.ts; the wiring's second audit, X2-1: the
+   * count was kept as first read for as long as the tab lived). Null when it could not be read: a door that read none draws
+   * nothing then, never a count it did not read.
    */
   reach: async (searchId: string): Promise<ReachOutReachDto | null> => {
-    const held = reaches.peek(searchId);
-    if (held) return held;
     try {
       return await reaches.through(searchId, () => read("GET reach-outs/reach", { query: { search: searchId } }));
     } catch (e) {

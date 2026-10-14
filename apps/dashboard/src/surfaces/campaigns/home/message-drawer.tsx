@@ -46,6 +46,8 @@ function groupNamed(groups: readonly TemplateGroup[], name: string): TemplateGro
 /** The message's pane, once the messages are read: its languages, channels and verbs, as the Library draws it. */
 function MessageBody({ name, flash, onClose }: Omit<MessageDrawerProps, "name"> & { name: string }) {
   const settings = useSurface("settings");
+  // The numbers, from the channels read (surfaces/channels/surface.ts): a WhatsApp version needs one.
+  const channels = useSurface("channels")?.rows;
   const [doing, setDoing] = useState<string | null>(null);
   const doingRef = useRef<string | null>(null);
   const templates = settings ? settings.templatesAll : undefined;
@@ -82,7 +84,7 @@ function MessageBody({ name, flash, onClose }: Omit<MessageDrawerProps, "name"> 
       />
     );
   }
-  const hasWhatsApp = (settings?.channels || []).some((c) => c.kind === "whatsapp");
+  const hasWhatsApp = (channels || []).some((c) => c.kind === "whatsapp");
   // Who may add, change or remove a message: the role store's answer, View-as included; a WhatsApp version needs a number.
   const canAct = !!canDo("approve");
   const addWhy = !hasWhatsApp ? LIBRARY_WORDS.addNeedsNumber : !canAct ? gateTitle("approve", "add a language") : null;

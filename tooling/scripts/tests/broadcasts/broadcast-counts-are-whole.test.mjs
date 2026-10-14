@@ -450,8 +450,9 @@ console.error = realConsoleError;
 
 /**
  * Everyone the People read holds, one person a page -- two by default -- and the lists kept by hand; the route's word
- * on whether more than fifty broadcasts exist; and what GET settings answers beside the config (`settings`: whether the
- * Google listing keeps a review link), absent from an older server.
+ * on whether more than fifty broadcasts exist; and what the settings read says beside the config (`settings`: whether the
+ * Google listing keeps a review link), absent from an older server. The channels and the settings are the reads Sent follows
+ * (channels/surface.ts, offered-templates.ts), published here as they would have landed; Sent asks for neither (S10-9).
  */
 const wire = ({
   more = false,
@@ -463,6 +464,14 @@ const wire = ({
   open,
 } = {}) => {
   const offsets = [];
+  setSurfaceValue("channels", { rows: channels });
+  // As the settings read lands it: its record, and its templates (none on file here), which the composers are made of.
+  setSurfaceValue("settings", {
+    templatesAll: [],
+    templateVersions: [],
+    ...surfaceValue("settings"),
+    settings: { config: { brain: {} }, version: 1, broken: null, reviewLink: settings.review_link === true },
+  });
   globalThis.window.fetch = async (url) => {
     const u = new URL(String(url), "https://app.chanlytics.com");
     if (u.pathname === "/api/v1/broadcasts")
@@ -509,7 +518,7 @@ test("the surface carries the route's word that more than fifty broadcasts exist
   assert.equal(surfaceValue("broadcasts").more, false);
 });
 
-test("the surface says whether the workspace's Google listing keeps a review link, as GET settings says it, so the send screen offers it to a review-link slot; an older server's answer, or one that failed, says none", async () => {
+test("the surface says whether the workspace's Google listing keeps a review link, as the settings read says it, so the send screen offers it to a review-link slot; an older server's answer, or one that failed, says none", async () => {
   for (const [settings, said] of [
     [{ review_link: true }, true],
     [{ review_link: false }, false],

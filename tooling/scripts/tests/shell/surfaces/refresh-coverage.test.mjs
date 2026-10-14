@@ -23,6 +23,18 @@ const { AFTER, REFRESHES_NOTHING } = refreshMap;
 
 const writes = Object.keys(ROUTES).filter((k) => ROUTES[k].method !== "GET");
 const keysOf = (route) => AFTER[route]().map((o) => o.key);
+/** The surfaces a write re-reads with `hash` on screen. */
+function keysOn(hash, route) {
+  const was = globalThis.location.hash;
+  globalThis.location.hash = hash;
+  try {
+    return keysOf(route);
+  } finally {
+    globalThis.location.hash = was;
+  }
+}
+/** Campaigns' two composers: read where the page on screen draws them, left for the pages that do elsewhere (S10-6). */
+const COMPOSERS = ["broadcasts", "playbooks"];
 
 test("every write re-reads its surfaces or says why it re-reads none, and never both", () => {
   assert.ok(writes.length > 100, `the generated routes are read: ${writes.length} writes`);
@@ -53,13 +65,13 @@ test("REGRESSION: a contact's edit re-reads the threads with them -- their name 
     const keys = keysOf(route);
     for (const key of ["conversations", "inbox", "people", "today"]) assert.ok(keys.includes(key), `${route}: ${key}`);
   }
-  // Their details carry the email address a campaign by email goes to, so the audiences read again with them.
+  // Their details carry the email address a campaign by email goes to, so the audiences read again with them where they are drawn:
+  // the Inbox draws Sent's runs (the runs waiting for your word), not the playbooks.
   assert.deepEqual(keysOf("PUT contacts/[id]/details").sort(), [
     "broadcasts",
     "conversations",
     "inbox",
     "people",
-    "playbooks",
     "today",
   ]);
   // What a thread does not carry re-reads People alone.
@@ -90,8 +102,9 @@ test("REGRESSION: a write that changes who a campaign reaches re-reads the pages
   // Who a broadcast or a playbook reaches is counted from people's answers and from who exists (the composers' audience
   // counts, the playbooks' "N will get it"), and the Campaigns lens counts the yeses and stops after a campaign (its own read, below;
   // the report's own no longer counts them, so these writes do not re-read it). Each write that moves one of those
-  // re-reads the surfaces that count by it, with whatever it re-read before.
-  const counted = ["broadcasts", "playbooks"];
+  // re-reads the surfaces that count by it, with whatever it re-read before: People always, the composers where the page on screen
+  // draws them (Campaigns' home draws both), and nowhere else, where they are left for the pages that draw them (S10-6).
+  const counted = COMPOSERS;
   const answers = [
     "PUT contacts/[id]/consent",
     "PUT contacts/[id]/marketing-consent",
@@ -99,9 +112,13 @@ test("REGRESSION: a write that changes who a campaign reaches re-reads the pages
     "PUT contacts/marketing-consent",
   ];
   for (const route of answers) {
-    const keys = keysOf(route);
+    const keys = keysOn("#/campaigns", route);
     for (const key of [...counted, "people"]) assert.ok(keys.includes(key), `${route} re-reads ${key}: ${keys}`);
     assert.equal(keys.includes("reports"), false, `${route}: the report's own read no longer counts a yes or a stop`);
+    const away = keysOn("#/admin/profile", route);
+    for (const key of counted)
+      assert.equal(away.includes(key), false, `${route} from Settings: ${key} is left for its pages`);
+    assert.ok(away.includes("people"), `${route} from Settings: People's rows still`);
   }
   assert.equal(keysOf("POST contacts/[id]/merge").includes("reports"), false, "nor does the merge of two records");
   // One list for the four, so an answer recorded for one person and for many cannot drift apart.
@@ -115,14 +132,17 @@ test("REGRESSION: a write that changes who a campaign reaches re-reads the pages
     "PUT contacts/[id]/details",
     "POST contacts/[id]/deal",
   ]) {
-    const keys = keysOf(route);
+    const keys = keysOn("#/campaigns", route);
     for (const key of [...counted, "people"]) assert.ok(keys.includes(key), `${route} re-reads ${key}: ${keys}`);
   }
   // A playbook made, changed or removed, and the class that lets the follow-up send, move what People's rows say of it
-  // (their `follow_up`).
-  for (const route of ["POST playbooks", "PUT playbooks/[id]", "DELETE playbooks/[id]", "PUT policies"]) {
+  // (their `follow_up`): a playbook's write wherever it is made, a class's on People's pages (kept for them elsewhere, where the
+  // feed's notice of the rules reaches People by table: W-review-facts-rules-9).
+  for (const route of ["POST playbooks", "PUT playbooks/[id]", "DELETE playbooks/[id]"]) {
     assert.ok(keysOf(route).includes("people"), `${route} re-reads people: ${keysOf(route)}`);
   }
+  assert.ok(keysOn("#/clients", "PUT policies").includes("people"), "PUT policies, on People");
+  assert.equal(keysOf("PUT policies").includes("people"), false, "PUT policies, not from the Inbox");
   // And each keeps what it re-read before.
   assert.ok(keysOf("PUT policies").includes("settings"));
   for (const key of ["playbooks", "broadcasts"]) assert.ok(keysOf("POST playbooks").includes(key), key);
@@ -175,8 +195,10 @@ test("REGRESSION: a broadcast made re-reads Playbooks with Broadcasts, as approv
 
 test("a write that changes what a channel can send re-reads the composers and People's reach", () => {
   // The number, the text line, the mailbox and the postal address an offer by email names are what channels-ready.ts
-  // reads; each has its writer in this table, and each moves the three surfaces that show the readiness.
-  const moved = ["broadcasts", "playbooks", "people"];
+  // reads; each has its writer in this table, and each moves the three surfaces that show the readiness: People's reach wherever the
+  // write is made, the composers where the page on screen draws them (Campaigns' home draws both) and left for those pages from
+  // Settings, where these writes are made (S10-6).
+  const moved = [...COMPOSERS, "people"];
   for (const route of [
     "PUT settings",
     "POST settings/receptionist",
@@ -187,8 +209,11 @@ test("a write that changes what a channel can send re-reads the composers and Pe
     "POST mailboxes",
     "PUT mailboxes/[id]",
   ]) {
-    const keys = keysOf(route);
+    const keys = keysOn("#/campaigns", route);
     for (const key of moved) assert.ok(keys.includes(key), `${route} re-reads ${key}: ${keys}`);
+    const away = keysOn("#/admin/integrations", route);
+    for (const key of COMPOSERS) assert.equal(away.includes(key), false, `${route} from Settings: ${key} is left`);
+    assert.ok(away.includes("people"), `${route} from Settings: People's reach`);
   }
   // A line's forwarding is the voice line's: it changes no channel a campaign goes by.
   assert.deepEqual(keysOf("POST lines/forwarding").sort(), ["settings", "setup"]);
@@ -261,7 +286,7 @@ test("a write that moves the listing, its reviews or the day a review is counted
     ["google", "setup", "settings"],
     "beside Google's own, Setup's row and Settings' review link (S1-4)",
   );
-  assert.deepEqual(keysOf("PATCH workspaces"), ["settings", "people", "today", "playbooks"]);
+  assert.deepEqual(keysOf("PATCH workspaces"), ["settings", "people", "today", "broadcasts"]);
   held();
   assert.deepEqual(
     keysOf("POST google/reviews/[id]/reply"),
@@ -269,7 +294,14 @@ test("a write that moves the listing, its reviews or the day a review is counted
     "the lens's read carries Google's own, and publishes it",
   );
   assert.notEqual(surfaceValue("reports_reviews"), undefined, "a reply forgets nothing: the lens is on screen");
-  assert.ok(keysOf("PUT policies").includes("reports_reviews"), "the reply mode is in the lens's read");
+  // The reply mode is in the lens's read: a mode saved where the lens is on screen reads it at once, and anywhere else forgets it, read
+  // as the lens comes on screen (W-review-facts-rules-9: Autonomy read the lens nobody had open).
+  held();
+  assert.ok(keysOn("#/reports/reviews", "PUT policies").includes("reports_reviews"), "read on the lens");
+  held();
+  assert.equal(keysOf("PUT policies").includes("reports_reviews"), false, "not read from the Inbox");
+  assert.equal(surfaceValue("reports_reviews"), undefined, "but what it held is dropped");
+  assert.equal(reviews.isStale(), true, "so the lens reads it as it comes on screen");
   // A draft and a search change nothing the lens counts.
   for (const route of ["POST google/reviews/[id]/draft", "POST google/search"])
     assert.ok(route in REFRESHES_NOTHING, route);
@@ -328,7 +360,7 @@ test("a write that moves who waits on you, the zone's days or the hours and clos
   }
   // Each keeps what it re-read before.
   assert.deepEqual(keysOf("POST conversations/[id]/reply"), ["inbox", "conversations", "today"]);
-  assert.deepEqual(keysOf("PATCH workspaces"), ["settings", "people", "today", "playbooks"]);
+  assert.deepEqual(keysOf("PATCH workspaces"), ["settings", "people", "today", "broadcasts"]);
   for (const key of ["settings", "calendar", "setup"])
     assert.ok(keysOf("PUT settings").includes(key), `PUT settings re-reads ${key}`);
   assert.equal(
@@ -498,19 +530,19 @@ test("a write that changes who is in the book, what they answered, their steps, 
       assert.equal(reportsPeople.isStale(), true, `${route}: so the lens reads it as it comes on screen`);
     }
     // Each keeps what it re-read before.
-    assert.deepEqual(keysOf("PATCH workspaces"), ["settings", "people", "today", "playbooks"]);
+    assert.deepEqual(keysOf("PATCH workspaces"), ["settings", "people", "today", "broadcasts"]);
     assert.deepEqual(keysOf("PUT contacts/[id]/details").sort(), [
       "broadcasts",
       "conversations",
       "inbox",
       "people",
-      "playbooks",
       "today",
     ]);
     assert.deepEqual(keysOf("POST contacts/[id]/notes"), ["people"]);
-    assert.deepEqual(keysOf("POST lines/buy").sort(), ["broadcasts", "people", "playbooks", "setup"]);
+    assert.deepEqual(keysOf("POST lines/buy").sort(), ["broadcasts", "people", "setup"]);
     assert.deepEqual(keysOf("POST leads/[id]/stage"), ["leads", "people"]);
-    for (const key of ["settings", "calendar", "setup", "broadcasts", "playbooks", "people"])
+    // The playbooks where they are drawn, which the Inbox does not.
+    for (const key of ["settings", "calendar", "setup", "broadcasts", "people"])
       assert.ok(keysOf("PUT settings").includes(key), `PUT settings still re-reads ${key}`);
     assert.deepEqual(
       keysOf("POST settings/receptionist"),
@@ -686,20 +718,22 @@ test("a write that changes a yes or a stop, who waits on you, a run, the number 
     assert.deepEqual(keysOf("POST conversations/[id]/reply"), ["inbox", "conversations", "today"]);
     assert.deepEqual(keysOf("POST broadcasts").sort(), ["broadcasts", "playbooks"]);
     assert.deepEqual(keysOf("POST broadcasts/[id]/approve").sort(), ["broadcasts", "playbooks", "reach_outs"]);
-    assert.deepEqual(keysOf("PATCH workspaces"), ["settings", "people", "today", "playbooks"]);
-    assert.deepEqual(keysOf("POST channels/whatsapp/standing"), ["settings"]);
-    assert.deepEqual(keysOf("POST lines/buy").sort(), ["broadcasts", "people", "playbooks", "setup"]);
+    assert.deepEqual(keysOf("PATCH workspaces"), ["settings", "people", "today", "broadcasts"]);
+    // Meta's word on the number is the channels read's (R6), which Connections, the Library and the composers are made of.
+    assert.deepEqual(keysOf("POST channels/whatsapp/standing"), ["channels"]);
+    assert.deepEqual(keysOf("POST lines/buy").sort(), ["broadcasts", "people", "setup"]);
     // A lead's stage, in one or many, and its undo: the Leads page (and People, for a stage that converts) as before; an
     // undo also takes an add back off a reach-out's list and its waiting run (00426).
     assert.deepEqual(keysOf("POST leads/[id]/stage"), ["leads", "people"]);
     assert.deepEqual(keysOf("POST leads/bulk"), ["leads"]);
     assert.deepEqual(keysOf("POST lead-operations/[id]/undo"), ["leads", "reach_outs", "broadcasts"]);
-    for (const key of ["settings", "calendar", "setup", "broadcasts", "playbooks", "people"])
+    // The playbooks where they are drawn, which the Inbox does not.
+    for (const key of ["settings", "calendar", "setup", "broadcasts", "people"])
       assert.ok(keysOf("PUT settings").includes(key), `PUT settings still re-reads ${key}`);
     // A yes or a stop, and a merge, are the lens's and the People lens's now, not the report's own: the report no longer counts them.
     for (const route of CAMPAIGNS_WRITES.slice(0, 5)) {
       const keys = keysOf(route);
-      for (const key of ["conversations", "inbox", "today", "people", "broadcasts", "playbooks"])
+      for (const key of ["conversations", "inbox", "today", "people", "broadcasts"])
         assert.ok(keys.includes(key), `${route} still re-reads ${key}: ${keys}`);
       assert.equal(keys.includes("reports"), false, `${route}: consentWrite no longer names the report's own read`);
     }

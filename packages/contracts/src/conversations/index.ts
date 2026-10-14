@@ -67,6 +67,7 @@ export {
   threadStanding,
   conversationWaitsOnYou,
   threadsWaitingOnYou,
+  threadWaitsOf,
   heldThreadIds,
   HELD_BY_ID_MAX,
   snoozedThreadWords,
@@ -80,13 +81,23 @@ export {
   abandonedCall,
   callAttemptWords,
   missedCall,
+  neverConnected,
   reachedVoicemail,
   DISCONNECTION_LABELS,
 } from "./call-dto";
 export type { CallDto } from "./call-dto";
-export { spokenDuration, toCallVM } from "./call-vm";
+export { callEndedWords, spokenDuration, toCallVM } from "./call-vm";
 export type { CallVM } from "./call-vm";
-export { standingOf, replyWaitsOnYou, HELD_WORDS, NEEDS_YOU_WORD, heldPill, seenBy, isUnseen } from "./standing";
+export {
+  standingOf,
+  standingOfThread,
+  replyWaitsOnYou,
+  HELD_WORDS,
+  NEEDS_YOU_WORD,
+  heldPill,
+  seenBy,
+  isUnseen,
+} from "./standing";
 export type { StandingInput, Standing, StandingVerdict, SeenMarksDto, SeenOf, SeenReading } from "./standing";
 export { CONVERSATION_MOVES, conversationPatch, conversationMoveAllowed } from "./conversation-moves";
 export type { ConversationMoveName, ConversationPatch } from "./conversation-moves";

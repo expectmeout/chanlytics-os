@@ -161,7 +161,9 @@ var NOTIFICATION_DELIVERY = {
   opted_out: "email",
   // A booking that arrived and a teammate who joined: news and no wait, a line on the bell and no mail, no phone.
   booking: "bell",
-  member_joined: "bell"
+  member_joined: "bell",
+  // A teammate who left: the same, the other way (00436).
+  member_left: "bell"
 };
 var EMAILED_NOTIFICATION_KINDS = Object.keys(NOTIFICATION_DELIVERY).filter((k) => NOTIFICATION_DELIVERY[k] === "email");
 var ALERT_GROUP_TITLES = {
@@ -400,7 +402,7 @@ var ALERT_PANE_WORDS = {
       "a booking email that needs a look",
       "the day's reach-out numbers at 6 PM",
       "a problem with a line",
-      "a teammate who joins",
+      "a teammate who joins or leaves",
       "invitations not yet accepted"
     ];
     return `Also on the bell: ${all.slice(0, -1).join(", ")}, and ${all[all.length - 1]}.`;

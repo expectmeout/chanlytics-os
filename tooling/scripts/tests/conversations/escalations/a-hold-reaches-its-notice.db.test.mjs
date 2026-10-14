@@ -38,7 +38,7 @@ before(async () => {
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   ({ SUBSCRIBERS } = await import(pathToFileURL(path.join(ROOT, "packages/core/src/subscribers.ts")).href));
   ({ holdFactsOf, holdTold, personFactsOf, optOutTold } = await import(
-    pathToFileURL(path.join(ROOT, "packages/db/src/repositories/notifications.ts")).href
+    pathToFileURL(path.join(ROOT, "packages/db/src/repositories/notices/notifications.ts")).href
   ));
   T = ok(
     await db

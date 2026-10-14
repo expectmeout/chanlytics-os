@@ -19,6 +19,8 @@ export const ixDockDials = (t: Thread | null | undefined): boolean =>
     t.state === "escalated" &&
     !t.takenOver &&
     !t.claimedByOther &&
+    // Nobody on do-not-contact is rung from here (consent mayRing, R11 S9-6); a STOP's caller may be.
+    !t.dnc &&
     mayApproveOrNoRoles()
   );
 

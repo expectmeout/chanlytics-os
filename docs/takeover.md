@@ -34,17 +34,17 @@ rows (`docs/debt.md`).
 <!-- measured:start -->
 
 ```text
-functions over the limit             73   of which over 200 lines: 12
+functions over the limit             72   of which over 200 lines: 12
 files over 800 lines                  3
 directories over 20 modules           3
-window globals                       75   names
-window publishers                   133   sites in 47 files
+window globals                       74   names
+window publishers                   131   sites in 47 files
 copies                               67   of 19 names
 as unknown as                       128
 as never                             12
 non-null assertions, x!              96
-index reads the compiler lets pass  443   in 119 files
-table names outside packages/db     423
+index reads the compiler lets pass  441   in 119 files
+table names outside packages/db     422
 SQL functions outside packages/db   117   called by .rpc
 edge statements naming no workspace   27   in 14 files
 doors importing db or channels        0   imports in 0 files
@@ -64,7 +64,7 @@ lint warnings                       334   in 143 files, 56 of them exhaustive-de
 route JS ceiling, KB gzipped        832   the shell included
 route CSS ceiling, KB gzipped       160
 each page's own JS ceiling, KB      256   gzipped, beyond the route
-trees the lint's limits hold         63   17 of them with max-params waiting
+trees the lint's limits hold         65   18 of them with max-params waiting
 ```
 
 <!-- measured:end -->

@@ -26,6 +26,7 @@ import {
 import { hearNeedsYou, needsYouNow, needsYouOnToday } from "../surfaces/needs-you";
 import { api } from "./api";
 import { sealSurfaceCache } from "./surface-cache";
+import { setPageBehind } from "./hearing/front";
 import { goToRoute, hearAddress, pathWorkspace, routeOnScreen, workspaceHref } from "./workspace";
 import type { AddressParts } from "@chanlytics/contracts";
 
@@ -321,6 +322,10 @@ function answerShell({ doors, post, phone, shell, overlays, pushes }: Answering,
   }
   if (m.t === "close") {
     overlays.close();
+    return;
+  }
+  if (m.t === "front") {
+    setPageBehind(!m.front);
     return;
   }
   // The phone registers through the page: the cookie, the same-origin rule and the rate bucket are the page's.

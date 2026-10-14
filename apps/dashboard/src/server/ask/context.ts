@@ -194,16 +194,17 @@ export const SHAPE_MAX = 1_500;
 
 /**
  * The shape of the workspace as one block (the plan, D9): what it is set up with, sorted, the same bytes for the same
- * workspace whatever order its rows were read in, and nothing that ticks -- no count of messages, runs or people, so
- * a new message or a run's send changes none of it. At most 1,500 characters: past it, the end is cut and said.
+ * workspace whatever order its rows were read in, and nothing that ticks or moves -- no count of messages, runs or
+ * people, no line's status and no playbook's state (R13 X5-6), so a new message, a run's send or a campaign paused
+ * changes none of it. At most 1,500 characters: past it, the end is cut and said.
  */
 export function shapeBlock(shape: WorkspaceShape): string {
-  const channels = [...shape.channels].sort((a, b) => byText(a.kind, b.kind) || byText(a.status, b.status));
+  const channels = [...shape.channels].sort(byText);
   const lists = [...shape.lists].sort((a, b) => byText(a.name, b.name) || byText(a.id, b.id));
   const playbooks = [...shape.playbooks].sort((a, b) => byText(a.name, b.name) || byText(a.id, b.id));
   const text = [
     `The workspace: ${oneLine(shape.name)} · zone ${shape.timezone}`,
-    `Lines: ${channels.length ? channels.map((c) => `${c.kind} ${c.status}`).join(", ") : "none"}`,
+    `Lines: ${channels.length ? channels.join(", ") : "none"}`,
     [
       `Deals ${shape.deals_on ? "on" : "off"}`,
       `the appointment word: ${shape.appointment_word}`,
@@ -213,9 +214,8 @@ export function shapeBlock(shape: WorkspaceShape): string {
       `Google ${yes(shape.google, "connected")}`,
     ].join(" · "),
     `Lists: ${lists.length ? lists.map((l) => `${oneLine(l.name)}${l.archived ? " (archived)" : ""}`).join(", ") : "none"}`,
-    `Playbooks: ${
-      playbooks.length ? playbooks.map((p) => `${oneLine(p.name)} (${p.trigger}, ${p.state})`).join("; ") : "none"
-    }`,
+    `Playbooks: ${playbooks.length ? playbooks.map((p) => `${oneLine(p.name)} (${p.trigger})`).join("; ") : "none"}`,
+    "Whether a line is live and whether a playbook runs move by the minute and are not kept here: read them before you say them.",
   ].join("\n");
   return clip(text, SHAPE_MAX);
 }

@@ -57,6 +57,7 @@ import {
   claimQueuedSend,
   releaseQueuedSend,
   membersPushedFor,
+  pushNamesFor,
   reachOutBookedFrom,
   holdFactsOf,
   holdTold,
@@ -67,6 +68,7 @@ import {
   feedAdditionsWith,
   twinTold,
   memberJoinedOf,
+  memberEmailOf,
   noticeKept,
   unreadOfReaders,
 } from "@chanlytics/db";
@@ -344,17 +346,26 @@ async function pushSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
       await ctx.db.from("push_devices").select("token, user_id").in("user_id", readers),
     ) ?? [];
   if (!devices.length) return;
-  // Each reader's bell, counted as the page counts it (packages/db unreadOfReaders, by contracts unreadFor).
-  const badges = await unreadOfReaders(ctx.db, {
-    tenantId: job.tenant_id,
-    readers: [...new Set(devices.map((d) => d.user_id))],
-    fromIso: new Date(Date.now() - BELL_WINDOW_DAYS * DAY_MS).toISOString(),
-  });
+  // Each reader's bell, counted as the page counts it (packages/db unreadOfReaders, by contracts unreadFor); and who of
+  // them is in more than one workspace, whose phone is told which business, and keeps its icon's number (R11 S8-7).
+  const told = [...new Set(devices.map((d) => d.user_id))];
+  const [badges, names] = await Promise.all([
+    unreadOfReaders(ctx.db, {
+      tenantId: job.tenant_id,
+      readers: told,
+      fromIso: new Date(Date.now() - BELL_WINDOW_DAYS * DAY_MS).toISOString(),
+    }),
+    pushNamesFor(ctx.db, { tenantId: job.tenant_id, userIds: told }),
+  ]);
   const receipts = await ctx.push.send(
     pushFor(
       // The phone opens the place the bell does (contracts noticeRoute): a row kept with no route opens its kind's list.
       { ...n, route: noticeRoute(n.kind, n.route) },
-      devices.map((d) => ({ token: d.token, badge: badges.get(d.user_id) ?? 0 })),
+      devices.map((d) =>
+        names.inMany.has(d.user_id)
+          ? { token: d.token, badge: null, business: names.business }
+          : { token: d.token, badge: badges.get(d.user_id) ?? 0 },
+      ),
     ),
   );
   // From here nothing throws: the alert has left, and a throw would have the ledger send it to every phone again.
@@ -494,12 +505,13 @@ async function eventDeliver(ctx: JobContext, job: ClaimedJob): Promise<void> {
     optOutPerson: (tenantId, contactId) => personFactsOf(ctx.db, tenantId, contactId),
     optOutTold: (tenantId, p) => optOutTold(ctx.db, { tenantId, ...p }),
     eventTold: (tenantId, eventId) => eventTold(ctx.db, { tenantId, eventId }),
-    bookedVisits: (tenantId, ids, nowMs) => bookedVisitsOf(ctx.db, tenantId, ids, nowMs),
+    bookedVisits: (tenantId, ids, nowMs, status) => bookedVisitsOf(ctx.db, tenantId, ids, nowMs, status),
     feedAdditionsWith: (tenantId, event) => feedAdditionsWith(ctx.db, tenantId, event),
     twinTold: (tenantId, appointmentId) => twinTold(ctx.db, tenantId, appointmentId),
     memberJoined: (tenantId, invitationId) => memberJoinedOf(ctx.db, tenantId, invitationId),
     memberTold: (tenantId, invitationId) =>
       noticeKept(ctx.db, { tenantId, kind: "member_joined", subjectType: "invitation", subjectId: invitationId }),
+    memberEmail: (userId) => memberEmailOf(ctx.db, userId),
     // The delivery is the event's workspace's job, so the runtime addresses the notice to it (job-alert.ts).
     tell: (news) => ctx.alert(news),
   };

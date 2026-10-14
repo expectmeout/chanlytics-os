@@ -212,11 +212,9 @@ export const setupOverride: SurfaceOverride = {
     ],
     fresh: "its-page",
     always: ["channel", "billing", "review", "call", "team"],
+    // The mailbox is heard (the wiring's second audit, W-channel-team-plus-3): the Email row draws it, made, its address, its
+    // intake's error and the first yes it can offer (offersByEmailOf reads its pause).
     omit: [
-      {
-        tables: ["mailboxes"],
-        why: "the Email row follows the domain's standing (00175), not a mailbox's paused offers",
-      },
       {
         tables: ["google_reviews"],
         why: "the Google row says the listing's count of reviews, which the listing carries; a review seen is no row of its",

@@ -238,6 +238,7 @@ import {
   claimQueuedSend as claimQueuedSend2,
   releaseQueuedSend as releaseQueuedSend2,
   membersPushedFor,
+  pushNamesFor,
   reachOutBookedFrom,
   holdFactsOf,
   holdTold,
@@ -248,6 +249,7 @@ import {
   feedAdditionsWith,
   twinTold,
   memberJoinedOf,
+  memberEmailOf,
   noticeKept,
   unreadOfReaders
 } from "../../db/dist/index.js";
@@ -1201,16 +1203,22 @@ async function pushSend(ctx, job) {
     await ctx.db.from("push_devices").select("token, user_id").in("user_id", readers)
   ) ?? [];
   if (!devices.length) return;
-  const badges = await unreadOfReaders(ctx.db, {
-    tenantId: job.tenant_id,
-    readers: [...new Set(devices.map((d) => d.user_id))],
-    fromIso: new Date(Date.now() - BELL_WINDOW_DAYS * DAY_MS2).toISOString()
-  });
+  const told = [...new Set(devices.map((d) => d.user_id))];
+  const [badges, names] = await Promise.all([
+    unreadOfReaders(ctx.db, {
+      tenantId: job.tenant_id,
+      readers: told,
+      fromIso: new Date(Date.now() - BELL_WINDOW_DAYS * DAY_MS2).toISOString()
+    }),
+    pushNamesFor(ctx.db, { tenantId: job.tenant_id, userIds: told })
+  ]);
   const receipts = await ctx.push.send(
     pushFor(
       // The phone opens the place the bell does (contracts noticeRoute): a row kept with no route opens its kind's list.
       { ...n, route: noticeRoute(n.kind, n.route) },
-      devices.map((d) => ({ token: d.token, badge: badges.get(d.user_id) ?? 0 }))
+      devices.map(
+        (d) => names.inMany.has(d.user_id) ? { token: d.token, badge: null, business: names.business } : { token: d.token, badge: badges.get(d.user_id) ?? 0 }
+      )
     )
   );
   const gone = receipts.filter((r) => r.status === "error" && r.error === "DeviceNotRegistered").map((r) => r.to);
@@ -1304,11 +1312,12 @@ async function eventDeliver(ctx, job) {
     optOutPerson: (tenantId, contactId) => personFactsOf(ctx.db, tenantId, contactId),
     optOutTold: (tenantId, p) => optOutTold(ctx.db, { tenantId, ...p }),
     eventTold: (tenantId, eventId) => eventTold(ctx.db, { tenantId, eventId }),
-    bookedVisits: (tenantId, ids, nowMs) => bookedVisitsOf(ctx.db, tenantId, ids, nowMs),
+    bookedVisits: (tenantId, ids, nowMs, status) => bookedVisitsOf(ctx.db, tenantId, ids, nowMs, status),
     feedAdditionsWith: (tenantId, event2) => feedAdditionsWith(ctx.db, tenantId, event2),
     twinTold: (tenantId, appointmentId) => twinTold(ctx.db, tenantId, appointmentId),
     memberJoined: (tenantId, invitationId) => memberJoinedOf(ctx.db, tenantId, invitationId),
     memberTold: (tenantId, invitationId) => noticeKept(ctx.db, { tenantId, kind: "member_joined", subjectType: "invitation", subjectId: invitationId }),
+    memberEmail: (userId) => memberEmailOf(ctx.db, userId),
     // The delivery is the event's workspace's job, so the runtime addresses the notice to it (job-alert.ts).
     tell: (news) => ctx.alert(news)
   };

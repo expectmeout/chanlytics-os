@@ -1008,7 +1008,8 @@ test("the dashboard: owners and the partner link and search, operators read, mem
   const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
   assert.ok(/setupOverride,\s*googleOverride,\s*billingOverride\b/.test(app) && !app.includes("installGoogle"));
   assert.ok(bridge.includes("export const googleVerbs: GoogleApi = {") && !bridge.includes("__GOOGLE"));
-  assert.deepEqual([toldFor("google_listings"), toldFor("google_reviews")], [EVERY_EVENT, ["INSERT"]]);
+  // A review is told when it is first seen and when its answer moved (00428): Today's line and the bell close at once.
+  assert.deepEqual([toldFor("google_listings"), toldFor("google_reviews")], [EVERY_EVENT, ["INSERT", "UPDATE"]]);
   // The finder is the first run's Find (first-run-page.test.mjs runs it); Setup's row opens it.
   // Reports' Reviews page draws the section from its own read (`reports_reviews`), which carries Google's own and publishes it as the
   // `google` value where one is held (executed: reports/lenses/reviews-surface.test.mjs); the source is named and what the receptionist

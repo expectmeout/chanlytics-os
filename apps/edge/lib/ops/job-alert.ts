@@ -39,6 +39,7 @@ const REDACTED: Record<JobNewsKind, (jobKind: string) => string> = {
   opted_out: (k) => `A customer of a workspace asked to stop, and nobody there could be told (job kind: ${k}).`,
   booking: (k) => `A booking arrived for a workspace, and nobody there could be told (job kind: ${k}).`,
   member_joined: (k) => `A teammate joined a workspace, and nobody there could be told (job kind: ${k}).`,
+  member_left: (k) => `A teammate left a workspace, and nobody there could be told (job kind: ${k}).`,
 };
 
 /**
@@ -70,6 +71,12 @@ export function alertFor(db: ReturnType<typeof pg>, job: AlertableJob, ports: No
       await notify(target, msg, ports);
       return;
     }
+    // Recipients that could not be read are not "nobody": an event's notice waits for them, its delivery trying again,
+    // where it settled with the mail the product always sends never sent, and the owner heard by mail only if the
+    // customer was still waiting two hours later (the wiring's second audit, R11 S11-5). A notice no event redelivers goes
+    // now, its customer's words withheld from a mailbox nobody named (notify).
+    if ("unread" in addressing && addressing.unread)
+      throw new Error(`the recipients of event ${news.sourceEvent} could not be read; its delivery tries again`);
     // An event's notice is told exactly once (decision 0043): one not told throws, so its delivery tries again.
     if (!(await notifyEvent(target, { ...msg, sourceEvent: news.sourceEvent }, ports)))
       throw new Error(`the notice of event ${news.sourceEvent} was not told; its delivery tries again`);

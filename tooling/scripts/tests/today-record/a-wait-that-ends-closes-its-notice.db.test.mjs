@@ -37,7 +37,7 @@ before(async () => {
   if (skip) return;
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   ({ closeMendedNotices } = await import(
-    pathToFileURL(path.join(ROOT, "packages/db/src/repositories/notifications.ts")).href
+    pathToFileURL(path.join(ROOT, "packages/db/src/repositories/notices/notifications.ts")).href
   ));
   T = ok(
     await db

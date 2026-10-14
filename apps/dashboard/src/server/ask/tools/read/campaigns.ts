@@ -55,6 +55,7 @@ import {
   type LifecycleStage,
   runDaysAt,
   runWaitsOnYou,
+  lifecycleStateOf,
 } from "@chanlytics/contracts";
 import { load } from "../../../readers";
 import { audiencePool } from "../../../readers/audience-pool";
@@ -295,10 +296,9 @@ const MODE_WORDS: Record<string, string> = {
 async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
   const [read, policies, sources] = await Promise.all([
     load(t.rc, playbooks, undefined),
-    load(t.rc, readers.policies, undefined).then(
-      (r) => r.data,
-      () => [],
-    ),
+    // The autonomy rows: a read that failed is said, never read as every class asking first (the wiring's second audit,
+    // R13 X5-8: every campaign was said to wait for a person, where some send on their own).
+    load(t.rc, readers.policies, undefined).then((r) => r.data, unread(t, "campaigns.playbooks", "autonomy")),
     // The last 30 days by playbook (campaign_series' sources, Reports' Campaigns lens): what the ledger's row says. Null
     // where it could not be read, never all-time totals in its place (D35).
     lastDaysBySource(t.rc),
@@ -314,8 +314,8 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
   };
   // Every playbook it lists is a row an answer may cite, opened on Playbooks at its card: the reader's RowRefs.
   noteRows(t.read, read.rows);
-  const modes = new Map(policies.map((r) => [r.class, r.mode]));
-  const modeOf = (cls: string) => modes.get(cls) ?? "ask";
+  const modes = policies ? new Map(policies.map((r) => [r.class, r.mode])) : null;
+  const modeOf = (cls: string) => modes?.get(cls) ?? "ask";
   // Who a moment or a list names that said the yes its template needs, a number or not, and who of them a run reaches
   // now: the page's chip (`candidates`). `said_yes_now` was the reach once, so a moment whose yes had no number to
   // send to read as nobody's yes. Null where the page counts nobody: a read it needs failed.
@@ -354,13 +354,21 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
   return {
     route: "campaigns",
     timezone,
-    modes: {
-      reengage: modeOf("reengage"),
-      campaign: modeOf("campaign"),
-      booking: modeOf("booking"),
-      // The follow-ups' class only where deals are on (0006).
-      ...(policyClassOffered("follow_up", pb.deals_on) ? { follow_up: modeOf("follow_up") } : {}),
-    },
+    modes: modes
+      ? {
+          reengage: modeOf("reengage"),
+          campaign: modeOf("campaign"),
+          booking: modeOf("booking"),
+          // The follow-ups' class only where deals are on (0006).
+          ...(policyClassOffered("follow_up", pb.deals_on) ? { follow_up: modeOf("follow_up") } : {}),
+        }
+      : null,
+    ...(modes
+      ? {}
+      : {
+          could_not_read:
+            "the autonomy modes: say they could not be read just now, never that a campaign's runs wait for a person or go on their own",
+        }),
     mode_words: MODE_WORDS,
     playbooks: answer.cards.map(({ playbook: p, read: c }) => ({
       playbook_id: p.id,
@@ -371,11 +379,13 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       // The channels it goes by (WhatsApp alone for one made before channels): what propose_campaign with action
       // channels is asked to change, and must be told whole.
       channels: campaignChannelsOf(p.channels),
-      state: p.state,
+      // Its state as the home says it (lifecycleStateOf): "Ended Oct 1", "Paused", "On · Daily 10:00 AM", a run waiting
+      // first. It said the stored "running" of a campaign past its last day (the wiring's second audit, R13 X5-7).
+      state: lifecycleStateOf({ ...p, ended: c.ended, trial: c.trial, off: c.off }).words,
       policy_class: p.policy_class,
       // The mode its runs go under now: its class's, but auto reads veto while on trial (contracts effectiveMode, core
       // run-playbook's own), with the day the trial ends as its card says it.
-      mode: effectiveMode(p, modeOf(p.policy_class), t.now),
+      mode: modes ? effectiveMode(p, modeOf(p.policy_class), t.now) : null,
       ...(c.trial ? { on_trial_until: c.trial } : {}),
       schedule: scheduleLine(p, shape.word),
       // No next run where it runs nothing here (an ended campaign, a follow-up with deals off): the card's one predicate,

@@ -95,11 +95,21 @@ export async function calendarDue(
   return dueCalendars(db, { before: new Date(now.getTime() - minAgeMs), limit });
 }
 
-/** Stamp a workspace as read. Only ever on SUCCESS: a failure leaves it due, which self-heals next tick. */
-export async function markCalendarChecked(db: Db, tenantId: string, now: Date): Promise<void> {
+/**
+ * Stamp a workspace as read, a read that failed included (calendar-sweep.ts says why). `failedSince`, where given, is
+ * written with it in the same update: the moment its reads began failing (00434), or null once one works. The sweep
+ * gives it only on a change, and only where the database keeps the stamp (its page carried one).
+ */
+export async function markCalendarChecked(
+  db: Db,
+  tenantId: string,
+  now: Date,
+  also: { failedSince?: Date | null } = {},
+): Promise<void> {
+  const failing = "failedSince" in also ? { calendar_failed_since: also.failedSince?.toISOString() ?? null } : {};
   const { error } = await db
     .from("tenant_config")
-    .update({ calendar_checked_at: now.toISOString() })
+    .update({ calendar_checked_at: now.toISOString(), ...failing })
     .eq("tenant_id", tenantId);
   if (error) throw new Error(`stamping the calendar read: ${error.message}`);
 }

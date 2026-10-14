@@ -230,6 +230,16 @@ export const ACTIVITY_PAGE_WORDS = {
   clearShort: "Clear",
   more: "Show more",
   moreReading: "Reading…",
+  /**
+   * Lines newer than the ones on screen, read while the log is open: offered above it rather than moved in under the reader
+   * (the wiring's second audit, X2-3). Not counted: a burst of one kind is one line, and the rows read are not the lines drawn.
+   */
+  newer: {
+    fact: "Newer activity",
+    since: "since this was read",
+    show: "Show it",
+    label: "Newer activity since this was read",
+  },
   soFar: (n: number): string => `${n} so far`,
   /** A fold's name to a screen reader: its sentence, then what a press on it does. */
   fold: {

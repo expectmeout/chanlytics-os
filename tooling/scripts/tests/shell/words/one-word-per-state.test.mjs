@@ -298,3 +298,34 @@ test("asked to stop is one pill, one tone, one short clause and one sentence whe
   );
   assert.ok(optOutWords("Dana").startsWith(`${STOP_WORDS.said("Dana")}.`), "the reply box's sentence");
 });
+
+/**
+ * The words several states share that still carry two tones, each with why. This list may only get shorter: one fixed is
+ * deleted from here, and the test fails until it is.
+ */
+const STILL_TWO_TONES = {
+  paused: {
+    why: "a thread the receptionist steps back from is plain; a WhatsApp version Meta paused for its quality is a warning to fix",
+  },
+  handled: {
+    why: "a decided thread is ok and a handled call is plain (callOutcomeFor): owed one tone for 'nothing left to do'",
+  },
+};
+
+test("a word several states share is drawn in one tone wherever tone.ts draws it: You have it is in hand, never amber on People alone (the wiring's second audit, R11 S9-5)", () => {
+  const kinds = new Set(stateWordList().map((w) => w.kind));
+  for (const [word, said] of Object.entries(ONE_STATE)) {
+    const tones = new Set(
+      said.ids
+        .map((id) => id.split("/"))
+        .filter(([kind]) => kinds.has(kind))
+        .map(([kind, value]) => stateTone(kind, value)),
+    );
+    if (word in STILL_TWO_TONES) {
+      assert.ok(tones.size > 1, `"${word}" is one tone now: delete it from STILL_TWO_TONES`);
+      continue;
+    }
+    assert.ok(tones.size <= 1, `"${word}" is drawn in ${[...tones].join(" and ")}: one word, one tone`);
+  }
+  assert.equal(stateTone("person", "waiting_on_you"), stateTone("thread", "yours"));
+});

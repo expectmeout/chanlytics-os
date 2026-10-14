@@ -429,6 +429,13 @@
     "00424_a_reach_out_writes_from_a_connected_mailbox.sql": "a53bb4c587c73f8141d50715dc39a14b6fa69d944ace26a13ad7fa7021d420c8",
     "00425_a_mailbox_s_threads_are_found_by_their_id.sql": "40c65064bee46415d1870855bc21993fe025199d596bfda464c89919ed4fa2bd",
     "00426_a_reach_out_takes_the_leads_you_add.sql": "bff8fd95b5502eade17e46b0365e77466b94ac87416670b622d17fd920e0413d",
-    "00427_a_lead_has_one_first_email.sql": "54e6d0e76d4adbb424e22b2021a54855655c44812330e9b8ee1e2cd937511419"
+    "00427_a_lead_has_one_first_email.sql": "54e6d0e76d4adbb424e22b2021a54855655c44812330e9b8ee1e2cd937511419",
+    "00428_the_silent_records_are_told.sql": "99e0cbd1f8c3fe9c0772631b3e66a6c5eb0ba87c9176a796f09af4ecb0e8471d",
+    "00431_signing_out_forgets_every_phone.sql": "aa21504a323a1f9678bb7f743fdba180d0329f92dd8bc6d1685b9ae9be86a697",
+    "00432_a_snoozed_hold_is_not_still_waiting.sql": "480ed6247d7ffbaaf581b20d30dee3f02bca3c826a2a9e0d91056e5d4f7d490b",
+    "00433_a_lost_analysis_is_asked_for.sql": "1bc26d646ac5e2366df175dd172b3cc3db4904e07149196972309381e53d480e",
+    "00434_a_calendar_link_that_stopped_answering.sql": "3bee211785c73515ed0acd14bc436cdba01c6b992898d04b8632232969b46c85",
+    "00435_a_visit_change_says_who_made_it.sql": "ae1827c29d13a912a2a19872c94185ec2b2c1432e1ccdd0479102ab2ca25db17",
+    "00436_a_teammate_who_leaves_is_told.sql": "48708bfd4998f13380c2c85d374f0761e5acce59bc0b3be66a8ee0ad8a160d84"
   }
 }

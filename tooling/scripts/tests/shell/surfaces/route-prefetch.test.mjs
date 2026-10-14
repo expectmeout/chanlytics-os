@@ -617,6 +617,8 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
       (await importSrc(`${S}/surfaces/campaigns/home/results-surface.ts`)).campaignResultsOverride,
       (await importSrc(`${S}/surfaces/campaigns/reach-out/surface.ts`)).reachOutsOverride,
       (await importSrc(`${S}/legacy-bridge/surfaces/settings.ts`)).settingsOverride,
+      // The channels read every page that draws a number is made of (Live, the composers, the Library, Connections).
+      (await importSrc(`${S}/surfaces/channels/surface.ts`)).channelsOverride,
       (await importSrc(`${S}/surfaces/calendar/surface.ts`)).calendarOverride,
       (await importSrc(`${S}/surfaces/calendar/runs-surface.ts`)).calendarRunsOverride,
       (await importSrc(`${S}/surfaces/reports/surface.ts`)).reportsOverride,
@@ -640,10 +642,16 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
   // Campaigns' home draws Sent's runs, its own 30 days (campaign_results), the reach-outs' chains and the settings read, which holds
   // the templates its call's text and Library count are made of (the one read of them, task 3.3); and the Calendar's campaign
   // marks are their own span's read, started beside the board's (the Calendar's lane C).
+  // And the channels read (surfaces/channels/surface.ts), which Live, both composers and the Library are made of: the one read
+  // of the numbers, started with the page's own.
   const alsoDrawn = {
     today: ["calendar"],
-    campaigns: ["broadcasts", "campaign_results", "reach_outs", "settings"],
+    campaigns: ["broadcasts", "campaign_results", "reach_outs", "settings", "channels"],
     calendar: ["calendar_runs"],
+    live: ["channels"],
+    broadcasts: ["channels"],
+    outbound: ["channels"],
+    messages: ["channels"],
   };
   for (const [route, drawn] of Object.entries(alsoDrawn))
     for (const k of drawn) assert.ok(registry.ROUTE_DRAWS[route].includes(k), `${route} draws ${k} beside its own`);

@@ -31,6 +31,11 @@ export interface DbObserver {
    * request's `db` share, which its answer says in Server-Timing. Absent, nothing is timed.
    */
   timed?(ms: number): void;
+  /**
+   * The table one call touched and how, or the SQL function it called (`touchOfCall`), inside the request that made it: what
+   * a route's trace is held to (decision 0058, lane R7). Absent, nothing is noted.
+   */
+  touched?(table: string, how: string): void;
 }
 
 /** The header a request's name rides to the database in: PostgREST hands it to SQL as request.headers. */
@@ -79,10 +84,54 @@ function dbTimed(ms: number): void {
   (observerHolder[OBSERVER_SLOT] ?? FALLBACK).timed?.(ms);
 }
 
+/** What one call to the database touched: a table and how (`read`, `INSERT`, `UPDATE`, `DELETE`), or a SQL function (`rpc:<name>`, `call`). */
+export interface DbTouch {
+  table: string;
+  how: string;
+}
+
+/** A PostgREST path: the table, or `rpc/` and the function's name, after the API's root. */
+const REST_PATH = /\/rest\/v1\/(rpc\/)?([a-z_][a-z0-9_]*)\/?$/;
+
+/**
+ * What a call of the database client touches, from its address and its method as PostgREST reads them: a read of a table, a
+ * row written (an insert that merges on a conflict is an update too), or a function called, whose own tables only the trace can
+ * say. Null for anything that is not PostgREST's (the auth server, storage).
+ */
+export function touchOfCall(input: string | URL | Request, init?: RequestInit): DbTouch | null {
+  const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  let path: string;
+  try {
+    path = new URL(url, "http://db.invalid").pathname;
+  } catch {
+    return null;
+  }
+  const [, rpc, name] = REST_PATH.exec(path) ?? [];
+  if (!name) return null;
+  if (rpc) return { table: `rpc:${name}`, how: "call" };
+  const method = (
+    init?.method ?? (typeof input === "object" && "method" in input ? input.method : "GET")
+  ).toUpperCase();
+  if (method === "GET" || method === "HEAD") return { table: name, how: "read" };
+  if (method === "PATCH") return { table: name, how: "UPDATE" };
+  if (method === "DELETE") return { table: name, how: "DELETE" };
+  const prefer = new Headers(init?.headers).get("prefer") ?? "";
+  return { table: name, how: /resolution=merge-duplicates/.test(prefer) ? "INSERT UPDATE" : "INSERT" };
+}
+
+/** One call's touch, told to the process that asked to hear it. */
+function dbTouched(input: string | URL | Request, init?: RequestInit): void {
+  const observer = observerHolder[OBSERVER_SLOT] ?? FALLBACK;
+  if (!observer.touched) return;
+  const touch = touchOfCall(input, init);
+  if (touch) observer.touched(touch.table, touch.how);
+}
+
 /**
  * A fetch that names the request it is made for: the database client's transport, so a SQL function writing to the
  * ledger in that request can say which it was, and that says how long each call took (`timed`), so the answer can say
- * how much of its time was the database's and in how many calls. A call outside a request goes as it came.
+ * how much of its time was the database's and in how many calls, and what each touched (`touched`). A call outside a
+ * request goes as it came.
  */
 export function namedFetch(base?: typeof fetch): typeof fetch {
   return (input, init) => {
@@ -90,6 +139,7 @@ export function namedFetch(base?: typeof fetch): typeof fetch {
     const send = base ?? globalThis.fetch;
     const id = dbRequestId();
     if (!id) return send(input, init);
+    dbTouched(input, init);
     const headers = new Headers(init?.headers);
     headers.set(DB_REQUEST_HEADER, id);
     const started = performance.now();

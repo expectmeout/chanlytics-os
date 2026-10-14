@@ -39,7 +39,9 @@ const win = {
 };
 globalThis.window = win;
 historyOf(win);
-globalThis.document = { visibilityState: "hidden", title: "", addEventListener() {}, removeEventListener() {} };
+// On screen: a hidden page reads, of what the feed tells, only what says itself in the tab's title and badge, and holds the
+// rest until it is in front (shell/feed/the-runner-heals.test.mjs).
+globalThis.document = { visibilityState: "visible", title: "", addEventListener() {}, removeEventListener() {} };
 globalThis.CustomEvent ??= class CustomEvent {
   constructor(type, init) {
     this.type = type;

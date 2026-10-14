@@ -105,7 +105,9 @@ export const googleOverride: SurfaceOverride = {
   onDemand: true,
   isStale: googleIsStale,
   events: ["surface:google"],
-  // The edge writes the listing on every read, the connection on every sync, and a review the first time it is seen. And the rule
+  // The edge writes the listing on every read, the connection on every sync, a review the first time it is seen, and its answer,
+  // by the receptionist, a teammate or on Google (told when the reply moved, 00428: Today's line and the bell's "New on Google"
+  // close at once; the wiring's second audit, S4-1). And the rule
   // that says whether the receptionist answers a review on its own, which its read carries (W-review-facts-rules-8): a few a month.
   ...declareReads("google", {
     reads: ["review", "rules"],

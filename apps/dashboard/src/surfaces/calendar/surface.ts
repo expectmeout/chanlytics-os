@@ -10,8 +10,9 @@ import { declareReads } from "@/legacy-bridge/surface-registry";
 import { getActiveWorkspace, routeOnScreen } from "@/legacy-bridge/workspace";
 import { knownZone } from "@/legacy-bridge/zone";
 import { toCalendarVM, windowFor, zoneDayKey, type CalendarVM } from "@chanlytics/contracts";
-import { declareSurfaceValue, setSurfaceValue } from "../surface-values";
+import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
 import { calendarAddress, calendarParam } from "./address";
+import { CR_REFRESH_MS } from "./words";
 
 // Today, Ask, People and the Business tab, which have not moved, still read this under its old name.
 declareSurfaceValue("calendar", "__CALENDAR");
@@ -42,6 +43,39 @@ export function setCalendarSpan(from: string | null, days = 63): void {
 export interface CalendarSurface {
   vm: CalendarVM;
   fetchedAt: number;
+}
+
+/** GET calendar's answer, as the view model is made from it. */
+type CalendarAnswer = Parameters<typeof toCalendarVM>[0];
+
+/**
+ * The answer each view model was made from, beside it and never in what the cache keeps: the board's "today", its now
+ * line, a block's phase and the next opening are the clock's, and the clock makes them again from it (`rederive`) with no
+ * read. A window the cache painted from an earlier visit has none, and waits for its read.
+ */
+const answers = new WeakMap<CalendarSurface, CalendarAnswer>();
+
+/** A window's surface from its answer, at `now`, with the answer kept beside it. */
+function calendarSurfaceOf(answer: CalendarAnswer, now: Date, fetchedAt: number): CalendarSurface {
+  const surface: CalendarSurface = { vm: toCalendarVM(answer, now), fetchedAt };
+  answers.set(surface, answer);
+  return surface;
+}
+
+/**
+ * The window on screen made again at `now` from the answer it was made from, published where anything moved; whether it
+ * did. What a page draws of the day (the board, Today's strip, its "Did they come?" rows) follows the clock between reads,
+ * and the day turns at the business's midnight in a tab left open overnight (the wiring's second audit, W-visit-deal-1, S2-3).
+ */
+function rederiveCalendar(now: Date): boolean {
+  const was = surfaceValue("calendar");
+  const answer = was ? answers.get(was) : undefined;
+  if (!was || !answer) return false;
+  const next = shareUnchanged(was, calendarSurfaceOf(answer, now, was.fetchedAt));
+  if (next === was) return false;
+  answers.set(next, answer);
+  setSurfaceValue("calendar", next);
+  return true;
 }
 
 /**
@@ -85,7 +119,7 @@ export async function warmCalendar(w: { from: string; days: number }): Promise<v
   try {
     const data = await read("GET calendar", { query: { from: w.from, days: String(w.days) } });
     if (scope() !== at) return;
-    calendarHeld.hold(key, { vm: toCalendarVM(data.calendar, new Date()), fetchedAt: Date.now() });
+    calendarHeld.hold(key, calendarSurfaceOf(data.calendar, new Date(), Date.now()));
   } catch {
     /* the move reads it when it is made */
   } finally {
@@ -111,13 +145,28 @@ export const calendarOverride: SurfaceOverride = {
   // or a number fixed is who the visit is (the wiring's second audit, W-person-list-lead-6, W-thread-wait-step-7, W-visit-deal-2).
   // The feed tells a person's update for their identity and answers alone (00408), a few a day, and the board is one read. A person
   // made is no visit's until the board's next read matches them (a lead run's leads, an import's people): not heard.
+  // And the mailbox: the Business tab's Booking tool row names its address, and the code Gmail mails to confirm a forward is shown
+  // there with a one-press confirm (the wiring's second audit, S4-4): told when it is kept (00428), a few times a workspace.
   ...declareReads("calendar", {
-    reads: ["visit", "facts", "person"],
+    reads: ["visit", "facts", "person", "channel"],
     fresh: "live",
+    omit: [
+      {
+        tables: ["tenant_channels", "lines", "mailbox_connections", "capability_activations", "business_records"],
+        why: "the board and the Business tab draw the workspace's mailbox of the channels; the numbers, a line, a connected mailbox, an activation and the carriers' record are none of theirs",
+      },
+    ],
     when: (c) => c.table !== "contacts" || c.event !== "INSERT",
   }),
   // A span's reads take their turn; a move to another span is read at once (activateOverride).
   view: () => `${calendarFrom ?? "today"}|${calendarDays}`,
+  // The clock's: what the board and Today say of now, next and today, made again each minute where they are drawn.
+  rederive: rederiveCalendar,
+  // The owner's own calendar tells the feed nothing: a booking made there is read every five minutes on any page that draws the
+  // board (the Calendar, Today's day card, the Business pane), where it was read only while the Calendar page was open (S2-3).
+  readEveryMs: CR_REFRESH_MS,
+  // And the weeks around today move with the day: read again at the business's midnight.
+  readAtMidnight: true,
   apply: async () => {
     // A cold boot on a day the address names (calendar/<day>, or a visit on its day, calendar/<day>:a-<id>) reads the weeks
     // around that day: the page's own read. It read today's weeks first, and the page read the day's after them. Only the
@@ -149,7 +198,7 @@ export const calendarOverride: SurfaceOverride = {
     // Two moves in a row: the earlier read may land after the later one. A
     // read for a span the page has since left is dropped, never painted.
     if (from !== calendarFrom || days !== calendarDays) return;
-    const surface: CalendarSurface = { vm: toCalendarVM(data.calendar, new Date()), fetchedAt: Date.now() };
+    const surface = calendarSurfaceOf(data.calendar, new Date(), Date.now());
     // Held under the span the answer covers, which is the one a later move back to these weeks asks for by its day.
     const w = from ? { from, days } : { from: data.calendar.from, days: data.calendar.days.length };
     calendarHeld.hold(calendarSpanKey(w), surface);

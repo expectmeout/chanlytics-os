@@ -10,11 +10,41 @@ import { isLiveCallTurn } from "@/legacy-bridge/surface-realtime";
 import { declareReads } from "@/legacy-bridge/surface-registry";
 import { heldThreadIds, toTodayVM, type CallDto, type LeadSearchDto } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { declareSurfaceValue, setSurfaceValue } from "../surface-values";
+import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
 import { readHeldThreads } from "../inbox/held-threads";
 
 // The pages that have not moved (Ask, the phone app's bridge, the bell) still read the day under its old name.
 declareSurfaceValue("today", "TODAY_DATA");
+
+/** What Today is made of: the five reads, and the threads of the holds past the hundred, as `toTodayVM` takes them. */
+type TodayArgs = Parameters<typeof toTodayVM>;
+interface TodayHeld {
+  metrics: TodayArgs[0];
+  conversations: TodayArgs[1];
+  escalations: TodayArgs[2];
+  calls: TodayArgs[3];
+  searches: TodayArgs[5];
+  beside: TodayArgs[6];
+}
+
+/**
+ * What Today's last read held, kept so the clock can make the day again from it with no read (`rederive`): a window that
+ * drops under six hours, a message an hour unanswered, a search's wait and a hold's end are the clock's, and no notice comes
+ * for them, least of all when nothing arrives, which is when they matter (the wiring's second audit, S2-2).
+ */
+let lastHeld: TodayHeld | null = null;
+
+/** The day from what was read, at `now`, published where anything moved; whether it did. */
+function publishToday(h: TodayHeld, now: Date): boolean {
+  const was = surfaceValue("today");
+  const vm = shareUnchanged(
+    was,
+    toTodayVM(h.metrics, h.conversations, h.escalations, h.calls, now, h.searches, h.beside),
+  );
+  if (vm === was) return false;
+  setSurfaceValue("today", vm);
+  return true;
+}
 
 /**
  * Slice 4: Today. Unlike every other surface, this one has NO seed to fall back
@@ -37,11 +67,13 @@ export const todayOverride: SurfaceOverride = {
   // transcript turn every few seconds (an UPDATE that keeps the status
   // ongoing) must NOT re-run three plpgsql aggregates; a start or an end does.
   // Lead rounds too: a search that stops to ask is an UPDATE on its round, and
-  // its answer another. Every lead_rounds change goes through — they are rare
-  // and each one changes what the queue says about a search waiting on you.
+  // its answer another. A round is told when its state, its question, its wait or
+  // its ending moved (00428), never for the counters each batch of a run moves:
+  // each one told changes what the queue says about a search waiting on you.
   // And the channel, the line and the billing account: the chips for WhatsApp, text, voice and email and the red bands
   // ('WhatsApp is disconnected', 'This workspace is paused') are drawn from the metrics read, which nothing re-read for a
-  // number that failed, a line that registered or a subscription that ended. billing_accounts is written in the same
+  // number that failed, a line that registered, a mailbox made (the email chip is drawn where one exists) or a subscription that
+  // ended. billing_accounts is written in the same
   // transaction as the workspace's status (00382), so it stands for the pause. They change a few times a month.
   // And the person each row of the queue names (contacts, 0047): a teammate's rename, their address, a yes or a stop. A few a
   // day. Its other configuration, the hours the settings hold, it does not draw: the five reads below name none.
@@ -54,8 +86,8 @@ export const todayOverride: SurfaceOverride = {
         why: "the queue draws a search waiting on you, which its round says (a stop to ask, its answer); the leads it found and the people it kept are not in it",
       },
       {
-        tables: ["mailboxes", "mailbox_connections", "capability_activations", "business_records"],
-        why: "the chips and bands draw a channel's number, its line and the workspace's pause, not the mailbox's offers, a connected mailbox, an activation or the record the carriers read",
+        tables: ["mailbox_connections", "capability_activations", "business_records"],
+        why: "the chips and bands draw a channel's number, its line, the mailbox and the workspace's pause, not a connected mailbox, an activation or the record the carriers read",
       },
     ],
     // A transcript turn of a call in progress is an update that changes nothing the day counts (isLiveCallTurn); asked first.
@@ -69,6 +101,8 @@ export const todayOverride: SurfaceOverride = {
   // "Today so far" is one read of the business's day (metrics for one day): nothing else moves it at midnight, and a tab left
   // open overnight said yesterday's totals until its first message of the new day.
   readAtMidnight: true,
+  // And the rows that come and go by the clock alone, made again each minute while Today is on screen (hearing/clock.ts).
+  rederive: (now) => (lastHeld ? publishToday(lastHeld, now) : false),
   apply: async () => {
     // Calls are additive context, not a precondition — a voice outage must not
     // blank the brief — but they are fetched WITH the others rather than
@@ -104,18 +138,23 @@ export const todayOverride: SurfaceOverride = {
     const ids = heldThreadIds(new Set(convData.conversations.map((c) => c.id)), escData.escalations);
     const heldThreads = await readHeldThreads(ids);
     if (heldThreads === null) console.error("today_held_threads_fetch_failed", ids.length);
-    const now = new Date();
     // The brief is said here without the runs: the page holds Sent's runs and says the head with them (today-head.tsx).
-    setSurfaceValue(
-      "today",
-      toTodayVM(metricsRes.metrics, convData.conversations, escData.escalations, calls, now, searches, {
-        heldThreads,
-      }),
-    );
+    lastHeld = {
+      metrics: metricsRes.metrics,
+      conversations: convData.conversations,
+      escalations: escData.escalations,
+      calls,
+      searches,
+      beside: { heldThreads },
+    };
+    publishToday(lastHeld, new Date());
     // Today publishes no count for the badge, the tabs, the title or the phone. It used to send one after every read
     // (metrics.now.escalations_open, then threadStanding alone, then the newest page alone, then threadsWaitingOnYou), each a
     // different number from the Inbox's chip, over the Inbox's own: a reply held in the Inbox's tab, before the cancel's
     // re-read, was the Inbox's alone, and whichever sent last was on screen. They all read one selector now (needs-you.ts);
     // the headline above keeps the wire rule for its threads (contracts threadsWaitingOnYou), which is the same rule.
+    // The day stands without the calls or the searches, and says so; the runner asks for them again (the wiring's second audit,
+    // S2-5: a read that lost part of itself counted as landed, and nothing asked again).
+    return callsRes instanceof Error || searchesRes instanceof Error ? "partial" : undefined;
   },
 };

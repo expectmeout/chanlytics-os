@@ -8,7 +8,8 @@
  */
 import { read } from "@/legacy-bridge/api";
 import { workspaceZone } from "@/legacy-bridge/zone";
-import { isLiveCallTurn, LEFT_THE_QUEUE } from "@/legacy-bridge/surface-realtime";
+import { deliveryTicksOnly, isLiveCallTurn, LEFT_THE_QUEUE } from "@/legacy-bridge/surface-realtime";
+import type { Output } from "@/client/api";
 import { declareReads } from "@/legacy-bridge/surface-registry";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { routeOnScreen } from "@/legacy-bridge/workspace";
@@ -56,6 +57,9 @@ export function conversationTabs(
   ];
 }
 
+/** The open holds and the calls as the last read answered them: what a read the receipts alone asked for keeps (S10-2). */
+let lastBeside: { holds: Output<"GET escalations">; calls: Output<"GET calls"> | Error } | null = null;
+
 export const conversationsOverride: SurfaceOverride = {
   key: "conversations",
   value: "conversations",
@@ -72,16 +76,19 @@ export const conversationsOverride: SurfaceOverride = {
     fresh: "live",
     when: (c) => !isLiveCallTurn(c),
   }),
-  apply: async () => {
+  apply: async (heard) => {
     // The open escalations too: a row's standing is the Inbox's rule over the thread AND its escalation
     // (contracts standingOf), and without the second this surface read an escalated thread as quiet. The Inbox
     // override reads the same two doors in the same tick, so the client's read-sharing window answers both once.
+    // A delivery's receipts move the rows' ticks alone: the holds and the calls are the last read's (S10-2), where it read them.
+    const kept = deliveryTicksOnly(heard) && lastBeside && !(lastBeside.calls instanceof Error) ? lastBeside : null;
     const [data, escData, callsRes, tz] = await Promise.all([
       read("GET conversations"),
-      read("GET escalations", { query: { state: "open" } }),
-      read("GET calls").catch((e: unknown) => e as Error),
+      kept?.holds ?? read("GET escalations", { query: { state: "open" } }),
+      kept?.calls ?? read("GET calls").catch((e: unknown) => e as Error),
       workspaceZone(),
     ]);
+    lastBeside = { holds: escData, calls: callsRes };
     const openByConv = new Map(escData.escalations.map((e) => [e.conversation_id, e]));
     // The chat or the call the address names, when it is older than the hundred each read holds (a bell row from last week,
     // an Activity line, a person's page, an Ask citation): read by its id, never looked for in the window (finding A2c).

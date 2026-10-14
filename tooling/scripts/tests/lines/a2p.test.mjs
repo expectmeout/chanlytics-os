@@ -662,8 +662,8 @@ test("the two waits are told apart, and the carriers answering rings once", () =
   );
   assert.match(
     edge,
-    /recordNotification\(line\.tenant_id,\s*\{\s*kind:\s*verdict\.kind/,
-    "the bell is the workspace's own row, addressed or not",
+    /if \(notice && !\(await keepOnce\(line\.tenant_id, notice\)\)\) return null;\s*await keepAnswer\(db, line, answer\);/,
+    "the bell is the workspace's own row, addressed or not, kept BEFORE the state moves: a bell that could not be kept leaves the change to be judged again (R11 S6-12)",
   );
 });
 

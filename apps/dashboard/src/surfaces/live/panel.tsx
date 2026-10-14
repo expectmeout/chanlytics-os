@@ -149,7 +149,10 @@ function panelHead({ c, elapsed, quietS, onBack = null }: HeadProps) {
           <div className="lm-head-meta">
             <span>Phone receptionist</span>
             <span className="cv-dot" />
-            {c.number ? (
+            {/* Their number rings from here, but not for someone on do-not-contact (consent mayRing, R11 S9-6). */}
+            {c.number && c.dnc ? (
+              <span className="tabular lm-head-tel">{c.number}</span>
+            ) : c.number ? (
               <a
                 className="tabular lm-head-tel"
                 href={`tel:${String(c.number).replace(/[^\d+]/g, "")}`}

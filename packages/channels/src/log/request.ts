@@ -20,6 +20,8 @@ interface Serving {
   tenantId?: string;
   /** What its time went on, by name (`noteTiming`): its database calls, each reader it read through. */
   timings?: Map<string, RequestTiming>;
+  /** The tables and SQL functions its database calls touched, each with how (`noteTouch`). */
+  touched?: Map<string, Set<string>>;
 }
 
 /** One name's share of a request's time: how long all of it took, and how many there were. */
@@ -78,4 +80,28 @@ export function noteTiming(name: string, ms: number): void {
 /** Where the request running now has spent its time so far, by name; none outside a request. */
 export function requestTimings(): ReadonlyMap<string, RequestTiming> {
   return serving.getStore()?.timings ?? new Map();
+}
+
+/** How many tables and functions one request keeps the touch of. */
+const TOUCHES_HELD = 64;
+
+/**
+ * A table one of the request's database calls touched, and how (`read`, `INSERT`, `UPDATE`, `DELETE`), or a SQL function it
+ * called (`rpc:<name>`, `call`): said by the database client after each call (packages/db observe.ts namedFetch). A sample of
+ * production's requests says them in their answered line, and what the trace of a route says it reads and writes
+ * (tooling/scripts/trace-routes.mjs) is held to them (decision 0058, the wiring's second audit, lane R7). Outside a request it
+ * does nothing, and it holds a few dozen at most: past that a new one is not kept.
+ */
+export function noteTouch(table: string, how: string): void {
+  const store = serving.getStore();
+  if (!store || !table) return;
+  const touched = (store.touched ??= new Map<string, Set<string>>());
+  const had = touched.get(table);
+  if (had) had.add(how);
+  else if (touched.size < TOUCHES_HELD) touched.set(table, new Set([how]));
+}
+
+/** The tables and functions the request running now has touched so far, each with how; none outside a request. */
+export function requestTouches(): ReadonlyMap<string, ReadonlySet<string>> {
+  return serving.getStore()?.touched ?? new Map();
 }

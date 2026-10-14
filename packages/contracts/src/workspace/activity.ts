@@ -607,8 +607,8 @@ const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base: string
 ]);
 
 /**
- * What an export took: the workspace's file is its customer record, not everything it holds (the wiring's second audit,
- * X1).
+ * What an export took: the workspace's file is its records, and says what it leaves out (contracts EXPORT_OF; the wiring's
+ * second audit, R14 X1), never "everything".
  */
 const exportedWords = (what: string): string =>
   what === "workspace" ? "the records" : what === "people" ? "everyone as a CSV" : `a ${what}`;

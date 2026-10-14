@@ -282,3 +282,25 @@ test("the Pipeline's table and phone card draw the same face as People's, for th
     assert.equal(glyphIn(faceIn(phoneCard.cell(row, ctx))), glyph, `the phone: ${name}`);
   }
 });
+
+test("the campaign preview's walk of people draws a person's face by the person rule, never two digits of a number (the wiring's second audit, R11 S9-4)", async () => {
+  fresh();
+  const { PreviewStepper } = await import(`${S}/surfaces/campaigns/parts/message-preview.tsx`);
+  for (const [label, glyph] of [
+    [NUMBER, "phone"],
+    [ADDRESS, "mail"],
+    ["Rosa Example", null],
+  ]) {
+    const tree = PreviewStepper({
+      people: [
+        { label, position: "1 of 2" },
+        { label: "Someone Else", position: "2 of 2" },
+      ],
+      index: 0,
+      onStep: () => {},
+    });
+    const face = faceIn(tree);
+    assert.deepEqual([face.props.person, face.props.initials], [{ name: label }, undefined], label);
+    assert.equal(glyphIn(face), glyph, label);
+  }
+});

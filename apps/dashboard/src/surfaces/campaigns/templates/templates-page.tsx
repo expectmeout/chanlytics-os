@@ -139,7 +139,8 @@ function MessagesReal() {
   const busy = doing !== null;
   // Who may add, change or remove a message: the role store's answer, View-as included.
   const canAct = canDo("approve");
-  const channels = settings ? settings.channels : undefined;
+  // The numbers, from the channels read (surfaces/channels/surface.ts): undefined while it is read, null where it failed.
+  const channels = useSurface("channels")?.rows;
   const hasWhatsApp = (channels || []).some((c) => c.kind === "whatsapp");
   const bizName = brainOf(settings ? settings.settings : undefined).business_name || null;
 

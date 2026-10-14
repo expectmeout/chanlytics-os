@@ -81,11 +81,26 @@ const SENT_PAGE = COMPOSER_PAGE.filter((table) => table !== "templates");
 const HEARD_BEFORE = {
   workspace: ["memberships", "tenants"],
   // And the Library's counts, what sends each message and how many it sent (W-campaign-run-template-reachout-2).
-  settings: ["tenant_config", "policies", "templates", "memberships", "invitations", "playbooks", "broadcasts"],
+  // And what the Business pane resolves its facts from, on its pages (R6: W-review-facts-rules-3, S1-4).
+  settings: [
+    "tenant_config",
+    "policies",
+    "templates",
+    "memberships",
+    "invitations",
+    "playbooks",
+    "broadcasts",
+    "tenant_channels",
+    "lines",
+    "google_listings",
+  ],
+  // The channel rows, read once for every page that draws a number (R6: W-channel-team-plus-1, S3-1, S10-9).
+  channels: ["tenant_channels"],
   notifications: ["notifications"],
   inbox: ["messages", "conversations", "escalations", "contacts"],
   // And the calls its Calls tab draws, not a transcript turn (X3-2).
   conversations: ["messages", "conversations", "escalations", "contacts", "calls"],
+  // And the mailbox its email chip draws (R6: W-channel-team-plus-3).
   today: [
     "messages",
     "conversations",
@@ -94,6 +109,7 @@ const HEARD_BEFORE = {
     "lead_rounds",
     "tenant_channels",
     "lines",
+    "mailboxes",
     "billing_accounts",
     "contacts",
   ],
@@ -118,6 +134,9 @@ const HEARD_BEFORE = {
     "reach_out_replies",
     // The runs a row's "Follow-up to approve" names (W-campaign-run-template-reachout-9).
     "broadcasts",
+    // The text line and the mailbox its reach is counted against (R6: S3-3, W-channel-team-plus-3).
+    "lines",
+    "mailboxes",
   ],
   leads: ["leads", "lead_searches", "lead_rounds", "lead_search_members"],
   // Task 3.2 adds the calls the report counts (not a transcript turn) and the hours its "while closed" counts by.
@@ -152,7 +171,8 @@ const HEARD_BEFORE = {
     // A template's verdict, which its tile counts (W-campaign-run-template-reachout-10).
     "templates",
   ],
-  live: ["calls", "tenant_channels"],
+  // Its line is the channels read's, which it follows (R6).
+  live: ["calls"],
   broadcasts: [...SENT_PAGE, "broadcasts"],
   playbooks: [...COMPOSER_PAGE, "broadcasts", "playbooks"],
   // And the rule that is a chain's mode (W-review-facts-rules-8).
@@ -163,7 +183,8 @@ const HEARD_BEFORE = {
   partner: [],
   alerts: [],
   // And the person a visit is (W-person-list-lead-6): an update of them, never a person made.
-  calendar: ["appointments", "appointment_notices", "tenant_config", "contacts"],
+  // And the mailbox the Business tab's forwarding code is kept on (R6: S4-4).
+  calendar: ["appointments", "appointment_notices", "tenant_config", "contacts", "mailboxes"],
   // The Calendar's campaign marks (its lane C): the runs, the campaigns, the classes' modes and the workspace's pause.
   calendar_runs: ["broadcasts", "playbooks", "policies", "tenants"],
   // Not the bell's rows, which Setup's read never read. And what its rows state (the wiring's second audit, S4-3, S3-6,
@@ -178,6 +199,7 @@ const HEARD_BEFORE = {
     "google_connections",
     "calls",
     "mailbox_connections",
+    "mailboxes",
     "memberships",
     "invitations",
     "templates",
@@ -220,6 +242,9 @@ const ON_ITS_PAGE_BEFORE = {
     "leads",
     // The runs a row's follow-up names (W-campaign-run-template-reachout-9).
     "broadcasts",
+    // The text line and the mailbox its reach is counted against (R6).
+    "lines",
+    "mailboxes",
   ],
   broadcasts: SENT_PAGE,
   playbooks: COMPOSER_PAGE,
@@ -232,8 +257,11 @@ const ON_ITS_PAGE_BEFORE = {
   campaign_results: HEARD_BEFORE.campaign_results,
   person: HEARD_BEFORE.person,
   calendar_runs: HEARD_BEFORE.calendar_runs,
-  // The Library's counts, on the Library and Settings' panes (W-campaign-run-template-reachout-2).
-  settings: ["playbooks", "broadcasts"],
+  // The Library's counts, on the Library and Settings' panes (W-campaign-run-template-reachout-2), and the Business pane's facts
+  // (R6).
+  settings: ["playbooks", "broadcasts", "tenant_channels", "lines", "google_listings"],
+  // A search's rows and strip, on Leads' scope (S10-5).
+  leads: HEARD_BEFORE.leads,
   // What Setup's rows state, on Start and Today's card (S4-3).
   setup: [
     "templates",
@@ -270,7 +298,7 @@ const ROUTES = [
   "clients/0b9c4f6e-1d2a-4c3b-9e8f-7a6b5c4d3e2f/history",
 ];
 /** The Campaigns lens hears the feed on the lens alone, though the Overview draws the surface too; the Library is Settings' page. */
-const HOME = { reports_campaigns: "reports/campaigns", settings: "messages" };
+const HOME = { reports_campaigns: "reports/campaigns", settings: "messages", leads: "clients/leads" };
 /** The first route that owns every table the surface hears on its page alone: its own page, not one that owns some kinds of it. */
 const homeOf = (o) =>
   HOME[o.key] ?? ROUTES.find((route) => (o.refreshOnTables ?? []).every((table) => ownsTable(o.key, table, route)));

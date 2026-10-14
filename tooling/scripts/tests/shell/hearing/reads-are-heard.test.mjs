@@ -66,6 +66,7 @@ const { watchedEvents, watchedTables } = await importSrc("packages/db/src/realti
 const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
 const { AFTER, REFRESHES_NOTHING } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
 const { PAGE_HEARS, PERSON_ROUTE } = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+const { setSurfaceValue, surfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 
 /** Every surface the shell registers (LegacyApp.tsx), with the module that holds its override, as the shell imports it. */
 const SURFACES = registeredSurfaces();
@@ -390,6 +391,37 @@ test("what a group says re-reads its pages does: each write's row names the surf
   }
 });
 
+/** A route key as a pattern that matches it in prose and not inside a longer key: "PUT me" is not "PUT me/alerts". */
+const keyPattern = (key) =>
+  new RegExp(`(?<![\\w/\\[\\]-])${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w/\\[\\]-])`);
+
+/** Whether a write's row, made on a page that draws none of it, drops what the surface held: a period read it forgets. */
+function forgets(write, surface) {
+  const was = globalThis.location.hash;
+  setSurfaceValue(surface, { held: true });
+  globalThis.location.hash = "#/admin/profile";
+  try {
+    AFTER[write]();
+    return surfaceValue(surface) === undefined;
+  } finally {
+    setSurfaceValue(surface, undefined);
+    globalThis.location.hash = was;
+  }
+}
+
+test("a reason that names a write of the refresh map is true of every surface its group holds: the row names each, from some page, or forgets what it held (W-visit-deal-4)", () => {
+  // The workspace row's group said "PATCH workspaces re-reads the pages that draw them" of fifteen surfaces, and the row read nine:
+  // a reason is held to the row it names, so a claim nobody wrote down as `rereadAfter` is checked all the same.
+  const writes = Object.keys(AFTER);
+  for (const group of baseline.groups)
+    for (const write of writes.filter((w) => keyPattern(w).test(group.why)))
+      for (const surface of Object.keys(group.reads))
+        assert.ok(
+          rereadAnywhere(write).has(surface) || forgets(write, surface),
+          `${surface}: its group's reason names ${write}, whose row neither reads it nor forgets it: say what reads it again, or move it to a group that does not name the write`,
+        );
+});
+
 test("the owed reads are counted in the file, and the count may only fall", () => {
   const now = owedPairs(baseline.groups);
   assert.ok(Number.isInteger(baseline.owed), `${FILE} says how many reads are owed`);
@@ -487,6 +519,8 @@ const NOT_READ = {
     "channelChange() names the Campaigns lens for the connected number's health; a settings save writes tenant_config (the hours, the postal address), which the lens does not read. Premature. Owed: drop reportsCampaigns() from settingsWrite, with CAMPAIGNS_WRITES in refresh-coverage.test.mjs.",
   "POST settings/receptionist -> reports_campaigns":
     "channelChange() names the Campaigns lens for the connected number's health; the first receptionist writes tenant_config (the hours, the postal address), which the lens does not read. Premature. Owed: drop reportsCampaigns() from settingsWrite, with CAMPAIGNS_WRITES in refresh-coverage.test.mjs.",
+  "PATCH workspaces -> calendar":
+    "The board's times and its 'today' are the workspace's zone, which the calendar's read takes through tenantFacts (server/tenant.ts, by readers/facts.ts), a file the trace leaves to the wrapper (WRAPPER: every route reads the caller's seat through it), so it finds no read of tenants under GET calendar. The read is real: a zone saved left the board on the old one's times for up to five minutes (W-visit-deal-4). Owed: the trace enters tenantFacts where a reader calls it.",
   "POST calendar/visits/[id] -> reports_people":
     "visits() names the People lens with the other readers of a visit; the lens's read (GET reports/people) reads no appointment. Premature. Owed: drop reportsPeople() from visits(), with its assertions in a-visit-reaches-every-reader.test.mjs.",
 };

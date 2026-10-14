@@ -8,18 +8,16 @@
  * read that failed draws nothing of it, never a line it did not read. Who may press is the role store's answer (canDo
  * "approve", and the role gate).
  */
-import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useEffect, useMemo, useReducer, useState } from "react";
 import type { LeadPeekVM, ReachOutLeadTimelineDto, ReachOutLeadsDto } from "@chanlytics/contracts";
 import { replies } from "@/legacy-bridge/reach-out/replies";
+import { useReadAgain } from "../../campaigns/reach-out/read-again";
 import { reachOuts } from "../../campaigns/reach-out/surface";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { canDo, gate, navigate, refusalToast, useLegacyToast } from "../../legacy-verbs";
 import { LeadStrip } from "../finder/strip-view";
 import type { Flash } from "../peek/types";
-
-/** The search's lines are read again at most this often when the leads themselves are read again. */
-const RO_LEADS_REREAD_MS = 30_000;
 
 /** An open search's reach-out: its read, and each lead's line under its stage. */
 export interface ReachOutLines {
@@ -28,24 +26,18 @@ export interface ReachOutLines {
 }
 
 /**
- * An open search's reach-out: its lines, read when the search opens, again when the leads are read again (at most every
- * thirty seconds) and at once after a door here moved something. Null while there is none, or it could not be read.
- * Answers the lines with `lineOf(leadId)`, the Stage cell's words.
+ * An open search's reach-out: its lines, read when the search opens, again as Leads or the reach-outs move (a reply read, a
+ * run sent: read-again.ts, at most every thirty seconds and once more at the window's end, so the last of a burst is read;
+ * the wiring's second audit, W-campaign-run-template-reachout-8), and at once after a door here moved something. Null while
+ * there is none, or it could not be read. Answers the lines with `lineOf(leadId)`, the Stage cell's words.
  */
 export const useReachOutLeads = (searchId: string | null): ReachOutLines | null => {
   const [dto, setDto] = useState<ReachOutLeadsDto | null>(null);
   const [tick, bump] = useReducer((n: number) => n + 1, 0);
-  const readAt = useRef(0);
+  const moved = useReadAgain(searchId);
   useEffect(() => {
-    const again = () => {
-      if (Date.now() - readAt.current >= RO_LEADS_REREAD_MS) bump();
-    };
-    window.addEventListener("surface:leads", again);
     window.addEventListener("reach_out:leads", bump);
-    return () => {
-      window.removeEventListener("surface:leads", again);
-      window.removeEventListener("reach_out:leads", bump);
-    };
+    return () => window.removeEventListener("reach_out:leads", bump);
   }, []);
   // Another search: nothing of the last one's stands while this one's is read.
   useEffect(() => {
@@ -54,14 +46,14 @@ export const useReachOutLeads = (searchId: string | null): ReachOutLines | null 
   useEffect(() => {
     if (!searchId) return undefined;
     let live = true;
-    readAt.current = Date.now();
+    // A read again that fails keeps the lines it read; another search's were let go above.
     void reachOuts.leadLines(searchId).then((d) => {
-      if (live) setDto(d && d.lines ? d : null);
+      if (live && d) setDto(d.lines ? d : null);
     });
     return () => {
       live = false;
     };
-  }, [searchId, tick]);
+  }, [searchId, tick, moved]);
   return useMemo(() => {
     if (!dto || !dto.lines) return null;
     const byLead = new Map(dto.lines.leads.map((l) => [l.lead_id, l]));
@@ -126,6 +118,8 @@ export const LeadReachOut = ({ lead, flash }: { lead: LeadPeekVM | null; flash: 
   const leadId = lead ? lead.id : null;
   const [story, setStory] = useState<ReachOutLeadTimelineDto | null>(null);
   const [tick, bump] = useReducer((n: number) => n + 1, 0);
+  // Its story follows the business as the lines do: a reply read, a send gone (read-again.ts).
+  const moved = useReadAgain(leadId);
   const [sure, setSure] = useState(false);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -137,7 +131,7 @@ export const LeadReachOut = ({ lead, flash }: { lead: LeadPeekVM | null; flash: 
     return () => {
       live = false;
     };
-  }, [leadId, tick]);
+  }, [leadId, tick, moved]);
   if (!lead || !story || !story.chain || story.lead_id !== leadId) return null;
   const vm = reachOuts.timelineOf(story);
   // Where it stands, the one line every page says (00426): what is next, or what its answer did.

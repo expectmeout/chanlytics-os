@@ -12,7 +12,9 @@ import { RECORDING_PURGED_WORDS, RECORDING_RETENTION_DAYS } from "../workspace/r
 import { initialsOf, shortName } from "./thread-contact";
 import { shortTime } from "./thread-clock";
 import {
+  CALL_OUTCOME_WORDS,
   abandonedCall,
+  callAttemptWords,
   endedHowOf,
   neverConnected,
   reachedVoicemail,
@@ -245,4 +247,30 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
     ),
     notes,
   };
+}
+
+/**
+ * How a call ended, in the one word the pages say it with (CALL_OUTCOME_WORDS over callOutcomeFor, as a person's History
+ * says it), a dial that never connected by who dialled it (callAttemptWords): "Call didn't connect" for one the
+ * receptionist placed, "Missed call" for a customer's. Ask's reads said the stored status ("not_connected") where the
+ * pages say the word (the wiring's second audit, R13 X5-7).
+ */
+export function callEndedWords(
+  dto: Pick<
+    CallDto,
+    | "direction"
+    | "status"
+    | "duration_ms"
+    | "disconnection_reason"
+    | "in_voicemail"
+    | "outcome"
+    | "updated_at"
+    | "started_at"
+  >,
+  now = new Date(),
+): string {
+  const outcome = callOutcomeFor(dto, isLiveCall(dto, now));
+  return outcome === "missed"
+    ? callAttemptWords(dto.direction === "outbound" ? "outbound" : "inbound")
+    : CALL_OUTCOME_WORDS[outcome];
 }

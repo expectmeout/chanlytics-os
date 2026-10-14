@@ -24,7 +24,7 @@
  * (Retry-After), answered a rate limit, not answered at all or refused the key, the tick stops asking; a 5xx that did
  * answer may be one row's own, so the next row is still asked.
  *
- * One tick runs four bounded legs, so a backlog drains over successive runs:
+ * One tick runs five bounded legs, so a backlog drains over successive runs:
  *   1. Recordings past RECORDING_RETENTION_DAYS are removed from the media bucket and their rows marked purged
  *      (purgeExpiredRecordings). It runs before the provider is asked because it needs the bucket, not Retell: a
  *      deployment without the key still keeps the promise the privacy page makes. A removal that fails marks nothing
@@ -36,12 +36,18 @@
  *      provider (copyRecording). Every real try is counted on the row and after RECORDING_MAX_ATTEMPTS it is marked
  *      failed and stops being a candidate; a provider, CDN or bucket that could not answer spends none until
  *      RECORDING_DEFER_LIMIT_MS after the call ended.
- *   4. A call that ended, or errored, with no analysis still gets its line in the customer's thread (recordCallNote,
+ *   4. A call whose owner was never told (no notice claimed on its row), with no analysis yet or one that asked for a
+ *      call back, is asked of the provider from ANALYSIS_GRACE_MS after it ended for SETTLE_FOR_MS; once the provider
+ *      has the analysis, the webhook's own second half runs on it (settleCall), the hold and the owner's notice with
+ *      it, the claim keeping the notice to once. A caller who asked to be called back was dropped when the "call
+ *      analysed" delivery was lost (the wiring's second audit, R11 S11-3). A stale call the provider says has ended
+ *      with its analysis is settled the same way (leg 2).
+ *   5. A call that ended, or errored, with no analysis still gets its line in the customer's thread (recordCallNote,
  *      once per call, linked back by linkCallMessage) after NOTE_GRACE_MS, which is the webhook's time to write it
  *      with the summary.
  *
  * Called by pg_cron every five minutes ('call-reconcile', 00020) through trigger_call_reconcile, which since 00149
- * wakes the edge only when the calls table owes one of those four things, through request_sweep with the Vault sweep
+ * (and 00433, for leg 4) wakes the edge only when the calls table owes one of those things, through request_sweep with the Vault sweep
  * key in x-cron-key (authorizeCron), waiting 65 s, past this function's own 60. The request is recorded in
  * sweep_status and sweep_health() judges the edge's answer (registered in 00107): anything but a 2xx is an unhealthy
  * clock, a quiet line is not.
@@ -59,9 +65,19 @@ import {
   normalizeCall,
   callSummaryLine,
   type NormalizedCall,
+  type RetellCall,
   type RetellCallRead,
 } from "../packages/channels.js";
-import { ingestCall, recordCallNote, linkCallMessage, setCallRecording } from "../packages/db.js";
+import {
+  callsOwedAnAnalysis,
+  ingestCall,
+  recordCallNote,
+  linkCallMessage,
+  resolveChannelDetailed,
+  setCallRecording,
+} from "../packages/db.js";
+import { ABANDONED_MS, ANALYSIS_GRACE_MS, HOUR_MS } from "../packages/contracts.js";
+import { settleCall } from "./call-webhook.js";
 import {
   copyRecording,
   purgeExpiredRecordings,
@@ -86,6 +102,17 @@ const OVERLONG_MS = 30 * 60 * 1000;
 const NOTE_GRACE_MS = 15 * 60 * 1000;
 
 const MAX_NOTES_PER_TICK = 10;
+
+/**
+ * A call is asked for its analysis from contracts ANALYSIS_GRACE_MS after it ended, the time the provider takes to
+ * deliver it (the pages say "no summary" as a fact about the clock until then), and for no longer than this: a call the
+ * provider never analyses is not asked about every five minutes all day. The window bounds the probe without a count
+ * on the row; trigger_call_reconcile holds the same (00433).
+ */
+const SETTLE_FOR_MS = 2 * HOUR_MS;
+
+/** Calls asked for their analysis per tick: each is one provider read, and a settle is the webhook's whole plan. */
+const MAX_SETTLES_PER_TICK = 5;
 
 /** A bound per tick. A backlog drains over successive runs rather than turning
  *  one cron tick into a hundred sequential API calls. */
@@ -188,7 +215,84 @@ async function reconcileStale(leg: ProviderLeg, stale: StaleCall[]) {
       } else {
         counts.closed++;
       }
+      // Both deliveries lost: a call that has ended with its analysis is settled as the webhook would have settled it,
+      // the hold and the owner's notice with it (R11 S11-3); anything else is re-ingested, as ever.
+      if (n.status !== "ongoing" && read.call.call_analysis && (await settleAnalysed(db, read.call, L)) === "settled")
+        continue;
       await ingestCall(db, row.tenant_id, n, read.call);
+    } catch (e) {
+      // One bad row must not abandon the rest of the batch.
+      L.error("calls_sweep_row_failed", { call: row.retell_call_id, error: errField(e) });
+    }
+  }
+  return counts;
+}
+
+/**
+ * The webhook's second half on a call the provider has analysed (settleCall), routed as the webhook routes it: by the
+ * agent the call names. One that routes nowhere, or whose routing could not be read, is left for the next tick; a settle
+ * the database refused throws, so the row stays owed.
+ */
+async function settleAnalysed(db: ProviderLeg["db"], call: RetellCall, L: Logger): Promise<"settled" | "unroutable"> {
+  const routing = call.agent_id ? await resolveChannelDetailed(db, "voice", call.agent_id) : null;
+  if (!routing?.channel) {
+    L.warn("calls_sweep_settle_unroutable", {
+      call: call.call_id,
+      lookup_failed: routing?.lookupFailed ?? false,
+    });
+    return "unroutable";
+  }
+  const settled = await settleCall(db, routing.channel, {
+    event: "call_analyzed",
+    call,
+    bodyKeys: [],
+    callKeys: Object.keys(call),
+  });
+  if (settled.kind === "ingest_failed" || settled.kind === "erasure_unreadable")
+    throw new Error(`the call could not be settled: ${settled.kind}`);
+  return "settled";
+}
+
+/**
+ * Leg 4: the calls whose owner was never told (see the header), oldest first, each asked of the provider and settled once
+ * it has the analysis. One the provider has no analysis for yet is asked again next tick, until SETTLE_FOR_MS after it
+ * ended.
+ */
+async function settleUnanalysed(leg: ProviderLeg) {
+  const { db, apiKey, provider, L } = leg;
+  const counts = { candidates: 0, settled: 0, notYet: 0, unroutable: 0, deferred: 0 };
+  let owed;
+  try {
+    owed = await callsOwedAnAnalysis(db, {
+      nowMs: Date.now(),
+      fromMs: ANALYSIS_GRACE_MS,
+      toMs: SETTLE_FOR_MS,
+      minMs: ABANDONED_MS,
+      limit: MAX_SETTLES_PER_TICK,
+    });
+  } catch (e) {
+    L.error("calls_sweep_settle_query_failed", { error: errField(e) });
+    return counts;
+  }
+  for (const row of owed) {
+    counts.candidates++;
+    if (provider.hold) {
+      counts.deferred++;
+      continue;
+    }
+    try {
+      const read = await getCall({ apiKey }, row.retell_call_id);
+      if (read.kind === "unavailable" || read.kind === "auth") {
+        noteProvider(provider, read);
+        counts.deferred++;
+        continue;
+      }
+      // Unknown to it, or not analysed yet: asked again next tick, inside the window.
+      if (read.kind === "not_found" || !read.call.call_analysis) {
+        counts.notYet++;
+        continue;
+      }
+      counts[await settleAnalysed(db, read.call, L)]++;
     } catch (e) {
       // One bad row must not abandon the rest of the batch.
       L.error("calls_sweep_row_failed", { call: row.retell_call_id, error: errField(e) });
@@ -337,6 +441,7 @@ export async function sweepCalls({ db, L }: SweepTick): Promise<Response> {
   const leg: ProviderLeg = { db, apiKey, provider, L };
   const { closed, stillLive, unknown, deferred } = await reconcileStale(leg, stale ?? []);
   const recordings = await retryRecordings(leg);
+  const settles = await settleUnanalysed(leg);
 
   // ---- calls that ended without an analysis still get a line in the thread ----
   // The webhook writes the customer-thread note when the summary exists;
@@ -383,12 +488,12 @@ export async function sweepCalls({ db, L }: SweepTick): Promise<Response> {
       status: provider.unavailableStatus,
       retry_after_ms: provider.retryAfterMs,
       hold: provider.hold,
-      deferred: deferred + recordings.deferred,
+      deferred: deferred + recordings.deferred + settles.deferred,
     });
   if (provider.keyRefused !== null)
     L.error("calls_sweep_provider_refused_key", {
       status: provider.keyRefused,
-      deferred: deferred + recordings.deferred,
+      deferred: deferred + recordings.deferred + settles.deferred,
     });
   L.info("calls_sweep_done", {
     candidates: stale?.length ?? 0,
@@ -397,10 +502,11 @@ export async function sweepCalls({ db, L }: SweepTick): Promise<Response> {
     unknown,
     deferred,
     recordings: JSON.stringify(recordings),
+    settles: JSON.stringify(settles),
     notes: JSON.stringify(notes),
     purge: JSON.stringify(purge),
   });
-  const counts = { candidates: stale?.length ?? 0, closed, stillLive, unknown, deferred, recordings, notes };
+  const counts = { candidates: stale?.length ?? 0, closed, stillLive, unknown, deferred, recordings, settles, notes };
   // A purge that failed is the privacy page's ninety days not being kept, so
   // once the other legs have had their turn the answer says so: pg_net records
   // it and sweep_health() judges it (00149). The purge goes first, inside the

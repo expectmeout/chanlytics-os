@@ -39,7 +39,7 @@ export async function exportConversation(ctx: RouteContext & { params: Params },
   for (let page = 0; ; page++) {
     const { data, error: merr } = await supabase
       .from("messages")
-      .select("id, direction, sender, type, body, media, meta, created_at, status, channel_ts")
+      .select("id, direction, sender, type, body, media, meta, created_at, status, channel_ts, channel")
       .eq("conversation_id", id)
       .order("created_at", { ascending: true })
       .order("id", { ascending: true })
@@ -58,6 +58,8 @@ export async function exportConversation(ctx: RouteContext & { params: Params },
         status: m.status,
         created_at: m.created_at,
         channel_ts: m.channel_ts,
+        // The wire it travelled, which the file says (R14 X4): a person's one thread holds every channel they wrote on.
+        ...(m.channel ? { channel: m.channel } : {}),
       });
     }
     if (data.length < THREAD_EXPORT_PAGE) break;

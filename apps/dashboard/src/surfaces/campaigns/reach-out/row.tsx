@@ -10,9 +10,9 @@
  * own (Campaigns' home drawer, whose modal holds the page behind it, the record sheet included) the host takes the press
  * (`onEdit`) and opens the sheet at an address of its own, in the drawer's place; with no host the pane draws it itself.
  */
-import { Fragment, useEffect, useReducer, useState } from "react";
+import { Fragment, useEffect, useReducer, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { lifecycleChainStateOf } from "@chanlytics/contracts";
+import { chainResumeOf, lifecycleChainStateOf } from "@chanlytics/contracts";
 import type { ReachOutChainDto, ReachOutChainReportDto, ReachOutReachDto } from "@chanlytics/contracts";
 import type { ApiRefusal } from "@/client/api";
 import { canDo, gate, gateTitle, navigate, refusalToast } from "../../legacy-verbs";
@@ -23,8 +23,10 @@ import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { StatePill } from "../../kit/pill/state-pill";
 import { CmPane, useCmPhone } from "../parts/split";
+import { ResumePress, ResumeQuestion, useResumeAsk } from "../home/ledger/ledger-acts";
 import { reachOuts } from "./surface";
 import { ReachOutPeople } from "./people";
+import { useReadAgain } from "./read-again";
 import { ReachOutSheet } from "./sheet";
 
 type Words = typeof reachOuts.words;
@@ -40,28 +42,37 @@ type ReportRead =
 
 /**
  * A chain's report and its search's reach, read when a row of it opens (this one, or a Templates email row), or why they
- * could not be read; and the retry that reads them again.
+ * could not be read; and the retry that reads them again. While it is open it follows the chain: a reply read, a run made
+ * or sent, a lead's stage (read-again.ts; the wiring's second audit, W-campaign-run-template-reachout-8), read behind the
+ * report it shows, which a read again that fails leaves standing.
  */
 export function useReachOutReport(rootId: string, open: boolean): [ReportRead | null, () => void] {
   const [read, setRead] = useState<ReportRead | null>(null);
   const [tries, retry] = useReducer((n: number) => n + 1, 0);
+  const moved = useReadAgain(open ? rootId : null);
+  // The chain whose report is on screen: read again behind it, where any other read says it is reading.
+  const shown = useRef<string | null>(null);
   useEffect(() => {
     if (!open) return undefined;
     let live = true;
-    setRead({ state: "reading" });
+    const behind = shown.current === rootId;
+    if (!behind) setRead({ state: "reading" });
     reachOuts.report(rootId).then(
       (r) => {
-        if (live)
-          setRead(r && r.ok ? { state: "ok", report: r.data.report, reach: r.data.reach } : { state: "failed" });
+        if (!live) return;
+        if (r && r.ok) {
+          shown.current = rootId;
+          setRead({ state: "ok", report: r.data.report, reach: r.data.reach });
+        } else if (!behind) setRead({ state: "failed" });
       },
       () => {
-        if (live) setRead({ state: "failed" });
+        if (live && !behind) setRead({ state: "failed" });
       },
     );
     return () => {
       live = false;
     };
-  }, [rootId, open, tries]);
+  }, [rootId, open, tries, moved]);
   return [read, retry];
 }
 
@@ -178,6 +189,9 @@ function ReachOutActs({ chain, said, W, flash, onEdit, onGone, foot = false }: A
   const [busy, setBusy] = useState(false);
   const [sure, setSure] = useState(false);
   const paused = chain.state !== "running";
+  // Resume asks first, in the list's words (contracts chainResumeOf; the wiring's second audit, R11 S9-2); Pause is a press.
+  const resume = paused ? chainResumeOf(chain) : null;
+  const ask = useResumeAsk();
   const act = async (fn: () => Promise<Answer>, words: string) => {
     if (busy) return;
     setBusy(true);
@@ -213,6 +227,8 @@ function ReachOutActs({ chain, said, W, flash, onEdit, onGone, foot = false }: A
           onNo={() => setSure(false)}
           testid="ro-remove"
         />
+      ) : resume && ask.asking ? (
+        <ResumeQuestion act={resume} ask={ask} onAct={() => void toggle()} testid="ro-toggle" />
       ) : (
         <>
           {/* A secondary act: out of sight for a role that may not change the chain (legacy/CLAUDE.md, Role gates). */}
@@ -221,15 +237,24 @@ function ReachOutActs({ chain, said, W, flash, onEdit, onGone, foot = false }: A
               {RW.edit}
             </Button>
           )}
-          <Button
-            size="sm"
-            disabled={busy}
-            onClick={toggle}
-            data-testid="ro-toggle"
-            {...gate("approve", paused ? "resume a reach-out" : "pause a reach-out")}
-          >
-            {paused ? RW.resume : RW.pause}
-          </Button>
+          {resume ? (
+            <ResumePress
+              act={resume}
+              ask={ask}
+              gated={{ disabled: busy, ...gate("approve", "resume a reach-out") }}
+              testid="ro-toggle"
+            />
+          ) : (
+            <Button
+              size="sm"
+              disabled={busy}
+              onClick={toggle}
+              data-testid="ro-toggle"
+              {...gate("approve", "pause a reach-out")}
+            >
+              {RW.pause}
+            </Button>
+          )}
           {/* Removed only before its first email goes (R16): after that it is paused, and its history stays. */}
           {said && said.canRemove && (
             <LinkButton

@@ -143,3 +143,11 @@ test("REGRESSION (the wiring's second audit, X3-1): a call that reached them is 
   assert.deepEqual(PersonCallSchema.parse(body), body);
   assert.equal(PersonCallSchema.safeParse({ outcome: "spoke", closes_call_back: "yes" }).success, false);
 });
+
+test("someone on do-not-contact is never rung from their page, by their own number or the listing's, and a call already made is still logged (the wiring's second audit, R11 S9-6)", () => {
+  const own = personCallOf({ phone: "+1 (512) 555-0199", standIn: false, business: null, dnc: true });
+  assert.equal(own.rings, false, "no Call: the Pipeline and the acts refuse them already");
+  assert.ok(own.outcomes.length > 0, "the question for a call already made stands");
+  assert.equal(personCallOf({ phone: null, standIn: true, business: at(true), dnc: true }).rings, false);
+  assert.equal(personCallOf({ phone: "+15125550199", standIn: false, business: null, dnc: false }).rings, true);
+});

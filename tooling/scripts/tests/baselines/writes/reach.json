@@ -1,0 +1,1819 @@
+{
+  "rows": 119,
+  "same": 2,
+  "differ": 117,
+  "writes": {
+    "DELETE capabilities/[kind]": {
+      "changes": "capability_activations UPDATE"
+    },
+    "DELETE contacts/[id]": {
+      "changes": "appointment_notices UPDATE · appointments UPDATE · ask_messages DELETE UPDATE · ask_threads DELETE UPDATE · calls DELETE · contacts UPDATE · conversations DELETE · messages DELETE · person_notes UPDATE · policies DELETE",
+      "tells": "contacts",
+      "missing": {
+        "calendar": "every page",
+        "calendar_runs": "calendar",
+        "channels": "admin/integrations, broadcasts, campaigns, live, messages, outbound, today",
+        "google": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, segments, start, today",
+        "live": "every page",
+        "person": "clients/person",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "every page",
+        "reports_reviews": "reports/reviews",
+        "settings": "every page"
+      }
+    },
+    "DELETE google/connection": {
+      "changes": "",
+      "doors": "google_connections · google_listings · google_reviews · notifications",
+      "door": {
+        "google": "every page",
+        "settings": "every page",
+        "setup": "every page"
+      }
+    },
+    "DELETE google/link": {
+      "changes": "",
+      "doors": "google_connections · google_listings · google_reviews · notifications",
+      "door": {
+        "google": "every page",
+        "settings": "every page",
+        "setup": "every page"
+      }
+    },
+    "DELETE lead-searches/[id]": {
+      "changes": "lead_operations INSERT · lead_rounds UPDATE · lead_search_members UPDATE · lead_searches UPDATE · notifications INSERT UPDATE",
+      "tells": "lead_rounds · notifications",
+      "extra": {
+        "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
+      },
+      "missing": {
+        "campaign_results": "campaigns",
+        "notifications": "every page",
+        "person": "clients/person",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports_campaigns": "reports, reports/campaigns",
+        "today": "every page"
+      }
+    },
+    "DELETE leads/[id]": {
+      "changes": "contacts UPDATE · lead_places DELETE · lead_preferences UPDATE · lead_search_members UPDATE · lead_suppressions INSERT · leads UPDATE · reach_out_sends UPDATE",
+      "tells": "contacts",
+      "extra": {
+        "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
+      },
+      "missing": {
+        "broadcasts": "broadcasts, campaigns, inbox, today",
+        "calendar": "every page",
+        "campaign_results": "campaigns",
+        "conversations": "every page",
+        "inbox": "every page",
+        "live": "live, start, today",
+        "people": "clients, segments",
+        "person": "clients/person",
+        "playbooks": "broadcasts, campaigns, messages, outbound, today",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_campaigns": "reports, reports/campaigns",
+        "reports_headline": "today",
+        "reports_people": "reports/people",
+        "reports_receptionist": "reports/receptionist",
+        "setup": "admin/integrations, clients/leads, leads, start, today",
+        "today": "every page"
+      }
+    },
+    "DELETE mailbox-connections/[id]": {
+      "changes": "",
+      "doors": "mailbox_connections · notifications",
+      "door": {
+        "setup": "every page"
+      }
+    },
+    "DELETE people/[id]/business": {
+      "changes": "contacts UPDATE",
+      "tells": "contacts",
+      "extra": {
+        "leads": "every page",
+        "people": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, start, today",
+        "reports_campaigns": "reports"
+      },
+      "missing": {
+        "broadcasts": "broadcasts, campaigns",
+        "calendar": "every page",
+        "campaign_results": "campaigns",
+        "live": "live, start, today",
+        "person": "clients/person",
+        "playbooks": "campaigns, outbound",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_people": "reports/people",
+        "setup": "start, today"
+      }
+    },
+    "DELETE playbooks/[id]": {
+      "changes": "playbooks DELETE",
+      "extra": {
+        "broadcasts": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, calendar, clients, clients/leads, clients/person, conversations, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start",
+        "people": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, start, today"
+      },
+      "missing": {
+        "campaign_results": "campaigns",
+        "leads": "clients/leads, leads",
+        "person": "clients/person",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "every page",
+        "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/team, admin/workspace, campaigns, messages"
+      }
+    },
+    "DELETE reach-outs/[id]": {
+      "changes": "broadcasts UPDATE · playbooks DELETE · templates UPDATE",
+      "tells": "templates",
+      "extra": {
+        "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
+      },
+      "missing": {
+        "calendar_runs": "calendar",
+        "campaign_results": "campaigns",
+        "people": "clients, segments",
+        "person": "clients/person",
+        "reach_out_replies": "inbox, today",
+        "reports_campaigns": "reports, reports/campaigns",
+        "settings": "every page",
+        "setup": "start, today"
+      }
+    },
+    "DELETE segments/[id]": {
+      "changes": "playbooks UPDATE · segments DELETE UPDATE",
+      "missing": {
+        "calendar_runs": "calendar",
+        "campaign_results": "campaigns",
+        "leads": "clients/leads, leads",
+        "person": "clients/person",
+        "playbooks": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, calendar, clients, clients/leads, clients/person, conversations, inbox, leads, live, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "every page",
+        "reports_campaigns": "reports, reports/campaigns",
+        "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/team, admin/workspace, campaigns, messages"
+      }
+    },
+    "DELETE team/[id]": {
+      "changes": "conversations UPDATE · invitations UPDATE · memberships DELETE",
+      "missing": {
+        "alerts": "admin/notifications",
+        "broadcasts": "broadcasts, campaigns, inbox, today",
+        "calendar": "admin/workspace, calendar, today",
+        "campaign_results": "campaigns",
+        "conversations": "every page",
+        "inbox": "every page",
+        "leads": "clients/leads, leads",
+        "people": "clients, clients/person, segments, today",
+        "person": "clients/person",
+        "playbooks": "broadcasts, campaigns, messages, outbound, today",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_campaigns": "reports, reports/campaigns",
+        "reports_headline": "today",
+        "reports_people": "reports/people",
+        "reports_receptionist": "reports/receptionist",
+        "setup": "every page",
+        "today": "every page",
+        "workspace": "every page"
+      }
+    },
+    "DELETE templates/[id]": {
+      "changes": "",
+      "doors": "templates",
+      "door": {
+        "settings": "every page"
+      }
+    },
+    "DELETE templates/versions/[id]": {
+      "changes": "templates DELETE",
+      "extra": {
+        "playbooks": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, clients, clients/leads, clients/person, conversations, inbox, leads, live, messages, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today",
+        "reach_outs": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, clients, clients/leads, clients/person, conversations, inbox, leads, live, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
+      },
+      "missing": {
+        "broadcasts": "broadcasts, campaigns, inbox, today",
+        "people": "clients, segments",
+        "reports_campaigns": "reports/campaigns",
+        "setup": "start, today"
+      }
+    },
+    "DELETE workspaces/logo": {
+      "changes": "tenants UPDATE",
+      "tells": "tenants",
+      "missing": {
+        "broadcasts": "broadcasts, campaigns, inbox, today",
+        "calendar_runs": "calendar",
+        "campaign_results": "campaigns",
+        "leads": "clients/leads, leads",
+        "people": "clients, clients/person, segments, today",
+        "person": "clients/person",
+        "playbooks": "broadcasts, campaigns, messages, outbound, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_campaigns": "reports, reports/campaigns",
+        "reports_headline": "today",
+        "reports_people": "reports/people",
+        "reports_receptionist": "reports/receptionist",
+        "reports_reviews": "reports/reviews",
+        "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/team, admin/workspace, broadcasts, campaigns, clients/leads, leads, messages, outbound, start",
+        "today": "today"
+      }
+    },
+    "PATCH lead-searches/[id]": {
+      "changes": "lead_searches UPDATE",
+      "extra": {
+        "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
+      },
+      "missing": {
+        "campaign_results": "campaigns",
+        "person": "clients/person",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports_campaigns": "reports, reports/campaigns"
+      }
+    },
+    "PATCH mailbox-connections/[id]": {
+      "changes": "",
+      "doors": "mailbox_connections · notifications",
+      "door": {
+        "setup": "every page"
+      }
+    },
+    "PATCH team/[id]": {
+      "changes": "memberships UPDATE",
+      "tells": "memberships",
+      "missing": {
+        "alerts": "admin/notifications",
+        "broadcasts": "broadcasts, campaigns, inbox, today",
+        "calendar": "admin/workspace, calendar, today",
+        "campaign_results": "campaigns",
+        "conversations": "conversations, inbox",
+        "inbox": "inbox",
+        "leads": "clients/leads, leads",
+        "people": "clients, clients/person, segments, today",
+        "person": "clients/person",
+        "playbooks": "broadcasts, campaigns, messages, outbound, today",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_campaigns": "reports, reports/campaigns",
+        "reports_headline": "today",
+        "reports_people": "reports/people",
+        "reports_receptionist": "reports/receptionist",
+        "setup": "every page",
+        "today": "today",
+        "workspace": "every page"
+      }
+    },
+    "PATCH workspaces": {
+      "changes": "tenants UPDATE",
+      "tells": "tenants",
+      "extra": {
+        "calendar": "admin/workspace, calendar, today",
+        "people": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients/leads, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, start",
+        "settings": "admin/setup, calendar, clients, clients/person, conversations, inbox, live, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, today",
+        "today": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start"
+      },
+      "missing": {
+        "calendar_runs": "calendar",
+        "leads": "clients/leads, leads",
+        "person": "clients/person",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports_reviews": "reports/reviews",
+        "workspace": "every page"
+      }
+    },
+    "POST billing/resume": {
+      "changes": "",
+      "doors": "billing_accounts · notifications · tenants",
+      "door": {
+        "billing": "every page",
+        "setup": "every page"
+      }
+    },
+    "POST billing/start-now": {
+      "changes": "",
+      "doors": "billing_accounts · notifications · tenants",
+      "door": {
+        "billing": "every page",
+        "setup": "every page"
+      }
+    },
+    "POST billing/sync": {
+      "changes": "",
+      "doors": "billing_accounts · notifications · tenants",
+      "door": {
+        "billing": "every page",
+        "setup": "every page"
+      }
+    },
+    "POST broadcasts": {
+      "changes": "broadcast_recipients INSERT UPDATE · broadcasts INSERT",
+      "missing": {
+        "campaign_results": "campaigns",
+        "people": "clients, clients/person, segments, today",
+        "person": "clients/person",
+        "reach_outs": "every page",
+        "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/team, admin/workspace, broadcasts, campaigns, clients/leads, leads, messages, outbound, start"
+      }
+    },
+    "POST broadcasts/[id]/approve": {
+      "changes": "broadcasts UPDATE",
+      "extra": {
+        "reports_campaigns": "reports"
+      },
+      "missing": {
+        "campaign_results": "campaigns",
+        "people": "clients, segments",
+        "person": "clients/person",
+        "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/team, admin/workspace, campaigns, messages"
+      }
+    },
+    "POST broadcasts/[id]/cancel": {
+      "changes": "broadcasts UPDATE",
+      "extra": {
+        "reports_campaigns": "reports"
+      },
+      "missing": {
+        "campaign_results": "campaigns",
+        "people": "clients, segments",
+        "person": "clients/person",
+        "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/team, admin/workspace, campaigns, messages"
+      }
+    },
+    "POST broadcasts/[id]/recheck": {
+      "changes": "reach_out_sends UPDATE",
+      "extra": {
+        "broadcasts": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, calendar, clients, clients/leads, clients/person, conversations, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start",
+        "playbooks": "every page"
+      },
+      "missing": {
+        "campaign_results": "campaigns",
+        "leads": "clients/leads, leads",
+        "person": "clients/person",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns, messages, outbound"
+      }
+    },
+    "POST calendar/notices/[id]/dismiss": {
+      "changes": "appointment_notices UPDATE",
+      "missing": {
+        "setup": "admin/integrations, start, today"
+      }
+    },
+    "POST calendar/visits/[id]": {
+      "changes": "appointments UPDATE",
+      "extra": {
+        "broadcasts": "inbox, today",
+        "playbooks": "broadcasts, messages, today",
+        "reports_people": "reports/people"
+      },
+      "missing": {
+        "person": "clients/person",
+        "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/team, admin/workspace, broadcasts, campaigns, clients/leads, leads, messages, outbound, start",
+        "setup": "admin/integrations, start, today"
+      }
+    },
+    "POST capabilities/[kind]": {
+      "changes": "capability_activations INSERT UPDATE",
+      "doors": "billing_accounts · business_records · google_connections · google_listings · google_reviews · lines · mailbox_connections · notifications · tenant_channels · tenants"
+    },
+    "POST channels/whatsapp/connect": {
+      "changes": "",
+      "doors": "tenant_channels",
+      "door": {
+        "broadcasts": "broadcasts, campaigns, inbox, today",
+        "channels": "every page",
+        "people": "every page",
+        "playbooks": "broadcasts, campaigns, messages, outbound, today",
+        "reports_campaigns": "reports, reports/campaigns",
+        "reports_people": "reports/people",
+        "settings": "every page",
+        "setup": "every page"
+      }
+    },
+    "POST channels/whatsapp/standing": {
+      "changes": "",
+      "doors": "tenant_channels",
+      "door": {
+        "channels": "every page",
+        "reports_campaigns": "reports, reports/campaigns"
+      }
+    },
+    "POST contacts": {
+      "changes": "contacts INSERT UPDATE · leads UPDATE · person_doubts INSERT",
+      "tells": "contacts",
+      "extra": {
+        "people": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, start, today"
+      },
+      "missing": {
+        "calendar": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, broadcasts, campaigns, clients, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start",
+        "campaign_results": "campaigns",
+        "conversations": "every page",
+        "inbox": "every page",
+        "leads": "clients/leads, leads",
+        "live": "live, start, today",
+        "person": "clients/person",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_campaigns": "reports, reports/campaigns",
+        "reports_headline": "today",
+        "reports_receptionist": "reports/receptionist",
+        "setup": "admin/integrations, clients/leads, leads, start, today",
+        "today": "every page"
+      }
+    },
+    "POST contacts/[id]/call": {
+      "changes": "contacts INSERT UPDATE · conversations UPDATE · escalations UPDATE · lead_operations INSERT · lead_suppressions INSERT · leads UPDATE · notifications INSERT UPDATE · person_doubts INSERT · person_notes INSERT",
+      "tells": "contacts · notifications",
+      "extra": {
+        "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
+      },
+      "missing": {
+        "broadcasts": "broadcasts, campaigns, inbox, today",
+        "calendar": "every page",
+        "campaign_results": "campaigns",
+        "live": "live, start, today",
+        "notifications": "every page",
+        "person": "clients/person",
+        "playbooks": "broadcasts, campaigns, messages, outbound, today",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "setup": "admin/integrations, clients/leads, leads, start, today"
+      }
+    },
+    "POST contacts/[id]/deal": {
+      "changes": "contacts UPDATE · deals INSERT UPDATE · leads UPDATE",
+      "tells": "contacts",
+      "missing": {
+        "calendar": "every page",
+        "campaign_results": "campaigns",
+        "conversations": "every page",
+        "inbox": "every page",
+        "leads": "clients/leads, leads",
+        "live": "live, start, today",
+        "person": "clients/person",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports_campaigns": "reports, reports/campaigns",
+        "reports_headline": "today",
+        "reports_people": "reports/people",
+        "reports_receptionist": "reports/receptionist",
+        "setup": "admin/integrations, clients/leads, leads, start, today",
+        "today": "every page"
+      }
+    },
+    "POST contacts/[id]/merge": {
+      "changes": "appointments UPDATE · broadcast_recipients UPDATE · calls UPDATE · contacts UPDATE · conversations DELETE UPDATE · deals UPDATE · escalations UPDATE · leads UPDATE · messages UPDATE · notifications UPDATE · person_notes UPDATE · policies DELETE INSERT UPDATE · reach_out_replies UPDATE · reach_out_sends UPDATE · reply_turns DELETE UPDATE · segment_members DELETE INSERT",
+      "tells": "contacts · notifications",
+      "extra": {
+        "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
+      },
+      "missing": {
+        "calendar": "every page",
+        "calendar_runs": "calendar",
+        "campaign_results": "campaigns",
+        "channels": "admin/integrations, broadcasts, campaigns, live, messages, outbound, today",
+        "google": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, segments, start, today",
+        "live": "every page",
+        "person": "clients/person",
+        "reach_out_replies": "every page",
+        "reach_outs": "every page",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_reviews": "reports/reviews",
+        "settings": "every page",
+        "setup": "admin/integrations, clients/leads, leads, start, today"
+      }
+    },
+    "POST contacts/[id]/notes": {
+      "changes": "notifications INSERT · person_notes INSERT UPDATE",
+      "missing": {
+        "broadcasts": "broadcasts, campaigns, inbox, today",
+        "calendar": "admin/workspace, calendar, today",
+        "notifications": "every page",
+        "person": "clients/person",
+        "playbooks": "broadcasts, campaigns, messages, outbound, today",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_headline": "today",
+        "reports_receptionist": "reports/receptionist",
+        "setup": "admin/integrations, clients/leads, leads, start, today"
+      }
+    },
+    "POST contacts/[id]/notes/decide": {
+      "changes": "person_notes DELETE UPDATE",
+      "missing": {
+        "broadcasts": "broadcasts, campaigns, inbox, today",
+        "calendar": "admin/workspace, calendar, today",
+        "person": "clients/person",
+        "playbooks": "broadcasts, campaigns, messages, outbound, today",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_headline": "today",
+        "reports_receptionist": "reports/receptionist",
+        "setup": "admin/integrations, clients/leads, leads, start, today"
+      }
+    },
+    "POST contacts/[id]/notes/done": {
+      "changes": "person_notes UPDATE",
+      "missing": {
+        "broadcasts": "broadcasts, campaigns, inbox, today",
+        "calendar": "admin/workspace, calendar, today",
+        "person": "clients/person",
+        "playbooks": "broadcasts, campaigns, messages, outbound, today",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_headline": "today",
+        "reports_receptionist": "reports/receptionist",
+        "setup": "admin/integrations, clients/leads, leads, start, today"
+      }
+    },
+    "POST contacts/[id]/notes/remove": {
+      "changes": "person_notes DELETE",
+      "missing": {
+        "broadcasts": "broadcasts, campaigns, inbox, today",
+        "calendar": "admin/workspace, calendar, today",
+        "person": "clients/person",
+        "playbooks": "broadcasts, campaigns, messages, outbound, today",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_headline": "today",
+        "reports_receptionist": "reports/receptionist",
+        "setup": "admin/integrations, clients/leads, leads, start, today"
+      }
+    },
+    "POST contacts/import": {
+      "changes": "contacts INSERT UPDATE · leads UPDATE · person_doubts INSERT",
+      "tells": "contacts",
+      "extra": {
+        "people": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, start, today"
+      },
+      "missing": {
+        "calendar": "every page",
+        "campaign_results": "campaigns",
+        "conversations": "every page",
+        "inbox": "every page",
+        "leads": "clients/leads, leads",
+        "live": "live, start, today",
+        "person": "clients/person",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_campaigns": "reports, reports/campaigns",
+        "reports_headline": "today",
+        "reports_receptionist": "reports/receptionist",
+        "setup": "admin/integrations, clients/leads, leads, start, today",
+        "today": "every page"
+      }
+    },
+    "POST conversations/[id]/archive": {
+      "changes": "contacts UPDATE · conversations UPDATE · escalations UPDATE · messages UPDATE · notifications UPDATE",
+      "tells": "contacts · notifications",
+      "extra": {
+        "reports_campaigns": "reports"
+      },
+      "missing": {
+        "broadcasts": "broadcasts, campaigns",
+        "calendar": "every page",
+        "calendar_runs": "calendar",
+        "campaign_results": "campaigns",
+        "channels": "admin/integrations, broadcasts, campaigns, live, messages, outbound, today",
+        "live": "live, start, today",
+        "notifications": "every page",
+        "people": "clients, segments",
+        "person": "clients/person",
+        "playbooks": "campaigns, outbound",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_people": "reports/people",
+        "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/team, admin/workspace, broadcasts, campaigns, clients/leads, leads, messages, outbound, start",
+        "setup": "admin/integrations, clients/leads, leads, start, today"
+      }
+    },
+    "POST conversations/[id]/hand-back": {
+      "changes": "contacts UPDATE · conversations UPDATE · escalations UPDATE · messages UPDATE · notifications UPDATE",
+      "tells": "contacts · notifications",
+      "extra": {
+        "reports_campaigns": "reports"
+      },
+      "missing": {
+        "broadcasts": "broadcasts, campaigns",
+        "calendar": "every page",
+        "calendar_runs": "calendar",
+        "campaign_results": "campaigns",
+        "channels": "admin/integrations, broadcasts, campaigns, live, messages, outbound, today",
+        "live": "live, start, today",
+        "notifications": "every page",
+        "people": "clients, segments",
+        "person": "clients/person",
+        "playbooks": "campaigns, outbound",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_people": "reports/people",
+        "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/team, admin/workspace, broadcasts, campaigns, clients/leads, leads, messages, outbound, start",
+        "setup": "admin/integrations, clients/leads, leads, start, today"
+      }
+    },
+    "POST conversations/[id]/reply": {
+      "changes": "contacts UPDATE · conversations INSERT UPDATE · escalations UPDATE · messages INSERT UPDATE · notifications INSERT UPDATE · person_notes INSERT",
+      "tells": "contacts · notifications",
+      "extra": {
+        "reports_campaigns": "reports"
+      },
+      "missing": {
+        "broadcasts": "broadcasts, campaigns, inbox, today",
+        "calendar": "every page",
+        "calendar_runs": "calendar",
+        "campaign_results": "campaigns",
+        "channels": "admin/integrations, broadcasts, campaigns, live, messages, outbound, today",
+        "live": "live, start, today",
+        "notifications": "every page",
+        "people": "every page",
+        "person": "clients/person",
+        "playbooks": "broadcasts, campaigns, messages, outbound, today",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_people": "reports/people",
+        "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/team, admin/workspace, broadcasts, campaigns, clients/leads, leads, messages, outbound, start",
+        "setup": "admin/integrations, clients/leads, leads, start, today"
+      }
+    },
+    "POST conversations/[id]/snooze": {
+      "changes": "contacts UPDATE · conversations UPDATE · escalations UPDATE · messages UPDATE · notifications UPDATE",
+      "tells": "contacts · notifications",
+      "extra": {
+        "reports_campaigns": "reports"
+      },
+      "missing": {
+        "broadcasts": "broadcasts, campaigns",
+        "calendar": "every page",
+        "calendar_runs": "calendar",
+        "campaign_results": "campaigns",
+        "channels": "admin/integrations, broadcasts, campaigns, live, messages, outbound, today",
+        "live": "live, start, today",
+        "notifications": "every page",
+        "people": "clients, segments",
+        "person": "clients/person",
+        "playbooks": "campaigns, outbound",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_people": "reports/people",
+        "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/team, admin/workspace, broadcasts, campaigns, clients/leads, leads, messages, outbound, start",
+        "setup": "admin/integrations, clients/leads, leads, start, today"
+      }
+    },
+    "POST conversations/[id]/take-over": {
+      "changes": "contacts UPDATE · conversations UPDATE · escalations UPDATE · messages UPDATE · notifications UPDATE",
+      "tells": "contacts · notifications",
+      "extra": {
+        "reports_campaigns": "reports"
+      },
+      "missing": {
+        "broadcasts": "broadcasts, campaigns",
+        "calendar": "every page",
+        "calendar_runs": "calendar",
+        "campaign_results": "campaigns",
+        "channels": "admin/integrations, broadcasts, campaigns, live, messages, outbound, today",
+        "live": "live, start, today",
+        "notifications": "every page",
+        "people": "clients, segments",
+        "person": "clients/person",
+        "playbooks": "campaigns, outbound",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_people": "reports/people",
+        "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/team, admin/workspace, broadcasts, campaigns, clients/leads, leads, messages, outbound, start",
+        "setup": "admin/integrations, clients/leads, leads, start, today"
+      }
+    },
+    "POST conversations/[id]/wake": {
+      "changes": "contacts UPDATE · conversations UPDATE · escalations UPDATE · messages UPDATE · notifications UPDATE",
+      "tells": "contacts · notifications",
+      "extra": {
+        "reports_campaigns": "reports"
+      },
+      "missing": {
+        "broadcasts": "broadcasts, campaigns",
+        "calendar": "every page",
+        "calendar_runs": "calendar",
+        "campaign_results": "campaigns",
+        "channels": "admin/integrations, broadcasts, campaigns, live, messages, outbound, today",
+        "live": "live, start, today",
+        "notifications": "every page",
+        "people": "clients, segments",
+        "person": "clients/person",
+        "playbooks": "campaigns, outbound",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_people": "reports/people",
+        "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/team, admin/workspace, broadcasts, campaigns, clients/leads, leads, messages, outbound, start",
+        "setup": "admin/integrations, clients/leads, leads, start, today"
+      }
+    },
+    "POST escalations/[id]/resolve": {
+      "changes": "escalations UPDATE · notifications UPDATE",
+      "tells": "notifications",
+      "extra": {
+        "reports_campaigns": "reports"
+      },
+      "missing": {
+        "broadcasts": "broadcasts",
+        "calendar": "admin/workspace, calendar, today",
+        "campaign_results": "campaigns",
+        "notifications": "every page",
+        "people": "clients, segments",
+        "person": "clients/person",
+        "playbooks": "campaigns, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_people": "reports/people",
+        "setup": "admin/integrations, clients/leads, leads, start, today"
+      }
+    },
+    "POST google/link": {
+      "changes": "",
+      "doors": "google_connections · google_listings · google_reviews · notifications",
+      "door": {
+        "google": "every page",
+        "settings": "every page",
+        "setup": "every page"
+      }
+    },
+    "POST google/locations": {
+      "changes": "",
+      "doors": "google_connections · google_listings · google_reviews · notifications",
+      "door": {
+        "google": "every page",
+        "settings": "every page",
+        "setup": "every page"
+      }
+    },
+    "POST google/refresh": {
+      "changes": "",
+      "doors": "google_connections · google_listings · google_reviews · notifications",
+      "door": {
+        "google": "every page",
+        "settings": "every page",
+        "setup": "every page"
+      }
+    },
+    "POST google/reviews/[id]/reply": {
+      "changes": "",
+      "doors": "google_connections · google_listings · google_reviews · notifications",
+      "door": {
+        "reports_reviews": "every page"
+      }
+    },
+    "POST lead-operations/[id]/undo": {
+      "changes": "contacts UPDATE · lead_operations UPDATE · lead_search_members DELETE UPDATE · lead_searches UPDATE · lead_suppressions DELETE · leads UPDATE · reach_out_sends UPDATE",
+      "tells": "contacts",
+      "extra": {
+        "broadcasts": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, calendar, clients, clients/leads, clients/person, conversations, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start",
+        "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today",
+        "reach_outs": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, clients, clients/leads, clients/person, conversations, inbox, leads, live, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
+      },
+      "missing": {
+        "calendar": "every page",
+        "campaign_results": "campaigns",
+        "conversations": "every page",
+        "inbox": "every page",
+        "live": "live, start, today",
+        "people": "clients, segments",
+        "person": "clients/person",
+        "playbooks": "broadcasts, campaigns, messages, outbound, today",
+        "reach_out_replies": "inbox, today",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_headline": "today",
+        "reports_people": "reports/people",
+        "reports_receptionist": "reports/receptionist",
+        "setup": "admin/integrations, clients/leads, leads, start, today",
+        "today": "every page"
+      }
+    },
+    "POST lead-searches": {
+      "changes": "lead_rounds INSERT · lead_searches INSERT",
+      "extra": {
+        "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
+      },
+      "missing": {
+        "campaign_results": "campaigns",
+        "person": "clients/person",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports_campaigns": "reports, reports/campaigns",
+        "today": "every page"
+      }
+    },
+    "POST lead-searches/[id]/answer": {
+      "changes": "lead_rounds UPDATE · lead_searches UPDATE · notifications INSERT UPDATE",
+      "tells": "lead_rounds · notifications",
+      "extra": {
+        "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
+      },
+      "missing": {
+        "campaign_results": "campaigns",
+        "notifications": "every page",
+        "person": "clients/person",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports_campaigns": "reports, reports/campaigns",
+        "today": "every page"
+      }
+    },
+    "POST lead-searches/[id]/more": {
+      "changes": "lead_rounds INSERT · lead_searches UPDATE",
+      "extra": {
+        "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
+      },
+      "missing": {
+        "campaign_results": "campaigns",
+        "person": "clients/person",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports_campaigns": "reports, reports/campaigns",
+        "today": "every page"
+      }
+    },
+    "POST lead-searches/[id]/stop": {
+      "changes": "lead_rounds UPDATE · notifications INSERT UPDATE",
+      "tells": "lead_rounds · notifications",
+      "extra": {
+        "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
+      },
+      "missing": {
+        "notifications": "every page",
+        "today": "every page"
+      }
+    },
+    "POST lead-searches/[id]/undo": {
+      "changes": "lead_operations INSERT · lead_search_members UPDATE",
+      "extra": {
+        "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
+      },
+      "missing": {
+        "person": "clients/person",
+        "reach_outs": "campaigns, messages, outbound",
+        "today": "today"
+      }
+    },
+    "POST lead-searches/chosen": {
+      "changes": "lead_rounds INSERT UPDATE · lead_search_members INSERT · lead_searches INSERT · notifications INSERT UPDATE",
+      "tells": "lead_rounds · notifications",
+      "extra": {
+        "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
+      },
+      "missing": {
+        "campaign_results": "campaigns",
+        "notifications": "every page",
+        "person": "clients/person",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports_campaigns": "reports, reports/campaigns",
+        "today": "every page"
+      }
+    },
+    "POST lead-searches/import": {
+      "changes": "contacts UPDATE · lead_rounds INSERT UPDATE · lead_search_members INSERT · lead_searches INSERT · leads INSERT UPDATE · notifications INSERT UPDATE",
+      "tells": "contacts · lead_rounds · notifications",
+      "extra": {
+        "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
+      },
+      "missing": {
+        "broadcasts": "broadcasts, campaigns, inbox, today",
+        "calendar": "every page",
+        "campaign_results": "campaigns",
+        "conversations": "every page",
+        "inbox": "every page",
+        "live": "live, start, today",
+        "notifications": "every page",
+        "people": "clients, segments",
+        "person": "clients/person",
+        "playbooks": "broadcasts, campaigns, messages, outbound, today",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_campaigns": "reports, reports/campaigns",
+        "reports_headline": "today",
+        "reports_people": "reports/people",
+        "reports_receptionist": "reports/receptionist",
+        "setup": "admin/integrations, clients/leads, leads, start, today",
+        "today": "every page"
+      }
+    },
+    "POST leads/[id]/exclude": {
+      "changes": "lead_operations INSERT · lead_search_members UPDATE",
+      "extra": {
+        "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
+      },
+      "missing": {
+        "person": "clients/person",
+        "reach_outs": "campaigns, messages, outbound",
+        "today": "today"
+      }
+    },
+    "POST leads/[id]/keep": {
+      "changes": "lead_operations INSERT · lead_search_members UPDATE",
+      "extra": {
+        "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
+      },
+      "missing": {
+        "person": "clients/person",
+        "reach_outs": "campaigns, messages, outbound",
+        "today": "today"
+      }
+    },
+    "POST leads/[id]/later": {
+      "changes": "lead_operations INSERT · lead_search_members UPDATE",
+      "extra": {
+        "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
+      },
+      "missing": {
+        "person": "clients/person",
+        "reach_outs": "campaigns, messages, outbound",
+        "today": "today"
+      }
+    },
+    "POST leads/[id]/put-back": {
+      "changes": "lead_operations INSERT · lead_search_members UPDATE",
+      "extra": {
+        "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
+      },
+      "missing": {
+        "person": "clients/person",
+        "reach_outs": "campaigns, messages, outbound",
+        "today": "today"
+      }
+    },
+    "POST leads/[id]/stage": {
+      "changes": "contacts INSERT UPDATE · lead_operations INSERT · lead_suppressions INSERT · leads UPDATE · person_doubts INSERT",
+      "tells": "contacts",
+      "extra": {
+        "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today",
+        "people": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, start, today"
+      },
+      "missing": {
+        "broadcasts": "broadcasts, campaigns, inbox, today",
+        "calendar": "every page",
+        "campaign_results": "campaigns",
+        "conversations": "every page",
+        "inbox": "every page",
+        "live": "live, start, today",
+        "person": "clients/person",
+        "playbooks": "broadcasts, campaigns, messages, outbound, today",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_headline": "today",
+        "reports_receptionist": "reports/receptionist",
+        "setup": "admin/integrations, clients/leads, leads, start, today",
+        "today": "every page"
+      }
+    },
+    "POST leads/bulk": {
+      "changes": "contacts UPDATE · lead_operations INSERT · lead_search_members UPDATE · leads UPDATE",
+      "tells": "contacts",
+      "extra": {
+        "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
+      },
+      "missing": {
+        "broadcasts": "broadcasts, campaigns, inbox, today",
+        "calendar": "every page",
+        "campaign_results": "campaigns",
+        "conversations": "every page",
+        "inbox": "every page",
+        "live": "live, start, today",
+        "people": "clients, segments",
+        "person": "clients/person",
+        "playbooks": "broadcasts, campaigns, messages, outbound, today",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_headline": "today",
+        "reports_people": "reports/people",
+        "reports_receptionist": "reports/receptionist",
+        "setup": "admin/integrations, clients/leads, leads, start, today",
+        "today": "every page"
+      }
+    },
+    "POST leads/export": {
+      "changes": "contacts UPDATE · leads UPDATE",
+      "tells": "contacts",
+      "extra": {
+        "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
+      },
+      "missing": {
+        "broadcasts": "broadcasts, campaigns, inbox, today",
+        "calendar": "every page",
+        "campaign_results": "campaigns",
+        "conversations": "every page",
+        "inbox": "every page",
+        "live": "live, start, today",
+        "people": "clients, segments",
+        "person": "clients/person",
+        "playbooks": "broadcasts, campaigns, messages, outbound, today",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_campaigns": "reports, reports/campaigns",
+        "reports_headline": "today",
+        "reports_people": "reports/people",
+        "reports_receptionist": "reports/receptionist",
+        "setup": "admin/integrations, clients/leads, leads, start, today",
+        "today": "every page"
+      }
+    },
+    "POST lines/buy": {
+      "changes": "",
+      "doors": "business_records · lines · notifications · tenant_channels",
+      "door": {
+        "broadcasts": "broadcasts, campaigns, inbox, today",
+        "people": "every page",
+        "playbooks": "broadcasts, campaigns, messages, outbound, today",
+        "reports_campaigns": "reports, reports/campaigns",
+        "reports_people": "reports/people",
+        "setup": "every page"
+      }
+    },
+    "POST lines/forwarding": {
+      "changes": "lines INSERT UPDATE",
+      "extra": {
+        "settings": "admin/setup, broadcasts, calendar, clients, clients/leads, clients/person, conversations, inbox, leads, live, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
+      },
+      "missing": {
+        "broadcasts": "broadcasts, campaigns",
+        "people": "clients, segments",
+        "playbooks": "campaigns, outbound",
+        "reports_people": "reports/people",
+        "today": "every page"
+      }
+    },
+    "POST lines/forwarding/test": {
+      "changes": "lines UPDATE",
+      "missing": {
+        "broadcasts": "broadcasts, campaigns",
+        "people": "clients, segments",
+        "playbooks": "campaigns, outbound",
+        "reports_people": "reports/people",
+        "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/team, admin/workspace, campaigns, messages",
+        "today": "every page"
+      }
+    },
+    "POST lines/register": {
+      "changes": "",
+      "doors": "business_records · lines · notifications · tenant_channels",
+      "door": {
+        "broadcasts": "broadcasts, campaigns, inbox, today",
+        "people": "every page",
+        "playbooks": "broadcasts, campaigns, messages, outbound, today",
+        "reports_campaigns": "reports, reports/campaigns",
+        "reports_people": "reports/people",
+        "setup": "every page"
+      }
+    },
+    "POST lines/retry": {
+      "changes": "",
+      "doors": "business_records · lines · notifications · tenant_channels",
+      "door": {
+        "broadcasts": "broadcasts, campaigns, inbox, today",
+        "people": "every page",
+        "playbooks": "broadcasts, campaigns, messages, outbound, today",
+        "reports_campaigns": "reports, reports/campaigns",
+        "reports_people": "reports/people",
+        "setup": "every page"
+      }
+    },
+    "POST mailbox-connections/[id]/check": {
+      "changes": "",
+      "doors": "mailbox_connections · notifications",
+      "door": {
+        "setup": "every page"
+      }
+    },
+    "POST mailbox-connections/[id]/resume": {
+      "changes": "",
+      "doors": "mailbox_connections · notifications",
+      "door": {
+        "setup": "every page"
+      }
+    },
+    "POST mailbox-connections/[id]/test": {
+      "changes": "",
+      "doors": "mailbox_connections · notifications",
+      "door": {
+        "setup": "every page"
+      }
+    },
+    "POST mailboxes": {
+      "changes": "mailboxes INSERT",
+      "extra": {
+        "broadcasts": "inbox, today",
+        "people": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, start, today",
+        "playbooks": "broadcasts, messages, today"
+      },
+      "missing": {
+        "campaign_results": "campaigns",
+        "reach_out_replies": "inbox, today"
+      }
+    },
+    "POST messages/[id]/cancel-send": {
+      "changes": "contacts UPDATE · messages UPDATE",
+      "tells": "contacts",
+      "extra": {
+        "reports_campaigns": "reports"
+      },
+      "missing": {
+        "broadcasts": "broadcasts, campaigns",
+        "calendar": "every page",
+        "calendar_runs": "calendar",
+        "campaign_results": "campaigns",
+        "channels": "admin/integrations, broadcasts, campaigns, live, messages, outbound, today",
+        "live": "live, start, today",
+        "people": "clients, segments",
+        "person": "clients/person",
+        "playbooks": "campaigns, outbound",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_people": "reports/people",
+        "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/team, admin/workspace, broadcasts, campaigns, clients/leads, leads, messages, outbound, start",
+        "setup": "start, today"
+      }
+    },
+    "POST messages/[id]/steer": {
+      "changes": "",
+      "doors": "contacts · conversations · messages",
+      "door": {
+        "conversations": "every page",
+        "inbox": "every page",
+        "reports_campaigns": "reports, reports/campaigns",
+        "reports_headline": "today",
+        "reports_receptionist": "reports/receptionist",
+        "today": "every page"
+      }
+    },
+    "POST partner/invitations/[id]/accept": {
+      "changes": "memberships INSERT UPDATE · partner_invitations DELETE · partner_tenants INSERT",
+      "tells": "memberships",
+      "extra": {
+        "partner": "every page"
+      },
+      "missing": {
+        "alerts": "admin/notifications",
+        "broadcasts": "broadcasts, campaigns, inbox, today",
+        "calendar": "admin/workspace, calendar, today",
+        "campaign_results": "campaigns",
+        "conversations": "conversations, inbox",
+        "inbox": "inbox",
+        "leads": "clients/leads, leads",
+        "people": "clients, clients/person, segments, today",
+        "person": "clients/person",
+        "playbooks": "broadcasts, campaigns, messages, outbound, today",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_campaigns": "reports, reports/campaigns",
+        "reports_headline": "today",
+        "reports_people": "reports/people",
+        "reports_receptionist": "reports/receptionist",
+        "settings": "every page",
+        "setup": "every page",
+        "today": "today"
+      }
+    },
+    "POST people/[id]/message": {
+      "changes": "contacts UPDATE · conversations INSERT UPDATE · escalations UPDATE · messages INSERT UPDATE · notifications INSERT UPDATE · person_notes INSERT",
+      "tells": "contacts · notifications",
+      "extra": {
+        "reports_campaigns": "reports"
+      },
+      "missing": {
+        "broadcasts": "broadcasts, campaigns, inbox, today",
+        "calendar": "every page",
+        "calendar_runs": "calendar",
+        "campaign_results": "campaigns",
+        "channels": "admin/integrations, broadcasts, campaigns, live, messages, outbound, today",
+        "live": "live, start, today",
+        "notifications": "every page",
+        "person": "clients/person",
+        "playbooks": "broadcasts, campaigns, messages, outbound, today",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_people": "reports/people",
+        "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/team, admin/workspace, broadcasts, campaigns, clients/leads, leads, messages, outbound, start",
+        "setup": "admin/integrations, clients/leads, leads, start, today"
+      }
+    },
+    "POST people/[id]/name": {
+      "changes": "contacts UPDATE · reach_out_replies UPDATE",
+      "tells": "contacts",
+      "extra": {
+        "leads": "every page",
+        "reports_campaigns": "reports"
+      },
+      "missing": {
+        "calendar": "every page",
+        "campaign_results": "campaigns",
+        "live": "live, start, today",
+        "person": "clients/person",
+        "reach_out_replies": "every page",
+        "reach_outs": "every page",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_people": "reports/people",
+        "setup": "admin/integrations, clients/leads, leads, start, today"
+      }
+    },
+    "POST playbooks": {
+      "changes": "playbooks INSERT · templates INSERT UPDATE",
+      "tells": "templates",
+      "extra": {
+        "broadcasts": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, calendar, clients, clients/leads, clients/person, conversations, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start",
+        "people": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, start, today"
+      },
+      "missing": {
+        "campaign_results": "campaigns",
+        "leads": "clients/leads, leads",
+        "person": "clients/person",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "every page",
+        "setup": "start, today"
+      }
+    },
+    "POST playbooks/[id]/run": {
+      "changes": "",
+      "doors": "broadcasts · notifications · person_notes · playbooks · reach_out_sends",
+      "door": {
+        "broadcasts": "every page",
+        "calendar_runs": "calendar",
+        "playbooks": "every page",
+        "reports_campaigns": "reports, reports/campaigns"
+      }
+    },
+    "POST reach-out-replies/[id]/undo": {
+      "changes": "contacts UPDATE · lead_suppressions DELETE INSERT · leads UPDATE · reach_out_replies UPDATE",
+      "tells": "contacts",
+      "extra": {
+        "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
+      },
+      "missing": {
+        "broadcasts": "broadcasts, campaigns, inbox, today",
+        "calendar": "every page",
+        "campaign_results": "campaigns",
+        "live": "live, start, today",
+        "people": "every page",
+        "person": "clients/person",
+        "playbooks": "broadcasts, campaigns, messages, outbound, today",
+        "reach_outs": "every page",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_people": "reports/people",
+        "setup": "admin/integrations, clients/leads, leads, start, today"
+      }
+    },
+    "POST reach-out-sends/[id]/decide": {
+      "changes": "contacts INSERT UPDATE · lead_operations INSERT · lead_suppressions INSERT · leads UPDATE · person_doubts INSERT · reach_out_sends UPDATE",
+      "tells": "contacts",
+      "extra": {
+        "broadcasts": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, calendar, clients, clients/leads, clients/person, conversations, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start",
+        "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today",
+        "playbooks": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, calendar, clients, clients/leads, clients/person, conversations, inbox, leads, live, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start"
+      },
+      "missing": {
+        "calendar": "every page",
+        "campaign_results": "campaigns",
+        "conversations": "every page",
+        "inbox": "every page",
+        "live": "live, start, today",
+        "people": "clients, segments",
+        "person": "clients/person",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_campaigns": "reports, reports/campaigns",
+        "reports_headline": "today",
+        "reports_people": "reports/people",
+        "reports_receptionist": "reports/receptionist",
+        "setup": "admin/integrations, clients/leads, leads, start, today",
+        "today": "every page"
+      }
+    },
+    "POST reach-outs": {
+      "changes": "broadcasts UPDATE · playbooks DELETE INSERT UPDATE · reach_out_sends UPDATE · templates INSERT UPDATE",
+      "tells": "templates",
+      "doors": "notifications · person_notes",
+      "extra": {
+        "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
+      },
+      "missing": {
+        "calendar_runs": "calendar",
+        "campaign_results": "campaigns",
+        "people": "clients, segments",
+        "person": "clients/person",
+        "reach_out_replies": "inbox, today",
+        "reports_campaigns": "reports, reports/campaigns",
+        "settings": "every page",
+        "setup": "start, today"
+      }
+    },
+    "POST reach-outs/[id]/leads": {
+      "changes": "lead_operations INSERT · lead_search_members INSERT UPDATE",
+      "extra": {
+        "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today",
+        "reach_outs": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, clients, clients/leads, clients/person, conversations, inbox, leads, live, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
+      },
+      "missing": {
+        "person": "clients/person",
+        "today": "today"
+      }
+    },
+    "POST reach-outs/[id]/leads/leave": {
+      "changes": "lead_operations INSERT · lead_search_members UPDATE · reach_out_sends UPDATE",
+      "extra": {
+        "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today",
+        "reach_outs": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, clients, clients/leads, clients/person, conversations, inbox, leads, live, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
+      },
+      "missing": {
+        "broadcasts": "broadcasts, campaigns, inbox, today",
+        "campaign_results": "campaigns",
+        "person": "clients/person",
+        "reach_out_replies": "inbox, today",
+        "reports_campaigns": "reports, reports/campaigns",
+        "today": "today"
+      }
+    },
+    "POST reach-outs/leads/[id]/stop": {
+      "changes": "contacts UPDATE · leads UPDATE · reach_out_sends UPDATE",
+      "tells": "contacts",
+      "extra": {
+        "broadcasts": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, calendar, clients, clients/leads, clients/person, conversations, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start",
+        "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today",
+        "playbooks": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, calendar, clients, clients/leads, clients/person, conversations, inbox, leads, live, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start"
+      },
+      "missing": {
+        "calendar": "every page",
+        "campaign_results": "campaigns",
+        "conversations": "every page",
+        "inbox": "every page",
+        "live": "live, start, today",
+        "people": "clients, segments",
+        "person": "clients/person",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_campaigns": "reports, reports/campaigns",
+        "reports_headline": "today",
+        "reports_people": "reports/people",
+        "reports_receptionist": "reports/receptionist",
+        "setup": "admin/integrations, clients/leads, leads, start, today",
+        "today": "every page"
+      }
+    },
+    "POST segments": {
+      "changes": "segments INSERT",
+      "extra": {
+        "broadcasts": "inbox, today",
+        "playbooks": "broadcasts, messages, today"
+      }
+    },
+    "POST settings/receptionist": {
+      "changes": "tenant_config UPDATE",
+      "tells": "tenant_config",
+      "extra": {
+        "broadcasts": "inbox, today",
+        "people": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, start, today",
+        "playbooks": "broadcasts, messages, today",
+        "reports_campaigns": "reports, reports/campaigns",
+        "setup": "admin, admin/activity, admin/autonomy, admin/billing, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments"
+      },
+      "missing": {
+        "leads": "clients/leads, leads",
+        "person": "clients/person",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews"
+      }
+    },
+    "POST setup/request": {
+      "changes": "notifications INSERT",
+      "extra": {
+        "setup": "every page"
+      },
+      "missing": {
+        "notifications": "every page"
+      }
+    },
+    "POST team/invite": {
+      "changes": "invitations DELETE INSERT · memberships INSERT",
+      "missing": {
+        "alerts": "admin/notifications",
+        "broadcasts": "broadcasts, campaigns, inbox, today",
+        "calendar": "admin/workspace, calendar, today",
+        "campaign_results": "campaigns",
+        "conversations": "conversations, inbox",
+        "inbox": "inbox",
+        "leads": "clients/leads, leads",
+        "people": "clients, clients/person, segments, today",
+        "person": "clients/person",
+        "playbooks": "broadcasts, campaigns, messages, outbound, today",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_campaigns": "reports, reports/campaigns",
+        "reports_headline": "today",
+        "reports_people": "reports/people",
+        "reports_receptionist": "reports/receptionist",
+        "setup": "every page",
+        "today": "today",
+        "workspace": "every page"
+      }
+    },
+    "POST team/invite/[id]/resend": {
+      "changes": "invitations UPDATE",
+      "missing": {
+        "setup": "every page"
+      }
+    },
+    "POST templates": {
+      "changes": "",
+      "doors": "templates",
+      "door": {
+        "settings": "every page"
+      }
+    },
+    "POST templates/message": {
+      "changes": "templates INSERT UPDATE",
+      "tells": "templates",
+      "extra": {
+        "playbooks": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, clients, clients/leads, clients/person, conversations, inbox, leads, live, messages, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
+      },
+      "missing": {
+        "broadcasts": "broadcasts, campaigns, inbox, today",
+        "people": "clients, segments",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports_campaigns": "reports/campaigns",
+        "setup": "start, today"
+      }
+    },
+    "POST templates/starter": {
+      "changes": "templates INSERT UPDATE",
+      "tells": "templates",
+      "missing": {
+        "broadcasts": "broadcasts, campaigns, inbox, today",
+        "people": "clients, segments",
+        "playbooks": "campaigns, outbound",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports_campaigns": "reports/campaigns",
+        "setup": "start, today"
+      }
+    },
+    "POST templates/sync": {
+      "changes": "",
+      "doors": "templates",
+      "door": {
+        "settings": "every page"
+      }
+    },
+    "POST templates/versions": {
+      "changes": "broadcasts UPDATE · playbooks DELETE INSERT UPDATE · reach_out_sends UPDATE · templates INSERT UPDATE",
+      "tells": "templates",
+      "doors": "notifications · person_notes",
+      "missing": {
+        "broadcasts": "every page",
+        "calendar_runs": "calendar",
+        "campaign_results": "campaigns",
+        "leads": "clients/leads, leads",
+        "people": "clients, segments",
+        "person": "clients/person",
+        "reach_out_replies": "inbox, today",
+        "reports_campaigns": "reports, reports/campaigns",
+        "setup": "start, today"
+      }
+    },
+    "PUT business-record": {
+      "changes": "",
+      "doors": "business_records · lines · notifications · tenant_channels",
+      "door": {
+        "setup": "every page"
+      }
+    },
+    "PUT contacts/[id]/consent": {
+      "changes": "contacts UPDATE",
+      "tells": "contacts",
+      "extra": {
+        "broadcasts": "inbox, today",
+        "people": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, start, today",
+        "playbooks": "broadcasts, messages, today",
+        "reports_campaigns": "reports"
+      },
+      "missing": {
+        "calendar": "every page",
+        "campaign_results": "campaigns",
+        "live": "live, start, today",
+        "person": "clients/person",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "setup": "start, today"
+      }
+    },
+    "PUT contacts/[id]/details": {
+      "changes": "contacts UPDATE · deals INSERT UPDATE · leads UPDATE · person_notes INSERT",
+      "tells": "contacts",
+      "missing": {
+        "calendar": "every page",
+        "campaign_results": "campaigns",
+        "leads": "clients/leads, leads",
+        "live": "live, start, today",
+        "person": "clients/person",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "setup": "admin/integrations, clients/leads, leads, start, today"
+      }
+    },
+    "PUT contacts/[id]/marketing-consent": {
+      "changes": "contacts UPDATE",
+      "tells": "contacts",
+      "extra": {
+        "broadcasts": "inbox, today",
+        "people": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, start, today",
+        "playbooks": "broadcasts, messages, today",
+        "reports_campaigns": "reports"
+      },
+      "missing": {
+        "calendar": "every page",
+        "campaign_results": "campaigns",
+        "live": "live, start, today",
+        "person": "clients/person",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "setup": "start, today"
+      }
+    },
+    "PUT contacts/[id]/receptionist": {
+      "changes": "policies DELETE INSERT UPDATE",
+      "extra": {
+        "people": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, start, today"
+      },
+      "missing": {
+        "broadcasts": "broadcasts, campaigns",
+        "calendar": "admin/workspace, calendar, today",
+        "calendar_runs": "calendar",
+        "google": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, segments, start, today",
+        "person": "clients/person",
+        "playbooks": "campaigns, outbound",
+        "reach_outs": "every page",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_headline": "today",
+        "reports_people": "reports/people",
+        "reports_receptionist": "reports/receptionist",
+        "reports_reviews": "reports/reviews",
+        "settings": "every page",
+        "setup": "start, today"
+      }
+    },
+    "PUT contacts/consent": {
+      "changes": "contacts UPDATE",
+      "tells": "contacts",
+      "extra": {
+        "broadcasts": "inbox, today",
+        "people": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, start, today",
+        "playbooks": "broadcasts, messages, today",
+        "reports_campaigns": "reports"
+      },
+      "missing": {
+        "calendar": "every page",
+        "campaign_results": "campaigns",
+        "live": "live, start, today",
+        "person": "clients/person",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "setup": "start, today"
+      }
+    },
+    "PUT contacts/marketing-consent": {
+      "changes": "contacts UPDATE",
+      "tells": "contacts",
+      "extra": {
+        "broadcasts": "inbox, today",
+        "people": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, start, today",
+        "playbooks": "broadcasts, messages, today",
+        "reports_campaigns": "reports"
+      },
+      "missing": {
+        "calendar": "every page",
+        "campaign_results": "campaigns",
+        "live": "live, start, today",
+        "person": "clients/person",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "setup": "start, today"
+      }
+    },
+    "PUT contacts/notes": {
+      "changes": "notifications INSERT · person_notes INSERT",
+      "missing": {
+        "broadcasts": "broadcasts, campaigns, inbox, today",
+        "calendar": "admin/workspace, calendar, today",
+        "notifications": "every page",
+        "person": "clients/person",
+        "playbooks": "broadcasts, campaigns, messages, outbound, today",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_headline": "today",
+        "reports_receptionist": "reports/receptionist",
+        "setup": "admin/integrations, clients/leads, leads, start, today"
+      }
+    },
+    "PUT contacts/receptionist": {
+      "changes": "policies DELETE INSERT UPDATE",
+      "extra": {
+        "people": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, start, today"
+      },
+      "missing": {
+        "broadcasts": "broadcasts, campaigns",
+        "calendar": "admin/workspace, calendar, today",
+        "calendar_runs": "calendar",
+        "google": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, segments, start, today",
+        "person": "clients/person",
+        "playbooks": "campaigns, outbound",
+        "reach_outs": "every page",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_headline": "today",
+        "reports_people": "reports/people",
+        "reports_receptionist": "reports/receptionist",
+        "reports_reviews": "reports/reviews",
+        "settings": "every page",
+        "setup": "start, today"
+      }
+    },
+    "PUT lead-suggestions": {
+      "changes": "",
+      "extra": {
+        "leads": "every page"
+      }
+    },
+    "PUT mailboxes/[id]": {
+      "changes": "mailboxes UPDATE",
+      "tells": "mailboxes",
+      "extra": {
+        "broadcasts": "inbox, today",
+        "people": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, start, today",
+        "playbooks": "broadcasts, messages, today"
+      },
+      "missing": {
+        "calendar": "every page",
+        "campaign_results": "campaigns",
+        "reach_out_replies": "inbox, today",
+        "today": "every page"
+      }
+    },
+    "PUT me": {
+      "changes": "profiles INSERT UPDATE",
+      "extra": {
+        "settings": "admin/setup, calendar, clients, clients/person, conversations, inbox, live, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, today"
+      },
+      "missing": {
+        "broadcasts": "broadcasts, campaigns, inbox, today",
+        "people": "clients, clients/person, segments, today",
+        "person": "clients/person",
+        "setup": "admin/integrations, clients/leads, leads, start, today"
+      }
+    },
+    "PUT notifications": {
+      "changes": "notification_marks INSERT UPDATE · notification_reads INSERT UPDATE",
+      "extra": {
+        "notifications": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start"
+      }
+    },
+    "PUT people/[id]/business": {
+      "changes": "contacts UPDATE",
+      "tells": "contacts",
+      "extra": {
+        "leads": "every page",
+        "people": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, start, today",
+        "reports_campaigns": "reports"
+      },
+      "missing": {
+        "broadcasts": "broadcasts, campaigns",
+        "calendar": "every page",
+        "campaign_results": "campaigns",
+        "live": "live, start, today",
+        "person": "clients/person",
+        "playbooks": "campaigns, outbound",
+        "reach_out_replies": "inbox, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_people": "reports/people",
+        "setup": "start, today"
+      }
+    },
+    "PUT playbooks/[id]": {
+      "changes": "playbooks UPDATE",
+      "extra": {
+        "broadcasts": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, calendar, clients, clients/leads, clients/person, conversations, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start",
+        "people": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, start, today"
+      },
+      "missing": {
+        "campaign_results": "campaigns",
+        "leads": "clients/leads, leads",
+        "person": "clients/person",
+        "reach_out_replies": "inbox, today",
+        "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/team, admin/workspace, campaigns, messages"
+      }
+    },
+    "PUT policies": {
+      "changes": "policies UPDATE",
+      "extra": {
+        "broadcasts": "inbox, today",
+        "playbooks": "broadcasts, messages, today"
+      },
+      "missing": {
+        "calendar": "admin/workspace, calendar, today",
+        "google": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, segments, start, today",
+        "person": "clients/person",
+        "reach_outs": "every page",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_headline": "today",
+        "reports_people": "reports/people",
+        "reports_receptionist": "reports/receptionist",
+        "setup": "start, today"
+      }
+    },
+    "PUT reach-outs/[id]": {
+      "changes": "broadcasts UPDATE · playbooks DELETE INSERT UPDATE · reach_out_sends UPDATE · templates INSERT UPDATE",
+      "tells": "templates",
+      "doors": "notifications · person_notes",
+      "missing": {
+        "calendar_runs": "calendar",
+        "campaign_results": "campaigns",
+        "leads": "clients/leads, leads",
+        "people": "clients, segments",
+        "person": "clients/person",
+        "reach_out_replies": "inbox, today",
+        "reports_campaigns": "reports, reports/campaigns",
+        "settings": "every page",
+        "setup": "start, today"
+      }
+    },
+    "PUT segments/[id]": {
+      "changes": "segment_members DELETE INSERT UPDATE · segments UPDATE",
+      "extra": {
+        "broadcasts": "inbox, today",
+        "playbooks": "broadcasts, messages, today"
+      }
+    },
+    "PUT settings": {
+      "changes": "tenant_config UPDATE",
+      "tells": "tenant_config",
+      "extra": {
+        "broadcasts": "inbox, today",
+        "people": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, start, today",
+        "playbooks": "broadcasts, messages, today",
+        "reports_campaigns": "reports, reports/campaigns",
+        "setup": "admin, admin/activity, admin/autonomy, admin/billing, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments"
+      },
+      "missing": {
+        "leads": "clients/leads, leads",
+        "person": "clients/person",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews"
+      }
+    },
+    "PUT templates/[id]": {
+      "changes": "templates UPDATE",
+      "tells": "templates",
+      "missing": {
+        "broadcasts": "broadcasts, campaigns, inbox, today",
+        "people": "clients, segments",
+        "playbooks": "campaigns, outbound",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports_campaigns": "reports/campaigns",
+        "setup": "start, today"
+      }
+    },
+    "PUT workspaces/logo": {
+      "changes": "tenants UPDATE",
+      "tells": "tenants",
+      "missing": {
+        "broadcasts": "broadcasts, campaigns, inbox, today",
+        "calendar_runs": "calendar",
+        "campaign_results": "campaigns",
+        "leads": "clients/leads, leads",
+        "people": "clients, clients/person, segments, today",
+        "person": "clients/person",
+        "playbooks": "broadcasts, campaigns, messages, outbound, today",
+        "reach_outs": "campaigns, messages, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_campaigns": "reports, reports/campaigns",
+        "reports_headline": "today",
+        "reports_people": "reports/people",
+        "reports_receptionist": "reports/receptionist",
+        "reports_reviews": "reports/reviews",
+        "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/team, admin/workspace, broadcasts, campaigns, clients/leads, leads, messages, outbound, start",
+        "today": "today"
+      }
+    }
+  }
+}

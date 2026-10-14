@@ -966,3 +966,30 @@ test("REGRESSION (S8): a broken configuration's row asks for a repair, and says 
     setSurfaceValue("setup", { dto, role: "owner", vm, fetchedAt: NOW });
   }
 });
+
+test("Google's row says a Business Profile that stopped syncing as Connections does, with the way back (the wiring's second audit, R11 S11-4)", () => {
+  const listing = { name: "Harbor Nails", rating: 4.8, review_count: 120, checked_at: ago(2), check_error: null };
+  const connection = {
+    google_email: "owner@example.com",
+    location_name: "locations/1",
+    last_synced_at: ago(72),
+    sync_error: "invalid_grant",
+  };
+  const rowOf = (google) => setupSteps({ ...dto, google, later: [] }, NOW).rows.find((r) => r.id === "google");
+  const broken = rowOf({ ready: true, places: true, listing, connected: true, connection });
+  assert.equal(
+    broken.state,
+    "waiting_you",
+    "REGRESSION: 'connected', over a profile that stopped syncing three days ago",
+  );
+  assert.match(broken.sentence, /^Connected as owner@example\.com · could not sync since /);
+  assert.deepEqual(broken.verb, { label: "Reconnect", to: "admin/integrations" });
+  const fine = rowOf({
+    ready: true,
+    places: true,
+    listing,
+    connected: true,
+    connection: { ...connection, sync_error: null },
+  });
+  assert.equal(fine.state, "ready", "a profile that syncs reads as it did");
+});

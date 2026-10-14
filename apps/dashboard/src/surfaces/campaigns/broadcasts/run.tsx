@@ -11,7 +11,7 @@
  */
 import { useEffect, useReducer, useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
-import { LIFECYCLE_WORDS, runStopWords } from "@chanlytics/contracts";
+import { LIFECYCLE_WORDS, runStillMoving, runStopWords } from "@chanlytics/contracts";
 import type { BroadcastDetailDto, BroadcastDto, BroadcastVM, RunFilterId, RunReportVM } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
 import { Button } from "../../kit/button/button";
@@ -331,9 +331,10 @@ export function BroadcastDetail({
   const mine: BcAnswer | null =
     answer && answer.id === id ? answer : held && held.ok ? { id, ok: true, data: held.data, gone: false } : null;
   const d = mine && mine.ok ? mine.data : null;
-  // While it can still change it is read again whenever the surface is -- which re-reads on every message, so
-  // the people fill in as a send goes out -- and not once it has finished.
-  const live = !!(d && BC_LIVE.has(d.broadcast.state));
+  // While its report can still move it is read again whenever the surface is -- which re-reads on every message, so the
+  // people fill in as a send goes out, and the replies, yeses and stops as they come back for three days after it ended
+  // (contracts runStillMoving; the wiring's second audit, X2-2) -- and not once that window has closed.
+  const live = !!(d && runStillMoving(d.broadcast, Date.now()));
   useEffect(() => {
     if (!live) return undefined;
     window.addEventListener("surface:broadcasts", ask);

@@ -16,13 +16,22 @@
  * placed by settings.css.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ACTIVITY_PAGE_WORDS as W, ACTIVITY_SPAN_DAYS, isActivityFamily, shiftKey } from "@chanlytics/contracts";
+import {
+  ACTIVITY_PAGE_WORDS as W,
+  ACTIVITY_SPAN_DAYS,
+  isActivityFamily,
+  shiftKey,
+  type ActivityPageDto,
+} from "@chanlytics/contracts";
 import { activity, type ActivityFilters as Read } from "@/legacy-bridge/activity";
 import { pageClock } from "@/legacy-bridge/zone";
+import { Button } from "../../kit/button/button";
 import { LinkButton } from "../../kit/link-button/link-button";
+import { Notice } from "../../kit/notice/notice";
 import { canDo } from "../../legacy-verbs";
 import { ActivityLog, type LogState } from "./log";
 import { ActivityFilters, FiltersAsk, NO_NARROWING, narrowedCount, type Narrowing } from "./filters";
+import { useNewerActivity, type ActivityTop } from "./newer";
 
 /** What the boxes hold, as the read the route takes: a kind, a family or what went wrong; who; the days; the person. */
 function readOf(n: Narrowing, today: string): Read {
@@ -58,25 +67,29 @@ const NOTHING_READ: LogState = {
   error: null,
 };
 
-/** What this tab read last time, painted at once; nothing yet, reading, where it has none. */
+/**
+ * A page read, as the log's state: after the lines shown (the next page), or in their place. The names it says are kept with
+ * those already read. A page this tab kept from before the log said its subjects, doors and members reads as one without them.
+ */
+function stateOf(d: ActivityPageDto, prev: LogState | null, append = false): LogState {
+  return {
+    loading: false,
+    error: null,
+    rows: append && prev ? [...prev.rows, ...d.rows] : d.rows,
+    actors: { ...prev?.actors, ...d.actors },
+    subjects: { ...prev?.subjects, ...(d.subjects ?? {}) },
+    doors: { ...prev?.doors, ...(d.doors ?? {}) },
+    members: d.members ?? prev?.members ?? [],
+    kinds: d.kinds,
+    next: d.page.next_cursor ?? null,
+    hasMore: d.page.has_more,
+  };
+}
+
+/** What this tab read last time, painted at once (and read again behind); nothing yet, reading, where it has none. */
 function firstPaint(): LogState {
   const seed = activity.peek({});
-  const d = seed && seed.ok ? seed.data : null;
-  return d
-    ? {
-        loading: true,
-        rows: d.rows,
-        actors: d.actors,
-        // A page this tab kept from before the log said these reads as one without them.
-        subjects: d.subjects ?? {},
-        doors: d.doors ?? {},
-        members: d.members ?? [],
-        kinds: d.kinds,
-        next: d.page.next_cursor ?? null,
-        hasMore: d.page.has_more,
-        error: null,
-      }
-    : NOTHING_READ;
+  return seed && seed.ok ? { ...stateOf(seed.data, null), loading: true } : NOTHING_READ;
 }
 
 /** Where the log opens: the whole of it, or the part of the product an address names (`activity/team`: Team's door). */
@@ -111,24 +124,25 @@ export function PaneActivity({ family = null }: { family?: string | null } = {})
         setSt((c) => ({ ...c, loading: false, error: r.message || "Could not be read right now." }));
         return;
       }
-      setSt((c) => ({
-        loading: false,
-        error: null,
-        rows: append ? [...c.rows, ...r.data.rows] : r.data.rows,
-        actors: { ...c.actors, ...r.data.actors },
-        subjects: { ...c.subjects, ...(r.data.subjects ?? {}) },
-        doors: { ...c.doors, ...(r.data.doors ?? {}) },
-        members: r.data.members ?? c.members,
-        kinds: r.data.kinds,
-        next: r.data.page.next_cursor ?? null,
-        hasMore: r.data.page.has_more,
-      }));
+      setSt((c) => stateOf(r.data, c, append));
     },
     [n],
   );
   useEffect(() => {
     if (may) void load(null, false);
   }, [load, may]);
+
+  // While the log is open its first page is read again (newer.ts): what is newer is offered above the lines. Compared only
+  // with a log that has landed; a page being read, or one that failed, has no top to compare with.
+  const readNow = useCallback(() => readOf(n, pageClock().dayKey(Date.now())), [n]);
+  const top: ActivityTop | null | undefined =
+    !may || st.loading || st.error ? undefined : st.rows[0] ? { id: st.rows[0].id, at: st.rows[0].at } : null;
+  const newer = useNewerActivity(readNow, top);
+  // Shown in place of the lines, from the top: a read still out (a next page asked for) lands nowhere after it.
+  const showNewer = (page: ActivityPageDto) => {
+    asked.current += 1;
+    setSt((c) => stateOf(page, c));
+  };
 
   if (!may) {
     return (
@@ -172,6 +186,20 @@ export function PaneActivity({ family = null }: { family?: string | null } = {})
         members={st.members}
         open={asking}
       />
+      {newer && (
+        <Notice
+          line
+          testid="act-newer"
+          label={W.newer.label}
+          fact={<b>{W.newer.fact}</b>}
+          source={W.newer.since}
+          act={
+            <Button size="sm" onClick={() => showNewer(newer)} data-testid="act-newer-show">
+              {W.newer.show}
+            </Button>
+          }
+        />
+      )}
       <ActivityLog
         st={st}
         folds={!n.pick.startsWith("kind:")}

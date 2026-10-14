@@ -129,8 +129,9 @@ test("the surface: lists ride People, counted over the rows on the page; the ver
   for (const k of ["POST segments", "PUT segments/[id]", "DELETE segments/[id]"])
     assert.deepEqual(
       AFTER[k]().map((o) => o.key),
-      ["people", "broadcasts", "playbooks"],
-      `${k}: the chips are the server's, and a list is an audience and a playbook's moment too`,
+      // The stand-in window is at Reports (installLegacyReact), which draws neither composer: each is left for its pages (S10-6).
+      ["people"],
+      `${k}: the chips are the server's, and a list is an audience and a playbook's moment too, where they are drawn`,
     );
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installLists();"));
 });

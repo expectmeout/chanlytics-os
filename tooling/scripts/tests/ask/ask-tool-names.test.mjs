@@ -816,6 +816,56 @@ function withoutPersonState(old, got) {
   return { ...got, result: JSON.stringify(rest) };
 }
 
+/**
+ * 14 Oct 2026 (the wiring's second audit, R13 X5-3, X5-7): the reads say the pages' words where these bytes say a stored
+ * value -- a person's last contact and both consent answers (people.search), each thread's state and each call's end
+ * (people.get), each line's state (workspace.settings) and each campaign's state (campaigns.playbooks). Each is held to a
+ * word here, then taken out of both sides, so the rest is compared byte for byte.
+ */
+function withoutStoredWords(old, gotResult, wantResult) {
+  const fields = {
+    search_people: [["people", ["last_contact", "consent"]]],
+    get_person: [
+      ["conversations", ["state"]],
+      ["calls", ["status"]],
+    ],
+    get_settings: [["channels", ["status"]]],
+    list_playbooks: [["playbooks", ["state"]]],
+  }[old];
+  if (!fields) return [gotResult, wantResult];
+  const parse = (text) => {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return null;
+    }
+  };
+  const got = parse(gotResult);
+  const want = parse(wantResult);
+  if (!got || !want || got.error || want.error) return [gotResult, wantResult];
+  // Ask's thread words (server/ask/thread-state.ts); the others are a page's, which open with a capital.
+  const THREAD_WORDS = ["needs you", "you have it", "a teammate is answering", "snoozed", "opted out", "answering"];
+  const said = {
+    last_contact: (v) => typeof v === "string" && (v.includes(" · ") || v === "No contact recorded"),
+    consent: (v) => typeof v?.messages === "string" && typeof v?.offers === "string",
+    state: (v, list) =>
+      list === "conversations" ? THREAD_WORDS.includes(v) : typeof v === "string" && /^[A-Z]/.test(v),
+    status: (v) => typeof v === "string" && /^[A-Z]/.test(v),
+  };
+  for (const [list, keys] of fields)
+    for (const row of got[list] ?? [])
+      for (const k of keys)
+        assert.ok(said[k](row[k], list), `${old}: ${list}.${k} is the page's word: ${JSON.stringify(row[k])}`);
+  const strip = (said) => {
+    const out = { ...said };
+    for (const [list, keys] of fields)
+      if (Array.isArray(out[list]))
+        out[list] = out[list].map((row) => Object.fromEntries(Object.entries(row).filter(([k]) => !keys.includes(k))));
+    return JSON.stringify(out);
+  };
+  return [strip(got), strip(want)];
+}
+
 /** The old tools that read the open escalations through their reader: two halves since 13 Oct 2026 (R2). */
 const ESCALATION_HALVES = new Set(["get_today", "list_threads", "get_thread"]);
 
@@ -1279,10 +1329,12 @@ test("every old tool's call, made by its new name and action, answers the bytes 
       NAMES[old] === "report"
         ? withCampaignReads(withPeopleReads(withReceptionistReads(withReviewReads(withKept))))
         : withKept;
-    const [gotResult, wantResult] =
-      NAMES[old] === "campaigns.playbooks"
+    const [gotResult, wantResult] = withoutStoredWords(
+      old,
+      ...(NAMES[old] === "campaigns.playbooks"
         ? againstOffered(got.result, withLastThirtyDays(result))
-        : [got.result, NAMES[old] === "people.get" ? withoutRightNowDetail(result) : result];
+        : [got.result, NAMES[old] === "people.get" ? withoutRightNowDetail(result) : result]),
+    );
     // 2 Oct 2026: a win-back proposed asks first whether a calendar is connected (check-playbook's calendarOn), from the
     // zone and settings the turn reads once: the same reads as before, those two earlier.
     // Reads asked at once land in any order: People's list has read the workspace beside its rows since e32aaf29c,

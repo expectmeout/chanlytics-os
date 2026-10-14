@@ -9,10 +9,12 @@
  *     once, which says "You joined X" (POST me/invitations/accept);
  *   - GET leads/export marked the leads it took, which moves the month's count (R1d): POST leads/export.
  *
- * What is left writes on purpose, and the allow-list says why. Each is a download, and a download of the owner's
- * customers is the act the log must show: a `decisions` row names who took a copy, or who listened to a call, and when.
- * They stay GETs because the browser saves a GET's file and plays a GET's audio from a link (an anchor, an <audio src>),
- * and the row is the ledger's, not a change to anything a page draws.
+ * What is left writes on purpose, and the allow-list says why. The downloads are a download of the owner's customers,
+ * the act the log must show: a `decisions` row names who took a copy, or who listened to a call, and when. They stay GETs
+ * because the browser saves a GET's file and plays a GET's audio from a link (an anchor, an <audio src>), and the row is
+ * the ledger's, not a change to anything a page draws. The ideas for a first search are the one write that is no download:
+ * the kept answer of a model's call, claimed and rate-limited, which the trace could not see until it followed packages/db
+ * and a store's methods (the wiring's second audit, R11 S11-8).
  *
  * The trace is _trace.mjs's: from the function each GET hands to `read({ handle })`, through every function it calls by
  * name in the dashboard's own files, to a row written through supabase-js, a fact put on the ledger (emitEvent,
@@ -42,6 +44,8 @@ const ALLOWED = {
     "a call's recording opened: the ledger row (open_recording, call; recording_opened, 00277) is who listened, written before the link leaves, once an hour per member",
   "GET export":
     "everything the workspace holds, as one file: the ledger row (export, workspace) is who took a copy of all of it",
+  "GET lead-suggestions":
+    "the ideas for a new search, kept (lead_suggestions_write, 00398): a model's answer cached for a month, claimed so two reads ask it once and rate-limited (lead_suggest), written only for a member who may find; a POST the Leads boot makes once would be its honest shape, owed",
 };
 
 const world = checkout();

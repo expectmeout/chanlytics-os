@@ -485,7 +485,7 @@ test("the wiring: the page draws rows from the same facts Setup reads, the old c
   assert.ok(pane.includes("<BusinessRecordForm line={ownLine} flash={flash} />"));
   assert.ok(pane.includes("data-testid={`connections-${g}`}") && row.includes("data-testid={`connection-${r.kind}`}"));
   assert.ok(
-    pane.includes('useSurface("settings")') &&
+    pane.includes('useSurface("channels")') &&
       pane.includes('useSurface("setup")') &&
       pane.includes('useSurface("google")'),
     "repaints on every surface it reads",

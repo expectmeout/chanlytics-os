@@ -377,3 +377,33 @@ test("before 00372 there is no push_off to read, and every member is told as bef
   await dispatchJob(ctx(db, { push: p.push }), job);
   assert.deepEqual(p.sent.map((m) => m.to).sort(), ["tok-u1-a", "tok-u1-b", "tok-u2"]);
 });
+
+test("a member of two workspaces is told which business it is about, and their icon keeps the number it had (R11 S8-7)", async () => {
+  const db = fakeDb({
+    notifications: [row()],
+    tenants: [
+      { id: T, name: "Harbor Salon" },
+      { id: OTHER, name: "Bayside" },
+    ],
+    memberships: [
+      { user_id: "u1", tenant_id: T, role: "owner", push_off: [] },
+      { user_id: "u1", tenant_id: OTHER, role: "owner", push_off: [] },
+      { user_id: "u2", tenant_id: T, role: "staff", push_off: [] },
+    ],
+    push_devices: [
+      { id: "d1", user_id: "u1", token: "tok-u1" },
+      { id: "d3", user_id: "u2", token: "tok-u2" },
+    ],
+  });
+  const p = port();
+  await dispatchJob(ctx(db, { push: p.push }), job);
+  const to = (token) => p.sent.find((m) => m.to === token);
+  assert.equal(
+    to("tok-u1").title,
+    "Harbor Salon · Handoff needed",
+    "REGRESSION: 'Handoff needed', and which business?",
+  );
+  assert.equal("badge" in to("tok-u1"), false, "no one workspace's count on an icon that is two");
+  assert.equal(to("tok-u2").title, "Handoff needed", "a member of one is told as before");
+  assert.equal(to("tok-u2").badge, 1);
+});

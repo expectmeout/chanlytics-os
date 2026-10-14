@@ -438,10 +438,11 @@ export function exampleParams(specs: readonly ParamSpec[], businessName: string)
 export interface TemplateUse {
   /**
    * The playbooks that send it, by the name the owner gave them: whether each is
-   * paused, whether one of its runs is waiting on the owner, and its clock in
-   * words ("runs daily at 10:00") when the source gave one.
+   * paused, whether it is past its last day (00416 `until`: on, and sending nothing more; absent from a server from before
+   * it), whether one of its runs is waiting on the owner, and its clock in words ("runs daily at 10:00") when the source
+   * gave one.
    */
-  playbooks: { id: string; name: string; paused: boolean; waiting: boolean; runs: string | null }[];
+  playbooks: { id: string; name: string; paused: boolean; ended?: boolean; waiting: boolean; runs: string | null }[];
   /** How many broadcasts a PERSON sent with it; a playbook's runs are its own. */
   broadcasts: number;
   /** The latest of those broadcasts, newest first, by the names they were given: at most two. */
@@ -461,6 +462,8 @@ export interface TemplateUseSource {
     template_name: string | null;
     state?: string | null;
     runs?: string | null;
+    /** Past its last day by the business's day, as the caller judged it (contracts campaignEnded); absent where it was not. */
+    ended?: boolean;
   }[];
   /**
    * Every broadcast. A playbook's runs carry its id: they are not counted as broadcasts, but a
@@ -491,6 +494,7 @@ export function templateUsage(src: TemplateUseSource): Record<string, TemplateUs
       id: p.id,
       name: p.name,
       paused: p.state === "paused",
+      ended: p.ended === true,
       waiting: asking.has(p.id),
       runs: p.runs ?? null,
     });
@@ -522,7 +526,7 @@ const capital = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s)
 export function templateUseWords(use: TemplateUse | null | undefined): string {
   const u = use ?? NOTHING;
   const parts: string[] = [];
-  for (const p of u.playbooks) parts.push(p.paused ? `${p.name} (paused)` : p.name);
+  for (const p of u.playbooks) parts.push(p.paused ? `${p.name} (paused)` : p.ended ? `${p.name} (ended)` : p.name);
   if (u.broadcasts > 0) parts.push(`${u.broadcasts} broadcast${u.broadcasts === 1 ? "" : "s"}`);
   if (u.booking) parts.push("the Inbox");
   if (parts.length === 0) return "Nothing sends it";
@@ -540,8 +544,16 @@ export function templateUseWords(use: TemplateUse | null | undefined): string {
 export function templateUseNote(use: TemplateUse | null | undefined): string | null {
   const u = use ?? NOTHING;
   if (u.playbooks.some((p) => p.waiting)) return `a run is ${RUN_WAITING_WORDS.toLowerCase()}`;
-  if (u.playbooks.length === 1) return u.playbooks[0].paused ? "paused — nothing goes out" : u.playbooks[0].runs;
-  if (u.playbooks.length > 1) return u.playbooks.every((p) => p.paused) ? "all paused — nothing goes out" : null;
+  // One past its last day sends nothing more, whatever its clock says (the wiring's second audit, S1-3).
+  const [only] = u.playbooks;
+  if (only && u.playbooks.length === 1)
+    return only.paused ? "paused — nothing goes out" : only.ended ? "ended — nothing more goes out" : only.runs;
+  if (u.playbooks.length > 1)
+    return u.playbooks.every((p) => p.paused)
+      ? "all paused — nothing goes out"
+      : u.playbooks.every((p) => p.paused || p.ended)
+        ? "none runs — nothing goes out"
+        : null;
   if (u.recent.length > 0)
     return u.broadcasts > u.recent.length
       ? `${u.recent.join(", ")} and ${u.broadcasts - u.recent.length} more`

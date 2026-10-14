@@ -6,7 +6,8 @@
  */
 import { api, read } from "@/legacy-bridge/api";
 import { workspaceZone } from "@/legacy-bridge/zone";
-import { LEFT_THE_QUEUE } from "@/legacy-bridge/surface-realtime";
+import { LEFT_THE_QUEUE, deliveryTicksOnly } from "@/legacy-bridge/surface-realtime";
+import type { Output } from "@/client/api";
 import { declareReads } from "@/legacy-bridge/surface-registry";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { routeOnScreen } from "@/legacy-bridge/workspace";
@@ -70,6 +71,9 @@ followSettings("inbox", (held, settings) => {
     : { ...held, templates, templatesHeld };
 });
 
+/** The open holds as the last read answered them: what a read the receipts alone asked for keeps (S10-2). */
+let lastHolds: Output<"GET escalations"> | null = null;
+
 export const inboxOverride: SurfaceOverride = {
   key: "inbox",
   value: "inbox",
@@ -83,17 +87,20 @@ export const inboxOverride: SurfaceOverride = {
   // address, a yes or a stop, a merge). A few a day, so heard on every page, as the messages are. The templates the composer
   // offers are the settings read's, which hears them (offered-templates.ts).
   ...declareReads("inbox", { reads: ["conversation", "hold", "person"], fresh: "live" }),
-  apply: async () => {
+  apply: async (heard) => {
     // When this read was ASKED, or the oldest read it may share (a head's prefetch, one in flight: api sharesFrom): the bell
     // judges a hold's kept notice only by a read that began after it was kept (a hold kept while the read was in flight
     // would otherwise be judged by a read that never saw it), on the servers' clock (notifications.ts whatWaits).
     const readAt = api().sharesFrom();
+    // A delivery's receipts move the threads' ticks alone: the holds are the last read's (deliveryTicksOnly, S10-2).
+    const holdsHeld = deliveryTicksOnly(heard) ? lastHolds : null;
     const [convData, escData, tz] = await Promise.all([
       read("GET conversations"),
-      read("GET escalations", { query: { state: "open" } }),
+      holdsHeld ?? read("GET escalations", { query: { state: "open" } }),
       // Every time on a thread is said by the business's clock (zone.ts).
       workspaceZone(),
     ]);
+    lastHolds = escData;
     const byConv = new Map<string, EscalationRow>();
     for (const e of escData.escalations) byConv.set(e.conversation_id, e);
 

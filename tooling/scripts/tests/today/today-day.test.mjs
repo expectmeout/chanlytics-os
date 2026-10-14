@@ -112,8 +112,8 @@ test("today and tomorrow, as the calendar reads them: items in time order with t
   const vm = todayDay(
     cal(days),
     pb([
-      { trigger: "visit_tomorrow", state: "running", run_hour: 10, candidates: 2, next: "today 10:00 AM" },
-      { trigger: "quiet_30", state: "running", run_hour: 10, candidates: 5, next: "today 10:00 AM" },
+      { trigger: "visit_tomorrow", state: "running", run_hour: 10, candidates: 2, next: "today 10:00 AM", runs: true },
+      { trigger: "quiet_30", state: "running", run_hour: 10, candidates: 5, next: "today 10:00 AM", runs: true },
     ]),
     { rows: [{ id: "c1", state: "needs_you" }] },
   );
@@ -212,9 +212,25 @@ test("without a feed the day says nothing; with one and no visit playbook it off
   assert.equal(on.reminders.to, "outbound");
   const paused = todayDay(
     cal([day("2026-09-06", { today: true })]),
-    pb([{ trigger: "visited", state: "paused", run_hour: 18, candidates: 1, next: "paused" }]),
+    pb([{ trigger: "visited", state: "paused", run_hour: 18, candidates: 1, next: "paused", runs: false }]),
   );
   assert.match(paused.reminders.text, /^No appointment reminders yet/, "a paused playbook is not a reminder going out");
+  // Nor is one still on but past its last day (00416 `until`): it runs on no day to come (campaignRunsOn, the wiring's second
+  // audit S1-3), where the strip said it was.
+  const ended = todayDay(
+    cal([day("2026-09-06", { today: true })]),
+    pb([
+      {
+        trigger: "visited",
+        state: "running",
+        run_hour: 18,
+        candidates: 1,
+        next: "none: its last day has passed",
+        runs: false,
+      },
+    ]),
+  );
+  assert.match(ended.reminders.text, /^No appointment reminders yet/, "a campaign past its last day is no reminder");
   // A campaign goes by WhatsApp, text or email, so the offer to start one says "write", not "text"; and a person reads
   // "campaign", never "playbook" (decision 19).
   assert.equal(
@@ -225,8 +241,15 @@ test("without a feed the day says nothing; with one and no visit playbook it off
   const uncounted = todayDay(
     cal([day("2026-09-06", { today: true })]),
     pb([
-      { trigger: "visit_tomorrow", state: "running", run_hour: 10, candidates: null, next: "today 10:00 AM" },
-      { trigger: "visited", state: "running", run_hour: 18, candidates: 1, next: "today 6:00 PM" },
+      {
+        trigger: "visit_tomorrow",
+        state: "running",
+        run_hour: 10,
+        candidates: null,
+        next: "today 10:00 AM",
+        runs: true,
+      },
+      { trigger: "visited", state: "running", run_hour: 18, candidates: 1, next: "today 6:00 PM", runs: true },
     ]),
   );
   assert.equal(
@@ -243,8 +266,15 @@ test("the day's reminders say the workspace's word, as Campaigns does, from the 
     today,
     pb(
       [
-        { trigger: "visit_tomorrow", state: "running", run_hour: 10, candidates: 2, next: "today 10:00 AM" },
-        { trigger: "visited", state: "running", run_hour: 18, candidates: 1, next: "today 6:00 PM" },
+        {
+          trigger: "visit_tomorrow",
+          state: "running",
+          run_hour: 10,
+          candidates: 2,
+          next: "today 10:00 AM",
+          runs: true,
+        },
+        { trigger: "visited", state: "running", run_hour: 18, candidates: 1, next: "today 6:00 PM", runs: true },
       ],
       "meeting",
     ),

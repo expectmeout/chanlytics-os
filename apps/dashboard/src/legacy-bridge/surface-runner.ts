@@ -10,23 +10,33 @@
  * side-effecting half.
  */
 import type { subscribeWorkspaceChanges, SubscribeOptions } from "@chanlytics/db/realtime";
-import { MIN_MS, sendingEndsAt } from "@chanlytics/contracts";
-import { activateOverride, readSlot, type SurfaceOverride } from "./surface-data";
+import { activateOverride, readSlot, readWasPartial, type SurfaceOverride } from "./surface-data";
 import { ApiError } from "../client/api";
 import { api, dropPrefetched, serversClockOf } from "./api";
 import { cachedTenant, sealSurfaceCache, snapshotSurface } from "./surface-cache";
+import { getSurfaceStatuses, isSurfaceReady, onSurfaceMoved, setConnection, setStatus } from "./surface-status";
 import {
-  getConnection,
-  getSurfaceStatuses,
-  isSurfaceReady,
-  setConnection,
-  setStatus,
-  surfaceMoved,
-} from "./surface-status";
-import { ROUTE_WAIT_MS, keepForItsPage, routeDrawsFor, routeSurfaceFor } from "./surface-registry";
-import { feedWatch, REALTIME_GRACE_MS, subscribesToRealtime, wantsRefresh, type FeedWatch } from "./surface-realtime";
+  ROUTE_WAIT_MS,
+  drawsTheScreen,
+  keepForItsPage,
+  keepUntilDrawn,
+  readLanded,
+  routeDrawsFor,
+  routeSurfaceFor,
+} from "./surface-registry";
+import {
+  feedWatch,
+  REALTIME_GRACE_MS,
+  subscribesToRealtime,
+  wantsRefresh,
+  type FeedWatch,
+  type RealtimeChange,
+} from "./surface-realtime";
 import { getActiveWorkspace, routeOnScreen, signInHref } from "./workspace";
-import { knownZone, msUntilTheDayTurns, pageClock, workspaceZone } from "./zone";
+import { watchTheClock } from "./hearing/clock";
+import { watchTheDayTurn } from "./hearing/day-turn";
+import { pageHidden } from "./hearing/front";
+import { passesOf, type Passes } from "./hearing/passes";
 
 // Re-exported so consumers keep importing the seam from one place.
 export {
@@ -52,14 +62,20 @@ let activeRefresh: ((o: SurfaceOverride) => Promise<void>) | null = null;
 let activeOverrides: SurfaceOverride[] = [];
 /** The running runner's boot, settled once its last surface is in, whether each read worked or not. */
 let activeBoot: Promise<void> = Promise.resolve();
-/**
- * A return to the tab this soon after it was hidden reads nothing again, while the live feed is up and every surface
- * is live: the feed kept them current meanwhile. Every return used to read every surface -- about 28 reads on a
- * workspace, for a glance at another app; the phone app's five pages each did it on every return to the app.
- */
-const AWAY_BEFORE_READ_AGAIN_MS = MIN_MS / 2;
 /** A surface whose first read failed is read once more after this: one retry covers boot blips. */
 const BOOT_RETRY_MS = 800;
+/**
+ * A read asked for after the boot (a notice, a write, a pass) that failed, or landed in part, is asked for again after these, one
+ * after the other: a notice is the only word that a record changed, so the read it asks for is not dropped on the first busy
+ * moment (the wiring's second audit, S2-5). After the last the surface stays as the status line says it is: not refreshing.
+ */
+const RETRY_AFTER_MS = [2_000, 10_000] as const;
+/**
+ * The surfaces a hidden page still reads as the feed tells of them: who is looking, the Inbox, a call in progress and the bell,
+ * which say themselves in the tab's title, its badge and the phone's icon. Every other notice is held until the page is in front
+ * again (hearing/passes.ts holdWhileHidden): a pinned tab read the Inbox, Today and the threads all day for nobody (S10-3).
+ */
+const READ_WHILE_HIDDEN: ReadonlySet<string> = new Set(["workspace", "inbox", "live", "notifications"]);
 /** A refresh waits this long after the last one asked for, unless the surface names its own debounce. */
 const REFRESH_DEBOUNCE_MS = 400;
 /**
@@ -170,44 +186,30 @@ function screenOwn(win: Window): (o: SurfaceOverride) => boolean {
 }
 
 /**
- * What a pass over these surfaces reads here (a return to the tab, the network back, a rejoin of the live feed, Retry-all): every
- * one but a surface read only where it is drawn (`onDemand`) and not drawn here, which is kept for its page instead
- * (surface-registry.ts keepForItsPage), so its page reads it once as it comes on screen and never shows what the pass missed.
- * `alsoRead` names any such surface the pass reads all the same (Retry's: what the status line says stopped refreshing).
+ * What a pass over these surfaces reads here (a return to the tab, the network back, a rejoin of the live feed, the day's turn,
+ * Retry-all): every one but a surface read only where it is drawn (`onDemand`), or heard only on its page (`its-page`), when no
+ * page on screen draws it. The first is kept for its page (surface-registry.ts keepForItsPage), the second for whichever page
+ * next draws it (keepUntilDrawn): read once as it comes on screen, never showing what the pass missed. People, Sent's runs and the
+ * playbooks were read at every return to Today, the heaviest of the pass, for pages nobody had open (the wiring's second audit,
+ * S10-7). `alsoRead` names any such surface the pass reads all the same (Retry's: what the status line says stopped refreshing).
  */
 function readHere(
   overrides: readonly SurfaceOverride[],
   alsoRead: (o: SurfaceOverride) => boolean = () => false,
 ): SurfaceOverride[] {
   const drawn = screenOwn(window);
+  const route = routeOnScreen();
   return overrides.filter((o) => {
-    if (!o.onDemand || drawn(o) || alsoRead(o)) return true;
-    keepForItsPage(o.key);
+    if (alsoRead(o)) return true;
+    if (o.onDemand) {
+      if (drawn(o)) return true;
+      keepForItsPage(o.key);
+      return false;
+    }
+    if (o.fresh !== "its-page" || drawn(o) || drawsTheScreen(o.key, route)) return true;
+    keepUntilDrawn(o.key);
     return false;
   });
-}
-
-/**
- * What a return to the tab reads: every surface, unless the tab was away less than AWAY_BEFORE_READ_AGAIN_MS with the
- * live feed up and every one of these surfaces live. A failed surface is the one that MOST needs retrying -- it used to
- * be the one excluded, which is how a boot blip became permanent for the session. The visibilitychange listener.
- */
-function onReturn(overrides: readonly SurfaceOverride[], readEverySurfaceAgain: () => void): () => void {
-  let hiddenAt: number | null = null;
-  return () => {
-    if (document.visibilityState !== "visible") {
-      hiddenAt ??= Date.now();
-      return;
-    }
-    const away = hiddenAt === null ? Infinity : Date.now() - hiddenAt;
-    hiddenAt = null;
-    const statuses = getSurfaceStatuses();
-    // A surface read only where it is drawn, and not drawn here, is none the feed could have let go stale: it does not count.
-    const drawn = screenOwn(window);
-    const allLive = overrides.every((o) => (o.onDemand && !drawn(o)) || statuses.get(o.key) === "live");
-    if (away < AWAY_BEFORE_READ_AGAIN_MS && allLive && !getConnection().realtimeDown) return;
-    readEverySurfaceAgain();
-  };
 }
 
 /**
@@ -252,6 +254,15 @@ interface SurfaceRun {
    * it is in, when what the feed says is read as it comes.
    */
   held: Set<SurfaceOverride> | null;
+  /**
+   * What the live feed told each pending refresh of (a table, its event and its status): handed to the read, which may read
+   * only what those can have changed (`apply(heard)`: a delivery tick re-reads the threads, not the calls and the holds, S10-2).
+   */
+  readonly heard: Map<string, RealtimeChange[]>;
+  /** The one pass that reads everything again (hearing/passes.ts), once the runner has started it. */
+  passes: Passes | null;
+  /** Stops waiting for the workspace's id, where the tab joined no feed for want of it (joinFeedEarly). */
+  leaveWorkspaceWait?: () => void;
 }
 
 function newSurfaceRun(overrides: SurfaceOverride[]): SurfaceRun {
@@ -272,6 +283,8 @@ function newSurfaceRun(overrides: SurfaceOverride[]): SurfaceRun {
     realtime: overrides.filter(subscribesToRealtime),
     unsubscribe: null,
     held: new Set(),
+    heard: new Map<string, RealtimeChange[]>(),
+    passes: null,
   };
 }
 
@@ -318,6 +331,7 @@ function noteRead(run: SurfaceRun, o: SurfaceOverride): (landed: boolean) => voi
     run.timers.delete(o.key);
     run.firstAsked.delete(o.key);
     run.asked.delete(o.key);
+    run.heard.delete(o.key);
   }
   return (landed) => {
     if (landed) return;
@@ -362,24 +376,54 @@ function askedBy(run: SurfaceRun, o: SurfaceOverride, told: string | undefined, 
   run.asked.set(o.key, { slot: readSlot(o), arrived: Math.max(was?.arrived ?? 0, newest) });
 }
 
-async function refreshSurface(run: SurfaceRun, o: SurfaceOverride, phase: "boot" | "refresh"): Promise<void> {
+/**
+ * Read a surface again: its status, its cache, and what it held for its pages. One that failed, or landed only in part (a read of
+ * Today whose calls could not be read: `apply` said "partial"), is asked for again after RETRY_AFTER_MS, unless something has
+ * asked for it meanwhile; `attempt` counts the tries. `heard` is what the feed told the refresh of, for the read to narrow to.
+ */
+async function refreshSurface(
+  run: SurfaceRun,
+  o: SurfaceOverride,
+  phase: "boot" | "refresh",
+  heard?: readonly RealtimeChange[],
+  attempt = 0,
+): Promise<void> {
   const settle = noteRead(run, o);
+  const from = run.readFrom.get(readSlot(o));
   try {
-    const ok = await activateOverride(o);
+    const ok = await activateOverride(o, heard);
     settle(ok);
     if (run.cancelled) return;
+    const whole = ok && !readWasPartial(o.key);
     if (ok) {
       persistSurface(o);
-      setStatus(o.key, "live");
-    } else if (phase === "boot" || !isSurfaceReady(o.key)) {
+      // What it was kept for, let pass or left for its pages before this read began, it now holds (S2-7).
+      if (from !== undefined) readLanded(o.key, from);
+    }
+    if (whole) setStatus(o.key, "live");
+    else if (!ok && (phase === "boot" || !isSurfaceReady(o.key))) {
       // "degraded" means "real but stale" — it may only describe a surface
       // that HAS real data. A failed refresh of a never-loaded surface is
       // still just failed, and saying otherwise upgrades the lie.
       setStatus(o.key, "seeded");
     } else setStatus(o.key, "degraded");
+    if (!whole) retryLater(run, o, attempt);
   } catch (e) {
     if (e instanceof ApiError && e.code === "unauthorized") signOutOnUnauthorized(run);
   }
+}
+
+/** Ask for a surface whose read failed, or landed in part, once more, unless a refresh of it is already asked for. */
+function retryLater(run: SurfaceRun, o: SurfaceOverride, attempt: number): void {
+  const wait = RETRY_AFTER_MS[attempt];
+  if (wait === undefined || run.cancelled || run.timers.has(o.key)) return;
+  run.timers.set(
+    o.key,
+    setTimeout(() => {
+      run.timers.delete(o.key);
+      if (!run.cancelled) void refreshSurface(run, o, "refresh", undefined, attempt + 1);
+    }, wait),
+  );
 }
 
 async function bootSurface(run: SurfaceRun, o: SurfaceOverride): Promise<void> {
@@ -395,7 +439,12 @@ async function bootSurface(run: SurfaceRun, o: SurfaceOverride): Promise<void> {
       settle(ok);
     }
     if (run.cancelled) return;
-    if (ok) {
+    if (ok && readWasPartial(o.key)) {
+      // Real, and in part: it stands as not refreshing, and the rest is asked for again (S2-5).
+      persistSurface(o);
+      setStatus(o.key, "degraded");
+      retryLater(run, o, 0);
+    } else if (ok) {
       persistSurface(o);
       setStatus(o.key, "live");
     } else if (isSurfaceReady(o.key)) {
@@ -428,9 +477,13 @@ function scheduleSurfaceRefresh(run: SurfaceRun, o: SurfaceOverride): void {
   run.timers.set(
     o.key,
     setTimeout(() => {
+      run.timers.delete(o.key);
       run.firstAsked.delete(o.key);
       run.asked.delete(o.key); // the read below is the one they asked for, not one that holds them
-      void refreshSurface(run, o, "refresh");
+      // What the feed told this refresh of, for the read to narrow to; none where a write or a pass asked as well.
+      const heard = run.heard.get(o.key);
+      run.heard.delete(o.key);
+      void refreshSurface(run, o, "refresh", heard);
     }, wait),
   );
 }
@@ -455,18 +508,50 @@ function refreshSoon(run: SurfaceRun, o: SurfaceOverride): void {
 }
 
 /**
- * What the live feed's own reports mean for the page (surface-realtime.ts):
- * a rejoin reads the gap, and a drop that outlasts the grace is the shell's
- * to say.
+ * What the live feed's own reports mean for the page (surface-realtime.ts): the feed replays nothing it missed, so each join reads
+ * the gap, and a drop that outlasts the grace is the shell's to say. Both joins go through the one pass, through the lanes, and
+ * skip what a read since the join holds:
+ *  - The first: a surface read before the feed was joined (the boot, the document's head) never heard what changed between its
+ *    read and the join, which on a phone is seconds. Once the boot is in, what tells of a customer's message or a call and was
+ *    read before the join is read once more (S2-4; caughtUpAtJoin). Every boot read begins before the join, so the rest wait for
+ *    their next notice or the rolling heal: reading them all again would read the whole boot twice on every cold open.
+ *  - A rejoin after sleep or a drop: what is heard here is read again, and a surface a return's pass read since is not (S2-7).
  */
-function watchLiveFeed(run: SurfaceRun): FeedWatch {
+function watchLiveFeed(run: SurfaceRun, booted: Promise<void>): FeedWatch {
   return feedWatch({
     graceMs: REALTIME_GRACE_MS,
     onDown: (down) => setConnection({ realtimeDown: down }),
-    // reconnect after sleep/offline: the feed replays nothing it missed, so
-    // refetch to close the gap (what is drawn here; the rest is kept for its
-    // page: readHere)
-    onReconnect: () => readHere(run.realtime).forEach((o) => refreshSoon(run, o)),
+    onJoin: () => {
+      const at = Date.now();
+      // A feed reported down while the tab had no workspace to join (S2-6) is up now.
+      setConnection({ realtimeDown: false });
+      void booted.then(() => run.passes?.again("join", readBefore(run, at).filter(caughtUpAtJoin), at));
+    },
+    onReconnect: () => {
+      const at = Date.now();
+      void run.passes?.again("rejoin", readBefore(run, at), at);
+    },
+  });
+}
+
+/**
+ * Whether the feed's first join reads this surface again, when its read began before the join: it tells of a customer's message
+ * or a call, which the page must not miss for the length of a load, and its read is not dear (it names no longer wait than the
+ * runner's own: People, Sent's runs, the playbooks and Today's headline do). The full answer is the feed's own replay from the
+ * load's start (0019 step 4), owed to a proof on the local stack.
+ */
+function caughtUpAtJoin(o: SurfaceOverride): boolean {
+  return (
+    (o.maxWaitMs ?? REFRESH_MAX_WAIT_MS) <= REFRESH_MAX_WAIT_MS &&
+    (wantsRefresh(o, "messages") || wantsRefresh(o, "calls"))
+  );
+}
+
+/** The surfaces the feed tells of whose last read began before `at`, or that were never read: what a join owes a read. */
+function readBefore(run: SurfaceRun, at: number): SurfaceOverride[] {
+  return run.realtime.filter((o) => {
+    const from = run.readFrom.get(readSlot(o));
+    return from === undefined || from < at;
   });
 }
 
@@ -582,157 +667,65 @@ function joinFeedEarly(run: SurfaceRun, boot: SurfaceBoot, joinFeed: JoinLiveFee
     if (run.cancelled) return;
     if (tenantChangedSinceCache(run)) return;
     if (!run.realtime.length) return;
-    // Scoped to the workspace this tab shows: the database tells each
-    // workspace's changes on a topic of its own, and Realtime admits only its
-    // members (00265), so a member of two workspaces neither hears nor
-    // repaints on the other one's. A switch is a new topic; a tab with no
-    // workspace joins nothing.
-    const ws = viewedWorkspace();
-    run.unsubscribe = joinFeed(
-      // Routed by table: a live call's transcript turns repaint Live, not the
-      // five surfaces that never asked (three of them plpgsql aggregates).
-      (row, table, event, at) => {
-        const arrived = Date.now();
-        // The notice's clock rides on the change (00408), for a rule that judges a change by when it was told.
-        const change = { table, event, row, ...(at ? { at } : {}) };
-        run.realtime
-          // A surface read after the change was made holds it, and asks for nothing (readAfter): asked before its rule, which
-          // keeps a page for its own page (onlyOnItsPage) a change it already holds. Teammates' and other tabs' changes
-          // are later than any read of this tab's and read as ever.
-          .filter((o) => !readAfter(run, o, at) && wantsRefresh(o, table, change))
-          .forEach((o) => {
-            refreshSoon(run, o);
-            askedBy(run, o, at, arrived);
-          });
-      },
-      {
-        tenantId: ws ?? undefined,
-        onStatus: (status) => {
-          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") console.warn("realtime_status", ws, status);
-          feed.onStatus(status);
-        },
-      },
-    );
+    if (viewedWorkspace()) {
+      joinWorkspaceFeed(run, joinFeed, feed);
+      return;
+    }
+    // The workspace read failed, so the tab does not know its topic yet: it joins as a later read says it (a Retry, a return),
+    // and says the feed is down while it has none, once the boot is in. It joined nothing for good, and said nothing (S2-6).
+    const unhear = onSurfaceMoved(["workspace"], () => {
+      if (run.cancelled || run.unsubscribe || !viewedWorkspace()) return;
+      unhear();
+      joinWorkspaceFeed(run, joinFeed, feed);
+    });
+    run.leaveWorkspaceWait = unhear;
+    void boot.booted.then(() => {
+      if (!run.cancelled && !run.unsubscribe) setConnection({ realtimeDown: true });
+    });
   });
 }
 
-/** The return to the tab and the connection's comings and goings, heard; answers what stops hearing them. */
-function listenForReturns(run: SurfaceRun): () => void {
-  const { overrides } = run;
-  // Every surface again, as the boot reads them: the one on screen first, the rest behind it through the lanes. A
-  // return used to schedule all of them at once -- twenty surfaces, thirty reads in one burst, with the page's own no
-  // sooner than a stranger's. Answers are NOT held here: the live feed is joined by now, and an answer held from
-  // before one of its events would hide what the event changed. A return while one pass is still out is that pass.
-  let againRunning = false;
-  const readEverySurfaceAgain = () => {
-    if (againRunning || run.cancelled) return;
-    againRunning = true;
-    const screen = screenRank(window);
-    void inLanes(
-      // What is drawn here, as the boot reads it; a surface read only where it is drawn waits for its page.
-      readHere(overrides).sort((x, y) => screen(x) - screen(y)),
-      BOOT_LANES,
-      (o) => refreshSurface(run, o, "refresh"),
-    ).finally(() => {
-      againRunning = false;
-    });
-  };
-
-  const onVisible = onReturn(overrides, readEverySurfaceAgain);
-  document.addEventListener("visibilitychange", onVisible);
-
-  // The browser says when this device loses its connection and when it has it
-  // back. Offline is the shell's to say at once; back online, every surface is
-  // read again now rather than at the next focus, because anything may have
-  // changed meanwhile.
-  const onOffline = () => setConnection({ offline: true });
-  const onOnline = () => {
-    setConnection({ offline: false });
-    readEverySurfaceAgain();
-  };
-  if (typeof navigator !== "undefined" && navigator.onLine === false) setConnection({ offline: true });
-  window.addEventListener("offline", onOffline);
-  window.addEventListener("online", onOnline);
-
-  return () => {
-    document.removeEventListener("visibilitychange", onVisible);
-    window.removeEventListener("offline", onOffline);
-    window.removeEventListener("online", onOnline);
-  };
-}
-
-/** How far past the end of the sending hours their re-judging waits: a timer that fires a hair early judges the hour it leaves. */
-const PAST_THE_HOUR_MS = 1_000;
-
 /**
- * The business's day turns: the surfaces that count the day so far (`readAtMidnight`) are read again, a second past its midnight by
- * the workspace's zone, and the timer is armed again for the next (a day the clocks change is 23 or 25 hours, so it is the zone's
- * midnight each time, not a day's length). Nothing else moves them at midnight: a tab left open overnight said yesterday's totals
- * under "Today so far" until its first message. A tab nobody is looking at reads as it is shown; a surface read only where it is
- * drawn is read where its page is on screen and kept for its page elsewhere (readHere), as a return to the tab does. A zone saved
- * moves the next midnight: the workspace's change (`workspace:changed`, told once the new zone is published) arms the timer again.
- * And Sent's runs are said to have moved: a run waiting for approval whose day has just passed waits on nobody now (contracts
- * runWaitsOnYou), so every count of what needs you and every page that draws the runs asks again, with no read (S7-3); and
- * so they are once today's sending hours end, when a visit's run made for today is too late (sendingEndsAt).
+ * Join the live feed on the workspace this tab shows: the database tells each workspace's changes on a topic of its own, and
+ * Realtime admits only its members (00265), so a member of two workspaces neither hears nor repaints on the other one's. A
+ * switch is a new topic.
  */
-function watchTheDayTurn(run: SurfaceRun): () => void {
-  const counting = run.overrides.filter((o) => o.readAtMidnight);
-  if (!counting.length) return () => {};
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  // The end of today's sending hours: a visit's run made for today waits on nobody after it (sendingEndsAt).
-  let sendingTimer: ReturnType<typeof setTimeout> | null = null;
-  let owed = false;
-  let stopped = false;
-  /** Which arming is the latest: one still waiting for the zone when another begins gives way to it. */
-  let armings = 0;
-  const read = () => {
-    owed = false;
-    // A read already out was sent before the day turned: the reads this asks for share none (refreshSoon).
-    api().forget();
-    readHere(counting).forEach((o) => void refreshSurface(run, o, "refresh"));
-  };
-  const arm = async (): Promise<void> => {
-    const mine = (armings += 1);
-    const zone = knownZone() ?? (await workspaceZone().catch(() => pageClock().zone()));
-    if (stopped || run.cancelled || mine !== armings) return;
-    if (timer) clearTimeout(timer);
-    if (sendingTimer) clearTimeout(sendingTimer);
-    let wait: number;
-    let sendingEnds: Date | null;
-    try {
-      wait = msUntilTheDayTurns(zone, Date.now());
-      sendingEnds = sendingEndsAt(zone, new Date());
-    } catch {
-      return; // a zone the browser cannot read: the day is not turned by a clock here
-    }
-    // Once today's sending hours end, the runs that wait for a word are judged again (the count, the head, the bell's "is
-    // ready" row): a visit's run made for today is too late from then, and Approve would be refused.
-    if (sendingEnds)
-      sendingTimer = setTimeout(
-        () => surfaceMoved("broadcasts"),
-        sendingEnds.getTime() - Date.now() + PAST_THE_HOUR_MS,
-      );
-    timer = setTimeout(() => {
-      surfaceMoved("broadcasts");
-      if (document.visibilityState === "visible") read();
-      else owed = true;
-      void arm();
-    }, wait);
-  };
-  const onShown = () => {
-    if (owed && document.visibilityState === "visible") read();
-  };
-  const onZone = () => void arm();
-  document.addEventListener("visibilitychange", onShown);
-  window.addEventListener("workspace:changed", onZone);
-  void arm();
-  return () => {
-    stopped = true;
-    if (timer) clearTimeout(timer);
-    if (sendingTimer) clearTimeout(sendingTimer);
-    document.removeEventListener("visibilitychange", onShown);
-    window.removeEventListener("workspace:changed", onZone);
-  };
+function joinWorkspaceFeed(run: SurfaceRun, joinFeed: JoinLiveFeed, feed: FeedWatch): void {
+  const ws = viewedWorkspace();
+  run.unsubscribe = joinFeed(
+    // Routed by table: a live call's transcript turns repaint Live, not the
+    // five surfaces that never asked (three of them plpgsql aggregates).
+    (row, table, event, at) => {
+      const arrived = Date.now();
+      // The notice's clock rides on the change (00408), for a rule that judges a change by when it was told.
+      const change = { table, event, row, ...(at ? { at } : {}) };
+      const hidden = pageHidden();
+      run.realtime
+        // A surface read after the change was made holds it, and asks for nothing (readAfter): asked before its rule, which
+        // keeps a page for its own page (onlyOnItsPage) a change it already holds. Teammates' and other tabs' changes
+        // are later than any read of this tab's and read as ever.
+        .filter((o) => !readAfter(run, o, at) && wantsRefresh(o, table, change))
+        .forEach((o) => {
+          // Nobody is looking: held, and read as the page comes in front, but what says itself in the title and the badge.
+          if (hidden && !READ_WHILE_HIDDEN.has(o.key) && run.passes) {
+            run.passes.holdWhileHidden(o);
+            return;
+          }
+          const told = run.heard.get(o.key);
+          if (told) told.push(change);
+          else run.heard.set(o.key, [change]);
+          refreshSoon(run, o);
+          askedBy(run, o, at, arrived);
+        });
+    },
+    {
+      tenantId: ws ?? undefined,
+      onStatus: (status) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") console.warn("realtime_status", ws, status);
+        feed.onStatus(status);
+      },
+    },
+  );
 }
 
 /**
@@ -746,19 +739,41 @@ export function startSurfaces(overrides: SurfaceOverride[], joinFeed: JoinLiveFe
   const run = newSurfaceRun(overrides);
   activeRefresh = (o: SurfaceOverride) => refreshSurface(run, o, "refresh");
   activeOverrides = overrides;
-  const feed = watchLiveFeed(run);
+  // The one pass that reads everything again: a return, the network back, a join of the feed, the page in front, the day's turn.
+  const passes = passesOf({
+    overrides,
+    lanes: BOOT_LANES,
+    read: (o) => refreshSurface(run, o, "refresh"),
+    readFrom: (o) => run.readFrom.get(readSlot(o)),
+    here: (list) => readHere(list),
+    drawn: (o) => screenOwn(window)(o),
+    order: () => screenRank(window),
+    stopped: () => run.cancelled,
+  });
+  run.passes = passes;
   const boot = bootInPasses(run);
+  const feed = watchLiveFeed(run, boot.booted);
   joinFeedEarly(run, boot, joinFeed, feed);
-  const stopListening = listenForReturns(run);
-  const stopDay = watchTheDayTurn(run);
+  const stopDay = watchTheDayTurn({ overrides, passes, stopped: () => run.cancelled });
+  // What the clock moves with no record changing: remade each minute where drawn, read again where a source tells nothing, and
+  // anything drawn here not read for a quarter of an hour (the rolling heal).
+  const stopClock = watchTheClock({
+    overrides,
+    readFrom: (o) => run.readFrom.get(readSlot(o)),
+    asked: (o) => run.timers.has(o.key),
+    read: (o) => void refreshSurface(run, o, "refresh"),
+    stopped: () => run.cancelled,
+  });
 
   return () => {
     run.cancelled = true;
     boot.releaseAnswers();
     activeRefresh = null;
     activeOverrides = [];
-    stopListening();
+    passes.stop();
     stopDay();
+    stopClock();
+    run.leaveWorkspaceWait?.();
     run.timers.forEach((t) => clearTimeout(t));
     feed.stop();
     if (run.unsubscribe) run.unsubscribe();

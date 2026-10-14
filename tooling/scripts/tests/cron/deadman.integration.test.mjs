@@ -146,6 +146,51 @@ test("a RESOLVED escalation is never a candidate", { skip }, async () => {
   );
 });
 
+test(
+  "a SNOOZED thread's hold is not still waiting: no candidate while the snooze holds, one once it wakes (00432; R11 S7-6)",
+  { skip },
+  async () => {
+    const { data: e3 } = await db
+      .from("escalations")
+      .insert({
+        tenant_id: tenantId,
+        conversation_id: conversationId,
+        reason: "manual",
+        details: "snoozed probe",
+        state: "open",
+        created_at: new Date(Date.now() - 3 * 3600 * 1000).toISOString(),
+      })
+      .select("id")
+      .single();
+    const { data: was } = await db
+      .from("conversations")
+      .select("state, snooze_until")
+      .eq("id", conversationId)
+      .single();
+    try {
+      await db
+        .from("conversations")
+        .update({ state: "snoozed", snooze_until: new Date(Date.now() + 3600 * 1000).toISOString() })
+        .eq("id", conversationId);
+      const snoozed = await db.rpc("deadman_candidates", { p_older_than: "2 hours" });
+      assert.equal(
+        (snoozed.data ?? []).some((c) => c.escalation_id === e3.id),
+        false,
+        "REGRESSION: 'Still waiting' mailed and pushed over a thread the owner snoozed on purpose",
+      );
+      await db.from("conversations").update({ state: "needs_human", snooze_until: null }).eq("id", conversationId);
+      const woke = await db.rpc("deadman_candidates", { p_older_than: "2 hours" });
+      assert.ok(
+        (woke.data ?? []).some((c) => c.escalation_id === e3.id),
+        "left unstamped, the hold is raised by itself once the snooze wakes",
+      );
+    } finally {
+      await db.from("conversations").update(was).eq("id", conversationId);
+      await db.from("escalations").delete().eq("id", e3.id);
+    }
+  },
+);
+
 test("the shared secret exists and the sweep is scheduled", { skip }, async () => {
   // Both ends read this one value; if it is absent the endpoint 503s rather
   // than accepting an unauthenticated sweep.

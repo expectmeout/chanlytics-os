@@ -58,6 +58,8 @@ const NOTIFICATION_DELIVERY = {
   // A booking that arrived and a teammate who joined: news and no wait, a line on the bell and no mail, no phone.
   booking: "bell",
   member_joined: "bell",
+  // A teammate who left: the same, the other way (00436).
+  member_left: "bell",
 } as const satisfies Record<ServerNotificationKind, "email" | "bell">;
 
 /** A kept kind that is emailed. */
@@ -288,6 +290,7 @@ export const BELL_LINE_KINDS = [
   "alert",
   "booking",
   "member_joined",
+  "member_left",
 ] as const satisfies readonly ServerNotificationKind[];
 
 /** The kinds the business may turn off by email: every kind of a topic whose email is a choice. */
@@ -419,7 +422,7 @@ export const ALERT_PANE_WORDS = {
       "a booking email that needs a look",
       "the day's reach-out numbers at 6 PM",
       "a problem with a line",
-      "a teammate who joins",
+      "a teammate who joins or leaves",
       "invitations not yet accepted",
     ];
     return `Also on the bell: ${all.slice(0, -1).join(", ")}, and ${all[all.length - 1]}.`;

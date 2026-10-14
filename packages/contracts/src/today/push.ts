@@ -117,15 +117,25 @@ export interface PushMessage {
   title: string;
   body: string;
   sound: "default";
-  /** The bell's unread count for this phone's person: the number on the icon while the app is closed (00189). */
-  badge: number;
+  /**
+   * The bell's unread count for this phone's person: the number on the icon while the app is closed (00189). Absent for
+   * a person in more than one workspace, whose icon keeps the number it had (PushTarget.badge).
+   */
+  badge?: number;
   data: { route: string | null; notification_id: string; tenant_id: string };
 }
 
 /** A phone to tell, with the number its icon should wear. */
 export interface PushTarget {
   token: string;
-  badge: number;
+  /**
+   * The icon's number; null for a person in more than one workspace. Each workspace's push set its own count, and the last
+   * to push, or the one the app had open, took the icon over: no read counts across a person's workspaces yet, so their
+   * icon is left as it was (the wiring's second audit, R11 S8-7).
+   */
+  badge: number | null;
+  /** The business it is about, said before the title to a person in more than one workspace; null for one in one. */
+  business?: string | null;
 }
 
 /** The newest kept rows GET notifications lists; the count is of all the window's (NotificationsDto.unread). */
@@ -224,10 +234,11 @@ export function pushFor(
   const body = firstLine(n.body);
   return targets.map((t) => ({
     to: t.token,
-    title: n.title,
+    // "Harbor · Dana needs a person": a person in several businesses was told who, never which business (R11 S8-7).
+    title: t.business ? `${t.business} · ${n.title}` : n.title,
     body,
     sound: "default",
-    badge: t.badge,
+    ...(t.badge === null ? {} : { badge: t.badge }),
     data: { route: n.route, notification_id: n.id, tenant_id: n.tenant_id },
   }));
 }

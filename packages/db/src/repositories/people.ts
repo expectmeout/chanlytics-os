@@ -19,6 +19,7 @@ import {
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
 import { readAllRowsByKey } from "../paged";
+import { personIdsWaitingOnYou } from "./waiting-on-you";
 
 type Db = SupabaseClient<Database>;
 
@@ -484,19 +485,14 @@ export async function peopleAtLead(db: Db, tenantId: string, leadId: string): Pr
   const people = data ?? [];
   if (!people.length) return [];
   const ids = people.map((p) => p.id);
-  const [moments, waiting] = await Promise.all([
+  // Who waits on a person by the one standing rule, on their latest thread: a colleague whose thread the reader holds
+  // wore a Needs you dot from the raw needs_human column (the wiring's second audit, R11 S9-1).
+  const [moments, needs] = await Promise.all([
     db.from("person_moments").select("contact_id, in_touch_at").eq("tenant_id", tenantId).in("contact_id", ids),
-    db
-      .from("conversations")
-      .select("contact_id")
-      .eq("tenant_id", tenantId)
-      .eq("state", "needs_human")
-      .in("contact_id", ids),
+    personIdsWaitingOnYou(db, tenantId, ids, Date.now()),
   ]);
   if (moments.error) throw new Error(`peopleAtLead: ${moments.error.message}`);
-  if (waiting.error) throw new Error(`peopleAtLead: ${waiting.error.message}`);
   const touched = new Map((moments.data ?? []).map((m) => [m.contact_id, m.in_touch_at]));
-  const needs = new Set((waiting.data ?? []).map((w) => w.contact_id));
   return people
     .map((p) => {
       const at = touched.get(p.id) ?? null;

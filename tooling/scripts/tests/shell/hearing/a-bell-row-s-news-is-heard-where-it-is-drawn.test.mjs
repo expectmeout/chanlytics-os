@@ -56,6 +56,7 @@ const { peopleOverride } = await importSrc("apps/dashboard/src/surfaces/people/s
 const { playbooksOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/playbooks/surface.ts");
 const { broadcastsOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts");
 const { personOverride } = await importSrc("apps/dashboard/src/surfaces/people/people-detail.ts");
+const { channelsOverride } = await importSrc("apps/dashboard/src/surfaces/channels/surface.ts");
 
 /** The surfaces the pages a row opens draw it from. */
 const DRAWN = [
@@ -66,7 +67,7 @@ const DRAWN = [
   playbooksOverride,
   broadcastsOverride,
 ];
-const byKey = Object.fromEntries([...DRAWN, personOverride].map((o) => [o.key, o]));
+const byKey = Object.fromEntries([...DRAWN, personOverride, channelsOverride].map((o) => [o.key, o]));
 
 /** Turns of the loop for a read fired and not waited for to be made and answered. */
 const flush = async () => {
@@ -188,7 +189,12 @@ const ANNOUNCES = {
   },
   handoff: "The Inbox, which the row opens, hears the escalation and the message.",
   deadman: "The Inbox, which the row opens, hears the hold it raised.",
-  number: "Connections, which the row opens, hears tenant_channels and lines.",
+  // A number flagged, restricted or failing (Meta's word on the channel row): Connections' WhatsApp and phone rows, the Library's
+  // and the composers', all made of the channels read, which hears the row wherever the tab is (R6).
+  number: {
+    change: ["tenant_channels", "UPDATE"],
+    heard: [["channels", ["#/admin/integrations", "#/messages", "#/broadcasts", "#/today"]]],
+  },
   billing: "Billing, which the row opens, hears billing_accounts.",
   review: "The Reviews lens, which the row opens, hears google_reviews.",
   broadcast_sent: "Sent, which the row opens, hears broadcasts.",
@@ -201,6 +207,8 @@ const ANNOUNCES = {
   note_for_you: "People hears person_notes on every page, and the person's page reads again with it.",
   booking: "The Calendar, which the row opens at the appointment, hears appointments.",
   member_joined: "Settings, which the row opens at Team, hears memberships and invitations (00408).",
+  member_left:
+    "Settings, which the row opens at Team, hears memberships: the one who left is gone from the roster (00436).",
   // Not traced to the depth the others were (N2 says so): no read is owed until one is found to be.
   call: "Its page, the calls, is not traced to the depth the others were; the call's note lands in the thread.",
   job_failed:

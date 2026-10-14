@@ -33,6 +33,7 @@ import {
   type PersonNoteDto,
   type PersonVM,
   type AskedPurpose,
+  MIN_MS,
 } from "@chanlytics/contracts";
 import { api } from "@/legacy-bridge/api";
 import { ApiError, type ApiResult } from "@/client/api";
@@ -104,6 +105,9 @@ export function peekPerson(id: string): PersonVM | null {
 export function warmPerson(id: string): Promise<PersonVM | null> | null {
   return people().warm(id, () => personDetail(id));
 }
+
+/** How old a person's page may be while it is on screen: its visits, steps and waits are said by the clock. */
+const PERSON_READ_EVERY_MS = 5 * MIN_MS;
 
 /** How many of a list's first rows are read ahead, and how many of those reads are out at once. */
 const AHEAD = 12;
@@ -197,6 +201,9 @@ export const personOverride: SurfaceOverride = {
   }),
   // Read where a person's page is drawn (ROUTE_DRAWS), never by a boot on another page.
   onDemand: true,
+  // And again every five minutes while it is on screen: their visits, a step falling due and a thread's wait are said by the
+  // clock, and the page is made in the read (hearing/clock.ts; the wiring's second audit, W-visit-deal-1).
+  readEveryMs: PERSON_READ_EVERY_MS,
   apply: async () => {
     const id = personOnScreen();
     if (id) await personDetail(id);

@@ -28,6 +28,7 @@ import {
   visitDay,
   visitLine,
   visitTime,
+  visitsAt,
   type MatchVia,
   type VisitDto,
 } from "../calendar/calendar-people";
@@ -549,7 +550,7 @@ export function toPersonRowVM(
   // Booked is a fact from the calendar, not a stage: an appointment ahead.
   // Asked-not-booked is the gap the owner can act on — they reached out
   // this month and the calendar has never had them.
-  const v = r.visits ?? null;
+  const v = visitsAt(r.visits ?? null, nowMs); // as they stand now: a next visit that has ended is their last
   const calendar = v ? v.state : "none";
   // Their message, or the call they placed. A call the owner made is not them asking.
   const askedMs = heardAt(r);

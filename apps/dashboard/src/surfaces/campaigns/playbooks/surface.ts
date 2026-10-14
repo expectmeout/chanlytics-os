@@ -8,7 +8,6 @@ import { read } from "@/legacy-bridge/api";
 import {
   DEFAULT_CAMPAIGN_CHANNELS,
   REPLY_WINDOW_WORDS,
-  numberHealth,
   type ChannelsReady,
   type ConsentChannel,
   type MonthSent,
@@ -19,19 +18,21 @@ import {
   scheduleLine,
   triggerOf,
   triggerWords,
-  whatsappLineOf,
   type CampaignMessage,
   type LifecycleShape,
   type LifecycleTemplate,
   type PlaybookDto,
 } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
+import { DEAR_READ_LONGEST_WAIT_MS } from "@/legacy-bridge/surface-realtime";
 import { declareReads } from "@/legacy-bridge/surface-registry";
 import type { SettingsSurface } from "@/legacy-bridge/surfaces/settings";
 import { sameChannels } from "@/lib/campaign-channels";
 import { callTextOf, followSettings } from "../../offered-templates";
 import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../../surface-values";
-import { cmAddressOf, cmOfferedFrom, type CmOffered } from "../parts/channels";
+import { channelsHeld, followChannels } from "../../channels/surface";
+import type { Output } from "@/client/api";
+import { cmBusinessOf, cmNumberOf, cmOfferedFrom, cmSameBusiness, type CmOffered } from "../parts/channels";
 
 // The frame (its tab counts and the route table's crumbs) and Today read this under its old name until they move.
 declareSurfaceValue("playbooks", "__PLAYBOOKS");
@@ -94,6 +95,11 @@ export interface PlaybookCardVM extends PlaybookDto {
   off: string | null;
   /** Its list was archived (00169): paused until the list is restored or the playbook moved to another. */
   listArchived?: boolean;
+  /**
+   * Whether it runs on the business's day: on, before its last day, and its moment one that runs here (contracts campaignRunsOn).
+   * Made again each minute where a page draws it (rederive). Sent's week, the Library and Run now ask it, never `state` alone.
+   */
+  runs: boolean;
 }
 
 /**
@@ -285,7 +291,7 @@ export interface PlaybooksSurface {
   /** Its postal address where the Business record holds one: the foot of an email names it (contracts emailFoot). */
   businessAddress?: string | null;
   bookingLink: boolean;
-  /** Whether the Google listing keeps a review link (GET settings' `review_link`): what may fill a review-link slot. */
+  /** Whether the Google listing keeps a review link (the settings read's, parts/channels.ts cmBusinessOf): what may fill a review-link slot. */
   reviewLink: boolean;
   /** The reply window in words, for the tips that say what a reply is (contracts REPLY_WINDOW_WORDS). */
   replyWindow: string;
@@ -323,10 +329,57 @@ followSettings("playbooks", (held, settings) => {
   const templates = shareUnchanged(held.templates, now.templates);
   const library = shareUnchanged(held.library, now.library);
   const messages = shareUnchanged(held.messages, now.messages);
-  return templates === held.templates && library === held.library && messages === held.messages
+  // And what the slots that name the business may fill: its name, address, booking link and the listing's review link.
+  const business = cmBusinessOf(settings);
+  const same = cmSameBusiness(held, business);
+  return templates === held.templates && library === held.library && messages === held.messages && same
     ? held
-    : { ...held, templates, library, messages };
+    : { ...held, templates, library, messages, ...(same ? {} : business) };
 });
+
+// The number a moment goes out on and its health are the channels read's (channels/surface.ts), which hears the channel rows
+// wherever the tab is: a number connected, switched off or flagged repaints the composer and the home's head line as it lands, with
+// no read of the playbooks' own (the wiring's second audit, S10-9).
+followChannels("playbooks", (held, rows) => {
+  const wa = cmNumberOf(rows);
+  const number = { present: wa.present, health: wa.health };
+  const same =
+    held.number.present === number.present && JSON.stringify(held.number.health) === JSON.stringify(number.health);
+  return same ? held : { ...held, number };
+});
+
+/**
+ * GET playbooks' last answer, kept so the clock says each card's next run, its end and its trial again from it with no read
+ * (`rederive`): a campaign past its last day is Ended the morning after, and one off trial is On, in a tab left open (the
+ * wiring's second audit, S1-3). The rows were made from its cards in its order.
+ */
+let lastAnswer: Output<"GET playbooks"> | null = null;
+
+/** Each card's next run, end and trial at `now`, from the last answer, published where any moved; whether one did. */
+function rederivePlaybooks(now: Date): boolean {
+  const was = surfaceValue("playbooks");
+  if (!was || !lastAnswer) return false;
+  const cards = lifecyclePlaybooksOf(lastAnswer, now).cards;
+  if (cards.length !== was.rows.length) return false; // made from another answer: its own read says it
+  const rows = was.rows.map((row, i) => {
+    const card = cards.at(i)?.read;
+    return card
+      ? {
+          ...row,
+          next: card.next,
+          off: card.off,
+          ended: card.ended,
+          trial: card.trial,
+          runs: card.runs,
+          listArchived: card.listArchived,
+        }
+      : row;
+  });
+  const next = shareUnchanged(was, { ...was, rows });
+  if (next === was) return false;
+  setSurfaceValue("playbooks", next);
+  return true;
+}
 
 /**
  * Playbooks: the rows with what their runs earned, the triggers with the
@@ -378,12 +431,18 @@ export const playbooksOverride: SurfaceOverride = {
       },
     ],
   }),
+  // A card's next run, its last day and its trial are the clock's: made again each minute where a page draws them, and anywhere
+  // once the day turns (hearing/clock.ts). Who a moment's run would pick is the server's count of the day: read again at the
+  // business's midnight, as Today is.
+  rederive: rederivePlaybooks,
+  readAtMidnight: true,
+  // Its moments are counted over everyone in People: a run's stream of receipts is waited out longer (S10-2).
+  maxWaitMs: DEAR_READ_LONGEST_WAIT_MS,
   apply: async () => {
-    const [pb, ch, cfg] = await Promise.all([
-      read("GET playbooks"),
-      read("GET channels").catch((e: unknown) => e as Error),
-      read("GET settings").catch((e: unknown) => e as Error),
-    ]);
+    // The number and the business's name and links are not read here: they are the channels read's and the settings read's,
+    // which this surface follows (above), so a re-read of the moments for a message asks for neither again (S10-9).
+    const pb = await read("GET playbooks");
+    lastAnswer = pb;
     const now = new Date();
     // The pools are the route's: who a run would pick NOW, and who waits for
     // the week's breath, over everyone in People with their visits. A moment
@@ -394,9 +453,7 @@ export const playbooksOverride: SurfaceOverride = {
     const held = (trigger: string) => pools[trigger]?.held ?? null;
     // And everyone each moment names, with who of them no run reaches whatever the week.
     const named = (trigger: string): PlaybookNamed | null => namedOf(pools[trigger]);
-    const wa = ch instanceof Error ? null : whatsappLineOf(ch.channels);
-    const brain = cfg instanceof Error ? null : (cfg.config?.brain ?? null);
-    if (ch instanceof Error) console.error("playbooks_channels_fetch_failed", ch.message);
+    const wa = cmNumberOf(channelsHeld());
     // The answer as the home reads it, the one reading Ask's campaigns.journey makes too (contracts lifecyclePlaybooksOf):
     // the business's shape and zone, what it says of each card (its archived list, its trigger's words, its next run, why it
     // runs nothing here), the moments that may run here with which a NEW playbook may start from, and whether all were
@@ -437,6 +494,8 @@ export const playbooksOverride: SurfaceOverride = {
           // The day it ended, or its trial ends (00416), in the card's words: what its state says.
           ended: card.ended,
           trial: card.trial,
+          // Whether it runs on the business's day (contracts campaignRunsOn): Run now and the card's next run read it.
+          runs: card.runs,
         };
       }),
       timezone: tz,
@@ -465,19 +524,9 @@ export const playbooksOverride: SurfaceOverride = {
       ...templatesOfSettings(surfaceValue("settings")),
       // A server from before `modes` answers none: Resume then says when and to how many alone.
       modes: pb.modes ?? null,
-      number: {
-        present: !!wa,
-        health: numberHealth({
-          quality: wa?.quality ?? null,
-          event: wa?.quality_event ?? null,
-          limit: wa?.messaging_limit ?? null,
-        }),
-      },
-      businessName: brain?.business_name || "the business",
-      businessAddress: cmAddressOf(brain),
-      bookingLink: !!brain?.booking_link,
-      // A read that failed, a broken config and an older server's answer all say nothing of the listing: none.
-      reviewLink: !(cfg instanceof Error) && !cfg.configBroken && cfg.review_link === true,
+      number: { present: wa.present, health: wa.health },
+      // The settings read's, as it stands now (followSettings above): a read not in yet says nothing of the listing.
+      ...cmBusinessOf(surfaceValue("settings")),
       replyWindow: REPLY_WINDOW_WORDS,
       fetchedAt: now.getTime(),
     });

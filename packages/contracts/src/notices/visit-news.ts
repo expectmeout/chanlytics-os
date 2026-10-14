@@ -13,6 +13,12 @@
  * wrote the row (00419, feedAdditionIsBooking): a visit with a person of the workspace, not the next of a repeating
  * series, not the copy of a booking already told, and not one of a calendar's first read. `visitNews` words it: one visit
  * in its own words, or the visits one read of the feed found together as one line (CATCH_UP_VISITS, a second guard).
+ *
+ * A booking the customer cancelled or moved through their booking tool is told too (the wiring's second audit, R11 S6-6):
+ * a freed time is the one booking news an owner can act on, and the Calendar and Activity were the only places it showed.
+ * `bookingChanged` reads the event, and only the service's word (`by`, 00435): a member who cancelled a visit
+ * themselves did it, whatever source it came by. `visitChangeNews` words it. VISIT_CHANGES_TOLD says, for every change
+ * the record makes, what the owner is told of it or why nothing.
  */
 import type { JobNews } from "../today/notifications";
 import { visitRoute } from "../calendar/appointment-key";
@@ -20,6 +26,22 @@ import { visitDateKey, visitLine } from "../calendar/calendar-people";
 
 /** The changes of the record that are a booking arriving: a visit added, and a proposed one confirmed. */
 const ARRIVES: ReadonlySet<string> = new Set(["added", "confirmed"]);
+
+/**
+ * Every change of a visit the record says (appointment.changed, 00389, 00348), and what the owner is told of it: one
+ * place, so a change added to the record says here whether it is news.
+ */
+export const VISIT_CHANGES_TOLD = {
+  added: "A booking arriving (bookingArriving): told, unless it is the owner's own entry or a calendar's catching up.",
+  confirmed: "A proposed visit booked by the tool: told as a booking arriving.",
+  cancelled:
+    "Told when the customer cancelled through their booking tool (bookingChanged); a member's cancel is theirs.",
+  moved: "Told when the customer moved it through their booking tool; the calendar's moves are the owner's own diary.",
+  kept: "A member's word on a visit that happened: theirs, not news.",
+  missed: "A member's word on a no-show: theirs, not news.",
+  vanished: "Gone from the owner's calendar, their own diary: not told, as a feed's rebuild would tell every visit.",
+  back: "Back on the owner's calendar, their own diary: not told.",
+} as const;
 
 /** The sources a customer's booking comes by. A member's own entry (`person`) is the owner's, not news. */
 export type BookingVia = "booking_email" | "booking_tool" | "calendar_feed";
@@ -94,6 +116,28 @@ export function bookingArriving(event: EventLike): ArrivingBooking | null {
   };
 }
 
+/** The changes a customer makes to a booking that the owner is told of, and the sources they make them by. */
+export type VisitChange = "cancelled" | "moved";
+const CHANGES: ReadonlySet<string> = new Set<VisitChange>(["cancelled", "moved"]);
+const CHANGES_BY: ReadonlySet<string> = new Set<BookingVia>(["booking_email", "booking_tool"]);
+
+/**
+ * The booking an `appointment.changed` event says the customer cancelled or moved, or null for every other event: a
+ * visit that came by a booking tool or its email, changed by the service (`by`, 00435), which is the tool's email or its
+ * door, never a member's own word. An event from before 00435 says no `by`, and is silent. A visit of the owner's
+ * calendar that vanished or moved is their own diary (VISIT_CHANGES_TOLD).
+ */
+export function bookingChanged(event: EventLike): { appointmentId: string; change: VisitChange } | null {
+  if (event.kind !== "appointment.changed" || event.subject_type !== "appointment" || !event.subject_id) return null;
+  const data = event.data && typeof event.data === "object" && !Array.isArray(event.data) ? event.data : null;
+  if (!data) return null;
+  const { change, source, by } = data as Record<string, unknown>;
+  if (typeof change !== "string" || !CHANGES.has(change)) return null;
+  if (typeof source !== "string" || !CHANGES_BY.has(source)) return null;
+  if (by !== "service") return null;
+  return { appointmentId: event.subject_id, change: change as VisitChange };
+}
+
 /** A visit that arrived, as the record says it now. */
 export interface BookedVisit {
   /** The appointment's id on the record. */
@@ -118,6 +162,32 @@ const VIA_WORDS: Readonly<Record<BookingVia, string>> = {
 
 /** The day a visit is on, by its own zone: the key its address is written with. */
 const visitDayOf = (v: BookedVisit): string => visitDateKey(v.start, v.timezone);
+
+/**
+ * The owner's notice of a booking the customer cancelled or moved: who, the time freed or the new one, and what for,
+ * opening the visit on its day. News, as a booking arriving is: a line on the bell, no mail.
+ */
+export function visitChangeNews(v: BookedVisit, change: VisitChange, nowMs: number): Omit<JobNews, "sourceEvent"> {
+  const when = visitLine({ start: v.start, end: v.end, allDay: v.allDay }, v.timezone, nowMs);
+  const who = v.who ?? "Someone";
+  const cancelled = change === "cancelled";
+  return {
+    kind: "booking",
+    route: visitRoute(v.id, visitDayOf(v)),
+    about: { type: "appointment", id: v.id },
+    subject: (cancelled ? `${who} cancelled their visit` : `${who} moved their visit`).slice(0, 200),
+    body: [
+      cancelled ? when : `Now ${when}`,
+      ...(v.service ? [v.service] : []),
+      ...(cancelled ? ["That time is free again."] : []),
+      "",
+      VIA_WORDS[v.via],
+    ].join("\n"),
+    redactedBody: cancelled
+      ? "A booking was cancelled, and nobody could be told."
+      : "A booking was moved, and nobody could be told.",
+  };
+}
 
 /** One booking as a line: who (or "Someone"), when, and what for. */
 function bookedLineOf(v: BookedVisit, nowMs: number): string {

@@ -1,12 +1,13 @@
 /**
  * Settings › Business, the pane (moved from legacy/pages/settings.jsx with the frame, decision 0015 step 11): the
  * Business tab over a workspace's record, the card that sets a receptionist up where there is none, a configuration only
- * Chanlytics can repair, and the owner's own copy of everything. The old Business card's rows went with the card (Task
+ * Chanlytics can repair, and the owner's own copy of its records. The old Business card's rows went with the card (Task
  * 3.7): a fact with where it came from, the two numbers the receptionist decides and the workspace's timezone are rows
  * of the Business tab now, each edited where it is stated (business/who.tsx, business/open.tsx), over the tab's own saver
  * (business/saver.ts).
  */
 import { useEffect, useState } from "react";
+import { EXPORT_HOLDS_WORDS, exportLeftOutWords } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
@@ -21,21 +22,19 @@ import { BusinessTab } from "../business/tab";
 type Flash = (f: LegacyFlash) => void;
 
 /**
- * What the file holds, said behind the mark beside the link and to a screen reader: what is in it, and what is not yet (the
- * wiring's second audit, X1: the card said "everything", above "Delete this workspace", and the file is the customer record
- * alone).
+ * What the file holds, said behind the mark beside the link and to a screen reader: what is in it, and what it leaves out,
+ * both from contracts' EXPORT_OF, which the file is written by (the wiring's second audit, R14 X1: the card said
+ * "everything", above "Delete this workspace", when the file was the customer record alone).
  */
-const DATA_HOLDS =
-  "People, conversations with their messages, calls with their transcripts, and every consent change with who recorded it; each person's row also carries their newest deal and next step. Not in it yet: the rest of what the workspace holds, such as notes, bookings, leads, reviews, your business details, the team and campaigns; write to hi@chanlytics.com for a copy. Call audio is not included: it is removed on the schedule the privacy policy states, and the transcript is here.";
+const DATA_HOLDS = `${EXPORT_HOLDS_WORDS} ${exportLeftOutWords()}`;
 
 /**
- * The owner's own copy of the customer record, and the one thing this page cannot do.
+ * The owner's own copy of the workspace's records, and the one thing this page cannot do.
  *
  * The privacy page has said "an owner can export a workspace's data" since it was written, and no page offered it: three
  * partial exports (everyone as a CSV on People, one thread, one call) were the whole of it. This is the door the
- * sentence promised -- one file: people, conversations with their messages, calls with their transcripts, and every
- * consent change with who recorded it. Owners only, like the CSV. Deletion is deliberately not a button: it is a request
- * answered by a person, as the same page says.
+ * sentence promised -- one file, with a section for every kind of record, and what it leaves out named at its end. Owners
+ * only, like the CSV. Deletion is deliberately not a button: it is a request answered by a person, as the same page says.
  */
 export function WorkspaceData() {
   // Offered to every role and gated for the ones that may not take it (the one gate). The link was absent for them,
@@ -49,7 +48,7 @@ export function WorkspaceData() {
         <h2 className="rec-card-title" id="set-data-title">
           Your data
         </h2>
-        <span className="rec-card-sub">People, conversations, calls and consent history, in one file you keep.</span>
+        <span className="rec-card-sub">Your workspace's records, in one file you keep.</span>
       </div>
       <RecordRow
         id="data-export"
@@ -62,7 +61,7 @@ export function WorkspaceData() {
                 href={href}
                 download
                 data-testid="set-export-all"
-                title="People, conversations, calls and consent history as one JSON file"
+                title="Your workspace's records as one JSON file"
                 {...gate("export", "download the workspace's data")}
               >
                 Download (JSON)

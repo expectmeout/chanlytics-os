@@ -79,7 +79,7 @@ function visitPersonLine(c: VisitCtx) {
   if (!p.known)
     return (
       <div className="cal-visit-who" data-testid="cal-visit-contact">
-        <Face initials={p.initials || "?"} size="sm" />
+        <Face person={{ name: p.name ?? p.number ?? p.email ?? "", initials: p.initials || undefined }} size="sm" />
         <div className="cal-visit-who-words">
           <span className="cal-visit-name">{p.name ?? p.number ?? p.email}</span>
           <span className="cal-visit-quiet">{W.notInPeople}</span>

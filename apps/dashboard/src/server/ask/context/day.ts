@@ -10,6 +10,7 @@ import {
   todayRunsSub,
   type CallVM,
   type InboxThreadVM,
+  threadWaitsOf,
 } from "@chanlytics/contracts";
 import { load, type ReaderContext } from "../../readers";
 import * as facts from "../../readers/facts";
@@ -133,11 +134,14 @@ export const inbox: Provider = async (rc, ctx) => {
     });
   }
   const count = (f: (v: InboxThreadVM) => boolean) => vms.filter(f).length;
+  // The Inbox's own figure (contracts threadWaitsOf): the holds, a hold whose thread could not be read among them, and the
+  // replies counting down in your name. It counted the holds alone (R13 X5-2).
+  const waits = threadWaitsOf(conversations, escalations, rc.now);
   return {
     rows,
     aggregate: aggregateOf([
       `${pageWithView(ctx)}: ${rows.length} threads on screen`,
-      `needs you: ${count((v) => v.needsYou)}`,
+      `needs you: ${waits.holds + waits.sends}${waits.sends ? ` (${waits.sends} of them a reply on its way)` : ""}`,
       `held: ${count((v) => heldDraftWaits(v, rc.now.getTime()))}`,
       `you have it: ${count((v) => v.takenOver)}`,
       `snoozed: ${count((v) => v.state === "snoozed")}`,

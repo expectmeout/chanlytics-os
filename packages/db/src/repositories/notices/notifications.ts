@@ -1,8 +1,9 @@
 /**
  * What a person is told, as the edge reads and writes it: a kept notification taken back (apps/edge/lib/ops/notify.ts),
- * and the phones a call in progress is shown on (apps/edge/lib/voice/call-activity.ts). The bell's number for each reader
+ * what each notice is read from (a hold's, a customer's no, a booking's, a teammate's), the bell's number for each reader
  * (unreadOfReaders: the push job's badge, and the older rows the page does not list), and the warnings a mend closes
- * (closeMendedNotices). A read or write that fails throws.
+ * (closeMendedNotices). The members' phones and their choices for them are member-alerts.ts. A read or write that fails
+ * throws.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -21,8 +22,8 @@ import {
   type OptOutPerson,
   unreadFor,
 } from "@chanlytics/contracts";
-import type { Database } from "../database.types";
-import { DELIVERED } from "./thread";
+import type { Database } from "../../database.types";
+import { DELIVERED } from "../thread";
 
 type Db = SupabaseClient<Database>;
 
@@ -133,6 +134,39 @@ export async function noticeKept(
  * The rows a workspace's reviews are on record under, by Google's own id for each: what a review's notice is kept about and
  * opens (contracts reviewRoute), where the first notices were kept about Google's id (00411). A read that fails throws.
  */
+/** A row id: a review's notice may be kept about its row or about Google's own id for it (00411). */
+const ROW_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The reviews the bell's notices name, by their row or by Google's own id, with whether each has a reply: what Ask's read of
+ * the notices judges a new review's row by (contracts noticeStillWaits), as the bell does by Google's read (the wiring's
+ * second audit, R13 X5-1). A read that fails throws.
+ */
+export async function reviewsNamed(
+  db: Db,
+  tenantId: string,
+  ids: readonly string[],
+): Promise<{ id: string; reviewId: string; replied: boolean }[]> {
+  if (!ids.length) return [];
+  const rowIds = ids.filter((id) => ROW_ID.test(id));
+  const read = (column: "id" | "review_id", values: readonly string[]) =>
+    db
+      .from("google_reviews")
+      .select("id, review_id, reply_text")
+      .eq("tenant_id", tenantId)
+      .in(column, [...values]);
+  const [byRow, byGoogle] = await Promise.all([
+    rowIds.length ? read("id", rowIds) : Promise.resolve({ data: [], error: null }),
+    read("review_id", ids),
+  ]);
+  const error = byRow.error ?? byGoogle.error;
+  if (error) throw new Error(`cannot read the reviews the notices name: ${error.message}`);
+  const seen = new Map<string, { id: string; reviewId: string; replied: boolean }>();
+  for (const r of [...(byRow.data ?? []), ...(byGoogle.data ?? [])])
+    seen.set(r.id, { id: r.id, reviewId: r.review_id, replied: !!r.reply_text?.trim() });
+  return [...seen.values()];
+}
+
 export async function reviewRowsByGoogleId(
   db: Db,
   tenantId: string,
@@ -146,106 +180,6 @@ export async function reviewRowsByGoogleId(
     .in("review_id", [...googleIds]);
   if (error) throw new Error(`cannot read the reviews on record: ${error.message}`);
   return new Map((data ?? []).map((r) => [r.review_id, r.id]));
-}
-
-export async function activityTokensOf(db: Db, tenantId: string, roles: readonly string[]): Promise<string[]> {
-  const { data: members, error: me } = await db
-    .from("memberships")
-    .select("user_id")
-    .eq("tenant_id", tenantId)
-    .in("role", [...roles]);
-  if (me) throw new Error(`cannot read who is in the workspace: ${me.message}`);
-  const people = (members ?? []).map((m) => m.user_id);
-  if (!people.length) return [];
-  const { data: devices, error: de } = await db
-    .from("push_devices")
-    .select("activity_token")
-    .in("user_id", people)
-    .not("activity_token", "is", null);
-  if (de) throw new Error(`cannot read the phones: ${de.message}`);
-  return [...new Set((devices ?? []).map((d) => d.activity_token).filter((t): t is string => !!t))];
-}
-
-/** Forget activity tokens Apple says are gone (410), so no later call tries them again. */
-export async function forgetActivityTokens(db: Db, tokens: readonly string[]): Promise<void> {
-  if (!tokens.length) return;
-  const { error } = await db
-    .from("push_devices")
-    .update({ activity_token: null })
-    .in("activity_token", [...tokens]);
-  if (error) throw new Error(`cannot forget the gone activity tokens: ${error.message}`);
-}
-
-/** What a member chose for their phones in one workspace, and their phones, as Settings › Notifications reads them. */
-export interface MemberAlertsRow {
-  /** The kinds their phones are not told (memberships.push_off, 00372), as stored; contracts reads them leniently. */
-  pushOff: string[];
-  phones: { platform: string; app_version: string | null; last_seen_at: string | null }[];
-  /** False where 00372 is not applied yet: the column is not there to read, so there is no choice to save. */
-  choosable: boolean;
-}
-
-/** A column the database does not have yet (Postgres' undefined_column): a migration not applied. */
-const UNDEFINED_COLUMN = "42703";
-
-/**
- * The member's phone choices in one workspace and their phones, on the SESSION client: their own membership row and
- * their own phones are what its row policies let them read (memberships_self_select, push_devices_own_select). A read
- * that fails throws, except the one a database without 00372 answers, which reads as no choice yet.
- */
-export async function memberAlertsOf(db: Db, p: { tenantId: string; userId: string }): Promise<MemberAlertsRow> {
-  const [mine, phones] = await Promise.all([
-    db.from("memberships").select("push_off").eq("tenant_id", p.tenantId).eq("user_id", p.userId).maybeSingle(),
-    db
-      .from("push_devices")
-      .select("platform, app_version, last_seen_at")
-      .eq("user_id", p.userId)
-      .order("last_seen_at", { ascending: false, nullsFirst: false }),
-  ]);
-  if (phones.error) throw new Error(`cannot read your phones: ${phones.error.message}`);
-  if (mine.error && mine.error.code !== UNDEFINED_COLUMN)
-    throw new Error(`cannot read your alert choices: ${mine.error.message}`);
-  return {
-    pushOff: mine.error ? [] : (mine.data?.push_off ?? []),
-    phones: (phones.data ?? []).map((d) => ({
-      platform: d.platform,
-      app_version: d.app_version,
-      last_seen_at: d.last_seen_at,
-    })),
-    choosable: !mine.error,
-  };
-}
-
-/** Save the kinds the caller's phones are not told in one workspace (member_push_off_set): the list as kept. Throws its refusal. */
-export async function setMemberPushOff(db: Db, p: { tenantId: string; kinds: readonly string[] }): Promise<string[]> {
-  const { data, error } = await db.rpc("member_push_off_set", { p_tenant_id: p.tenantId, p_kinds: [...p.kinds] });
-  if (error) throw error;
-  return data ?? [];
-}
-
-/**
- * Which members' phones are told a row of this kind: everyone in the workspace (`userIds` null) or the members named
- * (a note's one reader), less each who turned the kind off for their phones (memberships.push_off, 00372). On a
- * database without 00372 the column is not there, and every one of them is told, as before. A failed read throws.
- */
-export async function membersPushedFor(
-  db: Db,
-  p: { tenantId: string; userIds: readonly string[] | null; kind: string },
-): Promise<string[]> {
-  if (p.userIds && !p.userIds.length) return [];
-  const ids = p.userIds ? [...p.userIds] : null;
-  const chosen = ids
-    ? await db.from("memberships").select("user_id, push_off").eq("tenant_id", p.tenantId).in("user_id", ids)
-    : await db.from("memberships").select("user_id, push_off").eq("tenant_id", p.tenantId);
-  if (!chosen.error)
-    return (chosen.data ?? []).filter((m) => !(m.push_off ?? []).includes(p.kind)).map((m) => m.user_id);
-  if (chosen.error.code !== UNDEFINED_COLUMN)
-    throw new Error(`cannot read who is in the workspace: ${chosen.error.message}`);
-  // Before 00372: everyone named, or everyone in the workspace, as before there was a choice.
-  if (ids) return ids;
-  const all = await db.from("memberships").select("user_id").eq("tenant_id", p.tenantId);
-  if (all.error) throw new Error(`cannot read who is in the workspace: ${all.error.message}`);
-  return (all.data ?? []).map((m) => m.user_id);
 }
 
 /** What a hold's notice is read from: the hold by its thread (an opened one's event) or by its own id (a change's). */
@@ -471,7 +405,8 @@ const BOOKING_SOURCES: readonly BookingVia[] = ["booking_email", "booking_tool",
  * The visits of the record among `ids` that are booked and still ahead of `nowMs`, as the record says them now, and who
  * booked each: the name the booking states, else the person the visit is linked to, and nobody for a person who is erased or
  * being erased. A visit cancelled, vanished from the feed, past, or entered by a member is left out: a booking's notice
- * tells what stands. So is a visit of the calendar's that is linked to nobody now: the owner's own entry, never a customer's
+ * tells what stands. With `status` "cancelled", the cancelled ones instead, still ahead, for the notice of a time freed
+ * (contracts visitChangeNews). So is a visit of the calendar's that is linked to nobody now: the owner's own entry, never a customer's
  * booking (contracts visit-news.ts asks it of the event too). A read that fails throws.
  */
 export async function bookedVisitsOf(
@@ -479,6 +414,7 @@ export async function bookedVisitsOf(
   tenantId: string,
   ids: readonly string[],
   nowMs: number,
+  status: "booked" | "cancelled" = "booked",
 ): Promise<BookedVisit[]> {
   if (ids.length === 0) return [];
   const { data, error } = await db
@@ -486,7 +422,7 @@ export async function bookedVisitsOf(
     .select("id, starts_at, ends_at, all_day, timezone, source, client_name, service, contact_id")
     .eq("tenant_id", tenantId)
     .in("id", [...ids])
-    .eq("status", "booked")
+    .eq("status", status)
     .is("vanished_at", null)
     .in("source", [...BOOKING_SOURCES])
     .gt("starts_at", new Date(nowMs).toISOString());
@@ -625,6 +561,20 @@ export async function memberJoinedOf(db: Db, tenantId: string, invitationId: str
     "the invitation",
   );
   return invite ? { invitationId: invite.id, email: invite.email, role: invite.role } : null;
+}
+
+/**
+ * The address of a person who left a workspace, from the platform's identity store (auth.users, as the service role):
+ * what the owner's notice of them names (contracts memberLeftNotice). Null for an account that is gone; a read that fails
+ * throws.
+ */
+export async function memberEmailOf(db: Db, userId: string): Promise<string | null> {
+  const who = await db.auth.admin.getUserById(userId);
+  if (who.error) {
+    if (who.error.status === 404) return null;
+    throw new Error(`cannot read who left: ${who.error.message}`);
+  }
+  return who.data.user?.email ?? null;
 }
 
 /** PostgREST's answer to one read is a thousand rows at most; a bigger set is read a page at a time. */

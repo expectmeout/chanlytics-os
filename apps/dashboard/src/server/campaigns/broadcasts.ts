@@ -23,7 +23,7 @@ import {
   type RecipientState,
   type RunAnswer,
 } from "@chanlytics/contracts";
-import { heldSendCounts, readAllRows, runCounts } from "@chanlytics/db";
+import { heldSendCounts, readAllRows, runCounts, threadIdsWaitingOnYou } from "@chanlytics/db";
 import { log } from "@/server/log";
 import { reachOutRunOf } from "@/server/campaigns/reach-outs";
 import type { RouteContext } from "@/server/with-route";
@@ -274,19 +274,13 @@ async function answeredAfter(
   return out;
 }
 
-/** Which of these threads wait on a person now (needs_human): a reply the receptionist handed over. */
-async function waitingThreads(ctx: RouteContext, tenantId: string, convIds: string[]): Promise<Set<string>> {
-  const out = new Set<string>();
-  for (let i = 0; i < convIds.length; i += IN_CHUNK) {
-    const { data, error } = await ctx.supabase
-      .from("conversations")
-      .select("id, state")
-      .eq("tenant_id", tenantId)
-      .in("id", convIds.slice(i, i + IN_CHUNK));
-    if (error) throw new Error(error.message);
-    for (const c of (data ?? []) as { id: string; state: string }[]) if (c.state === "needs_human") out.add(c.id);
-  }
-  return out;
+/**
+ * Which of these threads wait on a person now: a reply the receptionist handed over that nobody has taken, by the one
+ * standing rule (packages/db threadIdsWaitingOnYou). The raw needs_human column said Needs you of a reply a member had
+ * already taken (the wiring's second audit, R11 S9-1).
+ */
+function waitingThreads(ctx: RouteContext, tenantId: string, convIds: string[]): Promise<Set<string>> {
+  return threadIdsWaitingOnYou(ctx.supabase, tenantId, convIds, Date.now());
 }
 
 function toDto(r: BroadcastRow, counts: BroadcastCounts): BroadcastDto {

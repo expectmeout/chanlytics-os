@@ -234,6 +234,8 @@ const playbook = (over = {}) => ({
   triggerHint: "anyone quiet for a month",
   schedule: "daily at 10:00 AM",
   next: "tomorrow 10:00 AM",
+  // On, before its last day, its moment one that runs here (contracts campaignRunsOn): Run now is offered.
+  runs: true,
   candidates: 4,
   held: 0,
   totals: { runs: 0, sent: 0, delivered: 0, replied: 0, held: 0, lastRun: null, waiting: null, history: [] },
@@ -317,10 +319,11 @@ const composer = (over = {}) =>
 const messagesPage = () => {
   setSurfaceValue("settings", {
     settings: { config: { brain: { business_name: "Northside Studio" } } },
-    channels: [{ kind: "whatsapp" }],
     templatesAll: [],
     messages: [],
   });
+  // A WhatsApp number, as the channels read holds it (surfaces/channels/surface.ts).
+  setSurfaceValue("channels", { rows: [{ kind: "whatsapp" }] });
   return TemplatesPage();
 };
 

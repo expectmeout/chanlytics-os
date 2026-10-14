@@ -12,7 +12,7 @@
 import { calendarSourceFacts, calendarSourceOf, type CalendarSourceState } from "./calendar-source";
 import { agoWords } from "../shared/time";
 import { plural } from "../shared/words";
-import { bookingPageOffered, listingLine } from "../google/google";
+import { bookingPageOffered, connectionWords, listingLine } from "../google/google";
 import {
   dayWords,
   trialWords,
@@ -491,6 +491,22 @@ function googleRow(i: SetupInputs, ctx: SetupRowContext): SetupRowDraft | null {
   const reach = connected
     ? "Business Profile connected — every review, replies from Reports"
     : "New reviews reach your bell and Reports";
+  // A Business Profile that stopped syncing (an authorisation lapsed, access withdrawn): new reviews stop and their
+  // replies with them, and Setup said "connected" while only Connections, if opened, said otherwise (R11 S11-4). Said
+  // here as Connections says it (connectionWords), with the way back.
+  const c = i.google.connection;
+  if (c?.sync_error) {
+    return {
+      id: "google",
+      icon: "star",
+      title,
+      state: "waiting_you",
+      required: false,
+      sentence: `${connectionWords(c, nowMs)}. New reviews and their replies wait until it is connected again.`,
+      details: g ? [listingLine(g)] : [],
+      verb: { label: "Reconnect", to: "admin/integrations" },
+    };
+  }
   if (g && g.check_error) {
     return {
       id: "google",

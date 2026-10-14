@@ -5,7 +5,8 @@
  * line and a person's page read that word, and the write re-read the Calendar alone: People kept the old Next visit, Campaigns
  * counted a missed visit as a reminder owed, the headline kept its booking gap. Run on the real refresh map and the real
  * overrides: the mark re-reads, in the writer's tab, what counts visits (and, by the lens pattern, forgets the reads of the
- * pages that draw them elsewhere); and the pages that count visits hear the `appointments` table, which a teammate's mark, a
+ * pages that draw them elsewhere; Campaigns' composers, where they are drawn, and left for those pages elsewhere: the wiring's second
+ * audit, S10-6); and the pages that count visits hear the `appointments` table, which a teammate's mark, a
  * booking email and the hourly calendar read write: People on every page (a few a day; the Inbox's visit chip and Today's
  * "Asked, never booked" are drawn from its read), the playbooks, the broadcasts and the lenses on their own page.
  */
@@ -76,29 +77,77 @@ const forgottenLenses = () =>
   ["reports_headline", "reports_people", "reports_receptionist"].filter((k) => surfaceValue(k) === undefined);
 const change = (table, event = "UPDATE") => ({ table, event, row: {} });
 
-test("a visit marked kept, missed or cancelled re-reads the Calendar, People, the playbooks and the broadcasts, in the writer's tab", () => {
+test("a visit marked kept, missed or cancelled re-reads the Calendar and People in the writer's tab, and the playbooks and the broadcasts where the page draws them", () => {
+  at("#/calendar");
+  assert.deepEqual(keysOf(MARK), ["calendar", "people"], "the Calendar draws neither composer");
   at("#/inbox");
-  assert.deepEqual(keysOf(MARK), ["calendar", "people", "playbooks", "broadcasts"]);
+  assert.deepEqual(
+    keysOf(MARK),
+    ["calendar", "people", "broadcasts"],
+    "the Inbox draws Sent's runs waiting for your word",
+  );
+  at("#/campaigns");
+  assert.deepEqual(keysOf(MARK), ["calendar", "people", "playbooks", "broadcasts"], "Campaigns' home draws both");
+  at("#/today");
 });
 
-test("and what counts the visit on a page that draws it is read there: Today's headline on Today, the overview on Reports, a lens on its own page", () => {
+test("and what counts the visit on a page that draws it is read there: Today's headline, day strip and queue on Today, the overview on Reports, a lens on its own page", () => {
   at("#/today");
   assert.deepEqual(keysOf(MARK), ["calendar", "people", "playbooks", "broadcasts", "reports_headline"], "Today");
   at("#/reports");
-  assert.deepEqual(keysOf(MARK), ["calendar", "people", "playbooks", "broadcasts", "reports"], "the overview");
+  assert.deepEqual(keysOf(MARK), ["calendar", "people", "reports"], "the overview");
   at("#/reports/people");
   assert.deepEqual(
     keysOf(MARK),
-    ["calendar", "people", "playbooks", "broadcasts", "reports", "reports_people"],
+    ["calendar", "people", "reports", "reports_people"],
     "the People lens, on the report it draws from",
   );
   at("#/reports/receptionist");
-  assert.deepEqual(
-    keysOf(MARK),
-    ["calendar", "people", "playbooks", "broadcasts", "reports", "reports_receptionist"],
-    "the Receptionist lens",
-  );
+  assert.deepEqual(keysOf(MARK), ["calendar", "people", "reports", "reports_receptionist"], "the Receptionist lens");
   at("#/today");
+});
+
+test("marked on the Calendar, the composers are left for the pages that draw them, and read once as one comes on screen: Today, which draws both and owns neither, or Campaigns (S10-6)", () => {
+  // Today's day strip prints each visit playbook's "N people", and its queue draws Sent's runs; it owns neither, so a keep that waited
+  // for their own pages (whereDrawn) would have left the strip on the old count.
+  const win = {
+    location: globalThis.location,
+    addEventListener(_t, fn) {
+      this.on = fn;
+    },
+    removeEventListener() {},
+  };
+  const read = [];
+  const stop = readWhatWasMissed([playbooksOverride, broadcastsOverride], (k) => read.push(...k), win);
+  try {
+    // What the tests above left for these pages is read once; then nothing is owed.
+    at("#/today");
+    win.on?.();
+    read.length = 0;
+    at("#/calendar");
+    keysOf(MARK);
+    win.on?.();
+    assert.deepEqual(read, [], "nothing of them is read on the Calendar");
+    at("#/today");
+    win.on?.();
+    assert.deepEqual(read, ["playbooks", "broadcasts"], "both, once, as Today comes on screen");
+    at("#/campaigns");
+    win.on?.();
+    assert.deepEqual(read, ["playbooks", "broadcasts"], "and nothing is owed once they are read");
+    at("#/calendar");
+    win.on?.();
+    keysOf(MARK);
+    at("#/campaigns");
+    win.on?.();
+    assert.deepEqual(
+      read,
+      ["playbooks", "broadcasts", "playbooks", "broadcasts"],
+      "or as Campaigns' home comes on screen, which draws both",
+    );
+  } finally {
+    stop();
+    at("#/today");
+  }
 });
 
 test("off those pages the reads are forgotten, not made: each is read as its page comes on screen", async () => {
