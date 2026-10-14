@@ -7,13 +7,15 @@
  * useLeadLists, whose answer is the rail's doors, the bar's act and the sheets they open. Beside Import leads the rail
  * offers Find people (the people card, 00430: finder/people-sheet.tsx), the other door that brings leads in.
  */
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
 import { leadsRoute, type LeadPeoplePlan } from "@chanlytics/contracts";
 import { reachOuts } from "../../campaigns/reach-out/surface";
 import { ReachOutSheet } from "../../campaigns/reach-out/sheet";
+import { Button } from "../../kit/button/button";
 import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
+import { RecordDisclosure } from "../../kit/record/disclosure";
 import { RecordSheet } from "../../kit/record/sheet";
 import { canDo, gate, navigate } from "../../legacy-verbs";
 import { PhoneSheetRow } from "../../people/sheets/phone-sheet";
@@ -27,7 +29,11 @@ type ImportRow = ImportPlan["rows"][number];
 // Rows drawn before the import, as a taste of what was read.
 const LL_TASTE = 5;
 
-/** Where the rows come from: a file, or rows pasted and read. */
+/**
+ * Where the rows come from: a file, chosen from the kit's button over the browser's own picker (its "Choose File · No
+ * file chosen" was the one control on the sheet the kit did not draw), or rows pasted and read; what else a row can hold
+ * under a fold.
+ */
 const LlImportPick = ({
   W,
   text,
@@ -42,45 +48,57 @@ const LlImportPick = ({
   onFile: (e: ChangeEvent<HTMLInputElement>) => void;
   onText: (text: string) => void;
   onRead: () => void;
-}) => (
-  <>
-    <div className="rec-field">
-      <label>
-        <span className="rec-field-label">{W.file}</span>
-        <input
-          type="file"
-          accept=".csv,text/csv,text/plain"
-          onChange={onFile}
-          disabled={busy}
-          data-testid="lead-import-file"
-        />
-      </label>
-    </div>
-    <div className="rec-field">
-      <label>
-        <span className="rec-field-label">{W.paste}</span>
-        <textarea
-          className="rec-input"
-          rows={5}
-          value={text}
-          disabled={busy}
-          placeholder={W.pastePlaceholder}
-          onChange={(e) => onText(e.target.value)}
-          data-testid="lead-import-paste"
-        />
-      </label>
-      <button
-        type="button"
-        className="btn btn-sm pl-import-read"
-        disabled={busy || !text.trim()}
-        onClick={onRead}
-        data-testid="lead-import-read"
+}) => {
+  const picker = useRef<HTMLInputElement | null>(null);
+  return (
+    <>
+      <input
+        ref={picker}
+        type="file"
+        accept=".csv,text/csv,text/plain"
+        hidden
+        onChange={onFile}
+        disabled={busy}
+        data-testid="lead-import-file"
+      />
+      <Button
+        className="pl-import-file"
+        disabled={busy}
+        onClick={() => picker.current?.click()}
+        data-testid="lead-import-choose"
       >
-        {W.read}
-      </button>
-    </div>
-  </>
-);
+        <Icon name="content" size={14} />
+        {W.file}
+      </Button>
+      <div className="rec-field">
+        <label>
+          <span className="rec-field-label">{W.paste}</span>
+          <textarea
+            className="rec-input"
+            rows={5}
+            value={text}
+            disabled={busy}
+            placeholder={W.pastePlaceholder}
+            onChange={(e) => onText(e.target.value)}
+            data-testid="lead-import-paste"
+          />
+        </label>
+        <button
+          type="button"
+          className="btn btn-sm pl-import-read"
+          disabled={busy || !text.trim()}
+          onClick={onRead}
+          data-testid="lead-import-read"
+        >
+          {W.read}
+        </button>
+      </div>
+      <RecordDisclosure id="lead-import-more" label={W.importMore} testid="lead-import-more">
+        <p className="pl-import-hint">{W.importRest}</p>
+      </RecordDisclosure>
+    </>
+  );
+};
 
 /** What was read, before anything is written: the counts, where the columns are, a taste, the name, who they are. */
 const LlImportPreview = ({
@@ -284,7 +302,7 @@ export const LeadImportSheet = ({
     <RecordSheet
       id="lead-import"
       title={W.importTitle}
-      sub={W.importSub}
+      sub={W.importLine}
       onClose={onClose}
       closeLabel={result ? "Done" : "Cancel"}
       onSave={plan && ready.length && !tooMany && !result ? run : null}

@@ -94,7 +94,10 @@ export function SetDial({
   const gated = gate && gate["aria-disabled"] ? gate["data-tip"] : null;
   return (
     <MoreMenu
-      items={options.map((o) => ({ label: o, checked: value === o, onClick: () => onChange(o) }))}
+      items={[
+        ...(label ? [{ header: label }] : []),
+        ...options.map((o) => ({ label: o, checked: value === o, onClick: () => onChange(o) })),
+      ]}
       label={value}
       title={label ? `${label}: ${value}` : value}
       btnClass="bt-link set-dial"

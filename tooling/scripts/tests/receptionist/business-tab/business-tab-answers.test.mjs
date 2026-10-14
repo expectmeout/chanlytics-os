@@ -713,18 +713,37 @@ const rulesOpen = (over = {}) => {
   openFold(tree, "guardrails");
   return redrawTab();
 };
-/** A rule's row in the fold, and the badge word on it. */
+/** A rule's row in the fold, and the strength word on it: quiet under its name, no pill (the fitted sheets, 14 Oct 2026). */
 const ruleRow = (tree, key) => byTestId(tree, `rec-rule-${key}`);
-const badgesOn = (row) => all(row, (n) => classes(n).includes("pill")).map(textOf);
+/** Each rule's label, as the fold names it. */
+const BTA_LABELS = {
+  never_quote_prices: "Never quote a price",
+  never_confirm_booking: "Never confirm an appointment",
+  disclose_ai: "Says it's an automated assistant",
+  no_health_advice: "No health advice",
+};
+const badgesOn = (row) =>
+  all(row, (n) => String(n.props?.["data-testid"] ?? "").startsWith("rec-rule-strength-")).map(textOf);
 
 test("each rule in the fold says how far it goes, in the words contracts wrote", () => {
   const tree = rulesOpen();
   for (const key of GUARDRAIL_KEYS) {
     const row = ruleRow(tree, key);
     const r = ruleStrength(key);
-    // ONE badge, and it is the strength's own word: four identical switches over three different
-    // guarantees was the quietest dishonesty this page had.
-    assert.deepEqual(badgesOn(row), [r.chip], `${key} wears one badge, its strength's`);
+    // ONE word, and it is the strength's own: four identical switches over three different guarantees was the
+    // quietest dishonesty this page had. Quiet under the name, with no dot, no pill and no tip beside the switch: one
+    // signal a row (the fitted sheets, 14 Oct 2026).
+    assert.deepEqual(badgesOn(row), [r.chip], `${key} says one word, its strength's`);
+    assert.deepEqual(
+      all(row, (n) => classes(n).includes("pill") || classes(n).includes("rec-tip")),
+      [],
+      `${key} wears no pill and no tip`,
+    );
+    assert.equal(
+      textOf(byTestId(tree, `rec-rule-how-${key}`)),
+      `${BTA_LABELS[key]}. ${r.sentence}`,
+      `${key}'s sentence is read under How these rules work`,
+    );
     assert.match(textOf(row), new RegExp(escape(r.sentence)), `${key} says what actually happens`);
     // On a phone the sentence is not drawn (settings.css), so the switch carries it as its description
     // whatever the width: a badge word alone says nothing about what the switch does.
@@ -746,7 +765,7 @@ test("the checked rule draws both channels, because they differ, and no other ru
   // Folded under the rules, one line a channel (Ruben, 10 Oct 2026: the sheets "too wordy"), and only the checked
   // rule's: the other three land the same way on both.
   const how = byTestId(tree, "rec-rules-checked");
-  assert.equal(textOf(find(how, (n) => classes(n).includes("rec-disclosure-label"))), "How price checking works");
+  assert.equal(textOf(find(how, (n) => classes(n).includes("rec-disclosure-label"))), "How these rules work");
   const lines = all(how, (n) => classes(n).includes("bt-fold-note")).map(textOf);
   assert.deepEqual(
     lines,

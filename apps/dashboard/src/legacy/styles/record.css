@@ -29,7 +29,11 @@ html.legacy-on .rec-inline-act { min-height: 0; }
 .rec-sheet.deal-sheet .deal-sheet-fields { display: flex; flex-direction: column; gap: 18px; padding: 20px 0 24px; }
 .rec-sheet.deal-sheet .deal-sheet-amount-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; }
 .rec-sheet.deal-sheet .deal-sheet-amount-row > .rec-box { flex: 1 1 110px; max-width: 200px; }
-.rec-sheet.deal-sheet .rec-input.deal-sheet-day { max-width: 200px; }
+/* A day is the kit's token over its month (fields.tsx DayField), its Clear beside it; who sees the amount is said on the
+   label's line, a lock and its words at the line's end (the fitted sheets, 14 Oct 2026). */
+.rec-sheet.deal-sheet .deal-sheet-day-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; }
+.rec-sheet.deal-sheet .deal-sheet-label-line { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.rec-sheet.deal-sheet .deal-sheet-private { display: inline-flex; align-items: center; gap: 4px; font-weight: var(--weight-regular); color: var(--ink-dim); }
 /* Six reasons in a grid of even cells, not one row that runs past the sheet. */
 .rec-sheet.deal-sheet .deal-sheet-reasons .rec-seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; box-sizing: border-box; }
 .rec-sheet.deal-sheet .deal-sheet-reasons .rec-seg-btn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -103,10 +107,10 @@ html.legacy-on .rec-row-act { min-height: 0; }
   .rec-says[data-inline="true"] .rec-says-part { flex-direction: column; gap: 6px; }
   .rec-says[data-inline="true"] .rec-says-eyebrow { margin-top: 0; }
   /* The sheet rises from the bottom, stands on the keyboard (--kb, data-bits watchKeyboard), and its foot clears the
-     home indicator. */
-  .rec-sheet { top: auto; bottom: var(--kb, 0px); left: 0; width: auto; height: calc(88vh - var(--kb, 0px)); height: calc(88dvh - var(--kb, 0px)); border: 1px solid var(--surface-pop-edge); border-bottom: 0; border-radius: var(--surface-pane-radius) var(--surface-pane-radius) 0 0; }
-  /* The deal sheet holds a few fields, so it is as tall as they are, as a fold's sheet is, never 88% of blank. */
-  .rec-sheet:is(.deal-sheet, .pl-add) { height: auto; max-height: calc(88vh - var(--kb, 0px)); max-height: calc(88dvh - var(--kb, 0px)); }
+     home indicator. It is as tall as what it holds, up to 88% of what the phone shows, and past that its body scrolls
+     under its head and foot (Ruben, 14 Oct 2026, the fitted sheets: six sheets stood at 88% of blank whatever they
+     held). While a box in it is typed in it holds its height (--sheet-hold, kit/motion/use-height-glide.ts). */
+  .rec-sheet { top: auto; bottom: var(--kb, 0px); left: 0; width: auto; height: auto; max-height: calc(88vh - var(--kb, 0px)); max-height: calc(88dvh - var(--kb, 0px)); min-height: min(var(--sheet-hold, 0px), calc(88dvh - var(--kb, 0px))); border: 1px solid var(--surface-pop-edge); border-bottom: 0; border-radius: var(--surface-pane-radius) var(--surface-pane-radius) 0 0; }
   .rec-sheet.deal-sheet .deal-sheet-reasons .rec-seg { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   /* A fold open on a phone is this sheet (record-fold.jsx), as tall as what it holds and no taller than a list's: the
      voice's one box does not open 88% of a screen of blank. It rises from the bottom as it opens, on the fold's own
@@ -114,7 +118,7 @@ html.legacy-on .rec-row-act { min-height: 0; }
      fold's own opening is, never a keyframe. As the fold closes it goes down the way it came, on --ease-in-out (spec
      9, item 1), its wash fading with it: React has taken it off the page by then, so what goes is a still copy of it
      (record-fold.jsx recSheetLeaves, data-leaving), with nothing in it to press, and it is removed as its slide ends. */
-  .rec-sheet.rec-fold-sheet { height: auto; max-height: 88vh; max-height: 88dvh; transition: transform var(--duration-base) var(--ease-out); }
+  .rec-sheet.rec-fold-sheet { max-height: 88vh; max-height: 88dvh; transition: transform var(--duration-base) var(--ease-out); }
   .rec-sheet-backdrop[data-fold="true"] { transition: opacity var(--duration-base) var(--ease-out); }
   @starting-style {
     .rec-sheet.rec-fold-sheet { transform: translateY(100%); }

@@ -192,8 +192,9 @@ export const BtaLanguages = ({
 
 // The four rules, in the schema's order (contracts GUARDRAIL_KEYS), each with its switch's label and the short name the
 // row says it by at rest (the canvas's Record board). How far each goes is the rule's own strength (contracts
-// ruleStrength(key)): its word beside the switch, and its sentence behind the tip (Ruben, 10 Oct 2026: the sheets "too
-// wordy, too explanatory"; four paragraphs under four switches were most of a phone's screen).
+// ruleStrength(key)): its word quiet under the name, and its sentence under "How these rules work" (Ruben, 10 Oct 2026:
+// the sheets "too wordy, too explanatory"; 14 Oct, the fitted sheets: one signal a row, where a dot, a word, an ⓘ and a
+// switch stood for one fact).
 const BTA_RULES: [GuardrailKey, string, string][] = [
   ["never_quote_prices", "Never quote a price", "Never quotes a price"],
   ["never_confirm_booking", "Never confirm an appointment", "Never confirms a booking"],
@@ -205,9 +206,10 @@ const BTA_RULES: [GuardrailKey, string, string][] = [
 type RulesDraft = Partial<Record<GuardrailKey | "vision", unknown>>;
 
 /**
- * One of the four rules, on one line: its label, how far it goes as one quiet word (the kit's pill at rest), the
- * sentence behind a tip, and the switch, which carries the sentence as its description too. A rule that is not a switch
- * (contracts ALWAYS_TOLD: saying it is an automated assistant, decision 0051) says "Always on" where the switch would be.
+ * One of the four rules: its label with how far it goes as one quiet word under it, and the switch, which carries the
+ * rule's sentence as its description (the sentence is read under "How these rules work", BtaRuleHow). A rule that is
+ * not a switch (contracts ALWAYS_TOLD: saying it is an automated assistant, decision 0051) says "Always on" with a lock
+ * where the switch would be: one signal at the row's end, never a dot, a word, a tip and a switch.
  */
 const BtaRule = ({
   ruleKey,
@@ -230,16 +232,16 @@ const BtaRule = ({
         <span className="bt-line-name" id={`bt-rule-${ruleKey}-label`}>
           {label}
         </span>
-      </span>
-      <span className="bt-line-end">
-        {/* The kit's pill at rest, its dot and its word, plain: a sheet paints the house's neutrals alone (Ruben's quiet
-            rule, the record spec's sheet check), and the word says how far the rule goes. */}
-        <span className="pill" data-tone="plain" data-testid={`rec-rule-strength-${ruleKey}`}>
+        {/* The word says how far the rule goes, quiet under its name: four switches over three different guarantees
+            would be the quietest dishonesty this page had. */}
+        <span className="bt-line-sub" data-testid={`rec-rule-strength-${ruleKey}`}>
           {r.chip}
         </span>
-        <RecordTip text={r.sentence} label={`How far "${label}" goes`} testid={`rec-rule-tip-${ruleKey}`} />
+      </span>
+      <span className="bt-line-end">
         {BUSINESS_TAB.ALWAYS_TOLD.has(ruleKey) ? (
-          <span className="bt-line-sub" data-testid={`rec-rule-always-${ruleKey}`}>
+          <span className="bt-line-sub bt-line-lock" data-testid={`rec-rule-always-${ruleKey}`}>
+            <Icon name="lock" size={11} />
             Always on
           </span>
         ) : (
@@ -300,18 +302,26 @@ const BtaVisionRule = ({ on, update, readOnly }: { on: boolean; update: Fields["
   );
 };
 
-/** How the checked rule lands on each channel (contracts' checkedOn), folded behind one line. */
-const BtaRuleChecked = () => {
+/**
+ * How far each rule goes, in its sentence, and how the checked rule lands on each channel (contracts' checkedOn), folded
+ * behind one line under them: what stood behind four tips and a fold of its own.
+ */
+const BtaRuleHow = () => {
   const lines = BUSINESS_TAB.ruleStrength("never_quote_prices").checkedOn || [];
-  return lines.length ? (
-    <RecordDisclosure id="bt-rules-how" label="How price checking works" testid="rec-rules-checked">
+  return (
+    <RecordDisclosure id="bt-rules-how" label="How these rules work" testid="rec-rules-checked">
+      {BTA_RULES.map(([key, label]) => (
+        <p key={key} className="bt-rule-how" data-testid={`rec-rule-how-${key}`}>
+          <b className="bt-fold-lead">{label}.</b> {BUSINESS_TAB.ruleStrength(key).sentence}
+        </p>
+      ))}
       {lines.map((c) => (
         <p key={c.channel} className="bt-fold-note">
           <b className="bt-fold-lead">{c.label}</b>, {c.words}
         </p>
       ))}
     </RecordDisclosure>
-  ) : null;
+  );
 };
 
 /**
@@ -378,7 +388,7 @@ export const BtaRules = ({
       ) : null}
       {/* Opt-in, unlike the rules above: this gives the receptionist an ability rather than a limit, so it starts off. */}
       <BtaVisionRule on={rules.vision === true} update={update} readOnly={readOnly} />
-      <BtaRuleChecked />
+      <BtaRuleHow />
     </div>
   );
 };

@@ -724,6 +724,79 @@ a.chip:focus-visible {
   line-height: 1.45;
   color: var(--ink-dim);
 }
+/* A menu's switches as chips (the Menu's toggles, `chips`: what a board shows): rows on a desk, as any switches are; on a
+   phone a line of chips, each lit while it is on as a segmented control's choice is, its tick beside its word, so the
+   menu reads as what it shows over the doors under it (Ruben, 14 Oct 2026, the fitted sheets). */
+.more-chips {
+  display: contents;
+}
+@media (max-width: 900px) {
+  .more-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 2px 4px 10px;
+  }
+  .more-menu .more-chips > .more-item {
+    width: auto;
+    min-height: 40px;
+    padding: 0 14px;
+    gap: 6px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-full);
+    font-size: var(--text-base);
+  }
+  .more-menu .more-chips > .more-item[aria-checked="true"] {
+    border-color: transparent;
+    background: var(--selected-fill);
+    box-shadow: var(--selected-depth);
+  }
+  .more-menu .more-chips > .more-item[aria-checked="false"] > .icon {
+    display: none;
+  }
+  .more-menu .more-chips > .more-item > .more-item-label {
+    flex: none;
+  }
+  /* What is said of them all, under the chips at their edge rather than at a row's words. */
+  .more-chips + .more-cap {
+    padding-left: 4px;
+  }
+}
+/* A few acts of one kind as tiles (the Menu's `tiles`: the ways to reach a person): rows on a desk; on a phone one line of
+   them, a glyph over its word each on the quiet fill, as a phone's share sheet sets them, and what is said of them all
+   under the line at its edge (Ruben, 14 Oct 2026, the fitted sheets). */
+.more-tiles {
+  display: contents;
+}
+@media (max-width: 900px) {
+  .more-tiles {
+    display: grid;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
+    gap: 8px;
+    padding: 2px 2px 10px;
+  }
+  .more-menu .more-tiles > .more-item {
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+    min-height: 72px;
+    padding: 8px 4px;
+    border-radius: var(--radius-lg);
+    background: var(--secondary-fill);
+    font-size: var(--text-sm);
+    text-align: center;
+  }
+  .more-menu .more-tiles > .more-item > .more-item-label {
+    flex: none;
+  }
+  .more-menu .more-tiles > .more-item :is(.more-item-meta, .more-item-hint) {
+    display: none;
+  }
+  .more-tiles + .more-cap {
+    padding-left: 4px;
+  }
+}
 /* A menu that escapes its pane (MoreMenu `escape`, data-bits.jsx moreFit): placed against the window, so a pane that
    scrolls cannot cut it off and it is as wide as every other menu. Drawn unseen until placed, so it never flashes at
    the window's corner, and it grows from the corner it hangs by. */
@@ -839,8 +912,69 @@ a.more-item {
     width: 18px;
     height: 18px;
   }
+  /* What a choice does, under its words (MoreMenu: a sentence beside them goes under on a phone), at a size a phone
+     reads, the row a thumb's height round both lines. */
+  .more-menu[data-sheet] .more-item-two {
+    padding-block: 9px;
+  }
+  .more-menu[data-sheet] .more-item-two > .more-item-meta {
+    font-size: var(--text-sm);
+  }
+  .more-menu[data-sheet] .more-item-two > .icon ~ .more-item-meta {
+    padding-left: 32px;
+  }
   .more-backdrop[data-open] {
     background: var(--surface-veil);
+  }
+  /* A set of short values (MoreMenu `grid`: a day's times) is chips four across under their headings, the one held lit
+     as a segmented control's choice is, and how long it makes the day under it where the menu says so: thirty rows of
+     a time each stood 613px tall and still scrolled (Ruben, 14 Oct 2026, the fitted sheets). A folded heading
+     (`fold`, the night's hours) is a row that opens its group. */
+  .more-menu-grid[data-sheet] {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-content: start;
+    gap: 6px;
+  }
+  .more-menu-grid[data-sheet]::before,
+  .more-menu-grid[data-sheet] > :is(.more-header, .more-divider) {
+    grid-column: 1 / -1;
+  }
+  .more-menu-grid[data-sheet] > .more-item {
+    flex-direction: column;
+    justify-content: center;
+    gap: 1px;
+    min-height: 44px;
+    padding: 4px 2px;
+    border: 1px solid var(--line);
+    font-size: var(--text-base);
+    text-align: center;
+  }
+  .more-menu-grid[data-sheet] > .more-item > .icon {
+    display: none;
+  }
+  .more-menu-grid[data-sheet] > .more-item > .more-item-label {
+    flex: none;
+  }
+  .more-menu-grid[data-sheet] > .more-item[aria-checked="true"] {
+    border-color: transparent;
+    background: var(--selected-fill);
+    box-shadow: var(--selected-depth);
+  }
+  .more-menu-grid[data-sheet] > .more-item > .more-item-hint {
+    margin: 0;
+    padding: 0;
+    font-size: var(--text-xs);
+  }
+  .more-header-fold {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
   }
 }
 @keyframes more-sheet-in {
@@ -3612,7 +3746,8 @@ a.list-row {
    Step 2.2. On a desk, the record sheet's frame (.rec-sheet-backdrop and .rec-sheet, above; its wash's motion,
    components.css:3040-3053): the window's height at its right edge, the page faded behind it. Under 900px, People's
    phone sheet (components.css:1863-1870, mobile.css:170, clients.css:2406-2407, components.css:3073-3078): from the
-   bottom edge, standing on the keyboard (--kb), as tall as what it holds and never over 82% of the screen, a handle
+   bottom edge, standing on the keyboard (--kb), as tall as what it holds and never over 88% of the screen (a form's or a record's cap; a list to choose from, a
+   menu's, is 72%), its height gliding as what it holds changes (motion/use-height-glide.ts), a handle
    over its head, the ink's wash behind it. A column at both widths, so a composer's foot stays at the sheet's foot
    while its rows scroll (the record sheet's head, tools, body and foot, above). It comes and goes by the house's
    keyframes (above), and holds still under reduced motion. The wash is a backdrop by name, as every wash of the house
@@ -3751,8 +3886,9 @@ a.list-row {
     left: 0;
     bottom: var(--kb, 0px);
     width: auto;
-    max-height: calc(82vh - var(--kb, 0px));
-    max-height: calc(82dvh - var(--kb, 0px));
+    max-height: calc(88vh - var(--kb, 0px));
+    max-height: calc(88dvh - var(--kb, 0px));
+    min-height: min(var(--sheet-hold, 0px), calc(88dvh - var(--kb, 0px)));
     overflow: auto;
     overscroll-behavior-y: none;
     border: 1px solid var(--surface-pop-edge);
@@ -4670,8 +4806,8 @@ footer.rec-sheet-foot .btn {
    and its ✕ steps out of sight wherever its foot holds the act that closes it (the kit's foot, with its Cancel, or a
    page's pair of acts, data-foot-pair, with its Cancel or Done): that act, a press on the wash and the pull already
    close it, and a third Close in the corner was the first thing a thumb met (Ruben, 10 Oct 2026). It stays
-   a button a keyboard and a screen reader reach, and comes back into sight when a keyboard does. A sheet the page asks
-   to fit (`fit`) is as tall as what it holds, up to the list's height: a member's three choices stood at the foot of a
+   a button a keyboard and a screen reader reach, and comes back into sight when a keyboard does. It is as tall as what
+   it holds, up to the list's height (record.css): a member's three choices stood at the foot of a
    screen of blank. */
 .rec-sheet[data-phone="true"]::before {
   content: "";
@@ -4700,10 +4836,6 @@ footer.rec-sheet-foot .btn {
   overflow: hidden;
   clip-path: inset(50%);
 }
-.rec-sheet[data-phone="true"][data-fit="true"] {
-  height: auto;
-  max-height: calc(88dvh - var(--kb, 0px));
-}
 
 /* A sheet whose title is a kicker (Sheet's `kicker`: Campaigns' drawers, whose pane carries the name, its state and its
    acts under it): the title a quiet line, the Close a small circle at its end, no rule under them, so the sheet has one
@@ -4728,6 +4860,17 @@ footer.rec-sheet-foot .btn {
 .sheet-kicker .rec-sheet-tools {
   padding: 10px 22px 2px;
   border-bottom: 0;
+}
+/* What it holds, where that is one pane with a head, a body and a foot of its own (a Campaigns drawer): the sheet's body
+   is a column the pane fills, so on a phone, where the sheet is as tall as what it holds, the pane gives way under the
+   cap and its own body scrolls, its foot on the screen, with no height pinned (Ruben, 14 Oct 2026, the fitted sheets). */
+.sheet-kicker > .rec-sheet-body:has(> :only-child) {
+  display: flex;
+  flex-direction: column;
+}
+.sheet-kicker > .rec-sheet-body > :only-child {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 @media (max-width: 900px) {
   .sheet-kicker .rec-sheet-head {

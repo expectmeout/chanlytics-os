@@ -249,7 +249,6 @@ export const BtPromptSheet = ({
       id="prompt"
       title="What your receptionist is told"
       className="bt-prompt-sheet"
-      fit
       onClose={prompt.close}
       tools={
         <RecordToggleGroup

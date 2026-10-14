@@ -28603,12 +28603,13 @@ declare const DEAL_SHEET_WORDS: {
     };
     readonly agreed: {
         readonly label: "Agreed amount";
-        readonly hint: "Only you see it.";
         readonly fromProposal: "The proposal's value, unless they agreed another.";
     };
     readonly validUntil: {
         readonly label: "Valid until";
         readonly hint: null;
+        readonly none: "No end date";
+        readonly clear: "Clear";
     };
     readonly when: {
         readonly won: "When they said yes";
@@ -28716,7 +28717,10 @@ interface DealSheetVM {
     } | null;
     value: {
         label: string;
-        hint: string;
+        /** Who sees it, said beside the label with a lock: every amount is the team's alone. */
+        private: string;
+        /** A line under the box where there is one to say: that a yes starts from the proposal's value. */
+        hint: string | null;
         placeholder: string;
         perLabel: string;
         pers: {
@@ -28724,9 +28728,13 @@ interface DealSheetVM {
             label: string;
         }[];
     } | null;
+    /** The day it stands until, picked from a month that opens on `today` (the business's calendar). */
     validUntil: {
         label: string;
         hint: string | null;
+        none: string;
+        clear: string;
+        today: string;
     } | null;
     when: {
         label: string;
@@ -31065,7 +31073,13 @@ declare function leadImportEstimateUsd(addresses: number): number;
 declare const LEAD_IMPORT_WORDS: {
     readonly importDoor: "Import leads";
     readonly importTitle: "Import leads";
-    readonly importSub: "A file of businesses you want to write to: a name and an email on each row, and a phone, a website, a city or a state where you have them. Every address is checked before a reach-out may write to it.";
+    /**
+     * What a row needs, in one line under the title, and the rest under `importMore` (the fitted sheets, 14 Oct 2026:
+     * five lines on what a file holds opened the sheet).
+     */
+    readonly importLine: "A name and an email on each row.";
+    readonly importMore: "What a row can hold";
+    readonly importRest: "A phone, a website, a city or a state, where you have them. Every address is checked before a reach-out may write to it.";
     readonly file: "Choose a CSV file";
     readonly paste: "Or paste the rows";
     readonly pastePlaceholder: "Business,Email,Website,City,State\nZilker Kettlebell Club,hello@example.com,example.com,Austin,TX";
@@ -33579,6 +33593,13 @@ declare const MERGE_WORDS: {
     readonly pickReading: "People is still being read; the other records are offered once it lands.";
     readonly question: (kept: string, other: string) => string;
     readonly detail: (kept: string, other: string) => string;
+    /**
+     * The sheet's own: what moves and that it cannot be undone, said first in two lines, and the rest of `detail` folded
+     * under `more` (the fitted sheets, 14 Oct 2026: seven lines stood between the pick and the name typed).
+     */
+    readonly lead: (kept: string, other: string) => string;
+    readonly more: "What else changes";
+    readonly rest: (other: string) => string;
     readonly typed: (kept: string) => string;
     readonly yes: "Merge the two records";
     readonly busy: "Merging…";

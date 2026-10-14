@@ -58,6 +58,7 @@ import type { FocusOn } from "./focus";
 import { recPortalRoot } from "./leaving";
 import { RecordFoot } from "./says";
 import { touchSwipe } from "../../legacy-verbs";
+import { useHeightGlide } from "../motion/use-height-glide";
 import { leaveOverlay, listen, portal, trapTab, unlisten } from "./shell-verbs";
 
 interface RecordSheetProps {
@@ -79,9 +80,6 @@ interface RecordSheetProps {
   gate?: Record<string, unknown> | null;
   footNote?: ReactNode;
   confirm?: ReactNode;
-  /** As tall as what it holds, up to the list's height, where it rises from the bottom: a few fields never open onto a
-   *  screen of blank (Settings' sheets, Ruben 10 Oct 2026). Left out, it stands at the list's height whatever it holds. */
-  fit?: boolean;
   children?: ReactNode;
 }
 
@@ -167,7 +165,7 @@ interface SheetHooks {
 /** The wash and the sheet beside it: the wash's press is the sheet's Close, and nothing while a save is out. */
 function sheetNode(props: RecordSheetProps, h: SheetHooks) {
   const { id = null, className = "", testid = null, saving = false, onSave = null, gate = null } = props;
-  const { tools = null, children = null, fit = false } = props;
+  const { tools = null, children = null } = props;
   const titleId = id ? `rec-sheet-${id}-title` : undefined;
   const subId = id && props.sub ? `rec-sheet-${id}-sub` : undefined;
   const { title } = props;
@@ -188,10 +186,9 @@ function sheetNode(props: RecordSheetProps, h: SheetHooks) {
       <section
         ref={h.place}
         className={`rec-sheet${className ? ` ${className}` : ""}`}
-        // From the bottom, on a phone: kit.css draws its grabber, steps its ✕ out of sight beside a foot that closes,
-        // and, where the page asks it to fit, lets it be as tall as what it holds.
+        // From the bottom, on a phone: kit.css draws its grabber and steps its ✕ out of sight beside a foot that closes,
+        // and record.css lets it be as tall as what it holds, its height gliding as that changes (place, below).
         data-phone={h.phone ? "true" : undefined}
-        data-fit={fit ? "true" : undefined}
         role="dialog"
         aria-modal={true}
         aria-labelledby={titleId}
@@ -259,22 +256,27 @@ export function RecordSheet(props: RecordSheetProps) {
   // it came (data-bits leaveOverlay, components.css [data-leaving]). React takes the wash first, so it is held here.
   const wash = useRef<Element | null>(null);
   const since = useRef(0);
-  const place = useCallback((el: HTMLElement | null) => {
-    const was = box.current;
-    box.current = el;
-    if (el) {
-      wash.current = el.previousElementSibling || null;
-      since.current = Date.now();
-      opener.current = document.activeElement;
-      if (el.focus) el.focus({ preventScroll: true });
-      return;
-    }
-    // Not from a frame mounted and let go of at once (StrictMode's check in development).
-    if (was && Date.now() - since.current > 60) leaveOverlay(was, wash.current);
-    wash.current = null;
-    const back = opener.current as HTMLElement | null;
-    opener.current = null;
-    if (back && back.focus && back.isConnected !== false) back.focus();
-  }, []);
+  const glide = useHeightGlide();
+  const place = useCallback(
+    (el: HTMLElement | null) => {
+      const was = box.current;
+      box.current = el;
+      glide(el);
+      if (el) {
+        wash.current = el.previousElementSibling || null;
+        since.current = Date.now();
+        opener.current = document.activeElement;
+        if (el.focus) el.focus({ preventScroll: true });
+        return;
+      }
+      // Not from a frame mounted and let go of at once (StrictMode's check in development).
+      if (was && Date.now() - since.current > 60) leaveOverlay(was, wash.current);
+      wash.current = null;
+      const back = opener.current as HTMLElement | null;
+      opener.current = null;
+      if (back && back.focus && back.isConnected !== false) back.focus();
+    },
+    [glide],
+  );
   return portal(sheetNode(props, { place, hold, closeRef, onEscape, phone }), recPortalRoot());
 }

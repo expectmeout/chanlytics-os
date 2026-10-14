@@ -200,6 +200,7 @@ function MenuKitCaption() {
         groups={[
           {
             caption: "They asked to stop: nothing is sent to them.",
+            tiles: true,
             items: [
               { label: "Email them", glyph: glyph("mail", 13), disabled: true, onSelect: () => setSaid("Email them") },
               {
@@ -254,7 +255,7 @@ function SheetKitMark() {
   );
 }
 
-/** A menu of switches it stays open over, one kept on: the table's columns. */
+/** A menu of switches it stays open over, one kept on: the table's columns, chips on a phone. */
 function MenuKitSwitches() {
   const [on, setOn] = useState<Record<string, boolean>>({ name: true, state: true, email: false });
   const shown = Object.keys(on).filter((k) => on[k]);
@@ -270,9 +271,11 @@ function MenuKitSwitches() {
         groups={[
           {
             header: "Show on the table",
+            caption: "A column off is still in the export.",
             toggles: {
               onToggle: (value) => setOn((o) => ({ ...o, [value]: !o[value] })),
               tick: glyph("check", 13),
+              chips: true,
               items: [
                 { value: "name", label: "Person", on: on.name === true, locked: "Always" },
                 { value: "state", label: "State", on: on.state === true },
@@ -325,7 +328,7 @@ function SheetKitJob() {
   );
 }
 
-/** The sheet with its title a kicker over rows that carry their own name, its foot's Cancel the act that closes it. */
+/** The sheet with its title a kicker over one pane of rows that carry their own name, its foot's Cancel the act that closes it. */
 function SheetKitKicker() {
   const [open, setOpen] = useState(false);
   return (
@@ -351,14 +354,16 @@ function SheetKitKicker() {
           </div>
         }
       >
-        {SHEET_SERVICES.map(([name, long]) => (
-          <div key={name} className="rec-row" data-empty="false">
-            <span className="rec-row-key">{name}</span>
-            <div className="rec-row-val">
-              <span className="rec-row-value">{long}</span>
+        <div>
+          {SHEET_SERVICES.map(([name, long]) => (
+            <div key={name} className="rec-row" data-empty="false">
+              <span className="rec-row-key">{name}</span>
+              <div className="rec-row-val">
+                <span className="rec-row-value">{long}</span>
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </Sheet>
     </Figure>
   );

@@ -3539,8 +3539,11 @@ test("Merge with another record (0028): the owner's act opens the picker over Pe
     confirm = mergeConfirm(draw());
     assert.equal(textOf(confirm.props.question), MERGE_WORDS.question(vm.name, "Daniela by email"));
     assert.equal(confirm.props.ready, false, "chosen, but the kept name is not typed");
-    // What it does is the sheet's body, under the pick, once (the question and its answers are the foot's).
-    assert.ok(textOf(byTestId(draw(), "merge")).includes(MERGE_WORDS.detail(vm.name, "Daniela by email")));
+    // What it does is the sheet's body, under the pick, once (the question and its answers are the foot's): what moves
+    // and that it cannot be undone first, the rest under What else changes (the fitted sheets, 14 Oct 2026).
+    const body = textOf(byTestId(draw(), "merge"));
+    assert.ok(body.includes(MERGE_WORDS.lead(vm.name, "Daniela by email")));
+    assert.ok(textOf(byTestId(draw(), "merge-more")).includes(MERGE_WORDS.rest("Daniela by email")));
     confirm.props.onType(vm.name);
     confirm = mergeConfirm(draw());
     assert.equal(confirm.props.ready, true);

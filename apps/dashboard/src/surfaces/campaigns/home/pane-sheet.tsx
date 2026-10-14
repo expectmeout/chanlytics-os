@@ -14,6 +14,9 @@
  * was opened from ("Appointment tomorrow", "Turn on", "The call's text") with the Close at its end, and the pane's head
  * under it carries the name, its state and its acts. A composer's foot holds its Cancel, so on a phone the corner's Close
  * steps out of sight there (`footCloses`), as every phone sheet's does over its Cancel.
+ *
+ * On a phone it is as tall as what the pane holds, up to the sheet's cap, and past it the pane's body scrolls under its
+ * head and foot (campaigns.css): a pinned height stood a three-line message on a screen of blank (Ruben, 14 Oct 2026).
  */
 import { useRef } from "react";
 import type { ReactNode } from "react";
@@ -39,8 +42,6 @@ interface PaneSheetProps {
   wide?: boolean;
   /** The pane's foot holds the act that closes it (a composer's Cancel): the corner's Close steps aside on a phone. */
   footCloses?: boolean;
-  /** On a phone, as tall as what it holds (up to the sheet's height): a pane with no foot to stand at the bottom. */
-  fit?: boolean;
   testid?: string;
   children: ReactNode;
 }
@@ -53,7 +54,6 @@ export function PaneSheet({
   askFirst = false,
   wide = false,
   footCloses = false,
-  fit = false,
   testid,
   children,
 }: PaneSheetProps) {
@@ -72,7 +72,7 @@ export function PaneSheet({
       tools={tools}
       kicker
       footCloses={footCloses}
-      className={cx("cmh-host", wide && "cmh-host-wide", fit && "cmh-host-fit")}
+      className={cx("cmh-host", wide && "cmh-host-wide")}
     >
       <div ref={body} className="cmh-host-body" data-testid={testid}>
         {children}

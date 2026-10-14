@@ -32,6 +32,7 @@ import { StatePill } from "../../kit/pill/state-pill";
 import { Icon } from "../../kit/icon/icon";
 import { Wash } from "../../kit/motion/wash";
 import { Picker } from "../../kit/picker/picker";
+import { RecordDisclosure } from "../../kit/record/disclosure";
 import { Sheet } from "../../kit/sheet/sheet";
 import type { PickerGroup } from "../../kit/picker/picker";
 import { gate, navigate, openDealSheet } from "../../legacy-verbs";
@@ -160,10 +161,18 @@ function moreGroups(c: PageCtx, compose: (text?: string | null) => void): MenuGr
     else groups.push({ key: a.group, items: [item], offs: [] });
     if (a.off) groups[groups.length - 1]?.offs.push(a.off);
   }
+  // On a phone the ways to reach them are tiles on one line (the kit Menu's `tiles`, the fitted sheets, 14 Oct 2026): the
+  // four rows that opened the menu, now one line in the thumb's first reach.
+  const tiled = (g: (typeof groups)[number]) => c.phone && g.key === "reach" && g.items.length >= 2;
   // Why the sends cannot go, seen on a touch too: one reason for them all is said once, under its group (they asked to
-  // stop); reasons of their own (no yes by text, an address that stopped) are each said on its row, as a second line.
+  // stop); reasons of their own (no yes by text, an address that stopped) are each said on its row, as a second line,
+  // or, under tiles, which carry no second line, one after another under the line.
   for (const g of groups) {
     if (new Set(g.offs).size <= 1) continue;
+    if (tiled(g)) {
+      g.offs = [[...new Set(g.offs)].join(" ")];
+      continue;
+    }
     g.items = g.items.map((i) => (i.disabled && typeof i.title === "string" ? { ...i, hint: i.title } : i));
     g.offs = [];
   }
@@ -180,7 +189,11 @@ function moreGroups(c: PageCtx, compose: (text?: string | null) => void): MenuGr
   }
   // Stepping to the person before or after is the top bar's, at every width (PersonWalkNav): More holds what is done to
   // this person alone.
-  return groups.map((g) => ({ items: g.items, ...(g.offs[0] ? { caption: g.offs[0] } : {}) }));
+  return groups.map((g) => ({
+    items: g.items,
+    ...(tiled(g) ? { tiles: true } : {}),
+    ...(g.offs[0] ? { caption: g.offs[0] } : {}),
+  }));
 }
 
 /** A typed-name question in a sheet: what it does in the sheet's body, and the question with its answers in its foot. */
@@ -367,8 +380,11 @@ function mergeAsk(c: PageCtx): SheetAsk {
           />
         </span>
         <p className="cl-prof-ask-detail">
-          {MERGE_WORDS.detail(keptName, name)} {MERGE_WORDS.typed(keptName)}
+          {MERGE_WORDS.lead(keptName, name)} {MERGE_WORDS.typed(keptName)}
         </p>
+        <RecordDisclosure id="merge-more" label={MERGE_WORDS.more} testid="merge-more">
+          <p className="cl-prof-ask-detail">{MERGE_WORDS.rest(name)}</p>
+        </RecordDisclosure>
       </div>
     ),
     foot: (

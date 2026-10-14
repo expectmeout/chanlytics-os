@@ -213,7 +213,7 @@ const dangerAsk = () =>
 const recSheet = (leaving = false, asking = false, phone = false) =>
   `<div class="rec-sheet-backdrop" aria-hidden="true"${leaving ? ' data-leaving="true"' : ""}></div>` +
   `<section class="rec-sheet" role="dialog" aria-modal="true" aria-label="Services" tabindex="-1"` +
-  `${leaving ? ' data-leaving="true"' : ""}${phone ? ' data-phone="true" data-fit="true"' : ""}>` +
+  `${leaving ? ' data-leaving="true"' : ""}${phone ? ' data-phone="true"' : ""}>` +
   recSheetHead("Services", "What you offer, and how long each takes.") +
   `<div class="rec-sheet-tools">${recCombo({ label: "Find a service", placeholder: "Find a service" })}` +
   `<span class="rec-sr" role="status" aria-live="polite">3 services</span></div>` +
@@ -412,8 +412,8 @@ const kitMarkSheet = () =>
 
 /**
  * The kit's Sheet with its title a kicker (`kicker`, kit-behaves.tsx's): the title a quiet line with its small Close at
- * its end and no rule under it, over rows that carry their own name, and a foot that closes it (`footCloses`: its
- * Cancel), where on a phone the corner's Close steps out of sight.
+ * its end and no rule under it, over one pane of rows that carry their own name, which the body's column gives way under
+ * the cap, and a foot that closes it (`footCloses`: its Cancel), where on a phone the corner's Close steps out of sight.
  */
 const kitKickerSheet = () =>
   `<button type="button" class="btn">Turn on Win-back</button>` +
@@ -422,7 +422,7 @@ const kitKickerSheet = () =>
   `<div class="sheet-handle" aria-hidden="true"></div>` +
   `<header class="rec-sheet-head"><div class="rec-sheet-heading"><h2 class="rec-sheet-title">Turn on</h2></div>` +
   `<button type="button" tabindex="0" aria-label="Close" class="rec-sheet-close">${icon("x", 13)}</button></header>` +
-  `<div class="rec-sheet-body">${KIT_ROWS}</div>` +
+  `<div class="rec-sheet-body"><div>${KIT_ROWS}</div></div>` +
   `<footer class="rec-sheet-foot"><div data-foot-pair="">` +
   `<button type="button" class="btn btn-sm btn-ghost">Cancel</button>` +
   `<button type="button" class="btn btn-sm btn-primary">Start it</button></div></footer></section>`;
@@ -485,17 +485,20 @@ const kitMenu = () =>
   kitItem("x", "Delete person…", { tone: " danger" }) +
   `</div></div>`;
 
-/** The kit's Menu with a group's caption: its sends drawn disabled, and why said once under them. */
+/**
+ * The kit's Menu with a group's caption: its sends drawn disabled, and why said once under them; the sends are tiles
+ * (`tiles`), rows on a desk and one line on a phone.
+ */
 const kitMenuCaption = () =>
   `<button type="button" tabindex="0" aria-label="More" aria-haspopup="menu" aria-expanded="true" ` +
   `class="btn btn-icon btn-sm btn-ghost">${icon("more", 14)}</button>` +
   `<div class="more-backdrop" role="presentation" data-open="true"></div>` +
   `<div class="pop-place" role="presentation" ${placed("top: 56px; left: 16px;")}>` +
-  `<div class="more-menu align-right" role="menu" tabindex="-1">` +
+  `<div class="more-menu align-right" role="menu" tabindex="-1"><div class="more-tiles">` +
   `<button type="button" role="menuitem" tabindex="-1" aria-disabled="true" data-disabled="" class="more-item">` +
   `${icon("mail", 13)}<span class="more-item-label">Email them</span></button>` +
   `<button type="button" role="menuitem" tabindex="-1" aria-disabled="true" data-disabled="" class="more-item">` +
-  `${icon("calendar", 13)}<span class="more-item-label">Send booking link</span></button>` +
+  `${icon("calendar", 13)}<span class="more-item-label">Send booking link</span></button></div>` +
   `<p class="more-cap">They asked to stop: nothing is sent to them.</p>` +
   `<div class="more-divider" role="separator" aria-orientation="horizontal"></div>` +
   kitItem("copy", "Copy the number") +
@@ -503,7 +506,8 @@ const kitMenuCaption = () =>
 
 /**
  * The kit's Menu of switches, open (a table's columns): the tick drawn on each, seen beside each one on; one the page
- * keeps on (Person) in the dim ink, refused, its word at its end.
+ * keeps on (Person) in the dim ink, refused, its word at its end. As chips (`chips`): rows on a desk, a line of chips on a
+ * phone.
  */
 const kitMenuSwitches = () =>
   `<button type="button" tabindex="0" aria-haspopup="menu" aria-expanded="true" class="btn btn-sm btn-ghost">` +
@@ -511,7 +515,7 @@ const kitMenuSwitches = () =>
   `<div class="more-backdrop" role="presentation" data-open="true"></div>` +
   `<div class="pop-place" role="presentation" ${placed("top: 56px; left: 16px;")}>` +
   `<div class="more-menu align-right" role="menu" tabindex="-1" aria-label="Columns">` +
-  `<div role="group"><div class="more-header" aria-hidden="true">Show on the table</div>` +
+  `<div role="group"><div class="more-header" aria-hidden="true">Show on the table</div><div class="more-chips">` +
   [
     ["Person", true, "Always"],
     ["State", true, null],
@@ -524,7 +528,7 @@ const kitMenuSwitches = () =>
         `${locked ? `<span class="more-item-meta">${locked}</span>` : ""}</button>`,
     )
     .join("") +
-  `</div></div></div>`;
+  `</div><p class="more-cap">A column off is still in the export.</p></div></div></div>`;
 
 /** The kit's Menu of one of a set, open: the tick drawn on each option, seen beside the one chosen. */
 const kitMenuSet = () =>

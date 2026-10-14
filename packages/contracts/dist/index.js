@@ -13735,6 +13735,13 @@ var MERGE_WORDS = {
   pickReading: "People is still being read; the other records are offered once it lands.",
   question: (kept, other) => `Merge ${other} into ${kept}?`,
   detail: (kept, other) => `${kept} keeps their record and takes ${other}'s messages, calls, deals, notes and lists. ${MERGE_ANSWERS} ${other}'s record stays as a merged record with no number or address. This cannot be undone.`,
+  /**
+   * The sheet's own: what moves and that it cannot be undone, said first in two lines, and the rest of `detail` folded
+   * under `more` (the fitted sheets, 14 Oct 2026: seven lines stood between the pick and the name typed).
+   */
+  lead: (kept, other) => `${other}'s messages, calls, deals, notes and lists move to ${kept}. This cannot be undone.`,
+  more: "What else changes",
+  rest: (other) => `${MERGE_ANSWERS} ${other}'s record stays as a merged record with no number or address.`,
   typed: (kept) => `Type ${kept} to confirm.`,
   yes: "Merge the two records",
   busy: "Merging\u2026",
@@ -18301,7 +18308,13 @@ function leadImportEstimateUsd(addresses) {
 var LEAD_IMPORT_WORDS = {
   importDoor: "Import leads",
   importTitle: "Import leads",
-  importSub: "A file of businesses you want to write to: a name and an email on each row, and a phone, a website, a city or a state where you have them. Every address is checked before a reach-out may write to it.",
+  /**
+   * What a row needs, in one line under the title, and the rest under `importMore` (the fitted sheets, 14 Oct 2026:
+   * five lines on what a file holds opened the sheet).
+   */
+  importLine: "A name and an email on each row.",
+  importMore: "What a row can hold",
+  importRest: "A phone, a website, a city or a state, where you have them. Every address is checked before a reach-out may write to it.",
   file: "Choose a CSV file",
   paste: "Or paste the rows",
   pastePlaceholder: "Business,Email,Website,City,State\nZilker Kettlebell Club,hello@example.com,example.com,Austin,TX",
@@ -32601,10 +32614,10 @@ var DEAL_SHEET_WORDS = {
   },
   agreed: {
     label: "Agreed amount",
-    hint: "Only you see it.",
     fromProposal: "The proposal's value, unless they agreed another."
   },
-  validUntil: { label: "Valid until", hint: null },
+  // A day picked from the kit's month: what an empty one says, and the word that empties it (the fitted sheets).
+  validUntil: { label: "Valid until", hint: null, none: "No end date", clear: "Clear" },
   when: { won: "When they said yes", lost: "When they passed", ended: "When it ended" },
   reason: { label: "Why they passed" },
   note: { label: "Note", hint: "Only your team sees it.", placeholder: "In their words, or yours" },
@@ -32727,12 +32740,13 @@ function dealSheetFor(mode, p, nowMs, tz, target = {}) {
     link: open && shapes ? { ...W.link } : null,
     value: open && (shapes || mode === "won") ? {
       label: mode === "won" ? W.agreed.label : W.value.label,
-      hint: mode === "won" ? valueOf ? W.agreed.fromProposal : W.agreed.hint : W.value.hint,
+      private: W.value.hint,
+      hint: mode === "won" && valueOf ? W.agreed.fromProposal : null,
       placeholder: W.value.placeholder,
       perLabel: W.value.per,
       pers
     } : null,
-    validUntil: open && shapes ? { ...W.validUntil } : null,
+    validUntil: open && shapes ? { ...W.validUntil, today } : null,
     when: open && dated ? { label: W.when[mode], max: today } : null,
     reason: open && mode === "lost" ? {
       label: W.reason.label,
