@@ -42,6 +42,7 @@ import { mayAtLeast } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { completeStep } from "../../step-done";
+import { wantPerson } from "../../people/want-person";
 
 // A step due under the head (0007, amended): their next step once its day has come, with Done, so whoever answers
 // them ticks it where they are. People's row carries it, judged as every page judges a step: at the moment People's
@@ -147,6 +148,8 @@ interface HeaderFacts {
 function headerFacts(thread: Thread): HeaderFacts {
   const people = peopleRead();
   const person = thread.clientId && people && people.rows ? people.rows.find((p) => p.id === thread.clientId) : null;
+  // A person People does not hold yet (made since its last read): People is asked for once (want-person.ts; R10).
+  if (!person) wantPerson(thread.clientId);
   const deal = person && person.deal && person.deal.brief ? person.deal : null;
   // Their proposal's link (0008): contracts' proposalLinkOf over People's row -- the deal's while it is a proposal out,
   // none for a client or someone who passed, the thread's own (the person's) only with no deal, or no row to read.

@@ -30,6 +30,7 @@ import {
   toReportVM,
   toReviewsReportVM,
 } from "@chanlytics/contracts";
+import * as contracts from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { rows } from "../_rows.mjs";
 import { fieldsOf, logLineOf } from "../_log-lines.mjs";
@@ -97,6 +98,7 @@ const { broadcasts: broadcastsReader, broadcast: oneBroadcast } = await import(
   at("apps/dashboard/src/server/readers/broadcasts.ts")
 );
 const contactsRoute = await import(at("apps/dashboard/app/api/v1/contacts/route.ts"));
+const listCountsRoute = await import(at("apps/dashboard/app/api/v1/people/list-counts/route.ts"));
 const segmentsRoute = await import(at("apps/dashboard/app/api/v1/segments/route.ts"));
 const broadcastsRoute = await import(at("apps/dashboard/app/api/v1/broadcasts/route.ts"));
 /**
@@ -4800,6 +4802,53 @@ const countsWorld = (people, extra = {}) => ({
   },
   rpcs: { people_list: people },
 });
+test("Today's pins are counted on the server by the rule People's rail counts by, for the member asking (the wiring's second audit, R10): each token its list's count, a list kept by hand its members, and null for a list this workspace can't count or a token that names none", async () => {
+  const LIST = "cccccccc-3333-4333-8333-cccccccccccc";
+  const people = [
+    poolPerson(1),
+    poolPerson(2),
+    // Heard an hour ago: on no quiet list.
+    poolPerson(3, { last_inbound_at: ago(HOUR), latest_wa_inbound_at: ago(HOUR) }),
+    poolPerson(4, { marketing_consent: "opted_out" }),
+  ];
+  const world = () =>
+    countsWorld(pagedPeople(people), {
+      segments: [{ id: LIST, tenant_id: A, name: "Regulars", rule: null, archived_at: null }],
+      segment_members: [
+        { tenant_id: A, segment_id: LIST, contact_id: "p1" },
+        { tenant_id: A, segment_id: LIST, contact_id: "p4" },
+      ],
+    });
+  const tokens = ["seg:quiet", "seg:opted_in", "seg:offers_ok", `list:${LIST}`, "seg:booked_week", "seg:nothing_here"];
+  const { counts } = await listCountsRoute.GET.run(req(`?workspace=${A}&lists=${tokens.join(",")}`), worldCtx(world()));
+  // People's own count of each, as its rail makes it: its rows read the member's way (contracts poolRowOf, personRowOf's),
+  // each built-in list's rule over them.
+  const page = await contactsRoute.GET.run(req(`?workspace=${A}`), worldCtx(world()));
+  const tz = "America/New_York";
+  const rows = page.people.map((r) =>
+    contracts.poolRowOf(r, { tz, now: new Date(), viewer: USER, dealsOn: page.deals_on, ready: page.channels_ready }),
+  );
+  const rail = (id) => rows.filter(contracts.PEOPLE_LISTS.find((l) => l.id === id).test).length;
+  for (const id of ["quiet", "opted_in", "offers_ok"])
+    assert.equal(counts[`seg:${id}`], rail(id), `seg:${id}: the rail's count, ${rail(id)}`);
+  assert.deepEqual([rail("quiet"), rail("opted_in"), rail("offers_ok")], [3, 4, 3], "the fixture puts people on them");
+  assert.equal(counts[`list:${LIST}`], 2, "a list kept by hand: its members");
+  assert.equal(
+    counts["seg:booked_week"],
+    null,
+    "a list that needs the calendar, where there is none: not counted here",
+  );
+  assert.equal(counts["seg:nothing_here"], null, "a token that names no list");
+  // A token said twice is counted once, and no more than Today may pin are counted.
+  const many = await listCountsRoute.GET.run(
+    req(
+      `?workspace=${A}&lists=${["seg:quiet", "seg:quiet", ...Array.from({ length: 12 }, (_, i) => `seg:l${i}`)].join(",")}`,
+    ),
+    worldCtx(world()),
+  );
+  assert.equal(Object.keys(many.counts).length, contracts.TODAY_PINS_MAX);
+});
+
 /** outbound-routes.test.mjs, "playbooks: the workspace's with their runs' numbers": one of harbor's, one of bayside's. */
 const outboundWorld = () => ({
   tables: {

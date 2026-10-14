@@ -56,6 +56,7 @@ import { broadcastsOverride } from "@/surfaces/campaigns/broadcasts/surface";
 import { playbooksOverride } from "@/surfaces/campaigns/playbooks/surface";
 import { calendarOverride } from "@/surfaces/calendar/surface";
 import { calendarRunsOverride } from "@/surfaces/calendar/runs-surface";
+import { todayPinsOverride } from "@/surfaces/today/pins-surface";
 import { notificationsOverride } from "./surfaces/notifications";
 import {
   getConnection,
@@ -223,6 +224,8 @@ const SURFACES = [
   alertsOverride,
   // Campaigns over the Calendar's days, read where the Calendar draws them (surfaces/calendar/runs-surface.ts).
   calendarRunsOverride,
+  // The counts of the lists pinned to Today, read where Today draws them (surfaces/today/pins-surface.ts; R10).
+  todayPinsOverride,
   calendarOverride,
   notificationsOverride,
   setupOverride,
