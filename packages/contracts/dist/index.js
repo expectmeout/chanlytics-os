@@ -34046,7 +34046,11 @@ function planPeopleSearch(input) {
   if (odd !== void 0)
     return {
       ok: false,
-      refusal: { kind: "not_a_plan", text: PEOPLE_FIND_WORDS.industryUnread(odd, peopleIndustriesNear(odd)), what: odd }
+      refusal: {
+        kind: "not_a_plan",
+        text: PEOPLE_FIND_WORDS.industryUnread(odd, peopleIndustriesNear(odd)),
+        what: odd
+      }
     };
   const plan = peoplePlanFrom({
     name: input.who,

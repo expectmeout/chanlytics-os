@@ -214,7 +214,7 @@ export const PEOPLE_INDUSTRIES = [
   "Professional Services software",
   "eBusiness Software",
 ] as const;
-export type PeopleIndustry = (typeof PEOPLE_INDUSTRIES)[number];
+type PeopleIndustry = (typeof PEOPLE_INDUSTRIES)[number];
 
 export const PEOPLE_COUNT_MAX = 500;
 /** The least a run's cap is, the provider's and the checker's alike: what a people search reserves for each. */
