@@ -308,6 +308,73 @@ function sizeOf(raw: unknown): string | null {
 
 const EMAIL_SHAPE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
+/** A work address only, the first well-formed one in the order a database means them: a person's own mailbox (a free
+ * mail one) is never their company's door, and one in `email` never hides the `work_email` beside it. */
+const workEmailOf = (o: Record<string, unknown>): string | null =>
+  ["work_email", "workEmail", "email", "email_address"]
+    .map((k) => trimmedOrNull(o[k])?.toLowerCase() ?? null)
+    .find((e): e is string => !!e && EMAIL_SHAPE.test(e) && !isFreeMail(e.slice(e.lastIndexOf("@") + 1))) ?? null;
+
+/**
+ * The company an item of the people card names: its name and its domain (the lead's key), or nothing. The card searches
+ * the US (its rights note says so): a company elsewhere is not read, whatever the filter let by.
+ */
+function companyOf(o: Record<string, unknown>): PersonAtCompany["company"] | null {
+  const name = firstText(o, ["company_name", "companyName", "organization_name", "company"])?.slice(0, 120) ?? null;
+  const key = websiteHostOf(
+    firstText(o, [
+      "company_domain",
+      "companyDomain",
+      "organization_domain",
+      "company_website",
+      "companyWebsite",
+      "organization_website_url",
+      "domain",
+      "website",
+    ]),
+  );
+  const country = countryOf(firstText(o, ["company_country", "companyCountry", "country"])) ?? "US";
+  if (!name || !key || country !== "US") return null;
+  return {
+    key,
+    name,
+    industry: firstText(o, ["industry", "company_industry", "companyIndustry"])?.slice(0, 120) ?? null,
+    city: firstText(o, ["company_city", "companyCity", "city"])?.slice(0, 120) ?? null,
+    region: usStateCode(firstText(o, ["company_state", "companyState", "state"])),
+    country,
+    linkedin:
+      firstText(o, ["company_linkedin_url", "company_linkedin", "companyLinkedin", "organization_linkedin_url"])?.slice(
+        0,
+        300,
+      ) ?? null,
+    size: sizeOf(
+      o.company_size ?? o.companySize ?? o.employee_count ?? o.employees ?? o.organization_num_employees ?? null,
+    ),
+    about:
+      firstText(o, ["company_description", "companyDescription", "organization_short_description"])
+        ?.replace(/[\p{Cc}\p{Cf}]/gu, " ")
+        .slice(0, 600) ?? null,
+  };
+}
+
+/** The person an item of the people card names: a name, or nothing; their work address where they have one. */
+function personOf(o: Record<string, unknown>): PersonAtCompany["person"] | null {
+  const first = firstText(o, ["first_name", "firstName"]);
+  const last = firstText(o, ["last_name", "lastName"]);
+  const name = (firstText(o, ["full_name", "fullName", "name"]) ?? [first, last].filter(Boolean).join(" "))
+    .trim()
+    .slice(0, 120);
+  if (!name) return null;
+  return {
+    name,
+    first_name: first?.slice(0, 60) ?? null,
+    title: firstText(o, ["title", "job_title", "jobTitle", "headline"])?.slice(0, 120) ?? null,
+    seniority: firstText(o, ["seniority"])?.toLowerCase().slice(0, 20) ?? null,
+    email: workEmailOf(o),
+    profile_url: firstText(o, ["linkedin_url", "linkedinUrl", "linkedin"])?.slice(0, 300) ?? null,
+  };
+}
+
 /** The people card's runner (00429): a B2B contact database on Apify, asked by the plan's own filters. */
 const PEOPLE_CARD: PeopleCardRunner = {
   actor: "olympus/b2b-leads-finder",
@@ -330,68 +397,9 @@ const PEOPLE_CARD: PeopleCardRunner = {
   },
   mapItem(item) {
     const o = recordOrNull(item);
-    if (!o) return null;
-    const first = firstText(o, ["first_name", "firstName"]);
-    const last = firstText(o, ["last_name", "lastName"]);
-    const name = (firstText(o, ["full_name", "fullName", "name"]) ?? [first, last].filter(Boolean).join(" "))
-      .trim()
-      .slice(0, 120);
-    const company =
-      firstText(o, ["company_name", "companyName", "organization_name", "company"])?.slice(0, 120) ?? null;
-    const key = websiteHostOf(
-      firstText(o, [
-        "company_domain",
-        "companyDomain",
-        "organization_domain",
-        "company_website",
-        "companyWebsite",
-        "organization_website_url",
-        "domain",
-        "website",
-      ]),
-    );
-    if (!name || !company || !key) return null;
-    // The card searches the US (its rights note says so): a company elsewhere is not read, whatever the filter let by.
-    const country = countryOf(firstText(o, ["company_country", "companyCountry", "country"])) ?? "US";
-    if (country !== "US") return null;
-    // A work address only, the first well-formed one in the order a database means them: a person's own mailbox (a
-    // free mail one) is never their company's door, and one in `email` never hides the `work_email` beside it.
-    const work =
-      ["work_email", "workEmail", "email", "email_address"]
-        .map((k) => trimmedOrNull(o[k])?.toLowerCase() ?? null)
-        .find((e): e is string => !!e && EMAIL_SHAPE.test(e) && !isFreeMail(e.slice(e.lastIndexOf("@") + 1))) ?? null;
-    return {
-      company: {
-        key,
-        name: company,
-        industry: firstText(o, ["industry", "company_industry", "companyIndustry"])?.slice(0, 120) ?? null,
-        city: firstText(o, ["company_city", "companyCity", "city"])?.slice(0, 120) ?? null,
-        region: usStateCode(firstText(o, ["company_state", "companyState", "state"])),
-        country,
-        linkedin:
-          firstText(o, [
-            "company_linkedin_url",
-            "company_linkedin",
-            "companyLinkedin",
-            "organization_linkedin_url",
-          ])?.slice(0, 300) ?? null,
-        size: sizeOf(
-          o.company_size ?? o.companySize ?? o.employee_count ?? o.employees ?? o.organization_num_employees ?? null,
-        ),
-        about:
-          firstText(o, ["company_description", "companyDescription", "organization_short_description"])
-            ?.replace(/[\p{Cc}\p{Cf}]/gu, " ")
-            .slice(0, 600) ?? null,
-      },
-      person: {
-        name,
-        first_name: first?.slice(0, 60) ?? null,
-        title: firstText(o, ["title", "job_title", "jobTitle", "headline"])?.slice(0, 120) ?? null,
-        seniority: firstText(o, ["seniority"])?.toLowerCase().slice(0, 20) ?? null,
-        email: work,
-        profile_url: firstText(o, ["linkedin_url", "linkedinUrl", "linkedin"])?.slice(0, 300) ?? null,
-      },
-    };
+    const company = o ? companyOf(o) : null;
+    const person = o ? personOf(o) : null;
+    return company && person ? { company, person } : null;
   },
   checker: CHECKER,
 };

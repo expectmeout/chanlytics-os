@@ -29,10 +29,10 @@
 --   reach_out_person           the person a company's email makes is its addressee, by name, come from Leads.
 --   lead_blank                 a blanked lead keeps none of its people, nor its key.
 --   leads_page                 each row says what its lead is, with a company's people.
---   lead_person_forget         an erased person leaves every company that names them, and their drafts go.
---   lead_company_tombstones    an erased company's domain goes on the never-again list, so no search makes it again
---                              (leads_erase_on_contact and lead_erase call it); an erased person named at one, their
---                              address (lead_person_forget).
+--   lead_person_forget         an erased person leaves every company that names them, and their drafts go; their address
+--                              goes on the never-again list when one named them (leads_erase_on_contact).
+--   leads_erase_on_contact, lead_erase
+--                              an erased company's domain goes on the never-again list, so no search makes it again.
 --   reach_out_lead_timeline    a lead's story says what it is and where it came from (kind, source).
 --
 -- Applied before either app deploys: the edge's sender and the dashboard's lead reads ask for kind, source and facts.
@@ -731,37 +731,11 @@ begin
      and exists (select 1 from jsonb_array_elements(coalesce(l.facts->'people', '[]'::jsonb)) p
                   where lower(btrim(coalesce(p->>'email', ''))) = v_e);
   get diagnostics v_n = row_count;
-  -- Named at a company, they would be named again by the next search that finds it: their address goes on the
-  -- never-again list as erased, which the people card's commit keeps nobody of (lead_company_upsert).
-  if v_n > 0 then
-    insert into public.lead_suppressions (tenant_id, kind, hash, what)
-    values (p_tenant_id, 'email', public.lead_suppression_hash(p_tenant_id, v_e), 'erased')
-    on conflict (tenant_id, kind, hash) do update set what = 'erased';
-  end if;
   return v_n;
 end $$;
 revoke execute on function public.lead_person_forget(uuid, text) from public, anon, authenticated;
 comment on function public.lead_person_forget(uuid, text) is
-  'Erasure of a person named at companies (00429): their entry leaves every company lead of the workspace that names their address (leads.facts.people), its addressee re-pointed, or cleared with the lead''s address when it was them; their drafts are cleared, one still waiting skipped (lead_gone), and their address is hashed onto lead_suppressions as erased when a company named them, so no search names them again. Called by leads_erase_on_contact. Answers how many companies.';
-
--- A company erased is never made again (00429): its key, its domain, goes on the never-again list as erased before
--- lead_blank takes it, as a place's id does, so every address at it is refused too (lead_addresses_suppressed reads a
--- domain row). Its other people asked nothing: an address of theirs elsewhere is not banned for it.
-create or replace function public.lead_company_tombstones(p_lead_id uuid)
-returns void
-language sql
-security definer
-set search_path = public
-as $$
-  insert into public.lead_suppressions (tenant_id, kind, hash, what)
-  select l.tenant_id, 'domain', public.lead_suppression_hash(l.tenant_id, l.source_key), 'erased'
-    from public.leads l
-   where l.id = p_lead_id and l.kind = 'company' and l.source_key is not null
-  on conflict (tenant_id, kind, hash) do update set what = 'erased'
-$$;
-revoke execute on function public.lead_company_tombstones(uuid) from public, anon, authenticated;
-comment on function public.lead_company_tombstones(uuid) is
-  'A company lead''s tombstone (00429): its key, a domain, hashed onto lead_suppressions as erased, so the people card never makes it again and no address at it is written to. Called by lead_erase and leads_erase_on_contact before lead_blank.';
+  'Erasure of a person named at companies (00429): their entry leaves every company lead of the workspace that names their address (leads.facts.people), its addressee re-pointed, or cleared with the lead''s address when it was them; their drafts are cleared, one still waiting skipped (lead_gone). Called by leads_erase_on_contact, which hashes their address onto lead_suppressions when a company named them. Answers how many companies.';
 
 -- 00413's trigger: an erased company's domain and people go on the never-again list, and an erased person leaves every
 -- company that names them (lead_person_forget).
@@ -776,7 +750,7 @@ declare
   v_next uuid;
 begin
   if NEW.erased_at is not null and OLD.erased_at is null then
-    for r in select l.id, l.place_id, l.phone_e164, l.email, l.kind from public.leads l where l.tenant_id = NEW.tenant_id and l.contact_id = NEW.id loop
+    for r in select l.id, l.place_id, l.phone_e164, l.email, l.kind, l.source_key from public.leads l where l.tenant_id = NEW.tenant_id and l.contact_id = NEW.id loop
       -- One of several people at the business (0052): their own leg, not the lead's blank; the lead stays the
       -- others', its first person the one most lately touched, and no place is banned.
       select c.id into v_next from public.contacts c
@@ -798,9 +772,10 @@ begin
       if r.email is not null then
         insert into public.lead_suppressions (tenant_id, kind, hash, what) values (NEW.tenant_id, 'email', public.lead_suppression_hash(NEW.tenant_id, r.email), 'erased') on conflict (tenant_id, kind, hash) do update set what = 'erased';
       end if;
-      -- A company's domain too (00429), before its blank takes its key.
-      if r.kind = 'company' then
-        perform public.lead_company_tombstones(r.id);
+      -- A company's domain too (00429), before its blank takes its key: the people card never makes it again, and no
+      -- address at it is written to (lead_addresses_suppressed reads a domain row).
+      if r.kind = 'company' and r.source_key is not null then
+        insert into public.lead_suppressions (tenant_id, kind, hash, what) values (NEW.tenant_id, 'domain', public.lead_suppression_hash(NEW.tenant_id, r.source_key), 'erased') on conflict (tenant_id, kind, hash) do update set what = 'erased';
       end if;
       perform public.lead_blank(r.id);
       update public.leads set erased_at = now() where id = r.id;
@@ -811,7 +786,11 @@ begin
       perform public.lead_person_leg(OLD.lead_id, OLD.email, OLD.phone_e164);
     end if;
     -- A person named at any company leaves it, and their drafts go (00429): a company names people People never held.
-    perform public.lead_person_forget(NEW.tenant_id, OLD.email);
+    -- Named at one, they would be named again by the next search that finds it: their address goes on the never-again
+    -- list as erased, which the people card's commit keeps nobody of (lead_company_upsert).
+    if public.lead_person_forget(NEW.tenant_id, OLD.email) > 0 then
+      insert into public.lead_suppressions (tenant_id, kind, hash, what) values (NEW.tenant_id, 'email', public.lead_suppression_hash(NEW.tenant_id, lower(btrim(OLD.email))), 'erased') on conflict (tenant_id, kind, hash) do update set what = 'erased';
+    end if;
   end if;
   return NEW;
 end $$;
@@ -859,9 +838,11 @@ begin
     values (v_lead.tenant_id, 'email', public.lead_suppression_hash(v_lead.tenant_id, v_lead.email), 'erased')
     on conflict (tenant_id, kind, hash) do nothing;
   end if;
-  -- A company's domain (00429), so the people card never makes it again.
-  if v_lead.kind = 'company' then
-    perform public.lead_company_tombstones(p_lead_id);
+  -- A company's domain (00429), so the people card never makes it again and no address at it is written to.
+  if v_lead.kind = 'company' and v_lead.source_key is not null then
+    insert into public.lead_suppressions (tenant_id, kind, hash, what)
+    values (v_lead.tenant_id, 'domain', public.lead_suppression_hash(v_lead.tenant_id, v_lead.source_key), 'erased')
+    on conflict (tenant_id, kind, hash) do nothing;
   end if;
   perform public.lead_blank(p_lead_id);
   update public.leads set erased_at = now(), version = version + 1 where id = p_lead_id;

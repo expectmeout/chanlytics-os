@@ -96,7 +96,7 @@ const move = (db: Db, s: ReachOutSendRow, patch: Partial<ReachOutSendRow>): Prom
  * goes on as that email's, as unstick adopts one. Skipped instead, a send whose email reached the lead would say
  * run_canceled, and the lead would never be marked as written to.
  */
-async function closeRuns(db: Db, now: Date, out: ClockCounts, tenantId?: string): Promise<void> {
+async function closeRuns(db: Db, now: Date, out: ClockCounts, log: Logger, tenantId?: string): Promise<void> {
   const closed = await closedRunSends(db, new Date(now.getTime() - CLAIM_STUCK_AFTER_MS), PAGE, tenantId);
   for (const { send: s, email_status } of closed) {
     if (s.state === "queued") {
@@ -117,6 +117,8 @@ async function closeRuns(db: Db, now: Date, out: ClockCounts, tenantId?: string)
     }
     if (await move(db, s, { state: "skipped", reason: "run_canceled" })) out.closed += 1;
   }
+  // A draft that still goes, and that the door would refuse now: skipped too, so To send stops offering it (00428).
+  await recheckDrafts(db, now, out, log, tenantId);
 }
 
 /**
@@ -233,11 +235,8 @@ export async function reachOutClock(
     }
   }
 
-  /* close */
-  if (!late()) await closeRuns(db, now, out, tenantId);
-
-  /* drafts */
-  if (!late()) await recheckDrafts(db, now, out, log, tenantId);
+  /* close, and the drafts the door would refuse now */
+  if (!late()) await closeRuns(db, now, out, log, tenantId);
 
   /* finish */
   if (!late())

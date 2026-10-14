@@ -39,6 +39,20 @@ export const LEAD_DIRECTORY_WORDS = {
   addressAlone: "The address came with its people",
 } as const;
 
+/**
+ * Where a lead's story says it came from: a business directory for a company the people card found (00429), a list of
+ * the owner's own for a lead found on no listing (00242), else Google Maps, by what was asked where it says.
+ */
+export function leadFoundWords(t: {
+  kind?: string | null;
+  found_on_listing?: boolean;
+  search?: { asked?: string | null } | null;
+}): string {
+  if (t.kind === "company") return LEAD_DIRECTORY_WORDS.found;
+  if (t.found_on_listing === false) return "From your list";
+  return t.search?.asked ? `Found on Google Maps by “${t.search.asked}”` : "Found on Google Maps";
+}
+
 /** A role as an email says it: "as the {{role}} at …". */
 export const LEAD_ROLE_WORDS: Record<LeadRole, string> = {
   owner: "owner",

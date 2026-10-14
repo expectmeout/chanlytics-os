@@ -235,18 +235,8 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
         ? `${m.reason} · ${rated.score} from ${rated.reviews}`
         : m.reason;
   const area = [r.postal_code ?? "", [r.city, r.state].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
-  // D5: the row as the redesign reads it -- one line about where, two reach slots, the tile, its state, the card. A
-  // company's (00429) leads with the person its reach-out writes to: "Dana Reyes, Owner · Marketing & Advertising".
-  const who = leadAddresseeOf(r);
-  const sub = [
-    who ? [who.name, who.title].filter(Boolean).join(", ") : null,
-    r.category,
-    r.neighborhood ?? null,
-    r.postal_code ?? null,
-    milesLabel(m.distance_m) || null,
-  ]
-    .filter((x): x is string => !!x)
-    .join(" · ");
+  // D5: the row as the redesign reads it -- one line about where, two reach slots, the tile, its state, the card.
+  const sub = subLineOf(r, m.distance_m);
   const spread: LeadRowVM["spread"] = r.reviews_dist
     ? [r.reviews_dist.one, r.reviews_dist.two, r.reviews_dist.three, r.reviews_dist.four, r.reviews_dist.five]
     : null;
@@ -363,6 +353,23 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
  * it was put off in this pass. */
 export function leadRowOf(r: LeadRowDto, tz: string, now: Date, search: LeadSearchDto | null = null): LeadRowVM {
   return { ...toLeadRowVM(r, tz, now, search), chainId: r.chain_id ?? null, laterAt: r.member.later_at ?? null };
+}
+
+/**
+ * The row's line about where: "Book store · Hawthorne · 97214 · 1.2 mi", whatever the source gave, in that order. A
+ * company's (00429) leads with the person its reach-out writes to: "Dana Reyes, Owner · Marketing & Advertising".
+ */
+function subLineOf(r: LeadRowDto, distanceM: number | null): string {
+  const who = leadAddresseeOf(r);
+  return [
+    who ? [who.name, who.title].filter(Boolean).join(", ") : null,
+    r.category,
+    r.neighborhood ?? null,
+    r.postal_code ?? null,
+    milesLabel(distanceM) || null,
+  ]
+    .filter((x): x is string => !!x)
+    .join(" · ");
 }
 
 /** A round that is still going; one waiting on the owner is its own mark. */

@@ -18408,6 +18408,11 @@ var LEAD_DIRECTORY_WORDS = {
   address: "the address came with its people",
   addressAlone: "The address came with its people"
 };
+function leadFoundWords(t) {
+  if (t.kind === "company") return LEAD_DIRECTORY_WORDS.found;
+  if (t.found_on_listing === false) return "From your list";
+  return t.search?.asked ? `Found on Google Maps by \u201C${t.search.asked}\u201D` : "Found on Google Maps";
+}
 var LEAD_ROLE_WORDS = {
   owner: "owner",
   founder: "founder",
@@ -26073,13 +26078,7 @@ function reachOutPersonOf(t, nowMs, tz) {
   const fit = t.search?.fit && t.search.fit in LEAD_FIT_WORDS ? LEAD_FIT_WORDS[t.search.fit] : null;
   const found = foundAt !== null ? {
     at: foundAt,
-    text: [
-      // A company the people card found came from a business directory (00429); a lead a list of the owner's own
-      // brought (00242) was found on no listing.
-      t.kind === "company" ? LEAD_DIRECTORY_WORDS.found : t.found_on_listing === false ? "From your list" : t.search?.asked ? `Found on Google Maps by \u201C${t.search.asked}\u201D` : "Found on Google Maps",
-      fit ? fit.toLowerCase() : null,
-      t.email_state === "ok" ? "address checked" : null
-    ].filter(Boolean).join(" \xB7 ")
+    text: [leadFoundWords(t), fit ? fit.toLowerCase() : null, t.email_state === "ok" ? "address checked" : null].filter(Boolean).join(" \xB7 ")
   } : null;
   return {
     emails,
@@ -53027,6 +53026,7 @@ export {
   LEAD_COUNTER_KINDS,
   LEAD_COUNT_CHOICES,
   LEAD_DAY_CAP_USD,
+  LEAD_DIRECTORY_WORDS,
   LEAD_DRAFT_JSON_SCHEMA,
   LEAD_DRAFT_NOTE,
   LEAD_EMAIL_STATES,
@@ -54485,6 +54485,7 @@ export {
   leadEndingLine,
   leadExclusionWord,
   leadFactsOf,
+  leadFoundWords,
   leadHoursShort,
   leadImportAnswerWords,
   leadImportColumnWords,

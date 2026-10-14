@@ -20,7 +20,7 @@ import { chainPaceOf, stepLabelOf } from "./reach-out-sheet";
 import { localDate, localHour } from "../playbooks/playbook-schedule";
 import { PLAYBOOK_HOURS } from "../playbooks/playbook-triggers";
 import { addressOf } from "../activity/record-address";
-import { LEAD_DIRECTORY_WORDS } from "../leads/lead-kind";
+import { leadFoundWords } from "../leads/lead-kind";
 import type { ReachOutChainDto, ReachOutPeopleCountsDto } from "./reach-out-dtos";
 import type { HandKind } from "./reach-out-hand";
 
@@ -465,19 +465,7 @@ export function reachOutPersonOf(t: ReachOutLeadTimelineDto, nowMs: number, tz: 
     foundAt !== null
       ? {
           at: foundAt,
-          text: [
-            // A company the people card found came from a business directory (00429); a lead a list of the owner's own
-            // brought (00242) was found on no listing.
-            t.kind === "company"
-              ? LEAD_DIRECTORY_WORDS.found
-              : t.found_on_listing === false
-                ? "From your list"
-                : t.search?.asked
-                  ? `Found on Google Maps by “${t.search.asked}”`
-                  : "Found on Google Maps",
-            fit ? fit.toLowerCase() : null,
-            t.email_state === "ok" ? "address checked" : null,
-          ]
+          text: [leadFoundWords(t), fit ? fit.toLowerCase() : null, t.email_state === "ok" ? "address checked" : null]
             .filter(Boolean)
             .join(" · "),
         }

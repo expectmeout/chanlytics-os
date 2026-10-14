@@ -7072,10 +7072,6 @@ export type Database = {
         }
         Returns: Json
       }
-      lead_company_tombstones: {
-        Args: { p_lead_id: string }
-        Returns: undefined
-      }
       lead_company_upsert: {
         Args: { p_companies: Json; p_round_id: string }
         Returns: Json

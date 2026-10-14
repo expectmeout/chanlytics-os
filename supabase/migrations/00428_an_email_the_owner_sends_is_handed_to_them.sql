@@ -332,7 +332,8 @@ comment on function public.lead_address_in_people(uuid, text) is
 -- list, the draft given up) is sent all the same, and the answer says what would refuse it now (since), which the page
 -- says beside it. In one transaction, the lead locked before the send (as reach_out_lead_stop and lead_blank lock them):
 -- the person (reach_out_person; when it refuses, the person in People who holds the address, the lead's own or a
--- customer; an erased person, or a lead gone, is nobody, and the send is sent with no email row), the email as its
+-- customer, on their thread; an erased person, a lead gone, or a person with no thread, is none, and the send is sent
+-- with no email row), the email as its
 -- owner sent it under an id of its own (status sent; no provider and no Message-ID, so nothing waits for a receipt), the
 -- send sent then, and the lead written to as the clock writes it for an email that left (Ready to Contacted,
 -- contacted_at, emailed, lead.emailed).
@@ -412,9 +413,8 @@ begin
          where i.tenant_id = v_tenant and i.channel = 'email' and i.external_id = v_to
          limit 1;
       end if;
+      -- Their thread, where they have one (a customer's does): the email goes on it. With none, the send is sent alone.
       if v_contact is not null then
-        insert into public.conversations (tenant_id, contact_id) values (v_tenant, v_contact)
-        on conflict (tenant_id, contact_id) do nothing;
         select id into v_conv from public.conversations where tenant_id = v_tenant and contact_id = v_contact;
       end if;
     else

@@ -9,7 +9,7 @@
  */
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { REACH_OUT_PREVIEW_INDEX_MAX, type ReachOutHold } from "../packages/contracts.js";
+import { REACH_OUT_PREVIEW_INDEX_MAX, type ReachOutHold, type SlotLead } from "../packages/contracts.js";
 import { leadCountriesOf, leadSlotsOf, reachOutAudience, reachOutRecord, type Database } from "../packages/db.js";
 import {
   askReachOutModel,
@@ -64,24 +64,39 @@ const STAND_IN = {
   origin: "https://preview.invalid",
 };
 
+/** No business to preview: past the audience's end, or a lead gone since. */
+const NO_PREVIEW: Preview = {
+  lead: null,
+  subject: null,
+  body: null,
+  opening: null,
+  angle: null,
+  hold: null,
+  detail: null,
+  refused: null,
+  unavailable: false,
+  tokens: { input: 0, output: 0 },
+};
+
+/** The lead as the send fills its slots: a company's addressee for the person slots, where it was found (00429). */
+const slotLeadOf = (
+  lead: { business_name: string | null; city: string | null },
+  slots: { kind: string | null; facts: unknown; source: string | null } | null,
+): SlotLead => ({
+  business_name: lead.business_name,
+  city: lead.city,
+  kind: slots?.kind ?? null,
+  facts: slots?.facts ?? null,
+  source: slots?.source ?? null,
+});
+
 export async function previewOne(
   db: Db,
   i: PreviewInput,
   ask: AskModel = askReachOutModel,
   budget: CheckBudget = checkBudget(Date.now(), PREVIEW_LIMITS),
 ): Promise<Preview> {
-  const none: Preview = {
-    lead: null,
-    subject: null,
-    body: null,
-    opening: null,
-    angle: null,
-    hold: null,
-    detail: null,
-    refused: null,
-    unavailable: false,
-    tokens: { input: 0, output: 0 },
-  };
+  const none = NO_PREVIEW;
   // The door refuses any other (a 400): never a silent clamp to a business the owner did not ask for.
   if (!Number.isInteger(i.index) || i.index < 0 || i.index > PREVIEW_INDEX_MAX)
     throw new RangeError(`a preview's index is a whole number from 0 to ${PREVIEW_INDEX_MAX}`);
@@ -115,13 +130,7 @@ export async function previewOne(
     contactId: randomUUID(),
     to: lead.email,
     words: i.words,
-    lead: {
-      business_name: lead.business_name,
-      city: lead.city,
-      kind: slots?.kind ?? null,
-      facts: slots?.facts ?? null,
-      source: slots?.source ?? null,
-    },
+    lead: slotLeadOf(lead, slots),
     workspace: {
       businessName: workspace.businessName,
       address: workspace.address,

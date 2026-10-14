@@ -14,6 +14,7 @@ import {
   proposalBelowNeeds,
   reachOutAddWords,
   type LeadSearchPlan,
+  type ProposePeopleSearch,
   type ReachOutAddDto,
 } from "@chanlytics/contracts";
 import { leadCardsLive, reachOutRootOf } from "@chanlytics/db";
@@ -110,6 +111,43 @@ const shapeAsk = (input: LeadSearchAskInput) => {
 const LeadSearchPlanInput = z.preprocess((raw) => shapeAsk(raw as LeadSearchAskInput), ProposeAnySearchSchema);
 
 /**
+ * Named people at companies (the people card, 00429), as a card: its own plan, its own facts and its own door. It never
+ * stops to ask, so nothing answers one; and while the card finds no leads (lead_card_live) it is said in words instead.
+ */
+async function proposePeopleSearch(t: ToolContext, ask: ProposePeopleSearch, amends: string): Promise<ProposalOutcome> {
+  if (amends) return refuse("a people search does not stop to ask; propose a new one instead");
+  // The people card finds leads only once its calibration run proved it (00429 lead_card_live): until then it is not
+  // offered, and the owner is told so rather than shown a card the door would refuse.
+  const live = await leadCardsLive(t.ctx.supabase).catch(() => [] as string[]);
+  if (!live.includes("people_at_companies"))
+    return refuse(
+      "finding named people at companies opens once it has been checked, and is not open yet: say so, and offer to find local businesses of the kind instead",
+    );
+  const p = planPeopleSearch(ask);
+  if (!p.ok) return refuse(p.refusal.text);
+  const brief = LEAD_CARDS.find((c) => c.id === "people_at_companies");
+  const facts = await planFacts(t.ctx, t.tenantId, { now: t.now });
+  const estimate = peopleEstimateUsd(p.plan.count, {
+    perPerson: brief?.costPerPlaceUsd ?? 0.002,
+    perCheck: brief?.checkPerEmailUsd ?? 0.00089,
+    start: brief?.startUsd ?? 0.01,
+  });
+  // What it reserves and where its people come from, said on the card before it is approved: the month's leads (the
+  // owner's unit, never a price) and the card's source-rights note.
+  const month = `Uses up to ${p.plan.count} of your ${facts.leadsLeft} leads left this month.`;
+  return propose({
+    kind: "people_search",
+    title: p.view.title,
+    summary: `${peoplePlanSentence(p.plan)}. ${month} ${brief?.rights ?? ""}`.trim(),
+    payload: {
+      plan: p.plan,
+      view: p.view,
+      facts: { leads_left: facts.leadsLeft, estimate_usd: estimate, rights: brief?.rights ?? null },
+    },
+  });
+}
+
+/**
  * A lead search as a card an owner or a partner approves. The model says who, how many,
  * where and the standard; the planner in contracts builds the plan, keys every
  * criterion and exclusion and checks the result against release A's own
@@ -131,38 +169,7 @@ async function proposeLeadSearch(t: ToolContext, input: LeadSearchAskInput): Pro
   const amends = str(input.amends, 40);
   // Named people at companies (the people card, 00429): its own plan and its own card. A people search never stops to
   // ask, so nothing answers one.
-  if (shaped.data.looking_for === "people_at_companies") {
-    if (amends) return refuse("a people search does not stop to ask; propose a new one instead");
-    // The people card finds leads only once its calibration run proved it (00429 lead_card_live): until then it is not
-    // offered, and the owner is told so rather than shown a card the door would refuse.
-    const live = await leadCardsLive(t.ctx.supabase).catch(() => [] as string[]);
-    if (!live.includes("people_at_companies"))
-      return refuse(
-        "finding named people at companies opens once it has been checked, and is not open yet: say so, and offer to find local businesses of the kind instead",
-      );
-    const p = planPeopleSearch(shaped.data);
-    if (!p.ok) return refuse(p.refusal.text);
-    const brief = LEAD_CARDS.find((c) => c.id === "people_at_companies");
-    const facts = await planFacts(t.ctx, t.tenantId, { now: t.now });
-    const estimate = peopleEstimateUsd(p.plan.count, {
-      perPerson: brief?.costPerPlaceUsd ?? 0.002,
-      perCheck: brief?.checkPerEmailUsd ?? 0.00089,
-      start: brief?.startUsd ?? 0.01,
-    });
-    // What it reserves and where its people come from, said on the card before it is approved: the month's leads (the
-    // owner's unit, never a price) and the card's source-rights note.
-    const month = `Uses up to ${p.plan.count} of your ${facts.leadsLeft} leads left this month.`;
-    return propose({
-      kind: "people_search",
-      title: p.view.title,
-      summary: `${peoplePlanSentence(p.plan)}. ${month} ${brief?.rights ?? ""}`.trim(),
-      payload: {
-        plan: p.plan,
-        view: p.view,
-        facts: { leads_left: facts.leadsLeft, estimate_usd: estimate, rights: brief?.rights ?? null },
-      },
-    });
-  }
+  if (shaped.data.looking_for === "people_at_companies") return proposePeopleSearch(t, shaped.data, amends);
   let row: SearchViewRow | null = null;
   let question: string | null = null;
   if (amends) {

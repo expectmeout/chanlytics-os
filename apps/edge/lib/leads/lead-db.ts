@@ -68,14 +68,22 @@ const runOf = (r: RunRow): LeadRunRow => ({
   usage_usd: Number(r.usage_usd),
 });
 
-export function leadDb(db: Db): LeadDb {
-  // The generated types name each function; the argument object is the function's own. Called ON the client and never
-  // lifted off it: SupabaseClient.rpc reads `this.rest`, so a detached `db.rpc` throws against a real client (gate G3).
+/**
+ * The doors' calls on one client: a yes or no, and an answer. The generated types name each function; the argument object
+ * is the function's own. Called ON the client and never lifted off it: SupabaseClient.rpc reads `this.rest`, so a
+ * detached `db.rpc` throws against a real client (gate G3).
+ */
+function callsOn(db: Db) {
   const rpc: Rpc = (fn, args) => (db as unknown as { rpc: Rpc }).rpc(fn, args);
   const bool = async (name: string, args: Record<string, unknown>): Promise<boolean> =>
     must<unknown>(name, await rpc(name, args)) === true;
   const json = async <T>(name: string, args: Record<string, unknown>): Promise<T> =>
     must<T>(name, (await rpc(name, args)) as { data: T | null; error: { message: string } | null });
+  return { bool, json };
+}
+
+export function leadDb(db: Db): LeadDb {
+  const { bool, json } = callsOn(db);
   return {
     runClaim: (runId, owner) => bool("lead_run_claim", { p_run_id: runId, p_owner: owner }),
     runRecordStart: (runId, owner, apifyRunId, datasetId, capUsd) =>
@@ -117,7 +125,6 @@ export function leadDb(db: Db): LeadDb {
         p_last: last,
       }),
     roundEnd: (roundId, ending: LeadRoundEnding) => bool("lead_round_end", { p_round_id: roundId, p_ending: ending }),
-    // A people run's companies (00429), through packages/db's door, before the run's own commit.
     companyUpsert: (roundId, companies) => leadCompanyUpsert(db, roundId, companies),
     roundRejudge: (roundId, planVersion, places, judgment) =>
       json<RejudgeResult>("lead_round_rejudge", {

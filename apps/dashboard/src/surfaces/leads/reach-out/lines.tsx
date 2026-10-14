@@ -159,6 +159,38 @@ const RoOwnerDoors = ({
   </>
 );
 
+/** The block's head and its story: what the reach-out is, where the lead stands, each line, and its stop if any. */
+const RoStory = ({ vm, standing }: { vm: TimelineVM; standing: string | null }) => (
+  <>
+    <summary className="pk-box-head">
+      <span className="pk-box-line">
+        <Icon name="mail" size={12} />
+        <span className="pk-box-sum" data-testid="peek-reach-out-label">
+          {vm.label}
+        </span>
+        <Icon name="chevron-down" size={12} />
+      </span>
+    </summary>
+    {standing ? (
+      <p className="pk-alt-why" data-testid="peek-reach-out-standing">
+        {standing}
+      </p>
+    ) : null}
+    <ol className="pk-steps" data-testid="peek-reach-out-lines">
+      {vm.lines.map((l) => (
+        <li key={l.id} className="pk-step">
+          {l.when} · {l.text}
+        </li>
+      ))}
+    </ol>
+    {vm.stopped ? (
+      <p className="pk-alt-why" data-testid="peek-reach-out-stopped">
+        {vm.stopped}
+      </p>
+    ) : null}
+  </>
+);
+
 /**
  * The peek's block (H9): a lead's story with the reach-out, and its doors. Nothing when no reach-out planned it. For a
  * reach-out its owner sends (00428): Send it, to the run where an email handed to them waits, and They wrote back…, what
@@ -228,32 +260,7 @@ export const LeadReachOut = ({ lead, flash }: { lead: LeadPeekVM | null; flash: 
   };
   return (
     <details className="pk-box" open data-testid="peek-reach-out">
-      <summary className="pk-box-head">
-        <span className="pk-box-line">
-          <Icon name="mail" size={12} />
-          <span className="pk-box-sum" data-testid="peek-reach-out-label">
-            {vm.label}
-          </span>
-          <Icon name="chevron-down" size={12} />
-        </span>
-      </summary>
-      {standing ? (
-        <p className="pk-alt-why" data-testid="peek-reach-out-standing">
-          {standing.line}
-        </p>
-      ) : null}
-      <ol className="pk-steps" data-testid="peek-reach-out-lines">
-        {vm.lines.map((l) => (
-          <li key={l.id} className="pk-step">
-            {l.when} · {l.text}
-          </li>
-        ))}
-      </ol>
-      {vm.stopped ? (
-        <p className="pk-alt-why" data-testid="peek-reach-out-stopped">
-          {vm.stopped}
-        </p>
-      ) : null}
+      <RoStory vm={vm} standing={standing ? standing.line : null} />
       {sure ? (
         <Confirm
           question={W.ask(story.business_name)}

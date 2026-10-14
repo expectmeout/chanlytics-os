@@ -251,6 +251,15 @@ function dayIn(tz: string, iso: string | null, now: Date): string {
  * of its own. The mark is `initialsOf`, the same derivation the row wears, never a second one.
  */
 /**
+ * What the peek reads of a lead's search: the words of its contact standard (an address alone for a people search,
+ * 00429, as for an email plan) and its first phrase, which a found line names.
+ */
+const peekPlanOf = (search: LeadSearchDto | null) => ({
+  standard: LEAD_CONTACT_STANDARD_WORDS[(search?.plan ?? search?.people)?.contact === "email" ? "email" : "phone"],
+  term: search?.plan?.terms[0] ?? null,
+});
+
+/**
  * Where a lead was found, in the peek's words: the head's short line, the first step's, and the site's. A company the
  * people card found (00429) came from a business directory, its address with its people; a lead a list of the owner's
  * own brought (00242) has no place either: it was found on no listing, and its address came with the list.
@@ -330,9 +339,7 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
         ? LEAD_REVIEW_WORD
         : `${LEAD_LEFT_OUT_WORD} — ${leadExclusionWord(search, m.excluded_by)}`;
   const fitCls = m.class === "qualified" ? (m.fit ?? "look") : m.class === "review" ? "review" : "out";
-  // A people search keeps to an address alone (00429), as an email plan does.
-  const standard =
-    LEAD_CONTACT_STANDARD_WORDS[(search?.plan ?? search?.people)?.contact === "email" ? "email" : "phone"];
+  const { standard, term } = peekPlanOf(search);
   const emailNote = r.email
     ? r.email_state === "ok"
       ? `${LEAD_MAILBOX_WORDS.ok} · checked ${dayIn(tz, r.email_checked_at, now) || "on finding it"}`
@@ -369,7 +376,6 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
       }
     : null;
   const host = r.website;
-  const term = search?.plan?.terms[0] ?? null;
   const where = foundWords(r, term);
   // D5: the peek re-cut -- the tile, the rating apart, the checks' head, the week, and the listing's facts.
   const checksSummary = checksSummaryOf(m.checks);

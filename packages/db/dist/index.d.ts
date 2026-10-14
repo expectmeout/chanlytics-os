@@ -7364,12 +7364,6 @@ type Database = {
                 };
                 Returns: Json;
             };
-            lead_company_tombstones: {
-                Args: {
-                    p_lead_id: string;
-                };
-                Returns: undefined;
-            };
             lead_company_upsert: {
                 Args: {
                     p_companies: Json;
@@ -18554,12 +18548,6 @@ declare function builderOf<T extends TenantTable>(db: Db$D, table: T): _supabase
                 p_to_offset: number;
             };
             Returns: Json;
-        };
-        lead_company_tombstones: {
-            Args: {
-                p_lead_id: string;
-            };
-            Returns: undefined;
         };
         lead_company_upsert: {
             Args: {

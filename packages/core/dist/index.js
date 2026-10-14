@@ -37052,6 +37052,54 @@ function sizeOf(raw) {
   return bands.find(([max]) => n <= max)?.[1] ?? "10001+";
 }
 var EMAIL_SHAPE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+var workEmailOf = (o) => ["work_email", "workEmail", "email", "email_address"].map((k) => trimmedOrNull(o[k])?.toLowerCase() ?? null).find((e) => !!e && EMAIL_SHAPE.test(e) && !isFreeMail(e.slice(e.lastIndexOf("@") + 1))) ?? null;
+function companyOf(o) {
+  const name = firstText(o, ["company_name", "companyName", "organization_name", "company"])?.slice(0, 120) ?? null;
+  const key = websiteHostOf(
+    firstText(o, [
+      "company_domain",
+      "companyDomain",
+      "organization_domain",
+      "company_website",
+      "companyWebsite",
+      "organization_website_url",
+      "domain",
+      "website"
+    ])
+  );
+  const country = countryOf(firstText(o, ["company_country", "companyCountry", "country"])) ?? "US";
+  if (!name || !key || country !== "US") return null;
+  return {
+    key,
+    name,
+    industry: firstText(o, ["industry", "company_industry", "companyIndustry"])?.slice(0, 120) ?? null,
+    city: firstText(o, ["company_city", "companyCity", "city"])?.slice(0, 120) ?? null,
+    region: usStateCode(firstText(o, ["company_state", "companyState", "state"])),
+    country,
+    linkedin: firstText(o, ["company_linkedin_url", "company_linkedin", "companyLinkedin", "organization_linkedin_url"])?.slice(
+      0,
+      300
+    ) ?? null,
+    size: sizeOf(
+      o.company_size ?? o.companySize ?? o.employee_count ?? o.employees ?? o.organization_num_employees ?? null
+    ),
+    about: firstText(o, ["company_description", "companyDescription", "organization_short_description"])?.replace(/[\p{Cc}\p{Cf}]/gu, " ").slice(0, 600) ?? null
+  };
+}
+function personOf(o) {
+  const first = firstText(o, ["first_name", "firstName"]);
+  const last = firstText(o, ["last_name", "lastName"]);
+  const name = (firstText(o, ["full_name", "fullName", "name"]) ?? [first, last].filter(Boolean).join(" ")).trim().slice(0, 120);
+  if (!name) return null;
+  return {
+    name,
+    first_name: first?.slice(0, 60) ?? null,
+    title: firstText(o, ["title", "job_title", "jobTitle", "headline"])?.slice(0, 120) ?? null,
+    seniority: firstText(o, ["seniority"])?.toLowerCase().slice(0, 20) ?? null,
+    email: workEmailOf(o),
+    profile_url: firstText(o, ["linkedin_url", "linkedinUrl", "linkedin"])?.slice(0, 300) ?? null
+  };
+}
 var PEOPLE_CARD = {
   actor: "olympus/b2b-leads-finder",
   // Pinned once its calibration run has read the items it writes (the card's owed run, decision 0057's lane 5).
@@ -37073,55 +37121,9 @@ var PEOPLE_CARD = {
   },
   mapItem(item) {
     const o = recordOrNull(item);
-    if (!o) return null;
-    const first = firstText(o, ["first_name", "firstName"]);
-    const last = firstText(o, ["last_name", "lastName"]);
-    const name = (firstText(o, ["full_name", "fullName", "name"]) ?? [first, last].filter(Boolean).join(" ")).trim().slice(0, 120);
-    const company = firstText(o, ["company_name", "companyName", "organization_name", "company"])?.slice(0, 120) ?? null;
-    const key = websiteHostOf(
-      firstText(o, [
-        "company_domain",
-        "companyDomain",
-        "organization_domain",
-        "company_website",
-        "companyWebsite",
-        "organization_website_url",
-        "domain",
-        "website"
-      ])
-    );
-    if (!name || !company || !key) return null;
-    const country = countryOf(firstText(o, ["company_country", "companyCountry", "country"])) ?? "US";
-    if (country !== "US") return null;
-    const work = ["work_email", "workEmail", "email", "email_address"].map((k) => trimmedOrNull(o[k])?.toLowerCase() ?? null).find((e) => !!e && EMAIL_SHAPE.test(e) && !isFreeMail(e.slice(e.lastIndexOf("@") + 1))) ?? null;
-    return {
-      company: {
-        key,
-        name: company,
-        industry: firstText(o, ["industry", "company_industry", "companyIndustry"])?.slice(0, 120) ?? null,
-        city: firstText(o, ["company_city", "companyCity", "city"])?.slice(0, 120) ?? null,
-        region: usStateCode(firstText(o, ["company_state", "companyState", "state"])),
-        country,
-        linkedin: firstText(o, [
-          "company_linkedin_url",
-          "company_linkedin",
-          "companyLinkedin",
-          "organization_linkedin_url"
-        ])?.slice(0, 300) ?? null,
-        size: sizeOf(
-          o.company_size ?? o.companySize ?? o.employee_count ?? o.employees ?? o.organization_num_employees ?? null
-        ),
-        about: firstText(o, ["company_description", "companyDescription", "organization_short_description"])?.replace(/[\p{Cc}\p{Cf}]/gu, " ").slice(0, 600) ?? null
-      },
-      person: {
-        name,
-        first_name: first?.slice(0, 60) ?? null,
-        title: firstText(o, ["title", "job_title", "jobTitle", "headline"])?.slice(0, 120) ?? null,
-        seniority: firstText(o, ["seniority"])?.toLowerCase().slice(0, 20) ?? null,
-        email: work,
-        profile_url: firstText(o, ["linkedin_url", "linkedinUrl", "linkedin"])?.slice(0, 300) ?? null
-      }
-    };
+    const company = o ? companyOf(o) : null;
+    const person = o ? personOf(o) : null;
+    return company && person ? { company, person } : null;
   },
   checker: CHECKER
 };

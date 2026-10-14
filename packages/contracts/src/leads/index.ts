@@ -98,6 +98,8 @@ export {
   LEAD_ROLE_WORDS,
   LEAD_PEOPLE_MAX,
   leadRoleOf,
+  leadFoundWords,
+  LEAD_DIRECTORY_WORDS,
   leadPersonOf,
   leadFactsOf,
   leadAddresseeOf,
