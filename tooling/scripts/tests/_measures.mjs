@@ -188,6 +188,35 @@ const EDGE = SRC.filter((f) => /^apps\/edge\/(api|lib)\//.test(f) && !f.startsWi
 const perFile = (files, count, floor = 0) =>
   Object.fromEntries(files.map((f) => [f, count(parse(f))]).filter(([, n]) => n > floor));
 
+/**
+ * The writes a module of the dashboard's browser code makes past the verb layer (legacy-bridge/verbs): each call
+ * `api()("POST …")`, `PUT`, `PATCH` or `DELETE` with its route written in place. A write that goes through its verb's spec
+ * makes the same call Ask's card makes for the same act, says the same receipt and offers the same undo (the sheets as
+ * verbs, 14 Oct 2026); one made here makes its own.
+ */
+const BROWSER_WRITERS = SHELL.filter(
+  (f) =>
+    /^apps\/dashboard\/src\/(surfaces|legacy-bridge)\//.test(f) &&
+    !f.startsWith("apps/dashboard/src/legacy-bridge/verbs/"),
+);
+function writesPastVerbs(sf) {
+  let n = 0;
+  const walk = (node) => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isCallExpression(node.expression) &&
+      ts.isIdentifier(node.expression.expression) &&
+      node.expression.expression.text === "api"
+    ) {
+      const first = node.arguments[0];
+      if (first && ts.isStringLiteralLike(first) && /^(POST|PUT|PATCH|DELETE) /.test(first.text)) n += 1;
+    }
+    ts.forEachChild(node, walk);
+  };
+  walk(sf);
+  return n;
+}
+
 /** One entry per baseline under tests/baselines/: what it holds, and what to do when it rises. */
 /* ---- Writers per table (decision 0031, invariant 1: one record, one door writes it) ---- */
 
@@ -396,6 +425,13 @@ export const MEASURES = [
       Object.fromEntries(repoFiles(["apps/dashboard/src/legacy"], { keep: /./, drop: /^$/ }).map((f) => [f, 1])),
     advice:
       "A new page or component goes under apps/dashboard/src/surfaces, in TSX, and never in the legacy tree (decision 0015): the tree only shrinks.",
+  },
+  {
+    name: "writes past the verb layer",
+    file: "writes-past-verbs.json",
+    measure: () => perFile(BROWSER_WRITERS, writesPastVerbs),
+    advice:
+      "Commit it through its verb (legacy-bridge/verbs commitVerb, its spec in contracts VERB_SPECS): the call, the receipt and the undo a sheet and Ask's card share. A verb no spec has yet gets one, beside the family it belongs with (contracts ask-proposals/).",
   },
   {
     name: "copies",

@@ -9,6 +9,7 @@ import { Button } from "../../kit/button/button";
 import { Notice } from "../../kit/notice/notice";
 import { NameOffer, putNameBack as putBack } from "./name-offer";
 import { FactNotices } from "./notices/fact-notices";
+import { MERGE_CLOSED } from "./ctx";
 import type { PageCtx } from "./ctx";
 
 /** Undo of a name taken, from the page: the business's name back (or none), and the page read again. */
@@ -18,8 +19,8 @@ export function putNameBack(c: PageCtx): Promise<void> {
 
 /**
  * Combine (0052, amending 0028): the record we wrote to and the person who answered from another address at the same
- * business. The press opens the Combine sheet on the pair (sheets/combine-sheet.tsx), the owner's act; any other ask
- * on the page closes first, one question at a time.
+ * business. The press opens the Merge sheet on the pair, which asks Combine's question (sheets/combine.tsx), the owner's act;
+ * any other ask on the page closes first, one question at a time.
  */
 function CombineNotice({ c, n }: { c: PageCtx; n: NoticeVM }) {
   if (n.act.do.kind !== "combine") return null;
@@ -36,8 +37,7 @@ function CombineNotice({ c, n }: { c: PageCtx; n: NoticeVM }) {
             title={WORKS_AT_WORDS.combine}
             onClick={() => {
               c.setDel({ open: false, typed: "", busy: false, error: null });
-              c.setMerge({ open: false, pick: null, typed: "", busy: false, error: null });
-              c.setCombine({ act, busy: false, error: null });
+              c.setMerge({ ...MERGE_CLOSED, open: true, pick: act.otherId, combine: act });
             }}
             data-testid="person-combine"
           >

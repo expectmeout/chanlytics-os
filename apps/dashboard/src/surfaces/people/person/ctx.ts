@@ -26,15 +26,17 @@ export interface MergeState {
   typed: string;
   busy: boolean;
   error: string | null;
+  /**
+   * Combine (0052): the pair the notice offered, which the sheet asks as Combine's question (combine.tsx), with no
+   * typed name; null for a merge chosen by hand.
+   */
+  combine: CombineAct | null;
 }
 
+/** The Merge sheet shut, with nothing chosen. */
+export const MERGE_CLOSED: MergeState = { open: false, pick: null, typed: "", busy: false, error: null, combine: null };
+
 /** A doubt being settled as two people (0034 step 4): which one is out, and what went wrong. */
-/** Combine (0052): the pair the notice offered, while its sheet is open, and its press. */
-export interface CombineState {
-  act: CombineAct | null;
-  busy: boolean;
-  error: string | null;
-}
 
 export interface DoubtState {
   busy: string | null;
@@ -109,9 +111,6 @@ export interface PageCtx {
   /** Add to a list (More, canvas A): its sheet, open or not. */
   listsOpen: boolean;
   setListsOpen: Dispatch<SetStateAction<boolean>>;
-  /** Combine (0052): its sheet, open on the pair the notice offered. */
-  combine: CombineState;
-  setCombine: Dispatch<SetStateAction<CombineState>>;
 }
 
 /** The digits of a number, for comparing what was typed with a phone. */

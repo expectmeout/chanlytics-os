@@ -29,7 +29,15 @@ import {
 } from "./campaigns";
 import { replySpec, steerSpec, threadVerbSpec, whisperSpec } from "./inbox";
 import { leadSearchSpec, peopleSearchSpec, reachOutAddSpec } from "./leads";
-import { listSpec } from "./lists";
+import { listMemberSpec, listSpec } from "./lists";
+import {
+  answerManySpec,
+  answerSpec,
+  noteManySpec,
+  personAddSpec,
+  personMergeSpec,
+  personModeManySpec,
+} from "./people-verbs";
 import { dealSpec, noteSpec, personDetailsSpec, personModeSpec } from "./person";
 import type { ProposalGate, ProposalSpec, ProposalSpecAboveOperator } from "./spec";
 import { inviteSpec, policySpec, settingsSpec } from "./workspace";
@@ -58,6 +66,30 @@ export const PROPOSAL_SPECS = {
   playbook_change: playbookChangeSpec,
   message: messageSpec,
 } satisfies Record<AskProposal["kind"], ProposalSpec>;
+
+/**
+ * Every verb's spec: the cards Ask proposes, and the verbs only a page's sheets commit so far (people-verbs.ts, and a
+ * list's people). A sheet and a card commit an act through one walk over this table (the dashboard's
+ * legacy-bridge/verbs), so the same act makes the same call, says the same receipt and offers the same undo whichever
+ * hand pressed it (the sheets as verbs, 14 Oct 2026). Marked pure, as the derived tables below are.
+ */
+export const VERB_SPECS = /* @__PURE__ */ (() => ({
+  ...PROPOSAL_SPECS,
+  answer: answerSpec,
+  answer_many: answerManySpec,
+  person_mode_many: personModeManySpec,
+  note_many: noteManySpec,
+  person_add: personAddSpec,
+  person_merge: personMergeSpec,
+  list_member: listMemberSpec,
+}))();
+/** A verb a sheet or a card commits. */
+export type VerbKind = keyof typeof VERB_SPECS;
+
+/** The spec for a verb, or null for a verb no table has. */
+export function verbSpec(kind: string): ProposalSpec | null {
+  return Object.prototype.hasOwnProperty.call(VERB_SPECS, kind) ? VERB_SPECS[kind as VerbKind] : null;
+}
 
 /** The kinds above operator, whose refusal below `needs` is said in words (person_mode, settings, invite, lead_search). */
 export type ProposalKindAboveOperator = {

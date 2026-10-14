@@ -16202,8 +16202,142 @@ function receptionistOf(r2, tz, nowMs, viewerId, names3 = null) {
   return { tone: "answering", label: "Answering" };
 }
 
+// src/ask-proposals/people-verbs.ts
+var purposeOf = (v) => v === "conversational" || v === "marketing" ? v : null;
+var answerOf = (v) => v === "opted_in" || v === "opted_out" ? v : "unknown";
+var bodyOf = (pl, keys) => Object.fromEntries(keys.filter((k) => pl[k] !== void 0).map((k) => [k, pl[k]]));
+function answerSaid(purpose, consent, who) {
+  if (purpose === "marketing") {
+    if (consent === "opted_in") return `${who} said yes to offers and news`;
+    if (consent === "opted_out") return `${who} said no to offers \u2014 messages about their own visit still reach them`;
+    return `${who} has not been asked about offers`;
+  }
+  if (consent === "opted_in") return `${who} said yes to messages about their visit`;
+  if (consent === "opted_out") return `${who} said stop \u2014 nothing goes out to them at all`;
+  return `${who} is back to "not asked"`;
+}
+function manySaid(data, verb) {
+  const d = rec(data);
+  const done = typeof d.done === "number" ? d.done : 0;
+  const failedRows = Array.isArray(d.failed) ? d.failed : [];
+  const skipped2 = Array.isArray(d.skipped) ? d.skipped : [];
+  const failed = failedRows.length + skipped2.length;
+  const why = asText(rec(failedRows[0]).message) || (skipped2.length ? "no longer in this workspace" : "");
+  return { done, failed, said: failed ? `${failed} could not be ${verb}${why ? ` \u2014 ${why}` : ""}` : "" };
+}
+var ANSWER_DOOR = {
+  conversational: "PUT contacts/[id]/consent",
+  marketing: "PUT contacts/[id]/marketing-consent"
+};
+var ANSWER_MANY_DOOR = {
+  conversational: "PUT contacts/consent",
+  marketing: "PUT contacts/marketing-consent"
+};
+var personRoute = ({ payload }) => {
+  const id = idIn(payload, "contact_id");
+  return id ? `clients/${id}` : null;
+};
+var answerSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const purpose = purposeOf(pl.purpose);
+    if (!purpose) return refuseWith("Say which question this answers.");
+    return {
+      route: ANSWER_DOOR[purpose],
+      params: { id: asText(pl.contact_id) },
+      body: bodyOf(pl, ["consent", "source", "note", "message_id"]),
+      events: [PEOPLE_CHANGED]
+    };
+  },
+  receipt: ({ payload: pl }) => answerSaid(purposeOf(pl.purpose) ?? "conversational", answerOf(pl.consent), asText(pl.who)),
+  open: personRoute
+};
+var answerManySpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const purpose = purposeOf(pl.purpose);
+    if (!purpose) return refuseWith("Say which question this answers.");
+    return {
+      route: ANSWER_MANY_DOOR[purpose],
+      body: bodyOf(pl, ["ids", "consent", "source", "note"]),
+      events: [PEOPLE_CHANGED]
+    };
+  },
+  receipt: ({ payload: pl }, data) => {
+    const m = manySaid(data, "recorded");
+    const what = purposeOf(pl.purpose) === "marketing" ? "to offers" : "to messages about their visit";
+    const answer = answerOf(pl.consent);
+    const head = answer === "unknown" ? `${m.done} back to "not asked"` : `${m.done} said ${answer === "opted_in" ? "yes" : "no"} ${what}`;
+    return m.said ? `${head} \xB7 ${m.said}` : head;
+  },
+  open: () => "clients"
+};
+var personModeManySpec = {
+  needs: "owner",
+  doing: "change how the receptionist treats these people",
+  gate: "settings",
+  commit: ({ payload: pl }) => ({
+    route: "PUT contacts/receptionist",
+    body: bodyOf(pl, ["ids", "mode"]),
+    events: [PEOPLE_CHANGED]
+  }),
+  receipt: ({ payload: pl }, data) => {
+    const m = manySaid(data, "changed");
+    const mode = asText(pl.mode);
+    const head = `Receptionist for ${m.done}: ${PERSON_MODE_WORDS[mode] ?? asText(pl.mode)}`;
+    return m.said ? `${head} \xB7 ${m.said}` : head;
+  },
+  open: () => "clients"
+};
+var noteManySpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => ({
+    route: "PUT contacts/notes",
+    body: bodyOf(pl, ["ids", "append"]),
+    events: [PEOPLE_CHANGED]
+  }),
+  receipt: (_p, data) => {
+    const m = manySaid(data, "noted");
+    const head = `Note added for ${m.done}`;
+    return m.said ? `${head} \xB7 ${m.said}` : head;
+  },
+  open: () => "clients"
+};
+var personAddSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => ({
+    route: "POST contacts",
+    body: bodyOf(pl, ["phone", "email", "name", "source"]),
+    events: [PEOPLE_CHANGED]
+  }),
+  receipt: ({ payload: pl }, data) => {
+    const who = asText(pl.name).trim() || asText(pl.phone).trim() || asText(pl.email).trim();
+    return `${who} ${rec(data).existed === true ? "was already here \u2014 opened" : "added"}`;
+  },
+  made: (_p, data) => idIn(rec(data), "contact_id"),
+  open: () => "clients"
+};
+var personMergeSpec = {
+  needs: "owner",
+  doing: "merge two records of one person",
+  gate: "settings",
+  commit: ({ payload: pl }) => ({
+    route: "POST contacts/[id]/merge",
+    params: { id: asText(pl.contact_id) },
+    body: bodyOf(pl, ["merge"]),
+    events: [PEOPLE_CHANGED]
+  }),
+  receipt: ({ payload: pl }) => MERGE_WORDS.done(asText(pl.who), asText(pl.other)),
+  open: personRoute
+};
+
 // src/notes/person-notes.ts
 var NOTE_MAX = 600;
+var NOTE_LINE_MAX = 200;
 var NOTE_WORDS = {
   title: "Notes",
   placeholder: "Add a note\u2026",
@@ -16332,6 +16466,128 @@ function personNotesVM(notes, tz, nowMs) {
   });
 }
 
+// src/notes/step-sheet.ts
+var STEP_SHEET_WORDS = {
+  titles: { add: "Set a next step", edit: "Change the step", note: "Add a note", editNote: "Change the note" },
+  what: { label: "What to do", placeholder: "Call about the timeline" },
+  /** A note's words, where the sheet opened as one. */
+  noteWhat: { label: "Note", placeholder: "What they said, what to remember" },
+  when: { label: "When", pick: "The day", none: "No day" },
+  for: { label: "For", anyone: "Anyone on the team", me: "Me" },
+  teamOnly: "Only your team sees it.",
+  /** A note with no day: whether the receptionist reads it (it uses notes as facts, never aloud). */
+  reads: { label: "Team only", hint: "The receptionist won't read it" },
+  save: { add: "Set it", edit: "Save", note: "Add it" },
+  saving: "Saving\u2026",
+  reading: "Reading\u2026",
+  gone: "This person is not in your workspace.",
+  noStep: "This step is no longer here.",
+  done: { add: "Next step set", edit: "Step saved", note: "Note added", editNote: "Note saved" },
+  failed: "Could not save this step.",
+  /** Many people at once: one line, each of them given it as a note of their own. */
+  many: {
+    sub: (n) => `${n} ${n === 1 ? "person" : "people"}`,
+    placeholder: "One line, under each of their notes",
+    rule: "Each of them gets it as a note of their own, signed by you.",
+    failed: "Could not add the note."
+  },
+  // The limit is passed in rather than read here: a literal that reads another module's constant is kept by every
+  // package that bundles contracts, as tone.ts's tables were (people.ts NOTE_MAX is the one spelling of it).
+  problems: {
+    what: "Say what to do.",
+    note: "Write the note first.",
+    day: "Pick a day.",
+    tooLong: (max) => `At most ${max} characters.`
+  },
+  discard: {
+    question: "Discard changes?",
+    detail: null,
+    yes: "Discard",
+    no: "Keep editing"
+  }
+};
+var NO_DAY = "none";
+var titleOf = (mode, kind) => kind === "note" ? mode === "add" ? "note" : "editNote" : mode;
+function stepSheetFor(p, ask, nowMs, tz) {
+  const W = STEP_SHEET_WORDS;
+  const note = ask.noteId ? (p.noteList ?? []).find((n) => n.id === ask.noteId) ?? null : null;
+  const mode = ask.noteId ? "edit" : "add";
+  const kind = (note ? !note.step : ask.note === true) ? "note" : "step";
+  const dealId = note ? note.dealId : ask.dealId ?? null;
+  const service = dealId ? (p.deals ?? []).find((d) => d.id === dealId)?.service ?? null : null;
+  const stepChoices = stepDays(nowMs, tz);
+  const days = kind === "note" ? [{ key: NO_DAY, label: W.when.none, title: W.when.none }, ...stepChoices] : stepChoices;
+  const day = note?.step ? note.step.day.day : kind === "note" ? NO_DAY : null;
+  return {
+    mode,
+    kind,
+    title: W.titles[titleOf(mode, kind)],
+    sub: service ? `${p.name} \xB7 ${service}` : p.name,
+    days,
+    team: [
+      { id: "", label: W.for.anyone },
+      ...(p.noteTeam ?? []).map((m) => ({ id: m.id, label: m.me ? W.for.me : m.name }))
+    ],
+    draft: {
+      what: note ? note.body : "",
+      day,
+      picking: !!day && !days.some((c) => c.key === day),
+      forId: note ? note.forUserId : null,
+      teamOnly: note?.teamOnly === true
+    },
+    note: note ? { id: note.id, version: note.version } : null,
+    dealId,
+    blocked: ask.noteId && !note ? W.noStep : note && !note.mine ? NOTE_REFUSALS.not_yours ?? null : null,
+    save: mode === "edit" ? W.save.edit : W.save[kind === "note" ? "note" : "add"]
+  };
+}
+function stepSheetDone(sheet, draft) {
+  const W = STEP_SHEET_WORDS.done;
+  const step2 = draft.day !== NO_DAY || draft.picking;
+  if (sheet.mode === "edit") return step2 ? W.edit : W.editNote;
+  return step2 ? W.add : W.note;
+}
+function stepSheetBody(sheet, draft) {
+  const P = STEP_SHEET_WORDS.problems;
+  const what = draft.what.trim();
+  const dayless = draft.day === NO_DAY && !draft.picking;
+  if (!what) return { body: null, problem: { field: "what", words: sheet.kind === "note" ? P.note : P.what } };
+  if (what.length > NOTE_MAX) return { body: null, problem: { field: "what", words: P.tooLong(NOTE_MAX) } };
+  if (!dayless && (!draft.day || !isRealDate(draft.day))) return { body: null, problem: { field: "day", words: P.day } };
+  return {
+    problem: null,
+    body: {
+      body: what,
+      ...dayless || !draft.day ? {} : { due_on: draft.day },
+      for_user_id: draft.forId || null,
+      // A step is the team's (00166); a note is the receptionist's to read unless it is kept from it.
+      team_only: dayless ? draft.teamOnly : true,
+      ...sheet.dealId ? { deal_id: sheet.dealId } : {},
+      ...sheet.note ? { note_id: sheet.note.id, version: sheet.note.version } : {}
+    }
+  };
+}
+function stepSheetDirty(draft, opened) {
+  return draft.what.trim() !== opened.what.trim() || draft.day !== opened.day || (draft.forId || null) !== (opened.forId || null) || draft.teamOnly !== opened.teamOnly;
+}
+function stepSheetMerge(draft, opened, fresh) {
+  const dayTyped = draft.day !== opened.day || draft.picking !== opened.picking;
+  return {
+    what: draft.what !== opened.what ? draft.what : fresh.what,
+    day: dayTyped ? draft.day : fresh.day,
+    picking: dayTyped ? draft.picking : fresh.picking,
+    forId: (draft.forId || null) !== (opened.forId || null) ? draft.forId : fresh.forId,
+    teamOnly: draft.teamOnly !== opened.teamOnly ? draft.teamOnly : fresh.teamOnly
+  };
+}
+function noteManyLine(what) {
+  const P = STEP_SHEET_WORDS.problems;
+  const line = what.trim();
+  if (!line) return { line: null, problem: P.note };
+  if (line.length > NOTE_LINE_MAX) return { line: null, problem: P.tooLong(NOTE_LINE_MAX) };
+  return { line, problem: null };
+}
+
 // src/ask-proposals/person.ts
 var cardPersonRoute = ({ payload }) => {
   const id = idIn(payload, "contact_id");
@@ -16422,27 +16678,39 @@ var dealSpec = {
   },
   open: cardPersonRoute
 };
+var NOTE_KEYS = ["body", "for_user_id", "team_only", "note_id", "version", "due_on", "deal_id", "clear_due"];
 var noteSpec = {
   needs: "operator",
   gate: "approve",
   // The route's strict body, the words and who reads them (D8): a note not for the team alone is read by the receptionist
   // before it answers that person (00157). A card that does not say which is not sent, since the route's own default is
-  // the receptionist's and nobody chose it. No day and no deal: a step rides on a deal's card. It answers as the door
-  // takes it, People read again behind it, as the person page's composer writes one.
-  commit: ({ payload: pl }) => typeof pl.team_only !== "boolean" || !asText(pl.body) ? refuseWith(PROPOSAL_WORDS.cannotApprove) : {
-    route: "POST contacts/[id]/notes",
-    params: { id: asText(pl.contact_id) },
-    body: { body: asText(pl.body), team_only: pl.team_only },
-    refresh: "behind",
-    events: [PEOPLE_CHANGED]
+  // the receptionist's and nobody chose it. A day makes it a step (00166), the team's, on the deal it names; a change
+  // names the note and the version it was read at (the note sheet's). Judged by the door's own schema (NoteWriteBody),
+  // as the route reads it. It answers as the door takes it, People read again behind it.
+  commit: ({ payload: pl }) => {
+    if (typeof pl.team_only !== "boolean" || !asText(pl.body)) return refuseWith(PROPOSAL_WORDS.cannotApprove);
+    const body = Object.fromEntries(NOTE_KEYS.filter((k) => pl[k] !== void 0).map((k) => [k, pl[k]]));
+    return {
+      route: "POST contacts/[id]/notes",
+      params: { id: asText(pl.contact_id) },
+      body,
+      refresh: "behind",
+      events: [PEOPLE_CHANGED]
+    };
   },
-  receipt: ({ payload: pl }) => `${asText(pl.who)} \xB7 ${NOTE_WORDS.added}${pl.team_only === true ? ` \xB7 ${NOTE_WORDS.teamOnly}` : ""}`,
+  receipt: ({ payload: pl }) => {
+    const step2 = typeof pl.due_on === "string" && !!pl.due_on;
+    if (step2) return `${asText(pl.who)} \xB7 ${STEP_SHEET_WORDS.done[pl.note_id ? "edit" : "add"]}`;
+    if (pl.note_id) return `${asText(pl.who)} \xB7 ${NOTE_WORDS.saved}`;
+    return `${asText(pl.who)} \xB7 ${NOTE_WORDS.added}${pl.team_only === true ? ` \xB7 ${NOTE_WORDS.teamOnly}` : ""}`;
+  },
   undo: {
     label: () => "Delete it",
     window: "ten_minutes",
-    // The note the door wrote, by the id it answered with; an answer that names none leaves nothing to take away.
+    // The note the door wrote, by the id it answered with; a change, or an answer that names none, leaves nothing to
+    // take away (a change is changed again).
     record: (p, data) => {
-      const noteId = idIn(rec(rec(data).note), "id");
+      const noteId = p.payload.note_id ? null : idIn(rec(rec(data).note), "id");
       return noteId ? { contact_id: p.payload.contact_id, note_id: noteId } : null;
     },
     call: (u) => ({
@@ -18138,6 +18406,52 @@ var listSpec = {
     return id ? `clients/${listToken({ kind: "saved", id })}` : "clients";
   }
 };
+var idsIn = (v) => Array.isArray(v) ? v.map(asText).filter(Boolean) : [];
+var listMemberSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const add = idsIn(pl.add);
+    const remove = idsIn(pl.remove);
+    if (!asText(pl.list_id) || !add.length && !remove.length) return refuseWith(PROPOSAL_WORDS.cannotApprove);
+    return {
+      route: "PUT segments/[id]",
+      params: { id: asText(pl.list_id) },
+      body: add.length ? { add } : { remove },
+      events: [PEOPLE_CHANGED]
+    };
+  },
+  receipt: ({ payload: pl }) => {
+    const add = idsIn(pl.add);
+    const name = asText(pl.name);
+    const who = asText(pl.who);
+    if (add.length) return add.length === 1 && who ? `${who} added to ${name}` : `${add.length} added to ${name}`;
+    const n = idsIn(pl.remove).length;
+    return n === 1 && who ? `${who} taken off ${name}` : `${n} taken off ${name}`;
+  },
+  undo: {
+    label: () => "Undo",
+    window: "ten_minutes",
+    record: ({ payload: pl }) => ({
+      list_id: pl.list_id,
+      name: pl.name,
+      who: pl.who,
+      add: idsIn(pl.remove),
+      remove: idsIn(pl.add)
+    }),
+    call: (u) => {
+      const add = idsIn(u.add);
+      return {
+        route: "PUT segments/[id]",
+        params: { id: asText(u.list_id) },
+        body: add.length ? { add } : { remove: idsIn(u.remove) },
+        events: [PEOPLE_CHANGED]
+      };
+    },
+    receipt: (_data, u) => idsIn(u.add).length ? `Back on ${asText(u.name)}` : `Taken off ${asText(u.name)} again`
+  },
+  open: ({ payload: pl }) => asText(pl.list_id) ? `clients/${listToken({ kind: "saved", id: asText(pl.list_id) })}` : "clients"
+};
 
 // src/ask/ask-settings-change.ts
 var NOTE_TEXT_SAID_MAX = 160;
@@ -18288,6 +18602,19 @@ var PROPOSAL_SPECS = {
   playbook_change: playbookChangeSpec,
   message: messageSpec
 };
+var VERB_SPECS = /* @__PURE__ */ (() => ({
+  ...PROPOSAL_SPECS,
+  answer: answerSpec,
+  answer_many: answerManySpec,
+  person_mode_many: personModeManySpec,
+  note_many: noteManySpec,
+  person_add: personAddSpec,
+  person_merge: personMergeSpec,
+  list_member: listMemberSpec
+}))();
+function verbSpec(kind) {
+  return Object.prototype.hasOwnProperty.call(VERB_SPECS, kind) ? VERB_SPECS[kind] : null;
+}
 function proposalSpec(kind) {
   return Object.prototype.hasOwnProperty.call(PROPOSAL_SPECS, kind) ? PROPOSAL_SPECS[kind] : null;
 }
@@ -21608,7 +21935,7 @@ var NAMES_THE_EMAIL = /* @__PURE__ */ new Set(["unsubscribe", "complaint", "repl
 var NAMES_THE_SEND = /* @__PURE__ */ new Set(["carrier", "whatsapp"]);
 var isIn = (set, source) => typeof source === "string" && set.has(source);
 var wordOrNull = (v) => typeof v === "string" && v !== "" ? v : null;
-function purposeOf(named) {
+function purposeOf2(named) {
   return named === "email_marketing" || named === "marketing" ? named : "conversational";
 }
 function keyOfEvent(data, consent, purpose) {
@@ -21624,7 +21951,7 @@ function countedOf(e) {
   if (!data || !Number.isFinite(atMs) || isIn(NOT_ANSWERS, data.source)) return null;
   const consent = data.consent;
   if (consent !== "opted_in" && consent !== "opted_out") return null;
-  const purpose = purposeOf(data.purpose);
+  const purpose = purposeOf2(data.purpose);
   return {
     id: e.id,
     contactId: e.contactId,
@@ -33579,90 +33906,6 @@ function checkNoteSuggestion(answer, turns, known) {
   return { ok: true, body, kind };
 }
 
-// src/notes/step-sheet.ts
-var STEP_SHEET_WORDS = {
-  titles: { add: "Set a next step", edit: "Change the step" },
-  what: { label: "What to do", placeholder: "Call about the timeline" },
-  when: { label: "When", pick: "The day" },
-  for: { label: "For", anyone: "Anyone on the team", me: "Me" },
-  teamOnly: "Only your team sees it.",
-  save: { add: "Set it", edit: "Save" },
-  saving: "Saving\u2026",
-  reading: "Reading\u2026",
-  gone: "This person is not in your workspace.",
-  noStep: "This step is no longer here.",
-  done: { add: "Next step set", edit: "Step saved" },
-  failed: "Could not save this step.",
-  // The limit is passed in rather than read here: a literal that reads another module's constant is kept by every
-  // package that bundles contracts, as tone.ts's tables were (people.ts NOTE_MAX is the one spelling of it).
-  problems: { what: "Say what to do.", day: "Pick a day.", tooLong: (max) => `At most ${max} characters.` },
-  discard: {
-    question: "Discard changes?",
-    detail: null,
-    yes: "Discard",
-    no: "Keep editing"
-  }
-};
-function stepSheetFor(p, ask, nowMs, tz) {
-  const W = STEP_SHEET_WORDS;
-  const note = ask.noteId ? (p.noteList ?? []).find((n) => n.id === ask.noteId) ?? null : null;
-  const mode = ask.noteId ? "edit" : "add";
-  const dealId = note ? note.dealId : ask.dealId ?? null;
-  const service = dealId ? (p.deals ?? []).find((d) => d.id === dealId)?.service ?? null : null;
-  const days = stepDays(nowMs, tz);
-  const day = note?.step ? note.step.day.day : null;
-  return {
-    mode,
-    title: W.titles[mode],
-    sub: service ? `${p.name} \xB7 ${service}` : p.name,
-    days,
-    team: [
-      { id: "", label: W.for.anyone },
-      ...(p.noteTeam ?? []).map((m) => ({ id: m.id, label: m.me ? W.for.me : m.name }))
-    ],
-    draft: {
-      what: note ? note.body : "",
-      day,
-      picking: !!day && !days.some((c) => c.key === day),
-      forId: note ? note.forUserId : null
-    },
-    note: note ? { id: note.id, version: note.version } : null,
-    dealId,
-    blocked: ask.noteId && !note ? W.noStep : note && !note.mine ? NOTE_REFUSALS.not_yours ?? null : null,
-    save: W.save[mode]
-  };
-}
-function stepSheetBody(sheet, draft) {
-  const P = STEP_SHEET_WORDS.problems;
-  const what = draft.what.trim();
-  if (!what) return { body: null, problem: { field: "what", words: P.what } };
-  if (what.length > NOTE_MAX) return { body: null, problem: { field: "what", words: P.tooLong(NOTE_MAX) } };
-  if (!draft.day || !isRealDate(draft.day)) return { body: null, problem: { field: "day", words: P.day } };
-  return {
-    problem: null,
-    body: {
-      body: what,
-      due_on: draft.day,
-      for_user_id: draft.forId || null,
-      team_only: true,
-      ...sheet.dealId ? { deal_id: sheet.dealId } : {},
-      ...sheet.note ? { note_id: sheet.note.id, version: sheet.note.version } : {}
-    }
-  };
-}
-function stepSheetDirty(draft, opened) {
-  return draft.what.trim() !== opened.what.trim() || draft.day !== opened.day || (draft.forId || null) !== (opened.forId || null);
-}
-function stepSheetMerge(draft, opened, fresh) {
-  const dayTyped = draft.day !== opened.day || draft.picking !== opened.picking;
-  return {
-    what: draft.what !== opened.what ? draft.what : fresh.what,
-    day: dayTyped ? draft.day : fresh.day,
-    picking: dayTyped ? draft.picking : fresh.picking,
-    forId: (draft.forId || null) !== (opened.forId || null) ? draft.forId : fresh.forId
-  };
-}
-
 // src/notices/hold-notice.ts
 var HOLD_CHANNEL_WORDS = {
   whatsapp: "WhatsApp",
@@ -34067,6 +34310,92 @@ function consultFirstOf(rules) {
 }
 function poolListContext(o) {
   return { calendar: o.calendar, dealsOn: o.dealsOn, consultFirst: o.consultFirst, viewer: o.viewer !== null };
+}
+
+// src/people/doors/say-it.ts
+var SAY_IT_VERBS = ["deal", "note"];
+var SAY_IT_MAX = 600;
+var SAY_IT_DEAL_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["service", "value", "per", "link", "valid_until", "lost_reason", "note"],
+  properties: {
+    service: { type: "string" },
+    /** The amount as digits, no currency or separators ("1200", "89.50"). */
+    value: { type: "string" },
+    per: { type: "string", enum: ["", ...DEAL_PERS] },
+    link: { type: "string" },
+    /** A day, as 2026-09-30. */
+    valid_until: { type: "string" },
+    lost_reason: { type: "string", enum: ["", ...DEAL_LOST_REASONS] },
+    note: { type: "string" }
+  }
+};
+var SAY_IT_NOTE_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["body", "day", "team_only"],
+  properties: {
+    body: { type: "string" },
+    /** A day, as 2026-09-30, where they said when; "" for a note with none. */
+    day: { type: "string" },
+    team_only: { type: "boolean" }
+  }
+};
+var SAY_IT_WORDS = {
+  label: "Say it",
+  placeholder: {
+    deal: "Website, 1,200 a month, valid to the 30th",
+    note: "Prefers mornings; call them back Friday"
+  },
+  go: "Fill it in",
+  busy: "Reading\u2026",
+  filled: "Filled in from what you said. Check it, then save.",
+  empty: "Nothing in that fits these fields. Try saying it another way.",
+  failed: "Could not read that just now."
+};
+var DEAL_PER_SET = DEAL_PERS;
+var DEAL_REASON_SET = DEAL_LOST_REASONS;
+function amountOf(raw) {
+  const digits2 = raw.replace(/[^0-9.]/g, "");
+  return /^\d{1,9}(\.\d{1,2})?$/.test(digits2) ? digits2 : "";
+}
+function dealFill(a) {
+  const day = a.valid_until.trim();
+  return {
+    service: a.service.trim().slice(0, 80),
+    value: amountOf(a.value),
+    per: DEAL_PER_SET.includes(a.per) ? a.per : "",
+    link: a.link.trim().slice(0, 600),
+    validUntil: isRealDate(day) ? day : "",
+    reason: DEAL_REASON_SET.includes(a.lost_reason) ? a.lost_reason : "",
+    note: a.note.trim().slice(0, 200)
+  };
+}
+function noteFill(a) {
+  const day = a.day.trim();
+  return { what: a.body.trim().slice(0, NOTE_MAX), day: isRealDate(day) ? day : "", teamOnly: a.team_only };
+}
+function sayItFilled(dto) {
+  if (dto.verb === "note") return !!dto.note.what;
+  const d = dto.deal;
+  return !!(d.service || d.value || d.per || d.link || d.validUntil || d.reason || d.note);
+}
+function dealSheetFill(sheet, fill2) {
+  const patch = {};
+  const service = sheet.service?.options.find((o) => foldName(o.label) === foldName(fill2.service));
+  if (fill2.service && service) patch.service = service.value;
+  if (fill2.link && sheet.link) patch.link = fill2.link;
+  if (fill2.value && sheet.value) patch.value = fill2.value;
+  if (fill2.per && sheet.value) patch.per = fill2.per;
+  if (fill2.validUntil && sheet.validUntil) patch.validUntil = fill2.validUntil;
+  if (fill2.reason && sheet.reason) patch.reason = fill2.reason;
+  if (fill2.note && sheet.note) patch.note = fill2.note;
+  return patch;
+}
+function noteSheetFill(sheet, fill2) {
+  const day = fill2.day ? { day: fill2.day, picking: !sheet.days.some((c) => c.key === fill2.day) } : sheet.kind === "note" ? { day: NO_DAY, picking: false } : {};
+  return { what: fill2.what, teamOnly: fill2.teamOnly, ...day };
 }
 
 // src/people/erasure.ts
@@ -38920,6 +39249,7 @@ var ROUTE_KEYS = [
   "POST people/[id]/draft",
   "POST people/[id]/message",
   "POST people/[id]/name",
+  "POST people/[id]/say",
   "POST platform/jobs/requeue",
   "POST platform/lines/refile",
   "POST platform/lines/release",
@@ -42347,6 +42677,14 @@ var DEFAULT_STATUS = {
   upstream_voice: 503,
   internal: 500
 };
+function bodyRefusal(schema, body) {
+  const r2 = schema.safeParse(body);
+  if (r2.success) return null;
+  const issue = r2.error.issues[0];
+  if (!issue) return "that is not something this door takes";
+  const field = issue.path.map(String).join(".");
+  return field && !issue.message.startsWith(field) ? `${field}: ${issue.message}` : issue.message;
+}
 
 // src/shell/client-error.ts
 var CLIENT_ERROR_BOUNDARIES = ["shell", "os", "root"];
@@ -46216,6 +46554,7 @@ export {
   NEW_REVIEW_NEWS,
   NEW_SINCE_WORDS,
   NEW_WINDOW_DAYS,
+  NOTE_LINE_MAX,
   NOTE_MAX,
   NOTE_REFUSALS,
   NOTE_SUGGEST_KINDS,
@@ -46231,6 +46570,7 @@ export {
   NOTICE_READ_MAX_TOKENS,
   NOTICE_SCHEMA,
   NO_CHANNEL_REACH,
+  NO_DAY,
   NO_FIELDS_COMPOSED_WORDS,
   NO_LINK_DETAILS,
   NO_NUMBER_REACH,
@@ -46533,6 +46873,11 @@ export {
   RUN_WAITING_WORDS,
   SAME_SITTING_MS,
   SAME_VISIT_MS,
+  SAY_IT_DEAL_JSON_SCHEMA,
+  SAY_IT_MAX,
+  SAY_IT_NOTE_JSON_SCHEMA,
+  SAY_IT_VERBS,
+  SAY_IT_WORDS,
   SCHEMA_SETS,
   SECOND_FACTOR_LEVEL,
   SECOND_FACTOR_PATH,
@@ -46634,6 +46979,7 @@ export {
   UP_NEXT_WORDS,
   US_STATE_ZONES,
   UUID3 as UUID,
+  VERB_SPECS,
   VERSION_CHANNELS,
   VERSION_CHANNEL_WORDS,
   VISION_STRENGTH,
@@ -46706,6 +47052,7 @@ export {
   amountWords,
   answerForCards,
   answerFromV1,
+  answerSaid,
   answerText,
   answerWireOf,
   answerWords,
@@ -46759,6 +47106,7 @@ export {
   billingEndedAt,
   billingPill,
   blockShareWords,
+  bodyRefusal,
   bookedAfterAsk,
   bookedSeenOf,
   bookedTileOf,
@@ -46967,6 +47315,7 @@ export {
   daysWords,
   dealCardsOf,
   dealFactsOf,
+  dealFill,
   dealIsOpen,
   dealMenuActs,
   dealNextAct,
@@ -46978,6 +47327,7 @@ export {
   dealSentence,
   dealSheetBody,
   dealSheetDirty,
+  dealSheetFill,
   dealSheetFor,
   dealSheetMerge,
   dealSheetMessage,
@@ -47472,6 +47822,7 @@ export {
   mailboxWords,
   mailboxesFootWords,
   mailtoOf,
+  manySaid,
   markOn,
   maskedEmail,
   matchColumns,
@@ -47564,7 +47915,10 @@ export {
   notTakingSignUps,
   noteAsTold,
   noteEndedWords,
+  noteFill,
+  noteManyLine,
   noteRows,
+  noteSheetFill,
   noteSuggestSystemPrompt,
   noteSuggestUserContent,
   noteWhose,
@@ -48023,6 +48377,7 @@ export {
   savedListIds,
   savedListLookup,
   savedListTip,
+  sayItFilled,
   scheduleLine,
   scopeFromRoute,
   seasonHorizon,
@@ -48137,6 +48492,7 @@ export {
   stepOfferWords,
   stepSheetBody,
   stepSheetDirty,
+  stepSheetDone,
   stepSheetFor,
   stepSheetMerge,
   stepToken,
@@ -48285,6 +48641,7 @@ export {
   validateTemplateDraft,
   variablesSlotCount,
   verbForRoute,
+  verbSpec,
   verbalOptInScript,
   verifyCodeWords,
   versionComponents,

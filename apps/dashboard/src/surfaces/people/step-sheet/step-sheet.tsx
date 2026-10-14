@@ -1,8 +1,12 @@
 /**
- * The step sheet (moved from legacy/components/step-sheet.jsx, decision 0015, step 5; docs/decisions/0007-person-notes.md,
- * amended: a note may have a day): where a next step is set or changed from outside the notes card, the deal card's "Set a next
- * step" and its Change, and every surface after it that shows a step. Anything asks for it with
- * `openStepSheet({ personId, dealId?, noteId? })`, which says so as a `step:sheet` event; `StepSheetHost`, drawn once by the
+ * The note sheet (moved from legacy/components/step-sheet.jsx, decision 0015, step 5; docs/decisions/0007-person-notes.md,
+ * amended: a note may have a day): where a note or a next step is written from outside the notes card, the deal card's
+ * "Set a next step" and its Change, every surface after it that shows a step, a visit's "Add a note", and a selection's.
+ * A step is a note with a day, so they are one sheet (the sheets as verbs, 14 Oct 2026): opened as a note (`note`), its
+ * first day is "No day", under which Team only says whether the receptionist reads it; opened for many (`personIds`), it
+ * takes one line each of them gets as a note of their own, through the `note_many` verb, and hands the answer back to the
+ * selection that asked (`onDone`). Anything asks for it with
+ * `openStepSheet({ personId, dealId?, noteId?, note? })`, which says so as a `step:sheet` event; `StepSheetHost`, drawn once by the
  * frame beside the deal sheet, hears it, reads the person through the profile's courier (the tab's copy first) and draws
  * the record kit's sheet.
  *
@@ -17,10 +21,15 @@
 import { useEffect, useRef, useState } from "react";
 import type { ComponentProps, Dispatch, ReactNode, RefObject, SetStateAction } from "react";
 import {
+  NOTE_LINE_MAX,
   NOTE_MAX,
+  NO_DAY,
   STEP_SHEET_WORDS,
+  noteManyLine,
+  noteSheetFill,
   stepSheetBody,
   stepSheetDirty,
+  stepSheetDone,
   stepSheetFor,
   stepSheetMerge,
 } from "@chanlytics/contracts";
@@ -30,23 +39,41 @@ import { gate } from "../../legacy-verbs";
 import { Confirm } from "../../kit/confirm/confirm";
 import { FailedRead } from "../../kit/empty/empty";
 import { FieldError } from "../../kit/field-error/field-error";
-import { RecordField, RecordToggleGroup } from "../../kit/record/field";
+import { RecordField, RecordSwitch, RecordToggleGroup } from "../../kit/record/field";
 import { useRecordFold } from "../../kit/record/hooks";
 import { recFolds } from "../../kit/record/registry";
 import { RecordSheet } from "../../kit/record/sheet";
+import { doAsked } from "../../kit/sheet/back";
 import { DsSelect } from "../deal-sheet/fields";
-import { peekPerson, personDetail, writePersonNote } from "../people-detail";
+import { SayItLine } from "../deal-sheet/say-it";
+import { appendPersonNotesMany, peekPerson, personDetail, writePersonNote } from "../people-detail";
 import { hear, saidBy, announce, usePersonToast } from "../person-verbs";
 import type { FlashFn } from "../person-verbs";
 
 const STEP_SHEET_ID = "step-sheet";
 
-/** What the sheet is asked for: a person, the deal a new step names, or the step to change. */
+/** What a selection's note answers the selection that asked: how many it reached. */
+export interface NoteManyDone {
+  done: number;
+  failed: number;
+  line: string;
+}
+
+/**
+ * What the sheet is asked for: a person, the deal a new step names, or the step to change; a note rather than a step;
+ * or many people, with what to tell the selection once they have it.
+ */
 interface SsAsk {
   personId: string;
   dealId: string | null;
   noteId: string | null;
+  note: boolean;
+  many: string[] | null;
+  done: ((r: NoteManyDone) => void) | null;
 }
+
+/** What a sheet for many opens with: one line, no day, nobody's in particular. */
+const MANY_DRAFT: StepDraft = { what: "", day: NO_DAY, picking: false, forId: null, teamOnly: false };
 
 /** What is wrong with what was typed, under the field it names; no field says it by the Save. */
 interface SsProblem {
@@ -83,16 +110,43 @@ type SetState = Dispatch<SetStateAction<SsState>>;
 type FoldHold = ReturnType<typeof useRecordFold>;
 
 /**
- * Ask for the sheet from anywhere: a person, the deal a new step names, or the step to change. True when it was asked for.
- * Published under `window.openStepSheet` for the pages that have not moved.
+ * Ask for the sheet from anywhere: a person, the deal a new step names, or the step to change; a note (`note`); or a line
+ * for many (`personIds`, `onDone`). True when it was asked for. Published under `window.openStepSheet` for the pages
+ * that have not moved.
  */
 export function openStepSheet({
   personId = null,
   dealId = null,
   noteId = null,
-}: { personId?: string | null; dealId?: string | null; noteId?: string | null } = {}): boolean {
+  note = false,
+  personIds = null,
+  onDone = null,
+}: {
+  personId?: string | null;
+  dealId?: string | null;
+  noteId?: string | null;
+  note?: boolean;
+  personIds?: readonly string[] | null;
+  onDone?: ((r: NoteManyDone) => void) | null;
+} = {}): boolean {
+  const many = personIds ? [...new Set(personIds.filter((id) => typeof id === "string" && id))] : [];
+  if (many.length) return announce("step:sheet", { personId: many[0], many, onDone, note: true });
   if (!personId) return false;
-  return announce("step:sheet", { personId, dealId: dealId || null, noteId: noteId || null });
+  return announce("step:sheet", { personId, dealId: dealId || null, noteId: noteId || null, note: note === true });
+}
+
+/** An ask, from what the event said: nothing where it names no one. */
+function askOf(d: Record<string, unknown>): SsAsk | null {
+  if (typeof d.personId !== "string" || !d.personId) return null;
+  const many = Array.isArray(d.many) ? d.many.filter((id): id is string => typeof id === "string" && !!id) : [];
+  return {
+    personId: d.personId,
+    dealId: typeof d.dealId === "string" && d.dealId ? d.dealId : null,
+    noteId: typeof d.noteId === "string" && d.noteId ? d.noteId : null,
+    note: d.note === true,
+    many: many.length ? many : null,
+    done: typeof d.onDone === "function" ? (d.onDone as (r: NoteManyDone) => void) : null,
+  };
 }
 
 /**
@@ -110,7 +164,9 @@ function worked<T>(fn: () => T): T | null {
 
 /** The sheet for an ask over a person as read: its words, days and team, worked out on every draw (pure). */
 function sheetFor(ask: SsAsk, person: PersonVM): StepSheetVM | null {
-  return worked(() => stepSheetFor(person, { noteId: ask.noteId, dealId: ask.dealId }, Date.now(), pageClock().zone()));
+  return worked(() =>
+    stepSheetFor(person, { noteId: ask.noteId, dealId: ask.dealId, note: ask.note }, Date.now(), pageClock().zone()),
+  );
 }
 
 /** What the sheet opens with, for a person as read, and the step it changes at the version it was opened over. */
@@ -202,7 +258,47 @@ function StepSheetWhen({
   );
 }
 
-/** What to do, when, and for whom, in that order; then the one rule a step keeps. Hookless. */
+/**
+ * Who reads it: a note with no day says whether the receptionist does (Team only); a day makes it a step, which only the
+ * team sees. Hookless.
+ */
+function StepSheetReads({
+  draft,
+  set,
+  busy,
+}: {
+  draft: StepDraft;
+  set: (patch: Partial<StepDraft>) => void;
+  busy: boolean;
+}) {
+  const W = STEP_SHEET_WORDS;
+  if (draft.day !== NO_DAY || draft.picking)
+    return (
+      <p className="rec-hint step-sheet-rule" data-testid="step-sheet-rule">
+        {W.teamOnly}
+      </p>
+    );
+  return (
+    <div className="rec-field step-sheet-reads" data-testid="step-sheet-reads">
+      <span className="cl-prof-note-team">
+        <RecordSwitch
+          on={draft.teamOnly}
+          onChange={(on) => set({ teamOnly: on })}
+          labelledBy="step-sheet-reads-label"
+          describedBy="step-sheet-reads-hint"
+          readOnly={busy}
+          testid="step-sheet-team-only"
+        />
+        <span id="step-sheet-reads-label">{W.reads.label}</span>
+      </span>
+      <span className="rec-hint" id="step-sheet-reads-hint">
+        {W.reads.hint}
+      </span>
+    </div>
+  );
+}
+
+/** What to do, when, and for whom, in that order; then who reads it. Hookless. */
 function StepSheetFields({
   sheet,
   draft,
@@ -218,12 +314,13 @@ function StepSheetFields({
 }) {
   const W = STEP_SHEET_WORDS;
   const at = (field: string) => (problem && problem.field === field ? problem.words : null);
+  const what = sheet.kind === "note" ? W.noteWhat : W.what;
   return (
     <div className="step-sheet-fields">
       <RecordField
         id="step-sheet-what"
-        label={W.what.label}
-        placeholder={W.what.placeholder}
+        label={what.label}
+        placeholder={what.placeholder}
         rows={2}
         maxLength={NOTE_MAX}
         value={draft.what}
@@ -245,8 +342,40 @@ function StepSheetFields({
           testid="step-sheet-for"
         />
       ) : null}
+      <StepSheetReads draft={draft} set={set} busy={busy} />
+    </div>
+  );
+}
+
+/** A line for many: the one field, and what each of them gets. Hookless. */
+function ManyFields({
+  draft,
+  set,
+  problem,
+  busy,
+}: {
+  draft: StepDraft;
+  set: (patch: Partial<StepDraft>) => void;
+  problem: SsProblem | null;
+  busy: boolean;
+}) {
+  const W = STEP_SHEET_WORDS;
+  return (
+    <div className="step-sheet-fields">
+      <RecordField
+        id="step-sheet-what"
+        label={W.noteWhat.label}
+        placeholder={W.many.placeholder}
+        maxLength={NOTE_LINE_MAX}
+        value={draft.what}
+        onChange={(v) => set({ what: v })}
+        readOnly={busy}
+        problem={problem && problem.field === "what" ? problem.words : null}
+        data-testid="step-sheet-what-input"
+        testid="step-sheet-what"
+      />
       <p className="rec-hint step-sheet-rule" data-testid="step-sheet-rule">
-        {W.teamOnly}
+        {W.many.rule}
       </p>
     </div>
   );
@@ -279,7 +408,7 @@ async function save({ st, setSt, flash, fold, sheet }: Host): Promise<void> {
   const { ask, draft } = st;
   if (!sheet || sheet.blocked || st.busy || !draft || !ask) return;
   const W = STEP_SHEET_WORDS;
-  const out = stepSheetBody({ note: st.note, dealId: sheet.dealId }, draft);
+  const out = stepSheetBody({ note: st.note, dealId: sheet.dealId, kind: sheet.kind }, draft);
   if (out.problem) {
     const problem = out.problem;
     setSt((s) => ({ ...s, problem, armed: false }));
@@ -294,9 +423,41 @@ async function save({ st, setSt, flash, fold, sheet }: Host): Promise<void> {
   }
   setSt(SS_CLOSED);
   fold.current.close();
-  flash({ msg: <>{W.done[sheet.mode]}</> });
+  flash({ msg: <>{stepSheetDone(sheet, draft)}</> });
   // Nothing more is said: the write's refresh reads People behind it and the live feed tells of the note (0047), and the
   // person's page and the Pipeline's peek read the person again with them (`surface:clients`).
+}
+
+/**
+ * Save for many: the line, or what is wrong with it under the field; one request through the `note_many` verb; then the
+ * sheet closes and the selection that asked is told how many it reached, which it says as its own bar says its acts.
+ */
+async function saveMany({ st, setSt, flash, fold }: Host): Promise<void> {
+  const { ask, draft } = st;
+  if (!ask?.many || st.busy || !draft) return;
+  const W = STEP_SHEET_WORDS;
+  const out = noteManyLine(draft.what);
+  if (out.problem !== null) {
+    const words = out.problem;
+    setSt((s) => ({ ...s, problem: { field: "what", words }, armed: false }));
+    return;
+  }
+  setSt((s) => ({ ...s, busy: true, problem: null, armed: false }));
+  let r: Awaited<ReturnType<typeof appendPersonNotesMany>>;
+  try {
+    r = await appendPersonNotesMany(ask.many, out.line);
+  } catch (err) {
+    r = { ok: false, done: 0, failed: ask.many.length, message: saidBy(err) };
+  }
+  if (!r.ok) {
+    const words = r.message || W.many.failed;
+    setSt((s) => (s.ask !== ask ? s : { ...s, busy: false, problem: { field: null, words } }));
+    return;
+  }
+  setSt(SS_CLOSED);
+  fold.current.close();
+  if (ask.done) ask.done({ done: r.done, failed: r.failed, line: out.line });
+  else flash({ msg: <>{W.done.note}</> });
 }
 
 /** The Confirm that asks about what was typed: the fold's own question, or the sheet's Cancel's. */
@@ -322,16 +483,17 @@ function sheetBody(h: Host, set: (patch: Partial<StepDraft>) => void): ReactNode
     setSt((s) => ({ ...s, failed: null }));
     if (st.ask) readAsk(st.ask, setSt);
   };
-  if (st.failed !== null && !st.person)
+  if (st.failed !== null && !st.person && !st.ask?.many)
     return (
       <FailedRead kind="card" what="this person" why={st.failed || null} onRetry={retry} testid="step-sheet-failed" />
     );
-  if (!st.person)
+  if (!st.person && !st.ask?.many)
     return (
       <div className="route-reading deal-sheet-reading" role="status">
         {W.reading}
       </div>
     );
+  if (st.ask?.many && st.draft) return <ManyFields draft={st.draft} set={set} problem={st.problem} busy={st.busy} />;
   if (!sheet || !st.draft) return <FailedRead kind="card" what="this person" testid="step-sheet-failed" />;
   if (sheet.blocked)
     return (
@@ -339,7 +501,23 @@ function sheetBody(h: Host, set: (patch: Partial<StepDraft>) => void): ReactNode
         {sheet.blocked}
       </p>
     );
-  return <StepSheetFields sheet={sheet} draft={st.draft} set={set} problem={st.problem} busy={st.busy} />;
+  const ask = st.ask;
+  return (
+    <>
+      {ask ? (
+        <SayItLine
+          personId={ask.personId}
+          verb="note"
+          busy={st.busy}
+          onFill={(dto) => {
+            if (dto.verb === "note") set(noteSheetFill(sheet, dto.note));
+          }}
+          testid="step-sheet-say"
+        />
+      ) : null}
+      <StepSheetFields sheet={sheet} draft={st.draft} set={set} problem={st.problem} busy={st.busy} />
+    </>
+  );
 }
 
 /** What the sheet's own presses do: leave, or ask first. */
@@ -355,7 +533,8 @@ function drawSheet(h: Host, { cancel, close }: Hands, toastNode: ReactNode) {
   const ask = st.ask;
   if (!ask) return toastNode;
   const W = STEP_SHEET_WORDS;
-  const ready = !!(sheet && !sheet.blocked && st.draft);
+  const many = ask.many;
+  const ready = many ? !!st.draft : !!(sheet && !sheet.blocked && st.draft);
   const general = st.problem && !st.problem.field ? st.problem.words : null;
   const set = (patch: Partial<StepDraft>) =>
     setSt((s) => (s.busy || !s.draft ? s : { ...s, draft: { ...s.draft, ...patch }, problem: null, armed: false }));
@@ -380,14 +559,16 @@ function drawSheet(h: Host, { cancel, close }: Hands, toastNode: ReactNode) {
       <RecordSheet
         id={STEP_SHEET_ID}
         className="deal-sheet step-sheet"
-        title={sheet ? sheet.title : W.titles[ask.noteId ? "edit" : "add"]}
-        sub={sheet ? sheet.sub : null}
+        // Back closes it; a new note or step about one person is named in the address, so a reload opens it again.
+        backCloses={many || ask.noteId || ask.dealId ? true : `${ask.note ? "note" : "step"}:${ask.personId}`}
+        title={many ? W.titles.note : sheet ? sheet.title : W.titles[ask.noteId ? "edit" : ask.note ? "note" : "add"]}
+        sub={many ? W.many.sub(many.length) : sheet ? sheet.sub : null}
         onClose={cancel}
-        onSave={ready ? () => void save(h) : null}
+        onSave={ready ? () => void (many ? saveMany(h) : save(h)) : null}
         saving={st.busy}
-        saveLabel={sheet ? sheet.save : W.save.add}
+        saveLabel={many ? W.save.note : sheet ? sheet.save : W.save[ask.note ? "note" : "add"]}
         savingLabel={W.saving}
-        gate={{ ...gate("approve", "set a step") }}
+        gate={{ ...gate("approve", ask.note ? "add a note" : "set a step") }}
         confirm={confirm}
         foot={general ? <FieldError id="step-sheet-problem" message={general} testid="step-sheet-problem" /> : null}
       >
@@ -414,12 +595,14 @@ export function StepSheetHost() {
   useEffect(
     () =>
       hear("step:sheet", (d) => {
-        if (typeof d.personId !== "string" || !d.personId) return;
-        const asked: SsAsk = {
-          personId: d.personId,
-          dealId: typeof d.dealId === "string" && d.dealId ? d.dealId : null,
-          noteId: typeof d.noteId === "string" && d.noteId ? d.noteId : null,
-        };
+        const asked = askOf(d);
+        if (!asked) return;
+        if (asked.many) {
+          // Many: nobody to read, one line to write.
+          setSt({ ...SS_CLOSED, ask: asked, draft: MANY_DRAFT, opened: MANY_DRAFT });
+          foldNow.current.request();
+          return;
+        }
         const kept = peekPerson(asked.personId);
         setSt(kept ? begin(asked, kept) : { ...SS_CLOSED, ask: asked });
         foldNow.current.request();
@@ -427,6 +610,12 @@ export function StepSheetHost() {
       }),
     [],
   );
+  // A note or a step the address names (`?do=note:<person>`, `?do=step:<person>`) opens as the frame does, once.
+  useEffect(() => {
+    const note = doAsked("note");
+    const step = note ? null : doAsked("step");
+    if (note || step) openStepSheet({ personId: note ?? step, note: !!note });
+  }, []);
   const close = () => {
     setSt(SS_CLOSED);
     fold.close();

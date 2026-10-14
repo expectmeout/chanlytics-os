@@ -146,3 +146,5 @@ export {
   PIPELINE_BOARD_CAP,
 } from "./pipeline/pipeline-board";
 export type { PipelineMove, PipelineSort, PipelinePassManyVM } from "./pipeline/pipeline-board";
+export { DealMoveBody } from "./deal-body";
+export type { DealMove } from "./deal-body";

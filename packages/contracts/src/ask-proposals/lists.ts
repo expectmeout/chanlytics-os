@@ -2,7 +2,7 @@
  * People's lists: a list Ask proposes, kept current by its rule (the Phase 4 plan, D10).
  */
 import { listToken } from "../people/lists/lists";
-import { PROPOSAL_WORDS, asText, idIn, rec, refuseWith, type ProposalSpec } from "./spec";
+import { PEOPLE_CHANGED, PROPOSAL_WORDS, asText, idIn, rec, refuseWith, type ProposalSpec } from "./spec";
 
 /** The names a delete that archived says (`paused`, `read_by`), as text. */
 const namesIn = (d: Record<string, unknown>, k: string): string[] =>
@@ -48,4 +48,59 @@ export const listSpec: ProposalSpec = {
     const id = idIn(rec(outcome?.undo), "list_id");
     return id ? `clients/${listToken({ kind: "saved", id })}` : "clients";
   },
+};
+
+/** The ids a payload names, as text. */
+const idsIn = (v: unknown): string[] => (Array.isArray(v) ? v.map(asText).filter(Boolean) : []);
+
+/**
+ * People on or off a list kept by hand: the person page's list picker ticks one, a selection puts many on (the sheets
+ * as verbs, 14 Oct 2026). One part of the route's at a time (people-lists.ts sends a big selection in turns). Its undo
+ * puts back what it changed and nothing else: the people already on the list were never in `add`.
+ */
+export const listMemberSpec: ProposalSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const add = idsIn(pl.add);
+    const remove = idsIn(pl.remove);
+    if (!asText(pl.list_id) || (!add.length && !remove.length)) return refuseWith(PROPOSAL_WORDS.cannotApprove);
+    return {
+      route: "PUT segments/[id]",
+      params: { id: asText(pl.list_id) },
+      body: add.length ? { add } : { remove },
+      events: [PEOPLE_CHANGED],
+    };
+  },
+  receipt: ({ payload: pl }) => {
+    const add = idsIn(pl.add);
+    const name = asText(pl.name);
+    const who = asText(pl.who);
+    if (add.length) return add.length === 1 && who ? `${who} added to ${name}` : `${add.length} added to ${name}`;
+    const n = idsIn(pl.remove).length;
+    return n === 1 && who ? `${who} taken off ${name}` : `${n} taken off ${name}`;
+  },
+  undo: {
+    label: () => "Undo",
+    window: "ten_minutes",
+    record: ({ payload: pl }) => ({
+      list_id: pl.list_id,
+      name: pl.name,
+      who: pl.who,
+      add: idsIn(pl.remove),
+      remove: idsIn(pl.add),
+    }),
+    call: (u) => {
+      const add = idsIn(u.add);
+      return {
+        route: "PUT segments/[id]",
+        params: { id: asText(u.list_id) },
+        body: add.length ? { add } : { remove: idsIn(u.remove) },
+        events: [PEOPLE_CHANGED],
+      };
+    },
+    receipt: (_data, u) => (idsIn(u.add).length ? `Back on ${asText(u.name)}` : `Taken off ${asText(u.name)} again`),
+  },
+  open: ({ payload: pl }) =>
+    asText(pl.list_id) ? `clients/${listToken({ kind: "saved", id: asText(pl.list_id) })}` : "clients",
 };

@@ -14,13 +14,14 @@ interface SlipsAsk {
   source: { id: string; label: string };
 }
 
-/** The bar's own state: busy, the naming of a new list, the note, and a yes on sign-up forms waiting for its note. */
+/**
+ * The bar's own state: busy, the naming of a new list, and a yes on sign-up forms waiting for its note. A note for the
+ * selection is the note sheet's (step-sheet.tsx), which holds its own line.
+ */
 export function useBulkState() {
   const [busy, setBusy] = useState(false);
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState("");
-  const [noting, setNoting] = useState(false);
-  const [note, setNote] = useState("");
   // A yes on sign-up forms waits for the note that says which forms: a stack of signed slips is attested by it. The
   // spoken ways are recorded at once.
   const [slips, setSlips] = useState<SlipsAsk | null>(null);
@@ -32,10 +33,6 @@ export function useBulkState() {
     setNaming,
     name,
     setName,
-    noting,
-    setNoting,
-    note,
-    setNote,
     slips,
     setSlips,
     slipsNote,

@@ -5,6 +5,12 @@
 import type { AskProposal, AskProposalOutcome } from "../ask/ask";
 import type { ApiRouteKey } from "../route-keys.generated";
 
+/**
+ * What a spec reads of what it commits: a card of Ask's, or the same act pressed on a sheet (the dashboard's
+ * legacy-bridge/verbs), which is a card with no plan and no summary of its own (the sheets as verbs, 14 Oct 2026).
+ */
+export type VerbCard = Pick<AskProposal, "id" | "payload" | "step" | "summary" | "plan"> & { kind: string };
+
 /** The lowest role that may commit a card: its commit route's policy role. A viewer commits nothing. */
 export type ProposalNeeds = "operator" | "partner" | "owner";
 /** The client gate (data-bits `gate`, ROLE_PERMS) a card checks before Approve; the route re-checks the role. */
@@ -57,7 +63,7 @@ export interface ProposalUndo {
    */
   window: "cancelable" | "ten_minutes" | "version";
   /** What the commit keeps for the undo, from the card, the route's answer and the tab at Approve; null for none. */
-  record(p: AskProposal, data: unknown, tab: ProposalTab): Record<string, unknown> | null;
+  record(p: VerbCard, data: unknown, tab: ProposalTab): Record<string, unknown> | null;
   /**
    * The call that reverses it, from what the commit kept and what the tab holds now; or the calls, made in order and
    * stopping at the first refused, where what the commit made is several rows each with its own door (a message's
@@ -79,19 +85,19 @@ export interface ProposalSpec {
   doing?: string;
   gate: ProposalGate;
   /** The call Approve makes; `tab` is what the tab held when Approve was pressed. */
-  commit(p: AskProposal, tab: ProposalTab): ProposalCall | ProposalRefusal;
+  commit(p: VerbCard, tab: ProposalTab): ProposalCall | ProposalRefusal;
   /**
    * A second call on the first one's answer, or null for none: a deal's next step names the row the door wrote. A
    * refusal sends nothing and is said on the receipt as the second call's failure; the first call stands.
    */
-  then?(p: AskProposal, data: unknown): ProposalCall | ProposalRefusal | null;
-  receipt(p: AskProposal, data: unknown, then?: ProposalThen): string;
+  then?(p: VerbCard, data: unknown): ProposalCall | ProposalRefusal | null;
+  receipt(p: VerbCard, data: unknown, then?: ProposalThen): string;
   /**
    * The id of what the commit made, from the route's answer, that a later step of a plan names by its token
    * (`@step:n`, contracts resolveSteps): a message's version, which a send names the message by. Absent, or null, where
    * the card makes nothing a step names.
    */
-  made?(p: AskProposal, data: unknown): string | null;
+  made?(p: VerbCard, data: unknown): string | null;
   undo?: ProposalUndo;
   /** Where the card's Open goes, or null; `outcome` is what became of it. */
   open(p: Pick<AskProposal, "payload">, outcome: AskProposalOutcome | null): string | null;

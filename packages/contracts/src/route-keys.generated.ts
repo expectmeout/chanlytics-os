@@ -201,6 +201,7 @@ export const ROUTE_KEYS = [
   "POST people/[id]/draft",
   "POST people/[id]/message",
   "POST people/[id]/name",
+  "POST people/[id]/say",
   "POST platform/jobs/requeue",
   "POST platform/lines/refile",
   "POST platform/lines/release",

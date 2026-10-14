@@ -15,9 +15,11 @@ import { Icon } from "../../kit/icon/icon";
 import { Sheet } from "../../kit/sheet/sheet";
 import { focusAsDrawn, leaving, type GateProps } from "../../legacy-verbs";
 import { JOB_CANCEL, PhoneSheetRow, jobBack } from "../sheets/phone-sheet";
-import { PL_MODES, PL_SOURCE_GLYPH, plModeWord } from "../words";
+import { PERSON_ABOUT_WORDS } from "@chanlytics/contracts";
 import type { BulkActs } from "./bulk-acts";
 import type { BulkCtx } from "./bulk-state";
+import { messagesChoices } from "./messages";
+import type { MessagesChoice } from "./messages";
 
 /** One step of the phone's sheet: its title, a way back to the list it came from, and its body. */
 interface Step {
@@ -27,35 +29,24 @@ interface Step {
 }
 
 /** More: what a selection can become past a list and a note, each behind the role that may do it. */
-function moreStep(b: BulkCtx, a: BulkActs): Step {
-  const { st, onSheet, canEdit, activeSaved, isOwner, ids, keeps } = b;
+function moreStep(b: BulkCtx, a: BulkActs, messages: boolean): Step {
+  const { st, onSheet, canEdit, activeSaved, ids, keeps } = b;
   // What the page keeps of People's acts (the Pipeline keeps its lists and its file).
   const canExport = b.canExport && keeps("export");
-  const sources = keeps("consent") ? b.sources : [];
   const { busy } = st;
   const n = ids.length;
   return {
     title: `${n} selected`,
     body: (
       <div className="pp-sheet-rows">
-        {canEdit && sources.length > 0 ? (
+        {messages ? (
           <PhoneSheetRow
             icon="shield"
-            label="Record a yes"
+            label={PERSON_ABOUT_WORDS.messages}
             next
             disabled={busy}
-            onClick={() => onSheet("yes")}
-            testid="bulk-yes"
-          />
-        ) : null}
-        {canEdit && isOwner && keeps("receptionist") ? (
-          <PhoneSheetRow
-            icon="agents"
-            label="Receptionist"
-            next
-            disabled={busy}
-            onClick={() => onSheet("receptionist")}
-            testid="bulk-receptionist"
+            onClick={() => onSheet("messages")}
+            testid="bulk-messages"
           />
         ) : null}
         {canExport ? (
@@ -124,63 +115,49 @@ function listsStep(b: BulkCtx, a: BulkActs, newList: () => void): Step {
   };
 }
 
-/** Record a yes: to messages about their visit, and where offers may be given by the form they signed, to offers and news. */
-function yesStep(
-  b: BulkCtx,
-  back: () => void,
-  yesOnPhone: (purpose: "conversational" | "marketing", s: { id: string; label: string }) => () => void,
-): Step {
-  const { st, sources, offersSources } = b;
-  const { busy } = st;
+/**
+ * Messages and receptionist: a yes to messages about their visit, a yes to offers and news by the form they signed, and
+ * the receptionist's mode, each set under its heading (messages.ts, which a desk's one menu draws too).
+ */
+function messagesStep(b: BulkCtx, back: () => void, groups: { header: string; items: MessagesChoice[] }[]): Step {
+  const { busy } = b.st;
   return {
-    title: "Record a yes",
+    title: PERSON_ABOUT_WORDS.messages,
     onBack: back,
     body: (
       <div className="pp-sheet-rows">
-        <div className="pp-sheet-rows-h">To messages about their visit</div>
-        {sources.map((s) => (
-          <PhoneSheetRow
-            key={s.id}
-            icon={PL_SOURCE_GLYPH[s.id] || "check"}
-            label={s.label}
-            next={s.id === "form"}
-            disabled={busy}
-            onClick={yesOnPhone("conversational", s)}
-            testid={`bulk-yes-conversational-${s.id}`}
-          />
-        ))}
-        {offersSources.length > 0 ? (
-          <>
-            <div className="pp-sheet-rows-h">To offers and news</div>
-            {offersSources.map((s) => (
+        {groups.map((g) => (
+          <div key={g.header} className="pp-sheet-rows" role="group" aria-label={g.header}>
+            <div className="pp-sheet-rows-h">{g.header}</div>
+            {g.items.map((i) => (
               <PhoneSheetRow
-                key={s.id}
-                icon={PL_SOURCE_GLYPH[s.id] || "tag"}
-                label={s.label}
-                next={s.id === "form"}
+                key={i.key}
+                icon={i.icon}
+                label={i.label}
+                next={i.next}
                 disabled={busy}
-                onClick={yesOnPhone("marketing", s)}
-                testid={`bulk-yes-marketing-${s.id}`}
+                onClick={i.onSelect}
+                testid={i.testid}
               />
             ))}
-          </>
-        ) : null}
+          </div>
+        ))}
       </div>
     ),
   };
 }
 
-/** The steps that ask something first: which forms they signed, the receptionist's mode, a note, a new list's name. */
+/** The steps that ask something first: which forms they signed, a new list's name. */
 function askSteps(b: BulkCtx, a: BulkActs, back: () => void) {
   const { st, onSheet } = b;
-  const { busy, note, setNote, name, setName, setSlips, slipsNote, setSlipsNote } = st;
+  const { busy, name, setName, setSlips, slipsNote, setSlipsNote } = st;
   return {
     slips: {
       title: "Which forms they signed",
       onBack: () => {
         setSlips(null);
         setSlipsNote("");
-        onSheet("yes");
+        onSheet("messages");
       },
       body: (
         <>
@@ -207,62 +184,6 @@ function askSteps(b: BulkCtx, a: BulkActs, back: () => void) {
             data-testid="bulk-form-save"
           >
             Record
-          </button>
-        </>
-      ),
-    },
-    receptionist: {
-      title: "Receptionist",
-      onBack: back,
-      body: (
-        <div className="pp-sheet-rows">
-          <div className="pp-sheet-rows-h">For these people</div>
-          {PL_MODES.map((m) => (
-            <PhoneSheetRow
-              key={m.id}
-              icon={m.icon}
-              label={plModeWord(m.id)}
-              disabled={busy}
-              onClick={() => {
-                onSheet(null);
-                void a.receptionist({ ...m, label: plModeWord(m.id) });
-              }}
-              testid={`bulk-mode-${m.id}`}
-            />
-          ))}
-        </div>
-      ),
-    },
-    note: {
-      title: "Add a note",
-      body: (
-        <>
-          <input
-            className="pp-input"
-            autoFocus={focusAsDrawn()}
-            value={note}
-            placeholder="One line, under their notes"
-            maxLength={200}
-            disabled={busy}
-            aria-label="The note"
-            onChange={(e) => setNote(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void a.addNote();
-              if (e.key === "Escape") {
-                setNote("");
-                onSheet(null);
-              }
-            }}
-            data-testid="bulk-note-line"
-          />
-          <button
-            type="button"
-            className="btn btn-primary pp-sheet-go"
-            disabled={busy || !note.trim()}
-            onClick={a.addNote}
-            data-testid="bulk-note-save"
-          >
-            Add
           </button>
         </>
       ),
@@ -338,15 +259,13 @@ export function dockAct(o: {
  * The dock's acts for who may use them: a list, a note and More for whoever may change people; a file alone for whoever
  * may only export, which needs no sheet. With nobody picked yet they stand and wait.
  */
-/** Whether More has anything past the acts up front: a yes, the receptionist, a list to take them off. */
+/** Whether More has anything past the acts up front: Messages and receptionist, or a list to take them off. */
 const moreHolds = (b: BulkCtx) =>
-  (b.canEdit && b.keeps("consent") && b.sources.length > 0) ||
-  (b.canEdit && b.isOwner && b.keeps("receptionist")) ||
+  messagesChoices(b, { yes: () => () => undefined, mode: () => undefined }).length > 0 ||
   (b.canEdit && !!b.activeSaved && !!b.activeSaved.byHand && b.keeps("lists"));
 
 function dockActs(b: BulkCtx, a: BulkActs) {
   const { st, onSheet, onClear, canEdit, canExport, ids, keeps, lead } = b;
-  const { setNote } = st;
   const off = st.busy || ids.length === 0;
   const clear = dockAct({
     icon: "x",
@@ -394,10 +313,7 @@ function dockActs(b: BulkCtx, a: BulkActs) {
           ? dockAct({
               icon: "edit",
               word: "Note",
-              onPress: () => {
-                setNote("");
-                onSheet("note");
-              },
+              onPress: a.addNote,
               disabled: off,
               testid: "bulk-note",
             })
@@ -420,10 +336,7 @@ function dockActs(b: BulkCtx, a: BulkActs) {
       {dockAct({
         icon: "edit",
         word: "Note",
-        onPress: () => {
-          setNote("");
-          onSheet("note");
-        },
+        onPress: a.addNote,
         disabled: off,
         testid: "bulk-note",
       })}
@@ -452,10 +365,17 @@ export function phoneBulk(b: BulkCtx, a: BulkActs) {
     setName("");
     onSheet("naming");
   };
+  const groups = messagesChoices(b, {
+    yes: yesOnPhone,
+    mode: (m) => {
+      onSheet(null);
+      void a.receptionist(m);
+    },
+  });
   const steps: Record<string, Step | undefined> = {
-    more: moreStep(b, a),
+    more: moreStep(b, a, groups.length > 0),
     lists: listsStep(b, a, newList),
-    yes: yesStep(b, back, yesOnPhone),
+    messages: messagesStep(b, back, groups),
     ...askSteps(b, a, back),
   };
   const step = n > 0 && sheet ? steps[sheet] : null;
@@ -472,6 +392,7 @@ export function phoneBulk(b: BulkCtx, a: BulkActs) {
         <div className="pp-bulk-acts">{dockActs(b, a)}</div>
       </div>
       <Sheet
+        backCloses
         open={!!step}
         shape="job"
         title={step ? step.title : ""}

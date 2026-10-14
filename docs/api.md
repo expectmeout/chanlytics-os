@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-260 handlers in 48 domains.
+261 handlers in 48 domains.
 
 ## activity
 
@@ -405,7 +405,12 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 
 Writes; for a member of the workspace the request names, operator or above; counts against the `person_create` rate; spends nothing.
 
-Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/contacts/route.ts`).
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `phone` | string | no |  |
+| `email` | string | no |  |
+| `name` | string | no |  |
+| `source` | string | no |  |
 
 ### `GET /api/v1/contacts/[id]`
 
@@ -1491,6 +1496,15 @@ Body 3:
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/people/[id]/reach/route.ts`).
+
+### `POST /api/v1/people/[id]/say`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `person_draft` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `verb` | one of `"deal"`, `"note"` | yes |  |
+| `words` | string | yes | at least 1 characters; at most 600 characters |
 
 ## platform
 

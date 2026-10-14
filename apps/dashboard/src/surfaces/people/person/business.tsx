@@ -242,6 +242,7 @@ export function BusinessSheetFor({ personId, name, onClose }: { personId: string
   if (failed && !person?.business)
     return (
       <Sheet
+        backCloses
         open
         onClose={onClose}
         title={name}
@@ -278,6 +279,7 @@ function BusinessRecordSheet({ b, open, onClose, reading = null, from = "page" }
     if (!reading) return null;
     return (
       <Sheet
+        backCloses
         open={open}
         onClose={onClose}
         title={reading}
@@ -327,6 +329,7 @@ function BusinessRecordSheet({ b, open, onClose, reading = null, from = "page" }
   );
   return (
     <Sheet
+      backCloses
       open={open}
       onClose={onClose}
       mark={<BusinessTile face={b.tile} size="lg" />}

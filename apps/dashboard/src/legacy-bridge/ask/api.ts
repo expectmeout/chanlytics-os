@@ -17,7 +17,7 @@ import type {
 } from "@chanlytics/contracts";
 import { MIN_MS, refusalOf, type AskOpeningsView, type SpeechPurpose } from "@chanlytics/contracts";
 import { api } from "../api";
-import { unwrap, type Api, type ApiOptions, type ApiResult, type Output, type RouteKey } from "../../client/api";
+import { unwrap, type Api } from "../../client/api";
 
 /**
  * A turn's lines. `say` is the answer's Say as written so far, a preview the final message replaces (an empty one takes
@@ -38,21 +38,6 @@ export interface OpeningsView {
   days: Array<{ key: string; label: string; windows: string[] }>;
   /** With no calendar link: what the calendar is fed by instead (contracts AskOpeningsView.instead). */
   instead?: AskOpeningsView["instead"];
-}
-
-/**
- * A call through the app's own route, marked as a card's: the ledger keeps
- * that it was tapped, not typed. An undo also names the decision it reverses.
- * The client is the caller's -- the tab's own, or a test's bound to a fake
- * fetch -- so the committer can be run rather than read.
- */
-export function viaAsk<K extends RouteKey>(
-  client: Api,
-  key: K,
-  opts: ApiOptions<K> = {} as ApiOptions<K>,
-  undoOf?: string,
-): Promise<ApiResult<Output<K>>> {
-  return client(key, { ...opts, via: "ask", ...(undoOf ? { undoOf } : {}) });
 }
 
 /** Read a stream of JSON lines, one event per line, across chunk boundaries. */

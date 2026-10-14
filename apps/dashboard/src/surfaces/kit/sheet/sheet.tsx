@@ -33,6 +33,7 @@ import { useCallback, useRef } from "react";
 import { onAPhone, touchSwipe } from "../../legacy-verbs";
 import { useHeightGlide } from "../motion/use-height-glide";
 import { cx } from "../variants";
+import { useBackCloses } from "./back";
 
 /** A step inside a job: the way back to the one it came from, named for a screen reader, its glyph drawn. */
 export type SheetBack = { label: string; glyph: ReactElement; onBack: () => void };
@@ -94,6 +95,11 @@ export type SheetProps = SheetShape & {
   ref?: Ref<HTMLElement>;
   /** Its test id; its Close and its way back are `<testid>-close` and `<testid>-back`. */
   testid?: string;
+  /**
+   * Back closes it (back.ts): an entry in the tab's history while it is open, named in the address where it is a name
+   * (`note:<person>`, so a reload opens it again). Left off where the page's own address already holds the sheet.
+   */
+  backCloses?: boolean | string;
 };
 
 /** Base UI's closing state, in the kit's word for it: a sheet on its way out (kit.css, `[data-leaving]`). */
@@ -154,7 +160,8 @@ function jobParts(p: SheetProps & { shape: "job" }) {
 
 /** A modal sheet, over the page's wash, drawn on the document's body. */
 export function Sheet(props: SheetProps) {
-  const { open, onClose, initialFocus, className, ref, testid } = props;
+  const { open, onClose, initialFocus, className, ref, testid, backCloses } = props;
+  useBackCloses(open && !!backCloses, onClose, typeof backCloses === "string" ? backCloses : null);
   const self = useRef<HTMLElement | null>(null);
   // What it held as it was last drawn open: what it shows while it leaves.
   const held = useRef<SheetProps>(props);

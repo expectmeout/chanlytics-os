@@ -1226,6 +1226,13 @@
       "rate": "person_edit",
       "spend": false
     },
+    "POST people/[id]/say": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "person_draft",
+      "spend": false
+    },
     "GET people/[id]/reach": {
       "kind": "read",
       "scope": "workspace",

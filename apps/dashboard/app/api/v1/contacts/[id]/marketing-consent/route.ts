@@ -1,17 +1,7 @@
-import { z } from "zod";
-import { CONSENT_STATES } from "@chanlytics/contracts";
+import { ConsentAnswerBody } from "@chanlytics/contracts";
 import { write } from "@/server/route";
 import { contactScope } from "@/server/verbs";
 import { recordOffersConsent } from "@/server/people/consent";
-
-const Body = z.object({
-  consent: z.enum(CONSENT_STATES as unknown as [string, ...string[]], {
-    message: "Consent must be one of: opted_in, opted_out, unknown.",
-  }),
-  source: z.string().optional(),
-  note: z.string().optional(),
-  message_id: z.string().uuid({ message: "Choose one of their messages." }).optional(),
-});
 
 /**
  * PUT /api/v1/contacts/:id/marketing-consent — { consent, source?, note?, message_id? }
@@ -51,6 +41,6 @@ export const PUT = write({
   scope: contactScope,
   role: "operator",
   rate: "consent",
-  input: Body,
+  input: ConsentAnswerBody,
   handle: ({ ctx, row, input }) => recordOffersConsent(ctx, row, input),
 });

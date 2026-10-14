@@ -4,7 +4,7 @@
  */
 export { ok, err, SERVED_AT_HEADER } from "./envelope";
 export type { Ok, Err, Envelope } from "./envelope";
-export { ERROR_CODES, AppError } from "./errors";
+export { ERROR_CODES, AppError, bodyRefusal } from "./errors";
 export type { ErrorCode } from "./errors";
 export { EDGE_ERROR_CODES } from "./edge-errors";
 export type { EdgeAnswerBody, EdgeAnswerCode, EdgeCallCode, EdgeErrorCode, EdgeRefusal } from "./edge-errors";

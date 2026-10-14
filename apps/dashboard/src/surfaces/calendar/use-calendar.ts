@@ -13,6 +13,7 @@ import {
   type CalendarView,
 } from "@chanlytics/contracts";
 import { askOnScreenKey, demoSession, navigate, replaceRoute, setAskOnScreen, useLegacyToast } from "../legacy-verbs";
+import { historyBack } from "../kit/sheet/back";
 import { calendarPlaceRoute, keepCalendarView } from "./address";
 import { crTyping } from "./board-dom";
 import { calendar } from "./verbs";
@@ -228,7 +229,8 @@ export function useVisitAddress(p: VisitAddressAsk) {
     setOpenId(null);
     if (pushed.current && typeof window !== "undefined" && window.history) {
       pushed.current = false;
-      window.history.back();
+      // Through the sheets' own step back: a sheet the visit hands off to stands its entry after this one is gone.
+      historyBack(window.history);
     } else if (visitId) replaceRoute(calendarPlaceRoute(p.view, p.day));
   };
   return { open, close };

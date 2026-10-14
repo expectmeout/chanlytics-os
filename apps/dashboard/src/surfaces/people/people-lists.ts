@@ -21,6 +21,7 @@ import {
   type ListRule,
 } from "@chanlytics/contracts";
 import { api } from "@/legacy-bridge/api";
+import { commitVerb, type VerbResult } from "@/legacy-bridge/verbs/commit";
 import type { ApiResult, Output } from "@/client/api";
 import { surfaceValue } from "../surface-values";
 import { saveView } from "./people-detail";
@@ -34,6 +35,10 @@ const pinSurface = () => surfaceValue("people");
 
 /** How many people one request puts on a list (the route's LIST_BATCH_MAX). */
 const LIST_ADD_PART = 500;
+
+/** A list verb's answer as the segments door's (its row), or its refusal. */
+const memberAnswer = (r: VerbResult): ApiResult<Output<"PUT segments/[id]">> =>
+  r.ok ? { ok: true, data: r.data as Output<"PUT segments/[id]"> } : r;
 
 export const lists = {
   create: (name: string, rule: ListRule | null = null) =>
@@ -134,18 +139,18 @@ export const lists = {
    * not refused, it is sent in turns. The first refusal stops the rest and is the answer.
    */
   add: async (id: string, contactIds: string[]) => {
+    // Each part through the list's verb (contracts listMemberSpec), the walk a person page's tick and Ask take too.
     let last: ApiResult<Output<"PUT segments/[id]">> | null = null;
     for (let at = 0; at < Math.max(1, contactIds.length); at += LIST_ADD_PART) {
-      last = await api()("PUT segments/[id]", {
-        params: { id },
-        body: { add: contactIds.slice(at, at + LIST_ADD_PART) },
-      });
+      last = memberAnswer(
+        await commitVerb("list_member", { list_id: id, add: contactIds.slice(at, at + LIST_ADD_PART) }),
+      );
       if (!last.ok) return last;
     }
     return last!;
   },
-  drop: (id: string, contactIds: string[]) =>
-    api()("PUT segments/[id]", { params: { id }, body: { remove: contactIds } }),
+  drop: async (id: string, contactIds: string[]) =>
+    memberAnswer(await commitVerb("list_member", { list_id: id, remove: contactIds })),
 };
 
 declare global {

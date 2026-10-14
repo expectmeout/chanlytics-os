@@ -147,6 +147,7 @@ export function ListsSheet({ c }: { c: PageCtx }) {
     );
   return (
     <Sheet
+      backCloses
       open={c.listsOpen}
       onClose={() => c.setListsOpen(false)}
       title={PERSON_ACT_WORDS.addToList}

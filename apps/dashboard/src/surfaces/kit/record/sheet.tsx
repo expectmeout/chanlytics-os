@@ -59,6 +59,7 @@ import { recPortalRoot } from "./leaving";
 import { RecordFoot } from "./says";
 import { touchSwipe } from "../../legacy-verbs";
 import { useHeightGlide } from "../motion/use-height-glide";
+import { useBackCloses } from "../sheet/back";
 import { leaveOverlay, listen, portal, trapTab, unlisten } from "./shell-verbs";
 
 interface RecordSheetProps {
@@ -81,6 +82,8 @@ interface RecordSheetProps {
   footNote?: ReactNode;
   confirm?: ReactNode;
   children?: ReactNode;
+  /** Back closes it, as the kit's Sheet's does (sheet/back.ts): named in the address where it is a name. */
+  backCloses?: boolean | string;
 }
 
 // The sheet rises from the bottom at the kit's one phone width (record.css, focus.ts recPhoneQuery): there a pull down
@@ -232,6 +235,12 @@ export function RecordSheet(props: RecordSheetProps) {
   const closeRef = useRef<(() => void) | null>(onClose);
   // Nothing cancels a save that is out: the save is on its way, and closes the sheet when the server takes it.
   closeRef.current = saving ? null : onClose;
+  // Back asks it to close as its Cancel does: nothing while a save is out, and it stands again (sheet/back.ts).
+  useBackCloses(
+    !!props.backCloses,
+    () => closeRef.current?.(),
+    typeof props.backCloses === "string" ? props.backCloses : null,
+  );
   const opener = useRef<Element | null>(null);
   // The sheet as it is on the page, for the fold's focus rules below: a callback ref (place) sets it.
   const box = useRef<HTMLElement | null>(null);

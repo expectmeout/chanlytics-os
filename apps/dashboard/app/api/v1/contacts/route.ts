@@ -1,5 +1,12 @@
 import { z } from "zod";
-import { AppError, normalizeEmail, normalizePhone, whyNotAPhone, whyNotAnEmail } from "@chanlytics/contracts";
+import {
+  AppError,
+  PersonAddBody,
+  normalizeEmail,
+  normalizePhone,
+  whyNotAPhone,
+  whyNotAnEmail,
+} from "@chanlytics/contracts";
 import { read, write, workspace } from "@/server/route";
 import { load, readerContext } from "@/server/readers";
 import { people } from "@/server/readers/people";
@@ -57,29 +64,21 @@ export const POST = write({
   scope: workspace,
   role: "operator",
   rate: "person_create",
-  handle: async ({ ctx, req, member }) => {
-    const body = (await req.json().catch(() => null)) as {
-      phone?: unknown;
-      email?: unknown;
-      name?: unknown;
-      source?: unknown;
-    } | null;
-    const rawPhone = typeof body?.phone === "string" && body.phone.trim() ? body.phone : null;
-    const rawEmail = typeof body?.email === "string" && body.email.trim() ? body.email : null;
+  input: PersonAddBody,
+  handle: async ({ ctx, member, input: body }) => {
+    const rawPhone = body.phone?.trim() ? body.phone : null;
+    const rawEmail = body.email?.trim() ? body.email : null;
     const phone = normalizePhone(rawPhone);
     const email = normalizeEmail(rawEmail);
     if (rawPhone && !phone) throw new AppError("validation", whyNotAPhone(rawPhone) ?? "That is not a phone number.");
     if (rawEmail && !email)
       throw new AppError("validation", whyNotAnEmail(rawEmail) ?? "That is not an email address.");
     if (!phone && !email) throw new AppError("validation", "A mobile number or an email is needed to add a person.");
-    const name = typeof body?.name === "string" ? body.name.trim().slice(0, 80) : "";
+    const name = (body.name ?? "").trim().slice(0, 80);
     // Which door, for the record. Never "calendar" or "lead", the two doors people_list names (00138): those are the
     // sweep's and the converter's, written server-side, and a person added here by hand would say "A lead you found".
     const source =
-      typeof body?.source === "string" &&
-      /^[a-z_]{1,24}$/.test(body.source) &&
-      body.source !== "calendar" &&
-      body.source !== "lead"
+      body.source && /^[a-z_]{1,24}$/.test(body.source) && body.source !== "calendar" && body.source !== "lead"
         ? body.source
         : "manual";
     return addPerson(ctx, member.tenantId, { phone, email, name, source });
