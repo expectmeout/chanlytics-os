@@ -30,8 +30,6 @@ import type { ReactElement, ReactNode, Ref } from "react";
 import { useMemo } from "react";
 import { chosen } from "../chosen";
 import { Panel } from "../panel/panel";
-import { Press } from "../press";
-import type { PressAct, PressDoor } from "../press";
 import { cx } from "../variants";
 import { usePhoneList } from "./phone-list";
 
@@ -271,15 +269,5 @@ export function Picker<V extends string>(props: PickerProps<V>) {
   return props.search ? <PickerFind {...props} one={one} search={props.search} /> : <PickerList {...props} one={one} />;
 }
 
-/**
- * A word of a sentence that is pressed rather than chosen from a list, drawn as the picker's inline token: a campaign's
- * channels, which open their switches in the kit's popover; the rule it runs under, which opens Autonomy. Pressed, it
- * acts or opens a page where it has an address, as the kit's press does; it is the trigger a popover is opened by.
- */
-export function Token({ className, children, ...element }: PressAct | PressDoor) {
-  return (
-    <Press {...element} className={cx("token", "token-inline", className)}>
-      <span className="token-face">{children}</span>
-    </Press>
-  );
-}
+// The token is a module of its own (token.tsx), so a page that draws one alone does not load the Combobox with it.
+export { Token } from "./token";

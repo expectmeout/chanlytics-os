@@ -4,10 +4,14 @@
  * style that the step sheet draws too. Hookless: each field is a plain function returning its element (never a component),
  * so the tree is the one the JSX drew.
  */
+import { useState } from "react";
 import type { ReactNode } from "react";
 import { dealSheetMessage } from "@chanlytics/contracts";
 import type { DealSheetDraft, DealSheetProblem, DealSheetVM } from "@chanlytics/contracts";
 import { FieldError } from "../../kit/field-error/field-error";
+import { Icon } from "../../kit/icon/icon";
+import { LinkButton } from "../../kit/link-button/link-button";
+import { Token } from "../../kit/picker/token";
 import { RecordBox, RecordField, RecordSwitch, RecordToggleGroup } from "../../kit/record/field";
 
 /** A select in the kit's input style, with its label above it, as RecordField draws a box: which service, how a yes was given. */
@@ -69,21 +73,89 @@ interface FieldsProps {
 const problemAt = (problem: DealSheetProblem | null, field: string): string | null =>
   problem && problem.field === field ? problem.words : null;
 
+/** A day as its token says it, "Thu, Oct 30", with the year where it is not this one, from the business's "YYYY-MM-DD". */
+function pickedDayWords(day: string, today: string): string {
+  const year = day.slice(0, 4) !== today.slice(0, 4);
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    ...(year ? { year: "numeric" as const } : {}),
+    timeZone: "UTC",
+  }).format(new Date(`${day}T00:00:00Z`));
+}
+
+type DayPickModule = typeof import("./day-pick");
+let dayPick: DayPickModule | null = null;
+let dayPickLoading: Promise<DayPickModule> | null = null;
+
+/** The month a day is picked from, loaded once, as the sheet first draws a day (day-pick.tsx says why). */
+export function loadDayPick(): Promise<DayPickModule> {
+  // What it reads of the module is named, so the dead-exports check (knip) sees the use.
+  dayPickLoading ??= import("./day-pick").then(({ DayPick }) => (dayPick = { DayPick }));
+  return dayPickLoading;
+}
+
+/**
+ * A day, picked from the kit's month over the sheet, its words a token under the label: the browser's own date box drew
+ * "mm/dd/yyyy" in the system's type (the fitted sheets, 14 Oct 2026). A day that may be left empty says so while it is,
+ * and a word beside it empties it again. The token is drawn at once; the month behind it as its module lands.
+ */
+function DayField(p: {
+  id: string;
+  label: string;
+  value: string;
+  today: string;
+  onChange: (day: string) => void;
+  busy: boolean;
+  problem: string | null;
+  empty?: { none: string; clear: string };
+  testid: string;
+}) {
+  const [, landed] = useState(0);
+  if (!dayPick) void loadDayPick().then(() => landed((n) => n + 1));
+  const token = (
+    <Token aria-labelledby={`${p.id}-label`} data-testid={`${p.testid}-input`}>
+      <Icon name="calendar" size={13} /> {p.value ? pickedDayWords(p.value, p.today) : (p.empty?.none ?? "")}
+    </Token>
+  );
+  const pick = (day: string) => {
+    if (!p.busy) p.onChange(day);
+  };
+  return (
+    <div className="rec-field deal-sheet-day" data-testid={p.testid}>
+      <span className="rec-field-label" id={`${p.id}-label`}>
+        {p.label}
+      </span>
+      <span className="ds-day-row">
+        {dayPick ? (
+          <dayPick.DayPick value={p.value} today={p.today} label={p.label} onPick={pick} trigger={token} />
+        ) : (
+          token
+        )}
+        {p.empty && p.value && !p.busy ? (
+          <LinkButton onClick={() => p.onChange("")} data-testid={`${p.testid}-clear`}>
+            {p.empty.clear}
+          </LinkButton>
+        ) : null}
+      </span>
+      {p.problem ? <FieldError id={`rec-${p.id}-problem`} message={p.problem} /> : null}
+    </div>
+  );
+}
+
 /** For a yes, a pass or an end, the day it happened. */
 function whenField({ sheet, draft, set, problem, busy }: FieldsProps) {
   if (!sheet.when) return null;
   return (
-    <RecordField
+    <DayField
       id="deal-sheet-when"
       label={sheet.when.label}
-      problem={problemAt(problem, "when")}
-      type="date"
-      className="deal-sheet-day"
-      max={sheet.when.max}
       value={draft.when}
+      today={sheet.when.max}
       onChange={(v) => set({ when: v })}
-      readOnly={busy}
-      data-testid="deal-sheet-when-input"
+      busy={busy}
+      problem={problemAt(problem, "when")}
       testid="deal-sheet-when"
     />
   );
@@ -138,8 +210,14 @@ function valueField({ sheet, draft, set, problem, busy }: FieldsProps) {
   const wrong = problemAt(problem, "value");
   return (
     <div className="rec-field deal-sheet-amount" data-testid="deal-sheet-value">
-      <span className="rec-field-label" aria-hidden="true">
+      {/* Who sees it is said on the label's line, a lock and its words, where it stood as a line of its own under the
+          box (the fitted sheets, 14 Oct 2026); the box is described by it either way. */}
+      <span className="rec-field-label ds-label-line" aria-hidden="true">
         {value.label}
+        <span className="ds-private" id="deal-sheet-value-private">
+          <Icon name="lock" size={10} />
+          {value.private}
+        </span>
       </span>
       <div className="deal-sheet-amount-row">
         <RecordBox
@@ -152,7 +230,7 @@ function valueField({ sheet, draft, set, problem, busy }: FieldsProps) {
           autoComplete="off"
           placeholder={value.placeholder}
           invalid={wrong ? "rec-deal-sheet-value-problem" : null}
-          aria-describedby={wrong ? undefined : "deal-sheet-value-hint"}
+          aria-describedby={wrong ? undefined : value.hint ? "deal-sheet-value-hint" : "deal-sheet-value-private"}
           data-testid="deal-sheet-value-input"
         />
         <RecordToggleGroup
@@ -166,30 +244,29 @@ function valueField({ sheet, draft, set, problem, busy }: FieldsProps) {
       </div>
       {wrong ? (
         <FieldError id="rec-deal-sheet-value-problem" message={wrong} testid="deal-sheet-value-problem" />
-      ) : (
+      ) : value.hint ? (
         <span className="rec-hint" id="deal-sheet-value-hint">
           {value.hint}
         </span>
-      )}
+      ) : null}
     </div>
   );
 }
 
-/** The day the proposal stands until. */
+/** The day the proposal stands until, or none. */
 function validField({ sheet, draft, set, problem, busy }: FieldsProps) {
-  if (!sheet.validUntil) return null;
+  const valid = sheet.validUntil;
+  if (!valid) return null;
   return (
-    <RecordField
+    <DayField
       id="deal-sheet-valid"
-      label={sheet.validUntil.label}
-      hint={sheet.validUntil.hint}
-      problem={problemAt(problem, "validUntil")}
-      type="date"
-      className="deal-sheet-day"
+      label={valid.label}
       value={draft.validUntil}
+      today={valid.today}
       onChange={(v) => set({ validUntil: v })}
-      readOnly={busy}
-      data-testid="deal-sheet-valid-input"
+      busy={busy}
+      problem={problemAt(problem, "validUntil")}
+      empty={{ none: valid.none, clear: valid.clear }}
       testid="deal-sheet-valid"
     />
   );
@@ -209,6 +286,8 @@ function reasonField({ sheet, draft, set, problem, busy }: FieldsProps) {
         options={sheet.reason.options}
         onChange={(v) => set({ reason: v })}
         readOnly={busy}
+        // Six whys as chips: in one capsule they wrapped into an oval (the fitted sheets, 14 Oct 2026).
+        look="chips"
       />
       <FieldError message={problemAt(problem, "reason")} />
     </div>

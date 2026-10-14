@@ -17,7 +17,9 @@
 import { useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
 import { formatPhoneDisplay } from "@chanlytics/contracts";
+import { Button } from "../../kit/button/button";
 import { FieldError } from "../../kit/field-error/field-error";
+import { Icon } from "../../kit/icon/icon";
 import { RecordToggleGroup } from "../../kit/record/field";
 import { RecordSheet } from "../../kit/record/sheet";
 import { LinkButton } from "../../kit/link-button/link-button";
@@ -578,18 +580,25 @@ function sourceFields(p: {
   const { busy, text, setText, onFile, read } = p;
   return (
     <>
-      <div className="rec-field">
-        <label>
-          <span className="rec-field-label">Choose a CSV file</span>
-          <input
-            type="file"
-            accept=".csv,text/csv,text/plain"
-            onChange={onFile}
-            disabled={busy}
-            data-testid="import-file"
-          />
-        </label>
-      </div>
+      {/* The kit's button opens the browser's own picker, hidden beside it: its "Choose File · No file chosen" was the one
+          control on the sheet the kit did not draw (the fitted sheets, 14 Oct 2026). */}
+      <input
+        type="file"
+        accept=".csv,text/csv,text/plain"
+        hidden
+        onChange={onFile}
+        disabled={busy}
+        data-testid="import-file"
+      />
+      <Button
+        className="pl-import-file"
+        disabled={busy}
+        onClick={(e) => (e.currentTarget.previousElementSibling as HTMLInputElement | null)?.click()}
+        data-testid="import-choose"
+      >
+        <Icon name="content" size={14} />
+        Choose a CSV file
+      </Button>
       <div className="rec-field">
         <label>
           <span className="rec-field-label">Or paste the rows</span>

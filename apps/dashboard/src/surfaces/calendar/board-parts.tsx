@@ -74,11 +74,13 @@ const crGlyph = (name: string) => <Icon name={name} size={13} />;
 /**
  * The legend: what each look on the board means, said once, where the switches that draw them are. An open time is said
  * for the service the picker filters by, and for a consultation where that service needs one first (C5b, the rule the
- * phone and the assistant follow), through the last day the receptionist offers (C1).
+ * phone and the assistant follow), through the last day the receptionist offers (C1). On a phone, one line under the
+ * chips: what Open means and the clock, where three sentences made the menu three things (the fitted sheets, 14 Oct).
  */
-function showLegend(vm: CalendarVM, serviceName: string): string {
+function showLegend(vm: CalendarVM, serviceName: string, phone: boolean): string {
   const service = vm.services.find((s) => s.name === serviceName) ?? null;
   const forWhat = service ? ` for ${service.consultFirst ? "a consultation" : service.name}` : "";
+  if (phone) return `Open times it would offer${forWhat}, through ${vm.offer.label} · ${vm.zoneCity} time`;
   return `Taken is from your calendar or your booking tool. Open is a time the receptionist would offer${forWhat}, through ${vm.offer.label}. Times are ${vm.zoneCity} time.`;
 }
 
@@ -93,10 +95,11 @@ function showGroup(p: BarProps): MenuGroup {
   ];
   return {
     header: SHOW.label,
-    caption: showLegend(p.vm, p.serviceName),
+    caption: showLegend(p.vm, p.serviceName, p.phone),
     toggles: {
       items,
       tick: <Icon name="check" size={13} />,
+      chips: true,
       onToggle: (value) => {
         if (value === "open" || value === "campaigns" || value === "cold") setShow({ ...show, [value]: !show[value] });
       },

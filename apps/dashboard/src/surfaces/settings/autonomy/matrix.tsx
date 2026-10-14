@@ -113,12 +113,17 @@ export function PolPhoneRows({ rows, put, busy }: { rows: UiRow[]; put: PutMode;
                 </span>
               ) : (
                 <MoreMenu
-                  items={UI_MODES.filter((m) => !r.modes || r.modes.includes(m)).map((m) => ({
-                    label: polMode(m).head,
-                    hint: (r.hints && r.hints[m]) || polMode(m).does,
-                    checked: r.mode === m,
-                    onClick: () => put(r, m.toLowerCase()),
-                  }))}
+                  // The sheet says which kind it sets, over each mode with what it does under its name (MoreMenu puts a
+                  // sentence under the words on a phone): the sentence was cut at the line's end.
+                  items={[
+                    { header: r.label },
+                    ...UI_MODES.filter((m) => !r.modes || r.modes.includes(m)).map((m) => ({
+                      label: polMode(m).head,
+                      hint: (r.hints && r.hints[m]) || polMode(m).does,
+                      checked: r.mode === m,
+                      onClick: () => put(r, m.toLowerCase()),
+                    })),
+                  ]}
                   label={polMode(r.mode).head}
                   title={`${r.label}: ${String(polMode(r.mode).head)}`}
                   btnClass="bt-link pol-phone-mode"

@@ -48,6 +48,14 @@ export const MERGE_WORDS = {
   question: (kept: string, other: string) => `Merge ${other} into ${kept}?`,
   detail: (kept: string, other: string) =>
     `${kept} keeps their record and takes ${other}'s messages, calls, deals, notes and lists. ${MERGE_ANSWERS} ${other}'s record stays as a merged record with no number or address. This cannot be undone.`,
+  /**
+   * The sheet's own: what moves and that it cannot be undone, said first in two lines, and the rest of `detail` folded
+   * under `more` (the fitted sheets, 14 Oct 2026: seven lines stood between the pick and the name typed).
+   */
+  lead: (kept: string, other: string) =>
+    `${other}'s messages, calls, deals, notes and lists move to ${kept}. This cannot be undone.`,
+  more: "What else changes",
+  rest: (other: string) => `${MERGE_ANSWERS} ${other}'s record stays as a merged record with no number or address.`,
   typed: (kept: string) => `Type ${kept} to confirm.`,
   yes: "Merge the two records",
   busy: "Merging…",

@@ -11,6 +11,7 @@ import { Button } from "../../../kit/button/button";
 import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
+import { AdsNotes } from "./notes";
 
 interface ZipEditorProps {
   zips: readonly string[];
@@ -77,9 +78,12 @@ export function ZipEditor({ zips, notes, onSave, onCancel, phone }: ZipEditorPro
       </div>
       {list.length === 1 ? <p className="ads-note">{ZIPS.none}</p> : null}
       <div className="ads-zip-acts">
-        <Button size="sm" variant="quiet" onClick={onCancel}>
-          {DRAWER.foot.cancel}
-        </Button>
+        {/* On a phone the sheet's head says Cancel: a second one beside Save said it twice (the fitted sheets). */}
+        {phone ? null : (
+          <Button size="sm" variant="quiet" onClick={onCancel}>
+            {DRAWER.foot.cancel}
+          </Button>
+        )}
         <Button
           size="sm"
           variant={phone ? "primary" : undefined}
@@ -90,13 +94,7 @@ export function ZipEditor({ zips, notes, onSave, onCancel, phone }: ZipEditorPro
           {ZIPS.save}
         </Button>
       </div>
-      <div className="ads-notes">
-        {notes.map((note) => (
-          <p key={note} className="ads-note">
-            {note}
-          </p>
-        ))}
-      </div>
+      <AdsNotes notes={notes} phone={phone} id="zips" />
     </div>
   );
 }

@@ -109,7 +109,8 @@ function ReachOutReport({ said }: { said: Said }) {
                     {c}
                   </th>
                 ) : (
-                  <td key={j} className="tabular">
+                  // Its column's name, which a phone says over the figure where the table is a block per step.
+                  <td key={j} className="tabular" data-head={said.head[j]}>
                     {c}
                   </td>
                 ),

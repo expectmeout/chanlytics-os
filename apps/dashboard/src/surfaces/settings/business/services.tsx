@@ -370,6 +370,11 @@ const btsBody = (f: SheetFields, env: BodyEnv) => {
           No service is called that. The search reads names only.
         </p>
       ) : null}
+      {/* Where else the list is read, after it rather than over the Save: the foot says one line, what saving tells
+          the receptionist (the fitted sheets, 14 Oct 2026: four lines stood between the rows and Save). */}
+      <p className="bt-fold-note" data-testid="rec-sheet-services-public">
+        {BUSINESS_TAB.SERVICES_ON_PUBLIC_PAGE}
+      </p>
     </div>
   );
 };
@@ -405,9 +410,6 @@ const btsTold = (f: SheetFields) => {
           {words}
         </p>
       ) : null}
-      <p className="bt-services-note" data-testid="rec-sheet-services-public">
-        {BUSINESS_TAB.SERVICES_ON_PUBLIC_PAGE}
-      </p>
       <FieldError id="bt-services-problem" message={f.problems.services || null} testid="rec-services-problem" />
     </div>
   );
