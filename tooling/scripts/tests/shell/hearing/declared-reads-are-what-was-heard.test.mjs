@@ -13,6 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
+import { registeredSurfaces } from "./_reads.mjs";
 
 globalThis.window ??= globalThis;
 globalThis.location ??= { pathname: "/w/a", hash: "#/today" };
@@ -38,38 +39,11 @@ const { heardTables, heardOnItsPage, subscribesToRealtime, wantsRefresh } = awai
   "apps/dashboard/src/legacy-bridge/surface-realtime.ts",
 );
 const { declareReads, ownsTheScreen } = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
-const { ON_DEMAND_STALE_MIN, workspaceOverride } = await importSrc("apps/dashboard/src/legacy-bridge/surface-data.ts");
+const { ON_DEMAND_STALE_MIN } = await importSrc("apps/dashboard/src/legacy-bridge/surface-data.ts");
 
-const S = "apps/dashboard/src/legacy-bridge/surfaces";
-/** Every surface the shell registers (LegacyApp.tsx), by its key. */
-const OVERRIDES = [
-  workspaceOverride,
-  (await importSrc("apps/dashboard/src/surfaces/inbox/conversations-surface.ts")).conversationsOverride,
-  (await importSrc("apps/dashboard/src/surfaces/inbox/surface.ts")).inboxOverride,
-  (await importSrc("apps/dashboard/src/surfaces/today/surface.ts")).todayOverride,
-  (await importSrc(`${S}/settings.ts`)).settingsOverride,
-  (await importSrc("apps/dashboard/src/surfaces/people/surface.ts")).peopleOverride,
-  (await importSrc("apps/dashboard/src/surfaces/leads/surface.ts")).leadsOverride,
-  (await importSrc("apps/dashboard/src/surfaces/reports/surface.ts")).reportsOverride,
-  (await importSrc("apps/dashboard/src/surfaces/reports/headline.ts")).reportsHeadlineOverride,
-  (await importSrc("apps/dashboard/src/surfaces/reports/reviews-surface.ts")).reviewsOverride,
-  (await importSrc("apps/dashboard/src/surfaces/reports/receptionist-surface.ts")).receptionistOverride,
-  (await importSrc("apps/dashboard/src/surfaces/reports/people-surface.ts")).reportsPeopleOverride,
-  (await importSrc("apps/dashboard/src/surfaces/reports/campaigns-surface.ts")).reportsCampaignsOverride,
-  (await importSrc("apps/dashboard/src/surfaces/live/surface.ts")).liveOverride,
-  (await importSrc("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts")).broadcastsOverride,
-  (await importSrc("apps/dashboard/src/surfaces/campaigns/playbooks/surface.ts")).playbooksOverride,
-  (await importSrc("apps/dashboard/src/surfaces/campaigns/reach-out/surface.ts")).reachOutsOverride,
-  (await importSrc("apps/dashboard/src/surfaces/campaigns/home/results-surface.ts")).campaignResultsOverride,
-  (await importSrc("apps/dashboard/src/legacy-bridge/reach-out/replies.ts")).repliesOverride,
-  (await importSrc("apps/dashboard/src/surfaces/settings/partner/surface.ts")).partnerOverride,
-  (await importSrc("apps/dashboard/src/surfaces/settings/notifications/surface.ts")).alertsOverride,
-  (await importSrc("apps/dashboard/src/surfaces/calendar/surface.ts")).calendarOverride,
-  (await importSrc(`${S}/notifications.ts`)).notificationsOverride,
-  (await importSrc("apps/dashboard/src/surfaces/setup/surface.ts")).setupOverride,
-  (await importSrc("apps/dashboard/src/legacy-bridge/google.ts")).googleOverride,
-  (await importSrc("apps/dashboard/src/surfaces/settings/billing/surface.ts")).billingOverride,
-];
+/** Every surface the shell registers (LegacyApp.tsx), from the module it imports each from: the shell's own list, no copy of it. */
+const OVERRIDES = [];
+for (const { name, file } of registeredSurfaces()) OVERRIDES.push((await importSrc(file))[name]);
 const byKey = (key) => OVERRIDES.find((o) => o.key === key);
 
 /** What the Campaigns composers and the playbooks drew from the business beside the messages, as they heard it on their page. */

@@ -19,6 +19,7 @@ import { importSrc } from "../../_source.mjs";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { changesOf, toldFor } from "../../_live-feed.mjs";
 import { historyOf, legacyAddress } from "../address/_address.mjs";
+import { registeredSurfaces } from "../hearing/_reads.mjs";
 
 const heard = new Map();
 const win = {
@@ -58,35 +59,9 @@ const runner = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.
 const status = await importSrc("apps/dashboard/src/legacy-bridge/surface-status.ts");
 const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
 const registry = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
-const { workspaceOverride } = await importSrc("apps/dashboard/src/legacy-bridge/surface-data.ts");
-const S = "apps/dashboard/src/legacy-bridge/surfaces";
-const REAL = [
-  workspaceOverride,
-  (await importSrc("apps/dashboard/src/surfaces/inbox/conversations-surface.ts")).conversationsOverride,
-  (await importSrc("apps/dashboard/src/surfaces/inbox/surface.ts")).inboxOverride,
-  (await importSrc("apps/dashboard/src/surfaces/today/surface.ts")).todayOverride,
-  (await importSrc(`${S}/settings.ts`)).settingsOverride,
-  (await importSrc("apps/dashboard/src/surfaces/people/surface.ts")).peopleOverride,
-  (await importSrc("apps/dashboard/src/surfaces/leads/surface.ts")).leadsOverride,
-  (await importSrc("apps/dashboard/src/surfaces/reports/surface.ts")).reportsOverride,
-  (await importSrc("apps/dashboard/src/surfaces/reports/headline.ts")).reportsHeadlineOverride,
-  (await importSrc("apps/dashboard/src/surfaces/reports/reviews-surface.ts")).reviewsOverride,
-  (await importSrc("apps/dashboard/src/surfaces/reports/receptionist-surface.ts")).receptionistOverride,
-  (await importSrc("apps/dashboard/src/surfaces/reports/people-surface.ts")).reportsPeopleOverride,
-  (await importSrc("apps/dashboard/src/surfaces/reports/campaigns-surface.ts")).reportsCampaignsOverride,
-  (await importSrc("apps/dashboard/src/surfaces/live/surface.ts")).liveOverride,
-  (await importSrc("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts")).broadcastsOverride,
-  (await importSrc("apps/dashboard/src/surfaces/campaigns/playbooks/surface.ts")).playbooksOverride,
-  (await importSrc("apps/dashboard/src/surfaces/campaigns/reach-out/surface.ts")).reachOutsOverride,
-  (await importSrc("apps/dashboard/src/surfaces/campaigns/home/results-surface.ts")).campaignResultsOverride,
-  (await importSrc("apps/dashboard/src/legacy-bridge/reach-out/replies.ts")).repliesOverride,
-  (await importSrc("apps/dashboard/src/surfaces/settings/partner/surface.ts")).partnerOverride,
-  (await importSrc("apps/dashboard/src/surfaces/calendar/surface.ts")).calendarOverride,
-  (await importSrc(`${S}/notifications.ts`)).notificationsOverride,
-  (await importSrc("apps/dashboard/src/surfaces/setup/surface.ts")).setupOverride,
-  (await importSrc("apps/dashboard/src/legacy-bridge/google.ts")).googleOverride,
-  (await importSrc("apps/dashboard/src/surfaces/settings/billing/surface.ts")).billingOverride,
-];
+/** Every surface the shell registers (LegacyApp.tsx), from the module it imports each from: the shell's own list, no copy. */
+const REAL = [];
+for (const { name, file } of registeredSurfaces()) REAL.push((await importSrc(file))[name]);
 
 /**
  * The real overrides' routing, each read recorded rather than made, through a runner whose live feed this holds. A read recorded

@@ -4,13 +4,18 @@
  *
  * Four lists were kept by hand and nothing tied them together: what a surface reads, the kinds it declares (and so the tables it
  * hears), what each write changes, and the surfaces the refresh map re-reads after it. Four times a reader began to draw a record
- * and the lists fell behind (#1399, #1417, #1423, #1551). The tracer (_reads.mjs, ported from the Wiring Blueprint's; and
- * a-route-is-followed-to-its-tables.test.mjs holds it to its word) follows every route of the dashboard to the tables it reads and
- * writes, the writes with the event each makes; the surfaces are the ones LegacyApp.tsx registers, run as they are.
+ * and the lists fell behind (#1399, #1417, #1423, #1551). The tracer (tooling/scripts/trace-routes.mjs, ported from the Wiring
+ * Blueprint's; a-route-is-followed-to-its-tables.test.mjs holds it to its word) follows every route of the dashboard to the tables
+ * it reads and writes, the writes with the event each makes; the surfaces are the ones LegacyApp.tsx registers, from the modules it
+ * imports them from, run as they are.
  *
- *  1. Reads are heard. The tables a surface's GET routes read must be covered by the kinds it declares (it hears them, or leaves
- *     them unheard with a reason: `omit`), or be listed in baselines/reads-not-heard.json with why. The baseline may only fall:
- *     a read nobody listed is a red build, and one that is heard now must leave the file (UPDATE_BASELINES=1 banks the fall).
+ *  1. Reads are heard. The tables a surface's GET routes read must be ones it hears, or be listed in baselines/reads-not-heard.json
+ *     with why. An `omit` covers nothing (the wiring's second audit, S3-8): a table a surface's own routes read and its omit leaves
+ *     out is a read nobody tells it of, as eleven were. The baseline may only fall: a read nobody listed is a red build, and one that
+ *     is heard now must leave the file (UPDATE_BASELINES=1 banks the fall). Each group says what kind of exception it is (KINDS),
+ *     and what it claims is checked: the tables each kind may hold, the writes whose rows re-read the surface (`rereadAfter`), the
+ *     tables it hears that read it again (`heardWith`), the field an over-read feeds that the surface never reads (`field`), the
+ *     finding an owed read waits on (`finding`). The owed pairs are counted in the file, and the count may only fall.
  *  2. Writes tell. A surface learns of a write one of two ways: the refresh map names it (or forgets what it holds, for a lens read
  *     where it is drawn), or the feed tells it of every table the write changes that it draws, by the event the write makes. Run
  *     on every write the map decides, AFTER and REFRESHES_NOTHING alike, over the dashboard's own code; a surface left neither way
@@ -24,14 +29,15 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import path from "node:path";
-import { ROOT, importSrc } from "../../_source.mjs";
-import { BANK, BANK_HINT, BASELINES_DIR, readBaseline, writeBaseline } from "../../_ratchet.mjs";
+import { ROOT, importSrc, stripComments } from "../../_source.mjs";
+import { BANK, BANK_HINT, BASELINES_DIR, RAISE, readBaseline, writeBaseline } from "../../_ratchet.mjs";
 import {
   PLUMBING,
   getsOfFile,
   readsOf,
-  registeredOverrides,
+  registeredSurfaces,
   traceRoutes,
   unheardReads,
   untoldWrites,
@@ -59,48 +65,24 @@ const { watchedEvents, watchedTables } = await importSrc("packages/db/src/realti
 const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
 const { AFTER, REFRESHES_NOTHING } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
 
-const S = "apps/dashboard/src/legacy-bridge/surfaces";
-/** Every surface the shell registers (LegacyApp.tsx), by its key, the module that holds its override and the override's name. */
-const SURFACES = [
-  ["workspace", "apps/dashboard/src/legacy-bridge/surface-data.ts", "workspaceOverride"],
-  ["conversations", "apps/dashboard/src/surfaces/inbox/conversations-surface.ts", "conversationsOverride"],
-  ["inbox", "apps/dashboard/src/surfaces/inbox/surface.ts", "inboxOverride"],
-  ["today", "apps/dashboard/src/surfaces/today/surface.ts", "todayOverride"],
-  ["settings", `${S}/settings.ts`, "settingsOverride"],
-  ["people", "apps/dashboard/src/surfaces/people/surface.ts", "peopleOverride"],
-  ["leads", "apps/dashboard/src/surfaces/leads/surface.ts", "leadsOverride"],
-  ["reports", "apps/dashboard/src/surfaces/reports/surface.ts", "reportsOverride"],
-  ["reports_headline", "apps/dashboard/src/surfaces/reports/headline.ts", "reportsHeadlineOverride"],
-  ["reports_reviews", "apps/dashboard/src/surfaces/reports/reviews-surface.ts", "reviewsOverride"],
-  ["reports_receptionist", "apps/dashboard/src/surfaces/reports/receptionist-surface.ts", "receptionistOverride"],
-  ["reports_people", "apps/dashboard/src/surfaces/reports/people-surface.ts", "reportsPeopleOverride"],
-  ["reports_campaigns", "apps/dashboard/src/surfaces/reports/campaigns-surface.ts", "reportsCampaignsOverride"],
-  ["live", "apps/dashboard/src/surfaces/live/surface.ts", "liveOverride"],
-  ["broadcasts", "apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts", "broadcastsOverride"],
-  ["playbooks", "apps/dashboard/src/surfaces/campaigns/playbooks/surface.ts", "playbooksOverride"],
-  ["reach_outs", "apps/dashboard/src/surfaces/campaigns/reach-out/surface.ts", "reachOutsOverride"],
-  ["campaign_results", "apps/dashboard/src/surfaces/campaigns/home/results-surface.ts", "campaignResultsOverride"],
-  ["reach_out_replies", "apps/dashboard/src/legacy-bridge/reach-out/replies.ts", "repliesOverride"],
-  ["partner", "apps/dashboard/src/surfaces/settings/partner/surface.ts", "partnerOverride"],
-  ["alerts", "apps/dashboard/src/surfaces/settings/notifications/surface.ts", "alertsOverride"],
-  ["calendar", "apps/dashboard/src/surfaces/calendar/surface.ts", "calendarOverride"],
-  ["notifications", `${S}/notifications.ts`, "notificationsOverride"],
-  ["setup", "apps/dashboard/src/surfaces/setup/surface.ts", "setupOverride"],
-  ["google", "apps/dashboard/src/legacy-bridge/google.ts", "googleOverride"],
-  ["billing", "apps/dashboard/src/surfaces/settings/billing/surface.ts", "billingOverride"],
-];
+/** Every surface the shell registers (LegacyApp.tsx), with the module that holds its override, as the shell imports it. */
+const SURFACES = registeredSurfaces();
 
 const { routes, tables } = traceRoutes();
 const told = Object.fromEntries(watchedEvents().map((w) => [w.table, w.events]));
 const overrides = new Map();
 const surfaces = [];
-for (const [key, file, name] of SURFACES) {
+for (const { name, file } of SURFACES) {
+  assert.ok(file, `${name}: the shell lists it, and the module it is imported from is not found`);
   const override = (await importSrc(file))[name];
-  overrides.set(key, override);
+  assert.ok(override?.key, `${name}: ${file} exports no override by that name`);
+  overrides.set(override.key, override);
   surfaces.push({
-    key,
+    key: override.key,
     name,
+    file,
     reads: override.reads,
+    fresh: override.fresh,
     omit: override.omit,
     refreshOnTables: override.refreshOnTables,
     gets: getsOfFile(file),
@@ -156,34 +138,47 @@ function pairsOf(baseline) {
   return pairs;
 }
 
+/** The pairs of the groups that are owed, the number the file holds and that may only fall. */
+const owedPairs = (groups) =>
+  groups.filter((g) => g.kind === "owed").reduce((n, g) => n + Object.values(g.reads).flat().length, 0);
+
+/** A claim keyed by surface (`rereadAfter`, `heardWith`), kept for the surfaces the group still holds; absent when none is left. */
+const keptFor = (claim, reads) => {
+  if (!claim) return undefined;
+  const kept = Object.fromEntries(Object.entries(claim).filter(([surface]) => surface in reads));
+  return Object.keys(kept).length ? kept : undefined;
+};
+
 if (BANK) {
-  // What fell is banked, and nothing else: a pair that is heard now leaves its group, and a group left with none goes.
+  // What fell is banked, and nothing else: a pair that is heard now leaves its group, a group left with none goes, and the count of
+  // owed pairs falls with them. What a group claims stays, for the surfaces it still holds.
   const was = readBaseline(FILE);
   if (was) {
     const groups = was.groups
-      .map((group) => ({
-        why: group.why,
-        reads: Object.fromEntries(
+      .map(({ rereadAfter: after, heardWith: with_, ...group }) => {
+        const reads = Object.fromEntries(
           Object.entries(group.reads)
             .map(([surface, list]) => [surface, list.filter((table) => unheard.has(`${surface} ${table}`))])
             .filter(([, list]) => list.length > 0),
-        ),
-      }))
+        );
+        const rereadAfter = keptFor(after, reads);
+        const heardWith = keptFor(with_, reads);
+        return { ...group, reads, ...(rereadAfter ? { rereadAfter } : {}), ...(heardWith ? { heardWith } : {}) };
+      })
       .filter((group) => Object.keys(group.reads).length > 0);
-    writeBaseline(path.join(ROOT, BASELINES_DIR, FILE), { groups });
+    writeBaseline(path.join(ROOT, BASELINES_DIR, FILE), {
+      owed: RAISE ? owedPairs(groups) : Math.min(was.owed ?? 0, owedPairs(groups)),
+      groups,
+    });
   }
 }
 const baseline = readBaseline(FILE);
 const held = pairsOf(baseline);
 
-test("the surfaces read here are the ones the shell registers, each as its override says", () => {
-  assert.deepEqual(
-    [...registeredOverrides()].sort(),
-    SURFACES.map(([, , name]) => name).sort(),
-    "a surface joins the shell with its row here, so that what it reads is held to what it hears",
-  );
-  assert.equal(new Set(SURFACES.map(([key]) => key)).size, SURFACES.length, "one row a surface");
-  for (const [key] of SURFACES) assert.equal(overrides.get(key)?.key, key, `${key}: the override's own key`);
+test("the surfaces read here are the ones the shell registers, one each, each from the module the shell imports it from", () => {
+  assert.ok(SURFACES.length > 20, `the shell's list was read: ${SURFACES.length} surfaces`);
+  assert.equal(new Set(surfaces.map((s) => s.key)).size, surfaces.length, "one surface a key");
+  assert.equal(new Set(SURFACES.map((s) => s.name)).size, SURFACES.length, "one override a name");
 });
 
 test("every route a surface reads is one the trace follows, and every surface reads at least one", () => {
@@ -230,6 +225,136 @@ test("the baseline says why for every read, in groups that name surfaces and tab
       }
     }
   }
+});
+
+/**
+ * What kind of exception each group is (the wiring's second audit, S3-8, read on 12 October 2026: 148 of the 184 pairs then sat on
+ * tables the feed carries, under reasons nothing checked, and six of the reasons were false):
+ *  - `seat`: the caller's own seat, and what is private to them (their alerts, their marks and reads, their own name);
+ *  - `account`: the workspace's own row and its plan, the partner's account, or (`of: "other workspaces"`) rows of the workspaces
+ *    a partner brought, which this workspace's topic cannot carry, read only by a surface the feed tells nothing (`own-change`);
+ *  - `unfed`: a table the feed does not tell a workspace of, with what reads it again (`rereadAfter`, `heardWith`) or the finding
+ *    owed it;
+ *  - `over-read`: a table the feed carries, read and not drawn (`field`, the DTO field it feeds, which the surface's own module
+ *    never reads; null where it feeds nothing drawn), or drawn only as it rides with a table the surface hears (`heardWith`);
+ *  - `owed`: a table the feed carries, drawn and not heard: work not done, with the finding or the lane it waits on.
+ */
+const KINDS = ["seat", "account", "unfed", "over-read", "owed"];
+const SEAT = new Set([
+  "memberships",
+  "profiles",
+  "contact_marks",
+  "contact_reads",
+  "notification_marks",
+  "notification_reads",
+]);
+const ACCOUNT = new Set([
+  "tenants",
+  "billing_accounts",
+  "partners",
+  "partner_tenants",
+  "partner_invitations",
+  "partner_earnings",
+]);
+/** A finding of the wiring's second audit (`S3-3`, `X3-2`, `W-person-list-lead-8`), or a lane of it (`R5`). */
+const FINDING = /^(R\d+|[SX]\d+-\d+|W-[a-z-]+-\d+)$/;
+const watched = new Set(watchedTables());
+
+/** The pages a claim's write is asked from: the coverage pages, and the pages whose own rows name a surface there (ifDrawn). */
+const CLAIM_PAGES = [...PAGES, "clients/leads", "broadcasts", "messages", "admin/workspace", "start"];
+/** The surfaces a write's row names from any page a claim may mean. */
+function rereadAnywhere(write) {
+  const keys = new Set();
+  const was = globalThis.location.hash;
+  try {
+    for (const page of CLAIM_PAGES) {
+      globalThis.location.hash = `#/${page}`;
+      for (const o of AFTER[write]?.() ?? []) keys.add(o.key);
+    }
+  } finally {
+    globalThis.location.hash = was;
+  }
+  return keys;
+}
+
+/** A field as the wire spells it and as a view model does: `last_inbound_at`, `lastInboundAt`. */
+const spellings = (field) => [field, field.replace(/_([a-z])/g, (_, c) => c.toUpperCase())];
+
+test("every group says what kind of exception it is, and holds only the tables that kind may", () => {
+  for (const group of baseline.groups) {
+    const at = `${group.kind} (${group.why.slice(0, 50)})`;
+    assert.ok(KINDS.includes(group.kind), `${at}: a kind of ${KINDS.join(", ")}`);
+    if ("finding" in group) assert.match(group.finding, FINDING, `${at}: a finding or a lane of the audit`);
+    for (const [surface, list] of Object.entries(group.reads))
+      for (const table of list) {
+        const pair = `${surface} ${table}`;
+        if (group.kind === "seat") assert.ok(SEAT.has(table), `${pair}: not a seat's table`);
+        if (group.kind === "account" && group.of !== "other workspaces")
+          assert.ok(ACCOUNT.has(table), `${pair}: not the account's table`);
+        if (group.kind === "account" && group.of === "other workspaces")
+          assert.equal(
+            overrides.get(surface)?.fresh,
+            "own-change",
+            `${pair}: another workspace's rows are read only by a surface the feed tells nothing`,
+          );
+        if (group.kind === "unfed")
+          assert.equal(watched.has(table), false, `${pair}: the feed tells it, so it is not unfed`);
+        if (group.kind === "over-read" || group.kind === "owed")
+          assert.ok(watched.has(table), `${pair}: the feed does not tell it; it is unfed`);
+      }
+    if (group.kind === "owed")
+      assert.ok(group.finding, `${at}: an owed read names the finding or the lane it waits on`);
+    if (group.kind === "unfed")
+      assert.ok(
+        group.rereadAfter || group.heardWith || group.finding,
+        `${at}: say what reads it again, or the finding owed it`,
+      );
+    if ("of" in group)
+      assert.equal(group.of, "other workspaces", `${at}: an \`of\` names other workspaces and nothing else`);
+    if (group.kind === "over-read")
+      assert.ok("field" in group || group.heardWith, `${at}: say the field it feeds, or what it rides with`);
+  }
+});
+
+test("an over-read's field is one its surface never reads", () => {
+  for (const group of baseline.groups.filter((g) => g.kind === "over-read" && typeof g.field === "string"))
+    for (const surface of Object.keys(group.reads)) {
+      const { file } = surfaces.find((s) => s.key === surface);
+      const source = stripComments(fs.readFileSync(path.join(ROOT, file), "utf8"));
+      for (const spelled of spellings(group.field))
+        assert.equal(
+          new RegExp(`\\b${spelled}\\b`).test(source),
+          false,
+          `${surface} reads ${spelled} (${file}): it draws what the group says it does not`,
+        );
+    }
+});
+
+test("what a group says re-reads its pages does: each write's row names the surface, and each table it rides with is heard", () => {
+  for (const group of baseline.groups) {
+    for (const [surface, writes] of Object.entries(group.rereadAfter ?? {})) {
+      assert.ok(surface in group.reads, `rereadAfter names ${surface}, which the group does not hold`);
+      for (const write of writes) {
+        assert.ok(AFTER[write], `${write} is no row of the refresh map`);
+        assert.ok(rereadAnywhere(write).has(surface), `${write}'s row does not re-read ${surface}`);
+      }
+    }
+    for (const [surface, list] of Object.entries(group.heardWith ?? {})) {
+      assert.ok(surface in group.reads, `heardWith names ${surface}, which the group does not hold`);
+      const hears = overrides.get(surface)?.refreshOnTables ?? [];
+      for (const table of list) assert.ok(hears.includes(table), `${surface} does not hear ${table}`);
+    }
+  }
+});
+
+test("the owed reads are counted in the file, and the count may only fall", () => {
+  const now = owedPairs(baseline.groups);
+  assert.ok(Number.isInteger(baseline.owed), `${FILE} says how many reads are owed`);
+  assert.ok(
+    now <= baseline.owed,
+    `${now} owed reads, more than the ${baseline.owed} the file allows: hear one instead`,
+  );
+  assert.equal(now, baseline.owed, `good, now bank it: ${BANK_HINT}`);
 });
 
 /* ------------------------------------------------------------------------------------------------------------------------ *

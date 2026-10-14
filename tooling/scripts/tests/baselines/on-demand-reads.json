@@ -1,0 +1,130 @@
+{
+  "apps/dashboard/src/legacy-bridge/LegacyHost.tsx GET workspaces": {
+    "kind": "boot",
+    "fresh": "Read once, before the shell starts, when the tab remembers no workspace.",
+    "why": "It picks the workspace the tab opens on; from then on the workspace surface reads the same list and hears it (memberships, tenants)."
+  },
+  "apps/dashboard/src/legacy-bridge/zone.ts GET workspaces": {
+    "kind": "boot",
+    "fresh": "Read only when the tab knows no zone yet; the workspace surface's read holds it after.",
+    "why": "A day is counted in the workspace's zone, and a page asked for it before the workspace surface landed must not guess it; the surface's own read, heard, is what holds it afterwards."
+  },
+  "apps/dashboard/src/legacy-bridge/activity.ts GET activity": {
+    "kind": "owed",
+    "finding": "X2-3",
+    "fresh": "Read as Settings > Activity opens and as a filter changes, a page at a time.",
+    "why": "Nothing re-reads it while the pane is open: a teammate's change or a visit booked appears only on a return to the tab or a new filter (the wiring's second audit X2-3, lane R5)."
+  },
+  "apps/dashboard/src/legacy-bridge/activity.ts GET contacts": {
+    "kind": "search",
+    "fresh": "Asked as the owner types a name, a number or an address to filter the log by.",
+    "why": "A search answers what was typed at that moment and is asked again with the next key; nothing of it is kept or drawn after the pick."
+  },
+  "apps/dashboard/src/legacy-bridge/ask/api.ts GET ask/threads": {
+    "kind": "on-open",
+    "fresh": "Read as Ask's list of threads opens.",
+    "why": "A member's threads with Ask are theirs alone, changed only by their own turns and deletes; no teammate's change and no record of the workspace moves them."
+  },
+  "apps/dashboard/src/legacy-bridge/ask/api.ts GET ask/threads/[id]": {
+    "kind": "on-open",
+    "fresh": "Read as a thread with Ask opens.",
+    "why": "A thread with Ask is the member's own, changed only by their own turns, each of which answers with what it added."
+  },
+  "apps/dashboard/src/legacy-bridge/ask/api.ts GET ask/openings": {
+    "kind": "on-open",
+    "fresh": "Read when Ask is asked for the open times of a day and a service.",
+    "why": "It answers the question asked, about the calendar as it is then, and is asked again with the next question."
+  },
+  "apps/dashboard/src/legacy-bridge/platform.ts GET platform/overview": {
+    "kind": "on-open",
+    "fresh": "Read as the back office opens, and kept for the tab (read-cache.ts).",
+    "why": "The back office is for the people who run Chanlytics and spans every workspace, which no workspace's topic carries; it is read again as it opens."
+  },
+  "apps/dashboard/src/legacy-bridge/platform.ts GET platform/tenants/[id]": {
+    "kind": "on-open",
+    "fresh": "Read as one workspace's sheet opens in the back office, and kept for the tab (read-cache.ts).",
+    "why": "A workspace's sheet in the back office is read across workspaces, which no workspace's topic carries; it is read again as it opens."
+  },
+  "apps/dashboard/src/surfaces/campaigns/broadcasts/verbs.ts GET broadcasts/[id]": {
+    "kind": "owed",
+    "finding": "X2-2",
+    "fresh": "Read as a run's sheet opens, painted from the last answer and read again behind; followed while the run is sending.",
+    "why": "Once a run is sent its sheet stops following, though its replies, yeses, stops and ticks arrive for 72 hours (the wiring's second audit X2-2, lane R5)."
+  },
+  "apps/dashboard/src/surfaces/inbox/held-threads.ts GET conversations": {
+    "kind": "surface",
+    "fresh": "Read inside the Inbox's and Today's own reads: the threads of open holds past the newest hundred, by their ids.",
+    "why": "It is part of two registered surfaces' reads (inbox/surface.ts, today/surface.ts), so it is read whenever they are, on every notice they hear."
+  },
+  "apps/dashboard/src/surfaces/inbox/new-conversation/verbs.ts GET contacts": {
+    "kind": "search",
+    "fresh": "Asked as the owner types who to write to; with no words, the first page.",
+    "why": "A search answers what was typed at that moment and is asked again with the next key; the person picked is read on their own."
+  },
+  "apps/dashboard/src/surfaces/inbox/new-conversation/verbs.ts GET people/[id]/reach": {
+    "kind": "on-open",
+    "fresh": "Read as the new conversation's sheet opens on one person.",
+    "why": "How one person can be written to and called is asked for the message about to be sent, and the send door checks it again as it sends."
+  },
+  "apps/dashboard/src/surfaces/inbox/thread/call.tsx GET calls/[id]/recording": {
+    "kind": "link",
+    "fresh": "A link the player fetches as it plays, signed afresh after a long pause.",
+    "why": "Nothing is drawn from it but the recording itself, which is made when it is fetched."
+  },
+  "apps/dashboard/src/surfaces/inbox/thread/call.tsx GET calls/[id]/export": {
+    "kind": "link",
+    "fresh": "A link to a call's transcript file, made when it is fetched.",
+    "why": "A file to keep, made when it is fetched: nothing on the page is drawn from it, so there is nothing to keep fresh."
+  },
+  "apps/dashboard/src/surfaces/inbox/thread/header.tsx GET conversations/[id]/export": {
+    "kind": "link",
+    "fresh": "A link to a thread's transcript file, made when it is fetched.",
+    "why": "A file to keep, made when it is fetched: nothing on the page is drawn from it, so there is nothing to keep fresh."
+  },
+  "apps/dashboard/src/surfaces/kit/media/tl-media.tsx GET messages/[id]/media": {
+    "kind": "link",
+    "fresh": "A link the browser fetches for an attachment as it is drawn.",
+    "why": "A message's attachment never changes once kept; the message it belongs to is what the page hears."
+  },
+  "apps/dashboard/src/surfaces/leads/pile/back-today.tsx GET leads/back": {
+    "kind": "on-open",
+    "fresh": "Read as Leads' Back today opens, and again when a reach-out takes or gives back leads (the reach_out:leads event).",
+    "why": "Who comes back today moves with the owner's own acts on the pile, which read it again; a teammate's reaches it on its next open."
+  },
+  "apps/dashboard/src/surfaces/people/people-detail.ts GET contacts/[id]": {
+    "kind": "owed",
+    "finding": "W-thread-wait-step-1",
+    "fresh": "Read as a person's page opens, painted from the last answer and read again behind.",
+    "why": "A person's page is no surface of its own: a teammate answering them, a hold opened or their consent changing reaches the page only as it opens again (the wiring's second audit W-thread-wait-step-1, lane R5)."
+  },
+  "apps/dashboard/src/surfaces/people/shell-verbs.ts GET contacts/export": {
+    "kind": "link",
+    "fresh": "A link to a list's file, made when it is fetched.",
+    "why": "A file to keep, made when it is fetched: nothing on the page is drawn from it, so there is nothing to keep fresh."
+  },
+  "apps/dashboard/src/surfaces/settings/connections/connected-mailboxes.ts GET mailbox-connections/connect": {
+    "kind": "link",
+    "fresh": "The address the browser is sent to, to sign in with the mailbox's provider.",
+    "why": "A step away to the provider's own sign-in, not a read the page draws; the mailbox it connects is told by the feed (mailbox_connections)."
+  },
+  "apps/dashboard/src/surfaces/settings/connections/record.ts GET business-record": {
+    "kind": "on-open",
+    "fresh": "Read as the business record's sheet opens.",
+    "why": "The record the carriers read is filled in on this sheet; Setup and Connections hear its saves on the feed (business_records), and the sheet reads it again as it opens."
+  },
+  "apps/dashboard/src/surfaces/settings/connections/whatsapp.ts GET channels/whatsapp/signup": {
+    "kind": "on-open",
+    "fresh": "Read as WhatsApp's connect sheet opens.",
+    "why": "It says whether this deployment can connect a number and by whom: Meta's door as configured, which changes with a deploy, not with a record."
+  },
+  "apps/dashboard/src/surfaces/settings/connections/whatsapp.ts GET lines/codes": {
+    "kind": "on-open",
+    "fresh": "Read each time the codes are shown: the edge reads them from the provider's own record on every call.",
+    "why": "A code sent to the line lately is the provider's, read fresh on every ask, and kept by nobody here."
+  },
+  "apps/dashboard/src/surfaces/settings/frame/workspace.tsx GET export": {
+    "kind": "link",
+    "fresh": "A link to the workspace's file, made when it is fetched.",
+    "why": "A file to keep, made when it is fetched: nothing on the page is drawn from it, so there is nothing to keep fresh."
+  }
+}
