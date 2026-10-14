@@ -456,7 +456,9 @@ test("the board's module: no feed says none; a failed feed says why; a good feed
   assert.deepEqual([ok.feed.reason, ok.feed.problem, ok.feed.stale, ok.feed.dropped], [null, null, false, 0]);
   const tue = ok.days.find((d) => d.key === "2026-09-08");
   assert.equal(tue.items.length, 1);
-  assert.equal(tue.items[0].id, `a1:${ny(2026, 9, 8, 14)}:0`, "the id: the uid, the instant, the place in the day");
+  // The id is the appointment's key (appointmentKeyOf), the same block on every read: it carried the event's place in the
+  // day, so an event added before it on the next read moved it, and closed the sheet open on it (the Calendar's lane B).
+  assert.equal(tue.items[0].id, "a1", "the id: the event's UID, no place in the day");
   assert.equal(tue.items[0].person, null, "nobody in People yet; a viewer's read adds nobody");
   assert.deepEqual(tue.items[0].contacts, { phones: ["+19175550100"], emails: [] });
   assert.ok(tue.windows.length >= 1, "the day has windows the receptionist would offer");
@@ -604,8 +606,25 @@ test("reading the week adds nobody to People, whoever reads it; the board draws 
   assert.deepEqual(
     matched.days.find((d) => d.key === "2026-09-08").items[0].person,
     // With the wire a reply goes out on and the two stops, as their People row says them (contracts replyFactsOf): no
-    // thread, no stop.
-    { id: "p-ana", name: "Ana Ruiz", via: "phone", reply_wire: null, email_stopped: false, opted_out: false },
+    // thread, no stop. And what the sheet says of them, from the same row (calendar-person-facts.ts): the board reads
+    // People once, never again in the browser for this.
+    {
+      id: "p-ana",
+      name: "Ana Ruiz",
+      via: "phone",
+      reply_wire: null,
+      email_stopped: false,
+      opted_out: false,
+      facts: {
+        state: "unheard",
+        business: null,
+        deal: null,
+        step: null,
+        last: { at: null, by: "No contact recorded" },
+        phone: "+19175550100",
+        email: null,
+      },
+    },
     "the board links the person People holds",
   );
   assert.deepEqual(doors, [], "and a read that matched made nobody either");

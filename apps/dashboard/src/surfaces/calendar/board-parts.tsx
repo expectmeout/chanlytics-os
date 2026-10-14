@@ -1,68 +1,117 @@
 /**
  * What stands round the board (moved from legacy/pages/calendar.jsx CalendarReal, decision 0015): the one bar of controls
- * over it, the cards about the calendar's read, and the foot with the legend and the hours and rules. Each is a plain
- * function the page calls, never a component: the page's tree is what it was.
+ * over it, its one notice, and the sheet of the hours and rules. Each is a plain function the page calls, never a
+ * component: the page's tree is what it was.
  *
- * The calendar first: one bar of controls over the board, and the hours, the booking rules, the calendar's source and
- * Refresh one tap away under it. A title the top bar already says, a paragraph, three stat cards and five rows of controls
- * came first, and on a phone the first day sat below the fold. A line of counts stood under the bar until 22 Sep ("This
- * week 30 on your calendar · Open times 1 that fit Haircut · Next open time tomorrow 4 PM"): the board draws every one of
- * those (the appointments, the open times the service picker leaves, the next of them), and Today's day says the next open
- * time in words. Days that could not be read and days on their way keep their own lines (cal-failed with its Retry,
- * cal-reading), which never needed the counts.
+ * The calendar first: one bar over the board (the range, the steps, what Show draws, the service the open times fit, and
+ * Settings), then at most one notice, then the board. Show says what the board draws over the visits, which are always
+ * drawn: the open times, the campaigns and cold email (contracts CALENDAR_SHOW_WORDS); its caption is the legend, which
+ * stood in a foot under the board with Hours and rules. That foot is gone (D6): Hours and rules is a sheet Settings opens,
+ * and on a phone Show's switches head Settings, where the bar has no room for a capsule of its own.
  */
-import { BOOKING_TOOL_WORDS, CALENDAR_SETTING_ROUTE } from "@chanlytics/contracts";
-import type { CalendarServiceVM, CalendarVM, CalendarView } from "@chanlytics/contracts";
-import type { RefObject } from "react";
+import {
+  BOOKING_TOOL_WORDS,
+  CALENDAR_SETTING_ROUTE,
+  CALENDAR_SHOW_WORDS as SHOW,
+  addressOf,
+  todayVisitsSub,
+  type AppointmentWord,
+  type TodayVisitsAskedVM,
+} from "@chanlytics/contracts";
+import type { CalendarServiceVM, CalendarVM } from "@chanlytics/contracts";
+import type { ReactNode } from "react";
 import { Button } from "../kit/button/button";
 import { DatePicker } from "../kit/datepicker/datepicker";
 import { FailedRead } from "../kit/empty/empty";
 import { Icon } from "../kit/icon/icon";
 import { LinkButton } from "../kit/link-button/link-button";
 import { Menu, type MenuGroup } from "../kit/menu/menu";
-import { Segmented } from "../kit/segmented/segmented";
+import { Notice } from "../kit/notice/notice";
+import { StatePill } from "../kit/pill/state-pill";
 import { Select } from "../kit/select/select";
-import { holdStill, navigate, openBookingTool } from "../legacy-verbs";
-import { routeTo, statePill } from "./shell-verbs";
-import { CR_FEED_WORDS, CR_VIEWS } from "./words";
+import { Sheet } from "../kit/sheet/sheet";
+import { navigate, openBookingTool } from "../legacy-verbs";
+import type { CalendarShow } from "./use-calendar";
+import { CR_FEED_WORDS } from "./words";
+
+/** Where a Business row of Settings opens: its pane, the row named (settings/frame/tabs.ts settingsRowOf). */
+const businessRow = (row: string): string => `${addressOf({ kind: "facts" })}/${row}`;
 
 /** What the bar over the board is drawn from and does. */
 interface BarProps {
   vm: CalendarVM;
-  view: CalendarView;
   anchor: string;
   label: string;
+  /** A read of the days on screen is on its way: the range says so, where the board only dims (CAL-11). */
+  pending: boolean;
   onToday: boolean;
   serviceName: string;
   move: (n: number) => void;
   setAnchorKey: (key: string | null) => void;
   setServiceName: (name: string) => void;
-  setView: (view: CalendarView) => void;
   refreshing: boolean;
   refreshNow: () => void | Promise<void>;
-  aboutOpen: boolean;
-  toggleAbout: () => void;
-  copyLink: () => void | Promise<void>;
+  openRules: () => void;
+  show: CalendarShow;
+  setShow: (show: CalendarShow) => void;
+  /** Whether the workspace has a campaign, and a chain of cold email: Show offers what it has. */
+  offers: { campaigns: boolean; cold: boolean };
+  /** The workspace's word for what is booked (appointmentWords Many): Show's first, always-on switch. */
+  many: string;
+  word: AppointmentWord;
+  /** Yesterday's visits nobody has marked (contracts todayVisitsAsked), or null. */
+  toMark: TodayVisitsAskedVM | null;
+  /** Whether this is a phone, where Show's switches head Settings. */
+  phone: boolean;
 }
 
 /** The service picker's first option, which is no service: the page keeps that as an empty name. */
 const ANY_SERVICE = "*";
 
-/** The views as the segmented control reads them: the id a test finds each button by is the page's. */
-const VIEW_OPTIONS = CR_VIEWS.map(([id, words]) => ({ value: id, label: words, testid: `cal-view-${id}` }));
-
 /** An item's glyph, at the size the menu draws it. */
 const crGlyph = (name: string) => <Icon name={name} size={13} />;
 
 /**
- * What the calendar offers its owner, in one menu at the bar's end: the booking link (open it, copy it), the calendar read
- * again now, the hours and rules, and the place they are kept. Each is the page's own act, moved up here from where it
- * stood (the frame's Booking link button was the first); the foot's toggle and the rules sheet's Refresh stay as they were.
+ * The legend: what each look on the board means, said once, where the switches that draw them are. An open time is said
+ * for the service the picker filters by, and for a consultation where that service needs one first (C5b, the rule the
+ * phone and the assistant follow), through the last day the receptionist offers (C1).
+ */
+function showLegend(vm: CalendarVM, serviceName: string): string {
+  const service = vm.services.find((s) => s.name === serviceName) ?? null;
+  const forWhat = service ? ` for ${service.consultFirst ? "a consultation" : service.name}` : "";
+  return `Taken is from your calendar or your booking tool. Open is a time the receptionist would offer${forWhat}, through ${vm.offer.label}. Times are ${vm.zoneCity} time.`;
+}
+
+/** Show's switches: the workspace's word for what is booked, locked on; open times; campaigns and cold email where it has them. */
+function showGroup(p: BarProps): MenuGroup {
+  const { show, setShow, offers } = p;
+  const items = [
+    { value: "visits", label: p.many, on: true, locked: SHOW.always },
+    { value: "open", label: SHOW.open, on: show.open },
+    ...(offers.campaigns ? [{ value: "campaigns", label: SHOW.campaigns, on: show.campaigns }] : []),
+    ...(offers.cold ? [{ value: "cold", label: SHOW.cold, on: show.cold }] : []),
+  ];
+  return {
+    header: SHOW.label,
+    caption: showLegend(p.vm, p.serviceName),
+    toggles: {
+      items,
+      tick: <Icon name="check" size={13} />,
+      onToggle: (value) => {
+        if (value === "open" || value === "campaigns" || value === "cold") setShow({ ...show, [value]: !show[value] });
+      },
+    },
+  };
+}
+
+/**
+ * What the calendar offers its owner, in one menu at the bar's end: on a phone what Show draws first, then the booking
+ * link (open it, copy it in place), the calendar read again now, the hours and rules, and the place they are kept.
  */
 function optionsGroups(p: BarProps): MenuGroup[] {
-  const { vm, refreshing, refreshNow, aboutOpen, toggleAbout, copyLink } = p;
+  const { vm, refreshing, refreshNow, openRules } = p;
   const link = vm.bookingLink;
-  const groups: MenuGroup[] = [];
+  const groups: MenuGroup[] = p.phone ? [showGroup(p)] : [];
   if (link) {
     groups.push({
       header: "Booking link",
@@ -72,7 +121,8 @@ function optionsGroups(p: BarProps): MenuGroup[] {
           glyph: crGlyph("external"),
           onSelect: () => window.open(link, "_blank", "noopener,noreferrer"),
         },
-        { label: "Copy the link", glyph: crGlyph("copy"), onSelect: () => void copyLink() },
+        // Copied in place, the menu held open: the toast said it at the foot of a phone, under the thumb (CAL-23).
+        { label: "Copy the link", glyph: crGlyph("copy"), copy: { text: link, said: "Copied" } },
       ],
     });
   }
@@ -90,15 +140,11 @@ function optionsGroups(p: BarProps): MenuGroup[] {
             },
           ]
         : []),
-      {
-        label: aboutOpen ? "Hide hours and rules" : "Hours and rules",
-        glyph: crGlyph("clock"),
-        onSelect: toggleAbout,
-      },
+      { label: "Hours and rules", glyph: crGlyph("clock"), onSelect: openRules },
       {
         label: BOOKING_TOOL_WORDS.label,
         hint: "Settings › Business",
-        glyph: crGlyph("settings"),
+        glyph: crGlyph("cog"),
         onSelect: () => openBookingTool(CALENDAR_SETTING_ROUTE),
       },
     ],
@@ -106,99 +152,157 @@ function optionsGroups(p: BarProps): MenuGroup[] {
   return groups;
 }
 
+/** The steps and the range, which says which days are on screen (or that they are being read) and opens a date picker. */
+function whenPart(p: BarProps) {
+  const { vm, anchor, label, onToday, move, setAnchorKey } = p;
+  return (
+    <div className="cal-when">
+      <div className="cal-steps">
+        <Button
+          variant="quiet"
+          size="sm"
+          iconOnly
+          className="cal-nav"
+          title="Previous"
+          aria-label="Previous"
+          onClick={() => move(-1)}
+          data-testid="cal-prev"
+        >
+          <Icon name="chevron" size={14} className="cal-flip" />
+        </Button>
+        <Button
+          variant="quiet"
+          size="sm"
+          className="cal-today-btn"
+          onClick={() => setAnchorKey(null)}
+          disabled={onToday}
+          data-testid="cal-today"
+        >
+          Today
+        </Button>
+        <Button
+          variant="quiet"
+          size="sm"
+          iconOnly
+          className="cal-nav"
+          title="Next"
+          aria-label="Next"
+          onClick={() => move(1)}
+          data-testid="cal-next"
+        >
+          <Icon name="chevron" size={14} />
+        </Button>
+      </div>
+      {/* The range says which days are on screen, and opens the kit's date picker; a read on its way says so in it. */}
+      <DatePicker
+        value={anchor}
+        onValueChange={setAnchorKey}
+        today={vm.today}
+        label="Go to a date"
+        glyphs={{ previous: <Icon name="chevron" size={14} />, next: <Icon name="chevron" size={14} /> }}
+        trigger={
+          <Button variant="quiet" size="sm" className="cal-title" title="Go to a date" data-testid="cal-jump">
+            <span
+              className="cal-title-range"
+              aria-live="polite"
+              data-testid="cal-range"
+              data-reading={p.pending || undefined}
+            >
+              {label}
+            </span>
+            {p.pending ? (
+              <span className="cal-title-reading" role="status" data-testid="cal-reading">
+                Reading…
+              </span>
+            ) : null}
+            <Icon name="chevron-down" size={12} />
+          </Button>
+        }
+      />
+    </div>
+  );
+}
+
 /**
- * The bar: the four views, the steps, the range (which says which days are on screen, and opens a date picker: the date
- * field was a control of its own), the service the open times must fit, and the options.
+ * Show, a capsule of the bar's own glass on a desk: its value says what is on beside the visits. Drawn for every workspace,
+ * one with no campaign too: its open times' switch and the legend are there (a phone's are at the head of Settings).
+ */
+function showCapsule(p: BarProps) {
+  if (p.phone) return null;
+  return (
+    <Menu
+      align="end"
+      label={SHOW.label}
+      groups={[showGroup(p)]}
+      trigger={
+        <Button variant="quiet" className="cal-show" data-testid="cal-show">
+          <span className="cal-show-key">{SHOW.label}</span>
+          <span className="cal-show-value">{SHOW.value(p.show, p.offers)}</span>
+          <Icon name="chevron-down" size={12} />
+        </Button>
+      }
+    />
+  );
+}
+
+/** The service the open times must fit, "Open for · Any service": hidden while open times are off, all it filters (CAL-4). */
+function servicePick(p: BarProps) {
+  const { vm, serviceName, setServiceName } = p;
+  if (!vm.services.length || !p.show.open) return null;
+  return (
+    <Select
+      value={serviceName || ANY_SERVICE}
+      onValueChange={(next) => setServiceName(next === ANY_SERVICE ? "" : next)}
+      options={[
+        { value: ANY_SERVICE, label: `${SHOW.openFor} · ${SHOW.anyService}` },
+        ...vm.services.map((s) => ({ value: s.name, label: `${SHOW.openFor} · ${s.label}` })),
+      ]}
+      chevron={<Icon name="chevron-down" size={12} />}
+      label="Open times that fit a service"
+      className="cal-service"
+      data-testid="cal-service"
+    />
+  );
+}
+
+/** Yesterday's visits nobody has marked, said beside the range (CAL-1): a press opens the first, asking "Did they come?". */
+function toMarkPart(p: BarProps) {
+  const first = p.toMark?.items.at(0);
+  if (!p.toMark || !first) return null;
+  return (
+    <Button
+      variant="quiet"
+      size="sm"
+      className="cal-unmarked"
+      onClick={() => navigate(first.to)}
+      data-testid="cal-to-mark"
+    >
+      <span className="cal-unmarked-ring" aria-hidden="true" />
+      {todayVisitsSub(p.toMark.count, p.word)}
+    </Button>
+  );
+}
+
+/**
+ * The bar, under the frame's strip of views (chrome.ts): the steps and the range, yesterday's visits to mark, what Show
+ * draws, the service the open times fit, and the options. The views stood first in this bar, the page's own segmented
+ * control dressed as the strip; they are the strip now, where every other page's row of views stands (Ruben, 11 Oct 2026).
  */
 export function calendarHead(p: BarProps) {
-  const { vm, view, anchor, label, onToday, serviceName, move, setAnchorKey, setServiceName, setView } = p;
+  // On a phone the bar is one row with no room to spare (the range, the steps, Settings): the visits to mark stand on a
+  // line of their own under it, where they pushed Settings off the screen.
+  const toMark = toMarkPart(p);
   return (
     <div className="cal-head">
       <div className="cal-bar" data-testid="cal-bar">
-        {/* The views stand first, where every other page's row of views stands under the head (the frame's strip, at the
-            left), with the range and its steps after them and the page's options at the right (Ruben, 7 Oct 2026: they
-            stood at the right on a desk, so the tabs moved across the page between the Inbox and the Calendar). A view
-            is a different height under the tabs (fourteen cards, six weeks, a day): they hold still, from the button
-            that was pressed, which has the focus. */}
-        <Segmented
-          label="View"
-          value={view}
-          onValueChange={(next) => holdStill(document.activeElement, () => setView(next))}
-          options={VIEW_OPTIONS}
-          className="cal-views"
-        />
-        <div className="cal-when">
-          <div className="cal-steps">
-            <Button
-              variant="quiet"
-              size="sm"
-              iconOnly
-              className="cal-nav"
-              title="Previous"
-              aria-label="Previous"
-              onClick={() => move(-1)}
-              data-testid="cal-prev"
-            >
-              <Icon name="chevron" size={14} className="cal-flip" />
-            </Button>
-            <Button
-              variant="quiet"
-              size="sm"
-              className="cal-today-btn"
-              onClick={() => setAnchorKey(null)}
-              disabled={onToday}
-              data-testid="cal-today"
-            >
-              Today
-            </Button>
-            <Button
-              variant="quiet"
-              size="sm"
-              iconOnly
-              className="cal-nav"
-              title="Next"
-              aria-label="Next"
-              onClick={() => move(1)}
-              data-testid="cal-next"
-            >
-              <Icon name="chevron" size={14} />
-            </Button>
-          </div>
-          {/* The range says which days are on screen, and opens the kit's date picker: the date field was a control of its own,
-              and the browser's own picker drew in the system's colours. */}
-          <DatePicker
-            value={anchor}
-            onValueChange={setAnchorKey}
-            today={vm.today}
-            label="Go to a date"
-            glyphs={{ previous: <Icon name="chevron" size={14} />, next: <Icon name="chevron" size={14} /> }}
-            trigger={
-              <Button variant="quiet" size="sm" className="cal-title" title="Go to a date" data-testid="cal-jump">
-                <span className="cal-title-range" aria-live="polite" data-testid="cal-range">
-                  {label}
-                </span>
-                <Icon name="chevron-down" size={12} />
-              </Button>
-            }
-          />
-        </div>
+        {whenPart(p)}
+        {p.phone ? null : toMark}
         <div className="cal-tools">
-          {vm.services.length > 0 && (
-            <Select
-              value={serviceName || ANY_SERVICE}
-              onValueChange={(next) => setServiceName(next === ANY_SERVICE ? "" : next)}
-              options={[
-                { value: ANY_SERVICE, label: "Any service" },
-                ...vm.services.map((s) => ({ value: s.name, label: s.label })),
-              ]}
-              chevron={<Icon name="chevron-down" size={12} />}
-              label="Open times that fit a service"
-              className="cal-service"
-              data-testid="cal-service"
-            />
-          )}
+          {showCapsule(p)}
+          {servicePick(p)}
           {/* The cog says its word on a desk, where the capsules beside it say theirs (Ruben, 8 Oct 2026: a bare cog at the
-              bar's end); a phone keeps the glass circle, and the word for a screen reader (calendar.css, the phone block). */}
+              bar's end), and on a phone wherever the row has the room; else the glass circle, with the word for a screen
+              reader (calendar.css, the phone block; decision D8). */}
           <Menu
             align="end"
             label="Calendar settings"
@@ -218,220 +322,204 @@ export function calendarHead(p: BarProps) {
           />
         </div>
       </div>
+      {p.phone && toMark ? <div className="cal-head-line">{toMark}</div> : null}
     </div>
   );
 }
 
-/** What the cards over the board are drawn from and do. */
-interface CardProps {
+/** What the one notice is drawn from: the view model, the service picked, and the board's own reads. */
+interface NoticeProps {
   vm: CalendarVM;
   service: CalendarServiceVM | null;
   refreshing: boolean;
   refreshNow: () => void | Promise<void>;
+  covered: boolean;
+  failedSpan: string | null;
+  spanKey: string;
+  read: () => void;
+  pending: boolean;
 }
 
-/** The service picked needs a consultation first: the receptionist offers the consultation, and the open times here are its. */
-export function consultNote(p: Pick<CardProps, "vm" | "service">) {
-  const { vm, service } = p;
-  return (
-    service &&
-    service.consultFirst && (
-      <div className="cal-feed-card" data-testid="cal-consult-note">
-        <Icon name="shield" size={14} />
-        <span>
-          <b>{service.name} needs a consultation first.</b>{" "}
-          <span className="cal-feed-more">
-            The receptionist does not offer times for it; it offers the consultation and{" "}
-            {vm.bookingLink ? "sends the booking link" : "takes their details"}. The open times here are for a
-            consultation{service.offerMinutes ? `, about ${service.offerMinutes} minutes` : ""}.
-          </span>
-        </span>
-      </div>
-    )
-  );
+/** One notice, the kit's: its fact, its one act, its name for a screen reader. */
+interface NoticeVM {
+  id: string;
+  fact: ReactNode;
+  act: ReactNode;
+  label: string;
 }
 
 /**
  * The feed card's one door: the next press the one answer names (contracts calendarSourceOf), which opens the Booking
- * tool's sheet here, over the Calendar (legacy-verbs.ts openBookingTool). Where the answer's own door is this page (bookings that arrive by email and need
- * nothing), the row is offered quietly instead, by its name. Loud only where something is the owner's to do.
+ * tool's sheet here. Where the answer's own door is this page, the row is offered by its name.
  */
-function feedDoorOf(s: CalendarVM["source"]): { words: string; to: string; quiet: boolean } {
+function feedDoorOf(s: CalendarVM["source"]): { words: string; to: string } {
   const here = s.next.to === "calendar";
+  return { words: here ? BOOKING_TOOL_WORDS.label : s.next.label, to: here ? CALENDAR_SETTING_ROUTE : s.next.to };
+}
+
+/** A press of a notice's act, by where it goes: the booking tool's sheet over the board, else the page it names. */
+const goTo = (to: string) => () => (to === CALENDAR_SETTING_ROUTE ? openBookingTool(to) : navigate(to));
+
+/** The calendar could not be read: why, and Retry. */
+function unreadNotice(p: NoticeProps): NoticeVM {
+  const { vm } = p;
+  const why = vm.feed.problem || CR_FEED_WORDS.unavailable;
+  const until = vm.feed.problem
+    ? ` Until it reads, the receptionist ${vm.bookingLink ? "sends the booking link but " : ""}never names an open time.`
+    : "";
   return {
-    words: here ? BOOKING_TOOL_WORDS.label : s.next.label,
-    to: here ? CALENDAR_SETTING_ROUTE : s.next.to,
-    quiet: s.state === "waiting",
+    id: "feed",
+    fact: (
+      <>
+        <b>Your calendar could not be read.</b> {why}
+        {until}
+      </>
+    ),
+    act: (
+      <Button size="sm" onClick={p.refreshNow} disabled={p.refreshing} data-testid="cal-feed-retry">
+        {p.refreshing ? "Retrying…" : "Retry"}
+      </Button>
+    ),
+    label: "Your calendar could not be read.",
   };
 }
 
-/**
- * No calendar link that reads: what the calendar is fed by instead, in the one answer's words (vm.source), and the way
- * to what is next. A link that could not be read keeps its own sentences, with why and a Retry. A business that books
- * by hand said so in Settings, and is told nothing: there is no card. On a phone the card is its bold line and its door
- * (calendar.css hides `cal-feed-more`): the rest is a desk's paragraph. Emails that need a look are the bold line
- * itself (calendarSourceOf's lead), since that is a decision.
- */
-export function feedCard(p: Pick<CardProps, "vm" | "refreshing" | "refreshNow">) {
-  const { vm, refreshing, refreshNow } = p;
+/** No calendar link that reads: what the calendar is fed by instead (vm.source), and the way to what is next. */
+function sourceNotice(vm: CalendarVM): NoticeVM | null {
   const s = vm.source;
+  if (s.state === "hand" || s.state === "ready") return null;
   const door = feedDoorOf(s);
-  return (
-    vm.feed.state !== "ok" &&
-    s.state !== "hand" && (
-      <div className="cal-feed-card" data-testid="cal-feed-card">
-        <Icon name="calendar" size={14} />
-        {vm.feed.state === "unavailable" ? (
-          <span>
-            <b>Your calendar could not be read.</b>{" "}
-            <span className="cal-feed-more">
-              {vm.feed.problem || CR_FEED_WORDS.unavailable}
-              {vm.feed.problem
-                ? ` Until it reads, the receptionist ${vm.bookingLink ? "sends the booking link but " : ""}never names an open time.`
-                : ""}
-            </span>
-          </span>
-        ) : (
-          // Bookings that arrive by email, a tool still being set up, or nothing connected: said once, as every page says it.
-          <span data-testid={s.by === "emails" ? "cal-feed-notices" : undefined}>
-            <b>{s.lead}</b>
-            {s.rest ? (
-              <>
-                {" "}
-                <span className="cal-feed-more">{s.rest}</span>
-              </>
-            ) : null}
-          </span>
-        )}
-        {/* A calendar that can't be read: its only way back was Settings (C2). */}
-        {vm.feed.state === "unavailable" && (
-          <Button
-            size="sm"
-            className="cal-feed-door"
-            onClick={refreshNow}
-            disabled={refreshing}
-            data-testid="cal-feed-retry"
-          >
-            {refreshing ? "Retrying…" : "Retry"}
-          </Button>
-        )}
-        {/* What works and asks nothing has no press: the menu at the bar's end goes to the same row. */}
-        {s.state !== "ready" && (
-          <Button
-            variant={door.quiet ? "quiet" : "primary"}
-            size="sm"
-            className="cal-feed-door"
-            onClick={() => (door.to === CALENDAR_SETTING_ROUTE ? openBookingTool(door.to) : navigate(door.to))}
-            data-testid="cal-feed-door"
-          >
-            {door.words}
-          </Button>
-        )}
-      </div>
-    )
-  );
+  return {
+    id: "feed",
+    fact: (
+      <span data-testid={s.by === "emails" ? "cal-feed-notices" : undefined}>
+        <b>{s.lead}</b>
+        {s.rest ? ` ${s.rest}` : ""}
+      </span>
+    ),
+    act: (
+      <Button
+        size="sm"
+        variant={s.state === "waiting" ? "quiet" : "primary"}
+        onClick={goTo(door.to)}
+        data-testid="cal-feed-door"
+      >
+        {door.words}
+      </Button>
+    ),
+    label: s.lead,
+  };
 }
 
-/** A read that landed after a read that failed: the last good one is on screen, and the receptionist is using it too. */
-export function staleCard(p: Pick<CardProps, "vm" | "refreshing" | "refreshNow">) {
-  const { vm, refreshing, refreshNow } = p;
-  return (
-    vm.feed.state === "ok" &&
-    vm.feed.stale && (
-      <div className="cal-feed-card" data-testid="cal-feed-stale">
-        <Icon name="calendar" size={14} />
-        <span>
-          <b>Showing the last good read.</b>{" "}
-          <span className="cal-feed-more">
-            {vm.feed.problem || CR_FEED_WORDS.stale} The receptionist is using this read too; it tries again every few
-            minutes.
-          </span>
-        </span>
-        <Button
-          size="sm"
-          className="cal-feed-door"
-          onClick={refreshNow}
-          disabled={refreshing}
-          data-testid="cal-feed-stale-retry"
-        >
-          {refreshing ? "Retrying…" : "Retry"}
+/** The notices the board may carry, the most pressing first; the slot draws the first (CAL-12). */
+function noticesOf(p: NoticeProps): NoticeVM[] {
+  const { vm, service } = p;
+  const out: NoticeVM[] = [];
+  if (vm.feed.state === "unavailable") out.push(unreadNotice(p));
+  else if (vm.feed.state !== "ok") {
+    const n = sourceNotice(vm);
+    if (n) out.push(n);
+  }
+  if (vm.feed.state === "ok" && vm.feed.stale)
+    out.push({
+      id: "stale",
+      fact: (
+        <>
+          <b>Showing the last good read.</b> {vm.feed.problem || CR_FEED_WORDS.stale} The receptionist is using it too.
+        </>
+      ),
+      act: (
+        <Button size="sm" onClick={p.refreshNow} disabled={p.refreshing} data-testid="cal-feed-stale-retry">
+          {p.refreshing ? "Retrying…" : "Retry"}
         </Button>
-        <Button
-          variant="quiet"
-          size="sm"
-          className="cal-feed-door"
-          onClick={() => openBookingTool(CALENDAR_SETTING_ROUTE)}
-        >
-          Check the link
+      ),
+      label: "Showing the last good read.",
+    });
+  // Hours never set: no day is drawn closed, and none is offered (CAL-2).
+  if (!vm.hoursSet)
+    out.push({
+      id: "hours",
+      fact: (
+        <>
+          <b>Your hours aren't set.</b> No day shows as closed, and the receptionist offers no time until they are.
+        </>
+      ),
+      act: (
+        <Button size="sm" variant="quiet" onClick={() => navigate(businessRow("hours"))} data-testid="cal-hours-door">
+          Set your hours
         </Button>
-      </div>
-    )
-  );
-}
-
-/** What a read that landed left out (repeating events it cannot follow, events it does not draw), explained. */
-export function feedNotes(p: { vm: CalendarVM; feedOk: boolean }) {
-  const { vm, feedOk } = p;
-  return (
-    feedOk &&
-    vm.feed.notes.map((n) => (
-      <div key={n.id} className={`cal-feed-card cal-feed-note ${n.id}`} data-testid={`cal-feed-note-${n.id}`}>
-        <Icon name={n.id === "repeats" ? "alert" : "calendar"} size={14} />
-        <span>
+      ),
+      label: "Your hours aren't set.",
+    });
+  if (service?.consultFirst)
+    out.push({
+      id: "consult",
+      fact: (
+        <>
+          <b>{service.name} needs a consultation first.</b> The open times here are for a consultation
+          {service.offerMinutes ? `, about ${service.offerMinutes} minutes` : ""}.
+        </>
+      ),
+      act: null,
+      label: `${service.name} needs a consultation first.`,
+    });
+  for (const n of vm.feed.state === "ok" ? vm.feed.notes : [])
+    out.push({
+      id: `note-${n.id}`,
+      fact: (
+        <>
           <b>{n.title}</b> {n.body}
-        </span>
-      </div>
-    ))
-  );
+        </>
+      ),
+      act: null,
+      label: n.title,
+    });
+  return out;
 }
 
-/** Days that could not be read say so, with a Retry, where a toast said it once and faded over days still dimmed as if loading. */
-export function failedLine(p: {
-  covered: boolean;
-  failedSpan: string | null;
-  spanKey: string | null;
-  read: () => void;
-  pending: boolean;
-}) {
-  const { covered, failedSpan, spanKey, read, pending } = p;
-  return (
-    !covered &&
-    failedSpan === spanKey && (
+/**
+ * The board's one notice slot (CAL-12): the most pressing of what it has to say, in the kit's Notice, where up to five
+ * cards stacked over the days and pushed the first one off a phone. Days a read could not reach keep their own line
+ * with its Retry (the kit's FailedRead), which is about the days on screen, not the calendar.
+ */
+export function noticeSlot(p: NoticeProps) {
+  if (!p.covered && p.failedSpan === p.spanKey)
+    return (
       <FailedRead
         kind="line"
         what="those days"
         body="What was already on screen is still current, and the receptionist reads your calendar on its own."
-        onRetry={read}
-        busy={pending}
+        onRetry={p.read}
+        busy={p.pending}
         className="cal-failed"
         testid="cal-failed"
       />
-    )
-  );
-}
-
-/** A read on its way says so in words; the board only dimmed (C2). */
-export function readingLine(pending: boolean) {
+    );
+  const first = noticesOf(p).at(0);
+  if (!first) return null;
   return (
-    pending && (
-      <div className="cal-reading" role="status" data-testid="cal-reading">
-        Reading those days…
-      </div>
-    )
+    <Notice
+      line
+      fact={first.fact}
+      act={first.act}
+      label={first.label}
+      className="cal-notice"
+      testid={`cal-notice-${first.id}`}
+    />
   );
 }
 
 /**
  * A group's name, which is the door to where it is kept: the Business row of that name, opened (the address names the
- * row: settings/frame/tabs.ts settingsRowOf). The sheet had one door for all of it, to the top of the tab.
+ * row: settings/frame/tabs.ts settingsRowOf).
  */
 function rulesLabel(words: string, row: string) {
   return (
     <dt className="cal-rules-label">
       <LinkButton
         className="cal-door"
-        onClick={() => navigate(`${routeTo.admin("workspace")}/${row}`)}
-        title={`Change it in Settings › Business`}
+        onClick={() => navigate(businessRow(row))}
+        title="Change it in Settings › Business"
         data-testid={`cal-rules-door-${row}`}
       >
         {words} <Icon name="arrow-right" size={9} />
@@ -440,97 +528,47 @@ function rulesLabel(words: string, row: string) {
   );
 }
 
-/** The hours the receptionist works from, a run of days to a line. */
-function hoursGroup(vm: CalendarVM) {
+/** One group of the sheet: its name, the door to where it is kept, and its lines (or what it says with none). */
+function rulesGroup(g: { words: string; row: string; lines: readonly string[]; none: string; testid?: string }) {
+  const { words, row, lines, none, testid } = g;
   return (
-    <div className="cal-rules-group">
-      {rulesLabel("Hours", "hours")}
+    <div className="cal-rules-group" data-testid={testid}>
+      {rulesLabel(words, row)}
       <dd className="cal-rules-value">
-        {vm.hoursLines.length
-          ? vm.hoursLines.map((l) => (
+        {lines.length
+          ? lines.map((l) => (
               <span key={l} className="cal-rules-line">
                 {l}
               </span>
             ))
-          : "Not set yet"}
+          : none}
       </dd>
     </div>
   );
 }
 
-/** The closures ahead, and how many more there are than the bar names. */
-function closedGroup(vm: CalendarVM) {
-  return (
-    <div className="cal-rules-group">
-      {rulesLabel("Closed", "closures")}
-      <dd className="cal-rules-value">
-        {vm.closuresAhead.length
-          ? vm.closuresAhead.map((c) => (
-              <span key={c.label} className="cal-rules-line">{`${c.label}${c.note ? ` (${c.note})` : ""}`}</span>
-            ))
-          : "None ahead"}
-        {vm.closuresMore > 0 && <span className="cal-rules-line cal-rules-more">+{vm.closuresMore} more</span>}
-      </dd>
-    </div>
-  );
-}
-
-/** The booking rules, one phrase to a part, so a narrow screen wraps between rules and never inside one. */
-function bookingGroup(vm: CalendarVM) {
-  return (
-    <div className="cal-rules-group">
-      {rulesLabel("Booking", "booking_rules")}
-      <dd className="cal-rule-parts cal-rules-value">
-        {vm.ruleParts.map((part) => (
-          <span key={part} className="cal-rule" data-testid="cal-rule">
-            {part}
-          </span>
-        ))}
-      </dd>
-    </div>
-  );
-}
-
-/**
- * What the business books with, under the Business row's own name (spec §10: one name for one thing on both pages).
- * A calendar link's read is said as the pill Connections and Setup use (C3), and beside it only when it was read;
- * Refresh asks for another. With no link, the one answer's state in its own words (vm.source): a business whose
- * bookings arrive by email read "Not connected" here, under a board that showed them.
- */
-function feedGroup(p: Pick<CardProps, "vm" | "refreshing" | "refreshNow">) {
+/** What the calendar is fed by: its read in the pill Connections uses, and Refresh; with no link, the one answer's words. */
+function feedGroup(p: { vm: CalendarVM; refreshing: boolean; refreshNow: () => void | Promise<void> }) {
   const { vm, refreshing, refreshNow } = p;
-  const Pill = statePill();
-  if (!vm.feed.present)
-    return (
-      <div className="cal-rules-group">
-        {rulesLabel(BOOKING_TOOL_WORDS.label, "calendar")}
-        <dd className="cal-rules-value cal-rules-feed">
-          <span className="cal-feed-chip" data-testid="cal-feed">
-            <Pill kind="tone" value={vm.source.tone} label={vm.source.words} testid="cal-feed-state" />
-            {vm.feed.notices.tool && <span className="cal-feed-detail">{vm.feed.notices.tool}</span>}
-          </span>
-        </dd>
-      </div>
-    );
+  const read = vm.feed.state === "ok" && !vm.feed.stale ? vm.feed.read : vm.feed.detail;
   return (
     <div className="cal-rules-group">
       {rulesLabel(BOOKING_TOOL_WORDS.label, "calendar")}
       <dd className="cal-rules-value cal-rules-feed">
-        {/* The state in the pill Connections and Setup use (C3), and beside it only when it was read: where
-                    it reads from and how many events it found are Settings' to say. Something wrong keeps the whole
-                    detail, when it was tried and when it was last read. */}
-        <span className="cal-feed-chip" data-testid="cal-feed">
-          <Pill kind="calendar" value={vm.feed.health} testid="cal-feed-state" />
-          {(vm.feed.state === "ok" && !vm.feed.stale ? vm.feed.read : vm.feed.detail) && (
-            <span className="cal-feed-detail">
-              {vm.feed.state === "ok" && !vm.feed.stale ? vm.feed.read : vm.feed.detail}
-            </span>
+        <span className="cal-feed-state" data-testid="cal-feed">
+          {vm.feed.present ? (
+            <StatePill kind="calendar" value={vm.feed.health} testid="cal-feed-state" />
+          ) : (
+            <StatePill kind="tone" value={vm.source.tone} label={vm.source.words} testid="cal-feed-state" />
           )}
+          {vm.feed.present && read ? <span className="cal-feed-detail">{read}</span> : null}
+          {!vm.feed.present && vm.feed.notices.tool ? (
+            <span className="cal-feed-detail">{vm.feed.notices.tool}</span>
+          ) : null}
         </span>
         {vm.feed.present && (
           <Button
             size="sm"
-            className="cal-refresh"
             onClick={refreshNow}
             disabled={refreshing}
             aria-busy={refreshing ? "true" : "false"}
@@ -545,110 +583,49 @@ function feedGroup(p: Pick<CardProps, "vm" | "refreshing" | "refreshNow">) {
   );
 }
 
-/** The hours, the rules and the calendar it reads, as one sheet: a term and its value, each value on lines of its own. */
-function rulesSheet(p: Pick<CardProps, "vm" | "refreshing" | "refreshNow"> & { copyLink: () => void | Promise<void> }) {
-  const { vm, refreshing, refreshNow, copyLink } = p;
-  return (
-    <div className="cal-rules" data-testid="cal-rules">
-      <dl className="cal-rules-list">
-        {hoursGroup(vm)}
-        {closedGroup(vm)}
-        {bookingGroup(vm)}
-        {/* Which services wait for a consultation was said only inside the service picker (C1). */}
-        {vm.consultFirst.length > 0 && (
-          <div className="cal-rules-group" data-testid="cal-rules-consult">
-            {rulesLabel("Consultation first", "consult_first")}
-            <dd className="cal-rules-value">{vm.consultFirst.join(" · ")}</dd>
-          </div>
-        )}
-        {feedGroup({ vm, refreshing, refreshNow })}
-      </dl>
-      <div className="cal-rules-links">
-        <span className="cal-about-note">
-          {vm.bookingLink ? "Customers book through your booking link." : "Customers book with your team."}
-        </span>
-        <span className="cal-rules-doors">
-          {vm.bookingLink && (
-            <LinkButton className="cal-door" title={vm.bookingLink} onClick={copyLink} data-testid="cal-copy-link">
-              <Icon name="copy" size={11} />
-              Copy booking link
-            </LinkButton>
-          )}
-          <LinkButton className="cal-door" onClick={() => navigate(routeTo.admin("workspace"))}>
-            Edit in Settings › Business <Icon name="arrow-right" size={10} />
-          </LinkButton>
-        </span>
-      </div>
-    </div>
-  );
-}
-
-/** What the foot is drawn from and does. */
-interface FootProps extends Pick<CardProps, "vm" | "service" | "refreshing" | "refreshNow"> {
-  aboutOpen: boolean;
-  aboutRef: RefObject<HTMLDivElement | null>;
-  toggleAbout: () => void;
-  copyLink: () => void | Promise<void>;
-}
-
 /**
- * The foot: the legend, and the hours, the rules, the calendar's source and Refresh one tap away. The hours and the rules
- * were a card over the board, and the calendar's pill and Refresh sat among the controls: they are one tap away here. A
- * calendar that can't be read still says so over the board, with its Retry.
+ * The hours, the rules and the calendar it reads, as the kit's sheet Settings opens (D6): a term and its value, each
+ * value on lines of its own, each term a door to the Business row that keeps it.
  */
-export function calendarFoot(p: FootProps) {
-  const { vm, service, refreshing, refreshNow, aboutOpen, aboutRef, toggleAbout, copyLink } = p;
+export function rulesSheet(p: {
+  open: boolean;
+  onClose: () => void;
+  vm: CalendarVM;
+  refreshing: boolean;
+  refreshNow: () => void | Promise<void>;
+}) {
+  const { vm } = p;
+  const closed = [
+    ...vm.closuresAhead.map((c) => `${c.label}${c.note ? ` (${c.note})` : ""}`),
+    ...(vm.closuresMore > 0 ? [`+${vm.closuresMore} more`] : []),
+  ];
   return (
-    <div className="cal-foot">
-      <div className="cal-foot-row">
-        <div className="cal-legend" data-testid="cal-legend">
-          {/* On a phone each is its one word and the zone waits for the sheet (calendar.css hides the tails): the
-              legend and Hours and rules share one row under a board that fits the screen. */}
-          <span>
-            <i className="cal-legend-swatch taken" /> Taken
-            <span className="cal-legend-tail">, from your calendar or your booking tool</span>
-          </span>
-          <span>
-            <i className="cal-legend-swatch open" /> Open
-            <span className="cal-legend-tail">
-              {" "}
-              — the receptionist would offer it
-              {service ? (service.consultFirst ? " for a consultation" : ` for ${service.name}`) : ""}, through{" "}
-              {vm.offer.label}
-            </span>
-          </span>
-          <span>
-            <i className="cal-legend-swatch closed" /> Closed
-            <span className="cal-legend-tail">, or outside your hours</span>
-          </span>
-          <span className="cal-legend-rules">Times are {vm.zoneCity} time</span>
-        </div>
-        <Button
-          variant="quiet"
-          size="sm"
-          className="cal-about-toggle"
-          aria-expanded={aboutOpen}
-          aria-controls="cal-about"
-          onClick={toggleAbout}
-          data-testid="cal-about-toggle"
-        >
-          Hours and rules <Icon name="chevron-down" size={12} />
-        </Button>
-      </div>
-      <div
-        className="cal-about"
-        id="cal-about"
-        ref={aboutRef}
-        data-open={aboutOpen ? "true" : "false"}
-        aria-hidden={aboutOpen ? undefined : "true"}
-        inert={aboutOpen ? undefined : true}
-        data-testid="cal-about"
-      >
-        {/* What the receptionist works from, as one sheet: a term and its value, each value on lines of its own. It
-              was a run of labels and sentences ("From your calendar · read just now · 36 events") with a Refresh that
-              read as a word (Ruben, 24 Sep: "less copy ... the refresh button does not even look like a button"). */}
-        <div className="cal-about-in">{rulesSheet({ vm, refreshing, refreshNow, copyLink })}</div>
-      </div>
-    </div>
+    <Sheet
+      open={p.open}
+      onClose={p.onClose}
+      title="Hours and rules"
+      sub={`Times are ${vm.zoneCity} time`}
+      close={{ label: "Close", glyph: <Icon name="x" size={13} /> }}
+      testid="cal-rules"
+    >
+      <dl className="cal-rules-list">
+        {rulesGroup({ words: "Hours", row: "hours", lines: vm.hoursLines, none: "Not set yet" })}
+        {rulesGroup({ words: "Closed", row: "closures", lines: closed, none: "None ahead" })}
+        {rulesGroup({ words: "Booking", row: "booking_rules", lines: vm.ruleParts, none: "" })}
+        {vm.consultFirst.length > 0
+          ? rulesGroup({
+              words: "Consultation first",
+              row: "consult_first",
+              lines: [vm.consultFirst.join(" · ")],
+              none: "",
+              testid: "cal-rules-consult",
+            })
+          : null}
+        {feedGroup(p)}
+      </dl>
+      <p className="cal-about-note">
+        {vm.bookingLink ? "Customers book through your booking link." : "Customers book with your team."}
+      </p>
+    </Sheet>
   );
 }

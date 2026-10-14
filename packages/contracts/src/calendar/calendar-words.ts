@@ -51,30 +51,42 @@ export function sightingStands(row: { status: string; vanished_at?: string | nul
 /** The word for a visit that has ended and nobody has said what became of: said once, by every page (D1-visit-match-words). */
 const VISIT_PAST_WORD = "Past";
 
+/**
+ * The word for a booking tool's request (`proposed`, decision 0002): asked for, never confirmed, so no visit yet. It was
+ * drawn as a booking, which 0002 says it is not; the receptionist still treats its time as taken, so no caller is offered
+ * a slot the tool may yet confirm.
+ */
+const VISIT_REQUESTED_WORD = "Requested";
+
+/** The states a visit is said in beyond a member's word: ended with nobody's word, or only requested. */
+export type VisitStateTone = VisitWord | "past" | "requested";
+
 /** The tone each state wears on the kit's pill, in tone.ts's six: a kept visit is done, a missed one is for a person to look at, the rest are neutral. */
-const VISIT_PILL_TONES: Record<VisitWord | "past", "ok" | "warn" | "plain"> = {
+const VISIT_PILL_TONES: Record<VisitStateTone, "ok" | "warn" | "plain"> = {
   kept: "ok",
   missed: "warn",
   cancelled: "plain",
   past: "plain",
+  requested: "plain",
 };
 
 /** How a visit stands, as every page says it: the word, the state it is of, and the tone of the pill that wears it. */
 export interface VisitStateVM {
   text: string;
-  tone: VisitWord | "past";
+  tone: VisitStateTone;
   pill: "ok" | "warn" | "plain";
 }
 
 /**
- * What a page says beside a visit's time: the member's word on it, else "Past" once it has ended (the record never
- * infers that they came: 0002's answer 3), else nothing. A word said stands whether or not the visit has ended, so a
- * visit marked while it is under way reads as its mark.
+ * What a page says beside a visit's time: the member's word on it, else "Requested" for a tool's request nobody has
+ * confirmed, else "Past" once it has ended (the record never infers that they came: 0002's answer 3), else nothing. A word
+ * said stands whether or not the visit has ended, so a visit marked while it is under way reads as its mark.
  */
 export function visitStateOf(visit: VisitMark | null, endMs: number, nowMs: number): VisitStateVM | null {
   const said = visit?.status;
   if (said === "kept" || said === "missed" || said === "cancelled")
     return { text: VISIT_WORDS[said], tone: said, pill: VISIT_PILL_TONES[said] };
+  if (said === "proposed") return { text: VISIT_REQUESTED_WORD, tone: "requested", pill: VISIT_PILL_TONES.requested };
   return endMs <= nowMs ? { text: VISIT_PAST_WORD, tone: "past", pill: VISIT_PILL_TONES.past } : null;
 }
 
@@ -164,6 +176,12 @@ export interface VisitLineInput {
   person: { id: string; name: string } | null;
   via: MatchVia | null;
   to?: string | null;
+  /**
+   * Whether the visit is someone's: a person matched, or a number or an address on it (a customer People has not met yet).
+   * An event that is nobody's (a lunch, a supplier's slot on the owner's calendar) is asked nothing and said nothing of
+   * once it ends: no Kept, no Missed, no Past. Absent, a matched person decides.
+   */
+  someone?: boolean;
 }
 
 /**
@@ -172,8 +190,11 @@ export interface VisitLineInput {
  * the Calendar asks whether they came, and the Calendar's panel keeps the rest.
  */
 export function visitLineOf(v: VisitLineInput, nowMs: number): VisitLineVM {
-  const acts = visitActsOf(v.mark, v.startMs, v.endMs, nowMs);
-  const standing = v.mark?.status === "booked";
+  const someone = v.someone ?? !!v.person;
+  // Nobody's event is asked nothing: what would "Did they come?" mean of a lunch (VS-03).
+  const acts = someone ? visitActsOf(v.mark, v.startMs, v.endMs, nowMs) : [];
+  const standing = someone && v.mark?.status === "booked";
+  const said = visitStateOf(v.mark, v.endMs, nowMs);
   return {
     id: v.id,
     mark: v.mark,
@@ -181,7 +202,8 @@ export function visitLineOf(v: VisitLineInput, nowMs: number): VisitLineVM {
     day: v.day,
     time: v.time,
     person: v.person,
-    state: visitStateOf(v.mark, v.endMs, nowMs),
+    // A word a member said stands; "Past" is said only of someone's visit, which waits for that word.
+    state: said && said.tone === "past" && !someone ? null : said,
     unmarked: standing && v.endMs <= nowMs,
     match: matchWordsOf(v.via),
     guess: isGuess(v.via),
@@ -201,6 +223,8 @@ interface VisitLineBlock {
   end: string;
   visit: VisitMark | null;
   person: { id: string; name: string; via?: MatchVia | null } | null;
+  /** The numbers and addresses the event carried: someone People has not met yet is still someone. */
+  contacts?: { e164: readonly string[]; emails: readonly string[] } | null;
 }
 
 /** The board's block as a visit line, at `nowMs`; `day` is the page's own word for the day ("" where it says it beside). */
@@ -217,6 +241,7 @@ export function visitLineOfBlock(b: VisitLineBlock, nowMs: number, day = "", to:
       person: b.person ? { id: b.person.id, name: b.person.name } : null,
       via: b.person?.via ?? null,
       to,
+      someone: !!b.person || !!b.contacts?.e164.length || !!b.contacts?.emails.length,
     },
     nowMs,
   );

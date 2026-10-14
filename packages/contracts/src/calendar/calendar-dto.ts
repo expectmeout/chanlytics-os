@@ -8,6 +8,7 @@ import type { MatchVia } from "./calendar-people";
 import type { FeedFailure } from "./feed-url";
 import type { NoticeHold } from "./booking-notice";
 import type { AppointmentStatus } from "./feed-appointments";
+import type { CalendarPersonFactsDto } from "./visit/calendar-person-facts";
 
 /** The record's row for a visit the board draws, and how it stands (decision 0002): what a member's word is said on. */
 export interface VisitMark {
@@ -51,6 +52,12 @@ export interface CalendarItemDto {
     reply_wire?: "whatsapp" | "sms" | "email" | null;
     email_stopped?: boolean;
     opted_out?: boolean;
+    /**
+     * Their standing, business, deal, step and last contact, from the People row the read matched them by
+     * (calendar-person-facts.ts): what the sheet says of them without reading People itself. Absent on an older read and
+     * for someone the read did not hold a row of (a person added between its two halves).
+     */
+    facts?: CalendarPersonFactsDto;
   } | null;
   /** The event's own words, plain text. */
   description?: string | null;
@@ -59,6 +66,8 @@ export interface CalendarItemDto {
   contacts?: { phones: string[]; emails: string[] };
   /** The client's name as the event gives it, for "Add … to People"; null when the title says nothing name-like. */
   guess?: string | null;
+  /** One occurrence of a repeating event (FeedItem.occurrence): the sheet says "Repeats". Absent on an older read. */
+  series?: boolean;
   /**
    * A consultation (0008): the title says so, or names a consult-first service -- deals.ts isConsultationTitle over the
    * workspace's services and rules, set by the server. Absent on an older read.

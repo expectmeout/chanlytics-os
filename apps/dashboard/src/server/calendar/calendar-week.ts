@@ -5,6 +5,7 @@
  */
 import "server-only";
 import {
+  appointmentKeyOf,
   eventText,
   extractContacts,
   feedProblemWords,
@@ -43,7 +44,9 @@ import {
   type BusyBlock,
   type CalendarFeedDto,
   type CalendarNoticesDto,
+  type PersonRowDto,
   type TenantConfig,
+  calendarPersonFactsOf,
   markOn,
   type FeedMark,
   feedMarksOf,
@@ -140,10 +143,17 @@ export function itemsToDays(
     const dayEnd = zoneMidnight(tz, shiftKey(key, 1));
     const inDay = items.filter((it) => it.end > dayStart && it.start < dayEnd);
     if (inDay.length > MAX_ITEMS_PER_DAY) dropped += inDay.length - MAX_ITEMS_PER_DAY;
-    const rows: CalendarItemDto[] = inDay.slice(0, MAX_ITEMS_PER_DAY).map((it, n) => {
+    // A block's id is its appointment's key (appointmentKeyOf: the UID, with the occurrence for one of a series), so it
+    // is the same block on every read: an index said only for a true twin. It carried the event's place in the day's list,
+    // so an event added before it on the five-minute read moved every id after it, and closed the sheet open on it.
+    const seen = new Map<string, number>();
+    const rows: CalendarItemDto[] = inDay.slice(0, MAX_ITEMS_PER_DAY).map((it) => {
       const c = extractContacts(it, own);
+      const key = appointmentKeyOf(it);
+      const twin = seen.get(key) ?? 0;
+      seen.set(key, twin + 1);
       return {
-        id: `${it.uid ?? "ev"}:${it.start}:${n}`,
+        id: twin ? `${key}#${twin}` : key,
         start: new Date(it.start).toISOString(),
         end: new Date(it.end).toISOString(),
         title: it.title,
@@ -153,6 +163,7 @@ export function itemsToDays(
         location: it.location,
         contacts: { phones: c.phones, emails: c.emails },
         guess: guessName(it, services),
+        ...(it.occurrence !== undefined ? { series: true } : {}),
         consultation: isConsultationTitle(it.title, consult.services, consult.rules),
         consult_service: consultServiceOf(it.title, consult.services, consult.rules),
         visit: markOn(consult.marks, it),
@@ -183,6 +194,11 @@ export type CalendarSources = {
   base: CalendarWeekDto;
   serviceNames: string[];
   people: PersonLike[];
+  /**
+   * The People rows the matcher's `people` were made of, by id: what the board says of each person a visit names
+   * (calendar-person-facts.ts), so the page reads no People of its own. Empty where nobody was read.
+   */
+  book: ReadonlyMap<string, PersonRowDto>;
   /**
    * The appointments the record holds over the span (00345): the bookings that arrived by email, drawn beside the
    * feed's events (docs/plans/2026-10-07-bookings-arrive-by-email.md). Empty for a workspace none have reached.
@@ -394,8 +410,12 @@ export async function calendarSources(
     : named.tool
       ? { ...NO_RECORD, notices: await noticesHealth(ctx, tenantId, named, false, opts.mailbox) }
       : NO_RECORD;
-  // The visits the notices became over the span, a cancelled one aside.
-  base.feed.notices = { ...notices, count: rows.filter((r) => r.status !== "cancelled").length };
+  // The visits the notices became over the span: a cancelled one aside, and a tool's request too, which is no visit yet
+  // (decision 0002) however the board draws its time.
+  base.feed.notices = {
+    ...notices,
+    count: rows.filter((r) => r.status !== "cancelled" && r.status !== "proposed").length,
+  };
 
   // What the board needs of the address and the settings, and not them: the calendar's name, the business's own.
   const read = {
@@ -437,7 +457,7 @@ const NO_RECORD: {
 async function withFeedAndPeople(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
-  read: Omit<CalendarSources, "feed" | "parsed" | "serviceNames" | "people" | "taken">,
+  read: Omit<CalendarSources, "feed" | "parsed" | "serviceNames" | "people" | "book" | "taken">,
   url: string | null,
   profile: BusinessProfile | null,
   now: Date,
@@ -448,10 +468,14 @@ async function withFeedAndPeople(
   // few minutes' cache waited on this read alone. Begun only once there is something to match against (a workspace
   // with no calendar and no rows reads nobody), and its failure is an empty list, as it was, so a read nobody awaits
   // settles quietly.
-  const everyoneRead =
+  const everyoneRead: Promise<PersonRowDto[]> =
     !feedOnly && (url || rows.length) ? everyone(ctx, tenantId).catch(() => []) : Promise.resolve([]);
-  const people = async () => (await everyoneRead).map(personLike);
-  if (!url) return { ...read, feed: null, parsed: null, serviceNames: [], people: await people() };
+  // The matcher's people and the rows they were made of, from the one read.
+  const people = async (): Promise<Pick<CalendarSources, "people" | "book">> => {
+    const all = await everyoneRead;
+    return { people: all.map(personLike), book: new Map(all.map((r) => [r.id, r])) };
+  };
+  if (!url) return { ...read, feed: null, parsed: null, serviceNames: [], ...(await people()) };
 
   // One parse per fetch, shared with the profile, the People list and the
   // report. Its horizon — ninety days either side — covers any span the page
@@ -465,11 +489,11 @@ async function withFeedAndPeople(
     feed = { parsed: null, at: null, reason: "not_ical", status: null, checkedAt: null };
   }
   // Nothing readable, ever: the board says why, in the words the preview uses; the record's rows are drawn all the same.
-  if (!feed.parsed) return { ...read, feed, parsed: null, serviceNames: [], people: await people() };
+  if (!feed.parsed) return { ...read, feed, parsed: null, serviceNames: [], ...(await people()) };
   const serviceNames = (profile?.services ?? []).map((s) => s.name);
   // Everyone, not the first thousand: past it, an appointment of a known person linked to nobody on the board, and
   // an owner's read asked the door for them again.
-  return { ...read, feed, parsed: feed.parsed, serviceNames, people: await people() };
+  return { ...read, feed, parsed: feed.parsed, serviceNames, ...(await people()) };
 }
 
 /**
@@ -517,7 +541,7 @@ export function weekFrom(s: CalendarSources, people: PersonLike[], now: Date): C
     serviceNames,
     { services: profile?.services ?? [], rules, marks },
   );
-  const days = daysWithAppointments(fromFeed, rows, timezone, people);
+  const days = withPersonFacts(daysWithAppointments(fromFeed, rows, timezone, people), s.book, timezone, now);
   // Open times only where a calendar reads: the rows say what was booked online, not what a staff member typed into
   // the tool, so rows alone offer nothing (the readers lane adds the owner's word on that). Beside a feed, a row is
   // taken time too: a tool that writes no calendar still took the slot. `taken` is the record over the days on offer,
@@ -566,6 +590,36 @@ export function weekFrom(s: CalendarSources, people: PersonLike[], now: Date): C
       })),
     })),
   };
+}
+
+/**
+ * Each visit's person with what the board says of them beyond who they are (calendar-person-facts.ts): their standing,
+ * business, deal, step and last contact, from the People row the read matched them by. One fact set per person, worked out
+ * once however many visits name them; nobody the read held no row of (someone added between its two halves) carries
+ * none, and the sheet says only who they are. A pure assembly, as weekFrom is.
+ */
+function withPersonFacts<D extends { items: CalendarItemDto[] }>(
+  days: D[],
+  book: ReadonlyMap<string, PersonRowDto>,
+  tz: string,
+  now: Date,
+): D[] {
+  if (!book.size) return days;
+  const facts = new Map<string, ReturnType<typeof calendarPersonFactsOf>>();
+  const factsOf = (id: string) => {
+    if (!facts.has(id)) {
+      const row = book.get(id);
+      if (row) facts.set(id, calendarPersonFactsOf(row, tz, now.getTime()));
+    }
+    return facts.get(id);
+  };
+  return days.map((d) => ({
+    ...d,
+    items: d.items.map((it) => {
+      const f = it.person ? factsOf(it.person.id) : undefined;
+      return f && it.person ? { ...it, person: { ...it.person, facts: f } } : it;
+    }),
+  }));
 }
 
 /**

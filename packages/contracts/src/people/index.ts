@@ -46,7 +46,7 @@ export {
 } from "./person-reach";
 export type { RowReachWords } from "./person-reach";
 export type { PersonProposalVM, BookingLinkAction } from "./person-reach";
-export { cameFromOf, visitLineForDto, visitTitleFor, toPersonRowVM } from "./person-row";
+export { cameFromOf, visitLineForDto, toPersonRowVM } from "./person-row";
 export type { PersonRowVM } from "./person-row";
 export {
   offersYesRefusal,

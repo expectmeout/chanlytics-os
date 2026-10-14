@@ -27,7 +27,7 @@ import {
   toPersonRowVM,
   toPersonVM,
 } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, byTestId, textOf } from "../../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, byTestId } from "../../_legacy-react.mjs";
 
 const TZ = "America/New_York";
 const NOW = new Date("2026-09-08T16:00:00.000Z");
@@ -325,74 +325,59 @@ test("the person's page asks the same function: the same action, and no booking 
   assert.equal(act.hint, "Opens their thread with it ready to send as a text");
 });
 
-/* ------------------------------ the Calendar panel, drawn ------------------------------ */
+/* ------------------------------ the Calendar's visit sheet ------------------------------ */
 
 const went = [];
 installLegacyReact({
   __DEMO_MODE: false,
   CHANLY: { nav: (route) => went.push(route) },
 });
-const { CrPanel } = await import("../../../../../apps/dashboard/src/surfaces/calendar/panel.tsx");
+const { visitSheetOf } = await import("../../../../../packages/contracts/src/calendar/visit/visit-sheet");
 
-const panelOf = (r) => {
+/** The sheet of the person's visit, kept and over: the one state whose lead act is the booking link (contracts visitSheetOf). */
+const sheetOf = (r) => {
   const { block, vm } = blockOf(r);
-  fresh();
-  return again(() =>
-    CrPanel({
-      b: block,
-      day: vm.days[1],
-      todayKey: vm.today,
-      source: "your calendar",
-      bookingLink: BOOKING,
-      onCopyLink() {},
-      onClose() {},
-    }),
-  );
+  const day = vm.days[1];
+  return visitSheetOf({
+    block: { ...block, visit: { id: "v1", status: "kept" } },
+    day: { key: day.key, today: day.today, date: day.date, dow: day.dow, long: day.long },
+    rel: null,
+    dur: "1h",
+    nowMs: Date.parse(block.end) + 1,
+    tz: vm.timezone,
+    word: "appointment",
+    source: "your calendar",
+    bookingLink: BOOKING,
+    dealsOn: false,
+    notes: null,
+    next: null,
+    moments: null,
+  });
 };
 
-test("the Calendar panel draws the block's action: nothing for a stopped person, and for someone who texts the words go to the thread", () => {
+test("the Calendar's visit sheet leads with the booking link by the person's own act: never for someone stopped, and the thread offers the approved message where WhatsApp's window is shut", () => {
   for (const [stop, over] of Object.entries(STOPS))
-    for (const wire of ["WhatsApp inside its window", "a text", "an email"]) {
-      assert.equal(
-        byTestId(panelOf(row({ ...WIRES[wire], ...over })), "cal-panel-text-link"),
-        null,
+    for (const wire of ["WhatsApp inside its window", "a text", "an email"])
+      assert.notEqual(
+        sheetOf(row({ ...WIRES[wire], ...over })).primary?.act,
+        "link",
         `${wire}, ${stop}: the panel offered 'Text the link' to anyone inside the window, stopped or not`,
       );
-    }
-
-  assert.equal(
-    byTestId(panelOf(row(WIRES["an email to an address that stopped"])), "cal-panel-text-link"),
-    null,
-    "an address that stopped, by email: the panel offered 'Send the link' and a hover about approved messages",
+  assert.notEqual(
+    sheetOf(row(WIRES["an email to an address that stopped"])).primary?.act,
+    "link",
+    "an address that stopped, by email: no link to send",
   );
-  assert.ok(
-    byTestId(panelOf(row(WIRES["a text, though their address stopped"])), "cal-panel-text-link"),
+  assert.equal(
+    sheetOf(row(WIRES["a text, though their address stopped"])).primary?.act,
+    "link",
     "but their replies go by text: the link is offered",
   );
-
-  globalThis.sessionStorage.removeItem("chanlytics-compose");
-  went.length = 0;
-  const texting = byTestId(panelOf(row(WIRES["a text"])), "cal-panel-text-link");
-  assert.ok(texting, "someone who texts is offered the link");
-  assert.equal(textOf(texting).trim(), "Text the link", "the foot keeps its short words");
-  assert.equal(texting.props.title, "Opens the thread with the link ready to send as a text");
-  texting.props.onClick();
-  assert.deepEqual(
-    JSON.parse(globalThis.sessionStorage.getItem("chanlytics-compose")),
-    { threadId: "th-c1", text: `Here's the link to book your appointment: ${BOOKING}` },
-    "the words are carried, as the People row carries them: the owner no longer pastes the link by hand",
-  );
-  assert.deepEqual(went, ["inbox/th-c1"]);
-
-  const shut = byTestId(panelOf(row(WIRES["WhatsApp, its window shut"])), "cal-panel-text-link");
-  assert.equal(textOf(shut).trim(), "Send the link");
-  globalThis.sessionStorage.removeItem("chanlytics-compose");
-  shut.props.onClick();
-  assert.equal(
-    globalThis.sessionStorage.getItem("chanlytics-compose"),
-    null,
-    "a shut window carries nothing: the thread offers the approved message",
-  );
+  const texting = sheetOf(row(WIRES["a text"]));
+  assert.deepEqual([texting.primary?.act, texting.shut], ["link", null]);
+  const shut = sheetOf(row(WIRES["WhatsApp, its window shut"]));
+  assert.equal(shut.primary?.act, "link");
+  assert.ok(shut.shut, "a shut window says so: the thread offers the approved message");
 });
 
 const { PL_COLUMNS } = await import("../../../../../apps/dashboard/src/surfaces/people/cells/columns.tsx");

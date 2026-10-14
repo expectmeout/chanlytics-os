@@ -834,17 +834,32 @@ test("a person's page waits only for who is looking, then reads People for their
   assert.equal(new Set(order).size, keys.length, "and every other surface still boots");
 });
 
-test("(0008) a cold Calendar reads People right after its own surface: an appointment's peek says the person's deal", async () => {
-  // The peek draws the person's deal stage and "Start a proposal" from People, and whether deals are on at all; read
-  // in the runner's fixed order, People came after Settings, and the pill arrived late on a cold Calendar.
+test("(lane C, D) a cold Calendar reads its campaigns right after its own surface, and People not at all for it: a visit's person comes with the board's own read", async () => {
+  // The peek drew the person's deal and standing from People's whole book, read second for it; the board's read carries
+  // them now (contracts calendar-person-facts.ts), and what it draws beside its own is the campaigns over its days.
   const { ROUTE_DRAWS } = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
-  assert.deepEqual(ROUTE_DRAWS.calendar, ["people"]);
-  const keys = ["conversations", "inbox", "today", "settings", "leads", "reports", "people", "calendar", "billing"];
+  assert.deepEqual(ROUTE_DRAWS.calendar, ["calendar_runs"]);
+  const keys = [
+    "conversations",
+    "inbox",
+    "today",
+    "settings",
+    "leads",
+    "reports",
+    "people",
+    "calendar",
+    "calendar_runs",
+    "billing",
+  ];
   const { order, overrides } = crowd(keys, { hash: "#/calendar" });
   const stop = startSurfaces(overrides);
   await settle(80);
   stop();
-  assert.deepEqual(order.slice(0, 2), ["calendar", "people"], "its own surface, then People, before anyone else's");
+  assert.deepEqual(
+    order.slice(0, 2),
+    ["calendar", "calendar_runs"],
+    "its own surface, then its campaigns, before anyone else's",
+  );
   assert.equal(new Set(order).size, keys.length, "and every other surface still boots");
 });
 

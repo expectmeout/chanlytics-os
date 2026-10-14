@@ -50,8 +50,9 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   segments: ["contacts", "segments", "views"],
   // Leads is a scope of People with a surface of its own: its searches, and the first page of everyone in its order.
   leads: ["lead-searches", "leads?list=all&sort=fit&dir=asc&limit=500"],
-  // The weeks around the business's today, by the route's clock (GET calendar `around`).
-  calendar: ["calendar?around=today"],
+  // The weeks around the business's today, by the route's clock (GET calendar `around`), and the campaigns over the same
+  // weeks (GET calendar/runs, the board's marks: Show includes campaigns until the member turns them off).
+  calendar: ["calendar?around=today", "calendar/runs?around=today"],
   // The report over one period: REPORT_PERIOD_DEFAULT here, the device's own in the head. The Campaigns lens's three reads are its
   // own surface's (reports_campaigns), made where the lens is drawn and not by the head.
   reports: ["reports?period=30d"],
@@ -169,8 +170,10 @@ export function routePrefetchScript(): string {
       `B=${JSON.stringify(PREFETCH_BESIDE)},O=Object.prototype.hasOwnProperty;`,
     // Leads is People's scope with a surface of its own: the scope alone opens on its own list.
     'if(s==="clients"&&l==="leads")s="leads";',
-    // A day the Calendar's address names is read by the weeks around that day, which the page works out: no read here.
-    'if(s==="calendar"&&l)s="";',
+    // A day the Calendar's address names is read by the weeks around that day, which the page works out: no read here. A
+    // view's word or a visit with no day (`calendar/month`, `calendar/a-<id>`) opens on the weeks around today, as the
+    // route alone does (contracts calendarParamParts).
+    'if(s==="calendar"&&/\\d{4}-\\d{2}-\\d{2}/.test(l))s="";',
     // Reports is read over the days its address says, where it says them (`reports/people:2026-09-01~2026-09-20`,
     // lenses.ts lensRoute: a link someone sent), else over the period this device last picked, as the page reads it; one
     // it does not know is the default's. The days are spelled as the page's own read spells them, first then last.

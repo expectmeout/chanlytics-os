@@ -8,8 +8,8 @@
  * enrols a visit found by name alone only on a full saved name no one else holds (playbook-reach.ts), and says the service
  * alone (playbooks.ts visitFactsFor).
  */
-import { isIdentifierName } from "../conversations/thread-contact";
-import { escapeRe } from "./calendar-people";
+import { isIdentifierName } from "../../conversations/thread-contact";
+import { escapeRe } from "../calendar-people";
 
 /**
  * A saved name that a match BY NAME may rest on when a message is going to be sent: two words or more, the first and
@@ -51,8 +51,8 @@ function seamed(before: string, after: string): string {
  * more (a name of two is as likely a word of the service's).
  *
  * The message a visit playbook sends carries this and never the raw title: a message that says "your Balayage · Maria
- * Lopez" about a visit that is another Maria's is the worst way to be wrong. People's own rows keep `visitTitleFor`
- * (person-row.ts): that one is for a page that says the name already, and keeps a title that is the name alone.
+ * Lopez" about a visit that is another Maria's is the worst way to be wrong. A page that says the name beside the title
+ * reads visitTitleWithout below, the same cut with the whole title kept where the name was all it said.
  */
 export function visitServiceOf(title: string, names: readonly (string | null | undefined)[]): string {
   let service = title.trim();
@@ -67,4 +67,16 @@ export function visitServiceOf(title: string, names: readonly (string | null | u
     }
   }
   return service;
+}
+
+/**
+ * The title a page that says the person's name beside it draws (the board's block and agenda row, People's row, the
+ * person's History and Coming up, Today's day): the service alone (visitServiceOf), or the whole title where taking the
+ * name out leaves no words, so an event titled only with the name still says something. One rule for every page: the
+ * calendar's `serviceOf` and People's `visitTitleFor` were two more, each cutting the name only at an end of the title.
+ */
+export function visitTitleWithout(title: string, names: readonly (string | null | undefined)[]): string {
+  const whole = title.trim();
+  const service = visitServiceOf(whole, names);
+  return /[\p{L}\p{N}]/u.test(service) ? service : whole;
 }

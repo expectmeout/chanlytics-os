@@ -921,7 +921,11 @@ test("REGRESSION: the three reads of a message draw the shell once on Today and 
     lands("calendar");
     assert.equal(redraws, 1, "its own read draws it");
     lands("people");
-    assert.equal(redraws, 2, "and People, which it draws beside it (a peek's deal)");
+    assert.equal(
+      redraws,
+      1,
+      "and not People's: a visit's person comes with the board's own read (the Calendar's lane D)",
+    );
 
     shellAt("#/inbox");
     lands("conversations");

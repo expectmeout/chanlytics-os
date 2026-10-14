@@ -50,6 +50,17 @@ export interface PersonCallCtl {
   close: () => void;
 }
 
+/** The person whose Call another page asked for on the way here (askPersonCall), taken once by their page. */
+let callAsked: string | null = null;
+
+/**
+ * Ask for a person's Call from another page (the Calendar's visit sheet): their page, as it draws them, opens its Call,
+ * the dial and then "How did the call go?", so every call is rung and logged in one place, never a bare tel: link.
+ */
+export function askPersonCall(personId: string): void {
+  callAsked = personId;
+}
+
 /**
  * The call's state for the page: one popover or sheet, whichever of the head's or the dock's Call opened it. Held before
  * the person is read (a page's hooks come before its early returns), when there is nothing to ring.
@@ -60,6 +71,13 @@ export function usePersonCall(p: PersonVM | null, phone: boolean): PersonCallCtl
     [p],
   );
   const [open, setOpen] = useState(false);
+  // A Call another page asked for (askPersonCall) opens as their page draws them, once.
+  const id = p?.id ?? null;
+  useEffect(() => {
+    if (!id || callAsked !== id || !vm) return;
+    callAsked = null;
+    setOpen(true);
+  }, [id, vm]);
   const [asking, setAsking] = useState(false);
   const [armed, setArmed] = useState(false);
   const [at, setAt] = useState<number | null>(null);

@@ -863,13 +863,12 @@ test("a page that follows its own address is one mount across it -- Settings' pa
     one("#/broadcasts", "#/broadcasts/run:r-1");
     one("#/live", "#/live/c-1", "#/live/c-2");
     one("#/conversations", "#/conversations/phone", "#/conversations/phone:cv-1", "#/conversations/cv-2");
+    // The Calendar follows its address (its views, a day, a visit over a view: the Calendar's lane A), so a view picked
+    // keeps the days on screen, where a page mounted afresh for each went back to today.
+    one("#/calendar", "#/calendar/month", "#/calendar/2026-10-01", "#/calendar/week:2026-10-01:a-v1");
     // Not following its param: showing another entity in a surface built for the last one is the danger, so the
     // default is a new mount.
-    assert.notEqual(
-      key("#/calendar/2026-10-01"),
-      key("#/calendar/2026-10-02"),
-      "the Calendar's days are their own mounts",
-    );
+    assert.notEqual(key("#/segments/seg-a"), key("#/segments/seg-b"), "a list's address is its own mount");
   } finally {
     delete globalThis.LiveMonitorPage;
   }

@@ -14,8 +14,18 @@ import { routeOf } from "./address";
  * issues a GET.
  *
  * The Calendar is a page of its own on its path (decision 0015, step 6): an App Router page at `/w/<slug>/calendar`, and at
- * `/w/<slug>/calendar/<YYYY-MM-DD>` a day opened in Day view, the frame drawing its chrome around it.
+ * `/w/<slug>/calendar/<YYYY-MM-DD>` a day opened in Day view, the frame drawing its chrome around it. Its views are the
+ * frame's strip over it (`calendar/week`, `calendar/month`, ...), links the page follows; the hours, the rules and the
+ * calendar's read are a sheet Settings opens (the Calendar's lane F, D6).
  */
+/** Hours and rules, opened as an owner does: Settings at the bar's end, then its item. The kit's sheet, on the page's body. */
+async function openRules(page: import("@playwright/test").Page) {
+  await page.getByTestId("cal-options").click();
+  await page.getByRole("menuitem", { name: "Hours and rules" }).click();
+  const sheet = page.getByTestId("cal-rules");
+  await expect(sheet).toBeVisible();
+  return sheet;
+}
 /** A write is refused unless it comes from the app: the same-origin guard every mutating route applies. */
 const fromTheApp = { headers: { origin: new URL(process.env.E2E_BASE_URL ?? "https://app.chanlytics.com").origin } };
 const INVENTED = [
@@ -56,15 +66,10 @@ test.describe("Calendar on a real workspace", () => {
     };
     expect(JSON.stringify(cal)).not.toContain("ical_url");
 
-    // Seven day columns, the legend, the feed chip in the schema's words.
+    // Seven day columns, and Show, whose caption is the legend.
     await expect(board.getByTestId("cal-dayhead")).toHaveCount(7);
     await expect(board.getByTestId("cal-col")).toHaveCount(7);
-    await expect(board.getByTestId("cal-legend")).toBeVisible();
-    // The chip is the one state Connections and Setup say too (contracts calendarSourceOf): a calendar link's read in
-    // CALENDAR_FEED_WORDS, or, with no link, where the booking tool's emails stand or that the owner books by hand.
-    await expect(board.getByTestId("cal-feed-state")).toContainText(
-      /^(Readable|Last good read|Could not be read|Not connected|By email|Waiting for the first email|Needs you|\d+ to look at|Booked by hand)$/,
-    );
+    await expect(board.getByTestId("cal-show")).toBeVisible();
 
     // The blocks and windows are exactly the route's. With no calendar that reads, the route's items are the bookings
     // that arrived by email (the appointments record) and nothing else, and no open time is named.
@@ -73,19 +78,31 @@ test.describe("Calendar on a real workspace", () => {
     if (cal.feed.state === "ok") {
       expect(await board.getByTestId("cal-window").count()).toBe(windows);
     } else {
-      // A business that books by hand said so in Settings, and is told nothing: there is no card.
-      await expect(board.getByTestId("cal-feed-card")).toHaveCount(cal.feed.by_hand ? 0 : 1);
       await expect(board.getByTestId("cal-window")).toHaveCount(0);
       if (!items) await expect(board.getByTestId("cal-block")).toHaveCount(0);
     }
     expect((await board.getByTestId("cal-block").count()) + (await board.locator(".cal-allday").count())).toBe(items);
-    // No calendar link: the card says so, or, with a booking tool named, where its emails stand.
-    if (!cal.feed.present && !cal.feed.by_hand)
-      await expect(board.getByTestId("cal-feed-card")).toContainText(
-        cal.feed.notices?.tool
-          ? /Bookings arrive by email|needs? a look|Waiting for the first booking email|needs an address|confirm the forward/
-          : "No calendar connected",
+    // The board's one notice (CAL-12) says only what is the owner's to see or do. A business that books by hand said so in
+    // Settings, and is told nothing; a calendar link that could not be read says so; no link says so, or, with a booking
+    // tool named, where its emails stand when they need the owner (emails that work say nothing over the board).
+    const notice = board.getByTestId("cal-notice-feed");
+    if (cal.feed.by_hand) await expect(notice).toHaveCount(0);
+    else if (cal.feed.present && cal.feed.state !== "ok") await expect(notice).toContainText("could not be read");
+    else if (!cal.feed.present && !cal.feed.notices?.tool) await expect(notice).toContainText("No calendar connected");
+    else if (!cal.feed.present && (await notice.count()))
+      await expect(notice).toContainText(
+        /needs? a look|Waiting for the first booking email|needs an address|confirm the forward/,
       );
+    // The feed's state is in Hours and rules, the one state Connections and Setup say too (contracts calendarSourceOf): a
+    // calendar link's read in CALENDAR_FEED_WORDS, or, with no link, where the booking tool's emails stand or that the
+    // owner books by hand.
+    const rules = await openRules(page);
+    await expect(rules).toContainText(/Hours|Closed|Booking/);
+    await expect(rules.getByTestId("cal-feed-state")).toContainText(
+      /^(Readable|Last good read|Could not be read|Not connected|By email|Waiting for the first email|Needs you|\d+ to look at|Booked by hand)$/,
+    );
+    await page.keyboard.press("Escape");
+    await expect(rules).toBeHidden();
   });
 
   test("switching views is instant — no read — and Today, the arrows and a date move the anchor; only a far move reads again", async ({
@@ -95,23 +112,23 @@ test.describe("Calendar on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     const board = page.getByTestId("calendar-real");
     await expect(board).toBeVisible();
-    await expect(board.getByTestId("cal-rules")).toContainText(/Hours|Closed|Rules/);
 
     // The window around today is loaded once; every view is a slice of it.
     const reads: string[] = [];
     page.on("request", (r) => {
       if (r.url().includes("/api/v1/calendar?") && r.method() === "GET") reads.push(r.url());
     });
-    await board.getByTestId("cal-view-month").click();
+    // The views are the frame's strip over the board: links to each view's address, which the page follows.
+    await page.getByTestId("cal-view-month").click();
     await expect(board.getByTestId("cal-month")).toBeVisible();
     await expect(board.getByTestId("cal-month-cell")).toHaveCount(42);
     await expect(board.getByTestId("cal-range")).toContainText(/\d{4}/);
-    await board.getByTestId("cal-view-agenda").click();
+    await page.getByTestId("cal-view-agenda").click();
     await expect(board.getByTestId("cal-agenda")).toBeVisible();
     await expect(board.getByTestId("cal-agenda-day")).toHaveCount(14);
-    await board.getByTestId("cal-view-day").click();
+    await page.getByTestId("cal-view-day").click();
     await expect(board.getByTestId("cal-col")).toHaveCount(1);
-    await board.getByTestId("cal-view-week").click();
+    await page.getByTestId("cal-view-week").click();
     await expect(board.getByTestId("cal-col")).toHaveCount(7);
     const before = await board.getByTestId("cal-range").innerText();
     await board.getByTestId("cal-next").click();
@@ -172,7 +189,7 @@ test.describe("Calendar on a real workspace", () => {
     }
   });
 
-  test("every view scrolls to its last day and to the legend, on a desktop screen and on a phone -- the views grew under a Calendar that clips, and nothing below the fold could be reached", async ({
+  test("every view scrolls to its last day, on a desktop screen and on a phone -- the views grew under a Calendar that clips, and nothing below the fold could be reached", async ({
     page,
   }) => {
     for (const size of [
@@ -185,10 +202,10 @@ test.describe("Calendar on a real workspace", () => {
       const board = page.getByTestId("calendar-real");
       await expect(board).toBeVisible();
       for (const view of ["week", "month", "agenda"]) {
-        await board.getByTestId(`cal-view-${view}`).click();
-        await expect(board.getByTestId(`cal-view-${view}`)).toHaveAttribute("aria-checked", "true");
-        // Scroll whatever scrolls to its end, then ask whether the last day and the legend are on screen. toBeVisible
-        // cannot say it: a box cut off by an overflow is still "visible".
+        await page.getByTestId(`cal-view-${view}`).click();
+        await expect(page.getByTestId(`cal-view-${view}`)).toHaveAttribute("aria-current", "page");
+        // Scroll whatever scrolls to its end, then ask whether the last day is on screen. toBeVisible cannot say it: a box
+        // cut off by an overflow is still "visible". (The legend is Show's caption now, in its menu, never under the board.)
         const reached = await board.evaluate((cal) => {
           // Whatever scrolls: the grid, the body, and on a phone the Calendar's pane (.cal-pane).
           const scrolls = (el: Element | null) => !!el && el.scrollHeight > el.clientHeight + 1;
@@ -202,14 +219,10 @@ test.describe("Calendar on a real workspace", () => {
             '[data-testid="cal-col"], [data-testid="cal-month-cell"], [data-testid="cal-agenda-day"]',
           );
           const last = days[days.length - 1];
-          const legend = cal.querySelector('[data-testid="cal-legend"]');
           const clip = Math.min(window.innerHeight, bottom(cal));
-          return {
-            lastDay: !!last && bottom(last) <= Math.min(clip, bottom(scroller)) + 1,
-            legend: !!legend && bottom(legend) <= clip + 1,
-          };
+          return { lastDay: !!last && bottom(last) <= Math.min(clip, bottom(scroller)) + 1 };
         });
-        expect(reached, `${view} at ${size.width}x${size.height}`).toEqual({ lastDay: true, legend: true });
+        expect(reached, `${view} at ${size.width}x${size.height}`).toEqual({ lastDay: true });
       }
     }
   });
@@ -239,7 +252,7 @@ test.describe("Calendar on a real workspace", () => {
     await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
     const board = page.getByTestId("calendar-real");
     await expect(board).toBeVisible();
-    await expect(board.getByTestId("cal-view-day")).toHaveAttribute("aria-checked", "true");
+    await expect(page.getByTestId("cal-view-day")).toHaveAttribute("aria-current", "page");
     await expect(board.getByTestId("cal-col")).toHaveCount(1);
     expect(routeOf(page.url())).toBe(`calendar/${key}`);
     await expect(page.locator('.nav-item[aria-current="page"]')).toContainText("Calendar");
@@ -258,7 +271,7 @@ test.describe("Calendar on a real workspace", () => {
     await page.locator(".nav-item", { hasText: "Calendar" }).click();
     await expect.poll(() => routeOf(page.url())).toBe("calendar");
     await expect(page.getByTestId("calendar-real")).toBeVisible();
-    await expect(board.getByTestId("cal-view-week")).toHaveAttribute("aria-checked", "true");
+    await expect(page.getByTestId("cal-view-week")).toHaveAttribute("aria-current", "page");
 
     // The hash address the emails and the phone app say lands on the path.
     await page.goto("/api/version");

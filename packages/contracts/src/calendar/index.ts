@@ -10,6 +10,7 @@ export {
   visitLinkWords,
   calendarParamParts,
 } from "./appointment-key";
+export type { CalendarParam } from "./appointment-key";
 export {
   APPOINTMENT_SOURCES,
   APPOINTMENT_STATUSES,
@@ -152,6 +153,7 @@ export type {
   CalendarFeedHealth,
   VisitWord,
   VisitStateVM,
+  VisitStateTone,
   VisitLineVM,
   VisitLineInput,
 } from "./calendar-words";
@@ -164,9 +166,30 @@ export type {
   CalendarClosureVM,
   CalendarVM,
 } from "./calendar-vm";
-export { serviceOf, toCalendarVM } from "./calendar";
+export { toCalendarVM } from "./calendar";
+export { visitTitleWithout } from "./visit/visit-service";
 export { spanForView, windowFor, coversSpan, frameOf } from "./calendar-views";
 export type { CalendarView } from "./calendar-views";
+export { calendarPersonFactsOf, calendarPersonOf } from "./visit/calendar-person-facts";
+export { visitSheetOf, CALENDAR_VISIT_SHEET_WORDS } from "./visit/visit-sheet";
+export type {
+  VisitSheetVM,
+  VisitSheetInput,
+  VisitSheetPerson,
+  VisitSheetState,
+  VisitPrimaryAct,
+  VisitMoreAct,
+} from "./visit/visit-sheet";
+export type { CalendarPersonFactsDto, CalendarPersonVM } from "./visit/calendar-person-facts";
+export { calendarRunMarksOf, runMarkShown, CALENDAR_SHOW_WORDS, CALENDAR_RUN_SHEET_WORDS } from "./calendar-runs";
+export type {
+  CalendarRunsDto,
+  CalendarRunDto,
+  CalendarMomentDto,
+  CalendarRunMark,
+  CalendarRunKind,
+  CalendarRunItem,
+} from "./calendar-runs";
 export {
   calendarOwnerOf,
   ownAddressesOf,
