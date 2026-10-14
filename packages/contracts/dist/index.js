@@ -33414,6 +33414,192 @@ var PEOPLE_COMPANY_SIZES = [
   "5001 - 10000",
   "10001+"
 ];
+var PEOPLE_COUNT_MAX = 500;
+var PEOPLE_RUN_FLOOR_USD = 0.5;
+var PEOPLE_TITLES_MAX = 5;
+var PEOPLE_INDUSTRIES_MAX = 5;
+var PEOPLE_STATES_MAX = 10;
+var PEOPLE_TITLE_CHARS = 60;
+var PEOPLE_INDUSTRY_CHARS = 80;
+var PEOPLE_ASKED_CHARS = 400;
+function peopleAreaOf(states) {
+  const names3 = states.map(usStateName).filter((s) => !!s);
+  const label = names3.length ? joinWords(names3) : "the US";
+  return { kind: "city", label, state: states[0] ?? "", center: null, radius_m: 0, query: `${label}, USA` };
+}
+function peoplePlanFrom(i) {
+  return {
+    version: 1,
+    card: PEOPLE_CARD,
+    name: (i.name ?? i.titles.join(", ")).trim().slice(0, 80),
+    asked: i.asked,
+    count: i.count,
+    titles: i.titles,
+    seniority: i.seniority,
+    industries: i.industries,
+    sizes: i.sizes,
+    states: i.states,
+    contact: "email",
+    terms: [],
+    area: peopleAreaOf(i.states),
+    criteria: [],
+    exclusions: []
+  };
+}
+var strs = (v, max, each) => Array.isArray(v) ? [...new Set(v.filter((s) => typeof s === "string").map((s) => s.trim().slice(0, each)))].filter(Boolean).slice(0, max) : [];
+var US_CODES_SET = new Set(Object.values(US_STATES));
+function peoplePlanOf(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw;
+  if (o.card !== PEOPLE_CARD || o.version !== 1) return null;
+  const count2 = typeof o.count === "number" && Number.isInteger(o.count) ? o.count : 0;
+  const titles = strs(o.titles, PEOPLE_TITLES_MAX, 60);
+  if (count2 < 1 || count2 > PEOPLE_COUNT_MAX || titles.length === 0) return null;
+  return peoplePlanFrom({
+    name: typeof o.name === "string" ? o.name.trim().slice(0, 120) : "",
+    asked: typeof o.asked === "string" ? o.asked.slice(0, 400) : "",
+    count: count2,
+    titles,
+    seniority: strs(o.seniority, PEOPLE_SENIORITIES.length, 20).filter(
+      (s) => PEOPLE_SENIORITIES.includes(s)
+    ),
+    industries: strs(o.industries, PEOPLE_INDUSTRIES_MAX, PEOPLE_INDUSTRY_CHARS),
+    sizes: strs(o.sizes, PEOPLE_COMPANY_SIZES.length, 20).filter(
+      (s) => PEOPLE_COMPANY_SIZES.includes(s)
+    ),
+    states: strs(o.states, PEOPLE_STATES_MAX, 2).map((s) => s.toUpperCase()).filter((s) => US_CODES_SET.has(s))
+  });
+}
+function usStateCode(raw) {
+  const s = (raw ?? "").trim();
+  if (/^[A-Za-z]{2}$/.test(s)) return US_CODES_SET.has(s.toUpperCase()) ? s.toUpperCase() : null;
+  return US_STATES[s.toLowerCase()] ?? null;
+}
+function usStateName(code2) {
+  const c = code2.trim().toUpperCase();
+  const name = Object.entries(US_STATES).find(([, v]) => v === c)?.[0];
+  return name ? name.replace(/\b\p{L}/gu, (m) => m.toUpperCase()).replace(/\bOf\b/g, "of") : null;
+}
+function peopleEstimateUsd(count2, prices) {
+  const people = Math.min(1e3, 2 * Math.max(1, Math.floor(count2)));
+  const usd = (people * (prices.perPerson + prices.perCheck) + prices.start) * LEAD_ESTIMATE_MARGIN;
+  return Math.round((Math.ceil(usd * 100) / 100 + 2 * PEOPLE_RUN_FLOOR_USD) * 100) / 100;
+}
+function usStatesTyped(text) {
+  const parts2 = listTyped(text, PEOPLE_STATES_MAX * 2);
+  const codes = [...new Set(parts2.map(usStateCode).filter((s) => !!s))].slice(0, PEOPLE_STATES_MAX);
+  return { codes, unread: parts2.filter((p) => !usStateCode(p)) };
+}
+function peopleSheetProblems(t) {
+  const out = {};
+  const titles = listTyped(t.titles, Infinity);
+  const long = titles.find((x) => x.length > PEOPLE_TITLE_CHARS);
+  const short = titles.find((x) => x.length < 2);
+  if (!titles.length) out.titles = PEOPLE_FIND_WORDS.needTitle;
+  else if (titles.length > PEOPLE_TITLES_MAX)
+    out.titles = PEOPLE_FIND_WORDS.tooMany("titles", PEOPLE_TITLES_MAX, titles.length);
+  else if (long) out.titles = PEOPLE_FIND_WORDS.titleLong(long);
+  else if (short) out.titles = PEOPLE_FIND_WORDS.titleShort(short);
+  else if (t.titles.trim().length > PEOPLE_ASKED_CHARS) out.titles = PEOPLE_FIND_WORDS.titlesLong;
+  const industries = listTyped(t.industries, Infinity);
+  const odd = industries.find((x) => x.length < 2 || x.length > PEOPLE_INDUSTRY_CHARS);
+  if (industries.length > PEOPLE_INDUSTRIES_MAX)
+    out.industries = PEOPLE_FIND_WORDS.tooMany("industries", PEOPLE_INDUSTRIES_MAX, industries.length);
+  else if (odd) out.industries = PEOPLE_FIND_WORDS.industryOdd(odd);
+  const typed = usStatesTyped(t.states);
+  const unread = typed.unread[0];
+  const states = listTyped(t.states, Infinity).length;
+  if (unread) out.states = PEOPLE_FIND_WORDS.stateUnread(unread);
+  else if (states > PEOPLE_STATES_MAX) out.states = PEOPLE_FIND_WORDS.tooMany("states", PEOPLE_STATES_MAX, states);
+  const n = Number(t.count.trim());
+  if (!Number.isInteger(n) || n < 1 || n > PEOPLE_COUNT_MAX) out.count = PEOPLE_FIND_WORDS.needCount;
+  return out;
+}
+function listTyped(text, max) {
+  return [
+    ...new Set(
+      text.split(/[,;\n]/).map((s) => s.trim()).filter(Boolean)
+    )
+  ].slice(0, max);
+}
+var PEOPLE_FIND_WORDS = {
+  door: "Find people",
+  title: "Find people at companies",
+  sub: "Named people at companies, by what they are called and where they work. Every address is checked before anyone is written to.",
+  titles: "What they are called",
+  titlesHint: "Up to five, with commas between: marketing manager, office manager",
+  seniority: "How senior",
+  seniorityAny: "Any seniority",
+  industries: "Their companies' industries",
+  industriesHint: "Up to five, with commas between, as the directory names them: Marketing & Advertising, Accounting",
+  sizes: "Company size",
+  sizesAny: "Any size",
+  states: "Where they work",
+  statesHint: "Up to ten US states, with commas between: TX, CA. None is the whole US.",
+  count: "How many companies",
+  countHint: `1 to ${PEOPLE_COUNT_MAX}`,
+  start: (n) => `Find ${n} ${n === 1 ? "company" : "companies"}`,
+  starting: "Starting\u2026",
+  cancel: "Cancel",
+  needTitle: "Say what they are called.",
+  needCount: `Say how many, 1 to ${PEOPLE_COUNT_MAX}.`,
+  titleLong: (t) => `\u201C${t}\u201D is longer than ${PEOPLE_TITLE_CHARS} characters: say it shorter.`,
+  titleShort: (t) => `\u201C${t}\u201D is too short to be a title.`,
+  tooMany: (what, max, n) => `Up to ${max} ${what}: this has ${n}.`,
+  titlesLong: `What they are called is too long: ${PEOPLE_ASKED_CHARS} characters at most.`,
+  industryOdd: (t) => `\u201C${t}\u201D: an industry is 2 to ${PEOPLE_INDUSTRY_CHARS} characters.`,
+  industryUnread: (t, near3) => {
+    const tried = near3.map((n) => `\u201C${n}\u201D`);
+    return tried.length ? `\u201C${t}\u201D isn't one of the directory's industries: try ${tried.length > 1 ? `${tried.slice(0, -1).join(", ")} or ` : ""}${tried[tried.length - 1]}.` : `\u201C${t}\u201D isn't one of the directory's industries. Say it as the directory names it (Accounting, Construction, Real Estate), or leave industries empty and say who by what they are called.`;
+  },
+  stateUnread: (s) => `${s} isn't a US state: use its name or its two letters.`,
+  more: "Find more like these",
+  closed: "Finding people at companies opens once it has been checked. Nothing was started.",
+  done: "Looking now. They land on Leads as each address checks out.",
+  failed: "Couldn't start the search. Nothing was spent; try again.",
+  tick: "Chosen"
+};
+function peopleWho(p) {
+  const called = `people called ${joinWords(p.titles.map((t) => `\u201C${t}\u201D`))}`;
+  const at3 = p.industries.length ? ` at ${joinWords(p.industries)} companies` : " at companies";
+  return `${called}${at3}${p.states.length ? ` in ${joinWords(p.states)}` : " in the US"}`;
+}
+var PEOPLE_STRIP_WORDS = {
+  none: (who) => `Nothing has run for ${who} yet`,
+  running: (who) => `Finding ${who}`,
+  found: (n) => `${plural(n, "company", "companies")} found so far`,
+  checked: (n) => `${plural(n, "address", "addresses")} checked`,
+  checking: (n) => `Checking the addresses of the ${plural(n, "company", "companies")} found`,
+  stop: "Stop",
+  ended: (ending, n, target) => {
+    if (ending === "source_failed")
+      return "The directory could not be read. Nothing was counted for what was not found.";
+    if (ending === "stopped")
+      return `Stopped with ${plural(n, "company", "companies")} found. Their addresses were checked.`;
+    if (ending === "paused")
+      return `Lead searches are paused for now. ${plural(n, "company", "companies")} counted; nothing more is being counted.`;
+    if (ending === "budget_used" || ending === "month_leads_used")
+      return `Stopped at ${plural(n, "company", "companies")}: this month's searching is used up. It renews next month.`;
+    if (n === 0) return "No company matched what you asked, with an address that checked out.";
+    if (n >= target) return `Found ${plural(n, "company", "companies")}, each address checked`;
+    return `Found ${n} of ${plural(target, "company", "companies")}: everything the filters cover, each address checked`;
+  },
+  more: "Find more like these"
+};
+function peoplePlanSentence(p) {
+  const what = p.industries.length ? `${joinWords(p.industries)} ${p.count === 1 ? "company" : "companies"}` : null;
+  const companies = what ? `${p.count} ${what.replace(/^\d+ /, "")}` : plural(p.count, "company", "companies");
+  const size = p.sizes.length ? ` of ${p.sizes.join(", ")} people` : "";
+  const where = p.states.length ? ` in ${joinWords(p.states)}` : " in the US";
+  const called = joinWords(p.titles.map((t) => `\u201C${t}\u201D`));
+  const level = p.seniority.length ? ` (${p.seniority.map((s) => PEOPLE_SENIORITY_WORDS[s]).join(" or ")})` : "";
+  return `Up to ${companies}${size}${where}, each through someone called ${called}${level}, each address checked`;
+}
+
+// src/leads/search/people-plan-schema.ts
+import { z as z12 } from "zod";
+
+// src/leads/search/people-industries.ts
 var PEOPLE_INDUSTRIES = [
   "Accounting",
   "Agriculture",
@@ -33571,89 +33757,10 @@ var PEOPLE_INDUSTRIES = [
   "Professional Services software",
   "eBusiness Software"
 ];
-var PEOPLE_COUNT_MAX = 500;
-var PEOPLE_RUN_FLOOR_USD = 0.5;
-var PEOPLE_TITLES_MAX = 5;
-var PEOPLE_INDUSTRIES_MAX = 5;
-var PEOPLE_STATES_MAX = 10;
-var PEOPLE_TITLE_CHARS = 60;
-var PEOPLE_INDUSTRY_CHARS = 80;
-var PEOPLE_ASKED_CHARS = 400;
-function peopleAreaOf(states) {
-  const names3 = states.map(usStateName).filter((s) => !!s);
-  const label = names3.length ? joinWords(names3) : "the US";
-  return { kind: "city", label, state: states[0] ?? "", center: null, radius_m: 0, query: `${label}, USA` };
-}
-function peoplePlanFrom(i) {
-  return {
-    version: 1,
-    card: PEOPLE_CARD,
-    name: (i.name ?? i.titles.join(", ")).trim().slice(0, 80),
-    asked: i.asked,
-    count: i.count,
-    titles: i.titles,
-    seniority: i.seniority,
-    // In the directory's own names where they read as one ("marketing and advertising"); one that does not is kept as
-    // typed, for the schema to refuse and the sheet and Ask to say.
-    industries: [...new Set(i.industries.map((x) => peopleIndustryOf(x) ?? x))],
-    sizes: i.sizes,
-    states: i.states,
-    contact: "email",
-    terms: [],
-    area: peopleAreaOf(i.states),
-    criteria: [],
-    exclusions: []
-  };
-}
-var strs = (v, max, each) => Array.isArray(v) ? [...new Set(v.filter((s) => typeof s === "string").map((s) => s.trim().slice(0, each)))].filter(Boolean).slice(0, max) : [];
-var US_CODES_SET = new Set(Object.values(US_STATES));
-function peoplePlanOf(raw) {
-  if (!raw || typeof raw !== "object") return null;
-  const o = raw;
-  if (o.card !== PEOPLE_CARD || o.version !== 1) return null;
-  const count2 = typeof o.count === "number" && Number.isInteger(o.count) ? o.count : 0;
-  const titles = strs(o.titles, PEOPLE_TITLES_MAX, 60);
-  if (count2 < 1 || count2 > PEOPLE_COUNT_MAX || titles.length === 0) return null;
-  return peoplePlanFrom({
-    name: typeof o.name === "string" ? o.name.trim().slice(0, 120) : "",
-    asked: typeof o.asked === "string" ? o.asked.slice(0, 400) : "",
-    count: count2,
-    titles,
-    seniority: strs(o.seniority, PEOPLE_SENIORITIES.length, 20).filter(
-      (s) => PEOPLE_SENIORITIES.includes(s)
-    ),
-    industries: strs(o.industries, PEOPLE_INDUSTRIES_MAX, PEOPLE_INDUSTRY_CHARS),
-    sizes: strs(o.sizes, PEOPLE_COMPANY_SIZES.length, 20).filter(
-      (s) => PEOPLE_COMPANY_SIZES.includes(s)
-    ),
-    states: strs(o.states, PEOPLE_STATES_MAX, 2).map((s) => s.toUpperCase()).filter((s) => US_CODES_SET.has(s))
-  });
-}
-function usStateCode(raw) {
-  const s = (raw ?? "").trim();
-  if (/^[A-Za-z]{2}$/.test(s)) return US_CODES_SET.has(s.toUpperCase()) ? s.toUpperCase() : null;
-  return US_STATES[s.toLowerCase()] ?? null;
-}
-function usStateName(code2) {
-  const c = code2.trim().toUpperCase();
-  const name = Object.entries(US_STATES).find(([, v]) => v === c)?.[0];
-  return name ? name.replace(/\b\p{L}/gu, (m) => m.toUpperCase()).replace(/\bOf\b/g, "of") : null;
-}
-function peopleEstimateUsd(count2, prices) {
-  const people = Math.min(1e3, 2 * Math.max(1, Math.floor(count2)));
-  const usd = (people * (prices.perPerson + prices.perCheck) + prices.start) * LEAD_ESTIMATE_MARGIN;
-  return Math.round((Math.ceil(usd * 100) / 100 + 2 * PEOPLE_RUN_FLOOR_USD) * 100) / 100;
-}
-function usStatesTyped(text) {
-  const parts2 = listTyped(text, PEOPLE_STATES_MAX * 2);
-  const codes = [...new Set(parts2.map(usStateCode).filter((s) => !!s))].slice(0, PEOPLE_STATES_MAX);
-  return { codes, unread: parts2.filter((p) => !usStateCode(p)) };
-}
 var industryKey = (s) => s.toLowerCase().replace(/\band\b/g, "&").replace(/[^a-z0-9&]+/g, "");
-var industryByKey = null;
+var INDUSTRY_BY_KEY = new Map(PEOPLE_INDUSTRIES.map((i) => [industryKey(i), i]));
 function peopleIndustryOf(raw) {
-  industryByKey ??= new Map(PEOPLE_INDUSTRIES.map((i) => [industryKey(i), i]));
-  return industryByKey.get(industryKey(raw ?? "")) ?? null;
+  return INDUSTRY_BY_KEY.get(industryKey(raw ?? "")) ?? null;
 }
 var wordsIn = (s) => s.toLowerCase().split(/[^a-z]+/).filter((w) => w.length >= 3 && w !== "and" && w !== "the");
 var sharedStart = (a, b) => {
@@ -33663,125 +33770,26 @@ var sharedStart = (a, b) => {
 };
 function peopleIndustriesNear(typed) {
   const typedWords = wordsIn(typed);
-  const scored = PEOPLE_INDUSTRIES.map((industry) => {
+  const scored = PEOPLE_INDUSTRIES.map((industry2) => {
     let best = 0;
     for (const w of typedWords)
-      for (const v of wordsIn(industry)) {
+      for (const v of wordsIn(industry2)) {
         const n = sharedStart(w, v);
         if (n >= Math.min(5, w.length) && n > best) best = n;
       }
-    return { industry, best };
+    return { industry: industry2, best };
   }).filter((x) => x.best > 0);
   const top = Math.max(0, ...scored.map((x) => x.best));
   return scored.filter((x) => x.best >= top - 1).sort((a, b) => b.best - a.best).slice(0, 3).map((x) => x.industry);
 }
-function peopleSheetProblems(t) {
-  const out = {};
-  const titles = listTyped(t.titles, Infinity);
-  const long = titles.find((x) => x.length > PEOPLE_TITLE_CHARS);
-  const short = titles.find((x) => x.length < 2);
-  if (!titles.length) out.titles = PEOPLE_FIND_WORDS.needTitle;
-  else if (titles.length > PEOPLE_TITLES_MAX)
-    out.titles = PEOPLE_FIND_WORDS.tooMany("titles", PEOPLE_TITLES_MAX, titles.length);
-  else if (long) out.titles = PEOPLE_FIND_WORDS.titleLong(long);
-  else if (short) out.titles = PEOPLE_FIND_WORDS.titleShort(short);
-  else if (t.titles.trim().length > PEOPLE_ASKED_CHARS) out.titles = PEOPLE_FIND_WORDS.titlesLong;
-  const industries = listTyped(t.industries, Infinity);
-  const odd = industries.find((x) => !peopleIndustryOf(x));
-  if (industries.length > PEOPLE_INDUSTRIES_MAX)
-    out.industries = PEOPLE_FIND_WORDS.tooMany("industries", PEOPLE_INDUSTRIES_MAX, industries.length);
-  else if (odd) out.industries = PEOPLE_FIND_WORDS.industryUnread(odd, peopleIndustriesNear(odd));
-  const typed = usStatesTyped(t.states);
-  const unread = typed.unread[0];
-  const states = listTyped(t.states, Infinity).length;
-  if (unread) out.states = PEOPLE_FIND_WORDS.stateUnread(unread);
-  else if (states > PEOPLE_STATES_MAX) out.states = PEOPLE_FIND_WORDS.tooMany("states", PEOPLE_STATES_MAX, states);
-  const n = Number(t.count.trim());
-  if (!Number.isInteger(n) || n < 1 || n > PEOPLE_COUNT_MAX) out.count = PEOPLE_FIND_WORDS.needCount;
-  return out;
-}
-function listTyped(text, max) {
-  return [
-    ...new Set(
-      text.split(/[,;\n]/).map((s) => s.trim()).filter(Boolean)
-    )
-  ].slice(0, max);
-}
-var PEOPLE_FIND_WORDS = {
-  door: "Find people",
-  title: "Find people at companies",
-  sub: "Named people at companies, by what they are called and where they work. Every address is checked before anyone is written to.",
-  titles: "What they are called",
-  titlesHint: "Up to five, with commas between: marketing manager, office manager",
-  seniority: "How senior",
-  seniorityAny: "Any seniority",
-  industries: "Their companies' industries",
-  industriesHint: "Up to five, with commas between, as the directory names them: Marketing & Advertising, Accounting",
-  sizes: "Company size",
-  sizesAny: "Any size",
-  states: "Where they work",
-  statesHint: "Up to ten US states, with commas between: TX, CA. None is the whole US.",
-  count: "How many companies",
-  countHint: `1 to ${PEOPLE_COUNT_MAX}`,
-  start: (n) => `Find ${n} ${n === 1 ? "company" : "companies"}`,
-  starting: "Starting\u2026",
-  cancel: "Cancel",
-  needTitle: "Say what they are called.",
-  needCount: `Say how many, 1 to ${PEOPLE_COUNT_MAX}.`,
-  titleLong: (t) => `\u201C${t}\u201D is longer than ${PEOPLE_TITLE_CHARS} characters: say it shorter.`,
-  titleShort: (t) => `\u201C${t}\u201D is too short to be a title.`,
-  tooMany: (what, max, n) => `Up to ${max} ${what}: this has ${n}.`,
-  titlesLong: `What they are called is too long: ${PEOPLE_ASKED_CHARS} characters at most.`,
-  industryUnread: (t, near3) => {
-    const tried = near3.map((n) => `\u201C${n}\u201D`);
-    return tried.length ? `\u201C${t}\u201D isn't one of the directory's industries: try ${tried.length > 1 ? `${tried.slice(0, -1).join(", ")} or ` : ""}${tried[tried.length - 1]}.` : `\u201C${t}\u201D isn't one of the directory's industries. Say it as the directory names it (Accounting, Construction, Real Estate), or leave industries empty and say who by what they are called.`;
-  },
-  stateUnread: (s) => `${s} isn't a US state: use its name or its two letters.`,
-  more: "Find more like these",
-  closed: "Finding people at companies opens once it has been checked. Nothing was started.",
-  done: "Looking now. They land on Leads as each address checks out.",
-  failed: "Couldn't start the search. Nothing was spent; try again.",
-  tick: "Chosen"
-};
-function peopleWho(p) {
-  const called = `people called ${joinWords(p.titles.map((t) => `\u201C${t}\u201D`))}`;
-  const at3 = p.industries.length ? ` at ${joinWords(p.industries)} companies` : " at companies";
-  return `${called}${at3}${p.states.length ? ` in ${joinWords(p.states)}` : " in the US"}`;
-}
-var PEOPLE_STRIP_WORDS = {
-  none: (who) => `Nothing has run for ${who} yet`,
-  running: (who) => `Finding ${who}`,
-  found: (n) => `${plural(n, "company", "companies")} found so far`,
-  checked: (n) => `${plural(n, "address", "addresses")} checked`,
-  checking: (n) => `Checking the addresses of the ${plural(n, "company", "companies")} found`,
-  stop: "Stop",
-  ended: (ending, n, target) => {
-    if (ending === "source_failed")
-      return "The directory could not be read. Nothing was counted for what was not found.";
-    if (ending === "stopped")
-      return `Stopped with ${plural(n, "company", "companies")} found. Their addresses were checked.`;
-    if (ending === "paused")
-      return `Lead searches are paused for now. ${plural(n, "company", "companies")} counted; nothing more is being counted.`;
-    if (ending === "budget_used" || ending === "month_leads_used")
-      return `Stopped at ${plural(n, "company", "companies")}: this month's searching is used up. It renews next month.`;
-    if (n === 0) return "No company matched what you asked, with an address that checked out.";
-    if (n >= target) return `Found ${plural(n, "company", "companies")}, each address checked`;
-    return `Found ${n} of ${plural(target, "company", "companies")}: everything the filters cover, each address checked`;
-  },
-  more: "Find more like these"
-};
-function peoplePlanSentence(p) {
-  const what = p.industries.length ? `${joinWords(p.industries)} ${p.count === 1 ? "company" : "companies"}` : null;
-  const companies = what ? `${p.count} ${what.replace(/^\d+ /, "")}` : plural(p.count, "company", "companies");
-  const size = p.sizes.length ? ` of ${p.sizes.join(", ")} people` : "";
-  const where = p.states.length ? ` in ${joinWords(p.states)}` : " in the US";
-  const called = joinWords(p.titles.map((t) => `\u201C${t}\u201D`));
-  const level = p.seniority.length ? ` (${p.seniority.map((s) => PEOPLE_SENIORITY_WORDS[s]).join(" or ")})` : "";
-  return `Up to ${companies}${size}${where}, each through someone called ${called}${level}, each address checked`;
-}
 
 // src/leads/search/people-plan-schema.ts
-import { z as z12 } from "zod";
+var industry = z12.string().transform((typed, ctx) => {
+  const name = peopleIndustryOf(typed);
+  if (name) return name;
+  ctx.addIssue({ code: "custom", message: PEOPLE_FIND_WORDS.industryUnread(typed.trim(), peopleIndustriesNear(typed)) });
+  return z12.NEVER;
+});
 var LeadPeoplePlanSchema = z12.object({
   version: z12.literal(1),
   card: z12.literal(PEOPLE_CARD),
@@ -33790,8 +33798,8 @@ var LeadPeoplePlanSchema = z12.object({
   count: z12.number().int().min(1).max(PEOPLE_COUNT_MAX),
   titles: z12.array(words2(2, PEOPLE_TITLE_CHARS)).min(1).max(PEOPLE_TITLES_MAX),
   seniority: z12.array(z12.enum(PEOPLE_SENIORITIES)).max(PEOPLE_SENIORITIES.length),
-  // The directory's own names alone: it refuses a run naming any other (peoplePlanFrom spells a typed one as it does).
-  industries: z12.array(z12.enum(PEOPLE_INDUSTRIES)).max(PEOPLE_INDUSTRIES_MAX),
+  // The directory's own names alone: it refuses a run naming any other.
+  industries: z12.array(industry).max(PEOPLE_INDUSTRIES_MAX),
   sizes: z12.array(z12.enum(PEOPLE_COMPANY_SIZES)).max(PEOPLE_COMPANY_SIZES.length),
   states: z12.array(
     z12.string().transform((s) => s.trim().toUpperCase()).refine((s) => US_CODES.has(s), "a US state's two letters")
@@ -35587,8 +35595,8 @@ function businessPageVM(f) {
   const identity = [];
   if (legal)
     identity.push({ label: "Legal name", value: trade && trade !== legal ? `${legal}, trading as ${trade}` : legal });
-  const industry = (f.industry ?? "").trim();
-  if (industry) identity.push({ label: "Industry", value: industryWords(industry) });
+  const industry2 = (f.industry ?? "").trim();
+  if (industry2) identity.push({ label: "Industry", value: industryWords(industry2) });
   const where = addressLine(f);
   if (where) identity.push({ label: "Address", value: where });
   const phone = formatPhoneDisplay(f.publicPhoneE164);

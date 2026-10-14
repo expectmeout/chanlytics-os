@@ -11161,7 +11161,7 @@ type LeadPeoplePlan = {
     /** What the people are called ("marketing manager", "office manager"): one to five. */
     titles: string[];
     seniority: PeopleSeniority[];
-    /** The companies' industries, in the provider's own names ("Marketing & Advertising"): PEOPLE_INDUSTRIES alone. */
+    /** The companies' industries, in the provider's own names ("Marketing & Advertising"): its list alone (people-industries.ts). */
     industries: string[];
     sizes: PeopleCompanySize[];
     /** Two-letter US states; none is the whole country. */
@@ -11254,6 +11254,7 @@ declare const PEOPLE_FIND_WORDS: {
     readonly titleShort: (t: string) => string;
     readonly tooMany: (what: string, max: number, n: number) => string;
     readonly titlesLong: "What they are called is too long: 400 characters at most.";
+    readonly industryOdd: (t: string) => string;
     readonly industryUnread: (t: string, near: readonly string[]) => string;
     readonly stateUnread: (s: string) => string;
     readonly more: "Find more like these";

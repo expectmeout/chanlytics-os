@@ -30,11 +30,10 @@ import {
   PEOPLE_TITLES_MAX,
   PEOPLE_TITLE_CHARS,
   listTyped,
-  peopleIndustriesNear,
-  peopleIndustryOf,
   peoplePlanFrom,
   usStatesTyped,
 } from "./search/people-plan";
+import { peopleIndustriesNear, peopleIndustryOf } from "./search/people-industries";
 import { LeadPeoplePlanSchema } from "./search/people-plan-schema";
 
 /* --------------------------------------------------------------- requests */

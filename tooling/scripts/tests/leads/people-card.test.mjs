@@ -125,15 +125,18 @@ test("the mapper reads the provider's own fields: a company and a person, a work
 });
 
 test("the people card asks at least the provider's hundred, by its own names, at the build its calibration read", () => {
-  const plan = peoplePlanFrom({
-    asked: "marketing managers",
-    count: 10,
-    titles: ["Marketing Manager"],
-    seniority: ["manager"],
-    industries: ["marketing and advertising"],
-    sizes: ["11 - 50"],
-    states: ["TX"],
-  });
+  // As the route takes it: the schema spells a typed industry as the directory does.
+  const plan = LeadPeoplePlanSchema.parse(
+    peoplePlanFrom({
+      asked: "marketing managers",
+      count: 10,
+      titles: ["Marketing Manager"],
+      seniority: ["manager"],
+      industries: ["marketing and advertising"],
+      sizes: ["11 - 50"],
+      states: ["TX"],
+    }),
+  );
   assert.deepEqual(card.buildInput(plan, 20), {
     maxResults: 100,
     personTitle: ["Marketing Manager"],
@@ -197,20 +200,30 @@ test("the plan: its sentence counts companies, its estimate keeps both floors, t
   assert.deepEqual(usStatesTyped("Texas, ca, Califronia"), { codes: ["TX", "CA"], unread: ["Califronia"] });
   const p = peopleSheetProblems({ titles: "", industries: "A", states: "Tex.", count: "900" });
   assert.equal(p.titles, PEOPLE_FIND_WORDS.needTitle);
-  assert.equal(p.industries, PEOPLE_FIND_WORDS.industryUnread("A", []));
+  assert.equal(p.industries, PEOPLE_FIND_WORDS.industryOdd("A"));
   assert.equal(p.states, PEOPLE_FIND_WORDS.stateUnread("Tex."), "a state that reads as none is said, never dropped");
   assert.equal(p.count, PEOPLE_FIND_WORDS.needCount);
-  const unread = (industries) =>
-    peopleSheetProblems({ titles: "owner", industries, states: "", count: "10" }).industries;
-  assert.equal(
-    unread("Accounting, marketing agencies"),
-    PEOPLE_FIND_WORDS.industryUnread("marketing agencies", ["Marketing & Advertising"]),
+  // The directory's industries are the route's to say (its list stays on the server): the schema refuses one it does
+  // not list, under the industries box (the route's fields name it), with the nearest of its own.
+  const refused = (industries) => LeadPeoplePlanSchema.safeParse({ ...plan, industries }).error?.issues[0];
+  const agencies = refused(["Accounting", "marketing agencies"]);
+  assert.deepEqual(
+    [agencies.path, agencies.message],
+    [["industries", 1], PEOPLE_FIND_WORDS.industryUnread("marketing agencies", ["Marketing & Advertising"])],
     "an industry the directory does not list is said with the nearest of its own",
   );
-  assert.match(unread("dentists"), /^“dentists” isn't one of the directory's industries\. Say it as/);
-  assert.equal(unread("accounting, real estate"), undefined, "its own names, in any case");
-  assert.equal(LeadPeoplePlanSchema.safeParse({ ...plan, industries: ["Dentists"] }).success, false);
+  assert.match(refused(["dentists"]).message, /^“dentists” isn't one of the directory's industries\. Say it as/);
+  assert.deepEqual(
+    LeadPeoplePlanSchema.parse({ ...plan, industries: ["accounting", "real estate"] }).industries,
+    ["Accounting", "Real Estate"],
+    "its own names, in any case",
+  );
   assert.deepEqual(LeadPeoplePlanSchema.parse(plan).industries, ["Marketing & Advertising"]);
+  assert.equal(
+    peopleSheetProblems({ titles: "owner", industries: "dentists", states: "", count: "10" }).industries,
+    undefined,
+    "the sheet leaves it to the route",
+  );
   const long = "x".repeat(61);
   assert.equal(
     peopleSheetProblems({ titles: long, industries: "", states: "", count: "10" }).titles,

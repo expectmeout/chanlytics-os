@@ -10,7 +10,7 @@ import {
   PEOPLE_COMPANY_SIZES,
   PEOPLE_COUNT_MAX,
   PEOPLE_ASKED_CHARS,
-  PEOPLE_INDUSTRIES,
+  PEOPLE_FIND_WORDS,
   PEOPLE_INDUSTRIES_MAX,
   PEOPLE_SENIORITIES,
   PEOPLE_STATES_MAX,
@@ -18,6 +18,22 @@ import {
   PEOPLE_TITLE_CHARS,
   type LeadPeoplePlan,
 } from "./people-plan";
+import { peopleIndustriesNear, peopleIndustryOf } from "./people-industries";
+
+/**
+ * An industry as the directory names it: one typed in any case, or with "and" for "&", is spelled its way; one it does
+ * not list is refused in the sheet's words with the nearest of its own, which the Find people sheet shows under its box
+ * (the route's `fields`).
+ */
+const industry = z.string().transform((typed, ctx) => {
+  const name = peopleIndustryOf(typed);
+  if (name) return name;
+  ctx.addIssue({
+    code: "custom",
+    message: PEOPLE_FIND_WORDS.industryUnread(typed.trim(), peopleIndustriesNear(typed)),
+  });
+  return z.NEVER;
+});
 
 /** The plan, checked here and again by lead_people_search_create. */
 export const LeadPeoplePlanSchema: z.ZodType<LeadPeoplePlan> = z.object({
@@ -28,8 +44,8 @@ export const LeadPeoplePlanSchema: z.ZodType<LeadPeoplePlan> = z.object({
   count: z.number().int().min(1).max(PEOPLE_COUNT_MAX),
   titles: z.array(words(2, PEOPLE_TITLE_CHARS)).min(1).max(PEOPLE_TITLES_MAX),
   seniority: z.array(z.enum(PEOPLE_SENIORITIES)).max(PEOPLE_SENIORITIES.length),
-  // The directory's own names alone: it refuses a run naming any other (peoplePlanFrom spells a typed one as it does).
-  industries: z.array(z.enum(PEOPLE_INDUSTRIES)).max(PEOPLE_INDUSTRIES_MAX),
+  // The directory's own names alone: it refuses a run naming any other.
+  industries: z.array(industry).max(PEOPLE_INDUSTRIES_MAX),
   sizes: z.array(z.enum(PEOPLE_COMPANY_SIZES)).max(PEOPLE_COMPANY_SIZES.length),
   states: z
     .array(
