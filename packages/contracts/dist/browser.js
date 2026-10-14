@@ -17334,8 +17334,8 @@ var LEAD_ADDRESSEE_WORDS = {
   /** What a role that may not is told it cannot do here (gateTitle). */
   gated: "choose who a reach-out writes to",
   choosing: "Choosing\u2026",
-  /** Chosen: who it writes to now, and whether their address is checked first (a few minutes) or was already. */
-  done: (name, checking) => checking ? `${name} is who its reach-out writes to now. Their address is being checked first, which takes a few minutes.` : `${name} is who its reach-out writes to now. Their address was checked already.`,
+  /** Chosen: whom the business's reach-out writes to now, and whether their address is checked first or was already. */
+  done: (name, business, checking) => checking ? `${business}'s reach-out writes to ${name} now. Their address is being checked first, which takes a few minutes.` : `${business}'s reach-out writes to ${name} now. Their address was checked already.`,
   refused: {
     gone: "This lead is gone.",
     not_a_company: "Only a company has people to choose from.",
@@ -20877,6 +20877,10 @@ function runCountsOf(answer) {
     out[id] = { ...counts, sent_by: { whatsapp, sms, email } };
   }
   return out;
+}
+function runLabelOf(run) {
+  const label = run.audience?.label;
+  return typeof label === "string" && label.trim() ? label : run.name;
 }
 function whenLabel(iso, tz, now = /* @__PURE__ */ new Date()) {
   const ms2 = Date.parse(iso);
@@ -24670,16 +24674,21 @@ var TO_SEND_ALL_WORDS = {
   door: "Open To send",
   meta: "Reach-out \xB7 to send",
   status: "Handed to you",
-  /** "12 emails handed to you, from 3 reach-outs" */
-  sub: (n, runs) => `${plural(n, "email", "emails")} handed to you${runs > 1 ? `, from ${runs} reach-outs` : ""}`,
-  /** Today's one row for them: what waits, and where. */
-  sentence: (n, runs) => `${plural(n, "email", "emails")} to send from your inbox, from ${runs} reach-outs, each written and checked.`,
+  /** "12 emails handed to you, from 3 reach-outs"; one reach-out (its first email and its nudge) says none. */
+  sub: (n, from) => `${plural(n, "email", "emails")} handed to you${from > 1 ? `, from ${from} reach-outs` : ""}`,
+  /** Today's one row for them: what waits, and from how many reach-outs where more than one. */
+  sentence: (n, from) => `${plural(n, "email", "emails")} to send from your inbox${from > 1 ? `, from ${from} reach-outs` : ""}, each written and checked.`,
+  /** Today's brief for them, as one run's line: "Your reach-outs are waiting for you: …". */
+  brief: (from) => from > 1 ? { label: "Your reach-outs", verb: "are", waits: "waiting for you" } : { label: "Your reach-out", verb: "is", waits: "waiting for you" },
   note: REACH_OUT_TO_SEND_LABELS.note,
-  /** A run's part of the list, by its chain's name and how many of its emails wait. */
-  runHead: (name, n) => `${name} \xB7 ${n}`,
+  /**
+   * A run's part of the list: its reach-out, which of its emails (a first email and its nudge are two parts of one
+   * reach-out), and how many wait. The step is null until the run's detail is read.
+   */
+  runHead: (name, step2, n) => step2 === null ? `${name} \xB7 ${n}` : `${name} \xB7 ${step2 === 0 ? "first email" : stepLabel(step2).toLowerCase()} \xB7 ${n}`,
   openRun: "Open the run",
   /** A run's own To send, where other runs hand emails over too: the door to all of them. */
-  everyRun: (n, runs) => `All ${n} to send, from ${runs} reach-outs`,
+  everyRun: (n, from) => `All ${n} to send${from > 1 ? `, from ${from} reach-outs` : ""}`,
   reading: "Reading its emails\u2026",
   unread: "Its emails could not be read just now. Open the run to see them.",
   /** Every email handed over is said: what the pane says once its list is empty. */
@@ -24690,16 +24699,21 @@ var TO_SEND_ALL_WORDS = {
 function toSendAllOf(runs) {
   const waiting = runs.filter((r2) => runDraftedEmails(r2) > 0).sort((a, b) => a.scheduled_for.localeCompare(b.scheduled_for) || a.id.localeCompare(b.id));
   if (waiting.length === 0) return null;
-  return { runs: waiting, count: waiting.reduce((n, r2) => n + runDraftedEmails(r2), 0) };
+  return {
+    runs: waiting,
+    count: waiting.reduce((n, r2) => n + runDraftedEmails(r2), 0),
+    // A reach-out's runs are its steps' (a first email, a nudge): counted as the one reach-out they are.
+    from: new Set(waiting.map((r2) => reachOutRootOf(r2.audience) ?? r2.id)).size
+  };
 }
 function toSendRunsOf(waiting) {
   const folded2 = waiting.filter((r2) => runHeldEmails(r2) === 0 && runDraftedEmails(r2) > 0);
   const all = toSendAllOf(waiting);
-  return all && folded2.length > 1 ? { runs: folded2, count: all.count, from: all.runs.length } : null;
+  return all && folded2.length > 1 ? { runs: folded2, count: all.count, from: all.from } : null;
 }
 function toSendEveryOf(runs) {
   const all = toSendAllOf(runs);
-  return all && all.runs.length > 1 ? { count: all.count, from: all.runs.length } : null;
+  return all && all.runs.length > 1 ? { count: all.count, from: all.from } : null;
 }
 function waitingRunsDoor(waiting) {
   const [only] = waiting;
@@ -44217,7 +44231,7 @@ function cameIn(vm) {
 }
 var runSentence = (r2) => [
   bold(r2.label),
-  plain(` is ${r2.waits ?? RUN_WAITING_WORDS.toLowerCase()}: ${r2.sentence}`)
+  plain(` ${r2.verb ?? "is"} ${r2.waits ?? RUN_WAITING_WORDS.toLowerCase()}: ${r2.sentence}`)
 ];
 function todayBriefWords(vm, day, runs) {
   const dayWords3 = daySentence(day);
@@ -47964,6 +47978,7 @@ export {
   runDraftedEmails,
   runDueNow,
   runHeldEmails,
+  runLabelOf,
   runMarkShown,
   runReadingOf,
   runStopWords,

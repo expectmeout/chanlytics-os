@@ -25,6 +25,7 @@ import {
   rightNowLine,
   runHeldEmails,
   runDraftedEmails,
+  runLabelOf,
   runsThatWait,
   sameQuestion,
   scopeFromRoute,
@@ -60,6 +61,8 @@ interface Run {
   when: string;
   counts: { sent: number; replied: number };
   audience?: { label?: string } | null;
+  /** Its own name: what says a reach-out's run, whose audience carries no label (contracts runLabelOf). */
+  name: string;
 }
 
 export interface PaletteGlobals {
@@ -206,7 +209,7 @@ export function waitingFrom(win: Window, parts: Waits | null = needsYouParts()):
     more: Math.max(0, threadsWaiting - people.length),
     runs: runs.map((r) => ({
       id: r.id,
-      label: r.audience?.label || "Campaign",
+      label: runLabelOf(r),
       reach: r.recipient_count,
       to: `broadcasts/run:${r.id}`,
     })),

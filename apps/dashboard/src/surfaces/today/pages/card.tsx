@@ -11,7 +11,13 @@
  */
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
-import type { BroadcastVM, TodayFigureId, TodayFigureVM, TodayVM } from "@chanlytics/contracts";
+import {
+  runLabelOf,
+  type BroadcastVM,
+  type TodayFigureId,
+  type TodayFigureVM,
+  type TodayVM,
+} from "@chanlytics/contracts";
 import type { BroadcastsSurface } from "@/surfaces/campaigns/broadcasts/surface";
 import type { PageClock } from "@/legacy-bridge/zone";
 import { FailedRead } from "../../kit/empty/empty";
@@ -60,7 +66,7 @@ const RunsDone = ({ nav }: { nav: Nav }) => {
           <Icon name="bolt" size={13} />
         </span>
         <span className="brief-beat-text">
-          <b>{r.playbook_id ? r.audience.label : r.name}</b> {r.playbook_id ? "ran" : "went out"}
+          <b>{r.playbook_id ? runLabelOf(r) : r.name}</b> {r.playbook_id ? "ran" : "went out"}
           {" at "}
           {timeOf(r.started_at)}: {w.counts}
           {w.still ? " · still sending" : ""}

@@ -728,6 +728,15 @@ test("the queue counts the people past the six apart from the calls and the sear
   assert.match(words, /A search is waiting on your answer\./, "and the search past the six");
 });
 
+test("the brief says the emails handed to you once, as the queue's one row does, and a label that is many says 'are'", () => {
+  const vm = toTodayVM(metrics(), [], [], [], NOW);
+  const run = (label, sentence, verb) => ({ label, sentence, waits: "waiting for you", ...(verb ? { verb } : {}) });
+  const many = todayBriefWords(vm, null, [run("Your reach-outs", "5 emails to send from your inbox.", "are")]).text;
+  assert.match(many, /Your reach-outs are waiting for you: 5 emails to send from your inbox\./, many);
+  const one = todayBriefWords(vm, null, [run("Your reach-out", "3 emails to send from your inbox.")]).text;
+  assert.match(one, /Your reach-out is waiting for you: 3 emails to send from your inbox\./, one);
+});
+
 test("a person and four calls: the brief says one person needs you, not 'and 4 more'", () => {
   const { people, asking } = crowd(1);
   const vm = toTodayVM(
