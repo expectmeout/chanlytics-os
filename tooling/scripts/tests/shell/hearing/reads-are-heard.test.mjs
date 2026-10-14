@@ -14,8 +14,9 @@
  *     out is a read nobody tells it of, as eleven were. The baseline may only fall: a read nobody listed is a red build, and one that
  *     is heard now must leave the file (UPDATE_BASELINES=1 banks the fall). Each group says what kind of exception it is (KINDS),
  *     and what it claims is checked: the tables each kind may hold, the writes whose rows re-read the surface (`rereadAfter`), the
- *     tables it hears that read it again (`heardWith`), the field an over-read feeds that the surface never reads (`field`), the
- *     finding an owed read waits on (`finding`). The owed pairs are counted in the file, and the count may only fall.
+ *     tables it hears that read it again (`heardWith`), the surfaces that hear it on its page and read that page again (`heardBy`),
+ *     the field an over-read feeds that the surface never reads (`field`), the finding an owed read waits on (`finding`). The owed
+ *     pairs are counted in the file, and the count may only fall.
  *  2. Writes tell. A surface learns of a write one of two ways: the refresh map names it (or forgets what it holds, for a lens read
  *     where it is drawn), or the feed tells it of every table the write changes that it draws, by the event the write makes. Run
  *     on every write the map decides, AFTER and REFRESHES_NOTHING alike, over the dashboard's own code; a surface left neither way
