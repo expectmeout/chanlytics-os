@@ -49,11 +49,18 @@ export const CR_FEED_WORDS = {
 export const CALENDAR_PAGE = { refreshMs: CR_REFRESH_MS, words: CR_FEED_WORDS };
 
 /**
- * What can be open over the board and has the keys while it is: the deal sheet, Ask, a menu. Only the app's (each sits
- * inside .app-root), by People's rule (clients-a.jsx PL_OVERLAY), so a dialog a browser extension adds cannot silence the
- * board. The appointment's own dialog is the page's: it holds Escape, and the key handler asks it first.
+ * What can be open over the board and has the keys while it is: the deal sheet, Ask, a menu, and the kit's own Menu and
+ * Sheet, which are drawn on the document's body past .app-root and named by their class (People's rule, PL_OVERLAY), so
+ * a dialog a browser extension adds cannot silence the board. Not the board's own peek, which the key handler asks first:
+ * the board stays live beside it. It named the app's alone, so the kit's Menu at the bar's end and every kit sheet let the
+ * arrows move the days behind them.
  */
-export const CR_OVERLAY = '.app-root [role="dialog"], .app-root [role="menu"]';
+export const CR_OVERLAY = [
+  '.app-root [role="dialog"]:not(.cal-side)',
+  '.app-root [role="menu"]',
+  '.more-menu[role="menu"]',
+  '.sheet[role="dialog"]',
+].join(", ");
 
 /** The date arithmetic a step takes: contracts' own, reached through the bridge's verbs. */
 interface StepKit {
@@ -101,10 +108,30 @@ interface NotesContacts {
   emails?: string[];
 }
 
+/** A text as a pattern that matches it and nothing else. */
+const literally = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * A number however it is written, as a pattern: its national digits with a few spaces, dots, dashes or brackets between
+ * them, after its country code where the number has one ("+1 917 555 0116", "1-917-555-0116"), or any short code where it
+ * has none, so "+1 (917) 555-0116" is the number "(917) 555-0116" too. Null for fewer than seven digits.
+ */
+function numberPattern(phone: string): RegExp | null {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length < 7) return null;
+  const national = digits.slice(-10);
+  const code = digits.slice(0, digits.length - national.length);
+  const spaced = (d: string) => d.split("").join("\\D{0,3}");
+  const lead = code ? `(?:\\+?\\s*${spaced(code)}\\D{0,3})?` : "(?:\\+?\\d{1,3}\\D{0,3})?";
+  return new RegExp(`${lead}${spaced(national)}`, "g");
+}
+
 /**
  * Whether the notes say anything the panel has not already said. A booking tool writes the person's name and number into
- * the event's description, and this dialog prints both above it; a box repeating them is noise a reader has to look past.
- * Strip what is already shown, and if no letter or digit survives, there is nothing to show.
+ * the event's description, and the sheet prints both above it; a box repeating them is noise a reader has to look past.
+ * Strip what is already shown, in any case, and every number whole, its country code with it, and if no letter or digit
+ * survives, there is nothing to show. The number's last ten digits alone were taken out, so "+1 917 555 0116" left its
+ * "+1" behind, and every note of a booking tool's ("Tom Baker · +1 917 555 0116") was shown, saying nothing new.
  */
 export const crNotesWorth = (
   desc: string | null | undefined,
@@ -118,13 +145,12 @@ export const crNotesWorth = (
     ...(contacts?.phones ?? []),
     ...(contacts?.e164 ?? []),
     ...(contacts?.emails ?? []),
-  ].filter((s): s is string => !!s);
-  for (const s of shown) rest = rest.split(s).join(" ");
-  // A number written differently is the same number, so its digits decide: the last ten of them, because
-  // "+1 917 555 0103" and "(917) 555-0103" are one number with and without its country code.
+  ].filter((s): s is string => !!s && !!s.trim());
+  for (const s of shown) rest = rest.replace(new RegExp(literally(s.trim()), "gi"), " ");
+  // A number written differently is the same number, so its digits decide.
   for (const ph of [...(contacts?.phones ?? []), ...(contacts?.e164 ?? [])]) {
-    const digits = String(ph).replace(/\D/g, "").slice(-10);
-    if (digits.length >= 7) rest = rest.replace(new RegExp(digits.split("").join("\\D*"), "g"), " ");
+    const pattern = numberPattern(String(ph));
+    if (pattern) rest = rest.replace(pattern, " ");
   }
-  return /[a-z0-9]/i.test(rest) ? desc : null;
+  return /[\p{L}\p{N}]/u.test(rest) ? desc : null;
 };

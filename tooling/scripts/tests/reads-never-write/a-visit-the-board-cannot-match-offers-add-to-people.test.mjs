@@ -8,8 +8,8 @@
  * calendar's people in People, and a visit the board has no match for offers the press, through the door "Add a person"
  * uses (POST contacts: an existing number or address returns that person, consent stays unknown, nobody is messaged).
  *
- * The rule (contracts addToPeopleOf) is run on its cases; the dialog (CrPanel) is the real TSX drawn on a stub React, its
- * press sent over a scripted wire.
+ * The rule (contracts addToPeopleOf) is run on its cases; the visit (visit-sheet.tsx OpenVisit, the desk's peek) is the real
+ * TSX drawn on a stub React, its press sent over a scripted wire.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -74,9 +74,9 @@ test("the words", () => {
   assert.equal(ADD_TO_PEOPLE_WORDS.existed(null), "They were in People already");
 });
 
-/* ---- the dialog, drawn ---- */
+/* ---- the visit, drawn ---- */
 installLegacyReact({ __DEMO_MODE: false, CHANLY: { nav: () => {} } });
-const { CrPanel } = await import("../../../../apps/dashboard/src/surfaces/calendar/panel.tsx");
+const { OpenVisit } = await import("../../../../apps/dashboard/src/surfaces/calendar/visit/visit-sheet");
 
 /** What the wire saw (request line and body) and what it answers a POST contacts with. */
 const sent = [];
@@ -106,6 +106,7 @@ const blockOf = (item) => {
     person: null,
     contacts: { phones: [ANA.phone], emails: [ANA.email] },
     guess: "Ana Ruiz",
+    visit: { id: "v1", status: "booked" },
     ...item,
   });
   const vm = toCalendarVM(
@@ -131,66 +132,72 @@ const blockOf = (item) => {
   );
   return { block: vm.days[1].blocks[0], vm };
 };
+/** What the board's toast said, newest last. */
+const flashed = [];
 const draw = ({ block, vm }) =>
   again(() =>
-    CrPanel({
+    OpenVisit({
       b: block,
       day: vm.days[1],
       todayKey: vm.today,
+      tz: TZ,
       source: "your calendar",
       bookingLink: null,
-      onCopyLink() {},
+      moments: null,
+      days: vm.days,
       onClose() {},
+      onWalk() {},
+      flash: (text) => flashed.push(text),
     }),
   );
 const press = (node) => node.props.onClick({ stopPropagation() {}, preventDefault() {} });
+const ADD = "cal-visit-primary-add";
 
-test("a visit with no person in People offers Add to People; one People matched, or one that names several, offers none", () => {
+test("a visit with no person in People leads with Add to People; one People matched, or one that names several, offers none", () => {
   fresh();
   const tree = draw(blockOf({}));
-  const add = byTestId(tree, "cal-panel-add-person");
+  const add = byTestId(tree, ADD);
   assert.ok(add, "the press is drawn");
   assert.equal(textOf(add).trim(), "Add to People");
-  assert.ok(byTestId(tree, "cal-panel-contact"), "beside the line that says they are not in People yet");
+  assert.ok(byTestId(tree, "cal-visit-contact"), "beside the line that says they are not in People yet");
 
   fresh();
   const matched = draw(blockOf({ person: { id: "p1", name: "Ana Ruiz", via: "phone" } }));
-  assert.equal(byTestId(matched, "cal-panel-add-person"), null, "a matched visit has no press");
-  assert.ok(byTestId(matched, "cal-panel-person"));
+  assert.equal(byTestId(matched, ADD), null, "a matched visit has no press");
+  assert.ok(byTestId(matched, "cal-visit-person"));
 
   fresh();
   const several = draw(blockOf({ contacts: { phones: [ANA.phone, "+19175550101"], emails: [] } }));
-  assert.equal(byTestId(several, "cal-panel-add-person"), null, "two numbers: the sweep adds them within the hour");
-  assert.equal(sent.length, 0, "and drawing the dialog asked the server for nothing");
+  assert.equal(byTestId(several, ADD), null, "two numbers: the sweep adds them within the hour");
+  assert.equal(sent.length, 0, "and drawing the visit asked the server for nothing");
 });
 
-test("the press goes through the door Add a person uses, with what the event carried, and the dialog says what happened", async () => {
+test("the press goes through the door Add a person uses, with what the event carried, and the board says what happened", async () => {
   fresh();
   sent.length = 0;
+  flashed.length = 0;
   const shown = blockOf({});
-  let tree = draw(shown);
-  press(byTestId(tree, "cal-panel-add-person"));
+  const tree = draw(shown);
+  press(byTestId(tree, ADD));
   await flush();
   assert.deepEqual(
     adds(),
     [{ line: "POST /api/v1/contacts", body: { phone: ANA.phone, email: ANA.email, name: "Ana Ruiz" } }],
     "the number, the one address beside it and the name the event gave: the door fills only what is empty",
   );
-  tree = draw(shown);
-  assert.equal(textOf(byTestId(tree, "cal-panel-added")), "Ana Ruiz is in People now");
-  assert.equal(byTestId(tree, "cal-panel-add-person"), null, "the press is spent");
+  assert.deepEqual(flashed, ["Ana Ruiz is in People now"]);
 });
 
-test("a person already in People is said so, and a refusal is said in the door's words", async () => {
+test("a person already in People is said so, and a refusal is said in the door's words, the press still there to try again", async () => {
   fresh();
   sent.length = 0;
+  flashed.length = 0;
   answer = () => ({ status: 200, body: { ok: true, data: { contact_id: "p1", existed: true } } });
   const shown = blockOf({});
   let tree = draw(shown);
-  press(byTestId(tree, "cal-panel-add-person"));
+  press(byTestId(tree, ADD));
   await flush();
-  tree = draw(shown);
-  assert.equal(textOf(byTestId(tree, "cal-panel-added")), "Ana Ruiz was in People already");
+  assert.deepEqual(flashed, ["Ana Ruiz was in People already"]);
 
   fresh();
   answer = () => ({
@@ -198,11 +205,11 @@ test("a person already in People is said so, and a refusal is said in the door's
     body: { ok: false, error: { code: "validation", message: "That is not a phone number." } },
   });
   tree = draw(shown);
-  press(byTestId(tree, "cal-panel-add-person"));
+  press(byTestId(tree, ADD));
   await flush();
+  assert.equal(flashed.at(-1), "That is not a phone number.");
   tree = draw(shown);
-  assert.equal(textOf(byTestId(tree, "cal-panel-add-refused")), "That is not a phone number.");
-  assert.ok(byTestId(tree, "cal-panel-add-person"), "and the press stays, to try again");
+  assert.ok(byTestId(tree, ADD), "and the press stays, to try again");
   answer = () => ({ status: 200, body: { ok: true, data: { contact_id: "p9", existed: false } } });
 });
 
@@ -218,7 +225,7 @@ test("a role that may not add people is told why at the press, and the press add
   });
   try {
     const tree = draw(blockOf({}));
-    const add = byTestId(tree, "cal-panel-add-person");
+    const add = byTestId(tree, ADD);
     assert.equal(add.props["data-gated"], "", "gated, and still in the tab order");
     assert.match(add.props["aria-description"], /add this person to People/);
     press(add);

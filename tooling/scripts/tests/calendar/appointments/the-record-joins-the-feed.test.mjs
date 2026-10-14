@@ -366,7 +366,9 @@ test("the receptionist says a caller's visits as People does: one a member cance
   const said = async (appointments) => {
     setPg(fakeDb({ appointments }));
     forgetFeeds();
-    return visitsFor(rt, { phone: CAL, name: null }, new Date(NOW));
+    // On a call, at the test's clock: the clock was handed where the channel goes, so the real one was read, and the
+    // "next" visit two days on became a past one once the real day reached it (13 Oct 2026).
+    return visitsFor(rt, { phone: CAL, name: null }, "call", new Date(NOW));
   };
   try {
     const before = await said([]);

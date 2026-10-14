@@ -10,7 +10,7 @@ import type { CalendarItemDto, VisitMark } from "./calendar-dto";
 import { APPOINTMENT_STATUSES, type AppointmentStatus } from "./feed-appointments";
 import type { BusyBlock, FeedItem } from "./feed";
 import { visitStands } from "./calendar-words";
-import { replyFactsOf, type OwnAddresses, type PersonLike, type PersonMatch } from "./calendar-people";
+import { replyFactsOf, type MatchVia, type OwnAddresses, type PersonLike, type PersonMatch } from "./calendar-people";
 import { bookingCopyTest, bookingToolName } from "./booking-notice";
 import { appointmentKeyOf, recordKeyOf } from "./appointment-key";
 import { shiftKey, zoneMidnight } from "./day-keys";
@@ -72,14 +72,19 @@ export function feedItemOfAppointment(row: AppointmentLike): FeedItem {
   };
 }
 
-/** The person a row is for: by the contact the read linked, else by the number, else by the address. Never by name. */
+/**
+ * The person a row is for: by the contact the read linked (said as the booking's own link, `record`), else by the number,
+ * else by the address. Never by name. How it was found is how it is said: a row linked by its contact said "matched by
+ * email" of a person nothing on the board had matched.
+ */
 export function personOfAppointment(row: AppointmentLike, people: PersonLike[]): PersonMatch | null {
-  const found =
-    (row.contact_id && people.find((p) => p.id === row.contact_id)) ||
-    (row.client_phone && people.find((p) => p.phone === row.client_phone)) ||
-    (row.client_email && people.find((p) => p.email === row.client_email));
+  const linked = row.contact_id ? people.find((p) => p.id === row.contact_id) : undefined;
+  const byPhone = !linked && row.client_phone ? people.find((p) => p.phone === row.client_phone) : undefined;
+  const byEmail =
+    !linked && !byPhone && row.client_email ? people.find((p) => p.email === row.client_email) : undefined;
+  const found = linked ?? byPhone ?? byEmail;
   if (!found) return null;
-  const via = found.phone && found.phone === row.client_phone ? "phone" : found.email ? "email" : "phone";
+  const via: MatchVia = linked ? "record" : byPhone ? "phone" : "email";
   return {
     id: found.id,
     name: found.name || row.client_name || "",

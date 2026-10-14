@@ -11,7 +11,6 @@
  * The preview is a read of a feed the workspace has not saved yet; it changes nothing.
  */
 import {
-  calendarPeekDeal,
   clockLabel,
   coversSpan,
   durationLabel,
@@ -34,15 +33,25 @@ import {
   setCalendarSpan,
   warmCalendar,
 } from "./surface";
+import { calendarRunsOverride, paintHeldRuns, runsWanted } from "./runs-surface";
 import { windowsToWarm } from "./warm";
 import { CALENDAR_PAGE } from "./words";
 
-/** Load `days` days starting on `from` (a day key); a null `from` is the window around today. */
-async function goTo(from: string | null, days = 63): Promise<boolean> {
+/**
+ * Load `days` days starting on `from` (a day key); a null `from` is the window around today. `runs`: whether the
+ * campaigns over the same days are read too, which they are while the board draws them.
+ */
+async function goTo(from: string | null, days = 63, runs = runsWanted()): Promise<boolean> {
   const prev = getCalendarSpan();
   setCalendarSpan(from, days);
   const asked = getCalendarSpan();
   api().forget();
+  // The campaigns over the same days follow the board where it draws them (runs-surface.ts): painted at once where this tab
+  // holds them, and read behind, never waited for.
+  if (runs) {
+    paintHeldRuns();
+    void refreshSurfaces([calendarRunsOverride]);
+  }
   // A window this tab has read paints at once; the read behind it keeps it current (the loading standard's held
   // views). Only a window never read waits for its read.
   if (paintHeldCalendar()) {
@@ -80,7 +89,8 @@ async function ensure(view: CalendarView, anchor: string): Promise<boolean> {
  */
 async function home(): Promise<boolean> {
   if (getCalendarSpan().from === null) return false;
-  await goTo(null);
+  // The page has gone, so nothing draws the campaigns: only the board's weeks go home.
+  await goTo(null, undefined, false);
   return true;
 }
 
@@ -134,9 +144,6 @@ export const calendar = {
   clockLabel,
   // The agenda's rows say how long an appointment runs, as Today's do: one spelling, the view model's.
   durationLabel,
-  // What an appointment's peek says of its person's deal, from the People row the page holds (0008): the rule and the
-  // words are contracts', so the page only draws them.
-  peekDeal: calendarPeekDeal,
 };
 
 /**

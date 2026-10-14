@@ -486,11 +486,6 @@ export function leaving(key: string): RefCallback<HTMLElement> | undefined {
   return window.leaving ? window.leaving(key) : undefined;
 }
 
-/** Focus goes into a box and Tab stays inside it (data-bits `trapFocus`); the answer puts focus back where it was. */
-export function trapFocus(box: HTMLElement | null): () => void {
-  return window.trapFocus ? window.trapFocus(box) : () => undefined;
-}
-
 /** Enter and Space, pressed on the element itself, as a press (data-bits `keyPress`). */
 export function keyPress(fn: (e: KeyboardEvent<HTMLElement>) => void): (e: KeyboardEvent<HTMLElement>) => void {
   return window.keyPress ? window.keyPress(fn) : () => undefined;

@@ -1,7 +1,7 @@
 {
   "family": "calendar",
   "route": "calendar",
-  "owns": "calendar",
+  "owns": "calendar calendar_runs",
   "notices": {
     "messages INSERT": "conversations inbox today · 10 routes",
     "messages UPDATE sent": "conversations inbox · 5 routes",
@@ -73,21 +73,21 @@
     "reach_out_replies INSERT": "reach_out_replies reach_outs · 7 routes",
     "reach_out_replies UPDATE": "reach_out_replies reach_outs · 7 routes",
     "reach_out_replies DELETE": "reach_out_replies reach_outs · 7 routes",
-    "broadcasts INSERT": "broadcasts playbooks reach_outs · 15 routes",
-    "broadcasts UPDATE": "broadcasts playbooks reach_outs · 15 routes",
-    "broadcasts DELETE": "broadcasts playbooks reach_outs · 15 routes",
-    "playbooks INSERT": "playbooks reach_outs · 9 routes",
-    "playbooks UPDATE": "playbooks reach_outs · 9 routes",
-    "playbooks DELETE": "playbooks reach_outs · 9 routes",
+    "broadcasts INSERT": "broadcasts calendar_runs playbooks reach_outs · 16 routes",
+    "broadcasts UPDATE": "broadcasts calendar_runs playbooks reach_outs · 16 routes",
+    "broadcasts DELETE": "broadcasts calendar_runs playbooks reach_outs · 16 routes",
+    "playbooks INSERT": "calendar_runs playbooks reach_outs · 10 routes",
+    "playbooks UPDATE": "calendar_runs playbooks reach_outs · 10 routes",
+    "playbooks DELETE": "calendar_runs playbooks reach_outs · 10 routes",
     "appointments INSERT": "calendar people · 4 routes",
     "appointments UPDATE": "calendar people · 4 routes",
     "appointments DELETE": "calendar people · 4 routes",
     "contacts INSERT": "conversations inbox today · 10 routes",
     "contacts UPDATE": "conversations inbox today · 10 routes",
     "tenant_config UPDATE": "calendar settings · 6 routes",
-    "policies INSERT": "settings · 5 routes",
-    "policies UPDATE": "settings · 5 routes",
-    "policies DELETE": "settings · 5 routes",
+    "policies INSERT": "calendar_runs settings · 6 routes",
+    "policies UPDATE": "calendar_runs settings · 6 routes",
+    "policies DELETE": "calendar_runs settings · 6 routes",
     "templates INSERT": "settings · 5 routes",
     "templates UPDATE": "settings · 5 routes",
     "templates DELETE": "settings · 5 routes",
@@ -99,6 +99,6 @@
     "invitations INSERT": "settings · 5 routes",
     "invitations UPDATE": "settings · 5 routes",
     "invitations DELETE": "settings · 5 routes",
-    "tenants UPDATE": "workspace · 1 route"
+    "tenants UPDATE": "calendar_runs workspace · 2 routes"
   }
 }

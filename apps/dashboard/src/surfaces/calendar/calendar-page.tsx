@@ -1,57 +1,101 @@
 /**
  * Calendar, real: the owner's calendar as the receptionist reads it (moved from legacy/pages/calendar.jsx, decision 0015).
  *
- * One loaded window of days, four views sliced from it. The page keeps two things: the view and the day it looks at (the
- * anchor). Everything else is derived: the span a view needs, the frames it draws, the numbers in the strip. A view's SHAPE
- * comes from dates alone (seven columns, forty-two cells, fourteen rows) while its CONTENT comes from the window, so a
- * switch is instant and a read that is still landing changes nothing but the words inside. Only a move outside the window
- * reads again.
+ * One loaded window of days, four views sliced from it. The view is the address's (`calendar/month`: the frame's strip of
+ * views, chrome.ts) and the page keeps the day it looks at (the anchor). Everything else is derived: the span a view needs,
+ * the frames it draws, the marks a day carries. A view's SHAPE comes from dates alone (seven columns, forty-two cells,
+ * fourteen rows) while its CONTENT comes from the window, so a switch is instant and a read that is still landing changes
+ * nothing but the words inside. Only a move outside the window reads again.
  *
- * Every block is the feed's, every band is the business's hours and closures, every dashed window is a time the
- * receptionist would offer a caller, the same function the phone tool uses. Nothing is booked, moved or cancelled here: the
- * booking link does that.
+ * Every block is the feed's or a booking email's, every band a closure or the hours the business keeps, every open window
+ * a time the receptionist would offer a caller, the same function the phone tool uses. Beside them, under Show, the
+ * campaigns over the same days (runs-surface.ts), which are marks and never blocks. Nothing is booked, moved or cancelled
+ * here: the calendar or the booking tool does that, as an open visit's footnote says.
  *
  * A real workspace draws what the seam gives (`useSurface("calendar")`); a demo session draws the same page from the sample
- * (sample.ts); without either the page draws nothing, and the frame's gate says the surface is being read.
+ * (sample.ts); before either, the board's frame, still, so the page has its shape while the weeks are read (CAL-25).
  */
-import type { CalendarBlockVM } from "@chanlytics/contracts";
-import { demoSession } from "../legacy-verbs";
-import { usePartShown, useSurface } from "../use-surface";
-import { aboutToggleAct, copyLinkAct, refreshAct, swipePagesOf } from "./acts";
-import { CrAgenda, CrBoard, CrMonth } from "./blocks";
+import { useEffect, useMemo } from "react";
 import {
-  calendarFoot,
-  calendarHead,
-  consultNote,
-  failedLine,
-  feedCard,
-  feedNotes,
-  readingLine,
-  staleCard,
-} from "./board-parts";
+  MIN_MS,
+  appointmentWords,
+  calendarRunMarksOf,
+  clockInZone,
+  runMarkShown,
+  todayVisitsAsked,
+  type CalendarBlockVM,
+  type CalendarRunMark,
+  type CalendarRunsDto,
+} from "@chanlytics/contracts";
+import { useSlide } from "../kit/motion/use-slide";
+import { viewDeck } from "../kit/motion/view-deck";
+import { canDo, demoSession, navigate, onAPhone } from "../legacy-verbs";
+import { usePartShown, useSurface } from "../use-surface";
+import { visitWordHere } from "../visit-line";
+import { refreshAct, swipePagesOf } from "./acts";
+import { calendarDayRoute, calendarViewNamed, calendarViewOf } from "./address";
+import { CrAgenda, CrAgendaDay, CrBoard, CrMonth, type ViewAct } from "./blocks";
+import { calendarHead, noticeSlot, rulesSheet } from "./board-parts";
 import { crPhone } from "./board-dom";
-import { CrPanel } from "./panel";
-import { calendarSample } from "./sample";
+import { RunSheet } from "./marks";
+import { wantRuns } from "./runs-surface";
+import { calendarSample, sampleRuns } from "./sample";
 import { touchSwipeStaying } from "./shell-verbs";
 import type { CalendarSurface } from "./surface";
 import type { CalendarFrame } from "./types";
-import { useBoardEffects, useCalendarState, useOpenVisit } from "./use-calendar";
+import {
+  useBoardEffects,
+  useCalendarState,
+  useKeptView,
+  useMinute,
+  useVisitAddress,
+  type CalendarShow,
+} from "./use-calendar";
 import { calendar } from "./verbs";
-import { crStep } from "./words";
+import { OpenVisit, walkFrom } from "./visit/visit-sheet";
+import { CR_VIEWS, crStep } from "./words";
 
-/** The page for one address: which day it names (calendar/<YYYY-MM-DD>), and which visit it opens the panel of (calendar/<YYYY-MM-DD>:a-<id>, or calendar/a-<id>). */
+/** The views in the strip's order: a view arrives from the side its tab stands on. */
+const VIEW_ORDER: readonly string[] = CR_VIEWS.map(([id]) => id);
+
+/**
+ * The page for one address: what follows `calendar/` (`param`: a view's word, a day, a visit, or a view's word before
+ * either), the day it names, and the visit whose panel it opens (contracts calendarParamParts).
+ */
 interface CalendarAddress {
+  param?: string | null;
   initialVisitId?: string | null;
   initialDay?: string | null;
 }
 
-/** The Calendar: what a real workspace's read gives, else a demo's sample, else nothing. */
+/**
+ * The board's frame before its first read (CAL-25): the bar's place and the board's, still, saying it is reading. It drew
+ * nothing at all, and the strip of views stood over an empty page until the weeks landed.
+ */
+function ColdFrame() {
+  return (
+    <div className="calendar" data-testid="calendar-cold" data-loading="">
+      <div className="cal-head">
+        <div className="cal-bar cal-bar-cold">
+          <span className="cal-title-reading" role="status">
+            Reading…
+          </span>
+        </div>
+      </div>
+      <div className="cal-pane">
+        <div className="cal-body cal-body-cold" aria-busy="true" />
+      </div>
+    </div>
+  );
+}
+
+/** The Calendar: what a real workspace's read gives, else a demo's sample, else its frame while the read is out. */
 export function CalendarPage(props: CalendarAddress) {
   const live = useSurface("calendar");
   const C = live ?? (demoSession() ? calendarSample() : undefined);
   // The Calendar's first part (client/page-speed.ts): its board, drawn once the weeks are in.
   usePartShown("calendar", "board", !!C);
-  if (!C) return null;
+  if (!C) return <ColdFrame />;
   return <CalendarReal {...props} C={C} />;
 }
 
@@ -88,11 +132,61 @@ function rangeLabel(p: { view: string; anchor: string; frames: CalendarFrame[]; 
   return `${first.date} – ${last.key.slice(0, 7) === first.key.slice(0, 7) ? last.date.replace(/^[A-Za-z]+ /, "") : last.date}`;
 }
 
-function CalendarReal({ initialDay = null, initialVisitId = null, C }: CalendarAddress & { C: CalendarSurface }) {
+/** No marks: a day Show leaves its campaigns off, or before they are read. */
+const NO_MARKS: readonly CalendarRunMark[] = [];
+
+/**
+ * The campaigns over the board's days, under Show (lane C): read only while Show draws campaigns or cold email (the
+ * surface follows the board's span, runs-surface.ts), made into each day's marks at the board's minute, and its own part
+ * of the page's speed (decision 0053). A demo session draws the sample's runs.
+ */
+function useCalendarRuns(show: CalendarShow, nowMs: number) {
+  const wanted = show.campaigns || show.cold;
+  useEffect(() => {
+    wantRuns(wanted);
+    return () => wantRuns(false);
+  }, [wanted]);
+  const live = useSurface("calendar_runs");
+  const dto: CalendarRunsDto | null = live?.dto ?? (demoSession() ? sampleRuns() : null);
+  usePartShown("calendar", "campaigns", !!dto, wanted ? "" : null);
+  const minute = Math.floor(nowMs / MIN_MS);
+  const marks = useMemo(() => (dto ? calendarRunMarksOf(dto, new Date(minute * MIN_MS)) : null), [dto, minute]);
+  const marksOf = (key: string): readonly CalendarRunMark[] =>
+    wanted && marks ? (marks.get(key) ?? NO_MARKS).filter((m) => runMarkShown(m, show)) : NO_MARKS;
+  return {
+    marksOf,
+    moments: dto?.moments ?? null,
+    offers: {
+      campaigns: !!dto?.moments.some((m) => !m.reach_out) || !!dto?.runs.some((r) => !r.reach_out),
+      cold: !!dto?.moments.some((m) => m.reach_out),
+    },
+  };
+}
+
+/** The open visit, where one is: the block and its day among the days the board holds. */
+function openOf(vm: CalendarSurface["vm"], openId: string | null): { b: CalendarBlockVM; d: CalendarFrame } | null {
+  if (!openId) return null;
+  for (const d of vm.days) {
+    const b = [...d.blocks, ...d.allDay].find((x) => x.id === openId);
+    if (b) return { b, d };
+  }
+  return null;
+}
+
+function CalendarReal({
+  param = null,
+  initialDay = null,
+  initialVisitId = null,
+  C,
+}: CalendarAddress & { C: CalendarSurface }) {
   const st = useCalendarState(initialDay);
-  const { view, setView, pickView, anchorKey, setAnchorKey, openId, setOpenId, pending, setPending } = st;
-  const { failedSpan, setFailedSpan, serviceName, setServiceName, refreshing, setRefreshing } = st;
-  const { aboutOpen, setAboutOpen, aboutRef, toastNode, flash } = st;
+  // The view the address shows, by the rule the frame's strip lights its tab by (address.ts).
+  const view = calendarViewOf(param);
+  useKeptView(calendarViewNamed(param));
+  const slide = useSlide(VIEW_ORDER, view);
+  const nowMs = useMinute();
+  const { anchorKey, setAnchorKey, openId, setOpenId, pending, setPending, show } = st;
+  const { failedSpan, setFailedSpan, serviceName, refreshing, setRefreshing, flash } = st;
   const { vm } = C;
   const anchor = anchorKey || vm.today;
   // What the view needs, from the anchor alone; whether the window has it.
@@ -100,133 +194,218 @@ function CalendarReal({ initialDay = null, initialVisitId = null, C }: CalendarA
   const covered = !!calendar.covers(vm.days, span.from, span.days);
   const spanKey = `${span.from}+${span.days}`;
   const { read, keys } = useBoardEffects({ span, vm, view, anchor, covered, spanKey, setPending, setFailedSpan });
+  const runs = useCalendarRuns(show, nowMs);
 
-  // A link that names a visit opens its panel once the board holds it (contracts visitRoute).
-  useOpenVisit({
+  // The visit open and the address agree: a link that names one opens its panel once the board holds it, a press pushes
+  // its address, and Back closes it (contracts visitRoute).
+  const visit = useVisitAddress({
     visitId: initialVisitId,
+    view,
+    anchor,
+    day: initialDay,
     days: vm.days,
     covered: covered && !pending,
     fetchedAt: C.fetchedAt,
-    open: setOpenId,
+    setOpenId,
   });
 
   const frames = framesOf(vm, span);
   // Days a failed read left out are not loading: they could not be read.
-  const unread = !covered && !pending && failedSpan === spanKey;
-  if (unread)
+  if (!covered && !pending && failedSpan === spanKey)
     for (const f of frames)
       if (f.loading) {
         f.loading = false;
         f.unread = true;
       }
   const shown = view === "day" ? frames.filter((f) => f.key === anchor) : frames;
-  const feedOk = vm.feed.state === "ok";
   const service = vm.services.find((s) => s.name === serviceName) || null;
-  // The phone tool's and the assistant's rule (offerFor): a service's own length, or a consultation's when it needs one first (C5b).
-  const fit = (w: { dur: number }) => !service || !service.offerMinutes || w.dur >= service.offerMinutes;
-  const monthKey = view === "month" ? anchor.slice(0, 7) : null;
-
+  // The phone tool's and the assistant's rule (offerFor): a service's own length, or a consultation's when it needs one
+  // first (C5b). Open times are drawn only while Show draws them.
+  const fit = (w: { dur: number }) => show.open && (!service || !service.offerMinutes || w.dur >= service.offerMinutes);
   const move = (n: number) => setAnchorKey(crStep(view, anchor, n, calendar));
-  const swipePages = swipePagesOf(move);
-  const copyLink = copyLinkAct(vm.bookingLink, flash);
   const refreshNow = refreshAct({ refreshing, setRefreshing, flash });
-  const toggleAbout = aboutToggleAct({ aboutOpen, setAboutOpen, aboutRef });
-  const openDay = (key: string) => {
-    setAnchorKey(key);
-    setView("day");
-  };
-  const onToday =
-    view === "month"
-      ? anchor.slice(0, 7) === vm.today.slice(0, 7)
-      : view === "week"
-        ? shown.some((d) => d.today)
-        : anchor === vm.today;
-  const openBlock = openId
-    ? vm.days.flatMap((d) => [...d.blocks, ...d.allDay].map((b) => ({ b, d }))).find((x) => x.b.id === openId)
-    : null;
-  keys.current = { open: !!openBlock, move, today: () => setAnchorKey(null), close: () => setOpenId(null) };
-  const onOpen = (b: CalendarBlockVM) => setOpenId(b.id);
-  const cards = { vm, refreshing, refreshNow };
-  const label = rangeLabel({ view, anchor, frames, shown });
-  const bar = {
-    vm,
-    view,
-    anchor,
-    label,
-    onToday,
-    serviceName,
+  const open = openOf(vm, openId);
+  const phone = onAPhone();
+  keys.current = {
+    open: !!open,
     move,
-    setAnchorKey,
-    setServiceName,
-    setView: pickView,
-    refreshing,
-    refreshNow,
-    aboutOpen,
-    toggleAbout,
-    copyLink,
+    today: () => setAnchorKey(null),
+    close: visit.close,
+    walk:
+      open && !phone
+        ? (n: number) => {
+            const next = walkFrom(open.d, open.b.id, n);
+            if (next) visit.open(next);
+          }
+        : null,
   };
+  const a: ViewAct = {
+    nowMs,
+    marksOf: runs.marksOf,
+    onOpen: (b) => visit.open(b),
+    onRuns: (d) => st.setRunsDay(d.key),
+  };
+  const word = visitWordHere();
 
   return (
     // Days on their way dim by the one rule every page uses (components.css [data-loading] [data-dims]): after a beat,
     // so a window the tab holds, painted at once, never flickers.
-    <div className="calendar" data-testid="calendar-real" data-loading={pending ? "" : undefined}>
-      {calendarHead(bar)}
-      {/* On a phone the bar stands over the days, as every page's strip does, and the pane under it holds still (mobile.css
-          .cal-pane; calendar.css, the phone block: the board takes the room the page leaves, so nothing is under the tab
-          bar to scroll to); a swipe across the days walks to the next or previous days. On a desk this box is display:
+    <div
+      className="calendar"
+      data-testid="calendar-real"
+      data-loading={pending ? "" : undefined}
+      data-peek={open && !phone ? "" : undefined}
+    >
+      {calendarHead({
+        vm,
+        anchor,
+        label: rangeLabel({ view, anchor, frames, shown }),
+        pending,
+        onToday: onTodayOf(view, anchor, vm.today, shown),
+        serviceName,
+        move,
+        setAnchorKey,
+        setServiceName: st.setServiceName,
+        refreshing,
+        refreshNow,
+        openRules: () => st.setRulesOpen(true),
+        show,
+        setShow: st.setShow,
+        offers: runs.offers,
+        many: appointmentWords(word).Many,
+        word,
+        // Yesterday's visits nobody has marked, by Today's own rule (contracts todayVisitsAsked), over the days the board holds.
+        toMark: todayVisitsAsked({ days: vm.days, now: vm.now ?? 0, feed: vm.feed, stats: vm.stats }, nowMs, word),
+        phone,
+      })}
+      {/* On a phone the bar stands over the days, under the frame's strip of views, and the pane under it holds still
+          (mobile.css .cal-pane); a swipe across the days walks to the next or previous days. It is the pane's own touch
+          (data-own-drag), so the strip's pager never walks the views under the same finger. On a desk this box is display:
           contents and the page scrolls as one. */}
-      <div className="cal-pane" data-testid="cal-pane" {...touchSwipeStaying({ pages: swipePages, when: crPhone })}>
-        {consultNote({ vm, service })}
-        {feedCard(cards)}
-        {staleCard(cards)}
-        {feedNotes({ vm, feedOk })}
-        {failedLine({ covered, failedSpan, spanKey, read, pending })}
-        {/* A read on its way says so in words; the board only dimmed (C2). */}
-        {readingLine(pending)}
-
-        <div key={view} className="cal-body" data-dims aria-busy={pending ? "true" : "false"} data-testid="cal-body">
-          {view === "month" && (
-            <CrMonth frames={frames} monthKey={monthKey} feedOk={feedOk} fit={fit} onDay={openDay} />
-          )}
-          {view === "agenda" && (
-            <CrAgenda
-              frames={frames}
-              feedOk={feedOk}
-              fit={fit}
-              service={service}
-              offer={vm.offer}
-              now={vm.now}
-              onOpen={onOpen}
-            />
-          )}
-          {(view === "week" || view === "day") && (
-            <CrBoard
-              frames={shown}
-              hours={vm.hours}
-              now={vm.now}
-              wide={view === "day"}
-              fit={fit}
-              onDay={openDay}
-              onOpen={onOpen}
-            />
-          )}
+      <div
+        className="cal-pane"
+        data-testid="cal-pane"
+        data-own-drag
+        {...touchSwipeStaying({ pages: swipePagesOf(move), when: crPhone })}
+      >
+        {noticeSlot({ vm, service, refreshing, refreshNow, covered, failedSpan, spanKey, read, pending })}
+        {/* The view: the element the deck moves when a tab of the strip is pressed (kit/motion/view-deck.ts), as Reports'
+            lens body is, arriving from its tab's side. */}
+        <div
+          key={view}
+          ref={viewDeck.view("calendar")}
+          data-slide={slide}
+          className="cal-body"
+          data-dims
+          aria-busy={pending ? "true" : "false"}
+          data-testid="cal-body"
+        >
+          {viewBody({ view, frames, shown, anchor, vm, fit, service, a, phone, st, nowMs, show })}
         </div>
-
-        {calendarFoot({ ...cards, service, aboutOpen, aboutRef, toggleAbout, copyLink })}
       </div>
 
-      {openBlock && (
-        <CrPanel
-          b={openBlock.b}
-          day={openBlock.d}
-          todayKey={vm.today}
-          source={vm.feed.source || "your calendar"}
-          bookingLink={vm.bookingLink}
-          onCopyLink={copyLink}
-          onClose={() => setOpenId(null)}
-        />
-      )}
-      {toastNode}
+      {overlays({ vm, open, runs, visit, st, frames, refreshNow, flash: (text) => flash({ msg: <>{text}</> }) })}
     </div>
   );
+}
+
+/**
+ * What opens over the board: the visit (the kit's sheet on a phone, the peek on a desk), a day's campaigns, and the
+ * hours and rules; and the board's toast.
+ */
+function overlays(p: {
+  vm: CalendarSurface["vm"];
+  open: { b: CalendarBlockVM; d: CalendarFrame } | null;
+  runs: ReturnType<typeof useCalendarRuns>;
+  visit: ReturnType<typeof useVisitAddress>;
+  st: ReturnType<typeof useCalendarState>;
+  frames: CalendarFrame[];
+  refreshNow: () => void | Promise<void>;
+  flash: (text: string) => void;
+}) {
+  const { vm, open, runs, visit, st } = p;
+  const runsDay = st.runsDay ? (p.frames.find((f) => f.key === st.runsDay) ?? null) : null;
+  return (
+    <>
+      {open && (
+        <OpenVisit
+          b={open.b}
+          day={open.d}
+          todayKey={vm.today}
+          tz={vm.timezone}
+          source={vm.feed.source || "your calendar"}
+          bookingLink={vm.bookingLink}
+          moments={runs.moments}
+          days={vm.days}
+          onClose={visit.close}
+          onWalk={(b) => visit.open(b)}
+          flash={p.flash}
+        />
+      )}
+      <RunSheet
+        day={runsDay ? `${runsDay.dow}, ${runsDay.date}` : null}
+        marks={runsDay ? runs.marksOf(runsDay.key) : NO_MARKS}
+        canSend={canDo("approve")}
+        onClose={() => st.setRunsDay(null)}
+      />
+      {rulesSheet({
+        open: st.rulesOpen,
+        onClose: () => st.setRulesOpen(false),
+        vm,
+        refreshing: st.refreshing,
+        refreshNow: p.refreshNow,
+      })}
+      {st.toastNode}
+    </>
+  );
+}
+
+/** Whether Today is where the board stands: this month in Month, a week holding today in Week, else the day itself. */
+function onTodayOf(view: string, anchor: string, todayKey: string, shown: CalendarFrame[]): boolean {
+  if (view === "month") return anchor.slice(0, 7) === todayKey.slice(0, 7);
+  if (view === "week") return shown.some((d) => d.today);
+  return anchor === todayKey;
+}
+
+/** The view's own body: the month (on a phone a month of dots over the day picked, D7), the agenda, or the board. */
+function viewBody(p: {
+  view: string;
+  frames: CalendarFrame[];
+  shown: CalendarFrame[];
+  anchor: string;
+  vm: CalendarSurface["vm"];
+  fit: (w: { dur: number }) => boolean;
+  service: CalendarSurface["vm"]["services"][number] | null;
+  a: ViewAct;
+  phone: boolean;
+  st: ReturnType<typeof useCalendarState>;
+  nowMs: number;
+  show: CalendarShow;
+}) {
+  const { view, frames, shown, anchor, vm, fit, service, a, phone, st, show } = p;
+  const feedOk = vm.feed.state === "ok";
+  // A day pressed in the month on a desk is that day's address, in Day view: Back returns to the month.
+  const openDay = (key: string) => navigate(calendarDayRoute(key));
+  // The now line and a block's phase at the board's own minute (useMinute), on the day the read calls today.
+  const clock = clockInZone(vm.timezone, p.nowMs);
+  const now = vm.days.some((d) => d.today) ? clock.hh + clock.mm / 60 : null;
+  const agenda = { feedOk, fit, service, offer: vm.offer, now, openOn: show.open, todayKey: vm.today, a };
+  if (view === "month") {
+    const picked = phone ? (st.monthPick ?? anchor) : null;
+    const day = picked ? frames.find((f) => f.key === picked) : null;
+    return (
+      <CrMonth
+        frames={frames}
+        monthKey={anchor.slice(0, 7)}
+        feedOk={feedOk}
+        fit={fit}
+        onDay={phone ? st.setMonthPick : openDay}
+        a={a}
+        picked={picked}
+        under={day ? <CrAgendaDay {...agenda} day={day} /> : null}
+      />
+    );
+  }
+  if (view === "agenda") return <CrAgenda {...agenda} frames={frames} />;
+  return <CrBoard frames={shown} hours={vm.hours} now={now} wide={view === "day"} fit={fit} onDay={openDay} a={a} />;
 }
