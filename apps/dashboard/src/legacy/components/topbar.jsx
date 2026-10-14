@@ -554,7 +554,7 @@ const Topbar = ({
               { label: "Available", icon: "check", onClick: () => window.PR_STORE.setAway(false), meta: window.PR_STORE.away ? "" : "current" },
               { label: "Away", icon: "pause", onClick: () => window.PR_STORE.setAway(true), meta: window.PR_STORE.away ? "current" : "" },
               { divider: true },
-              { label: window.PR_STORE.transfers ? "Transfers: on" : "Transfers: off", icon: "phone", meta: window.PR_STORE.away ? "holding line while Away" : "click to flip", onClick: () => window.PR_STORE.setTransfers(!window.PR_STORE.transfers) },
+              { label: window.PR_STORE.transfers ? "Transfers: on" : "Transfers: off", icon: "phone", meta: window.PR_STORE.away ? "holding line while Away" : "flip it", onClick: () => window.PR_STORE.setTransfers(!window.PR_STORE.transfers) },
             ]}
           />
         )}

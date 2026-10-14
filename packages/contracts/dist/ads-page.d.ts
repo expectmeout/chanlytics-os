@@ -946,6 +946,8 @@ declare const LIST: {
         platform: string;
     };
     chipSaid: (what: string, value: string) => string;
+    /** On a phone a list's first note stands under its choices, and the rest fold under this (the fitted sheets). */
+    how: string;
     /** A dashed blank, to a screen reader. */
     blank: string;
     amountDaily: string;

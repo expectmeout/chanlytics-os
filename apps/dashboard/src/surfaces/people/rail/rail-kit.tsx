@@ -9,6 +9,7 @@ import { Fragment } from "react";
 import type { ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
 import type { PeopleRead } from "../types";
+import { RecordDisclosure } from "../../kit/record/disclosure";
 
 /** The rail's one rule for a pick: the row pressed, unless it was the one picked, which goes back to none. */
 export const railToggle = <T,>(current: T | null, id: T): T | null => (current === id ? null : id);
@@ -77,9 +78,17 @@ export const plListGone = ({
     : { title: "This list isn't here", body: "It was deleted, or the link is from another workspace." };
 };
 
-/** The labels are words, or a list's own button (the Saved section's, which still open their lists). */
+/** Past this many, the lists with nobody in them fold behind one line. */
+const RAIL_EMPTY_OPEN = 3;
+
+/**
+ * The labels are words, or a list's own button (the Saved section's, which still open their lists). A few are said in a
+ * line; more fold behind "Empty now · 7", where seven names ran three lines under the lists that have people (the
+ * fitted sheets, 14 Oct 2026).
+ */
 export function RailEmpty({ labels, testid = null }: { labels: readonly ReactNode[]; testid?: string | null }) {
-  return labels.length ? (
+  if (!labels.length) return null;
+  const line = (
     <p className="cl-rail-empty" data-testid={testid || undefined}>
       {"Empty now: "}
       {labels.map((l, i) => (
@@ -89,7 +98,13 @@ export function RailEmpty({ labels, testid = null }: { labels: readonly ReactNod
         </Fragment>
       ))}
     </p>
-  ) : null;
+  );
+  if (labels.length <= RAIL_EMPTY_OPEN) return line;
+  return (
+    <RecordDisclosure id={`${testid || "rail"}-empty`} label={`Empty now · ${labels.length}`}>
+      {line}
+    </RecordDisclosure>
+  );
 }
 
 export function RailGroup({

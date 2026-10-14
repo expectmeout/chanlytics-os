@@ -379,8 +379,6 @@ export function BtSheet<D = unknown>(props: BtSheetProps<D>) {
       title={r.title}
       sub={r.sub}
       className={r.className}
-      // As tall as what it holds, up to a list's height, on a phone: a short list never opens onto a screen of blank.
-      fit
       onClose={e.asks.cancel}
       focusOn={e.focusOn}
       tools={tools ? tools(f) : null}

@@ -16,7 +16,8 @@
  * `data-leaving`, which plays the sheet's and its wash's leaving (kit.css), and Base UI lets it go when that ends.
  * It leaves as it was: what it held as it closed, not what the page holds after (a step gone, a draft cleared).
  * On a phone a pull down from its top asks to close it as its Close does (data-bits touchSwipe, the house's one
- * reader of a thumb), following the finger, and its handle says so. The kit writes none of the rest by hand.
+ * reader of a thumb), following the finger, and its handle says so; it is as tall as what it holds, up to its cap, and
+ * its height glides as what it holds changes (motion/use-height-glide). The kit writes none of the rest by hand.
  *
  * Open is the page's (`open`), and so is closed: `onClose` asks, and the page answers by setting `open`, so a page
  * that asks first about what was typed, or holds a save that is out, keeps it open. It is drawn in a portal on the
@@ -30,6 +31,7 @@ import { Dialog } from "@base-ui/react/dialog";
 import type { ReactElement, ReactNode, Ref, RefObject } from "react";
 import { useCallback, useRef } from "react";
 import { onAPhone, touchSwipe } from "../../legacy-verbs";
+import { useHeightGlide } from "../motion/use-height-glide";
 import { cx } from "../variants";
 
 /** A step inside a job: the way back to the one it came from, named for a screen reader, its glyph drawn. */
@@ -163,14 +165,16 @@ export function Sheet(props: SheetProps) {
     const at = document.activeElement;
     return self.current && at instanceof HTMLElement && self.current.contains(at) ? at : self.current;
   }, []);
-  // The sheet as it is on the page, for its own focus, and for the page's ref.
+  const glide = useHeightGlide();
+  // The sheet as it is on the page, for its own focus, its height's glide, and the page's ref.
   const place = useCallback(
     (el: HTMLElement | null) => {
       self.current = el;
+      glide(el);
       if (typeof ref === "function") ref(el);
       else if (ref) ref.current = el;
     },
-    [ref],
+    [ref, glide],
   );
   return (
     <Dialog.Root

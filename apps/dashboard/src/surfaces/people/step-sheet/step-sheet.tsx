@@ -178,6 +178,8 @@ function StepSheetWhen({
         options={sheet.days.map((c) => ({ value: c.key, label: c.label }))}
         onChange={(v) => set(v === "pick" ? { picking: true } : { picking: false, day: v })}
         readOnly={busy}
+        // Chips that wrap, where six segments in one capsule broke "Pick a day" onto three lines (the fitted sheets).
+        look="chips-sm"
         testid="step-sheet-days"
       />
       {draft.picking ? (

@@ -1990,10 +1990,10 @@
    before anything is written, five rows as a taste, then the summary; the kit's own field, label and input rules
    (record.css) dress the fields, and the body carries the vertical room the kit's body leaves to its page. ---- */
 .pl-import { display: flex; flex-direction: column; gap: 16px; padding: 20px 0 24px; }
-.pl-import input[type="file"] { font: inherit; font-size: var(--text-sm); color: var(--ink-muted); }
-/* The file's button is the sheet's inset capsule, as the choice above it and the boxes beside it are: it was the
-   browser's grey box with a square corner (10 Oct 2026). */
-.pl-import input[type="file"]::file-selector-button { margin-right: 10px; padding: 8px 14px; border: 0; border-radius: var(--radius-full); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-ring), var(--surface-inset-depth); font: inherit; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); cursor: pointer; }
+/* The file is chosen from the kit's button, across the sheet with its glyph and words at its start, over the browser's
+   own picker, which is hidden: its "Choose File · No file chosen" was the one control the kit did not draw (the fitted
+   sheets, 14 Oct 2026). */
+.pl-import-file { align-self: stretch; justify-content: flex-start; }
 .pl-import-read { align-self: flex-start; }
 /* Add people, one person: the line that says either box is enough, and the quiet words that ask for a note and a list. */
 .pl-add-hint { margin: -8px 0 0; font-size: var(--text-sm); color: var(--ink-dim); }

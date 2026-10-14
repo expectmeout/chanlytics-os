@@ -40,7 +40,7 @@ import { peekPerson, personDetail, recordDeal } from "../people-detail";
 import type { DealBody } from "../people-detail";
 import { hasThreadVerbs, hear, saidBy, announce, threadVerbs, usePersonToast } from "../person-verbs";
 import type { FlashFn, PersonFlash } from "../person-verbs";
-import { DealSheetFieldsGlass } from "./fields";
+import { DealSheetFieldsGlass, loadDayPick } from "./fields";
 
 const DEAL_SHEET_ID = "deal-sheet";
 
@@ -94,6 +94,8 @@ export function openDealSheet({
   dealId?: string | null;
 } = {}): boolean {
   if (!personId || !mode) return false;
+  // The month behind a day's token starts loading as the sheet is asked for, so it is there by the first press.
+  void loadDayPick();
   return announce("deal:sheet", { personId, mode, service: service || null, dealId: dealId || null });
 }
 

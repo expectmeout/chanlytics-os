@@ -28,6 +28,8 @@ export const LIST = {
     platform: "Where it runs",
   } satisfies Record<ChipId, string>,
   chipSaid: (what: string, value: string) => `${what}: ${value}`,
+  /** On a phone a list's first note stands under its choices, and the rest fold under this (the fitted sheets). */
+  how: "How this works",
   /** A dashed blank, to a screen reader. */
   blank: "not chosen yet",
   amountDaily: "Change the daily amount",

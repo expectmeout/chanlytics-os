@@ -80,13 +80,20 @@ export type MenuToggles = {
   onToggle: (value: string) => void;
   /** The tick (the Icon's `check`, at 13px): drawn on every switch, and seen beside each one that is on (kit.css). */
   tick: ReactElement;
+  /**
+   * A few short words (what a board shows): on a phone, chips on a line, each lit while it is on, where a row each made
+   * the menu three things at once (Ruben, 14 Oct 2026, the fitted sheets); rows on a desk, as any switches are.
+   */
+  chips?: boolean;
 };
 
 /**
  * A group of the menu: its items, a set to choose from, or a set of switches, under a heading or none, and a line under
- * its items where one thing is said of them all (`caption`: why the sends are off). A line parts two groups.
+ * its items where one thing is said of them all (`caption`: why the sends are off). A line parts two groups. A few acts
+ * that are one kind (`tiles`: the ways to reach a person) stand on one line on a phone, a glyph over its word each, as a
+ * phone's share sheet sets them: eleven rows were a person's More (Ruben, 14 Oct 2026, the fitted sheets); rows on a desk.
  */
-export type MenuGroup = { header?: string; caption?: string } & (
+export type MenuGroup = { header?: string; caption?: string; tiles?: boolean } & (
   | { items: readonly MenuItem[]; choose?: undefined; toggles?: undefined }
   | { choose: MenuChoice; items?: undefined; toggles?: undefined }
   | { toggles: MenuToggles; items?: undefined; choose?: undefined }
@@ -198,25 +205,22 @@ function Choice({ choose }: { choose: MenuChoice }) {
  * flipped; a locked one is disabled, drawn on, its word at its end.
  */
 function Toggles({ toggles }: { toggles: MenuToggles }) {
-  return (
-    <>
-      {toggles.items.map((t) => (
-        <BaseMenu.CheckboxItem
-          key={t.value}
-          className={itemClasses()}
-          nativeButton
-          render={<button type="button" />}
-          label={t.label}
-          checked={t.on}
-          disabled={t.locked !== undefined}
-          closeOnClick={false}
-          onCheckedChange={() => toggles.onToggle(t.value)}
-        >
-          {itemContent({ label: t.label, glyph: toggles.tick, meta: t.locked })}
-        </BaseMenu.CheckboxItem>
-      ))}
-    </>
-  );
+  const items = toggles.items.map((t) => (
+    <BaseMenu.CheckboxItem
+      key={t.value}
+      className={itemClasses()}
+      nativeButton
+      render={<button type="button" />}
+      label={t.label}
+      checked={t.on}
+      disabled={t.locked !== undefined}
+      closeOnClick={false}
+      onCheckedChange={() => toggles.onToggle(t.value)}
+    >
+      {itemContent({ label: t.label, glyph: toggles.tick, meta: t.locked })}
+    </BaseMenu.CheckboxItem>
+  ));
+  return toggles.chips ? <div className="more-chips">{items}</div> : <>{items}</>;
 }
 
 /** A group: its heading, which names it, over its items, its set, or its switches, and its caption under them. */
@@ -225,6 +229,12 @@ function Group({ group }: { group: MenuGroup }) {
     <Toggles toggles={group.toggles} />
   ) : group.choose ? (
     <Choice choose={group.choose} />
+  ) : group.tiles ? (
+    <div className="more-tiles">
+      {group.items.map((item, at) => (
+        <Item key={at} item={item} />
+      ))}
+    </div>
   ) : (
     group.items.map((item, at) => <Item key={at} item={item} />)
   );
