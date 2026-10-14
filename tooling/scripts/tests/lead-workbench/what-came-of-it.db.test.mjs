@@ -29,7 +29,26 @@ const skip =
         : false;
 
 const stamp = Date.now().toString(36);
-const HOUR = 3_600_000;
+const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+/** The workspace's zone: the day its 6 PM line counts is the day there. */
+const ZONE = "America/Chicago";
+
+/** When today began in the workspace's zone (its midnight), as an instant. */
+function todayBeganAt(now = new Date()) {
+  const part = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: ZONE,
+      hourCycle: "h23",
+      hour: "numeric",
+      minute: "numeric",
+      second: "numeric",
+    })
+      .formatToParts(now)
+      .map((p) => [p.type, Number(p.value)]),
+  );
+  return now.getTime() - ((part.hour * 60 + part.minute) * 60 + part.second) * 1000 - now.getMilliseconds();
+}
 let db;
 let A;
 let B;
@@ -71,10 +90,14 @@ const lead = (over = {}) => {
   );
 };
 
-/** An email of the reach-out that left for a lead, an hour ago: queued, then sent, as the sender moves it. */
+/**
+ * An email of the reach-out that left for a lead, an hour ago: queued, then sent, as the sender moves it. Never before
+ * today began in the workspace's zone: run in the hour after its midnight, "an hour ago" was yesterday there, and the
+ * 6 PM line of today would count none of them.
+ */
 async function sent(leadId) {
   const id = crypto.randomUUID();
-  const at = new Date(Date.now() - HOUR).toISOString();
+  const at = new Date(Math.max(Date.now() - HOUR, todayBeganAt() + MINUTE)).toISOString();
   ok(
     await db.from("reach_out_sends").insert({
       id,
@@ -256,7 +279,7 @@ test(
     assert.equal(loose.lead_id, null, "a visit naming nobody names no lead");
 
     // Late tonight in Austin: past 6 PM, the visit made today.
-    const local = new Date().toLocaleString("en-CA", { timeZone: "America/Chicago", hour12: false }).slice(0, 10);
+    const local = new Date().toLocaleString("en-CA", { timeZone: ZONE, hour12: false }).slice(0, 10);
     const due = ok(await db.rpc("reach_out_day_due", { p_now: `${local}T23:30:00-05:00`, p_limit: 1000 }));
     const mine = due.find((d) => d.tenant_id === A);
     assert.ok(mine, "today has something to say");
