@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReachOutChainDto, ReachOutDraft, ReachOutDraftStep, ReachOutReachDto } from "@chanlytics/contracts";
 import { meNow } from "../../legacy-verbs";
 import { tabDraft, useUnsavedWork } from "../../kit/record/work";
+import { useReadAgain } from "./read-again";
 import { reachOuts } from "./surface";
 
 type Words = typeof reachOuts.words;
@@ -43,7 +44,10 @@ export function useReachOutDraft(W: Words, { search, chain, includeUnconfirmed, 
     dirty: JSON.stringify(draft) !== JSON.stringify(opened),
     onLeave: onClose,
   });
-  const [reach, setReach] = useState<ReachOutReachDto | null>(null);
+  // The search's reach: what this tab last read painted at once, read again behind as the sheet opens and as Leads or the
+  // reach-outs move while it is open (read-again.ts; the wiring's second audit, X2-1). A read again that fails keeps it.
+  const [reach, setReach] = useState<ReachOutReachDto | null>(() => reachOuts.reachHeld(search.id));
+  const moved = useReadAgain(search.id);
   const [, setLanded] = useState(0);
   useEffect(() => {
     const landed = () => setLanded((n) => n + 1);
@@ -55,12 +59,12 @@ export function useReachOutDraft(W: Words, { search, chain, includeUnconfirmed, 
   useEffect(() => {
     let live = true;
     void reachOuts.reach(search.id).then((r) => {
-      if (live) setReach(r);
+      if (live && r) setReach(r);
     });
     return () => {
       live = false;
     };
-  }, [search.id]);
+  }, [search.id, moved]);
   const editStep = (n: number, patch: Partial<ReachOutDraftStep>) =>
     setDraft((d) => ({ ...d, steps: d.steps.map((s, i) => (i === n ? { ...s, ...patch } : s)) }));
   return { draft, setDraft, work, reach, editStep };

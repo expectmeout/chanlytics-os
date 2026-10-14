@@ -891,8 +891,10 @@ no door to it, and Ask says it is not open yet.
 Before the people card goes on, its calibration run, one small paid run on Ruben's word: run the card's actor once with
 a plan's filters (`CARDS.people_at_companies.buildInput` in `packages/core/src/leads/cards.ts`), read its items, check
 that `mapItem` and `companiesOf` keep most of them and that its filters held, then pin the actor's build there and record
-`calibrated` on its brief (`packages/contracts/src/leads/search/cards.ts`). Then, on production (the Supabase
-connector):
+`calibrated` on its brief (`packages/contracts/src/leads/search/cards.ts`); a test holds the pin to that build. Done
+14 October 2026 at build 0.0.259. A new build of the provider is calibrated the same way before the pin moves: until
+then the pinned one runs, and a run whose first items the mapper reads none of is stopped at the provider. Then, once
+the change that pins it is deployed on both apps, on production (the Supabase connector):
 
 ```sql
 update public.lead_platform set cards_on = array['local_businesses', 'people_at_companies'] where id;
@@ -1186,6 +1188,14 @@ minute or a day later; and the ledger's rows say it (`select * from events where
 
 Other lines to know:
 
+- `route_answered`: every answer of the dashboard's routes, with the path (`route`), who asked and how long it took. One
+  request in twenty, chosen by its name, adds what its database calls touched and the page it was asked from (decision
+  0058, lane R7): `method`, `tables` (each table and how, `contacts:INSERT+read`, and each SQL function called,
+  `rpc:merge_contacts:call`) and `page` (the page's first two words after the workspace, an id as `:id`; never the
+  workspace). Names only, never a value. `node tooling/scripts/ops/write-shadow.mjs <lines.jsonl>` reads a file of them
+  (the logger's lines, or an export that carries each in `message`) and says which tables a route touched that its trace
+  does not name, and, for each sampled write, the surfaces its own notice would have read on the page it was asked from
+  against the ones its row of the refresh map read.
 - `client_error`: a page broke in someone's browser (`POST /api/v1/client-errors`, once per error per page load, twenty
   an hour per person): which boundary caught it, the page, the error and its first frames, the workspace when they
   hold one. Search it by `page`. It is a warning, not an error: a customer's browser is not the platform's failure,

@@ -562,6 +562,15 @@ function googleSection(
         }
       : null,
     connected: !!connection?.location_name,
+    // The connection's own state, so Setup says a sync that failed as Connections does (R11 S11-4).
+    connection: connection
+      ? {
+          google_email: connection.google_email,
+          location_name: connection.location_name,
+          last_synced_at: connection.last_synced_at,
+          sync_error: connection.sync_error,
+        }
+      : null,
     // A day the record states, closed included (`{}`), is answered: only the rest are asked about.
     unsure: listingFacts?.facts
       ? hoursFromGoogle(listingFacts.facts.hours).unsure.filter(

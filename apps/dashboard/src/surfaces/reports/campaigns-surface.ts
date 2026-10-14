@@ -34,7 +34,7 @@
  * to this lens (a person arriving is not a change to what it counts).
  */
 import { read } from "@/legacy-bridge/api";
-import type { RealtimeChange } from "@/legacy-bridge/surface-realtime";
+import { COUNTED_RECEIPTS, RECEIPTS_QUIET_MS, type RealtimeChange } from "@/legacy-bridge/surface-realtime";
 import { keepForItsPage } from "@/legacy-bridge/surface-registry";
 import { routeOnScreen } from "@/legacy-bridge/workspace";
 import {
@@ -110,9 +110,11 @@ export const reportsCampaigns = periodSurface({
   // What the Campaigns reads draw from: the messages, conversations and escalations a reply is made of, the runs a send is, a
   // reach-out's replies read or undone, the number it says the health of and the domains its reach-outs send from (0047), and a
   // person's answer: the yeses and stops it counts are columns of the people (the wiring's second audit, W-person-list-lead-8). A
-  // person made is no answer and would read the dearest of the lenses for every arrival: only an update of one is heard.
+  // person made is no answer and would read the dearest of the lenses for every arrival: only an update of one is heard. And the
+  // templates: its tile of the WhatsApp messages Meta paused, turned off or rejected counts their verdicts, which Meta's answer, a
+  // sync or a removal moves in any tab (W-campaign-run-template-reachout-10). A few a week.
   live: {
-    reads: ["conversation", "hold", "send", "reach_out", "channel", "person"],
+    reads: ["conversation", "hold", "send", "reach_out", "channel", "person", "template"],
     fresh: "its-page",
     when: (c) => c.table !== "contacts" || c.event !== "INSERT",
     omit: [
@@ -123,6 +125,9 @@ export const reportsCampaigns = periodSurface({
     ],
     page: heardOnTheLens,
     debounceMs: LIVE_WAIT_MS,
+    // The receipts its funnel's Delivered and Read count, read once a run's receipts quieten (S3-5).
+    refreshOnMessageStatuses: COUNTED_RECEIPTS,
+    receiptsQuietMs: RECEIPTS_QUIET_MS,
   },
 });
 

@@ -1,8 +1,8 @@
 /**
- * The settings override: the workspace's record and facts, its team, policies,
- * channels and templates, as the Business tab and Settings read them. Part of
- * the SurfaceData seam (../surface-data.ts); its sibling surfaces are the other
- * modules in this folder.
+ * The settings override: the workspace's record and facts, its team, policies
+ * and templates, as the Business tab and Settings read them. The channels are
+ * their own read (surfaces/channels/surface.ts). Part of the SurfaceData seam
+ * (../surface-data.ts); its sibling surfaces are the other modules in this folder.
  */
 
 import {
@@ -18,8 +18,6 @@ import {
   type TemplateSentWords,
   type ResolvedFacts,
   type FactConflict,
-  toChannelVM,
-  type ChannelVM,
 } from "@chanlytics/contracts";
 import type { PromptPreviewDto } from "../../server/receptionist/prompt-preview";
 import { read } from "../api";
@@ -79,8 +77,8 @@ export type TemplateUse = Record<
 >;
 
 /**
- * The slice of Settings a TSX surface reads through `useSurface("settings")`: the workspace's record, its channels and its
- * templates with what uses each and when each last went out, exactly what the globals below hold, and each null where
+ * The slice of Settings a TSX surface reads through `useSurface("settings")`: the workspace's record and its templates with
+ * what uses each and when each last went out (the channels are their own read, surfaces/channels/surface.ts), exactly what the globals below hold, and each null where
  * that read failed. Campaigns' Templates and the panes of Settings that have moved read it; the rest still read the
  * globals. Its templates are the one read of them (decision 0047, task 3.3): every row with its status, from which everything
  * that offers a message to send is made (surfaces/offered-templates.ts): the Inbox's reply box and the New conversation sheet,
@@ -90,7 +88,6 @@ export interface SettingsSurface {
   settings: SettingsRecord | null;
   /** What the workspace's facts resolve to, and where two sources disagree (`__FACTS`); null on a broken config. */
   facts: { facts: ResolvedFacts; conflicts: FactConflict[] } | null;
-  channels: ChannelVM[] | null;
   /** WhatsApp's rows, with every status (approved or not, hidden or not): the pickers keep the ones contracts templateOffered says. */
   templatesAll: TemplateDto[] | null;
   /**
@@ -171,7 +168,6 @@ export const settingsOverride: SurfaceOverride = {
     "__TEAM",
     "__TEAM_INVITES",
     "__POLICIES",
-    "__CHANNELS",
     "__TEMPLATES_ALL",
     "__TEMPLATE_USE",
     "__TEMPLATE_SENT",
@@ -181,18 +177,37 @@ export const settingsOverride: SurfaceOverride = {
   // (tenant_config), the Autonomy matrix (policies), the Library and what each template is used by (templates), the Team pane
   // (memberships, invitations). A teammate's save, Meta's answer to a template, a seat taken: each reached another open tab
   // only at a return or a reload. Told a few times a day, so heard wherever the tab is; this tab's own save is read once, by
-  // the refresh map, and its notice asks for nothing (surface-runner.ts readAfter).
-  ...declareReads("settings", { reads: ["facts", "rules", "template", "team"], fresh: "live" }),
+  // the refresh map, and its notice asks for nothing (surface-runner.ts readAfter). And what the Library says of each message,
+  // what sends it and how many it sent: the playbooks and the runs, which move several times a run, so heard where the Library
+  // and Settings' panes are drawn and read once as one comes back (surface-registry.ts PAGE_HEARS; the wiring's second audit,
+  // W-campaign-run-template-reachout-2), and Campaigns' home, whose message drawer is the Library's pane. And what the Business
+  // pane resolves the facts from beside the settings, where it is drawn: the channel rows and the line ("from your line": the
+  // number, the forwarded one), and the Google listing ("from Google", its conflicts, and the review link the Library's review
+  // ask and the composers' review slot need: W-review-facts-rules-3, S1-4). A line's saga and the listing's daily read move them
+  // a few times a day, so on its pages alone: Sent's and Playbooks' composers draw the review link too (PAGE_HEARS).
+  ...declareReads("settings", {
+    reads: ["facts", "rules", "template", "team", "campaign", "send", "channel", "review"],
+    fresh: "its-page",
+    always: ["facts", "rules", "template", "team"],
+    omit: [
+      {
+        tables: ["mailboxes", "mailbox_connections", "capability_activations", "business_records"],
+        why: "the settings read resolves its facts from the channel rows and the line; a mailbox, a connected mailbox, an activation and the carriers' record are Setup's read",
+      },
+      {
+        tables: ["google_reviews", "google_connections"],
+        why: "the facts and the review link are the listing's; a review seen and the profile's connection are Google's own read",
+      },
+    ],
+  }),
   apply: async () => {
-    const [cfg, team, pol, ch, tpl, zone] = await Promise.all([
+    const [cfg, team, pol, tpl, zone] = await Promise.all([
       read("GET settings"),
       // A team read that fails must not blank the business card beside it.
       read("GET team").catch((e: unknown) => e as Error),
       // The autonomy matrix. Same rule: a failed read is its own state (null),
       // never the mockup's charter.
       read("GET policies").catch((e: unknown) => e as Error),
-      // The numbers the business is reachable on, for Integrations.
-      read("GET channels").catch((e: unknown) => e as Error),
       // Every template with its status, for the Integrations pane's card.
       read("GET templates", { query: { all: "1" } }).catch((e: unknown) => e as Error),
       // When a template last went out is a date past a week, on the business's
@@ -206,7 +221,6 @@ export const settingsOverride: SurfaceOverride = {
       __TEAM?: TeamMember[] | null;
       __TEAM_INVITES?: TeamInvite[] | null;
       __POLICIES?: PoliciesSurface | null;
-      __CHANNELS?: ChannelVM[] | null;
       __TEMPLATES_ALL?: TemplateDto[] | null;
       __TEMPLATE_USE?: TemplateUse | null;
       __TEMPLATE_SENT?: Record<string, TemplateSentWords> | null;
@@ -241,13 +255,6 @@ export const settingsOverride: SurfaceOverride = {
     // on a broken config for the same reason the forms close: there is nothing
     // trustworthy to resolve against.
     w.__FACTS = cfg.configBroken ? null : { facts: cfg.facts, conflicts: cfg.conflicts };
-    if (ch instanceof Error) {
-      w.__CHANNELS = null;
-      console.error("settings_channels_fetch_failed", ch.message);
-    } else {
-      const now = new Date();
-      w.__CHANNELS = (ch.channels ?? []).map((c) => toChannelVM(c, now));
-    }
     if (tpl instanceof Error) {
       w.__TEMPLATES_ALL = null;
       w.__TEMPLATE_USE = null;
@@ -278,7 +285,8 @@ export const settingsOverride: SurfaceOverride = {
               note: templateUseNote(u),
               unused: templateUnused(u),
               playbook: u.playbooks.length === 1 ? u.playbooks[0].id : null,
-              running: u.playbooks.some((p) => !p.paused),
+              // Running is on and not past its last day (S1-3).
+              running: u.playbooks.some((p) => !p.paused && !p.ended),
             },
           ];
         }),
@@ -317,7 +325,6 @@ export const settingsOverride: SurfaceOverride = {
     setSurfaceValue("settings", {
       settings: w.__SETTINGS ?? null,
       facts: w.__FACTS ?? null,
-      channels: w.__CHANNELS ?? null,
       templatesAll: w.__TEMPLATES_ALL ?? null,
       templateVersions: versions,
       messages: settingsMessagesOf(tpl, w.__TEMPLATES_ALL ?? null, versions),

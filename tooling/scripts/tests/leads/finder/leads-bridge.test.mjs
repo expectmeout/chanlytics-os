@@ -252,6 +252,8 @@ function wire(opts = {}) {
     /** Page two, when the view has one. */
     next: opts.next ?? null,
     suggestions: opts.suggestions ?? null,
+    /** What POST lead-suggestions writes, where the ideas were due (S11-8). */
+    written: opts.written ?? null,
     /** The month's standing, which the first page carries (D5). */
     month: opts.month ?? null,
     fail: opts.fail ?? null,
@@ -285,6 +287,7 @@ function wire(opts = {}) {
       return json(200, { ok: true, data: { searches: state.searches, counts: state.counts } });
     if (path === "/api/v1/lead-suggestions" && method === "GET")
       return json(200, { ok: true, data: state.suggestions });
+    if (path === "/api/v1/lead-suggestions" && method === "POST") return json(200, { ok: true, data: state.written });
     if (path === "/api/v1/leads" && method === "GET") {
       if (query.after_key)
         return json(200, { ok: true, data: { rows: state.next ?? [], next: null, counts: state.counts } });
@@ -498,6 +501,28 @@ test("the first day's suggestions are read only when the workspace has no search
     !w2.reads.some((u) => u.includes("lead-suggestions")),
     "a workspace with a search has work to read instead",
   );
+});
+
+test("ideas that are due are asked to be written by a member who may find, and read as they are by anyone else; ideas that stand are only read (S11-8)", async () => {
+  // A page's read writes nothing (the wiring's second audit, S11-8): it says the ideas are due, and the page asks for them.
+  const due = { ...SUGGESTIONS, items: [], due: true, note: "Suggestions are not available right now." };
+  const asked = (w) => w.writes.filter((x) => x.key.includes("lead-suggestions")).map((x) => x.key);
+  const w = wire({ searches: [], rows: [], counts: ZERO, suggestions: due, written: SUGGESTIONS });
+  await leadsView("clients/leads");
+  assert.deepEqual(asked(w), [], "a member who may not find asks for nothing");
+  assert.deepEqual([L().suggestions.due, L().suggestions.items.length], [true, 0], "and reads what is there");
+  globalThis.window.canDo = (action) => action === "find";
+  try {
+    const w2 = wire({ searches: [], rows: [], counts: ZERO, suggestions: due, written: SUGGESTIONS });
+    await leadsView("clients/leads");
+    assert.deepEqual(asked(w2), ["POST /api/v1/lead-suggestions"], "a member who may find asks once");
+    assert.equal(L().suggestions.items.length, 3, "and the page draws what was written");
+    const w3 = wire({ searches: [], rows: [], counts: ZERO, suggestions: SUGGESTIONS });
+    await leadsView("clients/leads");
+    assert.deepEqual(asked(w3), [], "ideas that stand are only read");
+  } finally {
+    delete globalThis.window.canDo;
+  }
 });
 
 test("every act goes through its route with the id and the version it saw, never with rows", async () => {

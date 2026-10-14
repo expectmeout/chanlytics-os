@@ -22,6 +22,45 @@ export const DEFAULT_REFRESH_TABLES: readonly string[] = ["messages", "conversat
  */
 export const LEFT_THE_QUEUE: readonly MessageStatus[] = ["sent", "delivered", "read", "failed", "canceled"];
 
+/** A delivery's receipts: a message on its way, arrived, read. None of them moves a hold, a call or a count of the day. */
+const RECEIPTS: ReadonlySet<string> = new Set(["sent", "delivered", "read"]);
+
+/**
+ * The receipts a campaign's counts are made of: Sent's "N delivered", and the funnels' Delivered and Read (run_counts reads them
+ * off the messages; what was sent or failed is the run's own rows, heard as a send). Heard where those counts are drawn (the
+ * wiring's second audit, S3-5): a run finished, and was read, before most of its receipts came, and its counts stood still
+ * while the page was open.
+ */
+export const COUNTED_RECEIPTS: readonly MessageStatus[] = ["delivered", "read"];
+
+/**
+ * How long a surface that counts receipts (`receiptsQuietMs`) waits for a run's receipts to quieten before it reads them,
+ * and the longest it waits from the first while they keep coming: a run of five hundred is a thousand receipts in a few
+ * minutes, each its own notice, and a count need not follow each one. A change that is not a receipt is read at the
+ * surface's own pace.
+ */
+export const RECEIPTS_QUIET_MS = 5_000;
+export const RECEIPTS_LONGEST_WAIT_MS = 30_000;
+
+/**
+ * Whether what a read was asked for by is a delivery's receipts alone: every change heard a message's update to sent, delivered
+ * or read. Such a read re-reads the threads, whose last words carry the ticks, and nothing beside them: every receipt of a
+ * reminder run made the Inbox and Conversations read the holds and the calls again, three requests where one tells (the wiring's
+ * second audit, S10-2). None heard (a write's read, a pass, the boot) is no tick.
+ */
+export function deliveryTicksOnly(heard: readonly RealtimeChange[] | undefined): boolean {
+  return (
+    !!heard?.length &&
+    heard.every(
+      (c) =>
+        c.table === "messages" &&
+        c.event === "UPDATE" &&
+        typeof c.row.status === "string" &&
+        RECEIPTS.has(c.row.status),
+    )
+  );
+}
+
 /** One realtime event, as the rule sees it. */
 export interface RealtimeChange {
   table: string;
@@ -160,6 +199,13 @@ export function heardOnItsPage(d: ReadsDeclaration): string[] {
   return heardTables(d).filter((t) => !own.has(t));
 }
 
+/**
+ * The longest a stream of notices is waited out, from the first, for a read of everyone in People (People, Sent's runs, the
+ * playbooks): a reminder run's receipts are each a notice, and the runner's three seconds made each of these the whole book every
+ * three seconds while it sent (the wiring's second audit, S10-2). One change alone is still read in under a second.
+ */
+export const DEAR_READ_LONGEST_WAIT_MS = 12_000;
+
 /** How long the live feed may be down before the shell says so: the client rejoins a blip within seconds. */
 export const REALTIME_GRACE_MS = 5000;
 
@@ -170,16 +216,17 @@ export interface FeedWatch {
 }
 
 /**
- * What the live feed's own reports mean for the page. Every rejoin after the
- * first join reads what was missed, because the feed replays nothing it
- * missed. A drop is said only once it outlasts the grace, so a blip the
- * client rejoins within seconds never flashes a line, and it is said once
- * however many errors follow; the feed's return is said at once.
+ * What the live feed's own reports mean for the page. The first join (`onJoin`) and every rejoin after it (`onReconnect`) read
+ * what was missed, because the feed replays nothing it missed: what was read before the first join never heard what changed
+ * between its read and the join (the wiring's second audit, S2-4). A drop is said only once it outlasts the grace, so a blip the
+ * client rejoins within seconds never flashes a line, and it is said once however many errors follow; the feed's return is said
+ * at once.
  */
 export function feedWatch(opts: {
   graceMs: number;
   onDown: (down: boolean) => void;
   onReconnect: () => void;
+  onJoin?: () => void;
 }): FeedWatch {
   let joined = false;
   let down = false;
@@ -199,6 +246,7 @@ export function feedWatch(opts: {
           opts.onDown(false);
         }
         if (joined) opts.onReconnect();
+        else opts.onJoin?.();
         joined = true;
       } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
         timer ??= setTimeout(() => {

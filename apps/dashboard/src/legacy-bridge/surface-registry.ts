@@ -36,6 +36,7 @@ import {
 } from "./surface-realtime";
 import { getSurfaceStatuses, isSurfaceFailed, isSurfaceReady, onSurfaceStatusChange } from "./surface-status";
 import { hearAddress, routeOnScreen } from "./workspace";
+import { PAGE_HEARS, type PageCell } from "./hearing/page-hears";
 
 export type SurfaceState = "real" | "demo";
 
@@ -199,6 +200,8 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
     "people",
     // A reply to a reach-out, read: its queue row and the bell's door (Reach out Part 5, PR 8).
     "reach_out_replies",
+    // The line and the runs' number: Live's strip and Sent's are made of the channels read (surfaces/channels/surface.ts).
+    "channels",
   ],
   // The Calendar's campaign marks (surfaces/calendar/runs-surface.ts): their own span read, on demand. It read People's whole
   // book here for one pill and the deal beside a visit; the visit's person now carries those facts on the board's own read
@@ -216,16 +219,20 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   inbox: ["reach_out_replies", "conversations", "broadcasts"],
   // A reach-out's chains are Playbooks' rows, and their emails Templates' email rows (Part 4 PR 8): the reach-outs
   // surface, read beside each page's own.
-  outbound: ["reach_outs"],
+  // And the number a moment goes out on, its standing and its opt-in: the channels read, which the composers are made of.
+  outbound: ["reach_outs", "channels"],
   // Campaigns' home draws Sent's runs (Coming up, a row's waiting run, who can hear you) from the broadcasts, its own 30
   // days from campaign_results (read on demand: no other page's boot pays for them), and the reach-outs as rows. The call's
   // text and the Library's count are made of the templates, which are the settings read's, the one read of them
   // (surfaces/offered-templates.ts), so Settings is drawn here, last: the home's first draw would otherwise add its line after
   // the rest, and say nothing of the call's text until the boot's second pass.
-  campaigns: ["broadcasts", "campaign_results", "reach_outs", "settings"],
-  // Templates says which playbooks send each template (messages.jsx), and Broadcasts names a run's playbook.
-  messages: ["reach_outs", "playbooks"],
-  broadcasts: ["playbooks"],
+  campaigns: ["broadcasts", "campaign_results", "reach_outs", "settings", "channels"],
+  // Templates says which playbooks send each template (messages.jsx), and Broadcasts names a run's playbook. The Library's
+  // number notice and a message's drawer are made of the channels read.
+  messages: ["reach_outs", "playbooks", "channels"],
+  broadcasts: ["playbooks", "channels"],
+  // Live's line, its number and its switch: the channels read, which Live is made of beside its calls.
+  live: ["channels"],
   // A search's reach-out sheet (Part 4 PR 6) writes from Setup's connected mailboxes and checks Settings' booking link: both
   // read next on Leads, so a sheet opened on a cold boot is not left saying it is reading them.
   leads: ["setup", "settings"],
@@ -246,7 +253,8 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   reports: ["reports_campaigns"],
   // Settings' Connections pane draws Google's listing and its connection beside the settings read, as Today's card draws its
   // review line (`google` is read where one of the two is on screen, legacy-bridge/google.ts): no other pane of Settings does.
-  "admin/integrations": ["google"],
+  // Its WhatsApp and phone rows are the channels read's (surfaces/channels/surface.ts).
+  "admin/integrations": ["google", "channels"],
   // Settings' Notifications pane draws what reaches the member's own phones beside the settings read (decision 0040).
   "admin/notifications": ["alerts"],
 };
@@ -306,96 +314,8 @@ export function routeSurfaces(page: string, param?: string | null): string[] {
   return [...new Set(["workspace", ...(own ? [own] : []), ...routeDrawsFor(page, param)])];
 }
 
-/**
- * What each page hears (decision 0058, amending 0047 point 4): for each family of addresses, the surfaces whose page it is, so a
- * change to a record they hear only on their page (`fresh: "its-page"`, onlyOnItsPage) is read there and kept for their page
- * elsewhere. A surface's own kinds (`always`) and a surface that is `live` are heard on every page; this says where the rest are.
- *
- * A page's hearing is a row anyone can read, a change to it is one cell, and the goldens (tooling/scripts/tests/baselines/hearing/)
- * say what each cell costs in reads for every notice the feed sends. A family is what routeFamilyOf (below) makes of an address:
- * a person's page is one family whatever the person and the tab, a Reports lens one family over any days, a Settings pane one
- * family with any row after it.
- *
- * A cell is every kind the surface hears only on its page (`true`), or some of them (`["person", "facts"]`): a page that draws
- * part of what a surface counts hears what moves that part, and leaves the rest to the surface's own page (ownsTable).
- *
- * Every family the registry names has a row, and every row is a family (hearing/page-hears.test.mjs); a page's own surface is on
- * its row; an address of no family hears nothing on its page alone (a demo page, a word nobody wrote).
- */
-/** A surface's cell on a page's row: every kind it hears only on its page (`true`), or these alone, the rest left to its own page. */
-export type PageCell = true | readonly RecordKind[];
-
-export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCell>>>> = {
-  // Today owns the headline its period line and Worth a look are printed from, and the replies to a reach-out its queue draws:
-  // the headline moves with a message, a call or a visit while Today is open, a long wait later (surfaces/reports/headline.ts).
-  // It does not own the rest of what it draws (the setup band, the day, the runs, the playbooks, the bell, a call, Google's line,
-  // People): People's pages of contacts are the heaviest read there is, and a message on Today re-reads the three that draw
-  // messages and nothing else (shell/surfaces/message-fan-out.test.mjs). What it leaves is read once as its own page comes back.
-  today: { today: true, reports_headline: true, reach_out_replies: true },
-  inbox: { inbox: true },
-  conversations: { conversations: true },
-  live: { live: true },
-  // The Calendar owns the campaign marks it draws over its days (surfaces/calendar/runs-surface.ts): a run made, approved or done,
-  // a campaign saved or a class's mode changed is read again while the Calendar is open, and once as it comes back elsewhere.
-  calendar: { calendar: true, calendar_runs: true },
-  // Campaigns' home is one page of four surfaces: the playbooks' moments, its own 30 days (campaign_results), the reach-outs'
-  // chains and the settings read's templates. Sent's runs are drawn there too: who can hear you, the pause on offers, the
-  // send-once composer and its Send by ticks. They hear here what moves those (a person's answer, the business's facts, the
-  // rules, a channel, the plan, a visit the audiences leave), and leave to Sent what moves a run's replies (a message, a thread,
-  // a hold): the home reads its replies from its own 30 days (spec 2026-10-09 §4.5), so a message here never re-reads the
-  // broadcasts and every page of People behind them (the wiring's second audit, W-review-facts-rules-2).
-  campaigns: {
-    playbooks: true,
-    campaign_results: true,
-    reach_outs: true,
-    settings: true,
-    broadcasts: ["person", "facts", "rules", "channel", "billing", "visit"],
-  },
-  outbound: { playbooks: true },
-  messages: { settings: true },
-  broadcasts: { broadcasts: true },
-  clients: { people: true },
-  segments: { people: true },
-  // A person's page waits for who is looking and hears its own person (people-detail.ts personOverride): a rename, a stop, a
-  // hold, their rules and business, read for the one person on screen. People's rows are drawn beside it (their name in the
-  // crumbs while the person's read is out) and are not its own here: its whole book is not read again for one person.
-  "clients/person": { workspace: true, person: true },
-  "clients/leads": { leads: true },
-  // The retired address of Leads, which lands on its scope (SURFACE_RETIRED): its own surface, as its scope's.
-  leads: { leads: true },
-  start: { setup: true },
-  // Reports owns the Campaigns lens's read on its Overview, for the one fact it draws from it (which campaign drew the most
-  // replies): the read's own rule asks for the lens and keeps what the Overview heard for it (keepForItsPage,
-  // surfaces/reports/campaigns-surface.ts), read once as either comes on screen.
-  reports: { reports: true, reports_campaigns: true },
-  // Each lens owns the read it names, heard while that lens is on screen and on no other lens or page of Reports: a review seen for
-  // the first time moves the Reviews lens's, a message, an escalation or a call the Receptionist lens's, a message, a call or a
-  // note the People lens's, and a message, a conversation, an escalation or a run the Campaigns lens's.
-  "reports/reviews": { reports: true, reports_reviews: true },
-  "reports/receptionist": { reports: true, reports_receptionist: true },
-  "reports/people": { reports: true, reports_people: true },
-  "reports/campaigns": { reports: true, reports_campaigns: true },
-  "reports/pipeline": { reports: true },
-  "reports/ads": { reports: true },
-  // Settings: a pane it does not list opens Profile, which the settings read feeds.
-  admin: { settings: true },
-  "admin/profile": { settings: true },
-  // The Business pane lists the booking emails held for a look and states the calendar link's last read from the Calendar's read
-  // (settings/business/open-bookings.tsx, open-calendar.tsx): a held email's bell row opens it, so a read of the Calendar is due
-  // there, as it is on the board. Settings with no pane is this pane (SURFACE_DEFAULT_PARAM).
-  "admin/workspace": { settings: true, calendar: true },
-  "admin/team": { settings: true },
-  "admin/autonomy": { settings: true },
-  "admin/notifications": { settings: true },
-  "admin/integrations": { settings: true },
-  "admin/billing": { settings: true },
-  "admin/memory": { settings: true },
-  "admin/activity": { settings: true },
-  "admin/platform": { settings: true },
-  "admin/partner": { settings: true },
-  // An address that moved (ROUTES_MOVED: Setup is the first run now) draws nothing, so nothing is heard for it.
-  "admin/setup": {},
-};
+// What each page hears, by family of addresses (decision 0058): a table of its own (hearing/page-hears.ts), read here.
+export { PAGE_HEARS, type PageCell };
 
 /* ------------------------- what a message re-reads ------------------------- */
 
@@ -465,8 +385,15 @@ export function ownsTable(key: string, table: string, route: string): boolean {
  */
 const missedWhileAway = new Map<string, Set<string> | "all">();
 
+/**
+ * When each surface was last let pass or kept for its pages: a read of it that began after that holds what it missed, and its
+ * note goes as the read lands (readLanded), so its page does not read it a second time (the wiring's second audit, S2-7).
+ */
+const missedAt = new Map<string, number>();
+
 /** Note a table a surface let pass. */
 function missed(key: string, table: string): void {
+  missedAt.set(key, Date.now());
   const was = missedWhileAway.get(key);
   if (was === "all") return;
   if (was) was.add(table);
@@ -486,18 +413,71 @@ function owesTheScreen(key: string, route: string): boolean {
  * screen (readWhatWasMissed) rather than show what the pass would have read again.
  */
 export function keepForItsPage(key: string): void {
+  missedAt.set(key, Date.now());
   missedWhileAway.set(key, "all");
 }
 
 /**
  * What a change made somewhere else owes the pages that draw it: of these surfaces, the ones whose page is on screen, which the caller
- * reads now, and the rest kept for their own page (keepForItsPage), read once as it comes on screen. A bell row about a template or a
- * held email (notice-re-reads.ts), and a rule saved on Settings that Campaigns' Resume question speaks of (refresh-map.ts), reach
- * their pages this way.
+ * reads now, and the rest kept for their own page (keepForItsPage), read once as it comes on screen. People's rows after a mode saved
+ * reach their pages this way (refresh-map.ts peopleIfOwned): the feed's notice of the rules reaches People by table there too. A
+ * surface drawn on pages that do not own it is left by drawnHere, below.
  */
 export function whereDrawn<T extends { key: string }>(overrides: readonly T[], route: string = routeOnScreen()): T[] {
   const here = overrides.filter((o) => ownsTheScreen(o.key, route));
   for (const o of overrides) if (!here.includes(o)) keepForItsPage(o.key);
+  return here;
+}
+
+/**
+ * Whether the page on screen draws this surface: one its family owns (PAGE_HEARS), or one its route draws beside its own
+ * (routeSurfaces: ROUTE_DRAWS, and who is looking). Today draws Sent's runs and the playbooks' counts and owns neither; Connections
+ * owns some of Setup's kinds and draws Setup's calendar row.
+ */
+export function drawsTheScreen(key: string, route: string): boolean {
+  if (ownsTheScreen(key, route)) return true;
+  const { page, param } = pageOfRoute(route);
+  return routeSurfaces(page, param).includes(key);
+}
+
+/** Surfaces a write left for the pages that draw them (drawnHere): read once as one of those comes on screen, or is reached for. */
+const leftUntilDrawn = new Set<string>();
+
+/**
+ * Leave a surface for whichever page next draws it, read once as one comes on screen (readWhatWasMissed): what a pass over the
+ * surfaces does with one heard only on its page while no page that draws it is on screen (the runner's readHere; S10-7).
+ */
+export function keepUntilDrawn(key: string): void {
+  missedAt.set(key, Date.now());
+  leftUntilDrawn.add(key);
+}
+
+/**
+ * A read of this surface landed, begun at `startedAt` (the runner's readFrom): what it was kept for, let pass or left for its pages
+ * before then, it now holds, and no page owes it a read for that. A read that began before the last miss leaves the note.
+ */
+export function readLanded(key: string, startedAt: number): void {
+  const at = missedAt.get(key);
+  if (at === undefined || !(startedAt > at)) return;
+  missedAt.delete(key);
+  missedWhileAway.delete(key);
+  leftUntilDrawn.delete(key);
+}
+
+/**
+ * What a write owes the pages that draw what it changed (the wiring's second audit, S10-6): of these surfaces, the ones the page on
+ * screen draws (drawsTheScreen), which the caller reads now, and the rest left for whichever page next draws them, read once as it
+ * comes on screen (readWhatWasMissed) or is reached for (warmWhatItDraws). Not whereDrawn, whose keep waits for a surface's own page:
+ * a visit marked on the Calendar must not leave Today's day strip, which draws the playbooks' counts and owns none of them, on the old
+ * count. The writer's tab alone: the feed tells every other tab, each surface by its own rule.
+ */
+export function drawnHere<T extends { key: string }>(overrides: readonly T[], route: string = routeOnScreen()): T[] {
+  const here = overrides.filter((o) => drawsTheScreen(o.key, route));
+  // One read here now is what an earlier write left it for, too.
+  for (const o of overrides) {
+    if (here.includes(o)) leftUntilDrawn.delete(o.key);
+    else keepUntilDrawn(o.key);
+  }
   return here;
 }
 
@@ -544,10 +524,11 @@ export function declareReads(key: string, d: ReadsDeclaration): DeclaredReads {
 
 /**
  * Each move of the address: what its page draws and has not read is read once, through the runner (`read`, the running
- * runner's refresh). Two kinds of surface are due. One that let a live event pass while its page was elsewhere, when its page
- * owns the screen. And one marked `onDemand` (surface-data.ts), when a page that draws it (its own surface, or one the route
+ * runner's refresh). Three kinds of surface are due. One that let a live event pass while its page was elsewhere, when its page
+ * owns the screen. One marked `onDemand` (surface-data.ts), when a page that draws it (its own surface, or one the route
  * names) is on screen and it has never been read this session, a pass left it for its page (keepForItsPage), or it says it has
- * aged: one list, so a surface that missed an event and was never read is read once. Answers the stop.
+ * aged: one list, so a surface that missed an event and was never read is read once. And one a write left for the pages that
+ * draw it (drawnHere), when one of them is on screen. Answers the stop.
  */
 export function readWhatWasMissed(
   overrides: readonly { key: string; onDemand?: boolean; isStale?: () => boolean }[],
@@ -559,12 +540,17 @@ export function readWhatWasMissed(
     const { page, param } = pageOfRoute(route);
     const drawn = routeSurfaces(page, param);
     const readBefore = (key: string) => getSurfaceStatuses().get(key) === "live";
-    const due = overrides.filter((o) =>
-      o.onDemand
-        ? drawn.includes(o.key) && (missedWhileAway.has(o.key) || !readBefore(o.key) || !!o.isStale?.())
-        : owesTheScreen(o.key, route),
+    const due = overrides.filter(
+      (o) =>
+        (leftUntilDrawn.has(o.key) && drawsTheScreen(o.key, route)) ||
+        (o.onDemand
+          ? drawn.includes(o.key) && (missedWhileAway.has(o.key) || !readBefore(o.key) || !!o.isStale?.())
+          : owesTheScreen(o.key, route)),
     );
-    for (const o of due) missedWhileAway.delete(o.key);
+    for (const o of due) {
+      missedWhileAway.delete(o.key);
+      leftUntilDrawn.delete(o.key);
+    }
     if (due.length) read(due.map((o) => o.key));
   };
   return hearAddress(onMove, win);
@@ -578,8 +564,8 @@ export function readWhatWasMissed(
  * "Reading…": 470 to 700 ms on a desk, where every page read at boot answered in under 60 (9 Oct 2026, production).
  * One never read is asked for once a session: a warm that failed leaves it unread, and its page reads it as it comes
  * on screen (readWhatWasMissed), as it always did. One a pass left for its page (keepForItsPage) is read as its page
- * is reached for, and is no longer owed when the page arrives, or the press would read it twice. Answers the function
- * a reach calls with the route reached for.
+ * is reached for, and is no longer owed when the page arrives, or the press would read it twice; so is one a write left
+ * for the pages that draw it (drawnHere), whatever kind it is. Answers the function a reach calls with the route reached for.
  */
 export function warmWhatItDraws(
   overrides: readonly { key: string; onDemand?: boolean }[],
@@ -590,6 +576,7 @@ export function warmWhatItDraws(
     const { page, param } = pageOfRoute(route);
     const drawn = routeSurfaces(page, param);
     const due = overrides.filter((o) => {
+      if (leftUntilDrawn.has(o.key) && drawsTheScreen(o.key, route)) return true;
       if (!o.onDemand || !drawn.includes(o.key)) return false;
       if (missedWhileAway.has(o.key)) return true;
       return !asked.has(o.key) && getSurfaceStatuses().get(o.key) !== "live";
@@ -597,6 +584,7 @@ export function warmWhatItDraws(
     for (const o of due) {
       asked.add(o.key);
       missedWhileAway.delete(o.key);
+      leftUntilDrawn.delete(o.key);
     }
     if (due.length) read(due.map((o) => o.key));
   };

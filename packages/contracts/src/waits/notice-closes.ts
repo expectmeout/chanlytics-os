@@ -131,6 +131,7 @@ export const NOTICE_ENDS: Record<ServerNotificationKind, NoticeEnd> = {
   opted_out: { ends: "news", why: "A customer's stop is news, told once; there is nothing to answer." },
   booking: { ends: "news", why: "A booking that arrived is news; the Calendar holds the visit." },
   member_joined: { ends: "news", why: "A teammate who joined is news, told once." },
+  member_left: { ends: "news", why: "A teammate who left is news, told once." },
 };
 
 /** The kinds whose rows a source judges (for the server's close and the hold rows: kindsEndedBy("hold")). */

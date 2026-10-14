@@ -1,6 +1,5 @@
 // src/realtime.ts
 var EVERY = ["INSERT", "UPDATE", "DELETE"];
-var INSERTS = ["INSERT"];
 var INSERTS_AND_UPDATES = ["INSERT", "UPDATE"];
 var UPDATES = ["UPDATE"];
 var WATCHED = [
@@ -14,16 +13,19 @@ var WATCHED = [
   // a call starting, each live turn, its end, its analysis: told with its statuses
   // an alert the edge kept, or one closed when what it asked for ended (00421, told when closed_at moved): the bell repaints
   { table: "notifications", events: INSERTS_AND_UPDATES },
+  // a line's saga step, its failure, its answer, its release: Setup, the channels read (Connections, the Library, Live, the
+  // composers) and People repaint. The hourly carriers' sweep writes a line only when its answer moved (a2p-sync.ts).
   { table: "lines", events: EVERY },
-  // a line's saga step, its failure, its answer, its release: Setup repaints
   { table: "google_listings", events: EVERY },
   // the listing linked, read, or removed: Setup and Reports repaint
-  { table: "google_reviews", events: INSERTS },
-  // a review seen for the first time
+  // a review seen for the first time, and one answered, by the receptionist, a teammate or on Google: Today's Google line,
+  // the bell and Reports' Reviews repaint. The update is told when the reply moved (00431), never for the sync's stamp.
+  { table: "google_reviews", events: INSERTS_AND_UPDATES },
   { table: "billing_accounts", events: EVERY },
   // Stripe's answer, applied by the webhook: Billing and Setup repaint
+  // a channel connected, switched off, flagged by Meta, or written by a line's saga: Setup and the channels read
+  // (Connections' WhatsApp and phone rows, the Library, Live, the composers) repaint (00117)
   { table: "tenant_channels", events: EVERY },
-  // a channel connected, switched off, or written by a line's saga: Setup and Connections repaint (00117)
   { table: "capability_activations", events: EVERY },
   // the owner's act, in another tab: Setup repaints (00108)
   { table: "business_records", events: EVERY },
@@ -32,7 +34,8 @@ var WATCHED = [
   // the profile connected, synced or failing by the hourly sweep: Connections repaints (00070)
   { table: "mailbox_connections", events: EVERY },
   // a mailbox connected, signed out, held, paused or removed, its day or records when they moved: Connections and the sheet repaint (00423)
-  // a round's page committed, a check landed, a class changed: the Leads scope repaints (00140)
+  // a round's page committed, a check landed, a class changed: the Leads scope repaints (00140). A round's update is told
+  // when its state, its question, its wait or its ending moved (00431), never for the counters each batch moves.
   { table: "leads", events: EVERY },
   { table: "lead_searches", events: EVERY },
   { table: "lead_rounds", events: EVERY },
@@ -66,9 +69,11 @@ var WATCHED = [
   // Meta's answer to a template, a sync, a hide, a template made or removed: the Library and the composers repaint. The
   // update is told when its status, rejection, quality, category, visibility or words moved.
   { table: "templates", events: EVERY },
-  // Offers by email paused by the gate or resumed by the back office: Campaigns' head line and send tick repaint. The
-  // update is told when the pause columns moved.
-  { table: "mailboxes", events: UPDATES },
+  // A mailbox made (Today's email line, Start's and Connections' Email row), and offers by email paused by the gate or
+  // resumed by the back office (Campaigns' head line and send tick, People), its address or sender renamed, the code Gmail
+  // mails to confirm a forward (the Calendar's Business tab) and its intake's error set or cleared (Connections). The
+  // update is told when one of those moved (00431), never for the stamp every email puts on it.
+  { table: "mailboxes", events: INSERTS_AND_UPDATES },
   // A booking email the reader held for a look, or settled: the Business tab's held list repaints.
   { table: "appointment_notices", events: INSERTS_AND_UPDATES },
   // A seat taken, changed or left, and an invitation sent, renewed, accepted or revoked: the Team pane and the workspace
@@ -76,10 +81,106 @@ var WATCHED = [
   // member's own saved views.
   { table: "memberships", events: EVERY },
   { table: "invitations", events: EVERY },
-  // The workspace paused or resumed (billing, the back office): the shell and Today's band repaint. Told when the status
-  // moved. The receptionist's stamp reads the row.
+  // The workspace paused or resumed (billing, the back office), renamed, its zone, buying model or logo changed: the
+  // shell, the sidebar and Today's band repaint. Told when one of those moved (00431). The receptionist's stamp reads the row.
   { table: "tenants", events: UPDATES }
 ];
+var NARROWED_UPDATES = {
+  // A notice closed when what it asked for ended (00421): the bell reads it as read, on every tab.
+  notifications: ["closed_at"],
+  // The identity, the answers, the merge and the erasure of a person, and where they work and where their name came from
+  // (0052). Not last_seen_at, offers_asked_at or the first-touch stamps, which a message writes.
+  contacts: [
+    "display_name",
+    "wa_profile_name",
+    "phone_e164",
+    "email",
+    "notes",
+    "proposal_url",
+    "consent",
+    "consent_source",
+    "consent_updated_at",
+    "dnc",
+    "marketing_consent",
+    "marketing_consent_source",
+    "marketing_consent_updated_at",
+    "email_marketing",
+    "email_marketing_source",
+    "email_marketing_updated_at",
+    "consent_channels",
+    "marketing_channels",
+    "email_suppressed_at",
+    "email_suppressed_reason",
+    "merged_into_contact_id",
+    "erased_at",
+    "lead_id",
+    "name_source"
+  ],
+  tenant_config: null,
+  // Meta's answer and why, its quality and category, whether the workspace hid it, and the words. Not synced_at.
+  templates: [
+    "meta_status",
+    "rejected_reason",
+    "quality",
+    "category",
+    "hidden_at",
+    "title",
+    "body_preview",
+    "components",
+    "variables"
+  ],
+  // Its address, sender and reply mode, the pause on offers, Gmail's forwarding code and the intake's error. Not
+  // last_received_at, which every email writes (00431).
+  mailboxes: [
+    "local_part",
+    "from_name",
+    "reply_mode",
+    "offers_paused_at",
+    "offers_paused_reason",
+    "offers_resumed_at",
+    "forward_confirm_account",
+    "forward_confirm_code",
+    "forward_confirm_link",
+    "forward_confirm_at",
+    "last_error"
+  ],
+  // A mailbox the business connected (00423): what Connections draws, never the sync's cursor, its watch or a send's stamp.
+  mailbox_connections: [
+    "state",
+    "held_why",
+    "resting_until",
+    "daily_cap",
+    "customer_domain",
+    "sent_days",
+    "dns",
+    "last_error",
+    "from_name",
+    "signature",
+    "address"
+  ],
+  // A seat's role. Not the member's saved views or push choices, which are their own.
+  memberships: ["role"],
+  // The workspace's status, name, zone, buying model and logo (00431).
+  tenants: ["status", "name", "timezone", "sells_by", "logo_path"],
+  // A review answered (00431). Not last_seen_at, which the sync stamps on every review.
+  google_reviews: ["reply_text", "replied_at"],
+  // What a round is and what it waits on (00431). Not its allowance, cost or judge's tokens and model.
+  lead_rounds: [
+    "state",
+    "ending",
+    "ending_pending",
+    "question",
+    "answered",
+    "target",
+    "nearby",
+    "waiting_since",
+    "ended_at",
+    "plan_version"
+  ]
+};
+function narrowedUpdates() {
+  return Object.fromEntries(Object.entries(NARROWED_UPDATES).map(([t, cols]) => [t, cols ? [...cols] : null]));
+}
 function watchedTables() {
   return WATCHED.map((w) => w.table);
 }
@@ -161,6 +262,7 @@ function tell(hearing, tenantId, message) {
       listener.onChange({ tenant_id: tenantId, ...typeof status === "string" ? { status } : {} }, table, event, at);
 }
 export {
+  narrowedUpdates,
   subscribeWorkspaceChanges,
   watchedEvents,
   watchedTables

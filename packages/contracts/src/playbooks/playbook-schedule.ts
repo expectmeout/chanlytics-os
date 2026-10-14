@@ -48,6 +48,23 @@ export function campaignEnded(p: { until?: string | null }, day: string): string
   return p.until && day > p.until ? p.until : null;
 }
 
+/**
+ * Whether a campaign runs on the business's day at `now`: it is on (`state`), not past its last day (00416 `until`, by the
+ * business's today), and its moment may run here (a proposal's follow-up only where deals are on, 0006). A campaign on trial
+ * runs: its runs wait for a person (effectiveMode). THE rule every page and Ask ask of a campaign: Sent's week ahead, the
+ * Library's "sends", Run now, Today's day strip, People's follow-up and Ask's rows, which each tested `state` alone and said a
+ * campaign past its last day was still on (the wiring's second audit, S1-3). The home's cards say why one runs nothing
+ * (lifecycle-inputs.ts cardReadOf), from the same two facts.
+ */
+export function campaignRunsOn(
+  p: { state: string; trigger: string; until?: string | null },
+  at: { tz: string; now: Date; dealsOn: boolean },
+): boolean {
+  if (p.state !== "running") return false;
+  if (campaignEnded(p, localDate(at.tz, at.now))) return false;
+  return triggerOf(p.trigger)?.kind !== "deal" || at.dealsOn;
+}
+
 /** A campaign's day as its words say it, by the business's calendar: "Nov 30", and "Jan 4, 2027" in another year. */
 export function campaignDayWords(day: string, tz: string, now: Date): string {
   return clockDate(zoneMidnight(tz, day) + 12 * HOUR_MS, tz, now.getTime());
@@ -194,13 +211,18 @@ export function runsWords(p: { trigger: string; run_hour: number; cadence_days: 
  */
 const NEXT_RUN_WORKSPACE_PAUSED = "after billing resumes";
 
+/** What a campaign's next run says once the day it would fall on is past its last day (00416 `until`): there is none. */
+const NEXT_RUN_PAST_LAST_DAY = "none: its last day has passed";
+
 /**
  * "today 10:00 AM", "today, within the hour" or "tomorrow 10:00 AM", by the business's clock; "paused" when the playbook is, and
  * "after billing resumes" while the workspace is (`workspacePaused`, the readiness the surface reads: contracts
- * ChannelsReady.paused). Required: a caller that does not know says so rather than promise a run.
+ * ChannelsReady.paused). Required: a caller that does not know says so rather than promise a run. And none once the day its
+ * next run would fall on is past the campaign's last day (`until`, 00416): a card said "tomorrow 10:00 AM" of a campaign that
+ * ended today (the wiring's second audit, S1-3).
  */
 export function nextRunLabel(
-  p: Pick<PlaybookDto, "state" | "run_hour" | "last_run_for">,
+  p: Pick<PlaybookDto, "state" | "run_hour" | "last_run_for"> & { until?: string | null },
   tz: string,
   now: Date,
   workspacePaused: boolean,
@@ -208,6 +230,8 @@ export function nextRunLabel(
   if (p.state !== "running") return "paused";
   if (workspacePaused) return NEXT_RUN_WORKSPACE_PAUSED;
   const next = nextRunOf(p, tz, now);
+  const today = localDate(tz, now);
+  if (campaignEnded(p, next.day === "today" ? today : shiftKey(today, 1))) return NEXT_RUN_PAST_LAST_DAY;
   return next.soon ? "today, within the hour" : `${next.day} ${clockHour(next.hour)}`;
 }
 

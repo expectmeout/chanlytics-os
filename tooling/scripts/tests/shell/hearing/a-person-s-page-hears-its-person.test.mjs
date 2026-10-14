@@ -80,7 +80,6 @@ test("on a person's page it hears what the page draws of them that People hears 
     ["tenant_config", "UPDATE", "the booking link, the postal address"],
     ["playbooks", "UPDATE", "a campaign paused"],
     ["leads", "UPDATE", "their business renamed or moved on"],
-    ["reach_out_replies", "INSERT", "a signer offered"],
   ];
   for (const [table, event, what] of HEARD) {
     at(`clients/${PERSON}/history`);
@@ -98,6 +97,11 @@ test("on a person's page it hears what the page draws of them that People hears 
     ["messages", "INSERT", "a message is heard through the Inbox and Conversations (their-thread.ts)"],
     ["conversations", "UPDATE", "a thread's move, through the Inbox's row of them (their-thread.ts)"],
     ["deals", "UPDATE", "People hears a deal on every page, and its read reloads the page"],
+    [
+      "reach_out_replies",
+      "INSERT",
+      "People hears a reply's signer on every page, and its read reloads the page (S1-1)",
+    ],
   ])
     assert.equal(wantsRefresh(personOverride, table, change(table, event)), false, `${table} ${event}: ${why}`);
   // A call's transcript turn changes nothing the page draws; its end does.

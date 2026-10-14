@@ -20,6 +20,8 @@ import {
 } from "../calendar-words";
 import type { CalendarBlockVM } from "../calendar-vm";
 import type { CalendarMomentDto } from "../calendar-runs";
+import { shiftKey } from "../day-keys";
+import { campaignEnded, campaignRunsOn } from "../../playbooks/playbook-schedule";
 import { calendarPersonOf, type CalendarPersonVM } from "./calendar-person-facts";
 import { clockLabel } from "../calendar-words";
 import { calendarPeekDeal } from "../../deals/sheet/deal-acts";
@@ -240,7 +242,12 @@ function reminderOf(i: VisitSheetInput, ended: boolean): string | null {
   if (b.person.stopped) return SHEET_WORDS.reminder.stopped;
   const before = i.moments.find((m) => m.trigger === "visit_tomorrow");
   if (!before) return null;
-  return before.state === "running" ? SHEET_WORDS.reminder.rule(before.run_hour, name) : SHEET_WORDS.reminder.off(name);
+  // It runs by the one rule (campaignRunsOn), and on the day before this visit, when its reminder goes: a campaign past its last
+  // day by then sends this visit none (the wiring's second audit, S1-3).
+  const runs =
+    campaignRunsOn(before, { tz: i.tz, now: new Date(i.nowMs), dealsOn: i.dealsOn }) &&
+    !campaignEnded(before, shiftKey(i.day.key, -1));
+  return runs ? SHEET_WORDS.reminder.rule(before.run_hour, name) : SHEET_WORDS.reminder.off(name);
 }
 
 /** The rows that say something the head does not: the reminder, their step, their last word, their next visit, the booking's facts, where, and the notes. */

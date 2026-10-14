@@ -145,8 +145,11 @@ function usageOf(p: { g: TemplateGroup; onFile: TemplateRow[]; row: TemplateDto 
   const pbRows = playbooks ? playbooks.rows || [] : null;
   const users =
     row && pbRows ? pbRows.filter((p) => p.template_name === row.name && p.template_language === row.language) : [];
-  const sending = users.filter((p) => p.state === "running").map((p) => p.name);
-  const paused = users.filter((p) => p.state !== "running").map((p) => p.name);
+  // Sending is the one rule's (each card's `runs`, contracts campaignRunsOn, made again each minute): a campaign past its last
+  // day, or whose moment runs nothing here, sends it on no day to come, and is neither sending nor paused (the wiring's second
+  // audit, S1-3). Paused is its state.
+  const sending = users.filter((p) => p.runs).map((p) => p.name);
+  const paused = users.filter((p) => p.state === "paused").map((p) => p.name);
   const quoted = (names: string[]) => names.map((n) => `“${n}”`).join(", ");
   const pausedWords = !pbRows
     ? " Chanlytics couldn't check which campaigns send it."
@@ -161,11 +164,7 @@ function usageOf(p: { g: TemplateGroup; onFile: TemplateRow[]; row: TemplateDto 
   // that playbook is skipped until it does. Null when the playbooks were not read.
   const sentIn =
     pbRows && gName
-      ? [
-          ...new Set(
-            pbRows.filter((p) => p.template_name === gName && p.state === "running").map((p) => p.template_language),
-          ),
-        ]
+      ? [...new Set(pbRows.filter((p) => p.template_name === gName && p.runs).map((p) => p.template_language))]
       : null;
   const skipped = sentIn
     ? sentIn.find((id) => {

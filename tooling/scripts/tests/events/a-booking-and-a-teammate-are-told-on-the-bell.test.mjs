@@ -17,14 +17,19 @@ import {
   PUSH_KINDS,
   SERVER_NOTIFICATION_KINDS,
   bookingArriving,
+  bookingChanged,
   emailsFor,
   isPushKind,
   kindListDoor,
   memberJoinedBy,
   memberJoinedNotice,
+  memberLeftBy,
+  memberLeftNotice,
   noticeRoute,
   serverNotificationRows,
+  visitChangeNews,
   visitNews,
+  VISIT_CHANGES_TOLD,
 } from "@chanlytics/contracts";
 
 const APPT = "a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1";
@@ -112,6 +117,32 @@ test("REGRESSION: what the calendar adds is a booking only by the facts the swee
   );
 });
 
+test("a booking changed is one the customer cancelled or moved through their booking tool, said by the service (00436), and nothing else; every change of a visit says whether it is told (the wiring's second audit, R11 S6-6)", () => {
+  const changed = (data) => bookingChanged(event({ data: { starts_at: "2999-10-12T15:00:00Z", ...data } }));
+  assert.deepEqual(changed({ change: "cancelled", source: "booking_email", by: "service" }), {
+    appointmentId: APPT,
+    change: "cancelled",
+  });
+  assert.equal(changed({ change: "moved", source: "booking_tool", by: "service" })?.change, "moved");
+  for (const data of [
+    { change: "cancelled", source: "booking_email", by: "member" },
+    { change: "cancelled", source: "booking_email" },
+    { change: "moved", source: "calendar_feed", by: "service" },
+    { change: "vanished", source: "calendar_feed", by: "service" },
+    { change: "cancelled", source: "person", by: "service" },
+    { change: "added", source: "booking_email", by: "service" },
+    { change: "kept", source: "booking_email", by: "member" },
+  ]) {
+    assert.equal(changed(data), null, JSON.stringify(data));
+  }
+  assert.equal(bookingArriving(event({ data: { change: "cancelled", source: "booking_email", by: "service" } })), null);
+  assert.deepEqual(
+    Object.keys(VISIT_CHANGES_TOLD).sort(),
+    ["added", "back", "cancelled", "confirmed", "kept", "missed", "moved", "vanished"],
+    "every change the record says of a visit (00389, 00348, 00397) is in the table, with what is told of it",
+  );
+});
+
 const visit = (over = {}) => ({
   id: APPT,
   start: "2999-10-12T15:00:00Z",
@@ -182,6 +213,19 @@ test("several visits one read of the calendar added are one line: the earliest o
   assert.equal(two.subject, "2 new bookings on your calendar");
   assert.ok(!two.body.includes("more"), "nothing to count when all are named");
   assert.throws(() => visitNews([], NOW), /nothing booked to tell/);
+});
+
+test("a booking changed is worded as the time freed or the new time, opening the visit on its day", () => {
+  const cancelled = visitChangeNews(visit(), "cancelled", NOW);
+  assert.deepEqual(
+    [cancelled.kind, cancelled.route, cancelled.about, cancelled.subject],
+    ["booking", `calendar/2999-10-12:a-${APPT}`, { type: "appointment", id: APPT }, "Rosa Diaz cancelled their visit"],
+  );
+  assert.match(cancelled.body, /\nThat time is free again\.\n\n/);
+  const moved = visitChangeNews(visit({ who: null }), "moved", NOW);
+  assert.equal(moved.subject, "Someone moved their visit");
+  assert.match(moved.body, /^Now /);
+  assert.doesNotMatch(moved.body, /free again/);
 });
 
 test("a calendar read that adds more than a customer could book in an hour is a number the notice is told apart by", () => {
@@ -280,4 +324,30 @@ test("on the bell they open where their row says, else their list door, with a v
 test("the build knows both subscribers (00410 subscribes the two events to them in the background lane; the kinds' CHECK is held to contracts by the schema sets' type test)", () => {
   assert.ok(EVENT_SUBSCRIBERS.includes("visit_notice") && EVENT_SUBSCRIBERS.includes("team_notice"));
   assert.ok(SERVER_NOTIFICATION_KINDS.includes("booking") && SERVER_NOTIFICATION_KINDS.includes("member_joined"));
+});
+
+test("a teammate who left is read from member.left, by their own hand or with their account, and worded with the door to Settings > Team; a line on the bell, no mail, no phone (the wiring's second audit, R11 W-channel-team-plus-5)", () => {
+  const left = (data) => memberLeftBy({ kind: "member.left", subject_type: "workspace", subject_id: "w1", data });
+  assert.deepEqual(left({ by: "u1", how: "left", had_role: "operator" }), {
+    by: "u1",
+    how: "left",
+    hadRole: "operator",
+  });
+  assert.deepEqual(left({ by: "u1", how: "account_deleted" }), { by: "u1", how: "account_deleted", hadRole: null });
+  for (const data of [{ how: "left" }, { by: "u1" }, { by: "u1", how: "removed" }, null, "left"])
+    assert.equal(left(data), null, JSON.stringify(data));
+  assert.equal(memberLeftBy({ kind: "member.joined", subject_type: "invitation", subject_id: "i1", data: {} }), null);
+
+  const n = memberLeftNotice({ email: "ada@example.com", how: "left", hadRole: "owner" });
+  assert.deepEqual(
+    [n.kind, n.route, n.about, n.subject],
+    ["member_left", "admin/team", null, "ada@example.com left your team"],
+  );
+  assert.equal(
+    memberLeftNotice({ email: null, how: "account_deleted", hadRole: null }).subject,
+    "A teammate deleted their account",
+  );
+  assert.ok(SERVER_NOTIFICATION_KINDS.includes("member_left"));
+  assert.equal(EMAILED_NOTIFICATION_KINDS.includes("member_left"), false, "no mail");
+  assert.equal(isPushKind("member_left"), false, "no phone");
 });

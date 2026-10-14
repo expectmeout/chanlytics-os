@@ -820,10 +820,7 @@ test("the edge: the secret alone on the edge, a read before a row, the grant giv
       lib.includes('return { ok: false, error: "no_refresh_token" };') &&
       lib.includes('return { ok: false, error: "not_on_maps" };'),
   );
-  assert.ok(
-    lib.includes('if (first) await letReviewsGo(db, conn.tenant_id, "places", null);'),
-    "the public five make way for the profile",
-  );
+  // The public five make way for the profile on its first sync: run in google-door.test.mjs ("connect: … the public five making way").
   assert.ok(
     lib.includes("{ reviews: carriesReviews }"),
     "with the profile connected the public read keeps only the numbers",

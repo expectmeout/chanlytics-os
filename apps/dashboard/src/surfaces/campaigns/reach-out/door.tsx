@@ -3,7 +3,8 @@
  * PR 6; F10): on a search, "Write to the 44 ready" opens the reach-out sheet over it; a search that has its chain already
  * opens that chain's Playbooks row (one chain per search); none ready says "Write to the 12 unconfirmed", which opens the
  * sheet with them included; none of either draws nothing. The search's reach is read through the bridge
- * (`reachOuts.reach`, held until the next write), and every word is contracts' (reachOutDoorOf). Writing is the page's
+ * (`reachOuts.reach`, painted from the last read and read again as Leads and the reach-outs move), and every word is
+ * contracts' (reachOutDoorOf). Writing is the page's
  * primary act, so a role that may not (a viewer, or an owner viewing as one) is shown it gated by the one role table
  * (gate("approve")), and told why at the control, never offered a sheet it could not save. On a phone it is an accent word
  * at the end of the search's line, under its counts (a full-width coral bar pinned over the rows, then a second coral button, until 10 Oct 2026). Saved, the sheet stays open to say what the run did (R14); the door reads its search
@@ -17,22 +18,32 @@ import { gate, navigate } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { addLeadsTo } from "./people";
+import { useReadAgain } from "./read-again";
 import { ReachOutSheet } from "./sheet";
 import { reachOuts } from "./surface";
 
+/**
+ * The open search's reach: what this tab last read of it painted at once, and read again behind as the door opens, after
+ * the sheet saved (`version`) and as Leads or the reach-outs move (read-again.ts). A read again that fails keeps the count
+ * it had: a count it read, never one it did not.
+ */
 function useReachOutReach(searchId: string | null, version: number) {
-  const [reach, setReach] = useState<ReachOutReachDto | null>(null);
+  const [reach, setReach] = useState<ReachOutReachDto | null>(() => (searchId ? reachOuts.reachHeld(searchId) : null));
+  const moved = useReadAgain(searchId);
+  // Another search: nothing of the last one's stands while this one's is read.
   useEffect(() => {
+    setReach(searchId ? reachOuts.reachHeld(searchId) : null);
+  }, [searchId]);
+  useEffect(() => {
+    if (!searchId) return undefined;
     let live = true;
-    if (searchId)
-      void reachOuts.reach(searchId).then((r) => {
-        if (live) setReach(r);
-      });
-    else setReach(null);
+    void reachOuts.reach(searchId).then((r) => {
+      if (live && r) setReach(r);
+    });
     return () => {
       live = false;
     };
-  }, [searchId, version]);
+  }, [searchId, version, moved]);
   return reach;
 }
 

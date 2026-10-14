@@ -89,6 +89,7 @@ export { PLAYBOOK_PATCH_KEYS, PLAYBOOK_PATCH_WORDS } from "./playbook-patch";
 export {
   campaignDayWords,
   campaignEnded,
+  campaignRunsOn,
   effectiveMode,
   newCampaignTrialUntil,
   sendingEndsAt,
@@ -102,6 +103,8 @@ export {
   LEDGER_SORTS,
   LEDGER_STATUSES,
   chainResultsOf,
+  chainResumeOf,
+  rowResumeOf,
   isLedgerCampaign,
   ledgerOrder,
   ledgerPeopleWords,
@@ -111,7 +114,7 @@ export {
   lifecycleChainsOf,
   sentResultsOfSource,
 } from "./lifecycle/lifecycle-ledger";
-export type { LedgerSort, LedgerStatus } from "./lifecycle/lifecycle-ledger";
+export type { LedgerSort, LedgerStatus, LifecycleResume } from "./lifecycle/lifecycle-ledger";
 export { reachCountsOf } from "./lifecycle/lifecycle-tiles";
 export {
   LIFECYCLE_WORDS,

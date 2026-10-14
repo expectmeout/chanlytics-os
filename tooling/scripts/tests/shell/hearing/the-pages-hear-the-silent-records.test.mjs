@@ -156,9 +156,12 @@ test("always heard, wherever the tab is: Settings its facts, rules, library and 
   for (const o of [inboxOverride, conversationsOverride, todayOverride])
     for (const table of ["messages", "conversations", "escalations"])
       assert.equal(hears(o, table, "INSERT"), true, `${o.key}: ${table}`);
-  // Today draws the day's figures and its queue, and no hours: its five reads name no configuration.
-  for (const table of ["tenant_config", "templates", "policies", "mailboxes", "memberships"])
+  // Today draws the day's figures and its queue, and no hours: its five reads name no configuration. It draws whether a mailbox
+  // exists, its email chip (R6: W-channel-team-plus-3).
+  for (const table of ["tenant_config", "templates", "policies", "memberships"])
     assert.equal(hears(todayOverride, table), false, `Today draws no ${table}`);
+  for (const event of ["INSERT", "UPDATE"])
+    assert.equal(hears(todayOverride, "mailboxes", event), true, `a mailbox ${event}`);
 });
 
 /** The surfaces that hear a table only on their own page, and where that is: [override, its page, a page that is not, the tables]. */
@@ -167,7 +170,18 @@ const ON_ITS_PAGE = [
     peopleOverride,
     "#/clients",
     "#/calendar",
-    ["contacts", "playbooks", "tenant_channels", "billing_accounts", "policies", "templates", "tenant_config"],
+    // The text line and the mailbox its reach is counted against (R6: S3-3, W-channel-team-plus-3).
+    [
+      "contacts",
+      "playbooks",
+      "tenant_channels",
+      "lines",
+      "mailboxes",
+      "billing_accounts",
+      "policies",
+      "templates",
+      "tenant_config",
+    ],
   ],
   [playbooksOverride, "#/campaigns", "#/inbox", ["contacts", "templates", "mailboxes", "policies", "tenant_config"]],
   // Sent's composer offers the settings read's messages (offered-templates.ts): it hears every other table the playbooks do. Away is

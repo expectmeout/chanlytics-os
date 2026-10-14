@@ -263,12 +263,32 @@ function world() {
       delete from public.templates where id = tpl;
       ${told("a_template_removed")}
 
-      -- The mailbox. Its pause on offers is told, and its end; the mail it receives is not.
+      -- The mailbox. Made, its pause on offers and its end, Gmail's forwarding code and the intake's error are told; the
+      -- mail it receives is not (00431).
       insert into public.mailboxes (tenant_id, local_part, reply_token, from_name)
         values (a, 'told-' || left(md5(random()::text), 12), translate(left(md5(random()::text), 24), '0123456789', 'ghijklmnop'), 'Told A');
       ${told("a_mailbox_made")}
       update public.mailboxes set last_received_at = now() where tenant_id = a;
       ${told("a_mailbox_received_mail")}
+      update public.mailboxes set forward_confirm_code = '123456789', forward_confirm_at = now() where tenant_id = a;
+      ${told("a_forwarding_code_kept")}
+      update public.mailboxes set last_error = 'the intake could not read it' where tenant_id = a;
+      ${told("an_intake_failed")}
+      update public.mailboxes set last_received_at = now(), last_error = 'the intake could not read it' where tenant_id = a;
+      ${told("the_same_error_written_again")}
+
+      -- A review: seen, seen again by the next sync, answered, and the same answer written again (00431). A review is of
+      -- the workspace's listing (its tenant_id names the listing's), linked first and told as its own step.
+      insert into public.google_listings (tenant_id, place_id, name) values (a, 'told-place', 'Told A');
+      ${told("a_listing_linked")}
+      insert into public.google_reviews (tenant_id, review_id) values (a, 'told-review');
+      ${told("a_review_seen")}
+      update public.google_reviews set last_seen_at = now() where tenant_id = a;
+      ${told("a_review_seen_again")}
+      update public.google_reviews set reply_text = 'Thank you', replied_at = now() where tenant_id = a;
+      ${told("a_review_answered")}
+      update public.google_reviews set reply_text = 'Thank you' where tenant_id = a;
+      ${told("the_same_answer_written_again")}
       update public.mailboxes set offers_paused_at = now(), offers_paused_reason = 'bounces' where tenant_id = a;
       ${told("offers_paused")}
       update public.mailboxes set offers_paused_at = null, offers_paused_reason = null, offers_resumed_at = now() where tenant_id = a;
@@ -384,6 +404,8 @@ function world() {
       ${told("a_seat_left")}
       update public.tenants set name = 'Told A, renamed' where id = a;
       ${told("the_workspace_renamed")}
+      update public.tenants set left_empty_at = now() where id = a;
+      ${told("the_workspace_stamped")}
       update public.tenants set status = 'paused' where id = a;
       ${told("the_workspace_paused")}
       update public.tenants set status = 'paused' where id = a;
@@ -411,78 +433,16 @@ const notice = (to, event, table, statuses) => ({
   extension: "broadcast",
 });
 
-/**
- * The updates told only when a column a page draws holds something else than it did (00408), and the columns each is
- * narrowed to: a row trigger, AFTER UPDATE OF them, WHEN one is distinct. A column added here is a decision about what
- * a page draws. `null` is a table with no list: the settings are told when their version moved, whatever was named.
- */
-const NARROWED = {
-  // A notice closed when what it asked for ended (00421): the bell reads it as read, on every tab.
-  notifications: ["closed_at"],
-  contacts: [
-    "display_name",
-    "wa_profile_name",
-    "phone_e164",
-    "email",
-    "notes",
-    "proposal_url",
-    "consent",
-    "consent_source",
-    "consent_updated_at",
-    "dnc",
-    "marketing_consent",
-    "marketing_consent_source",
-    "marketing_consent_updated_at",
-    "email_marketing",
-    "email_marketing_source",
-    "email_marketing_updated_at",
-    "consent_channels",
-    "marketing_channels",
-    "email_suppressed_at",
-    "email_suppressed_reason",
-    "merged_into_contact_id",
-    "erased_at",
-    // Where they work and where their name came from (0052): People's trail and the person page draw both.
-    "lead_id",
-    "name_source",
-  ],
-  tenant_config: null,
-  templates: [
-    "meta_status",
-    "rejected_reason",
-    "quality",
-    "category",
-    "hidden_at",
-    "title",
-    "body_preview",
-    "components",
-    "variables",
-  ],
-  mailboxes: ["offers_paused_at", "offers_paused_reason", "offers_resumed_at"],
-  // A mailbox the business connected (00423, decision 0056): what Connections draws, never the sync's cursor, its watch
-  // or the stamp of a send, which the clocks move all day.
-  mailbox_connections: [
-    "state",
-    "held_why",
-    "resting_until",
-    "daily_cap",
-    "customer_domain",
-    "sent_days",
-    "dns",
-    "last_error",
-    "from_name",
-    "signature",
-    "address",
-  ],
-  memberships: ["role"],
-  tenants: ["status"],
-};
-
 test(
   "the tables and events with a trigger are the ones the live feed lists: a statement's, after it, or a narrowed update's, per row",
   { skip },
   async () => {
-    const { watchedEvents } = await import(pathToFileURL(path.join(ROOT, "packages/db/src/realtime.ts")).href);
+    const { watchedEvents, narrowedUpdates } = await import(
+      pathToFileURL(path.join(ROOT, "packages/db/src/realtime.ts")).href
+    );
+    // The updates told only when a column a page draws holds something else than it did (00408, 00431), and the columns
+    // each is narrowed to: realtime.ts says them once, and the triggers are held to it here.
+    const NARROWED = narrowedUpdates();
     const triggers = query(`
     select c.relname as tbl,
            case when t.tgtype & 4 > 0 then 'INSERT' when t.tgtype & 16 > 0 then 'UPDATE' else 'DELETE' end as event,
@@ -714,14 +674,37 @@ test(
 );
 
 test(
-  "a pause on offers by email and its end are told; a mailbox made and the mail it receives are not (00408)",
+  "a mailbox made, a pause on offers and its end, Gmail's forwarding code and the intake's error are told; the mail it receives is not (00408, 00431)",
   { skip },
   () => {
     const { steps } = world();
-    assert.deepEqual(steps.a_mailbox_made, []);
-    assert.deepEqual(steps.a_mailbox_received_mail, []);
+    assert.deepEqual(
+      steps.a_mailbox_made,
+      [notice("a", "INSERT", "mailboxes")],
+      "Today's email line and the Email rows",
+    );
+    assert.deepEqual(steps.a_mailbox_received_mail, [], "last_received_at is a stamp every email puts on it");
     assert.deepEqual(steps.offers_paused, [notice("a", "UPDATE", "mailboxes")]);
     assert.deepEqual(steps.offers_resumed, [notice("a", "UPDATE", "mailboxes")]);
+    assert.deepEqual(steps.a_forwarding_code_kept, [notice("a", "UPDATE", "mailboxes")], "the Business tab's code");
+    assert.deepEqual(steps.an_intake_failed, [notice("a", "UPDATE", "mailboxes")], "Connections' Email row");
+    assert.deepEqual(steps.the_same_error_written_again, [], "an email's stamp beside an error that did not move");
+  },
+);
+
+test(
+  "a review seen and a review answered are told; the sync's stamp and the same answer again are not (00431)",
+  { skip },
+  () => {
+    const { steps } = world();
+    assert.deepEqual(steps.a_review_seen, [notice("a", "INSERT", "google_reviews")]);
+    assert.deepEqual(steps.a_review_seen_again, [], "last_seen_at is stamped on every review by every sync");
+    assert.deepEqual(
+      steps.a_review_answered,
+      [notice("a", "UPDATE", "google_reviews")],
+      "Today, the bell and the lens",
+    );
+    assert.deepEqual(steps.the_same_answer_written_again, []);
   },
 );
 
@@ -751,11 +734,12 @@ test(
 );
 
 test(
-  "a workspace's status moving is told to it; its name changing, or the same status again, is not (00408)",
+  "a workspace's status and name moving are told to it; a stamp no page draws, or the same status again, is not (00408, 00431)",
   { skip },
   () => {
     const { steps } = world();
-    assert.deepEqual(steps.the_workspace_renamed, []);
+    assert.deepEqual(steps.the_workspace_renamed, [notice("a", "UPDATE", "tenants")], "the sidebar and the list");
+    assert.deepEqual(steps.the_workspace_stamped, [], "left_empty_at is no page's");
     assert.deepEqual(steps.the_workspace_paused, [notice("a", "UPDATE", "tenants")]);
     assert.deepEqual(steps.the_workspace_paused_again, []);
   },

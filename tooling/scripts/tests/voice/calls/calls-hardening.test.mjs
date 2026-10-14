@@ -81,8 +81,8 @@ test("realtime events are routed by table: a transcript turn repaints Live, not 
   assert.equal(subscribesToRealtime(live), true);
   assert.deepEqual(
     liveOverride.refreshOnTables,
-    ["calls", "tenant_channels"],
-    "Live listens to the calls and the line's own row, which carries its number and switch",
+    ["calls"],
+    "Live listens to the calls; the line's own row, its number and switch, is the channels read's, which Live follows (R6)",
   );
   assert.equal(subscribesToRealtime(liveOverride), true);
   assert.deepEqual(

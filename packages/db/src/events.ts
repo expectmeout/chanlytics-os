@@ -114,7 +114,7 @@ interface TableData {
   /** A person accepted an invitation: who, and the role they joined at. */
   "member.joined": { by: string; role: string };
   /** A person left by deleting their account: who (an id no row names any more), and how. */
-  "member.left": { by: string; how: "account_deleted" };
+  "member.left": { by: string; how: "account_deleted" | "left"; had_role?: string };
   "line.answering": { e164: string | null; provider: string; agent_id: string | null; by: string | null };
   "line.failed": { step: string; error: string; provider: string; by: string | null };
   /** The number a business keeps, set to forward to its line: its carrier and which calls, never the number. */

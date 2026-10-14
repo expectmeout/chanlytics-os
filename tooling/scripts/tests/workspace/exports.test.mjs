@@ -12,7 +12,18 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { ROLE_PERMS, frameWhisper, roleGate, toCallVM } from "@chanlytics/contracts";
+import {
+  EXPORT_OF,
+  EXPORT_SECTIONS,
+  RECORD_KINDS,
+  ROLE_PERMS,
+  exportLeftOut,
+  exportLeftOutWords,
+  exportedSections,
+  frameWhisper,
+  roleGate,
+  toCallVM,
+} from "@chanlytics/contracts";
 import { importSrc, readCode, readRaw } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import "../_legacy-react.mjs";
@@ -191,6 +202,72 @@ test("a call exports its facts, its summary, and the turns with a clock; a whisp
   assert.ok(!anon.includes("Summary\n"));
 });
 
+test("a thread says the wires it travelled, and each line its own where there are two (R14 X4): it said WhatsApp for every channel", () => {
+  const text = X.transcriptText(
+    { contact },
+    [
+      msg({ id: "1", body: "hola", channel: "whatsapp", created_at: "2026-09-01T14:00:00Z" }),
+      msg({ id: "2", body: "texting now", channel: "sms", created_at: "2026-09-01T14:01:00Z" }),
+      msg({
+        id: "3",
+        type: "call_summary",
+        sender: "system",
+        body: "Inbound call · 1 min",
+        created_at: "2026-09-01T14:02:00Z",
+      }),
+    ],
+    OPTS,
+  );
+  const lines = text.split("\n");
+  assert.equal(
+    lines[1],
+    "Marisa's Beauty Salon · WhatsApp, Text · 3 messages · exported 2026-09-05 11:04 · times in America/New_York",
+  );
+  assert.equal(lines[3], "[2026-09-01 10:00] WhatsApp · Dani 💅: hola");
+  assert.equal(lines[4], "[2026-09-01 10:01] Text · Dani 💅: texting now");
+  assert.equal(lines[5], "[2026-09-01 10:02] Dani 💅: [call] Inbound call · 1 min", "a call's note travelled no wire");
+  const email = X.transcriptText({ contact }, [msg({ id: "1", body: "Hello", channel: "email" })], OPTS).split("\n");
+  assert.equal(
+    email[1],
+    "Marisa's Beauty Salon · Email · 1 message · exported 2026-09-05 11:04 · times in America/New_York",
+  );
+  assert.equal(email[3], "[2026-09-01 10:00] Dani 💅: Hello", "one wire, said once in the head");
+});
+
+test("a call's file leads with what the call card does: what they wanted, how it ended, what it left to do (R14 X4)", () => {
+  const call = {
+    id: "k3",
+    direction: "inbound",
+    status: "ended",
+    from_e164: "+19175550100",
+    started_at: "2026-09-05T03:00:00Z",
+    duration_ms: 60_000,
+    disconnection_reason: null,
+    in_voicemail: false,
+    call_successful: null,
+    sentiment: null,
+    summary: null,
+    transcript_object: [],
+    contact: { display_name: "Daniela Ruiz", wa_profile_name: null, phone_e164: "+19175550100" },
+    wanted: "A balayage on Saturday",
+    outcome: "callback_needed",
+    follow_up: "Call back to confirm Saturday",
+    caller_name: "Dani",
+  };
+  assert.ok(
+    X.callText(call, OPTS).includes(
+      "Wanted: A balayage on Saturday\nHow it ended: Needs a call back\nTo do: Call back to confirm Saturday\nGave their name as Dani\n",
+    ),
+  );
+  // Voicemail is said once, among the facts.
+  const voicemail = X.callText(
+    { ...call, outcome: "voicemail", in_voicemail: true, wanted: null, follow_up: null },
+    OPTS,
+  );
+  assert.equal(voicemail.split("Reached voicemail").length, 2, "once");
+  assert.equal(voicemail.includes("How it ended"), false);
+});
+
 test("REGRESSION: a call's length in the export is the call card's (contracts callLength), rounded to the second and none for a call with no length -- it floored, 2:04 where the card says 2:05, and printed 0:00 for a length below zero", () => {
   const call = {
     id: "k2",
@@ -287,11 +364,11 @@ test("the CSV quotes what must be quoted and defuses what a spreadsheet would ru
   const [head, row, tail] = csv.slice(1).split("\r\n");
   assert.equal(
     head,
-    "name,whatsapp_name,phone,email,consent,consent_source,consent_updated,offers_consent,offers_consent_source,offers_consent_updated,do_not_contact,channels,conversations,calls,escalations,first_contact,last_message,last_inbound,last_call,receptionist",
+    "name,whatsapp_name,phone,email,consent,consent_source,consent_updated,offers_consent,offers_consent_source,offers_consent_updated,do_not_contact,channels,conversations,calls,escalations,first_contact,last_message,last_inbound,last_call,receptionist,email_offers,email_offers_source,email_offers_updated,email_unreachable_since,consent_covers,offers_covers",
   );
   assert.equal(
     row,
-    `"Dani, Jr.",'=cmd,'+19175550100,dani@example.com,opted_in,keyword,2026-08-01 08:00,unknown,,,no,whatsapp voice,2,1,0,2026-07-01 08:00,2026-09-01 08:00,,,auto`,
+    `"Dani, Jr.",'=cmd,'+19175550100,dani@example.com,opted_in,keyword,2026-08-01 08:00,unknown,,,no,whatsapp voice,2,1,0,2026-07-01 08:00,2026-09-01 08:00,,,auto,unknown,,,,whatsapp,`,
   );
   assert.equal(tail, "", "CRLF rows, trailing newline");
 });
@@ -311,6 +388,39 @@ test("the export carries the consent a carrier audit asks about", () => {
   const bare = [{ id: "p1", display_name: "A", phone_e164: "+1", consent: "opted_in", dnc: false }];
   const cells = X.peopleCsv(bare, TZ).slice(1).split("\r\n")[1].split(",");
   assert.equal(cells[X.PEOPLE_COLUMNS.findIndex(([n]) => n === "offers_consent")], "unknown");
+});
+
+test("a customer who unsubscribed from your emails says so in the file, with how and when, and what each yes covers (R14 X3)", () => {
+  // Pressing Unsubscribe in a campaign email left the row as anyone's: do_not_contact no, offers unknown, the address
+  // filled in. Taken to another mailing tool, the file mailed them.
+  const rows = [
+    {
+      id: "p1",
+      display_name: "Ana",
+      phone_e164: "+19175550100",
+      email: "ana@example.com",
+      consent: "opted_in",
+      consent_channels: ["whatsapp", "sms"],
+      marketing_consent: "opted_in",
+      marketing_channels: null,
+      email_marketing: "opted_out",
+      email_marketing_source: "unsubscribe_link",
+      email_marketing_updated_at: "2026-09-02T12:00:00Z",
+      email_suppressed_at: "2026-09-03T12:00:00Z",
+      dnc: false,
+    },
+  ];
+  const [head, row] = X.peopleCsv(rows, TZ).slice(1).split("\r\n");
+  const cell = (name) => row.split(",")[head.split(",").indexOf(name)];
+  assert.equal(cell("email_offers"), "opted_out");
+  assert.equal(cell("email_offers_source"), "unsubscribe_link");
+  assert.equal(cell("email_offers_updated"), "2026-09-02 08:00");
+  assert.equal(cell("email_unreachable_since"), "2026-09-03 08:00", "and when the address stopped being sent to");
+  assert.equal(cell("consent_covers"), "whatsapp sms", "the channels the yes covers");
+  assert.equal(cell("offers_covers"), "whatsapp", "a yes kept before the channels were covers WhatsApp alone");
+  // Appended: a sheet that reads the columns before them by place reads them as it did.
+  const names = X.PEOPLE_COLUMNS.map(([n]) => n);
+  assert.equal(names.indexOf("email_offers"), names.indexOf("receptionist") + 1);
 });
 
 test("a download is an attachment, private, with a safe name and the real one", () => {
@@ -445,7 +555,23 @@ const B = await import(
   pathToFileURL(path.join(here, "../../../../apps/dashboard/src/server/export/export-bundle.ts")).href
 );
 
-test("the bundle is one JSON document: every section, every page, in order, never held whole", async () => {
+/** The sections the bundle reads page by page (packages/db exportSectionPages): all but the six it reads its own way. */
+const PAGED = EXPORT_SECTIONS.filter(
+  (s) => !["people", "conversations", "files", "calls", "consent_history", "team"].includes(s),
+);
+/** Readers of those sections over these rows, each recording what it was asked. */
+const pagedSections = (asked, rows = {}) =>
+  Object.fromEntries(
+    PAGED.map((section) => [
+      section,
+      async (o, l) => {
+        asked.push([section, o, l]);
+        return (rows[section] ?? []).slice(o, o + l);
+      },
+    ]),
+  );
+
+test("the bundle is one JSON document: every section in contracts' order, every page, never held whole, with what it counted and what it leaves out", async () => {
   const asked = [];
   const convs = [
     {
@@ -473,7 +599,15 @@ test("the bundle is one JSON document: every section, every page, in order, neve
       last_inbound_at: null,
     },
   ];
-  const msgs = { c1: [msg({ id: "m1" }), msg({ id: "m2" }), msg({ id: "m3" })], c2: [], c3: [msg({ id: "m4" })] };
+  // Each message as the route reads it: its conversation, and the path of a file the store holds, neither of them written.
+  const inThread = (conversation_id, over, stored_path = null) => ({ ...msg(over), conversation_id, stored_path });
+  const photo = { mime_type: "image/jpeg", fetch_state: "stored", filename: "IMG_0001.jpg", caption: null };
+  const msgs = [
+    inThread("c1", { id: "m1" }),
+    inThread("c1", { id: "m2", type: "image", media: photo }, "t1/c1/m2.jpg"),
+    inThread("c1", { id: "m3" }),
+    inThread("c3", { id: "m4" }),
+  ];
   // Three of them, in two pages: people used to be read as ONE call, whose
   // answer people_list caps at 1000 rows in the database -- so a workspace
   // above that downloaded a bundle short by everyone after the first page, with
@@ -496,9 +630,9 @@ test("the bundle is one JSON document: every section, every page, in order, neve
       asked.push(["conversations", o, l]);
       return convs.slice(o, o + l);
     },
-    messages: async (id, o, l) => {
-      asked.push(["messages", id, o, l]);
-      return (msgs[id] ?? []).slice(o, o + l);
+    messages: async (ids, o, l) => {
+      asked.push(["messages", [...ids], o, l]);
+      return msgs.filter((m) => ids.includes(m.conversation_id)).slice(o, o + l);
     },
     calls: async (o, l) => {
       asked.push(["calls", o, l]);
@@ -520,6 +654,17 @@ test("the bundle is one JSON document: every section, every page, in order, neve
         },
       ].slice(o, o + l);
     },
+    signFiles: async (paths) => {
+      asked.push(["sign", [...paths]]);
+      return paths.map((p) => `https://files.example.com/${p}?token=t`);
+    },
+    team: async () => [
+      { email: "ada@example.com", name: "Ada", role: "owner", state: "member", since: "2026-01-01T00:00:00Z" },
+    ],
+    sections: pagedSections(asked, {
+      deals: [{ id: "d1" }, { id: "d2" }, { id: "d3" }],
+      business: [{ config: { brain: { facts: [] } }, updated_at: "2026-08-01T00:00:00Z", updated_by: null }],
+    }),
   };
   const chunks = [];
   for await (const c of B.workspaceBundle(readers, {
@@ -528,26 +673,29 @@ test("the bundle is one JSON document: every section, every page, in order, neve
     tz: TZ,
     exportedAt: new Date("2026-09-12T03:00:00Z"),
     page: 2,
+    batch: 2,
   }))
     chunks.push(c);
   assert.ok(chunks.length > 8, "written a piece at a time, not as one string");
-  const doc = JSON.parse(chunks.join(""));
+  const text = chunks.join("");
+  const doc = JSON.parse(text);
   assert.equal(doc.format, B.BUNDLE_FORMAT);
-  assert.equal(doc.version, 1);
+  assert.equal(doc.version, 2);
   assert.deepEqual(doc.workspace, {
     id: "t1",
     name: "Marisa's Beauty Salon",
     timezone: TZ,
     exported_at: "2026-09-12T03:00:00.000Z",
   });
+  // The file's keys are the header, contracts' sections in their order, and the two that end it: a new section is written
+  // where contracts names it, or this fails (R14 X2).
   assert.deepEqual(Object.keys(doc), [
     "format",
     "version",
     "workspace",
-    "people",
-    "conversations",
-    "calls",
-    "consent_history",
+    ...EXPORT_SECTIONS,
+    "manifest",
+    "not_included",
   ]);
   assert.deepEqual(
     doc.people.map((p) => p.id),
@@ -568,6 +716,41 @@ test("the bundle is one JSON document: every section, every page, in order, neve
     ],
     "every conversation with every message, across page boundaries",
   );
+  // The messages of a batch of conversations in one read, paged to its end (R14 X7): a read a conversation was ten
+  // thousand reads for a large workspace.
+  assert.deepEqual(
+    asked.filter((a) => a[0] === "messages"),
+    [
+      ["messages", ["c1", "c2"], 0, 2],
+      ["messages", ["c1", "c2"], 2, 2],
+      ["messages", ["c3"], 0, 2],
+    ],
+  );
+  assert.deepEqual(
+    asked.filter((a) => a[0] === "conversations"),
+    [
+      ["conversations", 0, 2],
+      ["conversations", 2, 2],
+    ],
+  );
+  // A file a customer sent: listed with a link that opens it for a day (R14 X6); where it is stored is never written.
+  assert.deepEqual(doc.files, [
+    {
+      conversation_id: "c1",
+      message_id: "m2",
+      type: "image/jpeg",
+      filename: "IMG_0001.jpg",
+      sent_at: "2026-09-01T14:00:00Z",
+      url: "https://files.example.com/t1/c1/m2.jpg?token=t",
+      url_expires_at: "2026-09-13T03:00:00.000Z",
+    },
+  ]);
+  assert.deepEqual(
+    asked.filter((a) => a[0] === "sign"),
+    [["sign", ["t1/c1/m2.jpg"]]],
+    "signed together",
+  );
+  assert.equal(/"(stored_path|path|conversation_id)":/.test(JSON.stringify(doc.conversations)), false);
   assert.deepEqual(
     doc.calls.map((k) => k.id),
     ["k1"],
@@ -585,27 +768,39 @@ test("the bundle is one JSON document: every section, every page, in order, neve
       note: null,
     },
   ]);
-  // Paged, and paged to the end: a full page is followed by another read, a
-  // short one ends the section.
+  assert.deepEqual(doc.team, [
+    { email: "ada@example.com", name: "Ada", role: "owner", state: "member", since: "2026-01-01T00:00:00Z" },
+  ]);
   assert.deepEqual(
-    asked.filter((a) => a[0] === "conversations"),
+    doc.deals.map((d) => d.id),
+    ["d1", "d2", "d3"],
+    "a paged section, across its pages",
+  );
+  assert.deepEqual(
+    asked.filter((a) => a[0] === "deals"),
     [
-      ["conversations", 0, 2],
-      ["conversations", 2, 2],
+      ["deals", 0, 2],
+      ["deals", 2, 2],
     ],
   );
-  assert.deepEqual(
-    asked.filter((a) => a[0] === "messages" && a[1] === "c1"),
-    [
-      ["messages", "c1", 0, 2],
-      ["messages", "c1", 2, 2],
-    ],
-  );
-  assert.deepEqual(
-    asked.filter((a) => a[0] === "messages" && a[1] === "c2"),
-    [["messages", "c2", 0, 2]],
-  );
-  assert.ok(chunks.join("").endsWith("}\n"), "ends like a file");
+  assert.equal(doc.business.length, 1, "the business's own details");
+  for (const section of PAGED.filter((x) => x !== "deals" && x !== "business"))
+    assert.deepEqual(doc[section], [], `${section}: a section with nothing in it is still a section`);
+  // What each section counted, and the messages beside them.
+  assert.deepEqual(doc.manifest, {
+    ...Object.fromEntries(EXPORT_SECTIONS.map((x) => [x, 0])),
+    people: 3,
+    conversations: 3,
+    files: 1,
+    calls: 1,
+    consent_history: 1,
+    deals: 3,
+    business: 1,
+    team: 1,
+    messages: 4,
+  });
+  assert.deepEqual(doc.not_included, exportLeftOut(), "what it leaves out, each with why");
+  assert.ok(text.endsWith("}\n"), "ends like a file");
   // Nothing at all is still a document.
   const empty = {
     people: async function* () {},
@@ -613,17 +808,95 @@ test("the bundle is one JSON document: every section, every page, in order, neve
     messages: async () => [],
     calls: async () => [],
     consentHistory: async () => [],
+    signFiles: async () => [],
+    team: async () => [],
+    sections: pagedSections([]),
   };
-  let text = "";
+  let none = "";
   for await (const c of B.workspaceBundle(empty, {
     workspaceId: "t1",
     business: "New",
     tz: TZ,
     exportedAt: new Date("2026-09-12T03:00:00Z"),
   }))
+    none += c;
+  const blank = JSON.parse(none);
+  assert.deepEqual(blank.people, []);
+  assert.deepEqual(blank.files, []);
+  assert.deepEqual(blank.consent_history, []);
+  assert.equal(blank.manifest.messages, 0);
+});
+
+test("a file the store will not sign is listed with no link, and the rest keep theirs", async () => {
+  const photo = { mime_type: "image/jpeg", fetch_state: "stored", filename: null, caption: null };
+  const readers = {
+    people: async function* () {},
+    conversations: async (o) =>
+      o > 0
+        ? []
+        : [
+            {
+              id: "c1",
+              contact_id: "p1",
+              state: "open",
+              created_at: "2026-08-01T10:00:00Z",
+              last_message_at: null,
+              last_inbound_at: null,
+            },
+          ],
+    messages: async (_ids, o) =>
+      o > 0
+        ? []
+        : ["m1", "m2"].map((id) => ({
+            ...msg({ id, media: photo }),
+            conversation_id: "c1",
+            stored_path: `t1/c1/${id}.jpg`,
+          })),
+    calls: async () => [],
+    consentHistory: async () => [],
+    signFiles: async (paths) => paths.map((p) => (p.endsWith("m1.jpg") ? null : `https://files.example.com/${p}`)),
+    team: async () => [],
+    sections: pagedSections([]),
+  };
+  let text = "";
+  for await (const c of B.workspaceBundle(readers, {
+    workspaceId: "t1",
+    business: "B",
+    tz: TZ,
+    exportedAt: new Date(),
+  }))
     text += c;
-  assert.deepEqual(JSON.parse(text).people, []);
-  assert.deepEqual(JSON.parse(text).consent_history, []);
+  assert.deepEqual(
+    JSON.parse(text).files.map((f) => [f.message_id, f.url !== null, f.url_expires_at !== null]),
+    [
+      ["m1", false, false],
+      ["m2", true, true],
+    ],
+  );
+});
+
+test("every kind of record says how it reaches the owner's copy: a section of the file, the header, or left out with what and why (R14 X2)", () => {
+  // The compiler holds EXPORT_OF to every kind (`satisfies Record<RecordKind, ExportOf>`); this holds what each answer says.
+  assert.deepEqual(Object.keys(EXPORT_OF).sort(), Object.keys(RECORD_KINDS).sort(), "each kind, once");
+  for (const [kind, how] of Object.entries(EXPORT_OF)) {
+    if ("section" in how) assert.ok(EXPORT_SECTIONS.includes(how.section), `${kind}: a section the file writes`);
+    else if ("not_exported" in how) {
+      assert.ok(how.not_exported.what.trim() && how.not_exported.why.trim(), `${kind}: what is left out, and why`);
+      assert.ok(
+        exportLeftOutWords().toLowerCase().includes(how.not_exported.what.toLowerCase()),
+        `${kind}: on the card`,
+      );
+    } else assert.ok(how.derived.trim(), `${kind}: where the file holds it`);
+  }
+  assert.equal(new Set(EXPORT_SECTIONS).size, EXPORT_SECTIONS.length, "each section once");
+  // A section no kind is exported to is the file's own: the files customers sent (their messages are the conversation's),
+  // the consent history (events, read for the one question an export is asked for), and who is on each list kept by hand.
+  const OWN = ["files", "consent_history", "list_members"];
+  assert.deepEqual(
+    EXPORT_SECTIONS.filter((x) => !exportedSections().includes(x)),
+    OWN,
+    "a section with no kind behind it is named here, with why",
+  );
 });
 
 test("a consent change is read the way the two doors write it: which question, how, by whom", () => {
@@ -787,6 +1060,27 @@ test("GET /export: owners only, the workspace named, one JSON file that parses a
       },
       { id: "e2", tenant_id: T, kind: "message.sent", subject_id: "m1", created_at: "2026-08-01T10:02:00Z", data: {} },
     ],
+    // A note kept on a person, which the copy held nothing of (R14 X1).
+    person_notes: [
+      {
+        id: "n1",
+        tenant_id: T,
+        contact_id: "p1",
+        body: "Prefers mornings",
+        author_kind: "member",
+        author_user_id: "u1",
+        for_user_id: null,
+        team_only: false,
+        state: "kept",
+        source: "page",
+        due_on: null,
+        done_at: null,
+        done_by: null,
+        deal_id: null,
+        created_at: "2026-08-01T11:00:00Z",
+        updated_at: "2026-08-01T11:00:00Z",
+      },
+    ],
   });
   const rpcs = {
     people_list: () => [
@@ -798,6 +1092,17 @@ test("GET /export: owners only, the workspace named, one JSON file that parses a
         consent: "opted_in",
         consent_source: "customer_message",
         dnc: false,
+      },
+    ],
+    // The team, as the roster names it: the one read that may name a member's address.
+    team_roster: () => [
+      {
+        membership_id: "mem1",
+        member_user_id: "u1",
+        email: "ada@example.com",
+        display_name: "Ada",
+        role: "owner",
+        joined_at: "2026-01-01T00:00:00Z",
       },
     ],
   };
@@ -849,6 +1154,18 @@ test("GET /export: owners only, the workspace named, one JSON file that parses a
     [["e1", "opted_in", "customer_message"]],
     "consent changes only, not every event",
   );
+  // The sections after the customer record, read on the owner's own session (packages/db exportSectionPages, R14 X1).
+  assert.deepEqual(
+    doc.notes_and_steps.map((n) => [n.contact_id, n.body]),
+    [["p1", "Prefers mornings"]],
+  );
+  assert.deepEqual(doc.team, [
+    { email: "ada@example.com", name: "Ada", role: "owner", state: "member", since: "2026-01-01T00:00:00Z" },
+  ]);
+  assert.deepEqual(doc.files, [], "no file a customer sent, so nothing to sign");
+  assert.equal(doc.manifest.notes_and_steps, 1);
+  assert.equal(doc.manifest.messages, 2);
+  assert.deepEqual(doc.not_included, exportLeftOut());
   // An operator holds the same rows and is refused before one is read.
   await assert.rejects(route.GET.run(req, ctx("operator")), (e) => e.status === 403);
   // A tab that named no workspace is refused the way every read is (plan 3.4).
@@ -931,7 +1248,13 @@ test("Settings offers the door the privacy page promises: one link, owners only,
   const text = JSON.stringify(nodes.map((n) => n.props?.children ?? []));
   assert.ok(text.includes("hi@chanlytics.com"), "deletion is a request, answered by a person");
   assert.ok(text.includes("removed within 30 days"), "in the privacy page's own words");
-  assert.ok(text.includes("Call audio is not included"), "and the file says what it does not carry");
+  // What the file leaves out, from the list it is written by (contracts EXPORT_OF, R14 X1), and never "everything".
+  assert.ok(
+    text.includes("Not in it:") && text.includes("call audio"),
+    "and the card says what the file does not carry",
+  );
+  assert.ok(text.includes("a link to each file a customer sent"), "and that a file a customer sent comes as a link");
+  assert.equal(/everything/i.test(text), false, "REGRESSION: 'everything', above Delete this workspace");
   // Not an owner: the link stays on the card, gated -- refused where it is, saying why (the one gate).
   globalThis.window.canDo = () => false;
   const denied = render(Card({}));
@@ -1184,7 +1507,7 @@ test("the workspace export holds everyone exactly once when someone writes or fa
       events: [],
     };
     const ctx = {
-      supabase: fakeDb(tables, {}, { people_list: world.people_list }),
+      supabase: fakeDb(tables, {}, { people_list: world.people_list, team_roster: () => [] }),
       userId: "u1",
       email: "ada@example.com",
       params: {},

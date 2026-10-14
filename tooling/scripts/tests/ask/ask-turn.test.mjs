@@ -2636,7 +2636,7 @@ test("REGRESSION: the assistant's people search says when someone was last in to
   assert.equal(r.isError, false, r.result);
   assert.deepEqual(
     JSON.parse(r.result).people.map((p) => [p.name, p.last_contact, p.next_step]),
-    [["Rosa", "2h ago", "Send the price list · Overdue since Fri"]],
+    [["Rosa", "They wrote · 2h ago", "Send the price list · Overdue since Fri"]],
   );
   const [row] = JSON.parse(r.result).people;
   assert.equal(row.route, `clients/${row.contact_id}`, "a person says where they open");
@@ -6407,9 +6407,10 @@ test("the workspace's pages are read once a turn, each tool as its page reads it
   );
   assert.deepEqual(
     out["t-workspace.settings"].channels,
+    // Each line's state in Connections' words (contracts toChannelVM), never the stored "active" (R13 X5-7).
     [
-      { kind: "voice", status: "active", number: "+19295550100" },
-      { kind: "whatsapp", status: "active", number: "+19295550199" },
+      { kind: "voice", status: "Receiving · last call 2h ago", number: "+19295550100" },
+      { kind: "whatsapp", status: "Receiving · last message 1h ago", number: "+19295550199" },
     ],
     "the same three fields, in the page's order: by kind",
   );

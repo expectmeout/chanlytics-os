@@ -21,6 +21,11 @@
 #   shape (tooling/scripts/tests/edge/log-line.test.mjs): a Stripe secret key,
 #   a JWT and a TypeSafe key, each made up, each listed here by value. The scan
 #   read them as real on main (#1348, 30 Sep 2026) and turned CI red.
+# - The people card's provider field after its LinkedIn one: the list of fields
+#   a run asks for (packages/core/src/leads/cards.ts) puts "organizationCity",
+#   sixteen letters, a line after "organizationLinkedinUrl", which is the shape
+#   of the linkedin-client-secret rule (a 16-character token near the word). A
+#   field name, not a credential (#1593, 14 Oct 2026).
 
 [extend]
 useDefault = true
@@ -33,5 +38,6 @@ regexes = [
   '''sk_live_51NabcDEFghijkLMNop''',
   '''eyJhbGciOiJIUzI1NiJ9\.eyJzdWIiOiJ1c2VyLTEifQ\.c2lnbmF0dXJlLXBsYW50ZWQ''',
   '''sk-ts-live-Zk9xQ2mV7rT4nB8wL1pC6hD3fG5j''',
+  '''^organizationCity$''',
 ]
 paths = ['''^supabase/migrations-ledger\.json$''']

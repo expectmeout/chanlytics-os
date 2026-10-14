@@ -19,7 +19,7 @@ import {
   lifecycleStateOf,
   pipelineRoute,
 } from "@chanlytics/contracts";
-import type { AppointmentWord, ConsentChannel } from "@chanlytics/contracts";
+import type { AppointmentWord, ConsentChannel, LifecycleResume } from "@chanlytics/contracts";
 import type { Output } from "@/client/api";
 import { pageClock } from "@/legacy-bridge/zone";
 import { canRestoreList, gate, gatedProps, navigate, restoreList } from "../../legacy-verbs";
@@ -33,6 +33,7 @@ import { StatePill } from "../../kit/pill/state-pill";
 import { useSurface } from "../../use-surface";
 import { bcRunOffer, bcWhenWords } from "../broadcasts/when-words";
 import { askAboutItem } from "../home/ask-on-campaigns";
+import { ResumeAct, ResumePress, ResumeQuestion, useResumeAsk } from "../home/ledger/ledger-acts";
 import { SentenceParts } from "../home/sentence";
 import { MessagePreview } from "../parts/message-preview";
 import { CmPreviewFold } from "../parts/preview-fold";
@@ -515,7 +516,7 @@ function cardWaitActs(c: CardCtx) {
  * then the two that are pressed least and cost most -- Run now, and Delete, which asks first. They were five buttons in
  * a row under the card, the red Delete among them. A viewer asks from the shell's ✦, on the drawer's address.
  */
-function cardOwnActs(c: CardCtx, phone = false) {
+function cardOwnActs(c: CardCtx, phone = false, resume: PaneResume | null = null) {
   const { p, canAct, busy, sure, setSure, waiting, acts, onEdit, onClose } = c;
   if (!canAct) return null;
   const hours = pageClock().hours;
@@ -523,7 +524,8 @@ function cardOwnActs(c: CardCtx, phone = false) {
     label: p.state === "paused" ? "Resume" : "Pause",
     glyph: <Icon name={p.state === "paused" ? "play" : "pause"} size={13} />,
     disabled: busy,
-    onSelect: () => void acts.toggle(),
+    // Resume asks first, as the list's does (the wiring's second audit, R11 S9-2): its question takes the foot.
+    onSelect: () => (resume ? resume.ask.setAsking(true) : void acts.toggle()),
   };
   // On a phone the pane's head is a capsule a thumb wide: its acts are the menu's, as a thread's Actions are, but Pause or
   // Resume, which the docked foot holds while no run waits (PlaybookPane); a run waiting holds the foot, and it stays here.
@@ -538,7 +540,9 @@ function cardOwnActs(c: CardCtx, phone = false) {
   const more: MenuItem[] = [
     ...words,
     askAboutItem(p, onClose),
-    ...(p.state === "running" && !waiting
+    // Only while it runs on the business's day (its `runs`, contracts campaignRunsOn): a campaign past its last day offered Run
+    // now, which the server refuses (S1-3).
+    ...(p.runs && !waiting
       ? [
           {
             label: "Run now",
@@ -561,10 +565,15 @@ function cardOwnActs(c: CardCtx, phone = false) {
     <>
       {phone ? null : (
         <>
-          <Button size="sm" disabled={busy} onClick={() => void acts.toggle()} data-testid="pb-pause">
-            <Icon name={p.state === "paused" ? "play" : "pause"} size={12} />{" "}
-            {p.state === "paused" ? "Resume" : "Pause"}
-          </Button>
+          {/* Resume asks where it stands, in the list's words (contracts rowResumeOf); Pause is a press. */}
+          {resume ? (
+            <ResumeAct act={resume.act} onAct={() => void acts.toggle()} gated={{ disabled: busy }} testid="pb-pause" />
+          ) : (
+            <Button size="sm" disabled={busy} onClick={() => void acts.toggle()} data-testid="pb-pause">
+              <Icon name={p.state === "paused" ? "play" : "pause"} size={12} />{" "}
+              {p.state === "paused" ? "Resume" : "Pause"}
+            </Button>
+          )}
           <Button variant="quiet" size="sm" disabled={busy} onClick={() => onEdit(p)} data-testid="pb-edit">
             Edit
           </Button>
@@ -651,8 +660,16 @@ function useCard({
   return { ...read, p, word, canAct, onEdit, onMessage, onClose, busy, sure, skipSure, setSure, setSkipSure, acts };
 }
 
+/** A paused campaign's Resume as its drawer asks it: the list's question (contracts rowResumeOf), and whether it is asked. */
+interface PaneResume {
+  act: LifecycleResume;
+  ask: ReturnType<typeof useResumeAsk>;
+}
+
 interface PaneProps {
   p: PlaybookRow;
+  /** Resume's question as the home's row asks it, where the campaign is paused (contracts rowResumeOf); null elsewhere. */
+  resume?: LifecycleResume | null;
   canAct: boolean;
   onEdit: (p: PlaybookRow) => void;
   /** Open the message it sends, by its name, in a drawer of its own (the home's `message:<name>`). */
@@ -667,17 +684,24 @@ interface PaneProps {
  * body; and a run waiting on you, or a delete asked, in the foot. It opened under its own row, which pushed every row
  * after it down by the card's height, the list's columns over a card that had none.
  */
-export function PlaybookPane({ p, canAct, onEdit, onMessage, flash, onClose }: PaneProps) {
+export function PlaybookPane({ p, canAct, onEdit, onMessage, flash, onClose, resume = null }: PaneProps) {
   const c = useCard({ p, canAct, onEdit, onMessage, flash, onClose });
   const phone = useCmPhone();
   const { state, waiting } = c;
   const asking = cardDeleteAsk(c);
+  const resumeAsk = useResumeAsk();
+  const resuming: PaneResume | null = p.state === "paused" && resume ? { act: resume, ask: resumeAsk } : null;
   // On a phone the foot's acts are the kit's equal pair (kit.css `data-foot-pair`), as every phone foot's are, but while
   // a question stands there; and with no run waiting the foot holds Edit and Pause or Resume, the head's words on a desk,
   // a thumb's reach from where the menu kept them (spec 2026-10-09 §4.4; Edit joined Pause there on 11 Oct 2026, where
   // one button stood alone across the foot and Edit hid in the menu).
   const foot = asking ? (
     <div className="pb-pane-foot">{asking}</div>
+  ) : resuming && resumeAsk.asking ? (
+    // Resume asked on a phone: the question takes the foot, as the delete's does, whatever held it.
+    <div className="pb-pane-foot">
+      <ResumeQuestion act={resuming.act} ask={resumeAsk} onAct={() => void c.acts.toggle()} testid="pb-pause-foot" />
+    </div>
   ) : waiting ? (
     <div className="pb-pane-foot" data-foot-pair={c.skipSure ? undefined : ""}>
       <span className="pb-pane-foot-say" data-testid="pb-waiting">
@@ -687,15 +711,19 @@ export function PlaybookPane({ p, canAct, onEdit, onMessage, flash, onClose }: P
     </div>
   ) : phone && canAct ? (
     <div className="pb-pane-foot" data-foot-pair="">
-      <Button
-        size="sm"
-        variant={p.state === "paused" ? "primary" : undefined}
-        disabled={c.busy}
-        onClick={() => void c.acts.toggle()}
-        data-testid="pb-pause-foot"
-      >
-        <Icon name={p.state === "paused" ? "play" : "pause"} size={12} /> {p.state === "paused" ? "Resume" : "Pause"}
-      </Button>
+      {resuming ? (
+        <ResumePress act={resuming.act} ask={resumeAsk} gated={{ disabled: c.busy }} testid="pb-pause-foot" />
+      ) : (
+        <Button
+          size="sm"
+          variant={p.state === "paused" ? "primary" : undefined}
+          disabled={c.busy}
+          onClick={() => void c.acts.toggle()}
+          data-testid="pb-pause-foot"
+        >
+          <Icon name={p.state === "paused" ? "play" : "pause"} size={12} /> {p.state === "paused" ? "Resume" : "Pause"}
+        </Button>
+      )}
       <Button size="sm" disabled={c.busy} onClick={() => onEdit(p)} data-testid="pb-edit-foot">
         <Icon name="pencil" size={12} /> Edit
       </Button>
@@ -715,7 +743,7 @@ export function PlaybookPane({ p, canAct, onEdit, onMessage, flash, onClose }: P
       }
       title={p.name}
       badge={<StatePill kind="tone" value={state.tone} label={state.words} testid="pb-pane-state" />}
-      tools={cardOwnActs(c, phone)}
+      tools={cardOwnActs(c, phone, resuming)}
       foot={foot}
       onClose={onClose}
     >

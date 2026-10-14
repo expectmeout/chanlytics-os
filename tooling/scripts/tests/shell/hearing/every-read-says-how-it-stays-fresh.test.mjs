@@ -12,8 +12,9 @@
  * The kinds: `link` (a file or an address the browser fetches; nothing is drawn from it), `search` (asked as the person types),
  * `boot` (the shell's own, before any surface), `surface` (a helper a registered surface's own module imports and reads through, so
  * it is read whenever that surface is: held here by the import), `on-open` (read as a sheet or a pane opens, by a person, about
- * something that the feed's records do not move), and `owed` (drawn, and kept fresh by nothing: the finding names the lane that
- * gives it a surface).
+ * something that the feed's records do not move), `follows` (read as a sheet or a pane opens, and again each time the surface it
+ * names publishes a read, while what it shows can still move: a module beside it hears that surface's event), and `owed` (drawn,
+ * and kept fresh by nothing: the finding names the lane that gives it a surface).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -24,13 +25,27 @@ import { BANK, BANK_HINT, BASELINES_DIR, readBaseline, writeBaseline } from "../
 import { getsIn, registeredSurfaces } from "./_reads.mjs";
 
 const FILE = "on-demand-reads.json";
-const KINDS = ["link", "search", "boot", "surface", "on-open", "owed"];
+const KINDS = ["link", "search", "boot", "surface", "on-open", "follows", "owed"];
 /** A finding of the wiring's second audit, or a lane of it. */
 const FINDING = /^(R\d+|[SX]\d+-\d+|W-[a-z-]+-\d+)$/;
 const SRC = "apps/dashboard/src";
 
 /** The modules whose reads are a surface's: each registered override's own. Its helpers are held when they read for themselves. */
 const SURFACE_MODULES = new Set(registeredSurfaces().map((s) => s.file));
+/** The keys of those surfaces, as their overrides name them. */
+const SURFACE_KEYS = new Set(
+  [...SURFACE_MODULES].flatMap((file) =>
+    [...stripComments(fs.readFileSync(path.join(ROOT, file), "utf8")).matchAll(/\bkey: "([a-z_]+)"/g)].map((m) => m[1]),
+  ),
+);
+/** Whether a module in this folder hears the surface's own event (`surface:<key>`), as a sheet that follows it does. */
+const heardBeside = (module, key) => {
+  const folder = path.posix.dirname(module);
+  return fs
+    .readdirSync(path.join(ROOT, folder))
+    .filter((f) => /\.(ts|tsx)$/.test(f))
+    .some((f) => stripComments(fs.readFileSync(path.join(ROOT, folder, f), "utf8")).includes(`"surface:${key}"`));
+};
 
 /** The modules a file imports, from the root, extension and all (`@/x` and relative specifiers; a package is none). */
 function importsOf(file) {
@@ -105,6 +120,16 @@ test("each listed read says its kind, how it stays fresh and why that is enough;
     assert.ok(typeof entry.why === "string" && entry.why.trim().length >= 60, `${pair}: say why that is enough`);
     if (entry.kind === "owed") assert.match(entry.finding ?? "", FINDING, `${pair}: an owed read names its finding`);
     else assert.equal("finding" in entry, false, `${pair}: only an owed read waits on a finding`);
+    if (entry.kind === "follows") {
+      assert.ok(
+        SURFACE_KEYS.has(entry.follows),
+        `${pair}: it follows ${entry.follows}, which is no surface the shell registers`,
+      );
+      assert.ok(
+        heardBeside(pair.split(" ")[0], entry.follows),
+        `${pair}: no module beside it hears surface:${entry.follows}, so nothing reads it again`,
+      );
+    } else assert.equal("follows" in entry, false, `${pair}: only a read that follows a surface names one`);
     if (entry.kind === "surface") {
       const module = pair.split(" ")[0];
       assert.ok(

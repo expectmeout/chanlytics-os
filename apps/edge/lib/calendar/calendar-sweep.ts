@@ -29,7 +29,10 @@
  *
  * A workspace read is stamped (markCalendarChecked, tenant_config.calendar_checked_at). So is one that could not be
  * read (a feed that fails, settings that do not parse, no address, a throw): it is retried next hour, behind the feeds
- * that can be read, instead of holding the first place of the page every hour.
+ * that can be read, instead of holding the first place of the page every hour. A link that does not answer also keeps
+ * since when (tenant_config.calendar_failed_since, 00435, written with that stamp on the change, and cleared by the
+ * first read that works), and its owner is told once its failures are a day old; the read that works closes the notice
+ * (calendar-notice.ts, the wiring's second audit, R11 S11-4).
  *
  * `remaining` is the due feeds beyond the page. noteBacklog (note_sweep_backlog, 00089) counts the ticks in a row that
  * left some; at BACKLOG_TICKS_BEFORE_ALARM the sweep still does its tick and answers 503 (calendar_backlog), which
@@ -55,8 +58,57 @@ import { markCalendarFeedKept } from "../packages/db.js";
 import { keepAppointments } from "./calendar-appointments.js";
 import { bookedFromCalendar } from "./reach-out-booked.js";
 import { recordNotification } from "../ops/notify.js";
+import { readableAgain, tellUnreadable } from "./calendar-notice.js";
 import { BOOKING_DEFAULTS, ownAddressesOf, parseTenantConfig, peopleFromItems } from "../packages/contracts.js";
 import type { SweepTick } from "../ops/sweep-door.js";
+
+/** What the reads kept as appointments, for the tick's log line. */
+type Kept = { added: number; moved: number; back: number; vanished: number; seen: number; stale: number };
+
+/**
+ * One read kept as the workspace's appointments (keepAppointments), its counts added to the tick's, and the workspace's
+ * first read kept stamped (00419), so the next read's additions are no first read. A keep that fails, or a stamp, is
+ * logged: People has been filled, and the next hour's read keeps what this one could not; a stamp that fails leaves the
+ * read kept, and the next read is taken for the first and tells none of its own.
+ */
+async function keepTheRead(
+  db: SweepTick["db"],
+  read: { tenantId: string; items: Parameters<typeof keepAppointments>[2]; now: Date; L: SweepTick["L"] },
+  how: Parameters<typeof keepAppointments>[3],
+  kept: Kept,
+): Promise<void> {
+  const { tenantId, items, now, L } = read;
+  const errorOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
+  let r;
+  try {
+    r = await keepAppointments(db, tenantId, items, how);
+  } catch (e) {
+    L.error("calendar_appointments_failed", { tenant_id: tenantId, error: errorOf(e) });
+    return;
+  }
+  for (const k of Object.keys(kept) as (keyof Kept)[]) kept[k] += r[k];
+  if (!r.first) return;
+  await markCalendarFeedKept(db, tenantId, now).catch((e: unknown) =>
+    L.error("calendar_first_read_stamp_failed", { tenant_id: tenantId, error: errorOf(e) }),
+  );
+}
+
+/** The people a read put in People, logged, and the owner told on the bell: good news, never an email. */
+async function tellPeopleAdded(
+  tenantId: string,
+  r: Awaited<ReturnType<typeof addPeopleFromCalendar>>,
+  L: SweepTick["L"],
+): Promise<void> {
+  if (r.added || r.named || r.emailed) L.info("calendar_people_added", { tenant_id: tenantId, ...r });
+  if (!r.added) return;
+  const one = r.added === 1;
+  await recordNotification(tenantId, {
+    kind: "calendar_people",
+    title: `${r.added} ${one ? "person" : "people"} added from your calendar`,
+    body: `${one ? "An appointment" : "Appointments"} on your calendar carried a phone number nobody in People had. ${one ? "They are" : "They are all"} in People now, with consent unknown.`,
+    route: "clients",
+  });
+}
 
 export async function sweepCalendar({ db, L }: SweepTick): Promise<Response> {
   const now = new Date();
@@ -87,7 +139,7 @@ export async function sweepCalendar({ db, L }: SweepTick): Promise<Response> {
     remaining: page.remaining,
   };
   // What the reads kept as appointments, for the tick's log line: the answer stays the sweep's own counts.
-  const kept = { added: 0, moved: 0, back: 0, vanished: 0, seen: 0, stale: 0 };
+  const kept: Kept = { added: 0, moved: 0, back: 0, vanished: 0, seen: 0, stale: 0 };
   const startedAt = Date.now();
   for (const [i, row] of page.rows.entries()) {
     // Out of time: the rest of the page is remaining, not read, and not stamped.
@@ -99,7 +151,13 @@ export async function sweepCalendar({ db, L }: SweepTick): Promise<Response> {
     // A feed that could not be read, or a configuration that does not parse, is stamped as tried: retried the next
     // hour (the page's own gap), behind the feeds that can be read. Unstamped it kept the first place every hour, and
     // forty dead feeds held the page for every workspace.
-    const tried = () => markCalendarChecked(db, row.tenant_id, now).catch(() => undefined);
+    // Since when this link's reads have failed (00435): null while they work, undefined where the database keeps no
+    // such stamp, which is then never written. A link that does not answer starts the stamp; one already failing keeps it.
+    const failing = row.failed_since;
+    const tried = (unreadable = false) =>
+      markCalendarChecked(db, row.tenant_id, now, unreadable && failing === null ? { failedSince: now } : {}).catch(
+        () => undefined,
+      );
     const cfg = parseTenantConfig(row.config);
     const url = cfg?.calendar?.ical_url ?? null;
     if (!url) {
@@ -114,7 +172,9 @@ export async function sweepCalendar({ db, L }: SweepTick): Promise<Response> {
       const items = await feedItemsFor(row.tenant_id, url, tz, now, daysAhead);
       if (!items) {
         out.failed += 1;
-        await tried();
+        await tried(true);
+        // The owner is told once the failures are old enough; the first failure has only just started the stamp.
+        if (failing) await tellUnreadable(db, row.tenant_id, failing, now, L);
         continue;
       }
       const people = peopleFromItems(
@@ -129,35 +189,11 @@ export async function sweepCalendar({ db, L }: SweepTick): Promise<Response> {
       out.emailed += r.emailed;
       out.booked += await bookedFromCalendar(db, row.tenant_id, items, ownAddressesOf(cfg));
       // After the people, so an appointment names the person this read just put in People.
-      await keepAppointments(db, row.tenant_id, items, { timezone: tz, cfg, daysAhead, now }).then(
-        async (r) => {
-          for (const k of Object.keys(kept) as (keyof typeof kept)[]) kept[k] += r[k];
-          // The workspace's first read kept (00419): stamped, so the next read's additions are no first read.
-          if (r.first)
-            // A stamp that fails leaves the read kept; the next read is taken for the first, and tells none of its own.
-            await markCalendarFeedKept(db, row.tenant_id, now).catch((e: unknown) =>
-              L.error("calendar_first_read_stamp_failed", {
-                tenant_id: row.tenant_id,
-                error: e instanceof Error ? e.message : String(e),
-              }),
-            );
-        },
-        (e: unknown) =>
-          L.error("calendar_appointments_failed", {
-            tenant_id: row.tenant_id,
-            error: e instanceof Error ? e.message : String(e),
-          }),
-      );
-      await markCalendarChecked(db, row.tenant_id, now);
-      if (r.added || r.named || r.emailed) L.info("calendar_people_added", { tenant_id: row.tenant_id, ...r });
-      // A row on the bell, not an email: people arriving is good news, not an alarm.
-      if (r.added)
-        await recordNotification(row.tenant_id, {
-          kind: "calendar_people",
-          title: `${r.added} ${r.added === 1 ? "person" : "people"} added from your calendar`,
-          body: `${r.added === 1 ? "An appointment" : "Appointments"} on your calendar carried a phone number nobody in People had. ${r.added === 1 ? "They are" : "They are all"} in People now, with consent unknown.`,
-          route: "clients",
-        });
+      await keepTheRead(db, { tenantId: row.tenant_id, items, now, L }, { timezone: tz, cfg, daysAhead, now }, kept);
+      // A link that answers again: the stamp of its failures is cleared with the read's, and the notice closes.
+      await markCalendarChecked(db, row.tenant_id, now, failing ? { failedSince: null } : {});
+      if (failing) await readableAgain(db, row.tenant_id);
+      await tellPeopleAdded(row.tenant_id, r, L);
     } catch (e) {
       out.failed += 1;
       L.error("calendar_sweep_failed", { tenant_id: row.tenant_id, error: e instanceof Error ? e.message : String(e) });

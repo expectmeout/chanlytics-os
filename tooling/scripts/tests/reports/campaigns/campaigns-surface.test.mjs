@@ -30,7 +30,9 @@ Object.assign(globalThis, {
   __WORKSPACES: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
   __ACTIVE_WORKSPACE: "t1",
 });
-globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
+// On screen: a hidden page reads, of what the feed tells, only what says itself in the tab's title and badge, and holds the
+// rest until it is in front (shell/feed/the-runner-heals.test.mjs).
+globalThis.document = { visibilityState: "visible", addEventListener() {}, removeEventListener() {} };
 // The shell's way of moving, as far as a pick needs it: the address says the route it was sent to.
 globalThis.window.CHANLY = {
   ...(globalThis.window.CHANLY ?? {}),
@@ -427,7 +429,7 @@ test("all three reads failing is three nulls in a value that is held, not a fail
   assert.deepEqual(surfaceValue("reports_campaigns").reachOuts, reachOutsFor({ days: 30 }).report);
 });
 
-test("its live-feed rule is the lens's own: messages, conversations, escalations and runs, a reach-out's replies, the number and domains it speaks of and a person's answer, a burst waited out for longer than Reports' own read waits, heard on the Campaigns lens alone and left for it otherwise", () => {
+test("its live-feed rule is the lens's own: messages, conversations, escalations and runs, a reach-out's replies, the number and domains it speaks of, a person's answer and a template's verdict, a burst waited out for longer than Reports' own read waits, heard on the Campaigns lens alone and left for it otherwise", () => {
   reset("30d");
   assert.deepEqual(reportsCampaignsOverride.refreshOnTables, [
     "messages",
@@ -438,6 +440,8 @@ test("its live-feed rule is the lens's own: messages, conversations, escalations
     "tenant_channels",
     "mailbox_connections",
     "contacts",
+    // The verdicts its tile of the WhatsApp messages Meta paused, turned off or rejected counts (W-campaign-run-template-reachout-10).
+    "templates",
   ]);
   // The yeses and stops it counts are columns of the people: an update of one is heard on the lens, a person made is no answer
   // and would read the dearest of the lenses for every arrival (the wiring's second audit, W-person-list-lead-8).
@@ -465,20 +469,19 @@ test("its live-feed rule is the lens's own: messages, conversations, escalations
     undefined,
     "it names its tables, not the historical trio",
   );
-  assert.equal(
-    reportsCampaignsOverride.refreshOnMessageStatuses,
-    undefined,
-    "and a delivery receipt is not heard (an arrival is what the lens counts: the sends' ticks are read as it opens)",
-  );
-  for (const status of ["sent", "delivered", "read", "failed"])
+  // The receipts its funnel counts, Delivered and Read, are heard, and read once a run's receipts quieten (the wiring's second
+  // audit, S3-5): the lens stood still while a run's receipts came in. Sent and failed are the run's own rows, heard as a send.
+  assert.deepEqual(reportsCampaignsOverride.refreshOnMessageStatuses, ["delivered", "read"]);
+  assert.equal(reportsCampaignsOverride.receiptsQuietMs, 5_000, "a run's receipts are read once they quieten");
+  for (const status of ["sent", "failed", "queued"])
     assert.equal(
       wantsRefresh(reportsCampaignsOverride, "messages", { table: "messages", event: "UPDATE", row: { status } }),
       false,
-      `a message ${status}: a tick is not heard`,
+      `a message ${status}: not a receipt the funnel counts`,
     );
   assert.deepEqual(
     reportsHeadlineOverride.refreshOnTables,
-    ["messages", "calls", "appointments", "contacts"],
+    ["messages", "calls", "appointments", "contacts", "tenant_config"],
     "the headline has its own, Today's (headline-live.test.mjs)",
   );
   const change = (table) => ({ table, event: table === "contacts" ? "UPDATE" : "INSERT", row: {} });

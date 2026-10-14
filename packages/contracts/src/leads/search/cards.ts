@@ -88,9 +88,9 @@ export const LEAD_CARDS: readonly LeadCardBrief[] = [
     approved: true,
   },
   {
-    // The people card (the workbench's call 8, 00430), approved by Ruben on 13 Oct 2026 with its source-rights note. It
-    // finds nothing until its calibration run: lead_platform.cards_on (00430 lead_card_live) is switched on by hand once
-    // that run proves the provider reads its filters and the mapper its fields (calibrated, below).
+    // The people card (the workbench's call 8, 00430), approved by Ruben on 13 Oct 2026 with its source-rights note.
+    // lead_platform.cards_on (00430 lead_card_live) is switched on by hand once its calibration run has proved the
+    // provider reads its filters and the mapper its fields (calibrated, below).
     id: "people_at_companies",
     finds: "people",
     goodFor: [
@@ -107,7 +107,7 @@ export const LEAD_CARDS: readonly LeadCardBrief[] = [
     settings: [
       "titles (one to five, what the people are called)",
       "seniority (owners, founders, the C-suite, partners, VPs, heads, directors, managers, senior staff, entry level)",
-      "industries (up to five, in the source's words)",
+      "industries (up to five, in the directory's own names: Marketing & Advertising, Accounting, Construction, Real Estate…)",
       "company sizes (employee ranges)",
       "states (up to ten; none is the whole US)",
       "count (1 to 500)",
@@ -128,7 +128,10 @@ export const LEAD_CARDS: readonly LeadCardBrief[] = [
     rights:
       "From a B2B contact database built from public professional profiles and company sites; we never sign in anywhere to read them, keep a person's name, title, work address and profile link only, check each address before anything is sent, and never write again to anyone who says no.",
     approved: true,
-    calibrated: null,
+    // Run once on 14 Oct 2026 (marketing managers at Marketing & Advertising companies of 11 - 50 in Texas, $0.17): 82
+    // items, the first the provider's note to read its log; the mapper read 80 (the other a company in India, which the
+    // card does not search), every filter held, and companiesOf made them 67 companies, each with someone to write to.
+    calibrated: { build: "0.0.259", on: "2026-10-14", items: 82, mapped: 80 },
   },
 ];
 

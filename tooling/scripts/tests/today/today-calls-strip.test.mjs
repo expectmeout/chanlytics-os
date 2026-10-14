@@ -227,6 +227,7 @@ test("Today repaints when a call starts or ends, not on every transcript turn", 
     "lead_rounds",
     "tenant_channels",
     "lines",
+    "mailboxes", // the email chip, drawn where a mailbox exists
     "billing_accounts",
     "contacts",
   ]);

@@ -17,7 +17,7 @@ import { historyBack } from "../kit/sheet/back";
 import { calendarPlaceRoute, keepCalendarView } from "./address";
 import { crTyping } from "./board-dom";
 import { calendar } from "./verbs";
-import { CR_OVERLAY, CR_REFRESH_MS, CR_WARM_MS } from "./words";
+import { CR_OVERLAY, CR_WARM_MS } from "./words";
 
 type Span = { from: string; days: number };
 
@@ -373,7 +373,7 @@ function useBoardKeys(): RefObject<BoardKeys | null> {
 }
 
 /**
- * What the board does while it is open, and when it goes. The Ask note, the read the window lacks, the five-minute clock, the
+ * What the board does while it is open, and when it goes. The Ask note, the read the window lacks, the
  * keys, and the way home: leaving the page takes the loaded weeks back to today's (Today's day and its next open time read
  * the same surface, and a board left on another month took them with it, C1).
  */
@@ -381,14 +381,10 @@ export function useBoardEffects(p: ReadAsk & { span: Span; vm: CalendarVM }) {
   useAskOnScreen(p.span, p.vm);
   const read = useWindowRead(p);
   useWarmAhead(p);
-  // The board keeps itself current while it is open: every five minutes, in a visible tab, the loaded window is read
-  // again, so the now line, the next open time and the open times follow the clock.
-  useEffect(() => {
-    const id = setInterval(() => {
-      if (document.visibilityState === "visible") void calendar.refresh();
-    }, CR_REFRESH_MS);
-    return () => clearInterval(id);
-  }, []);
+  // The board is kept current by its surface, not by a timer of its own: the runner's clock reads the window again every five
+  // minutes on any page that draws it, and makes its now, next and today again each minute (calendar/surface.ts,
+  // legacy-bridge/hearing/clock.ts). A timer here kept the board current and left Today's strip, drawn from the same read, as old
+  // as its last read (the wiring's second audit, S2-3).
   const keys = useBoardKeys();
   useEffect(
     () => () => {

@@ -77,7 +77,7 @@ export type LeadPeoplePlan = {
   /** What the people are called ("marketing manager", "office manager"): one to five. */
   titles: string[];
   seniority: PeopleSeniority[];
-  /** The companies' industries, in the provider's words ("Marketing & Advertising"). */
+  /** The companies' industries, in the provider's own names ("Marketing & Advertising"): its list alone (people-industries.ts). */
   industries: string[];
   sizes: PeopleCompanySize[];
   /** Two-letter US states; none is the whole country. */
@@ -160,7 +160,7 @@ export function peoplePlanOf(raw: unknown): LeadPeoplePlan | null {
     seniority: strs(o.seniority, PEOPLE_SENIORITIES.length, 20).filter((s): s is PeopleSeniority =>
       (PEOPLE_SENIORITIES as readonly string[]).includes(s),
     ),
-    industries: strs(o.industries, PEOPLE_INDUSTRIES_MAX, 80),
+    industries: strs(o.industries, PEOPLE_INDUSTRIES_MAX, PEOPLE_INDUSTRY_CHARS),
     sizes: strs(o.sizes, PEOPLE_COMPANY_SIZES.length, 20).filter((s): s is PeopleCompanySize =>
       (PEOPLE_COMPANY_SIZES as readonly string[]).includes(s),
     ),
@@ -229,6 +229,8 @@ export function peopleSheetProblems(t: {
   else if (short) out.titles = PEOPLE_FIND_WORDS.titleShort(short);
   else if (t.titles.trim().length > PEOPLE_ASKED_CHARS) out.titles = PEOPLE_FIND_WORDS.titlesLong;
   const industries = listTyped(t.industries, Infinity);
+  // An industry the directory does not list is the route's to say (LeadPeoplePlanSchema, with the nearest of its own):
+  // its list stays on the server, off every page's first load.
   const odd = industries.find((x) => x.length < 2 || x.length > PEOPLE_INDUSTRY_CHARS);
   if (industries.length > PEOPLE_INDUSTRIES_MAX)
     out.industries = PEOPLE_FIND_WORDS.tooMany("industries", PEOPLE_INDUSTRIES_MAX, industries.length);
@@ -265,7 +267,7 @@ export const PEOPLE_FIND_WORDS = {
   seniority: "How senior",
   seniorityAny: "Any seniority",
   industries: "Their companies' industries",
-  industriesHint: "Up to five, with commas between, as a directory says them: Marketing & Advertising, Accounting",
+  industriesHint: "Up to five, with commas between, as the directory names them: Marketing & Advertising, Accounting",
   sizes: "Company size",
   sizesAny: "Any size",
   states: "Where they work",
@@ -282,6 +284,12 @@ export const PEOPLE_FIND_WORDS = {
   tooMany: (what: string, max: number, n: number) => `Up to ${max} ${what}: this has ${n}.`,
   titlesLong: `What they are called is too long: ${PEOPLE_ASKED_CHARS} characters at most.`,
   industryOdd: (t: string) => `“${t}”: an industry is 2 to ${PEOPLE_INDUSTRY_CHARS} characters.`,
+  industryUnread: (t: string, near: readonly string[]) => {
+    const tried = near.map((n) => `“${n}”`);
+    return tried.length
+      ? `“${t}” isn't one of the directory's industries: try ${tried.length > 1 ? `${tried.slice(0, -1).join(", ")} or ` : ""}${tried[tried.length - 1]}.`
+      : `“${t}” isn't one of the directory's industries. Say it as the directory names it (Accounting, Construction, Real Estate), or leave industries empty and say who by what they are called.`;
+  },
   stateUnread: (s: string) => `${s} isn't a US state: use its name or its two letters.`,
   more: "Find more like these",
   closed: "Finding people at companies opens once it has been checked. Nothing was started.",

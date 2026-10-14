@@ -23,7 +23,7 @@ export {
   saidLeadPutBack,
 } from "./lead-work";
 export { draftFor } from "./lead-draft";
-export { suggestionsFor, setBusinessLine } from "./lead-suggestions";
+export { suggestionsKept, suggestionsWritten, setBusinessLine } from "./lead-suggestions";
 export { exportLeads } from "./lead-export";
 
 /**

@@ -10,6 +10,7 @@ import {
   type DealDto,
   type OpenDealDto,
   dealPaceOf,
+  MIN_MS,
   type DealPaceVM,
   type PersonRowVM,
   type PeopleAggregates,
@@ -21,6 +22,7 @@ import { read } from "@/legacy-bridge/api";
 import { workspaceZone } from "@/legacy-bridge/zone";
 import { declareReads } from "@/legacy-bridge/surface-registry";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
+import { DEAR_READ_LONGEST_WAIT_MS } from "@/legacy-bridge/surface-realtime";
 import { holderName } from "../holder-names";
 import { peopleSurfaceOf, personRowOf } from "./surface-map";
 import type { PeopleLoaded } from "./surface-map";
@@ -125,14 +127,36 @@ export function viewerId(): string | null {
   return (window as unknown as { __ME?: { id?: string | null } }).__ME?.id ?? null;
 }
 
-/** The surface from what is loaded, published: the seam's value, and the window's mirror of it. */
-export function publishPeople(): void {
-  if (!peopleLoaded) return;
+/**
+ * The surface from what is loaded, at `now`, published: the seam's value, and the window's mirror of it. Whether anything moved:
+ * the clock makes People again each minute where it is drawn (`rederive`), and a minute that moved nothing publishes nothing.
+ */
+export function publishPeople(now: Date = new Date()): boolean {
+  if (!peopleLoaded) return false;
   // What did not change keeps its object, so the table's rows that did not change are not drawn again (surface-values.ts).
-  setSurfaceValue(
-    "people",
-    shareUnchanged(surfaceValue("people"), peopleSurfaceOf(peopleLoaded, viewerId(), new Date(), holderName)),
-  );
+  const was = surfaceValue("people");
+  const next = shareUnchanged(was, peopleSurfaceOf(peopleLoaded, viewerId(), now, holderName));
+  if (next === was) return false;
+  setSurfaceValue("people", next);
+  return true;
+}
+
+/** How long People's read stands at least, whatever visit ends first: its read is of everyone, and the rows re-split meanwhile. */
+const PEOPLE_STANDS_MS = 15 * MIN_MS;
+
+/**
+ * When the read's split of next and last visit stops being true: the first of the next visits it holds to end (the rows say
+ * one that has ended as the last at once, contracts visitsAt; a person booked twice has their second only by a read), and no
+ * sooner than a quarter of an hour after the read began. Null with no visit ahead.
+ */
+function peopleValidUntil(): number | null {
+  if (!peopleLoaded) return null;
+  let first = Infinity;
+  for (const p of peopleLoaded.people) {
+    const end = Date.parse(p.visits?.next?.end ?? "");
+    if (Number.isFinite(end) && end < first) first = end;
+  }
+  return Number.isFinite(first) ? Math.max(first, peopleLoaded.readAt + PEOPLE_STANDS_MS) : null;
 }
 
 /** The views this tab has saved (the latest by page), how many saves it has made, and how many still wait on their reply. */
@@ -322,21 +346,34 @@ export const peopleOverride: SurfaceOverride = {
   value: "people",
   events: ["surface:clients"],
   refreshOnMessageInserts: true,
+  // The clock's: a step falls due, a visit's day word turns ("Tomorrow" is "Today"), a next visit ends and is the last, a
+  // thread's wait grows. Made again each minute where People is drawn (People, a person's page, Today's queue and Worth a look)
+  // and wherever it is drawn once the day turns, so the Inbox's thread header and Today's steps say a step due at midnight
+  // (the wiring's second audit, W-thread-wait-step-5, W-visit-deal-1). And read again once the first next visit it holds has
+  // ended, where it is drawn: who is booked again after it is the read's to say.
+  rederive: (now) => publishPeople(now),
+  validUntil: peopleValidUntil,
+  // A read of everyone: a stream of notices is waited out longer than the runner's three seconds (S10-2).
+  maxWaitMs: DEAR_READ_LONGEST_WAIT_MS,
   // Deals too: a teammate's move, or a payment's, shows on the rows and the Pipeline without a reload (0008). The
   // tab's own moves already re-read People through the refresh map (POST contacts/[id]/deal).
   // And notes: a teammate's step, set or done, moves a row's next step (00166).
   // And the lists (00169): a teammate's new list, rename or archive is on the rail without a reload. And the visits (#1551): a
   // teammate's mark, a booking email and the hourly calendar read move a row's next and last visit, "asked, never booked" and the
-  // "missed a visit" list, which the Inbox's visit chip and Today's Worth a look are drawn from. They are a few a day, so they are
-  // heard on every page, with the other kinds of its own below (`always`).
+  // "missed a visit" list, which the Inbox's visit chip and Today's Worth a look are drawn from. And a reach-out's reply read: the
+  // signer it offers as a name, which the Inbox thread a bell row opens draws from People's rows (the wiring's second audit, S1-1,
+  // its first option: a few a day, and an open person's page reloads with it, so their own surface does not read them again).
+  // They are a few a day, so they are heard on every page, with the other kinds of its own below (`always`).
   //
   // The rest is heard while People is on screen and once when it comes back (surface-registry.ts onlyOnItsPage; a read of
   // everyone is the dearest the feed asks for): every page of it was read again for each message, on whatever page the owner was
   // looking at. They are what a row is made from that is not its own: the messages, conversations and holds its state is made
   // of; the person (a teammate's rename, an answer, a stop, a merge, people imported); the playbooks a row's follow-up names; the
-  // channel and the workspace's pause its reach is counted against; the rules and templates its labels and sends read; and the
-  // business's facts it draws (the booking link, the deal pace, the postal address an offer by email names) (0047); and, since
-  // 0052, the business a person works at (the lead's name, its "Works at") and the signer a reply of theirs offers as a name.
+  // channels its reach is counted against (channels_ready: the number, the text line the carriers approve, the mailbox and its
+  // pause on offers; the wiring's second audit, S3-3, W-channel-team-plus-3); the rules and templates its labels and sends read; and the
+  // business's facts it draws (the booking link, the deal pace, the postal address an offer by email names) (0047); since 0052,
+  // the business a person works at (the lead's name, its "Works at"); and the runs a row's "Follow-up to approve" names, approved
+  // or skipped elsewhere (the wiring's second audit, W-campaign-run-template-reachout-9).
   ...declareReads("people", {
     reads: [
       "conversation",
@@ -354,13 +391,14 @@ export const peopleOverride: SurfaceOverride = {
       "list",
       "lead",
       "reach_out",
+      "send",
     ],
     fresh: "its-page",
-    always: ["visit", "deal", "step", "list"],
+    always: ["visit", "deal", "step", "list", "reach_out"],
     omit: [
       {
-        tables: ["lines", "mailboxes", "mailbox_connections", "capability_activations", "business_records"],
-        why: "its reach is counted against the numbers connected (tenant_channels) and the workspace's pause; a line's saga, a mailbox, a connected mailbox, an activation and the carriers' record are not among them",
+        tables: ["mailbox_connections", "capability_activations", "business_records"],
+        why: "its reach is counted against the number, the text line and the mailbox with its pause on offers (channels_ready); a connected mailbox, an activation and the carriers' record are not among them",
       },
       {
         tables: ["appointment_notices"],
@@ -378,6 +416,7 @@ export const peopleOverride: SurfaceOverride = {
     // they are: another device's change shows.
     const savesBefore = keptViews.made;
     const overlapped = keptViews.waiting > 0;
+    const readAt = Date.now();
     const [data, savedData, viewsData, tz] = await Promise.all([
       read("GET contacts"),
       // The saved lists failing is their own state (savedRead): one failed read of
@@ -407,6 +446,7 @@ export const peopleOverride: SurfaceOverride = {
           ? { ...(viewsData.views ?? {}), ...keptViews.views }
           : (viewsData.views ?? {}),
       viewsRead: !("failed" in viewsData),
+      readAt,
     };
     publishPeople();
   },

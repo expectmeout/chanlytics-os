@@ -106,11 +106,13 @@ test("saving a timezone re-reads settings, so the preview's zone and what the ho
   // is saved through the same route: People's lists and column, Reports' Deals section, Today's proposals waiting. The Reviews lens's
   // read, which counts a review on the day it was written in the zone, is forgotten, not read from Settings. The stand-in window is at
   // Reports (installLegacyReact), so the overview is read there, and with it the Campaigns lens's read the Overview draws for one fact;
-  // Today's headline, whose days are the zone's too, is forgotten there and read as Today comes on screen.
+  // Today's headline, whose days are the zone's too, is forgotten there and read as Today comes on screen. Campaigns' moments and Sent's
+  // composer (how customers buy shapes them) and the Calendar (its times are the zone's) are read where a page draws them, and Reports
+  // draws none of them: each is left for its pages (W-visit-deal-4, S10-6).
   assert.deepEqual(
     AFTER["PATCH workspaces"]().map((o) => o.key),
-    ["settings", "people", "reports", "today", "playbooks", "reports_campaigns"],
-    "the refresh map names the surfaces the workspace's own fields ride on, Campaigns' moments among them (how customers buy shapes them)",
+    ["settings", "people", "reports", "today", "reports_campaigns"],
+    "the refresh map names the surfaces the workspace's own fields ride on, where they are drawn",
   );
 
   const was = { fetch: W.fetch, settings: W.__SETTINGS, ws: W.__WORKSPACES, active: W.__ACTIVE_WORKSPACE };

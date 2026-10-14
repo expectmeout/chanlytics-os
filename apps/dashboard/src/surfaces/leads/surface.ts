@@ -41,6 +41,7 @@ import { heldViews } from "@/legacy-bridge/held-views";
 import { SURFACE_VALUE_SLOT } from "@/legacy-bridge/surface-cache";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { declareReads } from "@/legacy-bridge/surface-registry";
+import { canDo } from "../legacy-verbs";
 import { unwrap, type ApiResult, type RouteKey } from "@/client/api";
 import { declareSurfaceValue, setSurfaceValue, surfaceValue } from "../surface-values";
 
@@ -246,10 +247,7 @@ async function readPageOne(v: LeadsView): Promise<LeadsLoaded> {
     workspaceZone(),
   ]);
   // The first day's suggestions, and only then: a workspace with a search has work to read instead.
-  const suggestions =
-    searches.searches.length === 0
-      ? await leadRead<LeadSuggestionsDto>("GET lead-suggestions").catch(() => null)
-      : (leadsLoaded?.suggestions ?? null);
+  const suggestions = searches.searches.length === 0 ? await firstSearchIdeas() : (leadsLoaded?.suggestions ?? null);
   // Another read is writing them this moment: asked again shortly, once this view is on screen.
   if (suggestions && suggestions.pending) setTimeout(() => void readSuggestions(), IDEAS_WAITS_MS[0]);
   return {
@@ -382,8 +380,9 @@ export const leadsOverride: SurfaceOverride = {
       : snap;
   },
   events: ["surface:leads"],
-  // A run commits a page every few seconds and a check lands per batch: the strip and the rows follow the database.
-  ...declareReads("leads", { reads: ["lead"], fresh: "live" }),
+  // Heard while Leads is on screen, read once as it comes back (PAGE_HEARS): a running search, a page every few seconds, was
+  // read in every tab whatever page was open (the wiring's second audit, S10-5).
+  ...declareReads("leads", { reads: ["lead"], fresh: "its-page" }),
   debounceMs: 800,
   apply: async () => {
     // Realtime on Leads' tables, a write's re-read, a reconnect: Leads changed, so every view held from before is read
@@ -670,13 +669,24 @@ export async function removeSearch(id: string) {
  * asked for again after each of IDEAS_WAITS_MS, until they land or the waits run out.
  */
 export async function readSuggestions(wait = 0): Promise<void> {
-  const suggestions = await leadRead<LeadSuggestionsDto>("GET lead-suggestions").catch(() => null);
+  const suggestions = await firstSearchIdeas();
   if (!leadsLoaded) return;
   leadsLoaded = { ...leadsLoaded, suggestions };
   publishLeads();
   window.dispatchEvent(new CustomEvent("surface:leads"));
   const next = IDEAS_WAITS_MS[wait];
   if (suggestions && suggestions.pending && next !== undefined) setTimeout(() => void readSuggestions(wait + 1), next);
+}
+
+/**
+ * The ideas as written; where they are due and this member may find, asked to be written (POST, which may ask a model), else
+ * what was read. Null where nothing answered (S11-8).
+ */
+async function firstSearchIdeas(): Promise<LeadSuggestionsDto | null> {
+  const read = await leadRead<LeadSuggestionsDto>("GET lead-suggestions").catch(() => null);
+  if (!read?.due || !canDo("find")) return read;
+  const written = await leadCall<LeadSuggestionsDto>("POST lead-suggestions").catch(() => null);
+  return written?.ok ? written.data : read;
 }
 
 export async function setBusinessLine(business_line: string) {

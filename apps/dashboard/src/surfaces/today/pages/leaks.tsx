@@ -42,7 +42,8 @@ const PHONE_QUERY = "(max-width: 720px)";
 const twPhone = () => !!(window.matchMedia && window.matchMedia(PHONE_QUERY).matches);
 
 export const TodayLeaks = () => {
-  useMoved(["people", "today"]);
+  // The replies to a reach-out too: a thread whose reply was read is no unanswered person (contracts withoutWrongPerson).
+  useMoved(["people", "today", "reach_out_replies"]);
   const [open, setOpen] = useState<string | null>(null);
   // Reports' period in one small read (the headline), through the seam, and whether its read failed, by the seam's own hook (the
   // shell's `surfaceFailed` knows only the routes' surfaces: it is false for ever for the headline).

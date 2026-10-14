@@ -6232,6 +6232,7 @@ type Database = {
             tenant_config: {
                 Row: {
                     calendar_checked_at: string | null;
+                    calendar_failed_since: string | null;
                     calendar_feed_kept_at: string | null;
                     config: Json;
                     tenant_id: string;
@@ -6241,6 +6242,7 @@ type Database = {
                 };
                 Insert: {
                     calendar_checked_at?: string | null;
+                    calendar_failed_since?: string | null;
                     calendar_feed_kept_at?: string | null;
                     config?: Json;
                     tenant_id: string;
@@ -6250,6 +6252,7 @@ type Database = {
                 };
                 Update: {
                     calendar_checked_at?: string | null;
+                    calendar_failed_since?: string | null;
                     calendar_feed_kept_at?: string | null;
                     config?: Json;
                     tenant_id?: string;
@@ -6621,6 +6624,7 @@ type Database = {
                 Returns: {
                     config: Json;
                     due_total: number;
+                    failed_since: string;
                     tenant_id: string;
                     timezone: string;
                 }[];
@@ -9164,6 +9168,10 @@ type Database = {
                 };
                 Returns: Json;
             };
+            push_devices_forget_all: {
+                Args: never;
+                Returns: Json;
+            };
             put_channel_credentials: {
                 Args: {
                     p_channel_id: string;
@@ -10689,6 +10697,8 @@ interface SubscribeOptions {
     onStatus?: (status: string) => void;
 }
 type Event = "INSERT" | "UPDATE" | "DELETE";
+/** Each narrowed update's table and the columns it is told for (null: told when the version moved), as a copy. */
+declare function narrowedUpdates(): Record<string, string[] | null>;
 /** The tables the database tells a workspace about: a surface's refreshOnTables can only name one of these. */
 declare function watchedTables(): string[];
 /** Each watched table and the events it is told for, as 00265 makes its triggers. */
@@ -10708,4 +10718,4 @@ declare function subscribeWorkspaceChanges(client: SupabaseClient<Database>,
 /** Called with the table a change was told for, its event, and a row of the workspace and its status, where it has one. */
 onChange: OnChange, opts?: SubscribeOptions): () => void;
 
-export { type SubscribeOptions, subscribeWorkspaceChanges, watchedEvents, watchedTables };
+export { type SubscribeOptions, narrowedUpdates, subscribeWorkspaceChanges, watchedEvents, watchedTables };

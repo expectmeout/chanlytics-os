@@ -344,6 +344,37 @@ async function schedulePush(tenantId: string, kept: { id: string; kind: string }
 }
 
 /**
+ * A bell row kept once under the name of what it tells (`onceKey`, kept as a uuid in source_event, as notifyOnce keeps
+ * it), with the phones told where `push` says so; no mail. For a writer that moves its own state only after its notice is
+ * kept (the wiring's second audit, R11 S6-12): a notice that could not be kept leaves the state to be judged again, and
+ * the next try finds a notice kept already instead of keeping a twin. True when the row is kept, now or before; false
+ * when it could not be kept or looked for. Never throws.
+ */
+export async function keepOnce(
+  tenantId: string,
+  n: Omit<Parameters<typeof recordNotification>[1], "sourceEvent"> & { onceKey: string },
+  opts: { push?: boolean } = {},
+  db: Db | null = pg(),
+): Promise<boolean> {
+  if (!db) return false;
+  const { onceKey, ...row } = n;
+  const sourceEvent = onceKeyId(onceKey);
+  try {
+    if (await noticeFor(db, { tenantId, kind: keptKind(row.kind), sourceEvent })) return true;
+  } catch (e) {
+    // "Could not check" is not "never told": a row now could be the twin of one kept.
+    logger({ tenant_id: tenantId }).error("notification_record_failed", {
+      kind: keptKind(row.kind),
+      error: errField(e),
+    });
+    return false;
+  }
+  const kept = await recordNotification(tenantId, { ...row, sourceEvent }, db);
+  if (kept && opts.push) await schedulePush(tenantId, kept, db);
+  return !!kept;
+}
+
+/**
  * The bell's row and the phone's, with no mail: for news a path writes to the bell alone that a phone should hear too (a
  * card declined, a trial ending, a review; decision 0040), where recordNotification kept the row and told no phone,
  * though the kind is one phones are told. Never throws, as recordNotification does not.

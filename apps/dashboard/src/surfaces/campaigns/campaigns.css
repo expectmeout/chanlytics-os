@@ -4054,9 +4054,11 @@ section:has(> .tpl-composer:not(.is-translate)) {
   gap: 6px;
 }
 .cm-pane-body {
+  /* The body's gutter, at its sides and its foot: what a band pinned at its foot reaches back across (.bc-approval-acts). */
+  --cm-pane-gutter: 22px;
   flex: 1 1 auto;
   min-height: 0;
-  padding: 4px 22px 22px;
+  padding: 4px var(--cm-pane-gutter) var(--cm-pane-gutter);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -4140,7 +4142,8 @@ section:has(> .tpl-composer:not(.is-translate)) {
     font-size: var(--text-xs);
   }
   .cm-pane-body {
-    padding: 8px 16px 16px;
+    --cm-pane-gutter: 16px;
+    padding: 8px var(--cm-pane-gutter) var(--cm-pane-gutter);
   }
   /* The foot on a phone: its acts are an equal pair across it (kit.css, `data-foot-pair`), so the capsule keeps one
      inset all round, and the send screen's line and its name field keep theirs from the rim. */
@@ -4389,8 +4392,18 @@ html.legacy-on .cm-pane-sub .bc-run-link {
 .bc-approval-body {
   padding: 0 0 var(--space-4);
 }
+/* The acts stay at the pane's foot while the run's rows scroll under them: a band of the pane's own fill, laid opaque over
+   what it sits on (tokens.css, the glass's solids), under a hairline, across the body's gutters and down to the pane's
+   edge, where a phone's home bar is cleared as the pane's foot clears it. Stuck at the body's padding in the sheet's
+   fill, with no edge, Stop floated over the rows: the next one read through the gutter under it, and the band stood
+   apart from the clear pane round it (14 Oct 2026). */
 .bc-approval-acts {
-  padding: var(--space-3) 0 var(--space-4);
+  bottom: calc(-1 * var(--cm-pane-gutter));
+  margin: 0 calc(-1 * var(--cm-pane-gutter)) calc(-1 * var(--cm-pane-gutter));
+  padding: var(--space-3) var(--cm-pane-gutter) calc(var(--cm-pane-gutter) + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--surface-pane-solid);
 }
 .bc-approval-people {
   margin: 0 0 var(--space-1);

@@ -3,8 +3,10 @@ import {
   VERSION_CHANNELS,
   addressOf,
   bookingTemplate,
+  campaignEnded,
   campaignMessagesOf,
   defaultSlotKinds,
+  localDate,
   metaStatusOf,
   runsWords,
   slotLabels,
@@ -21,7 +23,8 @@ import {
 // The database's count of the same sends (00374); contracts' templateSends is the fold it replaced, read below for a
 // database before it.
 import { templateSends as sendsByTemplate } from "@chanlytics/db";
-import { stamp, type Reader, type ReaderContext } from "./index";
+import { load, stamp, type Reader, type ReaderContext } from "./index";
+import * as facts from "./facts";
 
 /**
  * `components` is read but never returned: the row keeps Meta's whole component
@@ -167,17 +170,28 @@ async function templatesOf(rc: ReaderContext, all: boolean) {
       .range(from, to),
   );
   const [pb, runRows, sends] = await Promise.all([
-    // Its clock, for the line under what sends it ("runs daily at 10:00").
+    // Its clock, for the line under what sends it ("runs daily at 10:00"), and its last day.
     rc.ctx.supabase
       .from("playbooks")
-      .select("id, name, template_name, state, trigger, run_hour, cadence_days")
+      .select("id, name, template_name, state, trigger, run_hour, cadence_days, until")
       .eq("tenant_id", tenantId),
     runs,
     templateSendsRead(rc, runs),
   ]);
   if (pb.error) throw new Error(pb.error.message);
+  // A campaign past its last day by the business's day (the turn's zone) sends nothing more: said so, never its clock (S1-3).
+  // A zone that cannot be read judges none ended: what sends each still reads.
+  const zone = await load(rc, facts.facts, undefined).then(
+    (r) => r.data.timezone,
+    () => null,
+  );
+  const today = zone ? localDate(zone, rc.now) : null;
   const usedBy = templateUsage({
-    playbooks: (pb.data ?? []).map((p) => ({ ...p, runs: runsWords(p) })),
+    playbooks: (pb.data ?? []).map((p) => ({
+      ...p,
+      runs: runsWords(p),
+      ended: today !== null && campaignEnded(p, today) !== null,
+    })),
     broadcasts: runRows,
     // The booking message is a WhatsApp template the receptionist sends: an email or a text of the same name is none.
     bookingName: booking?.name ?? null,

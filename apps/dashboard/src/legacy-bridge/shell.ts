@@ -184,6 +184,43 @@ export function installShell(win: Window = window): void {
 }
 
 /**
+ * Each surface by the word the status line says it stopped refreshing by: every surface the shell starts, but who is looking (a
+ * workspace read that fails is the shell's own state, not a line). It named a dozen, and a bell, a Settings, a Campaigns or a Leads
+ * that stopped refreshing said nothing at all, the bell being where a hand-over is announced (the wiring's second audit, S2-5).
+ * shell/surfaces/shell-status.test.mjs holds it to the shell's list.
+ */
+export const SURFACE_LABELS: Readonly<Record<string, string>> = {
+  conversations: "Conversations",
+  inbox: "Inbox",
+  today: "Today",
+  settings: "Settings",
+  channels: "Connections",
+  people: "People",
+  person: "This person",
+  leads: "Leads",
+  reports: "Reports",
+  reports_headline: "Today's period",
+  reports_reviews: "Reviews",
+  reports_receptionist: "Receptionist",
+  reports_people: "People report",
+  reports_campaigns: "Campaigns report",
+  live: "Calls",
+  broadcasts: "Sent",
+  playbooks: "Campaigns",
+  reach_outs: "Reach-outs",
+  reach_out_replies: "Replies to reach-outs",
+  campaign_results: "Campaigns' last 30 days",
+  calendar: "Calendar",
+  calendar_runs: "Campaigns on the Calendar",
+  notifications: "Notifications",
+  setup: "Setup",
+  google: "Google",
+  billing: "Billing",
+  partner: "Partner",
+  alerts: "Your alerts",
+};
+
+/**
  * What the shell tells the line: the surfaces that stopped refreshing, by
  * their labels, and the connection. A surface that never loaded is not among
  * them: its page says so itself ("Can't reach your workspace").

@@ -47,7 +47,7 @@ import { BROADCAST_NAME_MAX } from "../broadcasts/broadcasts";
 import { CHANNEL_WORDS } from "../broadcasts/reach-for";
 import { JOURNEY_STAGE_IDS, journeyStageOf, type JourneyStageId } from "../journey/journey";
 import { parseListToken } from "../people/lists/lists";
-import { campaignDayWords, campaignEnded, localDate } from "../playbooks/playbook-schedule";
+import { campaignDayWords, campaignRunsOn, localDate } from "../playbooks/playbook-schedule";
 import { PLAYBOOK_DEFAULTS, PLAYBOOK_LIMITS, PLAYBOOK_NAME_MAX } from "../playbooks/playbook-triggers";
 import { clockHour, wallClockAt } from "../shared/clock";
 import { joinWords, plural } from "../shared/words";
@@ -558,9 +558,10 @@ function offerNote(
  * is left alone, never paused to be resumed.
  */
 function monthsOfferPauses(world: PlanWorld, until: string): { input: Record<string, unknown>; said: string }[] {
-  const today = localDate(world.tz, world.now);
+  // Running by the one rule (campaignRunsOn); a month's offer is no proposal's, so deals do not decide it.
+  const at = { tz: world.tz, now: world.now, dealsOn: false };
   return world.playbooks
-    .filter((p) => p.trigger === "everyone_monthly" && p.state === "running" && !campaignEnded(p, today))
+    .filter((p) => p.trigger === "everyone_monthly" && campaignRunsOn(p, at))
     .map((p) => ({ input: { playbook_id: p.id, state: "paused" }, said: SAY.monthsOfferPaused(p.name, until) }));
 }
 

@@ -36,6 +36,25 @@ export function isReplyTo(sentAt: string, at: string): boolean {
   return Number.isFinite(s) && Number.isFinite(a) && a > s && a - s <= REPLY_WINDOW_MS;
 }
 
+/** A run that can still change state: waiting for its owner's word, scheduled, or sending. */
+const RUN_UNDERWAY: ReadonlySet<string> = new Set(["pending_approval", "scheduled", "sending"]);
+
+/**
+ * Whether a run's report can still move while a page has it open: it is underway, or it ended (sent, stopped or failed)
+ * inside the reply window, while its people's replies, yeses and stops are still counted to it (isReplyTo). A run that
+ * ended longer ago than that is history, and one that never started (cancelled before a send) has nobody to hear from.
+ * Sent's run sheet follows a run until then (the wiring's second audit, X2-2: it stopped following at the last send, while
+ * the replies kept arriving for three days).
+ */
+export function runStillMoving(
+  run: { state: string; started_at: string | null; finished_at: string | null },
+  nowMs: number,
+): boolean {
+  if (RUN_UNDERWAY.has(run.state)) return true;
+  const ended = Date.parse(run.finished_at ?? run.started_at ?? "");
+  return Number.isFinite(ended) && nowMs - ended <= REPLY_WINDOW_MS;
+}
+
 /**
  * The reason a person a send by hand enrols is skipped for when another message from a campaign or a broadcast reaches
  * them within a week of it, before or after (the week's breath, heardWithin): they are left out, never sent it. The word

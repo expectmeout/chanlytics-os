@@ -241,3 +241,28 @@ export async function waitingRunsOf(db: Db, tenantId: string): Promise<WaitingRu
   });
   return [...(pending.data ?? []), ...holding].sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
+
+/**
+ * The runs the bell's notices name, by id, in whatever state each is now, with how many emails a going reach-out run's check
+ * holds or has handed to its owner (runWaitingCounts): what Ask's read of the notices judges each by (contracts noticeStillWaits), as the bell judges by the runs Sent
+ * holds, so a run approved, sent or stopped is no longer listed as waiting (the wiring's second audit, R13 X5-1). On the
+ * session's client (RLS decides). A read that fails throws.
+ */
+export async function runsNamed(db: Db, tenantId: string, ids: readonly string[]): Promise<WaitingRunRow[]> {
+  if (!ids.length) return [];
+  const { data, error } = await db
+    .from("broadcasts")
+    .select(WAITING_RUN_COLUMNS)
+    .eq("tenant_id", tenantId)
+    .in("id", [...ids]);
+  if (error) throw new Error(`cannot read the runs the notices name: ${error.message}`);
+  const rows = data ?? [];
+  const reaching = rows.filter(
+    (r) => isReachOutRun(r.audience) && (RUN_GOING_STATES as readonly string[]).includes(r.state),
+  );
+  const waiting = reaching.length ? await runWaitingCounts(db, { tenantId, runIds: reaching.map((r) => r.id) }) : null;
+  return rows.map((r) => {
+    const w = waiting?.get(r.id);
+    return w ? { ...r, held: w.held, drafted: w.drafted } : r;
+  });
+}

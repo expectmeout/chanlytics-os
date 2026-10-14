@@ -51,8 +51,14 @@ export interface SurfaceOverride {
   value?: SurfaceKey;
   /** What of its globals the cache holds, when not all of them: given the snapshot, answers the one to keep. */
   trimSnapshot?: (snap: Record<string, unknown>) => Record<string, unknown>;
-  /** Fetch real data and write it into the surface's window globals. */
-  apply: () => Promise<void>;
+  /**
+   * Fetch real data and write it into the surface's window globals. `heard` is what the live feed told the read of, where it was
+   * a notice's and nothing else asked: a surface may read only what those can have changed (a delivery tick re-reads the threads,
+   * not the calls; the wiring's second audit, S10-2). None where a write, a pass, the boot or another read asked: everything.
+   * Answers "partial" where some of what it reads could not be read and it published the rest: the runner says the surface is
+   * not refreshing and asks again (S2-5).
+   */
+  apply: (heard?: readonly RealtimeChange[]) => Promise<void | "partial">;
   /** Mockup events to dispatch after apply so mounted components re-render. */
   events?: string[];
   /**
@@ -87,11 +93,36 @@ export interface SurfaceOverride {
    */
   maxWaitMs?: number;
   /**
+   * For a surface that counts receipts rather than drawing each tick (Sent's ledger, the playbooks, the funnels: COUNTED_RECEIPTS):
+   * a read asked by receipts alone waits this long for them to quieten, and RECEIPTS_LONGEST_WAIT_MS at most from the first
+   * (surface-realtime.ts). Absent, a receipt is read at the surface's own pace, as the Inbox's ticks are.
+   */
+  receiptsQuietMs?: number;
+  /**
    * Read again when the business's day turns, by the workspace's zone, in a visible tab (a hidden one reads as it is shown): for
    * a surface that counts "the day so far", which nothing else moves at midnight (`watchTheDayTurn`, surface-runner.ts). An `onDemand` one is read where
    * its page is on screen and kept for its page elsewhere, as a return to the tab does.
    */
   readAtMidnight?: boolean;
+  /**
+   * Made again from what it holds, with the clock at `now`, and published: for a surface whose words are the clock's ("now",
+   * "next", "today", a window closing, a step falling due, a campaign past its last day), which no notice ever moves. The
+   * runner's clock (hearing/clock.ts) calls it each minute while a page that draws it is on screen, as such a page comes
+   * on screen, and anywhere once the business's day has turned. Pure over what the last read held: no request. Answers
+   * whether it published anything that moved; false where it holds nothing yet.
+   */
+  rederive?: (now: Date) => boolean;
+  /**
+   * How old a read of it may be while a page that draws it is on screen, for a surface whose source tells the feed nothing
+   * (the owner's own calendar feed): the runner's clock reads it again then, on every page that draws it.
+   */
+  readEveryMs?: number;
+  /**
+   * The instant what it holds stops being true of a fact the server made at the read (People's next visit, split from the
+   * last by the read's own clock), or null where nothing it holds expires: the runner's clock reads it again once that has
+   * passed, where a page that draws it is on screen, and as such a page comes on screen.
+   */
+  validUntil?: () => number | null;
   /**
    * Which view of the surface a read is of, for a surface whose view the page picks through the seam (Reports'
    * period, the Calendar's days): reads of one view take their turn (activateOverride), and a read of another view
@@ -149,16 +180,17 @@ export function readSlot(o: Pick<SurfaceOverride, "key" | "view">): string {
  * beside a debounced event). Now a read asked for while one is out starts when that one has landed, and everyone who
  * asks meanwhile shares it: each caller is answered by a read that started after it asked.
  */
-export function activateOverride(o: SurfaceOverride): Promise<boolean> {
+export function activateOverride(o: SurfaceOverride, heard?: readonly RealtimeChange[]): Promise<boolean> {
   const slot = readSlot(o);
   const out = reading.get(slot);
-  if (!out) return startReading(o, slot);
+  if (!out) return startReading(o, slot, heard);
+  // Queued behind a read already out, it reads everything: it stands for whoever else asks meanwhile.
   out.next ??= out.landed.then(() => startReading(o, slot));
   return out.next;
 }
 
-function startReading(o: SurfaceOverride, slot: string): Promise<boolean> {
-  const read = readAndPublish(o);
+function startReading(o: SurfaceOverride, slot: string, heard?: readonly RealtimeChange[]): Promise<boolean> {
+  const read = readAndPublish(o, heard);
   const mine: Reading = { landed: read.catch(() => undefined), next: null };
   reading.set(slot, mine);
   // Registered before any caller's wait on `landed`, so it runs first: with a read queued behind it, the queue's own
@@ -169,9 +201,19 @@ function startReading(o: SurfaceOverride, slot: string): Promise<boolean> {
   return read;
 }
 
-async function readAndPublish(o: SurfaceOverride): Promise<boolean> {
+/** The surfaces whose last read landed in part (`apply` answered "partial"). */
+const partly = new Set<string>();
+
+/** Whether this surface's last read landed in part: what it published stands, and the runner asks again for the rest. */
+export function readWasPartial(key: string): boolean {
+  return partly.has(key);
+}
+
+async function readAndPublish(o: SurfaceOverride, heard?: readonly RealtimeChange[]): Promise<boolean> {
   try {
-    await o.apply();
+    const landed = await o.apply(heard);
+    if (landed === "partial") partly.add(o.key);
+    else partly.delete(o.key);
     for (const e of o.events ?? []) window.dispatchEvent(new CustomEvent(e));
     return true;
   } catch (err) {

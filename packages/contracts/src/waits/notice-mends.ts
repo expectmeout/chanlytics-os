@@ -3,7 +3,8 @@
  *
  * The bell keeps the bad news and the good: a number flagged and back to normal, a messaging limit lowered and raised, an
  * account review rejected and approved, a message refused and approved, a mailbox held or signed out and sending again, the
- * receptionist paused and back, a payment that did not go through and a paid invoice. The good news was kept and the warning
+ * receptionist paused and back, a payment that did not go through and a paid invoice, a Business Profile or a calendar
+ * link that stopped working and works again (R11 S11-4). The good news was kept and the warning
  * beside it stayed unread and amber for ever. Each pair is said here once: the warning by its kind and title, and what mends
  * it (a kind and title the edge keeps after it, or a change the edge records). The edge closes the warning when its mend is
  * kept (notify.ts mendWarnings, through packages/db closeMendedNotices), and the offers pause is closed in SQL by the resume
@@ -13,6 +14,7 @@
  */
 import { OFFERS_NOTICE_WORDS } from "../broadcasts/email-offers";
 import { TEMPLATE_STATUS_WORDS } from "../templates/templates";
+import { CALENDAR_UNREADABLE_WORDS, GOOGLE_SYNC_NOTICE_WORDS } from "../notices/connection-news";
 import type { ServerNotificationKind } from "../today/notifications";
 
 /** A change the edge records that mends a warning, where no row of good news is kept for it. */
@@ -21,7 +23,10 @@ export type MendChange =
   | "mailbox.offers_resumed"
   | "mailbox_connection.resumed"
   | "mailbox_connection.connected"
-  | "mailbox_connection.removed";
+  | "mailbox_connection.removed"
+  | "google_connection.synced"
+  | "google_connection.removed"
+  | "calendar.readable";
 
 /** What mends a warning: a kind and title kept after it, or a change. */
 export type MendBy = { kind: ServerNotificationKind; title: RegExp } | { change: MendChange };
@@ -103,6 +108,23 @@ export const NOTICE_MENDS: readonly NoticeMend[] = [
   {
     warns: { kind: "billing", title: /^Your trial ends in three days$/u },
     by: { change: "billing.paid" },
+    sameSubject: false,
+  },
+  // A Business Profile that stopped syncing is mended by a sync that works, or by the connection's removal; a calendar
+  // link that stopped answering by a read that works (the edge's sweeps record each). One of each per workspace.
+  {
+    warns: { kind: "sweep", title: exactly(GOOGLE_SYNC_NOTICE_WORDS.title) },
+    by: { change: "google_connection.synced" },
+    sameSubject: false,
+  },
+  {
+    warns: { kind: "sweep", title: exactly(GOOGLE_SYNC_NOTICE_WORDS.title) },
+    by: { change: "google_connection.removed" },
+    sameSubject: false,
+  },
+  {
+    warns: { kind: "sweep", title: exactly(CALENDAR_UNREADABLE_WORDS.title) },
+    by: { change: "calendar.readable" },
     sameSubject: false,
   },
   // Closed in SQL by resume_email_offers (00421): listed so the test holds the SQL's literal to these words.

@@ -805,8 +805,13 @@ test("Google is marked and ages by the read's own time, and the real registry na
   }
   setSurfaceValue("google", undefined);
   assert.equal(registry.routeDrawsFor("today").includes("google"), true, "Today's card draws its review line from it");
-  assert.deepEqual(registry.routeDrawsFor("admin", "integrations"), ["google"], "the Connections pane draws it");
-  assert.deepEqual(registry.routeSurfaces("admin", "integrations"), ["workspace", "settings", "google"]);
+  // Beside the channels' read, whose WhatsApp and phone rows it draws too (surfaces/channels/surface.ts).
+  assert.deepEqual(
+    registry.routeDrawsFor("admin", "integrations"),
+    ["google", "channels"],
+    "the Connections pane draws it",
+  );
+  assert.deepEqual(registry.routeSurfaces("admin", "integrations"), ["workspace", "settings", "google", "channels"]);
   // No other pane of Settings, no lens of Reports (the Reviews, Receptionist and People lenses draw their own reads) and no other page draws it.
   for (const [page, param] of [
     ["admin", null],

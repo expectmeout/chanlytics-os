@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import {
+  conversationWaitsOnYou,
   ASK_CAPS,
   heldDraftWaits,
   reasonLabelOf,
@@ -43,10 +44,16 @@ async function listThreads(t: ToolContext, input: { filter: string }): Promise<u
   const { conversations, escalations } = (await load(t.rc, inbox, undefined)).data;
   const byConv = inboxEscalations(escalations);
   const vms = conversations.map((c) => toInboxThreadVM(c, byConv.get(c.id) ?? null, t.timezone, t.now));
+  // What waits on you as the Inbox counts it (contracts conversationWaitsOnYou, waits.ts threadWait): a hold nobody has
+  // taken, or a reply counting down that can still be stopped. The filter read the holds alone: 4 where the Inbox said
+  // "5 need you" and Ask's Today said 5 (the wiring's second audit, R13 X5-2).
+  const waiting = new Set(
+    conversations.filter((c) => conversationWaitsOnYou(c, byConv.get(c.id) ?? null, t.now)).map((c) => c.id),
+  );
   const matching = vms.filter((v) => {
     switch (filter) {
       case "needs_you":
-        return v.needsYou;
+        return waiting.has(v.conversationId);
       case "held":
         // A draft still waiting to send, by the Inbox's rule: one past its deadline is going out, not held.
         return heldDraftWaits(v, t.now.getTime());
@@ -251,7 +258,7 @@ export const inboxTool = defineActions({
       examples: [{ filter: "held" }],
       label: "Reading the Inbox",
       words:
-        "Action list takes filter and finds threads: needs_you (handed to a person), held (a draft waiting to send), waiting (taken over by a person), snoozed, or recent (all, newest first); each row has its state, its held draft when one waits, how long the customer has waited, whether the reply window is open, and its last three messages with who wrote them.",
+        "Action list takes filter and finds threads: needs_you (what waits on you, as the Inbox counts it: a hold nobody has taken, or a reply counting down that can still be stopped), held (a draft waiting to send), waiting (taken over by a person), snoozed, or recent (all, newest first); each row has its state, its held draft when one waits, how long the customer has waited, whether the reply window is open, and its last three messages with who wrote them.",
       run: listThreads,
     }),
     thread: readAction({

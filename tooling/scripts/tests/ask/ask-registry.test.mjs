@@ -236,11 +236,22 @@ const BREATH_TAIL_WORDS = [
  * 12 Oct 2026 (Ask as the marketing manager, the review after the merge): each playbook says a next run only where it
  * runs, why it runs nothing, the day an ended one ended (its state may still read running: one that ended while paused
  * reads paused) and the last day ahead of one, and the mode its runs go under now, auto reading veto while on trial
- * (effectiveMode turns auto alone), where it said the mode its class runs under. The one phrase, once.
+ * (effectiveMode turns auto alone), where it said the mode its class runs under. The one phrase, once. 14 Oct 2026 (the
+ * wiring's second audit, R13 X5-7): its state is the home's words (lifecycleStateOf), so it no longer says it may read
+ * running, nor "whether it is running" beside it.
  */
 const PLAYBOOK_END_TRIAL_WORDS = [
   "its clock and next run, whether it is running, the autonomy mode its class runs under,",
-  "its clock and next run (next_run, null where it runs nothing here: runs_nothing says why, and ended the day one ended, its state may still read running), its last day ahead (ends), whether it is running, the mode its runs go under now (mode: its class's, but auto reads veto while on trial until on_trial_until),",
+  "its clock and next run (next_run, null where it runs nothing here: runs_nothing says why, and ended the day one ended), its last day ahead (ends), its state in the home's words (state: 'Paused', 'Ended Oct 1', 'On · Daily 10:00 AM', a run waiting first), the mode its runs go under now (mode: its class's, but auto reads veto while on trial until on_trial_until),",
+];
+/**
+ * 14 Oct 2026 (the wiring's second audit, R13 X5-2): inbox's needs_you is what waits on you as the Inbox counts it, a hold
+ * nobody has taken or a reply counting down that can still be stopped, where it said a thread handed to a person. The one
+ * phrase, once; ask-tools-4-6.json and -4-7.json say it as sent.
+ */
+const NEEDS_YOU_LIST_WORDS = [
+  "needs_you (handed to a person)",
+  "needs_you (what waits on you, as the Inbox counts it: a hold nobody has taken, or a reply counting down that can still be stopped)",
 ];
 /**
  * 12 Oct 2026 (the same review): how full the book is is action room's to say, so the calendar's tail sends a question
@@ -815,8 +826,8 @@ test("PR 4.5 gave inbox one action, search, and moved nothing else it says: less
     const was = PR_4_3[role].find((x) => x.name === SEARCHED);
     assert.equal(
       t.description,
-      was.description.replace(` ${d.tail}`, ` ${d.actions.search.words} ${d.tail}`),
-      `${role}: the search's words, between the thread's and the tail`,
+      was.description.replace(...NEEDS_YOU_LIST_WORDS).replace(` ${d.tail}`, ` ${d.actions.search.words} ${d.tail}`),
+      `${role}: the search's words, between the thread's and the tail, and needs_you as the Inbox counts it`,
     );
     const { words, days, ...rest } = t.input_schema.properties;
     assert.deepEqual([words, days], [{ type: "string" }, { type: "number" }], `${role}: words and days, and no other`);

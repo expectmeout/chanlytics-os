@@ -15,6 +15,7 @@ import {
   LEAD_STAGE_WORDS,
 } from "../leads/lead-words";
 import { formatPhoneDisplay } from "../shared/phone";
+import { mayRing } from "../consent/consent";
 import { holdActOf } from "../conversations/escalations";
 import type { PersonEscalationDto } from "../people/person-dto";
 import type { BusinessRecordVM } from "./business";
@@ -112,6 +113,12 @@ export interface PersonCallVM {
   onLead: boolean;
   /** They are the business's stand-in (named for it): Interested asks who answered, the name their page takes. */
   asksWho: boolean;
+  /**
+   * Call may ring them: not for a person on do-not-contact (decision 0008), whom the Pipeline and the acts already
+   * refuse, and whose page offered a Call all the same (the wiring's second audit, R11 S9-6). A call already made is
+   * logged whatever this says: recording a call is not ringing.
+   */
+  rings: boolean;
 }
 
 /** What the call is made of: the person's own number, whether they stand in for their business, and that business. */
@@ -119,6 +126,8 @@ export interface PersonCallInput {
   phone: string | null | undefined;
   standIn: boolean;
   business: Pick<BusinessRecordVM, "name" | "open" | "phone"> | null;
+  /** They are on do-not-contact: nothing rings them (`rings`, consent mayRing). */
+  dnc: boolean;
 }
 
 /** A number a phone can dial, from however it was written: its digits and a leading +, or none where there are no digits. */
@@ -149,6 +158,7 @@ export function personCallOf(i: PersonCallInput): PersonCallVM | null {
       outcomes,
       onLead,
       asksWho: false,
+      rings: mayRing({ dnc: i.dnc }),
     };
   // No number of their own: the listing's, where their business has one; else nothing to ring.
   const ph = b?.phone;
@@ -162,6 +172,7 @@ export function personCallOf(i: PersonCallInput): PersonCallVM | null {
     outcomes,
     onLead,
     asksWho: i.standIn,
+    rings: mayRing({ dnc: i.dnc }),
   };
 }
 

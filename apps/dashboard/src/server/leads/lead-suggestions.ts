@@ -254,43 +254,63 @@ async function writeIdeas(
 /** The ideas and what was passed on, as the row keeps them: through JSON, so a plan's shape is the row's. */
 const asJson = (v: unknown): Json => JSON.parse(JSON.stringify(v)) as Json;
 
+type IdeasCtx = Pick<RouteContext, "supabase" | "userId">;
+
 /**
- * The ideas for a new search (§8.9), written from this workspace's business line and what its searches found, and kept
- * until a round ends, the line is saved again or a month passes. A gateway that will not answer is a note on the page,
- * never a page that fails; another read writing them is a page that asks again in a moment.
+ * What the workspace's ideas stand as: the row kept, its ideas, whether they still stand (a round ended, the line saved or a
+ * month passed since says not), and how a page is told of them. Read once, by the GET and the POST alike.
  */
-export async function suggestionsFor(
-  ctx: Pick<RouteContext, "supabase" | "userId">,
-  tenantId: string,
-  opts: { write: boolean },
-): Promise<LeadSuggestionsDto> {
+async function ideasKept(ctx: IdeasCtx, tenantId: string) {
   const [kept, newest] = await Promise.all([keptSuggestions(ctx, tenantId), ideasBasis(ctx.supabase, tenantId)]);
   const basis = ideaBasisOf(newest);
   const items = keptIdeas(kept);
   const byOwner = kept?.by_owner === true;
   const madeAt = new Date().toISOString();
-  // The line the ideas are written from, once it is known; until then the kept one.
-  let lineShown = kept?.business_line ?? "";
-  const said = async (shown: LeadIdeaDto[], more: { note?: string; pending?: boolean } = {}) => ({
-    business_line: lineShown,
+  /** The page's answer: these ideas, under the line they are written from (the kept one until another is known). */
+  const said = async (
+    shown: LeadIdeaDto[],
+    more: { note?: string; pending?: boolean; due?: boolean } = {},
+    line = kept?.business_line ?? "",
+  ): Promise<LeadSuggestionsDto> => ({
+    business_line: line,
     by_owner: byOwner,
     made_at: kept?.made_at ?? madeAt,
     items: await withReach(ctx, shown),
     ...more,
   });
-  if (kept && stands(kept, items, basis)) return said(items);
-  // A member who may not find reads what was written, and asks for nothing.
-  if (!opts.write) return said(items, items.length ? {} : { note: LEAD_SUGGEST_UNAVAILABLE });
+  return { kept, basis, items, byOwner, madeAt, said, standing: !!kept && stands(kept, items, basis) };
+}
+
+/**
+ * The ideas for a new search (§8.9) as they were written, and whether they are due to be written again (`due`): the GET. It
+ * writes nothing and asks no model, so any member's page may read it (the wiring's second audit, S11-8: a page's read kept a
+ * row, asked a model and wrote an event).
+ */
+export async function suggestionsKept(ctx: IdeasCtx, tenantId: string): Promise<LeadSuggestionsDto> {
+  const { items, said, standing } = await ideasKept(ctx, tenantId);
+  if (standing) return said(items);
+  return said(items, { due: true, ...(items.length ? {} : { note: LEAD_SUGGEST_UNAVAILABLE }) });
+}
+
+/**
+ * The ideas written where they are due (§8.9), from this workspace's business line and what its searches found, and kept
+ * until a round ends, the line is saved again or a month passes: the POST, for a member who may find. A gateway that will
+ * not answer is a note on the page, never a page that fails; another request writing them is a page that asks again in a
+ * moment.
+ */
+export async function suggestionsWritten(ctx: IdeasCtx, tenantId: string): Promise<LeadSuggestionsDto> {
+  const { kept, basis, items, byOwner, madeAt, said, standing } = await ideasKept(ctx, tenantId);
+  if (standing) return said(items);
   // The model would not answer a moment ago: the older ideas stand, or the page says so, until it is asked again.
   if (kept?.failed_at && Date.now() - Date.parse(kept.failed_at) < LEAD_SUGGEST_RETRY_MS)
     return said(items, items.length ? {} : { note: LEAD_SUGGEST_UNAVAILABLE });
   const offer = await workspaceOffer(ctx, tenantId);
   // The owner's own words when they wrote them; otherwise what the workspace says it is and what it offers.
   const line = byOwner && kept ? kept.business_line : offerLine(offer);
-  lineShown = lineShown || line;
-  // Another read is writing them: the older ideas stand meanwhile, or the page asks again in a moment.
+  const lineShown = kept?.business_line || line;
+  // Another request is writing them: the older ideas stand meanwhile, or the page asks again in a moment.
   const claim = await ideaStore.claim(tenantId, line);
-  if (!claim) return said(items, items.length ? {} : { pending: true });
+  if (!claim) return said(items, items.length ? {} : { pending: true }, lineShown);
   try {
     const written = await writeIdeas(ctx, tenantId, {
       line,
@@ -299,7 +319,7 @@ export async function suggestionsFor(
     });
     const businessLine = byOwner && kept ? kept.business_line : written.line;
     // Kept only while the claim stands: a line the owner saved meanwhile is theirs, and these ideas were the old
-    // line's, so the page asks again and the next read writes from the new one.
+    // line's, so the page asks again and the next request writes from the new one.
     const held = await ideaStore.keep(tenantId, claim, {
       business_line: businessLine,
       by_owner: byOwner,
@@ -307,7 +327,7 @@ export async function suggestionsFor(
       basis,
       passed: asJson(written.passed),
     });
-    if (!held) return said(items, items.length ? {} : { pending: true });
+    if (!held) return said(items, items.length ? {} : { pending: true }, lineShown);
     return {
       business_line: businessLine,
       by_owner: byOwner,
@@ -318,14 +338,7 @@ export async function suggestionsFor(
     await ideaStore.fail(tenantId, claim).catch(() => undefined);
     // The page is not worth failing over a model that would not answer: the older ideas stand, or the note says why
     // this part is empty, beside the composer that still opens.
-    if (e instanceof AppError)
-      return {
-        business_line: line,
-        by_owner: byOwner,
-        made_at: kept?.made_at ?? madeAt,
-        items: await withReach(ctx, items),
-        ...(items.length ? {} : { note: LEAD_SUGGEST_UNAVAILABLE }),
-      };
+    if (e instanceof AppError) return said(items, items.length ? {} : { note: LEAD_SUGGEST_UNAVAILABLE }, line);
     throw e;
   }
 }

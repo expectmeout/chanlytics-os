@@ -456,7 +456,9 @@ begin
   end if;
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
   values (new.tenant_id, 'appointment.changed', 'appointment', 'appointment', new.id,
-          jsonb_build_object('change', v_change, 'source', new.source, 'starts_at', new.starts_at));
+          jsonb_build_object('change', v_change, 'source', new.source, 'starts_at', new.starts_at)
+          -- Whose word it is, whatever source the visit came by: a signed-in member's, or the service's (00436).
+          || jsonb_build_object('by', case when auth.uid() is not null then 'member' else 'service' end));
   return null;
 end $$;
 
@@ -465,7 +467,7 @@ end $$;
 -- Name: FUNCTION appointments_note_change(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.appointments_note_change() IS 'appointment.changed {change, source, starts_at} in the same transaction as the write (00389, 00397): added, confirmed, cancelled, kept, missed or moved, and nothing for a write that changes none of those. On a feed''s row only a moved status is said (appointments_note_status): the feed''s door writes its own events (00348) and never moves a status, so that is a person''s word.';
+COMMENT ON FUNCTION public.appointments_note_change() IS 'appointment.changed {change, source, starts_at, by} in the same transaction as the write (00389, 00397, 00436): added, confirmed, cancelled, kept, missed or moved, and nothing for a write that changes none of those; by is member when a signed-in member''s session made the write, service for the edge''s (a booking tool''s email, the calendar''s door). On a feed''s row only a moved status is said (appointments_note_status): the feed''s door writes its own events (00348) and never moves a status, so that is a person''s word.';
 
 
 --
@@ -1030,11 +1032,11 @@ COMMENT ON FUNCTION public.broadcasts_guard() IS 'The edges a broadcast may take
 -- Name: calendars_due(timestamp with time zone, integer, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.calendars_due(p_before timestamp with time zone, p_limit integer, p_tenant_id uuid DEFAULT NULL::uuid) RETURNS TABLE(tenant_id uuid, config jsonb, timezone text, due_total bigint)
+CREATE FUNCTION public.calendars_due(p_before timestamp with time zone, p_limit integer, p_tenant_id uuid DEFAULT NULL::uuid) RETURNS TABLE(tenant_id uuid, config jsonb, timezone text, due_total bigint, failed_since timestamp with time zone)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-  select c.tenant_id, c.config, z.tz, count(*) over ()
+  select c.tenant_id, c.config, z.tz, count(*) over (), c.calendar_failed_since
     from public.tenant_config c
     join public.tenants t on t.id = c.tenant_id
     cross join lateral (select public.safe_zone(coalesce(nullif(btrim(t.timezone), ''), 'America/New_York')) as tz) z
@@ -1050,7 +1052,7 @@ $$;
 -- Name: FUNCTION calendars_due(p_before timestamp with time zone, p_limit integer, p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.calendars_due(p_before timestamp with time zone, p_limit integer, p_tenant_id uuid) IS 'The workspaces with a calendar feed never read or last read before p_before, never read first, then least recently read, each with its zone, with due_total the count of all that were due. The calendar sweep''s page (00245).';
+COMMENT ON FUNCTION public.calendars_due(p_before timestamp with time zone, p_limit integer, p_tenant_id uuid) IS 'The workspaces with a calendar feed never read or last read before p_before, never read first, then least recently read, each with its zone and since when its reads have failed (null while they work, 00435), with due_total the count of all that were due. The calendar sweep''s page (00245).';
 
 
 --
@@ -3491,6 +3493,7 @@ CREATE FUNCTION public.deadman_candidates(p_older_than interval DEFAULT '02:00:0
    where e.state = 'open'
      and e.deadman_alerted_at is null
      and e.created_at < now() - p_older_than
+     and v.state <> 'snoozed'
    order by e.created_at
    limit 50;
 $$;
@@ -18200,6 +18203,27 @@ end $$;
 
 
 --
+-- Name: push_devices_forget_all(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.push_devices_forget_all() RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user uuid := auth.uid();
+  v_gone integer;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  delete from push_devices where user_id = v_user;
+  get diagnostics v_gone = row_count;
+  return jsonb_build_object('forgotten', v_gone);
+end $$;
+
+
+--
 -- Name: put_channel_credentials(uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -25894,6 +25918,10 @@ begin
                                   jsonb_build_object('removed_user_id', v_member.user_id, 'had_role', v_member.role,
                                                      'left', true),
                                   p_via, null);
+  -- The fact the owner is told from (core team_notice), in the leave's own transaction (00437).
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'member.left', 'system', 'workspace', p_tenant_id,
+          jsonb_build_object('by', p_actor, 'how', 'left', 'had_role', v_member.role));
   return jsonb_build_object('left', true) || v_audit;
 end $$;
 
@@ -25902,7 +25930,7 @@ end $$;
 -- Name: FUNCTION team_leave(p_tenant_id uuid, p_actor uuid, p_via text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.team_leave(p_tenant_id uuid, p_actor uuid, p_via text) IS 'A member leaves a workspace (00371): the membership and a remove_member decision with left, in one transaction; the last owner stays (last_owner). Service role: the route passes the session''s verified user as p_actor.';
+COMMENT ON FUNCTION public.team_leave(p_tenant_id uuid, p_actor uuid, p_via text) IS 'A member leaves a workspace (00371, 00437): the membership, a remove_member decision with left, and member.left {by, how: left, had_role}, which the owner is told from, in one transaction; the last owner stays (last_owner). Service role: the route passes the session''s verified user as p_actor.';
 
 
 --
@@ -26282,6 +26310,15 @@ begin
           and message_id is null
           and conversation_id is not null
           and ended_at < now() - interval '15 minutes')
+      -- a call whose owner was never told, its analysis not here or asking for a call back: asked of the provider for
+      -- two hours after it ended (00434, the sweep's settle leg)
+      or (status in ('ended', 'error')
+          and notified_at is null
+          and conversation_id is not null
+          and coalesce(duration_ms, 0) >= 15000
+          and ended_at < now() - interval '10 minutes'
+          and ended_at > now() - interval '2 hours'
+          and (summary is null or outcome = 'callback_needed'))
       -- audio past its retention (contracts RETENTION_DAYS.call_recordings):
       -- exactly what the sweep's first leg, purgeExpiredRecordings, selects
       or (recording->>'fetch_state' = 'stored'
@@ -26304,7 +26341,7 @@ end $$;
 -- Name: FUNCTION trigger_call_reconcile(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.trigger_call_reconcile() IS 'Asks the edge (api/cron/calls) to sweep when the calls table owes it work: a call still marked ongoing, a recording copy still pending, a thread still owed its call line, or audio past its retention. Asks through request_sweep(), which records the request so sweep_health() judges the answer, and waits 65 s, past the sweep''s own 60. With nothing owed, clears the note and records nothing else.';
+COMMENT ON FUNCTION public.trigger_call_reconcile() IS 'Asks the edge (api/cron/calls) to sweep when the calls table owes it work: a call still marked ongoing, a recording copy still pending, a thread still owed its call line, a call whose owner was never told (for two hours after it ended), or audio past its retention. Asks through request_sweep(), which records the request so sweep_health() judges the answer, and waits 65 s, past the sweep''s own 60. With nothing owed, clears the note and records nothing else.';
 
 
 --
@@ -29346,7 +29383,7 @@ CREATE TABLE public.notifications (
     mail_due_at timestamp with time zone,
     closed_at timestamp with time zone,
     CONSTRAINT notifications_body_check CHECK ((char_length(body) <= 4000)),
-    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text]))),
+    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text, 'member_left'::text]))),
     CONSTRAINT notifications_title_check CHECK (((char_length(title) >= 1) AND (char_length(title) <= 200)))
 );
 
@@ -30713,7 +30750,8 @@ CREATE TABLE public.tenant_config (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_by uuid,
     calendar_checked_at timestamp with time zone,
-    calendar_feed_kept_at timestamp with time zone
+    calendar_feed_kept_at timestamp with time zone,
+    calendar_failed_since timestamp with time zone
 );
 
 
@@ -30736,6 +30774,13 @@ COMMENT ON COLUMN public.tenant_config.calendar_checked_at IS 'When the calendar
 --
 
 COMMENT ON COLUMN public.tenant_config.calendar_feed_kept_at IS 'When the hourly sweep first kept a read of this workspace''s calendar, an empty read included (00419): appointments_feed_sync answers first for it, and the sweep stamps it. Null with no calendar_feed row: no read kept yet, so the additions of the read that follows connecting a calendar are its first read, which the bell tells none of. Null with calendar_feed rows: reads were kept before 00419. The service role''s, like calendar_checked_at (00089: no member''s UPDATE grant names it).';
+
+
+--
+-- Name: COLUMN tenant_config.calendar_failed_since; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.tenant_config.calendar_failed_since IS 'When the hourly sweep''s reads of this workspace''s calendar link began failing, kept through every failure after it and cleared by the first read that works (00435). The sweep tells the owner once it is a day old, and the read that works closes the notice. The service role''s, like calendar_checked_at (00089: no member''s UPDATE grant names it).';
 
 
 --
@@ -34522,6 +34567,13 @@ CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.mailbox_connections 
 
 
 --
+-- Name: mailboxes workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.mailboxes REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
 -- Name: memberships workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -34690,6 +34742,13 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.google_listings REFE
 
 
 --
+-- Name: google_reviews workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE OF reply_text, replied_at ON public.google_reviews FOR EACH ROW WHEN (((old.reply_text IS DISTINCT FROM new.reply_text) OR (old.replied_at IS DISTINCT FROM new.replied_at))) EXECUTE FUNCTION public.workspace_tell_row_change();
+
+
+--
 -- Name: invitations workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -34700,7 +34759,7 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.invitations REFERENC
 -- Name: lead_rounds workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.lead_rounds REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+CREATE TRIGGER workspace_tell_update AFTER UPDATE OF state, ending, ending_pending, question, answered, target, nearby, waiting_since, ended_at, plan_version ON public.lead_rounds FOR EACH ROW WHEN (((old.state IS DISTINCT FROM new.state) OR (old.ending IS DISTINCT FROM new.ending) OR (old.ending_pending IS DISTINCT FROM new.ending_pending) OR (old.question IS DISTINCT FROM new.question) OR (old.answered IS DISTINCT FROM new.answered) OR (old.target IS DISTINCT FROM new.target) OR (old.nearby IS DISTINCT FROM new.nearby) OR (old.waiting_since IS DISTINCT FROM new.waiting_since) OR (old.ended_at IS DISTINCT FROM new.ended_at) OR (old.plan_version IS DISTINCT FROM new.plan_version))) EXECUTE FUNCTION public.workspace_tell_row_change();
 
 
 --
@@ -34742,7 +34801,7 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE OF state, held_why, resting_un
 -- Name: mailboxes workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER workspace_tell_update AFTER UPDATE OF offers_paused_at, offers_paused_reason, offers_resumed_at ON public.mailboxes FOR EACH ROW WHEN (((old.offers_paused_at IS DISTINCT FROM new.offers_paused_at) OR (old.offers_paused_reason IS DISTINCT FROM new.offers_paused_reason) OR (old.offers_resumed_at IS DISTINCT FROM new.offers_resumed_at))) EXECUTE FUNCTION public.workspace_tell_row_change();
+CREATE TRIGGER workspace_tell_update AFTER UPDATE OF local_part, from_name, reply_mode, offers_paused_at, offers_paused_reason, offers_resumed_at, forward_confirm_account, forward_confirm_code, forward_confirm_link, forward_confirm_at, last_error ON public.mailboxes FOR EACH ROW WHEN (((old.local_part IS DISTINCT FROM new.local_part) OR (old.from_name IS DISTINCT FROM new.from_name) OR (old.reply_mode IS DISTINCT FROM new.reply_mode) OR (old.offers_paused_at IS DISTINCT FROM new.offers_paused_at) OR (old.offers_paused_reason IS DISTINCT FROM new.offers_paused_reason) OR (old.offers_resumed_at IS DISTINCT FROM new.offers_resumed_at) OR (old.forward_confirm_account IS DISTINCT FROM new.forward_confirm_account) OR (old.forward_confirm_code IS DISTINCT FROM new.forward_confirm_code) OR (old.forward_confirm_link IS DISTINCT FROM new.forward_confirm_link) OR (old.forward_confirm_at IS DISTINCT FROM new.forward_confirm_at) OR (old.last_error IS DISTINCT FROM new.last_error))) EXECUTE FUNCTION public.workspace_tell_row_change();
 
 
 --
@@ -34833,7 +34892,7 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.tenant_config FOR EA
 -- Name: tenants workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER workspace_tell_update AFTER UPDATE OF status ON public.tenants FOR EACH ROW WHEN ((old.status IS DISTINCT FROM new.status)) EXECUTE FUNCTION public.workspace_tell_row_change();
+CREATE TRIGGER workspace_tell_update AFTER UPDATE OF status, name, timezone, sells_by, logo_path ON public.tenants FOR EACH ROW WHEN (((old.status IS DISTINCT FROM new.status) OR (old.name IS DISTINCT FROM new.name) OR (old.timezone IS DISTINCT FROM new.timezone) OR (old.sells_by IS DISTINCT FROM new.sells_by) OR (old.logo_path IS DISTINCT FROM new.logo_path))) EXECUTE FUNCTION public.workspace_tell_row_change();
 
 
 --
@@ -40768,6 +40827,15 @@ GRANT ALL ON FUNCTION public.push_device_forget(p_token text) TO service_role;
 REVOKE ALL ON FUNCTION public.push_device_register(p_token text, p_platform text, p_app_version text, p_activity_token text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.push_device_register(p_token text, p_platform text, p_app_version text, p_activity_token text) TO authenticated;
 GRANT ALL ON FUNCTION public.push_device_register(p_token text, p_platform text, p_app_version text, p_activity_token text) TO service_role;
+
+
+--
+-- Name: FUNCTION push_devices_forget_all(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.push_devices_forget_all() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.push_devices_forget_all() TO authenticated;
+GRANT ALL ON FUNCTION public.push_devices_forget_all() TO service_role;
 
 
 --

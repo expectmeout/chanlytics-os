@@ -66,6 +66,8 @@ const FORWARDED = {
   // ledger (a resume's count) or for `detail` (a release's routing rows).
   "apps/edge/lib/lines/line-resume.ts": ["error.message", "NOT_THERE_TO_COUNT"],
   "apps/edge/lib/lines/lines.ts": ["error"],
+  // templatesSynced's (the Sync door's body, callable since the verdict's row waits on it: R11 S11-6), typed EdgeErrorCode.
+  "apps/edge/lib/whatsapp/template-admin.ts": ["synced.code"],
   // Meta's own answers, in Meta's words: a door answers its code with them in `detail`.
   "apps/edge/lib/whatsapp/meta-graph.ts": [
     "String(res.error)",

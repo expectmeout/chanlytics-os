@@ -8,7 +8,7 @@
  * reach-out's sheet at an address of its own (home-page.tsx), over this one, so Back returns here.
  */
 import { useRef } from "react";
-import { chainOfMoment, LIFECYCLE_WORDS, lifecycleKicker } from "@chanlytics/contracts";
+import { chainOfMoment, LIFECYCLE_WORDS, lifecycleKicker, rowResumeOf } from "@chanlytics/contracts";
 import type { LifecycleHome, ReachOutChainDto } from "@chanlytics/contracts";
 import { EmptyState } from "../../kit/empty/empty";
 import { PlaybookPane } from "../playbooks/card-detail";
@@ -61,7 +61,16 @@ function DrawerBody({
   const row = playbooks ? (playbooks.rows.find((p) => p.id === id) ?? null) : null;
   if (row) {
     return (
-      <PlaybookPane p={row} canAct={canAct} onEdit={onEdit} onMessage={onMessage} flash={flash} onClose={onClose} />
+      <PlaybookPane
+        p={row}
+        canAct={canAct}
+        onEdit={onEdit}
+        onMessage={onMessage}
+        flash={flash}
+        onClose={onClose}
+        // Resume asks what the list asks (contracts rowResumeOf; the wiring's second audit, R11 S9-2).
+        resume={rowResumeOf(home, row.id)}
+      />
     );
   }
   // A reach-out by its root or by any of its steps: a later email's run links its step (contracts chainOfMoment).

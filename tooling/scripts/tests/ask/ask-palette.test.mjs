@@ -4760,12 +4760,16 @@ test("REGRESSION (ruling 3): what the group's press made survives a reload, thro
 test("over Campaigns the Line's chips are the campaigns the playbooks surface read (palette.ts campaignsRead, A3): a run of one waiting asks why, by its name; a running win-back offers none; a paused one runs nothing; none read, no chip of Campaigns' own on a guess", async () => {
   const hash = globalThis.window.location.hash;
   const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
-  /** A campaign as GET playbooks lists it: its name, moment, state, and its totals' run waiting (null where none). */
+  /**
+   * A campaign as the playbooks surface holds it: its name, moment, state, whether it runs on the business's day (on, before
+   * its last day, its moment one that runs here: contracts campaignRunsOn), and its totals' run waiting (null where none).
+   */
   const row = (over = {}) => ({
     id: "pb1",
     name: "Win-back",
     trigger: "quiet_30",
     state: "running",
+    runs: true,
     totals: { waiting: null },
     ...over,
   });
@@ -4783,9 +4787,12 @@ test("over Campaigns the Line's chips are the campaigns the playbooks surface re
     const waiting = await chips([row({ totals: { waiting: { id: "run-1" } } })]);
     assert.deepEqual(waiting.slice(0, 2), ["Why is Win-back waiting?", "What's working?"], "totals.waiting, by name");
     assert.ok(!waiting.includes("Win back customers who went quiet"), "a running win-back: none offered");
-    const paused = await chips([row({ state: "paused" })]);
+    const paused = await chips([row({ state: "paused", runs: false })]);
     assert.ok(!paused.some((q) => q.startsWith("Why is")), "nothing waits");
-    assert.ok(paused.includes("Win back customers who went quiet"), "a paused win-back runs nothing (state)");
+    assert.ok(paused.includes("Win back customers who went quiet"), "a paused win-back runs nothing");
+    // Running, but past its last day: it runs nothing either, and the win-back is offered (the wiring's second audit, S1-3).
+    const ended = await chips([row({ runs: false })]);
+    assert.ok(ended.includes("Win back customers who went quiet"), "an ended win-back runs nothing");
     const firstDay = await chips([]);
     assert.equal(firstDay[0], "Set up my campaigns", "the first day");
     const unread = await chips(undefined);

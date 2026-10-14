@@ -70,7 +70,6 @@
   "apps/edge/lib/reach-out/run-context.ts": 1,
   "apps/edge/lib/receptionist/deadman-sweep.ts": 1,
   "apps/edge/lib/receptionist/unfinished.ts": 2,
-  "apps/edge/lib/voice/call-event.ts": 1,
   "apps/mobile/src/site.ts": 1,
   "packages/channels/src/voice/elevenlabs.ts": 1,
   "packages/core/src/inbound/ingest.ts": 1,
