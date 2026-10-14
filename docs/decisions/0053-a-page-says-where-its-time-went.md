@@ -174,6 +174,11 @@ production numbers, and the one whose page is slowest goes first.
        router's address, once the address is placed, which a prerender never does, and the hash-to-path move sits in a
        boundary, as Next asks of a read a prerender cannot know. The server's frame is today's spinner.
      - **`next` pinned exactly** at 16.3.8 (0054, rule 3): the plan rests on this release's scheduler and segment cache.
+     - **Partial Prefetching on** (`partialPrefetching: true`, 14 October 2026, on 16.4.1, which asks for the switch;
+       17 makes it the default): a warm is one App Shell per route, and the frame's is its prerender. Two production
+       builds of one commit, without it and with it, wrote the same segment files and asked the same: a warm is the
+       route's tree and its page (about 490 bytes and 2.5 KB gzipped), another address of the route or another
+       workspace asks for nothing, and a warmed move asks the server for nothing.
      - **A warm on its own goes on 3g too**: a warm is the build's files now, about 3 KB a page, and on a slow line the
        round trip it saves at the press is the longest. Save-Data and 2g still warm only what a pointer or a finger
        reaches (`warmsOnItsOwn`). Chrome reads a desk's line as 3g when its round trips run long for a moment, and the
