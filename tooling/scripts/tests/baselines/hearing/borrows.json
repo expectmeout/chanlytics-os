@@ -1,6 +1,7 @@
 {
   ".": "broadcasts inbox settings setup workspace",
-  "calendar": "calendar",
+  "calendar": "calendar calendar_runs",
+  "calendar/visit": "",
   "campaigns": "broadcasts campaign_results playbooks reach_outs settings workspace",
   "campaigns/ads": "settings",
   "campaigns/broadcasts": "broadcasts playbooks settings",

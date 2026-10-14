@@ -22,9 +22,10 @@
 import { timezoneCity } from "../shared/time";
 import { replyReachOf } from "../people/person-reach";
 import { formatPhoneDisplay } from "../shared/phone";
-import { BOOKING_DEFAULTS, closedOn, dayIntervals } from "./availability";
+import { BOOKING_DEFAULTS, closedOn, dayIntervals, hasHours } from "./availability";
 import { clockInZone, dayInZone, dayPlusInZone } from "./zone-math";
 import { offerFor } from "./service-offer";
+import { visitTitleWithout } from "./visit/visit-service";
 import { DAY_SHORT, DOW, keyParts, monthLabelOf, shiftKey, zoneMidnight } from "./day-keys";
 import { bookingToolName, NOTICE_HOLD_WORDS } from "./booking-notice";
 import {
@@ -80,34 +81,6 @@ function nextOpenWords(startIso: string | null, tz: string, todayKey: string): s
 }
 
 /**
- * The appointment's title with the person's name taken out of it, so a row that names them does not say them
- * twice: "Gloss · Emily Chen" beside Emily Chen is "Gloss". A salon writes the customer into the event title,
- * so the feed hands us both, and the Today card and the Calendar's agenda each rendered the pair.
- *
- * Whole words only, either end, and the separator with it -- a dot, a dash, a pipe, a comma, a colon, or the
- * words "with" and "for". What is left of "Emily Chen" in "Emily Chenoweth" is not a match. If taking the name
- * out leaves nothing but punctuation, the title stands as it is: a row saying "Gloss" is better than a row
- * saying nothing, and an event titled only with the name has no service to show.
- */
-export function serviceOf(title: string, personName: string | null | undefined): string {
-  const whole = (title || "").trim();
-  const name = (personName || "").trim();
-  if (!whole || !name) return whole;
-  const quoted = name.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
-  // The join between a service and a name: spaces, and at most one of a dash, a middle dot, a pipe, a comma, a
-  // colon, or the word "with" or "for".
-  const gap = String.raw`\s*(?:[-–—·|,:]|\bwith\b|\bfor\b)?\s*`;
-  // Whole words only, so "Emily Chen" does not cut into "Emily Chenoweth".
-  const edge = String.raw`(?![\p{L}\p{N}])`;
-  const cut = whole
-    .replace(new RegExp(`^${gap}${quoted}${edge}${gap}`, "iu"), "")
-    .replace(new RegExp(`${gap}(?<![\\p{L}\\p{N}])${quoted}${gap}$`, "iu"), "")
-    .trim();
-  // Nothing but punctuation left means the title WAS the name, and there is no service to show.
-  return cut.replace(/[-–—·|,:\s]/gu, "") ? cut : whole;
-}
-
-/**
  * What a booking that arrived by email states and a feed's event does not (docs/plans/2026-10-07-bookings-arrive-by-email.md):
  * the tool, who it is with and the price. All null for a feed's event.
  */
@@ -116,10 +89,15 @@ function noticeFacts(item: CalendarItemDto): Pick<CalendarBlockVM, "tool" | "sta
   return { tool: item.tool ?? null, staff: item.staff ?? null, price: item.price ?? null };
 }
 
-/** What the block is for: the service a notice stated; else the title with the person's name taken out (serviceOf). */
+/**
+ * What the block is for: the service a notice stated; else the title with the person's name taken out of it, so a row
+ * that names them does not say them twice ("Gloss · Emily Chen" beside Emily Chen is "Gloss"), by the one rule every page
+ * says a visit's title by (visit-service.ts visitTitleWithout). A salon writes the customer into the event's title, so
+ * the feed hands us both, and Today's card and the Calendar's agenda each drew the pair.
+ */
 function serviceWordsOf(item: CalendarItemDto): string {
   if (item.source === "notice" && item.service) return item.service;
-  return serviceOf(item.title || "Busy", item.person?.name ?? null);
+  return visitTitleWithout(item.title || "Busy", [item.person?.name]);
 }
 
 /**
@@ -238,6 +216,7 @@ function toBlock(item: CalendarItemDto, tz: string, dayStartMs: number, dayEndMs
             now,
           ).bookingLinkAction,
           stopped: !!item.person.opted_out,
+          facts: item.person.facts ?? null,
         }
       : null,
     description: item.description ?? null,
@@ -248,6 +227,7 @@ function toBlock(item: CalendarItemDto, tz: string, dayStartMs: number, dayEndMs
       emails: item.contacts?.emails ?? [],
     },
     guess: item.guess ?? null,
+    series: !!item.series,
     consultation: !!item.consultation,
     consultService: item.consultation ? (item.consult_service ?? null) : null,
     ...noticeFacts(item),
@@ -295,6 +275,57 @@ function assignLanes(timed: CalendarBlockVM[]): void {
  * The span as the page draws it. `now` decides today, the now line, which
  * days are past, the next open time and the closures ahead.
  */
+/** The services the open times may fit, sized by the phone tool's and the assistant's rule: a consult-first one as a consultation (C5b). */
+function servicesOf(dto: CalendarWeekDto): CalendarServiceVM[] {
+  const all = dto.services ?? [];
+  const listed = all.map((s) => ({ name: s.name, duration_min: s.duration_min ?? undefined }));
+  return all.map((s) => ({
+    name: s.name,
+    duration: s.duration_min,
+    consultFirst: s.consult_first,
+    offerMinutes: offerFor(listed, dto.rules, s.name)?.minMinutes ?? null,
+    label: `${s.name}${s.duration_min ? ` · ${s.duration_min} min` : ""}${s.consult_first ? " · consultation first" : ""}`,
+  }));
+}
+
+/** Whether a day is closed: a closure the owner set, or a weekday the hours leave out where hours are set at all (CAL-2). */
+function closedDayOf(
+  closures: CalendarWeekDto["closures"],
+  key: string,
+  hoursSet: boolean,
+  intervals: readonly unknown[],
+): boolean {
+  if (closedOn(closures, key)) return true;
+  return hoursSet && intervals.length === 0;
+}
+
+/**
+ * A day's bands over the grid's hours: the whole day where it is closed (a closure, or a weekday the hours leave out),
+ * else the hours outside the business's own; none where no hours are set (CAL-2), which is no closed day.
+ */
+function dayBandsOf(p: {
+  closedDay: boolean;
+  hoursSet: boolean;
+  intervals: ReadonlyArray<readonly [string, string]>;
+  note: string | null;
+  start: number;
+  end: number;
+}): CalendarBandVM[] {
+  const { start, end } = p;
+  if (p.closedDay) return [{ from: start, to: end, label: p.note ? `Closed · ${p.note}` : "Closed" }];
+  if (!p.hoursSet) return [];
+  const bands: CalendarBandVM[] = [];
+  let cursor = start;
+  for (const [o, c] of p.intervals) {
+    const oh = Number(o.split(":")[0]) + Number(o.split(":")[1]) / 60;
+    const ch = Number(c.split(":")[0]) + Number(c.split(":")[1]) / 60;
+    if (oh > cursor) bands.push({ from: cursor, to: oh, label: null });
+    cursor = Math.max(cursor, ch);
+  }
+  if (cursor < end) bands.push({ from: cursor, to: end, label: null });
+  return bands;
+}
+
 export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM {
   const tz = dto.timezone;
   const todayKey = dayInZone(tz, now.getTime()).key;
@@ -303,6 +334,9 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
   // A day past the last of them has no open times however free it is, and says so rather than looking booked (C1).
   const offerDays = { ...BOOKING_DEFAULTS, ...(dto.rules ?? {}) }.max_days_ahead;
   const offerUntil = dayPlusInZone(tz, nowMs, offerDays - 1).key;
+  // Whether the business has said when it is open at all (availability.ts hasHours). Without hours no day is Closed: a
+  // workspace that never set them saw every day banded "Closed" over its bookings (CAL-2). A closure is still closed.
+  const hoursSet = hasHours(dto.hours ?? undefined);
 
   // The grid's hours: the business's own, an hour of air on each side.
   let start = 24;
@@ -342,20 +376,8 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
     const closure =
       dto.closures.find((c) => c.date <= d.key && d.key <= (c.until && c.until >= c.date ? c.until : c.date)) ?? null;
     const intervals = dayIntervals(dto.hours?.[weekday]);
-    const closedDay = closedOn(dto.closures, d.key) || intervals.length === 0;
-    const bands: CalendarBandVM[] = [];
-    if (closedDay) {
-      bands.push({ from: start, to: end, label: closure?.note ? `Closed · ${closure.note}` : "Closed" });
-    } else {
-      let cursor = start;
-      for (const [o, c] of intervals) {
-        const oh = Number(o.split(":")[0]) + Number(o.split(":")[1]) / 60;
-        const ch = Number(c.split(":")[0]) + Number(c.split(":")[1]) / 60;
-        if (oh > cursor) bands.push({ from: cursor, to: oh, label: null });
-        cursor = Math.max(cursor, ch);
-      }
-      if (cursor < end) bands.push({ from: cursor, to: end, label: null });
-    }
+    const closedDay = closedDayOf(dto.closures, d.key, hoursSet, intervals);
+    const bands = dayBandsOf({ closedDay, hoursSet, intervals, note: closure?.note ?? null, start, end });
     const zoneDayStart = zoneMidnight(tz, d.key);
     const zoneDayEnd = zoneMidnight(tz, shiftKey(d.key, 1));
     const timed: CalendarBlockVM[] = [];
@@ -425,18 +447,11 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
   const closuresAhead: CalendarClosureVM[] = ahead
     .slice(0, 6)
     .map((c) => ({ key: c.date, label: closureDatesLabel(c), note: c.note ?? null }));
-  // Sized by the phone tool's and the assistant's rule: a service that needs a consultation first, as a consultation (C5b).
-  const listed = (dto.services ?? []).map((s) => ({ name: s.name, duration_min: s.duration_min ?? undefined }));
-  const services: CalendarServiceVM[] = (dto.services ?? []).map((s) => ({
-    name: s.name,
-    duration: s.duration_min,
-    consultFirst: s.consult_first,
-    offerMinutes: offerFor(listed, dto.rules, s.name)?.minMinutes ?? null,
-    label: `${s.name}${s.duration_min ? ` · ${s.duration_min} min` : ""}${s.consult_first ? " · consultation first" : ""}`,
-  }));
+  const services = servicesOf(dto);
   return {
     timezone: tz,
     zoneCity: timezoneCity(tz),
+    hoursSet,
     from: dto.from,
     to: last,
     rangeLabel: `${shortDate(dto.from)} – ${sameMonth ? shortDate(last).replace(/^[A-Za-z]+ /, "") : shortDate(last)}`,

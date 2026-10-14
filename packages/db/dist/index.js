@@ -4214,6 +4214,31 @@ async function reviewLinkOf(db, tenantId) {
   return data?.new_review_uri?.trim() || null;
 }
 
+// src/repositories/campaigns/calendar-runs.ts
+import { DAY_MS as DAY_MS3 } from "../../contracts/dist/index.js";
+var RUN_COLUMNS = "id, name, state, scheduled_for, started_at, finished_at, run_for, playbook_id, audience, recipient_count";
+var SEND_LEAD_MS = 2 * DAY_MS3;
+async function runsInSpan(db, tenantId, span) {
+  const sendsFrom = new Date(Date.parse(span.fromIso) - SEND_LEAD_MS).toISOString();
+  const [runs, sends] = await Promise.all([
+    readAllRows(
+      "calendar_runs_campaign",
+      (from, to) => db.from("broadcasts").select(RUN_COLUMNS).eq("tenant_id", tenantId).not("playbook_id", "is", null).gte("run_for", span.fromDay).lte("run_for", span.toDay).order("run_for", { ascending: true }).order("id", { ascending: true }).range(from, to)
+    ),
+    readAllRows(
+      "calendar_runs_send",
+      (from, to) => db.from("broadcasts").select(RUN_COLUMNS).eq("tenant_id", tenantId).is("playbook_id", null).gte("scheduled_for", sendsFrom).lt("scheduled_for", span.toIso).order("scheduled_for", { ascending: true }).order("id", { ascending: true }).range(from, to)
+    )
+  ]);
+  return [...runs, ...sends];
+}
+async function momentSchedules(db, tenantId) {
+  return readAllRows(
+    "calendar_moment_schedules",
+    (from, to) => db.from("playbooks").select("id, name, trigger, state, policy_class, run_hour, last_run_for, until, trial_until").eq("tenant_id", tenantId).order("id", { ascending: true }).range(from, to)
+  );
+}
+
 // src/repositories/routing.ts
 import { MIN_MS as MIN_MS2 } from "../../contracts/dist/index.js";
 var POS_TTL_MS = 5 * MIN_MS2;
@@ -5706,15 +5731,18 @@ async function appointmentsBetween(db, tenantId, fromIso, toIso) {
   if (error) throw new Error(`appointments_between: ${error.message}`);
   return data ?? [];
 }
-var FEED_SPAN_MAX = 1e4;
 async function visitsOver(db, tenantId, fromIso, toIso) {
   const [noted, feed] = await Promise.all([
-    db.from("appointments").select("*").eq("tenant_id", tenantId).neq("source", "calendar_feed").gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).limit(SPAN_MAX),
-    db.from("appointments").select("id, status, external_id, starts_at").eq("tenant_id", tenantId).eq("source", "calendar_feed").is("vanished_at", null).gt("ends_at", fromIso).lt("starts_at", toIso).limit(FEED_SPAN_MAX)
+    readAllRows(
+      "visits_over_noted",
+      (from, to) => db.from("appointments").select("*").eq("tenant_id", tenantId).neq("source", "calendar_feed").gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).order("id", { ascending: true }).range(from, to)
+    ),
+    readAllRows(
+      "visits_over_feed",
+      (from, to) => db.from("appointments").select("id, status, external_id, starts_at").eq("tenant_id", tenantId).eq("source", "calendar_feed").is("vanished_at", null).gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).order("id", { ascending: true }).range(from, to)
+    )
   ]);
-  if (noted.error) throw new Error(`visits_over: ${noted.error.message}`);
-  if (feed.error) throw new Error(`visits_over: ${feed.error.message}`);
-  return { noted: noted.data ?? [], feed: feed.data ?? [] };
+  return { noted, feed };
 }
 var SAID_STATUSES = ["kept", "missed", "cancelled"];
 async function feedWordsOver(db, tenantId, fromIso, toIso) {
@@ -6119,6 +6147,7 @@ export {
   messageSlots,
   messageVersionRowsOf,
   migrationHead,
+  momentSchedules,
   monthSent,
   moveSend,
   moveVoiceSessionContext,
@@ -6252,6 +6281,7 @@ export {
   runGoesByOthers,
   runSending,
   runningTwins,
+  runsInSpan,
   runsWaitingOf,
   saveIdeasLine,
   saveReachOutChain,

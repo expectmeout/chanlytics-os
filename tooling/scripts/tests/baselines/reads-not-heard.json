@@ -272,6 +272,9 @@
         ],
         "person": [
           "broadcast_recipients"
+        ],
+        "calendar_runs": [
+          "broadcast_recipients"
         ]
       },
       "heardWith": {
@@ -295,6 +298,9 @@
           "messages"
         ],
         "person": [
+          "broadcasts"
+        ],
+        "calendar_runs": [
           "broadcasts"
         ]
       }
@@ -1075,6 +1081,20 @@
       "reads": {
         "person": [
           "mailbox_connections"
+        ]
+      }
+    },
+    {
+      "kind": "over-read",
+      "why": "The Calendar's campaign marks say how many a run that went sent (run_counts, over its messages). The count rides with the run's own row, which moves as the run starts and finishes and which the marks hear on the Calendar (heardWith); a count moving while a run sends shows on the board's next read, so a message on the Calendar never re-reads them.",
+      "reads": {
+        "calendar_runs": [
+          "messages"
+        ]
+      },
+      "heardWith": {
+        "calendar_runs": [
+          "broadcasts"
         ]
       }
     }

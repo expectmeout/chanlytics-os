@@ -519,3 +519,13 @@ three at most and one row for the rest, counted in its sub-line and never in the
 approval, 11 October 2026). The after-the-visit moment and the reminders hold as before: only Missed or Cancelled hold
 them, and the sweep still never stores `kept`. A consultation marked missed or cancelled offers no proposal on the Calendar;
 the Pipeline and the deal card say Past for one nobody marked, as the Calendar does.
+
+The Calendar's visit, opened (13 October 2026, the Calendar's lanes B and E). A request is drawn as one: `proposed` reads
+**Requested** wherever the visit line is drawn (`visitStateOf`), its block dashed, its sheet's footnote "Requested in
+<tool> · confirm it there", and the booking emails' count leaves it out; its time stays taken, so no caller is offered a
+slot the tool may yet confirm. That is the first half of answer 5's condition; the receptionist's own request may follow.
+An event that is nobody's (no person, no number, no address) is asked nothing and said nothing of once it ends: no Kept,
+no Missed, no Past (`visitLineOf`'s `someone`). A match is said where it is a guess, as the person's page says it, and a
+booking linked to its person by its own row says so (`record`, "linked on the booking"), never "matched by email". The
+panel became the kit's sheet on a phone and a peek on a desk, at its own address (`calendar/<view>:<day>:a-<id>`), with
+one act by how the visit stands and the rest under More (contracts `visitSheetOf`).

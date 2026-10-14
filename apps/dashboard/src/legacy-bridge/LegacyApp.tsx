@@ -54,6 +54,7 @@ import { liveOverride } from "@/surfaces/live/surface";
 import { broadcastsOverride } from "@/surfaces/campaigns/broadcasts/surface";
 import { playbooksOverride } from "@/surfaces/campaigns/playbooks/surface";
 import { calendarOverride } from "@/surfaces/calendar/surface";
+import { calendarRunsOverride } from "@/surfaces/calendar/runs-surface";
 import { notificationsOverride } from "./surfaces/notifications";
 import {
   getConnection,
@@ -217,6 +218,8 @@ const SURFACES = [
   partnerOverride,
   // What reaches this member's phones: read where Settings › Notifications is drawn (ROUTE_DRAWS).
   alertsOverride,
+  // Campaigns over the Calendar's days, read where the Calendar draws them (surfaces/calendar/runs-surface.ts).
+  calendarRunsOverride,
   calendarOverride,
   notificationsOverride,
   setupOverride,

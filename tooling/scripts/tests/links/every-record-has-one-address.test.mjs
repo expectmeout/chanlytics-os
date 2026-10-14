@@ -23,6 +23,7 @@ import {
   canonicalRoute,
   movedAddress,
   routeOfPath,
+  visitRoute,
   workspacePath,
 } from "@chanlytics/contracts";
 
@@ -130,6 +131,16 @@ test("the page an address names opens the record the writer meant: the same kind
   }
 });
 
+test("a visit the board opened names its view too, and opens the same visit on the same day as the writers' address", () => {
+  // The board pushes the view it was opened over (contracts visitRoute's third word), so the week stays the week behind it.
+  for (const view of ["week", "month", "agenda"])
+    assert.deepEqual(opensRoute(`calendar/${view}:${DAY}:a-${ID}`), { ref: { kind: "visit", id: ID, day: DAY } }, view);
+  assert.deepEqual(opensRoute(`calendar/week:a-${ID}`), { ref: { kind: "visit", id: ID } });
+  // Day says no word: a day alone is Day's.
+  assert.equal(visitRoute(ID, DAY, "day"), `calendar/${DAY}:a-${ID}`);
+  assert.equal(visitRoute(ID, DAY, "week"), `calendar/week:${DAY}:a-${ID}`);
+});
+
 test("the people's word, the shell's name and a path's trailing slash name the same record", () => {
   assert.deepEqual(recordNamedBy(`people/${ID}`), { kind: "person", id: ID }, "the product's word");
   assert.deepEqual(recordNamedBy(`clients/${ID}`), { kind: "person", id: ID }, "the shell's own name");
@@ -169,6 +180,10 @@ test("the shapes that are no address open nothing: a word a page only begins wit
     "admin/hours",
     "calendar/next-week",
     "calendar/2026-9-9",
+    "calendar/year",
+    "calendar/week:",
+    "calendar/week:next",
+    "calendar/month:2026-9-9:a-x",
     "campaigns/new:edit:",
     "broadcasts/run:",
     "inbox/xyz",
@@ -196,6 +211,11 @@ test("a page opens its own views, which are no record: a day, a lens, a tab, the
     live: "live",
     calendar: "calendar",
     [`calendar/${DAY}`]: "calendar/day",
+    "calendar/week": "calendar/week",
+    "calendar/month": "calendar/month",
+    "calendar/agenda": "calendar/agenda",
+    "calendar/day": "calendar/day",
+    [`calendar/week:${DAY}`]: "calendar/week",
     campaigns: "campaigns",
     "campaigns/new": "campaigns/new",
     "campaigns/in:reach_out": "campaigns/in",

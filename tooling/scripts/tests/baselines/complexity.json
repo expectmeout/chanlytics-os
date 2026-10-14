@@ -240,8 +240,8 @@
     "depth": 2
   },
   "packages/contracts/src/calendar/calendar.ts::toCalendarVM#1": {
-    "lines": 180,
-    "branches": 46,
+    "lines": 164,
+    "branches": 45,
     "depth": 3
   },
   "packages/contracts/src/calendar/feed.ts::parseIcs#1": {

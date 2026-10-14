@@ -146,6 +146,8 @@ const HEARD_BEFORE = {
   partner: [],
   alerts: [],
   calendar: ["appointments", "appointment_notices", "tenant_config"],
+  // The Calendar's campaign marks (its lane C): the runs, the campaigns, the classes' modes and the workspace's pause.
+  calendar_runs: ["broadcasts", "playbooks", "policies", "tenants"],
   setup: [
     "lines",
     "notifications",
@@ -204,6 +206,7 @@ const ON_ITS_PAGE_BEFORE = {
   reports_reviews: HEARD_BEFORE.reports_reviews,
   campaign_results: HEARD_BEFORE.campaign_results,
   person: HEARD_BEFORE.person,
+  calendar_runs: HEARD_BEFORE.calendar_runs,
 };
 
 /** A route no surface above draws. */

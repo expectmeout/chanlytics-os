@@ -21,9 +21,9 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/calendar.css": {
-    "font": 31,
-    "radius": 4,
-    "shadow": 1,
+    "font": 15,
+    "radius": 3,
+    "shadow": 0,
     "colour": 0,
     "blur": 0
   },
