@@ -111,7 +111,7 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
     "repaints as the edge writes a row",
   );
   assert.ok(
-    /calendarOverride,\s*notificationsOverride,\s*setupOverride,\s*googleOverride,\s*billingOverride,?\s*\]/.test(
+    /calendarOverride,\s*notificationsOverride,\s*setupOverride,\s*googleOverride,\s*billingOverride\b/.test(
       readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx"),
     ),
   );
