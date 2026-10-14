@@ -247,8 +247,9 @@ test("people added from the calendar are read where People is on screen, and kep
 });
 
 test("offers by email paused (a sweep row opening Campaigns) are read by the composers where they are on screen; a sending domain held opens Connections, which hears its table", async (t) => {
+  // Campaigns' home draws Sent's runs for the pause on offers (W-review-facts-rules-2): both composers are read there.
   for (const [hash, here] of [
-    ["#/campaigns", ["playbooks"]],
+    ["#/campaigns", ["playbooks", "broadcasts"]],
     ["#/outbound", ["playbooks"]],
     ["#/broadcasts", ["broadcasts"]],
   ]) {
@@ -269,8 +270,8 @@ test("offers by email paused (a sweep row opening Campaigns) are read by the com
   await bellReads(row("sweep", "outbound"));
   assert.deepEqual(away, []);
   assert.deepEqual(owedOnArrival(["#/campaigns", "#/broadcasts"]), {
-    "#/campaigns": ["playbooks"],
-    "#/broadcasts": ["broadcasts"],
+    "#/campaigns": ["playbooks", "broadcasts"],
+    "#/broadcasts": [],
   });
 
   drain();

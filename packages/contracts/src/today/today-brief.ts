@@ -88,7 +88,7 @@ export function toTodayVM(
   });
   // The runs waiting for a word that can still send them, by the business's days (the verb's own rule): null unread.
   const runsWaiting = beside.runs ? runsThatWait(beside.runs, runDaysAt(f.tz, now)).length : null;
-  const { chips, lines, alert } = todayStanding(f);
+  const { chips, lines, alert, paused } = todayStanding(f);
   const proof = todayProof(f.live, f.tz, now);
   const noReply = todayNoReply(f);
   const facts = todayAskFacts(f);
@@ -110,6 +110,7 @@ export function toTodayVM(
           chips,
           lines,
           alert: null,
+          paused,
           headline: "Nothing has come in yet today.",
           detail: null,
           tone: "calm" as const,
@@ -145,7 +146,7 @@ export function toTodayVM(
     needsYou.rows,
     todayAlsoWaiting({ windows: f.closingConvs.length, calls: queue.calls, searches: queue.searches }),
   );
-  const standing = standingWithRuns({ chips, lines, alert, ...head }, runsWaiting ?? 0);
+  const standing = standingWithRuns({ chips, lines, alert, paused, ...head }, runsWaiting ?? 0);
   const figures = figuresOf(m, conversations, f.callsInWindow, escalations, f.tz, now);
   return {
     standing,

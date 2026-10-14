@@ -631,6 +631,8 @@ test("the Campaigns lens hears messages, conversations, escalations and runs onl
       ["reach_out_replies", "INSERT"],
       ["tenant_channels", "UPDATE"],
       ["mailbox_connections", "UPDATE"],
+      // A person's answer: the yeses and stops it counts (the wiring's second audit, W-person-list-lead-8).
+      ["contacts", "UPDATE"],
     ]) {
       r.asked.length = 0;
       await r.change(table, event);
@@ -642,12 +644,16 @@ test("the Campaigns lens hears messages, conversations, escalations and runs onl
       await r.change("messages", "UPDATE", status);
       assert.deepEqual(lensReads(), [], `a message ${status}: not the lens's`);
     }
-    // It is told of no table it does not name: a call (a call is the Receptionist's and the People lens's), a note, a review, a person's row.
-    for (const table of ["calls", "person_notes", "contacts", "google_reviews", "deals", "lines", "mailboxes"]) {
+    // It is told of no table it does not name: a call (a call is the Receptionist's and the People lens's), a note, a review; and
+    // a person made is no answer.
+    for (const table of ["calls", "person_notes", "google_reviews", "deals", "lines", "mailboxes"]) {
       r.asked.length = 0;
       await r.change(table, "UPDATE");
       assert.deepEqual(lensReads(), [], `${table}: not the lens's`);
     }
+    r.asked.length = 0;
+    await r.change("contacts", "INSERT");
+    assert.deepEqual(lensReads(), [], "a person made: not the lens's");
     r.asked.length = 0;
 
     // Elsewhere it hears none of them, and what passed is read once, when the lens comes back.
@@ -781,7 +787,15 @@ test("the page that owns what it draws is an explicit one: the surface registry 
     assert.equal(owns(key, "reports/campaigns"), false, `${key} is not drawn on the Campaigns lens`);
   assert.equal(owns("reports", "reports/campaigns"), true, "and the page's own surface is still its own");
   for (const key of ["playbooks", "campaign_results"]) assert.equal(owns(key, "campaigns"), true, key);
-  assert.equal(owns("broadcasts", "campaigns"), false, "Sent's runs are drawn on the home and re-read on Sent");
+  // Sent's runs are drawn on the home for who can hear you, the pause on offers and the send-once composer: owned there for what moves
+  // those (a cell of kinds), and left to Sent for a message, which moves a run's replies.
+  assert.equal(owns("broadcasts", "campaigns"), true, "Sent's runs are drawn on the home, for some kinds");
+  assert.equal(
+    registry.ownsTable("broadcasts", "contacts", "campaigns"),
+    true,
+    "a person's answer moves who can hear you",
+  );
+  assert.equal(registry.ownsTable("broadcasts", "messages", "campaigns"), false, "a message is re-read on Sent");
   // The reach-outs are drawn on the home too; they have no table of their own to refresh on a message, but a route that
   // draws them owns them for the refreshes that name a page. Settings is drawn there again: the templates a composer offers
   // and the Library counts are the settings read's, the one read of them (surfaces/offered-templates.ts).

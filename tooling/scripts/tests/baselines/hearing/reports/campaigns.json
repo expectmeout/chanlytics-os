@@ -83,7 +83,7 @@
     "appointments UPDATE": "calendar people reports · 5 routes",
     "appointments DELETE": "calendar people reports · 5 routes",
     "contacts INSERT": "conversations inbox reports today · 11 routes",
-    "contacts UPDATE": "conversations inbox reports today · 11 routes",
+    "contacts UPDATE": "conversations inbox reports reports_campaigns today · 14 routes",
     "tenant_config UPDATE": "calendar reports settings · 7 routes",
     "policies INSERT": "settings · 5 routes",
     "policies UPDATE": "settings · 5 routes",

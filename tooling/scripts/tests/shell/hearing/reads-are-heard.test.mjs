@@ -290,7 +290,7 @@ function rereadAnywhere(write) {
 
 /** An address of the first family whose row names the surface (PAGE_HEARS): a person's page by a person's id. */
 function pageOf(surface) {
-  const family = Object.entries(PAGE_HEARS).find(([, keys]) => keys.includes(surface))?.[0];
+  const family = Object.entries(PAGE_HEARS).find(([, cells]) => surface in cells)?.[0];
   if (!family) return null;
   return family === PERSON_ROUTE ? "clients/0b9c4f6e-1d2a-4c3b-9e8f-7a6b5c4d3e2f" : family;
 }

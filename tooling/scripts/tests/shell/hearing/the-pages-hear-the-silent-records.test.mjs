@@ -170,8 +170,9 @@ const ON_ITS_PAGE = [
     ["contacts", "playbooks", "tenant_channels", "billing_accounts", "policies", "templates", "tenant_config"],
   ],
   [playbooksOverride, "#/campaigns", "#/inbox", ["contacts", "templates", "mailboxes", "policies", "tenant_config"]],
-  // Sent's composer offers the settings read's messages (offered-templates.ts): it hears every other table the playbooks do.
-  [broadcastsOverride, "#/broadcasts", "#/campaigns", ["contacts", "mailboxes", "policies", "tenant_config"]],
+  // Sent's composer offers the settings read's messages (offered-templates.ts): it hears every other table the playbooks do. Away is
+  // the Inbox: Campaigns' home hears these for Sent's runs too (PAGE_HEARS, a cell of kinds; the test below).
+  [broadcastsOverride, "#/broadcasts", "#/inbox", ["contacts", "mailboxes", "policies", "tenant_config"]],
   [reportsOverride, "#/reports", "#/inbox", ["contacts"]],
   [reportsHeadlineOverride, "#/today", "#/inbox", ["contacts"]],
   [reportsPeopleOverride, "#/reports/people", "#/inbox", ["contacts", "tenant_config"]],
@@ -236,8 +237,11 @@ test("each keeps the tables it had: People its own, the composers their runs and
 });
 
 test("the Reports pages that count people hear the book; the lenses that count no person do not", () => {
+  // The Campaigns lens counts the yeses and stops, columns of the people: a person's answer moved is heard on the lens, a person
+  // made is no answer (the wiring's second audit, W-person-list-lead-8).
   at("#/reports/campaigns");
-  assert.equal(hears(reportsCampaignsOverride, "contacts"), false, "the Campaigns lens counts sends, not the book");
+  assert.equal(hears(reportsCampaignsOverride, "contacts"), true, "the Campaigns lens: an answer moved");
+  assert.equal(hears(reportsCampaignsOverride, "contacts", "INSERT"), false, "and not a person made");
   at("#/reports/reviews");
   assert.equal(hears(reviewsOverride, "contacts"), false, "the Reviews lens counts reviews");
   assert.equal(hears(reviewsOverride, "tenant_config"), false);
@@ -307,5 +311,65 @@ test("a member whose seat in the workspace on screen is gone is sent to one of t
   } finally {
     globalThis.location.replace = was;
     await flush();
+  }
+});
+
+test("on Campaigns' home Sent's runs hear what moves them there, a person, a channel, the rules, the facts, the plan, a visit, and leave a message to Sent; what passed is read where it is owned", () => {
+  // The home draws Sent's runs for who can hear you, the pause on offers and the send-once composer (the wiring's second audit,
+  // W-review-facts-rules-2): a STOP, a number Meta flagged or a rule saved moved them nowhere while the home was open. A message
+  // moves a run's replies, which the home reads from its own 30 days: it is Sent's, as it was.
+  at("#/campaigns");
+  for (const table of [
+    "contacts",
+    "tenant_channels",
+    "lines",
+    "mailboxes",
+    "billing_accounts",
+    "policies",
+    "tenant_config",
+    "appointments",
+  ])
+    assert.equal(hears(broadcastsOverride, table), true, `broadcasts: ${table} on the home`);
+  for (const [table, event] of [
+    ["messages", "INSERT"],
+    ["conversations", "UPDATE"],
+    ["escalations", "INSERT"],
+  ])
+    assert.equal(hears(broadcastsOverride, table, event), false, `broadcasts: ${table} waits for Sent`);
+  const win = {
+    location: globalThis.location,
+    addEventListener(_t, fn) {
+      this.on = fn;
+    },
+    removeEventListener() {},
+  };
+  const read = [];
+  const stop = readWhatWasMissed([broadcastsOverride], (keys) => read.push(...keys), win);
+  try {
+    hears(broadcastsOverride, "messages", "INSERT");
+    at("#/inbox");
+    win.on?.();
+    at("#/campaigns");
+    win.on?.();
+    assert.deepEqual(
+      read,
+      [],
+      "a message the home let pass is not read as the home comes back: it moves nothing drawn there",
+    );
+    at("#/broadcasts");
+    win.on?.();
+    assert.deepEqual(read, ["broadcasts"], "it is read once as Sent comes on screen");
+    at("#/inbox");
+    hears(broadcastsOverride, "contacts");
+    at("#/campaigns");
+    win.on?.();
+    assert.deepEqual(
+      read,
+      ["broadcasts", "broadcasts"],
+      "a person's answer passed on the Inbox is read as the home comes back",
+    );
+  } finally {
+    stop();
+    at("#/today");
   }
 });

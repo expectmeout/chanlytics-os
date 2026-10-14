@@ -68,7 +68,7 @@ const darkWires = (down: TodayFacts["wires"]): string =>
  * The alert is the one place Today raises its voice, and it SUPPRESSES every
  * reassuring line — "nothing needs you" is a lie while the number is dark.
  */
-export function todayStanding(f: TodayFacts): Pick<TodayVM["standing"], "chips" | "lines" | "alert"> {
+export function todayStanding(f: TodayFacts): Pick<TodayVM["standing"], "chips" | "lines" | "alert" | "paused"> {
   const { metrics, wires } = f;
   const chips = wires.map((w) => ({ text: `${w.label} ${w.on ? "connected" : "disconnected"}`, ok: w.on }));
   const down = wires.filter((w) => !w.on);
@@ -91,13 +91,9 @@ export function todayStanding(f: TodayFacts): Pick<TodayVM["standing"], "chips" 
           : "no lines yet",
     down: down.length > 0,
   };
-  const alert =
-    metrics.workspace.status === "paused"
-      ? `This workspace is paused. ${PAUSED_WORDS}`
-      : down.length
-        ? darkWires(down)
-        : null;
-  return { chips, lines, alert };
+  const paused = metrics.workspace.status === "paused";
+  const alert = paused ? `This workspace is paused. ${PAUSED_WORDS}` : down.length ? darkWires(down) : null;
+  return { chips, lines, alert, paused };
 }
 
 /**
