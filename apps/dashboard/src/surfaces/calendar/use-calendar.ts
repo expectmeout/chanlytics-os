@@ -4,37 +4,55 @@
  * calls, never a component, so the cells stay the page's.
  */
 import { useEffect, useRef, useState, type RefObject } from "react";
-import type { CalendarDayVM, CalendarVM, CalendarView } from "@chanlytics/contracts";
-import { askOnScreenKey, demoSession, setAskOnScreen, useLegacyToast } from "../legacy-verbs";
-import { crPhone, crTyping } from "./board-dom";
+import { MIN_MS } from "@chanlytics/contracts";
+import {
+  visitRoute,
+  type CalendarBlockVM,
+  type CalendarDayVM,
+  type CalendarVM,
+  type CalendarView,
+} from "@chanlytics/contracts";
+import { askOnScreenKey, demoSession, navigate, replaceRoute, setAskOnScreen, useLegacyToast } from "../legacy-verbs";
+import { calendarPlaceRoute, keepCalendarView } from "./address";
+import { crTyping } from "./board-dom";
 import { calendar } from "./verbs";
 import { CR_OVERLAY, CR_REFRESH_MS, CR_WARM_MS } from "./words";
 
 type Span = { from: string; days: number };
 
-const VIEWS: readonly CalendarView[] = ["week", "day", "month", "agenda"];
-
-/** The view the member last chose on this board, kept in the tab (tab-memory.ts, the loading standard's place), or null. */
-function rememberedView(): CalendarView | null {
-  const mem = typeof window === "undefined" ? undefined : window.__tabMemory;
-  const was = mem?.place("calendar", "board")?.view;
-  return VIEWS.find((v) => v === was) ?? null;
+/** What Show draws over the visits, which are always drawn: the open times, the campaigns, and cold email. */
+export interface CalendarShow {
+  open: boolean;
+  campaigns: boolean;
+  cold: boolean;
 }
 
-/** The view and the day it looks at, and everything else the page keeps: the open appointment, a read on its way, the service picked. */
+/** Show as it opens for a member who never picked (D2): open times and campaigns on, cold email off. */
+const SHOW_DEFAULT: CalendarShow = { open: true, campaigns: true, cold: false };
+
+/** Show as this tab last kept it (tab-memory.ts, its own place, never the view's), else the default. */
+function keptShow(): CalendarShow {
+  const mem = typeof window === "undefined" ? undefined : window.__tabMemory;
+  const was = mem?.place("calendar", "show");
+  const on = (k: keyof CalendarShow) => (typeof was?.[k] === "boolean" ? was[k] : SHOW_DEFAULT[k]);
+  return { open: on("open"), campaigns: on("campaigns"), cold: on("cold") };
+}
+
+/**
+ * The day the board looks at (the anchor), and everything else the page keeps: the open appointment, a read on its way, the
+ * service picked, what Show draws, the day the phone's month has picked, and the sheets of the rules and of a day's
+ * campaigns. The view is not kept here: it is the address's (address.ts calendarViewOf), as every strip's view is.
+ */
 export function useCalendarState(initialDay: string | null) {
-  // A link can name a day (calendar/<YYYY-MM-DD>), which opens in Day view; else the view last chosen in this tab, else a
-  // phone opens on the agenda and a desk on the week.
-  const [view, setView] = useState<CalendarView>(
-    () => (initialDay ? "day" : rememberedView()) ?? (crPhone() ? "agenda" : "week"),
-  );
-  // The view picked from the bar is kept for a refresh or a trip to another page; a day opened from the month, or from a
-  // link, is a place the board went to, not a choice, and is not.
-  const pickView = (next: CalendarView) => {
-    setView(next);
-    if (typeof window !== "undefined") window.__tabMemory?.keepPlace("calendar", "board", { view: next });
-  };
+  // A link can name a day (calendar/<YYYY-MM-DD>), which the board opens on; a second door to a day while the page is open
+  // (a day pressed in the month) moves it there, in the same draw as the address that names it, so Day view never draws
+  // the day it was on first.
   const [anchorKey, setAnchorKey] = useState<string | null>(initialDay);
+  const [dayWas, setDayWas] = useState<string | null>(initialDay);
+  if (initialDay !== dayWas) {
+    setDayWas(initialDay);
+    if (initialDay) setAnchorKey(initialDay);
+  }
   const [openId, setOpenId] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   // The span a read failed for: while it is the one on screen, its days say so, with a Retry.
@@ -42,25 +60,21 @@ export function useCalendarState(initialDay: string | null) {
   const [serviceName, setServiceName] = useState("");
   // The owner's Refresh on its way (C2): its button says so, and a second press waits for it.
   const [refreshing, setRefreshing] = useState(false);
-  // The hours, the booking rules and the calendar's source wait under the board until asked for.
-  const [aboutOpen, setAboutOpen] = useState(false);
-  // Hours and rules open under the board, where a phone has scrolled them out of sight: opening brings them into view,
-  // smoothly, and closing folds them away while the page glides back up with them (calendar.css), never a blank left
-  // at the foot. It held still before (data-bits holdStill), so the panel opened below the screen and, closed, left the
-  // room it had taken under everything (Ruben, 24 Sep).
-  const aboutRef = useRef<HTMLDivElement>(null);
+  // The hours, the booking rules and the calendar's source: a sheet Settings opens, its one door (D6). They were a fold
+  // under the board, and on a phone its foot took the 40px an eleven-hour day needed to fit.
+  const [rulesOpen, setRulesOpen] = useState(false);
+  // What Show draws, kept for this tab under its own place (never the view's entry).
+  const [show, setShowState] = useState<CalendarShow>(keptShow);
+  const setShow = (next: CalendarShow) => {
+    setShowState(next);
+    if (typeof window !== "undefined") window.__tabMemory?.keepPlace("calendar", "show", { ...next });
+  };
+  // The phone's month (D7): the day picked, whose rows stand under it; null for the anchor's.
+  const [monthPick, setMonthPick] = useState<string | null>(null);
+  // The day whose campaigns' sheet is open, or null.
+  const [runsDay, setRunsDay] = useState<string | null>(null);
   const [toastNode, flash] = useLegacyToast();
-  // A second door to a day while the page is open moves it there.
-  useEffect(() => {
-    if (initialDay) {
-      setAnchorKey(initialDay);
-      setView("day");
-    }
-  }, [initialDay]);
   return {
-    view,
-    setView,
-    pickView,
     anchorKey,
     setAnchorKey,
     openId,
@@ -73,43 +87,151 @@ export function useCalendarState(initialDay: string | null) {
     setServiceName,
     refreshing,
     setRefreshing,
-    aboutOpen,
-    setAboutOpen,
-    aboutRef,
+    rulesOpen,
+    setRulesOpen,
+    show,
+    setShow,
+    monthPick,
+    setMonthPick,
+    runsDay,
+    setRunsDay,
     toastNode,
     flash,
   };
 }
 
 /**
- * A link that names a visit (`calendar/<day>:a-<id>`, contracts visitRoute) opens its panel as well as its day: once, as soon as
- * the board has drawn the block. The block is found by the id of the visit's row in the record (`block.visit.id`); a block's own
- * id is the feed's key or `appt:<id>`, which no link carries. A visit the days drawn do not hold, once a read that landed after
- * this page mounted has the days it needs (`fetchedAt`: a window the tab held paints at once and is older than the page, and
- * the read behind it may well hold a visit it lacks), is no visit this board has (a row deleted, a day outside what the address
- * named), and the page stays as the day alone is.
+ * The board's own minute: the moment it draws, again at each minute's turn and whenever the tab comes back, so a block's
+ * phase, its word ("Not marked yet" once it ends) and the now line follow the clock between the five-minute reads. One
+ * clock for the board, where three read it apart (the view model's `now`, Date.now() in a block, the read's own).
  */
-export function useOpenVisit(p: {
+export function useMinute(): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const tick = () => {
+      setNow(Date.now());
+      timer = setTimeout(tick, MIN_MS - (Date.now() % MIN_MS) + 50);
+    };
+    timer = setTimeout(tick, MIN_MS - (Date.now() % MIN_MS) + 50);
+    const back = () => {
+      if (document.visibilityState === "visible") setNow(Date.now());
+    };
+    document.addEventListener("visibilitychange", back);
+    return () => {
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", back);
+    };
+  }, []);
+  return now;
+}
+
+/** A view the address names by its word is a pick (a tab of the strip, or Back to one): kept for a refresh or a trip away. */
+export function useKeptView(named: CalendarView | null): void {
+  useEffect(() => {
+    if (named) keepCalendarView(named);
+  }, [named]);
+}
+
+/** What the visit's address is held to: what the address names, where the board stands, and the open block. */
+interface VisitAddressAsk {
+  /** The visit the address names (the id of its row in the record), or null. */
   visitId: string | null;
+  /** The view drawn, and the day it looks at (the anchor): what a visit opened on the board names beside it. */
+  view: CalendarView;
+  anchor: string;
+  /** The day the address named, which a panel opened from a link closes back to. */
+  day: string | null;
   days: readonly CalendarDayVM[];
   /** The days the view needs are loaded and no read of them is on its way. */
   covered: boolean;
   /** When the read the board draws landed (CalendarSurface.fetchedAt). */
   fetchedAt: number;
-  open: (blockId: string) => void;
-}) {
-  const done = useRef(false);
-  const mountedAt = useRef(Date.now());
-  const { visitId, days, open } = p;
-  const settled = p.covered && p.fetchedAt >= mountedAt.current;
+  setOpenId: (blockId: string | null) => void;
+}
+
+/**
+ * The visit open and the address agree (decision 0047: a record has one address, and a refresh or a copied link reopens
+ * it). A link that names a visit (`calendar/<day>:a-<id>`, contracts visitRoute) opens its panel as well as its day: once
+ * for each visit it names, as soon as the board has drawn the block. The block is found by the id of the visit's row in the
+ * record (`block.visit.id`); a block's own id is the feed's key or `appt:<id>`, which no link carries. A visit the days
+ * drawn do not hold, once a read that landed after the address named it has the days it needs (`fetchedAt`: a window the
+ * tab held paints at once and is older than the ask, and the read behind it may well hold a visit it lacks), is no visit
+ * this board has (a row deleted, a day outside what the address named), and the page stays as the day alone is.
+ *
+ * A press on a block with a row pushes its address, naming the view and the day the board looks at, so the week stays the
+ * week behind the panel and Back closes it; a walk to the next visit replaces it; closing goes back past the push, or,
+ * for a panel a link opened, replaces the address with the place the board stands. An address that stops naming the
+ * visit (Back, a tab of the strip) closes its panel. A block with no row in the record (an event the sync keeps no row
+ * for) has no address to say: its panel is the page's own, and nothing is pushed; opened over a visit's panel (a walk, a
+ * press), it takes the visit out of the address, so a refresh never reopens the visit it left.
+ */
+export function useVisitAddress(p: VisitAddressAsk) {
+  const { visitId, days, setOpenId } = p;
+  const asked = useRef<{ id: string | null; at: number; done: boolean }>({ id: null, at: Date.now(), done: false });
+  const pushed = useRef(false);
+  // Closed already, by one of the ways a sheet closes: the kit's Escape and the board's can both ask in one press.
+  const shut = useRef(false);
+  // The address let go of a visit for a block with no row opened over it: that block's panel stays open, on the entry the
+  // board pushed, which a walk on replaces and a close goes back past.
+  const keep = useRef(false);
   useEffect(() => {
-    if (!visitId || done.current) return;
+    const was = asked.current;
+    if (was.id !== visitId) {
+      asked.current = { id: visitId, at: Date.now(), done: false };
+      if (!visitId) {
+        if (!keep.current) {
+          pushed.current = false;
+          if (was.id) setOpenId(null);
+        }
+        keep.current = false;
+        return;
+      }
+    }
+    const now = asked.current;
+    if (!visitId || now.done) return;
     const block = days.flatMap((d) => [...d.allDay, ...d.blocks]).find((b) => b.visit?.id === visitId);
     if (block) {
-      done.current = true;
-      open(block.id);
-    } else if (settled) done.current = true;
-  }, [visitId, days, settled]); // eslint-disable-line react-hooks/exhaustive-deps
+      now.done = true;
+      shut.current = false;
+      setOpenId(block.id);
+    } else if (p.covered && p.fetchedAt >= now.at) now.done = true;
+  }, [visitId, days, p.covered, p.fetchedAt]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Open a block's panel: its address pushed, or replaced when a visit's panel is already the address's. */
+  const open = (b: CalendarBlockVM) => {
+    shut.current = false;
+    setOpenId(b.id);
+    const id = b.visit?.id;
+    if (!id) {
+      // A block with no row has no address; one opened over a visit's (a walk, a press) drops that visit's, so a refresh
+      // or a copied link never opens the visit it left.
+      if (visitId) {
+        keep.current = true;
+        replaceRoute(calendarPlaceRoute(p.view, p.day ?? p.anchor));
+      }
+      return;
+    }
+    // A day is Day's own address, the block's; any other view names the day it looks at, so a refresh draws the same days.
+    const dayKey = days.find((d) => d.blocks.some((x) => x.id === b.id) || d.allDay.some((x) => x.id === b.id))?.key;
+    const to = visitRoute(id, p.view === "day" ? (dayKey ?? p.anchor) : p.anchor, p.view);
+    if (visitId || pushed.current) replaceRoute(to);
+    else {
+      pushed.current = true;
+      navigate(to);
+    }
+  };
+  /** Close the panel: back past the push that opened it, else the place the board stands, the visit dropped. */
+  const close = () => {
+    if (shut.current) return;
+    shut.current = true;
+    setOpenId(null);
+    if (pushed.current && typeof window !== "undefined" && window.history) {
+      pushed.current = false;
+      window.history.back();
+    } else if (visitId) replaceRoute(calendarPlaceRoute(p.view, p.day));
+  };
+  return { open, close };
 }
 
 /** What Ask is told is on screen (legacy-bridge/ask/context.ts): the span drawn and the people its appointments name, in the board's order, forty at most. */
@@ -194,17 +316,19 @@ function useWarmAhead(p: ReadAsk & { vm: CalendarVM }) {
   }, [view, anchor, covered, vm.days]);
 }
 
-/** What the latest draw left for the one key listener: whether an appointment is open, and how to move and to close it. */
+/** What the latest draw left for the one key listener: whether an appointment is open, and how to move, walk and close. */
 interface BoardKeys {
   open: boolean;
   move: (n: number) => void;
   today: () => void;
   close: () => void;
+  /** The desk's peek walks the day's visits (J and K); none on a phone, whose sheet is modal. */
+  walk: ((n: number) => void) | null;
 }
 
 /**
- * ← → move, T is today, unless the person is typing, or an appointment is open: the board holds still behind the dialog,
- * and Escape closes it. One listener for the page's life, reading what the latest render left in `keys`; it was added and
+ * ← → move, T is today, unless the person is typing, or an appointment is open: the board holds still behind it, and on a
+ * desk Escape closes the peek and J and K walk the day's visits. One listener for the page's life, reading what the latest render left in `keys`; it was added and
  * removed again on every render.
  */
 function useBoardKeys(): RefObject<BoardKeys | null> {
@@ -215,9 +339,15 @@ function useBoardKeys(): RefObject<BoardKeys | null> {
       // A key something took before the window heard it (a group of choices in the deal sheet) is not the board's.
       if (!k || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || crTyping()) return;
       if (k.open) {
+        // The phone's sheet is the kit's, which closes on its own Escape; the desk's peek is the board's, and walks,
+        // unless something is open over it (its More), which has the keys.
+        if (!k.walk || ("querySelector" in document && document.querySelector(CR_OVERLAY))) return;
         if (e.key === "Escape") {
           e.preventDefault();
           k.close();
+        } else if (e.key === "j" || e.key === "J" || e.key === "k" || e.key === "K") {
+          e.preventDefault();
+          k.walk(e.key.toLowerCase() === "j" ? 1 : -1);
         }
         return;
       }

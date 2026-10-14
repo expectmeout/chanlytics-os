@@ -10,6 +10,7 @@
  * CalendarBlockVM.visit carries, never by the key (a feed's UID has colons and an `@` in it) or by the block's id.
  */
 import type { AppointmentWord } from "../journey/appointment-word";
+import type { CalendarView } from "./calendar-views";
 import { isDayKey } from "./day-keys";
 import type { FeedItem } from "./feed";
 
@@ -36,13 +37,21 @@ export function recordIdOf(key: string): string | null {
 /** A visit's id as an address spells it: a row's uuid, or a seeded one (`priya`); no colon, which divides the day from it. */
 const VISIT_ID = /^[A-Za-z0-9_-]+$/;
 
+/** The Calendar's views by the word its address names them with (`calendar/month`), in the order its strip draws them. */
+const CALENDAR_VIEWS: readonly CalendarView[] = ["week", "day", "month", "agenda"];
+
 /**
  * Where a visit opens: the Calendar on its day with its panel over it, `calendar/2026-10-09:a-<id>`. With no day to say (a
  * writer that knows the visit and not when it is) `calendar/a-<id>`, which the board opens the panel of as soon as the
  * visit is among the days it holds. The day is the business's, by its zone (visitDateKey).
+ *
+ * The board names the view the visit was opened over too (`calendar/week:2026-10-09:a-<id>`), so the week stays the week
+ * behind the sheet, and a refresh or a link copied from it reopens both. A day alone means Day, so Day says no word.
  */
-export function visitRoute(id: string, dayKey?: string | null): string {
-  return dayKey && isDayKey(dayKey) ? `calendar/${dayKey}:a-${id}` : `calendar/a-${id}`;
+export function visitRoute(id: string, dayKey?: string | null, view?: CalendarView | null): string {
+  const day = dayKey && isDayKey(dayKey) ? dayKey : null;
+  const lead = view && !(view === "day" && day) ? `${view}:` : "";
+  return `calendar/${lead}${day ? `${day}:` : ""}a-${id}`;
 }
 
 /**
@@ -61,22 +70,41 @@ export function visitLinkWords(id: string | null | undefined, word: AppointmentW
   return id ? `Open the ${word}` : "Open the day";
 }
 
-/**
- * What the param of a Calendar address names: `2026-10-09` a day, `a-<id>` a visit, `2026-10-09:a-<id>` a visit on its day.
- * Anything else, a half-written date included, names neither, and the board opens as it does for the route alone.
- */
-export function calendarParamParts(param: string | null | undefined): { day: string | null; visitId: string | null } {
-  const none = { day: null, visitId: null };
-  if (!param) return none;
+/** What a Calendar address names: the view by its word, the day it looks at, and the visit whose panel it opens. */
+export interface CalendarParam {
+  view: CalendarView | null;
+  day: string | null;
+  visitId: string | null;
+}
+
+/** The day and the visit after a view's word, or the whole param: `2026-10-09`, `a-<id>`, `2026-10-09:a-<id>`; null for neither. */
+function dayAndVisitOf(s: string): { day: string | null; visitId: string | null } | null {
   // isDayKey is a guard on unknown, which would narrow a string it refuses to nothing: asked as a plain answer.
-  const dayOf = (s: string): string | null => (isDayKey(s) ? s : null);
-  const alone = dayOf(param);
+  const dayOf = (k: string): string | null => (isDayKey(k) ? k : null);
+  const alone = dayOf(s);
   if (alone) return { day: alone, visitId: null };
-  const at = param.indexOf(":");
-  const word = at < 0 ? param : param.slice(at + 1);
+  const at = s.indexOf(":");
+  const word = at < 0 ? s : s.slice(at + 1);
   const id = word.startsWith("a-") ? word.slice(2) : "";
-  if (!VISIT_ID.test(id)) return none;
+  if (!VISIT_ID.test(id)) return null;
   if (at < 0) return { day: null, visitId: id };
-  const day = dayOf(param.slice(0, at));
-  return day ? { day, visitId: id } : none;
+  const day = dayOf(s.slice(0, at));
+  return day ? { day, visitId: id } : null;
+}
+
+/**
+ * What the param of a Calendar address names: `month` a view, `2026-10-09` a day, `a-<id>` a visit, `2026-10-09:a-<id>` a
+ * visit on its day, and any of the last three after a view's word and a colon (`week:2026-10-09:a-<id>`, visitRoute). A
+ * day with no view's word is Day's. Anything else, a half-written date included, names nothing, and the board opens as
+ * it does for the route alone.
+ */
+export function calendarParamParts(param: string | null | undefined): CalendarParam {
+  const none: CalendarParam = { view: null, day: null, visitId: null };
+  if (!param) return none;
+  const cut = param.indexOf(":");
+  const lead = cut < 0 ? param : param.slice(0, cut);
+  const view = CALENDAR_VIEWS.find((v) => v === lead) ?? null;
+  if (view && cut < 0) return { view, day: null, visitId: null };
+  const rest = dayAndVisitOf(view ? param.slice(cut + 1) : param);
+  return rest ? { view, ...rest } : none;
 }

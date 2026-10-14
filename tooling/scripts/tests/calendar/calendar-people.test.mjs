@@ -879,15 +879,12 @@ test("the wiring: the board and the profile read one match; both receptionists a
   );
   // Phone: the visits in the caller context, and a call for a switched-off
   // channel telling the platform as a text does: run in call-start.test.mjs.
-  const page = readCode("apps/dashboard/src/surfaces/calendar/panel.tsx");
-  for (const id of ["cal-panel-person", "cal-panel-contact", "cal-panel-where", "cal-panel-desc"])
+  // The open visit's parts (calendar/visit/visit.tsx) draw the sheet's view model (contracts visitSheetOf), whose footnote
+  // is one line and whose match is said only where it is a guess: run in calendar-panel.test.mjs.
+  const page = readCode("apps/dashboard/src/surfaces/calendar/visit/visit.tsx");
+  for (const id of ["cal-visit-person", "cal-visit-contact", "cal-visit-rows", "cal-visit-footnote"])
     assert.ok(page.includes(`data-testid="${id}"`), id);
-  assert.ok(page.includes("`From ${source}. Change or cancel it there.`"), "one line, no feed counts");
   assert.ok(!page.includes("read just now") && !page.includes("feedLine"), "the chip's sentence stays on the chip");
-  assert.ok(
-    page.includes("{line.match &&") && page.includes("Not in People yet"),
-    "the panel says the visit line's match",
-  );
   const dto = readCode("packages/contracts/src/calendar/calendar.ts");
   assert.ok(
     dto.includes('source: dto.feed.source ?? "your calendar"') &&
@@ -1226,16 +1223,12 @@ test("automatically: an hourly sweep on the edge puts the feed's people in Peopl
     cameFrom.seen.some((q) => selectOn(q, "events", ["kind", "contact.added"], ["subject_id", MARIA])),
     "from the events, the contact.added row of this person",
   );
-  const page = readCode("apps/dashboard/src/surfaces/calendar/panel.tsx");
+  const page = readCode("apps/dashboard/src/surfaces/calendar/visit/visit.tsx");
   assert.ok(
-    page.includes('data-testid="cal-panel-add-person"') && page.includes('api()("POST contacts"'),
+    page.includes("data-testid={`cal-visit-primary-${pa.act}`}") && page.includes('api()("POST contacts"'),
     "a visit whose person the board cannot match offers a press, through the door 'Add a person' uses (drawn in reads-never-write/)",
   );
   assert.ok(!page.includes("__addPerson"), "and not through a window global");
-  assert.ok(
-    page.includes('"Not in People yet — added within the hour"'),
-    "the sweep still adds a number within the hour",
-  );
   // The hand's door has its screen on People now (slice D of the data program):
   // the same route, a number and a name, opening the person it made or found.
   assert.ok(
@@ -2609,8 +2602,11 @@ test("the Calendar never labels an appointment as the owner's, and still finds t
   assert.ok(!extractContacts(balayage, own).names.includes("Ruben"), "nor their name among its guests");
 });
 
-test("a visit's title drops the person's own name at its end, and nothing else: on Tom's page it is Consultation", async () => {
-  const { visitTitleFor } = await import("../../../../packages/contracts/src/people/person-row.ts");
+test("a visit's title drops the person's own name, and nothing else: on Tom's page it is Consultation", async () => {
+  // The one rule every page says a visit's title by (visit-service.ts), which the calendar's serviceOf and People's
+  // visitTitleFor were two more of.
+  const { visitTitleWithout } = await import("../../../../packages/contracts/src/calendar/visit/visit-service");
+  const visitTitleFor = (title, name) => visitTitleWithout(title, [name]);
   assert.equal(visitTitleFor("Consultation · Tom Baker", "Tom Baker"), "Consultation", "a booking app's title");
   assert.equal(visitTitleFor("Color treatment - tom baker", "Tom Baker"), "Color treatment", "any case, any dash");
   assert.equal(visitTitleFor("Consultation · Tom", "Tom Baker"), "Consultation · Tom", "not a part of the name");
@@ -2676,7 +2672,7 @@ test("a caller's appointment, told to a receptionist with no booking link, is ch
 
 test("the receptionist's match by name is what it was: a first name of four letters finds the visit and says so; only a message that is sent judges it by the full name (fullNameKey)", async () => {
   const { indexFeed, visitsIn } = await import("@chanlytics/contracts");
-  const { fullNameKey, visitServiceOf } = await importSrc("packages/contracts/src/calendar/visit-service.ts");
+  const { fullNameKey, visitServiceOf } = await importSrc("packages/contracts/src/calendar/visit/visit-service.ts");
   const index = indexFeed(guestFeed().items, NO_OWN);
   const first = visitsIn(index, { id: "p-first", name: "Daniela", phone: null, email: null }, NOW);
   assert.deepEqual([first.next?.title, first.next?.via], ["Daniela Ruiz · Colour", "name"]);

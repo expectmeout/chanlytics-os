@@ -18,6 +18,7 @@
  * page holds.
  */
 import {
+  calendarParamParts,
   canonicalRoute,
   firstRunStepOf,
   FIRST_RUN_FIND_ROUTE,
@@ -33,7 +34,6 @@ import {
   reportsParamParts,
   type RecordRef,
 } from "@chanlytics/contracts";
-import { calendarAddress } from "./calendar/address";
 import { parseHome } from "./campaigns/home/address";
 import { broadcastsProps } from "./campaigns/routes";
 import { conversationsRow, inboxThread } from "./inbox/address";
@@ -97,14 +97,16 @@ function opensLive(param: string): Opened | null {
   return RECORD_ID.test(param) ? { ref: { kind: "call", id: param, on: "live" } } : null;
 }
 
-/** What the Calendar's param opens: a visit (on its day, where the address says it), or a day. */
+/**
+ * What the Calendar's param opens: a visit (on its day, where the address says it, over the view it names), a view of the
+ * board (`calendar/month`, or a view on a day: `calendar/week:2026-10-12`), or a day, which is Day's.
+ */
 function opensCalendar(param: string): Opened | null {
   if (param === "") return { view: "calendar" };
-  const at = calendarAddress(param);
-  if (at.initialVisitId) {
-    return { ref: { kind: "visit", id: at.initialVisitId, ...(at.initialDay ? { day: at.initialDay } : {}) } };
-  }
-  return at.initialDay ? { view: "calendar/day" } : null;
+  const at = calendarParamParts(param);
+  if (at.visitId) return { ref: { kind: "visit", id: at.visitId, ...(at.day ? { day: at.day } : {}) } };
+  if (at.view) return { view: `calendar/${at.view}` };
+  return at.day ? { view: "calendar/day" } : null;
 }
 
 /** What Campaigns' param opens: a moment (a campaign or a reach-out) in its drawer, a message by its name, the composer or a group. */

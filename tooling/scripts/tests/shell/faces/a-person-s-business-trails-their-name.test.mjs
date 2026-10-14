@@ -10,7 +10,8 @@
  *  - the trail is one reading of People's rows (people/business-trail.ts over contracts businessTrailOf): a named
  *    person's business; nothing for a stand-in (their name is the business's), a business removed, someone who works
  *    nowhere, or before People is read; and it follows People read again;
- *  - Today's row (the kit's AttnRow), Live's row and panel, and the Calendar's appointment draw it dim after the name;
+ *  - Today's row (the kit's AttnRow), Live's row and panel draw it dim after the name, and the Calendar's visit under it,
+ *    from the facts the board's own read carries of them (calendar-person-facts.ts: the same trail, worked out on the server);
  *  - a business's people (contracts leadPeopleOf): its face is the one with a name of their own most recently in touch,
  *    never the stand-in the finder made while anyone there has a name; the line and the card name two at most; a won
  *    deal anywhere at it makes it a client; and Leads' row draws the Talking stage as the door to that face.
@@ -18,6 +19,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  calendarPersonFactsOf,
   leadPeopleIndex,
   leadPeopleOf,
   matchPerson,
@@ -37,7 +39,7 @@ const { businessTrailFor } = await import(`${S}/surfaces/people/business-trail.t
 const { AttnRow } = await import(`${S}/surfaces/kit/attention/attn-row.tsx`);
 const { LrList } = await import(`${S}/surfaces/live/list.tsx`);
 const { LrPanel } = await import(`${S}/surfaces/live/panel.tsx`);
-const { CrPanel } = await import(`${S}/surfaces/calendar/panel.tsx`);
+const { OpenVisit } = await import(`${S}/surfaces/calendar/visit/visit-sheet.tsx`);
 const { LEAD_COLUMNS } = await import(`${S}/surfaces/leads/cells/columns.tsx`);
 
 const h = (type, props, ...kids) => globalThis.React.createElement(type, props, ...kids);
@@ -167,13 +169,17 @@ test("Live's row and its panel trail the caller's name with their business, from
 
 /* --------------------------------------------- the Calendar --------------------------------------------- */
 
-/** The Calendar's block for an appointment titled `title`, matched by the board's own path (personLikeOf, matchPerson). */
+/**
+ * The Calendar's block for an appointment titled `title`, matched by the board's own path (personLikeOf, matchPerson), with
+ * the facts the read attaches from the same People row (calendar-week.ts: calendarPersonFactsOf).
+ */
 const blockFor = (title, dto) => {
-  const person = matchPerson(
+  const matched = matchPerson(
     { title, description: null, location: null, attendees: [] },
     [personLikeOf(dto)],
     new Set(),
   );
+  const person = matched ? { ...matched, facts: calendarPersonFactsOf(dto, ROW_TZ, ROW_NOW) } : null;
   const days = [];
   for (let i = 0; i < 7; i++) days.push({ key: `2026-09-${String(20 + i).padStart(2, "0")}`, items: [], windows: [] });
   days[1].items.push({
@@ -207,38 +213,42 @@ const blockFor = (title, dto) => {
   );
   return { block: vm.days[1].blocks[0], vm };
 };
-const panelFor = (title, dto) => {
+const visitFor = (title, dto) => {
   const { block, vm } = blockFor(title, dto);
   assert.ok(block.person, `the fixture's appointment is matched: ${title}`);
   fresh();
   return again(() =>
-    CrPanel({
+    OpenVisit({
       b: block,
       day: vm.days[1],
       todayKey: vm.today,
+      tz: ROW_TZ,
       source: "your calendar",
       bookingLink: null,
-      onCopyLink() {},
+      moments: null,
+      days: vm.days,
       onClose() {},
+      onWalk() {},
+      flash() {},
     }),
   );
 };
+/** The quiet line under the visit's person: their business, and how the board matched them where that is a guess. */
+const underName = (tree) =>
+  textOf(find(byTestId(tree, "cal-visit-person"), (n) => classes(n).includes("cal-visit-quiet"))).trim();
 
-test("the Calendar's appointment trails the person's name with their business, and after 'In People' where the title names them", () => {
-  setSurfaceValue("people", { rows: ROWS });
+test("the Calendar's visit says the person's business under their name, from the board's own read, and how it matched them where that is a guess", () => {
   const priya = personDto({ ...PRIYA, phone_e164: "+13055550111" });
-  // Matched by the number the event carries: the line says their name, then the business, then that they are in People.
-  let panel = panelFor("Fitting +1 305 555 0111", priya);
-  let who = byTestId(panel, "cal-panel-person");
-  assert.equal(textOf(byTestId(who, "cal-panel-business")).trim(), `· ${BUSINESS}`);
-  assert.match(textOf(who).replace(/\s+/g, " "), new RegExp(`Priya Nair\\s*· ${BUSINESS} is in People`));
-  // The title names them already: "In People", then the business.
-  panel = panelFor("Priya Nair · Fitting", priya);
-  who = byTestId(panel, "cal-panel-person");
-  assert.match(textOf(who).replace(/\s+/g, " "), new RegExp(`In People\\s*· ${BUSINESS}`));
-  // Someone who works nowhere: no trail.
-  panel = panelFor("Dana Cole · Fitting", personDto({ ...NOWHERE }));
-  assert.equal(byTestId(byTestId(panel, "cal-panel-person"), "cal-panel-business"), null);
+  // Matched by the number the event carries: their name, then the business under it.
+  let visit = visitFor("Fitting +1 305 555 0111", priya);
+  assert.equal(textOf(byTestId(visit, "cal-visit-door")).trim(), "Priya Nair");
+  assert.equal(underName(visit), BUSINESS);
+  // The title names them: matched by a name, which is a guess, said after the business.
+  visit = visitFor("Priya Nair · Fitting", priya);
+  assert.match(underName(visit), new RegExp(`^${BUSINESS} · `));
+  // Someone who works nowhere: no business.
+  visit = visitFor("Dana Cole · Fitting", personDto({ ...NOWHERE }));
+  assert.ok(!underName(visit).includes(BUSINESS));
 });
 
 test("a booking from one of the business's own addresses is its own person's, said as their business; a colleague and a business removed carry none", () => {

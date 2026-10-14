@@ -15,7 +15,7 @@
  * the headline, and there is nothing under it but the length.
  *
  * The name is said ONCE. A business writes the customer into the event's own title ("Gloss · Emily Chen"), so a row that
- * names them and then prints the title said them twice: contracts' `serviceOf` takes the name out, and `block.service`
+ * names them and then prints the title said them twice: contracts' `visitTitleWithout` takes the name out, and `block.service`
  * is what is left. Never compose that here: the words are the view model's.
  *
  * What each page still owns: the day's heading and its notes, what a press does, whether there is a rail at all, and the

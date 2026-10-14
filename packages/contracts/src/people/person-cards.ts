@@ -30,7 +30,8 @@ import {
 import { ago } from "./person-row-facts";
 import { holderOf, personStanding } from "./person-state";
 import { bookingLinkAction, emailFactWords, type PersonProposalVM, repliesWords } from "./person-reach";
-import { toPersonRowVM, type PersonRowVM, visitTitleFor } from "./person-row";
+import { toPersonRowVM, type PersonRowVM } from "./person-row";
+import { visitTitleWithout } from "../calendar/visit/visit-service";
 import { addedBy, ourWireOfThreads, proposalSending, proposalSent, replyChannelOfThreads, ts } from "./person-helpers";
 import { PERSON_CHANNEL_WORDS, REPLY_VIA, REPLY_WIRE } from "./person-words";
 import { replyWindow } from "../config/policy";
@@ -553,7 +554,7 @@ export function aboutOf({
   if (profile.visits) {
     const v = profile.visits;
     const nextLine = v.next
-      ? `${visitLine(v.next, v.timezone, nowMs)} · ${visitTitleFor(v.next.title, base.name)}`
+      ? `${visitLine(v.next, v.timezone, nowMs)} · ${visitTitleWithout(v.next.title, [base.name])}`
       : v.state === "ok"
         ? "Nothing on the calendar"
         : "Calendar could not be read";
@@ -562,7 +563,7 @@ export function aboutOf({
     if (v.last)
       about.push({
         k: W.last,
-        v: `${visitLine(v.last, v.timezone, nowMs)} · ${visitTitleFor(v.last.title, base.name)}`,
+        v: `${visitLine(v.last, v.timezone, nowMs)} · ${visitTitleWithout(v.last.title, [base.name])}`,
       });
   }
   if (profile.added) {

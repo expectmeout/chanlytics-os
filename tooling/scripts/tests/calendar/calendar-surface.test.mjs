@@ -91,27 +91,43 @@ test("an address under the Calendar: a whole date opens that day, a visit's id n
   assert.equal(routeHasPage("calendar"), true);
 });
 
-test("the frame's chrome for the Calendar: the workspace's booking link, nothing while it is unread, and a demo's Ask door", () => {
+test("the frame's chrome for the Calendar: one mount, the four views as the frame's strip, no act on a real workspace, and a demo's Ask door", () => {
+  const chrome = (param = null) => calendarChrome({ param });
   globalThis.__DEMO_MODE = false;
   values.setSurfaceValue("calendar", undefined);
+  const before = chrome();
   assert.deepEqual(
-    calendarChrome(),
-    { crumbs: ["Calendar"], act: null },
+    [before.crumbs, before.mount, before.act],
+    [["Calendar"], "calendar", null],
     "nothing to offer until the Calendar has loaded",
   );
+  // The views are the frame's strip, each tab a link to its view's address, the one lit the one the page draws.
+  assert.deepEqual(
+    chrome("month").views.tabs.map((t) => [t.id, t.to]),
+    [
+      ["week", "calendar/week"],
+      ["day", "calendar/day"],
+      ["month", "calendar/month"],
+      ["agenda", "calendar/agenda"],
+    ],
+  );
+  assert.equal(chrome("month").views.picked, "month");
+  assert.equal(chrome("2026-09-10").views.picked, "day", "a day the address names is Day view");
+  assert.equal(chrome("agenda:2026-09-10:a-1").views.picked, "agenda", "a visit opened over a view keeps its view lit");
+  assert.equal(chrome("week:2026-09-10").mount, "calendar", "every address is one mount");
   values.setSurfaceValue("calendar", CALENDAR);
-  assert.equal(calendarChrome().act, null, "a real workspace's booking link is in the page's own menu, not the frame");
+  assert.equal(chrome().act, null, "a real workspace's booking link is in the page's own menu, not the frame");
   values.setSurfaceValue("calendar", { vm: { bookingLink: null }, fetchedAt: 1 });
-  assert.equal(calendarChrome().act, null, "and one with no link offers none");
+  assert.equal(chrome().act, null, "and one with no link offers none");
   values.setSurfaceValue("calendar", undefined);
   globalThis.__DEMO_MODE = true;
   assert.deepEqual(
-    calendarChrome().act,
+    chrome().act,
     { ask: true, label: "Book", glyph: "plus", primary: true },
     "the demo keeps its detour",
   );
   values.setSurfaceValue("calendar", CALENDAR);
-  assert.equal(calendarChrome().act, null, "a read wins over the demo");
+  assert.equal(chrome().act, null, "a read wins over the demo");
   values.setSurfaceValue("calendar", undefined);
   globalThis.__DEMO_MODE = false;
   assert.deepEqual(SURFACE_ROUTES.calendar.crumbs, ["Calendar"]);
@@ -134,15 +150,40 @@ test("the demo's sample: the weeks around today, so every view reads without a r
   const today = vm.days.find((d) => d.key === vm.today);
   assert.equal(today.blocks.length, 6, "the day Today draws: six on the calendar today");
   assert.equal(vm.days.find((d) => d.key === "2026-09-09").blocks.length, 3, "three tomorrow");
+  const yesterday = vm.days.find((d) => d.key === "2026-09-07");
+  assert.equal(yesterday.blocks.length, 4, "four yesterday");
+  assert.deepEqual(
+    yesterday.blocks.map((b) => b.visit?.status),
+    ["kept", "missed", "booked", "booked"],
+    "one kept, one missed, two still to mark",
+  );
   assert.equal(
     vm.days.filter((d) => d.blocks.length + d.allDay.length > 0).length,
-    2,
+    3,
     "and nothing invented beyond them",
   );
-  assert.equal(vm.bookingLink, null, "a sample has no booking link");
+  // Every way a visit stands that its sheet draws has one to draw.
+  const all = vm.days.flatMap((d) => d.blocks);
+  assert.ok(
+    all.some((b) => b.tool && b.visit?.status === "proposed"),
+    "a request a booking tool sent",
+  );
+  assert.ok(
+    all.some((b) => !b.person && !b.guess && !b.contacts.e164.length),
+    "an event that is nobody's",
+  );
+  assert.ok(
+    all.some((b) => !b.person && b.guess && b.contacts.e164.length),
+    "someone People does not hold",
+  );
+  assert.ok(
+    all.some((b) => b.person?.facts?.deal),
+    "someone with a deal",
+  );
+  assert.match(vm.bookingLink, /^https:\/\/book\.example\.com\//, "a made-up booking link, so its acts are drawn");
 });
 
-test("the page draws what the seam holds; a demo session with none draws the sample; no read and no demo draws nothing", () => {
+test("the page draws what the seam holds; a demo session with none draws the sample; no read and no demo draws the board's frame", () => {
   // The board keeps itself current with a five-minute clock while it is open: it is not started for real here, and the tree is
   // let go of after each draw, as React lets go of it.
   const draw = (props = {}) => {
@@ -159,7 +200,12 @@ test("the page draws what the seam holds; a demo session with none draws the sam
   };
   globalThis.__DEMO_MODE = false;
   values.setSurfaceValue("calendar", undefined);
-  assert.equal(draw(), null, "nothing read, no demo: the frame's gate says the surface is being read");
+  // Nothing read, no demo: the board's frame, still, saying it is reading (CAL-25). It drew nothing, and the strip of
+  // views stood over an empty page until the weeks landed.
+  const cold = draw();
+  assert.ok(byTestId(cold, "calendar-cold"), "the board's frame while the weeks are read");
+  assert.equal(byTestId(cold, "calendar-real"), null, "and no board drawn over days it has not read");
+  assert.match(textOf(cold), /Reading…/);
   // A demo session draws the one Calendar there is, over the sample.
   // The sample covers what the page draws, so a demo session asks for no read (there is nothing to read from).
   const realEnsure = calendar.ensure;

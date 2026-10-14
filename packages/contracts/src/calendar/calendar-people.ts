@@ -62,8 +62,12 @@ export interface PersonLike {
   businessEmails?: readonly string[];
 }
 
-/** How a match was made, surest first: a number and an address are exact, a name is a guess. */
-export type MatchVia = "phone" | "email" | "name" | "business";
+/**
+ * How a visit was found to be someone's: a number or an address in the event (exact), their name in its words or the
+ * business they work at (0052; guesses), or `record`, the booking's own row naming them (appointments.contact_id, linked
+ * when the booking email was read), where "matched by email" said a match nothing on the board had made.
+ */
+export type MatchVia = "phone" | "email" | "name" | "business" | "record";
 
 /**
  * How a match is said, once, wherever a visit names who it is for (the Calendar's panel, the person's History, Coming up
@@ -75,6 +79,7 @@ const MATCH_WORDS: Record<MatchVia, string> = {
   email: "matched by email",
   name: "matched by name",
   business: "matched by their business",
+  record: "linked on the booking",
 };
 
 /** The words for a match, or null where the visit says none (a visit rebuilt from an older read has no route). */

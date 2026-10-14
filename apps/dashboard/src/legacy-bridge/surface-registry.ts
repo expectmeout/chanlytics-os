@@ -181,10 +181,8 @@ export function personRouteId(page: string, param?: string | null): string | nul
  * and again when it lands (surface:clients). Measured on the salon
  * (22 Sep 2026): the calendar was read eleventh, behind Settings, People and
  * Leads that nobody was looking at, so the day popped in 1.6 s after the queue
- * beside it. The Calendar draws an appointment's person's deal from People
- * (its peek's stage and "Start a proposal", 0008), and whether deals are on at
- * all, so a cold Calendar reads People next. A route absent here draws only its
- * own surface.
+ * beside it. The Calendar draws its campaign marks from their own span read. A
+ * route absent here draws only its own surface.
  */
 export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // Setup first: what is left to set up is drawn ABOVE the queue (surfaces/today/pages/setup-card.tsx TodaySetup), and read seventh it
@@ -202,7 +200,10 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
     // A reply to a reach-out, read: its queue row and the bell's door (Reach out Part 5, PR 8).
     "reach_out_replies",
   ],
-  calendar: ["people"],
+  // The Calendar's campaign marks (surfaces/calendar/runs-surface.ts): their own span read, on demand. It read People's whole
+  // book here for one pill and the deal beside a visit; the visit's person now carries those facts on the board's own read
+  // (contracts calendar-person-facts.ts), so a cold Calendar reads no People.
+  calendar: ["calendar_runs"],
   // The first run's receptionist card fills in from the settings read: the brain and the resolved numbers. Try it
   // watches the Live page's calls for the test call (first-run-try.ts).
   start: ["settings", "live"],
@@ -334,7 +335,9 @@ export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCel
   inbox: { inbox: true },
   conversations: { conversations: true },
   live: { live: true },
-  calendar: { calendar: true },
+  // The Calendar owns the campaign marks it draws over its days (surfaces/calendar/runs-surface.ts): a run made, approved or done,
+  // a campaign saved or a class's mode changed is read again while the Calendar is open, and once as it comes back elsewhere.
+  calendar: { calendar: true, calendar_runs: true },
   // Campaigns' home is one page of four surfaces: the playbooks' moments, its own 30 days (campaign_results), the reach-outs'
   // chains and the settings read's templates. Sent's runs are drawn there too: who can hear you, the pause on offers, the
   // send-once composer and its Send by ticks. They hear here what moves those (a person's answer, the business's facts, the
