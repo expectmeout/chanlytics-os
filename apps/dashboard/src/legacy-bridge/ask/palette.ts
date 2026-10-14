@@ -25,6 +25,7 @@ import {
   rightNowLine,
   runHeldEmails,
   runDraftedEmails,
+  runLabelOf,
   runsThatWait,
   sameQuestion,
   scopeFromRoute,
@@ -206,7 +207,7 @@ export function waitingFrom(win: Window, parts: Waits | null = needsYouParts()):
     more: Math.max(0, threadsWaiting - people.length),
     runs: runs.map((r) => ({
       id: r.id,
-      label: r.audience?.label || "Campaign",
+      label: runLabelOf(r),
       reach: r.recipient_count,
       to: `broadcasts/run:${r.id}`,
     })),

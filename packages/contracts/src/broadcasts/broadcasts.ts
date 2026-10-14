@@ -321,6 +321,16 @@ export interface BroadcastVM extends BroadcastDto {
   failureLabel: string | null;
 }
 
+/**
+ * What a run is called where a sentence names it: its audience's label (a playbook's, a list's), else its own name. A
+ * reach-out's run carries no label (core run-reach-out.ts writes its ids alone), so its name says it ("Early gyms ·
+ * 2026-10-14"): read as the label alone, a line named nobody ("ran at 7:44 AM").
+ */
+export function runLabelOf(run: { audience?: unknown; name: string }): string {
+  const label = (run.audience as { label?: unknown } | null | undefined)?.label;
+  return typeof label === "string" && label.trim() ? label : run.name;
+}
+
 /** "today 9:00 AM" · "tomorrow 9:00 AM" · "Sep 12 · 10:00 AM", by the business's day and clock (clock.ts). */
 export function whenLabel(iso: string, tz: string, now = new Date()): string {
   const ms = Date.parse(iso);

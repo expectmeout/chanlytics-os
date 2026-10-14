@@ -214,11 +214,11 @@ export const LEAD_ADDRESSEE_WORDS = {
   /** What a role that may not is told it cannot do here (gateTitle). */
   gated: "choose who a reach-out writes to",
   choosing: "Choosing…",
-  /** Chosen: who it writes to now, and whether their address is checked first (a few minutes) or was already. */
-  done: (name: string, checking: boolean) =>
+  /** Chosen: whom the business's reach-out writes to now, and whether their address is checked first or was already. */
+  done: (name: string, business: string, checking: boolean) =>
     checking
-      ? `${name} is who its reach-out writes to now. Their address is being checked first, which takes a few minutes.`
-      : `${name} is who its reach-out writes to now. Their address was checked already.`,
+      ? `${business}'s reach-out writes to ${name} now. Their address is being checked first, which takes a few minutes.`
+      : `${business}'s reach-out writes to ${name} now. Their address was checked already.`,
   refused: {
     gone: "This lead is gone.",
     not_a_company: "Only a company has people to choose from.",

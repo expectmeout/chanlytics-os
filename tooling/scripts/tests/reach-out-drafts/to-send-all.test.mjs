@@ -82,6 +82,30 @@ test("a door to the waiting runs: the run, the one To send, else Sent", () => {
   assert.equal(waitingRunsDoor([run("a", { drafted: 2 }), run("b", { drafted: 1, held: 1 })]), "broadcasts");
 });
 
+test("a first email and its nudge are one reach-out: counted once, and each part says which email it is", () => {
+  const florists = { kind: "reach_out", root_id: "ro-1" };
+  const runs = [run("a", { drafted: 3, audience: florists }), run("b", { drafted: 2, audience: florists })];
+  const one = toSendRunsOf(runs);
+  assert.deepEqual([one.count, one.from], [5, 1], "two runs of one reach-out are one reach-out");
+  assert.equal(
+    TO_SEND_ALL_WORDS.sentence(one.count, one.from),
+    "5 emails to send from your inbox, each written and checked.",
+    "never 'from 2 reach-outs' for one",
+  );
+  assert.equal(TO_SEND_ALL_WORDS.sub(5, 1), "5 emails handed to you");
+  assert.deepEqual(toSendEveryOf(runs), { count: 5, from: 1 });
+  assert.equal(TO_SEND_ALL_WORDS.everyRun(5, 1), "All 5 to send");
+  assert.equal(TO_SEND_ALL_WORDS.everyRun(5, 2), "All 5 to send, from 2 reach-outs");
+  const two = toSendRunsOf([...runs, run("c", { drafted: 1, audience: { kind: "reach_out", root_id: "ro-2" } })]);
+  assert.deepEqual([two.count, two.from], [6, 2]);
+  assert.equal(TO_SEND_ALL_WORDS.runHead("Florists", 0, 3), "Florists · first email · 3");
+  assert.equal(TO_SEND_ALL_WORDS.runHead("Florists", 1, 2), "Florists · a short nudge · 2");
+  assert.equal(TO_SEND_ALL_WORDS.runHead("Florists", 2, 1), "Florists · email 3 · 1");
+  assert.equal(TO_SEND_ALL_WORDS.runHead("Florists", null, 3), "Florists · 3", "before the run's detail is read");
+  assert.deepEqual(TO_SEND_ALL_WORDS.brief(1), { label: "Your reach-out", verb: "is", waits: "waiting for you" });
+  assert.deepEqual(TO_SEND_ALL_WORDS.brief(2), { label: "Your reach-outs", verb: "are", waits: "waiting for you" });
+});
+
 test("the address is Sent's own, never a door to the composer on an audience called to-send", () => {
   assert.equal(TO_SEND_ROUTE, "broadcasts/to-send");
   assert.equal(doorOf(TO_SEND_ROUTE), null);

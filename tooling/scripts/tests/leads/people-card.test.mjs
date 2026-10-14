@@ -343,8 +343,9 @@ test("who a company's reach-out writes to: who may be chosen, by their place in 
   assert.equal(leadAddresseeRefusal("in_reach_out"), LEAD_ADDRESSEE_WORDS.refused.in_reach_out);
   assert.equal(leadAddresseeRefusal("something_new"), LEAD_ADDRESSEE_WORDS.refusedElse);
   assert.match(
-    LEAD_ADDRESSEE_WORDS.done("Bo Lin", true),
-    /^Bo Lin is who its reach-out writes to now\. .*checked first/,
+    LEAD_ADDRESSEE_WORDS.done("Bo Lin", "Acme Studio", true),
+    /^Acme Studio's reach-out writes to Bo Lin now\. .*checked first/,
+    'the toast names the business: "its" says nothing in a toast',
   );
-  assert.match(LEAD_ADDRESSEE_WORDS.done("Bo Lin", false), /checked already\.$/);
+  assert.match(LEAD_ADDRESSEE_WORDS.done("Bo Lin", "Acme Studio", false), /checked already\.$/);
 });
