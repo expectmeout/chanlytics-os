@@ -6,7 +6,7 @@
  * the list would ride on every page's first load (1.9 KB gzipped), where only the Find people sheet would say it.
  */
 
-export const PEOPLE_INDUSTRIES = [
+const PEOPLE_INDUSTRIES = [
   "Accounting",
   "Agriculture",
   "Airlines/Aviation",
@@ -163,7 +163,7 @@ export const PEOPLE_INDUSTRIES = [
   "Professional Services software",
   "eBusiness Software",
 ] as const;
-export type PeopleIndustry = (typeof PEOPLE_INDUSTRIES)[number];
+type PeopleIndustry = (typeof PEOPLE_INDUSTRIES)[number];
 
 /** An industry's key: any case, and "and" for "&", is one ("marketing and advertising" is Marketing & Advertising). */
 const industryKey = (s: string): string =>
