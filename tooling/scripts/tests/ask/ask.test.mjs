@@ -778,6 +778,7 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
       rows: [
         {
           id: "r1",
+          name: "Win-back · 2026-09-21",
           state: "pending_approval",
           recipient_count: 1,
           when: "now",
@@ -822,10 +823,11 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
     api.waiting().runs.map((r) => [r.id, r.label, r.reach, r.to]),
     [["r1", "Win-back · quiet 30 days", 1, "broadcasts/run:r1"]],
   );
-  // A run whose audience has no name is a campaign's to its reader, never a playbook's (the moment spec, D19).
+  // A run whose audience has no name (a reach-out's carries its ids alone) is called by its own name (contracts
+  // runLabelOf), never a playbook's (the moment spec, D19).
   const named = win.__BROADCASTS.rows[0].audience;
   win.__BROADCASTS.rows[0].audience = null;
-  assert.equal(api.waiting().runs[0].label, "Campaign");
+  assert.equal(api.waiting().runs[0].label, "Win-back · 2026-09-21");
   win.__BROADCASTS.rows[0].audience = named;
   // How many more wait past the rows is the one count's threads (Today's own copy until the Inbox is read), not a sum of rows.
   const counted = win.TODAY_DATA.needsYou;

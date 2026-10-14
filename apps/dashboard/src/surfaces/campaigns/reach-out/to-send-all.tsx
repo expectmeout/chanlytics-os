@@ -11,6 +11,7 @@ import { useEffect, useReducer, useState } from "react";
 import {
   TO_SEND_ALL_WORDS,
   runDraftedEmails,
+  runLabelOf,
   toSendAllOf,
   type BroadcastDetailDto,
   type BroadcastVM,
@@ -56,13 +57,15 @@ function ToSendRunPart({
     };
   }, [run.id, asks]);
   const d = answer && answer.ok ? answer.data : null;
-  const name = d?.reach_out?.chain_name || run.audience.label || run.name;
+  const name = d?.reach_out?.chain_name || runLabelOf(run);
+  // Which of its emails: a first email and its nudge are two parts of one reach-out (null until the detail is read).
+  const step = d?.reach_out ? d.reach_out.step_n : null;
   // The detail's own count once read (it leaves out a draft the send door would refuse now), the list's before.
   const n = d?.reach_out?.drafted?.length ?? runDraftedEmails(run);
   return (
     <section className="bc-touched bc-sheet-people bc-approval-people" data-testid="ro-to-send-run">
       <div className="bc-touched-head">
-        <span className="bc-card-title">{TO_SEND_ALL_WORDS.runHead(name, n)}</span>
+        <span className="bc-card-title">{TO_SEND_ALL_WORDS.runHead(name, step, n)}</span>
         <LinkButton onClick={() => onOpenRun(run.id)} data-testid="ro-to-send-open-run">
           {TO_SEND_ALL_WORDS.openRun}
         </LinkButton>
@@ -102,7 +105,7 @@ export function BcToSendAll({
       closeTestid="bc-to-send-close"
       className="bc-pane"
       title={TO_SEND_ALL_WORDS.title}
-      sub={all ? TO_SEND_ALL_WORDS.sub(all.count, all.runs.length) : null}
+      sub={all ? TO_SEND_ALL_WORDS.sub(all.count, all.from) : null}
       onClose={onClose}
     >
       <div className="bc-report" data-testid="bc-to-send-body">

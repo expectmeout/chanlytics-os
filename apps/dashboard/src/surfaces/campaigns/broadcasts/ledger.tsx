@@ -9,6 +9,7 @@ import {
   DELIVERY_RECEIPTS_WORDS,
   HOUR_MS,
   clockHour,
+  isReachOutRun,
   mmss,
   sentByWords,
 } from "@chanlytics/contracts";
@@ -408,9 +409,10 @@ function bcRunReach(row: BroadcastVM) {
   return { will, pool, held, finished, reasons };
 }
 
-/** What sent a run, and to whom. */
+/** What sent a run, and to whom. A reach-out's run is its step's, and says so: the moment it opens is the reach-out. */
 function bcRunSub(row: BroadcastVM, pb: PlaybookCardVM | null | undefined) {
   const playbookId = row.playbook_id;
+  const kind = isReachOutRun(row.audience) ? "Reach-out" : "Campaign";
   return (
     <div className="bc-run-sub">
       {playbookId ? (
@@ -418,10 +420,10 @@ function bcRunSub(row: BroadcastVM, pb: PlaybookCardVM | null | undefined) {
           <LinkButton
             className="bc-run-link"
             onClick={() => navigate(`campaigns/moment:${playbookId}`)}
-            aria-label={`Campaign ${pb ? pb.name : row.name}`}
+            aria-label={`${kind} ${pb ? pb.name : row.name}`}
             data-testid="bc-history-playbook"
           >
-            Campaign
+            {kind}
           </LinkButton>
           {row.audience.label && row.audience.label !== row.name ? (
             <span className="bc-run-aud"> · {row.audience.label}</span>

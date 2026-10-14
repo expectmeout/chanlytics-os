@@ -470,7 +470,7 @@ export const LeadPeekInfo = (p: InfoProps) => {
         {on.reachOut}
         {peekDecide(vm, on)}
         {peekReach(vm, on)}
-        <LeadPeekCompany key={vm.id} company={vm.company} leadId={vm.id} on={on} />
+        <LeadPeekCompany key={vm.id} company={vm.company} lead={vm} on={on} />
         <LeadPeekPeople lead={vm} on={on} />
         {peekOthers(vm)}
         {peekFound(vm)}

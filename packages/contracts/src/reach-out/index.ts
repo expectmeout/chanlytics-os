@@ -210,7 +210,7 @@ export {
   toSendWordsOf,
   waitingRunsDoor,
 } from "./reach-out-approval";
-export type { ToSendRowVM, ToSendRunLike } from "./reach-out-approval";
+export type { ToSendCount, ToSendRowVM, ToSendRunLike } from "./reach-out-approval";
 export {
   REPLY_INTENTS,
   OWNER_SAID_INTENTS,

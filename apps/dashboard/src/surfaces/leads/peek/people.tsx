@@ -43,11 +43,12 @@ function peopleAt(lead: { id: string; contactId: string | null }): PersonRowVM[]
  */
 export function LeadPeekCompany({
   company,
-  leadId,
+  lead,
   on,
 }: {
   company: LeadCompanyVM | null;
-  leadId: string;
+  /** The company's lead: its id, what the door names, and its name, what the toast says. */
+  lead: { id: string; name: string };
   on: PeekActs;
 }) {
   const [busy, setBusy] = useState<number | null>(null);
@@ -57,8 +58,8 @@ export function LeadPeekCompany({
   const choose = async (p: LeadCompanyPersonVM) => {
     if (busy !== null) return;
     setBusy(p.index);
-    const r = await chooseAddressee(leadId, p.index).finally(() => setBusy(null));
-    on.say(r.ok ? { tone: "ok", msg: AW.done(p.name, r.data.email_state === "checking") } : refusalToast(r));
+    const r = await chooseAddressee(lead.id, p.index).finally(() => setBusy(null));
+    on.say(r.ok ? { tone: "ok", msg: AW.done(p.name, lead.name, r.data.email_state === "checking") } : refusalToast(r));
   };
   return (
     <section className="pk-box pk-people" aria-label={company.head} data-testid="peek-company">

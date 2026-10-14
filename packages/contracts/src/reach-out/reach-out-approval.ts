@@ -13,7 +13,8 @@ import { RUN_WAITING_WORDS } from "../shell/campaign-rooms";
 import { composeLinksOf, type ComposeLinks } from "./owner/compose";
 import type { ReachOutRunDto } from "./reach-out-dtos";
 import { holdDoors, HOLD_DOOR_WORDS, type ReachOutHold } from "./reach-out-words";
-import { approvalWordsOf, chainPaceOf, leadDoorOf } from "./reach-out-sheet";
+import { reachOutRootOf } from "./reach-out-rules";
+import { approvalWordsOf, chainPaceOf, leadDoorOf, stepLabel } from "./reach-out-sheet";
 
 /**
  * Why a send was skipped, as a run's block says it after the count and a lead's story says it (Part 6): the reasons
@@ -249,6 +250,14 @@ export interface ToSendRunLike {
   scheduled_for: string;
   /** How many of a going run's emails are handed to its owner (waits.ts runDraftedEmails, 00429). */
   drafted?: number | null;
+  /** Whose run it is: a reach-out's run names its reach-out (reachOutRootOf), so a first email and its nudge are one. */
+  audience?: unknown;
+}
+
+/** One To send's numbers: the emails handed over, and the reach-outs they come from (a run's steps are one reach-out). */
+export interface ToSendCount {
+  count: number;
+  from: number;
 }
 
 /** Sent's one To send: every email handed to its owner, from each reach-out they send themselves (00429). */
@@ -261,18 +270,27 @@ export const TO_SEND_ALL_WORDS = {
   door: "Open To send",
   meta: "Reach-out · to send",
   status: "Handed to you",
-  /** "12 emails handed to you, from 3 reach-outs" */
-  sub: (n: number, runs: number) =>
-    `${plural(n, "email", "emails")} handed to you${runs > 1 ? `, from ${runs} reach-outs` : ""}`,
-  /** Today's one row for them: what waits, and where. */
-  sentence: (n: number, runs: number) =>
-    `${plural(n, "email", "emails")} to send from your inbox, from ${runs} reach-outs, each written and checked.`,
+  /** "12 emails handed to you, from 3 reach-outs"; one reach-out (its first email and its nudge) says none. */
+  sub: (n: number, from: number) =>
+    `${plural(n, "email", "emails")} handed to you${from > 1 ? `, from ${from} reach-outs` : ""}`,
+  /** Today's one row for them: what waits, and from how many reach-outs where more than one. */
+  sentence: (n: number, from: number) =>
+    `${plural(n, "email", "emails")} to send from your inbox${from > 1 ? `, from ${from} reach-outs` : ""}, each written and checked.`,
+  /** Today's brief for them, as one run's line: "Your reach-outs are waiting for you: …". */
+  brief: (from: number) =>
+    from > 1
+      ? { label: "Your reach-outs", verb: "are" as const, waits: "waiting for you" }
+      : { label: "Your reach-out", verb: "is" as const, waits: "waiting for you" },
   note: REACH_OUT_TO_SEND_LABELS.note,
-  /** A run's part of the list, by its chain's name and how many of its emails wait. */
-  runHead: (name: string, n: number) => `${name} · ${n}`,
+  /**
+   * A run's part of the list: its reach-out, which of its emails (a first email and its nudge are two parts of one
+   * reach-out), and how many wait. The step is null until the run's detail is read.
+   */
+  runHead: (name: string, step: number | null, n: number) =>
+    step === null ? `${name} · ${n}` : `${name} · ${step === 0 ? "first email" : stepLabel(step).toLowerCase()} · ${n}`,
   openRun: "Open the run",
   /** A run's own To send, where other runs hand emails over too: the door to all of them. */
-  everyRun: (n: number, runs: number) => `All ${n} to send, from ${runs} reach-outs`,
+  everyRun: (n: number, from: number) => `All ${n} to send${from > 1 ? `, from ${from} reach-outs` : ""}`,
   reading: "Reading its emails…",
   unread: "Its emails could not be read just now. Open the run to see them.",
   /** Every email handed over is said: what the pane says once its list is empty. */
@@ -286,12 +304,17 @@ export const TO_SEND_ALL_WORDS = {
  * their emails wait in all. Null when none has one. Each run's own emails are its detail's (toSendWordsOf), read as its
  * part of the list is drawn.
  */
-export function toSendAllOf<R extends ToSendRunLike>(runs: readonly R[]): { runs: R[]; count: number } | null {
+export function toSendAllOf<R extends ToSendRunLike>(runs: readonly R[]): ({ runs: R[] } & ToSendCount) | null {
   const waiting = runs
     .filter((r) => runDraftedEmails(r) > 0)
     .sort((a, b) => a.scheduled_for.localeCompare(b.scheduled_for) || a.id.localeCompare(b.id));
   if (waiting.length === 0) return null;
-  return { runs: waiting, count: waiting.reduce((n, r) => n + runDraftedEmails(r), 0) };
+  return {
+    runs: waiting,
+    count: waiting.reduce((n, r) => n + runDraftedEmails(r), 0),
+    // A reach-out's runs are its steps' (a first email, a nudge): counted as the one reach-out they are.
+    from: new Set(waiting.map((r) => reachOutRootOf(r.audience) ?? r.id)).size,
+  };
 }
 
 /** A run waiting for you, as the doors to the waiting runs read it: whether its check holds emails too. */
@@ -303,18 +326,16 @@ type WaitingToSend = ToSendRunLike & { held?: number | null };
  * where fewer would fold, and each is its own run's row. The row says the list it opens: every email handed over and
  * every run with one (`count`, `from`: toSendAllOf), a run that holds emails too among them.
  */
-export function toSendRunsOf<R extends WaitingToSend>(
-  waiting: readonly R[],
-): { runs: R[]; count: number; from: number } | null {
+export function toSendRunsOf<R extends WaitingToSend>(waiting: readonly R[]): ({ runs: R[] } & ToSendCount) | null {
   const folded = waiting.filter((r) => runHeldEmails(r) === 0 && runDraftedEmails(r) > 0);
   const all = toSendAllOf(waiting);
-  return all && folded.length > 1 ? { runs: folded, count: all.count, from: all.runs.length } : null;
+  return all && folded.length > 1 ? { runs: folded, count: all.count, from: all.from } : null;
 }
 
 /** The door from a run's own To send to the one list: where two or more runs hand emails over, its numbers. */
-export function toSendEveryOf<R extends ToSendRunLike>(runs: readonly R[]): { count: number; from: number } | null {
+export function toSendEveryOf<R extends ToSendRunLike>(runs: readonly R[]): ToSendCount | null {
   const all = toSendAllOf(runs);
-  return all && all.runs.length > 1 ? { count: all.count, from: all.runs.length } : null;
+  return all && all.runs.length > 1 ? { count: all.count, from: all.from } : null;
 }
 
 /**
