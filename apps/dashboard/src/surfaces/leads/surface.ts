@@ -566,6 +566,14 @@ export async function laterLead(searchId: string, id: string) {
     api()("POST leads/[id]/later", { params: { id }, body: { search_id: searchId }, refresh: "behind" }),
   );
 }
+/**
+ * Who a company's reach-out writes to (00429): one of the people its source named, by their place in its facts. Whether
+ * their address is checked first is the door's to say, so nothing is drawn ahead of it: Leads, and the lead the peek
+ * holds, are read again behind its answer.
+ */
+export async function chooseAddressee(id: string, person: number) {
+  return api()("POST leads/[id]/addressee", { params: { id }, body: { person }, refresh: "behind" });
+}
 /** Undo names the operation and the version the page saw (E9): the server refuses when anyone changed it since. */
 export async function undoLeadOperation(opId: string, version: number) {
   return api()("POST lead-operations/[id]/undo", { params: { id: opId }, body: { version } });

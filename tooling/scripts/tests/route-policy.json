@@ -789,6 +789,13 @@
       "rate": "lead_suggest",
       "spend": false
     },
+    "POST leads/[id]/addressee": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "lead_member",
+      "spend": true
+    },
     "POST leads/[id]/draft": {
       "kind": "write",
       "scope": "row",

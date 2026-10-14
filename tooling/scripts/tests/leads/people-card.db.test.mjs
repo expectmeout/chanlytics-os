@@ -10,6 +10,10 @@
  *   3. The addressee comes from Leads (reach_out_person): their source's name, ranked as a list's.
  *   4. Erasure: a person named at a company leaves it, their address on the never-again list, so no search names them
  *      again; an erased company's domain is never made again (leads_erase_on_contact, lead_erase).
+ *   5. Who a company's reach-out writes to (lead_addressee_choose): chosen by its owner among the people named with a
+ *      work address, never while a check of its address is on its way or its round still runs; the new address asked of
+ *      the mailbox check under the round (lead_check_ask), the one it leaves keeping its check for a choice back that asks
+ *      none; refused for an address another lead holds, one on the never-again list, and a company written to by hand.
  *
  * Local stack only: it makes a workspace, members and leads, and lists the workspace on the platform's switch.
  */
@@ -334,5 +338,103 @@ test(
     const gamma = await leadByKey("gamma");
     ok(await owner.c.rpc("lead_erase", { p_lead_id: gamma.id }));
     assert.equal(await suppressed(mail("anyone", "gamma")), true, "an erased company's domain is never written to");
+  },
+);
+
+// Last: it ends the suite's round, which the cases above still write companies under.
+test(
+  "who a company's reach-out writes to: chosen by its owner, the new address checked first, the old check kept for a way back",
+  { skip },
+  async () => {
+    ok(
+      await db.rpc("lead_company_upsert", {
+        p_round_id: round,
+        p_companies: [
+          company("omega", [
+            someone("Ola Berg", mail("ola", "omega"), "owner"),
+            someone("Pia Lund", mail("pia", "omega")),
+            someone("Rex Nord", null),
+          ]),
+        ],
+      }),
+    );
+    const omega = await leadByKey("omega");
+    const choose = async (person) =>
+      ok(await owner.c.rpc("lead_addressee_choose", { p_lead_id: omega.id, p_person: person }));
+    const checks = async () =>
+      ok(await db.from("jobs").select("payload").eq("tenant_id", A).eq("kind", "lead_check")).filter((j) =>
+        (j.payload.lead_ids ?? []).includes(omega.id),
+      ).length;
+
+    assert.equal(
+      (await choose(1)).error,
+      "checking",
+      "its first check is on its way: a choice would land on the new address",
+    );
+    ok(
+      await db
+        .from("leads")
+        .update({ email_state: "ok", email_checked_at: new Date().toISOString() })
+        .eq("id", omega.id),
+    );
+    assert.equal((await choose(0)).error, "already");
+    assert.equal((await choose(2)).error, "no_address", "Rex has no work address");
+    assert.equal((await choose(5)).error, "no_person");
+    assert.equal((await choose(1)).error, "searching", "a check runs under a round, and this one still runs");
+
+    ok(await db.rpc("lead_round_end", { p_round_id: round, p_ending: "stopped" }));
+    const before = await checks();
+    const chosen = await choose(1);
+    assert.deepEqual([chosen.ok, chosen.addressee, chosen.email_state], [true, 1, "checking"]);
+    const pia = ok(await db.from("leads").select("email, email_state, facts").eq("id", omega.id).single());
+    assert.deepEqual([pia.email, pia.email_state, pia.facts.addressee], [mail("pia", "omega"), "checking", 1]);
+    assert.deepEqual(
+      [pia.facts.people[0].check.email, pia.facts.people[0].check.state],
+      [mail("ola", "omega"), "ok"],
+      "Ola keeps the check her address had",
+    );
+    assert.equal(await checks(), before + 1, "Pia's address is asked of the mailbox check, under the round");
+    const [event] = ok(
+      await db.from("events").select("data").eq("subject_id", omega.id).eq("kind", "lead.addressee_chosen"),
+    );
+    assert.deepEqual([event.data.person, event.data.checking, event.data.by], [1, true, owner.id]);
+    assert.equal((await choose(0)).error, "checking", "nothing more until Pia's check lands");
+
+    // Pia's check lands; Ola is chosen back, on the check she kept: no check asked again.
+    ok(
+      await db
+        .from("leads")
+        .update({ email_state: "ok", email_checked_at: new Date().toISOString() })
+        .eq("id", omega.id),
+    );
+    const back = await choose(0);
+    assert.deepEqual([back.ok, back.email_state], [true, "ok"]);
+    assert.equal(await checks(), before + 1, "a check under thirty days stands");
+    const ola = ok(await db.from("leads").select("email, facts").eq("id", omega.id).single());
+    assert.deepEqual(
+      [ola.email, ola.facts.addressee, ola.facts.people[1].check.state],
+      [mail("ola", "omega"), 0, "ok"],
+    );
+
+    // Pia's address held by another lead, then on the never-again list; and a company written to by hand.
+    ok(
+      await db.from("leads").insert({
+        tenant_id: A,
+        place_id: `ChIJfixtureOmega${stamp}`,
+        business_name: "Omega Desk",
+        email: mail("pia", "omega"),
+        email_state: "ok",
+        stage: "ready",
+      }),
+    );
+    assert.equal((await choose(1)).error, "address_taken", "one business is written to once");
+    ok(
+      await db
+        .from("lead_suppressions")
+        .insert({ tenant_id: A, kind: "email", hash: ok(await hashOf(mail("pia", "omega"))), what: "said_no" }),
+    );
+    assert.equal((await choose(1)).error, "suppressed");
+    ok(await db.from("leads").update({ contacted_at: new Date().toISOString() }).eq("id", omega.id));
+    assert.equal((await choose(1)).error, "written", "written to by hand: who it writes to stays");
   },
 );

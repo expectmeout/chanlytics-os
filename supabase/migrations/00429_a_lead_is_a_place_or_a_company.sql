@@ -34,6 +34,9 @@
 --   leads_erase_on_contact, lead_erase
 --                              an erased company's domain goes on the never-again list, so no search makes it again.
 --   reach_out_lead_timeline    a lead's story says what it is and where it came from (kind, source).
+--   lead_addressee_choose      the owner chooses which of a company's people its reach-out writes to, before anything of
+--                              one is planned; the new address is checked before anything goes (lead_check_ask, which
+--                              00364's lead_check_again now calls too: one writer of a check asked again).
 --
 -- Applied before either app deploys: the edge's sender and the dashboard's lead reads ask for kind, source and facts.
 -- Re-runnable throughout.
@@ -1019,3 +1022,241 @@ grant execute on function public.reach_out_lead_timeline(uuid, uuid) to authenti
 
 comment on function public.reach_out_lead_timeline(uuid, uuid) is
   'One lead''s reach-out (Reach out Part 6, H9, H11), for a member: the lead''s stage, dates and search, whether it was found on a listing, what it is and where it came from (kind, source: 00429), its chain (with fed_by, its steps, run_hour, last_run_for and a waiting run: what the standing line needs, 00426), added_at while it waits on a list, its person''s email thread, its sends (at most 20), its readings (at most 10) and can_stop. A lead nothing was written to yet has the reach-out whose search holds it (00426). Null for a lead the workspace does not hold.';
+
+/* -------------------------------------------------- 9. the owner chooses who a company's reach-out writes to -- */
+
+-- The mailbox check of named leads under one round: each goes to checking, and one lead_check job is written with
+-- {round_id, batch 0, again <nonce>, lead_ids}, which the engine runs under the round with a run id of its own and commits
+-- through lead_check_commit (00145's Check again). The one writer of such a job; the doors that call it have read the
+-- caller, the switch and the spend.
+create or replace function public.lead_check_ask(p_tenant_id uuid, p_round_id uuid, p_lead_ids uuid[])
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if cardinality(coalesce(p_lead_ids, '{}'::uuid[])) = 0 then
+    return;
+  end if;
+  update public.leads set email_state = 'checking'
+   where tenant_id = p_tenant_id and id = any (p_lead_ids) and email_state <> 'checking';
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  values (p_tenant_id, 'lead_check', now(),
+          jsonb_build_object('round_id', p_round_id, 'batch', 0, 'again', gen_random_uuid()::text,
+                             'lead_ids', to_jsonb(p_lead_ids)));
+end $$;
+revoke all on function public.lead_check_ask(uuid, uuid, uuid[]) from public, anon, authenticated;
+grant execute on function public.lead_check_ask(uuid, uuid, uuid[]) to service_role;
+comment on function public.lead_check_ask(uuid, uuid, uuid[]) is
+  'The mailbox check of the named leads under one of their rounds (00429): each goes to checking and one lead_check job is written with {round_id, batch 0, again <nonce>, lead_ids}, run by the engine under the round with a run id of its own and committed through lead_check_commit. The one writer of such a job: Check again (lead_check_again) and the addressee chosen (lead_addressee_choose) call it, having read the caller, the switch and the spend. Service role only.';
+
+-- 00364's Check again, its job written by lead_check_ask, the one writer of a check asked again.
+create or replace function public.lead_check_again(p_tenant_id uuid, p_lead_ids uuid[])
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user uuid := auth.uid();
+  v_ids  uuid[] := '{}';
+  v_r    record;
+  v_err  jsonb;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.has_permission(v_user, p_tenant_id, 'find') then
+    raise exception 'Only an owner can check a lead again.' using errcode = '42501';
+  end if;
+  -- The switch, read before anything is scheduled (§0.5): the mailbox check is money too.
+  if not public.lead_searches_on(p_tenant_id) then
+    return jsonb_build_object('error', 'paused');
+  end if;
+  -- And whether the workspace may spend at all (00364): this door is the session's, so the route's question is asked here too.
+  v_err := public.lead_spend_refusal(p_tenant_id);
+  if v_err is not null then
+    return v_err;
+  end if;
+  -- One job per round the leads were found in: the re-check runs under the round, as the round's own checks
+  -- did, and commits through lead_check_commit. Only an address whose last check did not answer is asked
+  -- again; a lead whose search is still running is left to that search's own checks; a lead with no address
+  -- has nothing to check; and a lead of another workspace is not this owner's to ask about.
+  for v_r in
+    select m.round_id, array_agg(m.lead_id) as lead_ids
+      from (
+        select distinct on (m.lead_id) m.lead_id, m.round_id
+          from unnest(p_lead_ids) as x(id)
+          join public.leads l on l.id = x.id and l.tenant_id = p_tenant_id and l.erased_at is null and l.blanked_at is null
+          join public.lead_search_members m on m.lead_id = l.id and m.tenant_id = p_tenant_id and m.class = 'review' and m.blanked_at is null
+          join public.lead_rounds r on r.id = m.round_id and r.state = 'ended'
+         where l.email is not null and l.email_state = 'unknown'
+         order by m.lead_id, r.created_at desc
+      ) m
+     group by m.round_id
+  loop
+    perform public.lead_check_ask(p_tenant_id, v_r.round_id, v_r.lead_ids);
+    v_ids := v_ids || v_r.lead_ids;
+  end loop;
+  return jsonb_build_object('scheduled', cardinality(v_ids), 'skipped', cardinality(p_lead_ids) - cardinality(v_ids));
+end $$;
+revoke all on function public.lead_check_again(uuid, uuid[]) from public, anon;
+grant execute on function public.lead_check_again(uuid, uuid[]) to authenticated, service_role;
+comment on function public.lead_check_again(uuid, uuid[]) is
+  'Owner (permission find). Asks the mailbox check again for the named leads whose last check did not answer (email_state unknown), once their search has finished: one check per round through lead_check_ask (00429), each lead going to checking, run by the engine under the round with a run id of its own and committed through lead_check_commit. {error: paused} while searching is off; {error: payment_required, sentence} for a workspace that may not spend (lead_spend_refusal, 00364). Returns {scheduled, skipped}.';
+
+-- The owner's choice of who a company's reach-out writes to (0057's call 8): one of the people its source named, with a
+-- work address on no never-again list, held by nobody in People and by no other lead. Only while nothing of any
+-- reach-out is planned or written to the company (an opening and a check are made for its addressee; a send of a run its
+-- owner skipped, or one taken back, never happened: 00427's own exceptions), nobody wrote to it by hand, it is open (Ready
+-- or Not now) and nobody in People was made of it, and no check of its address is on its way (it would land on the new
+-- address). The lead's address becomes theirs and is checked before anything goes: the check their address had while
+-- they were its addressee before (kept with them in facts, `check`, for thirty days) stands, and one that did not check
+-- out is refused; else a mailbox check is asked under the lead's last round once that round has ended, as Check again
+-- asks one (the switch and the spend read first). The person it leaves keeps their address's check, for a choice back.
+create or replace function public.lead_addressee_choose(p_lead_id uuid, p_person integer)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user   uuid := auth.uid();
+  v_lead   public.leads%rowtype;
+  v_people jsonb;
+  v_was    integer;
+  v_to     jsonb;
+  v_email  text;
+  v_kept   jsonb;
+  v_state  text;
+  v_at     timestamptz;
+  v_round  uuid;
+  v_ended  boolean;
+  v_err    jsonb;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  -- Whose it is, then the lead locked: a lead of a workspace the caller may not find leads in is never held.
+  select * into v_lead from public.leads where id = p_lead_id;
+  if not found or not public.has_permission(v_user, v_lead.tenant_id, 'find') then
+    raise exception 'Lead not found.' using errcode = 'P0002';
+  end if;
+  select * into v_lead from public.leads where id = p_lead_id for update;
+  if v_lead.erased_at is not null or v_lead.blanked_at is not null then
+    return jsonb_build_object('error', 'gone');
+  end if;
+  if v_lead.kind <> 'company' then
+    return jsonb_build_object('error', 'not_a_company');
+  end if;
+  v_people := case when jsonb_typeof(v_lead.facts->'people') = 'array' then v_lead.facts->'people' else '[]'::jsonb end;
+  v_was := case when jsonb_typeof(v_lead.facts->'addressee') = 'number' then (v_lead.facts->>'addressee')::integer end;
+  if p_person is null or p_person < 0 or p_person >= jsonb_array_length(v_people)
+     or jsonb_typeof(v_people->p_person) is distinct from 'object' then
+    return jsonb_build_object('error', 'no_person');
+  end if;
+  if p_person = v_was then
+    return jsonb_build_object('error', 'already');
+  end if;
+  if v_lead.stage not in ('ready', 'nurture') or v_lead.closed_reason is not null or v_lead.contact_id is not null then
+    return jsonb_build_object('error', 'closed');
+  end if;
+  if v_lead.contacted_at is not null then
+    return jsonb_build_object('error', 'written');
+  end if;
+  if exists (select 1 from public.reach_out_sends s
+              where s.tenant_id = v_lead.tenant_id and s.lead_id = v_lead.id
+                and not (s.state = 'skipped' and s.reason in ('run_canceled', 'owner_took_back'))) then
+    return jsonb_build_object('error', 'in_reach_out');
+  end if;
+  if v_lead.email_state = 'checking' then
+    return jsonb_build_object('error', 'checking');
+  end if;
+
+  v_to := v_people->p_person;
+  v_email := lower(btrim(coalesce(v_to->>'email', '')));
+  if v_email = '' or char_length(v_email) > 254 or v_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then
+    return jsonb_build_object('error', 'no_address');
+  end if;
+  if public.lead_address_suppressed(v_lead.tenant_id, v_email) then
+    return jsonb_build_object('error', 'suppressed');
+  end if;
+  if public.lead_address_in_people(v_lead.tenant_id, v_email) then
+    return jsonb_build_object('error', 'in_people');
+  end if;
+  -- One business written to once: an address another lead holds is that lead's.
+  if exists (select 1 from public.leads l
+              where l.tenant_id = v_lead.tenant_id and l.id <> v_lead.id and l.email = v_email
+                and l.erased_at is null and l.blanked_at is null) then
+    return jsonb_build_object('error', 'address_taken');
+  end if;
+
+  -- The check their address had while they were its addressee before, if it was this address and is under thirty days.
+  v_kept := v_to->'check';
+  if jsonb_typeof(v_kept) = 'object' and v_kept->>'email' = v_email
+     and v_kept->>'state' in ('ok', 'catch_all', 'invalid')
+     and coalesce(v_kept->>'at', '') ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' then
+    v_at := (v_kept->>'at')::timestamptz;
+    if v_at > now() - interval '30 days' then
+      v_state := v_kept->>'state';
+    else
+      v_at := null;
+    end if;
+  end if;
+  if v_state = 'invalid' then
+    return jsonb_build_object('error', 'invalid');
+  end if;
+
+  if v_state is null then
+    -- The switch and the spend, read before anything is asked of the provider (§0.5): the mailbox check is money too.
+    if not public.lead_searches_on(v_lead.tenant_id) then
+      return jsonb_build_object('error', 'paused');
+    end if;
+    v_err := public.lead_spend_refusal(v_lead.tenant_id);
+    if v_err is not null then
+      return v_err;
+    end if;
+    -- A check runs under a round: the lead's last, once it has ended (a search still running checks its own).
+    select r.id, r.state = 'ended' into v_round, v_ended
+      from public.lead_search_members m
+      join public.lead_rounds r on r.id = m.round_id
+     where m.tenant_id = v_lead.tenant_id and m.lead_id = v_lead.id and m.blanked_at is null
+     order by r.created_at desc
+     limit 1;
+    if v_round is null then
+      return jsonb_build_object('error', 'no_round');
+    end if;
+    if not v_ended then
+      return jsonb_build_object('error', 'searching');
+    end if;
+  end if;
+
+  -- The person it leaves keeps the check their address had, for a choice back.
+  if v_was is not null and v_was < jsonb_array_length(v_people) and jsonb_typeof(v_people->v_was) = 'object'
+     and v_lead.email is not null and v_lead.email_state in ('ok', 'catch_all', 'invalid')
+     and v_lead.email_checked_at is not null then
+    v_people := jsonb_set(v_people, array[v_was::text, 'check'],
+                          jsonb_build_object('email', v_lead.email, 'state', v_lead.email_state,
+                                             'at', v_lead.email_checked_at));
+  end if;
+  update public.leads
+     set email = v_email,
+         email_state = coalesce(v_state, 'checking'),
+         email_checked_at = v_at,
+         facts = jsonb_set(jsonb_set(facts, '{people}', v_people), '{addressee}', to_jsonb(p_person)),
+         version = version + 1
+   where id = v_lead.id;
+  if v_state is null then
+    perform public.lead_check_ask(v_lead.tenant_id, v_round, array[v_lead.id]);
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_lead.tenant_id, 'lead.addressee_chosen', 'lead', 'lead', v_lead.id,
+          jsonb_build_object('person', p_person, 'checking', v_state is null, 'by', v_user));
+  return jsonb_build_object('ok', true, 'addressee', p_person, 'email_state', coalesce(v_state, 'checking'),
+                            'version', v_lead.version + 1);
+end $$;
+revoke all on function public.lead_addressee_choose(uuid, integer) from public, anon;
+grant execute on function public.lead_addressee_choose(uuid, integer) to authenticated, service_role;
+comment on function public.lead_addressee_choose(uuid, integer) is
+  'The owner''s choice (permission find) of who a company lead''s reach-out writes to (00429, 0057''s call 8): p_person, the index of one of the people its source named (leads.facts.people), becomes its addressee and the lead''s address theirs. Refused, as {error}: gone, not_a_company, no_person, already, closed (not Ready or Not now, or made a person), written (written to by hand), in_reach_out (a send of any reach-out planned or made, bar a canceled run''s or one taken back), checking (a check of its address on its way), no_address, suppressed, in_people, address_taken (another lead''s), invalid (it did not check out within thirty days), paused, payment_required (with its sentence), no_round, searching (its last round still running). The address is checked before anything goes: the check it had with that person within thirty days stands, else one is asked under the lead''s last round (lead_check_ask); the person it leaves keeps their check in facts (check: {email, state, at}). Writes lead.addressee_chosen {person, checking, by}. Returns {ok, addressee, email_state, version}.';

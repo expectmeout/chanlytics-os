@@ -15,10 +15,12 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
+  LEAD_ADDRESSEE_WORDS,
   PEOPLE_FIND_WORDS,
   PEOPLE_STRIP_WORDS,
   ProposeAnySearchSchema,
   draftRefusalOf,
+  leadAddresseeRefusal,
   leadCompanyOf,
   leadFoundWords,
   peopleEstimateUsd,
@@ -303,4 +305,46 @@ test("where a lead came from: a business directory for a company, a list for a f
   );
   assert.doesNotMatch(company.source, /Apify|LinkedIn/, "no vendor in the product's words");
   assert.equal(leadCompanyOf({ kind: "place", facts: {} }), null);
+});
+
+test("who a company's reach-out writes to: who may be chosen, by their place in the stored list, and the door's words", () => {
+  const facts = {
+    people: [
+      { name: "Bo Lin", title: "Director", email: "bo@acme-fixture.example" },
+      { title: "A row with no name, which does not read" },
+      { name: "Dana Reyes", title: "Owner", email: "dana@acme-fixture.example" },
+      { name: "Kim Park", title: "Manager", email: null },
+    ],
+    addressee: 2,
+  };
+  const open = { kind: "company", facts, stage: "ready", closed_reason: null, contact_id: null, contacted_at: null };
+  const company = leadCompanyOf({ ...open, email_state: "ok" });
+  assert.deepEqual(
+    company.people.map((p) => [p.name, p.index, p.addressee, p.choose]),
+    [
+      ["Dana Reyes", 2, true, false],
+      ["Bo Lin", 0, false, true],
+      ["Kim Park", 3, false, false],
+    ],
+    "each by their place in the stored list; the addressee and someone with no address are not offered",
+  );
+  const none = (over) => leadCompanyOf({ ...open, email_state: "ok", ...over }).people.some((p) => p.choose);
+  assert.equal(none({ email_state: "checking" }), false, "a check on its way would land on the new address");
+  assert.equal(none({ contacted_at: "2026-10-14T09:00:00Z" }), false, "written to by hand");
+  assert.equal(none({ contact_id: "c-1" }), false, "one of your people already");
+  assert.equal(none({ stage: "converted" }), false);
+  assert.equal(none({ closed_reason: "said_no" }), false);
+  assert.equal(none({ stage: "nurture" }), true, "Not now is still open");
+  assert.equal(
+    leadCompanyOf({ kind: "company", facts }).people.some((p) => p.choose),
+    false,
+    "unsaid is not open",
+  );
+  assert.equal(leadAddresseeRefusal("in_reach_out"), LEAD_ADDRESSEE_WORDS.refused.in_reach_out);
+  assert.equal(leadAddresseeRefusal("something_new"), LEAD_ADDRESSEE_WORDS.refusedElse);
+  assert.match(
+    LEAD_ADDRESSEE_WORDS.done("Bo Lin", true),
+    /^Bo Lin is who its reach-out writes to now\. .*checked first/,
+  );
+  assert.match(LEAD_ADDRESSEE_WORDS.done("Bo Lin", false), /checked already\.$/);
 });

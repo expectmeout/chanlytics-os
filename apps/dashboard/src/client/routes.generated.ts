@@ -166,6 +166,7 @@ export const ROUTES = {
   "POST lead-searches/chosen": { method: "POST", path: "/api/v1/lead-searches/chosen" },
   "POST lead-searches/import": { method: "POST", path: "/api/v1/lead-searches/import" },
   "POST lead-searches/people": { method: "POST", path: "/api/v1/lead-searches/people" },
+  "POST leads/[id]/addressee": { method: "POST", path: "/api/v1/leads/[id]/addressee" },
   "POST leads/[id]/draft": { method: "POST", path: "/api/v1/leads/[id]/draft" },
   "POST leads/[id]/exclude": { method: "POST", path: "/api/v1/leads/[id]/exclude" },
   "POST leads/[id]/keep": { method: "POST", path: "/api/v1/leads/[id]/keep" },
@@ -429,6 +430,7 @@ export type Routes = {
   "POST lead-searches/chosen": typeof import("../../app/api/v1/lead-searches/chosen/route").POST;
   "POST lead-searches/import": typeof import("../../app/api/v1/lead-searches/import/route").POST;
   "POST lead-searches/people": typeof import("../../app/api/v1/lead-searches/people/route").POST;
+  "POST leads/[id]/addressee": typeof import("../../app/api/v1/leads/[id]/addressee/route").POST;
   "POST leads/[id]/draft": typeof import("../../app/api/v1/leads/[id]/draft/route").POST;
   "POST leads/[id]/exclude": typeof import("../../app/api/v1/leads/[id]/exclude/route").POST;
   "POST leads/[id]/keep": typeof import("../../app/api/v1/leads/[id]/keep/route").POST;

@@ -7025,6 +7025,10 @@ export type Database = {
         Args: { p_address: string; p_tenant_id: string }
         Returns: boolean
       }
+      lead_addressee_choose: {
+        Args: { p_lead_id: string; p_person: number }
+        Returns: Json
+      }
       lead_addresses_suppressed: {
         Args: { p_addresses: string[]; p_tenant_id: string }
         Returns: string[]
@@ -7050,6 +7054,10 @@ export type Database = {
       lead_check_again: {
         Args: { p_lead_ids: string[]; p_tenant_id: string }
         Returns: Json
+      }
+      lead_check_ask: {
+        Args: { p_lead_ids: string[]; p_round_id: string; p_tenant_id: string }
+        Returns: undefined
       }
       lead_check_commit: {
         Args: {

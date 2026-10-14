@@ -431,6 +431,6 @@
     "00426_a_reach_out_takes_the_leads_you_add.sql": "bff8fd95b5502eade17e46b0365e77466b94ac87416670b622d17fd920e0413d",
     "00427_a_lead_has_one_first_email.sql": "54e6d0e76d4adbb424e22b2021a54855655c44812330e9b8ee1e2cd937511419",
     "00428_an_email_the_owner_sends_is_handed_to_them.sql": "bb79663ef378388c2d9fd3b685c5fcd00d230a533f293c2f83eb3dceb8e8e386",
-    "00429_a_lead_is_a_place_or_a_company.sql": "4c473e21df755b1c26d72df306d308f0c375b7a01738ce85eb56c3511879895c"
+    "00429_a_lead_is_a_place_or_a_company.sql": "42c06c49f57560164355bd8ac9f407c5fcf728fd5f9698bc23b32f178a8d2567"
   }
 }

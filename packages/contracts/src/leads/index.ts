@@ -101,6 +101,8 @@ export {
   leadAddresseeOf,
   leadCompanyOf,
   LEAD_COMPANY_WORDS,
+  LEAD_ADDRESSEE_WORDS,
+  leadAddresseeRefusal,
 } from "./lead-kind";
 export type {
   LeadKind,

@@ -227,6 +227,25 @@ export async function leadPeopleSearchCreate(
   return (data ?? {}) as { search_id?: string; round_id?: string; error?: string; sentence?: string };
 }
 
+/** What the addressee door answers (00429 lead_addressee_choose): the choice made, or the door's refusal by its code. */
+type LeadAddresseeAnswer =
+  | { ok: true; addressee: number; email_state: string; version: number }
+  | { ok?: undefined; error: string; sentence?: string };
+
+/**
+ * The owner's choice of who a company lead's reach-out writes to (00429 lead_addressee_choose), as the member signed in:
+ * the index of one of the people its source named. The door's own refusals ({error}, and a spend's {error, sentence})
+ * come back as its answer; a thrown one is a request it refused outright (not signed in, not this member's lead).
+ */
+export async function leadAddresseeChoose(
+  db: Db,
+  p: { leadId: string; person: number },
+): Promise<{ data: LeadAddresseeAnswer; error: null } | { data: null; error: { code?: string; message: string } }> {
+  const { data, error } = await db.rpc("lead_addressee_choose", { p_lead_id: p.leadId, p_person: p.person });
+  if (error) return { data: null, error };
+  return { data: (data ?? { error: "no_answer" }) as LeadAddresseeAnswer, error: null };
+}
+
 /**
  * A people run's page of companies (00429 lead_company_upsert), service role: a lead for each new company, waiting in
  * Needs review on its address, and the people a company already held gains. Idempotent.

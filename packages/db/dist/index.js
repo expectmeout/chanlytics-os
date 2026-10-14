@@ -5514,6 +5514,11 @@ async function leadPeopleSearchCreate(db, p) {
   if (error) throw new Error(`lead_people_search_create: ${error.message}`);
   return data ?? {};
 }
+async function leadAddresseeChoose(db, p) {
+  const { data, error } = await db.rpc("lead_addressee_choose", { p_lead_id: p.leadId, p_person: p.person });
+  if (error) return { data: null, error };
+  return { data: data ?? { error: "no_answer" }, error: null };
+}
 async function leadCompanyUpsert(db, roundId, companies) {
   const { data, error } = await db.rpc("lead_company_upsert", { p_round_id: roundId, p_companies: companies });
   if (error) throw new Error(`lead_company_upsert: ${error.message}`);
@@ -6218,6 +6223,7 @@ export {
   lastInboundEmail,
   lastOutboundEmailSubject,
   leadAddressBounced,
+  leadAddresseeChoose,
   leadCardsLive,
   leadCompanyUpsert,
   leadCountriesOf,

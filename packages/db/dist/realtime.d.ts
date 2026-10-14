@@ -7287,6 +7287,13 @@ type Database = {
                 };
                 Returns: boolean;
             };
+            lead_addressee_choose: {
+                Args: {
+                    p_lead_id: string;
+                    p_person: number;
+                };
+                Returns: Json;
+            };
             lead_addresses_suppressed: {
                 Args: {
                     p_addresses: string[];
@@ -7339,6 +7346,14 @@ type Database = {
                     p_tenant_id: string;
                 };
                 Returns: Json;
+            };
+            lead_check_ask: {
+                Args: {
+                    p_lead_ids: string[];
+                    p_round_id: string;
+                    p_tenant_id: string;
+                };
+                Returns: undefined;
             };
             lead_check_commit: {
                 Args: {

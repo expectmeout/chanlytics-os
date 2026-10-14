@@ -16123,6 +16123,11 @@ var EVENT_KINDS = [
   "lead.put_back",
   /** A lead put off in a pass of the pile: Later ({ search_id, by }), on the lead (00426). */
   "lead.later",
+  /**
+   * Who a company lead's reach-out writes to, chosen by its owner ({ person, checking, by }: the index of one of the people
+   * its source named, and whether their address is being checked first), on the lead (00429 lead_addressee_choose).
+   */
+  "lead.addressee_chosen",
   /** A search renamed ({ name, by }) or removed ({ kept, archived, by }), on the search. */
   "lead.search_renamed",
   "lead.search_removed",
@@ -18472,14 +18477,18 @@ function leadPersonOf(raw) {
     profile_url: capped(o.profile_url, 300)
   };
 }
-function leadFactsOf(raw) {
+function readFacts(raw) {
   const o = recordOrNull(raw);
-  if (!o) return NO_LEAD_FACTS;
-  const people = (Array.isArray(o.people) ? o.people : []).map(leadPersonOf).filter((p) => p !== null).slice(0, LEAD_PEOPLE_MAX);
+  if (!o) return { facts: NO_LEAD_FACTS, at: [] };
+  const stored = (Array.isArray(o.people) ? o.people : []).map((p, at3) => ({ person: leadPersonOf(p), at: at3 })).filter((x) => x.person !== null).slice(0, LEAD_PEOPLE_MAX);
   const a = o.addressee;
-  const addressee = typeof a === "number" && Number.isInteger(a) && a >= 0 && a < people.length ? a : null;
-  return { people, addressee, size: capped(o.size, 20) };
+  const addressee = typeof a === "number" && Number.isInteger(a) ? stored.findIndex((x) => x.at === a) : -1;
+  return {
+    facts: { people: stored.map((x) => x.person), addressee: addressee >= 0 ? addressee : null, size: capped(o.size, 20) },
+    at: stored.map((x) => x.at)
+  };
 }
+var leadFactsOf = (raw) => readFacts(raw).facts;
 function leadAddresseeOf(l) {
   if (l.kind !== "company") return null;
   const f = leadFactsOf(l.facts);
@@ -18491,14 +18500,47 @@ var LEAD_COMPANY_WORDS = {
   size: (s) => `${s} people`,
   profile: "Profile"
 };
+var LEAD_ADDRESSEE_WORDS = {
+  door: "Write to them instead",
+  /** What a role that may not is told it cannot do here (gateTitle). */
+  gated: "choose who a reach-out writes to",
+  choosing: "Choosing\u2026",
+  /** Chosen: who it writes to now, and whether their address is checked first (a few minutes) or was already. */
+  done: (name, checking) => checking ? `${name} is who its reach-out writes to now. Their address is being checked first, which takes a few minutes.` : `${name} is who its reach-out writes to now. Their address was checked already.`,
+  refused: {
+    gone: "This lead is gone.",
+    not_a_company: "Only a company has people to choose from.",
+    no_person: "They are no longer named at this company. Reload and try again.",
+    already: "Its reach-out writes to them already.",
+    closed: "This lead is closed, or already one of your people: who it writes to stays.",
+    written: "It was written to already: who it writes to stays.",
+    in_reach_out: "A reach-out has already planned or sent its email: who it writes to stays.",
+    checking: "Its address is being checked. Choose once the check is done.",
+    no_address: "They have no work address to write to.",
+    suppressed: "Their address is on the never-again list.",
+    in_people: "They are already one of your people.",
+    address_taken: "Another lead has their address.",
+    invalid: "Their address did not check out.",
+    no_round: "Their address can't be checked from here.",
+    searching: "Its search is still running. Choose once it has ended.",
+    paused: "Searching is paused, and their address would need checking. Nothing changed."
+  },
+  /** A refusal the words above do not name. */
+  refusedElse: "Who it writes to did not change. Reload and try again."
+};
+var leadAddresseeRefusal = (code2) => LEAD_ADDRESSEE_WORDS.refused[code2] ?? LEAD_ADDRESSEE_WORDS.refusedElse;
+var choosable = (l) => (l.stage === "ready" || l.stage === "nurture") && !l.closed_reason && !l.contact_id && !l.contacted_at && l.email_state !== "checking";
 function leadCompanyOf(l) {
   if (l.kind !== "company") return null;
-  const f = leadFactsOf(l.facts);
+  const { facts: f, at: at3 } = readFacts(l.facts);
+  const open = choosable(l);
   const people = f.people.map((p, i) => ({
     name: p.name,
     what: p.title ?? (p.role ? LEAD_ROLE_WORDS[p.role] : null),
     addressee: i === f.addressee,
-    profile: p.profile_url
+    profile: p.profile_url,
+    index: at3[i] ?? i,
+    choose: open && i !== f.addressee && !!p.email
   })).sort((a, b) => Number(b.addressee) - Number(a.addressee));
   return {
     head: LEAD_COMPANY_WORDS.head(people.length),
@@ -47466,6 +47508,7 @@ var ROUTE_KEYS = [
   "POST lead-searches/chosen",
   "POST lead-searches/import",
   "POST lead-searches/people",
+  "POST leads/[id]/addressee",
   "POST leads/[id]/draft",
   "POST leads/[id]/exclude",
   "POST leads/[id]/keep",
@@ -51236,6 +51279,7 @@ var WORDS2 = {
   "lead.excluded": "A lead was left out of Needs review",
   "lead.put_back": "A lead was put back in Needs review",
   "lead.later": "A lead was put off for later",
+  "lead.addressee_chosen": "A company's reach-out was set to write to someone else",
   "lead.search_renamed": "A search was renamed",
   "lead.search_removed": "A search was removed",
   "contact.kept_apart": "Two records were kept as two people",
@@ -53091,6 +53135,7 @@ export {
   KEEP_ROW,
   LANGUAGE_GROUP_WORDS,
   LAST_WORDS_TITLE,
+  LEAD_ADDRESSEE_WORDS,
   LEAD_ASK_MAX_FACTOR,
   LEAD_ASK_MIN_FACTOR,
   LEAD_ASSUMED_YIELD,
@@ -54557,6 +54602,7 @@ export {
   lastWordsOf,
   lastWroteOn,
   leadAddresseeOf,
+  leadAddresseeRefusal,
   leadAllowanceFact,
   leadAnd,
   leadAreaFrom,

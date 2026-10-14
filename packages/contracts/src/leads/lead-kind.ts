@@ -139,18 +139,31 @@ function leadPersonOf(raw: unknown): LeadPerson | null {
   };
 }
 
-/** A lead's facts as stored (leads.facts), read safely: what does not read is left out, never guessed. */
-function leadFactsOf(raw: unknown): LeadFacts {
+/**
+ * A lead's facts as stored (leads.facts), read safely: what does not read is left out, never guessed. `at` is each
+ * person's place in the stored list, which the addressee and the door that chooses one name.
+ */
+function readFacts(raw: unknown): { facts: LeadFacts; at: number[] } {
   const o = recordOrNull(raw);
-  if (!o) return NO_LEAD_FACTS;
-  const people = (Array.isArray(o.people) ? o.people : [])
-    .map(leadPersonOf)
-    .filter((p): p is LeadPerson => p !== null)
+  if (!o) return { facts: NO_LEAD_FACTS, at: [] };
+  const stored = (Array.isArray(o.people) ? o.people : [])
+    .map((p, at) => ({ person: leadPersonOf(p), at }))
+    .filter((x): x is { person: LeadPerson; at: number } => x.person !== null)
     .slice(0, LEAD_PEOPLE_MAX);
   const a = o.addressee;
-  const addressee = typeof a === "number" && Number.isInteger(a) && a >= 0 && a < people.length ? a : null;
-  return { people, addressee, size: capped(o.size, 20) };
+  const addressee = typeof a === "number" && Number.isInteger(a) ? stored.findIndex((x) => x.at === a) : -1;
+  return {
+    facts: {
+      people: stored.map((x) => x.person),
+      addressee: addressee >= 0 ? addressee : null,
+      size: capped(o.size, 20),
+    },
+    at: stored.map((x) => x.at),
+  };
 }
+
+/** A lead's facts as stored (leads.facts), read safely (readFacts). */
+const leadFactsOf = (raw: unknown): LeadFacts => readFacts(raw).facts;
 
 /** The person a company's email goes to: its addressee. A place has none; its email goes to the business. */
 export function leadAddresseeOf(l: { kind?: string | null; facts?: unknown }): LeadPerson | null {
@@ -166,6 +179,14 @@ export interface LeadCompanyPersonVM {
   what: string | null;
   addressee: boolean;
   profile: string | null;
+  /** Their place in the company's people as stored (leads.facts.people): what choosing them names to the door. */
+  index: number;
+  /**
+   * Whether they may be chosen as the one its reach-out writes to (00429 lead_addressee_choose): someone else, with a
+   * work address, at a company that is open, in nobody's People, written to by no one and with no check on its way. The
+   * door says the rest (a reach-out that planned it already, an address on the never-again list).
+   */
+  choose: boolean;
 }
 
 /** A company on its peek (00429): its people, the addressee first, its size, and the line on where they came from. */
@@ -184,16 +205,79 @@ export const LEAD_COMPANY_WORDS = {
   profile: "Profile",
 } as const;
 
+/**
+ * Choosing who a company's reach-out writes to (00429 lead_addressee_choose): the peek's door beside one of its people,
+ * what it says once chosen, and each refusal of the door in words, by its code.
+ */
+export const LEAD_ADDRESSEE_WORDS = {
+  door: "Write to them instead",
+  /** What a role that may not is told it cannot do here (gateTitle). */
+  gated: "choose who a reach-out writes to",
+  choosing: "Choosing…",
+  /** Chosen: who it writes to now, and whether their address is checked first (a few minutes) or was already. */
+  done: (name: string, checking: boolean) =>
+    checking
+      ? `${name} is who its reach-out writes to now. Their address is being checked first, which takes a few minutes.`
+      : `${name} is who its reach-out writes to now. Their address was checked already.`,
+  refused: {
+    gone: "This lead is gone.",
+    not_a_company: "Only a company has people to choose from.",
+    no_person: "They are no longer named at this company. Reload and try again.",
+    already: "Its reach-out writes to them already.",
+    closed: "This lead is closed, or already one of your people: who it writes to stays.",
+    written: "It was written to already: who it writes to stays.",
+    in_reach_out: "A reach-out has already planned or sent its email: who it writes to stays.",
+    checking: "Its address is being checked. Choose once the check is done.",
+    no_address: "They have no work address to write to.",
+    suppressed: "Their address is on the never-again list.",
+    in_people: "They are already one of your people.",
+    address_taken: "Another lead has their address.",
+    invalid: "Their address did not check out.",
+    no_round: "Their address can't be checked from here.",
+    searching: "Its search is still running. Choose once it has ended.",
+    paused: "Searching is paused, and their address would need checking. Nothing changed.",
+  } as Readonly<Record<string, string>>,
+  /** A refusal the words above do not name. */
+  refusedElse: "Who it writes to did not change. Reload and try again.",
+} as const;
+
+/** A refusal of the addressee door in words, by its code (lead_addressee_choose's {error}). */
+export const leadAddresseeRefusal = (code: string): string =>
+  LEAD_ADDRESSEE_WORDS.refused[code] ?? LEAD_ADDRESSEE_WORDS.refusedElse;
+
+/** What of a lead says whether its company's people may be chosen from (the peek's row, leads_page). */
+type LeadOpenFacts = {
+  stage?: string | null;
+  closed_reason?: string | null;
+  contact_id?: string | null;
+  contacted_at?: string | null;
+  email_state?: string | null;
+};
+
+/**
+ * Whether another of a company's people may be chosen to write to, as far as the row says: it is open (Ready or Not now),
+ * nobody in People was made of it, nobody wrote to it, and no check of its address is on its way. Unsaid, it is not.
+ */
+const choosable = (l: LeadOpenFacts): boolean =>
+  (l.stage === "ready" || l.stage === "nurture") &&
+  !l.closed_reason &&
+  !l.contact_id &&
+  !l.contacted_at &&
+  l.email_state !== "checking";
+
 /** A company's peek section, or null for a place (its people are People's, in its own section). */
-export function leadCompanyOf(l: { kind?: string | null; facts?: unknown }): LeadCompanyVM | null {
+export function leadCompanyOf(l: { kind?: string | null; facts?: unknown } & LeadOpenFacts): LeadCompanyVM | null {
   if (l.kind !== "company") return null;
-  const f = leadFactsOf(l.facts);
+  const { facts: f, at } = readFacts(l.facts);
+  const open = choosable(l);
   const people = f.people
     .map((p, i) => ({
       name: p.name,
       what: p.title ?? (p.role ? LEAD_ROLE_WORDS[p.role] : null),
       addressee: i === f.addressee,
       profile: p.profile_url,
+      index: at[i] ?? i,
+      choose: open && i !== f.addressee && !!p.email,
     }))
     .sort((a, b) => Number(b.addressee) - Number(a.addressee));
   return {

@@ -598,6 +598,7 @@ export {
   ideasClockAndLanguage,
   leadCountriesOf,
   leadPeopleSearchCreate,
+  leadAddresseeChoose,
   leadCardsLive,
   leadCompanyUpsert,
 } from "./repositories/leads";
