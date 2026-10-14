@@ -36,6 +36,7 @@ const { calendarSample } = await import(`${S}/surfaces/calendar/sample.ts`);
 const { CalendarPage } = await import(`${S}/surfaces/calendar/calendar-page.tsx`);
 const { calendar, installCalendar } = await import(`${S}/surfaces/calendar/verbs.ts`);
 const { CALENDAR_PAGE } = await import(`${S}/surfaces/calendar/words.ts`);
+const { standingSaid } = await import(`${S}/surfaces/kit/head/standing.ts`);
 const { SURFACE_ROUTES, routeHasPage } = await import(`${S}/surfaces/routes.ts`);
 
 const NOW = Date.parse("2026-09-08T16:00:00.000Z");
@@ -205,7 +206,8 @@ test("the page draws what the seam holds; a demo session with none draws the sam
   const cold = draw();
   assert.ok(byTestId(cold, "calendar-cold"), "the board's frame while the weeks are read");
   assert.equal(byTestId(cold, "calendar-real"), null, "and no board drawn over days it has not read");
-  assert.match(textOf(cold), /Reading…/);
+  // On a desk the bar is the act on the frame's row of views (board-parts.tsx calendarAct), so the reading is said there.
+  assert.match(textOf(standingSaid()?.act), /Reading…/);
   // A demo session draws the one Calendar there is, over the sample.
   // The sample covers what the page draws, so a demo session asks for no read (there is nothing to read from).
   const realEnsure = calendar.ensure;
@@ -219,8 +221,12 @@ test("the page draws what the seam holds; a demo session with none draws the sam
   assert.deepEqual(asked, [], "the demo reads nothing");
   const board = byTestId(demo, "calendar-real");
   assert.ok(board, "a demo draws the page over the sample");
-  // The range is the control that opens the kit's date picker, which holds it as a prop (Base UI draws it).
-  const pick = find(demo, (n) => typeof n.props?.today === "string" && typeof n.props?.onValueChange === "function");
+  // The range is the control that opens the kit's date picker, which holds it as a prop (Base UI draws it), in the bar the
+  // page hands the frame's row of views.
+  const pick = find(
+    standingSaid()?.act,
+    (n) => typeof n.props?.today === "string" && typeof n.props?.onValueChange === "function",
+  );
   assert.match(textOf(byTestId(pick.props.trigger, "cal-range")), /\d+ – .*\d+/, "the range names the days on screen");
   assert.ok(
     find(demo, (n) => n.props?.["data-testid"] === "cal-block"),

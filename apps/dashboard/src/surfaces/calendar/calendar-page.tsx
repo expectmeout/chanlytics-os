@@ -27,6 +27,7 @@ import {
   type CalendarRunMark,
   type CalendarRunsDto,
 } from "@chanlytics/contracts";
+import { useStanding } from "../kit/head/standing";
 import { useSlide } from "../kit/motion/use-slide";
 import { viewDeck } from "../kit/motion/view-deck";
 import { canDo, demoSession, navigate, onAPhone } from "../legacy-verbs";
@@ -35,7 +36,7 @@ import { visitWordHere } from "../visit-line";
 import { refreshAct, swipePagesOf } from "./acts";
 import { calendarDayRoute, calendarViewNamed, calendarViewOf } from "./address";
 import { CrAgenda, CrAgendaDay, CrBoard, CrMonth, type ViewAct } from "./blocks";
-import { calendarHead, noticeSlot, rulesSheet } from "./board-parts";
+import { calendarAct, calendarHead, noticeSlot, rulesSheet } from "./board-parts";
 import { crPhone } from "./board-dom";
 import { RunSheet } from "./marks";
 import { wantRuns } from "./runs-surface";
@@ -70,18 +71,24 @@ interface CalendarAddress {
 
 /**
  * The board's frame before its first read (CAL-25): the bar's place and the board's, still, saying it is reading. It drew
- * nothing at all, and the strip of views stood over an empty page until the weeks landed.
+ * nothing at all, and the strip of views stood over an empty page until the weeks landed. On a desk the bar is the act on
+ * the row of views (board-parts.tsx calendarAct), so the reading is said there, and the board stands where it will.
  */
 function ColdFrame() {
+  const phone = onAPhone();
+  const reading = (
+    <span className="cal-title-reading" role="status">
+      Reading…
+    </span>
+  );
+  useStanding(phone ? null : { act: <div className="cal-act cal-bar-cold">{reading}</div> });
   return (
     <div className="calendar" data-testid="calendar-cold" data-loading="">
-      <div className="cal-head">
-        <div className="cal-bar cal-bar-cold">
-          <span className="cal-title-reading" role="status">
-            Reading…
-          </span>
+      {phone ? (
+        <div className="cal-head">
+          <div className="cal-bar cal-bar-cold">{reading}</div>
         </div>
-      </div>
+      ) : null}
       <div className="cal-pane">
         <div className="cal-body cal-body-cold" aria-busy="true" />
       </div>
@@ -246,6 +253,30 @@ function CalendarReal({
     onRuns: (d) => st.setRunsDay(d.key),
   };
   const word = visitWordHere();
+  const bar = {
+    vm,
+    anchor,
+    label: rangeLabel({ view, anchor, frames, shown }),
+    pending,
+    onToday: onTodayOf(view, anchor, vm.today, shown),
+    serviceName,
+    move,
+    setAnchorKey,
+    setServiceName: st.setServiceName,
+    refreshing,
+    refreshNow,
+    openRules: () => st.setRulesOpen(true),
+    show,
+    setShow: st.setShow,
+    offers: runs.offers,
+    many: appointmentWords(word).Many,
+    word,
+    // Yesterday's visits nobody has marked, by Today's own rule (contracts todayVisitsAsked), over the days the board holds.
+    toMark: todayVisitsAsked({ days: vm.days, now: vm.now ?? 0, feed: vm.feed, stats: vm.stats }, nowMs, word),
+    phone,
+  };
+  // The bar on a desk, and Settings on a phone, stand on the frame's row of views (board-parts.tsx calendarAct).
+  useStanding({ act: calendarAct(bar) });
 
   return (
     // Days on their way dim by the one rule every page uses (components.css [data-loading] [data-dims]): after a beat,
@@ -256,28 +287,7 @@ function CalendarReal({
       data-loading={pending ? "" : undefined}
       data-peek={open && !phone ? "" : undefined}
     >
-      {calendarHead({
-        vm,
-        anchor,
-        label: rangeLabel({ view, anchor, frames, shown }),
-        pending,
-        onToday: onTodayOf(view, anchor, vm.today, shown),
-        serviceName,
-        move,
-        setAnchorKey,
-        setServiceName: st.setServiceName,
-        refreshing,
-        refreshNow,
-        openRules: () => st.setRulesOpen(true),
-        show,
-        setShow: st.setShow,
-        offers: runs.offers,
-        many: appointmentWords(word).Many,
-        word,
-        // Yesterday's visits nobody has marked, by Today's own rule (contracts todayVisitsAsked), over the days the board holds.
-        toMark: todayVisitsAsked({ days: vm.days, now: vm.now ?? 0, feed: vm.feed, stats: vm.stats }, nowMs, word),
-        phone,
-      })}
+      {calendarHead(bar)}
       {/* On a phone the bar stands over the days, under the frame's strip of views, and the pane under it holds still
           (mobile.css .cal-pane); a swipe across the days walks to the next or previous days. It is the pane's own touch
           (data-own-drag), so the strip's pager never walks the views under the same finger. On a desk this box is display:

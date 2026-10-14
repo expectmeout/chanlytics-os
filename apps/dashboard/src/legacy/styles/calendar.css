@@ -249,9 +249,11 @@
  .cal-dayhead .cal-allday { flex-basis: 100%; }
 
 /* ---- Month, agenda, the rules bar, the controls ---- */
-/* The service picker takes the room its choice needs and no more: it narrows the board's open times to the ones a
-   service fits, and the board is where that shows. */
-.cal-service { max-width: 180px; }
+/* The service picker takes the room its choice needs and no more, on one line: it narrows the board's open times to the
+   ones a service fits, and the board is where that shows. A long service's name ends in an ellipsis, never a second line
+   (Ruben, 14 Oct 2026: "Open for · Any service" stood on two in a capsule 180 wide). */
+.cal-service { max-width: 260px; white-space: nowrap; }
+.cal-service > :first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 /* The hours, the rules and the calendar's source, under the foot's toggle: one sheet of terms, each label over what it
    says and each value on lines of its own. The terms stand side by side as columns, four across a desk and two to a
    row on a phone, and the booking link's doors close the sheet under a hairline. */
@@ -384,27 +386,27 @@
 .main-scroll > .calendar .cal-bar {
   gap: var(--space-2) var(--space-3);
 }
-.main-scroll > .calendar .cal-steps {
+:is(.main-scroll > .calendar, .cal-act) .cal-steps {
   padding: 2px;
   border: 0;
   border-radius: var(--radius-full);
   background: var(--surface-control-fill);
   box-shadow: var(--surface-control-depth);
 }
-.main-scroll > .calendar .cal-steps > * {
+:is(.main-scroll > .calendar, .cal-act) .cal-steps > * {
   height: var(--control-h-md);
   border-radius: var(--radius-full);
 }
-.main-scroll > .calendar .cal-steps > * + * {
+:is(.main-scroll > .calendar, .cal-act) .cal-steps > * + * {
   border-left: 0;
 }
-.main-scroll > .calendar .cal-title {
+:is(.main-scroll > .calendar, .cal-act) .cal-title {
   min-height: var(--control-h-lg);
   margin-left: 0;
   padding: 0 var(--space-2) 0 var(--space-3);
   border-radius: var(--radius-full);
 }
-.main-scroll > .calendar .cal-title-range {
+:is(.main-scroll > .calendar, .cal-act) .cal-title-range {
   font-size: var(--text-xl);
   font-weight: var(--weight-semibold);
 }
@@ -418,10 +420,10 @@
   }
 }
 
-.main-scroll > .calendar .cal-tools {
+:is(.main-scroll > .calendar, .cal-act) .cal-tools {
   margin-left: auto;
 }
-.main-scroll > .calendar .cal-tools .cal-service {
+:is(.main-scroll > .calendar, .cal-act) .cal-tools .cal-service {
   height: var(--control-h-lg);
   padding-left: var(--space-4);
   border: 0;
@@ -499,11 +501,12 @@
   box-shadow: var(--surface-inset-depth);
 }
 
-/* ---- The options button, at the bar's end ----
-   One menu holds what the calendar offers its owner (the booking link, a read now, the hours and rules, its settings):
-   on a desk a glass capsule the height of the ones beside it, the cog with its word (Ruben, 8 Oct 2026: the bare cog
-   said nothing where the views and the service picker say their words); a phone keeps the circle (the phone block). */
-.main-scroll > .calendar .cal-options {
+/* ---- Settings, at the act's end ----
+   One menu holds what the calendar offers its owner (the booking link, a read now, the hours and rules, its settings): a
+   glass capsule the height of the ones beside it, the cog with its word (Ruben, 8 Oct 2026: the bare cog said nothing
+   where the views and the service picker say their words), and the circle where the row has no room for the word (the
+   act's rules, below). */
+.cal-act .cal-options {
   flex: none;
   gap: var(--space-2);
   height: var(--control-h-lg);
@@ -516,7 +519,7 @@
   font-weight: var(--weight-medium);
   color: var(--ink-muted);
 }
-.main-scroll > .calendar .cal-options[aria-expanded="true"] {
+.cal-act .cal-options[aria-expanded="true"] {
   background: var(--selected-fill);
   color: var(--ink);
 }
@@ -524,7 +527,7 @@
    so the button wore the picked fill after its menu closed until something else was tapped (7 Oct 2026, found on
    Reports' period, which is this button). */
 @media (hover: hover) {
-  .main-scroll > .calendar .cal-options:hover {
+  .cal-act .cal-options:hover {
     background: var(--selected-fill);
     color: var(--ink);
   }
@@ -651,44 +654,14 @@
    (blocks.tsx sets --cal-hour to what fits), so a day scrolls inside its pane only when its hours cannot fit at the
    floor. The agenda is the one list and scrolls inside the body; the pane itself moves only for the rules sheet. */
 @media (max-width: 720px) {
-  /* Under the frame's strip of views, the bar is one row: the range, then the steps and the options at the right, where a
-     thumb finds them wherever the range's words end; then the first day. The row never wraps: what gives way is the
-     options' word (below), never the range or the steps. */
+  /* Under the frame's row of views (Settings at its right, the act's rules), the bar is one row: the range, then the
+     steps at the right, where a thumb finds them wherever the range's words end; then the first day. */
   .main-scroll > .calendar .cal-bar {
     flex-wrap: nowrap;
     column-gap: var(--space-2);
   }
   .main-scroll > .calendar .cal-when {
     flex: 1 0 auto;
-  }
-  .main-scroll > .calendar .cal-tools {
-    flex: 0 1 auto;
-    min-width: 44px;
-    margin-left: 0;
-  }
-  /* The cog keeps its word "Settings" wherever the row has the room for it (decision D8, 13 Oct 2026: the word stays, as
-     #1520 had it), and is the glass circle where it has not. The room is the row's own, whatever the range says this
-     week, not a guess from the screen's width: the button may shrink to the circle, and its word then wraps onto a
-     second line the button's height does not show. The cog stands in the circle's middle either way (Ruben, 9 Oct 2026),
-     14px from its left as (44 - 16) / 2. */
-  .main-scroll > .calendar .cal-options {
-    flex: 0 1 auto;
-    flex-wrap: wrap;
-    align-content: flex-start;
-    justify-content: flex-start;
-    min-width: 44px;
-    max-width: 100%;
-    height: 44px;
-    padding: 0 var(--space-4) 0 14px;
-    overflow: hidden;
-    border-radius: var(--radius-full);
-  }
-  .main-scroll > .calendar .cal-options > .icon {
-    margin-block: 14px;
-  }
-  .main-scroll > .calendar .cal-options-word {
-    line-height: 44px;
-    white-space: nowrap;
   }
   /* The pane is the column the page leaves (mobile.css): it never pulls, the body takes the room between the notices
      and the foot, and a scroll inside it (the agenda's list, a day too tall for its floor) never reaches the page. */
@@ -845,7 +818,7 @@
 .cal-run-send { align-self: flex-start; margin-top: var(--space-3); }
 
 /* ---- The bar: Show, "to mark", and a read said in the range ---- */
-.main-scroll > .calendar .cal-show {
+.cal-act .cal-show {
   gap: var(--space-2);
   height: var(--control-h-lg);
   padding: 0 var(--space-3) 0 var(--space-4);
@@ -881,6 +854,31 @@
 /* ---- The agenda: a day with nothing to say is one slim line (CAL-26) ---- */
 .cal-agenda-day[data-quiet] { padding-top: var(--space-1); padding-bottom: var(--space-1); }
 .cal-agenda-day[data-quiet] .cal-agenda-head { color: var(--ink-dim); }
+
+/* ---- The bar on the frame's row of views (board-parts.tsx calendarAct) ----
+   The page's act, where Reports' period stands: on a desk the whole bar, its steps and range after the views and Show,
+   the service and Settings at the row's end (Ruben, 14 Oct 2026: one row, where the tabs are); where the row cannot hold
+   it all (a narrow window, the sidebar open) the act goes under the views, whole, still at the right. On a phone,
+   Settings alone, beside the views. The row is the container Settings measures itself against: it says its word where
+   the views and the capsule both fit, and is the glass circle, the cog in its middle, where they do not. */
+.pg-slot[data-strip="calendar"] { container: cal-row / inline-size; }
+.cal-act { display: flex; flex: 1 1 auto; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); min-width: 0; }
+.cal-act > .cal-tools { flex-wrap: wrap; justify-content: flex-end; }
+@media (width > 900px) {
+  .pg-slot[data-strip="calendar"] { display: flex; flex-wrap: wrap; align-items: center; gap: 14px var(--space-4); }
+  .pg-slot[data-strip="calendar"] > .pg-head-slot { flex: 1 0 100%; }
+  .pg-slot[data-strip="calendar"] > .pg-act-slot { flex: 1 1 auto; min-width: 0; }
+}
+@media (max-width: 900px), (pointer: coarse) {
+  .cal-act .cal-options { height: 44px; }
+}
+/* The views are 247 wide on a phone and Settings with its word 105, 8 apart, on a row 8 wider than the slot's content
+   (each stands 4 past its gutter): the word needs 352 of it (measured 14 Oct 2026), and 4 more are kept for a font that
+   draws wider. A phone 390 wide says it; one 375 wide keeps the circle. */
+@container cal-row (max-width: 355px) {
+  .cal-act .cal-options { width: 44px; padding: 0; justify-content: center; }
+  .cal-act .cal-options-word { display: none; }
+}
 
 /* ---- The board's frame before its first read (CAL-25) ---- */
 .cal-bar-cold { min-height: var(--control-h-lg); }

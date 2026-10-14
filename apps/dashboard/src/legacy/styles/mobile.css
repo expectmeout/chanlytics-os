@@ -352,9 +352,9 @@
      a day too tall for its floor) never takes the range, the steps and the views off the screen (25 Sep). */
   .calendar { overflow-y: hidden; }
   .cal-pane { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; }
-  /* The head on a phone, under the frame's strip of views: the range, then the steps and the options on the same row, and
-     then the first day. The steps keep the right edge beside the options, so a thumb finds them wherever the range's
-     words end. The service picker is a desk's tool (open times long enough for a service); a phone's glance is the day. A
+  /* The head on a phone, under the frame's strip of views (Settings stands beside the views, calendar.css): the range,
+     then the steps on the same row, and then the first day. The steps keep the right edge, so a thumb finds them wherever
+     the range's words end. The service picker is a desk's tool (open times long enough for a service); a phone's glance is the day. A
      count's tail ("on your calendar", "that fit Balayage", "at least 2h notice") is a desk's word too; one that says
      why there is no number (`meta`, not `note`) stays. */
   .cal-head { padding-top: var(--space-2); }
