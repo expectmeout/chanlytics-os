@@ -26,6 +26,23 @@ export const LEFT_THE_QUEUE: readonly MessageStatus[] = ["sent", "delivered", "r
 const RECEIPTS: ReadonlySet<string> = new Set(["sent", "delivered", "read"]);
 
 /**
+ * The receipts a campaign's counts are made of: Sent's "N delivered", and the funnels' Delivered and Read (run_counts reads them
+ * off the messages; what was sent or failed is the run's own rows, heard as a send). Heard where those counts are drawn (the
+ * wiring's second audit, S3-5): a run finished, and was read, before most of its receipts came, and its counts stood still
+ * while the page was open.
+ */
+export const COUNTED_RECEIPTS: readonly MessageStatus[] = ["delivered", "read"];
+
+/**
+ * How long a surface that counts receipts (`receiptsQuietMs`) waits for a run's receipts to quieten before it reads them,
+ * and the longest it waits from the first while they keep coming: a run of five hundred is a thousand receipts in a few
+ * minutes, each its own notice, and a count need not follow each one. A change that is not a receipt is read at the
+ * surface's own pace.
+ */
+export const RECEIPTS_QUIET_MS = 5_000;
+export const RECEIPTS_LONGEST_WAIT_MS = 30_000;
+
+/**
  * Whether what a read was asked for by is a delivery's receipts alone: every change heard a message's update to sent, delivered
  * or read. Such a read re-reads the threads, whose last words carry the ticks, and nothing beside them: every receipt of a
  * reminder run made the Inbox and Conversations read the holds and the calls again, three requests where one tells (the wiring's

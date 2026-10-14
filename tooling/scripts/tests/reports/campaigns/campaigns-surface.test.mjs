@@ -469,16 +469,15 @@ test("its live-feed rule is the lens's own: messages, conversations, escalations
     undefined,
     "it names its tables, not the historical trio",
   );
-  assert.equal(
-    reportsCampaignsOverride.refreshOnMessageStatuses,
-    undefined,
-    "and a delivery receipt is not heard (an arrival is what the lens counts: the sends' ticks are read as it opens)",
-  );
-  for (const status of ["sent", "delivered", "read", "failed"])
+  // The receipts its funnel counts, Delivered and Read, are heard, and read once a run's receipts quieten (the wiring's second
+  // audit, S3-5): the lens stood still while a run's receipts came in. Sent and failed are the run's own rows, heard as a send.
+  assert.deepEqual(reportsCampaignsOverride.refreshOnMessageStatuses, ["delivered", "read"]);
+  assert.equal(reportsCampaignsOverride.receiptsQuietMs, 5_000, "a run's receipts are read once they quieten");
+  for (const status of ["sent", "failed", "queued"])
     assert.equal(
       wantsRefresh(reportsCampaignsOverride, "messages", { table: "messages", event: "UPDATE", row: { status } }),
       false,
-      `a message ${status}: a tick is not heard`,
+      `a message ${status}: not a receipt the funnel counts`,
     );
   assert.deepEqual(
     reportsHeadlineOverride.refreshOnTables,

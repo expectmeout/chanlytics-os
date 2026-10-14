@@ -222,7 +222,7 @@ const LEAD_FIRST_DAY = {
   wantPeople: "Looking for people at companies?",
   findPeople: "Find people",
 } as const;
-/** When the suggestions cannot be written at all: a note on the page, never a page that fails (4.4's suggestionsFor). */
+/** When the suggestions cannot be written at all: a note on the page, never a page that fails (suggestionsWritten). */
 export const LEAD_SUGGEST_UNAVAILABLE = "Suggestions are not available right now.";
 
 /**
@@ -341,7 +341,7 @@ export const LEAD_WORDS = {
 } as const;
 
 /**
- * How long a workspace's ideas stand before Claude is asked again (suggestionsFor), when nothing else asks sooner: a
+ * How long a workspace's ideas stand before Claude is asked again (suggestionsWritten), when nothing else asks sooner: a
  * round that ends, or a business line saved (00398). A week while they were the line's alone.
  */
 export const LEAD_SUGGEST_DAYS = 30;

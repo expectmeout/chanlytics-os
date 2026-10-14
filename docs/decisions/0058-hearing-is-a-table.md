@@ -452,6 +452,25 @@ the feed never tells. Each was then kept as it was first read.
   - The measure the audit asked for first (whether a covered WebView says it is hidden, logged through the vitals) was not
     taken: the shell's `front` says it whatever the WebView does.
 
+## Amended on 14 October 2026: a count made of receipts is read once they quieten (S3-5), and a read writes nothing (S11-8)
+
+- **The runner has a quiet window by status.** A surface that counts receipts rather than drawing each tick names
+  `receiptsQuietMs`. A read asked by receipts alone (`deliveryTicksOnly`) then waits for them to quieten, 5 seconds
+  (`RECEIPTS_QUIET_MS`), and at most 30 seconds from the first (`RECEIPTS_LONGEST_WAIT_MS`). Anything else is read at the
+  surface's own pace, so a reply among the receipts is not held back.
+- **The counts made of receipts hear them.** Sent's runs, the playbooks, Campaigns' 30 days and the Campaigns lens name
+  `COUNTED_RECEIPTS` (delivered and read; run_counts reads them off the messages, while what was sent or failed is the
+  run's own rows, heard as a send). Each hears them on its own page and keeps them for it elsewhere, as it does an
+  arrival. The Inbox and Conversations draw each tick at once, as before.
+- **The ideas for a first search are a GET that writes nothing and a POST that writes.** `GET lead-suggestions` says
+  what was written and whether it is `due`; `POST lead-suggestions` (an owner's or a partner's, as a search is) claims, asks
+  the model and keeps. The Leads page asks for the POST only when the GET says `due` and the member may find. The read
+  that never writes holds it with no exception.
+- **Closed:** S3-5, S11-8.
+- **Left, with its reason:**
+  - R10's condition is met: Today's pinned lists still count from People's last read (W-person-list-lead-3). A count that
+    agrees with People's rail needs the rail's own rows, visits and context on the server, which is R10's lane.
+
 ## What comes next
 
 - **R5** changes cells one at a time and reads each golden's difference:
@@ -464,4 +483,6 @@ the feed never tells. Each was then kept as it was first read.
 - **R8** makes time a notice: one clock, and one rule for whether a campaign runs (done, above).
 - **R9** makes the feed heal and a hidden page cost nothing: one pass, retries, the rolling heal, a hidden page's hold (done,
   above); the feed's replay is owed.
+- **S3-5 and S11-8** (done, above). **R10** is due: Today's pinned lists and Leads' Talking door, read from a few people's
+  facts rather than People's whole book.
 - The owed count falls as they land.

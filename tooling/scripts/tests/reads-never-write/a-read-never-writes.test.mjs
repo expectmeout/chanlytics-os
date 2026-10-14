@@ -44,8 +44,6 @@ const ALLOWED = {
     "a call's recording opened: the ledger row (open_recording, call; recording_opened, 00277) is who listened, written before the link leaves, once an hour per member",
   "GET export":
     "everything the workspace holds, as one file: the ledger row (export, workspace) is who took a copy of all of it",
-  "GET lead-suggestions":
-    "the ideas for a new search, kept (lead_suggestions_write, 00398): a model's answer cached for a month, claimed so two reads ask it once and rate-limited (lead_suggest), written only for a member who may find; a POST the Leads boot makes once would be its honest shape, owed",
 };
 
 const world = checkout();
