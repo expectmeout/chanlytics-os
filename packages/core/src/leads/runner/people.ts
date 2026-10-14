@@ -15,8 +15,9 @@ import {
   LEAD_CARDS,
   LEAD_ESTIMATE_MARGIN,
   LEAD_PEOPLE_MAX,
+  PEOPLE_RUN_FLOOR_USD,
   firstNameOf,
-  roleOf,
+  leadRoleOf,
   type LeadPeoplePlan,
   type LeadPerson,
   type LeadRole,
@@ -62,13 +63,15 @@ export const peopleToAsk = (plan: LeadPeoplePlan): number => Math.min(PEOPLE_ASK
 
 /**
  * What the run may charge (its cap): the people asked for at the card's price, and its start, with the room; never under
- * the provider's floor, never past what the round has left.
+ * the provider's floor, and never past what the round has left once the checker's floor is kept for the addresses (the
+ * door reserved both floors: contracts peopleEstimateUsd).
  */
 function capOf(plan: LeadPeoplePlan, leftUsd: number): number {
   const brief = LEAD_CARDS.find((c) => c.id === "people_at_companies");
   const want =
     (peopleToAsk(plan) * (brief?.costPerPlaceUsd ?? 0.002) + (brief?.startUsd ?? 0.01)) * LEAD_ESTIMATE_MARGIN;
-  return Math.round(Math.max(PEOPLE_CAP_FLOOR_USD, Math.min(leftUsd, want)) * 100) / 100;
+  const room = leftUsd - PEOPLE_RUN_FLOOR_USD;
+  return Math.round(Math.max(PEOPLE_CAP_FLOOR_USD, Math.min(room, want)) * 100) / 100;
 }
 
 /** lead_round_start for a people plan: its one run, made by its id, claimed, and only then started at the provider. */
@@ -131,7 +134,13 @@ const reasonOf = (who: LeadPerson | undefined, size: string | null): string =>
 /** A page's people by company (00429): each company once, with its people and its addressee. */
 export function companiesOf(found: readonly PersonAtCompany[]): CollectCompany[] {
   const by = new Map<string, { company: PersonAtCompany["company"]; people: LeadPerson[] }>();
-  for (const f of found) {
+  // Those with a work address first, the most senior first among them, so the five a company keeps are the ones it can
+  // be written to through.
+  const ranked = found
+    .map((f, i) => ({ f, i, rank: rankOf(leadRoleOf(f.person.seniority, f.person.title)) }))
+    .sort((a, b) => Number(!a.f.person.email) - Number(!b.f.person.email) || a.rank - b.rank || a.i - b.i)
+    .map((x) => x.f);
+  for (const f of ranked) {
     const at = by.get(f.company.key) ?? { company: f.company, people: [] };
     const named = f.person.name.toLowerCase();
     const twice = at.people.some(
@@ -142,7 +151,7 @@ export function companiesOf(found: readonly PersonAtCompany[]): CollectCompany[]
         name: f.person.name,
         first_name: f.person.first_name ?? firstNameOf(f.person.name, null),
         title: f.person.title,
-        role: roleOf(f.person.seniority, f.person.title),
+        role: leadRoleOf(f.person.seniority, f.person.title),
         email: f.person.email,
         profile_url: f.person.profile_url,
       });
@@ -175,10 +184,13 @@ export function companiesOf(found: readonly PersonAtCompany[]): CollectCompany[]
   return out;
 }
 
-/** How a people round ends once its run is over: what it found against its target, or the source's failure. */
-function endingOf(state: LeadRunState, held: number, target: number): LeadRoundEnding {
-  if (held === 0 && state !== "succeeded") return "source_failed";
-  return held >= target ? "target_reached" : "searched_everything";
+/**
+ * How a people round ends once its run is over: the source's failure when it found nothing and did not finish, else
+ * everything the plan covers was searched. Never "found what you asked for": that is the checks' to say, and a company
+ * found is not yet one written to.
+ */
+function endingOf(state: LeadRunState, held: number): LeadRoundEnding {
+  return held === 0 && state !== "succeeded" ? "source_failed" : "searched_everything";
 }
 
 /**
@@ -222,7 +234,11 @@ export async function collectPeople(
 
   const to = base + items.length;
   const pageShort = items.length < PAGE_ITEMS;
-  const runDone = pageShort && FINAL_RUN_STATES.has(remoteState);
+  const runOver = pageShort && FINAL_RUN_STATES.has(remoteState);
+  // A round goes queued -> running -> checking (lead_rounds_guard refuses queued -> checking): a run already over at its
+  // first collect is read as running here, and the collect this one schedules at once sends the round to its checks.
+  const queued = round.state === "queued";
+  const runDone = runOver && !queued;
   const held = runDone ? (await p.db.membersOfRound(round.id)).length : 0;
   const page: CollectPage = {
     judgment: null,
@@ -230,10 +246,12 @@ export async function collectPeople(
     usage_usd: usage,
     items_seen: run.items_seen + items.length,
     run_state: runDone ? remoteState : null,
-    next: runDone ? null : { kind: "lead_collect", seq: `p${to}`, run_after_seconds: pageShort ? POLL_SECONDS : 0 },
+    next: runDone
+      ? null
+      : { kind: "lead_collect", seq: `p${to}`, run_after_seconds: pageShort && !runOver ? POLL_SECONDS : 0 },
     round: runDone
-      ? { state: "checking", question: null, ending: null, ending_pending: endingOf(remoteState, held, round.target) }
-      : round.state === "queued"
+      ? { state: "checking", question: null, ending: null, ending_pending: endingOf(remoteState, held) }
+      : queued
         ? { state: "running", question: null, ending: null }
         : null,
   };

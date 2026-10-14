@@ -48,7 +48,8 @@ export function contactEvidenceOf(d: PersonDetailDto, first: ContactEvidence["fi
     lead: d.lead
       ? {
           foundMs: moment(d.lead.found_at),
-          ownList: reachOut?.found_on_listing === false,
+          // A list of the owner's own (00242), never a company the people card found, which no listing named either.
+          ownList: reachOut?.source ? reachOut.source === "import" : reachOut?.found_on_listing === false,
           firstSendMs: earliest((reachOut?.sends ?? []).map((x) => moment(x.sent_at))),
         }
       : null,

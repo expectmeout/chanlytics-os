@@ -198,6 +198,16 @@ export async function ideasBasis(db: Db, tenantId: string): Promise<string | nul
 }
 
 /**
+ * The cards that find leads now (00429 lead_cards_live: lead_platform.cards_on): the Maps card, and the people card once
+ * its calibration run proved it. What the Leads page offers and Ask proposes; the door refuses the rest itself.
+ */
+export async function leadCardsLive(db: Db): Promise<string[]> {
+  const { data, error } = await db.rpc("lead_cards_live");
+  if (error) throw new Error(`cannot read which cards find leads: ${error.message}`);
+  return data ?? ["local_businesses"];
+}
+
+/**
  * A people search (00429 lead_people_search_create), as the member signed in: the plan, where it was made, the estimate
  * the route worked out and the Ask thread it was planned in. The door's own refusals ({error, sentence}) come back as
  * its answer; a thrown one is a request it refused outright.

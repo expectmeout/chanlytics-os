@@ -1,11 +1,14 @@
 /**
  * Find people at companies (the people card, 00429; decision 0057's call 8): Leads' rail door beside Import leads, and
  * the record sheet it opens. The owner says who (what they are called, how senior), at which companies (industries,
- * sizes) and where (US states), and how many; the plan is contracts' (peoplePlanFrom), said back in one sentence, and
- * posted to POST lead-searches/people, whose door reserves the month's leads and starts the search. The card's
- * source-rights note is said under the fields, before anything is spent. Every word is contracts'; every part the kit's.
+ * sizes) and where (US states), and how many companies; the plan is contracts' (peoplePlanFrom), said back in one
+ * sentence, and posted to POST lead-searches/people, whose door reserves the month's leads and starts the search. What
+ * the route would refuse is said at its box before anything is asked (peopleSheetProblems): a state that reads as none is
+ * never dropped into a search of the whole US. A search's own plan opens it filled in (Find more like these). The card's
+ * source-rights note is said under the fields, before anything is spent. The door is drawn only while the card finds
+ * leads (00429 lead_card_live). Every word is contracts'; every part the kit's.
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   LEAD_CARDS,
   PEOPLE_COMPANY_SIZES,
@@ -14,13 +17,14 @@ import {
   PEOPLE_INDUSTRIES_MAX,
   PEOPLE_SENIORITIES,
   PEOPLE_SENIORITY_WORDS,
-  PEOPLE_STATES_MAX,
   PEOPLE_TITLES_MAX,
   leadsRoute,
   listTyped,
   peoplePlanFrom,
   peoplePlanSentence,
-  usStateCode,
+  peopleSheetProblems,
+  usStatesTyped,
+  type LeadPeoplePlan,
   type PeopleCompanySize,
   type PeopleSeniority,
 } from "@chanlytics/contracts";
@@ -30,16 +34,16 @@ import { Field } from "../../kit/field/field";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
 import { Sheet } from "../../kit/sheet/sheet";
-import { gate, navigate } from "../../legacy-verbs";
+import { focusAsDrawn, gate, navigate } from "../../legacy-verbs";
 import type { Flash } from "../../people/types";
 
-const W = PEOPLE_FIND_WORDS;
+const PW = PEOPLE_FIND_WORDS;
 
 /** Starts a people search: the plan as the owner made it, from the page. */
-const findPeople = (plan: ReturnType<typeof peoplePlanFrom>) =>
+const findPeople = (plan: LeadPeoplePlan) =>
   api()("POST lead-searches/people", { body: { plan, via: "people", thread_id: null }, once: true });
 
-/** One set of switches in a menu: what is on, and the words each says. */
+/** One set of switches in a menu, under its label: what is on, and the words each says. */
 function Toggles<V extends string>(p: {
   label: string;
   any: string;
@@ -51,42 +55,67 @@ function Toggles<V extends string>(p: {
 }) {
   const said = p.on.length ? p.on.map(p.words).join(", ") : p.any;
   return (
-    <Menu
+    <Field
       label={p.label}
-      groups={[
-        {
-          header: p.label,
-          toggles: {
-            items: p.all.map((v) => ({ value: v, label: p.words(v), on: p.on.includes(v) })),
-            onToggle: (v) =>
-              p.onChange(
-                p.on.includes(v as V) ? p.on.filter((x) => x !== v) : p.all.filter((x) => x === v || p.on.includes(x)),
-              ),
-            tick: <Icon name="check" size={13} />,
-          },
-        },
-      ]}
-      trigger={
-        <Button variant="secondary" size="sm" data-testid={p.testid}>
-          {said} <Icon name="chevron-down" size={11} />
-        </Button>
+      control={
+        <Menu
+          label={p.label}
+          groups={[
+            {
+              header: p.label,
+              toggles: {
+                items: p.all.map((v) => ({ value: v, label: p.words(v), on: p.on.includes(v) })),
+                onToggle: (v) =>
+                  p.onChange(
+                    p.on.includes(v as V)
+                      ? p.on.filter((x) => x !== v)
+                      : p.all.filter((x) => x === v || p.on.includes(x)),
+                  ),
+                tick: <Icon name="check" size={13} />,
+              },
+            },
+          ]}
+          trigger={
+            <Button variant="secondary" size="sm" aria-label={`${p.label}: ${said}`} data-testid={p.testid}>
+              {said} <Icon name="chevron-down" size={11} />
+            </Button>
+          }
+        />
       }
     />
   );
 }
 
-/** The sheet: the plan's fields, its sentence, the source's note, and Find. */
-function FindPeopleSheet({ onClose, flash }: { onClose: () => void; flash: Flash | null }) {
-  const [titles, setTitles] = useState("");
-  const [seniority, setSeniority] = useState<PeopleSeniority[]>([]);
-  const [industries, setIndustries] = useState("");
-  const [sizes, setSizes] = useState<PeopleCompanySize[]>([]);
-  const [states, setStates] = useState("");
-  const [count, setCount] = useState("100");
+/** What a box says is wrong with it, with the kit's glyph, or nothing. */
+const problemOf = (problem: string | undefined) =>
+  problem ? { problem, problemGlyph: <Icon name="alert" size={12} /> } : {};
+
+/** The sheet: the plan's fields, its sentence, the source's note, and Find. `from` fills it in with a plan made before. */
+function FindPeopleSheet({
+  onClose,
+  flash,
+  from,
+}: {
+  onClose: () => void;
+  flash: Flash | null;
+  from: LeadPeoplePlan | null;
+}) {
+  const [titles, setTitles] = useState(from ? from.titles.join(", ") : "");
+  const [seniority, setSeniority] = useState<PeopleSeniority[]>(from ? [...from.seniority] : []);
+  const [industries, setIndustries] = useState(from ? from.industries.join(", ") : "");
+  const [sizes, setSizes] = useState<PeopleCompanySize[]>(from ? [...from.sizes] : []);
+  const [states, setStates] = useState(from ? from.states.join(", ") : "");
+  const [count, setCount] = useState(String(from ? from.count : 100));
   const [busy, setBusy] = useState(false);
   const [wrong, setWrong] = useState<string | null>(null);
+  // Problems are said once Find was pressed, so a box is never red while its first words are still being typed.
+  const [tried, setTried] = useState(false);
+  // The first box takes the focus as the sheet opens, where a keyboard is not raised over it (focusAsDrawn).
+  const first = useRef<HTMLInputElement | null>(null);
 
-  const n = Number.parseInt(count, 10);
+  const problems = peopleSheetProblems({ titles, industries, states, count });
+  const shown = tried ? problems : {};
+  const n = Number(count.trim());
   const plan = peoplePlanFrom({
     asked: titles.trim(),
     count: Number.isInteger(n) ? Math.min(Math.max(n, 1), PEOPLE_COUNT_MAX) : 1,
@@ -94,25 +123,23 @@ function FindPeopleSheet({ onClose, flash }: { onClose: () => void; flash: Flash
     seniority,
     industries: listTyped(industries, PEOPLE_INDUSTRIES_MAX),
     sizes,
-    states: listTyped(states, PEOPLE_STATES_MAX)
-      .map(usStateCode)
-      .filter((s): s is string => !!s),
+    states: usStatesTyped(states).codes,
   });
   const rights = LEAD_CARDS.find((c) => c.id === "people_at_companies")?.rights ?? "";
 
   const start = async () => {
     if (busy) return;
-    if (!plan.titles.length) return setWrong(W.needTitle);
-    if (!Number.isInteger(n) || n < 1 || n > PEOPLE_COUNT_MAX) return setWrong(W.needCount);
+    setTried(true);
+    if (Object.keys(problems).length) return;
     setWrong(null);
     setBusy(true);
     const r = await findPeople(plan);
     setBusy(false);
     if (!r.ok) {
-      setWrong(r.message || W.failed);
+      setWrong(r.message || PW.failed);
       return;
     }
-    if (flash) flash({ msg: <>{W.done}</> });
+    if (flash) flash({ msg: <>{PW.done}</> });
     onClose();
     if (r.data.search_id) navigate(leadsRoute({ searchId: r.data.search_id, list: "all" }));
   };
@@ -121,32 +148,34 @@ function FindPeopleSheet({ onClose, flash }: { onClose: () => void; flash: Flash
     <Sheet
       open
       onClose={onClose}
-      title={W.title}
-      sub={W.sub}
-      close={{ label: W.cancel, glyph: <Icon name="x" size={13} /> }}
+      title={PW.title}
+      sub={PW.sub}
+      close={{ label: PW.cancel, glyph: <Icon name="x" size={13} /> }}
       testid="find-people"
+      {...(focusAsDrawn() ? { initialFocus: first } : {})}
       foot={
         <>
           <Button variant="quiet" onClick={onClose} data-testid="find-people-cancel">
-            {W.cancel}
+            {PW.cancel}
           </Button>
           <Button variant="primary" disabled={busy} onClick={() => void start()} data-testid="find-people-start">
-            {busy ? W.starting : W.start(plan.count)}
+            {busy ? PW.starting : PW.start(plan.count)}
           </Button>
         </>
       }
     >
       <Field
-        label={W.titles}
-        hint={W.titlesHint}
+        label={PW.titles}
+        hint={PW.titlesHint}
         value={titles}
         onValueChange={setTitles}
-        autoFocus
+        ref={first}
         data-testid="find-people-titles"
+        {...problemOf(shown.titles)}
       />
       <Toggles
-        label={W.seniority}
-        any={W.seniorityAny}
+        label={PW.seniority}
+        any={PW.seniorityAny}
         all={PEOPLE_SENIORITIES}
         words={(v) => PEOPLE_SENIORITY_WORDS[v]}
         on={seniority}
@@ -154,15 +183,16 @@ function FindPeopleSheet({ onClose, flash }: { onClose: () => void; flash: Flash
         testid="find-people-seniority"
       />
       <Field
-        label={W.industries}
-        hint={W.industriesHint}
+        label={PW.industries}
+        hint={PW.industriesHint}
         value={industries}
         onValueChange={setIndustries}
         data-testid="find-people-industries"
+        {...problemOf(shown.industries)}
       />
       <Toggles
-        label={W.sizes}
-        any={W.sizesAny}
+        label={PW.sizes}
+        any={PW.sizesAny}
         all={PEOPLE_COMPANY_SIZES}
         words={(v) => v}
         on={sizes}
@@ -170,23 +200,25 @@ function FindPeopleSheet({ onClose, flash }: { onClose: () => void; flash: Flash
         testid="find-people-sizes"
       />
       <Field
-        label={W.states}
-        hint={W.statesHint}
+        label={PW.states}
+        hint={PW.statesHint}
         value={states}
         onValueChange={setStates}
         data-testid="find-people-states"
+        {...problemOf(shown.states)}
       />
       <Field
-        label={W.count}
-        hint={W.countHint}
+        label={PW.count}
+        hint={PW.countHint}
         value={count}
         onValueChange={setCount}
         inputMode="numeric"
         maxLength={3}
         data-testid="find-people-count"
+        {...problemOf(shown.count)}
       />
       <p className="pk-alt-why" data-testid="find-people-plan">
-        {plan.titles.length ? peoplePlanSentence(plan) : W.needTitle}
+        {plan.titles.length ? peoplePlanSentence(plan) : PW.needTitle}
       </p>
       {rights ? <p className="pk-alt-why">{rights}</p> : null}
       {wrong ? (
@@ -198,20 +230,23 @@ function FindPeopleSheet({ onClose, flash }: { onClose: () => void; flash: Flash
   );
 }
 
-/** Leads' Find people: the rail's door, and the sheet it opens. Only who may find leads may open it. */
-export function useFindPeople({ flash = null }: { flash?: Flash | null } = {}) {
-  const [open, setOpen] = useState(false);
-  const door = (
+/**
+ * Leads' Find people: the rail's door, and the sheet it opens, filled in when it is opened with a plan. Only who may find
+ * leads may open it, and only while the people card finds leads (`live`, 00429 lead_card_live): no door otherwise.
+ */
+export function useFindPeople({ flash = null, live }: { flash?: Flash | null; live: boolean }) {
+  const [open, setOpen] = useState<{ from: LeadPeoplePlan | null } | null>(null);
+  const door = live ? (
     <Button
       variant="quiet"
       size="sm"
-      onClick={() => setOpen(true)}
+      onClick={() => setOpen({ from: null })}
       data-testid="leads-find-people"
       {...gate("find", "find people at companies")}
     >
-      <Icon name="search" size={11} /> {W.door}
+      <Icon name="search" size={11} /> {PW.door}
     </Button>
-  );
-  const node = open ? <FindPeopleSheet onClose={() => setOpen(false)} flash={flash} /> : null;
-  return { door, node, open: () => setOpen(true) };
+  ) : null;
+  const node = open ? <FindPeopleSheet onClose={() => setOpen(null)} flash={flash} from={open.from} /> : null;
+  return { door, node, open: (from: LeadPeoplePlan | null = null) => (live ? setOpen({ from }) : undefined) };
 }

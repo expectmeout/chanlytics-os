@@ -90,6 +90,8 @@ interface FirstDayProps {
   onNewIdeas?: () => void;
   /** Opens the sheet a list of the owner's own is brought in by. */
   onImport?: () => void;
+  /** Opens Find people (the people card, 00429): the page's door to it where no rail is drawn, a phone's included. */
+  onFindPeople?: () => void;
   onOpenLine?: () => void;
   onLineDraft?: (draft: string) => void;
   onSaveLine?: () => void;
@@ -278,6 +280,7 @@ export const LeadsFirstDay = ({
   onIdea = () => undefined,
   onNewIdeas = () => undefined,
   onImport = () => undefined,
+  onFindPeople,
   onOpenLine = () => undefined,
   onLineDraft = () => undefined,
   onSaveLine = () => undefined,
@@ -344,6 +347,21 @@ export const LeadsFirstDay = ({
             </LinkButton>
           </p>
         )}
+        {/* Named people at companies (the people card): on a phone too, which has no rail and no other door to it but
+            Ask. */}
+        {onFindPeople ? (
+          <p className="ld-first-side">
+            {FIRST_DAY_SAYS.wantPeople}{" "}
+            <LinkButton
+              className="ld-first-edit"
+              onClick={onFindPeople}
+              data-testid="ld-first-find-people"
+              {...gate("find", "find people at companies")}
+            >
+              {FIRST_DAY_SAYS.findPeople}
+            </LinkButton>
+          </p>
+        ) : null}
       </div>
       {/* The line's sheet stands over the page, which keeps its sentence behind it: a phone's small job, drawn while
           shut so it leaves as it came, and a desk's sheet beside the page. */}

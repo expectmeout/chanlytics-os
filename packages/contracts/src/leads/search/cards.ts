@@ -41,6 +41,12 @@ export interface LeadCardBrief {
    */
   rights: string;
   approved: true;
+  /**
+   * The paid run that proved the provider reads the card's filters and its mapper the provider's fields, at the build the
+   * card pins: what lets lead_platform.cards_on name it (00429 lead_card_live). Null until it has run; absent for the Maps
+   * card, which was proved before this was asked.
+   */
+  calibrated?: { build: string; on: string; items: number; mapped: number } | null;
 }
 
 export const LEAD_CARDS: readonly LeadCardBrief[] = [
@@ -78,12 +84,13 @@ export const LEAD_CARDS: readonly LeadCardBrief[] = [
       "50 independent pharmacies in ZIP 78704 that could stock an OTC product, a phone is enough",
       "100 family law firms within 15 km of downtown Denver, email checked, leaving out referral networks",
     ],
-    rights:
-      "Public Google Maps listings, read through Apify, and contacts from each business's own site; no reviewer's data, no photos.",
+    rights: "Public Google Maps listings, and contacts from each business's own site; no reviewer's data, no photos.",
     approved: true,
   },
   {
-    // The people card (the workbench's call 8, 00429), approved by Ruben on 14 Oct 2026 with its source-rights note.
+    // The people card (the workbench's call 8, 00429), approved by Ruben on 13 Oct 2026 with its source-rights note. It
+    // finds nothing until its calibration run: lead_platform.cards_on (00429 lead_card_live) is switched on by hand once
+    // that run proves the provider reads its filters and the mapper its fields (calibrated, below).
     id: "people_at_companies",
     finds: "people",
     goodFor: [
@@ -119,8 +126,9 @@ export const LEAD_CARDS: readonly LeadCardBrief[] = [
       "200 office managers at dental practices in California",
     ],
     rights:
-      "From a B2B contact database on Apify, built from public professional profiles and company sites, LinkedIn's among them; we never sign in to LinkedIn or read it ourselves, keep a person's name, title, work address and profile link only, check each address before anything is sent, and never write again to anyone who says no.",
+      "From a B2B contact database built from public professional profiles and company sites; we never sign in anywhere to read them, keep a person's name, title, work address and profile link only, check each address before anything is sent, and never write again to anyone who says no.",
     approved: true,
+    calibrated: null,
   },
 ];
 

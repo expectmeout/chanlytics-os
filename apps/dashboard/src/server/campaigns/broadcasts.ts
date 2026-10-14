@@ -23,7 +23,7 @@ import {
   type RecipientState,
   type RunAnswer,
 } from "@chanlytics/contracts";
-import { readAllRows, runCounts, runSendCounts } from "@chanlytics/db";
+import { readAllRows, runCounts, runWaitingCounts } from "@chanlytics/db";
 import { log } from "@/server/log";
 import { reachOutRunOf } from "@/server/campaigns/reach-outs";
 import type { RouteContext } from "@/server/with-route";
@@ -437,11 +437,13 @@ async function withHeld(ctx: RouteContext, tenantId: string, rows: BroadcastDto[
   if (!going.length) return rows;
   try {
     const runIds = going.map((b) => b.id);
-    const [held, drafted] = await Promise.all([
-      runSendCounts(ctx.supabase, { tenantId, runIds, state: "held" }),
-      runSendCounts(ctx.supabase, { tenantId, runIds, state: "drafted" }),
-    ]);
-    return rows.map((b) => (held.has(b.id) ? { ...b, held: held.get(b.id) ?? 0, drafted: drafted.get(b.id) ?? 0 } : b));
+    const waiting = await runWaitingCounts(ctx.supabase, { tenantId, runIds });
+    // Every going run says its counts, a zero too: one with none waiting reads 0, never absent.
+    return rows.map((b) => {
+      if (!runIds.includes(b.id)) return b;
+      const w = waiting.get(b.id);
+      return { ...b, held: w?.held ?? 0, drafted: w?.drafted ?? 0 };
+    });
   } catch (e) {
     log.error("broadcasts_held_read_failed", {
       tenant_id: tenantId,

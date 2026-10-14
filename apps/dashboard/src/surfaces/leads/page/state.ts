@@ -38,6 +38,7 @@ const PL_NO_LEADS: LeadsSurface = {
   tz: "UTC",
   readFailed: false,
   fetchedAt: 0,
+  cardsLive: [],
 };
 
 /**

@@ -255,10 +255,10 @@ export const reachOuts = {
     api()("POST reach-out-sends/[id]/said", { params: { id: sendId }, body: { outcome } }),
   /** What the business wrote back to an email its owner sent, as the owner says it on the lead (00428). */
   sayReply: (leadId: string, body: ReachOutReplySaidInput) =>
-    api()("POST reach-outs/leads/[id]/said", { params: { id: leadId }, body }),
+    api()("POST reach-outs/leads/[id]/said", { params: { id: leadId }, body, once: true }),
   /** What the owner's word did, by the business's clock: a not now names the day the lead comes back. */
-  saidReplyWords: (business: string, intent: OwnerSaidIntent, resumeAt: string | null) =>
-    REACH_OUT_SAID_WORDS.done(business, intent, { at: resumeAt, tz: businessZone(), nowMs: Date.now() }),
+  saidReplyWords: (business: string, intent: OwnerSaidIntent, resumeAt: string | null, referTo: string | null) =>
+    REACH_OUT_SAID_WORDS.done(business, intent, { at: resumeAt, tz: businessZone(), nowMs: Date.now() }, referTo),
   /** A run's "Check the held again": every email the check could not answer, back to be checked in one call (R18). */
   recheck: (runId: string) => api()("POST broadcasts/[id]/recheck", { params: { id: runId } }),
   /**

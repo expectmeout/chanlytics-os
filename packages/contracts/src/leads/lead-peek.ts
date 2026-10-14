@@ -16,7 +16,7 @@ import {
 import { CLOCK, clockIn, hourOf, milesLabel } from "./lead-helpers";
 import { leadRatingOf, type LeadSlot } from "./lead-row";
 import type { LeadSearchPlan } from "./search/plan";
-import { leadCompanyOf, type LeadCompanyVM } from "./lead-kind";
+import { LEAD_DIRECTORY_WORDS, leadCompanyOf, type LeadCompanyVM } from "./lead-kind";
 import type { LeadEmailState } from "./search/sets";
 import { roleAtLeast } from "../config/roles";
 import {
@@ -251,14 +251,21 @@ function dayIn(tz: string, iso: string | null, now: Date): string {
  * of its own. The mark is `initialsOf`, the same derivation the row wears, never a second one.
  */
 /**
- * Where a lead was found, in the peek's words: the head's short line, the first step's, and the site's. A lead a list of
- * the owner's own brought (00242) has no place: it was found on no listing, and its address came with the list.
+ * Where a lead was found, in the peek's words: the head's short line, the first step's, and the site's. A company the
+ * people card found (00429) came from a business directory, its address with its people; a lead a list of the owner's
+ * own brought (00242) has no place either: it was found on no listing, and its address came with the list.
  */
 function foundWords(
-  r: Pick<LeadRowDto, "place_id" | "rank" | "website" | "email_state">,
+  r: Pick<LeadRowDto, "place_id" | "rank" | "website" | "email_state" | "kind">,
   term: string | null,
 ): { summary: string; what: string; site: string } {
   const host = r.website;
+  if (r.kind === "company")
+    return {
+      summary: LEAD_DIRECTORY_WORDS.found,
+      what: LEAD_DIRECTORY_WORDS.found,
+      site: host ? `${host} · ${LEAD_DIRECTORY_WORDS.address}` : LEAD_DIRECTORY_WORDS.addressAlone,
+    };
   if (!r.place_id)
     return {
       summary: "From your list",
@@ -323,7 +330,9 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
         ? LEAD_REVIEW_WORD
         : `${LEAD_LEFT_OUT_WORD} — ${leadExclusionWord(search, m.excluded_by)}`;
   const fitCls = m.class === "qualified" ? (m.fit ?? "look") : m.class === "review" ? "review" : "out";
-  const standard = LEAD_CONTACT_STANDARD_WORDS[search?.plan.contact === "email" ? "email" : "phone"];
+  // A people search keeps to an address alone (00429), as an email plan does.
+  const standard =
+    LEAD_CONTACT_STANDARD_WORDS[(search?.plan ?? search?.people)?.contact === "email" ? "email" : "phone"];
   const emailNote = r.email
     ? r.email_state === "ok"
       ? `${LEAD_MAILBOX_WORDS.ok} · checked ${dayIn(tz, r.email_checked_at, now) || "on finding it"}`
@@ -360,7 +369,7 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
       }
     : null;
   const host = r.website;
-  const term = search?.plan.terms[0] ?? null;
+  const term = search?.plan?.terms[0] ?? null;
   const where = foundWords(r, term);
   // D5: the peek re-cut -- the tile, the rating apart, the checks' head, the week, and the listing's facts.
   const checksSummary = checksSummaryOf(m.checks);
@@ -483,7 +492,7 @@ export const LEAD_REMOVE_KEEPS = "Keeps the ones you contacted or are talking to
  * leaves out. One derivation, because the rail's menu and the question before Remove both say it.
  */
 export function leadSearchWords(
-  s: { asked: string; asked_on: string; plan?: LeadSearchPlan; via?: string } | null,
+  s: { asked: string; asked_on: string; plan?: LeadSearchPlan | null; via?: string } | null,
   tz: string,
 ): { askedLine: string; keepsLine: string } {
   if (!s) return { askedLine: "", keepsLine: LEAD_REMOVE_KEEPS };

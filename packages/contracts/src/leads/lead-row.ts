@@ -8,7 +8,7 @@ import { leadSlots, leadTileSrc, leadTintOf, leadTodayLine, leadUndoable, leadWh
 import { clockIn, milesLabel } from "./lead-helpers";
 import { leadReviewGroups } from "./lead-review";
 import { isLeadList } from "./lead-import";
-import { leadAddresseeOf } from "./lead-kind";
+import { LEAD_DIRECTORY_WORDS, leadAddresseeOf } from "./lead-kind";
 import type { LEAD_CLOSED_REASONS, LeadEmailState } from "./search/sets";
 import { siteHost } from "./search/clean";
 import {
@@ -281,7 +281,7 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
               ? LEAD_LEFT_OUT_WORD
               : stageLabelOf(r.stage, r.closed_reason)
             : null;
-  const term = search?.plan.terms[0] ?? null;
+  const term = search?.plan?.terms[0] ?? null;
   const card: LeadRowCard = {
     about: r.about ?? null,
     today: leadTodayLine(r.hours ?? [], tz, now),
@@ -368,8 +368,12 @@ export function leadRowOf(r: LeadRowDto, tz: string, now: Date, search: LeadSear
 /** A round that is still going; one waiting on the owner is its own mark. */
 const roundIsLive = (state: string): boolean => state !== "ended" && state !== "waiting_on_owner";
 
-/** Where a row's lead was found. A lead a list of the owner's own brought (00242) has no place: found on no listing. */
-function foundLine(r: Pick<LeadRowDto, "place_id" | "rank">, term: string | null): string {
+/**
+ * Where a row's lead was found. A company the people card found (00429) came from a business directory; a lead a list
+ * of the owner's own brought (00242) has no place: found on no listing.
+ */
+function foundLine(r: Pick<LeadRowDto, "place_id" | "rank" | "kind">, term: string | null): string {
+  if (r.kind === "company") return LEAD_DIRECTORY_WORDS.found;
   if (!r.place_id) return "From your list";
   if (!term) return "On a Google Maps listing";
   return r.rank ? `On Google Maps, #${r.rank} for “${term}”` : `On Google Maps, searching “${term}”`;
@@ -390,6 +394,8 @@ export function leadRail(
     undoable: boolean;
     /** A list of the owner's own (00242): its menu offers nothing that searches again. */
     list: boolean;
+    /** A people search (00429): its menu's way back is Find people, filled in, never the places card. */
+    people: boolean;
   }[];
 } {
   // Said no is a list only when somebody said no: an empty row in the rail
@@ -410,6 +416,7 @@ export function leadRail(
       count: s.round?.counted ?? 0,
       undoable: leadUndoable(s, now),
       list: isLeadList(s),
+      people: !!s.people,
       mark: !s.round
         ? null
         : s.round.state === "waiting_on_owner"

@@ -9,7 +9,7 @@
  */
 import { useMemo, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
-import { leadsRoute } from "@chanlytics/contracts";
+import { leadsRoute, type LeadPeoplePlan } from "@chanlytics/contracts";
 import { reachOuts } from "../../campaigns/reach-out/surface";
 import { ReachOutSheet } from "../../campaigns/reach-out/sheet";
 import { FieldError } from "../../kit/field-error/field-error";
@@ -348,8 +348,17 @@ export const LeadImportSheet = ({
 /** What the page draws of a list of your own: the rail's door, the bar's act, the sheets, and a list's strip and empty state. */
 export interface LeadLists {
   importDoor: ReactNode;
+  /** The rail's Find people (00429), beside Import leads; null while the people card finds nothing (lead_card_live). */
+  findPeopleDoor: ReactNode;
+  /** Whether the people card finds leads now: the first day and a phone's New search offer it only then. */
+  peopleLive: boolean;
   /** Opens the import sheet: the first day's own door to it, where no rail is drawn. */
   openImport: () => void;
+  /**
+   * Opens Find people (00429), filled in with a plan made before (a people search's Find more like these), or empty: the
+   * first day's and a phone's New search door to it, where no rail is drawn.
+   */
+  openFindPeople: (from?: LeadPeoplePlan | null) => void;
   writeAct: (a: { ids: string[]; phone?: boolean; shut?: () => void }) => ReactNode;
   /** Writes to these leads: the list made of them, and its reach-out's sheet (the pile's held leads, 00426). */
   writeTo: (ids: string[]) => void;
@@ -362,12 +371,19 @@ export interface LeadLists {
  * The page's one hook (J12): the rail's *Import leads*, the bar's *Write to them* for the rows chosen and shown, and the
  * sheet either opens. A list made lands the page on it; one chosen opens the reach-out sheet over it.
  */
-export const useLeadLists = ({ flash = null }: { flash?: ((f: PeopleFlash) => void) | null } = {}): LeadLists => {
+export const useLeadLists = ({
+  flash = null,
+  peopleLive = false,
+}: {
+  flash?: ((f: PeopleFlash) => void) | null;
+  /** Whether the people card finds leads now (the searches' cards_live, 00429 lead_card_live). */
+  peopleLive?: boolean;
+} = {}): LeadLists => {
   const [importing, setImporting] = useState(false);
   const [writing, setWriting] = useState<{ id: string; name: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const L = reachOuts.lists;
-  const people = useFindPeople({ flash });
+  const people = useFindPeople({ flash, live: peopleLive });
   const open = (id: string) => navigate(leadsRoute({ searchId: id, list: "all" }));
   const may = canDo("approve");
   const choose = async (ids: string[]) => {
@@ -385,18 +401,15 @@ export const useLeadLists = ({ flash = null }: { flash?: ((f: PeopleFlash) => vo
     setWriting({ id: r.data.search_id, name });
   };
   const importDoor = (
-    <>
-      <button
-        type="button"
-        className="cl-rail-newseg"
-        onClick={() => setImporting(true)}
-        data-testid="leads-import"
-        {...gate("find", "import leads")}
-      >
-        <Icon name="download" size={11} /> {L.words.importDoor}
-      </button>
-      {people.door}
-    </>
+    <button
+      type="button"
+      className="cl-rail-newseg"
+      onClick={() => setImporting(true)}
+      data-testid="leads-import"
+      {...gate("find", "import leads")}
+    >
+      <Icon name="download" size={11} /> {L.words.importDoor}
+    </button>
   );
   // The act for the rows chosen and shown (never "all that match": a view is not a list of ids), on a desk the bar's
   // button and on a phone a row of its sheet (`shut` closes the sheet first).
@@ -448,7 +461,10 @@ export const useLeadLists = ({ flash = null }: { flash?: ((f: PeopleFlash) => vo
   );
   return {
     importDoor,
+    findPeopleDoor: people.door,
+    peopleLive,
     openImport: () => setImporting(true),
+    openFindPeople: people.open,
     writeAct,
     writeTo: (ids: string[]) => void choose(ids),
     node,

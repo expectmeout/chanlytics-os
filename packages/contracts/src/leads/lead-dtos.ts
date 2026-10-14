@@ -2,6 +2,7 @@
  * What the Leads routes answer: the check, the row, a search and its rounds, the counts and the month. Moved whole from leads.ts (Reach out Part 2.5), which
  * re-exports it.
  */
+import type { LeadPeoplePlan } from "./search/people-plan";
 import type { LeadArea, LeadSearchPlan } from "./search/plan";
 import type { LeadEmailState, LeadRoundEnding, LeadSearchVia } from "./search/sets";
 import type { LeadClass, LeadStage } from "./lead-words";
@@ -151,7 +152,13 @@ export interface LeadSearchDto {
    * plan's shape and no area, and which nothing searches again. Optional: a fixture from before carries none.
    */
   via?: LeadSearchVia;
-  plan: LeadSearchPlan;
+  /**
+   * The places plan (the Maps card's, or a list's): null for a people search (00429), whose plan is `people`. Every
+   * reader of a places plan narrows on it, so a people plan never reaches one.
+   */
+  plan: LeadSearchPlan | null;
+  /** A people search's plan (the people card, 00429), or null for a places search and a list. */
+  people?: LeadPeoplePlan | null;
   plan_version: number;
   /**
    * The Ask thread the search was planned in (00172), or null: a search made on the page, one from before, or a

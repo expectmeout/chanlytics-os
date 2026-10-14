@@ -8,7 +8,7 @@
  *   LEAD_KINDS, LEAD_SOURCES   the stored sets (00429's CHECKs)
  *   leadFactsOf                a lead's facts as stored, read safely: its people, which one is the addressee, its size
  *   leadAddresseeOf            the person a company's email goes to; null for a place
- *   roleOf                     a person's role from their source's seniority, else their title (their first name is
+ *   leadRoleOf                     a person's role from their source's seniority, else their title (their first name is
  *                              templates' firstNameOf, the one rule every message greets by)
  *   leadUnitOf                 what a page calls leads of a kind: businesses, or companies
  *   leadCompanyOf              a company on its peek: the people named on it, its addressee first, and where it came from
@@ -31,6 +31,13 @@ export const isLeadSource = (s: unknown): s is LeadSource => (LEAD_SOURCES as re
 export const LEAD_ROLES = ["owner", "founder", "executive", "partner", "director", "manager", "staff"] as const;
 export type LeadRole = (typeof LEAD_ROLES)[number];
 export const isLeadRole = (r: unknown): r is LeadRole => (LEAD_ROLES as readonly unknown[]).includes(r);
+
+/** Where a company the people card found came from, as every page says it (00429): never "your list", nor Maps. */
+export const LEAD_DIRECTORY_WORDS = {
+  found: "From a business directory",
+  address: "the address came with its people",
+  addressAlone: "The address came with its people",
+} as const;
 
 /** A role as an email says it: "as the {{role}} at …". */
 export const LEAD_ROLE_WORDS: Record<LeadRole, string> = {
@@ -72,7 +79,7 @@ export const NO_LEAD_FACTS: LeadFacts = { people: [], addressee: null, size: nul
 const capped = (v: unknown, max: number): string | null => trimmedOrNull(v)?.slice(0, max) ?? null;
 
 /** A person's role from the seniority their source gave (the people card's words), else read off their title. */
-export function roleOf(seniority: string | null | undefined, title: string | null | undefined): LeadRole | null {
+export function leadRoleOf(seniority: string | null | undefined, title: string | null | undefined): LeadRole | null {
   switch ((seniority ?? "").trim().toLowerCase()) {
     case "owner":
       return "owner";
@@ -94,6 +101,9 @@ export function roleOf(seniority: string | null | undefined, title: string | nul
   }
   const t = (title ?? "").toLowerCase();
   if (!t.trim()) return null;
+  // Someone who works for a principal is staff, whoever they work for: "Assistant to the Owner", "Executive Assistant",
+  // "Office Coordinator to the CEO".
+  if (/\b(assistant|coordinator|intern|receptionist|secretary)\b/.test(t)) return "staff";
   if (/\bowner\b/.test(t)) return "owner";
   if (/\b(co-?)?founder\b/.test(t)) return "founder";
   if (/\b(ceo|coo|cfo|cto|cmo|cio|chief|president)\b/.test(t)) return "executive";

@@ -1,18 +1,17 @@
 /**
- * A reach-out its owner sends (00428): its due sends claimed to be drafted, the day's share already planned, a run's
- * drafts as its To send list draws them, the owner's word on one (it went, or it did not), and what the business wrote
- * back as the owner says it. The two doors are asked on the member's own session: each checks who may in SQL and answers
- * its refusal with its SQLSTATE and its own words (DoorResult), as the workbench's doors do. A read that fails throws.
+ * A reach-out its owner sends (00428): its due sends claimed to be drafted, how much it holds of a day and in all, a
+ * draft's lead as the send door would judge it, the owner's word on one (it went, or it did not), and what the business
+ * wrote back as the owner says it. Sent is the member's own door, checked in SQL; what they wrote back is the service
+ * role's, for the member the route checked, with the plan the server made. Each answers its refusal with its SQLSTATE
+ * and its own words (DoorResult), as the workbench's doors do. A read that fails throws.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DraftLeadFacts } from "@chanlytics/contracts";
 import type { Database, Json } from "../../database.types";
 import type { ReachOutSendRow } from "../reach-out";
-import type { DoorResult } from "./reach-out-leads";
+import { answer, type DoorResult } from "./reach-out-leads";
 
 type Db = SupabaseClient<Database>;
-
-const answer = <T>(data: unknown, error: { code?: string; message: string } | null): DoorResult<T> =>
-  error ? { data: null, error: { code: error.code, message: error.message } } : { data: data as T, error: null };
 
 /** Up to `limit` due sends of reach-outs their owners send, claimed to be drafted: a step after the first before a first email. */
 export async function claimDrafts(
@@ -30,52 +29,86 @@ export async function claimDrafts(
   return data ?? [];
 }
 
+/** What a reach-out its owner sends holds: of one day's runs, skipped aside, and in all, not yet said to have gone. */
+export interface DraftLoad {
+  /** The emails its runs for the day hold already (its day's share is counted against it). */
+  today: number;
+  /** Its emails planned, held, claimed or handed over and not yet said, across every run: the owner's pile. */
+  open: number;
+}
+
 /**
- * How many emails a reach-out's runs for one day hold already, skipped aside: what its owner's day's share is counted
- * against (REACH_OUT_DRAFTS_PER_DAY), so its steps after the first, planned first, leave the rest to new leads.
+ * How much a reach-out its owner sends holds (contracts REACH_OUT_DRAFTS_PER_DAY, REACH_OUT_DRAFTS_OPEN_MAX): its
+ * steps after the first, planned first, leave the rest of the day to new leads, and nothing new is handed to an owner
+ * whose pile is full.
  */
-export async function chainPlannedOn(db: Db, p: { tenantId: string; rootId: string; runFor: string }): Promise<number> {
-  const { data: runs, error } = await db
-    .from("broadcasts")
-    .select("id")
-    .eq("tenant_id", p.tenantId)
-    .eq("audience->>kind", "reach_out")
-    .eq("audience->>root_id", p.rootId)
-    .eq("run_for", p.runFor);
-  if (error) throw new Error(`cannot read the reach-out's runs of the day: ${error.message}`);
-  const ids = (runs ?? []).map((r) => r.id);
-  if (ids.length === 0) return 0;
-  const { count, error: e2 } = await db
+export async function chainDraftLoad(
+  db: Db,
+  p: { tenantId: string; rootId: string; runFor: string },
+): Promise<DraftLoad> {
+  const [runs, open] = await Promise.all([
+    db
+      .from("broadcasts")
+      .select("id")
+      .eq("tenant_id", p.tenantId)
+      .eq("audience->>kind", "reach_out")
+      .eq("audience->>root_id", p.rootId)
+      .eq("run_for", p.runFor),
+    db
+      .from("reach_out_sends")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", p.tenantId)
+      .eq("root_id", p.rootId)
+      .in("state", ["planned", "held", "claimed", "drafted"]),
+  ]);
+  if (runs.error) throw new Error(`cannot read the reach-out's runs of the day: ${runs.error.message}`);
+  if (open.error) throw new Error(`cannot count the reach-out's emails waiting: ${open.error.message}`);
+  const ids = (runs.data ?? []).map((r) => r.id);
+  if (ids.length === 0) return { today: 0, open: open.count ?? 0 };
+  const { count, error } = await db
     .from("reach_out_sends")
     .select("id", { count: "exact", head: true })
     .eq("tenant_id", p.tenantId)
     .in("broadcast_id", ids)
     .neq("state", "skipped");
-  if (e2) throw new Error(`cannot count the reach-out's emails of the day: ${e2.message}`);
-  return count ?? 0;
+  if (error) throw new Error(`cannot count the reach-out's emails of the day: ${error.message}`);
+  return { today: count ?? 0, open: open.count ?? 0 };
 }
 
-/** One email handed to its owner, as its run's To send list reads it. */
-export interface DraftedSendRow {
+/**
+ * One lead's facts as the send door would judge them (00428 reach_out_draft_facts, contracts draftRefusalOf), on the
+ * service role: asked before a draft is handed over. Null for a lead gone.
+ */
+export async function draftFactsOf(db: Db, tenantId: string, leadId: string): Promise<DraftLeadFacts | null> {
+  const { data, error } = await db.rpc("reach_out_draft_facts", { p_tenant_id: tenantId, p_lead_id: leadId });
+  if (error) throw new Error(`cannot read the draft's lead: ${error.message}`);
+  return (data as DraftLeadFacts | null) ?? null;
+}
+
+/** A draft waiting for its owner, with its lead's facts (null for a lead gone). */
+export interface DraftWaitingRow {
   id: string;
+  tenant_id: string;
   lead_id: string;
-  angle: string | null;
-  draft: Json | null;
-  drafted_at: string | null;
+  broadcast_id: string;
+  facts: DraftLeadFacts | null;
 }
 
-/** A run's emails handed to its owner and not yet said to have gone, oldest first (at most 200, a run's cap). */
-export async function draftedSendsOf(db: Db, p: { tenantId: string; runId: string }): Promise<DraftedSendRow[]> {
-  const { data, error } = await db
-    .from("reach_out_sends")
-    .select("id, lead_id, angle, draft, drafted_at")
-    .eq("tenant_id", p.tenantId)
-    .eq("broadcast_id", p.runId)
-    .eq("state", "drafted")
-    .order("drafted_at", { ascending: true })
-    .limit(200);
-  if (error) throw new Error(`cannot read the run's drafts: ${error.message}`);
-  return data ?? [];
+/**
+ * The drafts waiting for their owners, oldest first, with their leads' facts (00428 reach_out_drafts_waiting), on the
+ * service role: one run's (its To send list) or every workspace's (the clock, which skips one the door would refuse).
+ */
+export async function draftsWaiting(
+  db: Db,
+  p: { limit: number; tenantId?: string | null; runId?: string | null },
+): Promise<DraftWaitingRow[]> {
+  const { data, error } = await db.rpc("reach_out_drafts_waiting", {
+    p_limit: p.limit,
+    ...(p.tenantId ? { p_tenant_id: p.tenantId } : {}),
+    ...(p.runId ? { p_run_id: p.runId } : {}),
+  });
+  if (error) throw new Error(`cannot read the drafts waiting: ${error.message}`);
+  return (data ?? []).map((r) => ({ ...r, facts: (r.facts as DraftLeadFacts | null) ?? null }));
 }
 
 /** What a lead's story says of a send its owner sends (00428): the run a draft waits in, and whether it went on their word. */
@@ -108,47 +141,52 @@ export async function ownerSendFactsOf(
 export interface SendSaidAnswer {
   said: boolean;
   state: string;
-  reason: string | null;
-  message_id?: string;
-  contact_id?: string;
-  conversation_id?: string;
+  reason?: string | null;
+  message_id?: string | null;
+  contact_id?: string | null;
+  conversation_id?: string | null;
+  /** What would refuse the email now, said beside its record (it went all the same): null when nothing would. */
+  since?: string | null;
 }
 
 /**
- * The owner's word on an email handed to them (reach_out_send_said), on the member's own session: sent, under the email's
- * own id (core sendMessageId); or not sent, with why (owner_skipped, or the door's refusal read at Sent).
+ * The owner's word on an email handed to them (reach_out_send_said), on the member's own session: sent, recorded
+ * whatever changed since it was handed (its email under an id of its own); or not sent, with why (owner_skipped).
  */
 export async function sendSaid(
   db: Db,
-  p: { sendId: string; outcome: "sent" | "not_sent"; messageId: string | null; reason: string | null },
+  p: { sendId: string; outcome: "sent" | "not_sent"; reason: string | null },
 ): Promise<DoorResult<SendSaidAnswer>> {
   const { data, error } = await db.rpc("reach_out_send_said", {
     p_send_id: p.sendId,
     p_outcome: p.outcome,
-    ...(p.messageId ? { p_message_id: p.messageId } : {}),
     ...(p.reason ? { p_reason: p.reason } : {}),
   });
   return answer<SendSaidAnswer>(data, error);
 }
 
-/** What the reading door answered for the owner's word: whether it applied, its own id, the email it is about. */
+/** What the reading door answered for the owner's word: whether it applied, or stood already, its own id, the email. */
 export interface ReplySaidAnswer {
   applied: boolean;
+  /** A reading of that email stood already: nothing was written. */
+  already?: boolean;
   message_id?: string;
   send_id?: string;
   changed?: Json;
 }
 
 /**
- * What the business wrote back to an email its owner sent, as the owner says it (reach_out_reply_said), on the member's
- * own session: the reading and the plan the server made of it (contracts readingPlan, claim owner), and the note in the
- * owner's words the door writes on the person's thread.
+ * What the business wrote back to an email its owner sent, as the owner says it (reach_out_reply_said), on the service
+ * role for the member the route checked: the reading and the plan the server made of it (contracts readingPlan, claim
+ * owner), and the note in the owner's words the door writes on the person's thread. Once per email that went.
  */
 export async function replySaid(
   db: Db,
-  p: { leadId: string; reading: Json; plan: Json; note: string },
+  p: { tenantId: string; userId: string; leadId: string; reading: Json; plan: Json; note: string },
 ): Promise<DoorResult<ReplySaidAnswer>> {
   const { data, error } = await db.rpc("reach_out_reply_said", {
+    p_tenant_id: p.tenantId,
+    p_user_id: p.userId,
     p_lead_id: p.leadId,
     p_reading: p.reading,
     p_plan: p.plan,

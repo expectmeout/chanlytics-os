@@ -3,6 +3,9 @@
  *
  *   outreachRefusalOf   the lead's own facts, as the send door reads them (deliver.ts) and as the clock reads them
  *                       before it claims a send: one mapping, so the two never disagree about who may be written to.
+ *   draftRefusalOf      the same, for an email its owner sends (00428): asked as it is handed over, as To send is read
+ *                       and on each tick of the clock, since no send door stands between the owner's inbox and the
+ *                       business. A customer's address is refused too, as the person door refuses it at Sent.
  *   OUTREACH_WAIT_REFUSALS   the door's refusals that mean "not now": the send is planned again, never canceled (C5).
  *   reachOutEmailOf     a step's words with the lead's, the workspace's and the send's values in (§4.3's slots, and
  *                       00429's person slots from a company's addressee, each with its fallback), by
@@ -71,6 +74,40 @@ export const REACH_OUT_MONTH_EMAILS = 2000;
 export const REACH_OUT_DRAFTS_PER_DAY = 30;
 
 /**
+ * The most emails a reach-out its owner sends holds for them at once (00428): planned, being written or waiting in To
+ * send, two days' share. An owner who falls behind is handed nothing new until they catch up, so a draft is not left
+ * to be given up (kept_waiting) and its lead with it.
+ */
+export const REACH_OUT_DRAFTS_OPEN_MAX = 2 * REACH_OUT_DRAFTS_PER_DAY;
+
+/** A draft's lead as the send door would judge it (00428 reach_out_draft_facts), snake_case as SQL answers it. */
+export interface DraftLeadFacts {
+  lead_stage: string | null;
+  suppressed: boolean;
+  wrote_back: boolean;
+  away: boolean;
+  stopped: boolean;
+  /** A person in People holds its address while it has no person of its own: a customer. */
+  customer: boolean;
+}
+
+/**
+ * Why a draft may not be offered to its owner now: the send door's refusal (outreachRefusalOf), a customer's address
+ * (already_yours, as the person door says it at Sent), or its lead gone. Null when it may.
+ */
+export function draftRefusalOf(f: DraftLeadFacts | null): string | null {
+  if (!f) return "lead_gone";
+  const refused = outreachRefusalOf({
+    leadStage: f.lead_stage,
+    suppressed: f.suppressed,
+    wroteBack: f.wrote_back,
+    away: f.away,
+    stopped: f.stopped,
+  });
+  return refused ?? (f.customer ? "already_yours" : null);
+}
+
+/**
  * The most attempts of the check before each send that one workspace may spend on the model in a UTC day (R12):
  * counted in reach_out_check_spend (00197) as each attempt is taken, a rewrite in it and a failure counted, so neither a
  * run's size nor a reset of a send's check lets it spend more.
@@ -127,7 +164,8 @@ export interface SlotWorkspace {
 
 /**
  * The slots' values, in the slot set's order, from the lead's, the workspace's and the send's: a blank one is a hole. A
- * person's slot is its addressee's (00429), and its fallback where the lead names nobody, so it never holds an email.
+ * person's slot is its addressee's (00429): {{first name}} greets with its fallback where nobody is named, and {{title}}
+ * and {{role}}, which claim something of a person, are holes there.
  */
 function reachOutValues(lead: SlotLead, workspace: SlotWorkspace, opening: string | null): Array<string | undefined> {
   const who = leadAddresseeOf(lead);
@@ -135,8 +173,9 @@ function reachOutValues(lead: SlotLead, workspace: SlotWorkspace, opening: strin
     business: lead.business_name,
     company: lead.business_name,
     "first name": who?.first_name || REACH_OUT_SLOT_FALLBACKS["first name"],
-    title: who?.title || (who?.role ? LEAD_ROLE_WORDS[who.role] : null) || REACH_OUT_SLOT_FALLBACKS.title,
-    role: (who?.role ? LEAD_ROLE_WORDS[who.role] : null) || REACH_OUT_SLOT_FALLBACKS.role,
+    // A person's title or role is said only where their source said it: no guess stands in (a hole holds the email).
+    title: who?.title || (who?.role ? LEAD_ROLE_WORDS[who.role] : null),
+    role: who?.role ? LEAD_ROLE_WORDS[who.role] : null,
     city: lead.city,
     "your business": workspace.businessName,
     "your name": workspace.yourName,

@@ -3051,6 +3051,7 @@ export type Database = {
       }
       lead_platform: {
         Row: {
+          cards_on: string[]
           id: boolean
           note: string | null
           prices_checked_at: string | null
@@ -3059,6 +3060,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          cards_on?: string[]
           id?: boolean
           note?: string | null
           prices_checked_at?: string | null
@@ -3067,6 +3069,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          cards_on?: string[]
           id?: boolean
           note?: string | null
           prices_checked_at?: string | null
@@ -7014,6 +7017,10 @@ export type Database = {
       is_platform_admin: { Args: never; Returns: boolean }
       is_workspace_owner: { Args: { p_tenant: string }; Returns: boolean }
       jobs_backlog: { Args: { p_wait?: string }; Returns: number }
+      lead_address_in_people: {
+        Args: { p_address: string; p_tenant_id: string }
+        Returns: boolean
+      }
       lead_address_suppressed: {
         Args: { p_address: string; p_tenant_id: string }
         Returns: boolean
@@ -7034,6 +7041,8 @@ export type Database = {
         Returns: Json
       }
       lead_cap: { Args: { p_name: string }; Returns: number }
+      lead_card_live: { Args: { p_card: string }; Returns: boolean }
+      lead_cards_live: { Args: never; Returns: string[] }
       lead_chain_of: {
         Args: { p_lead_id: string; p_tenant_id: string }
         Returns: string
@@ -7062,6 +7071,10 @@ export type Database = {
           p_to_offset: number
         }
         Returns: Json
+      }
+      lead_company_tombstones: {
+        Args: { p_lead_id: string }
+        Returns: undefined
       }
       lead_company_upsert: {
         Args: { p_companies: Json; p_round_id: string }
@@ -7164,6 +7177,10 @@ export type Database = {
           p_via: string
         }
         Returns: Json
+      }
+      lead_person_forget: {
+        Args: { p_email: string; p_tenant_id: string }
+        Returns: number
       }
       lead_person_leg: {
         Args: { p_email: string; p_lead_id: string; p_phone: string }
@@ -8616,6 +8633,20 @@ export type Database = {
           tenant_id: string
         }[]
       }
+      reach_out_draft_facts: {
+        Args: { p_lead_id: string; p_tenant_id: string }
+        Returns: Json
+      }
+      reach_out_drafts_waiting: {
+        Args: { p_limit: number; p_run_id?: string; p_tenant_id?: string }
+        Returns: {
+          broadcast_id: string
+          facts: Json
+          id: string
+          lead_id: string
+          tenant_id: string
+        }[]
+      }
       reach_out_due_domains: {
         Args: {
           p_at: string
@@ -8843,6 +8874,8 @@ export type Database = {
           p_note: string
           p_plan: Json
           p_reading: Json
+          p_tenant_id: string
+          p_user_id: string
         }
         Returns: Json
       }
@@ -8906,12 +8939,7 @@ export type Database = {
         Returns: Json
       }
       reach_out_send_said: {
-        Args: {
-          p_message_id?: string
-          p_outcome: string
-          p_reason?: string
-          p_send_id: string
-        }
+        Args: { p_outcome: string; p_reason?: string; p_send_id: string }
         Returns: Json
       }
       reach_out_sources: {

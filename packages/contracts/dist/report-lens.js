@@ -2176,17 +2176,15 @@ var REACH_OUT_SLOTS = [
   "booking link"
 ];
 var REACH_OUT_SLOT_FALLBACKS = {
-  "first name": "there",
-  title: "owner",
-  role: "owner"
+  "first name": "there"
 };
 var REACH_OUT_SLOT_WORDS = {
   opening: "written for each business",
-  "first name": `the person's first name at a company; \u201C${REACH_OUT_SLOT_FALLBACKS["first name"]}\u201D for a business`,
+  "first name": `the person's first name at a company; \u201C${REACH_OUT_SLOT_FALLBACKS["first name"]}\u201D where nobody is named`,
   business: "their name on Google, or their company's",
   company: "their company's name, or their business's",
-  title: `the person's title at a company; \u201C${REACH_OUT_SLOT_FALLBACKS.title}\u201D for a business`,
-  role: `the person's role (owner, director, manager); \u201C${REACH_OUT_SLOT_FALLBACKS.role}\u201D for a business`,
+  title: "the person's title at a company; a business with nobody named is not written to with it",
+  role: "the person's role (owner, director, manager); a business with nobody named is not written to with it",
   city: "their city",
   "your name": "the name you sign with",
   "your business": "your business's name",
@@ -2260,6 +2258,7 @@ var TEMPLATE_BODY_WORDS = `The message must be under ${TEMPLATE_BODY_MAX} charac
 
 // src/reach-out/reach-out-rules.ts
 var REACH_OUT_DRAFTS_PER_DAY = 30;
+var REACH_OUT_DRAFTS_OPEN_MAX = 2 * REACH_OUT_DRAFTS_PER_DAY;
 
 // src/reach-out/reach-out-sheet.ts
 var REACH_OUT_SHEET_WORDS = {

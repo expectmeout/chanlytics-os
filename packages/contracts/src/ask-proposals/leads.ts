@@ -59,6 +59,39 @@ export const leadSearchSpec: ProposalSpecAboveOperator = {
 };
 
 /**
+ * A people search planned in Ask (the people card, 00429): the owner's or a partner's, as a places search is, and
+ * committed through its own door (POST lead-searches/people), with the thread it was planned in. A people search never
+ * stops to ask, so a card only starts one; its undo stops it, as a places search's does.
+ */
+export const peopleSearchSpec: ProposalSpecAboveOperator = {
+  needs: "partner",
+  doing: "start a people search",
+  gate: "find",
+  commit: ({ payload: pl }) => {
+    const threadId = typeof pl.thread_id === "string" && pl.thread_id ? pl.thread_id : null;
+    return { route: "POST lead-searches/people", body: { plan: pl.plan, via: "ask", thread_id: threadId } };
+  },
+  receipt: ({ payload: pl }) => {
+    const plan = (pl.plan ?? {}) as { count?: number; name?: string };
+    const n = typeof plan.count === "number" ? plan.count : null;
+    // The count is companies, as the card and the sheet say it.
+    const what = n === null ? "companies" : `${n} ${n === 1 ? "company" : "companies"}`;
+    return `Finding up to ${what}${plan.name ? `: ${plan.name}` : ""}. Each lands on Leads once its address checks out.`;
+  },
+  undo: {
+    label: () => "Stop the search",
+    window: "ten_minutes",
+    record: (_p, data) => ({ search_id: rec(data).search_id }),
+    call: (u) => ({ route: "POST lead-searches/[id]/stop", params: { id: asText(u.search_id) } }),
+    receipt: () => "Stopping. Whatever it found is kept, and the addresses already found are still checked.",
+  },
+  open: (_p, outcome) => {
+    const sid = idIn(rec(outcome?.undo), "search_id");
+    return sid ? leadsRoute({ searchId: sid, list: "all", cls: null }) : "clients/leads";
+  },
+};
+
+/**
  * Leads added to a reach-out fed by a list (00426 reach_out_add): an operator's, as the add door is. The add itself sends
  * nothing: its reach-out's next run plans the first email, and that run waits for its owner's say (a list-fed one always
  * does), so the receipt says so. Undo takes them back off the list, while nothing has left for them (lead_undo).

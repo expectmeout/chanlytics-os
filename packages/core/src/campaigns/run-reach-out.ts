@@ -7,12 +7,14 @@
  * chain bounced (C4), and one that keeps no open hour all week are skipped with why, so none of them heads the step's
  * page every day. What the timetable cannot place within its horizon waits for the next day's run. A reach-out its owner
  * sends (00428) plans no mailbox and no timetable: its day's share (REACH_OUT_DRAFTS_PER_DAY, less what the chain's runs
- * of the day already hold, so the steps after the first, planned first, are never crowded out), each due as the run goes
- * ahead, to be handed to the owner once checked. The run and its sends are written whole. Nothing here sends: the
+ * of the day already hold, so the steps after the first, planned first, are never crowded out), never past the pile its
+ * owner can keep up with (REACH_OUT_DRAFTS_OPEN_MAX, less what waits for them already), each due as the run goes ahead,
+ * to be handed to the owner once checked. The run and its sends are written whole. Nothing here sends: the
  * reach-out clock claims what is due (Part 3, PR 5 and 6).
  */
 import {
   PLAYBOOK_VETO_DELAY_MS,
+  REACH_OUT_DRAFTS_OPEN_MAX,
   REACH_OUT_DRAFTS_PER_DAY,
   outreachRefusalOf,
   sendWindowsOf,
@@ -75,8 +77,10 @@ export async function runReachOut(
   const startMs = asks ? now : now + PLAYBOOK_VETO_DELAY_MS;
   let placed: Array<{ id: string; senderId: string | null; sendAtMs: number }>;
   if (step.owner_sends) {
-    // Its owner sends (00428): the day's share left, every email due as the run goes ahead; the owner is the pace.
-    const room = REACH_OUT_DRAFTS_PER_DAY - (await ports.plannedOn(step.root_id, cmd.runFor));
+    // Its owner sends (00428): the day's share left, and no more than their pile has room for, every email due as the
+    // run goes ahead; the owner is the pace, and one who falls behind is handed nothing new until they catch up.
+    const load = await ports.draftLoad(step.root_id, cmd.runFor);
+    const room = Math.min(REACH_OUT_DRAFTS_PER_DAY - load.today, REACH_OUT_DRAFTS_OPEN_MAX - load.open);
     if (room <= 0) return { outcome: "held", reason: "no_room", planned: 0 };
     placed = leads.slice(0, room).map((l) => ({ id: l.lead_id, senderId: null, sendAtMs: startMs }));
   } else {

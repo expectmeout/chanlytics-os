@@ -2,8 +2,8 @@
  * The words of a lead's reach-out doors, on its peek and its person's page: Stop writing to them, and for a reach-out its
  * owner sends (00428) Send it and They wrote back….
  */
-import { clockDate } from "../shared/clock";
-import { REPLY_INTENT_WORDS, type OwnerSaidIntent } from "./reach-out-replies";
+import { clockDate } from "../../shared/clock";
+import { REPLY_INTENT_WORDS, type OwnerSaidIntent } from "../reach-out-replies";
 
 /**
  * They wrote back…, on a lead an email its owner sent went to (00428): what the business said, as the owner says it,
@@ -19,12 +19,21 @@ export const REACH_OUT_SAID_WORDS = {
     no: "No",
     wrong_person: "Wrong person",
   } satisfies Record<OwnerSaidIntent, string>,
+  /** A not now asks the day to write again, and a wrong person who to write to instead: each may be left blank. */
   day: "When to write again",
   referTo: "Who to write to instead",
   save: "Save",
   saving: "Saving…",
+  back: "Back",
+  /** Another tab, or another member, said it first: nothing was written twice. */
+  already: (business: string) => `Already said: ${business} wrote back.`,
   /** What the owner's word did; for a not now, the day the lead comes back (the plan's resume_at, as the server made it). */
-  done: (business: string, intent: OwnerSaidIntent, back: { at: string | null; tz: string; nowMs: number }): string => {
+  done: (
+    business: string,
+    intent: OwnerSaidIntent,
+    back: { at: string | null; tz: string; nowMs: number },
+    referTo: string | null = null,
+  ): string => {
     switch (intent) {
       case "interested":
       case "question":
@@ -38,7 +47,9 @@ export const REACH_OUT_SAID_WORDS = {
       case "no":
         return `${business} said no: nothing more will be written to them.`;
       case "wrong_person":
-        return `Your reach-out stops for ${business}. A step to write to who they named is on Today.`;
+        return referTo
+          ? `Your reach-out stops for ${business}. A step to write to ${referTo} is on Today.`
+          : `Your reach-out stops for ${business}. A step to find who to write to instead is on Today.`;
     }
   },
   /** The note the owner's word is on the person's thread, in their own words. */

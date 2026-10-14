@@ -3,15 +3,19 @@
  * handed to them, oldest first: its business (its lead's door), its subject, its address and when it was handed over;
  * its doors into a mail client (Gmail, Outlook, their mail app), Copy, and its words to read; then the owner's word on
  * it, Sent or Skip. Opening or copying one asks "Did it go?" at its Sent, as the lead's own draft asks; a link too long
- * to carry the words copies them as it opens. Each word is said at the list's head, or at its row when refused, and the
+ * to carry the words copies them as it opens. A step after the first answers an email the business may have answered in
+ * the owner's own inbox, which nothing here reads: its Sent asks first whether they did, and They wrote back… stands
+ * beside it (the peek's, read as a reply is). Each word is said at the list's head, or at its row when refused, and the
  * run is read again behind it. Every sentence is contracts' (toSendWordsOf, toSendSaidWords); never a fetch here.
  */
 import { useState } from "react";
-import type { BroadcastDetailDto, ReachOutSaidOutcome, ToSendRowVM } from "@chanlytics/contracts";
+import type { BroadcastDetailDto, OwnerSaidIntent, ReachOutSaidOutcome, ToSendRowVM } from "@chanlytics/contracts";
 import { canDo, gateTitle, navigate } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
 import { CopiedWords, useCopied } from "../../kit/copy-button/copy-button";
 import { LinkButton } from "../../kit/link-button/link-button";
+import { useCmPhone } from "../parts/split";
+import { RoSaidAsk, type SaidMore } from "./said-ask";
 import { reachOuts } from "./surface";
 
 type ToSend = NonNullable<ReturnType<typeof reachOuts.toSend>>;
@@ -23,19 +27,31 @@ interface RowProps {
   busy: boolean;
   said: string | null;
   onSay: (row: ToSendRowVM, outcome: ReachOutSaidOutcome) => void;
+  /** They wrote back…, on a step after the first: what the business said, read as a reply is. */
+  onTell: (row: ToSendRowVM, intent: OwnerSaidIntent, more: SaidMore) => void;
 }
 
 /** One email handed over: who, what, its doors into a mail client, and the owner's word on it. */
-function RoToSendRow({ row, L, may, busy, said, onSay }: RowProps) {
+function RoToSendRow({ row, L, may, busy, said, onSay, onTell }: RowProps) {
   const [copied, copy] = useCopied();
   const [asked, setAsked] = useState(false);
   const [reading, setReading] = useState(false);
+  // A step after the first: its Sent asks first whether the business answered the email before; and what they said.
+  const [checking, setChecking] = useState(false);
+  const [telling, setTelling] = useState(false);
+  const SW = reachOuts.words.REACH_OUT_SAID_WORDS;
   // A link too long to carry the words leaves them to the clipboard, copied as it opens.
   const opening = () => {
     if (!row.links.bodyInLinks) copy(row.text);
     setAsked(true);
   };
   const door = { size: "sm" as const, onClick: opening };
+  const phone = useCmPhone();
+  const app = (
+    <Button {...door} href={row.links.mailto} data-testid="ro-to-send-app">
+      {L.app}
+    </Button>
+  );
   return (
     <div className="ro-send" data-testid="ro-to-send-row">
       <div className="ro-send-line">
@@ -51,6 +67,8 @@ function RoToSendRow({ row, L, may, busy, said, onSay }: RowProps) {
         </span>
       </div>
       <div className="ro-send-acts">
+        {/* On a phone the mail app leads: Gmail's and Outlook's compose pages open an inbox there, not the email. */}
+        {phone && app}
         <Button
           {...door}
           href={row.links.gmail}
@@ -69,9 +87,7 @@ function RoToSendRow({ row, L, may, busy, said, onSay }: RowProps) {
         >
           {L.outlook}
         </Button>
-        <Button {...door} href={row.links.mailto} data-testid="ro-to-send-app">
-          {L.app}
-        </Button>
+        {!phone && app}
         <Button
           size="sm"
           variant="quiet"
@@ -97,14 +113,14 @@ function RoToSendRow({ row, L, may, busy, said, onSay }: RowProps) {
           <p className="em-frame-body">{row.text}</p>
         </div>
       )}
-      {may && (
+      {may && !checking && !telling && (
         <div className="ro-send-acts">
           {asked && <span className="bc-person-words">{L.asked}</span>}
           <Button
             size="sm"
             variant={asked ? "primary" : "secondary"}
             disabled={busy}
-            onClick={() => onSay(row, "sent")}
+            onClick={() => (row.followUp ? setChecking(true) : onSay(row, "sent"))}
             data-testid="ro-to-send-sent"
           >
             {busy ? L.saying : L.sent}
@@ -112,7 +128,32 @@ function RoToSendRow({ row, L, may, busy, said, onSay }: RowProps) {
           <LinkButton disabled={busy} onClick={() => onSay(row, "not_sent")} data-testid="ro-to-send-skip">
             {L.skip}
           </LinkButton>
+          {row.followUp && (
+            <LinkButton disabled={busy} onClick={() => setTelling(true)} data-testid="ro-to-send-wrote">
+              {SW.door}
+            </LinkButton>
+          )}
         </div>
+      )}
+      {may && checking && !telling && (
+        <div className="ro-send-acts" role="group" aria-label={L.noReply} data-testid="ro-to-send-no-reply">
+          <span className="bc-person-words">{L.noReply}</span>
+          <Button
+            size="sm"
+            variant="primary"
+            disabled={busy}
+            onClick={() => onSay(row, "sent")}
+            data-testid="ro-to-send-sent-yes"
+          >
+            {busy ? L.saying : L.noReplyYes}
+          </Button>
+          <LinkButton disabled={busy} onClick={() => setTelling(true)} data-testid="ro-to-send-wrote">
+            {SW.door}
+          </LinkButton>
+        </div>
+      )}
+      {may && telling && (
+        <RoSaidAsk business={row.name} busy={busy} onSay={(i, more) => onTell(row, i, more)} testid="ro-to-send-said" />
       )}
       {said && (
         <span className="pb-warn" role="alert" data-testid="ro-to-send-said">
@@ -144,7 +185,23 @@ export function RoToSend({ d, onSaid }: { d: BroadcastDetailDto; onSaid: () => v
     const r = await reachOuts.say(row.id, outcome);
     setBusy(null);
     if (r && r.ok) {
-      setDone(reachOuts.saidWords(row.name, outcome, r.data));
+      setDone(reachOuts.saidWords(row.name, r.data));
+      onSaid();
+    } else setRefused({ id: row.id, text: (r && r.message) || "" });
+  };
+  // What the business wrote back to the email before, said as the peek says it: its drafts go with its waiting sends.
+  const tell = async (row: ToSendRowVM, intent: OwnerSaidIntent, more: SaidMore) => {
+    if (busy) return;
+    setBusy(row.id);
+    setRefused(null);
+    const r = await reachOuts.sayReply(row.leadId, { intent, ...more });
+    setBusy(null);
+    if (r && r.ok) {
+      setDone(
+        r.data.already
+          ? reachOuts.words.REACH_OUT_SAID_WORDS.already(row.name)
+          : reachOuts.saidReplyWords(row.name, intent, r.data.resume_at, more.refer_to ?? null),
+      );
       onSaid();
     } else setRefused({ id: row.id, text: (r && r.message) || "" });
   };
@@ -168,6 +225,7 @@ export function RoToSend({ d, onSaid }: { d: BroadcastDetailDto; onSaid: () => v
           busy={busy === row.id}
           said={refused && refused.id === row.id ? refused.text : null}
           onSay={(x, o) => void say(x, o)}
+          onTell={(x, i, more) => void tell(x, i, more)}
         />
       ))}
     </section>

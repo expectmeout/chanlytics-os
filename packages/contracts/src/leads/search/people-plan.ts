@@ -5,7 +5,7 @@
  * address it brings is checked before anyone is written to, as a list's are (00242's J2). Pure, and read in the
  * browser: the route's schema is people-plan-schema.ts.
  */
-import { plural } from "../../shared/words";
+import { joinWords, plural } from "../../shared/words";
 import { LEAD_ESTIMATE_MARGIN } from "./caps";
 import { US_STATES } from "./plan";
 
@@ -53,9 +53,15 @@ export const PEOPLE_COMPANY_SIZES = [
 export type PeopleCompanySize = (typeof PEOPLE_COMPANY_SIZES)[number];
 
 export const PEOPLE_COUNT_MAX = 500;
+/** The least a run's cap is, the provider's and the checker's alike: what a people search reserves for each. */
+export const PEOPLE_RUN_FLOOR_USD = 0.5;
 export const PEOPLE_TITLES_MAX = 5;
 export const PEOPLE_INDUSTRIES_MAX = 5;
 export const PEOPLE_STATES_MAX = 10;
+/** The longest a title, an industry and the words asked may be (LeadPeoplePlanSchema holds each). */
+export const PEOPLE_TITLE_CHARS = 60;
+export const PEOPLE_INDUSTRY_CHARS = 80;
+export const PEOPLE_ASKED_CHARS = 400;
 
 /**
  * A people search's plan, as lead_people_search_create stores it (lead_searches.plan, lead_rounds.plan). A type, not an
@@ -85,17 +91,23 @@ export type LeadPeoplePlan = {
    */
   terms: [];
   area: { kind: "city"; label: string; state: string; center: null; radius_m: number; query: string };
+  /** A places plan's criteria and exclusions, none: the strip and the sentence read them off any search's plan. */
+  criteria: [];
+  exclusions: [];
 };
 
 /** What the owner chose, before it is a plan: the sheet's fields, or Ask's. */
-export type PeoplePlanInput = Omit<LeadPeoplePlan, "version" | "card" | "contact" | "terms" | "area" | "name"> & {
+export type PeoplePlanInput = Omit<
+  LeadPeoplePlan,
+  "version" | "card" | "contact" | "terms" | "area" | "criteria" | "exclusions" | "name"
+> & {
   name?: string;
 };
 
 /** The area a people plan covers, as every page says a search's: its states, or the whole US. */
 export function peopleAreaOf(states: readonly string[]): LeadPeoplePlan["area"] {
   const names = states.map(usStateName).filter((s): s is string => !!s);
-  const label = names.length ? listed(names) : "the US";
+  const label = names.length ? joinWords(names) : "the US";
   return { kind: "city", label, state: states[0] ?? "", center: null, radius_m: 0, query: `${label}, USA` };
 }
 
@@ -115,6 +127,8 @@ export function peoplePlanFrom(i: PeoplePlanInput): LeadPeoplePlan {
     contact: "email",
     terms: [],
     area: peopleAreaOf(i.states),
+    criteria: [],
+    exclusions: [],
   };
 }
 
@@ -180,7 +194,44 @@ export function peopleEstimateUsd(
 ): number {
   const people = Math.min(1000, 2 * Math.max(1, Math.floor(count)));
   const usd = (people * (prices.perPerson + prices.perCheck) + prices.start) * LEAD_ESTIMATE_MARGIN;
-  return Math.ceil(usd * 100) / 100;
+  // And the floor each run's cap has (the provider's and the checker's): a cap is never set past what the round holds
+  // (S6), and what is not spent goes back when the round ends. lead_estimate_ceiling('people') is the same sum.
+  return Math.round((Math.ceil(usd * 100) / 100 + 2 * PEOPLE_RUN_FLOOR_USD) * 100) / 100;
+}
+
+/** What a typed list of states holds: the states it names, and the parts that name none, which are never dropped. */
+export function usStatesTyped(text: string): { codes: string[]; unread: string[] } {
+  const parts = listTyped(text, PEOPLE_STATES_MAX * 2);
+  const codes = [...new Set(parts.map(usStateCode).filter((s): s is string => !!s))].slice(0, PEOPLE_STATES_MAX);
+  return { codes, unread: parts.filter((p) => !usStateCode(p)) };
+}
+
+/**
+ * What is wrong with the Find people sheet as typed, by its box, in its words (the route's schema, said before it is
+ * asked): a title or an industry out of its length, a state that reads as none, a count out of its range. Empty when
+ * nothing is.
+ */
+export function peopleSheetProblems(t: {
+  titles: string;
+  industries: string;
+  states: string;
+  count: string;
+}): Partial<Record<"titles" | "industries" | "states" | "count", string>> {
+  const out: Partial<Record<"titles" | "industries" | "states" | "count", string>> = {};
+  const titles = listTyped(t.titles, PEOPLE_TITLES_MAX);
+  const long = titles.find((x) => x.length > PEOPLE_TITLE_CHARS || x.length < 2);
+  if (!titles.length) out.titles = PEOPLE_FIND_WORDS.needTitle;
+  else if (long) out.titles = PEOPLE_FIND_WORDS.titleLong(long);
+  else if (t.titles.trim().length > PEOPLE_ASKED_CHARS) out.titles = PEOPLE_FIND_WORDS.titlesLong;
+  const odd = listTyped(t.industries, PEOPLE_INDUSTRIES_MAX).find(
+    (x) => x.length < 2 || x.length > PEOPLE_INDUSTRY_CHARS,
+  );
+  if (odd) out.industries = PEOPLE_FIND_WORDS.industryOdd(odd);
+  const unread = usStatesTyped(t.states).unread[0];
+  if (unread) out.states = PEOPLE_FIND_WORDS.stateUnread(unread);
+  const n = Number(t.count.trim());
+  if (!Number.isInteger(n) || n < 1 || n > PEOPLE_COUNT_MAX) out.count = PEOPLE_FIND_WORDS.needCount;
+  return out;
 }
 
 /** What a list typed with commas holds: each part trimmed, once, at most `max` of them. */
@@ -212,30 +263,62 @@ export const PEOPLE_FIND_WORDS = {
   statesHint: "Up to ten US states, with commas between: TX, CA. None is the whole US.",
   count: "How many companies",
   countHint: `1 to ${PEOPLE_COUNT_MAX}`,
-  start: (n: number) => `Find ${n}`,
+  start: (n: number) => `Find ${n} ${n === 1 ? "company" : "companies"}`,
   starting: "Starting…",
   cancel: "Cancel",
   needTitle: "Say what they are called.",
   needCount: `Say how many, 1 to ${PEOPLE_COUNT_MAX}.`,
+  titleLong: (t: string) => `“${t}” is longer than ${PEOPLE_TITLE_CHARS} characters: say it shorter.`,
+  titlesLong: `What they are called is too long: ${PEOPLE_ASKED_CHARS} characters at most.`,
+  industryOdd: (t: string) => `“${t}”: an industry is 2 to ${PEOPLE_INDUSTRY_CHARS} characters.`,
+  stateUnread: (s: string) => `${s} isn't a US state: use its name or its two letters.`,
+  more: "Find more like these",
   done: "Looking now. They land on Leads as each address checks out.",
   failed: "Couldn't start the search. Nothing was spent; try again.",
   tick: "Chosen",
 } as const;
 
-/** "a and b", "a, b and c". */
-const listed = (xs: readonly string[]): string =>
-  xs.length <= 1 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
+/** Who a people search looks for, as its strip says it: "marketing managers at Accounting companies in TX". */
+export function peopleWho(p: LeadPeoplePlan): string {
+  const called = joinWords(p.titles.map((t) => (/s$/i.test(t) ? t : `${t}s`)));
+  const at = p.industries.length ? ` at ${joinWords(p.industries)} companies` : " at companies";
+  return `${called}${at}${p.states.length ? ` in ${joinWords(p.states)}` : " in the US"}`;
+}
 
 /**
- * The plan in one sentence, as its card says it: "100 people called “marketing manager”, owners or managers, at
- * Marketing & Advertising companies of 11 - 50 people in TX and CA, each address checked".
+ * A people search's strip (00429), in its own words: companies found while its run reads them, the addresses being
+ * checked, then how it ended against the companies asked for. Never "found what you asked for" before the checks say so.
+ */
+export const PEOPLE_STRIP_WORDS = {
+  none: (who: string) => `Nothing has run for ${who} yet`,
+  running: (who: string) => `Finding ${who}`,
+  found: (n: number) => `${plural(n, "company", "companies")} found so far`,
+  checked: (n: number) => `${plural(n, "address", "addresses")} checked`,
+  checking: (n: number) => `Checking the addresses of the ${plural(n, "company", "companies")} found`,
+  stop: "Stop",
+  ended: (ending: string | null, n: number, target: number): string => {
+    if (ending === "source_failed")
+      return "The directory could not be read. Nothing was counted for what was not found.";
+    if (ending === "stopped")
+      return `Stopped with ${plural(n, "company", "companies")} found. Their addresses were checked.`;
+    if (n === 0) return "No company matched what you asked, with an address that checked out.";
+    if (n >= target) return `Found ${plural(n, "company", "companies")}, each address checked`;
+    return `Found ${n} of ${plural(target, "company", "companies")}: everything the filters cover, each address checked`;
+  },
+  more: "Find more like these",
+} as const;
+
+/**
+ * The plan in one sentence, as its card says it: "Up to 100 Marketing & Advertising companies of 11 - 50 people in TX
+ * and CA, each through someone called “marketing manager” (owners or managers), each address checked". The count is
+ * companies: one lead each, written to through one person.
  */
 export function peoplePlanSentence(p: LeadPeoplePlan): string {
-  const called = p.titles.map((t) => `“${t}”`);
-  const who = `${plural(p.count, "person", "people")} called ${listed(called)}`;
-  const level = p.seniority.length ? `, ${p.seniority.map((s) => PEOPLE_SENIORITY_WORDS[s]).join(" or ")}` : "";
-  const what = p.industries.length ? `${listed(p.industries)} companies` : "companies";
+  const what = p.industries.length ? `${joinWords(p.industries)} ${p.count === 1 ? "company" : "companies"}` : null;
+  const companies = what ? `${p.count} ${what.replace(/^\d+ /, "")}` : plural(p.count, "company", "companies");
   const size = p.sizes.length ? ` of ${p.sizes.join(", ")} people` : "";
-  const where = p.states.length ? ` in ${listed(p.states)}` : " in the US";
-  return `${who}${level}, at ${what}${size}${where}, each address checked`;
+  const where = p.states.length ? ` in ${joinWords(p.states)}` : " in the US";
+  const called = joinWords(p.titles.map((t) => `“${t}”`));
+  const level = p.seniority.length ? ` (${p.seniority.map((s) => PEOPLE_SENIORITY_WORDS[s]).join(" or ")})` : "";
+  return `Up to ${companies}${size}${where}, each through someone called ${called}${level}, each address checked`;
 }

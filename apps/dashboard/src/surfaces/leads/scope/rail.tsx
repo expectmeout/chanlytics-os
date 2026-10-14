@@ -66,26 +66,37 @@ const LeadSearchMenu = ({
           onClick: () => onRename(s),
           gate: canFind ? undefined : gate("find", "rename this search"),
         },
-        // A list of your own (00242) is never searched again: its menu offers neither way back to the finder.
+        // A list of your own (00242) is never searched again: its menu offers neither way back to the finder. A people
+        // search (00429) offers its own: Find people, filled in with what was asked.
         ...(s.list
           ? []
-          : [
-              {
-                label: "Find new ones",
-                icon: "refresh",
-                meta: "Only places not already in your leads count",
-                onClick: () => onMore(s),
-                gate: canFind ? undefined : gate("find", "search again"),
-              },
-              // A door wears the three's mark, as Find leads does: the sparkle means written by Claude, and this is a press.
-              {
-                label: "Search again, changed",
-                icon: "three",
-                meta: "Opens the plan with what you asked",
-                onClick: () => onAgain(s),
-                gate: canFind ? undefined : gate("find", "search again"),
-              },
-            ]),
+          : s.people
+            ? [
+                {
+                  label: "Find more like these",
+                  icon: "refresh",
+                  meta: "Opens Find people with what you asked",
+                  onClick: () => onAgain(s),
+                  gate: canFind ? undefined : gate("find", "search again"),
+                },
+              ]
+            : [
+                {
+                  label: "Find new ones",
+                  icon: "refresh",
+                  meta: "Only places not already in your leads count",
+                  onClick: () => onMore(s),
+                  gate: canFind ? undefined : gate("find", "search again"),
+                },
+                // A door wears the three's mark, as Find leads does: the sparkle means written by Claude, and this is a press.
+                {
+                  label: "Search again, changed",
+                  icon: "three",
+                  meta: "Opens the plan with what you asked",
+                  onClick: () => onAgain(s),
+                  gate: canFind ? undefined : gate("find", "search again"),
+                },
+              ]),
         {
           label: `Export these ${s.count}`,
           icon: "external",
@@ -147,6 +158,8 @@ interface RailRowsProps {
   exportFor: (s: RailSearch) => () => void;
   onNew: () => void;
   importDoor?: ReactNode;
+  /** Find people at companies (00429), beside Import leads: null while the people card finds nothing. */
+  findPeopleDoor?: ReactNode;
   compact?: boolean;
 }
 
@@ -247,6 +260,7 @@ export const LeadsRailRows = (p: RailRowsProps) => {
     onWarmList = () => undefined,
     onNew,
     importDoor = null,
+    findPeopleDoor = null,
     compact = false,
   } = p;
   const quiet = compact ? railQuiet(rail.lists, (l) => l.id === "all" || (!searchId && list === l.id)) : [];
@@ -291,6 +305,8 @@ export const LeadsRailRows = (p: RailRowsProps) => {
           </button>
           {/* A list of your own (Reach out Part 7): a file of businesses, checked first, as a search. */}
           {importDoor}
+          {/* People at companies (00429): named people the people card finds, while it finds leads. */}
+          {findPeopleDoor}
         </div>
       )}
     </>

@@ -28,7 +28,7 @@ import {
   runSpec,
 } from "./campaigns";
 import { replySpec, steerSpec, threadVerbSpec, whisperSpec } from "./inbox";
-import { leadSearchSpec, reachOutAddSpec } from "./leads";
+import { leadSearchSpec, peopleSearchSpec, reachOutAddSpec } from "./leads";
 import { listSpec } from "./lists";
 import { dealSpec, noteSpec, personDetailsSpec, personModeSpec } from "./person";
 import type { ProposalGate, ProposalSpec, ProposalSpecAboveOperator } from "./spec";
@@ -47,6 +47,7 @@ export const PROPOSAL_SPECS = {
   broadcast: broadcastSpec,
   playbook: playbookSpec,
   lead_search: leadSearchSpec,
+  people_search: peopleSearchSpec,
   reach_out_add: reachOutAddSpec,
   deal: dealSpec,
   note: noteSpec,

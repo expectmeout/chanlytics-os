@@ -2845,10 +2845,14 @@ interface ReachOutRunPorts {
         gone: Set<string>;
     }>;
     /**
-     * How many emails the chain's runs for this day already hold, skipped aside (db chainPlannedOn): what a reach-out its
-     * owner sends counts its day's share against (contracts REACH_OUT_DRAFTS_PER_DAY, 00428).
+     * What a reach-out its owner sends holds (db chainDraftLoad, 00428): the emails its runs for this day already hold,
+     * skipped aside (its day's share is counted against them, contracts REACH_OUT_DRAFTS_PER_DAY), and those waiting for
+     * its owner across every run, not yet said (their pile, REACH_OUT_DRAFTS_OPEN_MAX).
      */
-    plannedOn(rootId: string, runFor: string): Promise<number>;
+    draftLoad(rootId: string, runFor: string): Promise<{
+        today: number;
+        open: number;
+    }>;
     /**
      * The run and its sends, written whole (db reach_out_plan_run): never a run with nothing planned in it. "exists" when
      * this step already has its run for the day.

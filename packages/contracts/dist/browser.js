@@ -5887,17 +5887,15 @@ var REACH_OUT_SLOTS = [
   "booking link"
 ];
 var REACH_OUT_SLOT_FALLBACKS = {
-  "first name": "there",
-  title: "owner",
-  role: "owner"
+  "first name": "there"
 };
 var REACH_OUT_SLOT_WORDS = {
   opening: "written for each business",
-  "first name": `the person's first name at a company; \u201C${REACH_OUT_SLOT_FALLBACKS["first name"]}\u201D for a business`,
+  "first name": `the person's first name at a company; \u201C${REACH_OUT_SLOT_FALLBACKS["first name"]}\u201D where nobody is named`,
   business: "their name on Google, or their company's",
   company: "their company's name, or their business's",
-  title: `the person's title at a company; \u201C${REACH_OUT_SLOT_FALLBACKS.title}\u201D for a business`,
-  role: `the person's role (owner, director, manager); \u201C${REACH_OUT_SLOT_FALLBACKS.role}\u201D for a business`,
+  title: "the person's title at a company; a business with nobody named is not written to with it",
+  role: "the person's role (owner, director, manager); a business with nobody named is not written to with it",
   city: "their city",
   "your name": "the name you sign with",
   "your business": "your business's name",
@@ -9427,11 +9425,13 @@ var LEAD_CARDS = [
       "50 independent pharmacies in ZIP 78704 that could stock an OTC product, a phone is enough",
       "100 family law firms within 15 km of downtown Denver, email checked, leaving out referral networks"
     ],
-    rights: "Public Google Maps listings, read through Apify, and contacts from each business's own site; no reviewer's data, no photos.",
+    rights: "Public Google Maps listings, and contacts from each business's own site; no reviewer's data, no photos.",
     approved: true
   },
   {
-    // The people card (the workbench's call 8, 00429), approved by Ruben on 14 Oct 2026 with its source-rights note.
+    // The people card (the workbench's call 8, 00429), approved by Ruben on 13 Oct 2026 with its source-rights note. It
+    // finds nothing until its calibration run: lead_platform.cards_on (00429 lead_card_live) is switched on by hand once
+    // that run proves the provider reads its filters and the mapper its fields (calibrated, below).
     id: "people_at_companies",
     finds: "people",
     goodFor: [
@@ -9466,8 +9466,9 @@ var LEAD_CARDS = [
       "50 owners of accounting firms in Ohio and Michigan",
       "200 office managers at dental practices in California"
     ],
-    rights: "From a B2B contact database on Apify, built from public professional profiles and company sites, LinkedIn's among them; we never sign in to LinkedIn or read it ourselves, keep a person's name, title, work address and profile link only, check each address before anything is sent, and never write again to anyone who says no.",
-    approved: true
+    rights: "From a B2B contact database built from public professional profiles and company sites; we never sign in anywhere to read them, keep a person's name, title, work address and profile link only, check each address before anything is sent, and never write again to anyone who says no.",
+    approved: true,
+    calibrated: null
   }
 ];
 var cardOf = (plan) => {
@@ -17204,6 +17205,11 @@ var LEAD_KINDS = ["place", "company"];
 var LEAD_SOURCES = ["local_businesses", "people_at_companies", "import"];
 var LEAD_ROLES = ["owner", "founder", "executive", "partner", "director", "manager", "staff"];
 var isLeadRole = (r2) => LEAD_ROLES.includes(r2);
+var LEAD_DIRECTORY_WORDS = {
+  found: "From a business directory",
+  address: "the address came with its people",
+  addressAlone: "The address came with its people"
+};
 var LEAD_ROLE_WORDS = {
   owner: "owner",
   founder: "founder",
@@ -17238,6 +17244,7 @@ function roleOf(seniority, title) {
   }
   const t = (title ?? "").toLowerCase();
   if (!t.trim()) return null;
+  if (/\b(assistant|coordinator|intern|receptionist|secretary)\b/.test(t)) return "staff";
   if (/\bowner\b/.test(t)) return "owner";
   if (/\b(co-?)?founder\b/.test(t)) return "founder";
   if (/\b(ceo|coo|cfo|cto|cmo|cio|chief|president)\b/.test(t)) return "executive";
@@ -17405,7 +17412,7 @@ function toLeadRowVM(r2, tz, now, search = null) {
   const waitsOn = m.class === "review" ? leadReviewGroups([{ id: r2.id, cls: "review", reasons: m.reasons ?? [] }], search)[0]?.label ?? m.reason : null;
   const state = m.class === "excluded" ? "out" : m.class === "review" ? "review" : r2.stage === "nurture" ? "contacted" : r2.stage === "converted" ? "talking" : r2.stage === "archived" ? "out" : "ready";
   const stateTag = state === "contacted" ? `${LEAD_STAGE_WORDS.nurture}${r2.contacted_at ? ` \xB7 ${agoShort(Date.parse(r2.contacted_at), nowMs)}` : ""}` : state === "talking" ? LEAD_STAGE_WORDS.converted : state === "review" ? LEAD_REVIEW_WORD : state === "out" ? m.class === "excluded" ? LEAD_LEFT_OUT_WORD : stageLabelOf(r2.stage, r2.closed_reason) : null;
-  const term = search?.plan.terms[0] ?? null;
+  const term = search?.plan?.terms[0] ?? null;
   const card = {
     about: r2.about ?? null,
     today: leadTodayLine(r2.hours ?? [], tz, now),
@@ -17483,6 +17490,7 @@ function leadRowOf(r2, tz, now, search = null) {
 }
 var roundIsLive = (state) => state !== "ended" && state !== "waiting_on_owner";
 function foundLine(r2, term) {
+  if (r2.kind === "company") return LEAD_DIRECTORY_WORDS.found;
   if (!r2.place_id) return "From your list";
   if (!term) return "On a Google Maps listing";
   return r2.rank ? `On Google Maps, #${r2.rank} for \u201C${term}\u201D` : `On Google Maps, searching \u201C${term}\u201D`;
@@ -17504,6 +17512,7 @@ function leadRail(counts, searches, now = /* @__PURE__ */ new Date()) {
       count: s.round?.counted ?? 0,
       undoable: leadUndoable(s, now),
       list: isLeadList(s),
+      people: !!s.people,
       mark: !s.round ? null : s.round.state === "waiting_on_owner" ? "question" : roundIsLive(s.round.state) ? "live" : null
     }))
   };
@@ -17568,6 +17577,12 @@ function dayIn(tz, iso, now) {
 }
 function foundWords(r2, term) {
   const host = r2.website;
+  if (r2.kind === "company")
+    return {
+      summary: LEAD_DIRECTORY_WORDS.found,
+      what: LEAD_DIRECTORY_WORDS.found,
+      site: host ? `${host} \xB7 ${LEAD_DIRECTORY_WORDS.address}` : LEAD_DIRECTORY_WORDS.addressAlone
+    };
   if (!r2.place_id)
     return {
       summary: "From your list",
@@ -17609,7 +17624,7 @@ function toLeadPeekVM(r2, search, tz, now) {
     m.class === "review" ? LEAD_REVIEW_WORD : `${LEAD_LEFT_OUT_WORD} \u2014 ${leadExclusionWord(search, m.excluded_by)}`
   );
   const fitCls = m.class === "qualified" ? m.fit ?? "look" : m.class === "review" ? "review" : "out";
-  const standard = LEAD_CONTACT_STANDARD_WORDS[search?.plan.contact === "email" ? "email" : "phone"];
+  const standard = LEAD_CONTACT_STANDARD_WORDS[(search?.plan ?? search?.people)?.contact === "email" ? "email" : "phone"];
   const emailNote = r2.email ? r2.email_state === "ok" ? `${LEAD_MAILBOX_WORDS.ok} \xB7 checked ${dayIn(tz, r2.email_checked_at, now) || "on finding it"}` : r2.email_state === "checking" ? LEAD_MAILBOX_WORDS.checking : r2.email_state === "invalid" ? `${LEAD_MAILBOX_WORDS.invalid}. Call instead.` : LEAD_MAILBOX_WORDS[r2.email_state] : LEAD_NO_EMAIL_LINE;
   const mailboxLabel = LEAD_MAILBOX_WORDS[r2.email_state];
   const stop = (s) => /[.!?]$/.test(s.trim()) ? s.trim() : `${s.trim()}.`;
@@ -17630,7 +17645,7 @@ function toLeadPeekVM(r2, search, tz, now) {
     items: m.other_emails
   } : null;
   const host = r2.website;
-  const term = search?.plan.terms[0] ?? null;
+  const term = search?.plan?.terms[0] ?? null;
   const where = foundWords(r2, term);
   const checksSummary = checksSummaryOf(m.checks);
   const week = leadWeekBars(r2.hours ?? [], tz, now);
@@ -17770,7 +17785,10 @@ var LEAD_FIRST_DAY = {
   lineLabel: "Your business, in a sentence",
   linePlaceholder: "What you sell, and who buys it",
   haveList: "Have a list already?",
-  importIt: "Import it"
+  importIt: "Import it",
+  /** The people card's door (00429), on a desk's first day and a phone's New search, where no rail is drawn. */
+  wantPeople: "Looking for people at companies?",
+  findPeople: "Find people"
 };
 var LEAD_SUGGEST_UNAVAILABLE = "Suggestions are not available right now.";
 var LEAD_WORDS = {
@@ -17933,6 +17951,33 @@ var leadSearchSpec = {
   open: ({ payload }, outcome) => {
     const am = amendsOf(payload);
     if (am) return leadQuestionRoute(am.search_id);
+    const sid = idIn(rec(outcome?.undo), "search_id");
+    return sid ? leadsRoute({ searchId: sid, list: "all", cls: null }) : "clients/leads";
+  }
+};
+var peopleSearchSpec = {
+  needs: "partner",
+  doing: "start a people search",
+  gate: "find",
+  commit: ({ payload: pl }) => {
+    const threadId = typeof pl.thread_id === "string" && pl.thread_id ? pl.thread_id : null;
+    return { route: "POST lead-searches/people", body: { plan: pl.plan, via: "ask", thread_id: threadId } };
+  },
+  receipt: ({ payload: pl }) => {
+    const plan = pl.plan ?? {};
+    return `Finding ${plan.count ?? ""} ${plan.name || "people"}. Each lands on Leads once their address checks out.`.replace(
+      /\s+/g,
+      " "
+    );
+  },
+  undo: {
+    label: () => "Stop the search",
+    window: "ten_minutes",
+    record: (_p, data) => ({ search_id: rec(data).search_id }),
+    call: (u) => ({ route: "POST lead-searches/[id]/stop", params: { id: asText(u.search_id) } }),
+    receipt: () => "Stopping. Whatever it found is kept, and the addresses already found are still checked."
+  },
+  open: (_p, outcome) => {
     const sid = idIn(rec(outcome?.undo), "search_id");
     return sid ? leadsRoute({ searchId: sid, list: "all", cls: null }) : "clients/leads";
   }
@@ -18145,6 +18190,7 @@ var PROPOSAL_SPECS = {
   broadcast: broadcastSpec,
   playbook: playbookSpec,
   lead_search: leadSearchSpec,
+  people_search: peopleSearchSpec,
   reach_out_add: reachOutAddSpec,
   deal: dealSpec,
   note: noteSpec,
@@ -25518,6 +25564,7 @@ function isWaitRefusal(reason) {
 }
 var REACH_OUT_MONTH_EMAILS = 2e3;
 var REACH_OUT_DRAFTS_PER_DAY = 30;
+var REACH_OUT_DRAFTS_OPEN_MAX = 2 * REACH_OUT_DRAFTS_PER_DAY;
 var REACH_OUT_CHECKS_PER_DAY = 400;
 function isReachOutRun(audience) {
   return !!audience && typeof audience === "object" && audience.kind === "reach_out";
@@ -25537,8 +25584,9 @@ function reachOutValues(lead, workspace, opening2) {
     business: lead.business_name,
     company: lead.business_name,
     "first name": who?.first_name || REACH_OUT_SLOT_FALLBACKS["first name"],
-    title: who?.title || (who?.role ? LEAD_ROLE_WORDS[who.role] : null) || REACH_OUT_SLOT_FALLBACKS.title,
-    role: (who?.role ? LEAD_ROLE_WORDS[who.role] : null) || REACH_OUT_SLOT_FALLBACKS.role,
+    // A person's title or role is said only where their source said it: no guess stands in (a hole holds the email).
+    title: who?.title || (who?.role ? LEAD_ROLE_WORDS[who.role] : null),
+    role: who?.role ? LEAD_ROLE_WORDS[who.role] : null,
     city: lead.city,
     "your business": workspace.businessName,
     "your name": workspace.yourName,
@@ -28844,9 +28892,13 @@ var PEOPLE_COMPANY_SIZES = [
   "10001+"
 ];
 var PEOPLE_COUNT_MAX = 500;
+var PEOPLE_RUN_FLOOR_USD = 0.5;
 var PEOPLE_TITLES_MAX = 5;
 var PEOPLE_INDUSTRIES_MAX = 5;
 var PEOPLE_STATES_MAX = 10;
+var PEOPLE_TITLE_CHARS = 60;
+var PEOPLE_INDUSTRY_CHARS = 80;
+var PEOPLE_ASKED_CHARS = 400;
 function peopleAreaOf(states) {
   const names3 = states.map(usStateName).filter((s) => !!s);
   const label = names3.length ? listed(names3) : "the US";
@@ -28866,7 +28918,9 @@ function peoplePlanFrom(i) {
     states: i.states,
     contact: "email",
     terms: [],
-    area: peopleAreaOf(i.states)
+    area: peopleAreaOf(i.states),
+    criteria: [],
+    exclusions: []
   };
 }
 var strs = (v, max, each) => Array.isArray(v) ? [...new Set(v.filter((s) => typeof s === "string").map((s) => s.trim().slice(0, each)))].filter(Boolean).slice(0, max) : [];
@@ -28906,7 +28960,7 @@ function usStateName(code2) {
 function peopleEstimateUsd(count2, prices) {
   const people = Math.min(1e3, 2 * Math.max(1, Math.floor(count2)));
   const usd = (people * (prices.perPerson + prices.perCheck) + prices.start) * LEAD_ESTIMATE_MARGIN;
-  return Math.ceil(usd * 100) / 100;
+  return Math.round((Math.ceil(usd * 100) / 100 + 2 * PEOPLE_RUN_FLOOR_USD) * 100) / 100;
 }
 function listTyped(text, max) {
   return [
@@ -28931,24 +28985,29 @@ var PEOPLE_FIND_WORDS = {
   statesHint: "Up to ten US states, with commas between: TX, CA. None is the whole US.",
   count: "How many companies",
   countHint: `1 to ${PEOPLE_COUNT_MAX}`,
-  start: (n) => `Find ${n}`,
+  start: (n) => `Find ${n} ${n === 1 ? "company" : "companies"}`,
   starting: "Starting\u2026",
   cancel: "Cancel",
   needTitle: "Say what they are called.",
   needCount: `Say how many, 1 to ${PEOPLE_COUNT_MAX}.`,
+  titleLong: (t) => `\u201C${t}\u201D is longer than ${PEOPLE_TITLE_CHARS} characters: say it shorter.`,
+  titlesLong: `What they are called is too long: ${PEOPLE_ASKED_CHARS} characters at most.`,
+  industryOdd: (t) => `\u201C${t}\u201D: an industry is 2 to ${PEOPLE_INDUSTRY_CHARS} characters.`,
+  stateUnread: (s) => `${s} isn't a US state: use its name or its two letters.`,
+  more: "Find more like these",
   done: "Looking now. They land on Leads as each address checks out.",
   failed: "Couldn't start the search. Nothing was spent; try again.",
   tick: "Chosen"
 };
 var listed = (xs) => xs.length <= 1 ? xs[0] ?? "" : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
 function peoplePlanSentence(p) {
-  const called = p.titles.map((t) => `\u201C${t}\u201D`);
-  const who = `${plural(p.count, "person", "people")} called ${listed(called)}`;
-  const level = p.seniority.length ? `, ${p.seniority.map((s) => PEOPLE_SENIORITY_WORDS[s]).join(" or ")}` : "";
-  const what = p.industries.length ? `${listed(p.industries)} companies` : "companies";
+  const what = p.industries.length ? `${listed(p.industries)} ${p.count === 1 ? "company" : "companies"}` : null;
+  const companies = what ? `${p.count} ${what.replace(/^\d+ /, "")}` : plural(p.count, "company", "companies");
   const size = p.sizes.length ? ` of ${p.sizes.join(", ")} people` : "";
   const where = p.states.length ? ` in ${listed(p.states)}` : " in the US";
-  return `${who}${level}, at ${what}${size}${where}, each address checked`;
+  const called = listed(p.titles.map((t) => `\u201C${t}\u201D`));
+  const level = p.seniority.length ? ` (${p.seniority.map((s) => PEOPLE_SENIORITY_WORDS[s]).join(" or ")})` : "";
+  return `Up to ${companies}${size}${where}, each through someone called ${called}${level}, each address checked`;
 }
 
 // src/leads/search/question.ts
@@ -32409,6 +32468,8 @@ function toSendWordsOf(r2, p) {
     note: "Open each in Gmail, Outlook or your mail app and send it there, then say Sent here. Skip leaves them out of this run.",
     rows: drafted2.map((d) => ({
       id: d.send_id,
+      leadId: d.lead_id,
+      followUp: d.follow_up === true,
       name: d.business_name,
       to: leadDoorOf(d.lead_id),
       angle: d.angle,
@@ -32421,6 +32482,15 @@ function toSendWordsOf(r2, p) {
     labels: REACH_OUT_TO_SEND_LABELS
   };
 }
+var SENT_SINCE_WORDS = {
+  lead_gone: "Their lead is gone, so nothing more is written to them.",
+  erased: "Their record was erased, so nothing more is written to them.",
+  lead_closed: "They had closed before it went, so nothing more is written to them.",
+  outreach_suppressed: "Their address is on the never-again list, so nothing more is written to them.",
+  outreach_stopped: "You had stopped writing to them, so nothing more is written to them.",
+  already_yours: "They are already yours, in People: it is on their thread.",
+  no_address: "Their address is gone, so nothing more is written to them."
+};
 var REACH_OUT_TO_SEND_LABELS = {
   gmail: "Open in Gmail",
   outlook: "Open in Outlook",
@@ -32438,9 +32508,13 @@ var REACH_OUT_TO_SEND_LABELS = {
   hide: "Hide it",
   /** Asked once the owner opened or copied one, as the lead's own draft asks (LEAD_SENT_QUESTION). */
   asked: "Did it go?",
+  /** A step after the first, asked at its Sent: the business may have answered the email before in the owner's inbox. */
+  noReply: "No reply from them yet?",
+  noReplyYes: "No reply: it went",
   sentDone: (name) => `${name}: sent from your inbox`,
+  /** Sent, and recorded, though its lead would be refused now (reach_out_send_said's since). */
+  sentSince: (name, since) => `${name}: sent from your inbox. ${SENT_SINCE_WORDS[since] ?? "Nothing more is written to them."}`,
   skippedDone: (name) => `${name}: left out of this run`,
-  refusedDone: (name, why) => `${name} was not written to: they ${why}`,
   /** Another member, or another tab, said first. */
   already: (state) => state === "sent" ? "Already said: it went." : "Already said: it was left out."
 };
@@ -32459,11 +32533,10 @@ var REACH_OUT_RUN_REREAD_MS = 15e3;
 function reachOutRunMoving(r2) {
   return r2.checking > 0 || r2.owner_sends === true && r2.today + r2.later > 0;
 }
-function toSendSaidWords(name, outcome, a) {
+function toSendSaidWords(name, a) {
   if (!a.said) return REACH_OUT_TO_SEND_LABELS.already(a.state);
-  if (a.state === "sent") return REACH_OUT_TO_SEND_LABELS.sentDone(name);
-  if (outcome === "not_sent") return REACH_OUT_TO_SEND_LABELS.skippedDone(name);
-  return REACH_OUT_TO_SEND_LABELS.refusedDone(name, skippedReasonWords(a.reason ?? ""));
+  if (a.state !== "sent") return REACH_OUT_TO_SEND_LABELS.skippedDone(name);
+  return a.since ? REACH_OUT_TO_SEND_LABELS.sentSince(name, a.since) : REACH_OUT_TO_SEND_LABELS.sentDone(name);
 }
 function heldNoticeWords(p) {
   const doors = [...new Set(p.reasons.flatMap(holdDoors))].map((d) => HOLD_DOOR_WORDS[d].toLowerCase());
@@ -32485,12 +32558,16 @@ var REACH_OUT_SAID_WORDS = {
     no: "No",
     wrong_person: "Wrong person"
   },
+  /** A not now asks the day to write again, and a wrong person who to write to instead: each may be left blank. */
   day: "When to write again",
   referTo: "Who to write to instead",
   save: "Save",
   saving: "Saving\u2026",
+  back: "Back",
+  /** Another tab, or another member, said it first: nothing was written twice. */
+  already: (business) => `Already said: ${business} wrote back.`,
   /** What the owner's word did; for a not now, the day the lead comes back (the plan's resume_at, as the server made it). */
-  done: (business, intent, back) => {
+  done: (business, intent, back, referTo = null) => {
     switch (intent) {
       case "interested":
       case "question":
@@ -32502,7 +32579,7 @@ var REACH_OUT_SAID_WORDS = {
       case "no":
         return `${business} said no: nothing more will be written to them.`;
       case "wrong_person":
-        return `Your reach-out stops for ${business}. A step to write to who they named is on Today.`;
+        return referTo ? `Your reach-out stops for ${business}. A step to write to ${referTo} is on Today.` : `Your reach-out stops for ${business}. A step to find who to write to instead is on Today.`;
     }
   },
   /** The note the owner's word is on the person's thread, in their own words. */
@@ -32692,8 +32769,9 @@ function reachOutPersonOf(t, nowMs, tz) {
   const found = foundAt !== null ? {
     at: foundAt,
     text: [
-      // A lead a list of the owner's own brought (00242) was found on no listing.
-      t.found_on_listing === false ? "From your list" : t.search?.asked ? `Found on Google Maps by \u201C${t.search.asked}\u201D` : "Found on Google Maps",
+      // A company the people card found came from a business directory (00429); a lead a list of the owner's own
+      // brought (00242) was found on no listing.
+      t.kind === "company" ? LEAD_DIRECTORY_WORDS.found : t.found_on_listing === false ? "From your list" : t.search?.asked ? `Found on Google Maps by \u201C${t.search.asked}\u201D` : "Found on Google Maps",
       fit ? fit.toLowerCase() : null,
       t.email_state === "ok" ? "address checked" : null
     ].filter(Boolean).join(" \xB7 ")
@@ -34358,7 +34436,8 @@ function contactEvidenceOf(d, first) {
     listing: d.business ? { phone: d.business.lead.phone, email: d.business.lead.email } : null,
     lead: d.lead ? {
       foundMs: moment(d.lead.found_at),
-      ownList: reachOut?.found_on_listing === false,
+      // A list of the owner's own (00242), never a company the people card found, which no listing named either.
+      ownList: reachOut?.source ? reachOut.source === "import" : reachOut?.found_on_listing === false,
       firstSendMs: earliest((reachOut?.sends ?? []).map((x) => moment(x.sent_at)))
     } : null
   };

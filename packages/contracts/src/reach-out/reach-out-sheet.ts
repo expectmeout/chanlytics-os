@@ -19,6 +19,7 @@ import type {
 } from "./reach-out-dtos";
 import { HOLD_DOOR_WORDS, holdDoors, holdWords, type HoldDoor } from "./reach-out-words";
 import { REACH_OUT_DRAFTS_PER_DAY } from "./reach-out-rules";
+import { SEND_DAY_FRAME } from "./reach-out-timetable";
 import type { HandKind } from "./reach-out-hand";
 import { pct } from "../shared/numbers";
 import { dateFormat } from "../shared/time";
@@ -361,13 +362,16 @@ export function approvalWordsOf(r: ReachOutRunDto, p: { timezone: string; share:
     if (leads) words.push({ text: open, opening: true });
     if (rest.trim()) words.push({ text: rest.replace(/^\s+/, ""), opening: false });
   }
-  const goes = earlier
-    ? " · goes from now, re-timed in their hours, once you approve it"
-    : passed
-      ? " · goes from now, in their hours, once you approve it"
-      : at
-        ? ` · goes from ${at} once you approve it`
-        : "";
+  // An owner's run is handed to them as each is checked, at any hour (00428): their hours are theirs to keep.
+  const goes = r.owner_sends
+    ? " · handed to you as each is checked, once you approve it"
+    : earlier
+      ? " · goes from now, re-timed in their hours, once you approve it"
+      : passed
+        ? " · goes from now, in their hours, once you approve it"
+        : at
+          ? ` · goes from ${at} once you approve it`
+          : "";
   // A run whose step was dropped from its chain since (R17) says so, never another step's name.
   const step =
     r.step_n === null ? "a step since removed" : `step ${r.step_n + 1}, ${stepLabel(r.step_n).toLowerCase()}`;
@@ -409,19 +413,22 @@ const runDayWords = (runFor: string): string =>
   dateFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(`${runFor}T12:00:00Z`));
 
 /**
- * A chain's pace as its mailboxes allow it: how many a day across them (each one's day, contracts mailboxDailyCap), and
- * the one mailbox's address when it writes from one. Nothing to write from is a share of 0 and no address. A chain its
+ * A chain's pace as its mailboxes allow it: how many a day across them, and the one mailbox's address when it writes
+ * from one. Each mailbox gives its day (contracts mailboxDailyCap), never more than fits in the working day at the
+ * chain's gap (SEND_DAY_FRAME, nine to five in the lead's time: the timetable places no more), so the sheet, the report
+ * and the approval say the number the timetable plans. Nothing to write from is a share of 0 and no address. A chain its
  * owner sends hands them its day's share, from no mailbox (00428).
  */
-export function chainPaceOf(c: Pick<ReachOutChainDto, "mailboxes" | "owner_sends">): {
+export function chainPaceOf(c: Pick<ReachOutChainDto, "mailboxes" | "owner_sends" | "gap_minutes">): {
   from: string | null;
   share: number;
 } {
   if (c.owner_sends) return { from: null, share: REACH_OUT_DRAFTS_PER_DAY };
   const [only, ...others] = c.mailboxes;
+  const fits = Math.floor((SEND_DAY_FRAME.to - SEND_DAY_FRAME.from) / Math.max(1, c.gap_minutes || 1)) + 1;
   return {
     from: only && others.length === 0 ? only.address : null,
-    share: c.mailboxes.reduce((t, m) => t + mailboxDailyCap(m), 0),
+    share: c.mailboxes.reduce((t, m) => t + Math.min(mailboxDailyCap(m), fits), 0),
   };
 }
 

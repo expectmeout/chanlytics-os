@@ -425,6 +425,21 @@ export async function sendNow(
   return data;
 }
 
+/**
+ * A run whose emails were handed to its owner, or taken back from them (00428): scheduled becomes sending, and its row is
+ * touched either way, since a page hears a run by its row (the feed tells of broadcasts, never of their sends), so
+ * Today's, the brief's and Ask's count of the emails waiting reads again.
+ */
+export async function runHanded(db: Db, p: { tenantId: string; id: string; at: Date }): Promise<void> {
+  const { error } = await db
+    .from("broadcasts")
+    .update({ state: "sending", updated_at: p.at.toISOString() })
+    .eq("tenant_id", p.tenantId)
+    .eq("id", p.id)
+    .in("state", ["scheduled", "sending"]);
+  if (error) throw new Error(`cannot mark the run handed over: ${error.message}`);
+}
+
 /** A run whose first email is written: scheduled becomes sending, through its guard's own move. */
 export async function runSending(db: Db, p: { tenantId: string; id: string }): Promise<void> {
   const { error } = await db
@@ -444,6 +459,8 @@ export interface ParentEmail {
   /** The chain it carried, oldest first. */
   references: string[];
   subject: string | null;
+  /** Sent by its owner from their own inbox, on their word (00428): the thread is theirs, so the next email is too. */
+  ownerSent: boolean;
 }
 
 /** The lead's sent email on the step before this one in its chain; null when it has none. */
@@ -453,7 +470,7 @@ export async function parentEmailOf(
 ): Promise<ParentEmail | null> {
   const { data: sends, error } = await db
     .from("reach_out_sends")
-    .select("message_id")
+    .select("message_id, said_at")
     .eq("tenant_id", p.tenantId)
     .eq("root_id", p.rootId)
     .eq("lead_id", p.leadId)
@@ -484,6 +501,7 @@ export async function parentEmailOf(
     rfcMessageId: typeof e.message_id === "string" && e.message_id ? e.message_id : null,
     references: typeof refs === "string" ? refs.split(/\s+/).filter(Boolean) : [],
     subject: typeof subject === "string" ? subject : null,
+    ownerSent: sends?.[0]?.said_at != null,
   };
 }
 
@@ -531,12 +549,13 @@ export async function leadWritten(
 ): Promise<boolean> {
   const { data: lead, error } = await db
     .from("leads")
-    .select("stage, version, contacted_at")
+    .select("stage, version, contacted_at, blanked_at, erased_at")
     .eq("tenant_id", p.tenantId)
     .eq("id", p.leadId)
     .maybeSingle();
   if (error) throw new Error(`cannot read the lead a send wrote to: ${error.message}`);
-  if (!lead) return false;
+  // A lead blanked or erased since keeps nothing of what was written to it, as the owner's Sent writes it (00428).
+  if (!lead || lead.blanked_at || lead.erased_at) return false;
   const { data: moved, error: e2 } = await db
     .from("leads")
     .update({

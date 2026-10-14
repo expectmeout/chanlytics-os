@@ -3523,6 +3523,7 @@ async function checkPlaybook(ports, body, existing) {
 // src/campaigns/run-reach-out.ts
 import {
   PLAYBOOK_VETO_DELAY_MS,
+  REACH_OUT_DRAFTS_OPEN_MAX,
   REACH_OUT_DRAFTS_PER_DAY,
   outreachRefusalOf as outreachRefusalOf2,
   sendWindowsOf,
@@ -3565,7 +3566,8 @@ async function runReachOut(ports, step, cmd) {
   const startMs = asks ? now : now + PLAYBOOK_VETO_DELAY_MS;
   let placed;
   if (step.owner_sends) {
-    const room = REACH_OUT_DRAFTS_PER_DAY - await ports.plannedOn(step.root_id, cmd.runFor);
+    const load = await ports.draftLoad(step.root_id, cmd.runFor);
+    const room = Math.min(REACH_OUT_DRAFTS_PER_DAY - load.today, REACH_OUT_DRAFTS_OPEN_MAX - load.open);
     if (room <= 0) return { outcome: "held", reason: "no_room", planned: 0 };
     placed = leads.slice(0, room).map((l) => ({ id: l.lead_id, senderId: null, sendAtMs: startMs }));
   } else {
@@ -37089,8 +37091,9 @@ var PEOPLE_CARD = {
       ])
     );
     if (!name || !company || !key) return null;
-    const email = firstText(o, ["email", "work_email", "workEmail", "email_address"])?.toLowerCase() ?? null;
-    const work = email && EMAIL_SHAPE.test(email) && !isFreeMail(email.slice(email.lastIndexOf("@") + 1)) ? email : null;
+    const country = countryOf(firstText(o, ["company_country", "companyCountry", "country"])) ?? "US";
+    if (country !== "US") return null;
+    const work = ["work_email", "workEmail", "email", "email_address"].map((k) => trimmedOrNull(o[k])?.toLowerCase() ?? null).find((e) => !!e && EMAIL_SHAPE.test(e) && !isFreeMail(e.slice(e.lastIndexOf("@") + 1))) ?? null;
     return {
       company: {
         key,
@@ -37098,7 +37101,7 @@ var PEOPLE_CARD = {
         industry: firstText(o, ["industry", "company_industry", "companyIndustry"])?.slice(0, 120) ?? null,
         city: firstText(o, ["company_city", "companyCity", "city"])?.slice(0, 120) ?? null,
         region: usStateCode(firstText(o, ["company_state", "companyState", "state"])),
-        country: countryOf(firstText(o, ["company_country", "companyCountry", "country"])) ?? "US",
+        country,
         linkedin: firstText(o, [
           "company_linkedin_url",
           "company_linkedin",
@@ -37547,6 +37550,7 @@ import {
   LEAD_CARDS,
   LEAD_ESTIMATE_MARGIN,
   LEAD_PEOPLE_MAX,
+  PEOPLE_RUN_FLOOR_USD,
   firstNameOf as firstNameOf3,
   roleOf
 } from "../../contracts/dist/index.js";
@@ -37566,7 +37570,8 @@ var peopleToAsk = (plan) => Math.min(PEOPLE_ASK_MAX, 2 * plan.count);
 function capOf(plan, leftUsd) {
   const brief = LEAD_CARDS.find((c) => c.id === "people_at_companies");
   const want = (peopleToAsk(plan) * (brief?.costPerPlaceUsd ?? 2e-3) + (brief?.startUsd ?? 0.01)) * LEAD_ESTIMATE_MARGIN;
-  return Math.round(Math.max(PEOPLE_CAP_FLOOR_USD, Math.min(leftUsd, want)) * 100) / 100;
+  const room = leftUsd - PEOPLE_RUN_FLOOR_USD;
+  return Math.round(Math.max(PEOPLE_CAP_FLOOR_USD, Math.min(room, want)) * 100) / 100;
 }
 async function startPeople(p, round, plan, owner, leftUsd) {
   const card = CARDS.people_at_companies;
@@ -37616,7 +37621,8 @@ async function startPeople(p, round, plan, owner, leftUsd) {
 var reasonOf = (who, size) => [who?.title, size ? `${size} people` : null].filter((x) => !!x).join(" \xB7 ");
 function companiesOf(found) {
   const by = /* @__PURE__ */ new Map();
-  for (const f of found) {
+  const ranked = found.map((f, i) => ({ f, i, rank: rankOf(roleOf(f.person.seniority, f.person.title)) })).sort((a, b) => Number(!a.f.person.email) - Number(!b.f.person.email) || a.rank - b.rank || a.i - b.i).map((x) => x.f);
+  for (const f of ranked) {
     const at = by.get(f.company.key) ?? { company: f.company, people: [] };
     const named = f.person.name.toLowerCase();
     const twice = at.people.some(
@@ -37635,8 +37641,8 @@ function companiesOf(found) {
   }
   const out = [];
   for (const { company, people } of by.values()) {
-    const ranked = people.map((person, i) => ({ person, i })).filter((x) => x.person.email !== null).sort((a, b) => rankOf(a.person.role) - rankOf(b.person.role) || a.i - b.i);
-    const top = ranked[0];
+    const ranked2 = people.map((person, i) => ({ person, i })).filter((x) => x.person.email !== null).sort((a, b) => rankOf(a.person.role) - rankOf(b.person.role) || a.i - b.i);
+    const top = ranked2[0];
     const email = top?.person.email;
     if (!top || !email) continue;
     out.push({
@@ -37655,9 +37661,8 @@ function companiesOf(found) {
   }
   return out;
 }
-function endingOf(state, held, target) {
-  if (held === 0 && state !== "succeeded") return "source_failed";
-  return held >= target ? "target_reached" : "searched_everything";
+function endingOf(state, held) {
+  return held === 0 && state !== "succeeded" ? "source_failed" : "searched_everything";
 }
 async function collectPeople(p, round, run, owner, gen) {
   const card = CARDS.people_at_companies;
@@ -37688,7 +37693,9 @@ async function collectPeople(p, round, run, owner, gen) {
   if (companies.length) await p.db.companyUpsert(round.id, companies);
   const to = base + items.length;
   const pageShort = items.length < PAGE_ITEMS;
-  const runDone = pageShort && FINAL_RUN_STATES.has(remoteState);
+  const runOver = pageShort && FINAL_RUN_STATES.has(remoteState);
+  const queued = round.state === "queued";
+  const runDone = runOver && !queued;
   const held = runDone ? (await p.db.membersOfRound(round.id)).length : 0;
   const page = {
     judgment: null,
@@ -37696,8 +37703,8 @@ async function collectPeople(p, round, run, owner, gen) {
     usage_usd: usage,
     items_seen: run.items_seen + items.length,
     run_state: runDone ? remoteState : null,
-    next: runDone ? null : { kind: "lead_collect", seq: `p${to}`, run_after_seconds: pageShort ? POLL_SECONDS : 0 },
-    round: runDone ? { state: "checking", question: null, ending: null, ending_pending: endingOf(remoteState, held, round.target) } : round.state === "queued" ? { state: "running", question: null, ending: null } : null
+    next: runDone ? null : { kind: "lead_collect", seq: `p${to}`, run_after_seconds: pageShort && !runOver ? POLL_SECONDS : 0 },
+    round: runDone ? { state: "checking", question: null, ending: null, ending_pending: endingOf(remoteState, held) } : queued ? { state: "running", question: null, ending: null } : null
   };
   const res = await p.db.collectCommit(run.id, owner, gen, base, to, page);
   if (!res.ok) return { kind: "lost", why: res.why };

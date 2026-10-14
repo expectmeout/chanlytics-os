@@ -84,6 +84,8 @@ export interface LeadsSurface {
   tz: string;
   readFailed: boolean;
   fetchedAt: number;
+  /** The cards that find leads now (00429 lead_cards_live): the people card's doors are drawn only once it is one. */
+  cardsLive: readonly string[];
   /**
    * When the searches were last asked for (LeadsLoaded.readAt), epoch ms: the bell judges a lead question's kept notice only
    * by a read that began after it. fetchedAt is the publish time, which moves on a republish with no read.
@@ -95,6 +97,8 @@ export interface LeadsSurface {
 interface LeadSearchesAnswer {
   searches: LeadSearchDto[];
   counts?: LeadCounts;
+  /** The cards that find leads now (00429). */
+  cards_live?: string[];
 }
 interface LeadsPageAnswer {
   rows: LeadRowDto[];
@@ -156,6 +160,8 @@ interface LeadsLoaded {
   pile: LeadPileCountsDto | null;
   searches: LeadSearchDto[];
   counts: LeadCounts;
+  /** The cards that find leads now (00429), from the searches' read. */
+  cardsLive: string[];
   rows: LeadRowDto[];
   next: { key: string; id: string } | null;
   offered: LeadRowDto[];
@@ -239,6 +245,7 @@ function publishLeads(failed = false): void {
   setSurfaceValue("leads", {
     searches: L?.searches ?? [],
     counts: L?.counts ?? NO_COUNTS,
+    cardsLive: L?.cardsLive ?? [],
     rows: rows.map(vmOf),
     next: L?.next ?? null,
     offered: L?.offered.filter((r) => !erased.has(r.id)).length ?? 0,
@@ -293,6 +300,7 @@ async function readPageOne(v: LeadsView): Promise<LeadsLoaded> {
     key,
     searches: searches.searches,
     counts: page.counts ?? searches.counts ?? NO_COUNTS,
+    cardsLive: searches.cards_live ?? [],
     month: page.month ?? null,
     pile: page.pile ?? null,
     rows: page.rows,
@@ -393,6 +401,7 @@ async function refreshView(): Promise<void> {
   else L.offered.push(...arrived); // any other order: offered, never sorted in
   L.searches = searches.searches;
   L.counts = page.counts ?? searches.counts ?? L.counts;
+  L.cardsLive = searches.cards_live ?? L.cardsLive;
   // The month moves with a refresh (D5): a Keep just spent one, so the workbench's "5 of your 238 left" follows.
   L.month = page.month ?? L.month;
   L.pile = page.pile ?? L.pile; // the pile's numbers move with it (00426): an add or a Later just decided one

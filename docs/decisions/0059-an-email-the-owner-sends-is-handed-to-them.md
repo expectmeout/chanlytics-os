@@ -59,7 +59,7 @@ claim with `said_by`, Stop writing, Leave out and Save taking a draft back, the 
 Reports' mailboxes naming the owner's own inbox apart (`yours`), from the emails before 00424 that left from no mailbox
 either. Edge: the sender's owner branch and claim loop, the replan's owner path, the check sweep without the lane gate.
 Dashboard: `POST /api/v1/reach-out-sends/[id]/said`, `POST /api/v1/reach-outs/leads/[id]/said`, the run's To send
-(Gmail, Outlook and mail-app links, `reach-out-compose.ts`), Today's drafted row, the sheet's From and Pace, the
+(Gmail, Outlook and mail-app links, `reach-out/owner/compose.ts`), Today's drafted row, the sheet's From and Pace, the
 peek's Send it and They wrote back.
 
 ## Tests

@@ -9,8 +9,8 @@ import { clockNear, clockWhen } from "../shared/clock";
 import { HELD_REASONS } from "../broadcasts/run-words";
 import { plural } from "../shared/words";
 import { RUN_WAITING_WORDS } from "../shell/campaign-rooms";
-import { composeLinksOf, type ComposeLinks } from "./reach-out-compose";
-import type { ReachOutRunDto, ReachOutSaidOutcome } from "./reach-out-dtos";
+import { composeLinksOf, type ComposeLinks } from "./owner/compose";
+import type { ReachOutRunDto } from "./reach-out-dtos";
 import { holdDoors, HOLD_DOOR_WORDS, type ReachOutHold } from "./reach-out-words";
 import { approvalWordsOf, chainPaceOf, leadDoorOf } from "./reach-out-sheet";
 
@@ -115,7 +115,8 @@ export function reachOutRunWordsOf(
         name: x.business_name,
         // Its lead, where the name opens it (leadDoorOf).
         to: leadDoorOf(x.lead_id),
-        at: retimed ? RETIMED : clockWhen(ms, p.timezone, p.now),
+        // An owner's email is handed to them once checked, at any hour (00428), never re-timed to the lead's.
+        at: owner ? HANDED : retimed ? RETIMED : clockWhen(ms, p.timezone, p.now),
       };
     }),
     skipAsk: `Skip ${r.chain_name}'s run?`,
@@ -134,10 +135,19 @@ export function reachOutRunWordsOf(
 
 /** A send whose time has passed, or whose run is from an earlier day: it goes in their hours once it may. */
 const RETIMED = "re-timed in their hours";
+/** An owner's email (00428): handed to them once checked, whatever the hour. */
+const HANDED = "handed to you once checked";
 
 /** One email handed to its owner, as the run's To send list draws it. */
 export interface ToSendRowVM {
   id: string;
+  /** Its lead's id: what They wrote back… is said on. */
+  leadId: string;
+  /**
+   * A step after the first (00428): its business may have answered the email before in the owner's own inbox, which
+   * nothing here reads, so its Sent asks first whether they did, and They wrote back… stands beside it.
+   */
+  followUp: boolean;
   name: string;
   /** Its lead, where the name opens it (leadDoorOf). */
   to: string | null;
@@ -163,6 +173,8 @@ export function toSendWordsOf(r: ReachOutRunDto, p: { timezone: string; now: num
     note: "Open each in Gmail, Outlook or your mail app and send it there, then say Sent here. Skip leaves them out of this run.",
     rows: drafted.map((d): ToSendRowVM => ({
       id: d.send_id,
+      leadId: d.lead_id,
+      followUp: d.follow_up === true,
       name: d.business_name,
       to: leadDoorOf(d.lead_id),
       angle: d.angle,
@@ -175,6 +187,20 @@ export function toSendWordsOf(r: ReachOutRunDto, p: { timezone: string; now: num
     labels: REACH_OUT_TO_SEND_LABELS,
   };
 }
+
+/**
+ * What is true of a lead an owner's email went to since it was handed over (00428 reach_out_send_said's since): the
+ * email is on the record all the same, and this says what follows from it.
+ */
+const SENT_SINCE_WORDS: Record<string, string> = {
+  lead_gone: "Their lead is gone, so nothing more is written to them.",
+  erased: "Their record was erased, so nothing more is written to them.",
+  lead_closed: "They had closed before it went, so nothing more is written to them.",
+  outreach_suppressed: "Their address is on the never-again list, so nothing more is written to them.",
+  outreach_stopped: "You had stopped writing to them, so nothing more is written to them.",
+  already_yours: "They are already yours, in People: it is on their thread.",
+  no_address: "Their address is gone, so nothing more is written to them.",
+};
 
 /** The To send list's own acts and what each says once done. */
 export const REACH_OUT_TO_SEND_LABELS = {
@@ -194,9 +220,14 @@ export const REACH_OUT_TO_SEND_LABELS = {
   hide: "Hide it",
   /** Asked once the owner opened or copied one, as the lead's own draft asks (LEAD_SENT_QUESTION). */
   asked: "Did it go?",
+  /** A step after the first, asked at its Sent: the business may have answered the email before in the owner's inbox. */
+  noReply: "No reply from them yet?",
+  noReplyYes: "No reply: it went",
   sentDone: (name: string) => `${name}: sent from your inbox`,
+  /** Sent, and recorded, though its lead would be refused now (reach_out_send_said's since). */
+  sentSince: (name: string, since: string) =>
+    `${name}: sent from your inbox. ${SENT_SINCE_WORDS[since] ?? "Nothing more is written to them."}`,
   skippedDone: (name: string) => `${name}: left out of this run`,
-  refusedDone: (name: string, why: string) => `${name} was not written to: they ${why}`,
   /** Another member, or another tab, said first. */
   already: (state: string) => (state === "sent" ? "Already said: it went." : "Already said: it was left out."),
 } as const;
@@ -225,16 +256,14 @@ export function reachOutRunMoving(r: ReachOutRunDto): boolean {
   return r.checking > 0 || (r.owner_sends === true && r.today + r.later > 0);
 }
 
-/** What the owner's word on a drafted email did, said at the To send list's head once the door answered (00428). */
-export function toSendSaidWords(
-  name: string,
-  outcome: ReachOutSaidOutcome,
-  a: { said: boolean; state: string; reason: string | null },
-): string {
+/**
+ * What the owner's word on a drafted email did, said at the To send list's head once the door answered (00428). Sent is
+ * always recorded, since the email left their inbox: what about its lead would refuse it now is said beside it.
+ */
+export function toSendSaidWords(name: string, a: { said: boolean; state: string; since?: string | null }): string {
   if (!a.said) return REACH_OUT_TO_SEND_LABELS.already(a.state);
-  if (a.state === "sent") return REACH_OUT_TO_SEND_LABELS.sentDone(name);
-  if (outcome === "not_sent") return REACH_OUT_TO_SEND_LABELS.skippedDone(name);
-  return REACH_OUT_TO_SEND_LABELS.refusedDone(name, skippedReasonWords(a.reason ?? ""));
+  if (a.state !== "sent") return REACH_OUT_TO_SEND_LABELS.skippedDone(name);
+  return a.since ? REACH_OUT_TO_SEND_LABELS.sentSince(name, a.since) : REACH_OUT_TO_SEND_LABELS.sentDone(name);
 }
 
 /** The notice the check sends the first time it holds a send in a run that is not waiting on its owner (R20). */

@@ -89,6 +89,9 @@ interface LeadPageRow {
   /** The pile (00426): when a member put it off for later in this search, and the reach-out it goes with. */
   later_at?: string | null;
   chain_id?: string | null;
+  /** A place or a company, and a company's people (00429). */
+  kind?: string | null;
+  facts?: unknown;
 }
 
 /**

@@ -28,16 +28,19 @@
  * One mailbox's failure is its own: the rest of the page, and every other workspace, still claim.
  *
  * A reach-out its owner sends (00428) is claimed apart (reach_out_claim_drafts: no mailbox, no day's room, a step after
- * the first first) and written the same way up to its words, then handed to its owner as a draft: claimed → drafted, its
- * words with their values in and its foot (request.ts reachOutDraft). Nobody is made and no email row is written until
- * the owner says it went (reach_out_send_said). Drafts need no unsubscribe seal, so they are claimed whether the mailbox
- * lane is complete or not.
+ * the first first) and written the same way up to its words, then, while the send door would let it go (contracts
+ * draftRefusalOf), handed to its owner as a draft: claimed → drafted, its words with their values in and its foot
+ * (request.ts reachOutDraft), its run's row touched so the pages that count its drafts read them again. A step after the
+ * first whose email before it its owner sent is handed to them too, whoever sends the chain now: the thread is theirs.
+ * Nobody is made and no email row is written until the owner says it went (reach_out_send_said). Drafts need no
+ * unsubscribe seal, so they are claimed whether the mailbox lane is complete or not.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   claimDrafts,
   claimSends,
   contactEmailOf,
+  draftFactsOf,
   dueMailboxes,
   emailWordsOf,
   insertQueuedEmail,
@@ -49,6 +52,7 @@ import {
   parentEmailOf,
   recheckSends,
   reachOutPerson,
+  runHanded,
   runSending,
   sendJobScheduled,
   sendNow,
@@ -68,6 +72,7 @@ import { sendMessageId } from "../packages/core.js";
 import { scheduleJob } from "../packages/jobs.js";
 import {
   REACH_OUT_MONTH_EMAILS,
+  draftRefusalOf,
   mailboxDailyCap,
   mailboxSendsNow,
   parseTenantConfig,
@@ -294,46 +299,41 @@ function claimedTurns(t: Tick, s: ReachOutSendRow) {
 }
 type ClaimedTurns = ReturnType<typeof claimedTurns>;
 
+/** What a claimed send's email is made of, read once in writeOne and handed to whichever way it leaves. */
+interface Made {
+  afterStep: string | null;
+  lead: { email: string | null; email_state: string | null };
+  words: { subject: string | null; body: string };
+  slots: SlotLead;
+  workspace: {
+    businessName: string | null;
+    yourName: string | null;
+    bookingLink: string | null;
+    address: string | null;
+  };
+  /** The lead's email on the step before, for a step after the first (D19). */
+  parent: ParentEmail | null;
+}
+
 /**
- * A reach-out its owner sends (00428): handed to them as a draft, to the lead's own checked address, never sent from a
- * mailbox. A step after the first answers the email before by its subject; the owner's own client threads it.
+ * A reach-out its owner sends (00428), or a step after the first whose email before it they sent from their own inbox
+ * (the thread is theirs, whoever sends the chain now): handed to them as a draft, to the lead's own checked address,
+ * never sent from a mailbox, and only while the send door would let it go (contracts draftRefusalOf: nothing stands
+ * between the owner's inbox and the business but this). A step after the first answers the email before by its subject;
+ * the owner's own client threads it.
  */
-async function handOver(
-  t: Tick,
-  s: ReachOutSendRow,
-  turns: ClaimedTurns,
-  p: {
-    afterStepId: string | null;
-    lead: { email: string | null; email_state: string | null };
-    words: { subject: string | null; body: string };
-    slots: SlotLead;
-    workspace: {
-      businessName: string | null;
-      yourName: string | null;
-      bookingLink: string | null;
-      address: string | null;
-    };
-  },
-): Promise<Outcome> {
+async function handOver(t: Tick, s: ReachOutSendRow, turns: ClaimedTurns, m: Made): Promise<Outcome> {
   const { skip, hold, recheck, move } = turns;
-  let before: ParentEmail | null = null;
-  if (p.afterStepId) {
-    before = await parentEmailOf(t.db, {
-      tenantId: s.tenant_id,
-      rootId: s.root_id,
-      leadId: s.lead_id,
-      stepId: p.afterStepId,
-    });
-    if (!before) return skip("no_parent");
-  }
-  const to = p.lead.email?.trim().toLowerCase() ?? "";
-  if (!to || p.lead.email_state === "invalid") return skip("no_address");
+  const to = m.lead.email?.trim().toLowerCase() ?? "";
+  if (!to || m.lead.email_state === "invalid") return skip("no_address");
+  const refused = draftRefusalOf(await draftFactsOf(t.db, s.tenant_id, s.lead_id));
+  if (refused) return skip(refused);
   const d = reachOutDraft({
-    words: p.words,
-    lead: p.slots,
-    workspace: p.workspace,
+    words: m.words,
+    lead: m.slots,
+    workspace: m.workspace,
     opening: s.opening ?? null,
-    parent: before ? { subject: before.subject } : null,
+    parent: m.parent ? { subject: m.parent.subject } : null,
   });
   if (!d.ok && d.reason === "no_opening") return recheck();
   if (!d.ok) return HOLDS.has(d.reason) ? hold(d.reason) : skip(d.reason);
@@ -342,11 +342,12 @@ async function handOver(
     subject: d.subject,
     body: d.body,
     text: d.text,
-    ...(before ? { parent_id: before.messageId } : {}),
+    ...(m.parent ? { parent_id: m.parent.messageId } : {}),
   };
-  if (!(await move({ state: "drafted", drafted_at: t.now.toISOString(), draft }))) return "lost";
-  // The run's word only, as for an email written: its drafts are its owner's to send now.
-  await runSending(t.db, { tenantId: s.tenant_id, id: s.broadcast_id }).catch((e: unknown) =>
+  // Its mailbox let go: an owner's email is no mailbox's to count.
+  if (!(await move({ state: "drafted", drafted_at: t.now.toISOString(), draft, mailbox_id: null }))) return "lost";
+  // The run's row, touched: its drafts are its owner's to send now, and a page that hears the run reads them again.
+  await runHanded(t.db, { tenantId: s.tenant_id, id: s.broadcast_id, at: t.now }).catch((e: unknown) =>
     t.log.warn("reach_out_run_unstarted", {
       broadcast_id: s.broadcast_id,
       error: e instanceof Error ? e.message : String(e),
@@ -359,12 +360,10 @@ async function handOver(
 async function writeOne(t: Tick, s: ReachOutSendRow): Promise<Outcome> {
   const { db } = t;
   const turns = claimedTurns(t, s);
-  const { move, skip, recheck, hold } = turns;
-  const attempt = s.attempts ?? 0;
-  const opening = s.opening ?? null;
+  const { skip, recheck, hold } = turns;
 
   // 0. Written before, by a tick that died after it: that email is this send's.
-  const messageId = await sendMessageId(s.id, attempt);
+  const messageId = await sendMessageId(s.id, s.attempts ?? 0);
   const was = await writtenEmail(db, { tenantId: s.tenant_id, id: messageId });
   if (was) return adopt(t, s, messageId, was);
 
@@ -394,56 +393,67 @@ async function writeOne(t: Tick, s: ReachOutSendRow): Promise<Outcome> {
   // Checked against other words than these (its step's, the name it signs with, whether a booking link exists): the
   // check reads it again before it goes (R5). Never a skip: nothing about the lead changed.
   if (s.checked_words !== checkedWordsOf(words, standing.signedBy, workspace.bookingLink !== null)) return recheck();
-  // A company's addressee fills the person slots, and the foot says where it was found (00429).
-  const slots = {
-    business_name: lead.business_name,
-    city: lead.city,
-    kind: lead.kind,
-    facts: lead.facts,
-    source: lead.source,
-  };
-  const workspaceSlots = {
-    businessName: workspace.businessName,
-    yourName: standing.signedBy,
-    bookingLink: workspace.bookingLink,
-  };
 
-  if (standing.ownerSends)
-    return handOver(t, s, turns, {
-      afterStepId: standing.step.after_playbook_id,
-      lead,
-      words,
-      slots,
-      workspace: { ...workspaceSlots, address: workspace.address },
-    });
-  // A mailbox's send, with no lane to send it by (no unsubscribe seal): it keeps, planned again, for the lane.
+  // 3. A step after the first answers the lead's email on the step before (D19).
+  const after = standing.step.after_playbook_id;
+  const parent = after
+    ? await parentEmailOf(db, { tenantId: s.tenant_id, rootId: s.root_id, leadId: s.lead_id, stepId: after })
+    : null;
+  if (after && !parent) return skip("no_parent");
+  const made: Made = {
+    afterStep: after,
+    lead,
+    words,
+    // A company's addressee fills the person slots, and the foot says where it was found (00429).
+    slots: {
+      business_name: lead.business_name,
+      city: lead.city,
+      kind: lead.kind,
+      facts: lead.facts,
+      source: lead.source,
+    },
+    workspace: {
+      businessName: workspace.businessName,
+      yourName: standing.signedBy,
+      bookingLink: workspace.bookingLink,
+      address: workspace.address,
+    },
+    parent,
+  };
+  if (standing.ownerSends || parent?.ownerSent) return handOver(t, s, turns, made);
+  return sendFromMailbox(t, s, turns, made, { mailbox, messageId });
+}
+
+/**
+ * A mailbox's send (decision 0056): its mailbox now, the email before it stamped, its words, the person (made once), the
+ * frozen request, the row and the job, then its move to queued and its run sending.
+ */
+async function sendFromMailbox(
+  t: Tick,
+  s: ReachOutSendRow,
+  turns: ClaimedTurns,
+  m: Made,
+  p: { mailbox: MailboxConnectionRow | null; messageId: string },
+): Promise<Outcome> {
+  const { db } = t;
+  const { move, skip, recheck, hold } = turns;
+  const { messageId } = p;
+  const opening = s.opening ?? null;
+  // No lane to send it by (no unsubscribe seal): it keeps, planned again, for the lane.
   if (!t.lane) return turns.wait();
-  const turn = mailboxTurn(mailbox, standing.step.after_playbook_id !== null, t.now.getTime());
+  const turn = mailboxTurn(p.mailbox, m.afterStep !== null, t.now.getTime());
   if ("gone" in turn) return skip("mailbox_gone");
   if ("wait" in turn) {
     (turn.wait === "replan" ? t.replan : t.later).push({ send: s, wrote: false });
     return "waited";
   }
-  const from = turn.go;
-
-  // 3. A step after the first answers the lead's email on the step before (D19).
-  let parent: ParentEmail | null = null;
-  if (standing.step.after_playbook_id) {
-    parent = await parentEmailOf(db, {
-      tenantId: s.tenant_id,
-      rootId: s.root_id,
-      leadId: s.lead_id,
-      stepId: standing.step.after_playbook_id,
-    });
-    if (!parent) return skip("no_parent");
-    if (!parent.rfcMessageId) {
-      // Its receipt stamps it within seconds of its leaving; one that never came in two weeks is not coming.
-      if (t.now.getTime() - Date.parse(s.created_at) > REPLAN_GIVE_UP_MS) return skip("parent_unstamped");
-      t.later.push({ send: s, wrote: false });
-      return "waited";
-    }
+  // Its receipt stamps the email before within seconds of its leaving; one that never came in two weeks is not coming.
+  if (m.parent && !m.parent.rfcMessageId) {
+    if (t.now.getTime() - Date.parse(s.created_at) > REPLAN_GIVE_UP_MS) return skip("parent_unstamped");
+    t.later.push({ send: s, wrote: false });
+    return "waited";
   }
-  const said = reachOutWords(words, slots, workspaceSlots, parent !== null, opening);
+  const said = reachOutWords(m.words, m.slots, m.workspace, m.parent !== null, opening);
   if (!said.ok && said.reason === "no_opening") return recheck();
   if (!said.ok) return HOLDS.has(said.reason) ? hold(said.reason) : skip(said.reason);
 
@@ -460,13 +470,13 @@ async function writeOne(t: Tick, s: ReachOutSendRow): Promise<Outcome> {
     messageId,
     contactId: person.contactId,
     to,
-    words,
-    lead: slots,
-    workspace: { ...workspaceSlots, address: workspace.address },
+    words: m.words,
+    lead: m.slots,
+    workspace: m.workspace,
     opening,
-    from,
+    from: turn.go,
     unsubscribe: { secret: t.lane.unsubscribeSecret, origin: t.lane.unsubscribeOrigin },
-    parent,
+    parent: m.parent,
   });
   if (!r.ok) return HOLDS.has(r.reason) ? hold(r.reason) : skip(r.reason);
   const meta = {
@@ -475,7 +485,7 @@ async function writeOne(t: Tick, s: ReachOutSendRow): Promise<Outcome> {
       subject: r.subject,
       to: [to],
       request: r.request,
-      ...(parent ? { parent_id: parent.messageId, in_reply_to: parent.rfcMessageId } : {}),
+      ...(m.parent ? { parent_id: m.parent.messageId, in_reply_to: m.parent.rfcMessageId } : {}),
     },
     reach_out: {
       send_id: s.id,
@@ -484,7 +494,7 @@ async function writeOne(t: Tick, s: ReachOutSendRow): Promise<Outcome> {
       playbook_id: s.playbook_id,
       root_id: s.root_id,
       broadcast_id: s.broadcast_id,
-      attempt,
+      attempt: s.attempts ?? 0,
     },
   };
   const wrote = await insertQueuedEmail(db, {

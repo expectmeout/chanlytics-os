@@ -10,6 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { RUN_GOING_STATES, versionWords } from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
 import type { JsonObject } from "../events";
+import { readAllRows } from "../paged";
 
 type Db = SupabaseClient<Database>;
 
@@ -426,26 +427,35 @@ export async function markHeldNotice(
 }
 
 /**
- * How many of each of a workspace's runs' emails are in one state, one head count per run, read together: held, those the
- * check holds for their owner's say, which Sent's row, the bell's held notice and Campaigns' chain row say (the wiring's
- * second audit, W-campaign-run-template-reachout-4); drafted, those handed to their owner to send from their inbox
- * (00428), which wait on them as the held do. Throws when it cannot read.
+ * How many of each of a workspace's runs' emails wait on its owner, read in one: held, those the check holds for their
+ * owner's say, which Sent's row, the bell's held notice and Campaigns' chain row say (the wiring's second audit,
+ * W-campaign-run-template-reachout-4); drafted, those handed to their owner to send from their inbox (00428), which wait
+ * on them as the held do. A run with neither is absent. One read of the two states' rows (reach_out_sends_run, on
+ * broadcast_id and state), never a count per run. Throws when it cannot read.
  */
-export async function runSendCounts(
+export async function runWaitingCounts(
   db: Db,
-  p: { tenantId: string; runIds: readonly string[]; state: "held" | "drafted" },
-): Promise<Map<string, number>> {
-  const counts = await Promise.all(
-    p.runIds.map(async (id) => {
-      const { count, error } = await db
+  p: { tenantId: string; runIds: readonly string[] },
+): Promise<Map<string, { held: number; drafted: number }>> {
+  const out = new Map<string, { held: number; drafted: number }>();
+  if (p.runIds.length === 0) return out;
+  const rows = await readAllRows<{ broadcast_id: string; state: string }>(
+    "cannot count the runs' waiting emails",
+    (from, to) =>
+      db
         .from("reach_out_sends")
-        .select("id", { count: "exact", head: true })
+        .select("broadcast_id, state")
         .eq("tenant_id", p.tenantId)
-        .eq("broadcast_id", id)
-        .eq("state", p.state);
-      if (error) throw new Error(`cannot count the ${p.state} emails of run ${id}: ${error.message}`);
-      return [id, count ?? 0] as const;
-    }),
+        .in("broadcast_id", [...p.runIds])
+        .in("state", ["held", "drafted"])
+        .order("id")
+        .range(from, to),
   );
-  return new Map(counts);
+  for (const r of rows) {
+    const c = out.get(r.broadcast_id) ?? { held: 0, drafted: 0 };
+    if (r.state === "held") c.held += 1;
+    else c.drafted += 1;
+    out.set(r.broadcast_id, c);
+  }
+  return out;
 }

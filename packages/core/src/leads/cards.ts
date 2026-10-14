@@ -153,7 +153,7 @@ export interface PersonAtCompany {
     name: string;
     first_name: string | null;
     title: string | null;
-    /** The provider's seniority word (owner, c_suite, manager…), which contracts roleOf reads. */
+    /** The provider's seniority word (owner, c_suite, manager…), which contracts leadRoleOf reads. */
     seniority: string | null;
     /** Their work address, lower case; never a free mail one. */
     email: string | null;
@@ -351,10 +351,15 @@ const PEOPLE_CARD: PeopleCardRunner = {
       ]),
     );
     if (!name || !company || !key) return null;
-    const email = firstText(o, ["email", "work_email", "workEmail", "email_address"])?.toLowerCase() ?? null;
-    // A work address only: a person's own mailbox (a free mail one) is never their company's door.
+    // The card searches the US (its rights note says so): a company elsewhere is not read, whatever the filter let by.
+    const country = countryOf(firstText(o, ["company_country", "companyCountry", "country"])) ?? "US";
+    if (country !== "US") return null;
+    // A work address only, the first well-formed one in the order a database means them: a person's own mailbox (a
+    // free mail one) is never their company's door, and one in `email` never hides the `work_email` beside it.
     const work =
-      email && EMAIL_SHAPE.test(email) && !isFreeMail(email.slice(email.lastIndexOf("@") + 1)) ? email : null;
+      ["work_email", "workEmail", "email", "email_address"]
+        .map((k) => trimmedOrNull(o[k])?.toLowerCase() ?? null)
+        .find((e): e is string => !!e && EMAIL_SHAPE.test(e) && !isFreeMail(e.slice(e.lastIndexOf("@") + 1))) ?? null;
     return {
       company: {
         key,
@@ -362,7 +367,7 @@ const PEOPLE_CARD: PeopleCardRunner = {
         industry: firstText(o, ["industry", "company_industry", "companyIndustry"])?.slice(0, 120) ?? null,
         city: firstText(o, ["company_city", "companyCity", "city"])?.slice(0, 120) ?? null,
         region: usStateCode(firstText(o, ["company_state", "companyState", "state"])),
-        country: countryOf(firstText(o, ["company_country", "companyCountry", "country"])) ?? "US",
+        country,
         linkedin:
           firstText(o, [
             "company_linkedin_url",

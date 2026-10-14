@@ -14,6 +14,9 @@
  *               again), so a writer that died mid-send neither loses it nor spends its mailbox's day for good.
  *   close       a canceled or failed run's open sends are skipped, `run_canceled`; an email still queued is withdrawn
  *               first, so its job sends nothing; one its job has begun to send is its job's, and reconcile reads it.
+ *   drafts      a draft waiting for its owner whose lead the send door would refuse now (contracts draftRefusalOf: it
+ *               said no, closed, was stopped, went on the never-again list, became a customer, or is gone) is skipped
+ *               with why, and its run's row touched, so To send stops offering it (00428).
  *   finish      a run that goes ahead with no send left open is sent, and says when it finished.
  *   restale     a planned send long past its time in a run that goes ahead (approved late, its chain resumed, its
  *               mailbox's day full or its mailbox removed) is planned again from now.
@@ -27,11 +30,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   closedRunSends,
+  draftsWaiting,
   finishableRuns,
   heldStale,
   leadWritten,
   moveSend,
   queuedOutcomes,
+  runHanded,
   staleSends,
   stuckClaims,
   withdrawEmail,
@@ -41,7 +46,7 @@ import {
   type ReachOutSendRow,
 } from "../packages/db.js";
 import { sendMessageId } from "../packages/core.js";
-import { isWaitRefusal } from "../packages/contracts.js";
+import { draftRefusalOf, isWaitRefusal } from "../packages/contracts.js";
 import { REPLAN_GIVE_UP_MS, replanSends, type Replan, type ReplanCounts } from "./replan.js";
 import type { Logger } from "../log.js";
 
@@ -111,6 +116,30 @@ async function closeRuns(db: Db, now: Date, out: ClockCounts, tenantId?: string)
       }
     }
     if (await move(db, s, { state: "skipped", reason: "run_canceled" })) out.closed += 1;
+  }
+}
+
+/**
+ * The drafts step (00428): no send door stands between an owner's inbox and the business, so a draft is judged as the
+ * door would judge it while it waits, and one it would refuse now is skipped with why. Its owner's Sent still records an
+ * email that left their inbox meanwhile (reach_out_send_said takes a draft skipped since).
+ */
+async function recheckDrafts(db: Db, now: Date, out: ClockCounts, log: Logger, tenantId?: string): Promise<void> {
+  for (const d of await draftsWaiting(db, { limit: PAGE, tenantId })) {
+    const reason = draftRefusalOf(d.facts);
+    if (!reason) continue;
+    if (
+      !(await moveSend(db, { tenantId: d.tenant_id, id: d.id, from: "drafted", patch: { state: "skipped", reason } }))
+    )
+      continue;
+    out.skipped += 1;
+    // Its run's row, touched: the pages that count its drafts read them again.
+    await runHanded(db, { tenantId: d.tenant_id, id: d.broadcast_id, at: now }).catch((e: unknown) =>
+      log.warn("reach_out_run_unstarted", {
+        broadcast_id: d.broadcast_id,
+        error: e instanceof Error ? e.message : String(e),
+      }),
+    );
   }
 }
 
@@ -206,6 +235,9 @@ export async function reachOutClock(
 
   /* close */
   if (!late()) await closeRuns(db, now, out, tenantId);
+
+  /* drafts */
+  if (!late()) await recheckDrafts(db, now, out, log, tenantId);
 
   /* finish */
   if (!late())

@@ -50,23 +50,23 @@ export const REACH_OUT_SLOTS = [
 export type ReachOutSlot = (typeof REACH_OUT_SLOTS)[number];
 
 /**
- * What a person's slot says for a lead that names nobody (a place, or a company whose source named no addressee): an
- * email is never held for it. {{company}} is the business's own name, which every lead has.
+ * What a person's slot says for a lead that names nobody: {{first name}} greets them as every message does ("Hi there",
+ * templates' resolveParams), and {{company}} is the business's own name, which every lead has. {{title}} and {{role}}
+ * claim something of a person, so they have no fallback: an email that names one for a lead with nobody named is not
+ * written (missing_value), never sent with a guess.
  */
 export const REACH_OUT_SLOT_FALLBACKS = {
   "first name": "there",
-  title: "owner",
-  role: "owner",
 } as const satisfies Partial<Record<ReachOutSlot, string>>;
 
 /** What each slot is, as the sheet's chips say it on hover: who fills it, and what it says when nobody is named. */
 export const REACH_OUT_SLOT_WORDS: Record<ReachOutSlot, string> = {
   opening: "written for each business",
-  "first name": `the person's first name at a company; “${REACH_OUT_SLOT_FALLBACKS["first name"]}” for a business`,
+  "first name": `the person's first name at a company; “${REACH_OUT_SLOT_FALLBACKS["first name"]}” where nobody is named`,
   business: "their name on Google, or their company's",
   company: "their company's name, or their business's",
-  title: `the person's title at a company; “${REACH_OUT_SLOT_FALLBACKS.title}” for a business`,
-  role: `the person's role (owner, director, manager); “${REACH_OUT_SLOT_FALLBACKS.role}” for a business`,
+  title: "the person's title at a company; a business with nobody named is not written to with it",
+  role: "the person's role (owner, director, manager); a business with nobody named is not written to with it",
   city: "their city",
   "your name": "the name you sign with",
   "your business": "your business's name",

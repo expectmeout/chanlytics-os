@@ -7,6 +7,7 @@ import {
   planVersionOf,
   type LeadClass,
   type LeadList,
+  type LeadPeoplePlan,
   type LeadSearchDto,
   type LeadSearchPlan,
 } from "@chanlytics/contracts";
@@ -75,6 +76,8 @@ export const leadStripActs = (a: {
   setSortBy: (by: string) => void;
   setSortDir: (dir: string) => void;
   openFinder: (card: Partial<FinderState>) => void;
+  /** Find people, filled in with a people search's plan: its strip's Find more like these (00429). */
+  openFindPeople: (from?: LeadPeoplePlan | null) => void;
 }) => {
   const { openSearch, leadAct, searchAnswerOf, openPlanFor, goto, undoRound, setSortBy, setSortDir, openFinder } = a;
   // "12 new": the view read again in its order. The strip's door and the list head's are this one.
@@ -102,14 +105,21 @@ export const leadStripActs = (a: {
     }
     // Include takes the thing it asked about back out of the plan, which planVersionOf makes a new version of: the plan
     // goes as the owner approved it; the route sets the version and the count the round reserved (G1).
+    if (id === "excluded" || id === "review") return goto({ cls: arg as LeadClass });
+    // A people search's next step is its own sheet, filled in with its plan (00429): never a places door.
+    if (id === "people_more") {
+      a.openFindPeople(s.people ?? null);
+      return undefined;
+    }
+    const plan = s.plan;
+    if (!plan) return undefined;
     if (id === "include")
       return openPlanFor(
         s,
-        planVersionOf(s.plan, { exclusions: s.plan.exclusions.filter((x) => x.key !== arg) }),
+        planVersionOf(plan, { exclusions: plan.exclusions.filter((x) => x.key !== arg) }),
         "answer",
       );
-    if (id === "excluded" || id === "review") return goto({ cls: arg as LeadClass });
-    if (LEAD_ROUND_MAKERS.indexOf(id) >= 0) return openPlanFor(s, isPlan(arg) ? arg : s.plan, "more");
+    if (LEAD_ROUND_MAKERS.indexOf(id) >= 0) return openPlanFor(s, isPlan(arg) ? arg : plan, "more");
     if (id === "undo") return undoRound(searchIdOf(arg));
     // Sort by fit is a new read of the same view, not a re-order of the rows on the page: the sort is the page's own
     // state and the read asks the surface for it (E8).

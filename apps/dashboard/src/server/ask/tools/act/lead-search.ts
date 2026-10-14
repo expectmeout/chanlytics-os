@@ -2,17 +2,21 @@ import "server-only";
 import { z } from "zod";
 import {
   AppError,
+  LEAD_CARDS,
   LEAD_LIST_MAX,
   addressOf,
-  ProposeLeadSearchSchema,
+  ProposeAnySearchSchema,
+  peopleEstimateUsd,
+  peoplePlanSentence,
   planLeadSearch,
+  planPeopleSearch,
   planSentence,
   proposalBelowNeeds,
   reachOutAddWords,
   type LeadSearchPlan,
   type ReachOutAddDto,
 } from "@chanlytics/contracts";
-import { reachOutRootOf } from "@chanlytics/db";
+import { leadCardsLive, reachOutRootOf } from "@chanlytics/db";
 import { addToReachOut } from "../../../leads/lead-workbench";
 import { answerPlanOf, planFacts, searchRow, waitingQuestionOf, type SearchViewRow } from "../../../leads/leads";
 import { requireUuid } from "../../../request-guards";
@@ -33,25 +37,33 @@ import {
 
 /**
  * The ask as the model writes it, field by field, in the flat shape it is shown. The plan's own schema
- * (ProposeLeadSearchSchema, contracts) judges it after the shaping below, in the handler, so the refusal keeps the
- * plan's words and the role check (a partner or an owner, the route's door) still comes first.
+ * (ProposeAnySearchSchema, contracts: a places ask or a people ask, by looking_for) judges it after the shaping below,
+ * in the handler, so the refusal keeps the plan's words and the role check (a partner or an owner, the route's door)
+ * still comes first. What only a places plan reads is optional here, so a people ask is never refused for leaving it out;
+ * a places ask without it is refused by the places schema, in words.
  */
 const LeadSearchAsk = z.object({
-  looking_for: z.enum(["local_businesses", "people", "online_sellers", "other"]),
+  looking_for: z.enum(["local_businesses", "people_at_companies", "people", "online_sellers", "other"]),
   country: z.string(),
   count: z.number().int(),
   who: z.string(),
-  who_one: z.string(),
-  category_key: z.string(),
+  who_one: z.string().optional(),
+  category_key: z.string().optional(),
   terms: z.array(z.string()),
   city: z.string().optional(),
   region: z.string(),
   zip: z.string().optional(),
-  contact: z.enum(["phone", "email"]),
-  criteria: z.array(z.object({ text: z.string(), standard: z.enum(["likely", "seen"]), required: z.boolean() })),
+  contact: z.enum(["phone", "email"]).optional(),
+  criteria: z
+    .array(z.object({ text: z.string(), standard: z.enum(["likely", "seen"]), required: z.boolean() }))
+    .optional(),
   leave_out: z.array(z.object({ words: z.string() })).optional(),
   asked: z.string(),
   amends: z.string().optional(),
+  // A people search's own (the people card, 00429).
+  seniority: z.array(z.string()).optional(),
+  industries: z.array(z.string()).optional(),
+  company_sizes: z.array(z.string()).optional(),
 });
 
 type LeadSearchAskInput = z.output<typeof LeadSearchAsk>;
@@ -83,11 +95,19 @@ const shapeAsk = (input: LeadSearchAskInput) => {
     leave_out: (Array.isArray(input.leave_out) ? input.leave_out : [])
       .slice(0, 6)
       .map((l) => ({ words: str((l as Record<string, unknown>).words, 40) })),
+    // What a people search names, in the card's own words: a seniority in lower case ("C-suite" is c_suite).
+    seniority: (Array.isArray(input.seniority) ? input.seniority : []).map((s) =>
+      String(s)
+        .toLowerCase()
+        .replace(/[^a-z]+/g, "_"),
+    ),
+    industries: (Array.isArray(input.industries) ? input.industries : []).slice(0, 5),
+    company_sizes: Array.isArray(input.company_sizes) ? input.company_sizes : [],
   };
 };
 
 /** The plan's schema over the shaped ask: one parse, the plan's own words on a refusal. */
-const LeadSearchPlanInput = z.preprocess((raw) => shapeAsk(raw as LeadSearchAskInput), ProposeLeadSearchSchema);
+const LeadSearchPlanInput = z.preprocess((raw) => shapeAsk(raw as LeadSearchAskInput), ProposeAnySearchSchema);
 
 /**
  * A lead search as a card an owner or a partner approves. The model says who, how many,
@@ -109,6 +129,40 @@ async function proposeLeadSearch(t: ToolContext, input: LeadSearchAskInput): Pro
       `the plan is not complete: ${shaped.error.issues[0]?.path.join(".")} ${shaped.error.issues[0]?.message}`,
     );
   const amends = str(input.amends, 40);
+  // Named people at companies (the people card, 00429): its own plan and its own card. A people search never stops to
+  // ask, so nothing answers one.
+  if (shaped.data.looking_for === "people_at_companies") {
+    if (amends) return refuse("a people search does not stop to ask; propose a new one instead");
+    // The people card finds leads only once its calibration run proved it (00429 lead_card_live): until then it is not
+    // offered, and the owner is told so rather than shown a card the door would refuse.
+    const live = await leadCardsLive(t.ctx.supabase).catch(() => [] as string[]);
+    if (!live.includes("people_at_companies"))
+      return refuse(
+        "finding named people at companies opens once it has been checked, and is not open yet: say so, and offer to find local businesses of the kind instead",
+      );
+    const p = planPeopleSearch(shaped.data);
+    if (!p.ok) return refuse(p.refusal.text);
+    const brief = LEAD_CARDS.find((c) => c.id === "people_at_companies");
+    const facts = await planFacts(t.ctx, t.tenantId, { now: t.now });
+    const estimate = peopleEstimateUsd(p.plan.count, {
+      perPerson: brief?.costPerPlaceUsd ?? 0.002,
+      perCheck: brief?.checkPerEmailUsd ?? 0.00089,
+      start: brief?.startUsd ?? 0.01,
+    });
+    // What it reserves and where its people come from, said on the card before it is approved: the month's leads (the
+    // owner's unit, never a price) and the card's source-rights note.
+    const month = `Uses up to ${p.plan.count} of your ${facts.leadsLeft} leads left this month.`;
+    return propose({
+      kind: "people_search",
+      title: p.view.title,
+      summary: `${peoplePlanSentence(p.plan)}. ${month} ${brief?.rights ?? ""}`.trim(),
+      payload: {
+        plan: p.plan,
+        view: p.view,
+        facts: { leads_left: facts.leadsLeft, estimate_usd: estimate, rights: brief?.rights ?? null },
+      },
+    });
+  }
   let row: SearchViewRow | null = null;
   let question: string | null = null;
   if (amends) {
@@ -127,7 +181,8 @@ async function proposeLeadSearch(t: ToolContext, input: LeadSearchAskInput): Pro
   // An answer is planned at the count the search's plan reserved, so the title and the view say the same number
   // as the plan the card carries; the model's count is only its own for a new search.
   const storedCount = row ? (row.plan as LeadSearchPlan | null)?.count : undefined;
-  const r = planLeadSearch(typeof storedCount === "number" ? { ...shaped.data, count: storedCount } : shaped.data);
+  const places = shaped.data;
+  const r = planLeadSearch(typeof storedCount === "number" ? { ...places, count: storedCount } : places);
   // Outside the US, people rather than businesses, an ask no card fits: words
   // for the model to say, never a card with a problem in it.
   if (!r.ok) return refuse(r.refusal.text);
@@ -146,14 +201,14 @@ async function proposeLeadSearch(t: ToolContext, input: LeadSearchAskInput): Pro
     payload: {
       plan,
       view: r.view,
-      facts: await planFacts(t.ctx, t.tenantId, { categoryKey: shaped.data.category_key, now: t.now }),
+      facts: await planFacts(t.ctx, t.tenantId, { categoryKey: places.category_key, now: t.now }),
       ...(answer ? { amends: answer } : {}),
     },
   });
 }
 
 /** propose_lead_search's description, said whole: it takes no action. */
-const LEAD_SEARCH_DESCRIPTION = `Propose a search for businesses in the US the owner could reach, as a plan card they approve; nothing is searched or spent before that. The plan: what kind (who, plural, and who_one, one of them, with category_key as one lowercase word), how many (count: 50, 100, 200 or 500 unless they said a number), where (city with its two-letter region, a zip, or a region alone), the contact standard (contact: phone, or email checked), up to three terms (widest first), the criteria each with whether it is seen or likely and whether it is required, who to leave_out (chains, other kinds; short chips in plain words), looking_for (local_businesses, or people, online_sellers or other when that is what was asked: those are answered in words, not searched), and asked, the owner's words. seen is only for what a listing shows (a rating or review count, a website, an email, a phone that matches the site, open or closed) and is judged from those facts alone; what a business is or does (its kind, who owns it, what it serves or sells, who it treats) is likely, never seen, because a listing's name and category do not count as seeing it, and the kind of business itself is checked on every search without being written as a criterion. Read leads with action searches first, so a plan is not repeated: one plan, never a search. amends is the id of a search that stopped to ask (leads with action searches shows its question) when the plan is that search with the owner's answer applied and everything else kept as it was; the card then answers that search instead of starting a new one. Say the plan in one sentence; never promise how many will be found, and never say a search has started until the card is approved. ${approvalWords("lead_search")}.`;
+const LEAD_SEARCH_DESCRIPTION = `Propose a search for businesses in the US the owner could reach, as a plan card they approve; nothing is searched or spent before that. For named people at companies (a role at a kind of company: marketing managers at agencies, owners of accounting firms), set looking_for to people_at_companies: terms are what the people are called (one to five titles), region their US states or US for all, who what to call the search, count how many companies, and seniority (owner, founder, c_suite, partner, vp, head, director, manager, senior, entry), industries (in a business directory's words) and company_sizes (1 - 10, 11 - 50, 51 - 200, 201 - 500, 501 - 1000, 1001 - 5000, 5001 - 10000, 10001+) when they said them; city, zip, criteria and leave_out are not read for it, every address is checked, and it never stops to ask. The plan: what kind (who, plural, and who_one, one of them, with category_key as one lowercase word), how many (count: 50, 100, 200 or 500 unless they said a number), where (city with its two-letter region, a zip, or a region alone), the contact standard (contact: phone, or email checked), up to three terms (widest first), the criteria each with whether it is seen or likely and whether it is required, who to leave_out (chains, other kinds; short chips in plain words), looking_for (local_businesses, or people, online_sellers or other when that is what was asked: those are answered in words, not searched), and asked, the owner's words. seen is only for what a listing shows (a rating or review count, a website, an email, a phone that matches the site, open or closed) and is judged from those facts alone; what a business is or does (its kind, who owns it, what it serves or sells, who it treats) is likely, never seen, because a listing's name and category do not count as seeing it, and the kind of business itself is checked on every search without being written as a criterion. Read leads with action searches first, so a plan is not repeated: one plan, never a search. amends is the id of a search that stopped to ask (leads with action searches shows its question) when the plan is that search with the owner's answer applied and everything else kept as it was; the card then answers that search instead of starting a new one. Say the plan in one sentence; never promise how many will be found, and never say a search has started until the card is approved. ${approvalWords("lead_search")}.`;
 
 /** A search's plan as a card, propose_lead_search's one definition: named here so its builder asks its own role. */
 const leadSearchAct: ActDef<typeof LeadSearchAsk> = {

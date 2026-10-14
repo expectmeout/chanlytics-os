@@ -15,11 +15,12 @@ import { capitalize, plural } from "../shared/words";
 import { LEAD_FIT_WORDS, LEAD_STAGE_WORDS } from "../leads/lead-words";
 import { skippedReasonWords } from "./reach-out-approval";
 import { REPLY_INTENT_WORDS, isReplyIntent } from "./reach-out-replies";
-import { REACH_OUT_SAID_WORDS, REACH_OUT_STOP_WORDS, REACH_OUT_UNDO_WORDS } from "./reach-out-lead-doors";
+import { REACH_OUT_SAID_WORDS, REACH_OUT_STOP_WORDS, REACH_OUT_UNDO_WORDS } from "./owner/lead-doors";
 import { chainPaceOf, stepLabelOf } from "./reach-out-sheet";
 import { localDate, localHour } from "../playbooks/playbook-schedule";
 import { PLAYBOOK_HOURS } from "../playbooks/playbook-triggers";
 import { addressOf } from "../activity/record-address";
+import { LEAD_DIRECTORY_WORDS } from "../leads/lead-kind";
 import type { ReachOutChainDto, ReachOutPeopleCountsDto } from "./reach-out-dtos";
 import type { HandKind } from "./reach-out-hand";
 
@@ -166,6 +167,9 @@ export interface ReachOutLeadTimelineDto {
   stopped_at: string | null;
   /** Found on a listing (the finder's); false for a lead a list of the owner's own brought (00242). Absent before it. */
   found_on_listing?: boolean;
+  /** What the lead is and where it came from (00429): a company the people card found was on no listing, nor a list. */
+  kind?: string;
+  source?: string;
   /** When it was put on its reach-out's list, while nothing has been written to it (00426). */
   added_at?: string | null;
   chain: ReachOutTimelineChainDto | null;
@@ -268,7 +272,7 @@ export interface ReachOutStripVM {
 /** The strip over an open search while its reach-out writes (H8), by the business's clock. */
 export function reachOutStripOf(
   s: ReachOutSearchLinesDto,
-  chain: Pick<ReachOutChainDto, "mailboxes" | "owner_sends"> | null,
+  chain: Pick<ReachOutChainDto, "mailboxes" | "owner_sends" | "gap_minutes"> | null,
   nowMs: number,
   tz: string,
 ): ReachOutStripVM {
@@ -462,12 +466,15 @@ export function reachOutPersonOf(t: ReachOutLeadTimelineDto, nowMs: number, tz: 
       ? {
           at: foundAt,
           text: [
-            // A lead a list of the owner's own brought (00242) was found on no listing.
-            t.found_on_listing === false
-              ? "From your list"
-              : t.search?.asked
-                ? `Found on Google Maps by “${t.search.asked}”`
-                : "Found on Google Maps",
+            // A company the people card found came from a business directory (00429); a lead a list of the owner's own
+            // brought (00242) was found on no listing.
+            t.kind === "company"
+              ? LEAD_DIRECTORY_WORDS.found
+              : t.found_on_listing === false
+                ? "From your list"
+                : t.search?.asked
+                  ? `Found on Google Maps by “${t.search.asked}”`
+                  : "Found on Google Maps",
             fit ? fit.toLowerCase() : null,
             t.email_state === "ok" ? "address checked" : null,
           ]

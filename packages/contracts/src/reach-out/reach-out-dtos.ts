@@ -230,6 +230,8 @@ export interface ReachOutDraftedSend {
   /** The whole email as it reads, its foot included: what the owner sends. */
   text: string;
   drafted_at: string;
+  /** A step after the first: it answers an email the business may have answered in the owner's own inbox. */
+  follow_up?: boolean;
 }
 
 /** The owner's word on a drafted email (00428): it went, or it did not. */
@@ -242,4 +244,10 @@ export interface ReachOutSaidDto {
   said: boolean;
   state: string;
   reason: string | null;
+  /**
+   * Sent, what about its lead would refuse it now (00428 reach_out_send_said: lead_gone, erased, lead_closed,
+   * outreach_suppressed, outreach_stopped, already_yours, no_address): the email went from the owner's inbox all the
+   * same, and is recorded; this is said beside it. Null when nothing would.
+   */
+  since?: string | null;
 }

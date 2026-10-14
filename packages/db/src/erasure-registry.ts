@@ -42,7 +42,7 @@ export const ERASURE_LEGS = {
   proposal_trigger: "contact_proposal_on_erase: the proposal's link cleared",
   deals_trigger: "deals_erase_on_contact: a deal's note, evidence and link cleared",
   leads_trigger:
-    "leads_erase_on_contact: their lead blanked (lead_blank), its places deleted, a reach-out's opening and a preference's example cleared (00391), its drafts cleared (00428), a company's people and key cleared (00429), its keys kept as digests; one of several people at a business takes only their own address, number and the call's note from it (lead_person_leg, 00413)",
+    "leads_erase_on_contact: their lead blanked (lead_blank), its places deleted, a reach-out's opening and a preference's example cleared (00391), its drafts cleared (00428), a company's people and key cleared and its domain kept as a digest (00429), its keys kept as digests; one of several people at a business takes only their own address, number and the call's note from it (lead_person_leg, 00413); a person named at any company leaves it, its drafts to them cleared and their address kept as a digest (lead_person_forget, 00429)",
   signer_trigger:
     "person_signer_erase_on_contact: the name and title a reply's reading found as its signer, and what became of it, cleared (00413)",
   recipients_trigger:
@@ -318,8 +318,8 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
       "facts",
       "source_key",
     ),
-    // What lead_blank keeps: the country, the stage it came from, and what the lead is and where it was found (00429).
-    ...all(NOT_PERSONAL, "country", "stage_from", "kind", "source"),
+    // What lead_blank keeps: the country and the stage it came from.
+    ...all(NOT_PERSONAL, "country", "stage_from"),
   },
   // The workspace's own numbers and the carrier's and provider's ids for them.
   lines: {

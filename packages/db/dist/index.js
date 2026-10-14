@@ -2465,15 +2465,20 @@ async function markHeldNotice(db, p) {
   if (error) throw new Error(`cannot mark the run: ${error.message}`);
   return (data ?? []).length === 1;
 }
-async function runSendCounts(db, p) {
-  const counts = await Promise.all(
-    p.runIds.map(async (id) => {
-      const { count: count2, error } = await db.from("reach_out_sends").select("id", { count: "exact", head: true }).eq("tenant_id", p.tenantId).eq("broadcast_id", id).eq("state", p.state);
-      if (error) throw new Error(`cannot count the ${p.state} emails of run ${id}: ${error.message}`);
-      return [id, count2 ?? 0];
-    })
+async function runWaitingCounts(db, p) {
+  const out = /* @__PURE__ */ new Map();
+  if (p.runIds.length === 0) return out;
+  const rows = await readAllRows(
+    "cannot count the runs' waiting emails",
+    (from, to) => db.from("reach_out_sends").select("broadcast_id, state").eq("tenant_id", p.tenantId).in("broadcast_id", [...p.runIds]).in("state", ["held", "drafted"]).order("id").range(from, to)
   );
-  return new Map(counts);
+  for (const r of rows) {
+    const c = out.get(r.broadcast_id) ?? { held: 0, drafted: 0 };
+    if (r.state === "held") c.held += 1;
+    else c.drafted += 1;
+    out.set(r.broadcast_id, c);
+  }
+  return out;
 }
 
 // src/repositories/campaigns/stranded-runs.ts
@@ -2553,14 +2558,10 @@ async function waitingRunsOf(db, tenantId) {
   if (going.error) throw new Error(`cannot read the going runs: ${going.error.message}`);
   const reaching = (going.data ?? []).filter((r) => isReachOutRun(r.audience));
   const runIds = reaching.map((r) => r.id);
-  const [held, drafted] = reaching.length ? await Promise.all([
-    runSendCounts(db, { tenantId, runIds, state: "held" }),
-    runSendCounts(db, { tenantId, runIds, state: "drafted" })
-  ]) : [null, null];
+  const waiting = reaching.length ? await runWaitingCounts(db, { tenantId, runIds }) : null;
   const holding = reaching.flatMap((r) => {
-    const h = held?.get(r.id) ?? 0;
-    const d = drafted?.get(r.id) ?? 0;
-    return h > 0 || d > 0 ? [{ ...r, held: h, drafted: d }] : [];
+    const w = waiting?.get(r.id);
+    return w ? [{ ...r, held: w.held, drafted: w.drafted }] : [];
   });
   return [...pending.data ?? [], ...holding].sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
@@ -3151,12 +3152,16 @@ async function sendNow(db, p) {
   if (error) throw new Error(`cannot read the send: ${error.message}`);
   return data;
 }
+async function runHanded(db, p) {
+  const { error } = await db.from("broadcasts").update({ state: "sending", updated_at: p.at.toISOString() }).eq("tenant_id", p.tenantId).eq("id", p.id).in("state", ["scheduled", "sending"]);
+  if (error) throw new Error(`cannot mark the run handed over: ${error.message}`);
+}
 async function runSending(db, p) {
   const { error } = await db.from("broadcasts").update({ state: "sending" }).eq("tenant_id", p.tenantId).eq("id", p.id).eq("state", "scheduled");
   if (error) throw new Error(`cannot start the run: ${error.message}`);
 }
 async function parentEmailOf(db, p) {
-  const { data: sends, error } = await db.from("reach_out_sends").select("message_id").eq("tenant_id", p.tenantId).eq("root_id", p.rootId).eq("lead_id", p.leadId).eq("playbook_id", p.stepId).eq("state", "sent").order("sent_at", { ascending: false }).limit(1);
+  const { data: sends, error } = await db.from("reach_out_sends").select("message_id, said_at").eq("tenant_id", p.tenantId).eq("root_id", p.rootId).eq("lead_id", p.leadId).eq("playbook_id", p.stepId).eq("state", "sent").order("sent_at", { ascending: false }).limit(1);
   if (error) throw new Error(`cannot read the step before's send: ${error.message}`);
   const id = sends?.[0]?.message_id;
   if (!id) return null;
@@ -3170,7 +3175,8 @@ async function parentEmailOf(db, p) {
     messageId: m.id,
     rfcMessageId: typeof e.message_id === "string" && e.message_id ? e.message_id : null,
     references: typeof refs === "string" ? refs.split(/\s+/).filter(Boolean) : [],
-    subject: typeof subject === "string" ? subject : null
+    subject: typeof subject === "string" ? subject : null,
+    ownerSent: sends?.[0]?.said_at != null
   };
 }
 async function leadAddressBounced(db, p) {
@@ -3186,9 +3192,9 @@ async function leadAddressBounced(db, p) {
   return true;
 }
 async function leadWritten(db, p) {
-  const { data: lead, error } = await db.from("leads").select("stage, version, contacted_at").eq("tenant_id", p.tenantId).eq("id", p.leadId).maybeSingle();
+  const { data: lead, error } = await db.from("leads").select("stage, version, contacted_at, blanked_at, erased_at").eq("tenant_id", p.tenantId).eq("id", p.leadId).maybeSingle();
   if (error) throw new Error(`cannot read the lead a send wrote to: ${error.message}`);
-  if (!lead) return false;
+  if (!lead || lead.blanked_at || lead.erased_at) return false;
   const { data: moved, error: e2 } = await db.from("leads").update({
     stage: lead.stage === "ready" ? "nurture" : lead.stage,
     contacted_at: lead.contacted_at ?? p.at,
@@ -3280,7 +3286,6 @@ async function reachOutPeopleCounts(db, tenantId) {
 }
 
 // src/repositories/campaigns/reach-out-drafts.ts
-var answer2 = (data, error) => error ? { data: null, error: { code: error.code, message: error.message } } : { data, error: null };
 async function claimDrafts(db, p) {
   if (!Number.isInteger(p.limit) || Number.isNaN(p.at.getTime()))
     throw new Error(`cannot claim the drafts due: a limit is a whole number (${p.limit})`);
@@ -3292,19 +3297,32 @@ async function claimDrafts(db, p) {
   if (error) throw new Error(`cannot claim the drafts due: ${error.message}`);
   return data ?? [];
 }
-async function chainPlannedOn(db, p) {
-  const { data: runs, error } = await db.from("broadcasts").select("id").eq("tenant_id", p.tenantId).eq("audience->>kind", "reach_out").eq("audience->>root_id", p.rootId).eq("run_for", p.runFor);
-  if (error) throw new Error(`cannot read the reach-out's runs of the day: ${error.message}`);
-  const ids = (runs ?? []).map((r) => r.id);
-  if (ids.length === 0) return 0;
-  const { count: count2, error: e2 } = await db.from("reach_out_sends").select("id", { count: "exact", head: true }).eq("tenant_id", p.tenantId).in("broadcast_id", ids).neq("state", "skipped");
-  if (e2) throw new Error(`cannot count the reach-out's emails of the day: ${e2.message}`);
-  return count2 ?? 0;
+async function chainDraftLoad(db, p) {
+  const [runs, open] = await Promise.all([
+    db.from("broadcasts").select("id").eq("tenant_id", p.tenantId).eq("audience->>kind", "reach_out").eq("audience->>root_id", p.rootId).eq("run_for", p.runFor),
+    db.from("reach_out_sends").select("id", { count: "exact", head: true }).eq("tenant_id", p.tenantId).eq("root_id", p.rootId).in("state", ["planned", "held", "claimed", "drafted"])
+  ]);
+  if (runs.error) throw new Error(`cannot read the reach-out's runs of the day: ${runs.error.message}`);
+  if (open.error) throw new Error(`cannot count the reach-out's emails waiting: ${open.error.message}`);
+  const ids = (runs.data ?? []).map((r) => r.id);
+  if (ids.length === 0) return { today: 0, open: open.count ?? 0 };
+  const { count: count2, error } = await db.from("reach_out_sends").select("id", { count: "exact", head: true }).eq("tenant_id", p.tenantId).in("broadcast_id", ids).neq("state", "skipped");
+  if (error) throw new Error(`cannot count the reach-out's emails of the day: ${error.message}`);
+  return { today: count2 ?? 0, open: open.count ?? 0 };
 }
-async function draftedSendsOf(db, p) {
-  const { data, error } = await db.from("reach_out_sends").select("id, lead_id, angle, draft, drafted_at").eq("tenant_id", p.tenantId).eq("broadcast_id", p.runId).eq("state", "drafted").order("drafted_at", { ascending: true }).limit(200);
-  if (error) throw new Error(`cannot read the run's drafts: ${error.message}`);
-  return data ?? [];
+async function draftFactsOf(db, tenantId, leadId) {
+  const { data, error } = await db.rpc("reach_out_draft_facts", { p_tenant_id: tenantId, p_lead_id: leadId });
+  if (error) throw new Error(`cannot read the draft's lead: ${error.message}`);
+  return data ?? null;
+}
+async function draftsWaiting(db, p) {
+  const { data, error } = await db.rpc("reach_out_drafts_waiting", {
+    p_limit: p.limit,
+    ...p.tenantId ? { p_tenant_id: p.tenantId } : {},
+    ...p.runId ? { p_run_id: p.runId } : {}
+  });
+  if (error) throw new Error(`cannot read the drafts waiting: ${error.message}`);
+  return (data ?? []).map((r) => ({ ...r, facts: r.facts ?? null }));
 }
 async function ownerSendFactsOf(db, p) {
   if (p.sendIds.length === 0) return /* @__PURE__ */ new Map();
@@ -3321,19 +3339,20 @@ async function sendSaid(db, p) {
   const { data, error } = await db.rpc("reach_out_send_said", {
     p_send_id: p.sendId,
     p_outcome: p.outcome,
-    ...p.messageId ? { p_message_id: p.messageId } : {},
     ...p.reason ? { p_reason: p.reason } : {}
   });
-  return answer2(data, error);
+  return answer(data, error);
 }
 async function replySaid(db, p) {
   const { data, error } = await db.rpc("reach_out_reply_said", {
+    p_tenant_id: p.tenantId,
+    p_user_id: p.userId,
     p_lead_id: p.leadId,
     p_reading: p.reading,
     p_plan: p.plan,
     p_note: p.note
   });
-  return answer2(data, error);
+  return answer(data, error);
 }
 async function leadReplyFactsOf(db, p) {
   const { data, error } = await db.from("leads").select("business_name, email, website_host, website_root").eq("tenant_id", p.tenantId).eq("id", p.leadId).maybeSingle();
@@ -5453,6 +5472,11 @@ async function ideasBasis(db, tenantId) {
   if (error) throw new Error(`lead_rounds: ${error.message}`);
   return data ? data.ended_at : null;
 }
+async function leadCardsLive(db) {
+  const { data, error } = await db.rpc("lead_cards_live");
+  if (error) throw new Error(`cannot read which cards find leads: ${error.message}`);
+  return data ?? ["local_businesses"];
+}
 async function leadPeopleSearchCreate(db, p) {
   const { data, error } = await db.rpc("lead_people_search_create", {
     p_tenant_id: p.tenantId,
@@ -6041,7 +6065,7 @@ export {
   campaignSeries,
   campaignStuck,
   cancelBroadcastFrom,
-  chainPlannedOn,
+  chainDraftLoad,
   claimCallActivity,
   claimCallNotification,
   claimControl,
@@ -6077,7 +6101,8 @@ export {
   dismissAppointmentNotice,
   dismissPersonDoubt,
   doubtOn,
-  draftedSendsOf,
+  draftFactsOf,
+  draftsWaiting,
   dropFromList,
   dropMailboxCredentials,
   dueCalendars,
@@ -6164,6 +6189,7 @@ export {
   lastInboundEmail,
   lastOutboundEmailSubject,
   leadAddressBounced,
+  leadCardsLive,
   leadCompanyUpsert,
   leadCountriesOf,
   leadMemberLater,
@@ -6350,8 +6376,9 @@ export {
   reviewsLedger,
   runCounts,
   runGoesByOthers,
-  runSendCounts,
+  runHanded,
   runSending,
+  runWaitingCounts,
   runningTwins,
   runsWaitingOf,
   saveIdeasLine,
