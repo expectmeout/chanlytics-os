@@ -58,11 +58,7 @@ export function LeadPeekCompany({
     if (busy !== null) return;
     setBusy(p.index);
     const r = await chooseAddressee(leadId, p.index).finally(() => setBusy(null));
-    on.say(
-      r.ok
-        ? { tone: "ok", msg: AW.done(p.name, r.data.email_state === "checking") }
-        : refusalToast(r as Parameters<typeof refusalToast>[0]),
-    );
+    on.say(r.ok ? { tone: "ok", msg: AW.done(p.name, r.data.email_state === "checking") } : refusalToast(r));
   };
   return (
     <section className="pk-box pk-people" aria-label={company.head} data-testid="peek-company">

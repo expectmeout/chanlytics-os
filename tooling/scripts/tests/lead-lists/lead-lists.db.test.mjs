@@ -685,9 +685,18 @@ test(
       );
     assert.equal(was, bodyIn(migration("00163"), "create or replace function public.lead_rounds_notify("));
 
-    // 00426 gave a lead on a list, before any send, its chain and when it was added (lead-workbench/reach-out-add.db.test.mjs).
-    const live = bodyIn(migration("00426"), "create or replace function public.reach_out_lead_timeline(");
-    assert.equal(liveBody("reach_out_lead_timeline"), live, "the database runs 00426's");
+    // 00426 gave a lead on a list, before any send, its chain and when it was added (lead-workbench/reach-out-add.db.test.mjs);
+    // 00429 says what the lead is and where it came from (kind, source), and nothing else.
+    const live = bodyIn(migration("00429"), "create or replace function public.reach_out_lead_timeline(");
+    assert.equal(liveBody("reach_out_lead_timeline"), live, "the database runs 00429's");
+    assert.equal(
+      live.replace(
+        / {4}-- What the lead is and where it came from \(00429\)[^\n]*\n {4}-- a list's either\.\n {4}'kind', v_lead\.kind,\n {4}'source', v_lead\.source,\n/,
+        "",
+      ),
+      bodyIn(migration("00426"), "create or replace function public.reach_out_lead_timeline("),
+      "00429's is 00426's with the lead's kind and source",
+    );
     const latest = bodyIn(migration("00280"), "create or replace function public.reach_out_lead_timeline(");
     // 00280 is 00242's with a partner's second-factor clause on the membership check, and nothing else.
     const story = latest

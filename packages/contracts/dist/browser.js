@@ -17309,7 +17309,11 @@ function readFacts(raw) {
   const a = o.addressee;
   const addressee = typeof a === "number" && Number.isInteger(a) ? stored.findIndex((x) => x.at === a) : -1;
   return {
-    facts: { people: stored.map((x) => x.person), addressee: addressee >= 0 ? addressee : null, size: capped(o.size, 20) },
+    facts: {
+      people: stored.map((x) => x.person),
+      addressee: addressee >= 0 ? addressee : null,
+      size: capped(o.size, 20)
+    },
     at: stored.map((x) => x.at)
   };
 }
