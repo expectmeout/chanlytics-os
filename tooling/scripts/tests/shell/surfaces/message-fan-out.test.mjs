@@ -69,11 +69,14 @@ for (const { name, file } of registeredSurfaces()) REAL.push((await importSrc(fi
  * The real overrides' routing, each read recorded rather than made, through a runner whose live feed this holds. A read recorded
  * holds nothing, so a surface that asks whether what it holds has aged always says it has; `fresh` names the ones that say it has not.
  */
-async function running({ debounceMs = 1, fresh = [] } = {}) {
+async function running({ debounceMs = 1, fresh = [], realReceipts = false } = {}) {
   const asked = [];
   const overrides = REAL.map((o) => ({
     ...o,
     debounceMs,
+    // A count made of receipts waits for them to quieten (receiptsQuietMs, S3-5): as short as the rest here, unless the case
+    // is that wait's own.
+    ...(o.receiptsQuietMs !== undefined && !realReceipts ? { receiptsQuietMs: debounceMs } : {}),
     ...(fresh.includes(o.key) ? { isStale: () => false } : {}),
     apply: async () => {
       asked.push(o.key);
@@ -177,7 +180,7 @@ test("a notice reaches the surfaces as the live feed decodes it: each status it 
   }
 });
 
-test("a receipt never reads People, Reports or Campaigns on their own pages, and leaves nothing for them to read when they come back", async () => {
+test("a receipt reads the threads everywhere, and the counts made of receipts where they are drawn: Sent's runs on Sent, the playbooks and Campaigns' 30 days on Campaigns, the lens on its page (S3-5); People reads none, and the Overview keeps it for the lens", async () => {
   // What an arrival earlier in this file let pass is read as a page comes back: leave and return once, to start clean.
   const away = async (from, to) => {
     for (const hash of [from, to]) {
@@ -186,7 +189,15 @@ test("a receipt never reads People, Reports or Campaigns on their own pages, and
       await settle();
     }
   };
-  for (const hash of ["#/clients", "#/reports", "#/campaigns"]) {
+  // Sent's "N delivered" and the funnels' Delivered and Read stood still while a run's receipts came in, the page open.
+  const want = {
+    "#/clients": { now: THREADS, back: [] },
+    "#/reports": { now: THREADS, back: ["reports_campaigns"] },
+    "#/campaigns": { now: ["campaign_results", ...THREADS, "playbooks"], back: [] },
+    "#/broadcasts": { now: ["broadcasts", ...THREADS], back: [] },
+    "#/reports/campaigns": { now: [...THREADS, "reports_campaigns"], back: [] },
+  };
+  for (const [hash, { now, back }] of Object.entries(want)) {
     win.location.hash = hash;
     // Campaigns' own 30 days are read on demand and again once aged (results-surface.ts, a period surface), and so is the Campaigns
     // lens's, which the Overview draws too, and the Calendar's campaign marks (runs-surface.ts), which the page this leaves for
@@ -197,13 +208,17 @@ test("a receipt never reads People, Reports or Campaigns on their own pages, and
       await away("#/calendar", hash);
       r.asked.length = 0;
       await r.change("messages", "UPDATE", "delivered");
-      assert.deepEqual([...r.asked].sort(), THREADS, `${hash}: the threads alone`);
+      assert.deepEqual([...new Set(r.asked)].sort(), now, `${hash}: what a receipt reads there`);
       await r.change("messages", "UPDATE", "failed");
-      assert.deepEqual([...new Set(r.asked)].sort(), [...THREADS, "today"], `${hash}: and Today, for a failure`);
+      assert.deepEqual(
+        [...new Set(r.asked)].sort(),
+        [...now, "today"].sort(),
+        `${hash}: and Today, for a failure, which no count of receipts hears`,
+      );
       r.asked.length = 0;
 
       await away("#/calendar", hash);
-      assert.deepEqual(r.asked, [], `${hash}: no update was kept for the page's return`);
+      assert.deepEqual([...new Set(r.asked)].sort(), back, `${hash}: what was kept for the page's return`);
     } finally {
       r.stop();
       win.location.hash = "#/today";
@@ -211,16 +226,26 @@ test("a receipt never reads People, Reports or Campaigns on their own pages, and
   }
 });
 
-test("a surface hears a message's update only by naming its statuses: of the real overrides, the Inbox, Conversations and Today alone", () => {
+test("a surface hears a message's update only by naming its statuses: the threads' two surfaces their ticks, Today a failure, and the counts made of receipts the two they count", () => {
   const update = (status) => ({ table: "messages", event: "UPDATE", row: { status } });
   const statuses = ["received", "queued", "sent", "delivered", "read", "failed", "canceled"];
-  const hears = (o) => statuses.filter((s) => wantsRefresh(o, "messages", update(s)));
+  // The statuses alone, whatever page is on screen: a surface heard on its page alone keeps the rest for it.
+  const hears = (o) => statuses.filter((s) => wantsRefresh({ ...o, refreshWhen: undefined }, "messages", update(s)));
   const heard = Object.fromEntries(REAL.map((o) => [o.key, hears(o)]).filter(([, h]) => h.length));
   assert.deepEqual(heard, {
+    broadcasts: ["delivered", "read"],
+    campaign_results: ["delivered", "read"],
     conversations: ["sent", "delivered", "read", "failed", "canceled"],
     inbox: ["sent", "delivered", "read", "failed", "canceled"],
+    playbooks: ["delivered", "read"],
+    reports_campaigns: ["delivered", "read"],
     today: ["failed"],
   });
+  // Those that count them wait for a run's receipts to quieten (receiptsQuietMs); the threads draw each tick as it comes.
+  const quiet = Object.fromEntries(
+    REAL.filter((o) => o.receiptsQuietMs !== undefined).map((o) => [o.key, o.receiptsQuietMs]),
+  );
+  assert.deepEqual(quiet, { broadcasts: 5_000, campaign_results: 5_000, playbooks: 5_000, reports_campaigns: 5_000 });
   // An arrival is heard as it was.
   const arrival = { table: "messages", event: "INSERT", row: {} };
   for (const key of ["inbox", "conversations", "today"])
@@ -641,8 +666,14 @@ test("the Campaigns lens hears messages, conversations, escalations and runs onl
       await r.change(table, event);
       assert.deepEqual(lensReads(), ["reports_campaigns"], `${table} ${event}: heard on the lens`);
     }
-    // A delivery receipt, a failure written late: the sends' ticks are read as the lens opens, and a tick moves no figure by itself.
-    for (const status of ["sent", "delivered", "read", "failed"]) {
+    // A message delivered or read moves its funnel's Delivered and Read: heard on the lens (the wiring's second audit, S3-5). Sent
+    // and a failure written late are the run's own rows, heard as a send: a message's tick of them moves no figure by itself.
+    for (const status of ["delivered", "read"]) {
+      r.asked.length = 0;
+      await r.change("messages", "UPDATE", status);
+      assert.deepEqual(lensReads(), ["reports_campaigns"], `a message ${status}: heard on the lens`);
+    }
+    for (const status of ["sent", "failed"]) {
       r.asked.length = 0;
       await r.change("messages", "UPDATE", status);
       assert.deepEqual(lensReads(), [], `a message ${status}: not the lens's`);
@@ -1106,6 +1137,48 @@ test("every surface a page names to useSurface is a real one: a key that is no o
     [],
     "name the surface's key (an override's `key`), not its event",
   );
+});
+
+test("a run's receipts are read once they quieten where they are counted, and at most half a minute from the first; a reply among them is read at its own pace (S3-5)", async (t) => {
+  win.location.hash = "#/broadcasts";
+  const r = await running({ debounceMs: 400, realReceipts: true });
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: 0 });
+  const flush = async () => {
+    for (let i = 0; i < 20; i += 1) await Promise.resolve();
+  };
+  const sent = () => r.asked.filter((k) => k === "broadcasts").length;
+  try {
+    // A run's receipts, one every 300 ms for six seconds: Sent's runs are not read while they come.
+    for (let ms = 0; ms < 6_000; ms += 300) {
+      r.change("messages", "UPDATE", "delivered");
+      t.mock.timers.tick(300);
+      await flush();
+    }
+    assert.equal(sent(), 0, "not once per receipt, nor every twelve seconds of a stream");
+    t.mock.timers.tick(5_000);
+    await flush();
+    assert.equal(sent(), 1, "once they have quietened for five seconds");
+    // A stream that does not stop is read half a minute after its first receipt.
+    for (let ms = 0; ms < 31_000; ms += 300) {
+      r.change("messages", "UPDATE", "read");
+      t.mock.timers.tick(300);
+      await flush();
+    }
+    assert.equal(sent(), 2, "and at most half a minute from the first while they keep coming");
+    t.mock.timers.tick(5_000);
+    await flush();
+    // A reply is no receipt: it is read at Sent's own pace, whatever receipts came before it.
+    const before = sent();
+    r.change("messages", "UPDATE", "read");
+    t.mock.timers.tick(100);
+    r.change("messages", "INSERT");
+    t.mock.timers.tick(500);
+    await flush();
+    assert.equal(sent(), before + 1, "a reply among the receipts is read at once");
+  } finally {
+    t.mock.timers.reset();
+    r.stop();
+  }
 });
 
 test("a steady stream of notices still repaints: a refresh waits for a pause, but never more than a few seconds", async (t) => {

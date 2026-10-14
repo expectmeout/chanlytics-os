@@ -24,7 +24,7 @@ import {
   type PlaybookDto,
 } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { DEAR_READ_LONGEST_WAIT_MS } from "@/legacy-bridge/surface-realtime";
+import { COUNTED_RECEIPTS, DEAR_READ_LONGEST_WAIT_MS, RECEIPTS_QUIET_MS } from "@/legacy-bridge/surface-realtime";
 import { declareReads } from "@/legacy-bridge/surface-registry";
 import type { SettingsSurface } from "@/legacy-bridge/surfaces/settings";
 import { sameChannels } from "@/lib/campaign-channels";
@@ -438,6 +438,9 @@ export const playbooksOverride: SurfaceOverride = {
   readAtMidnight: true,
   // Its moments are counted over everyone in People: a run's stream of receipts is waited out longer (S10-2).
   maxWaitMs: DEAR_READ_LONGEST_WAIT_MS,
+  // A card's delivered count moves with its runs' receipts: heard where the cards are drawn, read once they quieten (S3-5).
+  refreshOnMessageStatuses: COUNTED_RECEIPTS,
+  receiptsQuietMs: RECEIPTS_QUIET_MS,
   apply: async () => {
     // The number and the business's name and links are not read here: they are the channels read's and the settings read's,
     // which this surface follows (above), so a re-read of the moments for a message asks for neither again (S10-9).

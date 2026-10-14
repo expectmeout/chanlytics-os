@@ -216,6 +216,11 @@ export interface LeadSuggestionsDto {
   note?: string;
   /** Another read is writing them this moment: the page asks again shortly. */
   pending?: boolean;
+  /**
+   * What was written no longer stands, or none was (GET): a member who may find asks for them to be written
+   * (POST lead-suggestions), which may ask a model. A read writes nothing (the wiring's second audit, S11-8).
+   */
+  due?: boolean;
 }
 
 /** What the card knows beyond the plan: the reads release A's doors answer, folded into one unit (§0.2). `planFacts` in `server/leads.ts` (4.4) builds exactly this. */

@@ -782,6 +782,13 @@
       "rate": "lead_suggest",
       "spend": false
     },
+    "POST lead-suggestions": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "lead_suggest",
+      "spend": false
+    },
     "PUT lead-suggestions": {
       "kind": "write",
       "scope": "workspace",

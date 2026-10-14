@@ -40,7 +40,7 @@ import {
 } from "@chanlytics/contracts";
 import { otherChannelSets } from "@/lib/campaign-channels";
 import { type SurfaceOverride, workspaceOverride } from "@/legacy-bridge/surface-data";
-import { DEAR_READ_LONGEST_WAIT_MS } from "@/legacy-bridge/surface-realtime";
+import { COUNTED_RECEIPTS, DEAR_READ_LONGEST_WAIT_MS, RECEIPTS_QUIET_MS } from "@/legacy-bridge/surface-realtime";
 import { declareReads } from "@/legacy-bridge/surface-registry";
 import { everyPerson, viewerId } from "@/surfaces/people/surface";
 import { followSettings } from "../../offered-templates";
@@ -328,6 +328,9 @@ export const broadcastsOverride: SurfaceOverride = {
   rederive: rederiveBroadcasts,
   // Its audiences are counted over everyone in People: a run's stream of receipts is waited out longer (S10-2).
   maxWaitMs: DEAR_READ_LONGEST_WAIT_MS,
+  // A run's "N delivered" moves with its receipts: heard while Sent is on screen, and read once they quieten (S3-5).
+  refreshOnMessageStatuses: COUNTED_RECEIPTS,
+  receiptsQuietMs: RECEIPTS_QUIET_MS,
   // A run made by the sweep, approved in another tab, sending or finished (00321) is this surface's own row: heard
   // wherever the tab is, since Today draws its Approve and Stop rows from here. A message moves a run's replies: read
   // again only while Sent is on screen, and once when it comes back (Campaigns reads its numbers from campaign_results,

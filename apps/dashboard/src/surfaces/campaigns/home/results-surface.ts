@@ -21,6 +21,7 @@ import {
   type LifecycleReport,
 } from "@chanlytics/contracts";
 import { read } from "@/legacy-bridge/api";
+import { COUNTED_RECEIPTS, RECEIPTS_QUIET_MS } from "@/legacy-bridge/surface-realtime";
 import { periodSurface } from "../../reports/period-surface";
 
 /** What the home reads of its own 30 days: each null where its read failed, the other standing. */
@@ -78,12 +79,14 @@ export const campaignResults = periodSurface({
   // reach-out's reply read or undone (What came back counts the chains' replies, 0047), and a person's answer: What came back
   // counts who said yes and who asked to stop, by the unsubscribe link, a carrier's STOP or a teammate's hand (the wiring's
   // second audit, S3-2). A person made is no answer: only an update of one is heard (the feed tells it when an answer moved).
-  // Heard on Campaigns alone.
+  // Heard on Campaigns alone. And the receipts its funnel's Delivered and Read count, once a run's receipts quieten (S3-5).
   live: {
     reads: ["conversation", "hold", "send", "reach_out", "person"],
     fresh: "its-page",
     when: (c) => c.table !== "contacts" || c.event !== "INSERT",
     debounceMs: 800,
+    refreshOnMessageStatuses: COUNTED_RECEIPTS,
+    receiptsQuietMs: RECEIPTS_QUIET_MS,
   },
 });
 

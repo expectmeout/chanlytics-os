@@ -5,8 +5,8 @@
   "notices": {
     "messages INSERT": "conversations inbox playbooks today · 11 routes",
     "messages UPDATE sent": "conversations inbox · 5 routes",
-    "messages UPDATE delivered": "conversations inbox · 5 routes",
-    "messages UPDATE read": "conversations inbox · 5 routes",
+    "messages UPDATE delivered": "conversations inbox playbooks · 6 routes",
+    "messages UPDATE read": "conversations inbox playbooks · 6 routes",
     "messages UPDATE failed": "conversations inbox today · 10 routes",
     "messages UPDATE canceled": "conversations inbox · 5 routes",
     "conversations INSERT": "conversations inbox playbooks today · 11 routes",

@@ -34,7 +34,7 @@
  * to this lens (a person arriving is not a change to what it counts).
  */
 import { read } from "@/legacy-bridge/api";
-import type { RealtimeChange } from "@/legacy-bridge/surface-realtime";
+import { COUNTED_RECEIPTS, RECEIPTS_QUIET_MS, type RealtimeChange } from "@/legacy-bridge/surface-realtime";
 import { keepForItsPage } from "@/legacy-bridge/surface-registry";
 import { routeOnScreen } from "@/legacy-bridge/workspace";
 import {
@@ -125,6 +125,9 @@ export const reportsCampaigns = periodSurface({
     ],
     page: heardOnTheLens,
     debounceMs: LIVE_WAIT_MS,
+    // The receipts its funnel's Delivered and Read count, read once a run's receipts quieten (S3-5).
+    refreshOnMessageStatuses: COUNTED_RECEIPTS,
+    receiptsQuietMs: RECEIPTS_QUIET_MS,
   },
 });
 

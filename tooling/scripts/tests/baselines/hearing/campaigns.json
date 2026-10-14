@@ -5,8 +5,8 @@
   "notices": {
     "messages INSERT": "campaign_results conversations inbox playbooks today · 13 routes",
     "messages UPDATE sent": "conversations inbox · 5 routes",
-    "messages UPDATE delivered": "conversations inbox · 5 routes",
-    "messages UPDATE read": "conversations inbox · 5 routes",
+    "messages UPDATE delivered": "campaign_results conversations inbox playbooks · 8 routes",
+    "messages UPDATE read": "campaign_results conversations inbox playbooks · 8 routes",
     "messages UPDATE failed": "conversations inbox today · 10 routes",
     "messages UPDATE canceled": "conversations inbox · 5 routes",
     "conversations INSERT": "campaign_results conversations inbox playbooks today · 13 routes",

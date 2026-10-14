@@ -39125,6 +39125,7 @@ var ROUTE_KEYS = [
   "POST lead-searches/chosen",
   "POST lead-searches/import",
   "POST lead-searches/people",
+  "POST lead-suggestions",
   "POST leads/[id]/addressee",
   "POST leads/[id]/draft",
   "POST leads/[id]/exclude",

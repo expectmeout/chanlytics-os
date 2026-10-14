@@ -1,5 +1,5 @@
 {
-  "owed": 83,
+  "owed": 82,
   "groups": [
     {
       "kind": "seat",
@@ -194,9 +194,6 @@
       "kind": "account",
       "why": "The workspace's own row, read for its zone and its status: Leads' and the reach-outs' dates and a search's place, and a person's page's days. No write re-reads these three for a zone or a way of buying saved, and none hears the feed's notice of the row (00431): each reads it on its next read, and a zone changed while one is open keeps its old days until then (the wiring's second audit, W-visit-deal-4, found no visible effect on them).",
       "reads": {
-        "leads": [
-          "tenants"
-        ],
         "reach_outs": [
           "tenants"
         ],
@@ -759,16 +756,6 @@
         ],
         "reports_receptionist": [
           "policies"
-        ]
-      }
-    },
-    {
-      "kind": "owed",
-      "finding": "R5",
-      "why": "Leads reads the business line from the settings (tenant_config) for a new search's ideas. A line saved in this tab re-reads Leads (PUT lead-suggestions); one saved in Settings or another tab is read on Leads' next read. Owed: Leads hears the facts kind it draws, or reads the line from the settings surface.",
-      "reads": {
-        "leads": [
-          "tenant_config"
         ]
       }
     },

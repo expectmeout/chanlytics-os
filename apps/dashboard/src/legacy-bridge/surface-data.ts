@@ -93,6 +93,12 @@ export interface SurfaceOverride {
    */
   maxWaitMs?: number;
   /**
+   * For a surface that counts receipts rather than drawing each tick (Sent's ledger, the playbooks, the funnels: COUNTED_RECEIPTS):
+   * a read asked by receipts alone waits this long for them to quieten, and RECEIPTS_LONGEST_WAIT_MS at most from the first
+   * (surface-realtime.ts). Absent, a receipt is read at the surface's own pace, as the Inbox's ticks are.
+   */
+  receiptsQuietMs?: number;
+  /**
    * Read again when the business's day turns, by the workspace's zone, in a visible tab (a hidden one reads as it is shown): for
    * a surface that counts "the day so far", which nothing else moves at midnight (`watchTheDayTurn`, surface-runner.ts). An `onDemand` one is read where
    * its page is on screen and kept for its page elsewhere, as a return to the tab does.

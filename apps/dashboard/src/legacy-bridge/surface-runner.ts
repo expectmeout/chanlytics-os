@@ -25,8 +25,10 @@ import {
   routeSurfaceFor,
 } from "./surface-registry";
 import {
+  deliveryTicksOnly,
   feedWatch,
   REALTIME_GRACE_MS,
+  RECEIPTS_LONGEST_WAIT_MS,
   subscribesToRealtime,
   wantsRefresh,
   type FeedWatch,
@@ -470,10 +472,11 @@ function scheduleSurfaceRefresh(run: SurfaceRun, o: SurfaceOverride): void {
   const now = Date.now();
   const first = run.firstAsked.get(o.key) ?? now;
   run.firstAsked.set(o.key, first);
-  const wait = Math.max(
-    0,
-    Math.min(o.debounceMs ?? REFRESH_DEBOUNCE_MS, first + (o.maxWaitMs ?? REFRESH_MAX_WAIT_MS) - now),
-  );
+  // A count made of receipts is read once a run's receipts quieten (receiptsQuietMs; S3-5); anything else at its own pace.
+  const ticksQuiet = deliveryTicksOnly(run.heard.get(o.key)) ? o.receiptsQuietMs : undefined;
+  const quiet = ticksQuiet ?? o.debounceMs ?? REFRESH_DEBOUNCE_MS;
+  const longest = ticksQuiet === undefined ? (o.maxWaitMs ?? REFRESH_MAX_WAIT_MS) : RECEIPTS_LONGEST_WAIT_MS;
+  const wait = Math.max(0, Math.min(quiet, first + longest - now));
   run.timers.set(
     o.key,
     setTimeout(() => {

@@ -43,7 +43,8 @@ interface PeriodSurfaceOptions<K extends SurfaceKey, R extends ReportRange> {
   of: (value: NonNullable<SurfaceValues[K]>) => string;
   /** The whole value the surface publishes for `range`, made by its one read. */
   read: (range: R) => Promise<NonNullable<SurfaceValues[K]>>;
-  live: ReadsDeclaration & Pick<SurfaceOverride, "debounceMs" | "maxWaitMs">;
+  live: ReadsDeclaration &
+    Pick<SurfaceOverride, "debounceMs" | "maxWaitMs" | "refreshOnMessageStatuses" | "receiptsQuietMs">;
   /** Whether it counts "the day so far", so the business's midnight reads it again (SurfaceOverride.readAtMidnight). */
   readAtMidnight?: boolean;
 }
@@ -125,6 +126,9 @@ export function periodSurface<K extends SurfaceKey, R extends ReportRange>({
     ...declareReads(key, live),
     ...(live.debounceMs === undefined ? {} : { debounceMs: live.debounceMs }),
     ...(live.maxWaitMs === undefined ? {} : { maxWaitMs: live.maxWaitMs }),
+    // The receipts its funnel counts (Delivered, Read), heard once they quieten, where the surface names them (S3-5).
+    ...(live.refreshOnMessageStatuses ? { refreshOnMessageStatuses: live.refreshOnMessageStatuses } : {}),
+    ...(live.receiptsQuietMs === undefined ? {} : { receiptsQuietMs: live.receiptsQuietMs }),
     // A range's reads take their turn; a pick of another range is read at once (activateOverride).
     view: shownKey,
     apply: async () => {

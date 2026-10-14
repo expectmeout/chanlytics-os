@@ -258,7 +258,7 @@ export const inboxTool = defineActions({
       examples: [{ filter: "held" }],
       label: "Reading the Inbox",
       words:
-        "Action list takes filter and finds threads: needs_you (handed to a person), held (a draft waiting to send), waiting (taken over by a person), snoozed, or recent (all, newest first); each row has its state, its held draft when one waits, how long the customer has waited, whether the reply window is open, and its last three messages with who wrote them.",
+        "Action list takes filter and finds threads: needs_you (what waits on you, as the Inbox counts it: a hold nobody has taken, or a reply counting down that can still be stopped), held (a draft waiting to send), waiting (taken over by a person), snoozed, or recent (all, newest first); each row has its state, its held draft when one waits, how long the customer has waited, whether the reply window is open, and its last three messages with who wrote them.",
       run: listThreads,
     }),
     thread: readAction({

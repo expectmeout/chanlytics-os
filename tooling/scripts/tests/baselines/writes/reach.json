@@ -209,7 +209,6 @@
         "broadcasts": "broadcasts, campaigns, inbox, today",
         "calendar_runs": "calendar",
         "campaign_results": "campaigns",
-        "leads": "clients/leads, leads",
         "people": "clients, clients/person, segments, today",
         "person": "clients/person",
         "playbooks": "broadcasts, campaigns, messages, outbound, today",
@@ -280,7 +279,6 @@
       },
       "missing": {
         "calendar_runs": "calendar",
-        "leads": "clients/leads, leads",
         "person": "clients/person",
         "reach_outs": "campaigns, messages, outbound",
         "reports_reviews": "reports/reviews",
@@ -1479,7 +1477,6 @@
         "setup": "admin, admin/activity, admin/autonomy, admin/billing, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments"
       },
       "missing": {
-        "leads": "clients/leads, leads",
         "person": "clients/person",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews"
       }
@@ -1867,7 +1864,6 @@
         "setup": "admin, admin/activity, admin/autonomy, admin/billing, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments"
       },
       "missing": {
-        "leads": "clients/leads, leads",
         "person": "clients/person",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews"
       }
@@ -1891,7 +1887,6 @@
         "broadcasts": "broadcasts, campaigns, inbox, today",
         "calendar_runs": "calendar",
         "campaign_results": "campaigns",
-        "leads": "clients/leads, leads",
         "people": "clients, clients/person, segments, today",
         "person": "clients/person",
         "playbooks": "broadcasts, campaigns, messages, outbound, today",

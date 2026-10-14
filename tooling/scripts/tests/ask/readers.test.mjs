@@ -6448,6 +6448,36 @@ test("campaigns.playbooks says a campaign's end and its trial as its card does: 
   );
 });
 
+test("campaigns.playbooks says the autonomy modes could not be read where their read failed, never that every run waits for a person (the wiring's second audit, R13 X5-8)", async () => {
+  // A read that failed was taken for no rules at all: every class read as ask, and Ask said each campaign's runs wait for a
+  // person, where some send on their own.
+  const w = countsWorld(pagedPeople([]), {
+    policies: [{ tenant_id: A, class: "campaign", mode: "auto", subject_type: null, subject_id: null }],
+    playbooks: [pbRow(PB1, { name: "November offer", trigger: "everyone_monthly", policy_class: "campaign" })],
+  });
+  const down = { "policies.select": { message: "policies down" } };
+  const { result: out, lines } = await logged("ask_tool_read_failed", () =>
+    runTool(newToolContext(worldCtx(w, down), A, "owner", "America/New_York", LIFE_NOW), {
+      name: "campaigns",
+      input: { action: "playbooks" },
+    }),
+  );
+  assert.equal(out.isError, false, out.result);
+  const said = JSON.parse(out.result);
+  assert.equal(said.modes, null, "no class's mode is said");
+  assert.match(said.could_not_read, /could not be read just now, never that a campaign's runs wait for a person/);
+  assert.deepEqual(
+    said.playbooks.map((p) => [p.name, p.mode]),
+    [["November offer", null]],
+    "nor any campaign's mode, auto or ask",
+  );
+  assert.equal(lines.length, 1, "said once in the log");
+  // Read, the mode is said as before.
+  const tc = newToolContext(worldCtx(w), A, "owner", "America/New_York", LIFE_NOW);
+  const read = JSON.parse((await runTool(tc, { name: "campaigns", input: { action: "playbooks" } })).result);
+  assert.deepEqual([read.modes.campaign, read.could_not_read], ["auto", undefined]);
+});
+
 /**
  * 10 Oct 2026 (Ask, the marketing manager, task 5): how full the book is, for pacing an offer to what the business can
  * take, is the openings reader's own answer counted in slots over the next fourteen days, so the room Ask says is the
