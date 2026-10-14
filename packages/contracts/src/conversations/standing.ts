@@ -62,6 +62,17 @@ export const HELD_WORDS = {
 export const NEEDS_YOU_WORD = "Needs you";
 
 /**
+ * The Inbox's three lists of real threads, as its tabs name them and as an open thread says it moved to one (the wiring's
+ * second audit, S9-9: the thread pane typed its own copy of the tabs' words).
+ */
+export const INBOX_BUCKET_WORDS = { escalated: NEEDS_YOU_WORD, done: "Handled", snoozed: "Snoozed" } as const;
+
+/** The list a thread's state puts it in, in the tabs' words; null for a state no tab lists. */
+export function inboxBucketWord(state: string): string | null {
+  return state === "escalated" || state === "done" || state === "snoozed" ? INBOX_BUCKET_WORDS[state] : null;
+}
+
+/**
  * The pill for a thread somebody has, once: the member looking has it ("You have it"), or a teammate does, by name where
  * the roster names them ("Ruben has it") and "A teammate has it" where it does not (the roster is unread, or they have left
  * the team). The Inbox's row and bar, Conversations' pill and People's Receptionist fact all say it through here, so one

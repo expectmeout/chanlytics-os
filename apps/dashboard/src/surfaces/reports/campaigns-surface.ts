@@ -113,14 +113,15 @@ export const reportsCampaigns = periodSurface({
   // person made is no answer and would read the dearest of the lenses for every arrival: only an update of one is heard. And the
   // templates: its tile of the WhatsApp messages Meta paused, turned off or rejected counts their verdicts, which Meta's answer, a
   // sync or a removal moves in any tab (W-campaign-run-template-reachout-10). A few a week.
+  // And a deal won, counted once in the reach-outs' report (00426); the mailboxes include the hosted one a chain may write from.
   live: {
-    reads: ["conversation", "hold", "send", "reach_out", "channel", "person", "template"],
+    reads: ["conversation", "hold", "send", "reach_out", "channel", "person", "template", "deal"],
     fresh: "its-page",
     when: (c) => c.table !== "contacts" || c.event !== "INSERT",
     omit: [
       {
-        tables: ["lines", "mailboxes", "capability_activations", "business_records"],
-        why: "it says the health of the connected number and a row for each mailbox a reach-out writes from; the text line, the hosted mailbox, a capability or the business record are none of its figures",
+        tables: ["lines", "capability_activations", "business_records"],
+        why: "it says the health of the connected number and a row for each mailbox a reach-out writes from; the text line, a capability or the business record are none of its figures",
       },
     ],
     page: heardOnTheLens,

@@ -12,7 +12,13 @@ import type { AppointmentWord } from "../../journey/appointment-word";
 import { CALENDAR_SETTING_ROUTE } from "../../setup/calendar-source";
 import { clockHour } from "../../shared/clock";
 import type { ReachOutChainDto } from "../../reach-out/reach-out-dtos";
-import { CAMPAIGN_ROOMS, RUN_WAITING_WORDS, heldEmailsWords, runStoppedWords } from "../../shell/campaign-rooms";
+import {
+  CAMPAIGN_ROOMS,
+  RUN_WAITING_WORDS,
+  heldEmailsWords,
+  runApprovedTail,
+  runStoppedWords,
+} from "../../shell/campaign-rooms";
 import { joinWords, plural } from "../../shared/words";
 import { VERSION_CHANNEL_WORDS } from "../../templates/message-versions";
 import { WORKSPACE_PAUSED_FACT } from "../../workspace/billing";
@@ -455,7 +461,7 @@ export const LIFECYCLE_TOAST = {
    */
   approved: (name: string, people: number, when: string): LifecycleSentence => [
     { b: name },
-    ` approved — ${plural(people, "person", "people")}, ${when}`,
+    ` ${runApprovedTail(people, when)}`,
   ],
   /**
    * A run stopped from its line or its card: what the server stopped, by what the run was when it did (campaign-rooms.ts

@@ -6,7 +6,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, contactMeta, emailLeftOutOf, stateOf, memberWords } from "@chanlytics/contracts";
-import { readCode } from "../../_source.mjs";
 import { installLegacyReact, fresh, find, textOf } from "../../_legacy-react.mjs";
 
 installLegacyReact({
@@ -20,6 +19,7 @@ const S = "../../../../../apps/dashboard/src";
 const { InboxThread } = await import(`${S}/surfaces/inbox/thread/thread.tsx`);
 const { OutcomePill } = await import(`${S}/surfaces/inbox/pages/conversations-page.tsx`);
 const { StatePill } = await import(`${S}/surfaces/kit/pill/state-pill.tsx`);
+const { REAL_CHANNEL_LABELS } = await import(`${S}/surfaces/inbox/store.ts`);
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -312,8 +312,10 @@ test("the wiring: the page branches on the channel and reads the reason's senten
       pill("escalated").props.value === "escalated" &&
       !said(pill("open")).includes("Customer's turn"),
   );
-  assert.ok(
-    /whatsapp: "WhatsApp",\s*phone: "Phone"/.test(readCode("apps/dashboard/src/surfaces/inbox/surface.ts")),
+  // The wires a real thread travels, each with its chip's label: the Inbox's own, never the demo's laid under them (X6-1).
+  assert.deepEqual(
+    REAL_CHANNEL_LABELS,
+    { whatsapp: "WhatsApp", phone: "Phone", sms: "Text", email: "Email" },
     "the phone chip has a label",
   );
 });

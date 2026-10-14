@@ -14,6 +14,14 @@
 import { DAY_MS } from "../shared/time";
 import { bookingToolCalendar, bookingToolName, bookingToolOptions } from "../calendar/booking-notice";
 import { CALENDAR_FEED_WORDS, type CalendarFeedHealth } from "../calendar/calendar-words";
+import { SETUP_STATE_WORDS } from "./setup";
+
+/**
+ * The pill of a step that waits on the owner (an address to make, a forward to confirm): Setup's word for every step it
+ * waits on you for, so Connections' calendar row, Setup's and the Business row say one word for one state (the wiring's
+ * second audit, S9-9). "Needs you" is a person's, a thread nobody has taken (conversations/standing.ts NEEDS_YOU_WORD).
+ */
+export const CALENDAR_OWED_WORD = SETUP_STATE_WORDS.waiting_you;
 
 /**
  * The Business row that holds all of it, as a route: Settings › Business with the row open (settings/frame/tabs.ts).
@@ -151,7 +159,7 @@ function emailsNeedYou(
       by,
       state: "needs_you",
       tone: "warn",
-      words: "Needs you",
+      words: CALENDAR_OWED_WORD,
       ...leadAndRest(`${tool} needs an address to send its booking emails to.`),
       times,
       next: TO_THE_ROW("Finish setting up"),
@@ -161,7 +169,7 @@ function emailsNeedYou(
       by,
       state: "needs_you",
       tone: "warn",
-      words: "Needs you",
+      words: CALENDAR_OWED_WORD,
       ...leadAndRest("Gmail is waiting for you to confirm the forward."),
       times,
       next: TO_THE_ROW("Confirm the forward"),

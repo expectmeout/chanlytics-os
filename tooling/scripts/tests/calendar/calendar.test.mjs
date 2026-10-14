@@ -205,8 +205,9 @@ test("the Business row says the next thing to do first: an address to make, a fo
   const of = (n) => toCalendarVM(dto({ feed: n === undefined ? feed : { ...feed, notices: n } }), now).feed.notices;
   assert.equal(of(undefined).row, null, "nothing before a tool is named or an email arrived");
   assert.equal(of(undefined).state, "none");
-  // The mark's own word rides with its colour (Needs you, Waiting, Working); the phrase says what, exactly.
-  const needsYou = (words) => ({ tone: "warn", label: "Needs you", words });
+  // The mark's own word rides with its colour (Waiting on you, Waiting, Working); the phrase says what, exactly. A step that
+  // waits on the owner says Setup's word for one, as Connections and Setup do; "Needs you" is a person's (S9-9).
+  const needsYou = (words) => ({ tone: "warn", label: "Waiting on you", words });
   assert.deepEqual(of(notices({ address: null })).row, needsYou("Needs a workspace email address"));
   const forwarding = { account: "owner@example.com", code: "4815162", link: null, at: "2026-09-08T15:00:00.000Z" };
   assert.deepEqual(of(notices({ forwarding })).row, needsYou("Confirm the forward in Gmail"));
@@ -425,8 +426,8 @@ test("full-fledged: month and agenda views, a date to jump to, windows that fit 
   );
   assert.deepEqual(
     (await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts")).AFTER["PUT settings"]().map((o) => o.key),
-    ["settings", "calendar", "setup", "people"],
-    "hours, closures, rules and services saved in Settings reach the board, and Setup (and the postal address, People's reach; the composers where a page draws them, and no page is on screen here); Today's five reads draw no configuration",
+    ["settings", "calendar", "setup"],
+    "hours, closures, rules and services saved in Settings reach the board, and Setup (and the postal address, People's reach and the composers where a page draws them, and no page is on screen here: S4-6); Today's five reads draw no configuration",
   );
   const dayModule = readCode("apps/dashboard/src/surfaces/today/pages/day.tsx");
   assert.ok(

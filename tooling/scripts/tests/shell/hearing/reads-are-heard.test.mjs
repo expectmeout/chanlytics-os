@@ -599,8 +599,13 @@ test("each Reports page hears the tables it counts, on its page: the overview it
     ["reports", "reports", ["calls", "tenant_config", "deals", "appointments", "contacts"]],
     ["reports_receptionist", "reports/receptionist", ["appointments", "contacts", "tenant_config"]],
     ["reports_people", "reports/people", ["contacts", "tenant_channels", "lines", "mailboxes"]],
-    ["reports_campaigns", "reports/campaigns", ["reach_out_replies", "tenant_channels", "mailbox_connections"]],
-    ["campaign_results", "campaigns", ["reach_out_replies"]],
+    // And the mailboxes a reach-out writes from, the hosted one among them, and a deal won (owed, closed 15 October).
+    [
+      "reports_campaigns",
+      "reports/campaigns",
+      ["reach_out_replies", "tenant_channels", "mailbox_connections", "mailboxes", "deals"],
+    ],
+    ["campaign_results", "campaigns", ["reach_out_replies", "deals", "mailboxes", "mailbox_connections"]],
   ];
   for (const [key, route, list] of WANTED)
     for (const table of list) {
@@ -622,8 +627,8 @@ test("each Reports page hears the tables it counts, on its page: the overview it
     true,
     "a call ending is",
   );
-  // What the lenses leave out they say so: a lens that does not draw a mailbox is not told of one.
-  assert.equal(heardOn("reports_campaigns", "mailboxes", "reports/campaigns").here, false);
+  // What the lenses leave out they say so: a lens that draws no line's saga is not told of one.
+  assert.equal(heardOn("reports_campaigns", "lines", "reports/campaigns").here, false);
 });
 
 test("the receipts of a run are the one thing the Campaigns pages count and the feed cannot tell: listed, with why, in the baseline", () => {

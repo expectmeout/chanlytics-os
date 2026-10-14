@@ -38,6 +38,8 @@ var STOP_WORDS = {
   pill: "Opted out",
   mark: "Stopped",
   short: ASKED_TO_STOP_SHORT,
+  /** The short words as a heading over a count ("Asked to stop · 3"): a run's figure. */
+  heading: `${ASKED_TO_STOP_SHORT.charAt(0).toUpperCase()}${ASKED_TO_STOP_SHORT.slice(1)}`,
   line: ASKED_TO_STOP,
   tone: "plain",
   /** The clause after a name ("Dana asked to stop receiving messages"), or on its own with a capital when none is given. */

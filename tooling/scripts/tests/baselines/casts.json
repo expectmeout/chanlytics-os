@@ -52,7 +52,7 @@
   },
   "apps/dashboard/src/legacy-bridge/notifications.ts": {
     "unknownAs": 2,
-    "nonNull": 2
+    "nonNull": 1
   },
   "apps/dashboard/src/legacy-bridge/read-cache.ts": {
     "nonNull": 1

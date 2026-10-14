@@ -1,5 +1,5 @@
 {
-  "owed": 82,
+  "owed": 65,
   "groups": [
     {
       "kind": "seat",
@@ -578,22 +578,6 @@
     {
       "kind": "owed",
       "finding": "R5",
-      "why": "People and Sent read the caller's seat as the others do, and GET contacts also names who wrote a note and who a step is for from the roster (team_roster over memberships and profiles: server/people/person-notes.ts teamNames). A teammate joining or leaving reaches them on their next read. Owed: People and Sent hear the team kind on their page.",
-      "reads": {
-        "people": [
-          "memberships"
-        ],
-        "broadcasts": [
-          "memberships"
-        ],
-        "person": [
-          "memberships"
-        ]
-      }
-    },
-    {
-      "kind": "owed",
-      "finding": "R5",
       "why": "Read inside people_list(), the book's list function, which joins each person's last call, deal, next step, open hold and thread to the row, and since 0052 the business they work at (leads) and the signer a reply of theirs offers (reach_out_replies). The page reads the book for who is in it and what each said; the trace cannot tell which of those columns it draws, and the kinds it declares are the ones it hears. Owed: say which columns it draws and hear them, or read a narrower function.",
       "reads": {
         "reports": [
@@ -652,42 +636,11 @@
     },
     {
       "kind": "owed",
-      "finding": "R5",
-      "why": "People's last-contact and call columns come from people_list()'s last call and call count. A call ending is read on People's next read. Owed: People hears the call kind, less a live call's transcript turns.",
-      "reads": {
-        "people": [
-          "calls"
-        ]
-      }
-    },
-    {
-      "kind": "owed",
       "finding": "W-person-list-lead-6",
       "why": "The Calendar matches a visit to a person by name, number and, since 0052, the business they work at (leads) from the book (people_list). It hears a person changed (the wiring's second audit, R5c); a lead's business renamed, or a person linked to one, is matched on the next read. Owed: a lead's name told apart from a lead run's every batch (leads is told on each check of a run).",
       "reads": {
         "calendar": [
           "leads"
-        ]
-      }
-    },
-    {
-      "kind": "owed",
-      "finding": "R5",
-      "why": "The composers' audience counts name a deal (a proposal out, a yes since). The composers hear people's answers (contacts); a deal recorded in the writer's tab re-reads them (rereadAfter), and another tab's is read on the next read. Owed: the composers hear the deal kind on their page.",
-      "reads": {
-        "broadcasts": [
-          "deals"
-        ],
-        "playbooks": [
-          "deals"
-        ]
-      },
-      "rereadAfter": {
-        "broadcasts": [
-          "POST contacts/[id]/deal"
-        ],
-        "playbooks": [
-          "POST contacts/[id]/deal"
         ]
       }
     },
@@ -712,31 +665,11 @@
     },
     {
       "kind": "owed",
-      "finding": "S3-1",
-      "why": "The Business pane states the calendar's visits read (knownFacts reads the appointments). Settings hears the channel rows, the line and the listing on its pages (R6), not the visits; a visit read is read on its next read. Owed: Settings hears the visit kind on its page.",
-      "reads": {
-        "settings": [
-          "appointments"
-        ]
-      }
-    },
-    {
-      "kind": "owed",
       "finding": "W-campaign-run-template-reachout-2",
       "why": "The Library's count of each message's sends (templateSendsRead): the database's count (template_sends, 00374), and on a database before it the runs' recipients and the templates the Inbox sent on their own message rows. The Library hears the runs (R5c), not a message: a template the Inbox sent into a closed window moves the count on the Library's next read. Owed: the Library hears a templated send, not every message.",
       "reads": {
         "settings": [
           "messages"
-        ]
-      }
-    },
-    {
-      "kind": "owed",
-      "finding": "W-channel-team-plus-3",
-      "why": "The workspace's own mailbox, read for whose inbox a reply came to. The feed tells a mailbox made, renamed, paused and its forwarding code (00431), and the Calendar, Setup, Today, People and the composers hear it; the replies' read declares no channel kind, so a mailbox renamed reaches it on its next read. Owed: the replies hear the mailbox.",
-      "reads": {
-        "reach_out_replies": [
-          "mailboxes"
         ]
       }
     },
@@ -782,21 +715,6 @@
     },
     {
       "kind": "owed",
-      "finding": "W-campaign-run-template-reachout-10",
-      "why": "A template's verdict and words: Meta's answer to it, what a stuck run is held on (campaign_stuck) and a chain's email words (emailWordsByTemplate). The Library and the Campaigns lens hear templates (R5c); the reach-outs read the verdict when a version is written (rereadAfter) and on their next read. Owed: the reach-outs hear the template kind.",
-      "reads": {
-        "reach_outs": [
-          "templates"
-        ]
-      },
-      "rereadAfter": {
-        "reach_outs": [
-          "POST templates/versions"
-        ]
-      }
-    },
-    {
-      "kind": "owed",
       "finding": "W-campaign-run-template-reachout-8",
       "why": "A chain's counts and its leads' timeline (reach_out_reach, reach_out_chain_report, reach_out_lead_timeline): sent, wrote back, the leads and the mailbox each lead heard from (decision 0056). The chains' read hears a reply and the playbook, never a message or a lead (a chain is not a thread), so an open pane's counts and history wait for its next read (W-campaign-run-template-reachout-8).",
       "reads": {
@@ -820,15 +738,12 @@
         "campaign_results": [
           "calls",
           "lead_searches",
-          "leads",
-          "mailbox_connections",
-          "mailboxes"
+          "leads"
         ],
         "reports_campaigns": [
           "calls",
           "lead_searches",
-          "leads",
-          "mailboxes"
+          "leads"
         ]
       },
       "rereadAfter": {
@@ -846,7 +761,6 @@
         "reach_out_replies": [
           "contacts",
           "leads",
-          "mailbox_connections",
           "messages"
         ]
       }
@@ -881,37 +795,11 @@
     {
       "kind": "owed",
       "finding": "R5",
-      "why": "Won (00426): a deal naming its lead, won, counted once in the reach-outs' report and in each reach-out's People cell (reach_out_report, reach_out_people_counts over reach_out_people_of). A deal moved on a person's page re-reads neither; they are read again when their page opens. Owed: hear the deal kind on their page.",
-      "reads": {
-        "campaign_results": [
-          "deals"
-        ],
-        "reach_outs": [
-          "deals"
-        ],
-        "reports_campaigns": [
-          "deals"
-        ]
-      }
-    },
-    {
-      "kind": "owed",
-      "finding": "R5",
       "why": "The searches a person's business was found by, named on the business card (searchNamesOf, lead_member_of). The person surface omits them: a lead run writes its members on every batch, and hearing them would read the person every few seconds while a search runs. A search renamed reaches the page on its next read. Owed: a search's name told apart from its members.",
       "reads": {
         "person": [
           "lead_search_members",
           "lead_searches"
-        ]
-      }
-    },
-    {
-      "kind": "owed",
-      "finding": "R6",
-      "why": "The connected mailbox a lead's emails left from (reach_out_lead_timeline, decision 0056), named in the business's reach-out story. A mailbox connected, paused or removed reaches the page on its next read. Owed: one channels read, heard, which the person page follows too (lane R6).",
-      "reads": {
-        "person": [
-          "mailbox_connections"
         ]
       }
     },

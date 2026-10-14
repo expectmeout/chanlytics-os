@@ -186,10 +186,15 @@ export const settingsOverride: SurfaceOverride = {
   // ask and the composers' review slot need: W-review-facts-rules-3, S1-4). A line's saga and the listing's daily read move them
   // a few times a day, so on its pages alone: Sent's and Playbooks' composers draw the review link too (PAGE_HEARS).
   ...declareReads("settings", {
-    reads: ["facts", "rules", "template", "team", "campaign", "send", "channel", "review"],
+    // And the visits: the Business pane states the calendar's visits read (knownFacts reads the appointments), on its pages.
+    reads: ["facts", "rules", "template", "team", "campaign", "send", "channel", "review", "visit"],
     fresh: "its-page",
     always: ["facts", "rules", "template", "team"],
     omit: [
+      {
+        tables: ["appointment_notices"],
+        why: "a booking email held for a look is the Calendar's read, which the Business pane hears where it draws them",
+      },
       {
         tables: ["mailboxes", "mailbox_connections", "capability_activations", "business_records"],
         why: "the settings read resolves its facts from the channel rows and the line; a mailbox, a connected mailbox, an activation and the carriers' record are Setup's read",

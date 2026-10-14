@@ -7,21 +7,64 @@
  * under its old name, for the pages that have not moved (legacy-globals.ts). The veto store has no reader beyond the
  * Inbox, and is not published.
  */
+import { INBOX_BUCKET_WORDS } from "@chanlytics/contracts";
 import { surfaceValue } from "../surface-values";
 import { presenceAway, demoSession } from "./shell";
 import { conversationsSample, inboxSample } from "./sample";
-import type { ConversationsSurface, InboxSurface, Thread } from "./types";
+import type { ConversationsSurface, InboxBucket, InboxSurface, Thread } from "./types";
 
 /* ------------------------------ what the surfaces hold ------------------------------ */
 
-/** The Inbox's rows and words: what the last read published, else the demo's seed (which is `window.INBOX_DATA` to the shell). */
+/** The only lists real threads can reach (the Blueprint's honesty rule), in its tabs' words (contracts INBOX_BUCKET_WORDS). */
+export const REAL_BUCKETS: InboxBucket[] = [
+  {
+    id: "escalated",
+    label: INBOX_BUCKET_WORDS.escalated,
+    hint: "The receptionist stopped and asked for a human",
+    icon: "flag",
+    accent: true,
+  },
+  {
+    id: "done",
+    label: INBOX_BUCKET_WORDS.done,
+    hint: "Answered by the receptionist, or a teammate has it — nothing for you to do",
+    icon: "check",
+  },
+  { id: "snoozed", label: INBOX_BUCKET_WORDS.snoozed, hint: "Hidden until they wake", icon: "clock" },
+];
+
+/** The wires a real thread travels, as the Inbox's rows name them. */
+export const REAL_CHANNEL_LABELS: Readonly<Record<string, string>> = {
+  whatsapp: "WhatsApp",
+  phone: "Phone",
+  sms: "Text",
+  email: "Email",
+};
+
+/**
+ * A real session's Inbox before its first read lands, and while a read that failed is not answered yet: no thread, under its
+ * own lists. The demo's seeded threads are a demo session's alone (the wiring's second audit, X6-1): they were this, in every
+ * workspace, from boot until the read, and only the route gate and a mismatch of ids kept an invented customer off a page.
+ */
+const UNREAD_INBOX: InboxSurface = {
+  INBOX_BUCKETS: REAL_BUCKETS,
+  INBOX_VIEWS: [],
+  THREADS: [],
+  CHANNEL_LABELS: REAL_CHANNEL_LABELS,
+  INBOX_BASELINE: { doneThisWeek: 0 },
+};
+
+/** Conversations the same way: no row, and the one tab every workspace has (conversations-surface.ts conversationTabs). */
+const UNREAD_CONVERSATIONS: ConversationsSurface = { CONVERSATIONS: [], CV_CHANNELS: [{ id: "all", label: "All" }] };
+
+/** The Inbox's rows and words: what the last read published; before it, the demo's seed in a demo, else no thread. */
 export function inboxData(): InboxSurface {
-  return surfaceValue("inbox") ?? inboxSample;
+  return surfaceValue("inbox") ?? (demoSession() ? inboxSample : UNREAD_INBOX);
 }
 
-/** Conversations' rows: what the last read published, else the demo's seed (which is `window.CONVERSATIONS_DATA` to the shell). */
+/** Conversations' rows: what the last read published; before it, the demo's seed in a demo, else no row. */
 export function conversationsData(): ConversationsSurface {
-  return surfaceValue("conversations") ?? conversationsSample;
+  return surfaceValue("conversations") ?? (demoSession() ? conversationsSample : UNREAD_CONVERSATIONS);
 }
 
 /* ------------------------------ session decisions ------------------------------ */

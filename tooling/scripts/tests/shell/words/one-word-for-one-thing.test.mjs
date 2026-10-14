@@ -463,3 +463,28 @@ test("D1-visit-words: People's table heads the column in the workspace's word, i
     ["Last contact"],
   );
 });
+
+test("REGRESSION (S9-9): a deal's stage is said in its stage's word on the sheet's receipt and its list; a thread moved says its tab's word", async () => {
+  const { BUILTIN_LISTS, DEAL_SHEET_WORDS, DEAL_STAGE_WORDS, INBOX_BUCKET_WORDS, NEEDS_YOU_WORD, inboxBucketWord } =
+    await import("@chanlytics/contracts");
+  // The sheet typed its own copy of the stages' words, and so did People's lists.
+  const moves = { propose: "proposed", again: "proposed", won: "won", lost: "lost", ended: "ended" };
+  for (const [move, stage] of Object.entries(moves))
+    assert.equal(DEAL_SHEET_WORDS.done[move], DEAL_STAGE_WORDS[stage], move);
+  assert.equal(DEAL_SHEET_WORDS.done.edit, "Proposal saved", "an edit moves no stage, and says what it did");
+  const label = (id) => BUILTIN_LISTS.find((l) => l.id === id).label;
+  assert.equal(label("proposal_out"), DEAL_STAGE_WORDS.proposed);
+  assert.equal(label("deal_passed"), DEAL_STAGE_WORDS.lost);
+  assert.equal(label("deal_ended"), DEAL_STAGE_WORDS.ended);
+  assert.equal(label("clients"), "Clients", "a list of people names the people, not the stage");
+  // The thread pane said "Moved to" in words of its own beside the tabs' (inbox/thread/thread-pane.tsx).
+  for (const state of ["escalated", "done", "snoozed"]) assert.equal(inboxBucketWord(state), INBOX_BUCKET_WORDS[state]);
+  assert.equal(inboxBucketWord("escalated"), NEEDS_YOU_WORD, "the tab of threads nobody has is Needs you");
+  assert.equal(inboxBucketWord("open"), null, "no tab lists an open thread");
+  const { REAL_BUCKETS } = await importSrc("apps/dashboard/src/surfaces/inbox/store.ts");
+  assert.deepEqual(
+    REAL_BUCKETS.map((b) => [b.id, b.label]),
+    Object.entries(INBOX_BUCKET_WORDS),
+    "the tabs say the same words, in the same order",
+  );
+});

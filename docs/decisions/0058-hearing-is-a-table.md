@@ -491,6 +491,43 @@ the feed never tells. Each was then kept as it was first read.
     named for the Inbox header and the Calendar panel. The Calendar reads no People any more (its board carries the person's
     facts), and the Inbox header now asks for People once where it names someone new.
 
+## Amended on 15 October 2026: the last six findings, and the owed reads the narrowed feed makes cheap
+
+The second audit's six findings nothing had built (S9-9, S9-10, X6-1, X6-2, X6-3, W-visit-deal-5), the two it left to Ruben
+(S9-7, S9-8, decided as recommended), and the owed reads (`reads-not-heard.json`) that page-scoped hearing now closes cheaply,
+since 00431 narrowed what the feed tells of templates, mailboxes, memberships and the rest.
+
+- **Today hears People's person** (`PAGE_HEARS.today`: `people: ["person"]`). People's rows are the steps due on Today and the
+  names Worth a look gives, so a customer who says STOP, is renamed, merged or erased is read again there; Worth a look's "Yours
+  to follow up" named someone who had just asked to stop until People was opened (W-visit-deal-5). A message or a hold on Today
+  still reads none of People.
+- **The owed reads closed, each where its surface is drawn** (`fresh: "its-page"`, or on every page where the surface is
+  `live`):
+  - People hears a call's start and end (its last contact and call count; never a transcript turn) and the team (who wrote a
+    note, whom a step is for);
+  - a person's page hears the team and the connected mailbox a business's emails left from;
+  - Sent hears a deal, the templates its pool counts and the team; the playbooks hear a deal;
+  - Settings hears the visits the Business pane states;
+  - the replies hear the mailbox a reply came to; the reach-outs hear a template and a deal;
+  - Campaigns' 30 days and the Campaigns lens hear a deal won, and the mailboxes their reach-outs left from.
+- **A person's edit or a channel's change reads People only where it is drawn** (refresh map `peopleIfDrawn`, S4-6):
+  `personAndThreads`, `peopleAndAudiences` and `readiness` read every page of the book behind a name edit, a yes, a Settings
+  save or a mailbox's rename, wherever it was pressed; People is read now where the page on screen draws it, and left for the
+  next page that does.
+- **One builder per receipt, one guard per act** (S9-9, S9-10): contracts `whenItGoes` and `runApprovedTail` are the one
+  sentence of when a send goes and what an approve did, for Sent, Today, a drawer and Ask's card; a deal's stage, the Inbox's
+  lists and a calendar step that waits on the owner each say their one word (`DEAL_STAGE_WORDS`, `INBOX_BUCKET_WORDS`,
+  Setup's "Waiting on you"). Today's run rows wait while their Approve or Cancel is on its way, and the run verbs are one
+  intent each (decision 0035). A step Done the door refused reads again what drew the step.
+- **The demo's Inbox is a demo's** (X6-1, X6-2): a real session holds no seeded thread from boot, and the boot gate waits on
+  none; the bell takes each source's backlog once that source is read.
+- **Every link to a visit opens it** (S9-7): the Inbox header's visit is a door of its own beside the head on a desk, and
+  Today's Next opens the appointment it names.
+- **A STOP is one tone on a run's sheet too** (S9-8): its figure and filter say STOP's words, in STOP's tone.
+- **Left, with its reason:** the owed groups that need a narrower notice than the feed sends (a lead's name told apart from a
+  lead run's batches, a playbook's name from its run stamps, a search's name from its members), `people_list`'s columns, a
+  templated send told apart from every message, the chains' timelines, and the channels' age (R9's heal bounds it).
+
 ## What comes next
 
 - **R5** changes cells one at a time and reads each golden's difference:
@@ -505,4 +542,5 @@ the feed never tells. Each was then kept as it was first read.
   above); the feed's replay is owed.
 - **S3-5 and S11-8** (done, above).
 - **R10:** Today's pinned lists counted on their own, and the pages that name someone new asking for People (done, above).
+- **The last six and the cheap owed reads** (done, above, 15 October).
 - The owed count falls as they land.

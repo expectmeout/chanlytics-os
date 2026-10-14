@@ -175,6 +175,15 @@ export function runStoppedWords(was: string | null | undefined): string {
 }
 
 /**
+ * What approving a waiting run says after its name: how many it reaches, by the server's count, and when it really goes
+ * (playbook-triggers.ts whenItGoes). One sentence for Sent's toast, Today's, a campaign's drawer and Ask's card (the
+ * wiring's second audit, S9-9): Today's said "approved: 7 people" where every other said "approved — 7 people".
+ */
+export function runApprovedTail(people: number, when: string): string {
+  return `approved — ${people} ${people === 1 ? "person" : "people"}, ${when}`;
+}
+
+/**
  * A run waiting for its owner's approval, said once (D1-run-words). It was "Waiting on you" (Sent's pill and tab, Campaigns'
  * row), "waiting on you" (Sent's band), "Needs you" (a tab that counts them), "Waiting for your approval" (Today's row), "is
  * waiting for your word" (Today's brief), "Waiting for you" (the drawer's history) and "This run waits on you" (the drawer).

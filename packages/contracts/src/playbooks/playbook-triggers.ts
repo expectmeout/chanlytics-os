@@ -174,6 +174,34 @@ export const SENDING_HOURS_WORDS = {
 export const sendsWaitWords = (hours: Pick<typeof SENDING_HOURS_WORDS, "range"> = SENDING_HOURS_WORDS): string =>
   `sends wait for ${hours.range}`;
 
+/** A send that goes now, as every receipt says it: what whenItGoes answers when there is no later moment to name. */
+export const SENDING_NOW_WORDS = "sending now";
+
+/** What a send's or an approve's answer says of its time: when it goes, and where the server moved it, from when. */
+export interface WhenItGoesReceipt {
+  scheduled_for?: string | null;
+  moved_from?: string | null;
+}
+
+/**
+ * When a send or an approved run goes, from the server's answer, in the one sentence every receipt says it: Sent's toast,
+ * Today's, a campaign's drawer and Ask's card (the wiring's second audit, S9-9 and S9-10: the page's bcWhenWords and Ask's
+ * runGoes were two implementations). The server moves a send asked for outside the sending hours to the next open one
+ * (`moved_from` set), and the receipt says so rather than "sending now" over a run that waits until morning. `when` words an
+ * instant by the business's clock (the page's own, or the zone Ask's card carries); a moment within a minute is now.
+ */
+export function whenItGoes(
+  receipt: WhenItGoesReceipt | null | undefined,
+  when: (atMs: number) => string,
+  nowMs: number,
+): string {
+  const at = receipt?.scheduled_for ? Date.parse(receipt.scheduled_for) : NaN;
+  if (Number.isNaN(at)) return SENDING_NOW_WORDS;
+  if (receipt?.moved_from)
+    return `scheduled for ${when(at)} — messages go out ${SENDING_HOURS_WORDS.between} by your clock`;
+  return at - nowMs > MIN_MS ? `scheduled for ${when(at)}` : SENDING_NOW_WORDS;
+}
+
 // One playbook message per person per week, across playbooks: declared with the playbooks' clock (playbook-time.ts), so
 // a broadcast's breath (broadcasts/run-words.ts) reads it without this module's triggers.
 export { PLAYBOOK_BREATH_MS } from "./playbook-time";

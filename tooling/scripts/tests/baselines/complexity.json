@@ -14,11 +14,6 @@
     "branches": 11,
     "depth": 1
   },
-  "apps/dashboard/src/legacy-bridge/notifications.ts::installNotifications#1": {
-    "lines": 154,
-    "branches": 4,
-    "depth": 1
-  },
   "apps/dashboard/src/legacy/components/data-bits.jsx::onTouchEnd#1": {
     "lines": 43,
     "branches": 48,

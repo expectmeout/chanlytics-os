@@ -23,7 +23,7 @@ import assert from "node:assert/strict";
 import ts from "typescript";
 import { ratchet } from "../_ratchet.mjs";
 import { MEASURES, ROUTES } from "../_measures.mjs";
-import { parse, functionsIn, durationsIn } from "../_ast.mjs";
+import { parse, functionsIn, durationsIn, seedReadsOutsideADemo } from "../_ast.mjs";
 
 for (const m of MEASURES) ratchet(m);
 
@@ -54,6 +54,53 @@ test("the doors' measure reads the edge's doors and the dashboard's routes", () 
     ROUTES.filter((f) => f.startsWith("apps/dashboard/app/api/")).length >= 80,
     "the routes of the dashboard are read (every route under apps/dashboard/app/api)",
   );
+});
+
+// The seed measure on a module written for it (the wiring's second audit, X6-3): each line marked `yes` reads a demo's seeds
+// in a real session once per mark, and nothing else in it does: a read under a demo's condition (either side of a negation, an
+// `&&`, an `if`, after a guard that leaves outside a demo), a type, a property's own name, a module that is no seed.
+test("the seed measure counts a demo's seeds read outside a demo and nothing else", () => {
+  const lines = [
+    'import { inboxSample, peopleSample as people } from "./sample";',
+    'import { NEEDING_YOU } from "../inbox/sample/threads-needing-you";',
+    'import { EXAMPLE_READS } from "./examples";',
+    'import { DEMO_ADS } from "../demo-ads";',
+    'import { accountChecks } from "./ad-accounts-mock";',
+    'import type { SampleDay } from "./sample-clock";',
+    'import { realRows } from "./rows";',
+    "export const seeded = inboxSample; // yes",
+    "export const both = [people, NEEDING_YOU]; // yes yes",
+    "export const shown = { EXAMPLE_READS }; // yes",
+    "export const checks = (p) => accountChecks(p); // yes",
+    "export const cut = demoSession() ? DEMO_ADS : realRows();",
+    "export const kept = !demoSession() ? realRows() : people;",
+    "export const wrong = !demoSession() ? people : realRows(); // yes",
+    "export const flag = (demo) => demo && people;",
+    "export const either = (s) => !window.__DEMO_MODE || inboxSample;",
+    "export function read() { if (isDemoSession()) return people; return realRows(); }",
+    "export function guarded(id) { if (!demoSession() || id === null) return null; return NEEDING_YOU[0]; }",
+    "export function late(id) { if (id === null) return null; return NEEDING_YOU[0]; } // yes",
+    "export const day = (d: SampleDay) => d;",
+    "export const named = { inboxSample: 1 }.inboxSample;",
+    "export const rows = realRows();",
+  ];
+  const sf = ts.createSourceFile(
+    "surfaces/x/page.ts",
+    lines.join("\n"),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const marked = lines.reduce((n, l) => n + (l.match(/\byes\b/g) ?? []).length, 0);
+  assert.equal(seedReadsOutsideADemo(sf), marked);
+  const seed = ts.createSourceFile(
+    "surfaces/x/sample.ts",
+    lines.join("\n"),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  assert.equal(seedReadsOutsideADemo(seed), 0, "a seed module's own reads are its own");
 });
 
 // The duration measure on a module written for it: each line marked `yes` holds one length of time written as a

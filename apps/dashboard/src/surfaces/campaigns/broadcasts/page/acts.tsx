@@ -2,7 +2,7 @@
  * What a press on the broadcasts page does (moved from legacy/pages/broadcasts.jsx, decision 0015): stop and approve on
  * a run, the send itself, and the starter set added from the send screen. Each says so the moment the server takes it.
  */
-import { goesToOf, heardWords, runStoppedWords } from "@chanlytics/contracts";
+import { SENDING_NOW_WORDS, goesToOf, heardWords, runApprovedTail, runStoppedWords } from "@chanlytics/contracts";
 import type { Output } from "@/client/api";
 import { starterWords } from "../../templates/composer";
 import { templates } from "../../templates/verbs";
@@ -65,8 +65,7 @@ export function bcRunActs({
             <>{words}</>
           ) : (
             <>
-              <b>{row.name}</b> approved — {data.recipient_count} {data.recipient_count === 1 ? "person" : "people"},{" "}
-              {bcWhenWords(data)}
+              <b>{row.name}</b> {runApprovedTail(data.recipient_count ?? 0, bcWhenWords(data))}
             </>
           ),
       });
@@ -159,12 +158,12 @@ export function bcSendActs({
     // down the page. It is not an Undo and is not called one: a message already
     // out stays out, which is what the row's own Stop says, so the toast carries
     // the same verb and the same promise. A scheduled run has sent nothing yet.
-    const waits = words !== "sending now";
+    const waits = words !== SENDING_NOW_WORDS;
     flash({
       msg: (
         <>
           <b>{r.data.name || "Broadcast"}</b> · {n} {n === 1 ? "person" : "people"} —{" "}
-          {words === "sending now" && data.chunk ? `sending now, ${data.chunk} at a time` : words}
+          {!waits && data.chunk ? `${SENDING_NOW_WORDS}, ${data.chunk} at a time` : words}
           {leftOutSaid ? ` · ${leftOutSaid}` : null}
         </>
       ),

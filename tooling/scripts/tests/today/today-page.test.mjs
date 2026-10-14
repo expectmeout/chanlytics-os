@@ -944,6 +944,44 @@ test("a run's Approve from the queue is said the moment the server takes it, wit
   assert.equal(flashes.length, 1, "and said once");
 });
 
+test("REGRESSION (S9-10): a run's Approve on Today waits while it is on its way -- a second press approved again, as Sent's once did", async () => {
+  clear();
+  const approvals = [];
+  let land = () => {};
+  set({
+    today: busy(),
+    __BROADCASTS: broadcasts(),
+    __broadcasts: {
+      approve: (id) => {
+        approvals.push(id);
+        return new Promise((r) => {
+          land = () => r({ ok: true, data: { recipient_count: 3, scheduled_for: iso(0), moved_from: null } });
+        });
+      },
+      cancel: async () => ({ ok: true, data: {} }),
+    },
+  });
+  const row = () =>
+    byTestId(
+      byTestId(
+        again(() => W.React.createElement(AgentCommand)),
+        "today-queue",
+      ),
+      "brief-run-row",
+    );
+  const first = byTestId(byTestId(draw(AgentCommand), "today-queue"), "brief-run-row");
+  const done = press(buttons(first, "Approve")[0]);
+  press(buttons(first, "Approve")[0]);
+  assert.equal(approvals.length, 1, "REGRESSION: the second press asked the server again, which refused it");
+  const waiting = buttons(row(), "Approve")[0];
+  assert.equal(waiting.props.disabled, true, "the verb waits while the first is on its way");
+  assert.equal(waiting.props["aria-busy"], true);
+  land();
+  await done;
+  assert.equal(buttons(row(), "Approve")[0].props.disabled, false, "and is offered again once it has landed");
+  assert.equal(approvals.length, 1);
+});
+
 test("a waiting run whose day has passed is opened from the queue, never approved: its row says why, in the verb's words", async () => {
   // approveRun refuses a playbook's run on a later day than it was made for (contracts runApprovalRefusal). Today's row
   // offered Approve all the same, and the press answered "Not approved" over a 409.
@@ -2002,6 +2040,24 @@ test("the strip: the next appointment's start in bold before its words, the cell
   assert.equal(words.props["data-phase"], "Next", "a phone draws the phase into the words");
   assert.ok(textOf(find(words, (n) => n.type === "b")).length > 0, "the start, in bold");
   assert.match(textOf(find(words, (n) => classes(n).includes("ts-rest"))), /Dulce Amaro/, "then who it is with");
+});
+
+test("REGRESSION (S9-7): the strip's Next opens the visit itself -- every other visit link does -- and its day where it has none", () => {
+  clear();
+  const next = (b) => {
+    set({ today: busy(), __CALENDAR: calendar([b]) });
+    return byTestId(byTestId(draw(TodayStrip), "today-strip"), "today-strip-next");
+  };
+  const visit = next({
+    ...block("b17", 17, "Color", { id: "p1", name: "Dulce Amaro" }),
+    visit: { id: "v9", status: null },
+  });
+  assert.equal(visit.type, "a", "a link: a long press or a new tab opens it too");
+  assert.match(visit.props.href, /\/calendar\/(\d{4}-\d{2}-\d{2}:)?a-v9$/, "the visit's own address");
+  assert.equal(typeof visit.props.onClick, "function");
+  assert.match(visit.props.title, /^Open Dulce Amaro on the Calendar$/);
+  const day = next(block("b17", 17, "Color", { id: "p1", name: "Dulce Amaro" }));
+  assert.match(day.props.href, /\/calendar\/\d{4}-\d{2}-\d{2}$/, "a block with no visit row opens its day");
 });
 
 test("the bento (E3): the strip, the queue's column beside the brief and the bell, the card beside Worth a look, the pins; no day pane", () => {

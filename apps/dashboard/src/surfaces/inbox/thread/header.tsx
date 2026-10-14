@@ -19,7 +19,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
 import { Menu, type MenuGroup, type MenuItem } from "../../kit/menu/menu";
 import { StoppedMark } from "../../kit/pill/stopped-mark";
-import { askAbout, routeDoor } from "../../legacy-verbs";
+import { askAbout, refreshSurface, routeDoor } from "../../legacy-verbs";
 import { ROUTES } from "../constants";
 import {
   clockZone,
@@ -75,9 +75,9 @@ const IxThreadStep = ({
       say: flash,
       onDone: () => setGone(step.id),
       onUndone: () => setGone(null),
-      // Refused: nothing was written, so nothing is read again on its own, and the step the page holds may be the one that
-      // moved. A done is read again with People behind it (the write's refresh, 0047), which the person's page hears.
-      onRefused: () => window.dispatchEvent(new CustomEvent("surface:clients")),
+      // Refused: nothing was written, so nothing is read again on its own, and the step the header holds may be the one that
+      // moved. The step is People's row, so People is read again (S9-10): the event alone repainted the same rows.
+      onRefused: () => void refreshSurface("people"),
     });
   return (
     <div className="ix-th-step" data-due={day.due} data-testid="ix-th-step">
@@ -391,6 +391,47 @@ function headerName(thread: Thread, personTo: string | null, facts: HeaderFacts)
   );
 }
 
+/** A visit as the chip says it: its day, its time when it is ahead, and how it stands (the one visit line's word). */
+function visitWords(visit: NonNullable<HeaderFacts["visit"]>) {
+  return (
+    <>
+      <Icon name="calendar" size={10} />
+      <span className="ix-th-visit-words">
+        {visit.ahead ? visit.line.day : `Last · ${visit.line.day}`}
+        {visit.ahead && visit.line.time && <span className="ix-th-visit-time"> · {visit.line.time}</span>}
+        {/* How it stands, in the one visit line's word: Kept or Missed once said, Past once it has ended and nobody has. */}
+        {visit.line.state && (
+          <span className="ix-th-visit-time" data-testid="ix-th-visit-state">
+            {" "}
+            · {visit.line.state.text}
+          </span>
+        )}
+      </span>
+    </>
+  );
+}
+
+/**
+ * Their visit as a door of its own, beside the head on a desk (the wiring's second audit, S9-7): the chip under the name said
+ * the visit and opened the person, since the head is one link to their page, and every other visit link opens the visit. A
+ * phone keeps the chip as words inside the head, as it keeps the business (.ix-th-works, mobile.css). None for a visit the
+ * line gives no address.
+ */
+function visitDoor(facts: HeaderFacts) {
+  const visit = facts.visit;
+  if (!visit || !visit.line.to) return null;
+  return (
+    <a
+      className={`ix-th-visit ix-th-visit-door${visit.ahead ? " ahead" : ""}`}
+      {...routeDoor(visit.line.to)}
+      title={visit.ahead ? "Open their visit" : "Open their last visit"}
+      data-testid="ix-th-visit-door"
+    >
+      {visitWords(visit)}
+    </a>
+  );
+}
+
 /** The line under the name: the wires, and the deal or the visit. */
 function headerSub(thread: Thread, channelLabels: Record<string, string>, facts: HeaderFacts) {
   const { deal, visit, person } = facts;
@@ -415,19 +456,12 @@ function headerSub(thread: Thread, channelLabels: Record<string, string>, facts:
         </span>
       )}
       {visit && (
-        <span className={`ix-th-visit${visit.ahead ? " ahead" : ""}`} data-testid="ix-th-visit">
-          <Icon name="calendar" size={10} />
-          <span className="ix-th-visit-words">
-            {visit.ahead ? visit.line.day : `Last · ${visit.line.day}`}
-            {visit.ahead && visit.line.time && <span className="ix-th-visit-time"> · {visit.line.time}</span>}
-            {/* How it stands, in the one visit line's word: Kept or Missed once said, Past once it has ended and nobody has. */}
-            {visit.line.state && (
-              <span className="ix-th-visit-time" data-testid="ix-th-visit-state">
-                {" "}
-                · {visit.line.state.text}
-              </span>
-            )}
-          </span>
+        // Said here on a phone; a desk draws the visit as its door beside the head (visitDoor) where it has an address.
+        <span
+          className={`ix-th-visit${visit.ahead ? " ahead" : ""}${visit.line.to ? " ix-th-visit-said" : ""}`}
+          data-testid="ix-th-visit"
+        >
+          {visitWords(visit)}
         </span>
       )}
     </div>
@@ -502,7 +536,7 @@ function ThreadBusinessSheet({ asked, onClose }: { asked: BusinessAsked | null; 
   return asked && Door ? <Door personId={asked.personId} name={asked.name} onClose={onClose} /> : null;
 }
 
-/** The face, the name and what is known of them, one link to their page, and the door to their business beside it. */
+/** The face, the name and what is known of them, one link to their page, and the doors to their visit and business beside it. */
 function headerMain(props: ThreadHeaderProps, facts: HeaderFacts, alsoLeads: ReactNode) {
   const { thread, channelLabels, onOpenClient = () => {}, onBack = null } = props;
   // Who this is opens their page: the face, the name and the line under it are one link (IxWho), as a messaging app's
@@ -535,6 +569,7 @@ function headerMain(props: ThreadHeaderProps, facts: HeaderFacts, alsoLeads: Rea
         {headerName(thread, personTo, facts)}
         {headerSub(thread, channelLabels, facts)}
       </IxWho>
+      {thread.real && !demoSession() ? visitDoor(facts) : null}
       {alsoLeads}
     </div>
   );

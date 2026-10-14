@@ -319,15 +319,26 @@ test("Done is the Inbox header's verb, press for press: the step's note, said do
   assert.deepEqual(stepRowsOf(after).map(whoOf), ["Hal", "Ana"], "the step done is gone from the queue");
 });
 
-test("a Done the door refuses says so in the door's words and keeps the row", async () => {
+test("a Done the door refuses says so in the door's words, keeps the row, and reads People again (S9-10)", async () => {
   clear();
-  doneAnswer = async () => ({ ok: false, message: "Only an owner or an operator can mark a step done." });
-  const tree = draw();
-  await press(buttons(stepRowsOf(tree)[0], "Done")[0]);
-  assert.equal(flashes.at(-1).tone, "danger");
-  assert.equal(textOf(flashes.at(-1).msg), "Only an owner or an operator can mark a step done.");
-  const after = again(() => W.React.createElement(AgentCommand, {}));
-  assert.deepEqual(stepRowsOf(after).map(whoOf), ["Di", "Hal", "Ana"], "nothing was done, nothing goes");
+  const readAgain = [];
+  W.__refreshSurface = async (key) => {
+    readAgain.push(key);
+  };
+  try {
+    doneAnswer = async () => ({ ok: false, message: "Only an owner or an operator can mark a step done." });
+    const tree = draw();
+    await press(buttons(stepRowsOf(tree)[0], "Done")[0]);
+    assert.equal(flashes.at(-1).tone, "danger");
+    assert.equal(textOf(flashes.at(-1).msg), "Only an owner or an operator can mark a step done.");
+    const after = again(() => W.React.createElement(AgentCommand, {}));
+    assert.deepEqual(stepRowsOf(after).map(whoOf), ["Di", "Hal", "Ana"], "nothing was done, nothing goes");
+    // A refusal may be a step done a moment before in another tab: the rows are read again, as the Inbox's header reads them,
+    // so the row stands or goes as the server has it rather than as this tab last read it.
+    assert.deepEqual(readAgain, ["people"], "REGRESSION: a refused Done left the row as this tab last read it");
+  } finally {
+    delete W.__refreshSurface;
+  }
 });
 
 test("a day with only steps due is not an empty queue; no step due draws nothing of them", () => {

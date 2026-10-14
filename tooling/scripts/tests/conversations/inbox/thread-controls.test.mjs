@@ -620,6 +620,42 @@ test("the chip beside the wires says the deal before the visit: a client, a prop
   }
 });
 
+test("REGRESSION (S9-7): their visit is a door to the visit beside the head on a desk -- under the name it opened the person, as the head does", () => {
+  const vm = toInboxThreadVM(conv(), asked, ZONE, NOW);
+  const door = (tree) => find(tree, byTestId("ix-th-visit-door"));
+  const said = (tree) => find(tree, hasClass("ix-th-visit-said"));
+  const withVisit = (to) => {
+    globalThis.window.__PEOPLE = {
+      rows: [
+        { id: "k1", nextVisitLine: { ...visitLine("Tue, Sep 8", "2:00 PM"), to }, lastVisitLine: null, deal: null },
+      ],
+    };
+    return draw(vm);
+  };
+  try {
+    let tree = withVisit("calendar/visit:v1");
+    assert.equal(door(tree).type, "a", "a link: a long press or a new tab opens the visit too");
+    assert.ok(door(tree).props.href.endsWith("calendar/visit:v1"), door(tree).props.href);
+    assert.equal(typeof door(tree).props.onClick, "function");
+    assert.equal(textOf(door(tree)).trim(), "Tue, Sep 8 · 2:00 PM", "the visit's own words");
+    assert.ok(hasClass("ahead")(door(tree)));
+    // The chip under the name stays, for a phone, whose head has no room beside it; a desk hides it, so the visit is said once.
+    assert.ok(said(tree), "the words under the name are the phone's");
+    assert.equal(textOf(said(tree)).trim(), "Tue, Sep 8 · 2:00 PM");
+    // A visit with no page of its own (a line People could not tie to a visit) is words alone, wherever it is drawn.
+    tree = withVisit(null);
+    assert.equal(door(tree), undefined, "no visit to open: no door");
+    assert.equal(said(tree), undefined, "and the words under the name are the only ones, on a desk too");
+    assert.ok(find(tree, hasClass("ix-th-visit")));
+    // A demo's thread has no visit to open.
+    globalThis.window.__DEMO_MODE = true;
+    assert.equal(door(withVisit("calendar/visit:v1")), undefined, "a demo opens no visit");
+  } finally {
+    delete globalThis.window.__PEOPLE;
+    globalThis.window.__DEMO_MODE = false;
+  }
+});
+
 test("a step due under the head: what, and when it was due, with Done outside the link -- one ahead is not said; Done answers in a toast that says the step, with Undo, and the line goes", async () => {
   const vm = toInboxThreadVM(conv(), asked, ZONE, NOW);
   // The line judges the day against the real clock, as the page does.
@@ -635,9 +671,15 @@ test("a step due under the head: what, and when it was due, with Done outside th
   let answer = { ok: true, data: { note: null } };
   let hold = null;
   const events = [];
+  // The surfaces read again (legacy-verbs refreshSurface, through the runner's door).
+  const readAgain = [];
   const w = globalThis.window;
-  const keep = { dispatchEvent: w.dispatchEvent, gate: w.gate };
+  const keep = { dispatchEvent: w.dispatchEvent, gate: w.gate, __refreshSurface: w.__refreshSurface };
   Object.assign(w, {
+    __refreshSurface: (key) => {
+      readAgain.push(key);
+      return Promise.resolve();
+    },
     __clock: { zone: () => ZONE },
     __personNotes: {
       dayOf: stepDayOf,
@@ -726,9 +768,10 @@ test("a step due under the head: what, and when it was due, with Done outside th
     tree = redraw();
     assert.ok(find(tree, byTestId("ix-th-step")), "refused: the line stays");
     assert.equal(textOf(find(tree, hasClass("pp-toast-msg"))), "Only a note with a day can be done.");
-    // Nothing was written, so nothing is read behind it: People moved, said so that the page reads the step as it now is (a
-    // CustomEvent made without a detail carries null).
-    assert.deepEqual(aboutThePerson(), [["surface:clients", null]], "a refused done reads the person's page again");
+    // Nothing was written, so nothing is read behind it on its own, and the step the header holds may be the one a teammate
+    // moved: it is People's row, so People is read again (S9-10). The event alone repainted the same rows.
+    assert.deepEqual(readAgain, ["people"], "a refused done reads People again");
+    assert.deepEqual(aboutThePerson(), [], "and says nothing of its own beside the read");
     // One whose day is ahead waits for it; one today is said.
     w.__PEOPLE = { rows: [{ id: "k1", deal: null, nextStep: stepOf(3) }] };
     assert.equal(find(draw(vm), byTestId("ix-th-step")), undefined, "ahead: not said");

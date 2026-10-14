@@ -1152,3 +1152,114 @@ export function stringsIn(sf) {
   visit(sf);
   return out;
 }
+
+/**
+ * A demo's seeds: a module that holds invented rows (a surface's `sample` or `examples`, its `sample-*` parts, a
+ * `*-sample`, a `demo-*` or `*-demo`, a `*-mock`, anything under a `sample/` folder), by the path an import names or a
+ * file has.
+ */
+export const SEED_MODULE =
+  /(^|\/)(sample|examples|sample-[\w-]+|[\w-]+-sample|demo-[\w-]+|[\w-]+-demo|[\w-]+-mock)(\.[jt]sx?)?$|(^|\/)sample\//;
+
+/** Whether an expression asks if the session is a demo: `demoSession()`, `isDemo…()`, `….__DEMO_MODE`, or a `demo` flag. */
+function asksDemo(n) {
+  let hit = false;
+  const visit = (m) => {
+    if (hit) return;
+    if (ts.isIdentifier(m) && /^(demoSession|isDemo\w*|demo|inDemo)$/.test(m.text)) hit = true;
+    else if (ts.isPropertyAccessExpression(m) && m.name.text === "__DEMO_MODE") hit = true;
+    else ts.forEachChild(m, visit);
+  };
+  visit(n);
+  return hit;
+}
+
+/** +1 when a condition holds in a demo (`demoSession()`, `demo && x`), -1 when it holds outside one (`!demoSession()`), else 0. */
+function demoSide(cond) {
+  let c = cond;
+  while (ts.isParenthesizedExpression(c)) c = c.expression;
+  if (ts.isPrefixUnaryExpression(c) && c.operator === ts.SyntaxKind.ExclamationToken) return -demoSide(c.operand);
+  return asksDemo(c) ? 1 : 0;
+}
+
+/** Whether a statement always leaves its block: a return or a throw, or a block that ends in one. */
+const leaves = (s) =>
+  ts.isReturnStatement(s) ||
+  ts.isThrowStatement(s) ||
+  (ts.isBlock(s) && s.statements.length > 0 && leaves(s.statements[s.statements.length - 1]));
+
+/** Whether a condition holds whenever the session is no demo: `!demoSession()`, or an `||` with that among its sides. */
+function holdsOutsideADemo(cond) {
+  let c = cond;
+  while (ts.isParenthesizedExpression(c)) c = c.expression;
+  if (ts.isBinaryExpression(c) && c.operatorToken.kind === ts.SyntaxKind.BarBarToken)
+    return holdsOutsideADemo(c.left) || holdsOutsideADemo(c.right);
+  return demoSide(c) < 0;
+}
+
+/** A guard before `child` in its block that leaves the block outside a demo (`if (!demoSession() || …) return …;`). */
+const guardedBefore = (block, child) =>
+  block.statements
+    .slice(0, block.statements.indexOf(child))
+    .some((s) => ts.isIfStatement(s) && !s.elseStatement && leaves(s.thenStatement) && holdsOutsideADemo(s.expression));
+
+/**
+ * Whether `n` runs only in a demo: under the true side of a condition that asks for one, the false side of its negation, or
+ * after a guard that leaves its block outside one.
+ */
+function behindADemo(n) {
+  for (let child = n, p = n.parent; p; child = p, p = p.parent) {
+    if ((ts.isBlock(p) || ts.isSourceFile(p)) && guardedBefore(p, child)) return true;
+    if (ts.isConditionalExpression(p)) {
+      const side = demoSide(p.condition);
+      if ((child === p.whenTrue && side > 0) || (child === p.whenFalse && side < 0)) return true;
+    } else if (ts.isIfStatement(p)) {
+      const side = demoSide(p.expression);
+      if ((child === p.thenStatement && side > 0) || (child === p.elseStatement && side < 0)) return true;
+    } else if (ts.isBinaryExpression(p) && child === p.right) {
+      const op = p.operatorToken.kind;
+      if (op === ts.SyntaxKind.AmpersandAmpersandToken && demoSide(p.left) > 0) return true;
+      if (op === ts.SyntaxKind.BarBarToken && demoSide(p.left) < 0) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Each read of a demo's seeds outside a demo's gate (the wiring's second audit, X6-1, X6-3): a value a module imports from a
+ * seed module (SEED_MODULE), named anywhere but under a condition that holds only in a demo session. A seed module's own reads
+ * are its own business; a type is no read. The seeded Inbox that stood in on every real session before its read was one.
+ */
+export function seedReadsOutsideADemo(sf) {
+  if (SEED_MODULE.test(sf.fileName)) return 0;
+  const seeds = new Set();
+  for (const st of sf.statements) {
+    if (
+      !ts.isImportDeclaration(st) ||
+      !ts.isStringLiteral(st.moduleSpecifier) ||
+      !SEED_MODULE.test(st.moduleSpecifier.text)
+    )
+      continue;
+    const clause = st.importClause;
+    if (!clause || clause.isTypeOnly) continue;
+    if (clause.name) seeds.add(clause.name.text);
+    const named = clause.namedBindings;
+    if (named && ts.isNamespaceImport(named)) seeds.add(named.name.text);
+    else if (named) for (const e of named.elements) if (!e.isTypeOnly) seeds.add(e.name.text);
+  }
+  if (!seeds.size) return 0;
+  let n = 0;
+  const visit = (m) => {
+    if (ts.isImportDeclaration(m) || ts.isTypeNode(m)) return;
+    if (ts.isIdentifier(m) && seeds.has(m.text) && !behindADemo(m)) {
+      const p = m.parent;
+      // A property's own name (`x.sample`, `{ sample: 1 }`) is not the binding.
+      const ownName =
+        (ts.isPropertyAccessExpression(p) && p.name === m) || (ts.isPropertyAssignment(p) && p.name === m);
+      if (!ownName) n += 1;
+    }
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return n;
+}

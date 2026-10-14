@@ -1417,6 +1417,9 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   color: var(--ink);
 }
 .ts-cell + .ts-cell { border-left: 1px solid var(--line); }
+/* The next appointment opens it (S9-7): the cell as E3 draws it, its words a shade darker under a pointer. */
+a.ts-next { text-decoration: none; }
+a.ts-next:hover .ts-rest { color: var(--ink); }
 .ts-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ts-words b { font-weight: var(--weight-semibold); }
 .ts-eyebrow {
