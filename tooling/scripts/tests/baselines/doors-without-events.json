@@ -57,6 +57,7 @@
   "put_mailbox_credentials()": 1,
   "reach_out_check_take()": 1,
   "reach_out_claim()": 1,
+  "reach_out_claim_drafts()": 1,
   "reach_out_claim_from()": 1,
   "reach_out_plan_run()": 2,
   "reach_out_read_take()": 1,

@@ -117,7 +117,7 @@ test("jitter moves each gap by at most a quarter, so no two runs keep one rhythm
   assert.deepEqual(gaps, [15, 15]);
 });
 
-test("the day's frame: a business open all night is written to from eight, its own time, never at one in the morning", () => {
+test("the day's frame: a business open all night is written to from nine to five, its own time, never at one in the morning", () => {
   const allDay = {
     mon: [{ from: 0, to: 1440 }],
     tue: [{ from: 0, to: 1440 }],
@@ -127,7 +127,7 @@ test("the day's frame: a business open all night is written to from eight, its o
     sat: [],
     sun: [],
   };
-  // Monday 3:00 in New York (7:00Z): the first send is 8:00 local, 12:00Z.
+  // Monday 3:00 in New York (7:00Z): the first send is 9:00 local, 13:00Z.
   const out = timetable({
     sends: [send("a", NY, allDay)],
     senders: [mailbox("d1", 30)],
@@ -135,12 +135,14 @@ test("the day's frame: a business open all night is written to from eight, its o
     nowMs: at("2026-09-28T07:00:00Z"),
     jitter: none,
   });
-  assert.equal(out.placed[0].sendAtMs, at("2026-09-28T12:00:00Z"));
-  assert.deepEqual(SEND_DAY_FRAME, { from: 480, to: 1200 });
-  assert.deepEqual(sendWindowsOf(allDay).mon, [{ from: 480, to: 1200 }]);
-  // Open six to two past midnight: from half past six until eight, and nothing after midnight.
-  const evening = { ...DEFAULT_WEEK, mon: [{ from: 1080, to: 1560 }] };
-  assert.deepEqual(sendWindowsOf(evening).mon, [{ from: 1110, to: 1200 }]);
+  assert.equal(out.placed[0].sendAtMs, at("2026-09-28T13:00:00Z"));
+  assert.deepEqual(SEND_DAY_FRAME, { from: 540, to: 1020 });
+  assert.deepEqual(sendWindowsOf(allDay).mon, [{ from: 540, to: 1020 }]);
+  // Open noon to two past midnight: from half past twelve until five, and nothing after midnight.
+  const late = { ...DEFAULT_WEEK, mon: [{ from: 720, to: 1560 }] };
+  assert.deepEqual(sendWindowsOf(late).mon, [{ from: 750, to: 1020 }]);
+  // Open only from six in the evening: nothing that day falls in the working day.
+  assert.deepEqual(sendWindowsOf({ ...DEFAULT_WEEK, mon: [{ from: 1080, to: 1560 }] }).mon, []);
 });
 
 test("a business open only at night takes the default week's hours; one closed every day stays unplaced", () => {
@@ -268,7 +270,7 @@ test("the cap's day ends a day after its oldest send, to the minute", () => {
   );
 });
 
-test("a part of a day in the horizon counts: half a day from Saturday evening in Honolulu reaches Sunday's eight", () => {
+test("a part of a day in the horizon counts: half a day from Saturday night in Honolulu reaches Sunday's nine", () => {
   const allWeek = Object.fromEntries(
     ["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map((d) => [d, [{ from: 0, to: 1440 }]]),
   );
@@ -276,13 +278,13 @@ test("a part of a day in the horizon counts: half a day from Saturday evening in
     sends: [send("hi", "Pacific/Honolulu", allWeek)],
     senders: [mailbox("d1", 30)],
     gapMinutes: 12,
-    nowMs: at("2026-11-01T06:30:00Z"),
+    nowMs: at("2026-11-01T07:30:00Z"),
     horizonDays: 0.5,
     jitter: none,
   });
   assert.deepEqual(
     out.placed.map((p) => p.sendAtMs),
-    [at("2026-11-01T18:00:00Z")],
+    [at("2026-11-01T19:00:00Z")],
   );
 });
 

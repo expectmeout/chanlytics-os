@@ -11,6 +11,7 @@ import {
   REACH_OUT_REFUSALS,
   chainIssueWords,
   isReachOutHold,
+  draftRefusalOf,
   handOf,
   isLeadList,
   isReachOutRefusal,
@@ -31,11 +32,14 @@ import {
   type ReachOutMailboxFacts,
   type ReachOutReachDto,
   type ReachOutRunDto,
+  type ReachOutSaidDto,
+  type ReachOutSaidOutcome,
   type ReachOutSavedDto,
   type ReachOutStartDto,
   type ReachOutStepDto,
 } from "@chanlytics/contracts";
 import {
+  draftsWaiting,
   emailWordsByTemplate,
   emailWordsOf,
   emitEvent,
@@ -47,6 +51,7 @@ import {
   saveReachOutChain,
   searchesByIds,
   reachOutPeopleCounts,
+  sendSaid,
   workspaceMaySpend,
   type ReachOutRunSend,
   type ReachOutStepRow,
@@ -163,6 +168,7 @@ export async function chainsOf(ctx: RouteContext, tenantId: string): Promise<Rea
       include_unconfirmed: root.include_unconfirmed === true,
       gap_minutes: root.gap_minutes ?? 0,
       mailbox_ids: root.mailbox_ids ?? [],
+      owner_sends: root.owner_sends === true,
       signed_by: root.signed_by,
       steps: stepDtos,
       mailboxes: mailboxesOf(root.mailbox_ids ?? []),
@@ -325,6 +331,35 @@ export async function decideSend(
   return { send_id: send.id, decision };
 }
 
+/**
+ * The owner's word on an email handed to them (00429): it went (Sent), or it did not (Skip). The door
+ * (reach_out_send_said, checked again in SQL) records Sent whatever changed since the draft was handed, since the email
+ * left their own inbox: the email, the send and the lead in one transaction, with what about its lead would refuse it
+ * now (since), said beside it. Said once; a second word answers how it stands.
+ */
+export async function saySend(
+  ctx: RouteContext,
+  send: { id: string; tenant_id: string; broadcast_id: string },
+  outcome: ReachOutSaidOutcome,
+): Promise<ReachOutSaidDto> {
+  const r = await sendSaid(ctx.supabase, { sendId: send.id, outcome, reason: null });
+  if (r.error) throw reachOutRefusal(r.error);
+  // A draft left out on its owner's word is a decision about an email of the run, as a held one's Skip is.
+  if (r.data.said && outcome === "not_sent")
+    await emitEvent(serviceDb(), send.tenant_id, "reach_out.send_decided", "broadcast", send.broadcast_id, {
+      decision: "skip",
+      by: ctx.userId,
+    });
+  return {
+    send_id: send.id,
+    said: r.data.said,
+    state: r.data.state,
+    reason: r.data.reason ?? null,
+    since: r.data.since ?? null,
+    on_thread: !!r.data.conversation_id,
+  };
+}
+
 /** Every hold of a run the check could not answer, back to be checked in one call (R18). */
 export async function recheckRun(
   ctx: RouteContext,
@@ -353,7 +388,14 @@ async function firstEmailOf(
   ]);
   if (!words) return null;
   const slots = { businessName: facts.name, yourName: p.signedBy, bookingLink: link };
-  const leadSlots = { business_name: lead.lead?.business_name ?? null, city: lead.lead?.city ?? null };
+  // A company's addressee fills the person slots (00430), as the send fills them.
+  const leadSlots = {
+    business_name: lead.lead?.business_name ?? null,
+    city: lead.lead?.city ?? null,
+    kind: lead.lead?.kind ?? null,
+    facts: lead.lead?.facts ?? null,
+    source: lead.lead?.source ?? null,
+  };
   // The one fill the sender and every preview take (contracts reachOutEmailOf): a first email's subject and its body, or
   // a later step's body alone.
   const email = reachOutEmailOf(
@@ -441,9 +483,10 @@ export async function reachOutRunOf(
   const stepN = at < 0 ? null : at;
   const step = stepN === null ? null : steps[stepN];
   const c = approvalCountsOf(rows, facts.timezone);
-  const [first, mailboxes] = await Promise.all([
+  const [first, mailboxes, refused] = await Promise.all([
     firstEmailOf(ctx, tenantId, { lead: c.checked[0], step, first: stepN === 0, signedBy: root.signed_by }),
     runMailboxesOf(ctx, tenantId, rows),
+    draftsRefusedOf(tenantId, run.id, rows),
   ]);
   return {
     root_id: root.id,
@@ -476,7 +519,52 @@ export async function reachOutRunOf(
     skipped: c.skipped,
     first,
     mailboxes,
+    owner_sends: root.owner_sends === true,
+    // Handed to its owner and not yet said to have gone (00429), oldest first: the run's To send list, never one the
+    // send door would refuse now (draftRefusalOf), which the clock skips on its next tick.
+    drafted: rows
+      .filter((s) => s.state === "drafted" && !refused.has(s.id))
+      .sort((a, b) => (a.drafted_at ?? "").localeCompare(b.drafted_at ?? ""))
+      .flatMap((s) => {
+        const d = draftOf(s.draft);
+        return d
+          ? [
+              {
+                send_id: s.id,
+                lead_id: s.lead_id,
+                business_name: s.lead?.business_name ?? "",
+                angle: s.angle,
+                to: d.to,
+                subject: d.subject,
+                text: d.text,
+                drafted_at: s.drafted_at ?? s.created_at,
+                follow_up: d.follow_up,
+              },
+            ]
+          : [];
+      }),
   };
+}
+
+/**
+ * The run's drafts the send door would refuse now (00429 reach_out_drafts_waiting, contracts draftRefusalOf): its lead
+ * said no, closed, was stopped, went on the never-again list or became a customer since the draft was handed. Read on the
+ * service role (the route checked the member), only for a run with drafts.
+ */
+async function draftsRefusedOf(tenantId: string, runId: string, rows: readonly SendRow[]): Promise<Set<string>> {
+  if (!rows.some((s) => s.state === "drafted")) return new Set();
+  const waiting = await draftsWaiting(serviceDb(), { limit: 500, tenantId, runId });
+  return new Set(waiting.filter((d) => draftRefusalOf(d.facts) !== null).map((d) => d.id));
+}
+
+/** A draft as it was handed over (00429 reach_out_sends.draft): its address, subject and words, or null when not whole. */
+function draftOf(v: unknown): { to: string; subject: string; text: string; follow_up: boolean } | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const d = v as Record<string, unknown>;
+  // A step after the first names the email it answers (parent_id): a follow-up.
+  return typeof d.to === "string" && typeof d.subject === "string" && typeof d.text === "string"
+    ? { to: d.to, subject: d.subject, text: d.text, follow_up: typeof d.parent_id === "string" }
+    : null;
 }
 
 /** A held send as the approval sheet lists it. */

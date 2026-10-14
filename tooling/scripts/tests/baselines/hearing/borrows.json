@@ -8,7 +8,7 @@
   "campaigns/home": "broadcasts campaign_results playbooks reach_outs settings",
   "campaigns/parts": "broadcasts playbooks",
   "campaigns/playbooks": "playbooks settings",
-  "campaigns/reach-out": "reach_outs settings",
+  "campaigns/reach-out": "broadcasts reach_outs settings",
   "campaigns/templates": "playbooks reach_outs settings workspace",
   "inbox": "broadcasts conversations inbox people settings",
   "inbox/new-conversation": "people settings",

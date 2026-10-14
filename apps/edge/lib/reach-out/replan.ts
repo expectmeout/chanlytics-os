@@ -7,7 +7,8 @@
  * that mailbox is no more. The mailboxes' times are read afresh with these sends' own old times taken out
  * (senders.ts), so a send never waits for itself. A send that finds no moment within the horizon tries again
  * tomorrow. One that has waited two weeks, or that the door sent back ten times, is skipped, `kept_waiting`, and its
- * run says so.
+ * run says so. A send of a reach-out its owner sends (00429) has no mailbox and no timetable: it is due again from now,
+ * to be drafted, its mailbox let go.
  *
  * `attempts` counts the emails written for a send (its next email's id is its send and that number, core sendMessageId):
  * only a send the door sent back, whose email row exists, moves it on. A send planned again without an email row
@@ -38,14 +39,69 @@ export interface ReplanCounts {
   gave_up: number;
 }
 
+type Move = (s: ReachOutSendRow, patch: Partial<ReachOutSendRow>) => Promise<boolean>;
+
+/** A step's pace and mailboxes, and whether its chain's root says its owner sends it (00429), in one read. */
+async function stepAndRootOf(db: Db, tenantId: string, stepId: string, rootId: string) {
+  const { data, error } = await db
+    .from("playbooks")
+    .select("id, gap_minutes, mailbox_ids, after_playbook_id, owner_sends")
+    .eq("tenant_id", tenantId)
+    .in("id", [stepId, rootId]);
+  if (error) throw new Error(`the step: ${error.message}`);
+  const rows = data ?? [];
+  return {
+    step: rows.find((p) => p.id === stepId) ?? null,
+    ownerSends: rows.find((p) => p.id === rootId)?.owner_sends === true,
+  };
+}
+
+/** A reach-out its owner sends (00429): each is due again from now, with no mailbox, or given up as any send is. */
+async function replanOwnerSends(
+  group: readonly ReachOutSendRow[],
+  p: { now: Date; wrote: ReadonlySet<string>; move: Move; out: ReplanCounts },
+): Promise<void> {
+  for (const s of group) {
+    const attempts = (s.attempts ?? 0) + (p.wrote.has(s.id) ? 1 : 0);
+    if (attempts >= REPLAN_MAX_ATTEMPTS || p.now.getTime() - Date.parse(s.created_at) > REPLAN_GIVE_UP_MS) {
+      if (await p.move(s, { state: "skipped", reason: "kept_waiting", attempts: Math.min(attempts, 20) }))
+        p.out.gave_up += 1;
+      continue;
+    }
+    const patch = { state: "planned", send_at: p.now.toISOString(), mailbox_id: null, attempts, message_id: null };
+    if (await p.move(s, { ...patch, claimed_at: null })) p.out.replanned += 1;
+  }
+}
+
+/**
+ * An owner's sends planned again as theirs (replanOwnerSends), and the rest handed back for their mailboxes: a chain its
+ * owner sends, every one; a mailbox's, a later step planned with no mailbox while its owner sent the chain, whose thread
+ * is in their own inbox (the draft claim takes it, sender.ts hands it over by its parent), never ended as a mailbox's
+ * gone (00429).
+ */
+async function keepTheirs(
+  group: readonly ReachOutSendRow[],
+  p: {
+    ownerSends: boolean;
+    step: { after_playbook_id: string | null } | null;
+    now: Date;
+    wrote: ReadonlySet<string>;
+    move: Move;
+    out: ReplanCounts;
+  },
+): Promise<ReachOutSendRow[]> {
+  const theirs = p.ownerSends ? group : p.step?.after_playbook_id ? group.filter((s) => !s.mailbox_id) : [];
+  if (theirs.length) await replanOwnerSends(theirs, p);
+  return group.filter((s) => !theirs.includes(s));
+}
+
 export async function replanSends(db: Db, items: Replan[], now: Date, log: Logger): Promise<ReplanCounts> {
   const out: ReplanCounts = { replanned: 0, waiting: 0, gave_up: 0 };
   if (items.length === 0) return out;
   const wrote = new Set(items.filter((i) => i.wrote).map((i) => i.send.id));
   const sends = items.map((i) => i.send);
   // A send moves from wherever it stands (planned, claimed, queued), and only as it was read.
-  const move = (s: ReachOutSendRow, patch: Partial<ReachOutSendRow>): Promise<boolean> =>
-    moveSend(db, { tenantId: s.tenant_id, id: s.id, from: s.state, patch });
+  const move: Move = (s, patch) => moveSend(db, { tenantId: s.tenant_id, id: s.id, from: s.state, patch });
   // By step: its pace and its mailboxes are the step's.
   const byStep = new Map<string, [...ReachOutSendRow[], ReachOutSendRow]>();
   for (const s of sends) {
@@ -61,16 +117,12 @@ export async function replanSends(db: Db, items: Replan[], now: Date, log: Logge
       continue;
     }
     try {
-      const { data: step, error: se } = await db
-        .from("playbooks")
-        .select("gap_minutes, mailbox_ids, after_playbook_id")
-        .eq("tenant_id", tenantId)
-        .eq("id", stepId)
-        .maybeSingle();
-      if (se) throw new Error(`the step: ${se.message}`);
-      // A hundred at a time: an id list rides in the request's address, and a step's group can hold five hundred.
+      const { step, ownerSends } = await stepAndRootOf(db, tenantId, stepId, group[0].root_id);
+      const mine = await keepTheirs(group, { ownerSends, step, now, wrote, move, out });
+      if (mine.length === 0) continue;
+      // A hundred at a time: an id list rides in the request's address, and a step's mine can hold five hundred.
       const leads: Array<{ id: string; region: string | null; hours: unknown }> = [];
-      const ids = [...new Set(group.map((s) => s.lead_id))];
+      const ids = [...new Set(mine.map((s) => s.lead_id))];
       for (let i = 0; i < ids.length; i += 100) {
         const { data, error: le } = await db
           .from("leads")
@@ -88,19 +140,19 @@ export async function replanSends(db: Db, items: Replan[], now: Date, log: Logge
       const keeps = !!step?.after_playbook_id;
       // Each mailbox's times, less these sends' own: a send planned again never waits for the time it held.
       const own = new Map<string, number[]>();
-      for (const s of group) {
+      for (const s of mine) {
         // What it holds in its mailbox's times (00424): a planned send its time, a claim the moment it was claimed.
         const held = s.state === "planned" ? s.send_at : s.state === "claimed" ? s.claimed_at : null;
         if (s.mailbox_id && held) own.set(s.mailbox_id, [...(own.get(s.mailbox_id) ?? []), Date.parse(held)]);
       }
-      const kept = keeps ? group.map((s) => s.mailbox_id).filter((m): m is string => !!m) : [];
+      const kept = keeps ? mine.map((s) => s.mailbox_id).filter((m): m is string => !!m) : [];
       const named = step?.mailbox_ids ?? [];
       const { senders, gone } = await stepSenders(db, { tenantId, named, also: kept, at: now, own });
       // A later step whose lead's mailbox is no more: its chain ends there, as its run's would (core runReachOut).
-      const ended = new Set(group.filter((s) => keeps && (!s.mailbox_id || gone.has(s.mailbox_id))).map((s) => s.id));
-      for (const s of group)
+      const ended = new Set(mine.filter((s) => keeps && (!s.mailbox_id || gone.has(s.mailbox_id))).map((s) => s.id));
+      for (const s of mine)
         if (ended.has(s.id) && (await move(s, { state: "skipped", reason: "mailbox_gone" }))) out.gave_up += 1;
-      const placing = group.filter((s) => !ended.has(s.id));
+      const placing = mine.filter((s) => !ended.has(s.id));
       const leadOf = new Map(leads.map((l) => [l.id, l]));
       const plan = timetable({
         sends: placing.map((s) => ({

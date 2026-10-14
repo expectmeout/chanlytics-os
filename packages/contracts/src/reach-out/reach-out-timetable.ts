@@ -1,8 +1,8 @@
 /**
  * When each email of a run goes, and from which sender, a connected mailbox (Reach out §4.5, decision 0056): a pure
  * plan. Each send takes the earliest moment that is inside its lead's own open hours (half an hour clear of each end)
- * and inside the day (eight to eight, the lead's time: a business open all night is not written to at one in the
- * morning), at least a gap after every other send from the same mailbox (the gap moved by up to a quarter either way,
+ * and inside the working day (nine to five, the lead's time: a business open all night is not written to at one in the
+ * morning; the lead workbench's call 10, the pace of a cold mailbox), at least a gap after every other send from the same mailbox (the gap moved by up to a quarter either way,
  * so runs keep no rhythm), and inside the mailbox's share of any rolling day. The sender is whichever gives the earliest
  * such moment, so a run's new leads take turns across its mailboxes; a send that names its one sender (`only`: a later
  * step's lead keeps the mailbox its chain wrote from, so the nudge is in the same thread) takes that one or none. What
@@ -18,8 +18,8 @@ import { DEFAULT_WEEK, type OpenWindow, type WeekHours, type WeekdayKey } from "
 import { DAY_MS, MIN_MS } from "../shared/time";
 
 export const SEND_WINDOW_MARGIN_MIN = 30;
-/** The part of any day a cold email may arrive in, in the lead's own time (minutes after midnight). */
-export const SEND_DAY_FRAME: OpenWindow = { from: 8 * 60, to: 20 * 60 };
+/** The part of any day a cold email may arrive in, in the lead's own time (minutes after midnight): nine to five. */
+export const SEND_DAY_FRAME: OpenWindow = { from: 9 * 60, to: 17 * 60 };
 export const TIMETABLE_HORIZON_DAYS = 7;
 
 export interface TimetableSend {

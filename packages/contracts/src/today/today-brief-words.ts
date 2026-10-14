@@ -17,10 +17,14 @@ interface TodayBriefSegment {
   text: string;
   strong?: true;
 }
-/** A playbook run waiting for a word, as the queue says it: its name, and todayRunWords(r).waiting.sentence. */
+/**
+ * A playbook run waiting for a word, as the queue says it: its name, and todayRunWords(r).brief: what it waits for
+ * (absent: for your approval) and its sentence.
+ */
 export interface TodayBriefRun {
   label: string;
   sentence: string;
+  waits?: string;
 }
 export interface TodayBriefWords {
   /** Each sentence as its runs of words; drawn in order, a space between sentences. */
@@ -141,7 +145,7 @@ function cameIn(vm: TodayVM): TodayBriefSegment[][] {
 /** A run waiting for a word: its name in bold, then the queue's own sentence about it. */
 const runSentence = (r: TodayBriefRun): TodayBriefSegment[] => [
   bold(r.label),
-  plain(` is ${RUN_WAITING_WORDS.toLowerCase()}: ${r.sentence}`),
+  plain(` is ${r.waits ?? RUN_WAITING_WORDS.toLowerCase()}: ${r.sentence}`),
 ];
 
 /**

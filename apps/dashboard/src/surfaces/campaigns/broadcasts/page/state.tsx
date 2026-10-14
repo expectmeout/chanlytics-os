@@ -1,14 +1,14 @@
 /**
  * The hooks the broadcasts page calls, each holding one concern (moved from legacy/pages/broadcasts.jsx, decision
- * 0015): what can be offered, who a send goes to, the words of the send, the question Send now asks, the clock, a link's
- * landing, and the yes.
+ * 0015): what can be offered, who a send goes to, the words of the send, the question Send now asks, the clock, what is
+ * open beside the list, a link's landing, and the yes.
  * BroadcastsReal calls them in the order it always has.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { HOUR_MS, UNKNOWN_AUDIENCE_WORDS, doorNamesNoAudience } from "@chanlytics/contracts";
+import { HOUR_MS, TO_SEND_ROUTE, UNKNOWN_AUDIENCE_WORDS, addressOf, doorNamesNoAudience } from "@chanlytics/contracts";
 import type { ConsentChannel } from "@chanlytics/contracts";
 import { LinkButton } from "../../../kit/link-button/link-button";
-import { navigate } from "../../../legacy-verbs";
+import { navigate, replaceRoute } from "../../../legacy-verbs";
 import { tabDraft } from "../../../kit/record/work";
 import type { AudienceOption, BroadcastTemplate, BroadcastsSurface } from "../surface";
 import { starters } from "../../templates/verbs";
@@ -183,6 +183,41 @@ export function useBcNow(data: BroadcastsSurface) {
     return () => window.clearInterval(t);
   }, [data.rows]);
   return now;
+}
+
+/**
+ * What is open beside Sent's list, by the address, replaced as it opens and closes so a reload opens it again and the crumbs
+ * name it: a run (`broadcasts/run:<id>`), or the one To send (`broadcasts/to-send`, 00429: every email handed to its owner).
+ * Back leaves the page rather than replaying every run read (the Inbox's rule, and Playbooks'). A run opened from To send
+ * closes back to it, the list being worked down; a link to either moves the page the same way.
+ */
+export function useBcOpen(initialRun: string | null, initialToSend: boolean) {
+  const [openId, setOpenId] = useState(initialRun);
+  const [toSendOpen, setToSendOpen] = useState(initialToSend);
+  const followed = useRef({ run: initialRun, toSend: initialToSend });
+  useEffect(() => {
+    const was = followed.current;
+    if (was.run === initialRun && was.toSend === initialToSend) return;
+    followed.current = { run: initialRun, toSend: initialToSend };
+    setOpenId(initialRun);
+    setToSendOpen(initialToSend);
+  }, [initialRun, initialToSend]);
+  // `keep`: To send stays under a run opened from it (its own door says so), to close back to; a run opened from the list,
+  // or Send it again, leaves it. A run closed goes back to To send where it was kept. The address each writes is followed
+  // already, so the address's own change moves nothing.
+  const openRun = (id: string | null, keep = id === null) => {
+    const under = keep && toSendOpen;
+    setOpenId(id);
+    if (!under) setToSendOpen(false);
+    followed.current = { run: id, toSend: !id && under };
+    replaceRoute(id ? addressOf({ kind: "send", id }) : under ? TO_SEND_ROUTE : "broadcasts");
+  };
+  const close = () => {
+    setToSendOpen(false);
+    followed.current = { run: null, toSend: false };
+    replaceRoute("broadcasts");
+  };
+  return { openId, openRun, toSend: { open: toSendOpen, close } };
 }
 
 // A link lands on its run: its row brought into view in the list (the report is the pane beside it, always in view), when

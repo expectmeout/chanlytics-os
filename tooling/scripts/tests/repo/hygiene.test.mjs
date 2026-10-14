@@ -238,6 +238,11 @@ const CORE_WALL_EXCEPTIONS = {
     reason: "Apify's run-end webhook names, until Apify moves behind the lead port",
     may: ["@chanlytics/channels"],
   },
+  // The people card's round (00430) starts its one run as the places round does, with the same webhook names.
+  "leads/runner/people.ts": {
+    reason: "Apify's run-end webhook names, until Apify moves behind the lead port",
+    may: ["@chanlytics/channels"],
+  },
 };
 
 /**

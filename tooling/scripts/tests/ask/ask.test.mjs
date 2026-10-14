@@ -1241,6 +1241,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     broadcast: "approve",
     playbook: "approve",
     lead_search: "find",
+    people_search: "find",
     reach_out_add: "approve",
     deal: "approve",
     note: "approve",

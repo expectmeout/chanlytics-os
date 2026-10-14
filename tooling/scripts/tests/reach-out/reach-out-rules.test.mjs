@@ -63,7 +63,7 @@ test("a slot is named in any case or spacing; one this cannot fill, or no slot a
     text: "Harbor Movers / Best Movers / Austin",
   });
   for (const words of [
-    "Hi {{first name}}",
+    "Hi {{nickname}}",
     "Hi {{business_name}}",
     "Hi {{constructor}}",
     "Hi {{business",

@@ -421,6 +421,11 @@ export const EVENT_KINDS = [
   "lead.put_back",
   /** A lead put off in a pass of the pile: Later ({ search_id, by }), on the lead (00426). */
   "lead.later",
+  /**
+   * Who a company lead's reach-out writes to, chosen by its owner ({ person, checking, by }: the index of one of the people
+   * its source named, and whether their address is being checked first), on the lead (00430 lead_addressee_choose).
+   */
+  "lead.addressee_chosen",
   /** A search renamed ({ name, by }) or removed ({ kept, archived, by }), on the search. */
   "lead.search_renamed",
   "lead.search_removed",

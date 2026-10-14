@@ -18,7 +18,22 @@ import { LEAD_MAX_PLACES } from "./search/caps";
 import { leadKindKey, stateCode } from "./search/clean";
 import type { LeadArea, LeadSearchPlan } from "./search/plan";
 import { LeadSearchPlanSchema } from "./search/plan-schema";
-import type { LeadPlanned } from "./lead-plan";
+import type { LeadPlanned, PeoplePlanned } from "./lead-plan";
+import {
+  PEOPLE_COMPANY_SIZES,
+  PEOPLE_COUNT_MAX,
+  PEOPLE_FIND_WORDS,
+  PEOPLE_INDUSTRIES_MAX,
+  PEOPLE_INDUSTRY_CHARS,
+  PEOPLE_SENIORITIES,
+  PEOPLE_STATES_MAX,
+  PEOPLE_TITLES_MAX,
+  PEOPLE_TITLE_CHARS,
+  listTyped,
+  peoplePlanFrom,
+  usStatesTyped,
+} from "./search/people-plan";
+import { LeadPeoplePlanSchema } from "./search/people-plan-schema";
 
 /* --------------------------------------------------------------- requests */
 
@@ -103,6 +118,10 @@ export const BusinessLineSchema = z.object({ business_line: z.string().trim().mi
 const planChip = (max: number) => z.string().trim().min(2).max(max);
 
 export const ProposeLeadSearchSchema = z.object({
+  /**
+   * What is asked for: local businesses (the Maps card), or people at home, online sellers and anything else, which are
+   * answered in words. Named people at companies are ProposePeopleSearchSchema's (00430).
+   */
   looking_for: z.enum(["local_businesses", "people", "online_sellers", "other"]),
   country: z.string().trim().min(2).max(40),
   count: z.number().int().min(1).max(LEAD_MAX_PLACES),
@@ -132,6 +151,33 @@ export const ProposeLeadSearchSchema = z.object({
 });
 
 export type ProposeLeadSearch = z.infer<typeof ProposeLeadSearchSchema>;
+
+/**
+ * A people search's ask (the people card, 00430): what they are called (`terms`, one to five titles), where they work
+ * (`region`: US states, or the US), how many companies, and how senior, which industries and what size of company, none
+ * of which is any. Nothing of a places plan is asked of it: no kind's key, no city, no standard, no criteria.
+ */
+const ProposePeopleSearchSchema = z.object({
+  looking_for: z.literal("people_at_companies"),
+  country: z.string().trim().min(2).max(40),
+  count: z.number().int().min(1).max(PEOPLE_COUNT_MAX),
+  /** What to call the search: "Marketing managers at agencies". */
+  who: planChip(80),
+  terms: z.array(planChip(PEOPLE_TITLE_CHARS)).min(1).max(PEOPLE_TITLES_MAX),
+  region: z.string().trim().min(2).max(200),
+  asked: z.string().trim().min(1).max(400),
+  seniority: z.array(z.enum(PEOPLE_SENIORITIES)).max(PEOPLE_SENIORITIES.length).default([]),
+  industries: z.array(planChip(PEOPLE_INDUSTRY_CHARS)).max(PEOPLE_INDUSTRIES_MAX).default([]),
+  company_sizes: z.array(z.enum(PEOPLE_COMPANY_SIZES)).max(PEOPLE_COMPANY_SIZES.length).default([]),
+});
+
+export type ProposePeopleSearch = z.infer<typeof ProposePeopleSearchSchema>;
+
+/** What Ask's propose_lead_search takes: a places ask or a people ask, told apart by what is looked for. */
+export const ProposeAnySearchSchema = z.discriminatedUnion("looking_for", [
+  ProposeLeadSearchSchema,
+  ProposePeopleSearchSchema,
+]);
 
 export const LeadDraftAnswerSchema = z.object({
   subject: z.string().trim().min(3).max(120),
@@ -228,6 +274,66 @@ function planArea(input: ProposeLeadSearch): LeadArea | null {
     };
   const label = /^[A-Za-z]{2}$/.test(input.region.trim()) ? state : titleWords(input.region.trim());
   return { kind: "city", label, state, center: null, radius_m: 200_000, query: `${label}, USA` };
+}
+
+/**
+ * A people search's ask as its plan (the people card, 00430): its terms are what the people are called, its region the
+ * US states they work in ("TX", "Texas, California", or the US for all), and its own fields how senior and which
+ * companies. Refused in words outside the US, or when the plan does not read.
+ */
+export function planPeopleSearch(input: ProposePeopleSearch): PeoplePlanned {
+  if (!US_NAMES.has(countryKey(input.country)))
+    return { ok: false, refusal: { kind: "outside_us", text: LEAD_OUTSIDE_US_LINE, what: input.country.trim() } };
+  const where = input.region.trim();
+  // A state that reads as none is said, never dropped: dropped, a search meant for two states searched one, or the US.
+  const typed = US_NAMES.has(countryKey(where)) ? { codes: [], unread: [] } : usStatesTyped(where);
+  if (typed.unread.length)
+    return {
+      ok: false,
+      refusal: { kind: "not_a_plan", text: PEOPLE_FIND_WORDS.stateUnread(typed.unread[0] ?? where), what: where },
+    };
+  const states = typed.codes;
+  if (!states.length && !US_NAMES.has(countryKey(where)))
+    return { ok: false, refusal: { kind: "outside_us", text: LEAD_OUTSIDE_US_LINE, what: where } };
+  // More states than a plan takes is said, never cut to the first ten.
+  if (listTyped(where, Infinity).length > PEOPLE_STATES_MAX)
+    return {
+      ok: false,
+      refusal: {
+        kind: "not_a_plan",
+        text: PEOPLE_FIND_WORDS.tooMany("states", PEOPLE_STATES_MAX, listTyped(where, Infinity).length),
+        what: where,
+      },
+    };
+  const plan = peoplePlanFrom({
+    name: input.who,
+    asked: input.asked,
+    count: Math.min(input.count, PEOPLE_COUNT_MAX),
+    titles: [...new Set(input.terms.map((t) => t.trim()).filter(Boolean))].slice(0, PEOPLE_TITLES_MAX),
+    seniority: input.seniority,
+    industries: input.industries,
+    sizes: input.company_sizes,
+    states,
+  });
+  const checked = LeadPeoplePlanSchema.safeParse(plan);
+  if (!checked.success) {
+    const issue = checked.error.issues[0];
+    return {
+      ok: false,
+      refusal: {
+        kind: "not_a_plan",
+        text: `the plan is not complete: ${issue?.path.join(".")} ${issue?.message}`,
+        what: null,
+      },
+    };
+  }
+  // The count is companies, as the card and the sheet say it.
+  const n = checked.data.count;
+  return {
+    ok: true,
+    plan: checked.data,
+    view: { title: `Find ${n} ${n === 1 ? "company" : "companies"}: ${checked.data.name}` },
+  };
 }
 
 /**

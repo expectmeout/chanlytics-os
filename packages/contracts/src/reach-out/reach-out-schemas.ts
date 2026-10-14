@@ -16,7 +16,8 @@ import {
   REACH_OUT_STEPS_MAX,
 } from "./reach-out-words";
 import { HAND_KINDS, HAND_WORDS_MAX } from "./reach-out-hand";
-import { REACH_OUT_PREVIEW_INDEX_MAX, REACH_OUT_DECISIONS } from "./reach-out-dtos";
+import { REACH_OUT_PREVIEW_INDEX_MAX, REACH_OUT_DECISIONS, REACH_OUT_SAID_OUTCOMES } from "./reach-out-dtos";
+import { OWNER_SAID_INTENTS } from "./reach-out-replies";
 import { LEAD_LIST_MAX } from "../leads/lead-import";
 
 /** GET reach-out-replies: since when (at most the reading's window back), and one thread's alone. */
@@ -56,6 +57,8 @@ export const ReachOutChainSchema = z.object({
     }),
   /** Empty: every connected mailbox of the workspace (00424). */
   mailbox_ids: z.array(z.string().uuid()).max(REACH_OUT_MAILBOXES_MAX),
+  /** Its owner sends its emails from their own inbox, each handed to them written and checked (00429). */
+  owner_sends: z.boolean().default(false),
   signed_by: z.string().trim().max(SIGNED_BY_MAX).nullable(),
   steps: z.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX),
 });
@@ -88,6 +91,24 @@ export const ReachOutPreviewSchema = z.object({
 export type ReachOutPreviewInput = z.infer<typeof ReachOutPreviewSchema>;
 
 export const ReachOutDecideSchema = z.object({ decision: z.enum(REACH_OUT_DECISIONS) });
+
+/** POST reach-out-sends/:id/said (00429): the owner's word on an email handed to them, that it went or did not. */
+export const ReachOutSaidSchema = z.object({ outcome: z.enum(REACH_OUT_SAID_OUTCOMES) });
+
+/**
+ * POST reach-outs/leads/:id/said (00429): what the business wrote back to an email its owner sent, as the owner says it:
+ * the intent, the day they named for not now, and who to write to instead for a wrong person.
+ */
+export const ReachOutReplySaidSchema = z.object({
+  intent: z.enum(OWNER_SAID_INTENTS),
+  day: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable()
+    .optional(),
+  refer_to: z.string().trim().max(120).nullable().optional(),
+});
+export type ReachOutReplySaidInput = z.infer<typeof ReachOutReplySaidSchema>;
 
 /** POST reach-outs/:id/leads and its check (00426): the leads to add, as many as a list takes. */
 export const ReachOutAddSchema = z.object({

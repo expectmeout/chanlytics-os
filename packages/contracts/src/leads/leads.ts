@@ -118,7 +118,7 @@ export {
   leadMonthPlanFacts,
   leadPlanAsk,
 } from "./lead-plan";
-export type { LeadPlanView, LeadPlanRefusalKind, LeadPlanned, LeadChips } from "./lead-plan";
+export type { LeadPlanView, LeadPlanRefusalKind, LeadPlanned, PeoplePlanned, LeadChips } from "./lead-plan";
 export {
   leadTodayLine,
   leadHoursShort,
@@ -218,6 +218,9 @@ const LEAD_FIRST_DAY = {
   linePlaceholder: "What you sell, and who buys it",
   haveList: "Have a list already?",
   importIt: "Import it",
+  /** The people card's door (00430), on a desk's first day and a phone's New search, where no rail is drawn. */
+  wantPeople: "Looking for people at companies?",
+  findPeople: "Find people",
 } as const;
 /** When the suggestions cannot be written at all: a note on the page, never a page that fails (4.4's suggestionsFor). */
 export const LEAD_SUGGEST_UNAVAILABLE = "Suggestions are not available right now.";

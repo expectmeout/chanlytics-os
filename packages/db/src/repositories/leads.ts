@@ -11,7 +11,7 @@ type Db = SupabaseClient<Database>;
 
 /** The lead's columns as leads_page answers them, under the names it answers them by. */
 const ONE_LEAD_COLUMNS =
-  "id, tenant_id, place_id, business_name, category, street, city, region, postal_code, neighborhood, lat, lng, mark_path, website_host, instagram_url, phone_e164, phone_sources, phone_wrong, email, email_alternates, email_state, email_checked_at, rating, reviews, stage, closed_reason, last_outcome, last_note, about, hours, image_url, price, reviews_dist, facebook_url, linkedin_url, tiktok_url, claimed, maps_url, rank, contact_id, contacted_at, converted_at, exported_at, found_at, version, blanked_at, erased_at";
+  "id, tenant_id, place_id, business_name, category, street, city, region, postal_code, neighborhood, lat, lng, mark_path, website_host, instagram_url, phone_e164, phone_sources, phone_wrong, email, email_alternates, email_state, email_checked_at, rating, reviews, stage, closed_reason, last_outcome, last_note, about, hours, image_url, price, reviews_dist, facebook_url, linkedin_url, tiktok_url, claimed, maps_url, rank, contact_id, contacted_at, converted_at, exported_at, found_at, version, blanked_at, erased_at, kind, source, facts";
 
 type LeadsRow = Database["public"]["Tables"]["leads"]["Row"];
 // A reach-out's facts (resume_at; booked_at and reach_out_stopped_at, 00241) are its own reads', never the page's row,
@@ -26,6 +26,8 @@ export type LeadOneLead = Omit<
   | "reach_out_stopped_at"
   | "stage_at"
   | "stage_from"
+  // A company's key is the finder's to dedupe by (00430); the page reads what the lead is and its people.
+  | "source_key"
 >;
 
 /** The membership lead_member_of answers, the columns leads_page answers of it. */
@@ -193,6 +195,70 @@ export async function ideasBasis(db: Db, tenantId: string): Promise<string | nul
     .maybeSingle();
   if (error) throw new Error(`lead_rounds: ${error.message}`);
   return data ? data.ended_at : null;
+}
+
+/**
+ * The cards that find leads now (00430 lead_cards_live: lead_platform.cards_on): the Maps card, and the people card once
+ * its calibration run proved it. What the Leads page offers and Ask proposes; the door refuses the rest itself.
+ */
+export async function leadCardsLive(db: Db): Promise<string[]> {
+  const { data, error } = await db.rpc("lead_cards_live");
+  if (error) throw new Error(`cannot read which cards find leads: ${error.message}`);
+  return data ?? ["local_businesses"];
+}
+
+/**
+ * A people search (00430 lead_people_search_create), as the member signed in: the plan, where it was made, the estimate
+ * the route worked out and the Ask thread it was planned in. The door's own refusals ({error, sentence}) come back as
+ * its answer; a thrown one is a request it refused outright.
+ */
+export async function leadPeopleSearchCreate(
+  db: Db,
+  p: { tenantId: string; plan: Json; via: "people" | "ask"; estimateUsd: number; threadId: string | null },
+): Promise<{ search_id?: string; round_id?: string; error?: string; sentence?: string }> {
+  const { data, error } = await db.rpc("lead_people_search_create", {
+    p_tenant_id: p.tenantId,
+    p_plan: p.plan,
+    p_via: p.via,
+    p_estimate_usd: p.estimateUsd,
+    ...(p.threadId ? { p_thread_id: p.threadId } : {}),
+  });
+  if (error) throw new Error(`lead_people_search_create: ${error.message}`);
+  return (data ?? {}) as { search_id?: string; round_id?: string; error?: string; sentence?: string };
+}
+
+/** What the addressee door answers (00430 lead_addressee_choose): the choice made, or the door's refusal by its code. */
+type LeadAddresseeAnswer =
+  | { ok: true; addressee: number; email_state: string; version: number }
+  | { ok?: undefined; error: string; sentence?: string };
+
+/**
+ * The owner's choice of who a company lead's reach-out writes to (00430 lead_addressee_choose), as the member signed in:
+ * the index of one of the people its source named. The door's own refusals ({error}, and a spend's {error, sentence})
+ * come back as its answer; a thrown one is a request it refused outright (not signed in, not this member's lead).
+ */
+export async function leadAddresseeChoose(
+  db: Db,
+  p: { leadId: string; person: number },
+): Promise<{ data: LeadAddresseeAnswer; error: null } | { data: null; error: { code?: string; message: string } }> {
+  const { data, error } = await db.rpc("lead_addressee_choose", { p_lead_id: p.leadId, p_person: p.person });
+  if (error) return { data: null, error };
+  return { data: (data ?? { error: "no_answer" }) as LeadAddresseeAnswer, error: null };
+}
+
+/**
+ * A people run's page of companies (00430 lead_company_upsert), service role: a lead for each new company, waiting in
+ * Needs review on its address, and the people a company already held gains. Idempotent.
+ */
+export async function leadCompanyUpsert(
+  db: Db,
+  roundId: string,
+  companies: Json[],
+): Promise<{ made: number; held: number; left_out: number }> {
+  const { data, error } = await db.rpc("lead_company_upsert", { p_round_id: roundId, p_companies: companies });
+  if (error) throw new Error(`lead_company_upsert: ${error.message}`);
+  const r = (data ?? {}) as { made?: number; held?: number; left_out?: number };
+  return { made: r.made ?? 0, held: r.held ?? 0, left_out: r.left_out ?? 0 };
 }
 
 /**

@@ -88,7 +88,7 @@ test("how long a subject and a body may be is an option of the kind: the same wo
 test("what only a cold email is asked is the reach-out's own option, composed with the shared checks, never a second copy of them", () => {
   const words = {
     subject: "Re: your {{opening}}",
-    body: "{{first name}}, SEE THIS NOW\nhttps://a.example https://b.example {{opening}} {{opening}}",
+    body: "{{nickname}}, SEE THIS NOW\nhttps://a.example https://b.example {{opening}} {{opening}}",
   };
   // A campaign message's email is asked none of it (the slots it names are its own business, here none are in its two).
   assert.deepEqual(
@@ -101,7 +101,7 @@ test("what only a cold email is asked is the reach-out's own option, composed wi
     "body:opening_twice",
     "body:shouting",
     "body:too_many_links",
-    "body:unknown_slot:first name",
+    "body:unknown_slot:nickname",
     "subject:opening_in_subject",
     "subject:subject_poses_as_reply",
   ]);
@@ -177,8 +177,8 @@ test("the one fill serves both kinds of slots: a number's place, or a name's pla
     "Hi Fixture, Sam",
   );
   assert.equal(
-    fillSlots("Hi {{city}}, {{first name}}", [undefined, undefined, "Austin"], REACH_OUT_SLOT_SET),
-    "Hi Austin, {{first name}}",
+    fillSlots("Hi {{city}}, {{nickname}}", [undefined, undefined, "Austin"], REACH_OUT_SLOT_SET),
+    "Hi Austin, {{nickname}}",
   );
   assert.equal(fillSlots("{{business}}", [null, undefined], REACH_OUT_SLOT_SET), "{{business}}", "no value: a hole");
   // A value is put in as it is: never read as a slot or a replacement pattern.
@@ -238,7 +238,7 @@ test("an email that leaves a hole is held, and a later step has no subject to fi
     subject: null,
     body: "Bumping this: https://example.com/book",
   });
-  for (const body of ["Hi {{first name}}", "Hi {{business", "Hi }} there"])
+  for (const body of ["Hi {{nickname}}", "Hi {{business", "Hi }} there"])
     assert.equal(reachOutEmailOf({ subject: null, body }, LEAD, WORKSPACE).ok, false, body);
 });
 

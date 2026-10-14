@@ -337,6 +337,26 @@
     },
     {
       "kind": "unfed",
+      "why": "Which cards find leads now (lead_cards_live over lead_platform, 00430): the platform's one switch row, for every workspace, switched by hand once a card's calibration run has proved it, which no workspace's topic carries. It is read with the searches each time Leads and Today read them (GET lead-searches), so a card switched on is offered at the next read, and nothing a member does changes it.",
+      "reads": {
+        "leads": [
+          "lead_platform"
+        ],
+        "today": [
+          "lead_platform"
+        ]
+      },
+      "heardWith": {
+        "leads": [
+          "leads"
+        ],
+        "today": [
+          "lead_rounds"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
       "finding": "W-campaign-run-template-reachout-8",
       "why": "A chain's suppressions and its sends' rows (reach_out_reach, reach_out_chain_report): the feed tells neither. The chains read again when a reply they count (reach_out_replies) or their playbook moves (heardWith); a send leaving is not told, so an open pane's counts wait for its next read (W-campaign-run-template-reachout-8, lane R5).",
       "reads": {

@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-256 handlers in 48 domains.
+260 handlers in 48 domains.
 
 ## activity
 
@@ -913,6 +913,16 @@ Writes; for a member of the workspace the request names, partner or above; count
 | `asked` | string | no | at most 400 characters |
 | `rows` | array of object | yes | at least 1; at most 500 |
 
+### `POST /api/v1/lead-searches/people`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `lead_search` rate; may spend the workspace's money.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `plan` | object | yes |  |
+| `via` | one of `"people"`, `"ask"` | yes |  |
+| `thread_id` | string (uuid) or null | no |  |
+
 ## lead-suggestions
 
 ### `GET /api/v1/lead-suggestions`
@@ -960,6 +970,14 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 Writes; for a member of the row's own workspace, owner or above; counts against the `erase` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/leads/[id]/route.ts`).
+
+### `POST /api/v1/leads/[id]/addressee`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `lead_member` rate; may spend the workspace's money.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `person` | integer | yes | ≥ 0; ≤ 4 |
 
 ### `POST /api/v1/leads/[id]/draft`
 
@@ -1669,6 +1687,14 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | --- | --- | --- | --- |
 | `decision` | one of `"include"`, `"rewrite"`, `"skip"`, `"not_a_fit"` | yes |  |
 
+### `POST /api/v1/reach-out-sends/[id]/said`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `playbook` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `outcome` | one of `"sent"`, `"not_sent"` | yes |  |
+
 ## reach-outs
 
 ### `GET /api/v1/reach-outs`
@@ -1688,6 +1714,7 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | `include_unconfirmed` | boolean | yes |  |
 | `gap_minutes` | integer | yes | ≥ -9007199254740991; ≤ 9007199254740991 |
 | `mailbox_ids` | array of string (uuid) | yes | at most 10 |
+| `owner_sends` | boolean | no |  |
 | `signed_by` | string or null | yes |  |
 | `steps` | array of object | yes | at least 1; at most 5 |
 
@@ -1708,6 +1735,7 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | `include_unconfirmed` | boolean | yes |  |
 | `gap_minutes` | integer | yes | ≥ -9007199254740991; ≤ 9007199254740991 |
 | `mailbox_ids` | array of string (uuid) | yes | at most 10 |
+| `owner_sends` | boolean | no |  |
 | `signed_by` | string or null | yes |  |
 | `steps` | array of object | yes | at least 1; at most 5 |
 
@@ -1757,6 +1785,16 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 | --- | --- | --- | --- |
 | `search` | string (uuid) | no |  |
 | `lead` | string (uuid) | no |  |
+
+### `POST /api/v1/reach-outs/leads/[id]/said`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `playbook` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `intent` | one of `"interested"`, `"question"`, `"not_now"`, `"no"`, `"wrong_person"` | yes |  |
+| `day` | string or null | no |  |
+| `refer_to` | string or null | no |  |
 
 ### `POST /api/v1/reach-outs/leads/[id]/stop`
 

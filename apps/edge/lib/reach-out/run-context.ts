@@ -5,6 +5,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  chainDraftLoad,
   emitEvent,
   handRun,
   leadNamesByIds,
@@ -36,9 +37,10 @@ const firstWords = (tz: string, atMs: number): string =>
   );
 
 /**
- * The step as the verb reads it: its chain's root, the chain's state (a paused root pauses every step of it), and what
- * feeds it (the root's search: a list of via chosen or import, else the finder's, 00426). A hand step (00228) has its
- * hand and no template. Null when its root cannot be found within a chain's length, or the row is neither.
+ * The step as the verb reads it: its chain's root, the chain's state (a paused root pauses every step of it), what
+ * feeds it (the root's search: a list of via chosen or import, else the finder's, 00426), and who sends it (the root's
+ * owner_sends, 00429). A hand step (00228) has its hand and no template. Null when its root cannot be found within a
+ * chain's length, or the row is neither.
  */
 async function stepOf(db: Db, row: ReachOutRow): Promise<ReachOutStep | HandStep | null> {
   let root = row;
@@ -69,6 +71,7 @@ async function stepOf(db: Db, row: ReachOutRow): Promise<ReachOutStep | HandStep
     after_days: row.after_days,
     gap_minutes: row.gap_minutes ?? 0,
     mailbox_ids: row.mailbox_ids ?? [],
+    owner_sends: root.owner_sends === true,
     cap_per_run: row.cap_per_run,
   };
   const hand = handOf(row.hand);
@@ -176,6 +179,8 @@ export async function reachOutRunContext(
     ...laterStepPorts(db, tenantId),
     // The step's mailboxes and those its later leads keep, with their days (senders.ts, as the replan reads them).
     mailboxes: (s, also) => stepSenders(db, { tenantId, named: s.mailbox_ids, also, at: now }),
+    // What a reach-out its owner sends holds, of the day and in all: its day's share and its owner's pile.
+    draftLoad: (rootId, runFor) => chainDraftLoad(db, { tenantId, rootId, runFor }),
     planRun: async (run, sends) => {
       const { data, error } = await db.rpc("reach_out_plan_run", {
         p_run: run as unknown as Json,

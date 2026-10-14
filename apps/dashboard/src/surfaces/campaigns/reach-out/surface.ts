@@ -18,6 +18,7 @@ import {
   REACH_OUT_SHEET_WORDS,
   firstNameOf,
   paceWords,
+  ownerPaceWords,
   previewLinesOf,
   reachLineOf,
   reachOutAddStep,
@@ -30,7 +31,12 @@ import {
   reachOutDraftOf,
   reachOutDropStep,
   reachOutMayAddStep,
+  reachOutRunMoving,
   reachOutRunWordsOf,
+  toSendSaidWords,
+  toSendWordsOf,
+  REACH_OUT_SAID_WORDS,
+  OWNER_SAID_INTENTS,
   reachOutMayPickMailbox,
   reachOutPreviewOf,
   reachOutSavedWords,
@@ -84,6 +90,9 @@ import {
   type ReachOutChainDto,
   type ReachOutChainInput,
   type ReachOutDecision,
+  type OwnerSaidIntent,
+  type ReachOutReplySaidInput,
+  type ReachOutSaidOutcome,
   type ReachOutPreviewInput,
   type ReachOutReachDto,
   type ReachOutSourceDto,
@@ -241,6 +250,15 @@ export const reachOuts = {
   /** An owner's answer to one held email (R18). */
   decide: (sendId: string, decision: ReachOutDecision) =>
     api()("POST reach-out-sends/[id]/decide", { params: { id: sendId }, body: { decision } }),
+  /** The owner's word on an email handed to them (00429): it went from their inbox, or it did not. */
+  say: (sendId: string, outcome: ReachOutSaidOutcome) =>
+    api()("POST reach-out-sends/[id]/said", { params: { id: sendId }, body: { outcome } }),
+  /** What the business wrote back to an email its owner sent, as the owner says it on the lead (00429). */
+  sayReply: (leadId: string, body: ReachOutReplySaidInput) =>
+    api()("POST reach-outs/leads/[id]/said", { params: { id: leadId }, body, once: true }),
+  /** What the owner's word did, by the business's clock: a not now names the day the lead comes back. */
+  saidReplyWords: (business: string, intent: OwnerSaidIntent, resumeAt: string | null, referTo: string | null) =>
+    REACH_OUT_SAID_WORDS.done(business, intent, { at: resumeAt, tz: businessZone(), nowMs: Date.now() }, referTo),
   /** A run's "Check the held again": every email the check could not answer, back to be checked in one call (R18). */
   recheck: (runId: string) => api()("POST broadcasts/[id]/recheck", { params: { id: runId } }),
   /**
@@ -258,6 +276,13 @@ export const reachOuts = {
       now,
     });
   },
+  /** A run's emails handed to its owner, with their doors (00429): null where none waits, or the run is not a reach-out's. */
+  toSend: (d: BroadcastDetailDto) =>
+    d.reach_out ? toSendWordsOf(d.reach_out, { timezone: businessZone(), now: Date.now() }) : null,
+  /** What the owner's word on one did, in a sentence (00429). */
+  saidWords: toSendSaidWords,
+  /** Whether a live run still moves under its block, so it is read again (the check, or drafts to come). */
+  moving: reachOutRunMoving,
   /**
    * While the check still has sends of a run to read, the run's detail read again every fifteen seconds (R21), through
    * the broadcasts courier's own read (and its read cache), each answer handed to `onRead`. It stops by itself once an
@@ -278,7 +303,7 @@ export const reachOuts = {
       if (r && r.ok) onRead(r.data);
       // A run no longer checking anything is left alone, and so is one this member may not read or that is gone (a
       // 4xx asks again for nothing); a failed read otherwise tries again at the next beat.
-      if (r && r.ok && !(r.data.reach_out && r.data.reach_out.checking > 0)) return stop();
+      if (r && r.ok && !(r.data.reach_out && reachOutRunMoving(r.data.reach_out))) return stop();
       if (r && !r.ok && r.status >= 400 && r.status < 500) return stop();
       next();
     };
@@ -335,6 +360,7 @@ export const reachOuts = {
     firstNameOf,
     nextRunWords,
     paceWords,
+    ownerPaceWords,
     previewLinesOf,
     reachLineOf,
     reachOutAddStep,
@@ -360,5 +386,7 @@ export const reachOuts = {
     HAND_WORDS_MAX,
     stepWhenWords,
     REACH_OUT_STOP_WORDS,
+    REACH_OUT_SAID_WORDS,
+    OWNER_SAID_INTENTS,
   },
 };

@@ -575,6 +575,8 @@ const ROUTE_VERBS: Array<[RegExp, string]> = [
   [/^campaigns/, "Open Campaigns"],
   // A row about one run opens that run (a playbook's waiting or about to go, a reach-out's held sends), and says so.
   [/^broadcasts\/run:/, "Open the run"],
+  // Every email handed to its owner, from each reach-out they send themselves (00429): one list.
+  [/^broadcasts\/to-send$/, "Open To send"],
   [/^broadcasts/, "Open Sent"],
   // The route is still `messages`; the page is the Library (a room of Campaigns), and the door says the page's name.
   [/^messages/, "Open Library"],

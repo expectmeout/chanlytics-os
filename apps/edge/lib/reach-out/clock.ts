@@ -14,20 +14,29 @@
  *               again), so a writer that died mid-send neither loses it nor spends its mailbox's day for good.
  *   close       a canceled or failed run's open sends are skipped, `run_canceled`; an email still queued is withdrawn
  *               first, so its job sends nothing; one its job has begun to send is its job's, and reconcile reads it.
+ *   drafts      a draft waiting for its owner whose lead the send door would refuse now (contracts draftRefusalOf: it
+ *               said no, closed, was stopped, went on the never-again list, became a customer, or is gone) is skipped
+ *               with why, and its run's row touched, so To send stops offering it (00429).
  *   finish      a run that goes ahead with no send left open is sent, and says when it finished.
  *   restale     a planned send long past its time in a run that goes ahead (approved late, its chain resumed, its
  *               mailbox's day full or its mailbox removed) is planned again from now.
  *   give up     a send the check held (Part 4) that its owner never answered is skipped, kept_waiting, fourteen days
- *               from when it was planned: the one clock every send gives up by (replan.ts REPLAN_GIVE_UP_MS, R10).
+ *               from when it was planned: the one clock every send gives up by (replan.ts REPLAN_GIVE_UP_MS, R10). A
+ *               draft its owner never said went is skipped so fourteen days from when it was handed to them (00429).
+ *
+ * A draft (00429) is open to finish (the run waits for its owner's word on it) and closes with a canceled run, skipped
+ * run_canceled; nothing here sends it: its owner does, and says so (reach_out_send_said).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   closedRunSends,
+  draftsWaiting,
   finishableRuns,
   heldStale,
   leadWritten,
   moveSend,
   queuedOutcomes,
+  runHanded,
   staleSends,
   stuckClaims,
   withdrawEmail,
@@ -37,7 +46,7 @@ import {
   type ReachOutSendRow,
 } from "../packages/db.js";
 import { sendMessageId } from "../packages/core.js";
-import { isWaitRefusal } from "../packages/contracts.js";
+import { draftRefusalOf, isWaitRefusal } from "../packages/contracts.js";
 import { REPLAN_GIVE_UP_MS, replanSends, type Replan, type ReplanCounts } from "./replan.js";
 import type { Logger } from "../log.js";
 
@@ -87,7 +96,14 @@ const move = (db: Db, s: ReachOutSendRow, patch: Partial<ReachOutSendRow>): Prom
  * goes on as that email's, as unstick adopts one. Skipped instead, a send whose email reached the lead would say
  * run_canceled, and the lead would never be marked as written to.
  */
-async function closeRuns(db: Db, now: Date, out: ClockCounts, tenantId?: string): Promise<void> {
+async function closeRuns(
+  db: Db,
+  now: Date,
+  out: ClockCounts,
+  log: Logger,
+  late: () => boolean,
+  tenantId?: string,
+): Promise<void> {
   const closed = await closedRunSends(db, new Date(now.getTime() - CLAIM_STUCK_AFTER_MS), PAGE, tenantId);
   for (const { send: s, email_status } of closed) {
     if (s.state === "queued") {
@@ -106,7 +122,53 @@ async function closeRuns(db: Db, now: Date, out: ClockCounts, tenantId?: string)
         continue;
       }
     }
-    if (await move(db, s, { state: "skipped", reason: "run_canceled" })) out.closed += 1;
+    // A draft handed to its owner may have left their inbox: withdrawn, never "never happened" (00427's one-first rule).
+    const reason = s.state === "drafted" ? "draft_withdrawn" : "run_canceled";
+    if (await move(db, s, { state: "skipped", reason })) out.closed += 1;
+  }
+  // A draft that still goes, and that the door would refuse now: skipped too, so To send stops offering it (00429).
+  await recheckDrafts(db, now, out, log, late, tenantId);
+}
+
+/**
+ * The drafts step (00429): no send door stands between an owner's inbox and the business, so a draft is judged as the
+ * door would judge it while it waits, and one it would refuse now is skipped with why. Its owner's Sent still records an
+ * email that left their inbox meanwhile (reach_out_send_said takes a draft skipped since).
+ */
+async function recheckDrafts(
+  db: Db,
+  now: Date,
+  out: ClockCounts,
+  log: Logger,
+  late: () => boolean,
+  tenantId?: string,
+): Promise<void> {
+  // Every draft, a page at a time after the last read, while the tick has time: the drafts that may still go keep their
+  // place at the head, so one page of the oldest would never reach a newer one refused since.
+  const all: Awaited<ReturnType<typeof draftsWaiting>> = [];
+  let after: { drafted_at: string; id: string } | null = null;
+  while (!late()) {
+    const page = await draftsWaiting(db, { limit: PAGE, tenantId, after });
+    all.push(...page);
+    const last = page[page.length - 1];
+    if (page.length < PAGE || !last) break;
+    after = { drafted_at: last.drafted_at, id: last.id };
+  }
+  for (const d of all) {
+    const reason = draftRefusalOf(d.facts);
+    if (!reason) continue;
+    if (
+      !(await moveSend(db, { tenantId: d.tenant_id, id: d.id, from: "drafted", patch: { state: "skipped", reason } }))
+    )
+      continue;
+    out.skipped += 1;
+    // Its run's row, touched: the pages that count its drafts read them again.
+    await runHanded(db, { tenantId: d.tenant_id, id: d.broadcast_id, at: now }).catch((e: unknown) =>
+      log.warn("reach_out_run_unstarted", {
+        broadcast_id: d.broadcast_id,
+        error: e instanceof Error ? e.message : String(e),
+      }),
+    );
   }
 }
 
@@ -200,8 +262,8 @@ export async function reachOutClock(
     }
   }
 
-  /* close */
-  if (!late()) await closeRuns(db, now, out, tenantId);
+  /* close, and the drafts the door would refuse now */
+  if (!late()) await closeRuns(db, now, out, log, late, tenantId);
 
   /* finish */
   if (!late())
@@ -234,7 +296,7 @@ export async function reachOutClock(
     out.gave_up += replanned.gave_up;
   }
 
-  /* give up what waits unanswered: held, and its owner never answered in the fortnight a send has (F3, R10) */
+  /* give up what waits unanswered in its fortnight: held and never answered (F3, R10), or a draft never sent (00429) */
   if (!late())
     for (const s of await heldStale(db, new Date(now.getTime() - REPLAN_GIVE_UP_MS), PAGE, tenantId))
       if (await move(db, s, { state: "skipped", reason: "kept_waiting" })) out.gave_up += 1;

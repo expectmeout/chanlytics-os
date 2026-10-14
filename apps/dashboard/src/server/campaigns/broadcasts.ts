@@ -23,7 +23,7 @@ import {
   type RecipientState,
   type RunAnswer,
 } from "@chanlytics/contracts";
-import { heldSendCounts, readAllRows, runCounts } from "@chanlytics/db";
+import { readAllRows, runCounts, runWaitingCounts } from "@chanlytics/db";
 import { log } from "@/server/log";
 import { reachOutRunOf } from "@/server/campaigns/reach-outs";
 import type { RouteContext } from "@/server/with-route";
@@ -424,9 +424,10 @@ export async function listBroadcasts(
 }
 
 /**
- * A going reach-out run says how many of its emails the check holds for its owner's say (`held`): the run's row, the bell's
- * held notice (contracts notice-closes.ts, which reads it as read once none is held) and Campaigns' chain row read it. A
- * count that cannot be read leaves `held` absent, logged, and the rows stand (the wiring's second audit,
+ * A going reach-out run says how many of its emails the check holds for its owner's say (`held`), and how many are handed
+ * to its owner to send from their inbox (`drafted`, 00429): the run's row, Today's (contracts runWaitsOnYou), the bell's
+ * held notice (contracts notice-closes.ts, which reads it as read once none is held) and Campaigns' chain row read them.
+ * Counts that cannot be read leave both absent, logged, and the rows stand (the wiring's second audit,
  * W-campaign-run-template-reachout-4).
  */
 async function withHeld(ctx: RouteContext, tenantId: string, rows: BroadcastDto[]): Promise<BroadcastDto[]> {
@@ -435,8 +436,14 @@ async function withHeld(ctx: RouteContext, tenantId: string, rows: BroadcastDto[
   );
   if (!going.length) return rows;
   try {
-    const held = await heldSendCounts(ctx.supabase, { tenantId, runIds: going.map((b) => b.id) });
-    return rows.map((b) => (held.has(b.id) ? { ...b, held: held.get(b.id) ?? 0 } : b));
+    const runIds = going.map((b) => b.id);
+    const waiting = await runWaitingCounts(ctx.supabase, { tenantId, runIds });
+    // Every going run says its counts, a zero too: one with none waiting reads 0, never absent.
+    return rows.map((b) => {
+      if (!runIds.includes(b.id)) return b;
+      const w = waiting.get(b.id);
+      return { ...b, held: w?.held ?? 0, drafted: w?.drafted ?? 0 };
+    });
   } catch (e) {
     log.error("broadcasts_held_read_failed", {
       tenant_id: tenantId,

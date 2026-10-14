@@ -61,6 +61,58 @@ export {
   planMinutes,
 } from "./search/cards";
 export type { LeadCardBrief } from "./search/cards";
+export {
+  PEOPLE_CARD,
+  PEOPLE_SENIORITIES,
+  PEOPLE_SENIORITY_WORDS,
+  PEOPLE_COMPANY_SIZES,
+  PEOPLE_COUNT_MAX,
+  PEOPLE_RUN_FLOOR_USD,
+  PEOPLE_TITLES_MAX,
+  PEOPLE_INDUSTRIES_MAX,
+  PEOPLE_STATES_MAX,
+  PEOPLE_TITLE_CHARS,
+  PEOPLE_INDUSTRY_CHARS,
+  PEOPLE_ASKED_CHARS,
+  peopleSheetProblems,
+  usStatesTyped,
+  peoplePlanOf,
+  peoplePlanFrom,
+  listTyped,
+  PEOPLE_FIND_WORDS,
+  usStateCode,
+  usStateName,
+  peopleEstimateUsd,
+  peoplePlanSentence,
+  peopleWho,
+  PEOPLE_STRIP_WORDS,
+} from "./search/people-plan";
+export type { LeadPeoplePlan, PeoplePlanInput, PeopleSeniority, PeopleCompanySize } from "./search/people-plan";
+export { LeadPeoplePlanSchema, LeadPeopleSearchSchema } from "./search/people-plan-schema";
+export type { LeadPeopleSearchInput } from "./search/people-plan-schema";
+export {
+  LEAD_KINDS,
+  LEAD_SOURCES,
+  LEAD_ROLE_WORDS,
+  LEAD_PEOPLE_MAX,
+  leadRoleOf,
+  leadFoundWords,
+  LEAD_DIRECTORY_WORDS,
+  leadAddresseeOf,
+  leadCompanyOf,
+  LEAD_COMPANY_WORDS,
+  LEAD_ADDRESSEE_WORDS,
+  leadAddresseeRefusal,
+} from "./lead-kind";
+export type {
+  LeadKind,
+  LeadSource,
+  LeadRole,
+  LeadPerson,
+  LeadFacts,
+  LeadCompanyVM,
+  LeadCompanyPersonVM,
+} from "./lead-kind";
 export { LEAD_ENDING_WORDS, endingOfRound } from "./search/endings";
 export { LEAD_KIND_KEY, leadKindWord, LEAD_UNREACHABLE_KEY, leadPhoneState, classify } from "./search/class";
 export type { LeadPhoneState, LeadClassification } from "./search/class";
@@ -199,6 +251,7 @@ export {
 } from "./leads";
 export {
   planLeadSearch,
+  planPeopleSearch,
   LeadsQuerySchema,
   LeadOneQuerySchema,
   LeadsViewSchema,
@@ -210,6 +263,7 @@ export {
   RenameLeadSearchSchema,
   BusinessLineSchema,
   ProposeLeadSearchSchema,
+  ProposeAnySearchSchema,
   LeadDraftAnswerSchema,
 } from "./lead-plan-schema";
 export {
@@ -232,6 +286,7 @@ export type {
   LeadsBulkInput,
   LeadsCheckAgainInput,
   ProposeLeadSearch,
+  ProposePeopleSearch,
 } from "./lead-plan-schema";
 export type {
   LeadEmailState,
@@ -248,6 +303,7 @@ export type {
   LeadPlanView,
   LeadPlanRefusalKind,
   LeadPlanned,
+  PeoplePlanned,
   LeadChips,
   LeadPeekReach,
   LeadPeekVM,

@@ -1,7 +1,7 @@
 /**
  * What the frame says around Campaigns' pages (moved from the rows `drawPlaybooks`, `drawTemplates` and `drawBroadcasts` of
  * legacy/pages/app-routes.jsx, decision 0015, step 7; then Campaigns' home, 3 Oct 2026): the crumbs each address wears, by the
- * address's own word (`campaigns/moment:<playbook>`, `campaigns/new`, `broadcasts/run:<run>`, `broadcasts/get-yes`,
+ * address's own word (`campaigns/moment:<playbook>`, `campaigns/new`, `broadcasts/run:<run>`, `broadcasts/get-yes`, `broadcasts/to-send`,
  * `broadcasts/<list>`, which lands on `campaigns/new:to:<list>`) and by what the surface holds, so a crumb names a playbook or a run only once it has been read. The
  * frame asks these as it draws (src/surfaces/routes.ts). Campaigns is one page, its home (`campaigns`), and the other two are
  * its rooms, Sent (the shell's `broadcasts`) and the Library (`messages`, the path's `templates`); the old Playbooks list,
@@ -12,6 +12,8 @@ import {
   ADS_WORDS,
   CAMPAIGN_ROOMS,
   LIFECYCLE_WORDS,
+  TO_SEND_ALL_WORDS,
+  TO_SEND_ROUTE,
   isAdsParam,
   parseAds,
   templateTitle,
@@ -117,30 +119,42 @@ export function campaignsChrome({ param }: { param: string | null }): {
   };
 }
 
+/** Sent's one list of every email handed to its owner, from each reach-out they send themselves (00429), as its param. */
+const TO_SEND_PARAM = TO_SEND_ROUTE.slice("broadcasts/".length);
+
 /**
  * What the Broadcasts page is handed for a param (`broadcasts/<param>`): a run's id for `run:<id>`, the "Get their yes"
- * section for `get-yes`, and any other word as the audience the composer opens on.
+ * section for `get-yes`, the one To send for `to-send`, and any other word as the audience the composer opens on.
  */
 export function broadcastsProps(param: string | null): {
   initialSegment: string | null;
   initialRun: string | null;
   initialYes: boolean;
+  initialToSend: boolean;
 } {
   const run = param && param.startsWith("run:") ? param.slice(4) : null;
   const yes = param === "get-yes";
-  return { initialSegment: run || yes ? null : param, initialRun: run, initialYes: yes };
+  const toSend = param === TO_SEND_PARAM;
+  return {
+    initialSegment: run || yes || toSend ? null : param,
+    initialRun: run,
+    initialYes: yes,
+    initialToSend: toSend,
+  };
 }
 
 /**
  * Broadcasts' crumbs: `broadcasts/run:<id>` opens one broadcast, named for it once the list holds it; `broadcasts/get-yes`
- * lands on the "Get their yes" section; any other param is the audience the composer opens on, named by the page's own
+ * lands on the "Get their yes" section; `broadcasts/to-send` on the one To send (00429); any other param is the audience
+ * the composer opens on, named by the page's own
  * rule (a list or a kept list with this id) and its own label. Every address is one mount.
  */
 export function broadcastsChrome({ param }: { param: string | null }): { crumbs: Crumb[]; mount: string } {
   const data = surfaceValue("broadcasts");
   const runId = param && param.startsWith("run:") ? param.slice(4) : null;
   const getYes = param === "get-yes";
-  const audience = runId || getYes ? null : param;
+  const toSend = param === TO_SEND_PARAM;
+  const audience = runId || getYes || toSend ? null : param;
   const run = runId && data ? (data.rows || []).find((r) => r.id === runId) : null;
   const list =
     audience && data
@@ -153,8 +167,10 @@ export function broadcastsChrome({ param }: { param: string | null }): { crumbs:
       ? [CAMPAIGNS, sent, run ? run.name : "Broadcast"]
       : getYes
         ? [CAMPAIGNS, sent, "Get their yes"]
-        : list
-          ? [CAMPAIGNS, sent, list.label]
-          : [CAMPAIGNS, CAMPAIGN_ROOMS.sent],
+        : toSend
+          ? [CAMPAIGNS, sent, TO_SEND_ALL_WORDS.title]
+          : list
+            ? [CAMPAIGNS, sent, list.label]
+            : [CAMPAIGNS, CAMPAIGN_ROOMS.sent],
   };
 }

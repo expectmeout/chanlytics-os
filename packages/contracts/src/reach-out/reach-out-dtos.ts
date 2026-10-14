@@ -50,6 +50,8 @@ export interface ReachOutChainDto {
   include_unconfirmed: boolean;
   gap_minutes: number;
   mailbox_ids: string[];
+  /** Its owner sends its emails, each handed to them as a draft (00429); absent from a server before it. */
+  owner_sends?: boolean;
   signed_by: string | null;
   steps: ReachOutStepDto[];
   /**
@@ -208,4 +210,46 @@ export interface ReachOutRunDto {
   } | null;
   /** The mailboxes its sends go from, each with what its day is made of (R22). */
   mailboxes: ReachOutMailboxFacts[];
+  /** Its chain's owner sends its emails (00429); absent from a server before it. */
+  owner_sends?: boolean;
+  /**
+   * The emails handed to its owner and not yet said to have gone (00429), oldest first, each with the words as the
+   * owner sends them; absent from a server before it.
+   */
+  drafted?: ReachOutDraftedSend[];
+}
+
+/** One email handed to its owner (00429 reach_out_sends.draft): to whom, its subject, and its words with their foot. */
+export interface ReachOutDraftedSend {
+  send_id: string;
+  lead_id: string;
+  business_name: string;
+  angle: string | null;
+  to: string;
+  subject: string;
+  /** The whole email as it reads, its foot included: what the owner sends. */
+  text: string;
+  drafted_at: string;
+  /** A step after the first: it answers an email the business may have answered in the owner's own inbox. */
+  follow_up?: boolean;
+}
+
+/** The owner's word on a drafted email (00429): it went, or it did not. */
+export const REACH_OUT_SAID_OUTCOMES = ["sent", "not_sent"] as const;
+export type ReachOutSaidOutcome = (typeof REACH_OUT_SAID_OUTCOMES)[number];
+
+/** What the door answered: whether it was the first word on it, and how the email stands now. */
+export interface ReachOutSaidDto {
+  send_id: string;
+  said: boolean;
+  state: string;
+  reason: string | null;
+  /**
+   * Sent, what about its lead would refuse it now (00429 reach_out_send_said: lead_gone, erased, lead_closed,
+   * outreach_suppressed, outreach_stopped, already_yours, no_address): the email went from the owner's inbox all the
+   * same, and is recorded; this is said beside it. Null when nothing would.
+   */
+  since?: string | null;
+  /** Sent: whether the email went on a person's thread (a customer's thread, or the person made for it). */
+  on_thread?: boolean;
 }

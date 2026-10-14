@@ -16,7 +16,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { ConsentChannel } from "@chanlytics/contracts";
-import { canDo, demoSession, replaceRoute, useLegacyToast } from "../../legacy-verbs";
+import { canDo, demoSession, useLegacyToast } from "../../legacy-verbs";
 import { useUnsavedWork } from "../../kit/record/work";
 import { surfaceValue } from "../../surface-values";
 import { useSurface } from "../../use-surface";
@@ -27,11 +27,13 @@ import { bcRunActs, bcSendActs } from "./page/acts";
 import { bcLedger } from "./page/ledger-screen";
 import { bcPeopleOf, bcPreviewOf, bcReachOf, bcSlotChoicesOf, bcSlotWordsOf } from "./page/reach";
 import { bcComposerGlass } from "./page/send-screen";
+import { BcToSendAll } from "../reach-out/to-send-all";
 import {
   useBcArmed,
   useBcList,
   useBcNow,
   useBcOffered,
+  useBcOpen,
   useBcRunLanding,
   useBcWords,
   useBcYes,
@@ -47,6 +49,8 @@ interface BroadcastsPageProps {
   initialSegment?: string | null;
   initialRun?: string | null;
   initialYes?: boolean;
+  /** `broadcasts/to-send`: every email handed to its owner, from each reach-out they send themselves (00429). */
+  initialToSend?: boolean;
 }
 
 interface BroadcastsRealProps extends BroadcastsPageProps {
@@ -100,6 +104,7 @@ function useBroadcastsPage({
   initialSegment = null,
   initialRun = null,
   initialYes = false,
+  initialToSend = false,
   opened = false,
   flash: hosted,
   onYes,
@@ -149,20 +154,8 @@ function useBroadcastsPage({
   const now = useBcNow(data);
   // Whether Send now has been pressed once and is asking: put away once it is not the question asked (useBcArmed).
   const { armed, setArmed } = useBcArmed({ tplId, aud, channels, whenAt, heardTooFor });
-  // The run open beside the list is the address's (`broadcasts/run:<id>`), replaced as it opens and closes, so a reload
-  // opens it again and the crumbs name it; Back leaves the page rather than replaying every run read (the Inbox's rule,
-  // and Playbooks'). A link to a run, or one that closes it, moves the page the same way.
-  const [openId, setOpenId] = useState(initialRun);
-  const followed = useRef(initialRun);
-  useEffect(() => {
-    if (followed.current === initialRun) return;
-    followed.current = initialRun;
-    setOpenId(initialRun);
-  }, [initialRun]);
-  const openRun = (id: string | null) => {
-    setOpenId(id);
-    replaceRoute(id ? `broadcasts/run:${id}` : "broadcasts");
-  };
+  // What is open beside the list, by the address: a run, or the one To send (useBcOpen).
+  const { openId, openRun, toSend } = useBcOpen(initialRun, initialToSend);
   useBcRunLanding(openId);
   // Left by the door to the yes, a hosted screen has been moved on by its host: it is not "done" as a send or a Cancel is.
   const leftByDoor = useRef(false);
@@ -239,16 +232,22 @@ function useBroadcastsPage({
   const approvingRef = useRef<string | null>(null);
   const [approving, setApproving] = useState<string | null>(null);
   const v = bcWorked(base, { approvingRef, approving, setApproving });
-  return { v, toastNode, writing, openId, leftByDoor };
+  return { v, toastNode, writing, openId, toSend, leftByDoor };
 }
 
 function BroadcastsReal(props: BroadcastsRealProps) {
-  const { v, toastNode, writing, openId } = useBroadcastsPage(props);
+  const { v, toastNode, writing, openId, toSend } = useBroadcastsPage(props);
   // The ledger is always the list; beside it, in a pane, what is open (parts/split.tsx): a run, whether the list holds it
-  // or it is older than the list, else the send. The send is three questions -- who, what, when -- and the one act that
-  // cannot be taken back alone at the foot: the audience, the words and the send button on one screen, never an owner
-  // scrolling past the preview to reach Send.
-  const open = openId ? bcRunSolo({ ...v, openId }) : writing ? bcComposerGlass(v) : null;
+  // or it is older than the list, else the one To send, else the send. The send is three questions -- who, what, when --
+  // and the one act that cannot be taken back alone at the foot: the audience, the words and the send button on one
+  // screen, never an owner scrolling past the preview to reach Send.
+  const open = openId ? (
+    bcRunSolo({ ...v, openId })
+  ) : toSend.open ? (
+    <BcToSendAll rows={v.data.rows} onClose={toSend.close} onOpenRun={(id) => v.openRun(id, true)} />
+  ) : writing ? (
+    bcComposerGlass(v)
+  ) : null;
   return (
     <>
       <CmSplit className="bc-page" testid="broadcasts-real" list={bcLedger(v)} open={open} />

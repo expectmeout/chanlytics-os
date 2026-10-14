@@ -128,8 +128,9 @@ export const TodayBriefPane = () => {
   // The runs waiting for a word an approval can still send, said as the queue says them (todayRunWords). A run whose day
   // has passed waits on nobody: its row says so, and the brief says nothing of it (S7-3).
   const runs: TodayBriefRun[] = runsPending().waiting.map((r) => ({
-    label: r.audience.label,
-    sentence: TODAY_HELPERS.runs(r).waiting.sentence,
+    // A reach-out's run carries no audience label: its own name ("Early gyms · today") says it.
+    label: r.audience.label || r.name,
+    ...TODAY_HELPERS.runs(r).brief,
   }));
   const words = vm ? TODAY_HELPERS.briefWords(vm, day, runs) : null;
   const line = words && words.sentences.length ? words.text : null;

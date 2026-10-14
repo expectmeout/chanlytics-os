@@ -6,7 +6,7 @@
  *   campaigns                        the home                    crumbs: Campaigns
  *   campaigns/moment:<id>            a playbook open in a sheet  crumbs: Campaigns › <its name>
  *   campaigns/new[:to:<list>|:every|:moment:<trigger>|:edit:<id>]  the composer  crumbs: Campaigns › New message
- *   broadcasts[/run:<id>|/get-yes]           Sent               crumbs: Campaigns › Sent [› …]
+ *   broadcasts[/run:<id>|/get-yes|/to-send]  Sent               crumbs: Campaigns › Sent [› …]
  *   broadcasts/<list>                        a door: campaigns/new:to:<list>
  *   messages (the path's templates)          the Library        crumbs: Campaigns › Library
  *   outbound[/<id>] (the path's playbooks)   a door: campaigns, campaigns/moment:<id>
@@ -144,6 +144,7 @@ test("Sent: the crumbs go back to Campaigns, name a run, the get-yes section, or
   assert.deepEqual(b(null), { mount: "broadcasts", crumbs: [HOME, "Sent"] });
   assert.deepEqual(b("run:b-1").crumbs, [HOME, SENT, "Broadcast"], "a run nothing holds yet");
   assert.deepEqual(b("get-yes").crumbs, [HOME, SENT, "Get their yes"]);
+  assert.deepEqual(b("to-send").crumbs, [HOME, SENT, "To send"]);
   assert.deepEqual(b("s1").crumbs, [HOME, "Sent"], "an audience nothing holds yet");
   setSurfaceValue("broadcasts", {
     rows: [{ id: "b-1", name: "Win-back · Sep 10" }],
@@ -168,10 +169,12 @@ test("Sent: the crumbs go back to Campaigns, name a run, the get-yes section, or
 });
 
 test("Broadcasts is handed a run, the get-yes section, or the audience a word names -- a run's id was once read as a list's (C9)", () => {
-  assert.deepEqual(broadcastsProps("run:b-1"), { initialSegment: null, initialRun: "b-1", initialYes: false });
-  assert.deepEqual(broadcastsProps("get-yes"), { initialSegment: null, initialRun: null, initialYes: true });
-  assert.deepEqual(broadcastsProps("s1"), { initialSegment: "s1", initialRun: null, initialYes: false });
-  assert.deepEqual(broadcastsProps(null), { initialSegment: null, initialRun: null, initialYes: false });
+  const none = { initialSegment: null, initialRun: null, initialYes: false, initialToSend: false };
+  assert.deepEqual(broadcastsProps("run:b-1"), { ...none, initialRun: "b-1" });
+  assert.deepEqual(broadcastsProps("get-yes"), { ...none, initialYes: true });
+  assert.deepEqual(broadcastsProps("to-send"), { ...none, initialToSend: true }, "the one To send is no audience");
+  assert.deepEqual(broadcastsProps("s1"), { ...none, initialSegment: "s1" });
+  assert.deepEqual(broadcastsProps(null), none);
 });
 
 test("the Library's crumbs go back to Campaigns, and no room has a strip of tabs", () => {
@@ -274,6 +277,7 @@ test("broadcasts/<audience>, which People and a list write to message these peop
     "broadcasts/run:b-1",
     "broadcasts/run:b-1/x",
     "broadcasts/get-yes",
+    "broadcasts/to-send",
     "broadcast",
     "campaigns/new:to:s1",
   ])

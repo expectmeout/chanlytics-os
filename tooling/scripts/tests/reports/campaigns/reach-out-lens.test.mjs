@@ -481,13 +481,34 @@ test("mailboxes, the days written and the handed line are the old fold's, said t
         complained: 0,
       },
       { address: null, state: null, held_why: null, held_at: null, sent: 5, delivered: 5, bounced: 0, complained: 0 },
+      // Sent from their owner's own inbox (00429): no mailbox wrote them, and no receipt of theirs reaches us.
+      {
+        address: null,
+        yours: true,
+        state: null,
+        held_why: null,
+        held_at: null,
+        sent: 6,
+        delivered: 6,
+        bounced: 0,
+        complained: 0,
+      },
     ],
   }).mailboxes;
   assert.deepEqual(
-    held.map((d) => [d.address, d.state, d.held, d.landed, d.bounced]),
+    held.map((d) => [d.id, d.address, d.state, d.held, d.landed, d.bounced, d.complained]),
     [
-      ["sam@hi.example.com", "Held since Sat: more than 3% of its recent emails bounced", true, "80%", "20%"],
-      ["A mailbox since removed", "Since removed", false, "100%", "0%"],
+      [
+        "sam@hi.example.com",
+        "sam@hi.example.com",
+        "Held since Sat: more than 3% of its recent emails bounced",
+        true,
+        "80%",
+        "20%",
+        "0%",
+      ],
+      ["removed", "A mailbox since removed", "Since removed", false, "100%", "0%", "0%"],
+      ["your-inbox", "Your own inbox", "You send these", false, "—", "—", "—"],
     ],
   );
   assert.deepEqual(

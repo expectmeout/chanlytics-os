@@ -397,20 +397,21 @@ test("a named slot put in goes where the caret is, whole; Backspace and Delete t
 test("a named slot is called what the set calls it, and a name it does not list is called as it was written", () => {
   assert.equal(slotLabel(SIX, "your business"), "Your business");
   assert.equal(slotLabel(SIX, "business"), "Their business");
-  assert.equal(slotLabel(SIX, "first name"), "first name");
+  assert.equal(slotLabel(SIX, "nickname"), "nickname");
   assert.deepEqual(
-    ["opening", "business", "city", "your name", "your business", "booking link", "first name"].map((k) =>
+    ["opening", "business", "city", "your name", "your business", "booking link", "first name", "nickname"].map((k) =>
       slotKnown(SIX, k),
     ),
-    [true, true, true, true, true, true, false],
+    [true, true, true, true, true, true, true, false],
+    "a company's addressee's first name is a slot too (00430)",
   );
 });
 
 test("a named set's sentences already name its slots: the editor says the check's own words as they are", () => {
   const rules = reachOutRules(true);
-  const check = validateEmailVersion({ subject: "Hi", body: "Hello {{first name}}" }, rules);
+  const check = validateEmailVersion({ subject: "Hi", body: "Hello {{nickname}}" }, rules);
   assert.equal(check.ok, false);
-  assert.equal(namedProblem(check, WORDS("Hi", "Hello {{first name}}"), SIX), check.error);
+  assert.equal(namedProblem(check, WORDS("Hi", "Hello {{nickname}}"), SIX), check.error);
   assert.equal(
     namedProblem(validateEmailVersion({ subject: "Hi", body: "Hello {{business}}" }, rules), WORDS("Hi", "x"), SIX),
     null,

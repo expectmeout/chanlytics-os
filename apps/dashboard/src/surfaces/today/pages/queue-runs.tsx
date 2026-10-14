@@ -11,11 +11,15 @@ import { useState } from "react";
 import {
   CAMPAIGNS_PAUSED_WORDS,
   LIFECYCLE_WORDS,
+  TO_SEND_ALL_WORDS,
+  TO_SEND_ROUTE,
   runStopWords,
   runStoppedWords,
   runHeldEmails,
+  runDraftedEmails,
   runsThatWait,
   runTooLate,
+  toSendRunsOf,
   type BroadcastVM,
 } from "@chanlytics/contracts";
 import type { BroadcastsSurface } from "@/surfaces/campaigns/broadcasts/surface";
@@ -62,7 +66,7 @@ export const runsPending = () => {
   const all = (s && s.rows) || [];
   const pending = all.filter((r) => r.state === "pending_approval");
   // The business's days, asked only over runs to judge.
-  const judged = all.filter((r) => r.state === "pending_approval" || runHeldEmails(r) > 0);
+  const judged = all.filter((r) => r.state === "pending_approval" || runHeldEmails(r) > 0 || runDraftedEmails(r) > 0);
   const days = judged.length ? approvalDaysNow() : null;
   return {
     waiting: days ? runsThatWait(judged, days) : [],
@@ -127,6 +131,26 @@ function SoonRun({ r, nav, verbKind, stop }: SoonRunProps) {
   );
 }
 
+/** The one To send's row: how many emails wait for you to send them, from how many reach-outs, and its door. */
+function toSendRow(t: NonNullable<ReturnType<typeof toSendRunsOf>>, nav: Nav, verbKind: VerbKind) {
+  return (
+    <AttnRow
+      key="run-to-send"
+      initials="▶"
+      glyph="bolt"
+      name={TO_SEND_ALL_WORDS.title}
+      meta={TO_SEND_ALL_WORDS.meta}
+      sentence={TO_SEND_ALL_WORDS.sentence(t.count, t.from)}
+      status={[TO_SEND_ALL_WORDS.status]}
+      tone="escalated"
+      cta={{ label: "Open", kind: verbKind(), onClick: () => nav(TO_SEND_ROUTE) }}
+      also={null}
+      onOpen={() => nav(TO_SEND_ROUTE)}
+      testid="brief-to-send"
+    />
+  );
+}
+
 export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, room: number) => {
   const api = broadcastVerbs();
   const refreshed = () => refreshPlaybooks();
@@ -183,12 +207,19 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, room: number) 
   };
   // Each row opens its own run (broadcasts/run:<id>): who is on it, and what it has done so far. The runs waiting first,
   // then the ones too late to approve, through the same row (which says it is too late and opens the run, where Skip is).
-  const asked = [...waiting, ...tooLate];
-  const count = asked.length + soon.length;
+  // Two or more whose emails are handed to you are one row, first: the one To send (broadcasts/to-send), the list the
+  // owner works down, never a row a run (00429). One alone opens its run.
+  const toSend = toSendRunsOf(waiting);
+  const asked = [...waiting.filter((r) => !toSend || !toSend.runs.includes(r)), ...tooLate];
+  const count = asked.length + (toSend ? 1 : 0) + soon.length;
+  const handed = toSend && room > 0 ? [toSendRow(toSend, nav, verbKind)] : [];
+  const left = room - handed.length;
   const drawn = [
-    ...asked.slice(0, room).map((r) => {
-      // A going run whose emails the check holds is answered on the run, where each held email is put back or skipped.
-      const held = runHeldEmails(r) > 0 ? words(r).held : null;
+    ...handed,
+    ...asked.slice(0, left).map((r) => {
+      // A going run whose emails the check holds is answered on the run, where each held email is put back or skipped;
+      // one whose emails are handed to you is sent from there, each from your own inbox (00429).
+      const held = runHeldEmails(r) > 0 ? words(r).held : runDraftedEmails(r) > 0 ? words(r).drafted : null;
       const late = held ? null : runLate(r);
       // Decided on its sheet alone, as Sent's row and the ledger's door decide it (the run's offer, contracts
       // waitingRunOffer): a reach-out's run, or one whose day has passed and is skipped there.
@@ -199,7 +230,7 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, room: number) 
           key={`run-${r.id}`}
           initials="▶"
           glyph="bolt"
-          name={r.audience.label}
+          name={r.audience.label || r.name}
           meta={said.meta}
           sentence={held || late ? said.sentence : paused ? CAMPAIGNS_PAUSED_WORDS : said.sentence}
           status={said.status}
@@ -224,7 +255,7 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, room: number) 
       );
     }),
     ...soon
-      .slice(0, Math.max(0, room - Math.min(asked.length, room)))
+      .slice(0, Math.max(0, left - Math.min(asked.length, left)))
       .map((r) => <SoonRun key={`run-${r.id}`} r={r} nav={nav} verbKind={verbKind} stop={stop} />),
   ];
   return { drawn, count, cut: count - drawn.length };

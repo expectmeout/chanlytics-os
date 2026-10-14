@@ -1,10 +1,10 @@
 /**
  * lead_collect: one batch of a run's items per commit (clean, identity, judge, classify, distance, commit), a Stop,
  * and a checker run's answers. The places it commits are made in places.ts and marked in mark-places.ts; what
- * follows a run's last item is round-decision.ts.
+ * follows a run's last item is round-decision.ts. A people run's items are companies (00430): people.ts.
  */
 
-import type { LeadEmailState, LeadRoundState, LeadRunState } from "@chanlytics/contracts";
+import { peoplePlanOf, type LeadEmailState, type LeadRoundState, type LeadRunState } from "@chanlytics/contracts";
 import { CARDS, areaCenter } from "../cards";
 import { FINAL_RUN_STATES, runStateOf } from "../endings";
 import { inArea } from "../geo";
@@ -23,6 +23,7 @@ import type {
 } from "../ports";
 import { checkable, isAgainRun } from "./check";
 import { markPlaces } from "./mark-places";
+import { collectPeople } from "./people";
 import { centerOf, memberOf, takeBatch, type Prepared } from "./places";
 import { roundDecision } from "./round-decision";
 import {
@@ -93,6 +94,8 @@ export async function collect(p: LeadPorts, runId: string, seq: string, owner: s
     return { kind: "busy" };
   }
   try {
+    // A people search's run (00430): its items are people at companies, kept as companies and never judged.
+    if (peoplePlanOf(round.plan)) return await collectPeople(p, round, run, owner, gen);
     return await collectHeld(p, round, run, owner, gen);
   } finally {
     await p.db.runRelease(run.id, owner, gen);

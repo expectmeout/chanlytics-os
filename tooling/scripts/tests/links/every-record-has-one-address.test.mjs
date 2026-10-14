@@ -222,6 +222,7 @@ test("a page opens its own views, which are no record: a day, a lens, a tab, the
     messages: "messages",
     broadcasts: "broadcasts",
     "broadcasts/get-yes": "broadcasts/get-yes",
+    "broadcasts/to-send": "broadcasts/to-send",
     clients: "clients",
     "clients/new-list": "clients/new-list",
     "clients/leads": "clients/leads",

@@ -26,7 +26,7 @@ what the script writes.
 | [`billing_card_marks`](#billing_card_marks) | none | on, no policy, so only the service role reaches it |
 | [`billing_events`](#billing_events) | none | on, no policy, so only the service role reaches it |
 | [`broadcast_recipients`](#broadcast_recipients) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/touches.ts` | on, 2 policies |
-| [`broadcasts`](#broadcasts) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts` | on, 3 policies |
+| [`broadcasts`](#broadcasts) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts` | on, 3 policies |
 | [`business_records`](#business_records) | `packages/db/src/lines.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
 | [`calls`](#calls) | `packages/db/src/events.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 1 policy |
 | [`capability_activations`](#capability_activations) | none | on, 2 policies |
@@ -64,7 +64,7 @@ what the script writes.
 | [`lead_searches`](#lead_searches) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/reach-out-leads.ts`, `packages/db/src/repositories/reach-out-sheet.ts` | on, 1 policy |
 | [`lead_suggestions`](#lead_suggestions) | none | on, 1 policy |
 | [`lead_suppressions`](#lead_suppressions) | `packages/db/src/repositories/outreach.ts` | on, 1 policy |
-| [`leads`](#leads) | `packages/db/src/events.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
+| [`leads`](#leads) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
 | [`lines`](#lines) | `packages/db/src/lines.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 1 policy |
 | [`mailbox_connections`](#mailbox_connections) | `packages/db/src/repositories/mailboxes/connections.ts`, `packages/db/src/repositories/mailboxes/sync.ts` | on, 1 policy |
 | [`mailboxes`](#mailboxes) | `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/email.ts` | on, 1 policy |
@@ -96,7 +96,7 @@ what the script writes.
 | [`rate_hits`](#rate_hits) | none | on, no policy, so only the service role reaches it |
 | [`reach_out_check_spend`](#reach_out_check_spend) | none | on, no policy, so only the service role reaches it |
 | [`reach_out_replies`](#reach_out_replies) | `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/people.ts` | on, 1 policy |
-| [`reach_out_sends`](#reach_out_sends) | `packages/db/src/repositories/campaigns/reach-out-check.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
+| [`reach_out_sends`](#reach_out_sends) | `packages/db/src/repositories/campaigns/reach-out-check.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
 | [`reply_turns`](#reply_turns) | none | on, no policy, so only the service role reaches it |
 | [`segment_members`](#segment_members) | `packages/db/src/repositories/lists.ts` | on, 3 policies |
 | [`segments`](#segments) | `packages/db/src/events.ts`, `packages/db/src/repositories/lists.ts` | on, 4 policies |
@@ -442,7 +442,7 @@ Foreign keys:
 
 ### broadcasts
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`
+- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`
 - Primary key: `id`
 - Row-level security: on, 3 policies
 
@@ -1350,6 +1350,7 @@ One row. searches_on is the kill switch for every workspace; tenants_on lists th
 | `note` | text | yes |  |  |
 | `prices_checked_at` | timestamp with time zone | yes |  |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
+| `cards_on` | text[] | no | `ARRAY['local_businesses'::text]` | The cards that find leads now (00430): local_businesses, and people_at_companies once its calibration run proved its filters and fields. Switched by hand; lead_card_live reads it. |
 
 ### lead_preferences
 
@@ -1599,7 +1600,7 @@ Foreign keys:
 
 A place: one physical location, outside contacts. Unique by place id in the workspace; a shared phone, email or website is looked up and marked on the member, never merged (25). Stage is the relationship; class lives on the membership.
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`
+- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -1660,6 +1661,10 @@ A place: one physical location, outside contacts. Unique by place id in the work
 | `reach_out_stopped_at` | timestamp with time zone | yes |  | When its owner stopped a reach-out writing to this lead (Reach out Part 6, H10; reach_out_lead_stop). The send door refuses its email (outreach_lead_facts.stopped, outreach_stopped) and no later step reaches it (reach_out_followers). The lead is not closed: stopping is not a no. |
 | `stage_at` | timestamp with time zone | yes | `now()` | When the lead entered the stage it is in (K5): its birth for a new row, the move for any later one, stamped by leads_stamp_stage whoever writes the stage. Null for a lead from before 00309: unknown, never now. |
 | `stage_from` | text | yes |  | The stage the lead was in before the move that stamped stage_at (K5); null until it moves. The one place a lead's "from" is said: lead.set_aside and 00310's lead.stage event read it. |
+| `kind` | text | no | `'place'::text` | What the lead is (00430): a place a listing names (the Maps card's), or a company with the people its source named on it (the people card's, facts.people), one of whom its reach-out writes to. |
+| `source` | text | no | `'local_businesses'::text` | Where the lead came from (00430): the card that found it (local_businesses, people_at_companies), or a file of the owner's own (import). The foot of a cold email says it in its first line (contracts whyFrom). |
+| `source_key` | text | yes |  | The lead's own key at its source (00430): a company's domain for the people card. One lead per workspace, source and key (leads_tenant_source_key_uq); a place keeps its place_id instead. |
+| `facts` | jsonb | no | `'{}'::jsonb` | What the lead's source named beyond its columns (00430): {people: [{name, first_name, title, role, email, profile_url}] at most five, addressee: the index of the one the lead's address is, size: the company's size as its source gave it}. Read through contracts leadFactsOf; blanked with the lead. |
 
 Foreign keys:
 
@@ -2433,6 +2438,7 @@ Foreign keys:
 | `until` | date | yes |  | The last day this campaign runs, on the business's clock: a run on a day past it sends nothing. Null: it runs until it is paused (00416). |
 | `trial_until` | timestamp with time zone | yes |  | Until when this campaign runs on trial: before it, a run its policy would send by itself (auto) waits for a person (veto). Null: no trial (00416). |
 | `mailbox_ids` | uuid[] | no | `'{}'::uuid[]` | A reach-out step's mailboxes (00424): the ones its owner picked, or none for every connected one of its workspace. |
+| `owner_sends` | boolean | no | `false` | A reach-out's root (00429): its owner sends its emails from their own inbox, each handed to them written and checked (state drafted), rather than its mailboxes (mailbox_ids). Its steps read it from the root. |
 
 Foreign keys:
 
@@ -2625,6 +2631,7 @@ Reach out Part 5: one reading of one reply to a reach-out, keyed by the message 
 | `signer_was` | text | yes |  |  |
 | `signer_settled_at` | timestamp with time zone | yes |  |  |
 | `signer_settled_by` | uuid | yes |  |  |
+| `said_by` | uuid | yes |  | For a reading its owner gave (claim owner, 00429): the member who said what the business wrote back. Its message_id is the note that says so on the person's thread (reach_out_reply_said). |
 
 Foreign keys:
 
@@ -2634,6 +2641,7 @@ Foreign keys:
 - `tenant_id`, `lead_contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete set null
 - `tenant_id`, `lead_id` → [`leads`](#leads) (`tenant_id`, `id`), on delete set null
 - `tenant_id`, `message_id` → [`messages`](#messages) (`tenant_id`, `id`), on delete cascade
+- `said_by` → `auth.users` (`id`), on delete set null
 - `tenant_id`, `send_id` → [`reach_out_sends`](#reach_out_sends) (`tenant_id`, `id`), on delete set null
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 - `undone_by` → `auth.users` (`id`), on delete set null
@@ -2646,7 +2654,7 @@ Foreign keys:
 
 Reach out: one lead in one step's run. Planned (a time and a domain), claimed under the domain's capacity, queued as an email row with its outbound_send job, then what that row became. Written by the service role only (the reach-out clock, apps/edge/lib/reach-out).
 
-- Owned by: `packages/db/src/repositories/campaigns/reach-out-check.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`
+- Owned by: `packages/db/src/repositories/campaigns/reach-out-check.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -2682,6 +2690,10 @@ Reach out: one lead in one step's run. Planned (a time and a domain), claimed un
 | `checked_words` | text | yes |  |  |
 | `included_for` | text[] | no | `'{}'::text[]` |  |
 | `mailbox_id` | uuid | yes |  | The mailbox this send leaves from (00424): planned with it, claimed under its day, and kept by its lead for the whole chain. Null for a skipped send, or once its mailbox is gone. |
+| `drafted_at` | timestamp with time zone | yes |  | When this send was handed to its owner, written and checked (00429): its fourteen days to be sent start here. |
+| `draft` | jsonb | yes |  | The email handed to the owner (00429): {to, subject, body, text, parent_id?}, the words with their values in and, in text, with the foot. What the Sent door writes as the email. |
+| `said_at` | timestamp with time zone | yes |  | When the owner said this drafted email went, or did not (00429). |
+| `said_by` | uuid | yes |  | The member who said it (00429). |
 
 Foreign keys:
 
@@ -2693,6 +2705,7 @@ Foreign keys:
 - `tenant_id`, `message_id` → [`messages`](#messages) (`tenant_id`, `id`), on delete set null
 - `tenant_id`, `playbook_id` → [`playbooks`](#playbooks) (`tenant_id`, `id`), on delete set null
 - `tenant_id`, `root_id` → [`playbooks`](#playbooks) (`tenant_id`, `id`), on delete cascade
+- `said_by` → `auth.users` (`id`), on delete set null
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |

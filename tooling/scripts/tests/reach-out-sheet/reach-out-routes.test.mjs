@@ -331,7 +331,8 @@ test("POST reach-outs: an operator's chain is validated, saved by the service ro
   assert.deepEqual(asked[0], {
     p_tenant_id: A,
     p_user_id: USER,
-    p_chain: { ...CHAIN(), root_id: null },
+    // Who sends it is the schema's default when the body does not say (00429): its mailboxes.
+    p_chain: { ...CHAIN(), owner_sends: false, root_id: null },
     // The start's line in the ledger rides with the chain (00381): the door writes it, the route no longer does.
     p_decision: { name: CHAIN().name },
   });
@@ -371,13 +372,13 @@ test("POST reach-outs refuses before the door: a viewer, a slot that is none of 
   edge();
   await refused(chains.POST.run(send("POST", CHAIN()), ctxFor(tables("viewer"))), "forbidden", 403);
   const firstName = CHAIN({
-    steps: [{ subject: "Hi", body: "Hi {{first name}}", after_days: null }],
+    steps: [{ subject: "Hi", body: "Hi {{nickname}}", after_days: null }],
   });
   await refused(
     chains.POST.run(send("POST", firstName), ctxFor(tables())),
     "validation",
     422,
-    "{{first name}} isn't one of the slots. Use one of the six.",
+    "{{nickname}} isn't one of the slots. Use one from the list.",
   );
   // A first email carries no link (decision 0056): the booking link is a nudge's.
   const first = CHAIN({ steps: [{ subject: "Hi", body: "Book here: {{booking link}}", after_days: null }] });
