@@ -8109,11 +8109,13 @@ var SENDING_HOURS_WORDS = {
   between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
 };
 var sendsWaitWords = (hours = SENDING_HOURS_WORDS) => `sends wait for ${hours.range}`;
+var SENDING_NOW_WORDS = "sending now";
 function whenItGoes(receipt, when, nowMs) {
   const at3 = receipt?.scheduled_for ? Date.parse(receipt.scheduled_for) : NaN;
-  if (Number.isNaN(at3)) return "sending now";
-  if (receipt?.moved_from) return `scheduled for ${when(at3)} \u2014 messages go out ${SENDING_HOURS_WORDS.between} by your clock`;
-  return at3 - nowMs > MIN_MS ? `scheduled for ${when(at3)}` : "sending now";
+  if (Number.isNaN(at3)) return SENDING_NOW_WORDS;
+  if (receipt?.moved_from)
+    return `scheduled for ${when(at3)} \u2014 messages go out ${SENDING_HOURS_WORDS.between} by your clock`;
+  return at3 - nowMs > MIN_MS ? `scheduled for ${when(at3)}` : SENDING_NOW_WORDS;
 }
 var PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
 function delayWords(ms2) {
@@ -17568,7 +17570,7 @@ var broadcastSpec = {
     const n = typeof d.recipient_count === "number" ? goesToOf({ recipient_count: d.recipient_count, left_out: leftOut2 }) : Number(pl.count ?? 0);
     const ahead = d.scheduled_ahead === true;
     const said = heardWords(leftOut2, true);
-    return `Broadcast \u201C${d.name ?? asText(pl.name)}\u201D \u2014 ${n} ${n === 1 ? "person" : "people"}, ${ahead ? "scheduled" : "sending now"}${said ? ` \xB7 ${said}` : ""}`;
+    return `Broadcast \u201C${d.name ?? asText(pl.name)}\u201D \u2014 ${n} ${n === 1 ? "person" : "people"}, ${ahead ? "scheduled" : SENDING_NOW_WORDS}${said ? ` \xB7 ${said}` : ""}`;
   },
   undo: {
     label: () => "Cancel it, if it has not finished",
@@ -54859,6 +54861,7 @@ export {
   SELLS_BY_WORDS,
   SENDER_WORDS,
   SENDING_HOURS_WORDS,
+  SENDING_NOW_WORDS,
   SEND_DAY_FRAME,
   SEND_WHEN_WORDS,
   SEND_WINDOW_MARGIN_MIN,

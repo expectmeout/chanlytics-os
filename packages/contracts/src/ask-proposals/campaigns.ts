@@ -13,7 +13,7 @@ import {
 } from "../consent/consent-channels";
 import { LIFECYCLE_TOAST, LIFECYCLE_WORDS, channelsGoesByWords } from "../playbooks/lifecycle/lifecycle-words";
 import { PLAYBOOK_PATCH_CLEARS, PLAYBOOK_PATCH_KEYS } from "../playbooks/playbook-patch";
-import { PLAYBOOK_VETO_DELAY_WORDS, whenItGoes } from "../playbooks/playbook-triggers";
+import { PLAYBOOK_VETO_DELAY_WORDS, SENDING_NOW_WORDS, whenItGoes } from "../playbooks/playbook-triggers";
 import { clockWhen } from "../shared/clock";
 import { joinWords } from "../shared/words";
 import { CAMPAIGN_ROOMS, LIBRARY_STARTER_WORDS, LIBRARY_WORDS, runApprovedTail } from "../shell/campaign-rooms";
@@ -175,7 +175,7 @@ export const broadcastSpec: ProposalSpec = {
     // passed before it was approved went now. Who it left out hear from you within a week of the time it goes (leftOutBy).
     const ahead = d.scheduled_ahead === true;
     const said = heardWords(leftOut, true);
-    return `Broadcast “${d.name ?? asText(pl.name)}” — ${n} ${n === 1 ? "person" : "people"}, ${ahead ? "scheduled" : "sending now"}${said ? ` · ${said}` : ""}`;
+    return `Broadcast “${d.name ?? asText(pl.name)}” — ${n} ${n === 1 ? "person" : "people"}, ${ahead ? "scheduled" : SENDING_NOW_WORDS}${said ? ` · ${said}` : ""}`;
   },
   undo: {
     label: () => "Cancel it, if it has not finished",

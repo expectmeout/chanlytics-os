@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { SURFACE_STATES } from "../../apps/dashboard/src/legacy-bridge/surface-registry";
+import { conversationsSample, inboxSample } from "../../apps/dashboard/src/surfaces/inbox/sample";
 
 /**
  * The one bug this project keeps having.
@@ -38,7 +39,11 @@ const INVENTED = [
   // the mockup's callers, now that Live is real
   "Selena Cho",
   "Maya Rodriguez",
-];
+  // Every person the demo's Inbox and Conversations invent, read from the seeds themselves (the wiring's second audit, X6-3):
+  // the list above named five of their thirteen, so the seeded Inbox that stood in on a real session before its read (X6-1)
+  // showed names this walk never looked for. A seed added is looked for by itself.
+  ...[...inboxSample.THREADS, ...conversationsSample.CONVERSATIONS].map((row) => row.who),
+].filter((seed, i, all) => all.indexOf(seed) === i);
 
 /**
  * Every surface classified `real` in surface-registry.ts, fed by live data.

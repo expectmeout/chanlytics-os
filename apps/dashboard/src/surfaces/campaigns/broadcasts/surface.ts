@@ -342,8 +342,8 @@ export const broadcastsOverride: SurfaceOverride = {
   // teammate or another tab (the wiring's second audit, W-person-list-lead-7). Not the templates: the messages it offers are the
   // settings read's, which hears them and which this surface follows (followSettings above).
   ...declareReads("broadcasts", {
-    // And a deal (an audience of proposals out, or a yes since), the templates each message's versions are counted from, and the
-    // team the people read names (reads-not-heard's owed, closed where Sent is drawn).
+    // And a deal (an audience of proposals out, or a yes since), and the team the people read names (reads-not-heard's owed,
+    // closed where Sent is drawn). Not the templates: Settings reads them, once, and Sent follows it (templates-are-read-once).
     reads: [
       "conversation",
       "hold",
@@ -356,7 +356,6 @@ export const broadcastsOverride: SurfaceOverride = {
       "send",
       "list",
       "deal",
-      "template",
       "team",
     ],
     fresh: "its-page",

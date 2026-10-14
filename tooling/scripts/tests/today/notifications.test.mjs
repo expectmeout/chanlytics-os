@@ -208,6 +208,61 @@ test("the bridge: reads the globals, keeps state per workspace and device, alert
   assert.equal(api.feed().length, 4);
 });
 
+test("REGRESSION (X6-2): each source takes its own first look -- the Inbox's read landing after the calls' is its backlog, not news", async () => {
+  const mod = await import(
+    pathToFileURL(path.join(here, "../../../../apps/dashboard/src/legacy-bridge/notifications.ts")).href
+  );
+  // Alerts already on, as a person who asked for them comes back to the app.
+  const store = new Map([
+    ["chanlytics:notifs:default", JSON.stringify({ seenAt: 0, read: [], dismissed: [], alerts: true })],
+  ]);
+  const storage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v) };
+  const handlers = {};
+  const fired = [];
+  const base = Date.now();
+  class FakeNotification {
+    static permission = "granted";
+    constructor(title, opts) {
+      fired.push(opts.tag);
+      this.close = () => {};
+    }
+  }
+  // A real session as it boots: no thread is seeded under INBOX_DATA (X6-1), and the calls and invitations land first.
+  const win = {
+    addEventListener: (ev, fn) => {
+      handlers[ev] = fn;
+    },
+    document: { visibilityState: "hidden" },
+    focus: () => {},
+    location: { hash: "" },
+    Notification: FakeNotification,
+    __LIVE: { now: [], recent: [call({ callId: "k1", cvId: "cv-k1", startedAtMs: base - 600_000 })] },
+    __TEAM_INVITES: [],
+  };
+  const api = mod.installNotifications(win, storage);
+  assert.equal(api.alerts().on, true);
+  handlers["surface:live"]();
+  assert.deepEqual(fired, [], "the missed call there at the first look is the calls' backlog");
+  // The Inbox's read lands with two people already waiting: they waited before the tab opened, and wake no one.
+  win.INBOX_DATA = {
+    THREADS: [
+      thread({ id: "t1", needsYou: true, escalatedAtMs: base - 3_600_000 }),
+      thread({ id: "t2", who: "Rosa", needsYou: true, escalatedAtMs: base - 1_800_000 }),
+    ],
+  };
+  handlers["surface:inbox"]();
+  assert.deepEqual(fired, [], "REGRESSION: one first look for every source made each thread already waiting a new one");
+  // What appears after each source's first look alerts, whichever source it is.
+  win.INBOX_DATA.THREADS.push(thread({ id: "t3", who: "Ana", needsYou: true, escalatedAtMs: base - 10_000 }));
+  handlers["surface:inbox"]();
+  win.__LIVE = {
+    now: [],
+    recent: [...win.__LIVE.recent, call({ callId: "k2", cvId: "cv-k2", startedAtMs: base - 5_000 })],
+  };
+  handlers["surface:live"]();
+  assert.deepEqual(fired, ["needs:t3", "call:k2"]);
+});
+
 // A search waits a day on its question and then ends; the bell's row is the trigger's (a KEPT row), and the device
 // was only ever woken for DERIVED rows, so the owner away from the tab heard nothing.
 test("a kept row of an alerting kind wakes the device like a derived one: not the backlog, only new, only in the background", async () => {

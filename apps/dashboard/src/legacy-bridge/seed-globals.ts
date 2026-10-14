@@ -84,7 +84,8 @@ if (typeof window !== "undefined") {
     // one thread's verbs, which the deal sheet sends its proposal through (surfaces/inbox/thread/thread-verbs.tsx). Their
     // seeded rows are a demo's: a real session's are its reads', published under these names as they land
     // (declareSurfaceValue), and nothing stands in for them before (the wiring's second audit, X6-1).
-    ...(demo ? { INBOX_DATA: INBOX_GLOBALS.INBOX_DATA, CONVERSATIONS_DATA: INBOX_GLOBALS.CONVERSATIONS_DATA } : {}),
+    INBOX_DATA: demo ? INBOX_GLOBALS.INBOX_DATA : undefined,
+    CONVERSATIONS_DATA: demo ? INBOX_GLOBALS.CONVERSATIONS_DATA : undefined,
     IX_STORE: INBOX_GLOBALS.IX_STORE,
     // What needs you, the one number the sidebar's badge, the strip's tab, the phone's tab and the tab's title read, as a hook
     // (surfaces/needs-you.ts); the Inbox's rule it is made of (ixWaitsOnYou) is no page's to call by name now.

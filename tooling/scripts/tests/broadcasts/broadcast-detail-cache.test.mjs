@@ -57,3 +57,38 @@ test("a write empties what is kept: a cancel, an approve or a send may have chan
   await quiet(() => broadcasts.cancel("b-1"));
   assert.equal(broadcasts.peekDetail("b-1"), null, "REGRESSION would be a canceled run opening as it was");
 });
+
+test("REGRESSION (S9-10): a run's approve and cancel are one intent each -- a press again before it lands is the same request, which the server answers once", async () => {
+  const keys = [];
+  const wire = window.fetch;
+  // Every request on its way, let land together.
+  const waiting = [];
+  const land = () =>
+    waiting.splice(0).forEach((r) => r(json(200, { ok: true, data: { id: "b-9", state: "sending" } })));
+  window.fetch = (url, init = {}) => {
+    keys.push(
+      `${new URL(String(url), "https://app.chanlytics.com").pathname} ${init.headers?.["idempotency-key"] ?? "none"}`,
+    );
+    return new Promise((r) => waiting.push(r));
+  };
+  try {
+    for (const verb of ["approve", "cancel"]) {
+      keys.length = 0;
+      const first = quiet(() => broadcasts[verb]("b-9"));
+      const again = quiet(() => broadcasts[verb]("b-9"));
+      await new Promise((r) => setTimeout(r, 0));
+      const [a, b] = keys;
+      assert.ok(a && !a.endsWith(" none"), `${verb}: it carries the intent's key (${a})`);
+      assert.equal(b, a, `${verb}: the press again is the same request, so the server answers it once`);
+      land();
+      await Promise.all([first, again]);
+      const next = quiet(() => broadcasts[verb]("b-9"));
+      await new Promise((r) => setTimeout(r, 0));
+      land();
+      await next;
+      assert.notEqual(keys.at(-1), a, `${verb}: once it has landed, a new press is a new intent`);
+    }
+  } finally {
+    window.fetch = wire;
+  }
+});

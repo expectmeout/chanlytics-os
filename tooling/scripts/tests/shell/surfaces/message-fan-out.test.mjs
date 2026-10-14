@@ -315,8 +315,9 @@ test("a surface's own tables reach it wherever the page is, and a thread's updat
     // A teammate's deal moves People's rows and the Pipeline: People's own table, heard off its page. And Setup's count of who can
     // receive an offer, which reads the deals, on the page its band is drawn (the wiring's second audit, S4-3).
     await r.change("deals", "UPDATE");
-    // And the counts of the lists pinned here (R10): the deal lists are among them.
-    assert.deepEqual([...r.asked].sort(), ["people", "setup", "today_pins"]);
+    // And the counts of the lists pinned here (R10): the deal lists are among them. And the reach-outs, live and cheap (they scan
+    // no audience): a lead's deal won counts in a reach-out's People cell (00426).
+    assert.deepEqual([...r.asked].sort(), ["people", "reach_outs", "setup", "today_pins"]);
     r.asked.length = 0;
     await r.change("conversations", "UPDATE");
     // A snooze or a pause: the three, and the pinned lists' counts (R10): who needs you is among them.
@@ -692,9 +693,16 @@ test("the Campaigns lens hears messages, conversations, escalations and runs onl
       await r.change("messages", "UPDATE", status);
       assert.deepEqual(lensReads(), [], `a message ${status}: not the lens's`);
     }
-    // It is told of no table it does not name: a call (a call is the Receptionist's and the People lens's), a note, a review; and
-    // a person made is no answer.
-    for (const table of ["calls", "person_notes", "google_reviews", "deals", "lines", "mailboxes"]) {
+    // A deal won is counted once in the reach-outs' report (00426), and a reach-out may write from the hosted mailbox (0056): both
+    // the lens's, on the lens (reads-not-heard's owed, closed).
+    for (const table of ["deals", "mailboxes"]) {
+      r.asked.length = 0;
+      await r.change(table, "UPDATE");
+      assert.deepEqual(lensReads(), ["reports_campaigns"], `${table}: heard on the lens`);
+    }
+    // It is told of no table it does not name: a call (a call is the Receptionist's and the People lens's), a note, a review, a
+    // line's saga; and a person made is no answer.
+    for (const table of ["calls", "person_notes", "google_reviews", "lines"]) {
       r.asked.length = 0;
       await r.change(table, "UPDATE");
       assert.deepEqual(lensReads(), [], `${table}: not the lens's`);
@@ -866,11 +874,15 @@ test("the page that owns what it draws is an explicit one: the surface registry 
   for (const key of ["people", "reports", "calendar"]) assert.equal(owns(key, "campaigns"), false, key);
   // Today draws a good many surfaces and owns its own, the headline its period line and Worth a look are printed from (it hears the
   // feed there, a long wait later: reports/headline.ts), the replies to a reach-out its queue draws, and the setup band, which hears
-  // what its rows state there (the wiring's second audit, S4-3; a message only while the first WhatsApp message is awaited).
-  for (const key of ["broadcasts", "reports", "playbooks", "people", "calendar", "notifications", "live", "google"])
+  // what its rows state there (the wiring's second audit, S4-3; a message only while the first WhatsApp message is awaited). And
+  // People's person alone: its rows are the steps due and Worth a look's names there (W-visit-deal-5); a message is not People's.
+  for (const key of ["broadcasts", "reports", "playbooks", "calendar", "notifications", "live", "google"])
     assert.equal(owns(key, "today"), false, `today does not own ${key}`);
   assert.equal(owns("today", "today"), true);
-  for (const key of ["reports_headline", "reach_out_replies", "setup"]) assert.equal(owns(key, "today"), true, key);
+  for (const key of ["reports_headline", "reach_out_replies", "setup", "people"])
+    assert.equal(owns(key, "today"), true, key);
+  assert.equal(registry.ownsTable("people", "contacts", "today"), true, "People's person on Today");
+  assert.equal(registry.ownsTable("people", "messages", "today"), false, "and none of what a message moves");
   for (const route of ["inbox", "clients", "calendar", "campaigns", "reports"])
     assert.equal(owns("reports_headline", route), false, `${route} does not own the headline`);
   assert.equal(owns("broadcasts", "broadcasts/run:b-1"), true);

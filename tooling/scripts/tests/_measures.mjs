@@ -43,6 +43,7 @@ import {
   durationsIn,
   inlineStyles,
   handRoutesIn,
+  seedReadsOutsideADemo,
   sourceReads,
   mediaPreludes,
   mediaWidths,
@@ -415,6 +416,18 @@ export const MEASURES = [
     file: "window-publishers.json",
     measure: () => perFile(SHELL, (sf) => windowUse(sf).publishers),
     advice: "Publish nothing new on window: import it, or add the name to a component that already publishes.",
+  },
+  {
+    // The app's own code (the frozen legacy tree is the mockup's, drawn only where the registry says demo).
+    name: "seeds read outside a demo",
+    file: "seed-reads.json",
+    measure: () =>
+      perFile(
+        SHELL.filter((f) => /.tsx?$/.test(f) && !f.startsWith("apps/dashboard/src/legacy/")),
+        seedReadsOutsideADemo,
+      ),
+    advice:
+      "Read a demo's seeds only where the session is one: `demoSession() ? sample() : <the real read, or nothing>`. A seed read in a real session draws invented people as customers (the wiring's second audit, X6-1).",
   },
   {
     // Every file of the tree, one each: it may only lose them. The address step (decision 0015) closed the tree: a

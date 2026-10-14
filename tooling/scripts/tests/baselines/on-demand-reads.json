@@ -95,6 +95,11 @@
     "fresh": "A link to a list's file, made when it is fetched.",
     "why": "A file to keep, made when it is fetched: nothing on the page is drawn from it, so there is nothing to keep fresh."
   },
+  "apps/dashboard/src/surfaces/people/shell-verbs.ts GET export": {
+    "kind": "link",
+    "fresh": "A link to one person's own file (R14 X5), made when it is fetched.",
+    "why": "A file to keep, made when it is fetched: nothing on the page is drawn from it, so there is nothing to keep fresh."
+  },
   "apps/dashboard/src/surfaces/settings/connections/connected-mailboxes.ts GET mailbox-connections/connect": {
     "kind": "link",
     "fresh": "The address the browser is sent to, to sign in with the mailbox's provider.",

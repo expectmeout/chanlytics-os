@@ -113,14 +113,14 @@ interface OwnReads {
 
 /**
  * Each of those reads is its own: a pick lands it after the report or before it, and what it says of that is its state. A demo has no
- * read to follow: the samples answer at once.
+ * read to follow: the samples answer at once, in a demo alone.
  */
 function useOwnReads(live: ReportsSurface | undefined, R: ReportsSurface | null): OwnReads {
   const reviews = useFollower("reports_reviews");
   const receptionist = useFollower("reports_receptionist");
   const people = useFollower("reports_people");
   const campaigns = useFollower("reports_campaigns");
-  if (live || !R) return { reviews, receptionist, people, campaigns };
+  if (live || !R || !demoSession()) return { reviews, receptionist, people, campaigns };
   return {
     reviews: { value: reviewsSample(R.range), state: "current" },
     receptionist: { value: receptionistSample(R.range), state: "current" },

@@ -2119,7 +2119,18 @@ test("People repaints on a teammate's deal: the surface asks for the deals table
   const { wantsRefresh } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-realtime.ts");
   assert.equal(wantsRefresh(peopleOverride, "deals"), true);
   assert.equal(wantsRefresh(peopleOverride, "messages"), true, "the default trio still");
-  assert.equal(wantsRefresh(peopleOverride, "calls"), false, "a live call's turns are not People's");
+  // A call's start and end move a row's last contact and call count (people_list's last call): People hears the calls on its
+  // page (reads-not-heard's owed, closed), and never a live call's transcript turn, which changes none of its rows.
+  assert.equal(wantsRefresh(peopleOverride, "calls"), true, "a call starting or ending is People's");
+  assert.equal(
+    wantsRefresh(peopleOverride, "calls", {
+      table: "calls",
+      event: "UPDATE",
+      row: { tenant_id: TID, status: "ongoing" },
+    }),
+    false,
+    "a live call's turns are not People's",
+  );
   // The live feed (packages/db realtime.ts) must be told of the table, or a surface asking for it hears nothing: the
   // database tells every event on deals (00265), and a notice of one reaches the runner as the deals table's change.
   assert.deepEqual(toldFor("deals"), EVERY_EVENT, "every deal event");

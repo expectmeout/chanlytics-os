@@ -1274,16 +1274,15 @@ test("an activated capability offers to withdraw its activation from its row, an
 
 test("a save in Workspace and a WhatsApp connect repaint Setup too", async () => {
   const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
-  // Both also move what the composers and People's reach read of the channels (refresh-coverage.test.mjs says which): People's reach
-  // here, the composers where a page draws them, and no page is on screen here. A connect repaints Connections' own rows, the channels
-  // read's (R6).
+  // Both also move what the composers and People's reach read of the channels (refresh-coverage.test.mjs says which): each where
+  // a page draws it, and no page is on screen here (S4-6). A connect repaints Connections' own rows, the channels read's (R6).
   assert.deepEqual(
     AFTER["PUT settings"]().map((o) => o.key),
-    ["settings", "calendar", "setup", "people"],
+    ["settings", "calendar", "setup"],
   );
   assert.deepEqual(
     AFTER["POST channels/whatsapp/connect"]().map((o) => o.key),
-    ["channels", "settings", "setup", "people"],
+    ["channels", "settings", "setup"],
   );
 });
 
