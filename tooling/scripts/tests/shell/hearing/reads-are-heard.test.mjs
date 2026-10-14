@@ -64,6 +64,7 @@ const { liveTablesOf } = await importSrc("packages/contracts/src/activity/record
 const { watchedEvents, watchedTables } = await importSrc("packages/db/src/realtime.ts");
 const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
 const { AFTER, REFRESHES_NOTHING } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
+const { PAGE_HEARS, PERSON_ROUTE } = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
 
 /** Every surface the shell registers (LegacyApp.tsx), with the module that holds its override, as the shell imports it. */
 const SURFACES = registeredSurfaces();
@@ -142,7 +143,7 @@ function pairsOf(baseline) {
 const owedPairs = (groups) =>
   groups.filter((g) => g.kind === "owed").reduce((n, g) => n + Object.values(g.reads).flat().length, 0);
 
-/** A claim keyed by surface (`rereadAfter`, `heardWith`), kept for the surfaces the group still holds; absent when none is left. */
+/** A claim keyed by surface (`rereadAfter`, `heardWith`, `heardBy`), kept for the surfaces the group still holds; absent when none is left. */
 const keptFor = (claim, reads) => {
   if (!claim) return undefined;
   const kept = Object.fromEntries(Object.entries(claim).filter(([surface]) => surface in reads));
@@ -155,7 +156,7 @@ if (BANK) {
   const was = readBaseline(FILE);
   if (was) {
     const groups = was.groups
-      .map(({ rereadAfter: after, heardWith: with_, ...group }) => {
+      .map(({ rereadAfter: after, heardWith: with_, heardBy: by, ...group }) => {
         const reads = Object.fromEntries(
           Object.entries(group.reads)
             .map(([surface, list]) => [surface, list.filter((table) => unheard.has(`${surface} ${table}`))])
@@ -163,7 +164,14 @@ if (BANK) {
         );
         const rereadAfter = keptFor(after, reads);
         const heardWith = keptFor(with_, reads);
-        return { ...group, reads, ...(rereadAfter ? { rereadAfter } : {}), ...(heardWith ? { heardWith } : {}) };
+        const heardBy = keptFor(by, reads);
+        return {
+          ...group,
+          reads,
+          ...(rereadAfter ? { rereadAfter } : {}),
+          ...(heardWith ? { heardWith } : {}),
+          ...(heardBy ? { heardBy } : {}),
+        };
       })
       .filter((group) => Object.keys(group.reads).length > 0);
     writeBaseline(path.join(ROOT, BASELINES_DIR, FILE), {
@@ -236,7 +244,9 @@ test("the baseline says why for every read, in groups that name surfaces and tab
  *  - `unfed`: a table the feed does not tell a workspace of, with what reads it again (`rereadAfter`, `heardWith`) or the finding
  *    owed it;
  *  - `over-read`: a table the feed carries, read and not drawn (`field`, the DTO field it feeds, which the surface's own module
- *    never reads; null where it feeds nothing drawn), or drawn only as it rides with a table the surface hears (`heardWith`);
+ *    never reads; null where it feeds nothing drawn), or drawn only as it rides with a table the surface hears (`heardWith`), or
+ *    as another surface that hears it on this surface's page reads the page again (`heardBy`: People's read reloads a person's
+ *    page, the Inbox's their thread);
  *  - `owed`: a table the feed carries, drawn and not heard: work not done, with the finding or the lane it waits on.
  */
 const KINDS = ["seat", "account", "unfed", "over-read", "owed"];
@@ -277,6 +287,24 @@ function rereadAnywhere(write) {
   return keys;
 }
 
+/** An address of the first family whose row names the surface (PAGE_HEARS): a person's page by a person's id. */
+function pageOf(surface) {
+  const family = Object.entries(PAGE_HEARS).find(([, keys]) => keys.includes(surface))?.[0];
+  if (!family) return null;
+  return family === PERSON_ROUTE ? "clients/0b9c4f6e-1d2a-4c3b-9e8f-7a6b5c4d3e2f" : family;
+}
+
+/** Whether a surface hears some event the feed tells of a table, with the address on `page`. */
+function hearsTableOn(key, table, page) {
+  const was = globalThis.location.hash;
+  globalThis.location.hash = `#/${page}`;
+  try {
+    return (told[table] ?? []).some((event) => wantsRefresh(overrides.get(key), table, { table, event, row: {} }));
+  } finally {
+    globalThis.location.hash = was;
+  }
+}
+
 /** A field as the wire spells it and as a view model does: `last_inbound_at`, `lastInboundAt`. */
 const spellings = (field) => [field, field.replace(/_([a-z])/g, (_, c) => c.toUpperCase())];
 
@@ -312,7 +340,10 @@ test("every group says what kind of exception it is, and holds only the tables t
     if ("of" in group)
       assert.equal(group.of, "other workspaces", `${at}: an \`of\` names other workspaces and nothing else`);
     if (group.kind === "over-read")
-      assert.ok("field" in group || group.heardWith, `${at}: say the field it feeds, or what it rides with`);
+      assert.ok(
+        "field" in group || group.heardWith || group.heardBy,
+        `${at}: say the field it feeds, what it rides with, or who hears it for the page`,
+      );
   }
 });
 
@@ -343,6 +374,17 @@ test("what a group says re-reads its pages does: each write's row names the surf
       assert.ok(surface in group.reads, `heardWith names ${surface}, which the group does not hold`);
       const hears = overrides.get(surface)?.refreshOnTables ?? [];
       for (const table of list) assert.ok(hears.includes(table), `${surface} does not hear ${table}`);
+    }
+    for (const [surface, others] of Object.entries(group.heardBy ?? {})) {
+      assert.ok(surface in group.reads, `heardBy names ${surface}, which the group does not hold`);
+      const page = pageOf(surface);
+      assert.ok(page, `${surface} owns no page (PAGE_HEARS), so no surface can hear for it there`);
+      for (const other of others)
+        for (const table of group.reads[surface])
+          assert.ok(
+            hearsTableOn(other, table, page),
+            `${other} does not hear ${table} on ${page}, so it cannot read ${surface}'s page again for it`,
+          );
     }
   }
 });

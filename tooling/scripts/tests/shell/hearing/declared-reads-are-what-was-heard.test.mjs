@@ -159,6 +159,19 @@ const HEARD_BEFORE = {
   ],
   google: ["google_listings", "google_reviews", "google_connections"],
   billing: ["billing_accounts"],
+  // A person's page, a surface of its own since the wiring's second audit (R5): what the page draws of them that People hears on
+  // its own list alone, read for the one person on screen (people-detail.ts personOverride).
+  person: [
+    "contacts",
+    "escalations",
+    "calls",
+    "broadcasts",
+    "playbooks",
+    "policies",
+    "tenant_config",
+    "leads",
+    "reach_out_replies",
+  ],
 };
 
 /**
@@ -190,6 +203,7 @@ const ON_ITS_PAGE_BEFORE = {
   reports_campaigns: HEARD_BEFORE.reports_campaigns,
   reports_reviews: HEARD_BEFORE.reports_reviews,
   campaign_results: HEARD_BEFORE.campaign_results,
+  person: HEARD_BEFORE.person,
 };
 
 /** A route no surface above draws. */
@@ -208,6 +222,10 @@ const ROUTES = [
   "broadcasts",
   "calendar",
   "live",
+  // A person's page, on its first tab and another (the wiring's second audit, W-person-list-lead-1): last, so a surface that owns
+  // a page above is asked there.
+  "clients/0b9c4f6e-1d2a-4c3b-9e8f-7a6b5c4d3e2f",
+  "clients/0b9c4f6e-1d2a-4c3b-9e8f-7a6b5c4d3e2f/history",
 ];
 /** The Campaigns lens hears the feed on the lens alone, though the Overview draws the surface too. */
 const HOME = { reports_campaigns: "reports/campaigns" };
@@ -220,6 +238,8 @@ const change = (table, event = "INSERT") => ({ table, event, row: {} });
 /** Whether a surface asks to be read for this table, at the address on screen now. */
 const hears = (o, table) => wantsRefresh(o, table, change(table));
 const sorted = (xs) => [...xs].sort();
+/** Whether it asks for an insert or an update of the table: a person's page asks for no row made now (people-detail.ts). */
+const hearsAny = (o, table) => ["INSERT", "UPDATE"].some((event) => wantsRefresh(o, table, change(table, event)));
 
 test("the kinds name every table the database tells a workspace of, each in exactly one kind", () => {
   const named = Object.values(RECORD_KINDS).flat();
@@ -433,9 +453,9 @@ test("a surface heard only on its page hears the tables it gave onlyOnItsPage th
       assert.equal(ownsTheScreen(o.key, AWAY), false, `${AWAY} is not ${o.key}'s page`);
       for (const table of page) {
         at(home);
-        assert.equal(hears(o, table), true, `${o.key}: ${table} on ${home}`);
+        assert.equal(hearsAny(o, table), true, `${o.key}: ${table} on ${home}`);
         at(AWAY);
-        assert.equal(hears(o, table), false, `${o.key}: ${table} is kept for its page on ${AWAY}`);
+        assert.equal(hearsAny(o, table), false, `${o.key}: ${table} is kept for its page on ${AWAY}`);
       }
     }
     at(AWAY);

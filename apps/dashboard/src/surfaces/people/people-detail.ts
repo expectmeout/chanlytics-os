@@ -40,8 +40,10 @@ import { workspaceZone } from "@/legacy-bridge/zone";
 import { readCache, staleReadCaches } from "@/legacy-bridge/read-cache";
 import { holderName } from "../holder-names";
 import { keepSavedView, peopleLoaded, placeDeal } from "./surface";
-import { personRouteId } from "@/legacy-bridge/surface-registry";
+import { declareReads, personRouteId } from "@/legacy-bridge/surface-registry";
+import { isLiveCallTurn } from "@/legacy-bridge/surface-realtime";
 import { afterBoot, bootWaitsFor } from "@/legacy-bridge/surface-runner";
+import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { getActiveWorkspace, routeOnScreen } from "@/legacy-bridge/workspace";
 
 /**
@@ -140,6 +142,12 @@ function readAhead(): void {
   }
 }
 
+/** The person whose page is on screen, by the id in the address; null on any other page. */
+function personOnScreen(win: Window = window): string | null {
+  const [page = "", param] = routeOnScreen(win).split("/");
+  return personRouteId(page, param);
+}
+
 /**
  * A tab opened on a person's page reads them before anything else: called once, at module scope, before React and
  * the surfaces' boot (LegacyApp.tsx). The page's own read, a moment later, shares this one (client/api.ts). Measured
@@ -148,14 +156,52 @@ function readAhead(): void {
  */
 export function warmPersonOnScreen(win: Window = window): void {
   if (!getActiveWorkspace()) return;
-  const [page = "", param] = routeOnScreen(win).split("/");
-  const id = personRouteId(page, param);
+  const id = personOnScreen(win);
   if (!id) return;
   // The surfaces nobody is looking at wait for this read as they wait for the page's own (surface-runner.ts
   // bootWaitsFor): out beside nine of theirs it took 3,236 ms, alone 773 (25 Sep 2026).
   const read = warmPerson(id);
   if (read) bootWaitsFor(read);
 }
+
+/**
+ * A person's page, as a surface of its own (decision 0058; the wiring's second audit, W-thread-wait-step-1,
+ * W-person-list-lead-1, W-review-facts-rules-7): what the page draws of them that People does not hear on every page --
+ * the person (a rename, a stop, a merge, the business they work at), a hold opened or settled, a call starting or ending, a
+ * run made or sent, the campaigns and the rules their lines name, the business's facts, their business, a reach-out reply's
+ * signer. People's whole book is the dearest read
+ * there is and hears those on its own list alone (onlyOnItsPage), so the page heard none of them; this reads the one person on
+ * screen instead, and only there (PAGE_HEARS["clients/person"]): elsewhere a change is kept for the page, read once as it
+ * comes on screen. A notice carries no id, so any change of these re-reads the one person, debounced like every surface.
+ *
+ * What People hears on every page (a visit, a deal, a step, a list) still reaches the page through People's read
+ * (`surface:clients`), and a message or a move of their thread through the Inbox and Conversations, which hear every one
+ * (their-thread.ts). The page paints what this read left in the tab (`surface:person`).
+ */
+export const personOverride: SurfaceOverride = {
+  key: "person",
+  events: ["surface:person"],
+  ...declareReads("person", {
+    reads: ["person", "hold", "call", "send", "campaign", "rules", "facts", "lead", "reach_out"],
+    fresh: "its-page",
+    omit: [
+      {
+        tables: ["lead_searches", "lead_rounds", "lead_search_members"],
+        why: "the page names the business a person works at (a lead); the searches that found leads, their rounds and members are Leads'",
+      },
+    ],
+    // A row made now is not the person on screen, nor the business they work at: a lead run inserts leads every few seconds
+    // and an import inserts people by the hundred. A person linked to a business, or combined, is a change of the person. A
+    // call's transcript turn changes nothing the page draws; its start and its end do.
+    when: (c) => !isLiveCallTurn(c) && (c.event !== "INSERT" || (c.table !== "leads" && c.table !== "contacts")),
+  }),
+  // Read where a person's page is drawn (ROUTE_DRAWS), never by a boot on another page.
+  onDemand: true,
+  apply: async () => {
+    const id = personOnScreen();
+    if (id) await personDetail(id);
+  },
+};
 
 /** The client's answer, as the pages read it: `ok`, `data`, or the refusal's `message`. */
 type DeleteResult = ApiResult<unknown>;

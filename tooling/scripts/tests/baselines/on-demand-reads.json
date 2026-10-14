@@ -91,12 +91,6 @@
     "fresh": "Read as Leads' Back today opens, and again when a reach-out takes or gives back leads (the reach_out:leads event).",
     "why": "Who comes back today moves with the owner's own acts on the pile, which read it again; a teammate's reaches it on its next open."
   },
-  "apps/dashboard/src/surfaces/people/people-detail.ts GET contacts/[id]": {
-    "kind": "owed",
-    "finding": "W-thread-wait-step-1",
-    "fresh": "Read as a person's page opens, painted from the last answer and read again behind.",
-    "why": "A person's page is no surface of its own: a teammate answering them, a hold opened or their consent changing reaches the page only as it opens again (the wiring's second audit W-thread-wait-step-1, lane R5)."
-  },
   "apps/dashboard/src/surfaces/people/shell-verbs.ts GET contacts/export": {
     "kind": "link",
     "fresh": "A link to a list's file, made when it is fetched.",

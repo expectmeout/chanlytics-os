@@ -10,7 +10,9 @@
  * N1: an open person's page did not hear that person writing. People re-reads a message only while its own list is on screen (#1347,
  * which removed the cost of every page of People read for each message), and a person's page is another route. The page hears the
  * Inbox and Conversations, which every message re-reads, and reads its one person again when either holds something of theirs newer
- * than the page: never People's list. (The page itself is drawn in people/person-honest.test.mjs.)
+ * than the page: never People's list. A take-over, a hand-back, a snooze and its wake move no message clock (the wiring's second
+ * audit, W-thread-wait-step-1): the page reads them again when a thread of theirs the Inbox held stands otherwise. (The page itself
+ * is drawn in people/person-honest.test.mjs; what else it hears, its own surface, in hearing/a-person-s-page-hears-its-person.test.mjs.)
  *
  * Run on the real Calendar surface and the real runner for the retired F3b, and on the real surface values for N1.
  */
@@ -151,6 +153,71 @@ test("the page is told when the Inbox or Conversations holds something of theirs
   assert.deepEqual(told, [3_000, 4_000], "a page that has gone hears nothing");
   inbox();
   conversations();
+});
+
+test("the page is told when a thread of theirs the Inbox holds changes hands: taken, handed back, snoozed, woken, a reply held; never for a thread first held, nor another's", () => {
+  const told = [];
+  /** One of their threads as the Inbox's row says it: open, nobody has it, nothing waits. */
+  const row = (over = {}) => ({
+    id: "th-1",
+    clientId: PERSON,
+    lastAtMs: 2_000,
+    state: "done",
+    needsYou: false,
+    takenOver: false,
+    claimedByOther: false,
+    assigneeUserId: null,
+    holdAct: null,
+    heldDraft: null,
+    ...over,
+  });
+  inbox();
+  const stop = hearTheirThread(
+    PERSON,
+    () => 5_000,
+    (newest) => told.push(newest),
+  );
+  try {
+    inbox(row());
+    tell("surface:inbox");
+    assert.deepEqual(told, [], "the Inbox's first read of a thread of theirs is no news: the page read them itself");
+    inbox(row({ id: "th-2", clientId: OTHER, takenOver: true }), row());
+    tell("surface:inbox");
+    assert.deepEqual(told, [], "another person's thread taken is not theirs");
+    const steps = [
+      ["a hold opened, no message: it waits on you", { state: "escalated", needsYou: true, holdAct: "reply" }],
+      ["taken by you", { state: "escalated", needsYou: false, takenOver: true, assigneeUserId: "u-1" }],
+      ["taken by a teammate", { state: "escalated", takenOver: true, claimedByOther: true, assigneeUserId: "u-2" }],
+      ["handed back", { state: "done" }],
+      ["snoozed", { state: "snoozed", wake: "Tomorrow 9:00" }],
+      ["woken", { state: "escalated", needsYou: true, holdAct: "call_back" }],
+      ["a reply held to send", { heldDraft: { messageId: "m-9", body: "On my way", sendsAtMs: 9_000 } }],
+    ];
+    let n = 0;
+    for (const [what, over] of steps) {
+      inbox(row(over));
+      tell("surface:inbox");
+      n += 1;
+      assert.equal(told.length, n, `${what}: the page reads them again`);
+      tell("surface:inbox");
+      tell("surface:conversations");
+      assert.equal(told.length, n, `${what}: and once, however often the Inbox is read again`);
+    }
+    inbox();
+    tell("surface:inbox");
+    assert.equal(
+      told.length,
+      n + 1,
+      "a thread of theirs gone from the Inbox (archived, combined away) is read for too",
+    );
+  } finally {
+    stop();
+  }
+  const heard = told.length;
+  inbox(row({ takenOver: true }));
+  tell("surface:inbox");
+  assert.equal(told.length, heard, "a page that has gone hears nothing");
+  inbox();
 });
 
 after(() => {

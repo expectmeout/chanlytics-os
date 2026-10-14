@@ -430,7 +430,11 @@ test("a lens that names its draws is asked before its page, as the gate asks for
   // What was asked of the page alone is asked as it was: a param that names no row of its own falls to the page's.
   assert.deepEqual(registry.routeDrawsFor("today"), registry.ROUTE_DRAWS.today);
   assert.deepEqual(registry.routeDrawsFor("today", "anything"), registry.ROUTE_DRAWS.today);
-  assert.deepEqual(registry.routeDrawsFor("clients", ID), ["people"], "a person's page");
+  assert.deepEqual(
+    registry.routeDrawsFor("clients", ID),
+    ["people", "person"],
+    "a person's page: their name from People, and its own read",
+  );
   assert.deepEqual(registry.routeDrawsFor("clients", "leads:s-1:l-1"), registry.ROUTE_DRAWS.leads, "and Leads' scope");
   assert.deepEqual(registry.routeDrawsFor("clients"), []);
 });

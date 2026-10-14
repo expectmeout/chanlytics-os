@@ -1,5 +1,5 @@
 {
-  "owed": 121,
+  "owed": 125,
   "groups": [
     {
       "kind": "seat",
@@ -158,6 +158,9 @@
         ],
         "today": [
           "tenants"
+        ],
+        "person": [
+          "tenants"
         ]
       },
       "rereadAfter": {
@@ -237,6 +240,9 @@
         ],
         "settings": [
           "profiles"
+        ],
+        "person": [
+          "profiles"
         ]
       },
       "rereadAfter": {
@@ -263,6 +269,9 @@
         ],
         "reports_campaigns": [
           "broadcast_recipients"
+        ],
+        "person": [
+          "broadcast_recipients"
         ]
       },
       "heardWith": {
@@ -284,6 +293,9 @@
         "reports_campaigns": [
           "broadcasts",
           "messages"
+        ],
+        "person": [
+          "broadcasts"
         ]
       }
     },
@@ -483,6 +495,63 @@
       }
     },
     {
+      "kind": "over-read",
+      "why": "A person's visits, deals and steps (person-notes, earlierVisitRows) are People's kinds heard on every page: People's read of a visit, a deal or a step reloads the open person's page (person-real.tsx hears surface:clients), so the person surface does not read them a second time.",
+      "reads": {
+        "person": [
+          "appointments",
+          "deals",
+          "person_notes"
+        ]
+      },
+      "heardBy": {
+        "person": [
+          "people"
+        ]
+      }
+    },
+    {
+      "kind": "over-read",
+      "why": "A person's messages and threads: the Inbox hears every one, and the open page reads its person again when the Inbox holds something of theirs newer than it, or a thread of theirs that stands otherwise (their-thread.ts), never through a flat table list that would read them for every message in the workspace.",
+      "reads": {
+        "person": [
+          "conversations",
+          "messages"
+        ]
+      },
+      "heardBy": {
+        "person": [
+          "inbox"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "why": "The business a person works at, and its reach-out story: the place the lead was found at (lead_places) and the sends the lead was written (reach_out_sends, reach_out_lead_timeline), which the feed never tells. The person is read again when their business or a reply to it moves (heardWith).",
+      "reads": {
+        "person": [
+          "lead_places",
+          "reach_out_sends"
+        ]
+      },
+      "heardWith": {
+        "person": [
+          "leads",
+          "reach_out_replies"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "finding": "R6",
+      "why": "A doubt the door raised about this person (person_doubts: the same person twice, 0034), which the feed does not tell: the page shows it as it opens or on its next read. Owed with the silent records joining the feed (lane R6).",
+      "reads": {
+        "person": [
+          "person_doubts"
+        ]
+      }
+    },
+    {
       "kind": "owed",
       "finding": "R5",
       "why": "People and Sent read the caller's seat as the others do, and GET contacts also names who wrote a note and who a step is for from the roster (team_roster over memberships and profiles: server/people/person-notes.ts teamNames). A teammate joining or leaving reaches them on their next read. Owed: People and Sent hear the team kind on their page.",
@@ -491,6 +560,9 @@
           "memberships"
         ],
         "broadcasts": [
+          "memberships"
+        ],
+        "person": [
           "memberships"
         ]
       }
@@ -982,6 +1054,27 @@
         ],
         "reports_campaigns": [
           "deals"
+        ]
+      }
+    },
+    {
+      "kind": "owed",
+      "finding": "R5",
+      "why": "The searches a person's business was found by, named on the business card (searchNamesOf, lead_member_of). The person surface omits them: a lead run writes its members on every batch, and hearing them would read the person every few seconds while a search runs. A search renamed reaches the page on its next read. Owed: a search's name told apart from its members.",
+      "reads": {
+        "person": [
+          "lead_search_members",
+          "lead_searches"
+        ]
+      }
+    },
+    {
+      "kind": "owed",
+      "finding": "R6",
+      "why": "The connected mailbox a lead's emails left from (reach_out_lead_timeline, decision 0056), named in the business's reach-out story. A mailbox connected, paused or removed reaches the page on its next read. Owed: one channels read, heard, which the person page follows too (lane R6).",
+      "reads": {
+        "person": [
+          "mailbox_connections"
         ]
       }
     }
