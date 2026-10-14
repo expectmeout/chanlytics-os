@@ -63,8 +63,8 @@ What it built (00426, 00427; the plan in `docs/superpowers/plans/2026-10-13-the-
     industry, company size and US state. It runs one provider run, its companies kept through `lead_company_upsert`,
     each waiting on its address as a list's rows do. Of a company's people, nobody on the never-again list or in People
     is kept; a company whose domain is on that list is never made; one that shares a website with a place is marked.
-  - It finds nothing until its calibration run: `lead_platform.cards_on` (one predicate, `lead_card_live`) names it
-    only once that run has proved the provider reads its filters and the mapper its fields. Until then its door refuses
+  - It found nothing until its calibration run (below): `lead_platform.cards_on` (one predicate, `lead_card_live`) names
+    it only once that run has proved the provider reads its filters and the mapper its fields. Until then its door refuses
     (`no_card`), Leads draws no Find people and Ask says it is not open yet. Switching it on is one update of that row,
     by hand, after the run (`docs/runbook.md`).
   - Erasure reaches a company's people: a person erased leaves every company that names them, their drafts go and
@@ -81,8 +81,14 @@ What it built (00426, 00427; the plan in `docs/superpowers/plans/2026-10-13-the-
     addressee, by name.
   - Ask proposes a people search (`propose_lead_search`, looking_for `people_at_companies`, its own schema), its card
     saying the month's leads it uses and the source's note.
-  - Owed: the card's calibration run, which pins the provider's build and checks its field names (one small paid run,
-    on Ruben's word), then `cards_on`.
+  - Its calibration run (14 October 2026, on Ruben's word, $0.17): marketing managers at Marketing & Advertising
+    companies of 11 - 50 in Texas. Every filter held; the provider wrote none of the field names the mapper first
+    guessed (`organizationName`, `organizationWebsite`, …), refuses a run asking under 100 people, and filters by 155
+    industries of its own alone. So the card reads its fields as written at build 0.0.259, which it pins; a round asks
+    at least 100 and keeps every company they name; and a plan's industries are the directory's own names
+    (`PEOPLE_INDUSTRIES`), one typed otherwise said on the sheet and in Ask with the nearest of them. Of its 82 items
+    the mapper read 80 (the provider's note to read its log, and a company in India, were not), 67 companies.
+    `cards_on` is switched on after that change lands.
   - The owner chooses which of a company's people its reach-out writes to: the peek's "Write to them instead" beside
     another with a work address (`lead_addressee_choose`, `POST leads/[id]/addressee`, who may find leads). Only while
     nothing of any reach-out is planned or written to the company (its openings and checks are made for the addressee),

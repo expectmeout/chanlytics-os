@@ -1,11 +1,14 @@
 /**
  * The people card (00430) and the owner's drafts (00429), off the database:
  *
- *   1. The mapper reads a company and a person off an item, a work address only, a US company only; companiesOf keeps
- *      each company once with its people, those with a work address and the most senior first, its addressee the first
- *      with an address, and no company with nobody to write to.
+ *   1. The mapper reads a company and a person off an item as the provider writes it at the pinned build (its
+ *      calibration run's shape), a work address only, a US company only, the company's place never its person's; the
+ *      input asks at least the provider's hundred; companiesOf keeps each company once with its people, those with a
+ *      work address and the most senior first, its addressee the first with an address, and no company with nobody to
+ *      write to.
  *   2. The plan: its sentence counts companies, who it looks for, its estimate with both floors, the sheet's problems in
- *      words (a state that reads as none is said, never dropped), and Ask's people ask, which asks nothing of a places plan.
+ *      words (a state or an industry that reads as none is said, never dropped; an industry in the directory's own name),
+ *      and Ask's people ask, which asks nothing of a places plan.
  *   3. The strip of a people search: its own words, never a places plan's, and Find more like these.
  *   4. A draft's refusal (the door's rule, and a customer's address); Sent's words say what would refuse it now.
  *   5. Where a lead came from: a business directory for a company, never "your list".
@@ -16,6 +19,8 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   LEAD_ADDRESSEE_WORDS,
+  LEAD_CARDS,
+  LeadPeoplePlanSchema,
   PEOPLE_FIND_WORDS,
   PEOPLE_STRIP_WORDS,
   ProposeAnySearchSchema,
@@ -40,46 +45,111 @@ const { companiesOf } = await import(at("packages/core/src/leads/runner/people.t
 const { leadStrip } = await import(at("apps/dashboard/src/surfaces/leads/finder/strip.ts"));
 
 const card = CARDS.people_at_companies;
-/** An item as the provider writes one: invented values, the fields the card reads. */
+/**
+ * An item as the provider writes one at the pinned build: the calibration run's shape (14 Oct 2026), every field it
+ * wrote that the card reads or must not, with invented values.
+ */
 const item = (over = {}) => ({
-  first_name: "Dana",
-  last_name: "Reyes",
-  full_name: "Dana Reyes",
-  title: "Marketing Manager",
+  firstName: "Dana",
+  lastName: "Reyes",
+  title: "Digital Marketing Manager",
   seniority: "manager",
+  department: "Sales - Marketing",
   email: "dana@acme-fixture.example",
-  company_name: "Acme Fixture",
-  company_domain: "acme-fixture.example",
-  company_country: "United States",
-  company_state: "Texas",
-  company_city: "Austin",
-  industry: "Marketing & Advertising",
-  company_size: 30,
+  emailPatternGuess: null,
+  phone: "+1 555 0142",
+  linkedinUrl: "https://www.linkedin.com/in/dana-reyes-fixture",
+  city: "Austin",
+  state: "Texas",
+  country: "United States",
+  organizationName: "Acme Fixture",
+  organizationWebsite: "acme-fixture.example",
+  organizationIndustry: "Marketing & Advertising",
+  organizationSize: 20,
+  organizationEmployeeRange: "11 - 50",
+  organizationLinkedinUrl: "http://www.linkedin.com/company/acme-fixture",
+  organizationCity: "Austin",
+  organizationState: "Texas",
+  organizationCountry: "United States",
+  organizationDescription: "An agency for the fixture's own tests.",
   ...over,
 });
 
-test("the mapper: a company and a person, a work address only, a US company only", () => {
+test("the mapper reads the provider's own fields: a company and a person, a work address only, a US company only", () => {
   const m = card.mapItem(item());
-  assert.equal(m.company.key, "acme-fixture.example");
-  assert.deepEqual([m.company.region, m.company.country, m.company.size], ["TX", "US", "11 - 50"]);
-  assert.deepEqual(
-    [m.person.name, m.person.email, m.person.seniority],
-    ["Dana Reyes", "dana@acme-fixture.example", "manager"],
+  assert.deepEqual(m.company, {
+    key: "acme-fixture.example",
+    name: "Acme Fixture",
+    industry: "Marketing & Advertising",
+    city: "Austin",
+    region: "TX",
+    country: "US",
+    linkedin: "http://www.linkedin.com/company/acme-fixture",
+    size: "11 - 50",
+    about: "An agency for the fixture's own tests.",
+  });
+  assert.deepEqual(m.person, {
+    name: "Dana Reyes",
+    first_name: "Dana",
+    title: "Digital Marketing Manager",
+    seniority: "manager",
+    email: "dana@acme-fixture.example",
+    profile_url: "https://www.linkedin.com/in/dana-reyes-fixture",
+  });
+  const asked = Object.fromEntries(card.fields.filter((f) => f in item()).map((f) => [f, item()[f]]));
+  assert.deepEqual(card.mapItem(asked), m, "every field the mapper reads is one a run asks for");
+  assert.ok(
+    !card.fields.includes("phone") && !card.fields.includes("emailPatternGuess"),
+    "never a phone, nor the guess",
   );
+
+  const at = (over) => card.mapItem(item(over));
+  assert.equal(at({ email: "dana@gmail.com" }).person.email, null, "a free mailbox is no company's door");
   assert.equal(
-    card.mapItem(item({ email: "dana@gmail.com" })).person.email,
+    at({ email: "dána@acme-fixture.example" }).person.email,
     null,
-    "a free mailbox is no company's door",
+    "an address outside ASCII is never sent to",
   );
+  assert.equal(at({ organizationCountry: "India" }), null, "a company outside the US is not read, whoever works there");
+  assert.equal(at({ organizationState: null }).company.region, null, "the company's place, never its person's");
+  assert.equal(at({ organizationState: "New York" }).company.region, "NY");
+  assert.equal(at({ organizationEmployeeRange: null, organizationSize: 300 }).company.size, "201 - 500");
+  assert.equal(at({ organizationWebsite: null }), null, "no key, no lead");
+  assert.equal(at({ firstName: "", lastName: "" }), null, "nobody named, no person");
   assert.equal(
-    card.mapItem(item({ email: "dana@gmail.com", work_email: "dana@acme-fixture.example" })).person.email,
-    "dana@acme-fixture.example",
-    "the work address beside it is the one",
+    card.mapItem({ firstName: "Check the log to see how the run went." }),
+    null,
+    "the provider's first note",
   );
-  assert.equal(card.mapItem(item({ company_country: "Canada" })), null, "a company outside the US is not read");
-  assert.equal(card.mapItem(item({ company_domain: null, website: null })), null, "no key, no lead");
-  assert.equal(card.mapItem(item({ full_name: "", first_name: "", last_name: "" })), null, "nobody named, no person");
   assert.equal(card.mapItem(null), null);
+});
+
+test("the people card asks at least the provider's hundred, by its own names, at the build its calibration read", () => {
+  // As the route takes it: the schema spells a typed industry as the directory does.
+  const plan = LeadPeoplePlanSchema.parse(
+    peoplePlanFrom({
+      asked: "marketing managers",
+      count: 10,
+      titles: ["Marketing Manager"],
+      seniority: ["manager"],
+      industries: ["marketing and advertising"],
+      sizes: ["11 - 50"],
+      states: ["TX"],
+    }),
+  );
+  assert.deepEqual(card.buildInput(plan, 20), {
+    maxResults: 100,
+    personTitle: ["Marketing Manager"],
+    excludeSeniority: ["intern"],
+    seniority: ["manager"],
+    industry: ["Marketing & Advertising"],
+    companyEmployeeSize: ["11 - 50"],
+    personCountry: ["United States"],
+    personState: ["Texas"],
+  });
+  assert.equal(card.buildInput(plan, 400).maxResults, 400);
+  const brief = LEAD_CARDS.find((c) => c.id === "people_at_companies");
+  assert.equal(card.build, brief.calibrated.build, "the pinned build is the one its calibration run read");
 });
 
 test("companiesOf: each company once, the people it can be written through first, its addressee, nobody to write to left out", () => {
@@ -133,6 +203,27 @@ test("the plan: its sentence counts companies, its estimate keeps both floors, t
   assert.equal(p.industries, PEOPLE_FIND_WORDS.industryOdd("A"));
   assert.equal(p.states, PEOPLE_FIND_WORDS.stateUnread("Tex."), "a state that reads as none is said, never dropped");
   assert.equal(p.count, PEOPLE_FIND_WORDS.needCount);
+  // The directory's industries are the route's to say (its list stays on the server): the schema refuses one it does
+  // not list, under the industries box (the route's fields name it), with the nearest of its own.
+  const refused = (industries) => LeadPeoplePlanSchema.safeParse({ ...plan, industries }).error?.issues[0];
+  const agencies = refused(["Accounting", "marketing agencies"]);
+  assert.deepEqual(
+    [agencies.path, agencies.message],
+    [["industries", 1], PEOPLE_FIND_WORDS.industryUnread("marketing agencies", ["Marketing & Advertising"])],
+    "an industry the directory does not list is said with the nearest of its own",
+  );
+  assert.match(refused(["dentists"]).message, /^“dentists” isn't one of the directory's industries\. Say it as/);
+  assert.deepEqual(
+    LeadPeoplePlanSchema.parse({ ...plan, industries: ["accounting", "real estate"] }).industries,
+    ["Accounting", "Real Estate"],
+    "its own names, in any case",
+  );
+  assert.deepEqual(LeadPeoplePlanSchema.parse(plan).industries, ["Marketing & Advertising"]);
+  assert.equal(
+    peopleSheetProblems({ titles: "owner", industries: "dentists", states: "", count: "10" }).industries,
+    undefined,
+    "the sheet leaves it to the route",
+  );
   const long = "x".repeat(61);
   assert.equal(
     peopleSheetProblems({ titles: long, industries: "", states: "", count: "10" }).titles,
@@ -165,6 +256,11 @@ test("Ask's people ask: nothing of a places plan asked of it, and a state it can
   assert.equal(planned.ok, true);
   assert.deepEqual(planned.plan.states, ["CA"]);
   assert.equal(planned.view.title, "Find 50 companies: Office managers at dental practices");
+  const spelled = planPeopleSearch({ ...ask, industries: ["medical practice"] });
+  assert.deepEqual(spelled.plan.industries, ["Medical Practice"], "the directory's own name");
+  const dental = planPeopleSearch({ ...ask, industries: ["dentists"] });
+  assert.equal(dental.ok, false, "an industry it does not list is refused, never searched as every industry");
+  assert.equal(dental.refusal.text, PEOPLE_FIND_WORDS.industryUnread("dentists", []));
   const wrong = planPeopleSearch({ ...ask, region: "Texs, California" });
   assert.equal(wrong.ok, false);
   assert.equal(wrong.refusal.text, PEOPLE_FIND_WORDS.stateUnread("Texs"));

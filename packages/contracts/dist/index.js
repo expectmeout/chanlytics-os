@@ -11170,9 +11170,9 @@ var LEAD_CARDS = [
     approved: true
   },
   {
-    // The people card (the workbench's call 8, 00430), approved by Ruben on 13 Oct 2026 with its source-rights note. It
-    // finds nothing until its calibration run: lead_platform.cards_on (00430 lead_card_live) is switched on by hand once
-    // that run proves the provider reads its filters and the mapper its fields (calibrated, below).
+    // The people card (the workbench's call 8, 00430), approved by Ruben on 13 Oct 2026 with its source-rights note.
+    // lead_platform.cards_on (00430 lead_card_live) is switched on by hand once its calibration run has proved the
+    // provider reads its filters and the mapper its fields (calibrated, below).
     id: "people_at_companies",
     finds: "people",
     goodFor: [
@@ -11189,7 +11189,7 @@ var LEAD_CARDS = [
     settings: [
       "titles (one to five, what the people are called)",
       "seniority (owners, founders, the C-suite, partners, VPs, heads, directors, managers, senior staff, entry level)",
-      "industries (up to five, in the source's words)",
+      "industries (up to five, in the directory's own names: Marketing & Advertising, Accounting, Construction, Real Estate\u2026)",
       "company sizes (employee ranges)",
       "states (up to ten; none is the whole US)",
       "count (1 to 500)"
@@ -11209,7 +11209,10 @@ var LEAD_CARDS = [
     ],
     rights: "From a B2B contact database built from public professional profiles and company sites; we never sign in anywhere to read them, keep a person's name, title, work address and profile link only, check each address before anything is sent, and never write again to anyone who says no.",
     approved: true,
-    calibrated: null
+    // Run once on 14 Oct 2026 (marketing managers at Marketing & Advertising companies of 11 - 50 in Texas, $0.17): 82
+    // items, the first the provider's note to read its log; the mapper read 80 (the other a company in India, which the
+    // card does not search), every filter held, and companiesOf made them 67 companies, each with someone to write to.
+    calibrated: { build: "0.0.259", on: "2026-10-14", items: 82, mapped: 80 }
   }
 ];
 var cardOf = (plan) => {
@@ -33524,7 +33527,7 @@ function peoplePlanOf(raw) {
     seniority: strs(o.seniority, PEOPLE_SENIORITIES.length, 20).filter(
       (s) => PEOPLE_SENIORITIES.includes(s)
     ),
-    industries: strs(o.industries, PEOPLE_INDUSTRIES_MAX, 80),
+    industries: strs(o.industries, PEOPLE_INDUSTRIES_MAX, PEOPLE_INDUSTRY_CHARS),
     sizes: strs(o.sizes, PEOPLE_COMPANY_SIZES.length, 20).filter(
       (s) => PEOPLE_COMPANY_SIZES.includes(s)
     ),
@@ -33592,7 +33595,7 @@ var PEOPLE_FIND_WORDS = {
   seniority: "How senior",
   seniorityAny: "Any seniority",
   industries: "Their companies' industries",
-  industriesHint: "Up to five, with commas between, as a directory says them: Marketing & Advertising, Accounting",
+  industriesHint: "Up to five, with commas between, as the directory names them: Marketing & Advertising, Accounting",
   sizes: "Company size",
   sizesAny: "Any size",
   states: "Where they work",
@@ -33609,6 +33612,10 @@ var PEOPLE_FIND_WORDS = {
   tooMany: (what, max, n) => `Up to ${max} ${what}: this has ${n}.`,
   titlesLong: `What they are called is too long: ${PEOPLE_ASKED_CHARS} characters at most.`,
   industryOdd: (t) => `\u201C${t}\u201D: an industry is 2 to ${PEOPLE_INDUSTRY_CHARS} characters.`,
+  industryUnread: (t, near3) => {
+    const tried = near3.map((n) => `\u201C${n}\u201D`);
+    return tried.length ? `\u201C${t}\u201D isn't one of the directory's industries: try ${tried.length > 1 ? `${tried.slice(0, -1).join(", ")} or ` : ""}${tried[tried.length - 1]}.` : `\u201C${t}\u201D isn't one of the directory's industries. Say it as the directory names it (Accounting, Construction, Real Estate), or leave industries empty and say who by what they are called.`;
+  },
   stateUnread: (s) => `${s} isn't a US state: use its name or its two letters.`,
   more: "Find more like these",
   closed: "Finding people at companies opens once it has been checked. Nothing was started.",
@@ -33655,6 +33662,201 @@ function peoplePlanSentence(p) {
 
 // src/leads/search/people-plan-schema.ts
 import { z as z12 } from "zod";
+
+// src/leads/search/people-industries.ts
+var PEOPLE_INDUSTRIES = [
+  "Accounting",
+  "Agriculture",
+  "Airlines/Aviation",
+  "Alternative Dispute Resolution",
+  "Alternative Medicine",
+  "Animation",
+  "Apparel & Fashion",
+  "Architecture & Planning",
+  "Arts & Crafts",
+  "Automotive",
+  "Aviation & Aerospace",
+  "Banking",
+  "Biotechnology",
+  "Broadcast Media",
+  "Building Materials",
+  "Business Supplies & Equipment",
+  "Capital Markets",
+  "Chemicals",
+  "Civic & Social Organization",
+  "Civil Engineering",
+  "Commercial Real Estate",
+  "Computer & Network Security",
+  "Computer Games",
+  "Computer Hardware",
+  "Computer Networking",
+  "Computer Software",
+  "Construction",
+  "Consumer Electronics",
+  "Consumer Goods",
+  "Consumer Services",
+  "Cosmetics",
+  "Dairy",
+  "Defense & Space",
+  "Design",
+  "E-Learning",
+  "Education Management",
+  "Electrical/Electronic Manufacturing",
+  "Entertainment",
+  "Environmental Services",
+  "Events Services",
+  "Executive Office",
+  "Facilities Services",
+  "Farming",
+  "Financial Services",
+  "Fine Art",
+  "Fishery",
+  "Food & Beverages",
+  "Food Production",
+  "Fund-Raising",
+  "Furniture",
+  "Gambling & Casinos",
+  "Glass",
+  "Government Administration",
+  "Government Relations",
+  "Graphic Design",
+  "Health",
+  "Higher Education",
+  "Hospital & Health Care",
+  "Hospitality",
+  "Human Resources",
+  "Import & Export",
+  "Individual & Family Services",
+  "Industrial Automation",
+  "Information Services",
+  "Information Technology & Services",
+  "Insurance",
+  "International Affairs",
+  "International Trade & Development",
+  "Internet",
+  "Investment Banking",
+  "Investment Management",
+  "Judiciary",
+  "Law Enforcement",
+  "Law Practice",
+  "Legal Services",
+  "Legislative Office",
+  "Leisure",
+  "Libraries",
+  "Logistics & Supply Chain",
+  "Luxury Goods & Jewelry",
+  "Machinery",
+  "Management Consulting",
+  "Maritime",
+  "Market Research",
+  "Marketing & Advertising",
+  "Mechanical or Industrial Engineering",
+  "Media Production",
+  "Medical Devices",
+  "Medical Practice",
+  "Mental Health Care",
+  "Military",
+  "Mining & Metals",
+  "Motion Pictures & Film",
+  "Museums & Institutions",
+  "Music",
+  "Nanotechnology",
+  "Newspapers",
+  "Nonprofit Organization Management",
+  "Oil & Energy",
+  "Online Media",
+  "Outsourcing/Offshoring",
+  "Package/Freight Delivery",
+  "Packaging & Containers",
+  "Paper & Forest Products",
+  "Performing Arts",
+  "Pharmaceuticals",
+  "Philanthropy",
+  "Photography",
+  "Plastics",
+  "Political Organization",
+  "Primary/Secondary Education",
+  "Printing",
+  "Professional Training & Coaching",
+  "Program Development",
+  "Public Policy",
+  "Public Relations & Communications",
+  "Public Safety",
+  "Publishing",
+  "Railroad Manufacture",
+  "Ranching",
+  "Real Estate",
+  "Recreational Facilities & Services",
+  "Religious Institutions",
+  "Renewables & Environment",
+  "Research",
+  "Restaurants",
+  "Retail",
+  "Security & Investigations",
+  "Semiconductors",
+  "Shipbuilding",
+  "Sporting Goods",
+  "Sports",
+  "Staffing & Recruiting",
+  "Supermarkets",
+  "Telecommunications",
+  "Textiles",
+  "Think Tanks",
+  "Tobacco",
+  "Translation & Localization",
+  "Transportation/Trucking/Railroad",
+  "Utilities",
+  "Venture Capital & Private Equity",
+  "Veterinary",
+  "Warehousing",
+  "Wholesale",
+  "Wine & Spirits",
+  "Wireless",
+  "Writing & Editing",
+  "Other",
+  "Specialty",
+  "Services",
+  "Rentals/Leasing",
+  "Other Vehicles",
+  "Professional Services software",
+  "eBusiness Software"
+];
+var industryKey = (s) => s.toLowerCase().replace(/\band\b/g, "&").replace(/[^a-z0-9&]+/g, "");
+var INDUSTRY_BY_KEY = new Map(PEOPLE_INDUSTRIES.map((i) => [industryKey(i), i]));
+function peopleIndustryOf(raw) {
+  return INDUSTRY_BY_KEY.get(industryKey(raw ?? "")) ?? null;
+}
+var wordsIn = (s) => s.toLowerCase().split(/[^a-z]+/).filter((w) => w.length >= 3 && w !== "and" && w !== "the");
+var sharedStart = (a, b) => {
+  let n = 0;
+  while (n < a.length && a[n] === b[n]) n++;
+  return n;
+};
+function peopleIndustriesNear(typed) {
+  const typedWords = wordsIn(typed);
+  const scored = PEOPLE_INDUSTRIES.map((industry2) => {
+    let best = 0;
+    for (const w of typedWords)
+      for (const v of wordsIn(industry2)) {
+        const n = sharedStart(w, v);
+        if (n >= Math.min(5, w.length) && n > best) best = n;
+      }
+    return { industry: industry2, best };
+  }).filter((x) => x.best > 0);
+  const top = Math.max(0, ...scored.map((x) => x.best));
+  return scored.filter((x) => x.best >= top - 1).sort((a, b) => b.best - a.best).slice(0, 3).map((x) => x.industry);
+}
+
+// src/leads/search/people-plan-schema.ts
+var industry = z12.string().transform((typed, ctx) => {
+  const name = peopleIndustryOf(typed);
+  if (name) return name;
+  ctx.addIssue({
+    code: "custom",
+    message: PEOPLE_FIND_WORDS.industryUnread(typed.trim(), peopleIndustriesNear(typed))
+  });
+  return z12.NEVER;
+});
 var LeadPeoplePlanSchema = z12.object({
   version: z12.literal(1),
   card: z12.literal(PEOPLE_CARD),
@@ -33663,7 +33865,8 @@ var LeadPeoplePlanSchema = z12.object({
   count: z12.number().int().min(1).max(PEOPLE_COUNT_MAX),
   titles: z12.array(words2(2, PEOPLE_TITLE_CHARS)).min(1).max(PEOPLE_TITLES_MAX),
   seniority: z12.array(z12.enum(PEOPLE_SENIORITIES)).max(PEOPLE_SENIORITIES.length),
-  industries: z12.array(words2(2, PEOPLE_INDUSTRY_CHARS)).max(PEOPLE_INDUSTRIES_MAX),
+  // The directory's own names alone: it refuses a run naming any other.
+  industries: z12.array(industry).max(PEOPLE_INDUSTRIES_MAX),
   sizes: z12.array(z12.enum(PEOPLE_COMPANY_SIZES)).max(PEOPLE_COMPANY_SIZES.length),
   states: z12.array(
     z12.string().transform((s) => s.trim().toUpperCase()).refine((s) => US_CODES.has(s), "a US state's two letters")
@@ -33913,6 +34116,16 @@ function planPeopleSearch(input) {
         kind: "not_a_plan",
         text: PEOPLE_FIND_WORDS.tooMany("states", PEOPLE_STATES_MAX, listTyped(where, Infinity).length),
         what: where
+      }
+    };
+  const odd = input.industries.find((i) => !peopleIndustryOf(i));
+  if (odd !== void 0)
+    return {
+      ok: false,
+      refusal: {
+        kind: "not_a_plan",
+        text: PEOPLE_FIND_WORDS.industryUnread(odd, peopleIndustriesNear(odd)),
+        what: odd
       }
     };
   const plan = peoplePlanFrom({
@@ -35449,8 +35662,8 @@ function businessPageVM(f) {
   const identity = [];
   if (legal)
     identity.push({ label: "Legal name", value: trade && trade !== legal ? `${legal}, trading as ${trade}` : legal });
-  const industry = (f.industry ?? "").trim();
-  if (industry) identity.push({ label: "Industry", value: industryWords(industry) });
+  const industry2 = (f.industry ?? "").trim();
+  if (industry2) identity.push({ label: "Industry", value: industryWords(industry2) });
   const where = addressLine(f);
   if (where) identity.push({ label: "Address", value: where });
   const phone = formatPhoneDisplay(f.publicPhoneE164);

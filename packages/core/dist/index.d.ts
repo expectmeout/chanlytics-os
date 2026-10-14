@@ -3320,10 +3320,10 @@ type Owner = string;
  * for people by title, seniority, industry, company size and state, and maps
  * each item to a person at a company (PersonAtCompany): their name, title,
  * seniority, work address and profile link, and their company's name, domain,
- * industry, size and place. Its items' field names are read in each spelling
- * such databases use, since its provider publishes no schema; an item with no
- * company key, no name or no work address does not read. Both cards share the
- * one mailbox checker.
+ * industry, size and place. Its items are read as its provider writes them at
+ * the pinned build, which its calibration run read (14 Oct 2026: 81 people,
+ * every filter held); an item with no company key or no name does not read.
+ * Both cards share the one mailbox checker.
  */
 
 /** The Maps item fields a lead is built from. Nothing else is asked for. */
