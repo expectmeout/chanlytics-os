@@ -6,11 +6,22 @@
  * to carry the words copies them as it opens. A step after the first answers an email the business may have answered in
  * the owner's own inbox, which nothing here reads: its Sent asks first whether they did, and They wrote back… stands
  * beside it (the peek's, read as a reply is). Each word is said at the list's head, or at its row when refused, and the
- * run is read again behind it. Every sentence is contracts' (toSendWordsOf, toSendSaidWords); never a fetch here.
+ * run is read again behind it. Sent's one To send (to-send-all.tsx) draws the same list `bare`, a part of its pane under
+ * the run's name, and says each word at the pane's head instead. Every sentence is contracts' (toSendWordsOf,
+ * toSendSaidWords); never a fetch here.
  */
 import { useState } from "react";
-import type { BroadcastDetailDto, OwnerSaidIntent, ReachOutSaidOutcome, ToSendRowVM } from "@chanlytics/contracts";
+import {
+  TO_SEND_ALL_WORDS,
+  TO_SEND_ROUTE,
+  toSendRunsOf,
+  type BroadcastDetailDto,
+  type OwnerSaidIntent,
+  type ReachOutSaidOutcome,
+  type ToSendRowVM,
+} from "@chanlytics/contracts";
 import { canDo, gateTitle, navigate } from "../../legacy-verbs";
+import { surfaceValue } from "../../surface-values";
 import { Button } from "../../kit/button/button";
 import { CopiedWords, useCopied } from "../../kit/copy-button/copy-button";
 import { LinkButton } from "../../kit/link-button/link-button";
@@ -176,12 +187,24 @@ function RoToSendRow({ row, L, may, busy, said, onSay, onTell }: RowProps) {
   );
 }
 
-/** The run's To send list; nothing where no email waits to be sent from the owner's inbox. */
-export function RoToSend({ d, onSaid }: { d: BroadcastDetailDto; onSaid: () => void }) {
+/**
+ * The run's To send list; nothing where no email waits to be sent from the owner's inbox. `bare` draws its rows alone,
+ * for a pane that says the head, the note and each word itself: what was said is handed to `onSaid`, which reads again.
+ */
+export function RoToSend({
+  d,
+  onSaid,
+  bare = false,
+}: {
+  d: BroadcastDetailDto;
+  onSaid: (said: string) => void;
+  bare?: boolean;
+}) {
   const vm = reachOuts.toSend(d);
   const [busy, setBusy] = useState<string | null>(null);
   const [refused, setRefused] = useState<{ id: string; text: string } | null>(null);
-  const [done, setDone] = useState<string | null>(null);
+  const [own, setDone] = useState<string | null>(null);
+  const done = bare ? null : own;
   // The last word said stays said once the list empties behind it: the run is read again, and nothing is left to send.
   if (!vm)
     return done ? (
@@ -197,8 +220,9 @@ export function RoToSend({ d, onSaid }: { d: BroadcastDetailDto; onSaid: () => v
     const r = await reachOuts.say(row.id, outcome);
     setBusy(null);
     if (r && r.ok) {
-      setDone(reachOuts.saidWords(row.name, r.data));
-      onSaid();
+      const said = reachOuts.saidWords(row.name, r.data);
+      setDone(said);
+      onSaid(said);
     } else setRefused({ id: row.id, text: (r && r.message) || "" });
   };
   // What the business wrote back to the email before, said as the peek says it: its drafts go with its waiting sends.
@@ -209,18 +233,37 @@ export function RoToSend({ d, onSaid }: { d: BroadcastDetailDto; onSaid: () => v
     const r = await reachOuts.sayReply(row.leadId, { intent, ...more });
     setBusy(null);
     if (r && r.ok) {
-      setDone(
-        r.data.already
-          ? reachOuts.words.REACH_OUT_SAID_WORDS.already(row.name)
-          : reachOuts.saidReplyWords(row.name, intent, r.data.resume_at, more.refer_to ?? null),
-      );
-      onSaid();
+      const said = r.data.already
+        ? reachOuts.words.REACH_OUT_SAID_WORDS.already(row.name)
+        : reachOuts.saidReplyWords(row.name, intent, r.data.resume_at, more.refer_to ?? null);
+      setDone(said);
+      onSaid(said);
     } else setRefused({ id: row.id, text: (r && r.message) || "" });
   };
+  const rows = vm.rows.map((row) => (
+    <RoToSendRow
+      key={row.id}
+      row={row}
+      L={vm.labels}
+      may={may}
+      busy={busy === row.id}
+      said={refused && refused.id === row.id ? refused.text : null}
+      onSay={(x, o) => void say(x, o)}
+      onTell={(x, i, more) => void tell(x, i, more)}
+    />
+  ));
+  if (bare) return <>{rows}</>;
+  // Other runs hand emails over too: the door to all of them, the one list (Sent's To send).
+  const every = toSendRunsOf(surfaceValue("broadcasts")?.rows ?? []);
   return (
     <section className="bc-touched bc-sheet-people bc-approval-people" data-testid="ro-to-send">
       <div className="bc-touched-head">
         <span className="bc-card-title">{vm.head}</span>
+        {every && (
+          <LinkButton onClick={() => navigate(TO_SEND_ROUTE)} data-testid="ro-to-send-every">
+            {TO_SEND_ALL_WORDS.everyRun(every.count, every.runs.length)}
+          </LinkButton>
+        )}
       </div>
       <p className="pb-note">{may ? vm.note : gateTitle("approve", vm.labels.gated)}</p>
       {done && (
@@ -228,18 +271,7 @@ export function RoToSend({ d, onSaid }: { d: BroadcastDetailDto; onSaid: () => v
           {done}
         </p>
       )}
-      {vm.rows.map((row) => (
-        <RoToSendRow
-          key={row.id}
-          row={row}
-          L={vm.labels}
-          may={may}
-          busy={busy === row.id}
-          said={refused && refused.id === row.id ? refused.text : null}
-          onSay={(x, o) => void say(x, o)}
-          onTell={(x, i, more) => void tell(x, i, more)}
-        />
-      ))}
+      {rows}
     </section>
   );
 }

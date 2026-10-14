@@ -73,12 +73,18 @@ Reports' mailboxes naming the owner's own inbox apart (`yours`), from the emails
 either. Edge: the sender's owner branch and claim loop, the replan's owner path, the check sweep without the lane gate.
 Dashboard: `POST /api/v1/reach-out-sends/[id]/said`, `POST /api/v1/reach-outs/leads/[id]/said`, the run's To send
 (Gmail, Outlook and mail-app links, `reach-out/owner/compose.ts`), Today's drafted row, the sheet's From and Pace, the
-peek's Send it and They wrote back.
+peek's Send it and They wrote back. An owner with a reach-out a day and its follow-ups has a run for each, so the emails
+handed over are also one list: Sent's To send (`broadcasts/to-send`, `reach-out/to-send-all.tsx`), every run's To send in
+one pane, the oldest run first, each run's part its own detail drawn by the run's own list. Today draws two or more such
+runs as one row that opens it (contracts `toSendRunsOf`), and every door to the waiting runs goes there when each waits
+only for its owner (`waitingRunsDoor`). No route of its own: Sent's list says which runs hand emails over, and each run's
+detail what they are.
 
 ## Tests
 
 `reach-out-drafts/owner-sends.db.test.mjs` on a stack (the guard, the claim's order, Sent, Skip, the reading, the
-give-up, Stop and Leave out, Save); the send clock's owner path over `_fake-db.mjs`
+give-up, Stop and Leave out, Save); the one To send's rules (`reach-out-drafts/to-send-all.test.mjs`); the send clock's
+owner path over `_fake-db.mjs`
 (`cron/cron-reach-out-door.test.mjs`); the foot, the timetable, the sheet, the lens and the peek's words in their own
 files.
 

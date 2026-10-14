@@ -198,13 +198,18 @@ export {
 export type { ReachOutDraft, ReachOutDraftStep, ReachOutDraftIssues } from "./reach-out-draft";
 export {
   REACH_OUT_RUN_REREAD_MS,
+  TO_SEND_ALL_WORDS,
+  TO_SEND_ROUTE,
   heldNoticeWords,
   reachOutRunMoving,
   reachOutRunWordsOf,
+  toSendAllOf,
+  toSendRunsOf,
   toSendSaidWords,
   toSendWordsOf,
+  waitingRunsDoor,
 } from "./reach-out-approval";
-export type { ToSendRowVM } from "./reach-out-approval";
+export type { ToSendRowVM, ToSendRunLike } from "./reach-out-approval";
 export {
   REPLY_INTENTS,
   OWNER_SAID_INTENTS,

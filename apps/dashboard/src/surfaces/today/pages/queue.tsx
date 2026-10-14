@@ -18,6 +18,7 @@ import {
   namesAPerson,
   needsYouCount,
   verbForRoute,
+  waitingRunsDoor,
   type AppointmentWord,
   type TodayQueueRowVM,
   type TodayVM,
@@ -339,14 +340,9 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
   // so it read 24 over 19: the 2 Oct 2026 audit). Until the Inbox has been read, it is Today's own copy of the same threads
   // (the brief's holds and sends) and the runs on this card (needsYouOnToday).
   const waiting = needsYouCount(parts);
-  // Where the door goes: the Inbox while a person waits, else the run (one) or Sent (several) when only runs wait.
-  const [onlyRun] = wants.waiting;
-  const doorTo =
-    parts.holds + parts.sends === 0 && parts.runs > 0
-      ? wants.waiting.length === 1 && onlyRun
-        ? `broadcasts/run:${onlyRun.id}`
-        : "broadcasts"
-      : "inbox";
+  // Where the door goes: the Inbox while a person waits, else, when only runs wait, the run (one), the one To send (every
+  // one waiting waits for its owner to send its emails) or Sent (contracts waitingRunsDoor).
+  const doorTo = parts.holds + parts.sends === 0 && parts.runs > 0 ? waitingRunsDoor(wants.waiting) : "inbox";
   const door = { to: doorTo, label: doorTo === "inbox" ? "Open Inbox" : (verbForRoute(doorTo) ?? "Open Sent") };
   return (
     <section className="tq today-queue" data-testid="today-queue">

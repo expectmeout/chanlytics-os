@@ -263,7 +263,7 @@ export { weekHoursOf, DEFAULT_WEEK } from "./reach-out/lead-hours";
 export { mailtoOf, composeLinksOf } from "./reach-out/owner/compose";
 export { REACH_OUT_STOP_WORDS, REACH_OUT_SAID_WORDS, REACH_OUT_UNDO_WORDS } from "./reach-out/owner/lead-doors";
 export { whyFrom, isCampaignEmail, CAMPAIGN_EMAIL_TAG, unsubscribePageWords, WHY_FROM_MAPS, UNSUBSCRIBE_PAGE_HEADER } from "./reach-out/reach-out";
-export { REACH_OUT_RUN_REREAD_MS, heldNoticeWords, reachOutRunMoving, reachOutRunWordsOf, toSendSaidWords, toSendWordsOf } from "./reach-out/reach-out-approval";
+export { REACH_OUT_RUN_REREAD_MS, TO_SEND_ALL_WORDS, TO_SEND_ROUTE, heldNoticeWords, reachOutRunMoving, reachOutRunWordsOf, toSendAllOf, toSendRunsOf, toSendSaidWords, toSendWordsOf, waitingRunsDoor } from "./reach-out/reach-out-approval";
 export { bookedSeenOf, BOOKED_SEEN_CAP } from "./reach-out/reach-out-booked";
 export { REACH_OUT_FIRST_WORDS, REACH_OUT_GAP_FIRST, REACH_OUT_PREVIEW_WORDS, REACH_OUT_SHEET_PARTS, reachOutDefaultName, reachOutDraftOf, reachOutMayAddStep, reachOutAddStep, reachOutAddHandStep, reachOutSetHandWords, reachOutDropStep, reachOutAfterDayChoices, reachOutChainBodyOf, reachOutDraftIssues, reachOutSheetPaceOf, previewRefusedWords, previewLinesOf, reachOutDoorOf, reachOutMayPickMailbox, reachOutPreviewOf, reachOutSavedWords, reachOutEditedWords, reachOutSheetUnreadOf, reachOutWhoWords } from "./reach-out/reach-out-draft";
 export { REACH_OUT_PREVIEW_INDEX_MAX, REACH_OUT_DECISIONS, REACH_OUT_SAID_OUTCOMES } from "./reach-out/reach-out-dtos";
