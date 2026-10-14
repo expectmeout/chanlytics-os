@@ -14,7 +14,6 @@ import { useCallback, useRef } from "react";
 
 /** How long the height takes to change, on the house's ease-out (tokens.css --ease-out, read off the sheet). */
 const GLIDE_MS = 220;
-const EASE_OUT = "cubic-bezier(0.22, 1, 0.36, 1)";
 
 /** A box a person types in, which holds the sheet's height while it has focus. */
 function typingIn(sheet: HTMLElement): boolean {
@@ -49,7 +48,7 @@ export function glideHeight(sheet: HTMLElement): () => void {
     }
     last = now;
     if (capMoved || lessMotion()) return;
-    const ease = getComputedStyle(sheet).getPropertyValue("--ease-out").trim() || EASE_OUT;
+    const ease = getComputedStyle(sheet).getPropertyValue("--ease-out").trim() || "ease-out";
     playing = sheet.animate([{ height: `${was}px` }, { height: `${now}px` }], { duration: GLIDE_MS, easing: ease });
     const done = () => {
       playing = null;

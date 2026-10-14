@@ -226,6 +226,13 @@ function targetOf(mode: DealSheetMode, p: DealPerson, dealId: string | null | un
   return p.deal;
 }
 
+/** The amount's words every mode that asks it shares: who sees it, the box's example, and how often's label. */
+const VALUE_WORDS = {
+  private: DEAL_SHEET_WORDS.value.hint,
+  placeholder: DEAL_SHEET_WORDS.value.placeholder,
+  perLabel: DEAL_SHEET_WORDS.value.per,
+} as const;
+
 /**
  * The sheet for a mode (0008): its title, the fields it draws with their words, and what it opens with. A new
  * proposal asks which service only where the profile lists two or more, takes the link left on a person with no deal
@@ -294,10 +301,8 @@ export function dealSheetFor(
       open && (shapes || mode === "won")
         ? {
             label: mode === "won" ? W.agreed.label : W.value.label,
-            private: W.value.hint,
+            ...VALUE_WORDS,
             hint: mode === "won" && valueOf ? W.agreed.fromProposal : null,
-            placeholder: W.value.placeholder,
-            perLabel: W.value.per,
             pers,
           }
         : null,

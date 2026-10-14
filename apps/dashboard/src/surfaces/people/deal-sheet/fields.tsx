@@ -74,7 +74,7 @@ const problemAt = (problem: DealSheetProblem | null, field: string): string | nu
   problem && problem.field === field ? problem.words : null;
 
 /** A day as its token says it, "Thu, Oct 30", with the year where it is not this one, from the business's "YYYY-MM-DD". */
-function dayWords(day: string, today: string): string {
+function pickedDayWords(day: string, today: string): string {
   const year = day.slice(0, 4) !== today.slice(0, 4);
   return new Intl.DateTimeFormat("en-US", {
     weekday: "short",
@@ -107,7 +107,7 @@ function DayField(p: {
       <span className="rec-field-label" id={`${p.id}-label`}>
         {p.label}
       </span>
-      <span className="deal-sheet-day-row">
+      <span className="ds-day-row">
         <DatePicker
           value={p.value || p.today}
           onValueChange={(day) => {
@@ -118,7 +118,7 @@ function DayField(p: {
           glyphs={{ previous: chevron, next: chevron }}
           trigger={
             <Token aria-labelledby={`${p.id}-label`} data-testid={`${p.testid}-input`}>
-              <Icon name="calendar" size={13} /> {p.value ? dayWords(p.value, p.today) : (p.empty?.none ?? "")}
+              <Icon name="calendar" size={13} /> {p.value ? pickedDayWords(p.value, p.today) : (p.empty?.none ?? "")}
             </Token>
           }
         />
@@ -201,9 +201,9 @@ function valueField({ sheet, draft, set, problem, busy }: FieldsProps) {
     <div className="rec-field deal-sheet-amount" data-testid="deal-sheet-value">
       {/* Who sees it is said on the label's line, a lock and its words, where it stood as a line of its own under the
           box (the fitted sheets, 14 Oct 2026); the box is described by it either way. */}
-      <span className="rec-field-label deal-sheet-label-line" aria-hidden="true">
+      <span className="rec-field-label ds-label-line" aria-hidden="true">
         {value.label}
-        <span className="deal-sheet-private" id="deal-sheet-value-private">
+        <span className="ds-private" id="deal-sheet-value-private">
           <Icon name="lock" size={10} />
           {value.private}
         </span>

@@ -1285,6 +1285,46 @@ export const FAMILIES = [
           `<button class="more-item" role="menuitem">${icon("copy", 13)}<span class="more-item-label">Drawn unseen until it is placed</span></button>` +
           `</div></div>`,
       },
+      // A phone's menu (data-sheet, held in its entry here rather than at the screen's foot): a choice with what it does
+      // under its words, as a sentence beside them goes under on a phone (the fitted sheets, 14 Oct 2026).
+      {
+        id: "more-menu-sheet-two",
+        stage: "pop",
+        html:
+          `<div class="more-wrap"><button type="button" class="btn btn-sm btn-ghost" aria-haspopup="menu" aria-expanded="true">Asks you ${icon("chevron-down", 10)}</button>` +
+          `<div class="more-menu align-right" role="menu" data-sheet="" style="position: static;">` +
+          `<div class="more-header">Google reviews</div>` +
+          `<button class="more-item more-item-two" role="menuitemradio" aria-checked="true">${icon("check", 13)}<span class="more-item-label">Sends it</span>` +
+          `<span class="more-item-meta">Answers each new review within the hour, in the business's name.</span></button>` +
+          `<button class="more-item more-item-two" role="menuitemradio" aria-checked="false">${icon("check", 13)}<span class="more-item-label">Asks you</span>` +
+          `<span class="more-item-meta">Writes a draft when you open a reply; you send it.</span></button>` +
+          `</div></div>`,
+      },
+      // A set of short values on a phone (MoreMenu `grid`: a day's times): chips four across under their headings, the one
+      // held lit, how long the day runs under a closing's chip, and the night's hours folded behind their heading.
+      {
+        id: "more-menu-grid",
+        stage: "pop",
+        html:
+          `<div class="more-wrap"><button type="button" class="rec-input rec-select" aria-haspopup="menu" aria-expanded="true">5 PM ${icon("chevron-down", 10)}</button>` +
+          `<div class="more-menu align-left more-menu-grid" role="menu" data-sheet="" style="position: static;">` +
+          `<div class="more-header">Afternoon</div>` +
+          [
+            ["4 PM", "7 h", false],
+            ["4:30 PM", "7 h 30 min", false],
+            ["5 PM", "8 h", true],
+            ["5:30 PM", "8 h 30 min", false],
+          ]
+            .map(
+              ([label, hint, on]) =>
+                `<button class="more-item" role="menuitemradio" aria-checked="${on}">${icon("check", 13)}` +
+                `<span class="more-item-label">${label}</span><span class="more-item-hint">${hint}</span></button>`,
+            )
+            .join("") +
+          `<div class="more-divider"></div>` +
+          `<button type="button" class="more-header more-header-fold">Night ${icon("chevron-down", 10)}</button>` +
+          `</div></div>`,
+      },
     ],
   },
   {

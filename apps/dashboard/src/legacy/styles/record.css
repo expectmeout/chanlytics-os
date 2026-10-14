@@ -31,9 +31,9 @@ html.legacy-on .rec-inline-act { min-height: 0; }
 .rec-sheet.deal-sheet .deal-sheet-amount-row > .rec-box { flex: 1 1 110px; max-width: 200px; }
 /* A day is the kit's token over its month (fields.tsx DayField), its Clear beside it; who sees the amount is said on the
    label's line, a lock and its words at the line's end (the fitted sheets, 14 Oct 2026). */
-.rec-sheet.deal-sheet .deal-sheet-day-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; }
-.rec-sheet.deal-sheet .deal-sheet-label-line { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-.rec-sheet.deal-sheet .deal-sheet-private { display: inline-flex; align-items: center; gap: 4px; font-weight: var(--weight-regular); color: var(--ink-dim); }
+.ds-day-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; }
+.ds-label-line { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.ds-private { display: inline-flex; align-items: center; gap: 4px; font-weight: var(--weight-regular); color: var(--ink-dim); }
 /* Six reasons in a grid of even cells, not one row that runs past the sheet. */
 .rec-sheet.deal-sheet .deal-sheet-reasons .rec-seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; box-sizing: border-box; }
 .rec-sheet.deal-sheet .deal-sheet-reasons .rec-seg-btn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

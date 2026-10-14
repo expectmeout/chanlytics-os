@@ -32701,6 +32701,11 @@ function targetOf(mode, p, dealId) {
   if (dealId) return deals.find((d) => d.id === dealId) ?? (p.deal && p.deal.id === dealId ? p.deal : null);
   return p.deal;
 }
+var VALUE_WORDS = {
+  private: DEAL_SHEET_WORDS.value.hint,
+  placeholder: DEAL_SHEET_WORDS.value.placeholder,
+  perLabel: DEAL_SHEET_WORDS.value.per
+};
 function dealSheetFor(mode, p, nowMs, tz, target = {}) {
   const W = DEAL_SHEET_WORDS;
   const deal = targetOf(mode, p, target.dealId);
@@ -32744,10 +32749,8 @@ function dealSheetFor(mode, p, nowMs, tz, target = {}) {
     link: open && shapes ? { ...W.link } : null,
     value: open && (shapes || mode === "won") ? {
       label: mode === "won" ? W.agreed.label : W.value.label,
-      private: W.value.hint,
+      ...VALUE_WORDS,
       hint: mode === "won" && valueOf ? W.agreed.fromProposal : null,
-      placeholder: W.value.placeholder,
-      perLabel: W.value.per,
       pers
     } : null,
     validUntil: open && shapes ? { ...W.validUntil, today } : null,

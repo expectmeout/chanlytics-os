@@ -298,7 +298,7 @@ doors writing a record with no event   76   writing 86 tables (invariant 2)
 personal columns with no erasure strategy    2   in 1 table
 breakpoints outside the set          33   in 11 files
 literal style values                860   in 22 stylesheets
-primitives outside the kit         1671   selectors naming 692 classes
+primitives outside the kit         1665   selectors naming 690 classes
 inline style props                  195   in 49 files
 wire names not in snake_case         54   in 27 routes
 dead exports, types and modules     268
