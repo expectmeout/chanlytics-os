@@ -60,8 +60,8 @@ const DEAL_COLUMNS =
   "id, contact_id, lead_id, service, stage, proposed_at, decided_at, ended_at, amount_cents, per, currency, note, evidence, source, proposal_url, valid_until, lost_reason, created_by, created_at, updated_at";
 const BOOKING_COLUMNS =
   "id, contact_id, lead_id, source, tool, external_id, status, starts_at, ends_at, all_day, timezone, title, service, staff, price, note, client_name, client_phone, client_email, consultation, vanished_at, created_by, created_at, updated_at";
-const LIST_COLUMNS = "id, name, rule, archived_at, created_by, created_at, updated_at";
-const LIST_MEMBER_COLUMNS = "segment_id, contact_id, added_by, added_at";
+const SEGMENT_COLUMNS = "id, name, rule, archived_at, created_by, created_at, updated_at";
+const SEGMENT_MEMBER_COLUMNS = "segment_id, contact_id, added_by, added_at";
 const HOLD_COLUMNS =
   "id, conversation_id, reason, details, state, resolved_by_user_id, resolved_at, created_at, updated_at";
 const RULE_COLUMNS = "id, class, mode, subject_type, subject_id, limits, updated_at";
@@ -120,7 +120,7 @@ function recordSections(
       sectionRows(
         db
           .from("segments")
-          .select(LIST_COLUMNS)
+          .select(SEGMENT_COLUMNS)
           .eq("tenant_id", tenantId)
           .order("created_at", { ascending: true })
           .order("id", { ascending: true })
@@ -131,7 +131,7 @@ function recordSections(
       sectionRows(
         db
           .from("segment_members")
-          .select(LIST_MEMBER_COLUMNS)
+          .select(SEGMENT_MEMBER_COLUMNS)
           .eq("tenant_id", tenantId)
           .order("segment_id", { ascending: true })
           .order("contact_id", { ascending: true })
@@ -336,7 +336,7 @@ function personRecordSections(
       return sectionRows(
         db
           .from("segments")
-          .select(LIST_COLUMNS)
+          .select(SEGMENT_COLUMNS)
           .eq("tenant_id", tenantId)
           .in("id", ids)
           .order("created_at", { ascending: true })
@@ -348,7 +348,7 @@ function personRecordSections(
       sectionRows(
         db
           .from("segment_members")
-          .select(LIST_MEMBER_COLUMNS)
+          .select(SEGMENT_MEMBER_COLUMNS)
           .eq("tenant_id", tenantId)
           .eq("contact_id", contactId)
           .order("segment_id", { ascending: true })

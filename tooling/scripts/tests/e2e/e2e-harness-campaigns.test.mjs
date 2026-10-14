@@ -103,6 +103,7 @@ const { PlaybookComposer } = await import(`${SRC}/surfaces/campaigns/playbooks/c
 const { TemplatesPage } = await import(`${SRC}/surfaces/campaigns/templates/templates-page.tsx`);
 const { cmOfferedMessages } = await import(`${SRC}/surfaces/campaigns/parts/channels.ts`);
 const { settingsOverride } = await import(`${SRC}/legacy-bridge/surfaces/settings.ts`);
+const { channelsOverride } = await import(`${SRC}/surfaces/channels/surface.ts`);
 const { setSurfaceValue, surfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
 const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
 const { Segmented } = await import(`${SRC}/surfaces/kit/segmented/segmented.tsx`);
@@ -464,12 +465,16 @@ test("the slot rule the spec reads a moment by is the page's: a visit's message 
 
 /* ---------------------------------- the Library ---------------------------------- */
 
-/** The Library over what the real settings surface publishes of a record's answers: the bridge's own read, not a stand-in. */
+/**
+ * The Library over what the real settings and channels surfaces publish of a record's answers: the bridge's own reads, not a
+ * stand-in. The numbers are the channels read's (#1595 moved the page off the settings read's copy of them).
+ */
 const library = async (record) => {
   wire(record);
   console.error = () => {};
   try {
     await settingsOverride.apply();
+    await channelsOverride.apply();
   } finally {
     console.error = quiet;
   }

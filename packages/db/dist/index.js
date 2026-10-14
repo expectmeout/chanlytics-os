@@ -5293,8 +5293,8 @@ var last = (offset, limit) => offset + limit - 1;
 var NOTE_COLUMNS = "id, contact_id, body, author_kind, author_user_id, for_user_id, team_only, state, source, due_on, done_at, done_by, deal_id, created_at, updated_at";
 var DEAL_COLUMNS = "id, contact_id, lead_id, service, stage, proposed_at, decided_at, ended_at, amount_cents, per, currency, note, evidence, source, proposal_url, valid_until, lost_reason, created_by, created_at, updated_at";
 var BOOKING_COLUMNS = "id, contact_id, lead_id, source, tool, external_id, status, starts_at, ends_at, all_day, timezone, title, service, staff, price, note, client_name, client_phone, client_email, consultation, vanished_at, created_by, created_at, updated_at";
-var LIST_COLUMNS2 = "id, name, rule, archived_at, created_by, created_at, updated_at";
-var LIST_MEMBER_COLUMNS = "segment_id, contact_id, added_by, added_at";
+var SEGMENT_COLUMNS = "id, name, rule, archived_at, created_by, created_at, updated_at";
+var SEGMENT_MEMBER_COLUMNS = "segment_id, contact_id, added_by, added_at";
 var HOLD_COLUMNS2 = "id, conversation_id, reason, details, state, resolved_by_user_id, resolved_at, created_at, updated_at";
 var RULE_COLUMNS = "id, class, mode, subject_type, subject_id, limits, updated_at";
 var LEAD_COLUMNS = "id, business_name, category, street, city, region, postal_code, country, neighborhood, phone_e164, email, website_host, instagram_url, facebook_url, linkedin_url, tiktok_url, maps_url, rating, reviews, about, price, stage, closed_reason, last_outcome, last_note, contacted_at, booked_at, converted_at, contact_id, found_at";
@@ -5315,11 +5315,11 @@ function recordSections(db, tenantId) {
       db.from("appointments").select(BOOKING_COLUMNS).eq("tenant_id", tenantId).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
     ),
     lists: (offset, limit) => sectionRows(
-      db.from("segments").select(LIST_COLUMNS2).eq("tenant_id", tenantId).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
+      db.from("segments").select(SEGMENT_COLUMNS).eq("tenant_id", tenantId).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
     ),
     // Who is on each list kept by hand (a list with a rule is its rule, in lists).
     list_members: (offset, limit) => sectionRows(
-      db.from("segment_members").select(LIST_MEMBER_COLUMNS).eq("tenant_id", tenantId).order("segment_id", { ascending: true }).order("contact_id", { ascending: true }).range(offset, last(offset, limit))
+      db.from("segment_members").select(SEGMENT_MEMBER_COLUMNS).eq("tenant_id", tenantId).order("segment_id", { ascending: true }).order("contact_id", { ascending: true }).range(offset, last(offset, limit))
     ),
     campaigns: (offset, limit) => sectionRows(
       db.from("playbooks").select(
@@ -5398,11 +5398,11 @@ function personRecordSections(db, tenantId, contactId) {
       const ids = await theirLists();
       if (ids.length === 0) return [];
       return sectionRows(
-        db.from("segments").select(LIST_COLUMNS2).eq("tenant_id", tenantId).in("id", ids).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
+        db.from("segments").select(SEGMENT_COLUMNS).eq("tenant_id", tenantId).in("id", ids).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
       );
     },
     list_members: (offset, limit) => sectionRows(
-      db.from("segment_members").select(LIST_MEMBER_COLUMNS).eq("tenant_id", tenantId).eq("contact_id", contactId).order("segment_id", { ascending: true }).range(offset, last(offset, limit))
+      db.from("segment_members").select(SEGMENT_MEMBER_COLUMNS).eq("tenant_id", tenantId).eq("contact_id", contactId).order("segment_id", { ascending: true }).range(offset, last(offset, limit))
     )
   };
 }
