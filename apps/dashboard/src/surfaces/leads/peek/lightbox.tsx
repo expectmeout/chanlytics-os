@@ -113,6 +113,8 @@ export const LeadLightbox = ({ vm, onClose }: LightboxProps) => (
       role="dialog"
       aria-label={`${W.photos}: ${vm.name}`}
       data-testid="lead-lightbox"
+      // With no photo it is what is about the place, which a phone raises as a sheet as tall as it (leads.css).
+      data-photo={vm.tile.band ? undefined : "none"}
       ref={leaving("lead-lightbox")}
       // On a phone the photos take the whole screen, and a pull down from the top lets them go, as the peek under them
       // does (data-bits touchSwipe; Ruben, 8 October 2026: only Close did). The touch stays the photos' own.

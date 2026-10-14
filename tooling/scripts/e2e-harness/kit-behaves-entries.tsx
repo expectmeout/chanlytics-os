@@ -206,6 +206,7 @@ function MenuKitCaption() {
               {
                 label: "Send booking link",
                 glyph: glyph("calendar", 13),
+                meta: "By text",
                 disabled: true,
                 onSelect: () => setSaid("Send booking link"),
               },

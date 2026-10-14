@@ -757,6 +757,10 @@ a.chip:focus-visible {
   .more-menu .more-chips > .more-item > .more-item-label {
     flex: none;
   }
+  /* A key's focus draws the house's ring over a lit chip's own depth, as a picked segment's does. */
+  .more-menu .more-chips > .more-item:focus-visible {
+    box-shadow: var(--focus-ring);
+  }
   /* What is said of them all, under the chips at their edge rather than at a row's words. */
   .more-chips + .more-cap {
     padding-left: 4px;
@@ -923,6 +927,10 @@ a.more-item {
   .more-menu[data-sheet] .more-item-two > .icon ~ .more-item-meta {
     padding-left: 32px;
   }
+  /* A line written to follow a dash ("asks you first") starts a sentence of its own under the words. */
+  .more-menu[data-sheet] .more-item-two > .more-item-meta::first-letter {
+    text-transform: uppercase;
+  }
   .more-backdrop[data-open] {
     background: var(--surface-veil);
   }
@@ -965,6 +973,9 @@ a.more-item {
     margin: 0;
     padding: 0;
     font-size: var(--text-xs);
+  }
+  .more-menu-grid[data-sheet] > .more-item:focus-visible {
+    box-shadow: var(--focus-ring);
   }
   .more-header-fold {
     display: flex;

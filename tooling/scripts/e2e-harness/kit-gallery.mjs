@@ -498,7 +498,7 @@ const kitMenuCaption = () =>
   `<button type="button" role="menuitem" tabindex="-1" aria-disabled="true" data-disabled="" class="more-item">` +
   `${icon("mail", 13)}<span class="more-item-label">Email them</span></button>` +
   `<button type="button" role="menuitem" tabindex="-1" aria-disabled="true" data-disabled="" class="more-item">` +
-  `${icon("calendar", 13)}<span class="more-item-label">Send booking link</span></button></div>` +
+  `${icon("calendar", 13)}<span class="more-item-label">Send booking link</span><span class="more-item-meta">By text</span></button></div>` +
   `<p class="more-cap">They asked to stop: nothing is sent to them.</p>` +
   `<div class="more-divider" role="separator" aria-orientation="horizontal"></div>` +
   kitItem("copy", "Copy the number") +
