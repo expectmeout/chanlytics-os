@@ -372,13 +372,13 @@ test("POST reach-outs refuses before the door: a viewer, a slot that is none of 
   edge();
   await refused(chains.POST.run(send("POST", CHAIN()), ctxFor(tables("viewer"))), "forbidden", 403);
   const firstName = CHAIN({
-    steps: [{ subject: "Hi", body: "Hi {{first name}}", after_days: null }],
+    steps: [{ subject: "Hi", body: "Hi {{nickname}}", after_days: null }],
   });
   await refused(
     chains.POST.run(send("POST", firstName), ctxFor(tables())),
     "validation",
     422,
-    "{{first name}} isn't one of the slots. Use one of the six.",
+    "{{nickname}} isn't one of the slots. Use one from the list.",
   );
   // A first email carries no link (decision 0056): the booking link is a nudge's.
   const first = CHAIN({ steps: [{ subject: "Hi", body: "Book here: {{booking link}}", after_days: null }] });

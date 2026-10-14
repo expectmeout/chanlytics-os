@@ -161,7 +161,7 @@ export interface PersonAtCompany {
   };
 }
 
-export interface PeopleCardRunner {
+interface PeopleCardRunner {
   actor: string;
   build: string;
   /** The provider's input for a plan and how many people to ask for (twice the count: two found make a lead). */
@@ -210,7 +210,7 @@ const CHECKER: LeadCheckerRunner = {
  * The people card's item fields, in each spelling a B2B contact database writes them (its provider publishes no
  * schema): a field it does not have is left out of the answer, never an error.
  */
-export const PEOPLE_FIELDS = [
+const PEOPLE_FIELDS = [
   "first_name",
   "firstName",
   "last_name",
@@ -333,7 +333,9 @@ function companyOf(o: Record<string, unknown>): PersonAtCompany["company"] | nul
       "website",
     ]),
   );
-  const country = countryOf(firstText(o, ["company_country", "companyCountry", "country"])) ?? "US";
+  // None said is the card's own country; one said that reads as none is not the US.
+  const said = firstText(o, ["company_country", "companyCountry", "country"]);
+  const country = said === null ? "US" : countryOf(said);
   if (!name || !key || country !== "US") return null;
   return {
     key,

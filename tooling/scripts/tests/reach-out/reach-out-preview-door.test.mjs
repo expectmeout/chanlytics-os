@@ -193,7 +193,7 @@ test("it holds what the sender holds: no booking link, a subject posing as a rep
   assert.deepEqual([noLink.preview.refused, noLink.preview.body], ["no_booking_link", null]);
   const re = (await answer(await knock(BODY({ words: { subject: "Re: your quote", body: "Hello." } }))))[1];
   assert.equal(re.preview.refused, "words_unsendable");
-  const slot = (await answer(await knock(BODY({ words: { subject: "Hi", body: "Hi {{first name}}" } }))))[1];
+  const slot = (await answer(await knock(BODY({ words: { subject: "Hi", body: "Hi {{nickname}}" } }))))[1];
   assert.equal(slot.preview.refused, "unknown_slot");
   const noName = (await answer(await knock(BODY({ signed_by: null }))))[1];
   assert.equal(noName.preview.refused, "no_signed_by");

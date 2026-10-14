@@ -39,7 +39,7 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const POLICY = JSON.parse(fs.readFileSync(path.join(ROOT, "tooling/scripts/tests/route-policy.json"), "utf8")).routes;
 
-/** The twenty kinds, in AskProposal's order, and one no card has. */
+/** The twenty-one kinds, in AskProposal's order, and one no card has (people_search, the people card's, 00429). */
 const KINDS = [
   "reply",
   "steer",
@@ -52,6 +52,7 @@ const KINDS = [
   "broadcast",
   "playbook",
   "lead_search",
+  "people_search",
   "reach_out_add",
   "deal",
   "note",
@@ -79,6 +80,7 @@ test("the gate each kind checks before Approve is the one it checked at a993b71d
     broadcast: "approve",
     playbook: "approve",
     lead_search: "find",
+    people_search: "find",
     reach_out_add: "approve",
     deal: "approve",
     note: "approve",
@@ -127,6 +129,7 @@ const UNDO_OPEN = {
   broadcast: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
   playbook: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
   lead_search: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
+  people_search: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
   reach_out_add: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
   deal: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
   note: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
@@ -204,6 +207,23 @@ const OPEN = {
   ],
   // None of the table's payloads names a reach-out: the home. With one, its drawer (the spec's own test below).
   reach_out_add: "outbound",
+  // The people card (00429): Leads, and once it started, its search.
+  people_search: [
+    "clients/leads",
+    "clients/leads",
+    "clients/leads",
+    "clients/leads",
+    "clients/leads",
+    "clients/leads",
+    "clients/leads",
+    "clients/leads",
+    "clients/leads",
+    "clients/leads:s-s1",
+    "clients/leads",
+    "clients/leads:s-s1",
+    "clients/leads",
+    "clients/leads:s-s1",
+  ],
   deal: [null, null, null, "clients/p1", null, "clients/p1", null, null, null, null, null, null, null, null],
   note: [null, null, null, "clients/p1", null, "clients/p1", null, null, null, null, null, null, null, null],
   person_details: [null, null, null, "clients/p1", null, "clients/p1", null, null, null, null, null, null, null, null],
@@ -299,6 +319,7 @@ const SHAPES = {
     card("lead_search", { plan: { count: 50, terms: ["dentists"] } }),
     card("lead_search", { plan: { count: 50 }, amends: { search_id: "s9", name: "Dentists" } }),
   ],
+  people_search: [card("people_search", { plan: { count: 50, name: "Office managers" } })],
   reach_out_add: [card("reach_out_add", { root_id: "r1", name: "Spring dentists", lead_ids: ["l1", "l2"] })],
   deal: [
     card("deal", { contact_id: "p1", stage: "won", who: "Maria" }, { step: { body: "Call", due_on: "2026-10-01" } }),
@@ -466,8 +487,8 @@ test("Ask's new campaign opens its drawer once it is made, by the id the route a
   });
 });
 
-test("the twenty kinds each have a spec, and every route a spec names is a route the app has", () => {
-  assert.deepEqual(Object.keys(PROPOSAL_SPECS), KINDS.slice(0, 20));
+test("the twenty-one kinds each have a spec, and every route a spec names is a route the app has", () => {
+  assert.deepEqual(Object.keys(PROPOSAL_SPECS), KINDS.slice(0, 21));
   const named = Object.fromEntries(
     Object.keys(PROPOSAL_SPECS).map((k) => [k, [...new Set(routesOf(k).map((x) => x.route))].sort()]),
   );
@@ -490,6 +511,7 @@ test("the twenty kinds each have a spec, and every route a spec names is a route
     broadcast: ["POST broadcasts", "POST broadcasts/[id]/cancel"],
     playbook: ["DELETE playbooks/[id]", "POST playbooks"],
     lead_search: ["POST lead-searches", "POST lead-searches/[id]/answer", "POST lead-searches/[id]/stop"],
+    people_search: ["POST lead-searches/[id]/stop", "POST lead-searches/people"],
     reach_out_add: ["POST lead-operations/[id]/undo", "POST reach-outs/[id]/leads"],
     deal: ["POST contacts/[id]/deal", "POST contacts/[id]/notes"],
     note: ["POST contacts/[id]/notes", "POST contacts/[id]/notes/remove"],
@@ -507,7 +529,7 @@ test("a spec's `needs` is the policy role of every route it names; the one excep
   for (const [kind, spec] of Object.entries(PROPOSAL_SPECS)) {
     for (const { route, by } of routesOf(kind)) {
       const role = POLICY[route]?.role;
-      if (kind === "lead_search" && route === "POST lead-searches/[id]/stop") {
+      if ((kind === "lead_search" || kind === "people_search") && route === "POST lead-searches/[id]/stop") {
         // Stopping a search spends nothing, so any operator may; the card that started it was a partner's.
         assert.deepEqual([by, role, spec.needs], ["undo", "operator", "partner"]);
         continue;
@@ -525,6 +547,7 @@ test("a spec's `needs` is the policy role of every route it names; the one excep
       ["settings", "partner"],
       ["invite", "owner"],
       ["lead_search", "partner"],
+      ["people_search", "partner"],
     ],
   );
   for (const [kind, spec] of Object.entries(PROPOSAL_SPECS))

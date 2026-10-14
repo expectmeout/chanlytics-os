@@ -8,7 +8,7 @@
 export const WHY_FROM_MAPS = "I found your business on Google Maps.";
 
 /** Why a company the people card found is hearing from this one (00429): a directory of companies and their people. */
-export const WHY_FROM_DIRECTORY = "I found your company in a business directory.";
+const WHY_FROM_DIRECTORY = "I found your company in a business directory.";
 
 /**
  * Why they are hearing from you, from where the finder found them (a lead's source, 00429: the Maps card's, the people

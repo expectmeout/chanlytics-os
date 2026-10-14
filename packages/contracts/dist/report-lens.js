@@ -2165,15 +2165,17 @@ function namedSlots(names, labels = names) {
 // src/reach-out/reach-out-words.ts
 var REACH_OUT_SLOTS = [
   "opening",
-  "first name",
   "business",
-  "company",
-  "title",
-  "role",
   "city",
   "your name",
   "your business",
-  "booking link"
+  "booking link",
+  // A company's addressee (00429), after the six: a slot's place is its number in a stored version ({{2}} is business),
+  // so a slot is only ever added at the end.
+  "first name",
+  "company",
+  "title",
+  "role"
 ];
 var REACH_OUT_SLOT_FALLBACKS = {
   "first name": "there"

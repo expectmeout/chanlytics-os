@@ -203,7 +203,7 @@ const SENT_SINCE_WORDS: Record<string, string> = {
 };
 
 /** The To send list's own acts and what each says once done. */
-export const REACH_OUT_TO_SEND_LABELS = {
+const REACH_OUT_TO_SEND_LABELS = {
   gmail: "Open in Gmail",
   outlook: "Open in Outlook",
   app: "Your mail app",

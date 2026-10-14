@@ -277,14 +277,14 @@ test("the preview beside the words follows each keystroke, with the same example
   tree = redraw();
   assert.equal(subjectOf(tree), `Hello ${at("business")} in ${at("city")}`);
   assert.equal(bodyOf(tree), `${at("opening")} Sign: Sam`, "a name in any case and spacing is read as the slot it is");
-  boxOf(tree, "Message").props.onValueChange("Hi {{first name}}");
+  boxOf(tree, "Message").props.onValueChange("Hi {{nickname}}");
   tree = redraw();
   // A name the six do not have is a hole: drawn by its name, as a problem, never as braces.
-  assert.equal(bodyOf(tree), "Hi first name");
+  assert.equal(bodyOf(tree), "Hi nickname");
   const hole = all(byTestId(tree, "template-version-body"), (n) => n.props?.className === "mp-slot");
   assert.deepEqual(
     hole.map((n) => [textOf(n), n.props["data-unknown"]]),
-    [["first name", "true"]],
+    [["nickname", "true"]],
   );
 });
 
@@ -303,8 +303,8 @@ test("the one check, in the reach-out's rules and sentences: what is wrong is th
   typed("Subject", "x".repeat(contracts.REACH_OUT_SUBJECT_MAX + 1));
   assert.equal(problemOf(tree), said("subject_too_long", "subject"));
   typed("Subject", "Fine");
-  typed("Message", "Hi {{first name}}");
-  assert.equal(problemOf(tree), said("unknown_slot", "body", "first name"));
+  typed("Message", "Hi {{nickname}}");
+  assert.equal(problemOf(tree), said("unknown_slot", "body", "nickname"));
   typed("Message", "SEE THIS NOW\n{{opening}}");
   assert.equal(problemOf(tree), said("shouting"));
   typed("Message", "See https://a.example and https://b.example");

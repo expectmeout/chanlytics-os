@@ -23,7 +23,6 @@
   "apps/dashboard/src/server/env.ts": 2,
   "apps/dashboard/src/server/export/export-bundle.ts": 1,
   "apps/dashboard/src/server/export/export.ts": 2,
-  "apps/dashboard/src/server/leads/lead-draft.ts": 1,
   "apps/dashboard/src/server/leads/lead-suggestions.ts": 1,
   "apps/dashboard/src/server/model-json.ts": 1,
   "apps/dashboard/src/server/origin.ts": 1,
@@ -133,6 +132,7 @@
   "packages/core/src/leads/judge.ts": 1,
   "packages/core/src/leads/mark-image.ts": 1,
   "packages/core/src/leads/runner/mark-places.ts": 2,
+  "packages/core/src/leads/runner/people.ts": 1,
   "packages/core/src/leads/sizing.ts": 1,
   "packages/db/src/repositories/thread.ts": 2
 }

@@ -110,14 +110,14 @@ test("a slot this lead has no value for is the lead's (missing_value); a slot no
     reason: "missing_value",
   });
   for (const words of [
-    { subject: "Hi {{first name}}", body: "Hello." },
+    { subject: "Hi {{nickname}}", body: "Hello." },
     { subject: "Hello", body: "Hi {{business_name}}" },
     { subject: "Hello", body: "Hi {{business" },
   ])
     assert.deepEqual(reachOutRequest(input({ words })), { ok: false, reason: "unknown_slot" }, JSON.stringify(words));
   // A step after the first never reads its own heading, so a slot there holds nothing.
   const parent = { messageId: "m0", rfcMessageId: "<first@getharbor.example>", references: [], subject: "Hi" };
-  assert.equal(reachOutRequest(input({ parent, words: { subject: "{{first name}}", body: "Hello." } })).ok, true);
+  assert.equal(reachOutRequest(input({ parent, words: { subject: "{{nickname}}", body: "Hello." } })).ok, true);
   assert.deepEqual(reachOutRequest(input({ words: { subject: null, body: "Hello." } })), {
     ok: false,
     reason: "no_subject",
@@ -205,7 +205,7 @@ test("each of the six slots filled with its real value, and each missing one sai
     reason: "missing_value",
   });
   // The step's: no stand-in value hides a slot that is none of the six, or a brace left over.
-  for (const body of ["Hi {{first name}}", "Hi {business}", "Hi {{{business}}}"])
+  for (const body of ["Hi {{nickname}}", "Hi {business}", "Hi {{{business}}}"])
     assert.deepEqual(reachOutWords({ subject: "Hello", body }, lead, ws, false, "Hi."), {
       ok: false,
       reason: "unknown_slot",

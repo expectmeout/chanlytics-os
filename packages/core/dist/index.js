@@ -37067,7 +37067,8 @@ function companyOf(o) {
       "website"
     ])
   );
-  const country = countryOf(firstText(o, ["company_country", "companyCountry", "country"])) ?? "US";
+  const said = firstText(o, ["company_country", "companyCountry", "country"]);
+  const country = said === null ? "US" : countryOf(said);
   if (!name || !key || country !== "US") return null;
   return {
     key,

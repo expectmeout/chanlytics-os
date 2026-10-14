@@ -5891,15 +5891,17 @@ function handStepWords(kind, business, words2) {
 // src/reach-out/reach-out-words.ts
 var REACH_OUT_SLOTS = [
   "opening",
-  "first name",
   "business",
-  "company",
-  "title",
-  "role",
   "city",
   "your name",
   "your business",
-  "booking link"
+  "booking link",
+  // A company's addressee (00429), after the six: a slot's place is its number in a stored version ({{2}} is business),
+  // so a slot is only ever added at the end.
+  "first name",
+  "company",
+  "title",
+  "role"
 ];
 var REACH_OUT_SLOT_FALLBACKS = {
   "first name": "there"
@@ -15624,7 +15626,7 @@ var messageSpec = {
 var ASK_MAX_CHARS = 1e3;
 var ASK_MAX_ROUNDS = 3;
 var ASK_TURN_BUDGET_MS = 45e3;
-var ASK_TOOLS_CHARS_CEILING = 72e3;
+var ASK_TOOLS_CHARS_CEILING = 73e3;
 var ASK_VOICE_PULSE_MS = 1e4;
 var ASK_VOICE_FIRST_WORDS_MS = 2500;
 var ASK_VOICE_CLAIM_STALE_MS = MIN_MS;
@@ -17307,13 +17309,6 @@ function leadAddresseeOf(l) {
   const f = leadFactsOf(l.facts);
   return f.addressee === null ? null : f.people[f.addressee] ?? null;
 }
-function leadUnitOf(kind) {
-  return kind === "company" ? { one: "company", many: "companies" } : { one: "business", many: "businesses" };
-}
-function leadUnitCount(n, kind) {
-  const u = leadUnitOf(kind);
-  return plural(n, u.one, u.many);
-}
 var LEAD_COMPANY_WORDS = {
   head: (n) => n === 1 ? "Named at this company" : `Named at this company \xB7 ${n}`,
   writesTo: "Your reach-out writes to them",
@@ -17427,14 +17422,7 @@ function toLeadRowVM(r2, tz, now, search = null) {
   const fitLabel = m.class === "excluded" ? excludedBy ?? m.reason : m.class === "review" ? m.reason : m.fit ? LEAD_FIT_WORDS[m.fit] : m.reason;
   const fitTitle = m.class === "excluded" ? `Left out: ${excludedBy ?? m.reason}` : m.class === "qualified" && rated ? `${m.reason} \xB7 ${rated.score} from ${rated.reviews}` : m.reason;
   const area = [r2.postal_code ?? "", [r2.city, r2.state].filter(Boolean).join(", ")].filter(Boolean).join(" \xB7 ");
-  const who = leadAddresseeOf(r2);
-  const sub = [
-    who ? [who.name, who.title].filter(Boolean).join(", ") : null,
-    r2.category,
-    r2.neighborhood ?? null,
-    r2.postal_code ?? null,
-    milesLabel(m.distance_m) || null
-  ].filter((x) => !!x).join(" \xB7 ");
+  const sub = subLineOf(r2, m.distance_m);
   const spread2 = r2.reviews_dist ? [r2.reviews_dist.one, r2.reviews_dist.two, r2.reviews_dist.three, r2.reviews_dist.four, r2.reviews_dist.five] : null;
   const waitsOn = m.class === "review" ? leadReviewGroups([{ id: r2.id, cls: "review", reasons: m.reasons ?? [] }], search)[0]?.label ?? m.reason : null;
   const state = m.class === "excluded" ? "out" : m.class === "review" ? "review" : r2.stage === "nurture" ? "contacted" : r2.stage === "converted" ? "talking" : r2.stage === "archived" ? "out" : "ready";
@@ -17514,6 +17502,16 @@ function toLeadRowVM(r2, tz, now, search = null) {
 }
 function leadRowOf(r2, tz, now, search = null) {
   return { ...toLeadRowVM(r2, tz, now, search), chainId: r2.chain_id ?? null, laterAt: r2.member.later_at ?? null };
+}
+function subLineOf(r2, distanceM) {
+  const who = leadAddresseeOf(r2);
+  return [
+    who ? [who.name, who.title].filter(Boolean).join(", ") : null,
+    r2.category,
+    r2.neighborhood ?? null,
+    r2.postal_code ?? null,
+    milesLabel(distanceM) || null
+  ].filter((x) => !!x).join(" \xB7 ");
 }
 var roundIsLive = (state) => state !== "ended" && state !== "waiting_on_owner";
 function foundLine(r2, term) {
@@ -17602,6 +17600,10 @@ function dayIn(tz, iso, now) {
   if (key(at3) === key(new Date(now.getTime() - DAY_MS))) return "yesterday";
   return dateFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at3);
 }
+var peekPlanOf = (search) => ({
+  standard: LEAD_CONTACT_STANDARD_WORDS[(search?.plan ?? search?.people)?.contact === "email" ? "email" : "phone"],
+  term: search?.plan?.terms[0] ?? null
+});
 function foundWords(r2, term) {
   const host = r2.website;
   if (r2.kind === "company")
@@ -17651,7 +17653,7 @@ function toLeadPeekVM(r2, search, tz, now) {
     m.class === "review" ? LEAD_REVIEW_WORD : `${LEAD_LEFT_OUT_WORD} \u2014 ${leadExclusionWord(search, m.excluded_by)}`
   );
   const fitCls = m.class === "qualified" ? m.fit ?? "look" : m.class === "review" ? "review" : "out";
-  const standard = LEAD_CONTACT_STANDARD_WORDS[(search?.plan ?? search?.people)?.contact === "email" ? "email" : "phone"];
+  const { standard, term } = peekPlanOf(search);
   const emailNote = r2.email ? r2.email_state === "ok" ? `${LEAD_MAILBOX_WORDS.ok} \xB7 checked ${dayIn(tz, r2.email_checked_at, now) || "on finding it"}` : r2.email_state === "checking" ? LEAD_MAILBOX_WORDS.checking : r2.email_state === "invalid" ? `${LEAD_MAILBOX_WORDS.invalid}. Call instead.` : LEAD_MAILBOX_WORDS[r2.email_state] : LEAD_NO_EMAIL_LINE;
   const mailboxLabel = LEAD_MAILBOX_WORDS[r2.email_state];
   const stop = (s) => /[.!?]$/.test(s.trim()) ? s.trim() : `${s.trim()}.`;
@@ -17672,7 +17674,6 @@ function toLeadPeekVM(r2, search, tz, now) {
     items: m.other_emails
   } : null;
   const host = r2.website;
-  const term = search?.plan?.terms[0] ?? null;
   const where = foundWords(r2, term);
   const checksSummary = checksSummaryOf(m.checks);
   const week = leadWeekBars(r2.hours ?? [], tz, now);
@@ -45680,7 +45681,6 @@ export {
   COMBINE_WORDS,
   COMMON_LANGUAGES,
   COMPANY_TYPES,
-  COMPOSE_URL_MAX,
   CONFIDENCE_STEPS,
   CONNECTION_GROUP_WORDS,
   CONNECTION_KINDS,
@@ -45924,7 +45924,6 @@ export {
   LEAD_REVIEW_GROUP_WHY,
   LEAD_REVIEW_GROUP_WORDS,
   LEAD_REVIEW_WORD,
-  LEAD_ROLES,
   LEAD_ROLE_LOCALS,
   LEAD_ROLE_WORDS,
   LEAD_ROUND_ANSWERS,
@@ -46294,7 +46293,6 @@ export {
   REACH_OUT_STEPS_MAX,
   REACH_OUT_STOP_WORDS,
   REACH_OUT_SUBJECT_MAX,
-  REACH_OUT_TO_SEND_LABELS,
   REACH_OUT_UNDO_WORDS,
   REACH_OUT_WHY_NOT,
   REACH_OUT_WHY_NOT_WORDS,
@@ -47171,7 +47169,6 @@ export {
   leadDraftFooter,
   leadEndingLine,
   leadExclusionWord,
-  leadFactsOf,
   leadFoundWords,
   leadHoursShort,
   leadImportAnswerWords,
@@ -47203,7 +47200,6 @@ export {
   leadPeekMenu,
   leadPeopleIndex,
   leadPeopleOf,
-  leadPersonOf,
   leadPhoneState,
   leadPileOpen,
   leadPileProgressOf,
@@ -47229,8 +47225,6 @@ export {
   leadTintOf,
   leadTodayLine,
   leadUndoable,
-  leadUnitCount,
-  leadUnitOf,
   leadWeekBars,
   leadWeekSummary,
   leadWhere,
@@ -47516,7 +47510,6 @@ export {
   pausedGreetingFor,
   pausedVoiceFacts,
   peopleAggregates,
-  peopleAreaOf,
   peopleDtoOf,
   peopleEstimateUsd,
   peopleFromItems,

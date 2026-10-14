@@ -113,7 +113,7 @@ export function checkedWordsOf(
 }
 
 /** What a reach-out its owner sends hands them for one lead (00428). */
-export interface DraftInput {
+interface DraftInput {
   words: { subject: string | null; body: string };
   lead: SlotLead;
   workspace: Required<SlotWorkspace> & { address: string | null };

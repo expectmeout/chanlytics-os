@@ -163,11 +163,11 @@ test("each field's problems are said under it in contracts' words, and Start wai
   await settle();
   let tree = s.draw();
   assert.equal(byTestId(tree, "ro-start").props.disabled, false, "the starting words go as they are");
-  typeInto(byTestId(tree, "ro-body"), "Hi {{first name}}");
+  typeInto(byTestId(tree, "ro-body"), "Hi {{nickname}}");
   tree = s.draw();
   assert.match(
     textOf(byTestId(tree, "ro-body-issues-0")),
-    /\{\{first name\}\} isn't one of the slots\. Use one of the six\./,
+    /\{\{nickname\}\} isn't one of the slots\. Use one from the list\./,
   );
   assert.equal(byTestId(tree, "ro-start").props.disabled, true);
   typeInto(byTestId(tree, "ro-body"), "Book here: {{booking link}}");

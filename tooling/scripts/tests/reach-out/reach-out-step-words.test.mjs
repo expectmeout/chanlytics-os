@@ -40,7 +40,22 @@ const BODY =
   "{{opening}}\n\nI run Harbor Moving: we answer your phone while you're on a job.\n\nFifteen minutes this week: {{booking link}}\n\n{{your name}}";
 
 test("the six slots, named in any case and spacing, and a brace without its pair", () => {
-  assert.deepEqual([...REACH_OUT_SLOTS], ["opening", "business", "city", "your name", "your business", "booking link"]);
+  // The six, then a company's addressee's four after them (00429): a slot's place is its number in a stored version.
+  assert.deepEqual(
+    [...REACH_OUT_SLOTS],
+    [
+      "opening",
+      "business",
+      "city",
+      "your name",
+      "your business",
+      "booking link",
+      "first name",
+      "company",
+      "title",
+      "role",
+    ],
+  );
   // The six are a slot set, read by the one reader every email's slots take (templates/slot-sets.ts).
   assert.deepEqual(REACH_OUT_SLOT_SET.keys, [...REACH_OUT_SLOTS]);
   assert.equal(REACH_OUT_SLOT_SET.kind, "named");
@@ -49,7 +64,7 @@ test("the six slots, named in any case and spacing, and a brace without its pair
     false,
     "named in any case and spacing",
   );
-  assert.equal(reachOutSlotFault("Hi {{first name}}"), true, "a name that is none of the six");
+  assert.equal(reachOutSlotFault("Hi {{nickname}}"), true, "a name that is none of the slots");
   assert.equal(reachOutSlotFault("Hi {{business"), true, "a brace with no end");
   assert.equal(reachOutSlotFault("Hi business}}"), true, "a brace with no start");
 });
@@ -71,7 +86,7 @@ test("the first step's words: a subject that is the step's own, a body with know
   const bad = validateReachOutWords(
     {
       subject: "Re: your {{opening}}",
-      body: "{{first name}}, SEE THIS NOW\nhttps://a.example https://b.example {{opening}} {{opening}}",
+      body: "{{nickname}}, SEE THIS NOW\nhttps://a.example https://b.example {{opening}} {{opening}}",
     },
     true,
   ).map((i) => `${i.field}:${i.problem}${i.slot ? `:${i.slot}` : ""}`);
@@ -79,7 +94,7 @@ test("the first step's words: a subject that is the step's own, a body with know
     "body:opening_twice",
     "body:shouting",
     "body:too_many_links",
-    "body:unknown_slot:first name",
+    "body:unknown_slot:nickname",
     "subject:opening_in_subject",
     "subject:subject_poses_as_reply",
   ]);
@@ -103,8 +118,8 @@ test("a later step answers the one before: its subject is never read, whatever i
 
 test("each problem is said in the owner's words", () => {
   assert.equal(
-    wordsIssueWords({ field: "body", problem: "unknown_slot", slot: "first name" }),
-    "{{first name}} isn't one of the slots. Use one of the six.",
+    wordsIssueWords({ field: "body", problem: "unknown_slot", slot: "nickname" }),
+    "{{nickname}} isn't one of the slots. Use one from the list.",
   );
   assert.equal(
     wordsIssueWords({ field: "body", problem: "too_many_words" }),

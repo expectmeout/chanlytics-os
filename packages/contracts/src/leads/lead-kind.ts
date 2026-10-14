@@ -6,31 +6,27 @@
  * browser: no schema library.
  *
  *   LEAD_KINDS, LEAD_SOURCES   the stored sets (00429's CHECKs)
- *   leadFactsOf                a lead's facts as stored, read safely: its people, which one is the addressee, its size
+ *   leadFactsOf                (its own) a lead's facts as stored, read safely: its people, the addressee, its size
  *   leadAddresseeOf            the person a company's email goes to; null for a place
  *   leadRoleOf                     a person's role from their source's seniority, else their title (their first name is
  *                              templates' firstNameOf, the one rule every message greets by)
- *   leadUnitOf                 what a page calls leads of a kind: businesses, or companies
  *   leadCompanyOf              a company on its peek: the people named on it, its addressee first, and where it came from
  */
 import { recordOrNull, trimmedOrNull } from "../shared/unknown";
-import { plural } from "../shared/words";
 import { firstNameOf } from "../templates/templates";
 import { LEAD_CARDS } from "./search/cards";
 
 export const LEAD_KINDS = ["place", "company"] as const;
 export type LeadKind = (typeof LEAD_KINDS)[number];
-export const isLeadKind = (k: unknown): k is LeadKind => (LEAD_KINDS as readonly unknown[]).includes(k);
 
 /** The cards that find leads, and a file of the owner's own (00242): where each lead came from. */
 export const LEAD_SOURCES = ["local_businesses", "people_at_companies", "import"] as const;
 export type LeadSource = (typeof LEAD_SOURCES)[number];
-export const isLeadSource = (s: unknown): s is LeadSource => (LEAD_SOURCES as readonly unknown[]).includes(s);
 
 /** A person's place in their company, as the people card's seniority words come down to it. */
-export const LEAD_ROLES = ["owner", "founder", "executive", "partner", "director", "manager", "staff"] as const;
+const LEAD_ROLES = ["owner", "founder", "executive", "partner", "director", "manager", "staff"] as const;
 export type LeadRole = (typeof LEAD_ROLES)[number];
-export const isLeadRole = (r: unknown): r is LeadRole => (LEAD_ROLES as readonly unknown[]).includes(r);
+const isLeadRole = (r: unknown): r is LeadRole => (LEAD_ROLES as readonly unknown[]).includes(r);
 
 /** Where a company the people card found came from, as every page says it (00429): never "your list", nor Maps. */
 export const LEAD_DIRECTORY_WORDS = {
@@ -88,7 +84,7 @@ export type LeadFacts = {
   size: string | null;
 };
 
-export const NO_LEAD_FACTS: LeadFacts = { people: [], addressee: null, size: null };
+const NO_LEAD_FACTS: LeadFacts = { people: [], addressee: null, size: null };
 
 const capped = (v: unknown, max: number): string | null => trimmedOrNull(v)?.slice(0, max) ?? null;
 
@@ -128,7 +124,7 @@ export function leadRoleOf(seniority: string | null | undefined, title: string |
 }
 
 /** One person as stored, read safely: a name, or nothing. */
-export function leadPersonOf(raw: unknown): LeadPerson | null {
+function leadPersonOf(raw: unknown): LeadPerson | null {
   const o = recordOrNull(raw);
   const name = capped(o?.name, 120);
   if (!o || !name) return null;
@@ -144,7 +140,7 @@ export function leadPersonOf(raw: unknown): LeadPerson | null {
 }
 
 /** A lead's facts as stored (leads.facts), read safely: what does not read is left out, never guessed. */
-export function leadFactsOf(raw: unknown): LeadFacts {
+function leadFactsOf(raw: unknown): LeadFacts {
   const o = recordOrNull(raw);
   if (!o) return NO_LEAD_FACTS;
   const people = (Array.isArray(o.people) ? o.people : [])
@@ -161,17 +157,6 @@ export function leadAddresseeOf(l: { kind?: string | null; facts?: unknown }): L
   if (l.kind !== "company") return null;
   const f = leadFactsOf(l.facts);
   return f.addressee === null ? null : (f.people[f.addressee] ?? null);
-}
-
-/** What a page calls leads of a kind, one and many: a place is a business, a company a company. */
-export function leadUnitOf(kind: string | null | undefined): { one: string; many: string } {
-  return kind === "company" ? { one: "company", many: "companies" } : { one: "business", many: "businesses" };
-}
-
-/** "3 companies", "1 business". */
-export function leadUnitCount(n: number, kind: string | null | undefined): string {
-  const u = leadUnitOf(kind);
-  return plural(n, u.one, u.many);
 }
 
 /** One person on a company's peek: who, what they do, whether its reach-out writes to them, their public profile. */

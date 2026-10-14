@@ -78,7 +78,6 @@ export {
   usStatesTyped,
   peoplePlanOf,
   peoplePlanFrom,
-  peopleAreaOf,
   listTyped,
   PEOPLE_FIND_WORDS,
   usStateCode,
@@ -94,17 +93,12 @@ export type { LeadPeopleSearchInput } from "./search/people-plan-schema";
 export {
   LEAD_KINDS,
   LEAD_SOURCES,
-  LEAD_ROLES,
   LEAD_ROLE_WORDS,
   LEAD_PEOPLE_MAX,
   leadRoleOf,
   leadFoundWords,
   LEAD_DIRECTORY_WORDS,
-  leadPersonOf,
-  leadFactsOf,
   leadAddresseeOf,
-  leadUnitOf,
-  leadUnitCount,
   leadCompanyOf,
   LEAD_COMPANY_WORDS,
 } from "./lead-kind";
@@ -267,7 +261,6 @@ export {
   RenameLeadSearchSchema,
   BusinessLineSchema,
   ProposeLeadSearchSchema,
-  ProposePeopleSearchSchema,
   ProposeAnySearchSchema,
   LeadDraftAnswerSchema,
 } from "./lead-plan-schema";

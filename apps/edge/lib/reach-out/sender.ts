@@ -89,7 +89,7 @@ type Db = SupabaseClient<Database>;
 /** The most one mailbox's claim takes in a tick: its gap spaces its sends minutes apart, so a tick finds one or two. */
 export const CLAIM_PER_MAILBOX_PER_TICK = 5;
 /** The most drafts a tick claims, across every workspace: a day's share is thirty a reach-out, all due at once. */
-export const DRAFTS_PER_TICK = 60;
+const DRAFTS_PER_TICK = 60;
 /** When the claim stops taking mailboxes: its door has 60 s (vercel.json), and a mailbox's writes take a few seconds. */
 export const CLAIM_YIELD_AT_MS = 40_000;
 /** How many mailboxes with sends due one page reads, and how many pages a tick reads past the ones it holds. */

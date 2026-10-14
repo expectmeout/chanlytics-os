@@ -22,14 +22,11 @@ import {
   toLeadPeekVM,
   leadRowOf,
   type LeadChips,
-  type LeadClass,
   type LeadCounts,
   type LeadMonthDto,
-  type LeadList,
   type LeadPileCountsDto,
   type LeadPeekVM,
   type LeadRowDto,
-  type LeadRowVM,
   type LeadSearchDto,
   type LeadSearchPlan,
   type LeadSort,
@@ -51,7 +48,7 @@ import { declareSurfaceValue, setSurfaceValue, surfaceValue } from "../surface-v
 // step 12): one line, deleted with its last reader.
 declareSurfaceValue("leads", "__LEADS");
 
-export type { LeadsSurface, LeadsView } from "./surface-types";
+export type { LeadsSurface } from "./surface-types";
 import type { LeadsSurface, LeadsView } from "./surface-types";
 
 /** What `GET lead-searches` and `GET leads` answer (4.6's DTOs); the counts ride with whichever read made them. */

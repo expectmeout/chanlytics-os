@@ -184,6 +184,40 @@ function clockReads(t) {
         .filter((s) => s.state === "held" && s.created_at < a.p_before)
         .sort((x, y) => (x.created_at < y.created_at ? -1 : 1))
         .map((s) => ({ ...s })),
+    // 00428: the drafts waiting for their owners, each with its lead's facts as the send door would judge them.
+    reach_out_drafts_waiting: (a) =>
+      t.reach_out_sends
+        .filter(
+          (s) =>
+            s.state === "drafted" &&
+            (!a.p_tenant_id || s.tenant_id === a.p_tenant_id) &&
+            (!a.p_run_id || s.broadcast_id === a.p_run_id),
+        )
+        .map((s) => ({
+          id: s.id,
+          tenant_id: s.tenant_id,
+          lead_id: s.lead_id,
+          broadcast_id: s.broadcast_id,
+          facts: draftFacts(t, s.tenant_id, s.lead_id),
+        })),
+  };
+}
+
+/** 00428 reach_out_draft_facts: a draft's lead as the send door would judge it, from the lead's own row. */
+function draftFacts(t, tenantId, leadId) {
+  const l = t.leads.find((x) => x.id === leadId && x.tenant_id === tenantId);
+  if (!l) return null;
+  const customer =
+    !l.contact_id &&
+    !!l.email &&
+    t.contacts.some((c) => c.tenant_id === tenantId && c.email === l.email.trim().toLowerCase());
+  return {
+    lead_stage: l.stage,
+    suppressed: !!l.suppressed,
+    wrote_back: false,
+    away: false,
+    stopped: !!l.reach_out_stopped_at,
+    customer,
   };
 }
 
@@ -229,6 +263,7 @@ function senderReads(t, { monthSent = 0, failClaim = [], onClaim = () => {} } = 
         .map((d) => ({ id: d.id, tenant_id: d.tenant_id }));
     },
     reach_out_month_sent: () => monthSent,
+    reach_out_draft_facts: (a) => draftFacts(t, a.p_tenant_id, a.p_lead_id),
     // 00428: an owner's due sends, a step after the first before a first email, their mailbox let go.
     reach_out_claim_drafts: (a) => {
       const picked = t.reach_out_sends
@@ -974,6 +1009,7 @@ test("the person refused: a customer's address, or a lead closed since it was pl
 
 test("the step's or the workspace's fault holds its sends, and nobody is made; a lead with no value is skipped alone", async () => {
   // A slot no lead could fill is the step's to fix: the send waits an hour, in its lead's hours, and keeps its place.
+  // ({{first name}} is no longer one: it greets with "there" where nobody is named, 00429.)
   const slot = world({
     sends: [send()],
     templates: [
@@ -983,7 +1019,7 @@ test("the step's or the workspace's fault holds its sends, and nobody is made; a
         channel: "email",
         components: [
           { type: "HEADER", text: "Hello" },
-          { type: "BODY", text: "Hi {{first name}}" },
+          { type: "BODY", text: "Hi {{nickname}}" },
         ],
       },
     ],

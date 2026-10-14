@@ -59,7 +59,7 @@ const ROLE_RANK: Record<LeadRole, number> = {
 const rankOf = (r: LeadRole | null): number => (r === null ? 7 : ROLE_RANK[r]);
 
 /** The people asked for: twice the count, as a search assumes two found make one lead. */
-export const peopleToAsk = (plan: LeadPeoplePlan): number => Math.min(PEOPLE_ASK_MAX, 2 * plan.count);
+const peopleToAsk = (plan: LeadPeoplePlan): number => Math.min(PEOPLE_ASK_MAX, 2 * plan.count);
 
 /**
  * What the run may charge (its cap): the people asked for at the card's price, and its start, with the room; never under

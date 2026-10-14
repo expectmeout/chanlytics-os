@@ -1350,6 +1350,7 @@ One row. searches_on is the kill switch for every workspace; tenants_on lists th
 | `note` | text | yes |  |  |
 | `prices_checked_at` | timestamp with time zone | yes |  |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
+| `cards_on` | text[] | no | `ARRAY['local_businesses'::text]` | The cards that find leads now (00429): local_businesses, and people_at_companies once its calibration run proved its filters and fields. Switched by hand; lead_card_live reads it. |
 
 ### lead_preferences
 

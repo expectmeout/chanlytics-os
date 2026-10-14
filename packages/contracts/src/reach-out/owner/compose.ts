@@ -8,7 +8,7 @@
  */
 
 /** The longest compose link any of the three is given: under Gmail's cut, with room to spare. */
-export const COMPOSE_URL_MAX = 3800;
+const COMPOSE_URL_MAX = 3800;
 
 /** Each part encoded once, its line breaks CRLF, as mail clients read them. */
 const enc = (s: string): string => encodeURIComponent(s.replace(/\r?\n/g, "\r\n"));

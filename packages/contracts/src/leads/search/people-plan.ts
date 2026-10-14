@@ -105,7 +105,7 @@ export type PeoplePlanInput = Omit<
 };
 
 /** The area a people plan covers, as every page says a search's: its states, or the whole US. */
-export function peopleAreaOf(states: readonly string[]): LeadPeoplePlan["area"] {
+function peopleAreaOf(states: readonly string[]): LeadPeoplePlan["area"] {
   const names = states.map(usStateName).filter((s): s is string => !!s);
   const label = names.length ? joinWords(names) : "the US";
   return { kind: "city", label, state: states[0] ?? "", center: null, radius_m: 0, query: `${label}, USA` };
