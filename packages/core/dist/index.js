@@ -3523,6 +3523,7 @@ async function checkPlaybook(ports, body, existing) {
 // src/campaigns/run-reach-out.ts
 import {
   PLAYBOOK_VETO_DELAY_MS,
+  REACH_OUT_DRAFTS_PER_DAY,
   outreachRefusalOf as outreachRefusalOf2,
   sendWindowsOf,
   timetable,
@@ -3560,26 +3561,35 @@ async function runReachOut(ports, step, cmd) {
   const skipped = new Set(skips.map((s) => s.lead.lead_id));
   leads = leads.filter((l) => !skipped.has(l.lead_id)).slice(0, step.cap_per_run);
   if (leads.length === 0) return { outcome: "empty", reason: "nobody", planned: 0 };
-  const { senders, gone } = await ports.mailboxes(step, [...new Set(keeps.values())]);
-  for (const l of leads) if (gone.has(keeps.get(l.lead_id) ?? "")) skips.push({ lead: l, reason: "mailbox_gone" });
-  leads = leads.filter((l) => !gone.has(keeps.get(l.lead_id) ?? ""));
-  if (leads.length === 0) return { outcome: "empty", reason: "nobody", planned: 0 };
-  const sending = senders.filter((d) => d.cap > 0);
-  if (sending.length === 0) return { outcome: "held", reason: "no_mailbox", planned: 0 };
   const now = ports.now();
-  const plan = timetable({
-    sends: leads.map((l) => ({
-      id: l.lead_id,
-      zone: zoneOfRegion(l.region) ?? ports.workspaceZone,
-      week: weeks.get(l.lead_id),
-      only: keeps.get(l.lead_id) ?? null
-    })),
-    senders: sending,
-    gapMinutes: step.gap_minutes,
-    nowMs: asks ? now : now + PLAYBOOK_VETO_DELAY_MS
-  });
-  if (plan.placed.length === 0) return { outcome: "held", reason: "no_room", planned: 0 };
-  const firstAt = Math.min(...plan.placed.map((p) => p.sendAtMs));
+  const startMs = asks ? now : now + PLAYBOOK_VETO_DELAY_MS;
+  let placed;
+  if (step.owner_sends) {
+    const room = REACH_OUT_DRAFTS_PER_DAY - await ports.plannedOn(step.root_id, cmd.runFor);
+    if (room <= 0) return { outcome: "held", reason: "no_room", planned: 0 };
+    placed = leads.slice(0, room).map((l) => ({ id: l.lead_id, senderId: null, sendAtMs: startMs }));
+  } else {
+    const { senders, gone } = await ports.mailboxes(step, [...new Set(keeps.values())]);
+    for (const l of leads) if (gone.has(keeps.get(l.lead_id) ?? "")) skips.push({ lead: l, reason: "mailbox_gone" });
+    leads = leads.filter((l) => !gone.has(keeps.get(l.lead_id) ?? ""));
+    if (leads.length === 0) return { outcome: "empty", reason: "nobody", planned: 0 };
+    const sending = senders.filter((d) => d.cap > 0);
+    if (sending.length === 0) return { outcome: "held", reason: "no_mailbox", planned: 0 };
+    const plan = timetable({
+      sends: leads.map((l) => ({
+        id: l.lead_id,
+        zone: zoneOfRegion(l.region) ?? ports.workspaceZone,
+        week: weeks.get(l.lead_id),
+        only: keeps.get(l.lead_id) ?? null
+      })),
+      senders: sending,
+      gapMinutes: step.gap_minutes,
+      nowMs: startMs
+    });
+    if (plan.placed.length === 0) return { outcome: "held", reason: "no_room", planned: 0 };
+    placed = plan.placed;
+  }
+  const firstAt = Math.min(...placed.map((p) => p.sendAtMs));
   const run = {
     id: await reachOutRunIdFor(step.id, cmd.runFor),
     tenant_id: step.tenant_id,
@@ -3592,7 +3602,7 @@ async function runReachOut(ports, step, cmd) {
     template_language: step.template_language,
     state: asks ? "pending_approval" : "scheduled",
     scheduled_for: new Date(firstAt).toISOString(),
-    recipient_count: plan.placed.length,
+    recipient_count: placed.length,
     audience: {
       kind: "reach_out",
       root_id: step.root_id,
@@ -3612,7 +3622,7 @@ async function runReachOut(ports, step, cmd) {
   });
   const sends = [
     ...await Promise.all(
-      plan.placed.map(async (p) => ({
+      placed.map(async (p) => ({
         ...await row(p.id),
         state: "planned",
         mailbox_id: p.senderId,
@@ -3630,12 +3640,12 @@ async function runReachOut(ports, step, cmd) {
     )
   ];
   if (await ports.planRun(run, sends) === "exists") return { outcome: "empty", reason: "already_ran", planned: 0 };
-  await ports.recordRun(run, { planned: plan.placed.length, skipped: skips.length });
+  await ports.recordRun(run, { planned: placed.length, skipped: skips.length });
   if (asks) {
-    await ports.notifyWaiting(run.id, plan.placed.length, firstAt);
-    return { outcome: "held", reason: "waiting_for_you", planned: plan.placed.length };
+    await ports.notifyWaiting(run.id, placed.length, firstAt);
+    return { outcome: "held", reason: "waiting_for_you", planned: placed.length };
   }
-  return { outcome: "sent", planned: plan.placed.length };
+  return { outcome: "sent", planned: placed.length };
 }
 
 // src/campaigns/run-hand-step.ts
@@ -36879,7 +36889,15 @@ function nearestAreas(center, o) {
 }
 
 // src/leads/cards.ts
-import { finiteOrNull, trimmedOrNull, recordOrNull } from "../../contracts/dist/index.js";
+import {
+  finiteOrNull,
+  isFreeMail,
+  recordOrNull,
+  trimmedOrNull,
+  usStateCode,
+  usStateName,
+  websiteHostOf
+} from "../../contracts/dist/index.js";
 var MAPS_FIELDS = [
   "title",
   "categoryName",
@@ -36929,7 +36947,183 @@ function areaCenter(plan) {
   if (plan.area.kind === "zip" && plan.area.zip) return zctaCenter(plan.area.zip);
   return null;
 }
+var CHECKER = {
+  actor: "bounceverify/bounceverify-email-verifier",
+  build: "0.1.16",
+  fields: CHECKER_FIELDS,
+  buildInput(emails) {
+    return { emails, skipInvalidSyntax: true };
+  },
+  mapItem(item) {
+    const o = recordOrNull(item);
+    const email = trimmedOrNull(o?.email)?.toLowerCase() ?? null;
+    if (!o || !email) return null;
+    const status = (trimmedOrNull(o.status) ?? "").toLowerCase();
+    const state = o.is_catch_all === true || status === "risky" ? "catch_all" : status === "valid" ? "ok" : status === "invalid" ? "invalid" : "unknown";
+    return { email, state };
+  }
+};
+var PEOPLE_FIELDS = [
+  "first_name",
+  "firstName",
+  "last_name",
+  "lastName",
+  "name",
+  "full_name",
+  "fullName",
+  "title",
+  "job_title",
+  "jobTitle",
+  "headline",
+  "seniority",
+  "email",
+  "work_email",
+  "workEmail",
+  "email_address",
+  "linkedin",
+  "linkedin_url",
+  "linkedinUrl",
+  "city",
+  "state",
+  "country",
+  "company",
+  "company_name",
+  "companyName",
+  "organization_name",
+  "company_domain",
+  "companyDomain",
+  "organization_domain",
+  "company_website",
+  "companyWebsite",
+  "organization_website_url",
+  "domain",
+  "website",
+  "industry",
+  "company_industry",
+  "companyIndustry",
+  "company_size",
+  "companySize",
+  "employee_count",
+  "employees",
+  "organization_num_employees",
+  "company_linkedin",
+  "company_linkedin_url",
+  "companyLinkedin",
+  "organization_linkedin_url",
+  "company_description",
+  "companyDescription",
+  "organization_short_description",
+  "company_city",
+  "companyCity",
+  "company_state",
+  "companyState",
+  "company_country",
+  "companyCountry"
+];
+var PEOPLE_RUN_TIMEOUT_SECS = 30 * 60;
+var PEOPLE_CAP_FLOOR_USD = 0.5;
+var firstText = (o, keys) => {
+  for (const k of keys) {
+    const v = trimmedOrNull(o[k]);
+    if (v) return v;
+  }
+  return null;
+};
+function countryOf(raw) {
+  const s = (raw ?? "").trim();
+  if (!s) return null;
+  if (/^(us|usa|u\.s\.a?\.?|united states( of america)?)$/i.test(s)) return "US";
+  return /^[A-Za-z]{2}$/.test(s) ? s.toUpperCase() : null;
+}
+function sizeOf(raw) {
+  const n = finiteOrNull(raw);
+  if (n === null) return trimmedOrNull(raw)?.slice(0, 20) ?? null;
+  const bands = [
+    [10, "1 - 10"],
+    [50, "11 - 50"],
+    [200, "51 - 200"],
+    [500, "201 - 500"],
+    [1e3, "501 - 1000"],
+    [5e3, "1001 - 5000"],
+    [1e4, "5001 - 10000"]
+  ];
+  return bands.find(([max]) => n <= max)?.[1] ?? "10001+";
+}
+var EMAIL_SHAPE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+var PEOPLE_CARD = {
+  actor: "olympus/b2b-leads-finder",
+  // Pinned once its calibration run has read the items it writes (the card's owed run, decision 0057's lane 5).
+  build: "latest",
+  fields: PEOPLE_FIELDS,
+  buildInput(plan, people) {
+    const states = plan.states.map(usStateName).filter((s) => !!s);
+    return {
+      maxResults: people,
+      personTitle: plan.titles,
+      // An intern is never written to cold.
+      excludeSeniority: ["intern"],
+      ...plan.seniority.length ? { seniority: plan.seniority } : {},
+      ...plan.industries.length ? { industry: plan.industries } : {},
+      ...plan.sizes.length ? { companyEmployeeSize: plan.sizes } : {},
+      personCountry: ["United States"],
+      ...states.length ? { personState: states } : {}
+    };
+  },
+  mapItem(item) {
+    const o = recordOrNull(item);
+    if (!o) return null;
+    const first = firstText(o, ["first_name", "firstName"]);
+    const last = firstText(o, ["last_name", "lastName"]);
+    const name = (firstText(o, ["full_name", "fullName", "name"]) ?? [first, last].filter(Boolean).join(" ")).trim().slice(0, 120);
+    const company = firstText(o, ["company_name", "companyName", "organization_name", "company"])?.slice(0, 120) ?? null;
+    const key = websiteHostOf(
+      firstText(o, [
+        "company_domain",
+        "companyDomain",
+        "organization_domain",
+        "company_website",
+        "companyWebsite",
+        "organization_website_url",
+        "domain",
+        "website"
+      ])
+    );
+    if (!name || !company || !key) return null;
+    const email = firstText(o, ["email", "work_email", "workEmail", "email_address"])?.toLowerCase() ?? null;
+    const work = email && EMAIL_SHAPE.test(email) && !isFreeMail(email.slice(email.lastIndexOf("@") + 1)) ? email : null;
+    return {
+      company: {
+        key,
+        name: company,
+        industry: firstText(o, ["industry", "company_industry", "companyIndustry"])?.slice(0, 120) ?? null,
+        city: firstText(o, ["company_city", "companyCity", "city"])?.slice(0, 120) ?? null,
+        region: usStateCode(firstText(o, ["company_state", "companyState", "state"])),
+        country: countryOf(firstText(o, ["company_country", "companyCountry", "country"])) ?? "US",
+        linkedin: firstText(o, [
+          "company_linkedin_url",
+          "company_linkedin",
+          "companyLinkedin",
+          "organization_linkedin_url"
+        ])?.slice(0, 300) ?? null,
+        size: sizeOf(
+          o.company_size ?? o.companySize ?? o.employee_count ?? o.employees ?? o.organization_num_employees ?? null
+        ),
+        about: firstText(o, ["company_description", "companyDescription", "organization_short_description"])?.replace(/[\p{Cc}\p{Cf}]/gu, " ").slice(0, 600) ?? null
+      },
+      person: {
+        name,
+        first_name: first?.slice(0, 60) ?? null,
+        title: firstText(o, ["title", "job_title", "jobTitle", "headline"])?.slice(0, 120) ?? null,
+        seniority: firstText(o, ["seniority"])?.toLowerCase().slice(0, 20) ?? null,
+        email: work,
+        profile_url: firstText(o, ["linkedin_url", "linkedinUrl", "linkedin"])?.slice(0, 300) ?? null
+      }
+    };
+  },
+  checker: CHECKER
+};
 var CARDS = {
+  people_at_companies: PEOPLE_CARD,
   local_businesses: {
     actor: "compass/crawler-google-places",
     build: "0.14.757",
@@ -37009,24 +37203,13 @@ var CARDS = {
         mapsUrl: trimmedOrNull(o.url)
       };
     },
-    checker: {
-      actor: "bounceverify/bounceverify-email-verifier",
-      build: "0.1.16",
-      fields: CHECKER_FIELDS,
-      buildInput(emails) {
-        return { emails, skipInvalidSyntax: true };
-      },
-      mapItem(item) {
-        const o = recordOrNull(item);
-        const email = trimmedOrNull(o?.email)?.toLowerCase() ?? null;
-        if (!o || !email) return null;
-        const status = (trimmedOrNull(o.status) ?? "").toLowerCase();
-        const state = o.is_catch_all === true || status === "risky" ? "catch_all" : status === "valid" ? "ok" : status === "invalid" ? "invalid" : "unknown";
-        return { email, state };
-      }
-    }
+    checker: CHECKER
   }
 };
+function actorsOf(plan) {
+  const c = plan.card === "people_at_companies" ? CARDS.people_at_companies : CARDS.local_businesses;
+  return { discover: c.actor, check: c.checker.actor };
+}
 
 // src/leads/clean.ts
 import { cleanEmailCandidates, isSiteRoot, siteHost, stateCode, usPhone } from "../../contracts/dist/index.js";
@@ -37049,7 +37232,7 @@ function cleanPlace(raw) {
 
 // src/leads/identity.ts
 import { isFreeMail as isFreeMailHost } from "../../contracts/dist/index.js";
-function isFreeMail(email) {
+function isFreeMail2(email) {
   const host = (email.split("@")[1] ?? "").toLowerCase();
   return isFreeMailHost(host);
 }
@@ -37077,7 +37260,7 @@ function foldDuplicates(places) {
 function shareKeysOf(p) {
   return {
     phones: p.phone ? [p.phone] : [],
-    emails: p.emails.filter((e) => !isFreeMail(e)),
+    emails: p.emails.filter((e) => !isFreeMail2(e)),
     hosts: p.host ? [p.host] : []
   };
 }
@@ -37321,7 +37504,8 @@ async function heldBack(p, tenantId) {
 }
 
 // src/leads/runner/start.ts
-import { APIFY_RUN_END_EVENTS } from "../../channels/dist/index.js";
+import { APIFY_RUN_END_EVENTS as APIFY_RUN_END_EVENTS2 } from "../../channels/dist/index.js";
+import { peoplePlanOf } from "../../contracts/dist/index.js";
 
 // src/leads/runner/claim.ts
 import { MIN_MS as MIN_MS4 } from "../../contracts/dist/index.js";
@@ -37355,6 +37539,177 @@ async function startFailed(p, row, owner, e) {
     return "unknown";
   }
   throw e;
+}
+
+// src/leads/runner/people.ts
+import { APIFY_RUN_END_EVENTS } from "../../channels/dist/index.js";
+import {
+  LEAD_CARDS,
+  LEAD_ESTIMATE_MARGIN,
+  LEAD_PEOPLE_MAX,
+  firstNameOf as firstNameOf3,
+  roleOf
+} from "../../contracts/dist/index.js";
+var PEOPLE_TERM = "people";
+var PEOPLE_ASK_MAX = 1e3;
+var ROLE_RANK = {
+  owner: 0,
+  founder: 1,
+  executive: 2,
+  partner: 3,
+  director: 4,
+  manager: 5,
+  staff: 6
+};
+var rankOf = (r) => r === null ? 7 : ROLE_RANK[r];
+var peopleToAsk = (plan) => Math.min(PEOPLE_ASK_MAX, 2 * plan.count);
+function capOf(plan, leftUsd) {
+  const brief = LEAD_CARDS.find((c) => c.id === "people_at_companies");
+  const want = (peopleToAsk(plan) * (brief?.costPerPlaceUsd ?? 2e-3) + (brief?.startUsd ?? 0.01)) * LEAD_ESTIMATE_MARGIN;
+  return Math.round(Math.max(PEOPLE_CAP_FLOOR_USD, Math.min(leftUsd, want)) * 100) / 100;
+}
+async function startPeople(p, round, plan, owner, leftUsd) {
+  const card = CARDS.people_at_companies;
+  const id = await runIdFor(round.id, "main", PEOPLE_TERM);
+  const cap = capOf(plan, leftUsd);
+  const [row] = await p.db.runsEnsure([
+    {
+      id,
+      tenant_id: round.tenant_id,
+      round_id: round.id,
+      purpose: "discover",
+      term: PEOPLE_TERM,
+      actor: card.actor,
+      build: card.build,
+      webhook_token_hash: await sha256Hex(await p.webhookToken(id)),
+      cap_usd: cap
+    }
+  ]);
+  if (!row) throw new Error("lead_round_start: the people run's row was not made");
+  const said = (kind) => ({
+    kind: "started",
+    phase: "main",
+    runs: [{ term: PEOPLE_TERM, kind }]
+  });
+  if (row.state !== "claimed" && !(row.state === "starting" && row.claimed_by === owner)) return said("already");
+  if (outOfTime(p)) throw new LeadRetry("out of time before the people run's start");
+  const claim = await claimOrRecover(p, card.actor, row, owner);
+  if (claim !== "mine") return said(claim === "recovered" ? "reconciled" : "someone_elses");
+  const token = await p.webhookToken(row.id);
+  const input = { ...card.buildInput(plan, peopleToAsk(plan)), [INPUT_MARKER]: row.id };
+  try {
+    const started = await p.apify.startRun(card.actor, input, {
+      build: card.build,
+      timeoutSecs: PEOPLE_RUN_TIMEOUT_SECS,
+      maxTotalChargeUsd: cap,
+      webhooks: [{ eventTypes: [...APIFY_RUN_END_EVENTS], requestUrl: webhookUrl(p, row.id, token) }]
+    });
+    await p.db.runRecordStart(row.id, owner, started.id, started.datasetId, cap);
+    await p.schedule("lead_collect", { run_id: row.id, seq: "p0" }, FIRST_COLLECT_SECONDS);
+    return said("started");
+  } catch (e) {
+    const kind = await startFailed(p, row, owner, e);
+    if (kind === "refused") await p.db.roundEnd(round.id, "source_failed");
+    return said(kind);
+  }
+}
+var reasonOf = (who, size) => [who?.title, size ? `${size} people` : null].filter((x) => !!x).join(" \xB7 ");
+function companiesOf(found) {
+  const by = /* @__PURE__ */ new Map();
+  for (const f of found) {
+    const at = by.get(f.company.key) ?? { company: f.company, people: [] };
+    const named = f.person.name.toLowerCase();
+    const twice = at.people.some(
+      (x) => f.person.email && x.email === f.person.email || x.name.toLowerCase() === named
+    );
+    if (!twice && at.people.length < LEAD_PEOPLE_MAX)
+      at.people.push({
+        name: f.person.name,
+        first_name: f.person.first_name ?? firstNameOf3(f.person.name, null),
+        title: f.person.title,
+        role: roleOf(f.person.seniority, f.person.title),
+        email: f.person.email,
+        profile_url: f.person.profile_url
+      });
+    by.set(f.company.key, at);
+  }
+  const out = [];
+  for (const { company, people } of by.values()) {
+    const ranked = people.map((person, i) => ({ person, i })).filter((x) => x.person.email !== null).sort((a, b) => rankOf(a.person.role) - rankOf(b.person.role) || a.i - b.i);
+    const top = ranked[0];
+    const email = top?.person.email;
+    if (!top || !email) continue;
+    out.push({
+      source_key: company.key,
+      name: company.name,
+      category: company.industry,
+      city: company.city,
+      region: company.region,
+      country: company.country,
+      linkedin_url: company.linkedin,
+      about: company.about,
+      email,
+      facts: { people, addressee: top.i, size: company.size },
+      reason: reasonOf(top.person, company.size)
+    });
+  }
+  return out;
+}
+function endingOf(state, held, target) {
+  if (held === 0 && state !== "succeeded") return "source_failed";
+  return held >= target ? "target_reached" : "searched_everything";
+}
+async function collectPeople(p, round, run, owner, gen) {
+  const card = CARDS.people_at_companies;
+  const alreadyFinal = FINAL_RUN_STATES.has(run.state);
+  let remoteState = run.state;
+  let usage = run.usage_usd;
+  let datasetId = run.dataset_id;
+  if (!alreadyFinal) {
+    if (outOfTime(p)) throw new LeadRetry("out of time before reading the people run");
+    try {
+      const remote = await p.apify.getRun(run.apify_run_id);
+      remoteState = runStateOf(remote.status);
+      usage = remote.usageTotalUsd ?? usage;
+      datasetId = remote.datasetId ?? datasetId;
+    } catch (e) {
+      if (!isRefused(e)) throw e;
+      remoteState = "failed";
+    }
+  }
+  const base = run.read_offset;
+  let items = [];
+  if (datasetId && !alreadyFinal) {
+    if (outOfTime(p)) throw new LeadRetry("out of time before reading the people");
+    items = (await p.apify.listItems(datasetId, base, PAGE_ITEMS, [...card.fields])).items;
+  }
+  const found = items.map((it) => card.mapItem(it)).filter((x) => x !== null);
+  const companies = companiesOf(found);
+  if (companies.length) await p.db.companyUpsert(round.id, companies);
+  const to = base + items.length;
+  const pageShort = items.length < PAGE_ITEMS;
+  const runDone = pageShort && FINAL_RUN_STATES.has(remoteState);
+  const held = runDone ? (await p.db.membersOfRound(round.id)).length : 0;
+  const page = {
+    judgment: null,
+    places: [],
+    usage_usd: usage,
+    items_seen: run.items_seen + items.length,
+    run_state: runDone ? remoteState : null,
+    next: runDone ? null : { kind: "lead_collect", seq: `p${to}`, run_after_seconds: pageShort ? POLL_SECONDS : 0 },
+    round: runDone ? { state: "checking", question: null, ending: null, ending_pending: endingOf(remoteState, held, round.target) } : round.state === "queued" ? { state: "running", question: null, ending: null } : null
+  };
+  const res = await p.db.collectCommit(run.id, owner, gen, base, to, page);
+  if (!res.ok) return { kind: "lost", why: res.why };
+  if (runDone) await p.schedule("lead_check", { round_id: round.id, batch: 0 }, 0);
+  return {
+    kind: "committed",
+    commits: 1,
+    toOffset: to,
+    runState: page.run_state,
+    roundState: res.round_state,
+    judgeRefused: null
+  };
 }
 
 // src/leads/runner/rejudge.ts
@@ -37870,6 +38225,8 @@ async function startRound(p, roundId, owner, resume = false) {
     await p.db.roundEnd(round.id, "budget_used");
     return { kind: "spent" };
   }
+  const people = peoplePlanOf(round.plan);
+  if (people) return startPeople(p, round, people, owner, leftUsd);
   const plan = round.plan;
   const card = CARDS[plan.card];
   const phase = round.purpose === "probe" && !resume && round.state !== "running" ? "probe" : "main";
@@ -37921,7 +38278,7 @@ async function startRound(p, roundId, owner, resume = false) {
         build: card.build,
         timeoutSecs: MAPS_RUN_TIMEOUT_SECS,
         maxTotalChargeUsd: w.cap,
-        webhooks: [{ eventTypes: [...APIFY_RUN_END_EVENTS], requestUrl: webhookUrl(p, row.id, token) }]
+        webhooks: [{ eventTypes: [...APIFY_RUN_END_EVENTS2], requestUrl: webhookUrl(p, row.id, token) }]
       });
       await p.db.runRecordStart(row.id, owner, started.id, started.datasetId, w.cap);
       await p.schedule("lead_collect", { run_id: row.id, seq: "p0" }, FIRST_COLLECT_SECONDS);
@@ -37934,9 +38291,12 @@ async function startRound(p, roundId, owner, resume = false) {
   return { kind: "started", phase, runs: [...outcomes, ...untried] };
 }
 
+// src/leads/runner/collect.ts
+import { peoplePlanOf as peoplePlanOf2 } from "../../contracts/dist/index.js";
+
 // src/leads/runner/check.ts
-import { LEAD_CARDS, LEAD_ESTIMATE_MARGIN } from "../../contracts/dist/index.js";
-import { APIFY_RUN_END_EVENTS as APIFY_RUN_END_EVENTS2 } from "../../channels/dist/index.js";
+import { LEAD_CARDS as LEAD_CARDS2, LEAD_ESTIMATE_MARGIN as LEAD_ESTIMATE_MARGIN2 } from "../../contracts/dist/index.js";
+import { APIFY_RUN_END_EVENTS as APIFY_RUN_END_EVENTS3 } from "../../channels/dist/index.js";
 var isAgainRun = (run) => run.purpose === "check" && (run.term ?? "").startsWith("again:");
 function checkable(members) {
   return members.filter((m) => m.email !== null && m.email_state === "checking").sort((a, b) => a.lead_id < b.lead_id ? -1 : a.lead_id > b.lead_id ? 1 : 0);
@@ -37969,10 +38329,10 @@ async function check(p, roundId, batch, owner, again = null) {
   const id = await runIdFor(round.id, "check", term);
   const token = await p.webhookToken(id);
   const emails = [...new Set(slice.map((m) => m.email))];
-  const brief = LEAD_CARDS.find((c) => c.id === round.plan.card);
+  const brief = LEAD_CARDS2.find((c) => c.id === round.plan.card);
   const capUsd = Math.max(
     0.5,
-    Math.round(emails.length * (brief?.checkPerEmailUsd ?? 89e-5) * LEAD_ESTIMATE_MARGIN * 100) / 100
+    Math.round(emails.length * (brief?.checkPerEmailUsd ?? 89e-5) * LEAD_ESTIMATE_MARGIN2 * 100) / 100
   );
   const rows = await p.db.runsEnsure([
     {
@@ -38001,7 +38361,7 @@ async function check(p, roundId, batch, owner, again = null) {
         build: card.checker.build,
         timeoutSecs: CHECKER_RUN_TIMEOUT_SECS,
         maxTotalChargeUsd: capUsd,
-        webhooks: [{ eventTypes: [...APIFY_RUN_END_EVENTS2], requestUrl: webhookUrl(p, row.id, token) }]
+        webhooks: [{ eventTypes: [...APIFY_RUN_END_EVENTS3], requestUrl: webhookUrl(p, row.id, token) }]
       }
     );
     await p.db.runRecordStart(row.id, owner, started.id, started.datasetId, capUsd);
@@ -38123,6 +38483,7 @@ async function collect(p, runId, seq, owner) {
     return { kind: "busy" };
   }
   try {
+    if (peoplePlanOf2(round.plan)) return await collectPeople(p, round, run, owner, gen);
     return await collectHeld(p, round, run, owner, gen);
   } finally {
     await p.db.runRelease(run.id, owner, gen);
@@ -38389,8 +38750,8 @@ async function reconcileUnknownRuns(p, unknownRuns) {
   for (const row of unknownRuns) {
     if (outOfTime(p)) break;
     const round = await p.db.round(row.round_id);
-    const card = CARDS[round?.plan.card ?? "local_businesses"];
-    const found = await findOurRun(p, row.purpose === "check" ? card.checker.actor : card.actor, row);
+    const actors = actorsOf(round?.plan ?? { card: "local_businesses" });
+    const found = await findOurRun(p, row.purpose === "check" ? actors.check : actors.discover, row);
     if (found) {
       await p.db.runReconcile(row.id, found.id, found.datasetId, runStateOf(found.status));
       await p.schedule("lead_collect", { run_id: row.id, seq: `s${minute(p)}` }, 0);
@@ -39543,7 +39904,7 @@ export {
   inArea,
   ingestEmail,
   isAgainRun,
-  isFreeMail,
+  isFreeMail2 as isFreeMail,
   isNotTakenError,
   isThreadUnknown,
   isVisionMime,

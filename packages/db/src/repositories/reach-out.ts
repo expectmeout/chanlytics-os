@@ -6,7 +6,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { maySpend, type BillingMode, type BillingStatus } from "@chanlytics/contracts";
-import type { Database } from "../database.types";
+import type { Database, Json } from "../database.types";
 import { emailWordsFrom } from "./reach-out-sheet";
 import { withdrawQueued } from "./control";
 import { recordEvent } from "../events";
@@ -314,6 +314,8 @@ export interface SendStanding {
   root: string | null;
   /** The name the chain signs with ({{your name}}): the root's. */
   signedBy: string | null;
+  /** Its owner sends its emails, each handed to them as a draft (the root's owner_sends, 00428). */
+  ownerSends: boolean;
 }
 
 export async function sendStanding(db: Db, s: ReachOutSendRow): Promise<SendStanding> {
@@ -321,7 +323,7 @@ export async function sendStanding(db: Db, s: ReachOutSendRow): Promise<SendStan
     db.from("broadcasts").select("state").eq("tenant_id", s.tenant_id).eq("id", s.broadcast_id).maybeSingle(),
     db
       .from("playbooks")
-      .select("id, state, template_id, after_playbook_id, signed_by")
+      .select("id, state, template_id, after_playbook_id, signed_by, owner_sends")
       .eq("tenant_id", s.tenant_id)
       .in("id", [s.playbook_id ?? s.root_id, s.root_id]),
   ]);
@@ -335,6 +337,7 @@ export async function sendStanding(db: Db, s: ReachOutSendRow): Promise<SendStan
       : null,
     root: (chain.data ?? []).find((p) => p.id === s.root_id)?.state ?? null,
     signedBy: (chain.data ?? []).find((p) => p.id === s.root_id)?.signed_by ?? null,
+    ownerSends: (chain.data ?? []).find((p) => p.id === s.root_id)?.owner_sends === true,
   };
 }
 
@@ -374,10 +377,20 @@ export async function leadSlotsOf(
   db: Db,
   tenantId: string,
   leadId: string,
-): Promise<{ business_name: string | null; city: string | null } | null> {
+): Promise<{
+  business_name: string | null;
+  city: string | null;
+  /** The finder's checked address, and its check (00428: a draft its owner sends goes to it). */
+  email: string | null;
+  email_state: string | null;
+  /** A place or a company, where it was found, and a company's people (00429): the person slots and the foot read them. */
+  kind: string;
+  source: string;
+  facts: Json;
+} | null> {
   const { data, error } = await db
     .from("leads")
-    .select("business_name, city")
+    .select("business_name, city, email, email_state, kind, source, facts")
     .eq("tenant_id", tenantId)
     .eq("id", leadId)
     .maybeSingle();

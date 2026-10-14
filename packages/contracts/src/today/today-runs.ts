@@ -5,6 +5,8 @@
 
 import { isReachOutRun } from "../reach-out/reach-out-rules";
 import { RUN_WAITING_WORDS, heldEmailsWords, runStopWords } from "../shell/campaign-rooms";
+import { plural } from "../shared/words";
+import { runDraftedEmails, runHeldEmails } from "../waits/waits";
 
 /* ------------------------------ the runs' words ------------------------------ */
 
@@ -19,6 +21,8 @@ export interface RunLike {
   audience?: unknown;
   /** How many of a going run's emails the check holds for your say (waits.ts runHeldEmails). */
   held?: number | null;
+  /** How many of a going run's emails are handed to you to send from your inbox (waits.ts runDraftedEmails, 00428). */
+  drafted?: number | null;
 }
 
 export interface TodayRunWordsVM {
@@ -35,6 +39,13 @@ export interface TodayRunWordsVM {
   soon: { meta: string; sentence: string; status: string[] };
   /** A going run whose emails the check holds: they wait for your say on the run, and the rest goes as planned. */
   held: { meta: string; sentence: string; status: string[] };
+  /** A going run whose emails are handed to you: they wait on the run for you to send them from your inbox (00428). */
+  drafted: { meta: string; sentence: string; status: string[] };
+  /**
+   * What the brief says after the run's name: what it waits for, and the queue's own sentence for it. A run waiting for
+   * approval is "waiting for your approval"; a going one whose emails are held, or handed to you, is "waiting for you".
+   */
+  brief: { waits: string; sentence: string };
   /** A run that went out today: what it earned so far, and whether it is still sending. */
   done: { counts: string; still: boolean };
 }
@@ -56,11 +67,14 @@ export function todayRunWords(r: RunLike): TodayRunWordsVM {
   // A person reads "campaign", never "playbook" (decision 19 of 9 Oct 2026).
   const kind = reach ? "Reach-out" : "Campaign";
   const sent = `${r.counts.sent} sent`;
+  const held = `${heldEmailsWords(r.held ?? 0)}. The rest of the run goes as planned.`;
+  const drafted = `${plural(r.drafted ?? 0, "email", "emails")} to send from your inbox, each written and checked.`;
+  const waiting = `${people}. Nothing sends until you say so.`;
   return {
     people,
     waiting: {
       meta: `${kind} · ready`,
-      sentence: `${people}. Nothing sends until you say so.`,
+      sentence: waiting,
       // The run's one phrase for it (broadcasts.ts BROADCAST_STATE_LABELS), which Sent, Campaigns and the drawer say too.
       status: [RUN_WAITING_WORDS],
     },
@@ -74,9 +88,20 @@ export function todayRunWords(r: RunLike): TodayRunWordsVM {
     done: { counts: r.counts.replied ? `${sent}, ${r.counts.replied} replied` : sent, still: r.state === "sending" },
     held: {
       meta: `${kind} · going`,
-      sentence: `${heldEmailsWords(r.held ?? 0)}. The rest of the run goes as planned.`,
+      sentence: held,
       status: ["Held for your say"],
     },
+    drafted: {
+      meta: `${kind} · to send`,
+      sentence: drafted,
+      status: ["Handed to you"],
+    },
+    brief:
+      runHeldEmails(r) > 0
+        ? { waits: "waiting for you", sentence: held }
+        : runDraftedEmails(r) > 0
+          ? { waits: "waiting for you", sentence: drafted }
+          : { waits: RUN_WAITING_WORDS.toLowerCase(), sentence: waiting },
   };
 }
 

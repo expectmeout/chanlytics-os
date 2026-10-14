@@ -28,10 +28,30 @@ interface PaceProps {
   pace: { share: number; mailboxes: number; rises: number | null };
   gap: number;
   onGap: (minutes: number) => void;
+  /** Its owner sends it (00428): their day's share, and no gap to choose. */
+  ownerSends: boolean;
 }
 
-/** The pace: the mailboxes' day and the gap, why it is recommended, and when the first run goes. */
-export function RoPace({ W, pace, gap, onGap }: PaceProps) {
+/**
+ * The pace: the mailboxes' day and the gap, why it is recommended, and when the first run goes; for a reach-out its owner
+ * sends, the day's share handed to them, with nothing to choose.
+ */
+export function RoPace({ W, pace, gap, onGap, ownerSends }: PaceProps) {
+  if (ownerSends) {
+    const owner = W.ownerPaceWords();
+    return (
+      <section className="pb-sec" data-testid="ro-pace">
+        <span className="pb-sec-k">{W.REACH_OUT_SHEET_PARTS.pace}</span>
+        <p className="pb-when" data-testid="ro-pace-owner">
+          {owner.line}
+        </p>
+        <p className="pb-rules-line">
+          <b>{W.REACH_OUT_SHEET_PARTS.recommended}</b> · {owner.why}
+        </p>
+        <p className="pb-note">{W.REACH_OUT_SHEET_WORDS.first}</p>
+      </section>
+    );
+  }
   const words = W.paceWords({ share: pace.share, mailboxes: pace.mailboxes, rises: pace.rises, gapMinutes: gap });
   const gaps = W.REACH_OUT_GAP_MINUTES.map((m) => ({ v: m, t: `${m} min` }));
   return (
@@ -64,7 +84,10 @@ interface FromProps {
   providers: MailboxProvider[];
   unread: string | null;
   draft: ReachOutDraft;
+  /** Its owner sends it (00428): chosen, or the one way it can go with no mailbox connected. */
+  ownerSends: boolean;
   onPick: (ids: string[]) => void;
+  onOwner: (on: boolean) => void;
 }
 
 /** What a mailbox writes in a day as the picker says it, or why it writes nothing now (contracts' words). */
@@ -73,30 +96,67 @@ function mailboxDayWords(m: MailboxConnectionDto, now: number): string {
   return `${mailboxDailyCap(m)} a day${m.customer_domain ? " · customer domain" : ""}`;
 }
 
-/**
- * From: every connected mailbox, or up to ten picked, each with what it writes in a day; unread is said as reading,
- * none connected as none (with Connect beside it), and Start waits. Each business hears from one mailbox for its chain.
- */
-export function RoFrom({ W, mailboxes, providers, unread, draft, onPick }: FromProps) {
+/** The Connect buttons, one per provider this deployment offers. */
+function RoConnect({ W, providers }: { W: Words; providers: MailboxProvider[] }) {
   const P = W.REACH_OUT_SHEET_PARTS;
-  const say = unread || (mailboxes.length === 0 ? W.REACH_OUT_SHEET_WORDS.noMailbox : null);
-  if (say)
+  return (
+    <p className="pb-note">
+      {providers.map((p) => (
+        <Fragment key={p}>
+          <Button size="sm" onClick={() => connectedMailboxes.connect(p)} data-testid={`ro-connect-${p}`}>
+            {p === "google" ? P.connectGoogle : P.connectMicrosoft}
+          </Button>{" "}
+        </Fragment>
+      ))}
+    </p>
+  );
+}
+
+/**
+ * From: you, from your own inbox (00428: each email handed to you written and checked), or the mailboxes it writes from:
+ * every connected one, or up to ten picked, each with what it writes in a day. With none connected the owner sends it,
+ * the one way it can go, and Connect is beside it where this deployment offers one; unread is said as reading, and
+ * Start waits. Each business hears from one sender for its chain.
+ */
+export function RoFrom({ W, mailboxes, providers, unread, draft, ownerSends, onPick, onOwner }: FromProps) {
+  const P = W.REACH_OUT_SHEET_PARTS;
+  if (unread)
     return (
       <section className="pb-sec" data-testid="ro-from">
         <span className="pb-sec-k">{P.from}</span>
-        <p className={unread ? "pb-note" : "pb-warn"} data-testid={unread ? "ro-unread" : "ro-no-mailbox"}>
-          {say}
+        <p className="pb-note" data-testid="ro-unread">
+          {unread}
         </p>
-        {!unread && providers.length > 0 && (
-          <p className="pb-note">
-            {providers.map((p) => (
-              <Fragment key={p}>
-                <Button size="sm" onClick={() => connectedMailboxes.connect(p)} data-testid={`ro-connect-${p}`}>
-                  {p === "google" ? P.connectGoogle : P.connectMicrosoft}
-                </Button>{" "}
-              </Fragment>
-            ))}
-          </p>
+      </section>
+    );
+  const none = mailboxes.length === 0;
+  const owner = (
+    <label className="ro-domain">
+      <Switch
+        checked={ownerSends}
+        readOnly={none}
+        onCheckedChange={(on) => onOwner(on)}
+        labelledBy="ro-owner-sends-name"
+        data-testid="ro-owner-sends"
+      />
+      <span id="ro-owner-sends-name">{P.youSend}</span>
+    </label>
+  );
+  if (none || ownerSends)
+    return (
+      <section className="pb-sec" data-testid="ro-from">
+        <span className="pb-sec-k">{P.from}</span>
+        {owner}
+        <p className="pb-note" data-testid="ro-owner-sends-words">
+          {W.REACH_OUT_SHEET_WORDS.ownerSends}
+        </p>
+        {none && providers.length > 0 && (
+          <>
+            <p className="pb-note" data-testid="ro-no-mailbox">
+              {W.REACH_OUT_SHEET_WORDS.ownerNoMailbox}
+            </p>
+            <RoConnect W={W} providers={providers} />
+          </>
         )}
       </section>
     );
@@ -107,6 +167,7 @@ export function RoFrom({ W, mailboxes, providers, unread, draft, onPick }: FromP
   return (
     <section className="pb-sec" data-testid="ro-from">
       <span className="pb-sec-k">{P.from}</span>
+      {owner}
       <label className="ro-domain">
         <Switch
           checked={picked.length === 0}

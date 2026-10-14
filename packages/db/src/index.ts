@@ -211,6 +211,22 @@ export {
 } from "./repositories/campaigns/reach-out-leads";
 export type { DoorResult, ReachOutAddAnswer } from "./repositories/campaigns/reach-out-leads";
 export {
+  claimDrafts,
+  chainPlannedOn,
+  draftedSendsOf,
+  ownerSendFactsOf,
+  sendSaid,
+  replySaid,
+  leadReplyFactsOf,
+} from "./repositories/campaigns/reach-out-drafts";
+export type {
+  DraftedSendRow,
+  SendSaidAnswer,
+  ReplySaidAnswer,
+  LeadReplyFacts,
+  OwnerSendFacts,
+} from "./repositories/campaigns/reach-out-drafts";
+export {
   uncheckedSends,
   uncheckedWaiting,
   reachOutRecord,
@@ -233,7 +249,7 @@ export {
   outreachModeOf,
   tenantZoneOf,
   heldNoticeDue,
-  heldSendCounts,
+  runSendCounts,
   markHeldNotice,
   leadNamesByIds,
   handRun,
@@ -576,6 +592,8 @@ export {
   ideasBasis,
   ideasClockAndLanguage,
   leadCountriesOf,
+  leadPeopleSearchCreate,
+  leadCompanyUpsert,
 } from "./repositories/leads";
 export { ownLineOf, businessOnRecordOf } from "./lines";
 export type { LeadOneLead, LeadOneMember, IdeasKept } from "./repositories/leads";

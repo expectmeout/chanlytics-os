@@ -14,6 +14,7 @@ import {
   runStopWords,
   runStoppedWords,
   runHeldEmails,
+  runDraftedEmails,
   runsThatWait,
   runTooLate,
   type BroadcastVM,
@@ -61,7 +62,7 @@ export const runsPending = () => {
   const all = (s && s.rows) || [];
   const pending = all.filter((r) => r.state === "pending_approval");
   // The business's days, asked only over runs to judge.
-  const judged = all.filter((r) => r.state === "pending_approval" || runHeldEmails(r) > 0);
+  const judged = all.filter((r) => r.state === "pending_approval" || runHeldEmails(r) > 0 || runDraftedEmails(r) > 0);
   const days = judged.length ? approvalDaysNow() : null;
   return {
     waiting: days ? runsThatWait(judged, days) : [],
@@ -185,8 +186,9 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, room: number) 
   const count = asked.length + soon.length;
   const drawn = [
     ...asked.slice(0, room).map((r) => {
-      // A going run whose emails the check holds is answered on the run, where each held email is put back or skipped.
-      const held = runHeldEmails(r) > 0 ? words(r).held : null;
+      // A going run whose emails the check holds is answered on the run, where each held email is put back or skipped;
+      // one whose emails are handed to you is sent from there, each from your own inbox (00428).
+      const held = runHeldEmails(r) > 0 ? words(r).held : runDraftedEmails(r) > 0 ? words(r).drafted : null;
       const late = held ? null : runLate(r);
       // Decided on its sheet alone, as Sent's row and the ledger's door decide it (the run's offer, contracts
       // waitingRunOffer): a reach-out's run, or one whose day has passed and is skipped there.
@@ -197,7 +199,7 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, room: number) 
           key={`run-${r.id}`}
           initials="▶"
           glyph="bolt"
-          name={r.audience.label}
+          name={r.audience.label || r.name}
           meta={said.meta}
           sentence={held || late ? said.sentence : paused ? CAMPAIGNS_PAUSED_WORDS : said.sentence}
           status={said.status}

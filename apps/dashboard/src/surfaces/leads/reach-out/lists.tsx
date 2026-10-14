@@ -4,7 +4,8 @@
  * check, as a search of its own) and the bulk bar's *Write to them* (the chosen leads as a search of their own, with the
  * reach-out sheet opened on it). A reach-out writes to a search, so both are one. Every reading of a file and every word is
  * contracts' (lead-import.ts), through Campaigns' reach-out reads (`reachOuts.lists`); the page mounts it with one hook,
- * useLeadLists, whose answer is the rail's door, the bar's act and the sheets they open.
+ * useLeadLists, whose answer is the rail's doors, the bar's act and the sheets they open. Beside Import leads the rail
+ * offers Find people (the people card, 00429: finder/people-sheet.tsx), the other door that brings leads in.
  */
 import { useMemo, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
@@ -16,6 +17,7 @@ import { Icon } from "../../kit/icon/icon";
 import { RecordSheet } from "../../kit/record/sheet";
 import { canDo, gate, navigate } from "../../legacy-verbs";
 import { PhoneSheetRow } from "../../people/sheets/phone-sheet";
+import { useFindPeople } from "../finder/people-sheet";
 import type { PeopleFlash } from "../../people/types";
 
 type Lists = typeof reachOuts.lists;
@@ -365,6 +367,7 @@ export const useLeadLists = ({ flash = null }: { flash?: ((f: PeopleFlash) => vo
   const [writing, setWriting] = useState<{ id: string; name: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const L = reachOuts.lists;
+  const people = useFindPeople({ flash });
   const open = (id: string) => navigate(leadsRoute({ searchId: id, list: "all" }));
   const may = canDo("approve");
   const choose = async (ids: string[]) => {
@@ -382,15 +385,18 @@ export const useLeadLists = ({ flash = null }: { flash?: ((f: PeopleFlash) => vo
     setWriting({ id: r.data.search_id, name });
   };
   const importDoor = (
-    <button
-      type="button"
-      className="cl-rail-newseg"
-      onClick={() => setImporting(true)}
-      data-testid="leads-import"
-      {...gate("find", "import leads")}
-    >
-      <Icon name="download" size={11} /> {L.words.importDoor}
-    </button>
+    <>
+      <button
+        type="button"
+        className="cl-rail-newseg"
+        onClick={() => setImporting(true)}
+        data-testid="leads-import"
+        {...gate("find", "import leads")}
+      >
+        <Icon name="download" size={11} /> {L.words.importDoor}
+      </button>
+      {people.door}
+    </>
   );
   // The act for the rows chosen and shown (never "all that match": a view is not a list of ids), on a desk the bar's
   // button and on a phone a row of its sheet (`shut` closes the sheet first).
@@ -437,6 +443,7 @@ export const useLeadLists = ({ flash = null }: { flash?: ((f: PeopleFlash) => vo
     <>
       {importing ? <LeadImportSheet onClose={() => setImporting(false)} onDone={open} flash={flash} /> : null}
       {writing ? <ReachOutSheet search={writing} onClose={() => setWriting(null)} onDone={() => undefined} /> : null}
+      {people.node}
     </>
   );
   return {

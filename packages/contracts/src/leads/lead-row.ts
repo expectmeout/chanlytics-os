@@ -8,6 +8,7 @@ import { leadSlots, leadTileSrc, leadTintOf, leadTodayLine, leadUndoable, leadWh
 import { clockIn, milesLabel } from "./lead-helpers";
 import { leadReviewGroups } from "./lead-review";
 import { isLeadList } from "./lead-import";
+import { leadAddresseeOf } from "./lead-kind";
 import type { LEAD_CLOSED_REASONS, LeadEmailState } from "./search/sets";
 import { siteHost } from "./search/clean";
 import {
@@ -130,7 +131,10 @@ export interface LeadRowVM {
   excludedBy: string | null;
   version: number;
   /* ---- D5: the row as the redesign reads it ---- */
-  /** "Book store · Hawthorne · 97214 · 1.2 mi": whatever the source gave, in that order; "" when it gave none. */
+  /**
+   * "Book store · Hawthorne · 97214 · 1.2 mi": whatever the source gave, in that order; "" when it gave none. A company's
+   * starts with the person its reach-out writes to (00429).
+   */
   sub: string;
   /** The two reach slots, phone then mailbox. */
   slots: { phone: LeadSlot; mailbox: LeadSlot };
@@ -231,8 +235,16 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
         ? `${m.reason} · ${rated.score} from ${rated.reviews}`
         : m.reason;
   const area = [r.postal_code ?? "", [r.city, r.state].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
-  // D5: the row as the redesign reads it -- one line about where, two reach slots, the tile, its state, the card.
-  const sub = [r.category, r.neighborhood ?? null, r.postal_code ?? null, milesLabel(m.distance_m) || null]
+  // D5: the row as the redesign reads it -- one line about where, two reach slots, the tile, its state, the card. A
+  // company's (00429) leads with the person its reach-out writes to: "Dana Reyes, Owner · Marketing & Advertising".
+  const who = leadAddresseeOf(r);
+  const sub = [
+    who ? [who.name, who.title].filter(Boolean).join(", ") : null,
+    r.category,
+    r.neighborhood ?? null,
+    r.postal_code ?? null,
+    milesLabel(m.distance_m) || null,
+  ]
     .filter((x): x is string => !!x)
     .join(" · ");
   const spread: LeadRowVM["spread"] = r.reviews_dist

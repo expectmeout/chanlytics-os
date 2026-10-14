@@ -28,7 +28,11 @@ import { senderWords, type SenderWords } from "./sender-words";
 export type EmailFoot =
   | { kind: "visit"; facts: Record<string, unknown> }
   | { kind: "offer"; why: "customer" | "asked"; unsubscribeUrl: string }
-  | { kind: "cold"; why: string; unsubscribeUrl: string };
+  /**
+   * A cold email's: its link rides in the List-Unsubscribe header alone. An email its owner sends from their own inbox
+   * (a reach-out's draft, 00428) has no header, so no link: its way out is the reply its words ask for.
+   */
+  | { kind: "cold"; why: string; unsubscribeUrl: string | null };
 
 /** The foots that carry an unsubscribe link, and so have an HTML twin to put it in. */
 export type LinkedFoot = Exclude<EmailFoot, { kind: "visit" }>;
@@ -51,16 +55,22 @@ function offerParts(address: string | null | undefined, f: { unsubscribeUrl: str
 
 /**
  * The cold foot's parts, trimmed, or the refusal: a cold email is not sent with a part of its foot missing, and the sheet
- * refuses to start without an address.
+ * refuses to start without an address. Its text says the way out in words ("no thanks"); the link is asked for only
+ * where the foot draws it (`link`: the HTML twin), since a draft its owner sends carries none.
  */
-function coldParts(business: string, address: string | null | undefined, f: { why: string; unsubscribeUrl: string }) {
+function coldParts(
+  business: string,
+  address: string | null | undefined,
+  f: { why: string; unsubscribeUrl: string | null },
+  link: boolean,
+) {
   const parts = {
     why: f.why.trim(),
     business: business.trim(),
     address: address?.trim() ?? "",
-    url: f.unsubscribeUrl.trim(),
+    url: f.unsubscribeUrl?.trim() ?? "",
   };
-  if (!parts.why || !parts.business || !parts.address || !parts.url)
+  if (!parts.why || !parts.business || !parts.address || (link && !parts.url))
     throw new Error("emailFoot: a cold foot names why, who, where and how to stop");
   return parts;
 }
@@ -83,7 +93,7 @@ export function emailFoot(
 ): string {
   const w = senderWords(language);
   if (foot.kind === "cold") {
-    const p = coldParts(business, address, foot);
+    const p = coldParts(business, address, foot, false);
     return [p.why, w.marketing, `${p.business} · ${p.address}`, `${w.noThanks}.`].join("\n");
   }
   const who = business.trim() || w.us;
@@ -116,7 +126,7 @@ export function emailFootHtml(
 ): string {
   const w = senderWords(language);
   if (foot.kind === "cold") {
-    const p = coldParts(business, address, foot);
+    const p = coldParts(business, address, foot, true);
     return (
       `<p>${escapeHtml(p.why)}<br>${escapeHtml(w.marketing)}<br>` +
       `${escapeHtml(p.business)} · ${escapeHtml(p.address)}<br>` +

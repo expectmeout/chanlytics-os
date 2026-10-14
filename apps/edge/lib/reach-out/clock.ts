@@ -18,7 +18,11 @@
  *   restale     a planned send long past its time in a run that goes ahead (approved late, its chain resumed, its
  *               mailbox's day full or its mailbox removed) is planned again from now.
  *   give up     a send the check held (Part 4) that its owner never answered is skipped, kept_waiting, fourteen days
- *               from when it was planned: the one clock every send gives up by (replan.ts REPLAN_GIVE_UP_MS, R10).
+ *               from when it was planned: the one clock every send gives up by (replan.ts REPLAN_GIVE_UP_MS, R10). A
+ *               draft its owner never said went is skipped so fourteen days from when it was handed to them (00428).
+ *
+ * A draft (00428) is open to finish (the run waits for its owner's word on it) and closes with a canceled run, skipped
+ * run_canceled; nothing here sends it: its owner does, and says so (reach_out_send_said).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -234,7 +238,7 @@ export async function reachOutClock(
     out.gave_up += replanned.gave_up;
   }
 
-  /* give up what waits unanswered: held, and its owner never answered in the fortnight a send has (F3, R10) */
+  /* give up what waits unanswered in its fortnight: held and never answered (F3, R10), or a draft never sent (00428) */
   if (!late())
     for (const s of await heldStale(db, new Date(now.getTime() - REPLAN_GIVE_UP_MS), PAGE, tenantId))
       if (await move(db, s, { state: "skipped", reason: "kept_waiting" })) out.gave_up += 1;

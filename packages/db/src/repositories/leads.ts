@@ -11,7 +11,7 @@ type Db = SupabaseClient<Database>;
 
 /** The lead's columns as leads_page answers them, under the names it answers them by. */
 const ONE_LEAD_COLUMNS =
-  "id, tenant_id, place_id, business_name, category, street, city, region, postal_code, neighborhood, lat, lng, mark_path, website_host, instagram_url, phone_e164, phone_sources, phone_wrong, email, email_alternates, email_state, email_checked_at, rating, reviews, stage, closed_reason, last_outcome, last_note, about, hours, image_url, price, reviews_dist, facebook_url, linkedin_url, tiktok_url, claimed, maps_url, rank, contact_id, contacted_at, converted_at, exported_at, found_at, version, blanked_at, erased_at";
+  "id, tenant_id, place_id, business_name, category, street, city, region, postal_code, neighborhood, lat, lng, mark_path, website_host, instagram_url, phone_e164, phone_sources, phone_wrong, email, email_alternates, email_state, email_checked_at, rating, reviews, stage, closed_reason, last_outcome, last_note, about, hours, image_url, price, reviews_dist, facebook_url, linkedin_url, tiktok_url, claimed, maps_url, rank, contact_id, contacted_at, converted_at, exported_at, found_at, version, blanked_at, erased_at, kind, source, facts";
 
 type LeadsRow = Database["public"]["Tables"]["leads"]["Row"];
 // A reach-out's facts (resume_at; booked_at and reach_out_stopped_at, 00241) are its own reads', never the page's row,
@@ -26,6 +26,8 @@ export type LeadOneLead = Omit<
   | "reach_out_stopped_at"
   | "stage_at"
   | "stage_from"
+  // A company's key is the finder's to dedupe by (00429); the page reads what the lead is and its people.
+  | "source_key"
 >;
 
 /** The membership lead_member_of answers, the columns leads_page answers of it. */
@@ -193,6 +195,41 @@ export async function ideasBasis(db: Db, tenantId: string): Promise<string | nul
     .maybeSingle();
   if (error) throw new Error(`lead_rounds: ${error.message}`);
   return data ? data.ended_at : null;
+}
+
+/**
+ * A people search (00429 lead_people_search_create), as the member signed in: the plan, where it was made, the estimate
+ * the route worked out and the Ask thread it was planned in. The door's own refusals ({error, sentence}) come back as
+ * its answer; a thrown one is a request it refused outright.
+ */
+export async function leadPeopleSearchCreate(
+  db: Db,
+  p: { tenantId: string; plan: Json; via: "people" | "ask"; estimateUsd: number; threadId: string | null },
+): Promise<{ search_id?: string; round_id?: string; error?: string; sentence?: string }> {
+  const { data, error } = await db.rpc("lead_people_search_create", {
+    p_tenant_id: p.tenantId,
+    p_plan: p.plan,
+    p_via: p.via,
+    p_estimate_usd: p.estimateUsd,
+    ...(p.threadId ? { p_thread_id: p.threadId } : {}),
+  });
+  if (error) throw new Error(`lead_people_search_create: ${error.message}`);
+  return (data ?? {}) as { search_id?: string; round_id?: string; error?: string; sentence?: string };
+}
+
+/**
+ * A people run's page of companies (00429 lead_company_upsert), service role: a lead for each new company, waiting in
+ * Needs review on its address, and the people a company already held gains. Idempotent.
+ */
+export async function leadCompanyUpsert(
+  db: Db,
+  roundId: string,
+  companies: Json[],
+): Promise<{ made: number; held: number; left_out: number }> {
+  const { data, error } = await db.rpc("lead_company_upsert", { p_round_id: roundId, p_companies: companies });
+  if (error) throw new Error(`lead_company_upsert: ${error.message}`);
+  const r = (data ?? {}) as { made?: number; held?: number; left_out?: number };
+  return { made: r.made ?? 0, held: r.held ?? 0, left_out: r.left_out ?? 0 };
 }
 
 /**

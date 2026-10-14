@@ -12,7 +12,7 @@ import type {
   ReachOutSearchLinesDto,
   ReachOutStopDto,
 } from "@chanlytics/contracts";
-import { emitEvent } from "@chanlytics/db";
+import { emitEvent, ownerSendFactsOf, type OwnerSendFacts } from "@chanlytics/db";
 import { serviceDb } from "@/server/service-db";
 import type { RouteContext } from "@/server/with-route";
 import { chainsOf, dtoOf, reachOutRefusal } from "@/server/campaigns/reach-outs";
@@ -30,7 +30,12 @@ export async function leadLinesOf(ctx: RouteContext, tenantId: string, searchId:
   return { lines, chain, timeline: null };
 }
 
-/** One lead's story; null when the workspace does not hold the lead. */
+/**
+ * One lead's story; null when the workspace does not hold the lead. Of a reach-out its owner sends (00428): an email
+ * handed to them names the run it waits in, where they send it (the peek's Send it), and one that left from no mailbox
+ * says whether it went on their word (from their own inbox, not a mailbox before 00424). Read beside the story, which
+ * never fails for it.
+ */
 export async function leadTimelineOf(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
@@ -41,7 +46,20 @@ export async function leadTimelineOf(
     p_lead_id: leadId,
   });
   if (error) throw reachOutRefusal(error);
-  return data ? dtoOf<ReachOutLeadTimelineDto>(data) : null;
+  if (!data) return null;
+  const story = dtoOf<ReachOutLeadTimelineDto>(data);
+  const owners = story.sends.filter((s) => s.state === "drafted" || (s.left && !s.from && !s.host)).map((s) => s.id);
+  if (owners.length === 0) return story;
+  const facts = await ownerSendFactsOf(ctx.supabase, { tenantId, sendIds: owners }).catch(
+    () => new Map<string, OwnerSendFacts>(),
+  );
+  return {
+    ...story,
+    sends: story.sends.map((s) => {
+      const f = facts.get(s.id);
+      return f ? { ...s, run_id: f.runId, said: f.said } : s;
+    }),
+  };
 }
 
 /** "Stop writing to them", as the caller: the door's answer, or its refusal in contracts' words. */

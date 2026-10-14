@@ -78,10 +78,11 @@ interface BcAnswer {
   gone: boolean;
 }
 
-// A live reach-out run the check is still reading, read again every fifteen seconds until nothing is being checked or
-// the run is closed (R21): the bridge's one timer (`reachOuts.watchRun`), each answer kept as the run's.
+// A live reach-out run the check is still reading, or whose owner's drafts are still to come (00428), read again every
+// fifteen seconds until neither or the run is closed (R21): the bridge's one timer (`reachOuts.watchRun`), each answer
+// kept as the run's.
 function useBcRunWatch(id: string, d: BroadcastDetailDto | null, setAnswer: Dispatch<SetStateAction<BcAnswer | null>>) {
-  const checking = !!(d && d.reach_out && BC_LIVE.has(d.broadcast.state) && d.reach_out.checking > 0);
+  const checking = !!(d && d.reach_out && BC_LIVE.has(d.broadcast.state) && reachOuts.moving(d.reach_out));
   useEffect(() => {
     if (!checking) return undefined;
     return reachOuts.watchRun(id, (data) => setAnswer({ id, ok: true, data, gone: false }));

@@ -457,6 +457,8 @@ async function seed() {
       opening: WORDS,
       angle: `Ada ${DIGITS}`,
       hold_detail: WORDS,
+      // The draft its owner sent it from (00428): the address and the words, as handed to them.
+      draft: { to: EMAIL, subject: WORDS, body: WORDS, text: WORDS },
     }),
     "reach_out_sends",
   );
@@ -578,10 +580,10 @@ test(
     const [{ n: threads }] = query(`select count(*)::int as n from public.conversations where contact_id = '${A}'`);
     assert.equal(threads, 0, "the thread, with the call that held it, went with the person");
     // A run's rows are its counts: kept, with only the words gone.
-    const [send] = query(`select state, opening, angle from public.reach_out_sends where tenant_id = '${T}'`);
+    const [send] = query(`select state, opening, angle, draft from public.reach_out_sends where tenant_id = '${T}'`);
     assert.deepEqual(
       send,
-      { state: "sent", opening: null, angle: null },
+      { state: "sent", opening: null, angle: null, draft: null },
       "the reach-out's send is kept, its words gone",
     );
     const [row] = query(`select facts from public.broadcast_recipients where tenant_id = '${T}'`);

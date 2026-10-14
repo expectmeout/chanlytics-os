@@ -163,6 +163,7 @@ export async function chainsOf(ctx: RouteContext, tenantId: string): Promise<Rea
       include_unconfirmed: root.include_unconfirmed === true,
       gap_minutes: root.gap_minutes ?? 0,
       mailbox_ids: root.mailbox_ids ?? [],
+      owner_sends: root.owner_sends === true,
       signed_by: root.signed_by,
       steps: stepDtos,
       mailboxes: mailboxesOf(root.mailbox_ids ?? []),
@@ -353,7 +354,14 @@ async function firstEmailOf(
   ]);
   if (!words) return null;
   const slots = { businessName: facts.name, yourName: p.signedBy, bookingLink: link };
-  const leadSlots = { business_name: lead.lead?.business_name ?? null, city: lead.lead?.city ?? null };
+  // A company's addressee fills the person slots (00429), as the send fills them.
+  const leadSlots = {
+    business_name: lead.lead?.business_name ?? null,
+    city: lead.lead?.city ?? null,
+    kind: lead.lead?.kind ?? null,
+    facts: lead.lead?.facts ?? null,
+    source: lead.lead?.source ?? null,
+  };
   // The one fill the sender and every preview take (contracts reachOutEmailOf): a first email's subject and its body, or
   // a later step's body alone.
   const email = reachOutEmailOf(
@@ -476,7 +484,38 @@ export async function reachOutRunOf(
     skipped: c.skipped,
     first,
     mailboxes,
+    owner_sends: root.owner_sends === true,
+    // Handed to its owner and not yet said to have gone (00428), oldest first: the run's To send list.
+    drafted: rows
+      .filter((s) => s.state === "drafted")
+      .sort((a, b) => (a.drafted_at ?? "").localeCompare(b.drafted_at ?? ""))
+      .flatMap((s) => {
+        const d = draftOf(s.draft);
+        return d
+          ? [
+              {
+                send_id: s.id,
+                lead_id: s.lead_id,
+                business_name: s.lead?.business_name ?? "",
+                angle: s.angle,
+                to: d.to,
+                subject: d.subject,
+                text: d.text,
+                drafted_at: s.drafted_at ?? s.created_at,
+              },
+            ]
+          : [];
+      }),
   };
+}
+
+/** A draft as it was handed over (00428 reach_out_sends.draft): its address, subject and words, or null when not whole. */
+function draftOf(v: unknown): { to: string; subject: string; text: string } | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const d = v as Record<string, unknown>;
+  return typeof d.to === "string" && typeof d.subject === "string" && typeof d.text === "string"
+    ? { to: d.to, subject: d.subject, text: d.text }
+    : null;
 }
 
 /** A held send as the approval sheet lists it. */

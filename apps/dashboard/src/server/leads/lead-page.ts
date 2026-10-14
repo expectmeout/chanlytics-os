@@ -218,6 +218,9 @@ function toLeadRowDto(r: LeadPageRow, searchNames: Map<string, string>): LeadRow
     closed_reason: r.closed_reason,
     contact_id: r.contact_id,
     chain_id: r.chain_id ?? null,
+    // What the lead is, and a company's people (00429).
+    kind: r.kind ?? "place",
+    facts: r.facts ?? null,
     last_outcome: r.last_outcome,
     last_note: r.last_note,
     contacted_at: r.contacted_at,

@@ -26,9 +26,16 @@
  * ever counts one twice for a moment, which sends less, never more. A claim a tick left mid-way (it died after the
  * claim) is written again five minutes on: its email's id is the same, so it is the same email, never a second.
  * One mailbox's failure is its own: the rest of the page, and every other workspace, still claim.
+ *
+ * A reach-out its owner sends (00428) is claimed apart (reach_out_claim_drafts: no mailbox, no day's room, a step after
+ * the first first) and written the same way up to its words, then handed to its owner as a draft: claimed → drafted, its
+ * words with their values in and its foot (request.ts reachOutDraft). Nobody is made and no email row is written until
+ * the owner says it went (reach_out_send_said). Drafts need no unsubscribe seal, so they are claimed whether the mailbox
+ * lane is complete or not.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  claimDrafts,
   claimSends,
   contactEmailOf,
   dueMailboxes,
@@ -59,10 +66,16 @@ import {
 } from "../packages/db.js";
 import { sendMessageId } from "../packages/core.js";
 import { scheduleJob } from "../packages/jobs.js";
-import { REACH_OUT_MONTH_EMAILS, mailboxDailyCap, mailboxSendsNow, parseTenantConfig } from "../packages/contracts.js";
+import {
+  REACH_OUT_MONTH_EMAILS,
+  mailboxDailyCap,
+  mailboxSendsNow,
+  parseTenantConfig,
+  type SlotLead,
+} from "../packages/contracts.js";
 import { unsubscribeOrigin } from "../dashboard-origin.js";
 import { env } from "../env.js";
-import { checkedWordsOf, reachOutRequest, reachOutWords } from "./request.js";
+import { checkedWordsOf, reachOutDraft, reachOutRequest, reachOutWords } from "./request.js";
 import { REPLAN_GIVE_UP_MS, replanSends, type Replan } from "./replan.js";
 import type { LogEvent, Logger } from "../log.js";
 
@@ -70,6 +83,8 @@ type Db = SupabaseClient<Database>;
 
 /** The most one mailbox's claim takes in a tick: its gap spaces its sends minutes apart, so a tick finds one or two. */
 export const CLAIM_PER_MAILBOX_PER_TICK = 5;
+/** The most drafts a tick claims, across every workspace: a day's share is thirty a reach-out, all due at once. */
+export const DRAFTS_PER_TICK = 60;
 /** When the claim stops taking mailboxes: its door has 60 s (vercel.json), and a mailbox's writes take a few seconds. */
 export const CLAIM_YIELD_AT_MS = 40_000;
 /** How many mailboxes with sends due one page reads, and how many pages a tick reads past the ones it holds. */
@@ -117,6 +132,8 @@ export function mailboxLane(): { ok: true; lane: Lane } | { ok: false; missing: 
 export interface SenderCounts {
   claimed: number;
   written: number;
+  /** Handed to their owner to send from their own inbox (00428). */
+  drafted: number;
   /** Claims a tick left mid-way: written now, or their email adopted. */
   rewritten: number;
   skipped: number;
@@ -135,7 +152,7 @@ export interface SenderCounts {
   workspaces_held: number;
 }
 
-type Outcome = "written" | "adopted" | "skipped" | "waited" | "held" | "rechecked" | "lost";
+type Outcome = "written" | "adopted" | "drafted" | "skipped" | "waited" | "held" | "rechecked" | "lost";
 
 interface Workspace {
   businessName: string | null;
@@ -186,7 +203,8 @@ function tickReads(db: Db) {
 interface Tick {
   db: Db;
   now: Date;
-  lane: Lane;
+  /** The mailbox lane, or null without its seal: then only drafts are claimed (they need none). */
+  lane: Lane | null;
   log: Logger;
   reads: ReturnType<typeof tickReads>;
   /** Planned again from now, at the tick's end: their mailbox went away since their claim. */
@@ -248,28 +266,105 @@ function mailboxTurn(
   return { wait: later ? "later" : "replan" };
 }
 
+/** What a claimed send may become, each only from `claimed`, as it was read. */
+function claimedTurns(t: Tick, s: ReachOutSendRow) {
+  const move = async (patch: Partial<ReachOutSendRow>): Promise<boolean> =>
+    moveSend(t.db, { tenantId: s.tenant_id, id: s.id, from: "claimed", patch });
+  return {
+    move,
+    /** Planned again, keeping its time: its chain paused since, or no lane to send it by. */
+    wait: async (): Promise<Outcome> => ((await move({ state: "planned", claimed_at: null })) ? "waited" : "lost"),
+    skip: async (reason: string): Promise<Outcome> =>
+      (await move({ state: "skipped", reason: reason.slice(0, 60) })) ? "skipped" : "lost",
+    /** Back to be checked, keeping its time and its owner's inclusions; a check under way for older words writes nothing. */
+    recheck: async (): Promise<Outcome> =>
+      (await recheckSends(t.db, { tenantId: s.tenant_id, ids: [s.id], fromState: "claimed" })) === 1
+        ? "rechecked"
+        : "lost",
+    hold: (reason: string): Outcome => {
+      t.later.push({ send: s, wrote: false });
+      const key = `${s.tenant_id}:${reason}`;
+      if (!t.said.has(key)) {
+        t.said.add(key);
+        t.log.warn("reach_out_send_held", { tenant_id: s.tenant_id, playbook_id: s.playbook_id, reason });
+      }
+      return "held";
+    },
+  };
+}
+type ClaimedTurns = ReturnType<typeof claimedTurns>;
+
+/**
+ * A reach-out its owner sends (00428): handed to them as a draft, to the lead's own checked address, never sent from a
+ * mailbox. A step after the first answers the email before by its subject; the owner's own client threads it.
+ */
+async function handOver(
+  t: Tick,
+  s: ReachOutSendRow,
+  turns: ClaimedTurns,
+  p: {
+    afterStepId: string | null;
+    lead: { email: string | null; email_state: string | null };
+    words: { subject: string | null; body: string };
+    slots: SlotLead;
+    workspace: {
+      businessName: string | null;
+      yourName: string | null;
+      bookingLink: string | null;
+      address: string | null;
+    };
+  },
+): Promise<Outcome> {
+  const { skip, hold, recheck, move } = turns;
+  let before: ParentEmail | null = null;
+  if (p.afterStepId) {
+    before = await parentEmailOf(t.db, {
+      tenantId: s.tenant_id,
+      rootId: s.root_id,
+      leadId: s.lead_id,
+      stepId: p.afterStepId,
+    });
+    if (!before) return skip("no_parent");
+  }
+  const to = p.lead.email?.trim().toLowerCase() ?? "";
+  if (!to || p.lead.email_state === "invalid") return skip("no_address");
+  const d = reachOutDraft({
+    words: p.words,
+    lead: p.slots,
+    workspace: p.workspace,
+    opening: s.opening ?? null,
+    parent: before ? { subject: before.subject } : null,
+  });
+  if (!d.ok && d.reason === "no_opening") return recheck();
+  if (!d.ok) return HOLDS.has(d.reason) ? hold(d.reason) : skip(d.reason);
+  const draft: Json = {
+    to,
+    subject: d.subject,
+    body: d.body,
+    text: d.text,
+    ...(before ? { parent_id: before.messageId } : {}),
+  };
+  if (!(await move({ state: "drafted", drafted_at: t.now.toISOString(), draft }))) return "lost";
+  // The run's word only, as for an email written: its drafts are its owner's to send now.
+  await runSending(t.db, { tenantId: s.tenant_id, id: s.broadcast_id }).catch((e: unknown) =>
+    t.log.warn("reach_out_run_unstarted", {
+      broadcast_id: s.broadcast_id,
+      error: e instanceof Error ? e.message : String(e),
+    }),
+  );
+  return "drafted";
+}
+
 /** One claimed send, written: its email and its job, then its move. Only from `claimed`, as it was read. */
 async function writeOne(t: Tick, s: ReachOutSendRow): Promise<Outcome> {
   const { db } = t;
-  const move = async (patch: Partial<ReachOutSendRow>): Promise<boolean> =>
-    moveSend(db, { tenantId: s.tenant_id, id: s.id, from: "claimed", patch });
-  const skip = async (reason: string): Promise<Outcome> =>
-    (await move({ state: "skipped", reason: reason.slice(0, 60) })) ? "skipped" : "lost";
-  /** Back to be checked, keeping its time and its owner's inclusions; a check under way for older words writes nothing. */
-  const recheck = async (): Promise<Outcome> =>
-    (await recheckSends(db, { tenantId: s.tenant_id, ids: [s.id], fromState: "claimed" })) === 1 ? "rechecked" : "lost";
-  const hold = (reason: string): Outcome => {
-    t.later.push({ send: s, wrote: false });
-    const key = `${s.tenant_id}:${reason}`;
-    if (!t.said.has(key)) {
-      t.said.add(key);
-      t.log.warn("reach_out_send_held", { tenant_id: s.tenant_id, playbook_id: s.playbook_id, reason });
-    }
-    return "held";
-  };
+  const turns = claimedTurns(t, s);
+  const { move, skip, recheck, hold } = turns;
+  const attempt = s.attempts ?? 0;
+  const opening = s.opening ?? null;
 
   // 0. Written before, by a tick that died after it: that email is this send's.
-  const messageId = await sendMessageId(s.id, s.attempts ?? 0);
+  const messageId = await sendMessageId(s.id, attempt);
   const was = await writtenEmail(db, { tenantId: s.tenant_id, id: messageId });
   if (was) return adopt(t, s, messageId, was);
 
@@ -284,7 +379,7 @@ async function writeOne(t: Tick, s: ReachOutSendRow): Promise<Outcome> {
     standing.step.state !== "running" ||
     standing.root !== "running"
   )
-    return (await move({ state: "planned", claimed_at: null })) ? "waited" : "lost";
+    return turns.wait();
 
   // 2. What the email is made of, judged before anyone is made.
   const [lead, workspace, words, mailbox] = await Promise.all([
@@ -299,6 +394,30 @@ async function writeOne(t: Tick, s: ReachOutSendRow): Promise<Outcome> {
   // Checked against other words than these (its step's, the name it signs with, whether a booking link exists): the
   // check reads it again before it goes (R5). Never a skip: nothing about the lead changed.
   if (s.checked_words !== checkedWordsOf(words, standing.signedBy, workspace.bookingLink !== null)) return recheck();
+  // A company's addressee fills the person slots, and the foot says where it was found (00429).
+  const slots = {
+    business_name: lead.business_name,
+    city: lead.city,
+    kind: lead.kind,
+    facts: lead.facts,
+    source: lead.source,
+  };
+  const workspaceSlots = {
+    businessName: workspace.businessName,
+    yourName: standing.signedBy,
+    bookingLink: workspace.bookingLink,
+  };
+
+  if (standing.ownerSends)
+    return handOver(t, s, turns, {
+      afterStepId: standing.step.after_playbook_id,
+      lead,
+      words,
+      slots,
+      workspace: { ...workspaceSlots, address: workspace.address },
+    });
+  // A mailbox's send, with no lane to send it by (no unsubscribe seal): it keeps, planned again, for the lane.
+  if (!t.lane) return turns.wait();
   const turn = mailboxTurn(mailbox, standing.step.after_playbook_id !== null, t.now.getTime());
   if ("gone" in turn) return skip("mailbox_gone");
   if ("wait" in turn) {
@@ -324,13 +443,7 @@ async function writeOne(t: Tick, s: ReachOutSendRow): Promise<Outcome> {
       return "waited";
     }
   }
-  const slots = { business_name: lead.business_name, city: lead.city };
-  const workspaceSlots = {
-    businessName: workspace.businessName,
-    yourName: standing.signedBy,
-    bookingLink: workspace.bookingLink,
-  };
-  const said = reachOutWords(words, slots, workspaceSlots, parent !== null, s.opening ?? null);
+  const said = reachOutWords(words, slots, workspaceSlots, parent !== null, opening);
   if (!said.ok && said.reason === "no_opening") return recheck();
   if (!said.ok) return HOLDS.has(said.reason) ? hold(said.reason) : skip(said.reason);
 
@@ -350,7 +463,7 @@ async function writeOne(t: Tick, s: ReachOutSendRow): Promise<Outcome> {
     words,
     lead: slots,
     workspace: { ...workspaceSlots, address: workspace.address },
-    opening: s.opening ?? null,
+    opening,
     from,
     unsubscribe: { secret: t.lane.unsubscribeSecret, origin: t.lane.unsubscribeOrigin },
     parent,
@@ -371,7 +484,7 @@ async function writeOne(t: Tick, s: ReachOutSendRow): Promise<Outcome> {
       playbook_id: s.playbook_id,
       root_id: s.root_id,
       broadcast_id: s.broadcast_id,
-      attempt: s.attempts ?? 0,
+      attempt,
     },
   };
   const wrote = await insertQueuedEmail(db, {
@@ -429,7 +542,8 @@ export async function claimAndWrite(p: {
   db: Db;
   now: Date;
   started: number;
-  lane: Lane;
+  /** The mailbox lane, or null without its seal: then only drafts are claimed and written. */
+  lane: Lane | null;
   log: Logger;
   /** One workspace to keep to; every workspace when absent, as the clock runs. A test proves it on its own. */
   tenantId?: string;
@@ -437,6 +551,7 @@ export async function claimAndWrite(p: {
   const out: SenderCounts = {
     claimed: 0,
     written: 0,
+    drafted: 0,
     rewritten: 0,
     skipped: 0,
     waited: 0,
@@ -466,7 +581,7 @@ export async function claimAndWrite(p: {
     try {
       const r = await writeOne(t, s);
       if (r === "written" || r === "adopted") out[again ? "rewritten" : "written"] += 1;
-      else if (r === "skipped" || r === "waited" || r === "held" || r === "rechecked") out[r] += 1;
+      else if (r === "drafted" || r === "skipped" || r === "waited" || r === "held" || r === "rechecked") out[r] += 1;
     } catch (e) {
       // This send stays claimed: written again in five minutes, or planned again by the clock's unstick after ten.
       failed("reach_out_write_failed", { send_id: s.id, tenant_id: s.tenant_id }, e);
@@ -483,11 +598,25 @@ export async function claimAndWrite(p: {
     failed("reach_out_rewrite_failed", {}, e);
   }
 
-  // The claim, a page of mailboxes at a time, past the workspaces held this tick and the mailboxes already done.
+  // The drafts due of reach-outs their owners send (00428), a page a tick: no mailbox's day and no seal, since their
+  // owner's own client sends them.
+  try {
+    if (!late())
+      for (const s of await claimDrafts(p.db, { at: p.now, limit: DRAFTS_PER_TICK, tenantId: p.tenantId ?? null })) {
+        out.claimed += 1;
+        if (late()) break; // claimed and left: written again in five minutes, as any claim a tick leaves
+        await write(s, false);
+      }
+  } catch (e) {
+    failed("reach_out_claim_failed", { drafts: true }, e);
+  }
+
+  // The claim, a page of mailboxes at a time, past the workspaces held this tick and the mailboxes already done; none
+  // without the lane's seal.
   const allowance = new Map<string, number>();
   const skipTenants = new Set<string>();
   const done = new Set<string>();
-  for (let page = 0; page < DUE_PAGES && !late(); page += 1) {
+  for (let page = 0; page < DUE_PAGES && p.lane && !late(); page += 1) {
     const due = await dueMailboxes(p.db, p.now, DUE_MAILBOXES_PAGE, {
       tenantId: p.tenantId,
       skipTenants,

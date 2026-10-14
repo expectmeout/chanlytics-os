@@ -739,8 +739,11 @@ its owner's Rewrite, Include, Skip or Not a fit.
 
 **What the reach-out clock's 503 means.** `POST /api/cron/reach-out` answers
 `503 lane_unset` with the variables it lacks (`UNSUBSCRIBE_SECRET`) while a
-send is due: nothing is claimed until it is set, and the sends keep. With
-nothing due it answers 200 and names it under `lane_missing`. A workspace at
+mailbox's send is due: none is claimed until it is set, and the sends keep.
+With nothing due it answers 200 and names it under `lane_missing`. A
+reach-out its owner sends needs no seal: its due sends are drafted every tick
+(`claim.drafted`), and wait on its run's To send for the owner's Sent or Skip
+(decision 0059). A workspace at
 its month's allowance (2,000) claims nothing until the month turns in its zone
 (`reach_out_month_spent` in the logs); one without a business address claims
 nothing either (`reach_out_workspace_held`). A mailbox that does not send now
@@ -749,10 +752,11 @@ due, and its sends keep their places.
 
 **What the reach-out check's 503 means.** `POST /api/cron/reach-out-check`
 answers `503 check_unset` while a send waits to be checked and the edge has no
-`ANTHROPIC_API_KEY` (it touches nothing: `reach_out_check_unset`), `503
-lane_unset` while one waits and the edge lacks the unsubscribe's seal (nothing
-checked could leave), and `503 model_unavailable` for a tick in which every
-model call failed (`reach_out_check_unanswered`). A send whose tries fail for an
+`ANTHROPIC_API_KEY` (it touches nothing: `reach_out_check_unset`), and `503
+model_unavailable` for a tick in which every model call failed
+(`reach_out_check_unanswered`). It checks without the unsubscribe's seal: a
+draft its owner sends needs none, and a mailbox's send checked without it
+waits for the send clock (decision 0059). A send whose tries fail for an
 hour is held `check_unavailable` for its owner (`reach_out_check_held`, warn),
 and the clock puts it back to be checked an hour on. A workspace that may not
 spend, is at its month's allowance, or has spent its 400 model attempts of

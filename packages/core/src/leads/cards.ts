@@ -11,10 +11,27 @@
  * location query (decision 31). Every field read from an item is in
  * MAPS_FIELDS, including `location` (E7); an item without a name does not
  * read, and its offset still counts.
+ *
+ * The people card (00429, the workbench's call 8) asks a B2B contact database
+ * for people by title, seniority, industry, company size and state, and maps
+ * each item to a person at a company (PersonAtCompany): their name, title,
+ * seniority, work address and profile link, and their company's name, domain,
+ * industry, size and place. Its items' field names are read in each spelling
+ * such databases use, since its provider publishes no schema; an item with no
+ * company key, no name or no work address does not read. Both cards share the
+ * one mailbox checker.
  */
-import type { LeadEmailState, LeadSearchPlan } from "@chanlytics/contracts";
+import type { LeadEmailState, LeadPeoplePlan, LeadSearchPlan } from "@chanlytics/contracts";
 import { zctaCenter } from "./geo";
-import { finiteOrNull, trimmedOrNull, recordOrNull } from "@chanlytics/contracts";
+import {
+  finiteOrNull,
+  isFreeMail,
+  recordOrNull,
+  trimmedOrNull,
+  usStateCode,
+  usStateName,
+  websiteHostOf,
+} from "@chanlytics/contracts";
 
 /** The Maps item fields a lead is built from. Nothing else is asked for. */
 export const MAPS_FIELDS = [
@@ -97,19 +114,61 @@ export interface MapsPlace {
   mapsUrl: string | null;
 }
 
+/** The mailbox checker every card shares: an address in, its state out. */
+export interface LeadCheckerRunner {
+  actor: string;
+  build: string;
+  buildInput(emails: string[]): unknown;
+  mapItem(item: unknown): { email: string; state: Exclude<LeadEmailState, "none" | "checking"> } | null;
+  fields: readonly string[];
+}
+
 export interface LeadCardRunner {
   actor: string;
   build: string;
   buildInput(plan: LeadSearchPlan, term: string, places: number): unknown;
   mapItem(item: unknown): MapsPlace | null;
   fields: readonly string[];
-  checker: {
-    actor: string;
-    build: string;
-    buildInput(emails: string[]): unknown;
-    mapItem(item: unknown): { email: string; state: Exclude<LeadEmailState, "none" | "checking"> } | null;
-    fields: readonly string[];
+  checker: LeadCheckerRunner;
+}
+
+/** One person a people run's item names, at their company (00429): what a company lead is made of. */
+export interface PersonAtCompany {
+  company: {
+    /** Its domain, lower case: the lead's source_key. */
+    key: string;
+    name: string;
+    industry: string | null;
+    city: string | null;
+    /** A US state's two letters, or null. */
+    region: string | null;
+    /** A country's two letters; the card searches the US. */
+    country: string;
+    linkedin: string | null;
+    /** Its size as the provider's ranges say it ("11 - 50"). */
+    size: string | null;
+    about: string | null;
   };
+  person: {
+    name: string;
+    first_name: string | null;
+    title: string | null;
+    /** The provider's seniority word (owner, c_suite, manager…), which contracts roleOf reads. */
+    seniority: string | null;
+    /** Their work address, lower case; never a free mail one. */
+    email: string | null;
+    profile_url: string | null;
+  };
+}
+
+export interface PeopleCardRunner {
+  actor: string;
+  build: string;
+  /** The provider's input for a plan and how many people to ask for (twice the count: two found make a lead). */
+  buildInput(plan: LeadPeoplePlan, people: number): unknown;
+  mapItem(item: unknown): PersonAtCompany | null;
+  fields: readonly string[];
+  checker: LeadCheckerRunner;
 }
 
 const strs = (v: unknown): string[] => (Array.isArray(v) ? v.map(trimmedOrNull).filter((s): s is string => !!s) : []);
@@ -121,7 +180,219 @@ export function areaCenter(plan: LeadSearchPlan): { lat: number; lng: number } |
   return null;
 }
 
-export const CARDS: Record<"local_businesses", LeadCardRunner> = {
+/** The one mailbox checker (Appendix B): every card's addresses are checked by it before anyone is written to. */
+const CHECKER: LeadCheckerRunner = {
+  actor: "bounceverify/bounceverify-email-verifier",
+  build: "0.1.16",
+  fields: CHECKER_FIELDS,
+  buildInput(emails) {
+    return { emails, skipInvalidSyntax: true };
+  },
+  mapItem(item) {
+    // The checker's item: `status` with `is_catch_all` (read from the calibration's 141 items, Appendix B).
+    const o = recordOrNull(item);
+    const email = trimmedOrNull(o?.email)?.toLowerCase() ?? null;
+    if (!o || !email) return null;
+    const status = (trimmedOrNull(o.status) ?? "").toLowerCase();
+    const state =
+      o.is_catch_all === true || status === "risky"
+        ? "catch_all"
+        : status === "valid"
+          ? "ok"
+          : status === "invalid"
+            ? "invalid"
+            : "unknown";
+    return { email, state };
+  },
+};
+
+/**
+ * The people card's item fields, in each spelling a B2B contact database writes them (its provider publishes no
+ * schema): a field it does not have is left out of the answer, never an error.
+ */
+export const PEOPLE_FIELDS = [
+  "first_name",
+  "firstName",
+  "last_name",
+  "lastName",
+  "name",
+  "full_name",
+  "fullName",
+  "title",
+  "job_title",
+  "jobTitle",
+  "headline",
+  "seniority",
+  "email",
+  "work_email",
+  "workEmail",
+  "email_address",
+  "linkedin",
+  "linkedin_url",
+  "linkedinUrl",
+  "city",
+  "state",
+  "country",
+  "company",
+  "company_name",
+  "companyName",
+  "organization_name",
+  "company_domain",
+  "companyDomain",
+  "organization_domain",
+  "company_website",
+  "companyWebsite",
+  "organization_website_url",
+  "domain",
+  "website",
+  "industry",
+  "company_industry",
+  "companyIndustry",
+  "company_size",
+  "companySize",
+  "employee_count",
+  "employees",
+  "organization_num_employees",
+  "company_linkedin",
+  "company_linkedin_url",
+  "companyLinkedin",
+  "organization_linkedin_url",
+  "company_description",
+  "companyDescription",
+  "organization_short_description",
+  "company_city",
+  "companyCity",
+  "company_state",
+  "companyState",
+  "company_country",
+  "companyCountry",
+] as const;
+
+/** A people run may hold the provider this long before the sweep aborts it: about a thousand people in ten minutes. */
+export const PEOPLE_RUN_TIMEOUT_SECS = 30 * 60;
+/** The least a people run's cap is: the provider's start and a page of people. */
+export const PEOPLE_CAP_FLOOR_USD = 0.5;
+
+/** The first of a record's fields that has words, in the order given. */
+const firstText = (o: Record<string, unknown>, keys: readonly string[]): string | null => {
+  for (const k of keys) {
+    const v = trimmedOrNull(o[k]);
+    if (v) return v;
+  }
+  return null;
+};
+
+/** A country's two letters from what a database writes ("United States", "USA", "us"); null for one it cannot read. */
+function countryOf(raw: string | null): string | null {
+  const s = (raw ?? "").trim();
+  if (!s) return null;
+  if (/^(us|usa|u\.s\.a?\.?|united states( of america)?)$/i.test(s)) return "US";
+  return /^[A-Za-z]{2}$/.test(s) ? s.toUpperCase() : null;
+}
+
+/** A size in the provider's ranges, from a range it wrote or from a head count. */
+function sizeOf(raw: unknown): string | null {
+  const n = finiteOrNull(raw);
+  if (n === null) return trimmedOrNull(raw)?.slice(0, 20) ?? null;
+  const bands: [number, string][] = [
+    [10, "1 - 10"],
+    [50, "11 - 50"],
+    [200, "51 - 200"],
+    [500, "201 - 500"],
+    [1000, "501 - 1000"],
+    [5000, "1001 - 5000"],
+    [10000, "5001 - 10000"],
+  ];
+  return bands.find(([max]) => n <= max)?.[1] ?? "10001+";
+}
+
+const EMAIL_SHAPE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+/** The people card's runner (00429): a B2B contact database on Apify, asked by the plan's own filters. */
+const PEOPLE_CARD: PeopleCardRunner = {
+  actor: "olympus/b2b-leads-finder",
+  // Pinned once its calibration run has read the items it writes (the card's owed run, decision 0057's lane 5).
+  build: "latest",
+  fields: PEOPLE_FIELDS,
+  buildInput(plan, people) {
+    const states = plan.states.map(usStateName).filter((s): s is string => !!s);
+    return {
+      maxResults: people,
+      personTitle: plan.titles,
+      // An intern is never written to cold.
+      excludeSeniority: ["intern"],
+      ...(plan.seniority.length ? { seniority: plan.seniority } : {}),
+      ...(plan.industries.length ? { industry: plan.industries } : {}),
+      ...(plan.sizes.length ? { companyEmployeeSize: plan.sizes } : {}),
+      personCountry: ["United States"],
+      ...(states.length ? { personState: states } : {}),
+    };
+  },
+  mapItem(item) {
+    const o = recordOrNull(item);
+    if (!o) return null;
+    const first = firstText(o, ["first_name", "firstName"]);
+    const last = firstText(o, ["last_name", "lastName"]);
+    const name = (firstText(o, ["full_name", "fullName", "name"]) ?? [first, last].filter(Boolean).join(" "))
+      .trim()
+      .slice(0, 120);
+    const company =
+      firstText(o, ["company_name", "companyName", "organization_name", "company"])?.slice(0, 120) ?? null;
+    const key = websiteHostOf(
+      firstText(o, [
+        "company_domain",
+        "companyDomain",
+        "organization_domain",
+        "company_website",
+        "companyWebsite",
+        "organization_website_url",
+        "domain",
+        "website",
+      ]),
+    );
+    if (!name || !company || !key) return null;
+    const email = firstText(o, ["email", "work_email", "workEmail", "email_address"])?.toLowerCase() ?? null;
+    // A work address only: a person's own mailbox (a free mail one) is never their company's door.
+    const work =
+      email && EMAIL_SHAPE.test(email) && !isFreeMail(email.slice(email.lastIndexOf("@") + 1)) ? email : null;
+    return {
+      company: {
+        key,
+        name: company,
+        industry: firstText(o, ["industry", "company_industry", "companyIndustry"])?.slice(0, 120) ?? null,
+        city: firstText(o, ["company_city", "companyCity", "city"])?.slice(0, 120) ?? null,
+        region: usStateCode(firstText(o, ["company_state", "companyState", "state"])),
+        country: countryOf(firstText(o, ["company_country", "companyCountry", "country"])) ?? "US",
+        linkedin:
+          firstText(o, [
+            "company_linkedin_url",
+            "company_linkedin",
+            "companyLinkedin",
+            "organization_linkedin_url",
+          ])?.slice(0, 300) ?? null,
+        size: sizeOf(
+          o.company_size ?? o.companySize ?? o.employee_count ?? o.employees ?? o.organization_num_employees ?? null,
+        ),
+        about:
+          firstText(o, ["company_description", "companyDescription", "organization_short_description"])
+            ?.replace(/[\p{Cc}\p{Cf}]/gu, " ")
+            .slice(0, 600) ?? null,
+      },
+      person: {
+        name,
+        first_name: first?.slice(0, 60) ?? null,
+        title: firstText(o, ["title", "job_title", "jobTitle", "headline"])?.slice(0, 120) ?? null,
+        seniority: firstText(o, ["seniority"])?.toLowerCase().slice(0, 20) ?? null,
+        email: work,
+        profile_url: firstText(o, ["linkedin_url", "linkedinUrl", "linkedin"])?.slice(0, 300) ?? null,
+      },
+    };
+  },
+  checker: CHECKER,
+};
+
+export const CARDS: { local_businesses: LeadCardRunner; people_at_companies: PeopleCardRunner } = {
+  people_at_companies: PEOPLE_CARD,
   local_businesses: {
     actor: "compass/crawler-google-places",
     build: "0.14.757",
@@ -209,29 +480,12 @@ export const CARDS: Record<"local_businesses", LeadCardRunner> = {
         mapsUrl: trimmedOrNull(o.url),
       };
     },
-    checker: {
-      actor: "bounceverify/bounceverify-email-verifier",
-      build: "0.1.16",
-      fields: CHECKER_FIELDS,
-      buildInput(emails) {
-        return { emails, skipInvalidSyntax: true };
-      },
-      mapItem(item) {
-        // The checker's item: `status` with `is_catch_all` (read from the calibration's 141 items, Appendix B).
-        const o = recordOrNull(item);
-        const email = trimmedOrNull(o?.email)?.toLowerCase() ?? null;
-        if (!o || !email) return null;
-        const status = (trimmedOrNull(o.status) ?? "").toLowerCase();
-        const state =
-          o.is_catch_all === true || status === "risky"
-            ? "catch_all"
-            : status === "valid"
-              ? "ok"
-              : status === "invalid"
-                ? "invalid"
-                : "unknown";
-        return { email, state };
-      },
-    },
+    checker: CHECKER,
   },
 };
+
+/** The actors a round's runs start with: its card's own, and the one checker (the sweep's reconciliation reads them). */
+export function actorsOf(plan: { card: string }): { discover: string; check: string } {
+  const c = plan.card === "people_at_companies" ? CARDS.people_at_companies : CARDS.local_businesses;
+  return { discover: c.actor, check: c.checker.actor };
+}

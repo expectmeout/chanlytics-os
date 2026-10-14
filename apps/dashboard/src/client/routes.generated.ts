@@ -164,6 +164,7 @@ export const ROUTES = {
   "POST lead-searches/[id]/undo": { method: "POST", path: "/api/v1/lead-searches/[id]/undo" },
   "POST lead-searches/chosen": { method: "POST", path: "/api/v1/lead-searches/chosen" },
   "POST lead-searches/import": { method: "POST", path: "/api/v1/lead-searches/import" },
+  "POST lead-searches/people": { method: "POST", path: "/api/v1/lead-searches/people" },
   "POST leads/[id]/draft": { method: "POST", path: "/api/v1/leads/[id]/draft" },
   "POST leads/[id]/exclude": { method: "POST", path: "/api/v1/leads/[id]/exclude" },
   "POST leads/[id]/keep": { method: "POST", path: "/api/v1/leads/[id]/keep" },
@@ -209,10 +210,12 @@ export const ROUTES = {
   "POST playbooks/[id]/run": { method: "POST", path: "/api/v1/playbooks/[id]/run" },
   "POST reach-out-replies/[id]/undo": { method: "POST", path: "/api/v1/reach-out-replies/[id]/undo" },
   "POST reach-out-sends/[id]/decide": { method: "POST", path: "/api/v1/reach-out-sends/[id]/decide" },
+  "POST reach-out-sends/[id]/said": { method: "POST", path: "/api/v1/reach-out-sends/[id]/said" },
   "POST reach-outs": { method: "POST", path: "/api/v1/reach-outs" },
   "POST reach-outs/[id]/leads": { method: "POST", path: "/api/v1/reach-outs/[id]/leads" },
   "POST reach-outs/[id]/leads/check": { method: "POST", path: "/api/v1/reach-outs/[id]/leads/check" },
   "POST reach-outs/[id]/leads/leave": { method: "POST", path: "/api/v1/reach-outs/[id]/leads/leave" },
+  "POST reach-outs/leads/[id]/said": { method: "POST", path: "/api/v1/reach-outs/leads/[id]/said" },
   "POST reach-outs/leads/[id]/stop": { method: "POST", path: "/api/v1/reach-outs/leads/[id]/stop" },
   "POST reach-outs/preview": { method: "POST", path: "/api/v1/reach-outs/preview" },
   "POST segments": { method: "POST", path: "/api/v1/segments" },
@@ -423,6 +426,7 @@ export type Routes = {
   "POST lead-searches/[id]/undo": typeof import("../../app/api/v1/lead-searches/[id]/undo/route").POST;
   "POST lead-searches/chosen": typeof import("../../app/api/v1/lead-searches/chosen/route").POST;
   "POST lead-searches/import": typeof import("../../app/api/v1/lead-searches/import/route").POST;
+  "POST lead-searches/people": typeof import("../../app/api/v1/lead-searches/people/route").POST;
   "POST leads/[id]/draft": typeof import("../../app/api/v1/leads/[id]/draft/route").POST;
   "POST leads/[id]/exclude": typeof import("../../app/api/v1/leads/[id]/exclude/route").POST;
   "POST leads/[id]/keep": typeof import("../../app/api/v1/leads/[id]/keep/route").POST;
@@ -468,10 +472,12 @@ export type Routes = {
   "POST playbooks/[id]/run": typeof import("../../app/api/v1/playbooks/[id]/run/route").POST;
   "POST reach-out-replies/[id]/undo": typeof import("../../app/api/v1/reach-out-replies/[id]/undo/route").POST;
   "POST reach-out-sends/[id]/decide": typeof import("../../app/api/v1/reach-out-sends/[id]/decide/route").POST;
+  "POST reach-out-sends/[id]/said": typeof import("../../app/api/v1/reach-out-sends/[id]/said/route").POST;
   "POST reach-outs": typeof import("../../app/api/v1/reach-outs/route").POST;
   "POST reach-outs/[id]/leads": typeof import("../../app/api/v1/reach-outs/[id]/leads/route").POST;
   "POST reach-outs/[id]/leads/check": typeof import("../../app/api/v1/reach-outs/[id]/leads/check/route").POST;
   "POST reach-outs/[id]/leads/leave": typeof import("../../app/api/v1/reach-outs/[id]/leads/leave/route").POST;
+  "POST reach-outs/leads/[id]/said": typeof import("../../app/api/v1/reach-outs/leads/[id]/said/route").POST;
   "POST reach-outs/leads/[id]/stop": typeof import("../../app/api/v1/reach-outs/leads/[id]/stop/route").POST;
   "POST reach-outs/preview": typeof import("../../app/api/v1/reach-outs/preview/route").POST;
   "POST segments": typeof import("../../app/api/v1/segments/route").POST;

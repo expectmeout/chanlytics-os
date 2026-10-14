@@ -5,11 +5,12 @@
  * whatever its state: the skipped by reason, who gets it (the checked only), and the notice the check sends the first
  * time it holds a send in a run that is not waiting. Pure: the page and the edge say every sentence from here.
  */
-import { clockWhen } from "../shared/clock";
+import { clockNear, clockWhen } from "../shared/clock";
 import { HELD_REASONS } from "../broadcasts/run-words";
 import { plural } from "../shared/words";
 import { RUN_WAITING_WORDS } from "../shell/campaign-rooms";
-import type { ReachOutRunDto } from "./reach-out-dtos";
+import { composeLinksOf, type ComposeLinks } from "./reach-out-compose";
+import type { ReachOutRunDto, ReachOutSaidOutcome } from "./reach-out-dtos";
 import { holdDoors, HOLD_DOOR_WORDS, type ReachOutHold } from "./reach-out-words";
 import { approvalWordsOf, chainPaceOf, leadDoorOf } from "./reach-out-sheet";
 
@@ -44,6 +45,11 @@ export function skippedReasonWords(reason: string): string {
       return "the mailbox their emails came from was removed";
     case "outreach_country":
       return "are where a cold email may not go without their say";
+    // The person door's refusals when its owner said an email went (00428 reach_out_send_said).
+    case "lead_closed":
+      return "had closed before it went";
+    case "already_yours":
+      return "are already yours, in People";
     default:
       return HELD_REASONS[reason] ?? "could not be written to";
   }
@@ -80,12 +86,15 @@ export function reachOutRunWordsOf(
   // Who gets it: only the checked, ready sends, by name and time (R21); the rest are being checked.
   const checked = r.planned.filter((x) => x.checked);
   const step = r.step_n === null ? "a step since removed" : `step ${r.step_n + 1}`;
+  const owner = r.owner_sends === true;
   return {
     ...a,
     k: STATE_WORDS[p.state] ?? "Reach-out",
     sub: waiting
       ? a.sub
-      : `Reach-out · ${step} · ${p.state === "sending" ? "going now" : "goes"}, one every ${r.gap_minutes} minutes as each business opens`,
+      : owner
+        ? `Reach-out · ${step} · each handed to you to send from your inbox once it is checked`
+        : `Reach-out · ${step} · ${p.state === "sending" ? "going now" : "goes"}, one every ${r.gap_minutes} minutes as each business opens`,
     approve: waiting ? a.approve : null,
     approveNote: waiting ? a.approveNote : null,
     note: waiting ? a.note : null,
@@ -112,8 +121,9 @@ export function reachOutRunWordsOf(
     skipAsk: `Skip ${r.chain_name}'s run?`,
     // What Approve released, as the flash says it: the checked sends due today, never the run's whole count (R21).
     // Nothing today (planned after hours, or on a closed day) says when they go instead of "0 emails today".
-    approved:
-      r.today === 0 && r.later > 0
+    approved: owner
+      ? `${r.chain_name} approved — ${plural(r.today + r.later, "email", "emails")} to send from your inbox, handed to you as each is checked`
+      : r.today === 0 && r.later > 0
         ? `${r.chain_name} approved — ${plural(r.later, "email", "emails")} in the coming days, in their hours`
         : `${r.chain_name} approved — ${plural(r.today, "email", "emails")} today, in their hours`,
     labels: REACH_OUT_RUN_LABELS,
@@ -124,6 +134,72 @@ export function reachOutRunWordsOf(
 
 /** A send whose time has passed, or whose run is from an earlier day: it goes in their hours once it may. */
 const RETIMED = "re-timed in their hours";
+
+/** One email handed to its owner, as the run's To send list draws it. */
+export interface ToSendRowVM {
+  id: string;
+  name: string;
+  /** Its lead, where the name opens it (leadDoorOf). */
+  to: string | null;
+  angle: string | null;
+  address: string;
+  subject: string;
+  /** The whole email, its foot included: what Copy writes, and what a link too long to carry it leaves to the clipboard. */
+  text: string;
+  /** When it was handed to them: "handed to you today", "handed to you Mon". */
+  since: string;
+  links: ComposeLinks;
+}
+
+/**
+ * The emails of a reach-out its owner sends that are handed to them and not yet said to have gone (00428), oldest first:
+ * each with its doors into a mail client (composeLinksOf) and the owner's Sent and Skip. Null when there are none.
+ */
+export function toSendWordsOf(r: ReachOutRunDto, p: { timezone: string; now: number }) {
+  const drafted = r.drafted ?? [];
+  if (drafted.length === 0) return null;
+  return {
+    head: `To send · ${drafted.length}`,
+    note: "Open each in Gmail, Outlook or your mail app and send it there, then say Sent here. Skip leaves them out of this run.",
+    rows: drafted.map((d): ToSendRowVM => ({
+      id: d.send_id,
+      name: d.business_name,
+      to: leadDoorOf(d.lead_id),
+      angle: d.angle,
+      address: d.to,
+      subject: d.subject,
+      text: d.text,
+      since: `handed to you ${clockNear(Date.parse(d.drafted_at), p.timezone, p.now)}`,
+      links: composeLinksOf({ to: d.to, subject: d.subject, text: d.text }),
+    })),
+    labels: REACH_OUT_TO_SEND_LABELS,
+  };
+}
+
+/** The To send list's own acts and what each says once done. */
+export const REACH_OUT_TO_SEND_LABELS = {
+  gmail: "Open in Gmail",
+  outlook: "Open in Outlook",
+  app: "Your mail app",
+  copy: "Copy",
+  copied: "Copied",
+  /** A link too long to carry the words: they are copied as it opens. */
+  pasteNote: "The words are copied: paste them in.",
+  sent: "Sent",
+  skip: "Skip",
+  saying: "Saying so…",
+  /** What a role that may not is told it cannot do here (gateTitle). */
+  gated: "say whether an email went",
+  read: "Read it",
+  hide: "Hide it",
+  /** Asked once the owner opened or copied one, as the lead's own draft asks (LEAD_SENT_QUESTION). */
+  asked: "Did it go?",
+  sentDone: (name: string) => `${name}: sent from your inbox`,
+  skippedDone: (name: string) => `${name}: left out of this run`,
+  refusedDone: (name: string, why: string) => `${name} was not written to: they ${why}`,
+  /** Another member, or another tab, said first. */
+  already: (state: string) => (state === "sent" ? "Already said: it went." : "Already said: it was left out."),
+} as const;
 
 /** The block's own acts. */
 const REACH_OUT_RUN_LABELS = {
@@ -140,6 +216,26 @@ const REACH_OUT_RUN_LABELS = {
 
 /** How often the block reads its run again while the check still has sends of it to read (R21). */
 export const REACH_OUT_RUN_REREAD_MS = 15_000;
+
+/**
+ * Whether a live run is still moving under the page, so its block reads it again (R21): the check still has sends of it
+ * to read, or, for a reach-out its owner sends, checked emails still wait to be handed over as drafts (00428).
+ */
+export function reachOutRunMoving(r: ReachOutRunDto): boolean {
+  return r.checking > 0 || (r.owner_sends === true && r.today + r.later > 0);
+}
+
+/** What the owner's word on a drafted email did, said at the To send list's head once the door answered (00428). */
+export function toSendSaidWords(
+  name: string,
+  outcome: ReachOutSaidOutcome,
+  a: { said: boolean; state: string; reason: string | null },
+): string {
+  if (!a.said) return REACH_OUT_TO_SEND_LABELS.already(a.state);
+  if (a.state === "sent") return REACH_OUT_TO_SEND_LABELS.sentDone(name);
+  if (outcome === "not_sent") return REACH_OUT_TO_SEND_LABELS.skippedDone(name);
+  return REACH_OUT_TO_SEND_LABELS.refusedDone(name, skippedReasonWords(a.reason ?? ""));
+}
 
 /** The notice the check sends the first time it holds a send in a run that is not waiting on its owner (R20). */
 export function heldNoticeWords(p: { name: string; held: number; reasons: ReachOutHold[] }): {

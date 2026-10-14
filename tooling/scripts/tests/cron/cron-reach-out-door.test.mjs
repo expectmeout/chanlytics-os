@@ -5,7 +5,7 @@
  * finishes. Then the sender (PR 6; decision 0056): a due send is claimed from its mailbox and becomes one email and one
  * job; the lane refuses without its seal; the month's allowance holds; a refused person or request skips; a step's send
  * answers its lead's email before, from the mailbox its chain writes from; a claim left mid-way is written again as the
- * same email.
+ * same email. A reach-out its owner sends is handed to them as a draft, with no seal and no mailbox (00428).
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
@@ -196,6 +196,9 @@ function clockReads(t) {
 function senderReads(t, { monthSent = 0, failClaim = [], onClaim = () => {} } = {}) {
   const runOf = (s) => t.broadcasts.find((b) => b.id === s.broadcast_id);
   const running = (id) => t.playbooks.some((p) => p.id === id && p.state === "running");
+  // 00428: a reach-out its owner sends, which no mailbox claims; a first email is its root's step.
+  const ownerSends = (s) => t.playbooks.some((p) => p.id === s.root_id && p.owner_sends);
+  const first = (s) => (t.playbooks.find((p) => p.id === s.playbook_id)?.after_playbook_id ? 0 : 1);
   // 00197: a checked send only.
   const due = (s, at) =>
     s.state === "planned" &&
@@ -226,11 +229,20 @@ function senderReads(t, { monthSent = 0, failClaim = [], onClaim = () => {} } = 
         .map((d) => ({ id: d.id, tenant_id: d.tenant_id }));
     },
     reach_out_month_sent: () => monthSent,
+    // 00428: an owner's due sends, a step after the first before a first email, their mailbox let go.
+    reach_out_claim_drafts: (a) => {
+      const picked = t.reach_out_sends
+        .filter((s) => ownerSends(s) && due(s, a.p_at) && (!a.p_tenant_id || s.tenant_id === a.p_tenant_id))
+        .sort((x, y) => first(x) - first(y) || (x.send_at < y.send_at ? -1 : 1))
+        .slice(0, a.p_limit);
+      for (const s of picked) Object.assign(s, { state: "claimed", claimed_at: a.p_at, mailbox_id: null });
+      return picked.map((s) => ({ ...s }));
+    },
     reach_out_claim_from: (a) => {
       if (failClaim.includes(a.p_mailbox_id)) throw new Error("canceling statement due to lock timeout");
       if (!t.mailbox_connections.some((d) => d.id === a.p_mailbox_id && d.state === "connected")) return [];
       const picked = t.reach_out_sends
-        .filter((s) => s.mailbox_id === a.p_mailbox_id && due(s, a.p_at))
+        .filter((s) => s.mailbox_id === a.p_mailbox_id && !ownerSends(s) && due(s, a.p_at))
         .sort((x, y) => (x.send_at < y.send_at ? -1 : 1))
         .slice(0, Math.min(a.p_limit, a.p_cap));
       for (const s of picked) Object.assign(s, { state: "claimed", claimed_at: a.p_at });
@@ -722,6 +734,7 @@ test("the claim: a due send becomes one person, one queued email under its own i
   assert.deepEqual(body.claim, {
     claimed: 1,
     written: 1,
+    drafted: 0,
     rewritten: 0,
     skipped: 0,
     waited: 0,
@@ -796,7 +809,77 @@ test("the lane: without its seal nothing is claimed, and a send due says what is
   assert.deepEqual(said.lane_missing, ["UNSUBSCRIBE_SECRET"]);
 });
 
-test("a mailbox paused or removed between the claim and the write writes nothing: a first email is planned again now on the step's other", async () => {
+test("a reach-out its owner sends: a due send is handed to them as a draft, with no seal, no mailbox, nobody made and nothing queued (00428)", async () => {
+  const s = send();
+  const w = world({
+    sends: [s],
+    playbooks: [
+      {
+        id: ROOT,
+        tenant_id: T,
+        kind: "reach_out",
+        state: "running",
+        gap_minutes: 20,
+        mailbox_ids: [],
+        template_id: TPL,
+        after_playbook_id: null,
+        owner_sends: true,
+      },
+    ],
+  });
+  const [status, body] = await w.tick();
+  assert.equal(status, 200, "a draft needs no lane: the clock is not red for it");
+  assert.deepEqual([body.claim.claimed, body.claim.drafted, body.claim.written, body.claim.errors], [1, 1, 0, 0]);
+  const r = w.row(s.id);
+  assert.deepEqual([r.state, r.mailbox_id, r.message_id, r.contact_id], ["drafted", null, null, null]);
+  assert.ok(r.drafted_at, "dated when it was handed over");
+  const lead = w.tables.leads.find((l) => l.id === s.lead_id);
+  assert.equal(r.draft.to, lead.email, "to the lead's own checked address");
+  assert.equal(r.draft.subject, `A quote for Fixture Movers ${s.lead_id}`);
+  assert.equal(r.draft.body, `Hi Fixture Movers ${s.lead_id}, movers in Austin ask us for this.`);
+  assert.ok(r.draft.text.startsWith(`${r.draft.body}\n\n`), "the words, then the foot");
+  assert.match(r.draft.text, /100 Example St, Austin, TX 78701/, "the foot names the business's address");
+  assert.doesNotMatch(r.draft.text, /https?:\/\//, "no link of ours: their own client sends it");
+  assert.equal(r.draft.parent_id, undefined, "a first email answers nothing");
+  assert.deepEqual(
+    [w.tables.messages.length, jobsOf(w).length, w.tables.contacts.length],
+    [0, 0, 0],
+    "nothing is sent, nobody is made: the owner says when it went",
+  );
+  assert.equal(w.tables.broadcasts[0].state, "sending", "its run is going");
+  // The next tick has nothing of it to claim: a draft waits for its owner's word.
+  const [, again] = await w.tick();
+  assert.equal(again.claim.claimed, 0);
+  assert.equal(w.row(s.id).state, "drafted");
+});
+
+test("an owner's chain is never a mailbox's: a send planned on one before the chain was handed over is drafted, its mailbox let go (00428)", async () => {
+  const s = send();
+  const w = world({
+    sends: [s],
+    playbooks: [
+      {
+        id: ROOT,
+        tenant_id: T,
+        kind: "reach_out",
+        state: "running",
+        gap_minutes: 20,
+        mailbox_ids: [MBX],
+        template_id: TPL,
+        after_playbook_id: null,
+        owner_sends: true,
+      },
+    ],
+  });
+  const [, body] = await w.send();
+  assert.deepEqual([body.claim.drafted, body.claim.written], [1, 0]);
+  assert.deepEqual([w.row(s.id).state, w.row(s.id).mailbox_id], ["drafted", null]);
+  assert.equal(w.tables.messages.length, 0, "nothing written from the mailbox");
+});
+
+test("a mailbox paused or removed between the claim and the write writes nothing: a first email is planned again now on the step's other", async (t) => {
+  // A Tuesday at noon in the business's own time: inside the day a cold email may arrive in (SEND_DAY_FRAME).
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-10-13T17:00:00Z") });
   const OTHER = "3c3c3c3c-3c3c-4c3c-8c3c-3c3c3c3c3c3c";
   const both = () => [mailboxRow(MBX, "sam@getharbor.example"), mailboxRow(OTHER, "dana@getharbor.example")];
   // Its owner pauses it the moment its send is claimed: the writer reads it paused, and nothing is written from it.

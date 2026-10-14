@@ -7,8 +7,10 @@
  * (templates/slot-sets.ts), checked by the one `emailIssues` over its own rules, and filled by the one fill; what is
  * this module's own is what a cold email adds to those rules, and its words.
  *
- *   REACH_OUT_SLOTS          the six a step may name; any other {{…}} is refused at the save, never met at a send
- *   REACH_OUT_SLOT_SET       the six as a slot set, which every reader and the fill take
+ *   REACH_OUT_SLOTS          the ten a step may name; any other {{…}} is refused at the save, never met at a send. The
+ *                            person's four (00429: {{first name}}, {{company}}, {{title}}, {{role}}) are filled from a
+ *                            company's addressee, and each has its fallback for a lead with none (REACH_OUT_SLOT_FALLBACKS)
+ *   REACH_OUT_SLOT_SET       the ten as a slot set, which every reader and the fill take
  *   reachOutRules            what a step's email keeps to, as an email's rules: the shared checks over this set, and the
  *                            cold email's own
  *   validateReachOutWords    one step's words: its subject (the first step's only), its body, its slots, its length,
@@ -33,13 +35,38 @@ import type { SlotSet } from "../templates/slot-sets";
 import { HAND_WORDS_MAX } from "./reach-out-hand";
 import type { ReachOutChainInput } from "./reach-out-schemas";
 
-export const REACH_OUT_SLOTS = ["opening", "business", "city", "your name", "your business", "booking link"] as const;
+export const REACH_OUT_SLOTS = [
+  "opening",
+  "first name",
+  "business",
+  "company",
+  "title",
+  "role",
+  "city",
+  "your name",
+  "your business",
+  "booking link",
+] as const;
 export type ReachOutSlot = (typeof REACH_OUT_SLOTS)[number];
 
-/** What each slot is, as the sheet's chips say it on hover. */
+/**
+ * What a person's slot says for a lead that names nobody (a place, or a company whose source named no addressee): an
+ * email is never held for it. {{company}} is the business's own name, which every lead has.
+ */
+export const REACH_OUT_SLOT_FALLBACKS = {
+  "first name": "there",
+  title: "owner",
+  role: "owner",
+} as const satisfies Partial<Record<ReachOutSlot, string>>;
+
+/** What each slot is, as the sheet's chips say it on hover: who fills it, and what it says when nobody is named. */
 export const REACH_OUT_SLOT_WORDS: Record<ReachOutSlot, string> = {
   opening: "written for each business",
-  business: "their name on Google",
+  "first name": `the person's first name at a company; “${REACH_OUT_SLOT_FALLBACKS["first name"]}” for a business`,
+  business: "their name on Google, or their company's",
+  company: "their company's name, or their business's",
+  title: `the person's title at a company; “${REACH_OUT_SLOT_FALLBACKS.title}” for a business`,
+  role: `the person's role (owner, director, manager); “${REACH_OUT_SLOT_FALLBACKS.role}” for a business`,
   city: "their city",
   "your name": "the name you sign with",
   "your business": "your business's name",
@@ -49,14 +76,18 @@ export const REACH_OUT_SLOT_WORDS: Record<ReachOutSlot, string> = {
 /** What the editor calls each slot, in its chips and its menu. */
 const REACH_OUT_SLOT_LABELS: Record<ReachOutSlot, string> = {
   opening: "Opening",
+  "first name": "First name",
   business: "Their business",
+  company: "Their company",
+  title: "Their title",
+  role: "Their role",
   city: "Their city",
   "your name": "Your name",
   "your business": "Your business",
   "booking link": "Booking link",
 };
 
-/** The six as a slot set: named, in the sheet's order. Every reader of a step's words and the fill take this one. */
+/** The ten as a slot set: named, in the sheet's order. Every reader of a step's words and the fill take this one. */
 export const REACH_OUT_SLOT_SET: SlotSet = namedSlots(
   REACH_OUT_SLOTS,
   REACH_OUT_SLOTS.map((s) => REACH_OUT_SLOT_LABELS[s]),
@@ -86,7 +117,7 @@ export function slotCount(text: string, slot: ReachOutSlot): number {
 }
 
 /**
- * Whether a step's words are written wrongly for the six: a {{…}} that is none of them, or a brace with no pair. The save
+ * Whether a step's words are written wrongly for the slots: a {{…}} that is none of them, or a brace with no pair. The save
  * refuses such words (validateReachOutWords), and the sender holds a send whose words were saved before the rule.
  */
 export function reachOutSlotFault(text: string): boolean {
@@ -193,7 +224,7 @@ function coldBodyProblems(body: string): ColdProblem[] {
 }
 
 /**
- * What a reach-out step's email keeps to, as an email's rules (templates/message-versions.ts): its six slots, a subject
+ * What a reach-out step's email keeps to, as an email's rules (templates/message-versions.ts): its slots, a subject
  * up to 80 characters (the first step's: a step after it answers the one before, "Re:", D19, and has none) and a body
  * up to 1,200, then the cold email's own. The one check, the Templates editor and the sheet all read these.
  */
@@ -216,7 +247,7 @@ const REACH_OUT_FOOT_NOTE =
 
 /**
  * One step's words, as the sheet saves them. The first step names its subject; a step after it answers the one before
- * ("Re:", D19), so its subject is never read. Every {{…}} is one of the six, and the opening goes in the body once.
+ * ("Re:", D19), so its subject is never read. Every {{…}} is one of the slots, and the opening goes in the body once.
  * The whole email, the opening counted at its most, is under 120 words, with one link at most and no line in capitals.
  */
 export function validateReachOutWords(w: { subject: string | null; body: string }, first: boolean): WordsIssue[] {
@@ -240,7 +271,7 @@ export function wordsIssueWords(i: WordsIssue): string {
     case "body_too_long":
       return `Keep it under ${REACH_OUT_BODY_MAX.toLocaleString("en-US")} characters.`;
     case "unknown_slot":
-      return `{{${i.slot ?? ""}}} isn't one of the slots. Use one of the six.`;
+      return `{{${i.slot ?? ""}}} isn't one of the slots. Use one from the list.`;
     case "stray_brace":
       return "Braces are for slots only, two on each side: {{business}}.";
     case "opening_twice":

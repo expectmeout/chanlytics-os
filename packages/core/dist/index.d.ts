@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { ResendConfig, EmailSendsAs, EmailRequest, SendResult, WaConfig, ResendLimit, ApifyClient, LeadJudge, NormalizedInbound, CarrierConsent } from '@chanlytics/channels';
-import { SendPurpose, MessageAbout, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, ConsentChannel, WriteRow, ChannelsReady, WriteWay, AppointmentState, FeedNames, JobNews, EmailClaim, BookingTool, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, PurposeRefusal, PurposeBearing, AskedPurpose, AppointmentStatus, NoticeHold, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, CampaignMessage, CampaignHow, AppointmentWord, PlaybookTrigger, PlaybookPolicyClass, PlaybookState, triggerOf, PlaybookPatch, PLAYBOOK_LIMITS, StepHand, TimetableSender, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts, Handled, BrainIntent, EventSubscriber, HoldFacts, OptOutPerson, BookedVisit, MemberJoined } from '@chanlytics/contracts';
+import { SendPurpose, MessageAbout, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, ConsentChannel, WriteRow, ChannelsReady, WriteWay, AppointmentState, FeedNames, JobNews, EmailClaim, BookingTool, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, PurposeRefusal, PurposeBearing, AskedPurpose, AppointmentStatus, NoticeHold, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, CampaignMessage, CampaignHow, AppointmentWord, PlaybookTrigger, PlaybookPolicyClass, PlaybookState, triggerOf, PlaybookPatch, PLAYBOOK_LIMITS, StepHand, TimetableSender, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadFacts, LeadRoundPurpose, LeadSearchPlan, LeadPeoplePlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts, Handled, BrainIntent, EventSubscriber, HoldFacts, OptOutPerson, BookedVisit, MemberJoined } from '@chanlytics/contracts';
 export { AppointmentStatus, DeliveryRefusal, EmailClaim } from '@chanlytics/contracts';
 import { Json, Database, MessageVersionRow, RoutedChannel, LeadContext, IngestResult, DeliveredEvent } from '@chanlytics/db';
 
@@ -1531,7 +1531,8 @@ declare function ingestEmail(ports: EmailIngestPorts, cmd: {
 /** The reply and the reach-out it answers, as the job reads them (packages/db reachOutReplyOf). */
 interface ReplyFacts {
     conversationId: string;
-    claim: ReplyClaim;
+    /** What the intake said of the email: never the owner's word (00428), which is no email and is never read here. */
+    claim: Exclude<ReplyClaim, "owner">;
     /** Their words as the thread keeps them; the quoted history is cut here (replyTextOf). */
     text: string | null;
     subject: string | null;
@@ -2709,6 +2710,11 @@ interface ReachOutStep {
     gap_minutes: number;
     /** The mailboxes it writes from (00424); none named is every connected one. */
     mailbox_ids: string[];
+    /**
+     * The chain's (its root's, 00428): its owner sends its emails from their own inbox, each handed to them written and
+     * checked, so a run plans no mailbox and no timetable: its day's share, due as the run goes ahead.
+     */
+    owner_sends: boolean;
     cap_per_run: number;
     template_id: string;
     template_name: string;
@@ -2790,8 +2796,9 @@ interface NewReachOutRun {
     };
 }
 /**
- * One lead in a run: planned, with its time and mailbox; or skipped, with why, so a lead the step may never write to
- * (the door refuses it, or it keeps no open hour all week) leaves the step's page rather than heading it every day.
+ * One lead in a run: planned, with its time and mailbox (none for a reach-out its owner sends, 00428); or skipped, with
+ * why, so a lead the step may never write to (the door refuses it, or it keeps no open hour all week) leaves the step's
+ * page rather than heading it every day.
  */
 type PlannedSend = {
     id: string;
@@ -2803,7 +2810,7 @@ type PlannedSend = {
     contact_id: string | null;
 } & ({
     state: "planned";
-    mailbox_id: string;
+    mailbox_id: string | null;
     send_at: string;
     reason?: null;
 } | {
@@ -2837,6 +2844,11 @@ interface ReachOutRunPorts {
         senders: TimetableSender[];
         gone: Set<string>;
     }>;
+    /**
+     * How many emails the chain's runs for this day already hold, skipped aside (db chainPlannedOn): what a reach-out its
+     * owner sends counts its day's share against (contracts REACH_OUT_DRAFTS_PER_DAY, 00428).
+     */
+    plannedOn(rootId: string, runFor: string): Promise<number>;
     /**
      * The run and its sends, written whole (db reach_out_plan_run): never a run with nothing planned in it. "exists" when
      * this step already has its run for the day.
@@ -3098,6 +3110,24 @@ interface CollectPlace {
     duplicate_of_place_id: string | null;
     shares: LeadShare[];
 }
+/**
+ * One company a people run found (00429), as lead_company_upsert takes it: the lead's columns, its addressee's work
+ * address (the lead's own, checked before anyone is written to), its people, and the line Leads says of it.
+ */
+type CollectCompany = {
+    /** Its domain: the lead's source_key. */
+    source_key: string;
+    name: string;
+    category: string | null;
+    city: string | null;
+    region: string | null;
+    country: string;
+    linkedin_url: string | null;
+    about: string | null;
+    email: string;
+    facts: LeadFacts;
+    reason: string;
+};
 interface CollectJudgment {
     op_id: string;
     batch: number;
@@ -3172,6 +3202,15 @@ interface LeadDb {
         ok: boolean;
     }>;
     roundEnd(roundId: string, ending: LeadRoundEnding): Promise<boolean>;
+    /**
+     * A people run's page of companies (00429 lead_company_upsert), before its own commit moves the run: a lead each, or
+     * the people a company already held gains. Idempotent, so a page read twice keeps each company once.
+     */
+    companyUpsert(roundId: string, companies: CollectCompany[]): Promise<{
+        made: number;
+        held: number;
+        left_out: number;
+    }>;
     /**
      * lead_round_rejudge (00165): the verdicts of an answer that changed the plan, over places the probe already judged,
      * committed on a round running at that plan version. Never over the owner's decision, never twice, counted both
@@ -3272,6 +3311,15 @@ type Owner = string;
  * location query (decision 31). Every field read from an item is in
  * MAPS_FIELDS, including `location` (E7); an item without a name does not
  * read, and its offset still counts.
+ *
+ * The people card (00429, the workbench's call 8) asks a B2B contact database
+ * for people by title, seniority, industry, company size and state, and maps
+ * each item to a person at a company (PersonAtCompany): their name, title,
+ * seniority, work address and profile link, and their company's name, domain,
+ * industry, size and place. Its items' field names are read in each spelling
+ * such databases use, since its provider publishes no schema; an item with no
+ * company key, no name or no work address does not read. Both cards share the
+ * one mailbox checker.
  */
 
 /** The Maps item fields a lead is built from. Nothing else is asked for. */
@@ -3327,29 +3375,71 @@ interface MapsPlace {
     rank: number | null;
     mapsUrl: string | null;
 }
+/** The mailbox checker every card shares: an address in, its state out. */
+interface LeadCheckerRunner {
+    actor: string;
+    build: string;
+    buildInput(emails: string[]): unknown;
+    mapItem(item: unknown): {
+        email: string;
+        state: Exclude<LeadEmailState, "none" | "checking">;
+    } | null;
+    fields: readonly string[];
+}
 interface LeadCardRunner {
     actor: string;
     build: string;
     buildInput(plan: LeadSearchPlan, term: string, places: number): unknown;
     mapItem(item: unknown): MapsPlace | null;
     fields: readonly string[];
-    checker: {
-        actor: string;
-        build: string;
-        buildInput(emails: string[]): unknown;
-        mapItem(item: unknown): {
-            email: string;
-            state: Exclude<LeadEmailState, "none" | "checking">;
-        } | null;
-        fields: readonly string[];
+    checker: LeadCheckerRunner;
+}
+/** One person a people run's item names, at their company (00429): what a company lead is made of. */
+interface PersonAtCompany {
+    company: {
+        /** Its domain, lower case: the lead's source_key. */
+        key: string;
+        name: string;
+        industry: string | null;
+        city: string | null;
+        /** A US state's two letters, or null. */
+        region: string | null;
+        /** A country's two letters; the card searches the US. */
+        country: string;
+        linkedin: string | null;
+        /** Its size as the provider's ranges say it ("11 - 50"). */
+        size: string | null;
+        about: string | null;
     };
+    person: {
+        name: string;
+        first_name: string | null;
+        title: string | null;
+        /** The provider's seniority word (owner, c_suite, manager…), which contracts roleOf reads. */
+        seniority: string | null;
+        /** Their work address, lower case; never a free mail one. */
+        email: string | null;
+        profile_url: string | null;
+    };
+}
+interface PeopleCardRunner {
+    actor: string;
+    build: string;
+    /** The provider's input for a plan and how many people to ask for (twice the count: two found make a lead). */
+    buildInput(plan: LeadPeoplePlan, people: number): unknown;
+    mapItem(item: unknown): PersonAtCompany | null;
+    fields: readonly string[];
+    checker: LeadCheckerRunner;
 }
 /** The circle a ZIP or radius ask searches: the plan's center, else the ZIP table's. Null for a city ask. */
 declare function areaCenter(plan: LeadSearchPlan): {
     lat: number;
     lng: number;
 } | null;
-declare const CARDS: Record<"local_businesses", LeadCardRunner>;
+declare const CARDS: {
+    local_businesses: LeadCardRunner;
+    people_at_companies: PeopleCardRunner;
+};
 
 interface CleanPlace {
     raw: MapsPlace;
@@ -3680,7 +3770,8 @@ declare const targetOf: (round: LeadRoundRow) => number;
 
 /**
  * lead_round_start: a run row per term, made by its deterministic id, claimed (claim.ts), and only then started at
- * the provider. A round whose answer changed the plan re-judges its probe first (rejudge.ts).
+ * the provider. A round whose answer changed the plan re-judges its probe first (rejudge.ts). A people plan's round
+ * (00429) starts its one run in people.ts.
  */
 
 /** no_room: a term past the runs the round's reserve holds the actor's floor for (runCaps), said and never started. */
@@ -3751,7 +3842,7 @@ declare function takeBatch(card: LeadCardRunner, items: unknown[], cursor: numbe
 /**
  * lead_collect: one batch of a run's items per commit (clean, identity, judge, classify, distance, commit), a Stop,
  * and a checker run's answers. The places it commits are made in places.ts and marked in mark-places.ts; what
- * follows a run's last item is round-decision.ts.
+ * follows a run's last item is round-decision.ts. A people run's items are companies (00429): people.ts.
  */
 
 type CollectOutcome = {

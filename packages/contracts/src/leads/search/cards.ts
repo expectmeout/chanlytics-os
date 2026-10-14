@@ -18,11 +18,13 @@ import type { LeadSearchPlan } from "./plan";
 
 /** The half of a card Claude reads (§0.3, 23). The half code holds is A2's `CARDS`. */
 export interface LeadCardBrief {
-  id: "local_businesses";
+  id: "local_businesses" | "people_at_companies";
+  /** What a lead of the card is (00429): a place a listing names, or a company with the people named on it. */
+  finds: "places" | "people";
   goodFor: string[];
   notFor: string[];
   settings: string[];
-  /** Bronze prices, 18 Sep 2026 (§10.1). */
+  /** Bronze prices, 18 Sep 2026 (§10.1); a person found, for the people card (14 Oct 2026). */
   costPerPlaceUsd: number;
   contactsPerPlaceUsd: number;
   judgePerPlaceUsd: number;
@@ -33,12 +35,18 @@ export interface LeadCardBrief {
   /** How many places this card gets through in a minute, discovery, contacts, judging and checks together: the card's "About 8 minutes". */
   placesPerMinute: number;
   examples: string[];
+  /**
+   * Where its data comes from and what we may do with it, in a line the plan card shows: the source-rights note each
+   * card is approved with (docs/plans/2026-09-18-lead-finder-source-rights.md holds the record, not a gate).
+   */
+  rights: string;
   approved: true;
 }
 
 export const LEAD_CARDS: readonly LeadCardBrief[] = [
   {
     id: "local_businesses",
+    finds: "places",
     goodFor: [
       "local businesses of a kind, in a city, a ZIP or around a point: the businesses that buy from you, or that your clients need next",
       "their listing facts: name, category, address, phone, website, rating and review count, open or closed",
@@ -70,6 +78,48 @@ export const LEAD_CARDS: readonly LeadCardBrief[] = [
       "50 independent pharmacies in ZIP 78704 that could stock an OTC product, a phone is enough",
       "100 family law firms within 15 km of downtown Denver, email checked, leaving out referral networks",
     ],
+    rights:
+      "Public Google Maps listings, read through Apify, and contacts from each business's own site; no reviewer's data, no photos.",
+    approved: true,
+  },
+  {
+    // The people card (the workbench's call 8, 00429), approved by Ruben on 14 Oct 2026 with its source-rights note.
+    id: "people_at_companies",
+    finds: "people",
+    goodFor: [
+      "named people at companies, by what they are called (a title), their seniority, their company's industry and size, and the US state they work in",
+      "a company's name, domain, industry, size and LinkedIn page, and each person's name, title and work email",
+      "reaching the person who decides, by name, where a business's own inbox would not",
+    ],
+    notFor: [
+      "local businesses by place, with their listing's rating, hours and reviews: the Maps card",
+      "people at home, or anyone outside their work",
+      "personal email addresses or phone numbers: work addresses only, each checked",
+      "anyone outside the US",
+    ],
+    settings: [
+      "titles (one to five, what the people are called)",
+      "seniority (owners, founders, the C-suite, partners, VPs, heads, directors, managers, senior staff, entry level)",
+      "industries (up to five, in the source's words)",
+      "company sizes (employee ranges)",
+      "states (up to ten; none is the whole US)",
+      "count (1 to 500)",
+    ],
+    costPerPlaceUsd: 0.002,
+    contactsPerPlaceUsd: 0,
+    judgePerPlaceUsd: 0,
+    checkPerEmailUsd: 0.00089,
+    startUsd: 0.01,
+    maxPerTerm: 500,
+    // The provider's own measure: about a thousand people in ten minutes.
+    placesPerMinute: 100,
+    examples: [
+      "100 marketing managers at marketing agencies of 11 to 50 people in Texas",
+      "50 owners of accounting firms in Ohio and Michigan",
+      "200 office managers at dental practices in California",
+    ],
+    rights:
+      "From a B2B contact database on Apify, built from public professional profiles and company sites, LinkedIn's among them; we never sign in to LinkedIn or read it ourselves, keep a person's name, title, work address and profile link only, check each address before anything is sent, and never write again to anyone who says no.",
     approved: true,
   },
 ];

@@ -331,7 +331,8 @@ test("POST reach-outs: an operator's chain is validated, saved by the service ro
   assert.deepEqual(asked[0], {
     p_tenant_id: A,
     p_user_id: USER,
-    p_chain: { ...CHAIN(), root_id: null },
+    // Who sends it is the schema's default when the body does not say (00428): its mailboxes.
+    p_chain: { ...CHAIN(), owner_sends: false, root_id: null },
     // The start's line in the ledger rides with the chain (00381): the door writes it, the route no longer does.
     p_decision: { name: CHAIN().name },
   });

@@ -281,7 +281,7 @@ test("Start saves exactly the chain's shape, with the unconfirmed included when 
   assert.equal(contracts.ReachOutChainSchema.safeParse(body).success, true, JSON.stringify(body));
   assert.deepEqual(
     [body.search_id, body.include_unconfirmed, body.gap_minutes, body.mailbox_ids, body.signed_by, body.steps.length],
-    [SEARCH.id, true, 12, [], "Sam", 1],
+    [SEARCH.id, true, 20, [], "Sam", 1],
   );
   assert.ok(
     s.done.find((d) => d && d.root_id),
@@ -376,14 +376,26 @@ test("editing a chain passes its steps' ids and says Save", async () => {
   assert.equal(textOf(byTestId(s.draw(), "ro-saved")), "Saved. Its next run writes these words.");
 });
 
-test("with no mailbox connected it says where to connect one, and Start waits; one signed out writes nothing", async () => {
+test("with no mailbox connected its owner sends it, said so with Connect beside it, and Start saves it so (00428); a mailbox to reconnect waits", async () => {
   setup([]);
-  verbs();
+  const calls = verbs();
   let s = sheet();
   await settle();
   let tree = s.draw();
-  assert.equal(textOf(byTestId(tree, "ro-no-mailbox")), contracts.REACH_OUT_SHEET_WORDS.noMailbox);
-  assert.equal(byTestId(tree, "ro-start").props.disabled, true);
+  assert.equal(textOf(byTestId(tree, "ro-owner-sends-words")), contracts.REACH_OUT_SHEET_WORDS.ownerSends);
+  assert.equal(textOf(byTestId(tree, "ro-no-mailbox")), contracts.REACH_OUT_SHEET_WORDS.ownerNoMailbox);
+  assert.deepEqual(
+    [byTestId(tree, "ro-owner-sends").props.checked, byTestId(tree, "ro-owner-sends").props.readOnly],
+    [true, true],
+    "the one way it can go",
+  );
+  assert.equal(textOf(byTestId(tree, "ro-pace-owner")), contracts.ownerPaceWords().line, "their day's share, no gap");
+  assert.notEqual(byTestId(tree, "ro-start").props.disabled, true);
+  press(byTestId(tree, "ro-start"));
+  await settle();
+  const [, body] = calls.find((c) => c[0] === "save");
+  assert.equal(contracts.ReachOutChainSchema.safeParse(body).success, true, JSON.stringify(body));
+  assert.deepEqual([body.owner_sends, body.mailbox_ids], [true, []]);
   setup([MAILBOX({ state: "reconnect" })]);
   s = sheet();
   await settle();

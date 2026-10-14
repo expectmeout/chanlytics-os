@@ -7,7 +7,8 @@
  * A run is a campaign waiting for a word before anything sends, while a word can still send it: a playbook's run whose
  * day has passed can only be skipped (runApprovalRefusal, which the verb refuses by), and the hourly sweep skips it
  * itself, so it waits on nobody (the wiring's second audit, S7-3). A reach-out's going run whose emails the check holds
- * waits too, once however many it holds: those emails go nowhere until the owner says (Ruben, 13 Oct 2026).
+ * waits too, once however many it holds: those emails go nowhere until the owner says (Ruben, 13 Oct 2026). So does one
+ * whose emails are handed to its owner to send from their own inbox (00428): they go nowhere until the owner sends them.
  *
  * The Inbox's badge in the sidebar, the phone's Inbox tab, the title of the browser's tab, the phone app's badge and
  * Today's head each counted them their own way, and two pages published a number over each other's (the wiring
@@ -40,6 +41,8 @@ export interface WaitingRun {
   audience?: unknown;
   /** How many of a going run's emails the check holds for the owner's say (absent where Sent did not say). */
   held?: number | null;
+  /** How many of a going run's emails are handed to its owner to send from their inbox (00428; absent where not said). */
+  drafted?: number | null;
 }
 
 /** The business's day now and the day of the next open sending moment (contracts runDaysAt): what the verb asks by. */
@@ -64,7 +67,7 @@ export interface Waits {
  * check holds emails for your say (runHeldEmails). A one-off broadcast has no day to pass and waits until it is decided.
  */
 export function runWaitsOnYou(run: WaitingRun, days: RunDays): boolean {
-  if (runHeldEmails(run) > 0) return true;
+  if (runHeldEmails(run) > 0 || runDraftedEmails(run) > 0) return true;
   return run.state === "pending_approval" && runApprovalRefusal(runAsked(run), days) === null;
 }
 
@@ -72,6 +75,12 @@ export function runWaitsOnYou(run: WaitingRun, days: RunDays): boolean {
 export function runHeldEmails(run: Pick<WaitingRun, "state" | "held">): number {
   const going = (RUN_GOING_STATES as readonly string[]).includes(run.state);
   return going && typeof run.held === "number" && run.held > 0 ? run.held : 0;
+}
+
+/** How many of a going run's emails wait for its owner to send them from their inbox (00428): none for a run not going. */
+export function runDraftedEmails(run: Pick<WaitingRun, "state" | "drafted">): number {
+  const going = (RUN_GOING_STATES as readonly string[]).includes(run.state);
+  return going && typeof run.drafted === "number" && run.drafted > 0 ? run.drafted : 0;
 }
 
 /** Whether a run waits for approval that an approval can no longer send: it can only be skipped, and the sweep skips it. */

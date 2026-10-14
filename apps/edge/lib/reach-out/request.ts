@@ -7,8 +7,14 @@
  * before it: "Re:" and its Message-ID, so the nudge reads as the same thread (D19). Pure over its inputs; the sender
  * (sender.ts) reads them, and so does the sheet's preview (preview.ts), so a preview holds what a send holds.
  *
- * The six slots (Part 4) are filled with their real values: the lead's name and city, the workspace's name, the name
- * the chain signs with, the workspace's booking link, and the opening the check wrote for this send.
+ * The slots (Part 4) are filled with their real values: the lead's name and city, the workspace's name, the name the
+ * chain signs with, the workspace's booking link, the opening the check wrote for this send, and for a company the
+ * person it writes to (00429: their first name, title and role, each with its fallback). The foot's first line says
+ * where the lead was found (whyFrom, from its source).
+ *
+ * A reach-out its owner sends (00428) is handed to them instead (reachOutDraft): the same words, the same foot with its
+ * way out in words and no link (their own client carries no List-Unsubscribe header), a nudge under "Re:" the email
+ * before, as plain text they open or paste.
  */
 import { createHash } from "node:crypto";
 import {
@@ -40,7 +46,7 @@ export interface RequestInput {
   to: string;
   /** The step's words: its template's heading (the subject) and body. */
   words: { subject: string | null; body: string };
-  lead: { business_name: string | null; city: string | null };
+  lead: SlotLead;
   /** The workspace's slots, and the address its foot names. */
   workspace: Required<SlotWorkspace> & { address: string | null };
   /** The opening the check wrote for this send; null when it has none. */
@@ -106,6 +112,44 @@ export function checkedWordsOf(
     .digest("hex");
 }
 
+/** What a reach-out its owner sends hands them for one lead (00428). */
+export interface DraftInput {
+  words: { subject: string | null; body: string };
+  lead: SlotLead;
+  workspace: Required<SlotWorkspace> & { address: string | null };
+  opening: string | null;
+  /** The lead's email on the step before, for a step after the first: its subject, which this one answers. */
+  parent: { subject: string | null } | null;
+}
+
+/** A subject that answers another: "Re:" once, never twice. */
+const reOf = (subject: string): string => (/^re:/i.test(subject.trim()) ? subject.trim() : `Re: ${subject.trim()}`);
+
+/**
+ * The email a reach-out its owner sends hands them (00428): the step's words with this lead's values in (reachOutWords,
+ * the one fill), under "Re:" the email before for a step after the first, and the cold foot with its way out in words.
+ * `text` is the whole email as the owner sends it: its words, a blank line, its foot. Refused as reachOutRequest refuses.
+ */
+export function reachOutDraft(
+  i: DraftInput,
+): { ok: true; subject: string; body: string; text: string } | { ok: false; reason: RequestRefusal } {
+  const words = reachOutWords(i.words, i.lead, i.workspace, i.parent !== null, i.opening);
+  if (!words.ok) return words;
+  const business = i.workspace.businessName?.trim() ?? "";
+  const address = i.workspace.address?.trim() ?? "";
+  if (!business || !address) return { ok: false, reason: "no_business_address" };
+  const before = i.parent?.subject?.trim() ?? "";
+  const subject = words.subject ?? (before ? reOf(before) : "");
+  if (!subject.trim()) return { ok: false, reason: "no_subject" };
+  const foot = emailFoot(
+    business,
+    address,
+    { kind: "cold", why: whyFrom(i.lead.source ?? "local_businesses"), unsubscribeUrl: null },
+    REACH_OUT_LANGUAGE,
+  );
+  return { ok: true, subject, body: words.body, text: `${words.body}\n\n${foot}` };
+}
+
 export function reachOutRequest(
   i: RequestInput,
 ): { ok: true; request: EmailRequest; subject: string; body: string } | { ok: false; reason: RequestRefusal } {
@@ -121,8 +165,8 @@ export function reachOutRequest(
     messageId: i.messageId,
   });
   const url = unsubscribeUrl(i.unsubscribe.origin, token);
-  // Every lead a reach-out writes to is one the finder found on the map.
-  const foot = { kind: "cold" as const, why: whyFrom("maps"), unsubscribeUrl: url };
+  // Where the finder found the lead (its source, 00429): the map, a business directory, or a file of the owner's own.
+  const foot = { kind: "cold" as const, why: whyFrom(i.lead.source ?? "local_businesses"), unsubscribeUrl: url };
   let request: EmailRequest;
   try {
     request = buildEmailRequest({

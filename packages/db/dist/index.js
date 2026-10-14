@@ -464,7 +464,7 @@ var ERASURE_LEGS = {
   email_trigger: "contact_email_on_erase: the address and why it was suppressed cleared (00125)",
   proposal_trigger: "contact_proposal_on_erase: the proposal's link cleared",
   deals_trigger: "deals_erase_on_contact: a deal's note, evidence and link cleared",
-  leads_trigger: "leads_erase_on_contact: their lead blanked (lead_blank), its places deleted, a reach-out's opening and a preference's example cleared (00391), its keys kept as digests; one of several people at a business takes only their own address, number and the call's note from it (lead_person_leg, 00413)",
+  leads_trigger: "leads_erase_on_contact: their lead blanked (lead_blank), its places deleted, a reach-out's opening and a preference's example cleared (00391), its drafts cleared (00428), a company's people and key cleared (00429), its keys kept as digests; one of several people at a business takes only their own address, number and the call's note from it (lead_person_leg, 00413)",
   signer_trigger: "person_signer_erase_on_contact: the name and title a reply's reading found as its signer, and what became of it, cleared (00413)",
   recipients_trigger: "broadcast_recipients_on_erase: the words each run kept for them, a visit's time, service and key and a proposal's link, cleared (00391)",
   jobs_scrub: "scrubErasedJobs and erase_contact: a job's payload that carried their number or words overwritten, and its error cleared",
@@ -713,10 +713,13 @@ var ERASURE_STRATEGIES = {
       "maps_url",
       "neighborhood",
       "logo_url",
-      "mark_path"
+      "mark_path",
+      // A company's people (their names, titles, work addresses, profiles) and its key (00429).
+      "facts",
+      "source_key"
     ),
-    // What lead_blank keeps: the country, and the stage it came from.
-    ...all(NOT_PERSONAL, "country", "stage_from")
+    // What lead_blank keeps: the country, the stage it came from, and what the lead is and where it was found (00429).
+    ...all(NOT_PERSONAL, "country", "stage_from", "kind", "source")
   },
   // The workspace's own numbers and the carrier's and provider's ids for them.
   lines: {
@@ -843,6 +846,8 @@ var ERASURE_STRATEGIES = {
   reach_out_sends: {
     // Written from the lead's record (00391).
     ...all(scrubbedBy("leads_trigger"), "opening", "angle", "hold_detail"),
+    // A draft handed to its owner (00428): the business's address, name and the words written to it; lead_blank clears it.
+    ...all(scrubbedBy("leads_trigger"), "draft"),
     // A digest of the words checked, the facts' keys, and the hold's and the skip's codes.
     ...all(NOT_PERSONAL, "checked_words", "facts_used", "included_for", "reason")
   },
@@ -2314,7 +2319,7 @@ import { DEFAULT_TIMEZONE, RUN_GOING_STATES as RUN_GOING_STATES2, isReachOutRun 
 
 // src/repositories/reach-out-sheet.ts
 import { RUN_GOING_STATES, versionWords } from "../../contracts/dist/index.js";
-var STEP_COLUMNS = "id, name, state, trigger, lead_search_id, after_playbook_id, after_days, gap_minutes, mailbox_ids, signed_by, include_unconfirmed, template_id, hand, run_hour, last_run_for, created_at";
+var STEP_COLUMNS = "id, name, state, trigger, lead_search_id, after_playbook_id, after_days, gap_minutes, mailbox_ids, owner_sends, signed_by, include_unconfirmed, template_id, hand, run_hour, last_run_for, created_at";
 async function reachOutStepsOf(db, tenantId) {
   const { data, error } = await db.from("playbooks").select(STEP_COLUMNS).eq("tenant_id", tenantId).eq("kind", "reach_out");
   if (error) throw new Error(`cannot read the reach-outs: ${error.message}`);
@@ -2326,7 +2331,7 @@ async function reachOutRootOf(db, id) {
   return data;
 }
 async function reachOutSendRefOf(db, id) {
-  const { data, error } = await db.from("reach_out_sends").select("id, tenant_id, broadcast_id, state, reason").eq("id", id).maybeSingle();
+  const { data, error } = await db.from("reach_out_sends").select("id, tenant_id, broadcast_id, state, reason, attempts").eq("id", id).maybeSingle();
   if (error) throw new Error(`cannot read the email: ${error.message}`);
   return data;
 }
@@ -2388,7 +2393,7 @@ async function runsWaitingOf(db, tenantId) {
 }
 async function reachOutRunSendsOf(db, tenantId, runId) {
   const { data, error } = await db.from("reach_out_sends").select(
-    "id, lead_id, state, reason, hold_detail, opening, angle, send_at, checked_at, created_at, mailbox_id, lead:leads(business_name, email, city)"
+    "id, lead_id, state, reason, hold_detail, opening, angle, send_at, checked_at, created_at, mailbox_id, draft, drafted_at, lead:leads(business_name, email, city, kind, source, facts)"
   ).eq("tenant_id", tenantId).eq("broadcast_id", runId);
   if (error) throw new Error(`cannot read the run's emails: ${error.message}`);
   return data ?? [];
@@ -2460,11 +2465,11 @@ async function markHeldNotice(db, p) {
   if (error) throw new Error(`cannot mark the run: ${error.message}`);
   return (data ?? []).length === 1;
 }
-async function heldSendCounts(db, p) {
+async function runSendCounts(db, p) {
   const counts = await Promise.all(
     p.runIds.map(async (id) => {
-      const { count: count2, error } = await db.from("reach_out_sends").select("id", { count: "exact", head: true }).eq("tenant_id", p.tenantId).eq("broadcast_id", id).eq("state", "held");
-      if (error) throw new Error(`cannot count the held emails of run ${id}: ${error.message}`);
+      const { count: count2, error } = await db.from("reach_out_sends").select("id", { count: "exact", head: true }).eq("tenant_id", p.tenantId).eq("broadcast_id", id).eq("state", p.state);
+      if (error) throw new Error(`cannot count the ${p.state} emails of run ${id}: ${error.message}`);
       return [id, count2 ?? 0];
     })
   );
@@ -2547,8 +2552,16 @@ async function waitingRunsOf(db, tenantId) {
   if (pending.error) throw new Error(`cannot read the runs waiting for approval: ${pending.error.message}`);
   if (going.error) throw new Error(`cannot read the going runs: ${going.error.message}`);
   const reaching = (going.data ?? []).filter((r) => isReachOutRun(r.audience));
-  const held = reaching.length ? await heldSendCounts(db, { tenantId, runIds: reaching.map((r) => r.id) }) : null;
-  const holding = reaching.flatMap((r) => (held?.get(r.id) ?? 0) > 0 ? [{ ...r, held: held?.get(r.id) ?? 0 }] : []);
+  const runIds = reaching.map((r) => r.id);
+  const [held, drafted] = reaching.length ? await Promise.all([
+    runSendCounts(db, { tenantId, runIds, state: "held" }),
+    runSendCounts(db, { tenantId, runIds, state: "drafted" })
+  ]) : [null, null];
+  const holding = reaching.flatMap((r) => {
+    const h = held?.get(r.id) ?? 0;
+    const d = drafted?.get(r.id) ?? 0;
+    return h > 0 || d > 0 ? [{ ...r, held: h, drafted: d }] : [];
+  });
   return [...pending.data ?? [], ...holding].sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
@@ -3096,7 +3109,7 @@ async function sendJobScheduled(db, p) {
 async function sendStanding(db, s) {
   const [run, chain] = await Promise.all([
     db.from("broadcasts").select("state").eq("tenant_id", s.tenant_id).eq("id", s.broadcast_id).maybeSingle(),
-    db.from("playbooks").select("id, state, template_id, after_playbook_id, signed_by").eq("tenant_id", s.tenant_id).in("id", [s.playbook_id ?? s.root_id, s.root_id])
+    db.from("playbooks").select("id, state, template_id, after_playbook_id, signed_by, owner_sends").eq("tenant_id", s.tenant_id).in("id", [s.playbook_id ?? s.root_id, s.root_id])
   ]);
   if (run.error) throw new Error(`cannot read the send's run: ${run.error.message}`);
   if (chain.error) throw new Error(`cannot read the send's chain: ${chain.error.message}`);
@@ -3105,7 +3118,8 @@ async function sendStanding(db, s) {
     run: run.data?.state ?? null,
     step: step?.template_id ? { state: step.state, template_id: step.template_id, after_playbook_id: step.after_playbook_id } : null,
     root: (chain.data ?? []).find((p) => p.id === s.root_id)?.state ?? null,
-    signedBy: (chain.data ?? []).find((p) => p.id === s.root_id)?.signed_by ?? null
+    signedBy: (chain.data ?? []).find((p) => p.id === s.root_id)?.signed_by ?? null,
+    ownerSends: (chain.data ?? []).find((p) => p.id === s.root_id)?.owner_sends === true
   };
 }
 async function emailWordsOf(db, tenantId, templateId) {
@@ -3123,7 +3137,7 @@ async function workspaceNameAndConfig(db, tenantId) {
   return { name: t.data?.name ?? null, config: cfg.data?.config ?? null };
 }
 async function leadSlotsOf(db, tenantId, leadId) {
-  const { data, error } = await db.from("leads").select("business_name, city").eq("tenant_id", tenantId).eq("id", leadId).maybeSingle();
+  const { data, error } = await db.from("leads").select("business_name, city, email, email_state, kind, source, facts").eq("tenant_id", tenantId).eq("id", leadId).maybeSingle();
   if (error) throw new Error(`cannot read the lead: ${error.message}`);
   return data;
 }
@@ -3263,6 +3277,68 @@ async function reachOutPeopleCounts(db, tenantId) {
   } catch {
     return null;
   }
+}
+
+// src/repositories/campaigns/reach-out-drafts.ts
+var answer2 = (data, error) => error ? { data: null, error: { code: error.code, message: error.message } } : { data, error: null };
+async function claimDrafts(db, p) {
+  if (!Number.isInteger(p.limit) || Number.isNaN(p.at.getTime()))
+    throw new Error(`cannot claim the drafts due: a limit is a whole number (${p.limit})`);
+  const { data, error } = await db.rpc("reach_out_claim_drafts", {
+    p_at: p.at.toISOString(),
+    p_limit: p.limit,
+    ...p.tenantId ? { p_tenant_id: p.tenantId } : {}
+  });
+  if (error) throw new Error(`cannot claim the drafts due: ${error.message}`);
+  return data ?? [];
+}
+async function chainPlannedOn(db, p) {
+  const { data: runs, error } = await db.from("broadcasts").select("id").eq("tenant_id", p.tenantId).eq("audience->>kind", "reach_out").eq("audience->>root_id", p.rootId).eq("run_for", p.runFor);
+  if (error) throw new Error(`cannot read the reach-out's runs of the day: ${error.message}`);
+  const ids = (runs ?? []).map((r) => r.id);
+  if (ids.length === 0) return 0;
+  const { count: count2, error: e2 } = await db.from("reach_out_sends").select("id", { count: "exact", head: true }).eq("tenant_id", p.tenantId).in("broadcast_id", ids).neq("state", "skipped");
+  if (e2) throw new Error(`cannot count the reach-out's emails of the day: ${e2.message}`);
+  return count2 ?? 0;
+}
+async function draftedSendsOf(db, p) {
+  const { data, error } = await db.from("reach_out_sends").select("id, lead_id, angle, draft, drafted_at").eq("tenant_id", p.tenantId).eq("broadcast_id", p.runId).eq("state", "drafted").order("drafted_at", { ascending: true }).limit(200);
+  if (error) throw new Error(`cannot read the run's drafts: ${error.message}`);
+  return data ?? [];
+}
+async function ownerSendFactsOf(db, p) {
+  if (p.sendIds.length === 0) return /* @__PURE__ */ new Map();
+  const { data, error } = await db.from("reach_out_sends").select("id, broadcast_id, state, said_at").eq("tenant_id", p.tenantId).in("id", [...p.sendIds]);
+  if (error) throw new Error(`cannot read the owner's sends: ${error.message}`);
+  return new Map(
+    (data ?? []).map((r) => [
+      r.id,
+      { runId: r.state === "drafted" ? r.broadcast_id : null, said: r.state === "sent" && r.said_at !== null }
+    ])
+  );
+}
+async function sendSaid(db, p) {
+  const { data, error } = await db.rpc("reach_out_send_said", {
+    p_send_id: p.sendId,
+    p_outcome: p.outcome,
+    ...p.messageId ? { p_message_id: p.messageId } : {},
+    ...p.reason ? { p_reason: p.reason } : {}
+  });
+  return answer2(data, error);
+}
+async function replySaid(db, p) {
+  const { data, error } = await db.rpc("reach_out_reply_said", {
+    p_lead_id: p.leadId,
+    p_reading: p.reading,
+    p_plan: p.plan,
+    p_note: p.note
+  });
+  return answer2(data, error);
+}
+async function leadReplyFactsOf(db, p) {
+  const { data, error } = await db.from("leads").select("business_name, email, website_host, website_root").eq("tenant_id", p.tenantId).eq("id", p.leadId).maybeSingle();
+  if (error) throw new Error(`cannot read the lead: ${error.message}`);
+  return data ? { ...data, business_name: data.business_name ?? "" } : null;
 }
 
 // src/repositories/campaigns/reach-out-check.ts
@@ -5295,7 +5371,7 @@ async function getPartnerInviteMail(db, tenantId) {
 }
 
 // src/repositories/leads.ts
-var ONE_LEAD_COLUMNS = "id, tenant_id, place_id, business_name, category, street, city, region, postal_code, neighborhood, lat, lng, mark_path, website_host, instagram_url, phone_e164, phone_sources, phone_wrong, email, email_alternates, email_state, email_checked_at, rating, reviews, stage, closed_reason, last_outcome, last_note, about, hours, image_url, price, reviews_dist, facebook_url, linkedin_url, tiktok_url, claimed, maps_url, rank, contact_id, contacted_at, converted_at, exported_at, found_at, version, blanked_at, erased_at";
+var ONE_LEAD_COLUMNS = "id, tenant_id, place_id, business_name, category, street, city, region, postal_code, neighborhood, lat, lng, mark_path, website_host, instagram_url, phone_e164, phone_sources, phone_wrong, email, email_alternates, email_state, email_checked_at, rating, reviews, stage, closed_reason, last_outcome, last_note, about, hours, image_url, price, reviews_dist, facebook_url, linkedin_url, tiktok_url, claimed, maps_url, rank, contact_id, contacted_at, converted_at, exported_at, found_at, version, blanked_at, erased_at, kind, source, facts";
 var jsonString = (v) => typeof v === "string" ? v : null;
 function memberOf(data) {
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
@@ -5376,6 +5452,23 @@ async function ideasBasis(db, tenantId) {
   const { data, error } = await db.from("lead_rounds").select("ended_at").eq("tenant_id", tenantId).eq("state", "ended").not("ended_at", "is", null).order("ended_at", { ascending: false }).limit(1).maybeSingle();
   if (error) throw new Error(`lead_rounds: ${error.message}`);
   return data ? data.ended_at : null;
+}
+async function leadPeopleSearchCreate(db, p) {
+  const { data, error } = await db.rpc("lead_people_search_create", {
+    p_tenant_id: p.tenantId,
+    p_plan: p.plan,
+    p_via: p.via,
+    p_estimate_usd: p.estimateUsd,
+    ...p.threadId ? { p_thread_id: p.threadId } : {}
+  });
+  if (error) throw new Error(`lead_people_search_create: ${error.message}`);
+  return data ?? {};
+}
+async function leadCompanyUpsert(db, roundId, companies) {
+  const { data, error } = await db.rpc("lead_company_upsert", { p_round_id: roundId, p_companies: companies });
+  if (error) throw new Error(`lead_company_upsert: ${error.message}`);
+  const r = data ?? {};
+  return { made: r.made ?? 0, held: r.held ?? 0, left_out: r.left_out ?? 0 };
 }
 async function leadCountriesOf(db, ids) {
   const out = /* @__PURE__ */ new Map();
@@ -5948,9 +6041,11 @@ export {
   campaignSeries,
   campaignStuck,
   cancelBroadcastFrom,
+  chainPlannedOn,
   claimCallActivity,
   claimCallNotification,
   claimControl,
+  claimDrafts,
   claimIdeas,
   claimIdempotencyKey,
   claimQueuedSend,
@@ -5982,6 +6077,7 @@ export {
   dismissAppointmentNotice,
   dismissPersonDoubt,
   doubtOn,
+  draftedSendsOf,
   dropFromList,
   dropMailboxCredentials,
   dueCalendars,
@@ -6034,7 +6130,6 @@ export {
   heldMessageOf,
   heldNoticeDue,
   heldNoticesOf,
-  heldSendCounts,
   heldStale,
   holdFactsOf,
   holdRecipients,
@@ -6069,10 +6164,13 @@ export {
   lastInboundEmail,
   lastOutboundEmailSubject,
   leadAddressBounced,
+  leadCompanyUpsert,
   leadCountriesOf,
   leadMemberLater,
   leadNamesByIds,
+  leadPeopleSearchCreate,
   leadPileCounts,
+  leadReplyFactsOf,
   leadSlotsOf,
   leadWritten,
   leadsBackToday,
@@ -6144,6 +6242,7 @@ export {
   outreachModeOf,
   ownLineOf,
   ownVersionsFiled,
+  ownerSendFactsOf,
   pageSpeed,
   pageSpots,
   pageVitalsP75,
@@ -6236,6 +6335,7 @@ export {
   repliesFor,
   replyReadingOf,
   replyReadingRefOf,
+  replySaid,
   replyUndoableOf,
   reportSeries,
   resendHandover,
@@ -6250,6 +6350,7 @@ export {
   reviewsLedger,
   runCounts,
   runGoesByOthers,
+  runSendCounts,
   runSending,
   runningTwins,
   runsWaitingOf,
@@ -6266,6 +6367,7 @@ export {
   seePersonNote,
   sendJobScheduled,
   sendNow,
+  sendSaid,
   sendStanding,
   sentEmailIdByMessageId,
   sentEmailOf,

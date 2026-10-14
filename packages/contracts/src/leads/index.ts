@@ -61,6 +61,52 @@ export {
   planMinutes,
 } from "./search/cards";
 export type { LeadCardBrief } from "./search/cards";
+export {
+  PEOPLE_CARD,
+  PEOPLE_SENIORITIES,
+  PEOPLE_SENIORITY_WORDS,
+  PEOPLE_COMPANY_SIZES,
+  PEOPLE_COUNT_MAX,
+  PEOPLE_TITLES_MAX,
+  PEOPLE_INDUSTRIES_MAX,
+  PEOPLE_STATES_MAX,
+  peoplePlanOf,
+  peoplePlanFrom,
+  peopleAreaOf,
+  listTyped,
+  PEOPLE_FIND_WORDS,
+  usStateCode,
+  usStateName,
+  peopleEstimateUsd,
+  peoplePlanSentence,
+} from "./search/people-plan";
+export type { LeadPeoplePlan, PeoplePlanInput, PeopleSeniority, PeopleCompanySize } from "./search/people-plan";
+export { LeadPeoplePlanSchema, LeadPeopleSearchSchema } from "./search/people-plan-schema";
+export type { LeadPeopleSearchInput } from "./search/people-plan-schema";
+export {
+  LEAD_KINDS,
+  LEAD_SOURCES,
+  LEAD_ROLES,
+  LEAD_ROLE_WORDS,
+  LEAD_PEOPLE_MAX,
+  roleOf,
+  leadPersonOf,
+  leadFactsOf,
+  leadAddresseeOf,
+  leadUnitOf,
+  leadUnitCount,
+  leadCompanyOf,
+  LEAD_COMPANY_WORDS,
+} from "./lead-kind";
+export type {
+  LeadKind,
+  LeadSource,
+  LeadRole,
+  LeadPerson,
+  LeadFacts,
+  LeadCompanyVM,
+  LeadCompanyPersonVM,
+} from "./lead-kind";
 export { LEAD_ENDING_WORDS, endingOfRound } from "./search/endings";
 export { LEAD_KIND_KEY, leadKindWord, LEAD_UNREACHABLE_KEY, leadPhoneState, classify } from "./search/class";
 export type { LeadPhoneState, LeadClassification } from "./search/class";

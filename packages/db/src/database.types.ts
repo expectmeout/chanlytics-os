@@ -3588,11 +3588,13 @@ export type Database = {
           erased_at: string | null
           exported_at: string | null
           facebook_url: string | null
+          facts: Json
           found_at: string
           hours: Json
           id: string
           image_url: string | null
           instagram_url: string | null
+          kind: string
           last_note: string | null
           last_outcome: string | null
           lat: number | null
@@ -3615,6 +3617,8 @@ export type Database = {
           resume_at: string | null
           reviews: number | null
           reviews_dist: Json | null
+          source: string
+          source_key: string | null
           stage: string
           stage_at: string | null
           stage_from: string | null
@@ -3645,11 +3649,13 @@ export type Database = {
           erased_at?: string | null
           exported_at?: string | null
           facebook_url?: string | null
+          facts?: Json
           found_at?: string
           hours?: Json
           id?: string
           image_url?: string | null
           instagram_url?: string | null
+          kind?: string
           last_note?: string | null
           last_outcome?: string | null
           lat?: number | null
@@ -3672,6 +3678,8 @@ export type Database = {
           resume_at?: string | null
           reviews?: number | null
           reviews_dist?: Json | null
+          source?: string
+          source_key?: string | null
           stage?: string
           stage_at?: string | null
           stage_from?: string | null
@@ -3702,11 +3710,13 @@ export type Database = {
           erased_at?: string | null
           exported_at?: string | null
           facebook_url?: string | null
+          facts?: Json
           found_at?: string
           hours?: Json
           id?: string
           image_url?: string | null
           instagram_url?: string | null
+          kind?: string
           last_note?: string | null
           last_outcome?: string | null
           lat?: number | null
@@ -3729,6 +3739,8 @@ export type Database = {
           resume_at?: string | null
           reviews?: number | null
           reviews_dist?: Json | null
+          source?: string
+          source_key?: string | null
           stage?: string
           stage_at?: string | null
           stage_from?: string | null
@@ -5126,6 +5138,7 @@ export type Database = {
           list_key: string | null
           mailbox_ids: string[]
           name: string
+          owner_sends: boolean
           params: Json
           policy_class: string
           run_hour: number
@@ -5162,6 +5175,7 @@ export type Database = {
           list_key?: string | null
           mailbox_ids?: string[]
           name: string
+          owner_sends?: boolean
           params?: Json
           policy_class: string
           run_hour?: number
@@ -5198,6 +5212,7 @@ export type Database = {
           list_key?: string | null
           mailbox_ids?: string[]
           name?: string
+          owner_sends?: boolean
           params?: Json
           policy_class?: string
           run_hour?: number
@@ -5459,6 +5474,7 @@ export type Database = {
           refer_to: string | null
           reread_at: string | null
           rereads: number
+          said_by: string | null
           send_id: string | null
           signer_name: string | null
           signer_settled_at: string | null
@@ -5493,6 +5509,7 @@ export type Database = {
           refer_to?: string | null
           reread_at?: string | null
           rereads?: number
+          said_by?: string | null
           send_id?: string | null
           signer_name?: string | null
           signer_settled_at?: string | null
@@ -5527,6 +5544,7 @@ export type Database = {
           refer_to?: string | null
           reread_at?: string | null
           rereads?: number
+          said_by?: string | null
           send_id?: string | null
           signer_name?: string | null
           signer_settled_at?: string | null
@@ -5618,6 +5636,8 @@ export type Database = {
           contact_id: string | null
           created_at: string
           domain_id: string | null
+          draft: Json | null
+          drafted_at: string | null
           facts_used: string[]
           hold_detail: string | null
           id: string
@@ -5629,6 +5649,8 @@ export type Database = {
           playbook_id: string | null
           reason: string | null
           root_id: string
+          said_at: string | null
+          said_by: string | null
           send_at: string | null
           sent_at: string | null
           state: string
@@ -5650,6 +5672,8 @@ export type Database = {
           contact_id?: string | null
           created_at?: string
           domain_id?: string | null
+          draft?: Json | null
+          drafted_at?: string | null
           facts_used?: string[]
           hold_detail?: string | null
           id: string
@@ -5661,6 +5685,8 @@ export type Database = {
           playbook_id?: string | null
           reason?: string | null
           root_id: string
+          said_at?: string | null
+          said_by?: string | null
           send_at?: string | null
           sent_at?: string | null
           state?: string
@@ -5682,6 +5708,8 @@ export type Database = {
           contact_id?: string | null
           created_at?: string
           domain_id?: string | null
+          draft?: Json | null
+          drafted_at?: string | null
           facts_used?: string[]
           hold_detail?: string | null
           id?: string
@@ -5693,6 +5721,8 @@ export type Database = {
           playbook_id?: string | null
           reason?: string | null
           root_id?: string
+          said_at?: string | null
+          said_by?: string | null
           send_at?: string | null
           sent_at?: string | null
           state?: string
@@ -7033,6 +7063,10 @@ export type Database = {
         }
         Returns: Json
       }
+      lead_company_upsert: {
+        Args: { p_companies: Json; p_round_id: string }
+        Returns: Json
+      }
       lead_convert_by: {
         Args: {
           p_any_stage?: boolean
@@ -7121,6 +7155,16 @@ export type Database = {
       }
       lead_name_key: { Args: { p_name: string }; Returns: string }
       lead_niche_prior: { Args: { p_category_key: string }; Returns: Json }
+      lead_people_search_create: {
+        Args: {
+          p_estimate_usd: number
+          p_plan: Json
+          p_tenant_id: string
+          p_thread_id?: string
+          p_via: string
+        }
+        Returns: Json
+      }
       lead_person_leg: {
         Args: { p_email: string; p_lead_id: string; p_phone: string }
         Returns: undefined
@@ -7331,12 +7375,14 @@ export type Database = {
           excluded_by: string
           exported_at: string
           facebook_url: string
+          facts: Json
           fit: string
           found_at: string
           hours: Json
           image_url: string
           instagram_url: string
           judgment: Json
+          kind: string
           last_note: string
           last_outcome: string
           lat: number
@@ -8432,6 +8478,8 @@ export type Database = {
           contact_id: string | null
           created_at: string
           domain_id: string | null
+          draft: Json | null
+          drafted_at: string | null
           facts_used: string[]
           hold_detail: string | null
           id: string
@@ -8443,6 +8491,53 @@ export type Database = {
           playbook_id: string | null
           reason: string | null
           root_id: string
+          said_at: string | null
+          said_by: string | null
+          send_at: string | null
+          sent_at: string | null
+          state: string
+          tenant_id: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "reach_out_sends"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      reach_out_claim_drafts: {
+        Args: { p_at: string; p_limit: number; p_tenant_id?: string }
+        Returns: {
+          angle: string | null
+          attempts: number
+          broadcast_id: string
+          check_after: string | null
+          check_first_at: string | null
+          check_gen: number
+          check_started_at: string | null
+          check_tries: number
+          checked_at: string | null
+          checked_words: string | null
+          claimed_at: string | null
+          contact_id: string | null
+          created_at: string
+          domain_id: string | null
+          draft: Json | null
+          drafted_at: string | null
+          facts_used: string[]
+          hold_detail: string | null
+          id: string
+          included_for: string[]
+          lead_id: string
+          mailbox_id: string | null
+          message_id: string | null
+          opening: string | null
+          playbook_id: string | null
+          reason: string | null
+          root_id: string
+          said_at: string | null
+          said_by: string | null
           send_at: string | null
           sent_at: string | null
           state: string
@@ -8478,6 +8573,8 @@ export type Database = {
           contact_id: string | null
           created_at: string
           domain_id: string | null
+          draft: Json | null
+          drafted_at: string | null
           facts_used: string[]
           hold_detail: string | null
           id: string
@@ -8489,6 +8586,8 @@ export type Database = {
           playbook_id: string | null
           reason: string | null
           root_id: string
+          said_at: string | null
+          said_by: string | null
           send_at: string | null
           sent_at: string | null
           state: string
@@ -8596,6 +8695,8 @@ export type Database = {
           contact_id: string | null
           created_at: string
           domain_id: string | null
+          draft: Json | null
+          drafted_at: string | null
           facts_used: string[]
           hold_detail: string | null
           id: string
@@ -8607,6 +8708,8 @@ export type Database = {
           playbook_id: string | null
           reason: string | null
           root_id: string
+          said_at: string | null
+          said_by: string | null
           send_at: string | null
           sent_at: string | null
           state: string
@@ -8715,6 +8818,7 @@ export type Database = {
           p_plan: Json
           p_reading: Json
           p_reread: number
+          p_said?: Json
           p_tenant_id: string
         }
         Returns: Json
@@ -8731,6 +8835,15 @@ export type Database = {
       }
       reach_out_reply_of: {
         Args: { p_days: number; p_message_id: string; p_tenant_id: string }
+        Returns: Json
+      }
+      reach_out_reply_said: {
+        Args: {
+          p_lead_id: string
+          p_note: string
+          p_plan: Json
+          p_reading: Json
+        }
         Returns: Json
       }
       reach_out_reply_tell_claim: {
@@ -8792,6 +8905,15 @@ export type Database = {
         Args: { p_decision: string; p_send_id: string }
         Returns: Json
       }
+      reach_out_send_said: {
+        Args: {
+          p_message_id?: string
+          p_outcome: string
+          p_reason?: string
+          p_send_id: string
+        }
+        Returns: Json
+      }
       reach_out_sources: {
         Args: { p_limit?: number; p_tenant_id: string }
         Returns: Json
@@ -8813,6 +8935,8 @@ export type Database = {
           contact_id: string | null
           created_at: string
           domain_id: string | null
+          draft: Json | null
+          drafted_at: string | null
           facts_used: string[]
           hold_detail: string | null
           id: string
@@ -8824,6 +8948,8 @@ export type Database = {
           playbook_id: string | null
           reason: string | null
           root_id: string
+          said_at: string | null
+          said_by: string | null
           send_at: string | null
           sent_at: string | null
           state: string

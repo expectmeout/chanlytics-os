@@ -101,8 +101,8 @@ var saidWords = (c) => JSON.stringify([c.headline, c.text, c.headlines, c.lines]
 function patchRestarts(ad, patch) {
   const offer = patch.serviceId !== void 0 && patch.serviceId !== ad.serviceId;
   const area = patch.area !== void 0 && !sameArea(patch.area, ad.area);
-  const words3 = patch.copy !== void 0 && saidWords(patch.copy) !== saidWords(ad.copy);
-  return offer || area || words3 || patch.photo === true || ad.needs?.code === "rejected";
+  const words4 = patch.copy !== void 0 && saidWords(patch.copy) !== saidWords(ad.copy);
+  return offer || area || words4 || patch.photo === true || ad.needs?.code === "rejected";
 }
 function adWith(ad, read, patch) {
   const service = patch.serviceId === void 0 ? void 0 : read.services.find((s) => s.id === patch.serviceId);
@@ -2800,10 +2800,10 @@ function matchPerson(item, everyone, own) {
       if (p2) return { id: p2.id, name: labelOf(p2), via: "business", ...threadOf(p2), ...replyFactsOf(p2) };
     }
   }
-  const words3 = [item.title, ...c.names, item.description ?? ""].join("\n");
-  const p = personInText(words3, people);
+  const words4 = [item.title, ...c.names, item.description ?? ""].join("\n");
+  const p = personInText(words4, people);
   if (p) return { id: p.id, name: labelOf(p), via: "name", ...threadOf(p), ...replyFactsOf(p) };
-  const byBusiness = personInText(words3, soleAtBusiness(people));
+  const byBusiness = personInText(words4, soleAtBusiness(people));
   const b = byBusiness ? people.find((x) => x.id === byBusiness.id) : void 0;
   return b ? { id: b.id, name: labelOf(b), via: "business", ...threadOf(b), ...replyFactsOf(b) } : null;
 }
@@ -2957,10 +2957,10 @@ function guessName(item, services = []) {
   const parts2 = title.split(/\s+(?:-|–|—|·|\||:|\/)\s+|\s+(?:with|for|w\/)\s+|:\s+/i).map((p) => p.trim()).filter(Boolean);
   for (const part of parts2) {
     if (svc.has(part.toLowerCase())) continue;
-    const words3 = part.split(/\s+/);
-    if (words3.length < 2 || words3.length > 4) continue;
-    if (!words3.every((w) => NAME_WORD.test(w) && CAPITAL.test(w))) continue;
-    if (words3.some((w) => svc.has(w.toLowerCase()))) continue;
+    const words4 = part.split(/\s+/);
+    if (words4.length < 2 || words4.length > 4) continue;
+    if (!words4.every((w) => NAME_WORD.test(w) && CAPITAL.test(w))) continue;
+    if (words4.some((w) => svc.has(w.toLowerCase()))) continue;
     return part;
   }
   return null;
@@ -4174,8 +4174,8 @@ function comingOf(read, reading) {
   const waits = (ad) => reading.includes(ad.platform);
   const live = read.ads.filter((ad) => ad.state !== "ended" && ad.state !== "finished");
   const rows2 = live.map((ad, i) => ({ ad, i, key: started(ad) ? ad.endDay : ad.startDay })).sort((a, b) => a.key.localeCompare(b.key) || a.i - b.i).map(({ ad }) => started(ad) ? endingRow(ad, read, waits(ad)) : startingRow(ad, read));
-  const capped = live.filter((ad) => totalOf(ad) !== null);
-  const left = capped.map((ad) => ({
+  const capped2 = live.filter((ad) => totalOf(ad) !== null);
+  const left = capped2.map((ad) => ({
     minor: leftOfAd(ad, totalsOf(ad, read)) ?? 0,
     currency: ad.currency
   }));
@@ -4183,7 +4183,7 @@ function comingOf(read, reading) {
   return {
     title: TILES.coming.title,
     rows: rows2,
-    total: capped.some(waits) ? TILES.coming.totalReading : TILES.coming.total({ sum: sumMoney(left), ads: capped.length }),
+    total: capped2.some(waits) ? TILES.coming.totalReading : TILES.coming.total({ sum: sumMoney(left), ads: capped2.length }),
     plus: daily.length > 0 ? TILES.coming.plus(`${sumMoney(daily)} a day`) : null
   };
 }
@@ -5986,9 +5986,9 @@ function countsByChannelWords(by) {
   return went.length > 1 ? went.map((c) => `${by[c]} ${CONSENT_CHANNEL_WORDS[c]}`).join(", ") : null;
 }
 function channelsWords(channels) {
-  const words3 = channels.map((c) => CONSENT_CHANNEL_WORDS[c]);
-  if (words3.length <= 1) return words3[0] ?? "";
-  return `${words3.slice(0, -1).join(", ")} and ${words3[words3.length - 1]}`;
+  const words4 = channels.map((c) => CONSENT_CHANNEL_WORDS[c]);
+  if (words4.length <= 1) return words4[0] ?? "";
+  return `${words4.slice(0, -1).join(", ")} and ${words4[words4.length - 1]}`;
 }
 
 // src/consent/consent.ts
@@ -6800,8 +6800,8 @@ function adsParts(rest) {
   const at3 = rest.indexOf(":");
   const days = daysOfKey(at3 < 0 ? rest : rest.slice(0, at3));
   if (days && at3 < 0) return { days };
-  const words3 = days ? rest.slice(at3 + 1) : rest;
-  const scope = words3 === "all" ? null : adsScopeOfKey(words3);
+  const words4 = days ? rest.slice(at3 + 1) : rest;
+  const scope = words4 === "all" ? null : adsScopeOfKey(words4);
   return scope ? { days, scope } : null;
 }
 function reportsParamParts(param) {
@@ -7148,8 +7148,8 @@ function emptyOf(o) {
   if (o.read.ads.length === 0) return RESULTS.empty.noAds;
   if (o.ads === null) return { title: NO_AD.title, body: NO_AD.body };
   if (!o.quiet && o.window.days > 0) return null;
-  const words3 = lensEmpty("ads", { since: dayShort(o.window.from), until: dayShort(o.window.to) });
-  return { title: words3.title, body: words3.body };
+  const words4 = lensEmpty("ads", { since: dayShort(o.window.from), until: dayShort(o.window.to) });
+  return { title: words4.title, body: words4.body };
 }
 function adsResultsOf(read, config2, at3) {
   const window = resultsWindowOf(read, at3);
@@ -7796,8 +7796,8 @@ function emailLeftOutOf(meta) {
   const said = [];
   if (total) {
     const rest = total - names3.length;
-    const listed = names3.length ? `: ${names3.join(", ")}${rest > 0 ? ` and ${rest} more` : ""}` : "";
-    said.push(`${total === 1 ? "1 attachment was" : `${total} attachments were`} not kept${listed}.`);
+    const listed2 = names3.length ? `: ${names3.join(", ")}${rest > 0 ? ` and ${rest} more` : ""}` : "";
+    said.push(`${total === 1 ? "1 attachment was" : `${total} attachments were`} not kept${listed2}.`);
   }
   if (email.truncated === true) said.push("This email was longer than Chanlytics keeps; the rest was left out.");
   return said.length ? said.join(" ") : null;
@@ -8083,8 +8083,8 @@ function codeOf(v) {
   return typeof v === "string" && /^\d{3,6}$/.test(v.trim()) ? Number(v.trim()) : null;
 }
 function providerCodeOf(error) {
-  const listed = Array.isArray(error.errors) ? record(error.errors[0]) : null;
-  const direct = codeOf(listed?.code) ?? codeOf(error.code);
+  const listed2 = Array.isArray(error.errors) ? record(error.errors[0]) : null;
+  const direct = codeOf(listed2?.code) ?? codeOf(error.code);
   if (direct !== null) return direct;
   const body = error.body;
   if (typeof body === "string") {
@@ -8541,8 +8541,8 @@ function stateCode(raw) {
   return US_STATES[s.toLowerCase()] ?? null;
 }
 var oneOf = (w) => /ies$/.test(w) ? w.replace(/ies$/, "y") : /(sses|ches|shes|xes|zes)$/.test(w) ? w.replace(/es$/, "") : /[^su]s$/.test(w) ? w.slice(0, -1) : w;
-function leadKindKey(words3) {
-  const k = words3.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^[^a-z]+/, "").replace(/_+$/, "").slice(0, 40).replace(/_+$/, "").replace(/[a-z]+$/, oneOf);
+function leadKindKey(words4) {
+  const k = words4.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^[^a-z]+/, "").replace(/_+$/, "").slice(0, 40).replace(/_+$/, "").replace(/[a-z]+$/, oneOf);
   return k.length >= 2 ? k : "business";
 }
 
@@ -8714,12 +8714,12 @@ function findLanguages(query, list2 = WHATSAPP_LANGUAGES) {
     const name = fold(l.name);
     const label = fold(l.label);
     const native = fold(l.native);
-    const words3 = [label, native].join(" ").split(/[\s(),’'（）]+/).filter(Boolean);
+    const words4 = [label, native].join(" ").split(/[\s(),’'（）]+/).filter(Boolean);
     let score = -1;
     if (code2 === q || code2.split("_")[0] === q) score = 0;
     else if (name.startsWith(q) || label.startsWith(q)) score = 1;
     else if (native.startsWith(q)) score = 2;
-    else if (words3.some((w) => w.startsWith(q))) score = 3;
+    else if (words4.some((w) => w.startsWith(q))) score = 3;
     else if (code2.startsWith(q)) score = 4;
     else if (label.includes(q) || native.includes(q)) score = 5;
     if (score >= 0) scored.push({ l, score, at: at3 });
@@ -8783,8 +8783,8 @@ var NUMBER_WORDS = /* @__PURE__ */ (() => {
   "doscientos trescientos cuatrocientos quinientos seiscientos setecientos ochocientos novecientos".split(" ").forEach((t, i) => w[t] = [200, 300, 400, 500, 600, 700, 800, 900][i] ?? 0);
   return w;
 })();
-function numberOfWords(words3) {
-  const tokens = words3.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().split(/[\s-]+/).filter((t) => t && t !== "and" && t !== "y");
+function numberOfWords(words4) {
+  const tokens = words4.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().split(/[\s-]+/).filter((t) => t && t !== "and" && t !== "y");
   if (!tokens.length) return null;
   let total = 0;
   let current = 0;
@@ -8894,8 +8894,8 @@ var HELD_LINES = {
   }
 };
 function heldLine(kind, language, phone) {
-  const words3 = language === "es" ? HELD_LINES.es : HELD_LINES.en;
-  return `${words3[kind]}${phone ? words3.urgent(phone) : ""}`;
+  const words4 = language === "es" ? HELD_LINES.es : HELD_LINES.en;
+  return `${words4[kind]}${phone ? words4.urgent(phone) : ""}`;
 }
 function spokenBreach(turns, allowed) {
   if (!turns?.length) return null;
@@ -9278,19 +9278,39 @@ function handOf(v) {
   if (!v || typeof v !== "object") return null;
   const h = v;
   if (!HAND_KINDS.includes(h.kind) || typeof h.words !== "string") return null;
-  const words3 = h.words.trim();
-  return words3 ? { kind: h.kind, words: words3 } : null;
+  const words4 = h.words.trim();
+  return words4 ? { kind: h.kind, words: words4 } : null;
 }
-function handStepWords(kind, business, words3) {
+function handStepWords(kind, business, words4) {
   const who = business.trim() || "This business";
-  return kind === "call" ? `Call ${who}: ${words3.trim()}` : `${who}: ${words3.trim()}`;
+  return kind === "call" ? `Call ${who}: ${words4.trim()}` : `${who}: ${words4.trim()}`;
 }
 
 // src/reach-out/reach-out-words.ts
-var REACH_OUT_SLOTS = ["opening", "business", "city", "your name", "your business", "booking link"];
+var REACH_OUT_SLOTS = [
+  "opening",
+  "first name",
+  "business",
+  "company",
+  "title",
+  "role",
+  "city",
+  "your name",
+  "your business",
+  "booking link"
+];
+var REACH_OUT_SLOT_FALLBACKS = {
+  "first name": "there",
+  title: "owner",
+  role: "owner"
+};
 var REACH_OUT_SLOT_WORDS = {
   opening: "written for each business",
-  business: "their name on Google",
+  "first name": `the person's first name at a company; \u201C${REACH_OUT_SLOT_FALLBACKS["first name"]}\u201D for a business`,
+  business: "their name on Google, or their company's",
+  company: "their company's name, or their business's",
+  title: `the person's title at a company; \u201C${REACH_OUT_SLOT_FALLBACKS.title}\u201D for a business`,
+  role: `the person's role (owner, director, manager); \u201C${REACH_OUT_SLOT_FALLBACKS.role}\u201D for a business`,
   city: "their city",
   "your name": "the name you sign with",
   "your business": "your business's name",
@@ -9298,7 +9318,11 @@ var REACH_OUT_SLOT_WORDS = {
 };
 var REACH_OUT_SLOT_LABELS = {
   opening: "Opening",
+  "first name": "First name",
   business: "Their business",
+  company: "Their company",
+  title: "Their title",
+  role: "Their role",
   city: "Their city",
   "your name": "Your name",
   "your business": "Your business",
@@ -9414,7 +9438,7 @@ function wordsIssueWords(i) {
     case "body_too_long":
       return `Keep it under ${REACH_OUT_BODY_MAX.toLocaleString("en-US")} characters.`;
     case "unknown_slot":
-      return `{{${i.slot ?? ""}}} isn't one of the slots. Use one of the six.`;
+      return `{{${i.slot ?? ""}}} isn't one of the slots. Use one from the list.`;
     case "stray_brace":
       return "Braces are for slots only, two on each side: {{business}}.";
     case "opening_twice":
@@ -9450,9 +9474,9 @@ ${s.body}`).join("\n");
 function handIssues(hand, i, steps) {
   const out = [];
   if (i === 0 || i < steps - 1) out.push({ step: i, field: "body", problem: "hand_not_last" });
-  const words3 = hand.words.trim();
-  if (!words3) out.push({ step: i, field: "body", problem: "hand_words_empty" });
-  else if (words3.length > HAND_WORDS_MAX) out.push({ step: i, field: "body", problem: "hand_words_long" });
+  const words4 = hand.words.trim();
+  if (!words4) out.push({ step: i, field: "body", problem: "hand_words_empty" });
+  else if (words4.length > HAND_WORDS_MAX) out.push({ step: i, field: "body", problem: "hand_words_long" });
   return out;
 }
 function chainIssueWords(i) {
@@ -9827,6 +9851,7 @@ function draftExcerpt(draft) {
 // src/reach-out/reach-out-replies.ts
 var REPLY_INTENTS = ["interested", "question", "not_now", "no", "wrong_person", "away", "other"];
 var isReplyIntent = (v) => REPLY_INTENTS.includes(v);
+var OWNER_SAID_INTENTS = ["interested", "question", "not_now", "no", "wrong_person"];
 var REPLY_INTENT_WORDS = {
   interested: "interested",
   question: "a question",
@@ -9947,11 +9972,11 @@ var NUMBER_IN_TEXT = /\+?\(?\d[\d\s().-]{5,}\d/g;
 var numberRun = (run) => run.replace(/\D/g, "").length >= 7 && !/^\d{4}-\d{2}-\d{2}$/.test(run.trim());
 function firstWords(text, n) {
   const kept = [];
-  let words3 = 0;
+  let words4 = 0;
   for (const token2 of text.split(" ")) {
     const isWord = wordCount(token2) > 0;
-    if (isWord && words3 === n) break;
-    if (isWord) words3++;
+    if (isWord && words4 === n) break;
+    if (isWord) words4++;
     kept.push(token2);
   }
   return kept.join(" ");
@@ -9966,8 +9991,8 @@ var REFERRAL_SUMMARY = "They say to write to someone else.";
 var NOT_A_NAME = /* @__PURE__ */ new Set(["the", "a", "an", "our", "their", "my", "your", "please"]);
 var referralNames = (referTo) => [...referTo.replace(ADDRESS_IN_TEXT, " ").matchAll(/\p{Lu}\p{L}+/gu)].map((m) => m[0].toLowerCase()).filter((w) => !NOT_A_NAME.has(w));
 var saysAny = (summary, names3) => {
-  const words3 = new Set(summary.toLowerCase().split(/\P{L}+/u));
-  return names3.some((n) => words3.has(n));
+  const words4 = new Set(summary.toLowerCase().split(/\P{L}+/u));
+  return names3.some((n) => words4.has(n));
 };
 var intentOf = (v) => {
   if (typeof v !== "string") return null;
@@ -10077,15 +10102,15 @@ function otherWriter(leadAddress, replyFrom) {
 }
 function replyStepWords(reading, p) {
   const b = p.business.trim() || "The business";
-  let words3;
+  let words4;
   if (reading.intent === "not_now")
-    words3 = `Write to ${b} again: they said not now${reading.summary ? ` ("${reading.summary}")` : ""}.`;
+    words4 = `Write to ${b} again: they said not now${reading.summary ? ` ("${reading.summary}")` : ""}.`;
   else if (reading.intent === "wrong_person") {
     const who = reading.referTo ?? "someone else";
-    words3 = p.automatic ? `${b}'s automatic reply says to write to ${who}.` : `${b} said to write to ${who} instead.`;
-  } else if (reading.intent === "away") words3 = `${b} is back today: write to them.`;
+    words4 = p.automatic ? `${b}'s automatic reply says to write to ${who}.` : `${b} said to write to ${who} instead.`;
+  } else if (reading.intent === "away") words4 = `${b} is back today: write to them.`;
   else return null;
-  return withinChars(p.writer ? `${words3} (${p.writer} wrote it.)` : words3, STEP_WORDS_MAX);
+  return withinChars(p.writer ? `${words4} (${p.writer} wrote it.)` : words4, STEP_WORDS_MAX);
 }
 function automaticPlan(r2, c, today) {
   if (r2.intent === "away")
@@ -10099,6 +10124,7 @@ function automaticPlan(r2, c, today) {
 function readingPlan(reading, c) {
   const r2 = reading ?? UNREAD_READING;
   const automatic = c.claim === "auto_reply";
+  const said = c.claim === "owner";
   const today = zoneDayKey(c.receivedAt, c.tz);
   const ruled = automatic ? automaticPlan(r2, c, today) : null;
   if (ruled) return ruled;
@@ -10113,9 +10139,10 @@ function readingPlan(reading, c) {
     stops: true,
     skipSends: "outreach_wrote_back",
     // A re-read tells what nobody was told before: a no, and anything an automatic reply's first reading told nobody of.
-    tell: !c.reread || r2.intent === "no" || automatic
+    // What the owner said is never told back to them.
+    tell: !said && (!c.reread || r2.intent === "no" || automatic)
   };
-  const drafts = (d) => c.reread ? null : d;
+  const drafts = (d) => c.reread || said ? null : d;
   switch (r2.intent) {
     case "interested":
     case "question":
@@ -11073,6 +11100,7 @@ function planSentence(plan) {
 var LEAD_CARDS = [
   {
     id: "local_businesses",
+    finds: "places",
     goodFor: [
       "local businesses of a kind, in a city, a ZIP or around a point: the businesses that buy from you, or that your clients need next",
       "their listing facts: name, category, address, phone, website, rating and review count, open or closed",
@@ -11104,6 +11132,46 @@ var LEAD_CARDS = [
       "50 independent pharmacies in ZIP 78704 that could stock an OTC product, a phone is enough",
       "100 family law firms within 15 km of downtown Denver, email checked, leaving out referral networks"
     ],
+    rights: "Public Google Maps listings, read through Apify, and contacts from each business's own site; no reviewer's data, no photos.",
+    approved: true
+  },
+  {
+    // The people card (the workbench's call 8, 00429), approved by Ruben on 14 Oct 2026 with its source-rights note.
+    id: "people_at_companies",
+    finds: "people",
+    goodFor: [
+      "named people at companies, by what they are called (a title), their seniority, their company's industry and size, and the US state they work in",
+      "a company's name, domain, industry, size and LinkedIn page, and each person's name, title and work email",
+      "reaching the person who decides, by name, where a business's own inbox would not"
+    ],
+    notFor: [
+      "local businesses by place, with their listing's rating, hours and reviews: the Maps card",
+      "people at home, or anyone outside their work",
+      "personal email addresses or phone numbers: work addresses only, each checked",
+      "anyone outside the US"
+    ],
+    settings: [
+      "titles (one to five, what the people are called)",
+      "seniority (owners, founders, the C-suite, partners, VPs, heads, directors, managers, senior staff, entry level)",
+      "industries (up to five, in the source's words)",
+      "company sizes (employee ranges)",
+      "states (up to ten; none is the whole US)",
+      "count (1 to 500)"
+    ],
+    costPerPlaceUsd: 2e-3,
+    contactsPerPlaceUsd: 0,
+    judgePerPlaceUsd: 0,
+    checkPerEmailUsd: 89e-5,
+    startUsd: 0.01,
+    maxPerTerm: 500,
+    // The provider's own measure: about a thousand people in ten minutes.
+    placesPerMinute: 100,
+    examples: [
+      "100 marketing managers at marketing agencies of 11 to 50 people in Texas",
+      "50 owners of accounting firms in Ohio and Michigan",
+      "200 office managers at dental practices in California"
+    ],
+    rights: "From a B2B contact database on Apify, built from public professional profiles and company sites, LinkedIn's among them; we never sign in to LinkedIn or read it ourselves, keep a person's name, title, work address and profile link only, check each address before anything is sent, and never write again to anyone who says no.",
     approved: true
   }
 ];
@@ -11656,13 +11724,13 @@ function forWords(forMe, forUserId, forName) {
   return forUserId && name ? `For ${name}` : null;
 }
 function nextStepOf(r2, tz, nowMs) {
-  const words3 = r2.step_body?.trim();
-  if (!r2.step_id || !words3) return null;
+  const words4 = r2.step_body?.trim();
+  if (!r2.step_id || !words4) return null;
   const day = stepDayOf(r2.step_due_on, tz, nowMs);
   if (!day) return null;
   return {
     id: r2.step_id,
-    words: words3,
+    words: words4,
     day,
     due: day.due,
     forWho: forWords(r2.step_for_me, r2.step_for_user_id, r2.step_for_name),
@@ -13444,8 +13512,8 @@ function noChannelWords(who, purpose) {
 function saidYesWords(who, purpose, sending, saidYes) {
   const noNumber = sending === 0 && saidYes > 0;
   const n = noNumber ? saidYes : sending;
-  const words3 = `${n} ${n === 1 ? "person" : "people"} on ${who} said yes to ${purpose === "marketing" ? "offers" : "messages"}`;
-  return noNumber ? `${words3}, ${n === 1 ? "with no number" : "none with a number"} to send to` : words3;
+  const words4 = `${n} ${n === 1 ? "person" : "people"} on ${who} said yes to ${purpose === "marketing" ? "offers" : "messages"}`;
+  return noNumber ? `${words4}, ${n === 1 ? "with no number" : "none with a number"} to send to` : words4;
 }
 function broadcastStep(cta, to, members) {
   const offersYes = members.filter((m) => m.canReceive.offers).length;
@@ -15283,8 +15351,8 @@ function momentHoldsWords(rows2, trigger, editing) {
 function lifecycleClock(p) {
   return p.trigger === "everyone_monthly" ? `every ${p.cadence_days} days` : `daily ${clockHour(p.run_hour)}`;
 }
-var stated = (words3, tone, paused = false, short = words3) => ({
-  words: words3,
+var stated = (words4, tone, paused = false, short = words4) => ({
+  words: words4,
   short,
   tone,
   paused
@@ -16858,8 +16926,8 @@ function templateBlocked(t) {
 function refusedWords(reason) {
   const said = String(reason ?? "").trim().replace(/[.!?\s]+$/, "");
   if (!said) return null;
-  const words3 = /^[A-Z0-9_]+$/.test(said) ? said.toLowerCase().replace(/_/g, " ") : said;
-  return `WhatsApp refused this one: ${words3}. Change the words and send it back.`;
+  const words4 = /^[A-Z0-9_]+$/.test(said) ? said.toLowerCase().replace(/_/g, " ") : said;
+  return `WhatsApp refused this one: ${words4}. Change the words and send it back.`;
 }
 var COUNT_WORDS = ["", "one", "two", "three", "four", "five"];
 function blockedWords(reasons) {
@@ -16875,13 +16943,13 @@ function sendableTemplates(list2) {
   if (blocked.length === 0) return { sendable, blocked, why: null };
   const n = blocked.length;
   const reasons = blocked.map((t) => templateBlocked(t));
-  const words3 = n === 1 ? `it has ${reasons[0]}` : blockedWords(reasons);
+  const words4 = n === 1 ? `it has ${reasons[0]}` : blockedWords(reasons);
   const many = COUNT_WORDS[n] ?? String(n);
   const lead = n === 1 ? "One of your messages" : `${many[0].toUpperCase()}${many.slice(1)} of your messages`;
   return {
     sendable,
     blocked,
-    why: `${lead} can't go out from here \u2014 ${words3}. ${n === 1 ? "It still works" : "They still work"} in WhatsApp Manager.`
+    why: `${lead} can't go out from here \u2014 ${words4}. ${n === 1 ? "It still works" : "They still work"} in WhatsApp Manager.`
   };
 }
 function templateLinkButton(components) {
@@ -16905,8 +16973,8 @@ function templateTitle(name, title) {
   if (given) return given.slice(0, TEMPLATE_TITLE_MAX);
   const s = starterByName(name);
   if (s) return s.title;
-  const words3 = String(name ?? "").replace(/_v\d+$/i, "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
-  return words3 ? words3[0].toUpperCase() + words3.slice(1) : String(name ?? "");
+  const words4 = String(name ?? "").replace(/_v\d+$/i, "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  return words4 ? words4[0].toUpperCase() + words4.slice(1) : String(name ?? "");
 }
 function playbookName(trigger, tpl) {
   return startersForTrigger(trigger.id).some((s) => s.name === tpl.name) ? trigger.label : `${trigger.label} \xB7 ${templateTitle(tpl.name, tpl.title)}`;
@@ -17107,7 +17175,7 @@ var wasIn = (data, k) => {
   return Object.prototype.hasOwnProperty.call(was, k) ? was[k] : void 0;
 };
 var idIn = (pl, k) => typeof pl?.[k] === "string" && pl[k] ? pl[k] : null;
-var refuseWith = (words3) => ({ refused: words3 });
+var refuseWith = (words4) => ({ refused: words4 });
 var ownEntry = (m, k) => Object.prototype.hasOwnProperty.call(m, k) ? m[k] : void 0;
 var PEOPLE_CHANGED = { type: "surface:clients" };
 
@@ -18065,8 +18133,8 @@ function matchColumns(rows2) {
   if (columns.name === null) {
     for (let i = 0; i < width; i++) {
       if (Object.values(columns).includes(i)) continue;
-      const words3 = (v) => /\p{L}/u.test(v) && normalizeEmail(v) === null && normalizePhone(v) === null;
-      if (columnShare(body, i, words3) >= COLUMN_SHARE) {
+      const words4 = (v) => /\p{L}/u.test(v) && normalizeEmail(v) === null && normalizePhone(v) === null;
+      if (columnShare(body, i, words4) >= COLUMN_SHARE) {
         columns.name = i;
         break;
       }
@@ -18156,8 +18224,8 @@ function leadImportColumns(rows2) {
   if (columns.name === null)
     for (let i = 0; i < width; i++) {
       if (taken(i)) continue;
-      const words3 = (v) => /\p{L}/u.test(v) && normalizeEmail(v) === null && websiteHostOf(v) === null;
-      if (columnShare(body, i, words3) >= COLUMN_SHARE) {
+      const words4 = (v) => /\p{L}/u.test(v) && normalizeEmail(v) === null && websiteHostOf(v) === null;
+      if (columnShare(body, i, words4) >= COLUMN_SHARE) {
         columns.name = i;
         break;
       }
@@ -18169,18 +18237,18 @@ function leadImportPlanOf(text) {
   const cells = parseCsv(text || "");
   const { columns, header } = leadImportColumns(cells);
   const cell3 = (r2, i) => i === null ? "" : (r2[i] ?? "").trim();
-  const words3 = (v, max) => Array.from(v.replace(/\s+/g, " ")).slice(0, max).join("").trim() || null;
+  const words4 = (v, max) => Array.from(v.replace(/\s+/g, " ")).slice(0, max).join("").trim() || null;
   const rows2 = (header ? cells.slice(1) : cells).map((r2, n) => {
     const carried = r2.line;
     return {
       line: carried ?? n + (header ? 2 : 1),
-      name: words3(cell3(r2, columns.name), 200),
+      name: words4(cell3(r2, columns.name), 200),
       email: normalizeEmail(cell3(r2, columns.email)),
       phone: normalizePhone(cell3(r2, columns.phone)),
       website_host: websiteHostOf(cell3(r2, columns.website)),
-      city: words3(cell3(r2, columns.city), 120),
+      city: words4(cell3(r2, columns.city), 120),
       region: regionOf(cell3(r2, columns.region)),
-      category: words3(cell3(r2, columns.category), 120)
+      category: words4(cell3(r2, columns.category), 120)
     };
   });
   return {
@@ -18307,6 +18375,110 @@ function leadListEmptyOf(s) {
   };
 }
 
+// src/leads/lead-kind.ts
+var LEAD_KINDS = ["place", "company"];
+var LEAD_SOURCES = ["local_businesses", "people_at_companies", "import"];
+var LEAD_ROLES = ["owner", "founder", "executive", "partner", "director", "manager", "staff"];
+var isLeadRole = (r2) => LEAD_ROLES.includes(r2);
+var LEAD_ROLE_WORDS = {
+  owner: "owner",
+  founder: "founder",
+  executive: "executive",
+  partner: "partner",
+  director: "director",
+  manager: "manager",
+  staff: "team member"
+};
+var LEAD_PEOPLE_MAX = 5;
+var NO_LEAD_FACTS = { people: [], addressee: null, size: null };
+var capped = (v, max) => trimmedOrNull(v)?.slice(0, max) ?? null;
+function roleOf(seniority, title) {
+  switch ((seniority ?? "").trim().toLowerCase()) {
+    case "owner":
+      return "owner";
+    case "founder":
+      return "founder";
+    case "c_suite":
+      return "executive";
+    case "partner":
+      return "partner";
+    case "vp":
+    case "head":
+    case "director":
+      return "director";
+    case "manager":
+      return "manager";
+    case "senior":
+    case "entry":
+      return "staff";
+  }
+  const t = (title ?? "").toLowerCase();
+  if (!t.trim()) return null;
+  if (/\bowner\b/.test(t)) return "owner";
+  if (/\b(co-?)?founder\b/.test(t)) return "founder";
+  if (/\b(ceo|coo|cfo|cto|cmo|cio|chief|president)\b/.test(t)) return "executive";
+  if (/\bpartner\b/.test(t)) return "partner";
+  if (/\b(vp|vice president|head of|director)\b/.test(t)) return "director";
+  if (/\bmanager\b/.test(t)) return "manager";
+  return "staff";
+}
+function leadPersonOf(raw) {
+  const o = recordOrNull(raw);
+  const name = capped(o?.name, 120);
+  if (!o || !name) return null;
+  return {
+    name,
+    // Its source's first name, else the one rule's reading of the whole one (templates' firstNameOf).
+    first_name: capped(o.first_name, 60) ?? firstNameOf(name, null),
+    title: capped(o.title, 120),
+    role: isLeadRole(o.role) ? o.role : null,
+    email: capped(o.email, 254)?.toLowerCase() ?? null,
+    profile_url: capped(o.profile_url, 300)
+  };
+}
+function leadFactsOf(raw) {
+  const o = recordOrNull(raw);
+  if (!o) return NO_LEAD_FACTS;
+  const people = (Array.isArray(o.people) ? o.people : []).map(leadPersonOf).filter((p) => p !== null).slice(0, LEAD_PEOPLE_MAX);
+  const a = o.addressee;
+  const addressee = typeof a === "number" && Number.isInteger(a) && a >= 0 && a < people.length ? a : null;
+  return { people, addressee, size: capped(o.size, 20) };
+}
+function leadAddresseeOf(l) {
+  if (l.kind !== "company") return null;
+  const f = leadFactsOf(l.facts);
+  return f.addressee === null ? null : f.people[f.addressee] ?? null;
+}
+function leadUnitOf(kind) {
+  return kind === "company" ? { one: "company", many: "companies" } : { one: "business", many: "businesses" };
+}
+function leadUnitCount(n, kind) {
+  const u = leadUnitOf(kind);
+  return plural(n, u.one, u.many);
+}
+var LEAD_COMPANY_WORDS = {
+  head: (n) => n === 1 ? "Named at this company" : `Named at this company \xB7 ${n}`,
+  writesTo: "Your reach-out writes to them",
+  size: (s) => `${s} people`,
+  profile: "Profile"
+};
+function leadCompanyOf(l) {
+  if (l.kind !== "company") return null;
+  const f = leadFactsOf(l.facts);
+  const people = f.people.map((p, i) => ({
+    name: p.name,
+    what: p.title ?? (p.role ? LEAD_ROLE_WORDS[p.role] : null),
+    addressee: i === f.addressee,
+    profile: p.profile_url
+  })).sort((a, b) => Number(b.addressee) - Number(a.addressee));
+  return {
+    head: LEAD_COMPANY_WORDS.head(people.length),
+    people,
+    size: f.size ? LEAD_COMPANY_WORDS.size(f.size) : null,
+    source: LEAD_CARDS.find((c) => c.id === "people_at_companies")?.rights ?? ""
+  };
+}
+
 // src/shared/link.ts
 var MAX_LINK = 500;
 var SCHEME = /^[a-z][a-z0-9+.-]*:/i;
@@ -18371,8 +18543,8 @@ function leadBand(search) {
   };
 }
 var keyInWords = (key) => {
-  const words3 = key.replace(/_/g, " ").trim();
-  return words3 ? words3.charAt(0).toUpperCase() + words3.slice(1) : "";
+  const words4 = key.replace(/_/g, " ").trim();
+  return words4 ? words4.charAt(0).toUpperCase() + words4.slice(1) : "";
 };
 var ratingLabel = (rating, reviews) => rating === null || rating === void 0 ? "" : `${rating.toFixed(1)} \xB7 ${reviews ?? 0}`;
 var stageLabelOf = (stage, closedReason) => stage === "archived" ? LEAD_CLOSED_WORDS[closedReason] ?? LEAD_STAGE_WORDS.archived : LEAD_STAGE_WORDS[stage];
@@ -18397,7 +18569,14 @@ function toLeadRowVM(r2, tz, now, search = null) {
   const fitLabel = m.class === "excluded" ? excludedBy ?? m.reason : m.class === "review" ? m.reason : m.fit ? LEAD_FIT_WORDS[m.fit] : m.reason;
   const fitTitle = m.class === "excluded" ? `Left out: ${excludedBy ?? m.reason}` : m.class === "qualified" && rated ? `${m.reason} \xB7 ${rated.score} from ${rated.reviews}` : m.reason;
   const area = [r2.postal_code ?? "", [r2.city, r2.state].filter(Boolean).join(", ")].filter(Boolean).join(" \xB7 ");
-  const sub = [r2.category, r2.neighborhood ?? null, r2.postal_code ?? null, milesLabel(m.distance_m) || null].filter((x) => !!x).join(" \xB7 ");
+  const who = leadAddresseeOf(r2);
+  const sub = [
+    who ? [who.name, who.title].filter(Boolean).join(", ") : null,
+    r2.category,
+    r2.neighborhood ?? null,
+    r2.postal_code ?? null,
+    milesLabel(m.distance_m) || null
+  ].filter((x) => !!x).join(" \xB7 ");
   const spread2 = r2.reviews_dist ? [r2.reviews_dist.one, r2.reviews_dist.two, r2.reviews_dist.three, r2.reviews_dist.four, r2.reviews_dist.five] : null;
   const waitsOn = m.class === "review" ? leadReviewGroups([{ id: r2.id, cls: "review", reasons: m.reasons ?? [] }], search)[0]?.label ?? m.reason : null;
   const state = m.class === "excluded" ? "out" : m.class === "review" ? "review" : r2.stage === "nurture" ? "contacted" : r2.stage === "converted" ? "talking" : r2.stage === "archived" ? "out" : "ready";
@@ -18661,6 +18840,7 @@ function toLeadPeekVM(r2, search, tz, now) {
     distance: milesLabel(m.distance_m),
     name: r2.business_name,
     about: r2.about ?? null,
+    company: leadCompanyOf(r2),
     where: leadWhere(r2),
     today: leadTodayLine(r2.hours ?? [], tz, now),
     claimedNote: r2.claimed === false ? LEAD_UNCLAIMED_NOTE : null,
@@ -19337,7 +19517,7 @@ var NOTE_WORDS = {
   stepDone: "Step done",
   stepReopened: "Step open again",
   /** Done's name for a screen reader, where a header holds more than the step. */
-  markDone: (words3) => `Mark \u201C${words3}\u201D done`,
+  markDone: (words4) => `Mark \u201C${words4}\u201D done`,
   /** The Overview's Notes (canvas A): the door to every note, History's Notes, at the pane's head. */
   all: "All notes",
   /** Over the newest note on the Overview, in the mono eyebrow: "Note · Marisa · Sep 21"; a step says its day. */
@@ -19829,8 +20009,8 @@ function planGroupOf(cards) {
   const left = mine.filter((s) => s.plan.silent && !made[s.plan.step]).length;
   return { id, steps, left };
 }
-function planCountWords(cards, language, words3) {
-  const said = words3 || null;
+function planCountWords(cards, language, words4) {
+  const said = words4 || null;
   const id = cards[0]?.plan?.id;
   if (id === void 0 || cards.some((p) => p.plan?.id !== id)) return { headline: null, detail: said };
   const silent = cards.filter((p) => p.plan?.silent).length;
@@ -20012,7 +20192,7 @@ function nextQuestions(next, places) {
   for (const raw of next) {
     const q = clip(raw, ASK_ANSWER_CAPS.question);
     if (!q || out.some((x) => sameQuestion(x, q))) continue;
-    if (FOLLOWUP_ECHO.some(([words3, route]) => words3.test(q) && places.some((p) => route.test(p)))) continue;
+    if (FOLLOWUP_ECHO.some(([words4, route]) => words4.test(q) && places.some((p) => route.test(p)))) continue;
     out.push(q);
     if (out.length >= ASK_ANSWER_CAPS.next) break;
   }
@@ -20080,11 +20260,11 @@ var KIND_WORDS = {
 };
 function answerFromV1(m) {
   const language = m.language ?? "en";
-  const words3 = KIND_WORDS[language === "es" ? "es" : "en"];
+  const words4 = KIND_WORDS[language === "es" ? "es" : "en"];
   const cites = m.citations ?? [];
   const items = cites.filter((c) => c.kind !== "page").slice(0, ASK_ANSWER_CAPS.items).map((c) => ({
     title: clip(c.label, ASK_ANSWER_CAPS.title),
-    meta: words3[c.kind],
+    meta: words4[c.kind],
     line: "",
     source: { kind: c.kind, id: c.id, label: c.label, to: c.to || citationRoute(c), door: true }
   }));
@@ -20348,10 +20528,10 @@ function partialSay(prefix) {
   return { headline: partialField(rest, "headline"), detail: partialField(rest, "detail") };
 }
 var sentence = (s) => /[.!?]$/.test(s) ? s : `${s}.`;
-function answerForCards(cards, language, words3) {
+function answerForCards(cards, language, words4) {
   const es = language === "es";
   const n = cards.length;
-  const plan = planCountWords(cards, language, words3);
+  const plan = planCountWords(cards, language, words4);
   const a = structured(
     plan.headline ?? (n === 1 ? es ? sentence(`Una tarjeta para revisar: ${cards[0].title}`) : sentence(`One card to review: ${cards[0].title}`) : es ? `${n} tarjetas para revisar.` : `${n} cards to review.`),
     language
@@ -21336,10 +21516,10 @@ function clause(channel, purpose, about) {
     return purpose === "marketing" ? `asked for ${to}, or has dealt with you` : `said yes to ${to}, or has dealt with you`;
   return WAY_TO_REACH[channel].has;
 }
-function groupedBy(channels, words3) {
+function groupedBy(channels, words4) {
   const groups = [];
   for (const channel of CONSENT_CHANNELS.filter((c) => channels.includes(c))) {
-    const said = words3(channel);
+    const said = words4(channel);
     const same2 = groups.find((g) => g.words === said);
     if (same2) same2.channels.push(channel);
     else groups.push({ channels: [channel], words: said });
@@ -21888,7 +22068,7 @@ function personLineOf(r2, { greets, cutOff, clock: clock3, channelsSaid }) {
   const channel = channelOf(r2);
   const c = { out, hiThere, answer, quote, cutOff, clock: clock3, via: channel ?? "whatsapp" };
   const pill = personPillOf(r2, c);
-  const words3 = personWordsOf(r2, c);
+  const words4 = personWordsOf(r2, c);
   const door = personDoorOf(r2, c);
   const inn = personFiltersOf(r2, c);
   return {
@@ -21896,7 +22076,7 @@ function personLineOf(r2, { greets, cutOff, clock: clock3, channelsSaid }) {
     name: r2.name,
     initials: initialsOf2(r2.name, !!r2.first_name),
     pill,
-    words: words3,
+    words: words4,
     channel: channelsSaid && channel ? CONSENT_CHANNEL_WORDS[channel] : null,
     door,
     at: out ? clock3(r2.replied_at || r2.consent_at || r2.read_at || r2.delivered_at || r2.sent_at) : null,
@@ -22031,6 +22211,7 @@ var REACH_OUT_SEND_STATES = [
   "held",
   "claimed",
   "queued",
+  "drafted",
   "sent",
   "skipped",
   "failed",
@@ -22319,7 +22500,7 @@ var PLAN_WORDS = {
   notesUnread: unreadWords("The receptionist's notes"),
   nothingToCover: "Every moment asked for is covered already or not offered here (an appointment's moments need a calendar connected, a proposal's needs deals on): say so, and propose nothing.",
   /** What an offer is called: the receptionist's note, the send and the campaign. */
-  offerTitle: (words3) => `Offer: ${words3}`,
+  offerTitle: (words4) => `Offer: ${words4}`,
   /** What the receptionist's note says: the offer as the message says it, its dates, and what it is for. */
   noteText: (line, from, until, service) => `The offer: ${line} It runs from ${from} to ${until}.${service ? ` It is for ${service}.` : ""}`,
   reuseMessage: (name) => `Sends \u201C${name}\u201D, already in the Library, with the offer in its words.`,
@@ -22423,8 +22604,8 @@ function offerChannels(asked, can) {
     )
   };
 }
-var offerLine = (words3) => {
-  const t = words3.trim();
+var offerLine = (words4) => {
+  const t = words4.trim();
   return /[.!?…]$/.test(t) ? t : `${t}.`;
 };
 var valuesOf = (slots, line) => [...slots].sort((a, b) => a.position - b.position).map((s) => s.kind === "text" ? line : `@${s.kind}`);
@@ -22467,10 +22648,10 @@ function reusedMessage(m, on, line) {
 }
 function writtenMessage(world, on, line) {
   const slots = offerSlots(world.language);
-  const words3 = OFFER_MESSAGE[world.language];
+  const words4 = OFFER_MESSAGE[world.language];
   const versions = {
-    ...on.includes("whatsapp") ? { whatsapp: { body: words3.whatsapp } } : {},
-    ...on.includes("email") ? { email: { subject: words3.subject, body: words3.email } } : {}
+    ...on.includes("whatsapp") ? { whatsapp: { body: words4.whatsapp } } : {},
+    ...on.includes("email") ? { email: { subject: words4.subject, body: words4.email } } : {}
   };
   const held = new Set(world.messages.map((m) => m.name));
   const name = firstFree(
@@ -22606,7 +22787,7 @@ function offerPlan(r2, world) {
       },
       SAY.why.first
     );
-  const words3 = [
+  const words4 = [
     ...r2.onSaid,
     ...r2.note.input ? [] : [r2.note.said],
     ...r2.pauses.map((p) => p.said),
@@ -22617,7 +22798,7 @@ function offerPlan(r2, world) {
     ...r2.note.input ? [r2.note.said] : [],
     ...sendDay(r2)
   ];
-  return { steps, words: words3.join(" ") };
+  return { steps, words: words4.join(" ") };
 }
 var REVIEW_STARTER = "after_visit_review";
 var CHECK_STARTER = "after_visit_check";
@@ -22670,21 +22851,21 @@ function offerParts(address, f) {
   if (!parts2.address || !parts2.url) throw new Error("emailFoot: an offer foot names where and how to stop");
   return parts2;
 }
-function coldParts(business, address, f) {
+function coldParts(business, address, f, link) {
   const parts2 = {
     why: f.why.trim(),
     business: business.trim(),
     address: address?.trim() ?? "",
-    url: f.unsubscribeUrl.trim()
+    url: f.unsubscribeUrl?.trim() ?? ""
   };
-  if (!parts2.why || !parts2.business || !parts2.address || !parts2.url)
+  if (!parts2.why || !parts2.business || !parts2.address || link && !parts2.url)
     throw new Error("emailFoot: a cold foot names why, who, where and how to stop");
   return parts2;
 }
 function emailFoot(business, address, foot, language) {
   const w = senderWords(language);
   if (foot.kind === "cold") {
-    const p = coldParts(business, address, foot);
+    const p = coldParts(business, address, foot, false);
     return [p.why, w.marketing, `${p.business} \xB7 ${p.address}`, `${w.noThanks}.`].join("\n");
   }
   const who = business.trim() || w.us;
@@ -22703,7 +22884,7 @@ ${w.emailStop}`;
 function emailFootHtml(business, address, foot, language) {
   const w = senderWords(language);
   if (foot.kind === "cold") {
-    const p2 = coldParts(business, address, foot);
+    const p2 = coldParts(business, address, foot, true);
     return `<p>${escapeHtml(p2.why)}<br>${escapeHtml(w.marketing)}<br>${escapeHtml(p2.business)} \xB7 ${escapeHtml(p2.address)}<br>${escapeHtml(w.noThanks)} \xB7 <a href="${escapeHtml(p2.url)}">${escapeHtml(w.unsubscribe)}</a></p>`;
   }
   const who = business.trim() || w.us;
@@ -22767,9 +22948,9 @@ function previewParts(channels, o) {
       parts2.push({ channel, label, subject: null, body: o.whatsapp });
       continue;
     }
-    const words3 = o.versions[channel];
-    if (!words3) return { missing: channel, why: noVersionWords(channel) };
-    const sent2 = renderOwnVersion(channel, words3, o.values, o.language);
+    const words4 = o.versions[channel];
+    if (!words4) return { missing: channel, why: noVersionWords(channel) };
+    const sent2 = renderOwnVersion(channel, words4, o.values, o.language);
     parts2.push({ channel, label, subject: sent2.subject, body: sent2.body });
   }
   return { parts: parts2 };
@@ -22778,8 +22959,8 @@ function previewSays(channels, o) {
   const drawn = previewParts(channels, o);
   if ("missing" in drawn) return drawn;
   const room = Math.max(SAID_MIN, Math.floor(o.limit / Math.max(1, drawn.parts.length)));
-  const clip2 = (words3) => {
-    const one = words3.replace(/\s+/g, " ").trim();
+  const clip2 = (words4) => {
+    const one = words4.replace(/\s+/g, " ").trim();
     return one.length > room ? `${one.slice(0, room).trimEnd()}\u2026` : one;
   };
   return {
@@ -23122,8 +23303,8 @@ function toMs(value, params, fallbackTz) {
   }
   const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
   if (!m) return null;
-  const [, y, mo, d, hh, mm, ss, z27] = m;
-  if (z27) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
+  const [, y, mo, d, hh, mm, ss, z28] = m;
+  if (z28) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
   const tz = zoneOfTzid(params.TZID, fallbackTz);
   return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
 }
@@ -23328,10 +23509,10 @@ function parseIcs(text, fallbackTz, opts = {}) {
     const rule2 = p.RRULE && !isOverride ? parseRule(p.RRULE.value, fallbackTz) : null;
     const local = p.RRULE && !isOverride ? localPartsOf(p.DTSTART.value, p.DTSTART.params, fallbackTz) : null;
     const dur = end - start;
-    const words3 = { title, allDay, uid, description, location, attendees: r2.attendees.slice(), organizer };
+    const words4 = { title, allDay, uid, description, location, attendees: r2.attendees.slice(), organizer };
     const push = (o, occurrence = null) => {
       busy.push(o);
-      items.push({ ...o, ...words3, ...seriesOf(occurrence) });
+      items.push({ ...o, ...words4, ...seriesOf(occurrence) });
     };
     if (p.RRULE && !isOverride && rule2 && local) {
       const ex = new Set(instantsOf(r2.exdates, fallbackTz));
@@ -23461,8 +23642,8 @@ function amountWords(cents, per, currency = "USD") {
   const p = per && DEAL_PERS.includes(per) ? DEAL_PER_WORDS[per] : null;
   return p && per !== "once" ? `${money2} ${p}` : money2;
 }
-function parseAmount(words3) {
-  const digits2 = String(words3 || "").replace(/[^0-9.-]/g, "");
+function parseAmount(words4) {
+  const digits2 = String(words4 || "").replace(/[^0-9.-]/g, "");
   const n = digits2 ? Number(digits2) : NaN;
   return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : null;
 }
@@ -24144,7 +24325,7 @@ var emailsFactsOf = (n, forwarding) => ({
   held: n?.held ?? 0
 });
 function noticeRowOf(e, lastAgo) {
-  const needsYou = (words3) => ({ tone: "warn", label: "Needs you", words: words3 });
+  const needsYou = (words4) => ({ tone: "warn", label: "Needs you", words: words4 });
   const last = `Last booking email ${lastAgo ?? "just now"}`;
   const step2 = bookingEmailsStep(e);
   if (step2 === "address") return needsYou("Needs a workspace email address");
@@ -24345,12 +24526,12 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
   const sameMonth = dto.from.slice(0, 7) === last.slice(0, 7);
   const ahead = closuresFrom(dto.closures, todayKey);
   const closuresAhead = ahead.slice(0, 6).map((c) => ({ key: c.date, label: closureDatesLabel(c), note: c.note ?? null }));
-  const listed = (dto.services ?? []).map((s) => ({ name: s.name, duration_min: s.duration_min ?? void 0 }));
+  const listed2 = (dto.services ?? []).map((s) => ({ name: s.name, duration_min: s.duration_min ?? void 0 }));
   const services = (dto.services ?? []).map((s) => ({
     name: s.name,
     duration: s.duration_min,
     consultFirst: s.consult_first,
-    offerMinutes: offerFor(listed, dto.rules, s.name)?.minMinutes ?? null,
+    offerMinutes: offerFor(listed2, dto.rules, s.name)?.minMinutes ?? null,
     label: `${s.name}${s.duration_min ? ` \xB7 ${s.duration_min} min` : ""}${s.consult_first ? " \xB7 consultation first" : ""}`
   }));
   return {
@@ -25664,11 +25845,11 @@ function greetingNotes(input) {
     });
   }
   const spoken = greetingOf({ name, stored: raw, paused: false }).text;
-  const words3 = (name ? spoken.split(name).join(" ") : spoken).split(/\s+/).filter(Boolean).length;
-  if (words3 > GREETING_LONG_WORDS) {
+  const words4 = (name ? spoken.split(name).join(" ") : spoken).split(/\s+/).filter(Boolean).length;
+  if (words4 > GREETING_LONG_WORDS) {
     notes.push({
       key: "long",
-      words: `About ${Math.round(words3 * SECONDS_PER_WORD)} seconds before a caller can speak. Callers hang up during long greetings; under 7 seconds keeps more of them.`
+      words: `About ${Math.round(words4 * SECONDS_PER_WORD)} seconds before a caller can speak. Callers hang up during long greetings; under 7 seconds keeps more of them.`
     });
   }
   if (LINK2.test(t)) notes.push({ key: "link", words: "A web address is read out letter by letter on a call." });
@@ -25976,8 +26157,8 @@ function blockShareWords(chars, total) {
   const f = Math.min(1, chars / total);
   if (f >= 0.95) return "nearly everything it reads";
   if (f < 0.075) return "less than a tenth of everything it reads";
-  const [share2, words3] = SHARES.reduce((best, s) => Math.abs(s[0] - f) < Math.abs(best[0] - f) ? s : best);
-  return `${Math.abs(share2 - f) > 0.03 ? "about " : ""}${words3} of everything it reads`;
+  const [share2, words4] = SHARES.reduce((best, s) => Math.abs(s[0] - f) < Math.abs(best[0] - f) ? s : best);
+  return `${Math.abs(share2 - f) > 0.03 ? "about " : ""}${words4} of everything it reads`;
 }
 function promptCostWords(chars, total) {
   const share2 = blockShareWords(chars, total);
@@ -26083,21 +26264,21 @@ function bookingRulesWords(rules) {
   };
 }
 function bookingRuleRefusal(key) {
-  const words3 = {
+  const words4 = {
     lead_hours: (lo, hi) => `Least notice is ${lo} to ${hi} hours; leave it empty to use ${pluralGrouped(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
     slot_min: (lo, hi) => `A slot is ${lo} to ${hi} minutes; leave it empty for the calendar\u2019s ${pluralGrouped(BOOKING_DEFAULTS.slot_min, "minute", "minutes")}.`,
     buffer_min: (lo, hi) => `The gap is ${lo} to ${hi} minutes; leave it empty for ${BOOKING_DEFAULTS.buffer_min === 0 ? "none" : pluralGrouped(BOOKING_DEFAULTS.buffer_min, "minute", "minutes")}.`,
     max_days_ahead: (lo, hi) => `Times are offered ${lo} to ${hi} days ahead; leave it empty to use ${pluralGrouped(BOOKING_DEFAULTS.max_days_ahead, "day", "days")}.`,
     party_max: (lo, hi) => `A booking is for ${lo} to ${hi} people; leave it empty for no rule.`
   };
-  const known = Object.prototype.hasOwnProperty.call(words3, key);
+  const known = Object.prototype.hasOwnProperty.call(words4, key);
   if (!known) {
     throw new TypeError(
-      `bookingRuleRefusal knows the five booking rules a box holds a number for (${Object.keys(words3).join(", ")}), not ${JSON.stringify(key)}.`
+      `bookingRuleRefusal knows the five booking rules a box holds a number for (${Object.keys(words4).join(", ")}), not ${JSON.stringify(key)}.`
     );
   }
   const bound = BOOKING_RULE_BOUNDS[key];
-  return words3[key](bound.min, bound.max);
+  return words4[key](bound.min, bound.max);
 }
 var BOOKING_RULE_HINTS = /* @__PURE__ */ (() => ({
   lead_hours: null,
@@ -26116,7 +26297,7 @@ function profileRefusal(key, seen, of) {
   const L2 = PROFILE_LIMITS;
   const chars = (max) => `At most ${count(max)} characters${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`;
   const lines = (max, one, many) => `At most ${pluralGrouped(max, one, many)}, one to a line${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`;
-  const words3 = {
+  const words4 = {
     tone: () => chars(L2.tone),
     services: () => `At most ${pluralGrouped(L2.services, "service", "services")}.`,
     serviceName: () => chars(L2.serviceName),
@@ -26139,10 +26320,10 @@ function profileRefusal(key, seen, of) {
     instructions: () => chars(L2.instructions),
     message: () => chars(L2.message)
   };
-  const say2 = Object.prototype.hasOwnProperty.call(words3, key) ? words3[key] : null;
+  const say2 = Object.prototype.hasOwnProperty.call(words4, key) ? words4[key] : null;
   if (!say2) {
     throw new TypeError(
-      `profileRefusal knows the tab's own caps (${Object.keys(words3).join(", ")}), not ${JSON.stringify(key)}.`
+      `profileRefusal knows the tab's own caps (${Object.keys(words4).join(", ")}), not ${JSON.stringify(key)}.`
     );
   }
   return say2();
@@ -26758,8 +26939,8 @@ function hoursFromGoogle(periods) {
   }
   return { hours, unsure: DAYS.filter((d) => unsure.has(d)) };
 }
-function placesQueryOf(words3) {
-  const w = words3.replace(/\s+/g, " ").trim();
+function placesQueryOf(words4) {
+  const w = words4.replace(/\s+/g, " ").trim();
   return /^[\d\s().+-]+$/.test(w) ? normalizePhone(w) ?? w : w;
 }
 var GOOGLE_SHOWN_REVIEWS = 5;
@@ -27142,8 +27323,8 @@ function isTypingTarget(tagName, contentEditable) {
   return contentEditable || t === "INPUT" || t === "TEXTAREA" || t === "SELECT";
 }
 function pageTitle(crumbs, needs2) {
-  const words3 = (crumbs ?? []).map((c) => (typeof c === "string" ? c : c?.label ?? "").trim()).filter(Boolean).reverse();
-  const where = [...words3, "Chanlytics"].join(" \xB7 ");
+  const words4 = (crumbs ?? []).map((c) => (typeof c === "string" ? c : c?.label ?? "").trim()).filter(Boolean).reverse();
+  const where = [...words4, "Chanlytics"].join(" \xB7 ");
   const n = Math.floor(Number(needs2));
   return n > 0 ? `(${n}) ${where}` : where;
 }
@@ -27381,12 +27562,12 @@ function consentPageVM(f) {
   const conversation = waysFor(f, CONVERSATION_PHRASE);
   const offers = waysFor({ ...f, smsE164: null }, CONSENT_PHRASE);
   const empty = conversation.length === 0 && offers.length === 0;
-  const words3 = askWords(name);
+  const words4 = askWords(name);
   const taking = takesSignUps(f.open);
   const answered = (ways) => taking ? ways : [];
   const asks = empty ? [] : [
-    ...conversation.length ? [{ purpose: "conversational", ...words3.conversational, ways: answered(conversation) }] : [],
-    ...offers.length ? [{ purpose: "marketing", ...words3.marketing, ways: answered(offers) }] : []
+    ...conversation.length ? [{ purpose: "conversational", ...words4.conversational, ways: answered(conversation) }] : [],
+    ...offers.length ? [{ purpose: "marketing", ...words4.marketing, ways: answered(offers) }] : []
   ];
   return {
     title: `Text messages from ${name}`,
@@ -27402,18 +27583,18 @@ function consentPageVM(f) {
 function consentFormVM(f) {
   const name = f.businessName.trim() || "This business";
   const taking = takesSignUps(f.open);
-  const words3 = askWords(name);
+  const words4 = askWords(name);
   const sections = [
     {
       purpose: "conversational",
-      ...words3.conversational,
+      ...words4.conversational,
       box: `Yes, text me about my appointments with ${name}.`,
       sign: "Signature for this box"
     },
     ...f.whatsappE164 ? [
       {
         purpose: "marketing",
-        ...words3.marketing,
+        ...words4.marketing,
         box: `Yes, send me offers and news from ${name} on WhatsApp.`,
         sign: "Signature for this box"
       }
@@ -27618,12 +27799,12 @@ function optOutOf(data) {
   if (!parsed.success || parsed.data.consent !== "opted_out") return null;
   const how = HOW_OF_SOURCE.get(parsed.data.source);
   if (!how) return null;
-  const words3 = parsed.data.words?.trim();
+  const words4 = parsed.data.words?.trim();
   return {
     how,
     scope: parsed.data.purpose && OFFER_PURPOSES.has(parsed.data.purpose) ? "offers" : "everything",
     channel: parsed.data.channel ?? null,
-    words: how === "stop" && words3 ? words3 : null
+    words: how === "stop" && words4 ? words4 : null
   };
 }
 var SAID_ON = { sms: "Text", whatsapp: "WhatsApp", email: "Email" };
@@ -27709,6 +27890,7 @@ function isWaitRefusal(reason) {
   return OUTREACH_WAIT_REFUSALS.includes(reason ?? "");
 }
 var REACH_OUT_MONTH_EMAILS = 2e3;
+var REACH_OUT_DRAFTS_PER_DAY = 30;
 var REACH_OUT_CHECKS_PER_DAY = 400;
 function isReachOutRun(audience) {
   return !!audience && typeof audience === "object" && audience.kind === "reach_out";
@@ -27723,8 +27905,13 @@ function reachOutRootOf(audience) {
 }
 var REACH_OUT_LANGUAGE = "en";
 function reachOutValues(lead, workspace, opening2) {
+  const who = leadAddresseeOf(lead);
   return slotValues(REACH_OUT_SLOT_SET, {
     business: lead.business_name,
+    company: lead.business_name,
+    "first name": who?.first_name || REACH_OUT_SLOT_FALLBACKS["first name"],
+    title: who?.title || (who?.role ? LEAD_ROLE_WORDS[who.role] : null) || REACH_OUT_SLOT_FALLBACKS.title,
+    role: (who?.role ? LEAD_ROLE_WORDS[who.role] : null) || REACH_OUT_SLOT_FALLBACKS.role,
     city: lead.city,
     "your business": workspace.businessName,
     "your name": workspace.yourName,
@@ -27732,21 +27919,28 @@ function reachOutValues(lead, workspace, opening2) {
     opening: opening2
   });
 }
-function reachOutEmailOf(words3, lead, workspace, opening2 = null) {
+function reachOutEmailOf(words4, lead, workspace, opening2 = null) {
   const values = reachOutValues(lead, workspace, opening2);
-  const texts = words3.subject === null ? [words3.body] : [words3.subject, words3.body];
+  const texts = words4.subject === null ? [words4.body] : [words4.subject, words4.body];
   if (texts.some((t) => slotHoles(REACH_OUT_SLOT_SET, t, values))) return { ok: false, reason: "missing_value" };
-  const email = renderOwnVersion("email", words3, values, REACH_OUT_LANGUAGE, REACH_OUT_SLOT_SET);
-  return { ok: true, subject: words3.subject === null ? null : email.subject, body: email.body };
+  const email = renderOwnVersion("email", words4, values, REACH_OUT_LANGUAGE, REACH_OUT_SLOT_SET);
+  return { ok: true, subject: words4.subject === null ? null : email.subject, body: email.body };
 }
 var EXAMPLE_LEAD = {
   business_name: "Lakeside Bakery",
   city: "Springfield",
-  opening: "Your 4.8 stars from 212 reviews caught my eye."
+  opening: "Your 4.8 stars from 212 reviews caught my eye.",
+  // A person at it, so the person slots show a name, not their fallback.
+  person: { name: "Dana Reyes", first_name: "Dana", title: "Owner", role: "owner", email: null, profile_url: null }
 };
 function reachOutExampleValues(workspace) {
   return reachOutValues(
-    { business_name: EXAMPLE_LEAD.business_name, city: EXAMPLE_LEAD.city },
+    {
+      business_name: EXAMPLE_LEAD.business_name,
+      city: EXAMPLE_LEAD.city,
+      kind: "company",
+      facts: { people: [EXAMPLE_LEAD.person], addressee: 0 }
+    },
     workspace,
     EXAMPLE_LEAD.opening
   );
@@ -27866,7 +28060,7 @@ function reachLines(reach, p, allowanceHeld = 0) {
       door: null
     }
   ];
-  const lines = reasons.map((r2, rank) => ({ ...r2, rank })).filter((r2) => r2.n > 0).sort((a, b) => b.n - a.n || a.rank - b.rank).map(({ n, words: words3, tone, door }) => ({ n, words: `${n} ${words3}`, tone, door }));
+  const lines = reasons.map((r2, rank) => ({ ...r2, rank })).filter((r2) => r2.n > 0).sort((a, b) => b.n - a.n || a.rank - b.rank).map(({ n, words: words4, tone, door }) => ({ n, words: `${n} ${words4}`, tone, door }));
   return {
     pool: reach.pool,
     held: reach.heardAny + (once ? 0 : reach.heardThis) + reach.overLimit + allowanceHeld,
@@ -27986,12 +28180,16 @@ function toApprovalVM(d, opts) {
 
 // src/waits/waits.ts
 function runWaitsOnYou(run, days) {
-  if (runHeldEmails(run) > 0) return true;
+  if (runHeldEmails(run) > 0 || runDraftedEmails(run) > 0) return true;
   return run.state === "pending_approval" && runApprovalRefusal(runAsked(run), days) === null;
 }
 function runHeldEmails(run) {
   const going = RUN_GOING_STATES.includes(run.state);
   return going && typeof run.held === "number" && run.held > 0 ? run.held : 0;
+}
+function runDraftedEmails(run) {
+  const going = RUN_GOING_STATES.includes(run.state);
+  return going && typeof run.drafted === "number" && run.drafted > 0 ? run.drafted : 0;
 }
 function runTooLate(run, days) {
   return run.state === "pending_approval" && runApprovalRefusal(runAsked(run), days) !== null;
@@ -28170,9 +28368,9 @@ function threadsWaitingOnYou(conversations, escalations, now) {
   return needsYouCount({ ...threadWaitsOf(conversations, escalations, now), runs: 0 });
 }
 var HELD_BY_ID_MAX = 100;
-function heldThreadIds(listed, open) {
+function heldThreadIds(listed2, open) {
   const ids = /* @__PURE__ */ new Set();
-  const holds2 = open.filter((e) => (e.state ?? "open") === "open" && !listed.has(e.conversation_id));
+  const holds2 = open.filter((e) => (e.state ?? "open") === "open" && !listed2.has(e.conversation_id));
   for (const e of holds2) if (waitsOnAPerson(e.reason)) ids.add(e.conversation_id);
   for (const e of holds2) ids.add(e.conversation_id);
   return [...ids].slice(0, HELD_BY_ID_MAX);
@@ -28699,10 +28897,10 @@ function dealNextAct(p, nowMs, deal = p.deal) {
   if (deal.proposal?.sending) return act("won");
   const send = dealSendOf(p);
   const sent2 = sentOf(p, deal);
-  const words3 = (text) => send.can ? { text } : { hint: DEAL_ACT_HINTS.approved };
-  if (!sent2 && send.reach) return act("send", words3(proposalMessage(url)));
+  const words4 = (text) => send.can ? { text } : { hint: DEAL_ACT_HINTS.approved };
+  if (!sent2 && send.reach) return act("send", words4(proposalMessage(url)));
   if (sent2 && send.reach && followUpOn(p, deal)?.kind !== "will" && waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs, p.dealPace ?? null))
-    return act("follow-up", words3(proposalFollowUp(url)));
+    return act("follow-up", words4(proposalFollowUp(url)));
   return act("won");
 }
 function dealMenuActs(deal) {
@@ -29182,7 +29380,7 @@ function stateLabel(kind, value) {
 }
 function stateWordList() {
   return Object.entries(LABEL_OF).flatMap(
-    ([kind, words3]) => Object.entries(words3 ?? {}).map(([value, label]) => ({ kind, value, label }))
+    ([kind, words4]) => Object.entries(words4 ?? {}).map(([value, label]) => ({ kind, value, label }))
   );
 }
 function stateOf(kind, value) {
@@ -29213,12 +29411,12 @@ function leadMapLegend(rows2) {
 function fullNameKey(name) {
   const n = (name ?? "").trim();
   if (!n || isIdentifierName(n)) return null;
-  const words3 = n.split(/\s+/);
-  const first = words3.at(0);
-  const last = words3.at(-1);
+  const words4 = n.split(/\s+/);
+  const first = words4.at(0);
+  const last = words4.at(-1);
   const letters = (w) => (w.match(/\p{L}/gu) ?? []).length;
-  if (words3.length < 2 || !first || !last || letters(first) < 2 || letters(last) < 2) return null;
-  return words3.join(" ").toLowerCase();
+  if (words4.length < 2 || !first || !last || letters(first) < 2 || letters(last) < 2) return null;
+  return words4.join(" ").toLowerCase();
 }
 var SERVICE_TAIL = /(?:^|[^\p{L}])(?:with|for|and|w\/)\s*$|[\s·•|:,/&+\-–—([{]+$/iu;
 var SERVICE_HEAD = /^[\s·•|:,./&+\-–—)\]}]+/u;
@@ -29580,9 +29778,9 @@ function consultationWas(atMs, tz, nowMs) {
   return `${DEAL_CARD_WORDS.consultation} was ${day === "Today" ? "today" : day}`;
 }
 function namesService(title, service) {
-  const words3 = (s) => foldName(s).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
-  const said = words3(title);
-  const named = words3(service);
+  const words4 = (s) => foldName(s).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  const said = words4(title);
+  const named = words4(service);
   return named.length > 0 && said.some((_, i) => named.every((w, j) => said[i + j] === w));
 }
 function consultedDealOf(p, open) {
@@ -29940,7 +30138,7 @@ var STAGE_OF = {
 };
 function dealSheetBody(mode, draft, deal, opts) {
   const P = DEAL_SHEET_WORDS.problems;
-  const problem = (field, words3) => ({ problem: { field, words: words3 } });
+  const problem = (field, words4) => ({ problem: { field, words: words4 } });
   const moving = mode !== "propose";
   if (moving && !deal?.id) return problem(null, DEAL_SHEET_WORDS.moved);
   const body = { stage: STAGE_OF[mode] };
@@ -30011,9 +30209,9 @@ var REFUSAL_FIELD = {
   bad_reason: "reason"
 };
 function dealSheetRefusal(message) {
-  const words3 = (message ?? "").trim() || DEAL_SHEET_WORDS.failed;
-  const code2 = Object.keys(DEAL_REFUSALS).find((k) => DEAL_REFUSALS[k] === words3);
-  return { field: code2 && REFUSAL_FIELD[code2] || null, words: words3 };
+  const words4 = (message ?? "").trim() || DEAL_SHEET_WORDS.failed;
+  const code2 = Object.keys(DEAL_REFUSALS).find((k) => DEAL_REFUSALS[k] === words4);
+  return { field: code2 && REFUSAL_FIELD[code2] || null, words: words4 };
 }
 
 // src/deals/pipeline/pipeline.ts
@@ -30202,7 +30400,7 @@ function pipelineOf(rows2, nowMs, tz, pace, view = "all") {
       null
     )
   ].filter((g) => g.count > 0);
-  const part = (words3, press = null, joins = false) => words3 ? { words: words3, view: press, tone: press ? "warn" : null, joins } : null;
+  const part = (words4, press = null, joins = false) => words4 ? { words: words4, view: press, tone: press ? "warn" : null, joins } : null;
   const line = [
     part(proposals.length ? `${plural(proposals.length, "proposal", "proposals")} out` : null),
     part(proposals.length ? worth(proposals) : null, null, true),
@@ -30213,7 +30411,7 @@ function pipelineOf(rows2, nowMs, tz, pace, view = "all") {
     part(clients.length ? worth(clients) : null, null, true)
   ].filter((x) => !!x);
   const clientCount = new Set(clients.map((x) => x.r.id)).size;
-  const filter = (view2, count2, words3, tone) => count2 > 0 ? [{ view: view2, count: count2, words: words3, tone }] : [];
+  const filter = (view2, count2, words4, tone) => count2 > 0 ? [{ view: view2, count: count2, words: words4, tone }] : [];
   const filters = [
     ...filter(
       "proposals",
@@ -30745,6 +30943,184 @@ var LeadSearchPlanSchema = z11.object({
     ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
 });
 
+// src/leads/search/people-plan.ts
+var PEOPLE_CARD = "people_at_companies";
+var PEOPLE_SENIORITIES = [
+  "owner",
+  "founder",
+  "c_suite",
+  "partner",
+  "vp",
+  "head",
+  "director",
+  "manager",
+  "senior",
+  "entry"
+];
+var PEOPLE_SENIORITY_WORDS = {
+  owner: "owners",
+  founder: "founders",
+  c_suite: "the C-suite",
+  partner: "partners",
+  vp: "VPs",
+  head: "heads of a team",
+  director: "directors",
+  manager: "managers",
+  senior: "senior staff",
+  entry: "entry level"
+};
+var PEOPLE_COMPANY_SIZES = [
+  "1 - 10",
+  "11 - 50",
+  "51 - 200",
+  "201 - 500",
+  "501 - 1000",
+  "1001 - 5000",
+  "5001 - 10000",
+  "10001+"
+];
+var PEOPLE_COUNT_MAX = 500;
+var PEOPLE_TITLES_MAX = 5;
+var PEOPLE_INDUSTRIES_MAX = 5;
+var PEOPLE_STATES_MAX = 10;
+function peopleAreaOf(states) {
+  const names3 = states.map(usStateName).filter((s) => !!s);
+  const label = names3.length ? listed(names3) : "the US";
+  return { kind: "city", label, state: states[0] ?? "", center: null, radius_m: 0, query: `${label}, USA` };
+}
+function peoplePlanFrom(i) {
+  return {
+    version: 1,
+    card: PEOPLE_CARD,
+    name: (i.name ?? i.titles.join(", ")).trim().slice(0, 80),
+    asked: i.asked,
+    count: i.count,
+    titles: i.titles,
+    seniority: i.seniority,
+    industries: i.industries,
+    sizes: i.sizes,
+    states: i.states,
+    contact: "email",
+    terms: [],
+    area: peopleAreaOf(i.states)
+  };
+}
+var strs = (v, max, each) => Array.isArray(v) ? [...new Set(v.filter((s) => typeof s === "string").map((s) => s.trim().slice(0, each)))].filter(Boolean).slice(0, max) : [];
+var US_CODES_SET = new Set(Object.values(US_STATES));
+function peoplePlanOf(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw;
+  if (o.card !== PEOPLE_CARD || o.version !== 1) return null;
+  const count2 = typeof o.count === "number" && Number.isInteger(o.count) ? o.count : 0;
+  const titles = strs(o.titles, PEOPLE_TITLES_MAX, 60);
+  if (count2 < 1 || count2 > PEOPLE_COUNT_MAX || titles.length === 0) return null;
+  return peoplePlanFrom({
+    name: typeof o.name === "string" ? o.name.trim().slice(0, 120) : "",
+    asked: typeof o.asked === "string" ? o.asked.slice(0, 400) : "",
+    count: count2,
+    titles,
+    seniority: strs(o.seniority, PEOPLE_SENIORITIES.length, 20).filter(
+      (s) => PEOPLE_SENIORITIES.includes(s)
+    ),
+    industries: strs(o.industries, PEOPLE_INDUSTRIES_MAX, 80),
+    sizes: strs(o.sizes, PEOPLE_COMPANY_SIZES.length, 20).filter(
+      (s) => PEOPLE_COMPANY_SIZES.includes(s)
+    ),
+    states: strs(o.states, PEOPLE_STATES_MAX, 2).map((s) => s.toUpperCase()).filter((s) => US_CODES_SET.has(s))
+  });
+}
+function usStateCode(raw) {
+  const s = (raw ?? "").trim();
+  if (/^[A-Za-z]{2}$/.test(s)) return US_CODES_SET.has(s.toUpperCase()) ? s.toUpperCase() : null;
+  return US_STATES[s.toLowerCase()] ?? null;
+}
+function usStateName(code2) {
+  const c = code2.trim().toUpperCase();
+  const name = Object.entries(US_STATES).find(([, v]) => v === c)?.[0];
+  return name ? name.replace(/\b\p{L}/gu, (m) => m.toUpperCase()).replace(/\bOf\b/g, "of") : null;
+}
+function peopleEstimateUsd(count2, prices) {
+  const people = Math.min(1e3, 2 * Math.max(1, Math.floor(count2)));
+  const usd = (people * (prices.perPerson + prices.perCheck) + prices.start) * LEAD_ESTIMATE_MARGIN;
+  return Math.ceil(usd * 100) / 100;
+}
+function listTyped(text, max) {
+  return [
+    ...new Set(
+      text.split(/[,;\n]/).map((s) => s.trim()).filter(Boolean)
+    )
+  ].slice(0, max);
+}
+var PEOPLE_FIND_WORDS = {
+  door: "Find people",
+  title: "Find people at companies",
+  sub: "Named people at companies, by what they are called and where they work. Every address is checked before anyone is written to.",
+  titles: "What they are called",
+  titlesHint: "Up to five, with commas between: marketing manager, office manager",
+  seniority: "How senior",
+  seniorityAny: "Any seniority",
+  industries: "Their companies' industries",
+  industriesHint: "Up to five, with commas between, as a directory says them: Marketing & Advertising, Accounting",
+  sizes: "Company size",
+  sizesAny: "Any size",
+  states: "Where they work",
+  statesHint: "Up to ten US states, with commas between: TX, CA. None is the whole US.",
+  count: "How many companies",
+  countHint: `1 to ${PEOPLE_COUNT_MAX}`,
+  start: (n) => `Find ${n}`,
+  starting: "Starting\u2026",
+  cancel: "Cancel",
+  needTitle: "Say what they are called.",
+  needCount: `Say how many, 1 to ${PEOPLE_COUNT_MAX}.`,
+  done: "Looking now. They land on Leads as each address checks out.",
+  failed: "Couldn't start the search. Nothing was spent; try again.",
+  tick: "Chosen"
+};
+var listed = (xs) => xs.length <= 1 ? xs[0] ?? "" : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
+function peoplePlanSentence(p) {
+  const called = p.titles.map((t) => `\u201C${t}\u201D`);
+  const who = `${plural(p.count, "person", "people")} called ${listed(called)}`;
+  const level = p.seniority.length ? `, ${p.seniority.map((s) => PEOPLE_SENIORITY_WORDS[s]).join(" or ")}` : "";
+  const what = p.industries.length ? `${listed(p.industries)} companies` : "companies";
+  const size = p.sizes.length ? ` of ${p.sizes.join(", ")} people` : "";
+  const where = p.states.length ? ` in ${listed(p.states)}` : " in the US";
+  return `${who}${level}, at ${what}${size}${where}, each address checked`;
+}
+
+// src/leads/search/people-plan-schema.ts
+import { z as z12 } from "zod";
+var words3 = (min, max) => z12.string().transform((s) => stripUnsafe(s).trim()).pipe(z12.string().min(min).max(max));
+var LeadPeoplePlanSchema = z12.object({
+  version: z12.literal(1),
+  card: z12.literal(PEOPLE_CARD),
+  name: words3(2, 80),
+  asked: words3(1, 400),
+  count: z12.number().int().min(1).max(PEOPLE_COUNT_MAX),
+  titles: z12.array(words3(2, 60)).min(1).max(PEOPLE_TITLES_MAX),
+  seniority: z12.array(z12.enum(PEOPLE_SENIORITIES)).max(PEOPLE_SENIORITIES.length),
+  industries: z12.array(words3(2, 80)).max(PEOPLE_INDUSTRIES_MAX),
+  sizes: z12.array(z12.enum(PEOPLE_COMPANY_SIZES)).max(PEOPLE_COMPANY_SIZES.length),
+  states: z12.array(
+    z12.string().transform((s) => s.trim().toUpperCase()).refine((s) => US_CODES.has(s), "a US state's two letters")
+  ).max(PEOPLE_STATES_MAX),
+  contact: z12.literal("email"),
+  // Made by peoplePlanFrom: no phrases, and the states as an area every page reads.
+  terms: z12.tuple([]),
+  area: z12.object({
+    kind: z12.literal("city"),
+    label: words3(2, 400),
+    state: z12.string().max(2),
+    center: z12.null(),
+    radius_m: z12.number().int().min(0).max(0),
+    query: words3(2, 420)
+  })
+});
+var LeadPeopleSearchSchema = z12.object({
+  plan: LeadPeoplePlanSchema,
+  via: z12.enum(["people", "ask"]),
+  thread_id: z12.string().uuid().nullable().optional()
+});
+
 // src/leads/search/question.ts
 function questionAfterProbe(plan, members) {
   const n = members.length;
@@ -30798,75 +31174,75 @@ function questionAfterProbe(plan, members) {
 }
 
 // src/leads/lead-plan-schema.ts
-import { z as z12 } from "zod";
-var LeadsQuerySchema = z12.object({
-  list: z12.enum(LEAD_LISTS).default("all"),
-  search: z12.string().uuid().optional(),
-  class: z12.enum(LEAD_CLASSES).optional(),
-  sort: z12.enum(LEAD_SORTS).default("fit"),
-  dir: z12.enum(["asc", "desc"]).default("asc"),
-  after_key: z12.string().max(80).optional(),
-  after_id: z12.string().uuid().optional(),
-  limit: z12.coerce.number().int().min(1).max(500).default(500),
+import { z as z13 } from "zod";
+var LeadsQuerySchema = z13.object({
+  list: z13.enum(LEAD_LISTS).default("all"),
+  search: z13.string().uuid().optional(),
+  class: z13.enum(LEAD_CLASSES).optional(),
+  sort: z13.enum(LEAD_SORTS).default("fit"),
+  dir: z13.enum(["asc", "desc"]).default("asc"),
+  after_key: z13.string().max(80).optional(),
+  after_id: z13.string().uuid().optional(),
+  limit: z13.coerce.number().int().min(1).max(500).default(500),
   /** The pile (sort=pile, 00426): the list its adds go to, whose leads it puts last, and its progress line's numbers. */
-  pile_list: z12.uuid().optional()
+  pile_list: z13.uuid().optional()
 });
-var LeadOneQuerySchema = z12.object({ search: z12.string().uuid().optional() });
+var LeadOneQuerySchema = z13.object({ search: z13.string().uuid().optional() });
 var LeadsViewSchema = LeadsQuerySchema.omit({ after_key: true, after_id: true, limit: true });
-var LeadStageInputSchema = z12.discriminatedUnion("kind", [
-  z12.object({ kind: z12.literal("stage"), stage: z12.enum(["ready", "nurture", "converted"]) }),
-  z12.object({ kind: z12.literal("not_a_fit"), why: z12.enum(LEAD_NOT_A_FIT_WHYS) }),
-  z12.object({ kind: z12.literal("said_no") }),
-  z12.object({
-    kind: z12.literal("outcome"),
-    outcome: z12.enum(LEAD_CALL_OUTCOMES),
-    note: z12.string().trim().max(280).optional(),
+var LeadStageInputSchema = z13.discriminatedUnion("kind", [
+  z13.object({ kind: z13.literal("stage"), stage: z13.enum(["ready", "nurture", "converted"]) }),
+  z13.object({ kind: z13.literal("not_a_fit"), why: z13.enum(LEAD_NOT_A_FIT_WHYS) }),
+  z13.object({ kind: z13.literal("said_no") }),
+  z13.object({
+    kind: z13.literal("outcome"),
+    outcome: z13.enum(LEAD_CALL_OUTCOMES),
+    note: z13.string().trim().max(280).optional(),
     /** Who the call reached (0052): Interested names the person it makes, or a stand-in still named for the business. */
-    spoke_with: z12.string().trim().max(80).optional()
+    spoke_with: z13.string().trim().max(80).optional()
   }),
   /** "Did you send it?" Yes. */
-  z12.object({ kind: z12.literal("emailed") })
+  z13.object({ kind: z13.literal("emailed") })
 ]);
-var LeadsBulkSchema = z12.discriminatedUnion("by", [
+var LeadsBulkSchema = z13.discriminatedUnion("by", [
   // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
-  z12.object({
-    by: z12.literal("ids"),
-    action: z12.enum(["contacted", "not_a_fit", "keep", "exclude"]),
-    ids: z12.array(z12.string().uuid()).min(1).max(500),
-    search_id: z12.string().uuid().optional()
+  z13.object({
+    by: z13.literal("ids"),
+    action: z13.enum(["contacted", "not_a_fit", "keep", "exclude"]),
+    ids: z13.array(z13.string().uuid()).min(1).max(500),
+    search_id: z13.string().uuid().optional()
   }),
-  z12.object({ by: z12.literal("view"), action: z12.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
+  z13.object({ by: z13.literal("view"), action: z13.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
 ]);
-var LeadsCheckAgainSchema = z12.object({ ids: z12.array(z12.string().uuid()).min(1).max(500) });
-var LeadDraftInputSchema = z12.object({
-  tone: z12.enum(["first", "shorter", "warmer"]).default("first"),
-  previous: z12.object({ subject: z12.string().max(200), body: z12.string().max(4e3) }).optional()
+var LeadsCheckAgainSchema = z13.object({ ids: z13.array(z13.string().uuid()).min(1).max(500) });
+var LeadDraftInputSchema = z13.object({
+  tone: z13.enum(["first", "shorter", "warmer"]).default("first"),
+  previous: z13.object({ subject: z13.string().max(200), body: z13.string().max(4e3) }).optional()
 });
 var LeadExportQuerySchema = LeadsViewSchema;
-var RenameLeadSearchSchema = z12.object({ name: z12.string().trim().min(1).max(80) });
-var BusinessLineSchema = z12.object({ business_line: z12.string().trim().min(3).max(160) });
-var planChip = (max) => z12.string().trim().min(2).max(max);
-var ProposeLeadSearchSchema = z12.object({
-  looking_for: z12.enum(["local_businesses", "people", "online_sellers", "other"]),
-  country: z12.string().trim().min(2).max(40),
-  count: z12.number().int().min(1).max(LEAD_MAX_PLACES),
+var RenameLeadSearchSchema = z13.object({ name: z13.string().trim().min(1).max(80) });
+var BusinessLineSchema = z13.object({ business_line: z13.string().trim().min(3).max(160) });
+var planChip = (max) => z13.string().trim().min(2).max(max);
+var ProposeLeadSearchSchema = z13.object({
+  looking_for: z13.enum(["local_businesses", "people", "online_sellers", "other"]),
+  country: z13.string().trim().min(2).max(40),
+  count: z13.number().int().min(1).max(LEAD_MAX_PLACES),
   /** Plural, as the sentence says it: "personal trainers". */
   who: planChip(60),
   /** One of them, for the question and the judge's rubric: "personal trainer". */
   who_one: planChip(60),
-  category_key: z12.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
-  terms: z12.array(planChip(60)).min(1).max(5),
-  city: z12.string().trim().max(60).nullable().default(null),
-  region: z12.string().trim().min(2).max(40),
-  zip: z12.string().regex(/^\d{5}$/).nullable().default(null),
-  contact: z12.enum(["phone", "email"]),
-  criteria: z12.array(z12.object({ text: planChip(120), standard: z12.enum(["likely", "seen"]), required: z12.boolean() })).max(6).default([]),
-  leave_out: z12.array(z12.object({ words: planChip(40) })).max(6).default([]),
-  asked: z12.string().trim().min(1).max(400)
+  category_key: z13.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
+  terms: z13.array(planChip(60)).min(1).max(5),
+  city: z13.string().trim().max(60).nullable().default(null),
+  region: z13.string().trim().min(2).max(40),
+  zip: z13.string().regex(/^\d{5}$/).nullable().default(null),
+  contact: z13.enum(["phone", "email"]),
+  criteria: z13.array(z13.object({ text: planChip(120), standard: z13.enum(["likely", "seen"]), required: z13.boolean() })).max(6).default([]),
+  leave_out: z13.array(z13.object({ words: planChip(40) })).max(6).default([]),
+  asked: z13.string().trim().min(1).max(400)
 });
-var LeadDraftAnswerSchema = z12.object({
-  subject: z12.string().trim().min(3).max(120),
-  body: z12.string().trim().min(20).max(2e3)
+var LeadDraftAnswerSchema = z13.object({
+  subject: z13.string().trim().min(3).max(120),
+  body: z13.string().trim().min(20).max(2e3)
 });
 var US_NAMES2 = /* @__PURE__ */ new Set([
   "us",
@@ -31378,13 +31754,13 @@ function ideaPacketText(p) {
   ].join("\n");
 }
 function ideaJsonSchema(p) {
-  const words3 = { type: "string" };
+  const words4 = { type: "string" };
   return {
     type: "object",
     additionalProperties: false,
     required: ["line", "ideas"],
     properties: {
-      line: words3,
+      line: words4,
       ideas: {
         type: "array",
         items: {
@@ -31404,12 +31780,12 @@ function ideaJsonSchema(p) {
             "leave_out"
           ],
           properties: {
-            words: words3,
-            why: words3,
-            who: words3,
-            who_one: words3,
-            category_key: words3,
-            terms: { type: "array", items: words3 },
+            words: words4,
+            why: words4,
+            who: words4,
+            who_one: words4,
+            category_key: words4,
+            terms: { type: "array", items: words4 },
             place: { type: "string", enum: p.places.length ? p.places.map((x) => x.id) : ["none"] },
             count: { type: "integer", enum: p.sizes },
             contact: { type: "string", enum: ["email", "phone"] },
@@ -31420,13 +31796,13 @@ function ideaJsonSchema(p) {
                 additionalProperties: false,
                 required: ["text", "standard", "required"],
                 properties: {
-                  text: words3,
+                  text: words4,
                   standard: { type: "string", enum: ["likely", "seen"] },
                   required: { type: "boolean" }
                 }
               }
             },
-            leave_out: { type: "array", items: words3 }
+            leave_out: { type: "array", items: words4 }
           }
         }
       }
@@ -31469,29 +31845,29 @@ function ideaAreaPhrase(label) {
 }
 
 // src/leads/lead-ideas-read.ts
-import { z as z13 } from "zod";
-var cut = (max) => z13.string().transform((s) => s.trim().slice(0, max));
-var LeadIdeasAnswerSchema = z13.object({
-  line: z13.string().trim().min(3).transform((s) => s.slice(0, 160)),
-  ideas: z13.array(
-    z13.object({
+import { z as z14 } from "zod";
+var cut = (max) => z14.string().transform((s) => s.trim().slice(0, max));
+var LeadIdeasAnswerSchema = z14.object({
+  line: z14.string().trim().min(3).transform((s) => s.slice(0, 160)),
+  ideas: z14.array(
+    z14.object({
       words: cut(80),
       why: cut(140),
       who: cut(60),
       who_one: cut(60),
       category_key: cut(40),
-      terms: z13.array(z13.string()).catch([]),
-      place: z13.string().catch(""),
-      count: z13.number().int().catch(IDEA_SIZES[1]),
-      contact: z13.enum(["email", "phone"]).catch("email"),
-      criteria: z13.array(
-        z13.object({
-          text: z13.string(),
-          standard: z13.enum(["likely", "seen"]).catch("likely"),
-          required: z13.boolean().catch(false)
+      terms: z14.array(z14.string()).catch([]),
+      place: z14.string().catch(""),
+      count: z14.number().int().catch(IDEA_SIZES[1]),
+      contact: z14.enum(["email", "phone"]).catch("email"),
+      criteria: z14.array(
+        z14.object({
+          text: z14.string(),
+          standard: z14.enum(["likely", "seen"]).catch("likely"),
+          required: z14.boolean().catch(false)
         })
       ).catch([]),
-      leave_out: z13.array(z13.string()).catch([])
+      leave_out: z14.array(z14.string()).catch([])
     })
   ).min(1)
 });
@@ -31515,7 +31891,7 @@ function ideaPlanOf(idea, key, place, p) {
     zip: null,
     contact: idea.contact,
     criteria: idea.criteria.filter((c) => c.text.trim().length >= 2).slice(0, 3),
-    leave_out: idea.leave_out.map((w) => w.trim()).filter((w) => w.length >= 2 && w.length <= 40).slice(0, 4).map((words3) => ({ words: words3 })),
+    leave_out: idea.leave_out.map((w) => w.trim()).filter((w) => w.length >= 2 && w.length <= 40).slice(0, 4).map((words4) => ({ words: words4 })),
     asked: `${capFirst(idea.words)} ${ideaAreaPhrase(place.area.label)}`.slice(0, 400)
   });
   if (!input.success) return null;
@@ -31536,14 +31912,14 @@ function ideaOf(idea, p) {
     return "passed";
   const plan = place ? ideaPlanOf(idea, key, place, p) : null;
   if (place && !plan) return "no_plan";
-  const words3 = capFirst(idea.words);
+  const words4 = capFirst(idea.words);
   return {
-    words: place ? `${words3} ${ideaAreaPhrase(place.area.label)}` : words3,
+    words: place ? `${words4} ${ideaAreaPhrase(place.area.label)}` : words4,
     who_for: idea.why,
     category_key: key,
     reach: null,
     plan,
-    ask: plan ? ideaAsk(plan) : words3
+    ask: plan ? ideaAsk(plan) : words4
   };
 }
 function ideasRead(answer, p) {
@@ -31567,25 +31943,25 @@ function ideasFrom(answer, p) {
 }
 
 // src/leads/lead-import-schema.ts
-import { z as z14 } from "zod";
-var nullableText = (max) => z14.string().trim().max(max).nullable().optional();
-var LeadImportRowSchema = z14.object({
-  name: z14.string().trim().min(1).max(200),
-  email: z14.string().trim().min(3).max(254),
+import { z as z15 } from "zod";
+var nullableText = (max) => z15.string().trim().max(max).nullable().optional();
+var LeadImportRowSchema = z15.object({
+  name: z15.string().trim().min(1).max(200),
+  email: z15.string().trim().min(3).max(254),
   phone: nullableText(16),
   website_host: nullableText(120),
   city: nullableText(120),
   region: nullableText(2),
   category: nullableText(120)
 });
-var LeadImportSchema = z14.object({
-  name: z14.string().trim().min(1).max(120),
-  asked: z14.string().trim().max(400).optional(),
-  rows: z14.array(LeadImportRowSchema).min(1).max(LEAD_LIST_MAX)
+var LeadImportSchema = z15.object({
+  name: z15.string().trim().min(1).max(120),
+  asked: z15.string().trim().max(400).optional(),
+  rows: z15.array(LeadImportRowSchema).min(1).max(LEAD_LIST_MAX)
 });
-var LeadChooseSchema = z14.object({
-  name: z14.string().trim().min(1).max(120),
-  lead_ids: z14.array(z14.string().uuid()).min(1).max(LEAD_LIST_MAX)
+var LeadChooseSchema = z15.object({
+  name: z15.string().trim().min(1).max(120),
+  lead_ids: z15.array(z15.string().uuid()).min(1).max(LEAD_LIST_MAX)
 });
 
 // src/leads/lead-pile.ts
@@ -31840,14 +32216,14 @@ function standingRow(s) {
   const payment = paymentTrouble(s);
   if (payment) {
     const href = addPaymentMethodLink(s.owner_business_id, s.waba_id);
-    const words3 = [
+    const words4 = [
       PAYMENT_SENTENCE[payment],
       ...s.can_send === "BLOCKED" ? [] : [REPLIES_STILL_GO],
       ...href ? [] : [ADD_ONE_IN_SUITE]
     ];
     return {
       stateWords: PAYMENT_HOLD_WORD,
-      sentence: words3.join(" "),
+      sentence: words4.join(" "),
       act: href ? { label: PAYMENT_ACT[payment], href } : null
     };
   }
@@ -32093,8 +32469,8 @@ function isPublishedFact(column) {
   return PUBLISHED.has(column);
 }
 function changedRecordFields(before, after) {
-  const words3 = (v) => (v ?? "").trim();
-  return RECORD_COLUMNS.filter((c) => words3(before[c]) !== words3(after[c]));
+  const words4 = (v) => (v ?? "").trim();
+  return RECORD_COLUMNS.filter((c) => words4(before[c]) !== words4(after[c]));
 }
 function publicPagePath(slug) {
   return `/b/${slug}`;
@@ -32395,8 +32771,8 @@ function businessRecordLine(r2) {
   const problems = businessRecordProblems(r2, path);
   const missing = Object.keys(problems).length;
   if (missing) return `${missing} thing${missing === 1 ? "" : "s"} still to fill in before this can be filed.`;
-  const capped = path === "sole_proprietor" ? ` \xB7 one number, about ${SOLE_PROP_LIMITS.messagesPerSecond} text a second` : "";
-  return `${r2.legal_name}${r2.trade_name ? ` (${r2.trade_name})` : ""} \xB7 ${r2.city}, ${r2.region} \xB7 on record${capped}.`;
+  const capped2 = path === "sole_proprietor" ? ` \xB7 one number, about ${SOLE_PROP_LIMITS.messagesPerSecond} text a second` : "";
+  return `${r2.legal_name}${r2.trade_name ? ` (${r2.trade_name})` : ""} \xB7 ${r2.city}, ${r2.region} \xB7 on record${capped2}.`;
 }
 
 // src/lines/business-page.ts
@@ -32650,8 +33026,8 @@ function workspaceLogoSrc(supabaseUrl, path) {
   return publicObjectSrc(supabaseUrl, WORKSPACE_LOGOS_BUCKET, path);
 }
 function workspaceInitials(name) {
-  const words3 = String(name ?? "").split(/[^\p{L}\p{N}'’]+/u).map((w) => w.replace(/^['’]+|['’]+$/g, "")).filter(Boolean);
-  const named = words3.length > 1 && /^the$/i.test(words3[0] ?? "") ? words3.slice(1) : words3;
+  const words4 = String(name ?? "").split(/[^\p{L}\p{N}'’]+/u).map((w) => w.replace(/^['’]+|['’]+$/g, "")).filter(Boolean);
+  const named = words4.length > 1 && /^the$/i.test(words4[0] ?? "") ? words4.slice(1) : words4;
   return ((named[0]?.[0] ?? "") + (named[1]?.[0] ?? "")).toUpperCase() || "\u2014";
 }
 var LOGO_LOOKUP_OUTCOMES = ["found", "none", "unreachable", "not_its_own", "no_website"];
@@ -33907,8 +34283,8 @@ function slotLabels(t) {
 // src/templates/inbox-templates.ts
 var INBOX_FILLS = /* @__PURE__ */ new Set(["first_name", "business_name", "booking_link"]);
 function titleWithoutLanguage(title, code2) {
-  for (const words3 of [languageLabel(code2), languageWords(code2)]) {
-    const tail = ` (${words3})`;
+  for (const words4 of [languageLabel(code2), languageWords(code2)]) {
+    const tail = ` (${words4})`;
     if (title.length > tail.length && title.toLowerCase().endsWith(tail.toLowerCase())) {
       return title.slice(0, title.length - tail.length).trimEnd();
     }
@@ -33980,9 +34356,9 @@ var templateHoldWords = () => [
   ["hidden", "hidden by you"]
 ];
 function noTemplateWords(held) {
-  const parts2 = templateHoldWords().flatMap(([key, words3]) => {
+  const parts2 = templateHoldWords().flatMap(([key, words4]) => {
     const n = held?.[key] ?? 0;
-    return n > 0 ? [`${n} ${words3}`] : [];
+    return n > 0 ? [`${n} ${words4}`] : [];
   });
   return `No approved template yet${parts2.length ? ` (${parts2.join(", ")})` : ""} \u2014 nothing can be sent until one is.`;
 }
@@ -34194,39 +34570,39 @@ function writeReachOf(r2, at3) {
 }
 
 // src/new-conversation/person-draft-schema.ts
-import { z as z15 } from "zod";
-var PersonDraftInputSchema = z15.object({
-  how: z15.enum(DRAFT_HOWS),
-  wire: z15.enum(CONSENT_CHANNELS).optional(),
-  about: z15.string().trim().min(1, "Say what it is about.").max(DRAFT_ABOUT_MAX),
-  answers: z15.array(
-    z15.object({
-      key: z15.string().min(1).max(40),
-      question: z15.string().max(200),
-      words: z15.string().trim().min(1).max(DRAFT_ANSWER_MAX)
+import { z as z16 } from "zod";
+var PersonDraftInputSchema = z16.object({
+  how: z16.enum(DRAFT_HOWS),
+  wire: z16.enum(CONSENT_CHANNELS).optional(),
+  about: z16.string().trim().min(1, "Say what it is about.").max(DRAFT_ABOUT_MAX),
+  answers: z16.array(
+    z16.object({
+      key: z16.string().min(1).max(40),
+      question: z16.string().max(200),
+      words: z16.string().trim().min(1).max(DRAFT_ANSWER_MAX)
     }).strict()
   ).max(DRAFT_ASKS_MAX).optional(),
-  previous: z15.object({ text: z15.string().max(4e3), subject: z15.string().max(200).optional() }).strict().optional(),
-  tone: z15.enum(DRAFT_TONES).optional()
+  previous: z16.object({ text: z16.string().max(4e3), subject: z16.string().max(200).optional() }).strict().optional(),
+  tone: z16.enum(DRAFT_TONES).optional()
 }).strict();
-var PersonDraftAnswerSchema = z15.object({
-  asks: z15.array(z15.object({ key: z15.string().trim().min(1).max(40), question: z15.string().trim().min(3).max(200) })).max(4),
-  text: z15.string().trim().max(4e3),
-  subject: z15.string().trim().max(200),
-  note: z15.string().trim().max(600),
-  opening: z15.string().trim().max(400),
-  points: z15.array(z15.string().trim().max(300)).max(6),
-  avoid: z15.array(z15.string().trim().max(300)).max(6),
-  ask: z15.string().trim().max(300)
+var PersonDraftAnswerSchema = z16.object({
+  asks: z16.array(z16.object({ key: z16.string().trim().min(1).max(40), question: z16.string().trim().min(3).max(200) })).max(4),
+  text: z16.string().trim().max(4e3),
+  subject: z16.string().trim().max(200),
+  note: z16.string().trim().max(600),
+  opening: z16.string().trim().max(400),
+  points: z16.array(z16.string().trim().max(300)).max(6),
+  avoid: z16.array(z16.string().trim().max(300)).max(6),
+  ask: z16.string().trim().max(300)
 });
-var PersonMessageBodySchema = z15.object({
-  wire: z15.enum(CONSENT_CHANNELS),
-  text: z15.string().max(REPLY_MAX_ANY, "That message is longer than any channel can carry.").optional(),
-  subject: z15.string().trim().min(1).max(200).optional(),
-  template: z15.object({ name: z15.string().min(1).max(512), language: z15.string().min(2).max(15) }).strict().optional(),
-  email_to: z15.string().max(320).optional(),
-  then: z15.enum(["receptionist", "me"]),
-  note: z15.string().trim().min(1).max(PLAN_NOTE_MAX).optional()
+var PersonMessageBodySchema = z16.object({
+  wire: z16.enum(CONSENT_CHANNELS),
+  text: z16.string().max(REPLY_MAX_ANY, "That message is longer than any channel can carry.").optional(),
+  subject: z16.string().trim().min(1).max(200).optional(),
+  template: z16.object({ name: z16.string().min(1).max(512), language: z16.string().min(2).max(15) }).strict().optional(),
+  email_to: z16.string().max(320).optional(),
+  then: z16.enum(["receptionist", "me"]),
+  note: z16.string().trim().min(1).max(PLAN_NOTE_MAX).optional()
 }).strict();
 
 // src/notes/note-suggest.ts
@@ -35081,6 +35457,34 @@ var DOUBT_WORDS = {
   notFound: "This doubt is not on this person."
 };
 
+// src/reach-out/reach-out-compose.ts
+var COMPOSE_URL_MAX = 3800;
+var enc = (s) => encodeURIComponent(s.replace(/\r?\n/g, "\r\n"));
+function mailtoOf(to, subject, body) {
+  return `mailto:${enc(to)}?subject=${enc(subject)}${body === null ? "" : `&body=${enc(body)}`}`;
+}
+function gmailOf(to, subject, body) {
+  return `https://mail.google.com/mail/?view=cm&fs=1&to=${enc(to)}&su=${enc(subject)}${body === null ? "" : `&body=${enc(body)}`}`;
+}
+function outlookOf(to, subject, body) {
+  return `https://outlook.office.com/mail/deeplink/compose?to=${enc(to)}&subject=${enc(subject)}${body === null ? "" : `&body=${enc(body)}`}`;
+}
+function composeLinksOf(e) {
+  const full = {
+    mailto: mailtoOf(e.to, e.subject, e.text),
+    gmail: gmailOf(e.to, e.subject, e.text),
+    outlook: outlookOf(e.to, e.subject, e.text)
+  };
+  if (Math.max(full.mailto.length, full.gmail.length, full.outlook.length) <= COMPOSE_URL_MAX)
+    return { ...full, bodyInLinks: true };
+  return {
+    mailto: mailtoOf(e.to, e.subject, null),
+    gmail: gmailOf(e.to, e.subject, null),
+    outlook: outlookOf(e.to, e.subject, null),
+    bodyInLinks: false
+  };
+}
+
 // src/reach-out/reach-out-sheet.ts
 var REACH_OUT_SHEET_WORDS = {
   sub: "Your email, opened for each business, from your own mailbox. Replies come back to it, and to your Inbox.",
@@ -35095,6 +35499,10 @@ var REACH_OUT_SHEET_WORDS = {
   repliesHint: "into your Inbox",
   checkLater: "Each email is checked before it goes. The first run waits for you.",
   noMailbox: "Connect the mailbox you'll write from first: Google or Microsoft, here or in Settings \u203A Connections \u203A Email.",
+  /** From, when its owner sends it (00428): what they are handed, and how. */
+  ownerSends: `Each email is handed to you written and checked, to send from your own inbox: Gmail, Outlook or your mail app. Up to ${REACH_OUT_DRAFTS_PER_DAY} a day.`,
+  /** From, with no mailbox connected: the owner sends, and a mailbox would send for them. */
+  ownerNoMailbox: "Or connect Google or Microsoft, and your mailbox sends them for you.",
   anotherStep: "Another step",
   anotherStepHint: "\xB7 another email",
   /** The last step may hand each business it reaches to you instead (Part 5, G20). */
@@ -35189,9 +35597,17 @@ function paceWords(p) {
     why
   };
 }
+function ownerPaceWords() {
+  return {
+    line: `Up to ${REACH_OUT_DRAFTS_PER_DAY} a day, handed to you as each run goes ahead. You send each when you like.`,
+    why: "You are the pace: a nudge is handed to you before new businesses, so none waits behind them."
+  };
+}
 function sheetFootWords(p) {
   if (p.editing) return "Your changes go with the next emails. What has gone stays as it went.";
   if (p.ready === 0) return "Nobody on this search can be written to yet.";
+  if (p.ownerSends)
+    return `Hands you up to ${Math.min(REACH_OUT_DRAFTS_PER_DAY, p.ready)} a day to send from your inbox. The first run waits on you.`;
   return `Goes to ${Math.min(p.share, p.ready)} a day, one every ${p.gapMinutes} minutes or so as each business opens. The first run waits on you.`;
 }
 function stepLabel(n) {
@@ -35204,13 +35620,13 @@ function stepLabelOf(s) {
 function stepWhenWords(n, afterDays) {
   return n === 0 ? "Day one, in their hours" : `After ${afterDays ?? "?"} days with nothing back \xB7 in the same thread`;
 }
-function startWords(s) {
+function startWords(s, ownerSends = false) {
   const n = plural(s.planned, "email", "emails");
   switch (s.outcome) {
     case "sent":
       return {
         tone: "good",
-        text: `Planned ${n}. They go in each business's hours; you have ${PLAYBOOK_VETO_DELAY_WORDS} to stop them.`
+        text: ownerSends ? `Planned ${n}. Each is handed to you to send once it is checked; you have ${PLAYBOOK_VETO_DELAY_WORDS} to stop them.` : `Planned ${n}. They go in each business's hours; you have ${PLAYBOOK_VETO_DELAY_WORDS} to stop them.`
       };
     case "held":
       switch (s.reason) {
@@ -35274,46 +35690,60 @@ function approveWords(today, from) {
 function leadDoorOf(leadId) {
   return leadId ? addressOf({ kind: "lead", id: leadId }) : null;
 }
+function runSenderWords(r2, share2) {
+  if (r2.owner_sends === true) {
+    const drafted2 = r2.drafted?.length ?? 0;
+    return {
+      drafted: drafted2,
+      later: `${r2.later} wait for the coming days \u2014 ${share2} a day handed to you`,
+      from: "you send each from your own inbox",
+      pace: "each handed to you to send from your inbox",
+      will: `${r2.today + drafted2} for you to send`
+    };
+  }
+  const addresses = r2.mailboxes.map((m) => m.address);
+  const [only, ...others] = r2.mailboxes;
+  return {
+    drafted: 0,
+    later: `${r2.later} wait for the coming days \u2014 ${share2} a day from ${r2.mailboxes.length === 1 ? "this mailbox" : "these mailboxes"}`,
+    from: only && others.length === 0 ? `all from ${only.address}, ${plural(only.sent_days, "day of sending", "days of sending")}` : r2.mailboxes.length > 1 ? `from ${addresses.slice(0, -1).join(", ")} and ${addresses[addresses.length - 1]}` : null,
+    pace: `one every ${r2.gap_minutes} minutes as each business opens`,
+    will: `${r2.today} will get it today`
+  };
+}
 function approvalWordsOf(r2, p) {
   const earlier = !!r2.run_for && r2.run_for < p.today;
   const passed = !earlier && !!r2.first_at && Date.parse(r2.first_at) <= p.now;
   const at3 = earlier || passed ? null : firstSendWhen(r2.first_at, p.timezone, p.now);
   const total = r2.today + r2.later;
+  const sender = runSenderWords(r2, p.share);
   const why = [];
-  if (r2.later > 0)
-    why.push({
-      tone: "plain",
-      text: `${r2.later} wait for the coming days \u2014 ${p.share} a day from ${r2.mailboxes.length === 1 ? "this mailbox" : "these mailboxes"}`,
-      door: null
-    });
+  if (r2.later > 0) why.push({ tone: "plain", text: sender.later, door: null });
   if (r2.held.length > 0) why.push({ tone: "warn", text: `${r2.held.length} held by the check`, door: "See them" });
   if (r2.checking > 0) why.push({ tone: "info", text: `The receptionist is checking ${r2.checking} more`, door: null });
-  const words3 = [];
+  const words4 = [];
   if (r2.first) {
     const open = r2.first.opening;
     const leads = !!open && r2.first.body.startsWith(open);
     const rest = leads ? r2.first.body.slice(open.length) : r2.first.body;
-    if (leads) words3.push({ text: open, opening: true });
-    if (rest.trim()) words3.push({ text: rest.replace(/^\s+/, ""), opening: false });
+    if (leads) words4.push({ text: open, opening: true });
+    if (rest.trim()) words4.push({ text: rest.replace(/^\s+/, ""), opening: false });
   }
-  const addresses = r2.mailboxes.map((m) => m.address);
-  const [only, ...others] = r2.mailboxes;
-  const from = only && others.length === 0 ? `all from ${only.address}, ${plural(only.sent_days, "day of sending", "days of sending")}` : r2.mailboxes.length > 1 ? `from ${addresses.slice(0, -1).join(", ")} and ${addresses[addresses.length - 1]}` : null;
   const goes = earlier ? " \xB7 goes from now, re-timed in their hours, once you approve it" : passed ? " \xB7 goes from now, in their hours, once you approve it" : at3 ? ` \xB7 goes from ${at3} once you approve it` : "";
   const step2 = r2.step_n === null ? "a step since removed" : `step ${r2.step_n + 1}, ${stepLabel(r2.step_n).toLowerCase()}`;
   return {
     title: r2.chain_name,
-    sub: `Reach-out \xB7 ${step2}${goes}, one every ${r2.gap_minutes} minutes as each business opens`,
-    will: `${r2.today} will get it today`,
-    of: `of ${total + r2.held.length + r2.checking}`,
+    sub: `Reach-out \xB7 ${step2}${goes}, ${sender.pace}`,
+    will: sender.will,
+    of: `of ${total + sender.drafted + r2.held.length + r2.checking}`,
     why,
     rules: [
       ...r2.include_unconfirmed ? [] : ["each has a checked address"],
       "none is on a person in People",
       "none heard from you before",
-      ...from ? [from] : []
+      ...sender.from ? [sender.from] : []
     ],
-    words: words3,
+    words: words4,
     reader: r2.first ? `as ${r2.first.business_name} reads it \xB7 every opening is its own; your offer and ask are the same for all ${total}` : null,
     approve: approveWords(r2.today, earlier || passed ? "now" : at3),
     approveNote: r2.checking > 0 ? `${r2.checking} more are being checked; they go once they pass.` : null,
@@ -35331,6 +35761,7 @@ function approvalWordsOf(r2, p) {
 }
 var runDayWords = (runFor) => dateFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(/* @__PURE__ */ new Date(`${runFor}T12:00:00Z`));
 function chainPaceOf(c) {
+  if (c.owner_sends) return { from: null, share: REACH_OUT_DRAFTS_PER_DAY };
   const [only, ...others] = c.mailboxes;
   return {
     from: only && others.length === 0 ? only.address : null,
@@ -35364,7 +35795,8 @@ var REACH_OUT_ROW_WORDS = {
 };
 function chainHintOf(c, from) {
   const labels = c.steps.map((s) => stepLabelOf(s).toLowerCase());
-  return `${labels.join(", ").replace(/^your email/, "Your email")}${from ? ` \xB7 from ${from}` : ""}`;
+  const by = c.owner_sends ? " \xB7 you send them" : from ? ` \xB7 from ${from}` : "";
+  return `${labels.join(", ").replace(/^your email/, "Your email")}${by}`;
 }
 function reportRowOf(s, step2) {
   const label = stepLabelOf({ n: s.n, hand: step2?.hand ?? null });
@@ -35406,7 +35838,7 @@ function chainReportWordsOf(c, report, reach, p) {
     },
     head: ["Step", "When", "Written", "Delivered", "Wrote back", "Interested", "Booked", "Said no", "Bounced"],
     table: report.steps.map((s) => reportRowOf(s, stepOf.get(s.id))),
-    sentence: p.share > 0 ? `${p.share} a day${p.from ? ` from ${p.from}` : ""}, one every ${c.gap_minutes} minutes in each business's hours. ${clauses.join("; ")}.` : `${REACH_OUT_SHEET_WORDS.noMailbox} ${clauses.join("; ")}.`,
+    sentence: c.owner_sends ? `You send these from your own inbox, up to ${p.share} a day handed to you. ${clauses.join("; ")}.` : p.share > 0 ? `${p.share} a day${p.from ? ` from ${p.from}` : ""}, one every ${c.gap_minutes} minutes in each business's hours. ${clauses.join("; ")}.` : `${REACH_OUT_SHEET_WORDS.noMailbox} ${clauses.join("; ")}.`,
     // The held wait for their owner in their run (R20): the newest run that holds some opens them.
     waiting: held > 0 ? { text: `${held} wait for your say`, run_id: report.runs.find((r2) => r2.held > 0)?.id ?? null } : null,
     history: report.runs.map((r2) => ({
@@ -35484,6 +35916,11 @@ function skippedReasonWords(reason) {
       return "the mailbox their emails came from was removed";
     case "outreach_country":
       return "are where a cold email may not go without their say";
+    // The person door's refusals when its owner said an email went (00428 reach_out_send_said).
+    case "lead_closed":
+      return "had closed before it went";
+    case "already_yours":
+      return "are already yours, in People";
     default:
       return HELD_REASONS[reason] ?? "could not be written to";
   }
@@ -35503,10 +35940,11 @@ function reachOutRunWordsOf(r2, p) {
   const earlier = !!r2.run_for && r2.run_for < p.today;
   const checked = r2.planned.filter((x) => x.checked);
   const step2 = r2.step_n === null ? "a step since removed" : `step ${r2.step_n + 1}`;
+  const owner = r2.owner_sends === true;
   return {
     ...a,
     k: STATE_WORDS[p.state] ?? "Reach-out",
-    sub: waiting ? a.sub : `Reach-out \xB7 ${step2} \xB7 ${p.state === "sending" ? "going now" : "goes"}, one every ${r2.gap_minutes} minutes as each business opens`,
+    sub: waiting ? a.sub : owner ? `Reach-out \xB7 ${step2} \xB7 each handed to you to send from your inbox once it is checked` : `Reach-out \xB7 ${step2} \xB7 ${p.state === "sending" ? "going now" : "goes"}, one every ${r2.gap_minutes} minutes as each business opens`,
     approve: waiting ? a.approve : null,
     approveNote: waiting ? a.approveNote : null,
     note: waiting ? a.note : null,
@@ -35528,12 +35966,55 @@ function reachOutRunWordsOf(r2, p) {
     skipAsk: `Skip ${r2.chain_name}'s run?`,
     // What Approve released, as the flash says it: the checked sends due today, never the run's whole count (R21).
     // Nothing today (planned after hours, or on a closed day) says when they go instead of "0 emails today".
-    approved: r2.today === 0 && r2.later > 0 ? `${r2.chain_name} approved \u2014 ${plural(r2.later, "email", "emails")} in the coming days, in their hours` : `${r2.chain_name} approved \u2014 ${plural(r2.today, "email", "emails")} today, in their hours`,
+    approved: owner ? `${r2.chain_name} approved \u2014 ${plural(r2.today + r2.later, "email", "emails")} to send from your inbox, handed to you as each is checked` : r2.today === 0 && r2.later > 0 ? `${r2.chain_name} approved \u2014 ${plural(r2.later, "email", "emails")} in the coming days, in their hours` : `${r2.chain_name} approved \u2014 ${plural(r2.today, "email", "emails")} today, in their hours`,
     labels: REACH_OUT_RUN_LABELS,
     listHead: r2.checking > 0 ? `Who gets it \xB7 ${plural(r2.checking, "more is", "more are")} being checked` : "Who gets it"
   };
 }
 var RETIMED = "re-timed in their hours";
+function toSendWordsOf(r2, p) {
+  const drafted2 = r2.drafted ?? [];
+  if (drafted2.length === 0) return null;
+  return {
+    head: `To send \xB7 ${drafted2.length}`,
+    note: "Open each in Gmail, Outlook or your mail app and send it there, then say Sent here. Skip leaves them out of this run.",
+    rows: drafted2.map((d) => ({
+      id: d.send_id,
+      name: d.business_name,
+      to: leadDoorOf(d.lead_id),
+      angle: d.angle,
+      address: d.to,
+      subject: d.subject,
+      text: d.text,
+      since: `handed to you ${clockNear(Date.parse(d.drafted_at), p.timezone, p.now)}`,
+      links: composeLinksOf({ to: d.to, subject: d.subject, text: d.text })
+    })),
+    labels: REACH_OUT_TO_SEND_LABELS
+  };
+}
+var REACH_OUT_TO_SEND_LABELS = {
+  gmail: "Open in Gmail",
+  outlook: "Open in Outlook",
+  app: "Your mail app",
+  copy: "Copy",
+  copied: "Copied",
+  /** A link too long to carry the words: they are copied as it opens. */
+  pasteNote: "The words are copied: paste them in.",
+  sent: "Sent",
+  skip: "Skip",
+  saying: "Saying so\u2026",
+  /** What a role that may not is told it cannot do here (gateTitle). */
+  gated: "say whether an email went",
+  read: "Read it",
+  hide: "Hide it",
+  /** Asked once the owner opened or copied one, as the lead's own draft asks (LEAD_SENT_QUESTION). */
+  asked: "Did it go?",
+  sentDone: (name) => `${name}: sent from your inbox`,
+  skippedDone: (name) => `${name}: left out of this run`,
+  refusedDone: (name, why) => `${name} was not written to: they ${why}`,
+  /** Another member, or another tab, said first. */
+  already: (state) => state === "sent" ? "Already said: it went." : "Already said: it was left out."
+};
 var REACH_OUT_RUN_LABELS = {
   back: "Back to Sent",
   approving: "Approving\u2026",
@@ -35546,6 +36027,15 @@ var REACH_OUT_RUN_LABELS = {
   gated: "decide a held email or approve a run"
 };
 var REACH_OUT_RUN_REREAD_MS = 15e3;
+function reachOutRunMoving(r2) {
+  return r2.checking > 0 || r2.owner_sends === true && r2.today + r2.later > 0;
+}
+function toSendSaidWords(name, outcome, a) {
+  if (!a.said) return REACH_OUT_TO_SEND_LABELS.already(a.state);
+  if (a.state === "sent") return REACH_OUT_TO_SEND_LABELS.sentDone(name);
+  if (outcome === "not_sent") return REACH_OUT_TO_SEND_LABELS.skippedDone(name);
+  return REACH_OUT_TO_SEND_LABELS.refusedDone(name, skippedReasonWords(a.reason ?? ""));
+}
 function heldNoticeWords(p) {
   const doors = [...new Set(p.reasons.flatMap(holdDoors))].map((d) => HOLD_DOOR_WORDS[d].toLowerCase());
   const say2 = doors.length > 1 ? `${doors.slice(0, -1).join(", ")} or ${doors[doors.length - 1]}` : doors[0] ?? "";
@@ -35554,6 +36044,57 @@ function heldNoticeWords(p) {
     body: `${p.held === 1 ? "It waits" : "They wait"} for your say on the run in Sent${say2 ? `: ${say2}` : ""}. The rest of the run goes as planned.`
   };
 }
+
+// src/reach-out/reach-out-lead-doors.ts
+var REACH_OUT_SAID_WORDS = {
+  door: "They wrote back\u2026",
+  ask: (business) => `What did ${business} say?`,
+  intents: {
+    interested: "Interested",
+    question: "A question",
+    not_now: "Not now",
+    no: "No",
+    wrong_person: "Wrong person"
+  },
+  day: "When to write again",
+  referTo: "Who to write to instead",
+  save: "Save",
+  saving: "Saving\u2026",
+  /** What the owner's word did; for a not now, the day the lead comes back (the plan's resume_at, as the server made it). */
+  done: (business, intent, back) => {
+    switch (intent) {
+      case "interested":
+      case "question":
+        return `${business} is Talking now, and your reach-out stops for them.`;
+      case "not_now": {
+        const at3 = back.at ? Date.parse(back.at) : NaN;
+        return Number.isFinite(at3) ? `Your reach-out stops for ${business}. They're back in Leads on ${clockDate(at3, back.tz, back.nowMs)}.` : `Your reach-out stops for ${business}. They come back in Leads later.`;
+      }
+      case "no":
+        return `${business} said no: nothing more will be written to them.`;
+      case "wrong_person":
+        return `Your reach-out stops for ${business}. A step to write to who they named is on Today.`;
+    }
+  },
+  /** The note the owner's word is on the person's thread, in their own words. */
+  note: (intent) => `You said they wrote back: ${REPLY_INTENT_WORDS[intent]}.`,
+  /** A drafted email's door: its run, where it is sent from. */
+  sendIt: "Send it",
+  failed: "Couldn't save that. Nothing changed; try again."
+};
+var REACH_OUT_STOP_WORDS = {
+  door: "Stop writing to them",
+  ask: (business) => `Stop writing to ${business}?`,
+  detail: "No reach-out writes to them again: an email not yet with the mail provider is held back too. They stay in your leads, and you can still write to them yourself from the Inbox.",
+  yes: "Stop writing",
+  done: (business) => `Stopped: nothing more will be written to ${business}`,
+  already: (business) => `${business} was already stopped`,
+  failed: "Couldn't stop it. Nothing changed; try again."
+};
+var REACH_OUT_UNDO_WORDS = {
+  read: { label: "Read as no \xB7 undo", done: "Undone: it no longer reads as a no." },
+  owner: { label: "You said no \xB7 undo", done: "Undone: your no is taken back." }
+};
 
 // src/reach-out/reach-out-leads.ts
 var at = (iso) => {
@@ -35570,6 +36111,7 @@ function writtenWords(l, tz, nowMs) {
   const parts2 = [`Written ${near2(l.first_sent_at, tz, nowMs)}`];
   if (l.sent > 1) parts2.push(`nudged ${near2(l.last_sent_at, tz, nowMs)}`);
   if (l.held) parts2.push("a nudge waits for your say");
+  else if ((l.drafted ?? 0) > 0) parts2.push("a nudge is handed to you to send");
   else if (l.next_at) parts2.push(`next ${near2(l.next_at, tz, nowMs)}`);
   return parts2.join(" \xB7 ");
 }
@@ -35598,6 +36140,7 @@ function reachOutLineOf(l, nowMs, tz) {
     return `Written ${near2(l.first_sent_at, tz, nowMs)} \xB7 away until ${clockDate(away, tz, nowMs)}`;
   if (l.sent > 0) return writtenWords(l, tz, nowMs);
   if (l.held) return "Held for your say";
+  if ((l.drafted ?? 0) > 0) return "Drafted for you \xB7 to send from your inbox";
   const next = at(l.next_at);
   if (next !== null) return capitalize(clockNearWhen(next, tz, nowMs));
   if (l.handed) return "Handed to you";
@@ -35616,6 +36159,7 @@ function reachOutStripOf(s, chain, nowMs, tz) {
     if (s.next.from || s.next.host) parts2.push(`from ${s.next.from ?? s.next.host}`);
   } else parts2.push("nothing more planned yet");
   if (s.held > 0) parts2.push(`${s.held} held for your say`);
+  if ((s.to_send ?? 0) > 0) parts2.push(`${s.to_send} to send from your inbox`);
   return {
     title: running2 ? `Writing to ${plural(s.written_to, "business", "businesses")}` : `Paused \xB7 ${plural(s.written_to, "business", "businesses")} written to`,
     parts: parts2,
@@ -35645,11 +36189,12 @@ function sendLine(s, tz, nowMs) {
     text
   });
   if (s.left) {
-    const from = s.from || s.host ? ` \xB7 from ${s.from ?? s.host}` : "";
+    const from = s.from || s.host ? ` \xB7 from ${s.from ?? s.host}` : s.said ? " \xB7 from your inbox" : "";
     const angle = s.angle ? ` \xB7 angle: ${s.angle}` : "";
     return line(`${name}${from}${angle} \xB7 ${emailWords(s)}`);
   }
   if (s.state === "handed") return line(`${name} \xB7 handed to you`);
+  if (s.state === "drafted") return line(`${name} \xB7 handed to you to send`);
   if (s.state === "held") return line(`${name} \xB7 waits for your say`);
   if (s.state === "planned" || s.state === "claimed" || s.state === "queued") return line(`${name} \xB7 planned`);
   if (s.state === "failed") return line(`${name} \xB7 could not be sent`);
@@ -35660,7 +36205,8 @@ function readingLine(r2, tz, nowMs) {
   const t = at(r2.read_at);
   if (t === null) return null;
   const until = at(r2.until_at);
-  const text = r2.claim === "auto_reply" && r2.intent === "away" ? `An automatic reply \xB7 away${until !== null ? ` until ${clockDate(until, tz, nowMs)}` : ""}${r2.undone ? " \xB7 undone" : ""}` : `They wrote back \xB7 read as ${intentWords(r2.intent)}${r2.undone ? " \xB7 undone" : ""}`;
+  const undone = r2.undone ? " \xB7 undone" : "";
+  const text = r2.claim === "auto_reply" && r2.intent === "away" ? `An automatic reply \xB7 away${until !== null ? ` until ${clockDate(until, tz, nowMs)}` : ""}${undone}` : `${r2.claim === "owner" ? "You said they wrote back \xB7" : "They wrote back \xB7 read as"} ${intentWords(r2.intent)}${undone}`;
   return { id: `r-${r2.message_id}`, at: t, when: capitalize(clockNearWhen(t, tz, nowMs)), text };
 }
 function reachOutTimelineOf(t, nowMs, tz) {
@@ -35671,24 +36217,20 @@ function reachOutTimelineOf(t, nowMs, tz) {
   lines.sort((a, b) => a.at - b.at);
   const undoable = t.readings.find((r2) => r2.can_undo && r2.intent === "no" && !r2.undone) ?? null;
   const stopped = at(t.stopped_at);
+  const drafted2 = t.sends.find((s) => s.state === "drafted" && s.run_id);
+  const ownerSent = t.sends.some((s) => s.left && s.said === true);
+  const answered = t.readings.some((r2) => !r2.undone && r2.claim !== "auto_reply");
   return {
     label: `Reach out \xB7 ${t.chain?.name ?? t.search?.name ?? "a reach-out"}`,
     lines,
     stopped: stopped !== null ? `You stopped writing to them ${clockNear(stopped, tz, nowMs)}` : null,
     read: t.conversation_id ? { label: "Read what went out", to: `inbox/th-${t.conversation_id}` } : null,
     stop: t.can_stop && t.chain ? { label: REACH_OUT_STOP_WORDS.door } : null,
-    undo: undoable ? { label: "Read as no \xB7 undo", messageId: undoable.message_id } : null
+    undo: undoable ? { messageId: undoable.message_id, ...REACH_OUT_UNDO_WORDS[undoable.claim === "owner" ? "owner" : "read"] } : null,
+    send: drafted2 ? { label: REACH_OUT_SAID_WORDS.sendIt, to: `broadcasts/run:${drafted2.run_id}` } : null,
+    said: ownerSent && !answered && !stopped && t.closed_reason !== "said_no" ? { label: REACH_OUT_SAID_WORDS.door } : null
   };
 }
-var REACH_OUT_STOP_WORDS = {
-  door: "Stop writing to them",
-  ask: (business) => `Stop writing to ${business}?`,
-  detail: "No reach-out writes to them again: an email not yet with the mail provider is held back too. They stay in your leads, and you can still write to them yourself from the Inbox.",
-  yes: "Stop writing",
-  done: (business) => `Stopped: nothing more will be written to ${business}`,
-  already: (business) => `${business} was already stopped`,
-  failed: "Couldn't stop it. Nothing changed; try again."
-};
 function readingEffect(r2) {
   if (r2.undone) return "undone";
   if (r2.said_no) return "nothing more will be written";
@@ -35706,11 +36248,16 @@ function reachOutPersonOf(t, nowMs, tz) {
     const parts2 = [stepName(s.n, s.hand)];
     if (s.angle) parts2.push(`angle: ${s.angle}`);
     if (s.from || s.host) parts2.push(`from ${s.from ?? s.host}`);
+    else if (s.said) parts2.push("from your inbox");
     parts2.push(emailWords(s));
     emails.set(s.message_id, { who: chain ? `Reach out \xB7 ${chain}` : "Your reach-out", sub: parts2.join(" \xB7 ") });
   }
   const readings = /* @__PURE__ */ new Map();
-  for (const r2 of t.readings) readings.set(r2.message_id, `Read as ${intentWords(r2.intent)} \xB7 ${readingEffect(r2)}`);
+  for (const r2 of t.readings)
+    readings.set(
+      r2.message_id,
+      `${r2.claim === "owner" ? "You said" : "Read as"} ${intentWords(r2.intent)} \xB7 ${readingEffect(r2)}`
+    );
   const foundAt = at(t.found_at);
   const fit = t.search?.fit && t.search.fit in LEAD_FIT_WORDS ? LEAD_FIT_WORDS[t.search.fit] : null;
   const found = foundAt !== null ? {
@@ -35729,9 +36276,9 @@ function reachOutPersonOf(t, nowMs, tz) {
     about: t.chain ? `${t.chain.name} \xB7 ${stageWords(t.stage)} \xB7 ${reachOutStandingOf(t, nowMs, tz)?.words ?? "not written yet"}` : null
   };
 }
-var standing = (words3, tone, stop) => ({
-  line: capitalize(words3),
-  words: words3,
+var standing = (words4, tone, stop) => ({
+  line: capitalize(words4),
+  words: words4,
   tone,
   stop
 });
@@ -35763,9 +36310,11 @@ function writtenStanding(t, tz, nowMs) {
   const left = t.sends.filter((s) => s.left && s.n !== null);
   const steps = t.chain?.steps?.filter((s) => !s.hand).length ?? 0;
   const held = t.sends.some((s) => s.state === "held");
+  const drafted2 = t.sends.some((s) => s.state === "drafted");
   const planned = nextPlanned(t);
   if (left.length === 0) {
     if (held) return standing("email 1 waits for your say", "warn", false);
+    if (drafted2) return standing("email 1 is handed to you to send", "warn", false);
     if (planned !== null) return standing(`email 1 goes ${clockNearWhen(planned, tz, nowMs)}`, "plain", false);
     return null;
   }
@@ -35773,6 +36322,7 @@ function writtenStanding(t, tz, nowMs) {
   const k = (last?.n ?? 0) + 1;
   const parts2 = [`${steps >= k ? `email ${k} of ${steps} sent` : "written"} ${near2(last?.sent_at ?? null, tz, nowMs)}`];
   if (held) parts2.push("the next waits for your say");
+  else if (drafted2) parts2.push("the next is handed to you to send");
   else if (planned !== null) parts2.push(`next ${clockNearWhen(planned, tz, nowMs)}`);
   else if (steps > k) parts2.push("the next if nothing comes back");
   else parts2.push("the last email");
@@ -37156,8 +37706,8 @@ function personCallDays(o) {
   return { offered: !!o && o !== "wrong_number", tomorrow: o === "call_back" };
 }
 function personCallNote(o, said) {
-  const words3 = String(said || "").trim();
-  return `Call \xB7 ${PERSON_CALL_WORDS.outcomes[o]}${words3 ? `: ${words3}` : ""}`;
+  const words4 = String(said || "").trim();
+  return `Call \xB7 ${PERSON_CALL_WORDS.outcomes[o]}${words4 ? `: ${words4}` : ""}`;
 }
 function personCallSave(o, dayName) {
   const W = PERSON_CALL_WORDS;
@@ -37302,9 +37852,9 @@ function signedLinesOf(text) {
   }
   return kept.join("\n");
 }
-function standsIn(text, words3) {
+function standsIn(text, words4) {
   const t = ` ${foldedName(text)} `;
-  const w = foldedName(words3);
+  const w = foldedName(words4);
   return !!w && t.includes(` ${w} `);
 }
 function isPersonsName(name, notNames, from) {
@@ -37338,12 +37888,12 @@ function signerAgrees(s, from) {
   if (s.title && STAND_IN_TITLE.test(s.title)) return false;
   const local = localPart(from.address);
   if (!local || ROLE_WORDS2.has(local)) return false;
-  const words3 = foldedName(s.name).split(" ");
-  const first = words3[0] ?? "";
-  const last = words3[words3.length - 1] ?? "";
+  const words4 = foldedName(s.name).split(" ");
+  const first = words4[0] ?? "";
+  const last = words4[words4.length - 1] ?? "";
   const fromName = squeezed(from.name);
   const byFromLine = !!fromName && foldedName(fromName) === foldedName(s.name);
-  const byAddress = words3.length > 0 && (local === first || local === words3.join("") || words3.length > 1 && local === `${first[0] ?? ""}${last}`);
+  const byAddress = words4.length > 0 && (local === first || local === words4.join("") || words4.length > 1 && local === `${first[0] ?? ""}${last}`);
   return byFromLine || byAddress;
 }
 
@@ -37829,14 +38379,14 @@ function campaignsOf(d, tz, nowMs) {
 }
 
 // src/people/lists/list-schemas.ts
-import { z as z16 } from "zod";
-var PeopleExportQuerySchema = z16.object({
-  list: z16.string().max(80).refine((t) => parseListToken(t) !== null, "Name a list by its token.").optional()
+import { z as z17 } from "zod";
+var PeopleExportQuerySchema = z17.object({
+  list: z17.string().max(80).refine((t) => parseListToken(t) !== null, "Name a list by its token.").optional()
 });
-var ListDraftAnswerSchema = z16.object({
-  name: z16.string().trim().min(1).max(60),
-  cannot: z16.string().trim().max(200),
-  all: z16.array(z16.unknown()).max(LIST_RULE_MAX)
+var ListDraftAnswerSchema = z17.object({
+  name: z17.string().trim().min(1).max(60),
+  cannot: z17.string().trim().max(200),
+  all: z17.array(z17.unknown()).max(LIST_RULE_MAX)
 });
 
 // src/people/lists/people-route.ts
@@ -38210,26 +38760,26 @@ function combineOf(f) {
 }
 
 // src/person-page/schemas.ts
-import { z as z17 } from "zod";
-var PersonNameActSchema = z17.discriminatedUnion("act", [
-  z17.object({ act: z17.literal("adopt"), message_id: z17.uuid({ message: "Name the reply whose signer to use." }) }),
-  z17.object({ act: z17.literal("undo") }),
-  z17.object({ act: z17.literal("decline"), message_id: z17.uuid({ message: "Name the reply whose signer to decline." }) })
+import { z as z18 } from "zod";
+var PersonNameActSchema = z18.discriminatedUnion("act", [
+  z18.object({ act: z18.literal("adopt"), message_id: z18.uuid({ message: "Name the reply whose signer to use." }) }),
+  z18.object({ act: z18.literal("undo") }),
+  z18.object({ act: z18.literal("decline"), message_id: z18.uuid({ message: "Name the reply whose signer to decline." }) })
 ]);
-var PersonWorksAtSchema = z17.object({
-  lead_id: z17.uuid({ message: "Choose a business from your leads." })
+var PersonWorksAtSchema = z18.object({
+  lead_id: z18.uuid({ message: "Choose a business from your leads." })
 });
-var PersonCallSchema = z17.object({
-  outcome: z17.enum(PERSON_CALL_OUTCOMES, { message: "Say how the call went." }),
-  said: z17.string().trim().max(PERSON_CALL_SAID_MAX).optional(),
+var PersonCallSchema = z18.object({
+  outcome: z18.enum(PERSON_CALL_OUTCOMES, { message: "Say how the call went." }),
+  said: z18.string().trim().max(PERSON_CALL_SAID_MAX).optional(),
   /** The day to call back, which makes the note a step (00166): a real day by the business's calendar. */
-  due_on: z17.string().refine(isRealDate, "A day, as 2026-09-30.").nullable().optional(),
+  due_on: z18.string().refine(isRealDate, "A day, as 2026-09-30.").nullable().optional(),
   /** The receptionist reads the note: off, it is the team's only. */
-  tell: z17.boolean().optional(),
+  tell: z18.boolean().optional(),
   /** Who answered a stand-in's number, under Interested (0052). */
-  spoke_with: z17.string().trim().max(80).optional(),
+  spoke_with: z18.string().trim().max(80).optional(),
   /** This call was the call back they asked for: the door hands back their thread holding the request (00422, X3-1). */
-  closes_call_back: z17.boolean().optional()
+  closes_call_back: z18.boolean().optional()
 }).strict();
 
 // src/playbooks/playbook-failed.ts
@@ -38387,11 +38937,14 @@ function todayRunWords(r2) {
   const people = reach ? `${r2.recipient_count} ${one ? "business" : "businesses"}` : `${r2.recipient_count} ${one ? "person" : "people"}`;
   const kind = reach ? "Reach-out" : "Campaign";
   const sent2 = `${r2.counts.sent} sent`;
+  const held = `${heldEmailsWords(r2.held ?? 0)}. The rest of the run goes as planned.`;
+  const drafted2 = `${plural(r2.drafted ?? 0, "email", "emails")} to send from your inbox, each written and checked.`;
+  const waiting = `${people}. Nothing sends until you say so.`;
   return {
     people,
     waiting: {
       meta: `${kind} \xB7 ready`,
-      sentence: `${people}. Nothing sends until you say so.`,
+      sentence: waiting,
       // The run's one phrase for it (broadcasts.ts BROADCAST_STATE_LABELS), which Sent, Campaigns and the drawer say too.
       status: [RUN_WAITING_WORDS]
     },
@@ -38405,9 +38958,15 @@ function todayRunWords(r2) {
     done: { counts: r2.counts.replied ? `${sent2}, ${r2.counts.replied} replied` : sent2, still: r2.state === "sending" },
     held: {
       meta: `${kind} \xB7 going`,
-      sentence: `${heldEmailsWords(r2.held ?? 0)}. The rest of the run goes as planned.`,
+      sentence: held,
       status: ["Held for your say"]
-    }
+    },
+    drafted: {
+      meta: `${kind} \xB7 to send`,
+      sentence: drafted2,
+      status: ["Handed to you"]
+    },
+    brief: runHeldEmails(r2) > 0 ? { waits: "waiting for you", sentence: held } : runDraftedEmails(r2) > 0 ? { waits: "waiting for you", sentence: drafted2 } : { waits: RUN_WAITING_WORDS.toLowerCase(), sentence: waiting }
   };
 }
 function todayRunsSub(n) {
@@ -38535,14 +39094,14 @@ function momentRow(p, nowMs, tz, workspacePaused) {
   const who = whoWill(p);
   if (!who) return null;
   if (workspacePaused) {
-    const words3 = LIFECYCLE_WORDS.coming.paused;
+    const words4 = LIFECYCLE_WORDS.coming.paused;
     return {
       id: `moment:${p.id}`,
       kind: "moment",
-      when: words3.when,
+      when: words4.when,
       what: p.name,
-      why: words3.why,
-      pill: { tone: "warn", label: words3.pill },
+      why: words4.why,
+      pill: { tone: "warn", label: words4.pill },
       act: { kind: "open", label: "Open", playbookId: p.id },
       waiting: null,
       atMs: nowMs
@@ -39239,15 +39798,15 @@ function receptionistStage(base, line) {
   };
 }
 function unmetStage(base, shape) {
-  const words3 = LIFECYCLE_WORDS.needsCalendar[shape.calendar === "email" ? "email" : "none"];
+  const words4 = LIFECYCLE_WORDS.needsCalendar[shape.calendar === "email" ? "email" : "none"];
   const act2 = base.playbookId ? { kind: "open", label: "Open", playbookId: base.playbookId } : { kind: "route", label: LIFECYCLE_WORDS.needsCalendar.door, route: CALENDAR_SETTING_ROUTE };
   return {
     ...base,
     people: null,
     channels: [],
     state: "not_here",
-    stateWords: words3,
-    phoneWords: words3,
+    stateWords: words4,
+    phoneWords: words4,
     tone: "plain",
     covered: false,
     act: act2
@@ -39270,12 +39829,12 @@ function playbookStage(base, p) {
 }
 function emptyStage(base, offered, moment2) {
   if (!offered) {
-    const words3 = "Not offered here";
+    const words4 = "Not offered here";
     return {
       ...base,
       state: "not_here",
-      stateWords: words3,
-      phoneWords: words3,
+      stateWords: words4,
+      phoneWords: words4,
       tone: "plain",
       covered: false,
       act: null
@@ -39499,8 +40058,11 @@ function isPlaybookTotalsDto(answer) {
 
 // src/reach-out/reach-out.ts
 var WHY_FROM_MAPS = "I found your business on Google Maps.";
+var WHY_FROM_DIRECTORY = "I found your company in a business directory.";
 function whyFrom(source) {
-  return source === "maps" ? WHY_FROM_MAPS : "I came across your business online.";
+  if (source === "maps" || source === "local_businesses") return WHY_FROM_MAPS;
+  if (source === "people_at_companies") return WHY_FROM_DIRECTORY;
+  return "I came across your business online.";
 }
 var CAMPAIGN_EMAIL_TAG = "cl_campaign";
 function isCampaignEmail(request) {
@@ -39697,8 +40259,8 @@ function rangeOf(s) {
   const to = to0 === 0 ? 24 * 60 : to0 <= from ? to0 + 24 * 60 : to0;
   return { from, to };
 }
-function dayOf(words3) {
-  const w = words3.replace(/\([^)]*\)/g, "").trim().toLowerCase();
+function dayOf(words4) {
+  const w = words4.replace(/\([^)]*\)/g, "").trim().toLowerCase();
   if (w === "closed") return [];
   if (w === "open 24 hours" || w === "24 hours") return [{ from: 0, to: 24 * 60 }];
   const ranges = w.split(/\s*,\s*/).map(rangeOf);
@@ -39721,7 +40283,7 @@ function weekHoursOf(hours) {
 
 // src/reach-out/reach-out-timetable.ts
 var SEND_WINDOW_MARGIN_MIN = 30;
-var SEND_DAY_FRAME = { from: 8 * 60, to: 20 * 60 };
+var SEND_DAY_FRAME = { from: 9 * 60, to: 17 * 60 };
 var TIMETABLE_HORIZON_DAYS = 7;
 var DAYS2 = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 function inFrame(week) {
@@ -39839,53 +40401,62 @@ function timetable(input) {
 }
 
 // src/reach-out/reach-out-schemas.ts
-import { z as z18 } from "zod";
+import { z as z19 } from "zod";
 
 // src/reach-out/reach-out-dtos.ts
 var REACH_OUT_PREVIEW_INDEX_MAX = 199;
 var REACH_OUT_DECISIONS = ["include", "rewrite", "skip", "not_a_fit"];
+var REACH_OUT_SAID_OUTCOMES = ["sent", "not_sent"];
 
 // src/reach-out/reach-out-schemas.ts
-var ReachOutRepliesQuerySchema = z18.object({
-  since: z18.string().datetime({ offset: true }).optional(),
-  conversation_id: z18.string().uuid().optional()
+var ReachOutRepliesQuerySchema = z19.object({
+  since: z19.string().datetime({ offset: true }).optional(),
+  conversation_id: z19.string().uuid().optional()
 });
-var ReachOutStepSchema = z18.object({
+var ReachOutStepSchema = z19.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
-  id: z18.string().uuid().nullable().optional(),
-  subject: z18.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
-  body: z18.string().max(REACH_OUT_BODY_MAX * 2),
-  after_days: z18.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable(),
+  id: z19.string().uuid().nullable().optional(),
+  subject: z19.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+  body: z19.string().max(REACH_OUT_BODY_MAX * 2),
+  after_days: z19.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable(),
   /** A call or a note for the team instead of an email (Part 5, G20): the chain's last step only. */
-  hand: z18.object({ kind: z18.enum(HAND_KINDS), words: z18.string().max(HAND_WORDS_MAX * 2) }).nullable().optional()
+  hand: z19.object({ kind: z19.enum(HAND_KINDS), words: z19.string().max(HAND_WORDS_MAX * 2) }).nullable().optional()
 });
-var ReachOutChainSchema = z18.object({
-  name: z18.string().trim().min(1).max(REACH_OUT_NAME_MAX),
-  search_id: z18.string().uuid(),
-  include_unconfirmed: z18.boolean(),
+var ReachOutChainSchema = z19.object({
+  name: z19.string().trim().min(1).max(REACH_OUT_NAME_MAX),
+  search_id: z19.string().uuid(),
+  include_unconfirmed: z19.boolean(),
   /** One of the sheet's paces: the database's CHECK holds the same set (00211). */
-  gap_minutes: z18.number().int().refine((g) => REACH_OUT_GAP_MINUTES.includes(g), {
+  gap_minutes: z19.number().int().refine((g) => REACH_OUT_GAP_MINUTES.includes(g), {
     message: `One of ${REACH_OUT_GAP_MINUTES.join(", ")} minutes.`
   }),
   /** Empty: every connected mailbox of the workspace (00424). */
-  mailbox_ids: z18.array(z18.string().uuid()).max(REACH_OUT_MAILBOXES_MAX),
-  signed_by: z18.string().trim().max(SIGNED_BY_MAX).nullable(),
-  steps: z18.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
+  mailbox_ids: z19.array(z19.string().uuid()).max(REACH_OUT_MAILBOXES_MAX),
+  /** Its owner sends its emails from their own inbox, each handed to them written and checked (00428). */
+  owner_sends: z19.boolean().default(false),
+  signed_by: z19.string().trim().max(SIGNED_BY_MAX).nullable(),
+  steps: z19.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
 });
-var ReachOutPreviewSchema = z18.object({
-  search_id: z18.string().uuid(),
-  index: z18.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX),
-  include_unconfirmed: z18.boolean(),
-  words: z18.object({
-    subject: z18.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
-    body: z18.string().trim().min(1).max(REACH_OUT_BODY_MAX * 2)
+var ReachOutPreviewSchema = z19.object({
+  search_id: z19.string().uuid(),
+  index: z19.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX),
+  include_unconfirmed: z19.boolean(),
+  words: z19.object({
+    subject: z19.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+    body: z19.string().trim().min(1).max(REACH_OUT_BODY_MAX * 2)
   }),
-  signed_by: z18.string().trim().max(SIGNED_BY_MAX).nullable(),
-  language: z18.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
+  signed_by: z19.string().trim().max(SIGNED_BY_MAX).nullable(),
+  language: z19.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
 });
-var ReachOutDecideSchema = z18.object({ decision: z18.enum(REACH_OUT_DECISIONS) });
-var ReachOutAddSchema = z18.object({
-  lead_ids: z18.array(z18.uuid()).min(1).max(LEAD_LIST_MAX)
+var ReachOutDecideSchema = z19.object({ decision: z19.enum(REACH_OUT_DECISIONS) });
+var ReachOutSaidSchema = z19.object({ outcome: z19.enum(REACH_OUT_SAID_OUTCOMES) });
+var ReachOutReplySaidSchema = z19.object({
+  intent: z19.enum(OWNER_SAID_INTENTS),
+  day: z19.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  refer_to: z19.string().trim().max(120).nullable().optional()
+});
+var ReachOutAddSchema = z19.object({
+  lead_ids: z19.array(z19.uuid()).min(1).max(LEAD_LIST_MAX)
 });
 
 // src/reach-out/reach-out-draft.ts
@@ -39894,7 +40465,7 @@ var REACH_OUT_FIRST_WORDS = {
   body: "{{opening}}\n\nI run {{your business}}, and we help businesses like yours. Would it be worth a short call?\n\n{{your name}}",
   nudge: "Just checking this reached you. Happy to send a few details if it's useful.\n\n{{your name}}"
 };
-var REACH_OUT_GAP_FIRST = 12;
+var REACH_OUT_GAP_FIRST = 20;
 function reachOutDefaultName(searchName) {
   return `Reach out \xB7 ${searchName}`.slice(0, 80);
 }
@@ -39906,6 +40477,7 @@ function reachOutDraftOf(p) {
       include_unconfirmed: c.include_unconfirmed,
       gap_minutes: c.gap_minutes,
       mailbox_ids: c.mailbox_ids,
+      owner_sends: c.owner_sends === true,
       signed_by: c.signed_by ?? p.signedBy ?? "",
       steps: c.steps.map((s) => ({
         id: s.id,
@@ -39920,6 +40492,7 @@ function reachOutDraftOf(p) {
     include_unconfirmed: !!p.includeUnconfirmed,
     gap_minutes: REACH_OUT_GAP_FIRST,
     mailbox_ids: [],
+    owner_sends: p.ownerSends === true,
     signed_by: p.signedBy ?? "",
     steps: [
       {
@@ -39951,10 +40524,10 @@ function reachOutAddHandStep(d, kind) {
   const step2 = { id: null, subject: null, body: "", after_days: REACH_OUT_AFTER_DAYS.first, hand: { kind, words: "" } };
   return { ...d, steps: [...d.steps, step2] };
 }
-function reachOutSetHandWords(d, i, words3) {
+function reachOutSetHandWords(d, i, words4) {
   const s = d.steps[i];
   if (!s?.hand) return d;
-  return { ...d, steps: d.steps.map((x, j) => j === i ? { ...x, hand: { kind: s.hand.kind, words: words3 } } : x) };
+  return { ...d, steps: d.steps.map((x, j) => j === i ? { ...x, hand: { kind: s.hand.kind, words: words4 } } : x) };
 }
 function reachOutDropStep(d) {
   return d.steps.length > 1 ? { ...d, steps: d.steps.slice(0, -1) } : d;
@@ -39971,6 +40544,7 @@ function reachOutChainBodyOf(d, searchId) {
     include_unconfirmed: d.include_unconfirmed,
     gap_minutes: d.gap_minutes,
     mailbox_ids: d.mailbox_ids,
+    owner_sends: d.owner_sends,
     signed_by: d.signed_by.trim() || null,
     // An email carries no hand at all: the door reads a step with the key as a hand step (00228).
     steps: d.steps.map((s, i) => ({
@@ -39990,10 +40564,10 @@ function reachOutDraftIssues(d, has3) {
   const steps = d.steps.map(() => ({ subject: [], body: [], after_days: [] }));
   const out = { steps, signed_by: [], chain: [], ready: issues.length === 0 };
   for (const i of issues) {
-    const words3 = chainIssueWords(i);
-    if (i.step === null) (i.field === "signed_by" ? out.signed_by : out.chain).push(words3);
+    const words4 = chainIssueWords(i);
+    if (i.step === null) (i.field === "signed_by" ? out.signed_by : out.chain).push(words4);
     else if (i.field === "subject" || i.field === "body" || i.field === "after_days")
-      steps[i.step][i.field].push(words3);
+      steps[i.step][i.field].push(words4);
   }
   return out;
 }
@@ -40091,6 +40665,8 @@ var REACH_OUT_SHEET_PARTS = {
   dayOne: "Day one \xB7 the pace below",
   remove: "Remove this step",
   everyMailbox: "Every connected mailbox",
+  /** From's choice for a reach-out its owner sends (00428). */
+  youSend: "You send them, from your own inbox",
   mailboxesMax: `Up to ${REACH_OUT_MAILBOXES_MAX} mailboxes, or every connected one.`,
   connectGoogle: "Connect Google",
   connectMicrosoft: "Connect Microsoft",
@@ -40222,14 +40798,14 @@ function toBookingReportVM(dto) {
       rest: ""
     };
   const pct2 = Math.round(dto.booked / dto.asked * 100);
-  const words3 = `of the people who wrote or called in the last ${plural(dto.days, "day")} have an appointment on the calendar`;
+  const words4 = `of the people who wrote or called in the last ${plural(dto.days, "day")} have an appointment on the calendar`;
   const unbooked = dto.asked - dto.booked;
   return {
     present: true,
     calendar: "ok",
     headline: `${dto.booked} of ${dto.asked} booked`,
-    sub: `${pct2}% ${words3}`,
-    words: words3,
+    sub: `${pct2}% ${words4}`,
+    words: words4,
     pct: pct2,
     asked: dto.asked,
     booked: dto.booked,
@@ -40765,7 +41341,7 @@ var METRIC_WORDS = {
 var metricWordsOf = (metric) => METRIC_WORDS[metric];
 
 // src/reports/report-mix.ts
-var ownWord = (words3, key) => Object.hasOwn(words3, key) ? words3[key] : void 0;
+var ownWord = (words4, key) => Object.hasOwn(words4, key) ? words4[key] : void 0;
 function rankedEntries(counts, labelOf2) {
   return Object.entries(counts).filter(([, n]) => n > 0).map(([key, n]) => [key, labelOf2(key), n]).sort((a, b) => b[2] - a[2] || (a[0] < b[0] ? -1 : 1));
 }
@@ -40850,7 +41426,7 @@ var callbacksMeta = (callbacks) => callbacks === 0 ? "no call-back is waiting" :
 var refusalWords = (key) => ownWord(HELD_REASONS, key) ?? key.replace(/_/g, " ");
 function heldBackMeta(byReason) {
   const top = rankedEntries(byReason, refusalWords).slice(0, 2);
-  return top.length > 0 ? top.map(([, words3, n]) => `${words3} ${n}`).join(" \xB7 ") : "none were held at the door in this period";
+  return top.length > 0 ? top.map(([, words4, n]) => `${words4} ${n}`).join(" \xB7 ") : "none were held at the door in this period";
 }
 var heldBackEntries = (byReason) => rankedEntries(byReason, (key) => capitalize(refusalWords(key)));
 
@@ -41126,7 +41702,7 @@ function headWords(reached, days, book, priorHad) {
   const reachedWords = now.people === 0 ? HEAD_NOBODY : `${plural(now.people, "person", "people")} reached you, ${now.new} new${newBeforeWords(before, days, priorHad)}`;
   return `${reachedWords}${bookYesWords(book)}.`;
 }
-var happened = (parts2) => parts2.filter(([n]) => n > 0).map(([n, words3]) => `${n} ${words3}`).join(" \xB7 ");
+var happened = (parts2) => parts2.filter(([n]) => n > 0).map(([n, words4]) => `${n} ${words4}`).join(" \xB7 ");
 var reachedMeta = (people, fresh) => people === 0 ? "nobody wrote or called in this period" : `${fresh} new \xB7 ${people - fresh} you knew already`;
 var newMeta = (people, fresh) => fresh === 0 ? "nobody new" : `of the ${people} who reached you`;
 var yesesMeta = (by) => happened([
@@ -41140,13 +41716,13 @@ var stopsMeta = (by) => happened([
   [by.email_offers, "stopped email offers"]
 ]) || "nobody asked to stop in this period";
 var keptAsWords = (key) => capitalize(key.replace(/_/g, " "));
-function ranked(counts, words3) {
-  const order = Object.keys(words3);
+function ranked(counts, words4) {
+  const order = Object.keys(words4);
   const place = (key) => {
     const at3 = order.indexOf(key);
     return at3 === -1 ? order.length : at3;
   };
-  return rankedEntries(counts, (key) => ownWord(words3, key) ?? keptAsWords(key)).sort(
+  return rankedEntries(counts, (key) => ownWord(words4, key) ?? keptAsWords(key)).sort(
     (a, b) => b[2] - a[2] || place(a[0]) - place(b[0])
   );
 }
@@ -41816,29 +42392,29 @@ function angleRow(id, label, businesses, wroteBack) {
 }
 function anglesPart(dto, when) {
   const other = dto.other_angles;
-  const listed = dto.angles.map((a) => ({
+  const listed2 = dto.angles.map((a) => ({
     id: a.angle,
     label: a.angle,
     businesses: countedBusinesses(a),
     wroteBack: a.wrote_back
   }));
   if (other.written > 0)
-    listed.push({
+    listed2.push({
       id: "other",
       label: "Other angles",
       businesses: countedBusinesses(other),
       wroteBack: other.wrote_back
     });
-  if (listed.length === 0)
+  if (listed2.length === 0)
     return {
       rows: [],
       line: null,
       empty: `No email ${when.these} had an opening, so there is no angle to compare.`
     };
-  if (listed.some((a) => a.businesses === void 0)) return { rows: [], line: null, empty: NO_BUSINESSES };
+  if (listed2.some((a) => a.businesses === void 0)) return { rows: [], line: null, empty: NO_BUSINESSES };
   const unangled = dto.no_angle ? ` ${plural(dto.no_angle, "email")} had no opening, so no angle.` : "";
   return {
-    rows: listed.map((a) => angleRow(a.id, a.label, a.businesses ?? 0, a.wroteBack)),
+    rows: listed2.map((a) => angleRow(a.id, a.label, a.businesses ?? 0, a.wroteBack)),
     line: `The opening written for each business, and who answered, ${STANDS_NOW}.${unangled}`,
     empty: null
   };
@@ -41929,6 +42505,7 @@ function sourceLines(dto, nowMs) {
   ]);
 }
 function mailboxStateWords(d, nowMs, tz) {
+  if (d.yours) return "You send these";
   if (d.address === null || d.state === "removed") return "Since removed";
   if (d.state === "connected") return "Connected";
   if (d.state === "held") {
@@ -41943,16 +42520,30 @@ function mailboxCell(n, sent2, share2) {
   return shareSaid(share2(n, sent2), n, sent2) ?? DASH2;
 }
 function mailboxRows(dto, nowMs) {
-  return dto.mailboxes.map((d) => ({
-    id: d.address ?? "removed",
-    address: d.address ?? "A mailbox since removed",
-    state: mailboxStateWords(d, nowMs, dto.timezone),
-    held: d.state === "held",
-    sent: d.sent,
-    landed: mailboxCell(d.delivered, d.sent, pct),
-    bounced: mailboxCell(d.bounced, d.sent, tenthOf),
-    complained: mailboxCell(d.complained, d.sent, tenthOf)
-  }));
+  return dto.mailboxes.map(
+    (d) => d.yours ? (
+      // Sent from their own inbox (00428): a bounce or a complaint reaches them, never us, so no share is said.
+      {
+        id: "your-inbox",
+        address: "Your own inbox",
+        state: mailboxStateWords(d, nowMs, dto.timezone),
+        held: false,
+        sent: d.sent,
+        landed: DASH2,
+        bounced: DASH2,
+        complained: DASH2
+      }
+    ) : {
+      id: d.address ?? "removed",
+      address: d.address ?? "A mailbox since removed",
+      state: mailboxStateWords(d, nowMs, dto.timezone),
+      held: d.state === "held",
+      sent: d.sent,
+      landed: mailboxCell(d.delivered, d.sent, pct),
+      bounced: mailboxCell(d.bounced, d.sent, tenthOf),
+      complained: mailboxCell(d.complained, d.sent, tenthOf)
+    }
+  );
 }
 function periodLines(dto, when) {
   const handed = dto.totals.handed;
@@ -42046,8 +42637,8 @@ var stoppedLine = (failed, canceled2) => `${plural(failed, "run")} failed and ${
 var FAILED_WHY_EMPTY = "No sent message failed in this period.";
 var UNRECORDED_REASON = "Reason not recorded";
 function failedReasonWords(row2) {
-  const words3 = failureWordsOf(row2.channel, { code: row2.code ?? null, kind: row2.kind ?? null });
-  return words3 === null ? UNRECORDED_REASON : words3.replace(/\.$/, "");
+  const words4 = failureWordsOf(row2.channel, { code: row2.code ?? null, kind: row2.kind ?? null });
+  return words4 === null ? UNRECORDED_REASON : words4.replace(/\.$/, "");
 }
 var failedWhyLine = (total) => `${plural(total, "message")} failed after ${total === 1 ? "it was" : "they were"} sent, for the provider's own reason.`;
 var BY_MESSAGE_LINE = `A reply is counted only for messages sent more than ${REPLY_DAYS} ago, so each has had its time.`;
@@ -42367,22 +42958,22 @@ function runsLineOf(series) {
   const { moment: moment2, broadcast } = runsOf(series);
   return moment2 === null || broadcast === null ? null : runsLineWords(moment2, broadcast);
 }
-function waitPart(dist, words3) {
+function waitPart(dist, words4) {
   if (dist === null || !isCount(dist.n)) return noMix(null);
-  if (dist.n === 0) return noMix(words3.empty);
+  if (dist.n === 0) return noMix(words4.empty);
   const buckets = dist.buckets;
   const entries = [];
-  for (const [key, label] of words3.rows) {
+  for (const [key, label] of words4.rows) {
     const count2 = buckets[key];
     if (!isCount(count2)) return noMix(null);
     entries.push([key, label, count2]);
   }
   const median = typeof dist.median_s === "number" && Number.isFinite(dist.median_s) ? dist.median_s : null;
-  return { rows: barsOf2(entries), line: words3.line(dist.n, median), empty: null };
+  return { rows: barsOf2(entries), line: words4.line(dist.n, median), empty: null };
 }
 var FIRST_REPLY_WORDS = { rows: FIRST_REPLY_ROWS, empty: FIRST_REPLY_EMPTY, line: firstReplyLine };
 var APPROVAL_WORDS = { rows: APPROVAL_ROWS, empty: APPROVAL_EMPTY, line: approvalLine };
-var stuckValue = (n, capped) => capped ? `${n}+` : String(n);
+var stuckValue = (n, capped2) => capped2 ? `${n}+` : String(n);
 var stuckTone = (n, tone) => n > 0 ? { tone } : {};
 function stuckFiguresOf(stuck, tz, nowMs) {
   const { waiting, failed, replies, templates, number: number2 } = stuck;
@@ -42568,8 +43159,8 @@ function capabilityStatus(kind, i, nowMs = Date.now()) {
   const ready = blockers.length === 0;
   const activated = activationOf(i, kind);
   const live = ready && !!tested && !!activated;
-  const words3 = live ? `Active since ${agoWords(Date.parse(activated.at), nowMs)}.` : activated && !ready ? `Activated, but not ready: ${blockers[0].words}` : ready && tested ? `Tested (${tested.what} ${agoWords(Date.parse(tested.at), nowMs)}). Activate it to say it is yours.` : ready ? "Ready. Try it from your own phone, then activate it." : blockers[0].words;
-  return { kind, ready, blockers, tested, activated, live, words: words3 };
+  const words4 = live ? `Active since ${agoWords(Date.parse(activated.at), nowMs)}.` : activated && !ready ? `Activated, but not ready: ${blockers[0].words}` : ready && tested ? `Tested (${tested.what} ${agoWords(Date.parse(tested.at), nowMs)}). Activate it to say it is yours.` : ready ? "Ready. Try it from your own phone, then activate it." : blockers[0].words;
+  return { kind, ready, blockers, tested, activated, live, words: words4 };
 }
 
 // src/setup/first-run-route.ts
@@ -43612,7 +44203,7 @@ function serviceSuggestionsOf(type) {
   return SUGGESTIONS[SAME_AS[t] ?? t] ?? [];
 }
 function checkChipsOf(i) {
-  const listed = (Array.isArray(i.services) ? i.services : []).map((s) => s && typeof s.name === "string" ? s.name.trim() : "").filter(Boolean);
+  const listed2 = (Array.isArray(i.services) ? i.services : []).map((s) => s && typeof s.name === "string" ? s.name.trim() : "").filter(Boolean);
   const chosen = (Array.isArray(i.languages) ? i.languages : []).filter((l) => typeof l === "string" && l.trim() !== "").map((l) => l.trim());
   const has3 = (list2, name) => list2.some((x) => sameListed(x, name));
   const besides = chosen.filter((l, k) => !has3(COMMON_LANGUAGES, l) && !has3(chosen.slice(0, k), l));
@@ -43620,8 +44211,8 @@ function checkChipsOf(i) {
   return {
     services: set(
       "services",
-      serviceSuggestionsOf(i.type).map((name) => ({ name, on: has3(listed, name) })),
-      listed.length
+      serviceSuggestionsOf(i.type).map((name) => ({ name, on: has3(listed2, name) })),
+      listed2.length
     ),
     languages: set(
       "languages",
@@ -43650,7 +44241,7 @@ var FIRST_RUN_LIVE_WORDS = {
   knows: "Knows",
   knowsNothing: "Only your name so far",
   change: "Change",
-  greeting: (words3) => `Every caller hears \u201C${words3}\u201D`,
+  greeting: (words4) => `Every caller hears \u201C${words4}\u201D`,
   finishNote: "We'll email you a copy of this.",
   /** The "you're live" email (canvas C2, decision 4): sent once, on the workspace's first activation of its calls. */
   emailSubject: (business) => business ? `Your receptionist is answering ${business}'s calls` : "Your receptionist is answering your calls",
@@ -44047,17 +44638,17 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
 }
 function phoneStepOf(input) {
   const { dto, vm, choice } = input;
-  const { way, forwarded, listed, number: number2, area } = numbersOf(dto, choice);
+  const { way, forwarded, listed: listed2, number: number2, area } = numbersOf(dto, choice);
   const billing = dto.billing;
   const ownLine = dto.lines?.rows.find((l) => l.voice_state !== "none") ?? null;
   const lineRow2 = vm.rows.find((r2) => r2.id === "line") ?? null;
   const pick = choice?.pick ?? null;
   const base = {
     way,
-    ways: waysOf(number2, listed),
+    ways: waysOf(number2, listed2),
     number: number2,
-    listed,
-    box: formatPhoneDisplay(listed) ?? "",
+    listed: listed2,
+    box: formatPhoneDisplay(listed2) ?? "",
     area
   };
   const ready = readyOf2(choice, forwarded);
@@ -44081,19 +44672,19 @@ function phoneStepOf(input) {
 function numbersOf(dto, choice) {
   const way = choice?.way ?? "keep";
   const forwarded = way !== "new";
-  const listed = normalizePhone(dto.google?.phone ?? null);
+  const listed2 = normalizePhone(dto.google?.phone ?? null);
   const typed = normalizePhone(choice?.number ?? null);
-  const number2 = choice && choice.number !== null ? typed : listed;
-  const area = areaCodeOf(forwarded ? number2 : null) ?? areaCodeOf(listed);
-  return { way, forwarded, listed, number: number2, area };
+  const number2 = choice && choice.number !== null ? typed : listed2;
+  const area = areaCodeOf(forwarded ? number2 : null) ?? areaCodeOf(listed2);
+  return { way, forwarded, listed: listed2, number: number2, area };
 }
-function waysOf(number2, listed) {
+function waysOf(number2, listed2) {
   const W = FIRST_RUN_PHONE_WORDS;
   return [
     {
       key: "keep",
       title: W.keepTitle(formatPhoneDisplay(number2)),
-      sentence: number2 && number2 === listed ? W.keepListed : W.keepTyped,
+      sentence: number2 && number2 === listed2 ? W.keepListed : W.keepTyped,
       recommended: W.recommended
     },
     { key: "new", title: W.newTitle, sentence: W.newSentence, recommended: null },
@@ -45723,6 +46314,8 @@ var SCHEMA_SETS = {
   "lead_suppressions.what": ["email_opt_out", "customer", "erased", "said_no"],
   "leads.closed_reason": ["said_no", "not_a_fit", "customer", "stale", "search_removed"],
   "leads.email_state": ["none", "checking", "ok", "catch_all", "unknown", "invalid"],
+  "leads.kind": ["place", "company"],
+  "leads.source": ["local_businesses", "people_at_companies", "import"],
   "leads.stage": ["ready", "nurture", "converted", "archived"],
   "lines.forwarding_state": ["none", "instructed", "verified"],
   "lines.kind": ["chanlytics", "hosted", "ported", "forwarded"],
@@ -45835,11 +46428,21 @@ var SCHEMA_SETS = {
   "policies.subject_type": ["segment", "contact"],
   "provider_events.provider": ["meta", "twilio", "retell", "resend", "stripe"],
   "push_devices.platform": ["ios", "android"],
-  "reach_out_replies.claim": ["person", "automated", "auto_reply"],
+  "reach_out_replies.claim": ["person", "automated", "auto_reply", "owner"],
   "reach_out_replies.draft_state": ["none", "waiting", "written", "not_written"],
   "reach_out_replies.intent": ["interested", "question", "not_now", "no", "wrong_person", "away", "other"],
   "reach_out_replies.unread": ["no_model", "may_not_spend", "day_spent", "model_failed"],
-  "reach_out_sends.state": ["planned", "held", "claimed", "queued", "sent", "skipped", "failed", "handed"],
+  "reach_out_sends.state": [
+    "planned",
+    "held",
+    "claimed",
+    "queued",
+    "drafted",
+    "sent",
+    "skipped",
+    "failed",
+    "handed"
+  ],
   "sending_domain_days.state": ["verified", "held"],
   "sending_domains.dmarc": ["found", "missing"],
   "sending_domains.held_why": ["verification", "dmarc", "bounces", "complaint", "provider", "unsubscribes"],
@@ -46020,6 +46623,7 @@ var ROUTE_KEYS = [
   "POST lead-searches/[id]/undo",
   "POST lead-searches/chosen",
   "POST lead-searches/import",
+  "POST lead-searches/people",
   "POST leads/[id]/draft",
   "POST leads/[id]/exclude",
   "POST leads/[id]/keep",
@@ -46065,10 +46669,12 @@ var ROUTE_KEYS = [
   "POST playbooks/[id]/run",
   "POST reach-out-replies/[id]/undo",
   "POST reach-out-sends/[id]/decide",
+  "POST reach-out-sends/[id]/said",
   "POST reach-outs",
   "POST reach-outs/[id]/leads",
   "POST reach-outs/[id]/leads/check",
   "POST reach-outs/[id]/leads/leave",
+  "POST reach-outs/leads/[id]/said",
   "POST reach-outs/leads/[id]/stop",
   "POST reach-outs/preview",
   "POST segments",
@@ -46247,7 +46853,7 @@ function routePrefetchScript() {
 }
 
 // src/shell/vitals.ts
-import * as z19 from "zod/mini";
+import * as z20 from "zod/mini";
 var PAGE_VITALS = ["LCP", "INP", "CLS", "FCP", "TTFB"];
 var PAGE_SPEED = ["READY", "SETTLED"];
 var PAGE_METRICS = [...PAGE_VITALS, ...PAGE_SPEED];
@@ -46273,18 +46879,18 @@ var PAGE_BUILD = /^[0-9a-z]{3,40}$/;
 var VITAL_CEILING = 10 * MIN_MS;
 var PAGE_VITALS_PER_BEACON = 100;
 var DETAIL_WORD = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,79}$/;
-var detailWord = () => z19.optional(z19.string().check(z19.regex(DETAIL_WORD)));
-var detailMs = () => z19.optional(z19.number().check(z19.minimum(0), z19.maximum(VITAL_CEILING)));
-var PageVitalDetail = z19.object({
+var detailWord = () => z20.optional(z20.string().check(z20.regex(DETAIL_WORD)));
+var detailMs = () => z20.optional(z20.number().check(z20.minimum(0), z20.maximum(VITAL_CEILING)));
+var PageVitalDetail = z20.object({
   wait: detailWord(),
   wait_ms: detailMs(),
   server_ms: detailMs(),
   db_ms: detailMs(),
-  db_n: z19.optional(z19.int().check(z19.minimum(0), z19.maximum(1e4))),
+  db_n: z20.optional(z20.int().check(z20.minimum(0), z20.maximum(1e4))),
   chunk_ms: detailMs(),
   render_ms: detailMs(),
   el: detailWord(),
-  type: z19.optional(z19.enum(["pointer", "keyboard"])),
+  type: z20.optional(z20.enum(["pointer", "keyboard"])),
   input_ms: detailMs(),
   processing_ms: detailMs(),
   presentation_ms: detailMs(),
@@ -46293,19 +46899,19 @@ var PageVitalDetail = z19.object({
   load_delay_ms: detailMs(),
   load_ms: detailMs(),
   render_delay_ms: detailMs(),
-  shift: z19.optional(z19.number().check(z19.minimum(0), z19.maximum(100))),
-  state: z19.optional(z19.enum(["loading", "dom-interactive", "dom-content-loaded", "complete"])),
+  shift: z20.optional(z20.number().check(z20.minimum(0), z20.maximum(100))),
+  state: z20.optional(z20.enum(["loading", "dom-interactive", "dom-content-loaded", "complete"])),
   phase: detailWord()
 });
-var PageVitalReport = z19.object({
-  id: z19.string().check(z19.regex(VITAL_ID, { error: "A report needs the browser's id." })),
-  name: z19.enum(PAGE_METRICS, { error: "A report names one of the seven." }),
-  value: z19.number().check(z19.minimum(0), z19.maximum(VITAL_CEILING)),
-  page: z19.optional(z19.string().check(z19.regex(PAGE_NAME))),
-  part: z19.optional(z19.string().check(z19.regex(PAGE_NAME))),
-  from: z19.optional(z19.string().check(z19.regex(PAGE_NAME))),
-  warm: z19.optional(z19.boolean()),
-  detail: z19.optional(PageVitalDetail)
+var PageVitalReport = z20.object({
+  id: z20.string().check(z20.regex(VITAL_ID, { error: "A report needs the browser's id." })),
+  name: z20.enum(PAGE_METRICS, { error: "A report names one of the seven." }),
+  value: z20.number().check(z20.minimum(0), z20.maximum(VITAL_CEILING)),
+  page: z20.optional(z20.string().check(z20.regex(PAGE_NAME))),
+  part: z20.optional(z20.string().check(z20.regex(PAGE_NAME))),
+  from: z20.optional(z20.string().check(z20.regex(PAGE_NAME))),
+  warm: z20.optional(z20.boolean()),
+  detail: z20.optional(PageVitalDetail)
 });
 var PEOPLE_SCOPES = [
   [/^leads(:|$)/, "leads"],
@@ -46417,12 +47023,12 @@ function pageVitalsWords(rows2) {
 }
 
 // src/shell/vitals-schema.ts
-import { z as z20 } from "zod";
-var PageVitalsInput = z20.object({
-  page: z20.string().regex(PAGE_NAME, { error: "A page's name is a word in lower case." }),
-  device: z20.enum(PAGE_DEVICES).optional(),
-  build: z20.string().regex(PAGE_BUILD, { error: "A build is its sha, or dev." }).optional(),
-  vitals: z20.array(PageVitalReport).min(1).max(PAGE_VITALS_PER_BEACON)
+import { z as z21 } from "zod";
+var PageVitalsInput = z21.object({
+  page: z21.string().regex(PAGE_NAME, { error: "A page's name is a word in lower case." }),
+  device: z21.enum(PAGE_DEVICES).optional(),
+  build: z21.string().regex(PAGE_BUILD, { error: "A build is its sha, or dev." }).optional(),
+  vitals: z21.array(PageVitalReport).min(1).max(PAGE_VITALS_PER_BEACON)
 });
 
 // src/shell/page-speed.ts
@@ -46633,17 +47239,17 @@ function clientErrorOf(boundary, error, page2, digest, workspace) {
 }
 
 // src/shell/client-error-schema.ts
-import { z as z21 } from "zod";
-var ClientErrorInput = z21.object({
-  boundary: z21.enum(CLIENT_ERROR_BOUNDARIES, { error: "Say which boundary caught it." }),
-  page: z21.string().regex(PAGE).max(CLIENT_ERROR_LIMITS.page).nullable(),
-  name: z21.string().max(CLIENT_ERROR_LIMITS.name),
-  message: z21.string().max(CLIENT_ERROR_LIMITS.message),
-  stack: z21.string().max(CLIENT_ERROR_LIMITS.stack).nullable(),
+import { z as z22 } from "zod";
+var ClientErrorInput = z22.object({
+  boundary: z22.enum(CLIENT_ERROR_BOUNDARIES, { error: "Say which boundary caught it." }),
+  page: z22.string().regex(PAGE).max(CLIENT_ERROR_LIMITS.page).nullable(),
+  name: z22.string().max(CLIENT_ERROR_LIMITS.name),
+  message: z22.string().max(CLIENT_ERROR_LIMITS.message),
+  stack: z22.string().max(CLIENT_ERROR_LIMITS.stack).nullable(),
   /** Next's digest for a server component's error: the key to its server-side line. */
-  digest: z21.string().max(CLIENT_ERROR_LIMITS.digest).nullable(),
+  digest: z22.string().max(CLIENT_ERROR_LIMITS.digest).nullable(),
   /** The workspace the tab held, when it held one: the auth pages and the root boundary may hold none. */
-  workspace: z21.string().regex(WORKSPACE).max(CLIENT_ERROR_LIMITS.workspace).nullable()
+  workspace: z22.string().regex(WORKSPACE).max(CLIENT_ERROR_LIMITS.workspace).nullable()
 });
 
 // src/templates/message-version-slots.ts
@@ -46723,14 +47329,14 @@ function namedRefusal(text, set) {
   const name = slotLabel(set, extra);
   return set.keys.length === 0 ? `This message fills no values, so ${name} has nothing to take.` : `${name} is not one of this message's values: it has ${namesJoined(set.keys.map((k) => slotLabel(set, k)))}.`;
 }
-function namedProblem(check, words3, set) {
+function namedProblem(check, words4, set) {
   if (check.ok) return null;
   if (set.kind === "named") return check.error;
-  const subject = words3.subject ?? "";
+  const subject = words4.subject ?? "";
   const count2 = set.keys.length;
-  const theirs2 = versionSlotsRefusal(subject, count2) ?? versionSlotsRefusal(words3.body, count2);
+  const theirs2 = versionSlotsRefusal(subject, count2) ?? versionSlotsRefusal(words4.body, count2);
   if (theirs2 === null || theirs2 !== check.error) return check.error;
-  return namedRefusal(subject, set) ?? namedRefusal(words3.body, set) ?? check.error;
+  return namedRefusal(subject, set) ?? namedRefusal(words4.body, set) ?? check.error;
 }
 
 // src/templates/template-preview.ts
@@ -46766,8 +47372,8 @@ function templatePreviewValues(t, own = {}) {
     const at3 = typeof v?.position === "number" && v.position >= 1 ? v.position - 1 : i;
     const kind = kinds[i];
     const label = labels[i] && !/^Value [0-9]+$/.test(labels[i]) ? labels[i] : OWN_SLOT_LABEL.get(kind) ?? `Value ${at3 + 1}`;
-    const words3 = slotWords(kind, label, typeof v?.example === "string" && v.example ? v.example : null, own);
-    if (words3 !== null) values[at3] = words3;
+    const words4 = slotWords(kind, label, typeof v?.example === "string" && v.example ? v.example : null, own);
+    if (words4 !== null) values[at3] = words4;
   });
   return values;
 }
@@ -47093,7 +47699,7 @@ function cameIn(vm) {
 }
 var runSentence = (r2) => [
   bold(r2.label),
-  plain(` is ${RUN_WAITING_WORDS.toLowerCase()}: ${r2.sentence}`)
+  plain(` is ${r2.waits ?? RUN_WAITING_WORDS.toLowerCase()}: ${r2.sentence}`)
 ];
 function todayBriefWords(vm, day, runs) {
   const dayWords3 = daySentence(day);
@@ -47599,8 +48205,8 @@ var NO_IDS = /* @__PURE__ */ new Set();
 function keptUnreadOf(dto, seenMs = 0, settled = NO_IDS) {
   if (!dto) return 0;
   const seen = Math.max(seenMs, (dto.seen_at ? Date.parse(dto.seen_at) : 0) || 0);
-  const listed = dto.notifications.filter((n) => !settled.has(n.id));
-  return unreadFor(listed, seen > 0 ? new Date(seen).toISOString() : null, marksOf({ ...dto, notifications: listed })) + olderUnreadOf(dto, seenMs);
+  const listed2 = dto.notifications.filter((n) => !settled.has(n.id));
+  return unreadFor(listed2, seen > 0 ? new Date(seen).toISOString() : null, marksOf({ ...dto, notifications: listed2 })) + olderUnreadOf(dto, seenMs);
 }
 var isForReader = (row2, userId) => row2.recipient_user_id === null || row2.recipient_user_id === userId;
 function firstLine(body, max = 160) {
@@ -49064,12 +49670,12 @@ function sentenceFor(r2, verdict, nowMs) {
       if (!THEIRS_TO_FIX.includes(r2.sms_state ?? "") && mode === "stripe") {
         return whyCannotSpend(mode, status) ?? "Something about their billing needs them.";
       }
-      const words3 = textingWords({
+      const words4 = textingWords({
         sms_state: r2.sms_state ?? "none",
         reg_mock: r2.reg_mock ?? false,
         reg_sole_prop: r2.reg_sole_prop ?? false
       }).sentence;
-      return r2.line_error ? `${words3} \u2014 ${r2.line_error}` : words3;
+      return r2.line_error ? `${words4} \u2014 ${r2.line_error}` : words4;
     }
     case "quiet":
       return quietFor === null ? "Answering, and no customer has ever reached them." : `Answering, and no customer has reached them in ${quietFor} days.`;
@@ -49531,9 +50137,9 @@ var REVERSED_WORDS = {
 };
 function partnerEventBits(kind, p) {
   const text = (k) => typeof p[k] === "string" && p[k] ? p[k] : null;
-  const known = (words3, k) => {
+  const known = (words4, k) => {
     const said = text(k);
-    const word = said !== null && Object.hasOwn(words3, said) ? words3[said] ?? null : null;
+    const word = said !== null && Object.hasOwn(words4, said) ? words4[said] ?? null : null;
     return word === null ? [] : [word];
   };
   switch (kind) {
@@ -49922,7 +50528,7 @@ var joinBits = (base, bits2) => {
   const said = bits2.filter((b) => !!b);
   return said.length ? `${base} \xB7 ${said.join(" \xB7 ")}` : base;
 };
-var wordOf = (words3, key) => key !== null && Object.hasOwn(words3, key) ? words3[key] ?? null : null;
+var wordOf = (words4, key) => key !== null && Object.hasOwn(words4, key) ? words4[key] ?? null : null;
 function leadStageWords(p, base) {
   const n = numberAt(p, "count");
   const head = p.bulk === true && n !== null ? `${plural(n, "lead")} moved` : base;
@@ -50190,11 +50796,11 @@ function isActivityNoise(kind) {
 }
 
 // src/workspace/signup-schema.ts
-import { z as z22 } from "zod";
-var InviteCodeSchema = z22.string().trim().max(80);
-var SignupSchema = z22.object({
-  name: z22.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z22.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+import { z as z23 } from "zod";
+var InviteCodeSchema = z23.string().trim().max(80);
+var SignupSchema = z23.object({
+  name: z23.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z23.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -50208,17 +50814,17 @@ var SignupSchema = z22.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z22.string().max(200).optional(),
+  password: z23.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z22.string().trim().min(1).max(64).optional(),
+  timezone: z23.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema.optional()
 }).strict();
-var PendingWorkspaceSchema = z22.object({
-  name: z22.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z23.object({
+  name: z23.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z22.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z23.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 function pendingWorkspaceOf(metadata) {
   if (!metadata || typeof metadata !== "object") return null;
@@ -50271,38 +50877,38 @@ var PASSWORD_WORDS = {
 };
 
 // src/workspace/partner-schema.ts
-import { z as z23 } from "zod";
-var PartnerBecomeSchema = z23.object({
-  code: z23.string().trim().min(1).max(64),
-  terms: z23.literal(true, { message: "The terms have to be accepted." })
+import { z as z24 } from "zod";
+var PartnerBecomeSchema = z24.object({
+  code: z24.string().trim().min(1).max(64),
+  terms: z24.literal(true, { message: "The terms have to be accepted." })
 }).strict();
-var PartnerLettersSchema = z23.object({ letters: z23.boolean() }).strict();
-var letterCents = z23.coerce.number();
-var letterSum = z23.object({ currency: z23.string(), cents: letterCents });
-var PartnerLetterNewsSchema = z23.object({
+var PartnerLettersSchema = z24.object({ letters: z24.boolean() }).strict();
+var letterCents = z24.coerce.number();
+var letterSum = z24.object({ currency: z24.string(), cents: letterCents });
+var PartnerLetterNewsSchema = z24.object({
   /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
-  written: z23.array(z23.object({ kind: z23.string(), currency: z23.string(), count: z23.coerce.number(), cents: letterCents })).default([]),
+  written: z24.array(z24.object({ kind: z24.string(), currency: z24.string(), count: z24.coerce.number(), cents: letterCents })).default([]),
   /** Rows written before the last letter that became payable since. */
-  matured: z23.array(letterSum).default([]),
+  matured: z24.array(letterSum).default([]),
   /** Shares written before that will not be paid: their workspace was disqualified. */
-  voided: z23.array(letterSum).default([]),
-  paid: z23.array(z23.object({ currency: z23.string(), cents: letterCents, reference: z23.string(), sent_at: z23.string() })).default([]),
+  voided: z24.array(letterSum).default([]),
+  paid: z24.array(z24.object({ currency: z24.string(), cents: letterCents, reference: z24.string(), sent_at: z24.string() })).default([]),
   /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
-  standing: z23.array(z23.object({ workspace: z23.string().nullable(), standing: z23.string(), why: z23.string().nullable() })).default([]),
+  standing: z24.array(z24.object({ workspace: z24.string().nullable(), standing: z24.string(), why: z24.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
-  brought: z23.array(z23.string().nullable()).default([]),
+  brought: z24.array(z24.string().nullable()).default([]),
   /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
-  accepted: z23.array(z23.string().nullable()).default([]),
-  declined: z23.array(z23.string().nullable()).default([]),
+  accepted: z24.array(z24.string().nullable()).default([]),
+  declined: z24.array(z24.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
-  status: z23.object({ status: z23.string(), why: z23.string().nullable() }).nullable().default(null),
-  balance: z23.array(
-    z23.object({
-      currency: z23.string(),
+  status: z24.object({ status: z24.string(), why: z24.string().nullable() }).nullable().default(null),
+  balance: z24.array(
+    z24.object({
+      currency: z24.string(),
       held: letterCents,
       payable: letterCents,
       paid: letterCents,
-      next_payable_at: z23.string().nullable()
+      next_payable_at: z24.string().nullable()
     })
   ).default([])
 });
@@ -50385,14 +50991,14 @@ function handoverInviteEmail(h) {
 }
 
 // src/workspace/handover-schema.ts
-import { z as z24 } from "zod";
-var ownerEmail = z24.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
-var HandoverCreateSchema = z24.object({
-  name: z24.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
-  timezone: z24.string().trim().max(64).nullish(),
+import { z as z25 } from "zod";
+var ownerEmail = z25.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
+var HandoverCreateSchema = z25.object({
+  name: z25.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
+  timezone: z25.string().trim().max(64).nullish(),
   email: ownerEmail
 }).strict();
-var HandoverResendSchema = z24.object({ email: ownerEmail }).strict();
+var HandoverResendSchema = z25.object({ email: ownerEmail }).strict();
 
 // src/workspace/second-factor.ts
 function factorStepNeeded(aal) {
@@ -50467,10 +51073,10 @@ function secondFactorResetWords(code2, removed) {
 }
 
 // src/workspace/second-factor-schema.ts
-import { z as z25 } from "zod";
-var PartnerSecondFactorResetSchema = z25.object({
-  partner_id: z25.string().uuid("That partner does not exist."),
-  why: z25.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
+import { z as z26 } from "zod";
+var PartnerSecondFactorResetSchema = z26.object({
+  partner_id: z26.string().uuid("That partner does not exist."),
+  why: z26.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
 }).strict();
 
 // src/workspace/partner-invite.ts
@@ -50567,9 +51173,9 @@ function partnerInviteEmail(i) {
 }
 
 // src/workspace/partner-invite-schema.ts
-import { z as z26 } from "zod";
-var PartnerInviteSchema = z26.object({
-  code: z26.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
+import { z as z27 } from "zod";
+var PartnerInviteSchema = z27.object({
+  code: z27.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
 }).strict();
 
 // src/workspace/activation.ts
@@ -51151,15 +51757,15 @@ var ACTIVITY_FOLD_KINDS = Object.keys(FOLD_WORDS);
 var FOLD_MIN = 2;
 var handOf2 = (r2) => r2.actor_user_id ?? r2.actor_type ?? "";
 function lineKey(r2, day) {
-  const words3 = FOLD_WORDS[r2.kind];
-  if (!words3) return `@${r2.id}`;
-  return [day, r2.kind, handOf2(r2), words3.split ? words3.split(r2) : ""].join("|");
+  const words4 = FOLD_WORDS[r2.kind];
+  if (!words4) return `@${r2.id}`;
+  return [day, r2.kind, handOf2(r2), words4.split ? words4.split(r2) : ""].join("|");
 }
-function foldTitle(members, words3) {
+function foldTitle(members, words4) {
   const newest = members[0];
   if (!newest) return "";
-  const n = words3.counts === "rows" ? members.length : new Set(members.map((m) => m.subject_id ? `${m.subject_type ?? ""}:${m.subject_id}` : `@${m.id}`)).size;
-  return n === 1 ? `${activityKindWords(newest.kind)} \xB7 ${members.length} times` : words3.many(n, newest);
+  const n = words4.counts === "rows" ? members.length : new Set(members.map((m) => m.subject_id ? `${m.subject_type ?? ""}:${m.subject_id}` : `@${m.id}`)).size;
+  return n === 1 ? `${activityKindWords(newest.kind)} \xB7 ${members.length} times` : words4.many(n, newest);
 }
 function activityLines(list2, dayOf2, fold2 = true) {
   const order = [];
@@ -51178,8 +51784,8 @@ function activityLines(list2, dayOf2, fold2 = true) {
     const members = byKey.get(k) ?? [];
     const newest = members[0];
     if (!newest) continue;
-    const words3 = FOLD_WORDS[newest.kind];
-    if (!words3 || members.length < FOLD_MIN) {
+    const words4 = FOLD_WORDS[newest.kind];
+    if (!words4 || members.length < FOLD_MIN) {
       for (const r2 of members) lines.push({ key: r2.id, row: r2, count: 1, title: null, members: [r2], since: null });
       continue;
     }
@@ -51187,7 +51793,7 @@ function activityLines(list2, dayOf2, fold2 = true) {
       key: k,
       row: newest,
       count: members.length,
-      title: foldTitle(members, words3),
+      title: foldTitle(members, words4),
       members,
       since: members[members.length - 1]?.at ?? null
     });
@@ -51449,6 +52055,7 @@ export {
   COMBINE_WORDS,
   COMMON_LANGUAGES,
   COMPANY_TYPES,
+  COMPOSE_URL_MAX,
   CONFIDENCE_STEPS,
   CONNECT,
   CONNECTION_GROUP_WORDS,
@@ -51651,6 +52258,7 @@ export {
   LEAD_CLASS_WORDS,
   LEAD_CLOSED_REASONS,
   LEAD_CLOSED_WORDS,
+  LEAD_COMPANY_WORDS,
   LEAD_CONSENT_REFUSAL,
   LEAD_CONTACT_STANDARD_WORDS,
   LEAD_COUNTER_KINDS,
@@ -51671,6 +52279,7 @@ export {
   LEAD_IMPORT_WORDS,
   LEAD_JUDGE_BATCH,
   LEAD_JUNK_EMAIL_DOMAINS,
+  LEAD_KINDS,
   LEAD_KIND_KEY,
   LEAD_LEFT_OUT_WORD,
   LEAD_LISTS,
@@ -51698,6 +52307,7 @@ export {
   LEAD_OPERATION_KINDS,
   LEAD_OUTSIDE_US_LINE,
   LEAD_PAUSED_TITLE,
+  LEAD_PEOPLE_MAX,
   LEAD_PILE_WORDS,
   LEAD_PLACEHOLDER_LOCALS,
   LEAD_PLATFORM_DAY_CAP_USD,
@@ -51715,7 +52325,9 @@ export {
   LEAD_REVIEW_GROUP_WHY,
   LEAD_REVIEW_GROUP_WORDS,
   LEAD_REVIEW_WORD,
+  LEAD_ROLES,
   LEAD_ROLE_LOCALS,
+  LEAD_ROLE_WORDS,
   LEAD_ROUND_ANSWERS,
   LEAD_ROUND_ENDINGS,
   LEAD_ROUND_PURPOSES,
@@ -51726,6 +52338,7 @@ export {
   LEAD_SENT_QUESTION,
   LEAD_SLOT_WORDS,
   LEAD_SORTS,
+  LEAD_SOURCES,
   LEAD_SOURCE_WORD,
   LEAD_STAGES,
   LEAD_STAGE_WORDS,
@@ -51799,6 +52412,8 @@ export {
   LeadImportRowSchema,
   LeadImportSchema,
   LeadOneQuerySchema,
+  LeadPeoplePlanSchema,
+  LeadPeopleSearchSchema,
   LeadSearchPlanSchema,
   LeadStageInputSchema,
   LeadsBulkSchema,
@@ -51906,6 +52521,7 @@ export {
   OPT_OUT_REFUSAL,
   OUTCOME_UNKNOWN,
   OUTREACH_WAIT_REFUSALS,
+  OWNER_SAID_INTENTS,
   OWN_MESSAGE_REFUSALS,
   OWN_VERSION_CHANNELS,
   PACE_AFTER_YESES,
@@ -51950,11 +52566,20 @@ export {
   PAUSE_HOURS_DEFAULT,
   PAYMENT_HOLD_WORD,
   PENDING_WORKSPACE_KEY,
+  PEOPLE_CARD,
+  PEOPLE_COMPANY_SIZES,
+  PEOPLE_COUNT_MAX,
+  PEOPLE_FIND_WORDS,
+  PEOPLE_INDUSTRIES_MAX,
   PEOPLE_LISTS,
   PEOPLE_LIST_GROUPS,
   PEOPLE_RHYTHM_UNIT,
+  PEOPLE_SENIORITIES,
+  PEOPLE_SENIORITY_WORDS,
+  PEOPLE_STATES_MAX,
   PEOPLE_TAB,
   PEOPLE_TABS,
+  PEOPLE_TITLES_MAX,
   PERM_DOING,
   PERSON_ABOUT_WORDS,
   PERSON_ACT_WORDS,
@@ -52085,6 +52710,7 @@ export {
   REACH_OUT_COUNTRIES_REFUSED,
   REACH_OUT_DAY_ROUTE,
   REACH_OUT_DECISIONS,
+  REACH_OUT_DRAFTS_PER_DAY,
   REACH_OUT_EMAILED_WORDS,
   REACH_OUT_FIRST_WORDS,
   REACH_OUT_GAP_FIRST,
@@ -52102,6 +52728,8 @@ export {
   REACH_OUT_REPLY_DAYS,
   REACH_OUT_ROW_WORDS,
   REACH_OUT_RUN_REREAD_MS,
+  REACH_OUT_SAID_OUTCOMES,
+  REACH_OUT_SAID_WORDS,
   REACH_OUT_SEND_STATES,
   REACH_OUT_SHEET_PARTS,
   REACH_OUT_SHEET_WORDS,
@@ -52112,6 +52740,8 @@ export {
   REACH_OUT_STEPS_MAX,
   REACH_OUT_STOP_WORDS,
   REACH_OUT_SUBJECT_MAX,
+  REACH_OUT_TO_SEND_LABELS,
+  REACH_OUT_UNDO_WORDS,
   REACH_OUT_WHY_NOT,
   REACH_OUT_WHY_NOT_WORDS,
   REACH_OUT_WORDS_MAX,
@@ -52196,6 +52826,8 @@ export {
   ReachOutDecideSchema,
   ReachOutPreviewSchema,
   ReachOutRepliesQuerySchema,
+  ReachOutReplySaidSchema,
+  ReachOutSaidSchema,
   ReachOutStepSchema,
   RenameLeadSearchSchema,
   SAME_SITTING_MS,
@@ -52630,6 +53262,7 @@ export {
   companyTypeOf,
   compareTemplates,
   compareWords,
+  composeLinksOf,
   composeSystemPrompt,
   composerDays,
   connectModel,
@@ -53061,6 +53694,7 @@ export {
   languageWords,
   lastWordsOf,
   lastWroteOn,
+  leadAddresseeOf,
   leadAllowanceFact,
   leadAnd,
   leadAreaFrom,
@@ -53070,10 +53704,12 @@ export {
   leadCheckWord,
   leadChooseAnswerWords,
   leadChooseNameOf,
+  leadCompanyOf,
   leadDoorOf,
   leadDraftFooter,
   leadEndingLine,
   leadExclusionWord,
+  leadFactsOf,
   leadHoursShort,
   leadImportAnswerWords,
   leadImportColumnWords,
@@ -53105,6 +53741,7 @@ export {
   leadPeekMenu,
   leadPeopleIndex,
   leadPeopleOf,
+  leadPersonOf,
   leadPhoneState,
   leadPileOpen,
   leadPileProgressOf,
@@ -53129,6 +53766,8 @@ export {
   leadTintOf,
   leadTodayLine,
   leadUndoable,
+  leadUnitCount,
+  leadUnitOf,
   leadWeekBars,
   leadWeekSummary,
   leadWhere,
@@ -53183,6 +53822,7 @@ export {
   listRuleParts,
   listRuleWhy,
   listToken,
+  listTyped,
   listUnknownWords,
   listingFactsOf,
   listingLine,
@@ -53212,6 +53852,7 @@ export {
   mailboxSendsNow,
   mailboxWords,
   mailboxesFootWords,
+  mailtoOf,
   markOn,
   maskedEmail,
   matchColumns,
@@ -53369,6 +54010,7 @@ export {
   ownMessageRefusal,
   ownWordsOf,
   ownedDomainOf,
+  ownerPaceWords,
   paceWords,
   pageSpeedWords,
   pageTitle,
@@ -53432,10 +54074,15 @@ export {
   pendingCodeOf,
   pendingWorkspaceOf,
   peopleAggregates,
+  peopleAreaOf,
   peopleDtoOf,
+  peopleEstimateUsd,
   peopleFromItems,
   peopleListAction,
   peopleNowOf,
+  peoplePlanFrom,
+  peoplePlanOf,
+  peoplePlanSentence,
   peopleRoute,
   peopleVisitsOf,
   peopleWord,
@@ -53635,6 +54282,7 @@ export {
   reachOutRootOf,
   reachOutRowName,
   reachOutRules,
+  reachOutRunMoving,
   reachOutRunWordsOf,
   reachOutSavedWords,
   reachOutSetHandWords,
@@ -53746,6 +54394,7 @@ export {
   rightNowLine,
   roleAtLeast,
   roleGate,
+  roleOf,
   roleSays,
   roleTable,
   routeOfAddress,
@@ -53766,6 +54415,7 @@ export {
   runCountsOf,
   runDayPassed,
   runDaysAt,
+  runDraftedEmails,
   runDueNow,
   runHeldEmails,
   runReadingOf,
@@ -54005,6 +54655,8 @@ export {
   toReportVM,
   toReviewsReportVM,
   toRunReportVM,
+  toSendSaidWords,
+  toSendWordsOf,
   toSlotParts,
   toTodayVM,
   toVisitDto,
@@ -54055,6 +54707,8 @@ export {
   unsubscribePageWords,
   unsureHoursWords,
   usPhone,
+  usStateCode,
+  usStateName,
   usableDeviceTimezone,
   usageDollars,
   usageMonthOf,

@@ -10,7 +10,7 @@
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { REACH_OUT_PREVIEW_INDEX_MAX, type ReachOutHold } from "../packages/contracts.js";
-import { leadCountriesOf, reachOutAudience, reachOutRecord, type Database } from "../packages/db.js";
+import { leadCountriesOf, leadSlotsOf, reachOutAudience, reachOutRecord, type Database } from "../packages/db.js";
 import {
   askReachOutModel,
   checkBudget,
@@ -94,10 +94,12 @@ export async function previewOne(
   });
   const lead = leads[index];
   if (!lead) return none;
-  const [record, workspace, countries] = await Promise.all([
+  const [record, workspace, countries, slots] = await Promise.all([
     reachOutRecord(db, { tenantId: i.tenantId, searchId: i.searchId, leadId: lead.lead_id }),
     checkWorkspaceOf(db, i.tenantId),
     leadCountriesOf(db, [lead.lead_id]),
+    // A company's addressee, as the send fills the person slots from it (00429).
+    leadSlotsOf(db, i.tenantId, lead.lead_id),
   ]);
   if (!record) return none;
   const input = checkInputOf(record, i.words, workspace.opening, i.language, [], countries.get(lead.lead_id) ?? null);
@@ -113,7 +115,13 @@ export async function previewOne(
     contactId: randomUUID(),
     to: lead.email,
     words: i.words,
-    lead: { business_name: lead.business_name, city: lead.city },
+    lead: {
+      business_name: lead.business_name,
+      city: lead.city,
+      kind: slots?.kind ?? null,
+      facts: slots?.facts ?? null,
+      source: slots?.source ?? null,
+    },
     workspace: {
       businessName: workspace.businessName,
       address: workspace.address,

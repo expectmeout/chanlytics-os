@@ -14,6 +14,7 @@ import {
   reachOutStripOf,
   reachOutTimelineOf,
   PURPOSE_REFUSALS,
+  REACH_OUT_SAID_WORDS,
 } from "@chanlytics/contracts";
 
 const TZ = "America/Chicago";
@@ -268,7 +269,11 @@ test("a stopped lead says so and offers no stop; a no that may be undone offers 
     NOW,
     TZ,
   );
-  assert.deepEqual(no.undo, { label: "Read as no · undo", messageId: "m3" });
+  assert.deepEqual(no.undo, {
+    label: "Read as no · undo",
+    messageId: "m3",
+    done: "Undone: it no longer reads as a no.",
+  });
   const away = reachOutTimelineOf(
     story({
       readings: [
@@ -305,6 +310,64 @@ test("a stopped lead says so and offers no stop; a no that may be undone offers 
   assert.equal(bare.stop, null);
   assert.equal(bare.read, null);
   assert.equal(bare.label, "Reach out · Trainers · Austin");
+});
+
+test("a reach-out its owner sends: a draft is theirs to send, an email they sent says so, and what came back is theirs to say (00428)", () => {
+  const [first, nudge] = story().sends;
+  const mine = { ...first, host: null, from: null, said: true, email_status: "sent" };
+  // A draft handed to them: its line, and its door to the run it waits in.
+  const handed = reachOutTimelineOf(
+    story({ sends: [{ ...nudge, state: "drafted", run_id: "b9" }], readings: [] }),
+    NOW,
+    TZ,
+  );
+  assert.deepEqual(
+    handed.lines.map((l) => l.text),
+    ["A short nudge · handed to you to send"],
+  );
+  assert.deepEqual(handed.send, { label: "Send it", to: "broadcasts/run:b9" });
+  assert.equal(handed.said, null, "nothing has gone, so nothing came back");
+  // Sent from their own inbox: said so, and its answer lands there, so the owner says what it was.
+  const sent = reachOutTimelineOf(story({ sends: [mine], readings: [] }), NOW, TZ);
+  assert.equal(sent.lines[0].text, "Your email · from your inbox · angle: their rating · sent");
+  assert.deepEqual(sent.said, { label: "They wrote back…" });
+  assert.equal(sent.send, null);
+  // One from no mailbox that did not go on their word (before 00424) names no sender and asks them nothing.
+  const older = reachOutTimelineOf(story({ sends: [{ ...mine, said: undefined }], readings: [] }), NOW, TZ);
+  assert.equal(older.lines[0].text, "Your email · angle: their rating · sent");
+  assert.equal(older.said, null);
+  // What they said is a reading of its own, said as theirs; a no of theirs is undone in their words.
+  const reading = {
+    message_id: "n1",
+    read_at: "2026-09-27T15:00:00.000Z",
+    intent: "no",
+    claim: "owner",
+    summary: null,
+    undone: false,
+    until_at: null,
+    stops: true,
+    convert: false,
+    said_no: true,
+    can_undo: true,
+  };
+  const no = reachOutTimelineOf(story({ sends: [mine], readings: [reading] }), NOW, TZ);
+  assert.ok(no.lines.some((l) => l.text === "You said they wrote back · no"));
+  assert.deepEqual(no.undo, { label: "You said no · undo", messageId: "n1", done: "Undone: your no is taken back." });
+  assert.equal(no.said, null, "said once");
+  const page = reachOutPersonOf(story({ sends: [mine], readings: [reading] }), NOW, TZ);
+  assert.equal(page.emails.get("m1").sub, "Your email · angle: their rating · from your inbox · sent");
+  assert.match(page.readings.get("n1"), /^You said no · /);
+  // What the word did, said back: a not now names the day the plan brings them back, never one they did not name.
+  const back = (at) => ({ at, tz: TZ, nowMs: NOW });
+  assert.equal(
+    REACH_OUT_SAID_WORDS.done("Zilker Kettlebell Club", "not_now", back("2027-01-11T15:00:00.000Z")),
+    "Your reach-out stops for Zilker Kettlebell Club. They're back in Leads on Jan 11, 2027.",
+  );
+  assert.equal(
+    REACH_OUT_SAID_WORDS.done("Zilker Kettlebell Club", "interested", back(null)),
+    "Zilker Kettlebell Club is Talking now, and your reach-out stops for them.",
+  );
+  assert.equal(REACH_OUT_SAID_WORDS.note("not_now"), "You said they wrote back: not now.");
 });
 
 test("a person's page names the reach-out's emails, says how each reply was read, and where they were found", () => {

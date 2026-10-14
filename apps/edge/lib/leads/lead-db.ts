@@ -8,7 +8,13 @@
  * Cross-workspace: runs and rounds are read by the id their job names; tenant-keyed reads filter on tenant_id.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { addressesSuppressed, erasureDigests, workspaceMaySpend, type Database } from "../packages/db.js";
+import {
+  addressesSuppressed,
+  erasureDigests,
+  leadCompanyUpsert,
+  workspaceMaySpend,
+  type Database,
+} from "../packages/db.js";
 import {
   asContactId,
   asTenantId,
@@ -111,6 +117,8 @@ export function leadDb(db: Db): LeadDb {
         p_last: last,
       }),
     roundEnd: (roundId, ending: LeadRoundEnding) => bool("lead_round_end", { p_round_id: roundId, p_ending: ending }),
+    // A people run's companies (00429), through packages/db's door, before the run's own commit.
+    companyUpsert: (roundId, companies) => leadCompanyUpsert(db, roundId, companies),
     roundRejudge: (roundId, planVersion, places, judgment) =>
       json<RejudgeResult>("lead_round_rejudge", {
         p_round_id: roundId,

@@ -2449,6 +2449,31 @@ html.legacy-on .bc-run-line .bc-run-link {
   flex-wrap: wrap;
   gap: 6px 14px;
 }
+/* An email handed to its owner (00428, reach-out/to-send.tsx): who and what on a line, its doors into a mail client under
+   it, then the owner's word on it. A block, never the fixed line a person's is: its doors are many, and they wrap. */
+.ro-send {
+  display: grid;
+  gap: 6px;
+  padding: 10px 15px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-raised);
+}
+.ro-send:last-child {
+  border-bottom: 0;
+}
+.ro-send-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 12px;
+  min-width: 0;
+}
+.ro-send-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
 .bc-person-at {
   width: 52px;
   flex: none;

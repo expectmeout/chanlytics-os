@@ -23,7 +23,7 @@ import {
   type RecipientState,
   type RunAnswer,
 } from "@chanlytics/contracts";
-import { heldSendCounts, readAllRows, runCounts } from "@chanlytics/db";
+import { readAllRows, runCounts, runSendCounts } from "@chanlytics/db";
 import { log } from "@/server/log";
 import { reachOutRunOf } from "@/server/campaigns/reach-outs";
 import type { RouteContext } from "@/server/with-route";
@@ -424,9 +424,10 @@ export async function listBroadcasts(
 }
 
 /**
- * A going reach-out run says how many of its emails the check holds for its owner's say (`held`): the run's row, the bell's
- * held notice (contracts notice-closes.ts, which reads it as read once none is held) and Campaigns' chain row read it. A
- * count that cannot be read leaves `held` absent, logged, and the rows stand (the wiring's second audit,
+ * A going reach-out run says how many of its emails the check holds for its owner's say (`held`), and how many are handed
+ * to its owner to send from their inbox (`drafted`, 00428): the run's row, Today's (contracts runWaitsOnYou), the bell's
+ * held notice (contracts notice-closes.ts, which reads it as read once none is held) and Campaigns' chain row read them.
+ * Counts that cannot be read leave both absent, logged, and the rows stand (the wiring's second audit,
  * W-campaign-run-template-reachout-4).
  */
 async function withHeld(ctx: RouteContext, tenantId: string, rows: BroadcastDto[]): Promise<BroadcastDto[]> {
@@ -435,8 +436,12 @@ async function withHeld(ctx: RouteContext, tenantId: string, rows: BroadcastDto[
   );
   if (!going.length) return rows;
   try {
-    const held = await heldSendCounts(ctx.supabase, { tenantId, runIds: going.map((b) => b.id) });
-    return rows.map((b) => (held.has(b.id) ? { ...b, held: held.get(b.id) ?? 0 } : b));
+    const runIds = going.map((b) => b.id);
+    const [held, drafted] = await Promise.all([
+      runSendCounts(ctx.supabase, { tenantId, runIds, state: "held" }),
+      runSendCounts(ctx.supabase, { tenantId, runIds, state: "drafted" }),
+    ]);
+    return rows.map((b) => (held.has(b.id) ? { ...b, held: held.get(b.id) ?? 0, drafted: drafted.get(b.id) ?? 0 } : b));
   } catch (e) {
     log.error("broadcasts_held_read_failed", {
       tenant_id: tenantId,

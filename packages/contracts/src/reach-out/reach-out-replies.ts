@@ -29,6 +29,12 @@ import { draftExcerpt } from "./reach-out-reply-draft";
 export const REPLY_INTENTS = ["interested", "question", "not_now", "no", "wrong_person", "away", "other"] as const;
 export type ReplyIntent = (typeof REPLY_INTENTS)[number];
 export const isReplyIntent = (v: unknown): v is ReplyIntent => (REPLY_INTENTS as readonly unknown[]).includes(v);
+/**
+ * What an owner may say the business wrote back to an email they sent from their own inbox (00428): a person's reply,
+ * so never away (an automatic reply's) and never other (the model's word for mail it could not place).
+ */
+export const OWNER_SAID_INTENTS = ["interested", "question", "not_now", "no", "wrong_person"] as const;
+export type OwnerSaidIntent = (typeof OWNER_SAID_INTENTS)[number];
 
 /** An intent as the notice, the strip and the chip say it after "Wrote back · ". */
 export const REPLY_INTENT_WORDS: Record<ReplyIntent, string> = {
@@ -450,9 +456,11 @@ export function ownedDomainOf(
 
 /**
  * What the intake claimed the email is, from its headers (channels' classifyReceived); a report is never kept, so
- * never read. `automated` counts as writing back (00181) and is read as a person's.
+ * never read. `automated` counts as writing back (00181) and is read as a person's. `owner` is no email at all: what the
+ * business wrote back to an email its owner sent from their own inbox, as the owner says it on the lead (00428). It is
+ * read as a person's, tells nobody (the owner said it) and drafts nothing (there are no words to answer).
  */
-export type ReplyClaim = "person" | "automated" | "auto_reply";
+export type ReplyClaim = "person" | "automated" | "auto_reply" | "owner";
 
 export interface ReplyContext {
   claim: ReplyClaim;
@@ -570,6 +578,7 @@ function automaticPlan(r: ReplyReading, c: ReplyContext, today: string): Reading
 export function readingPlan(reading: ReplyReading | null, c: ReplyContext): ReadingPlan {
   const r = reading ?? UNREAD_READING;
   const automatic = c.claim === "auto_reply";
+  const said = c.claim === "owner";
   const today = zoneDayKey(c.receivedAt, c.tz);
   const ruled = automatic ? automaticPlan(r, c, today) : null;
   if (ruled) return ruled;
@@ -584,9 +593,10 @@ export function readingPlan(reading: ReplyReading | null, c: ReplyContext): Read
     stops: true,
     skipSends: "outreach_wrote_back",
     // A re-read tells what nobody was told before: a no, and anything an automatic reply's first reading told nobody of.
-    tell: !c.reread || r.intent === "no" || automatic,
+    // What the owner said is never told back to them.
+    tell: !said && (!c.reread || r.intent === "no" || automatic),
   };
-  const drafts = (d: "answer" | "thanks") => (c.reread ? null : d);
+  const drafts = (d: "answer" | "thanks") => (c.reread || said ? null : d);
   switch (r.intent) {
     case "interested":
     case "question":

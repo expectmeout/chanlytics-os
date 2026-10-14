@@ -9,9 +9,10 @@
  * "approve", and the role gate).
  */
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
-import type { LeadPeekVM, ReachOutLeadTimelineDto, ReachOutLeadsDto } from "@chanlytics/contracts";
+import type { LeadPeekVM, OwnerSaidIntent, ReachOutLeadTimelineDto, ReachOutLeadsDto } from "@chanlytics/contracts";
 import { replies } from "@/legacy-bridge/reach-out/replies";
 import { reachOuts } from "../../campaigns/reach-out/surface";
+import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { canDo, gate, navigate, refusalToast, useLegacyToast } from "../../legacy-verbs";
@@ -121,13 +122,80 @@ export const ReachOutLeadsStrip = ({ leads }: { leads: ReachOutLines | null }) =
   );
 };
 
-/** The peek's block (H9): a lead's story with the reach-out, and its doors. Nothing when no reach-out planned it. */
+type TimelineVM = ReturnType<typeof reachOuts.timelineOf>;
+
+/** An owner's doors on the peek (00428): Send it, to the run where a draft waits, and They wrote back…, which asks. */
+const RoOwnerDoors = ({
+  vm,
+  busy,
+  asking,
+  onAsk,
+}: {
+  vm: TimelineVM;
+  busy: boolean;
+  asking: boolean;
+  onAsk: () => void;
+}) => (
+  <>
+    {vm.send ? (
+      <Button size="sm" onClick={() => vm.send && navigate(vm.send.to)} data-testid="peek-reach-out-send">
+        {vm.send.label}
+      </Button>
+    ) : null}
+    {vm.said ? (
+      <Button
+        size="sm"
+        variant="quiet"
+        disabled={busy}
+        aria-expanded={asking}
+        onClick={onAsk}
+        data-testid="peek-reach-out-said"
+        {...gate("approve", "say what a business wrote back")}
+      >
+        {vm.said.label}
+      </Button>
+    ) : null}
+  </>
+);
+
+/** What did they say?: the five words an owner says a business's answer in (OWNER_SAID_INTENTS). */
+const RoSaidAsk = ({
+  business,
+  busy,
+  onSay,
+}: {
+  business: string;
+  busy: boolean;
+  onSay: (i: OwnerSaidIntent) => void;
+}) => {
+  const SW = reachOuts.words.REACH_OUT_SAID_WORDS;
+  return (
+    <div role="group" aria-label={SW.ask(business)} data-testid="peek-reach-out-said-ask">
+      <p className="pk-alt-why">{SW.ask(business)}</p>
+      {/* The answers wrap on a line of their own (campaigns.css .ro-send-acts, the To send row's). */}
+      <div className="ro-send-acts">
+        {reachOuts.words.OWNER_SAID_INTENTS.map((i) => (
+          <Button key={i} size="sm" disabled={busy} onClick={() => onSay(i)} data-testid={`peek-reach-out-said-${i}`}>
+            {SW.intents[i]}
+          </Button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/**
+ * The peek's block (H9): a lead's story with the reach-out, and its doors. Nothing when no reach-out planned it. For a
+ * reach-out its owner sends (00428): Send it, to the run where an email handed to them waits, and They wrote back…, what
+ * the business answered in their own inbox, said as one of five words and read as a reply is (its undo the same).
+ */
 export const LeadReachOut = ({ lead, flash }: { lead: LeadPeekVM | null; flash: Flash | null }) => {
   const leadId = lead ? lead.id : null;
   const [story, setStory] = useState<ReachOutLeadTimelineDto | null>(null);
   const [tick, bump] = useReducer((n: number) => n + 1, 0);
   const [sure, setSure] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [asking, setAsking] = useState(false);
   useEffect(() => {
     if (!leadId) return undefined;
     let live = true;
@@ -156,9 +224,19 @@ export const LeadReachOut = ({ lead, flash }: { lead: LeadPeekVM | null; flash: 
   };
   const undo = async () => {
     if (busy || !vm.undo) return;
+    const done = vm.undo.done;
     setBusy(true);
     const r = await replies.undo(vm.undo.messageId).finally(() => setBusy(false));
-    said(r, "Undone: it no longer reads as a no.");
+    said(r, done);
+    bump();
+    roLeadsMoved();
+  };
+  const tell = async (intent: OwnerSaidIntent) => {
+    if (busy) return;
+    setAsking(false);
+    setBusy(true);
+    const r = await reachOuts.sayReply(lead.id, { intent }).finally(() => setBusy(false));
+    said(r, reachOuts.saidReplyWords(story.business_name, intent, r && r.ok ? r.data.resume_at : null));
     bump();
     roLeadsMoved();
   };
@@ -237,8 +315,10 @@ export const LeadReachOut = ({ lead, flash }: { lead: LeadPeekVM | null; flash: 
               {vm.undo.label}
             </button>
           ) : null}
+          <RoOwnerDoors vm={vm} busy={busy} asking={asking} onAsk={() => setAsking((v) => !v)} />
         </div>
       )}
+      {asking && vm.said ? <RoSaidAsk business={story.business_name} busy={busy} onSay={(i) => void tell(i)} /> : null}
     </details>
   );
 };

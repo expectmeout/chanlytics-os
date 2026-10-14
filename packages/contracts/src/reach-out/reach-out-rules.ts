@@ -4,18 +4,20 @@
  *   outreachRefusalOf   the lead's own facts, as the send door reads them (deliver.ts) and as the clock reads them
  *                       before it claims a send: one mapping, so the two never disagree about who may be written to.
  *   OUTREACH_WAIT_REFUSALS   the door's refusals that mean "not now": the send is planned again, never canceled (C5).
- *   reachOutEmailOf     a step's words with the lead's, the workspace's and the send's values in (§4.3's six slots), by
+ *   reachOutEmailOf     a step's words with the lead's, the workspace's and the send's values in (§4.3's slots, and
+ *                       00429's person slots from a company's addressee, each with its fallback), by
  *                       the one fill every email takes (templates/slot-sets.ts); a slot with no value holds the email
  *                       (missing_value, the reason that exists: broadcast.ts). The send, the sheet's preview and the
  *                       approval's first email read it.
- *   reachOutExampleValues  the same six, made up for what changes from business to business: the Templates page's preview.
+ *   reachOutExampleValues  the same slots, made up for what changes from business to business: the Templates page's preview.
  *   REACH_OUT_MONTH_EMAILS   the month's allowance per workspace (§4.8's number; the price is Ruben's to set).
  *   REACH_OUT_CHECKS_PER_DAY the check's daily ceiling per workspace (Part 4, R12).
  */
 import type { DeliveryRefusal } from "../consent/consent";
 import { renderOwnVersion } from "../templates/message-versions";
 import { slotHoles, slotValues } from "../templates/slot-sets";
-import { REACH_OUT_SLOT_SET } from "./reach-out-words";
+import { LEAD_ROLE_WORDS, leadAddresseeOf } from "../leads/lead-kind";
+import { REACH_OUT_SLOT_FALLBACKS, REACH_OUT_SLOT_SET } from "./reach-out-words";
 
 export interface OutreachLeadFacts {
   leadStage: string | null;
@@ -63,6 +65,12 @@ export function isWaitRefusal(reason: string | null | undefined): boolean {
 export const REACH_OUT_MONTH_EMAILS = 2000;
 
 /**
+ * The most emails a reach-out its owner sends hands them in a day, across its steps (the 4 Oct spec's decision 8;
+ * 00428): a morning's work. Its steps after the first are planned first, so a nudge is never crowded out by new leads.
+ */
+export const REACH_OUT_DRAFTS_PER_DAY = 30;
+
+/**
  * The most attempts of the check before each send that one workspace may spend on the model in a UTC day (R12):
  * counted in reach_out_check_spend (00197) as each attempt is taken, a rewrite in it and a failure counted, so neither a
  * run's size nor a reset of a send's check lets it spend more.
@@ -104,6 +112,11 @@ export const REACH_OUT_LANGUAGE = "en";
 export interface SlotLead {
   business_name: string | null;
   city: string | null;
+  /** A company's people (00429): its addressee fills the person slots. Absent, or a place: their fallbacks. */
+  kind?: string | null;
+  facts?: unknown;
+  /** Where it was found (00429 leads.source), which the foot's first line says (whyFrom). Absent: the Maps card. */
+  source?: string | null;
 }
 /** The workspace's slots: its name, the name the chain signs with, its booking link. */
 export interface SlotWorkspace {
@@ -112,10 +125,18 @@ export interface SlotWorkspace {
   bookingLink?: string | null;
 }
 
-/** The six slots' values, in the slot set's order, from the lead's, the workspace's and the send's: a blank one is a hole. */
+/**
+ * The slots' values, in the slot set's order, from the lead's, the workspace's and the send's: a blank one is a hole. A
+ * person's slot is its addressee's (00429), and its fallback where the lead names nobody, so it never holds an email.
+ */
 function reachOutValues(lead: SlotLead, workspace: SlotWorkspace, opening: string | null): Array<string | undefined> {
+  const who = leadAddresseeOf(lead);
   return slotValues(REACH_OUT_SLOT_SET, {
     business: lead.business_name,
+    company: lead.business_name,
+    "first name": who?.first_name || REACH_OUT_SLOT_FALLBACKS["first name"],
+    title: who?.title || (who?.role ? LEAD_ROLE_WORDS[who.role] : null) || REACH_OUT_SLOT_FALLBACKS.title,
+    role: (who?.role ? LEAD_ROLE_WORDS[who.role] : null) || REACH_OUT_SLOT_FALLBACKS.role,
     city: lead.city,
     "your business": workspace.businessName,
     "your name": workspace.yourName,
@@ -149,6 +170,8 @@ const EXAMPLE_LEAD = {
   business_name: "Lakeside Bakery",
   city: "Springfield",
   opening: "Your 4.8 stars from 212 reviews caught my eye.",
+  // A person at it, so the person slots show a name, not their fallback.
+  person: { name: "Dana Reyes", first_name: "Dana", title: "Owner", role: "owner", email: null, profile_url: null },
 } as const;
 
 /**
@@ -158,7 +181,12 @@ const EXAMPLE_LEAD = {
  */
 export function reachOutExampleValues(workspace: SlotWorkspace): Array<string | undefined> {
   return reachOutValues(
-    { business_name: EXAMPLE_LEAD.business_name, city: EXAMPLE_LEAD.city },
+    {
+      business_name: EXAMPLE_LEAD.business_name,
+      city: EXAMPLE_LEAD.city,
+      kind: "company",
+      facts: { people: [EXAMPLE_LEAD.person], addressee: 0 },
+    },
     workspace,
     EXAMPLE_LEAD.opening,
   );

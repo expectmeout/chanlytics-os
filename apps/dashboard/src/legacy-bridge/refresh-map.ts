@@ -270,6 +270,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST lead-searches": leads,
   // A list of your own (00242) is a search: the rail and the leads read again.
   "POST lead-searches/import": leads,
+  "POST lead-searches/people": leads,
   "POST lead-searches/chosen": leads,
   "POST lead-searches/[id]/answer": leads,
   "POST lead-searches/[id]/more": leads,
@@ -312,6 +313,16 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "DELETE reach-outs/[id]": () => [reachOutsOverride, playbooksOverride, broadcastsOverride, leadsOverride],
   // One held email decided moves its run and its lead, never its chain: the row's counts are its report, read on open.
   "POST reach-out-sends/[id]/decide": () => [broadcastsOverride, playbooksOverride, leadsOverride],
+  // An email its owner said went (00428): its run and its lead, the person it made and the email on their thread, and the
+  // reach-out's people; one left out moves the run alone, which the same reads cover.
+  "POST reach-out-sends/[id]/said": () => [
+    broadcastsOverride,
+    playbooksOverride,
+    leadsOverride,
+    reachOutsOverride,
+    ...personAndThreads(),
+    ...reportsCampaigns(),
+  ],
   // Leads added to a reach-out's list (00426): each row's reach-out and the pile, and the reach-out's people and counts.
   // Nothing is planned until its run is made, so no run moves yet, and the reach-out's own row is not written.
   "POST reach-outs/[id]/leads": () => [reachOutsOverride, leadsOverride],
@@ -320,6 +331,17 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST reach-outs/[id]/leads/leave": () => [reachOutsOverride, leadsOverride],
   // "Stop writing to them" skips the lead's planned and held emails in their runs (Part 6, H10).
   "POST reach-outs/leads/[id]/stop": () => [broadcastsOverride, playbooksOverride, leadsOverride],
+  // What the business wrote back, as its owner says it (00428): a reading, as the reply job's moves the lead, its waiting
+  // emails and drafts, the person's consent on a no, and a step on Today.
+  "POST reach-outs/leads/[id]/said": () => [
+    repliesOverride,
+    broadcastsOverride,
+    playbooksOverride,
+    leadsOverride,
+    reachOutsOverride,
+    peopleOverride,
+    ...reportsCampaigns(),
+  ],
   // "Read as no · undo" moves the reading, the person's consent and the leads the no closed.
   "POST reach-out-replies/[id]/undo": () => [repliesOverride, ...thread(), leadsOverride],
   "POST broadcasts/[id]/recheck": runs,

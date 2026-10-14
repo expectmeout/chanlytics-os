@@ -232,13 +232,18 @@ async function runMoments(tick: Tick, page: DuePage<DuePlaybook>) {
  * it in. A step that ran is stamped for the day. One that could not (its workspace paused, its chain broken, a read or
  * a write that failed, a zone the page and the edge read apart) keeps its day open, so the next hour tries it again,
  * but moves to the back of the page: it never holds a place a step that can run is waiting for. Steps the tick yields
- * before are left behind, and counted so.
+ * before are left behind, and counted so. A chain's steps after the first run before first emails (the lead
+ * workbench's call 10: follow-ups first), so a nudge takes its place in a mailbox's day, and in its owner's day's share
+ * (00428), before new leads fill it; within each, the page's own order.
  */
 async function runReachOuts({ db, now, L, out, started }: Tick, reach: DuePage<DuePlaybook>) {
-  for (const [i, { playbook: row, timezone: tz }] of reach.rows.entries()) {
+  const rows = [...reach.rows].sort(
+    (a, b) => Number(a.playbook.after_playbook_id === null) - Number(b.playbook.after_playbook_id === null),
+  );
+  for (const [i, { playbook: row, timezone: tz }] of rows.entries()) {
     if (Date.now() - started > REACH_OUT_YIELD_AT_MS) {
-      L.info("reach_outs_yielded", { left: reach.rows.length - i });
-      out.remaining += reach.rows.length - i;
+      L.info("reach_outs_yielded", { left: rows.length - i });
+      out.remaining += rows.length - i;
       break;
     }
     if (!runDueNow(row as unknown as PlaybookDto, tz, now)) {

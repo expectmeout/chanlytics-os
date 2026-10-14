@@ -173,6 +173,8 @@ const CHAIN = (first = {}, nudge = {}) => ({
   include_unconfirmed: false,
   gap_minutes: 12,
   mailbox_ids: [],
+  // Who sends it is the root's, and saved as it stands (00428): its mailboxes, here.
+  owner_sends: false,
   signed_by: "Sam",
   steps: [
     {

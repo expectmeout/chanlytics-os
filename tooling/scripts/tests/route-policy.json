@@ -761,6 +761,13 @@
       "rate": "lead_search",
       "spend": true
     },
+    "POST lead-searches/people": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "lead_search",
+      "spend": true
+    },
     "GET lead-suggestions": {
       "kind": "read",
       "scope": "workspace",
@@ -1369,6 +1376,13 @@
       "rate": "playbook",
       "spend": false
     },
+    "POST reach-out-sends/[id]/said": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
     "GET reach-outs/[id]": {
       "kind": "read",
       "scope": "row",
@@ -1419,6 +1433,13 @@
       "spend": false
     },
     "POST reach-outs/leads/[id]/stop": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
+    "POST reach-outs/leads/[id]/said": {
       "kind": "write",
       "scope": "row",
       "role": "operator",

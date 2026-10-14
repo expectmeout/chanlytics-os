@@ -175,13 +175,13 @@
     "depth": 4
   },
   "apps/edge/lib/reach-out/replan.ts::replanSends#1": {
-    "lines": 119,
+    "lines": 116,
     "branches": 43,
     "depth": 5
   },
   "apps/edge/lib/reach-out/sender.ts::writeOne#1": {
-    "lines": 175,
-    "branches": 42,
+    "lines": 174,
+    "branches": 41,
     "depth": 3
   },
   "apps/edge/lib/receptionist/eval.ts::evaluateCases#1": {

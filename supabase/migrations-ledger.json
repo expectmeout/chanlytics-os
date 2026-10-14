@@ -429,6 +429,8 @@
     "00424_a_reach_out_writes_from_a_connected_mailbox.sql": "a53bb4c587c73f8141d50715dc39a14b6fa69d944ace26a13ad7fa7021d420c8",
     "00425_a_mailbox_s_threads_are_found_by_their_id.sql": "40c65064bee46415d1870855bc21993fe025199d596bfda464c89919ed4fa2bd",
     "00426_a_reach_out_takes_the_leads_you_add.sql": "bff8fd95b5502eade17e46b0365e77466b94ac87416670b622d17fd920e0413d",
-    "00427_a_lead_has_one_first_email.sql": "54e6d0e76d4adbb424e22b2021a54855655c44812330e9b8ee1e2cd937511419"
+    "00427_a_lead_has_one_first_email.sql": "54e6d0e76d4adbb424e22b2021a54855655c44812330e9b8ee1e2cd937511419",
+    "00428_an_email_the_owner_sends_is_handed_to_them.sql": "dbca175d5a481e125a9a4a58237060c373608c17c281eace2a03233f4761bde6",
+    "00429_a_lead_is_a_place_or_a_company.sql": "141cae361583c0181d93da11861f6e391ae4d21c895c359ab0cc30556723002f"
   }
 }

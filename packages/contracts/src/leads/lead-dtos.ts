@@ -84,6 +84,9 @@ export interface LeadRowDto {
   contact_id: string | null;
   /** The reach-out it goes with (00426): the one that wrote it last, else the one whose search holds it. */
   chain_id?: string | null;
+  /** A place or a company, and a company's people (00429, leads_page): read through contracts leadFactsOf. */
+  kind?: string;
+  facts?: unknown;
   /** How the lead has been worked, from `leads_page` (4.2): a fixture copies the real shape even where B draws none of it. */
   last_outcome: string | null;
   last_note: string | null;

@@ -158,13 +158,25 @@ function sheetFacts(W: Words, draft: ReachOutDraft, settings: SettingsRecord | n
   const reads = roReads(settings);
   const unread = W.reachOutSheetUnreadOf(reads);
   const pace = W.reachOutSheetPaceOf(mailboxes, draft.mailbox_ids);
+  // With no mailbox connected its owner sends it (00428): the one way it can go, so Start needs no mailbox then.
+  const ownerSends = draft.owner_sends || (reads.mailboxes === "in" && mailboxes.length === 0);
   // An unread link is not a missing one: its problem is not said until Settings is in, and Start waits for it.
   const issues = W.reachOutDraftIssues(draft, { bookingLink: reads.settings !== "in" || roBookingLink(settings) });
-  const ready = !unread && issues.ready && pace.mailboxes > 0;
+  const ready = !unread && issues.ready && (ownerSends || pace.mailboxes > 0);
   const first = mailboxes.find(
     (m) => m.state === "connected" && (draft.mailbox_ids.length === 0 || draft.mailbox_ids.includes(m.id)),
   );
-  return { mailboxes, providers, reads, unread, pace, issues, ready, first };
+  return {
+    mailboxes,
+    providers,
+    reads,
+    unread,
+    pace,
+    issues,
+    ready,
+    first: ownerSends ? undefined : first,
+    ownerSends,
+  };
 }
 
 type Facts = ReturnType<typeof sheetFacts>;
@@ -209,7 +221,7 @@ interface ComposeProps {
 function composeParts(p: ComposeProps) {
   const { W, st, search, facts, ask, reachN, stale } = p;
   const { draft, setDraft } = st;
-  const { issues, first, pace, mailboxes, providers, reads, unread } = facts;
+  const { issues, first, pace, mailboxes, providers, reads, unread, ownerSends } = facts;
   return (
     <div className="pb-compose ro-compose">
       <RoWho
@@ -238,14 +250,22 @@ function composeParts(p: ComposeProps) {
         onHand={(n, v) => setDraft((d) => W.reachOutSetHandWords(d, n, v))}
         onDrop={() => setDraft(W.reachOutDropStep)}
       />
-      <RoPace W={W} pace={pace} gap={draft.gap_minutes} onGap={(v) => setDraft((d) => ({ ...d, gap_minutes: v }))} />
+      <RoPace
+        W={W}
+        pace={pace}
+        gap={draft.gap_minutes}
+        onGap={(v) => setDraft((d) => ({ ...d, gap_minutes: v }))}
+        ownerSends={ownerSends}
+      />
       <RoFrom
         W={W}
         mailboxes={mailboxes}
         providers={providers}
         unread={reads.mailboxes === "in" ? null : unread}
         draft={draft}
+        ownerSends={ownerSends}
         onPick={(ids) => setDraft((d) => ({ ...d, mailbox_ids: ids }))}
+        onOwner={(on) => setDraft((d) => ({ ...d, owner_sends: on }))}
       />
       <RoBefore W={W} ask={ask} of={W.reachOutPreviewOf(reachN)} stale={stale} />
     </div>
@@ -288,9 +308,15 @@ export function ReachOutSheet({ search, chain = null, includeUnconfirmed = false
         tone: "plain",
         text:
           unread ||
-          W.sheetFootWords({ share: pace.share, gapMinutes: draft.gap_minutes, ready: reachN, editing: !!chain }),
+          W.sheetFootWords({
+            share: pace.share,
+            gapMinutes: draft.gap_minutes,
+            ready: reachN,
+            editing: !!chain,
+            ownerSends: facts.ownerSends,
+          }),
       };
-  const body = W.reachOutChainBodyOf(draft, search.id);
+  const body = W.reachOutChainBodyOf({ ...draft, owner_sends: facts.ownerSends }, search.id);
   const ask = (index: number): ReachOutPreviewInput => ({
     search_id: search.id,
     index,

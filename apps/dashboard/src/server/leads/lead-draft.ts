@@ -9,6 +9,7 @@ import {
   LEAD_NO_ADDRESS,
   LeadDraftAnswerSchema,
   leadDraftFooter,
+  mailtoOf,
   siteHost,
 } from "@chanlytics/contracts";
 import { workspaceOffer } from "./lead-helpers";
@@ -38,12 +39,6 @@ const DRAFT_SYSTEM = [
   "- The subject says what the email is about in under nine words. Never a question about their money, never capitals.",
   "- Write no sign-off address and no unsubscribe line: those are added after you, by code.",
 ].join("\n");
-
-/** A mailto: for the owner's own mail app: the address, the subject and the body, each encoded once; CRLF line breaks, as mail apps read them. */
-export function leadMailto(to: string, subject: string, body: string): string {
-  const enc = (s: string) => encodeURIComponent(s.replace(/\r?\n/g, "\r\n"));
-  return `mailto:${enc(to)}?subject=${enc(subject)}&body=${enc(body)}`;
-}
 
 /** What this lead is, in the words the card saw: never a guess, and never the name of whoever fetched it. */
 async function draftFacts(ctx: Pick<RouteContext, "supabase">, lead: LeadRow): Promise<string[]> {
@@ -130,5 +125,5 @@ export async function draftFor(
     "draft",
   );
   const body = `${answer.body}${leadDraftFooter(offer.name, offer.address)}`;
-  return { to: lead.email, subject: answer.subject, body, mailto: leadMailto(lead.email, answer.subject, body) };
+  return { to: lead.email, subject: answer.subject, body, mailto: mailtoOf(lead.email, answer.subject, body) };
 }

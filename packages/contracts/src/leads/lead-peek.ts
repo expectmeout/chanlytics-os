@@ -16,6 +16,7 @@ import {
 import { CLOCK, clockIn, hourOf, milesLabel } from "./lead-helpers";
 import { leadRatingOf, type LeadSlot } from "./lead-row";
 import type { LeadSearchPlan } from "./search/plan";
+import { leadCompanyOf, type LeadCompanyVM } from "./lead-kind";
 import type { LeadEmailState } from "./search/sets";
 import { roleAtLeast } from "../config/roles";
 import {
@@ -70,6 +71,8 @@ export interface LeadPeekVM {
   sub: string;
   /** Who they are, from what the listing shows (D2): each null when the listing did not say. */
   about: string | null;
+  /** A company's people and where they came from (00429); null for a place. */
+  company: LeadCompanyVM | null;
   where: { line: string; href: string | null } | null;
   today: string | null;
   claimedNote: string | null;
@@ -396,6 +399,7 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
     distance: milesLabel(m.distance_m),
     name: r.business_name,
     about: r.about ?? null,
+    company: leadCompanyOf(r),
     where: leadWhere(r),
     today: leadTodayLine(r.hours ?? [], tz, now),
     claimedNote: r.claimed === false ? LEAD_UNCLAIMED_NOTE : null,

@@ -6112,7 +6112,9 @@ begin
          last_outcome = null, last_note = null, blanked_at = coalesce(blanked_at, now()),
          -- What the listing showed about the business goes with the rest (D2).
          about = null, hours = '[]'::jsonb, image_url = null, price = null, reviews_dist = null,
-         facebook_url = null, linkedin_url = null, tiktok_url = null, claimed = null, maps_url = null, rank = null, neighborhood = null, logo_url = null, mark_path = null
+         facebook_url = null, linkedin_url = null, tiktok_url = null, claimed = null, maps_url = null, rank = null, neighborhood = null, logo_url = null, mark_path = null,
+         -- A company's people and its key go with the rest (00429), so the company found again is new, as a place is.
+         facts = '{}'::jsonb, source_key = null
    where id = p_lead_id
   returning tenant_id into v_tenant;
   get diagnostics v_n = row_count;
@@ -6126,6 +6128,13 @@ begin
      set opening = null, angle = null, hold_detail = null
    where tenant_id = v_tenant and lead_id = p_lead_id
      and (opening is not null or angle is not null or hold_detail is not null);
+  -- A draft handed to its owner names them and their address (00428): one still waiting to be sent is skipped as its
+  -- lead gone, and every draft of theirs is cleared. The email they sent is a message, and goes as messages go.
+  update public.reach_out_sends
+     set state = case when state = 'drafted' then 'skipped' else state end,
+         reason = case when state = 'drafted' then 'lead_gone' else reason end,
+         draft = null
+   where tenant_id = v_tenant and lead_id = p_lead_id and draft is not null;
   -- A person still named for the business (a stand-in, 0052) keeps nothing of it: the name goes with the place, and
   -- their address or number is what names them again.
   update public.contacts
@@ -6143,7 +6152,7 @@ end $$;
 -- Name: FUNCTION lead_blank(p_lead_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_blank(p_lead_id uuid) IS 'Removes everything that names or reaches a place, and its memberships'' judgments, a reach-out''s opening, angle and note written from it, and a preference''s example copied from it (00391), keeping the stage, the link to a person and the counts. The one function retention and erasure blank through.';
+COMMENT ON FUNCTION public.lead_blank(p_lead_id uuid) IS 'Removes everything that names or reaches a place, and its memberships'' judgments, a reach-out''s opening, angle and note written from it, and a preference''s example copied from it (00391), a reach-out''s drafts, one still waiting skipped as its lead gone (00428), and a company''s people and key (00429), keeping the stage, the link to a person and the counts. The one function retention and erasure blank through.';
 
 
 --
@@ -6775,6 +6784,119 @@ COMMENT ON FUNCTION public.lead_collect_commit(p_run_id uuid, p_owner text, p_ge
 
 
 --
+-- Name: lead_company_upsert(uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_company_upsert(p_round_id uuid, p_companies jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_round  public.lead_rounds%rowtype;
+  v_c      jsonb;
+  v_key    text;
+  v_email  text;
+  v_host   text;
+  v_lead   uuid;
+  v_facts  jsonb;
+  v_people jsonb;
+  v_p      jsonb;
+  v_made   integer := 0;
+  v_held   integer := 0;
+  v_left   integer := 0;
+begin
+  select * into v_round from public.lead_rounds where id = p_round_id;
+  if not found or v_round.state = 'ended' then
+    return jsonb_build_object('ok', false, 'why', 'round');
+  end if;
+  if jsonb_typeof(p_companies) is distinct from 'array' or jsonb_array_length(p_companies) > 200 then
+    raise exception 'companies: an array of at most 200' using errcode = '22023';
+  end if;
+  for v_c in select value from jsonb_array_elements(p_companies) loop
+    v_key   := lower(btrim(coalesce(v_c->>'source_key', '')));
+    v_email := lower(btrim(coalesce(v_c->>'email', '')));
+    if char_length(v_key) not between 1 and 200 or char_length(btrim(coalesce(v_c->>'name', ''))) = 0
+       or char_length(v_email) > 254 or v_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$'
+       or jsonb_typeof(v_c->'facts') is distinct from 'object' or octet_length((v_c->'facts')::text) > 8000 then
+      v_left := v_left + 1;
+      continue;
+    end if;
+    -- Never a customer's: a person in People holds the address, as theirs or as one they wrote from.
+    if exists (select 1 from public.contacts c where c.tenant_id = v_round.tenant_id and c.erased_at is null and c.email = v_email)
+       or exists (select 1 from public.contact_identities i
+                    join public.contacts c on c.id = i.contact_id and c.erased_at is null
+                   where i.tenant_id = v_round.tenant_id and i.channel = 'email' and i.external_id = v_email)
+       or public.lead_address_suppressed(v_round.tenant_id, v_email) then
+      v_left := v_left + 1;
+      continue;
+    end if;
+
+    -- Held already: the same company (its key), or its address on another lead (a place, a file's row).
+    v_lead := null;
+    select l.id, l.facts into v_lead, v_facts from public.leads l
+     where l.tenant_id = v_round.tenant_id and l.source = 'people_at_companies' and l.source_key = v_key;
+    if v_lead is null then
+      select l.id, l.facts into v_lead, v_facts from public.leads l
+       where l.tenant_id = v_round.tenant_id and l.email = v_email
+       order by l.found_at
+       limit 1;
+    end if;
+    if v_lead is not null then
+      -- A company keeps the people it lacked, five at most, by their address; its addressee stays who it was.
+      update public.leads l
+         set facts = jsonb_set(l.facts, '{people}', (
+               select coalesce(jsonb_agg(x.p order by x.n), '[]'::jsonb)
+                 from (select p, n from jsonb_array_elements(coalesce(l.facts->'people', '[]'::jsonb)) with ordinality as a(p, n)
+                       union all
+                       select p, 100 + n from jsonb_array_elements(coalesce(v_c->'facts'->'people', '[]'::jsonb)) with ordinality as b(p, n)
+                        where not exists (select 1 from jsonb_array_elements(coalesce(l.facts->'people', '[]'::jsonb)) o
+                                           where lower(o->>'email') = lower(b.p->>'email')
+                                              or (o->>'email' is null and lower(o->>'name') = lower(b.p->>'name')))
+                       order by n
+                       limit 5) x)),
+             version = version + 1
+       where l.id = v_lead and l.kind = 'company' and l.erased_at is null and l.blanked_at is null;
+      v_held := v_held + 1;
+      continue;
+    end if;
+
+    v_host := case when lower(v_key) ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$' then v_key end;
+    insert into public.leads (tenant_id, kind, source, source_key, business_name, category, city, region, country,
+                              website_host, website_root, linkedin_url, about, email, email_state, facts)
+    values (v_round.tenant_id, 'company', 'people_at_companies', v_key, left(btrim(v_c->>'name'), 200),
+            nullif(left(btrim(coalesce(v_c->>'category', '')), 120), ''),
+            nullif(left(btrim(coalesce(v_c->>'city', '')), 120), ''),
+            case when v_c->>'region' ~ '^[A-Z]{2}$' then v_c->>'region' end,
+            case when v_c->>'country' ~ '^[A-Z]{2}$' then v_c->>'country' else 'US' end,
+            v_host, case when v_host is not null then true end,
+            nullif(left(btrim(coalesce(v_c->>'linkedin_url', '')), 300), ''),
+            nullif(left(btrim(coalesce(v_c->>'about', '')), 600), ''),
+            v_email, 'checking', v_c->'facts')
+    on conflict (tenant_id, source, source_key) where source_key is not null do nothing
+    returning id into v_lead;
+    if v_lead is null then
+      v_held := v_held + 1;
+      continue;
+    end if;
+    insert into public.lead_search_members (search_id, lead_id, round_id, tenant_id, judgment, class, reason)
+    values (v_round.search_id, v_lead, v_round.id, v_round.tenant_id,
+            jsonb_build_object('reasons', jsonb_build_array('email:checking'), 'shares', '[]'::jsonb), 'review',
+            left(coalesce(v_c->>'reason', ''), 120))
+    on conflict (search_id, lead_id) do nothing;
+    v_made := v_made + 1;
+  end loop;
+  return jsonb_build_object('ok', true, 'made', v_made, 'held', v_held, 'left_out', v_left);
+end $_$;
+
+
+--
+-- Name: FUNCTION lead_company_upsert(p_round_id uuid, p_companies jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_company_upsert(p_round_id uuid, p_companies jsonb) IS 'The people card''s page of companies (00429), the service role''s, before lead_collect_commit moves the run: each company with a name, a key and a well-formed address that is neither a customer''s nor on the never-again list becomes a company lead (source people_at_companies, its people in facts, its address checking) and a member of the round in Needs review on its address, which the check promotes (00242''s J2). One the workspace holds already (by its key, or its address on any lead) keeps its place and gains the people it lacked, five at most. Idempotent. Returns {ok, made, held, left_out}.';
+
+
+--
 -- Name: lead_convert_by(uuid, uuid, text, jsonb, boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -6969,6 +7091,9 @@ declare
   v_start  numeric := 0.00005;
   v_margin numeric := 1.3;
   v_floor  numeric := 0.5;
+  -- The people card's (00429): a person found, and the run's start, at the provider's dearest tier.
+  v_person numeric := 0.002;
+  v_pstart numeric := 0.01;
   v_count  integer := least(greatest(coalesce(p_count, 1), 1), 1000);
   v_terms  integer := least(greatest(coalesce(p_terms, 5), 1), 5);
 begin
@@ -6980,6 +7105,11 @@ begin
   elsif p_kind = 'list' then
     -- The mailbox check a row, with the room, and one checker run's floor (a list is one batch: CHECK_BATCH, list_rows).
     return round(ceil(v_count * v_check * v_margin * 100) / 100 + v_floor, 2);
+  elsif p_kind = 'people' then
+    -- Twice the people asked for (two found a lead, as a search assumes), each found and checked, one start, the room;
+    -- and a run's floor for the provider and for the checker.
+    return round(ceil((least(1000, 2 * v_count) * (v_person + v_check) + v_pstart) * v_margin * 100) / 100
+                 + 2 * v_floor, 2);
   end if;
   -- A kind it does not know is a mistake in the caller, never "no ceiling".
   raise exception 'lead_estimate_ceiling: no kind is named %', coalesce(p_kind, 'null') using errcode = '22023';
@@ -6990,7 +7120,7 @@ end $$;
 -- Name: FUNCTION lead_estimate_ceiling(p_kind text, p_count integer, p_terms integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_estimate_ceiling(p_kind text, p_count integer, p_terms integer) IS 'The most a finder door takes as its estimate (00364). search: ceil(((25 + least(1000, 2 x count)) x $0.00819 + 2 x terms x $0.00005) x 1.3, to the cent) + 2 x terms x $0.50, the probe and the main phase at the assumed yield at the card''s dearest place, and a run''s floor a term in each phase; list: ceil(rows x $0.00089 x 1.3, to the cent) + $0.50. What the route computes (estimateForRound, leadImportEstimateUsd) never passes it; lead-spend.db.test.mjs compares them.';
+COMMENT ON FUNCTION public.lead_estimate_ceiling(p_kind text, p_count integer, p_terms integer) IS 'The most a finder door takes as its estimate (00364, 00429). search: ceil(((25 + least(1000, 2 x count)) x $0.00819 + 2 x terms x $0.00005) x 1.3, to the cent) + 2 x terms x $0.50; list: ceil(rows x $0.00089 x 1.3, to the cent) + $0.50; people: ceil((least(1000, 2 x count) x $0.00289 + $0.01) x 1.3, to the cent) + 2 x $0.50. What the route computes (estimateForRound, leadImportEstimateUsd, peopleEstimateUsd) never passes it.';
 
 
 --
@@ -7443,6 +7573,100 @@ $$;
 --
 
 COMMENT ON FUNCTION public.lead_niche_prior(p_category_key text) IS 'The platform-wide prior for a kind of business ({places, matched, with_email}), or null when the kind was never searched. Aggregates only.';
+
+
+--
+-- Name: lead_people_search_create(uuid, jsonb, text, numeric, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_people_search_create(p_tenant_id uuid, p_plan jsonb, p_via text, p_estimate_usd numeric, p_thread_id uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user   uuid := auth.uid();
+  v_count  integer;
+  v_titles integer;
+  v_month  text;
+  v_day    text;
+  v_pday   text;
+  v_err    jsonb;
+  v_search uuid;
+  v_round  uuid;
+  v_thread uuid;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if not public.has_permission(v_user, p_tenant_id, 'find') then
+    raise exception 'Only an owner can find businesses for you.' using errcode = '42501';
+  end if;
+  if p_via not in ('people', 'ask') then
+    raise exception 'via is people or ask' using errcode = '22023';
+  end if;
+  if jsonb_typeof(p_plan) is distinct from 'object' or p_plan->>'card' is distinct from 'people_at_companies'
+     or coalesce((p_plan->>'version')::integer, 0) <> 1 then
+    raise exception 'a people plan: version 1 of the people_at_companies card' using errcode = '22023';
+  end if;
+  v_count := (p_plan->>'count')::integer;
+  if v_count is null or v_count < 1 or v_count > 500 then
+    raise exception 'count: 1 to 500' using errcode = '22023';
+  end if;
+  v_titles := case when jsonb_typeof(p_plan->'titles') = 'array' then jsonb_array_length(p_plan->'titles') else 0 end;
+  if v_titles < 1 or v_titles > 5 then
+    raise exception 'titles: 1 to 5' using errcode = '22023';
+  end if;
+  if char_length(btrim(coalesce(p_plan->>'name', ''))) not between 1 and 120
+     or char_length(coalesce(p_plan->>'asked', '')) > 400 then
+    raise exception 'a plan is named, and asked in 400 characters at most' using errcode = '22023';
+  end if;
+  if p_estimate_usd is null or p_estimate_usd < 0
+     or p_estimate_usd > least(public.lead_cap('month_usd'), public.lead_estimate_ceiling('people', v_count)) then
+    raise exception 'estimate: 0 to % usd for this plan', public.lead_estimate_ceiling('people', v_count) using errcode = '22023';
+  end if;
+  if not public.lead_searches_on(p_tenant_id) then
+    return jsonb_build_object('error', 'paused', 'sentence', 'Lead searches are paused for now. Your leads are all here, and nothing is being counted.');
+  end if;
+  v_err := public.lead_spend_refusal(p_tenant_id);
+  if v_err is not null then
+    return v_err;
+  end if;
+  if p_thread_id is not null then
+    select t.id into v_thread from public.ask_threads t
+     where t.id = p_thread_id and t.user_id = v_user and t.tenant_id = p_tenant_id;
+  end if;
+
+  v_month := public.lead_month(p_tenant_id, now());
+  v_day   := public.lead_day(p_tenant_id, now());
+  v_pday  := to_char(now() at time zone 'UTC', 'YYYY-MM-DD');
+  v_err   := public.lead_reserve(p_tenant_id, v_month, v_day, v_pday, v_count, p_estimate_usd);
+  if v_err is not null then
+    return v_err;
+  end if;
+
+  insert into public.lead_searches (tenant_id, created_by, via, card, name, asked, plan, thread_id)
+  values (p_tenant_id, v_user, p_via, 'people_at_companies', left(btrim(p_plan->>'name'), 120), coalesce(p_plan->>'asked', ''),
+          p_plan, v_thread)
+  returning id into v_search;
+  insert into public.lead_rounds (tenant_id, search_id, seq, purpose, plan, plan_version, target, state, allowance_reserved,
+                                  cost_reserved_usd, month, day, platform_day)
+  values (p_tenant_id, v_search, 1, 'main', p_plan, 1, v_count, 'queued', v_count, p_estimate_usd, v_month, v_day, v_pday)
+  returning id into v_round;
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  values (p_tenant_id, 'lead_round_start', now(), jsonb_build_object('round_id', v_round));
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'lead.round', 'lead', 'lead_round', v_round,
+          jsonb_build_object('search_id', v_search, 'seq', 1, 'state', 'queued', 'purpose', 'main', 'target', v_count,
+                             'card', 'people_at_companies', 'by', v_user));
+  return jsonb_build_object('search_id', v_search, 'round_id', v_round);
+end $$;
+
+
+--
+-- Name: FUNCTION lead_people_search_create(p_tenant_id uuid, p_plan jsonb, p_via text, p_estimate_usd numeric, p_thread_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_people_search_create(p_tenant_id uuid, p_plan jsonb, p_via text, p_estimate_usd numeric, p_thread_id uuid) IS 'Owner (find). A people search (00429), as lead_search_create is a places one: checks the plan (version 1 of the people_at_companies card, a count of 1 to 500, one to five titles, a name), the estimate (at most lead_estimate_ceiling(people, count)), the switch ({error: paused}) and the spend (lead_spend_refusal), reserves the count and the estimate (lead_reserve''s errors), then inserts the search, its one main round (target the count: the provider''s filters are its criteria, so nothing is probed), the start job and the event. Returns {search_id, round_id}.';
 
 
 --
@@ -10031,7 +10255,7 @@ COMMENT ON FUNCTION public.leads_note_set_aside() IS 'Writes lead.set_aside { st
 -- Name: leads_page(uuid, uuid, text, text, text, integer, text, text, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid DEFAULT NULL::uuid, p_class text DEFAULT 'qualified'::text, p_sort text DEFAULT 'found'::text, p_after_key text DEFAULT NULL::text, p_limit integer DEFAULT 200, p_list text DEFAULT 'all'::text, p_dir text DEFAULT 'asc'::text, p_after_id uuid DEFAULT NULL::uuid, p_list_id uuid DEFAULT NULL::uuid) RETURNS TABLE(member_id uuid, lead_id uuid, place_id text, search_id uuid, round_id uuid, class text, excluded_by text, fit text, reason text, distance_m integer, counted boolean, counted_month text, judgment jsonb, shares jsonb, business_name text, category text, street text, city text, region text, postal_code text, lat double precision, lng double precision, website_host text, instagram_url text, phone_e164 text, phone_sources smallint, phone_wrong boolean, email text, email_alternates jsonb, email_state text, email_checked_at timestamp with time zone, rating numeric, reviews integer, stage text, closed_reason text, last_outcome text, last_note text, contact_id uuid, contacted_at timestamp with time zone, converted_at timestamp with time zone, exported_at timestamp with time zone, found_at timestamp with time zone, places integer, version integer, page_key text, sort_key text, about text, hours jsonb, image_url text, price text, reviews_dist jsonb, facebook_url text, linkedin_url text, tiktok_url text, claimed boolean, maps_url text, rank integer, neighborhood text, mark_path text, later_at timestamp with time zone, chain_id uuid)
+CREATE FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid DEFAULT NULL::uuid, p_class text DEFAULT 'qualified'::text, p_sort text DEFAULT 'found'::text, p_after_key text DEFAULT NULL::text, p_limit integer DEFAULT 200, p_list text DEFAULT 'all'::text, p_dir text DEFAULT 'asc'::text, p_after_id uuid DEFAULT NULL::uuid, p_list_id uuid DEFAULT NULL::uuid) RETURNS TABLE(member_id uuid, lead_id uuid, place_id text, search_id uuid, round_id uuid, class text, excluded_by text, fit text, reason text, distance_m integer, counted boolean, counted_month text, judgment jsonb, shares jsonb, business_name text, category text, street text, city text, region text, postal_code text, lat double precision, lng double precision, website_host text, instagram_url text, phone_e164 text, phone_sources smallint, phone_wrong boolean, email text, email_alternates jsonb, email_state text, email_checked_at timestamp with time zone, rating numeric, reviews integer, stage text, closed_reason text, last_outcome text, last_note text, contact_id uuid, contacted_at timestamp with time zone, converted_at timestamp with time zone, exported_at timestamp with time zone, found_at timestamp with time zone, places integer, version integer, page_key text, sort_key text, about text, hours jsonb, image_url text, price text, reviews_dist jsonb, facebook_url text, linkedin_url text, tiktok_url text, claimed boolean, maps_url text, rank integer, neighborhood text, mark_path text, later_at timestamp with time zone, chain_id uuid, kind text, facts jsonb)
     LANGUAGE sql STABLE
     SET search_path TO 'public'
     AS $$
@@ -10051,6 +10275,8 @@ CREATE FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid DEFAULT NUL
            m.later_at,
            -- The reach-out the lead goes with (lead_chain_of, the one rule).
            public.lead_chain_of(l.tenant_id, l.id) as chain_id,
+           -- A place or a company, and a company's people (00429).
+           l.kind, l.facts,
            case coalesce(p_sort, 'found')
              when 'fit' then (case m.fit when 'strong' then '0' when 'look' then '1' when 'long' then '2' else '3' end)
                              || lpad((9999999999 - floor(extract(epoch from l.found_at)))::bigint::text, 10, '0')
@@ -10098,7 +10324,7 @@ CREATE FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid DEFAULT NUL
          b.k as page_key,
          b.k || '|' || b.member_id::text as sort_key,
          b.about, b.hours, b.image_url, b.price, b.reviews_dist, b.facebook_url, b.linkedin_url, b.tiktok_url, b.claimed, b.maps_url, b.rank, b.neighborhood, b.mark_path,
-         b.later_at, b.chain_id
+         b.later_at, b.chain_id, b.kind, b.facts
     from base b, args a
    where p_after_key is null
       or (a.descending and (b.k, b.member_id::text) < (a.after_k, a.after_id))
@@ -10115,7 +10341,30 @@ $$;
 -- Name: FUNCTION leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid, p_list_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid, p_list_id uuid) IS 'A page of members of one class (qualified: the counted ones; review; excluded) joined to their leads, narrowed to one of the rail''s lists (lead_in_list), keyset-paged on the sort key in either direction, under the caller''s row security. Seven sorts: found, fit, distance, business, rating, stage, and pile (00426: undecided first, then put off for later, oldest first, then the decided: on the list p_list_id, with a reach-out already, or no longer Ready; within each, the strongest fit, a checked address before a number alone, the newest). Each row says when it was put off (later_at) and the reach-out it goes with (chain_id, lead_chain_of). Hand the last row''s page_key and member_id back as p_after_key and p_after_id; A''s packed sort_key still works on its own, split here. Which memberships show is lead_member_shown (00212).';
+COMMENT ON FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid, p_list_id uuid) IS 'A page of members of one class (qualified: the counted ones; review; excluded) joined to their leads, narrowed to one of the rail''s lists (lead_in_list), keyset-paged on the sort key in either direction, under the caller''s row security. Seven sorts: found, fit, distance, business, rating, stage, and pile (00426: undecided first, then put off for later, oldest first, then the decided: on the list p_list_id, with a reach-out already, or no longer Ready; within each, the strongest fit, a checked address before a number alone, the newest). Each row says when it was put off (later_at), the reach-out it goes with (chain_id, lead_chain_of), and what the lead is with a company''s people (kind, facts: 00429). Hand the last row''s page_key and member_id back as p_after_key and p_after_id; A''s packed sort_key still works on its own, split here. Which memberships show is lead_member_shown (00212).';
+
+
+--
+-- Name: leads_source_of_a_list(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.leads_source_of_a_list() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+begin
+  if new.place_id is null and new.kind = 'place' and new.source = 'local_businesses' then
+    new.source := 'import';
+  end if;
+  return new;
+end $$;
+
+
+--
+-- Name: FUNCTION leads_source_of_a_list(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.leads_source_of_a_list() IS 'A lead made with no place id and no key is a file''s row (00242''s lead_search_import, the one door that makes one): its source is import (00429).';
 
 
 --
@@ -18380,14 +18629,19 @@ CREATE TABLE public.reach_out_sends (
     checked_words text,
     included_for text[] DEFAULT '{}'::text[] NOT NULL,
     mailbox_id uuid,
+    drafted_at timestamp with time zone,
+    draft jsonb,
+    said_at timestamp with time zone,
+    said_by uuid,
     CONSTRAINT reach_out_sends_attempts_check CHECK (((attempts >= 0) AND (attempts <= 20))),
     CONSTRAINT reach_out_sends_check_is_whole CHECK ((((opening IS NULL) OR ((char_length(opening) >= 1) AND (char_length(opening) <= 400))) AND ((angle IS NULL) OR ((char_length(angle) >= 1) AND (char_length(angle) <= 40))) AND ((hold_detail IS NULL) OR (char_length(hold_detail) <= 120)) AND ((checked_words IS NULL) OR ((char_length(checked_words) >= 1) AND (char_length(checked_words) <= 64))) AND ((check_tries >= 0) AND (check_tries <= 100)) AND (check_gen >= 0) AND (cardinality(facts_used) <= 12) AND (included_for <@ ARRAY['customer_domain'::text, 'chain'::text, 'language'::text, 'unbacked_fact'::text, 'reads_like_spam'::text, 'check_unavailable'::text, 'abroad'::text]))),
+    CONSTRAINT reach_out_sends_drafted_is_whole CHECK ((((state <> 'drafted'::text) OR ((drafted_at IS NOT NULL) AND (draft IS NOT NULL))) AND ((draft IS NULL) OR ((jsonb_typeof(draft) = 'object'::text) AND (octet_length((draft)::text) <= 16000))))),
     CONSTRAINT reach_out_sends_handed_is_dated CHECK (((state <> 'handed'::text) OR (sent_at IS NOT NULL))),
     CONSTRAINT reach_out_sends_held_says_why CHECK (((state <> 'held'::text) OR (reason = ANY (ARRAY['customer_domain'::text, 'chain'::text, 'language'::text, 'unbacked_fact'::text, 'reads_like_spam'::text, 'check_unavailable'::text, 'abroad'::text])))),
     CONSTRAINT reach_out_sends_planned_is_timed CHECK (((state <> 'planned'::text) OR (send_at IS NOT NULL))),
     CONSTRAINT reach_out_sends_reason_check CHECK (((reason IS NULL) OR (char_length(reason) <= 60))),
     CONSTRAINT reach_out_sends_sent_is_dated CHECK (((state <> 'sent'::text) OR (sent_at IS NOT NULL))),
-    CONSTRAINT reach_out_sends_state_check CHECK ((state = ANY (ARRAY['planned'::text, 'held'::text, 'claimed'::text, 'queued'::text, 'sent'::text, 'skipped'::text, 'failed'::text, 'handed'::text])))
+    CONSTRAINT reach_out_sends_state_check CHECK ((state = ANY (ARRAY['planned'::text, 'held'::text, 'claimed'::text, 'queued'::text, 'drafted'::text, 'sent'::text, 'skipped'::text, 'failed'::text, 'handed'::text])))
 );
 
 
@@ -18410,6 +18664,34 @@ COMMENT ON COLUMN public.reach_out_sends.domain_id IS 'Retired (decision 0056): 
 --
 
 COMMENT ON COLUMN public.reach_out_sends.mailbox_id IS 'The mailbox this send leaves from (00424): planned with it, claimed under its day, and kept by its lead for the whole chain. Null for a skipped send, or once its mailbox is gone.';
+
+
+--
+-- Name: COLUMN reach_out_sends.drafted_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.reach_out_sends.drafted_at IS 'When this send was handed to its owner, written and checked (00428): its fourteen days to be sent start here.';
+
+
+--
+-- Name: COLUMN reach_out_sends.draft; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.reach_out_sends.draft IS 'The email handed to the owner (00428): {to, subject, body, text, parent_id?}, the words with their values in and, in text, with the foot. What the Sent door writes as the email.';
+
+
+--
+-- Name: COLUMN reach_out_sends.said_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.reach_out_sends.said_at IS 'When the owner said this drafted email went, or did not (00428).';
+
+
+--
+-- Name: COLUMN reach_out_sends.said_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.reach_out_sends.said_by IS 'The member who said it (00428).';
 
 
 --
@@ -18458,6 +18740,46 @@ end $$;
 
 
 --
+-- Name: reach_out_claim_drafts(timestamp with time zone, integer, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.reach_out_claim_drafts(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid DEFAULT NULL::uuid) RETURNS SETOF public.reach_out_sends
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if p_at is null or p_limit is null or p_limit <= 0 then
+    return;
+  end if;
+  return query
+  with picked as materialized (
+     select s2.id from public.reach_out_sends s2
+       join public.playbooks p on p.id = s2.playbook_id
+       join public.playbooks r on r.id = s2.root_id
+       join public.broadcasts b on b.id = s2.broadcast_id
+      where s2.state = 'planned' and s2.send_at <= p_at and s2.checked_at is not null
+        and (p_tenant_id is null or s2.tenant_id = p_tenant_id)
+        and r.owner_sends
+        and p.state = 'running' and r.state = 'running' and b.state in ('scheduled', 'sending')
+      order by (p.after_playbook_id is null), s2.send_at
+      limit p_limit
+      for update of s2 skip locked)
+  update public.reach_out_sends s
+     set state = 'claimed', claimed_at = p_at, mailbox_id = null
+    from picked
+   where s.id = picked.id
+  returning s.*;
+end $$;
+
+
+--
+-- Name: FUNCTION reach_out_claim_drafts(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.reach_out_claim_drafts(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid) IS 'The due sends of reach-outs their owners send (00428), claimed to be drafted, at most p_limit: planned, checked and due, in a running chain and a run that goes ahead, a step after the first before a first email. Their mailbox is let go. Service role only.';
+
+
+--
 -- Name: reach_out_claim_from(uuid, integer, timestamp with time zone, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -18491,8 +18813,9 @@ begin
        join public.broadcasts b on b.id = s2.broadcast_id
       where s2.mailbox_id = p_mailbox_id and s2.state = 'planned' and s2.send_at <= p_at
         and s2.checked_at is not null
+        and not r.owner_sends
         and p.state = 'running' and r.state = 'running' and b.state in ('scheduled', 'sending')
-      order by s2.send_at
+      order by (p.after_playbook_id is null), s2.send_at
       limit v_room
       for update of s2 skip locked)
   update public.reach_out_sends s
@@ -18507,7 +18830,7 @@ end $$;
 -- Name: FUNCTION reach_out_claim_from(p_mailbox_id uuid, p_cap integer, p_at timestamp with time zone, p_limit integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_claim_from(p_mailbox_id uuid, p_cap integer, p_at timestamp with time zone, p_limit integer) IS 'A connected mailbox''s due reach-out sends, claimed within its day (p_cap less what it has used), at most p_limit, under the mailbox''s lock (C7, 00424). Nothing for a mailbox that is not connected, or resting. Service role only.';
+COMMENT ON FUNCTION public.reach_out_claim_from(p_mailbox_id uuid, p_cap integer, p_at timestamp with time zone, p_limit integer) IS 'A connected mailbox''s due reach-out sends, claimed within its day (p_cap less what it has used), at most p_limit, under the mailbox''s lock (C7, 00424): a step after the first before a first email, and never a send of a reach-out its owner sends (00428). Nothing for a mailbox that is not connected, or resting. Service role only.';
 
 
 --
@@ -18523,7 +18846,7 @@ CREATE FUNCTION public.reach_out_closed_sends(p_stuck_before timestamp with time
     join public.broadcasts b on b.id = s.broadcast_id
     left join public.messages m on m.id = s.message_id
    where b.state in ('canceled', 'failed') and (p_tenant_id is null or s.tenant_id = p_tenant_id)
-     and (s.state in ('planned', 'held', 'queued') or (s.state = 'claimed' and s.claimed_at < p_stuck_before))
+     and (s.state in ('planned', 'held', 'queued', 'drafted') or (s.state = 'claimed' and s.claimed_at < p_stuck_before))
    limit greatest(coalesce(p_limit, 0), 0)
 $$;
 
@@ -18684,7 +19007,7 @@ CREATE FUNCTION public.reach_out_finishable(p_limit integer, p_tenant_id uuid DE
    where b.audience->>'kind' = 'reach_out' and b.state in ('scheduled', 'sending')
      and (p_tenant_id is null or b.tenant_id = p_tenant_id)
      and not exists (select 1 from public.reach_out_sends s
-                      where s.broadcast_id = b.id and s.state in ('planned', 'held', 'claimed', 'queued'))
+                      where s.broadcast_id = b.id and s.state in ('planned', 'held', 'claimed', 'queued', 'drafted'))
    limit greatest(coalesce(p_limit, 0), 0)
 $$;
 
@@ -18837,8 +19160,9 @@ CREATE FUNCTION public.reach_out_held_stale(p_before timestamp with time zone, p
     SET search_path TO 'public'
     AS $$
   select s.* from public.reach_out_sends s
-   where s.state = 'held' and s.created_at < p_before and (p_tenant_id is null or s.tenant_id = p_tenant_id)
-   order by s.created_at
+   where ((s.state = 'held' and s.created_at < p_before) or (s.state = 'drafted' and s.drafted_at < p_before))
+     and (p_tenant_id is null or s.tenant_id = p_tenant_id)
+   order by coalesce(s.drafted_at, s.created_at)
    limit greatest(coalesce(p_limit, 0), 0)
 $$;
 
@@ -18881,7 +19205,7 @@ begin
        set state = 'skipped', reason = 'owner_stopped'
       from public.broadcasts b
      where b.id = s.broadcast_id and b.state in ('pending_approval', 'scheduled', 'sending')
-       and s.tenant_id = v_lead.tenant_id and s.lead_id = p_lead_id and s.state in ('planned', 'held')
+       and s.tenant_id = v_lead.tenant_id and s.lead_id = p_lead_id and s.state in ('planned', 'held', 'drafted')
     returning 1
   )
   select count(*) into v_skipped from skipped;
@@ -18895,7 +19219,7 @@ end $$;
 -- Name: FUNCTION reach_out_lead_stop(p_lead_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_lead_stop(p_lead_id uuid) IS '"Stop writing to them" (Reach out Part 6, H10), an acting member''s door: stamps leads.reach_out_stopped_at and skips the lead''s planned and held sends in live runs (owner_stopped). Answers {stopped, already, skipped, leaving}: leaving counts the claimed and queued emails, which the send door refuses by the stamp. Refused for a lead no chain ever planned (22023) or one the caller may not act on (P0002).';
+COMMENT ON FUNCTION public.reach_out_lead_stop(p_lead_id uuid) IS '"Stop writing to them" (Reach out Part 6, H10), an acting member''s door: stamps leads.reach_out_stopped_at and skips the lead''s planned, held and drafted (00428) sends in live runs (owner_stopped). Answers {stopped, already, skipped, leaving}: leaving counts the claimed and queued emails, which the send door refuses by the stamp. Refused for a lead no chain ever planned (22023) or one the caller may not act on (P0002).';
 
 
 --
@@ -19107,12 +19431,14 @@ begin
                 and s.state in ('sent', 'handed', 'failed')) then
     return jsonb_build_object('error', 'sent');
   end if;
-  -- Planned or held in a run still live: skipped as taken back, which its undo's next run plans again.
+  -- Planned, held or drafted (not sent yet) in a run still live: skipped as taken back, which its undo's next run plans
+  -- again.
   update public.reach_out_sends s
      set state = 'skipped', reason = 'owner_took_back'
     from public.broadcasts b
    where b.id = s.broadcast_id and b.state in ('pending_approval', 'scheduled', 'sending')
-     and s.tenant_id = r.tenant_id and s.root_id = r.id and s.lead_id = p_lead_id and s.state in ('planned', 'held');
+     and s.tenant_id = r.tenant_id and s.root_id = r.id and s.lead_id = p_lead_id
+     and s.state in ('planned', 'held', 'drafted');
   get diagnostics v_skipped = row_count;
   update public.lead_search_members set blanked_at = now(), version = version + 1
    where id = m.id
@@ -19132,7 +19458,7 @@ end $$;
 -- Name: FUNCTION reach_out_leave_out(p_root_id uuid, p_lead_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_leave_out(p_root_id uuid, p_lead_id uuid) IS 'Leave out (00426), the drawer''s door on a lead waiting in a reach-out fed by a list: off its list (blanked), a send planned or held for it in a live run skipped as taken back, with an operation of kind leave whose undo (lead_undo, its maker''s or find''s) puts it back; one on its way or sent stays (on_its_way, sent: Stop writing is the correction there). An operator''s, as the add is.';
+COMMENT ON FUNCTION public.reach_out_leave_out(p_root_id uuid, p_lead_id uuid) IS 'Leave out (00426), the drawer''s door on a lead waiting in a reach-out fed by a list: off its list (blanked), a send planned, held or drafted (00428) for it in a live run skipped as taken back, with an operation of kind leave whose undo (lead_undo, its maker''s or find''s) puts it back; one on its way or sent stays (on_its_way, sent: Stop writing is the correction there). An operator''s, as the add is.';
 
 
 --
@@ -19257,6 +19583,8 @@ declare
   v_conv uuid;
   v_made boolean := false;
   v_person jsonb;
+  v_name   text;
+  v_source text;
 begin
   select * into v_lead from public.leads
    where id = p_lead_id and tenant_id = p_tenant_id and erased_at is null and blanked_at is null
@@ -19284,10 +19612,22 @@ begin
     -- the door finds instead of making (another lead's claim, an email in, between the look above and here) is
     -- somebody's already; an address People cannot hold is none; a person who asked to be forgotten is left alone.
     -- Each refuses, and the door's writes go back with the refusal (the block is its own transaction).
+    -- A company's email goes to its addressee (00429): the person is them, by the name their source gave; a place's is
+    -- a stand-in named for the business (0052).
+    v_name := null;
+    if v_lead.kind = 'company' then
+      select nullif(btrim(p->>'name'), '') into v_name
+        from jsonb_array_elements(coalesce(v_lead.facts->'people', '[]'::jsonb)) with ordinality as x(p, n)
+       where lower(btrim(coalesce(p->>'email', ''))) = v_email
+       order by n
+       limit 1;
+    end if;
+    v_source := case when v_name is not null then 'import' else 'lead' end;
+    v_name   := coalesce(left(v_name, 80), left(nullif(v_lead.business_name, ''), 80));
     begin
       perform set_config('chanlytics.link_lead', 'off', true);
       v_person := public.resolve_person(p_tenant_id, 'email', v_email, null, v_email,
-                                        left(nullif(v_lead.business_name, ''), 80), 'found', 'lead',
+                                        v_name, 'found', v_source,
                                         jsonb_build_object('lead_id', p_lead_id, 'by', 'reach_out'));
       perform set_config('chanlytics.link_lead', 'on', true);
       if coalesce((v_person->>'existed')::boolean, false) then
@@ -19579,10 +19919,10 @@ end $$;
 
 
 --
--- Name: reach_out_reply_apply(uuid, uuid, jsonb, jsonb, integer, integer); Type: FUNCTION; Schema: public; Owner: -
+-- Name: reach_out_reply_apply(uuid, uuid, jsonb, jsonb, integer, integer, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.reach_out_reply_apply(p_tenant_id uuid, p_message_id uuid, p_reading jsonb, p_plan jsonb, p_reread integer, p_days integer) RETURNS jsonb
+CREATE FUNCTION public.reach_out_reply_apply(p_tenant_id uuid, p_message_id uuid, p_reading jsonb, p_plan jsonb, p_reread integer, p_days integer, p_said jsonb DEFAULT NULL::jsonb) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $_$
@@ -19616,6 +19956,7 @@ declare
   v_signer   text := left(nullif(btrim(regexp_replace(coalesce(p_reading->'signer'->>'name', ''), '\s+', ' ', 'g')), ''), 80);
   v_title    text := left(nullif(btrim(regexp_replace(coalesce(p_reading->'signer'->>'title', ''), '\s+', ' ', 'g')), ''), 80);
   v_linked   boolean := false;
+  v_said_by  uuid := nullif(p_said->>'by', '')::uuid;
 begin
   if v_intent is null or v_intent not in ('interested', 'question', 'not_now', 'no', 'wrong_person', 'away', 'other') then
     raise exception 'a reading names one of the seven intents' using errcode = '22023';
@@ -19628,7 +19969,34 @@ begin
   end if;
   v_day := case when coalesce(p_reading->>'day', '') ~ '^\d{4}-\d{2}-\d{2}$' then (p_reading->>'day')::date end;
 
-  v_of := public.reach_out_reply_of(p_tenant_id, p_message_id, p_days);
+  if p_said is not null then
+    -- The owner's word: a person's, never an automatic reply's, never read again, signed by nobody.
+    if v_reread <> 0 or v_unread is not null or v_intent in ('away', 'other') or v_said_by is null then
+      raise exception 'an owner tells one of the five intents, once' using errcode = '22023';
+    end if;
+    v_signer := null;
+    v_title := null;
+    select jsonb_build_object(
+             'send_id', s.id,
+             'cited', false,
+             'lead_id', l.id,
+             'lead_contact_id', l.contact_id,
+             'lead_email', lower(btrim(l.email)),
+             'answered_message_id', s.message_id,
+             'answered_to', lower(btrim(coalesce(o.meta->'email'->'request'->'to'->>0, o.meta->'email'->'to'->>0,
+                                                 o.meta->'email'->>'to'))),
+             'business', l.business_name,
+             'conversation_id', o.conversation_id,
+             'contact_id', coalesce(l.contact_id, s.contact_id),
+             'claim', 'owner')
+      into v_of
+      from public.reach_out_sends s
+      join public.leads l on l.id = s.lead_id and l.tenant_id = s.tenant_id
+      join public.messages o on o.id = s.message_id and o.tenant_id = s.tenant_id
+     where s.id = nullif(p_said->>'send_id', '')::uuid and s.tenant_id = p_tenant_id and s.state = 'sent';
+  else
+    v_of := public.reach_out_reply_of(p_tenant_id, p_message_id, p_days);
+  end if;
   if v_of is null then
     return jsonb_build_object('applied', false, 'why', 'not_a_reply');
   end if;
@@ -19654,10 +20022,10 @@ begin
   if v_reread = 0 then
     insert into public.reach_out_replies (message_id, tenant_id, conversation_id, contact_id, lead_id, lead_contact_id,
                                           send_id, answered_message_id, claim, intent, summary, named_day, refer_to,
-                                          unread, until_at, plan)
+                                          unread, until_at, plan, said_by)
     values (p_message_id, p_tenant_id, (v_of->>'conversation_id')::uuid, (v_of->>'contact_id')::uuid, v_lead, v_person,
             (v_of->>'send_id')::uuid, (v_of->>'answered_message_id')::uuid, v_of->>'claim', v_intent,
-            left(v_summary, 160), v_day, left(v_refer, 120), v_unread, v_until, coalesce(p_plan, '{}'::jsonb))
+            left(v_summary, 160), v_day, left(v_refer, 120), v_unread, v_until, coalesce(p_plan, '{}'::jsonb), v_said_by)
     on conflict (message_id) do nothing
     returning * into v_row;
     if v_row.message_id is null then
@@ -19719,7 +20087,8 @@ begin
     end if;
   end if;
 
-  -- 2. The lead's sends still waiting in live runs: the door would refuse each (wrote back), so none waits for an owner.
+  -- 2. The lead's sends still waiting in live runs, and its drafts waiting for their owner: the door would refuse each
+  -- (wrote back), so none waits for an owner.
   if p_plan->>'skipSends' = 'outreach_wrote_back' then
     with skipped as (
       update public.reach_out_sends s
@@ -19727,7 +20096,7 @@ begin
         from public.broadcasts b
        where b.id = s.broadcast_id and b.tenant_id = s.tenant_id
          and b.state in ('pending_approval', 'scheduled', 'sending')
-         and s.tenant_id = p_tenant_id and s.lead_id = v_lead and s.state in ('planned', 'held')
+         and s.tenant_id = p_tenant_id and s.lead_id = v_lead and s.state in ('planned', 'held', 'drafted')
       returning 1
     )
     select count(*)::int into v_skipped from skipped;
@@ -19825,10 +20194,10 @@ end $_$;
 
 
 --
--- Name: FUNCTION reach_out_reply_apply(p_tenant_id uuid, p_message_id uuid, p_reading jsonb, p_plan jsonb, p_reread integer, p_days integer); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION reach_out_reply_apply(p_tenant_id uuid, p_message_id uuid, p_reading jsonb, p_plan jsonb, p_reread integer, p_days integer, p_said jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_reply_apply(p_tenant_id uuid, p_message_id uuid, p_reading jsonb, p_plan jsonb, p_reread integer, p_days integer) IS 'A reply''s reading and its plan (contracts readingPlan), applied once in one transaction (Reach out Part 5, G6-G11): the lead''s waiting sends skipped (wrote back), Talking through lead_convert_by, resume_at, a no through set_email_marketing (reply) with the reply''s From and the business''s own domain on the never-again list, a dated step, and reach_out.replied. A reply that cites our email from another address at the business links its writer to the lead (0052); its no, its step and the leads it closes stay the lead''s own person''s. The signer the reading found is its writer''s: kept on the row and offered (the notice), or taken for the writer when the plan says adoptSigner (automatic naming). A re-read applies by compare-and-set on the row still unread. Records what it changed for the undo. Answers {applied}. Service role only.';
+COMMENT ON FUNCTION public.reach_out_reply_apply(p_tenant_id uuid, p_message_id uuid, p_reading jsonb, p_plan jsonb, p_reread integer, p_days integer, p_said jsonb) IS 'A reply''s reading and its plan (contracts readingPlan), applied once in one transaction (Reach out Part 5, G6-G11): the lead''s waiting sends and drafts skipped (wrote back), Talking through lead_convert_by, resume_at, a no through set_email_marketing (reply) with the reply''s From and the business''s own domain on the never-again list, a dated step, and reach_out.replied. A reply that cites our email from another address at the business links its writer to the lead (0052); its no, its step and the leads it closes stay the lead''s own person''s. The signer the reading found is its writer''s: kept on the row and offered (the notice), or taken for the writer when the plan says adoptSigner (automatic naming). A re-read applies by compare-and-set on the row still unread. Given p_said ({send_id, by}, 00428) it is what the owner said the business wrote back about that sent email: claim owner, said_by, never re-read. Records what it changed for the undo. Answers {applied}. Service role only.';
 
 
 --
@@ -19961,6 +20330,61 @@ $$;
 --
 
 COMMENT ON FUNCTION public.reach_out_reply_of(p_tenant_id uuid, p_message_id uuid, p_days integer) IS 'Whose reply a received email is (Reach out Part 5, G5): the reach-out email it answers or cites, else the latest one sent to its thread''s person, within p_days before it arrived. Answers the send, the lead, the lead''s person, address and website (and whether that website is its host''s root, 00237), whether the reply cites our email by its Message-ID (cited, 0052), the chain, the email it answers (its first 600 characters), the workspace''s zone, and the reply''s own claim, sender, subject and words; null when it answers none. Service role only.';
+
+
+--
+-- Name: reach_out_reply_said(uuid, jsonb, jsonb, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.reach_out_reply_said(p_lead_id uuid, p_reading jsonb, p_plan jsonb, p_note text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user    uuid := auth.uid();
+  v_tenant  uuid;
+  v_send    uuid;
+  v_conv    uuid;
+  v_contact uuid;
+  v_id      uuid := gen_random_uuid();
+  v_out     jsonb;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  select l.tenant_id into v_tenant from public.leads l
+   where l.id = p_lead_id and l.erased_at is null and l.blanked_at is null;
+  if v_tenant is null or not public.is_acting_member(v_tenant) then
+    raise exception 'Lead not found.' using errcode = 'P0002';
+  end if;
+  select s.id, m.conversation_id, coalesce(s.contact_id, m.contact_id) into v_send, v_conv, v_contact
+    from public.reach_out_sends s
+    join public.messages m on m.id = s.message_id and m.tenant_id = s.tenant_id
+   where s.tenant_id = v_tenant and s.lead_id = p_lead_id and s.state = 'sent'
+   order by s.sent_at desc
+   limit 1;
+  if v_send is null then
+    raise exception 'Nothing has been sent to them yet.' using errcode = '22023';
+  end if;
+  if nullif(btrim(coalesce(p_note, '')), '') is null then
+    raise exception 'The owner''s word is written on the thread.' using errcode = '22023';
+  end if;
+  insert into public.messages (id, tenant_id, conversation_id, contact_id, channel, direction, sender, type, body,
+                               status, meta)
+  values (v_id, v_tenant, v_conv, v_contact, 'email', 'outbound', 'human', 'note', left(btrim(p_note), 500), 'sent',
+          jsonb_build_object('source', 'reach_out', 'said_by', v_user,
+                             'reach_out', jsonb_build_object('send_id', v_send, 'lead_id', p_lead_id)));
+  v_out := public.reach_out_reply_apply(v_tenant, v_id, p_reading, p_plan, 0, 0,
+                                        jsonb_build_object('send_id', v_send, 'by', v_user));
+  return v_out || jsonb_build_object('message_id', v_id, 'send_id', v_send);
+end $$;
+
+
+--
+-- Name: FUNCTION reach_out_reply_said(p_lead_id uuid, p_reading jsonb, p_plan jsonb, p_note text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.reach_out_reply_said(p_lead_id uuid, p_reading jsonb, p_plan jsonb, p_note text) IS 'What the business wrote back, as its owner tells it on the lead (00428), an acting member''s: a note in their words on the person''s email thread, and the reading and its plan (claim owner) applied through reach_out_reply_apply about the lead''s latest email that went, keyed to that note; refused when nothing has gone. Answers the door''s {applied, intent, changed} with the note''s id (message_id) and the send.';
 
 
 --
@@ -20242,6 +20666,8 @@ begin
     -- tenant's whole history of emails is never held for the second.
     with left_ as not materialized (
       select s.id, s.root_id, s.playbook_id, s.lead_id, s.contact_id, s.mailbox_id,
+             -- Sent from its owner's own inbox, on their word (00428): from no mailbox, as an email from before 00424 is.
+             s.said_at is not null as yours,
              coalesce(s.sent_at, public.email_sent_at(m.meta, m.status_updated_at, m.created_at)) as sent_at,
              lower(nullif(btrim(s.angle), '')) as angle, m.status, m.error, m.meta
         from public.reach_out_sends s
@@ -20293,14 +20719,14 @@ begin
        group by x.angle
     ),
     mailboxes as (
-      select x.mailbox_id, b.address, b.state, b.held_why, b.held_at, count(*) as sent,
+      select x.mailbox_id, x.yours, b.address, b.state, b.held_why, b.held_at, count(*) as sent,
              count(*) filter (where x.status in ('sent', 'delivered', 'read')) as delivered,
              count(*) filter (where x.status = 'failed' and x.error->>'provider' = 'bounced'
                                 and lower(coalesce(x.error->>'kind', '')) = 'permanent') as bounced,
              count(*) filter (where x.meta->'email'->>'complained_at' is not null) as complained
         from sent x
         left join public.mailbox_connections b on b.id = x.mailbox_id and b.tenant_id = p_tenant_id
-       group by x.mailbox_id, b.address, b.state, b.held_why, b.held_at
+       group by x.mailbox_id, x.yours, b.address, b.state, b.held_why, b.held_at
     )
     select jsonb_build_object(
       'timezone', v_tz,
@@ -20394,7 +20820,7 @@ begin
       'domains', '[]'::jsonb,
       'mailboxes', coalesce((
         select jsonb_agg(jsonb_build_object(
-                 'address', d.address, 'state', d.state, 'held_why', d.held_why, 'held_at', d.held_at,
+                 'address', d.address, 'yours', d.yours, 'state', d.state, 'held_why', d.held_why, 'held_at', d.held_at,
                  'sent', d.sent, 'delivered', d.delivered, 'bounced', d.bounced, 'complained', d.complained)
                order by d.sent desc, d.address)
           from (select * from mailboxes order by sent desc, address limit 10) d), '[]'::jsonb))
@@ -20406,7 +20832,7 @@ end $$;
 -- Name: FUNCTION reach_out_report(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_report(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports'' Reach-outs section (Reach out Part 6, H1, H3-H6), for a member: over p_days days (1 to 90; any other is refused) to the window''s last day in the workspace''s zone, the emails that left and what came of them. has_reach_out, totals, before (written, delivered and bounced over the same count of days before the window, 00404: outcomes are state now, so they have no period before), series (written per day), chains (at most 20, each with its steps; reach_out_chain_totals counts every chain over the same window, 00375), angles (the top 8, other_angles, no_angle) and domains (at most 10; a removed domain''s host is null). Emails are written, delivered and bounced; businesses are the leads written to, each once per chain at its last email of the period, and every outcome (wrote back, interested, booked, won, said no) is a count of them, so it is never more than `businesses`, on the totals, on a step (the businesses whose last email was that step), on an angle (the ones whose last email had it) and past the top 8 (00404); wrote back is outreach_wrote_back; won (00426) is a deal naming the lead, won, a count and never an amount. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
+COMMENT ON FUNCTION public.reach_out_report(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports'' Reach-outs section (Reach out Part 6, H1, H3-H6), for a member: over p_days days (1 to 90; any other is refused) to the window''s last day in the workspace''s zone, the emails that left and what came of them. has_reach_out, totals, before (written, delivered and bounced over the same count of days before the window, 00404: outcomes are state now, so they have no period before), series (written per day), chains (at most 20, each with its steps; reach_out_chain_totals counts every chain over the same window, 00375), angles (the top 8, other_angles, no_angle) and domains (at most 10; a removed domain''s host is null). Emails are written, delivered and bounced; businesses are the leads written to, each once per chain at its last email of the period, and every outcome (wrote back, interested, booked, won, said no) is a count of them, so it is never more than `businesses`, on the totals, on a step (the businesses whose last email was that step), on an angle (the ones whose last email had it) and past the top 8 (00404); wrote back is outreach_wrote_back; won (00426) is a deal naming the lead, won, a count and never an amount. mailboxes (00428) names the emails their owners sent from their own inbox apart (`yours`), from no mailbox, as an email from before 00424 is. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
 
 
 --
@@ -20440,6 +20866,7 @@ CREATE FUNCTION public.reach_out_root_lines(p_tenant_id uuid, p_root_id uuid) RE
            min(x.send_at) filter (where x.state = 'planned' and x.live) as next_at,
            bool_or(x.state = 'held' and x.live) as held,
            bool_or(x.state = 'handed') as handed,
+           count(*) filter (where x.state = 'drafted' and x.live) as drafted,
            bool_or(x.bounced and x.left_at is not null) as bounced,
            max(x.left_at) filter (where x.bounced) as bounced_at,
            max(x.left_at) as ord
@@ -20447,12 +20874,12 @@ CREATE FUNCTION public.reach_out_root_lines(p_tenant_id uuid, p_root_id uuid) RE
      group by x.lead_id
   ),
   per_lead as (
-    select p.lead_id, p.sent, p.first_sent_at, p.last_sent_at, p.next_at, p.held, p.handed, p.bounced, p.bounced_at,
-           p.ord, null::timestamptz as added_at
+    select p.lead_id, p.sent, p.first_sent_at, p.last_sent_at, p.next_at, p.held, p.handed, p.drafted, p.bounced,
+           p.bounced_at, p.ord, null::timestamptz as added_at
       from per p
     union all
     -- A list-fed reach-out's leads not written yet: on its list, with when each was added (00426).
-    select m.lead_id, 0, null, null, null, false, false, false, null, null, m.created_at
+    select m.lead_id, 0, null, null, null, false, false, 0, false, null, null, m.created_at
       from public.playbooks r
       join public.lead_searches q on q.id = r.lead_search_id and q.via in ('chosen', 'import') and q.removed_at is null
       join public.lead_search_members m on m.search_id = q.id and m.blanked_at is null and m.class = 'qualified' and m.counted
@@ -20487,6 +20914,7 @@ CREATE FUNCTION public.reach_out_root_lines(p_tenant_id uuid, p_root_id uuid) RE
            'next_at', f.next_at,
            'held', coalesce(f.held, false),
            'handed', coalesce(f.handed, false),
+           'drafted', coalesce(f.drafted, 0),
            'bounced', coalesce(f.bounced, false),
            'bounced_at', f.bounced_at,
            'email_state', f.email_state,
@@ -20512,7 +20940,7 @@ $$;
 -- Name: FUNCTION reach_out_root_lines(p_tenant_id uuid, p_root_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_root_lines(p_tenant_id uuid, p_root_id uuid) IS 'One reach-out''s lines, one per lead (00426): every lead it has a send for (a canceled run''s and a taken-back send aside) and, for a list-fed one, each lead on its list not written yet with added_at. The line''s facts are 00241''s plus business_name and added_at; ord is when it last left (else when it was added); done is booked, stopped, bounced, said no, no longer Ready or Contacted, or a person answered. reach_out_search_lines and reach_out_chain_people read it. Service role only.';
+COMMENT ON FUNCTION public.reach_out_root_lines(p_tenant_id uuid, p_root_id uuid) IS 'One reach-out''s lines, one per lead (00426): every lead it has a send for (a canceled run''s and a taken-back send aside) and, for a list-fed one, each lead on its list not written yet with added_at. The line''s facts are 00241''s plus business_name, added_at and drafted (00428: how many of its emails wait in a live run for their owner to send them); ord is when it last left (else when it was added); done is booked, stopped, bounced, said no, no longer Ready or Contacted, or a person answered. reach_out_search_lines and reach_out_chain_people read it. Service role only.';
 
 
 --
@@ -20558,6 +20986,7 @@ declare
   v_gap      int := (p_chain->>'gap_minutes')::int;
   v_signed   text := nullif(btrim(coalesce(p_chain->>'signed_by', '')), '');
   v_unconf   boolean := coalesce((p_chain->>'include_unconfirmed')::boolean, false);
+  v_owner    boolean := coalesce((p_chain->>'owner_sends')::boolean, false);
   v_mailboxes uuid[] := coalesce(
                array(select x::uuid from jsonb_array_elements_text(coalesce(p_chain->'mailbox_ids', '[]'::jsonb)) x), '{}');
   v_steps    jsonb := coalesce(p_chain->'steps', '[]'::jsonb);
@@ -20627,9 +21056,9 @@ begin
     end if;
   end loop;
 
-  -- A step dropped from the end takes its work with it (R17): its live runs canceled, its planned and held sends
-  -- skipped, step_removed, then its row. One that wrote, or handed anyone to the team, keeps its history: its owner
-  -- pauses the chain instead.
+  -- A step dropped from the end takes its work with it (R17): its live runs canceled, its planned, held and drafted
+  -- sends skipped, step_removed, then its row. One that wrote, or handed anyone to the team, keeps its history: its
+  -- owner pauses the chain instead.
   if coalesce(cardinality(v_existing), 0) > v_n then
     v_dropped := v_existing[v_n + 1:];
     -- Held against a claim while it is judged: a claim waits, or finds them skipped.
@@ -20642,7 +21071,7 @@ begin
      where tenant_id = p_tenant_id and playbook_id = any (v_dropped)
        and state in ('pending_approval', 'scheduled', 'sending');
     update public.reach_out_sends set state = 'skipped', reason = 'step_removed'
-     where playbook_id = any (v_dropped) and state in ('planned', 'held');
+     where playbook_id = any (v_dropped) and state in ('planned', 'held', 'drafted');
     -- Their words stay on file (a run of theirs names them: broadcasts.template_id), hidden from Templates.
     update public.templates set hidden_at = coalesce(hidden_at, now())
      where id in (select p.template_id from public.playbooks p where p.id = any (v_dropped));
@@ -20677,14 +21106,14 @@ begin
         returning id into v_template;
       end if;
       insert into public.playbooks (id, tenant_id, kind, name, trigger, policy_class, lead_search_id, after_playbook_id,
-                                    after_days, gap_minutes, mailbox_ids, signed_by, include_unconfirmed, template_id,
-                                    template_name, template_language, hand, params, run_hour, cap_per_run, state,
-                                    created_by)
+                                    after_days, gap_minutes, mailbox_ids, owner_sends, signed_by, include_unconfirmed,
+                                    template_id, template_name, template_language, hand, params, run_hour, cap_per_run,
+                                    state, created_by)
       values (v_id, p_tenant_id, 'reach_out',
               case when v_i = 0 then v_name else left(v_name, 80 - char_length(v_label) - 3) || ' · ' || v_label end,
               case when v_i = 0 then 'lead_first' else 'after_step' end, 'outreach',
               case when v_i = 0 then v_search end, case when v_i > 0 then v_prev end,
-              case when v_i > 0 then (v_step->>'after_days')::int end, v_gap, v_mailboxes,
+              case when v_i > 0 then (v_step->>'after_days')::int end, v_gap, v_mailboxes, v_i = 0 and v_owner,
               case when v_i = 0 then v_signed end, v_i = 0 and v_unconf,
               case when v_hand is null then v_template end,
               case when v_hand is null then 'reach_out_' || replace(v_id::text, '-', '') end,
@@ -20731,6 +21160,7 @@ begin
       update public.playbooks
          set name = case when v_i = 0 then v_name else left(v_name, 80 - char_length(v_label) - 3) || ' · ' || v_label end,
              gap_minutes = v_gap, mailbox_ids = v_mailboxes, domain_ids = '{}',
+             owner_sends = v_i = 0 and v_owner,
              after_days = case when v_i > 0 then (v_step->>'after_days')::int end,
              signed_by = case when v_i = 0 then v_signed end,
              include_unconfirmed = v_i = 0 and v_unconf
@@ -20850,6 +21280,7 @@ begin
     select jsonb_build_object(
       'chain', jsonb_build_object('root_id', v_root.id, 'name', v_root.name, 'state', v_root.state),
       'fed_by', case when v_via in ('chosen', 'import') then 'list' else 'search' end,
+      'owner_sends', v_root.owner_sends,
       'written_to', (select count(*) from rl where (rl.line->>'sent')::int > 0),
       'today', (select count(*) from sends where left_at >= v_midnight),
       'next', (select jsonb_build_object('at', x.send_at, 'business', l.business_name, 'host', b.host, 'from', b.address)
@@ -20860,6 +21291,7 @@ begin
                 order by x.send_at
                 limit 1),
       'held', (select count(*) from sends where state = 'held' and live),
+      'to_send', (select count(*) from sends where state = 'drafted' and live),
       'waiting_run_id', (select b.id from public.broadcasts b
                           where b.tenant_id = p_tenant_id and b.audience->>'kind' = 'reach_out'
                             and b.audience->>'root_id' = v_root.id::text and b.state = 'pending_approval'
@@ -20877,7 +21309,7 @@ end $$;
 -- Name: FUNCTION reach_out_search_lines(p_tenant_id uuid, p_search_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_search_lines(p_tenant_id uuid, p_search_id uuid) IS 'Leads while it writes (Reach out Part 6, H8), for a member: an open search''s chain, or null when it has none. chain {root_id, name, state}, fed_by (list or search, 00426), written_to, today (emails that left since the workspace''s midnight), next {at, business, host} (the earliest planned and checked email of a live run), held, waiting_run_id, and leads: at most 2,000 lines from reach_out_root_lines, one per lead the chain has a send for and, for a list-fed one, each lead on its list not written yet.';
+COMMENT ON FUNCTION public.reach_out_search_lines(p_tenant_id uuid, p_search_id uuid) IS 'Leads while it writes (Reach out Part 6, H8), for a member: an open search''s chain, or null when it has none. chain {root_id, name, state}, fed_by (list or search, 00426), owner_sends (00428), written_to, today (emails that left since the workspace''s midnight), next {at, business, host} (the earliest planned and checked email of a live run), held, to_send (drafts waiting for their owner in live runs, 00428), waiting_run_id, and leads: at most 2,000 lines from reach_out_root_lines, one per lead the chain has a send for and, for a list-fed one, each lead on its list not written yet.';
 
 
 --
@@ -20935,6 +21367,114 @@ end $$;
 
 
 --
+-- Name: reach_out_send_said(uuid, text, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.reach_out_send_said(p_send_id uuid, p_outcome text, p_message_id uuid DEFAULT NULL::uuid, p_reason text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user    uuid := auth.uid();
+  v_at      timestamptz := now();
+  v_send    public.reach_out_sends%rowtype;
+  v_person  jsonb;
+  v_contact uuid;
+  v_conv    uuid;
+  v_to      text;
+  v_moved   boolean;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_outcome is null or p_outcome not in ('sent', 'not_sent') then
+    raise exception 'Sent, or not sent.' using errcode = '22023';
+  end if;
+  select * into v_send from public.reach_out_sends where id = p_send_id for update;
+  if not found or not public.is_acting_member(v_send.tenant_id) then
+    raise exception 'Email not found.' using errcode = 'P0002';
+  end if;
+  if v_send.state <> 'drafted' then
+    return jsonb_build_object('said', false, 'state', v_send.state, 'reason', v_send.reason);
+  end if;
+
+  if p_outcome = 'not_sent' then
+    update public.reach_out_sends
+       set state = 'skipped', reason = left(coalesce(nullif(btrim(coalesce(p_reason, '')), ''), 'owner_skipped'), 60),
+           said_at = v_at, said_by = v_user
+     where id = p_send_id;
+    return jsonb_build_object('said', true, 'state', 'skipped',
+                              'reason', left(coalesce(nullif(btrim(coalesce(p_reason, '')), ''), 'owner_skipped'), 60));
+  end if;
+
+  if p_message_id is null then
+    raise exception 'An email that went has its id.' using errcode = '22023';
+  end if;
+  v_to := lower(btrim(coalesce(v_send.draft->>'to', '')));
+  -- An address on the never-again list since its draft was handed over (a no, an unsubscribe, its business's domain):
+  -- never written to cold, as the send door refuses it (outreach_suppressed).
+  if exists (select 1 from public.lead_addresses_suppressed(v_send.tenant_id, array[v_to])) then
+    update public.reach_out_sends
+       set state = 'skipped', reason = 'outreach_suppressed', said_at = v_at, said_by = v_user
+     where id = p_send_id;
+    return jsonb_build_object('said', true, 'state', 'skipped', 'reason', 'outreach_suppressed');
+  end if;
+  v_person := public.reach_out_person(v_send.tenant_id, v_send.lead_id);
+  if v_person ? 'refused' then
+    update public.reach_out_sends
+       set state = 'skipped', reason = left(v_person->>'refused', 60), said_at = v_at, said_by = v_user
+     where id = p_send_id;
+    return jsonb_build_object('said', true, 'state', 'skipped', 'reason', v_person->>'refused');
+  end if;
+  v_contact := (v_person->>'contact_id')::uuid;
+  v_conv := (v_person->>'conversation_id')::uuid;
+
+  insert into public.messages (id, tenant_id, conversation_id, contact_id, channel, direction, sender, type, body,
+                               status, meta)
+  values (p_message_id, v_send.tenant_id, v_conv, v_contact, 'email', 'outbound', 'human', 'text',
+          coalesce(v_send.draft->>'body', ''), 'sent',
+          jsonb_build_object(
+            'source', 'reach_out',
+            'email', jsonb_build_object('subject', v_send.draft->>'subject', 'to', jsonb_build_array(v_to),
+                                        'text', v_send.draft->>'text', 'said_by', v_user, 'said_at', v_at)
+                     || case when nullif(v_send.draft->>'parent_id', '') is not null
+                             then jsonb_build_object('parent_id', v_send.draft->>'parent_id') else '{}'::jsonb end,
+            'reach_out', jsonb_build_object('send_id', v_send.id, 'lead_id', v_send.lead_id, 'contact_id', v_contact,
+                                            'playbook_id', v_send.playbook_id, 'root_id', v_send.root_id,
+                                            'broadcast_id', v_send.broadcast_id, 'attempt', v_send.attempts)))
+  on conflict (id) do nothing;
+
+  update public.reach_out_sends
+     set state = 'sent', sent_at = v_at, message_id = p_message_id, contact_id = v_contact,
+         said_at = v_at, said_by = v_user
+   where id = p_send_id;
+
+  update public.leads
+     set stage = case when stage = 'ready' then 'nurture' else stage end,
+         contacted_at = coalesce(contacted_at, v_at),
+         last_outcome = 'emailed',
+         version = version + 1
+   where id = v_send.lead_id and tenant_id = v_send.tenant_id and erased_at is null and blanked_at is null;
+  v_moved := found;
+  if v_moved then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_send.tenant_id, 'lead.emailed', 'lead', 'lead', v_send.lead_id,
+            jsonb_build_object('by', 'reach_out', 'send_id', v_send.id));
+  end if;
+
+  return jsonb_build_object('said', true, 'state', 'sent', 'message_id', p_message_id, 'contact_id', v_contact,
+                            'conversation_id', v_conv);
+end $$;
+
+
+--
+-- Name: FUNCTION reach_out_send_said(p_send_id uuid, p_outcome text, p_message_id uuid, p_reason text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.reach_out_send_said(p_send_id uuid, p_outcome text, p_message_id uuid, p_reason text) IS 'The owner''s word on an email handed to them (00428), an acting member''s: not_sent skips it (owner_skipped, or p_reason: the door''s refusal the server read); sent writes, in one transaction, the person (reach_out_person, whose refusal skips it), the email as sent under p_message_id (core sendMessageId), the send sent with its said_at and said_by, and the lead written to (lead.emailed). A send no longer drafted answers {said: false, state}.';
+
+
+--
 -- Name: reach_out_sends_guard(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -20947,8 +21487,9 @@ begin
     if not (
       (OLD.state = 'planned' and NEW.state in ('claimed', 'skipped', 'held')) or
       (OLD.state = 'held' and NEW.state in ('planned', 'skipped')) or
-      (OLD.state = 'claimed' and NEW.state in ('queued', 'planned', 'skipped', 'failed')) or
-      (OLD.state = 'queued' and NEW.state in ('sent', 'planned', 'skipped', 'failed'))
+      (OLD.state = 'claimed' and NEW.state in ('queued', 'drafted', 'planned', 'skipped', 'failed')) or
+      (OLD.state = 'queued' and NEW.state in ('sent', 'planned', 'skipped', 'failed')) or
+      (OLD.state = 'drafted' and NEW.state in ('sent', 'skipped'))
     ) then
       raise exception 'reach_out_sends.state moves % -> % refused', OLD.state, NEW.state;
     end if;
@@ -25673,16 +26214,18 @@ begin
           and b.state in ('scheduled', 'sending') and p.state = 'running' and r.state = 'running')
      or exists (select 1 from public.reach_out_sends where state in ('claimed', 'queued'))
      or exists (select 1 from public.reach_out_sends where state = 'held' and created_at < now() - interval '14 days')
+     or exists (select 1 from public.reach_out_sends where state = 'drafted' and drafted_at < now() - interval '14 days')
      or exists (
        select 1 from public.broadcasts b
         where b.audience->>'kind' = 'reach_out' and b.state in ('canceled', 'failed')
           and exists (select 1 from public.reach_out_sends s
-                       where s.broadcast_id = b.id and s.state in ('planned', 'held', 'claimed')))
+                       where s.broadcast_id = b.id and s.state in ('planned', 'held', 'claimed', 'drafted')))
      or exists (
        select 1 from public.broadcasts b
         where b.audience->>'kind' = 'reach_out' and b.state in ('scheduled', 'sending')
           and not exists (select 1 from public.reach_out_sends s
-                           where s.broadcast_id = b.id and s.state in ('planned', 'held', 'claimed', 'queued'))) then
+                           where s.broadcast_id = b.id
+                             and s.state in ('planned', 'held', 'claimed', 'queued', 'drafted'))) then
     return public.request_sweep('reach_out', '/api/cron/reach-out', 65000);
   end if;
   insert into public.sweep_status (sweep, requested_at) values ('reach_out', now())
@@ -27646,9 +28189,18 @@ CREATE TABLE public.leads (
     reach_out_stopped_at timestamp with time zone,
     stage_at timestamp with time zone DEFAULT now(),
     stage_from text,
+    kind text DEFAULT 'place'::text NOT NULL,
+    source text DEFAULT 'local_businesses'::text NOT NULL,
+    source_key text,
+    facts jsonb DEFAULT '{}'::jsonb NOT NULL,
     CONSTRAINT leads_closed_reason_check CHECK ((closed_reason = ANY (ARRAY['said_no'::text, 'not_a_fit'::text, 'customer'::text, 'stale'::text, 'search_removed'::text]))),
+    CONSTRAINT leads_company_has_a_key CHECK (((kind <> 'company'::text) OR ((place_id IS NULL) AND ((source_key IS NOT NULL) OR (blanked_at IS NOT NULL) OR (erased_at IS NOT NULL))))),
     CONSTRAINT leads_email_state_check CHECK ((email_state = ANY (ARRAY['none'::text, 'checking'::text, 'ok'::text, 'catch_all'::text, 'unknown'::text, 'invalid'::text]))),
+    CONSTRAINT leads_facts_is_an_object CHECK (((jsonb_typeof(facts) = 'object'::text) AND (octet_length((facts)::text) <= 8000))),
+    CONSTRAINT leads_kind_check CHECK ((kind = ANY (ARRAY['place'::text, 'company'::text]))),
     CONSTRAINT leads_mark_path_shape CHECK (((mark_path IS NULL) OR (mark_path ~ '^[0-9a-f]{64}\.(png|jpg|webp|gif|ico)$'::text))),
+    CONSTRAINT leads_source_check CHECK ((source = ANY (ARRAY['local_businesses'::text, 'people_at_companies'::text, 'import'::text]))),
+    CONSTRAINT leads_source_key_shape CHECK (((source_key IS NULL) OR ((char_length(source_key) >= 1) AND (char_length(source_key) <= 200)))),
     CONSTRAINT leads_stage_check CHECK ((stage = ANY (ARRAY['ready'::text, 'nurture'::text, 'converted'::text, 'archived'::text])))
 );
 
@@ -27763,6 +28315,34 @@ COMMENT ON COLUMN public.leads.stage_at IS 'When the lead entered the stage it i
 --
 
 COMMENT ON COLUMN public.leads.stage_from IS 'The stage the lead was in before the move that stamped stage_at (K5); null until it moves. The one place a lead''s "from" is said: lead.set_aside and 00310''s lead.stage event read it.';
+
+
+--
+-- Name: COLUMN leads.kind; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.leads.kind IS 'What the lead is (00429): a place a listing names (the Maps card''s), or a company with the people its source named on it (the people card''s, facts.people), one of whom its reach-out writes to.';
+
+
+--
+-- Name: COLUMN leads.source; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.leads.source IS 'Where the lead came from (00429): the card that found it (local_businesses, people_at_companies), or a file of the owner''s own (import). The foot of a cold email says it in its first line (contracts whyFrom).';
+
+
+--
+-- Name: COLUMN leads.source_key; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.leads.source_key IS 'The lead''s own key at its source (00429): a company''s domain for the people card. One lead per workspace, source and key (leads_tenant_source_key_uq); a place keeps its place_id instead.';
+
+
+--
+-- Name: COLUMN leads.facts; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.leads.facts IS 'What the lead''s source named beyond its columns (00429): {people: [{name, first_name, title, role, email, profile_url}] at most five, addressee: the index of the one the lead''s address is, size: the company''s size as its source gave it}. Read through contracts leadFactsOf; blanked with the lead.';
 
 
 --
@@ -29000,6 +29580,7 @@ CREATE TABLE public.playbooks (
     until date,
     trial_until timestamp with time zone,
     mailbox_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
+    owner_sends boolean DEFAULT false NOT NULL,
     CONSTRAINT playbooks_cadence_days_check CHECK (((cadence_days >= 1) AND (cadence_days <= 90))),
     CONSTRAINT playbooks_cap_per_run_check CHECK (((cap_per_run >= 1) AND (cap_per_run <= 500))),
     CONSTRAINT playbooks_channels_check CHECK (((channels <@ ARRAY['whatsapp'::text, 'sms'::text, 'email'::text]) AND ((cardinality(channels) >= 1) AND (cardinality(channels) <= 3)) AND (cardinality(channels) = ((((channels @> ARRAY['whatsapp'::text]))::integer + ((channels @> ARRAY['sms'::text]))::integer) + ((channels @> ARRAY['email'::text]))::integer)))),
@@ -29008,6 +29589,7 @@ CREATE TABLE public.playbooks (
     CONSTRAINT playbooks_list_key_shape CHECK (((list_key IS NULL) OR (list_key ~ '^[a-z_]{1,40}$'::text))),
     CONSTRAINT playbooks_name_check CHECK (((length(name) >= 1) AND (length(name) <= 80))),
     CONSTRAINT playbooks_one_list CHECK (((list_key IS NULL) OR (list_id IS NULL))),
+    CONSTRAINT playbooks_owner_sends_is_a_root_s CHECK (((NOT owner_sends) OR ((kind = 'reach_out'::text) AND (trigger = 'lead_first'::text)))),
     CONSTRAINT playbooks_policy_class_check CHECK ((policy_class = ANY (ARRAY['reengage'::text, 'campaign'::text, 'booking'::text, 'follow_up'::text, 'outreach'::text]))),
     CONSTRAINT playbooks_reach_out_gap CHECK (((kind <> 'reach_out'::text) OR (gap_minutes = ANY (ARRAY[5, 8, 12, 20, 30, 60])))),
     CONSTRAINT playbooks_reach_out_shape CHECK (
@@ -29086,6 +29668,13 @@ COMMENT ON COLUMN public.playbooks.trial_until IS 'Until when this campaign runs
 --
 
 COMMENT ON COLUMN public.playbooks.mailbox_ids IS 'A reach-out step''s mailboxes (00424): the ones its owner picked, or none for every connected one of its workspace.';
+
+
+--
+-- Name: COLUMN playbooks.owner_sends; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.playbooks.owner_sends IS 'A reach-out''s root (00428): its owner sends its emails from their own inbox, each handed to them written and checked (state drafted), rather than its mailboxes (mailbox_ids). Its steps read it from the root.';
 
 
 --
@@ -29255,14 +29844,16 @@ CREATE TABLE public.reach_out_replies (
     signer_was text,
     signer_settled_at timestamp with time zone,
     signer_settled_by uuid,
+    said_by uuid,
     CONSTRAINT reach_out_replies_away_has_until CHECK (((until_at IS NULL) OR ((intent = 'away'::text) AND (claim = 'auto_reply'::text)))),
-    CONSTRAINT reach_out_replies_claim_check CHECK ((claim = ANY (ARRAY['person'::text, 'automated'::text, 'auto_reply'::text]))),
+    CONSTRAINT reach_out_replies_claim_check CHECK ((claim = ANY (ARRAY['person'::text, 'automated'::text, 'auto_reply'::text, 'owner'::text]))),
     CONSTRAINT reach_out_replies_draft_check CHECK (((draft IS NULL) OR (char_length(draft) <= 4000))),
     CONSTRAINT reach_out_replies_draft_state_check CHECK ((draft_state = ANY (ARRAY['none'::text, 'waiting'::text, 'written'::text, 'not_written'::text]))),
     CONSTRAINT reach_out_replies_draft_why_check CHECK (((draft_why IS NULL) OR (char_length(draft_why) <= 60))),
     CONSTRAINT reach_out_replies_intent_check CHECK ((intent = ANY (ARRAY['interested'::text, 'question'::text, 'not_now'::text, 'no'::text, 'wrong_person'::text, 'away'::text, 'other'::text]))),
     CONSTRAINT reach_out_replies_refer_to_check CHECK (((refer_to IS NULL) OR (char_length(refer_to) <= 120))),
     CONSTRAINT reach_out_replies_rereads_check CHECK (((rereads >= 0) AND (rereads <= 3))),
+    CONSTRAINT reach_out_replies_said_by_owner CHECK (((said_by IS NULL) OR (claim = 'owner'::text))),
     CONSTRAINT reach_out_replies_signer_check CHECK ((((signer_name IS NULL) OR ((char_length(signer_name) >= 1) AND (char_length(signer_name) <= 80))) AND ((signer_title IS NULL) OR ((signer_name IS NOT NULL) AND ((char_length(signer_title) >= 1) AND (char_length(signer_title) <= 80)))) AND ((signer_name IS NULL) = (signer_state IS NULL)) AND ((signer_state IS NULL) OR (signer_state = ANY (ARRAY['offered'::text, 'adopted'::text, 'declined'::text, 'undone'::text]))) AND ((signer_was IS NULL) OR (signer_was = ANY (ARRAY['none'::text, 'typed'::text, 'import'::text, 'calendar'::text, 'signature'::text, 'wire'::text, 'lead'::text]))) AND ((signer_settled_at IS NULL) = ((signer_state IS NULL) OR (signer_state = 'offered'::text))))),
     CONSTRAINT reach_out_replies_summary_check CHECK (((summary IS NULL) OR (char_length(summary) <= 160))),
     CONSTRAINT reach_out_replies_unread_check CHECK (((unread IS NULL) OR (unread = ANY (ARRAY['no_model'::text, 'may_not_spend'::text, 'day_spent'::text, 'model_failed'::text])))),
@@ -29289,6 +29880,13 @@ COMMENT ON COLUMN public.reach_out_replies.signer_name IS 'Who signed the reply,
 --
 
 COMMENT ON COLUMN public.reach_out_replies.signer_state IS 'What became of the signer''s name (0052): offered (the notice "Use this name"), adopted (by a member''s press or automatically), declined, or undone.';
+
+
+--
+-- Name: COLUMN reach_out_replies.said_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.reach_out_replies.said_by IS 'For a reading its owner gave (claim owner, 00428): the member who said what the business wrote back. Its message_id is the note that says so on the person''s thread (reach_out_reply_said).';
 
 
 --
@@ -31645,6 +32243,13 @@ CREATE UNIQUE INDEX leads_tenant_place_uq ON public.leads USING btree (tenant_id
 
 
 --
+-- Name: leads_tenant_source_key_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX leads_tenant_source_key_uq ON public.leads USING btree (tenant_id, source, source_key) WHERE (source_key IS NOT NULL);
+
+
+--
 -- Name: leads_tenant_stage; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -32174,6 +32779,13 @@ CREATE INDEX reach_out_sends_chain ON public.reach_out_sends USING btree (root_i
 --
 
 CREATE INDEX reach_out_sends_contact ON public.reach_out_sends USING btree (tenant_id, contact_id, sent_at DESC) WHERE ((state = 'sent'::text) AND (contact_id IS NOT NULL));
+
+
+--
+-- Name: reach_out_sends_drafted; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX reach_out_sends_drafted ON public.reach_out_sends USING btree (broadcast_id, drafted_at) WHERE (state = 'drafted'::text);
 
 
 --
@@ -32776,6 +33388,13 @@ CREATE TRIGGER lead_suppressions_erasure_digest_keyed BEFORE INSERT OR UPDATE OF
 --
 
 CREATE TRIGGER leads_note_set_aside AFTER UPDATE OF stage, closed_reason ON public.leads FOR EACH ROW WHEN ((public.lead_is_set_aside(new.stage, new.closed_reason) AND (NOT public.lead_is_set_aside(old.stage, old.closed_reason)))) EXECUTE FUNCTION public.leads_note_set_aside();
+
+
+--
+-- Name: leads leads_source_of_a_list; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER leads_source_of_a_list BEFORE INSERT ON public.leads FOR EACH ROW EXECUTE FUNCTION public.leads_source_of_a_list();
 
 
 --
@@ -34999,6 +35618,14 @@ ALTER TABLE ONLY public.reach_out_replies
 
 
 --
+-- Name: reach_out_replies reach_out_replies_said_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reach_out_replies
+    ADD CONSTRAINT reach_out_replies_said_by_fkey FOREIGN KEY (said_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
 -- Name: reach_out_replies reach_out_replies_send_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -35084,6 +35711,14 @@ ALTER TABLE ONLY public.reach_out_sends
 
 ALTER TABLE ONLY public.reach_out_sends
     ADD CONSTRAINT reach_out_sends_root_id_same_workspace FOREIGN KEY (tenant_id, root_id) REFERENCES public.playbooks(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: reach_out_sends reach_out_sends_said_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reach_out_sends
+    ADD CONSTRAINT reach_out_sends_said_by_fkey FOREIGN KEY (said_by) REFERENCES auth.users(id) ON DELETE SET NULL;
 
 
 --
@@ -37837,6 +38472,14 @@ GRANT ALL ON FUNCTION public.lead_collect_commit(p_run_id uuid, p_owner text, p_
 
 
 --
+-- Name: FUNCTION lead_company_upsert(p_round_id uuid, p_companies jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_company_upsert(p_round_id uuid, p_companies jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_company_upsert(p_round_id uuid, p_companies jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION lead_convert_by(p_tenant_id uuid, p_lead_id uuid, p_how text, p_data jsonb, p_any_stage boolean); Type: ACL; Schema: public; Owner: -
 --
 
@@ -38013,6 +38656,15 @@ GRANT ALL ON FUNCTION public.lead_name_key(p_name text) TO service_role;
 REVOKE ALL ON FUNCTION public.lead_niche_prior(p_category_key text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.lead_niche_prior(p_category_key text) TO authenticated;
 GRANT ALL ON FUNCTION public.lead_niche_prior(p_category_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION lead_people_search_create(p_tenant_id uuid, p_plan jsonb, p_via text, p_estimate_usd numeric, p_thread_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_people_search_create(p_tenant_id uuid, p_plan jsonb, p_via text, p_estimate_usd numeric, p_thread_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_people_search_create(p_tenant_id uuid, p_plan jsonb, p_via text, p_estimate_usd numeric, p_thread_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.lead_people_search_create(p_tenant_id uuid, p_plan jsonb, p_via text, p_estimate_usd numeric, p_thread_id uuid) TO service_role;
 
 
 --
@@ -38363,6 +39015,14 @@ GRANT ALL ON FUNCTION public.leads_note_set_aside() TO service_role;
 REVOKE ALL ON FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid, p_list_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid, p_list_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid, p_list_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION leads_source_of_a_list(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.leads_source_of_a_list() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.leads_source_of_a_list() TO service_role;
 
 
 --
@@ -39725,6 +40385,14 @@ GRANT ALL ON FUNCTION public.reach_out_claim(p_domain_id uuid, p_cap integer, p_
 
 
 --
+-- Name: FUNCTION reach_out_claim_drafts(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.reach_out_claim_drafts(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.reach_out_claim_drafts(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION reach_out_claim_from(p_mailbox_id uuid, p_cap integer, p_at timestamp with time zone, p_limit integer); Type: ACL; Schema: public; Owner: -
 --
 
@@ -39932,11 +40600,11 @@ GRANT ALL ON FUNCTION public.reach_out_remove(p_tenant_id uuid, p_root_id uuid) 
 
 
 --
--- Name: FUNCTION reach_out_reply_apply(p_tenant_id uuid, p_message_id uuid, p_reading jsonb, p_plan jsonb, p_reread integer, p_days integer); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION reach_out_reply_apply(p_tenant_id uuid, p_message_id uuid, p_reading jsonb, p_plan jsonb, p_reread integer, p_days integer, p_said jsonb); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.reach_out_reply_apply(p_tenant_id uuid, p_message_id uuid, p_reading jsonb, p_plan jsonb, p_reread integer, p_days integer) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.reach_out_reply_apply(p_tenant_id uuid, p_message_id uuid, p_reading jsonb, p_plan jsonb, p_reread integer, p_days integer) TO service_role;
+REVOKE ALL ON FUNCTION public.reach_out_reply_apply(p_tenant_id uuid, p_message_id uuid, p_reading jsonb, p_plan jsonb, p_reread integer, p_days integer, p_said jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.reach_out_reply_apply(p_tenant_id uuid, p_message_id uuid, p_reading jsonb, p_plan jsonb, p_reread integer, p_days integer, p_said jsonb) TO service_role;
 
 
 --
@@ -39953,6 +40621,15 @@ GRANT ALL ON FUNCTION public.reach_out_reply_draft(p_tenant_id uuid, p_message_i
 
 REVOKE ALL ON FUNCTION public.reach_out_reply_of(p_tenant_id uuid, p_message_id uuid, p_days integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.reach_out_reply_of(p_tenant_id uuid, p_message_id uuid, p_days integer) TO service_role;
+
+
+--
+-- Name: FUNCTION reach_out_reply_said(p_lead_id uuid, p_reading jsonb, p_plan jsonb, p_note text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.reach_out_reply_said(p_lead_id uuid, p_reading jsonb, p_plan jsonb, p_note text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.reach_out_reply_said(p_lead_id uuid, p_reading jsonb, p_plan jsonb, p_note text) TO authenticated;
+GRANT ALL ON FUNCTION public.reach_out_reply_said(p_lead_id uuid, p_reading jsonb, p_plan jsonb, p_note text) TO service_role;
 
 
 --
@@ -40047,6 +40724,15 @@ GRANT ALL ON FUNCTION public.reach_out_search_lines(p_tenant_id uuid, p_search_i
 REVOKE ALL ON FUNCTION public.reach_out_send_decide(p_send_id uuid, p_decision text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.reach_out_send_decide(p_send_id uuid, p_decision text) TO authenticated;
 GRANT ALL ON FUNCTION public.reach_out_send_decide(p_send_id uuid, p_decision text) TO service_role;
+
+
+--
+-- Name: FUNCTION reach_out_send_said(p_send_id uuid, p_outcome text, p_message_id uuid, p_reason text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.reach_out_send_said(p_send_id uuid, p_outcome text, p_message_id uuid, p_reason text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.reach_out_send_said(p_send_id uuid, p_outcome text, p_message_id uuid, p_reason text) TO authenticated;
+GRANT ALL ON FUNCTION public.reach_out_send_said(p_send_id uuid, p_outcome text, p_message_id uuid, p_reason text) TO service_role;
 
 
 --

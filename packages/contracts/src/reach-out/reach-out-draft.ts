@@ -42,6 +42,8 @@ export interface ReachOutDraft {
   gap_minutes: number;
   /** Empty: every connected mailbox of the workspace (00424). */
   mailbox_ids: string[];
+  /** Its owner sends its emails from their own inbox, each handed to them as a draft (00428). */
+  owner_sends: boolean;
   signed_by: string;
   steps: ReachOutDraftStep[];
 }
@@ -53,20 +55,27 @@ export const REACH_OUT_FIRST_WORDS = {
   nudge: "Just checking this reached you. Happy to send a few details if it's useful.\n\n{{your name}}",
 } as const;
 
-/** The pace a new chain starts at: one email every twelve minutes or so. */
-export const REACH_OUT_GAP_FIRST = 12;
+/**
+ * The pace a new chain starts at: one email every twenty minutes or so from each mailbox (the lead workbench's call 10,
+ * the mailbox review's pace for a cold mailbox).
+ */
+export const REACH_OUT_GAP_FIRST = 20;
 
 /** A chain's name when it is given none: the search it writes to. */
 export function reachOutDefaultName(searchName: string): string {
   return `Reach out · ${searchName}`.slice(0, 80);
 }
 
-/** The draft a sheet opens as: the chain being changed, or a new one over the search, signed with the member's name. */
+/**
+ * The draft a sheet opens as: the chain being changed, or a new one over the search, signed with the member's name. A new
+ * one is its owner's to send (`ownerSends`) when the workspace has no mailbox connected to write from.
+ */
 export function reachOutDraftOf(p: {
   chain: ReachOutChainDto | null;
   searchName: string;
   signedBy: string | null;
   includeUnconfirmed?: boolean;
+  ownerSends?: boolean;
 }): ReachOutDraft {
   const c = p.chain;
   if (c)
@@ -75,6 +84,7 @@ export function reachOutDraftOf(p: {
       include_unconfirmed: c.include_unconfirmed,
       gap_minutes: c.gap_minutes,
       mailbox_ids: c.mailbox_ids,
+      owner_sends: c.owner_sends === true,
       signed_by: c.signed_by ?? p.signedBy ?? "",
       steps: c.steps.map((s) => ({
         id: s.id,
@@ -89,6 +99,7 @@ export function reachOutDraftOf(p: {
     include_unconfirmed: !!p.includeUnconfirmed,
     gap_minutes: REACH_OUT_GAP_FIRST,
     mailbox_ids: [],
+    owner_sends: p.ownerSends === true,
     signed_by: p.signedBy ?? "",
     steps: [
       {
@@ -152,6 +163,7 @@ export function reachOutChainBodyOf(d: ReachOutDraft, searchId: string): ReachOu
     include_unconfirmed: d.include_unconfirmed,
     gap_minutes: d.gap_minutes,
     mailbox_ids: d.mailbox_ids,
+    owner_sends: d.owner_sends,
     signed_by: d.signed_by.trim() || null,
     // An email carries no hand at all: the door reads a step with the key as a hand step (00228).
     steps: d.steps.map((s, i) => ({
@@ -349,6 +361,8 @@ export const REACH_OUT_SHEET_PARTS = {
   dayOne: "Day one · the pace below",
   remove: "Remove this step",
   everyMailbox: "Every connected mailbox",
+  /** From's choice for a reach-out its owner sends (00428). */
+  youSend: "You send them, from your own inbox",
   mailboxesMax: `Up to ${REACH_OUT_MAILBOXES_MAX} mailboxes, or every connected one.`,
   connectGoogle: "Connect Google",
   connectMicrosoft: "Connect Microsoft",

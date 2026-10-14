@@ -19,6 +19,7 @@ import type {
   LeadRoundState,
   LeadRunState,
   LeadSearchPlan,
+  LeadFacts,
   ContactId,
   TenantId,
 } from "@chanlytics/contracts";
@@ -195,6 +196,25 @@ export interface CollectPlace {
   shares: LeadShare[];
 }
 
+/**
+ * One company a people run found (00429), as lead_company_upsert takes it: the lead's columns, its addressee's work
+ * address (the lead's own, checked before anyone is written to), its people, and the line Leads says of it.
+ */
+export type CollectCompany = {
+  /** Its domain: the lead's source_key. */
+  source_key: string;
+  name: string;
+  category: string | null;
+  city: string | null;
+  region: string | null;
+  country: string;
+  linkedin_url: string | null;
+  about: string | null;
+  email: string;
+  facts: LeadFacts;
+  reason: string;
+};
+
 export interface CollectJudgment {
   op_id: string;
   batch: number;
@@ -266,6 +286,14 @@ export interface LeadDb {
     last: boolean,
   ): Promise<{ ok: boolean }>;
   roundEnd(roundId: string, ending: LeadRoundEnding): Promise<boolean>;
+  /**
+   * A people run's page of companies (00429 lead_company_upsert), before its own commit moves the run: a lead each, or
+   * the people a company already held gains. Idempotent, so a page read twice keeps each company once.
+   */
+  companyUpsert(
+    roundId: string,
+    companies: CollectCompany[],
+  ): Promise<{ made: number; held: number; left_out: number }>;
   /**
    * lead_round_rejudge (00165): the verdicts of an answer that changed the plan, over places the probe already judged,
    * committed on a round running at that plan version. Never over the owner's decision, never twice, counted both
