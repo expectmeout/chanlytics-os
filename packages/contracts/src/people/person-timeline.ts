@@ -194,6 +194,15 @@ const DECISION_LABELS: Record<string, { who: string; did: string }> = {
   resume_agent: { who: "Resumed the receptionist", did: "resumed automatic replies" },
 };
 
+/** A copy of their own records taken from their page (GET export?person, R14 X5): who took one, and when, on their page. */
+const EXPORTED_THEIR_RECORDS = { who: "Downloaded their records", did: "downloaded their records" } as const;
+
+/** The words of a decision on their timeline: an export is one only where it was a copy of their records. */
+function decisionLabel(dec: Pick<PersonDecisionDto, "verb" | "payload">): { who: string; did: string } | undefined {
+  if (dec.verb === "export") return dec.payload?.what === "person" ? EXPORTED_THEIR_RECORDS : undefined;
+  return DECISION_LABELS[dec.verb];
+}
+
 /**
  * Who a decision was by, in the words a line says it: "You" only for the member looking, a teammate by the roster's name
  * (memberWords, via the page's `names`), "Your team" where the roster does not name them -- as the thread says a reply
@@ -384,7 +393,7 @@ function decisionItems({ profile, row, stamp, viewerId, names }: PersonCardConte
   const convIds = new Set(profile.conversations.map((c) => c.id));
   const items: PersonTimelineItemVM[] = [];
   for (const dec of profile.decisions) {
-    const label = DECISION_LABELS[dec.verb];
+    const label = decisionLabel(dec);
     if (!label) continue;
     const mine =
       (dec.subject_type === "conversation" && convIds.has(dec.subject_id)) ||

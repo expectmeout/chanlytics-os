@@ -8569,7 +8569,7 @@ var WHOLE_SENTENCE = new Map([
     ]
   )
 ]);
-var exportedWords = (what) => what === "workspace" ? "the records" : what === "people" ? "everyone as a CSV" : `a ${what}`;
+var exportedWords = (what) => what === "workspace" ? "the records" : what === "people" ? "everyone as a CSV" : what === "person" ? "a person's records" : `a ${what}`;
 function activityWords(kind, payload) {
   const p = payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
   const base = kind === "take_over" && textAt(p, "how") === "transfer" ? "Took over a call" : WORDS[kind] ?? humanize(kind);
@@ -34770,6 +34770,11 @@ var DECISION_LABELS = {
   pause_agent: { who: "Paused the receptionist", did: "paused automatic replies" },
   resume_agent: { who: "Resumed the receptionist", did: "resumed automatic replies" }
 };
+var EXPORTED_THEIR_RECORDS = { who: "Downloaded their records", did: "downloaded their records" };
+function decisionLabel(dec) {
+  if (dec.verb === "export") return dec.payload?.what === "person" ? EXPORTED_THEIR_RECORDS : void 0;
+  return DECISION_LABELS[dec.verb];
+}
 function decidedBy(dec, viewerId, names3) {
   if (dec.actor_type === "ai") return "The receptionist";
   if (dec.actor_type === "system") return "The system";
@@ -34883,7 +34888,7 @@ function decisionItems({ profile, row: row2, stamp, viewerId, names: names3 }) {
   const convIds = new Set(profile.conversations.map((c) => c.id));
   const items = [];
   for (const dec of profile.decisions) {
-    const label = DECISION_LABELS[dec.verb];
+    const label = decisionLabel(dec);
     if (!label) continue;
     const mine = dec.subject_type === "conversation" && convIds.has(dec.subject_id) || dec.subject_type === "contact" && dec.subject_id === row2.id;
     if (!mine) continue;
@@ -35754,6 +35759,9 @@ var PERSON_ACT_WORDS = {
   copyPhone: "Copy the number",
   copyEmail: "Copy the address",
   deletePerson: "Delete person\u2026",
+  /** Their own copy (R14 X5): everything kept about them, for when they ask what the business holds. */
+  download: "Download their records",
+  downloadHint: "Everything kept about them, in one file: for when they ask what you hold",
   /** Why a send into their thread cannot go: there is none (a wire's own reasons are the sheet's, writeWaysOf). */
   noThread: "No conversation with them yet.",
   ready: (on) => `Opens their thread with it ready to send${on}`
@@ -35834,6 +35842,14 @@ function personActs(p) {
       needs: "record",
       off: null
     });
+  acts.push({
+    id: "download",
+    label: W.download,
+    hint: W.downloadHint,
+    group: "delete",
+    needs: "owner",
+    off: null
+  });
   acts.push({
     id: "merge",
     label: MERGE_WORDS.act,

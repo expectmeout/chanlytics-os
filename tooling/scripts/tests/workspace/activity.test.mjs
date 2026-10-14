@@ -79,6 +79,8 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
   assert.equal(activityWords("export", { what: "workspace" }), "Exported data · the records");
   assert.equal(activityWords("export", { what: "people", rows: 312 }), "Exported data · everyone as a CSV · 312 rows");
   assert.equal(activityWords("export", { what: "conversation", messages: 40 }), "Exported data · a conversation");
+  // One person's own copy, from their page (R14 X5).
+  assert.equal(activityWords("export", { what: "person" }), "Exported data · a person's records");
   assert.equal(
     activityWords("pause_agent", { receptionist_mode: "never", batch: 12 }),
     "Paused the receptionist · never · one of 12",

@@ -258,6 +258,7 @@ export interface PersonActVM {
     | "copy-phone"
     | "copy-email"
     | "leave-business"
+    | "download"
     | "merge"
     | "delete";
   label: string;
@@ -281,6 +282,9 @@ export const PERSON_ACT_WORDS = {
   copyPhone: "Copy the number",
   copyEmail: "Copy the address",
   deletePerson: "Delete person…",
+  /** Their own copy (R14 X5): everything kept about them, for when they ask what the business holds. */
+  download: "Download their records",
+  downloadHint: "Everything kept about them, in one file: for when they ask what you hold",
   /** Why a send into their thread cannot go: there is none (a wire's own reasons are the sheet's, writeWaysOf). */
   noThread: "No conversation with them yet.",
   ready: (on: string) => `Opens their thread with it ready to send${on}`,
@@ -392,6 +396,15 @@ export function personActs(p: Omit<PersonVM, "acts" | PersonPageKeys>): PersonAc
       needs: "record",
       off: null,
     });
+  // Their own copy (R14 X5): the owner's, as the workspace's is, and with Delete, as Settings keeps the two together.
+  acts.push({
+    id: "download",
+    label: W.download,
+    hint: W.downloadHint,
+    group: "delete",
+    needs: "owner",
+    off: null,
+  });
   // Two records of one person become one (0028): the owner's, as Delete is, and beside it.
   acts.push({
     id: "merge",

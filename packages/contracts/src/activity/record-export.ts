@@ -135,3 +135,73 @@ export function exportedSections(): ExportSection[] {
   for (const how of Object.values(EXPORT_OF) as readonly ExportOf[]) if ("section" in how) named.add(how.section);
   return EXPORT_SECTIONS.filter((s) => named.has(s));
 }
+
+/**
+ * The sections of one person's own copy (GET export?person=<id>, "Download their records" on their page; the wiring's
+ * second audit, R14 X5), in the workspace's order: what is kept about them, for when they ask what the business holds,
+ * which the privacy page says they may. The only complete answer was the workspace's file, everyone's records in one.
+ * Each section holds their rows alone: their row, their threads with the files they sent, their calls, every change to
+ * their answers, the notes and steps on them, their deals and bookings, the lists they were put on, what each campaign
+ * run sent them, what was handed over from their threads, their own rules, the business they work at and how each of
+ * their replies to a reach-out was read.
+ */
+export const PERSON_EXPORT_SECTIONS = [
+  "people",
+  "conversations",
+  "files",
+  "calls",
+  "consent_history",
+  "notes_and_steps",
+  "deals",
+  "bookings",
+  "lists",
+  "list_members",
+  "sends",
+  "holds",
+  "rules",
+  "leads",
+  "reach_out_replies",
+] as const satisfies readonly ExportSection[];
+
+/** A section of one person's own copy. */
+export type PersonExportSection = (typeof PERSON_EXPORT_SECTIONS)[number];
+
+/**
+ * Each section of the workspace's copy that a person's leaves out, with why. A section the workspace's copy gains is in
+ * a person's (PERSON_EXPORT_SECTIONS) or named here, or this does not compile.
+ */
+const PERSON_LEAVES_OUT = {
+  business: {
+    what: "The business's own details",
+    why: "They are the workspace's, not this person's; the workspace's own copy holds them.",
+  },
+  team: {
+    what: "The team",
+    why: "Each member is the workspace's; who did something to their record is said on it, as `author_user_id`, `created_by` or `added_by`.",
+  },
+  campaigns: {
+    what: "The campaigns",
+    why: "A campaign is the workspace's; what each of its runs sent them is in sends, and each message as they received it is in conversations.",
+  },
+  templates: {
+    what: "The templates",
+    why: "A template is the workspace's; each message written from one is in conversations, as they received it.",
+  },
+  reviews: {
+    what: "Google reviews",
+    why: "A review is tied to no one in the record: Google names its author as they chose to be shown. The workspace's own copy holds them.",
+  },
+} as const satisfies Record<Exclude<ExportSection, PersonExportSection>, ExportLeftOut>;
+
+/** What one person's copy leaves out beside the workspace's sections. */
+const PERSON_LEFT_OUT_BESIDE: readonly ExportLeftOut[] = [
+  {
+    what: "Which lists made by a rule they are on",
+    why: "A list made by a rule holds whoever its rule matches as the record stands; lists holds the lists they were put on by hand, and the workspace's own copy holds each rule.",
+  },
+];
+
+/** Everything one person's copy does not hold, each with why: its `not_included`. */
+export function personExportLeftOut(): ExportLeftOut[] {
+  return [...Object.values(PERSON_LEAVES_OUT), ...PERSON_LEFT_OUT_BESIDE, ...LEFT_OUT_BESIDE_THE_KINDS];
+}

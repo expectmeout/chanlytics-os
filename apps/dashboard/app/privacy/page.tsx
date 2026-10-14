@@ -171,7 +171,8 @@ export default function PrivacyPage() {
         writing to <a href="mailto:hi@chanlytics.com">hi@chanlytics.com</a>.{" "}
         <a href="/data-deletion">Deleting your data</a> says exactly how deletion works for an owner and for a
         business’s customer. If you are a customer of a business that uses Chanlytics, the business is the controller of
-        your data; we will pass your request to it and help it answer.
+        your data; we will pass your request to it and help it answer. Its owner can download one file of the records it
+        keeps about you, which names what it leaves out and why.
       </p>
 
       <h2>Security</h2>

@@ -5290,33 +5290,36 @@ async function sectionRows(q) {
   return data ?? [];
 }
 var last = (offset, limit) => offset + limit - 1;
+var NOTE_COLUMNS = "id, contact_id, body, author_kind, author_user_id, for_user_id, team_only, state, source, due_on, done_at, done_by, deal_id, created_at, updated_at";
+var DEAL_COLUMNS = "id, contact_id, lead_id, service, stage, proposed_at, decided_at, ended_at, amount_cents, per, currency, note, evidence, source, proposal_url, valid_until, lost_reason, created_by, created_at, updated_at";
+var BOOKING_COLUMNS = "id, contact_id, lead_id, source, tool, external_id, status, starts_at, ends_at, all_day, timezone, title, service, staff, price, note, client_name, client_phone, client_email, consultation, vanished_at, created_by, created_at, updated_at";
+var LIST_COLUMNS2 = "id, name, rule, archived_at, created_by, created_at, updated_at";
+var LIST_MEMBER_COLUMNS = "segment_id, contact_id, added_by, added_at";
+var HOLD_COLUMNS2 = "id, conversation_id, reason, details, state, resolved_by_user_id, resolved_at, created_at, updated_at";
+var RULE_COLUMNS = "id, class, mode, subject_type, subject_id, limits, updated_at";
+var LEAD_COLUMNS = "id, business_name, category, street, city, region, postal_code, country, neighborhood, phone_e164, email, website_host, instagram_url, facebook_url, linkedin_url, tiktok_url, maps_url, rating, reviews, about, price, stage, closed_reason, last_outcome, last_note, contacted_at, booked_at, converted_at, contact_id, found_at";
+var REPLY_COLUMNS = "message_id, conversation_id, contact_id, lead_id, intent, claim, summary, named_day, refer_to, until_at, draft, draft_state, signer_name, signer_title, read_at, undone_at";
 function recordSections(db, tenantId) {
   return {
     // The notes kept and suggested, and the steps with their due day and who did them.
     notes_and_steps: (offset, limit) => sectionRows(
-      db.from("person_notes").select(
-        "id, contact_id, body, author_kind, author_user_id, for_user_id, team_only, state, source, due_on, done_at, done_by, deal_id, created_at, updated_at"
-      ).eq("tenant_id", tenantId).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
+      db.from("person_notes").select(NOTE_COLUMNS).eq("tenant_id", tenantId).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
     ),
     deals: (offset, limit) => sectionRows(
-      db.from("deals").select(
-        "id, contact_id, lead_id, service, stage, proposed_at, decided_at, ended_at, amount_cents, per, currency, note, evidence, source, proposal_url, valid_until, lost_reason, created_by, created_at, updated_at"
-      ).eq("tenant_id", tenantId).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
+      db.from("deals").select(DEAL_COLUMNS).eq("tenant_id", tenantId).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
     ),
     // The business's own details as saved: its facts, hours and services, what the receptionist may say, its alerts, its
     // calendar and its booking tool. One row.
     business: async (offset) => offset > 0 ? [] : sectionRows(db.from("tenant_config").select("config, updated_at, updated_by").eq("tenant_id", tenantId)),
     bookings: (offset, limit) => sectionRows(
-      db.from("appointments").select(
-        "id, contact_id, lead_id, source, tool, external_id, status, starts_at, ends_at, all_day, timezone, title, service, staff, price, note, client_name, client_phone, client_email, consultation, vanished_at, created_by, created_at, updated_at"
-      ).eq("tenant_id", tenantId).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
+      db.from("appointments").select(BOOKING_COLUMNS).eq("tenant_id", tenantId).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
     ),
     lists: (offset, limit) => sectionRows(
-      db.from("segments").select("id, name, rule, archived_at, created_by, created_at, updated_at").eq("tenant_id", tenantId).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
+      db.from("segments").select(LIST_COLUMNS2).eq("tenant_id", tenantId).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
     ),
     // Who is on each list kept by hand (a list with a rule is its rule, in lists).
     list_members: (offset, limit) => sectionRows(
-      db.from("segment_members").select("segment_id, contact_id, added_by, added_at").eq("tenant_id", tenantId).order("segment_id", { ascending: true }).order("contact_id", { ascending: true }).range(offset, last(offset, limit))
+      db.from("segment_members").select(LIST_MEMBER_COLUMNS).eq("tenant_id", tenantId).order("segment_id", { ascending: true }).order("contact_id", { ascending: true }).range(offset, last(offset, limit))
     ),
     campaigns: (offset, limit) => sectionRows(
       db.from("playbooks").select(
@@ -5340,13 +5343,11 @@ function sendSections(db, tenantId) {
     ),
     // What was handed to a person, why, and how it was settled.
     holds: (offset, limit) => sectionRows(
-      db.from("escalations").select(
-        "id, conversation_id, reason, details, state, resolved_by_user_id, resolved_at, created_at, updated_at"
-      ).eq("tenant_id", tenantId).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
+      db.from("escalations").select(HOLD_COLUMNS2).eq("tenant_id", tenantId).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
     ),
     // What the receptionist may do on its own, asks first or leaves alone, for the workspace and for a list or a person.
     rules: (offset, limit) => sectionRows(
-      db.from("policies").select("id, class, mode, subject_type, subject_id, limits, updated_at").eq("tenant_id", tenantId).order("id", { ascending: true }).range(offset, last(offset, limit))
+      db.from("policies").select(RULE_COLUMNS).eq("tenant_id", tenantId).order("id", { ascending: true }).range(offset, last(offset, limit))
     ),
     // The Google reviews as the mirror last saw them, with the reply.
     reviews: (offset, limit) => sectionRows(
@@ -5356,20 +5357,98 @@ function sendSections(db, tenantId) {
     ),
     // The businesses the finder found, and how far each came; one erased at a person's request holds nothing to export.
     leads: (offset, limit) => sectionRows(
-      db.from("leads").select(
-        "id, business_name, category, street, city, region, postal_code, country, neighborhood, phone_e164, email, website_host, instagram_url, facebook_url, linkedin_url, tiktok_url, maps_url, rating, reviews, about, price, stage, closed_reason, last_outcome, last_note, contacted_at, booked_at, converted_at, contact_id, found_at"
-      ).eq("tenant_id", tenantId).is("erased_at", null).order("found_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
+      db.from("leads").select(LEAD_COLUMNS).eq("tenant_id", tenantId).is("erased_at", null).order("found_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
     ),
     // How each answer to a reach-out was read: what they meant, the day they named, the draft made for it and who signed.
     reach_out_replies: (offset, limit) => sectionRows(
-      db.from("reach_out_replies").select(
-        "message_id, conversation_id, contact_id, lead_id, intent, claim, summary, named_day, refer_to, until_at, draft, draft_state, signer_name, signer_title, read_at, undone_at"
-      ).eq("tenant_id", tenantId).order("read_at", { ascending: true }).order("message_id", { ascending: true }).range(offset, last(offset, limit))
+      db.from("reach_out_replies").select(REPLY_COLUMNS).eq("tenant_id", tenantId).order("read_at", { ascending: true }).order("message_id", { ascending: true }).range(offset, last(offset, limit))
     )
   };
 }
 function exportSectionPages(db, tenantId) {
   return { ...recordSections(db, tenantId), ...sendSections(db, tenantId) };
+}
+function keptRead(read) {
+  let held = null;
+  return () => held ??= read();
+}
+async function columnIds(q, key) {
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((r) => r[key]);
+}
+function personRecordSections(db, tenantId, contactId) {
+  const theirLists = keptRead(
+    () => columnIds(
+      db.from("segment_members").select("segment_id").eq("tenant_id", tenantId).eq("contact_id", contactId),
+      "segment_id"
+    )
+  );
+  return {
+    notes_and_steps: (offset, limit) => sectionRows(
+      db.from("person_notes").select(NOTE_COLUMNS).eq("tenant_id", tenantId).eq("contact_id", contactId).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
+    ),
+    deals: (offset, limit) => sectionRows(
+      db.from("deals").select(DEAL_COLUMNS).eq("tenant_id", tenantId).eq("contact_id", contactId).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
+    ),
+    bookings: (offset, limit) => sectionRows(
+      db.from("appointments").select(BOOKING_COLUMNS).eq("tenant_id", tenantId).eq("contact_id", contactId).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
+    ),
+    lists: async (offset, limit) => {
+      const ids = await theirLists();
+      if (ids.length === 0) return [];
+      return sectionRows(
+        db.from("segments").select(LIST_COLUMNS2).eq("tenant_id", tenantId).in("id", ids).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
+      );
+    },
+    list_members: (offset, limit) => sectionRows(
+      db.from("segment_members").select(LIST_MEMBER_COLUMNS).eq("tenant_id", tenantId).eq("contact_id", contactId).order("segment_id", { ascending: true }).range(offset, last(offset, limit))
+    )
+  };
+}
+function personSendSections(db, tenantId, contactId) {
+  const theirThreads = keptRead(
+    () => columnIds(db.from("conversations").select("id").eq("tenant_id", tenantId).eq("contact_id", contactId), "id")
+  );
+  const worksAt = keptRead(async () => {
+    const { data, error } = await db.from("contacts").select("lead_id").eq("tenant_id", tenantId).eq("id", contactId).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data?.lead_id ?? null;
+  });
+  return {
+    // Each campaign run that named them: what became of their line (sent, skipped and why, failed), on which channel,
+    // the words it filled in for them, and the run it was. A run names a person once (broadcast_recipients_pkey), so the
+    // run's id orders them.
+    sends: (offset, limit) => sectionRows(
+      db.from("broadcast_recipients").select(
+        "broadcast_id, state, reason, channel, sent_at, message_id, facts, broadcasts (name, playbook_id, run_for, template_name, template_language, scheduled_for, started_at)"
+      ).eq("tenant_id", tenantId).eq("contact_id", contactId).order("broadcast_id", { ascending: true }).range(offset, last(offset, limit))
+    ),
+    holds: async (offset, limit) => {
+      const threads = await theirThreads();
+      if (threads.length === 0) return [];
+      return sectionRows(
+        db.from("escalations").select(HOLD_COLUMNS2).eq("tenant_id", tenantId).in("conversation_id", threads).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
+      );
+    },
+    // The receptionist's rules set for them alone; the workspace's own are its copy's.
+    rules: (offset, limit) => sectionRows(
+      db.from("policies").select(RULE_COLUMNS).eq("tenant_id", tenantId).eq("subject_type", "contact").eq("subject_id", contactId).order("id", { ascending: true }).range(offset, last(offset, limit))
+    ),
+    // The business they work at, and a lead that became them; one erased at a person's request holds nothing to export.
+    leads: async (offset, limit) => {
+      const lead = await worksAt();
+      return sectionRows(
+        db.from("leads").select(LEAD_COLUMNS).eq("tenant_id", tenantId).is("erased_at", null).or(lead ? `contact_id.eq.${contactId},id.eq.${lead}` : `contact_id.eq.${contactId}`).order("found_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
+      );
+    },
+    reach_out_replies: (offset, limit) => sectionRows(
+      db.from("reach_out_replies").select(REPLY_COLUMNS).eq("tenant_id", tenantId).eq("contact_id", contactId).order("read_at", { ascending: true }).order("message_id", { ascending: true }).range(offset, last(offset, limit))
+    )
+  };
+}
+function personExportPages(db, tenantId, contactId) {
+  return { ...personRecordSections(db, tenantId, contactId), ...personSendSections(db, tenantId, contactId) };
 }
 
 // src/repositories/partner.ts
@@ -6676,6 +6755,7 @@ export {
   peoplePage,
   peopleSeries,
   personDecisions,
+  personExportPages,
   personFactsOf,
   personReplyMode,
   personRow,
