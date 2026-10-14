@@ -284,45 +284,67 @@ function toMarkPart(p: BarProps) {
 }
 
 /**
- * The bar, under the frame's strip of views (chrome.ts): the steps and the range, yesterday's visits to mark, what Show
- * draws, the service the open times fit, and the options. The views stood first in this bar, the page's own segmented
- * control dressed as the strip; they are the strip now, where every other page's row of views stands (Ruben, 11 Oct 2026).
+ * Settings: what the Calendar offers its owner, one menu. The cog says its word where the row has the room for it, as the
+ * capsules beside it say theirs (Ruben, 8 Oct 2026: a bare cog at the bar's end), and is the glass circle, the cog in its
+ * middle, where it has not; a screen reader has the button's name either way (calendar.css, decision D8).
+ */
+function settingsPart(p: BarProps) {
+  return (
+    <Menu
+      align="end"
+      label="Calendar settings"
+      groups={optionsGroups(p)}
+      trigger={
+        <Button
+          variant="quiet"
+          className="cal-options"
+          title="Calendar settings"
+          aria-label="Calendar settings"
+          data-testid="cal-options"
+        >
+          <Icon name="cog" size={16} />
+          <span className="cal-options-word">Settings</span>
+        </Button>
+      }
+    />
+  );
+}
+
+/**
+ * The page's act, on the frame's row of views (chrome.ts), where Reports' period stands: on a desk the whole bar, the steps
+ * and the range beside the views and Show, the service and Settings at the row's end (Ruben, 14 Oct 2026: one row, where
+ * the tabs are); on a phone Settings alone, beside the views, where the bar under them has no room for it.
+ */
+export function calendarAct(p: BarProps) {
+  if (p.phone) return <div className="cal-act">{settingsPart(p)}</div>;
+  return (
+    <div className="cal-act" data-testid="cal-bar">
+      {whenPart(p)}
+      {toMarkPart(p)}
+      <div className="cal-tools">
+        {showCapsule(p)}
+        {servicePick(p)}
+        {settingsPart(p)}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A phone's bar, under the frame's row of views: the range and the steps on one row with no room to spare, and
+ * yesterday's visits to mark on a line of their own under it. A desk's bar is the act on the row of views (`calendarAct`).
  */
 export function calendarHead(p: BarProps) {
-  // On a phone the bar is one row with no room to spare (the range, the steps, Settings): the visits to mark stand on a
-  // line of their own under it, where they pushed Settings off the screen.
+  if (!p.phone) return null;
   const toMark = toMarkPart(p);
   return (
     <div className="cal-head">
       <div className="cal-bar" data-testid="cal-bar">
         {whenPart(p)}
-        {p.phone ? null : toMark}
-        <div className="cal-tools">
-          {showCapsule(p)}
-          {servicePick(p)}
-          {/* The cog says its word on a desk, where the capsules beside it say theirs (Ruben, 8 Oct 2026: a bare cog at the
-              bar's end), and on a phone wherever the row has the room; else the glass circle, with the word for a screen
-              reader (calendar.css, the phone block; decision D8). */}
-          <Menu
-            align="end"
-            label="Calendar settings"
-            groups={optionsGroups(p)}
-            trigger={
-              <Button
-                variant="quiet"
-                className="cal-options"
-                title="Calendar settings"
-                aria-label="Calendar settings"
-                data-testid="cal-options"
-              >
-                <Icon name="cog" size={16} />
-                <span className="cal-options-word">Settings</span>
-              </Button>
-            }
-          />
-        </div>
+        {/* The service the open times fit, on a tablet's bar; a phone's glance is the day (mobile.css). */}
+        <div className="cal-tools">{servicePick(p)}</div>
       </div>
-      {p.phone && toMark ? <div className="cal-head-line">{toMark}</div> : null}
+      {toMark ? <div className="cal-head-line">{toMark}</div> : null}
     </div>
   );
 }
