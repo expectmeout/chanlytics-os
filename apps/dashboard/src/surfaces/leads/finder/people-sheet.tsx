@@ -109,13 +109,16 @@ function FindPeopleSheet({
   const [count, setCount] = useState(String(from ? from.count : 100));
   const [busy, setBusy] = useState(false);
   const [wrong, setWrong] = useState<string | null>(null);
+  // An industry the directory does not list, as the route said it (its list stays on the server): under the box, until
+  // the box changes.
+  const [industryRefused, setIndustryRefused] = useState<string | null>(null);
   // Problems are said once Find was pressed, so a box is never red while its first words are still being typed.
   const [tried, setTried] = useState(false);
   // The first box takes the focus as the sheet opens, where a keyboard is not raised over it (focusAsDrawn).
   const first = useRef<HTMLInputElement | null>(null);
 
   const problems = peopleSheetProblems({ titles, industries, states, count });
-  const shown = tried ? problems : {};
+  const shown = tried ? { ...problems, ...(industryRefused ? { industries: industryRefused } : {}) } : {};
   const n = Number(count.trim());
   const plan = peoplePlanFrom({
     asked: titles.trim(),
@@ -137,7 +140,9 @@ function FindPeopleSheet({
     const r = await findPeople(plan);
     setBusy(false);
     if (!r.ok) {
-      setWrong(r.message || PW.failed);
+      const industry = r.fields?.["plan.industries"];
+      if (industry) setIndustryRefused(industry);
+      else setWrong(r.message || PW.failed);
       return;
     }
     if (flash) flash({ msg: <>{PW.done}</> });
@@ -187,7 +192,10 @@ function FindPeopleSheet({
         label={PW.industries}
         hint={PW.industriesHint}
         value={industries}
-        onValueChange={setIndustries}
+        onValueChange={(v) => {
+          setIndustries(v);
+          setIndustryRefused(null);
+        }}
         data-testid="find-people-industries"
         {...problemOf(shown.industries)}
       />

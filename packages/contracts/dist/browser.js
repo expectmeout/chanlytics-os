@@ -9478,9 +9478,9 @@ var LEAD_CARDS = [
     approved: true
   },
   {
-    // The people card (the workbench's call 8, 00430), approved by Ruben on 13 Oct 2026 with its source-rights note. It
-    // finds nothing until its calibration run: lead_platform.cards_on (00430 lead_card_live) is switched on by hand once
-    // that run proves the provider reads its filters and the mapper its fields (calibrated, below).
+    // The people card (the workbench's call 8, 00430), approved by Ruben on 13 Oct 2026 with its source-rights note.
+    // lead_platform.cards_on (00430 lead_card_live) is switched on by hand once its calibration run has proved the
+    // provider reads its filters and the mapper its fields (calibrated, below).
     id: "people_at_companies",
     finds: "people",
     goodFor: [
@@ -9497,7 +9497,7 @@ var LEAD_CARDS = [
     settings: [
       "titles (one to five, what the people are called)",
       "seniority (owners, founders, the C-suite, partners, VPs, heads, directors, managers, senior staff, entry level)",
-      "industries (up to five, in the source's words)",
+      "industries (up to five, in the directory's own names: Marketing & Advertising, Accounting, Construction, Real Estate\u2026)",
       "company sizes (employee ranges)",
       "states (up to ten; none is the whole US)",
       "count (1 to 500)"
@@ -9517,7 +9517,10 @@ var LEAD_CARDS = [
     ],
     rights: "From a B2B contact database built from public professional profiles and company sites; we never sign in anywhere to read them, keep a person's name, title, work address and profile link only, check each address before anything is sent, and never write again to anyone who says no.",
     approved: true,
-    calibrated: null
+    // Run once on 14 Oct 2026 (marketing managers at Marketing & Advertising companies of 11 - 50 in Texas, $0.17): 82
+    // items, the first the provider's note to read its log; the mapper read 80 (the other a company in India, which the
+    // card does not search), every filter held, and companiesOf made them 67 companies, each with someone to write to.
+    calibrated: { build: "0.0.259", on: "2026-10-14", items: 82, mapped: 80 }
   }
 ];
 var cardOf = (plan) => {
@@ -31485,7 +31488,7 @@ function peoplePlanOf(raw) {
     seniority: strs(o.seniority, PEOPLE_SENIORITIES.length, 20).filter(
       (s) => PEOPLE_SENIORITIES.includes(s)
     ),
-    industries: strs(o.industries, PEOPLE_INDUSTRIES_MAX, 80),
+    industries: strs(o.industries, PEOPLE_INDUSTRIES_MAX, PEOPLE_INDUSTRY_CHARS),
     sizes: strs(o.sizes, PEOPLE_COMPANY_SIZES.length, 20).filter(
       (s) => PEOPLE_COMPANY_SIZES.includes(s)
     ),
@@ -31553,7 +31556,7 @@ var PEOPLE_FIND_WORDS = {
   seniority: "How senior",
   seniorityAny: "Any seniority",
   industries: "Their companies' industries",
-  industriesHint: "Up to five, with commas between, as a directory says them: Marketing & Advertising, Accounting",
+  industriesHint: "Up to five, with commas between, as the directory names them: Marketing & Advertising, Accounting",
   sizes: "Company size",
   sizesAny: "Any size",
   states: "Where they work",
@@ -31570,6 +31573,10 @@ var PEOPLE_FIND_WORDS = {
   tooMany: (what, max, n) => `Up to ${max} ${what}: this has ${n}.`,
   titlesLong: `What they are called is too long: ${PEOPLE_ASKED_CHARS} characters at most.`,
   industryOdd: (t) => `\u201C${t}\u201D: an industry is 2 to ${PEOPLE_INDUSTRY_CHARS} characters.`,
+  industryUnread: (t, near3) => {
+    const tried = near3.map((n) => `\u201C${n}\u201D`);
+    return tried.length ? `\u201C${t}\u201D isn't one of the directory's industries: try ${tried.length > 1 ? `${tried.slice(0, -1).join(", ")} or ` : ""}${tried[tried.length - 1]}.` : `\u201C${t}\u201D isn't one of the directory's industries. Say it as the directory names it (Accounting, Construction, Real Estate), or leave industries empty and say who by what they are called.`;
+  },
   stateUnread: (s) => `${s} isn't a US state: use its name or its two letters.`,
   more: "Find more like these",
   closed: "Finding people at companies opens once it has been checked. Nothing was started.",
