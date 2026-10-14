@@ -40,7 +40,7 @@ const standingOfRow = (t: Thread): string =>
   ].join("|");
 
 /** This person's threads as the Inbox holds them, each by its id with its standing. */
-export function standingsOfTheirs(personId: string): Map<string, string> {
+function standingsOfTheirs(personId: string): Map<string, string> {
   const out = new Map<string, string>();
   for (const thread of surfaceValue("inbox")?.THREADS ?? [])
     if (thread.clientId === personId) out.set(String(thread.id), standingOfRow(thread));
