@@ -612,7 +612,13 @@ const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base: string
  * second audit, R14 X1), never "everything".
  */
 const exportedWords = (what: string): string =>
-  what === "workspace" ? "the records" : what === "people" ? "everyone as a CSV" : `a ${what}`;
+  what === "workspace"
+    ? "the records"
+    : what === "people"
+      ? "everyone as a CSV"
+      : what === "person"
+        ? "a person's records"
+        : `a ${what}`;
 
 /**
  * The sentence for a row: the kind's words, then the one or two fields a

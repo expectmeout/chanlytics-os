@@ -716,7 +716,9 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 
 Reads; for a member of the workspace the request names, owner or above; counts against the `export` rate; spends nothing.
 
-Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/export/route.ts`).
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `person` | string (uuid) | no |  |
 
 ## google
 

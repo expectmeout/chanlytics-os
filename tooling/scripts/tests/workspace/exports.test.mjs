@@ -15,14 +15,17 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   EXPORT_OF,
   EXPORT_SECTIONS,
+  PERSON_EXPORT_SECTIONS,
   RECORD_KINDS,
   ROLE_PERMS,
   exportLeftOut,
   exportLeftOutWords,
   exportedSections,
   frameWhisper,
+  personExportLeftOut,
   roleGate,
   toCallVM,
+  toPersonVM,
 } from "@chanlytics/contracts";
 import { importSrc, readCode, readRaw } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
@@ -34,7 +37,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 // The link People builds to the route's file (surfaces/people/shell-verbs.ts), run in the test below.
-const { exportLink } = await importSrc("apps/dashboard/src/surfaces/people/shell-verbs.ts");
+const { exportLink, personExportLink } = await importSrc("apps/dashboard/src/surfaces/people/shell-verbs.ts");
 const X = await import(pathToFileURL(path.join(here, "../../../../apps/dashboard/src/server/export/export.ts")).href);
 
 const TZ = "America/New_York";
@@ -1189,6 +1192,411 @@ test("GET /export: owners only, the workspace named, one JSON file that parses a
     }),
     (e) => e.code === "choose_workspace",
   );
+});
+
+/** A person's row as People reads it (people_list), for the page's view model. */
+const PERSON_ROW = {
+  display_name: "Maria Lopez",
+  wa_profile_name: null,
+  phone_e164: "+13055550134",
+  consent: "unknown",
+  consent_source: null,
+  consent_updated_at: null,
+  marketing_consent: "unknown",
+  marketing_consent_source: null,
+  marketing_consent_updated_at: null,
+  dnc: false,
+  channels: ["whatsapp"],
+  conversation_count: 1,
+  escalation_count: 0,
+  needs_human: false,
+  open_escalation_reason: null,
+  open_escalation_since: null,
+  latest_conversation_id: "cv1",
+  latest_state: "open",
+  latest_paused_until: null,
+  latest_assignee_user_id: null,
+  latest_snooze_until: null,
+  latest_wa_inbound_at: null,
+  last_message_at: "2026-09-05T14:00:00Z",
+  last_message_direction: "inbound",
+  last_message_sender: "customer",
+  last_inbound_text: null,
+  last_inbound_at: "2026-09-05T14:00:00Z",
+  last_call_at: null,
+  last_inbound_call_at: null,
+  call_count: 0,
+  call_seconds: 0,
+  first_contact_at: "2026-06-01T14:00:00Z",
+  earliest_row_at: null,
+  has_backfill: false,
+  has_chat: true,
+  queued_reply_at: null,
+};
+
+/* ----------------------------------------------------------------------------
+ * ONE PERSON'S OWN COPY (the wiring's second audit, R14 X5). A customer may ask
+ * a business what it holds about them, the privacy page says, and the only
+ * complete answer was the workspace's file: everyone's records in one. The
+ * same door, `?person=<id>`, writes the same file of them alone. Run over a
+ * workspace of two people with a row of each in every section: the file of
+ * one holds every one of theirs and nothing of the other's.
+ * ------------------------------------------------------------------------- */
+test("GET /export?person: one person's own copy holds every record of theirs and none of anyone else's, says what it leaves out, and is on their ledger", async () => {
+  const { setRateStore, memoryStore } = await import(
+    pathToFileURL(path.join(here, "../../../../apps/dashboard/src/server/rate-limit.ts")).href
+  );
+  setRateStore(memoryStore());
+  const route = await import(
+    pathToFileURL(path.join(here, "../../../../apps/dashboard/app/api/v1/export/route.ts")).href
+  );
+  const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const DANI = "11111111-1111-4111-8111-111111111111";
+  const LUZ = "22222222-2222-4222-8222-222222222222";
+  const at = (d) => `2026-08-0${d}T10:00:00Z`;
+  // Each person's rows of a table, the second person's after Dani's.
+  const both = (make) => [make(DANI, "1"), make(LUZ, "2")];
+  const tables = (role) => ({
+    memberships: [
+      { user_id: "u1", tenant_id: T, role, tenants: { slug: "marisas" }, created_at: "2026-01-01T00:00:00Z" },
+    ],
+    tenants: [{ id: T, slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: TZ }],
+    // Dani works at a business (0052); a lead the finder found became Dani; another is Luz's.
+    contacts: [
+      { id: DANI, tenant_id: T, lead_id: "lead-works", display_name: "Dani" },
+      { id: LUZ, tenant_id: T, lead_id: null, display_name: "Luz" },
+    ],
+    conversations: both((p, n) => ({
+      id: `c${n}`,
+      tenant_id: T,
+      contact_id: p,
+      state: "open",
+      created_at: at(n),
+      last_message_at: at(n),
+      last_inbound_at: at(n),
+    })),
+    messages: both((p, n) => ({
+      id: `m${n}`,
+      tenant_id: T,
+      conversation_id: `c${n}`,
+      direction: "inbound",
+      sender: "customer",
+      type: "text",
+      body: n === "1" ? "hola" : "hi there",
+      media: null,
+      meta: null,
+      status: "sent",
+      created_at: at(n),
+      channel_ts: null,
+      channel: "whatsapp",
+    })),
+    calls: both((p, n) => ({
+      id: `k${n}`,
+      tenant_id: T,
+      retell_call_id: `r${n}`,
+      direction: "inbound",
+      call_type: "phone_call",
+      status: "ended",
+      from_e164: `+1917555010${n}`,
+      from_raw: null,
+      to_e164: "+19175550199",
+      started_at: at(n),
+      ended_at: at(n),
+      updated_at: at(n),
+      created_at: at(n),
+      duration_ms: 60000,
+      disconnection_reason: null,
+      sentiment: null,
+      call_successful: true,
+      in_voicemail: false,
+      summary: `Call ${n}`,
+      transcript_object: [],
+      recording: null,
+      conversation_id: `c${n}`,
+      contact_id: p,
+      message_id: null,
+      contacts: { display_name: n === "1" ? "Dani" : "Luz", wa_profile_name: null, phone_e164: null },
+    })),
+    events: both((p, n) => ({
+      id: `e${n}`,
+      tenant_id: T,
+      kind: "contact.consent_changed",
+      subject_id: p,
+      created_at: at(n),
+      data: { consent: "opted_in", source: "customer_message", previous: null },
+    })),
+    person_notes: both((p, n) => ({
+      id: `n${n}`,
+      tenant_id: T,
+      contact_id: p,
+      body: `Note ${n}`,
+      state: "kept",
+      created_at: at(n),
+      updated_at: at(n),
+    })),
+    deals: both((p, n) => ({ id: `d${n}`, tenant_id: T, contact_id: p, stage: "proposed", created_at: at(n) })),
+    appointments: both((p, n) => ({
+      id: `a${n}`,
+      tenant_id: T,
+      contact_id: p,
+      starts_at: at(n),
+      status: "confirmed",
+      created_at: at(n),
+    })),
+    // A list each was put on by hand, and one made by a rule, which names no one.
+    segments: [
+      ...both((p, n) => ({ id: `s${n}`, tenant_id: T, name: `Kept ${n}`, rule: null, created_at: at(n) })),
+      { id: "s3", tenant_id: T, name: "Regulars", rule: { visits_at_least: 3 }, created_at: at(3) },
+    ],
+    segment_members: both((p, n) => ({ segment_id: `s${n}`, contact_id: p, tenant_id: T, added_at: at(n) })),
+    broadcast_recipients: both((p, n) => ({
+      broadcast_id: "b1",
+      contact_id: p,
+      tenant_id: T,
+      state: "sent",
+      sent_at: at(n),
+      channel: "whatsapp",
+      broadcasts: { name: "Win-back", run_for: "2026-08-01" },
+    })),
+    escalations: both((p, n) => ({
+      id: `h${n}`,
+      tenant_id: T,
+      conversation_id: `c${n}`,
+      reason: "asked for a person",
+      state: "open",
+      created_at: at(n),
+    })),
+    policies: [
+      ...both((p, n) => ({
+        id: `r${n}`,
+        tenant_id: T,
+        class: "reply",
+        mode: "never",
+        subject_type: "contact",
+        subject_id: p,
+        limits: {},
+        updated_at: at(n),
+      })),
+      { id: "r0", tenant_id: T, class: "reply", mode: "auto", subject_type: null, subject_id: null, limits: {} },
+    ],
+    leads: [
+      { id: "lead-works", tenant_id: T, business_name: "Studio Dani", contact_id: null, found_at: at(1) },
+      { id: "lead-became", tenant_id: T, business_name: "Dani Nails", contact_id: DANI, found_at: at(2) },
+      { id: "lead-luz", tenant_id: T, business_name: "Luz Spa", contact_id: LUZ, found_at: at(3) },
+    ],
+    reach_out_replies: both((p, n) => ({
+      message_id: `m${n}`,
+      tenant_id: T,
+      conversation_id: `c${n}`,
+      contact_id: p,
+      intent: "interested",
+      read_at: at(n),
+    })),
+    // The workspace's own, which a person's copy leaves out.
+    tenant_config: [{ tenant_id: T, config: { brain: {} }, updated_at: at(1) }],
+    templates: [{ id: "t1", tenant_id: T, name: "win_back", created_at: at(1) }],
+    google_reviews: [{ id: "g1", tenant_id: T, rating: 5, first_seen_at: at(1) }],
+    playbooks: [{ id: "pb1", tenant_id: T, name: "Win-back", created_at: at(1) }],
+  });
+  const rowFor = (id) => ({
+    id,
+    display_name: id === DANI ? "Dani" : "Luz",
+    wa_profile_name: null,
+    phone_e164: null,
+    consent: "opted_in",
+    dnc: false,
+  });
+  const rpcs = {
+    // One person's row when one is named (people_list's p_contact_id); a person it does not hold names none.
+    people_list: (args) => (args?.p_contact_id ? [DANI, LUZ].filter((id) => id === args.p_contact_id).map(rowFor) : []),
+  };
+  const run = (query, t = tables("owner")) =>
+    route.GET.run(new Request(`http://localhost/api/v1/export?workspace=${T}&${query}`), {
+      supabase: fakeDb(t, {}, rpcs),
+      userId: "u1",
+      email: "ada@example.com",
+      params: {},
+    });
+  const owned = tables("owner");
+  const res = await run(`person=${DANI}`, owned);
+  assert.match(res.headers.get("content-disposition") ?? "", /^attachment; filename="person-Dani-2026\d{4}\.json"/);
+  assert.equal(res.headers.get("cache-control"), "private, no-store");
+  const doc = JSON.parse(await res.text());
+  assert.equal(doc.format, "chanlytics-person-export");
+  assert.deepEqual(doc.person, { id: DANI });
+  assert.equal(doc.workspace.name, "Marisa's Beauty Salon");
+  assert.deepEqual(
+    Object.keys(doc),
+    ["format", "version", "workspace", "person", ...PERSON_EXPORT_SECTIONS, "manifest", "not_included"],
+    "a person's sections in the workspace's order, and no section that is the workspace's own",
+  );
+  // Every one of Dani's, and nothing of Luz's.
+  assert.deepEqual(
+    doc.people.map((p) => [p.id, p.effective_reply_mode]),
+    [[DANI, "never"]],
+    "their row, with their own reply mode",
+  );
+  assert.deepEqual(
+    doc.conversations.map((c) => [c.id, c.messages.map((m) => m.body)]),
+    [["c1", ["hola"]]],
+  );
+  assert.deepEqual(
+    doc.calls.map((c) => c.id),
+    ["k1"],
+  );
+  assert.deepEqual(
+    doc.consent_history.map((e) => e.id),
+    ["e1"],
+  );
+  assert.deepEqual(
+    doc.notes_and_steps.map((n) => n.body),
+    ["Note 1"],
+  );
+  assert.deepEqual(
+    doc.deals.map((d) => d.id),
+    ["d1"],
+  );
+  assert.deepEqual(
+    doc.bookings.map((a) => a.id),
+    ["a1"],
+  );
+  assert.deepEqual(
+    doc.lists.map((l) => l.name),
+    ["Kept 1"],
+    "the list they were put on by hand; a list made by a rule is said in not_included",
+  );
+  assert.deepEqual(
+    doc.list_members.map((m) => [m.segment_id, m.contact_id]),
+    [["s1", DANI]],
+  );
+  assert.deepEqual(
+    doc.sends.map((s) => [s.broadcast_id, s.state, s.broadcasts?.name]),
+    [["b1", "sent", "Win-back"]],
+    "what each run sent them, with the run's name",
+  );
+  assert.deepEqual(
+    doc.holds.map((h) => h.id),
+    ["h1"],
+  );
+  assert.deepEqual(
+    doc.rules.map((r) => [r.id, r.subject_id]),
+    [["r1", DANI]],
+    "their own rule, not the workspace's",
+  );
+  assert.deepEqual(
+    doc.leads.map((l) => l.business_name),
+    ["Studio Dani", "Dani Nails"],
+    "the business they work at, and the lead that became them",
+  );
+  assert.deepEqual(
+    doc.reach_out_replies.map((r) => r.message_id),
+    ["m1"],
+  );
+  assert.equal(JSON.stringify(doc).includes(LUZ), false, "the other person's id is nowhere in the file");
+  assert.equal(JSON.stringify(doc).includes("hi there"), false, "nor their words");
+  assert.equal(doc.manifest.messages, 1);
+  assert.equal(doc.manifest.leads, 2);
+  assert.deepEqual(doc.not_included, personExportLeftOut());
+  // On the ledger before the first byte, on them: their page says who took a copy of their records.
+  assert.deepEqual(
+    (owned.decisions ?? []).map((x) => [x.subject_type, x.subject_id, x.verb, x.payload.what, x.actor_user_id]),
+    [["contact", DANI, "export", "person", "u1"]],
+  );
+  // Someone this workspace does not hold has no copy, and no ledger row says one was taken.
+  const none = tables("owner");
+  await assert.rejects(run("person=33333333-3333-4333-8333-333333333333", none), (e) => e.code === "not_found");
+  assert.deepEqual(none.decisions ?? [], []);
+  // An id that is no id is refused before anything is read.
+  await assert.rejects(run("person=p1"), (e) => e.status === 400 && e.code === "validation");
+  // The owner's, as the workspace's copy is.
+  await assert.rejects(run(`person=${DANI}`, tables("operator")), (e) => e.status === 403);
+});
+
+test("a person's own copy: its sections follow the workspace's order, and each it leaves out says why (R14 X5)", () => {
+  assert.deepEqual(
+    EXPORT_SECTIONS.filter((s) => PERSON_EXPORT_SECTIONS.includes(s)),
+    [...PERSON_EXPORT_SECTIONS],
+    "in the workspace's order",
+  );
+  const left = personExportLeftOut();
+  for (const l of left) assert.ok(l.what && l.why, `${l.what}: said with why`);
+  assert.deepEqual(
+    left.map((l) => l.what),
+    [
+      "The business's own details",
+      "The team",
+      "The campaigns",
+      "The templates",
+      "Google reviews",
+      "Which lists made by a rule they are on",
+      "Call audio",
+      "The activity log",
+    ],
+    "each of the workspace's sections a person's copy leaves out, the lists by a rule, and what the workspace's leaves out too",
+  );
+  // The page's door: the owner's, with Delete and Merge, as Settings keeps the copy and the deletion together. And who took a
+  // copy, on their page: a thread's own file is the thread's, and is not said there as theirs.
+  const at = "2026-09-05T15:00:00Z";
+  const decision = (id, subject_type, subject_id, what) => ({
+    id,
+    verb: "export",
+    subject_type,
+    subject_id,
+    actor_type: "user",
+    actor_user_id: "u1",
+    created_at: at,
+    payload: { what },
+  });
+  const vm = toPersonVM(
+    {
+      row: { ...PERSON_ROW, id: "p1" },
+      identities: [],
+      calls: [],
+      escalations: [],
+      decisions: [decision("x1", "contact", "p1", "person"), decision("x2", "conversation", "cv1", "conversation")],
+      receptionist_mode: null,
+      workspace_reply_mode: "auto",
+      conversations: [
+        { id: "cv1", state: "open", paused_until: null, last_wa_inbound_at: null, last_message_at: at, messages: [] },
+      ],
+    },
+    TZ,
+    new Date("2026-09-05T16:00:00Z"),
+    "u1",
+  );
+  assert.deepEqual(
+    vm.timeline.filter((i) => i.kind === "decision").map((i) => [i.who, i.text]),
+    [["Downloaded their records", "You downloaded their records"]],
+  );
+  const acts = vm.acts;
+  const download = acts.find((a) => a.id === "download");
+  assert.deepEqual(download && [download.label, download.group, download.needs, download.off], [
+    "Download their records",
+    "delete",
+    "owner",
+    null,
+  ]);
+  assert.deepEqual(
+    acts.filter((a) => a.group === "delete").map((a) => a.id),
+    ["download", "merge", "delete"],
+  );
+  // The link it opens: the workspace's export, of them alone, in the workspace the tab names.
+  const had = Object.getOwnPropertyDescriptor(globalThis, "window");
+  globalThis.window = { location: { pathname: "/w/studio" } };
+  try {
+    const link = new URL(personExportLink("11111111-1111-4111-8111-111111111111"), "https://app.chanlytics.com");
+    assert.equal(link.pathname, "/api/v1/export");
+    assert.deepEqual(
+      [...link.searchParams],
+      [
+        ["person", "11111111-1111-4111-8111-111111111111"],
+        ["workspace", "studio"],
+      ],
+    );
+  } finally {
+    if (had) Object.defineProperty(globalThis, "window", had);
+    else delete globalThis.window;
+  }
 });
 
 test("Settings offers the door the privacy page promises: one link, owners only, and deletion as a request", async () => {
