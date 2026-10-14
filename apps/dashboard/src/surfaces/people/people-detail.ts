@@ -191,8 +191,23 @@ const people = () => (personCache ??= readCache<PersonVM | null>("person", (vm) 
 
 export async function deletePerson(id: string): Promise<DeleteResult> {
   const r = await api()("DELETE contacts/[id]", { params: { id } });
-  if (r.ok) people().forget(id);
+  if (r.ok) {
+    people().forget(id);
+    deletedHere.add(id);
+  }
   return r;
+}
+
+/** The people this tab deleted (deletePerson). */
+const deletedHere = new Set<string>();
+
+/**
+ * Whether this tab deleted this person. A person's page leaves a delete by People's Back, to the entry they were opened
+ * from, and since the peek (canvas A, PEEK-01) that entry is the view with them peeked at: a peek's address that names
+ * someone deleted here is the view's own, never a peek that says they are not in the workspace.
+ */
+export function personDeletedHere(id: string): boolean {
+  return deletedHere.has(id);
 }
 
 /**

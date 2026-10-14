@@ -13,7 +13,7 @@ import { TABLE_BODIES } from "../table/table";
 import { usePlControls } from "../hooks/use-controls";
 import { usePeople } from "../hooks/use-people";
 import { usePlPlace } from "../hooks/use-place";
-import { peekPerson, personDetail, warmPeople, warmPerson } from "../people-detail";
+import { peekPerson, personDeletedHere, personDetail, warmPeople, warmPerson } from "../people-detail";
 import { plLoadedWords, plMatcher } from "../words";
 import { pipeGlassColumns, pipePhoneColumns } from "./columns";
 import type { NewAdd } from "./new";
@@ -462,6 +462,11 @@ export function usePipelineAddress(f: PipelineFrame, ui: PipelineUi, doors: Peek
       a.peek = addrPeek;
       a.asked = null;
       if (!addrPeek) a.pushed = false;
+      // Someone deleted from their page, which Back left by this entry: the view, with nobody peeked at (personDeletedHere).
+      if (addrPeek && personDeletedHere(addrPeek)) {
+        nav(viewRoute, { replace: true });
+        return;
+      }
       // The person the address names takes the cursor too: the cursor this tab kept for the view (usePlPlace) would
       // otherwise walk the peek, and the address, off them on the next draw.
       if (peekId !== addrPeek) {

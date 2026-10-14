@@ -1212,14 +1212,18 @@ test.describe("Phone shell on a real workspace", () => {
     await expect(page.locator(".cl-prof-back")).toBeHidden();
     // In Glass the way back stands where the date does, in the top bar's row (kit/head/frame-head.tsx): ‹ People.
     await expect(page.locator(".pg-back")).toContainText("People");
-    // Its capsule is the bell's height on the bell's line. A touch screen's floor for a button once drew it 44px,
-    // twelve taller than the bell beside it (7 Oct 2026); the 44px a thumb needs is a margin round it instead.
+    // Its capsule is the height of what stands at the bar's right, on its line: the bell, or, for a person opened from
+    // the list, their ‹ › in the bell's place (the bell stands down while it is there, #1578). A touch screen's floor for
+    // a button once drew it 44px, twelve taller than the bell beside it (7 Oct 2026); the 44px a thumb needs is a margin
+    // round it instead.
     const back = (await page.locator(".pg-back").boundingBox())!;
-    const bell = (await page.getByRole("button", { name: /^Notifications/ }).boundingBox())!;
-    expect([Math.round(back.y), Math.round(back.height)], "the way back is as tall as the bell, on its line").toEqual([
-      Math.round(bell.y),
-      Math.round(bell.height),
-    ]);
+    const walk = page.locator(".pg-back-after");
+    const right = (await walk.count()) > 0 ? walk : page.getByRole("button", { name: /^Notifications/ });
+    const bell = (await right.boundingBox())!;
+    expect(
+      [Math.round(back.y), Math.round(back.height)],
+      "the way back is as tall as what stands at the bar's right, on its line",
+    ).toEqual([Math.round(bell.y), Math.round(bell.height)]);
     const underThumb = await page.evaluate(
       ([x, y]) => !!document.elementFromPoint(x, y)?.closest(".pg-back"),
       [back.x + back.width / 2, back.y + back.height + 5],
