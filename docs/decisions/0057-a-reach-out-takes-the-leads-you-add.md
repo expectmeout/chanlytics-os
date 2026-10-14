@@ -83,4 +83,11 @@ What it built (00426, 00427; the plan in `docs/superpowers/plans/2026-10-13-the-
     saying the month's leads it uses and the source's note.
   - Owed: the card's calibration run, which pins the provider's build and checks its field names (one small paid run,
     on Ruben's word), then `cards_on`.
+  - Owed, a lane of its own: the owner choosing which of a company's people its reach-out writes to (the peek's "Write
+    to them instead"). Only while nothing of any reach-out is planned or written to the company (openings and checks
+    are made for the addressee), only someone with a work address who is on no never-again list and not in People, and
+    the new address checked before anything goes: the lead's address and its state (`checking`) change together, and a
+    mailbox check of that one address is asked under the lead's last round, as Check again does (owner's, its spend and
+    the switch read first). An addressee chosen after a reply ("talk to my colleague") is the one-first rule's question
+    (0059's Risks), not this door's.
 - `lead_operations`, `lead_search_members` and `reach_out_sends` gained writers (argued under Rises in `docs/debt.md`).

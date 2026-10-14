@@ -37559,6 +37559,7 @@ import {
 } from "../../contracts/dist/index.js";
 var PEOPLE_TERM = "people";
 var PEOPLE_ASK_MAX = 1e3;
+var UNREADABLE_PAGE = 10;
 var ROLE_RANK = {
   owner: 0,
   founder: 1,
@@ -37694,9 +37695,14 @@ async function collectPeople(p, round, run, owner, gen) {
   const found = items.map((it) => card.mapItem(it)).filter((x) => x !== null);
   const companies = companiesOf(found);
   if (companies.length) await p.db.companyUpsert(round.id, companies);
+  const unreadable = base === 0 && items.length >= UNREADABLE_PAGE && found.length === 0;
+  if (unreadable) {
+    await p.apify.abortRun(run.apify_run_id).catch(() => void 0);
+    remoteState = "aborted";
+  }
   const to = base + items.length;
   const pageShort = items.length < PAGE_ITEMS;
-  const runOver = pageShort && FINAL_RUN_STATES.has(remoteState);
+  const runOver = unreadable || pageShort && FINAL_RUN_STATES.has(remoteState);
   const queued = round.state === "queued";
   const runDone = runOver && !queued;
   const held = runDone ? (await p.db.membersOfRound(round.id)).length : 0;
@@ -37705,7 +37711,8 @@ async function collectPeople(p, round, run, owner, gen) {
     places: [],
     usage_usd: usage,
     items_seen: run.items_seen + items.length,
-    run_state: runDone ? remoteState : null,
+    // A run stopped for an unreadable page is final at once, so the collect after this one reads no more of it.
+    run_state: runDone || unreadable ? remoteState : null,
     next: runDone ? null : { kind: "lead_collect", seq: `p${to}`, run_after_seconds: pageShort && !runOver ? POLL_SECONDS : 0 },
     round: runDone ? { state: "checking", question: null, ending: null, ending_pending: endingOf(remoteState, held) } : queued ? { state: "running", question: null, ending: null } : null
   };

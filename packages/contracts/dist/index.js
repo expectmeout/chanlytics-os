@@ -20158,11 +20158,12 @@ var ROUTE_WORDS = {
   admin: "settings"
 };
 var headOf = (route) => route.includes("/") ? route.slice(0, route.indexOf("/")) : route;
+var SENT_OWN_WORDS = /* @__PURE__ */ new Set(["get-yes", "to-send"]);
 function doorOf(route) {
   const head = headOf(route);
   const word = route.slice(head.length).replace(/^\//, "").split("/")[0] ?? "";
   if (head === "broadcasts") {
-    return word && !word.startsWith("run:") && word !== "get-yes" ? `campaigns/new:to:${word}` : null;
+    return word && !word.startsWith("run:") && !SENT_OWN_WORDS.has(word) ? `campaigns/new:to:${word}` : null;
   }
   if (head !== "outbound") return null;
   return word ? `campaigns/moment:${word}` : "campaigns";
@@ -24724,6 +24725,372 @@ function frameOf(key, todayKey) {
   };
 }
 
+// src/reach-out/reach-out-rules.ts
+function outreachRefusalOf(f) {
+  if (!f.leadStage) return "outreach_not_a_lead";
+  if (f.leadStage !== "ready" && f.leadStage !== "nurture") return "outreach_lead_closed";
+  if (f.suppressed) return "outreach_suppressed";
+  if (f.wroteBack) return "outreach_wrote_back";
+  if (f.away) return "outreach_away";
+  if (f.stopped) return "outreach_stopped";
+  return null;
+}
+var OUTREACH_WAIT_REFUSALS = [
+  "sending_mailbox_at_cap",
+  "sending_mailbox_not_ready",
+  "outreach_needs_own_mailbox",
+  "paused"
+];
+function isWaitRefusal(reason) {
+  return OUTREACH_WAIT_REFUSALS.includes(reason ?? "");
+}
+var REACH_OUT_MONTH_EMAILS = 2e3;
+var REACH_OUT_DRAFTS_PER_DAY = 30;
+var REACH_OUT_DRAFTS_OPEN_MAX = 2 * REACH_OUT_DRAFTS_PER_DAY;
+function draftRefusalOf(f) {
+  if (!f) return "lead_gone";
+  const refused = outreachRefusalOf({
+    leadStage: f.lead_stage,
+    suppressed: f.suppressed,
+    wroteBack: f.wrote_back,
+    away: f.away,
+    stopped: f.stopped
+  });
+  return refused ?? (f.customer ? "already_yours" : null);
+}
+var REACH_OUT_CHECKS_PER_DAY = 400;
+function isReachOutRun(audience) {
+  return !!audience && typeof audience === "object" && audience.kind === "reach_out";
+}
+function chainOfMoment(chains, id) {
+  return chains.find((c) => c.root_id === id || c.steps.some((s) => s.id === id)) ?? null;
+}
+function reachOutRootOf(audience) {
+  if (!isReachOutRun(audience)) return null;
+  const root = audience.root_id;
+  return typeof root === "string" && root ? root : null;
+}
+var REACH_OUT_LANGUAGE = "en";
+function reachOutValues(lead, workspace, opening2) {
+  const who = leadAddresseeOf(lead);
+  return slotValues(REACH_OUT_SLOT_SET, {
+    business: lead.business_name,
+    company: lead.business_name,
+    "first name": who?.first_name || REACH_OUT_SLOT_FALLBACKS["first name"],
+    // A person's title or role is said only where their source said it: no guess stands in (a hole holds the email).
+    title: who?.title || (who?.role ? LEAD_ROLE_WORDS[who.role] : null),
+    role: who?.role ? LEAD_ROLE_WORDS[who.role] : null,
+    city: lead.city,
+    "your business": workspace.businessName,
+    "your name": workspace.yourName,
+    "booking link": workspace.bookingLink,
+    opening: opening2
+  });
+}
+function reachOutEmailOf(words3, lead, workspace, opening2 = null) {
+  const values = reachOutValues(lead, workspace, opening2);
+  const texts = words3.subject === null ? [words3.body] : [words3.subject, words3.body];
+  if (texts.some((t) => slotHoles(REACH_OUT_SLOT_SET, t, values))) return { ok: false, reason: "missing_value" };
+  const email = renderOwnVersion("email", words3, values, REACH_OUT_LANGUAGE, REACH_OUT_SLOT_SET);
+  return { ok: true, subject: words3.subject === null ? null : email.subject, body: email.body };
+}
+var EXAMPLE_LEAD = {
+  business_name: "Lakeside Bakery",
+  city: "Springfield",
+  opening: "Your 4.8 stars from 212 reviews caught my eye.",
+  // A person at it, so the person slots show a name, not their fallback.
+  person: { name: "Dana Reyes", first_name: "Dana", title: "Owner", role: "owner", email: null, profile_url: null }
+};
+function reachOutExampleValues(workspace) {
+  return reachOutValues(
+    {
+      business_name: EXAMPLE_LEAD.business_name,
+      city: EXAMPLE_LEAD.city,
+      kind: "company",
+      facts: { people: [EXAMPLE_LEAD.person], addressee: 0 }
+    },
+    workspace,
+    EXAMPLE_LEAD.opening
+  );
+}
+
+// src/playbooks/playbook-purpose.ts
+function messageAboutOfTrigger(trigger) {
+  const kind = triggerOf(trigger ?? "")?.kind;
+  return kind === "visit" || kind === "deal" ? "theirs" : "ours";
+}
+function passesHandoverPause(trigger) {
+  return trigger === "visit_tomorrow";
+}
+function enrolPurpose(policyClass, message) {
+  const byClass = purposeOfPlaybook(policyClass);
+  if (!message || byClass === "marketing") return byClass;
+  return purposeOfTemplate(message.category);
+}
+var MESSAGE_MOMENT_WORDS = {
+  offer_on_texts: "This moment reaches anyone who said yes to texts, and this message is an offer, which only a yes to offers may get. Pick a reminder, a check after, or a follow-up.",
+  texts_on_offers: "This moment sends offers, which only a yes to offers may get, and this message is a reminder, a check after or a follow-up. Pick an offer, or the moment it was written for."
+};
+function messageFitsMoment(policyClass, category) {
+  const moment2 = purposeOfPlaybook(policyClass);
+  const message = purposeOfTemplate(category);
+  if (moment2 === message) return { ok: true };
+  const why = moment2 === "conversational" ? "offer_on_texts" : "texts_on_offers";
+  return { ok: false, why, words: MESSAGE_MOMENT_WORDS[why] };
+}
+
+// src/playbooks/playbook-approval.ts
+function poolWords(trigger, word) {
+  const t = triggerOf(trigger);
+  if (!t) return "";
+  if (t.kind === "visit") {
+    const W = appointmentWords(word);
+    return trigger === "visit_tomorrow" ? W.withTomorrow : W.whoYesterday;
+  }
+  if (t.kind === "deal") return "with a proposal waiting";
+  return t.list || t.kind === "saved" ? "on the list" : "in People";
+}
+function reachLines(reach, p, allowanceHeld = 0) {
+  if (!reach || !Number.isFinite(reach.pool)) return null;
+  const t = p ? triggerOf(p.trigger) : null;
+  const offers = t ? purposeOfPlaybook(t.cls) === "marketing" : true;
+  const gap = p ? p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days : null;
+  const once = t?.kind === "deal";
+  const one = (n, singular, plural3) => n === 1 ? singular : plural3;
+  const noAddress = reach.no_address ?? 0;
+  const addressStopped = reach.address_stopped ?? 0;
+  const noChannel = reach.no_channel ?? 0;
+  const reasons = [
+    {
+      n: reach.noYes,
+      words: `never said yes to ${offers ? "offers" : "hearing from you"}`,
+      tone: "plain",
+      door: { words: "Get their yes", to: GET_YES_ROUTE }
+    },
+    // The week's breath, both sides of the run: a message from a campaign or a broadcast sent or due within a week of it.
+    { n: reach.heardAny, words: `${one(reach.heardAny, "hears", "hear")} ${BREATH_WHY}`, tone: "warn", door: null },
+    { n: allowanceHeld, words: ALLOWANCE_HELD_WORDS, tone: "warn", door: null },
+    {
+      n: reach.heardThis,
+      words: once ? "had this proposal's follow-up already" : gap ? `heard from this campaign in the last ${gap} days` : "heard from this campaign lately",
+      tone: once ? "plain" : "warn",
+      door: null
+    },
+    { n: reach.stopped, words: "asked you to stop", tone: "plain", door: null },
+    {
+      n: reach.noNumber,
+      words: one(reach.noNumber, "has no number on file", "have no number on file"),
+      tone: "plain",
+      door: null
+    },
+    // Where email was the only channel left, or no channel could carry the message: each is a person the run counted and
+    // leaves out, so each has its line (a run counted before runs kept them has none).
+    {
+      n: noAddress,
+      words: one(noAddress, "has no email address on file", "have no email address on file"),
+      tone: "plain",
+      door: null
+    },
+    {
+      n: addressStopped,
+      words: one(
+        addressStopped,
+        "has an email address mail no longer goes to",
+        "have an email address mail no longer goes to"
+      ),
+      tone: "plain",
+      door: null
+    },
+    {
+      n: noChannel,
+      words: one(
+        noChannel,
+        "has no channel this message can go by here",
+        "have no channel this message can go by here"
+      ),
+      tone: "plain",
+      door: null
+    },
+    {
+      n: reach.overCap,
+      words: `${one(reach.overCap, "waits", "wait")} for the next run${p ? ` \u2014 ${p.cap_per_run} a run, the longest unheard first` : ""}`,
+      tone: "plain",
+      door: null
+    },
+    {
+      n: reach.overLimit,
+      words: one(
+        reach.overLimit,
+        "is past what the number may start today",
+        "are past what the number may start today"
+      ),
+      tone: "warn",
+      door: null
+    }
+  ];
+  const lines = reasons.map((r2, rank) => ({ ...r2, rank })).filter((r2) => r2.n > 0).sort((a, b) => b.n - a.n || a.rank - b.rank).map(({ n, words: words3, tone, door }) => ({ n, words: `${n} ${words3}`, tone, door }));
+  return {
+    pool: reach.pool,
+    held: reach.heardAny + (once ? 0 : reach.heardThis) + reach.overLimit + allowanceHeld,
+    lines
+  };
+}
+var ALLOWANCE_HELD_WORDS = "held for this month's allowance";
+var NONE_HEARS_WORDS = `none hears ${BREATH_WHY}`;
+var ALLOWANCE_REASON = "month_allowance";
+function allowanceHeldOn(recipients) {
+  const held = { whatsapp: 0, sms: 0, email: 0 };
+  for (const r2 of recipients) {
+    if (r2.state !== "skipped" || r2.reason !== ALLOWANCE_REASON) continue;
+    held[channelOfRecipient(r2)] += 1;
+  }
+  return held;
+}
+function channelOfRecipient(r2) {
+  return r2?.channel === "sms" || r2?.channel === "email" ? r2.channel : "whatsapp";
+}
+function runDayPassed(run, today) {
+  const day = dayHasPassed(run, today);
+  return day ? dayGoneWords(day) : null;
+}
+function dayHasPassed(run, today) {
+  return run.playbook_id && run.run_for && run.run_for !== today ? run.run_for : null;
+}
+function dayGoneWords(runFor, say2 = (ymd) => ymd) {
+  return `This run was made for ${say2(runFor)} and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.`;
+}
+function runDaysAt(tz, now) {
+  return { today: localDate(tz, now), sendsOn: localDate(tz, nextOpenMoment(tz, now).at) };
+}
+function visitRunTooLate(run, days) {
+  const moment2 = triggerOf(audienceTrigger(run.audience) ?? "");
+  return moment2?.kind === "visit" && !!run.run_for && days.sendsOn > run.run_for;
+}
+function runApprovalRefusal(run, days) {
+  if (isReachOutRun(run.audience)) return null;
+  const day = dayHasPassed(run, days.today) ?? (run.playbook_id && run.run_for && visitRunTooLate(run, days) ? run.run_for : null);
+  return day ? dayGoneWords(day, days.say) : null;
+}
+function waitingRunOffer(run, days, at3) {
+  if (isReachOutRun(run.audience) || !at3.known) return { kind: "open" };
+  const late = runApprovalRefusal(run, days);
+  if (late) return { kind: "skip", why: late };
+  return at3.paused ? { kind: "skip", why: CAMPAIGNS_PAUSED_WORDS } : { kind: "approve" };
+}
+function toApprovalVM(d, opts) {
+  const b = d.broadcast;
+  const heldOn = allowanceHeldOn(d.recipients);
+  const allowanceHeld = heldOn.whatsapp + heldOn.sms + heldOn.email;
+  const will = Math.max(0, b.recipient_count - allowanceHeld);
+  const by = b.audience?.reach?.by_channel;
+  const t = opts.playbook ? triggerOf(opts.playbook.trigger) : null;
+  const rules = [];
+  if (t && opts.playbook) {
+    rules.push(...consentRuleWords(by, purposeOfPlaybook(t.cls), messageAboutOfTrigger(opts.playbook.trigger)));
+    if (t.kind === "visit") {
+      const W = appointmentWords(opts.playbook.word);
+      rules.push(opts.playbook.trigger === "visit_tomorrow" ? W.eachTomorrow : W.eachYesterday);
+    } else if (t.kind === "deal") {
+      rules.push(
+        "each has a proposal waiting with nothing back, and its link",
+        "none followed up on that proposal before",
+        NONE_HEARS_WORDS
+      );
+      if (will >= opts.playbook.cap_per_run)
+        rules.push(`capped at ${opts.playbook.cap_per_run} a run, the longest unheard first`);
+    } else {
+      const gap = opts.playbook.trigger === "everyone_monthly" ? opts.playbook.cadence_days : opts.playbook.gap_days;
+      rules.push(`none heard from this campaign in ${gap} days`, NONE_HEARS_WORDS);
+      if (will >= opts.playbook.cap_per_run)
+        rules.push(`capped at ${opts.playbook.cap_per_run} a run, the longest unheard first`);
+    }
+  }
+  const named = d.recipients.find((r2) => r2.first_name);
+  const reader = named ?? d.recipients[0] ?? null;
+  const params = Array.isArray(b.params) ? b.params : [];
+  const values = params.map((p) => {
+    switch (p.kind) {
+      case "text":
+        return p.value;
+      case "first_name":
+        return reader?.first_name || "there";
+      case "business_name":
+        return opts.businessName;
+      case "booking_link":
+        return "your booking link";
+      default:
+        return `[${PARAM_SOURCE_LABELS[p.kind].toLowerCase()}]`;
+    }
+  });
+  const greets = params.some((p) => p.kind === "first_name");
+  const late = runApprovalRefusal(b, { today: opts.today, sendsOn: opts.open.on, say: opts.day });
+  const refusal = opts.paused ? CAMPAIGNS_PAUSED_WORDS : late;
+  const runFor = b.run_for ?? "";
+  return {
+    will,
+    byChannel: by ? {
+      whatsapp: Math.max(0, by.whatsapp - heldOn.whatsapp),
+      sms: Math.max(0, by.sms - heldOn.sms),
+      email: Math.max(0, by.email - heldOn.email)
+    } : null,
+    rules,
+    of: reachLines(b.audience?.reach ?? null, opts.playbook, allowanceHeld),
+    values,
+    reader: reader ? reader.name : null,
+    readerChannel: channelOfRecipient(reader),
+    hiThere: greets ? d.recipients.filter((r2) => !r2.first_name).length : 0,
+    approve: refusal ? null : `Approve \u2014 ${will} ${opts.open.moved ? `at ${opts.open.time}` : "now"}`,
+    expired: refusal,
+    goes: late ? `made for ${opts.day(runFor)}` : opts.paused ? "waits until billing resumes" : opts.open.moved ? `goes at ${opts.open.time} once you approve it` : "goes the moment you approve it",
+    skip: "Skipping loses this run only \u2014 the campaign keeps running."
+  };
+}
+
+// src/waits/waits.ts
+function runWaitsOnYou(run, days) {
+  if (runHeldEmails(run) > 0 || runDraftedEmails(run) > 0) return true;
+  return run.state === "pending_approval" && runApprovalRefusal(runAsked(run), days) === null;
+}
+function runHeldEmails(run) {
+  const going = RUN_GOING_STATES.includes(run.state);
+  return going && typeof run.held === "number" && run.held > 0 ? run.held : 0;
+}
+function runDraftedEmails(run) {
+  const going = RUN_GOING_STATES.includes(run.state);
+  return going && typeof run.drafted === "number" && run.drafted > 0 ? run.drafted : 0;
+}
+function runTooLate(run, days) {
+  return run.state === "pending_approval" && runApprovalRefusal(runAsked(run), days) !== null;
+}
+function runsThatWait(runs, days) {
+  return runs.filter((r2) => runWaitsOnYou(r2, days));
+}
+var runAsked = (run) => ({
+  playbook_id: run.playbook_id ?? null,
+  run_for: run.run_for ?? null,
+  audience: run.audience
+});
+function threadWait(t, nowMs) {
+  if (t.needsYou) return "hold";
+  return t.send && replyWaitsOnYou({ endsAtMs: t.send.endsAtMs, held: t.send.held }, nowMs) ? "send" : null;
+}
+function threadWaits(input) {
+  let holds2 = input.unreadHolds;
+  let sends2 = 0;
+  for (const t of input.threads) {
+    const wait = threadWait(t, input.nowMs);
+    if (wait === "hold") holds2 += 1;
+    else if (wait === "send") sends2 += 1;
+  }
+  return { holds: holds2, sends: sends2 };
+}
+function waitsOf(input) {
+  return { ...threadWaits(input), runs: runsThatWait(input.runs, input.days).length };
+}
+function needsYouCount(waits) {
+  return waits.holds + waits.sends + waits.runs;
+}
+
 // src/reach-out/owner/compose.ts
 var COMPOSE_URL_MAX = 3800;
 var enc = (s) => encodeURIComponent(s.replace(/\r?\n/g, "\r\n"));
@@ -24984,95 +25351,6 @@ function mailboxesFootWords(count2) {
 }
 function customerDomainWords(host) {
   return `Your customers write to ${host}, so this mailbox sends ${CUSTOMER_DOMAIN_DAILY_MAX} a day at most to keep their mail and bookings safe. For more, connect a mailbox on a second domain, such as get${host}.`;
-}
-
-// src/reach-out/reach-out-rules.ts
-function outreachRefusalOf(f) {
-  if (!f.leadStage) return "outreach_not_a_lead";
-  if (f.leadStage !== "ready" && f.leadStage !== "nurture") return "outreach_lead_closed";
-  if (f.suppressed) return "outreach_suppressed";
-  if (f.wroteBack) return "outreach_wrote_back";
-  if (f.away) return "outreach_away";
-  if (f.stopped) return "outreach_stopped";
-  return null;
-}
-var OUTREACH_WAIT_REFUSALS = [
-  "sending_mailbox_at_cap",
-  "sending_mailbox_not_ready",
-  "outreach_needs_own_mailbox",
-  "paused"
-];
-function isWaitRefusal(reason) {
-  return OUTREACH_WAIT_REFUSALS.includes(reason ?? "");
-}
-var REACH_OUT_MONTH_EMAILS = 2e3;
-var REACH_OUT_DRAFTS_PER_DAY = 30;
-var REACH_OUT_DRAFTS_OPEN_MAX = 2 * REACH_OUT_DRAFTS_PER_DAY;
-function draftRefusalOf(f) {
-  if (!f) return "lead_gone";
-  const refused = outreachRefusalOf({
-    leadStage: f.lead_stage,
-    suppressed: f.suppressed,
-    wroteBack: f.wrote_back,
-    away: f.away,
-    stopped: f.stopped
-  });
-  return refused ?? (f.customer ? "already_yours" : null);
-}
-var REACH_OUT_CHECKS_PER_DAY = 400;
-function isReachOutRun(audience) {
-  return !!audience && typeof audience === "object" && audience.kind === "reach_out";
-}
-function chainOfMoment(chains, id) {
-  return chains.find((c) => c.root_id === id || c.steps.some((s) => s.id === id)) ?? null;
-}
-function reachOutRootOf(audience) {
-  if (!isReachOutRun(audience)) return null;
-  const root = audience.root_id;
-  return typeof root === "string" && root ? root : null;
-}
-var REACH_OUT_LANGUAGE = "en";
-function reachOutValues(lead, workspace, opening2) {
-  const who = leadAddresseeOf(lead);
-  return slotValues(REACH_OUT_SLOT_SET, {
-    business: lead.business_name,
-    company: lead.business_name,
-    "first name": who?.first_name || REACH_OUT_SLOT_FALLBACKS["first name"],
-    // A person's title or role is said only where their source said it: no guess stands in (a hole holds the email).
-    title: who?.title || (who?.role ? LEAD_ROLE_WORDS[who.role] : null),
-    role: who?.role ? LEAD_ROLE_WORDS[who.role] : null,
-    city: lead.city,
-    "your business": workspace.businessName,
-    "your name": workspace.yourName,
-    "booking link": workspace.bookingLink,
-    opening: opening2
-  });
-}
-function reachOutEmailOf(words3, lead, workspace, opening2 = null) {
-  const values = reachOutValues(lead, workspace, opening2);
-  const texts = words3.subject === null ? [words3.body] : [words3.subject, words3.body];
-  if (texts.some((t) => slotHoles(REACH_OUT_SLOT_SET, t, values))) return { ok: false, reason: "missing_value" };
-  const email = renderOwnVersion("email", words3, values, REACH_OUT_LANGUAGE, REACH_OUT_SLOT_SET);
-  return { ok: true, subject: words3.subject === null ? null : email.subject, body: email.body };
-}
-var EXAMPLE_LEAD = {
-  business_name: "Lakeside Bakery",
-  city: "Springfield",
-  opening: "Your 4.8 stars from 212 reviews caught my eye.",
-  // A person at it, so the person slots show a name, not their fallback.
-  person: { name: "Dana Reyes", first_name: "Dana", title: "Owner", role: "owner", email: null, profile_url: null }
-};
-function reachOutExampleValues(workspace) {
-  return reachOutValues(
-    {
-      business_name: EXAMPLE_LEAD.business_name,
-      city: EXAMPLE_LEAD.city,
-      kind: "company",
-      facts: { people: [EXAMPLE_LEAD.person], addressee: 0 }
-    },
-    workspace,
-    EXAMPLE_LEAD.opening
-  );
 }
 
 // src/reach-out/lead-hours.ts
@@ -25778,7 +26056,7 @@ function toSendWordsOf(r2, p) {
   if (drafted2.length === 0) return null;
   return {
     head: `To send \xB7 ${drafted2.length}`,
-    note: "Open each in Gmail, Outlook or your mail app and send it there, then say Sent here. Skip leaves them out of this run.",
+    note: REACH_OUT_TO_SEND_LABELS.note,
     rows: drafted2.map((d) => ({
       id: d.send_id,
       leadId: d.lead_id,
@@ -25805,6 +26083,11 @@ var SENT_SINCE_WORDS = {
   no_address: "Their address is gone, so nothing more is written to them."
 };
 var REACH_OUT_TO_SEND_LABELS = {
+  /**
+   * How the list is worked, and what Skip does: the owner's word that it did not go counts as the business's first email
+   * (00427's one-first rule; 0059's Risks), so neither this reach-out nor another writes to them after it.
+   */
+  note: "Open each in Gmail, Outlook or your mail app and send it there, then say Sent here. Skip leaves that business out: nothing more is written to them.",
   gmail: "Open in Gmail",
   outlook: "Open in Outlook",
   app: "Your mail app",
@@ -25827,12 +26110,51 @@ var REACH_OUT_TO_SEND_LABELS = {
   sentDone: (name) => `${name}: sent from your inbox`,
   /** Sent, and recorded, though its lead would be refused now (reach_out_send_said's since). */
   sentSince: (name, since) => `${name}: sent from your inbox. ${SENT_SINCE_WORDS[since] ?? "Nothing more is written to them."}`,
-  skippedDone: (name) => `${name}: left out of this run`,
+  skippedDone: (name) => `${name}: left out. Nothing more is written to them.`,
   /** Left out by the clock or a reply before the owner said a word: why, in the skip's own words. */
   leftOut: (name, why) => `${name} was left out already: they ${why}.`,
   /** Another member, or another tab, said first. */
   already: (state) => state === "sent" ? "Already said: it went." : "Already said: it was left out."
 };
+var TO_SEND_ROUTE = "broadcasts/to-send";
+var TO_SEND_ALL_WORDS = {
+  title: "To send",
+  /** Today's row and the door to it: what it opens. */
+  door: "Open To send",
+  meta: "Reach-out \xB7 to send",
+  status: "Handed to you",
+  /** "12 emails handed to you, from 3 reach-outs" */
+  sub: (n, runs) => `${plural(n, "email", "emails")} handed to you${runs > 1 ? `, from ${runs} reach-outs` : ""}`,
+  /** Today's one row for them: what waits, and where. */
+  sentence: (n, runs) => `${plural(n, "email", "emails")} to send from your inbox, from ${runs} reach-outs, each written and checked.`,
+  note: REACH_OUT_TO_SEND_LABELS.note,
+  /** A run's part of the list, by its chain's name and how many of its emails wait. */
+  runHead: (name, n) => `${name} \xB7 ${n}`,
+  openRun: "Open the run",
+  /** A run's own To send, where other runs hand emails over too: the door to all of them. */
+  everyRun: (n, runs) => `All ${n} to send, from ${runs} reach-outs`,
+  reading: "Reading its emails\u2026",
+  unread: "Its emails could not be read just now. Open the run to see them.",
+  /** Every email handed over is said: what the pane says once its list is empty. */
+  none: "Nothing left to send: every email handed to you is said.",
+  /** What a role that may not is told it cannot do here (gateTitle): the run's own list's words. */
+  gated: REACH_OUT_TO_SEND_LABELS.gated
+};
+function toSendAllOf(runs) {
+  const waiting = runs.filter((r2) => runDraftedEmails(r2) > 0).sort((a, b) => a.scheduled_for.localeCompare(b.scheduled_for) || a.id.localeCompare(b.id));
+  if (waiting.length === 0) return null;
+  return { runs: waiting, count: waiting.reduce((n, r2) => n + runDraftedEmails(r2), 0) };
+}
+function toSendRunsOf(waiting) {
+  const all = toSendAllOf(waiting.filter((r2) => runHeldEmails(r2) === 0));
+  return all && all.runs.length > 1 ? all : null;
+}
+function waitingRunsDoor(waiting) {
+  const [only] = waiting;
+  if (waiting.length === 1 && only) return `broadcasts/run:${only.id}`;
+  const toSend = toSendRunsOf(waiting);
+  return toSend && toSend.runs.length === waiting.length ? TO_SEND_ROUTE : "broadcasts";
+}
 var REACH_OUT_RUN_LABELS = {
   back: "Back to Sent",
   approving: "Approving\u2026",
@@ -30642,283 +30964,6 @@ var HANDLED_OUTCOMES = ["ai", "held", "handoff", "blocked"];
 
 // src/conversations/first-touch.ts
 var REFERRAL_ID_MAX = 200;
-
-// src/playbooks/playbook-purpose.ts
-function messageAboutOfTrigger(trigger) {
-  const kind = triggerOf(trigger ?? "")?.kind;
-  return kind === "visit" || kind === "deal" ? "theirs" : "ours";
-}
-function passesHandoverPause(trigger) {
-  return trigger === "visit_tomorrow";
-}
-function enrolPurpose(policyClass, message) {
-  const byClass = purposeOfPlaybook(policyClass);
-  if (!message || byClass === "marketing") return byClass;
-  return purposeOfTemplate(message.category);
-}
-var MESSAGE_MOMENT_WORDS = {
-  offer_on_texts: "This moment reaches anyone who said yes to texts, and this message is an offer, which only a yes to offers may get. Pick a reminder, a check after, or a follow-up.",
-  texts_on_offers: "This moment sends offers, which only a yes to offers may get, and this message is a reminder, a check after or a follow-up. Pick an offer, or the moment it was written for."
-};
-function messageFitsMoment(policyClass, category) {
-  const moment2 = purposeOfPlaybook(policyClass);
-  const message = purposeOfTemplate(category);
-  if (moment2 === message) return { ok: true };
-  const why = moment2 === "conversational" ? "offer_on_texts" : "texts_on_offers";
-  return { ok: false, why, words: MESSAGE_MOMENT_WORDS[why] };
-}
-
-// src/playbooks/playbook-approval.ts
-function poolWords(trigger, word) {
-  const t = triggerOf(trigger);
-  if (!t) return "";
-  if (t.kind === "visit") {
-    const W = appointmentWords(word);
-    return trigger === "visit_tomorrow" ? W.withTomorrow : W.whoYesterday;
-  }
-  if (t.kind === "deal") return "with a proposal waiting";
-  return t.list || t.kind === "saved" ? "on the list" : "in People";
-}
-function reachLines(reach, p, allowanceHeld = 0) {
-  if (!reach || !Number.isFinite(reach.pool)) return null;
-  const t = p ? triggerOf(p.trigger) : null;
-  const offers = t ? purposeOfPlaybook(t.cls) === "marketing" : true;
-  const gap = p ? p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days : null;
-  const once = t?.kind === "deal";
-  const one = (n, singular, plural3) => n === 1 ? singular : plural3;
-  const noAddress = reach.no_address ?? 0;
-  const addressStopped = reach.address_stopped ?? 0;
-  const noChannel = reach.no_channel ?? 0;
-  const reasons = [
-    {
-      n: reach.noYes,
-      words: `never said yes to ${offers ? "offers" : "hearing from you"}`,
-      tone: "plain",
-      door: { words: "Get their yes", to: GET_YES_ROUTE }
-    },
-    // The week's breath, both sides of the run: a message from a campaign or a broadcast sent or due within a week of it.
-    { n: reach.heardAny, words: `${one(reach.heardAny, "hears", "hear")} ${BREATH_WHY}`, tone: "warn", door: null },
-    { n: allowanceHeld, words: ALLOWANCE_HELD_WORDS, tone: "warn", door: null },
-    {
-      n: reach.heardThis,
-      words: once ? "had this proposal's follow-up already" : gap ? `heard from this campaign in the last ${gap} days` : "heard from this campaign lately",
-      tone: once ? "plain" : "warn",
-      door: null
-    },
-    { n: reach.stopped, words: "asked you to stop", tone: "plain", door: null },
-    {
-      n: reach.noNumber,
-      words: one(reach.noNumber, "has no number on file", "have no number on file"),
-      tone: "plain",
-      door: null
-    },
-    // Where email was the only channel left, or no channel could carry the message: each is a person the run counted and
-    // leaves out, so each has its line (a run counted before runs kept them has none).
-    {
-      n: noAddress,
-      words: one(noAddress, "has no email address on file", "have no email address on file"),
-      tone: "plain",
-      door: null
-    },
-    {
-      n: addressStopped,
-      words: one(
-        addressStopped,
-        "has an email address mail no longer goes to",
-        "have an email address mail no longer goes to"
-      ),
-      tone: "plain",
-      door: null
-    },
-    {
-      n: noChannel,
-      words: one(
-        noChannel,
-        "has no channel this message can go by here",
-        "have no channel this message can go by here"
-      ),
-      tone: "plain",
-      door: null
-    },
-    {
-      n: reach.overCap,
-      words: `${one(reach.overCap, "waits", "wait")} for the next run${p ? ` \u2014 ${p.cap_per_run} a run, the longest unheard first` : ""}`,
-      tone: "plain",
-      door: null
-    },
-    {
-      n: reach.overLimit,
-      words: one(
-        reach.overLimit,
-        "is past what the number may start today",
-        "are past what the number may start today"
-      ),
-      tone: "warn",
-      door: null
-    }
-  ];
-  const lines = reasons.map((r2, rank) => ({ ...r2, rank })).filter((r2) => r2.n > 0).sort((a, b) => b.n - a.n || a.rank - b.rank).map(({ n, words: words3, tone, door }) => ({ n, words: `${n} ${words3}`, tone, door }));
-  return {
-    pool: reach.pool,
-    held: reach.heardAny + (once ? 0 : reach.heardThis) + reach.overLimit + allowanceHeld,
-    lines
-  };
-}
-var ALLOWANCE_HELD_WORDS = "held for this month's allowance";
-var NONE_HEARS_WORDS = `none hears ${BREATH_WHY}`;
-var ALLOWANCE_REASON = "month_allowance";
-function allowanceHeldOn(recipients) {
-  const held = { whatsapp: 0, sms: 0, email: 0 };
-  for (const r2 of recipients) {
-    if (r2.state !== "skipped" || r2.reason !== ALLOWANCE_REASON) continue;
-    held[channelOfRecipient(r2)] += 1;
-  }
-  return held;
-}
-function channelOfRecipient(r2) {
-  return r2?.channel === "sms" || r2?.channel === "email" ? r2.channel : "whatsapp";
-}
-function runDayPassed(run, today) {
-  const day = dayHasPassed(run, today);
-  return day ? dayGoneWords(day) : null;
-}
-function dayHasPassed(run, today) {
-  return run.playbook_id && run.run_for && run.run_for !== today ? run.run_for : null;
-}
-function dayGoneWords(runFor, say2 = (ymd) => ymd) {
-  return `This run was made for ${say2(runFor)} and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.`;
-}
-function runDaysAt(tz, now) {
-  return { today: localDate(tz, now), sendsOn: localDate(tz, nextOpenMoment(tz, now).at) };
-}
-function visitRunTooLate(run, days) {
-  const moment2 = triggerOf(audienceTrigger(run.audience) ?? "");
-  return moment2?.kind === "visit" && !!run.run_for && days.sendsOn > run.run_for;
-}
-function runApprovalRefusal(run, days) {
-  if (isReachOutRun(run.audience)) return null;
-  const day = dayHasPassed(run, days.today) ?? (run.playbook_id && run.run_for && visitRunTooLate(run, days) ? run.run_for : null);
-  return day ? dayGoneWords(day, days.say) : null;
-}
-function waitingRunOffer(run, days, at3) {
-  if (isReachOutRun(run.audience) || !at3.known) return { kind: "open" };
-  const late = runApprovalRefusal(run, days);
-  if (late) return { kind: "skip", why: late };
-  return at3.paused ? { kind: "skip", why: CAMPAIGNS_PAUSED_WORDS } : { kind: "approve" };
-}
-function toApprovalVM(d, opts) {
-  const b = d.broadcast;
-  const heldOn = allowanceHeldOn(d.recipients);
-  const allowanceHeld = heldOn.whatsapp + heldOn.sms + heldOn.email;
-  const will = Math.max(0, b.recipient_count - allowanceHeld);
-  const by = b.audience?.reach?.by_channel;
-  const t = opts.playbook ? triggerOf(opts.playbook.trigger) : null;
-  const rules = [];
-  if (t && opts.playbook) {
-    rules.push(...consentRuleWords(by, purposeOfPlaybook(t.cls), messageAboutOfTrigger(opts.playbook.trigger)));
-    if (t.kind === "visit") {
-      const W = appointmentWords(opts.playbook.word);
-      rules.push(opts.playbook.trigger === "visit_tomorrow" ? W.eachTomorrow : W.eachYesterday);
-    } else if (t.kind === "deal") {
-      rules.push(
-        "each has a proposal waiting with nothing back, and its link",
-        "none followed up on that proposal before",
-        NONE_HEARS_WORDS
-      );
-      if (will >= opts.playbook.cap_per_run)
-        rules.push(`capped at ${opts.playbook.cap_per_run} a run, the longest unheard first`);
-    } else {
-      const gap = opts.playbook.trigger === "everyone_monthly" ? opts.playbook.cadence_days : opts.playbook.gap_days;
-      rules.push(`none heard from this campaign in ${gap} days`, NONE_HEARS_WORDS);
-      if (will >= opts.playbook.cap_per_run)
-        rules.push(`capped at ${opts.playbook.cap_per_run} a run, the longest unheard first`);
-    }
-  }
-  const named = d.recipients.find((r2) => r2.first_name);
-  const reader = named ?? d.recipients[0] ?? null;
-  const params = Array.isArray(b.params) ? b.params : [];
-  const values = params.map((p) => {
-    switch (p.kind) {
-      case "text":
-        return p.value;
-      case "first_name":
-        return reader?.first_name || "there";
-      case "business_name":
-        return opts.businessName;
-      case "booking_link":
-        return "your booking link";
-      default:
-        return `[${PARAM_SOURCE_LABELS[p.kind].toLowerCase()}]`;
-    }
-  });
-  const greets = params.some((p) => p.kind === "first_name");
-  const late = runApprovalRefusal(b, { today: opts.today, sendsOn: opts.open.on, say: opts.day });
-  const refusal = opts.paused ? CAMPAIGNS_PAUSED_WORDS : late;
-  const runFor = b.run_for ?? "";
-  return {
-    will,
-    byChannel: by ? {
-      whatsapp: Math.max(0, by.whatsapp - heldOn.whatsapp),
-      sms: Math.max(0, by.sms - heldOn.sms),
-      email: Math.max(0, by.email - heldOn.email)
-    } : null,
-    rules,
-    of: reachLines(b.audience?.reach ?? null, opts.playbook, allowanceHeld),
-    values,
-    reader: reader ? reader.name : null,
-    readerChannel: channelOfRecipient(reader),
-    hiThere: greets ? d.recipients.filter((r2) => !r2.first_name).length : 0,
-    approve: refusal ? null : `Approve \u2014 ${will} ${opts.open.moved ? `at ${opts.open.time}` : "now"}`,
-    expired: refusal,
-    goes: late ? `made for ${opts.day(runFor)}` : opts.paused ? "waits until billing resumes" : opts.open.moved ? `goes at ${opts.open.time} once you approve it` : "goes the moment you approve it",
-    skip: "Skipping loses this run only \u2014 the campaign keeps running."
-  };
-}
-
-// src/waits/waits.ts
-function runWaitsOnYou(run, days) {
-  if (runHeldEmails(run) > 0 || runDraftedEmails(run) > 0) return true;
-  return run.state === "pending_approval" && runApprovalRefusal(runAsked(run), days) === null;
-}
-function runHeldEmails(run) {
-  const going = RUN_GOING_STATES.includes(run.state);
-  return going && typeof run.held === "number" && run.held > 0 ? run.held : 0;
-}
-function runDraftedEmails(run) {
-  const going = RUN_GOING_STATES.includes(run.state);
-  return going && typeof run.drafted === "number" && run.drafted > 0 ? run.drafted : 0;
-}
-function runTooLate(run, days) {
-  return run.state === "pending_approval" && runApprovalRefusal(runAsked(run), days) !== null;
-}
-function runsThatWait(runs, days) {
-  return runs.filter((r2) => runWaitsOnYou(r2, days));
-}
-var runAsked = (run) => ({
-  playbook_id: run.playbook_id ?? null,
-  run_for: run.run_for ?? null,
-  audience: run.audience
-});
-function threadWait(t, nowMs) {
-  if (t.needsYou) return "hold";
-  return t.send && replyWaitsOnYou({ endsAtMs: t.send.endsAtMs, held: t.send.held }, nowMs) ? "send" : null;
-}
-function threadWaits(input) {
-  let holds2 = input.unreadHolds;
-  let sends2 = 0;
-  for (const t of input.threads) {
-    const wait = threadWait(t, input.nowMs);
-    if (wait === "hold") holds2 += 1;
-    else if (wait === "send") sends2 += 1;
-  }
-  return { holds: holds2, sends: sends2 };
-}
-function waitsOf(input) {
-  return { ...threadWaits(input), runs: runsThatWait(input.runs, input.days).length };
-}
-function needsYouCount(waits) {
-  return waits.holds + waits.sends + waits.runs;
-}
 
 // src/reach-out/reach-out-reply-words.ts
 var REPLIES_PAGE = 200;
@@ -49296,6 +49341,8 @@ var ROUTE_VERBS = [
   [/^campaigns/, "Open Campaigns"],
   // A row about one run opens that run (a playbook's waiting or about to go, a reach-out's held sends), and says so.
   [/^broadcasts\/run:/, "Open the run"],
+  // Every email handed to its owner, from each reach-out they send themselves (00428): one list.
+  [/^broadcasts\/to-send$/, "Open To send"],
   [/^broadcasts/, "Open Sent"],
   // The route is still `messages`; the page is the Library (a room of Campaigns), and the door says the page's name.
   [/^messages/, "Open Library"],
@@ -53747,6 +53794,8 @@ export {
   TONES,
   TONE_PRESETS,
   TOO_EARLY_DAYS,
+  TO_SEND_ALL_WORDS,
+  TO_SEND_ROUTE,
   TRIAL_COVERS,
   TRY_QUIET_AFTER_MS,
   TRY_SKIPPED,
@@ -55462,6 +55511,8 @@ export {
   toReportVM,
   toReviewsReportVM,
   toRunReportVM,
+  toSendAllOf,
+  toSendRunsOf,
   toSendSaidWords,
   toSendWordsOf,
   toSlotParts,
@@ -55579,6 +55630,7 @@ export {
   waitedLabel,
   waitingOnProposal,
   waitingRunOffer,
+  waitingRunsDoor,
   waitsOf,
   waitsOnAPerson,
   wallClockAt,

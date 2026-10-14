@@ -92,7 +92,11 @@ files.
 
 - An owner who never says Sent leaves a draft for fourteen days; its run stays open until then. A draft given up, or
   skipped by its owner, still counts as the lead's first email (00427's one-first rule): the lead is not written to
-  again by another reach-out. Releasing such a lead to the pile is owed (a new index over the rule, built alone).
+  again by this reach-out or another, and To send says so at Skip ("nothing more is written to them"), where it said
+  "out of this run". Kept so on purpose: a business its owner chose not to write to is not handed to the next
+  reach-out. Releasing a skipped lead (were it wanted) is more than the index: one reach-out per lead is also its
+  search's membership (reach_out_add's `elsewhere`, lead_chain_of), so it would take the one-first index rebuilt alone,
+  reach_out_why_not, the audience leaving it out of the reach-out it was skipped in, and those two.
 - An owner's word is the only proof an email went; a bounce or a complaint reaches their inbox, never ours, so Reports
   says no share for their row.
 

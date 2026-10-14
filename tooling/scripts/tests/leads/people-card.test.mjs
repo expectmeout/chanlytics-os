@@ -259,7 +259,10 @@ test("a draft's refusal is the door's, and a customer's address; Sent says what 
     toSendSaidWords("Acme", { said: true, state: "sent", since: "outreach_suppressed" }),
     /never-again list/,
   );
-  assert.equal(toSendSaidWords("Acme", { said: true, state: "skipped" }), "Acme: left out of this run");
+  assert.equal(
+    toSendSaidWords("Acme", { said: true, state: "skipped" }),
+    "Acme: left out. Nothing more is written to them.",
+  );
   assert.equal(toSendSaidWords("Acme", { said: false, state: "sent" }), "Already said: it went.");
   assert.match(
     toSendSaidWords("Acme", { said: false, state: "skipped", reason: "outreach_wrote_back" }),

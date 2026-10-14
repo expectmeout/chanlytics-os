@@ -173,7 +173,7 @@ export function toSendWordsOf(r: ReachOutRunDto, p: { timezone: string; now: num
   if (drafted.length === 0) return null;
   return {
     head: `To send · ${drafted.length}`,
-    note: "Open each in Gmail, Outlook or your mail app and send it there, then say Sent here. Skip leaves them out of this run.",
+    note: REACH_OUT_TO_SEND_LABELS.note,
     rows: drafted.map((d): ToSendRowVM => ({
       id: d.send_id,
       leadId: d.lead_id,
@@ -207,6 +207,11 @@ const SENT_SINCE_WORDS: Record<string, string> = {
 
 /** The To send list's own acts and what each says once done. */
 const REACH_OUT_TO_SEND_LABELS = {
+  /**
+   * How the list is worked, and what Skip does: the owner's word that it did not go counts as the business's first email
+   * (00427's one-first rule; 0059's Risks), so neither this reach-out nor another writes to them after it.
+   */
+  note: "Open each in Gmail, Outlook or your mail app and send it there, then say Sent here. Skip leaves that business out: nothing more is written to them.",
   gmail: "Open in Gmail",
   outlook: "Open in Outlook",
   app: "Your mail app",
@@ -230,7 +235,7 @@ const REACH_OUT_TO_SEND_LABELS = {
   /** Sent, and recorded, though its lead would be refused now (reach_out_send_said's since). */
   sentSince: (name: string, since: string) =>
     `${name}: sent from your inbox. ${SENT_SINCE_WORDS[since] ?? "Nothing more is written to them."}`,
-  skippedDone: (name: string) => `${name}: left out of this run`,
+  skippedDone: (name: string) => `${name}: left out. Nothing more is written to them.`,
   /** Left out by the clock or a reply before the owner said a word: why, in the skip's own words. */
   leftOut: (name: string, why: string) => `${name} was left out already: they ${why}.`,
   /** Another member, or another tab, said first. */
@@ -262,7 +267,7 @@ export const TO_SEND_ALL_WORDS = {
   /** Today's one row for them: what waits, and where. */
   sentence: (n: number, runs: number) =>
     `${plural(n, "email", "emails")} to send from your inbox, from ${runs} reach-outs, each written and checked.`,
-  note: "Open each in Gmail, Outlook or your mail app and send it there, then say Sent here. Skip leaves one out of its run.",
+  note: REACH_OUT_TO_SEND_LABELS.note,
   /** A run's part of the list, by its chain's name and how many of its emails wait. */
   runHead: (name: string, n: number) => `${name} · ${n}`,
   openRun: "Open the run",
