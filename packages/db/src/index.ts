@@ -545,8 +545,8 @@ export { touchesSince, recentTouches, followUpTouchesSince, touchIndex } from ".
 export type { Touch, TouchIndex } from "./repositories/touches";
 export { yesesSince, recordDeal } from "./repositories/deals";
 export type { YesRow, DealMove } from "./repositories/deals";
-export { exportSectionPages } from "./repositories/workspace-export";
-export type { ExportPage, ExportSectionPages } from "./repositories/workspace-export";
+export { exportSectionPages, personExportPages } from "./repositories/workspace-export";
+export type { ExportPage, ExportSectionPages, PersonExportPages } from "./repositories/workspace-export";
 export {
   getOwnPartner,
   sessionHoldsPartnerSeat,

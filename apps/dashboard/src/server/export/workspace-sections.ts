@@ -1,9 +1,14 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { exportSectionPages, type Database } from "@chanlytics/db";
+import { exportSectionPages, personExportPages, type Database } from "@chanlytics/db";
 import { signedMediaUrls } from "@/server/conversations/media";
 import { teamRoster } from "@/server/workspace/team";
-import { FILE_LINK_SECONDS, type BundleReaders, type BundleTeamMember } from "./export-bundle";
+import {
+  FILE_LINK_SECONDS,
+  type BundleReaders,
+  type BundleTeamMember,
+  type PersonBundleReaders,
+} from "./export-bundle";
 
 /**
  * The readers of the owner's copy beyond the customer record (the wiring's second audit, R14 X1 and X6): the team as the
@@ -38,5 +43,20 @@ export function workspaceSections(
       ];
     },
     sections: exportSectionPages(db, tenantId),
+  };
+}
+
+/**
+ * The same for one person's own copy (R14 X5): a link to each file they sent, and their sections, each read for them
+ * (packages/db personExportPages). No team: a person's copy holds none.
+ */
+export function personSections(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+  contactId: string,
+): Pick<PersonBundleReaders, "signFiles" | "sections"> {
+  return {
+    signFiles: (paths) => signedMediaUrls(tenantId, paths, FILE_LINK_SECONDS),
+    sections: personExportPages(db, tenantId, contactId),
   };
 }

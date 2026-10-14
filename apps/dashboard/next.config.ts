@@ -57,6 +57,10 @@ const nextConfig: NextConfig = {
   // route (workspace.ts warmRoute). What reads the request (a route handler, a business's public page) is rendered
   // for it, as before; `check:static-shell` holds the frame to its prerender after every build.
   cacheComponents: true,
+  // A warm is one App Shell per route, shared by every address of it: Next 16.4 asks for the switch, and 17 makes it
+  // the default. No page of the frame reads the request or its params, so its shell is its prerender: two builds of one
+  // commit, without it and with it, wrote the same files and warmed and moved alike (decision 0053, step 5).
+  partialPrefetching: true,
   // The framework advertises its own version to every visitor; there is no
   // reason to hand an attacker the exact build to look up CVEs against.
   poweredByHeader: false,

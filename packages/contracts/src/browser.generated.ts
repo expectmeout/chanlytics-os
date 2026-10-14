@@ -11,7 +11,7 @@ import "./zod-config";
 export { ACTIVITY_FAMILIES, ACTIVITY_PROBLEM_KINDS, ACTIVITY_SPANS, ACTIVITY_SPAN_DAYS, ACTIVITY_ACTORS, ACTIVITY_PAGE_WORDS, activityFamily, activityFamilyKinds, activityKindGroups, isActivityFamily } from "./activity/families";
 export { ACTIVITY_FOLD_KINDS, activityDoor, activityLines, activityMemberWords, activityRowsForLines } from "./activity/lines";
 export { addressOf, jobRecordOf, RECORDS_WITHOUT_AN_ADDRESS } from "./activity/record-address";
-export { EXPORT_HOLDS_WORDS, EXPORT_OF, EXPORT_SECTIONS, exportLeftOut, exportLeftOutWords, exportedSections } from "./activity/record-export";
+export { EXPORT_HOLDS_WORDS, EXPORT_OF, EXPORT_SECTIONS, PERSON_EXPORT_SECTIONS, exportLeftOut, exportLeftOutWords, exportedSections, personExportLeftOut } from "./activity/record-export";
 export { RECORD_KINDS, liveTablesOf } from "./activity/record-kinds";
 export { ACTIVITY_SUBJECT_HOMES } from "./activity/subjects";
 export { activityTone } from "./activity/tones";

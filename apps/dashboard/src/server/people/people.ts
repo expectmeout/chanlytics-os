@@ -6,6 +6,7 @@ import {
   everyoneOnceIn,
   peopleCursorOf,
   peoplePage,
+  personRow,
   readAllRows,
   type PeopleCursor,
 } from "@chanlytics/db";
@@ -149,6 +150,19 @@ export async function* everyoneOnce(
   // Read beside the first page, as everyone() reads them; a read that fails is none, so it never rejects.
   const pols = replyPolicies(ctx, tenantId);
   for await (const page of everyoneOnceIn(ctx.supabase, tenantId)) yield withReplyModes(page, await pols);
+}
+
+/**
+ * ONE PERSON, as People draws them, with their reply mode: the row of their own copy (GET export?person, R14 X5). None for
+ * someone this workspace does not hold, or holds no longer (erased, or merged into another).
+ */
+export async function onePerson(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+  contactId: string,
+): Promise<PersonRowDto | null> {
+  const [row, pols] = await Promise.all([personRow(ctx.supabase, tenantId, contactId), replyPolicies(ctx, tenantId)]);
+  return row ? (withReplyModes([row], pols).at(0) ?? null) : null;
 }
 
 /**

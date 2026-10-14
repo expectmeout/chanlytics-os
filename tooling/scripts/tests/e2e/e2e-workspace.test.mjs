@@ -929,7 +929,7 @@ test("the Google seed is a listing, a Business Profile with no credentials and f
   assert.deepEqual(await verify(w.db, T, w.users.find((u) => u.email === OWNER).id), []);
 });
 
-test("the Google sweep reaches the seed only a day on, and then writes its failure on the row: no stamp moved, no review touched, the owner told once that the profile stopped syncing, and the next morning's seed clears it", async () => {
+test("the Google sweep reaches the seed only a day on, and then writes its failure on the row and tells the owner once, and nothing else: no stamp moved, no review touched, and the next morning's seed clears both", async () => {
   const w = world();
   const hour = 3_600_000;
   const seededAt = Date.now() - 21 * hour;
@@ -942,8 +942,9 @@ test("the Google sweep reaches the seed only a day on, and then writes its failu
 
   const kept = () =>
     JSON.stringify([of(w.t, "google_reviews", T), of(w.t, "google_listing_days", T), of(w.t, "events", T)]);
+  const bells = () => of(w.t, "notifications", T).map((n) => [n.kind, n.subject_type, n.title]);
   const before = kept();
-  const rungBefore = new Set(of(w.t, "notifications", T).map((n) => n.id));
+  const rang = bells();
   wire.length = 0;
   const quiet = { info() {}, warn() {}, error() {}, debug() {} };
   const res = await sweepGoogle({ db: w.db, L: quiet, started: Date.now() });
@@ -968,20 +969,17 @@ test("the Google sweep reaches the seed only a day on, and then writes its failu
   assert.ok(listing.check_error && profile.sync_error, "each row says what failed");
   assert.deepEqual([listing.checked_at, profile.last_synced_at], [stamp, stamp], "and neither stamp moved");
   assert.equal(kept(), before, "no review, day or event was written");
-  // The profile's failure is one only its owner can mend (the fixture holds no credentials), so the owner is told at the
-  // first failure, once, where it is reconnected (the wiring's second audit, R11 S11-4: edge lib/google/sync-notice.ts);
-  // the listing's passing failure rings nothing.
-  const rung = of(w.t, "notifications", T).filter((n) => !rungBefore.has(n.id));
   assert.deepEqual(
-    rung.map((n) => [n.kind, n.route]),
-    [["sweep", "admin/integrations"]],
-    "one bell, for the profile, opening Connections",
+    bells(),
+    [...rang, ["sweep", "google_connection", "Google Business Profile stopped syncing"]],
+    "the owner is told once: a profile with no credentials is a cause only they can mend (R11 S11-4)",
   );
 
   await run(w, { now: seededAt + 24 * hour });
   const [mended] = of(w.t, "google_listings", T);
   const [reconnected] = of(w.t, "google_connections", T);
   assert.deepEqual([mended.check_error, reconnected.sync_error], [null, null], "the next morning's seed clears both");
+  assert.deepEqual(bells(), rang, "and the notice with them");
 });
 
 test("verify() names a Google seed that a spec or a person changed: another listing, a profile with credentials, a review that is not a fixture, a reply event gone", async () => {

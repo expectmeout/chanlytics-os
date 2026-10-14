@@ -22,21 +22,32 @@
  * never exported and the one on the boundary was exported twice. Their reader hands over pages of everyone exactly once
  * (server/people everyoneOnce), in whatever size it reads them. The messages are read for MESSAGES_BATCH conversations
  * at a time: a query a conversation was about ten thousand queries for a large workspace (R14 X7).
+ *
+ * One person's own copy (personBundle; GET export?person=<id>, "Download their records" on their page, R14 X5) is the
+ * same file of them alone: the sections contracts PERSON_EXPORT_SECTIONS names, each read for them, with what it leaves
+ * out of the workspace's and why (personExportLeftOut).
  */
 import {
   DAY_MS,
   EXPORT_SECTIONS,
+  PERSON_EXPORT_SECTIONS,
   exportLeftOut,
+  personExportLeftOut,
   type CallDto,
   type ConsentChange,
+  type ExportLeftOut,
   type ExportSection,
   type MessageDto,
+  type PersonExportSection,
   type PersonRowDto,
 } from "@chanlytics/contracts";
 export { consentChangeOf } from "@chanlytics/contracts";
 
 export const BUNDLE_FORMAT = "chanlytics-workspace-export";
 const BUNDLE_VERSION = 2;
+/** One person's own copy: the workspace's file of them alone, from its first version. */
+const PERSON_BUNDLE_FORMAT = "chanlytics-person-export";
+const PERSON_BUNDLE_VERSION = 1;
 /** Rows per page, per section. */
 export const BUNDLE_PAGE = 500;
 /** Conversations whose messages are read in one query: a page of them, a few hundred messages, under the 8 KiB request line. */
@@ -48,7 +59,7 @@ const FILE_LINK_MS = DAY_MS;
 /** The same, as the store's signer takes it. */
 export const FILE_LINK_SECONDS = FILE_LINK_MS / 1000;
 
-export interface BundleConversation {
+interface BundleConversation {
   id: string;
   contact_id: string;
   state: string;
@@ -58,7 +69,7 @@ export interface BundleConversation {
 }
 
 /** A message as the bundle reads it: its conversation, and where a file it carried is stored, neither of them written. */
-export type BundleMessage = MessageDto & {
+type BundleMessage = MessageDto & {
   conversation_id: string;
   /** The stored file's path, for its link in `files`; never in the file itself. */
   stored_path: string | null;
@@ -76,15 +87,22 @@ export interface BundleTeamMember {
   expires_at?: string | null;
 }
 
-/** The sections read page by page, beside the ones the bundle reads its own way. */
-export type PagedSection = Exclude<
-  ExportSection,
-  "people" | "conversations" | "files" | "calls" | "consent_history" | "team"
->;
+/** The customer record: the sections every copy reads its own way, the workspace's and one person's alike. */
+type CustomerSection = "people" | "conversations" | "files" | "calls" | "consent_history";
 
-export interface BundleReaders {
-  /** Every person exactly once, a page at a time: their order moves as they write, so it is not read by offset. */
-  people(): AsyncIterable<PersonRowDto[]>;
+/** The sections read page by page, beside the ones the bundle reads its own way. */
+export type PagedSection = Exclude<ExportSection, CustomerSection | "team">;
+
+/** A page of a section: up to `limit` rows from `offset`, in the section's fixed order. */
+type SectionPage = (offset: number, limit: number) => Promise<Record<string, unknown>[]>;
+
+/** The readers of the customer record, which the workspace's copy reads for everyone and a person's for them. */
+interface CustomerRecordReaders {
+  /**
+   * Every person exactly once, a page at a time: their order moves as they write, so it is not read by offset. One
+   * person's copy hands over their row as its one page.
+   */
+  people(): AsyncIterable<PersonRowDto[]> | Iterable<PersonRowDto[]>;
   conversations(offset: number, limit: number): Promise<BundleConversation[]>;
   /** The messages of these conversations, a page at a time: by conversation, then oldest first. */
   messages(conversationIds: readonly string[], offset: number, limit: number): Promise<BundleMessage[]>;
@@ -92,10 +110,21 @@ export interface BundleReaders {
   consentHistory(offset: number, limit: number): Promise<ConsentChange[]>;
   /** A link to each of these stored files that holds for FILE_LINK_SECONDS, in the order asked; null for one not signed. */
   signFiles(paths: readonly string[]): Promise<(string | null)[]>;
+}
+
+export interface BundleReaders extends CustomerRecordReaders {
   /** The team: its members, and the invitations not yet taken. */
   team(): Promise<BundleTeamMember[]>;
   /** Every other section, page by page (packages/db exportSectionPages). */
-  sections: Record<PagedSection, (offset: number, limit: number) => Promise<Record<string, unknown>[]>>;
+  sections: Record<PagedSection, SectionPage>;
+}
+
+/** The sections of one person's copy read page by page. */
+type PersonPagedSection = Extract<PersonExportSection, PagedSection>;
+
+/** The readers of one person's own copy: the customer record read for them, and their sections (personExportPages). */
+export interface PersonBundleReaders extends CustomerRecordReaders {
+  sections: Record<PersonPagedSection, SectionPage>;
 }
 
 interface BundleOpts {
@@ -130,7 +159,7 @@ async function* paged<T>(read: (offset: number, limit: number) => Promise<T[]>, 
 }
 
 /** Every row of a sequence of pages, in order. */
-async function* each<T>(pages: AsyncIterable<T[]>): AsyncGenerator<T> {
+async function* each<T>(pages: AsyncIterable<T[]> | Iterable<T[]>): AsyncGenerator<T> {
   for await (const rows of pages) yield* rows;
 }
 
@@ -146,6 +175,14 @@ async function* jsonArray<T>(items: AsyncIterable<T>, counted: (n: number) => vo
   yield n === 0 ? "]" : "\n]";
 }
 
+/** The header's workspace: whose copy it is, its zone, and when it was taken. */
+const workspaceHead = (opts: BundleOpts) => ({
+  id: opts.workspaceId,
+  name: opts.business,
+  timezone: opts.tz,
+  exported_at: opts.exportedAt.toISOString(),
+});
+
 /**
  * The bundle, as the chunks of one JSON document:
  *
@@ -155,21 +192,59 @@ async function* jsonArray<T>(items: AsyncIterable<T>, counted: (n: number) => vo
  *     "manifest": { section: count, ..., "messages": count },
  *     "not_included": [{ "what", "why" }, ...] }
  */
-export async function* workspaceBundle(readers: BundleReaders, opts: BundleOpts): AsyncGenerator<string> {
+export function workspaceBundle(readers: BundleReaders, opts: BundleOpts): AsyncGenerator<string> {
+  return recordsBundle(readers, opts, {
+    head: { format: BUNDLE_FORMAT, version: BUNDLE_VERSION, workspace: workspaceHead(opts) },
+    sections: EXPORT_SECTIONS,
+    leftOut: exportLeftOut(),
+    own: (section, page) =>
+      section === "team" ? each(asOnePage(readers.team())) : paged(readers.sections[section], page),
+  });
+}
+
+/**
+ * One person's own copy (R14 X5): the same document of them alone, `"person": { "id" }` in its header, the sections of
+ * PERSON_EXPORT_SECTIONS in the workspace's order, and what it leaves out of the workspace's, each with why.
+ */
+export function personBundle(
+  readers: PersonBundleReaders,
+  opts: BundleOpts & { personId: string },
+): AsyncGenerator<string> {
+  const theirs = (section: string): section is PersonPagedSection => section in readers.sections;
+  return recordsBundle(readers, opts, {
+    head: {
+      format: PERSON_BUNDLE_FORMAT,
+      version: PERSON_BUNDLE_VERSION,
+      workspace: workspaceHead(opts),
+      person: { id: opts.personId },
+    },
+    sections: PERSON_EXPORT_SECTIONS,
+    leftOut: personExportLeftOut(),
+    own: (section, page) => {
+      if (!theirs(section)) throw new Error(`A person's copy has no ${section}.`);
+      return paged(readers.sections[section], page);
+    },
+  });
+}
+
+/** What makes one copy: its header, its sections in order, what it leaves out, and how a section past the record is read. */
+interface BundleShape {
+  head: Record<string, unknown>;
+  sections: readonly ExportSection[];
+  leftOut: readonly ExportLeftOut[];
+  own(section: Exclude<ExportSection, CustomerSection>, page: number): AsyncIterable<unknown>;
+}
+
+/** Either copy, as the chunks of one JSON document: the header, each section in turn, the manifest, what it leaves out. */
+async function* recordsBundle(
+  readers: CustomerRecordReaders,
+  opts: BundleOpts,
+  shape: BundleShape,
+): AsyncGenerator<string> {
   const page = opts.page ?? BUNDLE_PAGE;
   const batch = opts.batch ?? MESSAGES_BATCH;
-  const head = {
-    format: BUNDLE_FORMAT,
-    version: BUNDLE_VERSION,
-    workspace: {
-      id: opts.workspaceId,
-      name: opts.business,
-      timezone: opts.tz,
-      exported_at: opts.exportedAt.toISOString(),
-    },
-  };
   // The header, its closing brace dropped so the sections follow inside it.
-  yield JSON.stringify(head, null, 2).replace(/\n\}$/, "") + ",\n";
+  yield JSON.stringify(shape.head, null, 2).replace(/\n\}$/, "") + ",\n";
 
   const manifest: Record<string, number> = {};
   const messages = { count: 0 };
@@ -187,13 +262,11 @@ export async function* workspaceBundle(readers: BundleReaders, opts: BundleOpts)
         return paged(readers.calls, page);
       case "consent_history":
         return paged(readers.consentHistory, page);
-      case "team":
-        return each(asOnePage(readers.team()));
       default:
-        return paged(readers.sections[section], page);
+        return shape.own(section, page);
     }
   };
-  for (const [i, section] of EXPORT_SECTIONS.entries()) {
+  for (const [i, section] of shape.sections.entries()) {
     yield `${i === 0 ? "" : ",\n"}${JSON.stringify(section)}: `;
     yield* jsonArray(itemsOf(section), (n) => {
       manifest[section] = n;
@@ -202,7 +275,7 @@ export async function* workspaceBundle(readers: BundleReaders, opts: BundleOpts)
   manifest.messages = messages.count;
 
   yield ',\n"manifest": ' + JSON.stringify(manifest, null, 2);
-  yield ',\n"not_included": ' + JSON.stringify(exportLeftOut(), null, 2);
+  yield ',\n"not_included": ' + JSON.stringify(shape.leftOut, null, 2);
   yield "\n}\n";
 }
 
@@ -216,7 +289,7 @@ async function* asOnePage<T>(rows: Promise<T[]>): AsyncGenerator<T[]> {
  * together and handed back to each; a file a message carried is noted for `files`, and its path is not written.
  */
 async function* withMessages(
-  readers: BundleReaders,
+  readers: CustomerRecordReaders,
   size: { page: number; batch: number },
   files: StoredFile[],
   messages: { count: number },
@@ -256,7 +329,7 @@ async function* withMessages(
  * is listed with no link, and the copy says so.
  */
 async function* linked(
-  readers: BundleReaders,
+  readers: CustomerRecordReaders,
   files: readonly StoredFile[],
   expiresAt: string,
 ): AsyncGenerator<Omit<StoredFile, "path"> & { url: string | null; url_expires_at: string | null }> {

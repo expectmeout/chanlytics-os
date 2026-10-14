@@ -1514,10 +1514,11 @@ async function convergeLeads(db, T, ownerId, now) {
  * twenty hours and syncs a profile not synced for twenty hours. Both stamps are the run's and the seed runs every
  * morning, so the sweep reaches these rows only after a missed morning, and then harmlessly: the place id is no place
  * Google has, so the read fails and writes `check_error` on the listing; the connection holds no credentials, so the
- * sync fails at its token and writes `sync_error` on the connection. A failure moves no stamp, touches no review and
- * rings no bell (checkListing and syncProfile keep their words on the row), and the receptionist answers reviews only
- * after a sync that succeeded, which this one cannot be (and the workspace's reviews are on `ask`). The next run writes
- * both rows afresh, without either column. No review is news (each was first seen when it was written, days before the
+ * sync fails at its token and writes `sync_error` on the connection. A failure moves no stamp and touches no review, and
+ * the receptionist answers reviews only after a sync that succeeded, which this one cannot be (and the workspace's reviews
+ * are on `ask`). It rings the bell once: a connection with no credentials is a cause only its owner can mend, told at the
+ * first failure (apps/edge/lib/google/sync-notice.ts, the wiring's second audit R11 S11-4). The next run writes both rows
+ * afresh, without either column, and clears that notice with them. No review is news (each was first seen when it was written, days before the
  * thirty-six hours news lasts), so Today draws no line about one and none rings the bell.
  */
 async function convergeGoogle(db, T, ownerId, now) {
@@ -1529,6 +1530,10 @@ async function convergeGoogle(db, T, ownerId, now) {
   must("clearing the Google reviews", await db.from("google_reviews").delete().eq("tenant_id", T));
   must("clearing the Google listing", await db.from("google_listings").delete().eq("tenant_id", T));
   must("clearing the Google connection", await db.from("google_connections").delete().eq("tenant_id", T));
+  must(
+    "clearing the notice of a sync that stopped",
+    await db.from("notifications").delete().eq("tenant_id", T).eq("subject_type", "google_connection"),
+  );
   must(
     "clearing the events of the replies",
     await db

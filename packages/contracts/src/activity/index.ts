@@ -28,11 +28,13 @@ export {
   EXPORT_HOLDS_WORDS,
   EXPORT_OF,
   EXPORT_SECTIONS,
+  PERSON_EXPORT_SECTIONS,
   exportLeftOut,
   exportLeftOutWords,
   exportedSections,
+  personExportLeftOut,
 } from "./record-export";
-export type { ExportLeftOut, ExportOf, ExportSection } from "./record-export";
+export type { ExportLeftOut, ExportOf, ExportSection, PersonExportSection } from "./record-export";
 export { addressOf, jobRecordOf, RECORDS_WITHOUT_AN_ADDRESS } from "./record-address";
 export type { JobRecord } from "./record-address";
 export type { RecordRef } from "./record-address";

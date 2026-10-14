@@ -117,6 +117,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "export.call",
   "export.leads",
   "export.people",
+  "export.person",
   "export.transcript",
   "export.workspace",
   "first_alert_address_not_saved",

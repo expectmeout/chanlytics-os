@@ -40,6 +40,7 @@ import { carryReply } from "../../inbox/carried-reply";
 import { openNewConversation } from "../../inbox/new-conversation/store";
 import { visitWordHere } from "../../visit-line";
 import { deletePerson, keptOf, mergePerson, settleDoubt } from "../people-detail";
+import { personExportLink } from "../shell-verbs";
 import { BusinessTile, HeadLine, leaveBusiness } from "./business";
 import { CallAct } from "./call";
 import { PersonName } from "./name";
@@ -63,6 +64,7 @@ const ACT_ICON: Record<PersonActVM["id"], string> = {
   "copy-phone": "copy",
   "copy-email": "copy",
   "leave-business": "x",
+  download: "download",
   merge: "users",
   delete: "x",
 };
@@ -123,6 +125,10 @@ function moreGroups(c: PageCtx, compose: (text?: string | null) => void): MenuGr
     "start-proposal": () => openDealSheet({ personId: p.id, mode: "propose" }),
     "add-to-list": () => c.setListsOpen(true),
     "leave-business": () => void leaveBusiness(c),
+    // The file the route writes, saved where it is opened, as People's export is (page/file-acts.tsx).
+    download: () => {
+      window.open(personExportLink(p.id), "_self");
+    },
     // One question at a time: opening either box closes the other.
     delete: () => {
       setMerge(MERGE_CLOSED);

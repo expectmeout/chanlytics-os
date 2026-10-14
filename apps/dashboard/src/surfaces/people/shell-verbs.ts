@@ -30,6 +30,10 @@ export const placeSave = (page: string, view: string, place: Place): void => {
 export const exportLink = (list: string | undefined): string =>
   api().url("GET contacts/export", { params: undefined, query: list ? { list } : undefined });
 
+/** The link to one person's own copy (R14 X5): the workspace's export, of them alone. */
+export const personExportLink = (person: string): string =>
+  api().url("GET export", { params: undefined, query: { person } });
+
 /** The shell's toast as People uses it: its node to draw, and the flash that raises one (with an Undo). */
 export function usePeopleToast(): [ReactNode, Flash] {
   return useLegacyToast();
