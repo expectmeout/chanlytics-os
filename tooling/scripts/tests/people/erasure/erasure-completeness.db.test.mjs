@@ -386,6 +386,9 @@ async function seed() {
     neighborhood: WORDS,
     logo_url: URL_WITH,
     mark_path: SHAPED["leads.mark_path"],
+    // What its source named beyond its columns, and its key there (00430): blanked with the lead.
+    facts: { people: [{ name: WORDS, email: EMAIL }], addressee: 0 },
+    source_key: `${DIGITS}.example.com`,
   });
   await insert("lead_places", {
     tenant_id: T,
