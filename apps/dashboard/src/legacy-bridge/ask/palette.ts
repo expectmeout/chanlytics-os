@@ -61,6 +61,8 @@ interface Run {
   when: string;
   counts: { sent: number; replied: number };
   audience?: { label?: string } | null;
+  /** Its own name: what says a reach-out's run, whose audience carries no label (contracts runLabelOf). */
+  name: string;
 }
 
 export interface PaletteGlobals {
