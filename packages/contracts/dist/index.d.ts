@@ -1131,6 +1131,8 @@ declare const LIST: {
         platform: string;
     };
     chipSaid: (what: string, value: string) => string;
+    /** On a phone a list's first note stands under its choices, and the rest fold under this (the fitted sheets). */
+    how: string;
     /** A dashed blank, to a screen reader. */
     blank: string;
     amountDaily: string;
@@ -36720,6 +36722,8 @@ declare function emailTemplateWords(p: {
     chip: string;
     sends: string;
     sendsNote: string;
+    /** The fold the check is read under, where its sentence stood open under every email (the fitted sheets). */
+    checkLabel: string;
     checkNote: string;
     /** The act that opens the whole reach-out, whose days, pace and mailboxes are its own. */
     edit: string;

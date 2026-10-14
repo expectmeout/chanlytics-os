@@ -24490,6 +24490,8 @@ function emailTemplateWords(p) {
     chip: "Email",
     sends: p.chainName,
     sendsNote: p.stepN === 0 ? "step 1 \xB7 writes daily, in their hours" : `step ${p.stepN + 1} \xB7 after ${p.afterDays} days with nothing back`,
+    /** The fold the check is read under, where its sentence stood open under every email (the fitted sheets). */
+    checkLabel: "What is checked before each send",
     checkNote: "Checked before each send: every slot filled or the email held; the opening's facts in the finder's record; under 120 words; the footer present; the language theirs.",
     /** The act that opens the whole reach-out, whose days, pace and mailboxes are its own. */
     edit: "Edit the reach-out"

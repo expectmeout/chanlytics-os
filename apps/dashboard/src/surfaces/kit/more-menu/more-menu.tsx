@@ -190,7 +190,7 @@ function moreEntries(items: MoreMenuItem[], d: MoreDraw, grid: boolean, opened: 
     if (shut) return;
     if (it.header && it.fold && grid && d.sheet) {
       const group = items.slice(i + 1);
-      const end = group.findIndex((g) => g.header || g.divider);
+      const end = group.findIndex((g) => g.header !== undefined || !!g.divider);
       const holds = (end < 0 ? group : group.slice(0, end)).some((g) => g.checked);
       if (!holds && !opened.has(i)) {
         shut = true;

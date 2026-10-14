@@ -18,6 +18,7 @@ import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { focusAsDrawn } from "../../../legacy-verbs";
 import type { ListSpec, Row } from "./chip-lists";
+import { AdsNotes } from "./notes";
 
 interface OwnBoxProps {
   edit: EditVM;
@@ -168,15 +169,7 @@ export function OptPanel({ list, edit, phone, onChoose, onOwn }: OptPanelProps) 
       ) : null}
       {list.days ? <PickDay edit={edit} onChoose={onChoose} /> : null}
       {own ? <OwnBox edit={edit} primary onSet={onChoose} onCancel={() => setOwn(false)} /> : null}
-      {list.notes.length > 0 ? (
-        <div className="ads-notes">
-          {list.notes.map((note) => (
-            <p key={note} className="ads-note">
-              {note}
-            </p>
-          ))}
-        </div>
-      ) : null}
+      <AdsNotes notes={list.notes} phone={phone} id="list" />
       {raising ? (
         <Button
           variant="primary"
@@ -196,13 +189,7 @@ export function OfferNote({ edit, onEdit, phone }: { edit: EditVM; onEdit: (() =
   return (
     <div className="ads-opts">
       {phone ? null : <p className="ads-opts-title">{LIST.chip.offer}</p>}
-      <div className="ads-notes">
-        {edit.notes.offer.map((note) => (
-          <p key={note} className="ads-note">
-            {note}
-          </p>
-        ))}
-      </div>
+      <AdsNotes notes={edit.notes.offer} phone={phone} id="offer" />
       {onEdit ? (
         <LinkButton className="ads-opt" onClick={onEdit} data-testid="ads-offer-edit">
           <span className="ads-opt-label">{DRAWER.foot.edit}</span>

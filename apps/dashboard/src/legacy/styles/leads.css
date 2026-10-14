@@ -944,6 +944,11 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   .ld-lightbox { inset: 0; border-radius: 0; border: 0; padding-top: env(safe-area-inset-top, 0px); }
   .ld-lb-body { grid-template-columns: 1fr; grid-template-rows: minmax(200px, 45%) minmax(0, 1fr); }
   .ld-lb-side { border-left: 0; border-top: 1px solid var(--line); }
+  /* With no photo the tile is a band, its initials and the line that says so, where 45% of the screen held them over
+     nothing (the fitted sheets, 14 Oct 2026); the facts take the rest. */
+  .ld-lb-body:has(.ld-lb-nophoto) { grid-template-rows: 120px minmax(0, 1fr); }
+  .ld-lb-body:has(.ld-lb-nophoto) .ld-lb-initials { font-size: var(--text-3xl); }
+  .ld-lb-body:has(.ld-lb-nophoto) .ld-lb-nophoto { bottom: 10px; }
   .pk-band { height: 150px; }
 }
 

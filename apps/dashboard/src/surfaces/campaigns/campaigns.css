@@ -1146,6 +1146,53 @@ html.legacy-on .tpl-fresh {
   color: var(--ink-muted);
   font-size: var(--text-xs);
 }
+/* On a phone a step is a block of its own: its name and when it writes across the top, its figures three to a line each
+   under its column's name, where nine columns stood a word to a line in a drawer's width (the fitted sheets, 14 Oct
+   2026). The head row stays for a screen reader. */
+@media (max-width: 900px) {
+  .ro-steps,
+  .ro-steps tbody {
+    display: block;
+  }
+  .ro-steps thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .ro-steps tbody tr {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .ro-steps tbody tr > :is(th, td) {
+    padding: 0;
+    border-bottom: 0;
+  }
+  .ro-steps tbody tr > :is(th, td:first-of-type) {
+    grid-column: 1 / -1;
+  }
+  .ro-steps tbody th {
+    font-weight: var(--weight-medium);
+    color: var(--ink);
+  }
+  .ro-steps td {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .ro-steps td:not(:first-of-type)::before {
+    content: attr(data-head);
+    font-size: var(--text-xs);
+    color: var(--ink-muted);
+  }
+  .ro-steps td:first-of-type {
+    color: var(--ink-muted);
+  }
+}
 .ro-history {
   margin: 0;
   padding: 0;

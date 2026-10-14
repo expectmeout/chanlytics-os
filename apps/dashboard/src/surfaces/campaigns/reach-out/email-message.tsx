@@ -30,6 +30,7 @@ import type { ApiResult } from "@/client/api";
 import { canDo, navigate } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
+import { RecordDisclosure } from "../../kit/record/disclosure";
 import { useSurface } from "../../use-surface";
 import { CmPane } from "../parts/split";
 import type { TemplateGroup } from "../templates/group";
@@ -151,9 +152,11 @@ export function ReachOutEmailPane({ t, busy, onSave, onClose, onEdit }: PaneProp
           busy={busy}
           onSave={onSave}
         />
-        <p className="bc-excl-hint" data-testid="reach-out-email-check">
-          {w.checkNote}
-        </p>
+        <RecordDisclosure id="reach-out-email-checks" label={w.checkLabel} testid="reach-out-email-checks">
+          <p className="bc-excl-hint" data-testid="reach-out-email-check">
+            {w.checkNote}
+          </p>
+        </RecordDisclosure>
         <div className="msg-card-foot">
           <span className="msg-card-spacer" />
           <Button size="sm" onClick={mayEdit && chain ? () => onEdit(chain) : go} data-testid="reach-out-email-edit">

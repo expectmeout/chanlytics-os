@@ -474,6 +474,7 @@ test("Templates says an email is a reach-out's and what sends it (R19); its word
     chip: "Email",
     sends: "Reach out · Personal trainers",
     sendsNote: "step 2 · after 4 days with nothing back",
+    checkLabel: "What is checked before each send",
     checkNote:
       "Checked before each send: every slot filled or the email held; the opening's facts in the finder's record; under 120 words; the footer present; the language theirs.",
     edit: "Edit the reach-out",
