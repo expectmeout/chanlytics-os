@@ -995,12 +995,13 @@ test("the dashboard: owners and the partner link and search, operators read, mem
   assert.ok(
     bridge.includes('key: "google",') &&
       bridge.includes('declareReads("google", {') &&
-      bridge.includes('reads: ["review"],'),
+      // And the rule that says whether the receptionist answers a review on its own (the wiring's second audit, W-review-facts-rules-8).
+      bridge.includes('reads: ["review", "rules"],'),
   );
   assert.deepEqual(
     (await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts")).AFTER["POST google/link"]().map((o) => o.key),
-    ["google", "setup"],
-    "a link repaints Setup too; the Reviews lens's read, which draws the same listing, is forgotten and read as the lens comes on screen",
+    ["google", "setup", "settings"],
+    "a link repaints Setup and Settings too (whether the listing has a review link: the Library's review ask and the composers' slot, S1-4); the Reviews lens's read, which draws the same listing, is forgotten and read as the lens comes on screen",
   );
   // The app lists Google's surface and installs nothing for it: its verbs are imported (`googleVerbs`), its value is the
   // seam's alone, so no window door or `__GOOGLE` mirror is published.

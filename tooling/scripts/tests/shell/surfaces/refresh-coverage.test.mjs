@@ -256,7 +256,11 @@ test("a write that moves the listing, its reviews or the day a review is counted
     assert.equal(surfaceValue("reports_reviews"), undefined, `${route} drops what the lens held`);
     assert.equal(reviews.isStale(), true, `${route}: so the lens reads it as it comes on screen`);
   }
-  assert.deepEqual(keysOf("POST google/link"), ["google", "setup"], "beside Google's own and Setup's row");
+  assert.deepEqual(
+    keysOf("POST google/link"),
+    ["google", "setup", "settings"],
+    "beside Google's own, Setup's row and Settings' review link (S1-4)",
+  );
   assert.deepEqual(keysOf("PATCH workspaces"), ["settings", "people", "today", "playbooks"]);
   held();
   assert.deepEqual(
@@ -275,7 +279,13 @@ test("the Reviews lens's read repaints on the tables of the live feed that move 
   const { reviewsOverride } = await importSrc("apps/dashboard/src/surfaces/reports/reviews-surface.ts");
   const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
   const { watchedTables } = await importSrc("packages/db/src/realtime.ts");
-  assert.deepEqual(reviewsOverride.refreshOnTables, ["google_reviews", "google_listings", "google_connections"]);
+  // And the rule the reply box's choice is (the wiring's second audit, W-review-facts-rules-8).
+  assert.deepEqual(reviewsOverride.refreshOnTables, [
+    "google_reviews",
+    "google_listings",
+    "google_connections",
+    "policies",
+  ]);
   for (const table of reviewsOverride.refreshOnTables)
     assert.ok(watchedTables().includes(table), `${table}: the feed tells of it`);
   // Which page hears them is the rule `refreshWhen` holds, run on the real routes in message-fan-out.test.mjs.
@@ -790,6 +800,7 @@ test("the Campaigns lens's read repaints on the tables of the live feed that mov
     "tenant_channels",
     "mailbox_connections",
     "contacts",
+    "templates",
   ]);
   // Asked for five seconds; the runner never waits more than three after the first change (campaigns-surface.test.mjs runs it).
   assert.equal(reportsCampaignsOverride.debounceMs, 5_000);

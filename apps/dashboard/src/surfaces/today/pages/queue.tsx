@@ -276,8 +276,10 @@ function queueFoot(
 
 const TodayQueue = ({ vm }: { vm: TodayVM }) => {
   // People too: a person's next step come due is a row (queue-steps.tsx), read from People's rows. The Calendar too: yesterday's
-  // visits nobody has marked are rows (queue-visits.tsx), read from its blocks, which `useDayVm` hears as the day's card does.
-  useMoved(["broadcasts", "people", "calendar"]);
+  // visits nobody has marked are rows (queue-visits.tsx), read from its blocks, which `useDayVm` hears as the day's card does. And
+  // the replies to a reach-out: a reply read is its own row, not a plain one that needs you (contracts withReplies; the wiring's
+  // second audit, W-campaign-run-template-reachout-7). Today owns that read, so this redraws and reads nothing.
+  useMoved(["broadcasts", "people", "calendar", "reach_out_replies"]);
   // What needs you, by its parts, as the badge counts them: null until the Inbox has been read (redrawn when a part moves).
   const live = useNeedsYouParts();
   const [toastNode, ppFlash] = useToast();

@@ -427,7 +427,7 @@ test("all three reads failing is three nulls in a value that is held, not a fail
   assert.deepEqual(surfaceValue("reports_campaigns").reachOuts, reachOutsFor({ days: 30 }).report);
 });
 
-test("its live-feed rule is the lens's own: messages, conversations, escalations and runs, a reach-out's replies, the number and domains it speaks of and a person's answer, a burst waited out for longer than Reports' own read waits, heard on the Campaigns lens alone and left for it otherwise", () => {
+test("its live-feed rule is the lens's own: messages, conversations, escalations and runs, a reach-out's replies, the number and domains it speaks of, a person's answer and a template's verdict, a burst waited out for longer than Reports' own read waits, heard on the Campaigns lens alone and left for it otherwise", () => {
   reset("30d");
   assert.deepEqual(reportsCampaignsOverride.refreshOnTables, [
     "messages",
@@ -438,6 +438,8 @@ test("its live-feed rule is the lens's own: messages, conversations, escalations
     "tenant_channels",
     "mailbox_connections",
     "contacts",
+    // The verdicts its tile of the WhatsApp messages Meta paused, turned off or rejected counts (W-campaign-run-template-reachout-10).
+    "templates",
   ]);
   // The yeses and stops it counts are columns of the people: an update of one is heard on the lens, a person made is no answer
   // and would read the dearest of the lenses for every arrival (the wiring's second audit, W-person-list-lead-8).
@@ -478,7 +480,7 @@ test("its live-feed rule is the lens's own: messages, conversations, escalations
     );
   assert.deepEqual(
     reportsHeadlineOverride.refreshOnTables,
-    ["messages", "calls", "appointments", "contacts"],
+    ["messages", "calls", "appointments", "contacts", "tenant_config"],
     "the headline has its own, Today's (headline-live.test.mjs)",
   );
   const change = (table) => ({ table, event: table === "contacts" ? "UPDATE" : "INSERT", row: {} });

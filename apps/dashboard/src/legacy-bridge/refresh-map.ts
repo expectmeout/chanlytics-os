@@ -169,13 +169,18 @@ const leads = () => [leadsOverride];
 // Leads page's, forgotten and read as the page that draws it comes on screen (reportsCampaigns).
 const leadsAnswered = () => [leadsOverride, ...reportsCampaigns()];
 const setup = () => [setupOverride];
+// What Setup's rows count and say of the people and their messages (who can receive an offer, whether the first WhatsApp message has
+// arrived), where those rows are drawn (Start, Today's card): kept for them elsewhere (the wiring's second audit, S4-3).
+const setupIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? whereDrawn([setupOverride]) : []);
 const setupAndReadiness = () => [setupOverride, ...channelChange()];
 // The listing and its reviews are the Reviews lens's read too, and the lens is never the page a link, a refresh or a disconnect is made from
 // (Settings' Connections pane, the first run's Find): its read is forgotten, as a template written is for the Inbox, and read as the lens
-// comes on screen, not read from there.
+// comes on screen, not read from there. Settings too: whether the listing has a review link is a fact of its read, by which the Library
+// offers the review ask and both composers fill the review-link slot (offered-templates.ts), and a link made, refreshed or dropped here
+// moves it (the wiring's second audit, S1-4). The sweep's rare link of an older listing waits for Settings' next read.
 const google = () => {
   forgetReviews();
-  return [googleOverride, setupOverride];
+  return [googleOverride, setupOverride, settingsOverride];
 };
 const billing = () => [billingOverride, setupOverride];
 const settings = () => [settingsOverride];
@@ -217,13 +222,14 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST messages/[id]/cancel-send": thread,
   // People.
   // A person erased takes their messages, calls and threads with them (erase_contact deletes the rows, which the feed is not told
-  // of): the counts the report and the Campaigns home make of them fall, where those are drawn.
+  // of): the counts the report, the Campaigns home and Setup's rows make of them fall, where those are drawn.
   "DELETE contacts/[id]": () => [
     ...personAndThreads(),
     ...audiences(),
     ...reportsPeople(),
     ...reportsIfDrawn(),
     ...campaignResultsIfDrawn(),
+    ...setupIfDrawn(),
   ],
   // Two records became one (0028): the kept person's page and People, the threads that folded, and every count by
   // consent, Reports' included: the merge may change an answer, as a consent write does. The bell's lines about the folded thread

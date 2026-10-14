@@ -158,17 +158,83 @@ checked:
 - **Closed:** W-review-facts-rules-2, W-campaign-run-template-reachout-1, W-person-list-lead-2, W-person-list-lead-8 and
   S3-2.
 - **Left, each with its reason:**
-  - The Calendar's cells (W-person-list-lead-6, W-thread-wait-step-7, W-visit-deal-2) wait for the Calendar's own lane,
-    which is rebuilding the visit panel they draw.
+  - The Calendar's cells (W-person-list-lead-6, W-thread-wait-step-7, W-visit-deal-2) waited for the Calendar's own lane,
+    which rebuilt the visit panel they draw (#1585). They landed in R5c, below.
   - Today's People cell is R10's: its cost is the heaviest read there is, and R10 weighs it on the numbers.
   - Delivered and read ticks (S3-5) are R9's: the runner has no quiet window by status, and a tick per message would read
     Sent's ledger once per receipt.
+
+## Amended on 14 October 2026: the rest declare what they draw, and the bell reads nothing (R5c)
+
+- **Setup is heard where its rows are drawn** (`fresh: "its-page"`).
+  - Its rarest records stay heard on every page, plus the team (`always`): a channel, the plan, Google's profile and
+    listing, a call ending, a seat or an invitation. Today's card is Setup's.
+  - What its rows state is heard on Start and Today's card, and kept for them elsewhere: the templates' verdicts, the
+    settings and the rules, a visit, a person's answer and their deals (who can receive an offer, `offers_email_reach`).
+  - The first WhatsApp message is a message or a thread made while the number is on and none has arrived
+    (`awaitsFirstMessage`). It is closed while Setup is unread, and for good once one has arrived, so a busy workspace
+    never reads Setup for a message. Its read is the whole workspace's, so a burst is read once it quietens, and at least
+    every ten seconds while it lasts.
+  - Connections draws Setup's calendar row, and hears what moves it there (`setup: ["facts", "visit"]`). Its WhatsApp
+    row is worded from Settings' channels read, which hears no message yet (S3-1, R6).
+  - It no longer hears the bell's rows: its read never read them, and each cost two routes on every page.
+  - A person erased reads Setup where it is drawn (refresh-map.ts `setupIfDrawn`).
+- **Settings hears runs and playbooks where the Library is drawn** (`fresh: "its-page"`, its own kinds `always`).
+  - The Library says what sends each message and how many it sent. Its page and Settings' panes hear a run or a playbook
+    move: a page's own surface is whole on its row, so a pane pays for it too.
+  - Campaigns' home hears them too: a message's drawer there is the Library's pane, which says what sends it.
+  - A Google link, refresh or unlink made from Connections reads Settings too: whether the listing has a review link is
+    a fact of its read (S1-4, the writer's tab).
+- **The rules are heard where a rule is drawn.**
+  - Google's surface and the Reviews lens hear it (a review reply's choice to draft), and so do the reach-outs (a
+    chain's mode).
+  - Five pages read the rules only through the book's reply modes (`everyone()`, `effective_reply_mode`) and never draw
+    one: the Calendar, Reports, the headline, the People lens and the Receptionist lens. They are an over-read, checked
+    by the field, not owed.
+- **The board hears a person changed** (`person`, still `live`: one read, a few a day). A stop takes "Text the link" off a
+  visit at once. A person made is no visit's until the next read matches them.
+- **The other surfaces:**
+  - Conversations hears a call starting, ending or filed again (not a transcript turn).
+  - Today's headline hears the calendar settings its booking line reads.
+  - The composers hear the lists To offers, and so does Sent's cell on Campaigns' home.
+  - People hears a run on its page (Follow-up to approve), and a reach-out's reply on every page (the signer the Inbox
+    thread a bell row opens offers, from People's rows). An open person's page reloads with People's read, so the
+    person's own surface no longer reads a reply (`heardBy`).
+  - The Campaigns lens hears the templates its paused and rejected tile counts.
+  - Today's queue redraws on a reach-out reply read (no read).
+- **The bell reads its rows and nothing else** (S10-8). `notice-re-reads.ts` is gone: every table its four kinds were
+  about is told (00408) and heard by the pages that draw it, so a row only read them a second time.
+  `a-bell-row-s-news-is-heard-where-it-is-drawn.test.mjs` runs each kind's change through the pages that draw it, and a
+  kind the edge adds without a line there is a red build.
+- **The owed count fell from 123 to 93.** Setup's reads of the book's holds and steps joined the book's group, and the
+  rules' five pages became an over-read.
+- **Closed:**
+  - S3-4, S3-6, S10-8 and X3-2;
+  - W-review-facts-rules-4, -5 and -8;
+  - W-person-list-lead-6 and -7;
+  - W-channel-team-plus-2;
+  - W-campaign-run-template-reachout-2, -5, -7, -9 and -10.
+- **Closed in part:**
+  - S4-3: the holds and steps Setup reads are People's book, R5's book group.
+  - S1-1: the signer is heard; the thread's own read carrying it is not built.
+  - S1-4: the sweep's rare link waits for Settings' next read.
+  - W-thread-wait-step-7: a first message's thread link on the board waits for its five-minute read, in the book group.
+  - W-visit-deal-2: a stop takes the link off at once; the WhatsApp window judged at draw time waits, bounded by the
+    board's five-minute read.
+  - W-thread-wait-step-3: Start and Today's card follow the first message; Connections' WhatsApp row is Settings' channels
+    read (S3-1, R6).
+- **Left, each with its reason:**
+  - X2-1, X2-2, X2-3 and W-campaign-run-template-reachout-8 are not declarations: a sheet, a pane and a door that read on
+    their own clocks, lane R5d.
+  - W-person-list-lead-5 (People hearing a lead) is R10's: leads are told on every batch of a lead run, so People's book
+    would be read every few seconds.
 
 ## What comes next
 
 - **R5** changes cells one at a time and reads each golden's difference:
   - a person's page becomes a surface of its own (done, R5a, above);
   - Campaigns' home hears the people, facts and channels it counts (done, R5b, above);
-  - Setup, Settings and Reports declare the rest (R5c).
+  - Setup, Settings and Reports declare the rest (done, R5c, above);
+  - the sheets and panes that read on their own clocks (R5d).
 - **R6** removes the false omits the baseline now names.
 - The owed count falls as they land.

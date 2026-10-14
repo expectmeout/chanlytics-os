@@ -339,7 +339,7 @@ test("its live-feed rule is the lens's own: messages, calls and notes, a burst w
   );
   assert.deepEqual(
     reportsHeadlineOverride.refreshOnTables,
-    ["messages", "calls", "appointments", "contacts"],
+    ["messages", "calls", "appointments", "contacts", "tenant_config"],
     "the headline has its own, Today's (headline-live.test.mjs)",
   );
   const change = (table) => ({ table, event: "INSERT", row: {} });

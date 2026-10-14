@@ -105,9 +105,10 @@ export const googleOverride: SurfaceOverride = {
   onDemand: true,
   isStale: googleIsStale,
   events: ["surface:google"],
-  // The edge writes the listing on every read, the connection on every sync, and a review the first time it is seen.
+  // The edge writes the listing on every read, the connection on every sync, and a review the first time it is seen. And the rule
+  // that says whether the receptionist answers a review on its own, which its read carries (W-review-facts-rules-8): a few a month.
   ...declareReads("google", {
-    reads: ["review"],
+    reads: ["review", "rules"],
     fresh: "live",
     // Not while the Reviews lens is on screen: its own read hears the same tables and publishes Google's beside its ledger.
     when: () => !ownsTheScreen("reports_reviews", routeOnScreen()),

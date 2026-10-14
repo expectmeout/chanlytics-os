@@ -62,6 +62,9 @@ const COMPOSER_PAGE = [
   "mailboxes",
   "policies",
   "tenant_config",
+  // The lists To offers and counts (the wiring's second audit, W-person-list-lead-7).
+  "segments",
+  "segment_members",
 ];
 /**
  * Sent's composer without the templates: the messages it offers are the settings read's, the one read of the templates, which hears
@@ -77,10 +80,12 @@ const SENT_PAGE = COMPOSER_PAGE.filter((table) => table !== "templates");
  */
 const HEARD_BEFORE = {
   workspace: ["memberships", "tenants"],
-  settings: ["tenant_config", "policies", "templates", "memberships", "invitations"],
+  // And the Library's counts, what sends each message and how many it sent (W-campaign-run-template-reachout-2).
+  settings: ["tenant_config", "policies", "templates", "memberships", "invitations", "playbooks", "broadcasts"],
   notifications: ["notifications"],
   inbox: ["messages", "conversations", "escalations", "contacts"],
-  conversations: ["messages", "conversations", "escalations", "contacts"],
+  // And the calls its Calls tab draws, not a transcript turn (X3-2).
+  conversations: ["messages", "conversations", "escalations", "contacts", "calls"],
   today: [
     "messages",
     "conversations",
@@ -111,12 +116,16 @@ const HEARD_BEFORE = {
     // Decision 0052 (#1566) adds what a row draws of the business a person works at and the signer a reply of theirs offers.
     "leads",
     "reach_out_replies",
+    // The runs a row's "Follow-up to approve" names (W-campaign-run-template-reachout-9).
+    "broadcasts",
   ],
   leads: ["leads", "lead_searches", "lead_rounds", "lead_search_members"],
   // Task 3.2 adds the calls the report counts (not a transcript turn) and the hours its "while closed" counts by.
   reports: ["messages", "conversations", "escalations", "calls", "deals", "appointments", "contacts", "tenant_config"],
-  reports_headline: ["messages", "calls", "appointments", "contacts"],
-  reports_reviews: ["google_reviews", "google_listings", "google_connections"],
+  // And the calendar settings its booking line reads (S3-4).
+  reports_headline: ["messages", "calls", "appointments", "contacts", "tenant_config"],
+  // And the rule the reply box's choice is (W-review-facts-rules-8).
+  reports_reviews: ["google_reviews", "google_listings", "google_connections", "policies"],
   reports_receptionist: ["messages", "escalations", "calls", "appointments", "contacts", "tenant_config"],
   // The People lens also counts who can be reached by the number, the text line and the mailbox; the Campaigns lens a reach-out's
   // replies, the number's standing and the sending domains (wiring plan task 3.2, reads-are-heard.test.mjs).
@@ -140,22 +149,28 @@ const HEARD_BEFORE = {
     "mailbox_connections",
     // A person's answer (the wiring's second audit, W-person-list-lead-8): an update of one, never a person made.
     "contacts",
+    // A template's verdict, which its tile counts (W-campaign-run-template-reachout-10).
+    "templates",
   ],
   live: ["calls", "tenant_channels"],
   broadcasts: [...SENT_PAGE, "broadcasts"],
   playbooks: [...COMPOSER_PAGE, "broadcasts", "playbooks"],
-  reach_outs: ["playbooks", "broadcasts", "reach_out_replies"],
+  // And the rule that is a chain's mode (W-review-facts-rules-8).
+  reach_outs: ["playbooks", "broadcasts", "reach_out_replies", "policies"],
   // A person's answer, by an update of them (the wiring's second audit, S3-2).
   campaign_results: ["messages", "conversations", "escalations", "broadcasts", "reach_out_replies", "contacts"],
   reach_out_replies: ["reach_out_replies"],
   partner: [],
   alerts: [],
-  calendar: ["appointments", "appointment_notices", "tenant_config"],
+  // And the person a visit is (W-person-list-lead-6): an update of them, never a person made.
+  calendar: ["appointments", "appointment_notices", "tenant_config", "contacts"],
   // The Calendar's campaign marks (its lane C): the runs, the campaigns, the classes' modes and the workspace's pause.
   calendar_runs: ["broadcasts", "playbooks", "policies", "tenants"],
+  // Not the bell's rows, which Setup's read never read. And what its rows state (the wiring's second audit, S4-3, S3-6,
+  // W-review-facts-rules-4): the team, the templates, the settings and rules, a visit, a person's answer and their deals, the first
+  // WhatsApp message and the Google listing.
   setup: [
     "lines",
-    "notifications",
     "tenant_channels",
     "capability_activations",
     "business_records",
@@ -163,22 +178,25 @@ const HEARD_BEFORE = {
     "google_connections",
     "calls",
     "mailbox_connections",
+    "memberships",
+    "invitations",
+    "templates",
+    "tenant_config",
+    "policies",
+    "appointments",
+    "appointment_notices",
+    "contacts",
+    "deals",
+    "messages",
+    "conversations",
+    "google_listings",
   ],
-  google: ["google_listings", "google_reviews", "google_connections"],
+  // And the rule that says whether the receptionist answers a review on its own (W-review-facts-rules-8).
+  google: ["google_listings", "google_reviews", "google_connections", "policies"],
   billing: ["billing_accounts"],
   // A person's page, a surface of its own since the wiring's second audit (R5): what the page draws of them that People hears on
   // its own list alone, read for the one person on screen (people-detail.ts personOverride).
-  person: [
-    "contacts",
-    "escalations",
-    "calls",
-    "broadcasts",
-    "playbooks",
-    "policies",
-    "tenant_config",
-    "leads",
-    "reach_out_replies",
-  ],
+  person: ["contacts", "escalations", "calls", "broadcasts", "playbooks", "policies", "tenant_config", "leads"],
 };
 
 /**
@@ -197,9 +215,11 @@ const ON_ITS_PAGE_BEFORE = {
     "policies",
     "templates",
     "tenant_config",
-    // Decision 0052 (#1566): the business a person works at and a reply's signer, heard on People's page as the rest are.
+    // Decision 0052 (#1566): the business a person works at, heard on People's page as the rest are. A reply's signer is heard on
+    // every page since S1-1 (the Inbox thread a bell row opens draws it from People's rows).
     "leads",
-    "reach_out_replies",
+    // The runs a row's follow-up names (W-campaign-run-template-reachout-9).
+    "broadcasts",
   ],
   broadcasts: SENT_PAGE,
   playbooks: COMPOSER_PAGE,
@@ -212,10 +232,24 @@ const ON_ITS_PAGE_BEFORE = {
   campaign_results: HEARD_BEFORE.campaign_results,
   person: HEARD_BEFORE.person,
   calendar_runs: HEARD_BEFORE.calendar_runs,
+  // The Library's counts, on the Library and Settings' panes (W-campaign-run-template-reachout-2).
+  settings: ["playbooks", "broadcasts"],
+  // What Setup's rows state, on Start and Today's card (S4-3).
+  setup: [
+    "templates",
+    "tenant_config",
+    "policies",
+    "appointments",
+    "appointment_notices",
+    "contacts",
+    "deals",
+    "messages",
+    "conversations",
+  ],
 };
 
-/** A route no surface above draws. */
-const AWAY = "admin/profile";
+/** A route no surface heard on its page alone owns: Live's, which is heard everywhere. */
+const AWAY = "live";
 /** The routes to look a surface's own page for, and the pages that differ from the first to own it. */
 const ROUTES = [
   "today",
@@ -235,8 +269,8 @@ const ROUTES = [
   "clients/0b9c4f6e-1d2a-4c3b-9e8f-7a6b5c4d3e2f",
   "clients/0b9c4f6e-1d2a-4c3b-9e8f-7a6b5c4d3e2f/history",
 ];
-/** The Campaigns lens hears the feed on the lens alone, though the Overview draws the surface too. */
-const HOME = { reports_campaigns: "reports/campaigns" };
+/** The Campaigns lens hears the feed on the lens alone, though the Overview draws the surface too; the Library is Settings' page. */
+const HOME = { reports_campaigns: "reports/campaigns", settings: "messages" };
 /** The first route that owns every table the surface hears on its page alone: its own page, not one that owns some kinds of it. */
 const homeOf = (o) =>
   HOME[o.key] ?? ROUTES.find((route) => (o.refreshOnTables ?? []).every((table) => ownsTable(o.key, table, route)));
@@ -463,7 +497,9 @@ test("a surface heard only on its page hears the tables it gave onlyOnItsPage th
       assert.equal(ownsTheScreen(o.key, AWAY), false, `${AWAY} is not ${o.key}'s page`);
       for (const table of page) {
         at(home);
-        assert.equal(hearsAny(o, table), true, `${o.key}: ${table} on ${home}`);
+        // Setup reads again for the first WhatsApp message alone, and not while it is unread (its own test, below).
+        if (!(o.key === "setup" && (table === "messages" || table === "conversations")))
+          assert.equal(hearsAny(o, table), true, `${o.key}: ${table} on ${home}`);
         at(AWAY);
         assert.equal(hearsAny(o, table), false, `${o.key}: ${table} is kept for its page on ${AWAY}`);
       }
@@ -472,10 +508,57 @@ test("a surface heard only on its page hears the tables it gave onlyOnItsPage th
     for (const table of hearsEverywhere) {
       // Setup reads again for a call that ends, not for one that starts (its own rule, setup.test.mjs).
       if (o.key === "setup" && table === "calls") continue;
-      assert.equal(hears(o, table), true, `${o.key}: ${table} is its own, heard wherever the tab is`);
+      // An insert or an update: the Calendar hears a person changed, never one made (calendar/surface.ts).
+      assert.equal(hearsAny(o, table), true, `${o.key}: ${table} is its own, heard wherever the tab is`);
     }
   }
   at("today");
+});
+
+test("Setup reads again for the first WhatsApp message alone: while the number is on and none has arrived, where its rows are drawn", async () => {
+  // Start and Today's card draw it (the Activate, "not tried yet"); Connections draws Setup's calendar row and not the message.
+  const setup = byKey("setup");
+  const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
+  const withWhatsapp = (whatsapp) =>
+    setSurfaceValue("setup", { dto: { channels: { whatsapp, voice: { lastInboundAt: null } } } });
+  const waiting = { present: true, active: true, number: "+15555550123", quality: null, lastInboundAt: null };
+  try {
+    for (const route of ["today", "start"]) {
+      at(route);
+      setSurfaceValue("setup", undefined);
+      assert.equal(hears(setup, "messages"), false, `${route}: unread, nothing is known to wait for`);
+      withWhatsapp(waiting);
+      for (const table of ["messages", "conversations"]) {
+        assert.equal(hears(setup, table), true, `${route}: ${table} made while the first is awaited`);
+        assert.equal(
+          wantsRefresh(setup, table, change(table, "UPDATE")),
+          false,
+          `${route}: ${table} changed is no first`,
+        );
+      }
+      withWhatsapp({ ...waiting, lastInboundAt: "2026-10-13T12:00:00Z" });
+      assert.equal(
+        hears(setup, "messages"),
+        false,
+        `${route}: once one has arrived, a message is nothing Setup states`,
+      );
+      withWhatsapp({ ...waiting, active: false });
+      assert.equal(hears(setup, "messages"), false, `${route}: a number switched off awaits nothing`);
+    }
+    // Elsewhere the first message is kept for Setup's pages, as its other page-only records are.
+    withWhatsapp(waiting);
+    for (const route of ["inbox", "admin/integrations"]) {
+      at(route);
+      assert.equal(hears(setup, "messages"), false, `${route}: kept for Setup's pages`);
+    }
+    // Connections hears what its calendar row draws of Setup: a settings save and a visit read.
+    at("admin/integrations");
+    for (const table of ["tenant_config", "appointments"])
+      assert.equal(wantsRefresh(setup, table, change(table, "UPDATE")), true, `Connections: ${table}`);
+  } finally {
+    setSurfaceValue("setup", undefined);
+    at("today");
+  }
 });
 
 test("a surface the feed tells nothing is read where it is drawn after an age, or on its owner's own change", () => {

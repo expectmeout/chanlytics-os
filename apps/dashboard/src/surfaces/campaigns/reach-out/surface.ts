@@ -117,7 +117,8 @@ export const reachOutsOverride: SurfaceOverride = {
   // A chain paused or resumed elsewhere (00376), and a step's run made, approved or stopped (00321), move its row and
   // its Approve: heard wherever the tab is. A message is no chain's, and is never heard here. A reply read, drafted or undone
   // (reach_out_replies, 00222) is, since the reading ends a held email and a 'no' ends the person's offers (0047, S1-14): a few a day.
-  ...declareReads("reach_outs", { reads: ["campaign", "send", "reach_out"], fresh: "live" }),
+  // And the rule that says whether a chain's reply is answered on its own, its mode (W-review-facts-rules-8): a few saves a month.
+  ...declareReads("reach_outs", { reads: ["campaign", "send", "reach_out", "rules"], fresh: "live" }),
   apply: async () => {
     try {
       setSurfaceValue("reach_outs", (await read("GET reach-outs")).chains);

@@ -290,10 +290,11 @@ export const broadcastsOverride: SurfaceOverride = {
   // leaves a reminder's: #1551), and a number, a line or the workspace's pause, which the Send by tick is worded from. And what the
   // composers read of the business (0047): who may be sent to (the person: an answer, a stop, people imported), the rules the
   // Send tick and the chips beside it say, the mailbox whose offers the gates paused and the business's facts, the postal address
-  // an offer by email names and the booking link a slot fills. Not the templates: the messages it offers are the settings
-  // read's, which hears them and which this surface follows (followSettings above).
+  // an offer by email names and the booking link a slot fills. And the lists To offers and counts: a list made, renamed or emptied by a
+  // teammate or another tab (the wiring's second audit, W-person-list-lead-7). Not the templates: the messages it offers are the
+  // settings read's, which hears them and which this surface follows (followSettings above).
   ...declareReads("broadcasts", {
-    reads: ["conversation", "hold", "visit", "channel", "billing", "person", "rules", "facts", "send"],
+    reads: ["conversation", "hold", "visit", "channel", "billing", "person", "rules", "facts", "send", "list"],
     fresh: "its-page",
     always: ["send"],
     omit: [

@@ -327,16 +327,19 @@ export const peopleOverride: SurfaceOverride = {
   // And notes: a teammate's step, set or done, moves a row's next step (00166).
   // And the lists (00169): a teammate's new list, rename or archive is on the rail without a reload. And the visits (#1551): a
   // teammate's mark, a booking email and the hourly calendar read move a row's next and last visit, "asked, never booked" and the
-  // "missed a visit" list, which the Inbox's visit chip and Today's Worth a look are drawn from. They are a few a day, so they are
-  // heard on every page, with the other kinds of its own below (`always`).
+  // "missed a visit" list, which the Inbox's visit chip and Today's Worth a look are drawn from. And a reach-out's reply read: the
+  // signer it offers as a name, which the Inbox thread a bell row opens draws from People's rows (the wiring's second audit, S1-1,
+  // its first option: a few a day, and an open person's page reloads with it, so their own surface does not read them again).
+  // They are a few a day, so they are heard on every page, with the other kinds of its own below (`always`).
   //
   // The rest is heard while People is on screen and once when it comes back (surface-registry.ts onlyOnItsPage; a read of
   // everyone is the dearest the feed asks for): every page of it was read again for each message, on whatever page the owner was
   // looking at. They are what a row is made from that is not its own: the messages, conversations and holds its state is made
   // of; the person (a teammate's rename, an answer, a stop, a merge, people imported); the playbooks a row's follow-up names; the
   // channel and the workspace's pause its reach is counted against; the rules and templates its labels and sends read; and the
-  // business's facts it draws (the booking link, the deal pace, the postal address an offer by email names) (0047); and, since
-  // 0052, the business a person works at (the lead's name, its "Works at") and the signer a reply of theirs offers as a name.
+  // business's facts it draws (the booking link, the deal pace, the postal address an offer by email names) (0047); since 0052,
+  // the business a person works at (the lead's name, its "Works at"); and the runs a row's "Follow-up to approve" names, approved
+  // or skipped elsewhere (the wiring's second audit, W-campaign-run-template-reachout-9).
   ...declareReads("people", {
     reads: [
       "conversation",
@@ -354,9 +357,10 @@ export const peopleOverride: SurfaceOverride = {
       "list",
       "lead",
       "reach_out",
+      "send",
     ],
     fresh: "its-page",
-    always: ["visit", "deal", "step", "list"],
+    always: ["visit", "deal", "step", "list", "reach_out"],
     omit: [
       {
         tables: ["lines", "mailboxes", "mailbox_connections", "capability_activations", "business_records"],

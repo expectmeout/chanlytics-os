@@ -74,21 +74,30 @@ test("Today owns the headline it draws: its own page reads it, and no other page
   assert.equal(ownsTheScreen("reports_headline", "today"), true);
   for (const route of ["reports", "reports/receptionist", "clients", "inbox", "campaigns", "calendar"])
     assert.equal(ownsTheScreen("reports_headline", route), false, `not on ${route}`);
-  // Today draws a good many surfaces and still owns only the headline and the replies to a reach-out among them: a message
-  // re-reads the three that draw messages, People's pages of contacts being the heaviest read there is.
-  for (const key of ["setup", "calendar", "broadcasts", "playbooks", "notifications", "live", "google", "people"])
+  // Today draws a good many surfaces and still owns only the headline, the replies to a reach-out and the setup band among them: a
+  // message re-reads the three that draw messages (and Setup only for the first WhatsApp message, awaitsFirstMessage), People's
+  // pages of contacts being the heaviest read there is.
+  for (const key of ["calendar", "broadcasts", "playbooks", "notifications", "live", "google", "people"])
     assert.equal(ownsTheScreen(key, "today"), false, `Today does not own ${key}`);
   assert.equal(ownsTheScreen("today", "today"), true);
-  // Of everything Today draws, exactly these two: a surface added to Today's draws is not owned unless it is named here.
+  // Of everything Today draws, exactly these three: a surface added to Today's draws is not owned unless it is named here.
   assert.deepEqual(ROUTE_DRAWS.today.filter((key) => ownsTheScreen(key, "today")).sort(), [
     "reach_out_replies",
     "reports_headline",
+    "setup",
   ]);
 });
 
 test("its live-feed rule: messages, calls and visits, a long wait for a read this dear, heard while Today is on screen", () => {
-  // And the people its booking line is "of the N people" (contacts, 0047).
-  assert.deepEqual(reportsHeadlineOverride.refreshOnTables, ["messages", "calls", "appointments", "contacts"]);
+  // And the people its booking line is "of the N people" (contacts, 0047), the calendar settings it reads (tenant_config, the wiring's
+  // second audit, S3-4).
+  assert.deepEqual(reportsHeadlineOverride.refreshOnTables, [
+    "messages",
+    "calls",
+    "appointments",
+    "contacts",
+    "tenant_config",
+  ]);
   assert.equal(reportsHeadlineOverride.refreshOnMessageInserts, undefined, "it names its tables");
   assert.equal(reportsHeadlineOverride.debounceMs, 15_000, "fifteen seconds after the last change");
   assert.equal(reportsHeadlineOverride.maxWaitMs, 30_000, "and never later than thirty after the first");

@@ -8,7 +8,7 @@
  */
 import { read } from "@/legacy-bridge/api";
 import { workspaceZone } from "@/legacy-bridge/zone";
-import { LEFT_THE_QUEUE } from "@/legacy-bridge/surface-realtime";
+import { isLiveCallTurn, LEFT_THE_QUEUE } from "@/legacy-bridge/surface-realtime";
 import { declareReads } from "@/legacy-bridge/surface-registry";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { routeOnScreen } from "@/legacy-bridge/workspace";
@@ -64,8 +64,14 @@ export const conversationsOverride: SurfaceOverride = {
   // The rows' last words carry the same ticks as the thread (00327): see the Inbox's.
   refreshOnMessageStatuses: LEFT_THE_QUEUE,
   // And the person each row names (0047): a teammate's rename, their number or address, a yes or a stop, a merge. A few a day,
-  // so heard on every page, as the messages are.
-  ...declareReads("conversations", { reads: ["conversation", "hold", "person"], fresh: "live" }),
+  // so heard on every page, as the messages are. And the calls its Calls tab draws: a call with no number, which no message or
+  // thread tells, and a recording that finishes after the call's note (the wiring's second audit, X3-2). A call starting,
+  // ending or filed again is heard; a transcript turn of one in progress is Live's, and moves no row here.
+  ...declareReads("conversations", {
+    reads: ["conversation", "hold", "person", "call"],
+    fresh: "live",
+    when: (c) => !isLiveCallTurn(c),
+  }),
   apply: async () => {
     // The open escalations too: a row's standing is the Inbox's rule over the thread AND its escalation
     // (contracts standingOf), and without the second this surface read an escalated thread as quiet. The Inbox

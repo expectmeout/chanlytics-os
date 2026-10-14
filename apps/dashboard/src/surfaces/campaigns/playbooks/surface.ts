@@ -348,7 +348,8 @@ export const playbooksOverride: SurfaceOverride = {
   // count the run of a playbook whose message is stricter than its moment, so a message Meta re-categorised moves that count; the
   // messages it offers are the settings read's, followSettings above) and the rules the strict-message counts and the Resume
   // question say, the mailbox whose offers the gates paused and the business's facts, the postal address an offer by email names
-  // and the booking link a slot fills.
+  // and the booking link a slot fills. And the lists a campaign's composer offers and counts: a list made, renamed or emptied by a
+  // teammate or another tab (the wiring's second audit, W-person-list-lead-7).
   ...declareReads("playbooks", {
     reads: [
       "conversation",
@@ -362,6 +363,7 @@ export const playbooksOverride: SurfaceOverride = {
       "facts",
       "send",
       "campaign",
+      "list",
     ],
     fresh: "its-page",
     always: ["send", "campaign"],

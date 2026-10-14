@@ -181,8 +181,15 @@ export const settingsOverride: SurfaceOverride = {
   // (tenant_config), the Autonomy matrix (policies), the Library and what each template is used by (templates), the Team pane
   // (memberships, invitations). A teammate's save, Meta's answer to a template, a seat taken: each reached another open tab
   // only at a return or a reload. Told a few times a day, so heard wherever the tab is; this tab's own save is read once, by
-  // the refresh map, and its notice asks for nothing (surface-runner.ts readAfter).
-  ...declareReads("settings", { reads: ["facts", "rules", "template", "team"], fresh: "live" }),
+  // the refresh map, and its notice asks for nothing (surface-runner.ts readAfter). And what the Library says of each message,
+  // what sends it and how many it sent: the playbooks and the runs, which move several times a run, so heard where the Library
+  // and Settings' panes are drawn and read once as one comes back (surface-registry.ts PAGE_HEARS; the wiring's second audit,
+  // W-campaign-run-template-reachout-2), and Campaigns' home, whose message drawer is the Library's pane.
+  ...declareReads("settings", {
+    reads: ["facts", "rules", "template", "team", "campaign", "send"],
+    fresh: "its-page",
+    always: ["facts", "rules", "template", "team"],
+  }),
   apply: async () => {
     const [cfg, team, pol, ch, tpl, zone] = await Promise.all([
       read("GET settings"),

@@ -328,10 +328,13 @@ export type PageCell = true | readonly RecordKind[];
 export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCell>>>> = {
   // Today owns the headline its period line and Worth a look are printed from, and the replies to a reach-out its queue draws:
   // the headline moves with a message, a call or a visit while Today is open, a long wait later (surfaces/reports/headline.ts).
-  // It does not own the rest of what it draws (the setup band, the day, the runs, the playbooks, the bell, a call, Google's line,
-  // People): People's pages of contacts are the heaviest read there is, and a message on Today re-reads the three that draw
-  // messages and nothing else (shell/surfaces/message-fan-out.test.mjs). What it leaves is read once as its own page comes back.
-  today: { today: true, reports_headline: true, reach_out_replies: true },
+  // And the setup band drawn above the queue, as the first run's own page does (surfaces/setup/surface.ts): what a row states is
+  // heard here, the templates, the facts and rules, a visit, a person's answer and the first WhatsApp message (S4-3). It does not
+  // own the rest of what it draws (the day, the runs, the playbooks, the bell, a call, Google's line, People): People's pages of
+  // contacts are the heaviest read there is, and a message on Today re-reads the three that draw messages and nothing else, and
+  // Setup only while the first WhatsApp message is awaited (shell/surfaces/message-fan-out.test.mjs). What it leaves is read once as
+  // its own page comes back.
+  today: { today: true, reports_headline: true, reach_out_replies: true, setup: true },
   inbox: { inbox: true },
   conversations: { conversations: true },
   live: { live: true },
@@ -341,15 +344,17 @@ export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCel
   // Campaigns' home is one page of four surfaces: the playbooks' moments, its own 30 days (campaign_results), the reach-outs'
   // chains and the settings read's templates. Sent's runs are drawn there too: who can hear you, the pause on offers, the
   // send-once composer and its Send by ticks. They hear here what moves those (a person's answer, the business's facts, the
-  // rules, a channel, the plan, a visit the audiences leave), and leave to Sent what moves a run's replies (a message, a thread,
-  // a hold): the home reads its replies from its own 30 days (spec 2026-10-09 §4.5), so a message here never re-reads the
-  // broadcasts and every page of People behind them (the wiring's second audit, W-review-facts-rules-2).
+  // rules, a channel, the plan, a visit the audiences leave, a list To offers), and leave to Sent what moves a run's replies (a
+  // message, a thread, a hold): the home reads its replies from its own 30 days (spec 2026-10-09 §4.5), so a message here never
+  // re-reads the broadcasts and every page of People behind them (the wiring's second audit, W-review-facts-rules-2).
   campaigns: {
     playbooks: true,
     campaign_results: true,
     reach_outs: true,
+    // The call's text and the Library's count are made of the settings read's templates, and a message's drawer says what sends it
+    // (the Library's pane, from the playbooks and runs its read joins: W-campaign-run-template-reachout-2).
     settings: true,
-    broadcasts: ["person", "facts", "rules", "channel", "billing", "visit"],
+    broadcasts: ["person", "facts", "rules", "channel", "billing", "visit", "list"],
   },
   outbound: { playbooks: true },
   messages: { settings: true },
@@ -387,7 +392,9 @@ export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCel
   "admin/team": { settings: true },
   "admin/autonomy": { settings: true },
   "admin/notifications": { settings: true },
-  "admin/integrations": { settings: true },
+  // Connections draws Setup's calendar row (the booking tool and the visits read from it) beside its lines and mailbox, which
+  // Setup hears on every page: a settings save or a visit read there repaints it (the wiring's second audit, S4-3).
+  "admin/integrations": { settings: true, setup: ["facts", "visit"] },
   "admin/billing": { settings: true },
   "admin/memory": { settings: true },
   "admin/activity": { settings: true },
@@ -491,9 +498,8 @@ export function keepForItsPage(key: string): void {
 
 /**
  * What a change made somewhere else owes the pages that draw it: of these surfaces, the ones whose page is on screen, which the caller
- * reads now, and the rest kept for their own page (keepForItsPage), read once as it comes on screen. A bell row about a template or a
- * held email (notice-re-reads.ts), and a rule saved on Settings that Campaigns' Resume question speaks of (refresh-map.ts), reach
- * their pages this way.
+ * reads now, and the rest kept for their own page (keepForItsPage), read once as it comes on screen. A rule saved on Settings that
+ * Campaigns' Resume question speaks of, and a person added from the Calendar's sheet (refresh-map.ts), reach their pages this way.
  */
 export function whereDrawn<T extends { key: string }>(overrides: readonly T[], route: string = routeOnScreen()): T[] {
   const here = overrides.filter((o) => ownsTheScreen(o.key, route));

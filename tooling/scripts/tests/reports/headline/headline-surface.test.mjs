@@ -89,7 +89,13 @@ test("one read of the headline for the period Reports shows, published as contra
 test("its live-feed rule keeps the cost argument true: the dearest read there is, heard only on its page and a long wait after the last change", () => {
   // A message moves the period line by one in a hundred and the read reaches for the people pool and the calendar, so it is not
   // read for each burst of messages as the day's own surface is (800 ms): fifteen seconds of quiet, thirty at the most.
-  assert.deepEqual(reportsHeadlineOverride.refreshOnTables, ["messages", "calls", "appointments", "contacts"]);
+  assert.deepEqual(reportsHeadlineOverride.refreshOnTables, [
+    "messages",
+    "calls",
+    "appointments",
+    "contacts",
+    "tenant_config",
+  ]);
   assert.equal(
     reportsHeadlineOverride.refreshOnMessageInserts,
     undefined,
