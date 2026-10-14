@@ -60,12 +60,12 @@ test("a write empties what is kept: a cancel, an approve or a send may have chan
 
 test("REGRESSION (S9-10): a run's approve and cancel are one intent each -- a press again before it lands is the same request, which the server answers once", async () => {
   const keys = [];
-  const wire = window.fetch;
+  const wire = globalThis.window.fetch;
   // Every request on its way, let land together.
   const waiting = [];
   const land = () =>
     waiting.splice(0).forEach((r) => r(json(200, { ok: true, data: { id: "b-9", state: "sending" } })));
-  window.fetch = (url, init = {}) => {
+  globalThis.window.fetch = (url, init = {}) => {
     keys.push(
       `${new URL(String(url), "https://app.chanlytics.com").pathname} ${init.headers?.["idempotency-key"] ?? "none"}`,
     );
@@ -89,6 +89,6 @@ test("REGRESSION (S9-10): a run's approve and cancel are one intent each -- a pr
       assert.notEqual(keys.at(-1), a, `${verb}: once it has landed, a new press is a new intent`);
     }
   } finally {
-    window.fetch = wire;
+    globalThis.window.fetch = wire;
   }
 });

@@ -6,7 +6,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, contactMeta, emailLeftOutOf, stateOf, memberWords } from "@chanlytics/contracts";
-import { readCode } from "../../_source.mjs";
 import { installLegacyReact, fresh, find, textOf } from "../../_legacy-react.mjs";
 
 installLegacyReact({
