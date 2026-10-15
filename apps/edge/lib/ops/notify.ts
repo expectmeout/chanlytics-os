@@ -426,6 +426,24 @@ function mailNotice(target: NotifyTarget, msg: NotifyMessage, ports: NotifyPorts
  * reachesTenant) has its bell row, which is the notice then. True only when the owner was told in full.
  */
 export async function notifyOnce(target: NotifyTarget, msg: NotifyMessage, ports: NotifyPorts = {}): Promise<boolean> {
+  return (await keepThenMail(target, msg, ports, false)) === "told";
+}
+
+/**
+ * What a notice told once came to (keepThenMail): told in full; its row and phones told and its mail owed, which asking
+ * again under the same name sends alone; or nothing kept, which asking again keeps.
+ */
+type NoticeOutcome = "told" | "mail_owed" | "not_kept";
+
+/**
+ * notifyOnce, answering what it came to (NoticeOutcome), for a caller whose own write must not wait on a mail: the row
+ * and the phones are the notice it needs before it moves, and a mail still owed is sent when it asks again.
+ */
+export function notifyOnceAs(
+  target: NotifyTarget,
+  msg: NotifyMessage,
+  ports: NotifyPorts = {},
+): Promise<NoticeOutcome> {
   return keepThenMail(target, msg, ports, false);
 }
 
@@ -441,7 +459,7 @@ export async function notifyEvent(
   msg: NotifyMessage & { sourceEvent: string },
   ports: NotifyPorts = {},
 ): Promise<boolean> {
-  return keepThenMail(target, msg, ports, true);
+  return (await keepThenMail(target, msg, ports, true)) === "told";
 }
 
 /**
@@ -469,13 +487,13 @@ async function keepThenMail(
   msg: NotifyMessage,
   ports: NotifyPorts,
   platformCopy: boolean,
-): Promise<boolean> {
+): Promise<NoticeOutcome> {
   const db = ports.db === undefined ? pg() : ports.db;
-  if (!target.tenantId || !db) return false;
+  if (!target.tenantId || !db) return "not_kept";
   const tenantId = target.tenantId;
   const key = retryKey(tenantId, msg);
   // Nothing to find it by on a second try: the way before decision 0048, the row withdrawn with a mail that failed.
-  if (!key) return keepOrWithdraw(target, msg, { ...ports, db }, platformCopy);
+  if (!key) return (await keepOrWithdraw(target, msg, { ...ports, db }, platformCopy)) ? "told" : "not_kept";
   const L = logger({ tenant_id: tenantId });
   const mails = emailsFor(target.notifications, msg.kind);
   const toTenant = mails && reachesTenant(target);
@@ -486,11 +504,11 @@ async function keepThenMail(
   } catch (e) {
     // "Could not check" is not "never told": a second row now could be the twin of the first.
     L.error("notification_record_failed", { kind: key.kind, error: errField(e) });
-    return false;
+    return "not_kept";
   }
-  if (earlier && !earlier.mailOwed) return true;
+  if (earlier && !earlier.mailOwed) return "told";
   const kept = earlier ?? (await recordNotification(tenantId, noticeOf(msg, toTenant), db));
-  if (!kept) return false;
+  if (!kept) return "not_kept";
   // The phones go with the row, at once, whatever becomes of the mail.
   if (!earlier && msg.push !== false) await schedulePush(tenantId, kept, db);
   if (!toTenant) {
@@ -502,12 +520,12 @@ async function keepThenMail(
       await mailNotice(target, msg, ports, db);
     }
     if (earlier) await owedNoMore(db, tenantId, kept);
-    return true;
+    return "told";
   }
-  if (!(await mailNotice(target, msg, ports, db))) return false;
+  if (!(await mailNotice(target, msg, ports, db))) return "mail_owed";
   // A retry's mail says the notice as it stands now: the row takes its words, so the bell says what the mail said.
   await owedNoMore(db, tenantId, kept, earlier ? { title: msg.subject, body: msg.body } : undefined);
-  return true;
+  return "told";
 }
 
 /** The row a notice keeps: its words, and that its mail is owed when one is to go. */

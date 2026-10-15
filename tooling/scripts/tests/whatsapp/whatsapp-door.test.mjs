@@ -1368,6 +1368,71 @@ test("a cost the database refuses costs the delivery nothing: the door is asked 
   });
 });
 
+test("REGRESSION (S7-5): an owner's typed reply from the Business app settles the hold it answers; a STOP's hold stands", async () => {
+  const w = world();
+  w.open();
+  receptionist();
+  const to = w.customer();
+  const echo = (n, body) => ({
+    from: w.LINE.slice(1),
+    to,
+    id: `wamid.${w.i}.echo.${n}`,
+    timestamp: now(),
+    type: "text",
+    text: { body },
+  });
+  await listening(async () => {
+    // The thread as the first echo leaves it, then the customer's ask two minutes back and the holds it raised.
+    await deliver(w.change({ message_echoes: [echo(1, "One moment.")] }, { field: "smb_message_echoes" }));
+    const [conversation] = w.tables.conversations;
+    const ago = (ms) => new Date(Date.now() - ms).toISOString();
+    w.tables.messages.push({
+      id: `in-${w.i}`,
+      tenant_id: w.T,
+      conversation_id: conversation.id,
+      contact_id: conversation.contact_id,
+      channel: "whatsapp",
+      direction: "inbound",
+      sender: "customer",
+      type: "text",
+      body: "Can someone call me?",
+      external_id: `wamid.${w.i}.in`,
+      status: "received",
+      created_at: ago(120_000),
+    });
+    w.tables.escalations = [
+      {
+        id: `hold-${w.i}`,
+        tenant_id: w.T,
+        conversation_id: conversation.id,
+        reason: "human_token",
+        state: "open",
+        created_at: ago(100_000),
+      },
+      {
+        id: `stop-${w.i}`,
+        tenant_id: w.T,
+        conversation_id: conversation.id,
+        reason: "opt_out",
+        state: "open",
+        created_at: ago(90_000),
+      },
+    ];
+    const res = await deliver(
+      w.change({ message_echoes: [echo(2, "Calling you now.")] }, { field: "smb_message_echoes" }),
+    );
+    assert.deepEqual(await answer(res), [200, { ok: true }]);
+    const by = Object.fromEntries(w.tables.escalations.map((e) => [e.reason, e.state]));
+    assert.deepEqual(
+      by,
+      { human_token: "resolved", opt_out: "open" },
+      "the hold that waits on a person, and not a STOP's",
+    );
+    const decision = w.tables.decisions.find((d) => d.id === w.tables.escalations[0].decision_id);
+    assert.deepEqual([decision.verb, decision.payload.via], ["resolve", "whatsapp_business_app"]);
+  });
+});
+
 test("an owner's reply from the Business app pauses the receptionist for the workspace's own hours: recorded as a person's words, the conversation handed over, no thread touched", async () => {
   const w = world();
   w.tables.policies.push({

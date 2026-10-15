@@ -508,7 +508,11 @@ test("the report's five figures are the ones Reports draws, scoped to the run: s
     "stopped offers, not messages",
     "REGRESSION: the canvas's 'they hear nothing again' is not true of a stop to offers",
   );
-  assert.equal(fig.stopped.tone, "warn", "a stop is the one figure that asks you to look");
+  // A STOP is news, never a wait (decision 0048): its figure says STOP's words in STOP's one tone, as the person's pill on the
+  // same sheet does, and its filter says STOP's mark (the wiring's second audit, S9-8: it was the one amber figure).
+  assert.equal(fig.stopped.tone, C.STOP_WORDS.tone);
+  assert.equal(fig.stopped.label, C.STOP_WORDS.heading);
+  assert.equal(C.RUN_FILTERS.find((f) => f.id === "stopped")?.label, C.STOP_WORDS.mark);
   // The bars are when each came back, in the canvas's eight steps, across the shortest span that holds it all: the
   // last answer came at three and a half hours, so four hours in half-hour steps -- and the stop, at thirty minutes,
   // is in the second.

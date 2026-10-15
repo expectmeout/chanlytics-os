@@ -45,7 +45,7 @@ export const RUN_FILTERS: readonly { id: RunFilterId; label: string }[] = [
   { id: "all", label: "All" },
   { id: "replied", label: "Replied" },
   { id: "held", label: "Held back" },
-  { id: "stopped", label: "Stopped" },
+  { id: "stopped", label: STOP_WORDS.mark },
 ];
 
 export type RunTone = "plain" | "ok" | "info" | "warn" | "danger";
@@ -524,13 +524,15 @@ const saidYesFigure: RunFigureOf = (f) => ({
   ),
 });
 
+// A STOP is news, never a wait (decision 0048): its figure is in STOP's one tone and words, as the person's pill on the same
+// sheet is (consent.ts STOP_WORDS). It was amber, a figure that asked something of the owner (the wiring's second audit, S9-8).
 const stoppedFigure: RunFigureOf = (f) => ({
   id: "stopped",
-  label: "Asked to stop",
+  label: STOP_WORDS.heading,
   n: f.stopped.length,
   pct: pctOf(f, f.stopped.length),
-  sub: f.stopped.length > 0 ? answersWords(f.stopped, "opted_out") : "nobody asked to stop",
-  tone: f.stopped.length > 0 ? "warn" : "plain",
+  sub: f.stopped.length > 0 ? answersWords(f.stopped, "opted_out") : `nobody ${STOP_WORDS.short}`,
+  tone: STOP_WORDS.tone,
   bars: barsOf(
     f,
     f.stopped.map((r) => r.consent_at),

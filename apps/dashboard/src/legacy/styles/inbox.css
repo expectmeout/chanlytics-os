@@ -1956,6 +1956,10 @@ button.ix-ctx:hover { background: var(--bg-hover); }
 .ix-th-visit { display: inline-flex; align-items: center; min-width: 0; white-space: nowrap; }
 /* Where they work (0052): a desk draws it as the door beside the head (.ix-th-works), a phone as these words in it. */
 .ix-th-works-said { display: none; }
+/* Their visit the same way (S9-7): a desk draws the chip as its own door beside the head, a phone as the chip in it. */
+.ix-th-sub .ix-th-visit-said { display: none; }
+.ix-th-visit-door { flex: none; text-decoration: none; }
+.ix-th-visit-door:hover { color: var(--ink); }
 /* The door gives way before the name does, and its words end in an ellipsis rather than reach the Actions beside it. */
 .ix-th-works { flex: 0 3 auto; min-width: 0; max-width: 50%; overflow: hidden; }
 .ix-th-works-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -438,10 +438,14 @@ test("its live-feed rule is the lens's own: messages, conversations, escalations
     "sequence_batches",
     "sequence_replies",
     "tenant_channels",
+    // The mailboxes a reach-out writes from, the hosted one among them (decision 0056; reads-not-heard's owed, closed).
+    "mailboxes",
     "mailbox_connections",
     "contacts",
     // The verdicts its tile of the WhatsApp messages Meta paused, turned off or rejected counts (W-campaign-run-template-reachout-10).
     "templates",
+    // A deal won, counted once in the reach-outs' report (00426; reads-not-heard's owed, closed).
+    "deals",
   ]);
   // The yeses and stops it counts are columns of the people: an update of one is heard on the lens, a person made is no answer
   // and would read the dearest of the lenses for every arrival (the wiring's second audit, W-person-list-lead-8).

@@ -489,6 +489,8 @@
   /* Where they work: words in the head on a phone, which has no room beside it for the desk's door. */
   .ix-th-works { display: none; }
   .ix-th-works-said { display: inline-flex; }
+  .ix-th-visit-door { display: none; }
+  .ix-th-sub .ix-th-visit-said { display: inline-flex; }
   .ix-th-who { gap: 8px; }
   .ix-th-id { min-width: 0; }
   .ix-th-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

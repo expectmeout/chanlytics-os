@@ -40,7 +40,9 @@ const { keepReportPeriod } = await importSrc("apps/dashboard/src/surfaces/report
 const { surfaceValue, setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 const { startSurfaces } = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
 const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
-const { ownsTheScreen, ROUTE_DRAWS } = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+const { ownsTable, ownsTheScreen, ROUTE_DRAWS } = await importSrc(
+  "apps/dashboard/src/legacy-bridge/surface-registry.ts",
+);
 console.error = keepError;
 
 const json = (status, body) =>
@@ -77,12 +79,18 @@ test("Today owns the headline it draws: its own page reads it, and no other page
   // Today draws a good many surfaces and still owns only the headline, the replies to a reach-out and the setup band among them: a
   // message re-reads the three that draw messages (and Setup only for the first WhatsApp message, awaitsFirstMessage), People's
   // pages of contacts being the heaviest read there is.
-  for (const key of ["calendar", "broadcasts", "playbooks", "notifications", "live", "google", "people"])
+  for (const key of ["calendar", "broadcasts", "playbooks", "notifications", "live", "google"])
     assert.equal(ownsTheScreen(key, "today"), false, `Today does not own ${key}`);
   assert.equal(ownsTheScreen("today", "today"), true);
-  // Of everything Today draws, exactly these four: a surface added to Today's draws is not owned unless it is named here.
-  // Its pinned lists count on their own since #1598 (R10), read on Today alone.
+  // People's person alone (W-visit-deal-5): its rows are the steps due here and the names Worth a look gives, so a stop, a
+  // rename, a merge or an erase is read again here; a message, a hold or a note is not, and its pages of contacts stay its own.
+  assert.equal(ownsTable("people", "contacts", "today"), true, "Today hears People's person");
+  for (const table of ["messages", "conversations", "escalations", "person_notes", "deals"])
+    assert.equal(ownsTable("people", table, "today"), false, `not People's ${table} on Today`);
+  // Of everything Today draws, exactly these: a surface added to Today's draws is not owned unless it is named here. The pinned
+  // lists' counts are Today's own read (R10).
   assert.deepEqual(ROUTE_DRAWS.today.filter((key) => ownsTheScreen(key, "today")).sort(), [
+    "people",
     "reach_out_replies",
     "reports_headline",
     "setup",

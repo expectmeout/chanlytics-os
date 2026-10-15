@@ -35,7 +35,6 @@ import {
   forgetEvent,
   keepEvent,
   notePayment,
-  noteTrialEnding,
   readSubscription,
   saysGone,
   STRIPE_READ_OPTIONS,
@@ -44,6 +43,7 @@ import {
   tenantOf,
 } from "./billing.js";
 import { noteInvoiceAmount } from "./invoice-amount.js";
+import { noteTrialEnding } from "./billing-notices.js";
 import {
   earnFromInvoice,
   invoiceOfPayment,
@@ -329,6 +329,7 @@ async function onTrialWillEnd(event: EventOf<"customer.subscription.trial_will_e
       d.db,
       row,
       typeof sub.trial_end === "number" ? new Date(sub.trial_end * 1000).toISOString() : null,
+      event.id,
     );
   return () => d.done(json(200, { ok: true }));
 }
@@ -338,7 +339,12 @@ async function onInvoice(event: EventOf<"invoice.payment_failed" | "invoice.paid
   const row = await tenantOf(d.db, inv.metadata, stripeIdOf(inv.customer));
   const dup = await d.keep(row?.tenant_id ?? null);
   if (dup) return dup;
-  if (row) await notePayment(d.db, row, event.type === "invoice.paid" ? "paid" : "failed", inv.amount_paid);
+  if (row)
+    await notePayment(d.db, row, {
+      kind: event.type === "invoice.paid" ? "paid" : "failed",
+      amountPaid: inv.amount_paid,
+      eventId: event.id,
+    });
   const earned =
     row && event.type === "invoice.paid" ? await earnFromInvoice(d.db, row.tenant_id, inv, event.id, d.L) : null;
   // What the invoice moved, kept on the event's row (K8): last, best-effort and never an answer of its own, so

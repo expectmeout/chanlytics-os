@@ -38,6 +38,8 @@ var STOP_WORDS = {
   pill: "Opted out",
   mark: "Stopped",
   short: ASKED_TO_STOP_SHORT,
+  /** The short words as a heading over a count ("Asked to stop · 3"): a run's figure. */
+  heading: `${ASKED_TO_STOP_SHORT.charAt(0).toUpperCase()}${ASKED_TO_STOP_SHORT.slice(1)}`,
   line: ASKED_TO_STOP,
   tone: "plain",
   /** The clause after a name ("Dana asked to stop receiving messages"), or on its own with a capital when none is given. */
@@ -151,7 +153,16 @@ var ESCALATION_ACTS = {
   carriers: "reply",
   email_review: "reply"
 };
+function holdActOf(reason) {
+  return ESCALATION_ACTS[reason ?? ""] ?? "reply";
+}
 var HAND_BACK_REASONS = Object.keys(ESCALATION_ACTS).filter((r) => ESCALATION_ACTS[r] === "hand_back");
+var WAITING_REASONS = Object.keys(ESCALATION_ACTS).filter(
+  (r) => waitsOnAPerson(r)
+);
+function waitsOnAPerson(reason) {
+  return holdActOf(reason) !== "hand_back";
+}
 
 // src/config/no-booking-link.ts
 var NO_LINK_DETAILS = "their name, what they need, and where and when";

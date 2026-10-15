@@ -3911,7 +3911,553 @@ function eventText(raw, max = 1500) {
   return text.length > max ? `${text.slice(0, max - 1).trimEnd()}\u2026` : text;
 }
 
+// src/lines/line-failure.ts
+function lineCredentialFailure(lastError) {
+  return !!lastError && /the line's credentials|missing from the vault/i.test(lastError);
+}
+var LINE_CREDENTIALS_SENTENCE = "the vault that keeps the line's credentials";
+
+// src/lines/caller-gets.ts
+function callerSentence(g) {
+  return `${g.gets.charAt(0).toUpperCase()}${g.gets.slice(1)}.`;
+}
+var PHONE_LINE_OFF = {
+  state: "line_off",
+  tone: "warn",
+  gets: "calls are picked up without your facts and are not recorded"
+};
+var PAUSED_CALL = "calls are answered only to take a message";
+var WORKSPACE_ENDED_WORDS = `its receptionist stops replying to messages and ${PAUSED_CALL}, its plan is cancelled, and its public pages go offline`;
+var WORKSPACE_PAUSED = {
+  state: "workspace_paused",
+  tone: "danger",
+  gets: `${PAUSED_CALL}, and new messages wait in the Inbox for you to answer`
+};
+function lineOffGets(kind, noun) {
+  return kind === "voice" ? PHONE_LINE_OFF : { state: "line_off", tone: "warn", gets: `${noun}s to it are neither answered nor recorded` };
+}
+
+// src/workspace/billing.ts
+var BILLING_MODES = ["stripe", "direct"];
+var BILLING_STATUSES = [
+  "none",
+  "incomplete",
+  "incomplete_expired",
+  "trialing",
+  "active",
+  "past_due",
+  "canceled",
+  "unpaid",
+  "paused"
+];
+var BILLING_TRIAL_DAYS = 14;
+function receptionistOn(status) {
+  return status === "trialing" || status === "active" || status === "past_due" || status === "incomplete" || status === "none";
+}
+function billingDoorOpen(b) {
+  return !!b && b.mode === "stripe" && b.ready;
+}
+function maySpend(mode, status) {
+  if (mode !== "stripe") return true;
+  return status === "active";
+}
+function mayUseModels(mode, status, workspace) {
+  return openToCustomersOf({ ...workspace, billing: { mode, status } }) === "open";
+}
+function openToCustomersOf(f) {
+  if (f.ended) return "ended";
+  if (f.paused) return "paused";
+  return !f.billing || f.billing.mode !== "stripe" || receptionistOn(f.billing.status) ? "open" : "paused";
+}
+function takesSignUps(open) {
+  return open !== "paused" && open !== "ended";
+}
+function hasPublicPages(status, open) {
+  return status !== "test" && open !== "ended";
+}
+var SPEND_NUMBER = { before: "buying a number", can: "buy a number" };
+var SPEND_LEADS = { before: "finding leads", can: "find leads" };
+var SPEND_TEXTING = { before: "registering for texting", can: "register for texting" };
+function whyCannotSpend(mode, status, doing = SPEND_NUMBER) {
+  if (maySpend(mode, status)) return null;
+  if (status === "none") return `Start your plan from Billing before ${doing.before}.`;
+  if (status === "trialing")
+    return `Your free trial doesn't cover ${doing.before}. Start your plan from Billing, then ${doing.can}.`;
+  if (status === "incomplete") return "Your card is not confirmed yet. Finish checkout in Billing, then try again.";
+  if (status === "past_due") return "Your last payment did not go through. Update the card in Billing, then try again.";
+  if (status === "paused" || status === "canceled" || status === "incomplete_expired") {
+    return `This workspace is not subscribed. Start it again from Billing before ${doing.before}.`;
+  }
+  return `Billing needs attention before this workspace can ${doing.can}. Open Billing to sort it out.`;
+}
+function tenantStatusFor(mode, status) {
+  if (mode !== "stripe") return null;
+  return receptionistOn(status) ? "active" : "paused";
+}
+var PAUSED_WORDS = /* @__PURE__ */ callerSentence(WORKSPACE_PAUSED);
+var WORKSPACE_PAUSED_FACT = "This workspace is paused, so nothing is sent until billing resumes";
+var CAMPAIGNS_PAUSED_WORDS = `${WORKSPACE_PAUSED_FACT}. Resume it from Settings \u203A Billing.`;
+function planBilling(before, sub, nowMs) {
+  const row2 = {
+    stripe_subscription_id: sub.id,
+    status: sub.status,
+    price_id: sub.price_id,
+    current_period_end: sub.current_period_end,
+    trial_end: sub.trial_end,
+    cancel_at: sub.cancel_at,
+    cancel_at_period_end: sub.cancel_at_period_end,
+    card_brand: sub.card_brand,
+    card_last4: sub.card_last4
+  };
+  const wanted = tenantStatusFor(before.mode, sub.status);
+  const tenantStatus = wanted && wanted !== before.tenant_status ? wanted : null;
+  const wasOn = receptionistOn(before.status);
+  const isOn = receptionistOn(sub.status);
+  const switched = before.mode === "stripe" && wasOn !== isOn ? isOn ? "resumed" : "paused" : null;
+  let bell = null;
+  if (switched === "paused") {
+    bell = {
+      title: "Your receptionist is paused",
+      body: sub.status === "paused" ? `The trial ended without a card on file. ${PAUSED_WORDS} Resume from Billing.` : `The subscription ended. ${PAUSED_WORDS} Resume from Billing.`
+    };
+  } else if (switched === "resumed") {
+    bell = { title: "Your receptionist is back", body: "Billing is in order; the receptionist answers again." };
+  } else if (before.status !== "trialing" && sub.status === "trialing") {
+    bell = {
+      title: "Your trial has started",
+      body: `${trialWords(sub.trial_end, nowMs)}. Cancel any time from Billing.`
+    };
+  }
+  return { row: row2, tenantStatus, switched, bell };
+}
+var DATE_FMT2 = formatterOnUse("en-US", { month: "short", day: "numeric" });
+function dayWords(iso) {
+  if (!iso) return "";
+  const ms2 = Date.parse(iso);
+  return Number.isNaN(ms2) ? "" : DATE_FMT2.format(new Date(ms2));
+}
+function trialOffer(days, again = false) {
+  if (!(days > 0)) {
+    return again ? "Start again with a card; the first charge is today." : "Subscribe with a card; the first charge is today, and you can cancel from here any time.";
+  }
+  return again ? `Start again with a card; the ${days}-day trial applies once.` : `Start the ${days}-day trial with a card; nothing is charged until it ends, and you can cancel from here any time.`;
+}
+function trialWords(trialEnd, nowMs) {
+  if (!trialEnd) return "";
+  const end = Date.parse(trialEnd);
+  if (Number.isNaN(end)) return "";
+  const days = Math.ceil((end - nowMs) / DAY_MS);
+  if (days <= 0) return "Trial ends today";
+  return `${days} day${days === 1 ? "" : "s"} left on the trial, until ${dayWords(trialEnd)}`;
+}
+function priceWords(p) {
+  if (!p || p.unit_amount === null) return "";
+  const amount = numberFormat("en-US", { style: "currency", currency: p.currency.toUpperCase() }).format(
+    p.unit_amount / 100
+  );
+  const per = p.interval === "year" ? "a year" : p.interval === "week" ? "a week" : p.interval === "day" ? "a day" : "a month";
+  return `${amount} ${per}`;
+}
+var BILLING_TEST_MODE_CLAUSE = "Billing is in test mode, so only Stripe's test cards work and no real money moves";
+var TRIAL_COVERS = "A phone number, texting and lead searches start with the plan.";
+var START_PLAN_WORDS = {
+  button: "Start my plan now",
+  busy: "Starting\u2026",
+  question: "Start your plan today?",
+  detail: (plan, card) => `Your free trial ends now, and ${plan || "the plan"} is charged to ${card || "your card on file"} today. A phone number, texting and lead searches open straight after.`,
+  yes: "Yes, start it",
+  no: "Not now",
+  started: "Your plan has started.",
+  /** Stripe took the trial's end but not the charge. */
+  unpaid: "Your plan started, but the charge did not go through. Update the card in Billing."
+};
+function toBillingVM(dto, nowMs = Date.now()) {
+  const a = dto.account;
+  const plan = priceWords(dto.price) ? `${dto.price?.product_name ? `${dto.price.product_name} \xB7 ` : ""}${priceWords(dto.price)}` : "";
+  const card = a?.card_brand && a.card_last4 ? `${a.card_brand.charAt(0).toUpperCase()}${a.card_brand.slice(1)} ending ${a.card_last4}` : null;
+  if (!a || a.mode === "direct") {
+    return {
+      mode: "direct",
+      status: a?.status ?? "active",
+      headline: "Direct arrangement",
+      detail: "This workspace runs on an arrangement made with Chanlytics; nothing on this screen charges anything.",
+      tone: "",
+      plan,
+      card: null,
+      actions: { checkout: false, portal: false, resume: false, startNow: false },
+      paused: false,
+      testMode: null
+    };
+  }
+  const s = a.status;
+  const base = {
+    mode: "stripe",
+    status: s,
+    plan,
+    card,
+    testMode: dto.livemode === false ? `${BILLING_TEST_MODE_CLAUSE}.` : null
+  };
+  switch (s) {
+    case "none":
+      return {
+        ...base,
+        headline: "No subscription yet",
+        detail: dto.ready ? trialOffer(dto.trial_days) : "Billing is not available on this deployment yet.",
+        tone: "warn",
+        actions: { checkout: dto.ready, portal: false, resume: false, startNow: false },
+        paused: false
+      };
+    case "trialing":
+      if (a.cancel_at || a.cancel_at_period_end) {
+        return {
+          ...base,
+          headline: "On trial, ending",
+          detail: `Cancelled: the receptionist answers until ${dayWords(a.cancel_at ?? a.trial_end) || "the trial ends"}, then stops, and nothing is charged. Undo it from Manage billing before then to keep it.`,
+          tone: "warn",
+          actions: { checkout: false, portal: true, resume: false, startNow: false },
+          paused: false
+        };
+      }
+      return {
+        ...base,
+        headline: "On trial",
+        detail: `${trialWords(a.trial_end, nowMs)}${card ? `, then ${plan || "the plan"} on ${card}` : ""}. ${TRIAL_COVERS}`,
+        tone: "ok",
+        // Its plan may start now, for what the trial does not cover (maySpend).
+        actions: { checkout: false, portal: true, resume: false, startNow: true },
+        paused: false
+      };
+    case "active":
+      return {
+        ...base,
+        headline: a.cancel_at_period_end || a.cancel_at ? "Subscribed, ending" : "Subscribed",
+        detail: a.cancel_at || a.cancel_at_period_end ? `Ends ${dayWords(a.cancel_at ?? a.current_period_end)}; the receptionist answers until then.` : `Next invoice ${dayWords(a.current_period_end) || "on the renewal date"}${card ? ` on ${card}` : ""}.`,
+        tone: "ok",
+        actions: { checkout: false, portal: true, resume: false, startNow: false },
+        paused: false
+      };
+    case "past_due":
+      return {
+        ...base,
+        headline: "Payment failed",
+        detail: `${a.last_payment_failed_at ? `The last charge failed ${agoWords(Date.parse(a.last_payment_failed_at), nowMs)}. ` : ""}Stripe retries for a few days; update the card in Manage billing to keep the receptionist answering.`,
+        tone: "danger",
+        actions: { checkout: false, portal: true, resume: false, startNow: false },
+        paused: false
+      };
+    case "incomplete":
+      return {
+        ...base,
+        headline: "Finishing checkout",
+        detail: "The first payment is still being confirmed. This page updates by itself.",
+        tone: "warn",
+        actions: { checkout: false, portal: true, resume: false, startNow: false },
+        paused: false
+      };
+    case "paused":
+      return {
+        ...base,
+        headline: "Paused",
+        detail: "The trial ended without a card on file. Add one in Manage billing, then resume; messages keep landing in the Inbox meanwhile.",
+        tone: "danger",
+        actions: { checkout: false, portal: true, resume: true, startNow: false },
+        paused: true
+      };
+    case "unpaid":
+      return {
+        ...base,
+        headline: "Paused",
+        detail: "Payment could not be collected after several tries. Update the card in Manage billing, then resume.",
+        tone: "danger",
+        actions: { checkout: false, portal: true, resume: true, startNow: false },
+        paused: true
+      };
+    case "canceled":
+    case "incomplete_expired":
+    default:
+      return {
+        ...base,
+        headline: "Subscription ended",
+        detail: dto.ready ? trialOffer(dto.trial_days, true) : "Billing is not available on this deployment yet.",
+        tone: "danger",
+        actions: { checkout: dto.ready, portal: !!a.card_brand, resume: false, startNow: false },
+        paused: true
+      };
+  }
+}
+function billingPill(vm) {
+  return receptionistOn(vm.status) ? { words: "Receptionist answering", tone: "ok" } : { words: "Receptionist paused", tone: "danger" };
+}
+var INVOICE_STATUS_WORDS = {
+  draft: "Draft",
+  open: "Not paid yet",
+  paid: "Paid",
+  uncollectible: "Could not be collected",
+  void: "Cancelled"
+};
+function invoiceStatusWords(status) {
+  if (!status) return "\u2014";
+  return Object.prototype.hasOwnProperty.call(INVOICE_STATUS_WORDS, status) ? INVOICE_STATUS_WORDS[status] ?? status : status;
+}
+var CHECKOUT_RETURNS = ["billing", "start"];
+var CHECKOUT_RETURN_ROUTE = { billing: "admin/billing", start: "start" };
+function isCheckoutReturn(v) {
+  return typeof v === "string" && CHECKOUT_RETURNS.includes(v);
+}
+var CHECKOUT_OUTCOME_WORDS = {
+  success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
+  cancel: "Checkout was closed before finishing; nothing was charged.",
+  portal: "Back from Stripe. Any change you made there shows here within a minute."
+};
+function moneyWords(amountCents, currency) {
+  try {
+    return numberFormat("en-US", { style: "currency", currency: currency.toUpperCase() }).format(amountCents / 100);
+  } catch {
+    return `${(amountCents / 100).toFixed(2)} ${currency.toUpperCase()}`;
+  }
+}
+function billingAccountDto(r2) {
+  return {
+    mode: r2.mode === "direct" ? "direct" : "stripe",
+    status: BILLING_STATUSES.includes(r2.status ?? "") ? r2.status : "none",
+    price_id: r2.price_id ?? null,
+    current_period_end: r2.current_period_end ?? null,
+    trial_end: r2.trial_end ?? null,
+    cancel_at: r2.cancel_at ?? null,
+    cancel_at_period_end: !!r2.cancel_at_period_end,
+    card_brand: r2.card_brand ?? null,
+    card_last4: r2.card_last4 ?? null,
+    last_payment_failed_at: r2.last_payment_failed_at ?? null,
+    last_paid_at: r2.last_paid_at ?? null,
+    updated_at: r2.updated_at
+  };
+}
+function pausedVoiceFacts(businessName) {
+  const name = (businessName ?? "").trim() || "this business";
+  return [
+    `You are answering the phone for ${name}. Their automated receptionist is paused right now, so you cannot help with bookings, prices, hours or questions today.`,
+    "Say so plainly and kindly, in the caller's language. Take the caller's name, their number and what they need, tell them someone from the business will call them back, and end the call politely.",
+    "Do not quote a price, do not book or reschedule anything, do not transfer the call, and do not promise a time for the call back."
+  ].join("\n");
+}
+
+// src/lines/registration-path.ts
+var REGISTRATION_PATHS = ["standard", "sole_proprietor"];
+function registrationPathOf(saved) {
+  if (!saved) return null;
+  return String(saved.ein ?? "").trim() ? "standard" : "sole_proprietor";
+}
+var SOLE_PROP_LIMITS = {
+  campaignsPerBrand: 1,
+  numbersPerCampaign: 1,
+  messagesPerSecond: 1,
+  perDayTMobile: 1e3,
+  perMinuteAtt: 15,
+  mobileUsesEver: 3,
+  emailUsesEver: 10,
+  addressUsesEver: 10
+};
+function grouped(n) {
+  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+function soleProprietorLimits() {
+  const L2 = SOLE_PROP_LIMITS;
+  return [
+    `One number and one campaign: a second number cannot text on this registration.`,
+    `About ${L2.messagesPerSecond} message a second, so a hundred texts go out over a minute or two rather than at once.`,
+    `T-Mobile takes ${grouped(L2.perDayTMobile)} a day from you, AT&T ${L2.perMinuteAtt} a minute.`,
+    `The carriers text a code to your own mobile and you reply from that handset \u2014 there is no code to bring back here.`,
+    `That mobile can be used on ${L2.mobileUsesEver} of these registrations ever, across every provider; your email and address on ${L2.emailUsesEver} each. Only the carriers can count what you have already spent.`,
+    `It cannot be withdrawn once filed. If you get a tax id later, the standard registration is a new filing.`
+  ];
+}
+var REGISTRATION_QUESTION = {
+  title: "Does the business have a tax ID?",
+  sub: "It decides which registration the carriers run, and the two are not the same. Asked once.",
+  /** Said under the answers, because the narrow path is a real cost and the choice is permanent. */
+  nudge: "If there is an EIN, use it \u2014 none of the limits below apply to that registration."
+};
+var REGISTRATION_PATH_WORDS = {
+  standard: {
+    choice: "Yes, it has an EIN",
+    sub: "The usual registration. Nothing about your texting is capped.",
+    filed: "Registered as a business"
+  },
+  sole_proprietor: {
+    choice: "No, it is just me",
+    sub: "The carriers' registration for a one-person business. It works, and it is narrower.",
+    filed: "Registered as a sole proprietor"
+  }
+};
+var REGISTRATION_COST_WORDS = {
+  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
+  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second.`
+};
+
+// src/setup/setup.ts
+var PROVISIONING_DEADLINE_MS = 5 * MIN_MS;
+function lineStuckProvisioning(l, nowMs) {
+  if (!l || l.voice_state !== "provisioning") return false;
+  const since = Date.parse(l.state_since);
+  return Number.isFinite(since) && nowMs - since > PROVISIONING_DEADLINE_MS;
+}
+function lineRetryRefusal(l, nowMs) {
+  if (!l) return "no such line";
+  if (l.voice_state === "failed" && lineCredentialFailure(l.last_error))
+    return "the line's credentials could not be kept \u2014 a retry cannot help until a person at Chanlytics restores them, and we have been told";
+  if (l.voice_state === "failed") return null;
+  if (lineStuckProvisioning(l, nowMs)) return null;
+  return l.voice_state === "provisioning" ? "the line is still setting up \u2014 give it a few minutes, and it is retried automatically after that" : `the line is ${l.voice_state}, not failed`;
+}
+var LINE_STEP_WORDS = {
+  subaccount: "opening your account with the carrier",
+  number: "buying the number",
+  trunk: "connecting the number to the receptionist",
+  agent: "creating the receptionist",
+  import: "handing the number to the receptionist",
+  messaging: "setting up texting",
+  channel: "recording the line"
+};
+var SETUP_STATE_WORDS = {
+  not_started: "Not started",
+  waiting_you: "Waiting on you",
+  waiting_them: "Waiting on us",
+  ready: "Ready"
+};
+var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
+var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
+var MOCK_TEXTING_SENTENCE = "Texting is filed against a test registry, so nothing is delivered \u2014 a person at Chanlytics is filing it with the carriers for real.";
+var TEXTING_NEEDS_RECORD_SENTENCE = "Texting needs your business on record for the carriers \u2014 two minutes, once.";
+var TEXTING_NEEDS_RECORD_CLAUSE = "Texting needs your business on record for the carriers \u2014 two minutes, once, on Connections.";
+var BROKEN_CONFIG_WORDS = {
+  title: "This workspace's settings can't be read",
+  body: "Something saved in this workspace's configuration no longer passes the checks the receptionist runs before it answers, so the receptionist is silent and this form is closed \u2014 saving from here would replace what is still there. Chanlytics has to repair it.",
+  clause: "Your business settings could not be read, so the receptionist is silent until Chanlytics repairs them. Business lists what is wrong.",
+  /** The owner's one move on a configuration only Chanlytics can repair (S8): it said so, with no way to ask. */
+  ask: "Ask for a repair",
+  /** Once asked: when, and what happens next, on Setup's row and on the pane's card alike. */
+  requested: (at3, nowMs) => `Requested ${agoWords(Date.parse(at3), nowMs)} \u2014 a person at Chanlytics will repair them and reach you by email.`
+};
+var SETUP_REQUEST_KINDS = ["line", "port", "repair", "forwarding"];
+function textingWords(l) {
+  if (!l) return { sentence: "Texting is not available yet.", done: false };
+  if (l.reg_mock) return { sentence: MOCK_TEXTING_SENTENCE, done: false };
+  if (l.voice_state === "answering" && (!l.sms_state || l.sms_state === "none"))
+    return { sentence: TEXTING_NEEDS_RECORD_CLAUSE, done: false };
+  switch (l.sms_state) {
+    // Working, and on the narrow registration: the ceiling belongs in the same
+    // sentence as the good news, because the moment it bites is a broadcast
+    // that trickles out over minutes with no explanation anywhere in the
+    // product. `done` stays true -- it IS on, and there is nothing left to do.
+    case "active":
+      return { sentence: l.reg_sole_prop ? SOLE_PROP_TEXTING_SENTENCE : "Texting is on.", done: true };
+    case "approved":
+      return { sentence: "Your business is approved; one last check on the line is with the carriers.", done: false };
+    case "registering":
+      return { sentence: "Texting is with the carriers.", done: false };
+    // The state the pre-flight writes, which had no case here at all -- so a
+    // workspace stopped BEFORE anything was filed read the default, "Texting is
+    // not available yet", which says nothing about what is in the way and nothing
+    // about it being theirs to fix.
+    //
+    // It deliberately does NOT name the fault, for the same reason none of these
+    // do: this is one clause inside a composed Setup sentence, the reason can be a
+    // paragraph, and the owner's texting row on Connections renders `last_error`
+    // in full. What this has to do is stop saying "not available" about something
+    // that is waiting on them. It also cannot say "fill in your record" -- a
+    // record that is COMPLETE but names a different business than the workspace
+    // does trips the same state, and that fix is a rename, not a field.
+    case "needs_record":
+      return {
+        sentence: "Texting needs something on your business record put right \u2014 Connections says what.",
+        done: false
+      };
+    case "rejected":
+      return { sentence: "The carriers refused the texting registration.", done: false };
+    case "failed":
+      return { sentence: "The texting registration stopped; a person at Chanlytics has it.", done: false };
+    // The one state where the owner must act inside a day: the carriers texted
+    // their own mobile. Connections says it in full; Setup used to say "not
+    // available yet", which reads as nothing to do.
+    case "otp_waiting":
+      return {
+        sentence: "The carriers texted your mobile \u2014 reply to that message from the handset itself and texting switches on; the code lasts a day.",
+        done: false
+      };
+    case "hosting":
+      return { sentence: "Texting is with the carriers.", done: false };
+    default:
+      return { sentence: "Texting is not available yet.", done: false };
+  }
+}
+function activationWords(cap2, nowMs) {
+  if (cap2.live && cap2.activated) return `Activated ${agoWords(Date.parse(cap2.activated.at), nowMs)}`;
+  if (cap2.tested) return "Tested \u2014 activate it to say it is yours";
+  return "Not tested yet \u2014 try it from your own phone";
+}
+function rowContextOf(i, nowMs) {
+  const wa = i.channels.whatsapp;
+  const voice = i.channels.voice;
+  const waReady = wa.present && wa.active;
+  const voiceReady = voice.present && voice.active;
+  const answering = waReady || voiceReady;
+  const waNum = formatPhoneDisplay(wa.number) ?? "your number";
+  const voiceNum = formatPhoneDisplay(voice.number) ?? "your line";
+  const handoffNum = formatPhoneDisplay(i.business.handoff);
+  const lines = i.lines ?? { rows: [], ready: false, provider: null, costs: { local_number_month_usd: 1.15 } };
+  const canSpend = !i.billing || maySpend(i.billing.mode, i.billing.status);
+  const ownLine = lines.rows.find((l) => l.voice_state !== "none") ?? null;
+  const texting = textingWords(ownLine);
+  const lineNum = ownLine?.e164 ? formatPhoneDisplay(ownLine.e164) ?? ownLine.e164 : "your number";
+  return {
+    nowMs,
+    wa,
+    voice,
+    waReady,
+    voiceReady,
+    answering,
+    waNum,
+    voiceNum,
+    handoffNum,
+    lines,
+    canSpend,
+    ownLine,
+    texting,
+    lineNum
+  };
+}
+function setupLaterOf(view) {
+  const later = view && typeof view === "object" ? view.later : null;
+  if (!Array.isArray(later)) return [];
+  return [...new Set(later.filter((x) => typeof x === "string" && x.length > 0 && x.length <= 40))];
+}
+function setupPhoneWantOf(view) {
+  const phone = view && typeof view === "object" ? view.phone : null;
+  if (!phone || typeof phone !== "object") return null;
+  const { way, number: number2 } = phone;
+  if (way !== "keep" && way !== "move" || typeof number2 !== "string") return null;
+  const e164 = normalizePhone(number2);
+  return e164 ? { way, number: e164 } : null;
+}
+function forwardedLineOf(lines) {
+  return lines?.rows.find((l) => l.kind === "forwarded" && l.forwarding_state !== "none") ?? null;
+}
+var MOBILE_CARRIERS = ["verizon", "att", "tmobile"];
+function keptPhoneKind(line) {
+  if (!line) return null;
+  const carrier = line.forwarding?.carrier ?? null;
+  if (carrier === "office") return "office";
+  return carrier && MOBILE_CARRIERS.includes(carrier) ? "mobile" : "unknown";
+}
+var TRY_SKIPPED = "try-skipped";
+var KEEP_ROW = "keep";
+var SETUP_LATER_REFUSED = {
+  reading: "Setting up is still being read. Try again in a moment.",
+  unread: "What you put off could not be read just now, so nothing changed. Try again in a moment."
+};
+
 // src/setup/calendar-source.ts
+var CALENDAR_OWED_WORD = SETUP_STATE_WORDS.waiting_you;
 var CALENDAR_SETTING_ROUTE = "admin/workspace/calendar";
 var FORWARD_CONFIRM_SHOWN_MS = 3 * DAY_MS;
 function forwardStillAsked(at3, now) {
@@ -3952,7 +4498,7 @@ function emailsNeedYou(step2, f, e, by, times) {
       by,
       state: "needs_you",
       tone: "warn",
-      words: "Needs you",
+      words: CALENDAR_OWED_WORD,
       ...leadAndRest(`${tool} needs an address to send its booking emails to.`),
       times,
       next: TO_THE_ROW("Finish setting up")
@@ -3962,7 +4508,7 @@ function emailsNeedYou(step2, f, e, by, times) {
       by,
       state: "needs_you",
       tone: "warn",
-      words: "Needs you",
+      words: CALENDAR_OWED_WORD,
       ...leadAndRest("Gmail is waiting for you to confirm the forward."),
       times,
       next: TO_THE_ROW("Confirm the forward")
@@ -6035,6 +6581,8 @@ var STOP_WORDS = {
   pill: "Opted out",
   mark: "Stopped",
   short: ASKED_TO_STOP_SHORT,
+  /** The short words as a heading over a count ("Asked to stop · 3"): a run's figure. */
+  heading: `${ASKED_TO_STOP_SHORT.charAt(0).toUpperCase()}${ASKED_TO_STOP_SHORT.slice(1)}`,
   line: ASKED_TO_STOP,
   tone: "plain",
   /** The clause after a name ("Dana asked to stop receiving messages"), or on its own with a capital when none is given. */
@@ -6294,6 +6842,9 @@ function holdActOf(reason) {
 }
 var OPEN_HOLDS_READ_MAX = 100;
 var HAND_BACK_REASONS = Object.keys(ESCALATION_ACTS).filter((r2) => ESCALATION_ACTS[r2] === "hand_back");
+var WAITING_REASONS = Object.keys(ESCALATION_ACTS).filter(
+  (r2) => waitsOnAPerson(r2)
+);
 function openHoldAct(hold) {
   return hold ? holdActOf(hold.reason) : null;
 }
@@ -7561,6 +8112,14 @@ var SENDING_HOURS_WORDS = {
   between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
 };
 var sendsWaitWords = (hours = SENDING_HOURS_WORDS) => `sends wait for ${hours.range}`;
+var SENDING_NOW_WORDS = "sending now";
+function whenItGoes(receipt, when, nowMs) {
+  const at3 = receipt?.scheduled_for ? Date.parse(receipt.scheduled_for) : NaN;
+  if (Number.isNaN(at3)) return SENDING_NOW_WORDS;
+  if (receipt?.moved_from)
+    return `scheduled for ${when(at3)} \u2014 messages go out ${SENDING_HOURS_WORDS.between} by your clock`;
+  return at3 - nowMs > MIN_MS ? `scheduled for ${when(at3)}` : SENDING_NOW_WORDS;
+}
 var PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
 function delayWords(ms2) {
   const minutes = Math.round(ms2 / MIN_MS);
@@ -12403,6 +12962,10 @@ var HELD_WORDS = {
   }
 };
 var NEEDS_YOU_WORD = "Needs you";
+var INBOX_BUCKET_WORDS = { escalated: NEEDS_YOU_WORD, done: "Handled", snoozed: "Snoozed" };
+function inboxBucketWord(state) {
+  return state === "escalated" || state === "done" || state === "snoozed" ? INBOX_BUCKET_WORDS[state] : null;
+}
 function heldPill(holder, name) {
   if (holder === "yours") return HELD_WORDS.yours.pill;
   const said = typeof name === "string" ? name.trim() : "";
@@ -13008,7 +13571,8 @@ var BUILTIN_LISTS = [
   },
   {
     id: "proposal_out",
-    label: "Proposal out",
+    // A stage's list says its stage's word (S9-9); Clients names the people, not the stage.
+    label: DEAL_STAGE_WORDS.proposed,
     tip: "A proposal went out and is waiting on their answer",
     group: "journey",
     onProfile: false,
@@ -13024,7 +13588,7 @@ var BUILTIN_LISTS = [
   },
   {
     id: "deal_passed",
-    label: "Passed",
+    label: DEAL_STAGE_WORDS.lost,
     tip: "They passed on a proposal",
     group: "journey",
     onProfile: false,
@@ -13032,7 +13596,7 @@ var BUILTIN_LISTS = [
   },
   {
     id: "deal_ended",
-    label: "Ended",
+    label: DEAL_STAGE_WORDS.ended,
     tip: "An engagement that ended \u2014 the win-back list for clients",
     group: "journey",
     onProfile: false,
@@ -14501,330 +15065,6 @@ function buildAskSuggestions(input) {
   return [...asks, ...acts.slice(0, 4)];
 }
 
-// src/lines/caller-gets.ts
-function callerSentence(g) {
-  return `${g.gets.charAt(0).toUpperCase()}${g.gets.slice(1)}.`;
-}
-var PHONE_LINE_OFF = {
-  state: "line_off",
-  tone: "warn",
-  gets: "calls are picked up without your facts and are not recorded"
-};
-var PAUSED_CALL = "calls are answered only to take a message";
-var WORKSPACE_ENDED_WORDS = `its receptionist stops replying to messages and ${PAUSED_CALL}, its plan is cancelled, and its public pages go offline`;
-var WORKSPACE_PAUSED = {
-  state: "workspace_paused",
-  tone: "danger",
-  gets: `${PAUSED_CALL}, and new messages wait in the Inbox for you to answer`
-};
-function lineOffGets(kind, noun) {
-  return kind === "voice" ? PHONE_LINE_OFF : { state: "line_off", tone: "warn", gets: `${noun}s to it are neither answered nor recorded` };
-}
-
-// src/workspace/billing.ts
-var BILLING_MODES = ["stripe", "direct"];
-var BILLING_STATUSES = [
-  "none",
-  "incomplete",
-  "incomplete_expired",
-  "trialing",
-  "active",
-  "past_due",
-  "canceled",
-  "unpaid",
-  "paused"
-];
-var BILLING_TRIAL_DAYS = 14;
-function receptionistOn(status) {
-  return status === "trialing" || status === "active" || status === "past_due" || status === "incomplete" || status === "none";
-}
-function billingDoorOpen(b) {
-  return !!b && b.mode === "stripe" && b.ready;
-}
-function maySpend(mode, status) {
-  if (mode !== "stripe") return true;
-  return status === "active";
-}
-function mayUseModels(mode, status, workspace) {
-  return openToCustomersOf({ ...workspace, billing: { mode, status } }) === "open";
-}
-function openToCustomersOf(f) {
-  if (f.ended) return "ended";
-  if (f.paused) return "paused";
-  return !f.billing || f.billing.mode !== "stripe" || receptionistOn(f.billing.status) ? "open" : "paused";
-}
-function takesSignUps(open) {
-  return open !== "paused" && open !== "ended";
-}
-function hasPublicPages(status, open) {
-  return status !== "test" && open !== "ended";
-}
-var SPEND_NUMBER = { before: "buying a number", can: "buy a number" };
-var SPEND_LEADS = { before: "finding leads", can: "find leads" };
-var SPEND_TEXTING = { before: "registering for texting", can: "register for texting" };
-function whyCannotSpend(mode, status, doing = SPEND_NUMBER) {
-  if (maySpend(mode, status)) return null;
-  if (status === "none") return `Start your plan from Billing before ${doing.before}.`;
-  if (status === "trialing")
-    return `Your free trial doesn't cover ${doing.before}. Start your plan from Billing, then ${doing.can}.`;
-  if (status === "incomplete") return "Your card is not confirmed yet. Finish checkout in Billing, then try again.";
-  if (status === "past_due") return "Your last payment did not go through. Update the card in Billing, then try again.";
-  if (status === "paused" || status === "canceled" || status === "incomplete_expired") {
-    return `This workspace is not subscribed. Start it again from Billing before ${doing.before}.`;
-  }
-  return `Billing needs attention before this workspace can ${doing.can}. Open Billing to sort it out.`;
-}
-function tenantStatusFor(mode, status) {
-  if (mode !== "stripe") return null;
-  return receptionistOn(status) ? "active" : "paused";
-}
-var PAUSED_WORDS = /* @__PURE__ */ callerSentence(WORKSPACE_PAUSED);
-var WORKSPACE_PAUSED_FACT = "This workspace is paused, so nothing is sent until billing resumes";
-var CAMPAIGNS_PAUSED_WORDS = `${WORKSPACE_PAUSED_FACT}. Resume it from Settings \u203A Billing.`;
-function planBilling(before, sub, nowMs) {
-  const row2 = {
-    stripe_subscription_id: sub.id,
-    status: sub.status,
-    price_id: sub.price_id,
-    current_period_end: sub.current_period_end,
-    trial_end: sub.trial_end,
-    cancel_at: sub.cancel_at,
-    cancel_at_period_end: sub.cancel_at_period_end,
-    card_brand: sub.card_brand,
-    card_last4: sub.card_last4
-  };
-  const wanted = tenantStatusFor(before.mode, sub.status);
-  const tenantStatus = wanted && wanted !== before.tenant_status ? wanted : null;
-  const wasOn = receptionistOn(before.status);
-  const isOn = receptionistOn(sub.status);
-  const switched = before.mode === "stripe" && wasOn !== isOn ? isOn ? "resumed" : "paused" : null;
-  let bell = null;
-  if (switched === "paused") {
-    bell = {
-      title: "Your receptionist is paused",
-      body: sub.status === "paused" ? `The trial ended without a card on file. ${PAUSED_WORDS} Resume from Billing.` : `The subscription ended. ${PAUSED_WORDS} Resume from Billing.`
-    };
-  } else if (switched === "resumed") {
-    bell = { title: "Your receptionist is back", body: "Billing is in order; the receptionist answers again." };
-  } else if (before.status !== "trialing" && sub.status === "trialing") {
-    bell = {
-      title: "Your trial has started",
-      body: `${trialWords(sub.trial_end, nowMs)}. Cancel any time from Billing.`
-    };
-  }
-  return { row: row2, tenantStatus, switched, bell };
-}
-var DATE_FMT2 = formatterOnUse("en-US", { month: "short", day: "numeric" });
-function dayWords(iso) {
-  if (!iso) return "";
-  const ms2 = Date.parse(iso);
-  return Number.isNaN(ms2) ? "" : DATE_FMT2.format(new Date(ms2));
-}
-function trialOffer(days, again = false) {
-  if (!(days > 0)) {
-    return again ? "Start again with a card; the first charge is today." : "Subscribe with a card; the first charge is today, and you can cancel from here any time.";
-  }
-  return again ? `Start again with a card; the ${days}-day trial applies once.` : `Start the ${days}-day trial with a card; nothing is charged until it ends, and you can cancel from here any time.`;
-}
-function trialWords(trialEnd, nowMs) {
-  if (!trialEnd) return "";
-  const end = Date.parse(trialEnd);
-  if (Number.isNaN(end)) return "";
-  const days = Math.ceil((end - nowMs) / DAY_MS);
-  if (days <= 0) return "Trial ends today";
-  return `${days} day${days === 1 ? "" : "s"} left on the trial, until ${dayWords(trialEnd)}`;
-}
-function priceWords(p) {
-  if (!p || p.unit_amount === null) return "";
-  const amount = numberFormat("en-US", { style: "currency", currency: p.currency.toUpperCase() }).format(
-    p.unit_amount / 100
-  );
-  const per = p.interval === "year" ? "a year" : p.interval === "week" ? "a week" : p.interval === "day" ? "a day" : "a month";
-  return `${amount} ${per}`;
-}
-var BILLING_TEST_MODE_CLAUSE = "Billing is in test mode, so only Stripe's test cards work and no real money moves";
-var TRIAL_COVERS = "A phone number, texting and lead searches start with the plan.";
-var START_PLAN_WORDS = {
-  button: "Start my plan now",
-  busy: "Starting\u2026",
-  question: "Start your plan today?",
-  detail: (plan, card) => `Your free trial ends now, and ${plan || "the plan"} is charged to ${card || "your card on file"} today. A phone number, texting and lead searches open straight after.`,
-  yes: "Yes, start it",
-  no: "Not now",
-  started: "Your plan has started.",
-  /** Stripe took the trial's end but not the charge. */
-  unpaid: "Your plan started, but the charge did not go through. Update the card in Billing."
-};
-function toBillingVM(dto, nowMs = Date.now()) {
-  const a = dto.account;
-  const plan = priceWords(dto.price) ? `${dto.price?.product_name ? `${dto.price.product_name} \xB7 ` : ""}${priceWords(dto.price)}` : "";
-  const card = a?.card_brand && a.card_last4 ? `${a.card_brand.charAt(0).toUpperCase()}${a.card_brand.slice(1)} ending ${a.card_last4}` : null;
-  if (!a || a.mode === "direct") {
-    return {
-      mode: "direct",
-      status: a?.status ?? "active",
-      headline: "Direct arrangement",
-      detail: "This workspace runs on an arrangement made with Chanlytics; nothing on this screen charges anything.",
-      tone: "",
-      plan,
-      card: null,
-      actions: { checkout: false, portal: false, resume: false, startNow: false },
-      paused: false,
-      testMode: null
-    };
-  }
-  const s = a.status;
-  const base = {
-    mode: "stripe",
-    status: s,
-    plan,
-    card,
-    testMode: dto.livemode === false ? `${BILLING_TEST_MODE_CLAUSE}.` : null
-  };
-  switch (s) {
-    case "none":
-      return {
-        ...base,
-        headline: "No subscription yet",
-        detail: dto.ready ? trialOffer(dto.trial_days) : "Billing is not available on this deployment yet.",
-        tone: "warn",
-        actions: { checkout: dto.ready, portal: false, resume: false, startNow: false },
-        paused: false
-      };
-    case "trialing":
-      if (a.cancel_at || a.cancel_at_period_end) {
-        return {
-          ...base,
-          headline: "On trial, ending",
-          detail: `Cancelled: the receptionist answers until ${dayWords(a.cancel_at ?? a.trial_end) || "the trial ends"}, then stops, and nothing is charged. Undo it from Manage billing before then to keep it.`,
-          tone: "warn",
-          actions: { checkout: false, portal: true, resume: false, startNow: false },
-          paused: false
-        };
-      }
-      return {
-        ...base,
-        headline: "On trial",
-        detail: `${trialWords(a.trial_end, nowMs)}${card ? `, then ${plan || "the plan"} on ${card}` : ""}. ${TRIAL_COVERS}`,
-        tone: "ok",
-        // Its plan may start now, for what the trial does not cover (maySpend).
-        actions: { checkout: false, portal: true, resume: false, startNow: true },
-        paused: false
-      };
-    case "active":
-      return {
-        ...base,
-        headline: a.cancel_at_period_end || a.cancel_at ? "Subscribed, ending" : "Subscribed",
-        detail: a.cancel_at || a.cancel_at_period_end ? `Ends ${dayWords(a.cancel_at ?? a.current_period_end)}; the receptionist answers until then.` : `Next invoice ${dayWords(a.current_period_end) || "on the renewal date"}${card ? ` on ${card}` : ""}.`,
-        tone: "ok",
-        actions: { checkout: false, portal: true, resume: false, startNow: false },
-        paused: false
-      };
-    case "past_due":
-      return {
-        ...base,
-        headline: "Payment failed",
-        detail: `${a.last_payment_failed_at ? `The last charge failed ${agoWords(Date.parse(a.last_payment_failed_at), nowMs)}. ` : ""}Stripe retries for a few days; update the card in Manage billing to keep the receptionist answering.`,
-        tone: "danger",
-        actions: { checkout: false, portal: true, resume: false, startNow: false },
-        paused: false
-      };
-    case "incomplete":
-      return {
-        ...base,
-        headline: "Finishing checkout",
-        detail: "The first payment is still being confirmed. This page updates by itself.",
-        tone: "warn",
-        actions: { checkout: false, portal: true, resume: false, startNow: false },
-        paused: false
-      };
-    case "paused":
-      return {
-        ...base,
-        headline: "Paused",
-        detail: "The trial ended without a card on file. Add one in Manage billing, then resume; messages keep landing in the Inbox meanwhile.",
-        tone: "danger",
-        actions: { checkout: false, portal: true, resume: true, startNow: false },
-        paused: true
-      };
-    case "unpaid":
-      return {
-        ...base,
-        headline: "Paused",
-        detail: "Payment could not be collected after several tries. Update the card in Manage billing, then resume.",
-        tone: "danger",
-        actions: { checkout: false, portal: true, resume: true, startNow: false },
-        paused: true
-      };
-    case "canceled":
-    case "incomplete_expired":
-    default:
-      return {
-        ...base,
-        headline: "Subscription ended",
-        detail: dto.ready ? trialOffer(dto.trial_days, true) : "Billing is not available on this deployment yet.",
-        tone: "danger",
-        actions: { checkout: dto.ready, portal: !!a.card_brand, resume: false, startNow: false },
-        paused: true
-      };
-  }
-}
-function billingPill(vm) {
-  return receptionistOn(vm.status) ? { words: "Receptionist answering", tone: "ok" } : { words: "Receptionist paused", tone: "danger" };
-}
-var INVOICE_STATUS_WORDS = {
-  draft: "Draft",
-  open: "Not paid yet",
-  paid: "Paid",
-  uncollectible: "Could not be collected",
-  void: "Cancelled"
-};
-function invoiceStatusWords(status) {
-  if (!status) return "\u2014";
-  return Object.prototype.hasOwnProperty.call(INVOICE_STATUS_WORDS, status) ? INVOICE_STATUS_WORDS[status] ?? status : status;
-}
-var CHECKOUT_RETURNS = ["billing", "start"];
-var CHECKOUT_RETURN_ROUTE = { billing: "admin/billing", start: "start" };
-function isCheckoutReturn(v) {
-  return typeof v === "string" && CHECKOUT_RETURNS.includes(v);
-}
-var CHECKOUT_OUTCOME_WORDS = {
-  success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
-  cancel: "Checkout was closed before finishing; nothing was charged.",
-  portal: "Back from Stripe. Any change you made there shows here within a minute."
-};
-function moneyWords(amountCents, currency) {
-  try {
-    return numberFormat("en-US", { style: "currency", currency: currency.toUpperCase() }).format(amountCents / 100);
-  } catch {
-    return `${(amountCents / 100).toFixed(2)} ${currency.toUpperCase()}`;
-  }
-}
-function billingAccountDto(r2) {
-  return {
-    mode: r2.mode === "direct" ? "direct" : "stripe",
-    status: BILLING_STATUSES.includes(r2.status ?? "") ? r2.status : "none",
-    price_id: r2.price_id ?? null,
-    current_period_end: r2.current_period_end ?? null,
-    trial_end: r2.trial_end ?? null,
-    cancel_at: r2.cancel_at ?? null,
-    cancel_at_period_end: !!r2.cancel_at_period_end,
-    card_brand: r2.card_brand ?? null,
-    card_last4: r2.card_last4 ?? null,
-    last_payment_failed_at: r2.last_payment_failed_at ?? null,
-    last_paid_at: r2.last_paid_at ?? null,
-    updated_at: r2.updated_at
-  };
-}
-function pausedVoiceFacts(businessName) {
-  const name = (businessName ?? "").trim() || "this business";
-  return [
-    `You are answering the phone for ${name}. Their automated receptionist is paused right now, so you cannot help with bookings, prices, hours or questions today.`,
-    "Say so plainly and kindly, in the caller's language. Take the caller's name, their number and what they need, tell them someone from the business will call them back, and end the call politely.",
-    "Do not quote a price, do not book or reschedule anything, do not transfer the call, and do not promise a time for the call back."
-  ].join("\n");
-}
-
 // src/broadcasts/channels-standing.ts
 var CHANNELS_DOOR = "admin/integrations";
 var BILLING_DOOR = "admin/billing";
@@ -14980,6 +15220,9 @@ var BROADCAST_WORDS = {
 function runStoppedWords(was) {
   if (was === "sending") return "stops after this batch";
   return was === "pending_approval" ? "skipped \u2014 nothing will send" : "canceled \u2014 nothing will send";
+}
+function runApprovedTail(people, when) {
+  return `approved \u2014 ${people} ${people === 1 ? "person" : "people"}, ${when}`;
 }
 var RUN_WAITING_WORDS = "Waiting for your approval";
 function runsWaitingSentence(n) {
@@ -15422,7 +15665,7 @@ var LIFECYCLE_TOAST = {
    */
   approved: (name, people, when) => [
     { b: name },
-    ` approved \u2014 ${plural(people, "person", "people")}, ${when}`
+    ` ${runApprovedTail(people, when)}`
   ],
   /**
    * A run stopped from its line or its card: what the server stopped, by what the run was when it did (campaign-rooms.ts
@@ -17391,7 +17634,7 @@ var broadcastSpec = {
     const n = typeof d.recipient_count === "number" ? goesToOf({ recipient_count: d.recipient_count, left_out: leftOut2 }) : Number(pl.count ?? 0);
     const ahead = d.scheduled_ahead === true;
     const said = heardWords(leftOut2, true);
-    return `Broadcast \u201C${d.name ?? asText(pl.name)}\u201D \u2014 ${n} ${n === 1 ? "person" : "people"}, ${ahead ? "scheduled" : "sending now"}${said ? ` \xB7 ${said}` : ""}`;
+    return `Broadcast \u201C${d.name ?? asText(pl.name)}\u201D \u2014 ${n} ${n === 1 ? "person" : "people"}, ${ahead ? "scheduled" : SENDING_NOW_WORDS}${said ? ` \xB7 ${said}` : ""}`;
   },
   undo: {
     label: () => "Cancel it, if it has not finished",
@@ -17530,8 +17773,13 @@ function runGoes(pl, data) {
   const d = rec(data);
   const at3 = Date.parse(asText(d.scheduled_for));
   const from = Date.parse(asText(d.moved_from));
-  const tz = asText(pl.timezone);
-  return tz && Number.isFinite(at3) && Number.isFinite(from) ? `scheduled for ${clockWhen(at3, tz, from)} \u2014 messages go out ${SENDING_HOURS_WORDS.between} by your clock` : "sending now";
+  const tz = asText(pl.timezone) || "UTC";
+  const asked = Number.isFinite(from) ? from : at3;
+  return whenItGoes(
+    { scheduled_for: asText(d.scheduled_for) || null, moved_from: asText(d.moved_from) || null },
+    (ms2) => clockWhen(ms2, tz, asked),
+    asked
+  );
 }
 var skipped = (data) => {
   const was = rec(data).was;
@@ -17555,7 +17803,7 @@ var runSpec = {
     const name = asText(pl.name) || "The run";
     if (pl.verb !== "approve") return `${name} ${skipped(data)}`;
     const n = Number(rec(data).recipient_count ?? pl.people ?? 0);
-    return `${name} approved \u2014 ${plural(n, "person", "people")}, ${runGoes(pl, data)}`;
+    return `${name} ${runApprovedTail(n, runGoes(pl, data))}`;
   },
   // An approved run is canceled as a broadcast is; a skip has nothing to undo.
   undo: {
@@ -22707,7 +22955,7 @@ var RUN_FILTERS = [
   { id: "all", label: "All" },
   { id: "replied", label: "Replied" },
   { id: "held", label: "Held back" },
-  { id: "stopped", label: "Stopped" }
+  { id: "stopped", label: STOP_WORDS.mark }
 ];
 function consentAnswerWords(consent, purpose) {
   if (purpose === "email_marketing")
@@ -22977,11 +23225,11 @@ var saidYesFigure = (f) => ({
 });
 var stoppedFigure = (f) => ({
   id: "stopped",
-  label: "Asked to stop",
+  label: STOP_WORDS.heading,
   n: f.stopped.length,
   pct: pctOf(f, f.stopped.length),
-  sub: f.stopped.length > 0 ? answersWords(f.stopped, "opted_out") : "nobody asked to stop",
-  tone: f.stopped.length > 0 ? "warn" : "plain",
+  sub: f.stopped.length > 0 ? answersWords(f.stopped, "opted_out") : `nobody ${STOP_WORDS.short}`,
+  tone: STOP_WORDS.tone,
   bars: barsOf(
     f,
     f.stopped.map((r2) => r2.consent_at)
@@ -25173,7 +25421,7 @@ var emailsFactsOf = (n, forwarding) => ({
   held: n?.held ?? 0
 });
 function noticeRowOf(e, lastAgo) {
-  const needsYou = (words3) => ({ tone: "warn", label: "Needs you", words: words3 });
+  const needsYou = (words3) => ({ tone: "warn", label: CALENDAR_OWED_WORD, words: words3 });
   const last = `Last booking email ${lastAgo ?? "just now"}`;
   const step2 = bookingEmailsStep(e);
   if (step2 === "address") return needsYou("Needs a workspace email address");
@@ -32213,7 +32461,7 @@ var DEAL_OUTCOMES_TITLE = "What became of the proposals";
 var DEAL_OUTCOME_WORDS = {
   won: "Became clients",
   waiting: "Still waiting",
-  lost: "Passed"
+  lost: DEAL_STAGE_WORDS.lost
 };
 function cameFromSaid(key, n) {
   switch (key) {
@@ -32385,227 +32633,6 @@ function youJoinedWords(names3) {
   const list2 = names3.length < 3 ? names3.join(" and ") : `${names3.slice(0, -1).join(", ")} and ${names3[names3.length - 1]}`;
   return `You joined ${list2}`;
 }
-
-// src/lines/line-failure.ts
-function lineCredentialFailure(lastError) {
-  return !!lastError && /the line's credentials|missing from the vault/i.test(lastError);
-}
-var LINE_CREDENTIALS_SENTENCE = "the vault that keeps the line's credentials";
-
-// src/lines/registration-path.ts
-var REGISTRATION_PATHS = ["standard", "sole_proprietor"];
-function registrationPathOf(saved) {
-  if (!saved) return null;
-  return String(saved.ein ?? "").trim() ? "standard" : "sole_proprietor";
-}
-var SOLE_PROP_LIMITS = {
-  campaignsPerBrand: 1,
-  numbersPerCampaign: 1,
-  messagesPerSecond: 1,
-  perDayTMobile: 1e3,
-  perMinuteAtt: 15,
-  mobileUsesEver: 3,
-  emailUsesEver: 10,
-  addressUsesEver: 10
-};
-function grouped(n) {
-  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-}
-function soleProprietorLimits() {
-  const L2 = SOLE_PROP_LIMITS;
-  return [
-    `One number and one campaign: a second number cannot text on this registration.`,
-    `About ${L2.messagesPerSecond} message a second, so a hundred texts go out over a minute or two rather than at once.`,
-    `T-Mobile takes ${grouped(L2.perDayTMobile)} a day from you, AT&T ${L2.perMinuteAtt} a minute.`,
-    `The carriers text a code to your own mobile and you reply from that handset \u2014 there is no code to bring back here.`,
-    `That mobile can be used on ${L2.mobileUsesEver} of these registrations ever, across every provider; your email and address on ${L2.emailUsesEver} each. Only the carriers can count what you have already spent.`,
-    `It cannot be withdrawn once filed. If you get a tax id later, the standard registration is a new filing.`
-  ];
-}
-var REGISTRATION_QUESTION = {
-  title: "Does the business have a tax ID?",
-  sub: "It decides which registration the carriers run, and the two are not the same. Asked once.",
-  /** Said under the answers, because the narrow path is a real cost and the choice is permanent. */
-  nudge: "If there is an EIN, use it \u2014 none of the limits below apply to that registration."
-};
-var REGISTRATION_PATH_WORDS = {
-  standard: {
-    choice: "Yes, it has an EIN",
-    sub: "The usual registration. Nothing about your texting is capped.",
-    filed: "Registered as a business"
-  },
-  sole_proprietor: {
-    choice: "No, it is just me",
-    sub: "The carriers' registration for a one-person business. It works, and it is narrower.",
-    filed: "Registered as a sole proprietor"
-  }
-};
-var REGISTRATION_COST_WORDS = {
-  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
-  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second.`
-};
-
-// src/setup/setup.ts
-var PROVISIONING_DEADLINE_MS = 5 * MIN_MS;
-function lineStuckProvisioning(l, nowMs) {
-  if (!l || l.voice_state !== "provisioning") return false;
-  const since = Date.parse(l.state_since);
-  return Number.isFinite(since) && nowMs - since > PROVISIONING_DEADLINE_MS;
-}
-function lineRetryRefusal(l, nowMs) {
-  if (!l) return "no such line";
-  if (l.voice_state === "failed" && lineCredentialFailure(l.last_error))
-    return "the line's credentials could not be kept \u2014 a retry cannot help until a person at Chanlytics restores them, and we have been told";
-  if (l.voice_state === "failed") return null;
-  if (lineStuckProvisioning(l, nowMs)) return null;
-  return l.voice_state === "provisioning" ? "the line is still setting up \u2014 give it a few minutes, and it is retried automatically after that" : `the line is ${l.voice_state}, not failed`;
-}
-var LINE_STEP_WORDS = {
-  subaccount: "opening your account with the carrier",
-  number: "buying the number",
-  trunk: "connecting the number to the receptionist",
-  agent: "creating the receptionist",
-  import: "handing the number to the receptionist",
-  messaging: "setting up texting",
-  channel: "recording the line"
-};
-var SETUP_STATE_WORDS = {
-  not_started: "Not started",
-  waiting_you: "Waiting on you",
-  waiting_them: "Waiting on us",
-  ready: "Ready"
-};
-var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
-var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
-var MOCK_TEXTING_SENTENCE = "Texting is filed against a test registry, so nothing is delivered \u2014 a person at Chanlytics is filing it with the carriers for real.";
-var TEXTING_NEEDS_RECORD_SENTENCE = "Texting needs your business on record for the carriers \u2014 two minutes, once.";
-var TEXTING_NEEDS_RECORD_CLAUSE = "Texting needs your business on record for the carriers \u2014 two minutes, once, on Connections.";
-var BROKEN_CONFIG_WORDS = {
-  title: "This workspace's settings can't be read",
-  body: "Something saved in this workspace's configuration no longer passes the checks the receptionist runs before it answers, so the receptionist is silent and this form is closed \u2014 saving from here would replace what is still there. Chanlytics has to repair it.",
-  clause: "Your business settings could not be read, so the receptionist is silent until Chanlytics repairs them. Business lists what is wrong.",
-  /** The owner's one move on a configuration only Chanlytics can repair (S8): it said so, with no way to ask. */
-  ask: "Ask for a repair",
-  /** Once asked: when, and what happens next, on Setup's row and on the pane's card alike. */
-  requested: (at3, nowMs) => `Requested ${agoWords(Date.parse(at3), nowMs)} \u2014 a person at Chanlytics will repair them and reach you by email.`
-};
-var SETUP_REQUEST_KINDS = ["line", "port", "repair", "forwarding"];
-function textingWords(l) {
-  if (!l) return { sentence: "Texting is not available yet.", done: false };
-  if (l.reg_mock) return { sentence: MOCK_TEXTING_SENTENCE, done: false };
-  if (l.voice_state === "answering" && (!l.sms_state || l.sms_state === "none"))
-    return { sentence: TEXTING_NEEDS_RECORD_CLAUSE, done: false };
-  switch (l.sms_state) {
-    // Working, and on the narrow registration: the ceiling belongs in the same
-    // sentence as the good news, because the moment it bites is a broadcast
-    // that trickles out over minutes with no explanation anywhere in the
-    // product. `done` stays true -- it IS on, and there is nothing left to do.
-    case "active":
-      return { sentence: l.reg_sole_prop ? SOLE_PROP_TEXTING_SENTENCE : "Texting is on.", done: true };
-    case "approved":
-      return { sentence: "Your business is approved; one last check on the line is with the carriers.", done: false };
-    case "registering":
-      return { sentence: "Texting is with the carriers.", done: false };
-    // The state the pre-flight writes, which had no case here at all -- so a
-    // workspace stopped BEFORE anything was filed read the default, "Texting is
-    // not available yet", which says nothing about what is in the way and nothing
-    // about it being theirs to fix.
-    //
-    // It deliberately does NOT name the fault, for the same reason none of these
-    // do: this is one clause inside a composed Setup sentence, the reason can be a
-    // paragraph, and the owner's texting row on Connections renders `last_error`
-    // in full. What this has to do is stop saying "not available" about something
-    // that is waiting on them. It also cannot say "fill in your record" -- a
-    // record that is COMPLETE but names a different business than the workspace
-    // does trips the same state, and that fix is a rename, not a field.
-    case "needs_record":
-      return {
-        sentence: "Texting needs something on your business record put right \u2014 Connections says what.",
-        done: false
-      };
-    case "rejected":
-      return { sentence: "The carriers refused the texting registration.", done: false };
-    case "failed":
-      return { sentence: "The texting registration stopped; a person at Chanlytics has it.", done: false };
-    // The one state where the owner must act inside a day: the carriers texted
-    // their own mobile. Connections says it in full; Setup used to say "not
-    // available yet", which reads as nothing to do.
-    case "otp_waiting":
-      return {
-        sentence: "The carriers texted your mobile \u2014 reply to that message from the handset itself and texting switches on; the code lasts a day.",
-        done: false
-      };
-    case "hosting":
-      return { sentence: "Texting is with the carriers.", done: false };
-    default:
-      return { sentence: "Texting is not available yet.", done: false };
-  }
-}
-function activationWords(cap2, nowMs) {
-  if (cap2.live && cap2.activated) return `Activated ${agoWords(Date.parse(cap2.activated.at), nowMs)}`;
-  if (cap2.tested) return "Tested \u2014 activate it to say it is yours";
-  return "Not tested yet \u2014 try it from your own phone";
-}
-function rowContextOf(i, nowMs) {
-  const wa = i.channels.whatsapp;
-  const voice = i.channels.voice;
-  const waReady = wa.present && wa.active;
-  const voiceReady = voice.present && voice.active;
-  const answering = waReady || voiceReady;
-  const waNum = formatPhoneDisplay(wa.number) ?? "your number";
-  const voiceNum = formatPhoneDisplay(voice.number) ?? "your line";
-  const handoffNum = formatPhoneDisplay(i.business.handoff);
-  const lines = i.lines ?? { rows: [], ready: false, provider: null, costs: { local_number_month_usd: 1.15 } };
-  const canSpend = !i.billing || maySpend(i.billing.mode, i.billing.status);
-  const ownLine = lines.rows.find((l) => l.voice_state !== "none") ?? null;
-  const texting = textingWords(ownLine);
-  const lineNum = ownLine?.e164 ? formatPhoneDisplay(ownLine.e164) ?? ownLine.e164 : "your number";
-  return {
-    nowMs,
-    wa,
-    voice,
-    waReady,
-    voiceReady,
-    answering,
-    waNum,
-    voiceNum,
-    handoffNum,
-    lines,
-    canSpend,
-    ownLine,
-    texting,
-    lineNum
-  };
-}
-function setupLaterOf(view) {
-  const later = view && typeof view === "object" ? view.later : null;
-  if (!Array.isArray(later)) return [];
-  return [...new Set(later.filter((x) => typeof x === "string" && x.length > 0 && x.length <= 40))];
-}
-function setupPhoneWantOf(view) {
-  const phone = view && typeof view === "object" ? view.phone : null;
-  if (!phone || typeof phone !== "object") return null;
-  const { way, number: number2 } = phone;
-  if (way !== "keep" && way !== "move" || typeof number2 !== "string") return null;
-  const e164 = normalizePhone(number2);
-  return e164 ? { way, number: e164 } : null;
-}
-function forwardedLineOf(lines) {
-  return lines?.rows.find((l) => l.kind === "forwarded" && l.forwarding_state !== "none") ?? null;
-}
-var MOBILE_CARRIERS = ["verizon", "att", "tmobile"];
-function keptPhoneKind(line) {
-  if (!line) return null;
-  const carrier = line.forwarding?.carrier ?? null;
-  if (carrier === "office") return "office";
-  return carrier && MOBILE_CARRIERS.includes(carrier) ? "mobile" : "unknown";
-}
-var TRY_SKIPPED = "try-skipped";
-var KEEP_ROW = "keep";
-var SETUP_LATER_REFUSED = {
-  reading: "Setting up is still being read. Try again in a moment.",
-  unread: "What you put off could not be read just now, so nothing changed. Try again in a moment."
-};
 
 // src/shell/tone.ts
 var TONES = ["accent", "warn", "info", "ok", "danger", "plain"];
@@ -33342,14 +33369,17 @@ var DEAL_SHEET_WORDS = {
   gone: "This person is not in your workspace.",
   moved: "Their deal has moved on since this was opened. Close this and look again.",
   failed: "Could not record this.",
-  /** The stage's word a recorded move is said in. */
+  /**
+   * The stage's word a recorded move is said in: the stage's own (DEAL_STAGE_WORDS), so a sheet, a card and People say one
+   * word (the wiring's second audit, S9-9). An edit moves no stage, and says what it did.
+   */
   done: {
-    propose: "Proposal out",
+    propose: DEAL_STAGE_WORDS.proposed,
     edit: "Proposal saved",
-    again: "Proposal out",
-    won: "Client",
-    lost: "Passed",
-    ended: "Ended"
+    again: DEAL_STAGE_WORDS.proposed,
+    won: DEAL_STAGE_WORDS.won,
+    lost: DEAL_STAGE_WORDS.lost,
+    ended: DEAL_STAGE_WORDS.ended
   },
   /** A deal marked as passed, its lead words in the toast before the service (canvas A, M5), with Propose again. */
   passed: "Marked as passed",
@@ -41165,7 +41195,7 @@ function todayLateRunsSub(n) {
   return n ? `${n} run${n === 1 ? "" : "s"} too late to approve` : null;
 }
 function todayRunApproved(label, n, when) {
-  return { lead: label, rest: `approved: ${n} ${n === 1 ? "person" : "people"}, ${when}` };
+  return { lead: label, rest: runApprovedTail(n, when) };
 }
 
 // src/playbooks/lifecycle/lifecycle-tiles.ts
@@ -42834,7 +42864,10 @@ function needsCount(n) {
 }
 function sequenceWaitsNow(row2, days) {
   const batches = row2.needs.batches.filter(
-    (b) => runWaitsOnYou({ state: "pending_approval", playbook_id: b.step_id, run_for: b.run_for, audience: b.audience }, days)
+    (b) => runWaitsOnYou(
+      { state: "pending_approval", playbook_id: b.step_id, run_for: b.run_for, audience: b.audience },
+      days
+    )
   );
   if (batches.length === row2.needs.batches.length && batches.length === row2.needs.waiting) return row2;
   return {
@@ -50204,7 +50237,7 @@ function todayDay(cal, playbooks, people = null, max = TODAY_DAY_MAX) {
   const idx = cal.days.findIndex((d) => d.today);
   const picked = idx >= 0 ? cal.days.slice(idx, idx + 2) : [];
   const stateOf2 = new Map((people?.rows ?? []).map((r2) => [r2.id, r2.state]));
-  const item = (b, allDay, phase) => ({
+  const item = (b, dayKey2, allDay, phase) => ({
     id: b.id,
     start: allDay ? "All day" : clockLabel(b.t),
     time: b.time,
@@ -50215,7 +50248,8 @@ function todayDay(cal, playbooks, people = null, max = TODAY_DAY_MAX) {
     allDay,
     phase,
     flag: b.person ? FLAG_WORDS[stateOf2.get(b.person.id) ?? ""] ?? null : null,
-    said: markedOf(b)
+    said: markedOf(b),
+    to: visitDoor(dayKey2, b.visit?.id)
   });
   const frames = picked.map((d) => {
     const standing2 = (blocks) => blocks.filter((b) => visitStands(b.visit));
@@ -50231,9 +50265,9 @@ function todayDay(cal, playbooks, people = null, max = TODAY_DAY_MAX) {
           nextTaken = true;
         }
       }
-      return item(b, false, phase);
+      return item(b, d.key, false, phase);
     });
-    const items = [...standing2(d.allDay).map((b) => item(b, true, "later")), ...timed];
+    const items = [...standing2(d.allDay).map((b) => item(b, d.key, true, "later")), ...timed];
     const flagged = items.filter((i) => i.flag).length;
     const missed = items.filter((i) => i.said?.status === "missed").length;
     const booked = items.length - missed;
@@ -51574,7 +51608,7 @@ var ALERT_TOPICS = [
     key: "billing",
     group: "worth_knowing",
     title: "Your plan",
-    what: "A card declined, a trial ending, or the subscription ended and your receptionist's number is going back. Only the number going back is emailed.",
+    what: "A card declined, a trial ending, your receptionist paused, or the subscription ended and its number is going back. A declined card, a paused receptionist and the number going back are emailed.",
     email: "choice",
     phone: true,
     kinds: ["billing"]
@@ -54912,6 +54946,7 @@ export {
   HandoverResendSchema,
   HoursSchema,
   IDENTITY_ASSURANCES,
+  INBOX_BUCKET_WORDS,
   INSTRUCTIONS_MAX,
   INTENT_LABELS,
   INVOICE_STATUS_WORDS,
@@ -55553,6 +55588,7 @@ export {
   SELLS_BY_WORDS,
   SENDER_WORDS,
   SENDING_HOURS_WORDS,
+  SENDING_NOW_WORDS,
   SEND_DAY_FRAME,
   SEND_WHEN_WORDS,
   SEND_WINDOW_MARGIN_MIN,
@@ -55691,6 +55727,7 @@ export {
   VOICE_END_REASONS,
   WABA_FIELDS,
   WAITING_AFTER_DAYS,
+  WAITING_REASONS,
   WA_WINDOW_MS,
   WEEKDAY_KEYS,
   WEEK_MS,
@@ -56307,6 +56344,7 @@ export {
   inAppFrom,
   inLastSendingHour,
   inLocalWeek,
+  inboxBucketWord,
   inboxSlots,
   inboxTemplates,
   indexFeed,
@@ -57172,6 +57210,7 @@ export {
   rulesLine,
   rulesWithoutFieldsWords,
   runApprovalRefusal,
+  runApprovedTail,
   runCountsOf,
   runDayPassed,
   runDaysAt,
@@ -57572,6 +57611,7 @@ export {
   whatsappLineOf,
   whatsappOffersOpen,
   whatsappStoppedRunWords,
+  whenItGoes,
   whenLabel,
   whisperText,
   wholeDaysSince,

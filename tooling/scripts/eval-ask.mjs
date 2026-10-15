@@ -30,12 +30,13 @@
  * anything else is said as `skip <id> (needs …)` before a turn is spent, counted as skipped, and never run or failed,
  * and `--list` says each case's needs. The tokens: `calendar`, `no_calendar`; `offers_yes` (someone's yes to offers),
  * `no_offers_yes` (nobody's, which Campaigns' decline rests on); `offers_channel`, `offers_whatsapp`,
- * `no_offers_channel`; `live_call`; `deals_on`; `winback_seed`. A channel an offer can go by (`offers_channel`) is one
- * an offer's plan opens (contracts channelChoices with the marketing purpose): email set up for offers, or WhatsApp on a
- * number that sends and is outside +1 (`offers_whatsapp`, which holds offers_channel too), since Meta pauses offers to
- * US numbers. The nightly's workspace (e2e-workspace.mjs: no calendar, nobody's yes to offers, a +1 WhatsApp number and
- * no mailbox) holds `no_calendar,no_offers_channel,no_offers_yes`, and `winback_seed` once the Win-back's seed has been
- * run there.
+ * `no_offers_channel`; `live_call`; `deals_on`; `winback_seed`; `escalated_thread` (a thread an open escalation flags
+ * and nobody has, which the snooze between two turns moves: never the nightly's). A channel an offer can go by
+ * (`offers_channel`) is one an offer's plan opens (contracts channelChoices with the marketing purpose): email set up
+ * for offers, or WhatsApp on a number that sends and is outside +1 (`offers_whatsapp`, which holds offers_channel
+ * too), since Meta pauses offers to US numbers. The nightly's workspace (e2e-workspace.mjs: no calendar, nobody's yes
+ * to offers, a +1 WhatsApp number and no mailbox) holds `no_calendar,no_offers_channel,no_offers_yes`, and
+ * `winback_seed` once the Win-back's seed has been run there.
  *
  * A case may carry a second turn (`then`, eval-ask-context.mjs; the Phase 5 plan, PR 5.2), asked in the first turn's
  * thread once it has answered: its page resolved at its own clock and warmed again when it differs from turn 1's other
@@ -44,6 +45,12 @@
  * turn count turns; a must-never case passes only when both its turns passed on every repetition. A turn 2 that turn 1
  * left nothing to be asked in (no answer, a failed one, no thread, no card to name, too few items to open) is a failing
  * row that asked nothing.
+ *
+ * Between the turns, turn 1's first thread may be snoozed (`then.between: "snooze"`, snoozeThenAsk; the wiring's second
+ * audit, X5-4): a warm turn 2 then asks again, and is judged on not naming it (then.expect.omits_snoozed), since a warm
+ * turn replays turn 1's reads; the thread is woken in a `finally` once turn 2 has answered, read again, and said by hand
+ * when it still reads snoozed (exit 3, as a note not put back). Only a thread an open escalation flags
+ * (EVAL_WORKSPACE_HAS=escalated_thread), which a wake puts back to waiting on you.
  *
  * Between the turns, turn 1's card may be approved (`then.between: "approve"`, approveThenAsk): only a settings card
  * whose change is add_note, one note more for the receptionist, approved as the Line approves it (GET settings, the
@@ -83,6 +90,8 @@ import {
   ROW_SOURCES,
   announcement,
   approveThenAsk,
+  firstThreadNamed,
+  snoozeThenAsk,
   claimsWrite,
   contextFails,
   describeContext,
@@ -672,9 +681,40 @@ async function unrestored(back, at) {
 
 /** The note a card of turn 1's may write, from its approval until it is put back: what Ctrl+C must not leave behind. */
 let noteOut = null;
+/** The thread snoozed between the turns, from its snooze until it is woken: what Ctrl+C must not leave behind either. */
+let threadOut = null;
+
+/**
+ * A thread the eval snoozed and cannot know it woke: the run so far is saved, said with what to do by hand, and the run
+ * ends there, exit 3, as a note not put back does.
+ */
+async function unwoken(back, at) {
+  stopped = `a thread snoozed between the turns was not woken after ${at}: ${back.why}`;
+  const out = saveRun({ wake_failed: { at, why: back.why, thread: back.byHand } });
+  process.stderr.write(
+    `\nWAKE FAILED after ${at}: ${back.why}\n` +
+      `${back.byHand.who}'s thread (${back.byHand.id}) may still be snoozed, and nothing after it was asked.\n` +
+      `Wake it by hand from the Inbox's Snoozed list.\nThe run so far, and this, are saved in ${out}.\n`,
+  );
+  await quit(3);
+}
 /** Ctrl+C while a note was out: the note goes back as the turn in flight ends, and the run stops there. */
 let interrupted = false;
 process.on("SIGINT", () => {
+  if (threadOut) {
+    if (interrupted) {
+      process.stderr.write(
+        `\nStopped at once (Ctrl+C twice). ${threadOut.who}'s thread may still be snoozed: wake it from the Inbox's Snoozed.\n`,
+      );
+      return void quit(130);
+    }
+    interrupted = true;
+    process.stderr.write(
+      "\nStopping (Ctrl+C): the thread snoozed between the turns is woken as the turn in flight ends, then the run saves" +
+        " what it has. Ctrl+C again stops at once and leaves it snoozed.\n",
+    );
+    return undefined;
+  }
   if (!noteOut) {
     process.stderr.write("\nStopped (Ctrl+C). Nothing of the eval's is in the workspace's settings.\n");
     return void quit(130);
@@ -725,6 +765,8 @@ run: for (let rep = 1; rep <= REPS; rep++) {
     let between = null;
     // A note not put back, and what turn 2 threw (the runner's own fault: askTurn catches what a turn throws).
     let held = null;
+    // A thread snoozed between the turns and not woken.
+    let unwoke = null;
     let thrown = null;
     if (!why && two.between === "approve") {
       // A note is out from its approval until approveThenAsk has put it back, and Ctrl+C waits for that (above).
@@ -751,6 +793,31 @@ run: for (let rep = 1; rep <= REPS; rep++) {
           put_back: !held && b.back.undone,
           outcome_undone: held ? null : b.back.recorded,
         };
+    } else if (!why && two.between === "snooze") {
+      // A thread is snoozed from here until snoozeThenAsk has woken it, and Ctrl+C waits for that (above).
+      threadOut = firstThreadNamed(t1.final);
+      const b = await snoozeThenAsk(
+        io,
+        t1.final,
+        (snooze) => {
+          process.stderr.write(
+            `     snoozed ${snooze.who}'s thread (it was ${snooze.was}), woken once turn 2 has answered\n`,
+          );
+          // What turn 2 is judged against: the thread it should name nowhere (omitsSnoozed).
+          t1.snoozed = snooze;
+          return ask2();
+        },
+        () => interrupted,
+      );
+      threadOut = null;
+      ({ why, second } = b);
+      unwoke = b.back && !b.back.ok ? b.back : null;
+      thrown = b.error;
+      if (b.snooze)
+        between = {
+          snoozed: { id: b.snooze.id, who: b.snooze.who, was: b.snooze.was },
+          woken: unwoke ? false : !!b.back?.woken,
+        };
     } else if (!why) second = await ask2();
     const unasked = (fail) => rowOf(two, rep, 2, NOT_ASKED, null, { pass: false, fails: [fail], notes: [] });
     const row = why ? unasked(`not asked: ${why}`) : second ? second.row : unasked(`turn 2 threw: ${thrown?.message}`);
@@ -758,9 +825,10 @@ run: for (let rep = 1; rep <= REPS; rep++) {
     if (!second) said(row, NOT_ASKED, null);
     // The turn is kept before anything else: a note not put back ends the run here, with every turn spent saved.
     if (held) await unrestored(held, `${c.id} #${rep}`);
+    if (unwoke) await unwoken(unwoke, `${c.id} #${rep}`);
     if (thrown) throw thrown;
     if (interrupted) {
-      stopped = `stopped by Ctrl+C at ${c.id} · turn 2 #${rep}: the note was put back, and nothing after it was asked.`;
+      stopped = `stopped by Ctrl+C at ${c.id} · turn 2 #${rep}: what was out between the turns was put back, and nothing after it was asked.`;
       process.stderr.write(`STOP: ${stopped}\n`);
       break run;
     }

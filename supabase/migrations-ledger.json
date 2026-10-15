@@ -440,6 +440,7 @@
     "00435_a_calendar_link_that_stopped_answering.sql": "38b75300f1313cc30aaca31d61e641c5f8b1be2dc87b53f3c9c6fdb9160753c7",
     "00436_a_visit_change_says_who_made_it.sql": "fba9614a061c48ce2984d129ea768dd432691a31f116759400e149c2dd752b0b",
     "00437_a_teammate_who_leaves_is_told.sql": "35ce48decf1fc0016c0846207a13f1e1926f3768bbbfb54a6983093f9b134c10",
+    "00438_a_reply_from_the_business_app_settles_its_hold.sql": "d42cbc5a64a5553f70d69e388f371fdc36ec51a7ccb64c62ebf451220ff4534a",
     "00439_everything_that_sends_on_its_own_is_a_sequence.sql": "dedb3ec9b46a6c51cf6e523a54248b51671c912c1f48797fe5e1f1b830efcad6",
     "00440_one_loop_runs_every_sequence.sql": "e65479797f77c0e2b14ef51c3aa7ead2fb1b1d757e2e34a7faddcbd035932c74",
     "00441_a_sequence_is_read_and_changed_through_its_doors.sql": "dbe132c2c72d9b5ec5eedebbdce8da578ffda4e2b5e1836820c77632347d8426"

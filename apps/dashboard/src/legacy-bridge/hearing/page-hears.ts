@@ -35,7 +35,17 @@ export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCel
   // its own page comes back.
   // And the counts of the lists pinned here (surfaces/today/pins-surface.ts; R10): what the lists are made of moves them, heard
   // here, where they are drawn.
-  today: { today: true, reports_headline: true, reach_out_replies: true, setup: true, today_pins: true },
+  // And People's person: its rows are the steps due here and the names Worth a look gives (contracts yoursToFollowUp), so a
+  // customer who says STOP, is renamed, merged or erased is read again here, where a follow-up named them as someone to send to
+  // until People was opened (the wiring's second audit, W-visit-deal-5). A message or a hold on Today reads none of People.
+  today: {
+    today: true,
+    reports_headline: true,
+    reach_out_replies: true,
+    setup: true,
+    today_pins: true,
+    people: ["person"],
+  },
   inbox: { inbox: true },
   conversations: { conversations: true },
   live: { live: true },

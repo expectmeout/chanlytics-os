@@ -80,10 +80,17 @@ export const campaignResults = periodSurface({
   // counts who said yes and who asked to stop, by the unsubscribe link, a carrier's STOP or a teammate's hand (the wiring's
   // second audit, S3-2). A person made is no answer: only an update of one is heard (the feed tells it when an answer moved).
   // Heard on Campaigns alone. And the receipts its funnel's Delivered and Read count, once a run's receipts quieten (S3-5).
+  // And a deal won (counted once in the reach-outs' report) and the mailboxes a chain's emails left from (decision 0056).
   live: {
-    reads: ["conversation", "hold", "send", "reach_out", "person"],
+    reads: ["conversation", "hold", "send", "reach_out", "person", "deal", "channel"],
     fresh: "its-page",
     when: (c) => c.table !== "contacts" || c.event !== "INSERT",
+    omit: [
+      {
+        tables: ["lines", "capability_activations", "business_records"],
+        why: "it counts what each number and mailbox sent; a line's saga, an activation and the carriers' record are none of its figures",
+      },
+    ],
     debounceMs: 800,
     refreshOnMessageStatuses: COUNTED_RECEIPTS,
     receiptsQuietMs: RECEIPTS_QUIET_MS,

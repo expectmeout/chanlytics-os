@@ -99,7 +99,8 @@ const PersonDealStep = ({
     ) : null;
   }
   // Done says what every page says (step-done.tsx): "Step done · its words", with an Undo. Refused, nothing was written
-  // and the step the page holds may be the one that moved: People is read again, which this page hears (0047).
+  // and the step the page holds may be the one that moved: the person's page reads them again (person-real.tsx hears
+  // surface:clients and reloads the one person on screen).
   const done = () =>
     completeStep({
       personId: p.id,

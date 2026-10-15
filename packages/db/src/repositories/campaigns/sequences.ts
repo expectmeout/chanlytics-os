@@ -122,7 +122,7 @@ async function sequenceById(db: Db, id: string) {
 }
 
 /** A reader's answer as its rows: the readers answer JSON in the shape contracts names (sequence-dto.ts); none else. */
-function rowsOf<T>(data: unknown): T[] {
+function readerRowsOf<T>(data: unknown): T[] {
   return Array.isArray(data) ? data.filter((r): r is T => typeof r === "object" && r !== null) : [];
 }
 
@@ -133,14 +133,14 @@ export async function sequenceOverview(db: Db, tenantId: string, sequenceId?: st
     ...(sequenceId ? { p_sequence_id: sequenceId } : {}),
   });
   if (error) throw new Error(`cannot read the sequences: ${error.message}`);
-  return rowsOf<SequenceRowDto>(data);
+  return readerRowsOf<SequenceRowDto>(data);
 }
 
 /** A sequence's steps in their places, with what each sent in the last 30 days (00441 sequence_steps_of). */
 export async function sequenceStepsOf(db: Db, tenantId: string, sequenceId: string): Promise<SequenceStepDto[]> {
   const { data, error } = await db.rpc("sequence_steps_of", { p_tenant_id: tenantId, p_sequence_id: sequenceId });
   if (error) throw new Error(`cannot read the sequence's steps: ${error.message}`);
-  return rowsOf<SequenceStepDto>(data);
+  return readerRowsOf<SequenceStepDto>(data);
 }
 
 /** Who is in a sequence, by where they stand (00441 sequence_people). */

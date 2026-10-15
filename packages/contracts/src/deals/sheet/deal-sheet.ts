@@ -19,6 +19,7 @@ import {
   DEAL_LOST_REASON_WORDS,
   DEAL_PERS,
   DEAL_PER_WORDS,
+  DEAL_STAGE_WORDS,
   type DealLostReason,
   type DealPer,
   type DealStage,
@@ -96,14 +97,17 @@ export const DEAL_SHEET_WORDS = {
   gone: "This person is not in your workspace.",
   moved: "Their deal has moved on since this was opened. Close this and look again.",
   failed: "Could not record this.",
-  /** The stage's word a recorded move is said in. */
+  /**
+   * The stage's word a recorded move is said in: the stage's own (DEAL_STAGE_WORDS), so a sheet, a card and People say one
+   * word (the wiring's second audit, S9-9). An edit moves no stage, and says what it did.
+   */
   done: {
-    propose: "Proposal out",
+    propose: DEAL_STAGE_WORDS.proposed,
     edit: "Proposal saved",
-    again: "Proposal out",
-    won: "Client",
-    lost: "Passed",
-    ended: "Ended",
+    again: DEAL_STAGE_WORDS.proposed,
+    won: DEAL_STAGE_WORDS.won,
+    lost: DEAL_STAGE_WORDS.lost,
+    ended: DEAL_STAGE_WORDS.ended,
   } satisfies Record<DealSheetMode, string>,
   /** A deal marked as passed, its lead words in the toast before the service (canvas A, M5), with Propose again. */
   passed: "Marked as passed",

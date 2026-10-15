@@ -5,7 +5,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { resolvePerson } from "./people";
-import { withdrawAiDrafts } from "./control";
+import { settleByEcho, withdrawAiDrafts } from "./control";
 import {
   conversationPatch,
   normalizePhone,
@@ -647,6 +647,8 @@ export async function recordEchoAndPause(
     body: string | null;
     externalId: string | null;
     pausedUntilIso: string;
+    /** The hold reasons a typed reply settles (contracts WAITING_REASONS): its open holds of these are resolved (00438). */
+    settles: readonly string[];
   },
 ): Promise<boolean> {
   const phone = `+${p.customerPhoneDigits.replace(/^\+/, "")}`;
@@ -700,7 +702,8 @@ export async function recordEchoAndPause(
   // An echo carrying no id of its own cannot be told apart from its own replay,
   // so it still pauses -- a receptionist talking over the owner is the worse of
   // the two failures, and it is what this function exists to prevent.
-  if (error?.code === "23505" && p.externalId) return true;
+  // A redelivery still asks for the settle: the first try may have kept the echo and failed it (settleByEcho).
+  if (error?.code === "23505" && p.externalId) return settleByEcho(db, p);
   const { error: perr } = await db
     .from("conversations")
     .update(conversationPatch("owner_echo", { until: p.pausedUntilIso, now: new Date().toISOString() }))
@@ -726,7 +729,8 @@ export async function recordEchoAndPause(
   await emitEvent(db, p.tenantId, "conversation.owner_replied", "conversation", conv.id, { until: p.pausedUntilIso });
   // The pause landed. The words did only when their insert did: one the database refused comes again, and its
   // redelivery writes them (and the pause once more, from its own moment).
-  return !error;
+  if (error) return false;
+  return settleByEcho(db, p);
 }
 
 /**

@@ -355,6 +355,8 @@ function noteActs(c: Card) {
       done: markStepDone,
       say: flash,
       onUndone: () => c.onChanged(),
+      // Refused: the note may be one a teammate changed, so the page reads it again (S9-10).
+      onRefused: () => c.onChanged(),
     });
     setBusy(false);
     if (ok) c.onChanged();

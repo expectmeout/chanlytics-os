@@ -23,7 +23,7 @@ import assert from "node:assert/strict";
 import ts from "typescript";
 import { ratchet } from "../_ratchet.mjs";
 import { MEASURES, ROUTES } from "../_measures.mjs";
-import { parse, functionsIn, durationsIn } from "../_ast.mjs";
+import { parse, functionsIn, durationsIn, seedReadsOutsideADemo, needsHumanReads, resumesUnasked } from "../_ast.mjs";
 
 for (const m of MEASURES) ratchet(m);
 
@@ -54,6 +54,119 @@ test("the doors' measure reads the edge's doors and the dashboard's routes", () 
     ROUTES.filter((f) => f.startsWith("apps/dashboard/app/api/")).length >= 80,
     "the routes of the dashboard are read (every route under apps/dashboard/app/api)",
   );
+});
+
+// The seed measure on a module written for it (the wiring's second audit, X6-3): each line marked `yes` reads a demo's seeds
+// in a real session once per mark, and nothing else in it does: a read under a demo's condition (either side of a negation, an
+// `&&`, an `if`, after a guard that leaves outside a demo), a type, a property's own name, a module that is no seed.
+test("the seed measure counts a demo's seeds read outside a demo and nothing else", () => {
+  const lines = [
+    'import { inboxSample, peopleSample as people } from "./sample";',
+    'import { NEEDING_YOU } from "../inbox/sample/threads-needing-you";',
+    'import { EXAMPLE_READS } from "./examples";',
+    'import { DEMO_ADS } from "../demo-ads";',
+    'import { accountChecks } from "./ad-accounts-mock";',
+    'import type { SampleDay } from "./sample-clock";',
+    'import { realRows } from "./rows";',
+    "export const seeded = inboxSample; // yes",
+    "export const both = [people, NEEDING_YOU]; // yes yes",
+    "export const shown = { EXAMPLE_READS }; // yes",
+    "export const checks = (p) => accountChecks(p); // yes",
+    "export const cut = demoSession() ? DEMO_ADS : realRows();",
+    "export const kept = !demoSession() ? realRows() : people;",
+    "export const wrong = !demoSession() ? people : realRows(); // yes",
+    "export const flag = (demo) => demo && people;",
+    "export const either = (s) => !window.__DEMO_MODE || inboxSample;",
+    "export function read() { if (isDemoSession()) return people; return realRows(); }",
+    "export function guarded(id) { if (!demoSession() || id === null) return null; return NEEDING_YOU[0]; }",
+    "export function late(id) { if (id === null) return null; return NEEDING_YOU[0]; } // yes",
+    "export const day = (d: SampleDay) => d;",
+    "export const named = { inboxSample: 1 }.inboxSample;",
+    "export const rows = realRows();",
+  ];
+  const sf = ts.createSourceFile(
+    "surfaces/x/page.ts",
+    lines.join("\n"),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const marked = lines.reduce((n, l) => n + (l.match(/\byes\b/g) ?? []).length, 0);
+  assert.equal(seedReadsOutsideADemo(sf), marked);
+  const seed = ts.createSourceFile(
+    "surfaces/x/sample.ts",
+    lines.join("\n"),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  assert.equal(seedReadsOutsideADemo(seed), 0, "a seed module's own reads are its own");
+});
+
+/** A fixture's syntax tree, named as the file it stands for (a measure reads the name: a seed module, the standing rule). */
+const fixture = (file, lines) =>
+  ts.createSourceFile(
+    file,
+    lines.join("\n"),
+    ts.ScriptTarget.Latest,
+    true,
+    file.endsWith("x") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
+const marks = (lines) => lines.reduce((n, l) => n + (l.match(/\byes\b/g) ?? []).length, 0);
+
+// S9-1's class guard on a module written for it: each line marked `yes` compares the raw state once per mark, and nothing
+// else does: a write of the state, a type, a word in a sentence, another state compared.
+test("the needs_human measure counts comparisons with the raw state and nothing else", () => {
+  const lines = [
+    'const waits = rows.filter((r) => r.state === "needs_human"); // yes',
+    'if ("needs_human" !== c.state) skip(); // yes',
+    'switch (t.state) { case "needs_human": return true; } // yes',
+    'const q = db.from("conversations").eq("state", "needs_human"); // yes',
+    'const any = ["needs_human", "snoozed"].includes(s); // yes',
+    'const flagged = new Set(["needs_human"]); const ok = flagged.has(s);',
+    'const moved = { state: "needs_human", paused_until: until };',
+    'type State = "open" | "needs_human";',
+    'const said = "needs_human means a person was asked for";',
+    'const open = rows.filter((r) => r.state === "open");',
+    "const human = r.needs_human;",
+  ];
+  assert.equal(needsHumanReads(fixture("apps/dashboard/src/server/x.ts", lines)), marks(lines));
+  for (const own of [
+    "packages/contracts/src/conversations/standing.ts",
+    "apps/dashboard/src/surfaces/people/sample.ts",
+  ])
+    assert.equal(needsHumanReads(fixture(own, lines)), 0, `${own}: the rule's own, or a demo's seeds`);
+});
+
+// S9-2's class guard on modules written for it: a Resume sent on one tap counts; one sent from the question, or behind a
+// Resume act already answered (the Campaigns home's runner), does not; nor does another verb's resume.
+test("the resume measure counts a campaign's or a reach-out's Resume sent where nothing asks", () => {
+  const head = [
+    'import { playbooks as V } from "../playbooks/verbs";',
+    'import { reachOuts } from "../../campaigns/reach-out/surface";',
+    'import { verbs as ads } from "../ads/verbs";',
+  ];
+  const body = [
+    "const tap = () => V.resume(id); // yes",
+    "const R = reachOuts;",
+    "const chain = () => R.resume(root); // yes",
+    "const toggle = () => (paused ? reachOuts.resume(root) : reachOuts.pause(root)); // yes",
+    "const ad = () => ads.resume(adId);",
+    "const answered = (act) => { if (act.kind === 'resume') return V.resume(act.playbookId); };",
+    "const run = async (id) => { await V.resume(id); };",
+    "const onAct = (act) => { if (act.kind === 'open') go(); else if (act.kind === 'resume') void run(act.playbookId); };",
+    "const unanswered = async (id) => { await V.resume(id); }; // yes",
+    "const press = () => void unanswered(id);",
+  ];
+  const lines = [...head, ...body];
+  assert.equal(resumesUnasked(fixture("apps/dashboard/src/surfaces/x/page.tsx", lines)), marks(lines));
+  const asks = ['import { ResumeAct } from "../home/ledger/ledger-acts";', ...lines];
+  assert.equal(
+    resumesUnasked(fixture("apps/dashboard/src/surfaces/x/page.tsx", asks)),
+    0,
+    "a module that draws the question",
+  );
+  assert.equal(resumesUnasked(fixture("apps/dashboard/src/surfaces/x/page.tsx", body)), 0, "no verbs of a campaign's");
 });
 
 // The duration measure on a module written for it: each line marked `yes` holds one length of time written as a

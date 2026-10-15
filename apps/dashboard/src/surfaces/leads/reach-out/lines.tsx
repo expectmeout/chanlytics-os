@@ -9,8 +9,10 @@
  * "approve", and the role gate).
  */
 import { useEffect, useMemo, useReducer, useState } from "react";
+import { chainResumeOf } from "@chanlytics/contracts";
 import type { LeadPeekVM, OwnerSaidIntent, ReachOutLeadTimelineDto, ReachOutLeadsDto } from "@chanlytics/contracts";
 import { replies } from "@/legacy-bridge/reach-out/replies";
+import { ResumeAct } from "../../campaigns/home/ledger/ledger-acts";
 import { useReadAgain } from "../../campaigns/reach-out/read-again";
 import { RoSaidAsk, type SaidMore } from "../../campaigns/reach-out/said-ask";
 import { reachOuts } from "../../campaigns/reach-out/surface";
@@ -74,16 +76,20 @@ const roLeadsMoved = () => window.dispatchEvent(new CustomEvent("reach_out:leads
 
 /**
  * The strip under the finder's own, drawn by the finder's strip itself (LeadStrip) so the two read as one family: how it is
- * going (the chain's row on Playbooks), a run that waits, and Pause or Resume for a role that may.
+ * going (the chain's row on Playbooks), a run that waits, and Pause or Resume for a role that may. Resume asks first, in
+ * the words the chain's row and its drawer ask in (contracts chainResumeOf, the ledger's ResumeAct): here it was one tap
+ * (the wiring's second audit, S9-2). Pause is a press.
  */
 export const ReachOutLeadsStrip = ({ leads }: { leads: ReachOutLines | null }) => {
   const [toastNode, flash] = useLegacyToast();
   const [busy, setBusy] = useState(false);
   const s = leads ? reachOuts.stripOf(leads.dto) : null;
   if (!s || !leads || !leads.dto.lines) return toastNode;
-  const root = leads.dto.lines.chain.root_id;
-  const name = leads.dto.lines.chain.name;
+  const { chain } = leads.dto.lines;
+  const root = chain.root_id;
+  const name = chain.name;
   const mayToggle = canDo("approve");
+  const resume = s.toggle.pause ? null : chainResumeOf(chain);
   const vm = {
     state: s.running ? "running" : "",
     title: s.title,
@@ -93,23 +99,39 @@ export const ReachOutLeadsStrip = ({ leads }: { leads: ReachOutLines | null }) =
     actions: [
       ...(s.waiting ? [{ id: "waiting", label: s.waiting.label, primary: true }] : []),
       { id: "going", label: s.going.label },
-      ...(mayToggle ? [{ id: "toggle", label: s.toggle.label }] : []),
+      ...(mayToggle && !resume ? [{ id: "toggle", label: s.toggle.label }] : []),
     ],
   };
-  const onAction = async (id: string) => {
-    if (id === "going") return navigate(s.going.to);
-    if (id === "waiting" && s.waiting) return navigate(s.waiting.to);
-    if (id !== "toggle" || busy) return undefined;
+  const toggle = async () => {
+    if (busy) return;
     setBusy(true);
     const r = await (s.toggle.pause ? reachOuts.pause(root) : reachOuts.resume(root)).finally(() => setBusy(false));
     const RW = reachOuts.words.REACH_OUT_ROW_WORDS;
     flash(r && r.ok ? { tone: "ok", msg: s.toggle.pause ? RW.paused(name) : RW.resumed(name) } : refusalToast(r));
     roLeadsMoved();
+  };
+  const onAction = (id: string) => {
+    if (id === "going") return navigate(s.going.to);
+    if (id === "waiting" && s.waiting) return navigate(s.waiting.to);
+    if (id === "toggle") void toggle();
     return undefined;
   };
   return (
     <div data-testid="ro-leads-strip" data-state={s.running ? "running" : "paused"}>
-      <LeadStrip vm={vm} onAction={onAction} />
+      <LeadStrip
+        vm={vm}
+        onAction={onAction}
+        act={
+          mayToggle && resume ? (
+            <ResumeAct
+              act={resume}
+              onAct={() => void toggle()}
+              gated={busy ? { disabled: true } : gate("approve", "resume a reach-out")}
+              testid="strip-resume"
+            />
+          ) : null
+        }
+      />
       {toastNode}
     </div>
   );

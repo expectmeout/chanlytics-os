@@ -26,7 +26,8 @@ import {
   type SubscriptionFacts,
   MIN_MS,
 } from "../packages/contracts.js";
-import { keepAndPush, mendWarnings } from "../ops/notify.js";
+import { mendWarnings } from "../ops/notify.js";
+import { ringOnce, tellOnce } from "./billing-notices.js";
 import { logger, errField } from "../log.js";
 import { env } from "../env.js";
 import { dashboardOrigin } from "../dashboard-origin.js";
@@ -198,7 +199,7 @@ export async function tenantOf(
 }
 
 /**
- * One subscription reading, applied: the row, the switch, the bell, the
+ * One subscription reading, applied: the bell, the row, the switch, the
  * event. Idempotent — applying the same reading twice writes the same row
  * and rings nothing the second time, because the bell follows a CHANGE of
  * the receptionist's state.
@@ -229,6 +230,21 @@ export async function applySubscription(
     now.getTime(),
   );
   const plan = ended ? keptEnded(planned) : planned;
+  // The bell before the row (S6-12): told after it, a bell that could not be kept was lost, as the retry reads the row
+  // already moved and plans no change. It is kept under the change, not the delivery: the row's version this reading was
+  // planned against and the status it moves to. Stripe sends several events for one change within milliseconds, each
+  // reading the subscription afresh, so each plans the same move from the same row and finds the one bell kept; the
+  // compare-and-set below lets one of them write the row.
+  if (plan.bell) {
+    const key = `billing:${row.tenant_id}:${row.updated_at ?? "new"}:${facts.status}`;
+    // A pause is mailed too (tellOnce, S6-11): the receptionist stops answering. Its mail never holds the row back: a
+    // mail provider that is down must not leave a workspace answering on a plan that has stopped, so a mail still owed
+    // is said and the row is written; the bell and the phones are the notice that must be kept first.
+    if (plan.switched === "paused") {
+      const { mailOwed } = await tellOnce(db, row.tenant_id, plan.bell, key);
+      if (mailOwed) L.warn("billing_mail_owed", { source, status: facts.status });
+    } else await ringOnce(db, row.tenant_id, plan.bell, key);
+  }
   const customerId = idOf(sub.customer);
   // Written only if the row is still what this reading was planned against,
   // and with the switch it throws, in one write (00382): a death between the
@@ -249,15 +265,6 @@ export async function applySubscription(
     return { switched: null, status: facts.status };
   }
   if (ended && !PLAN_ENDED.has(facts.status)) await endLeftEmpty(sub.id, L);
-  if (plan.bell) {
-    await keepAndPush(row.tenant_id, {
-      kind: "billing",
-      title: plan.bell.title,
-      body: plan.bell.body,
-      route: "admin/billing",
-      about: null,
-    });
-  }
   await emitEvent(
     db,
     row.tenant_id,
@@ -750,45 +757,39 @@ export async function forgetEvent(db: Db, id: string, lease: string): Promise<vo
   if (error) logger({ hook: "stripe" }).error("stripe_event_unclaim_failed", { event_id: id, error: error.message });
 }
 
+/** A payment event, as its bells read it: what it says, what the invoice took (absent is a payment), and Stripe's id of it. */
+interface PaymentNote {
+  kind: "failed" | "paid";
+  amountPaid?: number;
+  /** The Stripe event: a bell it rings is kept once under it, so its retry tells nothing twice (S6-12). */
+  eventId: string;
+}
+
 /**
  * The bells a payment event rings, beside the row facts it keeps. A paid invoice that took no money (a trial's $0 first
  * invoice, a full discount) is not a payment and stamps nothing: last_paid_at says the workspace has paid, which
- * Billing shows and 0020 reads to decide whether a partner joining it earns. `amountPaid` absent is a payment.
+ * Billing shows and 0020 reads to decide whether a partner joining it earns. A declined card is mailed as well as rung
+ * (tellOnce, S6-11), once under the event; a bell not kept, or a mail still owed, is thrown, so Stripe's retry tells it,
+ * the mail alone when the bell was kept. Nothing waits on it here: the stamp is the same on every try.
  */
-export async function notePayment(
-  db: Db,
-  row: BillingRow,
-  kind: "failed" | "paid",
-  amountPaid?: number,
-  now = new Date(),
-): Promise<void> {
-  if (kind === "failed") {
+export async function notePayment(db: Db, row: BillingRow, p: PaymentNote, now = new Date()): Promise<void> {
+  if (p.kind === "failed") {
     await keepOnRow(db, row.tenant_id, { last_payment_failed_at: now.toISOString() });
-    await keepAndPush(row.tenant_id, {
-      kind: "billing",
-      title: "A payment did not go through",
-      body: "The card on file was declined. Stripe tries again over the next days; update the card from Billing to keep the receptionist answering.",
-      route: "admin/billing",
-      about: null,
-    });
+    const { mailOwed } = await tellOnce(
+      db,
+      row.tenant_id,
+      {
+        title: "A payment did not go through",
+        body: "The card on file was declined. Stripe tries again over the next days; update the card from Billing to keep the receptionist answering.",
+      },
+      `stripe:${p.eventId}`,
+    );
+    if (mailOwed) throw new Error("the declined card's mail did not go; it goes on the retry");
     await emitEvent(db, row.tenant_id, "billing.payment_failed", "subscription", null, {}).catch(() => {});
-  } else if (amountPaid === undefined || amountPaid > 0) {
+  } else if (p.amountPaid === undefined || p.amountPaid > 0) {
     await keepOnRow(db, row.tenant_id, { last_paid_at: now.toISOString() });
     await emitEvent(db, row.tenant_id, "billing.paid", "subscription", null, {}).catch(() => {});
     // A paid invoice mends "A payment did not go through" and the trial's warning (contracts NOTICE_MENDS).
     await mendWarnings(db, { tenantId: row.tenant_id, by: { change: "billing.paid" }, subject: null, keptId: null });
   }
-}
-
-export async function noteTrialEnding(db: Db, row: BillingRow, trialEnd: string | null): Promise<void> {
-  await emitEvent(db, row.tenant_id, "billing.trial_ending", "subscription", null, { trial_end: trialEnd }).catch(
-    () => {},
-  );
-  await keepAndPush(row.tenant_id, {
-    kind: "billing",
-    title: "Your trial ends in three days",
-    body: `The card on file is charged when the trial ends${trialEnd ? ` on ${new Date(trialEnd).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}. Cancel from Billing before then if you'd rather not.`,
-    route: "admin/billing",
-    about: null,
-  });
 }

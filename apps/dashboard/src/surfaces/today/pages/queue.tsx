@@ -36,7 +36,7 @@ import { TODAY_HELPERS } from "../helpers";
 import { appNavigate, doorGlyph, surfaceFailed, useMoved, useToast } from "../shell";
 import { useDayVm } from "./day";
 import { liveClock, useLiveNow } from "./live-now";
-import { broadcastsRead, runRows, runsPending, type Nav, type VerbKind } from "./queue-runs";
+import { broadcastsRead, runRows, runsPending, useRunsActing, type Nav, type VerbKind } from "./queue-runs";
 import { dueSteps, stepAct, stepDone, stepsLeft } from "./queue-steps";
 import { askedVisits, visitActs, visitSay, visitsLeft } from "./queue-visits";
 
@@ -288,6 +288,8 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
   const [done, setDone] = useState<readonly string[]>([]);
   // The visits marked here, gone from the card the same way while the Calendar is read again behind the verb.
   const [marked, setMarked] = useState<readonly string[]>([]);
+  // The runs with an Approve or a Cancel on its way: their buttons wait for the server (S9-10).
+  const acting = useRunsActing();
   const nav: Nav = (to) => appNavigate(to);
   // A handoff whose thread's reply to a reach-out was read is that reply's row (contracts withReplies, PR 8); a person's
   // next step come due is a row of its own, after everyone waiting (contracts withSteps, 0007), and so is each of
@@ -323,7 +325,7 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
     drawn: runs,
     count: runsCount,
     cut: runsCut,
-  } = runRows(nav, ppFlash, verbKind, Math.max(0, CARD_MAX - drawn.length));
+  } = runRows(nav, ppFlash, verbKind, { room: Math.max(0, CARD_MAX - drawn.length), acting });
   const parts = needsYouOnToday(vm, live);
   // What the card could not hold is counted, never dropped: the rows past the cap and the ones the view
   // model already counted for the Inbox are the same kind of thing to a reader. The PEOPLE among them, since the foot

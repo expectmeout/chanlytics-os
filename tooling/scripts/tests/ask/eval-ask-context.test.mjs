@@ -36,12 +36,14 @@ import {
   contextProblems,
   describeSecondTurn,
   dropsFirstScope,
+  firstThreadNamed,
   followUpFails,
   fromContext,
   jsonLines,
   namesCard,
   neededGets,
   notAsked,
+  omitsSnoozed,
   opensItem,
   ordinal,
   pageProblems,
@@ -52,6 +54,7 @@ import {
   secondTurn,
   setupCardsFails,
   skipFor,
+  snoozeThenAsk,
   toolsOrderNote,
   turnShapes,
   usageRows,
@@ -1108,8 +1111,10 @@ test("the case set: unique ids, every page built over the GETs' answers and plac
 });
 
 test("the case set's second turns (PR 5.2): ten new cases, each kind on two surfaces, and the eighty before them one turn", () => {
-  // Since 10 Oct 2026 a setup asked twice in one thread carries one too (the moment spec, A8: the next test's).
-  const twos = CASES.filter((c) => c.then && c.id !== "setup_again_same_thread");
+  // Since 10 Oct 2026 a setup asked twice in one thread carries one too (the moment spec, A8: the next test's), and since
+  // 15 Oct a thread snoozed between two warm turns (X5-4: its own tests, below).
+  const LATER = ["setup_again_same_thread", "needs_me_after_a_snooze"];
+  const twos = CASES.filter((c) => c.then && !LATER.includes(c.id));
   assert.equal(twos.length, 10);
   assert.ok(
     CASES.slice(0, 80).every((c) => !c.then),
@@ -1663,4 +1668,143 @@ test("card_fields_present and proposals_not (the review after the merge, batch E
   assert.deepEqual(setupCardsFails(barred, m(card("playbook", {}), card("broadcast", {}))), [
     "a playbook/broadcast card, which the words ruled out",
   ]);
+});
+
+/* ---- X5-4: a thread snoozed between two warm turns, judged and woken ---- */
+
+const DANA = { kind: "thread", id: U(91), label: "Dana Example", to: `inbox/${U(91)}` };
+const RIO = { kind: "thread", id: U(92), label: "Rio Example", to: `inbox/${U(92)}` };
+const needsMe = final({ text: "Dana Example and Rio Example need you.", items: [{ source: DANA }, { source: RIO }] });
+
+/** A thread door: GET a thread's state, snooze it, wake it; `hold` answers a key its way once, as the settings door's does. */
+function threadDoor({ state = "needs_human", hold = {} } = {}) {
+  const s = { state, calls: [], hold };
+  const answer = (status, data) =>
+    new Response(JSON.stringify(status < 400 ? { data } : { error: { code: "refused", message: data } }), { status });
+  const fetch = async (url, init = {}) => {
+    const u = new URL(url);
+    const key = `${init.method ?? "GET"} ${u.pathname}`;
+    s.calls.push({ key, body: init.body === undefined ? undefined : JSON.parse(init.body) });
+    const held = s.hold[key]?.shift();
+    if (held?.then) held.then(s);
+    if (held?.status) return answer(held.status, held.message);
+    if (key === `GET /api/v1/conversations/${DANA.id}`)
+      return answer(200, { conversation: { id: DANA.id, state: s.state } });
+    if (key === `POST /api/v1/conversations/${DANA.id}/snooze`)
+      return ((s.state = "snoozed"), answer(200, { state: "snoozed" }));
+    if (key === `POST /api/v1/conversations/${DANA.id}/wake`)
+      return ((s.state = "open"), answer(200, { state: "open" }));
+    return answer(404, "no such door");
+  };
+  const io = {
+    fetch,
+    at: (p) => `${ORIGIN}${p}?workspace=W`,
+    cookie: "sb-x-auth-token=1",
+    origin: ORIGIN,
+    now: () => 1000,
+    timeoutMs: 50,
+  };
+  return { s, io, keys: () => s.calls.map((c) => c.key) };
+}
+const READ = `GET /api/v1/conversations/${DANA.id}`;
+const SNOOZE = `POST /api/v1/conversations/${DANA.id}/snooze`;
+const WAKE = `POST /api/v1/conversations/${DANA.id}/wake`;
+
+test("X5-4's eval: the first thread turn 1 names is snoozed, turn 2 asked with it, and the thread woken and read again", async () => {
+  assert.deepEqual(firstThreadNamed(needsMe), { id: DANA.id, who: "Dana Example" }, "the first row its answer shows");
+  assert.equal(firstThreadNamed(final({ text: "Nobody." })), null);
+  const d = threadDoor();
+  let asked = null;
+  const r = await snoozeThenAsk(d.io, needsMe, async (snooze) => {
+    asked = { snooze, state: d.s.state };
+    return "turn 2";
+  });
+  assert.deepEqual(asked, { snooze: { id: DANA.id, who: "Dana Example", was: "needs_human" }, state: "snoozed" });
+  assert.deepEqual([r.why, r.second, r.stop, r.back], [null, "turn 2", false, { ok: true, woken: true }]);
+  assert.deepEqual(d.keys(), [READ, SNOOZE, READ, WAKE, READ], "read, snoozed, then read, woken and read again");
+  assert.equal(
+    new Date(d.s.calls[1].body.until).getTime(),
+    1000 + 2 * 3600 * 1000,
+    "snoozed past the turn, by the run's clock",
+  );
+  assert.equal(d.s.state, "open", "woken");
+});
+
+test("X5-4's eval: a thread that is not open or waiting is not snoozed; a refused snooze is not woken; a failed one is woken when it landed", async () => {
+  const archived = threadDoor({ state: "archived" });
+  const a = await snoozeThenAsk(archived.io, needsMe, async () => assert.fail("turn 2 is not asked"));
+  assert.match(a.why, /is archived, which a snooze does not move/);
+  assert.deepEqual(archived.keys(), [READ], "read, and nothing written");
+  const refused = threadDoor({ hold: { [SNOOZE]: [{ status: 409, message: "This thread is already snoozed." }] } });
+  const b = await snoozeThenAsk(refused.io, needsMe, async () => assert.fail("turn 2 is not asked"));
+  assert.match(b.why, /409: This thread is already snoozed/);
+  assert.deepEqual(refused.keys(), [READ, SNOOZE], "a refusal wrote nothing, so nothing is woken");
+  // The server failed, but the snooze landed: it reads snoozed, so it is woken all the same.
+  const landed = threadDoor({
+    hold: { [SNOOZE]: [{ status: 500, message: "upstream", then: (s) => (s.state = "snoozed") }] },
+  });
+  const c = await snoozeThenAsk(landed.io, needsMe, async () => assert.fail("turn 2 is not asked"));
+  assert.deepEqual([c.back, landed.s.state], [{ ok: true, woken: true }, "open"]);
+  // It failed and did not land: read, and nothing to wake.
+  const missed = threadDoor({ hold: { [SNOOZE]: [{ status: 500, message: "upstream" }] } });
+  const e = await snoozeThenAsk(missed.io, needsMe, async () => assert.fail("turn 2 is not asked"));
+  assert.deepEqual(e.back, { ok: true, woken: false });
+  assert.deepEqual(missed.keys(), [READ, SNOOZE, READ]);
+});
+
+test("X5-4's eval: the thread is woken whatever turn 2 did, and a thread that cannot be woken stops the run with what to do by hand", async () => {
+  const t = threadDoor();
+  const thrown = await snoozeThenAsk(t.io, needsMe, async () => {
+    throw new Error("turn 2 blew up");
+  });
+  assert.equal(thrown.error.message, "turn 2 blew up");
+  assert.deepEqual([thrown.back, t.s.state], [{ ok: true, woken: true }, "open"], "woken in the finally");
+  const stuck = threadDoor({ hold: { [WAKE]: [{ status: 500, message: "upstream" }] } });
+  const r = await snoozeThenAsk(stuck.io, needsMe, async () => "turn 2");
+  assert.deepEqual(
+    [r.back.ok, r.back.why, r.back.byHand, r.stop],
+    [false, "POST wake 500: upstream", { id: DANA.id, who: "Dana Example", was: "needs_human" }, true],
+  );
+  const stopped = threadDoor();
+  const s = await snoozeThenAsk(
+    stopped.io,
+    needsMe,
+    async () => assert.fail("not asked"),
+    () => true,
+  );
+  assert.deepEqual([s.why, s.stop, stopped.keys()], ["the run was stopped before it", true, []], "nothing written");
+});
+
+test("X5-4's eval: turn 2 names the snoozed thread nowhere -- no row, no citation, not who it is with -- and the case says so", () => {
+  const snoozed = { id: DANA.id, who: "Dana Example", was: "needs_human" };
+  const fresh = final({ text: "Rio Example needs you.", items: [{ source: RIO }] });
+  assert.deepEqual(omitsSnoozed(fresh, snoozed), []);
+  assert.deepEqual(omitsSnoozed(needsMe, snoozed), [
+    "the answer still names the thread snoozed between the turns, Dana Example's",
+    "the answer still says Dana, whose thread was snoozed between the turns",
+  ]);
+  assert.deepEqual(
+    omitsSnoozed(final({ text: "Danae Example needs you." }), snoozed),
+    [],
+    "a whole word, never inside another",
+  );
+  assert.deepEqual(omitsSnoozed(fresh, null), ["nothing was snoozed between the turns to look for"]);
+  const t1 = { threadId: U(70), snoozed };
+  assert.deepEqual(followUpFails({ omits_snoozed: true }, { threadId: U(70), final: fresh }, t1), []);
+  // The case is written as the runner asks it: it needs an escalated thread, and is judged by omits_snoozed.
+  const base = { id: "s", text: "who needs me right now?", surface: "today", expect: {} };
+  const then = { text: "and now?", between: "snooze", expect: { omits_snoozed: true } };
+  assert.deepEqual(pageProblems([{ ...base, needs: ["escalated_thread"], then }]), []);
+  assert.deepEqual(pageProblems([{ ...base, then: { ...then, expect: {} } }]), [
+    's: between: "snooze" snoozes a thread an open escalation flags: the case needs "escalated_thread"',
+    's: between: "snooze" is judged by then.expect.omits_snoozed',
+  ]);
+  const listed = CASES.find((c) => c.id === "needs_me_after_a_snooze");
+  assert.deepEqual([listed.then.between, listed.needs], ["snooze", ["escalated_thread"]], "the case the runner asks");
+  assert.match(announcement([listed], 2, 0.01), /2 thread\(s\) snoozed between the turns and woken/);
+  assert.equal(
+    skipFor(listed, ["no_calendar"]),
+    "skip needs_me_after_a_snooze (needs escalated_thread)",
+    "never on the nightly's workspace",
+  );
 });

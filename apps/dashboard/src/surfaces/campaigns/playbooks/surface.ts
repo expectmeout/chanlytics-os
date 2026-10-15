@@ -417,6 +417,8 @@ export const playbooksOverride: SurfaceOverride = {
       "send",
       "campaign",
       "list",
+      // A deal: an audience of proposals out, or of a yes since (reads-not-heard's owed, closed where the playbooks are drawn).
+      "deal",
     ],
     fresh: "its-page",
     always: ["send", "campaign"],

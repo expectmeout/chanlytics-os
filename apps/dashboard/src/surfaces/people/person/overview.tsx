@@ -59,6 +59,8 @@ function useRungActs(c: UpNextCtx) {
         done: markStepDone,
         say: c.flash,
         onUndone: () => c.load(),
+        // Refused: the step may be one a teammate changed, so the page reads them again (S9-10).
+        onRefused: () => c.load(),
       });
       setBusy(null);
       if (ok) c.load();

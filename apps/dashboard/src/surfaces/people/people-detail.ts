@@ -187,12 +187,22 @@ export const personOverride: SurfaceOverride = {
   key: "person",
   events: ["surface:person"],
   ...declareReads("person", {
-    reads: ["person", "hold", "call", "send", "campaign", "rules", "facts", "lead"],
+    // And the team, whose names say who wrote a note or took a step; and the mailbox a business's emails left from, named in its
+    // reach-out story (decision 0056).
+    reads: ["person", "hold", "call", "send", "campaign", "rules", "facts", "lead", "team", "channel"],
     fresh: "its-page",
     omit: [
       {
         tables: ["lead_searches", "lead_rounds", "lead_search_members"],
         why: "the page names the business a person works at (a lead); the searches that found leads, their rounds and members are Leads'",
+      },
+      {
+        tables: ["invitations"],
+        why: "the page names the members who wrote or took something; an invitation not yet taken names no one",
+      },
+      {
+        tables: ["tenant_channels", "lines", "mailboxes", "capability_activations", "business_records"],
+        why: "the page names the connected mailbox a business's emails left from; the numbers, the lines, the hosted mailbox, an activation and the carriers' record are Connections'",
       },
     ],
     // A row made now is not the person on screen, nor the business they work at: a lead run inserts leads every few seconds

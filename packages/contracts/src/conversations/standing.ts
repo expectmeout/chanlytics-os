@@ -62,6 +62,17 @@ export const HELD_WORDS = {
 export const NEEDS_YOU_WORD = "Needs you";
 
 /**
+ * The Inbox's three lists of real threads, as its tabs name them and as an open thread says it moved to one (the wiring's
+ * second audit, S9-9: the thread pane typed its own copy of the tabs' words).
+ */
+export const INBOX_BUCKET_WORDS = { escalated: NEEDS_YOU_WORD, done: "Handled", snoozed: "Snoozed" } as const;
+
+/** The list a thread's state puts it in, in the tabs' words; null for a state no tab lists. */
+export function inboxBucketWord(state: string): string | null {
+  return state === "escalated" || state === "done" || state === "snoozed" ? INBOX_BUCKET_WORDS[state] : null;
+}
+
+/**
  * The pill for a thread somebody has, once: the member looking has it ("You have it"), or a teammate does, by name where
  * the roster names them ("Ruben has it") and "A teammate has it" where it does not (the roster is unread, or they have left
  * the team). The Inbox's row and bar, Conversations' pill and People's Receptionist fact all say it through here, so one
@@ -93,7 +104,9 @@ export function standingOf(i: StandingInput, nowMs: number): StandingVerdict {
   const claimedByTeammate = !!i.assignee_user_id && i.assignee_is_me === false;
   // A pause with no escalation open is the one a person's own reply leaves
   // behind: the receptionist stepped back because someone answered. A pause
-  // WITH an escalation open is the receptionist waiting for that someone.
+  // WITH an escalation open is the receptionist waiting for that someone. A
+  // reply typed in the WhatsApp Business app settles the hold it answers too
+  // (00438), so its thread reads as yours, as a reply from the dashboard's does.
   const mine = !!i.assignee_user_id || (paused && !holds);
   const standing: Standing =
     i.state === "snoozed"

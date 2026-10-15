@@ -117,7 +117,7 @@ export { ABANDONED_MS, abandonedCall, callAttemptWords, missedCall, neverConnect
 export { callEndedWords, spokenDuration, toCallVM } from "./conversations/call-vm";
 export { CONVERSATION_MOVES, conversationPatch, conversationMoveAllowed } from "./conversations/conversation-moves";
 export { toConversationVM } from "./conversations/conversation-vm";
-export { ESCALATION_REASON_LABELS, ESCALATION_REASON_SHORT, ESCALATION_SUMMARIES, reasonShort, reasonLabelOf, reasonSummaryOf, ESCALATION_ACTS, HAND_BACK_REASONS, OPEN_HOLDS_READ_MAX, HOLD_ACT_WORDS, holdActOf, holdWaits, waitsOnAPerson } from "./conversations/escalations";
+export { ESCALATION_REASON_LABELS, ESCALATION_REASON_SHORT, ESCALATION_SUMMARIES, reasonShort, reasonLabelOf, reasonSummaryOf, ESCALATION_ACTS, HAND_BACK_REASONS, WAITING_REASONS, OPEN_HOLDS_READ_MAX, HOLD_ACT_WORDS, holdActOf, holdWaits, waitsOnAPerson } from "./conversations/escalations";
 export { REFERRAL_ID_MAX } from "./conversations/first-touch";
 export { HANDLED_OUTCOMES } from "./conversations/handled";
 export { threadStanding, conversationWaitsOnYou, threadsWaitingOnYou, threadWaitsOf, heldThreadIds, HELD_BY_ID_MAX, snoozedThreadWords, heldDraftWaits, toInboxThreadVM } from "./conversations/inbox-thread";
@@ -125,7 +125,7 @@ export { EMAIL_CLAIMS, isAutomatedSend, isPersonsWords, messageVia, messageAutho
 export { emailLeftOutOf, splitQuotedReply } from "./conversations/message-email";
 export { mediaKind, mediaVM } from "./conversations/message-media";
 export { messageStatusLabel, sendFailureWords, failureWordsOf, providerCodeOf, reachedCustomer, isHeldDraft, heldDraftOf, draftSendsAtMs, messageWords, messageText, clipAtWord } from "./conversations/message-words";
-export { standingOf, standingOfThread, replyWaitsOnYou, HELD_WORDS, NEEDS_YOU_WORD, heldPill, seenBy, isUnseen } from "./conversations/standing";
+export { standingOf, standingOfThread, replyWaitsOnYou, HELD_WORDS, NEEDS_YOU_WORD, INBOX_BUCKET_WORDS, inboxBucketWord, heldPill, seenBy, isUnseen } from "./conversations/standing";
 export { agentFor, answerWireOf, isChatMessage, isFromTheirSide, isTheirOwnWords, lastWroteOn, writtenChannelOf, threadChannelOf, threadChannelWords, THREAD_CHANNEL_WORDS } from "./conversations/thread-channel";
 export { shortTime, formatWaited } from "./conversations/thread-clock";
 export { contactName, isIdentifierName, shortName, contactMeta, initialsOf, personFaceOf, isEmailStopped, emailStoppedWords } from "./conversations/thread-contact";
@@ -260,7 +260,7 @@ export { heldBackOfOneRun, runReadingOf } from "./playbooks/playbook-run-split";
 export { planRun, localDate, localHour, nextOpenMoment, runDueNow, inLastSendingHour, scheduleLine, runsWords, nextRunLabel, campaignDayWords, campaignEnded, campaignRunsOn, effectiveMode, newCampaignTrialUntil, sendingEndsAt, trialDayWords } from "./playbooks/playbook-schedule";
 export { PLAYBOOK_BREATH_MS } from "./playbooks/playbook-time";
 export { isPlaybookTotalsDto } from "./playbooks/playbook-totals";
-export { triggerOf, triggerOffered, momentOffered, momentReadsCalendar, MOMENTS_RETIRED, isWinBack, triggerWords, winBackWords, policyClassOffered, PLAYBOOK_TRIGGERS, MOMENT_TRIGGERS, PLAYBOOK_STATES, isPlaybookState, PLAYBOOK_DEFAULTS, PLAYBOOK_HOURS, PLAYBOOK_LIMITS, PLAYBOOK_CAP_CHOICES, SENDING_HOURS_WORDS, sendsWaitWords, PLAYBOOK_VETO_DELAY_MS, PLAYBOOK_VETO_DELAY_WORDS, delayWords, vetoRunNotice, PLAYBOOK_NAME_MAX, CAMPAIGN_NOT_FOUND, REACH_OUT_IS_NOT_A_MOMENT } from "./playbooks/playbook-triggers";
+export { triggerOf, triggerOffered, momentOffered, momentReadsCalendar, MOMENTS_RETIRED, isWinBack, triggerWords, winBackWords, policyClassOffered, PLAYBOOK_TRIGGERS, MOMENT_TRIGGERS, PLAYBOOK_STATES, isPlaybookState, PLAYBOOK_DEFAULTS, PLAYBOOK_HOURS, PLAYBOOK_LIMITS, PLAYBOOK_CAP_CHOICES, SENDING_HOURS_WORDS, sendsWaitWords, SENDING_NOW_WORDS, whenItGoes, PLAYBOOK_VETO_DELAY_MS, PLAYBOOK_VETO_DELAY_WORDS, delayWords, vetoRunNotice, PLAYBOOK_NAME_MAX, CAMPAIGN_NOT_FOUND, REACH_OUT_IS_NOT_A_MOMENT } from "./playbooks/playbook-triggers";
 export { playbookListRef, proposalFactsFor, visitFactsFor, visitDayWord, LIST_PLAYBOOK_CLASSES } from "./playbooks/playbooks";
 export { weekHoursOf, DEFAULT_WEEK } from "./reach-out/lead-hours";
 export { mailtoOf, composeLinksOf } from "./reach-out/owner/compose";
@@ -336,7 +336,7 @@ export { MIN_MS, HOUR_MS, DAY_MS, WEEK_MS, jittered, spanUnits, spanLabel, waite
 export { finiteOrNull, finiteOrZero, trimmedOrNull, nonBlankOrNull, recordOrNull, lineOrNull } from "./shared/unknown";
 export { plural } from "./shared/words";
 export { routeOfPath, routeOfHash, routeOfAddress, movedAddress, workspacePath, appLink, doorOf, canonicalRoute, ROUTE_WORDS } from "./shell/address";
-export { CAMPAIGN_ROOMS, PLAYBOOK_DELETE_WORDS, NO_TEMPLATE_WORDS, noMessageWords, LIBRARY_WORDS, NEW_MESSAGE_WORDS, LIBRARY_STARTER_WORDS, BROADCAST_WORDS, runStoppedWords, RUN_WAITING_WORDS, runsWaitingSentence, heldEmailsWords, runStopWords, OFFERS_IN_WRITING_WORDS } from "./shell/campaign-rooms";
+export { CAMPAIGN_ROOMS, PLAYBOOK_DELETE_WORDS, NO_TEMPLATE_WORDS, noMessageWords, LIBRARY_WORDS, NEW_MESSAGE_WORDS, LIBRARY_STARTER_WORDS, BROADCAST_WORDS, runStoppedWords, runApprovedTail, RUN_WAITING_WORDS, runsWaitingSentence, heldEmailsWords, runStopWords, OFFERS_IN_WRITING_WORDS } from "./shell/campaign-rooms";
 export { nextThemePref, themeButtonWords, resolveTheme, themeColorOf, themeBootScript, inAppFrom, inAppBootScript, isTypingTarget, pageTitle, notFoundPageMetadata, shellStatusLine, shortcutGroups, toastShape, THEME_OPTIONS, isThemePref, DEFAULT_THEME_PREF, themePrefOf, LOOK_OPTIONS, isLookPref, DEFAULT_LOOK_PREF, lookPrefOf, LOOK_OFFERED, DEVICE_PREFS_STORAGE, THEME_COLORS, THEME_INK, THEME_COLOR_META, IN_APP_UA_RE, IN_APP_CLASS, APP_KEYS_RESIZE_CLASS, isSidebarPref, SHORTCUTS, TOAST_TONES, TOAST_MS, TOAST_UNDO_MS, TOAST_MIN_MS, TOAST_ICONS } from "./shell/chrome";
 export { CLIENT_ERROR_BOUNDARIES, CLIENT_ERROR_LIMITS, clientErrorOf } from "./shell/client-error";
 export { personInitials, identityWords, memberWords, cleanDisplayName, providerNameOf, invitationWords, joinedWords, youJoinedWords, TEAM_INVITE_DAYS, ROLE_WORDS, DISPLAY_NAME_MAX } from "./shell/identity";

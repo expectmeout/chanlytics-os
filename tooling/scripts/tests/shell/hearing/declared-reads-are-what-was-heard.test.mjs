@@ -94,6 +94,8 @@ const HEARD_BEFORE = {
     "tenant_channels",
     "lines",
     "google_listings",
+    // The visits the Business pane states, on its pages (reads-not-heard's owed, closed 15 October).
+    "appointments",
   ],
   // The channel rows, read once for every page that draws a number (R6: W-channel-team-plus-1, S3-1, S10-9).
   channels: ["tenant_channels"],
@@ -139,6 +141,10 @@ const HEARD_BEFORE = {
     // The text line and the mailbox its reach is counted against (R6: S3-3, W-channel-team-plus-3).
     "lines",
     "mailboxes",
+    // A call's start and end (its last contact and call count, never a turn) and the team who wrote a note or is a step's
+    // (reads-not-heard's owed, closed 15 October).
+    "calls",
+    "memberships",
   ],
   leads: ["leads", "lead_searches", "lead_rounds", "lead_search_members"],
   // Task 3.2 adds the calls the report counts (not a transcript turn) and the hours its "while closed" counts by.
@@ -172,15 +178,31 @@ const HEARD_BEFORE = {
     "contacts",
     // A template's verdict, which its tile counts (W-campaign-run-template-reachout-10).
     "templates",
+    // The hosted mailbox a reach-out may write from, and a deal won (reads-not-heard's owed, closed 15 October).
+    "mailboxes",
+    "deals",
   ],
   // Its line is the channels read's, which it follows (R6).
   live: ["calls"],
-  broadcasts: [...SENT_PAGE, "sequence_batches"],
-  playbooks: [...COMPOSER_PAGE, "sequence_batches", "sequences", "sequence_steps"],
-  // And the rule that is a chain's mode (W-review-facts-rules-8).
-  reach_outs: ["sequences", "sequence_steps", "sequence_batches", "sequence_replies", "policies"],
-  // A person's answer, by an update of them (the wiring's second audit, S3-2).
-  campaign_results: ["messages", "conversations", "escalations", "sequence_batches", "sequence_replies", "contacts"],
+  // And a deal an audience names, and the team the people read names; the playbooks a deal (owed, closed 15 October).
+  broadcasts: [...SENT_PAGE, "sequence_batches", "deals", "memberships"],
+  playbooks: [...COMPOSER_PAGE, "sequence_batches", "sequences", "sequence_steps", "deals"],
+  // And the rule that is a chain's mode (W-review-facts-rules-8); a chain's templates and a lead's deal won (owed, closed).
+  reach_outs: ["sequences", "sequence_steps", "sequence_batches", "sequence_replies", "policies", "templates", "deals"],
+  // A person's answer, by an update of them (the wiring's second audit, S3-2). And a deal won and the numbers and mailboxes the
+  // reach-outs counted left from (owed, closed 15 October).
+  campaign_results: [
+    "messages",
+    "conversations",
+    "escalations",
+    "sequence_batches",
+    "sequence_replies",
+    "contacts",
+    "deals",
+    "tenant_channels",
+    "mailboxes",
+    "mailbox_connections",
+  ],
   // Campaigns › Sequences (decision 0060), declared as it arrived: a sequence and its steps, its batches, a lead's reply and a
   // customer's (the messages), the rule that says who approves, the workspace's word and clock, and the list or the search it
   // starts on.
@@ -196,7 +218,8 @@ const HEARD_BEFORE = {
     "segments",
     "lead_searches",
   ],
-  reach_out_replies: ["sequence_replies"],
+  // And the mailbox a reply came to (decision 0056; owed, closed 15 October).
+  reach_out_replies: ["sequence_replies", "mailboxes", "mailbox_connections"],
   partner: [],
   alerts: [],
   // And the person a visit is (W-person-list-lead-6): an update of them, never a person made.
@@ -254,6 +277,7 @@ const HEARD_BEFORE = {
   billing: ["billing_accounts"],
   // A person's page, a surface of its own since the wiring's second audit (R5): what the page draws of them that People hears on
   // its own list alone, read for the one person on screen (people-detail.ts personOverride).
+  // And the team who wrote or took something, and the connected mailbox a business's emails left from (owed, closed 15 October).
   person: [
     "contacts",
     "escalations",
@@ -264,6 +288,8 @@ const HEARD_BEFORE = {
     "policies",
     "tenant_config",
     "leads",
+    "memberships",
+    "mailbox_connections",
   ],
 };
 
@@ -292,9 +318,12 @@ const ON_ITS_PAGE_BEFORE = {
     // The text line and the mailbox its reach is counted against (R6).
     "lines",
     "mailboxes",
+    // A call's start and end, and the team (owed, closed 15 October).
+    "calls",
+    "memberships",
   ],
-  broadcasts: SENT_PAGE,
-  playbooks: COMPOSER_PAGE,
+  broadcasts: [...SENT_PAGE, "deals", "memberships"],
+  playbooks: [...COMPOSER_PAGE, "deals"],
   reports: HEARD_BEFORE.reports,
   reports_headline: HEARD_BEFORE.reports_headline,
   reports_receptionist: HEARD_BEFORE.reports_receptionist,
@@ -309,7 +338,15 @@ const ON_ITS_PAGE_BEFORE = {
   today_pins: HEARD_BEFORE.today_pins,
   // The Library's counts, on the Library and Settings' panes (W-campaign-run-template-reachout-2), and the Business pane's facts
   // (R6).
-  settings: ["sequences", "sequence_steps", "sequence_batches", "tenant_channels", "lines", "google_listings"],
+  settings: [
+    "sequences",
+    "sequence_steps",
+    "sequence_batches",
+    "tenant_channels",
+    "lines",
+    "google_listings",
+    "appointments",
+  ],
   // A search's rows and strip, on Leads' scope (S10-5).
   leads: HEARD_BEFORE.leads,
   // What Setup's rows state, on Start and Today's card (S4-3).

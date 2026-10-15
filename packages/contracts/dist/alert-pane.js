@@ -284,7 +284,7 @@ var ALERT_TOPICS = [
     key: "billing",
     group: "worth_knowing",
     title: "Your plan",
-    what: "A card declined, a trial ending, or the subscription ended and your receptionist's number is going back. Only the number going back is emailed.",
+    what: "A card declined, a trial ending, your receptionist paused, or the subscription ended and its number is going back. A declined card, a paused receptionist and the number going back are emailed.",
     email: "choice",
     phone: true,
     kinds: ["billing"]

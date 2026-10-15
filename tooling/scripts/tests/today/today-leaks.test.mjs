@@ -914,8 +914,8 @@ test("the sentences the queue and the card say about a playbook's run come from 
   assert.equal(todayRunsSub(0), null);
   assert.deepEqual(
     todayRunApproved("Win-back", 3, "sending now"),
-    { lead: "Win-back", rest: "approved: 3 people, sending now" },
-    "the name apart, for the page to set in bold",
+    { lead: "Win-back", rest: "approved — 3 people, sending now" },
+    "the name apart, for the page to set in bold; the rest is the one tail every approval says (runApprovedTail, S9-10)",
   );
 });
 

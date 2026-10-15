@@ -3,12 +3,14 @@
  * receptionist next has time -- three facts the page already holds (the Live surface, the day's own view model), in
  * one row of cells across the page. Classic draws none of it: the call rides above the queue there (queue.tsx
  * LiveRail) and the day's card says the rest. Drawn by the Glass composition alone (today-page.tsx), and nothing at
- * all with no call up, no calendar and no opening to say. The next appointment is a fact here, not a door: the day is
- * the Calendar's, which the rail opens (E3 draws no day pane). The call's cell is E3's: the dot, "On the line", the
- * clock, the bars that move while it lasts, and Listen in; the caller's name is the button's label for a reader.
+ * all with no call up, no calendar and no opening to say. The next appointment is drawn as E3 draws it, and opens the
+ * appointment it names (its record, else its day on the Calendar): every link to a visit opens it (the wiring's second
+ * audit, S9-7), and E3 draws no day pane. The call's cell is E3's: the dot, "On the line", the clock, the bars that move
+ * while it lasts, and Listen in; the caller's name is the button's label for a reader.
  */
 import type { TodayDayItemVM } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
+import { routeDoor } from "../../legacy-verbs";
 import { usePartShown, useSurface } from "../../use-surface";
 import { appNavigate } from "../shell";
 import { useDayVm } from "./day";
@@ -67,12 +69,17 @@ export const TodayStrip = () => {
         </div>
       )}
       {next && (
-        <div className="ts-cell ts-next" data-testid="today-strip-next">
+        <a
+          className="ts-cell ts-next"
+          {...routeDoor(next.to)}
+          title={`Open ${next.person ? next.person.name : next.service || "it"} on the Calendar`}
+          data-testid="today-strip-next"
+        >
           <span className="ts-eyebrow">{phase}</span>
           <span className="ts-words" data-phase={phase}>
             <b>{next.start}</b> <span className="ts-rest">{nextRest(next)}</span>
           </span>
-        </div>
+        </a>
       )}
       {(opening || closed) && (
         <div className="ts-cell ts-open" data-testid="today-strip-open">
