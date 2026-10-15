@@ -219,7 +219,7 @@ const VISIT_ID_WORDS = [
 ];
 const PERSON_VISIT_IDS_WORDS = [
   "their conversations and calls with ids, their timeline,",
-  "their conversations and calls with ids, their next and last visits' ids, their timeline,",
+  "their conversations and calls with ids, their next and last appointments' ids, their timeline,",
 ];
 const REVIEW_ROWS_WORDS = [
   "hold a reply the receptionist wrote and did not post);",

@@ -41,7 +41,7 @@ export type AskCitationKind = (typeof ASK_CITATION_KINDS)[number];
 
 /** The rows an answer's items may name, in words: said once, by the prompt's rules and the format's items alike. */
 export const ASK_ROW_WORDS =
-  "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, mailboxes, visits, reviews";
+  "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, mailboxes, appointments, reviews";
 
 export interface AskCitation {
   kind: AskCitationKind;

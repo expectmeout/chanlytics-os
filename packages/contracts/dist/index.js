@@ -14197,7 +14197,7 @@ var ASK_CITATION_KINDS = [
   "visit",
   "review"
 ];
-var ASK_ROW_WORDS = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, mailboxes, visits, reviews";
+var ASK_ROW_WORDS = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, mailboxes, appointments, reviews";
 function emptyReadSet() {
   return Object.fromEntries(
     ASK_CITATION_KINDS.filter((k) => k !== "page").map((k) => [k, /* @__PURE__ */ new Map()])
@@ -20987,7 +20987,7 @@ var KIND_WORDS = {
     playbook: "Campaign",
     template: "Template",
     mailbox: "Mailbox",
-    visit: "Visit",
+    visit: "Appointment",
     review: "Review"
   },
   es: {

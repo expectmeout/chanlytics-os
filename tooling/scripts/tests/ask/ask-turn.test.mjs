@@ -7138,7 +7138,7 @@ test("fifteen names move five spans of the request (PR 4.2; a visit and a review
     assert.ok(source.description.includes("(a page's id is its route; a run is kind broadcast)"), source.description);
   }
   const every =
-    "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, mailboxes, visits, reviews";
+    "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, mailboxes, appointments, reviews";
   assert.equal(ASK_ROW_WORDS, every, "the rows an answer's items may name, said once");
   assert.ok(
     show.properties.items.description.startsWith(`The rows the answer names (${every}), at most 5;`),

@@ -21675,7 +21675,7 @@ declare function callsToday(calls: FastCall[], now: number, tz?: string | null):
 declare const ASK_CITATION_KINDS: readonly ["thread", "conversation", "call", "person", "page", "lead", "search", "deal", "list", "broadcast", "playbook", "template", "mailbox", "visit", "review"];
 type AskCitationKind = (typeof ASK_CITATION_KINDS)[number];
 /** The rows an answer's items may name, in words: said once, by the prompt's rules and the format's items alike. */
-declare const ASK_ROW_WORDS = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, mailboxes, visits, reviews";
+declare const ASK_ROW_WORDS = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, mailboxes, appointments, reviews";
 interface AskCitation {
     kind: AskCitationKind;
     /** A row's id as its reader gave it (a People list's is its name, `quiet`); for a page, its route. */
@@ -22952,7 +22952,7 @@ declare const ASK_ANSWER_FORMAT: {
                 };
                 readonly items: {
                     readonly type: "array";
-                    readonly description: "The rows the answer names (people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, mailboxes, visits, reviews), at most 5; empty when it names none. Each opens its row.";
+                    readonly description: "The rows the answer names (people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, mailboxes, appointments, reviews), at most 5; empty when it names none. Each opens its row.";
                     readonly items: {
                         readonly type: "object";
                         readonly properties: {
