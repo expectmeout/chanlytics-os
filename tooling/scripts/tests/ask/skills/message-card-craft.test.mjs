@@ -1,5 +1,5 @@
 /**
- * The customer message writer behind Ask's message card (propose_campaign's action message, and a plan's message step,
+ * The customer message writer behind Ask's message card (propose_sequence's action message, and a plan's message step,
  * which is built by the same action): once Ask's own versions pass every check the card makes, the skill writes them
  * again in the turn's time left, and the card quotes and files its words where they pass the skill's checks and the
  * door's; anywhere else it keeps Ask's, the first draft, as before the skill. One craft call: the skill's purpose, its
@@ -146,7 +146,7 @@ function contextOf(tables, ago = 1_000) {
 }
 
 async function propose(input = ASKED, { tables = world(), ago } = {}) {
-  return buildProposal(contextOf(tables, ago), "propose_campaign", { action: "message", ...input });
+  return buildProposal(contextOf(tables, ago), "propose_sequence", { action: "message", ...input });
 }
 
 test("the skill writes the card's words: one craft call at high effort, and the card quotes and files what it wrote", async () => {

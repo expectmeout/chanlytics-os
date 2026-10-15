@@ -153,7 +153,7 @@ export const CUSTOMER_MESSAGE_SKILL: AskSkill<"customer_message"> = {
     },
   ],
   guide: [
-    "propose_campaign's action message (and a plan's message) is rewritten by this skill before its card is shown: the versions you write are its first draft.",
+    "propose_sequence's action message (and a plan's message) is rewritten by this skill before its card is shown: the versions you write are its first draft.",
     "Spend your care on the facts: the offer in the owner's own words and figures, its days, who it is for. Never a price, a discount or a date they did not give.",
     "Decide its kind: marketing for an offer, news or an invitation; utility only for their own booking, order or account, and it promotes nothing.",
     "Choose its channels and values: WhatsApp and email for an offer, never a text; first_name to greet, booking_link or review_link for the one call to act.",

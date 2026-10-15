@@ -41,7 +41,7 @@ test("an old name is rewritten to its tool and action, once; a name neither old 
   assert.equal(once.changed, 3);
   assert.deepEqual(once.cases, [
     { id: "a", expect: { tools_any: ["today", "inbox.list", "inbox.thread"], no_write: true } },
-    { id: "b", expect: { tools_also_any: ["propose_campaign.broadcast"] } },
+    { id: "b", expect: { tools_also_any: ["propose_sequence.once"] } },
     { id: "c", text: "no tools here" },
   ]);
   assert.deepEqual(renameCases(once.cases).changed, 0, "idempotent");
@@ -75,13 +75,13 @@ test("a setup's tools_order (the moment spec, A8: a note's names) is rewritten t
   const setup = {
     id: "s",
     text: "set up my campaigns",
-    expect: { tools_any: ["campaigns.playbooks"], tools_order: ["list_playbooks", "propose_playbook"] },
+    expect: { tools_any: ["sequences.moments"], tools_order: ["list_playbooks", "propose_playbook"] },
   };
   const once = renameCases([setup]);
   assert.deepEqual([once.changed, once.unknown], [2, []]);
-  assert.deepEqual(once.cases[0].expect.tools_order, ["campaigns.playbooks", "propose_campaign.playbook"]);
+  assert.deepEqual(once.cases[0].expect.tools_order, ["sequences.moments", "propose_sequence.moment"]);
   assert.equal(renameCases(once.cases).changed, 0, "idempotent");
-  const bad = renameCases([{ id: "o", expect: { tools_order: ["campaigns.playbooks", "teleport"] } }]);
+  const bad = renameCases([{ id: "o", expect: { tools_order: ["sequences.moments", "teleport"] } }]);
   assert.deepEqual(bad.unknown, ["o: teleport"]);
 });
 
@@ -91,7 +91,7 @@ test("the judge reads both sides through the table: an old name in a case matche
   assert.equal(toolNow("teleport"), "teleport");
   assert.equal(usedAny(["list_threads"], ["inbox.list"]), true, "an old case, a turn since");
   assert.equal(usedAny(["inbox.list"], ["list_threads"]), true, "a new case, a turn stored before");
-  assert.equal(usedAny(["propose_playbook"], ["propose_campaign.playbook"]), true);
+  assert.equal(usedAny(["propose_playbook"], ["propose_sequence.moment"]), true);
   assert.equal(usedAny(["inbox.thread"], ["inbox.list"]), false, "list is not thread");
   assert.equal(usedAny(["get_thread"], ["inbox"]), false, "a call that named no action is not one that did");
   assert.equal(usedAny(["today"], undefined), false, "no tools recorded, none used");

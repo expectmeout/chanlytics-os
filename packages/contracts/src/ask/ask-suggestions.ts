@@ -80,6 +80,8 @@ const T = {
     rules: "What can the receptionist do on its own?",
     hours: "What are our hours this week?",
     brief: "Brief me on today",
+    next: "What should I do next?",
+    can: "What can you do for me?",
     proposals: "Who has a proposal out?",
     setupLeft: "What is left to set up?",
     moreLike: "Find more like: {asked}",
@@ -93,8 +95,6 @@ const T = {
     actCloseQ: "Close on ",
     actHours: "Change a day's hours",
     actHoursQ: "Change Saturday's hours to ",
-    actInvite: "Invite a teammate",
-    actInviteQ: "Invite ",
     actOffer: "Send an offer to a list",
     actOfferQ: "Send the ",
     actPlaybook: "Start a win-back campaign",
@@ -121,6 +121,8 @@ const T = {
     rules: "¿Qué puede hacer la recepcionista sola?",
     hours: "¿Cuál es nuestro horario esta semana?",
     brief: "Resúmeme el día",
+    next: "¿Qué hago ahora?",
+    can: "¿Qué puedes hacer por mí?",
     proposals: "¿Quién tiene una propuesta pendiente?",
     setupLeft: "¿Qué falta por configurar?",
     moreLike: "Encuentra más como: {asked}",
@@ -134,8 +136,6 @@ const T = {
     actCloseQ: "Cierra el ",
     actHours: "Cambiar el horario de un día",
     actHoursQ: "Cambia el horario del sábado a ",
-    actInvite: "Invitar a alguien del equipo",
-    actInviteQ: "Invita a ",
     actOffer: "Enviar una oferta a una lista",
     actOfferQ: "Envía la ",
     actPlaybook: "Iniciar una campaña de recuperación",
@@ -158,7 +158,9 @@ const T = {
  * provider), and the hours, the facts it checks.
  */
 const PAGE_QUESTIONS: Partial<Record<AskSurface, ReadonlyArray<readonly [keyof (typeof T)["en"], string]>>> = {
+  // Ask speaks first (the operator, 15 Oct 2026, D7): what to do next, read from what stands out across the pages.
   today: [
+    ["next", "sparkle"],
     ["brief", "sparkle"],
     ["who", "users"],
   ],
@@ -172,9 +174,11 @@ const PAGE_QUESTIONS: Partial<Record<AskSurface, ReadonlyArray<readonly [keyof (
     ["rules", "shield"],
     ["hours", "clock"],
   ],
+  // What is left first, then the hours; then what Ask can do for them (the operator, D8), for someone new to it.
   start: [
     ["setupLeft", "check"],
     ["hours", "clock"],
+    ["can", "sparkle"],
   ],
 };
 
@@ -270,7 +274,6 @@ export function buildAskSuggestions(input: SuggestionInput): AskSuggestion[] {
   act(t.actRemember, t.actRememberQ, "sparkle", true);
   if (input.surface === "settings" || input.surface === "today") act(t.actClose, t.actCloseQ, "calendar", true);
   if (input.surface === "settings") act(t.actHours, t.actHoursQ, "clock", true);
-  if (input.surface === "settings") act(t.actInvite, t.actInviteQ, "users", true);
   if (input.surface === "inbox" || input.heldDrafts > 0) act(t.actHold, t.actHoldQ, "shield");
   if (at === "people" || at === "other") act(t.actOffer, t.actOfferQ, "wave", true);
   if ((at === "people" || at === "other") && !winBackSaid) act(t.actPlaybook, t.actPlaybookQ, "bolt");

@@ -39563,7 +39563,7 @@ async function requestOf(at, r, turn, now) {
   if (!rt || !requests || !r.booking?.slot) return turn;
   const terms = await requests.terms(rt, ing?.contact_id ?? null, now);
   const asked2 = terms ? requestedBookingOf({ slot: r.booking.slot, service: r.booking.service, ...terms }) : null;
-  const ownHold = turn.escalate && turn.escalationReason !== "policy_ask";
+  const ownHold = turn.escalate && turn.escalationReason !== "policy_ask" && turn.escalationReason !== "human_token";
   if (terms && asked2?.ok && !ownHold && turn.replyText === r.text) {
     L.info("booking_request_taken", { service: asked2.service !== null });
     return {

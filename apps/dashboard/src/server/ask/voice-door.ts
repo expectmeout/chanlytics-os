@@ -4,9 +4,11 @@ import { requestIdOf, withRequestId } from "@chanlytics/channels";
 import {
   AppError,
   ASK_MAX_CHARS,
-  ASK_TURN_BUDGET_MS,
+  ASK_SPOKEN_TURN_BUDGET_MS,
   ASK_VOICE_FIRST_WORDS_MS,
   ASK_VOICE_PULSE_MS,
+  answerSpoken,
+  listSpoken,
   type AskLanguage,
 } from "@chanlytics/contracts";
 import type { Database, VoiceSessionRow } from "@chanlytics/db";
@@ -266,16 +268,18 @@ function grow(said: Said, headline: string, detail: string, speak: (s: string) =
   }
 }
 
-/** The turn, run as the member and spoken as it is written: each read's label, then the Say, then what the final holds that the previews did not. */
+/** The turn, run as the member and spoken as it is written: each read's label, then the Say, then what the final holds that the previews did not, and its list. */
 async function runOwn(a: Admitted, text: string, speak: (s: string) => void): Promise<void> {
   const said: Said = { headline: "", detail: "", retracted: "" };
   const emit = (ev: AskTurnLine) => {
     if (ev.t === "trace" && ev.text) speak(`${ev.text}… `);
     else if (ev.t === "say") grow(said, ev.headline ?? "", ev.detail ?? "", speak);
     else if (ev.t === "final" && ev.message) {
-      const say = ev.message.answer?.say;
-      if (say) grow(said, say.headline, say.detail, speak);
+      const answer = ev.message.answer;
+      if (answer) grow(said, answer.say.headline, answer.say.detail, speak);
       if (!said.headline) speak(ev.message.text || lineOf("failed", a.language));
+      // The list is never previewed: it is read once the answer lands, after the Say, entry by entry.
+      else if (answer?.show.list.entries.length) speak(` ${listSpoken(answer.show.list)}`);
     }
   };
   const done = await askTurn(
@@ -331,14 +335,13 @@ async function follow(
   // The owner's clock is on the row as the owner left it, not on the row the door read before the claim.
   const owner = await readVoiceSession(a.service, a.row.id);
   const since = (Date.parse(owner?.turn_started_at ?? "") || claimedAt) - CLAIM_SKEW_MS;
-  const until = claimedAt + ASK_TURN_BUDGET_MS;
+  const until = claimedAt + ASK_SPOKEN_TURN_BUDGET_MS;
   const asked = sameWords(text);
   while (now() < until) {
     const thread = await readThread(a.ctx, a.row.thread_id);
     const answer = answerTo(thread?.messages ?? [], asked, since);
     if (answer) {
-      const say = answer.answer?.say;
-      speak(say ? [say.headline, say.detail].filter(Boolean).join(" ") : answer.text);
+      speak(answer.answer ? answerSpoken(answer.answer) : answer.text);
       return;
     }
     await pollPause(deps.pollMs ?? POLL_MS);
