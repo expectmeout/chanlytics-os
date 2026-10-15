@@ -16,7 +16,7 @@ interface AutonomyMatrix {
  * on here (0008) -- the pane draws the follow-ups' row only where they are (0006, contracts policyClassOffered). The
  * route's body, moved here whole: its two reads are the policies and how the customers buy, each through its reader
  * (readers/facts.ts) and at once, as the route read them, so a turn that holds them (workspace.settings,
- * campaigns.playbooks) reads neither again, and a request reads both fresh. Named for the pane, Autonomy. Not a row a
+ * sequences.moments) reads neither again, and a request reads both fresh. Named for the pane, Autonomy. Not a row a
  * citation names.
  */
 export const autonomy: Reader<undefined, AutonomyMatrix> = {

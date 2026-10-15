@@ -1,7 +1,7 @@
 import "server-only";
 import { MEMBERSHIP_ROLES, type MembershipRole } from "@chanlytics/contracts";
 import { NO_ACTION, type ActTool, type ReadTool, type Tool, type ToolDef } from "./context";
-import { ACT_DEFS, READ_DEFS, inputOf, offeredActions, toolSchema } from "./registry";
+import { ACT_DEFS, CORE_TOOLS, READ_DEFS, inputOf, offeredActions, toolSchema } from "./registry";
 
 /**
  * What each role is offered (the Phase 4 plan, D2): per tool, the actions the role may use -- a read's own `needs`, or
@@ -53,16 +53,30 @@ const OFFER = new Map<MembershipRole, ToolDef[]>(
 );
 
 /**
+ * The server tool that finds a deferred tool by what it is for (the operator, 15 Oct 2026, D11): BM25 over each tool's
+ * name, description and its inputs' names and descriptions, in the model's own words. The API runs it and loads the
+ * tools it finds into the conversation, after the cached prefix.
+ */
+const TOOL_SEARCH = { type: "tool_search_tool_bm25_20251119", name: "tool_search_tool_bm25" } as const;
+
+/** A tool as a request carries it: one of Ask's own, deferred or not, or the search tool. */
+type ApiTool = (ToolDef & { defer_loading?: true }) | typeof TOOL_SEARCH;
+
+/**
  * The tools as the API takes them, for a person of this role (D12, D2): sorted by name, each built from the actions the
  * role may use -- four prefixes, a viewer's, an operator's, a partner's and an owner's -- each with its three fields
- * and, while `examples`, its examples (D9). Everyone of one role gets the same bytes on every round, so the tools block
- * stays the cache's first prefix; a turn the API refused for the examples asks without them.
+ * and, while `examples`, its examples (D9). With `search` (the operator, D11), every tool outside the core is deferred
+ * and found by tool search, which rides last: the deferred tools are out of the cached prefix until one is found, and
+ * the core never changes, so the prefix holds. Everyone of one role gets the same bytes on every round; a turn the API
+ * refused for the examples asks without them, and one refused for the search asks with every tool loaded.
  */
-export function toApiTools(role: MembershipRole, examples: boolean): ToolDef[] {
-  return (OFFER.get(role) ?? []).map((d) => ({
+export function toApiTools(role: MembershipRole, examples: boolean, search = true): ApiTool[] {
+  const tools: ApiTool[] = (OFFER.get(role) ?? []).map((d) => ({
     name: d.name,
     description: d.description,
     input_schema: d.input_schema,
     ...(examples && d.input_examples ? { input_examples: d.input_examples } : {}),
+    ...(search && !CORE_TOOLS.has(d.name) ? { defer_loading: true as const } : {}),
   }));
+  return search ? [...tools, TOOL_SEARCH] : tools;
 }

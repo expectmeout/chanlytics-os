@@ -4176,8 +4176,8 @@ test("over the first run the Line is on the start surface: it asks about setting
     );
     assert.deepEqual(
       all(tree, (n) => n.props?.["data-testid"] === "ask-row-sug").map(textOf),
-      ["What is left to set up?", "What are our hours this week?", "How did the week go?"],
-      "what is left first; never an offer or a playbook here",
+      ["What is left to set up?", "What are our hours this week?", "What can you do for me?"],
+      "what is left first, then what Ask can do (the operator, D8); never an offer or a playbook here",
     );
     assert.ok(!/[↵⌘↑↓]|\bEsc\b|\bdel\b/.test(textOf(tree)), `no key is drawn (D17): ${textOf(tree)}`);
     press(byTestId(tree, "ask-row-sug"));
