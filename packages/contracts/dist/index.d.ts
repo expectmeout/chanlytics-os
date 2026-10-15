@@ -25202,8 +25202,12 @@ declare const BOOKING_REQUEST_SCHEMA_FIELDS: {
         readonly description: "When the customer picked a time: the service it is for, exactly as the business lists it, or empty when they did not say. Empty otherwise.";
     };
 };
-/** What the receptionist is told to do with a time the customer picks, where requests are taken. */
-declare const BOOKING_REQUEST_INSTRUCTION = "When they pick one, put its start in booking_slot and the service in booking_service, and tell them the team will confirm it shortly. Never confirm a slot yourself.";
+/**
+ * What the receptionist is told to do with a time the customer picks, where requests are taken. The time written is what
+ * reaches the team, so it is no handoff by itself: the model escalated such turns ("Booking requests are confirmed by
+ * staff", the eval of 15 Oct 2026 on a workspace with no link), and a model's own handoff stands over a request.
+ */
+declare const BOOKING_REQUEST_INSTRUCTION = "When they pick one, put its start in booking_slot and the service in booking_service, and tell them the team will confirm it shortly. Never confirm a slot yourself. Writing the time in booking_slot is what reaches the team, so it is no reason on its own to set escalate.";
 /**
  * Whether a workspace takes booking requests on a text turn (decision 0061, point 2): its switch is on, and the team
  * confirms its own bookings: no booking link is offered in chat, or the booking row is set to Ask me first.

@@ -344,7 +344,7 @@ test("a time the code does not find open is a person's to answer, and nothing is
   assert.deepEqual([blind.seen.requests, blind.seen.escalations.map((e) => e.reason)], [[], ["booking_reply"]]);
 });
 
-test("the model's own handoff stands; a sink with no door holds the booking as a person's; nothing picked changes nothing", async () => {
+test("the model's own handoff on a picked time is the request's; a sink with no door holds the booking as a person's; nothing picked changes nothing", async () => {
   const handoff = world({
     answer: {
       text: REPLY,
@@ -354,8 +354,22 @@ test("the model's own handoff stands; a sink with no door holds the booking as a
       booking: { slot: "2026-10-17 14:00", service: "" },
     },
   });
-  await handoff.run("Saturday at 2, and I want to talk to someone");
-  assert.deepEqual([handoff.seen.requests, handoff.seen.escalations.map((e) => e.reason)], [[], ["human_token"]]);
+  await handoff.run("Saturday at 2, please");
+  // The model flags every picked time for a person (the evals of 15 Oct 2026): the request is that person's hold.
+  assert.equal(handoff.seen.requests.length, 1, "the request is taken");
+  assert.deepEqual(handoff.seen.escalations, [], "one hold, the request's");
+  // A refusal is no request: its words were the holding line, not the model's.
+  const refused = world({
+    answer: {
+      text: "Thanks!",
+      escalate: true,
+      reason: "refusal",
+      meta: META,
+      booking: { slot: "2026-10-17 14:00", service: "" },
+    },
+  });
+  await refused.run("Saturday at 2");
+  assert.deepEqual([refused.seen.requests, refused.seen.escalations.map((e) => e.reason)], [[], ["refusal"]]);
   const doorless = world({
     withRequest: false,
     answer: { text: REPLY, escalate: false, meta: META, booking: { slot: "2026-10-17 14:00", service: "" } },

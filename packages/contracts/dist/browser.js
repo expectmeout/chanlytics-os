@@ -4779,7 +4779,7 @@ var BOOKING_REQUEST_SCHEMA_FIELDS = {
     description: "When the customer picked a time: the service it is for, exactly as the business lists it, or empty when they did not say. Empty otherwise."
   }
 };
-var BOOKING_REQUEST_INSTRUCTION = "When they pick one, put its start in booking_slot and the service in booking_service, and tell them the team will confirm it shortly. Never confirm a slot yourself.";
+var BOOKING_REQUEST_INSTRUCTION = "When they pick one, put its start in booking_slot and the service in booking_service, and tell them the team will confirm it shortly. Never confirm a slot yourself. Writing the time in booking_slot is what reaches the team, so it is no reason on its own to set escalate.";
 function takesBookingRequests(o) {
   return o.switchOn && (!o.linkInChat || o.bookingHeld);
 }
