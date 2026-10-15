@@ -142,7 +142,7 @@ function partialShow(prefix: string, read: AskReadSet, language: AskLanguage): A
  * The preview a turn sends as its answer is written: Say as drawn so far (partialSay, or a prose answer's), and Show once
  * a figure or a row has closed in `json` (the answer's JSON so far; "" for words with no shape).
  */
-export function previewOf(
+export function answerSoFar(
   say: { headline: string; detail: string },
   json: string,
   read: AskReadSet,

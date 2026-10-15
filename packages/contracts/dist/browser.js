@@ -21085,7 +21085,7 @@ function partialShow(prefix, read, language) {
   const shaped = normalizeAnswer({ say: { headline: "-" }, show: { figures, items }, language }, read, language);
   return shaped.ok ? { figures: shaped.answer.show.figures, items: shaped.answer.show.items } : { figures: [], items: [] };
 }
-function previewOf(say2, json, read, language) {
+function answerSoFar(say2, json, read, language) {
   const show = json ? partialShow(json, read, language) : null;
   return show && (show.figures.length || show.items.length) ? { ...say2, show } : say2;
 }
@@ -29430,7 +29430,7 @@ function snoozedThreadWords(openRequest) {
   return openRequest ? `${hidden} ${openRequest}. That's still waiting for you.` : hidden;
 }
 var wireOf = (m) => m.type === "call_summary" ? "phone" : writtenChannelOf(m.channel);
-function previewOf2(messages) {
+function previewOf(messages) {
   const last = [...messages].reverse().find((m) => m.type !== "note" && (m.direction === "inbound" || reachedCustomer(m.status)));
   return last ? { text: messageWords(last).slice(0, 110), channel: wireOf(last) } : { text: "", channel: null };
 }
@@ -29536,7 +29536,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
   const waitingMin = escalation ? Math.max(1, Math.round((now.getTime() - new Date(escalation.created_at).getTime()) / MIN_MS)) : void 0;
   const ask = askOf(escalation, lastInbound);
   const lastWord = state === "done" && dto.state !== "archived" ? lastWordOf(dto) : null;
-  const preview = previewOf2(dto.messages);
+  const preview = previewOf(dto.messages);
   return {
     id: `th-${dto.id}`,
     real: true,
@@ -48589,6 +48589,7 @@ export {
   answerForCards,
   answerFromV1,
   answerSaidOf,
+  answerSoFar,
   answerSpoken,
   answerText,
   answerWireOf,
@@ -49734,7 +49735,6 @@ export {
   posesAsReply,
   previewHorizon,
   previewLinesOf,
-  previewOf,
   previewOn,
   previewParts,
   previewRefusedWords,

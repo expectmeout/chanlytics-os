@@ -31,7 +31,7 @@ export { answerSaidOf } from "./ask-proposals/people-verbs";
 export { PERSON_DETAIL_WORDS } from "./ask-proposals/person";
 export { PROPOSAL_WORDS } from "./ask-proposals/spec";
 export { ASK_ANSWER_FORMAT } from "./ask/answer-format";
-export { partialSay, previewOf } from "./ask/answer-stream";
+export { partialSay, answerSoFar } from "./ask/answer-stream";
 export { cleanAnswer, isUngrounded, sameQuestion, navigateLabel, FOLLOWUP_ECHO, claimsWrite, unquoted } from "./ask/answer-text";
 export { scopeFromRoute, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_TURN_BUDGET_MS, ASK_SPOKEN_TURN_BUDGET_MS, ASK_TOOLS_CHARS_CEILING, ASK_CORE_TOOLS_CHARS_CEILING, ASK_SELECTION_MAX, ASK_VOICE_CLAIM_STALE_MS, ASK_VOICE_FIRST_WORDS_MS, ASK_VOICE_PULSE_MS, ASK_VOICE_TOKEN_MIN_MS, ASK_VOICE_ID, ASK_VOICE_MODEL, ASK_SPEECH_MAX_CHARS, SPEECH_PURPOSES, ASK_VOICE_TIMING_MAX_MS, ASK_VOICE_IDLE_MS, ASK_VOICE_UP_WAIT_MS, VOICE_END_REASONS, isVoiceEndReason, ASK_MAX_TOKENS, ASK_WARM_MAX_TOKENS, ASK_TOKENS_DAY, ASK_CAPS, ASK_THREAD_VERBS, ASK_UNDO_MS, askCardLapsed, ASK_SURFACES, ASK_SCOPE_KINDS } from "./ask/ask";
 export { answerText, answerSpoken, listSpoken, storedAnswer, oneDoor, answerFromV1, needsAnswer, callsAnswer, openingsAnswer, normalizeAnswer, answerWords, answerForCards, failedAnswer, proseAnswer, v1FromAnswer, clip, ASK_ANSWER_CAPS } from "./ask/ask-answer";

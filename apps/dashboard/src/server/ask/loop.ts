@@ -13,7 +13,7 @@ import {
   normalizeAnswer,
   noteRows,
   partialSay,
-  previewOf,
+  answerSoFar,
   proseAnswer,
   type AskAnswer,
   type AskLanguage,
@@ -481,10 +481,10 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       }
     }
     // Drawn as the final message will draw it (contracts partialSay, proseAnswer): nothing past a tag, the leak seen on
-    // production, the detail's lines kept, and Show's figures and rows once each closes (previewOf).
+    // production, the detail's lines kept, and Show's figures and rows once each closes (answerSoFar).
     const part = json ? partialSay(soFar) : offer.format ? null : proseAnswer(soFar, input.language).say;
     if (!part || (!part.headline && !part.detail)) return;
-    const say = previewOf(part, json ? soFar : "", tc.read, input.language);
+    const say = answerSoFar(part, json ? soFar : "", tc.read, input.language);
     const key = JSON.stringify(say);
     const at = Date.now();
     if (key === said || at - saidAt < SAY_EVERY_MS) return;

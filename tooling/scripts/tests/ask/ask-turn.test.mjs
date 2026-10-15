@@ -9759,8 +9759,8 @@ test("an answer call cut off, or empty, is no answer: the turn says it could not
   });
 });
 
-test("Show while it writes (contracts previewOf): a figure or a row draws once its object closes, grounded as the final grounds it -- a row not read never draws -- and a brace or a key inside a string is only words", async () => {
-  const { previewOf, noteRows } = await import("@chanlytics/contracts");
+test("Show while it writes (contracts answerSoFar): a figure or a row draws once its object closes, grounded as the final grounds it -- a row not read never draws -- and a brace or a key inside a string is only words", async () => {
+  const { answerSoFar, noteRows } = await import("@chanlytics/contracts");
   const read = emptyReadSet();
   noteRows(read, [{ kind: "thread", id: C1, route: `inbox/th-${C1}`, label: "Rosa" }]);
   const rosa = { kind: "thread", id: C1, label: "Rosa" };
@@ -9777,7 +9777,7 @@ test("Show while it writes (contracts previewOf): a figure or a row draws once i
   const say = { headline: "Two threads wait.", detail: "" };
   const at = (needle) => json.indexOf(needle);
   assert.deepEqual(
-    previewOf(say, json.slice(0, at('"items"')), read, "en"),
+    answerSoFar(say, json.slice(0, at('"items"')), read, "en"),
     {
       headline: "Two threads wait.",
       detail: "",
@@ -9785,17 +9785,21 @@ test("Show while it writes (contracts previewOf): a figure or a row draws once i
     },
     "the figure, whole, before any row; the words inside its label are words",
   );
-  const halfRow = previewOf(say, json.slice(0, at('"Asked about')), read, "en");
+  const halfRow = answerSoFar(say, json.slice(0, at('"Asked about')), read, "en");
   assert.deepEqual(halfRow.show.items, [], "a row half written is not drawn");
-  const whole = previewOf(say, json, read, "en");
+  const whole = answerSoFar(say, json, read, "en");
   assert.deepEqual(
     whole.show.items.map((i) => [i.title, i.source.to]),
     [["Rosa", `inbox/th-${C1}`]],
     "the row that was read, with its route; the one that was not never draws",
   );
-  assert.deepEqual(previewOf(say, json.slice(0, at('"show"')), read, "en"), say, "no Show before it begins: Say alone");
   assert.deepEqual(
-    previewOf({ headline: "Hi there", detail: "One\nTwo" }, "", read, "en"),
+    answerSoFar(say, json.slice(0, at('"show"')), read, "en"),
+    say,
+    "no Show before it begins: Say alone",
+  );
+  assert.deepEqual(
+    answerSoFar({ headline: "Hi there", detail: "One\nTwo" }, "", read, "en"),
     { headline: "Hi there", detail: "One\nTwo" },
     "words with no shape: Say alone, as partialSay or a prose answer drew it (its lines kept)",
   );
