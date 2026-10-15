@@ -4,7 +4,7 @@ import { requestIdOf, withRequestId } from "@chanlytics/channels";
 import {
   AppError,
   ASK_MAX_CHARS,
-  ASK_TURN_BUDGET_MS,
+  ASK_SPOKEN_TURN_BUDGET_MS,
   ASK_VOICE_FIRST_WORDS_MS,
   ASK_VOICE_PULSE_MS,
   type AskLanguage,
@@ -331,7 +331,7 @@ async function follow(
   // The owner's clock is on the row as the owner left it, not on the row the door read before the claim.
   const owner = await readVoiceSession(a.service, a.row.id);
   const since = (Date.parse(owner?.turn_started_at ?? "") || claimedAt) - CLAIM_SKEW_MS;
-  const until = claimedAt + ASK_TURN_BUDGET_MS;
+  const until = claimedAt + ASK_SPOKEN_TURN_BUDGET_MS;
   const asked = sameWords(text);
   while (now() < until) {
     const thread = await readThread(a.ctx, a.row.thread_id);

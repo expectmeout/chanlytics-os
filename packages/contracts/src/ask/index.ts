@@ -4,7 +4,10 @@ export {
   ASK_MAX_CHARS,
   ASK_MAX_ROUNDS,
   ASK_TURN_BUDGET_MS,
+  ASK_SPOKEN_TURN_BUDGET_MS,
   ASK_TOOLS_CHARS_CEILING,
+  ASK_CORE_TOOLS_CHARS_CEILING,
+  ASK_SELECTION_MAX,
   ASK_VOICE_CLAIM_STALE_MS,
   ASK_VOICE_FIRST_WORDS_MS,
   ASK_VOICE_PULSE_MS,
@@ -42,6 +45,18 @@ export type {
   AskSurface,
   MessageRead,
 } from "./ask";
+export {
+  ASK_VIEW_PAGE,
+  ASK_FOLLOW_UPS_MAX,
+  FOLLOW_UP_SAID_MAX,
+  FOLLOW_UP_PROMPT_MAX,
+  FOLLOW_UP_WAKES,
+  followUpsOf,
+  followUpDue,
+} from "./follow-ups";
+export type { AskFollowUp, FollowUpWake, FollowUpWorld } from "./follow-ups";
+export { ASK_GUIDE_PAGES, ASK_PAGE_ONLY_VERBS } from "./guide";
+export type { GuidePage } from "./guide";
 export { detectLanguage, ASK_LANGUAGES } from "./ask-language";
 export type { AskLanguage } from "./ask-language";
 export {

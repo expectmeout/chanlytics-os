@@ -19,7 +19,7 @@ import {
  * The workspace's facts, read once.
  *
  * A turn used to read the tenant's name and zone up to five times (the Ask
- * route, calls.list, campaigns.playbooks, calendar.week and the calendar itself),
+ * route, calls.list, sequences.moments, calendar.week and the calendar itself),
  * sells_by three or four times and the policies twice. Each is one reader
  * now: the facts are kept five minutes across turns (they change by a
  * settings save nobody makes twice a day); the rest are read once per turn,

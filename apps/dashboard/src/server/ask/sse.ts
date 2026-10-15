@@ -12,7 +12,11 @@ export interface GatewayBlockStart {
     | { type: "text" }
     | { type: "tool_use"; id: string; name: string }
     | { type: "thinking" }
-    | { type: "redacted_thinking"; data: string };
+    | { type: "redacted_thinking"; data: string }
+    // Tool search (the operator, D11): the API's own call of its search tool, and what it found, both handed back
+    // unchanged on the next request; neither is a call of ours to run.
+    | { type: "server_tool_use"; id: string; name: string }
+    | { type: "tool_search_tool_result"; toolUseId: string; content: unknown };
 }
 export interface GatewayTextDelta {
   type: "text";
@@ -105,7 +109,7 @@ export function featureRejected(message: string): boolean {
 interface RawEvent {
   type: string;
   index?: number;
-  content_block?: { type: string; id?: string; name?: string; data?: string };
+  content_block?: { type: string; id?: string; name?: string; data?: string; tool_use_id?: string; content?: unknown };
   delta?: {
     type?: string;
     text?: string;
@@ -168,6 +172,20 @@ export function parseFrame(frame: string): GatewayEvent | null {
       if (b.type === "thinking") return { type: "block_start", index: ev.index, block: { type: "thinking" } };
       if (b.type === "redacted_thinking")
         return { type: "block_start", index: ev.index, block: { type: "redacted_thinking", data: b.data ?? "" } };
+      // Tool search's own blocks: the search call (its input streams as JSON, as a tool call's does), and what it found,
+      // which arrives whole in the block's start.
+      if (b.type === "server_tool_use")
+        return {
+          type: "block_start",
+          index: ev.index,
+          block: { type: "server_tool_use", id: b.id ?? "", name: b.name ?? "" },
+        };
+      if (b.type === "tool_search_tool_result")
+        return {
+          type: "block_start",
+          index: ev.index,
+          block: { type: "tool_search_tool_result", toolUseId: b.tool_use_id ?? "", content: b.content ?? null },
+        };
       return { type: "block_start", index: ev.index, block: { type: "text" } };
     }
     case "content_block_delta": {

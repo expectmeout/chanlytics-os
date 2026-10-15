@@ -60,6 +60,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "ask_tool_failed",
   "ask_tool_input_cut_off",
   "ask_tool_read_failed",
+  "ask_tool_search_rejected",
   "ask_turn",
   "ask_turn_failed",
   "ask_turn_shape",

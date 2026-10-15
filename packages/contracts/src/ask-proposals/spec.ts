@@ -84,8 +84,17 @@ export interface ProposalSpec {
   /** What the card does, for the refusal a member below `needs` hears: every kind above operator says it. */
   doing?: string;
   gate: ProposalGate;
-  /** The call Approve makes; `tab` is what the tab held when Approve was pressed. */
-  commit(p: VerbCard, tab: ProposalTab): ProposalCall | ProposalRefusal;
+  /**
+   * The call Approve makes; `tab` is what the tab held when Approve was pressed. Or the calls, made in order and stopping
+   * at the first refused, where one act is several requests of its door: a selection bigger than its batch door takes
+   * (fifty people a request), one card for all of them (the operator, 15 Oct 2026: selection by rule).
+   */
+  commit(p: VerbCard, tab: ProposalTab): ProposalCall | readonly ProposalCall[] | ProposalRefusal;
+  /**
+   * What several calls answered, as one answer the receipt, the undo and `made` read: absent, the last call's. A batch
+   * door's (`done`, `failed`, `skipped`) is summed by `gatherCounts`.
+   */
+  gather?(answers: readonly unknown[]): unknown;
   /**
    * A second call on the first one's answer, or null for none: a deal's next step names the row the door wrote. A
    * refusal sends nothing and is said on the receipt as the second call's failure; the first call stands.
@@ -130,6 +139,12 @@ export const PROPOSAL_WORDS = {
    */
   stepMadeNothing: (n: number): string =>
     `Step ${n} made nothing this one can use, so nothing is sent. Ask again and the plan is made from how things stand now.`,
+  /**
+   * A card of several requests stopped by a refusal after some went (`done` of `of`): what went stands, the rest did not
+   * go, and the refusal says why in its own words.
+   */
+  batchStopped: (done: number, of: number, why: string): string =>
+    `${done} of ${of} parts went, then: ${/[.!?…]$/.test(why.trim()) ? why.trim() : `${why.trim()}.`} The rest did not go.`,
   /** A plan's silent steps, stopped at step n by its refusal (`why`, in the refusal's own words): nothing after it was done. */
   planStopped: (n: number, why: string): string =>
     `Stopped at step ${n}: ${/[.!?…]$/.test(why.trim()) ? why.trim() : `${why.trim()}.`} The steps after it were not done.`,
@@ -161,6 +176,31 @@ export const wasIn = (data: unknown, k: string): unknown => {
 export const idIn = (pl: Record<string, unknown> | undefined, k: string): string | null =>
   typeof pl?.[k] === "string" && pl[k] ? (pl[k] as string) : null;
 export const refuseWith = (words: string): ProposalRefusal => ({ refused: words });
+
+/** The size of a batch door's request: fifty people at a time, as each batch door has always taken them. */
+export const BATCH_SIZE = 50;
+
+/** A selection in requests of `size`, in order: one act, its door's batches (the operator, 15 Oct 2026). */
+export function inBatches<T>(items: readonly T[], size: number = BATCH_SIZE): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
+/**
+ * The answers of a batch door's requests as one: how many each did, summed, and every row it failed or skipped, in
+ * order, so the receipt says the selection's count and its first reason, as one request of them all would.
+ */
+export function gatherCounts(answers: readonly unknown[]): Record<string, unknown> {
+  const out: Record<string, unknown> = { done: 0, failed: [], skipped: [] };
+  for (const a of answers) {
+    const d = rec(a);
+    out.done = (out.done as number) + (typeof d.done === "number" ? d.done : 0);
+    if (Array.isArray(d.failed)) (out.failed as unknown[]).push(...(d.failed as unknown[]));
+    if (Array.isArray(d.skipped)) (out.skipped as unknown[]).push(...(d.skipped as unknown[]));
+  }
+  return out;
+}
 /** A map's own entry, never one its prototype lends ("constructor"). */
 export const ownEntry = <T>(m: Partial<Record<string, T>>, k: string): T | undefined =>
   Object.prototype.hasOwnProperty.call(m, k) ? m[k] : undefined;

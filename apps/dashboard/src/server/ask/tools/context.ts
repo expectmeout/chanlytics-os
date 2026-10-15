@@ -130,6 +130,11 @@ export interface ReadDef<S extends z.ZodObject = z.ZodObject> {
  */
 export interface ActDef<S extends z.ZodObject = z.ZodObject> {
   kind: AskProposal["kind"];
+  /**
+   * The other kinds of card the action makes beside its own, where it makes more than one (a lead search, named people
+   * at companies too): what the parity test reads (ask-parity.test.mjs), so a kind is never said to have no hand.
+   */
+  makes?: readonly AskProposal["kind"][];
   input: S;
   examples?: z.input<S>[];
   label: string;
@@ -205,7 +210,7 @@ export const WHOSE: Record<MembershipRole, string> = {
  * The read a refusal points to for a template's id, an audience's id or a list's token, said as the model calls it:
  * the tool, and its action (D11). Once `list_audiences`; one spelling for every refusal that names it.
  */
-export const AUDIENCES_CALL = "campaigns with action audiences";
+export const AUDIENCES_CALL = "sequences with action lists";
 
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const str = (v: unknown, max = 200): string => (typeof v === "string" ? v.trim().slice(0, max) : "");

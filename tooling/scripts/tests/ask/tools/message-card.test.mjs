@@ -116,7 +116,7 @@ async function propose(input, over = {}, role = "operator") {
   const tables = world(over);
   const supabase = fakeDb(tables, {}, {});
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, role, TZ, NOW);
-  const r = await buildProposal(t, "propose_campaign", { action: "message", ...input });
+  const r = await buildProposal(t, "propose_sequence", { action: "message", ...input });
   return { ...r, seen: supabase.seen, tables };
 }
 const said = (r) => JSON.parse(r.result).error;
@@ -394,12 +394,12 @@ test("a message with no WhatsApp version is ready once approved, and one with Wh
   assert.equal(wa.proposal.undo, null, "nothing an undo can delete: WhatsApp holds its version");
 });
 
-test("a viewer is not offered the action; every role is still offered at most twenty tools, and an operator and above the message", async () => {
+test("a viewer is not offered the action; every role is offered no more tools than the gateway passes, and an operator and above the message", async () => {
   for (const role of ["viewer", "operator", "partner", "owner"]) {
     const tools = toApiTools(role, true);
-    assert.ok(tools.length <= 20, `${role}: ${tools.length} tools`);
-    const campaign = tools.find((t) => t.name === "propose_campaign");
-    assert.equal(campaign?.input_schema.properties.action.enum.includes("message") ?? false, role !== "viewer", role);
+    assert.ok(tools.length <= 40, `${role}: ${tools.length} tools`);
+    const sequence = tools.find((t) => t.name === "propose_sequence");
+    assert.equal(sequence?.input_schema.properties.action.enum.includes("message") ?? false, role !== "viewer", role);
   }
   const r = await propose(OFFER, {}, "viewer");
   assert.equal(r.isError, true);

@@ -39,7 +39,10 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const POLICY = JSON.parse(fs.readFileSync(path.join(ROOT, "tooling/scripts/tests/route-policy.json"), "utf8")).routes;
 
-/** The twenty-one kinds, in AskProposal's order, and one no card has (people_search, the people card's, 00430). */
+/**
+ * The kinds, in PROPOSAL_SPECS' order: the twenty-one Ask proposed by 14 Oct 2026, then every page's verb the operator
+ * made a card (15 Oct 2026, decision 0062); and one no card has.
+ */
 const KINDS = [
   "reply",
   "steer",
@@ -62,6 +65,37 @@ const KINDS = [
   "playbook_channels",
   "playbook_change",
   "message",
+  "answer",
+  "answer_many",
+  "person_mode_many",
+  "note_many",
+  "person_add",
+  "person_merge",
+  "person_message",
+  "list_member",
+  "list_change",
+  "list_delete",
+  "sequence_step",
+  "sequence_step_remove",
+  "sequence_words",
+  "sequence_leave",
+  "sequence_draft",
+  "sequence_make",
+  "sequence_start",
+  "sequence_discard",
+  "call_hand_over",
+  "lead_stage",
+  "lead_mark",
+  "lead_later",
+  "leads_bulk",
+  "leads_check",
+  "lead_addressee",
+  "lead_list",
+  "lead_search_more",
+  "reach_out_make",
+  "reach_out_said",
+  "review_reply",
+  "follow_up",
   "teleport",
 ];
 
@@ -90,6 +124,38 @@ test("the gate each kind checks before Approve is the one it checked at a993b71d
     playbook_channels: "approve",
     playbook_change: "approve",
     message: "approve",
+    // The operator (15 Oct 2026): each page's verb gated as its page's button is.
+    answer: "approve",
+    answer_many: "approve",
+    person_mode_many: "settings",
+    note_many: "approve",
+    person_add: "approve",
+    person_merge: "settings",
+    person_message: "approve",
+    list_member: "approve",
+    list_change: "approve",
+    list_delete: "approve",
+    sequence_step: "approve",
+    sequence_step_remove: "approve",
+    sequence_words: "approve",
+    sequence_leave: "approve",
+    sequence_draft: "approve",
+    sequence_make: "approve",
+    sequence_start: "approve",
+    sequence_discard: "approve",
+    call_hand_over: "approve",
+    lead_stage: "approve",
+    lead_mark: "find",
+    lead_later: "approve",
+    leads_bulk: "approve",
+    leads_check: "find",
+    lead_addressee: "find",
+    lead_list: "approve",
+    lead_search_more: "find",
+    reach_out_make: "approve",
+    reach_out_said: "approve",
+    review_reply: "approve",
+    follow_up: "approve",
   });
 });
 
@@ -142,8 +208,14 @@ const UNDO_OPEN = {
   teleport: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
 };
 
-test("a committed card's undo is offered exactly where it was at a993b71d, for every kind over the frozen table", () => {
-  for (const kind of KINDS) {
+test("a committed card's undo is offered exactly where it was at a993b71d, for every kind over the frozen table; every kind since keeps the ten minutes, but a first message, cancelable as a reply is", () => {
+  const windowOf = (kind) =>
+    UNDOS.map((u) =>
+      ATS.map((a) => VERSIONS.map((v) => (askUndoOpen(kind, u, a, T, v) ? "1" : "0")).join("")).join(""),
+    ).join(" ");
+  for (const kind of KINDS.filter((k) => !(k in UNDO_OPEN)))
+    assert.equal(windowOf(kind), UNDO_OPEN[kind === "person_message" ? "reply" : "steer"], kind);
+  for (const kind of Object.keys(UNDO_OPEN)) {
     const got = UNDOS.map((u) =>
       ATS.map((a) => VERSIONS.map((v) => (askUndoOpen(kind, u, a, T, v) ? "1" : "0")).join("")).join(""),
     ).join(" ");
@@ -238,8 +310,18 @@ const OPEN = {
   teleport: [null, null, "inbox/th-c1", null, null, "inbox/th-c1", null, null, null, null, null, null, null, null],
 };
 
-test("a card's Open goes exactly where it went at a993b71d, for every kind over the frozen table", () => {
-  for (const kind of KINDS) {
+test("a card's Open goes exactly where it went at a993b71d, for every kind over the frozen table, and every kind since where its page shows what it did", () => {
+  // The operator's kinds (15 Oct 2026), each to its page: the sequence's record, the person, the lead, the review.
+  const open = (kind, payload, outcome) => cardOpenRoute({ kind, payload, ...(outcome ? { outcome } : {}) });
+  assert.equal(open("sequence_step", { sequence_id: "q1" }), "campaigns/sequences/q1");
+  assert.equal(open("sequence_make", {}, { state: "done", made: { id: "q2" } }), "campaigns/sequences/q2");
+  assert.equal(open("sequence_draft", { words: "x" }), "campaigns/sequences/new");
+  assert.equal(open("answer", { contact_id: "p1" }), "clients/p1");
+  assert.equal(open("person_message", { contact_id: "p1" }, { state: "done", made: { id: "c9" } }), "inbox/th-c9");
+  assert.equal(open("call_hand_over", { call_id: "k1" }), "live");
+  assert.equal(open("review_reply", { review_id: "rv1" }), "reports/reviews");
+  assert.equal(open("lead_list", { lead_ids: ["ld1"] }), "clients/leads");
+  for (const kind of Object.keys(OPEN)) {
     const want = Array.isArray(OPEN[kind]) ? OPEN[kind] : CASES.map(() => OPEN[kind]);
     const got = CASES.map(([payload, outcome]) =>
       cardOpenRoute({ kind, payload, ...(outcome !== undefined ? { outcome } : {}) }),
@@ -261,7 +343,7 @@ const card = (kind, payload, extra = {}) => ({
   ...extra,
 });
 /** What each route answers, as far as a spec reads it. */
-const ANSWER = {
+const ANSWER_ALL = {
   message_id: "m1",
   cancelable_until: iso(T + 15_000),
   decision_id: "d1",
@@ -277,6 +359,11 @@ const ANSWER = {
     { channel: "email", id: "v1", state: "approved" },
     { channel: "whatsapp", id: "v2", state: "pending" },
   ],
+};
+/** A sequence step's doors (the operator's): what the step held before they wrote, for the undo. */
+const ANSWERS = {
+  sequence_step: { ...ANSWER_ALL, was: { after_days: 2 } },
+  sequence_words: { ...ANSWER_ALL, was: { template_id: "t0", params: [] } },
 };
 const TAB = { settings: { config: { brain: {} }, version: 3 } };
 const TAB_AFTER = { settings: { config: { brain: {} }, version: 4 } };
@@ -354,6 +441,68 @@ const SHAPES = {
       slots: [{ position: 1, label: "First name", example: "Dani", kind: "first_name" }],
     }),
   ],
+  // The operator (15 Oct 2026): every page's verb, as the act builds its card.
+  answer: [
+    card("answer", { contact_id: "p1", who: "Rosa", purpose: "conversational", consent: "opted_in", source: "spoken" }),
+    card("answer", { contact_id: "p1", who: "Rosa", purpose: "marketing", consent: "opted_in", source: "form" }),
+  ],
+  answer_many: [
+    card("answer_many", { ids: ["p1", "p2"], purpose: "conversational", consent: "opted_out", source: "spoken" }),
+    card("answer_many", { ids: ["p1"], purpose: "marketing", consent: "unknown" }),
+  ],
+  person_mode_many: [card("person_mode_many", { ids: ["p1", "p2"], mode: "never" })],
+  note_many: [card("note_many", { ids: ["p1", "p2"], append: "Class of 12 Sep" })],
+  person_add: [card("person_add", { phone: "+15555550100", name: "Rosa" })],
+  person_merge: [card("person_merge", { contact_id: "p1", merge: "p2", who: "Rosa", other: "Rosa D." })],
+  person_message: [
+    card("person_message", { contact_id: "p1", wire: "whatsapp", text: "Saturday works.", who: "Rosa" }),
+  ],
+  list_member: [
+    card("list_member", { list_id: "l1", name: "Regulars", who: "Rosa", add: ["p1"] }),
+    card("list_member", { list_id: "l1", name: "Regulars", who: "Rosa", remove: ["p1"] }),
+  ],
+  list_change: [card("list_change", { list_id: "l1", name: "Past clients", was: { name: "Lapsed" } })],
+  list_delete: [card("list_delete", { list_id: "l1", name: "Lapsed" })],
+  sequence_step: [
+    card("sequence_step", { sequence_id: "q1", template_id: "t1", after_days: 3 }),
+    card("sequence_step", { sequence_id: "q1", step_id: "st1", after_days: 5 }),
+  ],
+  sequence_step_remove: [card("sequence_step_remove", { sequence_id: "q1", step_id: "st1" })],
+  sequence_words: [card("sequence_words", { sequence_id: "q1", step_id: "st1", template_id: "t1", params: [] })],
+  sequence_leave: [card("sequence_leave", { sequence_id: "q1", enrollment_ids: ["e1"] })],
+  sequence_draft: [card("sequence_draft", { words: "Thank them the day after, then ask for a review" })],
+  sequence_make: [card("sequence_make", { first: { trigger: "visited", template_id: "t1" }, then: [], start: false })],
+  sequence_start: [card("sequence_start", { sequence_id: "q1", name: "After a visit" })],
+  sequence_discard: [card("sequence_discard", { sequence_id: "q1" })],
+  call_hand_over: [card("call_hand_over", { call_id: "k1", who: "Rosa" })],
+  lead_stage: [card("lead_stage", { lead_id: "ld1", search_id: "s1", input: { move: "ready" }, who: "Dock Dental" })],
+  lead_mark: [
+    card("lead_mark", { search_id: "s1", lead_ids: ["ld1", "ld2"], mark: "keep" }),
+    card("lead_mark", { search_id: "s1", lead_ids: ["ld1"], mark: "exclude" }),
+    card("lead_mark", { search_id: "s1", lead_ids: ["ld1"], mark: "put_back" }),
+  ],
+  lead_later: [card("lead_later", { lead_id: "ld1", search_id: "s1", who: "Dock Dental" })],
+  leads_bulk: [card("leads_bulk", { body: { by: "ids", action: "contacted", ids: ["ld1"] } })],
+  leads_check: [card("leads_check", { lead_ids: ["ld1"] })],
+  lead_addressee: [card("lead_addressee", { lead_id: "ld1", person: 1, who: "Dock Dental", person_name: "Ana" })],
+  lead_list: [card("lead_list", { name: "Salons near you", lead_ids: ["ld1", "ld2"] })],
+  lead_search_more: [
+    card("lead_search_more", { search_id: "s1", purpose: "topup", plan: { count: 50 }, name: "Dentists" }),
+  ],
+  reach_out_make: [
+    card("reach_out_make", {
+      chain: { name: "Spring dentists", search_id: "s1", steps: [{ subject: "Hello", body: "Hi {{first_name}}" }] },
+    }),
+  ],
+  reach_out_said: [card("reach_out_said", { lead_id: "ld1", intent: "interested", who: "Dock Dental" })],
+  review_reply: [card("review_reply", { review_id: "rv1", comment: "Thank you, Ana!", who: "Ana P." })],
+  follow_up: [
+    card("follow_up", {
+      follow_ups: [{ id: "f1", said: "the search", prompt: "Say what it found", wake: "search_done" }],
+      previous: [],
+      said: "the search",
+    }),
+  ],
 };
 
 /**
@@ -362,11 +511,14 @@ const SHAPES = {
  */
 function routesOf(kind) {
   const spec = PROPOSAL_SPECS[kind];
+  const ANSWER = ANSWERS[kind] ?? ANSWER_ALL;
   const seen = [];
   for (const p of SHAPES[kind]) {
-    const commit = spec.commit(p, TAB);
-    assert.ok(commit.route, `${kind}: every shape here commits (${commit.refused})`);
-    seen.push({ route: commit.route, by: "commit" });
+    // A batch commits as several calls of one route (the operator: fifty people, or a lead each, a request).
+    for (const commit of [spec.commit(p, TAB)].flat()) {
+      assert.ok(commit.route, `${kind}: every shape here commits (${commit.refused})`);
+      seen.push({ route: commit.route, by: "commit" });
+    }
     const then = spec.then?.(p, ANSWER);
     if (then) seen.push({ route: then.route, by: "then" });
     const record = spec.undo?.record(p, ANSWER, TAB) ?? null;
@@ -487,8 +639,8 @@ test("Ask's new campaign opens its drawer once it is made, by the id the route a
   });
 });
 
-test("the twenty-one kinds each have a spec, and every route a spec names is a route the app has", () => {
-  assert.deepEqual(Object.keys(PROPOSAL_SPECS), KINDS.slice(0, 21));
+test("every kind has a spec -- the twenty-one Ask proposed and every page's verb the operator made a card -- and every route a spec names is a route the app has", () => {
+  assert.deepEqual(Object.keys(PROPOSAL_SPECS), KINDS.slice(0, -1));
   const named = Object.fromEntries(
     Object.keys(PROPOSAL_SPECS).map((k) => [k, [...new Set(routesOf(k).map((x) => x.route))].sort()]),
   );
@@ -521,15 +673,59 @@ test("the twenty-one kinds each have a spec, and every route a spec names is a r
     playbook_channels: ["PUT playbooks/[id]"],
     playbook_change: ["PUT playbooks/[id]"],
     message: ["DELETE templates/versions/[id]", "POST templates/message"],
+    answer: ["PUT contacts/[id]/consent", "PUT contacts/[id]/marketing-consent"],
+    answer_many: ["PUT contacts/consent", "PUT contacts/marketing-consent"],
+    person_mode_many: ["PUT contacts/receptionist"],
+    note_many: ["PUT contacts/notes"],
+    person_add: ["POST contacts"],
+    person_merge: ["POST contacts/[id]/merge"],
+    person_message: ["POST messages/[id]/cancel-send", "POST people/[id]/message"],
+    list_member: ["PUT segments/[id]"],
+    list_change: ["PUT segments/[id]"],
+    list_delete: ["DELETE segments/[id]"],
+    sequence_step: [
+      "DELETE sequences/[id]/steps/[step]",
+      "POST sequences/[id]/steps",
+      "PUT sequences/[id]/steps/[step]",
+    ],
+    sequence_step_remove: ["DELETE sequences/[id]/steps/[step]"],
+    sequence_words: ["POST sequences/[id]/steps/[step]/words"],
+    sequence_leave: ["POST sequences/[id]/leave"],
+    sequence_draft: ["POST sequences/draft"],
+    sequence_make: ["DELETE sequences/[id]", "POST sequences"],
+    sequence_start: ["PUT playbooks/[id]"],
+    sequence_discard: ["DELETE sequences/[id]"],
+    call_hand_over: ["POST calls/[id]/hand-over"],
+    lead_stage: ["POST lead-operations/[id]/undo", "POST leads/[id]/stage"],
+    lead_mark: ["POST leads/[id]/exclude", "POST leads/[id]/keep", "POST leads/[id]/put-back"],
+    lead_later: ["POST lead-operations/[id]/undo", "POST leads/[id]/later"],
+    leads_bulk: ["POST lead-operations/[id]/undo", "POST leads/bulk"],
+    leads_check: ["POST leads/check-again"],
+    lead_addressee: ["POST leads/[id]/addressee"],
+    lead_list: ["POST lead-searches/chosen"],
+    lead_search_more: ["POST lead-searches/[id]/more", "POST lead-searches/[id]/stop"],
+    reach_out_make: ["POST reach-outs"],
+    reach_out_said: ["POST reach-outs/leads/[id]/said"],
+    review_reply: ["POST google/reviews/[id]/reply"],
+    follow_up: ["PUT views/[page]"],
   });
   for (const routes of Object.values(named)) for (const r of routes) assert.ok(ROUTE_KEYS.includes(r), r);
 });
 
-test("a spec's `needs` is the policy role of every route it names; the one exception is the lead search's stop, an operator's door undoing a partner's card", () => {
+test("a spec's `needs` is the policy role of every route it names; the exceptions are a lead search's stop, an operator's door undoing a partner's card, and a follow-up, a member's own view kept by an operator's card", () => {
   for (const [kind, spec] of Object.entries(PROPOSAL_SPECS)) {
     for (const { route, by } of routesOf(kind)) {
       const role = POLICY[route]?.role;
-      if ((kind === "lead_search" || kind === "people_search") && route === "POST lead-searches/[id]/stop") {
+      if (kind === "follow_up") {
+        // Any member keeps their own views (PUT views/[page], a viewer's door); Ask's cards are an operator's and above,
+        // since a viewer is offered no act (the operator, 15 Oct 2026).
+        assert.deepEqual([route, role, spec.needs], ["PUT views/[page]", "viewer", "operator"]);
+        continue;
+      }
+      if (
+        (kind === "lead_search" || kind === "people_search" || kind === "lead_search_more") &&
+        route === "POST lead-searches/[id]/stop"
+      ) {
         // Stopping a search spends nothing, so any operator may; the card that started it was a partner's.
         assert.deepEqual([by, role, spec.needs], ["undo", "operator", "partner"]);
         continue;
@@ -548,6 +744,12 @@ test("a spec's `needs` is the policy role of every route it names; the one excep
       ["invite", "owner"],
       ["lead_search", "partner"],
       ["people_search", "partner"],
+      ["person_mode_many", "owner"],
+      ["person_merge", "owner"],
+      ["lead_mark", "partner"],
+      ["leads_check", "partner"],
+      ["lead_addressee", "partner"],
+      ["lead_search_more", "partner"],
     ],
   );
   for (const [kind, spec] of Object.entries(PROPOSAL_SPECS))
@@ -564,7 +766,7 @@ test("the gate a card checks before Approve lets exactly the roles its `needs` l
     for (const role of MEMBERSHIP_ROLES) {
       const gate = ROLE_PERMS[role][spec.gate];
       const needs = roleAtLeast(role, spec.needs);
-      if (kind === "person_mode" && role === "partner") {
+      if ((kind === "person_mode" || kind === "person_mode_many" || kind === "person_merge") && role === "partner") {
         // Its gate is `settings`, which a partner holds; its route (PUT contacts/[id]/receptionist) is an owner's.
         // The builder refuses a partner, so no partner is handed the card: Ask threads are the member's own.
         assert.deepEqual([spec.gate, gate, needs], ["settings", true, false]);

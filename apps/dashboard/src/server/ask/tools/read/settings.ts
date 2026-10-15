@@ -43,7 +43,7 @@ async function getSettings(t: ToolContext): Promise<unknown> {
       (r) => r.data,
       () => [],
     ),
-    // The channels as their page reads them (readers/channels.ts), once a turn: campaigns.audiences reads the same
+    // The channels as their page reads them (readers/channels.ts), once a turn: sequences.lists reads the same
     // rows. A read that fails is said as its own state, never as no channels, and the rest of the settings still answer.
     load(t.rc, channelsReader, undefined).then((r) => r.data.channels, unread(t, "workspace.settings", "channels")),
     load(t.rc, readers.sellsBy, undefined).then((r) => r.data),

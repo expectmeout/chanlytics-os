@@ -128,7 +128,51 @@ export function tellCall(win: Window, c: ProposalCall): void {
 }
 
 /**
- * Walk one act: its spec's call (refused here, unsent, where its body is not its door's), the window told, the second
+ * An act's requests in order, each under the press's key and its place, stopping at the first refused: one, or, where
+ * the act is bigger than its door takes at once (a selection of hundreds, fifty a request), its parts. What went stands;
+ * a refusal after a part went says how many went before it (PROPOSAL_WORDS.batchStopped).
+ */
+async function sendInOrder(
+  calls: readonly ProposalCall[],
+  client: Api,
+  win: Window,
+  use: VerbUse,
+): Promise<{ ok: true; answers: unknown[] } | ApiRefusal> {
+  const answers: unknown[] = [];
+  for (const [i, call] of calls.entries()) {
+    const key = use.key ? (i === 0 ? use.key : `${use.key}:${i + 1}`) : undefined;
+    const r = await sendCall(client, call, { ...use, key });
+    if (!r.ok && i > 0) {
+      const partly: ApiRefusal = { ...r, message: PROPOSAL_WORDS.batchStopped(i, calls.length, r.message) };
+      SAID_HERE.add(partly);
+      return partly;
+    }
+    if (!r.ok) return r;
+    if (use.tell !== false) tellCall(win, call);
+    answers.push(r.data);
+  }
+  return { ok: true, answers };
+}
+
+/**
+ * The second call (a deal's next step), on the first one's answer. The first stands either way, and the receipt says
+ * how the second went: refused by its route, or by its spec before anything was sent.
+ */
+async function sendThen(
+  next: ProposalCall | ProposalRefusal | null,
+  client: Api,
+  win: Window,
+  use: VerbUse,
+): Promise<ProposalThen | undefined> {
+  if (!next) return undefined;
+  if (isRefusal(next)) return { ok: false, message: next.refused };
+  const n = await sendCall(client, next, { ...use, key: use.key ? `${use.key}:then` : undefined });
+  if (n.ok && use.tell !== false) tellCall(win, next);
+  return n.ok ? { ok: true } : { ok: false, message: n.message };
+}
+
+/**
+ * Walk one act: its spec's calls (refused here, unsent, where its body is not its door's), the window told, the second
  * call where its spec makes one, and the receipt, what its undo keeps and the id it made. Ask's commit hands a card
  * here after its own checks (fresh, its plan's steps).
  */
@@ -138,27 +182,21 @@ export async function walkVerb(card: VerbCard, use: VerbUse = {}): Promise<VerbR
   const win = use.win ?? window;
   const client = use.client ?? apiFor(win);
   const tab = tabOf(win);
-  const call = spec.commit(card, tab);
-  if (isRefusal(call)) return refusedHere(call.refused);
-  const r = await sendCall(client, call, use);
-  if (!r.ok) return r;
-  if (use.tell !== false) tellCall(win, call);
-  // The second call (a deal's next step), on the first one's answer. The first stands either way, and the receipt
-  // says how the second went: refused by its route, or by its spec before anything was sent.
-  const next = spec.then?.(card, r.data) ?? null;
-  let then: ProposalThen | undefined;
-  if (next && isRefusal(next)) then = { ok: false, message: next.refused };
-  else if (next) {
-    const n = await sendCall(client, next, { ...use, key: use.key ? `${use.key}:then` : undefined });
-    if (n.ok && use.tell !== false) tellCall(win, next);
-    then = n.ok ? { ok: true } : { ok: false, message: n.message };
-  }
+  const made = spec.commit(card, tab);
+  if (!isCalls(made) && isRefusal(made)) return refusedHere(made.refused);
+  const calls = isCalls(made) ? made : [made];
+  if (calls.length === 0) return refusedHere(PROPOSAL_WORDS.cannotApprove);
+  const sent = await sendInOrder(calls, client, win, use);
+  if (!sent.ok) return sent;
+  const { answers } = sent;
+  const data = answers.length === 1 ? answers[0] : spec.gather ? spec.gather(answers) : answers[answers.length - 1];
+  const then = await sendThen(spec.then?.(card, data) ?? null, client, win, use);
   return {
     ok: true,
-    data: r.data,
-    receipt: spec.receipt(card, r.data, then),
-    undo: spec.undo?.record(card, r.data, tab) ?? null,
-    made: spec.made?.(card, r.data) ?? null,
+    data,
+    receipt: spec.receipt(card, data, then),
+    undo: spec.undo?.record(card, data, tab) ?? null,
+    made: spec.made?.(card, data) ?? null,
   };
 }
 

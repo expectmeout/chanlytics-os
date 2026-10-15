@@ -69,7 +69,7 @@ export async function readSequences(t: ToolContext): Promise<unknown> {
  */
 export async function readSequence(t: ToolContext, input: { sequence_id: string }): Promise<unknown> {
   const id = str(input.sequence_id, 40);
-  if (!UUID.test(id)) return { error: "sequence_id must be an id campaigns with action sequences returned" };
+  if (!UUID.test(id)) return { error: "sequence_id must be an id sequences with action list returned" };
   const record = await unlessNotFound(load(t.rc, sequence, { id }));
   if (!record) return { error: "no such sequence in this workspace" };
   const [people, history] = await Promise.all([

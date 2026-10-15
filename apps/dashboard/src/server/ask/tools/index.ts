@@ -4,6 +4,7 @@ import "server-only";
 export {
   ACT_DEFS,
   ACT_TOOL_NAMES,
+  CORE_TOOLS,
   READ_DEFS,
   buildProposal,
   calledName,
@@ -11,7 +12,8 @@ export {
   toolLabel,
   toolSchema,
 } from "./registry";
-export { toApiTools } from "./offer";
+export { TOOL_SEARCH, toApiTools } from "./offer";
+export type { ApiTool } from "./offer";
 export { cardsOf, newToolContext } from "./context";
 export type { ProposalOutcome, ToolContext, ToolDef, ToolOutcome, ToolRun } from "./context";
 export { THREAD_VERBS } from "./act/thread-verb";

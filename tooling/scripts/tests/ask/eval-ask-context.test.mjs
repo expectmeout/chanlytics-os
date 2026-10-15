@@ -1209,7 +1209,7 @@ test("the setup and change cases (the moment spec, A8): seventeen, run only afte
     crossPagePlan(text, surface)
       .slice(0, 2)
       .map((r) => `${r.name}.${r.input.action}`)
-      .join(" ") === "campaigns.playbooks campaigns.audiences";
+      .join(" ") === "sequences.moments sequences.lists";
   const turns = cases.flatMap((c) => [
     c,
     ...(c.then
@@ -1232,7 +1232,7 @@ test("the setup and change cases (the moment spec, A8): seventeen, run only afte
   // The tools' order is noted only on a turn whose reads ride in first, and a read a case asks for off Campaigns' rows
   // is one of those reads.
   for (const t of turns.filter((x) => x.expect.tools_order)) assert.ok(setupReads(t.text, t.surface), t.id);
-  for (const t of turns.filter((x) => x.expect.tools_any?.includes("campaigns.playbooks")))
+  for (const t of turns.filter((x) => x.expect.tools_any?.includes("sequences.moments")))
     assert.ok(setupReads(t.text, t.surface), t.id);
   // A setup's card is never a reminder of an appointment (the setup rule: its Turn on) nor a moment no new campaign is
   // offered on; the trigger ruled out is one a campaign can have.
@@ -1269,7 +1269,7 @@ test("the setup and change cases (the moment spec, A8): seventeen, run only afte
 });
 
 /** The reads the marketing manager's lane added (its §5.7), each asked for by a case in its own words. */
-const NEW_READS = ["calendar.room", "campaigns.journey", "campaigns.messages"];
+const NEW_READS = ["calendar.room", "sequences.journey", "sequences.messages"];
 
 test("the cases fit their workspace and name the new reads (the review after the merge, batch E): an offer's send needs a yes and a channel, the nightly's workspace asks the offer that must make neither, each new read is the model's own pick, and a change names its words, its last day and its trial", async () => {
   const { crossPagePlan } = await import("../../../../apps/dashboard/src/server/ask/cross-page.ts");
@@ -1331,7 +1331,7 @@ test("the cases fit their workspace and name the new reads (the review after the
   const expect = (id) => byId[id].expect;
   assert.deepEqual(
     [expect("change_words").tools_any, expect("change_words").proposals_any],
-    [["propose_campaign.change"], undefined],
+    [["propose_sequence.change"], undefined],
   );
   for (const [id, field] of [
     ["change_last_day", "until"],
@@ -1339,7 +1339,7 @@ test("the cases fit their workspace and name the new reads (the review after the
   ])
     assert.deepEqual(
       [expect(id).tools_any, expect(id).proposals_any, expect(id).card_fields_present],
-      [["propose_campaign.change"], ["playbook_change"], { playbook_change: [field] }],
+      [["propose_sequence.change"], ["playbook_change"], { playbook_change: [field] }],
       id,
     );
   // A case's days are said relative to the day it is asked ("next month"), never as a month or a date: an offer that
@@ -1519,13 +1519,13 @@ test("a setup's keys (the moment spec, A8): proposals_max fails more cards, card
   // An answer made before the Line says its next questions as followups.
   assert.deepEqual(setupCardsFails(next, { text: "", followups: ["Once the list is saved, start it?"] }), []);
   assert.deepEqual(setupCardsFails({}, m()), [], "a case with none of the keys asks nothing of the cards");
-  const order = { tools_order: ["campaigns.playbooks", "propose_campaign.playbook"] };
+  const order = { tools_order: ["sequences.moments", "propose_sequence.moment"] };
   assert.deepEqual(
-    toolsOrderNote(order, m({ tools: ["campaigns.playbooks", "campaigns.audiences", "propose_campaign.playbook"] })),
+    toolsOrderNote(order, m({ tools: ["sequences.moments", "sequences.lists", "propose_sequence.moment"] })),
     [],
   );
   assert.match(
-    toolsOrderNote(order, m({ tools: ["propose_campaign.playbook", "campaigns.playbooks"] }))[0],
+    toolsOrderNote(order, m({ tools: ["propose_sequence.moment", "sequences.moments"] }))[0],
     /not in the order/,
   );
   // The names are read through the rename table on both sides, as the judge reads tools_any.

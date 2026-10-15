@@ -2,9 +2,11 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import {
+  ASK_SENDS,
   CONSENT_CHANNELS,
   JOURNEY_STAGE_IDS,
   PLAN_WORDS,
+  STEP_TOKEN,
   channelChoices,
   listToken,
   notesInForce,
@@ -20,19 +22,34 @@ import { load } from "../../../readers";
 import { channelsReady, config, facts as factsReader } from "../../../readers/facts";
 import { playbooks } from "../../../readers/playbooks";
 import {
+  NO_ACTION,
   actAction,
+  defineActions,
   offeredTo,
   proposeMany,
   refuse,
   unread,
   type ActDef,
+  type ActTool,
   type ProposalOutcome,
   type ToolContext,
 } from "../context";
 import { getRoom } from "../read/calendar";
+import { propose_call } from "./call";
+import { propose_deal } from "./deal";
+import { propose_follow_up } from "./follow-up";
+import { propose_lead_search } from "./lead-search";
+import { propose_leads } from "./leads";
+import { propose_list } from "./list";
+import { propose_people } from "./people";
+import { propose_person } from "./person";
+import { propose_reply } from "./reply";
+import { propose_review } from "./review";
+import { propose_sequence } from "./sequence";
+import { propose_thread_verb } from "./thread-verb";
 import { readJourney, readMessages } from "../read/campaigns";
 import { listLists } from "../read/people";
-import { settingsAct } from "./settings";
+import { propose_settings, settingsAct } from "./settings";
 import { broadcastAction } from "./broadcast";
 import { messageAction } from "./message";
 import { playbookAction } from "./playbook";
@@ -53,7 +70,7 @@ const STEP_ACTIONS: Record<PlanStep["kind"], ActDef> = {
   playbook: playbookAction,
 };
 
-/** What a plan is asked as (propose_campaign's action plan): contracts PlanIntent, flat, and the message's language. */
+/** What a plan is asked as (propose_plan's action offer): contracts PlanIntent, flat, and the message's language. */
 interface PlanAsked {
   intent: "offer" | "cover_journey";
   offer?: Extract<PlanIntent, { intent: "offer" }>["offer"];
@@ -71,7 +88,7 @@ function intentOf(asked: PlanAsked): PlanIntent | { refusal: string } {
 
 /** A read the world is made of, or null where it failed, said in the log as every tool's failed read is (context.ts unread). */
 const orNull = <T>(t: ToolContext, read: string, p: Promise<T>): Promise<T | null> =>
-  p.catch(unread(t, "propose_campaign.plan", read));
+  p.catch(unread(t, "propose_plan.offer", read));
 
 /** Everything a plan reads, each null where its read failed. */
 async function worldReads(t: ToolContext) {
@@ -125,8 +142,8 @@ function notesOf(r: Awaited<ReturnType<typeof worldReads>>, now: Date): PlanWorl
 
 /**
  * The workspace as a plan is made against (contracts PlanWorld), each part read by the read Ask's own action of it makes,
- * so what the plan reuses, counts and covers is what those actions say: the Library (campaigns.messages), the lists and
- * their counts (people.lists: People's offered here and the workspace's own), the journey (campaigns.journey, as
+ * so what the plan reuses, counts and covers is what those actions say: the Library (sequences.messages), the lists and
+ * their counts (people.lists: People's offered here and the workspace's own), the journey (sequences.journey, as
  * Campaigns' home composes it), the campaigns (GET playbooks' reader, the journey's own read), the room (calendar.room:
  * none where no calendar can say it, or one with no slot either way), the receptionist's notes in force (notesOf), the
  * channels an offer may go by now and why not (the channels' readiness with the offer's own rule, contracts
@@ -249,7 +266,7 @@ async function proposePlan(t: ToolContext, asked: PlanAsked): Promise<ProposalOu
   return proposeMany(cards, id ? { plan: id, steps } : { steps }, planned.words);
 }
 
-/** An offer or a whole setup, made into its cards from one call: propose_campaign's action plan. */
+/** An offer or a whole setup, made into its cards from one call: propose_plan's action offer. */
 export const planAction = actAction({
   // The action makes cards of several kinds; this is what the role it is offered to is judged by (an operator's).
   kind: "playbook",
@@ -278,6 +295,194 @@ export const planAction = actAction({
   ],
   label: "Making a plan",
   words:
-    "Action plan makes every card an offer or a whole setup takes, from one call: intent offer, with offer (words, the offer in their words; from and until, its first and last day, YYYY-MM-DD by the business's calendar; service, who as a list token, and channels, each optional) and say, their own phrasing where they gave one; or intent cover_journey, with optional stages, for a campaign on each moment of the journey not covered yet. Name what they asked for and the days they gave, never an id or a time to send: the plan reads the Library, the lists, the campaigns, the notes, the calendar's room and the channels itself, and reuses a message that fits or writes one in language (en or es, the one their customers read; en where none is named). It comes back as the plan's words and its steps, each its own card in order: those that send nothing (a message, a note for the receptionist, a pause) are approved together, and each send on its own after them; say the plan's words, and never that any of it is done.",
+    "Action offer makes every card an offer or a whole setup takes, from one call: intent offer, with offer (words, the offer in their words; from and until, its first and last day, YYYY-MM-DD by the business's calendar; service, who as a list token, and channels, each optional) and say, their own phrasing where they gave one; or intent cover_journey, with optional stages, for a campaign on each moment of the journey not covered yet. Name what they asked for and the days they gave, never an id or a time to send: the plan reads the Library, the lists, the campaigns, the notes, the calendar's room and the channels itself, and reuses a message that fits or writes one in language (en or es, the one their customers read; en where none is named). It comes back as the plan's words and its steps, each its own card in order: those that send nothing (a message, a note for the receptionist, a pause) are approved together, and each send on its own after them; say the plan's words, and never that any of it is done.",
   build: proposePlan,
+});
+
+/* ------------------------------------------------------------ a plan across pages (the operator, 15 Oct 2026) -- */
+
+/** The act tools a plan's step may name: every one but the plan itself. */
+const STEP_TOOLS: ReadonlyMap<string, ActTool> = new Map(
+  [
+    propose_reply,
+    propose_thread_verb,
+    propose_call,
+    propose_person,
+    propose_people,
+    propose_list,
+    propose_deal,
+    propose_settings,
+    propose_lead_search,
+    propose_leads,
+    propose_sequence,
+    propose_review,
+    propose_follow_up,
+  ].map((tool) => [tool.name, tool]),
+);
+
+/** The most steps one plan takes: a plan longer than this is two questions. */
+const PLAN_STEPS_MAX = 12;
+
+/** A value with every key the model wrote as null left out, all the way down (the flat schemas show every key). */
+const withoutNulls = (v: unknown): unknown =>
+  Array.isArray(v)
+    ? v.map(withoutNulls)
+    : v && typeof v === "object"
+      ? Object.fromEntries(
+          Object.entries(v)
+            .filter(([, x]) => x !== null)
+            .map(([k, x]) => [k, withoutNulls(x)]),
+        )
+      : v;
+
+/** The earlier steps a payload names by their tokens (`@step:n`), anywhere in it. */
+function stepsNamedIn(v: unknown, into: Set<number> = new Set()): Set<number> {
+  if (typeof v === "string") {
+    const m = STEP_TOKEN.exec(v);
+    if (m) into.add(Number(m[1]));
+  } else if (Array.isArray(v)) for (const x of v) stepsNamedIn(x, into);
+  else if (v && typeof v === "object") for (const x of Object.values(v)) stepsNamedIn(x, into);
+  return into;
+}
+
+interface PlanStepAsked {
+  tool: string;
+  action?: string;
+  input: Record<string, unknown>;
+}
+
+/** One step's card, built by the named action's own handler with the step's input, parsed by its own zod first. */
+async function genericStep(t: ToolContext, n: number, step: PlanStepAsked): Promise<AskProposal | { refusal: string }> {
+  const tool = STEP_TOOLS.get(step.tool);
+  if (!tool) return { refusal: `${step.tool} is not a tool a plan's step takes` };
+  const hasActions = !Object.prototype.hasOwnProperty.call(tool.actions, NO_ACTION);
+  const key = hasActions ? (step.action ?? "") : NO_ACTION;
+  const def = Object.prototype.hasOwnProperty.call(tool.actions, key) ? tool.actions[key] : null;
+  if (!def) return { refusal: `${step.tool} takes action ${Object.keys(tool.actions).join(", ")}` };
+  if (!offeredTo(def, t.role)) return { refusal: `${step.tool}.${key} is not this member's to approve` };
+  const parsed = def.input.safeParse(withoutNulls(step.input ?? {}));
+  if (!parsed.success)
+    return { refusal: parsed.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ") };
+  const made = await def.build({ ...t, step: n }, parsed.data);
+  if (made.proposal) return made.proposal;
+  return { refusal: made.refusal ?? made.result };
+}
+
+/**
+ * A plan across pages (the operator, 15 Oct 2026): the steps Ask names, each a card of any act tool, built by its own
+ * action's handler as one call of it would be, a later step naming what an earlier one makes by its token (`@step:n`:
+ * a list, a sequence, a message, a list of leads, a search). Stamped as one plan: the steps that change only what the
+ * workspace keeps (a list, a draft, a note, a follow-up) are one press, approved together in step order; each step that
+ * reaches outside it (contracts ASK_SENDS: a message, a search, a start, a post) is its own press after them; and a step
+ * that names a send's result by its token waits for that send too, pressed on its own after it. A step its action
+ * refuses is the plan's refusal, naming the step; nothing is proposed then.
+ */
+async function proposeSteps(
+  t: ToolContext,
+  asked: { words?: string; steps: PlanStepAsked[] },
+): Promise<ProposalOutcome> {
+  if (asked.steps.length < 2) return refuse("a plan is two steps or more; one card is its own tool's call");
+  if (asked.steps.length > PLAN_STEPS_MAX) return refuse(`a plan takes at most ${PLAN_STEPS_MAX} steps: split it`);
+  const cards: AskProposal[] = [];
+  for (const [i, step] of asked.steps.entries()) {
+    const n = i + 1;
+    const card = await genericStep(t, n, step);
+    if ("refusal" in card)
+      return refuse(`Step ${n} (${step.tool}${step.action ? `.${step.action}` : ""}): ${card.refusal}`);
+    cards.push(card);
+  }
+  const id = `plan-${randomUUID()}`;
+  const of = cards.length;
+  // Each step's place in the plan, in order: silent where it changes only what the workspace keeps and names no send's
+  // result; else its own press, after every silent step before it and each step it names.
+  const silentAt: boolean[] = [];
+  const stamped = cards.map((c, i) => {
+    const n = i + 1;
+    const named = [...stepsNamedIn(c.payload)].filter((k) => k >= 1 && k < n);
+    // A step that names a send's result cannot go with the silent press: it waits for that send, on its own.
+    const silent = !ASK_SENDS.has(c.kind) && named.every((k) => silentAt[k - 1]);
+    silentAt.push(silent);
+    const waits = silent
+      ? []
+      : [...new Set([...silentAt.slice(0, i).flatMap((s, k) => (s ? [k + 1] : [])), ...named])].sort((a, b) => a - b);
+    return { ...c, plan: { id, step: n, of, silent, after: waits } };
+  });
+  const steps = stamped.map((c) => ({ n: c.plan.step, kind: c.kind, card: c.title, silent: c.plan.silent }));
+  const words =
+    asked.words?.trim() ||
+    `${of} steps: ${stamped.filter((c) => c.plan.silent).length} that change only what you keep, approved together, then each send on its own.`;
+  return proposeMany(stamped, { plan: id, steps }, words);
+}
+
+const stepsAction = actAction({
+  // The action makes cards of several kinds; this is what the role it is offered to is judged by (an operator's).
+  kind: "list",
+  input: z.object({
+    words: z
+      .string()
+      .optional()
+      .describe("The plan in the person's words, said as the answer: what it does, in a sentence or two."),
+    steps: z
+      .array(
+        z.object({
+          tool: z.string().describe("An act tool's name, such as propose_list or propose_sequence."),
+          action: z.string().optional().describe("Its action, where the tool takes one."),
+          input: z
+            .record(z.string(), z.unknown())
+            .describe(
+              "The action's own input, as one call of it takes it; an id an earlier step makes is its token, @step:n.",
+            ),
+        }),
+      )
+      .describe(`Two to ${PLAN_STEPS_MAX} steps, in the order they are approved.`),
+  }),
+  examples: [
+    {
+      words: "Keep the 120 best salons as a list, write to them in three emails, and I'll tell you who answers.",
+      steps: [
+        {
+          tool: "propose_leads",
+          action: "list",
+          input: { name: "Salons near you", lead_ids: ["5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b"] },
+        },
+        {
+          tool: "propose_sequence",
+          action: "cold_email",
+          input: {
+            name: "Salons near you",
+            search_id: "@step:1",
+            steps: [{ subject: "A quick idea for {business_name}", body: "Hi {first_name}, ..." }],
+          },
+        },
+        {
+          tool: "propose_follow_up",
+          action: "keep",
+          input: {
+            said: "When the salons answer, I'll draft the replies",
+            prompt: "Salons near you has replies: read them and propose answers.",
+            wake: "replies",
+            subject: "@step:2",
+          },
+        },
+      ],
+    },
+  ],
+  label: "Making a plan",
+  words: `Action steps makes a plan across pages from the steps you name: each a card of any act tool, by its tool, action and its own input, a later step naming what an earlier one makes by its token (@step:n: a list, a list of leads, a message, a sequence, a search). The steps that change only what the workspace keeps are approved together; each that sends, spends or posts is its own press after them. Call it when one ask takes several cards that build on each other (organize people into lists, a cold email to a list of leads with a follow-up, a sequence and its first steps); for an offer or a whole setup of the journey, action offer.`,
+  build: proposeSteps,
+});
+
+/**
+ * Ask's plans (the operator, 15 Oct 2026): an offer or a whole setup of the journey, made with no model from the
+ * workspace (offer, once propose_campaign's plan), and a plan across pages from steps Ask names (steps).
+ */
+export const propose_plan = defineActions({
+  name: "propose_plan",
+  description:
+    "Propose a plan of several cards from one call, approved as one: an offer or a whole setup of the customer journey, made from the workspace itself; or any steps across pages you name, each a card of an act tool, building on one another.",
+  tail: "Call it alone, with no answer beside it: its answer is the plan's own words. Never say any of it is done.",
+  actions: {
+    offer: planAction,
+    steps: stepsAction,
+  },
 });

@@ -178,7 +178,7 @@ async function broadcastCount(
   sendsAt: Date,
 ): Promise<(ReturnType<typeof broadcastReach> & { leftOutSaid: string }) | { refusal: string }> {
   const { rows, label, purpose } = aud;
-  const touches = await touchesThisWeek(t, "propose_campaign.broadcast");
+  const touches = await touchesThisWeek(t, "propose_sequence.once");
   if (!touches) return { refusal: PLAYBOOK_CARD_REFUSALS.weekUnread };
   const reach = broadcastReach(rows, purpose, by, leftOutBy(touches, sendsAt.getTime(), t.now.getTime()));
   if (reach.count > 0) {
@@ -251,7 +251,7 @@ interface BroadcastProposed {
  * count here is the count it enrols, once a turn, so a listing of the audiences before it read the same pool
  * (readers/audience-pool.ts). Any list is counted the way the send will count it (audience.ts poolList): a built-in or a
  * saved list alike, and one that can't be counted here refused with why. One of the workspace's own is counted from the
- * lists the turn holds (readers/lists.ts, as campaigns.audiences read them), never read again.
+ * lists the turn holds (readers/lists.ts, as sequences.lists read them), never read again.
  */
 async function broadcastAudience(
   t: ToolContext,
@@ -376,7 +376,7 @@ async function proposeBroadcast(t: ToolContext, input: BroadcastProposed): Promi
   });
 }
 
-/** A broadcast, one message sent once: propose_campaign's action broadcast (campaign.ts), once propose_broadcast. */
+/** A broadcast, one message sent once: propose_sequence's action once (sequence.ts), once propose_broadcast. */
 export const broadcastAction = actAction({
   kind: "broadcast",
   input: z.object({
@@ -406,6 +406,6 @@ export const broadcastAction = actAction({
   ],
   label: "Preparing a broadcast",
   words:
-    "Action broadcast takes template_id, one message (the id of any of its versions, as action audiences lists it), and proposes sending it to an audience, everyone who said yes or any list campaigns with action audiences names (audience_kind everyone; list for a People list, with its id as audience_id; saved for one of the workspace's own, with its audience_id), with params as the message's values in order (typed text, or @first_name, @business_name, @booking_link or @review_link, the link its Google listing keeps for a review, to fill per person), an optional scheduled_for as an ISO time with its offset (2026-09-20T15:00:00-04:00, never a bare date), an optional name, and optional channels (whatsapp, sms, email; whatsapp when none is named, so for a message that holds email or text name the channels its `channels` in action audiences say it holds): each person is reached once, on the first it can, and a channel the workspace cannot send on, or the message has no version for, is refused.",
+    "Action once takes template_id, one message (the id of any of its versions, as sequences with action lists lists it), and proposes sending it to an audience, everyone who said yes or any list sequences with action lists names (audience_kind everyone; list for a People list, with its id as audience_id; saved for one of the workspace's own, with its audience_id), with params as the message's values in order (typed text, or @first_name, @business_name, @booking_link or @review_link, the link its Google listing keeps for a review, to fill per person), an optional scheduled_for as an ISO time with its offset (2026-09-20T15:00:00-04:00, never a bare date), an optional name, and optional channels (whatsapp, sms, email; whatsapp when none is named, so for a message that holds email or text name the channels its `channels` in sequences with action lists say it holds): each person is reached once, on the first it can, and a channel the workspace cannot send on, or the message has no version for, is refused.",
   build: proposeBroadcast,
 });

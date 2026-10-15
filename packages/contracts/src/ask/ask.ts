@@ -36,17 +36,39 @@ import type { TemplateCategoryChoice } from "../templates/templates";
 
 /** One question, in characters. Longer than this is a document, not a question. */
 export const ASK_MAX_CHARS = 1000;
-/** Tool rounds per turn: reads, then the answer, the last forced to finish. Three since the page rides in (D10). */
-export const ASK_MAX_ROUNDS = 3;
-/** End to end, under the route's sixty-second ceiling. */
-export const ASK_TURN_BUDGET_MS = 45_000;
 /**
- * The most the owner's tools block may be, in characters as the model is sent it (66,050 on 11 October 2026; 70,426 on
- * 12 October, after the review of Ask's campaign cards, its reads and its plan; 72,542 on 13 October, the lead search
- * proposing named people at companies too, the people card's, 00430; 73,558 on 15 October, Ask reading the sequences
- * as their page does, decision 0060).
+ * Tool rounds per turn: reads, then the answer, the last forced to finish. Three from the page riding in (D10) to the
+ * operator (15 Oct 2026, Ruben's "running chanlytics end to end"): reading the workspace, what wins and what exists before
+ * a plan of several cards takes more than two rounds of reads, and a tool found by search takes one of its own.
  */
-export const ASK_TOOLS_CHARS_CEILING = 74_000;
+export const ASK_MAX_ROUNDS = 8;
+/**
+ * A typed turn end to end, under the route's ceiling (app/api/v1/ask, maxDuration): long enough for a plan of several
+ * cards over many reads (the operator, 15 Oct 2026; his rule that cost never outranks the experience).
+ */
+export const ASK_TURN_BUDGET_MS = 120_000;
+/**
+ * A spoken turn end to end (the voice door): a person is listening, so it keeps the budget a turn had before the operator,
+ * under the voice claim's own staleness (ASK_VOICE_CLAIM_STALE_MS).
+ */
+export const ASK_SPOKEN_TURN_BUDGET_MS = 45_000;
+/**
+ * The most the owner's tools block may be, in characters as the model is sent it with every tool loaded: what a turn
+ * pays when tool search is refused and every tool rides up front (66,050 on 11 October 2026; 73,558 on 15 October, Ask
+ * reading the sequences as their page does, decision 0060; the operator's full parity, 15 October, every page's verbs
+ * as cards, the most it may grow to).
+ */
+export const ASK_TOOLS_CHARS_CEILING = 130_000;
+/**
+ * The most the owner's tools loaded on every question may be (the always-loaded core and the search tool), in characters:
+ * the rest are found by tool search, out of the cached prefix until one is (the operator, 15 Oct 2026, D11).
+ */
+export const ASK_CORE_TOOLS_CHARS_CEILING = 40_000;
+/**
+ * The most people or leads one card acts on (the operator, 15 Oct 2026, D5): a selection by rule, a list or ids, counted
+ * before the card is shown, committed in its door's own batches.
+ */
+export const ASK_SELECTION_MAX = 2_000;
 /**
  * The longest the voice door lets pass with nothing speakable sent: ElevenLabs cuts a custom LLM whose stream goes
  * quiet for 15 s (its ceiling) and asks again, so while the model is quiet the door sends the vendor's own buffer words
@@ -194,7 +216,39 @@ export interface AskProposal {
     | "run"
     | "playbook_channels"
     | "playbook_change"
-    | "message";
+    | "message"
+    // Every verb a page commits is a card Ask may propose (the operator, 15 Oct 2026: one table, ask-proposals/).
+    | "answer"
+    | "answer_many"
+    | "person_mode_many"
+    | "note_many"
+    | "person_add"
+    | "person_merge"
+    | "person_message"
+    | "list_member"
+    | "list_change"
+    | "list_delete"
+    | "sequence_step"
+    | "sequence_step_remove"
+    | "sequence_words"
+    | "sequence_leave"
+    | "sequence_draft"
+    | "sequence_make"
+    | "sequence_start"
+    | "sequence_discard"
+    | "call_hand_over"
+    | "lead_stage"
+    | "lead_mark"
+    | "lead_later"
+    | "leads_bulk"
+    | "leads_check"
+    | "lead_addressee"
+    | "lead_list"
+    | "lead_search_more"
+    | "reach_out_make"
+    | "reach_out_said"
+    | "review_reply"
+    | "follow_up";
   /** The lowest role that may commit it, its spec's (ask-proposals/); the route re-checks on Approve. */
   needs: ProposalNeeds;
   title: string;
@@ -442,7 +496,7 @@ export type AskSurface = (typeof ASK_SURFACES)[number];
 /* ------------------------------------------------------------ what Ask reads */
 
 /**
- * One message of the library as campaigns with action messages reads it (the dashboard's readers/templates.ts
+ * One message of the library as sequences with action messages reads it (the dashboard's readers/templates.ts
  * messageReadsOf), and what a plan of Ask's is checked against: a name in a language, its category as a send judges a
  * yes (an authentication message is a utility one), each version on its channel with its row's status (a WhatsApp
  * version still in Meta's review among them; an email's or a text's is written approved), the numbered values it fills

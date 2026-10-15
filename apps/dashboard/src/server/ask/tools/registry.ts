@@ -20,33 +20,40 @@ import {
   type ToolRun,
 } from "./context";
 import { todayTool } from "./read/today";
+import { signalsTool } from "./read/signals";
+import { guideTool } from "./read/guide";
 import { inboxTool } from "./read/threads";
 import { peopleTool } from "./read/people";
 import { callsTool } from "./read/calls";
 import { reportTool } from "./read/report";
 import { workspaceTool } from "./read/settings";
 import { calendarTool } from "./read/calendar";
-import { campaignsTool } from "./read/campaigns";
+import { sequencesTool } from "./read/campaigns";
 import { leadsTool } from "./read/leads";
 import { propose_reply } from "./act/reply";
 import { propose_thread_verb } from "./act/thread-verb";
+import { propose_call } from "./act/call";
 import { propose_person } from "./act/person";
-import { propose_deal } from "./act/deal";
-import { propose_autonomy } from "./act/policy";
-import { propose_settings } from "./act/settings";
-import { propose_whisper } from "./act/whisper";
-import { propose_team } from "./act/invite";
-import { propose_campaign } from "./act/campaign";
+import { propose_people } from "./act/people";
 import { propose_list } from "./act/list";
+import { propose_deal } from "./act/deal";
+import { propose_settings } from "./act/settings";
 import { propose_lead_search } from "./act/lead-search";
+import { propose_leads } from "./act/leads";
+import { propose_sequence } from "./act/sequence";
+import { propose_review } from "./act/review";
+import { propose_plan } from "./act/plan";
+import { propose_follow_up } from "./act/follow-up";
 
 /**
  * The registry: one definition per tool, in a file of its family; the JSON schema the model is shown generated
  * from the definition's zod; the input parsed by that zod before the handler runs; dispatch a map. PR 3.1 moved the
  * twenty-six tools here; PR 3.3 wrote their descriptions (D9); PR 3.4 (D11) consolidated them to nineteen, sorted by
- * name: the reads by family under an `action`, the acts by card family, each action what one of the twenty-six was,
- * its handler moved under it unchanged (tooling/evals/tool-names.json names each old tool's new name and action).
- * A role is offered the actions it may use (D12; per action since the Phase 4 plan, D2: offer.ts).
+ * name: the reads by family under an `action`, the acts by card family. The operator (15 Oct 2026) made every page's
+ * verb a card Ask proposes and gave Ask its own reads of the workspace: twenty-five tools, eight loaded on every
+ * question (CORE_TOOLS) and the rest found by tool search (offer.ts), for breadth (tooling/evals/tool-names.json names
+ * each old tool's new name and action). A role is offered the actions it may use (D12; per action since the Phase 4
+ * plan, D2: offer.ts).
  */
 
 /**
@@ -61,13 +68,15 @@ import { propose_lead_search } from "./act/lead-search";
  */
 export const READ_DEFS: readonly ReadTool[] = [
   todayTool,
+  signalsTool,
+  guideTool,
   inboxTool,
   peopleTool,
   callsTool,
   reportTool,
   workspaceTool,
   calendarTool,
-  campaignsTool,
+  sequencesTool,
   leadsTool,
 ];
 
@@ -84,16 +93,36 @@ export const READ_DEFS: readonly ReadTool[] = [
 export const ACT_DEFS: readonly ActTool[] = [
   propose_reply,
   propose_thread_verb,
+  propose_call,
   propose_person,
-  propose_deal,
-  propose_autonomy,
-  propose_settings,
-  propose_whisper,
-  propose_campaign,
+  propose_people,
   propose_list,
-  propose_team,
+  propose_deal,
+  propose_settings,
   propose_lead_search,
+  propose_leads,
+  propose_sequence,
+  propose_review,
+  propose_plan,
+  propose_follow_up,
 ];
+
+/**
+ * The tools loaded on every question (the operator, 15 Oct 2026, D11): the day, what stands out, how it works, the
+ * conversations, People, a reply, one person and a plan. The rest are found by tool search: the core never changes from
+ * page to page, so the cached prefix holds, and the open page is said in the turn's own words so the search finds its
+ * tools first.
+ */
+export const CORE_TOOLS: ReadonlySet<string> = new Set([
+  todayTool.name,
+  signalsTool.name,
+  guideTool.name,
+  inboxTool.name,
+  peopleTool.name,
+  propose_reply.name,
+  propose_person.name,
+  propose_plan.name,
+]);
 
 /* ----------------------------------------------------------- the actions */
 
@@ -183,17 +212,46 @@ function normalise(node: unknown): unknown {
 function flatten(schema: Record<string, unknown>): Record<string, unknown> {
   if (!Array.isArray(schema.oneOf)) return schema;
   const branches = schema.oneOf as Array<{ properties: Record<string, Record<string, unknown>> }>;
-  const properties: Record<string, unknown> = {
+  const properties: Record<string, Record<string, unknown>> = {
     action: { type: "string", enum: branches.map((b) => b.properties.action.const) },
   };
-  for (const b of branches)
+  // What each action says of a shared field (the operator, 15 Oct 2026: each input explained on itself), by action.
+  const said = new Map<string, Array<[string, string]>>();
+  for (const b of branches) {
+    const action = String(b.properties.action.const);
     for (const [k, v] of Object.entries(b.properties)) {
       if (k === "action") continue;
-      if (k in properties && JSON.stringify(properties[k]) !== JSON.stringify(v))
+      // One shape, whatever each action says of it: a description is words, never a shape.
+      if (k in properties && shapeOf(properties[k]) !== shapeOf(v))
         throw new Error(`ask tools: ${k} is taken by two actions of one tool in two shapes`);
       properties[k] ??= v;
+      if (typeof v.description === "string") said.set(k, [...(said.get(k) ?? []), [action, v.description]]);
     }
+  }
+  // A field the actions describe alike says it once; described apart, each action's words, named by its action.
+  for (const [k, words] of said) {
+    const distinct = [...new Set(words.map(([, w]) => w))];
+    properties[k] = {
+      ...properties[k],
+      description: distinct.length === 1 ? distinct[0] : words.map(([a, w]) => `${a}: ${w}`).join(" "),
+    };
+  }
   return { type: "object", properties, required: ["action"], additionalProperties: false };
+}
+
+/** A schema's shape: the schema with every description left out, all the way down, as one string. */
+function shapeOf(node: unknown): string {
+  const strip = (v: unknown): unknown =>
+    Array.isArray(v)
+      ? v.map(strip)
+      : v && typeof v === "object"
+        ? Object.fromEntries(
+            Object.entries(v as Record<string, unknown>)
+              .filter(([k]) => k !== "description")
+              .map(([k, x]) => [k, strip(x)]),
+          )
+        : v;
+  return JSON.stringify(strip(node));
 }
 
 export function toolSchema(input: z.ZodType): Record<string, unknown> {

@@ -3,6 +3,8 @@ import { z } from "zod";
 import {
   ASK_CAPS,
   BUILTIN_LISTS,
+  LIST_DRAFT_JSON_SCHEMA,
+  cameFromOf,
   PEOPLE_LISTS,
   asListRule,
   listMembers,
@@ -34,11 +36,13 @@ import { audiencePool } from "../../../readers/audience-pool";
 import * as facts from "../../../readers/facts";
 import { lists as listsReader } from "../../../readers/lists";
 import { dealBoard, people } from "../../../readers/people";
+import { lead as leadReader } from "../../../readers/leads";
 import { person } from "../../../readers/person";
 import { threadState } from "../../thread-state";
 import {
   AUDIENCES_CALL,
   UUID,
+  unread,
   defineActions,
   noteRow,
   readAction,
@@ -101,21 +105,65 @@ function personLine(r: PersonRowDto, vm: PersonRowVM, tz: string, nowMs: number)
   };
 }
 
-async function searchPeople(t: ToolContext, input: { query: string; list?: string }): Promise<unknown> {
+/**
+ * Who a rule in the lists' vocabulary holds today, over the audience pool (everyone, as a send counts them): the ids, or
+ * why it cannot be counted here, in the rail's words. The one way a search by condition and a selection by rule are
+ * answered (the operator, 15 Oct 2026), so "said yes to offers and no visit in 90 days" is one shape everywhere.
+ */
+export async function ruleMembers(
+  t: ToolContext,
+  all: unknown[],
+): Promise<{ ids: Set<string>; pool: AudiencePool } | { error: string }> {
+  const rule = asListRule({ all: withoutNullsDeep(all) });
+  if (!rule)
+    return {
+      error:
+        "all is not a rule the list vocabulary reads: one to twelve conditions, each one fact with only the keys its field takes, or { any: [two to six facts] }",
+    };
+  const pool = (await load(t.rc, audiencePool, undefined)).data;
+  const kept = (await load(t.rc, listsReader, undefined)).data.lists;
+  const on = listMembers({ ids: [], rule }, pool.rows, pool.listCtx, savedListLookup(kept));
+  if (on.state !== "ok") return { error: listUnknownWords(on.reason, pool.calendar.state) };
+  return { ids: on.ids, pool };
+}
+
+/** A value with every key the model wrote as null left out, all the way down (the flat schema shows every key). */
+const withoutNullsDeep = (v: unknown): unknown =>
+  Array.isArray(v)
+    ? v.map(withoutNullsDeep)
+    : v && typeof v === "object"
+      ? Object.fromEntries(
+          Object.entries(v)
+            .filter(([, x]) => x !== null)
+            .map(([k, x]) => [k, withoutNullsDeep(x)]),
+        )
+      : v;
+
+async function searchPeople(
+  t: ToolContext,
+  input: { query?: string; list?: string; all?: unknown[] },
+): Promise<unknown> {
   // The query as the People page's search sends it (contacts/route.ts): trimmed, eighty characters at most.
   const q = str(input.query, 80);
   const listIn = str(input.list, 60);
-  // Any list, one way (decision 0009): a token campaigns.audiences gave, or a People list's bare id.
+  // Any list, one way (decision 0009): a token sequences.lists gave, or a People list's bare id.
   const ref = listIn
     ? (parseListToken(listIn) ?? parseListToken(`list:${listIn}`) ?? parseListToken(`seg:${listIn}`))
     : null;
   if (listIn && !ref) return { error: `list must be a list token from ${AUDIENCES_CALL}, or a People list's id` };
   // A list is counted over the audience pool (readers/audience-pool.ts, once a turn), everyone with their appointments,
   // as the People rail and the send count one (audience.ts poolList) -- never over one page. One of the workspace's own
-  // is counted from the lists the turn holds (readers/lists.ts, as campaigns.audiences read them), never read again. One
+  // is counted from the lists the turn holds (readers/lists.ts, as sequences.lists read them), never read again. One
   // that can't be counted here says why, in the page's words, and names the condition that failed.
   let pool: AudiencePool | null = null;
   let members: Set<string> | null = null;
+  // Conditions in the lists' vocabulary (all): who they hold today, crossed with a list where one is named too.
+  if (input.all && input.all.length) {
+    const held = await ruleMembers(t, input.all);
+    if ("error" in held) return { error: held.error, people: [] };
+    pool = held.pool;
+    members = held.ids;
+  }
   if (ref) {
     const [held, kept] = await Promise.all([
       load(t.rc, audiencePool, undefined).then((r) => r.data),
@@ -125,7 +173,8 @@ async function searchPeople(t: ToolContext, input: { query: string; list?: strin
     const found = await poolList(t.ctx, t.tenantId, pool, ref, kept);
     if (!found) return { error: `no such list; ${AUDIENCES_CALL} names them`, people: [] };
     if ("unknown" in found) return { error: `${found.label}: ${found.unknown}`, people: [] };
-    members = new Set(found.memberIds);
+    const onList = new Set(found.memberIds);
+    members = members ? new Set([...members].filter((id) => onList.has(id))) : onList;
   }
   const on = members;
   const viewer = t.ctx.userId ?? null;
@@ -133,7 +182,7 @@ async function searchPeople(t: ToolContext, input: { query: string; list?: strin
   let matches: number;
   let rowOf: (r: PersonRowDto) => PersonRowVM;
   if (pool && on && !q) {
-    // A list and no words: its members, in the pool's order, each with the pool's own People row.
+    // A list or a rule and no words: its members, in the pool's order, each with the pool's own People row.
     const inPool = pool;
     hits = inPool.people.filter((r) => on.has(r.id));
     matches = hits.length;
@@ -165,6 +214,7 @@ async function searchPeople(t: ToolContext, input: { query: string; list?: strin
     query: q,
     // A People list by its id, as it was asked for; one of the workspace's own by its token.
     list: ref ? (ref.kind === "builtin" ? ref.id : `list:${ref.id}`) : null,
+    ...(input.all && input.all.length ? { by_rule: true } : {}),
     // Counted before the cap: everyone the query matches, as the page counts them; on a list, who is on it.
     matches,
     people: picked.map((r) => personLine(r, rowOf(r), t.timezone, t.now.getTime())),
@@ -249,6 +299,99 @@ async function getPerson(t: ToolContext, input: { contact_id: string }): Promise
       suggested_by_the_receptionist: n.suggested,
       text: n.body,
     })),
+  };
+}
+
+/** How many of a group's lead-found people a winners read opens, to say what kind of business they were. */
+const WINNERS_LEADS_CAP = 25;
+/** How many values of a trait a winners read says, the most common first. */
+const TRAIT_TOP = 5;
+
+/** A trait's values over a set of people, the most common first, each with its count and its share of them. */
+function traitOf<R>(rows: readonly R[], valueOf: (r: R) => string[] | string | null) {
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    const v = valueOf(r);
+    for (const x of Array.isArray(v) ? v : v ? [v] : []) counts.set(x, (counts.get(x) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, TRAIT_TOP)
+    .map(([value, n]) => ({ value, n, share: rows.length ? `${Math.round((100 * n) / rows.length)}%` : null }));
+}
+
+/**
+ * Who wins for this business, and what they share (the operator, 15 Oct 2026, D8): the people who paid (a deal won,
+ * where deals are on), who booked (a visit on record, where a calendar is connected) and who said yes to offers, each
+ * group counted over everyone in People as a send counts them; then what the winners share against everyone -- how they
+ * first came, the channels they use -- and, for those a lead search found, what kind of business they were and where
+ * (the lead's own category and city, read for at most WINNERS_LEADS_CAP of them). Counts and shares only, computed here:
+ * the model says them, and plans a search for more like them from them.
+ */
+async function readWinners(t: ToolContext): Promise<unknown> {
+  const [pool, kept] = await Promise.all([
+    load(t.rc, audiencePool, undefined).then((r) => r.data),
+    load(t.rc, listsReader, undefined).then((r) => r.data.lists),
+  ]);
+  const lookup = savedListLookup(kept);
+  const cal = pool.calendar.state;
+  // Each group by the lists' own vocabulary, so a winner here is who the matching list on People holds.
+  const groupOf = (all: unknown[]) => {
+    const rule = asListRule({ all });
+    if (!rule) return null;
+    const on = listMembers({ ids: [], rule }, pool.rows, pool.listCtx, lookup);
+    return on.state === "ok" ? on.ids : null;
+  };
+  const paid = pool.deals_on ? groupOf([{ field: "deal_stage", op: "is", value: "won" }]) : null;
+  const booked = cal === "ok" ? groupOf([{ field: "booked", op: "is", yes: true }]) : null;
+  const yes = groupOf([{ field: "said_yes", op: "is", to: "offers", yes: true }]);
+  // The winners, in the order D8 weighs them: who paid, else who booked, else who said yes.
+  const winnerIds = new Set<string>([...(paid ?? []), ...(booked ?? []), ...(yes ?? [])]);
+  const everyone = pool.people;
+  const winners = everyone.filter((r) => winnerIds.has(r.id));
+  const cameFrom = (r: (typeof everyone)[number]) => cameFromOf(r)?.label ?? null;
+  const channels = (r: (typeof everyone)[number]) => r.channels ?? [];
+  // The businesses a lead search found among them: what kind, and where, as the lead's own row says it.
+  const fromLeads = winners.filter((r) => typeof r.lead_id === "string" && r.lead_id).slice(0, WINNERS_LEADS_CAP);
+  const leads = (
+    await Promise.all(
+      fromLeads.map((r) =>
+        unlessNotFound(load(t.rc, leadReader, { id: String(r.lead_id) }))
+          .then((x) => x?.data.row ?? null)
+          .catch(unread(t, "people.winners", "lead")),
+      ),
+    )
+  ).filter((x): x is NonNullable<typeof x> => x !== null);
+  return {
+    route: "clients",
+    everyone: everyone.length,
+    groups: {
+      paid: paid ? paid.size : null,
+      ...(pool.deals_on ? {} : { paid_not_counted: "deals are off in this workspace" }),
+      booked: booked ? booked.size : null,
+      ...(cal === "ok" ? {} : { booked_not_counted: "no calendar is connected" }),
+      said_yes_to_offers: yes ? yes.size : null,
+    },
+    winners: winners.length,
+    share: {
+      came_from: { winners: traitOf(winners, cameFrom), everyone: traitOf(everyone, cameFrom) },
+      channels: { winners: traitOf(winners, channels), everyone: traitOf(everyone, channels) },
+    },
+    from_lead_searches: {
+      winners_found_by_a_search: winners.filter((r) => !!r.lead_id).length,
+      read: leads.length,
+      kind: traitOf(leads, (l) => l.category),
+      city: traitOf(leads, (l) => (l.city ? `${l.city}${l.state ? `, ${l.state}` : ""}` : null)),
+      with_a_website: leads.filter((l) => !!l.website).length,
+      rating_median: (() => {
+        const r = leads
+          .map((l) => l.rating)
+          .filter((x): x is number => typeof x === "number")
+          .sort((a, b) => a - b);
+        return r.length ? r[Math.floor(r.length / 2)] : null;
+      })(),
+    },
+    note: "Counts over everyone in People. A share is of that group. What the winners share against everyone is what a search for more like them should ask for (propose_lead_search), and what a list of people like them should hold (propose_list).",
   };
 }
 
@@ -375,17 +518,35 @@ async function readPipeline(t: ToolContext): Promise<unknown> {
 export const peopleTool = defineActions({
   name: "people",
   // The lists are named from the one table of them (contracts lists.ts), never typed beside it.
-  description: "People, the customers and callers, as the People page, a person's page and the Pipeline read them.",
+  description:
+    "People, the customers and callers, as the People page, a person's page and the Pipeline read them: find people by name or by conditions, a profile, the lists, who wins for this business, and the deals.",
   actions: {
     search: readAction({
-      input: z.object({ query: z.string(), list: z.string().optional() }),
+      input: z.object({
+        query: z
+          .string()
+          .optional()
+          .describe("A name, a WhatsApp name, an address or three or more digits of a number."),
+        list: z.string().optional().describe("One list: its token (seg:<id>, list:<id>) or a People list's bare id."),
+        all: z
+          .array(z.unknown())
+          .meta(LIST_DRAFT_JSON_SCHEMA.properties.all)
+          .optional()
+          .describe("Conditions in the lists' vocabulary, as propose_list takes them: who they hold today."),
+      }),
       examples: [
         { query: "Rosa" },
-        { query: "", list: "quiet" },
-        { query: "", list: "list:6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b" },
+        { list: "quiet" },
+        { list: "list:6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b" },
+        {
+          all: [
+            { field: "said_yes", op: "is", to: "offers", yes: true },
+            { field: "last_visit", op: "more_than", days: 90 },
+          ],
+        },
       ],
       label: "Looking through People",
-      words: `Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them; each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. An empty query lists the most recent people; list narrows to one list, given as the token campaigns with action audiences gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: ${BUILTIN_LISTS.map((l) => `${l.id} (${l.label})`).join(", ")}. Call it to find someone, or to see who is on a list; it returns at most ${ASK_CAPS.people} people, with matches counted before the cap, and a list that cannot be counted here says why.`,
+      words: `Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them; each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. No query lists the most recent people; all finds who conditions hold today, in the lists' vocabulary (who said yes, their last visit, how they came, a channel, a deal's stage, and the rest propose_list names), counted over everyone; list narrows to one list, given as the token sequences with action lists gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: ${BUILTIN_LISTS.map((l) => `${l.id} (${l.label})`).join(", ")}. Call it to find someone, or to see who is on a list; it returns at most ${ASK_CAPS.people} people, with matches counted before the cap, and a list that cannot be counted here says why.`,
       run: searchPeople,
     }),
     get: readAction({
@@ -403,6 +564,14 @@ export const peopleTool = defineActions({
       words:
         "Action lists takes nothing more and reads every list People's rail shows: People's own lists this workspace can count, each with its token (the list action search takes), what it holds and how many are on it; the ones it cannot count here, with why; and the workspace's own lists, kept by hand or by a rule, each with its rule in the page's words and its count or why it cannot be counted, and the archived ones by name. Call it to say which lists there are and how many are on each, and action search with a list's token for who is on it. It counts over everyone in People, as a send counts them.",
       run: listLists,
+    }),
+    winners: readAction({
+      input: z.object({}),
+      examples: [{}],
+      label: "Reading who wins",
+      words:
+        "Action winners takes nothing more and reads who wins for this business: how many paid (a deal won), booked (a visit on record) and said yes to offers, then what the winners share against everyone (how they first came, their channels) and, for those a lead search found, what kind of business they were, where, and how they rate. Call it before planning a search for more customers like the best ones, or a list of people like them.",
+      run: readWinners,
     }),
     pipeline: readAction({
       input: z.object({}),

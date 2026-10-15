@@ -395,8 +395,11 @@ var FeaturesConfigSchema = z3.object({
   /** Campaigns › Sequences (decision 0060), drawn in this workspace before it replaces the home (contracts sequences). */
   sequences_preview: z3.boolean().optional()
 }).strip();
+var ASK_GOAL_MAX = 200;
+var AskConfigSchema = z3.object({ goal: z3.string().max(ASK_GOAL_MAX).optional() }).strip();
 var TenantConfigSchema = z3.object({
   brain: BrainConfigSchema.optional(),
+  ask: AskConfigSchema.optional(),
   notifications: NotificationsConfigSchema.optional(),
   calendar: CalendarConfigSchema.optional(),
   bookings: BookingsConfigSchema.optional(),

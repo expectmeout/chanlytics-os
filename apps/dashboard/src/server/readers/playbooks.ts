@@ -46,7 +46,7 @@ interface PlaybooksPage {
  * (the hours are its), each trigger's pool over everyone counted the way a run counts it -- no one looking, the week's
  * breath applied (db recentTouches, read here and counted into each pool's `held`, never answered whole) -- and the lists a playbook
  * may run on, each with its own pool, and whether deals are on here (0008), which offers and counts the proposal
- * follow-up (0006). The route's body, moved here whole, so the Playbooks page and campaigns.playbooks say the same
+ * follow-up (0006). The route's body, moved here whole, so the Playbooks page and sequences.moments say the same
  * numbers. The workspace's name and zone, how its customers buy and its settings come through their readers, once in a
  * turn: the pools' calendar lookup reads neither the zone nor the settings again. Everyone the pools count is the
  * turn's own read too (readers/everyone.ts), which the audience pool shares. Each playbook is a row a citation names,

@@ -1,5 +1,13 @@
 /** The cards Ask proposes, one spec per kind (Ask Rewired, Phase 3, D6): what proposals.ts says, and each family's spec. */
-export { PROPOSAL_SPECS, proposalSpec, verbSpec, proposalBelowNeeds, PROPOSAL_GATE, askUndoOpen } from "./proposals";
+export {
+  PROPOSAL_SPECS,
+  ASK_SENDS,
+  proposalSpec,
+  verbSpec,
+  proposalBelowNeeds,
+  PROPOSAL_GATE,
+  askUndoOpen,
+} from "./proposals";
 export type { ProposalKindAboveOperator, VerbKind } from "./proposals";
 export { ASK_THREAD_ROUTES } from "./inbox";
 export {

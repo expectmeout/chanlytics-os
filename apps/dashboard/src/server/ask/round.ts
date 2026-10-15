@@ -11,7 +11,7 @@ import { streamModel, type GatewayCall } from "./gateway";
  */
 
 export interface RoundBlock {
-  type: "text" | "tool_use" | "thinking" | "redacted_thinking";
+  type: "text" | "tool_use" | "thinking" | "redacted_thinking" | "server_tool_use" | "tool_search_tool_result";
   id: string;
   name: string;
   text: string;
@@ -21,6 +21,9 @@ export interface RoundBlock {
   signature?: string;
   /** A redacted thinking block's data, carried back unmodified. */
   data?: string;
+  /** A tool search's result: the search call it answers, and what it found, carried back unmodified (D11). */
+  toolUseId?: string;
+  content?: unknown;
 }
 
 /** What the round cost, as the API said it on the stream (sse.ts GatewayUsage plus the stop's output side). */
@@ -85,12 +88,15 @@ export async function runRound(
       case "block_start":
         blocks.set(ev.index, {
           type: ev.block.type,
-          id: ev.block.type === "tool_use" ? ev.block.id : "",
-          name: ev.block.type === "tool_use" ? ev.block.name : "",
+          id: ev.block.type === "tool_use" || ev.block.type === "server_tool_use" ? ev.block.id : "",
+          name: ev.block.type === "tool_use" || ev.block.type === "server_tool_use" ? ev.block.name : "",
           text: "",
           json: "",
           ...(ev.block.type === "thinking" ? { thinking: "", signature: "" } : {}),
           ...(ev.block.type === "redacted_thinking" ? { data: ev.block.data } : {}),
+          ...(ev.block.type === "tool_search_tool_result"
+            ? { toolUseId: ev.block.toolUseId, content: ev.block.content }
+            : {}),
         });
         break;
       case "text": {
@@ -178,6 +184,11 @@ export function replayBlocks(blocks: RoundBlock[]): unknown[] {
         return { type: "redacted_thinking", data: b.data ?? "" };
       case "text":
         return { type: "text", text: b.text || " " };
+      // Tool search's own blocks, as the API wrote them: never a result of ours under them (D11).
+      case "server_tool_use":
+        return { type: "server_tool_use", id: b.id, name: b.name, input: parseInput(b.json) };
+      case "tool_search_tool_result":
+        return { type: "tool_search_tool_result", tool_use_id: b.toolUseId ?? "", content: b.content ?? null };
       default:
         return { type: "tool_use", id: b.id, name: b.name, input: parseInput(b.json) };
     }

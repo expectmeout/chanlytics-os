@@ -158,3 +158,20 @@ export async function pushNamesFor(
     business: tenant.data?.name?.trim() || null,
   };
 }
+
+/**
+ * What a member's pages remember in one workspace (memberships.views, 00113), on the SESSION client: their own row,
+ * which memberships_self_select lets them read. Empty for a member who has changed nothing yet; a failed read throws.
+ * GET views answers it, and Ask reads its follow-ups from the `ask` page in it (contracts ask/follow-ups.ts).
+ */
+export async function memberViewsOf(db: Db, p: { tenantId: string; userId: string }): Promise<Record<string, unknown>> {
+  const { data, error } = await db
+    .from("memberships")
+    .select("views")
+    .eq("tenant_id", p.tenantId)
+    .eq("user_id", p.userId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  const views = data?.views;
+  return views && typeof views === "object" && !Array.isArray(views) ? (views as Record<string, unknown>) : {};
+}

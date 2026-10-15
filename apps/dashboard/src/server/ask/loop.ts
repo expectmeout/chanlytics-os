@@ -3,6 +3,7 @@ import {
   ASK_ANSWER_FORMAT,
   ASK_MAX_ROUNDS,
   ASK_MAX_TOKENS,
+  ASK_SPOKEN_TURN_BUDGET_MS,
   ASK_TURN_BUDGET_MS,
   answerForCards,
   answerWords,
@@ -332,6 +333,9 @@ function besideActs(written: string, r: { refused: boolean; planned: string | nu
 
 export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts()): Promise<TurnResult> {
   const t0 = Date.now();
+  // A typed turn's whole budget (the operator, 15 Oct 2026: a plan of several cards over many reads); a spoken one keeps
+  // the budget a listener waits through.
+  const budgetMs = input.spoken ? ASK_SPOKEN_TURN_BUDGET_MS : ASK_TURN_BUDGET_MS;
   const model = askModel();
   const now = input.now ?? new Date();
   const es = input.language === "es";
@@ -407,8 +411,10 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   let dataDropped = pageBlocks.length === 0 && crossBlocks.length === 0;
   const sayWords = wordsBlock(input, now, { built, crossBlocks, scopedRow, read: tc.read });
   const question = { type: "text", text: input.text };
-  // The tools as the API takes them (registry.ts): the same bytes every round, until the API refuses their examples.
+  // The tools as the API takes them (registry.ts): the same bytes every round, until the API refuses their examples or
+  // the tool search (offer.ts: then every tool rides up front).
   let examples = true;
+  let search = true;
   let { tools } = head;
   // The answer has its format until the API refuses it: then it is dropped and
   // the same round is asked again. No tool is strict: the API takes twenty
@@ -443,7 +449,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   // Where the question sits in every request of the turn: a later round only appends.
   let questionAt = messages.length - 1;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ASK_TURN_BUDGET_MS);
+  const timer = setTimeout(() => controller.abort(), budgetMs);
 
   const done = (r: TurnEnd): TurnResult => {
     clearTimeout(timer);
@@ -594,7 +600,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
           // each. Without the page's data, their reads leave the count and the words stop pointing at them; without
           // the format, what comes back is read as JSON when it is, else as prose (D15).
           const m = e.refusal.kind === "bad_request" ? e.refusal.message : "";
-          const drop = dropFor(m, { replay: live && round === 1, context: !dataDropped, examples, format });
+          const drop = dropFor(m, { replay: live && round === 1, context: !dataDropped, examples, search, format });
           if (drop) {
             log.error(DROP_EVENTS[drop], { error: m.slice(0, 200), tenant_id: input.tenantId });
             if (drop === "replay") {
@@ -613,7 +619,10 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
               };
             } else if (drop === "examples") {
               examples = false;
-              tools = toApiTools(input.role, examples);
+              tools = toApiTools(input.role, examples, search);
+            } else if (drop === "search") {
+              search = false;
+              tools = toApiTools(input.role, examples, search);
             } else format = false;
             round--;
             continue;
@@ -685,6 +694,13 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
         });
         written = "";
         unsay();
+      }
+
+      // A server tool (the tool search, D11) paused the turn: the API resumes it from the response as it came, so the
+      // round goes back whole, with nothing of ours after it, and the next round carries on.
+      if (stopReason === "pause_turn" && !calls.length && !last) {
+        messages.push({ role: "assistant", content: replayBlocks(blocks) });
+        continue;
       }
 
       if (!written && !calls.length) {
@@ -769,7 +785,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       }
       messages.push({ role: "assistant", content: replayBlocks(blocks) });
       messages.push({ role: "user", content: resultBlocks(outcomes) });
-      if (Date.now() - t0 > ASK_TURN_BUDGET_MS - 8_000 && !last) {
+      if (Date.now() - t0 > budgetMs - 8_000 && !last) {
         // Not enough time for another read: the next round is the last, and
         // answers with what there is. Appended to the newest message, never an
         // edit to an earlier one.

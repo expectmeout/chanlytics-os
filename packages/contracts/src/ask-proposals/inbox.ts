@@ -145,3 +145,19 @@ export const whisperSpec: ProposalSpec = {
   receipt: () => "Whispered — the receptionist works it into its next answer",
   open: () => null,
 };
+
+/**
+ * A call in progress passed to the business's own line (POST calls/:id/hand-over): the receptionist tells the caller
+ * someone is picking up and transfers them, and the owner's phone rings. The door refuses a call that has ended, or a
+ * workspace with no line to ring, in its own words. Nothing undoes it: the caller is on the owner's phone by then.
+ */
+export const callHandOverSpec: ProposalSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: (p) =>
+    idIn(p.payload, "call_id")
+      ? { route: "POST calls/[id]/hand-over", params: { id: asText(p.payload.call_id) } }
+      : refuseWith(PROPOSAL_WORDS.cannotApprove),
+  receipt: (p) => `Handing ${asText(p.payload.who) || "the caller"} to your phone — it rings now`,
+  open: () => "live",
+};

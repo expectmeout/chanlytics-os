@@ -1,4 +1,5 @@
 import { read, workspace } from "@/server/route";
+import { memberViewsOf } from "@chanlytics/db";
 
 /**
  * GET /api/v1/views -- what this member's pages remember in this workspace.
@@ -10,17 +11,6 @@ import { read, workspace } from "@/server/route";
 export const GET = read({
   scope: workspace,
   handle: async ({ ctx, member }) => {
-    const { data, error } = await ctx.supabase
-      .from("memberships")
-      .select("views")
-      .eq("tenant_id", member.tenantId)
-      .eq("user_id", ctx.userId)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    const views =
-      data?.views && typeof data.views === "object" && !Array.isArray(data.views)
-        ? (data.views as Record<string, unknown>)
-        : {};
-    return { views };
+    return { views: await memberViewsOf(ctx.supabase, { tenantId: member.tenantId, userId: ctx.userId }) };
   },
 });

@@ -165,6 +165,23 @@ function readFacts(raw: unknown): { facts: LeadFacts; at: number[] } {
 /** A lead's facts as stored (leads.facts), read safely (readFacts). */
 const leadFactsOf = (raw: unknown): LeadFacts => readFacts(raw).facts;
 
+/**
+ * The people a company's source named, each with its place in the stored list (`at`, what the addressee door takes) and
+ * whether it is the addressee now: what Ask names when it proposes who a company's email goes to (the operator, 15 Oct
+ * 2026). Read by readFacts, the one reading of a lead's facts.
+ */
+export function leadNamedPeople(
+  raw: unknown,
+): { name: string; title: string | null; at: number; addressee: boolean }[] {
+  const { facts, at } = readFacts(raw);
+  return facts.people.map((p, i) => ({
+    name: p.name,
+    title: p.title,
+    at: at[i] ?? i,
+    addressee: facts.addressee === i,
+  }));
+}
+
 /** The person a company's email goes to: its addressee. A place has none; its email goes to the business. */
 export function leadAddresseeOf(l: { kind?: string | null; facts?: unknown }): LeadPerson | null {
   if (l.kind !== "company") return null;

@@ -12,10 +12,15 @@ import { PERSON_MODE_WORDS } from "../people/person-receptionist";
 import type { ApiRouteKey } from "../route-keys.generated";
 import {
   PEOPLE_CHANGED,
+  PROPOSAL_WORDS,
   asText,
+  decisionOf,
+  gatherCounts,
   idIn,
+  inBatches,
   rec,
   refuseWith,
+  type ProposalCall,
   type ProposalSpec,
   type ProposalSpecAboveOperator,
 } from "./spec";
@@ -55,6 +60,25 @@ function manySaid(data: unknown, verb: string): { done: number; failed: number; 
   const failed = failedRows.length + skipped.length;
   const why = asText(rec(failedRows[0]).message) || (skipped.length ? "no longer in this workspace" : "");
   return { done, failed, said: failed ? `${failed} could not be ${verb}${why ? ` — ${why}` : ""}` : "" };
+}
+
+/** The people a payload names, as text, each once. */
+const idsOf = (v: unknown): string[] => (Array.isArray(v) ? [...new Set(v.map(asText).filter(Boolean))] : []);
+
+/**
+ * A selection's act through its batch door, fifty people a request (the door's own rule), one card for all of them: the
+ * body's other fields on every request, each request's people its own (the operator, 15 Oct 2026).
+ */
+function manyCalls(
+  route: ApiRouteKey,
+  pl: Record<string, unknown>,
+  fields: readonly string[],
+): ProposalCall | readonly ProposalCall[] | ReturnType<typeof refuseWith> {
+  const ids = idsOf(pl.ids);
+  if (!ids.length) return refuseWith("Pick at least one person.");
+  const rest = fieldsOf(pl, fields);
+  const calls = inBatches(ids).map((part) => ({ route, body: { ...rest, ids: part }, events: [PEOPLE_CHANGED] }));
+  return calls.length === 1 ? calls[0] : calls;
 }
 
 const ANSWER_DOOR: Record<AnswerPurpose, ApiRouteKey> = {
@@ -101,12 +125,9 @@ export const answerManySpec: ProposalSpec = {
   commit: ({ payload: pl }) => {
     const purpose = purposeOf(pl.purpose);
     if (!purpose) return refuseWith("Say which question this answers.");
-    return {
-      route: ANSWER_MANY_DOOR[purpose],
-      body: fieldsOf(pl, ["ids", "consent", "source", "note"]),
-      events: [PEOPLE_CHANGED],
-    };
+    return manyCalls(ANSWER_MANY_DOOR[purpose], pl, ["consent", "source", "note"]);
   },
+  gather: gatherCounts,
   receipt: ({ payload: pl }, data) => {
     const m = manySaid(data, "recorded");
     const what = purposeOf(pl.purpose) === "marketing" ? "to offers" : "to messages";
@@ -125,11 +146,8 @@ export const personModeManySpec: ProposalSpecAboveOperator = {
   needs: "owner",
   doing: "change how the receptionist treats these people",
   gate: "settings",
-  commit: ({ payload: pl }) => ({
-    route: "PUT contacts/receptionist",
-    body: fieldsOf(pl, ["ids", "mode"]),
-    events: [PEOPLE_CHANGED],
-  }),
+  commit: ({ payload: pl }) => manyCalls("PUT contacts/receptionist", pl, ["mode"]),
+  gather: gatherCounts,
   receipt: ({ payload: pl }, data) => {
     const m = manySaid(data, "changed");
     const mode = asText(pl.mode) as keyof typeof PERSON_MODE_WORDS;
@@ -143,11 +161,8 @@ export const personModeManySpec: ProposalSpecAboveOperator = {
 export const noteManySpec: ProposalSpec = {
   needs: "operator",
   gate: "approve",
-  commit: ({ payload: pl }) => ({
-    route: "PUT contacts/notes",
-    body: fieldsOf(pl, ["ids", "append"]),
-    events: [PEOPLE_CHANGED],
-  }),
+  commit: ({ payload: pl }) => manyCalls("PUT contacts/notes", pl, ["append"]),
+  gather: gatherCounts,
   receipt: (_p, data) => {
     const m = manySaid(data, "noted");
     const head = `Note added for ${m.done}`;
@@ -192,4 +207,43 @@ export const personMergeSpec: ProposalSpecAboveOperator = {
   }),
   receipt: ({ payload: pl }) => MERGE_WORDS.done(asText(pl.who), asText(pl.other)),
   open: personRoute,
+};
+
+/** What a first message's door answers of the thread it opened, as text, or null. */
+const threadOf = (data: unknown): string | null => idIn(rec(data), "conversation_id");
+
+/**
+ * A first message to someone in People (POST people/:id/message): on the wire their answers allow, its words or an
+ * approved message where only one can go, and who has the thread after it (the receptionist, or the member). The door
+ * judges it again (the reply verb's own rules: their yes, the window, the purpose of a message). Like a reply, it leaves
+ * after the send's own wait, and the undo cancels it within it.
+ */
+export const personMessageSpec: ProposalSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: (p) => {
+    const pl = p.payload;
+    if (!idIn(pl, "contact_id") || !asText(pl.wire)) return refuseWith(PROPOSAL_WORDS.cannotApprove);
+    return {
+      route: "POST people/[id]/message",
+      params: { id: asText(pl.contact_id) },
+      body: fieldsOf(pl, ["wire", "text", "subject", "template", "email_to", "then", "note"]),
+      idempotencyKey: p.id,
+      events: [PEOPLE_CHANGED],
+    };
+  },
+  receipt: ({ payload: pl }) => `On its way to ${asText(pl.who)} — sends in 15 seconds unless you cancel`,
+  undo: {
+    label: () => "Sends 15 seconds after you approve; cancel within them",
+    window: "cancelable",
+    record: (_p, data) => ({
+      message_id: rec(data).message_id,
+      cancelable_until: rec(data).cancelable_until,
+      decision_id: decisionOf(data),
+    }),
+    call: (u) => ({ route: "POST messages/[id]/cancel-send", params: { id: asText(u.message_id) } }),
+    receipt: () => "Canceled before it sent",
+  },
+  made: (_p, data) => threadOf(data),
+  open: (p, outcome) => (outcome?.made?.id ? `inbox/th-${outcome.made.id}` : personRoute(p)),
 };
