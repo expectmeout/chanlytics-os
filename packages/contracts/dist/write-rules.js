@@ -400,8 +400,11 @@ var FeaturesConfigSchema = z3.object({
    */
   booking_requests: z3.boolean().optional()
 }).strip();
+var ASK_GOAL_MAX = 200;
+var AskConfigSchema = z3.object({ goal: z3.string().max(ASK_GOAL_MAX).optional() }).strip();
 var TenantConfigSchema = z3.object({
   brain: BrainConfigSchema.optional(),
+  ask: AskConfigSchema.optional(),
   notifications: NotificationsConfigSchema.optional(),
   calendar: CalendarConfigSchema.optional(),
   bookings: BookingsConfigSchema.optional(),

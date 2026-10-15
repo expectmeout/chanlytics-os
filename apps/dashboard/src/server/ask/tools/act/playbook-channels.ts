@@ -29,7 +29,7 @@ import {
 } from "../context";
 
 /** Where a playbook's id is read, said as the model calls it. */
-const PLAYBOOK_FROM = "campaigns with action playbooks";
+const PLAYBOOK_FROM = "sequences with action moments";
 
 /**
  * What a playbook card says of each channel it keeps and cannot go by yet, by the drawer's own reading (contracts
@@ -102,7 +102,7 @@ async function proposePlaybookChannels(
   });
 }
 
-/** The channels an existing playbook goes by, changed: propose_campaign's action channels. */
+/** The channels an existing playbook goes by, changed: propose_sequence's action channels. */
 export const playbookChannelsAction = actAction({
   kind: "playbook_channels",
   input: z.object({ playbook_id: z.string(), channels: z.array(z.enum(CONSENT_CHANNELS)) }),

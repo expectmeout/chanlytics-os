@@ -81,7 +81,7 @@ export const slotExample = (s: { label: string; kind: ParamSpec["kind"] }): stri
   s.label;
 
 /**
- * What a message card quotes of the message it writes (propose_campaign's action message), which no row holds yet: every
+ * What a message card quotes of the message it writes (propose_sequence's action message), which no row holds yet: every
  * version as the person reached on it reads it, in the page's channel order, its values filled with their examples
  * (`slots`, each with its example), through the one fill a send makes (contracts previewParts, which previewSays quotes):
  * whole for the card's rows, an email's subject on a line of its own above its words, and in `limit` characters shared

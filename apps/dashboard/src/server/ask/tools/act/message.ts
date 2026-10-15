@@ -137,7 +137,7 @@ async function proposeMessage(t: ToolContext, input: MessageAsked): Promise<Prop
   });
 }
 
-/** A new message for the Library, a version per channel: propose_campaign's action message. */
+/** A new message for the Library, a version per channel: propose_sequence's action message. */
 export const messageAction = actAction({
   kind: "message",
   input: z.object({
@@ -178,6 +178,6 @@ export const messageAction = actAction({
   ],
   label: "Writing a message",
   words:
-    "Action message writes a new message for the Library and proposes it as a card: name (snake_case), language (en or es; another language is another card under the same name), category marketing (an offer or the business's news) or utility (about their own appointment or proposal, which needs a whatsapp version), versions, each optional and at least one (whatsapp {body}, email {subject, body}, sms {body}, never sms for marketing), and slots naming the values {{1}}, {{2}} in order (position, label, kind: text, first_name, business_name, booking_link or review_link). Read campaigns with action messages first: a name the Library holds in that language is refused. A whatsapp version needs a connected number and goes to WhatsApp's review; email needs email set up. The card quotes every version; Approve files it, and nothing is sent.",
+    "Action message writes a new message for the Library and proposes it as a card: name (snake_case), language (en or es; another language is another card under the same name), category marketing (an offer or the business's news) or utility (about their own appointment or proposal, which needs a whatsapp version), versions, each optional and at least one (whatsapp {body}, email {subject, body}, sms {body}, never sms for marketing), and slots naming the values {{1}}, {{2}} in order (position, label, kind: text, first_name, business_name, booking_link or review_link). Read sequences with action messages first: a name the Library holds in that language is refused. A whatsapp version needs a connected number and goes to WhatsApp's review; email needs email set up. The card quotes every version; Approve files it, and nothing is sent.",
   build: proposeMessage,
 });

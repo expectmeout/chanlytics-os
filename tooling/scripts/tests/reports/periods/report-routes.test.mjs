@@ -493,7 +493,7 @@ test("the Campaigns lens' ledger route takes the period, or days a member picked
   assert.equal(aged.days, 30, "thirty days, whatever the old query says");
 });
 
-test("the table is the one list of periods: the closed set a request names, and the counts of days the Ask report tool takes, said from it", async () => {
+test("the table is the one list of periods: the closed set a request names, and the periods the Ask report tool takes by name, said from it", async () => {
   assert.deepEqual(
     REPORT_PERIOD_IDS,
     REPORT_RANGES.map((r) => r.id),
@@ -501,14 +501,13 @@ test("the table is the one list of periods: the closed set a request names, and 
   );
   const { reportTool } = await importSrc("apps/dashboard/src/server/ask/tools/read/report.ts");
   const [action] = Object.values(reportTool.actions);
-  const counts = REPORT_RANGES.flatMap((r) => (r.days === null ? [] : [r.days]));
-  for (const days of counts) assert.equal(action.input.safeParse({ days }).success, true, `${days} days`);
-  for (const days of [1, 8, 45, 365])
-    assert.equal(action.input.safeParse({ days }).success, false, `${days} days is no period of the table`);
+  // The operator (15 Oct 2026): the tool reads any window the page's control picks, a period by its name among them.
+  for (const period of REPORT_PERIOD_IDS) assert.equal(action.input.safeParse({ period }).success, true, `${period}`);
+  for (const period of ["1d", "8d", "45d", "365d"])
+    assert.equal(action.input.safeParse({ period }).success, false, `${period} is no period of the table`);
+  const said = `${REPORT_PERIOD_IDS.slice(0, -1).join(", ")} or ${REPORT_PERIOD_IDS.at(-1)}`;
   assert.ok(
-    reportTool.description.includes(
-      `days takes ${counts.slice(0, -1).join(", ")} or ${counts.at(-1)} and nothing else`,
-    ),
+    reportTool.description.includes(`a period (${said}:`),
     "the sentence the model reads is made from the table",
   );
 });

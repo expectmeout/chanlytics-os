@@ -225,6 +225,16 @@ const running = {
 };
 /** The same three people, each with a yes to offers by email too (email keeps its own answer): who an offer by email reaches. */
 const OFFERS_BY_EMAIL = PEOPLE.map((p) => ({ ...p, email_marketing: "opted_in" }));
+/**
+ * A call as propose_campaign took it, to the tool and action that take it since the operator (15 Oct 2026): the plan is
+ * propose_plan's offer; a broadcast, a playbook and a run are propose_sequence's once, moment and batch; the rest keep
+ * their names under propose_sequence.
+ */
+const SEQUENCE_ACTIONS = { broadcast: "once", playbook: "moment", run: "batch" };
+const asSequence = (input) =>
+  input?.action === "plan"
+    ? ["propose_plan", { ...input, action: "offer" }]
+    : ["propose_sequence", { ...input, action: SEQUENCE_ACTIONS[input?.action] ?? input?.action }];
 /** `monthSent`: the month's count per channel, or a function of the call's arguments (its p_channel and p_at). */
 const propose = (input, db = {}, monthSent = { email: 0, sms: 0 }, people = PEOPLE, now = NOW) => {
   const rows = tables(db);
@@ -232,7 +242,7 @@ const propose = (input, db = {}, monthSent = { email: 0, sms: 0 }, people = PEOP
   setServiceClient(fakeDb(rows, {}, { campaign_month_sent: count }));
   const supabase = fakeDb(rows, {}, { people_list: () => people });
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, now);
-  return buildProposal(t, "propose_campaign", input);
+  return buildProposal(t, ...asSequence(input));
 };
 const said = (r) => JSON.parse(r.result).error;
 const WIN_BACK = { action: "playbook", trigger: "quiet_30", template_id: OFFER, params: [] };

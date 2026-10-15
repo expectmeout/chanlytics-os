@@ -91,6 +91,8 @@ const { runTool, newToolContext, buildProposal, toApiTools, ACT_TOOL_NAMES, READ
 const READ_TOOLS = toApiTools("owner", true).filter((t) => !ACT_TOOL_NAMES.has(t.name));
 const ACT_TOOLS = toApiTools("owner", true).filter((t) => ACT_TOOL_NAMES.has(t.name));
 const { scopedRead } = await import(at("apps/dashboard/src/server/ask/cross-page.ts"));
+// The tools every question loads, the rest found by the tool search (the operator, D11).
+const { CORE_TOOLS } = await import(at("apps/dashboard/src/server/ask/tools/registry.ts"));
 const { workspaceFacts, stableSystem, turnWords, answerLine, askTurnText, ASK_RULES, ASK_EXAMPLES } = await import(
   at("apps/dashboard/src/server/ask/prompt.ts")
 );
@@ -254,6 +256,8 @@ function tables(over = {}) {
 }
 const RPCS = {
   people_list: () => [],
+  // Leads' Back today (00426): nobody asked to hear back today.
+  leads_back_today: () => [],
   // The Sequences page's list (00442 sequence_overview): a workspace with none answers none.
   sequence_overview: () => [],
   metrics_summary: () => ({ error: "not modelled here" }),
@@ -475,7 +479,7 @@ test("a model that thinks: its thinking goes back with the tool results exactly 
   );
 });
 
-test("each role is offered its tools, sorted by name: a viewer the reads alone, an operator the acts an operator may approve, a partner the settings and the lead search too, an owner all twenty (D11, D12; the Phase 4 plan, D1); no tool is strict", async () => {
+test("each role is offered its tools, sorted by name, the tool search last: a viewer the reads alone, an operator the acts an operator may approve, a partner the lead search too, an owner every action (D11, D12; the Phase 4 plan, D1; the operator, 15 Oct 2026); no tool is strict", async () => {
   const offered = {};
   for (const role of ["viewer", "operator", "partner", "owner"]) {
     const s = scripted([ROUND([answer("Nothing waiting.")])]);
@@ -490,35 +494,48 @@ test("each role is offered its tools, sorted by name: a viewer the reads alone, 
     "a viewer: the nine reads",
   );
   assert.deepEqual(acts("operator"), [
-    "propose_autonomy",
-    "propose_campaign",
+    "propose_call",
     "propose_deal",
+    "propose_follow_up",
+    "propose_leads",
     "propose_list",
+    "propose_people",
     "propose_person",
+    "propose_plan",
     "propose_reply",
+    "propose_review",
+    "propose_sequence",
+    "propose_settings",
     "propose_thread_verb",
-    "propose_whisper",
   ]);
   assert.deepEqual(
     acts("partner").filter((n) => !acts("operator").includes(n)),
-    ["propose_lead_search", "propose_settings"],
+    ["propose_lead_search"],
   );
   assert.deepEqual(
     acts("owner").filter((n) => !acts("partner").includes(n)),
-    ["propose_team"],
+    [],
+    "an owner's own are actions of the tools a partner has (a person's mode and merge)",
   );
-  // A person's note and details are an operator's (PR 4.6), a person's mode an owner's: one tool, offered per action.
+  // A person's note and details are an operator's (PR 4.6), a person's mode and a merge an owner's: one tool, offered
+  // per action.
   const personActions = (role) =>
     offered[role].find((t) => t.name === "propose_person")?.input_schema.properties.action.enum ?? null;
   assert.deepEqual(["viewer", "operator", "partner", "owner"].map(personActions), [
     null,
-    ["note", "details"],
-    ["note", "details"],
-    ["mode", "note", "details"],
+    ["note", "details", "answer", "add", "message"],
+    ["note", "details", "answer", "add", "message"],
+    ["mode", "note", "details", "answer", "add", "merge", "message"],
   ]);
+  const searchLast = (tools) => tools.at(-1)?.name === "tool_search_tool_bm25";
+  assert.ok(Object.values(offered).every(searchLast), "every role's tools end in the tool search");
   assert.deepEqual(
     offered.owner.map((t) => t.name),
-    [...READ_TOOLS, ...ACT_TOOLS].map((t) => t.name).sort(),
+    [...READ_TOOLS, ...ACT_TOOLS]
+      .map((t) => t.name)
+      .filter((n) => n !== "tool_search_tool_bm25")
+      .sort()
+      .concat("tool_search_tool_bm25"),
     "no tool answers: the answer is the round's text; sorted, the acts among the reads",
   );
   assert.ok(
@@ -560,7 +577,7 @@ test("an answer beside a read is set aside: it was written before its rows, so t
 test("an act tool beside the answer stands: the proposal is built for real, the answer is the model's, one round", async () => {
   const s = scripted([
     ROUND([
-      tool("propose_autonomy", { class: "reply", mode: "ask" }),
+      tool("propose_settings", { action: "autonomy", class: "reply", mode: "ask" }),
       answer("I proposed asking you first on every reply."),
     ]),
   ]);
@@ -570,11 +587,11 @@ test("an act tool beside the answer stands: the proposal is built for real, the 
     r.proposals.map((p) => [p.kind, p.title, p.needs]),
     [["policy", "Autonomy: reply", "operator"]],
   );
-  assert.deepEqual(r.tools, ["propose_autonomy"]);
+  assert.deepEqual(r.tools, ["propose_settings.autonomy"]);
   // A proposal counts as a read: its figures are the request, checked against the workspace. With no day read and
   // nothing proposed, a figure is not from the workspace.
   const noDay = {};
-  const act = tool("propose_autonomy", { class: "reply", mode: "ask" });
+  const act = tool("propose_settings", { action: "autonomy", class: "reply", mode: "ask" });
   const proposed = await runAskTurn(
     turn(ctxFor()).input,
     ports(scripted([ROUND([act, answer("I proposed asking you first on 1 kind of reply.")])]).round, noDay),
@@ -587,31 +604,29 @@ test("an act tool beside the answer stands: the proposal is built for real, the 
   assert.equal(bare.ungrounded, true, "a figure with nothing read behind it");
 });
 
-/** An invitation is an owner's card (its route's role): an operator is refused it before any card is made (D7). */
+/** The owner, who adds someone to People by hand (a person's card, propose_person's action add; once an invitation). */
 const AN_OWNER = { role: "owner", personLabel: "ada@example.com (owner)" };
+/** Ada added to People by hand, and an address that is none: the card these tests make, and the one refused. */
+const ADD_ADA = { action: "add", email: "ada@example.com", name: "Ada" };
+const ADD_NOBODY = { action: "add", email: "not-an-address", name: "Ada" };
 
 test("words beside a card are the model thinking aloud, never the answer; an answer beside a card refused goes back with the round, its Say taken back", async () => {
-  const refusedInvite = tool("propose_team", { action: "invite", email: "not-an-address", role: "viewer" });
+  const refusedInvite = tool("propose_person", ADD_NOBODY);
   const aloud = scripted([
-    ROUND([prose("I'll invite them now."), refusedInvite]),
-    ROUND([answer("That is not an email address; give me one and I will propose the invitation.")]),
+    ROUND([prose("I'll add them now."), refusedInvite]),
+    ROUND([answer("That is not an email address; give me one and I will propose adding them.")]),
   ]);
   const r1 = await runAskTurn(turn(ctxFor(), AN_OWNER).input, ports(aloud.round));
   assert.deepEqual(
     [r1.text, r1.rounds, r1.proposals.length],
-    ["That is not an email address; give me one and I will propose the invitation.", 2, 0],
+    ["That is not an email address; give me one and I will propose adding them.", 2, 0],
     "the model hears the refusal and answers; the words beside the card never end the turn",
   );
-  const made = scripted([
-    ROUND([
-      prose("Inviting Ada."),
-      tool("propose_team", { action: "invite", email: "ada@example.com", role: "viewer" }),
-    ]),
-  ]);
+  const made = scripted([ROUND([prose("Adding Ada."), tool("propose_person", ADD_ADA)])]);
   const r2 = await runAskTurn(turn(ctxFor(), AN_OWNER).input, ports(made.round));
-  assert.equal(r2.answer.say.headline, "One card to review: Invite ada@example.com.", "the card made is the answer");
+  assert.equal(r2.answer.say.headline, "One card to review: Add Ada to People.", "the card made is the answer");
 
-  const claimed = answerJson("I proposed the invitation.");
+  const claimed = answerJson("I proposed adding Ada.");
   const back = scripted([
     async (_c, onText) => {
       onText(claimed);
@@ -626,7 +641,7 @@ test("words beside a card are the model thinking aloud, never the answer; an ans
   assert.deepEqual([r3.text, r3.rounds, r3.proposals.length, lines.length], ["That is not an email address.", 2, 0, 1]);
   assert.deepEqual(
     t3.events.filter((e) => e.t === "say").map((e) => e.headline),
-    ["I proposed the invitation.", ""],
+    ["I proposed adding Ada.", ""],
     "an answer claiming a card that is not there is taken back",
   );
   assert.equal(
@@ -637,21 +652,21 @@ test("words beside a card are the model thinking aloud, never the answer; an ans
 });
 
 test("an answer beside its cards that claims a write is said as the cards' own sentence, its detail kept, and logged: nothing is done until a person presses a card (the moment spec, A4)", async () => {
-  const invite = tool("propose_team", { action: "invite", email: "ada@example.com", role: "viewer" });
+  const invite = tool("propose_person", ADD_ADA);
   const claimed = scripted([
-    ROUND([prose(answerJson("I've invited Ada for you.", { say: { detail: "She gets the email." } })), invite]),
+    ROUND([prose(answerJson("I've added Ada for you.", { say: { detail: "She is in People now." } })), invite]),
   ]);
   const { result: r, lines } = await logged("ask_answer_claimed_write", () =>
     runAskTurn(turn(ctxFor(), AN_OWNER).input, ports(claimed.round)),
   );
   assert.deepEqual(
     [r.answer.say.headline, r.answer.say.detail, r.proposals.length, lines.length],
-    ["One card to review: Invite ada@example.com.", "She gets the email.", 1, 1],
+    ["One card to review: Add Ada to People.", "She is in People now.", 1, 1],
   );
   assert.deepEqual(JSON.parse(lines[0]), { cards: 1, tenant_id: A });
-  const honest = scripted([ROUND([prose(answerJson("One card: an invitation for Ada.")), invite])]);
+  const honest = scripted([ROUND([prose(answerJson("One card: Ada, for People.")), invite])]);
   const r2 = await runAskTurn(turn(ctxFor(), AN_OWNER).input, ports(honest.round));
-  assert.equal(r2.answer.say.headline, "One card: an invitation for Ada.", "an answer that claims nothing stands");
+  assert.equal(r2.answer.say.headline, "One card: Ada, for People.", "an answer that claims nothing stands");
   // With no card beside it, an answer is the model's to say: the eval judges it (no_write), the loop leaves it.
   const bare = scripted([ROUND([answer("I paused the win-back.")])]);
   const r3 = await runAskTurn(turn(ctxFor(), AN_OWNER).input, ports(bare.round));
@@ -659,9 +674,7 @@ test("an answer beside its cards that claims a write is said as the cards' own s
 });
 
 test("cards alone are the answer: every card made, no second round, the cards said in a sentence; a refused proposal keeps the round and the model must say why", async () => {
-  const alone = scripted([
-    ROUND([tool("propose_team", { action: "invite", email: "ada@example.com", role: "viewer" })]),
-  ]);
+  const alone = scripted([ROUND([tool("propose_person", ADD_ADA)])]);
   const { input, events } = turn(ctxFor(), AN_OWNER);
   const r = await runAskTurn(input, ports(alone.round));
   assert.equal(r.rounds, 1);
@@ -669,7 +682,7 @@ test("cards alone are the answer: every card made, no second round, the cards sa
   assert.deepEqual(r.answer, answerForCards(r.proposals, "en"));
   assert.equal(
     r.text,
-    "One card to review: Invite ada@example.com. Approve it, change it or dismiss it: nothing happens until you do.",
+    "One card to review: Add Ada to People. Approve it, change it or dismiss it: nothing happens until you do.",
   );
   assert.ok(
     events.some((e) => e.t === "say" && e.headline === r.answer.say.headline),
@@ -678,14 +691,14 @@ test("cards alone are the answer: every card made, no second round, the cards sa
   assert.equal(r.ungrounded, false, "a proposal is checked against the workspace: it counts as a read");
 
   const refused = scripted([
-    ROUND([tool("propose_team", { action: "invite", email: "not-an-address", role: "viewer" })]),
-    ROUND([answer("That is not an email address; give me one and I will propose the invitation.")]),
+    ROUND([tool("propose_person", ADD_NOBODY)]),
+    ROUND([answer("That is not an email address; give me one and I will propose adding them.")]),
   ]);
   const r2 = await runAskTurn(turn(ctxFor(), AN_OWNER).input, ports(refused.round));
   assert.deepEqual([r2.rounds, r2.proposals.length, r2.failed], [2, 0, false]);
   const back = refused.requests[1].messages.at(-1).content[0];
   assert.deepEqual([back.type, back.is_error], ["tool_result", true]);
-  assert.match(back.content, /not an email address/);
+  assert.match(back.content, /missing the @/);
 });
 
 test("every refusal of the gateway ends the turn in its sentence, in the person's language, and says why in the result", async () => {
@@ -1042,7 +1055,7 @@ const salonTables = () =>
     ],
   });
 /** One report call over the salon: the tool as the model calls it, its answer parsed. */
-async function salonReport(rpcs, input = { days: 30 }) {
+async function salonReport(rpcs, input = { period: "30d" }) {
   const tc = newToolContext(ctxFor(salonTables(), rpcs), A, "owner", TZ, new Date(SALON_NOW));
   const out = await runTool(tc, { name: "report", input });
   assert.equal(out.isError, false, out.result);
@@ -1585,7 +1598,7 @@ test("report says the Reviews lens as the page does (Reports phase C, lens 1): t
   });
   const run = async (t, over = {}) => {
     const tc = newToolContext(ctxFor(t, { ...rpcs, reviews_ledger: ledger, ...over }), A, "owner", TZ, NOW);
-    const out = await runTool(tc, { name: "report", input: { days: 7 } });
+    const out = await runTool(tc, { name: "report", input: { period: "7d" } });
     assert.equal(out.isError, false, out.result);
     return JSON.parse(out.result);
   };
@@ -1622,7 +1635,7 @@ test("report says the Reviews lens as the page does (Reports phase C, lens 1): t
   });
   // Each review listed is a row an answer may cite (kind review), opening on the lens with its reply box.
   const cited = newToolContext(ctxFor(profile, { ...rpcs, reviews_ledger: ledger }), A, "owner", TZ, NOW);
-  await runTool(cited, { name: "report", input: { days: 7 } });
+  await runTool(cited, { name: "report", input: { period: "7d" } });
   assert.deepEqual(
     [...cited.read.review.values()].map((r) => [r.id, r.route]),
     [2, 5, 1, 3, 4].map((n) => [reviews[n - 1].id, `reports/reviews:${reviews[n - 1].id}`]),
@@ -1844,7 +1857,7 @@ test("report says the Receptionist lens as the page does (Reports C2, the Recept
   });
   const run = async (over) => {
     const ctx = ctxFor(world, { ...rpcs, ...over });
-    const out = await runTool(newToolContext(ctx, A, "owner", TZ, NOW), { name: "report", input: { days: 7 } });
+    const out = await runTool(newToolContext(ctx, A, "owner", TZ, NOW), { name: "report", input: { period: "7d" } });
     assert.equal(out.isError, false, out.result);
     return { said: JSON.parse(out.result), ctx };
   };
@@ -2143,7 +2156,7 @@ test("report says the People lens as the page does (Reports C3, the People lens)
   };
   const run = async (over = {}) => {
     const ctx = ctxFor(tables(), { ...rpcs, ...over });
-    const out = await runTool(newToolContext(ctx, A, "owner", TZ, NOW), { name: "report", input: { days: 7 } });
+    const out = await runTool(newToolContext(ctx, A, "owner", TZ, NOW), { name: "report", input: { period: "7d" } });
     assert.equal(out.isError, false, out.result);
     return { said: JSON.parse(out.result), ctx };
   };
@@ -2295,7 +2308,7 @@ test("report says the People lens as the page does (Reports C3, the People lens)
   const { people_series: _scripted, ...unscripted } = rpcs;
   const failed = await logged("ask_tool_read_failed", async () => {
     const ctx = ctxFor(tables(), unscripted);
-    const out = await runTool(newToolContext(ctx, A, "owner", TZ, NOW), { name: "report", input: { days: 7 } });
+    const out = await runTool(newToolContext(ctx, A, "owner", TZ, NOW), { name: "report", input: { period: "7d" } });
     assert.equal(out.isError, false, out.result);
     return JSON.parse(out.result);
   });
@@ -2377,7 +2390,7 @@ test("report withholds only a share of fewer than five: a count of fewer is said
     people_list: () => BOOK.slice(0, 3),
     people_series: (a) => peopleSeriesFor(a),
   });
-  const out = await runTool(newToolContext(ctx, A, "owner", TZ, NOW), { name: "report", input: { days: 7 } });
+  const out = await runTool(newToolContext(ctx, A, "owner", TZ, NOW), { name: "report", input: { period: "7d" } });
   assert.equal(out.isError, false, out.result);
   const { stand } = JSON.parse(out.result).people.book;
   assert.deepEqual(
@@ -2456,7 +2469,7 @@ test("report says the Reach-outs section as the page does (the Campaigns lens, C
   };
   const run = async (r) => {
     const tc = newToolContext(ctxFor(tables(), r), A, "owner", TZ, NOW);
-    const out = await runTool(tc, { name: "report", input: { days: 7 } });
+    const out = await runTool(tc, { name: "report", input: { period: "7d" } });
     assert.equal(out.isError, false, out.result);
     return JSON.parse(out.result);
   };
@@ -2566,7 +2579,7 @@ test("report says the Reach-outs section as the page does (the Campaigns lens, C
       throw new Error("canceling statement due to statement timeout");
     },
   });
-  assert.deepEqual(failed.reach_outs, { error: "the reach-out numbers could not be read just now" });
+  assert.deepEqual(failed.reach_outs, { error: "the cold email numbers could not be read just now" });
   assert.deepEqual([failed.range, failed.tiles.length], ["7 days", (await run(rpcs)).tiles.length]);
 });
 
@@ -2592,16 +2605,16 @@ test("a question that names another page's rows reads them before the model is a
   );
   assert.deepEqual(
     r2.tools,
-    ["campaigns.playbooks"],
+    ["sequences.moments"],
     "a read that succeeded is on the turn's tools, as name.action (D11)",
   );
-  assert.deepEqual(r2.shape.cross_page, ["campaigns.playbooks"], "and on its shape");
+  assert.deepEqual(r2.shape.cross_page, ["sequences.moments"], "and on its shape");
   const q = s2.requests[0].messages.at(-1).content;
   assert.ok(
-    q.some((b) => b.type === "search_result" && b.source === "read://campaigns.playbooks"),
+    q.some((b) => b.type === "search_result" && b.source === "read://sequences.moments"),
     "and in the question's message, as data",
   );
-  assert.ok(!JSON.stringify(s2.requests[0].system).includes("read://campaigns.playbooks"), "never in system");
+  assert.ok(!JSON.stringify(s2.requests[0].system).includes("read://sequences.moments"), "never in system");
 });
 
 test("the history is folded so no two neighbours share a role and the person speaks first", () => {
@@ -2788,7 +2801,7 @@ test("the round keeps a thinking block whole -- its words and its signature, or 
   );
 });
 
-test("the fourteen reads, each an action of the nine read tools, run against the database in memory: each answers in its shape or refuses in words, and a read that fails says so to the model rather than throwing; PR 4.3's ten and PR 4.5's search run beside them (their answers are proven in their domains' suites)", async () => {
+test("every read, each an action of the read tools, runs against the database in memory: each answers in its shape or refuses in words, and a read that fails says so to the model rather than throwing; PR 4.3's ten, PR 4.5's search and the operator's reads run beside them (their answers are proven in their domains' suites)", async () => {
   const t = tables({
     escalations: [
       {
@@ -2832,17 +2845,12 @@ test("the fourteen reads, each an action of the nine read tools, run against the
       "calendar.week",
       "calls.get",
       "calls.list",
-      "campaigns.audiences",
-      "campaigns.broadcast",
-      "campaigns.broadcasts",
-      "campaigns.journey",
-      "campaigns.messages",
-      "campaigns.playbooks",
-      "campaigns.sequence",
-      "campaigns.sequences",
+      "guide",
       "inbox.list",
       "inbox.search",
       "inbox.thread",
+      "leads.back",
+      "leads.ideas",
       "leads.lead",
       "leads.leads",
       "leads.search",
@@ -2851,15 +2859,30 @@ test("the fourteen reads, each an action of the nine read tools, run against the
       "people.lists",
       "people.pipeline",
       "people.search",
+      "people.winners",
       "report",
+      "sequences.batch",
+      "sequences.cold_emails",
+      "sequences.journey",
+      "sequences.list",
+      "sequences.lists",
+      "sequences.messages",
+      "sequences.moments",
+      "sequences.sent",
+      "sequences.sequence",
+      "signals",
       "today",
       "workspace.activity",
       "workspace.connections",
       "workspace.notifications",
       "workspace.settings",
     ],
-    "the reads the loop offers: the fourteen old tools, each an action now, PR 4.3's ten, PR 4.5's search, the library, the journey and the room",
+    "the reads the loop offers: the fourteen old tools, each an action now, PR 4.3's ten, PR 4.5's search, the library, the journey, the room, and the operator's (the guide, the signals, the ideas, what comes back, the winners, the cold emails)",
   );
+  // The operator's reads (15 Oct 2026) answer an empty workspace in their shape, never as a failure.
+  for (const key of ["guide", "signals", "leads.ideas", "leads.back", "people.winners", "sequences.cold_emails"])
+    assert.equal(out[key].isError, false, `${key}: ${out[key].result}`);
+  assert.equal(JSON.parse(out.signals.result).route, "today");
   const found = JSON.parse(out["inbox.search"].result);
   assert.equal(out["inbox.search"].isError, false, out["inbox.search"].result);
   assert.deepEqual(
@@ -2902,16 +2925,16 @@ test("the fourteen reads, each an action of the nine read tools, run against the
     "no feed, no room counted, and said so",
   );
   assert.equal(out["calendar.week"].isError, false, out["calendar.week"].result);
-  assert.equal(out["campaigns.audiences"].isError, false, out["campaigns.audiences"].result);
-  assert.equal(out["campaigns.playbooks"].isError, false, out["campaigns.playbooks"].result);
-  assert.equal(out["campaigns.messages"].isError, false, out["campaigns.messages"].result);
-  assert.deepEqual(JSON.parse(out["campaigns.messages"].result).messages, [], "an empty library, said as no message");
+  assert.equal(out["sequences.lists"].isError, false, out["sequences.lists"].result);
+  assert.equal(out["sequences.moments"].isError, false, out["sequences.moments"].result);
+  assert.equal(out["sequences.messages"].isError, false, out["sequences.messages"].result);
+  assert.deepEqual(JSON.parse(out["sequences.messages"].result).messages, [], "an empty library, said as no message");
   // The sequences as their page lists them (0060): none here, and nothing needs you; one asked for by no id is refused.
-  assert.equal(out["campaigns.sequences"].isError, false, out["campaigns.sequences"].result);
-  assert.deepEqual(JSON.parse(out["campaigns.sequences"].result), { route: "campaigns", needs_you: 0, sequences: [] });
-  assert.equal(out["campaigns.sequence"].isError, true, "a sequence is asked for by its id");
-  assert.equal(out["campaigns.journey"].isError, false, out["campaigns.journey"].result);
-  const journey = JSON.parse(out["campaigns.journey"].result);
+  assert.equal(out["sequences.list"].isError, false, out["sequences.list"].result);
+  assert.deepEqual(JSON.parse(out["sequences.list"].result), { route: "campaigns", needs_you: 0, sequences: [] });
+  assert.equal(out["sequences.sequence"].isError, true, "a sequence is asked for by its id");
+  assert.equal(out["sequences.journey"].isError, false, out["sequences.journey"].result);
+  const journey = JSON.parse(out["sequences.journey"].result);
   assert.deepEqual(
     [journey.covered, journey.of, journey.stages.map((s) => [s.id, s.covered, s.state, s.campaigns])],
     [
@@ -2967,7 +2990,7 @@ test("the fourteen reads, each an action of the nine read tools, run against the
     [true, "that read failed; say so and answer with what you have"],
   );
   // A period the schema does not list is refused before the read runs, in the schema's own words (PR 3.1, D2).
-  assert.match(JSON.parse((await run("report", { days: 12 })).result).error, /^report: days Invalid option/);
+  assert.match(JSON.parse((await run("report", { period: "12d" })).result).error, /^report: period Invalid option/);
   assert.equal(
     (await run("inbox", { action: "thread", conversation_id: "nope" })).result,
     JSON.stringify({ error: "conversation_id must be an id a tool returned" }),
@@ -3272,43 +3295,49 @@ test("the proposal builders run against the database in memory: each kind is a c
   assert.match((await p("propose_person", { action: "mode", contact_id: C2, mode: "never" })).result, /no such person/);
 
   assert.match(
-    (await p("propose_autonomy", { class: "money", mode: "ask" })).result,
+    (await p("propose_settings", { action: "autonomy", class: "money", mode: "ask" })).result,
     /money stays owner-only by charter/,
   );
   // One rule (contracts POLICY_CLASS_MODES): bookings have nothing to hold for review; the re-engage row holds a run.
   assert.match(
-    (await p("propose_autonomy", { class: "booking", mode: "veto" })).result,
+    (await p("propose_settings", { action: "autonomy", class: "booking", mode: "veto" })).result,
     /The Bookings row has nothing to hold for review\./,
   );
   assert.match(
-    (await p("propose_autonomy", { class: "faq", mode: "never" })).result,
+    (await p("propose_settings", { action: "autonomy", class: "faq", mode: "never" })).result,
     /Bookings and service questions are answered by the receptionist or by you/,
   );
-  const holds = await p("propose_autonomy", { class: "reengage", mode: "veto" });
+  const holds = await p("propose_settings", { action: "autonomy", class: "reengage", mode: "veto" });
   assert.equal(holds.isError, false, holds.result);
   assert.equal(holds.proposal.summary, "Re-engage quiet customers: holds it");
-  assert.match((await p("propose_autonomy", { class: "reply", mode: "" })).result, /say a mode or a confidence/);
-  const dial = await p("propose_autonomy", { class: "reply", mode: "", min_confidence: 0.9 });
+  assert.match(
+    (await p("propose_settings", { action: "autonomy", class: "reply" })).result,
+    /say a mode or a confidence/,
+  );
+  const dial = await p("propose_settings", { action: "autonomy", class: "reply", min_confidence: 0.9 });
   assert.deepEqual(
     [dial.proposal.summary, dial.proposal.payload.previous],
     ["confidence dial 90%", { mode: "auto", min_confidence: 0.6 }],
     "the previous values ride along for undo",
   );
 
-  const closure = await p("propose_settings", { change: { op: "add_closure", date: "2026-12-25", note: "Christmas" } });
+  const closure = await p("propose_settings", {
+    action: "change",
+    change: { op: "add_closure", date: "2026-12-25", note: "Christmas" },
+  });
   assert.deepEqual(
     [closure.proposal.title, closure.proposal.summary, closure.proposal.needs],
     ["Close for a day", "Closed on 2026-12-25 (Christmas)", "partner"],
     "a settings card needs a partner: its route, PUT settings, is a partner's door",
   );
   assert.match(
-    (await p("propose_settings", { change: { op: "add_closure", date: "tomorrow" } })).result,
+    (await p("propose_settings", { action: "change", change: { op: "add_closure", date: "tomorrow" } })).result,
     /change rejected/,
   );
   // A note with its last day: the same until a closure takes, judged by its shape alone, said on the card and carried
   // in the change its Approve applies. The card quotes the text the receptionist will be told.
   const ending = { op: "add_note", title: "Holiday hours", text: "Open 10 to 2 this week.", until: "2026-12-31" };
-  const noted = await p("propose_settings", { change: ending });
+  const noted = await p("propose_settings", { action: "change", change: ending });
   assert.equal(noted.isError, false, noted.result);
   assert.deepEqual(
     [noted.proposal.title, noted.proposal.summary, noted.proposal.payload.change],
@@ -3319,33 +3348,41 @@ test("the proposal builders run against the database in memory: each kind is a c
     ],
   );
   assert.match(
-    (await p("propose_settings", { change: { ...ending, until: "New Year's Eve" } })).result,
+    (await p("propose_settings", { action: "change", change: { ...ending, until: "New Year's Eve" } })).result,
     /change rejected: until/,
   );
   assert.match(
     JSON.parse((await p("propose_settings", {})).result).error,
+    /^propose_settings: action Invalid discriminator value/,
+    "no action at all is refused by the schema, before the builder (PR 3.1, D2)",
+  );
+  assert.match(
+    JSON.parse((await p("propose_settings", { action: "change" })).result).error,
     /^propose_settings: change Invalid input/,
     "no change at all is refused by the schema, before the builder (PR 3.1, D2)",
   );
 
-  const whisper = await p("propose_whisper", { call_id: K1, text: "Saturday is full" });
+  const whisper = await p("propose_call", { action: "whisper", call_id: K1, text: "Saturday is full" });
   assert.deepEqual([whisper.proposal.kind, whisper.proposal.title], ["whisper", "Whisper on the call with Rosa"]);
   assert.ok(tc.read.call.has(K1));
+  // The card reads the call as calls.get does, once a turn: a call that ended is refused on the next turn's read (and the
+  // whisper's own door refuses one that ended in between).
   t.calls[0].status = "ended";
-  assert.match((await p("propose_whisper", { call_id: K1, text: "x" })).result, /not in progress/);
-
+  const nextTurn = newToolContext(tc.ctx, A, "owner", TZ, NOW);
   assert.match(
-    (await p("propose_team", { action: "invite", email: "nope", role: "viewer" })).result,
-    /not an email address/,
-  );
-  assert.match(
-    JSON.parse((await p("propose_team", { action: "invite", email: "ada@example.com", role: "owner" })).result).error,
-    /^propose_team: role Invalid option/,
-    "a role the schema does not list is refused by the schema (PR 3.1, D2)",
+    (await buildProposal(nextTurn, "propose_call", { action: "whisper", call_id: K1, text: "x" })).result,
+    /not in progress/,
   );
 
-  const broadcast = await p("propose_campaign", {
-    action: "broadcast",
+  assert.match((await p("propose_person", { action: "add", email: "nope" })).result, /missing the @/);
+  assert.match(
+    JSON.parse((await p("propose_settings", { action: "autonomy", class: "reply", mode: "sometimes" })).result).error,
+    /^propose_settings: mode Invalid option/,
+    "a mode the schema does not list is refused by the schema (PR 3.1, D2)",
+  );
+
+  const broadcast = await p("propose_sequence", {
+    action: "once",
     template_id: TPL,
     audience_kind: "everyone",
     params: [],
@@ -3361,14 +3398,14 @@ test("the proposal builders run against the database in memory: each kind is a c
     ["broadcast", "operator", 1, EVERYONE_LABEL],
   );
   assert.match(
-    (await p("propose_campaign", { action: "broadcast", template_id: TPL, audience_kind: "list", audience_id: "nope" }))
+    (await p("propose_sequence", { action: "once", template_id: TPL, audience_kind: "list", audience_id: "nope" }))
       .result,
     /audience_id must be a People list id/,
   );
   assert.match(
     (
-      await p("propose_campaign", {
-        action: "broadcast",
+      await p("propose_sequence", {
+        action: "once",
         template_id: TPL,
         audience_kind: "everyone",
         params: ["extra"],
@@ -3377,8 +3414,8 @@ test("the proposal builders run against the database in memory: each kind is a c
     /takes 0 values/,
   );
 
-  const playbook = await p("propose_campaign", {
-    action: "playbook",
+  const playbook = await p("propose_sequence", {
+    action: "moment",
     trigger: "quiet_30",
     template_id: TPL,
     params: [],
@@ -3394,8 +3431,8 @@ test("the proposal builders run against the database in memory: each kind is a c
     ["playbook", "quiet_30", TPL, "Delete it — nothing will run"],
   );
   assert.match(
-    (await p("propose_campaign", { action: "playbook", trigger: "never" })).result,
-    /propose_campaign: trigger Invalid option/,
+    (await p("propose_sequence", { action: "moment", trigger: "never" })).result,
+    /propose_sequence: trigger Invalid option/,
     "a moment the schema does not list is refused by the schema (PR 3.1, D2)",
   );
 
@@ -3415,11 +3452,11 @@ test("the proposal builders run against the database in memory: each kind is a c
   // A playbook with no template takes the trigger's starter, and where the workspace does not hold it the card adds it
   // at its Approve (the moment spec's A0; tests/playbooks/ask-setup/starter-card.test.mjs); a template with a typed slot
   // and no words is a question for the person, never invented words (pinned as text in playbooks.test.mjs until PR 3.1).
-  const onStarter = JSON.parse((await p("propose_campaign", { action: "playbook", trigger: "quiet_30" })).result);
+  const onStarter = JSON.parse((await p("propose_sequence", { action: "moment", trigger: "quiet_30" })).result);
   assert.equal(onStarter.card, "Campaign: Win-back");
   assert.match(onStarter.summary, /adds the “Win-back” starter first/);
   // 2 Oct 2026: welcome is no longer a moment a new playbook starts from (it was this case's trigger): the schema says so.
-  const welcome = (await p("propose_campaign", { action: "playbook", trigger: "new_week" })).result;
+  const welcome = (await p("propose_sequence", { action: "moment", trigger: "new_week" })).result;
   assert.match(welcome, /Invalid option: expected one of/);
   assert.doesNotMatch(
     welcome,
@@ -3427,7 +3464,7 @@ test("the proposal builders run against the database in memory: each kind is a c
     "the moments it names are the ones a new playbook may start from",
   );
   assert.match(
-    (await p("propose_campaign", { action: "playbook", trigger: "everyone_monthly", template_id: TPL2 })).result,
+    (await p("propose_sequence", { action: "moment", trigger: "everyone_monthly", template_id: TPL2 })).result,
     /ask the person what to say there, then propose again with params/,
   );
   assert.ok(
@@ -3450,9 +3487,15 @@ test("the proposal builders run against the database in memory: each kind is a c
   });
 });
 
-test("a card above an operator is refused to a member below it in its route's words, before anything is read: a partner gets a settings card and is refused a person's mode and an invitation, an owner gets all three (D7)", async () => {
+test("a card above an operator is refused to a member below it in its route's words, before anything is read: a partner gets a settings card and is refused a person's mode and a merge, an owner gets all three (D7)", async () => {
+  // Rosa twice, as a merge finds her: the second record by her other number.
+  const P2 = "abababab-abab-4aba-8aba-abababababa2";
+  const twice = [
+    { ...contact, tenant_id: A, erased_at: null },
+    { ...contact, id: P2, display_name: "Rosa D.", phone_e164: "+15555550101", tenant_id: A, erased_at: null },
+  ];
   const as = (role) => {
-    const ctx = ctxFor();
+    const ctx = ctxFor(tables({ contacts: twice }));
     return { ctx, tc: newToolContext(ctx, A, role, TZ, NOW) };
   };
   // Each ask, and the refusal a member below its card's role hears: an owner's card names the owner; a partner's
@@ -3468,15 +3511,15 @@ test("a card above an operator is refused to a member below it in its route's wo
     ],
     [
       "propose_settings",
-      { change: { op: "add_closure", date: "2026-12-25", note: "Christmas" } },
+      { action: "change", change: { op: "add_closure", date: "2026-12-25", note: "Christmas" } },
       "only an owner or the workspace's partner can change the workspace's settings; say so, and that one of them can ask",
-      null,
+      "propose_settings: action change is an owner's or a partner's",
     ],
     [
-      "propose_team",
-      { action: "invite", email: "ada@example.com", role: "viewer" },
-      "only an owner can invite someone to the team; say so, and that an owner can ask",
-      "propose_team: action invite is an owner's",
+      "propose_person",
+      { action: "merge", contact_id: P1, other_id: P2 },
+      "only an owner can merge two records of one person; say so, and that an owner can ask",
+      "propose_person: action merge is an owner's",
     ],
   ];
   /** The builder, past the registry: the action's own, or the tool's one. */
@@ -3517,7 +3560,7 @@ test("a card above an operator is refused to a member below it in its route's wo
   assert.deepEqual(made, [
     ["person_mode", "owner", "Set it back"],
     ["settings", "partner", "Put the previous settings back"],
-    ["invite", "owner", null],
+    ["person_merge", "owner", null],
   ]);
 });
 
@@ -3635,8 +3678,8 @@ test("REGRESSION: a broadcast to nobody is refused with the cause it has -- Ask 
   const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: () => people }), A, "owner", TZ, NOW);
   /** What the model is told when it proposes an offer to one of the lists: no card, and why. */
   const refusal = async (audience_id) => {
-    const r = await buildProposal(tc, "propose_campaign", {
-      action: "broadcast",
+    const r = await buildProposal(tc, "propose_sequence", {
+      action: "once",
       template_id: TPL,
       audience_kind: "saved",
       audience_id,
@@ -3737,7 +3780,7 @@ test("REGRESSION: campaigns.audiences tells who said yes from who can be sent it
     ].map(([segment_id, contact_id]) => ({ tenant_id: A, segment_id, contact_id })),
   });
   const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: () => people }), A, "owner", TZ, NOW);
-  const out = await runTool(tc, { name: "campaigns", input: { action: "audiences" } });
+  const out = await runTool(tc, { name: "sequences", input: { action: "lists" } });
   assert.equal(out.isError, false, out.result);
   const read = JSON.parse(out.result);
   /** One audience's four counts: said yes to offers, can be sent one; said yes to messages, can be sent one. */
@@ -3758,7 +3801,7 @@ test("REGRESSION: campaigns.audiences tells who said yes from who can be sent it
   for (const name of ["said_yes_to_offers", "can_be_sent_offers", "said_yes_to_messages", "can_be_sent_messages"]) {
     assert.ok(read.note.includes(name), `the note names ${name}: ${read.note}`);
     assert.ok(
-      READ_TOOLS.find((d) => d.name === "campaigns").description.includes(name),
+      READ_TOOLS.find((d) => d.name === "sequences").description.includes(name),
       `and so does the tool's description: ${name}`,
     );
   }
@@ -3784,8 +3827,8 @@ test("REGRESSION: campaigns.audiences counts everyone and every member, and name
   };
   const ctx = { supabase: fakeDb(t, {}, pages, { maxRows: 1000 }), userId: USER, email: "ada@example.com", params: {} };
   const out = await runTool(newToolContext(ctx, A, "owner", TZ, NOW), {
-    name: "campaigns",
-    input: { action: "audiences" },
+    name: "sequences",
+    input: { action: "lists" },
   });
   assert.equal(out.isError, false, out.result);
   const read = JSON.parse(out.result);
@@ -3803,7 +3846,7 @@ test("the deal lists reach Ask only where deals are on -- campaigns.audiences an
   const DEAL_LISTS = ["consultation_booked", "proposal_out", "clients", "deal_ended"];
   const ask = async (t) => {
     const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: () => threeAnswers() }), A, "owner", TZ, NOW);
-    const out = await runTool(tc, { name: "campaigns", input: { action: "audiences" } });
+    const out = await runTool(tc, { name: "sequences", input: { action: "lists" } });
     assert.equal(out.isError, false, out.result);
     const ids = JSON.parse(out.result).audiences.map((a) => a.audience_id);
     const clients = await runTool(tc, { name: "people", input: { action: "search", query: "", list: "clients" } });
@@ -3863,7 +3906,7 @@ test("Ask reaches any list by its reference: a People list or one of the workspa
   const run = async (name, input) => JSON.parse((await runTool(tc, { name, input })).result);
 
   // The audiences carry each list's token; one of the workspace's own that can't be counted says why, with no counts.
-  const { audiences } = await run("campaigns", { action: "audiences" });
+  const { audiences } = await run("sequences", { action: "lists" });
   const byLabel = Object.fromEntries(audiences.map((a) => [a.label, a]));
   assert.equal(byLabel.Regulars.list, `list:${S_REG}`);
   assert.equal(byLabel["Phoned only"].list, "seg:phoned_only");
@@ -3900,8 +3943,8 @@ test("Ask reaches any list by its reference: a People list or one of the workspa
   };
   t.templates = [tpl];
   const propose = (audience_kind, audience_id) =>
-    buildProposal(tc, "propose_campaign", {
-      action: "broadcast",
+    buildProposal(tc, "propose_sequence", {
+      action: "once",
       template_id: TPL,
       audience_kind,
       audience_id,
@@ -3911,8 +3954,8 @@ test("Ask reaches any list by its reference: a People list or one of the workspa
   assert.equal(toRegulars.isError, false, toRegulars.result);
   assert.deepEqual([toRegulars.proposal.payload.audience_label, toRegulars.proposal.payload.count], ["Regulars", 1]);
   // A playbook on any list (00168): a saved list as a win-back, its list and class carried to the commit.
-  const onRegulars = await buildProposal(tc, "propose_campaign", {
-    action: "playbook",
+  const onRegulars = await buildProposal(tc, "propose_sequence", {
+    action: "moment",
     trigger: "saved_list",
     list: `list:${S_REG}`,
     policy_class: "reengage",
@@ -3929,8 +3972,8 @@ test("Ask reaches any list by its reference: a People list or one of the workspa
     [S_REG, null, "reengage"],
   );
   assert.equal(onRegulars.proposal.payload.candidates, 1, "Rosa: on the list, a yes to offers and a number");
-  const onMine = await buildProposal(tc, "propose_campaign", {
-    action: "playbook",
+  const onMine = await buildProposal(tc, "propose_sequence", {
+    action: "moment",
     trigger: "saved_list",
     list: "seg:waiting_on_you",
     template_id: TPL,
@@ -3984,7 +4027,7 @@ test("a gated list's refusal names the condition that failed: with a calendar an
   try {
     forgetFeeds();
     const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: () => threeAnswers() }), A, "owner", TZ, NOW);
-    const listed = await runTool(tc, { name: "campaigns", input: { action: "audiences" } });
+    const listed = await runTool(tc, { name: "sequences", input: { action: "lists" } });
     assert.equal(listed.isError, false, listed.result);
     const ids = JSON.parse(listed.result).audiences.map((a) => a.audience_id);
     assert.ok(ids.includes("booked"), "the calendar was read: its lists are offered");
@@ -4408,7 +4451,7 @@ test("report reads what the Reports page reads (ledger #1): the series, then the
     const before = ctx.supabase.seen.length;
     const out = await runTool(newToolContext(ctx, A, "operator", TZ, NOW, rc), {
       name: "report",
-      input: { days: 7 },
+      input: { period: "7d" },
     });
     assert.equal(out.isError, false, out.result);
     const asked = ctx.supabase.seen.slice(before).map((q) => (q.rpc ? `rpc:${q.rpc}` : `${q.table}.${q.op}`));
@@ -4494,7 +4537,7 @@ test("report reads what the Reports page reads (ledger #1): the series, then the
 
 test("REGRESSION: campaigns.playbooks tells who said yes from who a run can reach -- 'said_yes_now' was the reach, so a moment whose yes had no number read as nobody's", async () => {
   const tc = newToolContext(ctxFor(tables(), { ...RPCS, people_list: () => threeAnswers() }), A, "owner", TZ, NOW);
-  const out = await runTool(tc, { name: "campaigns", input: { action: "playbooks" } });
+  const out = await runTool(tc, { name: "sequences", input: { action: "moments" } });
   assert.equal(out.isError, false, out.result);
   const read = JSON.parse(out.result);
   assert.ok(
@@ -4502,7 +4545,7 @@ test("REGRESSION: campaigns.playbooks tells who said yes from who a run can reac
     "the note keeps the rows' facts; what to say of a zero, and that nothing ran, are the description's now (PR 3.3)",
   );
   assert.ok(
-    READ_TOOLS.find((d) => d.name === "campaigns").description.includes("nothing has run because it was read"),
+    READ_TOOLS.find((d) => d.name === "sequences").description.includes("nothing has run because it was read"),
     "the description says nothing ran because it was read",
   );
   /** One trigger's two counts: who its moment names that said the yes it needs, and who of them a run can reach. */
@@ -4527,7 +4570,7 @@ test("REGRESSION: campaigns.playbooks tells who said yes from who a run can reac
   for (const name of ["said_yes_now", "can_be_sent_now"]) {
     assert.ok(read.note.includes(name), `the note names ${name}: ${read.note}`);
     assert.ok(
-      READ_TOOLS.find((d) => d.name === "campaigns").description.includes(name),
+      READ_TOOLS.find((d) => d.name === "sequences").description.includes(name),
       `and so does the tool's description: ${name}`,
     );
   }
@@ -4553,8 +4596,8 @@ test("REGRESSION: a proposed playbook's card says who said yes apart from who a 
   /** The card's summary, the words the owner approves it from and the model reads back. */
   const summary = async (people) => {
     const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: () => people }), A, "owner", TZ, NOW);
-    const r = await buildProposal(tc, "propose_campaign", {
-      action: "playbook",
+    const r = await buildProposal(tc, "propose_sequence", {
+      action: "moment",
       trigger: "everyone_monthly",
       template_id: TPL,
       params: [],
@@ -4574,15 +4617,15 @@ test("REGRESSION: a proposed playbook's card says who said yes apart from who a 
   assert.ok(reaches.includes(" · 1 person on the list said yes to offers · "), reaches);
 });
 
-test("what the model reads before any broadcast tells nobody's yes from a yes with no number to send to: since PR 3.3 the rule is campaigns.audiences' and propose_campaign.broadcast's descriptions, and no rule of the prompt's", () => {
-  assert.ok(!ASK_RULES.some((r) => r.includes("never propose a broadcast to nobody")), "out of the rules");
-  const audiences = READ_TOOLS.find((d) => d.name === "campaigns").description;
+test("what the model reads before any send tells nobody's yes from a yes with no number to send to: since PR 3.3 the rule is the lists read's and propose_sequence's descriptions (once campaigns.audiences' and propose_campaign.broadcast's), and no rule of the prompt's", () => {
+  assert.ok(!ASK_RULES.some((r) => r.includes("never propose a send to nobody")), "out of the rules");
+  const audiences = READ_TOOLS.find((d) => d.name === "sequences").description;
   assert.ok(audiences.includes(NO_NUMBER_REACH), audiences);
-  assert.ok(audiences.includes("read before any broadcast"), audiences);
-  const broadcast = ACT_TOOLS.find((d) => d.name === "propose_campaign").description;
-  assert.ok(broadcast.includes("reading campaigns with action audiences first"), broadcast);
+  assert.ok(audiences.includes("read before any send"), audiences);
+  const broadcast = ACT_TOOLS.find((d) => d.name === "propose_sequence").description;
+  assert.ok(broadcast.includes("action lists for who can be sent"), broadcast);
   assert.ok(broadcast.includes("or the ones who did have no number to send to"), broadcast);
-  assert.ok(broadcast.includes("never propose a broadcast to nobody"), broadcast);
+  assert.ok(broadcast.includes("never propose a send to nobody"), broadcast);
 });
 
 test("the answers the model is shown fit the format key for key, ride in the cached block, and the count's breakdown adds up", () => {
@@ -5777,7 +5820,7 @@ test("the proposal follow-up in Ask (0006): listed where deals are on and counte
     tables({ tenants: [{ id: A, name: "Harbor", timezone: TZ, sells_by: "proposal" }], deals, ...over });
   const context = (t) => newToolContext(ctxFor(t, { ...RPCS, people_list: () => [luis] }), A, "owner", TZ, NOW);
   const listed = async (t) =>
-    JSON.parse((await runTool(context(t), { name: "campaigns", input: { action: "playbooks" } })).result);
+    JSON.parse((await runTool(context(t), { name: "sequences", input: { action: "moments" } })).result);
   const counts = (read) => {
     const x = read.triggers.find((y) => y.trigger === "proposal_waiting");
     return x && [x.said_yes_now, x.can_be_sent_now];
@@ -5820,7 +5863,7 @@ test("the proposal follow-up in Ask (0006): listed where deals are on and counte
     hidden_at: null,
   };
   const propose = (t) =>
-    buildProposal(context(t), "propose_campaign", { action: "playbook", trigger: "proposal_waiting" });
+    buildProposal(context(t), "propose_sequence", { action: "moment", trigger: "proposal_waiting" });
   // Said before anything else is read: a workspace whose customers book holds no follow-up's starter, and was told the
   // starter was not approved yet.
   assert.match((await propose(tables({ deals }))).result, /need deals/);
@@ -5890,19 +5933,19 @@ test("everyone in People is read once a turn, through the readers: a turn that l
   const replyModes = () =>
     ctx.supabase.seen.filter((q) => q.table === "policies" && q.columns === "subject_type, subject_id, mode").length;
   // The prefetch's pair for "start a win-back playbook for the quiet clients", then the two cards.
-  for (const action of ["playbooks", "audiences"]) {
-    const out = await runTool(tc, { name: "campaigns", input: { action } });
+  for (const action of ["moments", "lists"]) {
+    const out = await runTool(tc, { name: "sequences", input: { action } });
     assert.equal(out.isError, false, out.result);
   }
-  const playbook = await buildProposal(tc, "propose_campaign", {
-    action: "playbook",
+  const playbook = await buildProposal(tc, "propose_sequence", {
+    action: "moment",
     trigger: "quiet_30",
     template_id: TPL,
     params: [],
   });
   assert.equal(playbook.isError, false, playbook.result);
-  const card = await buildProposal(tc, "propose_campaign", {
-    action: "broadcast",
+  const card = await buildProposal(tc, "propose_sequence", {
+    action: "once",
     template_id: TPL,
     audience_kind: "everyone",
     audience_id: null,
@@ -5966,7 +6009,7 @@ test("the assistant counts with the calendar too: a visit tomorrow on the owner'
   try {
     forgetFeeds();
     const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: () => threeAnswers() }), A, "owner", TZ, NOW);
-    const out = await runTool(tc, { name: "campaigns", input: { action: "playbooks" } });
+    const out = await runTool(tc, { name: "sequences", input: { action: "moments" } });
     assert.equal(out.isError, false, out.result);
     const read = JSON.parse(out.result);
     const reminder = read.triggers.find((x) => x.trigger === "visit_tomorrow");
@@ -6023,7 +6066,7 @@ test("the assistant offers the moments a new playbook may start from (2 Oct 2026
   };
   const toolContext = (t) => newToolContext(ctxFor(t), A, "owner", TZ, NOW);
   const listed = async (t) => {
-    const out = await runTool(toolContext(t), { name: "campaigns", input: { action: "playbooks" } });
+    const out = await runTool(toolContext(t), { name: "sequences", input: { action: "moments" } });
     assert.equal(out.isError, false, out.result);
     return JSON.parse(out.result);
   };
@@ -6052,15 +6095,15 @@ test("the assistant offers the moments a new playbook may start from (2 Oct 2026
     forgetFeeds();
     assert.deepEqual(offered(await listed(connected())), VISITS, "a feed down is still a calendar");
     // A proposal asks the same question of the same fact, with the turn's own read of the settings.
-    const win = { action: "playbook", template_id: TPL, params: [] };
+    const win = { action: "moment", template_id: TPL, params: [] };
     const refused = async (t, trigger) => {
-      const out = await buildProposal(toolContext(t), "propose_campaign", { ...win, trigger });
+      const out = await buildProposal(toolContext(t), "propose_sequence", { ...win, trigger });
       assert.equal(out.isError, true, out.result);
       return JSON.parse(out.result).error;
     };
     assert.equal(await refused(connected({ templates: [OFFER] }), "quiet_30"), WIN_BACK_WORDS.quiet_30);
     assert.equal(await refused(tables({ templates: [OFFER] }), "lapsed"), WIN_BACK_WORDS.lapsed);
-    const made = await buildProposal(toolContext(tables({ templates: [OFFER] })), "propose_campaign", {
+    const made = await buildProposal(toolContext(tables({ templates: [OFFER] })), "propose_sequence", {
       ...win,
       trigger: "quiet_30",
     });
@@ -6258,8 +6301,8 @@ test("campaigns.audiences offers the templates the composer offers (ledger #9): 
     ],
   });
   const out = await runTool(newToolContext(ctxFor(t), A, "owner", TZ, NOW), {
-    name: "campaigns",
-    input: { action: "audiences" },
+    name: "sequences",
+    input: { action: "lists" },
   });
   assert.equal(out.isError, false, out.result);
   const offered = JSON.parse(out.result).templates.map((x) => x.template_id);
@@ -6348,8 +6391,8 @@ test("campaigns.playbooks says the Playbooks page's numbers (ledger #10): every 
   });
   const doors = { ...RPCS, people_list: () => threeAnswers() };
   const out = await runTool(newToolContext(ctxFor(t, doors), A, "owner", TZ, NOW), {
-    name: "campaigns",
-    input: { action: "playbooks" },
+    name: "sequences",
+    input: { action: "moments" },
   });
   assert.equal(out.isError, false, out.result);
   const read = JSON.parse(out.result);
@@ -6412,7 +6455,7 @@ test("campaigns.playbooks says the Playbooks page's numbers (ledger #10): every 
         TZ,
         NOW,
       ),
-      { name: "campaigns", input: { action: "playbooks" } },
+      { name: "sequences", input: { action: "moments" } },
     ),
   );
   assert.equal(blindOut.isError, false, blindOut.result);
@@ -6495,11 +6538,11 @@ test("the workspace's pages are read once a turn, each tool as its page reads it
   const s = scripted([
     ROUND([
       tool("workspace", { action: "settings" }),
-      tool("campaigns", { action: "audiences" }),
+      tool("sequences", { action: "lists" }),
       tool("leads", { action: "searches" }),
     ]),
     ROUND([
-      tool("campaigns", { action: "audiences" }, "t-audiences-again"),
+      tool("sequences", { action: "lists" }, "t-audiences-again"),
       tool("leads", { action: "searches" }, "t-searches-again"),
     ]),
     ROUND([answer("Your WhatsApp number is fine and one search is waiting on you.")]),
@@ -6537,11 +6580,11 @@ test("the workspace's pages are read once a turn, each tool as its page reads it
   // The page's own builder, over what the page reads of the number: Meta's quality and limit from the row's config.
   const health = numberHealth({ quality: "YELLOW", event: null, limit: "TIER_1K" });
   assert.deepEqual(
-    out["t-campaigns.audiences"].number,
+    out["t-sequences.lists"].number,
     { present: true, health: health.label, can_send: health.canSend, limit_per_day: 1000 },
     "the number the Broadcasts page picks, and its health from the quality Meta assigned it",
   );
-  assert.deepEqual(out["t-audiences-again"], out["t-campaigns.audiences"], "the same answer from the turn's reads");
+  assert.deepEqual(out["t-audiences-again"], out["t-sequences.lists"], "the same answer from the turn's reads");
   const searches = out["t-leads.searches"];
   assert.deepEqual(searches.counts, COUNTS, "the rail's six counts, as the Leads page shows them");
   assert.deepEqual(
@@ -6583,7 +6626,7 @@ test("thirteen names in a turn (PR 4.2): the rows leads.searches, campaigns.audi
     });
   // A People list the listing offers here, by the id it gives it (audience_id): a name, never a uuid.
   const offered = JSON.parse(
-    (await runTool(newToolContext(world(), A, "owner", TZ, NOW), { name: "campaigns", input: { action: "audiences" } }))
+    (await runTool(newToolContext(world(), A, "owner", TZ, NOW), { name: "sequences", input: { action: "lists" } }))
       .result,
   ).audiences.find((a) => a.kind === "list");
   assert.ok(offered && !/^[0-9a-f-]{36}$/.test(offered.audience_id), JSON.stringify(offered));
@@ -6591,8 +6634,8 @@ test("thirteen names in a turn (PR 4.2): the rows leads.searches, campaigns.audi
   const s = scripted([
     ROUND([
       tool("leads", { action: "searches" }),
-      tool("campaigns", { action: "audiences" }),
-      tool("campaigns", { action: "playbooks" }),
+      tool("sequences", { action: "lists" }),
+      tool("sequences", { action: "moments" }),
     ]),
     ROUND([
       answer("One search waits on you, and the win-back runs on its own.", {
@@ -6643,8 +6686,8 @@ test("campaigns.audiences offers what the composer offers (ledger #14): a templa
   };
   const t = tables({ templates: [OFFER, bookNow] });
   const out = await runTool(newToolContext(ctxFor(t), A, "owner", TZ, NOW), {
-    name: "campaigns",
-    input: { action: "audiences" },
+    name: "sequences",
+    input: { action: "lists" },
   });
   assert.equal(out.isError, false, out.result);
   const read = JSON.parse(out.result);
@@ -6673,8 +6716,8 @@ test("campaigns.audiences offers what the composer offers (ledger #14): a templa
   const clear = JSON.parse(
     (
       await runTool(newToolContext(ctxFor(tables({ templates: [OFFER] })), A, "owner", TZ, NOW), {
-        name: "campaigns",
-        input: { action: "audiences" },
+        name: "sequences",
+        input: { action: "lists" },
       })
     ).result,
   );
@@ -6693,14 +6736,14 @@ test("a list of the workspace's own is read once a turn: campaigns.audiences rea
   });
   const ctx = ctxFor(t, { ...RPCS, people_list: () => threeAnswers() });
   const tc = newToolContext(ctx, A, "owner", TZ, NOW);
-  const listed = await runTool(tc, { name: "campaigns", input: { action: "audiences" } });
+  const listed = await runTool(tc, { name: "sequences", input: { action: "lists" } });
   assert.equal(listed.isError, false, listed.result);
   const search = JSON.parse(
     (await runTool(tc, { name: "people", input: { action: "search", query: "", list: `list:${S_REG}` } })).result,
   );
   assert.deepEqual(search.people.map((p) => p.name).sort(), ["Luis Mora", "Rosa Diaz"]);
-  const card = await buildProposal(tc, "propose_campaign", {
-    action: "broadcast",
+  const card = await buildProposal(tc, "propose_sequence", {
+    action: "once",
     template_id: TPL,
     audience_kind: "saved",
     audience_id: S_REG,
@@ -6732,15 +6775,15 @@ test("a read the page tolerates, Ask tolerates as the page does and says so: a f
   };
   const parsed = (o) => JSON.parse(o.result);
   const without = (o, ...keys) => Object.fromEntries(Object.entries(o).filter(([k]) => !keys.includes(k)));
-  const healthy = await answers({}, ["workspace.settings", "campaigns.audiences"]);
+  const healthy = await answers({}, ["workspace.settings", "sequences.lists"]);
   const settings = parsed(healthy.out["workspace.settings"]);
-  const listing = parsed(healthy.out["campaigns.audiences"]);
+  const listing = parsed(healthy.out["sequences.lists"]);
   assert.equal("could_not_read" in settings || "could_not_read" in listing, false, "nothing to say when all was read");
 
   // The channels: workspace.settings, then campaigns.audiences, in one turn.
   const noChannels = await answers({ "tenant_channels.select": { message: "channels down" } }, [
     "workspace.settings",
-    "campaigns.audiences",
+    "sequences.lists",
   ]);
   const s = parsed(noChannels.out["workspace.settings"]);
   assert.equal(noChannels.out["workspace.settings"].isError, false, noChannels.out["workspace.settings"].result);
@@ -6750,8 +6793,8 @@ test("a read the page tolerates, Ask tolerates as the page does and says so: a f
     "never [] -- no channels read is not no channels",
   );
   assert.deepEqual(without(s, "channels", "could_not_read"), without(settings, "channels"), "the rest still answers");
-  const a = parsed(noChannels.out["campaigns.audiences"]);
-  assert.equal(noChannels.out["campaigns.audiences"].isError, false, noChannels.out["campaigns.audiences"].result);
+  const a = parsed(noChannels.out["sequences.lists"]);
+  assert.equal(noChannels.out["sequences.lists"].isError, false, noChannels.out["sequences.lists"].result);
   assert.deepEqual(
     [a.number, a.could_not_read],
     [null, ["The WhatsApp number's state could not be read just now."]],
@@ -6768,14 +6811,14 @@ test("a read the page tolerates, Ask tolerates as the page does and says so: a f
     noChannels.lines.map((l) => JSON.parse(l)).map((x) => [x.tool, x.read, x.tenant_id]),
     [
       ["workspace.settings", "channels", A],
-      ["campaigns.audiences", "channels", A],
+      ["sequences.lists", "channels", A],
     ],
   );
 
   // The templates.
-  const noTemplates = await answers({ "templates.select": { message: "templates down" } }, ["campaigns.audiences"]);
-  const t = parsed(noTemplates.out["campaigns.audiences"]);
-  assert.equal(noTemplates.out["campaigns.audiences"].isError, false, noTemplates.out["campaigns.audiences"].result);
+  const noTemplates = await answers({ "templates.select": { message: "templates down" } }, ["sequences.lists"]);
+  const t = parsed(noTemplates.out["sequences.lists"]);
+  assert.equal(noTemplates.out["sequences.lists"].isError, false, noTemplates.out["sequences.lists"].result);
   assert.deepEqual(
     [t.templates, t.cannot_send, t.could_not_read],
     [null, null, ["The messages could not be read just now: say so, and propose no broadcast until they can."]],
@@ -6823,8 +6866,8 @@ test("the row the scope names rides in whole, read by its own tool and action: a
     input: { action: "search", search_id: X },
   });
   assert.deepEqual(scopedRead({ kind: "run", id: X, label: "Monday offer" }), {
-    name: "campaigns",
-    input: { action: "broadcast", broadcast_id: X },
+    name: "sequences",
+    input: { action: "batch", broadcast_id: X },
   });
   assert.equal(scopedRead({ kind: "page", id: "reports", label: "Reports" }), null, "a page");
   assert.equal(scopedRead(null), null);
@@ -6859,7 +6902,7 @@ test("a run the person is looking at is the Broadcasts row the page drew: the an
   const scope = { kind: "run", id: RUN, label: "Monday offer" };
   assert.deepEqual(
     scopedRead(scope),
-    { name: "campaigns", input: { action: "broadcast", broadcast_id: RUN } },
+    { name: "sequences", input: { action: "batch", broadcast_id: RUN } },
     "a run is read by its id, as the broadcast it is",
   );
   const r = await runAskTurn(
@@ -7023,7 +7066,7 @@ test("the bytes before the messages are the same on two pages and for two people
   assert.equal(new Set(Object.values(byRole)).size, 4, "four prefixes, one per role");
 });
 
-test("the request's tools are the registry's: the three fields, and input_examples on the tools that carry them and no other; the same bytes on every round of a turn", async () => {
+test("the request's tools are the registry's: the three fields, input_examples on the tools that carry them and no other, defer_loading on every tool outside the core, and the tool search last; the same bytes on every round of a turn", async () => {
   const s = scripted([
     ROUND([tool("inbox", { action: "list", filter: "recent" })]),
     ROUND([answer("Nobody is waiting on you.")]),
@@ -7036,17 +7079,28 @@ test("the request's tools are the registry's: the three fields, and input_exampl
   for (const [i, sent] of s.requests[0].tools.entries()) {
     const own = registry[i];
     assert.equal(sent.name, own.name);
+    if (own.type) {
+      assert.deepEqual(sent, { type: "tool_search_tool_bm25_20251119", name: "tool_search_tool_bm25" }, "the search");
+      continue;
+    }
     assert.deepEqual(
       Object.keys(sent),
-      ["name", "description", "input_schema", ...(own.input_examples ? ["input_examples"] : [])],
-      `${own.name}: the fields the API takes, the examples last`,
+      [
+        "name",
+        "description",
+        "input_schema",
+        ...(own.input_examples ? ["input_examples"] : []),
+        ...(CORE_TOOLS.has(own.name) ? [] : ["defer_loading"]),
+      ],
+      `${own.name}: the fields the API takes, the examples after the schema, deferred outside the core`,
     );
     assert.deepEqual(sent.input_examples, own.input_examples, own.name);
   }
+  assert.equal(s.requests[0].tools.at(-1).name, "tool_search_tool_bm25", "the tool search last");
   const withExamples = s.requests[0].tools.filter((t) => t.input_examples).map((t) => t.name);
-  assert.ok(withExamples.includes("calendar") && withExamples.includes("propose_campaign"), withExamples);
+  assert.ok(withExamples.includes("calendar") && withExamples.includes("propose_sequence"), withExamples);
   assert.ok(
-    !withExamples.includes("today") && !withExamples.includes("propose_whisper"),
+    !withExamples.includes("today") && !withExamples.includes("signals") && !withExamples.includes("guide"),
     "a plain input with no action has none",
   );
   assert.equal(JSON.stringify(s.requests[1].tools), JSON.stringify(s.requests[0].tools), "the second round, the same");
@@ -7185,7 +7239,7 @@ test("fifteen names move five spans of the request (PR 4.2; a visit and a review
   assert.ok(rules.includes(`items for the rows it names (${every})`), "the rules' items list says the same words");
   assert.ok(
     rules.includes(
-      "A row the Broadcasts page calls a run is kind broadcast; a list is kind list, with the audience_id campaigns gave it.",
+      "A batch that went out is kind broadcast; a list is kind list, with the audience_id sequences gave it.",
     ),
     "the source rule says how the two rows whose word differs are cited",
   );
@@ -7212,8 +7266,8 @@ test("a rule that described one tool is that tool's description now, and out of 
       "propose_reply",
       "a rewrite in words",
     ],
-    ["Read list_audiences before any broadcast", "campaigns", "read before any broadcast"],
-    ["never propose a broadcast to nobody", "propose_campaign", "never propose a broadcast to nobody"],
+    ["Read list_audiences before any broadcast", "sequences", "read before any send"],
+    ["never propose a broadcast to nobody", "propose_sequence", "never propose a send to nobody"],
     [
       "read list_lead_searches, then propose_lead_search: one plan, never a search",
       "propose_lead_search",
@@ -7222,14 +7276,14 @@ test("a rule that described one tool is that tool's description now, and out of 
     [
       "words that answer it are propose_lead_search with amends",
       "leads",
-      "words that answer it are propose_lead_search with amends set to that search's id",
+      "words that answer it are propose_lead_search with action find and amends set to that search's id",
     ],
     [
       "never say a search has started until the card is approved",
       "propose_lead_search",
       "never say a search has started until the card is approved",
     ],
-    ["(read list_audiences)", "propose_campaign", "reading campaigns with action audiences first"],
+    ["(read list_audiences)", "propose_sequence", "action lists for who can be sent"],
   ];
   for (const [gone, name, landed] of moved) {
     assert.ok(!rules.includes(gone), `out of the rules: ${gone}`);
@@ -7239,7 +7293,7 @@ test("a rule that described one tool is that tool's description now, and out of 
     "You never act.",
     "Answer from it when it is enough, in one round.",
     "Read only for what it does not hold: a whole conversation or transcript, a person's profile",
-    "name the door: a broadcast reaches only the people who said yes, and anyone else",
+    "name the door: a one-off send (propose_sequence action once) reaches only the people who said yes",
     "Leads are businesses Claude found for the owner to reach",
     "Only in the US.",
   ])
@@ -7567,7 +7621,7 @@ test("a read, then the answer: the read's round -- its thinking whole, its call 
 });
 
 test("cards alone, and an answer beside its cards: the round is the raw's final, and the results of its cards -- which no request carried -- are the blocks the next request would carry, byte for byte: those a round that goes on sends back for the same call", async () => {
-  const act = tool("propose_autonomy", { class: "reply", mode: "ask" });
+  const act = tool("propose_settings", { action: "autonomy", class: "reply", mode: "ask" });
   // One card, the same bytes every turn: the builder's own id moves with the clock.
   const card = {
     id: "p-1",
@@ -7600,7 +7654,12 @@ test("cards alone, and an answer beside its cards: the round is the raw's final,
   sameBytes(a.raw.results, carried, "cards alone: the card's result, as the next request would carry it");
   assert.deepEqual(a.raw.final, [
     { type: "thinking", thinking: "", signature: "sig-card" },
-    { type: "tool_use", id: act.id, name: "propose_autonomy", input: { class: "reply", mode: "ask" } },
+    {
+      type: "tool_use",
+      id: act.id,
+      name: "propose_settings",
+      input: { action: "autonomy", class: "reply", mode: "ask" },
+    },
   ]);
   sameBytes(messagesOf(a.raw), sentOf(alone.requests.at(-1)), "cards alone: the request's messages");
   assert.deepEqual(a.raw.rounds, []);
@@ -7824,7 +7883,7 @@ test("the raw at the caps (a number for the pull request, not a limit: the Phase
   });
   const r = await runAskTurn(input, ports(s.round, { context: async () => page }));
   assert.equal(r.failed, false, r.failure ?? "");
-  assert.equal(r.rounds, ASK_MAX_ROUNDS, "two rounds of reads, then the last, which may call none");
+  assert.equal(r.rounds, 3, "two rounds of reads, then the answering round");
 
   // Every read at its cap, as the model was sent it.
   const want = rawOf(s.requests);
@@ -7996,7 +8055,7 @@ test("a follow-up inside the window replays its thread as the model was sent it 
 
 test("a turn that ended on a card leaves its call unanswered: the next question opens with the card's result, then the page's data, the words and the question, in one message (the Phase 5 plan, PR 5.4)", async () => {
   const { ctx } = threadWorld();
-  const act = tool("propose_autonomy", { class: "reply", mode: "ask" });
+  const act = tool("propose_settings", { action: "autonomy", class: "reply", mode: "ask" });
   const card = {
     id: "p-1",
     kind: "policy",
@@ -8564,7 +8623,7 @@ test("a replay the API refuses goes cold once (the Phase 5 plan, D12): round one
       undo: null,
     };
     const propose = async () => ({ proposal: card, result: JSON.stringify({ proposed: true }), isError: false });
-    const act = tool("propose_autonomy", { class: "reply", mode: "ask" });
+    const act = tool("propose_settings", { action: "autonomy", class: "reply", mode: "ask" });
     const rounds = [
       ROUND([thinking("sig-0"), tool("inbox", { action: "list", filter: "recent" })]),
       ROUND([thinking("sig-1"), act, answer("I proposed it.")]),
@@ -9309,7 +9368,7 @@ test("the act tools look a row up in the turn's workspace, whatever the session 
     /no such message in this workspace/,
   );
   assert.match(
-    (await p("propose_whisper", { call_id: K2, text: "Offer Friday" })).result,
+    (await p("propose_call", { action: "whisper", call_id: K2, text: "Offer Friday" })).result,
     /no such call in this workspace/,
   );
   // The same lookups on this workspace's own rows go through, so the refusal above is the workspace's and not a broken read.
@@ -9406,32 +9465,32 @@ test("a broadcast or a playbook proposed on a workspace with no WhatsApp number 
     });
   const toolContext = (channels) =>
     newToolContext(ctxFor(world(channels), { ...RPCS, people_list: () => [luis] }), A, "owner", TZ, NOW);
-  const broadcast = { action: "broadcast", template_id: TPL, audience_kind: "everyone", params: [] };
+  const broadcast = { action: "once", template_id: TPL, audience_kind: "everyone", params: [] };
   // With the number connected the card is offered; with none it is refused in the words the route would refuse in.
-  const connected = await buildProposal(toolContext([WHATSAPP_NUMBER]), "propose_campaign", broadcast);
+  const connected = await buildProposal(toolContext([WHATSAPP_NUMBER]), "propose_sequence", broadcast);
   assert.equal(connected.isError, false, connected.result);
-  const none = await buildProposal(toolContext([]), "propose_campaign", broadcast);
+  const none = await buildProposal(toolContext([]), "propose_sequence", broadcast);
   assert.deepEqual([none.proposal, none.isError], [null, true], none.result);
   assert.equal(JSON.parse(none.result).error, "Connect a WhatsApp number first.");
   // A number WhatsApp flagged is refused the same way, in WhatsApp's words.
   const flagged = { ...WHATSAPP_NUMBER, config: { quality_rating: "RED", messaging_limit: "TIER_1K" } };
-  const red = await buildProposal(toolContext([flagged]), "propose_campaign", broadcast);
+  const red = await buildProposal(toolContext([flagged]), "propose_sequence", broadcast);
   assert.match(JSON.parse(red.result).error, /WhatsApp flagged this number's quality/);
   // A US number: Meta is not delivering marketing messages on WhatsApp to US numbers (contracts whatsapp-offers.ts), so an
   // offer is refused with that reason, never with a missing yes; a number Meta has stopped is refused in the row's sentence.
   const us = { ...WHATSAPP_NUMBER, number_e164: "+19295550198" };
-  const paused = await buildProposal(toolContext([us]), "propose_campaign", broadcast);
+  const paused = await buildProposal(toolContext([us]), "propose_sequence", broadcast);
   assert.deepEqual([paused.proposal, paused.isError], [null, true], paused.result);
   assert.match(JSON.parse(paused.result).error, /Meta has paused offers on WhatsApp to US numbers/);
   const unpaid = {
     ...WHATSAPP_NUMBER,
     config: { ...WHATSAPP_NUMBER.config, standing: { can_send: "AVAILABLE", has_payment_method: false } },
   };
-  const held2 = await buildProposal(toolContext([unpaid]), "propose_campaign", broadcast);
+  const held2 = await buildProposal(toolContext([unpaid]), "propose_sequence", broadcast);
   assert.match(JSON.parse(held2.result).error, /Meta needs a payment method on your WhatsApp account/);
   // A playbook is still proposed with no number (a run holds everyone), and its card says so.
-  const playbook = { action: "playbook", trigger: "everyone_monthly", template_id: TPL, params: [] };
-  const held = await buildProposal(toolContext([]), "propose_campaign", playbook);
+  const playbook = { action: "moment", trigger: "everyone_monthly", template_id: TPL, params: [] };
+  const held = await buildProposal(toolContext([]), "propose_sequence", playbook);
   assert.equal(held.isError, false, held.result);
   assert.match(held.proposal.summary, /Connect a WhatsApp number first\. Its runs hold everyone until it is\./);
 });

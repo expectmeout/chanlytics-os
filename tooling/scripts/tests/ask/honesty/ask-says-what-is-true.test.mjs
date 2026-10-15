@@ -467,7 +467,8 @@ test("a card names the person as People and the Inbox do: the saved name, else t
 /* ------------------------------------------------- 3. a whisper names the call as Live does */
 
 test("a whisper names the call as Live does: the saved name, else the number as the phone showed it, else Caller ID withheld", async () => {
-  const whisper = async (call_id) => (await card("propose_whisper", { call_id, text: "Saturday is full" })).title;
+  const whisper = async (call_id) =>
+    (await card("propose_call", { action: "whisper", call_id, text: "Saturday is full" })).title;
   assert.equal(await whisper(K_LIVE_NAMED), "Whisper on the call with Rosa");
   assert.equal(await whisper(K_LIVE_PHONE), "Whisper on the call with +1 (555) 555-0103");
   assert.equal(await whisper(K_LIVE_NUMBER), "Whisper on the call with +1 (555) 555-0177");

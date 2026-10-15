@@ -484,7 +484,7 @@ export const MEASURES = [
     file: "writes-past-verbs.json",
     measure: () => perFile(BROWSER_WRITERS, writesPastVerbs),
     advice:
-      "Commit it through its verb (legacy-bridge/verbs commitVerb, its spec in contracts VERB_SPECS): the call, the receipt and the undo a sheet and Ask's card share. A verb no spec has yet gets one, beside the family it belongs with (contracts ask-proposals/).",
+      "Commit it through its verb (legacy-bridge/verbs commitVerb, its spec in contracts PROPOSAL_SPECS): the call, the receipt and the undo a sheet and Ask's card share. A verb no spec has yet gets one, beside the family it belongs with (contracts ask-proposals/).",
   },
   {
     name: "copies",
