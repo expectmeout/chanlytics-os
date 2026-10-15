@@ -5,6 +5,7 @@
  * they gave none: never the business's, 00420); the business's address stays the lead's. The sheet says what the door does, each row a thing it makes true (merge_people): no count,
  * since the other record is not read here, and no Undo, since no door undoes a merge.
  */
+import { appointmentWordWhere, appointmentWords } from "../journey/appointment-word";
 import { MERGE_ANSWERS } from "../people/person-merge";
 import { NEEDS_TITLE } from "../shell/refusal";
 import type { CombineAct } from "./notices";
@@ -21,7 +22,8 @@ export const COMBINE_WORDS = {
   keeps: "Keeps their own name, number and address",
   keepsNoName: "Keeps their own number and address, and no name until they give one",
   takesThread: (other: string) => `Takes the messages and calls on ${other}'s record, in one thread`,
-  takesRecords: "Takes its notes, deals, visits and lists",
+  /** In the workspace's word for its appointments: "Takes its notes, deals, appointments and lists". */
+  takesRecords: (many: string) => `Takes its notes, deals, ${many} and lists`,
   takesReachOut: "Takes the emails we sent it, the replies, and the lead's link to it",
   answers: MERGE_ANSWERS,
   after: (other: string) => `${other}'s record stays as a merged record with no number or address`,
@@ -50,11 +52,12 @@ export interface CombineVM {
   why: string;
 }
 
-/** The Combine sheet, from this page's person, the notice's act and the business they share. */
+/** The Combine sheet, from this page's person, the notice's act, the business they share and whether deals are on. */
 export function combineOf(f: {
   here: { id: string; name: string; email: string | null };
   act: CombineAct;
   business: string;
+  dealsOn: boolean;
 }): CombineVM {
   const W = COMBINE_WORDS;
   const { here, act, business } = f;
@@ -81,7 +84,7 @@ export function combineOf(f: {
     rows: [
       named ? W.keeps : W.keepsNoName,
       W.takesThread(drop.name),
-      W.takesRecords,
+      W.takesRecords(appointmentWords(appointmentWordWhere(f.dealsOn)).many),
       W.takesReachOut,
       W.answers,
       W.after(drop.name),

@@ -804,7 +804,7 @@ test("visit_notice tells a booking the customer cancelled or moved through their
       `calendar/2999-10-12:a-${APPT}`,
       { type: "appointment", id: APPT },
       E,
-      "Rosa Diaz cancelled their visit",
+      "Rosa Diaz cancelled their booking",
     ],
     "the time freed, at the visit on its day, answering the event",
   );
@@ -826,7 +826,7 @@ test("visit_notice tells a booking the customer cancelled or moved through their
       n.body.split("\n")[0].startsWith("Now "),
       n.body.endsWith("From your booking tool"),
     ]),
-    [["Rosa Diaz moved their visit", true, true]],
+    [["Rosa Diaz moved their booking", true, true]],
     "the new time, said as now",
   );
 

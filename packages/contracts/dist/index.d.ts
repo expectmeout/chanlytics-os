@@ -19041,8 +19041,8 @@ interface MessagesSummaryPart {
     notAsked: boolean;
 }
 /**
- * Messages and receptionist, folded (canvas A): the three answers in one line, "Visit messages not asked · Offers & news
- * not asked · Answer", each a part, so the page can make a "not asked" the press that asks it.
+ * Messages and receptionist, folded (canvas A): the three answers in one line, "Messages not asked · Offers & news not
+ * asked · Answer", each a part, so the page can make a "not asked" the press that asks it.
  */
 declare function messagesSummaryOf(visit: {
     label: string;
@@ -30103,7 +30103,7 @@ declare const VISITS_TAB_WORDS: {
     readonly toMark: "To mark";
     readonly ahead: "Ahead";
     readonly past: "Past";
-    readonly none: "No visits ahead.";
+    readonly none: "Nothing ahead.";
     /** A visit the calendar names nothing for. */
     readonly visit: "Visit";
     /** A missed visit: it is not a gap between visits, so the cadence does not read it. */
@@ -33495,12 +33495,12 @@ declare function noteManyLine(what: string): {
  */
 declare const VISIT_CHANGES_TOLD: {
     readonly added: "A booking arriving (bookingArriving): told, unless it is the owner's own entry or a calendar's catching up.";
-    readonly confirmed: "A proposed visit booked by the tool: told as a booking arriving.";
+    readonly confirmed: "A proposed one the tool confirmed: told as a booking arriving.";
     readonly cancelled: "Told when the customer cancelled through their booking tool (bookingChanged); a member's cancel is theirs.";
     readonly moved: "Told when the customer moved it through their booking tool; the calendar's moves are the owner's own diary.";
-    readonly kept: "A member's word on a visit that happened: theirs, not news.";
+    readonly kept: "A member's word that they came: theirs, not news.";
     readonly missed: "A member's word on a no-show: theirs, not news.";
-    readonly vanished: "Gone from the owner's calendar, their own diary: not told, as a feed's rebuild would tell every visit.";
+    readonly vanished: "Gone from the owner's calendar, their own diary: not told, as a feed's rebuild would tell them all.";
     readonly back: "Back on the owner's calendar, their own diary: not told.";
 };
 /** The sources a customer's booking comes by. A member's own entry (`person`) is the owner's, not news. */
@@ -34397,7 +34397,8 @@ declare const COMBINE_WORDS: {
     readonly keeps: "Keeps their own name, number and address";
     readonly keepsNoName: "Keeps their own number and address, and no name until they give one";
     readonly takesThread: (other: string) => string;
-    readonly takesRecords: "Takes its notes, deals, visits and lists";
+    /** In the workspace's word for its appointments: "Takes its notes, deals, appointments and lists". */
+    readonly takesRecords: (many: string) => string;
     readonly takesReachOut: "Takes the emails we sent it, the replies, and the lead's link to it";
     readonly answers: "Their answers about messages and offers become the more careful of the two.";
     readonly after: (other: string) => string;
@@ -34423,7 +34424,7 @@ interface CombineVM {
     /** Why they are one: the business, the address we wrote to, and the one they answered from. */
     why: string;
 }
-/** The Combine sheet, from this page's person, the notice's act and the business they share. */
+/** The Combine sheet, from this page's person, the notice's act, the business they share and whether deals are on. */
 declare function combineOf(f: {
     here: {
         id: string;
@@ -34432,6 +34433,7 @@ declare function combineOf(f: {
     };
     act: CombineAct;
     business: string;
+    dealsOn: boolean;
 }): CombineVM;
 
 /**
