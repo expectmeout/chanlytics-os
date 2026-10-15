@@ -19,7 +19,6 @@
   "apps/edge/lib/voice/calls-sweep.ts": 3,
   "packages/channels/src/voice/voice-retell.ts": 2,
   "packages/contracts/src/ask/ask-fast-paths.ts": 1,
-  "packages/contracts/src/ask/ask.ts": 1,
   "packages/contracts/src/calendar/availability.ts": 5,
   "packages/contracts/src/calendar/feed.ts": 6,
   "packages/contracts/src/calendar/zone-math.ts": 2,

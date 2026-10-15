@@ -103,6 +103,7 @@ export {
   NotificationsConfigSchema,
   CalendarConfigSchema,
   FeaturesConfigSchema,
+  ASK_GOAL_MAX,
   TenantConfigSchema,
   TenantConfigWriteSchema,
 } from "./workspace-config/config-schema";

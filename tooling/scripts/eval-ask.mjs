@@ -11,7 +11,10 @@
  * does not exist gets none), the phrases an answer must or must not carry,
  * and, on an answer made since the Line, what the page draws: a headline of
  * one sentence, no place offered twice after one door, a count shown as a
- * figure or a breakdown, and a breakdown that adds up (the spec's 10.2).
+ * figure or a breakdown, and a breakdown that adds up (the spec's 10.2); the
+ * shape a case asks for (a list, a count, a length, emoji, capitals, never an
+ * apology for the format: shapeAskedFails), and no line the preview drew lost
+ * when the answer landed (previewJudged).
  * Each run times the first words (a `say` or a v1 `delta`) and the final,
  * and reads what the run cost from Ask's own usage rows (usage.ask_tokens,
  * one per model round, written by the edge): the tokens, the dollars per
@@ -106,6 +109,8 @@ import {
   secondScope,
   secondTurn,
   setupCardsFails,
+  shapeAskedFails,
+  previewJudged,
   skipFor,
   toolsOrderNote,
   turnShapes,
@@ -412,6 +417,11 @@ export function judge(c, r) {
   // dependent step; and the tools' order, said once as a note.
   fails.push(...setupCardsFails(e, m));
   notes.push(...toolsOrderNote(e, m));
+  // The shape they asked for (a list, a count, a length, emoji, capitals), and the preview against what landed.
+  fails.push(...shapeAskedFails(e, m));
+  const preview = previewJudged(r.events, m);
+  fails.push(...preview.fails);
+  notes.push(...preview.notes);
   // A list card's rule and what it left out (propose_list, PR 4.7; the Phase 4 plan, D10): each field the words decide
   // the rule names, and whether what the vocabulary cannot say was kept on the card rather than dropped.
   for (const p of e.list_card ? (m.proposals ?? []).filter((x) => x.kind === "list") : []) {
@@ -574,6 +584,7 @@ function rowOf(q, rep, turn, r, warmed, j) {
           figures: r.final.answer.show.figures.length,
           items: r.final.answer.show.items.length,
           breakdown: !!r.final.answer.show.breakdown,
+          list: r.final.answer.show.list?.entries.length ? r.final.answer.show.list : null,
           open: r.final.answer.do.open?.to ?? null,
         }
       : null,

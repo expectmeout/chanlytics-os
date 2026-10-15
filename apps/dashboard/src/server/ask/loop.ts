@@ -3,11 +3,11 @@ import {
   ASK_ANSWER_FORMAT,
   ASK_MAX_ROUNDS,
   ASK_MAX_TOKENS,
+  ASK_SPOKEN_TURN_BUDGET_MS,
   ASK_TURN_BUDGET_MS,
   answerForCards,
   answerWords,
   claimsWrite,
-  cleanAnswer,
   failedAnswer,
   isUngrounded,
   normalizeAnswer,
@@ -29,7 +29,7 @@ import type { RouteContext } from "../with-route";
 import { load, type ReaderContext } from "../readers";
 import { log } from "@/server/log";
 import { GatewayRefused } from "./gateway";
-import { DROP_EVENTS, dropFor, refusalSaid } from "./refusals";
+import { DROP_EVENTS, dropFor, letGo, refusalSaid, type Offer } from "./refusals";
 import {
   ACT_TOOL_NAMES,
   buildProposal,
@@ -307,7 +307,7 @@ function besideActs(written: string, r: { refused: boolean; planned: string | nu
   return "";
 }
 
-/** The turn's own time ran out (ASK_TURN_BUDGET_MS): ours to say, never the question's. */
+/** The turn's own time ran out (budgetOf): ours to say, never the question's. */
 const TIME_UP_WORDS = {
   en: "I ran out of time on that one. Try again, or ask about one thing at a time.",
   es: "Se me acabó el tiempo con esta. Inténtalo de nuevo, o pregunta por una cosa a la vez.",
@@ -317,8 +317,22 @@ const TIME_UP_WORDS = {
 const halted = (time: AbortSignal, stop: AbortSignal | undefined): AbortSignal =>
   stop ? AbortSignal.any([time, stop]) : time;
 
+/**
+ * A typed turn's whole budget (the operator, 15 Oct 2026: a plan of several cards over many reads); a spoken one keeps
+ * the budget a listener waits through.
+ */
+const budgetOf = (input: TurnInput): number => (input.spoken ? ASK_SPOKEN_TURN_BUDGET_MS : ASK_TURN_BUDGET_MS);
+
+/**
+ * A server tool (the tool search, D11) paused the turn with no call of ours: the API resumes it from the response as
+ * it came, so the round goes back whole, with nothing after it, and the next round carries on.
+ */
+const pausedByServer = (stopReason: string | null, calls: number, last: boolean): boolean =>
+  stopReason === "pause_turn" && calls === 0 && !last;
+
 export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts()): Promise<TurnResult> {
   const t0 = Date.now();
+  const budgetMs = budgetOf(input);
   const model = askModel();
   const now = input.now ?? new Date();
   const es = input.language === "es";
@@ -394,15 +408,12 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   let dataDropped = pageBlocks.length === 0 && crossBlocks.length === 0;
   const sayWords = wordsBlock(input, now, { built, crossBlocks, scopedRow, read: tc.read });
   const question = { type: "text", text: input.text };
-  // The tools as the API takes them (registry.ts): the same bytes every round, until the API refuses their examples.
-  let examples = true;
+  // The tools (registry.ts), the same bytes every round, and the answer's format, until the API refuses a part of the
+  // offer: then it is let go (refusals.ts letGo) and the same round asked again. No tool is strict: the API takes twenty
+  // strict tools and twenty-four optional parameters across them (26 tools, then 31 parameters in the act tools alone,
+  // were refused on every operator turn, 23 Sep), and the tools ran as they always had without it.
+  const offer: Offer = { examples: true, search: true, format: true };
   let { tools } = head;
-  // The answer has its format until the API refuses it: then it is dropped and
-  // the same round is asked again. No tool is strict: the API takes twenty
-  // strict tools and twenty-four optional parameters across them (26 tools,
-  // then 31 parameters in the act tools alone, were refused on every operator
-  // turn, 23 Sep), and the tools ran as they always had without it.
-  let format = true;
   // A round's request: its messages a copy with the cache's markers (withMarkers), at `at` and on its last block.
   const requestOf = (msgs: Msg[], at: unknown, last: boolean) => ({
     ...(head.speed ? { model: head.model, speed: head.speed } : { model: head.model }),
@@ -412,7 +423,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     tools,
     // The last round may call no tool: all that is left is the answer.
     tool_choice: last ? { type: "none" as const } : head.tool_choice,
-    output_config: format ? head.output_config : { effort: model.effort },
+    output_config: offer.format ? head.output_config : { effort: model.effort },
   });
   // The earlier turns (memory.ts, the Phase 5 plan, D1–D4): replayed as the model was sent them while the thread is
   // warm, round one on the same model and prefix and within the bound (bpR where the last request ended); else the
@@ -430,7 +441,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   // Where the question sits in every request of the turn: a later round only appends.
   let questionAt = messages.length - 1;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ASK_TURN_BUDGET_MS);
+  const timer = setTimeout(() => controller.abort(), budgetMs);
 
   const done = (r: TurnEnd): TurnResult => {
     clearTimeout(timer);
@@ -445,7 +456,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       crossBlocks,
       plan,
       meter,
-      format,
+      format: offer.format,
       toolsUsed,
       proposals,
       questionAt,
@@ -480,11 +491,10 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
           log.warn("ask_say_not_first", { first: firstKey.slice(0, 40), tenant_id: input.tenantId });
       }
     }
-    const part = json ? partialSay(soFar) : format ? null : { headline: "", detail: soFar };
-    if (!part) return;
-    // Nothing past a tag, even in a preview: the leak seen on production (cleanAnswer).
-    const say = { headline: cleanAnswer(part.headline), detail: cleanAnswer(part.detail) };
-    if (!say.headline && !say.detail) return;
+    // Drawn as the final message will draw it (contracts partialSay, proseAnswer): nothing past a tag, the leak seen on
+    // production, and the detail's lines kept, so nothing the preview showed moves when the answer lands.
+    const say = json ? partialSay(soFar) : offer.format ? null : proseAnswer(soFar, input.language).say;
+    if (!say || (!say.headline && !say.detail)) return;
     const key = `${say.headline}\n${say.detail}`;
     const at = Date.now();
     if (key === said || at - saidAt < SAY_EVERY_MS) return;
@@ -586,7 +596,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
           // each. Without the page's data, their reads leave the count and the words stop pointing at them; without
           // the format, what comes back is read as JSON when it is, else as prose (D15).
           const m = e.refusal.kind === "bad_request" ? e.refusal.message : "";
-          const drop = dropFor(m, { replay: live && round === 1, context: !dataDropped, examples, format });
+          const drop = dropFor(m, { replay: live && round === 1, context: !dataDropped, ...offer });
           if (drop) {
             log.error(DROP_EVENTS[drop], { error: m.slice(0, 200), tenant_id: input.tenantId });
             if (drop === "replay") {
@@ -603,10 +613,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
                   .filter((b) => b.type !== "search_result")
                   .map((b) => (b === words ? bare : b)),
               };
-            } else if (drop === "examples") {
-              examples = false;
-              tools = toApiTools(input.role, examples);
-            } else format = false;
+            } else tools = letGo(offer, drop, input.role);
             round--;
             continue;
           }
@@ -656,7 +663,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       // format refused, since the rules ask for it -- or words where no call
       // stands beside them or the format was refused. Words beside a call,
       // where the format asks for JSON, are the model thinking aloud.
-      let written = text && (text.startsWith("{") || !format || !calls.length) ? text : "";
+      let written = text && (text.startsWith("{") || !offer.format || !calls.length) ? text : "";
 
       // An answer beside a read was written before its rows: it is set aside,
       // and the model answers next round with them.
@@ -667,6 +674,11 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
         });
         written = "";
         unsay();
+      }
+
+      if (pausedByServer(stopReason, calls.length, last)) {
+        messages.push({ role: "assistant", content: replayBlocks(blocks) });
+        continue;
       }
 
       // A round that wrote nothing and called nothing is a glitch of ours, not an empty read.
@@ -729,7 +741,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
           answer = withoutClaimedWrite(shaped.answer, input, proposals);
         } else {
           // Words with no shape: the format was refused (D15), or words came where the JSON should have.
-          if (format) log.warn("ask_answer_not_json", { chars: written.length, tenant_id: input.tenantId });
+          if (offer.format) log.warn("ask_answer_not_json", { chars: written.length, tenant_id: input.tenantId });
           answer = withoutClaimedWrite(proseAnswer(written, input.language), input, proposals);
         }
         return done({
@@ -752,7 +764,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       }
       messages.push({ role: "assistant", content: replayBlocks(blocks) });
       messages.push({ role: "user", content: resultBlocks(outcomes) });
-      if (Date.now() - t0 > ASK_TURN_BUDGET_MS - 8_000 && !last) {
+      if (Date.now() - t0 > budgetMs - 8_000 && !last) {
         // Not enough time for another read: the next round is the last, and
         // answers with what there is. Appended to the newest message, never an
         // edit to an earlier one.

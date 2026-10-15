@@ -303,8 +303,8 @@ function composer(data, cap) {
 /** Ask's card for the same campaign: the month's offer by WhatsApp and email at the same cap. */
 async function card(ctx, cap) {
   const t = newToolContext(ctx, A, "owner", TZ, NOW);
-  const r = await buildProposal(t, "propose_campaign", {
-    action: "playbook",
+  const r = await buildProposal(t, "propose_sequence", {
+    action: "moment",
     trigger: MOMENT,
     template_id: OFFER,
     params: [],
@@ -426,8 +426,8 @@ test("the week's touches could not be read: the card declines in its words, and 
     { people_list: () => PEOPLE },
   );
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
-  const r = await buildProposal(t, "propose_campaign", {
-    action: "playbook",
+  const r = await buildProposal(t, "propose_sequence", {
+    action: "moment",
     trigger: MOMENT,
     template_id: OFFER,
     params: [],
@@ -453,8 +453,8 @@ test("the autonomy modes could not be read: the card declines in its words, and 
   setServiceClient(fakeDb(rows, {}, { campaign_month_sent: () => 0 }));
   const supabase = fakeDb(rows, { "policies.select": { message: "the read failed" } }, { people_list: () => PEOPLE });
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
-  const r = await buildProposal(t, "propose_campaign", {
-    action: "playbook",
+  const r = await buildProposal(t, "propose_sequence", {
+    action: "moment",
     trigger: MOMENT,
     template_id: OFFER,
     params: [],

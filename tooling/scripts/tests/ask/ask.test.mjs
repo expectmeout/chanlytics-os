@@ -63,7 +63,8 @@ const { foldHistory } = await import(
   pathToFileURL(path.join(here, "../../../../apps/dashboard/src/server/ask/memory.ts")).href
 );
 // Sorted by name, the acts among the reads (D11): told apart by the act names the loop itself tells apart.
-const READ_TOOLS = toApiTools("owner", true).filter((t) => !ACT_TOOL_NAMES.has(t.name));
+// The reads of ours: the tool search is the API's own, offered last.
+const READ_TOOLS = toApiTools("owner", true).filter((t) => !ACT_TOOL_NAMES.has(t.name) && !t.type);
 const ACT_TOOLS = toApiTools("owner", true).filter((t) => ACT_TOOL_NAMES.has(t.name));
 const NOW = Date.parse("2026-09-05T15:00:00Z");
 const ID = "3f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b5c";
@@ -389,7 +390,7 @@ test("the question about proposals is offered only where deals are a thing (0004
   );
 });
 
-test("on the first run the page's own questions lead: what is left to set up and the hours, in either language, and never an offer or a playbook; every other page's chips are what they were (Ask Rewired, Phase 7)", () => {
+test("on the first run the page's own questions lead: what is left to set up and the hours, then what Ask can do, in either language, and never an offer or a playbook; Today opens on what to do next (the operator, D7) and Settings offers no invitation (the Team page's alone); every other page's chips are what they were (Ask Rewired, Phase 7)", () => {
   const quiet = { needsYou: 0, heldDrafts: 0, missedToday: 0, liveNow: 0, hasCalendar: false, canAct: true };
   const chips = (surface, language = "en") =>
     buildAskSuggestions({ ...quiet, surface, language, leadSearches: ["pilates in denver"] }).map(
@@ -398,6 +399,7 @@ test("on the first run the page's own questions lead: what is left to set up and
   assert.deepEqual(chips("start"), [
     "What is left to set up?",
     "What are our hours this week?",
+    "What can you do for me?",
     "Who needs me right now?*",
     "How did the week go?",
     "What can the receptionist do on its own?",
@@ -414,7 +416,14 @@ test("on the first run the page's own questions lead: what is left to set up and
   const OFFER = ["Remember that ", "Send the ", "Start a win-back campaign for the quiet clients"];
   const CALLS = ["Did anyone call while I was busy?", ...EVERYONE, "Remember that "];
   const was = {
-    today: ["Brief me on today", "Who wrote today?", ...EVERYONE, "Remember that ", "Close on "],
+    today: [
+      "What should I do next?",
+      "Brief me on today",
+      "Who wrote today?",
+      ...EVERYONE,
+      "Remember that ",
+      "Close on ",
+    ],
     inbox: [
       "Who wrote today?",
       "What can the receptionist do on its own?",
@@ -441,7 +450,6 @@ test("on the first run the page's own questions lead: what is left to set up and
       "Remember that ",
       "Close on ",
       "Change Saturday's hours to ",
-      "Invite ",
     ],
     pipeline: ["Who wrote today?", ...EVERYONE, ...OFFER],
     calendar: [...EVERYONE, ...OFFER],
@@ -475,8 +483,8 @@ test("a campaign's scope is read before the model is asked, by the read that nam
     pathToFileURL(path.join(here, "../../../../apps/dashboard/src/server/ask/cross-page.ts")).href
   );
   assert.deepEqual(scopedRead({ kind: "playbook", id: "p1", label: "Win-back" }), {
-    name: "campaigns",
-    input: { action: "playbooks" },
+    name: "sequences",
+    input: { action: "moments" },
   });
 });
 
@@ -906,13 +914,13 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
   assert.equal(store.get("chanlytics:ask:lang"), "en", "the person's language is remembered for the suggestions");
 });
 
-test("the turn route: same-origin POST, a rate bucket, the thread saved before the model is asked, JSON lines out, a sixty-second ceiling", () => {
+test("the turn route: same-origin POST, a rate bucket, the thread saved before the model is asked, JSON lines out, a ceiling past the turn's two minutes (the operator: eight rounds)", () => {
   // The route, the thread it keeps (server/ask/memory.ts, moved out of it in PR 5.0) and the turn itself
   // (server/ask/turn.ts, moved out of it for the voice door, spec 2026-10-03 §3.4): read in the one scan.
   const [r, memory, turn] = ["app/api/v1/ask/route.ts", "src/server/ask/memory.ts", "src/server/ask/turn.ts"].map((f) =>
     readCode(`apps/dashboard/${f}`),
   );
-  assert.ok(r.includes("export const maxDuration = 60;"));
+  assert.ok(r.includes("export const maxDuration = 150;"));
   assert.ok(r.includes('rate: "ask",'));
   assert.ok(
     turn.includes(
@@ -951,7 +959,8 @@ test("the loop and its reads: several at once, the stable block cached, through 
     "the stable block is cached",
   );
   assert.equal(systemBlocks("rules", null).length, 1);
-  // The nine reads as the registry offers them, sorted by name, the fourteen reads before them their actions (D11).
+  // The reads as the registry offers them, sorted by name, the fourteen reads before them their actions (D11), and the
+  // operator's (15 Oct 2026): the guide, the signals, the ideas, what comes back, the winners, the cold emails.
   // The rest of what this block pinned as text -- the reads go through the pages' own view models, are capped, and
   // record what a citation may name -- runs in ask-turn.test.mjs: "the fourteen reads, each an action of the nine read
   // tools" (the shapes and the read set), "the day is read once a turn" (recent is the newest twenty).
@@ -960,14 +969,13 @@ test("the loop and its reads: several at once, the stable block cached, through 
     [
       ["calendar", ["week", "openings", "room"]],
       ["calls", ["list", "get"]],
-      [
-        "campaigns",
-        ["audiences", "playbooks", "broadcasts", "broadcast", "messages", "journey", "sequences", "sequence"],
-      ],
+      ["guide", []],
       ["inbox", ["list", "thread", "search"]],
-      ["leads", ["searches", "leads", "lead", "search"]],
-      ["people", ["search", "get", "lists", "pipeline"]],
+      ["leads", ["searches", "leads", "lead", "ideas", "back", "search"]],
+      ["people", ["search", "get", "lists", "winners", "pipeline"]],
       ["report", []],
+      ["sequences", ["list", "sequence", "moments", "lists", "messages", "sent", "batch", "journey", "cold_emails"]],
+      ["signals", []],
       ["today", []],
       ["workspace", ["settings", "connections", "notifications", "activity"]],
     ],
@@ -1261,6 +1269,41 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     playbook_channels: "approve",
     playbook_change: "approve",
     message: "approve",
+    // The operator (15 Oct 2026, decision 0062): every page's verb a card, gated as its page's button is.
+    answer: "approve",
+    answer_many: "approve",
+    person_mode_many: "settings",
+    note_many: "approve",
+    person_add: "approve",
+    person_merge: "settings",
+    person_message: "approve",
+    list_member: "approve",
+    list_change: "approve",
+    list_delete: "approve",
+    sequence_step: "approve",
+    sequence_step_remove: "approve",
+    sequence_words: "approve",
+    sequence_leave: "approve",
+    sequence_send_decide: "approve",
+    sequence_send_said: "approve",
+    sequence_draft: "approve",
+    sequence_make: "approve",
+    sequence_start: "approve",
+    sequence_discard: "approve",
+    booking_request: "approve",
+    call_hand_over: "approve",
+    lead_stage: "approve",
+    lead_mark: "find",
+    lead_later: "approve",
+    leads_bulk: "approve",
+    leads_check: "find",
+    lead_addressee: "find",
+    lead_list: "approve",
+    lead_search_more: "find",
+    reach_out_make: "approve",
+    reach_out_said: "approve",
+    review_reply: "approve",
+    follow_up: "approve",
   });
   const ok = AskProposalOutcomeSchema.safeParse({
     state: "done",
@@ -1270,25 +1313,49 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
   });
   assert.ok(ok.success);
   assert.equal(AskProposalOutcomeSchema.safeParse({ state: "sent" }).success, false, "only the four states");
-  // The eleven acts as the registry offers them, one per card family, sorted by name, the acts before them their
-  // actions (D11; propose_list and propose_campaign's run since PR 4.7). What this block pinned as text runs in ask-turn.test.mjs, "the proposal builders run against the
+  // The acts as the registry offers them, one per card family, sorted by name, the acts before them their actions (D11;
+  // propose_list and propose_campaign's run since PR 4.7; the operator's families and actions since 15 Oct 2026). What this block pinned as text runs in ask-turn.test.mjs, "the proposal builders run against the
   // database in memory": every card's result says nothing has happened yet, a proposal never writes, the money row is
   // refused before it is a card, a person who opted out gets no reply, a reply no longer held has nothing to rewrite, a
   // whisper needs a call in progress.
   assert.deepEqual(
     ACT_TOOLS.map((t) => [t.name, t.input_schema.properties.action?.enum ?? []]),
     [
-      ["propose_autonomy", []],
-      ["propose_campaign", ["broadcast", "playbook", "run", "channels", "change", "message", "plan", "leads"]],
+      ["propose_call", ["whisper", "hand_over"]],
       ["propose_deal", []],
-      ["propose_lead_search", []],
-      ["propose_list", []],
-      ["propose_person", ["mode", "note", "details"]],
-      ["propose_reply", ["draft", "steer"]],
-      ["propose_settings", []],
-      ["propose_team", ["invite"]],
+      ["propose_follow_up", ["keep", "clear"]],
+      ["propose_lead_search", ["find", "more"]],
+      ["propose_leads", ["stage", "mark", "later", "bulk", "check", "addressee", "list", "said"]],
+      ["propose_list", ["make", "change", "delete"]],
+      ["propose_people", ["answer", "mode", "note", "list"]],
+      ["propose_person", ["mode", "note", "details", "answer", "add", "merge", "message"]],
+      ["propose_plan", ["offer", "steps"]],
+      ["propose_reply", ["draft", "steer", "booking"]],
+      ["propose_review", ["reply"]],
+      [
+        "propose_sequence",
+        [
+          "once",
+          "moment",
+          "make",
+          "step",
+          "step_remove",
+          "words",
+          "start",
+          "change",
+          "channels",
+          "batch",
+          "leave",
+          "decide",
+          "sent_by_hand",
+          "discard",
+          "message",
+          "cold_email",
+          "leads",
+        ],
+      ],
+      ["propose_settings", ["change", "autonomy", "goal"]],
       ["propose_thread_verb", []],
-      ["propose_whisper", []],
     ],
   );
   // A viewer is never offered an act tool: ask-turn.test.mjs, on the request itself.
@@ -1653,17 +1720,17 @@ test("the cross-page reads: what a question names plainly of another page is rea
   );
   const names = (q, surface = "people", view = null) =>
     mod.crossPagePlan(q, surface, view).map((r) => `${r.name} ${JSON.stringify(r.input)}`);
-  assert.deepEqual(names("how did the last 7 days go?"), ['report {"days":7}']);
-  assert.deepEqual(names("¿cómo nos fue este mes?"), ['report {"days":30}']);
+  assert.deepEqual(names("how did the last 7 days go?"), ['report {"period":"7d"}']);
+  assert.deepEqual(names("¿cómo nos fue este mes?"), ['report {"period":"30d"}']);
   assert.deepEqual(names("what's on the calendar tomorrow?"), ['calendar {"action":"week","day":"tomorrow"}']);
   assert.deepEqual(names("what's open saturday afternoon?"), [
     'calendar {"action":"openings","day":"sat","service":""}',
   ]);
-  assert.deepEqual(names("what playbooks are running right now?"), ['campaigns {"action":"playbooks"}']);
-  assert.deepEqual(names("how many people can I send offers to?"), ['campaigns {"action":"audiences"}']);
+  assert.deepEqual(names("what playbooks are running right now?"), ['sequences {"action":"moments"}']);
+  assert.deepEqual(names("how many people can I send offers to?"), ['sequences {"action":"lists"}']);
   assert.deepEqual(names("start a win-back playbook for the quiet clients"), [
-    'campaigns {"action":"playbooks"}',
-    'campaigns {"action":"audiences"}',
+    'sequences {"action":"moments"}',
+    'sequences {"action":"lists"}',
   ]);
   assert.deepEqual(names("open the transcript of the most recent call"), ['calls {"action":"list","filter":"recent"}']);
   assert.deepEqual(names("any missed calls today?"), ['calls {"action":"list","filter":"missed"}']);
@@ -1691,11 +1758,11 @@ test("the cross-page reads: what a question names plainly of another page is rea
     "how do I set up my campaigns?",
     "who set up our campaigns?",
   ])
-    assert.deepEqual(names(q), ['campaigns {"action":"audiences"}'], q);
+    assert.deepEqual(names(q), ['sequences {"action":"lists"}'], q);
   // A setup (the moment spec, A4), asked for: what runs, the moments offered with their starters, the lists and the
   // messages, read before round 1 on any page -- on Campaigns too, whose rows are the playbooks and hold neither the
   // moments nor a message. Asked as a request: a sentence's start, or after a please, a "can you", a "help me".
-  const setupReads = ['campaigns {"action":"playbooks"}', 'campaigns {"action":"audiences"}'];
+  const setupReads = ['sequences {"action":"moments"}', 'sequences {"action":"lists"}'];
   assert.deepEqual(names("Set up my campaigns", "campaigns"), setupReads);
   assert.deepEqual(names("set up my campaigns"), setupReads);
   assert.deepEqual(names("Prepara mis campañas", "campaigns"), setupReads);
@@ -1755,12 +1822,12 @@ test("the cross-page reads: what a question names plainly of another page is rea
   for (const q of ["Will you start the follow-ups tomorrow?", "Can you start the reminders again?"])
     assert.deepEqual(names(q, "campaigns"), [], q);
   // The audiences are no page's rows: asked of offers on Campaigns, they are read.
-  assert.deepEqual(names("how many people can I send offers to?", "campaigns"), ['campaigns {"action":"audiences"}']);
+  assert.deepEqual(names("how many people can I send offers to?", "campaigns"), ['sequences {"action":"lists"}']);
   // On Campaigns a campaign or an offer named is a row the page holds; only who a send can reach -- an audience, who said
   // yes, a send to someone, a template -- is read there. Off Campaigns every one of those words still reads the audiences.
   for (const q of ["which campaign did best?", "pause the monthly offer", "rename the follow-up campaign"]) {
     assert.deepEqual(names(q, "campaigns"), [], q);
-    assert.deepEqual(names(q), ['campaigns {"action":"audiences"}'], `${q} (people)`);
+    assert.deepEqual(names(q), ['sequences {"action":"lists"}'], `${q} (people)`);
   }
   for (const q of [
     "who said yes to offers?",
@@ -1768,7 +1835,7 @@ test("the cross-page reads: what a question names plainly of another page is rea
     "send the October offer to the quiet list",
     "what audiences do I have?",
   ])
-    assert.deepEqual(names(q, "campaigns"), ['campaigns {"action":"audiences"}'], q);
+    assert.deepEqual(names(q, "campaigns"), ['sequences {"action":"lists"}'], q);
   for (const surface of ["conversations", "live"]) assert.deepEqual(names("any missed calls today?", surface), []);
   // Today counts the day's calls and lists none of them: a question about them reads the list there too. On Today the
   // day's own read follows what the question named, where the cap leaves room (the speed plan, A1, 15 Oct 2026: 26
@@ -1783,11 +1850,11 @@ test("the cross-page reads: what a question names plainly of another page is rea
   // The questions that cost a second round in production (the week to 5 Oct 2026), each read ahead now. How things
   // stand, asked in the open: Today's own read and the week's report, on Today too, whose page block holds the day's
   // rows and not the read's standing, reasons and recap (the speed plan, A1, 15 Oct 2026).
-  assert.deepEqual(names("Hey how's the business", "calendar"), ["today {}", 'report {"days":7}']);
-  assert.deepEqual(names("¿cómo va el negocio?", "inbox"), ["today {}", 'report {"days":7}']);
-  assert.deepEqual(names("catch me up"), ["today {}", 'report {"days":7}']);
-  assert.deepEqual(names("What should I do next?", "today"), ["today {}", 'report {"days":7}']);
-  assert.deepEqual(names("Brief me on today", "today"), ["today {}", 'report {"days":7}']);
+  assert.deepEqual(names("Hey how's the business", "calendar"), ["today {}", 'report {"period":"7d"}']);
+  assert.deepEqual(names("¿cómo va el negocio?", "inbox"), ["today {}", 'report {"period":"7d"}']);
+  assert.deepEqual(names("catch me up"), ["today {}", 'report {"period":"7d"}']);
+  assert.deepEqual(names("What should I do next?", "today"), ["today {}", 'report {"period":"7d"}']);
+  assert.deepEqual(names("Brief me on today", "today"), ["today {}", 'report {"period":"7d"}']);
   // What is booked, however it is asked.
   assert.deepEqual(names("What do I have tomorrow?", "today"), [
     'calendar {"action":"week","day":"tomorrow"}',
@@ -1827,7 +1894,7 @@ test("the cross-page reads: what a question names plainly of another page is rea
   assert.ok(Array.from(cancel.input.words).length <= 200);
   // On Reports a report is read only for a period other than the one on screen.
   assert.deepEqual(names("how did the last 30 days go?", "reports", "30"), []);
-  assert.deepEqual(names("how did the last 7 days go?", "reports", "30"), ['report {"days":7}']);
+  assert.deepEqual(names("how did the last 7 days go?", "reports", "30"), ['report {"period":"7d"}']);
   for (const q of [
     "who needs me right now?",
     "what does 'waiting on you' mean?",
@@ -1843,7 +1910,7 @@ test("the cross-page reads: what a question names plainly of another page is rea
     assert.deepEqual(names(q), [], q);
   }
   assert.equal(mod.CROSS_PAGE_MAX, 2);
-  const b = mod.readBlock({ name: "report", input: { days: 7 } }, "{}");
+  const b = mod.readBlock({ name: "report", input: { period: "7d" } }, "{}");
   assert.deepEqual(
     [b.type, b.source, b.citations],
     ["search_result", "read://report", { enabled: false }],
@@ -1855,7 +1922,7 @@ test("the cross-page reads: what a question names plainly of another page is rea
   // The model is told so in the tool's own description; the refusal itself runs in ask-turn.test.mjs ("the proposal
   // builders run against the database in memory": money stays owner-only by charter).
   assert.ok(
-    ACT_TOOLS.find((t) => t.name === "propose_autonomy").description.includes(
+    ACT_TOOLS.find((t) => t.name === "propose_settings").description.includes(
       "Never for money: that class is locked by charter",
     ),
     "a money change is answered, not proposed",
@@ -1887,9 +1954,9 @@ test("the speed pass, four: the page's data before the words needs no second rea
   assert.ok(!bare.includes("search results") && !bare.includes("read://"), "nothing rode in: nothing is said of it");
   assert.ok(
     readCode("apps/dashboard/src/server/ask/prompt.ts").includes(
-      "name the door: a broadcast reaches only the people who said yes",
+      "name the door: a one-off send (propose_sequence action once) reaches only the people who said yes",
     ),
-    "a message to many is a broadcast or one reply per thread",
+    "a message to many is a one-off send or one message each",
   );
 });
 
@@ -1909,7 +1976,7 @@ test("on Campaigns the turn's words say what a sentence there is: a campaign to 
   };
   const w = turnWords(facts);
   assert.ok(w.includes("They are on Campaigns,"), w);
-  assert.ok(w.includes("is action change on its playbook_id"), w);
+  assert.ok(w.includes("is propose_sequence action change on its playbook_id"), w);
   // A campaign's row says its last 30 days; a one-off send's (the ledger's, and Sent's) says that send's own totals.
   assert.ok(w.includes("a campaign's numbers are its last 30 days, and a one-off send's are that send's own"), w);
   assert.ok(!w.includes("their numbers are the last 30 days"), w);
@@ -1917,12 +1984,12 @@ test("on Campaigns the turn's words say what a sentence there is: a campaign to 
   assert.ok(!turnWords({ ...facts, surface: "today" }).includes("They are on Campaigns,"));
   // A card approved since the last answer sends Ask back to the reads; one dismissed, failed or undone does not.
   const since = [{ id: "p-1", title: "Campaign: Win-back", state: "done", receipt: "running", atMs: 1 }];
-  assert.ok(turnWords({ ...facts, since }).includes("read campaigns with action playbooks again, never the shape"));
+  assert.ok(turnWords({ ...facts, since }).includes("read sequences with action moments again, never the shape"));
   for (const state of ["dismissed", "failed", "undone"])
     assert.ok(!turnWords({ ...facts, since: [{ ...since[0], state }] }).includes("never the shape"), state);
-  const rule = ASK_RULES.find((r) => r.startsWith("Setting up campaigns is a few cards, never a claim."));
+  const rule = ASK_RULES.find((r) => r.startsWith("Setting up sequences is a few cards, never a claim."));
   assert.ok(rule, "the setup rule");
-  assert.ok(rule.includes("Only batch tool calls that are independent of each other."));
+  assert.ok(rule.includes("Only batch tool calls that are independent of each other:"));
   assert.ok(rule.includes("never that anything is set up, started or running"));
   assert.ok(
     ASK_RULES.indexOf(rule) === ASK_RULES.findIndex((r) => r.startsWith("A proposal is one card.")) + 1,
@@ -1941,15 +2008,18 @@ test("the rules know the plan and the message (the marketing manager's §5.7): a
     pathToFileURL(path.join(here, "../../../../apps/dashboard/src/server/ask/prompt.ts")).href
   );
   const PLAN =
-    "For an offer, a promotion, or a whole setup, call propose_campaign with action plan once with the intent and leave the steps to it; never assemble the steps yourself.";
+    "For an offer, a promotion, or a whole setup of the customer journey, call propose_plan with action offer once with the intent and leave the steps to it; never assemble an offer's steps yourself.";
   const MESSAGE =
-    "A message's words are written only through propose_campaign with action message, and every channel's version is on the card";
+    "A message's words are written only through propose_sequence with action message, and every channel's version is on the card";
   for (const words of [PLAN, MESSAGE])
     assert.equal(ASK_RULES.filter((r) => r.includes(words)).length, 1, `one rule says it: ${words}`);
   // The plan is the setup rule's own first instruction: the rule is reworded, never a second one beside it.
-  const setup = ASK_RULES.find((r) => r.startsWith("Setting up campaigns is a few cards, never a claim."));
-  assert.ok(setup.startsWith(`Setting up campaigns is a few cards, never a claim. ${PLAN}`), setup);
-  assert.ok(!ASK_RULES.some((r) => r !== setup && /\bset(ting)? up campaigns\b/i.test(r)), "one setup rule");
+  const setup = ASK_RULES.find((r) => r.startsWith("Setting up sequences is a few cards, never a claim."));
+  assert.ok(setup.startsWith(`Setting up sequences is a few cards, never a claim. ${PLAN}`), setup);
+  assert.ok(
+    !ASK_RULES.some((r) => r !== setup && /\bset(ting)? up (campaigns|sequences)\b/i.test(r)),
+    "one setup rule",
+  );
   // A plan's steps that send nothing are one press and each send its own, as the plan's count sentence says them
   // (contracts answerForCards); a reminder or a check after an appointment only where a calendar is connected (D2).
   assert.ok(setup.includes("The steps that send nothing are one press and each send is its own"), setup);
@@ -1979,7 +2049,7 @@ test("the rules know the plan and the message (the marketing manager's §5.7): a
   const one = ASK_RULES.find((r) => r.startsWith("A proposal is one card."));
   assert.ok(one.startsWith("A proposal is one card. A plan's cards, its steps from one call, are one proposal."), one);
   assert.ok(
-    ASK_RULES.find((r) => r.includes(MESSAGE)).includes("a campaign's values are changed with action change"),
+    ASK_RULES.find((r) => r.includes(MESSAGE)).includes("a sequence's values are changed with action change"),
     "the message rule",
   );
   // Every page's turn words (the surface lines, Campaigns' among them) say none of the old words either, and restate
@@ -2006,23 +2076,22 @@ test("the rules know the plan and the message (the marketing manager's §5.7): a
     ])
       assert.ok(!old.test(said), `${surface}: ${old}`);
   }
-  const head = "Setting up campaigns is a few cards";
+  const head = "Setting up sequences is a few cards";
   assert.ok(setup.startsWith(head));
   assert.ok(turnWords({ ...facts, surface: "campaigns" }).includes(`as the rule "${head}" says`));
-  // The two actions the rules name are propose_campaign's, as the API is told them.
-  const campaign = ACT_TOOLS.find((t) => t.name === "propose_campaign");
-  for (const action of ["Action plan ", "Action message "]) assert.ok(campaign.description.includes(action), action);
+  // The two actions the rules name are propose_plan's and propose_sequence's, as the API is told them.
+  const campaign = ACT_TOOLS.find((t) => t.name === "propose_sequence");
+  assert.ok(ACT_TOOLS.find((t) => t.name === "propose_plan").description.includes("Action offer "), "the plan");
+  assert.ok(campaign.description.includes("Action message "), "the message");
   // 11 Oct 2026 (Task 19's review): the tools' words the model reads beside the rules agree with them. propose_campaign's
   // tail sends an offer, a promotion or a whole setup to the plan before it names any action that builds one step, and
   // the journey read says what it reports and that a whole setup or an offer is the plan's, never assembled from it.
-  const tail =
-    "For an offer, a promotion or a whole setup, call action plan once with the intent and leave its steps to it, never the actions below one by one.";
+  const tail = "For an offer, a promotion or a whole setup, call propose_plan with action offer instead.";
   assert.ok(campaign.description.includes(tail), campaign.description);
-  assert.ok(campaign.description.indexOf(tail) < campaign.description.indexOf("call action broadcast for one message"));
-  const journey = READ_TOOLS.find((t) => t.name === "campaigns").description;
+  const journey = READ_TOOLS.find((t) => t.name === "sequences").description;
   assert.ok(
     journey.includes(
-      "An offer, a promotion or a whole setup is one call of propose_campaign with action plan, which reads the journey itself and makes the steps, never a campaign proposed stage by stage from this read",
+      "An offer or a whole setup is one call of propose_plan with action offer, which reads the journey itself and makes the steps, never a sequence proposed stage by stage from this read",
     ),
     journey,
   );
@@ -2030,7 +2099,6 @@ test("the rules know the plan and the message (the marketing manager's §5.7): a
   // A campaign's values are slot text, never "its words" (the polish round): the tail's change and the change action's
   // own words say values, so the message rule never steers "make the month's offer 15% off" to a new message.
   assert.ok(!campaign.description.includes("change its words"), "the tail");
-  assert.ok(campaign.description.includes("or change the values its message fills in"), "the tail");
   assert.ok(!campaign.description.includes("new words, the same message"), "action change");
   assert.ok(campaign.description.includes("new text in the same message, never a new message"), "action change");
 });
@@ -2040,7 +2108,7 @@ test("an offer asked for reads its journey and its Library before round 1, as a 
     pathToFileURL(path.join(here, "../../../../apps/dashboard/src/server/ask/cross-page.ts")).href
   );
   const names = (q, surface) => mod.crossPagePlan(q, surface).map((r) => `${r.name} ${JSON.stringify(r.input)}`);
-  const planReads = ['campaigns {"action":"journey"}', 'campaigns {"action":"messages"}'];
+  const planReads = ['sequences {"action":"journey"}', 'sequences {"action":"messages"}'];
   for (const q of [
     "10% off colour all November",
     // The eval's offer_november_colour, and its must-never offer_no_offers_channel.
@@ -2081,7 +2149,7 @@ test("an offer asked for reads its journey and its Library before round 1, as a 
   }
   // An offer said of a campaign that runs (the month's offer) is a change to it, read as the campaigns are read.
   for (const q of ["Can you make the month's offer 15% off?", "Make the month's offer 15% off"]) {
-    assert.deepEqual(names(q, "today"), ['campaigns {"action":"playbooks"}', 'campaigns {"action":"audiences"}'], q);
+    assert.deepEqual(names(q, "today"), ['sequences {"action":"moments"}', 'sequences {"action":"lists"}'], q);
     assert.deepEqual(names(q, "campaigns"), [], q);
   }
   // Where the deals stand is the pipeline's, never an offer's.
@@ -2093,12 +2161,9 @@ test("an offer asked for reads its journey and its Library before round 1, as a 
   ])
     assert.deepEqual(names(q, "today"), ['people {"action":"pipeline"}', "today {}"], q);
   // Offer alone is who can be sent one (the audiences) or the month's offer (a campaign the page holds).
-  assert.deepEqual(names("how many people can I send offers to?", "campaigns"), ['campaigns {"action":"audiences"}']);
-  assert.deepEqual(names("send an offer to the quiet clients", "today"), [
-    'campaigns {"action":"audiences"}',
-    "today {}",
-  ]);
-  assert.deepEqual(names("¿a quién puedo enviar ofertas?", "campaigns"), ['campaigns {"action":"audiences"}']);
+  assert.deepEqual(names("how many people can I send offers to?", "campaigns"), ['sequences {"action":"lists"}']);
+  assert.deepEqual(names("send an offer to the quiet clients", "today"), ['sequences {"action":"lists"}', "today {}"]);
+  assert.deepEqual(names("¿a quién puedo enviar ofertas?", "campaigns"), ['sequences {"action":"lists"}']);
   assert.deepEqual(names("pause the monthly offer", "campaigns"), []);
   // How one did, a customer's ask, Spanish's "sale" (goes out) and the business's sales are no offer to make.
   for (const q of [
@@ -2110,13 +2175,13 @@ test("an offer asked for reads its journey and its Library before round 1, as a 
     "¿qué sale esta semana?",
   ])
     assert.deepEqual(names(q, "campaigns"), [], q);
-  assert.deepEqual(names("how are sales this month?", "today"), ['report {"days":30}', "today {}"]);
+  assert.deepEqual(names("how are sales this month?", "today"), ['report {"period":"30d"}', "today {}"]);
   // The cap (CROSS_PAGE_MAX, two) keeps the first: a setup's own two before an offer's, and an offer's before the
   // rest, so the week asked beside an offer is the model's own read.
   assert.equal(mod.CROSS_PAGE_MAX, 2);
   assert.deepEqual(names("Set up my campaigns and run 10% off colour in November", "campaigns"), [
-    'campaigns {"action":"playbooks"}',
-    'campaigns {"action":"audiences"}',
+    'sequences {"action":"moments"}',
+    'sequences {"action":"lists"}',
   ]);
   assert.deepEqual(names("10% off colour all November. How did last month go?", "today"), planReads);
 });

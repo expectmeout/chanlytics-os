@@ -2,7 +2,7 @@
  * The Sequences page's reads of one sequence and its presses (decision 0060). A record, who is in it and what it sent are
  * read through the typed client: a record opened again paints from the last answer this tab holds and is read again
  * behind (read-cache.ts: in memory, per workspace, emptied by any write); a refusal is never kept. Every press is a verb
- * (contracts VERB_SPECS, committed through the one walk, legacy-bridge/verbs): the sequence's own (`sequence_step`,
+ * (contracts PROPOSAL_SPECS, committed through the one walk, legacy-bridge/verbs): the sequence's own (`sequence_step`,
  * `sequence_step_remove`, `sequence_words`, `sequence_leave`), a sequence's state as a campaign's (`playbook_change`) and a
  * batch's approval as a run's (`run`), so the receipt and the undo are the ones Ask's card would say. `pressed` says what
  * landed, in a toast with its undo where the verb keeps one.

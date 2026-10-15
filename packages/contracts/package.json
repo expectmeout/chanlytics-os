@@ -37,6 +37,11 @@
       "import": "./dist/alert-pane.js",
       "default": "./dist/alert-pane.js"
     },
+    "./ask-only": {
+      "types": "./dist/ask-only.d.ts",
+      "import": "./dist/ask-only.js",
+      "default": "./dist/ask-only.js"
+    },
     "./phone-app": "./src/mobile/phone-app.ts"
   },
   "scripts": {

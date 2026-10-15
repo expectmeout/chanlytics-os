@@ -53,6 +53,8 @@ import {
   secondScope,
   secondTurn,
   setupCardsFails,
+  shapeAskedFails,
+  previewJudged,
   skipFor,
   snoozeThenAsk,
   toolsOrderNote,
@@ -1209,7 +1211,7 @@ test("the setup and change cases (the moment spec, A8): seventeen, run only afte
     crossPagePlan(text, surface)
       .slice(0, 2)
       .map((r) => `${r.name}.${r.input.action}`)
-      .join(" ") === "campaigns.playbooks campaigns.audiences";
+      .join(" ") === "sequences.moments sequences.lists";
   const turns = cases.flatMap((c) => [
     c,
     ...(c.then
@@ -1232,7 +1234,7 @@ test("the setup and change cases (the moment spec, A8): seventeen, run only afte
   // The tools' order is noted only on a turn whose reads ride in first, and a read a case asks for off Campaigns' rows
   // is one of those reads.
   for (const t of turns.filter((x) => x.expect.tools_order)) assert.ok(setupReads(t.text, t.surface), t.id);
-  for (const t of turns.filter((x) => x.expect.tools_any?.includes("campaigns.playbooks")))
+  for (const t of turns.filter((x) => x.expect.tools_any?.includes("sequences.moments")))
     assert.ok(setupReads(t.text, t.surface), t.id);
   // A setup's card is never a reminder of an appointment (the setup rule: its Turn on) nor a moment no new campaign is
   // offered on; the trigger ruled out is one a campaign can have.
@@ -1269,7 +1271,7 @@ test("the setup and change cases (the moment spec, A8): seventeen, run only afte
 });
 
 /** The reads the marketing manager's lane added (its §5.7), each asked for by a case in its own words. */
-const NEW_READS = ["calendar.room", "campaigns.journey", "campaigns.messages"];
+const NEW_READS = ["calendar.room", "sequences.journey", "sequences.messages"];
 
 test("the cases fit their workspace and name the new reads (the review after the merge, batch E): an offer's send needs a yes and a channel, the nightly's workspace asks the offer that must make neither, each new read is the model's own pick, and a change names its words, its last day and its trial", async () => {
   const { crossPagePlan } = await import("../../../../apps/dashboard/src/server/ask/cross-page.ts");
@@ -1331,7 +1333,7 @@ test("the cases fit their workspace and name the new reads (the review after the
   const expect = (id) => byId[id].expect;
   assert.deepEqual(
     [expect("change_words").tools_any, expect("change_words").proposals_any],
-    [["propose_campaign.change"], undefined],
+    [["propose_sequence.change"], undefined],
   );
   for (const [id, field] of [
     ["change_last_day", "until"],
@@ -1339,7 +1341,7 @@ test("the cases fit their workspace and name the new reads (the review after the
   ])
     assert.deepEqual(
       [expect(id).tools_any, expect(id).proposals_any, expect(id).card_fields_present],
-      [["propose_campaign.change"], ["playbook_change"], { playbook_change: [field] }],
+      [["propose_sequence.change"], ["playbook_change"], { playbook_change: [field] }],
       id,
     );
   // A case's days are said relative to the day it is asked ("next month"), never as a month or a date: an offer that
@@ -1519,13 +1521,13 @@ test("a setup's keys (the moment spec, A8): proposals_max fails more cards, card
   // An answer made before the Line says its next questions as followups.
   assert.deepEqual(setupCardsFails(next, { text: "", followups: ["Once the list is saved, start it?"] }), []);
   assert.deepEqual(setupCardsFails({}, m()), [], "a case with none of the keys asks nothing of the cards");
-  const order = { tools_order: ["campaigns.playbooks", "propose_campaign.playbook"] };
+  const order = { tools_order: ["sequences.moments", "propose_sequence.moment"] };
   assert.deepEqual(
-    toolsOrderNote(order, m({ tools: ["campaigns.playbooks", "campaigns.audiences", "propose_campaign.playbook"] })),
+    toolsOrderNote(order, m({ tools: ["sequences.moments", "sequences.lists", "propose_sequence.moment"] })),
     [],
   );
   assert.match(
-    toolsOrderNote(order, m({ tools: ["propose_campaign.playbook", "campaigns.playbooks"] }))[0],
+    toolsOrderNote(order, m({ tools: ["propose_sequence.moment", "sequences.moments"] }))[0],
     /not in the order/,
   );
   // The names are read through the rename table on both sides, as the judge reads tools_any.
@@ -1841,4 +1843,87 @@ test("X5-4's eval: turn 2's headline does not say who the snoozed thread is with
     "skip needs_me_after_a_snooze (needs escalated_thread)",
     "never on the nightly's workspace",
   );
+});
+
+test("the shape asked for, judged on what the Line draws: a list's style, size, words and emoji, a numbered list of rows as the items, a length, capitals, and never a word spent on the format", () => {
+  const m = (show = {}, say = { headline: "Three rules.", detail: "" }, text = "") => ({
+    text,
+    answer: {
+      form: "structured",
+      say,
+      show: { figures: [], items: [], breakdown: null, list: { style: "bullets", entries: [] }, ...show },
+    },
+  });
+  const listed = (style, entries) => m({ list: { style, entries } });
+  assert.deepEqual(shapeAskedFails({ list: { style: "bullets", min: 2 } }, listed("bullets", ["a", "b"])), []);
+  assert.match(shapeAskedFails({ list: { style: "bullets", min: 2 } }, listed("bullets", ["a"]))[0], /at least 2/);
+  assert.match(shapeAskedFails({ list: { style: "numbers" } }, listed("bullets", ["a", "b"]))[0], /asked as numbers/);
+  assert.match(shapeAskedFails({ list: { count: 3 } }, listed("bullets", ["a", "b"]))[0], /exactly 3/);
+  const words = { list: { style: "lines", entries: ["thanks", "for", "coming", "in"] } };
+  assert.deepEqual(
+    shapeAskedFails(words, listed("lines", ["Thanks", "for", "coming", "in."])),
+    [],
+    "case and stops aside",
+  );
+  assert.match(shapeAskedFails(words, listed("lines", ["thanks for coming in"]))[0], /were asked/);
+  assert.deepEqual(shapeAskedFails({ list: { emoji: true } }, listed("bullets", ["🚫 Prices", "📅 Bookings"])), []);
+  assert.match(shapeAskedFails({ list: { emoji: true } }, listed("bullets", ["🚫 Prices", "Bookings"]))[0], /emoji/);
+  // A numbered list of rows is the items, numbered by the list's style with no entries; one row asks for no style.
+  const item = {
+    title: "Ana",
+    meta: "",
+    line: "",
+    source: { kind: "thread", id: "x", label: "Ana", to: "inbox/th-x" },
+  };
+  const rows = { list: { style: "numbers", rows: true } };
+  assert.deepEqual(shapeAskedFails(rows, m({ items: [item, item], list: { style: "numbers", entries: [] } })), []);
+  assert.match(shapeAskedFails(rows, m({ items: [item, item] }))[0], /drawn as bullets/);
+  assert.deepEqual(shapeAskedFails(rows, m({ items: [item] })), []);
+  // A length: one word is the headline alone.
+  const word = { headline_words: 1, detail_empty: true, list_empty: true };
+  assert.deepEqual(shapeAskedFails(word, m({}, { headline: "No.", detail: "" })), []);
+  assert.equal(shapeAskedFails(word, m({}, { headline: "No, it never does.", detail: "It says it." })).length, 2);
+  assert.deepEqual(shapeAskedFails({ all_caps: true }, m({}, { headline: "ANA NEEDS YOU, 2 DAYS.", detail: "" })), []);
+  assert.match(shapeAskedFails({ all_caps: true }, m({}, { headline: "ANA needs you.", detail: "" }))[0], /lower case/);
+  // The probe's own apologies (15 Oct, production), in both languages, each a fail; a plain answer is none.
+  for (const said of [
+    "I can't use bullet points here, so I've put it in plain sentences.",
+    "The page can't show a numbered list.",
+    "I couldn't put each word on its own line because this answer has to fit the app's fixed format.",
+    "Answers here are plain text only.",
+    "No puedo usar viñetas aquí.",
+  ])
+    assert.equal(shapeAskedFails({ no_format_apology: true }, m({}, undefined, said)).length, 1, said);
+  assert.deepEqual(
+    shapeAskedFails({ no_format_apology: true }, m({}, undefined, "Ana can't come on Friday; she asked for Saturday.")),
+    [],
+  );
+  assert.match(shapeAskedFails({ list: { min: 1 } }, { text: "x", answer: { form: "prose" } })[0], /has none/);
+  assert.deepEqual(shapeAskedFails({}, { text: "" }), [], "a case that asks for no shape is not judged on one");
+});
+
+test("the preview against the answer it led to: a line the preview drew and the answer lost fails; any other move is a note; a taken-back or failed turn is not judged", () => {
+  const m = (headline, detail, failed = false) => ({ failed, answer: { say: { headline, detail } } });
+  const say = (headline, detail) => ({ t: "say", headline, detail });
+  assert.deepEqual(
+    previewJudged([say("Two", ""), say("Two steps.", "Open.\nPaste.")], m("Two steps.", "Open.\nPaste.")),
+    {
+      fails: [],
+      notes: [],
+    },
+  );
+  // 15 Oct's bug: the preview drew two lines, the final folded them into one.
+  assert.match(
+    previewJudged([say("Two steps.", "Open.\nPaste.")], m("Two steps.", "Open. Paste.")).fails[0],
+    /2 lines/,
+  );
+  assert.equal(previewJudged([say("Two steps.", "Open.")], m("Three steps.", "Open.")).notes.length, 1);
+  // A preview the final grew from is no move: the last words wait their 50 ms and land with the final.
+  assert.deepEqual(previewJudged([say("Robin Example", "")], m("Robin Example asked for Tuesday.", "")), {
+    fails: [],
+    notes: [],
+  });
+  assert.deepEqual(previewJudged([say("Two", ""), say("", "")], m("Other.", "")), { fails: [], notes: [] });
+  assert.deepEqual(previewJudged([say("Two", "a\nb")], m("Failed.", "", true)), { fails: [], notes: [] });
+  assert.deepEqual(previewJudged([], m("No preview.", "")), { fails: [], notes: [] });
 });
