@@ -149,7 +149,7 @@ const AskCardReceipt = ({ p, t, state, receipt, err, open, undoData, doneAt, bus
       {clock ? <AskRing from={doneAt} until={until} onDone={() => setEnded(true)} /> : <Icon name={state === "done" ? "check" : state === "failed" ? "alert" : "x"} size={11} className={state === "done" ? "ok" : ""} />}
       <span className="ask-card-said">{state === "failed" ? err || receipt : state === "dismissed" ? t.notNow : receipt}</span>
       {can && !armed ? <button className="btn btn-ghost btn-sm ask-card-undo" onClick={p.kind === "playbook" ? () => setArmed(true) : onUndo} disabled={busy} title={clock ? p.undo : undefined}>{clock ? t.undo : p.undo}</button> : null}
-      {can && armed ? <window.Confirm question={`${p.undo}?`} detail="The campaign and its schedule go; runs already sent keep their numbers in Sent." yes="Yes, delete it" danger busy={busy} onYes={undoArmed} onNo={() => setArmed(false)} testid="ask-card-undo" /> : null}
+      {can && armed ? <window.Confirm question={`${p.undo}?`} detail={t.undoCampaignDetail} yes={t.undoCampaignYes} danger busy={busy} onYes={undoArmed} onNo={() => setArmed(false)} testid="ask-card-undo" /> : null}
       {state === "failed" ? <button className="btn btn-ghost btn-sm ask-card-undo" onClick={onRetry}>{t.tryAgain}</button> : null}
     </div>
   );
