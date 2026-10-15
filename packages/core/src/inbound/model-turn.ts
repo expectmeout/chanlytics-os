@@ -99,7 +99,9 @@ function checked(
  * A time the customer picked, where the turn took booking requests (decision 0061, point 3): code decides whether it is a
  * request, never the model. Open, and the words that said the team will confirm went as the model wrote them, it is one,
  * and the turn's hold is its own (booking_request). Otherwise the turn is a person's to answer (booking_reply), so "the team
- * will confirm" stays true. A hold layer two placed for something else (a price, money, the model's own handoff) stands.
+ * will confirm" stays true. A hold layer two placed for something else (a price, money: the words it replaced) stands.
+ * The model's own handoff on such a turn is the request's: the model flags every picked time for a person whatever it is
+ * told (the evals of 15 Oct 2026), and a request already hands the thread to a person, who reads it beside the thread.
  */
 async function requestOf(
   at: Answering,
@@ -112,7 +114,8 @@ async function requestOf(
   if (!rt || !requests || !r.booking?.slot) return turn;
   const terms = await requests.terms(rt, ing?.contact_id ?? null, now);
   const asked = terms ? requestedBookingOf({ slot: r.booking.slot, service: r.booking.service, ...terms }) : null;
-  const ownHold = turn.escalate && turn.escalationReason !== "policy_ask";
+  // A hold of a booking set to Ask me first (policy_ask), or the model's own handoff (human_token), is the request's.
+  const ownHold = turn.escalate && turn.escalationReason !== "policy_ask" && turn.escalationReason !== "human_token";
   if (terms && asked?.ok && !ownHold && turn.replyText === r.text) {
     L.info("booking_request_taken", { service: asked.service !== null });
     return {

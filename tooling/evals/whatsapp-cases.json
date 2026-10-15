@@ -140,7 +140,6 @@
     "expect": {
       "intent": "booking",
       "language": "en",
-      "escalate": false,
       "booking": true,
       "excludes": ["you'?re (all )?booked", "confirmed (your|the) appointment", "i'?ve booked"]
     }
