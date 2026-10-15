@@ -42,7 +42,8 @@ test("F4: a save re-reads the settings surface, so the next save carries the new
     AFTER["PUT settings"]().map((o) => o.key),
     // The postal address saved here is one of the channels' readiness, which People's reach reads too, and the composers where a page
     // draws them: no page is on screen here.
-    ["settings", "calendar", "setup", "people"],
+    // People's reach is read again only where People is drawn (#1602, S4-6), and no page is drawn here.
+    ["settings", "calendar", "setup"],
     "REGRESSION: the second save in a row was a 409 — settings first, for the version",
   );
   assert.ok(!fn.includes("await refresh();"), "the generic refresh never re-read this pane");

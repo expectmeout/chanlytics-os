@@ -283,6 +283,7 @@
           "sequence_sends"
         ],
         "person": [
+          "sequence_enrollments",
           "sequence_sends"
         ],
         "playbooks": [

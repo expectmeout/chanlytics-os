@@ -1250,7 +1250,11 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // 12 Oct 2026 (#1566, decision 0052): and the signers of their replies still offered or taken (db signersOf), in the
     // same round; its bytes are unchanged, the tool not saying them. This world's person names no lead, so the business
     // they work at reads nothing.
-    const withDoubts = NAMES[old] === "people.get" ? [...withDoubts0, "sequence_replies.select"] : withDoubts0;
+    // 15 Oct 2026 (decision 0060, S5): and the sequences they are in now (db sequencesOfPerson); none here, so no names.
+    const withDoubts =
+      NAMES[old] === "people.get"
+        ? [...withDoubts0, "sequence_replies.select", "sequence_enrollments.select"]
+        : withDoubts0;
     // 7 Oct 2026 (00345, bookings arrive by email): the calendar's reader reads the record beside the feed -- the
     // appointments over the span, the notices' health line (the latest, and the held count) and the workspace's mailbox
     // -- so calendar.week makes those reads more. Its bytes are unchanged: this workspace has no calendar and no
