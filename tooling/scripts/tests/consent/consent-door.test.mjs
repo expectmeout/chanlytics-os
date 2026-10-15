@@ -22,6 +22,7 @@ import {
   walk,
 } from "../_legacy-react.mjs";
 import {
+  answerSaidOf,
   CARRIER_CONSENT_SOURCE,
   CONSENT_RESET_SOURCE,
   CONSENT_SOURCES,
@@ -429,7 +430,7 @@ test("THE DEFECT: each ask writes the column it is labelled for", async () => {
       },
     });
 
-  const talk = askFor("Messages about their visit", "conversational", "unknown");
+  const talk = askFor("Messages", "conversational", "unknown");
   await talk.click(byLabel(talk.tree, "Yes"));
   await talk.click(byLabel(talk.tree, "In person"));
 
@@ -553,13 +554,17 @@ test("the page: TWO asks, each asking how before it writes, a STOP is not undone
   });
   const [talk, offers, ...more] = asksOf(tree);
   assert.deepEqual(more, [], "two asks, no third");
-  assert.deepEqual([talk.testid, talk.label], ["consent-control", "Messages about their visit"]);
+  assert.deepEqual([talk.testid, talk.label], ["consent-control", "Messages"]);
   assert.deepEqual([offers.testid, offers.label], ["consent-marketing", "Offers and news"]);
   assert.deepEqual([talk.value, offers.value], ["opted_in", "opted_out"], "each ask reads its OWN column");
   assert.deepEqual([talk.canRecord, offers.canRecord], [true, true], "an operator records both");
+  // What each answer lets go out, in the workspace's word for an appointment or in none: never "visit" written in.
+  assert.match(talk.hint, /\. Reminders about their appointments may go to them\.$/, talk.hint);
+  assert.match(offers.hint, /\. Other messages still reach them\.$/, offers.hint);
 
   // Each records through its own purpose, and its fold closes once the door takes it.
   wire.calls.length = 0;
+  toasts.length = 0;
   recFolds.request("person-visit");
   assert.equal(recFolds.open(), "person-visit");
   assert.equal((await talk.onRecord("opted_in", "in_person")).ok, true);
@@ -572,6 +577,12 @@ test("the page: TWO asks, each asking how before it writes, a STOP is not undone
     [`/api/v1/contacts/${ID}/consent`, { consent: "opted_in", source: "in_person" }],
     [`/api/v1/contacts/${ID}/marketing-consent`, { consent: "opted_in", source: "form", note: "Slip 12" }],
   ]);
+  // Each toast says the answer as its receipt does (contracts answerSaidOf), after the name: never a word of its own.
+  assert.deepEqual(
+    toasts.map((t) => textOf(t.msg)),
+    [`Maria ${answerSaidOf("conversational", "opted_in")}`, `Maria ${answerSaidOf("marketing", "opted_in")}`],
+  );
+  assert.equal(textOf(toasts[0].msg), "Maria said yes to messages");
   await quiet();
   // A door that refuses leaves its fold open, with what it said.
   wire.refuse = "The carriers refused that.";
@@ -760,7 +771,7 @@ test("on the loaded profile, a consent change is on the timeline with how we kno
     for (const k of n.props?.children ?? []) if (typeof k === "string") texts.push(k);
   });
   const drawn = texts.join(" | ");
-  assert.ok(drawn.includes("Said yes to messages about their visit"), drawn.slice(0, 400));
+  assert.ok(texts.includes("Said yes to messages"), drawn.slice(0, 400));
   assert.ok(drawn.includes("In their own words by text: “START”"), "the evidence, quoted");
   assert.ok(drawn.includes("Said yes to offers and news"));
   assert.ok(drawn.includes("Sign-up form, recorded by staff · signed at the desk"), "the way, and the recorder's note");

@@ -20,7 +20,7 @@ import {
   type ProposalSpecAboveOperator,
 } from "./spec";
 
-/** The two questions a person is asked (00095): messages about their own visit, and offers and news. */
+/** The two questions a person is asked (00095): messages (about their own appointments), and offers and news. */
 type AnswerPurpose = "conversational" | "marketing";
 type Answer = "opted_in" | "opted_out" | "unknown";
 
@@ -31,16 +31,19 @@ const consentIn = (v: unknown): Answer => (v === "opted_in" || v === "opted_out"
 const fieldsOf = (pl: Record<string, unknown>, keys: readonly string[]): Record<string, unknown> =>
   Object.fromEntries(keys.filter((k) => pl[k] !== undefined).map((k) => [k, pl[k]]));
 
-/** Their answer, as the sheet and its receipt say it: to offers, or to messages (the two answers, as broadcasts say them). */
-function answerSaid(purpose: AnswerPurpose, consent: Answer, who: string): string {
+/**
+ * Their answer, said after who gave it, as the receipt and the person page's toast say it ("Emily said yes to messages"):
+ * to offers, or to messages (the two answers, as broadcasts say them). The page draws the name bold before it.
+ */
+export function answerSaidOf(purpose: AnswerPurpose, consent: Answer): string {
   if (purpose === "marketing") {
-    if (consent === "opted_in") return `${who} said yes to offers and news`;
-    if (consent === "opted_out") return `${who} said no to offers — other messages still reach them`;
-    return `${who} has not been asked about offers`;
+    if (consent === "opted_in") return "said yes to offers and news";
+    if (consent === "opted_out") return "said no to offers — other messages still reach them";
+    return "has not been asked about offers";
   }
-  if (consent === "opted_in") return `${who} said yes to messages`;
-  if (consent === "opted_out") return `${who} said stop — nothing goes out to them at all`;
-  return `${who} is back to "not asked"`;
+  if (consent === "opted_in") return "said yes to messages";
+  if (consent === "opted_out") return "said stop — nothing goes out to them at all";
+  return 'is back to "not asked"';
 }
 
 /** A batch door's answer: how many it did, and the first reason one was not, in the bar's words. */
@@ -87,7 +90,7 @@ export const answerSpec: ProposalSpec = {
     };
   },
   receipt: ({ payload: pl }) =>
-    answerSaid(purposeOf(pl.purpose) ?? "conversational", consentIn(pl.consent), asText(pl.who)),
+    `${asText(pl.who)} ${answerSaidOf(purposeOf(pl.purpose) ?? "conversational", consentIn(pl.consent))}`,
   open: personRoute,
 };
 

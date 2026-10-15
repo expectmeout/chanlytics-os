@@ -201,11 +201,14 @@ test("the calendar speaks when nothing else does: the next visit, else the last"
   };
   const next = rowOf({ ...caller, visits });
   assert.match(next.sentence, /^Booked · .*Balayage$/);
-  const last = rowOf({
+  const lastOnly = {
     ...caller,
     visits: { ...visits, next: null, last: { start: iso(10 * D), end: iso(10 * D - H), title: "Gloss" } },
-  });
-  assert.match(last.sentence, /^Last visit · .*Gloss$/);
+  };
+  // The last one is said in the workspace's word: an appointment, or a meeting where deals are on; never visit.
+  assert.match(rowOf(lastOnly).sentence, /^Last appointment · .*Gloss$/);
+  const lastVm = toPersonRowVM(dto(lastOnly), ZONE, NOW);
+  assert.match(attentionRow(lastVm, ZONE, nowMs, true).sentence, /^Last meeting · .*Gloss$/);
   const summarised = rowOf({ ...caller, visits, last_inbound_call_summary: "Wants to move Saturday." });
   assert.equal(summarised.sentence, "Wants to move Saturday.", "the call's words beat the calendar");
 });

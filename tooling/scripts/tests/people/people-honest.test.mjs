@@ -2365,7 +2365,7 @@ test("a selection's yes on a sign-up form is recorded with the note that says wh
   assert.deepEqual(
     menu().props.items.map((i) => i.header || i.label),
     [
-      "Yes to messages about their visit…",
+      "Yes to messages…",
       "In person",
       "On the phone",
       "Sign-up form",
@@ -3872,7 +3872,7 @@ test("REGRESSION: a selection's file spells a cell as the route's export does --
     const wider = (await blobs.at(-1).text()).replace(/^\ufeff/, "").split("\r\n");
     assert.equal(
       wider[0],
-      "Name,Phone,Email,Consent,Offers,Next step,Reach,Last contact,Next visit,First contact",
+      "Name,Phone,Email,Consent,Offers,Next step,Reach,Last contact,Next appointment,First contact",
       "the file follows the table: the columns shown, in the table's order, and not the State that was hidden",
     );
     assert.ok(

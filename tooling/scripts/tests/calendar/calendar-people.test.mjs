@@ -2097,7 +2097,7 @@ test("bulk actions: a selection becomes people on a list, a yes on record (one r
       .filter((i) => i.header)
       .map((i) => i.header)
       .slice(0, 2),
-    ["Yes to messages about their visit…", "Yes to offers and news…"],
+    ["Yes to messages…", "Yes to offers and news…"],
     "both asks are offered, and named, before the receptionist's modes the same menu holds",
   );
   const own = CONSENT_SOURCES.find((s) => s.id === "customer_message").label;
@@ -2124,8 +2124,15 @@ test("bulk actions: a selection becomes people on a list, a yes on record (one r
   const { plShownColumns } = await importSrc("apps/dashboard/src/surfaces/people/table/columns.ts");
   assert.equal(
     plCsv([], plShownColumns(PL_COLUMNS, {}, { withCalendar: true })),
-    "Name,Phone,Email,Consent,Offers,State,Next step,Last contact,Next visit",
-    "the columns the page shows by default, a calendar's Visits among them",
+    "Name,Phone,Email,Consent,Offers,State,Next step,Last contact,Next appointment",
+    "the columns the page shows by default, a calendar's appointments among them, in the workspace's word",
+  );
+  assert.equal(
+    plCsv([], plShownColumns(PL_COLUMNS, {}, { withCalendar: true, dealsOn: true }))
+      .split(",")
+      .at(-1),
+    "Next meeting",
+    "where deals are on, as the column's heading says Meetings",
   );
   assert.equal(
     plCsv([], plShownColumns(PL_COLUMNS, {}, { withCalendar: false })),

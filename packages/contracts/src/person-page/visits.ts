@@ -14,14 +14,13 @@ import { clockDate } from "../shared/clock";
 import { visitLineForDto } from "../people/person-row";
 import type { PersonCardContext } from "../people/person-cards";
 import { DAY_MS, dateFormat } from "../shared/time";
+import { appointmentWordWhere, appointmentWords } from "../journey/appointment-word";
 
 export const VISITS_TAB_WORDS = {
   toMark: "To mark",
   ahead: "Ahead",
   past: "Past",
   none: "Nothing ahead.",
-  /** A visit the calendar names nothing for. */
-  visit: "Visit",
   /** A missed visit: it is not a gap between visits, so the cadence does not read it. */
   notCounted: "Not counted in the gaps",
   kept: (n: number) => `${n} kept`,
@@ -148,7 +147,9 @@ function visitsHeadOf(
 }
 
 /** Their visits, as the Visits tab draws them. */
-export function personVisitsOf({ profile, nowMs, base }: PersonCardContext): PersonVisitsVM {
+export function personVisitsOf({ profile, nowMs, base, dealsOn }: PersonCardContext): PersonVisitsVM {
+  // A visit the calendar names nothing for is called what the workspace calls one ("Appointment", "Meeting").
+  const untitled = appointmentWords(appointmentWordWhere(dealsOn)).Title;
   const toMark: { t: number; row: PersonVisitRowVM }[] = [];
   const ahead: { t: number; row: PersonVisitRowVM }[] = [];
   const past: { t: number; row: PersonVisitRowVM }[] = [];
@@ -174,7 +175,7 @@ export function personVisitsOf({ profile, nowMs, base }: PersonCardContext): Per
       id: `v-${v.id}`,
       month: dateFormat("en-US", { timeZone: zone, month: "short" }).format(at),
       date: dateFormat("en-US", { timeZone: zone, day: "numeric" }).format(at),
-      title: line.title || VISITS_TAB_WORDS.visit,
+      title: line.title || untitled,
       // A match the calendar guessed (a name) is said on a page about them, as Coming up says it (VisitLineVM.guess).
       sub: [said === "missed" ? VISITS_TAB_WORDS.notCounted : `${weekday} · ${start}`, line.guess ? line.match : null]
         .filter(Boolean)

@@ -303,6 +303,8 @@ test("one page, one word: for 4 shapes × 5 words, every string Campaigns' view 
 /** A quoted string a reader reads: its content is the second group. */
 const QUOTED = /(["'`])((?:\\.|(?!\1).)*)\1/g;
 const VISIT_WORD = /\bvisit(?:s|ed)?\b/i;
+/** A class name is no word: `className="cl-prof-section cl-prof-visits"` names a style, and nobody reads it. */
+const CLASS_NAME = /\bclassName=(["'])(?:(?!\1).)*\1/g;
 
 /** A template's own text, and the code of each `${…}` in it, found by its braces (a `{ timeZone }` inside one is its own). */
 function templateParts(content) {
@@ -336,6 +338,11 @@ function visitWordsIn(content) {
   return n;
 }
 
+/** The words a line says "visit" in: each quoted string a reader reads on it, its class names left out. */
+function visitWordsOnLine(text) {
+  return [...text.replace(CLASS_NAME, "").matchAll(QUOTED)].reduce((n, m) => n + visitWordsIn(m[2]), 0);
+}
+
 /**
  * Per file in the reader scope, the quoted strings a reader reads that hold a space and the whole word visit (ids like
  * "visit_tomorrow" hold neither), comments, member accesses and `trade-word:` lines left out (readerLines). It may only
@@ -345,19 +352,14 @@ function appointmentWordsWrittenIn() {
   const out = {};
   for (const file of readerFiles()) {
     let n = 0;
-    for (const { text } of readerLines(readFileSync(file, "utf8")))
-      for (const m of text.matchAll(QUOTED)) n += visitWordsIn(m[2]);
+    for (const { text } of readerLines(readFileSync(file, "utf8"))) n += visitWordsOnLine(text);
     if (n > 0) out[relative(ROOT, file).split(sep).join("/")] = n;
   }
   return out;
 }
 
 test("the count reads what a reader reads: a sentence's word, not an id, a variable in a template's code, or a marked line", () => {
-  const count = (src) =>
-    readerLines(src).reduce(
-      (n, { text }) => n + [...text.matchAll(QUOTED)].reduce((k, m) => k + visitWordsIn(m[2]), 0),
-      0,
-    );
+  const count = (src) => readerLines(src).reduce((n, { text }) => n + visitWordsOnLine(text), 0);
   assert.equal(count(`const a = "Visit reminder";`), 1);
   assert.equal(
     count(`const a = "visit_tomorrow"; const b = "visit"; const c = p.visit;`),
@@ -377,6 +379,7 @@ test("the count reads what a reader reads: a sentence's word, not an id, a varia
   );
   assert.equal(count(`const a = "a visit"; // trade-word: the word's own forms`), 0, "a marked line");
   assert.equal(count(`// "about your visit" in a comment`), 0);
+  assert.equal(count(`const a = <i className="cl-a cl-visits" title="Next visit" />;`), 1, "a class name is none");
 });
 
 ratchet({

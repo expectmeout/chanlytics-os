@@ -91,7 +91,7 @@ test("a ledger row reads into its shape with the evidence a texted answer carrie
 test("the words say what was answered and how we know, for every kind of change", () => {
   assert.deepEqual(consentChangeWords(change()), {
     who: "Consent",
-    text: "Said yes to messages about their visit",
+    text: "Said yes to messages",
     sub: "In their own words by text: “START”",
   });
   assert.deepEqual(consentChangeWords(change({ consent: "opted_out", channel: "whatsapp", words: "STOP" })), {
@@ -312,7 +312,7 @@ test("the person VM puts every change on the timeline, newest first, beside what
     consent.map((i) => [i.id, i.who, i.text, i.sub]),
     [
       ["c-ev-2", "Offers", "Said yes to offers and news", "Sign-up form, recorded by staff · slip 12"],
-      ["c-ev-1", "Consent", "Said yes to messages about their visit", "In their own words by text: “START”"],
+      ["c-ev-1", "Consent", "Said yes to messages", "In their own words by text: “START”"],
     ],
   );
   assert.ok(

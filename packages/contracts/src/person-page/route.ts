@@ -5,17 +5,28 @@
  * writer (personTabRoute), and the tabs a person has (personTabsOf): a tab exists only when it holds something.
  */
 
+import { appointmentWordWhere, appointmentWords } from "../journey/appointment-word";
+
 const PERSON_TABS = ["overview", "history", "visits", "deals", "campaigns", "about"] as const;
 export type PersonTab = (typeof PERSON_TABS)[number];
 
+/** Each tab's word; the appointments' is the workspace's own, said by personTabWord. */
 export const PERSON_TAB_WORDS: Record<PersonTab, string> = {
   overview: "Overview",
   history: "History",
-  visits: "Visits",
+  visits: "Appointments",
   deals: "Deals",
   campaigns: "Campaigns",
   about: "About",
 };
+
+/**
+ * A tab's word in the workspace's words: the appointments' is its word for them ("Meetings" where some customers get a
+ * proposal first, decision 0041), as History's filter says it (timelineFilterLabel); the others their own.
+ */
+export function personTabWord(id: PersonTab, dealsOn: boolean): string {
+  return id === "visits" ? appointmentWords(appointmentWordWhere(dealsOn)).Many : PERSON_TAB_WORDS[id];
+}
 
 /** What the strip of tabs and the figures are, to a screen reader. */
 export const PERSON_TABS_LABEL = "Their page";
@@ -58,6 +69,8 @@ export interface PersonTabFacts {
   campaigns: number;
   /** No thread, no deal and fewer than six rows of history: one scroll, no tabs (the thin-record rule). */
   thin: boolean;
+  /** Whether deals are on here: the appointments' tab says the workspace's word for them (personTabWord). */
+  dealsOn: boolean;
 }
 
 /**
@@ -69,7 +82,7 @@ export function personTabsOf(f: PersonTabFacts, phone: boolean): PersonTabVM[] {
   if (f.thin) return [];
   const tab = (id: PersonTab, count: number | null): PersonTabVM => ({
     id,
-    label: PERSON_TAB_WORDS[id],
+    label: personTabWord(id, f.dealsOn),
     count: phone ? null : count,
     to: personTabRoute(f.id, id),
   });

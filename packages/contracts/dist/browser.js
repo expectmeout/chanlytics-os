@@ -10647,11 +10647,14 @@ var PERSON_TABS = ["overview", "history", "visits", "deals", "campaigns", "about
 var PERSON_TAB_WORDS = {
   overview: "Overview",
   history: "History",
-  visits: "Visits",
+  visits: "Appointments",
   deals: "Deals",
   campaigns: "Campaigns",
   about: "About"
 };
+function personTabWord(id, dealsOn) {
+  return id === "visits" ? appointmentWords(appointmentWordWhere(dealsOn)).Many : PERSON_TAB_WORDS[id];
+}
 var PERSON_TABS_LABEL = "Their page";
 var PERSON_FIGURES_LABEL = "At a glance";
 function personRouteOf(param) {
@@ -10669,7 +10672,7 @@ function personTabsOf(f, phone) {
   if (f.thin) return [];
   const tab = (id, count2) => ({
     id,
-    label: PERSON_TAB_WORDS[id],
+    label: personTabWord(id, f.dealsOn),
     count: phone ? null : count2,
     to: personTabRoute(f.id, id)
   });
@@ -16418,6 +16421,139 @@ function receptionistOf(r2, tz, nowMs, viewerId, names3 = null) {
   return { tone: "answering", label: "Answering" };
 }
 
+// src/ask-proposals/people-verbs.ts
+var purposeOf = (v) => v === "conversational" || v === "marketing" ? v : null;
+var consentIn = (v) => v === "opted_in" || v === "opted_out" ? v : "unknown";
+var fieldsOf = (pl, keys) => Object.fromEntries(keys.filter((k) => pl[k] !== void 0).map((k) => [k, pl[k]]));
+function answerSaidOf(purpose, consent) {
+  if (purpose === "marketing") {
+    if (consent === "opted_in") return "said yes to offers and news";
+    if (consent === "opted_out") return "said no to offers \u2014 other messages still reach them";
+    return "has not been asked about offers";
+  }
+  if (consent === "opted_in") return "said yes to messages";
+  if (consent === "opted_out") return "said stop \u2014 nothing goes out to them at all";
+  return 'is back to "not asked"';
+}
+function manySaid(data, verb) {
+  const d = rec(data);
+  const done = typeof d.done === "number" ? d.done : 0;
+  const failedRows = Array.isArray(d.failed) ? d.failed : [];
+  const skipped2 = Array.isArray(d.skipped) ? d.skipped : [];
+  const failed = failedRows.length + skipped2.length;
+  const why = asText(rec(failedRows[0]).message) || (skipped2.length ? "no longer in this workspace" : "");
+  return { done, failed, said: failed ? `${failed} could not be ${verb}${why ? ` \u2014 ${why}` : ""}` : "" };
+}
+var ANSWER_DOOR = {
+  conversational: "PUT contacts/[id]/consent",
+  marketing: "PUT contacts/[id]/marketing-consent"
+};
+var ANSWER_MANY_DOOR = {
+  conversational: "PUT contacts/consent",
+  marketing: "PUT contacts/marketing-consent"
+};
+var personRoute = ({ payload }) => {
+  const id = idIn(payload, "contact_id");
+  return id ? `clients/${id}` : null;
+};
+var answerSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const purpose = purposeOf(pl.purpose);
+    if (!purpose) return refuseWith("Say which question this answers.");
+    return {
+      route: ANSWER_DOOR[purpose],
+      params: { id: asText(pl.contact_id) },
+      body: fieldsOf(pl, ["consent", "source", "note", "message_id"]),
+      events: [PEOPLE_CHANGED]
+    };
+  },
+  receipt: ({ payload: pl }) => `${asText(pl.who)} ${answerSaidOf(purposeOf(pl.purpose) ?? "conversational", consentIn(pl.consent))}`,
+  open: personRoute
+};
+var answerManySpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const purpose = purposeOf(pl.purpose);
+    if (!purpose) return refuseWith("Say which question this answers.");
+    return {
+      route: ANSWER_MANY_DOOR[purpose],
+      body: fieldsOf(pl, ["ids", "consent", "source", "note"]),
+      events: [PEOPLE_CHANGED]
+    };
+  },
+  receipt: ({ payload: pl }, data) => {
+    const m = manySaid(data, "recorded");
+    const what = purposeOf(pl.purpose) === "marketing" ? "to offers" : "to messages";
+    const answer = consentIn(pl.consent);
+    const head = answer === "unknown" ? `${m.done} back to "not asked"` : `${m.done} said ${answer === "opted_in" ? "yes" : "no"} ${what}`;
+    return m.said ? `${head} \xB7 ${m.said}` : head;
+  },
+  open: () => "clients"
+};
+var personModeManySpec = {
+  needs: "owner",
+  doing: "change how the receptionist treats these people",
+  gate: "settings",
+  commit: ({ payload: pl }) => ({
+    route: "PUT contacts/receptionist",
+    body: fieldsOf(pl, ["ids", "mode"]),
+    events: [PEOPLE_CHANGED]
+  }),
+  receipt: ({ payload: pl }, data) => {
+    const m = manySaid(data, "changed");
+    const mode = asText(pl.mode);
+    const head = `Receptionist for ${m.done}: ${PERSON_MODE_WORDS[mode] ?? asText(pl.mode)}`;
+    return m.said ? `${head} \xB7 ${m.said}` : head;
+  },
+  open: () => "clients"
+};
+var noteManySpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => ({
+    route: "PUT contacts/notes",
+    body: fieldsOf(pl, ["ids", "append"]),
+    events: [PEOPLE_CHANGED]
+  }),
+  receipt: (_p, data) => {
+    const m = manySaid(data, "noted");
+    const head = `Note added for ${m.done}`;
+    return m.said ? `${head} \xB7 ${m.said}` : head;
+  },
+  open: () => "clients"
+};
+var personAddSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => ({
+    route: "POST contacts",
+    body: fieldsOf(pl, ["phone", "email", "name", "source"]),
+    events: [PEOPLE_CHANGED]
+  }),
+  receipt: ({ payload: pl }, data) => {
+    const who = asText(pl.name).trim() || asText(pl.phone).trim() || asText(pl.email).trim();
+    return `${who} ${rec(data).existed === true ? "was already here \u2014 opened" : "added"}`;
+  },
+  made: (_p, data) => idIn(rec(data), "contact_id"),
+  open: () => "clients"
+};
+var personMergeSpec = {
+  needs: "owner",
+  doing: "merge two records of one person",
+  gate: "settings",
+  commit: ({ payload: pl }) => ({
+    route: "POST contacts/[id]/merge",
+    params: { id: asText(pl.contact_id) },
+    body: fieldsOf(pl, ["merge"]),
+    events: [PEOPLE_CHANGED]
+  }),
+  receipt: ({ payload: pl }) => MERGE_WORDS.done(asText(pl.who), asText(pl.other)),
+  open: personRoute
+};
+
 // src/notes/person-notes.ts
 var NOTE_MAX = 600;
 var NOTE_LINE_MAX = 200;
@@ -18538,139 +18674,6 @@ var listMemberSpec = {
     receipt: (_data, u) => idsIn(u.add).length ? `Back on ${asText(u.name)}` : `Taken off ${asText(u.name)} again`
   },
   open: ({ payload: pl }) => asText(pl.list_id) ? `clients/${listToken({ kind: "saved", id: asText(pl.list_id) })}` : "clients"
-};
-
-// src/ask-proposals/people-verbs.ts
-var purposeOf = (v) => v === "conversational" || v === "marketing" ? v : null;
-var consentIn = (v) => v === "opted_in" || v === "opted_out" ? v : "unknown";
-var fieldsOf = (pl, keys) => Object.fromEntries(keys.filter((k) => pl[k] !== void 0).map((k) => [k, pl[k]]));
-function answerSaid(purpose, consent, who) {
-  if (purpose === "marketing") {
-    if (consent === "opted_in") return `${who} said yes to offers and news`;
-    if (consent === "opted_out") return `${who} said no to offers \u2014 other messages still reach them`;
-    return `${who} has not been asked about offers`;
-  }
-  if (consent === "opted_in") return `${who} said yes to messages`;
-  if (consent === "opted_out") return `${who} said stop \u2014 nothing goes out to them at all`;
-  return `${who} is back to "not asked"`;
-}
-function manySaid(data, verb) {
-  const d = rec(data);
-  const done = typeof d.done === "number" ? d.done : 0;
-  const failedRows = Array.isArray(d.failed) ? d.failed : [];
-  const skipped2 = Array.isArray(d.skipped) ? d.skipped : [];
-  const failed = failedRows.length + skipped2.length;
-  const why = asText(rec(failedRows[0]).message) || (skipped2.length ? "no longer in this workspace" : "");
-  return { done, failed, said: failed ? `${failed} could not be ${verb}${why ? ` \u2014 ${why}` : ""}` : "" };
-}
-var ANSWER_DOOR = {
-  conversational: "PUT contacts/[id]/consent",
-  marketing: "PUT contacts/[id]/marketing-consent"
-};
-var ANSWER_MANY_DOOR = {
-  conversational: "PUT contacts/consent",
-  marketing: "PUT contacts/marketing-consent"
-};
-var personRoute = ({ payload }) => {
-  const id = idIn(payload, "contact_id");
-  return id ? `clients/${id}` : null;
-};
-var answerSpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: ({ payload: pl }) => {
-    const purpose = purposeOf(pl.purpose);
-    if (!purpose) return refuseWith("Say which question this answers.");
-    return {
-      route: ANSWER_DOOR[purpose],
-      params: { id: asText(pl.contact_id) },
-      body: fieldsOf(pl, ["consent", "source", "note", "message_id"]),
-      events: [PEOPLE_CHANGED]
-    };
-  },
-  receipt: ({ payload: pl }) => answerSaid(purposeOf(pl.purpose) ?? "conversational", consentIn(pl.consent), asText(pl.who)),
-  open: personRoute
-};
-var answerManySpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: ({ payload: pl }) => {
-    const purpose = purposeOf(pl.purpose);
-    if (!purpose) return refuseWith("Say which question this answers.");
-    return {
-      route: ANSWER_MANY_DOOR[purpose],
-      body: fieldsOf(pl, ["ids", "consent", "source", "note"]),
-      events: [PEOPLE_CHANGED]
-    };
-  },
-  receipt: ({ payload: pl }, data) => {
-    const m = manySaid(data, "recorded");
-    const what = purposeOf(pl.purpose) === "marketing" ? "to offers" : "to messages";
-    const answer = consentIn(pl.consent);
-    const head = answer === "unknown" ? `${m.done} back to "not asked"` : `${m.done} said ${answer === "opted_in" ? "yes" : "no"} ${what}`;
-    return m.said ? `${head} \xB7 ${m.said}` : head;
-  },
-  open: () => "clients"
-};
-var personModeManySpec = {
-  needs: "owner",
-  doing: "change how the receptionist treats these people",
-  gate: "settings",
-  commit: ({ payload: pl }) => ({
-    route: "PUT contacts/receptionist",
-    body: fieldsOf(pl, ["ids", "mode"]),
-    events: [PEOPLE_CHANGED]
-  }),
-  receipt: ({ payload: pl }, data) => {
-    const m = manySaid(data, "changed");
-    const mode = asText(pl.mode);
-    const head = `Receptionist for ${m.done}: ${PERSON_MODE_WORDS[mode] ?? asText(pl.mode)}`;
-    return m.said ? `${head} \xB7 ${m.said}` : head;
-  },
-  open: () => "clients"
-};
-var noteManySpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: ({ payload: pl }) => ({
-    route: "PUT contacts/notes",
-    body: fieldsOf(pl, ["ids", "append"]),
-    events: [PEOPLE_CHANGED]
-  }),
-  receipt: (_p, data) => {
-    const m = manySaid(data, "noted");
-    const head = `Note added for ${m.done}`;
-    return m.said ? `${head} \xB7 ${m.said}` : head;
-  },
-  open: () => "clients"
-};
-var personAddSpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: ({ payload: pl }) => ({
-    route: "POST contacts",
-    body: fieldsOf(pl, ["phone", "email", "name", "source"]),
-    events: [PEOPLE_CHANGED]
-  }),
-  receipt: ({ payload: pl }, data) => {
-    const who = asText(pl.name).trim() || asText(pl.phone).trim() || asText(pl.email).trim();
-    return `${who} ${rec(data).existed === true ? "was already here \u2014 opened" : "added"}`;
-  },
-  made: (_p, data) => idIn(rec(data), "contact_id"),
-  open: () => "clients"
-};
-var personMergeSpec = {
-  needs: "owner",
-  doing: "merge two records of one person",
-  gate: "settings",
-  commit: ({ payload: pl }) => ({
-    route: "POST contacts/[id]/merge",
-    params: { id: asText(pl.contact_id) },
-    body: fieldsOf(pl, ["merge"]),
-    events: [PEOPLE_CHANGED]
-  }),
-  receipt: ({ payload: pl }) => MERGE_WORDS.done(asText(pl.who), asText(pl.other)),
-  open: personRoute
 };
 
 // src/ask/ask-settings-change.ts
@@ -26296,7 +26299,8 @@ var UP_NEXT_WORDS = {
   didTheyCome: (who, day) => day === "Today" || day === "Yesterday" ? `Did ${who} come ${day.toLowerCase()}?` : `Did ${who} come on ${day.replace(/,/g, "")}?`,
   done: "Done",
   recordYes: "Record a yes",
-  visitNotAsked: "Visit messages not asked",
+  /** Their yes to messages, not asked with a visit ahead: the folded Messages summary's words for it. */
+  visitNotAsked: "Messages not asked",
   more: (n) => `${plural(n, "more", "more")}`
 };
 function dealRungSub(c) {
@@ -34795,7 +34799,7 @@ function clock2(ms2, tz, nowMs) {
   const time = clockTime(ms2, tz);
   return nowMs - ms2 < DAY_MS ? time : `${fmtDate(ms2, tz, nowMs)} ${time}`;
 }
-function attentionRow(p, tz, nowMs) {
+function attentionRow(p, tz, nowMs, dealsOn) {
   const lc = p.lastContact;
   const channel = lc.kind === "call" ? "Phone" : lc.kind === "message" ? "WhatsApp" : null;
   const when = lc.ts === null ? "no contact yet" : ago(lc.ts, tz, nowMs);
@@ -34807,7 +34811,7 @@ function attentionRow(p, tz, nowMs) {
   } else if (p.callSummary) sentence2 = clippedLine(tidyCallSummary(p.callSummary) ?? p.callSummary, 160);
   else if (p.deal && p.deal.stage === "proposed" && p.deal.brief) sentence2 = p.deal.brief;
   else if (p.nextVisit) sentence2 = `Booked \xB7 ${p.nextVisit}`;
-  else if (p.lastVisit) sentence2 = `Last visit \xB7 ${p.lastVisit}`;
+  else if (p.lastVisit) sentence2 = `${appointmentWords(appointmentWordWhere(dealsOn)).last} \xB7 ${p.lastVisit}`;
   else if (p.calls > 0)
     sentence2 = p.calls === 1 ? "Phoned once; nothing in writing yet" : `Phoned ${p.calls} times; nothing in writing yet`;
   else sentence2 = "Nothing written yet";
@@ -35207,7 +35211,7 @@ function consentChangeWords(c) {
       ...c.source === "unsubscribe" ? { sub: c.words ? `Wrote \u201C${c.words}\u201D in reply to an email` : "Pressed Unsubscribe in an email" } : c.source === "reply_undone" ? { sub: "A reply read as no, undone" } : c.consent === "opted_in" && c.source === "customer_message" ? { sub: `In their own words by email${c.words ? `: \u201C${c.words}\u201D` : ""}` } : {}
     };
   const offers = c.purpose === "marketing";
-  const text = c.consent === "opted_in" ? offers ? "Said yes to offers and news" : "Said yes to messages about their visit" : c.consent === "opted_out" ? offers ? "Said no to offers" : `${STOP_WORDS.said()} \u2014 nothing goes out to them` : offers ? "Offers: back to not asked" : "Back to not asked";
+  const text = c.consent === "opted_in" ? offers ? "Said yes to offers and news" : "Said yes to messages" : c.consent === "opted_out" ? offers ? "Said no to offers" : `${STOP_WORDS.said()} \u2014 nothing goes out to them` : offers ? "Offers: back to not asked" : "Back to not asked";
   return { who: offers ? "Offers" : "Consent", text, sub: howKnown(c) };
 }
 var DECISION_LABELS = {
@@ -35517,7 +35521,7 @@ function personFiguresOf(f) {
   if (f.visits.any)
     out.push({
       id: "visits",
-      label: "Visits",
+      label: personTabWord("visits", f.dealsOn),
       value: f.visits.ahead > 0 ? `${f.visits.ahead} ahead` : "None ahead",
       sub: f.visits.toMark > 0 ? `${f.visits.toMark} to mark` : f.visits.kept > 0 ? `${f.visits.kept} kept` : "none marked yet",
       to: "visits"
@@ -35668,8 +35672,6 @@ var VISITS_TAB_WORDS = {
   ahead: "Ahead",
   past: "Past",
   none: "Nothing ahead.",
-  /** A visit the calendar names nothing for. */
-  visit: "Visit",
   /** A missed visit: it is not a gap between visits, so the cadence does not read it. */
   notCounted: "Not counted in the gaps",
   kept: (n) => `${n} kept`,
@@ -35730,7 +35732,8 @@ function visitsHeadOf(season, earlier, zone, nowMs) {
     over: earlier ? W.since(dayOf2(earlier.first_at)) : W.over(SEASON_BACK_DAYS)
   };
 }
-function personVisitsOf({ profile, nowMs, base }) {
+function personVisitsOf({ profile, nowMs, base, dealsOn }) {
+  const untitled = appointmentWords(appointmentWordWhere(dealsOn)).Title;
   const toMark = [];
   const ahead = [];
   const past = [];
@@ -35753,7 +35756,7 @@ function personVisitsOf({ profile, nowMs, base }) {
       id: `v-${v.id}`,
       month: dateFormat("en-US", { timeZone: zone, month: "short" }).format(at3),
       date: dateFormat("en-US", { timeZone: zone, day: "numeric" }).format(at3),
-      title: line.title || VISITS_TAB_WORDS.visit,
+      title: line.title || untitled,
       // A match the calendar guessed (a name) is said on a page about them, as Coming up says it (VisitLineVM.guess).
       sub: [said === "missed" ? VISITS_TAB_WORDS.notCounted : `${weekday} \xB7 ${start}`, line.guess ? line.match : null].filter(Boolean).join(" \xB7 "),
       said,
@@ -36453,10 +36456,7 @@ function personPageOf(p, d, tz, now) {
     thin,
     last: p.lastContact.ts !== null ? { value: clockDate(p.lastContact.ts, tz, nowMs), sub: p.lastContact.by } : null,
     lead: business ? { stage: business.stage.word, since: business.stage.note } : null,
-    deals: {
-      count: p.openDeals.length,
-      recorded: recordedOf(p.openDeals)
-    },
+    deals: { count: p.openDeals.length, recorded: recordedOf(p.openDeals) },
     step: p.nextStep ? { day: p.nextStep.day.near, words: p.nextStep.words } : null,
     calls: { count: p.calls, minutes: callLength2(p.callSeconds) },
     visits: {
@@ -36465,7 +36465,8 @@ function personPageOf(p, d, tz, now) {
       toMark: p.visitTab.head.toMark,
       any: p.calendar === "ok" && (p.comingUp.length > 0 || visitsSeen > 0 || earlierSaid > 0)
     },
-    emails: reachOut ? { out: sent2, back: reachOut.readings.filter((r2) => !r2.undone).length } : null
+    emails: reachOut ? { out: sent2, back: reachOut.readings.filter((r2) => !r2.undone).length } : null,
+    dealsOn: p.dealsOn
   });
   const tabFacts = {
     id: p.id,
@@ -36474,7 +36475,8 @@ function personPageOf(p, d, tz, now) {
     marked: earlierSaid,
     deals: p.deals.length,
     campaigns: p.campaigns.length,
-    thin
+    thin,
+    dealsOn: p.dealsOn
   };
   const evidence = contactEvidenceOf(d, { ...p.firstContact, cameFrom: p.cameFrom?.key ?? null });
   return {
@@ -47524,6 +47526,7 @@ export {
   amountWords,
   answerForCards,
   answerFromV1,
+  answerSaidOf,
   answerText,
   answerWireOf,
   answerWords,
@@ -48553,6 +48556,7 @@ export {
   personStanding,
   personStateFor,
   personTabRoute,
+  personTabWord,
   personTabsOf,
   phoneDialable,
   phoneLine,
