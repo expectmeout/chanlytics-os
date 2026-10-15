@@ -88,7 +88,8 @@ const WRAPPER = new Set([
   "apps/dashboard/src/server/idempotency.ts",
 ]);
 
-const SCOPES = [
+/** The trees a route is followed through: the test picker (checks/changed-tests.mjs) runs the hearing tests for a change in them. */
+export const SCOPES = [
   "apps/dashboard/src/server",
   "apps/dashboard/app/api",
   "packages/db/src",

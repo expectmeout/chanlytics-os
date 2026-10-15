@@ -7,8 +7,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { ALWAYS, TESTED_IN, databaseSuitesOf, isDatabaseSuite, testTargets } from "../../../checks/changed-tests.mjs";
-import { ROOT } from "../../_source.mjs";
+import {
+  ALWAYS,
+  READ_BY,
+  TESTED_IN,
+  databaseSuitesOf,
+  isDatabaseSuite,
+  testTargets,
+} from "../../../checks/changed-tests.mjs";
+import { READER_SCOPE, ROOT } from "../../_source.mjs";
 
 const FOLDERS = new Set(
   execFileSync("git", ["ls-files", "tooling/scripts/tests/*/**.test.mjs"], { cwd: ROOT, encoding: "utf8" })
@@ -28,7 +35,7 @@ test("a source file runs the tests of every folder its path names, and the rules
 
 test("the composer, the answer verb and the campaign runner run the folders that prove them, which their paths do not name", () => {
   // 11 Oct 2026: each of these selected no test, so a change to what the receptionist reads ran only the rules.
-  const named = (file) => run(file).filter((t) => !ALWAYS.includes(t));
+  const named = (file) => run(file).filter((t) => !ALWAYS.includes(t) && !(t in READ_BY));
   assert.deepEqual(
     named("packages/contracts/src/config/workspace-config/compose.ts").sort(),
     ["calendar", "receptionist", "sms", "voice", "whatsapp"].map((f) => `tooling/scripts/tests/${f}`),
@@ -39,7 +46,7 @@ test("the composer, the answer verb and the campaign runner run the folders that
     assert.ok(named("packages/core/src/campaigns/run-playbook.ts").includes(`tooling/scripts/tests/${f}`), f);
 });
 
-test("every path the map names holds source, and every folder it names holds tests", () => {
+test("every path the maps name holds source, and every test they name is one", () => {
   const tracked = execFileSync("git", ["ls-files"], { cwd: ROOT, encoding: "utf8" }).split("\n");
   for (const [prefix, folders] of Object.entries(TESTED_IN)) {
     assert.ok(
@@ -48,6 +55,60 @@ test("every path the map names holds source, and every folder it names holds tes
     );
     for (const folder of folders) assert.ok(FOLDERS.has(folder), `${prefix}: tests/${folder} holds no test`);
   }
+  for (const [target, reads] of Object.entries(READ_BY)) {
+    assert.ok(
+      tracked.some((f) => (f === target || f.startsWith(`${target}/`)) && f.endsWith(".test.mjs")),
+      `${target} is no test and holds none: move the entry with the test`,
+    );
+    for (const prefix of reads)
+      assert.ok(
+        tracked.some((f) => f.startsWith(prefix)),
+        `${target}: ${prefix} holds no file: move it with the code`,
+      );
+  }
+});
+
+test("a change in a tree a reader reads runs the appointment words' ratchet, which no such path names; a doc does not", () => {
+  // 13-15 Oct 2026: #1574, #1579, #1599 and #1602-#1604 wrote "visit" into contracts' person-page, waits, ask-proposals
+  // and notices. No path of theirs named journey, so the ratchet ran on none of their pull requests and main went red.
+  const ratchet = "tooling/scripts/tests/journey/journey.test.mjs";
+  assert.ok(run("packages/contracts/src/notices/visit-news.ts").includes(ratchet));
+  for (const tree of READER_SCOPE) assert.ok(run(`${tree}/any.ts`).includes(ratchet), tree);
+  for (const f of ["tooling/scripts/tests/_source.mjs", "tooling/scripts/tests/baselines/appointment-words.json"])
+    assert.ok(run(f).includes(ratchet), `${f}: the scope's own file and the ratchet's baseline`);
+  assert.deepEqual(run("docs/decisions/README.md"), [...ALWAYS, "tooling/scripts/tests/history"]);
+  assert.ok(!run("packages/core/src/leads/cards.ts").includes(ratchet), "a tree no reader reads");
+  const named = run("packages/contracts/src/journey/journey.ts");
+  assert.ok(named.includes("tooling/scripts/tests/journey") && !named.includes(ratchet), "its folder covers it");
+});
+
+test("a change the hearing tests trace or run runs them, which no such path names; a doc and the phone app do not", () => {
+  // 15 Oct 2026: the refresh map, the registry, db's realtime and the surfaces' values each ran no hearing test, though
+  // both its ratchets (reads-not-heard.json, on-demand-reads.json) read them.
+  const hearing = "tooling/scripts/tests/shell/hearing";
+  for (const f of [
+    "apps/dashboard/src/legacy-bridge/refresh-map.ts",
+    "apps/dashboard/src/legacy-bridge/surface-registry.ts",
+    "packages/db/src/realtime.ts",
+    "apps/dashboard/src/surfaces/surface-values.ts",
+    "apps/dashboard/app/api/v1/contacts/route.ts",
+    "apps/edge/api/inbound-sms.ts",
+    "packages/contracts/src/activity/record-kinds.ts",
+    "supabase/schema.sql",
+    "tooling/scripts/trace-routes.mjs",
+    "tooling/scripts/tests/baselines/reads-not-heard.json",
+    "tooling/scripts/tests/baselines/on-demand-reads.json",
+    "tooling/scripts/tests/baselines/hearing/inbox.json",
+  ])
+    assert.ok(run(f).includes(hearing), f);
+  for (const f of ["docs/decisions/README.md", "apps/mobile/src/app/index.tsx"])
+    assert.ok(!run(f).includes(hearing), f);
+  // A folder already asked for covers a folder inside it, as it does a file.
+  const shell = run("packages/contracts/src/shell/route-prefetch.ts");
+  assert.ok(
+    shell.includes("tooling/scripts/tests/shell") && !shell.includes(hearing),
+    "tests/shell covers its hearing",
+  );
 });
 
 test("a changed test runs itself; a folder already asked for covers it; a helper of a folder runs the folder", () => {

@@ -380,7 +380,11 @@ test("a write that moves who waits on you, the zone's days or the hours and clos
     "Today's five reads (the day's metrics, the threads, the escalations, the calls, the searches) draw no configuration",
   );
   // The two writes that carry the hours are one list: the first receptionist writes its profile's hours, a save writes them too.
-  assert.deepEqual(keysOf("POST settings/receptionist"), keysOf("PUT settings"));
+  // A save alone may rename the business (00439), so it alone reads the workspace again.
+  assert.deepEqual(
+    keysOf("POST settings/receptionist"),
+    keysOf("PUT settings").filter((key) => key !== "workspace"),
+  );
   // A write that changes nothing the lens counts leaves what it holds alone.
   for (const route of ["POST google/link", "PUT policies", "POST broadcasts", "PUT contacts/[id]/receptionist"]) {
     held();
@@ -552,8 +556,8 @@ test("a write that changes who is in the book, what they answered, their steps, 
       assert.ok(keysOf("PUT settings").includes(key), `PUT settings still re-reads ${key}`);
     assert.deepEqual(
       keysOf("POST settings/receptionist"),
-      keysOf("PUT settings"),
-      "the two writes that carry the hours are one list",
+      keysOf("PUT settings").filter((key) => key !== "workspace"),
+      "the two writes that carry the hours are one list, and a save alone may rename the business",
     );
     for (const route of LEAVES_PEOPLE) {
       held();
