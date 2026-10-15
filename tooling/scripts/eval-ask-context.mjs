@@ -339,11 +339,14 @@ function secondTurnProblems(c) {
       `between: "approve" approves a settings card whose change is add_note, and turn 1 expects ${JSON.stringify(c.expect?.proposals_any ?? [])}`,
     );
   // A snooze moves a thread an open escalation flags, which a wake puts back to waiting on you (snoozeBetween), and turn
-  // 2 is judged on not naming it: a case that snoozes needs such a thread and asks for that judgement.
+  // 2 is judged on reading again and its headline not naming it: a case that snoozes needs such a thread and asks for both.
   if (t.between === "snooze") {
     if (![c.needs ?? []].flat().includes("escalated_thread"))
       out.push(`between: "snooze" snoozes a thread an open escalation flags: the case needs "escalated_thread"`);
     if (t.expect?.omits_snoozed !== true) out.push(`between: "snooze" is judged by then.expect.omits_snoozed`);
+    // omitsSnoozed holds the headline; the fresh read that is X5-4's cure is held by tools_any.
+    if (!(t.expect?.tools_any ?? []).length)
+      out.push(`between: "snooze" reads again: then.expect.tools_any names the reads`);
   }
   return out;
 }
@@ -529,7 +532,8 @@ export function notAsked(two, first) {
   if (!first.threadId) return "turn 1 named no thread";
   const e = two.expect ?? {};
   if (e.names_card && !(m.proposals ?? []).length) return "turn 1 made no card to name";
-  if (two.between && !(m.proposals ?? []).length) return "turn 1 made no card to approve";
+  // Only an approval needs a card: a snooze takes turn 1's thread, and says so itself where it names none (snoozeBetween).
+  if (two.between === "approve" && !(m.proposals ?? []).length) return "turn 1 made no card to approve";
   const shown = itemsOf(m).length;
   if (e.opens_item && shown < e.opens_item)
     return `turn 1's answer shows ${shown} item(s), and turn 2 opens item ${e.opens_item}`;
@@ -687,17 +691,20 @@ export function followUpFails(e, r, first) {
 
 /**
  * Turn 2 after a thread was snoozed between the turns (`between: "snooze"`; the wiring's second audit, X5-4): a warm
- * turn replays turn 1's reads, and the model may answer from them; the snoozed thread waits on nobody now, so the answer
- * names it nowhere -- no citation, row, Open or navigation, and not the first word of who it is with.
+ * turn replays turn 1's reads, and a model that answers from them gives the old list as fact. The case's tools_any
+ * holds turn 2 to reading again (today or inbox.list); this holds its headline, the answer to who needs you, to not
+ * saying who the snoozed thread is with. The rest of the answer may name it: the first runs (15 Oct) said "Robin Example
+ * is no longer on the needs-you list", once as a row whose line was "No longer needs you, but a reply to their question
+ * about booking a trim failed to deliver earlier", since Today's recap keeps a reply that failed to deliver whoever
+ * holds the thread (e2e thread.spec.ts). That is the snooze heard, and the failure still true, not the replay.
  */
 export function omitsSnoozed(m, snoozed) {
   if (!snoozed) return ["nothing was snoozed between the turns to look for"];
   const fails = [];
-  if (named(m).some((p) => p.includes(snoozed.id)))
-    fails.push(`the answer still names the thread snoozed between the turns, ${snoozed.who}'s`);
   const word = (snoozed.who ?? "").split(/\s+/)[0] ?? "";
-  if (word.length >= 2 && saysWord(m?.text, word))
-    fails.push(`the answer still says ${word}, whose thread was snoozed between the turns`);
+  const headline = m?.answer?.say?.headline ?? m?.text ?? "";
+  if (word.length >= 2 && saysWord(headline, word))
+    fails.push(`the answer's headline still says ${word}, whose thread was snoozed between the turns`);
   return fails;
 }
 
