@@ -16093,6 +16093,184 @@ var messageSpec = {
   open: () => "messages"
 };
 
+// src/ask-proposals/follow-ups.ts
+var ASK_VIEW_PAGE = "ask";
+var ASK_FOLLOW_UPS_MAX = 3;
+var FOLLOW_UP_SAID_MAX = 100;
+var FOLLOW_UP_PROMPT_MAX = 200;
+var FOLLOW_UP_WAKES = ["search_done", "replies", "date"];
+var isWake = (v) => typeof v === "string" && FOLLOW_UP_WAKES.includes(v);
+var clipped = (v, max) => typeof v === "string" ? v.trim().slice(0, max) : "";
+function followUpOf(v) {
+  if (!v || typeof v !== "object") return null;
+  const r2 = v;
+  const id = clipped(r2.id, 40);
+  const said = clipped(r2.said, FOLLOW_UP_SAID_MAX);
+  const prompt = clipped(r2.prompt, FOLLOW_UP_PROMPT_MAX);
+  if (!id || !said || !prompt || !isWake(r2.wake)) return null;
+  const subject = clipped(r2.subject, 40) || null;
+  const on = typeof r2.on === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r2.on) ? r2.on : null;
+  if (r2.wake === "date" ? !on : !subject) return null;
+  return { id, said, prompt, wake: r2.wake, subject, on, made_at: clipped(r2.made_at, 40) };
+}
+function followUpsOf(views) {
+  const ask = views && typeof views === "object" ? views[ASK_VIEW_PAGE] : null;
+  const list2 = ask && typeof ask === "object" ? ask.follow_ups : null;
+  return Array.isArray(list2) ? list2.map(followUpOf).filter((f) => f !== null) : [];
+}
+var SEARCH_WAKES = /* @__PURE__ */ new Set(["ended", "waiting_on_owner"]);
+function followUpDue(f, w) {
+  if (f.wake === "date") return !!f.on && f.on <= w.today;
+  if (!f.subject) return false;
+  if (f.wake === "search_done") {
+    const state = w.searches.get(f.subject);
+    return state !== void 0 && SEARCH_WAKES.has(state);
+  }
+  return (w.replies.get(f.subject) ?? 0) > 0;
+}
+
+// src/ask-proposals/guide.ts
+var WHY = {
+  signIn: "it signs in to another service (Google, Microsoft, Meta), which happens on that service's own screen",
+  money: "it spends or changes money on the account, which is the owner's on the billing page",
+  legal: "it is a statement to the carriers in the business's legal name",
+  file: "it reads or writes a file on the member's own device",
+  live: "it acts on a phone call that is happening, where the Live page's button is quicker than a sentence",
+  erase: "it erases a person for good, which is asked for and confirmed on their page",
+  team: "it changes who is on the team, which the owner does in Settings \u203A Team",
+  draft: "Ask writes the draft itself in the conversation, so it never needs the page's drafter"
+};
+var ASK_GUIDE_PAGES = [
+  {
+    page: "Today",
+    route: "today",
+    for: "Who waits on you right now, replies about to time out, a booking the receptionist asked for (Booked it or Can't), today's calls and bookings, and the day's recap.",
+    verbs: ["booking_request"],
+    pageOnly: []
+  },
+  {
+    page: "Inbox",
+    route: "inbox",
+    for: "Every conversation: answer, take one over, hand it back to the receptionist, snooze, wake or archive it.",
+    verbs: ["reply", "steer", "thread_verb"],
+    pageOnly: [{ what: "Export a conversation", why: WHY.file }]
+  },
+  {
+    page: "Live",
+    route: "live",
+    for: "Calls happening now: listen, whisper to the receptionist, hand the call to your phone or end it.",
+    verbs: ["whisper", "call_hand_over"],
+    pageOnly: [{ what: "End a call", why: WHY.live }]
+  },
+  {
+    page: "People",
+    route: "clients",
+    for: "Everyone who has written or called: their answers, notes, steps, deals, lists, and what the receptionist does with each.",
+    verbs: [
+      "person_mode",
+      "note",
+      "person_details",
+      "answer",
+      "person_add",
+      "person_merge",
+      "person_message",
+      "answer_many",
+      "person_mode_many",
+      "note_many",
+      "list",
+      "list_member",
+      "list_change",
+      "list_delete"
+    ],
+    pageOnly: [
+      { what: "Import people from a file, or export them", why: WHY.file },
+      { what: "Delete a person", why: WHY.erase }
+    ]
+  },
+  {
+    page: "Pipeline",
+    route: "clients/pipeline",
+    for: "Deals by where they stand: consultations, proposals out, clients, and the ones that passed.",
+    verbs: ["deal"],
+    pageOnly: []
+  },
+  {
+    page: "Leads",
+    route: "clients/leads",
+    for: "Find businesses or people to reach, review what a search found, and work each lead to a yes.",
+    verbs: [
+      "lead_search",
+      "people_search",
+      "lead_search_more",
+      "lead_stage",
+      "lead_mark",
+      "lead_later",
+      "leads_bulk",
+      "leads_check",
+      "lead_addressee",
+      "lead_list",
+      "reach_out_said"
+    ],
+    pageOnly: [{ what: "Import leads from a file, or export them", why: WHY.file }]
+  },
+  {
+    page: "Calendar",
+    route: "calendar",
+    for: "The week's appointments from your booking tool, the open times, and how full the next two weeks are.",
+    verbs: [],
+    pageOnly: [{ what: "Connect the booking tool", why: WHY.signIn }]
+  },
+  {
+    page: "Campaigns",
+    route: "campaigns",
+    for: "Everything that sends on its own: sequences on a moment or a list, one-off sends, cold email to leads, saved messages.",
+    verbs: [
+      "broadcast",
+      "playbook",
+      "run",
+      "playbook_channels",
+      "playbook_change",
+      "message",
+      "sequence_make",
+      "sequence_step",
+      "sequence_step_remove",
+      "sequence_words",
+      "sequence_start",
+      "sequence_leave",
+      "sequence_send_decide",
+      "sequence_send_said",
+      "sequence_discard",
+      "sequence_draft",
+      "reach_out_make",
+      "reach_out_add"
+    ],
+    pageOnly: [{ what: "Draft a sequence from a line on the page", why: WHY.draft }]
+  },
+  {
+    page: "Reports",
+    route: "reports",
+    for: "How any period went: replies, calls, people, campaigns, reviews, cold email and the receptionist, against the period before.",
+    verbs: ["review_reply"],
+    pageOnly: []
+  },
+  {
+    page: "Settings",
+    route: "admin/workspace",
+    for: "What the receptionist knows and may do alone, your goal, connections, notifications, team and billing.",
+    verbs: ["settings", "policy", "invite", "follow_up"],
+    pageOnly: [
+      { what: "Connect WhatsApp, Google, a mailbox or a phone line", why: WHY.signIn },
+      { what: "Billing and the plan", why: WHY.money },
+      { what: "The business on record for texting", why: WHY.legal },
+      { what: "Invite or remove a teammate", why: WHY.team }
+    ]
+  }
+];
+var ASK_PAGE_ONLY_VERBS = {
+  invite: WHY.team,
+  sequence_draft: WHY.draft
+};
+
 // src/ask/ask.ts
 var ASK_MAX_CHARS = 1e3;
 var ASK_MAX_ROUNDS = 8;
@@ -19219,42 +19397,6 @@ var listDeleteSpec = {
   receipt: (_p, data) => listTakenDown(data),
   open: () => "clients"
 };
-
-// src/ask-proposals/follow-ups.ts
-var ASK_VIEW_PAGE = "ask";
-var ASK_FOLLOW_UPS_MAX = 3;
-var FOLLOW_UP_SAID_MAX = 100;
-var FOLLOW_UP_PROMPT_MAX = 200;
-var FOLLOW_UP_WAKES = ["search_done", "replies", "date"];
-var isWake = (v) => typeof v === "string" && FOLLOW_UP_WAKES.includes(v);
-var clipped = (v, max) => typeof v === "string" ? v.trim().slice(0, max) : "";
-function followUpOf(v) {
-  if (!v || typeof v !== "object") return null;
-  const r2 = v;
-  const id = clipped(r2.id, 40);
-  const said = clipped(r2.said, FOLLOW_UP_SAID_MAX);
-  const prompt = clipped(r2.prompt, FOLLOW_UP_PROMPT_MAX);
-  if (!id || !said || !prompt || !isWake(r2.wake)) return null;
-  const subject = clipped(r2.subject, 40) || null;
-  const on = typeof r2.on === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r2.on) ? r2.on : null;
-  if (r2.wake === "date" ? !on : !subject) return null;
-  return { id, said, prompt, wake: r2.wake, subject, on, made_at: clipped(r2.made_at, 40) };
-}
-function followUpsOf(views) {
-  const ask = views && typeof views === "object" ? views[ASK_VIEW_PAGE] : null;
-  const list2 = ask && typeof ask === "object" ? ask.follow_ups : null;
-  return Array.isArray(list2) ? list2.map(followUpOf).filter((f) => f !== null) : [];
-}
-var SEARCH_WAKES = /* @__PURE__ */ new Set(["ended", "waiting_on_owner"]);
-function followUpDue(f, w) {
-  if (f.wake === "date") return !!f.on && f.on <= w.today;
-  if (!f.subject) return false;
-  if (f.wake === "search_done") {
-    const state = w.searches.get(f.subject);
-    return state !== void 0 && SEARCH_WAKES.has(state);
-  }
-  return (w.replies.get(f.subject) ?? 0) > 0;
-}
 
 // src/ask-proposals/follow-up.ts
 var listIn = (v) => Array.isArray(v) ? v : null;
@@ -23830,148 +23972,6 @@ function cacheHitOf(t) {
   const fed = t.input + t.cache_read + t.cache_creation;
   return fed > 0 ? t.cache_read / fed : null;
 }
-
-// src/ask-proposals/guide.ts
-var WHY = {
-  signIn: "it signs in to another service (Google, Microsoft, Meta), which happens on that service's own screen",
-  money: "it spends or changes money on the account, which is the owner's on the billing page",
-  legal: "it is a statement to the carriers in the business's legal name",
-  file: "it reads or writes a file on the member's own device",
-  live: "it acts on a phone call that is happening, where the Live page's button is quicker than a sentence",
-  erase: "it erases a person for good, which is asked for and confirmed on their page",
-  team: "it changes who is on the team, which the owner does in Settings \u203A Team",
-  draft: "Ask writes the draft itself in the conversation, so it never needs the page's drafter"
-};
-var ASK_GUIDE_PAGES = [
-  {
-    page: "Today",
-    route: "today",
-    for: "Who waits on you right now, replies about to time out, a booking the receptionist asked for (Booked it or Can't), today's calls and bookings, and the day's recap.",
-    verbs: ["booking_request"],
-    pageOnly: []
-  },
-  {
-    page: "Inbox",
-    route: "inbox",
-    for: "Every conversation: answer, take one over, hand it back to the receptionist, snooze, wake or archive it.",
-    verbs: ["reply", "steer", "thread_verb"],
-    pageOnly: [{ what: "Export a conversation", why: WHY.file }]
-  },
-  {
-    page: "Live",
-    route: "live",
-    for: "Calls happening now: listen, whisper to the receptionist, hand the call to your phone or end it.",
-    verbs: ["whisper", "call_hand_over"],
-    pageOnly: [{ what: "End a call", why: WHY.live }]
-  },
-  {
-    page: "People",
-    route: "clients",
-    for: "Everyone who has written or called: their answers, notes, steps, deals, lists, and what the receptionist does with each.",
-    verbs: [
-      "person_mode",
-      "note",
-      "person_details",
-      "answer",
-      "person_add",
-      "person_merge",
-      "person_message",
-      "answer_many",
-      "person_mode_many",
-      "note_many",
-      "list",
-      "list_member",
-      "list_change",
-      "list_delete"
-    ],
-    pageOnly: [
-      { what: "Import people from a file, or export them", why: WHY.file },
-      { what: "Delete a person", why: WHY.erase }
-    ]
-  },
-  {
-    page: "Pipeline",
-    route: "clients/pipeline",
-    for: "Deals by where they stand: consultations, proposals out, clients, and the ones that passed.",
-    verbs: ["deal"],
-    pageOnly: []
-  },
-  {
-    page: "Leads",
-    route: "clients/leads",
-    for: "Find businesses or people to reach, review what a search found, and work each lead to a yes.",
-    verbs: [
-      "lead_search",
-      "people_search",
-      "lead_search_more",
-      "lead_stage",
-      "lead_mark",
-      "lead_later",
-      "leads_bulk",
-      "leads_check",
-      "lead_addressee",
-      "lead_list",
-      "reach_out_said"
-    ],
-    pageOnly: [{ what: "Import leads from a file, or export them", why: WHY.file }]
-  },
-  {
-    page: "Calendar",
-    route: "calendar",
-    for: "The week's appointments from your booking tool, the open times, and how full the next two weeks are.",
-    verbs: [],
-    pageOnly: [{ what: "Connect the booking tool", why: WHY.signIn }]
-  },
-  {
-    page: "Campaigns",
-    route: "campaigns",
-    for: "Everything that sends on its own: sequences on a moment or a list, one-off sends, cold email to leads, saved messages.",
-    verbs: [
-      "broadcast",
-      "playbook",
-      "run",
-      "playbook_channels",
-      "playbook_change",
-      "message",
-      "sequence_make",
-      "sequence_step",
-      "sequence_step_remove",
-      "sequence_words",
-      "sequence_start",
-      "sequence_leave",
-      "sequence_send_decide",
-      "sequence_send_said",
-      "sequence_discard",
-      "sequence_draft",
-      "reach_out_make",
-      "reach_out_add"
-    ],
-    pageOnly: [{ what: "Draft a sequence from a line on the page", why: WHY.draft }]
-  },
-  {
-    page: "Reports",
-    route: "reports",
-    for: "How any period went: replies, calls, people, campaigns, reviews, cold email and the receptionist, against the period before.",
-    verbs: ["review_reply"],
-    pageOnly: []
-  },
-  {
-    page: "Settings",
-    route: "admin/workspace",
-    for: "What the receptionist knows and may do alone, your goal, connections, notifications, team and billing.",
-    verbs: ["settings", "policy", "invite", "follow_up"],
-    pageOnly: [
-      { what: "Connect WhatsApp, Google, a mailbox or a phone line", why: WHY.signIn },
-      { what: "Billing and the plan", why: WHY.money },
-      { what: "The business on record for texting", why: WHY.legal },
-      { what: "Invite or remove a teammate", why: WHY.team }
-    ]
-  }
-];
-var ASK_PAGE_ONLY_VERBS = {
-  invite: WHY.team,
-  sequence_draft: WHY.draft
-};
 
 // src/ask/plan.ts
 var SEND_HOUR = PLAYBOOK_DEFAULTS.runHour;
