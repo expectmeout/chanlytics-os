@@ -25334,12 +25334,15 @@ begin
       select a.*, e.id as e_id, e.state as e_state, e.place as e_place
         from asked a
         left join lateral (
-          select e.id, e.state, e.place from public.sequence_enrollments e
-           where e.sequence_id = a.sequence_id
-             and case when a.lead_id is null then e.lead_id is null and e.contact_id = a.contact_id
-                      else e.lead_id = a.lead_id end
-           order by e.entered_at desc, e.id desc
-           limit 1) e on true
+          (select e.id, e.state, e.place from public.sequence_enrollments e
+            where a.lead_id is null and e.sequence_id = a.sequence_id and e.lead_id is null and e.contact_id = a.contact_id
+            order by e.entered_at desc, e.id desc
+            limit 1)
+          union all
+          (select e.id, e.state, e.place from public.sequence_enrollments e
+            where a.lead_id is not null and e.sequence_id = a.sequence_id and e.lead_id = a.lead_id
+            order by e.entered_at desc, e.id desc
+            limit 1)) e on true
     )
     update public.sequence_enrollments x
        set state = 'left', why = 'started_again', ended_at = now(), next_at = null
@@ -25355,12 +25358,15 @@ begin
       select a.*, e.id as e_id, e.state as e_state, e.place as e_place
         from asked a
         left join lateral (
-          select e.id, e.state, e.place from public.sequence_enrollments e
-           where e.sequence_id = a.sequence_id
-             and case when a.lead_id is null then e.lead_id is null and e.contact_id = a.contact_id
-                      else e.lead_id = a.lead_id end
-           order by e.entered_at desc, e.id desc
-           limit 1) e on true
+          (select e.id, e.state, e.place from public.sequence_enrollments e
+            where a.lead_id is null and e.sequence_id = a.sequence_id and e.lead_id is null and e.contact_id = a.contact_id
+            order by e.entered_at desc, e.id desc
+            limit 1)
+          union all
+          (select e.id, e.state, e.place from public.sequence_enrollments e
+            where a.lead_id is not null and e.sequence_id = a.sequence_id and e.lead_id = a.lead_id
+            order by e.entered_at desc, e.id desc
+            limit 1)) e on true
     )
     update public.sequence_enrollments x
        set state = 'in', why = null, ended_at = null, next_at = null, left_by = null,
@@ -25379,12 +25385,15 @@ begin
     select a.tenant_id, a.sequence_id, a.contact_id, a.lead_id, a.place
       from asked a
       left join lateral (
-        select e.state, e.place from public.sequence_enrollments e
-         where e.sequence_id = a.sequence_id
-           and case when a.lead_id is null then e.lead_id is null and e.contact_id = a.contact_id
-                    else e.lead_id = a.lead_id end
-         order by e.entered_at desc, e.id desc
-         limit 1) e on true
+        (select e.state, e.place from public.sequence_enrollments e
+          where a.lead_id is null and e.sequence_id = a.sequence_id and e.lead_id is null and e.contact_id = a.contact_id
+          order by e.entered_at desc, e.id desc
+          limit 1)
+        union all
+        (select e.state, e.place from public.sequence_enrollments e
+          where a.lead_id is not null and e.sequence_id = a.sequence_id and e.lead_id = a.lead_id
+          order by e.entered_at desc, e.id desc
+          limit 1)) e on true
      where e.state is null
         or (a.lead_id is null and a.place = 1 and e.state <> 'in');
     return null;
@@ -25394,13 +25403,19 @@ begin
   if v_place is null then
     return null;
   end if;
-  select e.* into v_e from public.sequence_enrollments e
-   where e.sequence_id = NEW.sequence_id
-     and case when NEW.lead_id is null then e.lead_id is null and e.contact_id = NEW.contact_id
-              else e.lead_id = NEW.lead_id end
-   order by e.entered_at desc, e.id desc
-   limit 1
-   for update;
+  if NEW.lead_id is null then
+    select e.* into v_e from public.sequence_enrollments e
+     where e.sequence_id = NEW.sequence_id and e.lead_id is null and e.contact_id = NEW.contact_id
+     order by e.entered_at desc, e.id desc
+     limit 1
+     for update;
+  else
+    select e.* into v_e from public.sequence_enrollments e
+     where e.sequence_id = NEW.sequence_id and e.lead_id = NEW.lead_id
+     order by e.entered_at desc, e.id desc
+     limit 1
+     for update;
+  end if;
 
   if v_e.id is null or NEW.state is not distinct from OLD.state then
     return null;
@@ -25425,9 +25440,13 @@ begin
         and not (NEW.lead_id is null and NEW.state = 'failed' and NEW.reason = 'outcome_unknown') then
     if v_e.state = 'in' and v_e.place <= v_place
        and not exists (select 1 from public.sequence_sends o
-                        where o.sequence_id = NEW.sequence_id and o.id <> NEW.id
-                          and case when NEW.lead_id is null then o.lead_id is null and o.contact_id = NEW.contact_id
-                                   else o.lead_id = NEW.lead_id end
+                        where NEW.lead_id is null and o.tenant_id = NEW.tenant_id and o.contact_id = NEW.contact_id
+                          and o.sequence_id = NEW.sequence_id and o.lead_id is null and o.id <> NEW.id
+                          and o.state in ('planned', 'held', 'claimed', 'queued', 'drafted')
+                       union all
+                       select 1 from public.sequence_sends o
+                        where NEW.lead_id is not null and o.sequence_id = NEW.sequence_id and o.lead_id = NEW.lead_id
+                          and o.id <> NEW.id
                           and o.state in ('planned', 'held', 'claimed', 'queued', 'drafted')) then
       update public.sequence_enrollments
          set state = 'left', why = left(coalesce(NEW.reason, NEW.state), 60), ended_at = now(), next_at = null
@@ -35262,6 +35281,20 @@ CREATE INDEX sequence_enrollments_customer_latest ON public.sequence_enrollments
 --
 
 CREATE INDEX sequence_enrollments_due ON public.sequence_enrollments USING btree (sequence_id, place, next_at) WHERE ((state = 'in'::text) AND (next_at IS NOT NULL));
+
+
+--
+-- Name: sequence_enrollments_latest_customer; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_enrollments_latest_customer ON public.sequence_enrollments USING btree (sequence_id, contact_id, entered_at DESC, id DESC) WHERE (lead_id IS NULL);
+
+
+--
+-- Name: sequence_enrollments_latest_lead; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_enrollments_latest_lead ON public.sequence_enrollments USING btree (sequence_id, lead_id, entered_at DESC, id DESC) WHERE (lead_id IS NOT NULL);
 
 
 --
