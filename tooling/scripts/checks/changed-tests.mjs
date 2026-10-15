@@ -12,6 +12,8 @@
  *     tests/receptionist); supabase/ runs tests/database, and docs/ tests/history (the decisions' index);
  *   - a path whose tests live in folders it does not name, those folders too (TESTED_IN: the composer, the answer verb,
  *     the campaign runner);
+ *   - a file in a tree a test reads whole, that test, which no such path names (READ_BY: the appointment words'
+ *     ratchet, the hearing tests);
  *   - the folders that hold the repository's own rules and ratchets, always (ALWAYS): the five reds were all there.
  * A helper every test loads (the runner, a root helper, a stand-in) used to run the whole suite, which took 21 to 40
  * minutes on 6-9 Oct 2026 and ran #1535's and #1539's CI past its cap. Ruben, 10 Oct 2026: a push is through CI in
@@ -26,6 +28,8 @@
 import { execFileSync, spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { READER_SCOPE } from "../tests/_source.mjs";
+import { SCOPES as TRACED } from "../trace-routes.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const TESTS = "tooling/scripts/tests";
@@ -46,12 +50,39 @@ export const TESTED_IN = {
 };
 
 /**
+ * Tests that read whole trees whose paths never name them, each with what it reads (a tree ends in "/"): the trees as
+ * the file that names them says them, that file, and the test's baselines. The appointment words' ratchet counts
+ * "visit" written into every tree a reader reads (READER_SCOPE): #1574, #1579, #1599 and #1602-#1604 each wrote new
+ * ones in without running it, and main went red (13-15 Oct 2026). The hearing tests follow every route through the
+ * tracer's trees (trace-routes.mjs SCOPES, and schema.sql) and run the dashboard's browser code and contracts, and
+ * their two ratchets (reads-not-heard.json, on-demand-reads.json) were as blind.
+ */
+export const READ_BY = {
+  [`${TESTS}/journey/journey.test.mjs`]: [
+    ...READER_SCOPE.map((tree) => `${tree}/`),
+    `${TESTS}/_source.mjs`,
+    `${TESTS}/baselines/appointment-words.json`,
+  ],
+  [`${TESTS}/shell/hearing`]: [
+    ...[...TRACED, "apps/dashboard/src", "packages/contracts/src"].map((tree) => `${tree}/`),
+    "supabase/schema.sql",
+    "tooling/scripts/trace-routes.mjs",
+    `${TESTS}/baselines/reads-not-heard.json`,
+    `${TESTS}/baselines/on-demand-reads.json`,
+    `${TESTS}/baselines/hearing/`,
+    `${TESTS}/baselines/writes/`,
+  ],
+};
+
+/**
  * What to run for a set of changed paths, given the folders of tooling/scripts/tests that hold tests: the files and
  * folders to hand the runner, ALWAYS first.
  */
 export function testTargets(changed, testFolders) {
   const targets = new Set(ALWAYS);
   for (const file of changed) {
+    for (const [target, reads] of Object.entries(READ_BY))
+      if (reads.some((r) => file.startsWith(r))) targets.add(target);
     if (file.startsWith(`${TESTS}/`)) {
       const folder = file.split("/")[3];
       if (/\.test\.mjs$/.test(file)) targets.add(file);
@@ -70,9 +101,9 @@ export function testTargets(changed, testFolders) {
       if (testFolders.has(name)) targets.add(`${TESTS}/${name}`);
     }
   }
-  // A folder already asked for covers a file inside it.
+  // A folder already asked for covers a file or a folder inside it.
   const folders = [...targets].filter((t) => !t.endsWith(".mjs"));
-  return [...targets].filter((t) => !t.endsWith(".mjs") || !folders.some((d) => t.startsWith(`${d}/`)));
+  return [...targets].filter((t) => !folders.some((d) => t.startsWith(`${d}/`)));
 }
 
 /** A suite that needs the stack: `pnpm test:db`'s own two globs (tooling/scripts/checks/test.mjs SUITES.db). */
