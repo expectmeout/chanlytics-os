@@ -8,7 +8,7 @@ import { stamp, type Reader } from "./index";
  * the edge) and what Meta holds about the number (its standing, kept on the config by the edge: whether it may send, what
  * stands in the way, its display name's review, the business's verification and tier, and when it was read). The route's body,
  * moved here whole, so Settings, the Broadcasts page's number and Ask's
- * workspace.settings and campaigns.audiences read the same rows the same way. A channel is not a row a citation names:
+ * workspace.settings and sequences.lists read the same rows the same way. A channel is not a row a citation names:
  * none of the thirteen is a line's.
  */
 export const channels: Reader<undefined, { channels: ChannelDto[] }> = {

@@ -1,14 +1,63 @@
 /**
- * The answer while it is written (spec 7.4; the end-to-end review, C1): its Say so far, cleaned as the final's is, and
- * Show's figures and rows as each one closes. With the answer tool (ASK_ANSWER_TOOL) the answer's JSON streams on every
- * round, so a figure or a row can be drawn the moment its object is whole rather than when the final lands. Each is
- * grounded exactly as the final will ground it (normalizeAnswer), so a row the turn did not read is never drawn, not
- * even for a moment. A preview: the final message is the truth. Pure.
+ * The answer while its JSON is still arriving (the Line's spec, 7.4): the headline and the detail read from a prefix of
+ * what the model has written so far, drawn as the final message will draw them (ask-answer.ts sayAsDrawn), and Show's
+ * figures and rows as each one closes (the end-to-end review, C1). With the answer tool (ASK_ANSWER_TOOL) the answer's
+ * JSON streams on every round, so a figure or a row can be drawn the moment its object is whole rather than when the
+ * final lands. Each is grounded exactly as the final will ground it (normalizeAnswer), so a row the turn did not read is
+ * never drawn, not even for a moment. A preview: the final message is the truth. Pure.
  */
-import { cleanAnswer } from "./answer-text";
-import { normalizeAnswer, type AskFigure, type AskItem } from "./ask-answer";
+import { normalizeAnswer, sayAsDrawn, type AskFigure, type AskItem } from "./ask-answer";
 import type { AskLanguage } from "./ask-language";
 import type { AskReadSet } from "./citations";
+
+/**
+ * The string value of `"key": "…"` in a JSON prefix, decoded as far as it has arrived: up to the first unescaped
+ * quote, or the end of what is there.
+ */
+function partialField(s: string, key: string): string {
+  const k = s.indexOf(`"${key}"`);
+  if (k < 0) return "";
+  const colon = s.indexOf(":", k + key.length + 2);
+  if (colon < 0) return "";
+  let i = colon + 1;
+  while (i < s.length && /\s/.test(s.charAt(i))) i++;
+  if (s[i] !== '"') return "";
+  i++;
+  let out = "";
+  while (i < s.length) {
+    const c = s[i];
+    if (c === '"') break;
+    if (c === "\\") {
+      const n = s[i + 1];
+      if (n === undefined) break;
+      if (n === "u") {
+        const hex = s.slice(i + 2, i + 6);
+        if (hex.length < 4) break;
+        out += String.fromCharCode(parseInt(hex, 16) || 0x20);
+        i += 6;
+        continue;
+      }
+      out += n === "n" ? "\n" : n === "t" ? "\t" : n === "r" ? "\r" : n === "b" ? "\b" : n === "f" ? "\f" : n;
+      i += 2;
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
+}
+
+/**
+ * Say while the answer's JSON is still arriving (spec 7.4): the headline and the detail so far, from wherever `say`
+ * appears, drawn as the final message will draw them (sayAsDrawn), so a line the preview shows is never folded away
+ * when the answer lands; null before it appears. A preview only: the final message is the truth.
+ */
+export function partialSay(prefix: string): { headline: string; detail: string } | null {
+  const at = prefix.indexOf('"say"');
+  if (at < 0) return null;
+  const rest = prefix.slice(at);
+  return sayAsDrawn({ headline: partialField(rest, "headline"), detail: partialField(rest, "detail") });
+}
 
 /** Show as written so far: the figures and the rows whose objects have closed, grounded. */
 export interface AskShowPreview {
@@ -90,9 +139,8 @@ export function partialShow(prefix: string, read: AskReadSet, language: AskLangu
 }
 
 /**
- * The preview a turn sends as its answer is written: Say so far with nothing past a tag (cleanAnswer, the leak seen on
- * production), and Show once a figure or a row has closed in `json` (the answer's JSON so far; "" for words with no
- * shape).
+ * The preview a turn sends as its answer is written: Say as drawn so far (partialSay, or a prose answer's), and Show once
+ * a figure or a row has closed in `json` (the answer's JSON so far; "" for words with no shape).
  */
 export function previewOf(
   say: { headline: string; detail: string },
@@ -100,7 +148,6 @@ export function previewOf(
   read: AskReadSet,
   language: AskLanguage,
 ): AskSayPreview {
-  const words = { headline: cleanAnswer(say.headline), detail: cleanAnswer(say.detail) };
   const show = json ? partialShow(json, read, language) : null;
-  return show && (show.figures.length || show.items.length) ? { ...words, show } : words;
+  return show && (show.figures.length || show.items.length) ? { ...say, show } : say;
 }

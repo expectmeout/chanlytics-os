@@ -1,8 +1,11 @@
 import "server-only";
 import { z } from "zod";
 import {
-  REPORT_RANGES,
+  AppError,
+  REPORT_PERIOD_IDS,
   isThinShare,
+  reportShortcuts,
+  zoneDayKey,
   isUncounted,
   shareSaid,
   toBookingReportVM,
@@ -24,12 +27,17 @@ import {
 } from "@chanlytics/contracts";
 import { load } from "../../../readers";
 import { campaignLedgerReport, campaignReport, reachOutReport } from "../../../readers/campaign-report";
-import { peopleReport, receptionistReport, report, reviewsReport } from "../../../readers/report";
+import * as facts from "../../../readers/facts";
+import { peopleReport, receptionistReport, report, reportWindowFor, reviewsReport } from "../../../readers/report";
 import { defineRead, noteRow, unlessNotFound, unread, type ToolContext } from "../context";
 
-/** The counts of days the table offers (Month is no count: it is the days since the 1st, and the page's own), as the model is told them. */
-const PERIOD_DAYS = REPORT_RANGES.flatMap((r) => (r.days === null ? [] : [r.days]));
-const PERIOD_DAYS_SAID = `${PERIOD_DAYS.slice(0, -1).join(", ")} or ${PERIOD_DAYS.at(-1)}`;
+/** The periods by name, as the model reads them: said from the one table (contracts REPORT_RANGES). */
+const PERIODS_SAID = `${REPORT_PERIOD_IDS.slice(0, -1).join(", ")} or ${REPORT_PERIOD_IDS.at(-1)}`;
+/** The shortcuts the Reports page's period control offers, by the id the model names them with. */
+const SHORTCUTS = ["yesterday", "last_week", "last_month"] as const;
+/** The lenses a read may name: the Overview (the series, the booking line, the deals) and the page's other six. */
+const LENSES = ["overview", "campaigns", "reviews", "cold_email", "receptionist", "people"] as const;
+type Lens = (typeof LENSES)[number];
 
 /**
  * The three shapes every lens says its parts in, declared once. A row of a mix is `label: value` (`mixRow`: a name of its own,
@@ -267,58 +275,91 @@ function peopleSaid(pv: PeopleReportVM) {
   };
 }
 
-async function getReport(t: ToolContext, input: { days: number }): Promise<unknown> {
-  // The schema below refuses any other count, so the turn never gets here with one.
-  // A period that ends today: the tool reads a count of days, never days a member picked on the page.
-  const window = { days: Number(input.days) || 30, end: null };
-  // The Reports page's own read (readers/report.ts), once a turn: the series, then the booking line and the deals
-  // beside it, with how the workspace's customers buy taken from the turn (ledger #1). A report the function will not
-  // answer is the reader's 404, said as the tool always said it.
-  const [r, campaignRead, ledgerRead, reviewRead, reachRead, receptionistRead, peopleRead] = await Promise.all([
-    unlessNotFound(load(t.rc, report, window)),
+/**
+ * The window a read names, as the Reports page's control picks one and its route reads it (readers/report.ts
+ * reportWindowFor, the one place a request becomes days): a period by name (7d, 30d, 90d, month), days picked (from and
+ * to), or one of the control's shortcuts, worked out from the workspace's own today (contracts reportShortcuts). Refused
+ * in the route's own words where it is not a window.
+ */
+async function askedWindow(
+  t: ToolContext,
+  input: {
+    period?: (typeof REPORT_PERIOD_IDS)[number];
+    from?: string;
+    to?: string;
+    shortcut?: (typeof SHORTCUTS)[number];
+  },
+) {
+  let asked: { period?: (typeof REPORT_PERIOD_IDS)[number]; from?: string; to?: string } = {
+    period: input.period,
+    from: input.from,
+    to: input.to,
+  };
+  const shortcut = input.shortcut;
+  if (shortcut) {
+    const zone = (await load(t.rc, facts.facts, undefined)).data.timezone;
+    const today = zoneDayKey(t.rc.now.getTime(), zone);
+    const cut = reportShortcuts(today).find((s) => s.id === shortcut.replace(/_/g, "-"));
+    if (!cut) return { refusal: "shortcut is yesterday, last_week or last_month" };
+    asked = { from: cut.days.from, to: cut.days.to };
+  }
+  if (!asked.period && !asked.from && !asked.to) asked = { period: "30d" };
+  try {
+    return { window: await reportWindowFor(t.rc, asked) };
+  } catch (e) {
+    if (e instanceof AppError) return { refusal: e.message };
+    throw e;
+  }
+}
+
+/**
+ * Each lens's own read, beside the Reports page's (readers/report.ts), for the lenses asked for alone: one not asked is
+ * null, one that fails is null too, and said in the log.
+ */
+function lensReads(t: ToolContext, window: Parameters<typeof report.read>[1], want: Set<Lens>) {
+  const none = Promise.resolve(null);
+  return Promise.all([
     // The Campaigns lens's own read (readers/campaign-report.ts), beside it: one that fails is said as null, and in the log.
-    load(t.rc, campaignReport, window).then((x) => x.data.report, unread(t, "report", "campaigns")),
+    want.has("campaigns")
+      ? load(t.rc, campaignReport, window).then((x) => x.data.report, unread(t, "report", "campaigns"))
+      : none,
     // The Campaigns lens's ledger (readers/campaign-report.ts campaignLedgerReport: the window's people, runs, holds and
     // failures, and what is stuck now, judged at the turn's clock), which the page reads beside the sends. Each of its parts
     // fails alone inside the reader; the whole failing is null here, said as an error beside the sends and in the log.
-    load(t.rc, campaignLedgerReport, window).then((x) => x.data, unread(t, "report", "campaign_ledger")),
+    want.has("campaigns")
+      ? load(t.rc, campaignLedgerReport, window).then((x) => x.data, unread(t, "report", "campaign_ledger"))
+      : none,
     // The Reviews lens's own read (readers/report.ts reviewsReport: Google as its page reads it, and the reviews on
     // record): one that fails, a slow edge or a ledger that cannot be read, is null too. Folded below, outside the catch:
     // a fold that throws is a bug to see, never "could not be read".
-    load(t.rc, reviewsReport, window).then((x) => x.data, unread(t, "report", "reviews")),
+    want.has("reviews") ? load(t.rc, reviewsReport, window).then((x) => x.data, unread(t, "report", "reviews")) : none,
     // The Reach-outs section's own read (readers/campaign-report.ts reachOutReport), the page's, over the same window:
     // null where it fails.
-    load(t.rc, reachOutReport, window).then((x) => x.data.report, unread(t, "report", "reach_outs")),
+    want.has("campaigns") || want.has("cold_email")
+      ? load(t.rc, reachOutReport, window).then((x) => x.data.report, unread(t, "report", "reach_outs"))
+      : none,
     // The Receptionist lens's own read (readers/report.ts receptionistReport: the database's receptionist_series, the
     // people sent the booking link counted against the calendar, and the hours): a database without the function answers
     // with no series (said as `{ available: false }`: the page draws its kept cards and none of these parts), one that
     // fails is null too, and the fold is outside the catch, as above.
-    load(t.rc, receptionistReport, window).then((x) => x.data, unread(t, "report", "receptionist")),
+    want.has("receptionist")
+      ? load(t.rc, receptionistReport, window).then((x) => x.data, unread(t, "report", "receptionist"))
+      : none,
     // The People lens's own read (readers/report.ts peopleReport: the database's people_series, and the book as People counts
     // it over the turn's one read of People, the zone and the channels, which the booking line and the others share): a
     // database without the function answers with no series (said as `window: null`), People that cannot be counted leave
     // the book null, one that fails is null here (said as an error), and the fold is outside the catch, as above.
-    load(t.rc, peopleReport, window).then((x) => x.data, unread(t, "report", "people")),
+    want.has("people") ? load(t.rc, peopleReport, window).then((x) => x.data, unread(t, "report", "people")) : none,
   ]);
-  // The Campaigns lens is folded from its three reads at once, as the page folds them (a read that failed is null, and the
-  // fold says what stands); the Reach-outs section is the same fold's own part, said whether or not the sends were read.
-  const campaigns = toCampaignLensVM(
-    { campaigns: campaignRead, ledger: ledgerRead, reachOuts: reachRead },
-    t.rc.now.getTime(),
-  );
-  const reviews = reviewRead ? toReviewsReportVM(reviewRead, { nowMs: t.rc.now.getTime() }) : null;
-  const reachOuts = campaigns.reachOuts;
-  const receptionist = receptionistRead
-    ? toReceptionistReportVM(receptionistRead, { nowMs: t.rc.now.getTime() })
-    : null;
-  const people = peopleRead ? toPeopleReportVM(peopleRead) : null;
-  if (!r) return { error: "report unavailable" };
-  // The page's own builders over the page's own payload, as the bridge applies them (legacy-bridge/surface-data.ts).
-  const vm = toReportVM(r.data.report, { profile: r.data.profile });
-  const booking = r.data.booking ? toBookingReportVM(r.data.booking) : null;
-  const deals = toDealReportVM(r.data.deals, vm.period.within);
+}
+
+/** The overview as the page draws it: its tiles, answers, reply times, calls, people, reasons, days, booking line and deals. */
+function overviewSaid(
+  vm: ReturnType<typeof toReportVM>,
+  booking: ReturnType<typeof toBookingReportVM> | null,
+  deals: ReturnType<typeof toDealReportVM>,
+) {
   return {
-    range: vm.rangeLabel,
     empty: vm.empty,
     tiles: vm.tiles.map((x) => ({ label: x.label, value: x.value, meta: x.meta, change: x.delta?.text ?? null })),
     answered: vm.answered.totals,
@@ -338,8 +379,7 @@ async function getReport(t: ToolContext, input: { days: number }): Promise<unkno
     // Asked, then booked: the page's one conversion line, its headline ("12 of 40 booked", "Nobody asked") where the
     // calendar was read, else the page's own sentence for why there is nothing to count. Null: that line's read failed.
     booking: booking ? (booking.present ? booking.headline : booking.sub) : null,
-    // The Deals section as the page draws it, where it draws one (deals are on and one was recorded): the cohort's
-    // headline, what became of its proposals, the lines beside the bars, and the clients now. Null where it draws none.
+    // The Deals section as the page draws it, where it draws one (deals are on and one was recorded). Null where none.
     deals: deals.present
       ? {
           headline: deals.headline,
@@ -348,27 +388,106 @@ async function getReport(t: ToolContext, input: { days: number }): Promise<unkno
           stock: deals.stock,
         }
       : null,
-    // The Campaigns lens, as the page says it; an error where the sends' read failed, never as nothing sent, and beside
-    // the parts it cost where the ledger's or what is stuck failed.
-    campaigns: campaignsSaid(campaigns),
-    // The Reviews lens, as the page says it; an error where its read failed, never as no reviews.
-    reviews: reviews ? reviewsSaid(t, reviews) : { error: "the review numbers could not be read just now" },
-    // The Reach-outs section, as the page says it, where the workspace has one; an error where its read failed.
-    reach_outs: reachOuts ? reachOutsSaid(reachOuts) : { error: "the reach-out numbers could not be read just now" },
-    // The Receptionist lens, as the page says it; an error where its read failed, never as nothing handled.
-    receptionist: receptionist
-      ? receptionistSaid(receptionist)
-      : { error: "the receptionist numbers could not be read just now" },
-    // The People lens, as the page says it; an error where its read failed, never as nobody reached you.
-    people: people ? peopleSaid(people) : { error: "the people numbers could not be read just now" },
+  };
+}
+
+/** Each lens asked for, as the page says it; an error where its read failed, never as nothing. */
+function lensesSaid(
+  t: ToolContext,
+  want: Set<Lens>,
+  lens: {
+    campaigns: ReturnType<typeof toCampaignLensVM>;
+    reviews: ReturnType<typeof toReviewsReportVM> | null;
+    receptionist: ReturnType<typeof toReceptionistReportVM> | null;
+    people: ReturnType<typeof toPeopleReportVM> | null;
+  },
+) {
+  const { campaigns, reviews, receptionist, people } = lens;
+  const reachOuts = campaigns.reachOuts;
+  return {
+    // Each lens as the page says it, where it was asked for; an error where its read failed, never as nothing.
+    ...(want.has("campaigns") ? { campaigns: campaignsSaid(campaigns) } : {}),
+    ...(want.has("reviews")
+      ? { reviews: reviews ? reviewsSaid(t, reviews) : { error: "the review numbers could not be read just now" } }
+      : {}),
+    ...(want.has("campaigns") || want.has("cold_email")
+      ? {
+          reach_outs: reachOuts
+            ? reachOutsSaid(reachOuts)
+            : { error: "the cold email numbers could not be read just now" },
+        }
+      : {}),
+    ...(want.has("receptionist")
+      ? {
+          receptionist: receptionist
+            ? receptionistSaid(receptionist)
+            : { error: "the receptionist numbers could not be read just now" },
+        }
+      : {}),
+    ...(want.has("people")
+      ? { people: people ? peopleSaid(people) : { error: "the people numbers could not be read just now" } }
+      : {}),
+  };
+}
+
+async function getReport(
+  t: ToolContext,
+  input: {
+    period?: (typeof REPORT_PERIOD_IDS)[number];
+    from?: string;
+    to?: string;
+    shortcut?: (typeof SHORTCUTS)[number];
+    lenses?: Lens[];
+  },
+): Promise<unknown> {
+  const w = await askedWindow(t, input);
+  if ("refusal" in w) return { error: w.refusal };
+  const { window } = w;
+  // Only the lenses asked for are read (every one where none is named), so a question about reviews reads reviews.
+  const want = new Set<Lens>(input.lenses?.length ? input.lenses : LENSES);
+  // The Reports page's own read (readers/report.ts), once a turn: the series, then the booking line and the deals
+  // beside it, with how the workspace's customers buy taken from the turn (ledger #1). A report the function will not
+  // answer is the reader's 404, said as the tool always said it. Each lens asked for is read beside it.
+  const [r, lensRead] = await Promise.all([unlessNotFound(load(t.rc, report, window)), lensReads(t, window, want)]);
+  const [campaignRead, ledgerRead, reviewRead, reachRead, receptionistRead, peopleRead] = lensRead;
+  // The Campaigns lens is folded from its three reads at once, as the page folds them (a read that failed is null, and the
+  // fold says what stands); the Reach-outs section is the same fold's own part, said whether or not the sends were read.
+  const campaigns = toCampaignLensVM(
+    { campaigns: campaignRead, ledger: ledgerRead, reachOuts: reachRead },
+    t.rc.now.getTime(),
+  );
+  const reviews = reviewRead ? toReviewsReportVM(reviewRead, { nowMs: t.rc.now.getTime() }) : null;
+  const receptionist = receptionistRead
+    ? toReceptionistReportVM(receptionistRead, { nowMs: t.rc.now.getTime() })
+    : null;
+  const people = peopleRead ? toPeopleReportVM(peopleRead) : null;
+  if (!r) return { error: "report unavailable" };
+  // The page's own builders over the page's own payload, as the bridge applies them (legacy-bridge/surface-data.ts).
+  const vm = toReportVM(r.data.report, { profile: r.data.profile });
+  const booking = r.data.booking ? toBookingReportVM(r.data.booking) : null;
+  const deals = toDealReportVM(r.data.deals, vm.period.within);
+  return {
+    range: vm.rangeLabel,
+    ...(want.has("overview") ? overviewSaid(vm, booking, deals) : {}),
+    ...lensesSaid(t, want, { campaigns, reviews, receptionist, people }),
   };
 }
 
 export const reportTool = defineRead({
   name: "report",
-  description: `The Reports page for the last ${PERIOD_DAYS_SAID} days: messages answered by the receptionist, by a person and left unanswered, the median and p90 reply time (both include the hold the owner set before a reply goes out; reply_time.hold splits the replies against it: with no hold, as the hold ended, or later, and the most any took past it), calls and their minutes, new people, the escalation reasons, the change against the period before, a by-day series, the booking line (asked, then booked) where the calendar is read, the Deals section where deals are on, and the Campaigns lens, as the page says it: head is its sentence; figures are the people sent to, the share of the messages delivered, the share of those people who wrote back, and the yeses and stops after a campaign, each against the period before; funnel is what was sent, delivered, read (WhatsApp's alone) and answered, counted in messages (a person sent three is three messages here and one in figures); by_channel is the same by channel where more than one sent (read is a share of what went by WhatsApp alone: a text or an email keeps no read receipt); sources are the five that sent the most; window is the period's, from the database's ledger: held (who was held back, and why), runs_stopped (the runs that failed or were canceled), failed_sends (why sends failed after they left), by_message (who wrote back to each message), send_to_first_reply (how soon the first reply came) and wait_for_your_ok (how long approvals waited); stuck is what is stuck now, whatever period is picked: the runs waiting for your OK, the failed runs, the replies waiting on you, the messages Meta stopped and your WhatsApp number; a share is said only of five or more and a count under that, and a mix with nothing to draw says the page's words in empty; window is null where the database does not keep the ledger yet and stuck where it does not keep what is stuck, each with an error beside it where its read failed, and a part of window the database did not count is null too; campaigns says error where its numbers could not be read. The Reviews lens is in reviews: the sentence at its head and its figures as the page says them (the rating, the count, the reviews written against the period before) and, where the owner's Business Profile is connected, how many were answered and how fast, the mix of stars, and how many wait for a reply (held is how many of the oldest waiting hold a reply the receptionist wrote and did not post), the oldest five waiting in rows and the newest five in latest, each with its id; reviews says linked false where no Google listing is linked, and error where its numbers could not be read. The Reach-outs section is in reach_outs, as the page says it: strip is the emails the reach-outs wrote, the share that landed and the number that bounced, each against the period before; emails is what was written, delivered and bounced, counted in emails; businesses is the businesses written to and how many wrote back, were interested, booked or said no, counted in businesses as they stand now (each counts once, at the last email that wrote to it, and an outcome is set against nothing before); angles is who wrote back, as they stand now, by the opening of the last email; handed is the line on the businesses handed to the owner, null where none were, and empty says nothing was written; reach_outs is null where the workspace has no reach-out, and error where its numbers could not be read. The Receptionist lens is in receptionist, as the page says it: what became of the replies held before they went out (hold), what customers asked about (topics), the languages the receptionist wrote in where it wrote in more than one, how the calls someone spoke on ended, the booking link and how many of the people it went to have booked since (link), your first reply after a handover and the time to settle one (handover), the missed calls answered within an hour (missed), what came while the business was closed and how many of those the receptionist answered (closed), and what is stuck now (stuck: who waits on you, call-backs, the replies held back), with held_back giving the reasons the send door refused a reply; receptionist says available false where the database does not keep these numbers yet, and error where they could not be read. The People lens is in people, as the page says it: head is its sentence; window is the period, counted in people (one who wrote ten times is one): reached (who reached you, how many were new, the yeses won and the stops, each against the period before), channels (how they reached you), first_came (how the new ones first came), yeses and stops (who gave them), steps_done (the steps finished and how many on their day) and email_stopped (the addresses that stopped working); book is everyone as they stand now, whatever period is picked: wires (the ways they reach you), fresh (how long since they last wrote or called, with quiet saying how many have been quiet over 30 days), stuck (the steps overdue and due today, and the email that stopped working) and stand (how many said yes to messages, can receive offers, opted out or are quiet); a mix with nothing to draw says the page's words in empty; people says window null where the database does not keep the period's numbers yet, book null where the people could not be counted, available false where neither could be read, and error where they could not be read. Call it for how a period went or for a trend; the today tool has the day itself and its counts, and the Reports page on screen already holds this. days takes ${PERIOD_DAYS_SAID} and nothing else. An empty period says so in empty; a range the report cannot answer is an error, said in words.`,
-  // The table's counts as literals, not a number: the schema refuses 8, and says the ones it takes.
-  input: z.object({ days: z.literal(PERIOD_DAYS) }),
+  description: `The Reports page for any window its period control picks -- a period (${PERIODS_SAID}: month is the days since the 1st), days picked (from and to, YYYY-MM-DD, at most ninety, ending today at the latest), or a shortcut (yesterday, last_week, last_month), 30d where none is named -- and only the lenses asked for (lenses: overview, campaigns, reviews, cold_email, receptionist, people; every one where none is named). The overview: messages answered by the receptionist, by a person and left unanswered, the median and p90 reply time (both include the hold the owner set before a reply goes out; reply_time.hold splits the replies against it: with no hold, as the hold ended, or later, and the most any took past it), calls and their minutes, new people, the escalation reasons, the change against the period before, a by-day series, the booking line (asked, then booked) where the calendar is read, the Deals section where deals are on, and the Campaigns lens, as the page says it: head is its sentence; figures are the people sent to, the share of the messages delivered, the share of those people who wrote back, and the yeses and stops after a campaign, each against the period before; funnel is what was sent, delivered, read (WhatsApp's alone) and answered, counted in messages (a person sent three is three messages here and one in figures); by_channel is the same by channel where more than one sent (read is a share of what went by WhatsApp alone: a text or an email keeps no read receipt); sources are the five that sent the most; window is the period's, from the database's ledger: held (who was held back, and why), runs_stopped (the runs that failed or were canceled), failed_sends (why sends failed after they left), by_message (who wrote back to each message), send_to_first_reply (how soon the first reply came) and wait_for_your_ok (how long approvals waited); stuck is what is stuck now, whatever period is picked: the runs waiting for your OK, the failed runs, the replies waiting on you, the messages Meta stopped and your WhatsApp number; a share is said only of five or more and a count under that, and a mix with nothing to draw says the page's words in empty; window is null where the database does not keep the ledger yet and stuck where it does not keep what is stuck, each with an error beside it where its read failed, and a part of window the database did not count is null too; campaigns says error where its numbers could not be read. The Reviews lens is in reviews: the sentence at its head and its figures as the page says them (the rating, the count, the reviews written against the period before) and, where the owner's Business Profile is connected, how many were answered and how fast, the mix of stars, and how many wait for a reply (held is how many of the oldest waiting hold a reply the receptionist wrote and did not post), the oldest five waiting in rows and the newest five in latest, each with its id; reviews says linked false where no Google listing is linked, and error where its numbers could not be read. The Reach-outs section is in reach_outs, as the page says it: strip is the emails the reach-outs wrote, the share that landed and the number that bounced, each against the period before; emails is what was written, delivered and bounced, counted in emails; businesses is the businesses written to and how many wrote back, were interested, booked or said no, counted in businesses as they stand now (each counts once, at the last email that wrote to it, and an outcome is set against nothing before); angles is who wrote back, as they stand now, by the opening of the last email; handed is the line on the businesses handed to the owner, null where none were, and empty says nothing was written; reach_outs is null where the workspace has no reach-out, and error where its numbers could not be read. The Receptionist lens is in receptionist, as the page says it: what became of the replies held before they went out (hold), what customers asked about (topics), the languages the receptionist wrote in where it wrote in more than one, how the calls someone spoke on ended, the booking link and how many of the people it went to have booked since (link), your first reply after a handover and the time to settle one (handover), the missed calls answered within an hour (missed), what came while the business was closed and how many of those the receptionist answered (closed), and what is stuck now (stuck: who waits on you, call-backs, the replies held back), with held_back giving the reasons the send door refused a reply; receptionist says available false where the database does not keep these numbers yet, and error where they could not be read. The People lens is in people, as the page says it: head is its sentence; window is the period, counted in people (one who wrote ten times is one): reached (who reached you, how many were new, the yeses won and the stops, each against the period before), channels (how they reached you), first_came (how the new ones first came), yeses and stops (who gave them), steps_done (the steps finished and how many on their day) and email_stopped (the addresses that stopped working); book is everyone as they stand now, whatever period is picked: wires (the ways they reach you), fresh (how long since they last wrote or called, with quiet saying how many have been quiet over 30 days), stuck (the steps overdue and due today, and the email that stopped working) and stand (how many said yes to messages, can receive offers, opted out or are quiet); a mix with nothing to draw says the page's words in empty; people says window null where the database does not keep the period's numbers yet, book null where the people could not be counted, available false where neither could be read, and error where they could not be read. Call it for how a period went or for a trend, naming only the lenses the question needs; the today tool has the day itself and its counts, and the Reports page on screen already holds this. An empty period says so in empty; a window the report cannot answer is an error, said in the page's words.`,
+  input: z.object({
+    period: z.enum(REPORT_PERIOD_IDS).optional().describe(`A period by name: ${PERIODS_SAID}.`),
+    from: z.string().optional().describe("The first day of days picked, YYYY-MM-DD, with to."),
+    to: z.string().optional().describe("Their last day, YYYY-MM-DD, today at the latest."),
+    shortcut: z.enum(SHORTCUTS).optional().describe("yesterday, last_week or last_month, by the workspace's calendar."),
+    lenses: z.array(z.enum(LENSES)).optional().describe("The lenses to read; every one where none is named."),
+  }),
+  examples: [
+    { period: "30d" },
+    { shortcut: "last_week", lenses: ["reviews"] },
+    { from: "2026-09-01", to: "2026-09-20" },
+  ],
   label: "Reading Reports",
   run: getReport,
 });

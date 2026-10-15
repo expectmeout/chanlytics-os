@@ -4,7 +4,10 @@ export {
   ASK_MAX_CHARS,
   ASK_MAX_ROUNDS,
   ASK_TURN_BUDGET_MS,
+  ASK_SPOKEN_TURN_BUDGET_MS,
   ASK_TOOLS_CHARS_CEILING,
+  ASK_CORE_TOOLS_CHARS_CEILING,
+  ASK_SELECTION_MAX,
   ASK_VOICE_CLAIM_STALE_MS,
   ASK_VOICE_FIRST_WORDS_MS,
   ASK_VOICE_PULSE_MS,
@@ -81,7 +84,9 @@ export type { AskWaiting } from "./ask-waiting";
 export type { AskModelProfile } from "./ask-model";
 export {
   answerText,
-  cardOpenRoute,
+  answerSpoken,
+  listSpoken,
+  storedAnswer,
   oneDoor,
   answerFromV1,
   needsAnswer,
@@ -89,7 +94,6 @@ export {
   openingsAnswer,
   normalizeAnswer,
   answerWords,
-  partialSay,
   answerForCards,
   failedAnswer,
   proseAnswer,
@@ -110,8 +114,8 @@ export type {
   AskAnswerRead,
 } from "./ask-answer";
 export { ASK_ANSWER_FORMAT } from "./answer-format";
-export { previewOf } from "./answer-preview";
-export type { AskSayPreview, AskShowPreview } from "./answer-preview";
+export { partialSay, previewOf } from "./answer-stream";
+export type { AskSayPreview, AskShowPreview } from "./answer-stream";
 export { planOf, PLAN_WORDS } from "./plan";
 export type { PlanIntent, PlanWorld, PlanStep } from "./plan";
 export { planMadeOf, resolveSteps, stepToken, STEP_TOKEN, planWaits, cardsInPlans, planGroupOf } from "./plan-steps";

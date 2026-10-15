@@ -425,3 +425,40 @@ test("(0008, D1-consult-held) a consultation over with no proposal since leads w
     "deals off: nothing said of one",
   );
 });
+
+test("(decision 0061) a time a customer picked by text leads with Booked it, keeps Can't in More in place of a cancel, and says where it came from", () => {
+  const request = {
+    source: "notice",
+    tool: null,
+    visit: { id: "v1", status: "proposed" },
+    request: { thread_id: "cv-ana", open: true },
+  };
+  const vm = sheet(AHEAD, request);
+  assert.deepEqual(vm.primary, { act: "booked", label: "Booked it", quiet: false });
+  assert.equal(vm.footnote, "Requested by text · Booked it or Can't");
+  assert.ok(
+    vm.more.some((m) => m.act === "cant" && m.label === "Can't" && m.danger),
+    "Can't, in More",
+  );
+  assert.ok(!vm.more.some((m) => m.act === "cancel"), "never the visit's own cancel: Can't leaves the thread a reply");
+  assert.equal(vm.state?.word, "Requested");
+  // A booking tool's request is the tool's to confirm: it keeps its own words and acts.
+  const tools = sheet(AHEAD, { source: "notice", tool: "Booksy", visit: { id: "v1", status: "proposed" } });
+  assert.notEqual(tools.primary?.act, "booked");
+  assert.ok(tools.more.some((m) => m.act === "cancel"));
+  // Answered, it is on no calendar: its foot says so, never "on your calendar", and it asks nothing more.
+  const booked = sheet(AHEAD, {
+    ...request,
+    visit: { id: "v1", status: "booked" },
+    request: { thread_id: "cv-ana", open: false },
+  });
+  assert.equal(booked.footnote, "Booked by text · change it with them in their thread");
+  assert.notEqual(booked.primary?.act, "booked");
+  assert.ok(!booked.more.some((m) => m.act === "cant"));
+  const cant = sheet(AHEAD, {
+    ...request,
+    visit: { id: "v1", status: "cancelled" },
+    request: { thread_id: "cv-ana", open: false },
+  });
+  assert.equal(cant.footnote, "Asked for by text · you couldn't take it");
+});

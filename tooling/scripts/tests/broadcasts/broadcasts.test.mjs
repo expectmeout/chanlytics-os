@@ -1113,7 +1113,7 @@ test("Ask: a broadcast is read (campaigns.audiences) and proposed (propose_campa
   );
   const READ_TOOLS = toApiTools("viewer", true);
   const ACT_TOOLS = toApiTools("owner", true).filter((t) => ACT_TOOL_NAMES.has(t.name));
-  assert.ok(READ_TOOLS.some((t) => t.name === "campaigns"));
+  assert.ok(READ_TOOLS.some((t) => t.name === "sequences"));
   // Only an approved template: a pending one is refused before anyone is counted.
   const WS = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   const PENDING = "dddddddd-dddd-4ddd-8ddd-ddddddddddd9";
@@ -1144,8 +1144,8 @@ test("Ask: a broadcast is read (campaigns.audiences) and proposed (propose_campa
     ZONE,
     new Date("2026-09-14T14:00:00Z"),
   );
-  const pending = await buildProposal(t, "propose_campaign", {
-    action: "broadcast",
+  const pending = await buildProposal(t, "propose_sequence", {
+    action: "once",
     template_id: PENDING,
     audience_kind: "everyone",
   });
@@ -1164,7 +1164,7 @@ test("Ask: a broadcast is read (campaigns.audiences) and proposed (propose_campa
   );
   // The rule that described one tool lives in that tool since PR 3.3 (D9): the registry's own description says it.
   assert.ok(
-    ACT_TOOLS.find((t) => t.name === "propose_campaign").description.includes("never propose a broadcast to nobody"),
+    ACT_TOOLS.find((t) => t.name === "propose_sequence").description.includes("never propose a send to nobody"),
     "a broadcast to nobody is never proposed",
   );
   assert.ok(readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx").includes('broadcast: "wave"'));

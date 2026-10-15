@@ -10,7 +10,7 @@ import {
   pushOffOf,
   unreadFor,
 } from "@chanlytics/contracts";
-import { memberAlertsOf, olderUnreadFor } from "@chanlytics/db";
+import { memberAlertsOf, memberViewsOf, olderUnreadFor } from "@chanlytics/db";
 
 /**
  * GET notifications, as the route answers it: the workspace's kept notifications of the last thirty days by the turn's
@@ -126,5 +126,18 @@ export const memberAlerts: Reader<undefined, MemberAlertsDto> = {
       choosable: row.choosable,
     };
     return { data: out, rows: [], stamp: stamp() };
+  },
+};
+
+/**
+ * GET views, as the route answers it: what this member's pages remember in this workspace, from their own membership row
+ * (memberships_self_select), empty for a member who has changed nothing yet. Ask reads it too: its follow-ups are kept
+ * there, under its own page (contracts ASK_VIEW_PAGE).
+ */
+export const memberViews: Reader<undefined, Record<string, unknown>> = {
+  name: "member_views",
+  async read(rc) {
+    const views = await memberViewsOf(rc.ctx.supabase, { tenantId: rc.tenantId, userId: rc.userId });
+    return { data: views, rows: [], stamp: stamp() };
   },
 };

@@ -103,6 +103,7 @@ export {
   NotificationsConfigSchema,
   CalendarConfigSchema,
   FeaturesConfigSchema,
+  ASK_GOAL_MAX,
   TenantConfigSchema,
   TenantConfigWriteSchema,
 } from "./workspace-config/config-schema";
@@ -218,6 +219,7 @@ export {
   BRAIN_INTENTS,
   BRAIN_LANGUAGES,
   BRAIN_OUTPUT_JSON_SCHEMA,
+  brainOutputSchemaFor,
   CONFIDENCE_STEPS,
 } from "./brain";
 export { INTENT_LABELS } from "./intent-labels";

@@ -39,6 +39,8 @@ export const leadSearchSpec: ProposalSpecAboveOperator = {
       " ",
     );
   },
+  // The search it started (an answer started none), for a later step of Ask's plan that names it: a follow-up on it.
+  made: ({ payload }, data) => (amendsOf(payload) ? null : idIn(rec(data), "search_id")),
   undo: {
     // An answer carries the round on; there is nothing to undo (Stop is the strip's).
     label: ({ payload }) => (amendsOf(payload) ? null : "Stop the search"),

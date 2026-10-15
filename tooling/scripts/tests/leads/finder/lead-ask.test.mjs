@@ -41,8 +41,9 @@ const SEARCH_ELSEWHERE = "55555555-5555-4555-8555-555555555554";
 const ROUND = "66666666-6666-4666-8666-666666666661";
 const NOW = new Date("2026-09-19T15:00:00Z");
 
-/** What the model hands `propose_lead_search`: the owner's ask, in the tool's own fields. */
+/** What the model hands `propose_lead_search`: the owner's ask, in the tool's own fields, under its action find. */
 const MODEL_INPUT = {
+  action: "find",
   looking_for: "local_businesses",
   country: "US",
   count: 200,
@@ -229,6 +230,7 @@ test("propose_lead_search makes a plan card for an owner; the model's plan is co
 test("what a model writes and the plan means the same thing: a Title-Case key, a packed city, a bracketed country", async () => {
   const t = toolContext({ role: "owner", tables: world() });
   const out = await buildProposal(t, "propose_lead_search", {
+    action: "find",
     ...MODEL_INPUT,
     category_key: "Wedding-Venue",
     city: "Miami, FL",
@@ -249,6 +251,7 @@ test("what a model writes and the plan means the same thing: a Title-Case key, a
     "the key it asked the prior for is the plan's own shape, not the model's Title-Case",
   );
   const stateInCity = await buildProposal(t, "propose_lead_search", {
+    action: "find",
     ...MODEL_INPUT,
     city: "Florida",
     region: "Miami",
@@ -259,6 +262,7 @@ test("what a model writes and the plan means the same thing: a Title-Case key, a
     "the two fields swapped still name one place",
   );
   const abroad = await buildProposal(t, "propose_lead_search", {
+    action: "find",
     ...MODEL_INPUT,
     country: "Canada",
     region: "ON",
@@ -315,15 +319,18 @@ test("the card carries the facts under the sentence: what a search would skip, w
 
 test("the planner's refusals are words for the model to say, and no card", async () => {
   const t = toolContext({ role: "owner", tables: world() });
-  const out = await buildProposal(t, "propose_lead_search", { ...MODEL_INPUT, country: "CA", region: "ON" });
+  const out = await buildProposal(t, "propose_lead_search", {
+    action: "find",
+    ...MODEL_INPUT,
+    country: "CA",
+    region: "ON",
+  });
   assert.deepEqual([out.proposal, out.isError], [null, true]);
   assert.match(JSON.parse(out.result).error, /I can only find businesses in the US for now/);
   const operator = toolContext({ role: "operator", tables: world() });
   const op = await buildProposal(operator, "propose_lead_search", MODEL_INPUT);
-  assert.equal(
-    JSON.parse(op.result).error,
-    "only an owner or the workspace's partner can start a lead search; say so, and that one of them can ask",
-  );
+  // The registry refuses the action above the caller first (D2), in its words; the builder's own check stays behind it.
+  assert.equal(JSON.parse(op.result).error, "propose_lead_search: action find is an owner's or a partner's");
   assert.deepEqual(operator.ctx.supabase.seen, [], "an operator is refused before anything is read");
   // REGRESSION (D7): a partner was refused the card its route and the find permission allow. Now a partner gets it,
   // needing a partner, and answering a waiting search is theirs too.
@@ -334,12 +341,24 @@ test("the planner's refusals are words for the model to say, and no card", async
     [theirs.proposal.kind, theirs.proposal.needs, theirs.proposal.undo],
     ["lead_search", "partner", "Stop the search"],
   );
-  const answers = await buildProposal(partner, "propose_lead_search", { ...MODEL_INPUT, amends: SEARCH3 });
+  const answers = await buildProposal(partner, "propose_lead_search", {
+    action: "find",
+    ...MODEL_INPUT,
+    amends: SEARCH3,
+  });
   assert.deepEqual([answers.isError, answers.proposal.undo], [false, null], "an answer carries the round on");
-  const people = await buildProposal(t, "propose_lead_search", { ...MODEL_INPUT, looking_for: "people" });
+  const people = await buildProposal(t, "propose_lead_search", {
+    action: "find",
+    ...MODEL_INPUT,
+    looking_for: "people",
+  });
   assert.match(JSON.parse(people.result).error, /I find businesses, not people at home/);
   assert.equal(people.proposal, null);
-  const sellers = await buildProposal(t, "propose_lead_search", { ...MODEL_INPUT, looking_for: "online_sellers" });
+  const sellers = await buildProposal(t, "propose_lead_search", {
+    action: "find",
+    ...MODEL_INPUT,
+    looking_for: "online_sellers",
+  });
   assert.match(JSON.parse(sellers.result).error, /I can find local businesses for now/);
 });
 
@@ -381,13 +400,14 @@ test("leads.searches says what was asked, in the owner's words, and how each end
     "Counted is what came off this month's leads; a search with a question is waiting for the owner's answer.",
   );
   const description = READ_TOOLS.find((d) => d.name === "leads").description;
-  assert.match(description, /propose_lead_search with amends set to that search's id/);
+  assert.match(description, /propose_lead_search with action find and amends set to that search's id/);
   assert.match(description, /Yes, keep going or Stop here on Leads/);
 });
 
 test("propose_lead_search with amends answers a waiting search: the plan at the round's next version and count, the question on the card, no undo", async () => {
   const t = toolContext({ role: "owner", tables: world() });
   const out = await buildProposal(t, "propose_lead_search", {
+    action: "find",
     ...MODEL_INPUT,
     count: 50,
     leave_out: [],
@@ -412,20 +432,25 @@ test("propose_lead_search with amends answers a waiting search: the plan at the 
   assert.equal(p.undo, null, "an answer carries the round on; there is nothing to undo");
   assert.ok(p.payload.view && p.payload.facts, "the card still carries the view and the facts");
   // A search that is running, or one this workspace does not have, is a refusal in words, never a second search.
-  const running = await buildProposal(t, "propose_lead_search", { ...MODEL_INPUT, amends: SEARCH2 });
+  const running = await buildProposal(t, "propose_lead_search", { action: "find", ...MODEL_INPUT, amends: SEARCH2 });
   assert.equal(running.isError, true);
   assert.match(JSON.parse(running.result).error, /not waiting for an answer/);
-  const notId = await buildProposal(t, "propose_lead_search", { ...MODEL_INPUT, amends: "not-a-uuid" });
+  const notId = await buildProposal(t, "propose_lead_search", { action: "find", ...MODEL_INPUT, amends: "not-a-uuid" });
   assert.equal(notId.isError, true);
   assert.match(JSON.parse(notId.result).error, /not in this workspace/);
   const unknown = await buildProposal(t, "propose_lead_search", {
+    action: "find",
     ...MODEL_INPUT,
     amends: "55555555-5555-4555-8555-555555555599",
   });
   assert.equal(unknown.isError, true);
   assert.match(JSON.parse(unknown.result).error, /not in this workspace/);
   // Another workspace's waiting search is, to this one, not there at all.
-  const elsewhere = await buildProposal(t, "propose_lead_search", { ...MODEL_INPUT, amends: SEARCH_ELSEWHERE });
+  const elsewhere = await buildProposal(t, "propose_lead_search", {
+    action: "find",
+    ...MODEL_INPUT,
+    amends: SEARCH_ELSEWHERE,
+  });
   assert.equal(elsewhere.isError, true);
   assert.match(JSON.parse(elsewhere.result).error, /not in this workspace/);
 });

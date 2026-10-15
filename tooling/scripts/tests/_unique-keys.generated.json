@@ -54,6 +54,42 @@
     },
     {
       "table": "appointments",
+      "name": "appointments_request_one",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "contact_id"
+        }
+      ],
+      "where": {
+        "and": [
+          {
+            "cmp": "=",
+            "left": {
+              "column": "source"
+            },
+            "right": {
+              "value": "receptionist"
+            }
+          },
+          {
+            "cmp": "=",
+            "left": {
+              "column": "status"
+            },
+            "right": {
+              "value": "proposed"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "table": "appointments",
       "name": "appointments_source_uq",
       "primary": false,
       "nullsNotDistinct": false,
@@ -2726,6 +2762,9 @@
     }
   ],
   "defaults": {
+    "appointments": {
+      "status": "booked"
+    },
     "erasure_keying": {
       "id": true
     },

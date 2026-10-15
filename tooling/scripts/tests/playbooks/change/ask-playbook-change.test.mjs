@@ -79,7 +79,7 @@ const changeDoor = (rows) => changePlaybookDoor(rows, USER);
 const change = (input, rows = tables(), faults = {}) => {
   const supabase = fakeDb(rows, faults, changeDoor(rows));
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
-  return buildProposal(t, "propose_campaign", { action: "change", playbook_id: PB, ...input });
+  return buildProposal(t, "propose_sequence", { action: "change", playbook_id: PB, ...input });
 };
 const said = (r) => JSON.parse(r.result).error;
 /**

@@ -98,7 +98,7 @@ export interface PlanWorld {
   whatsappSends: boolean;
   /** Whether the Google listing keeps a review link (db reviewLinkOf; unread is none): the review ask's link is it. */
   reviewLink: boolean;
-  /** The Library, as campaigns with action messages reads it. */
+  /** The Library, as sequences with action messages reads it. */
   messages: MessageRead[];
   /** People's lists offered here and the workspace's own, each with its count (null: not counted). */
   lists: { token: string; name: string; count: number | null }[];

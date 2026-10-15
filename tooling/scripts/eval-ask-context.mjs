@@ -615,6 +615,96 @@ export function setupCardsFails(e, m) {
 }
 
 /**
+ * The words an answer spends apologizing for its shape ("I can't use bullet points here", "The page can't show a
+ * numbered list", "No puedo usar viñetas aquí"), as the 15 Oct probe found them: a refusal near a shape's name in one
+ * sentence, or the format named as the reason.
+ */
+const FORMAT_APOLOGY =
+  /\b(?:can(?:'|’)?t|cannot|can not|unable to|not able to)\b[^.!?\n]{0,60}\b(?:bullet|list|format|bold|emoji|line|numbered|table|markdown|caps)|\bplain (?:text|sentences)\b|\bfixed format\b|\bno puedo\b[^.!?\n]{0,60}(?:viñeta|lista|formato|negrita|emoji|línea|tabla)|\btexto plano\b|\bformato fijo\b/i;
+const EMOJI = /\p{Extended_Pictographic}/u;
+/** An entry as a case names one: its words in lower case, without the punctuation around them. */
+const bare = (s) =>
+  String(s)
+    .toLowerCase()
+    .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+const wordsIn = (s) =>
+  String(s)
+    .split(/\s+/)
+    .filter((w) => /[\p{L}\p{N}]/u.test(w));
+
+/**
+ * The shape the person asked for (a list, a count, a length, emoji, capitals), judged on what the Line draws: `list`
+ * (`style`, at least `min` entries, exactly `count`, the `entries` themselves word for word, every entry carrying an
+ * `emoji`; with `rows`, a list of rows read is the items, numbered by the list's style with no entries of its own, and
+ * fewer than two of either asks for no style), `list_empty` (no entries), `headline_words` (at most that many words),
+ * `detail_empty`, `all_caps` (no lower-case letter in the headline, the detail or the list), and `no_format_apology` (no
+ * sentence spent on the format, FORMAT_APOLOGY). `e` is a case's expect, `m` the turn's final message.
+ */
+export function shapeAskedFails(e, m) {
+  const fails = [];
+  const a = m?.answer;
+  if (e.no_format_apology) {
+    const said = FORMAT_APOLOGY.exec(m?.text ?? "");
+    if (said) fails.push(`the answer apologizes for its shape: “${said[0]}”`);
+  }
+  const keys = ["list", "list_empty", "headline_words", "detail_empty", "all_caps"];
+  if (!keys.some((k) => e[k] !== undefined)) return fails;
+  if (!a || a.form !== "structured")
+    return [...fails, "a shape was asked for, and the answer has none (prose or no answer)"];
+  const list = a.show.list ?? { style: "bullets", entries: [] };
+  const entries = list.entries;
+  if (e.list && e.list.rows) {
+    const n = Math.max(entries.length, a.show.items.length);
+    if (n >= 2 && list.style !== e.list.style)
+      fails.push(`a list of ${n} asked as ${e.list.style}, drawn as ${list.style}`);
+  } else if (e.list) {
+    if (entries.length < (e.list.min ?? 1))
+      fails.push(`a list of ${entries.length}, where at least ${e.list.min ?? 1} was asked`);
+    if (e.list.style && entries.length && list.style !== e.list.style)
+      fails.push(`a list asked as ${e.list.style}, drawn as ${list.style}`);
+    if (typeof e.list.count === "number" && entries.length !== e.list.count)
+      fails.push(`${entries.length} entries, where exactly ${e.list.count} were asked`);
+    if (Array.isArray(e.list.entries) && JSON.stringify(entries.map(bare)) !== JSON.stringify(e.list.entries.map(bare)))
+      fails.push(`entries ${JSON.stringify(entries)}, where ${JSON.stringify(e.list.entries)} were asked`);
+    if (e.list.emoji && !(entries.length && entries.every((x) => EMOJI.test(x))))
+      fails.push(`an entry without an emoji: ${JSON.stringify(entries)}`);
+  }
+  if (e.list_empty && entries.length) fails.push(`a list of ${entries.length} nobody asked for`);
+  if (typeof e.headline_words === "number" && wordsIn(a.say.headline).length > e.headline_words)
+    fails.push(
+      `a headline of ${wordsIn(a.say.headline).length} words, where ${e.headline_words} was asked: “${a.say.headline}”`,
+    );
+  if (e.detail_empty && a.say.detail)
+    fails.push(`a detail where only the headline was asked: “${a.say.detail.slice(0, 80)}”`);
+  if (e.all_caps) {
+    const low = [a.say.headline, a.say.detail, ...entries].find((s) => /\p{Ll}/u.test(s));
+    if (low) fails.push(`lower case where capitals were asked: “${low.slice(0, 80)}”`);
+  }
+  return fails;
+}
+
+/**
+ * The preview against the answer it led to (15 Oct: lines shown while the answer streamed folded away when it landed):
+ * the last Say sent is the final's words so far (the last few may never be sent: a Say waits its 50 ms), so the
+ * final's headline and detail begin with it. A line the preview drew that the final lost fails; words that changed
+ * rather than grew are a note, since an answer may be rewritten as it lands (a claimed write, a set-aside answer). `events` are the turn's stream, `m` its final message.
+ */
+export function previewJudged(events, m) {
+  const out = { fails: [], notes: [] };
+  const a = m?.answer;
+  const last = [...(events ?? [])].reverse().find((e) => e.t === "say");
+  if (!a || m.failed || !last || (!last.headline && !last.detail)) return out;
+  const lines = (s) => (String(s).match(/\n/g) ?? []).length;
+  if (lines(a.say.detail) < lines(last.detail))
+    out.fails.push(`the preview drew ${lines(last.detail) + 1} lines and the answer kept ${lines(a.say.detail) + 1}`);
+  if (!a.say.headline.startsWith(last.headline) || !a.say.detail.startsWith(last.detail))
+    out.notes.push(
+      `the answer moved as it landed: “${`${last.headline} ${last.detail}`.slice(0, 80)}” → “${a.say.headline.slice(0, 80)}”`,
+    );
+  return out;
+}
+
+/**
  * `tools_order`, a note and never a fail: the names expected, read through the rename table, are not a subsequence of the
  * tools the turn ran. What a reviewer would mark; the cards are the grade (Anthropic, "Demystifying evals for AI agents":
  * grade what the agent produced, not the path it took).

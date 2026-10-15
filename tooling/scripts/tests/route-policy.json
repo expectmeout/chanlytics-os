@@ -499,6 +499,13 @@
       "rate": "person_create",
       "spend": false
     },
+    "POST conversations/[id]/booking-request": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "thread_state",
+      "spend": false
+    },
     "POST conversations/[id]/archive": {
       "kind": "write",
       "scope": "row",

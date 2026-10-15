@@ -99,7 +99,7 @@ const ASK_TEXT = {
     waitingFor: (n) => `Waits for step ${n}`,
     stepUndone: (n) => `Step ${n} was undone`,
     afterReview: (n) => `This can be approved once WhatsApp has reviewed step ${n}'s message.`,
-    kReply: "reply", kSteer: "rewrite", kInbox: "inbox", kPerson: "receptionist", kAutonomy: "autonomy", kSettings: "settings", kWhisper: "whisper", kTeam: "team", kBroadcast: "broadcast", kPlaybook: "campaign", kLeads: "Leads", kDeal: "deal", kNote: "note", kDetails: "details", kList: "list", kRun: "run", kMessage: "message",
+    kReply: "reply", kSteer: "rewrite", kInbox: "inbox", kPerson: "receptionist", kAutonomy: "autonomy", kSettings: "settings", kWhisper: "whisper", kTeam: "team", kBroadcast: "broadcast", kPlaybook: "campaign", kLeads: "Leads", kDeal: "deal", kNote: "note", kDetails: "details", kList: "list", kRun: "run", kMessage: "message", kAnswer: "their answer", kPeople: "people", kSequence: "sequence", kCall: "call", kColdEmail: "cold email", kReview: "review", kFollowUp: "follow-up", kBooking: "booking",
   },
   es: {
     placeholder: "Pregunta lo que quieras",
@@ -189,7 +189,7 @@ const ASK_TEXT = {
     waitingFor: (n) => `Espera el paso ${n}`,
     stepUndone: (n) => `El paso ${n} se deshizo`,
     afterReview: (n) => `Se podrá aprobar cuando WhatsApp haya revisado el mensaje del paso ${n}.`,
-    kReply: "respuesta", kSteer: "reescritura", kInbox: "inbox", kPerson: "recepcionista", kAutonomy: "autonomía", kSettings: "ajustes", kWhisper: "susurro", kTeam: "equipo", kBroadcast: "difusión", kPlaybook: "campaña", kLeads: "Leads", kDeal: "acuerdo", kNote: "nota", kDetails: "datos", kList: "lista", kRun: "envío", kMessage: "mensaje",
+    kReply: "respuesta", kSteer: "reescritura", kInbox: "inbox", kPerson: "recepcionista", kAutonomy: "autonomía", kSettings: "ajustes", kWhisper: "susurro", kTeam: "equipo", kBroadcast: "difusión", kPlaybook: "campaña", kLeads: "Leads", kDeal: "acuerdo", kNote: "nota", kDetails: "datos", kList: "lista", kRun: "envío", kMessage: "mensaje", kAnswer: "su respuesta", kPeople: "personas", kSequence: "secuencia", kCall: "llamada", kColdEmail: "correo en frío", kReview: "reseña", kFollowUp: "seguimiento", kBooking: "reserva",
   },
 };
 

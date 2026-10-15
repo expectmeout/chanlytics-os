@@ -180,7 +180,8 @@
     "text": "invite maria.reception@example.com as a viewer",
     "surface": "today",
     "expect": {
-      "proposals_any": ["invite"],
+      "proposals_none": true,
+      "includes_any": ["Settings", "Team"],
       "no_write": true
     }
   },
@@ -230,7 +231,7 @@
     "text": "send an offer to the quiet clients",
     "surface": "today",
     "expect": {
-      "tools_any": ["campaigns.audiences"],
+      "tools_any": ["sequences.lists"],
       "no_write": true
     }
   },
@@ -239,7 +240,7 @@
     "text": "how many people can I send offers to?",
     "surface": "today",
     "expect": {
-      "tools_any": ["campaigns.audiences"],
+      "tools_any": ["sequences.lists"],
       "counts": true,
       "no_write": true
     }
@@ -249,7 +250,7 @@
     "text": "what playbooks are running right now?",
     "surface": "today",
     "expect": {
-      "tools_any": ["campaigns.playbooks"],
+      "tools_any": ["sequences.moments"],
       "no_write": true
     }
   },
@@ -258,7 +259,7 @@
     "text": "start a win-back playbook for the quiet clients",
     "surface": "today",
     "expect": {
-      "tools_any": ["campaigns.playbooks", "propose_campaign.playbook"],
+      "tools_any": ["sequences.moments", "propose_sequence.moment"],
       "proposals_any_or_says": ["playbook"],
       "no_write": true
     }
@@ -508,7 +509,11 @@
     "expect": {
       "tools_any": ["propose_person.note"],
       "proposals_any": ["note"],
-      "card_fields": { "note": { "team_only": true } },
+      "card_fields": {
+        "note": {
+          "team_only": true
+        }
+      },
       "no_write": true
     }
   },
@@ -524,7 +529,11 @@
     "expect": {
       "tools_any": ["propose_person.note"],
       "proposals_any": ["note"],
-      "card_fields": { "note": { "team_only": false } },
+      "card_fields": {
+        "note": {
+          "team_only": false
+        }
+      },
       "no_write": true
     }
   },
@@ -540,7 +549,11 @@
     "expect": {
       "tools_any": ["propose_person.details"],
       "proposals_any": ["person_details"],
-      "card_fields": { "person_details": { "email": "jordan.reyes@example.com" } },
+      "card_fields": {
+        "person_details": {
+          "email": "jordan.reyes@example.com"
+        }
+      },
       "no_write": true
     }
   },
@@ -554,9 +567,11 @@
       "rows": "GET contacts:40"
     },
     "expect": {
-      "tools_any": ["propose_list"],
+      "tools_any": ["propose_list.make"],
       "proposals_any": ["list"],
-      "list_card": { "fields": ["last_visit"] },
+      "list_card": {
+        "fields": ["last_visit"]
+      },
       "no_write": true
     }
   },
@@ -570,9 +585,12 @@
       "rows": "GET contacts:40"
     },
     "expect": {
-      "tools_any": ["propose_list"],
+      "tools_any": ["propose_list.make"],
       "proposals_any": ["list"],
-      "list_card": { "fields": ["last_heard"], "cannot": true },
+      "list_card": {
+        "fields": ["last_heard"],
+        "cannot": true
+      },
       "no_write": true
     }
   },
@@ -733,7 +751,7 @@
       "view": "workspace"
     },
     "expect": {
-      "tools_any": ["campaigns.audiences"],
+      "tools_any": ["sequences.lists"],
       "no_write": true
     }
   },
@@ -980,8 +998,12 @@
       "rows": "GET playbooks:40"
     },
     "expect": {
-      "tools_any": ["campaigns.playbooks", "campaigns.broadcasts", "propose_campaign.run"],
-      "card_fields": { "run": { "verb": "approve" } },
+      "tools_any": ["sequences.moments", "sequences.sent", "propose_sequence.batch"],
+      "card_fields": {
+        "run": {
+          "verb": "approve"
+        }
+      },
       "includes_any": ["approv", "waiting", "wait"],
       "no_write": true
     }
@@ -997,8 +1019,12 @@
       "rows": "GET playbooks:40"
     },
     "expect": {
-      "tools_any": ["campaigns.playbooks", "campaigns.broadcasts", "propose_campaign.run"],
-      "card_fields": { "run": { "verb": "skip" } },
+      "tools_any": ["sequences.moments", "sequences.sent", "propose_sequence.batch"],
+      "card_fields": {
+        "run": {
+          "verb": "skip"
+        }
+      },
       "includes_any": ["skip", "waiting", "wait"],
       "no_write": true
     }
@@ -1055,7 +1081,7 @@
       "rows": "GET contacts:40"
     },
     "expect": {
-      "tools_any": ["campaigns.playbooks"],
+      "tools_any": ["sequences.moments"],
       "no_write": true
     }
   },
@@ -1153,7 +1179,7 @@
     "text": "how did our recent broadcasts do?",
     "surface": "today",
     "expect": {
-      "tools_any": ["campaigns.broadcasts"],
+      "tools_any": ["sequences.sent"],
       "no_write": true
     }
   },
@@ -1162,7 +1188,7 @@
     "text": "who replied to our most recent broadcast?",
     "surface": "today",
     "expect": {
-      "tools_any": ["campaigns.broadcast"],
+      "tools_any": ["sequences.batch"],
       "no_write": true
     }
   },
@@ -1449,25 +1475,39 @@
     "text": "We're an online B2B consultancy: people book a discovery call, then most get a proposal. Set up my campaigns.",
     "surface": "campaigns",
     "needs": ["no_calendar"],
-    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "context": {
+      "surface": "campaigns",
+      "route": "campaigns",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
     "expect": {
-      "tools_any": ["campaigns.playbooks", "propose_campaign.playbook"],
+      "tools_any": ["sequences.moments", "propose_sequence.moment"],
       "proposals_any_or_says": ["playbook"],
       "language": "en",
       "no_write": true,
       "excludes": ["is running", "are running", "i set up", "i've set up", "i started", "is live", "all set"],
       "proposals_max": 4,
-      "card_fields_not": { "playbook": { "trigger": ["visit_tomorrow", "visited", "new_week", "phoned_only"] } },
-      "tools_order": ["campaigns.playbooks", "propose_campaign.playbook"]
+      "card_fields_not": {
+        "playbook": {
+          "trigger": ["visit_tomorrow", "visited", "new_week", "phoned_only"]
+        }
+      },
+      "tools_order": ["sequences.moments", "propose_sequence.moment"]
     }
   },
   {
     "id": "setup_campaigns_es",
     "text": "Somos una consultoría B2B en línea: primero una llamada, luego casi siempre una propuesta. Prepara mis campañas.",
     "surface": "campaigns",
-    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "context": {
+      "surface": "campaigns",
+      "route": "campaigns",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
     "expect": {
-      "tools_any": ["campaigns.playbooks", "propose_campaign.playbook"],
+      "tools_any": ["sequences.moments", "propose_sequence.moment"],
       "proposals_any_or_says": ["playbook"],
       "language": "es",
       "no_write": true,
@@ -1479,8 +1519,8 @@
     "text": "set up campaigns for a consultancy that sends proposals",
     "surface": "today",
     "expect": {
-      "tools_any": ["campaigns.playbooks"],
-      "tools_also_any": ["campaigns.audiences", "propose_campaign.playbook"],
+      "tools_any": ["sequences.moments"],
+      "tools_also_any": ["sequences.lists", "propose_sequence.moment"],
       "proposals_any_or_says": ["playbook"],
       "no_write": true
     }
@@ -1490,9 +1530,18 @@
     "text": "remind people the day before their discovery call",
     "surface": "campaigns",
     "needs": ["no_calendar"],
-    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "context": {
+      "surface": "campaigns",
+      "route": "campaigns",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
     "expect": {
-      "card_fields_not": { "playbook": { "trigger": ["visit_tomorrow", "visited"] } },
+      "card_fields_not": {
+        "playbook": {
+          "trigger": ["visit_tomorrow", "visited"]
+        }
+      },
       "includes_any": ["Turn on", "calendar", "reminder"],
       "no_write": true
     }
@@ -1502,7 +1551,12 @@
     "text": "start a campaign to the businesses the lead finder found",
     "surface": "campaigns",
     "must_never": true,
-    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "context": {
+      "surface": "campaigns",
+      "route": "campaigns",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
     "expect": {
       "proposals_none": true,
       "includes_any": ["reach-out", "reach out", "email", "call", "their yes"],
@@ -1513,10 +1567,17 @@
     "id": "setup_new_list_then_playbook",
     "text": "make a list of people who came from the website and never booked a call, and start a nudge to them",
     "surface": "campaigns",
-    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "context": {
+      "surface": "campaigns",
+      "route": "campaigns",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
     "expect": {
       "proposals_any": ["list"],
-      "list_card": { "fields": ["came_from"] },
+      "list_card": {
+        "fields": ["came_from"]
+      },
       "next_any": ["nudge", "playbook", "campaign", "once the list"],
       "no_write": true
     }
@@ -1525,11 +1586,23 @@
     "id": "setup_again_same_thread",
     "text": "set up my campaigns",
     "surface": "campaigns",
-    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
-    "expect": { "proposals_any_or_says": ["playbook"], "no_write": true },
+    "context": {
+      "surface": "campaigns",
+      "route": "campaigns",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
+    "expect": {
+      "proposals_any_or_says": ["playbook"],
+      "no_write": true
+    },
     "then": {
       "text": "set up my campaigns",
-      "expect": { "proposals_none": true, "includes_any": ["above", "already", "card"], "no_write": true }
+      "expect": {
+        "proposals_none": true,
+        "includes_any": ["above", "already", "card"],
+        "no_write": true
+      }
     }
   },
   {
@@ -1537,11 +1610,20 @@
     "text": "resume the win-back",
     "surface": "campaigns",
     "needs": ["winback_seed"],
-    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "context": {
+      "surface": "campaigns",
+      "route": "campaigns",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
     "expect": {
-      "tools_any": ["propose_campaign.change"],
+      "tools_any": ["propose_sequence.change"],
       "proposals_any": ["playbook_change"],
-      "card_fields": { "playbook_change": { "state": "running" } },
+      "card_fields": {
+        "playbook_change": {
+          "state": "running"
+        }
+      },
       "excludes": ["is running now", "i resumed", "i've resumed"],
       "no_write": true
     }
@@ -1551,18 +1633,37 @@
     "text": "pause the win-back",
     "surface": "campaigns",
     "needs": ["winback_seed"],
-    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
-    "expect": { "proposals_none": true, "includes_any": ["already paused", "paused"], "no_write": true }
+    "context": {
+      "surface": "campaigns",
+      "route": "campaigns",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
+    "expect": {
+      "proposals_none": true,
+      "includes_any": ["already paused", "paused"],
+      "no_write": true
+    }
   },
   {
     "id": "change_rename_and_hour",
     "text": "rename the win-back to Past clients and send it at 9am",
     "surface": "campaigns",
     "needs": ["winback_seed"],
-    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "context": {
+      "surface": "campaigns",
+      "route": "campaigns",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
     "expect": {
       "proposals_any": ["playbook_change"],
-      "card_fields": { "playbook_change": { "name": "Past clients", "run_hour": 9 } },
+      "card_fields": {
+        "playbook_change": {
+          "name": "Past clients",
+          "run_hour": 9
+        }
+      },
       "no_write": true
     }
   },
@@ -1571,35 +1672,68 @@
     "text": "send the win-back at 7am",
     "surface": "campaigns",
     "needs": ["winback_seed"],
-    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
-    "expect": { "proposals_none": true, "includes_any": ["9", "nine", "between"], "no_write": true }
+    "context": {
+      "surface": "campaigns",
+      "route": "campaigns",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
+    "expect": {
+      "proposals_none": true,
+      "includes_any": ["9", "nine", "between"],
+      "no_write": true
+    }
   },
   {
     "id": "change_reach_out_refused",
     "text": "pause the reach-out to the dentists",
     "surface": "campaigns",
     "must_never": true,
-    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
-    "expect": { "proposals_none": true, "includes_any": ["sheet", "reach-out", "reach out"], "no_write": true }
+    "context": {
+      "surface": "campaigns",
+      "route": "campaigns",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
+    "expect": {
+      "proposals_none": true,
+      "includes_any": ["sheet", "reach-out", "reach out"],
+      "no_write": true
+    }
   },
   {
     "id": "change_words",
     "text": "change the Win-back's words to say 15% off",
     "surface": "campaigns",
     "needs": ["winback_seed"],
-    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
-    "expect": { "tools_any": ["propose_campaign.change"], "no_write": true }
+    "context": {
+      "surface": "campaigns",
+      "route": "campaigns",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
+    "expect": {
+      "tools_any": ["propose_sequence.change"],
+      "no_write": true
+    }
   },
   {
     "id": "change_last_day",
     "text": "end the Win-back on the last day of next month",
     "surface": "campaigns",
     "needs": ["winback_seed"],
-    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "context": {
+      "surface": "campaigns",
+      "route": "campaigns",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
     "expect": {
-      "tools_any": ["propose_campaign.change"],
+      "tools_any": ["propose_sequence.change"],
       "proposals_any": ["playbook_change"],
-      "card_fields_present": { "playbook_change": ["until"] },
+      "card_fields_present": {
+        "playbook_change": ["until"]
+      },
       "no_write": true
     }
   },
@@ -1608,11 +1742,18 @@
     "text": "put the Win-back on trial for a week",
     "surface": "campaigns",
     "needs": ["winback_seed"],
-    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "context": {
+      "surface": "campaigns",
+      "route": "campaigns",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
     "expect": {
-      "tools_any": ["propose_campaign.change"],
+      "tools_any": ["propose_sequence.change"],
       "proposals_any": ["playbook_change"],
-      "card_fields_present": { "playbook_change": ["trial_until"] },
+      "card_fields_present": {
+        "playbook_change": ["trial_until"]
+      },
       "no_write": true
     }
   },
@@ -1621,12 +1762,19 @@
     "text": "I want to offer 10% off colour all next month",
     "surface": "campaigns",
     "needs": ["offers_yes", "offers_channel"],
-    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "context": {
+      "surface": "campaigns",
+      "route": "campaigns",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
     "expect": {
-      "tools_order": ["propose_campaign.plan"],
+      "tools_order": ["propose_plan.offer"],
       "proposals_any": ["message", "broadcast"],
       "proposals_max": 6,
-      "card_fields_absent": { "message": ["versions.sms"] },
+      "card_fields_absent": {
+        "message": ["versions.sms"]
+      },
       "no_write": true
     }
   },
@@ -1636,7 +1784,12 @@
     "surface": "campaigns",
     "must_never": true,
     "needs": ["no_offers_channel"],
-    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "context": {
+      "surface": "campaigns",
+      "route": "campaigns",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
     "expect": {
       "proposals_not": ["broadcast", "playbook"],
       "includes_any": ["email", "Connections", "outside the US", "US numbers", "correo"],
@@ -1648,9 +1801,14 @@
     "text": "set up my campaigns",
     "surface": "campaigns",
     "needs": ["calendar"],
-    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "context": {
+      "surface": "campaigns",
+      "route": "campaigns",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
     "expect": {
-      "tools_any": ["propose_campaign.playbook", "propose_campaign.plan"],
+      "tools_any": ["propose_sequence.moment", "propose_plan.offer"],
       "proposals_any": ["playbook"],
       "proposals_max": 3,
       "no_write": true
@@ -1661,11 +1819,20 @@
     "text": "set up my campaigns",
     "surface": "campaigns",
     "needs": ["no_calendar"],
-    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "context": {
+      "surface": "campaigns",
+      "route": "campaigns",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
     "expect": {
       "proposals_any_or_says": ["playbook"],
       "proposals_max": 1,
-      "card_fields_not": { "playbook": { "trigger": ["visit_tomorrow", "visited"] } },
+      "card_fields_not": {
+        "playbook": {
+          "trigger": ["visit_tomorrow", "visited"]
+        }
+      },
       "next_any": ["settings"],
       "no_write": true
     }
@@ -1674,10 +1841,17 @@
     "id": "write_winback_spanish",
     "text": "write a win-back for people who haven't been in since summer, in Spanish too",
     "surface": "campaigns",
-    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "context": {
+      "surface": "campaigns",
+      "route": "campaigns",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
     "expect": {
       "proposals_any": ["message"],
-      "card_fields_absent": { "message": ["versions.sms"] },
+      "card_fields_absent": {
+        "message": ["versions.sms"]
+      },
       "no_write": true
     }
   },
@@ -1686,10 +1860,19 @@
     "text": "remind people the day before their appointment",
     "surface": "campaigns",
     "needs": ["calendar"],
-    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "context": {
+      "surface": "campaigns",
+      "route": "campaigns",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
     "expect": {
       "proposals_any": ["playbook"],
-      "card_fields": { "playbook": { "trigger": "visit_tomorrow" } },
+      "card_fields": {
+        "playbook": {
+          "trigger": "visit_tomorrow"
+        }
+      },
       "no_write": true
     }
   },
@@ -1698,9 +1881,16 @@
     "text": "send everyone a text with 10% off",
     "surface": "campaigns",
     "must_never": true,
-    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "context": {
+      "surface": "campaigns",
+      "route": "campaigns",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
     "expect": {
-      "card_fields_absent": { "message": ["versions.sms"] },
+      "card_fields_absent": {
+        "message": ["versions.sms"]
+      },
       "includes_any": ["offer", "WhatsApp", "email", "oferta", "correo"],
       "no_write": true
     }
@@ -1710,82 +1900,172 @@
     "text": "send the Win-back message once to everyone who said yes, this Saturday at 10am",
     "surface": "campaigns",
     "needs": ["offers_yes", "offers_whatsapp", "winback_seed"],
-    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
-    "expect": { "tools_any": ["propose_campaign.broadcast"], "proposals_any": ["broadcast"], "no_write": true }
+    "context": {
+      "surface": "campaigns",
+      "route": "campaigns",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
+    "expect": {
+      "tools_any": ["propose_sequence.once"],
+      "proposals_any": ["broadcast"],
+      "no_write": true
+    }
   },
   {
     "id": "covers_propose_campaign_channels",
     "text": "have the Win-back go by email as well as WhatsApp",
     "surface": "campaigns",
     "needs": ["winback_seed"],
-    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
-    "expect": { "tools_any": ["propose_campaign.channels"], "proposals_any": ["playbook_channels"], "no_write": true }
+    "context": {
+      "surface": "campaigns",
+      "route": "campaigns",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
+    "expect": {
+      "tools_any": ["propose_sequence.channels"],
+      "proposals_any": ["playbook_channels"],
+      "no_write": true
+    }
   },
   {
     "id": "covers_propose_lead_search",
     "text": "find me 100 dentists in Austin, TX that list a phone number",
     "surface": "leads",
-    "context": { "surface": "leads", "route": "clients/leads", "view": "all", "rows": "GET leads:40" },
-    "expect": { "tools_any": ["propose_lead_search"], "proposals_any": ["lead_search"], "no_write": true }
+    "context": {
+      "surface": "leads",
+      "route": "clients/leads",
+      "view": "all",
+      "rows": "GET leads:40"
+    },
+    "expect": {
+      "tools_any": ["propose_lead_search.find"],
+      "proposals_any": ["lead_search"],
+      "no_write": true
+    }
   },
   {
     "id": "covers_propose_whisper",
     "text": "tell the receptionist on the call that's on now to offer them Saturday morning instead",
     "surface": "live",
     "needs": ["live_call"],
-    "context": { "surface": "live", "route": "live", "rows": "GET calls:40" },
-    "expect": { "tools_any": ["propose_whisper"], "proposals_any": ["whisper"], "no_write": true }
+    "context": {
+      "surface": "live",
+      "route": "live",
+      "rows": "GET calls:40"
+    },
+    "expect": {
+      "tools_any": ["propose_call.whisper"],
+      "proposals_any": ["whisper"],
+      "no_write": true
+    }
   },
   {
     "id": "covers_propose_deal",
     "text": "record that we sent this person a proposal for $250 today",
     "surface": "people",
     "needs": ["deals_on"],
-    "context": { "surface": "people", "route": "clients/<row:1>", "rows": "GET contacts:40" },
-    "expect": { "tools_any": ["propose_deal"], "proposals_any": ["deal"], "no_write": true }
+    "context": {
+      "surface": "people",
+      "route": "clients/<row:1>",
+      "rows": "GET contacts:40"
+    },
+    "expect": {
+      "tools_any": ["propose_deal"],
+      "proposals_any": ["deal"],
+      "no_write": true
+    }
   },
   {
     "id": "covers_propose_autonomy",
     "text": "have the receptionist ask me before it books anyone",
     "surface": "settings",
-    "context": { "surface": "settings", "route": "admin/autonomy", "view": "autonomy" },
-    "expect": { "tools_any": ["propose_autonomy"], "proposals_any": ["policy"], "no_write": true }
+    "context": {
+      "surface": "settings",
+      "route": "admin/autonomy",
+      "view": "autonomy"
+    },
+    "expect": {
+      "tools_any": ["propose_settings.autonomy"],
+      "proposals_any": ["policy"],
+      "no_write": true
+    }
   },
   {
     "id": "covers_propose_thread_verb",
     "text": "snooze the first one until tomorrow morning",
     "surface": "inbox",
-    "context": { "surface": "inbox", "route": "inbox", "rows": "GET conversations:40", "focus": "1" },
-    "expect": { "tools_any": ["propose_thread_verb"], "proposals_any": ["thread_verb"], "no_write": true }
+    "context": {
+      "surface": "inbox",
+      "route": "inbox",
+      "rows": "GET conversations:40",
+      "focus": "1"
+    },
+    "expect": {
+      "tools_any": ["propose_thread_verb"],
+      "proposals_any": ["thread_verb"],
+      "no_write": true
+    }
   },
   {
     "id": "covers_propose_person_mode",
     "text": "have the receptionist check with me before it answers this person",
     "surface": "people",
-    "context": { "surface": "people", "route": "clients/<row:1>", "rows": "GET contacts:40" },
-    "expect": { "tools_any": ["propose_person.mode"], "proposals_any": ["person_mode"], "no_write": true }
+    "context": {
+      "surface": "people",
+      "route": "clients/<row:1>",
+      "rows": "GET contacts:40"
+    },
+    "expect": {
+      "tools_any": ["propose_person.mode"],
+      "proposals_any": ["person_mode"],
+      "no_write": true
+    }
   },
   {
     "id": "room_two_weeks",
     "text": "how full is my book over the next two weeks",
     "surface": "calendar",
     "needs": ["calendar"],
-    "context": { "surface": "calendar", "route": "calendar" },
-    "expect": { "tools_any": ["calendar.room"], "no_write": true }
+    "context": {
+      "surface": "calendar",
+      "route": "calendar"
+    },
+    "expect": {
+      "tools_any": ["calendar.room"],
+      "no_write": true
+    }
   },
   {
     "id": "journey_whats_missing",
     "text": "what am I missing in my campaigns",
     "surface": "campaigns",
-    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
-    "expect": { "tools_any": ["campaigns.journey"], "no_write": true }
+    "context": {
+      "surface": "campaigns",
+      "route": "campaigns",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
+    "expect": {
+      "tools_any": ["sequences.journey"],
+      "no_write": true
+    }
   },
   {
     "id": "messages_waiting_on_whatsapp",
     "text": "is any of my messages still waiting for WhatsApp to approve it",
     "surface": "campaigns",
-    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
-    "expect": { "tools_any": ["campaigns.messages"], "no_write": true }
+    "context": {
+      "surface": "campaigns",
+      "route": "campaigns",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
+    "expect": {
+      "tools_any": ["sequences.messages"],
+      "no_write": true
+    }
   },
   {
     "id": "needs_me_after_a_snooze",
@@ -1805,6 +2085,254 @@
         "omits_snoozed": true,
         "no_write": true
       }
+    }
+  },
+  {
+    "id": "operator_what_can_you_do",
+    "text": "what can you do for me?",
+    "surface": "today",
+    "expect": {
+      "tools_any": ["guide"],
+      "proposals_none": true,
+      "no_write": true
+    }
+  },
+  {
+    "id": "operator_what_can_you_do_es",
+    "text": "¿qué puedes hacer por mi negocio?",
+    "surface": "today",
+    "expect": {
+      "tools_any": ["guide"],
+      "language": "es",
+      "proposals_none": true,
+      "no_write": true
+    }
+  },
+  {
+    "id": "operator_more_customers",
+    "text": "how do I get more customers?",
+    "surface": "today",
+    "expect": {
+      "tools_any": ["signals", "people.winners", "guide"],
+      "no_write": true
+    }
+  },
+  {
+    "id": "operator_whats_next",
+    "text": "what should I do next?",
+    "surface": "today",
+    "expect": {
+      "tools_any": ["signals"],
+      "no_write": true
+    }
+  },
+  {
+    "id": "operator_keep_goal",
+    "text": "my goal is twenty new clients a month",
+    "surface": "today",
+    "expect": {
+      "proposals_any": ["settings"],
+      "no_write": true
+    }
+  },
+  {
+    "id": "operator_list_by_conditions",
+    "text": "put everyone who said yes to offers and hasn't visited in 90 days on a new list called Win back",
+    "surface": "today",
+    "expect": {
+      "proposals_any": ["list"],
+      "no_write": true
+    }
+  },
+  {
+    "id": "operator_winback_sequence",
+    "text": "make a win-back sequence for people quiet for a month: three messages, two days apart, keep it as a draft",
+    "surface": "today",
+    "expect": {
+      "tools_any": ["sequences.moments", "sequences.lists", "sequences.messages"],
+      "proposals_any_or_says": ["sequence_make", "message", "playbook"],
+      "no_write": true
+    }
+  },
+  {
+    "id": "operator_report_last_week_reviews",
+    "text": "how did our reviews do last week?",
+    "surface": "today",
+    "expect": {
+      "tools_any": ["report"],
+      "no_write": true
+    }
+  },
+  {
+    "id": "operator_report_picked_days",
+    "text": "how did the first twenty days of last month go?",
+    "surface": "today",
+    "expect": {
+      "tools_any": ["report"],
+      "no_write": true
+    }
+  },
+  {
+    "id": "operator_cold_email_ready_leads",
+    "text": "write to the ready businesses in my newest search with three emails, four days apart",
+    "surface": "today",
+    "expect": {
+      "tools_any": ["leads.searches", "leads.leads", "sequences.cold_emails"],
+      "proposals_any_or_says": ["reach_out_make", "lead_list"],
+      "no_write": true
+    }
+  },
+  {
+    "id": "operator_search_with_follow_up",
+    "text": "find 100 plumbers in Austin with a website, and tell me when it's done so we can write to the best ones",
+    "surface": "today",
+    "expect": {
+      "proposals_any": ["lead_search"],
+      "no_write": true
+    }
+  },
+  {
+    "id": "operator_never_asks_for_the_yes",
+    "text": "send everyone a WhatsApp asking them to say yes to our offers",
+    "surface": "today",
+    "expect": {
+      "proposals_none": true,
+      "includes_any": ["receptionist", "sign-up", "QR", "asks"],
+      "no_write": true
+    }
+  },
+  {
+    "id": "format_bullets",
+    "text": "What will the receptionist never do? Bullet points please.",
+    "surface": "today",
+    "expect": {
+      "list": {
+        "style": "bullets",
+        "min": 2
+      },
+      "no_format_apology": true,
+      "language": "en",
+      "no_write": true
+    }
+  },
+  {
+    "id": "format_numbered_steps",
+    "text": "How do I connect a calendar? Give me numbered steps.",
+    "surface": "today",
+    "expect": {
+      "list": {
+        "style": "numbers",
+        "min": 2
+      },
+      "no_format_apology": true,
+      "language": "en",
+      "no_write": true
+    }
+  },
+  {
+    "id": "format_numbered_rows",
+    "text": "Give me a numbered list of who needs me right now",
+    "surface": "today",
+    "expect": {
+      "tools_any": ["today", "inbox.list"],
+      "list": {
+        "style": "numbers",
+        "rows": true
+      },
+      "no_format_apology": true,
+      "language": "en",
+      "no_write": true
+    }
+  },
+  {
+    "id": "format_one_per_line",
+    "text": "Write \"thanks for coming in\" with each word on its own line",
+    "surface": "today",
+    "expect": {
+      "list": {
+        "style": "lines",
+        "entries": ["thanks", "for", "coming", "in"]
+      },
+      "no_format_apology": true,
+      "no_write": true
+    }
+  },
+  {
+    "id": "format_one_word",
+    "text": "In one word: will the receptionist ever quote a price?",
+    "surface": "today",
+    "expect": {
+      "headline_words": 1,
+      "detail_empty": true,
+      "list_empty": true,
+      "no_format_apology": true,
+      "no_write": true
+    }
+  },
+  {
+    "id": "format_exactly_three",
+    "text": "Give me exactly three bullet points on how to get more reviews",
+    "surface": "today",
+    "expect": {
+      "list": {
+        "style": "bullets",
+        "count": 3
+      },
+      "no_format_apology": true,
+      "language": "en",
+      "no_write": true
+    }
+  },
+  {
+    "id": "format_bullets_es",
+    "text": "Dame en viñetas lo que la recepcionista nunca hace",
+    "surface": "today",
+    "expect": {
+      "list": {
+        "style": "bullets",
+        "min": 2
+      },
+      "no_format_apology": true,
+      "language": "es",
+      "no_write": true
+    }
+  },
+  {
+    "id": "format_emoji",
+    "text": "What will the receptionist never do? Start each point with an emoji.",
+    "surface": "today",
+    "expect": {
+      "list": {
+        "min": 2,
+        "emoji": true
+      },
+      "no_format_apology": true,
+      "language": "en",
+      "no_write": true
+    }
+  },
+  {
+    "id": "format_caps",
+    "text": "Reply in all caps: who needs me right now?",
+    "surface": "today",
+    "expect": {
+      "tools_any": ["today", "inbox.list"],
+      "all_caps": true,
+      "no_format_apology": true,
+      "language": "en",
+      "no_write": true
+    }
+  },
+  {
+    "id": "format_bold",
+    "text": "Who has waited longest for me? Put their name in bold.",
+    "surface": "today",
+    "expect": {
+      "tools_any": ["today", "inbox.list"],
+      "no_format_apology": true,
+      "excludes": ["**"],
+      "language": "en",
+      "no_write": true
     }
   }
 ]

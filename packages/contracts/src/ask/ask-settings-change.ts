@@ -22,11 +22,20 @@ export type AskSettingsChange =
   | { op: "add_closure"; date: string; until?: string; note?: string }
   | { op: "set_hours"; day: string; open: string | null; close: string | null }
   | { op: "add_note"; title: string; text: string; until?: string }
-  | { op: "add_service"; name: string; duration_min?: number };
+  | { op: "add_service"; name: string; duration_min?: number }
+  | { op: "set_goal"; goal: string };
 
 type Cfg = { brain?: { profile?: Record<string, unknown> } & Record<string, unknown> } & Record<string, unknown>;
 
 export function applySettingsChange<C extends Cfg>(config: C, change: AskSettingsChange): C {
+  // The owner's goal is Ask's own section, never the receptionist's profile: set, or taken away when empty.
+  if (change.op === "set_goal") {
+    const ask = { ...((config.ask as Record<string, unknown> | undefined) ?? {}) };
+    const goal = change.goal.trim();
+    if (goal) ask.goal = goal;
+    else delete ask.goal;
+    return { ...config, ask };
+  }
   const brain = { ...(config.brain ?? {}) } as NonNullable<C["brain"]>;
   const profile = { ...((brain.profile ?? {}) as Record<string, unknown>) };
   switch (change.op) {
@@ -83,5 +92,7 @@ export function describeSettingsChange(change: AskSettingsChange): string {
     }
     case "add_service":
       return `New service: ${change.name}${change.duration_min ? ` (${change.duration_min} min)` : ""}`;
+    case "set_goal":
+      return change.goal.trim() ? `Your goal: “${change.goal.trim()}”` : "Your goal, taken away";
   }
 }

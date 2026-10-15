@@ -77,6 +77,9 @@ declare const TenantConfigWriteSchema: z.ZodPipe<z.ZodUnknown, z.ZodObject<{
             non_text: z.ZodString;
         }, z.core.$strip>;
     }, z.core.$strip>>;
+    ask: z.ZodOptional<z.ZodObject<{
+        goal: z.ZodOptional<z.ZodString>;
+    }, z.core.$strip>>;
     notifications: z.ZodOptional<z.ZodObject<{
         escalation_emails: z.ZodArray<z.ZodString>;
         from: z.ZodOptional<z.ZodString>;
@@ -93,6 +96,7 @@ declare const TenantConfigWriteSchema: z.ZodPipe<z.ZodUnknown, z.ZodObject<{
         vision: z.ZodOptional<z.ZodBoolean>;
         ads_preview: z.ZodOptional<z.ZodBoolean>;
         sequences_preview: z.ZodOptional<z.ZodBoolean>;
+        booking_requests: z.ZodOptional<z.ZodBoolean>;
     }, z.core.$strip>>;
 }, z.core.$strip>>;
 

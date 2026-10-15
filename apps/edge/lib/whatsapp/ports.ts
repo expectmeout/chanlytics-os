@@ -23,7 +23,7 @@ import type { Database } from "../packages/db.js";
 import { pg } from "../pg.js";
 import { readLeadContext, personReplyMode, offersAnswerOf, describeLead, filedNamesOf } from "../packages/db.js";
 import { loadTenantRuntime, waCfgFor, type TenantRuntime } from "../tenant-runtime.js";
-import { openingsFor, visitsFor } from "../calendar/availability.js";
+import { openingsFor, visitsFor, takesRequests, requestTermsFor } from "../calendar/availability.js";
 import { tokensLast24h } from "../receptionist/budget.js";
 import { pgThread, pgIngest, pgSink, queueReply, replyTurn, pgAnswered } from "./persist.js";
 import { alertStaff } from "./alerts.js";
@@ -47,6 +47,8 @@ export interface InboundPorts extends Omit<CoreInboundPorts, "log" | "waCfg" | "
   calendar: {
     openings(rt: TenantRuntime, now?: Date): Promise<string | null>;
     visits(rt: TenantRuntime, who: { phone: string | null; name: string | null }, now?: Date): Promise<string | null>;
+    /** Booking requests (decision 0061); a test's world may leave it out, and no turn then takes one. */
+    requests?: { takes: typeof takesRequests; terms: typeof requestTermsFor };
   };
   budget: { tokensLast24h: typeof tokensLast24h };
   /** The Postgres bookkeeping of one message: ingest, the memory, the held draft, the sink. */
@@ -104,6 +106,7 @@ export function realPorts(): InboundPorts {
     calendar: {
       openings: (rt, now) => openingsFor(rt, "chat", now),
       visits: (rt, who, now) => visitsFor(rt, who, "chat", now),
+      requests: { takes: takesRequests, terms: requestTermsFor },
     },
     budget: { tokensLast24h },
     persist: { thread: pgThread, ingest: pgIngest, sink: pgSink, queueReply, turn: replyTurn, answered: pgAnswered },

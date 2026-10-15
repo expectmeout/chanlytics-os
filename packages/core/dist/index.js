@@ -39509,7 +39509,15 @@ async function heldForThePerson(at, bodyText) {
 }
 
 // src/inbound/model-turn.ts
-import { resolveSystemPrompt, describeNow, shadowWordsOf, priceAllowance as priceAllowance2 } from "../../contracts/dist/index.js";
+import {
+  resolveSystemPrompt,
+  describeNow,
+  shadowWordsOf,
+  priceAllowance as priceAllowance2,
+  requestedBookingOf,
+  slotShort,
+  BOOKING_REQUEST_WORDS
+} from "../../contracts/dist/index.js";
 import { errField as errField10 } from "../../channels/dist/index.js";
 async function leadNoteFor(at) {
   const { db, tenantId, from, ports, rt, L, channel, ing } = at;
@@ -39549,6 +39557,31 @@ function checked(at, brainCfg, r, now) {
   if (two.askClass) L.info("wa_policy_ask", { class: two.askClass, intent, complied: two.complied });
   return { replyText: two.replyText, escalate: two.escalate, escalationReason: two.escalationReason };
 }
+async function requestOf(at, r, turn, now) {
+  const { ports, rt, L, ing } = at;
+  const requests = ports.calendar.requests;
+  if (!rt || !requests || !r.booking?.slot) return turn;
+  const terms = await requests.terms(rt, ing?.contact_id ?? null, now);
+  const asked2 = terms ? requestedBookingOf({ slot: r.booking.slot, service: r.booking.service, ...terms }) : null;
+  const ownHold = turn.escalate && turn.escalationReason !== "policy_ask" && turn.escalationReason !== "human_token";
+  if (terms && asked2?.ok && !ownHold && turn.replyText === r.text) {
+    L.info("booking_request_taken", { service: asked2.service !== null });
+    return {
+      ...turn,
+      escalate: true,
+      escalationReason: "booking_request",
+      bookingRequest: {
+        startsAt: new Date(asked2.startMs).toISOString(),
+        endsAt: new Date(asked2.endMs).toISOString(),
+        service: asked2.service,
+        timezone: terms.tz,
+        words: BOOKING_REQUEST_WORDS.hold(slotShort(asked2.startMs, terms.tz), asked2.service)
+      }
+    };
+  }
+  L.info("booking_request_refused", { why: !asked2 ? "no_openings" : asked2.ok ? "held" : asked2.why });
+  return turn.escalate ? turn : { ...turn, escalate: true, escalationReason: "booking_reply" };
+}
 async function modelTurn(at, bodyText, photo) {
   const { ports, db, rt, thread, n, fallbacks, L, channel } = at;
   const brainCfg = at.brainCfg;
@@ -39559,11 +39592,13 @@ async function modelTurn(at, bodyText, photo) {
   let brainMeta;
   let fallback;
   let brainMs = 0;
+  let bookingRequest = null;
   if (ports.env.modelKey) {
     try {
       const { generateReply } = await ports.brain();
       const leadNote = await leadNoteFor(at);
       const openings = rt ? await ports.calendar.openings(rt) : null;
+      const takes = !!rt && ports.calendar.requests?.takes(rt) === true;
       const now = /* @__PURE__ */ new Date();
       const tBrain = Date.now();
       const r = await generateReply(
@@ -39592,13 +39627,17 @@ ${openings}` : ""}`,
           subjectId: at.ing?.conversation_id ?? null,
           configVersion: rt?.configVersion ?? null,
           // A second model is put the customer's own words in shadow, when it is on (contracts shadowWordsOf).
-          shadowText: shadowWordsOf({ text: bodyText, photo: photo !== null, caption: n.media?.caption })
+          shadowText: shadowWordsOf({ text: bodyText, photo: photo !== null, caption: n.media?.caption }),
+          ...takes ? { bookingRequests: true } : {}
         }
       );
       usage = r.usage;
       brainMeta = r.meta;
       brainMs = Date.now() - tBrain;
-      ({ replyText, escalate, escalationReason } = checked(at, brainCfg, r, now));
+      const two = checked(at, brainCfg, r, now);
+      const done = takes ? await requestOf(at, r, two, now) : two;
+      ({ replyText, escalate, escalationReason } = done);
+      bookingRequest = done.bookingRequest ?? null;
     } catch (e) {
       L.error("brain_failed", { error: errField10(e) });
       replyText = fallbacks.error;
@@ -39619,10 +39658,11 @@ ${openings}` : ""}`,
       }
     }
   }
-  return { replyText, escalate, escalationReason, usage, brainMeta, fallback, brainMs, photo };
+  return { replyText, escalate, escalationReason, usage, brainMeta, fallback, brainMs, photo, bookingRequest };
 }
 
 // src/inbound/dispatch.ts
+import { reasonLabelOf } from "../../contracts/dist/index.js";
 async function planTheHold(at, turn) {
   const { replyMode, replyLimits, L, ports, db, tenantId, ing, from, wire, channel } = at;
   const { brainMeta, replyText, brainMs, escalate, photo } = turn;
@@ -39657,9 +39697,16 @@ async function planTheHold(at, turn) {
   };
   return { plan, delayMs, heldForConfidence, queued, replyQuality };
 }
+function turnHold(at, turn, details) {
+  const { sink } = at;
+  const req = turn.bookingRequest;
+  if (!req) return sink.escalate(turn.escalationReason, details);
+  return sink.request ? sink.request(req, details) : sink.escalate("booking_reply", details);
+}
+var handoffWhy = (turn, otherwise) => turn.bookingRequest ? reasonLabelOf("booking_request") : otherwise;
 async function heldOrKept(at, turn, hold, bodyText) {
   const { sink, pauseMs, tell, pauseHours, L } = at;
-  const { usage, brainMeta, replyText, escalate, escalationReason, fallback } = turn;
+  const { usage, brainMeta, replyText, escalate, fallback } = turn;
   const { plan, delayMs, heldForConfidence, queued, replyQuality } = hold;
   if (delayMs > 0 && !queued) {
     await sink.vetoFallback(delayMs, plan.source);
@@ -39694,8 +39741,9 @@ async function heldOrKept(at, turn, hold, bodyText) {
       post.push(
         sink.pause(new Date(Date.now() + pauseMs).toISOString(), typeof queued === "string" ? queued : void 0)
       );
-      asked2 = sink.escalate(
-        escalationReason,
+      asked2 = turnHold(
+        at,
+        turn,
         fallback ? fallback.escalationDetails(bodyText) : brainMeta?.reason ? `${brainMeta.reason} \u2014 "${bodyText}"` : bodyText
       );
       post.push(asked2);
@@ -39703,7 +39751,7 @@ async function heldOrKept(at, turn, hold, bodyText) {
         tell(asked2, {
           said: bodyText,
           answered: replyText,
-          why: "assistant flagged handoff (reply held for review)",
+          why: handoffWhy(turn, "assistant flagged handoff (reply held for review)"),
           pausedHours: pauseHours
         })
       );
@@ -39717,7 +39765,7 @@ async function heldOrKept(at, turn, hold, bodyText) {
 }
 async function sendNow(at, turn, hold, bodyText) {
   const { send, sink, pauseMs, tell, pauseHours, L, ingestMs } = at;
-  const { replyText, fallback, brainMeta, usage, escalate, escalationReason } = turn;
+  const { replyText, fallback, brainMeta, usage, escalate } = turn;
   const { replyQuality } = hold;
   const sent = await send(
     replyText,
@@ -39730,8 +39778,9 @@ async function sendNow(at, turn, hold, bodyText) {
     if (usage) post.push(sink.usage({ ...usage, ...replyQuality }));
     if (escalate) {
       post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
-      asked2 = sink.escalate(
-        escalationReason,
+      asked2 = turnHold(
+        at,
+        turn,
         fallback ? fallback.escalationDetails(bodyText) : brainMeta?.reason ? `${brainMeta.reason} \u2014 "${bodyText}"` : bodyText
       );
       post.push(asked2);
@@ -39739,7 +39788,7 @@ async function sendNow(at, turn, hold, bodyText) {
         tell(asked2, {
           said: bodyText,
           answered: replyText,
-          why: fallback ? fallback.alertReason : "assistant flagged handoff",
+          why: fallback ? fallback.alertReason : handoffWhy(turn, "assistant flagged handoff"),
           pausedHours: pauseHours
         })
       );

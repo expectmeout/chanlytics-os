@@ -100,14 +100,14 @@ function lastDaysPart(r: LifecycleRowResults | null): string {
 }
 
 /**
- * The playbooks the page drew, each as campaigns.playbooks says one: its last 30 days as its row on Campaigns says them
+ * The playbooks the page drew, each as sequences.moments says one: its last 30 days as its row on Campaigns says them
  * (D35), first after its name so no cut reaches them; its state and next run; and its moment, where it is not its name.
  * A citation opens its drawer.
  */
 async function playbookContextRows(rc: ReaderContext, ids: string[]) {
   const [read, sources] = await Promise.all([load(rc, playbooksReader, undefined), lastDaysBySource(rc)]);
   const pb = read.data;
-  // Each card as the home reads it at this turn's clock (contracts lifecyclePlaybooksOf, the reading campaigns.playbooks makes):
+  // Each card as the home reads it at this turn's clock (contracts lifecyclePlaybooksOf, the reading sequences.moments makes):
   // a campaign past its last day is Ended, one on trial says so, and its next run is none after its last day. The raw row said
   // "On · daily 10:00 AM" with a run tomorrow of a campaign the home called Ended (the wiring's second audit, S1-3).
   const home = lifecyclePlaybooksOf(pb, rc.now);
@@ -245,7 +245,7 @@ async function templateRows(rc: ReaderContext, ids: string[]) {
 
 /**
  * The home's rows (a view of `playbooks`, then the ledger's status, group and search), in the ledger's order: its
- * campaigns as campaigns.playbooks says them, its reach-outs as GET reach-outs lists them, and its one-off sends as Sent's
+ * campaigns as sequences.moments says them, its reach-outs as GET reach-outs lists them, and its one-off sends as Sent's
  * rows say them, each a row a citation names.
  */
 async function ledgerRows(rc: ReaderContext, ctx: Parameters<Provider>[1]) {

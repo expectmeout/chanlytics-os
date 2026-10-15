@@ -14,7 +14,7 @@ import {
   type PolicyMode,
 } from "@chanlytics/contracts";
 import { sellsByOf } from "../../../people/deals";
-import { defineAct, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";
+import { actAction, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";
 
 async function proposePolicy(
   t: ToolContext,
@@ -68,21 +68,34 @@ async function proposePolicy(
   });
 }
 
-export const propose_autonomy = defineAct({
-  name: "propose_autonomy",
-  description: `Propose a change to what the receptionist may do alone: class (reply, booking, faq, reengage, campaign, reviews, or follow_up where deals are on) with mode (auto, veto, ask or never), or the reply confidence dial (min_confidence, 0 to 1, with mode empty). Call it when they want the receptionist to act on its own, wait for them, or hold its replies for a look; propose_person is for one person, and propose_settings for hours, closures, notes and services. Each class takes the modes its row on the Autonomy page offers (veto holds a reply, or a campaign's run for ${PLAYBOOK_VETO_DELAY_WORDS}, so a person can stop it), and a mode a class does not take is refused in that page's words. Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed. The modes as they stand are in this prompt above, so no read is needed first.`,
+/**
+ * What the receptionist may do alone for a whole class of message: propose_settings' action autonomy (the operator, 15
+ * Oct 2026: a setting like the others, once propose_autonomy). An operator's card, as the Autonomy page's row is.
+ */
+export const autonomyAction = actAction({
   kind: "policy",
   input: z.object({
     // The classes the Autonomy pane draws: a reach-out's is set where reach-outs are made (Part 4).
-    class: z.enum(POLICY_CLASSES.filter((c) => c !== "outreach") as [string, ...string[]]),
-    mode: z.enum(["", ...POLICY_MODES]),
-    min_confidence: z.number().optional(),
+    class: z
+      .enum(POLICY_CLASSES.filter((c) => c !== "outreach") as [string, ...string[]])
+      .describe(
+        "The class of message: reply, booking, faq, reengage, campaign, reviews, or follow_up where deals are on.",
+      ),
+    mode: z
+      .enum(POLICY_MODES)
+      .optional()
+      .describe(
+        "auto (alone), veto (waits so a person can stop it), ask (a person first) or never; leave out to change only the dial.",
+      ),
+    min_confidence: z.number().optional().describe("The reply confidence dial, 0 to 1, for class reply alone."),
   }),
-  // The dial alone is asked with mode empty: the one shape a sentence does not pin.
+  // The dial alone is asked with no mode: the one shape a sentence does not pin.
   examples: [
     { class: "reply", mode: "veto" },
-    { class: "reply", mode: "", min_confidence: 0.8 },
+    { class: "reply", min_confidence: 0.8 },
   ],
   label: "Preparing an autonomy change",
-  build: proposePolicy,
+  words: `Action autonomy changes what the receptionist may do alone for a whole class of message: class with mode, or the reply confidence dial (min_confidence) alone. Call it when they want the receptionist to act on its own, wait for them, or hold its replies for a look; propose_person with action mode is for one person. Each class takes the modes its row on the Autonomy page offers (veto holds a reply, or a campaign's run for ${PLAYBOOK_VETO_DELAY_WORDS}, so a person can stop it), and a mode a class does not take is refused in that page's words. Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed. The modes as they stand are in this prompt above, so no read is needed first.`,
+  build: (t, input) =>
+    proposePolicy(t, { class: input.class, mode: input.mode ?? "", min_confidence: input.min_confidence }),
 });
