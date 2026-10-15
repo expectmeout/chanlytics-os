@@ -2,7 +2,7 @@
  * A sequence's People (Leads for a sequence to leads; the canvas's People board): who is in it, by where they stand, one
  * row per person or lead read from their enrollment (00441), so every screen says the same. What needs you is open at the
  * top: a batch waiting for your OK with the people it holds, and for a sequence to leads the emails the check held and
- * those for you to send, decided in place (needs.tsx). Everything else folds to one line that already says its numbers:
+ * those for you to send, decided in place from the same read (needs.tsx, 00445). Everything else folds to one line that already says its numbers:
  * up next, in it, done and left (contracts SEQUENCE_PEOPLE_GROUPS), each opening onto its rows, each row a door to the
  * person or the lead. Someone still in it may be taken out, alone or with the rest of their group: a send of theirs not
  * yet gone is skipped with them (00442 sequence_leave).
@@ -153,19 +153,13 @@ export function SequencePeople(p: { rec: SequenceRecordDto; flash: Flash; again:
     setBusy(null);
   };
   const of = (g: SequencePeopleGroup) => rows.filter((r) => r.group === g);
-  // The batches holding emails the check held or handed to you: each read whole below, where they are decided.
-  const needBatches = [
-    ...new Set(
-      rows.filter((r) => (r.group === "held" || r.group === "to_send") && r.batch_id).map((r) => r.batch_id ?? ""),
-    ),
-  ];
   const needs = (counts.held ?? 0) + (counts.to_send ?? 0);
   const waiting = of("waiting");
   const folded = FOLDED.filter((g) => (counts[g] ?? 0) > 0);
   if (needs === 0 && waiting.length === 0 && folded.length === 0) return <p className="sq-none">{P.nobody}</p>;
   return (
     <div className="sq-people" data-testid="sq-people">
-      <SequenceNeeds batches={needBatches} count={needs} flash={flash} onDecided={moved} />
+      <SequenceNeeds rows={rows} count={needs} timezone={rec.timezone} flash={flash} onDecided={moved} />
       {waiting.length > 0 ? (
         <section className="sq-group" aria-label={PEOPLE_GROUP_WORDS.waiting} data-testid="sq-people-waiting">
           <h3 className="sq-group-name">

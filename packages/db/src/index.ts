@@ -325,6 +325,7 @@ export {
   followUpsDue,
   leaveSequence,
   sequenceRow,
+  sequenceOfPart,
   sequenceOverview,
   sequenceStepsOf,
   sequencePeopleOf,

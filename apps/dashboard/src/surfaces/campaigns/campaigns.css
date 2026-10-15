@@ -545,6 +545,28 @@
 .mp-bare > .mp-via {
   padding: 0 var(--space-3) var(--space-3);
 }
+/* A message in a flow (MessagePreview `plain`): the bubble alone on the page's ground, its notch's room at its left, no
+   chat round it, as wide as the flow gives it. */
+.mp.mp-plain {
+  gap: 0;
+}
+.mp-plain > .mp-frame {
+  max-width: none;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  overflow: visible;
+}
+.mp-plain .mp-thread {
+  padding: 0 0 0 var(--space-2);
+}
+.mp-plain .mp-bubble {
+  max-width: min(100%, 420px);
+}
+.mp-plain > .mp-note,
+.mp-plain > .mp-via {
+  padding: var(--space-1) 0 0 var(--space-2);
+}
 /* A text heading, bold at the top of the bubble, where WhatsApp puts it. */
 .mp-header {
   display: block;
@@ -2496,8 +2518,8 @@ html.legacy-on .bc-run-line .bc-run-link {
   flex-wrap: wrap;
   gap: 6px 14px;
 }
-/* An email handed to its owner (00429, reach-out/to-send.tsx): who and what on a line, its doors into a mail client under
-   it, then the owner's word on it. A block, never the fixed line a person's is: its doors are many, and they wrap. */
+/* An email handed to its owner (00429, reach-out/to-send.tsx): who and what on a line, then its mail app, its More and the
+   owner's word on it on the line under. A block, never the fixed line a person's is: its acts wrap on a phone. */
 .ro-send {
   display: grid;
   gap: 6px;
@@ -2520,6 +2542,14 @@ html.legacy-on .bc-run-line .bc-run-link {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
+}
+/* The owner's word, Sent or Skip, at the line's end: under the mail app once the line wraps. */
+.ro-send-word {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-left: auto;
 }
 .bc-person-at {
   width: 52px;

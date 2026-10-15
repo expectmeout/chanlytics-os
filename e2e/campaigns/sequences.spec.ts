@@ -15,9 +15,10 @@ import { sequencesShownIn } from "./shown";
 
 /**
  * Campaigns › Sequences (decision 0060) on a real workspace whose preview is on: everything it sends on its own as one
- * list, a sequence's record beside it on its three tabs, and a new one drafted from a line. Every count is read from the
- * API's answer and compared with what the page says; nothing is made, changed or sent here (no draft is asked for, so no
- * model is called), and a workspace whose preview is off steps aside, where the home's specs walk Campaigns instead.
+ * list, a sequence's record beside it on its three tabs, a run's address landing on its day of History, and a new one
+ * drafted from a line. Every count is read from the API's answer and compared with what the page says; nothing is made,
+ * changed or sent here (no draft is asked for, so no model is called), and a workspace whose preview is off steps aside,
+ * where the home's specs walk Campaigns instead.
  */
 test.describe("Campaigns › Sequences on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
@@ -120,6 +121,21 @@ test.describe("Campaigns › Sequences on a real workspace", () => {
     if (!day) return;
     await record.getByTestId(`sq-batch-${day.id}`).click();
     await expect(record.getByTestId(`sq-day-open-${day.id}`).or(record.getByTestId("sq-day-run"))).toBeVisible();
+  });
+
+  test("a run's address, as a bell row or Ask's card names it, lands on its sequence's History with that day open", async ({
+    page,
+  }) => {
+    const list = await readList(page);
+    const s = list.sequences.find((x) => x.last !== null);
+    test.skip(!s?.last, "no sequence here has sent anything yet");
+    if (!s?.last) return;
+    await page.goto(`/#/broadcasts/run:${s.last.id}`);
+    await expect(page).toHaveURL(atRoute(new RegExp(`^campaigns/sequences/${s.id}/history/${s.last.id}$`)));
+    const record = page.getByTestId("sq-record");
+    await expect(record.getByTestId(`sq-batch-${s.last.id}`)).toHaveAttribute("aria-expanded", "true");
+    // Its sheet in Sent stays a door away, at an address no landing takes.
+    await expect(record.getByTestId("sq-day-run").first()).toBeVisible();
   });
 
   test("New starts from what starts it; a date and leads open their own composers, and nothing is drafted here", async ({

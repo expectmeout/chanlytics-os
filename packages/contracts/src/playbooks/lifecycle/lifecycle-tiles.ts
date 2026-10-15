@@ -36,7 +36,7 @@ import { waitingRunOffer } from "../playbook-approval";
 import { DAY_MS } from "../playbook-time";
 import { playbookReach } from "../playbook-reach";
 import { runCapOf } from "../playbook-run-split";
-import { nextOpenMoment, nextRunOf } from "../playbook-schedule";
+import { nextOpenMoment, nextRunLabel, nextRunOf } from "../playbook-schedule";
 import { triggerOf } from "../playbook-triggers";
 
 /** How far ahead "Coming up" looks. */
@@ -160,10 +160,30 @@ export function nextRunLine(
 }
 
 /** How many a running campaign's next run reaches: its cap's share, or everyone where nothing caps it (runCapOf). */
-export function nextShare(p: Pick<LifecyclePlaybook, "trigger" | "candidates" | "cap_per_run">): number {
+function nextShare(p: Pick<LifecyclePlaybook, "trigger" | "candidates" | "cap_per_run">): number {
   const all = p.candidates ?? 0;
   const cap = runCapOf(p);
   return cap > 0 ? Math.min(all, cap) : all;
+}
+
+/**
+ * Resume's detail (decision 7): when its next run would be, to about how many, and, where its class sends without asking
+ * (`auto`) and it is not on trial, that in full. Unread, the mode is not guessed: when and how many alone. A moment that
+ * could not be counted (`candidates` null) says when alone: never "about 0 people" nobody counted. The home's rows and
+ * drawers ask it (resumeOf), and so does a sequence's Turn on (contracts sequenceResumeAsk), over the same row.
+ */
+export function resumeDetailOf(
+  p: Pick<LifecyclePlaybook, "run_hour" | "last_run_for" | "trigger" | "candidates" | "cap_per_run" | "trial"> & {
+    until?: string | null;
+  },
+  at: { tz: string; nowMs: number; paused: boolean; mode: string | null | undefined },
+): string {
+  const W = LIFECYCLE_WORDS.ledger.resume;
+  const when = nextRunLabel({ ...p, state: "running" as const }, at.tz, new Date(at.nowMs), at.paused);
+  // On trial (00416), a run of an auto class still waits for a person: it does not send on its own until the trial ends.
+  const auto = at.mode === "auto" && !p.trial;
+  const detail = W.detail(when, p.candidates === null ? null : nextShare(p));
+  return auto ? `${detail}. ${W.auto}` : detail;
 }
 
 /**

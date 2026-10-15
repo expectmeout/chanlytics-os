@@ -6,7 +6,7 @@ import { reachOutAddAction } from "./lead-search";
 import { messageAction } from "./message";
 import { planAction } from "./plan";
 import { playbookAction } from "./playbook";
-import { playbookChangeAction } from "./playbook-change";
+import { playbookChangeAction, sequenceAction } from "./playbook-change";
 import { playbookChannelsAction } from "./playbook-channels";
 import { runAction } from "./run";
 
@@ -19,7 +19,8 @@ import { runAction } from "./run";
  * a version per channel (message: what the Library's New message files, whole), and since 11 Oct 2026 an offer or a whole
  * setup as one plan (plan: every card it takes, each step built by its own action here or propose_settings', from one
  * call), and since 13 Oct 2026 leads added to a reach-out fed by a list (leads, 00426: what Leads' pile and a reach-out's
- * Add leads do). Each action is its own family's, under this tool; each builds a card an operator may approve.
+ * Add leads do), and since 15 Oct 2026 a sequence that exists given a step, new words or one fewer (sequence: what its
+ * page's editor does). Each action is its own family's, under this tool; each builds a card an operator may approve.
  */
 export const propose_campaign = defineActions({
   name: "propose_campaign",
@@ -35,5 +36,6 @@ export const propose_campaign = defineActions({
     message: messageAction,
     plan: planAction,
     leads: reachOutAddAction,
+    sequence: sequenceAction,
   },
 });

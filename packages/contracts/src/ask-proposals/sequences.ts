@@ -342,3 +342,61 @@ export const sequenceSendSaidSpec: ProposalSpec = {
   },
   open: openRun,
 };
+
+/** The ops Ask's one sequence card proposes (W1), each one of the page's own verbs. */
+const SEQUENCE_CARD_OPS = {
+  step: sequenceStepSpec,
+  remove: sequenceStepRemoveSpec,
+  words: sequenceWordsSpec,
+} as const satisfies Record<string, ProposalSpec>;
+type SequenceCardOp = keyof typeof SEQUENCE_CARD_OPS;
+const SEQUENCE_CARD_OP_KEYS = Object.keys(SEQUENCE_CARD_OPS) as SequenceCardOp[];
+
+/** The op a card or the undo it kept names, or null for one no verb has. */
+const opIn = (pl: Record<string, unknown>): SequenceCardOp | null =>
+  SEQUENCE_CARD_OP_KEYS.find((k) => k === pl.op) ?? null;
+
+/**
+ * Ask's one card for a sequence that exists (decision 0060, the parity review's W1): its `op` says which of the page's own
+ * verbs it commits -- a step after the first added or its wait changed (`step`), a step's new words (`words`), a step taken
+ * away (`remove`) -- so a card approved and a press on the page make the same call, say the same receipt and keep the
+ * same undo. Its state, a name and a batch's OK stay the campaign's and the run's own cards (playbook_change, run).
+ */
+export const sequenceCardSpec: ProposalSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: (p, tab) => {
+    const op = opIn(p.payload);
+    return op ? SEQUENCE_CARD_OPS[op].commit(p, tab) : refuseWith(PROPOSAL_WORDS.cannotApprove);
+  },
+  receipt: (p, data) => {
+    const op = opIn(p.payload);
+    return op ? SEQUENCE_CARD_OPS[op].receipt(p, data) : PROPOSAL_WORDS.cannotApprove;
+  },
+  undo: {
+    label: (p) => {
+      const op = opIn(p.payload);
+      const undo = op ? SEQUENCE_CARD_OPS[op].undo : undefined;
+      return undo ? undo.label(p) : null;
+    },
+    window: "ten_minutes",
+    // What the op's own undo keeps, and the op, so the undo is its own way back.
+    record: (p, data, tab) => {
+      const op = opIn(p.payload);
+      const undo = op ? SEQUENCE_CARD_OPS[op].undo : undefined;
+      const kept = undo ? undo.record(p, data, tab) : null;
+      return kept ? { ...kept, op } : null;
+    },
+    call: (u, tab) => {
+      const op = opIn(u);
+      const undo = op ? SEQUENCE_CARD_OPS[op].undo : undefined;
+      return undo ? undo.call(u, tab) : refuseWith(PROPOSAL_WORDS.noUndo);
+    },
+    receipt: (data, u) => {
+      const op = opIn(u);
+      const undo = op ? SEQUENCE_CARD_OPS[op].undo : undefined;
+      return undo ? undo.receipt(data, u) : "";
+    },
+  },
+  open: openSequence,
+};

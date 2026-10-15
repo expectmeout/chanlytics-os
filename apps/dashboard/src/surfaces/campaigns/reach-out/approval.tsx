@@ -96,9 +96,9 @@ interface HeldProps {
 
 /**
  * The held, each with why and its doors (R20); a door's refusal said at its row. Out of sight for a role that may not. A
- * sequence's People draws it too, open under Needs you (sequences/needs.tsx).
+ * sequence's People lays out the same answers from its own read (sequences/needs.tsx, contracts peopleNeedsOf).
  */
-export function RoRunHeld({ vm, may, busy, said, onDecide }: HeldProps) {
+function RoRunHeld({ vm, may, busy, said, onDecide }: HeldProps) {
   return (
     <section className="bc-touched bc-sheet-people bc-approval-people" data-testid="ro-run-held">
       {vm.held.map((h) => (
@@ -227,9 +227,9 @@ type Answer = { ok: true } | ApiRefusal;
 /**
  * A door pressed or the held checked again: said at its row when refused, and the run read again when taken. A door is
  * the `sequence_send_decide` verb, the one walk every press takes (its receipt, the surfaces it moves), whichever page
- * draws the held: the run's sheet in Sent, or a sequence's People.
+ * answers the held: the run's sheet in Sent, or a sequence's People.
  */
-export function useRoRunDoors(runId: string, onDecided: () => void) {
+function useRoRunDoors(runId: string, onDecided: () => void) {
   const [busy, setBusy] = useState<string | null>(null);
   const [said, setSaid] = useState<Said | null>(null);
   const press = async (key: string, fn: () => Promise<Answer>) => {

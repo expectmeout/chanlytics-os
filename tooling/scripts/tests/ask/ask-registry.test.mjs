@@ -565,12 +565,13 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
     // Oct 2026: and its change, a playbook that exists paused, resumed, renamed or retimed, to the same roles; 10 Oct
     // 2026: and its message, a new message written for the Library, to the same roles; 11 Oct 2026: and its plan, an
     // offer or a whole setup made into its cards, to the same roles; 13 Oct 2026: and its leads, leads added to a
-    // reach-out fed by a list (00426), to the same roles.
+    // reach-out fed by a list (00426), to the same roles; 15 Oct 2026: and its sequence, a sequence's steps changed by
+    // its page's own verbs (decision 0060), to the same roles.
     [
       null,
-      ["broadcast", "playbook", "run", "channels", "change", "message", "plan", "leads"],
-      ["broadcast", "playbook", "run", "channels", "change", "message", "plan", "leads"],
-      ["broadcast", "playbook", "run", "channels", "change", "message", "plan", "leads"],
+      ["broadcast", "playbook", "run", "channels", "change", "message", "plan", "leads", "sequence"],
+      ["broadcast", "playbook", "run", "channels", "change", "message", "plan", "leads", "sequence"],
+      ["broadcast", "playbook", "run", "channels", "change", "message", "plan", "leads", "sequence"],
     ],
   );
   const was = (role, name) => TODAY[role].find((t) => t.name === name);
@@ -734,8 +735,26 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
       starter,
       root_id: rootId,
       lead_ids: leadIds,
+      sequence_id: sequenceId,
+      step_id: stepId,
+      after_days: afterDays,
+      only_if: onlyIf,
+      remove,
       ...fields
     } = now.input_schema.properties;
+    // 15 Oct 2026 (decision 0060): the sequence action's own five fields; its template_id and params are the playbook's,
+    // one shape.
+    assert.deepEqual(
+      [sequenceId, stepId, afterDays, onlyIf, remove].map(shapeOf),
+      [
+        { type: "string" },
+        { type: "string" },
+        { type: "number" },
+        { type: "array", items: { type: "string" } },
+        { type: "boolean" },
+      ],
+      `${role}: sequence's sequence_id, step_id, after_days, only_if and remove`,
+    );
     // 13 Oct 2026 (00426): the leads action's own two fields, the reach-out and the leads it takes, as many as a list holds.
     assert.deepEqual(
       [rootId, leadIds].map(shapeOf),
@@ -830,7 +849,9 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
     // Less the examples of the actions added since, and the playbook's one naming its starter (12 Oct 2026).
     assert.deepEqual(
       now.input_examples.filter(
-        (ex) => !["run", "channels", "change", "message", "plan", "leads"].includes(ex.action) && !("starter" in ex),
+        (ex) =>
+          !["run", "channels", "change", "message", "plan", "leads", "sequence"].includes(ex.action) &&
+          !("starter" in ex),
       ),
       before.input_examples,
     );

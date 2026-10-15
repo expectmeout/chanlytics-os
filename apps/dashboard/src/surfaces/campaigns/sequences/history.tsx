@@ -3,14 +3,14 @@
  * day. Four figures over the period picked (the last 30 days, 90, or all of it), each with what it counts on its label,
  * counted from the same batches Reports counts (contracts historyFigures over 00442 sequence_batch_counts), with the door
  * to Reports over the same days. Then a row a batch, newest first: when, what it went to and what came of it, opened in
- * place onto the replies it drew, each a door to its thread, everyone it went to under them, and the door to its run.
- * Older batches are read a page at a time, and as far back as the period asks.
+ * place onto the replies it drew, each a door to its thread, everyone it went to under them, and the door to its run's
+ * sheet in Sent. Older batches are read a page at a time, and as far back as the period asks. An address that names a day
+ * (a run's, landed here: the parity review's W4) opens that day, read back to it, and brings it into view.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   SEQUENCE_HISTORY_PERIODS,
   SEQUENCE_HISTORY_WORDS as H,
-  addressOf,
   batchWent,
   clockStamp,
   historyCovers,
@@ -20,6 +20,7 @@ import {
   historyIn,
   historySince,
   lensRoute,
+  runSheetRoute,
   zoneDayKey,
   type SequenceBatchDto,
   type SequenceHistoryPeriod,
@@ -52,7 +53,7 @@ function DayOpen({ id, region }: { id: string; region: string }) {
         {H.reading}
       </p>
     );
-  const run = addressOf({ kind: "send", id });
+  const run = runSheetRoute(id);
   // A batch to leads keeps its sends apart (reach_out_sends): its run says them.
   const report = read.data.reach_out ? null : broadcasts.report(read.data);
   return (
@@ -108,8 +109,14 @@ function DayRow(p: {
   open: boolean;
   onToggle: () => void;
   nowMs: number;
+  /** The day the address named: brought into view as it is drawn. */
+  landed: boolean;
 }) {
-  const { b, rec, open, onToggle, nowMs } = p;
+  const { b, rec, open, onToggle, nowMs, landed } = p;
+  const row = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (landed) row.current?.scrollIntoView({ block: "center" });
+  }, [landed]);
   const place = b.place && rec.steps.length > 1 ? H.step(b.place) : null;
   const said = historyDayWords(b, place);
   const went = batchWent(b);
@@ -139,6 +146,7 @@ function DayRow(p: {
           }
         }}
         className="sq-day"
+        ref={row}
         data-testid={`sq-batch-${b.id}`}
       />
       {open ? (
@@ -146,11 +154,7 @@ function DayRow(p: {
           <DayOpen id={b.id} region={region} />
         ) : (
           <div className="sq-day-open" id={region}>
-            <LinkButton
-              className="sq-day-door"
-              {...routeDoor(addressOf({ kind: "send", id: b.id }))}
-              data-testid="sq-day-run"
-            >
+            <LinkButton className="sq-day-door" {...routeDoor(runSheetRoute(b.id))} data-testid="sq-day-run">
               {H.openRun} <Icon name="chevron" size={11} />
             </LinkButton>
           </div>
@@ -206,13 +210,20 @@ function useHistoryPages(id: string, again: number, since: string | null, tz: st
   return { read, batches, more, covered, busy, older };
 }
 
-export function SequenceHistory({ rec, again, moved }: { rec: SequenceRecordDto; again: number; moved: () => void }) {
+export function SequenceHistory(p: { rec: SequenceRecordDto; again: number; moved: () => void; day?: string | null }) {
+  const { rec, again, moved, day = null } = p;
   const [period, setPeriod] = useState<SequenceHistoryPeriod>("30");
-  const [opened, setOpened] = useState<string | null>(null);
+  const [opened, setOpened] = useState<string | null>(day);
   const tz = rec.timezone;
   const nowMs = Date.now();
   const since = historySince(period, tz, nowMs);
   const { read, batches, more, covered, busy, older } = useHistoryPages(rec.sequence.id, again, since, tz);
+  // A day the address named and the pages read do not reach yet: read back to it.
+  const seek = day !== null && !batches.some((b) => b.id === day) && more && covered && !busy;
+  useEffect(() => {
+    if (seek) void older();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `older` reads from the pages; each one read moves `seek`
+  }, [seek, batches.length]);
   if (read.state === "failed")
     return <FailedRead what="what it sent" why={read.why} onRetry={moved} testid="sq-history-failed" />;
   if (read.state === "reading") return <div className="sq-reading" aria-busy="true" />;
@@ -267,6 +278,7 @@ export function SequenceHistory({ rec, again, moved }: { rec: SequenceRecordDto;
             rec={rec}
             nowMs={nowMs}
             open={opened === b.id}
+            landed={day === b.id}
             onToggle={() => setOpened((was) => (was === b.id ? null : b.id))}
           />
         ))}

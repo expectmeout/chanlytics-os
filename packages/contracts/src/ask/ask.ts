@@ -44,9 +44,10 @@ export const ASK_TURN_BUDGET_MS = 45_000;
  * The most the owner's tools block may be, in characters as the model is sent it (66,050 on 11 October 2026; 70,426 on
  * 12 October, after the review of Ask's campaign cards, its reads and its plan; 72,542 on 13 October, the lead search
  * proposing named people at companies too, the people card's, 00430; 73,558 on 15 October, Ask reading the sequences
- * as their page does, decision 0060).
+ * as their page does, decision 0060; 74,273 the same day, Ask changing a sequence's steps by its page's own verbs,
+ * propose_campaign's action sequence).
  */
-export const ASK_TOOLS_CHARS_CEILING = 74_000;
+export const ASK_TOOLS_CHARS_CEILING = 74_500;
 /**
  * The longest the voice door lets pass with nothing speakable sent: ElevenLabs cuts a custom LLM whose stream goes
  * quiet for 15 s (its ceiling) and asks again, so while the model is quiet the door sends the vendor's own buffer words
@@ -194,7 +195,8 @@ export interface AskProposal {
     | "run"
     | "playbook_channels"
     | "playbook_change"
-    | "message";
+    | "message"
+    | "sequence";
   /** The lowest role that may commit it, its spec's (ask-proposals/); the route re-checks on Approve. */
   needs: ProposalNeeds;
   title: string;

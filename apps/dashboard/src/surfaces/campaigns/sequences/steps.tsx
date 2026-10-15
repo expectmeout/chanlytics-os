@@ -96,15 +96,9 @@ function Starts({ rec, flash, moved }: { rec: SequenceRecordDto; flash: Flash; m
         <span className="sq-fl-k">{F.starts}</span>
         <span>{sequenceStartsSentence(row, rec.word, rec.timezone, Date.now())}</span>
         {changes && !open ? (
-          <Button
-            size="sm"
-            variant="quiet"
-            onClick={() => setOpen(true)}
-            data-testid="sq-starts-change"
-            {...gate("approve")}
-          >
+          <LinkButton onClick={() => setOpen(true)} data-testid="sq-starts-change" {...gate("approve")}>
             {SEQUENCE_WORDS.change}
-          </Button>
+          </LinkButton>
         ) : null}
       </p>
       {open ? (
@@ -195,25 +189,26 @@ function Step(p: StepProps) {
     setBusy(false);
     setSure(false);
   };
+  // A step's acts are words under its bubble, as its message's name is (the kit's LinkButton, at the line's own size).
   const acts = editable ? (
     <>
-      <Button
-        size="sm"
-        variant="quiet"
-        onClick={p.onEdit}
-        data-testid={`sq-step-edit-${step.place}`}
-        {...gate("approve")}
-      >
+      <LinkButton onClick={p.onEdit} data-testid={`sq-step-edit-${step.place}`} {...gate("approve")}>
         {SEQUENCE_WORDS.edit}
-      </Button>
+      </LinkButton>
       {later ? (
-        <Button size="sm" variant="quiet" onClick={() => setSure(true)} {...gate("approve")}>
+        <LinkButton
+          tone="danger"
+          onClick={() => setSure(true)}
+          data-testid={`sq-step-remove-ask-${step.place}`}
+          {...gate("approve")}
+        >
           {F.takeAway}
-        </Button>
+        </LinkButton>
       ) : null}
     </>
   ) : null;
-  const via = step.hand ? F.call : leads ? F.writtenEach : sequenceChannelsWords(step.channels);
+  // Each lead's email is written for its business: said once, where the flow says where they send from (Settings).
+  const via = step.hand ? F.call : sequenceChannelsWords(step.channels);
   return (
     <FlowRow
       node={
@@ -227,6 +222,7 @@ function Step(p: StepProps) {
       <p className="sq-fl-line">
         {shown === "line" ? (
           <LinkButton
+            size="inherit"
             className="sq-fl-name"
             aria-expanded={false}
             onClick={p.onOpen}
@@ -238,8 +234,8 @@ function Step(p: StepProps) {
           <span className="sq-fl-name">{step.name}</span>
         )}
         {step.place > 1 ? (
-          <span className="sq-fl-wait">
-            <Icon name="clock" size={11} /> {sequenceWaitWords(step)}
+          <span className="sq-fl-wait" title={sequenceWaitWords(step)}>
+            <Icon name="clock" size={11} /> <span className="sq-fl-wait-words">{sequenceWaitWords(step)}</span>
           </span>
         ) : null}
         <span className="sq-fl-via">{via}</span>
@@ -287,7 +283,9 @@ function Settings({ rec }: { rec: SequenceRecordDto }) {
       {rec.sequence.starts === "leads" && first ? (
         <p className="sq-setting" data-testid="sq-sends-from">
           <span className="sq-fl-k">{F.sendsFrom}</span>
-          <span>{first.owner_sends ? F.fromYou : F.fromMailboxes}</span>
+          <span>
+            {first.owner_sends ? F.fromYou : F.fromMailboxes} · <span className="sq-fl-src">{F.writtenEach}</span>
+          </span>
           <LinkButton {...routeDoor(addressOf({ kind: "channel" }))} data-testid="sq-mailboxes">
             {first.owner_sends ? F.connect : F.mailboxes}
           </LinkButton>

@@ -14,6 +14,7 @@ export type {
   SequenceStepDto,
   SequencePeopleGroup,
   SequencePersonDto,
+  SequencePersonDraftDto,
   SequencePeopleDto,
   SequenceBatchCountsDto,
   SequenceBatchDto,
@@ -64,14 +65,23 @@ export {
   historyDays,
   historyDayWords,
   batchWent,
+  peopleNeedsOf,
 } from "./sequence-tab-words";
-export type { SequenceHistoryPeriod, SequenceHistoryFigure } from "./sequence-tab-words";
+export type {
+  SequenceHistoryPeriod,
+  SequenceHistoryFigure,
+  SequenceHeldVM,
+  SequenceNeedsVM,
+} from "./sequence-tab-words";
+export { SEQUENCE_ACT_WORDS, SEQUENCE_CARD_WORDS, sequenceRunsNow, sequenceResumeAsk } from "./sequence-acts";
+export type { SequenceResumeAsk } from "./sequence-acts";
 export {
   SEQUENCES_ROUTE,
   isSequencesParam,
   parseSequencesRoute,
   sequenceRoute,
   sequenceLandingOf,
+  runSheetRoute,
 } from "./sequence-address";
 export type { SequenceTab, SequencesPlace } from "./sequence-address";
 export {

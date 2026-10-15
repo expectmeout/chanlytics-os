@@ -1,127 +1,178 @@
 /**
- * What needs you in a sequence to leads, open at the top of its Leads tab (the canvas's People board): for each batch that
- * holds them, the emails the check held, each with why and its answers at its end, and "Send all N as they are" over the
- * ones that may go as written; then the emails handed to you to send from your own inbox, each with its doors into your
- * mail and its Sent or Skip (0059). Read from the batch's run, the read its sheet in Sent makes (GET broadcasts/:id, kept
- * for the run, so opening it there is at once), and decided through the same verbs (`sequence_send_decide`,
- * `sequence_send_said`: reach-out/approval.tsx, to-send.tsx), so a held email decided here is decided everywhere, with
- * the same receipt. "Send all" presses the one verb once for each, and says what went in one toast. A customer's sequence
- * holds none of these: its batches wait for an OK, which the record's one notice asks.
+ * What needs you in a sequence to leads, open at the top of its Leads tab (the canvas's People board), laid out from People's
+ * one read (00445, contracts peopleNeedsOf), never each batch's run beside it: the emails the check held, a row each with
+ * why in amber and its answers under it, "Send all N as they are" over those that may go as written; then the emails
+ * handed to you to send from your own inbox, each the row every To send draws (reach-out/to-send.tsx RoToSendRows): your
+ * mail app first, the rest under its More, and Sent or Skip at its end (0059). Decided through the verbs Sent's run sheet
+ * presses (`sequence_send_decide`, `sequence_send_said`), so a held email decided here is decided everywhere, with the
+ * same receipt; "Send all" presses the one verb once for each, and says what went in one toast. A batch whose rows came
+ * without their drafts (a server before 00445) is opened in Sent. A customer's sequence holds none of these: its batches
+ * wait for an OK, which the record's one notice asks.
  */
 import { useState } from "react";
-import { SEQUENCE_NEEDS_WORDS as N, TO_SEND_ROUTE, type ReachOutDecision } from "@chanlytics/contracts";
+import {
+  SEQUENCE_NEEDS_WORDS as N,
+  TO_SEND_ROUTE,
+  peopleNeedsOf,
+  runSheetRoute,
+  type ReachOutDecision,
+  type SequenceHeldVM,
+  type SequencePersonDto,
+} from "@chanlytics/contracts";
 import type { ApiRefusal } from "@/client/api";
 import { commitVerb } from "@/legacy-bridge/verbs/commit";
-import { FailedRead } from "../../kit/empty/empty";
-import { StatePill } from "../../kit/pill/state-pill";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
+import { ListRow } from "../../kit/list-row/list-row";
+import { StatePill } from "../../kit/pill/state-pill";
 import { canDo, refusalToast, routeDoor } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
-import { broadcasts } from "../broadcasts/verbs";
-import { RoRunHeld, useRoRunDoors } from "../reach-out/approval";
-import { reachOuts } from "../reach-out/surface";
-import { RoToSend } from "../reach-out/to-send";
-import { useSequenceRead } from "./use-record";
-
-/** The held that may go as they are: those whose answers include sending it as written. */
-const goesAsIs = (doors: readonly (readonly [ReachOutDecision, string])[]) =>
-  doors.some(([door]) => door === "include");
+import { RoToSendRows } from "../reach-out/to-send";
+import { pressed } from "./verbs";
 
 type Flash = (flash: LegacyFlash) => void;
 
-/** One batch's held and handed-over emails, read from its run. */
-function NeedsBatch({ id, flash, onDecided }: { id: string; flash: Flash; onDecided: () => void }) {
-  const [again, setAgain] = useState(0);
-  const [sending, setSending] = useState(false);
-  const read = useSequenceRead(id, broadcasts.detail, broadcasts.peekDetail, again);
-  const decided = () => {
-    setAgain((n) => n + 1);
-    onDecided();
-  };
-  const doors = useRoRunDoors(id, decided);
-  if (read.state === "failed")
-    return <FailedRead what={N.failed} why={read.why} onRetry={decided} testid={`sq-needs-failed-${id}`} />;
-  if (read.state === "reading") return <p className="sq-more">{N.reading}</p>;
-  const d = read.data;
-  const vm = reachOuts.run(d);
-  const toSend = reachOuts.toSend(d);
+/** One email the check held: whose (its lead's door), why, and its answers, each the decide verb. */
+function HeldRow(p: { h: SequenceHeldVM; may: boolean; busy: boolean; onDecide: (door: ReachOutDecision) => void }) {
+  const { h, may, busy, onDecide } = p;
+  return (
+    <ListRow
+      face={{ person: { name: h.name }, size: "sm" }}
+      name={
+        h.to ? (
+          <LinkButton size="inherit" {...routeDoor(h.to)} data-testid="sq-held-lead">
+            {h.name}
+          </LinkButton>
+        ) : (
+          h.name
+        )
+      }
+      said={(place) => <div className={`${place} sq-needs sq-held-why`}>{h.why}</div>}
+      facts={
+        may
+          ? h.doors.map(([door, words]) => (
+              <LinkButton
+                key={door}
+                disabled={busy}
+                aria-busy={busy || undefined}
+                onClick={() => onDecide(door)}
+                data-testid={`sq-held-${door}`}
+              >
+                {words}
+              </LinkButton>
+            ))
+          : []
+      }
+      data-testid="sq-held"
+    />
+  );
+}
+
+interface NeedsProps {
+  rows: readonly SequencePersonDto[];
+  count: number;
+  timezone: string;
+  flash: Flash;
+  onDecided: () => void;
+}
+
+/**
+ * Needs you, open: the held and the handed-over emails, under one count, the same the list's row and the badge say.
+ * Nothing where none holds any.
+ */
+export function SequenceNeeds({ rows, count, timezone, flash, onDecided }: NeedsProps) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const vm = peopleNeedsOf(rows, { timezone, now: Date.now() });
+  if (vm.held.length === 0 && vm.toSend.length === 0 && vm.unread.length === 0) return null;
   const may = canDo("approve");
-  const asIs = vm ? vm.held.filter((h) => goesAsIs(h.doors)) : [];
+  // The emails to send this read holds, with or without their drafts: what the part's tally counts.
+  const handed = rows.filter((r) => r.group === "to_send").length;
+  const decide = async (h: SequenceHeldVM, door: ReachOutDecision) => {
+    setBusy(h.id);
+    await pressed(
+      "sequence_send_decide",
+      { send_id: h.id, decision: door, name: h.name, run_id: h.batchId },
+      flash,
+      onDecided,
+    );
+    setBusy(null);
+  };
   // Each through its own verb, one after another; what went is said once, and the first refusal in its door's words.
   const sendAll = async () => {
-    setSending(true);
+    setBusy("all");
     let went = 0;
     let no: ApiRefusal | null = null;
-    for (const h of asIs) {
+    for (const h of vm.asIs) {
       const r = await commitVerb("sequence_send_decide", {
         send_id: h.id,
         decision: "include",
         name: h.name,
-        run_id: id,
+        run_id: h.batchId,
       });
       if (r.ok) went += 1;
       else no ??= r;
     }
-    setSending(false);
+    setBusy(null);
     if (no) flash(refusalToast(no));
     else flash({ tone: "ok", msg: N.wentAll(went), undo: null });
-    decided();
+    onDecided();
   };
-  return (
-    <>
-      {vm && vm.held.length > 0 ? (
-        <section className="sq-needs-part" aria-label={N.held} data-testid="sq-needs-held">
-          <h4 className="sq-needs-head">
-            {N.held}
-            <span className="tally tally-warn">{vm.held.length}</span>
-            {may && asIs.length > 0 ? (
-              <LinkButton
-                className="sq-group-act"
-                disabled={sending}
-                aria-busy={sending || undefined}
-                onClick={() => void sendAll()}
-                data-testid="sq-needs-send-all"
-              >
-                {sending ? N.sending : N.sendAll(asIs.length)}
-              </LinkButton>
-            ) : null}
-          </h4>
-          <RoRunHeld vm={vm} may={may} busy={doors.busy} said={doors.said} onDecide={doors.decide} />
-        </section>
-      ) : null}
-      {toSend ? (
-        <section className="sq-needs-part" aria-label={N.toSend} data-testid="sq-needs-to-send">
-          <h4 className="sq-needs-head">
-            {N.toSend}
-            <span className="tally tally-warn">{toSend.rows.length}</span>
-            <LinkButton className="sq-group-act" {...routeDoor(TO_SEND_ROUTE)} data-testid="sq-needs-one-by-one">
-              {N.oneByOne} <Icon name="chevron" size={11} />
-            </LinkButton>
-          </h4>
-          <RoToSend d={d} onSaid={decided} bare />
-        </section>
-      ) : null}
-    </>
-  );
-}
-
-/**
- * Needs you, open: the held and the handed-over emails of each batch that holds them, under one count, the same the list's
- * row and the badge say. Nothing where none holds any.
- */
-export function SequenceNeeds(p: { batches: string[]; count: number; flash: Flash; onDecided: () => void }) {
-  const { batches, count, flash, onDecided } = p;
-  if (batches.length === 0) return null;
   return (
     <section className="sq-needs-you" aria-label={N.title} data-testid="sq-needs-you">
       <h3 className="sq-group-name">
         <StatePill kind="tone" value="warn" label={N.title} />
         <span className="tally tally-warn">{count}</span>
       </h3>
-      {batches.map((id) => (
-        <NeedsBatch key={id} id={id} flash={flash} onDecided={onDecided} />
-      ))}
+      {vm.held.length > 0 ? (
+        <section className="sq-needs-part" aria-label={N.held} data-testid="sq-needs-held">
+          <h4 className="sq-needs-head">
+            {N.held}
+            <span className="tally tally-warn">{vm.held.length}</span>
+            {may && vm.asIs.length > 0 ? (
+              <LinkButton
+                className="sq-group-act"
+                disabled={busy !== null}
+                aria-busy={busy === "all" || undefined}
+                onClick={() => void sendAll()}
+                data-testid="sq-needs-send-all"
+              >
+                {busy === "all" ? N.sending : N.sendAll(vm.asIs.length)}
+              </LinkButton>
+            ) : null}
+          </h4>
+          <div className="sq-group-rows">
+            {vm.held.map((h) => (
+              <HeldRow key={h.id} h={h} may={may} busy={busy !== null} onDecide={(door) => void decide(h, door)} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+      {vm.toSend.length > 0 || vm.unread.length > 0 ? (
+        <section className="sq-needs-part" aria-label={N.toSend} data-testid="sq-needs-to-send">
+          <h4 className="sq-needs-head">
+            {N.toSend}
+            <span className="tally tally-warn">{handed}</span>
+            <LinkButton className="sq-group-act" {...routeDoor(TO_SEND_ROUTE)} data-testid="sq-needs-one-by-one">
+              {N.oneByOne} <Icon name="chevron" size={11} />
+            </LinkButton>
+          </h4>
+          <div className="sq-to-send">
+            <RoToSendRows
+              rows={vm.toSend}
+              runOf={(row) => vm.toSend.find((x) => x.id === row.id)?.batchId ?? null}
+              onSaid={(said) => {
+                flash({ tone: "ok", msg: said, undo: null });
+                onDecided();
+              }}
+            />
+          </div>
+          {vm.unread.map((id) => (
+            <LinkButton key={id} {...routeDoor(runSheetRoute(id))} data-testid={`sq-needs-in-sent-${id}`}>
+              {N.inSent} <Icon name="chevron" size={11} />
+            </LinkButton>
+          ))}
+        </section>
+      ) : null}
     </section>
   );
 }

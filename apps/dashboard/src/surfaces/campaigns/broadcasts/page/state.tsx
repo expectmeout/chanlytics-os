@@ -5,13 +5,21 @@
  * BroadcastsReal calls them in the order it always has.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { HOUR_MS, TO_SEND_ROUTE, UNKNOWN_AUDIENCE_WORDS, addressOf, doorNamesNoAudience } from "@chanlytics/contracts";
+import {
+  HOUR_MS,
+  TO_SEND_ROUTE,
+  UNKNOWN_AUDIENCE_WORDS,
+  addressOf,
+  doorNamesNoAudience,
+  runSheetRoute,
+} from "@chanlytics/contracts";
 import type { ConsentChannel } from "@chanlytics/contracts";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { navigate, replaceRoute } from "../../../legacy-verbs";
 import { tabDraft } from "../../../kit/record/work";
 import type { AudienceOption, BroadcastTemplate, BroadcastsSurface } from "../surface";
 import { starters } from "../../templates/verbs";
+import { sequencesShown } from "../../sequences/shown";
 import { BC_NONE } from "../run";
 import type { BcKept, Flash, Params, Setter, Sources } from "./types";
 import { bcKey, bcOrder, bcSlots } from "./words";
@@ -210,7 +218,17 @@ export function useBcOpen(initialRun: string | null, initialToSend: boolean) {
     setOpenId(id);
     if (!under) setToSendOpen(false);
     followed.current = { run: id, toSend: !id && under };
-    replaceRoute(id ? addressOf({ kind: "send", id }) : under ? TO_SEND_ROUTE : "broadcasts");
+    // Where Sequences is drawn, a run's own address lands on its History (route.tsx): the sheet open here writes its
+    // sheet's, so a reload opens it here again.
+    replaceRoute(
+      id
+        ? sequencesShown()
+          ? runSheetRoute(id)
+          : addressOf({ kind: "send", id })
+        : under
+          ? TO_SEND_ROUTE
+          : "broadcasts",
+    );
   };
   const close = () => {
     setToSendOpen(false);

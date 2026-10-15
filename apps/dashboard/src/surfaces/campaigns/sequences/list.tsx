@@ -2,7 +2,8 @@
  * The Sequences list (decision 0060, the canvas's list pane): every sequence, grouped as the page groups them (what needs
  * you first, then your customers, leads and dates, contracts SEQUENCE_GROUPS), each a row with its kind's glyph, its name,
  * its state's pill and its line, narrowed by a search and a filter (all, what needs you, what is off). A row opens its
- * record beside the list. Every word is contracts' (sequence-words.ts); the list composes them.
+ * record beside the list. Every word is contracts' (sequence-words.ts); the list composes them. On a phone the search
+ * takes the line and New is a round + beside it, a thumb's size, as a phone's list draws its one act.
  */
 import { useMemo, useState } from "react";
 import {
@@ -27,6 +28,7 @@ import { Search } from "../../kit/search/search";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { StatePill } from "../../kit/pill/state-pill";
 import { gate, routeDoor } from "../../legacy-verbs";
+import { useCmPhone } from "../parts/split";
 
 type Filter = keyof typeof SEQUENCE_WORDS.filters;
 
@@ -66,20 +68,34 @@ export function SequencesList({ page, openId }: SequencesListProps) {
   }, [page.sequences, filter, words]);
   const needs = page.sequences.filter((r) => needsCount(r.needs) > 0).length;
   const off = page.sequences.filter(isOff).length;
+  const phone = useCmPhone();
   return (
     <>
       <div className="sq-list-head">
         <div className="sq-list-top">
           <Search label={SEQUENCE_WORDS.search} value={search} onChange={setSearch} testid="sq-search" />
-          <Button
-            size="sm"
-            variant="primary"
-            {...routeDoor(`${SEQUENCES_ROUTE}/new`)}
-            data-testid="sq-new-open"
-            {...gate("approve")}
-          >
-            <Icon name="plus" size={12} /> {SEQUENCE_WORDS.newSequence}
-          </Button>
+          {phone ? (
+            <Button
+              iconOnly
+              variant="primary"
+              aria-label={SEQUENCE_WORDS.newSequence}
+              {...routeDoor(`${SEQUENCES_ROUTE}/new`)}
+              data-testid="sq-new-open"
+              {...gate("approve")}
+            >
+              <Icon name="plus" size={16} />
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="primary"
+              {...routeDoor(`${SEQUENCES_ROUTE}/new`)}
+              data-testid="sq-new-open"
+              {...gate("approve")}
+            >
+              <Icon name="plus" size={12} /> {SEQUENCE_WORDS.newSequence}
+            </Button>
+          )}
         </div>
         <SubTabs
           label={SEQUENCE_WORDS.title}

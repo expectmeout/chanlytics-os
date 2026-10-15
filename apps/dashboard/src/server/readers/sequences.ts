@@ -9,7 +9,7 @@ import {
   type SequenceRecordDto,
   type SequencesPageDto,
 } from "@chanlytics/contracts";
-import { sequenceHistoryOf, sequenceOverview, sequencePeopleOf, sequenceStepsOf } from "@chanlytics/db";
+import { sequenceHistoryOf, sequenceOfPart, sequenceOverview, sequencePeopleOf, sequenceStepsOf } from "@chanlytics/db";
 import { load, stamp, type Reader } from "./index";
 import * as readers from "./facts";
 
@@ -47,12 +47,17 @@ export const sequences: Reader<undefined, SequencesPageDto> = {
   },
 };
 
-/** GET sequences/:id: one sequence, its steps in their places, and the mode its batches are approved under. */
+/**
+ * GET sequences/:id: one sequence, its steps in their places, and the mode its batches are approved under. An id that is
+ * a part of one (a batch's: a run's address; a step's) reads the sequence it belongs to, whose own id the answer names.
+ */
 export const sequence: Reader<{ id: string }, SequenceRecordDto> = {
   name: "sequence",
-  async read(rc, { id }) {
+  async read(rc, { id: asked }) {
+    const own = await sequenceOverview(rc.ctx.supabase, rc.tenantId, asked);
+    const id = own.length > 0 ? asked : ((await sequenceOfPart(rc.ctx.supabase, rc.tenantId, asked)) ?? asked);
     const [rows, steps, facts, shape, policies] = await Promise.all([
-      sequenceOverview(rc.ctx.supabase, rc.tenantId, id),
+      id === asked ? own : sequenceOverview(rc.ctx.supabase, rc.tenantId, id),
       sequenceStepsOf(rc.ctx.supabase, rc.tenantId, id),
       load(rc, readers.facts, undefined).then((r) => r.data),
       load(rc, readers.businessShape, undefined).then((r) => r.data),

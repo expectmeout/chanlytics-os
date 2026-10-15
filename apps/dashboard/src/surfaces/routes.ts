@@ -64,6 +64,11 @@ interface SurfaceChrome {
   act?: SurfaceAct | null;
   /** The top bar's Ask in the address's words, where it is about someone ("Ask about Emily"); absent, Ask's own. */
   ask?: string | null;
+  /**
+   * Whether the page at this address is a pane that scrolls inside itself, where the route's own `pane` says otherwise:
+   * Campaigns' home scrolls as a page, and its Sequences view is a list and a record beside it, as Sent is.
+   */
+  pane?: boolean;
 }
 
 /** What the frame hands a route's `chrome`: the address's param, and the shell's own Back to People. */

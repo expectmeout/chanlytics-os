@@ -25291,7 +25291,7 @@ CREATE FUNCTION public.sequence_people(p_tenant_id uuid, p_sequence_id uuid, p_l
   latest as (
     select distinct on (coalesce(s.lead_id, s.contact_id))
            s.id as send_id, s.batch_id, s.step_id, s.contact_id, s.lead_id, s.state, s.reason, s.hold_detail,
-           s.send_at, s.sent_at, s.drafted_at, s.created_at, b.state as batch_state, b.scheduled_for
+           s.send_at, s.sent_at, s.drafted_at, s.created_at, s.draft, s.angle, b.state as batch_state, b.scheduled_for
       from public.sequence_sends s
       join public.sequence_batches b on b.id = s.batch_id
      where s.tenant_id = p_tenant_id and s.sequence_id = p_sequence_id
@@ -25324,15 +25324,28 @@ CREATE FUNCTION public.sequence_people(p_tenant_id uuid, p_sequence_id uuid, p_l
                          and coalesce(p.lead_id, p.contact_id) = coalesce(e.lead_id, e.contact_id))
   ),
   rows_of as (
+    -- An email handed to its owner, whole (00429 sequence_sends_drafted_is_whole): what their mail app opens with.
     select p.grp, p.contact_id, p.lead_id, p.place, p.at, p.reason as why, p.hold_detail, p.send_id, p.batch_id,
-           null::uuid as enrollment_id
+           null::uuid as enrollment_id,
+           case when p.grp = 'to_send' and jsonb_typeof(p.draft) = 'object'
+                     and jsonb_typeof(p.draft -> 'to') = 'string' and jsonb_typeof(p.draft -> 'subject') = 'string'
+                     and jsonb_typeof(p.draft -> 'text') = 'string'
+                then jsonb_build_object(
+                       'to', p.draft ->> 'to',
+                       'subject', p.draft ->> 'subject',
+                       'text', p.draft ->> 'text',
+                       'follow_up', coalesce(jsonb_typeof(p.draft -> 'parent_id') = 'string', false),
+                       'angle', p.angle,
+                       'drafted_at', coalesce(p.drafted_at, p.created_at))
+           end as draft
       from placed p where p.grp is not null
     union all
-    select 'in', b.contact_id, b.lead_id, b.place, coalesce(b.next_at, b.at), null, null, null, null, b.enrollment_id
+    select 'in', b.contact_id, b.lead_id, b.place, coalesce(b.next_at, b.at), null, null, null, null, b.enrollment_id,
+           null::jsonb
       from between b
     union all
     select case when e.state = 'done' then 'done' else 'left' end, e.contact_id, e.lead_id, e.place, e.at, e.why,
-           null, null, null, e.enrollment_id
+           null, null, null, e.enrollment_id, null::jsonb
       from enrolled e where e.state in ('done', 'left')
   ),
   named as (
@@ -25358,7 +25371,8 @@ CREATE FUNCTION public.sequence_people(p_tenant_id uuid, p_sequence_id uuid, p_l
                         'place', n.place,
                         'at', n.at,
                         'why', n.why,
-                        'hold_detail', n.hold_detail) order by n.grp, n.pos)
+                        'hold_detail', n.hold_detail,
+                        'draft', n.draft) order by n.grp, n.pos)
                         from named n where n.pos <= (select l.n from lim l)), '[]'::jsonb))
 $$;
 
@@ -25367,7 +25381,7 @@ $$;
 -- Name: FUNCTION sequence_people(p_tenant_id uuid, p_sequence_id uuid, p_limit integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_people(p_tenant_id uuid, p_sequence_id uuid, p_limit integer) IS 'Who is in a sequence (0060), by where they stand, each group''s count whole and its first p_limit (1 to 200, 50) rows: waiting (a batch waiting for your OK), held (by the check, with why), to_send (an email for you to send), next (going out), in (between steps, their next step''s day), done, and left (with why). A person by their name, a lead by its business''s. Under the caller''s row security.';
+COMMENT ON FUNCTION public.sequence_people(p_tenant_id uuid, p_sequence_id uuid, p_limit integer) IS 'Who is in a sequence (0060), by where they stand, each group''s count whole and its first p_limit (1 to 200, 50) rows: waiting (a batch waiting for your OK), held (by the check, with why), to_send (an email for you to send, with its draft as it was handed over: 00445), next (going out), in (between steps, their next step''s day), done, and left (with why). A person by their name, a lead by its business''s. Under the caller''s row security.';
 
 
 --

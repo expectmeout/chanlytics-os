@@ -5,7 +5,7 @@
  * always the id asked for: a read is kept with the id it answers, so a record opened from another's never paints the
  * other while its own is read.
  */
-import { useEffect, useState } from "react";
+import { createContext, useEffect, useState } from "react";
 import type { ApiResult } from "@/client/api";
 import { useSurface } from "../../use-surface";
 
@@ -49,3 +49,14 @@ export function useSequenceRead<T>(
   // Between a new id and its read, what is held is the last id's: the new one paints from the tab's own answer, or reads.
   return now.id === id ? now.read : asRead(peek(id));
 }
+
+/**
+ * The record's foot, where a step opened to be changed puts its Cancel and Save (step-editor.tsx): the element the pane's
+ * foot holds while one is open, and how the editor says it is open (`hold`), so a phone's Save stands at the thumb and not
+ * under a screen of fields. None outside a record: the editor then keeps its foot under its fields.
+ */
+interface RecordFoot {
+  el: HTMLElement | null;
+  hold: (on: boolean) => void;
+}
+export const RecordFootContext = createContext<RecordFoot | null>(null);
