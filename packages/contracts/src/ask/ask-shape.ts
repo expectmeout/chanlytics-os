@@ -99,6 +99,13 @@ export interface AskTurnShape {
   cap_hits: number;
   /** Whether the answer's format held for the turn (false once the API refused it, D15). */
   format: boolean;
+  /**
+   * Whether the answer tool was offered (ASK_ANSWER_TOOL on, 15 Oct 2026), and how the answer that ended the turn was
+   * written: through the tool, as text, or null where the model wrote none (cards alone, a failure). A turn stored
+   * before has neither key: no tool, and text where it answered.
+   */
+  answer_tool: boolean;
+  answer_in: "tool" | "text" | null;
   failed: boolean;
 }
 

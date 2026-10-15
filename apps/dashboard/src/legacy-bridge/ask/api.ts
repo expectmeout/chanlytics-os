@@ -10,6 +10,7 @@ import type {
   AskMessageVM,
   AskProposalOutcome,
   AskScope,
+  AskShowPreview,
   AskSurface,
   AskThreadVM,
   PageContext,
@@ -20,14 +21,14 @@ import { api } from "../api";
 import { unwrap, type Api } from "../../client/api";
 
 /**
- * A turn's lines. `say` is the answer's Say as written so far, a preview the final message replaces (an empty one takes
- * back an answer the server set aside); `delta` is a v1 turn's words, from a server before the Line (spec 7.5). The
- * Line reads both.
+ * A turn's lines. `say` is the answer's Say as written so far, with Show's figures and rows once each has closed
+ * (contracts answer-preview.ts), a preview the final message replaces (an empty one takes back an answer the server set
+ * aside); `delta` is a v1 turn's words, from a server before the Line (spec 7.5). The Line reads both.
  */
 export type SendEvent =
   | { t: "thread"; id: string; title: string }
   | { t: "trace"; text: string }
-  | { t: "say"; headline: string; detail: string }
+  | { t: "say"; headline: string; detail: string; show?: AskShowPreview }
   | { t: "delta"; text: string }
   | { t: "final"; message: AskMessageVM }
   | { t: "error"; text: string };

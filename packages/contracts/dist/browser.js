@@ -12422,6 +12422,13 @@ var FLAGS = [
     kept: "Fast mode is a research preview at twice the price: the switch off is a variable, never a code change."
   },
   {
+    name: "ASK_ANSWER_TOOL",
+    mechanism: "dashboard_env",
+    does: "Ask writes its answer through the answer tool, whose input streams after a read; empty is off, on turns it on (ask-model.ts).",
+    owner: "Ruben",
+    sunset: "2026-11-30"
+  },
+  {
     name: "EDGE_PROVIDERS",
     mechanism: "dashboard_env",
     does: "'live' lets a preview or a laptop reach the real providers through its edge.",
@@ -22546,6 +22553,57 @@ var ASK_ANSWER_FORMAT = {
   additionalProperties: false
 };
 
+// src/ask/answer-preview.ts
+function stringEnd(s, at3) {
+  for (let i = at3 + 1; i < s.length; i++) {
+    if (s[i] === "\\") i++;
+    else if (s[i] === '"') return i;
+  }
+  return -1;
+}
+function closedShowEntries(prefix) {
+  const got = { figures: [], items: [] };
+  const stack = [];
+  for (let i = 0; i < prefix.length; i++) {
+    const c = prefix[i];
+    const top = stack.at(-1);
+    if (c === '"') {
+      const end = stringEnd(prefix, i);
+      if (end < 0) break;
+      if (top?.open === "{" && top.expectsKey) {
+        top.key = String(JSON.parse(prefix.slice(i, end + 1)));
+        top.expectsKey = false;
+      }
+      i = end;
+    } else if (c === "{" || c === "[") {
+      const name = top ? top.open === "{" ? top.key : "[]" : null;
+      stack.push({ open: c, name, start: i, key: null, expectsKey: c === "{" });
+    } else if (c === "}" || c === "]") {
+      const done = stack.pop();
+      const [, show, list2] = stack;
+      const at3 = stack.length === 3 && show?.name === "show" && list2?.open === "[" ? list2.name : null;
+      if (done?.open === "{" && (at3 === "figures" || at3 === "items")) {
+        try {
+          got[at3].push(JSON.parse(prefix.slice(done.start, i + 1)));
+        } catch {
+        }
+      }
+    } else if (c === "," && top?.open === "{") top.expectsKey = true;
+  }
+  return got;
+}
+function partialShow(prefix, read, language) {
+  const { figures, items } = closedShowEntries(prefix);
+  if (!figures.length && !items.length) return { figures: [], items: [] };
+  const shaped = normalizeAnswer({ say: { headline: "-" }, show: { figures, items }, language }, read, language);
+  return shaped.ok ? { figures: shaped.answer.show.figures, items: shaped.answer.show.items } : { figures: [], items: [] };
+}
+function previewOf(say2, json, read, language) {
+  const words2 = { headline: cleanAnswer(say2.headline), detail: cleanAnswer(say2.detail) };
+  const show = json ? partialShow(json, read, language) : null;
+  return show && (show.figures.length || show.items.length) ? { ...words2, show } : words2;
+}
+
 // src/conversations/call-dto.ts
 var ABANDONED_MS = 15e3;
 function abandonedCall(dto) {
@@ -23257,7 +23315,8 @@ function askJump(query, index, limit = 6) {
 var ASK_MODEL = MODEL_ROUTES.ask.model;
 var ASK_EFFORT = "low";
 var ASK_SPEED = "fast";
-function askModelProfile(name, effort, speed) {
+var ANSWER_TOOL_ON = "on";
+function askModelProfile(name, effort, speed, answer) {
   const named = (name ?? "").trim();
   const id = readsAsModel(named) ? named : ASK_MODEL;
   const asked = (effort ?? "").trim();
@@ -23265,7 +23324,8 @@ function askModelProfile(name, effort, speed) {
   return {
     id,
     effort: MODEL_EFFORTS.includes(asked) ? asked : ASK_EFFORT,
-    speed: wanted === "fast" && hasFastMode(id) ? "fast" : "standard"
+    speed: wanted === "fast" && hasFastMode(id) ? "fast" : "standard",
+    answerTool: (answer ?? "").trim() === ANSWER_TOOL_ON
   };
 }
 
@@ -29599,7 +29659,7 @@ function snoozedThreadWords(openRequest) {
   return openRequest ? `${hidden} ${openRequest}. That's still waiting for you.` : hidden;
 }
 var wireOf = (m) => m.type === "call_summary" ? "phone" : writtenChannelOf(m.channel);
-function previewOf(messages) {
+function previewOf2(messages) {
   const last = [...messages].reverse().find((m) => m.type !== "note" && (m.direction === "inbound" || reachedCustomer(m.status)));
   return last ? { text: messageWords(last).slice(0, 110), channel: wireOf(last) } : { text: "", channel: null };
 }
@@ -29705,7 +29765,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
   const waitingMin = escalation ? Math.max(1, Math.round((now.getTime() - new Date(escalation.created_at).getTime()) / MIN_MS)) : void 0;
   const ask = askOf(escalation, lastInbound);
   const lastWord = state === "done" && dto.state !== "archived" ? lastWordOf(dto) : null;
-  const preview = previewOf(dto.messages);
+  const preview = previewOf2(dto.messages);
   return {
     id: `th-${dto.id}`,
     real: true,
@@ -49714,6 +49774,7 @@ export {
   posesAsReply,
   previewHorizon,
   previewLinesOf,
+  previewOf,
   previewOn,
   previewParts,
   previewRefusedWords,

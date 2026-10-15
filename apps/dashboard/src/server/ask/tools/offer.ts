@@ -2,6 +2,7 @@ import "server-only";
 import { MEMBERSHIP_ROLES, type MembershipRole } from "@chanlytics/contracts";
 import { NO_ACTION, type ActTool, type ReadTool, type Tool, type ToolDef } from "./context";
 import { ACT_DEFS, READ_DEFS, inputOf, offeredActions, toolSchema } from "./registry";
+import { ANSWER_TOOL } from "./answer";
 
 /**
  * What each role is offered (the Phase 4 plan, D2): per tool, the actions the role may use -- a read's own `needs`, or
@@ -55,14 +56,16 @@ const OFFER = new Map<MembershipRole, ToolDef[]>(
 /**
  * The tools as the API takes them, for a person of this role (D12, D2): sorted by name, each built from the actions the
  * role may use -- four prefixes, a viewer's, an operator's, a partner's and an owner's -- each with its three fields
- * and, while `examples`, its examples (D9). Everyone of one role gets the same bytes on every round, so the tools block
+ * and, while `examples`, its examples (D9); with `answer`, the answer tool first (answer.ts), which every role is
+ * offered and which sorts first by its name. Everyone of one role gets the same bytes on every round, so the tools block
  * stays the cache's first prefix; a turn the API refused for the examples asks without them.
  */
-export function toApiTools(role: MembershipRole, examples: boolean): ToolDef[] {
-  return (OFFER.get(role) ?? []).map((d) => ({
+export function toApiTools(role: MembershipRole, examples: boolean, answer: boolean): ToolDef[] {
+  const offered = (OFFER.get(role) ?? []).map((d) => ({
     name: d.name,
     description: d.description,
     input_schema: d.input_schema,
     ...(examples && d.input_examples ? { input_examples: d.input_examples } : {}),
   }));
+  return answer ? [ANSWER_TOOL, ...offered] : offered;
 }

@@ -477,6 +477,16 @@ function prefixOf(request: LastRound["request"]): string {
   return createHash("sha256").update(JSON.stringify({ system, tools, tool_choice, output_config })).digest("hex");
 }
 
+/** Words for the round after, appended to the newest message: never an edit to an earlier one. */
+export function tellNext(messages: Msg[], words: string): void {
+  const last = messages.at(-1);
+  if (last)
+    messages[messages.length - 1] = {
+      role: "user",
+      content: [...(last.content as unknown[]), { type: "text", text: words }],
+    };
+}
+
 /** A block that carries the cache's marker (D10); anything that is no block is left as it is. */
 const marked = (b: unknown): unknown =>
   b && typeof b === "object" ? { ...b, cache_control: { type: "ephemeral" } } : b;

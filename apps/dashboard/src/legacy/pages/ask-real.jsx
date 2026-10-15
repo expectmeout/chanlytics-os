@@ -522,7 +522,7 @@ const arTurnHeard = ({ M, turnSeq, setActive, setLive }, turn, ev) => {
   if (ev.t === "say") {
     // The answer's Say as written so far: it replaces what was drawn; the final message is the answer. An empty one takes back an answer the server set aside, and the reads show again.
     const back = !ev.headline && !ev.detail;
-    setLive((prev) => (prev ? { ...prev, say: back ? null : { headline: ev.headline, detail: ev.detail } } : prev));
+    setLive((prev) => (prev ? { ...prev, say: back ? null : { headline: ev.headline, detail: ev.detail, show: ev.show || null } } : prev));
     if (!back) turn.spoke = true;
     const len = ev.headline.length + ev.detail.length;
     if (M && len > turn.said) M.mood.beat(Math.min(1, (len - turn.said) / 6));

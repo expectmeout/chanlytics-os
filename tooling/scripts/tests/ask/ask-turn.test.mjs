@@ -305,11 +305,11 @@ const tool = (name, input, id = `t-${input?.action ? `${name}.${input.action}` :
 /** The model, scripted: each call takes the next round; the requests are kept for the assertions. */
 function scripted(rounds) {
   const requests = [];
-  const round = async (c, onText) => {
+  const round = async (c, onText, onInput) => {
     requests.push(c.request);
     const r = rounds.shift();
     if (!r) throw new Error("the loop asked for a round the script does not have");
-    return typeof r === "function" ? r(c, onText) : r;
+    return typeof r === "function" ? r(c, onText, onInput) : r;
   };
   return { round, requests };
 }
@@ -2691,7 +2691,7 @@ test("REGRESSION: the assistant's people search says when someone was last in to
   assert.equal(row.route, `clients/${row.contact_id}`, "a person says where they open");
 });
 
-test("the round gathers the stream: blocks in order, the text so far handed on as it grows, the stop reason, and an error after the start kept beside the blocks", async () => {
+test("the round gathers the stream: blocks in order, the text so far and each call's input so far handed on as they grow, the stop reason, and an error after the start kept beside the blocks", async () => {
   async function* stream() {
     yield { type: "block_start", index: 0, block: { type: "tool_use", id: "t1", name: "inbox" } };
     yield { type: "input_json", index: 0, partial: '{"action": "list", "filter": "rec' };
@@ -2704,7 +2704,13 @@ test("the round gathers the stream: blocks in order, the text so far handed on a
     yield { type: "stop", stopReason: "end_turn" };
   }
   const seen = [];
-  const r = await runRound({ tenantId: A, userId: USER, request: {} }, (s) => seen.push(s), stream);
+  const grew = [];
+  const r = await runRound(
+    { tenantId: A, userId: USER, request: {} },
+    (s) => seen.push(s),
+    (b) => grew.push([b.name, b.json]),
+    stream,
+  );
   assert.deepEqual(
     r.blocks.map((b) => [b.type, b.name, b.text, b.json]),
     [
@@ -2718,12 +2724,25 @@ test("the round gathers the stream: blocks in order, the text so far handed on a
     ['{"say": {"headline": "Two thr', '{"say": {"headline": "Two threads wait"'],
     "the text so far, as it grows; a tool call's arguments are not words",
   );
+  assert.deepEqual(
+    grew,
+    [
+      ["inbox", '{"action": "list", "filter": "rec'],
+      ["inbox", '{"action": "list", "filter": "recent"}'],
+    ],
+    "a call's input so far, as it grows, with the call it belongs to (the answer tool's Say is read from it)",
+  );
   async function* broken() {
     yield { type: "block_start", index: 0, block: { type: "tool_use", id: "t1", name: "inbox" } };
     yield { type: "input_json", index: 0, partial: "{}" };
     yield { type: "error", message: "connection reset" };
   }
-  const b = await runRound({ tenantId: A, userId: USER, request: {} }, () => {}, broken);
+  const b = await runRound(
+    { tenantId: A, userId: USER, request: {} },
+    () => {},
+    () => {},
+    broken,
+  );
   assert.deepEqual(
     [b.blocks.length, b.blocks[0].name, b.streamError, b.stopReason],
     [1, "inbox", "connection reset", null],
@@ -2744,7 +2763,12 @@ test("the round keeps a thinking block whole -- its words and its signature, or 
     yield { type: "block_stop", index: 2 };
     yield { type: "stop", stopReason: "tool_use" };
   }
-  const r = await runRound({ tenantId: A, userId: USER, request: {} }, () => {}, stream);
+  const r = await runRound(
+    { tenantId: A, userId: USER, request: {} },
+    () => {},
+    () => {},
+    stream,
+  );
   assert.deepEqual(
     r.blocks.map((b) => [b.type, b.thinking, b.signature, b.data, b.name]),
     [
@@ -9410,4 +9434,295 @@ test("a spoken turn (the voice door, spec 2026-10-03 §3.4): the listening line 
   assert.equal(r2.failed, false, r2.failure ?? "");
   assert.ok(!JSON.stringify(typed.requests[0].messages).includes(SPOKEN_LINE), "a typed turn: no line");
   assert.equal(r2.shape.spoken, false);
+});
+
+/* ---- the answer as a tool (ASK_ANSWER_TOOL, 15 Oct 2026): its input streams where text after a read does not ---- */
+
+/** Runs `fn` with ASK_ANSWER_TOOL set to `value` (undefined: unset), as a deployment sets it, and puts it back. */
+async function withAnswerTool(value, fn) {
+  const was = process.env.ASK_ANSWER_TOOL;
+  if (value === undefined) delete process.env.ASK_ANSWER_TOOL;
+  else process.env.ASK_ANSWER_TOOL = value;
+  try {
+    return await fn();
+  } finally {
+    if (was === undefined) delete process.env.ASK_ANSWER_TOOL;
+    else process.env.ASK_ANSWER_TOOL = was;
+  }
+}
+/** The answer tool's call, its input the answer's JSON (ASK_ANSWER_FORMAT). */
+const answerCall = (headline, over, id = "t-answer") => ({
+  ...tool("answer", {}, id),
+  json: answerJson(headline, over),
+});
+/** A round whose answer call is streamed into the loop as the API sends it: its input JSON in pieces of `step`. */
+const streamedAnswer =
+  (call, step = 12) =>
+  async (_c, _onText, onInput) => {
+    const growing = { ...call, json: "" };
+    for (let i = 0; i < call.json.length; i += step) {
+      growing.json = call.json.slice(0, i + step);
+      onInput(growing, []);
+      await new Promise((r) => setTimeout(r, 60)); // past SAY_EVERY_MS, so each piece is said
+    }
+    return ROUND([call]);
+  };
+
+test("the answer tool on: every round offers it first with its input streamed, the prompt says to answer through it, and the switch off sends exactly what it did", async () => {
+  const facts = workspaceFacts("Harbor", TZ, null, NOW, []);
+  await withAnswerTool("on", async () => {
+    const s = scripted([
+      ROUND([tool("inbox", { action: "list", filter: "recent" })]),
+      ROUND([answerCall("Nobody waits.")]),
+    ]);
+    const r = await runAskTurn(turn(ctxFor()).input, ports(s.round));
+    assert.equal(r.failed, false, r.failure ?? "");
+    for (const req of s.requests) {
+      assert.equal(req.tools[0].name, "answer", "first, as its name sorts");
+      assert.equal(req.tools[0].eager_input_streaming, true);
+      assert.deepEqual(req.tools[0].input_schema, ASK_ANSWER_FORMAT, "its input is the answer's format");
+      assert.deepEqual(req.tools.slice(1), toApiTools("operator", true), "then the role's tools, as they were");
+      assert.deepEqual(req.output_config.format.schema, ASK_ANSWER_FORMAT, "the format stays: a text answer reads");
+      assert.ok(req.system[0].text.includes("Every answer is written by calling the answer tool once"));
+    }
+    assert.equal(JSON.stringify(s.requests[0].tools), JSON.stringify(s.requests[1].tools), "one prefix, every round");
+    assert.equal(s.requests[0].system[0].text, stableSystem(facts, true));
+  });
+  await withAnswerTool(undefined, async () => {
+    const s = scripted([ROUND([answer("Nobody waits.")])]);
+    await runAskTurn(turn(ctxFor()).input, ports(s.round));
+    assert.deepEqual(s.requests[0].tools, toApiTools("operator", true), "off: no answer tool");
+    assert.equal(s.requests[0].system[0].text, stableSystem(facts, false));
+    assert.ok(!stableSystem(facts, false).includes("answer tool"), "off: the rules as they were, byte for byte");
+  });
+});
+
+test("an answer through the tool after a read: its Say streams from the input as it grows, the final is the input normalized, its call is answered as shown, and the shape says so", async () => {
+  await withAnswerTool("on", async () => {
+    const rosa = { kind: "thread", id: C1, label: "Rosa" };
+    const call = answerCall("Rosa asked about Saturday; nobody else is waiting.", {
+      say: { detail: "She wrote this morning." },
+      show: { items: [{ title: "Rosa", meta: "WhatsApp", line: "Asked about Saturday.", source: rosa }] },
+    });
+    const s = scripted([ROUND([tool("inbox", { action: "list", filter: "recent" })]), streamedAnswer(call)]);
+    const t = turn(ctxFor());
+    const r = await runAskTurn(t.input, ports(s.round));
+    assert.equal(r.failed, false, r.failure ?? "");
+    assert.deepEqual(
+      [r.text, r.rounds, r.tools],
+      ["Rosa asked about Saturday; nobody else is waiting. She wrote this morning.", 2, ["inbox.list"]],
+    );
+    assert.deepEqual(
+      r.answer.show.items.map((i) => i.source.id),
+      [C1],
+      "a row the read returned, grounded as ever",
+    );
+    const says = t.events.filter((e) => e.t === "say");
+    assert.ok(says.length >= 4, `the Say streamed: ${says.length} previews`);
+    const size = (e) => e.headline.length + e.detail.length;
+    assert.ok(
+      says.every((e, i) => i === 0 || size(e) >= size(says[i - 1])),
+      "each preview grows",
+    );
+    assert.deepEqual(
+      [says.at(-1).headline, says.at(-1).detail],
+      [r.answer.say.headline, r.answer.say.detail],
+      "the last preview is the final's Say",
+    );
+    assert.ok(!says.some((e) => /[{}\\"]/.test(e.headline + e.detail)), "no JSON or escape in a preview");
+    assert.deepEqual([r.shape.answer_tool, r.shape.answer_in], [true, "tool"]);
+    assert.deepEqual(
+      r.raw.results.at(-1),
+      {
+        type: "tool_result",
+        tool_use_id: "t-answer",
+        content: `<record>\n${JSON.stringify({ shown: true })}\n</record>`,
+        is_error: false,
+      },
+      "the next turn opens with the answer call's result: a tool_use is never left unanswered",
+    );
+  });
+});
+
+test("an answer call beside a read is set aside and told so: never said when the read came first in the round, taken back when it came after; the model answers next round, and a text answer still reads with the tool on", async () => {
+  await withAnswerTool("on", async () => {
+    // The read written first: the answer's Say is held, so nothing is shown and nothing taken back.
+    const settings = tool("workspace", { action: "settings" });
+    const held = answerCall("We open at nine.", {}, "t-held");
+    const first = scripted([
+      async (_c, _onText, onInput) => {
+        onInput(held, [settings]);
+        return ROUND([settings, held]);
+      },
+      ROUND([answerCall("Monday 9:00 to 17:00; the other days are not set.")]),
+    ]);
+    const t1 = turn(ctxFor());
+    const r1 = await runAskTurn(t1.input, ports(first.round));
+    assert.deepEqual([r1.rounds, r1.failed], [2, false]);
+    assert.deepEqual(
+      t1.events.filter((e) => e.t === "say").map((e) => e.headline),
+      [],
+      "the answer beside the read was never said, so never taken back",
+    );
+
+    // The answer written first: it was on screen before the read was known, so it is said, then taken back.
+    const early = answerCall("We open at nine.", {}, "t-early");
+    const s = scripted([
+      async (_c, _onText, onInput) => {
+        onInput(early, []);
+        return ROUND([tool("workspace", { action: "settings" }), early]);
+      },
+      ROUND([answerCall("Monday 9:00 to 17:00; the other days are not set.")]),
+    ]);
+    const t = turn(ctxFor());
+    const r = await runAskTurn(t.input, ports(s.round));
+    assert.deepEqual(
+      [r.text, r.rounds, r.tools],
+      ["Monday 9:00 to 17:00; the other days are not set.", 2, ["workspace.settings"]],
+    );
+    assert.deepEqual(
+      t.events
+        .filter((e) => e.t === "say")
+        .map((e) => e.headline)
+        .slice(0, 2),
+      ["We open at nine.", ""],
+      "said as it was written, then taken back",
+    );
+    const results = s.requests[1].messages.at(-1).content.filter((b) => b.type === "tool_result");
+    assert.deepEqual(
+      results.map((b) => [b.tool_use_id, b.is_error]),
+      [
+        ["t-workspace.settings", false],
+        ["t-early", true],
+      ],
+      "every call answered, in the order of the calls",
+    );
+    assert.match(results[1].content, /not shown: answer again/);
+    assert.equal(r.shape.answer_in, "tool");
+
+    const text = scripted([ROUND([answer("Nobody is waiting.")])]);
+    const r2 = await runAskTurn(turn(ctxFor()).input, ports(text.round));
+    assert.deepEqual(
+      [r2.text, r2.failed, r2.shape.answer_in, r2.shape.answer_tool],
+      ["Nobody is waiting.", false, "text", true],
+    );
+  });
+});
+
+test("the answer tool on, the last round may still call it: it is told it is the last, and a read it makes anyway is answered before one closing round that may call none", async () => {
+  const read = (filter) => ROUND([tool("inbox", { action: "list", filter }, `t-${filter}`)]);
+  await withAnswerTool("on", async () => {
+    const s = scripted([read("recent"), read("needs_you"), read("all"), ROUND([answer("Two threads wait.")])]);
+    const r = await runAskTurn(turn(ctxFor()).input, ports(s.round));
+    assert.equal(r.failed, false, r.failure ?? "");
+    assert.deepEqual(
+      s.requests.map((q) => q.tool_choice.type),
+      ["auto", "auto", "auto", "none"],
+      "the last round keeps its tools; the closing round has none",
+    );
+    assert.equal(
+      s.requests[2].messages.at(-1).content.at(-1).text,
+      "This is the last round: answer now through the answer tool, with what you have.",
+    );
+    assert.deepEqual([r.rounds, r.shape.answer_in], [4, "text"]);
+
+    const answered = scripted([read("recent"), read("needs_you"), ROUND([answerCall("Two threads wait.")])]);
+    const r2 = await runAskTurn(turn(ctxFor()).input, ports(answered.round));
+    assert.deepEqual([r2.rounds, r2.shape.answer_in], [3, "tool"], "the last round answered through the tool");
+  });
+  await withAnswerTool(undefined, async () => {
+    const s = scripted([read("recent"), read("needs_you"), ROUND([answer("Two threads wait.")])]);
+    await runAskTurn(turn(ctxFor()).input, ports(s.round));
+    assert.deepEqual(
+      s.requests.map((q) => q.tool_choice.type),
+      ["auto", "auto", "none"],
+      "off: as it was",
+    );
+    assert.ok(!JSON.stringify(s.requests[2].messages).includes("last round"), "off: nothing said of the last round");
+  });
+});
+
+test("an answer call cut off, or empty, is no answer: the turn says it could not shape one, never a half answer", async () => {
+  await withAnswerTool("on", async () => {
+    const cut = { ...answerCall("Two threads wait."), json: '{"say": {"headline": "Two thr' };
+    const r = await runAskTurn(
+      turn(ctxFor()).input,
+      ports(scripted([ROUND([cut], { stopReason: "max_tokens" })]).round),
+    );
+    assert.deepEqual([r.failed, r.shape.answer_in], [true, null]);
+    assert.match(r.failure, /^answer: not JSON/);
+    const empty = { ...answerCall("x"), json: "" };
+    const r2 = await runAskTurn(turn(ctxFor()).input, ports(scripted([ROUND([empty])]).round));
+    assert.deepEqual([r2.failed, r2.failure], [true, "answer: no headline"]);
+  });
+});
+
+test("Show while it writes (contracts previewOf): a figure or a row draws once its object closes, grounded as the final grounds it -- a row not read never draws -- and a brace or a key inside a string is only words", async () => {
+  const { previewOf, noteRows } = await import("@chanlytics/contracts");
+  const read = emptyReadSet();
+  noteRows(read, [{ kind: "thread", id: C1, route: `inbox/th-${C1}`, label: "Rosa" }]);
+  const rosa = { kind: "thread", id: C1, label: "Rosa" };
+  const stranger = { kind: "thread", id: C2, label: "nobody" };
+  const json = answerJson("Two threads wait.", {
+    show: {
+      figures: [{ value: "2", label: 'threads "items": {waiting}', note: "", source: NONE }],
+      items: [
+        { title: "Rosa", meta: "WhatsApp", line: "Asked about Saturday.", source: rosa },
+        { title: "Nobody", meta: "", line: "", source: stranger },
+      ],
+    },
+  });
+  const say = { headline: "Two threads wait.", detail: "" };
+  const at = (needle) => json.indexOf(needle);
+  assert.deepEqual(
+    previewOf(say, json.slice(0, at('"items"')), read, "en"),
+    {
+      headline: "Two threads wait.",
+      detail: "",
+      show: { figures: [{ value: "2", label: 'threads "items": {waiting}', note: "", source: null }], items: [] },
+    },
+    "the figure, whole, before any row; the words inside its label are words",
+  );
+  const halfRow = previewOf(say, json.slice(0, at('"Asked about')), read, "en");
+  assert.deepEqual(halfRow.show.items, [], "a row half written is not drawn");
+  const whole = previewOf(say, json, read, "en");
+  assert.deepEqual(
+    whole.show.items.map((i) => [i.title, i.source.to]),
+    [["Rosa", `inbox/th-${C1}`]],
+    "the row that was read, with its route; the one that was not never draws",
+  );
+  assert.deepEqual(previewOf(say, json.slice(0, at('"show"')), read, "en"), say, "no Show before it begins: Say alone");
+  assert.deepEqual(
+    previewOf({ headline: "Hi <b>there", detail: "" }, "", read, "en"),
+    {
+      headline: "Hi there",
+      detail: "",
+    },
+    "words with no shape: Say alone, cleaned as the final is",
+  );
+});
+
+test("the turn sends Show as it is written: the answer tool's input grows, each say carries the rows closed so far, and the last preview's rows are the final's", async () => {
+  await withAnswerTool("on", async () => {
+    const rosa = { kind: "thread", id: C1, label: "Rosa" };
+    const call = answerCall("Rosa asked about Saturday.", {
+      show: { items: [{ title: "Rosa", meta: "WhatsApp", line: "Asked about Saturday.", source: rosa }] },
+    });
+    const s = scripted([ROUND([tool("inbox", { action: "list", filter: "recent" })]), streamedAnswer(call, 24)]);
+    const t = turn(ctxFor());
+    const r = await runAskTurn(t.input, ports(s.round));
+    assert.equal(r.failed, false, r.failure ?? "");
+    const says = t.events.filter((e) => e.t === "say");
+    const first = says.findIndex((e) => e.show);
+    assert.ok(first > 0, "Say first, then Show once a row closed");
+    assert.ok(
+      says.slice(0, first).every((e) => !e.show),
+      "no Show before its row closed",
+    );
+    assert.deepEqual(
+      says.at(-1).show.items.map((i) => [i.title, i.source.id]),
+      r.answer.show.items.map((i) => [i.title, i.source.id]),
+      "the last preview's rows are the final's",
+    );
+  });
 });

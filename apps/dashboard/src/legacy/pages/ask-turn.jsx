@@ -399,6 +399,22 @@ const AskBreakdown = ({ b, t, onNav }) => {
   );
 };
 
+// A row's body: its kind as the mark before it (askKindGlyph), its title, meta and line; a row that is a door ends in a
+// chevron. The answer's rows and the streaming preview's draw it alike.
+const AskItemBody = ({ it }) => (
+  <>
+    <span className="ask-item-mark" data-testid="ask-item-mark"><Icon name={askKindGlyph(it.source.kind)} size={12} /></span>
+    <span className="ask-item-body">
+      <span className="ask-item-top">
+        <span className="ask-item-title">{it.title}</span>
+        {it.meta ? <span className="ask-item-meta">{it.meta}</span> : null}
+      </span>
+      {it.line ? <span className="ask-item-line">{it.line}</span> : null}
+    </span>
+    {it.source.door !== false ? <Icon name="chevron" size={12} className="ask-item-chev" /> : null}
+  </>
+);
+
 // The answer: Say (the headline, or a prose answer's words), Show (the whole in its parts, the figures, the rows it
 // names), Do (the cards, then one row: Try again, Open as the kit's button, the next questions as chips). `walk`: this
 // is the answer the keys walk, whose moves carry the ids the line points at (answerMoves' order) and `sel` is the one
@@ -417,20 +433,6 @@ const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, se
   const itemMove = a.show.items.map((it) => (it.source.door !== false ? doors++ : -1));
   const openAt = doors;
   const nextAt = openAt + (a.do.open ? 1 : 0);
-  // A row's kind as the mark before it (askKindGlyph); a row that is a door ends in a chevron.
-  const itemBody = (it) => (
-    <>
-      <span className="ask-item-mark" data-testid="ask-item-mark"><Icon name={askKindGlyph(it.source.kind)} size={12} /></span>
-      <span className="ask-item-body">
-        <span className="ask-item-top">
-          <span className="ask-item-title">{it.title}</span>
-          {it.meta ? <span className="ask-item-meta">{it.meta}</span> : null}
-        </span>
-        {it.line ? <span className="ask-item-line">{it.line}</span> : null}
-      </span>
-      {it.source.door !== false ? <Icon name="chevron" size={12} className="ask-item-chev" /> : null}
-    </>
-  );
   const moveProps = (me, cls) =>
     walk ? { id: `ask-move-${me}`, className: `${cls}${sel === me ? " sel" : ""}` } : { className: cls };
   return (
@@ -459,11 +461,11 @@ const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, se
                 {a.show.items.map((it, k) =>
                   itemMove[k] >= 0 ? (
                     <button key={k} type="button" {...moveProps(itemMove[k], "ask-item")} onClick={() => onNav(it.source.to)} data-testid="ask-item">
-                      {itemBody(it)}
+                      <AskItemBody it={it} />
                     </button>
                   ) : (
                     <div key={k} className="ask-item plain" data-testid="ask-item">
-                      {itemBody(it)}
+                      <AskItemBody it={it} />
                     </div>
                   ),
                 )}
@@ -504,8 +506,10 @@ const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, se
 };
 
 // A turn: the question over it, then the answer. While it streams, Say as written so far (`say`: the headline, then
-// the detail, as the answer draws them) or a v1 turn's words, with a cursor after the last; Show and Do wait for the
-// final message (spec 7.4), and the Line says the answer once it is whole, not every piece (spec 6.10). A failed turn
+// the detail, as the answer draws them) or a v1 turn's words, with a cursor after the last, and Show's figures and rows
+// as each closes (`say.show`, grounded on the server: contracts answer-preview.ts), drawn as the answer draws them but
+// not yet doors; Do waits for the final message (spec 7.4), and the Line says the answer once it is whole, not every
+// piece (spec 6.10). A failed turn
 // says why and, on the latest only, offers Try again (N20). A quick answer (no model) is drawn the same way, from `quick`.
 const AskTurn = ({ m, q, quick, say, latest = false, streaming = false, walk = false, sel = -1, next = true, t, lang, onFollow, onNav, onRetry, onOutcome, onEdit }) => {
   const A = window.__ask;
@@ -525,6 +529,29 @@ const AskTurn = ({ m, q, quick, say, latest = false, streaming = false, walk = f
             <p className="ask-prose">{m.text}{cursor}</p>
           )}
         </div>
+        {say && say.show ? (
+          <div className="ask-part show" data-testid="ask-show">
+            <span className="ask-mark m2" aria-hidden="true" data-testid="ask-mark" />
+            <div className="ask-show">
+              {say.show.figures.length ? (
+                <div className="ask-figures">
+                  {say.show.figures.map((f, k) => (
+                    <AskFigure key={k} f={{ ...f, source: null }} open={false} onToggle={() => {}} t={t} onNav={onNav} />
+                  ))}
+                </div>
+              ) : null}
+              {say.show.items.length ? (
+                <div className="ask-items">
+                  {say.show.items.map((it, k) => (
+                    <div key={k} className="ask-item plain" data-testid="ask-item">
+                      <AskItemBody it={{ ...it, source: { ...it.source, door: false } }} />
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
       </div>
     );
   }
