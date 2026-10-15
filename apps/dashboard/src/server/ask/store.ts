@@ -2,6 +2,7 @@ import "server-only";
 import {
   AppError,
   type AskAnswer,
+  type AskIntent,
   type AskMessageVM,
   type AskProposal,
   type AskProposalOutcome,
@@ -10,10 +11,11 @@ import {
   type AskTurnShape,
   citationRoute,
   storedAnswer,
+  v1FromAnswer,
 } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
-import { answeringOf, askTurnText } from "./prompt";
+import { answeringOf, askTurnText, titleFromQuestion } from "./prompt";
 import { log } from "@/server/log";
 
 /**
@@ -201,6 +203,39 @@ export async function appendMessage(
     .single();
   if (error) throw new Error(`ask message: ${error.message}`);
   return data;
+}
+
+/**
+ * A quick answer kept as a turn (POST ask/quick): the question and the answer the Line drew without a model, in the
+ * thread named -- the caller's own, in this workspace, else a 404, as a question's -- or a new one titled by the
+ * question. So a follow-up is asked with it (its history line, prompt.ts answerLine, names its rows) and Earlier lists
+ * it. The answer's row keeps what a turn's keeps for the Line and the history, and which quick question it answered
+ * (`quick`); no model ran, so it keeps no raw turn, and the turn after it is asked cold.
+ */
+export async function keepQuickTurn(
+  ctx: RouteContext,
+  tenantId: string,
+  turn: { text: string; threadId: string | null; answer: AskAnswer; quick: NonNullable<AskIntent>["kind"] },
+): Promise<{ id: string; title: string }> {
+  let thread: { id: string; title: string };
+  if (turn.threadId) {
+    const found = await readThread(ctx, turn.threadId);
+    if (!found || found.tenantId !== tenantId) throw new AppError("not_found", "That thread is not yours.", 404);
+    thread = found.thread;
+  } else thread = await createThread(ctx, tenantId, titleFromQuestion(turn.text), null);
+  await appendMessage(ctx, thread.id, tenantId, "user", { text: turn.text });
+  await appendMessage(ctx, thread.id, tenantId, "assistant", {
+    v: 2,
+    answer: turn.answer,
+    ...v1FromAnswer(turn.answer),
+    proposals: [],
+    language: turn.answer.language,
+    failed: false,
+    quick: turn.quick,
+  });
+  // Up the list, its scope as it was: the quick answer is the workspace's, whatever the chip.
+  await touchThread(ctx, thread.id, undefined);
+  return { id: thread.id, title: thread.title };
 }
 
 /**

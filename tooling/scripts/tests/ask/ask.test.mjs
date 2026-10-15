@@ -37,6 +37,10 @@ import {
   emptyReadSet,
   noteRows,
   askIntent,
+  callsAnswer,
+  needsAnswer,
+  openingsAnswer,
+  quickAnswerOf,
   groundCitations,
   isUngrounded,
   scopeFromRoute,
@@ -46,6 +50,7 @@ import {
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
 import { fromContext } from "../../eval-ask-context.mjs";
+import { MODEL_QUESTIONS, QUICK_FORMS } from "./quick-path/_questions.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -641,6 +646,80 @@ test("the three quick questions are told by their words; the answers are ask-ans
   assert.equal(dayFromQuestion("any slots today", NOW, TZ), "2026-09-05");
   assert.equal(askIntent("what did the receptionist tell Dani?", NOW, TZ), null, "the long tail is the model's");
   assert.equal(askIntent("tell rosa we are running late", NOW, TZ), null);
+});
+
+test("REGRESSION (the review's A1): only a short form, word for word, is quick -- an act, another period, a name, a format or a second ask is the model's", () => {
+  const TZ = "America/New_York";
+  for (const q of MODEL_QUESTIONS) assert.equal(askIntent(q, NOW, TZ), null, q);
+  for (const [q, kind] of QUICK_FORMS) assert.equal(askIntent(q, NOW, TZ)?.kind, kind, q);
+  // Each rule on its own, over a form that is otherwise quick.
+  assert.equal(askIntent("who needs me right now on WhatsApp or by email", NOW, TZ), null, "past eight words");
+  assert.equal(askIntent("reply to who needs me", NOW, TZ), null, "an act");
+  assert.equal(askIntent("any missed calls yesterday?", NOW, TZ), null, "a day but today: the answer is today's");
+  assert.equal(askIntent("what's open this weekend?", NOW, TZ), null, "a span, not a day");
+  assert.equal(askIntent("what's open friday for Ana", NOW, TZ), null, "a name");
+  assert.equal(
+    askIntent("¿Quién tiene una propuesta pendiente?", NOW, TZ),
+    null,
+    "a chip of the model's (it was caught)",
+  );
+  assert.equal(askIntent("¿Por qué espera Rosa?", NOW, TZ), null, "the why chip names someone (it was caught)");
+  assert.equal(askIntent("¿Qué hay libre pasado mañana?", NOW, TZ), null, "not tomorrow: the day after");
+});
+
+test("a quick answer as POST ask/quick keeps it: the answer the Line drew, cut to its caps, its doors pages of the app; any other shape is no answer", () => {
+  const waiting = {
+    people: [
+      {
+        kind: "thread",
+        id: ID,
+        who: "Nora",
+        channel: "WhatsApp",
+        when: "waited 2h",
+        line: `“${"Can I come at 3? ".repeat(20)}”`,
+        to: `inbox/${ID}`,
+      },
+    ],
+    more: 0,
+    runs: [],
+    searches: [],
+    windows: [],
+  };
+  const drawn = needsAnswer(waiting, "en");
+  const kept = quickAnswerOf(JSON.parse(JSON.stringify(drawn)));
+  assert.equal(kept.say.headline, drawn.say.headline);
+  assert.deepEqual(kept.show.items[0].source, drawn.show.items[0].source, "the row and its door, as drawn");
+  assert.ok(drawn.show.items[0].line.length > 160 && kept.show.items[0].line.length <= 160, "a line cut to its cap");
+  const calls = callsAnswer([{ callId: ID2, who: "Robin" }], [], "es");
+  assert.deepEqual(quickAnswerOf(calls), calls, "a calls answer kept whole");
+  const open = openingsAnswer(
+    { state: "ok", days: [{ key: "2026-09-06", label: "Sat, Sep 6", windows: ["9:00"] }] },
+    "en",
+    "sat",
+  );
+  assert.deepEqual(quickAnswerOf(open), open, "an openings answer kept whole");
+  // Parts a quick answer never has are not kept.
+  const extra = quickAnswerOf({
+    ...calls,
+    show: { ...calls.show, figures: [{ value: "9" }], list: { style: "numbers", entries: ["Call Robin"] } },
+    do: { ...calls.do, next: ["Why?"] },
+  });
+  assert.deepEqual([extra.show.figures, extra.show.list, extra.do.next], [[], { style: "bullets", entries: [] }, []]);
+  // Shapes the Line never draws.
+  const item = (over) => ({
+    ...open,
+    show: { ...open.show, items: [{ ...open.show.items[0], source: { ...open.show.items[0].source, ...over } }] },
+  });
+  assert.equal(quickAnswerOf(null), null);
+  assert.equal(quickAnswerOf({ ...open, say: { headline: " ", detail: "" } }), null, "no headline");
+  assert.equal(quickAnswerOf({ ...open, form: "prose" }), null, "a model's prose");
+  assert.equal(quickAnswerOf(item({ to: "https://example.com/x" })), null, "a door off the app");
+  assert.equal(quickAnswerOf(item({ to: "javascript:alert(1)" })), null);
+  assert.equal(quickAnswerOf(item({ to: "//example.com" })), null);
+  assert.equal(quickAnswerOf(item({ to: "/calendar" })), null, "a path from the root");
+  assert.equal(quickAnswerOf(item({ kind: "secret" })), null, "a kind no citation has");
+  assert.equal(quickAnswerOf(item({ id: "" })), null, "a row with no id");
+  assert.equal(quickAnswerOf({ ...open, do: { open: { to: "https://example.com", label: "x" }, next: [] } }), null);
 });
 
 test("language, scope and settings changes", () => {
