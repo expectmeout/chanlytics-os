@@ -72,6 +72,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "ask_voice_turn",
   "auth_unavailable",
   "booking_report_failed",
+  "booking_request_unknown_answer",
   "broadcast_open_to_customers_failed",
   "broadcast_touches_failed",
   "broadcasts_held_read_failed",

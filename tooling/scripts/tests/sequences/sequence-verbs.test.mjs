@@ -84,6 +84,16 @@ test("a draft is asked for, never made; keeping it makes the sequence whole, and
     body: { words: "Thank them", previous: { name: "Win-back", steps: 2 } },
   });
   assert.deepEqual(commit("sequence_draft", { words: "" }), { refused: "Say what it should do." });
+  // A sequence on a list is drafted on the list picked; a list said by half is no list.
+  const list = { token: "seg:clients", label: "Clients" };
+  assert.deepEqual(commit("sequence_draft", { words: "Tell them", list }), {
+    route: "POST sequences/draft",
+    body: { words: "Tell them", list },
+  });
+  assert.deepEqual(commit("sequence_draft", { words: "Tell them", list: { token: "seg:clients" } }), {
+    route: "POST sequences/draft",
+    body: { words: "Tell them" },
+  });
   assert.equal(verbSpec("sequence_draft").undo, undefined);
 
   const make = verbSpec("sequence_make");
@@ -122,4 +132,45 @@ test("a draft is started through the campaign's own door, paused as its undo, an
   });
   assert.equal(verbSpec("sequence_discard").undo, undefined);
   assert.equal(verbSpec("sequence_discard").open({ payload: {} }, null), "campaigns/sequences");
+});
+
+test("an email the check held is decided, and one handed over said of, through one verb each, whichever page presses", () => {
+  const SEND = "44444444-4444-4444-8444-444444444444";
+  assert.deepEqual(commit("sequence_send_decide", { send_id: SEND, decision: "include", name: "Bloom Bar" }), {
+    route: "POST reach-out-sends/[id]/decide",
+    params: { id: SEND },
+    body: { decision: "include" },
+  });
+  // A door the held do not have, or no email, is never sent.
+  assert.ok("refused" in commit("sequence_send_decide", { send_id: SEND, decision: "send_twice" }));
+  assert.ok("refused" in commit("sequence_send_decide", { decision: "skip" }));
+  const decide = verbSpec("sequence_send_decide");
+  const said = (decision) =>
+    decide.receipt(card("sequence_send_decide", { send_id: SEND, decision, name: "Bloom Bar" }).card, {});
+  assert.deepEqual(["include", "rewrite", "skip", "not_a_fit"].map(said), [
+    "Bloom Bar's email goes as it is",
+    "Bloom Bar's opening is written again",
+    "Bloom Bar is left out of this batch",
+    "Bloom Bar is set aside: not a fit",
+  ]);
+  assert.equal(decide.undo, undefined, "an email let go may be on its way: nothing to undo");
+  // Open is the run that holds the email, its sheet in Sent.
+  assert.equal(decide.open({ payload: { send_id: SEND, run_id: SEQ } }, null), `broadcasts/run:${SEQ}`);
+  assert.equal(decide.open({ payload: { send_id: SEND } }, null), null);
+
+  assert.deepEqual(commit("sequence_send_said", { send_id: SEND, outcome: "sent", name: "Bloom Bar" }), {
+    route: "POST reach-out-sends/[id]/said",
+    params: { id: SEND },
+    body: { outcome: "sent" },
+  });
+  assert.ok("refused" in commit("sequence_send_said", { send_id: SEND, outcome: "maybe" }));
+  const sent = verbSpec("sequence_send_said");
+  const c = card("sequence_send_said", { send_id: SEND, outcome: "sent", name: "Bloom Bar" }).card;
+  // The receipt is the To send list's own sentence (contracts toSendSaidWords), from what the door answered.
+  assert.match(sent.receipt(c, { said: true, state: "sent", since: null }), /Bloom Bar/);
+  assert.notEqual(
+    sent.receipt(c, { said: true, state: "sent", since: null }),
+    sent.receipt(c, { said: false, state: "sent" }),
+    "a second word says how it already stands",
+  );
 });

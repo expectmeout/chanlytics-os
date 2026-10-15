@@ -463,14 +463,15 @@ test("each fold opens with its stored values, as the form it replaces opened the
   assert.deepEqual(S.draftOf("notes", s), STORED.brain.profile.notes);
   assert.deepEqual(S.draftOf("fallbacks", s), STORED.brain.fallbacks);
   // A link stored and no tool named: a calendar with no tool behind it, as the picker says it (contracts booksWithOf).
-  assert.deepEqual(S.draftOf("calendar", s), { with: "calendar", ical_url: STORED.calendar.ical_url });
+  // Booking requests are off where nothing was said (decision 0061).
+  assert.deepEqual(S.draftOf("calendar", s), { with: "calendar", ical_url: STORED.calendar.ical_url, requests: false });
   const named = stored();
   named.bookings = { tool: "booksy" };
   assert.equal(S.draftOf("calendar", named).with, "booksy", "the tool named outranks the link beside it");
   const byHand = stored();
   delete byHand.calendar;
   byHand.bookings = { by_hand: true };
-  assert.deepEqual(S.draftOf("calendar", byHand), { with: "hand", ical_url: "" });
+  assert.deepEqual(S.draftOf("calendar", byHand), { with: "hand", ical_url: "", requests: false });
   // The prompt from before the fields, carried into the box and marked so (contracts instructionsDraft, S4).
   assert.deepEqual(S.draftOf("extra_instructions", s), { text: STORED.brain.system_prompt, carried: true });
   // Three rules on unless one is switched off; the health rule and the photos only when switched on.
@@ -566,7 +567,7 @@ test("each fold opens with its stored values, as the form it replaces opened the
       ],
       ["extra_instructions", { text: "", carried: false }],
       ["fallbacks", FALLBACK_DEFAULTS],
-      ["calendar", { with: "", ical_url: "" }],
+      ["calendar", { with: "", ical_url: "", requests: false }],
       ["receptionist", { name: "Bella Nails", own: true, typed: "", link: "https://bella.example/book" }],
     ],
   );
@@ -1507,7 +1508,38 @@ test("the calendar's address is written onto its section, never in place of it",
     undefined,
     "emptied, with nothing else in it, the section goes",
   );
-  assert.deepEqual(S.PATHS_OF.calendar, ["calendar.ical_url", "bookings.tool", "bookings.by_hand"]);
+  assert.deepEqual(S.PATHS_OF.calendar, [
+    "calendar.ical_url",
+    "bookings.tool",
+    "bookings.by_hand",
+    "features.booking_requests",
+  ]);
+});
+
+test("the booking tool's fold writes the booking requests switch onto the features, keeping the rest (decision 0061)", () => {
+  const withMore = stored();
+  withMore.features = { vision: true };
+  const on = S.saveFold("calendar", withMore, { with: "calendar", ical_url: STORED.calendar.ical_url, requests: true });
+  assert.deepEqual(on.features, { vision: true, booking_requests: true }, "switched on, beside the photos switch");
+  assert.equal(S.draftOf("calendar", on).requests, true, "and the fold opens with it on");
+  const off = S.saveFold("calendar", on, { with: "calendar", ical_url: STORED.calendar.ical_url, requests: false });
+  assert.deepEqual(
+    off.features,
+    { vision: true, booking_requests: false },
+    "switched off where it was said, it is said off",
+  );
+  const never = S.saveFold("calendar", stored(), {
+    with: "calendar",
+    ical_url: STORED.calendar.ical_url,
+    requests: false,
+  });
+  assert.deepEqual(never.features, stored().features, "off where it was never said writes nothing");
+  const before = S.saveFold("calendar", on, { with: "calendar", ical_url: STORED.calendar.ical_url });
+  assert.deepEqual(
+    before.features,
+    { vision: true, booking_requests: true },
+    "a draft from before the switch leaves it",
+  );
 });
 
 test("a fold saved onto a config with no brain, or no profile, writes nothing it has no value for", () => {

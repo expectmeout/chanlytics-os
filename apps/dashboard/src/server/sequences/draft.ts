@@ -5,8 +5,9 @@
  * versions held, contracts messageHolds). The model names each by a key of the request, never an id, and each pick is
  * judged here, in code, against the same lists: a moment not offered, a message not held, a wait past the steps' bounds or
  * a value a step's run cannot fill is never put in the draft. Typed words that name a price are left blank for the owner.
- * A message's words are data to the model (contracts ai/fence.ts). Nothing is written (decision 0017): the owner keeps it
- * as a draft or starts it (POST sequences), where the check every campaign meets judges it again.
+ * A message's words are data to the model (contracts ai/fence.ts). A sequence on a list starts on the list the owner
+ * picked, the one start the model is handed. Nothing is written (decision 0017): the owner keeps it as a draft or starts it
+ * (POST sequences), where the check every campaign meets judges it again, the list's being the workspace's among it.
  */
 import "server-only";
 import {
@@ -30,6 +31,7 @@ import {
   type ParamSpec,
   type SequenceDraftAnswer,
   type SequenceDraftDto,
+  type SequenceDraftListDto,
   type SequenceDraftStepDto,
 } from "@chanlytics/contracts";
 import { calendarOf } from "../calendar/calendar-settings";
@@ -61,6 +63,8 @@ interface Moment {
   /** A visit moment: its run knows each visit, so a step on it may say the booked time or service. */
   visits: boolean;
   proposal: boolean;
+  /** The list a sequence on one starts on: its trigger is then `saved_list`. */
+  list?: SequenceDraftListDto;
 }
 
 /** A message this workspace can send now, as the model is handed it and the draft shows it. */
@@ -188,7 +192,8 @@ function draftKept(answer: SequenceDraftAnswer, known: DraftKnown, said: string)
     said,
     business: known.business,
     name: name.slice(0, 80),
-    trigger: moment.key,
+    trigger: moment.list ? "saved_list" : moment.key,
+    list: moment.list ?? null,
     run_hour: Math.min(PLAYBOOK_HOURS.max, Math.max(PLAYBOOK_HOURS.min, answer.hour)),
     policy_class: moment.cls,
     steps,
@@ -243,11 +248,23 @@ function offeredOf(read: {
   return out;
 }
 
-/** The route's handle: the workspace's moments and messages as its pages read them, then the draft. */
+/** A list as the one start a sequence on it is drafted from: everyone on it, under the class a list's campaign runs as. */
+const listMoment = (list: SequenceDraftListDto): Moment => ({
+  key: "list",
+  label: list.label,
+  hint: "everyone on this list, and whoever joins it later",
+  cls: "campaign",
+  visits: false,
+  proposal: false,
+  list,
+});
+
+/** The route's handle: the workspace's moments (or the list picked) and messages as its pages read them, then the draft. */
 export async function draftSequence(
   rc: ReaderContext,
   words: string,
   previous: DraftBefore,
+  list: SequenceDraftListDto | null,
 ): Promise<SequenceDraftDto> {
   const [library, shape, names, calendar] = await Promise.all([
     load(rc, templates, { all: false }),
@@ -259,13 +276,15 @@ export async function draftSequence(
     ),
   ]);
   const offered = { dealsOn: shape.data.dealsOn, calendarOn: calendar };
-  const moments: Moment[] = MOMENT_TRIGGERS.filter((t) => t.kind !== "saved" && momentOffered(t, offered)).map((t) => ({
-    key: t.id,
-    ...triggerWords(t, shape.data.word),
-    cls: t.cls,
-    visits: t.kind === "visit",
-    proposal: t.kind === "deal",
-  }));
+  const moments: Moment[] = list
+    ? [listMoment(list)]
+    : MOMENT_TRIGGERS.filter((t) => t.kind !== "saved" && momentOffered(t, offered)).map((t) => ({
+        key: t.id,
+        ...triggerWords(t, shape.data.word),
+        cls: t.cls,
+        visits: t.kind === "visit",
+        proposal: t.kind === "deal",
+      }));
   return draftFrom(
     {
       business: names.data.name,

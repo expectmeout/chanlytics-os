@@ -11,6 +11,7 @@ import {
   type JourneyStageId,
 } from "../../packages/contracts/src/index";
 import { messagesOffered, momentSlots, type TemplatesRead } from "./offered";
+import { HOME_GIVES_WAY, sequencesShownIn } from "./shown";
 
 /**
  * Campaigns' home (canvas A, "Lifecycle") on a real workspace: the page that replaced the Playbooks list.
@@ -36,6 +37,7 @@ test.describe("Campaigns' home on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
   test.beforeEach(async ({ page }) => {
     await signIn(page);
+    test.skip(await sequencesShownIn(page), HOME_GIVES_WAY);
   });
 
   test("renders the real page from the workspace's playbooks, hosts the composer under New message, and never invents a number", async ({

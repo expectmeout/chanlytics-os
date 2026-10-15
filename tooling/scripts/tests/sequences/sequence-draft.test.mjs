@@ -170,3 +170,32 @@ test("typed words that name a price are left blank for the owner, and a draft sa
   assert.deepEqual(out.steps[1].params[1], { kind: "text", value: "" });
   assert.match(told(), /The last draft was \\"Win-back\\", 2 steps/);
 });
+
+test("a sequence on a list is drafted from that list alone: it starts on it, under a list's class, and says no visit", async () => {
+  const list = { token: "seg:clients", label: "Clients" };
+  const onList = {
+    ...KNOWN,
+    moments: [
+      {
+        key: "list",
+        label: "Clients",
+        hint: "everyone on this list",
+        cls: "campaign",
+        visits: false,
+        proposal: false,
+        list,
+      },
+    ],
+  };
+  answerWith({ ...ANSWER, moment: "list", then: [] });
+  const out = await draftFrom(onList, "Tell everyone on it about the new hours", null);
+  assert.match(told(), /- list: Clients/);
+  assert.doesNotMatch(told(), /- visited:/, "no moment beside the list");
+  assert.deepEqual([out.trigger, out.list, out.policy_class], ["saved_list", list, "campaign"]);
+  // A message that says a booked time is never a list's first: a list's run knows no visit.
+  answerWith({ ...ANSWER, moment: "list", first: { message: "m3", texts: [] }, then: [] });
+  await assert.rejects(draftFrom(onList, "Remind them of their visit", null), /couldn’t find a moment and a message/);
+  // A draft on a moment names no list.
+  answerWith(ANSWER);
+  assert.equal((await draftFrom(KNOWN, "After a first visit, thank them", null)).list, null);
+});

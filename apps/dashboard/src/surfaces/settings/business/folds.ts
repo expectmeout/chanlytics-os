@@ -646,7 +646,7 @@ const btFieldOf = (fold: FoldName, path: (string | number)[], draft: unknown) =>
   if (fold === "services" || fold === "closures" || fold === "notes") return btListField(fold, path, draft);
   if (fold === "booking_rules" || fold === "consult_first") return String(path[3]);
   if (fold === "fallbacks") return String(path[2]);
-  if (fold === "calendar") return path[0] === "bookings" ? "with" : "ical_url";
+  if (fold === "calendar") return path[0] === "bookings" ? "with" : path[0] === "features" ? "requests" : "ical_url";
   // The three boxes the create card draws; the product's own prompt and messages have none, and a refusal of them is
   // said once, as a refusal elsewhere is.
   if (fold === "receptionist") {

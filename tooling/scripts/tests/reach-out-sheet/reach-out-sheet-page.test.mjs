@@ -695,7 +695,6 @@ test("the bridge's verbs press the routes they name, and a search's reach is rea
       words: { subject: "Hi", body: "Hi" },
       signed_by: "Sam",
     });
-    await V.decide("s1", "skip");
   } finally {
     W.fetch = was;
   }
@@ -708,7 +707,6 @@ test("the bridge's verbs press the routes they name, and a search's reach is rea
       ["GET", "reach-outs/reach", SEARCH.id],
       ["PUT", "reach-outs/r1", null],
       ["POST", "reach-outs/preview", null],
-      ["POST", "reach-out-sends/s1/decide", null],
     ],
     "each ask is a read: a door and its sheet read it as they open and as Leads or the reach-outs move (the wiring's second audit, X2-1: it was kept as first read until a write)",
   );

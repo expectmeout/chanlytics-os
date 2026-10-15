@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { dealsAreOn, startersOffered } from "../../packages/contracts/src/index";
+import { HOME_GIVES_WAY, sequencesShownIn } from "./shown";
 import { atRoute, routeOf } from "../address";
 import { apiGet } from "../workspace";
 import { libraryRows, messagesOf, type TemplatesRead } from "./offered";
@@ -129,6 +130,7 @@ test.describe("The Library on a real workspace", () => {
   test("Campaigns is one home with two rooms: the Library and Sent are reached from it, and each goes back to it", async ({
     page,
   }) => {
+    test.skip(await sequencesShownIn(page), HOME_GIVES_WAY);
     await page.goto("/#/campaigns");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("campaigns-home")).toBeVisible();
@@ -160,6 +162,7 @@ test.describe("The Library on a real workspace", () => {
   test("Campaigns are pages of their own on their paths: each boots there, the old names move, and the router walks them", async ({
     page,
   }) => {
+    test.skip(await sequencesShownIn(page), HOME_GIVES_WAY);
     await page.goto("/");
     await page.waitForURL(/\/w\/[^/?#]+/, { timeout: 30_000 });
     const slug = /\/w\/([^/?#]+)/.exec(new URL(page.url()).pathname)?.[1];
