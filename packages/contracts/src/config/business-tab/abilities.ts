@@ -331,7 +331,7 @@ const CANNOT_NO_LINK: Partial<Record<CannotRowVM["id"], string>> = {
  * a customer picks waits for the owner.
  */
 const CANNOT_REQUESTS_BOOK =
-  "Not a setting you could switch on: it never books, moves or cancels an appointment itself. A time a customer picks by text waits on Today for your Booked it or Can't.";
+  "Not a setting you could switch on: it never makes, moves or cancels a booking itself. A time a customer picks by text waits on Today for your Booked it or Can't.";
 
 /**
  * Said here so nobody has to find out from a customer.

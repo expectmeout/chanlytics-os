@@ -113,10 +113,7 @@ test("the four rules carry three different guarantees", () => {
   // The structural one says the switch does not decide it.
   // It said "There is no appointments table in this product", which stopped being true the day a booking tool's
   // emails became appointments on the record (00345). What holds is what it cannot do.
-  assert.match(
-    ruleStrength("never_confirm_booking").sentence,
-    /^It can't book, move or cancel an appointment anyway\./,
-  );
+  assert.match(ruleStrength("never_confirm_booking").sentence, /^It can't make, move or cancel a booking anyway\./);
   assert.match(ruleStrength("never_confirm_booking").sentence, /Off only stops it being told not to claim it did\./);
   assert.doesNotMatch(ruleStrength("never_confirm_booking").sentence, /no appointments table/i);
   // The checked one names both channels, because they differ -- and it names them in
@@ -792,7 +789,7 @@ test("what it cannot do is stated, and is not a setting", () => {
   const rows = cannotRows({ smsLive: false, hasBookingLink: true });
   const ids = rows.map((r) => r.id);
   assert.deepEqual(ids, ["book", "outbound_call", "sms"]);
-  assert.match(rows[0].detail, /Nothing in this product can create, move or cancel an appointment/);
+  assert.match(rows[0].detail, /Nothing in this product can make, move or cancel a booking/);
   assert.doesNotMatch(
     rows[0].detail,
     /no appointments table/i,
@@ -1042,16 +1039,13 @@ test("the booking rules are one sentence of the rules that are set, in the fold'
   assert.equal(bookingRulesWords({ party_max: 1 }).line, "Up to 1 person");
   assert.equal(
     bookingRulesWords({ lead_hours: 1, buffer_min: 15 }).line,
-    "At least 1 hour's notice · 15 minutes between appointments",
+    "At least 1 hour's notice · 15 minutes between bookings",
   );
   assert.equal(
     bookingRulesWords({ lead_hours: 0, buffer_min: 0, max_days_ahead: 1 }).line,
-    "Same-day bookings · no gap between appointments · up to 1 day ahead",
+    "Same-day bookings · no gap between bookings · up to 1 day ahead",
   );
-  assert.equal(
-    bookingRulesWords({ slot_min: 45, buffer_min: 1 }).line,
-    "45-minute slots · 1 minute between appointments",
-  );
+  assert.equal(bookingRulesWords({ slot_min: 45, buffer_min: 1 }).line, "45-minute slots · 1 minute between bookings");
   // Consult-first is a row of its own, and a line of the rules nowhere here.
   assert.equal(bookingRulesWords({ consult_first: ["Extensions"] }).line, null);
   // With none set, what the openings are worked out with is said, from the defaults the calendar applies: not "no rule".
@@ -1550,7 +1544,7 @@ test("with no booking link, the two rows that lean on one say what does the work
   assert.match(linked.book, /Your booking link does that, whichever tool is behind it\.$/);
   assert.equal(
     none.book,
-    "Not a setting you could switch on. Nothing in this product can create, move or cancel an appointment. Your team does that, from the details it takes.",
+    "Not a setting you could switch on. Nothing in this product can make, move or cancel a booking. Your team does that, from the details it takes.",
   );
   assert.equal(
     none.sms,

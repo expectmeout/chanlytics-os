@@ -1492,7 +1492,7 @@ test("a calendar with no tool behind it: the fold holds the link's one box, chec
     assert.ok(textOf(byTestId(fold, "bto-link")).startsWith("Calendar link So the receptionist can offer open times."));
     assert.match(
       textOf(byTestId(fold, "rec-calendar-note")),
-      /^Paste the private address of the calendar your appointments land in\. It is only ever read\. Nothing is booked from here; your booking link does that\.$/,
+      /^Paste the private address of the calendar your bookings land in\. It is only ever read\. Nothing is booked from here; your booking link does that\.$/,
     );
     assert.equal(byTestId(tree, "rec-calendar-open"), null, "no door to a calendar that is not connected");
     assert.equal(byTestId(tree, "bto-emails"), null, "and no emails' part: there is no tool to send them");

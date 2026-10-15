@@ -27272,7 +27272,7 @@ var CANNOT_NO_LINK = {
   book: "Not a setting you could switch on. Nothing in this product can make, move or cancel a booking. Your team does that, from the details it takes.",
   sms: "Not part of what is sold yet. It arrives with a line the carriers have approved, and Connections will say when."
 };
-var CANNOT_REQUESTS_BOOK = "Not a setting you could switch on: it never books, moves or cancels an appointment itself. A time a customer picks by text waits on Today for your Booked it or Can't.";
+var CANNOT_REQUESTS_BOOK = "Not a setting you could switch on: it never makes, moves or cancels a booking itself. A time a customer picks by text waits on Today for your Booked it or Can't.";
 function cannotRows(i) {
   if (typeof i?.smsLive !== "boolean") {
     throw new TypeError("cannotRows needs true or false for smsLive: left out, texting would be drawn as not sold.");

@@ -376,7 +376,7 @@ test("a viewer reads the whole card and is offered no door", () => {
 
 test("where the workspace takes booking requests, the booking limit says it still never books itself, and where a picked time waits (decision 0061)", () => {
   const book = (o) => cannotRows({ smsLive: false, hasBookingLink: false, ...o }).find((r) => r.id === "book");
-  assert.match(book({ takesRequests: true }).detail, /never books, moves or cancels an appointment itself/);
+  assert.match(book({ takesRequests: true }).detail, /never makes, moves or cancels a booking itself/);
   assert.match(book({ takesRequests: true }).detail, /waits on Today for your Booked it or Can't/);
   assert.equal(book({}).detail, book({ takesRequests: false }).detail, "left out, none is promised");
   assert.doesNotMatch(book({}).detail, /Booked it/);
