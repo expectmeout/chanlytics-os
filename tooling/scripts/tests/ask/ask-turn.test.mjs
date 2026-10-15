@@ -8670,6 +8670,27 @@ test("an earlier card is the person's to press (the Phase 5 plan, D6, moved into
   assert.ok(rules.indexOf(rule) > rules.indexOf("You never act."), "after the rule it follows from");
 });
 
+test("Ask answers the question asked (the end-to-end review, 15 Oct: today's recap rode into every Today answer and its next questions): one rule, in system's cached rules after the page's data rule -- something unasked only when urgent and not said before in the thread, once, in a short clause; do.next never from what was not asked", async () => {
+  const s = scripted([ROUND([answer("Fine.")])]);
+  await runAskTurn(turn(ctxFor()).input, ports(s.round));
+  const rules = s.requests[0].system[0].text;
+  const said = ASK_RULES.filter((r) => r.startsWith("Answer the question they asked."));
+  assert.equal(said.length, 1, "one rule says it");
+  const [rule] = said;
+  for (const words of [
+    "not a list to report",
+    "only when it is urgent and no earlier turn in this thread has said it",
+    "in one short clause after the answer",
+    "do.next follows from this answer, never from something they did not ask about",
+  ])
+    assert.ok(rule.includes(words), words);
+  assert.ok(rules.includes(rule), "in the cached rules");
+  assert.ok(
+    rules.indexOf(rule) > rules.indexOf("When the page the person is on comes with their question"),
+    "after the rule that brings the page's data",
+  );
+});
+
 /** The API's refusal of a replayed thinking block bound to another conversation (model-migration.md, the binding). */
 const BOUND =
   '400 messages.1.content.0: Invalid `signature` in `thinking` block. The block is bound to a different conversation. Remove the block, or set `thinking.block_binding.prefix_mismatch_behavior` to "drop_block". That setting requires the `thinking-binding-controls-2026-08-01` value in the `anthropic-beta` header.';

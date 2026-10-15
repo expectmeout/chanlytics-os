@@ -22,6 +22,7 @@ import {
   ASK_PAGES,
   ASK_PAGE_ROUTES,
   ASK_SCOPE_KINDS,
+  answerCopy,
   answerSpoken,
   answerText,
   askJump,
@@ -362,6 +363,7 @@ const ask = (threads = []) => {
     ...askSpeech(globalThis.window, { api: { speech: async () => new Blob() } }),
     quick: quickAnswer(palette, openings),
     answerText,
+    answerCopy,
     answerSpoken,
     cardOpenRoute,
     threads: async () => list,
@@ -2249,7 +2251,7 @@ test("on a phone the next questions over the field keep the ids the keys walk af
   }
 });
 
-test("on a phone the newest answer carries Copy, which copies its words; an earlier one carries none (D14)", async () => {
+test("on a phone the newest answer carries Copy, which copies its words and the rows it showed; an earlier one carries none (D14)", async () => {
   const ph = phoneWindow();
   const props = { open: true, onClose() {} };
   const copied = [];
@@ -2264,7 +2266,32 @@ test("on a phone the newest answer carries Copy, which copies its words; an earl
       calls.sent.push(input.text);
       const n = calls.sent.length;
       on({ t: "thread", id: TH(5).id, title: input.text });
-      on({ t: "final", message: said(`m-${n}`, `Answer ${n}.`) });
+      // The second answer shows a row: Copy takes it too (15 Oct: it copied the headline alone).
+      const answer = {
+        ...withNext(n),
+        show: {
+          figures: [],
+          breakdown: null,
+          items: [
+            {
+              title: "Ana",
+              meta: "WhatsApp",
+              line: "Asked to book.",
+              source: {
+                kind: "person",
+                id: "00000000-0000-4000-8000-0000000000aa",
+                label: "Ana",
+                to: "clients",
+                door: true,
+              },
+            },
+          ],
+        },
+      };
+      on({
+        t: "final",
+        message: n === 2 ? { ...said(`m-${n}`, `Answer ${n}.`), answer } : said(`m-${n}`, `Answer ${n}.`),
+      });
     };
     render(Palette, props);
     let tree = await later(Palette, props);
@@ -2275,7 +2302,7 @@ test("on a phone the newest answer carries Copy, which copies its words; an earl
     assert.equal(byTestId(byTestId(tree, "ask-thread"), "ask-acts"), null, "an earlier answer carries none");
     press(byTestId(acts, "ask-copy"));
     tree = await later(Palette, props);
-    assert.deepEqual(copied, ["Answer 2."], "its words, copied");
+    assert.deepEqual(copied, ["Answer 2.\nAna · WhatsApp · Asked to book."], "its words and its row, copied");
   } finally {
     await closes();
     if (had) Object.defineProperty(globalThis.navigator, "clipboard", had);
@@ -3821,13 +3848,19 @@ test("a campaign card says campaign, never playbook (the moment spec, D19): its 
         undo: { playbook_id: "pb1", decision_id: "d1" },
       },
     };
-    const props = { p: made, messageId: "x", t: globalThis.window.askText("en"), onNav() {} };
-    let tree = render(AskCard, props);
-    press(byClass(tree, "ask-card-undo")[0]);
-    tree = settle(AskCard, props);
-    const asked = textOf(tree);
-    assert.ok(asked.includes("The campaign and its schedule go"), asked);
-    assert.ok(!/playbook/i.test(asked), `no playbook in what a person reads: ${asked}`);
+    // The question before the delete, in the Line's language (15 Oct: it was English on a Spanish Line).
+    for (const [lang, said, yes] of [
+      ["en", "The campaign and its schedule go", "Yes, delete it"],
+      ["es", "La campaña y su horario se borran", "Sí, borrarla"],
+    ]) {
+      const props = { p: made, messageId: "x", t: globalThis.window.askText(lang), onNav() {} };
+      let tree = render(AskCard, props);
+      press(byClass(tree, "ask-card-undo")[0]);
+      tree = settle(AskCard, props);
+      const asked = textOf(tree);
+      assert.ok(asked.includes(said) && asked.includes(yes), `${lang}: ${asked}`);
+      assert.ok(!/playbook/i.test(asked), `no playbook in what a person reads: ${asked}`);
+    }
   } finally {
     globalThis.window.__ask = A;
   }

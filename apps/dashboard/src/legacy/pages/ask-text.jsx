@@ -86,6 +86,9 @@ const ASK_TEXT = {
     send: "Send",
     notNow: "Not now",
     undo: "Undo",
+    // Undoing a new campaign deletes it: the question before it (AskCardReceipt).
+    undoCampaignDetail: "The campaign and its schedule go; runs already sent keep their numbers in Sent.",
+    undoCampaignYes: "Yes, delete it",
     working: "Working…",
     editComposer: "Edit in the composer",
     openIt: "Open it",
@@ -179,6 +182,8 @@ const ASK_TEXT = {
     send: "Enviar",
     notNow: "Ahora no",
     undo: "Deshacer",
+    undoCampaignDetail: "La campaña y su horario se borran; los envíos ya hechos conservan sus números en Enviados.",
+    undoCampaignYes: "Sí, borrarla",
     working: "Un momento…",
     editComposer: "Editar en el redactor",
     openIt: "Abrirlo",

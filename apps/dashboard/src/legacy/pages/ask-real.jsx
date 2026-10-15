@@ -591,7 +591,7 @@ const arUnder = ({ A, t, lang, query, surface, scope, threads, view, phone, acti
       ? quick.answer ? { answer: quick.answer, cardOpen: {} } : null
       : answerMsg ? A.answer(answerMsg) : null;
   const moves = drawn ? answerMoves(drawn.answer) : [];
-  const [words, spoken] = drawn ? [A.answerText(drawn.answer), A.answerSpoken(drawn.answer)] : ["", ""];
+  const [words, spoken] = drawn ? [A.answerCopy(drawn.answer), A.answerSpoken(drawn.answer)] : ["", ""];
   const th = arThreadOf({ phone, view, active, quick, showRows, composing, talk, live, latest });
   return { latest, folded, shownFolds, answerMsg, showRows, composingRows: composingRows && !th.thread, rowsDrawn, sections, rows, drawn, moves, words, spoken, ...th };
 };
