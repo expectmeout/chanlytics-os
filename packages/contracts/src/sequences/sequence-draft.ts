@@ -86,7 +86,7 @@ export const SEQUENCE_NEW_WORDS = {
   title: "New sequence",
   ask: "What should it do?",
   example:
-    "After someone’s visit, thank them the next day, and if they haven’t booked again in 4 weeks, invite them back",
+    "After someone comes in, thank them the next day, and if they haven’t booked again in 4 weeks, invite them back",
   draft: "Draft it",
   again: "Say it again",
   drafting: "Ask is drafting it…",

@@ -40481,7 +40481,7 @@ var SEQUENCE_DRAFT_JSON_SCHEMA = {
 var SEQUENCE_NEW_WORDS = {
   title: "New sequence",
   ask: "What should it do?",
-  example: "After someone\u2019s visit, thank them the next day, and if they haven\u2019t booked again in 4 weeks, invite them back",
+  example: "After someone comes in, thank them the next day, and if they haven\u2019t booked again in 4 weeks, invite them back",
   draft: "Draft it",
   again: "Say it again",
   drafting: "Ask is drafting it\u2026",

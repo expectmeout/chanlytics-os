@@ -235,7 +235,7 @@ function offeredOf(read: {
       templateId: row.id,
       title: m.title,
       body: (row.body_preview ?? "").trim(),
-      purpose: m.purpose === "marketing" ? "an offer" : "a message about their visit or account",
+      purpose: m.purpose === "marketing" ? "an offer" : "a message about their booking or account",
       channels,
       slots: defaultSlotKinds(row),
     });

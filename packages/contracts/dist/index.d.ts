@@ -38797,7 +38797,7 @@ interface SequenceDraftDto {
 declare const SEQUENCE_NEW_WORDS: {
     readonly title: "New sequence";
     readonly ask: "What should it do?";
-    readonly example: "After someone’s visit, thank them the next day, and if they haven’t booked again in 4 weeks, invite them back";
+    readonly example: "After someone comes in, thank them the next day, and if they haven’t booked again in 4 weeks, invite them back";
     readonly draft: "Draft it";
     readonly again: "Say it again";
     readonly drafting: "Ask is drafting it…";
