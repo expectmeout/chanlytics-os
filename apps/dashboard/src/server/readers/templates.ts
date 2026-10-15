@@ -207,7 +207,7 @@ export type TemplatesRead = Awaited<ReturnType<typeof templatesOf>>;
 type LibraryRead = Extract<TemplatesRead, { usedBy: unknown }>;
 
 /**
- * The library whole, as Ask reads it before it writes a message (campaigns with action messages; contracts MessageRead):
+ * The library whole, as Ask reads it before it writes a message (sequences with action messages; contracts MessageRead):
  * every message Settings' read made of every row, so a WhatsApp version still in Meta's review is among its message's
  * versions, each version with its row's status (contracts metaStatusOf; an email's or a text's is written approved). Its
  * category is the one a send judges a yes by (the message's purpose: an authentication message is a utility one); its
@@ -253,7 +253,7 @@ export function messageReadsOf(read: LibraryRead): MessageRead[] {
  * many went out. Both answer `messages`, beside `templates` and `held`: the messages (a name in a language) made of EVERY
  * row of the workspace by contracts campaignMessagesOf, not of the rows left in the list, so a WhatsApp version in
  * review keeps its status inside its message, and a message with no WhatsApp row is one. The route's body, moved here
- * whole, so the composers and Ask's campaigns.audiences read the same rows the same way; the route checks `?all=`. Each
+ * whole, so the composers and Ask's sequences.lists read the same rows the same way; the route checks `?all=`. Each
  * template is a row a citation names, at its message's own address in the Library, by name (contracts addressOf; the
  * wiring's second audit, W-campaign-run-template-reachout-6): it opened the Library's list, whichever read returned it.
  */

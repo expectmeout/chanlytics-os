@@ -48,7 +48,23 @@ const {
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 beforeEach(() => readerCache.clear());
 
-const NAMES = JSON.parse(fs.readFileSync(path.join(ROOT, "tooling/evals/tool-names.json"), "utf8"));
+/** The twenty-six tools as PR 3.1 froze them, by name. */
+const OLD_TOOLS = new Set(
+  JSON.parse(
+    fs.readFileSync(path.join(ROOT, "tooling/scripts/tests/fixtures/ask-tools-0c136563.json"), "utf8"),
+  ).operator.map((t) => t.name),
+);
+/**
+ * The rename's rows for those old tools (tooling/evals/tool-names.json): every old tool but the invitation, the Team
+ * page's alone since the operator (Ruben, 15 Oct 2026). The table's later rows rename Phase 4's names, no old tool's.
+ */
+const NAMES = Object.fromEntries(
+  Object.entries(JSON.parse(fs.readFileSync(path.join(ROOT, "tooling/evals/tool-names.json"), "utf8"))).filter(
+    ([old]) => OLD_TOOLS.has(old),
+  ),
+);
+/** The one old tool with no successor: its calls are refused as the unknown tool its group became. */
+const INVITE = "propose_invite";
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const C1 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc1";
@@ -549,10 +565,20 @@ async function answer(name, input, role = "owner", rpcs = RPCS) {
   return { ...out, reads: supabase.seen.map((q) => (q.rpc ? `rpc:${q.rpc}` : `${q.table}.${q.op}`)) };
 }
 
-/** The new call for an old one: the tool the mapping names, with its action first when it has one. */
+/**
+ * The new call for an old one: the tool the mapping names, with its action first when it has one. The operator (15 Oct
+ * 2026) reshaped two inputs: report takes a period by name where it took days, and autonomy's dial alone leaves the mode
+ * out where it was empty.
+ */
 function renamed(old, input) {
   const [name, action] = NAMES[old].split(".");
-  return { name, input: action ? { action, ...input } : input };
+  let own = input;
+  if (old === "get_report") own = { period: `${input.days}d` };
+  if (old === "propose_policy" && input.mode === "") {
+    const { mode: _, ...rest } = input;
+    own = rest;
+  }
+  return { name, input: action ? { action, ...own } : own };
 }
 
 /** Whose an action is, in the registry's refusal (tools/context.ts WHOSE). */
@@ -631,7 +657,7 @@ function withReachOuts(result) {
   const said = JSON.parse(result);
   return said.error
     ? result
-    : JSON.stringify({ ...said, reach_outs: { error: "the reach-out numbers could not be read just now" } });
+    : JSON.stringify({ ...said, reach_outs: { error: "the cold email numbers could not be read just now" } });
 }
 /** What the Reviews fold says of a workspace with nothing linked, where nothing can be looked up (this world's deployment). */
 const NOTHING_LINKED = toReviewsReportVM(
@@ -773,12 +799,17 @@ function withPeople(result) {
 // is the turn's); the zone and the people are the turn's already.
 const withPeopleReads = (reads) => [...reads, "rpc:people_series", "tenant_channels.select", "lines.select"];
 
-test("the mapping names every old tool once, each to a tool and action the registry has", () => {
-  assert.equal(Object.keys(NAMES).length, 26, "the twenty-six old tools");
-  assert.equal(new Set(Object.values(NAMES)).size, 26, "each to its own name.action");
+test("the mapping names every old tool once, each to a tool and action the registry has, but the invitation, gone", () => {
+  assert.deepEqual(
+    [...OLD_TOOLS].filter((old) => !(old in NAMES)),
+    [INVITE],
+    "the invitation is the Team page's alone",
+  );
+  assert.equal(Object.keys(NAMES).length, 25, "the twenty-five old tools that are an action still");
+  assert.equal(new Set(Object.values(NAMES)).size, 25, "each to its own name.action");
   assert.deepEqual(
     [...new Set(CASES.map(([old]) => old))].sort(),
-    Object.keys(NAMES).sort(),
+    [...Object.keys(NAMES), INVITE].sort(),
     "every old tool is called here at least once",
   );
 });
@@ -1066,11 +1097,16 @@ function withThePlansWords(frozen) {
 
 /**
  * 10 Oct 2026 (the moment spec, decision 19): the line a read says while it runs is a person's, so campaigns.playbooks
- * says "Reading the campaigns" where these bytes say "Reading the playbooks". The action keeps its name; the fixture
- * stays as it was made.
+ * said "Reading the campaigns" where these bytes say "Reading the playbooks"; since the operator (15 Oct 2026) the two
+ * reads say the Sequences page's words: the moments, and the lists and messages a send may use. The actions keep their
+ * reads; the fixture stays as it was made.
  */
+const SEQUENCES_LABELS = {
+  "Reading the playbooks": "Reading the moments",
+  "Reading the lists and templates": "Reading the lists and messages",
+};
 function withCampaignsLabel(want) {
-  return want.label === "Reading the playbooks" ? { ...want, label: "Reading the campaigns" } : want;
+  return want.label in SEQUENCES_LABELS ? { ...want, label: SEQUENCES_LABELS[want.label] } : want;
 }
 
 /**
@@ -1149,12 +1185,21 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     const [old, input, role = "owner"] = CASES[i];
     const { call: frozen, ...want } = FIXTURE[i];
     assert.deepEqual(frozen, [old, input, role], `case ${i} is the call the fixture froze`);
+    if (old === INVITE) {
+      // The invitation's tool is gone with it (Ruben, 15 Oct 2026): refused as any unknown tool, before anything is read.
+      const gone = await answer("propose_team", { action: "invite", ...input }, role);
+      assert.deepEqual(
+        [gone.isError, JSON.parse(gone.result).error, gone.reads],
+        [true, "unknown tool propose_team", []],
+      );
+      continue;
+    }
     const call = renamed(old, input);
     const got = withoutPersonState(old, await answer(call.name, call.input, role));
     // 2 Oct 2026: a moment no longer offered for a new playbook (contracts MOMENTS_RETIRED) is not one of the tool's
     // triggers: the schema refuses it, naming the ones that are, before anything is read (the check refuses it in the
     // moment's own words if it gets that far, which core-campaigns.test.mjs runs).
-    if (call.name === "propose_campaign" && String(call.input.trigger) in MOMENTS_RETIRED) {
+    if (call.name === "propose_sequence" && String(call.input.trigger) in MOMENTS_RETIRED) {
       assert.equal(got.isError, true, `${old}: a retired moment is refused`);
       assert.match(got.result, /expected one of/, `${old}: by the schema, naming the moments there are`);
       assert.deepEqual(got.reads, [], `${old}: before anything is read`);
@@ -1182,17 +1227,17 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     if (old === "get_today") result = withTheOneCount(result);
     if (old === "list_threads" || old === "get_thread") result = withNoHeldDraft(result);
     if (NAMES[old] === "calls.list" || NAMES[old] === "calls.get") result = withCallDirection(result);
-    if (NAMES[old] === "campaigns.audiences") result = withHeldListWord(withChannels(result));
-    if (NAMES[old].startsWith("propose_campaign.")) result = withTheVerbsWords(result);
+    if (NAMES[old] === "sequences.lists") result = withHeldListWord(withChannels(result));
+    if (NAMES[old].startsWith("propose_sequence.")) result = withTheVerbsWords(result);
     // 8 Oct 2026: a playbook's hour by the product's clock (withTheClocksHour): the campaigns' own answers and cards,
     // in their result and in the card they propose.
-    const campaignsOwn = NAMES[old].startsWith("campaigns.") || NAMES[old].startsWith("propose_campaign.");
+    const campaignsOwn = NAMES[old].startsWith("sequences.") || NAMES[old].startsWith("propose_sequence.");
     if (campaignsOwn) result = withTheClocksHour(result);
     // 9 Oct 2026: and a playbook card's title says "Campaign" (withCampaignWord), in its result and in the card.
-    const playbookCard = NAMES[old] === "propose_campaign.playbook";
+    const playbookCard = NAMES[old] === "propose_sequence.moment";
     if (playbookCard) result = withCampaignWord(result);
     // 11 Oct 2026: a plan's sentence and its kind (withThePlansWords), in the result and in the card.
-    const leadPlan = NAMES[old] === "propose_lead_search";
+    const leadPlan = NAMES[old] === "propose_lead_search.find";
     if (leadPlan) result = withThePlansWords(result);
     const card =
       campaignsOwn && typeof want.proposal === "string"
@@ -1220,23 +1265,23 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // messageVersionRowsOf: the version, then every row of its message), where it read the one WhatsApp row: one `templates`
     // read more for a template this workspace holds. A template it does not hold answers at the version, one read as before.
     const readsRows =
-      NAMES[old].startsWith("propose_campaign.") && input.template_id === TPL && reads00.includes("templates.select");
+      NAMES[old].startsWith("propose_sequence.") && input.template_id === TPL && reads00.includes("templates.select");
     const reads0 = readsRows ? [...reads00, "templates.select"] : reads00;
     // 3 Oct 2026 (One message, every channel, step 3): the playbooks reader asks whether the workspace can send on each
     // channel (server/campaigns/channels-ready.ts): the WhatsApp number and the texting line, after the turn's tenants
     // reads (the mailbox only where the deployment sends email, which this one does not). The one change to its reads.
     // A campaign proposed (a broadcast, a playbook) asks the same of WhatsApp alone, the one channel Ask names: whether
     // its number can send. One read more, in any order; a call refused before, at its template, never gets that far.
-    const proposes = String(NAMES[old]).startsWith("propose_campaign.") && !want.isError;
+    const proposes = String(NAMES[old]).startsWith("propose_sequence.") && !want.isError;
     // 7 Oct 2026 (lane 1, T5): a playbook's check reads the message the template's id names (db messageVersionRowsOf: the
     // version, then every row of it, on any channel), where it read the one WhatsApp row: a playbook proposed on a
     // template, which reached the check after Ask's own read of the row, makes one `templates` read more.
     const readsMessage =
       proposes &&
-      NAMES[old] === "propose_campaign.playbook" &&
+      NAMES[old] === "propose_sequence.moment" &&
       reads00.filter((r) => r === "templates.select").length >= 2;
     const counted =
-      NAMES[old] === "campaigns.playbooks"
+      NAMES[old] === "sequences.moments"
         ? withChannelReads(reads0)
         : proposes
           ? [...reads0, "tenant_channels.select", ...(readsMessage ? ["templates.select"] : [])]
@@ -1309,13 +1354,13 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // playbook's runs earned (00374 playbook_totals, db playbookTotals: one call) and reads the playbooks' rows alone,
     // where it read every run's row beside them to sum it in TypeScript: one `broadcasts` read fewer and one call to the
     // function more. Its bytes are unchanged (GET playbooks answers the same bytes, playbooks/totals/playbook-totals.test.mjs).
-    const countsInTheDatabase = NAMES[old] === "campaigns.playbooks" && withOurWire.includes("sequence_batches.select");
+    const countsInTheDatabase = NAMES[old] === "sequences.moments" && withOurWire.includes("sequence_batches.select");
     const withTotals = countsInTheDatabase
       ? [...withOurWire.toSpliced(withOurWire.indexOf("sequence_batches.select"), 1), "rpc:playbook_totals"]
       : withOurWire;
     // 9 Oct 2026 (the moment spec, D9): a playbook proposed is held to the running ones on its moment, list and message
     // (packages/db runningTwins): one `playbooks` read more for a call that reaches its card.
-    const readsTwins = NAMES[old] === "propose_campaign.playbook" && !want.isError;
+    const readsTwins = NAMES[old] === "propose_sequence.moment" && !want.isError;
     const withTwins = readsTwins ? [...withTotals, "sequence_steps.select"] : withTotals;
     // 10 Oct 2026 (a moment holds many campaigns: the month's allowance, one rule): a playbook proposed is counted against
     // the week's touches as the page's pools are (server/campaigns/playbooks.ts recentTouches, db touchesSince: the week's
@@ -1327,8 +1372,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // composer counts them and the route skips them (db recentTouches over touchesSince): the same two reads more for a
     // call that reaches its card, and for the audiences listing, which counts as the card does. Their bytes are unchanged:
     // nobody here heard from a campaign this week.
-    const readsBreath =
-      (NAMES[old] === "propose_campaign.broadcast" && !want.isError) || NAMES[old] === "campaigns.audiences";
+    const readsBreath = (NAMES[old] === "propose_sequence.once" && !want.isError) || NAMES[old] === "sequences.lists";
     const withBreath = readsBreath ? [...withWeek, "sequence_batches.select", "tenants.select"] : withWeek;
     // 10 Oct 2026 (Reports, the Receptionist lens, C2 T13): and the Receptionist lens's own: one rpc more (withReceptionistReads).
     // 10 Oct 2026 (Reports, the People lens, C3 T13): and the People lens's: its series and the channels the book is judged against.
@@ -1357,7 +1401,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
         : withKept;
     const [gotResult, wantResult] = withoutStoredWords(
       old,
-      ...(NAMES[old] === "campaigns.playbooks"
+      ...(NAMES[old] === "sequences.moments"
         ? againstOffered(got.result, withLastThirtyDays(result))
         : [withoutVisitIds(old, got.result), NAMES[old] === "people.get" ? withoutRightNowDetail(result) : result]),
     );
@@ -1376,7 +1420,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
 
 test("the report finds the people its booking link went to only where the link went to someone, and reads People once either way: the turn's one read (readers/everyone.ts), filtered", async () => {
   const peopleReads = (reads) => reads.filter((r) => r === "rpc:people_list").length;
-  const none = await answer("report", { days: 7 });
+  const none = await answer("report", { period: "7d" });
   assert.equal(none.isError, false, none.result);
   assert.equal(peopleReads(none.reads), 1, "no link sent: nobody to find");
   assert.equal(none.reads.filter((r) => r === "rpc:receptionist_series").length, 1, "the lens's read, once");
@@ -1398,7 +1442,7 @@ test("the report finds the people its booking link went to only where the link w
   );
 
   const link = (a) => quietReceptionist(a, { links: { total: 1, people: [{ c: P1, at: ago(DAY) }] } });
-  const sent = await answer("report", { days: 7 }, "owner", { ...RPCS, receptionist_series: link });
+  const sent = await answer("report", { period: "7d" }, "owner", { ...RPCS, receptionist_series: link });
   assert.equal(sent.isError, false, sent.result);
   assert.equal(peopleReads(sent.reads), 1, "a link sent to Rosa: People is read whole once, then filtered to her");
   // This workspace keeps no calendar link: the calendar cannot say who booked, and the line says why, never a count.

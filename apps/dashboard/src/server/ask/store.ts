@@ -9,6 +9,7 @@ import {
   type AskThreadVM,
   type AskTurnShape,
   citationRoute,
+  storedAnswer,
 } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
@@ -57,7 +58,7 @@ export function toMessageVM(r: MessageRow): AskMessageVM {
   const cites = Array.isArray(c.citations) ? (c.citations as AskMessageVM["citations"]) : [];
   const answer =
     c.v === 2 && c.answer && typeof c.answer === "object" && (c.answer as AskAnswer).v === 2
-      ? (c.answer as AskAnswer)
+      ? storedAnswer(c.answer as AskAnswer)
       : null;
   return {
     ...(answer ? { answer } : {}),

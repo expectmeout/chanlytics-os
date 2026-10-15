@@ -22,6 +22,8 @@ import {
   ASK_PAGES,
   ASK_PAGE_ROUTES,
   ASK_SCOPE_KINDS,
+  answerCopy,
+  answerSpoken,
   answerText,
   askJump,
   cardOpenRoute,
@@ -361,6 +363,8 @@ const ask = (threads = []) => {
     ...askSpeech(globalThis.window, { api: { speech: async () => new Blob() } }),
     quick: quickAnswer(palette, openings),
     answerText,
+    answerCopy,
+    answerSpoken,
     cardOpenRoute,
     threads: async () => list,
     thread: async (id) => {
@@ -1147,6 +1151,92 @@ test("the answer on the rail: tiles with the receipt inside, items with a kind m
       .includes("sel"),
   );
   await closes();
+});
+
+test("a list they asked for is a real list, first in Show: bullets and lines a ul, steps an ol, an entry a li; with no entries, numbers number the rows in their marks", async () => {
+  const nora = {
+    title: "Nora",
+    meta: "WhatsApp · 2h",
+    line: "Can I come at 3?",
+    source: { kind: "thread", id: "c1", label: "Nora", to: "inbox/th-c1", door: true },
+  };
+  const sam = { ...nora, title: "Sam", source: { ...nora.source, id: "c2", label: "Sam", to: "inbox/th-c2" } };
+  /** The Line after one turn whose final message carries this answer's show, and the words Copy and Read take. */
+  const drawn = async (show) => {
+    const calls = ask([]);
+    const answer = {
+      v: 2,
+      form: "structured",
+      language: "en",
+      say: { headline: "Three rules.", detail: "" },
+      show: { figures: [], items: [], breakdown: null, ...show },
+      do: { open: null, next: [] },
+    };
+    const final = {
+      id: "m-l",
+      role: "assistant",
+      atMs: Date.now(),
+      failed: false,
+      citations: [],
+      followups: [],
+      proposals: [],
+      text: "Three rules.",
+      answer,
+    };
+    globalThis.window.__ask.send = async (input, on) => {
+      calls.sent.push(input.text);
+      on({ t: "thread", id: TH(1).id, title: input.text });
+      on({ t: "final", message: final });
+    };
+    render(Palette, OPEN);
+    let tree = await later(Palette, OPEN);
+    typed(tree, "what will the receptionist never do, in bullets?");
+    tree = await later(Palette, OPEN);
+    keyed(tree, "Enter");
+    for (let i = 0; i < 3; i++) tree = await later(Palette, OPEN);
+    return tree;
+  };
+  const listOf = (tree) => byTestId(tree, "ask-list");
+  const entries = (list) => all(list, (n) => n.type === "li").map(textOf);
+
+  let tree = await drawn({
+    items: [nora],
+    list: { style: "bullets", entries: ["Quote a price", "Confirm a booking"] },
+  });
+  let list = listOf(tree);
+  assert.equal(list.type, "ul");
+  assert.equal(list.props.className, "ask-list bullets");
+  assert.deepEqual(entries(list), ["Quote a price", "Confirm a booking"]);
+  const show = find(tree, (n) => n.props?.className === "ask-show");
+  assert.deepEqual(
+    all(show, (n) => ["ask-list", "ask-item"].includes(n.props?.["data-testid"])).map((n) => n.props["data-testid"]),
+    ["ask-list", "ask-item"],
+    "the list comes first in Show: it is what they asked for",
+  );
+
+  tree = await drawn({ list: { style: "numbers", entries: ["Open Settings.", "Paste the link."] } });
+  list = listOf(tree);
+  assert.equal(list.type, "ol", "steps are numbered by the list itself");
+  assert.deepEqual(entries(list), ["Open Settings.", "Paste the link."]);
+
+  tree = await drawn({ list: { style: "lines", entries: ["thanks", "for", "coming"] } });
+  assert.equal(listOf(tree).props.className, "ask-list lines");
+
+  // A numbered list of rows: the items, each numbered in its mark where its kind's glyph stood.
+  tree = await drawn({ items: [nora, sam], list: { style: "numbers", entries: [] } });
+  assert.equal(listOf(tree), null, "no entries draw no list");
+  assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "ask-item-mark").map(textOf), ["1", "2"]);
+  // Bullets with no entries leave the rows as they are, marked by their kind.
+  tree = await drawn({ items: [nora, sam], list: { style: "bullets", entries: [] } });
+  assert.deepEqual(
+    all(tree, (n) => n.props?.["data-testid"] === "ask-item-mark").map(textOf),
+    ["", ""],
+    "a kind's glyph, no number",
+  );
+  // An answer stored before the list part has none, and draws as it always did.
+  tree = await drawn({ items: [nora] });
+  assert.equal(listOf(tree), null);
+  assert.equal(all(tree, (n) => n.props?.["data-testid"] === "ask-item").length, 1);
 });
 
 test("the Line takes back a Say the server set aside and shows the reads again; a later row to a place an earlier one opens is drawn as a row, never a second door", async () => {
@@ -2026,7 +2116,7 @@ test("on a phone the next questions over the field keep the ids the keys walk af
   }
 });
 
-test("on a phone the newest answer carries Copy, which copies its words; an earlier one carries none (D14)", async () => {
+test("on a phone the newest answer carries Copy, which copies its words and the rows it showed; an earlier one carries none (D14)", async () => {
   const ph = phoneWindow();
   const props = { open: true, onClose() {} };
   const copied = [];
@@ -2041,7 +2131,32 @@ test("on a phone the newest answer carries Copy, which copies its words; an earl
       calls.sent.push(input.text);
       const n = calls.sent.length;
       on({ t: "thread", id: TH(5).id, title: input.text });
-      on({ t: "final", message: said(`m-${n}`, `Answer ${n}.`) });
+      // The second answer shows a row: Copy takes it too (15 Oct: it copied the headline alone).
+      const answer = {
+        ...withNext(n),
+        show: {
+          figures: [],
+          breakdown: null,
+          items: [
+            {
+              title: "Ana",
+              meta: "WhatsApp",
+              line: "Asked to book.",
+              source: {
+                kind: "person",
+                id: "00000000-0000-4000-8000-0000000000aa",
+                label: "Ana",
+                to: "clients",
+                door: true,
+              },
+            },
+          ],
+        },
+      };
+      on({
+        t: "final",
+        message: n === 2 ? { ...said(`m-${n}`, `Answer ${n}.`), answer } : said(`m-${n}`, `Answer ${n}.`),
+      });
     };
     render(Palette, props);
     let tree = await later(Palette, props);
@@ -2052,7 +2167,7 @@ test("on a phone the newest answer carries Copy, which copies its words; an earl
     assert.equal(byTestId(byTestId(tree, "ask-thread"), "ask-acts"), null, "an earlier answer carries none");
     press(byTestId(acts, "ask-copy"));
     tree = await later(Palette, props);
-    assert.deepEqual(copied, ["Answer 2."], "its words, copied");
+    assert.deepEqual(copied, ["Answer 2.\nAna · WhatsApp · Asked to book."], "its words and its row, copied");
   } finally {
     await closes();
     if (had) Object.defineProperty(globalThis.navigator, "clipboard", had);
@@ -3598,13 +3713,19 @@ test("a campaign card says campaign, never playbook (the moment spec, D19): its 
         undo: { playbook_id: "pb1", decision_id: "d1" },
       },
     };
-    const props = { p: made, messageId: "x", t: globalThis.window.askText("en"), onNav() {} };
-    let tree = render(AskCard, props);
-    press(byClass(tree, "ask-card-undo")[0]);
-    tree = settle(AskCard, props);
-    const asked = textOf(tree);
-    assert.ok(asked.includes("The campaign and its schedule go"), asked);
-    assert.ok(!/playbook/i.test(asked), `no playbook in what a person reads: ${asked}`);
+    // The question before the delete, in the Line's language (15 Oct: it was English on a Spanish Line).
+    for (const [lang, said, yes] of [
+      ["en", "The campaign and its schedule go", "Yes, delete it"],
+      ["es", "La campaña y su horario se borran", "Sí, borrarla"],
+    ]) {
+      const props = { p: made, messageId: "x", t: globalThis.window.askText(lang), onNav() {} };
+      let tree = render(AskCard, props);
+      press(byClass(tree, "ask-card-undo")[0]);
+      tree = settle(AskCard, props);
+      const asked = textOf(tree);
+      assert.ok(asked.includes(said) && asked.includes(yes), `${lang}: ${asked}`);
+      assert.ok(!/playbook/i.test(asked), `no playbook in what a person reads: ${asked}`);
+    }
   } finally {
     globalThis.window.__ask = A;
   }
@@ -3984,8 +4105,8 @@ test("over the first run the Line is on the start surface: it asks about setting
     );
     assert.deepEqual(
       all(tree, (n) => n.props?.["data-testid"] === "ask-row-sug").map(textOf),
-      ["What is left to set up?", "What are our hours this week?", "How did the week go?"],
-      "what is left first; never an offer or a playbook here",
+      ["What is left to set up?", "What are our hours this week?", "What can you do for me?"],
+      "what is left first, then what Ask can do (the operator, D8); never an offer or a playbook here",
     );
     assert.ok(!/[↵⌘↑↓]|\bEsc\b|\bdel\b/.test(textOf(tree)), `no key is drawn (D17): ${textOf(tree)}`);
     press(byTestId(tree, "ask-row-sug"));

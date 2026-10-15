@@ -18,8 +18,10 @@ import {
 import { channelsReadyOf } from "../../../campaigns/channels-ready";
 import { refuseWrittenUtility } from "../../../campaigns/template-versions";
 import { checkMessage, heldValues, messageOnFile, type WriteMessageBody } from "../../../campaigns/write-message";
+import { log } from "@/server/log";
 import { load } from "../../../readers";
 import { channels as channelsReader } from "../../../readers/channels";
+import { writeCustomerMessage } from "../../skills/customer-message";
 import { actAction, propose, refuse, type ProposalOutcome, type ToolContext } from "../context";
 import { slotExample, writtenSays } from "./says";
 
@@ -100,7 +102,8 @@ async function workspaceRefusal(t: ToolContext, body: WriteMessageBody): Promise
  * would file it, by that door's own checks (wordsRefusal, workspaceRefusal), and it quotes every version as the person
  * reached on it reads it, with example values, says when each can go and who the message's kind reaches (contracts
  * consentGuardWords, from the one consent rule), and carries the door's body. Each value's example is the one a preview
- * fills it with (slotExample), which WhatsApp's reviewers read too.
+ * fills it with (slotExample), which WhatsApp's reviewers read too. Ask's versions are the first draft: the words quoted
+ * and filed are the customer message writer's where it wrote them in time (writtenBody).
  */
 async function proposeMessage(t: ToolContext, input: MessageAsked): Promise<ProposalOutcome> {
   const slots = [...(input.slots ?? [])]
@@ -117,7 +120,9 @@ async function proposeMessage(t: ToolContext, input: MessageAsked): Promise<Prop
   };
   const refused = wordsRefusal(body) ?? (await workspaceRefusal(t, body));
   if (refused) return refuse(refused);
-  const said = writtenSays(body, SAID_ROOM);
+  // The words the card quotes and files: the skill's, else the draft's, on the same channels, values and name.
+  const written = await writtenBody(t, input.language, body);
+  const said = writtenSays(written, SAID_ROOM);
   const channels = CONSENT_CHANNELS.filter((c) => body.versions[c]);
   const purpose = purposeOfTemplate(body.category);
   // An offer is the business's news; a message about their appointment or proposal is theirs (contracts MessageAbout).
@@ -133,11 +138,39 @@ async function proposeMessage(t: ToolContext, input: MessageAsked): Promise<Prop
     kind: "message",
     title: MESSAGE_WORDS.title(body.name, body.language),
     summary: `${said.says} · ${follows}`,
-    payload: { ...body, said: said.rows, follows },
+    payload: { ...written, said: said.rows, follows },
   });
 }
 
-/** A new message for the Library, a version per channel: propose_campaign's action message. */
+/**
+ * The card's words, once the first draft passed every check (Ask's own versions): the customer message writer's
+ * (ask/skills), written again in the turn's time left, held to the skill's checks and then to the door's own checks of
+ * the words, as the draft was; else the draft, as before the skill. Same name, kind, language and values either way, so
+ * nothing the workspace's checks read changes. A plan's message step comes here too (act/plan.ts builds it by this action).
+ */
+async function writtenBody(t: ToolContext, language: MessageAsked["language"], body: WriteMessageBody) {
+  const w = await writeCustomerMessage(t, {
+    name: body.name,
+    category: body.category,
+    language,
+    values: body.slots.map(({ position, label, kind }) => ({ position, label, kind })),
+    draft: body.versions,
+  });
+  if (!w.wrote) return body;
+  const crafted: WriteMessageBody = { ...body, versions: w.versions };
+  const door = wordsRefusal(crafted);
+  if (door === null) return crafted;
+  log.warn("ask_skill_crafted", {
+    tenant_id: t.tenantId,
+    skill: "customer_message",
+    outcome: "kept",
+    why: "door",
+    detail: door.slice(0, 200),
+  });
+  return body;
+}
+
+/** A new message for the Library, a version per channel: propose_sequence's action message. */
 export const messageAction = actAction({
   kind: "message",
   input: z.object({
@@ -178,6 +211,6 @@ export const messageAction = actAction({
   ],
   label: "Writing a message",
   words:
-    "Action message writes a new message for the Library and proposes it as a card: name (snake_case), language (en or es; another language is another card under the same name), category marketing (an offer or the business's news) or utility (about their own appointment or proposal, which needs a whatsapp version), versions, each optional and at least one (whatsapp {body}, email {subject, body}, sms {body}, never sms for marketing), and slots naming the values {{1}}, {{2}} in order (position, label, kind: text, first_name, business_name, booking_link or review_link). Read campaigns with action messages first: a name the Library holds in that language is refused. A whatsapp version needs a connected number and goes to WhatsApp's review; email needs email set up. The card quotes every version; Approve files it, and nothing is sent.",
+    "Action message writes a new message for the Library and proposes it as a card: name (snake_case), language (en or es; another language is another card under the same name), category marketing (an offer or the business's news) or utility (about their own appointment or proposal, which needs a whatsapp version), versions, each optional and at least one (whatsapp {body}, email {subject, body}, sms {body}, never sms for marketing), and slots naming the values {{1}}, {{2}} in order (position, label, kind: text, first_name, business_name, booking_link or review_link). Read sequences with action messages first: a name the Library holds in that language is refused. A whatsapp version needs a connected number and goes to WhatsApp's review; email needs email set up. The card quotes every version; Approve files it, and nothing is sent.",
   build: proposeMessage,
 });

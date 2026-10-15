@@ -28,7 +28,7 @@ import {
 } from "../context";
 
 /** Where a waiting run's id is read, said as the model calls it. */
-const RUN_FROM = "campaigns with action playbooks (a playbook's waiting) or action broadcasts (waiting_on_you)";
+const RUN_FROM = "sequences with action moments (a playbook's waiting) or action sent (waiting_on_you)";
 
 async function proposeRun(
   t: ToolContext,
@@ -83,12 +83,12 @@ async function proposeRun(
   });
 }
 
-/** A playbook's run that waits for a person, approved or skipped (the Phase 4 plan, D11): propose_campaign's action run. */
+/** A playbook's run that waits for a person, approved or skipped (the Phase 4 plan, D11): propose_sequence's action batch. */
 export const runAction = actAction({
   kind: "run",
   input: z.object({ broadcast_id: z.string(), verb: z.enum(RUN_VERBS) }),
   examples: [{ broadcast_id: "e5f6a7b8-c9d0-4e1f-8a2b-3c4d5e6f7a8b", verb: "approve" }],
   label: "Preparing a run's approval",
-  words: `Action run takes broadcast_id, a playbook's run that waits for a person, as ${RUN_FROM} gives it, and verb: approve, which sends it now (asked outside the hours a message may go out in, ${SENDING_HOURS_WORDS.between} by the business's clock, it goes at ${SENDING_HOURS_WORDS.first}), or skip, which ends this run unsent and leaves the playbook running. Always give verb, from their words: it has no default, and the card says it back. A run made for a day that has passed can only be skipped, and a reach-out run, cold email to leads, is approved on its own sheet and never here.`,
+  words: `Action batch takes broadcast_id, a playbook's run that waits for a person, as ${RUN_FROM} gives it, and verb: approve, which sends it now (asked outside the hours a message may go out in, ${SENDING_HOURS_WORDS.between} by the business's clock, it goes at ${SENDING_HOURS_WORDS.first}), or skip, which ends this run unsent and leaves the playbook running. Always give verb, from their words: it has no default, and the card says it back. A run made for a day that has passed can only be skipped, and a reach-out run, cold email to leads, is approved on its own sheet and never here.`,
   build: proposeRun,
 });

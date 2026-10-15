@@ -292,10 +292,25 @@ const ctxOf = (rows, user = USER, people = PEOPLE, faults = {}) => ({
   email: "ada@example.com",
   params: {},
 });
-/** A call of propose_campaign by a member of `role` over `rows`, People being `people`: its outcome. */
+/**
+ * The tool and action an input names, as propose_campaign's actions are now (the operator, 15 Oct 2026): the plan is
+ * propose_plan's action offer; a broadcast, a playbook and a run are propose_sequence's once, moment and batch; the rest
+ * keep their names under propose_sequence.
+ */
+const RENAMED = {
+  plan: ["propose_plan", "offer"],
+  broadcast: ["propose_sequence", "once"],
+  playbook: ["propose_sequence", "moment"],
+  run: ["propose_sequence", "batch"],
+};
+const routed = (input) => {
+  const [tool, action] = RENAMED[input.action] ?? ["propose_sequence", input.action];
+  return [tool, { ...input, action }];
+};
+/** A call of the campaign tools by a member of `role` over `rows`, People being `people`: its outcome. */
 const call = (input, rows = tables(), role = "owner", people = PEOPLE, faults = {}) => {
   const t = newToolContext(ctxOf(rows, role === "owner" ? USER : "u2", people, faults), A, role, TZ, NOW);
-  return buildProposal(t, "propose_campaign", input);
+  return buildProposal(t, ...routed(input));
 };
 const plan = (intent, rows, role) => call({ action: "plan", ...intent }, rows, role);
 const said = (r) => JSON.parse(r.result);
@@ -487,11 +502,7 @@ test("a token outside a plan, or naming a step that is not an earlier one, names
   assert.match(said(r).error, /^template_id must be an id/);
   // As step 2 of a plan: step 1 is an earlier one, its own step and a later one are not.
   const asStep = (n, token) =>
-    buildProposal(
-      { ...newToolContext(ctxOf(tables()), A, "owner", TZ, NOW), step: n },
-      "propose_campaign",
-      send(token),
-    );
+    buildProposal({ ...newToolContext(ctxOf(tables()), A, "owner", TZ, NOW), step: n }, ...routed(send(token)));
   for (const token of [stepToken(2), stepToken(3), "@step:0"]) {
     const no = await asStep(2, token);
     assert.match(said(no).error, /^template_id must be an id/, token);
@@ -503,8 +514,8 @@ test("a token outside a plan, or naming a step that is not an earlier one, names
 
 test("a new campaign on a step's message that names no channels ticks them by the composer's own rule, as for any message: by email on a workspace with no number, never WhatsApp alone; and counts who the offer reaches (fix round 1)", async () => {
   const asStep = (input) =>
-    buildProposal({ ...newToolContext(ctxOf(tables()), A, "owner", TZ, NOW), step: 2 }, "propose_campaign", {
-      action: "playbook",
+    buildProposal({ ...newToolContext(ctxOf(tables()), A, "owner", TZ, NOW), step: 2 }, "propose_sequence", {
+      action: "moment",
       trigger: "saved_list",
       list: OFFERS,
       policy_class: "campaign",
@@ -523,7 +534,7 @@ test("a new campaign on a step's message that names no channels ticks them by th
 
 test("a change to the campaign an earlier step makes (no plan names one today) takes what is said without its row: a pause, its words, its end; the rest is refused in words, and the card names the step", async () => {
   const asStep = (input) =>
-    buildProposal({ ...newToolContext(ctxOf(tables()), A, "owner", TZ, NOW), step: 2 }, "propose_campaign", {
+    buildProposal({ ...newToolContext(ctxOf(tables()), A, "owner", TZ, NOW), step: 2 }, "propose_sequence", {
       action: "change",
       playbook_id: stepToken(1),
       ...input,
@@ -738,7 +749,7 @@ test("an offer's lists or notes unread: refused in the plan's words, never a sen
   const failed = Promise.reject(new Error("the calendar's settings could not be read"));
   failed.catch(() => {});
   t.rc.turn.hits.set(`openings:${stableJson({ day: null, service: null })}`, failed);
-  const roomThrew = await buildProposal(t, "propose_campaign", { action: "plan", ...offer() });
+  const roomThrew = await buildProposal(t, "propose_plan", { action: "offer", ...offer() });
   assert.equal(roomThrew.isError, false, roomThrew.result);
   assert.ok(!said(roomThrew).words.includes("open slot"), said(roomThrew).words);
   assert.equal(roomThrew.proposals.at(-1).kind, "broadcast");
@@ -904,9 +915,9 @@ test("an offer starting today on a calendar with less room than half its audienc
 const PLAN_CALL = {
   type: "tool_use",
   id: "t-plan",
-  name: "propose_campaign",
+  name: "propose_plan",
   text: "",
-  json: JSON.stringify({ action: "plan", ...offer() }),
+  json: JSON.stringify({ action: "offer", ...offer() }),
 };
 /** An answer the model writes beside its calls (ASK_ANSWER_FORMAT): its Say, and nothing shown or offered. */
 const NO_SOURCE = { kind: "none", id: "", label: "" };
@@ -990,7 +1001,7 @@ test("the loop keeps every card one call made: a plan's three cards are the turn
   assert.ok(words.includes(W.without("whatsapp", C.CHANNEL_WORDS.noWhatsApp)), words);
   assert.ok(r.answer.say.detail.length <= C.ASK_ANSWER_CAPS.detail);
   // The offer's journey and Library ride in before round 1 (cross-page.ts OFFER_ASKED), then the plan.
-  assert.deepEqual(r.tools, ["campaigns.journey", "campaigns.messages", "propose_campaign.plan"]);
+  assert.deepEqual(r.tools, ["sequences.journey", "sequences.messages", "propose_plan.offer"]);
 });
 
 test("with a calendar, the plan alone in its round says when to ask for the reminder (its own question on the day), and an operator's plan says the receptionist is not told of the offer until an owner or a partner adds a note: words no card carries", async () => {
@@ -1061,7 +1072,7 @@ test("an operator's offer with email not set up, a new WhatsApp message, the mon
 });
 
 test("a setup's plan alone in its round: its campaigns are plain cards (D3), so the answer counts them as cards, and the plan's words are its detail", async () => {
-  const setup = { ...PLAN_CALL, json: JSON.stringify({ action: "plan", intent: "cover_journey" }) };
+  const setup = { ...PLAN_CALL, json: JSON.stringify({ action: "offer", intent: "cover_journey" }) };
   const r = await planTurn([setup], { text: "Set up my campaigns", ctx: ctxOf(withCalendar()) });
   assert.equal(r.failed, false, JSON.stringify(r));
   assert.deepEqual(
@@ -1088,12 +1099,12 @@ test("an offer's journey and Library read before round 1 are the plan's own read
   };
   const ahead = ctxOf(tables());
   const r = await planTurn([PLAN_CALL], { ctx: ahead });
-  assert.deepEqual(r.tools, ["campaigns.journey", "campaigns.messages", "propose_campaign.plan"]);
+  assert.deepEqual(r.tools, ["sequences.journey", "sequences.messages", "propose_plan.offer"]);
   readerCache.clear();
   // Words that name nothing to read ahead, the same call.
   const bare = ctxOf(tables());
   const r2 = await planTurn([PLAN_CALL], { text: "Make it so", ctx: bare });
-  assert.deepEqual(r2.tools, ["propose_campaign.plan"]);
+  assert.deepEqual(r2.tools, ["propose_plan.offer"]);
   assert.deepEqual(asked(ahead), asked(bare));
   // The Library and the campaigns whole, which the reads ahead and the plan share, were asked once (a step's own read of
   // one message or one campaign by its id or name is its handler's).

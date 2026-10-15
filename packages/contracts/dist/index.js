@@ -129,9 +129,9 @@ function adsPreviewOf(config2) {
 }
 var adStartOf = (word) => STARTS.find((s) => s === word);
 function composeOf(rest) {
-  const [first = "", ...more] = rest.split(":");
+  const [first = "", ...more2] = rest.split(":");
   const how = adStartOf(first);
-  const id = more.join(":");
+  const id = more2.join(":");
   if (how && id) return { door: how === "google" ? "call" : "whatsapp", from: { how, id } };
   return { door: DOORS.find((d) => d === first) ?? "whatsapp", from: null };
 }
@@ -656,7 +656,7 @@ var ASK = {
   not: "Not now",
   /** The press on an ad that needs fixing opens it. */
   open: "Fix it",
-  extendPress: (more) => `Keep it going \xB7 ${more} more`,
+  extendPress: (more2) => `Keep it going \xB7 ${more2} more`,
   extend: (o) => `${o.name} ends ${o.when}. ${o.brought} Keep it going to ${o.end}? ${o.owner}'s total for it goes from ${o.from} to ${o.to}.`,
   extendShort: (name, when) => `${name} ends ${when}. Keep it going?`,
   broughtPeople: (n) => `${peopleWord(n)} ${n === 1 ? "has" : "have"} booked from it.`,
@@ -780,7 +780,7 @@ var CHOOSE = {
 };
 
 // src/ads/words-drawer.ts
-var moreSpent = (more) => `Up to ${more} more can be spent`;
+var moreSpent = (more2) => `Up to ${more2} more can be spent`;
 var LIST = {
   /** What a chip is, to a screen reader: "The area: 5 miles". */
   chip: {
@@ -1895,8 +1895,8 @@ function replySpeedOf(median, hold) {
 }
 function holdLine(hold) {
   if (hold.laterMost !== null) {
-    const more = durationWords(hold.laterMost);
-    return `${hold.later} ${hold.later === 1 ? "reply" : "replies"} took longer than the hold, at most ${more} more.`;
+    const more2 = durationWords(hold.laterMost);
+    return `${hold.later} ${hold.later === 1 ? "reply" : "replies"} took longer than the hold, at most ${more2} more.`;
   }
   return hold.unheld ? `None waited longer than your hold; ${hold.unheld} had no hold.` : "None waited longer than your hold.";
 }
@@ -5007,8 +5007,8 @@ function extendAsk(ad, t, read) {
   const plan = extendPlan(ad, total);
   if (soon < 0 || soon > ADS_ASK_SOON_DAYS || !broughtEnough(ad, t) || plan === null) return null;
   const end = addDays(ad.endDay, plan.days);
-  const more = plan.more;
-  const to = total + more;
+  const more2 = plan.more;
+  const to = total + more2;
   const owner = PLATFORM_OWNER[ad.platform];
   const when = endsWhenOf(ad, read.today);
   const brought = counted(ad) ? ASK.broughtPeople(t.booked) : ASK.broughtCalls(t.inTouch);
@@ -5018,7 +5018,7 @@ function extendAsk(ad, t, read) {
     adId: ad.id,
     text: ASK.extend({ name: ad.name, when, brought, end: dayWord(end), owner, from: say2(total), to: say2(to) }),
     short: ASK.extendShort(ad.name, when),
-    press: ASK.extendPress(say2(more)),
+    press: ASK.extendPress(say2(more2)),
     dismiss: ASK.not,
     confirm: ASK.extendConfirm({
       name: ad.name,
@@ -6236,14 +6236,14 @@ function setForOf(o) {
   const hours = ad.schedule === "open-hours" ? read.business.hours : null;
   let rows2;
   if (draft.platform === "google") {
-    const more = NEW_AD.step2.googleMore({
+    const more2 = NEW_AD.step2.googleMore({
       offer: ad.offer,
       business: read.business.name,
       price: adServiceOf(read, ad.serviceId)?.note ?? ""
     });
     rows2 = SET_FOR_YOU.google({
-      headlines: ad.copy.headlines.length + more.headlines.length,
-      descriptions: ad.copy.lines.length + more.descriptions.length,
+      headlines: ad.copy.headlines.length + more2.headlines.length,
+      descriptions: ad.copy.lines.length + more2.descriptions.length,
       hours: read.business.hours,
       seconds: ADS_CALL_SECONDS,
       leftOut: ad.leftOut
@@ -6305,9 +6305,9 @@ function fitRows(ad, read) {
   }
   if (ad.platform === "google") {
     const price = adServiceOf(read, ad.serviceId)?.note ?? "";
-    const more = NEW_AD.step2.googleMore({ offer: ad.offer, business: read.business.name, price });
-    const heads = [...ad.copy.headlines, ...more.headlines];
-    const descs = [...ad.copy.lines, ...more.descriptions];
+    const more2 = NEW_AD.step2.googleMore({ offer: ad.offer, business: read.business.name, price });
+    const heads = [...ad.copy.headlines, ...more2.headlines];
+    const descs = [...ad.copy.lines, ...more2.descriptions];
     const longHead = heads.find((h) => h.length > ADS_GOOGLE_HEADLINE_MAX);
     const longDesc = descs.find((d) => d.length > ADS_GOOGLE_DESCRIPTION_MAX);
     if (longHead !== void 0) {
@@ -7384,8 +7384,8 @@ var reportDaysCount = (days) => dayOrdinal(days.to) - dayOrdinal(days.from) + 1;
 var reportRangeKey = (range) => typeof range === "string" ? range : `${range.from}~${range.to}`;
 function reportRangeOfKey(key) {
   if (isReportPeriod(key)) return key;
-  const [from, to, more] = String(key ?? "").split("~");
-  return more === void 0 && isRealDay(from) && isRealDay(to) && from <= to ? { from, to } : null;
+  const [from, to, more2] = String(key ?? "").split("~");
+  return more2 === void 0 && isRealDay(from) && isRealDay(to) && from <= to ? { from, to } : null;
 }
 var sameReportRange = (a, b) => reportRangeKey(a) === reportRangeKey(b);
 function reportDaysRefusal(days, today) {
@@ -12927,9 +12927,12 @@ function personTabsOf(f, phone) {
 
 // src/ask/ask.ts
 var ASK_MAX_CHARS = 1e3;
-var ASK_MAX_ROUNDS = 3;
-var ASK_TURN_BUDGET_MS = 45e3;
-var ASK_TOOLS_CHARS_CEILING = 74500;
+var ASK_MAX_ROUNDS = 8;
+var ASK_TURN_BUDGET_MS = 2 * MIN_MS;
+var ASK_SPOKEN_TURN_BUDGET_MS = 45e3;
+var ASK_TOOLS_CHARS_CEILING = 13e4;
+var ASK_CORE_TOOLS_CHARS_CEILING = 4e4;
+var ASK_SELECTION_MAX = 2e3;
 var ASK_VOICE_PULSE_MS = 1e4;
 var ASK_VOICE_FIRST_WORDS_MS = 2500;
 var ASK_VOICE_CLAIM_STALE_MS = MIN_MS;
@@ -12958,7 +12961,7 @@ var ASK_CAPS = {
   needsRows: 10
 };
 var ASK_THREAD_VERBS = ["take_over", "hand_back", "snooze", "wake", "archive", "resolve"];
-var ASK_UNDO_MS = 10 * 6e4;
+var ASK_UNDO_MS = 10 * MIN_MS;
 var ASK_CARD_FRESH_MS = DAY_MS;
 var ASK_PLAN_FRESH_MS = WEEK_MS;
 function askCardLapsed(p, nowMs) {
@@ -13037,7 +13040,7 @@ var ASK_SURFACES = [
 ];
 
 // src/ask/ask-schemas.ts
-import { z as z4 } from "zod";
+import { z as z7 } from "zod";
 
 // src/ask/answer-text.ts
 var TAG_CUT = /<\/answer>|<\/?parameter\b|<\/?invoke\b|<\/?function_calls\b|<\/?tool_call\b/i;
@@ -13046,6 +13049,22 @@ function cleanAnswer(raw) {
   const cut2 = s.search(TAG_CUT);
   if (cut2 >= 0) s = s.slice(0, cut2);
   return s.replace(/<\/?[a-z_]+(\s[^>]*)?>/gi, "").replace(/\s+$/g, "").trim();
+}
+var NOT_AN_END = new Set(
+  "mr mrs ms dr st sr sra srta jr vs no etc approx inc ltd co ave blvd mt ft jan feb mar apr jun jul aug sep sept oct nov dec ene abr ago dic".split(
+    " "
+  )
+);
+var HEADLINE_STOP = /[.!?]["'”’)\]]*\s+(?=[\p{Lu}\d¿¡"“'‘(])/gu;
+function firstSentence(s) {
+  for (const m of s.matchAll(HEADLINE_STOP)) {
+    const before = /[\p{L}.]+$/u.exec(s.slice(0, m.index))?.[0] ?? "";
+    if (m[0][0] === "." && (before.length === 1 || before.includes(".") || NOT_AN_END.has(before.toLowerCase())))
+      continue;
+    const stop = m[0].trimEnd().length;
+    return [s.slice(0, m.index + stop), s.slice(m.index + m[0].length)];
+  }
+  return [s, ""];
 }
 function isUngrounded(answer, reads) {
   return reads === 0 && /\d/.test(answer);
@@ -13070,8 +13089,8 @@ var FOLLOWUP_ECHO = [
 ];
 var unquoted = (s) => (s ?? "").replace(/“[^”]*”|"[^"]*"|«[^»]*»/g, "\u2026").replace(/(^|[\s:(])'[^']*\s[^']*'/g, "$1\u2026");
 var WRITE_CLAIMS = [
-  /\bI(?: have|['’]ve)? (?:sent|changed|updated|closed|snoozed|resolved|archived|invited|paused|deleted|approved|resumed|renamed|started|set up|turned on|scheduled)\b/i,
-  /\bhe (?:enviado|cambiado|actualizado|cerrado|aprobado|pausado|iniciado|configurado|programado)\b/i,
+  /\bI(?: have|['’]ve)? (?:sent|changed|updated|closed|snoozed|resolved|archived|invited|paused|deleted|approved|resumed|renamed|started|set up|turned on|scheduled|added|merged|recorded|replied|enrolled)\b/i,
+  /\bhe (?:enviado|cambiado|actualizado|cerrado|aprobado|pausado|iniciado|configurado|programado|añadido|agregado|fusionado|registrado|respondido|inscrito)\b/i,
   /(?<![\p{L}\p{N}])aprob[eé](?![\p{L}\p{N}])/iu,
   /\bdone[,.!]/i
 ];
@@ -14681,6 +14700,326 @@ function citationRoute(c, read) {
   return read?.[c.kind].get(c.id)?.route ?? OWN_ROUTES[c.kind]?.(c.id) ?? "";
 }
 
+// src/ask-proposals/spec.ts
+var PROPOSAL_WORDS = {
+  cannotApprove: "This card cannot be approved from here.",
+  noUndo: "This one has no undo.",
+  /** A card past ASK_CARD_FRESH_MS (askCardLapsed): nothing is sent, and asking again makes it from what is true now. */
+  lapsed: "This card is more than a day old, and what it would change may have moved since. Ask again and it is made from how things stand now.",
+  /** A plan's card past its week (askCardLapsed): the same, in the plan's words. */
+  planLapsed: "This plan is more than a week old, and what it would change may have moved since. Ask again and it is made from how things stand now.",
+  /** A plan's card naming a step that was undone: what that step made is gone, so nothing is sent to it. */
+  planUndone: "A step this one builds on was undone, so what it would use is gone and nothing is sent. Ask again and the plan is made from how things stand now.",
+  /** A plan's card naming a step that has made nothing yet: that step is approved first. */
+  waitsForStep: (n) => `This waits for step ${n}: approve step ${n} first, then this one.`,
+  /**
+   * A plan's card naming a step that was approved and made nothing it can use (a message whose every version was
+   * refused): waiting would never help, so the plan is asked for again.
+   */
+  stepMadeNothing: (n) => `Step ${n} made nothing this one can use, so nothing is sent. Ask again and the plan is made from how things stand now.`,
+  /**
+   * A card of several requests stopped by a refusal after some went (`done` of `of`): what went stands, the rest did not
+   * go, and the refusal says why in its own words.
+   */
+  batchStopped: (done, of, why) => `${done} of ${of} parts went, then: ${/[.!?…]$/.test(why.trim()) ? why.trim() : `${why.trim()}.`} The rest did not go.`,
+  /** A plan's silent steps, stopped at step n by its refusal (`why`, in the refusal's own words): nothing after it was done. */
+  planStopped: (n, why) => `Stopped at step ${n}: ${/[.!?…]$/.test(why.trim()) ? why.trim() : `${why.trim()}.`} The steps after it were not done.`
+};
+var asText = (v) => v == null ? "" : String(v);
+var rec = (v) => v && typeof v === "object" ? v : {};
+var decisionOf = (data) => {
+  const id = rec(data).decision_id;
+  return typeof id === "string" && id ? id : null;
+};
+var wasIn = (data, k) => {
+  const was = rec(rec(data).was);
+  return Object.prototype.hasOwnProperty.call(was, k) ? was[k] : void 0;
+};
+var idIn = (pl, k) => typeof pl?.[k] === "string" && pl[k] ? pl[k] : null;
+var refuseWith = (words3) => ({ refused: words3 });
+var uniqueIds = (v) => Array.isArray(v) ? [...new Set(v.map(asText).filter(Boolean))] : [];
+function oneOrMany(calls) {
+  const [only, ...rest] = calls;
+  return only && rest.length === 0 ? only : calls;
+}
+var BATCH_SIZE = 50;
+function inBatches(items, size = BATCH_SIZE) {
+  const out = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+function gatherCounts(answers) {
+  const out = { done: 0, failed: [], skipped: [] };
+  for (const a of answers) {
+    const d = rec(a);
+    out.done = out.done + (typeof d.done === "number" ? d.done : 0);
+    if (Array.isArray(d.failed)) out.failed.push(...d.failed);
+    if (Array.isArray(d.skipped)) out.skipped.push(...d.skipped);
+  }
+  return out;
+}
+var ownEntry = (m, k) => Object.prototype.hasOwnProperty.call(m, k) ? m[k] : void 0;
+var PEOPLE_CHANGED = { type: "surface:clients" };
+
+// src/ask-proposals/inbox.ts
+var ASK_THREAD_ROUTES = {
+  take_over: "POST conversations/[id]/take-over",
+  hand_back: "POST conversations/[id]/hand-back",
+  snooze: "POST conversations/[id]/snooze",
+  wake: "POST conversations/[id]/wake",
+  archive: "POST conversations/[id]/archive"
+};
+var isRoutedVerb = (v) => Object.prototype.hasOwnProperty.call(ASK_THREAD_ROUTES, v);
+var INVERSE = {
+  take_over: "hand_back",
+  hand_back: "take_over",
+  snooze: "wake"
+};
+var UNDO_LABEL = {
+  take_over: "Hand back",
+  hand_back: "Take over again",
+  snooze: "Wake"
+};
+var RECEIPT = {
+  hand_back: "The receptionist has it again",
+  snooze: "Snoozed",
+  wake: "Back in the Inbox",
+  archive: "Archived",
+  resolve: "Resolved"
+};
+var threadCall = (verb, conversationId, until) => verb === "snooze" ? { route: ASK_THREAD_ROUTES.snooze, params: { id: asText(conversationId) }, body: { until: asText(until) } } : { route: ASK_THREAD_ROUTES[verb], params: { id: asText(conversationId) } };
+var cardThreadRoute = ({ payload }) => {
+  const id = idIn(payload, "conversation_id");
+  return id ? `inbox/th-${id}` : null;
+};
+var replySpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: (p) => ({
+    route: "POST conversations/[id]/reply",
+    params: { id: asText(p.payload.conversation_id) },
+    body: { text: asText(p.payload.text) },
+    idempotencyKey: p.id
+  }),
+  receipt: (p) => `On its way to ${asText(p.payload.who)} \u2014 sends in 15 seconds unless you cancel`,
+  undo: {
+    label: () => "Sends 15 seconds after you approve; cancel within them",
+    window: "cancelable",
+    record: (_p, data) => ({
+      message_id: rec(data).message_id,
+      cancelable_until: rec(data).cancelable_until,
+      decision_id: decisionOf(data)
+    }),
+    call: (u) => ({ route: "POST messages/[id]/cancel-send", params: { id: asText(u.message_id) } }),
+    receipt: () => "Canceled before it sent"
+  },
+  open: () => null
+};
+var steerSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: (p) => ({
+    route: "POST messages/[id]/steer",
+    params: { id: asText(p.payload.message_id) },
+    body: { text: asText(p.payload.instruction) }
+  }),
+  receipt: () => "Rewritten \u2014 the new draft waits its turn",
+  open: () => null
+};
+var threadVerbSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: (p) => {
+    const verb = asText(p.payload.verb);
+    if (!ASK_THREAD_VERBS.includes(verb)) return refuseWith(PROPOSAL_WORDS.cannotApprove);
+    return verb === "resolve" ? { route: "POST escalations/[id]/resolve", params: { id: asText(p.payload.escalation_id) } } : threadCall(verb, p.payload.conversation_id, p.payload.until);
+  },
+  receipt: (p) => {
+    const verb = asText(p.payload.verb);
+    return verb === "take_over" ? `You have ${asText(p.payload.who)}'s thread` : ownEntry(RECEIPT, verb) ?? "Done";
+  },
+  undo: {
+    label: ({ payload }) => ownEntry(UNDO_LABEL, asText(payload.verb)) ?? null,
+    window: "ten_minutes",
+    record: (p, data) => {
+      const inverse = ownEntry(INVERSE, asText(p.payload.verb));
+      return inverse ? {
+        verb: inverse,
+        conversation_id: p.payload.conversation_id,
+        until: p.payload.until ?? null,
+        decision_id: decisionOf(data)
+      } : null;
+    },
+    call: (u) => {
+      const verb = asText(u.verb);
+      return isRoutedVerb(verb) ? threadCall(verb, u.conversation_id, u.until) : refuseWith(PROPOSAL_WORDS.noUndo);
+    },
+    receipt: () => "Undone"
+  },
+  open: cardThreadRoute
+};
+var bookingRequestSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: (p) => ({
+    route: "POST conversations/[id]/booking-request",
+    params: { id: asText(p.payload.conversation_id) },
+    body: { booked: p.payload.booked === true }
+  }),
+  receipt: (p) => p.payload.booked === true ? BOOKING_REQUEST_WORDS.said.booked(asText(p.payload.who)) : BOOKING_REQUEST_WORDS.said.cant(asText(p.payload.who)),
+  open: cardThreadRoute
+};
+var whisperSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: (p) => ({
+    route: "POST calls/[id]/whisper",
+    params: { id: asText(p.payload.call_id) },
+    body: { text: asText(p.payload.text), trigger: false }
+  }),
+  receipt: () => "Whispered \u2014 the receptionist works it into its next answer",
+  open: () => null
+};
+var callHandOverSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: (p) => idIn(p.payload, "call_id") ? { route: "POST calls/[id]/hand-over", params: { id: asText(p.payload.call_id) } } : refuseWith(PROPOSAL_WORDS.cannotApprove),
+  receipt: (p) => `Handing ${asText(p.payload.who) || "the caller"} to your phone \u2014 it rings now`,
+  open: () => "live"
+};
+
+// src/ask-proposals/lists.ts
+var LIST_PART = 500;
+var namesIn = (d, k) => Array.isArray(d[k]) ? d[k].map(asText).filter(Boolean) : [];
+function listTakenDown(data) {
+  const d = rec(data);
+  if (d.archived !== true) return "Deleted. The people stay.";
+  const paused = namesIn(d, "paused");
+  const readBy = namesIn(d, "read_by");
+  const why = paused.length ? `${paused.join(", ")} paused` : readBy.length ? `${readBy.join(", ")} reads it` : "a campaign runs on it";
+  return `Archived, not deleted: ${why}. It comes back from Archived under your lists.`;
+}
+var listSpec = {
+  needs: "operator",
+  gate: "approve",
+  // The route's body: the name and the rule the builder checked (cleanListRule), a list that keeps itself current. A
+  // card with no rule is none: a list kept by hand is made on People, where its people are picked.
+  commit: ({ payload: pl }) => !asText(pl.name) || !pl.rule || typeof pl.rule !== "object" ? refuseWith(PROPOSAL_WORDS.cannotApprove) : { route: "POST segments", body: { name: asText(pl.name), rule: pl.rule } },
+  // People's words for a list made by its rule, named as the route stored it.
+  receipt: ({ payload: pl }, data) => `${asText(rec(data).name ?? pl.name)} made. It keeps itself current.`,
+  // The list it made, for a later step of Ask's plan that names it by its token (`@step:n`).
+  made: (_p, data) => idIn(rec(data), "id"),
+  undo: {
+    label: () => "Delete it",
+    window: "ten_minutes",
+    // The list the route made, by the id it answered; the route answers no ledger row, so the undo names none.
+    record: (_p, data) => {
+      const id = idIn(rec(data), "id");
+      return id ? { list_id: id } : null;
+    },
+    call: (u) => ({ route: "DELETE segments/[id]", params: { id: asText(u.list_id) } }),
+    // Deleted, or archived where something came to depend on it since (a playbook on it, a list that reads it): the
+    // route's answer says which, in People's words.
+    receipt: (data) => listTakenDown(data)
+  },
+  // People, at the list the route made once it is approved (the commit kept its id for the undo); People before.
+  open: (_card, outcome) => {
+    const id = idIn(rec(outcome?.undo), "list_id");
+    return id ? `clients/${listToken({ kind: "saved", id })}` : "clients";
+  }
+};
+var idsIn = (v) => Array.isArray(v) ? v.map(asText).filter(Boolean) : [];
+var listMemberSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const add = idsIn(pl.add);
+    const remove = idsIn(pl.remove);
+    if (!asText(pl.list_id) || !add.length && !remove.length) return refuseWith(PROPOSAL_WORDS.cannotApprove);
+    const parts2 = inBatches(add.length ? add : remove, LIST_PART).map((ids) => ({
+      route: "PUT segments/[id]",
+      params: { id: asText(pl.list_id) },
+      body: add.length ? { add: ids } : { remove: ids },
+      events: [PEOPLE_CHANGED]
+    }));
+    return oneOrMany(parts2);
+  },
+  receipt: ({ payload: pl }) => {
+    const add = idsIn(pl.add);
+    const name = asText(pl.name);
+    const who = asText(pl.who);
+    if (add.length) return add.length === 1 && who ? `${who} added to ${name}` : `${add.length} added to ${name}`;
+    const n = idsIn(pl.remove).length;
+    return n === 1 && who ? `${who} taken off ${name}` : `${n} taken off ${name}`;
+  },
+  undo: {
+    label: () => "Undo",
+    window: "ten_minutes",
+    record: ({ payload: pl }) => ({
+      list_id: pl.list_id,
+      name: pl.name,
+      who: pl.who,
+      add: idsIn(pl.remove),
+      remove: idsIn(pl.add)
+    }),
+    call: (u) => {
+      const add = idsIn(u.add);
+      const parts2 = inBatches(add.length ? add : idsIn(u.remove), LIST_PART).map((ids) => ({
+        route: "PUT segments/[id]",
+        params: { id: asText(u.list_id) },
+        body: add.length ? { add: ids } : { remove: ids },
+        events: [PEOPLE_CHANGED]
+      }));
+      return oneOrMany(parts2);
+    },
+    receipt: (_data, u) => idsIn(u.add).length ? `Back on ${asText(u.name)}` : `Taken off ${asText(u.name)} again`
+  },
+  open: ({ payload: pl }) => asText(pl.list_id) ? `clients/${listToken({ kind: "saved", id: asText(pl.list_id) })}` : "clients"
+};
+var changeOf = (pl) => ({
+  ...asText(pl.name) ? { name: asText(pl.name) } : {},
+  ...pl.rule && typeof pl.rule === "object" ? { rule: pl.rule } : {}
+});
+var listChangeSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const body = changeOf(pl);
+    return !asText(pl.list_id) || Object.keys(body).length === 0 ? refuseWith(PROPOSAL_WORDS.cannotApprove) : { route: "PUT segments/[id]", params: { id: asText(pl.list_id) }, body, events: [PEOPLE_CHANGED] };
+  },
+  receipt: ({ payload: pl }) => {
+    const name = asText(pl.name) || asText(pl.was_name);
+    return pl.rule ? `${name} now keeps who its new rule names` : `Renamed ${name}`;
+  },
+  undo: {
+    label: () => "Put it back",
+    window: "ten_minutes",
+    record: ({ payload: pl }) => {
+      const was = rec(pl.was);
+      const back = {
+        ...asText(pl.name) && typeof was.name === "string" ? { name: was.name } : {},
+        ...pl.rule && was.rule && typeof was.rule === "object" ? { rule: was.rule } : {}
+      };
+      return Object.keys(back).length ? { list_id: pl.list_id, ...back } : null;
+    },
+    call: (u) => ({
+      route: "PUT segments/[id]",
+      params: { id: asText(u.list_id) },
+      body: changeOf(u),
+      events: [PEOPLE_CHANGED]
+    }),
+    receipt: () => "The list is as it was"
+  },
+  open: ({ payload: pl }) => asText(pl.list_id) ? `clients/${listToken({ kind: "saved", id: asText(pl.list_id) })}` : "clients"
+};
+var listDeleteSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => asText(pl.list_id) ? { route: "DELETE segments/[id]", params: { id: asText(pl.list_id) }, events: [PEOPLE_CHANGED] } : refuseWith(PROPOSAL_WORDS.cannotApprove),
+  receipt: (_p, data) => listTakenDown(data),
+  open: () => "clients"
+};
+
 // src/people/person-merge.ts
 var MERGE_CONSENT_SOURCE = "merge";
 var MERGE_REFUSALS = {
@@ -14728,6 +15067,19 @@ function mergedAnswers(a, b) {
     marketing: offersAnswer(a.marketing, b.marketing, stopped),
     emailMarketing: offersAnswer(a.emailMarketing, b.emailMarketing, stopped)
   };
+}
+
+// src/conversations/thread-clock.ts
+function shortTime(iso, tz, now) {
+  const ms2 = iso ? Date.parse(iso) : Number.NaN;
+  return Number.isFinite(ms2) ? clockShort(ms2, tz, now.getTime()) : "";
+}
+function bubbleTime(iso, tz, now) {
+  const ms2 = Date.parse(iso);
+  return Number.isFinite(ms2) ? clockStamp(ms2, tz, now.getTime()) : "";
+}
+function formatWaited(ms2) {
+  return waitedLabel(ms2);
 }
 
 // src/people/person-consent.ts
@@ -14812,6 +15164,856 @@ function whyNotReceive(r2, purpose, channel, about) {
 function saidYesTo(r2, purpose, channel, about) {
   return mayMessageFor(bearingOf(r2.consent), purpose, { proactive: true, channel, about }).ok;
 }
+
+// src/people/person-row-facts.ts
+function ago(ms2, tz, nowMs) {
+  return agoWords(ms2, nowMs, { dateAfterMs: WEEK_MS, date: (at3) => clockDate(at3, tz, nowMs) });
+}
+function theirTurnWords(last) {
+  if (last.who !== "they") return null;
+  return last.kind === "call" ? "they called last" : "they wrote last";
+}
+function lastContactOf(r2, tz, nowMs) {
+  const m = ts(r2.last_message_at);
+  const k = ts(r2.last_call_at);
+  if (m === null && k === null) {
+    return {
+      ts: null,
+      at: null,
+      kind: null,
+      who: null,
+      by: "No contact recorded",
+      when: "",
+      label: "No contact recorded"
+    };
+  }
+  if (k !== null && (m === null || k > m)) {
+    const theirs2 = ts(r2.last_inbound_call_at) === k;
+    const by = theirs2 ? "Phoned" : "We called";
+    const when2 = ago(k, tz, nowMs);
+    return {
+      ts: k,
+      at: r2.last_call_at,
+      kind: "call",
+      who: theirs2 ? "they" : "system",
+      by,
+      when: when2,
+      label: `${by} \xB7 ${when2}`
+    };
+  }
+  const who = r2.last_message_direction === "inbound" ? "they" : r2.last_message_sender === "human" ? "team" : r2.last_message_sender === "ai" ? "receptionist" : "system";
+  const verb = who === "they" ? "They wrote" : who === "team" ? "Your team replied" : who === "receptionist" ? "Receptionist replied" : "We sent";
+  const when = ago(m, tz, nowMs);
+  return { ts: m, at: r2.last_message_at, kind: "message", who, by: verb, when, label: `${verb} \xB7 ${when}` };
+}
+function firstContactOf(r2, tz, nowMs) {
+  const f = ts(r2.first_contact_at);
+  if (f !== null) return { ts: f, label: fmtDate(f, tz, nowMs), estimate: false, evidence: !r2.has_backfill };
+  const e = ts(r2.earliest_row_at);
+  if (e !== null && r2.has_backfill)
+    return { ts: e, label: `Before ${fmtDate(e, tz, nowMs)}`, estimate: true, evidence: false };
+  if (e !== null) return { ts: e, label: fmtDate(e, tz, nowMs), estimate: false, evidence: !r2.has_backfill };
+  return { ts: null, label: "\u2014", estimate: true, evidence: false };
+}
+function offersSub(r2, marketing, tz, nowMs) {
+  if (marketing === "opted_out") return "no offers";
+  if (marketing !== "opted_in")
+    return r2.marketing_consent_source === STOP_ENDED_OFFERS_SOURCE ? "their yes ended when they said stop" : "never asked about offers";
+  const when = ts(r2.marketing_consent_updated_at ?? null);
+  const how = consentSourceLabel(r2.marketing_consent_source ?? null);
+  const date = when !== null ? fmtDate(when, tz, nowMs) : "recorded";
+  return `${how ? `${how} \xB7 ` : ""}${date} \xB7 ${channelsWords(coveredChannels(r2.marketing_channels))}`;
+}
+var EMAIL_OFFERS_SOURCES = {
+  customer_message: "Their own message",
+  form: "Sign-up form",
+  unsubscribe: "Pressed Unsubscribe",
+  complaint: "Marked an email as spam",
+  reply: "Said no in a reply"
+};
+function emailOffersOf(r2, relationship, tz, nowMs) {
+  const answer = r2.email_marketing;
+  const emailMarketing = answer === "opted_in" || answer === "opted_out" || answer === "unknown" ? answer : null;
+  const source = r2.email_marketing_source ?? null;
+  const when = ts(r2.email_marketing_updated_at ?? null);
+  const how = source ? EMAIL_OFFERS_SOURCES[source] ?? source : null;
+  const dated = `${how ? `${how} \xB7 ` : ""}${when !== null ? fmtDate(when, tz, nowMs) : "recorded"}`;
+  if (emailMarketing === "opted_in")
+    return { emailMarketing, emailMarketingSource: source, emailOffersLabel: "Yes", emailOffersSub: dated };
+  if (emailMarketing === "opted_out")
+    return { emailMarketing, emailMarketingSource: source, emailOffersLabel: "Unsubscribed", emailOffersSub: dated };
+  return {
+    emailMarketing,
+    emailMarketingSource: source,
+    emailOffersLabel: emailMarketing === "unknown" ? "Not asked" : null,
+    emailOffersSub: emailMarketing === null ? "" : relationship ? "they have dealt with you, so offers may go by email" : "no offers by email until they ask for them"
+  };
+}
+function consentOf(r2, tz, nowMs) {
+  const dnc = !!r2.dnc;
+  const state = r2.consent === "opted_out" || dnc ? "opted_out" : r2.consent === "opted_in" ? "opted_in" : "unknown";
+  const when = ts(r2.consent_updated_at);
+  const date = when !== null ? fmtDate(when, tz, nowMs) : "recorded";
+  const how = consentSourceLabel(r2.consent_source);
+  const sub = state === "opted_out" ? r2.consent_source === "customer_message" ? `STOP received${when !== null ? ` ${fmtDate(when, tz, nowMs)}` : ""}` : `${how ? `${how} \xB7 ` : ""}${date}` : state === "opted_in" ? `${how ? `${how} \xB7 ` : ""}${date} \xB7 ${channelsWords(coveredChannels(r2.consent_channels))}` : "no opt-in recorded";
+  const marketing = dnc || r2.consent === "opted_out" ? "opted_out" : r2.marketing_consent === "opted_in" ? "opted_in" : r2.marketing_consent === "opted_out" ? "opted_out" : "unknown";
+  const marketingSub = offersSub(r2, marketing, tz, nowMs);
+  const relationship = relationshipOnRecord({
+    lastWroteAt: r2.last_wrote_at ?? null,
+    lastInboundCallAt: r2.last_inbound_call_at ?? null,
+    hasDeal: !!r2.deal_id
+  });
+  return {
+    state,
+    dnc,
+    label: state === "opted_out" ? STOP_WORDS.pill : state === "opted_in" ? "Opted in" : "Unknown",
+    // The answer in the words its own control uses (Yes, Not asked, No), as marketingLabel is the offers answer's.
+    answerLabel: state === "opted_in" ? "Yes" : state === "opted_out" ? "No" : "Not asked",
+    sub,
+    source: r2.consent_source ?? null,
+    marketing,
+    marketingSource: r2.marketing_consent_source ?? null,
+    marketingSub,
+    // The offers answer in the words People's Offers column uses, so a list and the page agree.
+    marketingLabel: marketing === "opted_in" ? "Yes" : marketing === "opted_out" ? "No" : "Not asked",
+    channels: r2.consent_channels ?? null,
+    marketingChannels: r2.marketing_channels ?? null,
+    ...emailOffersOf(r2, relationship, tz, nowMs),
+    relationship
+  };
+}
+
+// src/people/person-state.ts
+var PERSON_STATE_LABELS = {
+  needs_you: NEEDS_YOU_WORD,
+  waiting_on_you: HELD_WORDS.yours.pill,
+  opted_out: STOP_WORDS.pill,
+  new: "New",
+  quiet: "Quiet",
+  active: "Active",
+  unheard: "Not heard from"
+};
+var PEOPLE_TABS = [
+  { id: "all", label: "All" },
+  { id: "needs_you", label: PERSON_STATE_LABELS.needs_you },
+  { id: "waiting_on_you", label: PERSON_STATE_LABELS.waiting_on_you },
+  { id: "new", label: "New" },
+  { id: "quiet", label: "Quiet" },
+  { id: "active", label: "Active" }
+];
+var NEW_WINDOW_DAYS = 7;
+var QUIET_AFTER_DAYS = 30;
+function personStanding(r2, nowMs, viewerId = null) {
+  return standingOf(
+    {
+      state: r2.latest_state === "snoozed" ? "snoozed" : r2.needs_human || r2.latest_state === "needs_human" ? "needs_human" : r2.latest_state ?? "open",
+      paused_until: r2.latest_paused_until,
+      assignee_user_id: r2.latest_assignee_user_id,
+      assignee_is_me: viewerId && r2.latest_assignee_user_id ? r2.latest_assignee_user_id === viewerId : void 0,
+      open_escalation: !!r2.open_escalation_reason,
+      escalation_reason: r2.open_escalation_reason
+    },
+    nowMs
+  );
+}
+function attentionOf(r2, nowMs, viewerId = null) {
+  const v = personStanding(r2, nowMs, viewerId);
+  if (v.standing === "needs_you" || replyWaitsOnYou({ queued: !!r2.queued_reply_at }, nowMs)) return "needs_you";
+  return v.takenOver ? "waiting_on_you" : null;
+}
+function heardAt(r2) {
+  const at3 = [ts(r2.last_inbound_at), ts(r2.last_inbound_call_at ?? null)].filter((x) => x !== null);
+  return at3.length ? Math.max(...at3) : null;
+}
+function holderOf(r2, nowMs, viewerId) {
+  const v = personStanding(r2, nowMs, viewerId);
+  return v.claimedByOther ? "theirs" : v.takenOver ? viewerId ? "yours" : "someone" : null;
+}
+function personStateFor(r2, nowMs, tz, viewerId = null) {
+  const attention = attentionOf(r2, nowMs, viewerId);
+  if (attention) return attention;
+  if (isOptedOutContact({ consent: r2.consent, dnc: r2.dnc })) return "opted_out";
+  const first = firstContactOf(r2, tz, nowMs);
+  if (first.evidence && first.ts !== null && localDaysBetween(first.ts, nowMs, tz) <= NEW_WINDOW_DAYS) return "new";
+  const heard = heardAt(r2);
+  if (heard === null) return "unheard";
+  if (localDaysBetween(heard, nowMs, tz) > QUIET_AFTER_DAYS) return "quiet";
+  return "active";
+}
+function stopToldBesideState(r2) {
+  return r2.stopped && r2.state !== "opted_out";
+}
+
+// src/people/person-receptionist.ts
+var PERSON_MODES = ["auto", "ask", "never"];
+var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
+var PERSON_MODE_WORDS = {
+  ...PERSON_MODE_LABELS,
+  inherit: "Follow the workspace"
+};
+function asPersonMode(s) {
+  return s && PERSON_MODES.includes(s) ? s : null;
+}
+var HELD_THREAD = {
+  yours: {
+    tone: "yours",
+    label: HELD_WORDS.yours.pill,
+    title: HELD_WORDS.yours.pill,
+    detail: HELD_WORDS.yours.sentence
+  },
+  theirs: {
+    tone: "theirs",
+    label: HELD_WORDS.theirs.pill,
+    title: HELD_WORDS.theirs.pill,
+    detail: HELD_WORDS.theirs.sentence
+  },
+  someone: {
+    tone: "paused",
+    label: "Paused, a person owns the thread",
+    title: "Paused, a person owns this thread",
+    detail: "A person owns this thread; automatic replies resume when it is handed back."
+  }
+};
+function heldThreadOf(holder, name) {
+  const held = HELD_THREAD[holder];
+  const who = name?.trim();
+  if (holder !== "theirs" || !who) return held;
+  const said = heldPill("theirs", who);
+  return {
+    ...held,
+    label: said,
+    title: said,
+    detail: `${who} is answering this. The receptionist stays quiet until they hand it back.`
+  };
+}
+var SILENT_STOP = {
+  label: `Silent, ${STOP_WORDS.pill.toLowerCase()}`,
+  detail: `${STOP_WORDS.said("They")} \u2014 nothing goes out to them until they ask again.`
+};
+function askedFor(r2) {
+  return r2.open_escalation_reason && waitsOnAPerson(r2.open_escalation_reason) ? r2.open_escalation_reason : null;
+}
+function snoozedAsk(r2) {
+  const asked = askedFor(r2);
+  if (asked) return reasonLabelOf(asked);
+  return r2.needs_human ? "Waiting for a person" : null;
+}
+function snoozedReceptionist(r2, tz, nowMs) {
+  const wake = ts(r2.latest_snooze_until);
+  const wakes = wake !== null && wake > nowMs ? shortTime(r2.latest_snooze_until, tz, new Date(nowMs)) : null;
+  const asked = askedFor(r2);
+  const asks = asked ? `still waiting for you (${reasonShort(asked)})` : r2.needs_human ? "still waiting for you" : null;
+  return {
+    tone: "snoozed",
+    label: [`Snoozed${wakes ? ` until ${wakes}` : ""}`, asks].filter(Boolean).join(" \xB7 "),
+    ...wakes ? { wakes } : {}
+  };
+}
+function receptionistOf(r2, tz, nowMs, viewerId, names3 = null) {
+  if (personStanding(r2, nowMs, viewerId).standing === "snoozed")
+    return r2.queued_reply_at ? { tone: "queued", label: "Reply queued" } : snoozedReceptionist(r2, tz, nowMs);
+  const held = holderOf(r2, nowMs, viewerId);
+  if (held) {
+    const holder = held === "theirs" && r2.latest_assignee_user_id ? names3?.(r2.latest_assignee_user_id) : null;
+    const { tone, label } = heldThreadOf(held, holder);
+    return { tone, label };
+  }
+  const asked = askedFor(r2);
+  if (asked) return { tone: "escalated", label: `Escalated, ${reasonShort(asked)}` };
+  if (r2.needs_human) return { tone: "escalated", label: "Waiting for a person" };
+  if (r2.queued_reply_at) return { tone: "queued", label: "Reply queued" };
+  if (r2.consent === "opted_out" || r2.dnc) return { tone: "silent", label: SILENT_STOP.label };
+  if (r2.effective_reply_mode === "never")
+    return { tone: "paused", label: `Held for you, set to ${PERSON_MODE_WORDS.never}` };
+  if (r2.effective_reply_mode === "ask")
+    return { tone: "paused", label: `Held for you, set to ${PERSON_MODE_WORDS.ask}` };
+  return { tone: "answering", label: "Answering" };
+}
+
+// src/ask-proposals/people-verbs.ts
+var purposeOf = (v) => v === "conversational" || v === "marketing" ? v : null;
+var consentIn = (v) => v === "opted_in" || v === "opted_out" ? v : "unknown";
+var fieldsOf = (pl, keys) => Object.fromEntries(keys.filter((k) => pl[k] !== void 0).map((k) => [k, pl[k]]));
+function answerSaidOf(purpose, consent) {
+  if (purpose === "marketing") {
+    if (consent === "opted_in") return "said yes to offers and news";
+    if (consent === "opted_out") return "said no to offers \u2014 other messages still reach them";
+    return "has not been asked about offers";
+  }
+  if (consent === "opted_in") return "said yes to messages";
+  if (consent === "opted_out") return "said stop \u2014 nothing goes out to them at all";
+  return 'is back to "not asked"';
+}
+function manySaid(data, verb) {
+  const d = rec(data);
+  const done = typeof d.done === "number" ? d.done : 0;
+  const failedRows = Array.isArray(d.failed) ? d.failed : [];
+  const skipped2 = Array.isArray(d.skipped) ? d.skipped : [];
+  const failed = failedRows.length + skipped2.length;
+  const why = asText(rec(failedRows[0]).message) || (skipped2.length ? "no longer in this workspace" : "");
+  return { done, failed, said: failed ? `${failed} could not be ${verb}${why ? ` \u2014 ${why}` : ""}` : "" };
+}
+function manyCalls(route, pl, fields) {
+  const ids = uniqueIds(pl.ids);
+  if (!ids.length) return refuseWith("Pick at least one person.");
+  const rest = fieldsOf(pl, fields);
+  const calls = inBatches(ids).map((part) => ({ route, body: { ...rest, ids: part }, events: [PEOPLE_CHANGED] }));
+  return oneOrMany(calls);
+}
+var ANSWER_DOOR = {
+  conversational: "PUT contacts/[id]/consent",
+  marketing: "PUT contacts/[id]/marketing-consent"
+};
+var ANSWER_MANY_DOOR = {
+  conversational: "PUT contacts/consent",
+  marketing: "PUT contacts/marketing-consent"
+};
+var personRoute = ({ payload }) => {
+  const id = idIn(payload, "contact_id");
+  return id ? `clients/${id}` : null;
+};
+var answerSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const purpose = purposeOf(pl.purpose);
+    if (!purpose) return refuseWith("Say which question this answers.");
+    return {
+      route: ANSWER_DOOR[purpose],
+      params: { id: asText(pl.contact_id) },
+      body: fieldsOf(pl, ["consent", "source", "note", "message_id"]),
+      events: [PEOPLE_CHANGED]
+    };
+  },
+  receipt: ({ payload: pl }) => `${asText(pl.who)} ${answerSaidOf(purposeOf(pl.purpose) ?? "conversational", consentIn(pl.consent))}`,
+  open: personRoute
+};
+var answerManySpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const purpose = purposeOf(pl.purpose);
+    if (!purpose) return refuseWith("Say which question this answers.");
+    return manyCalls(ANSWER_MANY_DOOR[purpose], pl, ["consent", "source", "note"]);
+  },
+  gather: gatherCounts,
+  receipt: ({ payload: pl }, data) => {
+    const m = manySaid(data, "recorded");
+    const what = purposeOf(pl.purpose) === "marketing" ? "to offers" : "to messages";
+    const answer = consentIn(pl.consent);
+    const head = answer === "unknown" ? `${m.done} back to "not asked"` : `${m.done} said ${answer === "opted_in" ? "yes" : "no"} ${what}`;
+    return m.said ? `${head} \xB7 ${m.said}` : head;
+  },
+  open: () => "clients"
+};
+var personModeManySpec = {
+  needs: "owner",
+  doing: "change how the receptionist treats these people",
+  gate: "settings",
+  commit: ({ payload: pl }) => manyCalls("PUT contacts/receptionist", pl, ["mode"]),
+  gather: gatherCounts,
+  receipt: ({ payload: pl }, data) => {
+    const m = manySaid(data, "changed");
+    const mode = asText(pl.mode);
+    const head = `Receptionist for ${m.done}: ${PERSON_MODE_WORDS[mode] ?? asText(pl.mode)}`;
+    return m.said ? `${head} \xB7 ${m.said}` : head;
+  },
+  open: () => "clients"
+};
+var noteManySpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => manyCalls("PUT contacts/notes", pl, ["append"]),
+  gather: gatherCounts,
+  receipt: (_p, data) => {
+    const m = manySaid(data, "noted");
+    const head = `Note added for ${m.done}`;
+    return m.said ? `${head} \xB7 ${m.said}` : head;
+  },
+  open: () => "clients"
+};
+var personAddSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => ({
+    route: "POST contacts",
+    body: fieldsOf(pl, ["phone", "email", "name", "source"]),
+    events: [PEOPLE_CHANGED]
+  }),
+  receipt: ({ payload: pl }, data) => {
+    const who = asText(pl.name).trim() || asText(pl.phone).trim() || asText(pl.email).trim();
+    return `${who} ${rec(data).existed === true ? "was already here \u2014 opened" : "added"}`;
+  },
+  made: (_p, data) => idIn(rec(data), "contact_id"),
+  open: () => "clients"
+};
+var personMergeSpec = {
+  needs: "owner",
+  doing: "merge two records of one person",
+  gate: "settings",
+  commit: ({ payload: pl }) => ({
+    route: "POST contacts/[id]/merge",
+    params: { id: asText(pl.contact_id) },
+    body: fieldsOf(pl, ["merge"]),
+    events: [PEOPLE_CHANGED]
+  }),
+  receipt: ({ payload: pl }) => MERGE_WORDS.done(asText(pl.who), asText(pl.other)),
+  open: personRoute
+};
+var threadMade = (data) => idIn(rec(data), "conversation_id");
+var personMessageSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: (p) => {
+    const pl = p.payload;
+    if (!idIn(pl, "contact_id") || !asText(pl.wire)) return refuseWith(PROPOSAL_WORDS.cannotApprove);
+    return {
+      route: "POST people/[id]/message",
+      params: { id: asText(pl.contact_id) },
+      body: fieldsOf(pl, ["wire", "text", "subject", "template", "email_to", "then", "note"]),
+      idempotencyKey: p.id,
+      events: [PEOPLE_CHANGED]
+    };
+  },
+  receipt: ({ payload: pl }) => `On its way to ${asText(pl.who)} \u2014 sends in 15 seconds unless you cancel`,
+  undo: {
+    label: () => "Sends 15 seconds after you approve; cancel within them",
+    window: "cancelable",
+    record: (_p, data) => ({
+      message_id: rec(data).message_id,
+      cancelable_until: rec(data).cancelable_until,
+      decision_id: decisionOf(data)
+    }),
+    call: (u) => ({ route: "POST messages/[id]/cancel-send", params: { id: asText(u.message_id) } }),
+    receipt: () => "Canceled before it sent"
+  },
+  made: (_p, data) => threadMade(data),
+  open: (p, outcome) => outcome?.made?.id ? `inbox/th-${outcome.made.id}` : personRoute(p)
+};
+
+// src/notes/person-notes.ts
+var NOTE_MAX = 600;
+var NOTE_LINE_MAX = 200;
+var NOTE_WORDS = {
+  title: "Notes",
+  placeholder: "Add a note\u2026",
+  add: "Add note",
+  save: "Save",
+  cancel: "Cancel",
+  edit: "Edit",
+  remove: "Delete",
+  askRemove: "Delete this note?",
+  more: "More for this note",
+  edited: "edited",
+  forAnyone: "For anyone",
+  forLabel: "For",
+  /** The composer's For, as choices under its label (0052's composer): Anyone · Me · Jo Park. */
+  anyone: "Anyone",
+  me: "Me",
+  /** The composer's button once a day is chosen: it says what pressing it makes (the motion grammar's label). */
+  addStepFor: (day) => `Add step for ${day}`,
+  teamOnly: "Team only",
+  teamOnlyHint: "The receptionist won't read it",
+  readsHint: "The receptionist uses notes as facts and never reads them aloud.",
+  none: "No notes yet.",
+  suggested: "Suggested by the receptionist",
+  /** A suggestion's eyebrow, said on every screen: who, where it was heard, and when ("… · after a call · 2:10 PM"). */
+  suggestedLine: (from, when) => ["Suggested by the receptionist", from ? `${from.charAt(0).toLowerCase()}${from.slice(1)}` : null, when].filter(Boolean).join(" \xB7 "),
+  keep: "Keep",
+  dismiss: "Dismiss",
+  added: "Note added",
+  saved: "Note saved",
+  removed: "Note deleted",
+  kept: "Kept: the receptionist uses it from now on",
+  dismissed: "Dismissed",
+  showAll: (n) => `Show all ${n}`,
+  showFewer: "Show fewer",
+  left: (n) => `${n} left`,
+  // A note with a day is a step (0007, amended).
+  addDay: "Add a day",
+  /** The composer's day row's word, over its chips (canvas A, M4). */
+  day: "Day",
+  due: "Due",
+  noDay: "No day",
+  pickDay: "Pick a day",
+  done: "Done",
+  undo: "Undo",
+  change: "Change",
+  stepTeamOnly: "A step is for the team only",
+  setNext: "Set a next step",
+  next: "Next step",
+  stepsDue: "Steps due",
+  stepAdded: "Step added",
+  stepSaved: "Step saved",
+  stepDone: "Step done",
+  stepReopened: "Step open again",
+  /** Done's name for a screen reader, where a header holds more than the step. */
+  markDone: (words3) => `Mark \u201C${words3}\u201D done`,
+  /** The Overview's Notes (canvas A): the door to every note, History's Notes, at the pane's head. */
+  all: "All notes",
+  /** Over the newest note on the Overview, in the mono eyebrow: "Note · Marisa · Sep 21"; a step says its day. */
+  eyebrow: (who, when) => `Note \xB7 ${who} \xB7 ${when}`,
+  stepEyebrow: (who, due) => `Step \xB7 ${who} \xB7 ${due}`
+};
+var NOTE_REFUSALS = {
+  empty: "Write something first.",
+  too_long: `A note is at most ${NOTE_MAX} characters.`,
+  not_found: "This person or this note is no longer here.",
+  not_a_member: "That person is not on the team.",
+  not_yours: "Only the person who wrote this note can change it.",
+  moved: "Someone changed this note since you opened it. Read it again, then save.",
+  decided: "Someone already decided on this suggestion.",
+  bad_source: "Could not save this note.",
+  bad_deal: "That deal is not this person's.",
+  not_a_step: "Only a note with a day can be done.",
+  not_for_you: "This note is for someone else."
+};
+var NOTE_FROM = {
+  page: null,
+  bulk: null,
+  moved: null,
+  call: "After a call",
+  thread: "After a conversation",
+  // A step a reach-out's reply made (Reach out Part 5, 00220 person_step_from_playbook): the words say which.
+  reach_out: "From a reach-out"
+};
+function noteStepOf(n, tz, nowMs) {
+  const day = stepDayOf(n.due_on, tz, nowMs);
+  if (!day) return null;
+  const doneMs = n.done_at ? Date.parse(n.done_at) : NaN;
+  if (!Number.isFinite(doneMs)) return { day, due: day.due, words: day.words, done: false, doneWords: null };
+  const who = n.done_by_me ? "you" : (n.done_by_name ?? "").trim() || "a former teammate";
+  return {
+    day,
+    due: day.due,
+    words: NOTE_WORDS.done,
+    done: true,
+    doneWords: `${NOTE_WORDS.done} by ${who} \xB7 ${clockShort(doneMs, tz, nowMs)}`
+  };
+}
+function personNotesVM(notes, tz, nowMs) {
+  const at3 = (iso) => {
+    const t = Date.parse(iso);
+    return Number.isFinite(t) ? t : nowMs;
+  };
+  return [...notes ?? []].sort(
+    (a, b) => Number(b.state === "suggested") - Number(a.state === "suggested") || at3(b.created_at) - at3(a.created_at)
+  ).map((n) => {
+    const t = at3(n.created_at);
+    return {
+      id: n.id,
+      body: n.body,
+      who: n.author_kind === "receptionist" ? "The receptionist" : n.mine ? "You" : (n.author_name ?? "").trim() || "A former teammate",
+      when: clockShort(t, tz, nowMs),
+      whenFull: `${clockDateYear(t, tz)} \xB7 ${clockTime(t, tz)}`,
+      forWho: forWords(n.for_me, n.for_user_id, n.for_name),
+      forMe: n.for_me,
+      forSeen: n.for_me && !!n.for_seen,
+      forUserId: n.for_user_id,
+      teamOnly: n.team_only,
+      suggested: n.state === "suggested",
+      from: n.author_kind === "receptionist" ? NOTE_FROM[n.source] : null,
+      mine: n.mine && n.author_kind === "member",
+      edited: n.version > 1 && n.state === "kept" && n.author_kind === "member",
+      version: n.version,
+      step: noteStepOf(n, tz, nowMs),
+      dealId: n.deal_id ?? null
+    };
+  });
+}
+
+// src/notes/step-sheet.ts
+var STEP_SHEET_WORDS = {
+  titles: { add: "Set a next step", edit: "Change the step", note: "Add a note", editNote: "Change the note" },
+  what: { label: "What to do", placeholder: "Call about the timeline" },
+  /** A note's words, where the sheet opened as one. */
+  noteWhat: { label: "Note", placeholder: "What they said, what to remember" },
+  when: { label: "When", pick: "The day", none: "No day" },
+  for: { label: "For", anyone: "Anyone on the team", me: "Me" },
+  teamOnly: "Only your team sees it.",
+  /** A note with no day: whether the receptionist reads it (it uses notes as facts, never aloud). */
+  reads: { label: "Team only", hint: "The receptionist won't read it" },
+  save: { add: "Set it", edit: "Save", note: "Add it" },
+  saving: "Saving\u2026",
+  reading: "Reading\u2026",
+  gone: "This person is not in your workspace.",
+  noStep: "This step is no longer here.",
+  done: { add: "Next step set", edit: "Step saved", note: "Note added", editNote: "Note saved" },
+  failed: "Could not save this step.",
+  /** Many people at once: one line, each of them given it as a note of their own. */
+  many: {
+    sub: (n) => `${n} ${n === 1 ? "person" : "people"}`,
+    placeholder: "One line, under each of their notes",
+    rule: "Each of them gets it as a note of their own, signed by you.",
+    failed: "Could not add the note."
+  },
+  // The limit is passed in rather than read here: a literal that reads another module's constant is kept by every
+  // package that bundles contracts, as tone.ts's tables were (people.ts NOTE_MAX is the one spelling of it).
+  problems: {
+    what: "Say what to do.",
+    note: "Write the note first.",
+    day: "Pick a day.",
+    tooLong: (max) => `At most ${max} characters.`
+  },
+  discard: {
+    question: "Discard changes?",
+    detail: null,
+    yes: "Discard",
+    no: "Keep editing"
+  }
+};
+var NO_DAY = "none";
+function openedWith(note, kind, days) {
+  const day = note?.step ? note.step.day.day : kind === "note" ? NO_DAY : null;
+  return {
+    what: note ? note.body : "",
+    day,
+    picking: !!day && !days.some((c) => c.key === day),
+    forId: note ? note.forUserId : null,
+    teamOnly: note?.teamOnly === true
+  };
+}
+var titleKey = (mode, kind) => kind === "note" ? mode === "add" ? "note" : "editNote" : mode;
+function stepSheetFor(p, ask, nowMs, tz) {
+  const W = STEP_SHEET_WORDS;
+  const note = ask.noteId ? (p.noteList ?? []).find((n) => n.id === ask.noteId) ?? null : null;
+  const mode = ask.noteId ? "edit" : "add";
+  const kind = (note ? !note.step : ask.note === true) ? "note" : "step";
+  const dealId = note ? note.dealId : ask.dealId ?? null;
+  const service = dealId ? (p.deals ?? []).find((d) => d.id === dealId)?.service ?? null : null;
+  const stepChoices = stepDays(nowMs, tz);
+  const days = kind === "note" ? [{ key: NO_DAY, label: W.when.none, title: W.when.none }, ...stepChoices] : stepChoices;
+  return {
+    mode,
+    kind,
+    title: W.titles[titleKey(mode, kind)],
+    sub: service ? `${p.name} \xB7 ${service}` : p.name,
+    days,
+    team: [
+      { id: "", label: W.for.anyone },
+      ...(p.noteTeam ?? []).map((m) => ({ id: m.id, label: m.me ? W.for.me : m.name }))
+    ],
+    draft: openedWith(note, kind, days),
+    note: note ? { id: note.id, version: note.version } : null,
+    dealId,
+    blocked: ask.noteId && !note ? W.noStep : note && !note.mine ? NOTE_REFUSALS.not_yours ?? null : null,
+    save: mode === "edit" ? W.save.edit : W.save[kind === "note" ? "note" : "add"]
+  };
+}
+function stepSheetDone(sheet, draft) {
+  const W = STEP_SHEET_WORDS.done;
+  const step2 = draft.day !== NO_DAY || draft.picking;
+  if (sheet.mode === "edit") return step2 ? W.edit : W.editNote;
+  return step2 ? W.add : W.note;
+}
+function stepSheetBody(sheet, draft) {
+  const P = STEP_SHEET_WORDS.problems;
+  const what = draft.what.trim();
+  const dayless = draft.day === NO_DAY && !draft.picking;
+  if (!what) return { body: null, problem: { field: "what", words: sheet.kind === "note" ? P.note : P.what } };
+  if (what.length > NOTE_MAX) return { body: null, problem: { field: "what", words: P.tooLong(NOTE_MAX) } };
+  if (!dayless && (!draft.day || !isRealDate(draft.day)))
+    return { body: null, problem: { field: "day", words: P.day } };
+  return {
+    problem: null,
+    body: {
+      body: what,
+      ...dayless || !draft.day ? {} : { due_on: draft.day },
+      for_user_id: draft.forId || null,
+      // A step is the team's (00166); a note is the receptionist's to read unless it is kept from it.
+      team_only: dayless ? draft.teamOnly : true,
+      ...sheet.dealId ? { deal_id: sheet.dealId } : {},
+      ...sheet.note ? { note_id: sheet.note.id, version: sheet.note.version } : {}
+    }
+  };
+}
+function stepSheetDirty(draft, opened) {
+  return draft.what.trim() !== opened.what.trim() || draft.day !== opened.day || (draft.forId || null) !== (opened.forId || null) || draft.teamOnly !== opened.teamOnly;
+}
+function stepSheetMerge(draft, opened, fresh) {
+  const dayTyped = draft.day !== opened.day || draft.picking !== opened.picking;
+  return {
+    what: draft.what !== opened.what ? draft.what : fresh.what,
+    day: dayTyped ? draft.day : fresh.day,
+    picking: dayTyped ? draft.picking : fresh.picking,
+    forId: (draft.forId || null) !== (opened.forId || null) ? draft.forId : fresh.forId,
+    teamOnly: draft.teamOnly !== opened.teamOnly ? draft.teamOnly : fresh.teamOnly
+  };
+}
+function noteManyLine(what) {
+  const P = STEP_SHEET_WORDS.problems;
+  const line = what.trim();
+  if (!line) return { line: null, problem: P.note };
+  if (line.length > NOTE_LINE_MAX) return { line: null, problem: P.tooLong(NOTE_LINE_MAX) };
+  return { line, problem: null };
+}
+
+// src/ask-proposals/person.ts
+var cardPersonRoute = ({ payload }) => {
+  const id = idIn(payload, "contact_id");
+  return id ? `clients/${id}` : null;
+};
+var DETAIL_FIELDS = ["name", "email"];
+var PERSON_DETAIL_WORDS = {
+  label: { name: "Name", email: "Email" },
+  none: {
+    name: (shows) => shows ? `no name of their own (shows as ${shows})` : "no name of their own",
+    email: () => "no address"
+  }
+};
+function detailsCall(contactId, from, none) {
+  const body = Object.fromEntries(DETAIL_FIELDS.filter((k) => typeof from[k] === "string").map((k) => [k, from[k]]));
+  if (!Object.keys(body).length) return refuseWith(none);
+  return { route: "PUT contacts/[id]/details", params: { id: asText(contactId) }, body, events: [PEOPLE_CHANGED] };
+}
+var personModeSpec = {
+  needs: "owner",
+  doing: "change how the receptionist treats one person",
+  gate: "settings",
+  commit: (p) => ({
+    route: "PUT contacts/[id]/receptionist",
+    params: { id: asText(p.payload.contact_id) },
+    body: { mode: p.payload.mode },
+    events: [PEOPLE_CHANGED]
+  }),
+  receipt: (p) => `Receptionist for ${asText(p.payload.who)}: ${PERSON_MODE_WORDS[asText(p.payload.mode)] ?? asText(p.payload.mode)}`,
+  undo: {
+    label: () => "Set it back",
+    window: "ten_minutes",
+    // The mode the route found when it wrote (its answer's `was`; none is inherit), the card's own reading where an
+    // older route answers none.
+    record: (p, data) => {
+      const was = wasIn(data, "mode");
+      return {
+        contact_id: p.payload.contact_id,
+        mode: was === void 0 ? p.payload.previous ?? "inherit" : was ?? "inherit",
+        decision_id: decisionOf(data)
+      };
+    },
+    call: (u) => ({
+      route: "PUT contacts/[id]/receptionist",
+      params: { id: asText(u.contact_id) },
+      body: { mode: u.mode },
+      events: [PEOPLE_CHANGED]
+    }),
+    receipt: () => "Set back"
+  },
+  open: cardPersonRoute
+};
+var dealSpec = {
+  needs: "operator",
+  gate: "approve",
+  // The card's body is the route's body: `who` is the card's own word and the id is the route's param, so both stay
+  // out of a request the route reads strictly. No undo: a mis-recorded stage is moved again on the person's page, and
+  // a step is changed or done there.
+  commit: ({ payload }) => {
+    const { who: _who, contact_id: _id, ...body } = payload;
+    return {
+      route: "POST contacts/[id]/deal",
+      params: { id: asText(payload.contact_id) },
+      body,
+      events: [PEOPLE_CHANGED]
+    };
+  },
+  // The step after the deal (0007, amended), naming the row the door wrote (a new proposal's card has no id to name):
+  // the team's note, with its day. It answers as the door takes it, People read again behind it. An answer that names
+  // no deal sends no step: a note tied to no deal is not the step the card said, so it is said as not saved.
+  then: (p, data) => {
+    if (!p.step) return null;
+    const dealId = idIn(rec(rec(data).deal), "id");
+    if (!dealId) return refuseWith("the deal came back without its id; set it on their page");
+    return {
+      route: "POST contacts/[id]/notes",
+      params: { id: asText(p.payload.contact_id) },
+      body: { body: p.step.body, due_on: p.step.due_on, team_only: true, deal_id: dealId },
+      refresh: "behind",
+      events: [PEOPLE_CHANGED]
+    };
+  },
+  // The deal stands either way, so a step the door refused is said on the receipt, to set again on their page.
+  receipt: ({ payload: pl }, _data, then) => {
+    const receipt = `${asText(pl.who)} \xB7 ${DEAL_STAGE_WORDS[asText(pl.stage)] ?? asText(pl.stage)}`;
+    if (!then) return receipt;
+    return then.ok ? `${receipt} \xB7 ${NOTE_WORDS.stepAdded}` : `${receipt} \xB7 the next step was not saved: ${then.message}`;
+  },
+  open: cardPersonRoute
+};
+var NOTE_KEYS = ["body", "for_user_id", "team_only", "note_id", "version", "due_on", "deal_id", "clear_due"];
+var noteSpec = {
+  needs: "operator",
+  gate: "approve",
+  // The route's strict body, the words and who reads them (D8): a note not for the team alone is read by the receptionist
+  // before it answers that person (00157). A card that does not say which is not sent, since the route's own default is
+  // the receptionist's and nobody chose it. A day makes it a step (00166), the team's, on the deal it names; a change
+  // names the note and the version it was read at (the note sheet's). Judged by the door's own schema (NoteWriteBody),
+  // as the route reads it. It answers as the door takes it, People read again behind it.
+  commit: ({ payload: pl }) => {
+    if (typeof pl.team_only !== "boolean" || !asText(pl.body)) return refuseWith(PROPOSAL_WORDS.cannotApprove);
+    const body = Object.fromEntries(NOTE_KEYS.filter((k) => pl[k] !== void 0).map((k) => [k, pl[k]]));
+    return {
+      route: "POST contacts/[id]/notes",
+      params: { id: asText(pl.contact_id) },
+      body,
+      refresh: "behind",
+      events: [PEOPLE_CHANGED]
+    };
+  },
+  receipt: ({ payload: pl }) => {
+    const step2 = typeof pl.due_on === "string" && !!pl.due_on;
+    if (step2) return `${asText(pl.who)} \xB7 ${STEP_SHEET_WORDS.done[pl.note_id ? "edit" : "add"]}`;
+    if (pl.note_id) return `${asText(pl.who)} \xB7 ${NOTE_WORDS.saved}`;
+    return `${asText(pl.who)} \xB7 ${NOTE_WORDS.added}${pl.team_only === true ? ` \xB7 ${NOTE_WORDS.teamOnly}` : ""}`;
+  },
+  undo: {
+    label: () => "Delete it",
+    window: "ten_minutes",
+    // The note the door wrote, by the id it answered with; a change, or an answer that names none, leaves nothing to
+    // take away (a change is changed again).
+    record: (p, data) => {
+      const noteId = p.payload.note_id ? null : idIn(rec(rec(data).note), "id");
+      return noteId ? { contact_id: p.payload.contact_id, note_id: noteId } : null;
+    },
+    call: (u) => ({
+      route: "POST contacts/[id]/notes/remove",
+      params: { id: asText(u.contact_id) },
+      body: { note_id: asText(u.note_id) },
+      refresh: "behind",
+      events: [PEOPLE_CHANGED]
+    }),
+    receipt: () => NOTE_WORDS.removed
+  },
+  open: cardPersonRoute
+};
+var personDetailsSpec = {
+  needs: "operator",
+  gate: "approve",
+  // Only the fields the card changes; its `previous` is what the builder read, for the undo.
+  commit: ({ payload: pl }) => detailsCall(pl.contact_id, pl, PROPOSAL_WORDS.cannotApprove),
+  // Each field as the route stored it (an address in its one spelling), the card's where it answered none.
+  receipt: ({ payload: pl }, data) => [
+    asText(pl.who),
+    ...DETAIL_FIELDS.filter((k) => typeof pl[k] === "string").map(
+      (k) => `${PERSON_DETAIL_WORDS.label[k]}: ${asText(rec(data)[k] ?? pl[k])}`
+    )
+  ].join(" \xB7 "),
+  undo: {
+    label: () => "Set it back",
+    window: "ten_minutes",
+    // Each changed field as the route found it when it wrote (its answer's `was`), the card's own reading where an
+    // older route answers none: the route clears a field with an empty string, so one that held nothing is set back to
+    // nothing. One whose previous value neither carries is never cleared on a guess.
+    record: ({ payload: pl }, data) => {
+      const changed = DETAIL_FIELDS.filter((k) => typeof pl[k] === "string");
+      const found = rec(rec(data).was);
+      const prev = changed.length > 0 && changed.every((k) => k in found) ? found : rec(pl.previous);
+      if (!changed.length || changed.some((k) => !(k in prev))) return null;
+      return { contact_id: pl.contact_id, ...Object.fromEntries(changed.map((k) => [k, asText(prev[k])])) };
+    },
+    call: (u) => detailsCall(u.contact_id, u, PROPOSAL_WORDS.noUndo),
+    receipt: () => "Set back"
+  },
+  open: cardPersonRoute
+};
 
 // src/broadcasts/email-offers.ts
 var OFFERS_BY_EMAIL_WORDS = {
@@ -15076,6 +16278,8 @@ var T = {
     rules: "What can the receptionist do on its own?",
     hours: "What are our hours this week?",
     brief: "Brief me on today",
+    next: "What should I do next?",
+    can: "What can you do for me?",
     proposals: "Who has a proposal out?",
     setupLeft: "What is left to set up?",
     moreLike: "Find more like: {asked}",
@@ -15089,8 +16293,6 @@ var T = {
     actCloseQ: "Close on ",
     actHours: "Change a day's hours",
     actHoursQ: "Change Saturday's hours to ",
-    actInvite: "Invite a teammate",
-    actInviteQ: "Invite ",
     actOffer: "Send an offer to a list",
     actOfferQ: "Send the ",
     actPlaybook: "Start a win-back campaign",
@@ -15117,6 +16319,8 @@ var T = {
     rules: "\xBFQu\xE9 puede hacer la recepcionista sola?",
     hours: "\xBFCu\xE1l es nuestro horario esta semana?",
     brief: "Res\xFAmeme el d\xEDa",
+    next: "\xBFQu\xE9 hago ahora?",
+    can: "\xBFQu\xE9 puedes hacer por m\xED?",
     proposals: "\xBFQui\xE9n tiene una propuesta pendiente?",
     setupLeft: "\xBFQu\xE9 falta por configurar?",
     moreLike: "Encuentra m\xE1s como: {asked}",
@@ -15130,8 +16334,6 @@ var T = {
     actCloseQ: "Cierra el ",
     actHours: "Cambiar el horario de un d\xEDa",
     actHoursQ: "Cambia el horario del s\xE1bado a ",
-    actInvite: "Invitar a alguien del equipo",
-    actInviteQ: "Invita a ",
     actOffer: "Enviar una oferta a una lista",
     actOfferQ: "Env\xEDa la ",
     actPlaybook: "Iniciar una campa\xF1a de recuperaci\xF3n",
@@ -15146,7 +16348,9 @@ var T = {
   }
 };
 var PAGE_QUESTIONS = {
+  // Ask speaks first (the operator, 15 Oct 2026, D7): what to do next, read from what stands out across the pages.
   today: [
+    ["next", "sparkle"],
     ["brief", "sparkle"],
     ["who", "users"]
   ],
@@ -15160,9 +16364,11 @@ var PAGE_QUESTIONS = {
     ["rules", "shield"],
     ["hours", "clock"]
   ],
+  // What is left first, then the hours; then what Ask can do for them (the operator, D8), for someone new to it.
   start: [
     ["setupLeft", "check"],
-    ["hours", "clock"]
+    ["hours", "clock"],
+    ["can", "sparkle"]
   ]
 };
 function clipWords(s, cap2) {
@@ -15228,7 +16434,6 @@ function buildAskSuggestions(input) {
   act2(t.actRemember, t.actRememberQ, "sparkle", true);
   if (input.surface === "settings" || input.surface === "today") act2(t.actClose, t.actCloseQ, "calendar", true);
   if (input.surface === "settings") act2(t.actHours, t.actHoursQ, "clock", true);
-  if (input.surface === "settings") act2(t.actInvite, t.actInviteQ, "users", true);
   if (input.surface === "inbox" || input.heldDrafts > 0) act2(t.actHold, t.actHoldQ, "shield");
   if (at3 === "people" || at3 === "other") act2(t.actOffer, t.actOfferQ, "wave", true);
   if ((at3 === "people" || at3 === "other") && !winBackSaid) act2(t.actPlaybook, t.actPlaybookQ, "bolt");
@@ -17697,41 +18902,6 @@ var MESSAGE_BEGIN_WORDS = {
   heldAuthentication: "This name is on file in another language as a code for signing in, which no campaign sends. Give this message another name."
 };
 
-// src/ask-proposals/spec.ts
-var PROPOSAL_WORDS = {
-  cannotApprove: "This card cannot be approved from here.",
-  noUndo: "This one has no undo.",
-  /** A card past ASK_CARD_FRESH_MS (askCardLapsed): nothing is sent, and asking again makes it from what is true now. */
-  lapsed: "This card is more than a day old, and what it would change may have moved since. Ask again and it is made from how things stand now.",
-  /** A plan's card past its week (askCardLapsed): the same, in the plan's words. */
-  planLapsed: "This plan is more than a week old, and what it would change may have moved since. Ask again and it is made from how things stand now.",
-  /** A plan's card naming a step that was undone: what that step made is gone, so nothing is sent to it. */
-  planUndone: "A step this one builds on was undone, so what it would use is gone and nothing is sent. Ask again and the plan is made from how things stand now.",
-  /** A plan's card naming a step that has made nothing yet: that step is approved first. */
-  waitsForStep: (n) => `This waits for step ${n}: approve step ${n} first, then this one.`,
-  /**
-   * A plan's card naming a step that was approved and made nothing it can use (a message whose every version was
-   * refused): waiting would never help, so the plan is asked for again.
-   */
-  stepMadeNothing: (n) => `Step ${n} made nothing this one can use, so nothing is sent. Ask again and the plan is made from how things stand now.`,
-  /** A plan's silent steps, stopped at step n by its refusal (`why`, in the refusal's own words): nothing after it was done. */
-  planStopped: (n, why) => `Stopped at step ${n}: ${/[.!?…]$/.test(why.trim()) ? why.trim() : `${why.trim()}.`} The steps after it were not done.`
-};
-var asText = (v) => v == null ? "" : String(v);
-var rec = (v) => v && typeof v === "object" ? v : {};
-var decisionOf = (data) => {
-  const id = rec(data).decision_id;
-  return typeof id === "string" && id ? id : null;
-};
-var wasIn = (data, k) => {
-  const was = rec(rec(data).was);
-  return Object.prototype.hasOwnProperty.call(was, k) ? was[k] : void 0;
-};
-var idIn = (pl, k) => typeof pl?.[k] === "string" && pl[k] ? pl[k] : null;
-var refuseWith = (words3) => ({ refused: words3 });
-var ownEntry = (m, k) => Object.prototype.hasOwnProperty.call(m, k) ? m[k] : void 0;
-var PEOPLE_CHANGED = { type: "surface:clients" };
-
 // src/ask-proposals/campaigns.ts
 var RUN_VERBS = ["approve", "skip"];
 function proposalChannelsWords(channels, byChannel) {
@@ -18163,2602 +19333,6 @@ var messageSpec = {
   open: () => "messages"
 };
 
-// src/ask-proposals/inbox.ts
-var ASK_THREAD_ROUTES = {
-  take_over: "POST conversations/[id]/take-over",
-  hand_back: "POST conversations/[id]/hand-back",
-  snooze: "POST conversations/[id]/snooze",
-  wake: "POST conversations/[id]/wake",
-  archive: "POST conversations/[id]/archive"
-};
-var isRoutedVerb = (v) => Object.prototype.hasOwnProperty.call(ASK_THREAD_ROUTES, v);
-var INVERSE = {
-  take_over: "hand_back",
-  hand_back: "take_over",
-  snooze: "wake"
-};
-var UNDO_LABEL = {
-  take_over: "Hand back",
-  hand_back: "Take over again",
-  snooze: "Wake"
-};
-var RECEIPT = {
-  hand_back: "The receptionist has it again",
-  snooze: "Snoozed",
-  wake: "Back in the Inbox",
-  archive: "Archived",
-  resolve: "Resolved"
-};
-var threadCall = (verb, conversationId, until) => verb === "snooze" ? { route: ASK_THREAD_ROUTES.snooze, params: { id: asText(conversationId) }, body: { until: asText(until) } } : { route: ASK_THREAD_ROUTES[verb], params: { id: asText(conversationId) } };
-var cardThreadRoute = ({ payload }) => {
-  const id = idIn(payload, "conversation_id");
-  return id ? `inbox/th-${id}` : null;
-};
-var replySpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: (p) => ({
-    route: "POST conversations/[id]/reply",
-    params: { id: asText(p.payload.conversation_id) },
-    body: { text: asText(p.payload.text) },
-    idempotencyKey: p.id
-  }),
-  receipt: (p) => `On its way to ${asText(p.payload.who)} \u2014 sends in 15 seconds unless you cancel`,
-  undo: {
-    label: () => "Sends 15 seconds after you approve; cancel within them",
-    window: "cancelable",
-    record: (_p, data) => ({
-      message_id: rec(data).message_id,
-      cancelable_until: rec(data).cancelable_until,
-      decision_id: decisionOf(data)
-    }),
-    call: (u) => ({ route: "POST messages/[id]/cancel-send", params: { id: asText(u.message_id) } }),
-    receipt: () => "Canceled before it sent"
-  },
-  open: () => null
-};
-var steerSpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: (p) => ({
-    route: "POST messages/[id]/steer",
-    params: { id: asText(p.payload.message_id) },
-    body: { text: asText(p.payload.instruction) }
-  }),
-  receipt: () => "Rewritten \u2014 the new draft waits its turn",
-  open: () => null
-};
-var threadVerbSpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: (p) => {
-    const verb = asText(p.payload.verb);
-    if (!ASK_THREAD_VERBS.includes(verb)) return refuseWith(PROPOSAL_WORDS.cannotApprove);
-    return verb === "resolve" ? { route: "POST escalations/[id]/resolve", params: { id: asText(p.payload.escalation_id) } } : threadCall(verb, p.payload.conversation_id, p.payload.until);
-  },
-  receipt: (p) => {
-    const verb = asText(p.payload.verb);
-    return verb === "take_over" ? `You have ${asText(p.payload.who)}'s thread` : ownEntry(RECEIPT, verb) ?? "Done";
-  },
-  undo: {
-    label: ({ payload }) => ownEntry(UNDO_LABEL, asText(payload.verb)) ?? null,
-    window: "ten_minutes",
-    record: (p, data) => {
-      const inverse = ownEntry(INVERSE, asText(p.payload.verb));
-      return inverse ? {
-        verb: inverse,
-        conversation_id: p.payload.conversation_id,
-        until: p.payload.until ?? null,
-        decision_id: decisionOf(data)
-      } : null;
-    },
-    call: (u) => {
-      const verb = asText(u.verb);
-      return isRoutedVerb(verb) ? threadCall(verb, u.conversation_id, u.until) : refuseWith(PROPOSAL_WORDS.noUndo);
-    },
-    receipt: () => "Undone"
-  },
-  open: cardThreadRoute
-};
-var bookingRequestSpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: (p) => ({
-    route: "POST conversations/[id]/booking-request",
-    params: { id: asText(p.payload.conversation_id) },
-    body: { booked: p.payload.booked === true }
-  }),
-  receipt: (p) => p.payload.booked === true ? BOOKING_REQUEST_WORDS.said.booked(asText(p.payload.who)) : BOOKING_REQUEST_WORDS.said.cant(asText(p.payload.who)),
-  open: cardThreadRoute
-};
-var whisperSpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: (p) => ({
-    route: "POST calls/[id]/whisper",
-    params: { id: asText(p.payload.call_id) },
-    body: { text: asText(p.payload.text), trigger: false }
-  }),
-  receipt: () => "Whispered \u2014 the receptionist works it into its next answer",
-  open: () => null
-};
-
-// src/leads/lead-helpers.ts
-var CLOCK = /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\s*(?:to|–|-|—)\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i;
-var hourOf = (h, m, ap) => Number(h) % 12 + (ap.toUpperCase() === "PM" ? 12 : 0) + (m ? Number(m) / 60 : 0);
-function clockIn(tz, iso, now) {
-  if (!iso) return "\u2014";
-  const at3 = new Date(iso);
-  if (Number.isNaN(at3.getTime())) return "\u2014";
-  const day = (d) => dateFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
-  const clock3 = dateFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(at3);
-  if (day(at3) === day(now)) return clock3;
-  return `${dateFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at3)}, ${clock3}`;
-}
-var METRES_PER_MILE = 1609.344;
-var milesLabel = (m) => {
-  if (m === null || m === void 0) return "";
-  const mi = m / METRES_PER_MILE;
-  return `${mi < 10 ? mi.toFixed(1) : String(Math.round(mi))} mi`;
-};
-
-// src/leads/lead-facts.ts
-function leadTodayLine(hours, tz, now) {
-  if (!hours.length) return null;
-  const dayOf2 = (d) => dateFormat("en-US", { timeZone: tz, weekday: "long" }).format(d).toLowerCase();
-  const hoursOn = (d) => hours.find((x) => x.day.toLowerCase() === dayOf2(d))?.hours.trim() ?? null;
-  const parts2 = dateFormat("en-US", {
-    timeZone: tz,
-    hour: "numeric",
-    minute: "numeric",
-    hourCycle: "h23"
-  }).formatToParts(now);
-  const at3 = Number(parts2.find((p) => p.type === "hour")?.value ?? 0) + Number(parts2.find((p) => p.type === "minute")?.value ?? 0) / 60;
-  const clock3 = (hh, mm, ap) => `${hh}${mm && mm !== "00" ? `:${mm}` : ""} ${ap.toUpperCase()}`;
-  const last = hoursOn(new Date(now.getTime() - DAY_MS))?.match(CLOCK);
-  if (last && hourOf(last[4], last[5], last[6]) <= hourOf(last[1], last[2], last[3]) && at3 < hourOf(last[4], last[5], last[6])) {
-    return `Open until ${clock3(last[4], last[5], last[6])}`;
-  }
-  const text = hoursOn(now);
-  if (text === null) return null;
-  if (/^closed/i.test(text)) return "Closed today";
-  if (/^open 24 hours$/i.test(text)) return "Open 24 hours";
-  const m = text.match(CLOCK);
-  if (!m) return `Open today \xB7 ${leadHoursShort(text)}`;
-  const open = hourOf(m[1], m[2], m[3]);
-  let close = hourOf(m[4], m[5], m[6]);
-  if (close <= open) close += 24;
-  if (at3 < open) return `Opens ${clock3(m[1], m[2], m[3])}`;
-  if (at3 < close) return `Open until ${clock3(m[4], m[5], m[6])}`;
-  return "Closed now";
-}
-function leadHoursShort(text) {
-  const t = text.trim();
-  if (/^open 24 hours$/i.test(t)) return "24 hours";
-  if (/^closed/i.test(t)) return "Closed";
-  const at3 = (h, mm) => mm && mm !== "00" ? `${h}:${mm}` : h;
-  const ranges = t.split(/\s*,\s*/).map((part) => {
-    const m = part.match(CLOCK);
-    if (!m) return null;
-    const a1 = m[3].toUpperCase();
-    const a2 = m[6].toUpperCase();
-    const wraps = hourOf(m[4], m[5], m[6]) <= hourOf(m[1], m[2], m[3]);
-    if (!wraps && a1 === "AM" && a2 === "PM") return `${at3(m[1], m[2])}\u2013${at3(m[4], m[5])}`;
-    if (!wraps && a1 === a2) return `${at3(m[1], m[2])}\u2013${at3(m[4], m[5])} ${a2}`;
-    return `${at3(m[1], m[2])} ${a1}\u2013${at3(m[4], m[5])} ${a2}`;
-  });
-  return ranges.every(Boolean) ? ranges.join(", ") : t;
-}
-function leadWhere(r2) {
-  const town = [r2.city, r2.state].filter(Boolean).join(", ") + (r2.postal_code ? ` ${r2.postal_code}` : "");
-  const line = [r2.street, town].filter(Boolean).join(", ");
-  return line ? { line, href: r2.maps_url ?? null } : null;
-}
-var LEAD_UNDO_MS = DAY_MS;
-function leadUndoable(s, now) {
-  if (s?.via === "chosen") return false;
-  const r2 = s?.round;
-  return !!r2 && !r2.undo_op_id && !!r2.ended_at && now.getTime() - Date.parse(r2.ended_at) < LEAD_UNDO_MS;
-}
-function leadExclusionWord(search, key) {
-  if (!key) return LEAD_LEFT_OUT_WORD;
-  const plan = search?.plan;
-  if (key === LEAD_KIND_KEY) return plan ? leadKindWord(plan.name) : LEAD_LEFT_OUT_WORD;
-  if (key === LEAD_UNREACHABLE_KEY) return LEAD_UNREACHABLE_WORD;
-  const ex = plan?.exclusions.find((e) => e.key === key);
-  if (ex) return ex.text;
-  const cr = plan?.criteria.find((c) => c.key === key);
-  return cr ? cr.text : LEAD_LEFT_OUT_WORD;
-}
-var LEAD_CHECK_UNSURE_WORD = "couldn't tell";
-function leadCheckWord(search, key, answer) {
-  const plan = search?.plan;
-  const cap2 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-  const low = (s) => s[1] && s[1] === s[1].toLowerCase() ? s.charAt(0).toLowerCase() + s.slice(1) : s;
-  const said = (yes, no) => answer === "yes" ? yes : answer === "no" ? no : `${yes}: ${LEAD_CHECK_UNSURE_WORD}`;
-  if (key === LEAD_KIND_KEY && plan) return said(`One of the ${plan.name}`, leadKindWord(plan.name));
-  const cr = plan?.criteria.find((c) => c.key === key);
-  if (cr) return said(cap2(cr.text), `${cap2(cr.text)}: no`);
-  const ex = plan?.exclusions.find((e) => e.key === key);
-  if (ex) return said(`Not ${low(ex.text)}`, `One of the ${low(ex.text)}`);
-  const fixed = LEAD_CHECK_WORDS[key];
-  if (fixed) return fixed[answer];
-  const plain2 = cap2(key.replace(/_+/g, " ").trim()) || key;
-  return said(plain2, `${plain2}: no`);
-}
-var LEAD_SLOT_WORDS = {
-  ok: "Checked",
-  part: "Unconfirmed",
-  none: "Nothing found",
-  bad: "Bad",
-  checking: "Still checking"
-};
-function leadSlots(r2) {
-  const phone = !r2.phone ? { state: "none", value: null, word: LEAD_SLOT_WORDS.none, tip: "No phone on the listing", copy: false } : r2.phone_wrong ? {
-    state: "bad",
-    value: r2.phone,
-    word: LEAD_SLOT_WORDS.bad,
-    tip: `${r2.phone} \u2014 you marked this number wrong`,
-    copy: false
-  } : r2.phone_agrees ? {
-    state: "ok",
-    value: r2.phone,
-    word: LEAD_SLOT_WORDS.ok,
-    tip: `${r2.phone} \u2014 the same number on Google Maps and on their website`,
-    copy: true
-  } : {
-    state: "part",
-    value: r2.phone,
-    word: LEAD_SLOT_WORDS.part,
-    tip: `${r2.phone} \u2014 one source, their Google Maps listing`,
-    copy: true
-  };
-  const s = r2.email_state;
-  const mailbox = !r2.email || s === "none" ? {
-    state: "none",
-    value: null,
-    word: LEAD_SLOT_WORDS.none,
-    tip: `${LEAD_MAILBOX_WORDS.none} \u2014 home, contact and about pages checked`,
-    copy: false
-  } : s === "ok" ? {
-    state: "ok",
-    value: r2.email,
-    word: LEAD_SLOT_WORDS.ok,
-    tip: `${r2.email} \u2014 ${LEAD_MAILBOX_WORDS.ok}`,
-    copy: true
-  } : s === "invalid" ? {
-    state: "bad",
-    value: r2.email,
-    word: LEAD_SLOT_WORDS.bad,
-    tip: `${r2.email} \u2014 ${LEAD_MAILBOX_WORDS.invalid}`,
-    copy: false
-  } : s === "checking" ? {
-    state: "checking",
-    value: r2.email,
-    word: LEAD_SLOT_WORDS.checking,
-    tip: `${r2.email} \u2014 ${LEAD_MAILBOX_WORDS.checking}. It resolves itself`,
-    copy: true
-  } : {
-    state: "part",
-    value: r2.email,
-    word: LEAD_SLOT_WORDS.part,
-    tip: `${r2.email} \u2014 ${LEAD_MAILBOX_WORDS[s]}`,
-    copy: true
-  };
-  return { phone, mailbox };
-}
-function leadTintOf(kind) {
-  let h = 7;
-  for (const ch of kind ?? "") h = h * 31 + ch.charCodeAt(0) >>> 0;
-  return h % 6 + 1;
-}
-var LEAD_TILE_PX = 96;
-function leadTileSrc(url, px = LEAD_TILE_PX) {
-  if (!url) return null;
-  if (!/^https:\/\/lh3\.googleusercontent\.com\//.test(url)) return url;
-  return url.replace(/=w\d+-h\d+(?:-[a-z0-9-]+)?$/i, `=s${px}-c`);
-}
-
-// src/leads/lead-review.ts
-var leadLowerFirst = (s) => s && s[1] && s[1] === s[1].toLowerCase() && s[1] !== s[1].toUpperCase() ? s.charAt(0).toLowerCase() + s.slice(1) : s;
-var LEAD_REVIEW_GROUP_WORDS = {
-  mailbox_waiting: "Waiting on the mailbox check",
-  checks_out: "Their email checks out",
-  mailbox_silent: "Their mail server wouldn't answer",
-  bad_email: "Their email bounces",
-  no_email: "No email on their site",
-  no_phone: "No phone on their listing",
-  catch_all: "Unconfirmed \u2014 the mailbox accepts any address",
-  unsure: "Couldn't tell if",
-  read_only: "Only the listing says so",
-  out_of_area: "Just outside the area you asked for"
-};
-var REVIEW_GROUP_ORDER = [
-  "mailbox_waiting",
-  "checks_out",
-  "mailbox_silent",
-  "bad_email",
-  "no_email",
-  "no_phone",
-  "catch_all",
-  "unsure",
-  "read_only",
-  "out_of_area"
-];
-var REVIEW_GROUP_ACTS = {
-  mailbox_waiting: [],
-  checks_out: ["keep", "exclude"],
-  mailbox_silent: ["check_again", "keep", "exclude"],
-  bad_email: ["keep", "exclude"],
-  no_email: ["keep", "exclude"],
-  no_phone: ["keep", "exclude"],
-  catch_all: ["keep", "exclude"],
-  unsure: ["keep", "exclude"],
-  read_only: ["keep", "exclude"],
-  out_of_area: ["keep", "exclude"]
-};
-function reviewGroupOf(reason) {
-  if (reason === "email:checking") return "mailbox_waiting";
-  if (reason === "email:ok") return "checks_out";
-  if (reason === "email:unknown") return "mailbox_silent";
-  if (reason === "email:invalid") return "bad_email";
-  if (reason === "email:none") return "no_email";
-  if (reason === "phone:none") return "no_phone";
-  if (reason === "email:catch_all") return "catch_all";
-  if (reason.startsWith("unknown:")) return "unsure";
-  if (reason.startsWith("inferred:")) return "read_only";
-  if (reason === "out_of_area") return "out_of_area";
-  return null;
-}
-var LEAD_REVIEW_ACT_WORDS = {
-  check_again: "Check again",
-  keep: "Keep",
-  exclude: "Exclude"
-};
-var LEAD_REVIEW_GROUP_WHY = {
-  mailbox_waiting: "The mailbox check is still running on these. Nothing to press \u2014 they move on their own.",
-  checks_out: "Their address answered after this month's leads were spoken for, so they are waiting for you to keep them.",
-  mailbox_silent: "Their mail server did not answer the check. Asking again settles most of them.",
-  bad_email: "The address on their site does not exist, so an email would bounce. Their number may still be good.",
-  no_email: "Their home, contact and about pages were read, and no address was on any of them.",
-  no_phone: "This search counts a phone as enough, and no number on the listing could be matched against their site. An email may still reach them.",
-  catch_all: "Their server accepts every address, so the check cannot tell whether this one is real.",
-  unsure: "Claude could not tell from the listing or from their site.",
-  read_only: "Only the listing says so, and this search asked to see it for itself.",
-  out_of_area: "They sit outside the area you asked for, so they were not counted."
-};
-var LEAD_CHECK_CENTS_EACH = 0.089;
-var leadCheckAgainCents = (n) => Math.max(1, Math.round(n * LEAD_CHECK_CENTS_EACH));
-function leadReviewCosts(acts, n, month) {
-  const line = (a) => {
-    switch (a) {
-      case "keep":
-        return month ? `They join Ready and count against this month. ${n} of your ${month.left} left.` : "They join Ready and count against this month.";
-      case "exclude":
-        return "They don't count, and nothing is charged.";
-      case "check_again":
-        return `About ${leadCheckAgainCents(n)}\xA2. Their answer lands here in a few minutes.`;
-    }
-  };
-  return acts.map((act2) => ({ act: act2, label: LEAD_REVIEW_ACT_WORDS[act2], line: line(act2) }));
-}
-function leadAskedFor(search) {
-  const plan = search?.plan;
-  if (!plan) return [];
-  return [
-    ...plan.criteria.map((c) => ({ text: c.text, kind: "criterion" })),
-    ...plan.exclusions.map((e) => ({ text: e.text, kind: "exclusion" }))
-  ];
-}
-function leadReviewGroups(rows2, search) {
-  const by = /* @__PURE__ */ new Map();
-  for (const r2 of rows2) {
-    if (r2.cls !== "review") continue;
-    const reasons = r2.reasons ?? [];
-    const held = reasons.map(reviewGroupOf).filter((g2) => g2 !== null && g2 !== "checks_out");
-    const picked = held.length ? REVIEW_GROUP_ORDER.find((g2) => held.includes(g2)) : reasons.some((x) => reviewGroupOf(x) === "checks_out") ? "checks_out" : void 0;
-    if (!picked) continue;
-    const reason = reasons.find((x) => reviewGroupOf(x) === picked) ?? "";
-    const crit = (picked === "unsure" || picked === "read_only") && reason.includes(":") ? reason.slice(reason.indexOf(":") + 1) : null;
-    const key = crit ? `${picked}:${crit}` : picked;
-    const label = crit ? `${LEAD_REVIEW_GROUP_WORDS[picked]} \u2014 ${leadLowerFirst(leadExclusionWord(search, crit))}` : LEAD_REVIEW_GROUP_WORDS[picked];
-    const g = by.get(key) ?? { id: picked, key, label, ids: [], acts: REVIEW_GROUP_ACTS[picked] };
-    g.ids.push(r2.id);
-    by.set(key, g);
-  }
-  return [...by.values()].sort((a, b) => REVIEW_GROUP_ORDER.indexOf(a.id) - REVIEW_GROUP_ORDER.indexOf(b.id));
-}
-var M_PER_DEG_LAT = 111320;
-var middleOf = (pts) => {
-  if (!pts.length) return null;
-  const lats = pts.map((p) => p.lat);
-  const lngs = pts.map((p) => p.lng);
-  return { lat: (Math.min(...lats) + Math.max(...lats)) / 2, lng: (Math.min(...lngs) + Math.max(...lngs)) / 2 };
-};
-var COMPASS = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"];
-function leadAreaFrom(from, to) {
-  if (!from || !to) return "";
-  const perLng = M_PER_DEG_LAT * Math.cos(from.lat * Math.PI / 180);
-  const e = (to.lng - from.lng) * perLng;
-  const n = (to.lat - from.lat) * M_PER_DEG_LAT;
-  const deg = (Math.atan2(e, n) * 180 / Math.PI + 360) % 360;
-  return `${milesLabel(Math.hypot(e, n))} ${COMPASS[Math.round(deg / 45) % 8]}`;
-}
-var LEAD_MAP_MAX_SPAN_M = 8e4;
-function leadMapPlot(rows2, area) {
-  const placed = rows2.filter((r2) => !!r2.point);
-  const anchor = area?.center ?? middleOf(placed.map((r2) => r2.point));
-  if (!anchor || !placed.length && !area?.center)
-    return { pins: [], ring: null, spanM: 0, tooWide: false, center: anchor };
-  const perLng = M_PER_DEG_LAT * Math.cos(anchor.lat * Math.PI / 180);
-  const at3 = (p) => ({
-    e: (p.lng - anchor.lng) * perLng,
-    s: (anchor.lat - p.lat) * M_PER_DEG_LAT
-  });
-  const metres = placed.map((r2) => at3(r2.point));
-  const reach = Math.max(
-    area?.center && area.radius_m ? area.radius_m : 0,
-    ...metres.map((m) => Math.max(Math.abs(m.e), Math.abs(m.s))),
-    500
-  );
-  const half = reach * 1.12;
-  const spanM = Math.round(half * 2);
-  const into = (m) => ({ x: 0.5 + m.e / (half * 2), y: 0.5 + m.s / (half * 2) });
-  return {
-    pins: placed.map((r2, i) => ({ id: r2.id, ...into(metres[i]) })),
-    ring: area?.center && area.radius_m ? { ...into(at3(area.center)), r: area.radius_m / (half * 2) } : null,
-    spanM,
-    tooWide: !area?.center && spanM > LEAD_MAP_MAX_SPAN_M,
-    center: anchor
-  };
-}
-var leadMapAcross = (spanM) => spanM ? `${milesLabel(spanM)} across` : "";
-function leadMapNote(plot, oneSearch) {
-  if (plot.tooWide)
-    return "These leads are spread too far apart to be one place. Pick a search to see it on the ground.";
-  if (plot.ring) return "The area this search asked for, and every lead it placed inside it.";
-  return oneSearch ? "" : "Every lead these searches placed on the ground.";
-}
-
-// src/shared/csv.ts
-function csvCell(v) {
-  let s = v == null ? "" : typeof v === "boolean" ? v ? "yes" : "no" : String(v);
-  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
-  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-function delimiterOf(text) {
-  const first = (text.split(/\r?\n/, 1)[0] ?? "").replace(/"[^"]*"/g, "");
-  return (first.match(/;/g) ?? []).length > (first.match(/,/g) ?? []).length ? ";" : ",";
-}
-function parseCsv(text) {
-  const s = text.charCodeAt(0) === 65279 ? text.slice(1) : text;
-  const sep = delimiterOf(s);
-  const rows2 = [];
-  let row2 = [];
-  let cell3 = "";
-  let quoted = false;
-  let lineNo = 1;
-  let rowStartLine = 1;
-  const pushRow = () => {
-    Object.defineProperty(row2, "line", { value: rowStartLine, enumerable: false });
-    rows2.push(row2);
-  };
-  for (let i = 0; i < s.length; i++) {
-    const ch = s[i];
-    if (quoted) {
-      if (ch === '"') {
-        if (s[i + 1] === '"') {
-          cell3 += '"';
-          i++;
-        } else quoted = false;
-      } else {
-        if (ch === "\n") lineNo++;
-        cell3 += ch;
-      }
-      continue;
-    }
-    if (ch === '"') {
-      if (cell3 === "") {
-        quoted = true;
-        continue;
-      }
-      cell3 += ch;
-      continue;
-    }
-    if (ch === sep) {
-      row2.push(cell3);
-      cell3 = "";
-      continue;
-    }
-    if (ch === "\r") continue;
-    if (ch === "\n") {
-      row2.push(cell3);
-      pushRow();
-      row2 = [];
-      cell3 = "";
-      lineNo++;
-      rowStartLine = lineNo;
-      continue;
-    }
-    cell3 += ch;
-  }
-  if (cell3 !== "" || row2.length) {
-    row2.push(cell3);
-    pushRow();
-  }
-  return rows2.filter((r2) => r2.some((c) => c.trim() !== ""));
-}
-var NAME_WORDS = /^(name|full ?name|client|client ?name|customer|customer ?name|first ?name|given ?name|nombre)$/i;
-var LAST_WORDS = /^(last ?name|surname|family ?name|apellidos?)$/i;
-var PHONE_WORDS = /^(phone|mobile|cell|cell ?phone|tel|telephone|phone ?number|mobile ?number|number|tel[eé]fono|m[oó]vil|celular)$/i;
-var EMAIL_WORDS = /^(e-?mail|email ?address|e-?mail ?address|correo|correo electr[oó]nico)$/i;
-function phoneShaped(v) {
-  return /^\+?[\d\s().-]+$/.test(v) && v.replace(/\D/g, "").length >= 10;
-}
-function isHeaderRow(first) {
-  return first.length > 0 && !first.some((c) => phoneShaped(c) || normalizeEmail(c) !== null);
-}
-var COLUMN_SHARE = 0.6;
-function columnShare(rows2, col, is) {
-  let seen = 0;
-  let hit = 0;
-  for (const r2 of rows2) {
-    const v = (r2[col] ?? "").trim();
-    if (!v) continue;
-    seen += 1;
-    if (is(v)) hit += 1;
-  }
-  return seen ? hit / seen : 0;
-}
-function matchColumns(rows2) {
-  const first = rows2[0] ?? [];
-  const width = rows2.reduce((w, r2) => Math.max(w, r2.length), 0);
-  const header = isHeaderRow(first);
-  const body = header ? rows2.slice(1) : rows2;
-  const columns = { name: null, last: null, phone: null, email: null };
-  if (header) {
-    first.forEach((h, i) => {
-      const w = h.trim();
-      if (columns.email === null && EMAIL_WORDS.test(w)) columns.email = i;
-      else if (columns.phone === null && PHONE_WORDS.test(w)) columns.phone = i;
-      else if (columns.last === null && LAST_WORDS.test(w)) columns.last = i;
-      else if (columns.name === null && NAME_WORDS.test(w)) columns.name = i;
-    });
-  }
-  for (let i = 0; i < width; i++) {
-    if (Object.values(columns).includes(i)) continue;
-    if (columns.email === null && columnShare(body, i, (v) => normalizeEmail(v) !== null) >= COLUMN_SHARE)
-      columns.email = i;
-    else if (columns.phone === null && columnShare(body, i, phoneShaped) >= COLUMN_SHARE) columns.phone = i;
-  }
-  if (columns.name === null) {
-    for (let i = 0; i < width; i++) {
-      if (Object.values(columns).includes(i)) continue;
-      const words3 = (v) => /\p{L}/u.test(v) && normalizeEmail(v) === null && normalizePhone(v) === null;
-      if (columnShare(body, i, words3) >= COLUMN_SHARE) {
-        columns.name = i;
-        break;
-      }
-    }
-  }
-  return { columns, header };
-}
-function importRowsOf(rows2, columns, header) {
-  const cell3 = (r2, i) => i === null ? "" : (r2[i] ?? "").trim();
-  return (header ? rows2.slice(1) : rows2).map((r2, n) => {
-    const name = Array.from(
-      [cell3(r2, columns.name), cell3(r2, columns.last)].filter(Boolean).join(" ").replace(/\s+/g, " ")
-    ).slice(0, 80).join("").trim();
-    const carried = r2.line;
-    return {
-      line: carried ?? n + (header ? 2 : 1),
-      name: name || null,
-      phone: normalizePhone(cell3(r2, columns.phone)),
-      email: normalizeEmail(cell3(r2, columns.email))
-    };
-  });
-}
-function importCounts(rows2) {
-  return {
-    rows: rows2.length,
-    withPhone: rows2.filter((r2) => r2.phone).length,
-    withEmail: rows2.filter((r2) => r2.email).length,
-    unreadable: rows2.filter((r2) => !r2.phone && !r2.email).length
-  };
-}
-
-// src/leads/lead-import.ts
-var LEAD_LIST_MAX = 500;
-var LEAD_IMPORT_MAX_BYTES = 2e6;
-var LEAD_LIST_VIAS = ["import", "chosen"];
-var isLeadList = (s) => !!s && LEAD_LIST_VIAS.includes(s.via ?? "");
-var WORDS = {
-  email: /^(e-?mail|email ?address|e-?mail ?address|work ?e-?mail|business ?e-?mail|contact ?e-?mail)$/i,
-  phone: /^(phone|phone ?number|telephone|tel|mobile|cell|business ?phone|main ?phone|number)$/i,
-  website: /^(website|web ?site|url|site|domain|web|homepage|website ?url)$/i,
-  city: /^(city|town|locality)$/i,
-  region: /^(state|region|province|st)$/i,
-  category: /^(category|industry|type|business ?type|kind|niche|vertical)$/i,
-  name: /^(business|business ?name|company|company ?name|name|organi[sz]ation|account|account ?name|store|shop|practice|brand)$/i
-};
-var ORDER = ["email", "phone", "website", "city", "region", "category", "name"];
-function websiteHostOf(raw) {
-  const s = String(raw ?? "").trim().toLowerCase().replace(/^[a-z][a-z0-9+.-]*:\/\//, "").replace(/^www\./, "").split(/[/?#:]/)[0];
-  if (!s || s.length > 120 || s.includes("@")) return null;
-  return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(s) ? s : null;
-}
-function regionOf(raw) {
-  const s = String(raw ?? "").trim();
-  if (!s) return null;
-  const codes = new Set(Object.values(US_STATES));
-  if (/^[A-Za-z]{2}$/.test(s) && codes.has(s.toUpperCase())) return s.toUpperCase();
-  return US_STATES[s.toLowerCase()] ?? null;
-}
-function leadImportColumns(rows2) {
-  const first = rows2[0] ?? [];
-  const width = rows2.reduce((w, r2) => Math.max(w, r2.length), 0);
-  const header = isHeaderRow(first);
-  const body = header ? rows2.slice(1) : rows2;
-  const columns = {
-    name: null,
-    email: null,
-    phone: null,
-    website: null,
-    city: null,
-    region: null,
-    category: null
-  };
-  const taken = (i) => Object.values(columns).includes(i);
-  if (header)
-    first.forEach((h, i) => {
-      const k = ORDER.find((key) => columns[key] === null && WORDS[key].test(h.trim()));
-      if (k) columns[k] = i;
-    });
-  for (let i = 0; i < width; i++) {
-    if (taken(i)) continue;
-    if (columns.email === null && columnShare(body, i, (v) => normalizeEmail(v) !== null) >= COLUMN_SHARE)
-      columns.email = i;
-    else if (columns.phone === null && columnShare(body, i, phoneShaped) >= COLUMN_SHARE) columns.phone = i;
-    else if (columns.website === null && columnShare(body, i, (v) => websiteHostOf(v) !== null) >= COLUMN_SHARE)
-      columns.website = i;
-  }
-  if (columns.name === null)
-    for (let i = 0; i < width; i++) {
-      if (taken(i)) continue;
-      const words3 = (v) => /\p{L}/u.test(v) && normalizeEmail(v) === null && websiteHostOf(v) === null;
-      if (columnShare(body, i, words3) >= COLUMN_SHARE) {
-        columns.name = i;
-        break;
-      }
-    }
-  return { columns, header };
-}
-var leadImportReady = (r2) => !!r2.name && !!r2.email;
-function leadImportPlanOf(text) {
-  const cells = parseCsv(text || "");
-  const { columns, header } = leadImportColumns(cells);
-  const cell3 = (r2, i) => i === null ? "" : (r2[i] ?? "").trim();
-  const words3 = (v, max) => Array.from(v.replace(/\s+/g, " ")).slice(0, max).join("").trim() || null;
-  const rows2 = (header ? cells.slice(1) : cells).map((r2, n) => {
-    const carried = r2.line;
-    return {
-      line: carried ?? n + (header ? 2 : 1),
-      name: words3(cell3(r2, columns.name), 200),
-      email: normalizeEmail(cell3(r2, columns.email)),
-      phone: normalizePhone(cell3(r2, columns.phone)),
-      website_host: websiteHostOf(cell3(r2, columns.website)),
-      city: words3(cell3(r2, columns.city), 120),
-      region: regionOf(cell3(r2, columns.region)),
-      category: words3(cell3(r2, columns.category), 120)
-    };
-  });
-  return {
-    columns,
-    header,
-    headers: header ? cells[0] ?? [] : [],
-    rows: rows2,
-    counts: {
-      rows: rows2.length,
-      ready: rows2.filter(leadImportReady).length,
-      noEmail: rows2.filter((r2) => !r2.email).length,
-      noName: rows2.filter((r2) => !!r2.email && !r2.name).length
-    }
-  };
-}
-function leadImportEstimateUsd(addresses) {
-  const each = LEAD_CARDS.find((c) => c.id === "local_businesses")?.checkPerEmailUsd ?? 89e-5;
-  return Math.max(0.5, Math.round(Math.max(0, addresses) * each * LEAD_ESTIMATE_MARGIN * 100) / 100);
-}
-var LEAD_IMPORT_WORDS = {
-  importDoor: "Import leads",
-  importTitle: "Import leads",
-  /**
-   * What a row needs, in one line under the title, and the rest under `importMore` (the fitted sheets, 14 Oct 2026:
-   * five lines on what a file holds opened the sheet).
-   */
-  importLine: "A name and an email on each row.",
-  importMore: "What a row can hold",
-  importRest: "A phone, a website, a city or a state, where you have them. Every address is checked before a reach-out may write to it.",
-  file: "Choose a CSV file",
-  paste: "Or paste the rows",
-  pastePlaceholder: "Business,Email,Website,City,State\nZilker Kettlebell Club,hello@example.com,example.com,Austin,TX",
-  read: "Read the rows",
-  nameLabel: "Name this list",
-  askedLabel: "Who are they?",
-  askedHint: "A line about them for the emails, like \u201Cgyms I met at the Austin expo\u201D. Leave it and the name is used.",
-  costs: "Each address that checks out counts as one of this month's leads, as a found lead does.",
-  tooMany: `A list takes at most ${LEAD_LIST_MAX} rows. Split the file and import the rest as another list.`,
-  tooBig: `That file is larger than ${LEAD_IMPORT_MAX_BYTES / 1e6} MB, more than a list of ${LEAD_LIST_MAX} rows needs. Split it and import each part as a list of its own.`,
-  unreadable: "That file could not be read. Save it again as a CSV and choose it once more, or paste its rows.",
-  nothing: "No row has both a business name and an email address, so there is nothing to import.",
-  failed: "The list could not be imported. Nothing was written.",
-  write: "Write to them",
-  writeHint: "The chosen leads become a list of their own, and the reach-out's sheet opens on it.",
-  writing: "Making the list\u2026",
-  searchAgain: "A list of your own is not searched again. Start a new search to find more businesses."
-};
-function leadImportCountWords(c) {
-  const without = c.rows - c.ready;
-  return `${plural(c.rows, "row")} \xB7 ${c.ready.toLocaleString()} with a name and an email${without ? ` \xB7 ${without.toLocaleString()} without` : ""}`;
-}
-function leadImportColumnWords(plan) {
-  if (!plan.header) return "No header row: the columns were told apart by what is in them.";
-  const said = (i) => i === null ? "not found" : `\u201C${String(plan.headers[i] ?? "").trim()}\u201D`;
-  const c = plan.columns;
-  return `Columns: business ${said(c.name)}, email ${said(c.email)}, phone ${said(c.phone)}, website ${said(c.website)}.`;
-}
-var leadImportSaveLabel = (n) => `Import ${n.toLocaleString()} and check their addresses`;
-function leadImportNameOf(fileName, nowMs, tz) {
-  const base = String(fileName ?? "").replace(/\.[a-z0-9]{1,5}$/i, "").replace(/[_-]+/g, " ").trim();
-  return (base || `Imported on ${clockDate(nowMs, tz, nowMs)}`).slice(0, 120);
-}
-var leadChooseNameOf = (nowMs, tz) => `Chosen on ${clockDate(nowMs, tz, nowMs)}`;
-var leftOut = (parts2) => {
-  const said = parts2.filter(([n]) => n > 0).map(([n, one, many]) => `${n.toLocaleString()} ${n === 1 ? one : many}`);
-  return said.length ? `Left out: ${said.join(", ")}.` : null;
-};
-function leadImportAnswerWords(a, leftByPage = 0) {
-  const joined = a.checking + a.counted;
-  const lines = [
-    a.checking ? `Checking ${plural(a.checking, "address", "addresses")} now: each one that checks out joins Ready, usually within a few minutes.` : null,
-    a.counted ? `${plural(a.counted, "lead")} already counted joined as ${a.counted === 1 ? "it is" : "they are"}.` : null,
-    leftOut([
-      [leftByPage + a.left_out.unreadable, "without a name or an address", "without a name or an address"],
-      [a.left_out.twice, "twice in the file", "twice in the file"],
-      [a.left_out.customer, "already in People", "already in People"],
-      [a.left_out.never_again, "on your never-again list", "on your never-again list"],
-      [a.left_out.elsewhere ?? 0, "being checked in another search", "being checked in another search"]
-    ])
-  ].filter((l) => !!l);
-  return { title: `${plural(joined, "business", "businesses")} on the list`, lines };
-}
-function leadChooseAnswerWords(a) {
-  const off = leftOut([
-    [a.left_out.not_counted, "not yet counted: keep them first", "not yet counted: keep them first"],
-    [a.left_out.no_email, "with no address", "with no address"],
-    [a.left_out.gone, "no longer here", "no longer here"]
-  ]);
-  return `${plural(a.counted, "lead")} on the list.${off ? ` ${off}` : ""}`;
-}
-function leadListStripOf(s) {
-  if (!s || !isLeadList(s)) return null;
-  const r2 = s.round;
-  const qualified = r2?.qualified ?? 0;
-  const review = r2?.review ?? 0;
-  const pile = review ? [{ id: "review", label: `${review.toLocaleString()} need a look`, arg: "review", pile: true }] : [];
-  if (s.via === "chosen")
-    return {
-      state: "ended",
-      alert: false,
-      title: `${plural(qualified, "lead")} you chose`,
-      parts: [],
-      progress: null,
-      actions: []
-    };
-  if (r2 && r2.state !== "ended")
-    return {
-      state: "running",
-      alert: false,
-      title: "Checking the addresses on your list",
-      parts: [`${qualified.toLocaleString()} ready so far`],
-      progress: null,
-      actions: []
-    };
-  return {
-    state: "ended",
-    alert: false,
-    title: `${qualified.toLocaleString()} of ${(qualified + review).toLocaleString()} on your list are ready`,
-    parts: review ? [`${review.toLocaleString()} could not be confirmed and wait in Needs review`] : [],
-    progress: null,
-    actions: pile
-  };
-}
-function leadListEmptyOf(s) {
-  if (!s || s.via !== "import" || !s.round || s.round.state === "ended") return null;
-  return {
-    title: "Checking the addresses.",
-    body: "Each business shows here once its address checks out; the rest wait in Needs review.",
-    action: null
-  };
-}
-
-// src/leads/lead-kind.ts
-var LEAD_KINDS = ["place", "company"];
-var LEAD_SOURCES = ["local_businesses", "people_at_companies", "import"];
-var LEAD_ROLES = ["owner", "founder", "executive", "partner", "director", "manager", "staff"];
-var isLeadRole = (r2) => LEAD_ROLES.includes(r2);
-var LEAD_DIRECTORY_WORDS = {
-  found: "From a business directory",
-  address: "the address came with its people",
-  addressAlone: "The address came with its people"
-};
-function leadFoundWords(t) {
-  if (t.kind === "company") return LEAD_DIRECTORY_WORDS.found;
-  if (t.found_on_listing === false) return "From your list";
-  return t.search?.asked ? `Found on Google Maps by \u201C${t.search.asked}\u201D` : "Found on Google Maps";
-}
-var LEAD_ROLE_WORDS = {
-  owner: "owner",
-  founder: "founder",
-  executive: "executive",
-  partner: "partner",
-  director: "director",
-  manager: "manager",
-  staff: "team member"
-};
-var LEAD_PEOPLE_MAX = 5;
-var NO_LEAD_FACTS = { people: [], addressee: null, size: null };
-var capped = (v, max) => trimmedOrNull(v)?.slice(0, max) ?? null;
-function leadRoleOf(seniority, title) {
-  switch ((seniority ?? "").trim().toLowerCase()) {
-    case "owner":
-      return "owner";
-    case "founder":
-      return "founder";
-    case "c_suite":
-      return "executive";
-    case "partner":
-      return "partner";
-    case "vp":
-    case "head":
-    case "director":
-      return "director";
-    case "manager":
-      return "manager";
-    case "senior":
-    case "entry":
-      return "staff";
-  }
-  const t = (title ?? "").toLowerCase();
-  if (!t.trim()) return null;
-  if (/\b(assistant|coordinator|intern|receptionist|secretary)\b/.test(t)) return "staff";
-  if (/\bowner\b/.test(t)) return "owner";
-  if (/\b(co-?)?founder\b/.test(t)) return "founder";
-  if (/\b(ceo|coo|cfo|cto|cmo|cio|chief|president)\b/.test(t)) return "executive";
-  if (/\bpartner\b/.test(t)) return "partner";
-  if (/\b(vp|vice president|head of|director)\b/.test(t)) return "director";
-  if (/\bmanager\b/.test(t)) return "manager";
-  return "staff";
-}
-function leadPersonOf(raw) {
-  const o = recordOrNull(raw);
-  const name = capped(o?.name, 120);
-  if (!o || !name) return null;
-  return {
-    name,
-    // Its source's first name, else the one rule's reading of the whole one (templates' firstNameOf).
-    first_name: capped(o.first_name, 60) ?? firstNameOf(name, null),
-    title: capped(o.title, 120),
-    role: isLeadRole(o.role) ? o.role : null,
-    email: capped(o.email, 254)?.toLowerCase() ?? null,
-    profile_url: capped(o.profile_url, 300)
-  };
-}
-function readFacts(raw) {
-  const o = recordOrNull(raw);
-  if (!o) return { facts: NO_LEAD_FACTS, at: [] };
-  const stored = (Array.isArray(o.people) ? o.people : []).map((p, at3) => ({ person: leadPersonOf(p), at: at3 })).filter((x) => x.person !== null).slice(0, LEAD_PEOPLE_MAX);
-  const a = o.addressee;
-  const addressee = typeof a === "number" && Number.isInteger(a) ? stored.findIndex((x) => x.at === a) : -1;
-  return {
-    facts: {
-      people: stored.map((x) => x.person),
-      addressee: addressee >= 0 ? addressee : null,
-      size: capped(o.size, 20)
-    },
-    at: stored.map((x) => x.at)
-  };
-}
-var leadFactsOf = (raw) => readFacts(raw).facts;
-function leadAddresseeOf(l) {
-  if (l.kind !== "company") return null;
-  const f = leadFactsOf(l.facts);
-  return f.addressee === null ? null : f.people[f.addressee] ?? null;
-}
-var LEAD_COMPANY_WORDS = {
-  head: (n) => n === 1 ? "Named at this company" : `Named at this company \xB7 ${n}`,
-  writesTo: "Your reach-out writes to them",
-  size: (s) => `${s} people`,
-  profile: "Profile"
-};
-var LEAD_ADDRESSEE_WORDS = {
-  door: "Write to them instead",
-  /** What a role that may not is told it cannot do here (gateTitle). */
-  gated: "choose who a reach-out writes to",
-  choosing: "Choosing\u2026",
-  /** Chosen: whom the business's reach-out writes to now, and whether their address is checked first or was already. */
-  done: (name, business, checking) => checking ? `${business}'s reach-out writes to ${name} now. Their address is being checked first, which takes a few minutes.` : `${business}'s reach-out writes to ${name} now. Their address was checked already.`,
-  refused: {
-    gone: "This lead is gone.",
-    not_a_company: "Only a company has people to choose from.",
-    no_person: "They are no longer named at this company. Reload and try again.",
-    already: "Its reach-out writes to them already.",
-    closed: "This lead is closed, or already one of your people: who it writes to stays.",
-    written: "It was written to already: who it writes to stays.",
-    in_reach_out: "A reach-out has already planned or sent its email: who it writes to stays.",
-    checking: "Its address is being checked. Choose once the check is done.",
-    no_address: "They have no work address to write to.",
-    suppressed: "Their address is on the never-again list.",
-    in_people: "They are already one of your people.",
-    address_taken: "Another lead has their address.",
-    invalid: "Their address did not check out.",
-    no_round: "Their address can't be checked from here.",
-    searching: "Its search is still running. Choose once it has ended.",
-    paused: "Searching is paused, and their address would need checking. Nothing changed."
-  },
-  /** A refusal the words above do not name. */
-  refusedElse: "Who it writes to did not change. Reload and try again."
-};
-var leadAddresseeRefusal = (code2) => LEAD_ADDRESSEE_WORDS.refused[code2] ?? LEAD_ADDRESSEE_WORDS.refusedElse;
-var choosable = (l) => (l.stage === "ready" || l.stage === "nurture") && !l.closed_reason && !l.contact_id && !l.contacted_at && l.email_state !== "checking";
-function leadCompanyOf(l) {
-  if (l.kind !== "company") return null;
-  const { facts: f, at: at3 } = readFacts(l.facts);
-  const open = choosable(l);
-  const people = f.people.map((p, i) => ({
-    name: p.name,
-    what: p.title ?? (p.role ? LEAD_ROLE_WORDS[p.role] : null),
-    addressee: i === f.addressee,
-    profile: p.profile_url,
-    index: at3[i] ?? i,
-    choose: open && i !== f.addressee && !!p.email
-  })).sort((a, b) => Number(b.addressee) - Number(a.addressee));
-  return {
-    head: LEAD_COMPANY_WORDS.head(people.length),
-    people,
-    size: f.size ? LEAD_COMPANY_WORDS.size(f.size) : null,
-    source: LEAD_CARDS.find((c) => c.id === "people_at_companies")?.rights ?? ""
-  };
-}
-
-// src/shared/link.ts
-var MAX_LINK = 500;
-var SCHEME = /^[a-z][a-z0-9+.-]*:/i;
-var HOST = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
-function normalizeLink(raw) {
-  if (raw == null) return null;
-  const s = String(raw).trim();
-  if (!s || /\s/.test(s)) return null;
-  const withScheme = SCHEME.test(s) ? s : `https://${s}`;
-  if (withScheme.length > MAX_LINK) return null;
-  let u;
-  try {
-    u = new URL(withScheme);
-  } catch {
-    return null;
-  }
-  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
-  if (!HOST.test(u.hostname)) return null;
-  return withScheme;
-}
-function whyNotALink(raw) {
-  if (normalizeLink(raw)) return null;
-  const s = String(raw ?? "").trim();
-  if (!s) return "A web address is needed.";
-  if (/\s/.test(s)) return "Only the address itself, with no spaces in it.";
-  if (SCHEME.test(s) && !/^https?:/i.test(s)) return "That needs to be a web address, starting with https://.";
-  if (s.length > MAX_LINK) return "That address is too long to store: paste the link itself, not a whole page.";
-  return "That needs a full web address, like docs.example.com/proposal.";
-}
-function linkHost(url) {
-  try {
-    return new URL(url).hostname.toLowerCase().replace(/^www\./, "");
-  } catch {
-    return url;
-  }
-}
-function publicObjectSrc(supabaseUrl, bucket, path) {
-  if (!supabaseUrl) return null;
-  let origin;
-  try {
-    origin = new URL(supabaseUrl).origin;
-  } catch {
-    return null;
-  }
-  if (!/^https:\/\//.test(origin) && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin)) return null;
-  return `${origin}/storage/v1/object/public/${bucket}/${path}`;
-}
-
-// src/leads/lead-row.ts
-var LEAD_BAND_ORDER = ["qualified", "review", "excluded"];
-function leadBand(search) {
-  const r2 = search?.round;
-  if (!r2) return null;
-  const f = r2.fits ?? { strong: 0, look: 0, long: 0 };
-  const fits = ["strong", "look", "long"].map((id) => ({ id, label: LEAD_FIT_WORDS[id], count: f[id] }));
-  return {
-    // The tabs say the pills' words (LEAD_CLASS_WORDS: Qualified, Needs review, Left out) with the count in front, and the
-    // page draws them in the pills' tones (stateOf("lead_class")): a tab and a pill for one state read one map.
-    classes: LEAD_BAND_ORDER.map((id) => ({ id, label: `${r2[id]} ${LEAD_CLASS_WORDS[id]}`, count: r2[id] })),
-    fits,
-    mixed: fits.filter((x) => x.count > 0).length > 1
-  };
-}
-var keyInWords = (key) => {
-  const words3 = key.replace(/_/g, " ").trim();
-  return words3 ? words3.charAt(0).toUpperCase() + words3.slice(1) : "";
-};
-var ratingLabel = (rating, reviews) => rating === null || rating === void 0 ? "" : `${rating.toFixed(1)} \xB7 ${reviews ?? 0}`;
-var stageLabelOf = (stage, closedReason) => stage === "archived" ? LEAD_CLOSED_WORDS[closedReason] ?? LEAD_STAGE_WORDS.archived : LEAD_STAGE_WORDS[stage];
-var LEAD_MARKS_BUCKET = "lead-marks";
-var LEAD_MARK_PATH = /^[0-9a-f]{64}\.(png|jpg|webp|gif|ico)$/;
-function leadMarkSrc(supabaseUrl, path) {
-  if (!path || !LEAD_MARK_PATH.test(path)) return null;
-  return publicObjectSrc(supabaseUrl, LEAD_MARKS_BUCKET, path);
-}
-function leadRatingOf(r2) {
-  if (r2.rating === null || r2.rating === void 0) return null;
-  const n = r2.reviews ?? 0;
-  return { score: r2.rating.toFixed(1), count: n.toLocaleString("en-US"), reviews: reviewsPhrase(n) };
-}
-function toLeadRowVM(r2, tz, now, search = null) {
-  const nowMs = now.getTime();
-  const foundMs = Date.parse(r2.found_at);
-  const m = r2.member;
-  const excludedBy = m.excluded_by ? keyInWords(m.excluded_by) : null;
-  const rating = ratingLabel(r2.rating, r2.reviews);
-  const rated = leadRatingOf(r2);
-  const fitLabel = m.class === "excluded" ? excludedBy ?? m.reason : m.class === "review" ? m.reason : m.fit ? LEAD_FIT_WORDS[m.fit] : m.reason;
-  const fitTitle = m.class === "excluded" ? `Left out: ${excludedBy ?? m.reason}` : m.class === "qualified" && rated ? `${m.reason} \xB7 ${rated.score} from ${rated.reviews}` : m.reason;
-  const area = [r2.postal_code ?? "", [r2.city, r2.state].filter(Boolean).join(", ")].filter(Boolean).join(" \xB7 ");
-  const sub = subLineOf(r2, m.distance_m);
-  const spread2 = r2.reviews_dist ? [r2.reviews_dist.one, r2.reviews_dist.two, r2.reviews_dist.three, r2.reviews_dist.four, r2.reviews_dist.five] : null;
-  const waitsOn = m.class === "review" ? leadReviewGroups([{ id: r2.id, cls: "review", reasons: m.reasons ?? [] }], search)[0]?.label ?? m.reason : null;
-  const state = m.class === "excluded" ? "out" : m.class === "review" ? "review" : r2.stage === "nurture" ? "contacted" : r2.stage === "converted" ? "talking" : r2.stage === "archived" ? "out" : "ready";
-  const stateTag = state === "contacted" ? `${LEAD_STAGE_WORDS.nurture}${r2.contacted_at ? ` \xB7 ${agoShort(Date.parse(r2.contacted_at), nowMs)}` : ""}` : state === "talking" ? LEAD_STAGE_WORDS.converted : state === "review" ? LEAD_REVIEW_WORD : state === "out" ? m.class === "excluded" ? LEAD_LEFT_OUT_WORD : stageLabelOf(r2.stage, r2.closed_reason) : null;
-  const term = search?.plan?.terms[0] ?? null;
-  const card = {
-    about: r2.about ?? null,
-    today: leadTodayLine(r2.hours ?? [], tz, now),
-    where: leadWhere(r2),
-    site: r2.website ? { label: siteHost(r2.website) ?? r2.website, href: `https://${r2.website}` } : null,
-    maps: r2.maps_url ? { label: "Google Maps", href: r2.maps_url } : null,
-    found: [
-      {
-        at: clockIn(tz, r2.found_at, now),
-        what: foundLine(r2, term)
-      }
-    ]
-  };
-  return {
-    id: r2.id,
-    searchId: r2.search_id,
-    searchName: r2.search_name ?? "",
-    mark: initialsOf(r2.business_name),
-    name: r2.business_name,
-    places: r2.places,
-    category: r2.category ?? "",
-    area,
-    cls: m.class,
-    fit: m.class === "qualified" ? m.fit : null,
-    fitLabel,
-    fitTitle,
-    email: r2.email,
-    emailState: r2.email_state,
-    // The cell draws the address itself; an address nobody has is blank, not "none".
-    emailLabel: r2.email ?? "",
-    emailWord: LEAD_EMAIL_WORDS[r2.email_state],
-    // E.164, because the row dials it (plDial's tel:); the double tick says Maps and their own site agree.
-    phone: r2.phone,
-    phoneAgrees: r2.phone_agrees,
-    phoneWrong: r2.phone_wrong,
-    reach: {
-      email: r2.email ? { address: r2.email, state: r2.email_state, word: LEAD_EMAIL_WORDS[r2.email_state] } : null,
-      phone: r2.phone ? { number: r2.phone, agrees: r2.phone_agrees } : null
-    },
-    reasons: m.reasons ?? [],
-    why: m.reason,
-    rating,
-    reviewsTitle: r2.reviews_dist ? `5\u2605 ${r2.reviews_dist.five} \xB7 4\u2605 ${r2.reviews_dist.four} \xB7 3\u2605 ${r2.reviews_dist.three} \xB7 2\u2605 ${r2.reviews_dist.two} \xB7 1\u2605 ${r2.reviews_dist.one}` : "",
-    stage: r2.stage,
-    stageLabel: stageLabelOf(r2.stage, r2.closed_reason),
-    contactId: r2.contact_id ?? null,
-    foundLabel: agoShort(foundMs, nowMs),
-    foundLine: Number.isFinite(foundMs) ? `Found ${agoWords(foundMs, nowMs, { date: (at3) => clockDate(at3, tz, nowMs) })}` : "",
-    foundAt: `${clockDateYear(foundMs, tz)} \xB7 ${clockTime(foundMs, tz)}`,
-    distance: milesLabel(m.distance_m),
-    source: LEAD_SOURCE_WORD,
-    host: siteHost(r2.website) ?? "",
-    excludedBy,
-    version: r2.version,
-    sub,
-    slots: leadSlots(r2),
-    rated,
-    spread: spread2,
-    tile: {
-      initials: initialsOf(r2.business_name),
-      tint: leadTintOf(r2.category),
-      image: leadTileSrc(r2.image_url),
-      band: r2.image_url ?? null,
-      logo: r2.mark_url ?? null
-    },
-    waitsOn,
-    state,
-    stateTag,
-    card,
-    point: typeof r2.lat === "number" && typeof r2.lng === "number" ? { lat: r2.lat, lng: r2.lng } : null
-  };
-}
-function leadRowOf(r2, tz, now, search = null) {
-  return { ...toLeadRowVM(r2, tz, now, search), chainId: r2.chain_id ?? null, laterAt: r2.member.later_at ?? null };
-}
-function subLineOf(r2, distanceM) {
-  const who = leadAddresseeOf(r2);
-  return [
-    who ? [who.name, who.title].filter(Boolean).join(", ") : null,
-    r2.category,
-    r2.neighborhood ?? null,
-    r2.postal_code ?? null,
-    milesLabel(distanceM) || null
-  ].filter((x) => !!x).join(" \xB7 ");
-}
-var roundIsLive = (state) => state !== "ended" && state !== "waiting_on_owner";
-function foundLine(r2, term) {
-  if (r2.kind === "company") return LEAD_DIRECTORY_WORDS.found;
-  if (!r2.place_id) return "From your list";
-  if (!term) return "On a Google Maps listing";
-  return r2.rank ? `On Google Maps, #${r2.rank} for \u201C${term}\u201D` : `On Google Maps, searching \u201C${term}\u201D`;
-}
-function leadRail(counts, searches, now = /* @__PURE__ */ new Date()) {
-  const ids = [
-    "all",
-    "ready",
-    "nurture",
-    "converted",
-    ...counts.said_no > 0 ? ["said_no"] : [],
-    "not_a_fit"
-  ];
-  return {
-    lists: ids.map((id) => ({ id, label: LEAD_LIST_WORDS[id], count: counts[id === "all" ? "all" : id] })),
-    searches: searches.map((s) => ({
-      id: s.id,
-      name: s.name,
-      count: s.round?.counted ?? 0,
-      undoable: leadUndoable(s, now),
-      list: isLeadList(s),
-      people: !!s.people,
-      mark: !s.round ? null : s.round.state === "waiting_on_owner" ? "question" : roundIsLive(s.round.state) ? "live" : null
-    }))
-  };
-}
-function leadsStanding(counts, searches) {
-  const waiting = searches.filter((s) => s.round?.state === "waiting_on_owner");
-  return {
-    total: `${counts.all} leads`,
-    parts: [`${counts.ready} ready`, `${searches.length} ${searches.length === 1 ? "search" : "searches"}`],
-    needsYou: waiting.length ? { count: waiting.length, searchId: waiting[0].id } : null
-  };
-}
-
-// src/leads/lead-peek.ts
-var peekCheckLabel = (c, search, mailboxLabel) => c.key === "mailbox" ? mailboxLabel : leadCheckWord(c.how === "read" ? search : null, c.key, c.answer);
-function leadPeekMenu(role) {
-  return roleAtLeast(role ?? "", "owner") ? [{ id: "erase", label: LEAD_ERASE_WORDS.act, danger: true }] : [];
-}
-function leadWeekSummary(week) {
-  const open = week.filter((d) => d.hours && !/^closed/i.test(d.hours));
-  if (!open.length) return "";
-  const tally2 = /* @__PURE__ */ new Map();
-  for (const d of open) tally2.set(d.short, (tally2.get(d.short) ?? 0) + 1);
-  let best = "";
-  let most = 0;
-  for (const [hours, n] of tally2)
-    if (n > most) {
-      best = hours;
-      most = n;
-    }
-  const days = open.length === 7 ? "Open every day" : `Open ${open.length} day${open.length === 1 ? "" : "s"}`;
-  if (most === open.length) return `${days} \xB7 ${best}`;
-  if (most * 2 >= open.length) return `${days} \xB7 ${best} most days`;
-  return days;
-}
-function leadWeekBars(hours, tz, now) {
-  const today = dateFormat("en-US", { timeZone: tz, weekday: "long" }).format(now).toLowerCase();
-  return hours.map((h) => {
-    const text = h.hours.trim();
-    let bar = null;
-    if (/^open 24 hours$/i.test(text)) bar = { x: 0, w: 100 };
-    else if (!/^closed/i.test(text)) {
-      const m = text.match(CLOCK);
-      if (m) {
-        const a = hourOf(m[1], m[2], m[3]);
-        let b = hourOf(m[4], m[5], m[6]);
-        if (b <= a) b = 24;
-        bar = { x: Math.round(a / 24 * 1e3) / 10, w: Math.round((b - a) / 24 * 1e3) / 10 };
-      }
-    }
-    return { day: h.day, hours: text, short: leadHoursShort(text), bar, today: h.day.toLowerCase() === today };
-  });
-}
-function dayIn(tz, iso, now) {
-  if (!iso) return "";
-  const at3 = new Date(iso);
-  if (Number.isNaN(at3.getTime())) return "";
-  const key = (d) => dateFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
-  if (key(at3) === key(now)) return "today";
-  if (key(at3) === key(new Date(now.getTime() - DAY_MS))) return "yesterday";
-  return dateFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at3);
-}
-var peekPlanOf = (search) => ({
-  standard: LEAD_CONTACT_STANDARD_WORDS[(search?.plan ?? search?.people)?.contact === "email" ? "email" : "phone"],
-  term: search?.plan?.terms[0] ?? null
-});
-function foundWords(r2, term) {
-  const host = r2.website;
-  if (r2.kind === "company")
-    return {
-      summary: LEAD_DIRECTORY_WORDS.found,
-      what: LEAD_DIRECTORY_WORDS.found,
-      site: host ? `${host} \xB7 ${LEAD_DIRECTORY_WORDS.address}` : LEAD_DIRECTORY_WORDS.addressAlone
-    };
-  if (!r2.place_id)
-    return {
-      summary: "From your list",
-      what: "From your list",
-      site: host ? `${host} \xB7 the address came with your list` : "The address came with your list"
-    };
-  return {
-    summary: term && r2.rank ? `#${r2.rank} on Google Maps` : "On Google Maps",
-    what: term ? r2.rank ? `Google Maps \xB7 #${r2.rank} for \u201C${term}\u201D` : `Google Maps \xB7 searching \u201C${term}\u201D` : "A Google Maps listing",
-    site: host ? r2.email_state === "none" ? `${host} \xB7 no email on the home, contact or about pages` : `${host} \xB7 an email on the contact page` : "No website to check"
-  };
-}
-function leadRated(r2) {
-  const base = leadRatingOf(r2);
-  if (!base) return null;
-  return {
-    ...base,
-    low: leadLowShare(r2.reviews_dist ?? null),
-    ...r2.reviews_dist ? { spread: leadRatingSpread(r2.reviews_dist) } : {}
-  };
-}
-function checksSummaryOf(checks) {
-  if (checks.length === 0) return "";
-  const passed = checks.filter((c) => c.answer === "yes").length;
-  const unsure = checks.filter((c) => c.answer === "unknown").length;
-  const failed = checks.filter((c) => c.answer === "no").length;
-  return [
-    `${passed} check${passed === 1 ? "" : "s"} passed`,
-    ...unsure ? [`${unsure} couldn't tell`] : [],
-    ...failed ? [`${failed} failed`] : []
-  ].join(" \xB7 ");
-}
-function toLeadPeekVM(r2, search, tz, now) {
-  const m = r2.member;
-  const area = [r2.city, r2.state].filter(Boolean).join(", ");
-  const sub = [r2.category, r2.price ?? null, area].filter(Boolean).join(" \xB7 ") + (r2.places > 1 ? ` \xB7 ${r2.places} locations` : "");
-  const fitWord = m.class === "qualified" ? m.fit ? LEAD_FIT_WORDS[m.fit] : LEAD_FIT_WORDS.look : (
-    // "venues. Venue brand on 828venues host." glued the chip to the reason; say what happened first.
-    m.class === "review" ? LEAD_REVIEW_WORD : `${LEAD_LEFT_OUT_WORD} \u2014 ${leadExclusionWord(search, m.excluded_by)}`
-  );
-  const fitCls = m.class === "qualified" ? m.fit ?? "look" : m.class === "review" ? "review" : "out";
-  const { standard, term } = peekPlanOf(search);
-  const emailNote = r2.email ? r2.email_state === "ok" ? `${LEAD_MAILBOX_WORDS.ok} \xB7 checked ${dayIn(tz, r2.email_checked_at, now) || "on finding it"}` : r2.email_state === "checking" ? LEAD_MAILBOX_WORDS.checking : r2.email_state === "invalid" ? `${LEAD_MAILBOX_WORDS.invalid}. Call instead.` : LEAD_MAILBOX_WORDS[r2.email_state] : LEAD_NO_EMAIL_LINE;
-  const mailboxLabel = LEAD_MAILBOX_WORDS[r2.email_state];
-  const stop = (s) => /[.!?]$/.test(s.trim()) ? s.trim() : `${s.trim()}.`;
-  const emailTip = [
-    ...r2.email && (r2.email_state === "catch_all" || r2.email_state === "unknown" || r2.email_state === "invalid") ? [LEAD_EMAIL_WORDS[r2.email_state]] : [],
-    emailNote,
-    ...r2.email_state === "ok" ? [] : [standard]
-  ].map(stop).join(" ");
-  const seen = [];
-  const read = [];
-  for (const c of m.checks) {
-    const label = peekCheckLabel(c, search, mailboxLabel);
-    (c.how === "seen" ? seen : read).push({ key: c.key, label, answer: c.answer, source: c.source, reason: c.reason });
-  }
-  const others = m.other_emails.length ? {
-    summary: `${m.other_emails.length} other address${m.other_emails.length === 1 ? "" : "es"} on their site`,
-    picked: m.checks.find((c) => c.key === "own_address")?.reason ?? null,
-    items: m.other_emails
-  } : null;
-  const host = r2.website;
-  const where = foundWords(r2, term);
-  const checksSummary = checksSummaryOf(m.checks);
-  const week = leadWeekBars(r2.hours ?? [], tz, now);
-  const rated = leadRated(r2);
-  const facts = [
-    ...r2.category ? [{ k: "Kind", v: r2.category }] : [],
-    ...r2.price ? [{ k: "Price", v: r2.price }] : [],
-    ...rated ? [{ k: "Rated", v: `${rated.score} from ${rated.reviews}` }] : [],
-    ...r2.claimed === true ? [{ k: "Listing", v: "Claimed by the owner" }] : r2.claimed === false ? [{ k: "Listing", v: "Not claimed by the owner" }] : [],
-    ...term && r2.rank ? [{ k: "Found at", v: `#${r2.rank} for \u201C${term}\u201D` }] : [],
-    ...r2.places > 1 ? [{ k: "Other listings", v: `${r2.places} listings for this business` }] : []
-  ];
-  return {
-    id: r2.id,
-    searchId: r2.search_id ?? null,
-    mark: initialsOf(r2.business_name),
-    tile: {
-      initials: initialsOf(r2.business_name),
-      tint: leadTintOf(r2.category),
-      image: leadTileSrc(r2.image_url),
-      band: r2.image_url ?? null,
-      logo: r2.mark_url ?? null
-    },
-    rated,
-    slots: leadSlots(r2),
-    week,
-    weekSummary: leadWeekSummary(week),
-    facts,
-    checksSummary,
-    checkDots: m.checks.map((c) => c.answer),
-    distance: milesLabel(m.distance_m),
-    name: r2.business_name,
-    about: r2.about ?? null,
-    company: leadCompanyOf(r2),
-    where: leadWhere(r2),
-    today: leadTodayLine(r2.hours ?? [], tz, now),
-    claimedNote: r2.claimed === false ? LEAD_UNCLAIMED_NOTE : null,
-    short: r2.business_name.split(/\s+/).slice(0, 2).join(" "),
-    sub,
-    cls: m.class,
-    stage: r2.stage,
-    contactId: r2.contact_id ?? null,
-    stages: ["ready", "nurture", "converted"].map((id) => ({
-      id,
-      label: LEAD_STAGE_WORDS[id],
-      on: r2.stage === id
-    })),
-    canStage: m.class !== "excluded",
-    notFitWord: LEAD_CLOSED_WORDS.not_a_fit,
-    fit: { word: fitWord, cls: fitCls, sentence: m.reason },
-    reach: {
-      phone: r2.phone ? {
-        value: formatPhoneDisplay(r2.phone) ?? r2.phone,
-        note: r2.phone_wrong ? "You marked this number wrong." : r2.phone_agrees ? "The same number on Google Maps and their website" : "From their Google Maps listing",
-        tip: r2.phone_wrong ? "You marked this number wrong." : r2.phone_agrees ? "The same number on Google Maps and their website." : "From their Google Maps listing.",
-        tel: r2.phone_wrong ? null : `tel:${r2.phone}`,
-        wrong: r2.phone_wrong
-      } : null,
-      email: {
-        value: r2.email ?? "No email on their site",
-        note: emailNote,
-        tip: emailTip,
-        // The standard explains a lead the mailbox did not settle. Beside an address that checks out it is a line
-        // saying nothing, on every good lead: null there, so the peek reads shorter where there is nothing to say.
-        standard: r2.email_state === "ok" ? null : standard,
-        state: r2.email_state,
-        word: LEAD_EMAIL_WORDS[r2.email_state],
-        address: r2.email,
-        canDraft: !!r2.email && r2.email_state !== "invalid" && r2.email_state !== "none"
-      },
-      locked: { title: "Texts and WhatsApp", line: LEAD_LOCKED_LINE }
-    },
-    groups: [
-      { how: "seen", checks: seen },
-      { how: "read", checks: read }
-    ].filter((g) => g.checks.length > 0),
-    others,
-    // Where it was found and when, in one short line: "#19 on Google Maps · Sep 20". The three steps behind it are a
-    // few words each, and the minute each happened lives in its own hover: they happen within a minute or two of each
-    // other, so four copies of "Sep 20, 2:02 PM" said nothing the head had not.
-    foundSummary: [where.summary, dayIn(tz, r2.found_at, now)].filter(Boolean).join(" \xB7 "),
-    found: [
-      { at: clockIn(tz, r2.found_at, now), what: where.what },
-      { at: clockIn(tz, r2.found_at, now), what: where.site },
-      // The mailbox's long sentence is the email row's to say; here it is the state's one word.
-      { at: clockIn(tz, r2.email_checked_at ?? r2.found_at, now), what: `Mailbox \xB7 ${LEAD_EMAIL_WORDS[r2.email_state]}` }
-    ],
-    links: {
-      website: host ? { label: host, href: `https://${host}` } : null,
-      instagram: r2.instagram ? { label: "Instagram", href: r2.instagram } : null,
-      facebook: r2.facebook_url ? { label: "Facebook", href: r2.facebook_url } : null,
-      linkedin: r2.linkedin_url ? { label: "LinkedIn", href: r2.linkedin_url } : null,
-      tiktok: r2.tiktok_url ? { label: "TikTok", href: r2.tiktok_url } : null,
-      maps: r2.maps_url ? { label: "Google Maps", href: r2.maps_url } : null
-    },
-    version: r2.version
-  };
-}
-var LEAD_REMOVE_KEEPS = "Keeps the ones you contacted or are talking to.";
-function leadSearchWords(s, tz) {
-  if (!s) return { askedLine: "", keepsLine: LEAD_REMOVE_KEEPS };
-  const day = dateFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(s.asked_on));
-  if (s.via === "import")
-    return { askedLine: `Your list, imported on ${day}: \u201C${s.asked}\u201D.`, keepsLine: LEAD_REMOVE_KEEPS };
-  if (s.via === "chosen") return { askedLine: `Leads you chose on ${day}.`, keepsLine: LEAD_REMOVE_KEEPS };
-  const asked = s.asked.toLowerCase();
-  const left = (s.plan?.exclusions ?? []).map((c) => c.text).filter((t) => t && !asked.includes(t.toLowerCase()));
-  const leaving = left.length ? ` Leaving out ${left.join(" and ")}.` : "";
-  return { askedLine: `You asked on ${day}: \u201C${s.asked}\u201D.${leaving}`, keepsLine: LEAD_REMOVE_KEEPS };
-}
-
-// src/leads/lead-dtos.ts
-var LEAD_CHECK_KEYS = [
-  "on_maps",
-  "in_area",
-  "phone_two_sources",
-  "mailbox",
-  "independent",
-  "right_kind",
-  "own_address"
-];
-
-// src/leads/leads.ts
-var LEAD_FIRST_DAY = {
-  title: "Who do you want as customers?",
-  sub: "Say it in a sentence. Claude finds businesses that fit, checks each one, and shows how to reach them.",
-  ask: "Describe the businesses you want",
-  ideas: "Or start from an idea",
-  /** While another read writes them (00398): the page asks again in a moment. */
-  writing: "Writing your ideas\u2026",
-  from: "Written from what you do:",
-  edit: "Edit",
-  /** New ideas from the same line, when the owner wants others (00399). */
-  newIdeas: "New ideas",
-  lineTitle: "What your business does",
-  lineSub: "Claude writes your ideas from this. Say what you sell and who you sell it to.",
-  lineLabel: "Your business, in a sentence",
-  linePlaceholder: "What you sell, and who buys it",
-  haveList: "Have a list already?",
-  importIt: "Import it",
-  /** The people card's door (00430), on a desk's first day and a phone's New search, where no rail is drawn. */
-  wantPeople: "Looking for people at companies?",
-  findPeople: "Find people"
-};
-var LEAD_SUGGEST_UNAVAILABLE = "Suggestions are not available right now.";
-var LEAD_WORDS = {
-  /**
-   * The ways a lead can be rung, offered when Call is pressed rather than dialling on the spot. Pressing it rang a
-   * real business the moment a thumb landed on a row you might only have been skimming, and a call made from a
-   * desk phone could not be recorded at all -- the six outcomes are armed by that button alone.
-   *
-   * The receptionist is NOT one of the ways and must not become one here. It answers the line and never rings a
-   * customer (`business-tab.ts` CANNOT_ROWS, "outbound_call"), which the Business page states to the owner in
-   * those words. A menu item offering it would promise what the product says two pages away that it cannot do.
-   */
-  callWays: {
-    dial: { label: "Call from your phone" },
-    copy: { label: "Copy the number" },
-    /** Rung from a desk phone or a softphone: no dial, straight to "How did the call go?". */
-    log: { label: "Log a call you already made", meta: "how did it go?" }
-  },
-  close: "Close",
-  open: "Open",
-  /** The door from a lead that became a person (its name in the peek, the row's Client pill) to them in People. */
-  openPerson: "Open them in People",
-  stageLabel: "Stage",
-  notFit: LEAD_CLOSED_WORDS.not_a_fit,
-  notFitTitle: LEAD_NOT_A_FIT_TITLE,
-  whys: LEAD_NOT_A_FIT_WHYS.map((id) => ({ id, label: LEAD_NOT_A_FIT_WORDS[id] })),
-  keep: "Keep",
-  exclude: "Exclude",
-  putBack: "Put back",
-  leftOut: "Left out of this search. It doesn't count.",
-  reach: "How you can reach them",
-  checked: "Checked",
-  found: "Found",
-  call: "Call",
-  copy: "Copy",
-  copyAria: "Copy the email",
-  /** The peek's reach rows act with quiet marks; these are their names, heard and shown on hover (data-tip). */
-  copyPhoneAria: "Copy the number",
-  draftAria: "Draft an email",
-  draft: "Draft",
-  noWebsite: "No website listed",
-  instagram: "Instagram",
-  talkingNote: LEAD_TALKING_NOTE,
-  sentQuestion: LEAD_SENT_QUESTION,
-  sentYes: "Yes, mark contacted",
-  sentNo: "Not yet",
-  callQuestion: LEAD_CALL_QUESTION,
-  callSave: "Save",
-  callCancel: "I didn't call",
-  outcomes: LEAD_CALL_OUTCOMES.map((id) => ({
-    id,
-    label: LEAD_CALL_OUTCOME_WORDS[id],
-    tone: LEAD_CALL_OUTCOME_TONES[id]
-  })),
-  noteLabel: "A note about the call",
-  /** Under Interested (0052): the person the call reached, who becomes their own page's name. */
-  spokeWith: "Who did you speak with?",
-  spokeWithPlaceholder: "Their name, if they said it",
-  notePlaceholder: LEAD_NOTE_PLACEHOLDER,
-  noteMax: LEAD_NOTE_MAX,
-  noteLeft: leadNoteLeft,
-  backTo: "Back to",
-  to: "To",
-  subject: "Subject",
-  draftRewrite: "Rewrite",
-  tones: [
-    { id: "shorter", label: "Shorter" },
-    { id: "warmer", label: "Warmer" }
-  ],
-  draftWriting: "Writing it\u2026",
-  draftNote: LEAD_DRAFT_NOTE,
-  draftOpen: "Open in your email",
-  draftFrom: "Sent from your own inbox",
-  copiedDraft: "Copied the email.",
-  firstDay: LEAD_FIRST_DAY,
-  about: "About",
-  reachHeading: "Reach",
-  unclaimed: LEAD_UNCLAIMED_NOTE,
-  suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE,
-  // D5: the peek re-cut, and the photo expanded.
-  expand: "Expand",
-  photos: "Photos",
-  noPhoto: "No photo on the listing",
-  whereSits: "Where it sits",
-  openHours: "Open hours",
-  fromListing: "From the listing",
-  openMaps: "Open in Maps",
-  ratedHeading: "What people say",
-  closePhotos: "Close",
-  /**
-   * The rail's two sections. The first is six views of a lead's stage (LEAD_LIST_WORDS), not lists: "Lists" is People's word
-   * for a rule over facts (decision 0009, LIST_GROUP_WORDS), and a list of the owner's own made from a file sits under
-   * Searches here.
-   */
-  viewsHeading: "Views",
-  searchesHeading: "Searches",
-  // D5, on a phone: one lead at a time, and the question when you are back from the call.
-  deckOf: (at3, of) => `${at3} of ${of}`,
-  deckPrev: "The lead before",
-  deckNext: "The next lead",
-  callSaveNext: "Save and go to the next",
-  callSavedNote: "Saving moves them to Talking. They join People when they write or call in.",
-  /**
-   * The peek's ⋯ menu and its one item (Reach out Part 4, PR 9): Erase, the owner's alone (DELETE leads/[id]), asked
-   * first because it cannot be undone. Who is offered it is `leadPeekMenu`'s to say, never the page's.
-   */
-  more: "More for this lead",
-  erase: LEAD_ERASE_WORDS
-};
-var LEAD_SUGGEST_DAYS = 30;
-var LEAD_PRIOR_MIN = 25;
-function leadReachLine(prior) {
-  if (!prior || prior.matched < LEAD_PRIOR_MIN) return "New kind of search \xB7 checked after 25";
-  const tenths = Math.round(prior.with_email / prior.matched * 10);
-  if (tenths <= 1) return "Most list a phone \xB7 few have an email";
-  if (tenths >= 9) return "Nearly all have an email";
-  if (tenths === 5) return "About half have an email";
-  if (tenths === 7) return "About 2 in 3 have an email";
-  return `About ${tenths} in 10 have an email`;
-}
-
-// src/ask-proposals/leads.ts
-var amendsOf = (pl) => {
-  const am = pl?.amends ?? null;
-  return am && typeof am.search_id === "string" && am.search_id ? am : null;
-};
-var leadSearchSpec = {
-  needs: "partner",
-  doing: "start a lead search",
-  gate: "find",
-  commit: ({ payload: pl }) => {
-    const am = amendsOf(pl);
-    if (am)
-      return {
-        route: "POST lead-searches/[id]/answer",
-        params: { id: am.search_id },
-        body: { answer: "include", plan: pl.plan }
-      };
-    const threadId = typeof pl.thread_id === "string" && pl.thread_id ? pl.thread_id : null;
-    return { route: "POST lead-searches", body: threadId ? { ...pl.plan, thread_id: threadId } : pl.plan };
-  },
-  receipt: ({ payload: pl }) => {
-    const am = amendsOf(pl);
-    if (am) return `Answered. ${asText(am.name) || "The search"} carries on with your answer; Leads shows it.`;
-    const plan = pl.plan ?? {};
-    return `Finding ${plan.count ?? ""} ${plan.terms?.[0] ?? "businesses"}. It carries on if you leave; Leads shows it.`.replace(
-      /\s+/g,
-      " "
-    );
-  },
-  undo: {
-    // An answer carries the round on; there is nothing to undo (Stop is the strip's).
-    label: ({ payload }) => amendsOf(payload) ? null : "Stop the search",
-    window: "ten_minutes",
-    record: (p, data) => amendsOf(p.payload) ? null : { search_id: rec(data).search_id },
-    // An operator's route undoing a partner's card: stopping a search spends nothing (route-policy.json).
-    call: (u) => ({ route: "POST lead-searches/[id]/stop", params: { id: asText(u.search_id) } }),
-    receipt: () => "Stopping. Whatever it found is kept, and the emails already found are still checked."
-  },
-  open: ({ payload }, outcome) => {
-    const am = amendsOf(payload);
-    if (am) return leadQuestionRoute(am.search_id);
-    const sid = idIn(rec(outcome?.undo), "search_id");
-    return sid ? leadsRoute({ searchId: sid, list: "all", cls: null }) : "clients/leads";
-  }
-};
-var peopleSearchSpec = {
-  needs: "partner",
-  doing: "start a people search",
-  gate: "find",
-  commit: ({ payload: pl }) => {
-    const threadId = typeof pl.thread_id === "string" && pl.thread_id ? pl.thread_id : null;
-    return { route: "POST lead-searches/people", body: { plan: pl.plan, via: "ask", thread_id: threadId } };
-  },
-  receipt: ({ payload: pl }) => {
-    const plan = pl.plan ?? {};
-    const n = typeof plan.count === "number" ? plan.count : null;
-    const what = n === null ? "companies" : `${n} ${n === 1 ? "company" : "companies"}`;
-    return `Finding up to ${what}${plan.name ? `: ${plan.name}` : ""}. Each lands on Leads once its address checks out.`;
-  },
-  undo: {
-    label: () => "Stop the search",
-    window: "ten_minutes",
-    record: (_p, data) => ({ search_id: rec(data).search_id }),
-    call: (u) => ({ route: "POST lead-searches/[id]/stop", params: { id: asText(u.search_id) } }),
-    receipt: () => "Stopping. Whatever it found is kept, and the addresses already found are still checked."
-  },
-  open: (_p, outcome) => {
-    const sid = idIn(rec(outcome?.undo), "search_id");
-    return sid ? leadsRoute({ searchId: sid, list: "all", cls: null }) : "clients/leads";
-  }
-};
-var reachOutAddSpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: ({ payload: pl }) => ({
-    route: "POST reach-outs/[id]/leads",
-    params: { id: asText(pl.root_id) },
-    body: { lead_ids: Array.isArray(pl.lead_ids) ? pl.lead_ids.filter((x) => typeof x === "string") : [] }
-  }),
-  receipt: ({ payload: pl }, data) => {
-    const added = Number(rec(data).added ?? 0);
-    const name = asText(pl.name) || "the reach-out";
-    return added > 0 ? `Added ${added === 1 ? "1 lead" : `${added} leads`} to \u201C${name}\u201D. Its next run waits for your say before anything goes.` : `None could be added to \u201C${name}\u201D.`;
-  },
-  undo: {
-    label: () => "Take them back",
-    window: "ten_minutes",
-    record: (_p, data) => {
-      const d = rec(data);
-      return typeof d.op_id === "string" ? { op_id: d.op_id, version: Number(d.version ?? 1) } : null;
-    },
-    call: (u) => ({
-      route: "POST lead-operations/[id]/undo",
-      params: { id: asText(u.op_id) },
-      body: { version: Number(u.version ?? 1) }
-    }),
-    receipt: () => "Taken back off its list. Nothing had been written to them."
-  },
-  open: ({ payload }) => {
-    const id = idIn(payload, "root_id");
-    return id ? `campaigns/moment:${id}` : "outbound";
-  }
-};
-
-// src/ask-proposals/lists.ts
-var namesIn = (d, k) => Array.isArray(d[k]) ? d[k].map(asText).filter(Boolean) : [];
-var listSpec = {
-  needs: "operator",
-  gate: "approve",
-  // The route's body: the name and the rule the builder checked (cleanListRule), a list that keeps itself current. A
-  // card with no rule is none: a list kept by hand is made on People, where its people are picked.
-  commit: ({ payload: pl }) => !asText(pl.name) || !pl.rule || typeof pl.rule !== "object" ? refuseWith(PROPOSAL_WORDS.cannotApprove) : { route: "POST segments", body: { name: asText(pl.name), rule: pl.rule } },
-  // People's words for a list made by its rule, named as the route stored it.
-  receipt: ({ payload: pl }, data) => `${asText(rec(data).name ?? pl.name)} made. It keeps itself current.`,
-  undo: {
-    label: () => "Delete it",
-    window: "ten_minutes",
-    // The list the route made, by the id it answered; the route answers no ledger row, so the undo names none.
-    record: (_p, data) => {
-      const id = idIn(rec(data), "id");
-      return id ? { list_id: id } : null;
-    },
-    call: (u) => ({ route: "DELETE segments/[id]", params: { id: asText(u.list_id) } }),
-    // Deleted, or archived where something came to depend on it since (a playbook on it, a list that reads it): the
-    // route's answer says which, in People's words.
-    receipt: (data) => {
-      const d = rec(data);
-      if (d.archived !== true) return "Deleted. The people stay.";
-      const paused = namesIn(d, "paused");
-      const readBy = namesIn(d, "read_by");
-      const why = paused.length ? `${paused.join(", ")} paused` : readBy.length ? `${readBy.join(", ")} reads it` : "a campaign runs on it";
-      return `Archived, not deleted: ${why}. It comes back from Archived under your lists.`;
-    }
-  },
-  // People, at the list the route made once it is approved (the commit kept its id for the undo); People before.
-  open: (_card, outcome) => {
-    const id = idIn(rec(outcome?.undo), "list_id");
-    return id ? `clients/${listToken({ kind: "saved", id })}` : "clients";
-  }
-};
-var idsIn = (v) => Array.isArray(v) ? v.map(asText).filter(Boolean) : [];
-var listMemberSpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: ({ payload: pl }) => {
-    const add = idsIn(pl.add);
-    const remove = idsIn(pl.remove);
-    if (!asText(pl.list_id) || !add.length && !remove.length) return refuseWith(PROPOSAL_WORDS.cannotApprove);
-    return {
-      route: "PUT segments/[id]",
-      params: { id: asText(pl.list_id) },
-      body: add.length ? { add } : { remove },
-      events: [PEOPLE_CHANGED]
-    };
-  },
-  receipt: ({ payload: pl }) => {
-    const add = idsIn(pl.add);
-    const name = asText(pl.name);
-    const who = asText(pl.who);
-    if (add.length) return add.length === 1 && who ? `${who} added to ${name}` : `${add.length} added to ${name}`;
-    const n = idsIn(pl.remove).length;
-    return n === 1 && who ? `${who} taken off ${name}` : `${n} taken off ${name}`;
-  },
-  undo: {
-    label: () => "Undo",
-    window: "ten_minutes",
-    record: ({ payload: pl }) => ({
-      list_id: pl.list_id,
-      name: pl.name,
-      who: pl.who,
-      add: idsIn(pl.remove),
-      remove: idsIn(pl.add)
-    }),
-    call: (u) => {
-      const add = idsIn(u.add);
-      return {
-        route: "PUT segments/[id]",
-        params: { id: asText(u.list_id) },
-        body: add.length ? { add } : { remove: idsIn(u.remove) },
-        events: [PEOPLE_CHANGED]
-      };
-    },
-    receipt: (_data, u) => idsIn(u.add).length ? `Back on ${asText(u.name)}` : `Taken off ${asText(u.name)} again`
-  },
-  open: ({ payload: pl }) => asText(pl.list_id) ? `clients/${listToken({ kind: "saved", id: asText(pl.list_id) })}` : "clients"
-};
-
-// src/conversations/thread-clock.ts
-function shortTime(iso, tz, now) {
-  const ms2 = iso ? Date.parse(iso) : Number.NaN;
-  return Number.isFinite(ms2) ? clockShort(ms2, tz, now.getTime()) : "";
-}
-function bubbleTime(iso, tz, now) {
-  const ms2 = Date.parse(iso);
-  return Number.isFinite(ms2) ? clockStamp(ms2, tz, now.getTime()) : "";
-}
-function formatWaited(ms2) {
-  return waitedLabel(ms2);
-}
-
-// src/people/person-row-facts.ts
-function ago(ms2, tz, nowMs) {
-  return agoWords(ms2, nowMs, { dateAfterMs: WEEK_MS, date: (at3) => clockDate(at3, tz, nowMs) });
-}
-function theirTurnWords(last) {
-  if (last.who !== "they") return null;
-  return last.kind === "call" ? "they called last" : "they wrote last";
-}
-function lastContactOf(r2, tz, nowMs) {
-  const m = ts(r2.last_message_at);
-  const k = ts(r2.last_call_at);
-  if (m === null && k === null) {
-    return {
-      ts: null,
-      at: null,
-      kind: null,
-      who: null,
-      by: "No contact recorded",
-      when: "",
-      label: "No contact recorded"
-    };
-  }
-  if (k !== null && (m === null || k > m)) {
-    const theirs2 = ts(r2.last_inbound_call_at) === k;
-    const by = theirs2 ? "Phoned" : "We called";
-    const when2 = ago(k, tz, nowMs);
-    return {
-      ts: k,
-      at: r2.last_call_at,
-      kind: "call",
-      who: theirs2 ? "they" : "system",
-      by,
-      when: when2,
-      label: `${by} \xB7 ${when2}`
-    };
-  }
-  const who = r2.last_message_direction === "inbound" ? "they" : r2.last_message_sender === "human" ? "team" : r2.last_message_sender === "ai" ? "receptionist" : "system";
-  const verb = who === "they" ? "They wrote" : who === "team" ? "Your team replied" : who === "receptionist" ? "Receptionist replied" : "We sent";
-  const when = ago(m, tz, nowMs);
-  return { ts: m, at: r2.last_message_at, kind: "message", who, by: verb, when, label: `${verb} \xB7 ${when}` };
-}
-function firstContactOf(r2, tz, nowMs) {
-  const f = ts(r2.first_contact_at);
-  if (f !== null) return { ts: f, label: fmtDate(f, tz, nowMs), estimate: false, evidence: !r2.has_backfill };
-  const e = ts(r2.earliest_row_at);
-  if (e !== null && r2.has_backfill)
-    return { ts: e, label: `Before ${fmtDate(e, tz, nowMs)}`, estimate: true, evidence: false };
-  if (e !== null) return { ts: e, label: fmtDate(e, tz, nowMs), estimate: false, evidence: !r2.has_backfill };
-  return { ts: null, label: "\u2014", estimate: true, evidence: false };
-}
-function offersSub(r2, marketing, tz, nowMs) {
-  if (marketing === "opted_out") return "no offers";
-  if (marketing !== "opted_in")
-    return r2.marketing_consent_source === STOP_ENDED_OFFERS_SOURCE ? "their yes ended when they said stop" : "never asked about offers";
-  const when = ts(r2.marketing_consent_updated_at ?? null);
-  const how = consentSourceLabel(r2.marketing_consent_source ?? null);
-  const date = when !== null ? fmtDate(when, tz, nowMs) : "recorded";
-  return `${how ? `${how} \xB7 ` : ""}${date} \xB7 ${channelsWords(coveredChannels(r2.marketing_channels))}`;
-}
-var EMAIL_OFFERS_SOURCES = {
-  customer_message: "Their own message",
-  form: "Sign-up form",
-  unsubscribe: "Pressed Unsubscribe",
-  complaint: "Marked an email as spam",
-  reply: "Said no in a reply"
-};
-function emailOffersOf(r2, relationship, tz, nowMs) {
-  const answer = r2.email_marketing;
-  const emailMarketing = answer === "opted_in" || answer === "opted_out" || answer === "unknown" ? answer : null;
-  const source = r2.email_marketing_source ?? null;
-  const when = ts(r2.email_marketing_updated_at ?? null);
-  const how = source ? EMAIL_OFFERS_SOURCES[source] ?? source : null;
-  const dated = `${how ? `${how} \xB7 ` : ""}${when !== null ? fmtDate(when, tz, nowMs) : "recorded"}`;
-  if (emailMarketing === "opted_in")
-    return { emailMarketing, emailMarketingSource: source, emailOffersLabel: "Yes", emailOffersSub: dated };
-  if (emailMarketing === "opted_out")
-    return { emailMarketing, emailMarketingSource: source, emailOffersLabel: "Unsubscribed", emailOffersSub: dated };
-  return {
-    emailMarketing,
-    emailMarketingSource: source,
-    emailOffersLabel: emailMarketing === "unknown" ? "Not asked" : null,
-    emailOffersSub: emailMarketing === null ? "" : relationship ? "they have dealt with you, so offers may go by email" : "no offers by email until they ask for them"
-  };
-}
-function consentOf(r2, tz, nowMs) {
-  const dnc = !!r2.dnc;
-  const state = r2.consent === "opted_out" || dnc ? "opted_out" : r2.consent === "opted_in" ? "opted_in" : "unknown";
-  const when = ts(r2.consent_updated_at);
-  const date = when !== null ? fmtDate(when, tz, nowMs) : "recorded";
-  const how = consentSourceLabel(r2.consent_source);
-  const sub = state === "opted_out" ? r2.consent_source === "customer_message" ? `STOP received${when !== null ? ` ${fmtDate(when, tz, nowMs)}` : ""}` : `${how ? `${how} \xB7 ` : ""}${date}` : state === "opted_in" ? `${how ? `${how} \xB7 ` : ""}${date} \xB7 ${channelsWords(coveredChannels(r2.consent_channels))}` : "no opt-in recorded";
-  const marketing = dnc || r2.consent === "opted_out" ? "opted_out" : r2.marketing_consent === "opted_in" ? "opted_in" : r2.marketing_consent === "opted_out" ? "opted_out" : "unknown";
-  const marketingSub = offersSub(r2, marketing, tz, nowMs);
-  const relationship = relationshipOnRecord({
-    lastWroteAt: r2.last_wrote_at ?? null,
-    lastInboundCallAt: r2.last_inbound_call_at ?? null,
-    hasDeal: !!r2.deal_id
-  });
-  return {
-    state,
-    dnc,
-    label: state === "opted_out" ? STOP_WORDS.pill : state === "opted_in" ? "Opted in" : "Unknown",
-    // The answer in the words its own control uses (Yes, Not asked, No), as marketingLabel is the offers answer's.
-    answerLabel: state === "opted_in" ? "Yes" : state === "opted_out" ? "No" : "Not asked",
-    sub,
-    source: r2.consent_source ?? null,
-    marketing,
-    marketingSource: r2.marketing_consent_source ?? null,
-    marketingSub,
-    // The offers answer in the words People's Offers column uses, so a list and the page agree.
-    marketingLabel: marketing === "opted_in" ? "Yes" : marketing === "opted_out" ? "No" : "Not asked",
-    channels: r2.consent_channels ?? null,
-    marketingChannels: r2.marketing_channels ?? null,
-    ...emailOffersOf(r2, relationship, tz, nowMs),
-    relationship
-  };
-}
-
-// src/people/person-state.ts
-var PERSON_STATE_LABELS = {
-  needs_you: NEEDS_YOU_WORD,
-  waiting_on_you: HELD_WORDS.yours.pill,
-  opted_out: STOP_WORDS.pill,
-  new: "New",
-  quiet: "Quiet",
-  active: "Active",
-  unheard: "Not heard from"
-};
-var PEOPLE_TABS = [
-  { id: "all", label: "All" },
-  { id: "needs_you", label: PERSON_STATE_LABELS.needs_you },
-  { id: "waiting_on_you", label: PERSON_STATE_LABELS.waiting_on_you },
-  { id: "new", label: "New" },
-  { id: "quiet", label: "Quiet" },
-  { id: "active", label: "Active" }
-];
-var NEW_WINDOW_DAYS = 7;
-var QUIET_AFTER_DAYS = 30;
-function personStanding(r2, nowMs, viewerId = null) {
-  return standingOf(
-    {
-      state: r2.latest_state === "snoozed" ? "snoozed" : r2.needs_human || r2.latest_state === "needs_human" ? "needs_human" : r2.latest_state ?? "open",
-      paused_until: r2.latest_paused_until,
-      assignee_user_id: r2.latest_assignee_user_id,
-      assignee_is_me: viewerId && r2.latest_assignee_user_id ? r2.latest_assignee_user_id === viewerId : void 0,
-      open_escalation: !!r2.open_escalation_reason,
-      escalation_reason: r2.open_escalation_reason
-    },
-    nowMs
-  );
-}
-function attentionOf(r2, nowMs, viewerId = null) {
-  const v = personStanding(r2, nowMs, viewerId);
-  if (v.standing === "needs_you" || replyWaitsOnYou({ queued: !!r2.queued_reply_at }, nowMs)) return "needs_you";
-  return v.takenOver ? "waiting_on_you" : null;
-}
-function heardAt(r2) {
-  const at3 = [ts(r2.last_inbound_at), ts(r2.last_inbound_call_at ?? null)].filter((x) => x !== null);
-  return at3.length ? Math.max(...at3) : null;
-}
-function holderOf(r2, nowMs, viewerId) {
-  const v = personStanding(r2, nowMs, viewerId);
-  return v.claimedByOther ? "theirs" : v.takenOver ? viewerId ? "yours" : "someone" : null;
-}
-function personStateFor(r2, nowMs, tz, viewerId = null) {
-  const attention = attentionOf(r2, nowMs, viewerId);
-  if (attention) return attention;
-  if (isOptedOutContact({ consent: r2.consent, dnc: r2.dnc })) return "opted_out";
-  const first = firstContactOf(r2, tz, nowMs);
-  if (first.evidence && first.ts !== null && localDaysBetween(first.ts, nowMs, tz) <= NEW_WINDOW_DAYS) return "new";
-  const heard = heardAt(r2);
-  if (heard === null) return "unheard";
-  if (localDaysBetween(heard, nowMs, tz) > QUIET_AFTER_DAYS) return "quiet";
-  return "active";
-}
-function stopToldBesideState(r2) {
-  return r2.stopped && r2.state !== "opted_out";
-}
-
-// src/people/person-receptionist.ts
-var PERSON_MODES = ["auto", "ask", "never"];
-var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS = {
-  ...PERSON_MODE_LABELS,
-  inherit: "Follow the workspace"
-};
-function asPersonMode(s) {
-  return s && PERSON_MODES.includes(s) ? s : null;
-}
-var HELD_THREAD = {
-  yours: {
-    tone: "yours",
-    label: HELD_WORDS.yours.pill,
-    title: HELD_WORDS.yours.pill,
-    detail: HELD_WORDS.yours.sentence
-  },
-  theirs: {
-    tone: "theirs",
-    label: HELD_WORDS.theirs.pill,
-    title: HELD_WORDS.theirs.pill,
-    detail: HELD_WORDS.theirs.sentence
-  },
-  someone: {
-    tone: "paused",
-    label: "Paused, a person owns the thread",
-    title: "Paused, a person owns this thread",
-    detail: "A person owns this thread; automatic replies resume when it is handed back."
-  }
-};
-function heldThreadOf(holder, name) {
-  const held = HELD_THREAD[holder];
-  const who = name?.trim();
-  if (holder !== "theirs" || !who) return held;
-  const said = heldPill("theirs", who);
-  return {
-    ...held,
-    label: said,
-    title: said,
-    detail: `${who} is answering this. The receptionist stays quiet until they hand it back.`
-  };
-}
-var SILENT_STOP = {
-  label: `Silent, ${STOP_WORDS.pill.toLowerCase()}`,
-  detail: `${STOP_WORDS.said("They")} \u2014 nothing goes out to them until they ask again.`
-};
-function askedFor(r2) {
-  return r2.open_escalation_reason && waitsOnAPerson(r2.open_escalation_reason) ? r2.open_escalation_reason : null;
-}
-function snoozedAsk(r2) {
-  const asked = askedFor(r2);
-  if (asked) return reasonLabelOf(asked);
-  return r2.needs_human ? "Waiting for a person" : null;
-}
-function snoozedReceptionist(r2, tz, nowMs) {
-  const wake = ts(r2.latest_snooze_until);
-  const wakes = wake !== null && wake > nowMs ? shortTime(r2.latest_snooze_until, tz, new Date(nowMs)) : null;
-  const asked = askedFor(r2);
-  const asks = asked ? `still waiting for you (${reasonShort(asked)})` : r2.needs_human ? "still waiting for you" : null;
-  return {
-    tone: "snoozed",
-    label: [`Snoozed${wakes ? ` until ${wakes}` : ""}`, asks].filter(Boolean).join(" \xB7 "),
-    ...wakes ? { wakes } : {}
-  };
-}
-function receptionistOf(r2, tz, nowMs, viewerId, names3 = null) {
-  if (personStanding(r2, nowMs, viewerId).standing === "snoozed")
-    return r2.queued_reply_at ? { tone: "queued", label: "Reply queued" } : snoozedReceptionist(r2, tz, nowMs);
-  const held = holderOf(r2, nowMs, viewerId);
-  if (held) {
-    const holder = held === "theirs" && r2.latest_assignee_user_id ? names3?.(r2.latest_assignee_user_id) : null;
-    const { tone, label } = heldThreadOf(held, holder);
-    return { tone, label };
-  }
-  const asked = askedFor(r2);
-  if (asked) return { tone: "escalated", label: `Escalated, ${reasonShort(asked)}` };
-  if (r2.needs_human) return { tone: "escalated", label: "Waiting for a person" };
-  if (r2.queued_reply_at) return { tone: "queued", label: "Reply queued" };
-  if (r2.consent === "opted_out" || r2.dnc) return { tone: "silent", label: SILENT_STOP.label };
-  if (r2.effective_reply_mode === "never")
-    return { tone: "paused", label: `Held for you, set to ${PERSON_MODE_WORDS.never}` };
-  if (r2.effective_reply_mode === "ask")
-    return { tone: "paused", label: `Held for you, set to ${PERSON_MODE_WORDS.ask}` };
-  return { tone: "answering", label: "Answering" };
-}
-
-// src/ask-proposals/people-verbs.ts
-var purposeOf = (v) => v === "conversational" || v === "marketing" ? v : null;
-var consentIn = (v) => v === "opted_in" || v === "opted_out" ? v : "unknown";
-var fieldsOf = (pl, keys) => Object.fromEntries(keys.filter((k) => pl[k] !== void 0).map((k) => [k, pl[k]]));
-function answerSaidOf(purpose, consent) {
-  if (purpose === "marketing") {
-    if (consent === "opted_in") return "said yes to offers and news";
-    if (consent === "opted_out") return "said no to offers \u2014 other messages still reach them";
-    return "has not been asked about offers";
-  }
-  if (consent === "opted_in") return "said yes to messages";
-  if (consent === "opted_out") return "said stop \u2014 nothing goes out to them at all";
-  return 'is back to "not asked"';
-}
-function manySaid(data, verb) {
-  const d = rec(data);
-  const done = typeof d.done === "number" ? d.done : 0;
-  const failedRows = Array.isArray(d.failed) ? d.failed : [];
-  const skipped2 = Array.isArray(d.skipped) ? d.skipped : [];
-  const failed = failedRows.length + skipped2.length;
-  const why = asText(rec(failedRows[0]).message) || (skipped2.length ? "no longer in this workspace" : "");
-  return { done, failed, said: failed ? `${failed} could not be ${verb}${why ? ` \u2014 ${why}` : ""}` : "" };
-}
-var ANSWER_DOOR = {
-  conversational: "PUT contacts/[id]/consent",
-  marketing: "PUT contacts/[id]/marketing-consent"
-};
-var ANSWER_MANY_DOOR = {
-  conversational: "PUT contacts/consent",
-  marketing: "PUT contacts/marketing-consent"
-};
-var personRoute = ({ payload }) => {
-  const id = idIn(payload, "contact_id");
-  return id ? `clients/${id}` : null;
-};
-var answerSpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: ({ payload: pl }) => {
-    const purpose = purposeOf(pl.purpose);
-    if (!purpose) return refuseWith("Say which question this answers.");
-    return {
-      route: ANSWER_DOOR[purpose],
-      params: { id: asText(pl.contact_id) },
-      body: fieldsOf(pl, ["consent", "source", "note", "message_id"]),
-      events: [PEOPLE_CHANGED]
-    };
-  },
-  receipt: ({ payload: pl }) => `${asText(pl.who)} ${answerSaidOf(purposeOf(pl.purpose) ?? "conversational", consentIn(pl.consent))}`,
-  open: personRoute
-};
-var answerManySpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: ({ payload: pl }) => {
-    const purpose = purposeOf(pl.purpose);
-    if (!purpose) return refuseWith("Say which question this answers.");
-    return {
-      route: ANSWER_MANY_DOOR[purpose],
-      body: fieldsOf(pl, ["ids", "consent", "source", "note"]),
-      events: [PEOPLE_CHANGED]
-    };
-  },
-  receipt: ({ payload: pl }, data) => {
-    const m = manySaid(data, "recorded");
-    const what = purposeOf(pl.purpose) === "marketing" ? "to offers" : "to messages";
-    const answer = consentIn(pl.consent);
-    const head = answer === "unknown" ? `${m.done} back to "not asked"` : `${m.done} said ${answer === "opted_in" ? "yes" : "no"} ${what}`;
-    return m.said ? `${head} \xB7 ${m.said}` : head;
-  },
-  open: () => "clients"
-};
-var personModeManySpec = {
-  needs: "owner",
-  doing: "change how the receptionist treats these people",
-  gate: "settings",
-  commit: ({ payload: pl }) => ({
-    route: "PUT contacts/receptionist",
-    body: fieldsOf(pl, ["ids", "mode"]),
-    events: [PEOPLE_CHANGED]
-  }),
-  receipt: ({ payload: pl }, data) => {
-    const m = manySaid(data, "changed");
-    const mode = asText(pl.mode);
-    const head = `Receptionist for ${m.done}: ${PERSON_MODE_WORDS[mode] ?? asText(pl.mode)}`;
-    return m.said ? `${head} \xB7 ${m.said}` : head;
-  },
-  open: () => "clients"
-};
-var noteManySpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: ({ payload: pl }) => ({
-    route: "PUT contacts/notes",
-    body: fieldsOf(pl, ["ids", "append"]),
-    events: [PEOPLE_CHANGED]
-  }),
-  receipt: (_p, data) => {
-    const m = manySaid(data, "noted");
-    const head = `Note added for ${m.done}`;
-    return m.said ? `${head} \xB7 ${m.said}` : head;
-  },
-  open: () => "clients"
-};
-var personAddSpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: ({ payload: pl }) => ({
-    route: "POST contacts",
-    body: fieldsOf(pl, ["phone", "email", "name", "source"]),
-    events: [PEOPLE_CHANGED]
-  }),
-  receipt: ({ payload: pl }, data) => {
-    const who = asText(pl.name).trim() || asText(pl.phone).trim() || asText(pl.email).trim();
-    return `${who} ${rec(data).existed === true ? "was already here \u2014 opened" : "added"}`;
-  },
-  made: (_p, data) => idIn(rec(data), "contact_id"),
-  open: () => "clients"
-};
-var personMergeSpec = {
-  needs: "owner",
-  doing: "merge two records of one person",
-  gate: "settings",
-  commit: ({ payload: pl }) => ({
-    route: "POST contacts/[id]/merge",
-    params: { id: asText(pl.contact_id) },
-    body: fieldsOf(pl, ["merge"]),
-    events: [PEOPLE_CHANGED]
-  }),
-  receipt: ({ payload: pl }) => MERGE_WORDS.done(asText(pl.who), asText(pl.other)),
-  open: personRoute
-};
-
-// src/notes/person-notes.ts
-var NOTE_MAX = 600;
-var NOTE_LINE_MAX = 200;
-var NOTE_WORDS = {
-  title: "Notes",
-  placeholder: "Add a note\u2026",
-  add: "Add note",
-  save: "Save",
-  cancel: "Cancel",
-  edit: "Edit",
-  remove: "Delete",
-  askRemove: "Delete this note?",
-  more: "More for this note",
-  edited: "edited",
-  forAnyone: "For anyone",
-  forLabel: "For",
-  /** The composer's For, as choices under its label (0052's composer): Anyone · Me · Jo Park. */
-  anyone: "Anyone",
-  me: "Me",
-  /** The composer's button once a day is chosen: it says what pressing it makes (the motion grammar's label). */
-  addStepFor: (day) => `Add step for ${day}`,
-  teamOnly: "Team only",
-  teamOnlyHint: "The receptionist won't read it",
-  readsHint: "The receptionist uses notes as facts and never reads them aloud.",
-  none: "No notes yet.",
-  suggested: "Suggested by the receptionist",
-  /** A suggestion's eyebrow, said on every screen: who, where it was heard, and when ("… · after a call · 2:10 PM"). */
-  suggestedLine: (from, when) => ["Suggested by the receptionist", from ? `${from.charAt(0).toLowerCase()}${from.slice(1)}` : null, when].filter(Boolean).join(" \xB7 "),
-  keep: "Keep",
-  dismiss: "Dismiss",
-  added: "Note added",
-  saved: "Note saved",
-  removed: "Note deleted",
-  kept: "Kept: the receptionist uses it from now on",
-  dismissed: "Dismissed",
-  showAll: (n) => `Show all ${n}`,
-  showFewer: "Show fewer",
-  left: (n) => `${n} left`,
-  // A note with a day is a step (0007, amended).
-  addDay: "Add a day",
-  /** The composer's day row's word, over its chips (canvas A, M4). */
-  day: "Day",
-  due: "Due",
-  noDay: "No day",
-  pickDay: "Pick a day",
-  done: "Done",
-  undo: "Undo",
-  change: "Change",
-  stepTeamOnly: "A step is for the team only",
-  setNext: "Set a next step",
-  next: "Next step",
-  stepsDue: "Steps due",
-  stepAdded: "Step added",
-  stepSaved: "Step saved",
-  stepDone: "Step done",
-  stepReopened: "Step open again",
-  /** Done's name for a screen reader, where a header holds more than the step. */
-  markDone: (words3) => `Mark \u201C${words3}\u201D done`,
-  /** The Overview's Notes (canvas A): the door to every note, History's Notes, at the pane's head. */
-  all: "All notes",
-  /** Over the newest note on the Overview, in the mono eyebrow: "Note · Marisa · Sep 21"; a step says its day. */
-  eyebrow: (who, when) => `Note \xB7 ${who} \xB7 ${when}`,
-  stepEyebrow: (who, due) => `Step \xB7 ${who} \xB7 ${due}`
-};
-var NOTE_REFUSALS = {
-  empty: "Write something first.",
-  too_long: `A note is at most ${NOTE_MAX} characters.`,
-  not_found: "This person or this note is no longer here.",
-  not_a_member: "That person is not on the team.",
-  not_yours: "Only the person who wrote this note can change it.",
-  moved: "Someone changed this note since you opened it. Read it again, then save.",
-  decided: "Someone already decided on this suggestion.",
-  bad_source: "Could not save this note.",
-  bad_deal: "That deal is not this person's.",
-  not_a_step: "Only a note with a day can be done.",
-  not_for_you: "This note is for someone else."
-};
-var NOTE_FROM = {
-  page: null,
-  bulk: null,
-  moved: null,
-  call: "After a call",
-  thread: "After a conversation",
-  // A step a reach-out's reply made (Reach out Part 5, 00220 person_step_from_playbook): the words say which.
-  reach_out: "From a reach-out"
-};
-function noteStepOf(n, tz, nowMs) {
-  const day = stepDayOf(n.due_on, tz, nowMs);
-  if (!day) return null;
-  const doneMs = n.done_at ? Date.parse(n.done_at) : NaN;
-  if (!Number.isFinite(doneMs)) return { day, due: day.due, words: day.words, done: false, doneWords: null };
-  const who = n.done_by_me ? "you" : (n.done_by_name ?? "").trim() || "a former teammate";
-  return {
-    day,
-    due: day.due,
-    words: NOTE_WORDS.done,
-    done: true,
-    doneWords: `${NOTE_WORDS.done} by ${who} \xB7 ${clockShort(doneMs, tz, nowMs)}`
-  };
-}
-function personNotesVM(notes, tz, nowMs) {
-  const at3 = (iso) => {
-    const t = Date.parse(iso);
-    return Number.isFinite(t) ? t : nowMs;
-  };
-  return [...notes ?? []].sort(
-    (a, b) => Number(b.state === "suggested") - Number(a.state === "suggested") || at3(b.created_at) - at3(a.created_at)
-  ).map((n) => {
-    const t = at3(n.created_at);
-    return {
-      id: n.id,
-      body: n.body,
-      who: n.author_kind === "receptionist" ? "The receptionist" : n.mine ? "You" : (n.author_name ?? "").trim() || "A former teammate",
-      when: clockShort(t, tz, nowMs),
-      whenFull: `${clockDateYear(t, tz)} \xB7 ${clockTime(t, tz)}`,
-      forWho: forWords(n.for_me, n.for_user_id, n.for_name),
-      forMe: n.for_me,
-      forSeen: n.for_me && !!n.for_seen,
-      forUserId: n.for_user_id,
-      teamOnly: n.team_only,
-      suggested: n.state === "suggested",
-      from: n.author_kind === "receptionist" ? NOTE_FROM[n.source] : null,
-      mine: n.mine && n.author_kind === "member",
-      edited: n.version > 1 && n.state === "kept" && n.author_kind === "member",
-      version: n.version,
-      step: noteStepOf(n, tz, nowMs),
-      dealId: n.deal_id ?? null
-    };
-  });
-}
-
-// src/notes/step-sheet.ts
-var STEP_SHEET_WORDS = {
-  titles: { add: "Set a next step", edit: "Change the step", note: "Add a note", editNote: "Change the note" },
-  what: { label: "What to do", placeholder: "Call about the timeline" },
-  /** A note's words, where the sheet opened as one. */
-  noteWhat: { label: "Note", placeholder: "What they said, what to remember" },
-  when: { label: "When", pick: "The day", none: "No day" },
-  for: { label: "For", anyone: "Anyone on the team", me: "Me" },
-  teamOnly: "Only your team sees it.",
-  /** A note with no day: whether the receptionist reads it (it uses notes as facts, never aloud). */
-  reads: { label: "Team only", hint: "The receptionist won't read it" },
-  save: { add: "Set it", edit: "Save", note: "Add it" },
-  saving: "Saving\u2026",
-  reading: "Reading\u2026",
-  gone: "This person is not in your workspace.",
-  noStep: "This step is no longer here.",
-  done: { add: "Next step set", edit: "Step saved", note: "Note added", editNote: "Note saved" },
-  failed: "Could not save this step.",
-  /** Many people at once: one line, each of them given it as a note of their own. */
-  many: {
-    sub: (n) => `${n} ${n === 1 ? "person" : "people"}`,
-    placeholder: "One line, under each of their notes",
-    rule: "Each of them gets it as a note of their own, signed by you.",
-    failed: "Could not add the note."
-  },
-  // The limit is passed in rather than read here: a literal that reads another module's constant is kept by every
-  // package that bundles contracts, as tone.ts's tables were (people.ts NOTE_MAX is the one spelling of it).
-  problems: {
-    what: "Say what to do.",
-    note: "Write the note first.",
-    day: "Pick a day.",
-    tooLong: (max) => `At most ${max} characters.`
-  },
-  discard: {
-    question: "Discard changes?",
-    detail: null,
-    yes: "Discard",
-    no: "Keep editing"
-  }
-};
-var NO_DAY = "none";
-function openedWith(note, kind, days) {
-  const day = note?.step ? note.step.day.day : kind === "note" ? NO_DAY : null;
-  return {
-    what: note ? note.body : "",
-    day,
-    picking: !!day && !days.some((c) => c.key === day),
-    forId: note ? note.forUserId : null,
-    teamOnly: note?.teamOnly === true
-  };
-}
-var titleKey = (mode, kind) => kind === "note" ? mode === "add" ? "note" : "editNote" : mode;
-function stepSheetFor(p, ask, nowMs, tz) {
-  const W = STEP_SHEET_WORDS;
-  const note = ask.noteId ? (p.noteList ?? []).find((n) => n.id === ask.noteId) ?? null : null;
-  const mode = ask.noteId ? "edit" : "add";
-  const kind = (note ? !note.step : ask.note === true) ? "note" : "step";
-  const dealId = note ? note.dealId : ask.dealId ?? null;
-  const service = dealId ? (p.deals ?? []).find((d) => d.id === dealId)?.service ?? null : null;
-  const stepChoices = stepDays(nowMs, tz);
-  const days = kind === "note" ? [{ key: NO_DAY, label: W.when.none, title: W.when.none }, ...stepChoices] : stepChoices;
-  return {
-    mode,
-    kind,
-    title: W.titles[titleKey(mode, kind)],
-    sub: service ? `${p.name} \xB7 ${service}` : p.name,
-    days,
-    team: [
-      { id: "", label: W.for.anyone },
-      ...(p.noteTeam ?? []).map((m) => ({ id: m.id, label: m.me ? W.for.me : m.name }))
-    ],
-    draft: openedWith(note, kind, days),
-    note: note ? { id: note.id, version: note.version } : null,
-    dealId,
-    blocked: ask.noteId && !note ? W.noStep : note && !note.mine ? NOTE_REFUSALS.not_yours ?? null : null,
-    save: mode === "edit" ? W.save.edit : W.save[kind === "note" ? "note" : "add"]
-  };
-}
-function stepSheetDone(sheet, draft) {
-  const W = STEP_SHEET_WORDS.done;
-  const step2 = draft.day !== NO_DAY || draft.picking;
-  if (sheet.mode === "edit") return step2 ? W.edit : W.editNote;
-  return step2 ? W.add : W.note;
-}
-function stepSheetBody(sheet, draft) {
-  const P = STEP_SHEET_WORDS.problems;
-  const what = draft.what.trim();
-  const dayless = draft.day === NO_DAY && !draft.picking;
-  if (!what) return { body: null, problem: { field: "what", words: sheet.kind === "note" ? P.note : P.what } };
-  if (what.length > NOTE_MAX) return { body: null, problem: { field: "what", words: P.tooLong(NOTE_MAX) } };
-  if (!dayless && (!draft.day || !isRealDate(draft.day)))
-    return { body: null, problem: { field: "day", words: P.day } };
-  return {
-    problem: null,
-    body: {
-      body: what,
-      ...dayless || !draft.day ? {} : { due_on: draft.day },
-      for_user_id: draft.forId || null,
-      // A step is the team's (00166); a note is the receptionist's to read unless it is kept from it.
-      team_only: dayless ? draft.teamOnly : true,
-      ...sheet.dealId ? { deal_id: sheet.dealId } : {},
-      ...sheet.note ? { note_id: sheet.note.id, version: sheet.note.version } : {}
-    }
-  };
-}
-function stepSheetDirty(draft, opened) {
-  return draft.what.trim() !== opened.what.trim() || draft.day !== opened.day || (draft.forId || null) !== (opened.forId || null) || draft.teamOnly !== opened.teamOnly;
-}
-function stepSheetMerge(draft, opened, fresh) {
-  const dayTyped = draft.day !== opened.day || draft.picking !== opened.picking;
-  return {
-    what: draft.what !== opened.what ? draft.what : fresh.what,
-    day: dayTyped ? draft.day : fresh.day,
-    picking: dayTyped ? draft.picking : fresh.picking,
-    forId: (draft.forId || null) !== (opened.forId || null) ? draft.forId : fresh.forId,
-    teamOnly: draft.teamOnly !== opened.teamOnly ? draft.teamOnly : fresh.teamOnly
-  };
-}
-function noteManyLine(what) {
-  const P = STEP_SHEET_WORDS.problems;
-  const line = what.trim();
-  if (!line) return { line: null, problem: P.note };
-  if (line.length > NOTE_LINE_MAX) return { line: null, problem: P.tooLong(NOTE_LINE_MAX) };
-  return { line, problem: null };
-}
-
-// src/ask-proposals/person.ts
-var cardPersonRoute = ({ payload }) => {
-  const id = idIn(payload, "contact_id");
-  return id ? `clients/${id}` : null;
-};
-var DETAIL_FIELDS = ["name", "email"];
-var PERSON_DETAIL_WORDS = {
-  label: { name: "Name", email: "Email" },
-  none: {
-    name: (shows) => shows ? `no name of their own (shows as ${shows})` : "no name of their own",
-    email: () => "no address"
-  }
-};
-function detailsCall(contactId, from, none) {
-  const body = Object.fromEntries(DETAIL_FIELDS.filter((k) => typeof from[k] === "string").map((k) => [k, from[k]]));
-  if (!Object.keys(body).length) return refuseWith(none);
-  return { route: "PUT contacts/[id]/details", params: { id: asText(contactId) }, body, events: [PEOPLE_CHANGED] };
-}
-var personModeSpec = {
-  needs: "owner",
-  doing: "change how the receptionist treats one person",
-  gate: "settings",
-  commit: (p) => ({
-    route: "PUT contacts/[id]/receptionist",
-    params: { id: asText(p.payload.contact_id) },
-    body: { mode: p.payload.mode },
-    events: [PEOPLE_CHANGED]
-  }),
-  receipt: (p) => `Receptionist for ${asText(p.payload.who)}: ${PERSON_MODE_WORDS[asText(p.payload.mode)] ?? asText(p.payload.mode)}`,
-  undo: {
-    label: () => "Set it back",
-    window: "ten_minutes",
-    // The mode the route found when it wrote (its answer's `was`; none is inherit), the card's own reading where an
-    // older route answers none.
-    record: (p, data) => {
-      const was = wasIn(data, "mode");
-      return {
-        contact_id: p.payload.contact_id,
-        mode: was === void 0 ? p.payload.previous ?? "inherit" : was ?? "inherit",
-        decision_id: decisionOf(data)
-      };
-    },
-    call: (u) => ({
-      route: "PUT contacts/[id]/receptionist",
-      params: { id: asText(u.contact_id) },
-      body: { mode: u.mode },
-      events: [PEOPLE_CHANGED]
-    }),
-    receipt: () => "Set back"
-  },
-  open: cardPersonRoute
-};
-var dealSpec = {
-  needs: "operator",
-  gate: "approve",
-  // The card's body is the route's body: `who` is the card's own word and the id is the route's param, so both stay
-  // out of a request the route reads strictly. No undo: a mis-recorded stage is moved again on the person's page, and
-  // a step is changed or done there.
-  commit: ({ payload }) => {
-    const { who: _who, contact_id: _id, ...body } = payload;
-    return {
-      route: "POST contacts/[id]/deal",
-      params: { id: asText(payload.contact_id) },
-      body,
-      events: [PEOPLE_CHANGED]
-    };
-  },
-  // The step after the deal (0007, amended), naming the row the door wrote (a new proposal's card has no id to name):
-  // the team's note, with its day. It answers as the door takes it, People read again behind it. An answer that names
-  // no deal sends no step: a note tied to no deal is not the step the card said, so it is said as not saved.
-  then: (p, data) => {
-    if (!p.step) return null;
-    const dealId = idIn(rec(rec(data).deal), "id");
-    if (!dealId) return refuseWith("the deal came back without its id; set it on their page");
-    return {
-      route: "POST contacts/[id]/notes",
-      params: { id: asText(p.payload.contact_id) },
-      body: { body: p.step.body, due_on: p.step.due_on, team_only: true, deal_id: dealId },
-      refresh: "behind",
-      events: [PEOPLE_CHANGED]
-    };
-  },
-  // The deal stands either way, so a step the door refused is said on the receipt, to set again on their page.
-  receipt: ({ payload: pl }, _data, then) => {
-    const receipt = `${asText(pl.who)} \xB7 ${DEAL_STAGE_WORDS[asText(pl.stage)] ?? asText(pl.stage)}`;
-    if (!then) return receipt;
-    return then.ok ? `${receipt} \xB7 ${NOTE_WORDS.stepAdded}` : `${receipt} \xB7 the next step was not saved: ${then.message}`;
-  },
-  open: cardPersonRoute
-};
-var NOTE_KEYS = ["body", "for_user_id", "team_only", "note_id", "version", "due_on", "deal_id", "clear_due"];
-var noteSpec = {
-  needs: "operator",
-  gate: "approve",
-  // The route's strict body, the words and who reads them (D8): a note not for the team alone is read by the receptionist
-  // before it answers that person (00157). A card that does not say which is not sent, since the route's own default is
-  // the receptionist's and nobody chose it. A day makes it a step (00166), the team's, on the deal it names; a change
-  // names the note and the version it was read at (the note sheet's). Judged by the door's own schema (NoteWriteBody),
-  // as the route reads it. It answers as the door takes it, People read again behind it.
-  commit: ({ payload: pl }) => {
-    if (typeof pl.team_only !== "boolean" || !asText(pl.body)) return refuseWith(PROPOSAL_WORDS.cannotApprove);
-    const body = Object.fromEntries(NOTE_KEYS.filter((k) => pl[k] !== void 0).map((k) => [k, pl[k]]));
-    return {
-      route: "POST contacts/[id]/notes",
-      params: { id: asText(pl.contact_id) },
-      body,
-      refresh: "behind",
-      events: [PEOPLE_CHANGED]
-    };
-  },
-  receipt: ({ payload: pl }) => {
-    const step2 = typeof pl.due_on === "string" && !!pl.due_on;
-    if (step2) return `${asText(pl.who)} \xB7 ${STEP_SHEET_WORDS.done[pl.note_id ? "edit" : "add"]}`;
-    if (pl.note_id) return `${asText(pl.who)} \xB7 ${NOTE_WORDS.saved}`;
-    return `${asText(pl.who)} \xB7 ${NOTE_WORDS.added}${pl.team_only === true ? ` \xB7 ${NOTE_WORDS.teamOnly}` : ""}`;
-  },
-  undo: {
-    label: () => "Delete it",
-    window: "ten_minutes",
-    // The note the door wrote, by the id it answered with; a change, or an answer that names none, leaves nothing to
-    // take away (a change is changed again).
-    record: (p, data) => {
-      const noteId = p.payload.note_id ? null : idIn(rec(rec(data).note), "id");
-      return noteId ? { contact_id: p.payload.contact_id, note_id: noteId } : null;
-    },
-    call: (u) => ({
-      route: "POST contacts/[id]/notes/remove",
-      params: { id: asText(u.contact_id) },
-      body: { note_id: asText(u.note_id) },
-      refresh: "behind",
-      events: [PEOPLE_CHANGED]
-    }),
-    receipt: () => NOTE_WORDS.removed
-  },
-  open: cardPersonRoute
-};
-var personDetailsSpec = {
-  needs: "operator",
-  gate: "approve",
-  // Only the fields the card changes; its `previous` is what the builder read, for the undo.
-  commit: ({ payload: pl }) => detailsCall(pl.contact_id, pl, PROPOSAL_WORDS.cannotApprove),
-  // Each field as the route stored it (an address in its one spelling), the card's where it answered none.
-  receipt: ({ payload: pl }, data) => [
-    asText(pl.who),
-    ...DETAIL_FIELDS.filter((k) => typeof pl[k] === "string").map(
-      (k) => `${PERSON_DETAIL_WORDS.label[k]}: ${asText(rec(data)[k] ?? pl[k])}`
-    )
-  ].join(" \xB7 "),
-  undo: {
-    label: () => "Set it back",
-    window: "ten_minutes",
-    // Each changed field as the route found it when it wrote (its answer's `was`), the card's own reading where an
-    // older route answers none: the route clears a field with an empty string, so one that held nothing is set back to
-    // nothing. One whose previous value neither carries is never cleared on a guess.
-    record: ({ payload: pl }, data) => {
-      const changed = DETAIL_FIELDS.filter((k) => typeof pl[k] === "string");
-      const found = rec(rec(data).was);
-      const prev = changed.length > 0 && changed.every((k) => k in found) ? found : rec(pl.previous);
-      if (!changed.length || changed.some((k) => !(k in prev))) return null;
-      return { contact_id: pl.contact_id, ...Object.fromEntries(changed.map((k) => [k, asText(prev[k])])) };
-    },
-    call: (u) => detailsCall(u.contact_id, u, PROPOSAL_WORDS.noUndo),
-    receipt: () => "Set back"
-  },
-  open: cardPersonRoute
-};
-
 // src/reach-out/reach-out-dtos.ts
 var REACH_OUT_PREVIEW_INDEX_MAX = 199;
 var REACH_OUT_DECISIONS = ["include", "rewrite", "skip", "not_a_fit"];
@@ -20940,6 +19514,164 @@ function consentRuleWords(byChannel, purpose, about) {
   return groups.map(
     (g) => groups.length === 1 ? `each ${g.words}` : `each reached ${channelsWords(g.channels)} ${g.words}`
   );
+}
+
+// src/leads/lead-kind.ts
+var LEAD_KINDS = ["place", "company"];
+var LEAD_SOURCES = ["local_businesses", "people_at_companies", "import"];
+var LEAD_ROLES = ["owner", "founder", "executive", "partner", "director", "manager", "staff"];
+var isLeadRole = (r2) => LEAD_ROLES.includes(r2);
+var LEAD_DIRECTORY_WORDS = {
+  found: "From a business directory",
+  address: "the address came with its people",
+  addressAlone: "The address came with its people"
+};
+function leadFoundWords(t) {
+  if (t.kind === "company") return LEAD_DIRECTORY_WORDS.found;
+  if (t.found_on_listing === false) return "From your list";
+  return t.search?.asked ? `Found on Google Maps by \u201C${t.search.asked}\u201D` : "Found on Google Maps";
+}
+var LEAD_ROLE_WORDS = {
+  owner: "owner",
+  founder: "founder",
+  executive: "executive",
+  partner: "partner",
+  director: "director",
+  manager: "manager",
+  staff: "team member"
+};
+var LEAD_PEOPLE_MAX = 5;
+var NO_LEAD_FACTS = { people: [], addressee: null, size: null };
+var capped = (v, max) => trimmedOrNull(v)?.slice(0, max) ?? null;
+function leadRoleOf(seniority, title) {
+  switch ((seniority ?? "").trim().toLowerCase()) {
+    case "owner":
+      return "owner";
+    case "founder":
+      return "founder";
+    case "c_suite":
+      return "executive";
+    case "partner":
+      return "partner";
+    case "vp":
+    case "head":
+    case "director":
+      return "director";
+    case "manager":
+      return "manager";
+    case "senior":
+    case "entry":
+      return "staff";
+  }
+  const t = (title ?? "").toLowerCase();
+  if (!t.trim()) return null;
+  if (/\b(assistant|coordinator|intern|receptionist|secretary)\b/.test(t)) return "staff";
+  if (/\bowner\b/.test(t)) return "owner";
+  if (/\b(co-?)?founder\b/.test(t)) return "founder";
+  if (/\b(ceo|coo|cfo|cto|cmo|cio|chief|president)\b/.test(t)) return "executive";
+  if (/\bpartner\b/.test(t)) return "partner";
+  if (/\b(vp|vice president|head of|director)\b/.test(t)) return "director";
+  if (/\bmanager\b/.test(t)) return "manager";
+  return "staff";
+}
+function leadPersonOf(raw) {
+  const o = recordOrNull(raw);
+  const name = capped(o?.name, 120);
+  if (!o || !name) return null;
+  return {
+    name,
+    // Its source's first name, else the one rule's reading of the whole one (templates' firstNameOf).
+    first_name: capped(o.first_name, 60) ?? firstNameOf(name, null),
+    title: capped(o.title, 120),
+    role: isLeadRole(o.role) ? o.role : null,
+    email: capped(o.email, 254)?.toLowerCase() ?? null,
+    profile_url: capped(o.profile_url, 300)
+  };
+}
+function readFacts(raw) {
+  const o = recordOrNull(raw);
+  if (!o) return { facts: NO_LEAD_FACTS, at: [] };
+  const stored = (Array.isArray(o.people) ? o.people : []).map((p, at3) => ({ person: leadPersonOf(p), at: at3 })).filter((x) => x.person !== null).slice(0, LEAD_PEOPLE_MAX);
+  const a = o.addressee;
+  const addressee = typeof a === "number" && Number.isInteger(a) ? stored.findIndex((x) => x.at === a) : -1;
+  return {
+    facts: {
+      people: stored.map((x) => x.person),
+      addressee: addressee >= 0 ? addressee : null,
+      size: capped(o.size, 20)
+    },
+    at: stored.map((x) => x.at)
+  };
+}
+var leadFactsOf = (raw) => readFacts(raw).facts;
+function leadNamedPeople(raw) {
+  const { facts, at: at3 } = readFacts(raw);
+  return facts.people.map((p, i) => ({
+    name: p.name,
+    title: p.title,
+    at: at3[i] ?? i,
+    addressee: facts.addressee === i
+  }));
+}
+function leadAddresseeOf(l) {
+  if (l.kind !== "company") return null;
+  const f = leadFactsOf(l.facts);
+  return f.addressee === null ? null : f.people[f.addressee] ?? null;
+}
+var LEAD_COMPANY_WORDS = {
+  head: (n) => n === 1 ? "Named at this company" : `Named at this company \xB7 ${n}`,
+  writesTo: "Your reach-out writes to them",
+  size: (s) => `${s} people`,
+  profile: "Profile"
+};
+var LEAD_ADDRESSEE_WORDS = {
+  door: "Write to them instead",
+  /** What a role that may not is told it cannot do here (gateTitle). */
+  gated: "choose who a reach-out writes to",
+  choosing: "Choosing\u2026",
+  /** Chosen: whom the business's reach-out writes to now, and whether their address is checked first or was already. */
+  done: (name, business, checking) => checking ? `${business}'s reach-out writes to ${name} now. Their address is being checked first, which takes a few minutes.` : `${business}'s reach-out writes to ${name} now. Their address was checked already.`,
+  refused: {
+    gone: "This lead is gone.",
+    not_a_company: "Only a company has people to choose from.",
+    no_person: "They are no longer named at this company. Reload and try again.",
+    already: "Its reach-out writes to them already.",
+    closed: "This lead is closed, or already one of your people: who it writes to stays.",
+    written: "It was written to already: who it writes to stays.",
+    in_reach_out: "A reach-out has already planned or sent its email: who it writes to stays.",
+    checking: "Its address is being checked. Choose once the check is done.",
+    no_address: "They have no work address to write to.",
+    suppressed: "Their address is on the never-again list.",
+    in_people: "They are already one of your people.",
+    address_taken: "Another lead has their address.",
+    invalid: "Their address did not check out.",
+    no_round: "Their address can't be checked from here.",
+    searching: "Its search is still running. Choose once it has ended.",
+    paused: "Searching is paused, and their address would need checking. Nothing changed."
+  },
+  /** A refusal the words above do not name. */
+  refusedElse: "Who it writes to did not change. Reload and try again."
+};
+var leadAddresseeRefusal = (code2) => LEAD_ADDRESSEE_WORDS.refused[code2] ?? LEAD_ADDRESSEE_WORDS.refusedElse;
+var choosable = (l) => (l.stage === "ready" || l.stage === "nurture") && !l.closed_reason && !l.contact_id && !l.contacted_at && l.email_state !== "checking";
+function leadCompanyOf(l) {
+  if (l.kind !== "company") return null;
+  const { facts: f, at: at3 } = readFacts(l.facts);
+  const open = choosable(l);
+  const people = f.people.map((p, i) => ({
+    name: p.name,
+    what: p.title ?? (p.role ? LEAD_ROLE_WORDS[p.role] : null),
+    addressee: i === f.addressee,
+    profile: p.profile_url,
+    index: at3[i] ?? i,
+    choose: open && i !== f.addressee && !!p.email
+  })).sort((a, b) => Number(b.addressee) - Number(a.addressee));
+  return {
+    head: LEAD_COMPANY_WORDS.head(people.length),
+    people,
+    size: f.size ? LEAD_COMPANY_WORDS.size(f.size) : null,
+    source: LEAD_CARDS.find((c) => c.id === "people_at_companies")?.rights ?? ""
+  };
 }
 
 // src/reach-out/reach-out-rules.ts
@@ -23485,215 +22217,21 @@ var sequenceSendSaidSpec = {
   },
   open: openRun
 };
-var SEQUENCE_CARD_OPS = {
-  step: sequenceStepSpec,
-  remove: sequenceStepRemoveSpec,
-  words: sequenceWordsSpec
-};
-var SEQUENCE_CARD_OP_KEYS = Object.keys(SEQUENCE_CARD_OPS);
-var opIn = (pl) => SEQUENCE_CARD_OP_KEYS.find((k) => k === pl.op) ?? null;
-var sequenceCardSpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: (p, tab) => {
-    const op = opIn(p.payload);
-    return op ? SEQUENCE_CARD_OPS[op].commit(p, tab) : refuseWith(PROPOSAL_WORDS.cannotApprove);
-  },
-  receipt: (p, data) => {
-    const op = opIn(p.payload);
-    return op ? SEQUENCE_CARD_OPS[op].receipt(p, data) : PROPOSAL_WORDS.cannotApprove;
-  },
-  undo: {
-    label: (p) => {
-      const op = opIn(p.payload);
-      const undo = op ? SEQUENCE_CARD_OPS[op].undo : void 0;
-      return undo ? undo.label(p) : null;
-    },
-    window: "ten_minutes",
-    // What the op's own undo keeps, and the op, so the undo is its own way back.
-    record: (p, data, tab) => {
-      const op = opIn(p.payload);
-      const undo = op ? SEQUENCE_CARD_OPS[op].undo : void 0;
-      const kept = undo ? undo.record(p, data, tab) : null;
-      return kept ? { ...kept, op } : null;
-    },
-    call: (u, tab) => {
-      const op = opIn(u);
-      const undo = op ? SEQUENCE_CARD_OPS[op].undo : void 0;
-      return undo ? undo.call(u, tab) : refuseWith(PROPOSAL_WORDS.noUndo);
-    },
-    receipt: (data, u) => {
-      const op = opIn(u);
-      const undo = op ? SEQUENCE_CARD_OPS[op].undo : void 0;
-      return undo ? undo.receipt(data, u) : "";
-    }
-  },
-  open: openSequence
-};
 
-// src/ask/ask-settings-change.ts
-var NOTE_TEXT_SAID_MAX = 160;
-function applySettingsChange(config2, change) {
-  const brain = { ...config2.brain ?? {} };
-  const profile = { ...brain.profile ?? {} };
-  switch (change.op) {
-    case "add_closure": {
-      const closures = [...profile.closures ?? []];
-      closures.push({
-        date: change.date,
-        ...change.until ? { until: change.until } : {},
-        ...change.note ? { note: change.note } : {}
-      });
-      profile.closures = closures;
-      break;
-    }
-    case "set_hours": {
-      const hours = { ...profile.hours ?? {} };
-      hours[change.day] = change.open && change.close ? { open: change.open, close: change.close } : { open: null, close: null };
-      profile.hours = hours;
-      break;
-    }
-    case "add_note": {
-      const notes = [...profile.notes ?? []];
-      notes.push({ title: change.title, text: change.text, ...change.until ? { until: change.until } : {} });
-      profile.notes = notes;
-      break;
-    }
-    case "add_service": {
-      const services = [...profile.services ?? []];
-      services.push({ name: change.name, ...change.duration_min ? { duration_min: change.duration_min } : {} });
-      profile.services = services;
-      break;
-    }
-  }
-  brain.profile = profile;
-  return { ...config2, brain };
-}
-function describeSettingsChange(change) {
-  switch (change.op) {
-    case "add_closure":
-      return change.until ? `Closed ${change.date} to ${change.until}${change.note ? ` (${change.note})` : ""}` : `Closed on ${change.date}${change.note ? ` (${change.note})` : ""}`;
-    case "set_hours":
-      return change.open && change.close ? `${change.day}: ${change.open}\u2013${change.close}` : `${change.day}: closed`;
-    case "add_note": {
-      const text = clipAtWord(change.text.replace(/\s+/g, " "), NOTE_TEXT_SAID_MAX);
-      return `Note for the receptionist: \u201C${change.title}\u201D${change.until ? `, until ${change.until}` : ""}${text ? ` \u2014 \u201C${text}\u201D` : ""}`;
-    }
-    case "add_service":
-      return `New service: ${change.name}${change.duration_min ? ` (${change.duration_min} min)` : ""}`;
-  }
-}
-
-// src/ask-proposals/workspace.ts
-var policyBody = (cls, mode, confidence) => {
-  const body = { class: cls };
-  if (mode) body.mode = mode;
-  if (typeof confidence === "number") body.minConfidence = confidence;
-  return body;
-};
-var policySpec = {
-  needs: "operator",
-  gate: "autonomy",
-  commit: (p) => ({
-    route: "PUT policies",
-    body: policyBody(p.payload.class, p.payload.mode, p.payload.min_confidence)
-  }),
-  receipt: (p) => `Autonomy changed: ${p.summary}`,
-  undo: {
-    label: () => "Set it back",
-    window: "ten_minutes",
-    // The events ledger keeps policy changes and hands back no row id, so this undo names none.
-    // The row as the route found it when it wrote (its answer's `was`), the card's own reading where an older route
-    // answers none.
-    record: (p, data) => {
-      const found = rec(data).was;
-      const prev = found && typeof found === "object" ? found : p.payload.previous ?? {};
-      return { class: p.payload.class, mode: prev.mode ?? null, min_confidence: prev.min_confidence ?? null };
-    },
-    call: (u) => !u.mode && typeof u.min_confidence !== "number" ? refuseWith("The previous setting is unknown; change it in Settings.") : { route: "PUT policies", body: policyBody(u.class, u.mode, u.min_confidence) },
-    receipt: () => "Set back"
-  },
-  open: () => "admin/autonomy"
-};
-var settingsSpec = {
-  needs: "partner",
-  doing: "change the workspace's settings",
-  gate: "settings",
-  commit: (p, tab) => {
-    const st = tab.settings;
-    if (!st || !st.config || typeof st.version !== "number")
-      return refuseWith("Settings are not loaded yet \u2014 open Settings once and try again.");
-    const config2 = applySettingsChange(
-      st.config,
-      p.payload.change
-    );
-    return { route: "PUT settings", body: { config: config2, version: st.version } };
-  },
-  receipt: (p) => p.summary,
-  undo: {
-    label: () => "Put the previous settings back",
-    window: "version",
-    // The whole config as it was before, and the version this save wrote: restoring it is safe only while that is
-    // still the version loaded.
-    record: (_p, data, tab) => ({ config: tab.settings?.config, version_after: rec(data).version }),
-    call: (u, tab) => {
-      const version = tab.settings?.version;
-      if (typeof version !== "number") return refuseWith("Settings are not loaded yet.");
-      if (typeof u.version_after !== "number" || version !== u.version_after)
-        return refuseWith("Settings have changed since this card \u2014 change them in Settings.");
-      return { route: "PUT settings", body: { config: u.config, version } };
-    },
-    receipt: () => "Previous settings are back"
-  },
-  open: () => "admin/workspace"
-};
-var inviteSpec = {
-  needs: "owner",
-  doing: "invite someone to the team",
-  gate: "team",
-  commit: (p) => ({ route: "POST team/invite", body: { email: asText(p.payload.email), role: p.payload.role } }),
-  receipt: (p) => `Invited ${asText(p.payload.email)} as ${asText(p.payload.role)}`,
-  open: () => null
-};
-
-// src/ask-proposals/proposals.ts
-var PROPOSAL_SPECS = {
-  reply: replySpec,
-  steer: steerSpec,
-  thread_verb: threadVerbSpec,
-  person_mode: personModeSpec,
-  policy: policySpec,
-  settings: settingsSpec,
-  whisper: whisperSpec,
-  invite: inviteSpec,
-  broadcast: broadcastSpec,
-  playbook: playbookSpec,
-  lead_search: leadSearchSpec,
-  people_search: peopleSearchSpec,
-  reach_out_add: reachOutAddSpec,
-  deal: dealSpec,
-  note: noteSpec,
-  person_details: personDetailsSpec,
-  list: listSpec,
-  run: runSpec,
-  playbook_channels: playbookChannelsSpec,
-  playbook_change: playbookChangeSpec,
-  message: messageSpec,
-  // A sequence that exists, changed by one of its page's own verbs (ask-proposals/sequences.ts).
-  sequence: sequenceCardSpec
-};
-var VERB_SPECS = /* @__PURE__ */ (() => ({
-  ...PROPOSAL_SPECS,
+// src/ask-proposals/page-specs.ts
+var PAGE_SPECS = {
+  // People's: a person's answers, mode, notes and deal, many at once, added and merged, and a list's members.
   answer: answerSpec,
   answer_many: answerManySpec,
+  person_mode: personModeSpec,
   person_mode_many: personModeManySpec,
+  note: noteSpec,
   note_many: noteManySpec,
+  deal: dealSpec,
   person_add: personAddSpec,
   person_merge: personMergeSpec,
   list_member: listMemberSpec,
-  // A campaign run now at the member's request: Run now, under a sequence's More.
-  playbook_run: playbookRunSpec,
-  // The Sequences page's own (decision 0060, ask-proposals/sequences.ts).
+  // The Sequences page's own (decision 0060, ask-proposals/sequences.ts), with a campaign's change and a batch's run.
   sequence_step: sequenceStepSpec,
   sequence_step_remove: sequenceStepRemoveSpec,
   sequence_words: sequenceWordsSpec,
@@ -23704,20 +22242,33 @@ var VERB_SPECS = /* @__PURE__ */ (() => ({
   sequence_make: sequenceMakeSpec,
   sequence_start: sequenceStartSpec,
   sequence_discard: sequenceDiscardSpec,
+  playbook_change: playbookChangeSpec,
+  run: runSpec,
+  // A campaign run now at the member's request: Run now, under a sequence's More.
+  playbook_run: playbookRunSpec,
   // A booking the receptionist asked for, answered on Today, in the Inbox and on the Calendar (decision 0061).
   booking_request: bookingRequestSpec
-}))();
-function verbSpec(kind) {
-  return Object.prototype.hasOwnProperty.call(VERB_SPECS, kind) ? VERB_SPECS[kind] : null;
-}
+};
+var more = {};
 function proposalSpec(kind) {
-  return Object.prototype.hasOwnProperty.call(PROPOSAL_SPECS, kind) ? PROPOSAL_SPECS[kind] : null;
+  if (Object.prototype.hasOwnProperty.call(PAGE_SPECS, kind)) return PAGE_SPECS[kind];
+  return Object.prototype.hasOwnProperty.call(more, kind) ? more[kind] ?? null : null;
 }
-function proposalBelowNeeds(kind) {
-  const { needs: needs2, doing } = PROPOSAL_SPECS[kind];
-  return needs2 === "partner" ? `only an owner or the workspace's partner can ${doing}; say so, and that one of them can ask` : `only an owner can ${doing}; say so, and that an owner can ask`;
+function verbSpec(kind) {
+  return proposalSpec(kind);
 }
-var PROPOSAL_GATE = /* @__PURE__ */ (() => Object.fromEntries(Object.entries(PROPOSAL_SPECS).map(([kind, spec]) => [kind, spec.gate])))();
+var PROPOSAL_GATE = /* @__PURE__ */ (() => Object.fromEntries(Object.entries(PAGE_SPECS).map(([kind, spec]) => [kind, spec.gate])))();
+function addProposalSpecs(specs) {
+  for (const [kind, spec] of Object.entries(specs)) {
+    more[kind] = spec;
+    PROPOSAL_GATE[kind] = spec.gate;
+  }
+}
+function cardOpenRoute(p) {
+  const card = { payload: p.payload ?? {} };
+  const spec = proposalSpec(p.kind) ?? proposalSpec("thread_verb");
+  return spec ? spec.open(card, p.outcome ?? null) : null;
+}
 function askUndoOpen(kind, undo, atMs, nowMs, settingsVersion) {
   if (!undo) return false;
   const lasts = proposalSpec(kind)?.undo?.window ?? "ten_minutes";
@@ -23967,12 +22518,15 @@ function appLink(slug, route = "", query) {
 }
 
 // src/ask/ask-answer.ts
+var ASK_LIST_STYLES = ["bullets", "numbers", "lines"];
 var ASK_ANSWER_CAPS = {
   headline: 160,
   detail: 700,
   figures: 4,
   items: 5,
   parts: 4,
+  entries: 15,
+  entry: 160,
   next: 2,
   value: 24,
   label: 60,
@@ -23982,27 +22536,51 @@ var ASK_ANSWER_CAPS = {
   line: 160,
   question: 90
 };
-var clip = (s, n) => {
-  const t = (s ?? "").replace(/\s+/g, " ").trim();
+var noList = () => ({ style: "bullets", entries: [] });
+function storedAnswer(a) {
+  return a.show.list ? a : { ...a, show: { ...a.show, list: noList() } };
+}
+var cutAt = (t, n) => {
   if (t.length <= n) return t;
   const cut2 = t.slice(0, n - 1);
-  const space = cut2.lastIndexOf(" ");
+  const space = cut2.search(/\s\S*$/);
   return `${(space > n / 2 ? cut2.slice(0, space) : cut2).trimEnd()}\u2026`;
 };
+var clip = (s, n) => cutAt((s ?? "").replace(/\s+/g, " ").trim(), n);
+var clipLines = (s, n) => cutAt(
+  (s ?? "").replace(/\r\n?/g, "\n").split("\n").map((l) => l.replace(/\s+/g, " ").trim()).join("\n").replace(/\n{3,}/g, "\n\n").trim(),
+  n
+);
 var structured = (headline2, language) => ({
   v: 2,
   form: "structured",
   say: { headline: clip(headline2, ASK_ANSWER_CAPS.headline), detail: "" },
-  show: { figures: [], items: [], breakdown: null },
+  show: { figures: [], items: [], breakdown: null, list: noList() },
   do: { open: null, next: [] },
   language
 });
-function answerText(a) {
-  return [a.say.headline, a.say.detail].filter(Boolean).join(a.form === "prose" ? "\n" : " ");
+function listLines(l) {
+  return l.entries.map((e, i) => l.style === "numbers" ? `${i + 1}. ${e}` : l.style === "bullets" ? `\u2022 ${e}` : e);
 }
-function cardOpenRoute(p) {
-  const card = { payload: p.payload ?? {} };
-  return (proposalSpec(p.kind) ?? PROPOSAL_SPECS.thread_verb).open(card, p.outcome ?? null);
+function answerText(a) {
+  const say2 = [a.say.headline, a.say.detail].filter(Boolean).join(a.form === "prose" ? "\n" : " ");
+  return [say2, ...listLines(a.show.list ?? noList())].filter(Boolean).join("\n");
+}
+function answerCopy(a) {
+  const b = a.show.breakdown;
+  return [
+    answerText(a),
+    ...b ? [`${b.total} ${b.label}: ${b.parts.map((p) => `${p.label} ${p.value}`).join(", ")}`] : [],
+    ...a.show.figures.map((f) => `${[f.value, f.label].filter(Boolean).join(" ")}${f.note ? ` (${f.note})` : ""}`),
+    ...a.show.items.map((it) => [it.title, it.meta, it.line].filter(Boolean).join(" \xB7 "))
+  ].filter(Boolean).join("\n");
+}
+var sentences = (lines) => lines.map((l) => l.trim()).filter(Boolean).map((l) => /[.!?…:;,]$/.test(l) ? l : `${l}.`).join(" ");
+function listSpoken(l) {
+  return sentences(l.entries.map((e, i) => l.style === "numbers" ? `${i + 1}. ${e}` : e));
+}
+function answerSpoken(a) {
+  return [sentences([a.say.headline, ...a.say.detail.split("\n")]), listSpoken(a.show.list ?? noList())].filter(Boolean).join(" ");
 }
 function nextQuestions(next, places) {
   const out = [];
@@ -24039,7 +22617,11 @@ function oneDoor(a, cards = []) {
   const breakdown = a.show.breakdown ? { ...a.show.breakdown, source: receipt(a.show.breakdown.source) } : null;
   const figures = a.show.figures.map((f) => ({ ...f, source: receipt(f.source) }));
   return {
-    answer: { ...a, show: { figures, items, breakdown }, do: { open, next: nextQuestions(a.do.next, [...offered]) } },
+    answer: {
+      ...a,
+      show: { figures, items, breakdown, list: a.show.list ?? noList() },
+      do: { open, next: nextQuestions(a.do.next, [...offered]) }
+    },
     cardOpen
   };
 }
@@ -24096,7 +22678,7 @@ function answerFromV1(m) {
     v: 2,
     form: "prose",
     say: { headline: "", detail: (m.text ?? "").trim() },
-    show: { figures: [], items, breakdown: null },
+    show: { figures: [], items, breakdown: null, list: noList() },
     do: { open, next: m.followups ?? [] },
     language
   };
@@ -24210,7 +22792,18 @@ function openingsAnswer(o, language, day = null) {
 var C = ASK_ANSWER_CAPS;
 var asObj = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : {};
 var asArr = (v) => Array.isArray(v) ? v : [];
-var words = (v, n) => clip(cleanAnswer(typeof v === "string" ? v : ""), n);
+var unbold = (s) => s.replace(/\*\*(.+?)\*\*|__(.+?)__/g, "$1$2");
+var drawnText = (v) => unbold(cleanAnswer(typeof v === "string" ? v : ""));
+var words = (v, n) => clip(drawnText(v), n);
+var entry = (v) => words(typeof v === "string" ? v.replace(/^\s*(?:[-*•·–]|\d{1,2}[.)])\s+/, "") : "", C.entry);
+function sayAsDrawn(say2) {
+  const [headline2, more2] = firstSentence(drawnText(say2.headline).replace(/\s+/g, " ").trim());
+  const detail = drawnText(say2.detail);
+  return {
+    headline: clip(headline2, C.headline),
+    detail: clipLines(more2 && detail ? `${more2} ${detail}` : more2 || detail, C.detail)
+  };
+}
 var num = (v) => typeof v === "number" && Number.isFinite(v) ? v : Number.NaN;
 var UUID2 = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 var ROW_KINDS = ASK_CITATION_KINDS.filter((k) => k !== "page");
@@ -24242,8 +22835,8 @@ function normalizeAnswer(raw, read, fallback) {
     }
   }
   const root = asObj(json);
-  const say2 = asObj(root.say);
-  const headline2 = words(say2.headline, C.headline);
+  const say2 = sayAsDrawn(asObj(root.say));
+  const headline2 = say2.headline;
   if (!headline2) return { ok: false, error: "no headline" };
   const language = root.language === "en" || root.language === "es" ? root.language : fallback;
   let dropped = 0;
@@ -24275,6 +22868,11 @@ function normalizeAnswer(raw, read, fallback) {
   const whole = words(b.label, C.label);
   const adds = !!whole && parts2.length >= 2 && parts2.length <= C.parts && parts2.every((p) => p.label && Number.isFinite(p.value) && p.value >= 0) && Number.isFinite(total) && Math.abs(parts2.reduce((s, p) => s + p.value, 0) - total) < 1e-9;
   const breakdown = adds ? { label: whole, total, parts: parts2, source: ground(b.source) } : null;
+  const l = asObj(show.list);
+  const list2 = {
+    style: ASK_LIST_STYLES.find((x) => x === l.style) ?? "bullets",
+    entries: asArr(l.entries).map(entry).filter(Boolean).slice(0, C.entries)
+  };
   const d = asObj(root.do);
   const o = asObj(d.open);
   const at3 = ground(o.source);
@@ -24289,8 +22887,8 @@ function normalizeAnswer(raw, read, fallback) {
     answer: {
       v: 2,
       form: "structured",
-      say: { headline: headline2, detail: words(say2.detail, C.detail) },
-      show: { figures, items, breakdown },
+      say: say2,
+      show: { figures, items, breakdown, list: list2 },
       do: { open, next },
       language
     },
@@ -24307,46 +22905,9 @@ function answerWords(a) {
       a.show.breakdown.label,
       String(a.show.breakdown.total),
       ...a.show.breakdown.parts.flatMap((p) => [p.label, String(p.value)])
-    ] : []
+    ] : [],
+    ...a.show.list.entries
   ].filter(Boolean).join(" ");
-}
-function partialField(s, key) {
-  const k = s.indexOf(`"${key}"`);
-  if (k < 0) return "";
-  const colon = s.indexOf(":", k + key.length + 2);
-  if (colon < 0) return "";
-  let i = colon + 1;
-  while (i < s.length && /\s/.test(s[i])) i++;
-  if (s[i] !== '"') return "";
-  i++;
-  let out = "";
-  while (i < s.length) {
-    const c = s[i];
-    if (c === '"') break;
-    if (c === "\\") {
-      const n = s[i + 1];
-      if (n === void 0) break;
-      if (n === "u") {
-        const hex = s.slice(i + 2, i + 6);
-        if (hex.length < 4) break;
-        out += String.fromCharCode(parseInt(hex, 16) || 32);
-        i += 6;
-        continue;
-      }
-      out += n === "n" ? "\n" : n === "t" ? "	" : n === "r" ? "\r" : n === "b" ? "\b" : n === "f" ? "\f" : n;
-      i += 2;
-      continue;
-    }
-    out += c;
-    i++;
-  }
-  return out;
-}
-function partialSay(prefix) {
-  const at3 = prefix.indexOf('"say"');
-  if (at3 < 0) return null;
-  const rest = prefix.slice(at3);
-  return { headline: partialField(rest, "headline"), detail: partialField(rest, "detail") };
 }
 var sentence = (s) => /[.!?]$/.test(s) ? s : `${s}.`;
 function answerForCards(cards, language, words3) {
@@ -24372,7 +22933,7 @@ function proseAnswer(text, language) {
     v: 2,
     form: "prose",
     say: { headline: "", detail: cleanAnswer(text).slice(0, PROSE_MAX) },
-    show: { figures: [], items: [], breakdown: null },
+    show: { figures: [], items: [], breakdown: null, list: noList() },
     do: { open: null, next: [] },
     language
   };
@@ -24419,51 +22980,515 @@ function itemFocus(m, n) {
   return isRowFocus(kind) ? { kind, id, label: label.slice(0, 80) || `this ${kind}` } : null;
 }
 
+// src/calendar/feed-url.ts
+var PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
+var CARRIER_NAT = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
+var PRIVATE_V6 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
+function feedUrlOk(raw) {
+  if (!raw) return null;
+  const url = raw.trim().replace(/^webcal:\/\//i, "https://");
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+  const h = u.hostname;
+  if (PRIVATE_HOST.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || CARRIER_NAT.test(h) || PRIVATE_V6.test(h))
+    return null;
+  return u.toString();
+}
+var FEED_REDIRECTS_MAX = 3;
+async function fetchPublic(fetchImpl, raw, init = {}) {
+  let at3 = feedUrlOk(raw);
+  for (let hop = 0; at3 && hop <= FEED_REDIRECTS_MAX; hop += 1) {
+    const res = await fetchImpl(at3, { ...init, redirect: "manual" });
+    if (res.status >= 300 && res.status < 400) {
+      const next = res.headers.get("location");
+      await res.body?.cancel().catch(() => void 0);
+      at3 = next ? feedUrlOk(URL.canParse(next, at3) ? new URL(next, at3).toString() : null) : null;
+      continue;
+    }
+    return res;
+  }
+  return null;
+}
+var FEED_GUIDES = [
+  {
+    name: "Google Calendar",
+    steps: [
+      "On a computer, open Google Calendar and go to Settings.",
+      "Under \u201CSettings for my calendars\u201D, pick the calendar your bookings land in.",
+      "Open \u201CIntegrate calendar\u201D and copy \u201CSecret address in iCal format\u201D."
+    ]
+  },
+  {
+    name: "Apple Calendar (iCloud)",
+    steps: [
+      "In the Calendar app, open Calendars and press \u24D8 beside the calendar your bookings land in.",
+      "Turn on Public Calendar, then Share Link, and copy it."
+    ]
+  },
+  {
+    name: "Outlook",
+    steps: [
+      "In Outlook on the web, open Settings, then Calendar, then Shared calendars.",
+      "Under \u201CPublish a calendar\u201D, pick your calendar and \u201CCan view when I'm busy\u201D, then Publish.",
+      "Copy the ICS link."
+    ]
+  }
+];
+var FEED_CHECK_WORDS = {
+  guide: "Where do I find it?",
+  reading: "Reading it\u2026",
+  read: (events, next) => events === 0 ? "Read it: it's empty so far. Your receptionist will see new bookings as they land." : `Read it: ${events} ${events === 1 ? "event" : "events"}, ${next ? `the next ${next}` : "none in the next 30 days"}.`
+};
+var FEED_MAX_BYTES = 2e6;
+function feedProblemWords(reason, status) {
+  switch (reason) {
+    case "address":
+      return "The calendar feed needs to be a full https:// or webcal:// address on the internet.";
+    case "unreachable":
+      return "The calendar could not be reached. Check the address and try again.";
+    case "http":
+      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
+    case "too_large":
+      return "That feed is too large to read (over 2 MB).";
+    case "not_ical":
+      return "That address is not an iCal feed. In Google Calendar it is Settings \u203A your calendar \u203A Secret address in iCal format.";
+    case "settings":
+      return "Your workspace settings could not be read, so the calendar address could not be found. Save it again in Settings.";
+    default:
+      return null;
+  }
+}
+function feedBodyProblem(text) {
+  if (text.length > FEED_MAX_BYTES) return "too_large";
+  if (!/BEGIN:VCALENDAR/i.test(text)) return "not_ical";
+  return null;
+}
+function offeringHorizon(now, daysAhead) {
+  return { from: now.getTime() - DAY_MS, to: now.getTime() + (daysAhead + 1) * DAY_MS };
+}
+var SEASON_BACK_DAYS = 90;
+function seasonHorizon(now, daysAhead = 0) {
+  return {
+    from: now.getTime() - DAY_MS * SEASON_BACK_DAYS,
+    to: now.getTime() + Math.max(daysAhead + 1, 90) * DAY_MS
+  };
+}
+function previewHorizon(now) {
+  return { from: now.getTime() - DAY_MS, to: now.getTime() + 30 * DAY_MS };
+}
+
+// src/config/workspace-config/config-schema.ts
+import { z as z6 } from "zod";
+
+// src/config/unknown-keys.ts
+var isJsonObject = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
+var isList = (v) => Array.isArray(v);
+function keysLeftOut(raw, kept, at3 = []) {
+  if (Array.isArray(raw) && Array.isArray(kept)) {
+    return raw.flatMap((v, i) => i < kept.length ? keysLeftOut(v, kept[i], [...at3, i]) : []);
+  }
+  if (!isJsonObject(raw) || !isJsonObject(kept)) return [];
+  return Object.entries(raw).flatMap(([k, v]) => {
+    if (v === void 0) return [];
+    return Object.hasOwn(kept, k) ? keysLeftOut(v, kept[k], [...at3, k]) : [[...at3, k]];
+  });
+}
+function sameJson(a, b) {
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => sameJson(v, b[i]));
+  }
+  if (isJsonObject(a) && isJsonObject(b)) {
+    const ka = Object.keys(a).filter((k) => a[k] !== void 0);
+    const kb = Object.keys(b).filter((k) => b[k] !== void 0);
+    return ka.length === kb.length && ka.every((k) => Object.hasOwn(b, k) && sameJson(a[k], b[k]));
+  }
+  return Object.is(a, b);
+}
+function withKeysLeftOut(sent2, raw, kept) {
+  if (isList(sent2) && isList(raw) && isList(kept)) {
+    const taken = /* @__PURE__ */ new Set();
+    return sent2.map((el) => {
+      const i = kept.findIndex((k, n) => !taken.has(n) && n < raw.length && sameJson(k, el));
+      if (i < 0) return el;
+      taken.add(i);
+      return withKeysLeftOut(el, raw[i], kept[i]);
+    });
+  }
+  if (!isJsonObject(sent2) || !isJsonObject(raw) || !isJsonObject(kept)) return sent2;
+  const out = { ...sent2 };
+  for (const [k, v] of Object.entries(raw)) {
+    if (v === void 0) continue;
+    if (!Object.hasOwn(kept, k)) {
+      if (!Object.hasOwn(sent2, k)) out[k] = v;
+    } else if (Object.hasOwn(sent2, k)) {
+      out[k] = withKeysLeftOut(sent2[k], v, kept[k]);
+    }
+  }
+  return out;
+}
+function refuseUnknownFields(read, raw, ctx) {
+  const parsed = read.safeParse(raw);
+  if (!parsed.success) return;
+  const byObject = /* @__PURE__ */ new Map();
+  for (const where of keysLeftOut(raw, parsed.data)) {
+    if (where.length < 2) continue;
+    const path = where.slice(0, -1);
+    const id = JSON.stringify(path);
+    const held = byObject.get(id) ?? { path, keys: [] };
+    held.keys.push(String(where[where.length - 1]));
+    byObject.set(id, held);
+  }
+  for (const { path, keys } of byObject.values()) ctx.addIssue({ code: "unrecognized_keys", keys, path });
+}
+
+// src/config/workspace-config/brain-config-schema.ts
+import { z as z5 } from "zod";
+
+// src/config/workspace-config/business-profile.ts
+import { z as z4 } from "zod";
+var TIME = z4.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+var IntervalSchema = z4.object({ open: TIME, close: TIME });
+var HoursSchema = z4.object({
+  /** "09:00". Absent or null = closed that day, which is a real answer. */
+  open: TIME.nullable().optional(),
+  close: TIME.nullable().optional(),
+  /**
+   * Split shifts — 09:30-13:00 and 15:00-19:00, the lunch break a salon
+   * actually keeps. Additive: a day that has always been one stretch keeps
+   * saying so with open/close, and no stored config is rewritten.
+   */
+  intervals: z4.array(IntervalSchema).optional()
+}).strip();
+var DATE = z4.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+var ClosureSchema = z4.object({
+  date: DATE,
+  until: DATE.optional(),
+  note: z4.string().max(PROFILE_LIMITS.closureNote).optional()
+});
+var ServiceSchema = z4.object({
+  name: z4.string().min(1).max(PROFILE_LIMITS.serviceName),
+  /** Minutes. The receptionist is asked "how long does it take" constantly. */
+  duration_min: z4.number().int().min(1).max(PROFILE_LIMITS.serviceMinutes).optional(),
+  /**
+   * Free text, not a number, and deliberately so: "from $45", "quoted at
+   * consult", "varies by length". A price the business cannot state flatly
+   * must not be forced into a field that looks like it can.
+   */
+  price_note: z4.string().max(PROFILE_LIMITS.servicePrice).optional()
+}).strip();
+var GuardrailsSchema = z4.object({
+  never_quote_prices: z4.boolean().optional(),
+  never_confirm_booking: z4.boolean().optional(),
+  disclose_ai: z4.boolean().optional(),
+  /**
+   * OPT-IN, unlike the three above. Those default on because absent means
+   * "the safe reading"; this one arrived after prompts were live, and a
+   * rule that defaulted on would have changed every composed prompt in
+   * production the moment it deployed.
+   */
+  no_health_advice: z4.boolean().optional()
+}).strip();
+var NoteSchema = z4.object({
+  title: z4.string().min(1).max(PROFILE_LIMITS.noteTitle),
+  text: z4.string().min(1).max(PROFILE_LIMITS.noteText),
+  until: DATE.optional()
+}).strip();
+var rule = (key) => z4.number().int().min(BOOKING_RULE_BOUNDS[key].min).max(BOOKING_RULE_BOUNDS[key].max).optional();
+var BookingRulesSchema = z4.object({
+  /** Least notice for a slot, in hours. Absent = 2. */
+  lead_hours: rule("lead_hours"),
+  /** Gap kept around each existing appointment, in minutes. Absent = 0. */
+  buffer_min: rule("buffer_min"),
+  /** How far ahead open times are offered, in days. Absent = 14. */
+  max_days_ahead: rule("max_days_ahead"),
+  /** The shortest window worth naming, in minutes. Absent = 30. */
+  slot_min: rule("slot_min"),
+  /** Services that need a consultation before they can be booked. */
+  consult_first: z4.array(z4.string().min(1).max(PROFILE_LIMITS.consultFirstLine)).max(PROFILE_LIMITS.consultFirst).optional(),
+  party_max: rule("party_max"),
+  /**
+   * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
+   * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
+   */
+  ask_email: z4.boolean().optional(),
+  /** Anything else about booking, one short line each. */
+  notes: z4.array(z4.string().min(1).max(PROFILE_LIMITS.ruleNote)).max(PROFILE_LIMITS.ruleNotes).optional()
+}).strip();
+var BusinessProfileSchema = z4.object({
+  address: z4.string().max(300).optional(),
+  hours: z4.partialRecord(z4.enum(DAYS), HoursSchema).optional(),
+  /** Dates the business is shut regardless of the weekly grid. */
+  closures: z4.array(ClosureSchema).optional(),
+  services: z4.array(ServiceSchema).max(PROFILE_LIMITS.services).optional(),
+  languages: z4.array(z4.string().min(PROFILE_LIMITS.languageMin).max(PROFILE_LIMITS.languageMax)).max(PROFILE_LIMITS.languages).optional(),
+  guardrails: GuardrailsSchema.optional(),
+  /** What must reach a person. One short line each. */
+  escalate_when: z4.array(z4.string().min(1).max(PROFILE_LIMITS.reason)).max(PROFILE_LIMITS.reasons).optional(),
+  tone: z4.string().max(PROFILE_LIMITS.tone).optional(),
+  /**
+   * The line a PERSON answers. The phone receptionist warm-transfers here
+   * during opening hours; absent, it takes a message instead. Never the
+   * receptionist's own line — that would ring itself.
+   */
+  handoff_number: z4.string().regex(E1642, "E.164, like +12125550143").optional(),
+  /**
+   * The first thing a caller hears, in the owner's words, with {business} for the name (decision 0051): no cap and
+   * nothing refused, only notes (voice/greeting-owner.ts greetingNotes). Absent is the standard greeting. The one
+   * thing the product holds is said where the line is spoken, not here: a line that never says it is automated has
+   * the product's clause added (greetingOf). Never part of the composed prompt, so not in hasProfile.
+   */
+  // `.catch`: a stored value that is not a string reads as none (the standard greeting), never as a config that cannot
+  // be parsed, which would leave the receptionist silent.
+  phone_greeting: z4.string().optional().catch(void 0),
+  website: z4.string().url().max(500).optional(),
+  notes: z4.array(NoteSchema).max(PROFILE_LIMITS.notes).optional(),
+  booking_rules: BookingRulesSchema.optional(),
+  /**
+   * Anything the owner wants said that no field covers.
+   *
+   * The escape hatch that keeps this model honest — without it, structuring
+   * the facts would mean losing whatever did not fit, and the first migration
+   * would be a downgrade.
+   *
+   * It holds what the prompt it grew out of holds (INSTRUCTIONS_MAX), because
+   * the form carries that prompt into it.
+   */
+  extra_instructions: z4.string().max(PROFILE_LIMITS.instructions).optional()
+}).strip();
+
+// src/config/workspace-config/brain-config-schema.ts
+var BrainConfigSchema = z5.object({
+  business_name: z5.string().min(1).max(120),
+  /**
+   * The number the receptionist tells customers to call — an OVERRIDE, and
+   * optional because it should almost never be set.
+   *
+   * It was required, free text, and named the same as the line the
+   * receptionist answers, so every workspace typed something into it and
+   * nothing checked what. On the first live salon that produced a
+   * receptionist publishing the number it transfers to: customers who rang
+   * it reached a person's mobile and never the receptionist standing by,
+   * and the same string went to Google.
+   *
+   * Absent is now the right answer and the default: resolveFacts falls back
+   * to the provisioned voice line, formatted for speech, so the number
+   * published is the number answered by construction. A value here means a
+   * business deliberately publishes something else — a tracking line, a
+   * shopfront — and the pane says so in those words.
+   */
+  phone_display: z5.string().min(3).max(40).optional(),
+  /**
+   * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
+   * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
+   * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
+   */
+  booking_link: z5.string().url().max(BOOKING_LINK_MAX).optional(),
+  /** The complete system prompt the model receives — the "AI memory" pane's
+   *  one hard promise is that what it shows is EXACTLY this, nothing more. */
+  system_prompt: z5.string().min(40).max(INSTRUCTIONS_MAX),
+  /**
+   * The business's facts, as fields.
+   *
+   * Optional: every config written before this existed stays valid, and
+   * nothing composes until a workspace actually fills it in. When present
+   * it REPLACES system_prompt as the source the prompt is built from.
+   */
+  profile: BusinessProfileSchema.optional(),
+  fallbacks: z5.object({
+    /** Sent when no model key is configured. */
+    greeting: z5.string().min(1).max(PROFILE_LIMITS.message),
+    /** Sent when the model call failed. */
+    error: z5.string().min(1).max(PROFILE_LIMITS.message),
+    /** Sent for voice notes / photos before escalating. */
+    non_text: z5.string().min(1).max(PROFILE_LIMITS.message)
+  }).strip()
+}).strip();
+
+// src/config/workspace-config/config-schema.ts
+var NotificationsConfigSchema = z6.object({
+  escalation_emails: z6.array(z6.string().email()).min(ALERT_ADDRESSES_MIN).max(ALERT_ADDRESSES_MAX),
+  from: z6.string().max(200).optional(),
+  /**
+   * The kinds the business is not emailed (decision 0040), chosen on Settings › Notifications. Strings, not the closed
+   * set: a kind a newer dashboard writes must not make an older edge's read fail, and `emailOffOf` reads only the kinds
+   * that may be turned off. An edge older than the field drops it and keeps emailing, the safe side.
+   */
+  // `.catch`: a stored value that is not a short list of short names reads as none (everything emailed), never as a
+  // config that cannot be parsed, which would leave the receptionist silent.
+  email_off: z6.array(z6.string().max(40)).max(40).optional().catch(void 0)
+}).strip();
+var CalendarConfigSchema = z6.object({
+  ical_url: z6.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
+}).strip();
+var BookingsConfigSchema = z6.object({ tool: z6.string().max(40).optional(), by_hand: z6.boolean().optional() }).strip();
+var FeaturesConfigSchema = z6.object({
+  vision: z6.boolean().optional(),
+  /** Campaigns › Ads, its sample drawn in this workspace as a demo session draws it (contracts ads/address.ts). */
+  ads_preview: z6.boolean().optional(),
+  /** Campaigns › Sequences (decision 0060), drawn in this workspace before it replaces the home (contracts sequences). */
+  sequences_preview: z6.boolean().optional(),
+  /**
+   * Booking requests (decision 0061): where the team confirms its own bookings, a time a customer picks by text is held
+   * for the owner as a request (Booked it or Can't). Off, the conversation is a person's to read, as before.
+   */
+  booking_requests: z6.boolean().optional()
+}).strip();
+var ASK_GOAL_MAX = 200;
+var AskConfigSchema = z6.object({ goal: z6.string().max(ASK_GOAL_MAX).optional() }).strip();
+var TenantConfigSchema = z6.object({
+  brain: BrainConfigSchema.optional(),
+  ask: AskConfigSchema.optional(),
+  notifications: NotificationsConfigSchema.optional(),
+  calendar: CalendarConfigSchema.optional(),
+  bookings: BookingsConfigSchema.optional(),
+  features: FeaturesConfigSchema.optional()
+});
+function checkDay(h, day, ctx) {
+  for (const p of dayProblems(h, day)) {
+    ctx.addIssue({
+      code: z6.ZodIssueCode.custom,
+      path: ["brain", "profile", "hours", day, ...p.path],
+      message: p.message
+    });
+  }
+}
+function checkCalendarDay(day, path, ctx) {
+  if (!isRealDate(day)) {
+    ctx.addIssue({
+      code: z6.ZodIssueCode.custom,
+      path,
+      message: `${day} is not a date on the calendar.`
+    });
+  }
+}
+function checkClosure(c, n, ctx) {
+  const at3 = (...rest) => ["brain", "profile", "closures", n, ...rest];
+  checkCalendarDay(c.date, at3("date"), ctx);
+  if (c.until) checkCalendarDay(c.until, at3("until"), ctx);
+  if (c.until && c.until < c.date) {
+    ctx.addIssue({
+      code: z6.ZodIssueCode.custom,
+      path: at3("until"),
+      message: "A closure cannot end before it starts."
+    });
+  }
+}
+var WriteRules = TenantConfigSchema.superRefine((cfg, ctx) => {
+  if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
+    ctx.addIssue({
+      code: z6.ZodIssueCode.custom,
+      path: ["calendar", "ical_url"],
+      message: feedProblemWords("address") ?? "Not an address the receptionist may read."
+    });
+  }
+  if (cfg.bookings?.tool !== void 0 && !isBookingTool(cfg.bookings.tool)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["bookings", "tool"],
+      message: "Not a booking tool this product knows."
+    });
+  }
+  const p = cfg.brain?.profile;
+  if (!p) return;
+  for (const [day, h] of Object.entries(p.hours ?? {})) if (h) checkDay(h, day, ctx);
+  if ((p.closures?.length ?? 0) > MAX_CLOSURES) {
+    ctx.addIssue({
+      code: z6.ZodIssueCode.custom,
+      path: ["brain", "profile", "closures"],
+      message: `At most ${MAX_CLOSURES} closures.`
+    });
+  }
+  (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
+  (p.notes ?? []).forEach((note, n) => {
+    if (note.until) checkCalendarDay(note.until, ["brain", "profile", "notes", n, "until"], ctx);
+  });
+});
+var TenantConfigWriteSchema = z6.unknown().superRefine((raw, ctx) => refuseUnknownFields(TenantConfigSchema, raw, ctx)).pipe(WriteRules);
+function parseTenantConfigResult(raw) {
+  const r2 = TenantConfigSchema.safeParse(raw ?? {});
+  if (r2.success) return { ok: true, config: r2.data, ignored: keysLeftOut(raw, r2.data).map((p) => p.join(".")) };
+  return {
+    ok: false,
+    issues: r2.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+  };
+}
+function withStoredKeysKept(sent2, stored) {
+  const read = TenantConfigSchema.safeParse(stored ?? {});
+  if (!read.success) return sent2;
+  return withKeysLeftOut(sent2, stored, read.data);
+}
+function receptionistOf2(parsed) {
+  if (parsed && !parsed.ok) return "broken";
+  return parsed?.config.brain ? "set" : "none";
+}
+function parseTenantConfig(raw) {
+  const r2 = parseTenantConfigResult(raw);
+  return r2.ok ? r2.config : null;
+}
+function withFirstAlertAddress(config2, email) {
+  const current = parseTenantConfigResult(config2 ?? {});
+  if (!current.ok || current.config.notifications) return null;
+  const address = normalizeEmail(email);
+  if (!address) return null;
+  const next = TenantConfigWriteSchema.safeParse({
+    ...current.config,
+    notifications: { escalation_emails: [address] }
+  });
+  return next.success ? withStoredKeysKept(next.data, config2) : null;
+}
+
 // src/ask/ask-schemas.ts
-var Id = z4.string().min(1).max(120);
-var PageContextSchema = z4.object({
-  v: z4.literal(1),
-  surface: z4.enum(ASK_SURFACES),
-  route: z4.string().max(200),
-  view: z4.string().max(80).nullish(),
-  focus: z4.object({ kind: z4.enum(ASK_SCOPE_KINDS), id: Id, label: z4.string().max(80) }).strict().nullish(),
-  rows: z4.array(z4.object({ kind: z4.enum(ASK_CONTEXT_ROW_KINDS), id: Id }).strict()).max(ASK_CONTEXT_MAX_ROWS),
-  askedAt: z4.number().int().nonnegative()
+var Id = z7.string().min(1).max(120);
+var PageContextSchema = z7.object({
+  v: z7.literal(1),
+  surface: z7.enum(ASK_SURFACES),
+  route: z7.string().max(200),
+  view: z7.string().max(80).nullish(),
+  focus: z7.object({ kind: z7.enum(ASK_SCOPE_KINDS), id: Id, label: z7.string().max(80) }).strict().nullish(),
+  rows: z7.array(z7.object({ kind: z7.enum(ASK_CONTEXT_ROW_KINDS), id: Id }).strict()).max(ASK_CONTEXT_MAX_ROWS),
+  askedAt: z7.number().int().nonnegative()
 }).strict();
-var AskProposalOutcomeSchema = z4.object({
-  state: z4.enum(["done", "dismissed", "failed", "undone"]),
-  receipt: z4.string().max(300).catch(""),
-  atMs: z4.number().catch(0),
-  undo: z4.record(z4.string(), z4.unknown()).nullable().optional(),
+var AskProposalOutcomeSchema = z7.object({
+  state: z7.enum(["done", "dismissed", "failed", "undone"]),
+  receipt: z7.string().max(300).catch(""),
+  atMs: z7.number().catch(0),
+  undo: z7.record(z7.string(), z7.unknown()).nullable().optional(),
   // What the commit made that a plan's later step names (AskProposalOutcome.made): kept, never stripped, so a plan's
   // made survives a reload; absent (every outcome saved before) or unreadable, it made nothing a token names.
-  made: z4.object({ kind: z4.string().min(1).max(40), id: z4.string().min(1).max(120) }).nullable().catch(null)
+  made: z7.object({ kind: z7.string().min(1).max(40), id: z7.string().min(1).max(120) }).nullable().catch(null)
 });
-var CalendarDay = z4.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-var AskSettingsChangeSchema = z4.discriminatedUnion("op", [
-  z4.object({
-    op: z4.literal("add_closure"),
+var CalendarDay = z7.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+var AskSettingsChangeSchema = z7.discriminatedUnion("op", [
+  z7.object({
+    op: z7.literal("add_closure"),
     date: CalendarDay,
     until: CalendarDay.optional(),
-    note: z4.string().max(200).optional()
+    note: z7.string().max(200).optional()
   }),
-  z4.object({
-    op: z4.literal("set_hours"),
-    day: z4.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
-    open: z4.string().regex(/^\d{2}:\d{2}$/).nullable(),
-    close: z4.string().regex(/^\d{2}:\d{2}$/).nullable()
+  z7.object({
+    op: z7.literal("set_hours"),
+    day: z7.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    open: z7.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    close: z7.string().regex(/^\d{2}:\d{2}$/).nullable()
   }),
-  z4.object({
-    op: z4.literal("add_note"),
-    title: z4.string().min(1).max(80),
-    text: z4.string().min(1).max(1200),
+  z7.object({
+    op: z7.literal("add_note"),
+    title: z7.string().min(1).max(80),
+    text: z7.string().min(1).max(1200),
     until: CalendarDay.optional()
   }),
-  z4.object({
-    op: z4.literal("add_service"),
-    name: z4.string().min(1).max(80),
-    duration_min: z4.number().int().min(1).max(1440).optional()
-  })
+  z7.object({
+    op: z7.literal("add_service"),
+    name: z7.string().min(1).max(80),
+    duration_min: z7.number().int().min(1).max(1440).optional()
+  }),
+  // The owner's goal for Ask (the operator, 15 Oct 2026): one line, or empty to clear it.
+  z7.object({ op: z7.literal("set_goal"), goal: z7.string().max(ASK_GOAL_MAX) })
 ]);
 
 // src/ask/ask-language.ts
@@ -24878,7 +23903,7 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   const missed = neverConnected(dto);
   const wanted = (dto.wanted || "").trim();
   const headSummary = tidyCallSummary(dto.summary) ?? "";
-  const firstSentence = headSummary ? headSummary.split(/(?<=[.!?])\s/)[0] ?? headSummary : "";
+  const firstSentence2 = headSummary ? headSummary.split(/(?<=[.!?])\s/)[0] ?? headSummary : "";
   const bullets = [
     `${dto.direction === "inbound" ? "Inbound" : "Outbound"} \xB7 ${missed ? "never connected" : spokenDuration(dto.duration_ms)}`
   ];
@@ -24900,7 +23925,7 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   }
   if (dto.message_id && !withheld) bullets.push(`Noted on ${whoShort}'s thread in the Inbox`);
   const transcript = transcriptOf(dto.transcript_object ?? []);
-  const snippetBody = missed ? "The call never connected." : wanted || firstSentence || (reachedVoicemail(dto) ? "Reached voicemail." : "No summary from this call.");
+  const snippetBody = missed ? "The call never connected." : wanted || firstSentence2 || (reachedVoicemail(dto) ? "Reached voicemail." : "No summary from this call.");
   return {
     id: `cv-${dto.id}`,
     real: true,
@@ -24918,7 +23943,7 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     outcome: callOutcomeFor(dto, live),
     ...live ? { live: true } : {},
     snippet: withheld ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 caller ID withheld, so this call isn't linked to a customer.` : `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 ${snippetBody}`,
-    summary: { headline: wanted || firstSentence || snippetBody, bullets },
+    summary: { headline: wanted || firstSentence2 || snippetBody, bullets },
     transcript,
     durationSec: dto.duration_ms ? Math.round(dto.duration_ms / 1e3) : null,
     recordingState: recState,
@@ -24929,7 +23954,7 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     direction: dto.direction === "outbound" ? "outbound" : "inbound",
     missed,
     // A voicemail says so in how it ended; "Reached voicemail." here said it twice.
-    about: missed ? null : wanted || firstSentence || null,
+    about: missed ? null : wanted || firstSentence2 || null,
     facts: [CALL_MOOD[dto.sentiment ?? ""], ending, missed ? void 0 : RECORDING_NOTE[recState]].filter(
       (f) => !!f
     ),
@@ -25161,6 +24186,68 @@ function askCallOutcome(v) {
   return v.outcome === "missed" && !missedCall(v) ? "not_connected" : v.outcome;
 }
 
+// src/ask/ask-settings-change.ts
+var NOTE_TEXT_SAID_MAX = 160;
+function applySettingsChange(config2, change) {
+  if (change.op === "set_goal") {
+    const ask = { ...config2.ask ?? {} };
+    const goal = change.goal.trim();
+    if (goal) ask.goal = goal;
+    else delete ask.goal;
+    return { ...config2, ask };
+  }
+  const brain = { ...config2.brain ?? {} };
+  const profile = { ...brain.profile ?? {} };
+  switch (change.op) {
+    case "add_closure": {
+      const closures = [...profile.closures ?? []];
+      closures.push({
+        date: change.date,
+        ...change.until ? { until: change.until } : {},
+        ...change.note ? { note: change.note } : {}
+      });
+      profile.closures = closures;
+      break;
+    }
+    case "set_hours": {
+      const hours = { ...profile.hours ?? {} };
+      hours[change.day] = change.open && change.close ? { open: change.open, close: change.close } : { open: null, close: null };
+      profile.hours = hours;
+      break;
+    }
+    case "add_note": {
+      const notes = [...profile.notes ?? []];
+      notes.push({ title: change.title, text: change.text, ...change.until ? { until: change.until } : {} });
+      profile.notes = notes;
+      break;
+    }
+    case "add_service": {
+      const services = [...profile.services ?? []];
+      services.push({ name: change.name, ...change.duration_min ? { duration_min: change.duration_min } : {} });
+      profile.services = services;
+      break;
+    }
+  }
+  brain.profile = profile;
+  return { ...config2, brain };
+}
+function describeSettingsChange(change) {
+  switch (change.op) {
+    case "add_closure":
+      return change.until ? `Closed ${change.date} to ${change.until}${change.note ? ` (${change.note})` : ""}` : `Closed on ${change.date}${change.note ? ` (${change.note})` : ""}`;
+    case "set_hours":
+      return change.open && change.close ? `${change.day}: ${change.open}\u2013${change.close}` : `${change.day}: closed`;
+    case "add_note": {
+      const text = clipAtWord(change.text.replace(/\s+/g, " "), NOTE_TEXT_SAID_MAX);
+      return `Note for the receptionist: \u201C${change.title}\u201D${change.until ? `, until ${change.until}` : ""}${text ? ` \u2014 \u201C${text}\u201D` : ""}`;
+    }
+    case "add_service":
+      return `New service: ${change.name}${change.duration_min ? ` (${change.duration_min} min)` : ""}`;
+    case "set_goal":
+      return change.goal.trim() ? `Your goal: \u201C${change.goal.trim()}\u201D` : "Your goal, taken away";
+  }
+}
+
 // src/ask/ask-shape.ts
 function cacheHitOf(t) {
   const fed = t.input + t.cache_read + t.cache_creation;
@@ -25207,7 +24294,7 @@ var ASK_ANSWER_FORMAT = {
         },
         detail: {
           type: "string",
-          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${ASK_ANSWER_CAPS.detail} characters.`
+          description: `Only what the headline needs, in sentences: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail, or the length they asked for; a list goes in show.list, never here; at most ${ASK_ANSWER_CAPS.detail} characters.`
         }
       },
       required: ["headline", "detail"],
@@ -25281,9 +24368,27 @@ var ASK_ANSWER_FORMAT = {
           },
           required: ["label", "total", "parts", "source"],
           additionalProperties: false
+        },
+        list: {
+          type: "object",
+          description: "What they asked to see as a list (bullets, numbered, steps, one per line), and steps to follow: points in words, never the rows items hold; entries empty when nothing is a list.",
+          properties: {
+            style: {
+              type: "string",
+              enum: [...ASK_LIST_STYLES],
+              description: "bullets; numbers for steps or an order; lines for one entry to a line with no mark. With entries empty, numbers numbers the items."
+            },
+            entries: {
+              type: "array",
+              description: `At most ${ASK_ANSWER_CAPS.entries}, each one point of at most ${ASK_ANSWER_CAPS.entry} characters, with no bullet or number of its own: the page draws them.`,
+              items: { type: "string" }
+            }
+          },
+          required: ["style", "entries"],
+          additionalProperties: false
         }
       },
-      required: ["figures", "items", "breakdown"],
+      required: ["figures", "items", "breakdown", "list"],
       additionalProperties: false
     },
     do: {
@@ -25317,6 +24422,46 @@ var ASK_ANSWER_FORMAT = {
   required: ["say", "show", "do", "language"],
   additionalProperties: false
 };
+
+// src/ask/answer-stream.ts
+function partialField(s, key) {
+  const k = s.indexOf(`"${key}"`);
+  if (k < 0) return "";
+  const colon = s.indexOf(":", k + key.length + 2);
+  if (colon < 0) return "";
+  let i = colon + 1;
+  while (i < s.length && /\s/.test(s.charAt(i))) i++;
+  if (s[i] !== '"') return "";
+  i++;
+  let out = "";
+  while (i < s.length) {
+    const c = s[i];
+    if (c === '"') break;
+    if (c === "\\") {
+      const n = s[i + 1];
+      if (n === void 0) break;
+      if (n === "u") {
+        const hex = s.slice(i + 2, i + 6);
+        if (hex.length < 4) break;
+        out += String.fromCharCode(parseInt(hex, 16) || 32);
+        i += 6;
+        continue;
+      }
+      out += n === "n" ? "\n" : n === "t" ? "	" : n === "r" ? "\r" : n === "b" ? "\b" : n === "f" ? "\f" : n;
+      i += 2;
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
+}
+function partialSay(prefix) {
+  const at3 = prefix.indexOf('"say"');
+  if (at3 < 0) return null;
+  const rest = prefix.slice(at3);
+  return sayAsDrawn({ headline: partialField(rest, "headline"), detail: partialField(rest, "detail") });
+}
 
 // src/ask/plan.ts
 var SEND_HOUR = PLAYBOOK_DEFAULTS.runHour;
@@ -25728,6 +24873,2476 @@ function planOf(intent, world) {
   if (intent.intent === "cover_journey") return journeyPlan(intent.stages, world);
   const read = offerRead(intent.offer, intent.say, world);
   return "refused" in read ? read : offerPlan(read, world);
+}
+
+// src/ask-proposals/follow-ups.ts
+var ASK_VIEW_PAGE = "ask";
+var ASK_FOLLOW_UPS_MAX = 3;
+var FOLLOW_UP_SAID_MAX = 100;
+var FOLLOW_UP_PROMPT_MAX = 200;
+var FOLLOW_UP_WAKES = ["search_done", "replies", "date"];
+var isWake = (v) => typeof v === "string" && FOLLOW_UP_WAKES.includes(v);
+var clipped = (v, max) => typeof v === "string" ? v.trim().slice(0, max) : "";
+function followUpOf(v) {
+  if (!v || typeof v !== "object") return null;
+  const r2 = v;
+  const id = clipped(r2.id, 40);
+  const said = clipped(r2.said, FOLLOW_UP_SAID_MAX);
+  const prompt = clipped(r2.prompt, FOLLOW_UP_PROMPT_MAX);
+  if (!id || !said || !prompt || !isWake(r2.wake)) return null;
+  const subject = clipped(r2.subject, 40) || null;
+  const on = typeof r2.on === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r2.on) ? r2.on : null;
+  if (r2.wake === "date" ? !on : !subject) return null;
+  return { id, said, prompt, wake: r2.wake, subject, on, made_at: clipped(r2.made_at, 40) };
+}
+function followUpsOf(views) {
+  const ask = views && typeof views === "object" ? views[ASK_VIEW_PAGE] : null;
+  const list2 = ask && typeof ask === "object" ? ask.follow_ups : null;
+  return Array.isArray(list2) ? list2.map(followUpOf).filter((f) => f !== null) : [];
+}
+var SEARCH_WAKES = /* @__PURE__ */ new Set(["ended", "waiting_on_owner"]);
+function followUpDue(f, w) {
+  if (f.wake === "date") return !!f.on && f.on <= w.today;
+  if (!f.subject) return false;
+  if (f.wake === "search_done") {
+    const state = w.searches.get(f.subject);
+    return state !== void 0 && SEARCH_WAKES.has(state);
+  }
+  return (w.replies.get(f.subject) ?? 0) > 0;
+}
+
+// src/ask-proposals/follow-up.ts
+var listIn = (v) => Array.isArray(v) ? v : null;
+var followUpSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const list2 = listIn(pl.follow_ups);
+    return list2 ? { route: "PUT views/[page]", params: { page: ASK_VIEW_PAGE }, body: { view: { follow_ups: list2 } } } : refuseWith(PROPOSAL_WORDS.cannotApprove);
+  },
+  receipt: ({ payload: pl }) => pl.cleared === true ? "Done with it" : `I'll come back to it: ${asText(pl.said) || "when it happens"}`,
+  undo: {
+    label: () => "Undo",
+    window: "ten_minutes",
+    record: ({ payload: pl }) => {
+      const was = listIn(pl.previous);
+      return was ? { follow_ups: was } : null;
+    },
+    call: (u) => ({
+      route: "PUT views/[page]",
+      params: { page: ASK_VIEW_PAGE },
+      body: { view: { follow_ups: listIn(u.follow_ups) ?? [] } }
+    }),
+    receipt: () => "As it was"
+  },
+  open: () => null
+};
+
+// src/ask-proposals/lead-work.ts
+var openLead = ({ payload: pl }) => {
+  const id = idIn(pl, "lead_id");
+  return id ? leadsRoute({ searchId: idIn(pl, "search_id"), list: "all", cls: null, peek: id }) : "clients/leads";
+};
+var toastOr = (data, words3) => asText(rec(data).toast) || words3;
+var leadOpUndo = {
+  label: () => "Undo",
+  window: "ten_minutes",
+  record: (_p, data) => {
+    const d = rec(data);
+    if (d.undo === null) return null;
+    const u = rec(d.undo);
+    const op = typeof u.op_id === "string" ? u.op_id : typeof d.op_id === "string" ? d.op_id : null;
+    return op ? { op_id: op, version: Number(u.version ?? d.version ?? 0) } : null;
+  },
+  call: (u) => ({
+    route: "POST lead-operations/[id]/undo",
+    params: { id: asText(u.op_id) },
+    body: { version: Number(u.version ?? 0) }
+  }),
+  receipt: () => "Put back as it was"
+};
+var leadStageSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => idIn(pl, "lead_id") && pl.input && typeof pl.input === "object" ? { route: "POST leads/[id]/stage", params: { id: asText(pl.lead_id) }, body: pl.input } : refuseWith(PROPOSAL_WORDS.cannotApprove),
+  receipt: ({ payload: pl }, data) => toastOr(data, `${asText(pl.who) || "The lead"} moved`),
+  undo: leadOpUndo,
+  open: openLead
+};
+var LEAD_MARK_DOORS = {
+  keep: "POST leads/[id]/keep",
+  exclude: "POST leads/[id]/exclude",
+  put_back: "POST leads/[id]/put-back"
+};
+var isLeadMark = (v) => typeof v === "string" && Object.prototype.hasOwnProperty.call(LEAD_MARK_DOORS, v);
+var LEAD_MARK_SAID = { keep: "kept", exclude: "set aside", put_back: "put back" };
+var leadMarkSpec = {
+  needs: "partner",
+  doing: "keep, set aside or put back a search's leads",
+  gate: "find",
+  commit: ({ payload: pl }) => {
+    const search = idIn(pl, "search_id");
+    const ids = uniqueIds(pl.lead_ids);
+    if (!isLeadMark(pl.mark) || !search || !ids.length) return refuseWith(PROPOSAL_WORDS.cannotApprove);
+    const door = LEAD_MARK_DOORS[pl.mark];
+    const calls = ids.map((id) => ({ route: door, params: { id }, body: { search_id: search } }));
+    return oneOrMany(calls);
+  },
+  gather: (answers) => ({ done: answers.length }),
+  receipt: ({ payload: pl }, data) => {
+    const n = Number(rec(data).done) || 1;
+    const said = isLeadMark(pl.mark) ? LEAD_MARK_SAID[pl.mark] : "marked";
+    return n === 1 && asText(pl.who) ? `${asText(pl.who)} ${said}` : `${n} leads ${said}`;
+  },
+  open: openLead
+};
+var leadLaterSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => idIn(pl, "lead_id") && idIn(pl, "search_id") ? { route: "POST leads/[id]/later", params: { id: asText(pl.lead_id) }, body: { search_id: pl.search_id } } : refuseWith(PROPOSAL_WORDS.cannotApprove),
+  receipt: ({ payload: pl }) => `${asText(pl.who) || "The lead"} is under Later`,
+  undo: leadOpUndo,
+  open: openLead
+};
+var leadsBulkSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const body = rec(pl.body);
+    return body.by === "ids" || body.by === "view" ? { route: "POST leads/bulk", body } : refuseWith(PROPOSAL_WORDS.cannotApprove);
+  },
+  receipt: (_p, data) => toastOr(data, `${Number(rec(data).done) || 0} leads changed`),
+  undo: leadOpUndo,
+  open: () => "clients/leads"
+};
+var leadsCheckSpec = {
+  needs: "partner",
+  doing: "check leads' addresses again",
+  gate: "find",
+  commit: ({ payload: pl }) => {
+    const ids = uniqueIds(pl.lead_ids);
+    return ids.length ? { route: "POST leads/check-again", body: { ids } } : refuseWith(PROPOSAL_WORDS.cannotApprove);
+  },
+  receipt: (_p, data) => toastOr(data, `${Number(rec(data).scheduled) || 0} addresses checked again`),
+  open: () => "clients/leads"
+};
+var leadAddresseeSpec = {
+  needs: "partner",
+  doing: "choose who a company's email goes to",
+  gate: "find",
+  commit: ({ payload: pl }) => idIn(pl, "lead_id") && typeof pl.person === "number" ? { route: "POST leads/[id]/addressee", params: { id: asText(pl.lead_id) }, body: { person: pl.person } } : refuseWith(PROPOSAL_WORDS.cannotApprove),
+  receipt: ({ payload: pl }) => `Writes to ${asText(pl.person_name) || "them"} at ${asText(pl.who) || "the company"}`,
+  open: openLead
+};
+var leadListSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const ids = uniqueIds(pl.lead_ids);
+    return asText(pl.name) && ids.length ? { route: "POST lead-searches/chosen", body: { name: asText(pl.name), lead_ids: ids } } : refuseWith(PROPOSAL_WORDS.cannotApprove);
+  },
+  receipt: ({ payload: pl }, data) => {
+    const n = Number(rec(data).counted) || 0;
+    return `\u201C${asText(pl.name)}\u201D: ${n === 1 ? "1 lead" : `${n} leads`} to write to`;
+  },
+  made: (_p, data) => idIn(rec(data), "search_id"),
+  open: (_p, outcome) => outcome?.made?.id ? leadsRoute({ searchId: outcome.made.id, list: "all", cls: null }) : "clients/leads"
+};
+var leadSearchMoreSpec = {
+  needs: "partner",
+  doing: "find more leads for a search",
+  gate: "find",
+  commit: ({ payload: pl }) => idIn(pl, "search_id") && pl.plan && typeof pl.plan === "object" ? {
+    route: "POST lead-searches/[id]/more",
+    params: { id: asText(pl.search_id) },
+    body: { purpose: pl.purpose === "renew" ? "renew" : "topup", plan: pl.plan }
+  } : refuseWith(PROPOSAL_WORDS.cannotApprove),
+  receipt: ({ payload: pl }) => `${asText(pl.name) || "The search"} finds more. It carries on if you leave; Leads shows it.`,
+  undo: {
+    label: () => "Stop it",
+    window: "ten_minutes",
+    record: (p) => idIn(p.payload, "search_id") ? { search_id: p.payload.search_id } : null,
+    call: (u) => ({ route: "POST lead-searches/[id]/stop", params: { id: asText(u.search_id) } }),
+    receipt: () => "Stopping. Whatever it found is kept."
+  },
+  open: ({ payload: pl }) => {
+    const id = idIn(pl, "search_id");
+    return id ? leadsRoute({ searchId: id, list: "all", cls: null }) : "clients/leads";
+  }
+};
+var reachOutMakeSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const chain = rec(pl.chain);
+    return asText(chain.name) && asText(chain.search_id) && Array.isArray(chain.steps) && chain.steps.length ? { route: "POST reach-outs", body: chain } : refuseWith(PROPOSAL_WORDS.cannotApprove);
+  },
+  receipt: ({ payload: pl }) => `\u201C${asText(rec(pl.chain).name)}\u201D is saved. Its first run is planned now, and waits for your say before an email goes.`,
+  made: (_p, data) => idIn(rec(data), "root_id"),
+  open: (_p, outcome) => outcome?.made?.id ? `campaigns/moment:${outcome.made.id}` : "campaigns"
+};
+var reachOutSaidSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => idIn(pl, "lead_id") && asText(pl.intent) ? {
+    route: "POST reach-outs/leads/[id]/said",
+    params: { id: asText(pl.lead_id) },
+    body: {
+      intent: pl.intent,
+      ...typeof pl.day === "string" ? { day: pl.day } : {},
+      ...typeof pl.refer_to === "string" ? { refer_to: pl.refer_to } : {}
+    }
+  } : refuseWith(PROPOSAL_WORDS.cannotApprove),
+  receipt: ({ payload: pl }, data) => rec(data).already === true ? "Already said: nothing was written twice" : `${asText(pl.who) || "The business"}: ${asText(pl.said) || asText(pl.intent)}`,
+  open: openLead
+};
+
+// src/leads/lead-helpers.ts
+var CLOCK = /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\s*(?:to|–|-|—)\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i;
+var hourOf = (h, m, ap) => Number(h) % 12 + (ap.toUpperCase() === "PM" ? 12 : 0) + (m ? Number(m) / 60 : 0);
+function clockIn(tz, iso, now) {
+  if (!iso) return "\u2014";
+  const at3 = new Date(iso);
+  if (Number.isNaN(at3.getTime())) return "\u2014";
+  const day = (d) => dateFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  const clock3 = dateFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(at3);
+  if (day(at3) === day(now)) return clock3;
+  return `${dateFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at3)}, ${clock3}`;
+}
+var METRES_PER_MILE = 1609.344;
+var milesLabel = (m) => {
+  if (m === null || m === void 0) return "";
+  const mi = m / METRES_PER_MILE;
+  return `${mi < 10 ? mi.toFixed(1) : String(Math.round(mi))} mi`;
+};
+
+// src/leads/lead-facts.ts
+function leadTodayLine(hours, tz, now) {
+  if (!hours.length) return null;
+  const dayOf2 = (d) => dateFormat("en-US", { timeZone: tz, weekday: "long" }).format(d).toLowerCase();
+  const hoursOn = (d) => hours.find((x) => x.day.toLowerCase() === dayOf2(d))?.hours.trim() ?? null;
+  const parts2 = dateFormat("en-US", {
+    timeZone: tz,
+    hour: "numeric",
+    minute: "numeric",
+    hourCycle: "h23"
+  }).formatToParts(now);
+  const at3 = Number(parts2.find((p) => p.type === "hour")?.value ?? 0) + Number(parts2.find((p) => p.type === "minute")?.value ?? 0) / 60;
+  const clock3 = (hh, mm, ap) => `${hh}${mm && mm !== "00" ? `:${mm}` : ""} ${ap.toUpperCase()}`;
+  const last = hoursOn(new Date(now.getTime() - DAY_MS))?.match(CLOCK);
+  if (last && hourOf(last[4], last[5], last[6]) <= hourOf(last[1], last[2], last[3]) && at3 < hourOf(last[4], last[5], last[6])) {
+    return `Open until ${clock3(last[4], last[5], last[6])}`;
+  }
+  const text = hoursOn(now);
+  if (text === null) return null;
+  if (/^closed/i.test(text)) return "Closed today";
+  if (/^open 24 hours$/i.test(text)) return "Open 24 hours";
+  const m = text.match(CLOCK);
+  if (!m) return `Open today \xB7 ${leadHoursShort(text)}`;
+  const open = hourOf(m[1], m[2], m[3]);
+  let close = hourOf(m[4], m[5], m[6]);
+  if (close <= open) close += 24;
+  if (at3 < open) return `Opens ${clock3(m[1], m[2], m[3])}`;
+  if (at3 < close) return `Open until ${clock3(m[4], m[5], m[6])}`;
+  return "Closed now";
+}
+function leadHoursShort(text) {
+  const t = text.trim();
+  if (/^open 24 hours$/i.test(t)) return "24 hours";
+  if (/^closed/i.test(t)) return "Closed";
+  const at3 = (h, mm) => mm && mm !== "00" ? `${h}:${mm}` : h;
+  const ranges = t.split(/\s*,\s*/).map((part) => {
+    const m = part.match(CLOCK);
+    if (!m) return null;
+    const a1 = m[3].toUpperCase();
+    const a2 = m[6].toUpperCase();
+    const wraps = hourOf(m[4], m[5], m[6]) <= hourOf(m[1], m[2], m[3]);
+    if (!wraps && a1 === "AM" && a2 === "PM") return `${at3(m[1], m[2])}\u2013${at3(m[4], m[5])}`;
+    if (!wraps && a1 === a2) return `${at3(m[1], m[2])}\u2013${at3(m[4], m[5])} ${a2}`;
+    return `${at3(m[1], m[2])} ${a1}\u2013${at3(m[4], m[5])} ${a2}`;
+  });
+  return ranges.every(Boolean) ? ranges.join(", ") : t;
+}
+function leadWhere(r2) {
+  const town = [r2.city, r2.state].filter(Boolean).join(", ") + (r2.postal_code ? ` ${r2.postal_code}` : "");
+  const line = [r2.street, town].filter(Boolean).join(", ");
+  return line ? { line, href: r2.maps_url ?? null } : null;
+}
+var LEAD_UNDO_MS = DAY_MS;
+function leadUndoable(s, now) {
+  if (s?.via === "chosen") return false;
+  const r2 = s?.round;
+  return !!r2 && !r2.undo_op_id && !!r2.ended_at && now.getTime() - Date.parse(r2.ended_at) < LEAD_UNDO_MS;
+}
+function leadExclusionWord(search, key) {
+  if (!key) return LEAD_LEFT_OUT_WORD;
+  const plan = search?.plan;
+  if (key === LEAD_KIND_KEY) return plan ? leadKindWord(plan.name) : LEAD_LEFT_OUT_WORD;
+  if (key === LEAD_UNREACHABLE_KEY) return LEAD_UNREACHABLE_WORD;
+  const ex = plan?.exclusions.find((e) => e.key === key);
+  if (ex) return ex.text;
+  const cr = plan?.criteria.find((c) => c.key === key);
+  return cr ? cr.text : LEAD_LEFT_OUT_WORD;
+}
+var LEAD_CHECK_UNSURE_WORD = "couldn't tell";
+function leadCheckWord(search, key, answer) {
+  const plan = search?.plan;
+  const cap2 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+  const low = (s) => s[1] && s[1] === s[1].toLowerCase() ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+  const said = (yes, no) => answer === "yes" ? yes : answer === "no" ? no : `${yes}: ${LEAD_CHECK_UNSURE_WORD}`;
+  if (key === LEAD_KIND_KEY && plan) return said(`One of the ${plan.name}`, leadKindWord(plan.name));
+  const cr = plan?.criteria.find((c) => c.key === key);
+  if (cr) return said(cap2(cr.text), `${cap2(cr.text)}: no`);
+  const ex = plan?.exclusions.find((e) => e.key === key);
+  if (ex) return said(`Not ${low(ex.text)}`, `One of the ${low(ex.text)}`);
+  const fixed = LEAD_CHECK_WORDS[key];
+  if (fixed) return fixed[answer];
+  const plain2 = cap2(key.replace(/_+/g, " ").trim()) || key;
+  return said(plain2, `${plain2}: no`);
+}
+var LEAD_SLOT_WORDS = {
+  ok: "Checked",
+  part: "Unconfirmed",
+  none: "Nothing found",
+  bad: "Bad",
+  checking: "Still checking"
+};
+function leadSlots(r2) {
+  const phone = !r2.phone ? { state: "none", value: null, word: LEAD_SLOT_WORDS.none, tip: "No phone on the listing", copy: false } : r2.phone_wrong ? {
+    state: "bad",
+    value: r2.phone,
+    word: LEAD_SLOT_WORDS.bad,
+    tip: `${r2.phone} \u2014 you marked this number wrong`,
+    copy: false
+  } : r2.phone_agrees ? {
+    state: "ok",
+    value: r2.phone,
+    word: LEAD_SLOT_WORDS.ok,
+    tip: `${r2.phone} \u2014 the same number on Google Maps and on their website`,
+    copy: true
+  } : {
+    state: "part",
+    value: r2.phone,
+    word: LEAD_SLOT_WORDS.part,
+    tip: `${r2.phone} \u2014 one source, their Google Maps listing`,
+    copy: true
+  };
+  const s = r2.email_state;
+  const mailbox = !r2.email || s === "none" ? {
+    state: "none",
+    value: null,
+    word: LEAD_SLOT_WORDS.none,
+    tip: `${LEAD_MAILBOX_WORDS.none} \u2014 home, contact and about pages checked`,
+    copy: false
+  } : s === "ok" ? {
+    state: "ok",
+    value: r2.email,
+    word: LEAD_SLOT_WORDS.ok,
+    tip: `${r2.email} \u2014 ${LEAD_MAILBOX_WORDS.ok}`,
+    copy: true
+  } : s === "invalid" ? {
+    state: "bad",
+    value: r2.email,
+    word: LEAD_SLOT_WORDS.bad,
+    tip: `${r2.email} \u2014 ${LEAD_MAILBOX_WORDS.invalid}`,
+    copy: false
+  } : s === "checking" ? {
+    state: "checking",
+    value: r2.email,
+    word: LEAD_SLOT_WORDS.checking,
+    tip: `${r2.email} \u2014 ${LEAD_MAILBOX_WORDS.checking}. It resolves itself`,
+    copy: true
+  } : {
+    state: "part",
+    value: r2.email,
+    word: LEAD_SLOT_WORDS.part,
+    tip: `${r2.email} \u2014 ${LEAD_MAILBOX_WORDS[s]}`,
+    copy: true
+  };
+  return { phone, mailbox };
+}
+function leadTintOf(kind) {
+  let h = 7;
+  for (const ch of kind ?? "") h = h * 31 + ch.charCodeAt(0) >>> 0;
+  return h % 6 + 1;
+}
+var LEAD_TILE_PX = 96;
+function leadTileSrc(url, px = LEAD_TILE_PX) {
+  if (!url) return null;
+  if (!/^https:\/\/lh3\.googleusercontent\.com\//.test(url)) return url;
+  return url.replace(/=w\d+-h\d+(?:-[a-z0-9-]+)?$/i, `=s${px}-c`);
+}
+
+// src/leads/lead-review.ts
+var leadLowerFirst = (s) => s && s[1] && s[1] === s[1].toLowerCase() && s[1] !== s[1].toUpperCase() ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+var LEAD_REVIEW_GROUP_WORDS = {
+  mailbox_waiting: "Waiting on the mailbox check",
+  checks_out: "Their email checks out",
+  mailbox_silent: "Their mail server wouldn't answer",
+  bad_email: "Their email bounces",
+  no_email: "No email on their site",
+  no_phone: "No phone on their listing",
+  catch_all: "Unconfirmed \u2014 the mailbox accepts any address",
+  unsure: "Couldn't tell if",
+  read_only: "Only the listing says so",
+  out_of_area: "Just outside the area you asked for"
+};
+var REVIEW_GROUP_ORDER = [
+  "mailbox_waiting",
+  "checks_out",
+  "mailbox_silent",
+  "bad_email",
+  "no_email",
+  "no_phone",
+  "catch_all",
+  "unsure",
+  "read_only",
+  "out_of_area"
+];
+var REVIEW_GROUP_ACTS = {
+  mailbox_waiting: [],
+  checks_out: ["keep", "exclude"],
+  mailbox_silent: ["check_again", "keep", "exclude"],
+  bad_email: ["keep", "exclude"],
+  no_email: ["keep", "exclude"],
+  no_phone: ["keep", "exclude"],
+  catch_all: ["keep", "exclude"],
+  unsure: ["keep", "exclude"],
+  read_only: ["keep", "exclude"],
+  out_of_area: ["keep", "exclude"]
+};
+function reviewGroupOf(reason) {
+  if (reason === "email:checking") return "mailbox_waiting";
+  if (reason === "email:ok") return "checks_out";
+  if (reason === "email:unknown") return "mailbox_silent";
+  if (reason === "email:invalid") return "bad_email";
+  if (reason === "email:none") return "no_email";
+  if (reason === "phone:none") return "no_phone";
+  if (reason === "email:catch_all") return "catch_all";
+  if (reason.startsWith("unknown:")) return "unsure";
+  if (reason.startsWith("inferred:")) return "read_only";
+  if (reason === "out_of_area") return "out_of_area";
+  return null;
+}
+var LEAD_REVIEW_ACT_WORDS = {
+  check_again: "Check again",
+  keep: "Keep",
+  exclude: "Exclude"
+};
+var LEAD_REVIEW_GROUP_WHY = {
+  mailbox_waiting: "The mailbox check is still running on these. Nothing to press \u2014 they move on their own.",
+  checks_out: "Their address answered after this month's leads were spoken for, so they are waiting for you to keep them.",
+  mailbox_silent: "Their mail server did not answer the check. Asking again settles most of them.",
+  bad_email: "The address on their site does not exist, so an email would bounce. Their number may still be good.",
+  no_email: "Their home, contact and about pages were read, and no address was on any of them.",
+  no_phone: "This search counts a phone as enough, and no number on the listing could be matched against their site. An email may still reach them.",
+  catch_all: "Their server accepts every address, so the check cannot tell whether this one is real.",
+  unsure: "Claude could not tell from the listing or from their site.",
+  read_only: "Only the listing says so, and this search asked to see it for itself.",
+  out_of_area: "They sit outside the area you asked for, so they were not counted."
+};
+var LEAD_CHECK_CENTS_EACH = 0.089;
+var leadCheckAgainCents = (n) => Math.max(1, Math.round(n * LEAD_CHECK_CENTS_EACH));
+function leadReviewCosts(acts, n, month) {
+  const line = (a) => {
+    switch (a) {
+      case "keep":
+        return month ? `They join Ready and count against this month. ${n} of your ${month.left} left.` : "They join Ready and count against this month.";
+      case "exclude":
+        return "They don't count, and nothing is charged.";
+      case "check_again":
+        return `About ${leadCheckAgainCents(n)}\xA2. Their answer lands here in a few minutes.`;
+    }
+  };
+  return acts.map((act2) => ({ act: act2, label: LEAD_REVIEW_ACT_WORDS[act2], line: line(act2) }));
+}
+function leadAskedFor(search) {
+  const plan = search?.plan;
+  if (!plan) return [];
+  return [
+    ...plan.criteria.map((c) => ({ text: c.text, kind: "criterion" })),
+    ...plan.exclusions.map((e) => ({ text: e.text, kind: "exclusion" }))
+  ];
+}
+function leadReviewGroups(rows2, search) {
+  const by = /* @__PURE__ */ new Map();
+  for (const r2 of rows2) {
+    if (r2.cls !== "review") continue;
+    const reasons = r2.reasons ?? [];
+    const held = reasons.map(reviewGroupOf).filter((g2) => g2 !== null && g2 !== "checks_out");
+    const picked = held.length ? REVIEW_GROUP_ORDER.find((g2) => held.includes(g2)) : reasons.some((x) => reviewGroupOf(x) === "checks_out") ? "checks_out" : void 0;
+    if (!picked) continue;
+    const reason = reasons.find((x) => reviewGroupOf(x) === picked) ?? "";
+    const crit = (picked === "unsure" || picked === "read_only") && reason.includes(":") ? reason.slice(reason.indexOf(":") + 1) : null;
+    const key = crit ? `${picked}:${crit}` : picked;
+    const label = crit ? `${LEAD_REVIEW_GROUP_WORDS[picked]} \u2014 ${leadLowerFirst(leadExclusionWord(search, crit))}` : LEAD_REVIEW_GROUP_WORDS[picked];
+    const g = by.get(key) ?? { id: picked, key, label, ids: [], acts: REVIEW_GROUP_ACTS[picked] };
+    g.ids.push(r2.id);
+    by.set(key, g);
+  }
+  return [...by.values()].sort((a, b) => REVIEW_GROUP_ORDER.indexOf(a.id) - REVIEW_GROUP_ORDER.indexOf(b.id));
+}
+var M_PER_DEG_LAT = 111320;
+var middleOf = (pts) => {
+  if (!pts.length) return null;
+  const lats = pts.map((p) => p.lat);
+  const lngs = pts.map((p) => p.lng);
+  return { lat: (Math.min(...lats) + Math.max(...lats)) / 2, lng: (Math.min(...lngs) + Math.max(...lngs)) / 2 };
+};
+var COMPASS = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"];
+function leadAreaFrom(from, to) {
+  if (!from || !to) return "";
+  const perLng = M_PER_DEG_LAT * Math.cos(from.lat * Math.PI / 180);
+  const e = (to.lng - from.lng) * perLng;
+  const n = (to.lat - from.lat) * M_PER_DEG_LAT;
+  const deg = (Math.atan2(e, n) * 180 / Math.PI + 360) % 360;
+  return `${milesLabel(Math.hypot(e, n))} ${COMPASS[Math.round(deg / 45) % 8]}`;
+}
+var LEAD_MAP_MAX_SPAN_M = 8e4;
+function leadMapPlot(rows2, area) {
+  const placed = rows2.filter((r2) => !!r2.point);
+  const anchor = area?.center ?? middleOf(placed.map((r2) => r2.point));
+  if (!anchor || !placed.length && !area?.center)
+    return { pins: [], ring: null, spanM: 0, tooWide: false, center: anchor };
+  const perLng = M_PER_DEG_LAT * Math.cos(anchor.lat * Math.PI / 180);
+  const at3 = (p) => ({
+    e: (p.lng - anchor.lng) * perLng,
+    s: (anchor.lat - p.lat) * M_PER_DEG_LAT
+  });
+  const metres = placed.map((r2) => at3(r2.point));
+  const reach = Math.max(
+    area?.center && area.radius_m ? area.radius_m : 0,
+    ...metres.map((m) => Math.max(Math.abs(m.e), Math.abs(m.s))),
+    500
+  );
+  const half = reach * 1.12;
+  const spanM = Math.round(half * 2);
+  const into = (m) => ({ x: 0.5 + m.e / (half * 2), y: 0.5 + m.s / (half * 2) });
+  return {
+    pins: placed.map((r2, i) => ({ id: r2.id, ...into(metres[i]) })),
+    ring: area?.center && area.radius_m ? { ...into(at3(area.center)), r: area.radius_m / (half * 2) } : null,
+    spanM,
+    tooWide: !area?.center && spanM > LEAD_MAP_MAX_SPAN_M,
+    center: anchor
+  };
+}
+var leadMapAcross = (spanM) => spanM ? `${milesLabel(spanM)} across` : "";
+function leadMapNote(plot, oneSearch) {
+  if (plot.tooWide)
+    return "These leads are spread too far apart to be one place. Pick a search to see it on the ground.";
+  if (plot.ring) return "The area this search asked for, and every lead it placed inside it.";
+  return oneSearch ? "" : "Every lead these searches placed on the ground.";
+}
+
+// src/shared/csv.ts
+function csvCell(v) {
+  let s = v == null ? "" : typeof v === "boolean" ? v ? "yes" : "no" : String(v);
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+function delimiterOf(text) {
+  const first = (text.split(/\r?\n/, 1)[0] ?? "").replace(/"[^"]*"/g, "");
+  return (first.match(/;/g) ?? []).length > (first.match(/,/g) ?? []).length ? ";" : ",";
+}
+function parseCsv(text) {
+  const s = text.charCodeAt(0) === 65279 ? text.slice(1) : text;
+  const sep = delimiterOf(s);
+  const rows2 = [];
+  let row2 = [];
+  let cell3 = "";
+  let quoted = false;
+  let lineNo = 1;
+  let rowStartLine = 1;
+  const pushRow = () => {
+    Object.defineProperty(row2, "line", { value: rowStartLine, enumerable: false });
+    rows2.push(row2);
+  };
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (quoted) {
+      if (ch === '"') {
+        if (s[i + 1] === '"') {
+          cell3 += '"';
+          i++;
+        } else quoted = false;
+      } else {
+        if (ch === "\n") lineNo++;
+        cell3 += ch;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      if (cell3 === "") {
+        quoted = true;
+        continue;
+      }
+      cell3 += ch;
+      continue;
+    }
+    if (ch === sep) {
+      row2.push(cell3);
+      cell3 = "";
+      continue;
+    }
+    if (ch === "\r") continue;
+    if (ch === "\n") {
+      row2.push(cell3);
+      pushRow();
+      row2 = [];
+      cell3 = "";
+      lineNo++;
+      rowStartLine = lineNo;
+      continue;
+    }
+    cell3 += ch;
+  }
+  if (cell3 !== "" || row2.length) {
+    row2.push(cell3);
+    pushRow();
+  }
+  return rows2.filter((r2) => r2.some((c) => c.trim() !== ""));
+}
+var NAME_WORDS = /^(name|full ?name|client|client ?name|customer|customer ?name|first ?name|given ?name|nombre)$/i;
+var LAST_WORDS = /^(last ?name|surname|family ?name|apellidos?)$/i;
+var PHONE_WORDS = /^(phone|mobile|cell|cell ?phone|tel|telephone|phone ?number|mobile ?number|number|tel[eé]fono|m[oó]vil|celular)$/i;
+var EMAIL_WORDS = /^(e-?mail|email ?address|e-?mail ?address|correo|correo electr[oó]nico)$/i;
+function phoneShaped(v) {
+  return /^\+?[\d\s().-]+$/.test(v) && v.replace(/\D/g, "").length >= 10;
+}
+function isHeaderRow(first) {
+  return first.length > 0 && !first.some((c) => phoneShaped(c) || normalizeEmail(c) !== null);
+}
+var COLUMN_SHARE = 0.6;
+function columnShare(rows2, col, is) {
+  let seen = 0;
+  let hit = 0;
+  for (const r2 of rows2) {
+    const v = (r2[col] ?? "").trim();
+    if (!v) continue;
+    seen += 1;
+    if (is(v)) hit += 1;
+  }
+  return seen ? hit / seen : 0;
+}
+function matchColumns(rows2) {
+  const first = rows2[0] ?? [];
+  const width = rows2.reduce((w, r2) => Math.max(w, r2.length), 0);
+  const header = isHeaderRow(first);
+  const body = header ? rows2.slice(1) : rows2;
+  const columns = { name: null, last: null, phone: null, email: null };
+  if (header) {
+    first.forEach((h, i) => {
+      const w = h.trim();
+      if (columns.email === null && EMAIL_WORDS.test(w)) columns.email = i;
+      else if (columns.phone === null && PHONE_WORDS.test(w)) columns.phone = i;
+      else if (columns.last === null && LAST_WORDS.test(w)) columns.last = i;
+      else if (columns.name === null && NAME_WORDS.test(w)) columns.name = i;
+    });
+  }
+  for (let i = 0; i < width; i++) {
+    if (Object.values(columns).includes(i)) continue;
+    if (columns.email === null && columnShare(body, i, (v) => normalizeEmail(v) !== null) >= COLUMN_SHARE)
+      columns.email = i;
+    else if (columns.phone === null && columnShare(body, i, phoneShaped) >= COLUMN_SHARE) columns.phone = i;
+  }
+  if (columns.name === null) {
+    for (let i = 0; i < width; i++) {
+      if (Object.values(columns).includes(i)) continue;
+      const words3 = (v) => /\p{L}/u.test(v) && normalizeEmail(v) === null && normalizePhone(v) === null;
+      if (columnShare(body, i, words3) >= COLUMN_SHARE) {
+        columns.name = i;
+        break;
+      }
+    }
+  }
+  return { columns, header };
+}
+function importRowsOf(rows2, columns, header) {
+  const cell3 = (r2, i) => i === null ? "" : (r2[i] ?? "").trim();
+  return (header ? rows2.slice(1) : rows2).map((r2, n) => {
+    const name = Array.from(
+      [cell3(r2, columns.name), cell3(r2, columns.last)].filter(Boolean).join(" ").replace(/\s+/g, " ")
+    ).slice(0, 80).join("").trim();
+    const carried = r2.line;
+    return {
+      line: carried ?? n + (header ? 2 : 1),
+      name: name || null,
+      phone: normalizePhone(cell3(r2, columns.phone)),
+      email: normalizeEmail(cell3(r2, columns.email))
+    };
+  });
+}
+function importCounts(rows2) {
+  return {
+    rows: rows2.length,
+    withPhone: rows2.filter((r2) => r2.phone).length,
+    withEmail: rows2.filter((r2) => r2.email).length,
+    unreadable: rows2.filter((r2) => !r2.phone && !r2.email).length
+  };
+}
+
+// src/leads/lead-import.ts
+var LEAD_LIST_MAX = 500;
+var LEAD_IMPORT_MAX_BYTES = 2e6;
+var LEAD_LIST_VIAS = ["import", "chosen"];
+var isLeadList = (s) => !!s && LEAD_LIST_VIAS.includes(s.via ?? "");
+var WORDS = {
+  email: /^(e-?mail|email ?address|e-?mail ?address|work ?e-?mail|business ?e-?mail|contact ?e-?mail)$/i,
+  phone: /^(phone|phone ?number|telephone|tel|mobile|cell|business ?phone|main ?phone|number)$/i,
+  website: /^(website|web ?site|url|site|domain|web|homepage|website ?url)$/i,
+  city: /^(city|town|locality)$/i,
+  region: /^(state|region|province|st)$/i,
+  category: /^(category|industry|type|business ?type|kind|niche|vertical)$/i,
+  name: /^(business|business ?name|company|company ?name|name|organi[sz]ation|account|account ?name|store|shop|practice|brand)$/i
+};
+var ORDER = ["email", "phone", "website", "city", "region", "category", "name"];
+function websiteHostOf(raw) {
+  const s = String(raw ?? "").trim().toLowerCase().replace(/^[a-z][a-z0-9+.-]*:\/\//, "").replace(/^www\./, "").split(/[/?#:]/)[0];
+  if (!s || s.length > 120 || s.includes("@")) return null;
+  return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(s) ? s : null;
+}
+function regionOf(raw) {
+  const s = String(raw ?? "").trim();
+  if (!s) return null;
+  const codes = new Set(Object.values(US_STATES));
+  if (/^[A-Za-z]{2}$/.test(s) && codes.has(s.toUpperCase())) return s.toUpperCase();
+  return US_STATES[s.toLowerCase()] ?? null;
+}
+function leadImportColumns(rows2) {
+  const first = rows2[0] ?? [];
+  const width = rows2.reduce((w, r2) => Math.max(w, r2.length), 0);
+  const header = isHeaderRow(first);
+  const body = header ? rows2.slice(1) : rows2;
+  const columns = {
+    name: null,
+    email: null,
+    phone: null,
+    website: null,
+    city: null,
+    region: null,
+    category: null
+  };
+  const taken = (i) => Object.values(columns).includes(i);
+  if (header)
+    first.forEach((h, i) => {
+      const k = ORDER.find((key) => columns[key] === null && WORDS[key].test(h.trim()));
+      if (k) columns[k] = i;
+    });
+  for (let i = 0; i < width; i++) {
+    if (taken(i)) continue;
+    if (columns.email === null && columnShare(body, i, (v) => normalizeEmail(v) !== null) >= COLUMN_SHARE)
+      columns.email = i;
+    else if (columns.phone === null && columnShare(body, i, phoneShaped) >= COLUMN_SHARE) columns.phone = i;
+    else if (columns.website === null && columnShare(body, i, (v) => websiteHostOf(v) !== null) >= COLUMN_SHARE)
+      columns.website = i;
+  }
+  if (columns.name === null)
+    for (let i = 0; i < width; i++) {
+      if (taken(i)) continue;
+      const words3 = (v) => /\p{L}/u.test(v) && normalizeEmail(v) === null && websiteHostOf(v) === null;
+      if (columnShare(body, i, words3) >= COLUMN_SHARE) {
+        columns.name = i;
+        break;
+      }
+    }
+  return { columns, header };
+}
+var leadImportReady = (r2) => !!r2.name && !!r2.email;
+function leadImportPlanOf(text) {
+  const cells = parseCsv(text || "");
+  const { columns, header } = leadImportColumns(cells);
+  const cell3 = (r2, i) => i === null ? "" : (r2[i] ?? "").trim();
+  const words3 = (v, max) => Array.from(v.replace(/\s+/g, " ")).slice(0, max).join("").trim() || null;
+  const rows2 = (header ? cells.slice(1) : cells).map((r2, n) => {
+    const carried = r2.line;
+    return {
+      line: carried ?? n + (header ? 2 : 1),
+      name: words3(cell3(r2, columns.name), 200),
+      email: normalizeEmail(cell3(r2, columns.email)),
+      phone: normalizePhone(cell3(r2, columns.phone)),
+      website_host: websiteHostOf(cell3(r2, columns.website)),
+      city: words3(cell3(r2, columns.city), 120),
+      region: regionOf(cell3(r2, columns.region)),
+      category: words3(cell3(r2, columns.category), 120)
+    };
+  });
+  return {
+    columns,
+    header,
+    headers: header ? cells[0] ?? [] : [],
+    rows: rows2,
+    counts: {
+      rows: rows2.length,
+      ready: rows2.filter(leadImportReady).length,
+      noEmail: rows2.filter((r2) => !r2.email).length,
+      noName: rows2.filter((r2) => !!r2.email && !r2.name).length
+    }
+  };
+}
+function leadImportEstimateUsd(addresses) {
+  const each = LEAD_CARDS.find((c) => c.id === "local_businesses")?.checkPerEmailUsd ?? 89e-5;
+  return Math.max(0.5, Math.round(Math.max(0, addresses) * each * LEAD_ESTIMATE_MARGIN * 100) / 100);
+}
+var LEAD_IMPORT_WORDS = {
+  importDoor: "Import leads",
+  importTitle: "Import leads",
+  /**
+   * What a row needs, in one line under the title, and the rest under `importMore` (the fitted sheets, 14 Oct 2026:
+   * five lines on what a file holds opened the sheet).
+   */
+  importLine: "A name and an email on each row.",
+  importMore: "What a row can hold",
+  importRest: "A phone, a website, a city or a state, where you have them. Every address is checked before a reach-out may write to it.",
+  file: "Choose a CSV file",
+  paste: "Or paste the rows",
+  pastePlaceholder: "Business,Email,Website,City,State\nZilker Kettlebell Club,hello@example.com,example.com,Austin,TX",
+  read: "Read the rows",
+  nameLabel: "Name this list",
+  askedLabel: "Who are they?",
+  askedHint: "A line about them for the emails, like \u201Cgyms I met at the Austin expo\u201D. Leave it and the name is used.",
+  costs: "Each address that checks out counts as one of this month's leads, as a found lead does.",
+  tooMany: `A list takes at most ${LEAD_LIST_MAX} rows. Split the file and import the rest as another list.`,
+  tooBig: `That file is larger than ${LEAD_IMPORT_MAX_BYTES / 1e6} MB, more than a list of ${LEAD_LIST_MAX} rows needs. Split it and import each part as a list of its own.`,
+  unreadable: "That file could not be read. Save it again as a CSV and choose it once more, or paste its rows.",
+  nothing: "No row has both a business name and an email address, so there is nothing to import.",
+  failed: "The list could not be imported. Nothing was written.",
+  write: "Write to them",
+  writeHint: "The chosen leads become a list of their own, and the reach-out's sheet opens on it.",
+  writing: "Making the list\u2026",
+  searchAgain: "A list of your own is not searched again. Start a new search to find more businesses."
+};
+function leadImportCountWords(c) {
+  const without = c.rows - c.ready;
+  return `${plural(c.rows, "row")} \xB7 ${c.ready.toLocaleString()} with a name and an email${without ? ` \xB7 ${without.toLocaleString()} without` : ""}`;
+}
+function leadImportColumnWords(plan) {
+  if (!plan.header) return "No header row: the columns were told apart by what is in them.";
+  const said = (i) => i === null ? "not found" : `\u201C${String(plan.headers[i] ?? "").trim()}\u201D`;
+  const c = plan.columns;
+  return `Columns: business ${said(c.name)}, email ${said(c.email)}, phone ${said(c.phone)}, website ${said(c.website)}.`;
+}
+var leadImportSaveLabel = (n) => `Import ${n.toLocaleString()} and check their addresses`;
+function leadImportNameOf(fileName, nowMs, tz) {
+  const base = String(fileName ?? "").replace(/\.[a-z0-9]{1,5}$/i, "").replace(/[_-]+/g, " ").trim();
+  return (base || `Imported on ${clockDate(nowMs, tz, nowMs)}`).slice(0, 120);
+}
+var leadChooseNameOf = (nowMs, tz) => `Chosen on ${clockDate(nowMs, tz, nowMs)}`;
+var leftOut = (parts2) => {
+  const said = parts2.filter(([n]) => n > 0).map(([n, one, many]) => `${n.toLocaleString()} ${n === 1 ? one : many}`);
+  return said.length ? `Left out: ${said.join(", ")}.` : null;
+};
+function leadImportAnswerWords(a, leftByPage = 0) {
+  const joined = a.checking + a.counted;
+  const lines = [
+    a.checking ? `Checking ${plural(a.checking, "address", "addresses")} now: each one that checks out joins Ready, usually within a few minutes.` : null,
+    a.counted ? `${plural(a.counted, "lead")} already counted joined as ${a.counted === 1 ? "it is" : "they are"}.` : null,
+    leftOut([
+      [leftByPage + a.left_out.unreadable, "without a name or an address", "without a name or an address"],
+      [a.left_out.twice, "twice in the file", "twice in the file"],
+      [a.left_out.customer, "already in People", "already in People"],
+      [a.left_out.never_again, "on your never-again list", "on your never-again list"],
+      [a.left_out.elsewhere ?? 0, "being checked in another search", "being checked in another search"]
+    ])
+  ].filter((l) => !!l);
+  return { title: `${plural(joined, "business", "businesses")} on the list`, lines };
+}
+function leadChooseAnswerWords(a) {
+  const off = leftOut([
+    [a.left_out.not_counted, "not yet counted: keep them first", "not yet counted: keep them first"],
+    [a.left_out.no_email, "with no address", "with no address"],
+    [a.left_out.gone, "no longer here", "no longer here"]
+  ]);
+  return `${plural(a.counted, "lead")} on the list.${off ? ` ${off}` : ""}`;
+}
+function leadListStripOf(s) {
+  if (!s || !isLeadList(s)) return null;
+  const r2 = s.round;
+  const qualified = r2?.qualified ?? 0;
+  const review = r2?.review ?? 0;
+  const pile = review ? [{ id: "review", label: `${review.toLocaleString()} need a look`, arg: "review", pile: true }] : [];
+  if (s.via === "chosen")
+    return {
+      state: "ended",
+      alert: false,
+      title: `${plural(qualified, "lead")} you chose`,
+      parts: [],
+      progress: null,
+      actions: []
+    };
+  if (r2 && r2.state !== "ended")
+    return {
+      state: "running",
+      alert: false,
+      title: "Checking the addresses on your list",
+      parts: [`${qualified.toLocaleString()} ready so far`],
+      progress: null,
+      actions: []
+    };
+  return {
+    state: "ended",
+    alert: false,
+    title: `${qualified.toLocaleString()} of ${(qualified + review).toLocaleString()} on your list are ready`,
+    parts: review ? [`${review.toLocaleString()} could not be confirmed and wait in Needs review`] : [],
+    progress: null,
+    actions: pile
+  };
+}
+function leadListEmptyOf(s) {
+  if (!s || s.via !== "import" || !s.round || s.round.state === "ended") return null;
+  return {
+    title: "Checking the addresses.",
+    body: "Each business shows here once its address checks out; the rest wait in Needs review.",
+    action: null
+  };
+}
+
+// src/shared/link.ts
+var MAX_LINK = 500;
+var SCHEME = /^[a-z][a-z0-9+.-]*:/i;
+var HOST = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
+function normalizeLink(raw) {
+  if (raw == null) return null;
+  const s = String(raw).trim();
+  if (!s || /\s/.test(s)) return null;
+  const withScheme = SCHEME.test(s) ? s : `https://${s}`;
+  if (withScheme.length > MAX_LINK) return null;
+  let u;
+  try {
+    u = new URL(withScheme);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+  if (!HOST.test(u.hostname)) return null;
+  return withScheme;
+}
+function whyNotALink(raw) {
+  if (normalizeLink(raw)) return null;
+  const s = String(raw ?? "").trim();
+  if (!s) return "A web address is needed.";
+  if (/\s/.test(s)) return "Only the address itself, with no spaces in it.";
+  if (SCHEME.test(s) && !/^https?:/i.test(s)) return "That needs to be a web address, starting with https://.";
+  if (s.length > MAX_LINK) return "That address is too long to store: paste the link itself, not a whole page.";
+  return "That needs a full web address, like docs.example.com/proposal.";
+}
+function linkHost(url) {
+  try {
+    return new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+function publicObjectSrc(supabaseUrl, bucket, path) {
+  if (!supabaseUrl) return null;
+  let origin;
+  try {
+    origin = new URL(supabaseUrl).origin;
+  } catch {
+    return null;
+  }
+  if (!/^https:\/\//.test(origin) && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin)) return null;
+  return `${origin}/storage/v1/object/public/${bucket}/${path}`;
+}
+
+// src/leads/lead-row.ts
+var LEAD_BAND_ORDER = ["qualified", "review", "excluded"];
+function leadBand(search) {
+  const r2 = search?.round;
+  if (!r2) return null;
+  const f = r2.fits ?? { strong: 0, look: 0, long: 0 };
+  const fits = ["strong", "look", "long"].map((id) => ({ id, label: LEAD_FIT_WORDS[id], count: f[id] }));
+  return {
+    // The tabs say the pills' words (LEAD_CLASS_WORDS: Qualified, Needs review, Left out) with the count in front, and the
+    // page draws them in the pills' tones (stateOf("lead_class")): a tab and a pill for one state read one map.
+    classes: LEAD_BAND_ORDER.map((id) => ({ id, label: `${r2[id]} ${LEAD_CLASS_WORDS[id]}`, count: r2[id] })),
+    fits,
+    mixed: fits.filter((x) => x.count > 0).length > 1
+  };
+}
+var keyInWords = (key) => {
+  const words3 = key.replace(/_/g, " ").trim();
+  return words3 ? words3.charAt(0).toUpperCase() + words3.slice(1) : "";
+};
+var ratingLabel = (rating, reviews) => rating === null || rating === void 0 ? "" : `${rating.toFixed(1)} \xB7 ${reviews ?? 0}`;
+var stageLabelOf = (stage, closedReason) => stage === "archived" ? LEAD_CLOSED_WORDS[closedReason] ?? LEAD_STAGE_WORDS.archived : LEAD_STAGE_WORDS[stage];
+var LEAD_MARKS_BUCKET = "lead-marks";
+var LEAD_MARK_PATH = /^[0-9a-f]{64}\.(png|jpg|webp|gif|ico)$/;
+function leadMarkSrc(supabaseUrl, path) {
+  if (!path || !LEAD_MARK_PATH.test(path)) return null;
+  return publicObjectSrc(supabaseUrl, LEAD_MARKS_BUCKET, path);
+}
+function leadRatingOf(r2) {
+  if (r2.rating === null || r2.rating === void 0) return null;
+  const n = r2.reviews ?? 0;
+  return { score: r2.rating.toFixed(1), count: n.toLocaleString("en-US"), reviews: reviewsPhrase(n) };
+}
+function toLeadRowVM(r2, tz, now, search = null) {
+  const nowMs = now.getTime();
+  const foundMs = Date.parse(r2.found_at);
+  const m = r2.member;
+  const excludedBy = m.excluded_by ? keyInWords(m.excluded_by) : null;
+  const rating = ratingLabel(r2.rating, r2.reviews);
+  const rated = leadRatingOf(r2);
+  const fitLabel = m.class === "excluded" ? excludedBy ?? m.reason : m.class === "review" ? m.reason : m.fit ? LEAD_FIT_WORDS[m.fit] : m.reason;
+  const fitTitle = m.class === "excluded" ? `Left out: ${excludedBy ?? m.reason}` : m.class === "qualified" && rated ? `${m.reason} \xB7 ${rated.score} from ${rated.reviews}` : m.reason;
+  const area = [r2.postal_code ?? "", [r2.city, r2.state].filter(Boolean).join(", ")].filter(Boolean).join(" \xB7 ");
+  const sub = subLineOf(r2, m.distance_m);
+  const spread2 = r2.reviews_dist ? [r2.reviews_dist.one, r2.reviews_dist.two, r2.reviews_dist.three, r2.reviews_dist.four, r2.reviews_dist.five] : null;
+  const waitsOn = m.class === "review" ? leadReviewGroups([{ id: r2.id, cls: "review", reasons: m.reasons ?? [] }], search)[0]?.label ?? m.reason : null;
+  const state = m.class === "excluded" ? "out" : m.class === "review" ? "review" : r2.stage === "nurture" ? "contacted" : r2.stage === "converted" ? "talking" : r2.stage === "archived" ? "out" : "ready";
+  const stateTag = state === "contacted" ? `${LEAD_STAGE_WORDS.nurture}${r2.contacted_at ? ` \xB7 ${agoShort(Date.parse(r2.contacted_at), nowMs)}` : ""}` : state === "talking" ? LEAD_STAGE_WORDS.converted : state === "review" ? LEAD_REVIEW_WORD : state === "out" ? m.class === "excluded" ? LEAD_LEFT_OUT_WORD : stageLabelOf(r2.stage, r2.closed_reason) : null;
+  const term = search?.plan?.terms[0] ?? null;
+  const card = {
+    about: r2.about ?? null,
+    today: leadTodayLine(r2.hours ?? [], tz, now),
+    where: leadWhere(r2),
+    site: r2.website ? { label: siteHost(r2.website) ?? r2.website, href: `https://${r2.website}` } : null,
+    maps: r2.maps_url ? { label: "Google Maps", href: r2.maps_url } : null,
+    found: [
+      {
+        at: clockIn(tz, r2.found_at, now),
+        what: foundLine(r2, term)
+      }
+    ]
+  };
+  return {
+    id: r2.id,
+    searchId: r2.search_id,
+    searchName: r2.search_name ?? "",
+    mark: initialsOf(r2.business_name),
+    name: r2.business_name,
+    places: r2.places,
+    category: r2.category ?? "",
+    area,
+    cls: m.class,
+    fit: m.class === "qualified" ? m.fit : null,
+    fitLabel,
+    fitTitle,
+    email: r2.email,
+    emailState: r2.email_state,
+    // The cell draws the address itself; an address nobody has is blank, not "none".
+    emailLabel: r2.email ?? "",
+    emailWord: LEAD_EMAIL_WORDS[r2.email_state],
+    // E.164, because the row dials it (plDial's tel:); the double tick says Maps and their own site agree.
+    phone: r2.phone,
+    phoneAgrees: r2.phone_agrees,
+    phoneWrong: r2.phone_wrong,
+    reach: {
+      email: r2.email ? { address: r2.email, state: r2.email_state, word: LEAD_EMAIL_WORDS[r2.email_state] } : null,
+      phone: r2.phone ? { number: r2.phone, agrees: r2.phone_agrees } : null
+    },
+    reasons: m.reasons ?? [],
+    why: m.reason,
+    rating,
+    reviewsTitle: r2.reviews_dist ? `5\u2605 ${r2.reviews_dist.five} \xB7 4\u2605 ${r2.reviews_dist.four} \xB7 3\u2605 ${r2.reviews_dist.three} \xB7 2\u2605 ${r2.reviews_dist.two} \xB7 1\u2605 ${r2.reviews_dist.one}` : "",
+    stage: r2.stage,
+    stageLabel: stageLabelOf(r2.stage, r2.closed_reason),
+    contactId: r2.contact_id ?? null,
+    foundLabel: agoShort(foundMs, nowMs),
+    foundLine: Number.isFinite(foundMs) ? `Found ${agoWords(foundMs, nowMs, { date: (at3) => clockDate(at3, tz, nowMs) })}` : "",
+    foundAt: `${clockDateYear(foundMs, tz)} \xB7 ${clockTime(foundMs, tz)}`,
+    distance: milesLabel(m.distance_m),
+    source: LEAD_SOURCE_WORD,
+    host: siteHost(r2.website) ?? "",
+    excludedBy,
+    version: r2.version,
+    sub,
+    slots: leadSlots(r2),
+    rated,
+    spread: spread2,
+    tile: {
+      initials: initialsOf(r2.business_name),
+      tint: leadTintOf(r2.category),
+      image: leadTileSrc(r2.image_url),
+      band: r2.image_url ?? null,
+      logo: r2.mark_url ?? null
+    },
+    waitsOn,
+    state,
+    stateTag,
+    card,
+    point: typeof r2.lat === "number" && typeof r2.lng === "number" ? { lat: r2.lat, lng: r2.lng } : null
+  };
+}
+function leadRowOf(r2, tz, now, search = null) {
+  return { ...toLeadRowVM(r2, tz, now, search), chainId: r2.chain_id ?? null, laterAt: r2.member.later_at ?? null };
+}
+function subLineOf(r2, distanceM) {
+  const who = leadAddresseeOf(r2);
+  return [
+    who ? [who.name, who.title].filter(Boolean).join(", ") : null,
+    r2.category,
+    r2.neighborhood ?? null,
+    r2.postal_code ?? null,
+    milesLabel(distanceM) || null
+  ].filter((x) => !!x).join(" \xB7 ");
+}
+var roundIsLive = (state) => state !== "ended" && state !== "waiting_on_owner";
+function foundLine(r2, term) {
+  if (r2.kind === "company") return LEAD_DIRECTORY_WORDS.found;
+  if (!r2.place_id) return "From your list";
+  if (!term) return "On a Google Maps listing";
+  return r2.rank ? `On Google Maps, #${r2.rank} for \u201C${term}\u201D` : `On Google Maps, searching \u201C${term}\u201D`;
+}
+function leadRail(counts, searches, now = /* @__PURE__ */ new Date()) {
+  const ids = [
+    "all",
+    "ready",
+    "nurture",
+    "converted",
+    ...counts.said_no > 0 ? ["said_no"] : [],
+    "not_a_fit"
+  ];
+  return {
+    lists: ids.map((id) => ({ id, label: LEAD_LIST_WORDS[id], count: counts[id === "all" ? "all" : id] })),
+    searches: searches.map((s) => ({
+      id: s.id,
+      name: s.name,
+      count: s.round?.counted ?? 0,
+      undoable: leadUndoable(s, now),
+      list: isLeadList(s),
+      people: !!s.people,
+      mark: !s.round ? null : s.round.state === "waiting_on_owner" ? "question" : roundIsLive(s.round.state) ? "live" : null
+    }))
+  };
+}
+function leadsStanding(counts, searches) {
+  const waiting = searches.filter((s) => s.round?.state === "waiting_on_owner");
+  return {
+    total: `${counts.all} leads`,
+    parts: [`${counts.ready} ready`, `${searches.length} ${searches.length === 1 ? "search" : "searches"}`],
+    needsYou: waiting.length ? { count: waiting.length, searchId: waiting[0].id } : null
+  };
+}
+
+// src/leads/lead-peek.ts
+var peekCheckLabel = (c, search, mailboxLabel) => c.key === "mailbox" ? mailboxLabel : leadCheckWord(c.how === "read" ? search : null, c.key, c.answer);
+function leadPeekMenu(role) {
+  return roleAtLeast(role ?? "", "owner") ? [{ id: "erase", label: LEAD_ERASE_WORDS.act, danger: true }] : [];
+}
+function leadWeekSummary(week) {
+  const open = week.filter((d) => d.hours && !/^closed/i.test(d.hours));
+  if (!open.length) return "";
+  const tally2 = /* @__PURE__ */ new Map();
+  for (const d of open) tally2.set(d.short, (tally2.get(d.short) ?? 0) + 1);
+  let best = "";
+  let most = 0;
+  for (const [hours, n] of tally2)
+    if (n > most) {
+      best = hours;
+      most = n;
+    }
+  const days = open.length === 7 ? "Open every day" : `Open ${open.length} day${open.length === 1 ? "" : "s"}`;
+  if (most === open.length) return `${days} \xB7 ${best}`;
+  if (most * 2 >= open.length) return `${days} \xB7 ${best} most days`;
+  return days;
+}
+function leadWeekBars(hours, tz, now) {
+  const today = dateFormat("en-US", { timeZone: tz, weekday: "long" }).format(now).toLowerCase();
+  return hours.map((h) => {
+    const text = h.hours.trim();
+    let bar = null;
+    if (/^open 24 hours$/i.test(text)) bar = { x: 0, w: 100 };
+    else if (!/^closed/i.test(text)) {
+      const m = text.match(CLOCK);
+      if (m) {
+        const a = hourOf(m[1], m[2], m[3]);
+        let b = hourOf(m[4], m[5], m[6]);
+        if (b <= a) b = 24;
+        bar = { x: Math.round(a / 24 * 1e3) / 10, w: Math.round((b - a) / 24 * 1e3) / 10 };
+      }
+    }
+    return { day: h.day, hours: text, short: leadHoursShort(text), bar, today: h.day.toLowerCase() === today };
+  });
+}
+function dayIn(tz, iso, now) {
+  if (!iso) return "";
+  const at3 = new Date(iso);
+  if (Number.isNaN(at3.getTime())) return "";
+  const key = (d) => dateFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  if (key(at3) === key(now)) return "today";
+  if (key(at3) === key(new Date(now.getTime() - DAY_MS))) return "yesterday";
+  return dateFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at3);
+}
+var peekPlanOf = (search) => ({
+  standard: LEAD_CONTACT_STANDARD_WORDS[(search?.plan ?? search?.people)?.contact === "email" ? "email" : "phone"],
+  term: search?.plan?.terms[0] ?? null
+});
+function foundWords(r2, term) {
+  const host = r2.website;
+  if (r2.kind === "company")
+    return {
+      summary: LEAD_DIRECTORY_WORDS.found,
+      what: LEAD_DIRECTORY_WORDS.found,
+      site: host ? `${host} \xB7 ${LEAD_DIRECTORY_WORDS.address}` : LEAD_DIRECTORY_WORDS.addressAlone
+    };
+  if (!r2.place_id)
+    return {
+      summary: "From your list",
+      what: "From your list",
+      site: host ? `${host} \xB7 the address came with your list` : "The address came with your list"
+    };
+  return {
+    summary: term && r2.rank ? `#${r2.rank} on Google Maps` : "On Google Maps",
+    what: term ? r2.rank ? `Google Maps \xB7 #${r2.rank} for \u201C${term}\u201D` : `Google Maps \xB7 searching \u201C${term}\u201D` : "A Google Maps listing",
+    site: host ? r2.email_state === "none" ? `${host} \xB7 no email on the home, contact or about pages` : `${host} \xB7 an email on the contact page` : "No website to check"
+  };
+}
+function leadRated(r2) {
+  const base = leadRatingOf(r2);
+  if (!base) return null;
+  return {
+    ...base,
+    low: leadLowShare(r2.reviews_dist ?? null),
+    ...r2.reviews_dist ? { spread: leadRatingSpread(r2.reviews_dist) } : {}
+  };
+}
+function checksSummaryOf(checks) {
+  if (checks.length === 0) return "";
+  const passed = checks.filter((c) => c.answer === "yes").length;
+  const unsure = checks.filter((c) => c.answer === "unknown").length;
+  const failed = checks.filter((c) => c.answer === "no").length;
+  return [
+    `${passed} check${passed === 1 ? "" : "s"} passed`,
+    ...unsure ? [`${unsure} couldn't tell`] : [],
+    ...failed ? [`${failed} failed`] : []
+  ].join(" \xB7 ");
+}
+function toLeadPeekVM(r2, search, tz, now) {
+  const m = r2.member;
+  const area = [r2.city, r2.state].filter(Boolean).join(", ");
+  const sub = [r2.category, r2.price ?? null, area].filter(Boolean).join(" \xB7 ") + (r2.places > 1 ? ` \xB7 ${r2.places} locations` : "");
+  const fitWord = m.class === "qualified" ? m.fit ? LEAD_FIT_WORDS[m.fit] : LEAD_FIT_WORDS.look : (
+    // "venues. Venue brand on 828venues host." glued the chip to the reason; say what happened first.
+    m.class === "review" ? LEAD_REVIEW_WORD : `${LEAD_LEFT_OUT_WORD} \u2014 ${leadExclusionWord(search, m.excluded_by)}`
+  );
+  const fitCls = m.class === "qualified" ? m.fit ?? "look" : m.class === "review" ? "review" : "out";
+  const { standard, term } = peekPlanOf(search);
+  const emailNote = r2.email ? r2.email_state === "ok" ? `${LEAD_MAILBOX_WORDS.ok} \xB7 checked ${dayIn(tz, r2.email_checked_at, now) || "on finding it"}` : r2.email_state === "checking" ? LEAD_MAILBOX_WORDS.checking : r2.email_state === "invalid" ? `${LEAD_MAILBOX_WORDS.invalid}. Call instead.` : LEAD_MAILBOX_WORDS[r2.email_state] : LEAD_NO_EMAIL_LINE;
+  const mailboxLabel = LEAD_MAILBOX_WORDS[r2.email_state];
+  const stop = (s) => /[.!?]$/.test(s.trim()) ? s.trim() : `${s.trim()}.`;
+  const emailTip = [
+    ...r2.email && (r2.email_state === "catch_all" || r2.email_state === "unknown" || r2.email_state === "invalid") ? [LEAD_EMAIL_WORDS[r2.email_state]] : [],
+    emailNote,
+    ...r2.email_state === "ok" ? [] : [standard]
+  ].map(stop).join(" ");
+  const seen = [];
+  const read = [];
+  for (const c of m.checks) {
+    const label = peekCheckLabel(c, search, mailboxLabel);
+    (c.how === "seen" ? seen : read).push({ key: c.key, label, answer: c.answer, source: c.source, reason: c.reason });
+  }
+  const others = m.other_emails.length ? {
+    summary: `${m.other_emails.length} other address${m.other_emails.length === 1 ? "" : "es"} on their site`,
+    picked: m.checks.find((c) => c.key === "own_address")?.reason ?? null,
+    items: m.other_emails
+  } : null;
+  const host = r2.website;
+  const where = foundWords(r2, term);
+  const checksSummary = checksSummaryOf(m.checks);
+  const week = leadWeekBars(r2.hours ?? [], tz, now);
+  const rated = leadRated(r2);
+  const facts = [
+    ...r2.category ? [{ k: "Kind", v: r2.category }] : [],
+    ...r2.price ? [{ k: "Price", v: r2.price }] : [],
+    ...rated ? [{ k: "Rated", v: `${rated.score} from ${rated.reviews}` }] : [],
+    ...r2.claimed === true ? [{ k: "Listing", v: "Claimed by the owner" }] : r2.claimed === false ? [{ k: "Listing", v: "Not claimed by the owner" }] : [],
+    ...term && r2.rank ? [{ k: "Found at", v: `#${r2.rank} for \u201C${term}\u201D` }] : [],
+    ...r2.places > 1 ? [{ k: "Other listings", v: `${r2.places} listings for this business` }] : []
+  ];
+  return {
+    id: r2.id,
+    searchId: r2.search_id ?? null,
+    mark: initialsOf(r2.business_name),
+    tile: {
+      initials: initialsOf(r2.business_name),
+      tint: leadTintOf(r2.category),
+      image: leadTileSrc(r2.image_url),
+      band: r2.image_url ?? null,
+      logo: r2.mark_url ?? null
+    },
+    rated,
+    slots: leadSlots(r2),
+    week,
+    weekSummary: leadWeekSummary(week),
+    facts,
+    checksSummary,
+    checkDots: m.checks.map((c) => c.answer),
+    distance: milesLabel(m.distance_m),
+    name: r2.business_name,
+    about: r2.about ?? null,
+    company: leadCompanyOf(r2),
+    where: leadWhere(r2),
+    today: leadTodayLine(r2.hours ?? [], tz, now),
+    claimedNote: r2.claimed === false ? LEAD_UNCLAIMED_NOTE : null,
+    short: r2.business_name.split(/\s+/).slice(0, 2).join(" "),
+    sub,
+    cls: m.class,
+    stage: r2.stage,
+    contactId: r2.contact_id ?? null,
+    stages: ["ready", "nurture", "converted"].map((id) => ({
+      id,
+      label: LEAD_STAGE_WORDS[id],
+      on: r2.stage === id
+    })),
+    canStage: m.class !== "excluded",
+    notFitWord: LEAD_CLOSED_WORDS.not_a_fit,
+    fit: { word: fitWord, cls: fitCls, sentence: m.reason },
+    reach: {
+      phone: r2.phone ? {
+        value: formatPhoneDisplay(r2.phone) ?? r2.phone,
+        note: r2.phone_wrong ? "You marked this number wrong." : r2.phone_agrees ? "The same number on Google Maps and their website" : "From their Google Maps listing",
+        tip: r2.phone_wrong ? "You marked this number wrong." : r2.phone_agrees ? "The same number on Google Maps and their website." : "From their Google Maps listing.",
+        tel: r2.phone_wrong ? null : `tel:${r2.phone}`,
+        wrong: r2.phone_wrong
+      } : null,
+      email: {
+        value: r2.email ?? "No email on their site",
+        note: emailNote,
+        tip: emailTip,
+        // The standard explains a lead the mailbox did not settle. Beside an address that checks out it is a line
+        // saying nothing, on every good lead: null there, so the peek reads shorter where there is nothing to say.
+        standard: r2.email_state === "ok" ? null : standard,
+        state: r2.email_state,
+        word: LEAD_EMAIL_WORDS[r2.email_state],
+        address: r2.email,
+        canDraft: !!r2.email && r2.email_state !== "invalid" && r2.email_state !== "none"
+      },
+      locked: { title: "Texts and WhatsApp", line: LEAD_LOCKED_LINE }
+    },
+    groups: [
+      { how: "seen", checks: seen },
+      { how: "read", checks: read }
+    ].filter((g) => g.checks.length > 0),
+    others,
+    // Where it was found and when, in one short line: "#19 on Google Maps · Sep 20". The three steps behind it are a
+    // few words each, and the minute each happened lives in its own hover: they happen within a minute or two of each
+    // other, so four copies of "Sep 20, 2:02 PM" said nothing the head had not.
+    foundSummary: [where.summary, dayIn(tz, r2.found_at, now)].filter(Boolean).join(" \xB7 "),
+    found: [
+      { at: clockIn(tz, r2.found_at, now), what: where.what },
+      { at: clockIn(tz, r2.found_at, now), what: where.site },
+      // The mailbox's long sentence is the email row's to say; here it is the state's one word.
+      { at: clockIn(tz, r2.email_checked_at ?? r2.found_at, now), what: `Mailbox \xB7 ${LEAD_EMAIL_WORDS[r2.email_state]}` }
+    ],
+    links: {
+      website: host ? { label: host, href: `https://${host}` } : null,
+      instagram: r2.instagram ? { label: "Instagram", href: r2.instagram } : null,
+      facebook: r2.facebook_url ? { label: "Facebook", href: r2.facebook_url } : null,
+      linkedin: r2.linkedin_url ? { label: "LinkedIn", href: r2.linkedin_url } : null,
+      tiktok: r2.tiktok_url ? { label: "TikTok", href: r2.tiktok_url } : null,
+      maps: r2.maps_url ? { label: "Google Maps", href: r2.maps_url } : null
+    },
+    version: r2.version
+  };
+}
+var LEAD_REMOVE_KEEPS = "Keeps the ones you contacted or are talking to.";
+function leadSearchWords(s, tz) {
+  if (!s) return { askedLine: "", keepsLine: LEAD_REMOVE_KEEPS };
+  const day = dateFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(s.asked_on));
+  if (s.via === "import")
+    return { askedLine: `Your list, imported on ${day}: \u201C${s.asked}\u201D.`, keepsLine: LEAD_REMOVE_KEEPS };
+  if (s.via === "chosen") return { askedLine: `Leads you chose on ${day}.`, keepsLine: LEAD_REMOVE_KEEPS };
+  const asked = s.asked.toLowerCase();
+  const left = (s.plan?.exclusions ?? []).map((c) => c.text).filter((t) => t && !asked.includes(t.toLowerCase()));
+  const leaving = left.length ? ` Leaving out ${left.join(" and ")}.` : "";
+  return { askedLine: `You asked on ${day}: \u201C${s.asked}\u201D.${leaving}`, keepsLine: LEAD_REMOVE_KEEPS };
+}
+
+// src/leads/lead-dtos.ts
+var LEAD_CHECK_KEYS = [
+  "on_maps",
+  "in_area",
+  "phone_two_sources",
+  "mailbox",
+  "independent",
+  "right_kind",
+  "own_address"
+];
+
+// src/leads/leads.ts
+var LEAD_FIRST_DAY = {
+  title: "Who do you want as customers?",
+  sub: "Say it in a sentence. Claude finds businesses that fit, checks each one, and shows how to reach them.",
+  ask: "Describe the businesses you want",
+  ideas: "Or start from an idea",
+  /** While another read writes them (00398): the page asks again in a moment. */
+  writing: "Writing your ideas\u2026",
+  from: "Written from what you do:",
+  edit: "Edit",
+  /** New ideas from the same line, when the owner wants others (00399). */
+  newIdeas: "New ideas",
+  lineTitle: "What your business does",
+  lineSub: "Claude writes your ideas from this. Say what you sell and who you sell it to.",
+  lineLabel: "Your business, in a sentence",
+  linePlaceholder: "What you sell, and who buys it",
+  haveList: "Have a list already?",
+  importIt: "Import it",
+  /** The people card's door (00430), on a desk's first day and a phone's New search, where no rail is drawn. */
+  wantPeople: "Looking for people at companies?",
+  findPeople: "Find people"
+};
+var LEAD_SUGGEST_UNAVAILABLE = "Suggestions are not available right now.";
+var LEAD_WORDS = {
+  /**
+   * The ways a lead can be rung, offered when Call is pressed rather than dialling on the spot. Pressing it rang a
+   * real business the moment a thumb landed on a row you might only have been skimming, and a call made from a
+   * desk phone could not be recorded at all -- the six outcomes are armed by that button alone.
+   *
+   * The receptionist is NOT one of the ways and must not become one here. It answers the line and never rings a
+   * customer (`business-tab.ts` CANNOT_ROWS, "outbound_call"), which the Business page states to the owner in
+   * those words. A menu item offering it would promise what the product says two pages away that it cannot do.
+   */
+  callWays: {
+    dial: { label: "Call from your phone" },
+    copy: { label: "Copy the number" },
+    /** Rung from a desk phone or a softphone: no dial, straight to "How did the call go?". */
+    log: { label: "Log a call you already made", meta: "how did it go?" }
+  },
+  close: "Close",
+  open: "Open",
+  /** The door from a lead that became a person (its name in the peek, the row's Client pill) to them in People. */
+  openPerson: "Open them in People",
+  stageLabel: "Stage",
+  notFit: LEAD_CLOSED_WORDS.not_a_fit,
+  notFitTitle: LEAD_NOT_A_FIT_TITLE,
+  whys: LEAD_NOT_A_FIT_WHYS.map((id) => ({ id, label: LEAD_NOT_A_FIT_WORDS[id] })),
+  keep: "Keep",
+  exclude: "Exclude",
+  putBack: "Put back",
+  leftOut: "Left out of this search. It doesn't count.",
+  reach: "How you can reach them",
+  checked: "Checked",
+  found: "Found",
+  call: "Call",
+  copy: "Copy",
+  copyAria: "Copy the email",
+  /** The peek's reach rows act with quiet marks; these are their names, heard and shown on hover (data-tip). */
+  copyPhoneAria: "Copy the number",
+  draftAria: "Draft an email",
+  draft: "Draft",
+  noWebsite: "No website listed",
+  instagram: "Instagram",
+  talkingNote: LEAD_TALKING_NOTE,
+  sentQuestion: LEAD_SENT_QUESTION,
+  sentYes: "Yes, mark contacted",
+  sentNo: "Not yet",
+  callQuestion: LEAD_CALL_QUESTION,
+  callSave: "Save",
+  callCancel: "I didn't call",
+  outcomes: LEAD_CALL_OUTCOMES.map((id) => ({
+    id,
+    label: LEAD_CALL_OUTCOME_WORDS[id],
+    tone: LEAD_CALL_OUTCOME_TONES[id]
+  })),
+  noteLabel: "A note about the call",
+  /** Under Interested (0052): the person the call reached, who becomes their own page's name. */
+  spokeWith: "Who did you speak with?",
+  spokeWithPlaceholder: "Their name, if they said it",
+  notePlaceholder: LEAD_NOTE_PLACEHOLDER,
+  noteMax: LEAD_NOTE_MAX,
+  noteLeft: leadNoteLeft,
+  backTo: "Back to",
+  to: "To",
+  subject: "Subject",
+  draftRewrite: "Rewrite",
+  tones: [
+    { id: "shorter", label: "Shorter" },
+    { id: "warmer", label: "Warmer" }
+  ],
+  draftWriting: "Writing it\u2026",
+  draftNote: LEAD_DRAFT_NOTE,
+  draftOpen: "Open in your email",
+  draftFrom: "Sent from your own inbox",
+  copiedDraft: "Copied the email.",
+  firstDay: LEAD_FIRST_DAY,
+  about: "About",
+  reachHeading: "Reach",
+  unclaimed: LEAD_UNCLAIMED_NOTE,
+  suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE,
+  // D5: the peek re-cut, and the photo expanded.
+  expand: "Expand",
+  photos: "Photos",
+  noPhoto: "No photo on the listing",
+  whereSits: "Where it sits",
+  openHours: "Open hours",
+  fromListing: "From the listing",
+  openMaps: "Open in Maps",
+  ratedHeading: "What people say",
+  closePhotos: "Close",
+  /**
+   * The rail's two sections. The first is six views of a lead's stage (LEAD_LIST_WORDS), not lists: "Lists" is People's word
+   * for a rule over facts (decision 0009, LIST_GROUP_WORDS), and a list of the owner's own made from a file sits under
+   * Searches here.
+   */
+  viewsHeading: "Views",
+  searchesHeading: "Searches",
+  // D5, on a phone: one lead at a time, and the question when you are back from the call.
+  deckOf: (at3, of) => `${at3} of ${of}`,
+  deckPrev: "The lead before",
+  deckNext: "The next lead",
+  callSaveNext: "Save and go to the next",
+  callSavedNote: "Saving moves them to Talking. They join People when they write or call in.",
+  /**
+   * The peek's ⋯ menu and its one item (Reach out Part 4, PR 9): Erase, the owner's alone (DELETE leads/[id]), asked
+   * first because it cannot be undone. Who is offered it is `leadPeekMenu`'s to say, never the page's.
+   */
+  more: "More for this lead",
+  erase: LEAD_ERASE_WORDS
+};
+var LEAD_SUGGEST_DAYS = 30;
+var LEAD_PRIOR_MIN = 25;
+function leadReachLine(prior) {
+  if (!prior || prior.matched < LEAD_PRIOR_MIN) return "New kind of search \xB7 checked after 25";
+  const tenths = Math.round(prior.with_email / prior.matched * 10);
+  if (tenths <= 1) return "Most list a phone \xB7 few have an email";
+  if (tenths >= 9) return "Nearly all have an email";
+  if (tenths === 5) return "About half have an email";
+  if (tenths === 7) return "About 2 in 3 have an email";
+  return `About ${tenths} in 10 have an email`;
+}
+
+// src/ask-proposals/leads.ts
+var amendsOf = (pl) => {
+  const am = pl?.amends ?? null;
+  return am && typeof am.search_id === "string" && am.search_id ? am : null;
+};
+var leadSearchSpec = {
+  needs: "partner",
+  doing: "start a lead search",
+  gate: "find",
+  commit: ({ payload: pl }) => {
+    const am = amendsOf(pl);
+    if (am)
+      return {
+        route: "POST lead-searches/[id]/answer",
+        params: { id: am.search_id },
+        body: { answer: "include", plan: pl.plan }
+      };
+    const threadId = typeof pl.thread_id === "string" && pl.thread_id ? pl.thread_id : null;
+    return { route: "POST lead-searches", body: threadId ? { ...pl.plan, thread_id: threadId } : pl.plan };
+  },
+  receipt: ({ payload: pl }) => {
+    const am = amendsOf(pl);
+    if (am) return `Answered. ${asText(am.name) || "The search"} carries on with your answer; Leads shows it.`;
+    const plan = pl.plan ?? {};
+    return `Finding ${plan.count ?? ""} ${plan.terms?.[0] ?? "businesses"}. It carries on if you leave; Leads shows it.`.replace(
+      /\s+/g,
+      " "
+    );
+  },
+  // The search it started (an answer started none), for a later step of Ask's plan that names it: a follow-up on it.
+  made: ({ payload }, data) => amendsOf(payload) ? null : idIn(rec(data), "search_id"),
+  undo: {
+    // An answer carries the round on; there is nothing to undo (Stop is the strip's).
+    label: ({ payload }) => amendsOf(payload) ? null : "Stop the search",
+    window: "ten_minutes",
+    record: (p, data) => amendsOf(p.payload) ? null : { search_id: rec(data).search_id },
+    // An operator's route undoing a partner's card: stopping a search spends nothing (route-policy.json).
+    call: (u) => ({ route: "POST lead-searches/[id]/stop", params: { id: asText(u.search_id) } }),
+    receipt: () => "Stopping. Whatever it found is kept, and the emails already found are still checked."
+  },
+  open: ({ payload }, outcome) => {
+    const am = amendsOf(payload);
+    if (am) return leadQuestionRoute(am.search_id);
+    const sid = idIn(rec(outcome?.undo), "search_id");
+    return sid ? leadsRoute({ searchId: sid, list: "all", cls: null }) : "clients/leads";
+  }
+};
+var peopleSearchSpec = {
+  needs: "partner",
+  doing: "start a people search",
+  gate: "find",
+  commit: ({ payload: pl }) => {
+    const threadId = typeof pl.thread_id === "string" && pl.thread_id ? pl.thread_id : null;
+    return { route: "POST lead-searches/people", body: { plan: pl.plan, via: "ask", thread_id: threadId } };
+  },
+  receipt: ({ payload: pl }) => {
+    const plan = pl.plan ?? {};
+    const n = typeof plan.count === "number" ? plan.count : null;
+    const what = n === null ? "companies" : `${n} ${n === 1 ? "company" : "companies"}`;
+    return `Finding up to ${what}${plan.name ? `: ${plan.name}` : ""}. Each lands on Leads once its address checks out.`;
+  },
+  undo: {
+    label: () => "Stop the search",
+    window: "ten_minutes",
+    record: (_p, data) => ({ search_id: rec(data).search_id }),
+    call: (u) => ({ route: "POST lead-searches/[id]/stop", params: { id: asText(u.search_id) } }),
+    receipt: () => "Stopping. Whatever it found is kept, and the addresses already found are still checked."
+  },
+  open: (_p, outcome) => {
+    const sid = idIn(rec(outcome?.undo), "search_id");
+    return sid ? leadsRoute({ searchId: sid, list: "all", cls: null }) : "clients/leads";
+  }
+};
+var reachOutAddSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => ({
+    route: "POST reach-outs/[id]/leads",
+    params: { id: asText(pl.root_id) },
+    body: { lead_ids: Array.isArray(pl.lead_ids) ? pl.lead_ids.filter((x) => typeof x === "string") : [] }
+  }),
+  receipt: ({ payload: pl }, data) => {
+    const added = Number(rec(data).added ?? 0);
+    const name = asText(pl.name) || "the reach-out";
+    return added > 0 ? `Added ${added === 1 ? "1 lead" : `${added} leads`} to \u201C${name}\u201D. Its next run waits for your say before anything goes.` : `None could be added to \u201C${name}\u201D.`;
+  },
+  undo: {
+    label: () => "Take them back",
+    window: "ten_minutes",
+    record: (_p, data) => {
+      const d = rec(data);
+      return typeof d.op_id === "string" ? { op_id: d.op_id, version: Number(d.version ?? 1) } : null;
+    },
+    call: (u) => ({
+      route: "POST lead-operations/[id]/undo",
+      params: { id: asText(u.op_id) },
+      body: { version: Number(u.version ?? 1) }
+    }),
+    receipt: () => "Taken back off its list. Nothing had been written to them."
+  },
+  open: ({ payload }) => {
+    const id = idIn(payload, "root_id");
+    return id ? `campaigns/moment:${id}` : "outbound";
+  }
+};
+
+// src/ask-proposals/reviews.ts
+var reviewReplySpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => idIn(pl, "review_id") && asText(pl.comment).trim() ? {
+    route: "POST google/reviews/[id]/reply",
+    params: { id: asText(pl.review_id) },
+    body: { comment: asText(pl.comment).trim() }
+  } : refuseWith(PROPOSAL_WORDS.cannotApprove),
+  receipt: ({ payload: pl }) => `Replied to ${asText(pl.who) || "the review"} on Google`,
+  open: () => "reports/reviews"
+};
+
+// src/ask-proposals/workspace.ts
+var policyBody = (cls, mode, confidence) => {
+  const body = { class: cls };
+  if (mode) body.mode = mode;
+  if (typeof confidence === "number") body.minConfidence = confidence;
+  return body;
+};
+var policySpec = {
+  needs: "operator",
+  gate: "autonomy",
+  commit: (p) => ({
+    route: "PUT policies",
+    body: policyBody(p.payload.class, p.payload.mode, p.payload.min_confidence)
+  }),
+  receipt: (p) => `Autonomy changed: ${p.summary}`,
+  undo: {
+    label: () => "Set it back",
+    window: "ten_minutes",
+    // The events ledger keeps policy changes and hands back no row id, so this undo names none.
+    // The row as the route found it when it wrote (its answer's `was`), the card's own reading where an older route
+    // answers none.
+    record: (p, data) => {
+      const found = rec(data).was;
+      const prev = found && typeof found === "object" ? found : p.payload.previous ?? {};
+      return { class: p.payload.class, mode: prev.mode ?? null, min_confidence: prev.min_confidence ?? null };
+    },
+    call: (u) => !u.mode && typeof u.min_confidence !== "number" ? refuseWith("The previous setting is unknown; change it in Settings.") : { route: "PUT policies", body: policyBody(u.class, u.mode, u.min_confidence) },
+    receipt: () => "Set back"
+  },
+  open: () => "admin/autonomy"
+};
+var settingsSpec = {
+  needs: "partner",
+  doing: "change the workspace's settings",
+  gate: "settings",
+  commit: (p, tab) => {
+    const st = tab.settings;
+    if (!st || !st.config || typeof st.version !== "number")
+      return refuseWith("Settings are not loaded yet \u2014 open Settings once and try again.");
+    const config2 = applySettingsChange(
+      st.config,
+      p.payload.change
+    );
+    return { route: "PUT settings", body: { config: config2, version: st.version } };
+  },
+  receipt: (p) => p.summary,
+  undo: {
+    label: () => "Put the previous settings back",
+    window: "version",
+    // The whole config as it was before, and the version this save wrote: restoring it is safe only while that is
+    // still the version loaded.
+    record: (_p, data, tab) => ({ config: tab.settings?.config, version_after: rec(data).version }),
+    call: (u, tab) => {
+      const version = tab.settings?.version;
+      if (typeof version !== "number") return refuseWith("Settings are not loaded yet.");
+      if (typeof u.version_after !== "number" || version !== u.version_after)
+        return refuseWith("Settings have changed since this card \u2014 change them in Settings.");
+      return { route: "PUT settings", body: { config: u.config, version } };
+    },
+    receipt: () => "Previous settings are back"
+  },
+  open: () => "admin/workspace"
+};
+var inviteSpec = {
+  needs: "owner",
+  doing: "invite someone to the team",
+  gate: "team",
+  commit: (p) => ({ route: "POST team/invite", body: { email: asText(p.payload.email), role: p.payload.role } }),
+  receipt: (p) => `Invited ${asText(p.payload.email)} as ${asText(p.payload.role)}`,
+  open: () => null
+};
+
+// src/ask-proposals/ask-only.ts
+var ASK_ONLY_SPECS = {
+  // The Inbox's and Live's.
+  reply: replySpec,
+  steer: steerSpec,
+  thread_verb: threadVerbSpec,
+  whisper: whisperSpec,
+  call_hand_over: callHandOverSpec,
+  // Settings'.
+  policy: policySpec,
+  settings: settingsSpec,
+  invite: inviteSpec,
+  // Campaigns'.
+  broadcast: broadcastSpec,
+  playbook: playbookSpec,
+  playbook_channels: playbookChannelsSpec,
+  message: messageSpec,
+  // People's and its lists'.
+  person_details: personDetailsSpec,
+  person_message: personMessageSpec,
+  list: listSpec,
+  list_change: listChangeSpec,
+  list_delete: listDeleteSpec,
+  // Leads' and Reach out's.
+  lead_search: leadSearchSpec,
+  people_search: peopleSearchSpec,
+  reach_out_add: reachOutAddSpec,
+  lead_stage: leadStageSpec,
+  lead_mark: leadMarkSpec,
+  lead_later: leadLaterSpec,
+  leads_bulk: leadsBulkSpec,
+  leads_check: leadsCheckSpec,
+  lead_addressee: leadAddresseeSpec,
+  lead_list: leadListSpec,
+  lead_search_more: leadSearchMoreSpec,
+  reach_out_make: reachOutMakeSpec,
+  reach_out_said: reachOutSaidSpec,
+  // A review's, and Ask's own follow-up.
+  review_reply: reviewReplySpec,
+  follow_up: followUpSpec
+};
+
+// src/ask-proposals/proposals.ts
+var PROPOSAL_SPECS = /* @__PURE__ */ (() => {
+  addProposalSpecs(ASK_ONLY_SPECS);
+  return { ...PAGE_SPECS, ...ASK_ONLY_SPECS };
+})();
+var ASK_SENDS = /* @__PURE__ */ (() => /* @__PURE__ */ new Set([
+  "reply",
+  "whisper",
+  "broadcast",
+  "playbook",
+  "run",
+  "lead_search",
+  "people_search",
+  "person_message",
+  "sequence_start",
+  "call_hand_over",
+  "leads_check",
+  "lead_addressee",
+  "lead_search_more",
+  "reach_out_make",
+  "review_reply"
+]))();
+function proposalBelowNeeds(kind) {
+  const { needs: needs2, doing } = PROPOSAL_SPECS[kind];
+  return needs2 === "partner" ? `only an owner or the workspace's partner can ${doing}; say so, and that one of them can ask` : `only an owner can ${doing}; say so, and that an owner can ask`;
+}
+
+// src/ask-proposals/guide.ts
+var WHY = {
+  signIn: "it signs in to another service (Google, Microsoft, Meta), which happens on that service's own screen",
+  money: "it spends or changes money on the account, which is the owner's on the billing page",
+  legal: "it is a statement to the carriers in the business's legal name",
+  file: "it reads or writes a file on the member's own device",
+  live: "it acts on a phone call that is happening, where the Live page's button is quicker than a sentence",
+  erase: "it erases a person for good, which is asked for and confirmed on their page",
+  team: "it changes who is on the team, which the owner does in Settings \u203A Team",
+  draft: "Ask writes the draft itself in the conversation, so it never needs the page's drafter"
+};
+var ASK_GUIDE_PAGES = [
+  {
+    page: "Today",
+    route: "today",
+    for: "Who waits on you right now, replies about to time out, a booking the receptionist asked for (Booked it or Can't), today's calls and bookings, and the day's recap.",
+    verbs: ["booking_request"],
+    pageOnly: []
+  },
+  {
+    page: "Inbox",
+    route: "inbox",
+    for: "Every conversation: answer, take one over, hand it back to the receptionist, snooze, wake or archive it.",
+    verbs: ["reply", "steer", "thread_verb"],
+    pageOnly: [{ what: "Export a conversation", why: WHY.file }]
+  },
+  {
+    page: "Live",
+    route: "live",
+    for: "Calls happening now: listen, whisper to the receptionist, hand the call to your phone or end it.",
+    verbs: ["whisper", "call_hand_over"],
+    pageOnly: [{ what: "End a call", why: WHY.live }]
+  },
+  {
+    page: "People",
+    route: "clients",
+    for: "Everyone who has written or called: their answers, notes, steps, deals, lists, and what the receptionist does with each.",
+    verbs: [
+      "person_mode",
+      "note",
+      "person_details",
+      "answer",
+      "person_add",
+      "person_merge",
+      "person_message",
+      "answer_many",
+      "person_mode_many",
+      "note_many",
+      "list",
+      "list_member",
+      "list_change",
+      "list_delete"
+    ],
+    pageOnly: [
+      { what: "Import people from a file, or export them", why: WHY.file },
+      { what: "Delete a person", why: WHY.erase }
+    ]
+  },
+  {
+    page: "Pipeline",
+    route: "clients/pipeline",
+    for: "Deals by where they stand: consultations, proposals out, clients, and the ones that passed.",
+    verbs: ["deal"],
+    pageOnly: []
+  },
+  {
+    page: "Leads",
+    route: "clients/leads",
+    for: "Find businesses or people to reach, review what a search found, and work each lead to a yes.",
+    verbs: [
+      "lead_search",
+      "people_search",
+      "lead_search_more",
+      "lead_stage",
+      "lead_mark",
+      "lead_later",
+      "leads_bulk",
+      "leads_check",
+      "lead_addressee",
+      "lead_list",
+      "reach_out_said"
+    ],
+    pageOnly: [{ what: "Import leads from a file, or export them", why: WHY.file }]
+  },
+  {
+    page: "Calendar",
+    route: "calendar",
+    for: "The week's appointments from your booking tool, the open times, and how full the next two weeks are.",
+    verbs: [],
+    pageOnly: [{ what: "Connect the booking tool", why: WHY.signIn }]
+  },
+  {
+    page: "Campaigns",
+    route: "campaigns",
+    for: "Everything that sends on its own: sequences on a moment or a list, one-off sends, cold email to leads, saved messages.",
+    verbs: [
+      "broadcast",
+      "playbook",
+      "run",
+      "playbook_channels",
+      "playbook_change",
+      "message",
+      "sequence_make",
+      "sequence_step",
+      "sequence_step_remove",
+      "sequence_words",
+      "sequence_start",
+      "playbook_run",
+      "sequence_leave",
+      "sequence_send_decide",
+      "sequence_send_said",
+      "sequence_discard",
+      "sequence_draft",
+      "reach_out_make",
+      "reach_out_add"
+    ],
+    pageOnly: [{ what: "Draft a sequence from a line on the page", why: WHY.draft }]
+  },
+  {
+    page: "Reports",
+    route: "reports",
+    for: "How any period went: replies, calls, people, campaigns, reviews, cold email and the receptionist, against the period before.",
+    verbs: ["review_reply"],
+    pageOnly: []
+  },
+  {
+    page: "Settings",
+    route: "admin/workspace",
+    for: "What the receptionist knows and may do alone, your goal, connections, notifications, team and billing.",
+    verbs: ["settings", "policy", "invite", "follow_up"],
+    pageOnly: [
+      { what: "Connect WhatsApp, Google, a mailbox or a phone line", why: WHY.signIn },
+      { what: "Billing and the plan", why: WHY.money },
+      { what: "The business on record for texting", why: WHY.legal },
+      { what: "Invite or remove a teammate", why: WHY.team }
+    ]
+  }
+];
+var ASK_PAGE_ONLY_VERBS = {
+  invite: WHY.team,
+  sequence_draft: WHY.draft
+};
+
+// src/ask-skills/skill.ts
+var SKILL_CRAFT_PURPOSES = ["message_draft"];
+var SKILL_CRAFT_MAX_TOKENS = 8e3;
+var skillBullets = (lines) => lines.map((l) => `- ${l}`).join("\n");
+function craftSystem(skill) {
+  return [
+    skill.role,
+    `What you write:
+${skillBullets(skill.when.jobs)}`,
+    ...skill.rules.map((s) => `${s.title}:
+${skillBullets(s.lines)}`),
+    `Never:
+${skillBullets(skill.never)}`,
+    ...skill.examples.map((e, i) => `Example ${i + 1}, ${e.title}.
+Given:
+${e.given}
+A good answer:
+${e.answer}`),
+    DATA_NOT_INSTRUCTIONS
+  ].join("\n\n");
+}
+var SKILL_GUIDE_MAX = 1200;
+function guideBlock(skill) {
+  return [`Skill: ${skill.title}. It is used for: ${skill.when.jobs.join(" ")}`, skillBullets(skill.guide)].join("\n");
+}
+
+// src/ask-skills/customer-message/skill.ts
+var CUSTOMER_MESSAGE_SKILL = {
+  id: "customer_message",
+  title: "Customer message writer",
+  role: "You write the messages a small business sends its own customers on WhatsApp, by email and by text: the words they read under the business's name. You are handed the business, the message it wants (its kind, its language, its values) and a first draft of it. You write it again, as well as it can be written, every version the draft has, in its language, and answer in the JSON asked for.",
+  when: {
+    jobs: [
+      "A new message for the business's Library, on WhatsApp, by email or by text, in English or Spanish.",
+      "An offer, news, an invitation back, a thank-you, a reminder, or a request for a review.",
+      "The message a plan writes for its offers, which later offers reuse."
+    ],
+    asked: /\b(?:write|draft|compose|rewrite|redo|make|create|prepare)\b[^.?!]{0,60}\b(?:message|text|sms|e-?mail|whatsapp|offer|promo(?:tion)?|announcement|win-?back|reminder|newsletter|campaign)s?\b|\b(?:escr[ií]be(?:me|le|les)?|redacta|prepara|crea|haz(?:me)?)\b[^.?!]{0,60}\b(?:mensajes?|textos?|sms|correos?|whatsapp|ofertas?|promoci[oó]n(?:es)?|campañas?|recordatorios?|anuncios?)\b/i
+  },
+  rules: [
+    {
+      title: "The draft and its facts",
+      lines: [
+        "The draft says what the owner wants said. Keep every fact in it: the offer and its exact figure, the days, the service, who it is for. Add none.",
+        "A thin draft becomes a fuller message from the same facts, never from new ones.",
+        "Its kind (marketing or utility), its language and its values are decided: write within them.",
+        "Call an offer what the draft calls it. Words such as discount, coupon, promotion or free appear only where the draft has them."
+      ]
+    },
+    {
+      title: "Every version",
+      lines: [
+        "One message, one purpose, one call to act, said once: pick a time with the booking link, reply with a day, or leave a review.",
+        "Open with their first name where a value carries it, then the point, in the first sentence. No 'Dear valued customer', no 'We hope this finds you well'.",
+        "Short sentences and plain words, the way the business writes to someone it knows.",
+        "The business's tone line decides warmth, formality, exclamation marks and emoji. With no tone line: warm, brief and plain, at most one exclamation mark.",
+        "At most one emoji, only where the tone allows it, never in place of a word, never in an email's subject.",
+        "No capitals for emphasis. STOP is the only word in capitals.",
+        "Where the message speaks of a booking, use the business's own word for one (given below), or 'booking'.",
+        "Write each value exactly as given, {{1}}, {{2}}, with its number, meaning what it is said to mean. Never type a value's words yourself (no link, no name, no time), never a {{n}} you were not given, never braces for anything else.",
+        "A link or a contact reaches the message only through a value. Never type a web address, a phone number or an email address."
+      ]
+    },
+    {
+      title: "WhatsApp",
+      lines: [
+        "WhatsApp's reviewers read it before it can be sent; then the customer reads it on their phone.",
+        "Under 600 characters reads best; never over 1,024.",
+        "Every value given appears in it, with words around it: never at the very start or the very end, never two values side by side.",
+        "Marketing (an offer, news, an invitation): its last line, after a blank line, is exactly the opt-out line given, and nothing follows it.",
+        "Utility (about their own booking, order or account): about that one thing. No offer, no news, no 'while you are here', no opt-out line. WhatsApp moves a utility message that promotes anything to marketing, or refuses it.",
+        "Specific: its point is in its own words, never only in its values. Line breaks between ideas, never more than one blank line in a row."
+      ]
+    },
+    {
+      title: "Email",
+      lines: [
+        "Subject: under 60 characters, says what the email is about, specific, with no emoji, no '!!!' and no 'Re:'.",
+        "Body: a greeting, two or three short paragraphs, the call to act on a line of its own, and the business's name to sign off (by its value where one is given).",
+        "The sender adds the footer and, under an offer, the unsubscribe link: never write your own, and never write STOP."
+      ]
+    },
+    {
+      title: "Text",
+      lines: [
+        "The sender adds the STOP line under every text: never write STOP or how to opt out.",
+        "Keep it to the room given for it, which counts the values at a typical length and the STOP line, so it goes as one part.",
+        "A curly quote, an emoji, or a letter such as \xE1, \xED, \xF3 or \xFA sends the whole text in a larger alphabet with 70 characters to a part: in Spanish keep it short enough for that, and in English use straight quotes and no emoji.",
+        "Name the business in its first words, by its value or by its name, so they know who wrote.",
+        "A text never carries an offer: the business texts only about bookings and accounts."
+      ]
+    },
+    {
+      title: "English and Spanish",
+      lines: [
+        "Write in the language asked, as someone from there writes to a customer, never word for word from another language.",
+        "Spanish: neutral for Latin America and the US unless the business's own words say otherwise. T\xFA unless the tone is formal, then usted, and one of them throughout. Opening and closing marks on questions and exclamations (\xBF\u2026?, \xA1\u2026!).",
+        "English: US spelling unless the business's own words use another."
+      ]
+    },
+    {
+      title: "When you cannot",
+      lines: [
+        "Where the draft asks for something these rules forbid (a promotion in a utility message, an offer in a text), write the closest message the rules allow and say what you left out in could_not, in one short sentence for the owner. Leave could_not empty when everything fit.",
+        "Leave a version the draft does not have empty: its body (and an email's subject) an empty string."
+      ]
+    }
+  ],
+  never: [
+    "A price, a percentage, a discount, a free thing, a date, a deadline, a countdown, a number of places left or a promise the draft does not hold.",
+    "A number the draft does not hold, written in figures or in words.",
+    "A claim about health, results or safety.",
+    "Asking for a card number, a password or any payment detail.",
+    "A web address, a phone number or an email address typed in.",
+    "A person's name as the signer, or anyone but the business.",
+    "Pressure ('don't miss out', 'last chance', 'hurry'), unless the draft's own deadline is real and then said once, plainly.",
+    "A value moved to a new number, added, or left out of the WhatsApp version."
+  ],
+  examples: [
+    {
+      title: "an invitation back, marketing, English, WhatsApp and email",
+      given: [
+        "Tone: Warm and brief. Friendly, a sentence or two at a time.",
+        "Values: {{1}} their first name; {{2}} the business's name; {{3}} the booking link.",
+        "Opt-out line: Reply STOP to opt out",
+        "Draft WhatsApp: Hi {{1}}, it's been a while since we saw you at {{2}}. We'd love to see you again! Book here: {{3}} Reply STOP to opt out.",
+        "Draft email: subject 'We miss you'; body 'Hi {{1}}, it's been a while. Book again here: {{3}}'"
+      ].join("\n"),
+      answer: [
+        "WhatsApp: Hi {{1}}, it's been a while since we've seen you at {{2}}, and we've missed having you in.\\n\\nWhenever you're ready, pick a time that suits you here: {{3}}\\n\\nReply STOP to opt out",
+        "Email subject: We've missed you at {{2}}",
+        "Email body: Hi {{1}},\\n\\nIt's been a while since we've seen you, and we've missed having you in.\\n\\nWhenever you're ready, pick a time that suits you:\\n{{3}}\\n\\nSee you soon,\\n{{2}}",
+        "could_not: (empty)"
+      ].join("\n")
+    },
+    {
+      title: "a reminder, utility, Spanish, WhatsApp and text",
+      given: [
+        "Tone: Formal y directo, de usted, sin signos de exclamaci\xF3n.",
+        "The business calls a booking: appointment (in Spanish, cita).",
+        "Values: {{1}} their first name; {{2}} the business's name; {{3}} their booked time.",
+        "Text room: about 75 characters besides its values.",
+        "Draft WhatsApp: Hola {{1}}! Te esperamos en {{2}} el {{3}}. Aprovecha y pregunta por nuestras novedades!",
+        "Draft text: Hola {{1}}, recuerda tu cita en {{2}} el {{3}}."
+      ].join("\n"),
+      answer: [
+        "WhatsApp: Hola {{1}}, le recordamos su cita en {{2}} el {{3}}.\\n\\nSi necesita cambiarla, responda a este mensaje y le ofrecemos otro horario.",
+        "Text: {{2}}: {{1}}, le recordamos su cita el {{3}}. Para cambiarla, responda a este mensaje.",
+        "could_not: Dej\xE9 fuera la invitaci\xF3n a preguntar por novedades: un recordatorio no puede promocionar nada."
+      ].join("\n")
+    },
+    {
+      title: "the offer message a plan reuses, marketing, English, WhatsApp",
+      given: [
+        "Tone: (none set)",
+        "Values: {{1}} their first name; {{2}} the business's name; {{3}} typed for each send, 'The offer', a sentence such as 'A free consultation with any booking this week.'; {{4}} the booking link.",
+        "This message is reused for every later offer: write around {{3}}, never about one offer.",
+        "Opt-out line: Reply STOP to opt out",
+        "Draft WhatsApp: Hi {{1}}, an offer from {{2}}: {{3}} Book here: {{4}} or reply with a day that suits you.\\n\\nReply STOP to opt out"
+      ].join("\n"),
+      answer: [
+        "WhatsApp: Hi {{1}}, something from all of us at {{2}}: {{3}}\\n\\nPick a time here: {{4}}, or reply with a day that suits you.\\n\\nReply STOP to opt out",
+        "could_not: (empty)"
+      ].join("\n")
+    }
+  ],
+  guide: [
+    "propose_sequence's action message (and a plan's message) is rewritten by this skill before its card is shown: the versions you write are its first draft.",
+    "Spend your care on the facts: the offer in the owner's own words and figures, its days, who it is for. Never a price, a discount or a date they did not give.",
+    "Decide its kind: marketing for an offer, news or an invitation; utility only for their own booking, order or account, and it promotes nothing.",
+    "Choose its channels and values: WhatsApp and email for an offer, never a text; first_name to greet, booking_link or review_link for the one call to act.",
+    "Write the language their customers read (en or es); another language is another card under the same name."
+  ],
+  craft: { effort: "high", maxTokens: 8e3, purpose: "message_draft" }
+};
+
+// src/ask-skills/registry.ts
+var ASK_SKILLS = { customer_message: CUSTOMER_MESSAGE_SKILL };
+var ASK_SKILL_IDS = Object.keys(ASK_SKILLS);
+function skillGuide(id) {
+  return guideBlock(ASK_SKILLS[id]);
+}
+function isAskSkillId(v) {
+  return typeof v === "string" && Object.hasOwn(ASK_SKILLS, v);
+}
+function skillsAsked(question) {
+  return ASK_SKILL_IDS.filter((id) => ASK_SKILLS[id].when.asked.test(question));
+}
+
+// src/ask-skills/customer-message/brief.ts
+import { z as z8 } from "zod";
+var CRAFT_CHANNELS = ["whatsapp", "email", "sms"];
+var draftChannels = (b) => CRAFT_CHANNELS.filter((c) => !!b.message.draft[c]);
+function craftValueLength(kind, business) {
+  const typical = {
+    first_name: 9,
+    business_name: business.length,
+    booking_link: 30,
+    review_link: 34,
+    visit_when: 21,
+    visit_service: 20,
+    proposal_link: 30,
+    text: 40
+  };
+  return typical[kind];
+}
+var CRAFT_PART_CHARS = { plain: 160, unicode: 70, unicodeTwo: 134 };
+function textRoom(b) {
+  const stop = 1 + smsStopLine(b.message.language).length;
+  const values = b.message.values.reduce((n, v) => n + craftValueLength(v.kind, b.business.name), 0);
+  const left = (part) => Math.max(0, part - stop - values);
+  return {
+    plain: left(CRAFT_PART_CHARS.plain),
+    unicode: left(CRAFT_PART_CHARS.unicode),
+    unicodeTwo: left(CRAFT_PART_CHARS.unicodeTwo)
+  };
+}
+function textAsSent(body, b) {
+  const filled = body.replace(/\{\{(\d+)\}\}/g, (slot, n) => {
+    const v = b.message.values.find((x) => x.position === Number(n));
+    return "x".repeat(v ? craftValueLength(v.kind, b.business.name) : slot.length);
+  });
+  return `${filled}
+${smsStopLine(b.message.language)}`;
+}
+var textPartsAllowed = (language) => language === "es" ? 2 : 1;
+var CRAFT_LANGUAGE_WORDS = { en: "English", es: "Spanish" };
+var CRAFT_CATEGORY_WORDS = {
+  marketing: "marketing: an offer, news or an invitation, sent to people who said yes to offers",
+  utility: "utility: about the person's own booking, order or account, promoting nothing"
+};
+function craftValueLine(v) {
+  const what = v.kind === "text" ? `typed for each send, "${v.label}"` : PARAM_SOURCE_LABELS[v.kind].replace(/^\w/, (c) => c.toLowerCase());
+  return `- {{${v.position}}}: ${what}`;
+}
+function craftDraftLines(d) {
+  return [
+    ...d.whatsapp ? [`WhatsApp:
+${d.whatsapp.body}`] : [],
+    ...d.email ? [`Email subject: ${d.email.subject}
+Email body:
+${d.email.body}`] : [],
+    ...d.sms ? [`Text:
+${d.sms.body}`] : []
+  ].join("\n\n");
+}
+function craftRoomLine(b) {
+  const r2 = textRoom(b);
+  const plain2 = `The text's room: about ${r2.plain} characters besides its values for one part in plain characters`;
+  if (b.message.language === "en") return `${plain2}, so no curly quotes and no emoji.`;
+  const accented = r2.unicode >= 30 ? `about ${r2.unicode} with an accent such as \xE1 or an emoji in it` : `with an accent such as \xE1 it cannot be one part: keep it to two, about ${r2.unicodeTwo}`;
+  return `${plain2}; ${accented}.`;
+}
+function messageBriefText(b) {
+  const { business: biz, message: m } = b;
+  const channels = draftChannels(b);
+  const es = m.language === "es";
+  const business = [
+    `The business: ${biz.name}.`,
+    biz.tone ? `Its tone, in its own words: ${biz.tone}` : "It has no tone line.",
+    `It calls a booking: ${biz.word}${es ? " (say it in Spanish)" : ""}.`,
+    ...biz.services.length ? [`Its services: ${biz.services.join(", ")}.`] : [],
+    ...biz.notes.length ? [
+      `Its notes in force, for context only (the message says none of them unless the draft does):
+${fenced("record", biz.notes.map((n) => `- ${n}`).join("\n"))}`
+    ] : []
+  ];
+  const message = [
+    `The message: "${m.name}", ${CRAFT_CATEGORY_WORDS[m.category]}, in ${CRAFT_LANGUAGE_WORDS[m.language]}.`,
+    m.values.length ? `Its values:
+${m.values.map(craftValueLine).join("\n")}` : "It has no values.",
+    ...m.reused ? [
+      "This message is reused for every later offer, each typing its own words into the typed value: write around that value, never about one offer."
+    ] : [],
+    ...m.category === "marketing" && m.draft.whatsapp ? [`The opt-out line: ${smsStopLine(m.language)}`] : [],
+    ...m.draft.sms ? [craftRoomLine(b)] : []
+  ];
+  return [
+    business.join("\n"),
+    message.join("\n"),
+    `The first draft, written by Ask from what the owner asked:
+${fenced("record", craftDraftLines(m.draft))}`,
+    `Write every version the draft has (${channels.join(", ")}), and leave the others empty.`
+  ].join("\n\n");
+}
+var MESSAGE_CRAFT_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["whatsapp", "email", "sms", "could_not"],
+  properties: {
+    whatsapp: {
+      type: "object",
+      additionalProperties: false,
+      required: ["body"],
+      properties: { body: { type: "string" } }
+    },
+    email: {
+      type: "object",
+      additionalProperties: false,
+      required: ["subject", "body"],
+      properties: { subject: { type: "string" }, body: { type: "string" } }
+    },
+    sms: { type: "object", additionalProperties: false, required: ["body"], properties: { body: { type: "string" } } },
+    could_not: { type: "string" }
+  }
+};
+var MessageCraftAnswerSchema = z8.object({
+  whatsapp: z8.object({ body: z8.string() }),
+  email: z8.object({ subject: z8.string(), body: z8.string() }),
+  sms: z8.object({ body: z8.string() }),
+  could_not: z8.string()
+});
+var craftClean = (s) => s.replace(/\r\n/g, "\n").trim();
+function craftedVersions(a, b) {
+  const versions = {};
+  const missing = [];
+  for (const c of draftChannels(b)) {
+    if (c === "email") {
+      const subject = craftClean(a.email.subject).replace(/\s+/g, " ");
+      const body = craftClean(a.email.body);
+      if (subject && body) versions.email = { subject, body };
+      else missing.push(c);
+    } else {
+      const body = craftClean(a[c].body);
+      if (body) versions[c] = { body };
+      else missing.push(c);
+    }
+  }
+  return { versions, missing, couldNot: craftClean(a.could_not) || null };
+}
+
+// src/ask-skills/customer-message/checks.ts
+var CRAFT_SLOT = /\{\{(\d+)\}\}/g;
+var craftWithoutSlots = (s) => s.replace(CRAFT_SLOT, " ");
+var craftFigures = (s) => craftWithoutSlots(s).match(/\d+(?:[.,:]\d+)*/g) ?? [];
+var CRAFT_FREE = /\b(?<!feel )free\b(?! to\b)|\bgratis\b|\bgratuit[oa]s?\b/i;
+var CRAFT_CONTACT = /https?:\/\/|\bwww\.|[\w.+-]+@[\w-]+\.[a-z]{2,}|\+?\d[\d ().-]{7,}\d/i;
+var CRAFT_CAPS = /(?<![\p{L}\d])[\p{Lu}]{4,}(?![\p{L}\d])/gu;
+var CRAFT_PICTOGRAPH = /\p{Extended_Pictographic}/u;
+var CRAFT_UNSUBSCRIBE = /\bunsubscribe\b|\bdar(?:te|se) de baja\b/i;
+var CRAFT_STOP = /\bSTOP\b/;
+function craftAllWords(v) {
+  return [v.whatsapp?.body, v.email?.subject, v.email?.body, v.sms?.body].filter(Boolean).join("\n");
+}
+function craftWordsOf(v, c) {
+  if (c === "email") return v.email ? `${v.email.subject}
+${v.email.body}` : "";
+  return v[c]?.body ?? "";
+}
+function craftBeyondDraft(c, text, draft, b) {
+  const out = [];
+  const at3 = (code2, words3) => out.push({ channel: c, code: code2, words: words3 });
+  if (priceBreach(text, new Set(priceFigures(draft)))) at3("new_price", "a price or a share the draft does not hold");
+  if (namesMoney(text) && !namesMoney(draft) || CRAFT_FREE.test(text) && !CRAFT_FREE.test(draft))
+    at3("new_money", "a discount, a free thing or a payment term the draft does not hold");
+  const known = new Set(craftFigures(draft));
+  const extra = craftFigures(text).filter((n) => !known.has(n));
+  if (extra.length) at3("new_number", `numbers the draft does not hold: ${[...new Set(extra)].join(", ")}`);
+  if (CRAFT_CONTACT.test(craftWithoutSlots(text)))
+    at3("typed_contact", "a link, an email address or a phone number typed in");
+  const own = /* @__PURE__ */ new Set([...b.business.name.split(/\s+/), ...draft.match(CRAFT_CAPS) ?? [], "STOP"]);
+  const loud = (text.match(CRAFT_CAPS) ?? []).filter((w) => !own.has(w));
+  if (loud.length) at3("shouting", `capitals for emphasis: ${[...new Set(loud)].join(", ")}`);
+  return out;
+}
+function craftWhatsappIssues(body, b) {
+  const out = [];
+  const at3 = (code2, words3) => out.push({ channel: "whatsapp", code: code2, words: words3 });
+  const want = b.message.values.map((v) => v.position).sort((x, y) => x - y);
+  const got = placeholdersOf(body);
+  if (got.join(",") !== want.join(","))
+    at3(
+      "values",
+      `values ${got.map((n) => `{{${n}}}`).join(" ") || "none"}, asked ${want.map((n) => `{{${n}}}`).join(" ") || "none"}`
+    );
+  if (/^\s*\{\{\d+\}\}|\{\{\d+\}\}\s*$/.test(body)) at3("value_at_edge", "a value at the very start or end");
+  if (/\}\}\s*\{\{/.test(body)) at3("values_side_by_side", "two values side by side");
+  if (templateBodyTooLong(body)) at3("too_long", "over WhatsApp's 1,024 characters");
+  if (/\n[^\S\n]*\n[^\S\n]*\n/.test(body)) at3("blank_lines", "more than one blank line in a row");
+  const stop = smsStopLine(b.message.language);
+  const last = body.trim().split("\n").at(-1)?.trim().replace(/\.$/, "") ?? "";
+  if (b.message.category === "marketing" && last !== stop) at3("opt_out", `an offer's last line is not "${stop}"`);
+  return out;
+}
+function craftEmailIssues(e) {
+  const out = [];
+  const at3 = (code2, words3) => out.push({ channel: "email", code: code2, words: words3 });
+  if (!e.subject || e.subject.length > EMAIL_SUBJECT_MAX || CRAFT_PICTOGRAPH.test(e.subject))
+    at3("subject", `a subject under ${EMAIL_SUBJECT_MAX} characters, with no emoji`);
+  if (e.body.length > EMAIL_BODY_MAX) at3("too_long", `over ${EMAIL_BODY_MAX} characters`);
+  if (/\n[^\S\n]*\n[^\S\n]*\n/.test(e.body)) at3("blank_lines", "more than one blank line in a row");
+  if (CRAFT_UNSUBSCRIBE.test(e.body) || CRAFT_STOP.test(e.body))
+    at3("stop_written", "a way out of its own: the sender's foot says it");
+  return out;
+}
+function craftTextIssues(body, b) {
+  const out = [];
+  const at3 = (code2, words3) => out.push({ channel: "sms", code: code2, words: words3 });
+  const parts2 = smsSegments(textAsSent(body, b)).segments;
+  const allowed = textPartsAllowed(b.message.language);
+  if (parts2 > allowed) at3("text_parts", `${parts2} parts with its values and the STOP line; at most ${allowed}`);
+  if (CRAFT_STOP.test(body)) at3("stop_written", "STOP written in: the sender adds it");
+  return out;
+}
+function messageCraftIssues(v, b, missing = []) {
+  const out = missing.map((c) => ({ channel: c, code: "missing", words: "left empty" }));
+  const draft = craftAllWords(b.message.draft);
+  const n = b.message.values.length;
+  for (const c of CRAFT_CHANNELS) {
+    const text = craftWordsOf(v, c);
+    if (!text) continue;
+    const outside = placeholdersOf(text).filter((p) => p < 1 || p > n);
+    if (c !== "whatsapp" && outside.length)
+      out.push({
+        channel: c,
+        code: "values",
+        words: `values it was not given: ${outside.map((p) => `{{${p}}}`).join(" ")}`
+      });
+    if (/[{}]/.test(craftWithoutSlots(text)))
+      out.push({ channel: c, code: "braces", words: "braces that are not a value" });
+    if (c === "whatsapp" && v.whatsapp) out.push(...craftWhatsappIssues(v.whatsapp.body, b));
+    if (c === "email" && v.email) out.push(...craftEmailIssues(v.email));
+    if (c === "sms" && v.sms) out.push(...craftTextIssues(v.sms.body, b));
+    if (b.message.category === "utility" && (priceFigures(text).length > 0 || namesMoney(text) || CRAFT_FREE.test(text)))
+      out.push({ channel: c, code: "promotes", words: "a price, a discount or a free thing in a utility message" });
+    out.push(...craftBeyondDraft(c, text, draft, b));
+  }
+  return out;
+}
+
+// src/ask-skills/customer-message/rubric.ts
+import { z as z9 } from "zod";
+var MESSAGE_RUBRIC = [
+  {
+    id: "approvable",
+    hard: true,
+    ask: "WhatsApp's reviewers would approve its WhatsApp version as written, in its kind: its point is in its own words, each value has words around it, it is not vague, misleading or pressuring, and it asks for no payment detail. Pass where it has no WhatsApp version."
+  },
+  {
+    id: "category",
+    hard: true,
+    ask: "Its kind is right for what it says: utility only about the person's own booking, order or account and promoting nothing at all; marketing for an offer, news or an invitation, its WhatsApp version ending on the opt-out line."
+  },
+  {
+    id: "facts",
+    hard: true,
+    ask: "It holds no price, share, discount, free thing, date, deadline, number, promise or claim that the draft does not hold, and leaves out none of the draft's own facts (an offer, its figure, its days, who it is for)."
+  },
+  {
+    id: "one_action",
+    hard: false,
+    ask: "It asks for one thing, once: one call to act, easy to see."
+  },
+  {
+    id: "voice",
+    hard: false,
+    ask: "It reads in the business's voice as its tone line says (warmth, formality, exclamation marks, emoji; warm, brief and plain with no tone line), the way the business writes to someone it knows: never generic, stiff or salesy."
+  },
+  {
+    id: "language",
+    hard: false,
+    ask: "It is natural in its language, never a word-for-word translation: Spanish neutral for Latin America and the US, one register (t\xFA or usted) throughout, with \xBF and \xA1 where they belong; English plain and idiomatic."
+  },
+  {
+    id: "channel_fit",
+    hard: false,
+    ask: "Each version fits its channel: WhatsApp conversational and easy to scan on a phone; an email's subject specific and its body in short paragraphs; a text short, naming the business first."
+  }
+];
+function messageJudgeSystem() {
+  return [
+    "You judge a message a small business will send its own customers, against the brief it was written from. Be strict: a customer reads these words under the business's name, and WhatsApp reviews them before they can be sent.",
+    "Give one verdict for each criterion below, by its id: pass or not, and why in one short line. Judge only what the words say, never what the writer might have meant.",
+    MESSAGE_RUBRIC.map((c) => `- ${c.id}${c.hard ? " (must pass)" : ""}: ${c.ask}`).join("\n"),
+    DATA_NOT_INSTRUCTIONS
+  ].join("\n\n");
+}
+function craftJudgedLines(v, couldNot) {
+  return [
+    ...v.whatsapp ? [`WhatsApp:
+${v.whatsapp.body}`] : [],
+    ...v.email ? [`Email subject: ${v.email.subject}
+Email body:
+${v.email.body}`] : [],
+    ...v.sms ? [`Text (the sender adds its STOP line):
+${v.sms.body}`] : [],
+    ...couldNot ? [`What the writer says it left out: ${couldNot}`] : []
+  ].join("\n\n");
+}
+function messageJudgeQuestion(b, v, couldNot) {
+  return [
+    `The brief the message was written from:
+${messageBriefText(b)}`,
+    `The message to judge:
+${fenced("record", craftJudgedLines(v, couldNot))}`
+  ].join("\n\n");
+}
+var MESSAGE_JUDGE_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["verdicts"],
+  properties: {
+    verdicts: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["id", "pass", "why"],
+        properties: {
+          id: { type: "string", enum: MESSAGE_RUBRIC.map((c) => c.id) },
+          pass: { type: "boolean" },
+          why: { type: "string" }
+        }
+      }
+    }
+  }
+};
+var MessageJudgeAnswerSchema = z9.object({
+  verdicts: z9.array(z9.object({ id: z9.string(), pass: z9.boolean(), why: z9.string() }))
+});
+function messageVerdict(issues, judged2) {
+  const failed = issues.map((i) => `${i.channel} ${i.code}: ${i.words}`);
+  const notes = [];
+  let passed = 0;
+  let of = 0;
+  for (const c of MESSAGE_RUBRIC) {
+    const v = judged2.verdicts.find((x) => x.id === c.id);
+    const ok2 = v?.pass === true;
+    const why = v ? v.why : "the judge gave no verdict";
+    if (c.hard) {
+      if (!ok2) failed.push(`${c.id}: ${why}`);
+    } else {
+      of += 1;
+      if (ok2) passed += 1;
+      else notes.push(`${c.id}: ${why}`);
+    }
+  }
+  return { pass: failed.length === 0, failed, soft: { passed, of }, notes };
 }
 
 // src/shared/html.ts
@@ -26192,8 +27807,8 @@ function toMs(value, params, fallbackTz) {
   }
   const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
   if (!m) return null;
-  const [, y, mo, d, hh, mm, ss, z32] = m;
-  if (z32) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
+  const [, y, mo, d, hh, mm, ss, z34] = m;
+  if (z34) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
   const tz = zoneOfTzid(params.TZID, fallbackTz);
   return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
 }
@@ -26831,108 +28446,6 @@ function appointmentKeysOf(rows2) {
     }
   }
   return [...keys];
-}
-
-// src/calendar/feed-url.ts
-var PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
-var CARRIER_NAT = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
-var PRIVATE_V6 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
-function feedUrlOk(raw) {
-  if (!raw) return null;
-  const url = raw.trim().replace(/^webcal:\/\//i, "https://");
-  let u;
-  try {
-    u = new URL(url);
-  } catch {
-    return null;
-  }
-  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
-  const h = u.hostname;
-  if (PRIVATE_HOST.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || CARRIER_NAT.test(h) || PRIVATE_V6.test(h))
-    return null;
-  return u.toString();
-}
-var FEED_REDIRECTS_MAX = 3;
-async function fetchPublic(fetchImpl, raw, init = {}) {
-  let at3 = feedUrlOk(raw);
-  for (let hop = 0; at3 && hop <= FEED_REDIRECTS_MAX; hop += 1) {
-    const res = await fetchImpl(at3, { ...init, redirect: "manual" });
-    if (res.status >= 300 && res.status < 400) {
-      const next = res.headers.get("location");
-      await res.body?.cancel().catch(() => void 0);
-      at3 = next ? feedUrlOk(URL.canParse(next, at3) ? new URL(next, at3).toString() : null) : null;
-      continue;
-    }
-    return res;
-  }
-  return null;
-}
-var FEED_GUIDES = [
-  {
-    name: "Google Calendar",
-    steps: [
-      "On a computer, open Google Calendar and go to Settings.",
-      "Under \u201CSettings for my calendars\u201D, pick the calendar your bookings land in.",
-      "Open \u201CIntegrate calendar\u201D and copy \u201CSecret address in iCal format\u201D."
-    ]
-  },
-  {
-    name: "Apple Calendar (iCloud)",
-    steps: [
-      "In the Calendar app, open Calendars and press \u24D8 beside the calendar your bookings land in.",
-      "Turn on Public Calendar, then Share Link, and copy it."
-    ]
-  },
-  {
-    name: "Outlook",
-    steps: [
-      "In Outlook on the web, open Settings, then Calendar, then Shared calendars.",
-      "Under \u201CPublish a calendar\u201D, pick your calendar and \u201CCan view when I'm busy\u201D, then Publish.",
-      "Copy the ICS link."
-    ]
-  }
-];
-var FEED_CHECK_WORDS = {
-  guide: "Where do I find it?",
-  reading: "Reading it\u2026",
-  read: (events, next) => events === 0 ? "Read it: it's empty so far. Your receptionist will see new bookings as they land." : `Read it: ${events} ${events === 1 ? "event" : "events"}, ${next ? `the next ${next}` : "none in the next 30 days"}.`
-};
-var FEED_MAX_BYTES = 2e6;
-function feedProblemWords(reason, status) {
-  switch (reason) {
-    case "address":
-      return "The calendar feed needs to be a full https:// or webcal:// address on the internet.";
-    case "unreachable":
-      return "The calendar could not be reached. Check the address and try again.";
-    case "http":
-      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
-    case "too_large":
-      return "That feed is too large to read (over 2 MB).";
-    case "not_ical":
-      return "That address is not an iCal feed. In Google Calendar it is Settings \u203A your calendar \u203A Secret address in iCal format.";
-    case "settings":
-      return "Your workspace settings could not be read, so the calendar address could not be found. Save it again in Settings.";
-    default:
-      return null;
-  }
-}
-function feedBodyProblem(text) {
-  if (text.length > FEED_MAX_BYTES) return "too_large";
-  if (!/BEGIN:VCALENDAR/i.test(text)) return "not_ical";
-  return null;
-}
-function offeringHorizon(now, daysAhead) {
-  return { from: now.getTime() - DAY_MS, to: now.getTime() + (daysAhead + 1) * DAY_MS };
-}
-var SEASON_BACK_DAYS = 90;
-function seasonHorizon(now, daysAhead = 0) {
-  return {
-    from: now.getTime() - DAY_MS * SEASON_BACK_DAYS,
-    to: now.getTime() + Math.max(daysAhead + 1, 90) * DAY_MS
-  };
-}
-function previewHorizon(now) {
-  return { from: now.getTime() - DAY_MS, to: now.getTime() + 30 * DAY_MS };
 }
 
 // src/calendar/appointment-item.ts
@@ -29175,10 +30688,10 @@ function roleTable() {
 }
 
 // src/config/workspace-config/policy-limits-schema.ts
-import { z as z5 } from "zod";
-var PolicyLimitsSchema = z5.object({
-  max_replies_day: z5.number().int().min(1).max(200).optional(),
-  pause_hours: z5.number().int().min(PAUSE_HOURS_MIN).max(PAUSE_HOURS_MAX).optional(),
+import { z as z10 } from "zod";
+var PolicyLimitsSchema = z10.object({
+  max_replies_day: z10.number().int().min(1).max(200).optional(),
+  pause_hours: z10.number().int().min(PAUSE_HOURS_MIN).max(PAUSE_HOURS_MAX).optional(),
   /**
    * How long the receptionist WAITS before its own reply goes out, in ms.
    *
@@ -29187,14 +30700,14 @@ var PolicyLimitsSchema = z5.object({
    * the customer nothing and buys the business a window to redirect the bot
    * before it speaks, rather than apologising for it afterwards.
    */
-  reply_delay_ms: z5.number().int().min(REPLY_DELAY_MIN_MS).max(REPLY_DELAY_MAX_MS).optional(),
+  reply_delay_ms: z10.number().int().min(REPLY_DELAY_MIN_MS).max(REPLY_DELAY_MAX_MS).optional(),
   /**
    * The confidence dial. Under 'auto', a reply the model is less sure about
    * than this waits in the hold window (reply_delay_ms) for a person instead
    * of going straight out — sure enough sends itself, not sure enough waits.
    * 0 or absent means off.
    */
-  min_confidence: z5.number().min(0).max(1).optional(),
+  min_confidence: z10.number().min(0).max(1).optional(),
   /**
    * The day's token budget: model tokens in and out over a rolling 24
    * hours, read from the usage events every reply writes. Over it the
@@ -29202,7 +30715,7 @@ var PolicyLimitsSchema = z5.object({
    * reply cap. 0 or absent is off; a value is at least a thousand, because
    * a budget of ten would be a mute button with a misleading name.
    */
-  max_llm_tokens_day: z5.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
+  max_llm_tokens_day: z10.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
 }).strict();
 
 // src/config/limits.ts
@@ -29214,118 +30727,6 @@ function tokenBudgetSpent(limits, used) {
   const cap2 = tokenCapOf(limits);
   return cap2 > 0 && used >= cap2;
 }
-
-// src/config/workspace-config/business-profile.ts
-import { z as z6 } from "zod";
-var TIME = z6.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
-var IntervalSchema = z6.object({ open: TIME, close: TIME });
-var HoursSchema = z6.object({
-  /** "09:00". Absent or null = closed that day, which is a real answer. */
-  open: TIME.nullable().optional(),
-  close: TIME.nullable().optional(),
-  /**
-   * Split shifts — 09:30-13:00 and 15:00-19:00, the lunch break a salon
-   * actually keeps. Additive: a day that has always been one stretch keeps
-   * saying so with open/close, and no stored config is rewritten.
-   */
-  intervals: z6.array(IntervalSchema).optional()
-}).strip();
-var DATE = z6.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-var ClosureSchema = z6.object({
-  date: DATE,
-  until: DATE.optional(),
-  note: z6.string().max(PROFILE_LIMITS.closureNote).optional()
-});
-var ServiceSchema = z6.object({
-  name: z6.string().min(1).max(PROFILE_LIMITS.serviceName),
-  /** Minutes. The receptionist is asked "how long does it take" constantly. */
-  duration_min: z6.number().int().min(1).max(PROFILE_LIMITS.serviceMinutes).optional(),
-  /**
-   * Free text, not a number, and deliberately so: "from $45", "quoted at
-   * consult", "varies by length". A price the business cannot state flatly
-   * must not be forced into a field that looks like it can.
-   */
-  price_note: z6.string().max(PROFILE_LIMITS.servicePrice).optional()
-}).strip();
-var GuardrailsSchema = z6.object({
-  never_quote_prices: z6.boolean().optional(),
-  never_confirm_booking: z6.boolean().optional(),
-  disclose_ai: z6.boolean().optional(),
-  /**
-   * OPT-IN, unlike the three above. Those default on because absent means
-   * "the safe reading"; this one arrived after prompts were live, and a
-   * rule that defaulted on would have changed every composed prompt in
-   * production the moment it deployed.
-   */
-  no_health_advice: z6.boolean().optional()
-}).strip();
-var NoteSchema = z6.object({
-  title: z6.string().min(1).max(PROFILE_LIMITS.noteTitle),
-  text: z6.string().min(1).max(PROFILE_LIMITS.noteText),
-  until: DATE.optional()
-}).strip();
-var rule = (key) => z6.number().int().min(BOOKING_RULE_BOUNDS[key].min).max(BOOKING_RULE_BOUNDS[key].max).optional();
-var BookingRulesSchema = z6.object({
-  /** Least notice for a slot, in hours. Absent = 2. */
-  lead_hours: rule("lead_hours"),
-  /** Gap kept around each existing appointment, in minutes. Absent = 0. */
-  buffer_min: rule("buffer_min"),
-  /** How far ahead open times are offered, in days. Absent = 14. */
-  max_days_ahead: rule("max_days_ahead"),
-  /** The shortest window worth naming, in minutes. Absent = 30. */
-  slot_min: rule("slot_min"),
-  /** Services that need a consultation before they can be booked. */
-  consult_first: z6.array(z6.string().min(1).max(PROFILE_LIMITS.consultFirstLine)).max(PROFILE_LIMITS.consultFirst).optional(),
-  party_max: rule("party_max"),
-  /**
-   * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
-   * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
-   */
-  ask_email: z6.boolean().optional(),
-  /** Anything else about booking, one short line each. */
-  notes: z6.array(z6.string().min(1).max(PROFILE_LIMITS.ruleNote)).max(PROFILE_LIMITS.ruleNotes).optional()
-}).strip();
-var BusinessProfileSchema = z6.object({
-  address: z6.string().max(300).optional(),
-  hours: z6.partialRecord(z6.enum(DAYS), HoursSchema).optional(),
-  /** Dates the business is shut regardless of the weekly grid. */
-  closures: z6.array(ClosureSchema).optional(),
-  services: z6.array(ServiceSchema).max(PROFILE_LIMITS.services).optional(),
-  languages: z6.array(z6.string().min(PROFILE_LIMITS.languageMin).max(PROFILE_LIMITS.languageMax)).max(PROFILE_LIMITS.languages).optional(),
-  guardrails: GuardrailsSchema.optional(),
-  /** What must reach a person. One short line each. */
-  escalate_when: z6.array(z6.string().min(1).max(PROFILE_LIMITS.reason)).max(PROFILE_LIMITS.reasons).optional(),
-  tone: z6.string().max(PROFILE_LIMITS.tone).optional(),
-  /**
-   * The line a PERSON answers. The phone receptionist warm-transfers here
-   * during opening hours; absent, it takes a message instead. Never the
-   * receptionist's own line — that would ring itself.
-   */
-  handoff_number: z6.string().regex(E1642, "E.164, like +12125550143").optional(),
-  /**
-   * The first thing a caller hears, in the owner's words, with {business} for the name (decision 0051): no cap and
-   * nothing refused, only notes (voice/greeting-owner.ts greetingNotes). Absent is the standard greeting. The one
-   * thing the product holds is said where the line is spoken, not here: a line that never says it is automated has
-   * the product's clause added (greetingOf). Never part of the composed prompt, so not in hasProfile.
-   */
-  // `.catch`: a stored value that is not a string reads as none (the standard greeting), never as a config that cannot
-  // be parsed, which would leave the receptionist silent.
-  phone_greeting: z6.string().optional().catch(void 0),
-  website: z6.string().url().max(500).optional(),
-  notes: z6.array(NoteSchema).max(PROFILE_LIMITS.notes).optional(),
-  booking_rules: BookingRulesSchema.optional(),
-  /**
-   * Anything the owner wants said that no field covers.
-   *
-   * The escape hatch that keeps this model honest — without it, structuring
-   * the facts would mean losing whatever did not fit, and the first migration
-   * would be a downgrade.
-   *
-   * It holds what the prompt it grew out of holds (INSTRUCTIONS_MAX), because
-   * the form carries that prompt into it.
-   */
-  extra_instructions: z6.string().max(PROFILE_LIMITS.instructions).optional()
-}).strip();
 
 // src/config/facts.ts
 var trimmed = (v) => {
@@ -29543,249 +30944,6 @@ function baselinePrompt(businessName) {
 }
 function isBaselinePrompt(text) {
   return text.startsWith(BASELINE_OPENING) && text.endsWith(BASELINE_CLOSING);
-}
-
-// src/config/workspace-config/brain-config-schema.ts
-import { z as z7 } from "zod";
-var BrainConfigSchema = z7.object({
-  business_name: z7.string().min(1).max(120),
-  /**
-   * The number the receptionist tells customers to call — an OVERRIDE, and
-   * optional because it should almost never be set.
-   *
-   * It was required, free text, and named the same as the line the
-   * receptionist answers, so every workspace typed something into it and
-   * nothing checked what. On the first live salon that produced a
-   * receptionist publishing the number it transfers to: customers who rang
-   * it reached a person's mobile and never the receptionist standing by,
-   * and the same string went to Google.
-   *
-   * Absent is now the right answer and the default: resolveFacts falls back
-   * to the provisioned voice line, formatted for speech, so the number
-   * published is the number answered by construction. A value here means a
-   * business deliberately publishes something else — a tracking line, a
-   * shopfront — and the pane says so in those words.
-   */
-  phone_display: z7.string().min(3).max(40).optional(),
-  /**
-   * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
-   * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
-   * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
-   */
-  booking_link: z7.string().url().max(BOOKING_LINK_MAX).optional(),
-  /** The complete system prompt the model receives — the "AI memory" pane's
-   *  one hard promise is that what it shows is EXACTLY this, nothing more. */
-  system_prompt: z7.string().min(40).max(INSTRUCTIONS_MAX),
-  /**
-   * The business's facts, as fields.
-   *
-   * Optional: every config written before this existed stays valid, and
-   * nothing composes until a workspace actually fills it in. When present
-   * it REPLACES system_prompt as the source the prompt is built from.
-   */
-  profile: BusinessProfileSchema.optional(),
-  fallbacks: z7.object({
-    /** Sent when no model key is configured. */
-    greeting: z7.string().min(1).max(PROFILE_LIMITS.message),
-    /** Sent when the model call failed. */
-    error: z7.string().min(1).max(PROFILE_LIMITS.message),
-    /** Sent for voice notes / photos before escalating. */
-    non_text: z7.string().min(1).max(PROFILE_LIMITS.message)
-  }).strip()
-}).strip();
-
-// src/config/workspace-config/config-schema.ts
-import { z as z8 } from "zod";
-
-// src/config/unknown-keys.ts
-var isJsonObject = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
-var isList = (v) => Array.isArray(v);
-function keysLeftOut(raw, kept, at3 = []) {
-  if (Array.isArray(raw) && Array.isArray(kept)) {
-    return raw.flatMap((v, i) => i < kept.length ? keysLeftOut(v, kept[i], [...at3, i]) : []);
-  }
-  if (!isJsonObject(raw) || !isJsonObject(kept)) return [];
-  return Object.entries(raw).flatMap(([k, v]) => {
-    if (v === void 0) return [];
-    return Object.hasOwn(kept, k) ? keysLeftOut(v, kept[k], [...at3, k]) : [[...at3, k]];
-  });
-}
-function sameJson(a, b) {
-  if (Array.isArray(a) || Array.isArray(b)) {
-    return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => sameJson(v, b[i]));
-  }
-  if (isJsonObject(a) && isJsonObject(b)) {
-    const ka = Object.keys(a).filter((k) => a[k] !== void 0);
-    const kb = Object.keys(b).filter((k) => b[k] !== void 0);
-    return ka.length === kb.length && ka.every((k) => Object.hasOwn(b, k) && sameJson(a[k], b[k]));
-  }
-  return Object.is(a, b);
-}
-function withKeysLeftOut(sent2, raw, kept) {
-  if (isList(sent2) && isList(raw) && isList(kept)) {
-    const taken = /* @__PURE__ */ new Set();
-    return sent2.map((el) => {
-      const i = kept.findIndex((k, n) => !taken.has(n) && n < raw.length && sameJson(k, el));
-      if (i < 0) return el;
-      taken.add(i);
-      return withKeysLeftOut(el, raw[i], kept[i]);
-    });
-  }
-  if (!isJsonObject(sent2) || !isJsonObject(raw) || !isJsonObject(kept)) return sent2;
-  const out = { ...sent2 };
-  for (const [k, v] of Object.entries(raw)) {
-    if (v === void 0) continue;
-    if (!Object.hasOwn(kept, k)) {
-      if (!Object.hasOwn(sent2, k)) out[k] = v;
-    } else if (Object.hasOwn(sent2, k)) {
-      out[k] = withKeysLeftOut(sent2[k], v, kept[k]);
-    }
-  }
-  return out;
-}
-function refuseUnknownFields(read, raw, ctx) {
-  const parsed = read.safeParse(raw);
-  if (!parsed.success) return;
-  const byObject = /* @__PURE__ */ new Map();
-  for (const where of keysLeftOut(raw, parsed.data)) {
-    if (where.length < 2) continue;
-    const path = where.slice(0, -1);
-    const id = JSON.stringify(path);
-    const held = byObject.get(id) ?? { path, keys: [] };
-    held.keys.push(String(where[where.length - 1]));
-    byObject.set(id, held);
-  }
-  for (const { path, keys } of byObject.values()) ctx.addIssue({ code: "unrecognized_keys", keys, path });
-}
-
-// src/config/workspace-config/config-schema.ts
-var NotificationsConfigSchema = z8.object({
-  escalation_emails: z8.array(z8.string().email()).min(ALERT_ADDRESSES_MIN).max(ALERT_ADDRESSES_MAX),
-  from: z8.string().max(200).optional(),
-  /**
-   * The kinds the business is not emailed (decision 0040), chosen on Settings › Notifications. Strings, not the closed
-   * set: a kind a newer dashboard writes must not make an older edge's read fail, and `emailOffOf` reads only the kinds
-   * that may be turned off. An edge older than the field drops it and keeps emailing, the safe side.
-   */
-  // `.catch`: a stored value that is not a short list of short names reads as none (everything emailed), never as a
-  // config that cannot be parsed, which would leave the receptionist silent.
-  email_off: z8.array(z8.string().max(40)).max(40).optional().catch(void 0)
-}).strip();
-var CalendarConfigSchema = z8.object({
-  ical_url: z8.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
-}).strip();
-var BookingsConfigSchema = z8.object({ tool: z8.string().max(40).optional(), by_hand: z8.boolean().optional() }).strip();
-var FeaturesConfigSchema = z8.object({
-  vision: z8.boolean().optional(),
-  /** Campaigns › Ads, its sample drawn in this workspace as a demo session draws it (contracts ads/address.ts). */
-  ads_preview: z8.boolean().optional(),
-  /** Campaigns › Sequences (decision 0060), drawn in this workspace before it replaces the home (contracts sequences). */
-  sequences_preview: z8.boolean().optional(),
-  /**
-   * Booking requests (decision 0061): where the team confirms its own bookings, a time a customer picks by text is held
-   * for the owner as a request (Booked it or Can't). Off, the conversation is a person's to read, as before.
-   */
-  booking_requests: z8.boolean().optional()
-}).strip();
-var TenantConfigSchema = z8.object({
-  brain: BrainConfigSchema.optional(),
-  notifications: NotificationsConfigSchema.optional(),
-  calendar: CalendarConfigSchema.optional(),
-  bookings: BookingsConfigSchema.optional(),
-  features: FeaturesConfigSchema.optional()
-});
-function checkDay(h, day, ctx) {
-  for (const p of dayProblems(h, day)) {
-    ctx.addIssue({
-      code: z8.ZodIssueCode.custom,
-      path: ["brain", "profile", "hours", day, ...p.path],
-      message: p.message
-    });
-  }
-}
-function checkCalendarDay(day, path, ctx) {
-  if (!isRealDate(day)) {
-    ctx.addIssue({
-      code: z8.ZodIssueCode.custom,
-      path,
-      message: `${day} is not a date on the calendar.`
-    });
-  }
-}
-function checkClosure(c, n, ctx) {
-  const at3 = (...rest) => ["brain", "profile", "closures", n, ...rest];
-  checkCalendarDay(c.date, at3("date"), ctx);
-  if (c.until) checkCalendarDay(c.until, at3("until"), ctx);
-  if (c.until && c.until < c.date) {
-    ctx.addIssue({
-      code: z8.ZodIssueCode.custom,
-      path: at3("until"),
-      message: "A closure cannot end before it starts."
-    });
-  }
-}
-var WriteRules = TenantConfigSchema.superRefine((cfg, ctx) => {
-  if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
-    ctx.addIssue({
-      code: z8.ZodIssueCode.custom,
-      path: ["calendar", "ical_url"],
-      message: feedProblemWords("address") ?? "Not an address the receptionist may read."
-    });
-  }
-  if (cfg.bookings?.tool !== void 0 && !isBookingTool(cfg.bookings.tool)) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["bookings", "tool"],
-      message: "Not a booking tool this product knows."
-    });
-  }
-  const p = cfg.brain?.profile;
-  if (!p) return;
-  for (const [day, h] of Object.entries(p.hours ?? {})) if (h) checkDay(h, day, ctx);
-  if ((p.closures?.length ?? 0) > MAX_CLOSURES) {
-    ctx.addIssue({
-      code: z8.ZodIssueCode.custom,
-      path: ["brain", "profile", "closures"],
-      message: `At most ${MAX_CLOSURES} closures.`
-    });
-  }
-  (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
-  (p.notes ?? []).forEach((note, n) => {
-    if (note.until) checkCalendarDay(note.until, ["brain", "profile", "notes", n, "until"], ctx);
-  });
-});
-var TenantConfigWriteSchema = z8.unknown().superRefine((raw, ctx) => refuseUnknownFields(TenantConfigSchema, raw, ctx)).pipe(WriteRules);
-function parseTenantConfigResult(raw) {
-  const r2 = TenantConfigSchema.safeParse(raw ?? {});
-  if (r2.success) return { ok: true, config: r2.data, ignored: keysLeftOut(raw, r2.data).map((p) => p.join(".")) };
-  return {
-    ok: false,
-    issues: r2.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
-  };
-}
-function withStoredKeysKept(sent2, stored) {
-  const read = TenantConfigSchema.safeParse(stored ?? {});
-  if (!read.success) return sent2;
-  return withKeysLeftOut(sent2, stored, read.data);
-}
-function receptionistOf2(parsed) {
-  if (parsed && !parsed.ok) return "broken";
-  return parsed?.config.brain ? "set" : "none";
-}
-function parseTenantConfig(raw) {
-  const r2 = parseTenantConfigResult(raw);
-  return r2.ok ? r2.config : null;
-}
-function withFirstAlertAddress(config2, email) {
-  const current = parseTenantConfigResult(config2 ?? {});
-  if (!current.ok || current.config.notifications) return null;
-  const address = normalizeEmail(email);
-  if (!address) return null;
-  const next = TenantConfigWriteSchema.safeParse({
-    ...current.config,
-    notifications: { escalation_emails: [address] }
-  });
-  return next.success ? withStoredKeysKept(next.data, config2) : null;
 }
 
 // src/config/workspace-config/offers-ask.ts
@@ -30550,8 +31708,8 @@ function pricesWrittenWords(list2) {
   if (!list2) return null;
   if (!list2.length) return "You haven't written a price yet. Add one to a service, and it may say it.";
   const named = list2.slice(0, PRICES_NAMED).map((p) => `${p.figure} (${p.from})`).join(", ");
-  const more = list2.length > PRICES_NAMED ? ` and ${list2.length - PRICES_NAMED} more` : "";
-  return `It may say ${named}${more}, as you wrote them. Any other price is swapped out.`;
+  const more2 = list2.length > PRICES_NAMED ? ` and ${list2.length - PRICES_NAMED} more` : "";
+  return `It may say ${named}${more2}, as you wrote them. Any other price is swapped out.`;
 }
 
 // src/config/business-tab/business-gap.ts
@@ -31079,21 +32237,21 @@ function cannotRows(i) {
 }
 
 // src/config/brain-schema.ts
-import { z as z9 } from "zod";
-var BrainOutputSchema = z9.object({
-  reply: z9.string(),
-  intent: z9.enum(BRAIN_INTENTS).catch("other"),
-  escalate: z9.boolean().catch(false),
-  reason: z9.string().catch("").transform((s) => s.trim().slice(0, 300)),
-  confidence: z9.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
-  facts_used: z9.array(z9.string()).catch([]).transform(
+import { z as z11 } from "zod";
+var BrainOutputSchema = z11.object({
+  reply: z11.string(),
+  intent: z11.enum(BRAIN_INTENTS).catch("other"),
+  escalate: z11.boolean().catch(false),
+  reason: z11.string().catch("").transform((s) => s.trim().slice(0, 300)),
+  confidence: z11.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
+  facts_used: z11.array(z11.string()).catch([]).transform(
     (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))
   ),
-  language: z9.enum(BRAIN_LANGUAGES).catch("other"),
+  language: z11.enum(BRAIN_LANGUAGES).catch("other"),
   // A time the customer picked, where the turn took booking requests (decision 0061): absent from every other answer,
   // and from its record (an absent key stays absent), so a workspace that takes none keeps exactly the record it kept.
-  booking_slot: z9.string().trim().optional().catch(void 0),
-  booking_service: z9.string().trim().optional().catch(void 0)
+  booking_slot: z11.string().trim().optional().catch(void 0),
+  booking_service: z11.string().trim().optional().catch(void 0)
 });
 function parseBrainOutput(raw) {
   let json;
@@ -32224,14 +33382,14 @@ function offerUnsubscribeWords(v, language) {
 }
 
 // src/workspace/event-data.ts
-import { z as z10 } from "zod";
+import { z as z12 } from "zod";
 var SHARED_EVENT_VERSIONS = {
   "contact.added": 1,
   "contact.consent_changed": 1,
   "platform.acted": 1
 };
-var wireText = z10.string();
-var ContactAddedData = z10.looseObject({
+var wireText = z12.string();
+var ContactAddedData = z12.looseObject({
   source: wireText,
   title: wireText.nullish(),
   uid: wireText.nullish(),
@@ -32239,7 +33397,7 @@ var ContactAddedData = z10.looseObject({
   by: wireText.nullish(),
   lead_id: wireText.nullish()
 });
-var ContactConsentChangedData = z10.looseObject({
+var ContactConsentChangedData = z12.looseObject({
   consent: wireText,
   source: wireText,
   purpose: wireText.optional(),
@@ -32251,7 +33409,7 @@ var ContactConsentChangedData = z10.looseObject({
   message_id: wireText.nullish(),
   words: wireText.nullish()
 });
-var PlatformActedData = z10.looseObject({
+var PlatformActedData = z12.looseObject({
   action: wireText,
   by: wireText,
   by_email: wireText.nullish(),
@@ -32610,7 +33768,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
   });
   if (escalation) {
     const idx = dto.messages.findIndex((m) => m.created_at > escalation.created_at);
-    const entry = {
+    const entry2 = {
       type: "event",
       kind: "flag",
       at: shortTime(escalation.created_at, tz, now),
@@ -32619,8 +33777,8 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
       // are said only here.
       body: `Flagged for a human \u2014 ${reasonLabel}${escalation.details && escalation.reason !== "callback" ? ` \xB7 \u201C${clipAtWord(escalation.details, 120)}\u201D` : ""}`
     };
-    if (idx === -1) timeline.push(entry);
-    else timeline.splice(idx, 0, entry);
+    if (idx === -1) timeline.push(entry2);
+    else timeline.splice(idx, 0, entry2);
   }
   const waitingMin = escalation ? Math.max(1, Math.round((now.getTime() - new Date(escalation.created_at).getTime()) / MIN_MS)) : void 0;
   const ask = askOf(escalation, lastInbound);
@@ -34350,32 +35508,32 @@ function pipelineBoardMore(n) {
 }
 
 // src/deals/deal-body.ts
-import { z as z11 } from "zod";
-var DealMoveBody = z11.object({
-  stage: z11.enum(DEAL_STAGES),
+import { z as z13 } from "zod";
+var DealMoveBody = z13.object({
+  stage: z13.enum(DEAL_STAGES),
   /** Absent: a new engagement, which starts proposed. Present: the row the page saw, with the version it saw. */
-  deal_id: z11.uuid().optional(),
-  version: z11.number().int().min(1).optional(),
-  service: z11.string().trim().min(1).max(80).optional(),
+  deal_id: z13.uuid().optional(),
+  version: z13.number().int().min(1).optional(),
+  service: z13.string().trim().min(1).max(80).optional(),
   /** An ISO instant with a time (a bare date would land at UTC midnight, the previous evening in the Americas); absent means now. */
-  when: z11.string().refine((s) => /T/.test(s) && Number.isFinite(Date.parse(s)), "when must be an ISO instant with a time").optional(),
-  amount_cents: z11.number().int().min(0).max(1e9).optional(),
-  per: z11.enum(DEAL_PERS).optional(),
-  note: z11.string().trim().max(200).optional(),
+  when: z13.string().refine((s) => /T/.test(s) && Number.isFinite(Date.parse(s)), "when must be an ISO instant with a time").optional(),
+  amount_cents: z13.number().int().min(0).max(1e9).optional(),
+  per: z13.enum(DEAL_PERS).optional(),
+  note: z13.string().trim().max(200).optional(),
   /** Evidence, the consent's shape: the inbound message they said it in, or a note saying where it was signed. */
-  message_id: z11.uuid().optional(),
-  form_note: z11.string().trim().min(1).max(200).optional(),
+  message_id: z13.uuid().optional(),
+  form_note: z13.string().trim().min(1).max(200).optional(),
   /**
    * The proposal's web address (0008), judged by the one normalizer before the door, which holds the stored shape.
    * Blank says nothing, as absent does: an emptied link is `clear`.
    */
-  proposal_url: z11.string().max(600).optional(),
+  proposal_url: z13.string().max(600).optional(),
   /** The last day the proposal stands; null says nothing, as absent does (an emptied day is `clear`). */
-  valid_until: z11.string().refine(isRealDate, "valid_until must be a day, like 2026-09-30").nullable().optional(),
+  valid_until: z13.string().refine(isRealDate, "valid_until must be a day, like 2026-09-30").nullable().optional(),
   /** Why they passed, on a move to lost. */
-  lost_reason: z11.enum(DEAL_LOST_REASONS).optional(),
+  lost_reason: z13.enum(DEAL_LOST_REASONS).optional(),
   /** The fields a person emptied: a move keeps everything it is not told. */
-  clear: z11.array(z11.enum(DEAL_CLEARABLE)).max(DEAL_CLEARABLE.length).optional()
+  clear: z13.array(z13.enum(DEAL_CLEARABLE)).max(DEAL_CLEARABLE.length).optional()
 }).strict();
 
 // src/email/mailbox.ts
@@ -34454,41 +35612,41 @@ function journeyGuide(input) {
 }
 
 // src/leads/search/plan-schema.ts
-import { z as z12 } from "zod";
-var words2 = (min, max) => z12.string().transform((s) => stripUnsafe(s).trim()).pipe(z12.string().min(min).max(max));
-var LeadSearchPlanSchema = z12.object({
-  version: z12.number().int().min(1),
-  card: z12.literal("local_businesses"),
+import { z as z14 } from "zod";
+var words2 = (min, max) => z14.string().transform((s) => stripUnsafe(s).trim()).pipe(z14.string().min(min).max(max));
+var LeadSearchPlanSchema = z14.object({
+  version: z14.number().int().min(1),
+  card: z14.literal("local_businesses"),
   name: words2(2, 80),
-  category_key: z12.string().regex(KEY).optional(),
-  from: z12.literal("idea").optional(),
+  category_key: z14.string().regex(KEY).optional(),
+  from: z14.literal("idea").optional(),
   asked: words2(1, 400),
-  terms: z12.array(words2(2, 60)).min(1).max(5),
-  area: z12.object({
-    kind: z12.enum(["zip", "city", "radius"]),
+  terms: z14.array(words2(2, 60)).min(1).max(5),
+  area: z14.object({
+    kind: z14.enum(["zip", "city", "radius"]),
     label: words2(2, 80),
-    state: z12.string().regex(/^[A-Z]{2}$/),
-    center: z12.object({ lat: z12.number().min(-90).max(90), lng: z12.number().min(-180).max(180) }).nullable(),
-    radius_m: z12.number().int().min(500).max(2e5),
-    zip: z12.string().regex(/^\d{5}$/).optional(),
+    state: z14.string().regex(/^[A-Z]{2}$/),
+    center: z14.object({ lat: z14.number().min(-90).max(90), lng: z14.number().min(-180).max(180) }).nullable(),
+    radius_m: z14.number().int().min(500).max(2e5),
+    zip: z14.string().regex(/^\d{5}$/).optional(),
     query: words2(2, 120)
   }),
-  count: z12.number().int().min(1).max(LEAD_MAX_PLACES),
-  contact: z12.enum(["phone", "email"]),
-  criteria: z12.array(
-    z12.object({
-      key: z12.string().regex(KEY),
+  count: z14.number().int().min(1).max(LEAD_MAX_PLACES),
+  contact: z14.enum(["phone", "email"]),
+  criteria: z14.array(
+    z14.object({
+      key: z14.string().regex(KEY),
       text: words2(2, 120),
-      standard: z12.enum(["likely", "seen"]),
-      required: z12.boolean()
+      standard: z14.enum(["likely", "seen"]),
+      required: z14.boolean()
     })
   ).max(8),
-  exclusions: z12.array(
-    z12.object({
-      key: z12.string().regex(KEY),
+  exclusions: z14.array(
+    z14.object({
+      key: z14.string().regex(KEY),
       text: words2(2, 80),
-      origin: z12.enum(["claude", "you_said"]),
-      category_key: z12.string().regex(KEY).optional()
+      origin: z14.enum(["claude", "you_said"]),
+      category_key: z14.string().regex(KEY).optional()
     })
   ).max(8)
 }).superRefine((p, ctx) => {
@@ -34733,7 +35891,7 @@ function peoplePlanSentence(p) {
 }
 
 // src/leads/search/people-plan-schema.ts
-import { z as z13 } from "zod";
+import { z as z15 } from "zod";
 
 // src/leads/search/people-industries.ts
 var PEOPLE_INDUSTRIES = [
@@ -34920,47 +36078,47 @@ function peopleIndustriesNear(typed) {
 }
 
 // src/leads/search/people-plan-schema.ts
-var industry = z13.string().transform((typed, ctx) => {
+var industry = z15.string().transform((typed, ctx) => {
   const name = peopleIndustryOf(typed);
   if (name) return name;
   ctx.addIssue({
     code: "custom",
     message: PEOPLE_FIND_WORDS.industryUnread(typed.trim(), peopleIndustriesNear(typed))
   });
-  return z13.NEVER;
+  return z15.NEVER;
 });
-var LeadPeoplePlanSchema = z13.object({
-  version: z13.literal(1),
-  card: z13.literal(PEOPLE_CARD),
+var LeadPeoplePlanSchema = z15.object({
+  version: z15.literal(1),
+  card: z15.literal(PEOPLE_CARD),
   name: words2(2, 80),
   asked: words2(1, PEOPLE_ASKED_CHARS),
-  count: z13.number().int().min(1).max(PEOPLE_COUNT_MAX),
-  titles: z13.array(words2(2, PEOPLE_TITLE_CHARS)).min(1).max(PEOPLE_TITLES_MAX),
-  seniority: z13.array(z13.enum(PEOPLE_SENIORITIES)).max(PEOPLE_SENIORITIES.length),
+  count: z15.number().int().min(1).max(PEOPLE_COUNT_MAX),
+  titles: z15.array(words2(2, PEOPLE_TITLE_CHARS)).min(1).max(PEOPLE_TITLES_MAX),
+  seniority: z15.array(z15.enum(PEOPLE_SENIORITIES)).max(PEOPLE_SENIORITIES.length),
   // The directory's own names alone: it refuses a run naming any other.
-  industries: z13.array(industry).max(PEOPLE_INDUSTRIES_MAX),
-  sizes: z13.array(z13.enum(PEOPLE_COMPANY_SIZES)).max(PEOPLE_COMPANY_SIZES.length),
-  states: z13.array(
-    z13.string().transform((s) => s.trim().toUpperCase()).refine((s) => US_CODES.has(s), "a US state's two letters")
+  industries: z15.array(industry).max(PEOPLE_INDUSTRIES_MAX),
+  sizes: z15.array(z15.enum(PEOPLE_COMPANY_SIZES)).max(PEOPLE_COMPANY_SIZES.length),
+  states: z15.array(
+    z15.string().transform((s) => s.trim().toUpperCase()).refine((s) => US_CODES.has(s), "a US state's two letters")
   ).max(PEOPLE_STATES_MAX),
-  contact: z13.literal("email"),
+  contact: z15.literal("email"),
   // Made by peoplePlanFrom: no phrases, and the states as an area every page reads.
-  terms: z13.tuple([]),
-  criteria: z13.tuple([]),
-  exclusions: z13.tuple([]),
-  area: z13.object({
-    kind: z13.literal("city"),
+  terms: z15.tuple([]),
+  criteria: z15.tuple([]),
+  exclusions: z15.tuple([]),
+  area: z15.object({
+    kind: z15.literal("city"),
     label: words2(2, 400),
-    state: z13.string().max(2),
-    center: z13.null(),
-    radius_m: z13.number().int().min(0).max(0),
+    state: z15.string().max(2),
+    center: z15.null(),
+    radius_m: z15.number().int().min(0).max(0),
     query: words2(2, 420)
   })
 });
-var LeadPeopleSearchSchema = z13.object({
+var LeadPeopleSearchSchema = z15.object({
   plan: LeadPeoplePlanSchema,
-  via: z13.enum(["people", "ask"]),
-  thread_id: z13.uuid().nullable().optional()
+  via: z15.enum(["people", "ask"]),
+  thread_id: z15.uuid().nullable().optional()
 });
 
 // src/leads/search/question.ts
@@ -35016,96 +36174,96 @@ function questionAfterProbe(plan, members) {
 }
 
 // src/leads/lead-plan-schema.ts
-import { z as z14 } from "zod";
-var LeadsQuerySchema = z14.object({
-  list: z14.enum(LEAD_LISTS).default("all"),
-  search: z14.string().uuid().optional(),
-  class: z14.enum(LEAD_CLASSES).optional(),
-  sort: z14.enum(LEAD_SORTS).default("fit"),
-  dir: z14.enum(["asc", "desc"]).default("asc"),
-  after_key: z14.string().max(80).optional(),
-  after_id: z14.string().uuid().optional(),
-  limit: z14.coerce.number().int().min(1).max(500).default(500),
+import { z as z16 } from "zod";
+var LeadsQuerySchema = z16.object({
+  list: z16.enum(LEAD_LISTS).default("all"),
+  search: z16.string().uuid().optional(),
+  class: z16.enum(LEAD_CLASSES).optional(),
+  sort: z16.enum(LEAD_SORTS).default("fit"),
+  dir: z16.enum(["asc", "desc"]).default("asc"),
+  after_key: z16.string().max(80).optional(),
+  after_id: z16.string().uuid().optional(),
+  limit: z16.coerce.number().int().min(1).max(500).default(500),
   /** The pile (sort=pile, 00426): the list its adds go to, whose leads it puts last, and its progress line's numbers. */
-  pile_list: z14.uuid().optional()
+  pile_list: z16.uuid().optional()
 });
-var LeadOneQuerySchema = z14.object({ search: z14.string().uuid().optional() });
+var LeadOneQuerySchema = z16.object({ search: z16.string().uuid().optional() });
 var LeadsViewSchema = LeadsQuerySchema.omit({ after_key: true, after_id: true, limit: true });
-var LeadStageInputSchema = z14.discriminatedUnion("kind", [
-  z14.object({ kind: z14.literal("stage"), stage: z14.enum(["ready", "nurture", "converted"]) }),
-  z14.object({ kind: z14.literal("not_a_fit"), why: z14.enum(LEAD_NOT_A_FIT_WHYS) }),
-  z14.object({ kind: z14.literal("said_no") }),
-  z14.object({
-    kind: z14.literal("outcome"),
-    outcome: z14.enum(LEAD_CALL_OUTCOMES),
-    note: z14.string().trim().max(280).optional(),
+var LeadStageInputSchema = z16.discriminatedUnion("kind", [
+  z16.object({ kind: z16.literal("stage"), stage: z16.enum(["ready", "nurture", "converted"]) }),
+  z16.object({ kind: z16.literal("not_a_fit"), why: z16.enum(LEAD_NOT_A_FIT_WHYS) }),
+  z16.object({ kind: z16.literal("said_no") }),
+  z16.object({
+    kind: z16.literal("outcome"),
+    outcome: z16.enum(LEAD_CALL_OUTCOMES),
+    note: z16.string().trim().max(280).optional(),
     /** Who the call reached (0052): Interested names the person it makes, or a stand-in still named for the business. */
-    spoke_with: z14.string().trim().max(80).optional()
+    spoke_with: z16.string().trim().max(80).optional()
   }),
   /** "Did you send it?" Yes. */
-  z14.object({ kind: z14.literal("emailed") })
+  z16.object({ kind: z16.literal("emailed") })
 ]);
-var LeadsBulkSchema = z14.discriminatedUnion("by", [
+var LeadsBulkSchema = z16.discriminatedUnion("by", [
   // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
-  z14.object({
-    by: z14.literal("ids"),
-    action: z14.enum(["contacted", "not_a_fit", "keep", "exclude"]),
-    ids: z14.array(z14.string().uuid()).min(1).max(500),
-    search_id: z14.string().uuid().optional()
+  z16.object({
+    by: z16.literal("ids"),
+    action: z16.enum(["contacted", "not_a_fit", "keep", "exclude"]),
+    ids: z16.array(z16.string().uuid()).min(1).max(500),
+    search_id: z16.string().uuid().optional()
   }),
-  z14.object({ by: z14.literal("view"), action: z14.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
+  z16.object({ by: z16.literal("view"), action: z16.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
 ]);
-var LeadsCheckAgainSchema = z14.object({ ids: z14.array(z14.string().uuid()).min(1).max(500) });
-var LeadDraftInputSchema = z14.object({
-  tone: z14.enum(["first", "shorter", "warmer"]).default("first"),
-  previous: z14.object({ subject: z14.string().max(200), body: z14.string().max(4e3) }).optional()
+var LeadsCheckAgainSchema = z16.object({ ids: z16.array(z16.string().uuid()).min(1).max(500) });
+var LeadDraftInputSchema = z16.object({
+  tone: z16.enum(["first", "shorter", "warmer"]).default("first"),
+  previous: z16.object({ subject: z16.string().max(200), body: z16.string().max(4e3) }).optional()
 });
 var LeadExportQuerySchema = LeadsViewSchema;
-var RenameLeadSearchSchema = z14.object({ name: z14.string().trim().min(1).max(80) });
-var BusinessLineSchema = z14.object({ business_line: z14.string().trim().min(3).max(160) });
-var planChip = (max) => z14.string().trim().min(2).max(max);
-var ProposeLeadSearchSchema = z14.object({
+var RenameLeadSearchSchema = z16.object({ name: z16.string().trim().min(1).max(80) });
+var BusinessLineSchema = z16.object({ business_line: z16.string().trim().min(3).max(160) });
+var planChip = (max) => z16.string().trim().min(2).max(max);
+var ProposeLeadSearchSchema = z16.object({
   /**
    * What is asked for: local businesses (the Maps card), or people at home, online sellers and anything else, which are
    * answered in words. Named people at companies are ProposePeopleSearchSchema's (00430).
    */
-  looking_for: z14.enum(["local_businesses", "people", "online_sellers", "other"]),
-  country: z14.string().trim().min(2).max(40),
-  count: z14.number().int().min(1).max(LEAD_MAX_PLACES),
+  looking_for: z16.enum(["local_businesses", "people", "online_sellers", "other"]),
+  country: z16.string().trim().min(2).max(40),
+  count: z16.number().int().min(1).max(LEAD_MAX_PLACES),
   /** Plural, as the sentence says it: "personal trainers". */
   who: planChip(60),
   /** One of them, for the question and the judge's rubric: "personal trainer". */
   who_one: planChip(60),
-  category_key: z14.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
-  terms: z14.array(planChip(60)).min(1).max(5),
-  city: z14.string().trim().max(60).nullable().default(null),
-  region: z14.string().trim().min(2).max(40),
-  zip: z14.string().regex(/^\d{5}$/).nullable().default(null),
-  contact: z14.enum(["phone", "email"]),
-  criteria: z14.array(z14.object({ text: planChip(120), standard: z14.enum(["likely", "seen"]), required: z14.boolean() })).max(6).default([]),
-  leave_out: z14.array(z14.object({ words: planChip(40) })).max(6).default([]),
-  asked: z14.string().trim().min(1).max(400)
+  category_key: z16.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
+  terms: z16.array(planChip(60)).min(1).max(5),
+  city: z16.string().trim().max(60).nullable().default(null),
+  region: z16.string().trim().min(2).max(40),
+  zip: z16.string().regex(/^\d{5}$/).nullable().default(null),
+  contact: z16.enum(["phone", "email"]),
+  criteria: z16.array(z16.object({ text: planChip(120), standard: z16.enum(["likely", "seen"]), required: z16.boolean() })).max(6).default([]),
+  leave_out: z16.array(z16.object({ words: planChip(40) })).max(6).default([]),
+  asked: z16.string().trim().min(1).max(400)
 });
-var ProposePeopleSearchSchema = z14.object({
-  looking_for: z14.literal("people_at_companies"),
-  country: z14.string().trim().min(2).max(40),
-  count: z14.number().int().min(1).max(PEOPLE_COUNT_MAX),
+var ProposePeopleSearchSchema = z16.object({
+  looking_for: z16.literal("people_at_companies"),
+  country: z16.string().trim().min(2).max(40),
+  count: z16.number().int().min(1).max(PEOPLE_COUNT_MAX),
   /** What to call the search: "Marketing managers at agencies". */
   who: planChip(80),
-  terms: z14.array(planChip(PEOPLE_TITLE_CHARS)).min(1).max(PEOPLE_TITLES_MAX),
-  region: z14.string().trim().min(2).max(200),
-  asked: z14.string().trim().min(1).max(400),
-  seniority: z14.array(z14.enum(PEOPLE_SENIORITIES)).max(PEOPLE_SENIORITIES.length).default([]),
-  industries: z14.array(planChip(PEOPLE_INDUSTRY_CHARS)).max(PEOPLE_INDUSTRIES_MAX).default([]),
-  company_sizes: z14.array(z14.enum(PEOPLE_COMPANY_SIZES)).max(PEOPLE_COMPANY_SIZES.length).default([])
+  terms: z16.array(planChip(PEOPLE_TITLE_CHARS)).min(1).max(PEOPLE_TITLES_MAX),
+  region: z16.string().trim().min(2).max(200),
+  asked: z16.string().trim().min(1).max(400),
+  seniority: z16.array(z16.enum(PEOPLE_SENIORITIES)).max(PEOPLE_SENIORITIES.length).default([]),
+  industries: z16.array(planChip(PEOPLE_INDUSTRY_CHARS)).max(PEOPLE_INDUSTRIES_MAX).default([]),
+  company_sizes: z16.array(z16.enum(PEOPLE_COMPANY_SIZES)).max(PEOPLE_COMPANY_SIZES.length).default([])
 });
-var ProposeAnySearchSchema = z14.discriminatedUnion("looking_for", [
+var ProposeAnySearchSchema = z16.discriminatedUnion("looking_for", [
   ProposeLeadSearchSchema,
   ProposePeopleSearchSchema
 ]);
-var LeadDraftAnswerSchema = z14.object({
-  subject: z14.string().trim().min(3).max(120),
-  body: z14.string().trim().min(20).max(2e3)
+var LeadDraftAnswerSchema = z16.object({
+  subject: z16.string().trim().min(3).max(120),
+  body: z16.string().trim().min(20).max(2e3)
 });
 var US_NAMES2 = /* @__PURE__ */ new Set([
   "us",
@@ -35769,29 +36927,29 @@ function ideaAreaPhrase(label) {
 }
 
 // src/leads/lead-ideas-read.ts
-import { z as z15 } from "zod";
-var cut = (max) => z15.string().transform((s) => s.trim().slice(0, max));
-var LeadIdeasAnswerSchema = z15.object({
-  line: z15.string().trim().min(3).transform((s) => s.slice(0, 160)),
-  ideas: z15.array(
-    z15.object({
+import { z as z17 } from "zod";
+var cut = (max) => z17.string().transform((s) => s.trim().slice(0, max));
+var LeadIdeasAnswerSchema = z17.object({
+  line: z17.string().trim().min(3).transform((s) => s.slice(0, 160)),
+  ideas: z17.array(
+    z17.object({
       words: cut(80),
       why: cut(140),
       who: cut(60),
       who_one: cut(60),
       category_key: cut(40),
-      terms: z15.array(z15.string()).catch([]),
-      place: z15.string().catch(""),
-      count: z15.number().int().catch(IDEA_SIZES[1]),
-      contact: z15.enum(["email", "phone"]).catch("email"),
-      criteria: z15.array(
-        z15.object({
-          text: z15.string(),
-          standard: z15.enum(["likely", "seen"]).catch("likely"),
-          required: z15.boolean().catch(false)
+      terms: z17.array(z17.string()).catch([]),
+      place: z17.string().catch(""),
+      count: z17.number().int().catch(IDEA_SIZES[1]),
+      contact: z17.enum(["email", "phone"]).catch("email"),
+      criteria: z17.array(
+        z17.object({
+          text: z17.string(),
+          standard: z17.enum(["likely", "seen"]).catch("likely"),
+          required: z17.boolean().catch(false)
         })
       ).catch([]),
-      leave_out: z15.array(z15.string()).catch([])
+      leave_out: z17.array(z17.string()).catch([])
     })
   ).min(1)
 });
@@ -35867,25 +37025,25 @@ function ideasFrom(answer, p) {
 }
 
 // src/leads/lead-import-schema.ts
-import { z as z16 } from "zod";
-var nullableText = (max) => z16.string().trim().max(max).nullable().optional();
-var LeadImportRowSchema = z16.object({
-  name: z16.string().trim().min(1).max(200),
-  email: z16.string().trim().min(3).max(254),
+import { z as z18 } from "zod";
+var nullableText = (max) => z18.string().trim().max(max).nullable().optional();
+var LeadImportRowSchema = z18.object({
+  name: z18.string().trim().min(1).max(200),
+  email: z18.string().trim().min(3).max(254),
   phone: nullableText(16),
   website_host: nullableText(120),
   city: nullableText(120),
   region: nullableText(2),
   category: nullableText(120)
 });
-var LeadImportSchema = z16.object({
-  name: z16.string().trim().min(1).max(120),
-  asked: z16.string().trim().max(400).optional(),
-  rows: z16.array(LeadImportRowSchema).min(1).max(LEAD_LIST_MAX)
+var LeadImportSchema = z18.object({
+  name: z18.string().trim().min(1).max(120),
+  asked: z18.string().trim().max(400).optional(),
+  rows: z18.array(LeadImportRowSchema).min(1).max(LEAD_LIST_MAX)
 });
-var LeadChooseSchema = z16.object({
-  name: z16.string().trim().min(1).max(120),
-  lead_ids: z16.array(z16.string().uuid()).min(1).max(LEAD_LIST_MAX)
+var LeadChooseSchema = z18.object({
+  name: z18.string().trim().min(1).max(120),
+  lead_ids: z18.array(z18.string().uuid()).min(1).max(LEAD_LIST_MAX)
 });
 
 // src/leads/lead-pile.ts
@@ -37445,10 +38603,10 @@ function todayDraftsSub(n) {
 }
 function todaySentences(f, tone, alert) {
   const { period, callMinutes } = f;
-  const sentences = [];
+  const sentences2 = [];
   const headlineCoversTraffic = tone === "calm" && !alert;
   if (period.answered_by_ai && !headlineCoversTraffic) {
-    sentences.push({
+    sentences2.push({
       // Not "the WhatsApp receptionist": answered_by_ai is first_replies with
       // no channel predicate (00037_hygiene.sql), so an email it answered is
       // in this count. Every other sentence in this file already says just
@@ -37458,19 +38616,19 @@ function todaySentences(f, tone, alert) {
     });
   }
   if (period.calls && !headlineCoversTraffic) {
-    sentences.push({
+    sentences2.push({
       text: `${period.calls} caller${period.calls === 1 ? "" : "s"} reached the phone line${callMinutes ? ` \u2014 ${callMinutes} minute${callMinutes === 1 ? "" : "s"} total` : ""}.`,
       traffic: true
     });
   }
   if (period.messages_out_you) {
-    sentences.push({
+    sentences2.push({
       text: `You sent ${period.messages_out_you} repl${period.messages_out_you === 1 ? "y" : "ies"} yourself.`
     });
   }
   const failed = todaySendFailure(f);
-  if (failed) sentences.push(failed);
-  return sentences;
+  if (failed) sentences2.push(failed);
+  return sentences2;
 }
 function todaySendFailure(f) {
   const { period, conversations, sinceMs } = f;
@@ -38526,39 +39684,39 @@ function writeReachOf(r2, at3) {
 }
 
 // src/new-conversation/person-draft-schema.ts
-import { z as z17 } from "zod";
-var PersonDraftInputSchema = z17.object({
-  how: z17.enum(DRAFT_HOWS),
-  wire: z17.enum(CONSENT_CHANNELS).optional(),
-  about: z17.string().trim().min(1, "Say what it is about.").max(DRAFT_ABOUT_MAX),
-  answers: z17.array(
-    z17.object({
-      key: z17.string().min(1).max(40),
-      question: z17.string().max(200),
-      words: z17.string().trim().min(1).max(DRAFT_ANSWER_MAX)
+import { z as z19 } from "zod";
+var PersonDraftInputSchema = z19.object({
+  how: z19.enum(DRAFT_HOWS),
+  wire: z19.enum(CONSENT_CHANNELS).optional(),
+  about: z19.string().trim().min(1, "Say what it is about.").max(DRAFT_ABOUT_MAX),
+  answers: z19.array(
+    z19.object({
+      key: z19.string().min(1).max(40),
+      question: z19.string().max(200),
+      words: z19.string().trim().min(1).max(DRAFT_ANSWER_MAX)
     }).strict()
   ).max(DRAFT_ASKS_MAX).optional(),
-  previous: z17.object({ text: z17.string().max(4e3), subject: z17.string().max(200).optional() }).strict().optional(),
-  tone: z17.enum(DRAFT_TONES).optional()
+  previous: z19.object({ text: z19.string().max(4e3), subject: z19.string().max(200).optional() }).strict().optional(),
+  tone: z19.enum(DRAFT_TONES).optional()
 }).strict();
-var PersonDraftAnswerSchema = z17.object({
-  asks: z17.array(z17.object({ key: z17.string().trim().min(1).max(40), question: z17.string().trim().min(3).max(200) })).max(4),
-  text: z17.string().trim().max(4e3),
-  subject: z17.string().trim().max(200),
-  note: z17.string().trim().max(600),
-  opening: z17.string().trim().max(400),
-  points: z17.array(z17.string().trim().max(300)).max(6),
-  avoid: z17.array(z17.string().trim().max(300)).max(6),
-  ask: z17.string().trim().max(300)
+var PersonDraftAnswerSchema = z19.object({
+  asks: z19.array(z19.object({ key: z19.string().trim().min(1).max(40), question: z19.string().trim().min(3).max(200) })).max(4),
+  text: z19.string().trim().max(4e3),
+  subject: z19.string().trim().max(200),
+  note: z19.string().trim().max(600),
+  opening: z19.string().trim().max(400),
+  points: z19.array(z19.string().trim().max(300)).max(6),
+  avoid: z19.array(z19.string().trim().max(300)).max(6),
+  ask: z19.string().trim().max(300)
 });
-var PersonMessageBodySchema = z17.object({
-  wire: z17.enum(CONSENT_CHANNELS),
-  text: z17.string().max(REPLY_MAX_ANY, "That message is longer than any channel can carry.").optional(),
-  subject: z17.string().trim().min(1).max(200).optional(),
-  template: z17.object({ name: z17.string().min(1).max(512), language: z17.string().min(2).max(15) }).strict().optional(),
-  email_to: z17.string().max(320).optional(),
-  then: z17.enum(["receptionist", "me"]),
-  note: z17.string().trim().min(1).max(PLAN_NOTE_MAX).optional()
+var PersonMessageBodySchema = z19.object({
+  wire: z19.enum(CONSENT_CHANNELS),
+  text: z19.string().max(REPLY_MAX_ANY, "That message is longer than any channel can carry.").optional(),
+  subject: z19.string().trim().min(1).max(200).optional(),
+  template: z19.object({ name: z19.string().min(1).max(512), language: z19.string().min(2).max(15) }).strict().optional(),
+  email_to: z19.string().max(320).optional(),
+  then: z19.enum(["receptionist", "me"]),
+  note: z19.string().trim().min(1).max(PLAN_NOTE_MAX).optional()
 }).strict();
 
 // src/notes/note-suggest.ts
@@ -38790,13 +39948,13 @@ function visitNews(visits, nowMs) {
     };
   }
   const named = sorted.slice(0, NAMED_IN_A_GROUP).map((v) => bookedLineOf(v, nowMs));
-  const more = sorted.length - named.length;
+  const more2 = sorted.length - named.length;
   return {
     kind: "booking",
     route,
     about: null,
     subject: `${sorted.length} new bookings on your calendar`,
-    body: [...named, ...more > 0 ? [`and ${more} more`] : [], "", VIA_WORDS[first.via]].join("\n"),
+    body: [...named, ...more2 > 0 ? [`and ${more2} more`] : [], "", VIA_WORDS[first.via]].join("\n"),
     redactedBody: "New bookings arrived on a calendar, and nobody could be told."
   };
 }
@@ -38851,7 +40009,7 @@ var HOLD_CHANNEL_WORDS = {
   email: "Email",
   voice: "Phone"
 };
-var clipped = (s, max) => {
+var clipped2 = (s, max) => {
   const t = s.replace(/\s+/g, " ").trim();
   return t.length > max ? `${t.slice(0, max - 1)}\u2026` : t;
 };
@@ -38862,16 +40020,16 @@ function holdNotice(f) {
   const shown2 = f.erased ? null : f.address?.startsWith("+") ? formatPhoneDisplay(f.address) ?? f.address : f.address;
   const name = !f.erased && f.who?.trim() || shown2 || "A customer";
   const lines = f.erased ? [] : [
-    ...f.customerWords ? [`They wrote: \u201C${clipped(f.customerWords, 600)}\u201D`] : [],
-    ...f.replyWords ? [`The receptionist: \u201C${clipped(f.replyWords, 600)}\u201D`] : [],
-    ...f.details ? [clipped(f.details, 600)] : []
+    ...f.customerWords ? [`They wrote: \u201C${clipped2(f.customerWords, 600)}\u201D`] : [],
+    ...f.replyWords ? [`The receptionist: \u201C${clipped2(f.replyWords, 600)}\u201D`] : [],
+    ...f.details ? [clipped2(f.details, 600)] : []
   ];
   const pause = f.pausedHours ? `${act2.replace(/\.$/, "")} \u2014 the receptionist is paused on this thread for ${f.pausedHours}h.` : act2;
   return {
     kind: "handoff",
     route: `inbox/th-${f.conversationId}`,
     about: { type: "conversation", id: f.conversationId },
-    subject: clipped(why ? `${name} needs a person \u2014 ${why}` : `${name} needs a person`, 200),
+    subject: clipped2(why ? `${name} needs a person \u2014 ${why}` : `${name} needs a person`, 200),
     body: [...lines, "", `${where} conversation${shown2 ? ` \xB7 ${shown2}` : ""}`, pause].join("\n").replace(/^\n/, ""),
     redactedBody: `A ${where === "The" ? "" : `${where} `}conversation needed a person${why ? ` (${why})` : ""}, and nobody could be told.`
   };
@@ -40845,14 +42003,14 @@ function heldDraftWaiting(messages, thread, tz, nowMs) {
 }
 
 // src/people/lists/list-schemas.ts
-import { z as z18 } from "zod";
-var PeopleExportQuerySchema = z18.object({
-  list: z18.string().max(80).refine((t) => parseListToken(t) !== null, "Name a list by its token.").optional()
+import { z as z20 } from "zod";
+var PeopleExportQuerySchema = z20.object({
+  list: z20.string().max(80).refine((t) => parseListToken(t) !== null, "Name a list by its token.").optional()
 });
-var ListDraftAnswerSchema = z18.object({
-  name: z18.string().trim().min(1).max(60),
-  cannot: z18.string().trim().max(200),
-  all: z18.array(z18.unknown()).max(LIST_RULE_MAX)
+var ListDraftAnswerSchema = z20.object({
+  name: z20.string().trim().min(1).max(60),
+  cannot: z20.string().trim().max(200),
+  all: z20.array(z20.unknown()).max(LIST_RULE_MAX)
 });
 
 // src/people/lists/people-route.ts
@@ -40969,53 +42127,53 @@ function legacyLeadSuppressionHash(tenantId, value) {
 }
 
 // src/people/doors/person-bodies.ts
-import { z as z19 } from "zod";
+import { z as z21 } from "zod";
 var PERSON_RECEPTIONIST_MODES = ["auto", "ask", "never", "inherit"];
-var SOME_PEOPLE = z19.array(z19.uuid()).min(1, "Pick at least one person.").max(50, "Fifty at a time.");
-var CONSENT = z19.enum(CONSENT_STATES, { message: "Consent must be one of: opted_in, opted_out, unknown." });
-var MODE = z19.enum(PERSON_RECEPTIONIST_MODES, { message: "Mode must be one of: auto, ask, never, inherit." });
-var ConsentAnswerBody = z19.object({
+var SOME_PEOPLE = z21.array(z21.uuid()).min(1, "Pick at least one person.").max(50, "Fifty at a time.");
+var CONSENT = z21.enum(CONSENT_STATES, { message: "Consent must be one of: opted_in, opted_out, unknown." });
+var MODE = z21.enum(PERSON_RECEPTIONIST_MODES, { message: "Mode must be one of: auto, ask, never, inherit." });
+var ConsentAnswerBody = z21.object({
   consent: CONSENT,
-  source: z19.string().optional(),
-  note: z19.string().optional(),
-  message_id: z19.uuid({ message: "Choose one of their messages." }).optional()
+  source: z21.string().optional(),
+  note: z21.string().optional(),
+  message_id: z21.uuid({ message: "Choose one of their messages." }).optional()
 });
-var ConsentManyBody = z19.object({
+var ConsentManyBody = z21.object({
   ids: SOME_PEOPLE,
   consent: CONSENT,
-  source: z19.string().optional(),
-  note: z19.string().optional()
+  source: z21.string().optional(),
+  note: z21.string().optional()
 });
-var ReceptionistModeBody = z19.object({ mode: MODE });
-var ReceptionistManyBody = z19.object({ ids: SOME_PEOPLE, mode: MODE });
-var NotesAppendManyBody = z19.object({
+var ReceptionistModeBody = z21.object({ mode: MODE });
+var ReceptionistManyBody = z21.object({ ids: SOME_PEOPLE, mode: MODE });
+var NotesAppendManyBody = z21.object({
   ids: SOME_PEOPLE,
-  append: z19.string().trim().min(1, "Write the note first.").max(NOTE_LINE_MAX, `A note line is at most ${NOTE_LINE_MAX} characters.`)
+  append: z21.string().trim().min(1, "Write the note first.").max(NOTE_LINE_MAX, `A note line is at most ${NOTE_LINE_MAX} characters.`)
 });
-var PersonMergeBody = z19.object({
-  merge: z19.uuid({ message: "Choose the record to merge into this one." })
+var PersonMergeBody = z21.object({
+  merge: z21.uuid({ message: "Choose the record to merge into this one." })
 });
-var PersonAddBody = z19.object({
-  phone: z19.string().optional(),
-  email: z19.string().optional(),
-  name: z19.string().optional(),
-  source: z19.string().optional()
+var PersonAddBody = z21.object({
+  phone: z21.string().optional(),
+  email: z21.string().optional(),
+  name: z21.string().optional(),
+  source: z21.string().optional()
 });
-var NoteWriteBody = z19.object({
-  body: z19.string().trim().min(1).max(NOTE_MAX),
+var NoteWriteBody = z21.object({
+  body: z21.string().trim().min(1).max(NOTE_MAX),
   /** The member it is for; absent or null is for everyone. */
-  for_user_id: z19.uuid().nullable().optional(),
+  for_user_id: z21.uuid().nullable().optional(),
   /** For the team only: the receptionist never reads it. */
-  team_only: z19.boolean().optional(),
+  team_only: z21.boolean().optional(),
   /** Absent: a new note. Present: its author's change, with the version the page saw. */
-  note_id: z19.uuid().optional(),
-  version: z19.number().int().min(1).optional(),
+  note_id: z21.uuid().optional(),
+  version: z21.number().int().min(1).optional(),
   /** Its day, which makes it a step, and the team's (00166): a real day by the business's calendar. */
-  due_on: z19.string().refine(isRealDate, "A day, as 2026-09-30.").nullable().optional(),
+  due_on: z21.string().refine(isRealDate, "A day, as 2026-09-30.").nullable().optional(),
   /** The person's own deal it moves, when it names one. */
-  deal_id: z19.uuid().nullable().optional(),
+  deal_id: z21.uuid().nullable().optional(),
   /** On a change: take its day away. A change that does not name a day keeps the one it has. */
-  clear_due: z19.boolean().optional()
+  clear_due: z21.boolean().optional()
 }).strict();
 
 // src/people/doors/say-it.ts
@@ -41105,24 +42263,24 @@ function noteSheetFill(sheet, fill2) {
 }
 
 // src/people/doors/say-it-schema.ts
-import { z as z20 } from "zod";
-var SayItInputSchema = z20.object({
-  verb: z20.enum(SAY_IT_VERBS),
-  words: z20.string().trim().min(1, "Say what happened first.").max(SAY_IT_MAX, `At most ${SAY_IT_MAX} characters.`)
+import { z as z22 } from "zod";
+var SayItInputSchema = z22.object({
+  verb: z22.enum(SAY_IT_VERBS),
+  words: z22.string().trim().min(1, "Say what happened first.").max(SAY_IT_MAX, `At most ${SAY_IT_MAX} characters.`)
 }).strict();
-var SayItDealAnswerSchema = z20.object({
-  service: z20.string(),
-  value: z20.string(),
-  per: z20.string(),
-  link: z20.string(),
-  valid_until: z20.string(),
-  lost_reason: z20.string(),
-  note: z20.string()
+var SayItDealAnswerSchema = z22.object({
+  service: z22.string(),
+  value: z22.string(),
+  per: z22.string(),
+  link: z22.string(),
+  valid_until: z22.string(),
+  lost_reason: z22.string(),
+  note: z22.string()
 });
-var SayItNoteAnswerSchema = z20.object({
-  body: z20.string(),
-  day: z20.string(),
-  team_only: z20.boolean()
+var SayItNoteAnswerSchema = z22.object({
+  body: z22.string(),
+  day: z22.string(),
+  team_only: z22.boolean()
 });
 
 // src/person-page/head-state.ts
@@ -41384,26 +42542,26 @@ function combineOf(f) {
 }
 
 // src/person-page/schemas.ts
-import { z as z21 } from "zod";
-var PersonNameActSchema = z21.discriminatedUnion("act", [
-  z21.object({ act: z21.literal("adopt"), message_id: z21.uuid({ message: "Name the reply whose signer to use." }) }),
-  z21.object({ act: z21.literal("undo") }),
-  z21.object({ act: z21.literal("decline"), message_id: z21.uuid({ message: "Name the reply whose signer to decline." }) })
+import { z as z23 } from "zod";
+var PersonNameActSchema = z23.discriminatedUnion("act", [
+  z23.object({ act: z23.literal("adopt"), message_id: z23.uuid({ message: "Name the reply whose signer to use." }) }),
+  z23.object({ act: z23.literal("undo") }),
+  z23.object({ act: z23.literal("decline"), message_id: z23.uuid({ message: "Name the reply whose signer to decline." }) })
 ]);
-var PersonWorksAtSchema = z21.object({
-  lead_id: z21.uuid({ message: "Choose a business from your leads." })
+var PersonWorksAtSchema = z23.object({
+  lead_id: z23.uuid({ message: "Choose a business from your leads." })
 });
-var PersonCallSchema = z21.object({
-  outcome: z21.enum(PERSON_CALL_OUTCOMES, { message: "Say how the call went." }),
-  said: z21.string().trim().max(PERSON_CALL_SAID_MAX).optional(),
+var PersonCallSchema = z23.object({
+  outcome: z23.enum(PERSON_CALL_OUTCOMES, { message: "Say how the call went." }),
+  said: z23.string().trim().max(PERSON_CALL_SAID_MAX).optional(),
   /** The day to call back, which makes the note a step (00166): a real day by the business's calendar. */
-  due_on: z21.string().refine(isRealDate, "A day, as 2026-09-30.").nullable().optional(),
+  due_on: z23.string().refine(isRealDate, "A day, as 2026-09-30.").nullable().optional(),
   /** The receptionist reads the note: off, it is the team's only. */
-  tell: z21.boolean().optional(),
+  tell: z23.boolean().optional(),
   /** Who answered a stand-in's number, under Interested (0052). */
-  spoke_with: z21.string().trim().max(80).optional(),
+  spoke_with: z23.string().trim().max(80).optional(),
   /** This call was the call back they asked for: the door hands back their thread holding the request (00422, X3-1). */
-  closes_call_back: z21.boolean().optional()
+  closes_call_back: z23.boolean().optional()
 }).strict();
 
 // src/playbooks/playbook-failed.ts
@@ -41620,9 +42778,9 @@ function reachCountsOf(rows2) {
     ...rows2.some((r2) => r2.reachedOn !== void 0) ? { byChannel } : {}
   };
 }
-function opensOf2(stages, needs2, more) {
+function opensOf2(stages, needs2, more2) {
   const names3 = stages.filter((s) => s.needs === needs2 && s.state !== "not_here").map((s) => s.name.toLowerCase());
-  return `${LIFECYCLE_WORDS.reach.opensMessages} ${[...names3, ...more].join(", ")}`;
+  return `${LIFECYCLE_WORDS.reach.opensMessages} ${[...names3, ...more2].join(", ")}`;
 }
 function rung(id, label, n, people, opens, by = void 0) {
   const byWords = countsByChannelWords(by);
@@ -42830,55 +43988,55 @@ function zoneOfRegion(region) {
 }
 
 // src/reach-out/reach-out-schemas.ts
-import { z as z22 } from "zod";
-var ReachOutRepliesQuerySchema = z22.object({
-  since: z22.string().datetime({ offset: true }).optional(),
-  conversation_id: z22.string().uuid().optional()
+import { z as z24 } from "zod";
+var ReachOutRepliesQuerySchema = z24.object({
+  since: z24.string().datetime({ offset: true }).optional(),
+  conversation_id: z24.string().uuid().optional()
 });
-var ReachOutStepSchema = z22.object({
+var ReachOutStepSchema = z24.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
-  id: z22.string().uuid().nullable().optional(),
-  subject: z22.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
-  body: z22.string().max(REACH_OUT_BODY_MAX * 2),
-  after_days: z22.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable(),
+  id: z24.string().uuid().nullable().optional(),
+  subject: z24.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+  body: z24.string().max(REACH_OUT_BODY_MAX * 2),
+  after_days: z24.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable(),
   /** A call or a note for the team instead of an email (Part 5, G20): the chain's last step only. */
-  hand: z22.object({ kind: z22.enum(HAND_KINDS), words: z22.string().max(HAND_WORDS_MAX * 2) }).nullable().optional()
+  hand: z24.object({ kind: z24.enum(HAND_KINDS), words: z24.string().max(HAND_WORDS_MAX * 2) }).nullable().optional()
 });
-var ReachOutChainSchema = z22.object({
-  name: z22.string().trim().min(1).max(REACH_OUT_NAME_MAX),
-  search_id: z22.string().uuid(),
-  include_unconfirmed: z22.boolean(),
+var ReachOutChainSchema = z24.object({
+  name: z24.string().trim().min(1).max(REACH_OUT_NAME_MAX),
+  search_id: z24.string().uuid(),
+  include_unconfirmed: z24.boolean(),
   /** One of the sheet's paces: the database's CHECK holds the same set (00211). */
-  gap_minutes: z22.number().int().refine((g) => REACH_OUT_GAP_MINUTES.includes(g), {
+  gap_minutes: z24.number().int().refine((g) => REACH_OUT_GAP_MINUTES.includes(g), {
     message: `One of ${REACH_OUT_GAP_MINUTES.join(", ")} minutes.`
   }),
   /** Empty: every connected mailbox of the workspace (00424). */
-  mailbox_ids: z22.array(z22.string().uuid()).max(REACH_OUT_MAILBOXES_MAX),
+  mailbox_ids: z24.array(z24.string().uuid()).max(REACH_OUT_MAILBOXES_MAX),
   /** Its owner sends its emails from their own inbox, each handed to them written and checked (00429). */
-  owner_sends: z22.boolean().default(false),
-  signed_by: z22.string().trim().max(SIGNED_BY_MAX).nullable(),
-  steps: z22.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
+  owner_sends: z24.boolean().default(false),
+  signed_by: z24.string().trim().max(SIGNED_BY_MAX).nullable(),
+  steps: z24.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
 });
-var ReachOutPreviewSchema = z22.object({
-  search_id: z22.string().uuid(),
-  index: z22.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX),
-  include_unconfirmed: z22.boolean(),
-  words: z22.object({
-    subject: z22.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
-    body: z22.string().trim().min(1).max(REACH_OUT_BODY_MAX * 2)
+var ReachOutPreviewSchema = z24.object({
+  search_id: z24.string().uuid(),
+  index: z24.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX),
+  include_unconfirmed: z24.boolean(),
+  words: z24.object({
+    subject: z24.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+    body: z24.string().trim().min(1).max(REACH_OUT_BODY_MAX * 2)
   }),
-  signed_by: z22.string().trim().max(SIGNED_BY_MAX).nullable(),
-  language: z22.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
+  signed_by: z24.string().trim().max(SIGNED_BY_MAX).nullable(),
+  language: z24.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
 });
-var ReachOutDecideSchema = z22.object({ decision: z22.enum(REACH_OUT_DECISIONS) });
-var ReachOutSaidSchema = z22.object({ outcome: z22.enum(REACH_OUT_SAID_OUTCOMES) });
-var ReachOutReplySaidSchema = z22.object({
-  intent: z22.enum(OWNER_SAID_INTENTS),
-  day: z22.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
-  refer_to: z22.string().trim().max(120).nullable().optional()
+var ReachOutDecideSchema = z24.object({ decision: z24.enum(REACH_OUT_DECISIONS) });
+var ReachOutSaidSchema = z24.object({ outcome: z24.enum(REACH_OUT_SAID_OUTCOMES) });
+var ReachOutReplySaidSchema = z24.object({
+  intent: z24.enum(OWNER_SAID_INTENTS),
+  day: z24.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  refer_to: z24.string().trim().max(120).nullable().optional()
 });
-var ReachOutAddSchema = z22.object({
-  lead_ids: z22.array(z22.uuid()).min(1).max(LEAD_LIST_MAX)
+var ReachOutAddSchema = z24.object({
+  lead_ids: z24.array(z24.uuid()).min(1).max(LEAD_LIST_MAX)
 });
 
 // src/reach-out/reach-out-draft.ts
@@ -43532,7 +44690,7 @@ var PEOPLE_GROUP_WORDS = {
   left: "Left"
 };
 function sequenceLeftWords(why) {
-  const WHY = {
+  const WHY2 = {
     booked: "booked",
     replied: "wrote back",
     removed: "taken out",
@@ -43556,7 +44714,7 @@ function sequenceLeftWords(why) {
     stale: "kept waiting too long",
     bounced: "bounced"
   };
-  return why ? WHY[why] ?? why.replace(/_/g, " ") : "";
+  return why ? WHY2[why] ?? why.replace(/_/g, " ") : "";
 }
 var peopleTabWord = (row2) => row2.starts === "leads" ? SEQUENCE_WORDS.tabs.leads : SEQUENCE_WORDS.tabs.people;
 
@@ -43786,19 +44944,6 @@ function sequenceResumeAsk(row2, playbooks, at3) {
   const detail = row2.starts === "leads" ? W.chain : first ? resumeDetailOf(first, { ...at3, paused }) : null;
   return { question: SEQUENCE_ACT_WORDS.resumeAsk(row2.name), detail, yes: SEQUENCE_ACT_WORDS.resumeYes };
 }
-function stepHoldWords(onlyIf) {
-  const H = SEQUENCE_EDIT_WORDS.holds;
-  const booking = onlyIf.includes("no_booking");
-  const reply = onlyIf.includes("no_reply");
-  return booking && reply ? H.neither : booking ? H.no_booking : reply ? H.no_reply : H.always;
-}
-var SEQUENCE_CARD_WORDS = {
-  add: (place, name) => `Add step ${place} to ${name}`,
-  wait: (place, name) => `Change step ${place} of ${name}`,
-  words: (place, name) => `New words for step ${place} of ${name}`,
-  remove: (place, name) => `Take step ${place} of ${name} away`,
-  after: (days, onlyIf) => `${SEQUENCE_EDIT_WORDS.days(days)} after the step before \xB7 ${stepHoldWords(onlyIf)}`
-};
 
 // src/sequences/sequence-draft.ts
 var SEQUENCE_DRAFT_WORDS_MAX = 500;
@@ -43866,23 +45011,23 @@ var SEQUENCE_NEW_WORDS = {
 };
 
 // src/sequences/sequence-draft-schema.ts
-import { z as z23 } from "zod";
-var TEXTS = z23.array(z23.string().max(300)).max(10);
-var SequenceDraftAnswerSchema = z23.object({
-  name: z23.string().trim().max(80),
-  moment: z23.string().trim().max(40),
-  hour: z23.number().int(),
-  first: z23.object({ message: z23.string().trim().max(10), texts: TEXTS }),
-  then: z23.array(
-    z23.object({
-      name: z23.string().trim().max(80),
-      after_days: z23.number().int(),
-      only_if: z23.array(z23.enum(FOLLOW_UP_CONDITIONS)).max(FOLLOW_UP_CONDITIONS.length),
-      message: z23.string().trim().max(10),
+import { z as z25 } from "zod";
+var TEXTS = z25.array(z25.string().max(300)).max(10);
+var SequenceDraftAnswerSchema = z25.object({
+  name: z25.string().trim().max(80),
+  moment: z25.string().trim().max(40),
+  hour: z25.number().int(),
+  first: z25.object({ message: z25.string().trim().max(10), texts: TEXTS }),
+  then: z25.array(
+    z25.object({
+      name: z25.string().trim().max(80),
+      after_days: z25.number().int(),
+      only_if: z25.array(z25.enum(FOLLOW_UP_CONDITIONS)).max(FOLLOW_UP_CONDITIONS.length),
+      message: z25.string().trim().max(10),
       texts: TEXTS
     })
   ).max(SEQUENCE_DRAFT_THEN_MAX + 2),
-  cannot: z23.string().trim().max(300)
+  cannot: z25.string().trim().max(300)
 });
 
 // src/reports/booking-report.ts
@@ -50059,7 +51204,7 @@ function routePrefetchScript() {
 }
 
 // src/shell/vitals.ts
-import * as z24 from "zod/mini";
+import * as z26 from "zod/mini";
 var PAGE_VITALS = ["LCP", "INP", "CLS", "FCP", "TTFB"];
 var PAGE_SPEED = ["READY", "SETTLED"];
 var PAGE_METRICS = [...PAGE_VITALS, ...PAGE_SPEED];
@@ -50085,18 +51230,18 @@ var PAGE_BUILD = /^[0-9a-z]{3,40}$/;
 var VITAL_CEILING = 10 * MIN_MS;
 var PAGE_VITALS_PER_BEACON = 100;
 var DETAIL_WORD = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,79}$/;
-var detailWord = () => z24.optional(z24.string().check(z24.regex(DETAIL_WORD)));
-var detailMs = () => z24.optional(z24.number().check(z24.minimum(0), z24.maximum(VITAL_CEILING)));
-var PageVitalDetail = z24.object({
+var detailWord = () => z26.optional(z26.string().check(z26.regex(DETAIL_WORD)));
+var detailMs = () => z26.optional(z26.number().check(z26.minimum(0), z26.maximum(VITAL_CEILING)));
+var PageVitalDetail = z26.object({
   wait: detailWord(),
   wait_ms: detailMs(),
   server_ms: detailMs(),
   db_ms: detailMs(),
-  db_n: z24.optional(z24.int().check(z24.minimum(0), z24.maximum(1e4))),
+  db_n: z26.optional(z26.int().check(z26.minimum(0), z26.maximum(1e4))),
   chunk_ms: detailMs(),
   render_ms: detailMs(),
   el: detailWord(),
-  type: z24.optional(z24.enum(["pointer", "keyboard"])),
+  type: z26.optional(z26.enum(["pointer", "keyboard"])),
   input_ms: detailMs(),
   processing_ms: detailMs(),
   presentation_ms: detailMs(),
@@ -50105,19 +51250,19 @@ var PageVitalDetail = z24.object({
   load_delay_ms: detailMs(),
   load_ms: detailMs(),
   render_delay_ms: detailMs(),
-  shift: z24.optional(z24.number().check(z24.minimum(0), z24.maximum(100))),
-  state: z24.optional(z24.enum(["loading", "dom-interactive", "dom-content-loaded", "complete"])),
+  shift: z26.optional(z26.number().check(z26.minimum(0), z26.maximum(100))),
+  state: z26.optional(z26.enum(["loading", "dom-interactive", "dom-content-loaded", "complete"])),
   phase: detailWord()
 });
-var PageVitalReport = z24.object({
-  id: z24.string().check(z24.regex(VITAL_ID, { error: "A report needs the browser's id." })),
-  name: z24.enum(PAGE_METRICS, { error: "A report names one of the seven." }),
-  value: z24.number().check(z24.minimum(0), z24.maximum(VITAL_CEILING)),
-  page: z24.optional(z24.string().check(z24.regex(PAGE_NAME))),
-  part: z24.optional(z24.string().check(z24.regex(PAGE_NAME))),
-  from: z24.optional(z24.string().check(z24.regex(PAGE_NAME))),
-  warm: z24.optional(z24.boolean()),
-  detail: z24.optional(PageVitalDetail)
+var PageVitalReport = z26.object({
+  id: z26.string().check(z26.regex(VITAL_ID, { error: "A report needs the browser's id." })),
+  name: z26.enum(PAGE_METRICS, { error: "A report names one of the seven." }),
+  value: z26.number().check(z26.minimum(0), z26.maximum(VITAL_CEILING)),
+  page: z26.optional(z26.string().check(z26.regex(PAGE_NAME))),
+  part: z26.optional(z26.string().check(z26.regex(PAGE_NAME))),
+  from: z26.optional(z26.string().check(z26.regex(PAGE_NAME))),
+  warm: z26.optional(z26.boolean()),
+  detail: z26.optional(PageVitalDetail)
 });
 var PEOPLE_SCOPES = [
   [/^leads(:|$)/, "leads"],
@@ -50229,12 +51374,12 @@ function pageVitalsWords(rows2) {
 }
 
 // src/shell/vitals-schema.ts
-import { z as z25 } from "zod";
-var PageVitalsInput = z25.object({
-  page: z25.string().regex(PAGE_NAME, { error: "A page's name is a word in lower case." }),
-  device: z25.enum(PAGE_DEVICES).optional(),
-  build: z25.string().regex(PAGE_BUILD, { error: "A build is its sha, or dev." }).optional(),
-  vitals: z25.array(PageVitalReport).min(1).max(PAGE_VITALS_PER_BEACON)
+import { z as z27 } from "zod";
+var PageVitalsInput = z27.object({
+  page: z27.string().regex(PAGE_NAME, { error: "A page's name is a word in lower case." }),
+  device: z27.enum(PAGE_DEVICES).optional(),
+  build: z27.string().regex(PAGE_BUILD, { error: "A build is its sha, or dev." }).optional(),
+  vitals: z27.array(PageVitalReport).min(1).max(PAGE_VITALS_PER_BEACON)
 });
 
 // src/shell/page-speed.ts
@@ -50445,17 +51590,17 @@ function clientErrorOf(boundary, error, page2, digest, workspace) {
 }
 
 // src/shell/client-error-schema.ts
-import { z as z26 } from "zod";
-var ClientErrorInput = z26.object({
-  boundary: z26.enum(CLIENT_ERROR_BOUNDARIES, { error: "Say which boundary caught it." }),
-  page: z26.string().regex(PAGE).max(CLIENT_ERROR_LIMITS.page).nullable(),
-  name: z26.string().max(CLIENT_ERROR_LIMITS.name),
-  message: z26.string().max(CLIENT_ERROR_LIMITS.message),
-  stack: z26.string().max(CLIENT_ERROR_LIMITS.stack).nullable(),
+import { z as z28 } from "zod";
+var ClientErrorInput = z28.object({
+  boundary: z28.enum(CLIENT_ERROR_BOUNDARIES, { error: "Say which boundary caught it." }),
+  page: z28.string().regex(PAGE).max(CLIENT_ERROR_LIMITS.page).nullable(),
+  name: z28.string().max(CLIENT_ERROR_LIMITS.name),
+  message: z28.string().max(CLIENT_ERROR_LIMITS.message),
+  stack: z28.string().max(CLIENT_ERROR_LIMITS.stack).nullable(),
   /** Next's digest for a server component's error: the key to its server-side line. */
-  digest: z26.string().max(CLIENT_ERROR_LIMITS.digest).nullable(),
+  digest: z28.string().max(CLIENT_ERROR_LIMITS.digest).nullable(),
   /** The workspace the tab held, when it held one: the auth pages and the root boundary may hold none. */
-  workspace: z26.string().regex(WORKSPACE).max(CLIENT_ERROR_LIMITS.workspace).nullable()
+  workspace: z28.string().regex(WORKSPACE).max(CLIENT_ERROR_LIMITS.workspace).nullable()
 });
 
 // src/templates/message-version-slots.ts
@@ -50912,7 +52057,7 @@ function todayBriefWords(vm, day, runs) {
   const dayWords3 = daySentence(day);
   const needs2 = needsSentences(vm);
   const caught = !needs2.length && !runs.length && vm.queue.empty.tone === "ok";
-  const sentences = [
+  const sentences2 = [
     ...needs2,
     ...caught ? [[plain("You're all caught up.")]] : [],
     ...dayWords3 ? [dayWords3] : [],
@@ -50920,7 +52065,7 @@ function todayBriefWords(vm, day, runs) {
     ...runs.map(runSentence)
   ];
   const also = (vm.recap ? vm.recap.sentences : []).filter((s) => !s.traffic).map((s) => s.text);
-  return { sentences, text: [...sentences.map((s) => s.map((x) => x.text).join("")), ...also].join(" ") };
+  return { sentences: sentences2, text: [...sentences2.map((s) => s.map((x) => x.text).join("")), ...also].join(" ") };
 }
 
 // src/today/today-day.ts
@@ -50988,7 +52133,7 @@ function todayDay(cal, playbooks, people = null, max = TODAY_DAY_MAX) {
     const missed = items.filter((i) => i.said?.status === "missed").length;
     const booked = items.length - missed;
     const shown2 = capDay(items, max);
-    const more = items.length - shown2.length;
+    const more2 = items.length - shown2.length;
     return {
       key: d.key,
       label: `${d.today ? "Today" : "Tomorrow"} \xB7 ${d.long}`,
@@ -50996,8 +52141,8 @@ function todayDay(cal, playbooks, people = null, max = TODAY_DAY_MAX) {
       past: d.past,
       closed: d.closed,
       items: shown2,
-      more,
-      moreLine: more ? `${more} more on the Calendar` : null,
+      more: more2,
+      moreLine: more2 ? `${more2} more on the Calendar` : null,
       summary: booked ? {
         booked: `${booked} booked`,
         flagged: flagged ? `${flagged} need${flagged === 1 ? "s" : ""} you` : null
@@ -51331,8 +52476,8 @@ var LEAK_FINDERS = {
 function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX, nowMs = Date.now()) {
   const facts = leakFactsOf(reports, people, noReply, nowMs);
   const all = LEAK_ORDER.map((id) => LEAK_FINDERS[id](facts)).filter((x) => !!x);
-  const more = Math.max(0, all.length - max);
-  return { rows: all.slice(0, max), more, moreLine: more ? `and ${more} more` : null };
+  const more2 = Math.max(0, all.length - max);
+  return { rows: all.slice(0, max), more: more2, moreLine: more2 ? `and ${more2} more` : null };
 }
 
 // src/today/push.ts
@@ -51972,11 +53117,11 @@ var AWAY_TONE_RANK = { warn: 0, "": 1, ok: 2 };
 var AWAY_GROUP_MIN = 2;
 var AWAY_EMPTY_CLEAR = "All caught up.";
 var AWAY_EMPTY_QUEUED = "Everything new is already in the queue above.";
-function awayFoot(more, queued, drew) {
-  if (more <= 0 || !drew) return null;
-  const head = `${more} more in the bell`;
+function awayFoot(more2, queued, drew) {
+  if (more2 <= 0 || !drew) return null;
+  const head = `${more2} more in the bell`;
   if (queued <= 0) return head;
-  return queued === more ? `${head}, already in the queue above` : `${head}, ${queued} of them already in the queue above`;
+  return queued === more2 ? `${head}, already in the queue above` : `${head}, ${queued} of them already in the queue above`;
 }
 function groupDoor(kind, doors) {
   const first = doors[0];
@@ -52033,12 +53178,12 @@ function todayAwayGrouped(rows2, inQueue = [], max = 5, older = 0) {
   const stoodFor = shown2.reduce((n, g) => n + g.count, 0);
   const total = unreadCount(rows2) + older;
   const queued = unreadCount(rows2) - fresh.length;
-  const more = Math.max(0, total - stoodFor);
+  const more2 = Math.max(0, total - stoodFor);
   const empty = fresh.length ? null : total === 0 ? { icon: "check", text: AWAY_EMPTY_CLEAR } : queued > 0 ? (
     // The queue above holds the new rows, and the older ones are said beside it: the head counted both.
     { icon: "arrow-up", text: older > 0 ? `${AWAY_EMPTY_QUEUED} ${bellOlderWords(older)}` : AWAY_EMPTY_QUEUED }
   ) : { icon: "bell", text: bellOlderWords(older) };
-  return { groups: shown2, total, more, queued, foot: awayFoot(more, queued, shown2.length > 0), empty };
+  return { groups: shown2, total, more: more2, queued, foot: awayFoot(more2, queued, shown2.length > 0), empty };
 }
 var bellOlderWords = (n) => n === 1 ? "1 older unread notice is not listed. Mark all read clears it." : `${n} older unread notices are not listed. Mark all read clears them.`;
 function bellSections(rows2, older = 0) {
@@ -54082,11 +55227,11 @@ function isActivityNoise(kind) {
 }
 
 // src/workspace/signup-schema.ts
-import { z as z27 } from "zod";
-var InviteCodeSchema = z27.string().trim().max(80);
-var SignupSchema = z27.object({
-  name: z27.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z27.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+import { z as z29 } from "zod";
+var InviteCodeSchema = z29.string().trim().max(80);
+var SignupSchema = z29.object({
+  name: z29.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z29.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -54100,17 +55245,17 @@ var SignupSchema = z27.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z27.string().max(200).optional(),
+  password: z29.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z27.string().trim().min(1).max(64).optional(),
+  timezone: z29.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema.optional()
 }).strict();
-var PendingWorkspaceSchema = z27.object({
-  name: z27.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z29.object({
+  name: z29.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z27.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z29.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 function pendingWorkspaceOf(metadata) {
   if (!metadata || typeof metadata !== "object") return null;
@@ -54163,38 +55308,38 @@ var PASSWORD_WORDS = {
 };
 
 // src/workspace/partner-schema.ts
-import { z as z28 } from "zod";
-var PartnerBecomeSchema = z28.object({
-  code: z28.string().trim().min(1).max(64),
-  terms: z28.literal(true, { message: "The terms have to be accepted." })
+import { z as z30 } from "zod";
+var PartnerBecomeSchema = z30.object({
+  code: z30.string().trim().min(1).max(64),
+  terms: z30.literal(true, { message: "The terms have to be accepted." })
 }).strict();
-var PartnerLettersSchema = z28.object({ letters: z28.boolean() }).strict();
-var letterCents = z28.coerce.number();
-var letterSum = z28.object({ currency: z28.string(), cents: letterCents });
-var PartnerLetterNewsSchema = z28.object({
+var PartnerLettersSchema = z30.object({ letters: z30.boolean() }).strict();
+var letterCents = z30.coerce.number();
+var letterSum = z30.object({ currency: z30.string(), cents: letterCents });
+var PartnerLetterNewsSchema = z30.object({
   /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
-  written: z28.array(z28.object({ kind: z28.string(), currency: z28.string(), count: z28.coerce.number(), cents: letterCents })).default([]),
+  written: z30.array(z30.object({ kind: z30.string(), currency: z30.string(), count: z30.coerce.number(), cents: letterCents })).default([]),
   /** Rows written before the last letter that became payable since. */
-  matured: z28.array(letterSum).default([]),
+  matured: z30.array(letterSum).default([]),
   /** Shares written before that will not be paid: their workspace was disqualified. */
-  voided: z28.array(letterSum).default([]),
-  paid: z28.array(z28.object({ currency: z28.string(), cents: letterCents, reference: z28.string(), sent_at: z28.string() })).default([]),
+  voided: z30.array(letterSum).default([]),
+  paid: z30.array(z30.object({ currency: z30.string(), cents: letterCents, reference: z30.string(), sent_at: z30.string() })).default([]),
   /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
-  standing: z28.array(z28.object({ workspace: z28.string().nullable(), standing: z28.string(), why: z28.string().nullable() })).default([]),
+  standing: z30.array(z30.object({ workspace: z30.string().nullable(), standing: z30.string(), why: z30.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
-  brought: z28.array(z28.string().nullable()).default([]),
+  brought: z30.array(z30.string().nullable()).default([]),
   /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
-  accepted: z28.array(z28.string().nullable()).default([]),
-  declined: z28.array(z28.string().nullable()).default([]),
+  accepted: z30.array(z30.string().nullable()).default([]),
+  declined: z30.array(z30.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
-  status: z28.object({ status: z28.string(), why: z28.string().nullable() }).nullable().default(null),
-  balance: z28.array(
-    z28.object({
-      currency: z28.string(),
+  status: z30.object({ status: z30.string(), why: z30.string().nullable() }).nullable().default(null),
+  balance: z30.array(
+    z30.object({
+      currency: z30.string(),
       held: letterCents,
       payable: letterCents,
       paid: letterCents,
-      next_payable_at: z28.string().nullable()
+      next_payable_at: z30.string().nullable()
     })
   ).default([])
 });
@@ -54277,14 +55422,14 @@ function handoverInviteEmail(h) {
 }
 
 // src/workspace/handover-schema.ts
-import { z as z29 } from "zod";
-var ownerEmail = z29.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
-var HandoverCreateSchema = z29.object({
-  name: z29.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
-  timezone: z29.string().trim().max(64).nullish(),
+import { z as z31 } from "zod";
+var ownerEmail = z31.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
+var HandoverCreateSchema = z31.object({
+  name: z31.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
+  timezone: z31.string().trim().max(64).nullish(),
   email: ownerEmail
 }).strict();
-var HandoverResendSchema = z29.object({ email: ownerEmail }).strict();
+var HandoverResendSchema = z31.object({ email: ownerEmail }).strict();
 
 // src/workspace/second-factor.ts
 function factorStepNeeded(aal) {
@@ -54359,10 +55504,10 @@ function secondFactorResetWords(code2, removed) {
 }
 
 // src/workspace/second-factor-schema.ts
-import { z as z30 } from "zod";
-var PartnerSecondFactorResetSchema = z30.object({
-  partner_id: z30.string().uuid("That partner does not exist."),
-  why: z30.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
+import { z as z32 } from "zod";
+var PartnerSecondFactorResetSchema = z32.object({
+  partner_id: z32.string().uuid("That partner does not exist."),
+  why: z32.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
 }).strict();
 
 // src/workspace/partner-invite.ts
@@ -54459,9 +55604,9 @@ function partnerInviteEmail(i) {
 }
 
 // src/workspace/partner-invite-schema.ts
-import { z as z31 } from "zod";
-var PartnerInviteSchema = z31.object({
-  code: z31.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
+import { z as z33 } from "zod";
+var PartnerInviteSchema = z33.object({
+  code: z33.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
 }).strict();
 
 // src/workspace/activation.ts
@@ -55368,18 +56513,27 @@ export {
   ASK_CITATION_KINDS,
   ASK_CONTEXT_MAX_ROWS,
   ASK_CONTEXT_ROW_KINDS,
+  ASK_CORE_TOOLS_CHARS_CEILING,
   ASK_EFFORT,
+  ASK_FOLLOW_UPS_MAX,
+  ASK_GOAL_MAX,
+  ASK_GUIDE_PAGES,
   ASK_LANGUAGES,
   ASK_MAX_CHARS,
   ASK_MAX_ROUNDS,
   ASK_MAX_TOKENS,
   ASK_MODEL,
   ASK_PAGES2 as ASK_PAGES,
+  ASK_PAGE_ONLY_VERBS,
   ASK_PAGE_ROUTES,
   ASK_ROW_WORDS,
   ASK_SCOPE_KINDS,
+  ASK_SELECTION_MAX,
+  ASK_SENDS,
+  ASK_SKILL_IDS,
   ASK_SPEECH_MAX_CHARS,
   ASK_SPEED,
+  ASK_SPOKEN_TURN_BUDGET_MS,
   ASK_SURFACES,
   ASK_THREAD_ROUTES,
   ASK_THREAD_VERBS,
@@ -55387,6 +56541,7 @@ export {
   ASK_TOOLS_CHARS_CEILING,
   ASK_TURN_BUDGET_MS,
   ASK_UNDO_MS,
+  ASK_VIEW_PAGE,
   ASK_VOICE_CLAIM_STALE_MS,
   ASK_VOICE_FIRST_WORDS_MS,
   ASK_VOICE_ID,
@@ -55527,7 +56682,9 @@ export {
   CONVERSATION_STATES,
   CONVERSATION_UNDER_WAY,
   COUNTED,
+  CRAFT_CHANNELS,
   CUSTOMER_DOMAIN_DAILY_MAX,
+  CUSTOMER_MESSAGE_SKILL,
   CalendarConfigSchema,
   ClientErrorInput,
   ClosureSchema,
@@ -55646,6 +56803,9 @@ export {
   FOLLOW_UP_NEEDS_DEALS,
   FOLLOW_UP_NEEDS_LINK,
   FOLLOW_UP_ONE,
+  FOLLOW_UP_PROMPT_MAX,
+  FOLLOW_UP_SAID_MAX,
+  FOLLOW_UP_WAKES,
   FORWARDING_MODES,
   FORWARDING_MODE_WORDS,
   FORWARDING_TEST_WINDOW_MS,
@@ -55908,9 +57068,12 @@ export {
   MERGE_WORDS,
   MESSAGE_BEGIN_WORDS,
   MESSAGE_CHANNELS,
+  MESSAGE_CRAFT_JSON_SCHEMA,
   MESSAGE_DIRECTIONS,
   MESSAGE_GONE_WORDS,
+  MESSAGE_JUDGE_JSON_SCHEMA,
   MESSAGE_MOMENT_WORDS,
+  MESSAGE_RUBRIC,
   MESSAGE_SENDERS,
   MESSAGE_STATUSES,
   MESSAGE_TYPES,
@@ -55932,6 +57095,8 @@ export {
   MODEL_TURN_WRITE_MS,
   MOMENTS_RETIRED,
   MOMENT_TRIGGERS,
+  MessageCraftAnswerSchema,
+  MessageJudgeAnswerSchema,
   NAME_SOURCES,
   NEEDS_TITLE,
   NEEDS_YOU_WORD,
@@ -56340,7 +57505,6 @@ export {
   SENTENCE,
   SEQUENCES_ROUTE,
   SEQUENCE_ACT_WORDS,
-  SEQUENCE_CARD_WORDS,
   SEQUENCE_DRAFT_JSON_SCHEMA,
   SEQUENCE_DRAFT_THEN_MAX,
   SEQUENCE_DRAFT_WORDS_MAX,
@@ -56385,6 +57549,9 @@ export {
   SIGNUP_NAME_MIN,
   SIGNUP_WAITLIST,
   SIGNUP_WORDS,
+  SKILL_CRAFT_MAX_TOKENS,
+  SKILL_CRAFT_PURPOSES,
+  SKILL_GUIDE_MAX,
   SMS_CLAUSES,
   SMS_OPT_OUT_PATTERN,
   SMS_SEGMENTS_MAX,
@@ -56528,6 +57695,7 @@ export {
   adStateOf,
   adWith,
   addDays,
+  addProposalSpecs,
   addToPeopleOf,
   addressAlreadyKnown,
   addressInMessage,
@@ -56560,9 +57728,11 @@ export {
   allowedPrices,
   amountTotalsWords,
   amountWords,
+  answerCopy,
   answerForCards,
   answerFromV1,
   answerSaidOf,
+  answerSpoken,
   answerText,
   answerWireOf,
   answerWords,
@@ -56828,6 +57998,8 @@ export {
   countedDoor,
   coveredChannels,
   coversSpan,
+  craftSystem,
+  craftedVersions,
   csvCell,
   currencySymbol,
   customerDomainOf,
@@ -56998,6 +58170,7 @@ export {
   fmtDay,
   fmtSeconds,
   foldName,
+  followUpDue,
   followUpIsFor,
   followUpKey,
   followUpNames,
@@ -57006,6 +58179,7 @@ export {
   followUpStandOf,
   followUpStop,
   followUpWords,
+  followUpsOf,
   footerOf,
   forWords,
   formatPhoneDisplay,
@@ -57043,6 +58217,7 @@ export {
   guardrailsInForce,
   guessName,
   guessSlotKind,
+  guideBlock,
   handOf,
   handStepWords,
   handoffCallRow,
@@ -57131,6 +58306,7 @@ export {
   isActivityNoise,
   isAdsParam,
   isAppointmentWord,
+  isAskSkillId,
   isAutomatedSend,
   isBaselinePrompt,
   isBookingTool,
@@ -57285,6 +58461,7 @@ export {
   leadMarkSrc,
   leadMonth,
   leadMonthPlanFacts,
+  leadNamedPeople,
   leadNearWhere,
   leadNoCardLine,
   leadNotBusinessesLine,
@@ -57373,6 +58550,7 @@ export {
   listRuleMatches,
   listRuleParts,
   listRuleWhy,
+  listSpoken,
   listStartsSentence,
   listToken,
   listTyped,
@@ -57434,13 +58612,18 @@ export {
   messageAboutOfTrigger,
   messageAt,
   messageAuthor,
+  messageBriefText,
+  messageCraftIssues,
   messageFitsMoment,
   messageHolds,
+  messageJudgeQuestion,
+  messageJudgeSystem,
   messageLanguageChoices,
   messageLanguageCode,
   messageStandingWords,
   messageStatusLabel,
   messageText,
+  messageVerdict,
   messageVia,
   messageWhy,
   messageWhyNot,
@@ -58098,6 +59281,8 @@ export {
   signerOf,
   signupPosture,
   siteHost,
+  skillGuide,
+  skillsAsked,
   slotChoices,
   slotCount,
   slotKnown,
@@ -58177,6 +59362,7 @@ export {
   stopRequestQuestion,
   stopToldBesideState,
   stoppedRunFix,
+  storedAnswer,
   suggestLocalPart,
   sum,
   sumMoney,
@@ -58210,6 +59396,9 @@ export {
   templateUseNote,
   templateUseWords,
   tenantStatusFor,
+  textAsSent,
+  textPartsAllowed,
+  textRoom,
   textingTermsMetadata,
   textingTermsVM,
   textingWords,

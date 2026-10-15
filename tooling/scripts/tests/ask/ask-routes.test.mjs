@@ -322,7 +322,11 @@ test("a turn reads back as it was stored: one made since the Line with its answe
     one.messages.map((m) => [m.text, m.answer ?? null]),
     [
       ["Two threads wait.", null],
-      ["Nobody has booked this week yet.", answer],
+      // Stored before the list part: read back as having none (contracts storedAnswer).
+      [
+        "Nobody has booked this week yet.",
+        { ...answer, show: { ...answer.show, list: { style: "bullets", entries: [] } } },
+      ],
     ],
   );
 });
@@ -791,7 +795,7 @@ test("an answer to a search's question lands in the thread it was planned in: th
     );
     assert.ok(said.includes("I had asked for: “Pilates studios in Denver, no franchises”, leaving out Franchises."));
     assert.ok(said.includes("My answer: Include the franchise ones too."));
-    assert.ok(said.includes("propose_lead_search with amends set to that id"));
+    assert.ok(said.includes("propose_lead_search with action find and amends set to that id"));
     assert.deepEqual(
       requests[0].messages.slice(0, 2).map((m) => [m.role, m.content]),
       [
@@ -888,7 +892,7 @@ test("a new search's card carries the thread it was planned in, for the commit t
   let n = 0;
   setAskPorts({
     round: async () => ({
-      blocks: [{ type: "tool_use", id: `t${++n}`, name: "propose_lead_search", text: "", json: "{}" }],
+      blocks: [{ type: "tool_use", id: `t${++n}`, name: "propose_lead_search", text: "", json: '{"action":"find"}' }],
       stopReason: "tool_use",
       streamError: null,
     }),
@@ -1108,9 +1112,9 @@ function besideACard() {
           {
             type: "tool_use",
             id: "t-card",
-            name: "propose_autonomy",
+            name: "propose_settings",
             text: "",
-            json: '{"class":"reply","mode":"ask"}',
+            json: '{"action":"autonomy","class":"reply","mode":"ask"}',
           },
           { type: "text", id: "", name: "", text: answered, json: "" },
         ],
@@ -1174,7 +1178,12 @@ test("the turn as the model was sent it rides on the answer's row, at content.ra
     assert.deepEqual([blocks.base, blocks.rounds], [[], []], "a thread's first turn, one round");
     assert.deepEqual(blocks.final, [
       { type: "thinking", thinking: "", signature: SIGNATURE },
-      { type: "tool_use", id: "t-card", name: "propose_autonomy", input: { class: "reply", mode: "ask" } },
+      {
+        type: "tool_use",
+        id: "t-card",
+        name: "propose_settings",
+        input: { action: "autonomy", class: "reply", mode: "ask" },
+      },
       { type: "text", text: answered },
     ]);
     assert.deepEqual(
@@ -1272,9 +1281,9 @@ test("through the route a thread stays live turn after turn (the Phase 5 plan, P
       const card = {
         type: "tool_use",
         id: "t-card",
-        name: "propose_autonomy",
+        name: "propose_settings",
         text: "",
-        json: '{"class":"reply","mode":"ask"}',
+        json: '{"action":"autonomy","class":"reply","mode":"ask"}',
       };
       const thought = {
         type: "thinking",

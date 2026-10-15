@@ -14,6 +14,8 @@
  */
 import {
   PROPOSAL_GATE,
+  answerCopy,
+  answerSpoken,
   answerText,
   askUndoOpen,
   cardOpenRoute,
@@ -39,6 +41,7 @@ import {
   type UndoResult,
 } from "./ask/commit";
 import { askPalette, quickAnswer } from "./ask/palette";
+import { moreSpecs } from "./verbs/commit";
 import { askSpeech, type SpeechPurpose } from "./ask/speech";
 import { askAloud } from "./ask/aloud";
 import { installVoice } from "./ask/voice";
@@ -73,8 +76,12 @@ export type AskApi = ReturnType<typeof askPalette> &
     undoOpen: typeof askUndoOpen;
     /** A quick question's answer, without a model: Today's queue, today's calls or the openings route; null for the rest. */
     quick(question: string): Promise<AskAnswer> | null;
-    /** An answer's words, for copy, reading aloud and a folded turn. */
+    /** An answer's words, for a folded turn: its list a line an entry, each with its mark. */
     answerText: typeof answerText;
+    /** An answer as Copy takes it: its words, then its parts, figures and rows, a line each. */
+    answerCopy: typeof answerCopy;
+    /** An answer's words as Read aloud and a spoken question's answer say them: its list an entry a sentence. */
+    answerSpoken: typeof answerSpoken;
     /** Where a card's Open goes, or null. */
     cardOpenRoute: typeof cardOpenRoute;
     /**
@@ -135,6 +142,10 @@ export function oneVoice(
 }
 
 export function installAsk(win: Window = window, storage: Storage | null = safeStorage()): AskApi {
+  // The kinds only Ask's cards commit come by their own entry (contracts ask-only.ts), loaded now; a turn and a thread
+  // are handed over once it is in, so every card draws its gate, its undo and its Open (a load that fails leaves the
+  // pages' kinds alone, and a card of the others commits after the walk has tried again).
+  const specsIn = moreSpecs().catch(() => undefined);
   const palette = askPalette(win, storage);
   const api = askApi(apiFor(win));
   // Reading aloud in Ask's voice (ask/speech.ts: the clip from the speech route, played by one element of the module's)
@@ -158,13 +169,14 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
   }
   const send: AskApiCalls["send"] = (input, on) => {
     palette.rememberLanguage(palette.language(input.text));
-    return api.send(input, on);
+    return specsIn.then(() => api.send(input, on));
   };
+  const thread: AskApiCalls["thread"] = (...args) => specsIn.then(() => api.thread(...args));
   // A question spoken to the agent is a turn like a typed one (ask/spoken.ts): the same events, and its language kept.
   const spoken = spokenTurns(voice, api);
   const sendSpoken: typeof spoken.sendSpoken = (input, words, on) => {
     palette.rememberLanguage(palette.language(words));
-    return spoken.sendSpoken(input, words, on);
+    return specsIn.then(() => spoken.sendSpoken(input, words, on));
   };
   const ask: AskApi = {
     ...palette,
@@ -173,6 +185,7 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
     ...askAloud(speech),
     ...voice,
     send,
+    thread,
     sendSpoken,
     commit: (p, cards = []) => commitCard(win, p, cards),
     commitPlan: (cards) => commitPlan(win, cards),
@@ -183,6 +196,8 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
     undoOpen: askUndoOpen,
     quick: quickAnswer(palette, api.openings),
     answerText,
+    answerCopy,
+    answerSpoken,
     cardOpenRoute,
     context: (route, words, thread) => pageContext(win, route, words, thread),
   };

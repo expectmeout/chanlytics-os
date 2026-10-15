@@ -1,6 +1,6 @@
 /**
  * A booking the receptionist asked for, answered (decision 0061): Booked it or Can't, committed through its verb
- * (contracts VERB_SPECS booking_request), whichever page pressed it: Today's row, the Inbox's thread and the Calendar's
+ * (contracts PROPOSAL_SPECS booking_request), whichever page pressed it: Today's row, the Inbox's thread and the Calendar's
  * visit make the same call and say the same receipt. Booked it answers with the reply it drafts for the member to send;
  * the page carries it into the thread's box.
  */

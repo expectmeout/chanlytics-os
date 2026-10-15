@@ -136,9 +136,6 @@
   "apps/dashboard/src/server/ask/sse.ts": {
     "@typescript-eslint/no-unsafe-assignment": 1
   },
-  "apps/dashboard/src/server/ask/tools/act/invite.ts": {
-    "@typescript-eslint/require-await": 1
-  },
   "apps/dashboard/src/server/ask/tools/act/settings.ts": {
     "@typescript-eslint/no-unnecessary-type-assertion": 1,
     "@typescript-eslint/require-await": 1
@@ -324,9 +321,6 @@
   },
   "packages/contracts/src/ask-proposals/spec.ts": {
     "@typescript-eslint/no-base-to-string": 1,
-    "@typescript-eslint/no-unnecessary-type-assertion": 1
-  },
-  "packages/contracts/src/ask/ask-answer.ts": {
     "@typescript-eslint/no-unnecessary-type-assertion": 1
   },
   "packages/contracts/src/ask/ask-settings-change.ts": {

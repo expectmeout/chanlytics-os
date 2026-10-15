@@ -11,8 +11,10 @@ import {
   ASK_ANSWER_FORMAT,
   ASK_CAPS,
   ASK_CITATION_KINDS,
+  answerCopy,
   answerForCards,
   answerFromV1,
+  answerSpoken,
   answerText,
   answerWords,
   askIntent,
@@ -32,6 +34,7 @@ import {
   proseAnswer,
   rightNowCounts,
   rightNowLine,
+  storedAnswer,
   v1FromAnswer,
 } from "@chanlytics/contracts";
 
@@ -506,6 +509,7 @@ const written = (over = {}) => ({
       },
     ],
     breakdown: BREAKDOWN,
+    list: { style: "numbers", entries: ["Reply to Nora.", "Call Sam back."] },
   },
   do: {
     open: { source: { kind: "call", id: CALL, label: "Sam's call" }, label: "Open it", now: false },
@@ -566,6 +570,8 @@ test("the format the model writes: every key required, nothing else allowed, eac
     [["show", "items", "[]", "line"], C.line],
     [["show", "breakdown"], C.parts],
     [["show", "breakdown", "label"], C.label],
+    [["show", "list", "entries"], C.entries],
+    [["show", "list", "entries"], C.entry],
     [["do", "open", "label"], C.label],
     [["do", "next"], C.next],
     [["do", "next"], C.question],
@@ -599,6 +605,7 @@ test("the server reads every key the format names: a whole answer as written com
         },
       ],
       breakdown: { ...BREAKDOWN, source: { kind: "page", id: "reports", label: "Reports", to: "reports", door: true } },
+      list: { style: "numbers", entries: ["Reply to Nora.", "Call Sam back."] },
     },
     do: { open: { to: `conversations/cv-${CALL}`, label: "Open the call", now: false }, next: ["Reply to Nora?"] },
     language: "en",
@@ -637,6 +644,81 @@ test("every string is one line of words without tags, and every string and list 
   assert.ok(a.show.items.every((i) => i.line.length <= C.line));
   assert.deepEqual(a.do.next, ["One?", "Two?"]);
   assert.equal(a.do.open, null, "kind none is no Open");
+});
+
+test("a list is read as the Line draws it: its style one of three (bullets for any other), each entry one point without the bullet or number the model wrote, no emphasis marks, empty entries gone, at most its caps", () => {
+  const list = (l) => read1(withShow({ list: l })).answer.show.list;
+  assert.deepEqual(
+    list({ style: "numbers", entries: ["1. Open Settings.", "2) Paste the link.", "- Save it.", "• **Done**."] }),
+    { style: "numbers", entries: ["Open Settings.", "Paste the link.", "Save it.", "Done."] },
+  );
+  assert.deepEqual(list({ style: "lines", entries: ["thanks", " ", "for"] }), {
+    style: "lines",
+    entries: ["thanks", "for"],
+  });
+  assert.deepEqual(
+    list({ style: "table", entries: ["a"] }),
+    { style: "bullets", entries: ["a"] },
+    "a style the format lacks",
+  );
+  assert.deepEqual(list(undefined), { style: "bullets", entries: [] }, "no list is none");
+  // A sign or a count that is the point stays: "-5%" and "3 people" are words, not marks; emoji and capitals are words.
+  assert.deepEqual(
+    list({ style: "bullets", entries: ["-5% this week", "3 people waiting", "🙂 NEVER A PRICE"] }).entries,
+    ["-5% this week", "3 people waiting", "🙂 NEVER A PRICE"],
+  );
+  const long = list({
+    style: "bullets",
+    entries: Array.from({ length: 20 }, (_, i) => `point ${i} ${"word ".repeat(60)}`),
+  });
+  assert.equal(long.entries.length, C.entries);
+  assert.ok(long.entries.every((e) => e.length <= C.entry && e.endsWith("…")));
+});
+
+test("the detail keeps its lines and the headline is one: spaces run together within a line, one empty line at most between two, markdown's emphasis is the word", () => {
+  const say = read1(
+    written({
+      say: { headline: "Two **people**\nneed you.", detail: "  First   line.\r\n\n\n\nSecond\t line.  \nThird." },
+    }),
+  ).answer.say;
+  assert.deepEqual(say, { headline: "Two people need you.", detail: "First line.\n\nSecond line.\nThird." });
+});
+
+test("an answer's words with its list: copy and the history take a line an entry with its mark, a voice an entry a sentence with its number", () => {
+  const a = read1(written()).answer;
+  const say = "Nora and Sam are waiting on you. Nora asked about Saturday; Sam's call was missed.";
+  assert.equal(answerText(a), `${say}\n1. Reply to Nora.\n2. Call Sam back.`);
+  assert.equal(answerSpoken(a), `${say} 1. Reply to Nora. 2. Call Sam back.`);
+  const shaped = (list, detail = "") => ({
+    ...a,
+    say: { headline: "Three rules.", detail },
+    show: { ...a.show, list },
+  });
+  const bullets = shaped({ style: "bullets", entries: ["No prices", "No bookings", "No advice"] });
+  assert.equal(answerText(bullets), "Three rules.\n• No prices\n• No bookings\n• No advice");
+  assert.equal(answerSpoken(bullets), "Three rules. No prices. No bookings. No advice.");
+  assert.equal(answerText(shaped({ style: "lines", entries: ["thanks", "for"] })), "Three rules.\nthanks\nfor");
+  // A detail's lines are said one after another, each ending as a sentence does.
+  assert.equal(answerSpoken(shaped({ style: "bullets", entries: [] }, "Ana\nSam")), "Three rules. Ana. Sam.");
+  assert.equal(v1FromAnswer(a).text, answerText(a), "the history's words are the copy's");
+  assert.ok(
+    answerWords(a).includes("Call Sam back."),
+    "a list's words are checked for a figure with no read behind it",
+  );
+});
+
+test("an answer stored before the list part reads as having none wherever it is read (the store, one door, its words), and one with a list keeps it", () => {
+  const kept = read1(written()).answer;
+  const show = { ...kept.show };
+  delete show.list;
+  const old = { ...kept, show };
+  assert.deepEqual(storedAnswer(old).show.list, { style: "bullets", entries: [] });
+  assert.equal(storedAnswer(kept), kept);
+  assert.deepEqual(oneDoor(old).answer.show.list, { style: "bullets", entries: [] });
+  assert.deepEqual(oneDoor(kept).answer.show.list, kept.show.list);
+  const say = "Nora and Sam are waiting on you. Nora asked about Saturday; Sam's call was missed.";
+  assert.equal(answerText(old), say);
+  assert.equal(answerSpoken(old), say);
 });
 
 test("a source is a row read this turn however the model spelled it, or a page of the app; never a route the model wrote, and never a row not read", () => {
@@ -929,11 +1011,14 @@ test("no headline is no answer, and neither is text that is not JSON, such as an
   assert.equal(normalizeAnswer(written(), reads(), "en").ok, true, "an object reads as its JSON does");
 });
 
-test("Say streams from every prefix of the answer, never backwards, whether say is written first or last", () => {
+test("Say streams from every prefix of the answer, never backwards, whether say is written first or last, drawn as the final draws it: a line the preview shows is a line the answer keeps", () => {
   const w = written({ say: { headline: 'Sí: Nora said "yes" \\ twice.', detail: "Tab\there; line\nbreak." } });
-  const { say, ...rest } = w;
+  const { say: asWritten, ...rest } = w;
+  // The answer as it lands: spaces run together within a line, the line break kept (15 Oct: the final folded it away).
+  const say = read1(w).answer.say;
+  assert.deepEqual(say, { headline: asWritten.headline, detail: "Tab here; line\nbreak." });
   const escaped = (s) => s.replace("í", "\\u00ed");
-  for (const text of [escaped(JSON.stringify(w)), escaped(JSON.stringify({ ...rest, say }))]) {
+  for (const text of [escaped(JSON.stringify(w)), escaped(JSON.stringify({ ...rest, say: asWritten }))]) {
     const from = text.indexOf('"say"') + '"say"'.length;
     let prev = { headline: "", detail: "" };
     for (let i = 0; i <= text.length; i++) {
@@ -949,6 +1034,67 @@ test("Say streams from every prefix of the answer, never backwards, whether say 
     }
     assert.deepEqual(partialSay(text), say);
   }
+});
+
+test("the headline is one sentence: a second one opens the detail, while it streams and when it lands, never at a title, a month, an initial, an abbreviation or a decimal", () => {
+  const say = (headline, detail = "") => read1(written({ say: { headline, detail } })).answer.say;
+  // Two sentences, as the eval caught them (15 Oct: 10 of 20 misses): the second goes first in the detail.
+  assert.deepEqual(say("I can't give a refund from here. Money is locked by charter.", "Ask a person instead."), {
+    headline: "I can't give a refund from here.",
+    detail: "Money is locked by charter. Ask a person instead.",
+  });
+  assert.deepEqual(say('The card "Reply to Robin" is just above. One press on Approve sends it.'), {
+    headline: 'The card "Reply to Robin" is just above.',
+    detail: "One press on Approve sends it.",
+  });
+  assert.deepEqual(say("¿Quién te necesita? ¡Nadie hoy!"), { headline: "¿Quién te necesita?", detail: "¡Nadie hoy!" });
+  assert.deepEqual(say("You have 24 unread notifications. 3 are about Google."), {
+    headline: "You have 24 unread notifications.",
+    detail: "3 are about Google.",
+  });
+  // A stop that is not an end stays in the one sentence.
+  for (const one of [
+    "Your rating fell to 4.0 from 5.0 this week.",
+    "Dr. Lin called twice, on Oct. 13 and Oct. 14.",
+    "J. Rivera booked for 9 a.m. Friday.",
+    "Two U.S. numbers wrote today.",
+    "It says: wait. then try",
+    "Nobody needs you right now.",
+  ])
+    assert.deepEqual(say(one, "More."), { headline: one, detail: "More." }, one);
+  // The preview splits where the final does, at every prefix: the headline only grows, and so does the detail.
+  const w = written({ say: { headline: "I can't give a refund. Money is locked.", detail: "Ask a person." } });
+  const final = read1(w).answer.say;
+  const text = JSON.stringify(w);
+  let prev = { headline: "", detail: "" };
+  for (let i = text.indexOf('"say"') + 5; i <= text.length; i++) {
+    const p = partialSay(text.slice(0, i));
+    assert.ok(
+      final.headline.startsWith(p.headline) && final.detail.startsWith(p.detail),
+      `at ${i}: ${JSON.stringify(p)}`,
+    );
+    assert.ok(p.headline.length >= prev.headline.length && p.detail.length >= prev.detail.length, `at ${i}`);
+    prev = p;
+  }
+  assert.deepEqual(prev, final);
+});
+
+test("Copy takes the answer's words, then what it showed: the whole in its parts, each figure, each row, a line each", () => {
+  const a = read1(written()).answer;
+  assert.equal(
+    answerCopy(a),
+    [
+      answerText(a),
+      `${BREAKDOWN.total} ${BREAKDOWN.label}: ${BREAKDOWN.parts.map((p) => `${p.label} ${p.value}`).join(", ")}`,
+      "2 waiting on you (up from 1)",
+      "Nora · WhatsApp · 2h · Asked about Saturday.",
+    ].join("\n"),
+  );
+  // An answer of words alone copies its words.
+  const bare = read1(
+    written({ show: { figures: [], items: [], breakdown: null, list: { style: "bullets", entries: [] } } }),
+  );
+  assert.equal(answerCopy(bare.answer), answerText(bare.answer));
 });
 
 test("cards only: the cards are the Do, said in a sentence, in English and Spanish", () => {
@@ -1053,7 +1199,7 @@ test("a round that made a plan answers with the plan's words as its detail, in p
     ["Un plan de 3 pasos para revisar: 2 no envían nada y luego 1 envía.", words],
   );
   // Words past the detail's cap end on a whole word, with an ellipsis, within it.
-  const long = Array.from({ length: 150 }, (_, i) => `word${i}`).join(" ");
+  const long = Array.from({ length: 250 }, (_, i) => `word${i}`).join(" ");
   assert.ok(long.length > ASK_ANSWER_CAPS.detail, "longer than the detail holds");
   const cut = answerForCards([stamp(1, true), stamp(3, false)], "en", long).say.detail;
   assert.ok(cut.length <= ASK_ANSWER_CAPS.detail, `${cut.length}`);
@@ -1066,7 +1212,7 @@ test("a turn that could not be answered says why as its headline; words the form
     v: 2,
     form: "structured",
     say: { headline: "The answer took too long. Ask again.", detail: "" },
-    show: { figures: [], items: [], breakdown: null },
+    show: { figures: [], items: [], breakdown: null, list: { style: "bullets", entries: [] } },
     do: { open: null, next: [] },
     language: "en",
   });

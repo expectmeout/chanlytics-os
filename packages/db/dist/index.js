@@ -4462,6 +4462,12 @@ async function pushNamesFor(db, p) {
     business: tenant.data?.name?.trim() || null
   };
 }
+async function memberViewsOf(db, p) {
+  const { data, error } = await db.from("memberships").select("views").eq("tenant_id", p.tenantId).eq("user_id", p.userId).maybeSingle();
+  if (error) throw new Error(error.message);
+  const views = data?.views;
+  return views && typeof views === "object" && !Array.isArray(views) ? views : {};
+}
 
 // src/repositories/campaigns/workspace.ts
 async function workspacePaused(db, tenantId) {
@@ -6959,6 +6965,7 @@ export {
   memberEmailOf,
   memberHasAddress,
   memberJoinedOf,
+  memberViewsOf,
   memberWithdrawDrafts,
   memberWithdrawMessage,
   membersPushedFor,
