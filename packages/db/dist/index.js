@@ -1623,6 +1623,17 @@ async function openEscalation(db, p) {
     throw new Error(`escalation_open: the door answered ${String(data)}`);
   return data;
 }
+async function settleByEcho(db, p) {
+  if (!p.externalId) return true;
+  const { error } = await db.rpc("conversation_echo_settles", {
+    p_tenant_id: p.tenantId,
+    p_external_id: p.externalId,
+    p_reasons: [...p.settles]
+  });
+  if (!error) return true;
+  dbLog().error("record_echo_settle_failed", { tenant_id: p.tenantId, error: error.message });
+  return false;
+}
 
 // src/repositories/ingest.ts
 import {
@@ -1959,37 +1970,6 @@ async function keepMessageCost(db, tenantId, externalId, pricing) {
   if (error) throw new Error(`message_keep_cost: ${error.message}`);
   return data === true;
 }
-async function pauseConversation(db, tenantId, conversationId, pausedUntilIso, opts = {}) {
-  const { data, error } = await db.from("conversations").update(conversationPatch("hand_off", { until: pausedUntilIso })).eq("id", conversationId).eq("tenant_id", tenantId).select("id");
-  if (error) {
-    dbLog().error("pause_conversation_failed", {
-      tenant_id: tenantId,
-      conversation_id: conversationId,
-      error: error.message
-    });
-    return false;
-  }
-  if (!data || data.length === 0) {
-    dbLog().error("pause_conversation_noop", { tenant_id: tenantId, conversation_id: conversationId });
-    return false;
-  }
-  await withdrawAiDrafts(db, {
-    tenantId,
-    conversationId,
-    reason: { reason: "superseded_by_human" },
-    keepMessageId: opts.keepMessageId ?? null
-  }).catch(
-    (e) => dbLog().error("pause_withdraw_drafts_failed", {
-      tenant_id: tenantId,
-      conversation_id: conversationId,
-      error: e instanceof Error ? e.message : String(e)
-    })
-  );
-  return true;
-}
-
-// src/repositories/owner-echo.ts
-import { conversationPatch as conversationPatch2 } from "../../contracts/dist/index.js";
 async function recordEchoAndPause(db, p) {
   const phone = `+${p.customerPhoneDigits.replace(/^\+/, "")}`;
   let contact;
@@ -2023,7 +2003,7 @@ async function recordEchoAndPause(db, p) {
   if (error && error.code !== "23505")
     dbLog().error("record_echo_failed", { tenant_id: p.tenantId, conversation_id: conv.id, error: error.message });
   if (error?.code === "23505" && p.externalId) return settleByEcho(db, p);
-  const { error: perr } = await db.from("conversations").update(conversationPatch2("owner_echo", { until: p.pausedUntilIso, now: (/* @__PURE__ */ new Date()).toISOString() })).eq("id", conv.id).eq("tenant_id", p.tenantId);
+  const { error: perr } = await db.from("conversations").update(conversationPatch("owner_echo", { until: p.pausedUntilIso, now: (/* @__PURE__ */ new Date()).toISOString() })).eq("id", conv.id).eq("tenant_id", p.tenantId);
   if (perr) {
     const unwound = !error && p.externalId ? !(await db.from("messages").delete().eq("tenant_id", p.tenantId).eq("external_id", p.externalId)).error : null;
     dbLog().error("record_echo_pause_failed", {
@@ -2038,16 +2018,33 @@ async function recordEchoAndPause(db, p) {
   if (error) return false;
   return settleByEcho(db, p);
 }
-async function settleByEcho(db, p) {
-  if (!p.externalId) return true;
-  const { error } = await db.rpc("conversation_echo_settles", {
-    p_tenant_id: p.tenantId,
-    p_external_id: p.externalId,
-    p_reasons: [...p.settles]
-  });
-  if (!error) return true;
-  dbLog().error("record_echo_settle_failed", { tenant_id: p.tenantId, error: error.message });
-  return false;
+async function pauseConversation(db, tenantId, conversationId, pausedUntilIso, opts = {}) {
+  const { data, error } = await db.from("conversations").update(conversationPatch("hand_off", { until: pausedUntilIso })).eq("id", conversationId).eq("tenant_id", tenantId).select("id");
+  if (error) {
+    dbLog().error("pause_conversation_failed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      error: error.message
+    });
+    return false;
+  }
+  if (!data || data.length === 0) {
+    dbLog().error("pause_conversation_noop", { tenant_id: tenantId, conversation_id: conversationId });
+    return false;
+  }
+  await withdrawAiDrafts(db, {
+    tenantId,
+    conversationId,
+    reason: { reason: "superseded_by_human" },
+    keepMessageId: opts.keepMessageId ?? null
+  }).catch(
+    (e) => dbLog().error("pause_withdraw_drafts_failed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      error: e instanceof Error ? e.message : String(e)
+    })
+  );
+  return true;
 }
 
 // src/repositories/campaigns/email-offers.ts
@@ -2815,7 +2812,7 @@ async function knownThreads(db, tenantId, threadIds) {
 }
 
 // src/repositories/outreach.ts
-import { conversationPatch as conversationPatch3 } from "../../contracts/dist/index.js";
+import { conversationPatch as conversationPatch2 } from "../../contracts/dist/index.js";
 
 // src/repositories/mailboxes/day.ts
 async function mailboxCapacityOf(db, mailboxId, at) {
@@ -3002,7 +2999,7 @@ async function resolveEscalationByReason(db, p) {
   return !!data && data.length > 0;
 }
 async function archiveConversation(db, p) {
-  const { data, error } = await db.from("conversations").update(conversationPatch3("archive")).eq("tenant_id", p.tenantId).eq("id", p.conversationId).neq("state", "archived").select("id");
+  const { data, error } = await db.from("conversations").update(conversationPatch2("archive")).eq("tenant_id", p.tenantId).eq("id", p.conversationId).neq("state", "archived").select("id");
   if (error) throw new Error(`cannot archive the thread: ${error.message}`);
   return !!data && data.length > 0;
 }

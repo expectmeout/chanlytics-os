@@ -21,6 +21,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../database.types";
+import { dbLog } from "../observe";
 
 type Db = SupabaseClient<Database>;
 
@@ -308,4 +309,26 @@ export async function openEscalation(
   if (data !== "opened" && data !== "changed" && data !== "refreshed")
     throw new Error(`escalation_open: the door answered ${String(data)}`);
   return data;
+}
+
+/**
+ * The holds a reply from the WhatsApp Business app answers, settled (00438 conversation_echo_settles; the wiring's second
+ * audit, S7-5): resolved when it was typed, as a reply from the dashboard resolves the hold it answers, so the customer
+ * leaves Needs you and nobody is told "Still waiting" of them. An echo with no id of its own cannot be found again, and
+ * settles nothing. False when the door failed, which the webhook answers with a 503: Meta's redelivery finds the echo
+ * kept and asks again, and a hold settled already is not settled twice.
+ */
+export async function settleByEcho(
+  db: Db,
+  p: { tenantId: string; externalId: string | null; settles: readonly string[] },
+): Promise<boolean> {
+  if (!p.externalId) return true;
+  const { error } = await db.rpc("conversation_echo_settles", {
+    p_tenant_id: p.tenantId,
+    p_external_id: p.externalId,
+    p_reasons: [...p.settles],
+  });
+  if (!error) return true;
+  dbLog().error("record_echo_settle_failed", { tenant_id: p.tenantId, error: error.message });
+  return false;
 }
