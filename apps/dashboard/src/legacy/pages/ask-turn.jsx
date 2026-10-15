@@ -526,10 +526,31 @@ const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, se
   );
 };
 
+// Show as it closes while the answer is written (`say.show`, contracts answer-stream.ts answerSoFar), drawn by the
+// answer's own part: no row a door and no figure a receipt until the final lands; nothing before a figure or a row has.
+const AskShowSoFar = ({ say, t, onNav }) =>
+  say && say.show ? (
+    <AskShow
+      a={{
+        show: {
+          figures: say.show.figures.map((f) => ({ ...f, source: null })),
+          items: say.show.items.map((it) => ({ ...it, source: { ...it.source, door: false } })),
+          breakdown: null,
+          list: null,
+        },
+      }}
+      itemMove={say.show.items.map(() => -1)}
+      moveProps={() => ({})}
+      t={t}
+      onNav={onNav}
+    />
+  ) : null;
+
 // A turn: the question over it, then the answer. While it streams, Say as written so far (`say`: the headline, then
-// the detail, as the answer draws them) or a v1 turn's words, with a cursor after the last; Show and Do wait for the
-// final message (spec 7.4), and the Line says the answer once it is whole, not every piece (spec 6.10). A failed turn
-// says why and, on the latest only, offers Try again (N20). A quick answer (no model) is drawn the same way, from `quick`.
+// the detail, as the answer draws them) or a v1 turn's words, with a cursor after the last, and Show's figures and rows
+// as each closes (`say.show`, grounded on the server: contracts answer-stream.ts), drawn by AskShow but not yet doors;
+// Do waits for the final message (spec 7.4), and the Line says the answer once it is whole, not every piece (spec
+// 6.10). A failed turn says why and, on the latest only, offers Try again (N20). A quick answer (no model) is drawn the same way, from `quick`.
 const AskTurn = ({ m, q, quick, say, latest = false, streaming = false, walk = false, sel = -1, next = true, t, lang, onFollow, onNav, onRetry, onOutcome, onEdit }) => {
   const A = window.__ask;
   if (streaming) {
@@ -548,6 +569,7 @@ const AskTurn = ({ m, q, quick, say, latest = false, streaming = false, walk = f
             <p className="ask-prose">{m.text}{cursor}</p>
           )}
         </div>
+        <AskShowSoFar say={say} t={t} onNav={onNav} />
       </div>
     );
   }

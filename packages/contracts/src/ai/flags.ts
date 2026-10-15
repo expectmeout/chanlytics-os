@@ -262,6 +262,13 @@ export const FLAGS: readonly Flag[] = [
     kept: "Fast mode is a research preview at twice the price: the switch off is a variable, never a code change.",
   },
   {
+    name: "ASK_ANSWER_TOOL",
+    mechanism: "dashboard_env",
+    does: "Ask writes its answer through the answer tool, whose input streams after a read; empty is off, on turns it on (ask-model.ts).",
+    owner: "Ruben",
+    sunset: "2026-11-30",
+  },
+  {
     name: "EDGE_PROVIDERS",
     mechanism: "dashboard_env",
     does: "'live' lets a preview or a laptop reach the real providers through its edge.",
