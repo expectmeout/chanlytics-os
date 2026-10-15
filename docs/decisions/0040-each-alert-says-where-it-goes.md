@@ -67,6 +67,25 @@ Smaller corrections in the same change: Undo after Remove saves against the vers
 failed delivery to a subscriber opens Activity, not Notifications; the settings route's and the profile pane's comments
 say who may write and where the device switch is.
 
+## Amended on 15 October 2026: the receptionist stopping is mailed
+
+Point 4 kept every Stripe billing notice on the bell and the phone, and only a number going back was mailed. The wiring's
+second audit (S6-11) found the owner first heard that the receptionist had stopped from a customer nobody answered: the
+phone app is paused, so the bell was all there was. Ruben, 15 October 2026: the two notices that stop the receptionist are
+mailed too, as the business's billing choice on Settings › Notifications allows, and the rest stay on the bell.
+
+- **A plan paused** (`Your receptionist is paused`) and **a card declined** (`A payment did not go through`) go through
+  `notifyOnce` (edge `billing/billing-notices.ts` `tellOnce`): the bell's row and the phones, then the mail, told once
+  under the change or the Stripe event. A trial started or ending and the receptionist back stay the bell's and the
+  phone's (`ringOnce`).
+- **A pause never waits on its mail.** The bell is kept before the account's row is written; a mail that does not go is
+  said (`billing_mail_owed`) and the row is written all the same, so a mail provider that is down cannot leave a
+  workspace answering on a plan that has stopped. A declined card holds nothing back: its mail still owed gives the
+  delivery back, and Stripe's retry sends the mail alone.
+- **The topic says so:** "A declined card, a paused receptionist and the number going back are emailed."
+- Whether Stripe's own customer emails (failed payments, in the Stripe dashboard's Billing settings) also go to the
+  business is not readable through Stripe's API, so it was not checked: if they are on, a declined card is told by both.
+
 ## Not decided here
 
 Quiet hours for phones; a daily summary email; alerts chosen per address; one email per address instead of one To line;

@@ -879,6 +879,9 @@ function holdActOf(reason) {
 }
 var OPEN_HOLDS_READ_MAX = 100;
 var HAND_BACK_REASONS = Object.keys(ESCALATION_ACTS).filter((r2) => ESCALATION_ACTS[r2] === "hand_back");
+var WAITING_REASONS = Object.keys(ESCALATION_ACTS).filter(
+  (r2) => waitsOnAPerson(r2)
+);
 function openHoldAct(hold) {
   return hold ? holdActOf(hold.reason) : null;
 }
@@ -43930,7 +43933,7 @@ var ALERT_TOPICS = [
     key: "billing",
     group: "worth_knowing",
     title: "Your plan",
-    what: "A card declined, a trial ending, or the subscription ended and your receptionist's number is going back. Only the number going back is emailed.",
+    what: "A card declined, a trial ending, your receptionist paused, or the subscription ended and its number is going back. A declined card, a paused receptionist and the number going back are emailed.",
     email: "choice",
     phone: true,
     kinds: ["billing"]
@@ -47407,6 +47410,7 @@ export {
   VOICE_END_REASONS,
   WABA_FIELDS,
   WAITING_AFTER_DAYS,
+  WAITING_REASONS,
   WA_WINDOW_MS,
   WEEKDAY_KEYS,
   WEEK_MS,

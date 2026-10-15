@@ -17,9 +17,10 @@ type PushKind = (typeof PUSH_KINDS)[number];
  * "email" is a kind notify() is handed and mails: to the workspace's addresses, or, for the platform's own (`alert`), to
  * Chanlytics. "bell" is a row the edge or a database function writes and no mail follows (the calendar's new people, a
  * review, a finished search, a note left for you, the day's reach-out numbers). Two kinds are written both ways and are
- * "email" because notify() is handed them: `billing` is mailed when a number is about to go back, and a Stripe event
- * (a card declined, a trial ending) is written to the bell and the phone by its own path; `leads_question`'s mail is sent
- * by the lead runner beside the row its trigger keeps.
+ * "email" because notify() is handed them: `billing` is mailed when the receptionist stops (a plan paused, a card
+ * declined: S6-11) and when a number is about to go back, and its other news (a trial started or ending, the receptionist
+ * back) is written to the bell and the phone alone; `leads_question`'s mail is sent by the lead runner beside the row
+ * its trigger keeps.
  */
 declare const NOTIFICATION_DELIVERY: {
     readonly handoff: "email";

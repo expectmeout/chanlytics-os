@@ -647,6 +647,8 @@ export async function recordEchoAndPause(
     body: string | null;
     externalId: string | null;
     pausedUntilIso: string;
+    /** The hold reasons a typed reply settles (contracts WAITING_REASONS): its open holds of these are resolved (00438). */
+    settles: readonly string[];
   },
 ): Promise<boolean> {
   const phone = `+${p.customerPhoneDigits.replace(/^\+/, "")}`;
@@ -700,7 +702,8 @@ export async function recordEchoAndPause(
   // An echo carrying no id of its own cannot be told apart from its own replay,
   // so it still pauses -- a receptionist talking over the owner is the worse of
   // the two failures, and it is what this function exists to prevent.
-  if (error?.code === "23505" && p.externalId) return true;
+  // A redelivery still asks for the settle: the first try may have kept the echo and failed it (settleByEcho).
+  if (error?.code === "23505" && p.externalId) return settleByEcho(db, p);
   const { error: perr } = await db
     .from("conversations")
     .update(conversationPatch("owner_echo", { until: p.pausedUntilIso, now: new Date().toISOString() }))
@@ -726,7 +729,30 @@ export async function recordEchoAndPause(
   await emitEvent(db, p.tenantId, "conversation.owner_replied", "conversation", conv.id, { until: p.pausedUntilIso });
   // The pause landed. The words did only when their insert did: one the database refused comes again, and its
   // redelivery writes them (and the pause once more, from its own moment).
-  return !error;
+  if (error) return false;
+  return settleByEcho(db, p);
+}
+
+/**
+ * The holds a reply from the WhatsApp Business app answers, settled (00438 conversation_echo_settles; the wiring's second
+ * audit, S7-5): resolved when it was typed, as a reply from the dashboard resolves the hold it answers, so the customer
+ * leaves Needs you and nobody is told "Still waiting" of them. An echo with no id of its own cannot be found again, and
+ * settles nothing. False when the door failed, which the webhook answers with a 503: Meta's redelivery finds the echo
+ * kept and asks again, and a hold settled already is not settled twice.
+ */
+async function settleByEcho(
+  db: Db,
+  p: { tenantId: string; externalId: string | null; settles: readonly string[] },
+): Promise<boolean> {
+  if (!p.externalId) return true;
+  const { error } = await db.rpc("conversation_echo_settles", {
+    p_tenant_id: p.tenantId,
+    p_external_id: p.externalId,
+    p_reasons: [...p.settles],
+  });
+  if (!error) return true;
+  dbLog().error("record_echo_settle_failed", { tenant_id: p.tenantId, error: error.message });
+  return false;
 }
 
 /**

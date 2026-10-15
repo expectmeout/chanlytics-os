@@ -6719,6 +6719,14 @@ export type Database = {
         Args: { p_contact_ids: string[]; p_tenant_id: string }
         Returns: Json
       }
+      conversation_echo_settles: {
+        Args: {
+          p_external_id: string
+          p_reasons: string[]
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
       conversation_hand_back: {
         Args: {
           p_conversation_id: string
@@ -9109,6 +9117,10 @@ export type Database = {
       rename_mailbox: {
         Args: { p_from_name: string; p_mailbox_id: string }
         Returns: Json
+      }
+      reply_was_typed: {
+        Args: { p_at: string; p_conversation_id: string; p_tenant_id: string }
+        Returns: boolean
       }
       report_series: {
         Args: { p_days?: number; p_end?: string; p_tenant_id: string }

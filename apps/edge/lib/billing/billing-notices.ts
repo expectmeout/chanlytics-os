@@ -6,7 +6,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../packages/db.js";
 import { emitEvent } from "../packages/db.js";
-import { keepOnce } from "../ops/notify.js";
+import { keepOnce, notifyOnceAs } from "../ops/notify.js";
+import { loadTenantNotifications } from "../tenant-runtime.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -29,6 +30,31 @@ export async function ringOnce(
     db,
   );
   if (!kept) throw new Error(`the billing notice "${bell.title}" could not be kept; it is told on the retry`);
+}
+
+/**
+ * A billing notice that stops the receptionist, mailed as well (the wiring's second audit, S6-11; Ruben, 15 October
+ * 2026): a plan paused and a card declined reached only the bell and a phone, so an owner first heard of either from a
+ * customer nobody answered. Told once under `key` (notify notifyOnceAs): the bell's row and the phones, then the mail,
+ * as the business's billing choice on Settings › Notifications allows. A row not kept throws, as ringOnce does;
+ * `mailOwed` says the row and the phones were told and the mail was not, which asking again under `key` sends alone:
+ * the caller says whether its own write waits for that.
+ */
+export async function tellOnce(
+  db: Db,
+  tenantId: string,
+  bell: { title: string; body: string },
+  key: string,
+): Promise<{ mailOwed: boolean }> {
+  const addressing = await loadTenantNotifications(db, tenantId);
+  const told = await notifyOnceAs(
+    { tenantId, ...addressing },
+    { kind: "billing", subject: bell.title, body: bell.body, route: "admin/billing", about: null, onceKey: key },
+    { db },
+  );
+  if (told === "not_kept")
+    throw new Error(`the billing notice "${bell.title}" could not be kept; it is told on the retry`);
+  return { mailOwed: told === "mail_owed" };
 }
 
 /**

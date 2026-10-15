@@ -214,7 +214,16 @@ var ESCALATION_ACTS = {
   carriers: "reply",
   email_review: "reply"
 };
+function holdActOf(reason) {
+  return ESCALATION_ACTS[reason ?? ""] ?? "reply";
+}
 var HAND_BACK_REASONS = Object.keys(ESCALATION_ACTS).filter((r2) => ESCALATION_ACTS[r2] === "hand_back");
+var WAITING_REASONS = Object.keys(ESCALATION_ACTS).filter(
+  (r2) => waitsOnAPerson(r2)
+);
+function waitsOnAPerson(reason) {
+  return holdActOf(reason) !== "hand_back";
+}
 
 // src/conversations/standing.ts
 var HELD_WORDS = {

@@ -1991,7 +1991,7 @@ async function recordEchoAndPause(db, p) {
   });
   if (error && error.code !== "23505")
     dbLog().error("record_echo_failed", { tenant_id: p.tenantId, conversation_id: conv.id, error: error.message });
-  if (error?.code === "23505" && p.externalId) return true;
+  if (error?.code === "23505" && p.externalId) return settleByEcho(db, p);
   const { error: perr } = await db.from("conversations").update(conversationPatch("owner_echo", { until: p.pausedUntilIso, now: (/* @__PURE__ */ new Date()).toISOString() })).eq("id", conv.id).eq("tenant_id", p.tenantId);
   if (perr) {
     const unwound = !error && p.externalId ? !(await db.from("messages").delete().eq("tenant_id", p.tenantId).eq("external_id", p.externalId)).error : null;
@@ -2004,7 +2004,19 @@ async function recordEchoAndPause(db, p) {
     return false;
   }
   await emitEvent(db, p.tenantId, "conversation.owner_replied", "conversation", conv.id, { until: p.pausedUntilIso });
-  return !error;
+  if (error) return false;
+  return settleByEcho(db, p);
+}
+async function settleByEcho(db, p) {
+  if (!p.externalId) return true;
+  const { error } = await db.rpc("conversation_echo_settles", {
+    p_tenant_id: p.tenantId,
+    p_external_id: p.externalId,
+    p_reasons: [...p.settles]
+  });
+  if (!error) return true;
+  dbLog().error("record_echo_settle_failed", { tenant_id: p.tenantId, error: error.message });
+  return false;
 }
 async function pauseConversation(db, tenantId, conversationId, pausedUntilIso, opts = {}) {
   const { data, error } = await db.from("conversations").update(conversationPatch("hand_off", { until: pausedUntilIso })).eq("id", conversationId).eq("tenant_id", tenantId).select("id");

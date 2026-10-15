@@ -6844,6 +6844,14 @@ type Database = {
                 };
                 Returns: Json;
             };
+            conversation_echo_settles: {
+                Args: {
+                    p_external_id: string;
+                    p_reasons: string[];
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
             conversation_hand_back: {
                 Args: {
                     p_conversation_id: string;
@@ -10051,6 +10059,14 @@ type Database = {
                     p_mailbox_id: string;
                 };
                 Returns: Json;
+            };
+            reply_was_typed: {
+                Args: {
+                    p_at: string;
+                    p_conversation_id: string;
+                    p_tenant_id: string;
+                };
+                Returns: boolean;
             };
             report_series: {
                 Args: {
@@ -18073,6 +18089,14 @@ declare function builderOf<T extends TenantTable>(db: Db$G, table: T): _supabase
             };
             Returns: Json;
         };
+        conversation_echo_settles: {
+            Args: {
+                p_external_id: string;
+                p_reasons: string[];
+                p_tenant_id: string;
+            };
+            Returns: Json;
+        };
         conversation_hand_back: {
             Args: {
                 p_conversation_id: string;
@@ -21280,6 +21304,14 @@ declare function builderOf<T extends TenantTable>(db: Db$G, table: T): _supabase
                 p_mailbox_id: string;
             };
             Returns: Json;
+        };
+        reply_was_typed: {
+            Args: {
+                p_at: string;
+                p_conversation_id: string;
+                p_tenant_id: string;
+            };
+            Returns: boolean;
         };
         report_series: {
             Args: {
@@ -40489,6 +40521,8 @@ declare function recordEchoAndPause(db: Db$F, p: {
     body: string | null;
     externalId: string | null;
     pausedUntilIso: string;
+    /** The hold reasons a typed reply settles (contracts WAITING_REASONS): its open holds of these are resolved (00438). */
+    settles: readonly string[];
 }): Promise<boolean>;
 /**
  * The AI-side pause (non-text / escalation): the receptionist steps out of
