@@ -25459,57 +25459,50 @@ COMMENT ON FUNCTION public.sequence_sends_guard() IS 'A customer''s send: queued
 CREATE FUNCTION public.sequence_sends_move_enrollment() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
+    SET jit TO 'off'
     AS $$
 declare
   v_place int;
   v_e public.sequence_enrollments%rowtype;
   v_next_days int;
   v_has_next boolean;
+  v_seen record;
 begin
   -- Sends made, once a statement (sequence_sends_enrol, below): set-based, so a batch of thousands is one pass.
   if TG_LEVEL = 'STATEMENT' then
-    -- 1. Someone still in the sequence whose first step comes again leaves first: one place is in at a time.
-    with asked as (
-      select distinct on (n.sequence_id, n.lead_id, n.contact_id) n.sequence_id, n.contact_id, n.lead_id, st.place
-        from new_sends n join public.sequence_steps st on st.id = n.step_id
-       order by n.sequence_id, n.lead_id, n.contact_id, st.place desc
-    ), seen as (
-      select a.*, e.id as e_id, e.state as e_state, e.place as e_place
+    -- Each person the batch wrote who already has a place, driven by the batch: their place is updated by its key.
+    for v_seen in
+      with asked as (
+        select distinct on (n.sequence_id, n.lead_id, n.contact_id) n.sequence_id, n.contact_id, n.lead_id, st.place
+          from new_sends n join public.sequence_steps st on st.id = n.step_id
+         order by n.sequence_id, n.lead_id, n.contact_id, st.place desc
+      )
+      select a.lead_id, a.place, e.id as e_id, e.state as e_state, e.place as e_place
         from asked a
-        left join lateral (
-          select e.id, e.state, e.place from public.sequence_enrollments e
-           where e.sequence_id = a.sequence_id
-             and case when a.lead_id is null then e.lead_id is null and e.contact_id = a.contact_id
-                      else e.lead_id = a.lead_id end
-           order by e.entered_at desc, e.id desc
-           limit 1) e on true
-    )
-    update public.sequence_enrollments x
-       set state = 'left', why = 'started_again', ended_at = now(), next_at = null
-      from seen s
-     where x.id = s.e_id and s.e_state = 'in' and s.lead_id is null and s.place = 1 and s.e_place > 1;
-
-    -- 2. A place that stands is in again, at the later step.
-    with asked as (
-      select distinct on (n.sequence_id, n.lead_id, n.contact_id) n.sequence_id, n.contact_id, n.lead_id, st.place
-        from new_sends n join public.sequence_steps st on st.id = n.step_id
-       order by n.sequence_id, n.lead_id, n.contact_id, st.place desc
-    ), seen as (
-      select a.*, e.id as e_id, e.state as e_state, e.place as e_place
-        from asked a
-        left join lateral (
-          select e.id, e.state, e.place from public.sequence_enrollments e
-           where e.sequence_id = a.sequence_id
-             and case when a.lead_id is null then e.lead_id is null and e.contact_id = a.contact_id
-                      else e.lead_id = a.lead_id end
-           order by e.entered_at desc, e.id desc
-           limit 1) e on true
-    )
-    update public.sequence_enrollments x
-       set state = 'in', why = null, ended_at = null, next_at = null, left_by = null,
-           place = greatest(case when x.state = 'in' then x.place else 0 end, s.place)
-      from seen s
-     where x.id = s.e_id and not (s.lead_id is null and s.place = 1 and (s.e_state <> 'in' or s.e_place > 1));
+        join lateral (
+          (select e.id, e.state, e.place from public.sequence_enrollments e
+            where a.lead_id is null and e.sequence_id = a.sequence_id and e.lead_id is null and e.contact_id = a.contact_id
+            order by e.entered_at desc, e.id desc
+            limit 1)
+          union all
+          (select e.id, e.state, e.place from public.sequence_enrollments e
+            where a.lead_id is not null and e.sequence_id = a.sequence_id and e.lead_id = a.lead_id
+            order by e.entered_at desc, e.id desc
+            limit 1)) e on true
+    loop
+      if v_seen.e_state = 'in' and v_seen.lead_id is null and v_seen.place = 1 and v_seen.e_place > 1 then
+        -- 1. Someone still in the sequence whose first step comes again leaves first: one place is in at a time.
+        update public.sequence_enrollments
+           set state = 'left', why = 'started_again', ended_at = now(), next_at = null
+         where id = v_seen.e_id;
+      elsif not (v_seen.lead_id is null and v_seen.place = 1 and (v_seen.e_state <> 'in' or v_seen.e_place > 1)) then
+        -- 2. A place that stands is in again, at the later step.
+        update public.sequence_enrollments
+           set state = 'in', why = null, ended_at = null, next_at = null, left_by = null,
+               place = greatest(case when state = 'in' then place else 0 end, v_seen.place)
+         where id = v_seen.e_id;
+      end if;
+    end loop;
 
     -- 3. Everyone else takes a new place: none before, or a customer's first step again.
     with asked as (
@@ -25522,12 +25515,15 @@ begin
     select a.tenant_id, a.sequence_id, a.contact_id, a.lead_id, a.place
       from asked a
       left join lateral (
-        select e.state, e.place from public.sequence_enrollments e
-         where e.sequence_id = a.sequence_id
-           and case when a.lead_id is null then e.lead_id is null and e.contact_id = a.contact_id
-                    else e.lead_id = a.lead_id end
-         order by e.entered_at desc, e.id desc
-         limit 1) e on true
+        (select e.state, e.place from public.sequence_enrollments e
+          where a.lead_id is null and e.sequence_id = a.sequence_id and e.lead_id is null and e.contact_id = a.contact_id
+          order by e.entered_at desc, e.id desc
+          limit 1)
+        union all
+        (select e.state, e.place from public.sequence_enrollments e
+          where a.lead_id is not null and e.sequence_id = a.sequence_id and e.lead_id = a.lead_id
+          order by e.entered_at desc, e.id desc
+          limit 1)) e on true
      where e.state is null
         or (a.lead_id is null and a.place = 1 and e.state <> 'in');
     return null;
@@ -25537,13 +25533,19 @@ begin
   if v_place is null then
     return null;
   end if;
-  select e.* into v_e from public.sequence_enrollments e
-   where e.sequence_id = NEW.sequence_id
-     and case when NEW.lead_id is null then e.lead_id is null and e.contact_id = NEW.contact_id
-              else e.lead_id = NEW.lead_id end
-   order by e.entered_at desc, e.id desc
-   limit 1
-   for update;
+  if NEW.lead_id is null then
+    select e.* into v_e from public.sequence_enrollments e
+     where e.sequence_id = NEW.sequence_id and e.lead_id is null and e.contact_id = NEW.contact_id
+     order by e.entered_at desc, e.id desc
+     limit 1
+     for update;
+  else
+    select e.* into v_e from public.sequence_enrollments e
+     where e.sequence_id = NEW.sequence_id and e.lead_id = NEW.lead_id
+     order by e.entered_at desc, e.id desc
+     limit 1
+     for update;
+  end if;
 
   if v_e.id is null or NEW.state is not distinct from OLD.state then
     return null;
@@ -25568,9 +25570,13 @@ begin
         and not (NEW.lead_id is null and NEW.state = 'failed' and NEW.reason = 'outcome_unknown') then
     if v_e.state = 'in' and v_e.place <= v_place
        and not exists (select 1 from public.sequence_sends o
-                        where o.sequence_id = NEW.sequence_id and o.id <> NEW.id
-                          and case when NEW.lead_id is null then o.lead_id is null and o.contact_id = NEW.contact_id
-                                   else o.lead_id = NEW.lead_id end
+                        where NEW.lead_id is null and o.tenant_id = NEW.tenant_id and o.contact_id = NEW.contact_id
+                          and o.sequence_id = NEW.sequence_id and o.lead_id is null and o.id <> NEW.id
+                          and o.state in ('planned', 'held', 'claimed', 'queued', 'drafted')
+                       union all
+                       select 1 from public.sequence_sends o
+                        where NEW.lead_id is not null and o.sequence_id = NEW.sequence_id and o.lead_id = NEW.lead_id
+                          and o.id <> NEW.id
                           and o.state in ('planned', 'held', 'claimed', 'queued', 'drafted')) then
       update public.sequence_enrollments
          set state = 'left', why = left(coalesce(NEW.reason, NEW.state), 60), ended_at = now(), next_at = null
