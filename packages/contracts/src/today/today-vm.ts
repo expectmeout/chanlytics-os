@@ -100,6 +100,11 @@ export interface TodayQueueRowVM {
    * `cta.to` is the visit on the Calendar, which the row opens.
    */
   visit?: { id: string; asks: VisitWord[] };
+  /**
+   * On a handoff whose hold is a time the customer picked by text (decision 0061): its thread, so the row's two buttons,
+   * Booked it and Can't, answer it (POST conversations/[id]/booking-request). Its `cta.to` is the thread.
+   */
+  request?: { conversationId: string };
   /** For the order: the longest wait first; a window by how soon it closes; a call last. */
   waitedMs: number;
 }

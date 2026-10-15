@@ -39,6 +39,7 @@ import { liveClock, useLiveNow } from "./live-now";
 import { broadcastsRead, runRows, runsPending, useRunsActing, type Nav, type VerbKind } from "./queue-runs";
 import { dueSteps, stepAct, stepDone, stepsLeft } from "./queue-steps";
 import { askedVisits, visitActs, visitSay, visitsLeft } from "./queue-visits";
+import { requestActs, requestAnswer } from "./queue-requests";
 
 export const AgentCommand = () => {
   useMoved("today");
@@ -99,6 +100,8 @@ interface RowActs {
   kind: VerbKind;
   done: (r: TodayQueueRowVM) => unknown;
   say: (r: TodayQueueRowVM, status: VisitWord) => unknown;
+  /** A time a customer picked by text, answered: Booked it, or Can't (decision 0061). */
+  answer: (r: TodayQueueRowVM, booked: boolean) => unknown;
 }
 
 /**
@@ -106,11 +109,13 @@ interface RowActs {
  * clutter); snooze and resolve are the thread's, in the Inbox.
  */
 function personRows(rows: TodayQueueRowVM[], nav: Nav, acts: RowActs) {
-  const { done, say } = acts;
+  const { done, say, answer } = acts;
   const verb = { kind: acts.kind };
   return rows.map((r) => {
     // A visit to mark asks "Did they come?" with two verbs of its own, Kept and Missed, and its door is the visit on the Calendar.
-    const asks = r.kind === "visit" ? visitActs(r, verb.kind(), say) : null;
+    // A time a customer picked by text asks Booked it or Can't, and its door is the thread (decision 0061).
+    const asks =
+      r.kind === "visit" ? visitActs(r, verb.kind(), say) : r.request ? requestActs(r, verb.kind(), answer) : null;
     return (
       <AttnRow
         key={r.id}
@@ -288,6 +293,8 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
   const [done, setDone] = useState<readonly string[]>([]);
   // The visits marked here, gone from the card the same way while the Calendar is read again behind the verb.
   const [marked, setMarked] = useState<readonly string[]>([]);
+  // The requests answered here, by their thread, gone from the card the same way while Today is read again.
+  const [answered, setAnswered] = useState<readonly string[]>([]);
   // The runs with an Approve or a Cancel on its way: their buttons wait for the server (S9-10).
   const acting = useRunsActing();
   const nav: Nav = (to) => appNavigate(to);
@@ -300,7 +307,12 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
   const rows = TODAY_HELPERS.withVisitsAsked(
     TODAY_HELPERS.withSteps(TODAY_HELPERS.withReplies(vm.queue.rows), steps),
     visits,
-  ).filter((r) => !(r.step && done.includes(r.step.note_id)) && !(r.visit && marked.includes(r.visit.id)));
+  ).filter(
+    (r) =>
+      !(r.step && done.includes(r.step.note_id)) &&
+      !(r.visit && marked.includes(r.visit.id)) &&
+      !(r.request && answered.includes(r.request.conversationId)),
+  );
   // One primary verb on the page: the first row's. Every other verb is drawn, quietly.
   let primaryLeft = true;
   const verbKind: VerbKind = () => {
@@ -319,6 +331,8 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
         show: (noteId) => setDone((was) => was.filter((id) => id !== noteId)),
       }),
     say: (r, status) => visitSay(r, status, { flash: ppFlash, hide: (markId) => setMarked((was) => [...was, markId]) }),
+    answer: (r, booked) =>
+      requestAnswer(r, booked, { flash: ppFlash, hide: (threadId) => setAnswered((was) => [...was, threadId]) }),
   });
   // A person who has been waiting comes before a run waiting for a word, so runs take only what is left.
   const {

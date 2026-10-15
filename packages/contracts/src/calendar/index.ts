@@ -172,6 +172,20 @@ export { spanForView, windowFor, coversSpan, frameOf } from "./calendar-views";
 export type { CalendarView } from "./calendar-views";
 export { calendarPersonFactsOf, calendarPersonOf } from "./visit/calendar-person-facts";
 export { visitSheetOf, CALENDAR_VISIT_SHEET_WORDS } from "./visit/visit-sheet";
+export {
+  BOOKING_REQUEST_INSTRUCTION,
+  BOOKING_REQUEST_REFUSALS,
+  BOOKING_REQUEST_SCHEMA_FIELDS,
+  bookingRequestRefusalOf,
+  BOOKING_REQUEST_WORDS,
+  requestedBookingOf,
+  slotLong,
+  slotShort,
+  takesBookingRequests,
+  type BookingRequestFields,
+  type BookingRequestTerms,
+  type RequestedBooking,
+} from "./visit/booking-request";
 export type {
   VisitSheetVM,
   VisitSheetInput,

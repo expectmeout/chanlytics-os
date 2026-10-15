@@ -250,6 +250,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST conversations/[id]/snooze": thread,
   "POST conversations/[id]/wake": thread,
   "POST conversations/[id]/archive": thread,
+  // A time a customer picked by text, answered (decision 0061): the thread's hold, and the visit it booked or let go.
+  "POST conversations/[id]/booking-request": () => [...thread(), ...visits()],
   "POST conversations/[id]/reply": thread,
   "POST escalations/[id]/resolve": thread,
   "POST messages/[id]/steer": thread,

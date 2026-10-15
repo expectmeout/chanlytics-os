@@ -101,6 +101,11 @@ export const FeaturesConfigSchema = z
     ads_preview: z.boolean().optional(),
     /** Campaigns › Sequences (decision 0060), drawn in this workspace before it replaces the home (contracts sequences). */
     sequences_preview: z.boolean().optional(),
+    /**
+     * Booking requests (decision 0061): where the team confirms its own bookings, a time a customer picks by text is held
+     * for the owner as a request (Booked it or Can't). Off, the conversation is a person's to read, as before.
+     */
+    booking_requests: z.boolean().optional(),
   })
   .strip();
 export type FeaturesConfig = z.infer<typeof FeaturesConfigSchema>;

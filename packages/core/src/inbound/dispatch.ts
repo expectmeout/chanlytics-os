@@ -3,6 +3,7 @@
  * draft, the hold that could not be written, and the send, told apart by what the wire answered.
  */
 import type { Json } from "@chanlytics/db";
+import { reasonLabelOf } from "@chanlytics/contracts";
 import { holdPlan } from "./steps";
 import { GO, type Answering } from "./context";
 import { handledOf, noteHandledAfter, processedAfter, SET_ASIDE, type Asked } from "./handled";
@@ -76,6 +77,21 @@ export async function planTheHold(at: Answering, turn: Turn) {
 
 type Hold = Awaited<ReturnType<typeof planTheHold>>;
 
+/**
+ * The turn's hold: a booking the receptionist asks for opens its record beside it, through the sink's own door (decision
+ * 0061); a sink without one hands the thread to a person to reply (booking_reply). Every other hold is the hold.
+ */
+function turnHold(at: Answering, turn: Turn, details: string): Asked {
+  const { sink } = at;
+  const req = turn.bookingRequest;
+  if (!req) return sink.escalate(turn.escalationReason, details);
+  return sink.request ? sink.request(req, details) : sink.escalate("booking_reply", details);
+}
+
+/** What the people told of a handoff read as its cause. */
+const handoffWhy = (turn: Turn, otherwise: string): string =>
+  turn.bookingRequest ? reasonLabelOf("booking_request") : otherwise;
+
 /** A veto window that did not happen is recorded; a hold that could not be written keeps the words; a draft waits. */
 export async function heldOrKept(
   at: Answering,
@@ -84,7 +100,7 @@ export async function heldOrKept(
   bodyText: string,
 ): Promise<typeof GO | undefined> {
   const { sink, pauseMs, tell, pauseHours, L } = at;
-  const { usage, brainMeta, replyText, escalate, escalationReason, fallback } = turn;
+  const { usage, brainMeta, replyText, escalate, fallback } = turn;
   const { plan, delayMs, heldForConfidence, queued, replyQuality } = hold;
   // A veto window that was CONFIGURED and did not happen must not pass in
   // silence. The fallback below is deliberate — an un-vetoed reply beats no
@@ -140,8 +156,9 @@ export async function heldOrKept(
       post.push(
         sink.pause(new Date(Date.now() + pauseMs).toISOString(), typeof queued === "string" ? queued : undefined),
       );
-      asked = sink.escalate(
-        escalationReason,
+      asked = turnHold(
+        at,
+        turn,
         fallback
           ? fallback.escalationDetails(bodyText)
           : brainMeta?.reason
@@ -153,7 +170,7 @@ export async function heldOrKept(
         tell(asked, {
           said: bodyText,
           answered: replyText,
-          why: "assistant flagged handoff (reply held for review)",
+          why: handoffWhy(turn, "assistant flagged handoff (reply held for review)"),
           pausedHours: pauseHours,
         }),
       );
@@ -169,7 +186,7 @@ export async function heldOrKept(
 /** The reply goes out now, and what the wire answered decides what follows. */
 export async function sendNow(at: Answering, turn: Turn, hold: Hold, bodyText: string): Promise<void> {
   const { send, sink, pauseMs, tell, pauseHours, L, ingestMs } = at;
-  const { replyText, fallback, brainMeta, usage, escalate, escalationReason } = turn;
+  const { replyText, fallback, brainMeta, usage, escalate } = turn;
   const { replyQuality } = hold;
   const sent = await send(
     replyText,
@@ -183,8 +200,9 @@ export async function sendNow(at: Answering, turn: Turn, hold: Hold, bodyText: s
     if (usage) post.push(sink.usage({ ...usage, ...replyQuality }));
     if (escalate) {
       post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
-      asked = sink.escalate(
-        escalationReason,
+      asked = turnHold(
+        at,
+        turn,
         fallback
           ? fallback.escalationDetails(bodyText)
           : brainMeta?.reason
@@ -196,7 +214,7 @@ export async function sendNow(at: Answering, turn: Turn, hold: Hold, bodyText: s
         tell(asked, {
           said: bodyText,
           answered: replyText,
-          why: fallback ? fallback.alertReason : "assistant flagged handoff",
+          why: fallback ? fallback.alertReason : handoffWhy(turn, "assistant flagged handoff"),
           pausedHours: pauseHours,
         }),
       );

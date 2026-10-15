@@ -423,7 +423,15 @@ var ESCALATION_REASONS = [
   /** A text arrived on a line the carriers have not approved for texting yet: kept, a person answers. */
   "carriers",
   /** An email a person must read before anyone answers it (00127). */
-  "email_review"
+  "email_review",
+  /** A time the customer picked by text, held for the owner to confirm (00443, decision 0061): Booked it or Can't. */
+  "booking_request",
+  /**
+   * A time the customer asked for by text that a person answers (00443, decision 0061): the owner said Can't, or the
+   * time was not one the code found open, or the request could not be kept. The receptionist told them the team will
+   * confirm, so a reply is owed.
+   */
+  "booking_reply"
 ];
 var ESCALATION_STATES = ["open", "resolved"];
 var DECISION_VERBS = [
@@ -555,7 +563,12 @@ var DECISION_VERBS = [
    * sent let go (sequence_discard): subject 'sequence', payload its steps and whether it started, or its name and state.
    */
   "make_sequence",
-  "discard_sequence"
+  "discard_sequence",
+  /**
+   * A member answered a booking the receptionist asked for (00443 booking_request_answer, decision 0061): booked, or not,
+   * subject 'appointment' (the request's row), payload booked, its start, the person and the service.
+   */
+  "answer_booking_request"
 ];
 var DECISION_SUBJECTS = [
   "conversation",
@@ -790,7 +803,9 @@ var ESCALATION_REASON_LABELS = {
   callback: "Needs a call back \u2014 the phone receptionist could not finish it",
   paused: "Held \u2014 the workspace is paused until billing resumes",
   carriers: "Held \u2014 the carriers have not approved this line for texting yet",
-  email_review: "Wrote by email \u2014 a person answers"
+  email_review: "Wrote by email \u2014 a person answers",
+  booking_request: "Asked to book a time \u2014 confirm it or say you can't",
+  booking_reply: "Asked to book a time \u2014 reply to them"
 };
 var ESCALATION_REASON_SHORT = {
   human_token: "asked for a person",
@@ -811,7 +826,9 @@ var ESCALATION_REASON_SHORT = {
   callback: "needs a call back",
   paused: "the workspace is paused until billing resumes",
   carriers: "the carriers have not approved this line",
-  email_review: "wrote by email"
+  email_review: "wrote by email",
+  booking_request: "asked to book a time",
+  booking_reply: "asked to book a time"
 };
 function reasonShort(reason) {
   if (!reason) return "";
@@ -836,7 +853,9 @@ var ESCALATION_REASON_WHY = {
   callback: "because they need a call back",
   paused: "because the workspace is paused",
   carriers: "while waiting on carriers",
-  email_review: "because they wrote by email"
+  email_review: "because they wrote by email",
+  booking_request: "because they asked to book a time",
+  booking_reply: "because they asked to book a time"
 };
 function reasonWhy(reason) {
   return ESCALATION_REASON_WHY[reason] ?? `because ${reasonShort(reason)}`;
@@ -860,7 +879,9 @@ var ESCALATION_SUMMARIES = {
   callback: "They phoned and the receptionist couldn't finish it.",
   paused: "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself.",
   carriers: "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
-  email_review: "They wrote by email. The receptionist does not answer email yet, so nothing was sent. Read it and reply from here."
+  email_review: "They wrote by email. The receptionist does not answer email yet, so nothing was sent. Read it and reply from here.",
+  booking_request: "They picked a time the calendar shows open, and the receptionist told them the team will confirm it. That's you: Booked it, or Can't and reply.",
+  booking_reply: "They asked to book a time, and the receptionist told them the team will confirm. Reply with a time that works."
 };
 function reasonLabelOf(reason) {
   return ESCALATION_REASON_LABELS[reason] ?? reason;
@@ -887,7 +908,9 @@ var ESCALATION_ACTS = {
   callback: "call_back",
   paused: "reply",
   carriers: "reply",
-  email_review: "reply"
+  email_review: "reply",
+  booking_request: "confirm",
+  booking_reply: "reply"
 };
 function holdActOf(reason) {
   return ESCALATION_ACTS[reason ?? ""] ?? "reply";
@@ -910,7 +933,9 @@ function holdWaits(hold) {
 var HOLD_ACT_WORDS = {
   reply: { cta: "Open and reply", take: "I'll answer this", notice: "Reply from the Inbox." },
   call_back: { cta: "Open the call", take: "Call back", notice: "Call them back." },
-  hand_back: { cta: "Open the thread", take: null, notice: "Nothing can be sent to them." }
+  hand_back: { cta: "Open the thread", take: null, notice: "Nothing can be sent to them." },
+  // A booking request (decision 0061): Booked it confirms it; Can't is its second button, and leaves the thread to a reply.
+  confirm: { cta: "Booked it", take: "Booked it", notice: "Confirm it or say you can't." }
 };
 
 // src/shared/time.ts
@@ -4743,6 +4768,104 @@ var INTENT_LABELS = {
   other: "Other"
 };
 
+// src/calendar/visit/booking-request.ts
+var BOOKING_REQUEST_SCHEMA_FIELDS = {
+  booking_slot: {
+    type: "string",
+    description: "When the customer picked one of the open times you were given: its start as YYYY-MM-DD HH:MM on the business's clock. Empty otherwise."
+  },
+  booking_service: {
+    type: "string",
+    description: "When the customer picked a time: the service it is for, exactly as the business lists it, or empty when they did not say. Empty otherwise."
+  }
+};
+var BOOKING_REQUEST_INSTRUCTION = "When they pick one, put its start in booking_slot and the service in booking_service, and tell them the team will confirm it shortly. Never confirm a slot yourself.";
+function takesBookingRequests(o) {
+  return o.switchOn && (!o.linkInChat || o.bookingHeld);
+}
+var SLOT = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})$/;
+function requestedBookingOf(input) {
+  const slot = (input.slot ?? "").trim();
+  if (!slot) return { ok: false, why: "no_slot" };
+  const m = SLOT.exec(slot);
+  if (!m) return { ok: false, why: "unreadable" };
+  const [y = 0, mo = 0, d = 0, hh = 0, mm = 0] = m.slice(1).map(Number);
+  if (mo < 1 || mo > 12 || d < 1 || d > 31 || hh > 23 || mm > 59) return { ok: false, why: "unreadable" };
+  const startMs = localToUtcMs(input.tz, y, mo, d, hh, mm);
+  const back = dayInZone(input.tz, startMs);
+  const clock3 = clockInZone(input.tz, startMs);
+  if (back.y !== y || back.m !== mo || back.d !== d || clock3.hh !== hh || clock3.mm !== mm)
+    return { ok: false, why: "unreadable" };
+  const named = (input.service ?? "").trim();
+  const listed = named ? input.services.find(
+    (s) => s.name.trim().toLowerCase().replace(/\s+/g, " ") === named.toLowerCase().replace(/\s+/g, " ")
+  ) : void 0;
+  if (named && !listed) return { ok: false, why: "unknown_service" };
+  const minutes = listed?.duration_min && listed.duration_min > 0 ? listed.duration_min : input.slotMin;
+  const endMs = startMs + minutes * MIN_MS;
+  const fits = input.openings.some((o) => o.windows.some((w) => startMs >= w.start && endMs <= w.end));
+  if (!fits) return { ok: false, why: "not_open" };
+  return { ok: true, startMs, endMs, service: listed ? listed.name.trim() : null };
+}
+function slotShort(atMs, tz) {
+  return dateFormat("en-US", {
+    timeZone: tz,
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(new Date(atMs));
+}
+function slotLong(atMs, tz) {
+  const day = dateFormat("en-US", { timeZone: tz, weekday: "long", month: "long", day: "numeric" }).format(
+    new Date(atMs)
+  );
+  const time = dateFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(new Date(atMs));
+  return `${day} at ${time}`;
+}
+var BOOKING_REQUEST_WORDS = {
+  /** The hold's line (its details): what was asked for. */
+  hold: (when, service) => `Asked for ${when}${service ? ` \xB7 ${service}` : ""}`,
+  /** The line Can't leaves on the thread, which now waits on a reply. */
+  cant: (when, service) => `Could not book ${when}${service ? ` \xB7 ${service}` : ""}: reply to them`,
+  /** The reply Booked it drafts, for the owner to send: the row's own words. */
+  booked: (when, service) => `You're booked for ${when}${service ? ` for ${articled(service)}` : ""}.`,
+  booked_it: "Booked it",
+  cant_it: "Can't",
+  /** The board's word for a request, and its sheet's foot. */
+  requested: "Requested",
+  foot: "Requested by text \xB7 Booked it or Can't",
+  /** Its sheet's foot once answered: it is on no calendar, so it is changed with them, in their thread. */
+  footBooked: "Booked by text \xB7 change it with them in their thread",
+  footCant: "Asked for by text \xB7 you couldn't take it",
+  /** What the role gate says the two presses are, to a member who may not press them. */
+  gate: "confirm a booking",
+  /** What a page says once a press is taken: booked, and the reply waiting in the thread; or theirs to answer. */
+  said: {
+    booked: (who) => `Booked. Tell ${who} in the thread.`,
+    cant: (who) => `${who} is waiting on your reply`
+  },
+  /** The switch, in Settings › Business, the booking tool's fold. */
+  setting: {
+    name: "Booking requests",
+    says: "Where you confirm bookings yourself, a time a customer picks by text waits on Today: Booked it, or Can't."
+  }
+};
+var BOOKING_REQUEST_REFUSALS = {
+  none: "Nothing here waits to be confirmed: it was answered, or they asked for another time since.",
+  not_a_request: "That one wasn't asked for by text: say what became of it on the Calendar.",
+  answered: "It was answered already.",
+  expired: "It expired, so its time may have gone to someone else: check the calendar and reply to them, or press Can't."
+};
+function bookingRequestRefusalOf(code2) {
+  const words2 = BOOKING_REQUEST_REFUSALS;
+  return code2 && Object.hasOwn(words2, code2) ? words2[code2] ?? null : null;
+}
+function articled(service) {
+  return `${/^[aeiou]/i.test(service) ? "an" : "a"} ${service}`;
+}
+
 // src/config/brain.ts
 var BRAIN_INTENTS = [
   "booking",
@@ -4796,6 +4919,14 @@ var BRAIN_OUTPUT_JSON_SCHEMA = {
   required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
   additionalProperties: false
 };
+function brainOutputSchemaFor(o) {
+  if (!o.bookingRequests) return BRAIN_OUTPUT_JSON_SCHEMA;
+  return {
+    ...BRAIN_OUTPUT_JSON_SCHEMA,
+    properties: { ...BRAIN_OUTPUT_JSON_SCHEMA.properties, ...BOOKING_REQUEST_SCHEMA_FIELDS },
+    required: [...BRAIN_OUTPUT_JSON_SCHEMA.required, "booking_slot", "booking_service"]
+  };
+}
 function brainMetaOf(out, model, stamp) {
   return {
     intent: out.intent,
@@ -8261,6 +8392,7 @@ var WORDS = {
   leave_sequence: "Took people out of a sequence",
   make_sequence: "Made a sequence",
   discard_sequence: "Let a sequence go",
+  answer_booking_request: "Answered a request to book",
   // events
   "message.received": "A customer wrote",
   "message.sent": "A message went out",
@@ -8890,7 +9022,8 @@ var VERB_FAMILY = {
   change_step: "campaigns",
   leave_sequence: "campaigns",
   make_sequence: "campaigns",
-  discard_sequence: "campaigns"
+  discard_sequence: "campaigns",
+  answer_booking_request: "calendar"
 };
 var PREFIX_FAMILY = {
   message: "conversations",
@@ -11033,6 +11166,11 @@ function describeOpenings(openings, tz, opts) {
     return `Open times (from the calendar): nothing is open in the next ${ahead} days. ${instead}`;
   }
   const lines = openings.slice(0, maxDays).map((o) => `- ${o.label}: ${o.windows.map((w) => span(tz, w.start, w.end)).join(", ")}`);
+  const confirms = held || !hasLink;
+  if (opts.requests === true && confirms)
+    return `Open times (from the calendar, checked just now \u2014 these change as bookings come in):
+${lines.join("\n")}
+Offer up to three of these that fit what they want. ${BOOKING_REQUEST_INSTRUCTION}` + (held ? " This business confirms its own bookings: never send or promise the booking link." : "");
   return `Open times (from the calendar, checked just now \u2014 these change as bookings come in):
 ${lines.join("\n")}
 ` + (held ? "Offer up to three of these that fit what they want, then say a member of the team will call or text them to confirm, and take their name. This business confirms its own bookings: never send or promise the booking link, and never confirm a slot yourself." : hasLink ? "Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides." : `Offer up to three of these that fit what they want, then take ${NO_LINK_DETAILS} so the team can confirm one. Never confirm a slot yourself; the calendar decides.`);
@@ -16095,6 +16233,17 @@ var threadVerbSpec = {
   },
   open: cardThreadRoute
 };
+var bookingRequestSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: (p) => ({
+    route: "POST conversations/[id]/booking-request",
+    params: { id: asText(p.payload.conversation_id) },
+    body: { booked: p.payload.booked === true }
+  }),
+  receipt: (p) => p.payload.booked === true ? BOOKING_REQUEST_WORDS.said.booked(asText(p.payload.who)) : BOOKING_REQUEST_WORDS.said.cant(asText(p.payload.who)),
+  open: cardThreadRoute
+};
 var whisperSpec = {
   needs: "operator",
   gate: "approve",
@@ -19135,7 +19284,9 @@ var VERB_SPECS = /* @__PURE__ */ (() => ({
   sequence_draft: sequenceDraftSpec,
   sequence_make: sequenceMakeSpec,
   sequence_start: sequenceStartSpec,
-  sequence_discard: sequenceDiscardSpec
+  sequence_discard: sequenceDiscardSpec,
+  // A booking the receptionist asked for, answered on Today, in the Inbox and on the Calendar (decision 0061).
+  booking_request: bookingRequestSpec
 }))();
 function verbSpec(kind) {
   return Object.prototype.hasOwnProperty.call(VERB_SPECS, kind) ? VERB_SPECS[kind] : null;
@@ -22902,7 +23053,13 @@ function consultsHeldWords(n) {
 }
 
 // src/calendar/feed-appointments.ts
-var APPOINTMENT_SOURCES = ["calendar_feed", "booking_email", "booking_tool", "person"];
+var APPOINTMENT_SOURCES = [
+  "calendar_feed",
+  "booking_email",
+  "booking_tool",
+  "person",
+  "receptionist"
+];
 var APPOINTMENT_STATUSES = ["proposed", "booked", "kept", "missed", "cancelled"];
 var APPOINTMENT_KEY_MAX = 512;
 function feedAppointmentRows(items, o) {
@@ -23063,7 +23220,9 @@ function itemOfAppointment(row2, people) {
     service: row2.service,
     staff: row2.staff,
     price: row2.price,
-    visit: visitMarkOf(row2)
+    visit: visitMarkOf(row2),
+    // A time a customer picked by text: answered in its thread, Booked it or Can't, while it is open (decision 0061).
+    ...row2.source === "receptionist" && row2.conversation_id ? { request: { thread_id: row2.conversation_id, open: row2.status === "proposed" } } : {}
   };
 }
 function withoutVisitsRowsDraw(items, rows2, own) {
@@ -23357,6 +23516,7 @@ function toBlock(item, tz, dayStartMs, dayEndMs, now) {
     start: item.start,
     end: item.end,
     visit: item.visit ?? null,
+    ...item.request ? { request: { threadId: item.request.thread_id, open: item.request.open } } : {},
     lane: 0,
     lanes: 1
   };
@@ -26811,6 +26971,8 @@ function visitRowsOf(i, ended, facts) {
 function footnoteOf(i, nobody) {
   const b = i.block;
   if (nobody) return SHEET_WORDS.foot.nobody(i.source);
+  if (b.request)
+    return b.request.open ? BOOKING_REQUEST_WORDS.foot : b.visit?.status === "cancelled" ? BOOKING_REQUEST_WORDS.footCant : BOOKING_REQUEST_WORDS.footBooked;
   const status = b.visit?.status;
   if (b.tool) {
     if (status === "proposed") return SHEET_WORDS.foot.requested(b.tool);
@@ -26823,6 +26985,7 @@ function footnoteOf(i, nobody) {
 var linkGoes = (i) => !!i.bookingLink && !!i.block.person?.threadId && !!i.block.person.bookingLinkAction.offered;
 function primaryOf(i, line, proposal, proposalWords) {
   const b = i.block;
+  if (b.request?.open) return { act: "booked", label: BOOKING_REQUEST_WORDS.booked_it, quiet: false };
   if (!b.person) return addToPeopleOf(b) ? { act: "add", label: ADD_TO_PEOPLE_WORDS.act, quiet: false } : null;
   const message = { act: "message", label: SHEET_WORDS.message(firstOf(b.person.name)), quiet: false };
   const status = b.visit?.status;
@@ -26846,7 +27009,8 @@ function visitMoreOf(i, line, phone) {
   if (b.person?.facts?.deal && i.dealsOn) add("deal", M.deal);
   if (b.visit?.status === "kept" && line.acts.includes("missed")) add("missed", M.missed);
   if (b.visit?.status === "missed" && line.acts.includes("kept")) add("kept", M.kept);
-  if (line.acts.includes("cancelled"))
+  if (b.request?.open) add("cant", BOOKING_REQUEST_WORDS.cant_it, true);
+  else if (line.acts.includes("cancelled"))
     add("cancel", b.visit?.status === "proposed" ? M.cancelRequest : appointmentWords(i.word).cancelAct, true);
   if (b.person) add("page", M.page);
   return out;
@@ -27108,6 +27272,7 @@ var CANNOT_NO_LINK = {
   book: "Not a setting you could switch on. Nothing in this product can create, move or cancel an appointment. Your team does that, from the details it takes.",
   sms: "Not part of what is sold yet. It arrives with a line the carriers have approved, and Connections will say when."
 };
+var CANNOT_REQUESTS_BOOK = "Not a setting you could switch on: it never books, moves or cancels an appointment itself. A time a customer picks by text waits on Today for your Booked it or Can't.";
 function cannotRows(i) {
   if (typeof i?.smsLive !== "boolean") {
     throw new TypeError("cannotRows needs true or false for smsLive: left out, texting would be drawn as not sold.");
@@ -27118,7 +27283,7 @@ function cannotRows(i) {
     );
   }
   return CANNOT_ROWS.filter((r2) => !(r2.id === "sms" && i.smsLive)).map(
-    (r2) => !i.hasBookingLink && CANNOT_NO_LINK[r2.id] ? { ...r2, detail: CANNOT_NO_LINK[r2.id] } : r2
+    (r2) => r2.id === "book" && i.takesRequests === true ? { ...r2, detail: CANNOT_REQUESTS_BOOK } : !i.hasBookingLink && CANNOT_NO_LINK[r2.id] ? { ...r2, detail: CANNOT_NO_LINK[r2.id] } : r2
   );
 }
 
@@ -33689,6 +33854,17 @@ function callbackRow(r2) {
 }
 function handoffRow(r2) {
   const e = r2.e;
+  if (e.reason === "booking_request")
+    return {
+      ...handoffOf(r2),
+      sentence: say(e.details) || reasonLabelOf(e.reason),
+      quoted: false,
+      request: { conversationId: e.conversation_id }
+    };
+  return handoffOf(r2);
+}
+function handoffOf(r2) {
+  const e = r2.e;
   return {
     id: `q-${e.id}`,
     kind: "handoff",
@@ -39866,6 +40042,7 @@ var ROUTE_KEYS = [
   "POST contacts/[id]/notes/seen",
   "POST contacts/import",
   "POST conversations/[id]/archive",
+  "POST conversations/[id]/booking-request",
   "POST conversations/[id]/hand-back",
   "POST conversations/[id]/reply",
   "POST conversations/[id]/snooze",
@@ -40023,7 +40200,7 @@ var SCHEMA_SETS = {
     "gone"
   ],
   "appointment_notices.outcome": ["booked", "changed", "cancelled", "held", "dismissed"],
-  "appointments.source": ["calendar_feed", "booking_email", "booking_tool", "person"],
+  "appointments.source": ["calendar_feed", "booking_email", "booking_tool", "person", "receptionist"],
   "appointments.status": ["proposed", "booked", "kept", "missed", "cancelled"],
   "ask_messages.role": ["user", "assistant"],
   "ask_voice_sessions.end_reason": ["button", "typed", "superseded", "navigated", "vendor", "start", "idle"],
@@ -40133,7 +40310,8 @@ var SCHEMA_SETS = {
     "change_step",
     "leave_sequence",
     "make_sequence",
-    "discard_sequence"
+    "discard_sequence",
+    "answer_booking_request"
   ],
   "escalations.reason": [
     "human_token",
@@ -40154,7 +40332,9 @@ var SCHEMA_SETS = {
     "callback",
     "paused",
     "carriers",
-    "email_review"
+    "email_review",
+    "booking_request",
+    "booking_reply"
   ],
   "escalations.state": ["open", "resolved"],
   "event_deliveries.state": ["scheduled", "done", "failed", "paused"],
@@ -47269,6 +47449,10 @@ export {
   BOOKING_LINK_NEEDED,
   BOOKING_PLATFORM_HOSTS,
   BOOKING_PLATFORM_TOOLS,
+  BOOKING_REQUEST_INSTRUCTION,
+  BOOKING_REQUEST_REFUSALS,
+  BOOKING_REQUEST_SCHEMA_FIELDS,
+  BOOKING_REQUEST_WORDS,
   BOOKING_RULE_HINTS,
   BOOKING_TOOL_IDS,
   BOOKING_TOOL_STEPS,
@@ -48310,6 +48494,7 @@ export {
   bookingPageKept,
   bookingPageOf,
   bookingPageOffered,
+  bookingRequestRefusalOf,
   bookingRuleRefusal,
   bookingRulesWords,
   bookingTemplate,
@@ -48322,6 +48507,7 @@ export {
   booksWithOf,
   booksWithOptions,
   brainMetaOf,
+  brainOutputSchemaFor,
   breathSplit,
   breathTouchOf,
   breathWaitWords,
@@ -49517,6 +49703,7 @@ export {
   reportsParamParts,
   reportsRouteParts,
   requestCodeWords,
+  requestedBookingOf,
   rereadAt,
   resendLeft,
   resolveFacts,
@@ -49666,6 +49853,8 @@ export {
   slotKnown,
   slotLabel,
   slotLabels,
+  slotLong,
+  slotShort,
   slotToWrite,
   slotValueOf,
   slotWritten,
@@ -49736,6 +49925,7 @@ export {
   stoppedRunFix,
   suggestLocalPart,
   sumOf,
+  takesBookingRequests,
   takesSignUps,
   telHref,
   templateBlocked,

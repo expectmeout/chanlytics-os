@@ -933,6 +933,149 @@ COMMENT ON FUNCTION public.billing_may_spend(p_tenant_id uuid) IS 'Whether this 
 
 
 --
+-- Name: booking_request_answer(uuid, boolean, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.booking_request_answer(p_appointment_id uuid, p_booked boolean, p_via text DEFAULT NULL::text, p_reply_words text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor    uuid := auth.uid();
+  v_row      public.appointments%rowtype;
+  v_handed   jsonb;
+  v_words    text;
+begin
+  -- The caller is auth.uid(), read here, never a parameter (00021's rule): the answer is theirs.
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_booked is null then
+    raise exception 'booking_request_answer: booked, or not' using errcode = '22004';
+  end if;
+  select * into v_row from public.appointments where id = p_appointment_id for update;
+  -- One the caller does not act in is one they cannot see: a stranger learns nothing.
+  if not found or not public.is_acting_member(v_row.tenant_id) then
+    raise exception 'Appointment not found.' using errcode = 'P0002';
+  end if;
+  if v_row.source <> 'receptionist' then
+    return jsonb_build_object('error', 'not_a_request');
+  end if;
+  if v_row.status <> 'proposed' then
+    return jsonb_build_object('error', 'answered', 'status', v_row.status);
+  end if;
+  -- Past its expiry the request took no slot, so its time may have gone to someone else: it is not booked blind. Can't
+  -- still answers it.
+  if p_booked and v_row.expires_at is not null and v_row.expires_at <= now() then
+    return jsonb_build_object('error', 'expired');
+  end if;
+  -- A booking no longer expires: it stands on the board until a member says what became of it.
+  update public.appointments set status = case when p_booked then 'booked' else 'cancelled' end,
+                                 expires_at = case when p_booked then null else expires_at end
+   where id = v_row.id;
+  if v_row.conversation_id is not null then
+    if p_booked then
+      -- Booked: the thread goes back to the receptionist through the hand-back door (00386), which resolves its hold as
+      -- the member's decision; a booked visit is then the receptionist's to speak of, as any other is.
+      if exists (select 1 from public.escalations e
+                  where e.tenant_id = v_row.tenant_id and e.conversation_id = v_row.conversation_id
+                    and e.state = 'open' and e.reason = 'booking_request') then
+        v_handed := public.conversation_hand_back(v_row.tenant_id, v_row.conversation_id, p_via, null);
+      end if;
+    elsif exists (select 1 from public.escalations e
+                   where e.tenant_id = v_row.tenant_id and e.conversation_id = v_row.conversation_id
+                     and e.state = 'open' and e.reason = 'booking_request') then
+      -- The line the dashboard words (contracts), else the time and the service as they stand.
+      v_words := coalesce(nullif(btrim(coalesce(p_reply_words, '')), ''),
+                          'Could not book '
+                          || to_char(v_row.starts_at at time zone v_row.timezone, 'Dy FMDD Mon, FMHH12:MI AM')
+                          || coalesce(' · ' || v_row.service, '') || ': reply to them');
+      perform public.escalation_open(v_row.tenant_id, v_row.conversation_id, 'booking_reply', v_words);
+    end if;
+  end if;
+  return jsonb_build_object('appointment', jsonb_build_object('id', v_row.id,
+                                                              'status', case when p_booked then 'booked' else 'cancelled' end),
+                            'hold', case when coalesce((v_handed ->> 'resolved_escalations')::int, 0) > 0 then 'resolved'
+                                         when not p_booked and v_words is not null then 'reply' end)
+      || public.team_decision(v_row.tenant_id, v_actor, 'appointment', v_row.id, 'answer_booking_request',
+                              jsonb_build_object('booked', p_booked, 'starts_at', v_row.starts_at,
+                                                 'contact_id', v_row.contact_id, 'service', v_row.service),
+                              p_via, null);
+end $$;
+
+
+--
+-- Name: FUNCTION booking_request_answer(p_appointment_id uuid, p_booked boolean, p_via text, p_reply_words text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.booking_request_answer(p_appointment_id uuid, p_booked boolean, p_via text, p_reply_words text) IS 'The owner answers a booking the receptionist asked for (00443, decision 0061): booked, which hands the thread back and so resolves its booking_request hold (conversation_hand_back), or not, which cancels the row and turns the hold into a reply (booking_reply) so the customer is answered; the answer_booking_request decision as theirs, and appointment.changed by the triggers. A refusal is {error}: not_a_request, answered (with its status), expired (Booked it past the request''s expiry). Returns the appointment''s id and status, the hold (resolved, reply or null) and the decision''s id.';
+
+
+--
+-- Name: booking_request_open(uuid, uuid, uuid, timestamp with time zone, timestamp with time zone, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.booking_request_open(p_tenant_id uuid, p_conversation_id uuid, p_contact_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_words text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_contact  public.contacts%rowtype;
+  v_expires  timestamptz;
+  v_id       uuid;
+  v_replaced uuid[];
+  v_hold     text;
+begin
+  if p_tenant_id is null or p_conversation_id is null or p_contact_id is null
+     or p_starts_at is null or p_ends_at is null or nullif(btrim(coalesce(p_timezone, '')), '') is null then
+    raise exception 'booking_request_open: a request is for a person, in a thread, at a time' using errcode = '22004';
+  end if;
+  if p_ends_at <= p_starts_at then
+    raise exception 'booking_request_open: a slot ends after it starts' using errcode = '22023';
+  end if;
+  v_expires := least(now() + interval '1 day', p_starts_at - interval '1 hour');
+  if v_expires <= now() then
+    return jsonb_build_object('error', 'too_soon');
+  end if;
+  select * into v_contact from public.contacts c
+   where c.id = p_contact_id and c.tenant_id = p_tenant_id;
+  if not found then
+    raise exception 'booking_request_open: no such person in this workspace' using errcode = 'P0002';
+  end if;
+  if not exists (select 1 from public.conversations v
+                  where v.id = p_conversation_id and v.tenant_id = p_tenant_id) then
+    raise exception 'booking_request_open: no such thread in this workspace' using errcode = 'P0002';
+  end if;
+  -- One open request per person: the one they asked for before is cancelled, its slot free again.
+  with gone as (
+    update public.appointments a set status = 'cancelled'
+     where a.tenant_id = p_tenant_id and a.contact_id = p_contact_id
+       and a.source = 'receptionist' and a.status = 'proposed'
+    returning a.id
+  )
+  select coalesce(array_agg(id), '{}') into v_replaced from gone;
+  insert into public.appointments (tenant_id, contact_id, conversation_id, source, status, starts_at, ends_at,
+                                   title, service, client_name, client_phone, timezone, expires_at)
+  values (p_tenant_id, p_contact_id, p_conversation_id, 'receptionist', 'proposed', p_starts_at, p_ends_at,
+          nullif(btrim(coalesce(p_service, '')), ''), nullif(btrim(coalesce(p_service, '')), ''),
+          coalesce(nullif(btrim(coalesce(v_contact.display_name, '')), ''), nullif(btrim(coalesce(v_contact.wa_profile_name, '')), '')),
+          v_contact.phone_e164, p_timezone, v_expires)
+  returning id into v_id;
+  v_hold := public.escalation_open(p_tenant_id, p_conversation_id, 'booking_request',
+                                   coalesce(nullif(btrim(coalesce(p_words, '')), ''), 'Asked for a booking'));
+  return jsonb_build_object('appointment', jsonb_build_object('id', v_id, 'expires_at', v_expires),
+                            'replaced', to_jsonb(v_replaced), 'hold', v_hold);
+end $$;
+
+
+--
+-- Name: FUNCTION booking_request_open(p_tenant_id uuid, p_conversation_id uuid, p_contact_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_words text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.booking_request_open(p_tenant_id uuid, p_conversation_id uuid, p_contact_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_words text) IS 'A booking the receptionist asks for (00443, decision 0061): a proposed appointments row (source receptionist) that takes its slot until expires_at, and its thread''s hold (booking_request, through escalation_open) in one transaction; the person''s open request before it is cancelled. Answers {appointment: {id, expires_at}, replaced, hold}, or {error: too_soon} for a slot an hour away or less. The service role''s.';
+
+
+--
 -- Name: calendars_due(timestamp with time zone, integer, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -28973,9 +29116,11 @@ CREATE TABLE public.appointments (
     created_by uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    expires_at timestamp with time zone,
+    conversation_id uuid,
     CONSTRAINT appointments_check CHECK ((ends_at > starts_at)),
     CONSTRAINT appointments_client_phone_check CHECK (((client_phone IS NULL) OR (client_phone ~ '^\+[1-9][0-9]{6,14}$'::text))),
-    CONSTRAINT appointments_source_check CHECK ((source = ANY (ARRAY['calendar_feed'::text, 'booking_email'::text, 'booking_tool'::text, 'person'::text]))),
+    CONSTRAINT appointments_source_check CHECK ((source = ANY (ARRAY['calendar_feed'::text, 'booking_email'::text, 'booking_tool'::text, 'person'::text, 'receptionist'::text]))),
     CONSTRAINT appointments_status_check CHECK ((status = ANY (ARRAY['proposed'::text, 'booked'::text, 'kept'::text, 'missed'::text, 'cancelled'::text])))
 );
 
@@ -28985,6 +29130,20 @@ CREATE TABLE public.appointments (
 --
 
 COMMENT ON TABLE public.appointments IS 'One visit as a source stated it (decision 0002): a booking tool''s notice, the calendar feed, a tool''s door or a person; its client, what and with whom, and what became of it. Members read; the service role writes; the product never books.';
+
+
+--
+-- Name: COLUMN appointments.expires_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.appointments.expires_at IS 'When a request the receptionist took stops taking its slot (00443): the sooner of a day after it was asked and an hour before the slot. Null for every other row.';
+
+
+--
+-- Name: COLUMN appointments.conversation_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.appointments.conversation_id IS 'The thread a request the receptionist took came from (00443): where its hold is, and where the owner answers the customer.';
 
 
 --
@@ -29651,7 +29810,7 @@ CREATE TABLE public.decisions (
     CONSTRAINT decisions_actor_type_check CHECK ((actor_type = ANY (ARRAY['user'::text, 'ai'::text, 'system'::text, 'owner_phone'::text]))),
     CONSTRAINT decisions_actor_user_id_check CHECK (((actor_type = 'user'::text) OR (actor_user_id IS NULL))),
     CONSTRAINT decisions_subject_type_check CHECK ((subject_type = ANY (ARRAY['conversation'::text, 'escalation'::text, 'draft'::text, 'lead'::text, 'message'::text, 'agent'::text, 'membership'::text, 'invitation'::text, 'contact'::text, 'call'::text, 'channel'::text, 'broadcast'::text, 'playbook'::text, 'review'::text, 'workspace'::text, 'deal'::text, 'list'::text, 'appointment'::text, 'sequence'::text]))),
-    CONSTRAINT decisions_verb_check CHECK ((verb = ANY (ARRAY['approve'::text, 'edit'::text, 'decline'::text, 'snooze'::text, 'wake'::text, 'take_over'::text, 'hand_back'::text, 'resolve'::text, 'archive'::text, 'reply'::text, 'cancel_send'::text, 'pause_agent'::text, 'resume_agent'::text, 'invite'::text, 'revoke_invite'::text, 'change_role'::text, 'remove_member'::text, 'erase'::text, 'whisper'::text, 'connect_channel'::text, 'consent_change'::text, 'send_broadcast'::text, 'cancel_broadcast'::text, 'start_playbook'::text, 'pause_playbook'::text, 'reply_review'::text, 'export'::text, 'end_call'::text, 'record_deal'::text, 'make_list'::text, 'rename_list'::text, 'change_list_rule'::text, 'add_to_list'::text, 'drop_from_list'::text, 'archive_list'::text, 'restore_list'::text, 'delete_list'::text, 'import'::text, 'open_recording'::text, 'merge'::text, 'change_playbook'::text, 'mark_visit'::text, 'change_step'::text, 'leave_sequence'::text, 'make_sequence'::text, 'discard_sequence'::text])))
+    CONSTRAINT decisions_verb_check CHECK ((verb = ANY (ARRAY['approve'::text, 'edit'::text, 'decline'::text, 'snooze'::text, 'wake'::text, 'take_over'::text, 'hand_back'::text, 'resolve'::text, 'archive'::text, 'reply'::text, 'cancel_send'::text, 'pause_agent'::text, 'resume_agent'::text, 'invite'::text, 'revoke_invite'::text, 'change_role'::text, 'remove_member'::text, 'erase'::text, 'whisper'::text, 'connect_channel'::text, 'consent_change'::text, 'send_broadcast'::text, 'cancel_broadcast'::text, 'start_playbook'::text, 'pause_playbook'::text, 'reply_review'::text, 'export'::text, 'end_call'::text, 'record_deal'::text, 'make_list'::text, 'rename_list'::text, 'change_list_rule'::text, 'add_to_list'::text, 'drop_from_list'::text, 'archive_list'::text, 'restore_list'::text, 'delete_list'::text, 'import'::text, 'open_recording'::text, 'merge'::text, 'change_playbook'::text, 'mark_visit'::text, 'change_step'::text, 'leave_sequence'::text, 'make_sequence'::text, 'discard_sequence'::text, 'answer_booking_request'::text])))
 );
 
 
@@ -29690,7 +29849,7 @@ CREATE TABLE public.escalations (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     deadman_alerted_at timestamp with time zone,
     resolved_at timestamp with time zone,
-    CONSTRAINT escalations_reason_check CHECK ((reason = ANY (ARRAY['human_token'::text, 'non_text'::text, 'refusal'::text, 'rate_cap'::text, 'policy_block'::text, 'send_failed'::text, 'deadman'::text, 'brain_error'::text, 'manual'::text, 'opt_out'::text, 'state_unavailable'::text, 'stale'::text, 'person_hold'::text, 'budget'::text, 'policy_ask'::text, 'callback'::text, 'paused'::text, 'carriers'::text, 'email_review'::text]))),
+    CONSTRAINT escalations_reason_check CHECK ((reason = ANY (ARRAY['human_token'::text, 'non_text'::text, 'refusal'::text, 'rate_cap'::text, 'policy_block'::text, 'send_failed'::text, 'deadman'::text, 'brain_error'::text, 'manual'::text, 'opt_out'::text, 'state_unavailable'::text, 'stale'::text, 'person_hold'::text, 'budget'::text, 'policy_ask'::text, 'callback'::text, 'paused'::text, 'carriers'::text, 'email_review'::text, 'booking_request'::text, 'booking_reply'::text]))),
     CONSTRAINT escalations_state_check CHECK ((state = ANY (ARRAY['open'::text, 'resolved'::text])))
 );
 
@@ -34131,6 +34290,13 @@ CREATE INDEX appointments_lead ON public.appointments USING btree (tenant_id, le
 
 
 --
+-- Name: appointments_request_one; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX appointments_request_one ON public.appointments USING btree (tenant_id, contact_id) WHERE ((source = 'receptionist'::text) AND (status = 'proposed'::text));
+
+
+--
 -- Name: appointments_source_uq; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -37143,6 +37309,14 @@ ALTER TABLE ONLY public.appointment_notices
 
 ALTER TABLE ONLY public.appointments
     ADD CONSTRAINT appointments_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE SET NULL (contact_id);
+
+
+--
+-- Name: appointments appointments_conversation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.appointments
+    ADD CONSTRAINT appointments_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.conversations(id) ON DELETE SET NULL;
 
 
 --
@@ -40267,6 +40441,23 @@ GRANT ALL ON FUNCTION public.billing_event_keep_amount(p_id text, p_amount_cents
 
 REVOKE ALL ON FUNCTION public.billing_may_spend(p_tenant_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.billing_may_spend(p_tenant_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION booking_request_answer(p_appointment_id uuid, p_booked boolean, p_via text, p_reply_words text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.booking_request_answer(p_appointment_id uuid, p_booked boolean, p_via text, p_reply_words text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.booking_request_answer(p_appointment_id uuid, p_booked boolean, p_via text, p_reply_words text) TO authenticated;
+GRANT ALL ON FUNCTION public.booking_request_answer(p_appointment_id uuid, p_booked boolean, p_via text, p_reply_words text) TO service_role;
+
+
+--
+-- Name: FUNCTION booking_request_open(p_tenant_id uuid, p_conversation_id uuid, p_contact_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_words text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.booking_request_open(p_tenant_id uuid, p_conversation_id uuid, p_contact_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_words text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.booking_request_open(p_tenant_id uuid, p_conversation_id uuid, p_contact_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_words text) TO service_role;
 
 
 --

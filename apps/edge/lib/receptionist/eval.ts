@@ -22,7 +22,8 @@
 import { json, refuse } from "../http.js";
 import { workspaceFor, type Admitted } from "../admin-auth.js";
 import { pg } from "../pg.js";
-import { loadTenantRuntime } from "../tenant-runtime.js";
+import { loadTenantRuntime, type TenantRuntime } from "../tenant-runtime.js";
+import { openingsFor, takesRequests } from "../calendar/availability.js";
 import { resolveSystemPrompt, describeNow, fallbackMessages, priceAllowance, UUID } from "../packages/contracts.js";
 import { oldestActiveChannel } from "../packages/db.js";
 import { brainCallOf, generateReply } from "./brain.js";
@@ -71,6 +72,27 @@ function evalAnswer(
   });
 }
 
+/**
+ * What the live turn is told beside the prompt, and may write (core model-turn.ts): the clock and the open times, and,
+ * where the workspace takes booking requests, the two fields a time picked is written in, and what it wrote (decision
+ * 0061). A workspace with no calendar is told the clock alone, as before; one that takes no requests answers as before.
+ */
+async function turnOf(rt: TenantRuntime, now: Date) {
+  const openings = await openingsFor(rt, "chat", now);
+  const clock = describeNow(rt.timezone, now, rt.brain?.profile?.closures);
+  const takes = takesRequests(rt);
+  return {
+    nowNote: openings
+      ? `${clock}
+
+${openings}`
+      : clock,
+    asks: takes ? { bookingRequests: true } : {},
+    said: (r: { booking?: { slot: string; service: string } }) =>
+      takes ? { takes_requests: true, booking: r.booking ?? null } : {},
+  };
+}
+
 export async function evaluateCases(
   auth: Admitted,
   body: Partial<{ tenant_id?: string; cases?: EvalCase[] }>,
@@ -112,10 +134,10 @@ export async function evaluateCases(
   if (!rt.brain) return refuse(409, rt.configBroken ? "config_broken" : "no_persona");
   const now = new Date(); // the run's one clock: the prompt, the clock note, the prices it may say, and its timing
   const system = resolveSystemPrompt(rt.brain, "whatsapp", rt.timezone, now, rt.policy, rt.known);
-  const nowNote = describeNow(rt.timezone, now, rt.brain.profile?.closures);
+  const { nowNote, asks, said } = await turnOf(rt, now);
   // The holding message as a customer would get it, its details filled as they are now (S5).
   const holding = fallbackMessages(rt.brain, rt.known).error;
-  const call = brainCallOf(tenantId, rt);
+  const call = { ...brainCallOf(tenantId, rt), ...asks };
   const results = [];
   for (const c of cases) {
     const t0 = Date.now();
@@ -130,6 +152,7 @@ export async function evaluateCases(
         meta: r.meta ?? null,
         usage: r.usage ?? null,
         ms: Date.now() - t0,
+        ...said(r),
       });
     } catch (e) {
       results.push({
@@ -140,8 +163,7 @@ export async function evaluateCases(
       });
     }
   }
-  // The texts are the model's and stay out of the log; the count and the
-  // time are what a search needs.
+  // The texts are the model's and stay out of the log; the count and the time are what a search needs.
   L.info("admin_eval", {
     tenant_id: tenantId,
     cases: cases.length,

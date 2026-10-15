@@ -327,6 +327,13 @@ const CANNOT_NO_LINK: Partial<Record<CannotRowVM["id"], string>> = {
 };
 
 /**
+ * The booking row where the workspace takes booking requests (decision 0061): it still never books by itself, and a time
+ * a customer picks waits for the owner.
+ */
+const CANNOT_REQUESTS_BOOK =
+  "Not a setting you could switch on: it never books, moves or cancels an appointment itself. A time a customer picks by text waits on Today for your Booked it or Can't.";
+
+/**
  * Said here so nobody has to find out from a customer.
  *
  * None of these is a setting that could be switched on, and saying so on the
@@ -341,7 +348,12 @@ const CANNOT_NO_LINK: Partial<Record<CannotRowVM["id"], string>> = {
  * `hasBookingLink` is checked the same way: two of the rows lean on a link, and
  * a business that quotes, with none, is told what does the work instead.
  */
-export function cannotRows(i: { smsLive: boolean; hasBookingLink: boolean }): CannotRowVM[] {
+export function cannotRows(i: {
+  smsLive: boolean;
+  hasBookingLink: boolean;
+  /** The workspace takes booking requests (contracts takesBookingRequests); left out, none is promised. */
+  takesRequests?: boolean;
+}): CannotRowVM[] {
   if (typeof i?.smsLive !== "boolean") {
     throw new TypeError("cannotRows needs true or false for smsLive: left out, texting would be drawn as not sold.");
   }
@@ -351,6 +363,10 @@ export function cannotRows(i: { smsLive: boolean; hasBookingLink: boolean }): Ca
     );
   }
   return CANNOT_ROWS.filter((r) => !(r.id === "sms" && i.smsLive)).map((r) =>
-    !i.hasBookingLink && CANNOT_NO_LINK[r.id] ? { ...r, detail: CANNOT_NO_LINK[r.id] as string } : r,
+    r.id === "book" && i.takesRequests === true
+      ? { ...r, detail: CANNOT_REQUESTS_BOOK }
+      : !i.hasBookingLink && CANNOT_NO_LINK[r.id]
+        ? { ...r, detail: CANNOT_NO_LINK[r.id] as string }
+        : r,
   );
 }

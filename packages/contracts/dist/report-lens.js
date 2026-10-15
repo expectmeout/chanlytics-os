@@ -128,7 +128,9 @@ var ESCALATION_REASON_LABELS = {
   callback: "Needs a call back \u2014 the phone receptionist could not finish it",
   paused: "Held \u2014 the workspace is paused until billing resumes",
   carriers: "Held \u2014 the carriers have not approved this line for texting yet",
-  email_review: "Wrote by email \u2014 a person answers"
+  email_review: "Wrote by email \u2014 a person answers",
+  booking_request: "Asked to book a time \u2014 confirm it or say you can't",
+  booking_reply: "Asked to book a time \u2014 reply to them"
 };
 var ESCALATION_REASON_SHORT = {
   human_token: "asked for a person",
@@ -149,7 +151,9 @@ var ESCALATION_REASON_SHORT = {
   callback: "needs a call back",
   paused: "the workspace is paused until billing resumes",
   carriers: "the carriers have not approved this line",
-  email_review: "wrote by email"
+  email_review: "wrote by email",
+  booking_request: "asked to book a time",
+  booking_reply: "asked to book a time"
 };
 var ESCALATION_REASON_WHY = {
   human_token: "because a customer asked for a person",
@@ -170,7 +174,9 @@ var ESCALATION_REASON_WHY = {
   callback: "because they need a call back",
   paused: "because the workspace is paused",
   carriers: "while waiting on carriers",
-  email_review: "because they wrote by email"
+  email_review: "because they wrote by email",
+  booking_request: "because they asked to book a time",
+  booking_reply: "because they asked to book a time"
 };
 var ESCALATION_SUMMARIES = {
   human_token: "They asked for a person. A holding message went out \u2014 they're waiting on you.",
@@ -191,7 +197,9 @@ var ESCALATION_SUMMARIES = {
   callback: "They phoned and the receptionist couldn't finish it.",
   paused: "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself.",
   carriers: "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
-  email_review: "They wrote by email. The receptionist does not answer email yet, so nothing was sent. Read it and reply from here."
+  email_review: "They wrote by email. The receptionist does not answer email yet, so nothing was sent. Read it and reply from here.",
+  booking_request: "They picked a time the calendar shows open, and the receptionist told them the team will confirm it. That's you: Booked it, or Can't and reply.",
+  booking_reply: "They asked to book a time, and the receptionist told them the team will confirm. Reply with a time that works."
 };
 var ESCALATION_ACTS = {
   human_token: "reply",
@@ -212,7 +220,9 @@ var ESCALATION_ACTS = {
   callback: "call_back",
   paused: "reply",
   carriers: "reply",
-  email_review: "reply"
+  email_review: "reply",
+  booking_request: "confirm",
+  booking_reply: "reply"
 };
 function holdActOf(reason) {
   return ESCALATION_ACTS[reason ?? ""] ?? "reply";

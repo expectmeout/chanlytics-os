@@ -444,6 +444,7 @@
     "00439_the_business_has_one_name.sql": "2288ddaa33ef2c46d3b8227b784c77276d32448ab273646de9b4e1f870d821f8",
     "00440_everything_that_sends_on_its_own_is_a_sequence.sql": "d1544d9b8a573d31abb156a6a260ade4a6f46749e139c1b5df345ba33c15c345",
     "00441_one_loop_runs_every_sequence.sql": "f002e4ac978aa6912c546ddb20a3373039968ffafae8fd1ddfabd33f836804af",
-    "00442_a_sequence_is_read_and_changed_through_its_doors.sql": "e65c0b3364cc4e11e83cef21656a1b21edee90e81ded4a503eb49fe9d5eda9d2"
+    "00442_a_sequence_is_read_and_changed_through_its_doors.sql": "e65c0b3364cc4e11e83cef21656a1b21edee90e81ded4a503eb49fe9d5eda9d2",
+    "00443_a_booking_the_receptionist_asks_for.sql": "7b3a4ca29c690dad82c9d131856ac0045c6b4b502bfb1f5d0c1850c4d0dd0384"
   }
 }
