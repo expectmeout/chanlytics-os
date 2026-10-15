@@ -1,8 +1,8 @@
 /**
  * The rules an answer's text passes before the Line draws it: tag-shaped junk out (cleanAnswer), a figure with nothing
  * read behind it (isUngrounded), whether two questions are one thread, the Open button's words, a next question that
- * echoes a place already offered, and whether its own words claim a write (claimsWrite). The answer's shape and its
- * normaliser are ask-answer.ts's.
+ * echoes a place already offered, whether its own words claim a write (claimsWrite), and where its headline's first
+ * sentence ends (firstSentence). The answer's shape and its normaliser are ask-answer.ts's.
  */
 import type { AskLanguage } from "./ask-language";
 
@@ -25,6 +25,36 @@ export function cleanAnswer(raw: string): string {
     .replace(/<\/?[a-z_]+(\s[^>]*)?>/gi, "")
     .replace(/\s+$/g, "")
     .trim();
+}
+
+/**
+ * Words a sentence's stop may follow without ending it: a title, a month or an abbreviation before a name or a number
+ * ("Dr. Lin", "Oct. 13", "St. Louis"). A single letter (an initial) and a word with a dot inside it ("U.S.", "a.m.")
+ * are not ends either.
+ */
+const NOT_AN_END = new Set(
+  "mr mrs ms dr st sr sra srta jr vs no etc approx inc ltd co ave blvd mt ft jan feb mar apr jun jul aug sep sept oct nov dec ene abr ago dic".split(
+    " ",
+  ),
+);
+/** A stop, any closing quote or bracket after it, the space, and what starts a sentence: a capital, a digit, ¿ or ¡. */
+const HEADLINE_STOP = /[.!?]["'”’)\]]*\s+(?=[\p{Lu}\d¿¡"“'‘(])/gu;
+
+/**
+ * The headline's first sentence and the words after it. The headline is one sentence (the rules say so, and the eval
+ * holds it), but the model now and then writes two ("I can't give a refund from here. Money is locked by charter."):
+ * the second is the detail's opening. Decided by the words before a stop and the letter after it alone, so a stop that
+ * ends the first sentence while it streams still ends it once the answer lands.
+ */
+export function firstSentence(s: string): [string, string] {
+  for (const m of s.matchAll(HEADLINE_STOP)) {
+    const before = /[\p{L}.]+$/u.exec(s.slice(0, m.index))?.[0] ?? "";
+    if (m[0][0] === "." && (before.length === 1 || before.includes(".") || NOT_AN_END.has(before.toLowerCase())))
+      continue;
+    const stop = m[0].trimEnd().length;
+    return [s.slice(0, m.index + stop), s.slice(m.index + m[0].length)];
+  }
+  return [s, ""];
 }
 
 /* --------------------------------------------------------------- grounding */
