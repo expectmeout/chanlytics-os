@@ -12,14 +12,15 @@ const each: Options = {
 // which 6.0 refuses (TS5101). No --dts in the build script: tsup's flag replaces this object.
 const dts = { compilerOptions: { ignoreDeprecations: "6.0" } };
 
-// Seven entries, as six builds so no declaration is shared between them: the index the server, the edge, the packages
+// Eight entries, as seven builds so no declaration is shared between them: the index the server, the edge, the packages
 // and the tests read, with the browser's (browser.generated.ts), which package.json's `browser` condition hands a
 // page's bundle (decision 0024) and which has no declarations of its own, since a page is typed by the index's and
 // shipping/browser-entry.test.mjs holds its imports to the entry; the classic schemas a page asks for by import()
 // (write-rules.ts); the words of Reports' date control (reports/report-window.ts), which only Reports' page draws;
 // what Reports' lenses say (reports/report-lens.ts), which only Reports' page draws either; what Campaigns › Ads draws
-// with, its models, rules, money and words (ads/ads-page.ts), which only that page does; and what Settings ›
-// Notifications draws with (alert-pane.ts), which only that pane does: the browser entry is one module every page's
+// with, its models, rules, money and words (ads/ads-page.ts), which only that page does; what Settings ›
+// Notifications draws with (alert-pane.ts), which only that pane does; and the cards only Ask proposes
+// (ask-proposals/ask-only.ts), which the browser loads when Ask is installed: the browser entry is one module every page's
 // route loads, so a value any page imports from it is on every page.
 // No entries on the command line: they would replace these.
 export default defineConfig([
@@ -33,4 +34,5 @@ export default defineConfig([
   { ...each, entry: { "report-lens": "src/reports/report-lens.ts" }, dts },
   { ...each, entry: { "ads-page": "src/ads/ads-page.ts" }, dts },
   { ...each, entry: { "alert-pane": "src/alert-pane.ts" }, dts },
+  { ...each, entry: { "ask-only": "src/ask-proposals/ask-only.ts" }, dts },
 ]);

@@ -1069,20 +1069,20 @@ test("a step's token is @step:n, and resolveSteps fills every one from what the 
 /* ---- every step's input is its action's input, and every written message the door's ---- */
 
 const tool = async (rel, name) => (await import(at(`apps/dashboard/src/server/ask/tools/act/${rel}`)))[name];
-const campaignTool = await tool("campaign.ts", "propose_campaign");
+const sequenceTool = await tool("sequence.ts", "propose_sequence");
 const settingsTool = await tool("settings.ts", "propose_settings");
-/** An action of a tool by its name: propose_campaign's own, or "" for a tool that is one action. */
+/** An action of a tool by its name: propose_sequence's own, or "" for a tool that is one action. */
 const action = (t, name) => {
   const def = t.actions[name];
   assert.ok(def, `${t.name} has the action ${name || "(its own)"}`);
   return def;
 };
 const SCHEMAS = {
-  message: action(campaignTool, "message").input,
-  note: action(settingsTool, "").input,
-  broadcast: action(campaignTool, "broadcast").input,
-  playbook: action(campaignTool, "playbook").input,
-  change: action(campaignTool, "change").input,
+  message: action(sequenceTool, "message").input,
+  note: action(settingsTool, "change").input,
+  broadcast: action(sequenceTool, "once").input,
+  playbook: action(sequenceTool, "moment").input,
+  change: action(sequenceTool, "change").input,
 };
 const { checkMessage } = await import(at("apps/dashboard/src/server/campaigns/write-message.ts"));
 const { slotExample } = await import(at("apps/dashboard/src/server/ask/tools/act/says.ts"));

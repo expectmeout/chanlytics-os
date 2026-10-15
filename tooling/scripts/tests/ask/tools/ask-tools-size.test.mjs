@@ -19,14 +19,29 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { toApiTools } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-const { ASK_TOOLS_CHARS_CEILING } = await import("@chanlytics/contracts");
+const { ASK_TOOLS_CHARS_CEILING, ASK_CORE_TOOLS_CHARS_CEILING } = await import("@chanlytics/contracts");
 
 const ROLES = ["viewer", "operator", "partner", "owner"];
 
 test("each role's tools block is measured, and none is over the ceiling the owner's is held to", (t) => {
-  // Every role's number is printed before any is held to the ceiling, so a role over it still shows the others.
-  const sizes = ROLES.map((role) => [role, JSON.stringify(toApiTools(role, true)).length]);
+  // Every role's number is printed before any is held to the ceiling, so a role over it still shows the others. With
+  // every tool loaded up front: what a turn sends where the tool search is refused (the operator, 15 Oct 2026).
+  const sizes = ROLES.map((role) => [role, JSON.stringify(toApiTools(role, true, false)).length]);
   for (const [role, chars] of sizes) t.diagnostic(`tools-block role=${role} chars=${chars}`);
   for (const [role, chars] of sizes)
     assert.ok(chars <= ASK_TOOLS_CHARS_CEILING, `${role}: ${chars} characters, over ${ASK_TOOLS_CHARS_CEILING}`);
+});
+
+test("each role's tools loaded on every question, the core and the search, are under the core's ceiling", (t) => {
+  // What the model reads up front with tool search on (offer.ts): the deferred tools are out of the prefix until found.
+  const sizes = ROLES.map((role) => [
+    role,
+    JSON.stringify(toApiTools(role, true, true).filter((d) => !("defer_loading" in d))).length,
+  ]);
+  for (const [role, chars] of sizes) t.diagnostic(`core-tools role=${role} chars=${chars}`);
+  for (const [role, chars] of sizes)
+    assert.ok(
+      chars <= ASK_CORE_TOOLS_CHARS_CEILING,
+      `${role}: ${chars} characters, over ${ASK_CORE_TOOLS_CHARS_CEILING}`,
+    );
 });

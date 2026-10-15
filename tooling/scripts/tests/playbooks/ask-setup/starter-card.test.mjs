@@ -223,7 +223,7 @@ const propose = (input, db = {}) => {
   const rows = tables({ templates: [], ...db });
   const supabase = fakeDb(rows, {}, { people_list: () => PEOPLE });
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
-  return { made: buildProposal(t, "propose_campaign", { action: "playbook", ...input }), rows };
+  return { made: buildProposal(t, "propose_sequence", { action: "moment", ...input }), rows };
 };
 const said = (r) => JSON.parse(r.result).error;
 const STARTER = startersForTrigger("quiet_30").find((s) => !s.retired);

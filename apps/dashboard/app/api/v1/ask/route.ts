@@ -52,7 +52,9 @@ import { searchRow } from "@/server/leads/leads";
  * still refuses a cross-site POST and still verifies the session first.
  */
 
-export const maxDuration = 60;
+// A typed turn's budget (contracts ASK_TURN_BUDGET_MS, two minutes since the operator, 15 Oct 2026) and the time to
+// store its answer after it.
+export const maxDuration = 150;
 
 // The lists are contracts' own: a surface the palette sent that a hand-written list here had not caught up with was
 // dropped in silence, and the prompt never learnt the page.

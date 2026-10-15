@@ -133,7 +133,7 @@ const toolContext = () => {
 };
 
 test("Ask's playbooks read tells the model what veto does in the same words", async () => {
-  const out = await runTool(toolContext(), { name: "campaigns", input: { action: "playbooks" } });
+  const out = await runTool(toolContext(), { name: "sequences", input: { action: "moments" } });
   assert.equal(out.isError, false, out.result);
   const read = JSON.parse(out.result);
   assert.equal(read.modes.reengage, "veto");
@@ -141,8 +141,8 @@ test("Ask's playbooks read tells the model what veto does in the same words", as
 });
 
 test("a playbook Ask proposes under veto says the same wait on its card", async () => {
-  const card = await buildProposal(toolContext(), "propose_campaign", {
-    action: "playbook",
+  const card = await buildProposal(toolContext(), "propose_sequence", {
+    action: "moment",
     trigger: "quiet_30",
     template_id: TPL,
     params: [],
