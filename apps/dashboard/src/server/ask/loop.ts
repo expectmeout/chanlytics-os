@@ -12,6 +12,7 @@ import {
   normalizeAnswer,
   noteRows,
   partialSay,
+  answerSoFar,
   proseAnswer,
   type AskAnswer,
   type AskLanguage,
@@ -20,6 +21,7 @@ import {
   type AskReadSet,
   type AskRowRef,
   type AskScope,
+  type AskShowPreview,
   type AskTurnShape,
   type PageContext,
   type PlanLead,
@@ -49,8 +51,9 @@ import { shape as shapeReader } from "../readers/shape";
 import { argsOf, replayBlocks, resultBlocks, runRound, type RoundBlock } from "./round";
 import { askModel } from "./model";
 import { turnEffort } from "./effort";
-import { foldHistory, replayFor, withMarkers, type Chain, type RawTurn, type TurnEnd } from "./memory";
+import { foldHistory, replayFor, tellNext, withMarkers, type Chain, type RawTurn, type TurnEnd } from "./memory";
 import { finishTurn, turnMeter } from "./turn-end";
+import { LAST_ROUND_WORDS, answerInput, everyCallAnswered, roundAnswer } from "./tools/answer";
 
 /**
  * One turn of the assistant.
@@ -60,11 +63,11 @@ import { finishTurn, turnMeter } from "./turn-end";
  * row the scope names (cross-page.ts); then the model is asked with the
  * read tools and the act tools, and either calls them or writes the answer:
  * the answer is text in the Line's shape (ASK_ANSWER_FORMAT, structured
- * output), so no tool is called to answer. Reads run as the person, in
- * parallel, and go back as one message. An act tool never acts: it checks
- * and proposes, and may share a round with the answer. Say streams as the
- * answer is written; the last allowed round may call no tool, so a turn
- * always ends in an answer or a stated failure. "How a turn ends" in
+ * output), or the answer tool's input where ASK_ANSWER_TOOL is on. Reads run
+ * as the person, in parallel, and go back as one message. An act tool never
+ * acts: it checks and proposes, and may share a round with the answer. Say
+ * streams as the answer is written; the last allowed round may call no tool, so
+ * a turn always ends in an answer or a stated failure. "How a turn ends" in
  * docs/superpowers/plans/2026-09-23-ask-the-line-3-the-answer.md is this loop.
  */
 
@@ -87,9 +90,10 @@ export interface TurnEvent {
   t: "trace" | "say" | "final" | "error";
   /** A trace's words, or an error's. */
   text?: string;
-  /** Say as written so far: a preview, replaced by the final message's. */
+  /** Say as written so far, and Show's figures and rows once each closes: a preview, replaced by the final message. */
   headline?: string;
   detail?: string;
+  show?: AskShowPreview;
   message?: AskMessageVM;
 }
 
@@ -267,9 +271,9 @@ export function turnHead(model: AskModelProfile, role: MembershipRole, facts: Wo
   return {
     model: model.id,
     ...(model.speed === "fast" ? { speed: "fast" as const } : {}),
-    system: systemBlocks(stableSystem(facts), shape),
-    // The tools as the API takes them (registry.ts), their examples with them.
-    tools: toApiTools(role, true),
+    system: systemBlocks(stableSystem(facts, model.answerTool), shape),
+    // The tools as the API takes them (registry.ts), their examples with them, and the answer tool where it is on.
+    tools: toApiTools(role, true, true, model.answerTool),
     tool_choice: { type: "auto" as const },
     output_config: {
       effort: model.effort,
@@ -416,17 +420,17 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   // offer: then it is let go (refusals.ts letGo) and the same round asked again. No tool is strict: the API takes twenty
   // strict tools and twenty-four optional parameters across them (26 tools, then 31 parameters in the act tools alone,
   // were refused on every operator turn, 23 Sep), and the tools ran as they always had without it.
-  const offer: Offer = { examples: true, search: true, format: true };
+  const offer: Offer = { examples: true, search: true, format: true, answer: model.answerTool };
   let { tools } = head;
   // A round's request: its messages a copy with the cache's markers (withMarkers), at `at` and on its last block.
-  const requestOf = (msgs: Msg[], at: unknown, last: boolean) => ({
+  const requestOf = (msgs: Msg[], at: unknown, noTool: boolean) => ({
     ...(head.speed ? { model: head.model, speed: head.speed } : { model: head.model }),
     ...effort.of(msgs),
     system,
     messages: withMarkers(msgs, at),
     tools,
-    // The last round may call no tool: all that is left is the answer.
-    tool_choice: last ? { type: "none" as const } : head.tool_choice,
+    // A round that may call no tool: all that is left is the answer, as text.
+    tool_choice: noTool ? { type: "none" as const } : head.tool_choice,
     output_config: offer.format ? head.output_config : { effort: model.effort },
   });
   // The earlier turns (memory.ts, the Phase 5 plan, D1–D4): replayed as the model was sent them while the thread is
@@ -448,9 +452,11 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), budgetMs);
 
+  let answerIn: "tool" | "text" | null = null; // how the answer that ends the turn was written (AskTurnShape)
   const done = (r: TurnEnd): TurnResult => {
     clearTimeout(timer);
     return finishTurn(r, {
+      answerIn,
       input,
       model,
       t0,
@@ -492,16 +498,17 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       }
     }
     // Drawn as the final message will draw it (contracts partialSay, proseAnswer): nothing past a tag, the leak seen on
-    // production, and the detail's lines kept, so nothing the preview showed moves when the answer lands.
-    const say = json ? partialSay(soFar) : offer.format ? null : proseAnswer(soFar, input.language).say;
-    if (!say || (!say.headline && !say.detail)) return;
-    const key = `${say.headline}\n${say.detail}`;
+    // production, the detail's lines kept, and Show's figures and rows once each closes (answerSoFar).
+    const part = json ? partialSay(soFar) : offer.format ? null : proseAnswer(soFar, input.language).say;
+    if (!part || (!part.headline && !part.detail)) return;
+    const say = answerSoFar(part, json ? soFar : "", tc.read, input.language);
+    const key = JSON.stringify(say);
     const at = Date.now();
     if (key === said || at - saidAt < SAY_EVERY_MS) return;
     said = key;
     saidAt = at;
     meter.said();
-    input.emit({ t: "say", headline: say.headline, detail: say.detail });
+    input.emit({ t: "say", ...say });
   };
   /** An answer set aside after its Say was sent: an empty Say takes it back, and the Line shows the reads again. */
   const unsay = () => {
@@ -556,10 +563,14 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     });
   };
 
+  // With the answer tool, calling it is how the last round answers: it may call tools, and a read it makes anyway is
+  // answered before one closing round that may call none.
+  let closing = false;
   try {
-    for (let round = 1; round <= ASK_MAX_ROUNDS; round++) {
-      const last = round === ASK_MAX_ROUNDS;
-      const request = { ...requestOf(messages, anchor, last), diagnostics: meter.follows(live, input.chain) };
+    for (let round = 1; round <= ASK_MAX_ROUNDS + Number(closing); round++) {
+      const last = round >= ASK_MAX_ROUNDS;
+      const noTool = model.answerTool ? closing : last;
+      const request = { ...requestOf(messages, anchor, noTool), diagnostics: meter.follows(live, input.chain) };
 
       const roundAt = Date.now();
       let blocks: RoundBlock[];
@@ -569,6 +580,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
         const r = await ports.round(
           { tenantId: input.tenantId, userId: input.ctx.userId, request, signal: controller.signal },
           onText,
+          answerInput(onText),
         );
         ({ blocks, stopReason, streamError } = r);
         meter.round(r, roundAt);
@@ -634,7 +646,9 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
         return fail(es ? "No puedo responder a eso aquí." : "I can't answer that here.", "refusal", round);
       }
 
-      const calls = blocks.filter((b) => b.type === "tool_use");
+      // The answer, if this round wrote one, and its calls with the answer tool's apart (tools/answer.ts).
+      const split = roundAnswer(blocks, offer.format);
+      const { used, answered, calls } = split;
       // A draft begun at the turn's own effort is set aside, its calls unrun, and the round asked again at the draft's
       // (effort.ts): the question did not say it was one.
       if (effort.redraft(calls, messages)) {
@@ -643,16 +657,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
         continue;
       }
       const acts = calls.filter((b) => ACT_TOOL_NAMES.has(b.name));
-      const text = blocks
-        .filter((b) => b.type === "text")
-        .map((b) => b.text)
-        .join("")
-        .trim();
-      // The answer, if this round wrote one: its JSON -- written even with the
-      // format refused, since the rules ask for it -- or words where no call
-      // stands beside them or the format was refused. Words beside a call,
-      // where the format asks for JSON, are the model thinking aloud.
-      let written = text && (text.startsWith("{") || !offer.format || !calls.length) ? text : "";
+      let { written } = split;
 
       // An answer beside a read was written before its rows: it is set aside,
       // and the model answers next round with them.
@@ -685,8 +690,6 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
         calls.map(async (b) => ({ block: b, out: ACT_TOOL_NAMES.has(b.name) ? await propose(b) : await read(b) })),
       );
       const refused = outcomes.some(({ out }) => out.isError);
-      // The round as it went out and came back: a turn that ends on it keeps it as the turn it was (memory.ts).
-      const lastRound = { request, blocks, outcomes, roundAt, streamError };
 
       const planned = roundPlan(calls, acts, refused, planWords.slice(saidBefore));
       written = besideActs(written, {
@@ -699,8 +702,12 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
             tenant_id: input.tenantId,
           }),
       });
+      const ordered = everyCallAnswered(used, outcomes, answered, !!written);
+      // The round as it went out and came back: a turn that ends on it keeps it as the turn it was (memory.ts).
+      const lastRound = { request, blocks, outcomes: ordered, roundAt, streamError };
 
       if (written) {
+        answerIn = split.via;
         let answer: AskAnswer;
         if (written.startsWith("{")) {
           const shaped = normalizeAnswer(written, tc.read, input.language);
@@ -751,20 +758,14 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
         return done({ answer, failed: false, failure: null, rounds: round, lastRound });
       }
       messages.push({ role: "assistant", content: replayBlocks(blocks) });
-      messages.push({ role: "user", content: resultBlocks(outcomes) });
+      messages.push({ role: "user", content: resultBlocks(ordered) });
       if (Date.now() - t0 > budgetMs - 8_000 && !last) {
         // Not enough time for another read: the next round is the last, and
-        // answers with what there is. Appended to the newest message, never an
-        // edit to an earlier one.
-        messages[messages.length - 1] = {
-          role: "user",
-          content: [
-            ...(messages[messages.length - 1].content as unknown[]),
-            { type: "text", text: "Time is up for reads. Answer now with what you have." },
-          ],
-        };
+        // answers with what there is.
+        tellNext(messages, "Time is up for reads. Answer now with what you have.");
         round = ASK_MAX_ROUNDS - 1;
-      }
+      } else if (model.answerTool && round + 1 === ASK_MAX_ROUNDS) tellNext(messages, LAST_ROUND_WORDS);
+      closing = model.answerTool && last;
     }
     return fail(
       es ? "No llegué a una respuesta. Inténtalo de nuevo." : "I did not reach an answer. Try again.",

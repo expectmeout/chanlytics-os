@@ -110,6 +110,16 @@ export const ASK_RULES = [
   "Read in parallel when several reads are needed, and answer as soon as you have what you need. A proposal needs no second round: call the act tool and write the answer together, saying what you proposed. A plan is the exception: call propose_plan alone, with no answer beside it, and its answer is the plan's own words.",
 ] as const;
 
+/**
+ * Said after the rules when the answer is written through the answer tool (ASK_ANSWER_TOOL on, tools/answer.ts): the
+ * format is the tool's input, and the rules above that say "write the answer" mean "call the answer tool". Off, the
+ * prompt is the rules alone, byte for byte, so the switch off changes nothing a turn is sent.
+ */
+const ANSWER_TOOL_RULES = [
+  "Every answer is written by calling the answer tool once, with the whole answer in its format (say, show, do and language) as its input, never as text. Call it when you have read what you need: alone, or beside the cards you propose, never beside a read. A plan's answer is the plan's own words, so a plan is proposed with no answer beside it.",
+  "Beside a card, say.headline is the one sentence of what you proposed, and nothing after it: the card already says it waits for their press, so never add a sentence that it needs approving.",
+] as const;
+
 const NOTHING = { kind: "none", id: "", label: "" };
 const NO_BREAKDOWN = { label: "", total: 0, parts: [], source: NOTHING };
 const NO_LIST = { style: "bullets", entries: [] };
@@ -371,10 +381,14 @@ export function definitionsBlock(): string {
     .join("\n");
 }
 
-/** The cached block: rules, the example answers, definitions, facts. Same text for every turn until settings change. */
-export function stableSystem(f: WorkspaceFacts): string {
+/**
+ * The cached block: rules (and the answer tool's, when the answer is written through it), the example answers,
+ * definitions, facts. Same text for every turn until settings change.
+ */
+export function stableSystem(f: WorkspaceFacts, answerTool: boolean): string {
   return [
     ASK_RULES.join("\n"),
+    ...(answerTool ? ANSWER_TOOL_RULES : []),
     "",
     "Answers, as examples:",
     ...ASK_EXAMPLES.map(([q, a]) => `"${q}"\n${JSON.stringify(a)}`),
