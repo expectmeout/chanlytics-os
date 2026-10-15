@@ -469,9 +469,76 @@ test("REGRESSION (defect 19): a save from a dashboard older than the row keeps w
   assert.deepEqual(row.guardrails, { no_prices: true }, "and a section of its own");
   assert.deepEqual(
     tables.events.map((e) => e.data.fields),
-    [["business_name"]],
-    "the ledger names the edit, and no field as deleted",
+    [["business_name"], ["name"]],
+    "the ledger names the edit, and no field as deleted; and the rename it made of the workspace (X4-5)",
   );
+});
+
+test("one name: a save that changes the business's name renames the workspace, the ledger keeps both names, and the answer says what the carriers still hold (X4-5)", async () => {
+  const brain = {
+    business_name: "Bayside",
+    booking_link: "https://book.example/bayside",
+    system_prompt: "You are the receptionist for Bayside, answering customers on WhatsApp in a warm, short way.",
+    fallbacks: { greeting: "g", error: "e", non_text: "n" },
+  };
+  const world = (lines = []) => ({
+    memberships: both("viewer", "owner"),
+    tenant_config: [{ tenant_id: B, config: { brain }, version: 2, updated_at: "2026-09-01T00:00:00Z" }],
+    tenants: [{ id: B, name: "Bayside", slug: "bayside", timezone: "America/New_York" }],
+    tenant_channels: [],
+    google_listings: [],
+    lines,
+    events: [],
+  });
+  const save = async (tables, edit, ctx = ctxFor(tables)) => {
+    const read = await settings.GET.run(get(inB), ctxFor(tables));
+    const page = structuredClone(read.config);
+    edit(page.brain);
+    return settings.PUT.run(send("PUT", { config: page, version: read.version }, inB), ctx);
+  };
+
+  const t = world();
+  const saved = await save(t, (b) => (b.business_name = "  Bayside Salon & Spa "));
+  assert.equal(t.tenants[0].name, "Bayside Salon & Spa", "the sign-up page, its form and the sign say it now");
+  assert.deepEqual(saved.renamed, { from: "Bayside", to: "Bayside Salon & Spa", carriers_hold: null });
+  const rename = t.events.find((e) => e.data.fields.includes("name"));
+  assert.deepEqual(
+    [rename.kind, rename.subject_type, rename.data.from, rename.data.to, rename.data.by],
+    ["settings.changed", "workspace", "Bayside", "Bayside Salon & Spa", USER],
+  );
+
+  // A save of anything else renames nothing, even with the two names apart.
+  const other = await save(t, (b) => (b.booking_link = "https://book.example/bayside-spa"));
+  assert.equal(other.renamed, undefined);
+  assert.equal(t.events.filter((e) => e.data.fields.includes("name")).length, 1);
+
+  // A filed campaign keeps the name the carriers approved: the answer says it, for the page to offer the way to change it.
+  const filed = world([
+    {
+      id: L1,
+      tenant_id: B,
+      provider: "twilio",
+      facts: { a2p_campaign_name: "Bayside" },
+      created_at: "2026-09-02T00:00:00Z",
+    },
+  ]);
+  const held = await save(filed, (b) => (b.business_name = "Bayside Spa"));
+  assert.deepEqual(held.renamed, { from: "Bayside", to: "Bayside Spa", carriers_hold: "Bayside" });
+  // Renamed back to the filed name: nothing held apart.
+  const back = await save(filed, (b) => (b.business_name = "Bayside"));
+  assert.deepEqual(back.renamed, { from: "Bayside Spa", to: "Bayside", carriers_hold: null });
+
+  // The workspace's row refused (a database 00439 has not reached): the settings are saved, the name is kept, and the
+  // answer says so rather than claiming a rename.
+  const r = world();
+  const refusing = {
+    ...ctxFor(r),
+    supabase: fakeDb(r, { "tenants.update": { message: "permission denied for table tenants" } }),
+  };
+  const kept = await save(r, (b) => (b.business_name = "Bayside Spa"), refusing);
+  assert.equal(r.tenant_config[0].config.brain.business_name, "Bayside Spa", "the save lands");
+  assert.equal(r.tenants[0].name, "Bayside");
+  assert.deepEqual(kept.renamed, { kept: null, refused: true });
 });
 
 test("a receptionist with no booking link (one that quotes each job) is read as one, prompt and all, so the Business tab can say so; and saved as one", async () => {
@@ -917,6 +984,9 @@ test("REGRESSION (S8, S14): a port and a repair are asked for through the same d
     ],
     "REGRESSION: refused before the database was asked",
   );
+  // And the name the carriers hold, which only a person at Chanlytics can change with a new campaign (00439, X4-5).
+  await setupRequest.POST.run(send("POST", { what: "name" }, inB), ctxFor(tables, {}, rpcs));
+  assert.deepEqual(asked.at(-1), { p_tenant_id: B, p_what: "name" });
   await refused(
     setupRequest.POST.run(send("POST", { what: "unicorn" }, inB), ctxFor(tables, {}, rpcs)),
     "validation",

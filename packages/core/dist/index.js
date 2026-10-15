@@ -39236,6 +39236,7 @@ async function photoOf(at, seen) {
 // src/inbound/reply-gates.ts
 import { errField as errField9 } from "../../channels/dist/index.js";
 import {
+  confirmationNameOf,
   offersAfterStart,
   optInConfirmation,
   tokenBudgetSpent,
@@ -39250,6 +39251,16 @@ async function offersNoteFor(at) {
     return answer ? offersAfterStart(answer, channel) : null;
   } catch (e) {
     L.warn("lead_context_unavailable", { error: errField9(e) });
+    return null;
+  }
+}
+async function filedCampaignName(at) {
+  const { db, tenantId, ports, channel, L } = at;
+  if (channel !== "sms" || !db || !tenantId || !ports.filing) return null;
+  try {
+    return (await ports.filing.names(db, tenantId)).campaign;
+  } catch (e) {
+    L.warn("filed_name_unavailable", { error: errField9(e) });
     return null;
   }
 }
@@ -39297,7 +39308,13 @@ async function confirmedYes(at, bodyText) {
       await processedAfter(sink, null, "none");
       return;
     }
-    const filed = optInConfirmation(brainCfg?.business_name ?? rt?.known?.workspace?.name ?? "", purpose);
+    const name = confirmationNameOf({
+      channel,
+      filed: await filedCampaignName(at),
+      workspace: rt?.known?.workspace?.name ?? null,
+      receptionist: brainCfg?.business_name ?? null
+    });
+    const filed = optInConfirmation(name, purpose);
     const offers = n.optInMarketing ? null : await offersNoteFor(at);
     const words = offers ? `${filed} ${offers}` : filed;
     const confirmed = await send(words, { ack: true, confirmation: purpose }, purpose, "system");

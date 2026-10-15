@@ -3634,6 +3634,15 @@ function recordFilingOf(lines) {
   }
   return best;
 }
+var LINE_FILED_NAMES = { brand: "a2p_filed_name", campaign: "a2p_campaign_name" };
+var RENAME_WORDS = {
+  pages: (name) => `Your sign-up page, its paper form and your desk sign say \u201C${name}\u201D now.`,
+  held: (filed) => `The carriers still hold \u201C${filed}\u201D as you filed it, and the text confirming a START says it until it is changed with them.`,
+  ask: "Request a name change",
+  kept: "Saved. The workspace could not be renamed, so your sign-up page and your sign still say its old name.",
+  requested: "Requested: a person at Chanlytics changes the name with the carriers and writes to you.",
+  already: "Already asked: a person at Chanlytics is changing the name with the carriers."
+};
 var FILINGS = RECORD_FILINGS;
 function recordSavedOf(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
@@ -7336,7 +7345,7 @@ var BROKEN_CONFIG_WORDS = {
   /** Once asked: when, and what happens next, on Setup's row and on the pane's card alike. */
   requested: (at3, nowMs) => `Requested ${agoWords(Date.parse(at3), nowMs)} \u2014 a person at Chanlytics will repair them and reach you by email.`
 };
-var SETUP_REQUEST_KINDS = ["line", "port", "repair", "forwarding"];
+var SETUP_REQUEST_KINDS = ["line", "port", "repair", "forwarding", "name"];
 function textingWords(l) {
   if (!l) return { sentence: "Texting is not available yet.", done: false };
   if (l.reg_mock) return { sentence: MOCK_TEXTING_SENTENCE, done: false };
@@ -8397,6 +8406,13 @@ function humanize(kind) {
 var activityKindWords = (kind) => WORDS[kind] ?? humanize(kind);
 var textAt = (o, k) => typeof o[k] === "string" && o[k] ? o[k] : null;
 var numberAt = (o, k) => typeof o[k] === "number" ? o[k] : null;
+function settingsChangedWords(p) {
+  const from = textAt(p, "from");
+  const to = textAt(p, "to");
+  if (from && to) return `renamed from \u201C${from}\u201D to \u201C${to}\u201D`;
+  const fields = Array.isArray(p.fields) ? p.fields.filter((f) => typeof f === "string") : [];
+  return fields.length ? fields.slice(0, 4).join(", ") : null;
+}
 function importWords(p) {
   const n = (k) => numberAt(p, k) ?? 0;
   const counts = `${n("added")} new, ${n("existed")} already here, ${n("skipped")} skipped`;
@@ -8634,8 +8650,8 @@ function activityWords(kind, payload) {
       break;
     }
     case "settings.changed": {
-      const fields = Array.isArray(p.fields) ? p.fields.filter((f) => typeof f === "string") : [];
-      if (fields.length) bits2.push(fields.slice(0, 4).join(", "));
+      const said = settingsChangedWords(p);
+      if (said) bits2.push(said);
       break;
     }
     case "policy.changed": {
@@ -28599,6 +28615,11 @@ function policyLinks(f) {
   if (slug && f.businessPage) return { privacy: `/b/${slug}`, terms: `/b/${slug}/terms` };
   return { privacy: "/privacy", terms: "/terms" };
 }
+function confirmationNameOf(o) {
+  const said = (s) => (s ?? "").trim() || null;
+  const name = o.channel === "sms" ? said(o.filed) ?? said(o.workspace) ?? said(o.receptionist) : said(o.receptionist) ?? said(o.workspace);
+  return name ?? "";
+}
 function optInConfirmation(businessName, purpose) {
   const name = businessName.trim() || "This business";
   return purpose === "marketing" ? `${name}: you're signed up for offers and news. A few messages a month. Msg & data rates may apply. Reply HELP for help, STOP to cancel.` : `${name}: you'll get texts about your appointments. Msg frequency varies. Msg & data rates may apply. Reply HELP for help, STOP to cancel.`;
@@ -32106,7 +32127,8 @@ function publishesBusinessPage(r2) {
   return !!r2 && identifiesABusiness({ legalName: r2.legal_name ?? "", street: r2.street ?? "", city: r2.city ?? "" });
 }
 function addressLine(f) {
-  const parts2 = [f.street, f.streetSecondary, `${f.city}, ${f.region} ${f.postalCode}`.trim(), f.country].map((p) => (p ?? "").trim()).filter(Boolean);
+  const street = f.soleProprietor ? [] : [f.street, f.streetSecondary];
+  const parts2 = [...street, `${f.city}, ${f.region} ${f.postalCode}`.trim(), f.country].map((p) => (p ?? "").trim()).filter(Boolean);
   return parts2.join(", ");
 }
 function businessPageVM(f) {
@@ -32212,7 +32234,15 @@ function registrationPreflight(f) {
     out.push({
       id: "name_mismatch",
       what: `The carriers will be told this business is called \u201C${f.workspaceName}\u201D, but the business on record is \u201C${f.tradeName?.trim() || f.legalName}\u201D.`,
-      fix: "Make the workspace's name match the name on record before filing. The name goes into the confirmation message customers receive, and that message cannot be changed after a filing without registering a new campaign."
+      fix: "Save the business's name under Settings \u203A Business as it is on record, or put that name on record as its trading name, before filing. The name goes into the confirmation message customers receive, and that message cannot be changed after a filing without registering a new campaign."
+    });
+  }
+  const answers = loose(f.receptionistName ?? "");
+  if (said && answers && said !== answers) {
+    out.push({
+      id: "names_differ",
+      what: `Your receptionist introduces the business as \u201C${(f.receptionistName ?? "").trim()}\u201D, but your sign-up page and this filing call it \u201C${f.workspaceName}\u201D.`,
+      fix: "Save the name customers know you by under Settings \u203A Business: an owner's save renames your sign-up page and your sign too, so customers read one name."
     });
   }
   if (!identifiesABusiness(f)) {
@@ -46432,6 +46462,14 @@ function usableDeviceTimezone(resolve) {
   const tz = deviceTimezone(resolve);
   return tz && isTimezone(tz) ? tz : null;
 }
+var WORKSPACE_NAME_MAX = 120;
+function cleanWorkspaceName(raw) {
+  const name = typeof raw === "string" ? raw.replace(/\s+/g, " ").trim() : "";
+  if (!name) return { ok: false, reason: "A business needs a name." };
+  if (name.length > WORKSPACE_NAME_MAX)
+    return { ok: false, reason: `A business's name is at most ${WORKSPACE_NAME_MAX} characters.` };
+  return { ok: true, name };
+}
 export {
   ABANDONED_MS,
   ABILITY_CHANNEL_WORDS,
@@ -46886,6 +46924,7 @@ export {
   LINE_CODES_MAX,
   LINE_CODES_WITHIN_MS,
   LINE_CREDENTIALS_SENTENCE,
+  LINE_FILED_NAMES,
   LINE_RELEASE_MIN_DAYS,
   LINE_RELEASE_REPORT_DAYS,
   LINE_RELEASE_WARN_DAYS,
@@ -47234,6 +47273,7 @@ export {
   REGISTRATION_PATHS,
   REGISTRATION_PATH_WORDS,
   REGISTRATION_QUESTION,
+  RENAME_WORDS,
   REPLIES_PAGE,
   REPLY_ANSWERED_MAX,
   REPLY_CAP_DEFAULT,
@@ -47667,6 +47707,7 @@ export {
   cleanParam,
   cleanPartnerCode,
   cleanTimezone,
+  cleanWorkspaceName,
   clientErrorOf,
   clientKeyOf,
   clip,
@@ -47697,6 +47738,7 @@ export {
   composeLinksOf,
   composeSystemPrompt,
   composerDays,
+  confirmationNameOf,
   connectionRows,
   connectionWords,
   consentAnswerWords,

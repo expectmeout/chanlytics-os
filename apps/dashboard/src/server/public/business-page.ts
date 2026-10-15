@@ -43,6 +43,8 @@ function businessFactsOf(w: PublicWorkspaceRead): BusinessPageFacts | null {
     websiteUrl: r.website_url || null,
     about: r.about,
     industry: r.industry,
+    // A sole proprietor's street is often their home: the page says where by city (00439 sole_proprietor_of, X4-5).
+    soleProprietor: w.soleProprietor,
     services: (profile?.services ?? []).map((s) => ({
       name: s.name,
       durationMin: s.duration_min ?? null,

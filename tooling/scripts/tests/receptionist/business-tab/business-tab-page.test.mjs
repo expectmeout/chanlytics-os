@@ -1532,6 +1532,65 @@ test("a rename made on top of another is told against the name that one saves, a
   assert.deepEqual(sent[1].config.brain, after, "and the save writes what it said");
 });
 
+test("a save of the name says what the sign-up page and sign say now, and where the carriers hold the filed name, offers to ask for it to change (X4-5)", async () => {
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  // The server's answer to the save, with what the save did to the workspace's name (settings-save.ts renamedWith).
+  const answering = (renamed) => {
+    let version = W.__SETTINGS.version;
+    W.__saveSettings = (config, _v, accepted) => {
+      version += 1;
+      accepted({ config: structuredClone(config), version, ...(renamed ? { renamed } : {}) });
+      return new Promise(() => {});
+    };
+  };
+  const rename = (to) => {
+    let tree = drawTab({ flash });
+    openFold(tree, "name");
+    tree = redrawTab(flash);
+    typeInto(tree, "name", to);
+    saveRow(redrawTab(flash), "name");
+    return flashes.at(-1);
+  };
+
+  answering({ from: "Marisa's Beauty Salon", to: "Marisa's Salon & Spa", carriers_hold: null });
+  const plain = rename("Marisa's Salon & Spa");
+  assert.equal(
+    textOf(plain.msg),
+    "Your sign-up page, its paper form and your desk sign say “Marisa's Salon & Spa” now.",
+  );
+  assert.equal(plain.action ?? null, null, "nothing held apart: nothing to ask for");
+
+  answering({ from: "Marisa's Beauty Salon", to: "Marisa's Salon & Spa", carriers_hold: "Marisa's Beauty Salon" });
+  const held = rename("Marisa's Salon & Spa");
+  assert.match(textOf(held.msg), /say “Marisa's Salon & Spa” now\. The carriers still hold “Marisa's Beauty Salon”/);
+  assert.equal(held.action.label, "Request a name change");
+
+  // The press asks a person at Chanlytics (setup_request 'name') through Setup's verb, and says what was asked.
+  const asked = [];
+  const setupWas = W.__setup;
+  W.__setup = { request: async (what) => (asked.push(what), { ok: true, already: asked.length > 1, message: "" }) };
+  try {
+    await held.action.onClick();
+    assert.deepEqual(asked, ["name"], "one request, for one press");
+    assert.match(textOf(flashes.at(-1).msg), /^Requested: a person at Chanlytics changes the name with the carriers/);
+    await held.action.onClick();
+    assert.match(textOf(flashes.at(-1).msg), /^Already asked/, "a second press the same day is said as the one before");
+  } finally {
+    W.__setup = setupWas;
+  }
+
+  // The workspace kept its name: the save is said, and so is what still says the old name.
+  answering({ kept: null, refused: true });
+  const kept = rename("Marisa's Salon & Spa");
+  assert.equal(kept.tone, "warn");
+  assert.match(textOf(kept.msg), /could not be renamed/);
+
+  // A save that renamed nothing says what every row says.
+  answering(null);
+  assert.equal(textOf(rename("Marisa's Salon").msg), "Saved — the receptionist picks it up within a minute");
+});
+
 test("a save the server refuses is said in its words, and the editor stays open with what was typed", async () => {
   const sent = [];
   const flashes = [];

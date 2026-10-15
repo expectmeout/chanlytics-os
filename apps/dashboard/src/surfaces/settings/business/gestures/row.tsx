@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { FoldSection } from "@/legacy-bridge/business-tab";
+import type { LegacyFlash } from "../../../legacy-verbs";
 import { useRecordFold } from "../../../kit/record/hooks";
 import { RecordInline } from "../../../kit/record/inline";
 import { RecordRow } from "../../../kit/record/row";
@@ -27,10 +28,10 @@ import {
 
 /* ------------------------------------ one value, edited in its place: the row ------------------------------------ */
 
-/** A row's one-key change with its toast's words (save.tsx PATCH_OF). */
+/** A row's one-key change with its toast's words (save.tsx PATCH_OF), or the toast the server's answer makes. */
 interface BtCommit {
   change: RowChange;
-  said: ReactNode;
+  said: ReactNode | ((answer: unknown) => LegacyFlash);
 }
 /** The other answer a row disagrees with, and the draft that takes it (`use`). */
 export interface BtDisputed<D> {

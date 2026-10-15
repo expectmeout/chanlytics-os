@@ -173,7 +173,12 @@ test("no provider call is made for a line with nothing to take off, and none is 
   const db = fakeDb({ lines: [mockFiled()] });
   const r = await unfileMockRegistration(db, mockFiled({ messaging_service_sid: null, campaign_sid: null }), READY);
   assert.equal(r.ok, true);
-  assert.ok(!db.seen.some((q) => q.table !== "lines"), "only the line's own row is touched");
+  // Beside the line, only a read of the settings: the name the receptionist answers in, which the preflight holds against
+  // the campaign's (X4-5).
+  assert.ok(
+    !db.seen.some((q) => q.table !== "lines" && !(q.table === "tenant_config" && q.op === "select")),
+    "only the line's own row is touched",
+  );
 });
 
 test("the owner's route may not refile: making a filing real is an operator's call", () => {
@@ -382,9 +387,9 @@ test("the decider only reads: what a refusal means for the row is each door's to
   const problems = await filingProblems(db, rows[0], MISNAMED);
   assert.ok(problems.some((p) => /Billing probe/.test(p)));
   assert.deepEqual(
-    db.seen.map((q) => `${q.table}.${q.op}`),
-    ["lines.select"],
-    "one read, of the numbers that are ours",
+    db.seen.map((q) => `${q.table}.${q.op}`).sort(),
+    ["lines.select", "tenant_config.select"],
+    "two reads: the numbers that are ours, and the name the receptionist answers in (X4-5)",
   );
   assert.equal(rows[0].sms_state, "rejected");
   assert.equal(rows[0].last_error, "their words");

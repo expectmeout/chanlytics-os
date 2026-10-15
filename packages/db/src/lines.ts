@@ -7,6 +7,7 @@
  * own door (lineAccount, apps/edge/lib/sms/sms.ts). A read that fails throws.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { LINE_FILED_NAMES } from "@chanlytics/contracts";
 import type { Database } from "./database.types";
 
 // No `type Db` alias here, as the repositories write one: the declaration bundler numbers every module's alias (`Db$x`), and a
@@ -44,4 +45,32 @@ export async function businessOnRecordOf(
   const { data, error } = await db.from("business_records").select("*").eq("tenant_id", tenantId).maybeSingle();
   if (error) throw new Error(`cannot read the business on record: ${error.message}`);
   return data;
+}
+
+/**
+ * The names a workspace's filings sent the carriers, off its lines' facts (contracts LINE_FILED_NAMES): the campaign's,
+ * which the text confirming a START states, and the brand's, the business on record's. Null each where no filing kept one
+ * (a filing before the name was kept, or none at all). For what a rename says the carriers still hold, and the
+ * confirmation's name (the wiring's second audit, X4-5). A read that fails throws.
+ */
+export async function filedNamesOf(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+): Promise<{ campaign: string | null; brand: string | null }> {
+  const { data, error } = await db
+    .from("lines")
+    .select("facts")
+    .eq("tenant_id", tenantId)
+    .neq("provider", "carrier")
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(`cannot read the names the workspace filed: ${error.message}`);
+  const named = (key: string): string | null => {
+    for (const row of data ?? []) {
+      const facts = row.facts && typeof row.facts === "object" && !Array.isArray(row.facts) ? row.facts : null;
+      const value = facts ? (facts as Record<string, unknown>)[key] : null;
+      if (typeof value === "string" && value.trim()) return value.trim();
+    }
+    return null;
+  };
+  return { campaign: named(LINE_FILED_NAMES.campaign), brand: named(LINE_FILED_NAMES.brand) };
 }

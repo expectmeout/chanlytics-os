@@ -91,6 +91,12 @@ export interface BusinessPageFacts {
   about: string;
   /** Twilio's vertical, as the brand was registered with it: `PROFESSIONAL_SERVICES`. */
   industry: string;
+  /**
+   * A business on record with no tax id: one person, filed as a sole proprietor, whose street is often their home. The
+   * page says where by city, state and ZIP alone (the wiring's second audit, X4-5; Ruben, 15 October 2026); the carriers
+   * hold the street from the filing. Absent reads as a business with a tax id, as before.
+   */
+  soleProprietor?: boolean;
   /** What they do, from the receptionist's own profile. */
   services: readonly { name: string; durationMin?: number | null; priceNote?: string | null }[];
   /** Where a customer says yes: `/yes/<slug>`. */
@@ -150,7 +156,8 @@ export function publishesBusinessPage(
 }
 
 function addressLine(f: BusinessPageFacts): string {
-  const parts = [f.street, f.streetSecondary, `${f.city}, ${f.region} ${f.postalCode}`.trim(), f.country]
+  const street = f.soleProprietor ? [] : [f.street, f.streetSecondary];
+  const parts = [...street, `${f.city}, ${f.region} ${f.postalCode}`.trim(), f.country]
     .map((p) => (p ?? "").trim())
     .filter(Boolean);
   return parts.join(", ");
@@ -325,6 +332,11 @@ export function textingTermsMetadata(f: BusinessPageFacts | null): PublicPageMet
 export interface PreflightFacts {
   /** The name the CAMPAIGN will state — `tenants.name`, which is not the record's name. */
   workspaceName: string;
+  /**
+   * The name the receptionist introduces the business by (its settings' business name), where it was read: a customer
+   * who signed up under one name and is answered under another reads two businesses (X4-5).
+   */
+  receptionistName?: string | null;
   /** The names on the record, which is what the BRAND is registered as. */
   legalName: string;
   tradeName: string | null;
@@ -340,7 +352,7 @@ export interface PreflightFacts {
 }
 
 export interface PreflightProblem {
-  id: "name_mismatch" | "no_identity" | "no_about" | "no_opt_in_number" | "website_unusable";
+  id: "name_mismatch" | "names_differ" | "no_identity" | "no_about" | "no_opt_in_number" | "website_unusable";
   /** What a reviewer will see, in the owner's words. */
   what: string;
   /** What to do about it. */
@@ -370,7 +382,18 @@ export function registrationPreflight(f: PreflightFacts): PreflightProblem[] {
     out.push({
       id: "name_mismatch",
       what: `The carriers will be told this business is called “${f.workspaceName}”, but the business on record is “${f.tradeName?.trim() || f.legalName}”.`,
-      fix: "Make the workspace's name match the name on record before filing. The name goes into the confirmation message customers receive, and that message cannot be changed after a filing without registering a new campaign.",
+      fix: "Save the business's name under Settings › Business as it is on record, or put that name on record as its trading name, before filing. The name goes into the confirmation message customers receive, and that message cannot be changed after a filing without registering a new campaign.",
+    });
+  }
+
+  // And the name the receptionist answers in (X4-5): the filing states the workspace's name, and a customer who signs up
+  // under it and is answered under another reads two businesses. An owner's save of the name renames both.
+  const answers = loose(f.receptionistName ?? "");
+  if (said && answers && said !== answers) {
+    out.push({
+      id: "names_differ",
+      what: `Your receptionist introduces the business as “${(f.receptionistName ?? "").trim()}”, but your sign-up page and this filing call it “${f.workspaceName}”.`,
+      fix: "Save the name customers know you by under Settings › Business: an owner's save renames your sign-up page and your sign too, so customers read one name.",
     });
   }
 

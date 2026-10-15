@@ -165,6 +165,27 @@ export function policyLinks(f: Pick<ConsentPageFacts, "slug" | "businessPage">):
  * confirms the other -- the live campaign was refused three times over a
  * confirmation that said "offers and news" for the appointment keyword.
  */
+/**
+ * Whose name a yes is confirmed in (the wiring's second audit, X4-5; Ruben, 15 October 2026). A START by text is confirmed
+ * in the words its campaign filed, so in the name the campaign was filed under (contracts LINE_FILED_NAMES.campaign), then
+ * the workspace's, which a campaign filed before that name was kept states, and only then the receptionist's: the carriers
+ * compare what a customer receives with what was filed. A yes to offers on WhatsApp is no carrier's filing, and keeps the
+ * receptionist's name, as the conversation has it.
+ */
+export function confirmationNameOf(o: {
+  channel: string;
+  filed: string | null;
+  workspace: string | null;
+  receptionist: string | null;
+}): string {
+  const said = (s: string | null) => (s ?? "").trim() || null;
+  const name =
+    o.channel === "sms"
+      ? (said(o.filed) ?? said(o.workspace) ?? said(o.receptionist))
+      : (said(o.receptionist) ?? said(o.workspace));
+  return name ?? "";
+}
+
 export function optInConfirmation(businessName: string, purpose: AskedPurpose): string {
   const name = businessName.trim() || "This business";
   return purpose === "marketing"

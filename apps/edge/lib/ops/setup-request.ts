@@ -56,6 +56,13 @@ const WHAT: Record<string, { subject: string; how: string }> = {
       "Their saved configuration no longer passes the receptionist's checks, so it is silent. GET /api/v1/settings answers the problems as broken.issues, and their Business pane lists them.\n" +
       "Correct tenant_config.config for this workspace; the receptionist answers again within a minute of the fix.",
   },
+  // A name the carriers hold (X4-5): the campaign's name is in its filed confirmation, and only a new campaign changes it.
+  name: {
+    subject: "asked to change the name the carriers hold for their texting",
+    how:
+      "They renamed the business in Settings. Their sign-up page and sign say the new name now; the text confirming a START still says the name their campaign was filed under (lines.facts.a2p_campaign_name), and the brand keeps its own (a2p_filed_name).\n" +
+      "Reply to confirm the new name is the one customers know them by, and that it is on their business record (its legal or trading name). Then register a new campaign for their line under it -- the carriers vet it again, which takes days -- and retire the old one once the new one is approved.",
+  },
 };
 
 export async function notifySetupRequest(auth: Admitted, body: Partial<Body>): Promise<Response> {

@@ -829,6 +829,12 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     resolve_person: (args) => resolvePersonIn(tables, args, insertRow),
     // The one door a provider's stop is recorded by (00383): the send, status and receipts doors call it.
     record_provider_stop: (args) => recordProviderStopIn(tables, args, insertRow),
+    // Whether a workspace's business on record has no tax id (00439): the public page says a sole proprietor's
+    // whereabouts by city. Null with nothing on record, as the SQL answers.
+    sole_proprietor_of: ({ p_tenant_id }) => {
+      const r = (tables.business_records ?? []).find((x) => x.tenant_id === p_tenant_id);
+      return r ? !String(r.ein ?? "").trim() : null;
+    },
     lead_month_used: ({ p_tenant_id, p_period }) => {
       const n = (v) => (typeof v === "number" ? v : typeof v === "string" ? Number(v) || 0 : 0);
       const of = (kind) => {
