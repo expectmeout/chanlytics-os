@@ -11,6 +11,7 @@ import {
   ASK_ANSWER_FORMAT,
   ASK_CAPS,
   ASK_CITATION_KINDS,
+  answerCopy,
   answerForCards,
   answerFromV1,
   answerSpoken,
@@ -1033,6 +1034,67 @@ test("Say streams from every prefix of the answer, never backwards, whether say 
     }
     assert.deepEqual(partialSay(text), say);
   }
+});
+
+test("the headline is one sentence: a second one opens the detail, while it streams and when it lands, never at a title, a month, an initial, an abbreviation or a decimal", () => {
+  const say = (headline, detail = "") => read1(written({ say: { headline, detail } })).answer.say;
+  // Two sentences, as the eval caught them (15 Oct: 10 of 20 misses): the second goes first in the detail.
+  assert.deepEqual(say("I can't give a refund from here. Money is locked by charter.", "Ask a person instead."), {
+    headline: "I can't give a refund from here.",
+    detail: "Money is locked by charter. Ask a person instead.",
+  });
+  assert.deepEqual(say('The card "Reply to Robin" is just above. One press on Approve sends it.'), {
+    headline: 'The card "Reply to Robin" is just above.',
+    detail: "One press on Approve sends it.",
+  });
+  assert.deepEqual(say("¿Quién te necesita? ¡Nadie hoy!"), { headline: "¿Quién te necesita?", detail: "¡Nadie hoy!" });
+  assert.deepEqual(say("You have 24 unread notifications. 3 are about Google."), {
+    headline: "You have 24 unread notifications.",
+    detail: "3 are about Google.",
+  });
+  // A stop that is not an end stays in the one sentence.
+  for (const one of [
+    "Your rating fell to 4.0 from 5.0 this week.",
+    "Dr. Lin called twice, on Oct. 13 and Oct. 14.",
+    "J. Rivera booked for 9 a.m. Friday.",
+    "Two U.S. numbers wrote today.",
+    "It says: wait. then try",
+    "Nobody needs you right now.",
+  ])
+    assert.deepEqual(say(one, "More."), { headline: one, detail: "More." }, one);
+  // The preview splits where the final does, at every prefix: the headline only grows, and so does the detail.
+  const w = written({ say: { headline: "I can't give a refund. Money is locked.", detail: "Ask a person." } });
+  const final = read1(w).answer.say;
+  const text = JSON.stringify(w);
+  let prev = { headline: "", detail: "" };
+  for (let i = text.indexOf('"say"') + 5; i <= text.length; i++) {
+    const p = partialSay(text.slice(0, i));
+    assert.ok(
+      final.headline.startsWith(p.headline) && final.detail.startsWith(p.detail),
+      `at ${i}: ${JSON.stringify(p)}`,
+    );
+    assert.ok(p.headline.length >= prev.headline.length && p.detail.length >= prev.detail.length, `at ${i}`);
+    prev = p;
+  }
+  assert.deepEqual(prev, final);
+});
+
+test("Copy takes the answer's words, then what it showed: the whole in its parts, each figure, each row, a line each", () => {
+  const a = read1(written()).answer;
+  assert.equal(
+    answerCopy(a),
+    [
+      answerText(a),
+      `${BREAKDOWN.total} ${BREAKDOWN.label}: ${BREAKDOWN.parts.map((p) => `${p.label} ${p.value}`).join(", ")}`,
+      "2 waiting on you (up from 1)",
+      "Nora · WhatsApp · 2h · Asked about Saturday.",
+    ].join("\n"),
+  );
+  // An answer of words alone copies its words.
+  const bare = read1(
+    written({ show: { figures: [], items: [], breakdown: null, list: { style: "bullets", entries: [] } } }),
+  );
+  assert.equal(answerCopy(bare.answer), answerText(bare.answer));
 });
 
 test("cards only: the cards are the Do, said in a sentence, in English and Spanish", () => {

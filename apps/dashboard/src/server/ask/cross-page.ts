@@ -155,6 +155,32 @@ const OFFER_ASKED = new RegExp(
   "iu",
 );
 
+/** A setup asked for (SETUP). */
+const setupAsked = (q: string): boolean => SETUP.test(q);
+/** An offer to make (OFFER_ASKED), not one said of a campaign that runs (PLAYBOOKS: a change to it). */
+const offerAsked = (q: string): boolean => OFFER_ASKED.test(q) && !PLAYBOOKS.test(q);
+
+/** A verb that writes a draft, in either language: write, draft, compose, build, design, plan out, put together. */
+const DRAFT_VERB = String.raw`(?:write|draft|compose|build|design|plan out|put together|come up with|escrib[eai]\w*|redact[aeo]\w*|dise[ñn][aeo]\w*|arm[aeo]\w*)`;
+/** What a draft is, within four words of the verb: a message, a campaign, an offer, a sequence, a plan. */
+const DRAFT_THING = String.raw`(?:messages?|texts?|emails?|campaigns?|offers?|promo(?:tion)?s?|sequences?|win-?backs?|reminders?|follow[- ]?ups?|newsletters?|plans?|scripts?|templates?|mensajes?|correos?|campa[ñn]as?|ofertas?|promoci[oó]n(?:es)?|secuencias?|recordatorios?|planes?|plantillas?)\b`;
+/** A draft named, at a sentence's start past a setup's openers: "write a win-back for…", "draft the offer email". */
+const DRAFT_ASKED = new RegExp(
+  String.raw`${SENTENCE_START}(?:(?:${SETUP_OPENERS})\s+)*${DRAFT_VERB}\s+(?:[\p{L}\d'’$%-]+\s+){0,4}?${DRAFT_THING}`,
+  "iu",
+);
+
+/**
+ * Whether the question asks for a draft (Ruben, 15 Oct 2026: "for crafting generating big things like campaigns etc we
+ * should use the maximum effort level"): a setup (SETUP), an offer (OFFER_ASKED), or a message, campaign, sequence or
+ * plan to write (DRAFT_ASKED). Such a turn is asked at the draft's effort (effort.ts); a draft missed here is found by
+ * the round that begins one, at the cost of that round.
+ */
+export function draftAsked(text: string): boolean {
+  const q = text.replace(/\s+/g, " ").trim();
+  return setupAsked(q) || offerAsked(q) || DRAFT_ASKED.test(q);
+}
+
 /**
  * The reads each page's own rows already answer, by tool and action: on that page, its context answers the question.
  * Campaigns' rows are its campaigns and offers, so AUDIENCES' words name them there; who a send can reach is no row of
@@ -190,13 +216,13 @@ export function crossPagePlan(text: string, surface: string | null, view: string
     if (!answered.has(called) && !out.some((r) => calledName(r.name, r.input) === called)) out.push({ name, input });
   };
   // A setup's two reads come first and are read whatever page asks (A4): the page's rows hold neither.
-  const setup = SETUP.test(q);
+  const setup = setupAsked(q);
   if (setup) for (const action of ["moments", "lists"]) out.push({ name: "sequences", input: { action } });
   // Then the plan's two, the journey and the Library (the marketing manager's §5.7), whatever page asks: no page's rows
   // are either. The cap leaves a setup its own two, whose one campaign alone reads nothing else (prompt.ts, the setup
   // rule); a whole setup's plan reads these on its call, the campaigns and the lines among them read already. An offer
   // said of a campaign that runs is a change to it: PLAYBOOKS reads it below.
-  if (setup || (OFFER_ASKED.test(q) && !PLAYBOOKS.test(q)))
+  if (setup || offerAsked(q))
     for (const action of ["journey", "messages"]) out.push({ name: "sequences", input: { action } });
   const overview = OVERVIEW.test(q);
   if (overview) add("today", {});

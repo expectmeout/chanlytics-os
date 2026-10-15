@@ -1,0 +1,690 @@
+{
+  "about": "The customer message writer's eval (contracts ask-skills/customer-message, tooling/scripts/evals/customer-message.mjs). Each case is a made-up business and the message Ask's card asked for, its versions the first draft as the palette writes one today. The writer writes it again; code checks it (checks.ts) and a judge reads it against the rubric (rubric.ts). `expect` adds patterns (read with the values taken out) a case's own words must or must not hold. Run it only on Ruben's word: it spends the eval key.",
+  "cases": [
+    {
+      "id": "winback_en_whatsapp_email",
+      "note": "A thin draft becomes a fuller message from the same facts: no price, no date, the opt-out line last.",
+      "business": {
+        "name": "Harbor Dental",
+        "tone": "Warm and brief. Friendly, a sentence or two at a time, and straight to what the customer asked.",
+        "services": ["Cleaning", "Check-up", "Whitening"],
+        "notes": [],
+        "word": "appointment"
+      },
+      "message": {
+        "name": "winback_since_summer",
+        "category": "marketing",
+        "language": "en",
+        "values": [
+          {
+            "position": 1,
+            "label": "First name",
+            "kind": "first_name"
+          },
+          {
+            "position": 2,
+            "label": "Business name",
+            "kind": "business_name"
+          },
+          {
+            "position": 3,
+            "label": "Booking link",
+            "kind": "booking_link"
+          }
+        ],
+        "reused": false,
+        "draft": {
+          "whatsapp": {
+            "body": "Hi {{1}}, we haven't seen you at {{2}} since the summer and we'd love to have you back. Book your next appointment here: {{3}} Reply STOP to opt out."
+          },
+          "email": {
+            "subject": "We miss you",
+            "body": "Hi {{1}}, it's been a while. Book again here: {{3}}"
+          }
+        }
+      },
+      "expect": {
+        "excludes": ["$", "%", "discount", "(?<!feel )\bfree\b"]
+      }
+    },
+    {
+      "id": "winback_es_whatsapp",
+      "note": "Natural Spanish, tú throughout, ¡ and ¿ where they belong, the Spanish opt-out line.",
+      "business": {
+        "name": "Clínica Dental Bahía",
+        "tone": "Cálido y cercano, de tú. Frases cortas.",
+        "services": ["Limpieza", "Revisión"],
+        "notes": [],
+        "word": "appointment"
+      },
+      "message": {
+        "name": "winback_since_summer",
+        "category": "marketing",
+        "language": "es",
+        "values": [
+          {
+            "position": 1,
+            "label": "Nombre",
+            "kind": "first_name"
+          },
+          {
+            "position": 2,
+            "label": "Negocio",
+            "kind": "business_name"
+          },
+          {
+            "position": 3,
+            "label": "Enlace de reservas",
+            "kind": "booking_link"
+          }
+        ],
+        "reused": false,
+        "draft": {
+          "whatsapp": {
+            "body": "Hola {{1}}, no te vemos en {{2}} desde el verano y nos encantaría verte de nuevo. Reserva tu próxima cita aquí: {{3}} Responde STOP para darte de baja"
+          }
+        }
+      },
+      "expect": {
+        "excludes": ["\\busted\\b", "\\bsu cita\\b"]
+      }
+    },
+    {
+      "id": "offer_with_its_figure_en",
+      "note": "An offer with the owner's own figure and month: both kept exactly, nothing added.",
+      "business": {
+        "name": "Northside Yoga",
+        "tone": "Calm and encouraging. No pressure, no hype.",
+        "services": ["Class pack", "Private session", "Beginner series"],
+        "notes": ["Holiday hours: closed November 27 and 28."],
+        "word": "session"
+      },
+      "message": {
+        "name": "november_class_packs",
+        "category": "marketing",
+        "language": "en",
+        "values": [
+          {
+            "position": 1,
+            "label": "First name",
+            "kind": "first_name"
+          },
+          {
+            "position": 2,
+            "label": "Business name",
+            "kind": "business_name"
+          },
+          {
+            "position": 3,
+            "label": "Booking link",
+            "kind": "booking_link"
+          }
+        ],
+        "reused": false,
+        "draft": {
+          "whatsapp": {
+            "body": "Hi {{1}}! 20% off any class pack this November at {{2}}. Book here: {{3}}\n\nReply STOP to opt out"
+          },
+          "email": {
+            "subject": "20% off class packs in November",
+            "body": "Hi {{1}},\n\n20% off any class pack this November at {{2}}.\n\nBook here: {{3}}"
+          }
+        }
+      },
+      "expect": {
+        "includes": ["20%", "November"],
+        "excludes": ["27", "28", "last chance", "hurry"]
+      }
+    },
+    {
+      "id": "news_without_a_price_en",
+      "note": "News with no price in the draft: no free estimate, no discount, no number invented.",
+      "business": {
+        "name": "Ridgeline Plumbing",
+        "tone": "Straightforward and friendly. Plain words, no jargon.",
+        "services": ["Repairs", "Drain cleaning", "Water heater installation"],
+        "notes": [],
+        "word": "appointment"
+      },
+      "message": {
+        "name": "water_heaters_now",
+        "category": "marketing",
+        "language": "en",
+        "values": [
+          {
+            "position": 1,
+            "label": "First name",
+            "kind": "first_name"
+          },
+          {
+            "position": 2,
+            "label": "Booking link",
+            "kind": "booking_link"
+          }
+        ],
+        "reused": false,
+        "draft": {
+          "whatsapp": {
+            "body": "Hi {{1}}, we now install water heaters too. If yours is getting old, book a time with us: {{2}} Reply STOP to opt out."
+          }
+        }
+      },
+      "expect": {
+        "excludes": ["free", "estimate", "\\$", "%", "\\d"]
+      }
+    },
+    {
+      "id": "reminder_en_whatsapp_text",
+      "note": "Utility: about their booking only. The text fits one part with its values and the STOP line, and names the business first.",
+      "business": {
+        "name": "Oakwood Physio",
+        "tone": "Warm and brief.",
+        "services": ["Assessment", "Follow-up treatment"],
+        "notes": [],
+        "word": "appointment"
+      },
+      "message": {
+        "name": "appointment_reminder",
+        "category": "utility",
+        "language": "en",
+        "values": [
+          {
+            "position": 1,
+            "label": "First name",
+            "kind": "first_name"
+          },
+          {
+            "position": 2,
+            "label": "Business name",
+            "kind": "business_name"
+          },
+          {
+            "position": 3,
+            "label": "Booked time",
+            "kind": "visit_when"
+          }
+        ],
+        "reused": false,
+        "draft": {
+          "whatsapp": {
+            "body": "Hi {{1}}, this is a reminder of your appointment at {{2}} on {{3}}. If you need to change it, just reply to this message and we'll find another time for you."
+          },
+          "sms": {
+            "body": "Hi {{1}}, this is a reminder of your appointment at {{2}} on {{3}}. If you need to change it, just reply to this message and we'll find another time."
+          }
+        }
+      },
+      "expect": {
+        "excludes": ["STOP"]
+      }
+    },
+    {
+      "id": "reminder_es_formal_text_accents",
+      "note": "Spanish, de usted throughout, no exclamation marks; the text within two parts with its accents.",
+      "business": {
+        "name": "Estudio Legal Ramírez",
+        "tone": "Formal y directo, de usted, sin signos de exclamación.",
+        "services": ["Consulta inicial", "Seguimiento"],
+        "notes": [],
+        "word": "meeting"
+      },
+      "message": {
+        "name": "recordatorio_reunion",
+        "category": "utility",
+        "language": "es",
+        "values": [
+          {
+            "position": 1,
+            "label": "Nombre",
+            "kind": "first_name"
+          },
+          {
+            "position": 2,
+            "label": "Negocio",
+            "kind": "business_name"
+          },
+          {
+            "position": 3,
+            "label": "Hora reservada",
+            "kind": "visit_when"
+          }
+        ],
+        "reused": false,
+        "draft": {
+          "whatsapp": {
+            "body": "Hola {{1}}! Te esperamos en {{2}} el {{3}}. Si necesitas cambiarla avísanos."
+          },
+          "sms": {
+            "body": "Hola {{1}}, recuerda tu reunión en {{2}} el {{3}}. Si necesitas cambiarla, responde a este mensaje."
+          }
+        }
+      },
+      "expect": {
+        "excludes": ["!", "¡", "\\btú\\b", "\\bte\\b", "\\btu\\b"]
+      }
+    },
+    {
+      "id": "utility_with_a_promotion_slipped_in",
+      "note": "The draft slips a promotion into a utility message: the writer drops it and says so in could_not.",
+      "business": {
+        "name": "Summit Fitness",
+        "tone": "Upbeat and direct.",
+        "services": ["Personal training", "Group classes", "Membership"],
+        "notes": [],
+        "word": "session"
+      },
+      "message": {
+        "name": "session_confirmed",
+        "category": "utility",
+        "language": "en",
+        "values": [
+          {
+            "position": 1,
+            "label": "First name",
+            "kind": "first_name"
+          },
+          {
+            "position": 2,
+            "label": "Booked time",
+            "kind": "visit_when"
+          }
+        ],
+        "reused": false,
+        "draft": {
+          "whatsapp": {
+            "body": "Hi {{1}}, your session is confirmed for {{2}}. While you're here, ask about our new membership deals! See you soon."
+          }
+        }
+      },
+      "expect": {
+        "excludes": ["deal", "membership", "offer"]
+      }
+    },
+    {
+      "id": "review_ask_en_utility",
+      "note": "A review ask after a booking: utility, thanks first, the review link as the one call to act.",
+      "business": {
+        "name": "Paws & Co Grooming",
+        "tone": "Friendly and playful, light on emoji.",
+        "services": ["Full groom", "Bath and brush", "Nail trim"],
+        "notes": [],
+        "word": "appointment"
+      },
+      "message": {
+        "name": "thanks_and_review",
+        "category": "utility",
+        "language": "en",
+        "values": [
+          {
+            "position": 1,
+            "label": "First name",
+            "kind": "first_name"
+          },
+          {
+            "position": 2,
+            "label": "Business name",
+            "kind": "business_name"
+          },
+          {
+            "position": 3,
+            "label": "Review link",
+            "kind": "review_link"
+          }
+        ],
+        "reused": false,
+        "draft": {
+          "whatsapp": {
+            "body": "Hi {{1}}, thanks for coming to {{2}}! Could you leave us a review? {{3}} Thanks!"
+          },
+          "email": {
+            "subject": "Thanks for coming",
+            "body": "Hi {{1}}, thanks for coming to {{2}}. Please leave us a review: {{3}}"
+          }
+        }
+      },
+      "expect": {
+        "excludes": ["%", "discount", "next time"]
+      }
+    },
+    {
+      "id": "strict_tone_no_exclamation_marks",
+      "note": "A tone that bans exclamation marks and small talk is kept, though the draft has them.",
+      "business": {
+        "name": "Calder & Price Accountants",
+        "tone": "Professional and to the point. Polite and clear, with no small talk and no exclamation marks.",
+        "services": ["Tax returns", "Bookkeeping", "Payroll"],
+        "notes": [],
+        "word": "meeting"
+      },
+      "message": {
+        "name": "tax_season_open",
+        "category": "marketing",
+        "language": "en",
+        "values": [
+          {
+            "position": 1,
+            "label": "First name",
+            "kind": "first_name"
+          },
+          {
+            "position": 2,
+            "label": "Booking link",
+            "kind": "booking_link"
+          }
+        ],
+        "reused": false,
+        "draft": {
+          "whatsapp": {
+            "body": "Hey {{1}}! Hope you're having an awesome week!! Tax season is here, so book your meeting with us now: {{2}} Reply STOP to opt out"
+          },
+          "email": {
+            "subject": "Tax season is here!!",
+            "body": "Hey {{1}}!\n\nTax season is here! Book your meeting now: {{2}}"
+          }
+        }
+      },
+      "expect": {
+        "excludes": ["!", "awesome", "hope you"]
+      }
+    },
+    {
+      "id": "plan_offer_shell_en",
+      "note": "A plan's offer message, reused for every later offer: written around the offer's value, never about one offer.",
+      "business": {
+        "name": "Brightside Tutoring",
+        "tone": null,
+        "services": ["Math tutoring", "Reading tutoring", "Test prep"],
+        "notes": [],
+        "word": "lesson"
+      },
+      "message": {
+        "name": "offer",
+        "category": "marketing",
+        "language": "en",
+        "values": [
+          {
+            "position": 1,
+            "label": "First name",
+            "kind": "first_name"
+          },
+          {
+            "position": 2,
+            "label": "Business name",
+            "kind": "business_name"
+          },
+          {
+            "position": 3,
+            "label": "The offer",
+            "kind": "text"
+          },
+          {
+            "position": 4,
+            "label": "Booking link",
+            "kind": "booking_link"
+          }
+        ],
+        "reused": true,
+        "draft": {
+          "whatsapp": {
+            "body": "Hi {{1}}, an offer from {{2}}: {{3}} Book here: {{4}} or reply with a day that suits you.\n\nReply STOP to opt out"
+          },
+          "email": {
+            "subject": "An offer from {{2}}",
+            "body": "Hi {{1}},\n\nAn offer from {{2}}: {{3}}\n\nBook here: {{4}}, or reply with a day that suits you."
+          }
+        }
+      },
+      "expect": {
+        "excludes": ["\\$", "%", "math", "test prep"]
+      }
+    },
+    {
+      "id": "plan_offer_shell_es",
+      "note": "The Spanish offer shell: around the offer's value, natural Spanish.",
+      "business": {
+        "name": "Taller Mecánico Vega",
+        "tone": "Directo y amable, de tú.",
+        "services": ["Cambio de aceite", "Frenos", "Diagnóstico"],
+        "notes": [],
+        "word": "appointment"
+      },
+      "message": {
+        "name": "offer",
+        "category": "marketing",
+        "language": "es",
+        "values": [
+          {
+            "position": 1,
+            "label": "Nombre",
+            "kind": "first_name"
+          },
+          {
+            "position": 2,
+            "label": "Negocio",
+            "kind": "business_name"
+          },
+          {
+            "position": 3,
+            "label": "La oferta",
+            "kind": "text"
+          },
+          {
+            "position": 4,
+            "label": "Enlace de reservas",
+            "kind": "booking_link"
+          }
+        ],
+        "reused": true,
+        "draft": {
+          "whatsapp": {
+            "body": "Hola {{1}}, una oferta de {{2}}: {{3}} Reserva aquí: {{4}} o responde con el día que mejor te venga.\n\nResponde STOP para darte de baja"
+          }
+        }
+      },
+      "expect": {
+        "excludes": ["aceite", "frenos", "\\$", "%"]
+      }
+    },
+    {
+      "id": "order_ready_text_too_long",
+      "note": "A utility text drafted at three parts: the writer brings it to one, the business first.",
+      "business": {
+        "name": "Crumb & Crust Bakery",
+        "tone": "Cheerful and short.",
+        "services": ["Custom cakes", "Bread", "Pastries"],
+        "notes": [],
+        "word": "appointment"
+      },
+      "message": {
+        "name": "order_ready",
+        "category": "utility",
+        "language": "en",
+        "values": [
+          {
+            "position": 1,
+            "label": "First name",
+            "kind": "first_name"
+          },
+          {
+            "position": 2,
+            "label": "Business name",
+            "kind": "business_name"
+          }
+        ],
+        "reused": false,
+        "draft": {
+          "whatsapp": {
+            "body": "Hi {{1}}, good news: your order at {{2}} is ready to pick up whenever it suits you. We're open our usual hours, and if you have any questions just reply here."
+          },
+          "sms": {
+            "body": "Hi {{1}}, good news from all of us here: your order at {{2}} is ready to pick up whenever it suits you. We're open our usual hours, so come by whenever is easiest for you, and if you have any questions at all about it, or need us to hold it a little longer, just reply to this text and we'll be happy to help."
+          }
+        }
+      },
+      "expect": {
+        "excludes": ["STOP"]
+      }
+    },
+    {
+      "id": "email_only_new_service",
+      "note": "An email alone: a specific subject under 60, short paragraphs, the business signs off, no unsubscribe of its own.",
+      "business": {
+        "name": "Greenleaf Landscaping",
+        "tone": "Friendly and practical.",
+        "services": ["Lawn care", "Garden design", "Irrigation"],
+        "notes": [],
+        "word": "appointment"
+      },
+      "message": {
+        "name": "irrigation_service",
+        "category": "marketing",
+        "language": "en",
+        "values": [
+          {
+            "position": 1,
+            "label": "First name",
+            "kind": "first_name"
+          },
+          {
+            "position": 2,
+            "label": "Business name",
+            "kind": "business_name"
+          },
+          {
+            "position": 3,
+            "label": "Booking link",
+            "kind": "booking_link"
+          }
+        ],
+        "reused": false,
+        "draft": {
+          "email": {
+            "subject": "NEW SERVICE ANNOUNCEMENT FROM US",
+            "body": "Hi {{1}}, we are happy to announce that {{2}} now offers irrigation installs and repairs for your garden. Book a time: {{3}}. To unsubscribe reply STOP."
+          }
+        }
+      },
+      "expect": {
+        "excludes": ["unsubscribe", "STOP", "NEW SERVICE"]
+      }
+    },
+    {
+      "id": "closure_dates_kept_en",
+      "note": "A closure notice with its own dates: kept exactly, no hours or reopening day invented.",
+      "business": {
+        "name": "Maple Street Vet",
+        "tone": "Caring and clear.",
+        "services": ["Check-ups", "Vaccinations"],
+        "notes": ["Holiday hours: closed November 27 and 28."],
+        "word": "appointment"
+      },
+      "message": {
+        "name": "thanksgiving_closure",
+        "category": "marketing",
+        "language": "en",
+        "values": [
+          {
+            "position": 1,
+            "label": "First name",
+            "kind": "first_name"
+          },
+          {
+            "position": 2,
+            "label": "Booking link",
+            "kind": "booking_link"
+          }
+        ],
+        "reused": false,
+        "draft": {
+          "whatsapp": {
+            "body": "Hi {{1}}, a heads-up: we're closed November 27 and 28 for Thanksgiving. Need to see us before then? Book here: {{2}} Reply STOP to opt out"
+          }
+        }
+      },
+      "expect": {
+        "includes": ["27", "28"],
+        "excludes": ["29", "30", "\\b\\d{1,2}(:\\d\\d)?\\s?(am|pm)\\b"]
+      }
+    },
+    {
+      "id": "offer_two_for_one_es",
+      "note": "A Spanish offer with its own 2x1: kept exactly, the weekend kept, nothing added.",
+      "business": {
+        "name": "Danza Libre Academia",
+        "tone": "Alegre y cercano, de tú, con algún emoji.",
+        "services": ["Salsa", "Bachata", "Clase de prueba"],
+        "notes": [],
+        "word": "lesson"
+      },
+      "message": {
+        "name": "dos_por_uno_prueba",
+        "category": "marketing",
+        "language": "es",
+        "values": [
+          {
+            "position": 1,
+            "label": "Nombre",
+            "kind": "first_name"
+          },
+          {
+            "position": 2,
+            "label": "Enlace de reservas",
+            "kind": "booking_link"
+          }
+        ],
+        "reused": false,
+        "draft": {
+          "whatsapp": {
+            "body": "Hola {{1}}, este fin de semana las clases de prueba son 2x1: trae a quien quieras. Reserva: {{2}}\n\nResponde STOP para darte de baja"
+          },
+          "email": {
+            "subject": "2x1 en clases de prueba este fin de semana",
+            "body": "Hola {{1}}:\n\nEste fin de semana las clases de prueba son 2x1: trae a quien quieras.\n\nReserva aquí: {{2}}"
+          }
+        }
+      },
+      "expect": {
+        "includes": ["2x1", "fin de semana"],
+        "excludes": ["gratis", "%", "\\$"]
+      }
+    },
+    {
+      "id": "thank_you_casual_one_emoji",
+      "note": "A casual tone that welcomes emoji: still at most one, never in place of a word; the draft forgot the opt-out line, which an invitation to book again carries.",
+      "business": {
+        "name": "Wave Surf School",
+        "tone": "Upbeat and casual. Emoji welcome.",
+        "services": ["Group lesson", "Private lesson", "Board rental"],
+        "notes": [],
+        "word": "lesson"
+      },
+      "message": {
+        "name": "thanks_book_again",
+        "category": "marketing",
+        "language": "en",
+        "values": [
+          {
+            "position": 1,
+            "label": "First name",
+            "kind": "first_name"
+          },
+          {
+            "position": 2,
+            "label": "Booking link",
+            "kind": "booking_link"
+          }
+        ],
+        "reused": false,
+        "draft": {
+          "whatsapp": {
+            "body": "Hey {{1}} 🏄🌊🤙 thanks for your first lesson with us!!! 🎉🎉 Want to book the next one? {{2}} 😎"
+          }
+        }
+      },
+      "expect": {
+        "excludes": ["!!", "🎉🎉"],
+        "includes": ["Reply STOP to opt out"]
+      }
+    }
+  ]
+}

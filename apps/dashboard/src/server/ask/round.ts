@@ -176,6 +176,27 @@ export function parseInput(json: string): Record<string, unknown> {
 }
 
 /**
+ * A tool call's arguments, or null when they did not arrive whole.
+ *
+ * `parseInput` answers {} for JSON it cannot read, which is the right shape
+ * but the wrong fact: every required field then looks missing, and the model
+ * is told "the plan is not complete: looking_for Required" about a field it
+ * had just written. It reads that as its own mistake -- on the lead finder it
+ * told the owner it "hit a formatting snag" and gave up -- when what happened
+ * is that the round hit max_tokens mid-argument. The loop says that instead
+ * (loop.ts cutOff), so the retry is a shorter call rather than a guess at a
+ * field that was never wrong.
+ */
+export function argsOf(b: RoundBlock): Record<string, unknown> | null {
+  if (!b.json) return {};
+  try {
+    return JSON.parse(b.json) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * A round's blocks as the next request carries them back: in the order
  * written, and a thinking block exactly as it came -- its words and its
  * signature, or a redacted block's data -- because a model that always thinks
