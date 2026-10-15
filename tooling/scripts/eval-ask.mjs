@@ -382,6 +382,9 @@ export function judge(c, r) {
   if (e.no_write && claimsWrite(text)) fails.push(`the answer claims a write: “${text.slice(0, 120)}”`);
   if (e.includes_any && !e.includes_any.some((s) => text.toLowerCase().includes(s.toLowerCase())))
     fails.push(`answer lacks all of ${e.includes_any.join("/")}`);
+  // Each of them, in any order: what a setup must say first (the calendar to connect, proposals to turn on).
+  for (const s of e.includes_all ?? [])
+    if (!text.toLowerCase().includes(s.toLowerCase())) fails.push(`answer lacks “${s}”`);
   for (const s of e.excludes ?? [])
     if (text.toLowerCase().includes(s.toLowerCase())) fails.push(`answer contains “${s}”`);
   // A row's id is a uuid a read returned, but a People list's, which is its name (contracts BUILTIN_LISTS: quiet).

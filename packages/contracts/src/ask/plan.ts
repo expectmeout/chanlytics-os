@@ -37,7 +37,12 @@
  *   the journey   a campaign on each moment not covered yet that the workspace can run, on its action's pick; the day
  *                 after's review ask only where the Google listing keeps a review link (stageInput); without one, the
  *                 check named only over a review ask the Library holds, else the action's pick, which may be the
- *                 after_visit the set retired; nothing for first contact, the receptionist's own
+ *                 after_visit the set retired; nothing for first contact, the receptionist's own. A moment of the
+ *                 business's journey it cannot run yet is said with what comes first, never dropped: an appointment's
+ *                 two need the calendar's feed, a proposal's needs deals on, a moment of theirs where the owner says
+ *                 some customers get one; the words name what they book in the owner's words, say who a card reaches
+ *                 nobody of today, and are said in the question's language; the answer leads with what comes first
+ *                 (PlanLead: its headline, the Open to where it is set, and the next question); journey/journey-plan.ts
  */
 import { isDayKey, shiftKey } from "../calendar/day-keys";
 import type { Note } from "../config/workspace-config/business-profile";
@@ -45,13 +50,15 @@ import { PROFILE_LIMITS } from "../config/workspace-config/config-rules";
 import type { ConsentChannel } from "../consent/consent-channels";
 import { BROADCAST_NAME_MAX } from "../broadcasts/broadcasts";
 import { CHANNEL_WORDS } from "../broadcasts/reach-for";
-import { JOURNEY_STAGE_IDS, journeyStageOf, type JourneyStageId } from "../journey/journey";
+import type { AppointmentWord } from "../journey/appointment-word";
+import type { JourneyStageId } from "../journey/journey";
+import { JOURNEY_PLAN_WORDS, journeyPlan, type PlanLead } from "../journey/journey-plan";
 import { parseListToken } from "../people/lists/lists";
 import { campaignDayWords, campaignRunsOn, localDate } from "../playbooks/playbook-schedule";
 import { PLAYBOOK_DEFAULTS, PLAYBOOK_LIMITS, PLAYBOOK_NAME_MAX } from "../playbooks/playbook-triggers";
 import { clockHour, wallClockAt } from "../shared/clock";
 import { joinWords, plural } from "../shared/words";
-import { VERSION_CHANNEL_WORDS, versionWord } from "../templates/message-versions";
+import { LIVE_VERSION_STATES, VERSION_CHANNEL_WORDS, versionWord } from "../templates/message-versions";
 import { SENDER_WORDS } from "../templates/sender-words";
 import { starterByName, starterText } from "../templates/starter-lookup";
 import { messageLanguageCode } from "../templates/starter-templates";
@@ -80,7 +87,20 @@ export type PlanIntent =
       /** The owner's own phrasing of the offer, kept: what the message says in its place. */
       say?: string;
     }
-  | { intent: "cover_journey"; stages?: JourneyStageId[] };
+  | {
+      intent: "cover_journey";
+      stages?: JourneyStageId[];
+      /**
+       * What their customers book, in the owner's own words where they said it ("discovery call"): the setup's words
+       * name it in place of the workspace's word for an appointment. Words only: it changes no moment.
+       */
+      books?: string;
+      /**
+       * The owner said some of their customers get a proposal before they buy: the proposal follow-up is a moment of
+       * their journey whether deals are on yet or not, so a setup says how to turn them on where they are off.
+       */
+      proposals?: boolean;
+    };
 
 /** What a plan is made against: the workspace as Ask's reads see it at one moment (Task 17 reads it). */
 export interface PlanWorld {
@@ -89,6 +109,22 @@ export interface PlanWorld {
   tz: string;
   /** The language a message is written in, and a reused one is in. */
   language: "en" | "es";
+  /**
+   * The language a setup's words are said in: the question's (the turn's). An offer's words stay English, as decision
+   * 0055 says, so a Spanish answer carries them in English.
+   */
+  says: "en" | "es";
+  /**
+   * How the business works, as GET playbooks says it: whether its appointments are read from a calendar's feed, from a
+   * booking tool's emails, or from neither (an appointment's moments run on the feed alone); whether deals are on (the
+   * proposal follow-up runs only then); and what it calls an appointment. What a setup says to connect first.
+   */
+  shape: { calendar: "feed" | "email" | "none"; dealsOn: boolean; word: AppointmentWord };
+  /**
+   * Who a campaign on each moment would reach today, by its trigger (GET playbooks' pools: who a run would pick now);
+   * absent or null where it was not counted, which is never "nobody".
+   */
+  reach: Readonly<Record<string, number | null>>;
   /**
    * Whether an offer may go by each channel now, and why not: channelChoices' own entry, the offer's (no number,
    * WhatsApp's pause on offers to US numbers, email not set up to send offers, not checked), so its words are true.
@@ -156,8 +192,7 @@ const REMINDER_AFTER_DAYS = 19;
 const OFFER_CHANNELS: readonly OfferChannel[] = ["whatsapp", "email"];
 /** The value kinds a send fills per person, beside the one typed value that carries the offer. */
 const PER_PERSON = new Set(["first_name", "business_name", "booking_link", "review_link"]);
-/** A version a send can go by: approved, or in WhatsApp's review (a campaign by email too holds its WhatsApp people). */
-const LIVE = new Set(["approved", "pending"]);
+const LIVE = LIVE_VERSION_STATES;
 /** A WhatsApp version a send its review holds can go by (sendWaitsForReview): approved, as contracts messageHolds says. */
 const SENDS_NOW = new Set(["approved"]);
 /** A message a plan wrote: "offer", or "offer_2" where that name was held. */
@@ -168,15 +203,6 @@ const SILENT: Record<StepKind, boolean> = {
   change: true,
   broadcast: false,
   playbook: false,
-};
-
-/** Each stage of the journey, as a sentence about when it sends says it. */
-const STAGE_WORDS: Record<JourneyStageId, string> = {
-  first_contact: "at first contact",
-  before: "the day before a booked time",
-  after: "the day after a booked time",
-  proposal: "while a proposal waits",
-  quiet: "once they go quiet",
 };
 
 /**
@@ -247,16 +273,14 @@ export const PLAN_WORDS = {
   textOnly: `${CHANNEL_WORDS.noOffersByText} An offer goes by WhatsApp or email: say so, and name either, or leave channels out for every one the workspace sends offers on.`,
   noOffersList:
     "who is not a list this workspace has: name one people with action lists gives, or leave who out for everyone who can receive offers.",
-  journeyUnread:
-    "The journey could not be read just now, so which moments are covered is not known: say so, and try again in a moment.",
+  journeyUnread: JOURNEY_PLAN_WORDS.journeyUnread,
   /** A read the plan is made against that failed (Task 17's world): never a plan on a guess of what it would have said. */
   channelsUnread: unreadWords("Which channels can send"),
   libraryUnread: unreadWords("The message library"),
   playbooksUnread: unreadWords("The campaigns, and so whether the month's offer runs,"),
   listsUnread: unreadWords("The lists an offer goes to"),
   notesUnread: unreadWords("The receptionist's notes"),
-  nothingToCover:
-    "Every moment asked for is covered already or not offered here (an appointment's moments need a calendar connected, a proposal's needs deals on): say so, and propose nothing.",
+  nothingToCover: JOURNEY_PLAN_WORDS.nothingToCover,
   /** What an offer is called: the receptionist's note, the send and the campaign. */
   offerTitle: (words: string): string => `Offer: ${words}`,
   /** What the receptionist's note says: the offer as the message says it, its dates, and what it is for. */
@@ -298,10 +322,8 @@ export const PLAN_WORDS = {
   /** The reminder, its own question on its day (who has booked is known then); short, to fit the answer whole. */
   reminderAsk: (day: string, list: string): string =>
     `On ${day}, ask me to send a reminder to whoever on “${list}” has not booked by then.`,
-  cover: (n: number): string =>
-    `Starts ${plural(n, "campaign")}, one on each moment not covered yet, each its own card.`,
-  notOffered: (stages: readonly string[]): string => `Not offered here: ${joinWords(stages)}.`,
-  pausedOn: (name: string): string => `“${name}” stands paused on its moment: resume it from its drawer.`,
+  notOffered: JOURNEY_PLAN_WORDS.notOffered,
+  pausedOn: JOURNEY_PLAN_WORDS.pausedOn,
   /**
    * What a card says of what an earlier step of its plan makes, named by its token (`@step:n`): not filed yet, so not
    * quoted, and filled in by the commit once that step is approved.
@@ -319,7 +341,7 @@ export const PLAN_WORDS = {
     pause: "So nobody gets the month's offer and this one.",
     first: "The offer, on its first day.",
     paced: "The offer, as fast as the calendar can take it.",
-    stage: (id: JourneyStageId): string => `Nobody hears from you ${STAGE_WORDS[id]} yet.`,
+    stage: JOURNEY_PLAN_WORDS.whyStage,
   },
 } as const;
 const SAY = PLAN_WORDS;
@@ -733,67 +755,17 @@ function offerPlan(r: OfferRead, world: PlanWorld): { steps: PlanStep[]; words: 
   return { steps, words: words.join(" ") };
 }
 
-/* ------------------------------------------------------------------ the journey */
-
-/** The day after's starters by their keys: the thank-you with a review ask, and the one that asks how it went. */
-const REVIEW_STARTER = "after_visit_review";
-const CHECK_STARTER = "after_visit_check";
-
-/**
- * A campaign on a stage's moment, naming nothing where the action's own pick will do (act/playbook.ts heldStarter: the
- * first of the moment's starters the Library holds, the after_visit the set retired among them, else the moment's own,
- * filed at Approve). The day after's is the review ask only where the Google listing keeps a review link, whose slot
- * fills from it alone: the one the Library holds in this language, by a version it can go by (live; WhatsApp's where
- * WhatsApp sends, the review ask being about their own appointment, not an offer), else its starter, filed at Approve.
- * With no link, the check is named only where the Library holds a review ask, which the action's pick could take.
- */
-function stageInput(id: JourneyStageId, moment: string, world: PlanWorld): Record<string, unknown> {
-  if (id !== "after") return { trigger: moment };
-  const reviews = world.messages.filter((m) => m.name === REVIEW_STARTER);
-  if (!world.reviewLink) return reviews.length ? { trigger: moment, starter: CHECK_STARTER } : { trigger: moment };
-  const review = reviews.find((m) => languageBase(m.language) === world.language);
-  const goes = (review?.versions ?? []).filter(
-    (v) => LIVE.has(v.state) && (v.channel !== "whatsapp" || world.whatsappSends),
-  );
-  const version = goes.find((v) => v.channel === "whatsapp") ?? goes.at(0);
-  return version ? { trigger: moment, template_id: version.id } : { trigger: moment, starter: REVIEW_STARTER };
-}
-
-function journeyPlan(
-  stages: readonly JourneyStageId[] | undefined,
-  world: PlanWorld,
-): { steps: PlanStep[]; words: string } | { refused: string } {
-  const journey = world.journey;
-  if (!journey) return { refused: SAY.journeyUnread };
-  const { steps, add } = planSteps();
-  const missing: string[] = [];
-  const paused: string[] = [];
-  for (const id of JOURNEY_STAGE_IDS) {
-    if (id === "first_contact" || (stages && !stages.includes(id))) continue;
-    const stage = journey.find((s) => s.id === id);
-    if (!stage) {
-      if (stages) missing.push(STAGE_WORDS[id]);
-      continue;
-    }
-    if (stage.covered || !stage.moment) continue;
-    // A campaign paused on the moment is resumed from its drawer, never doubled.
-    const held = world.playbooks.find((p) => p.state === "paused" && journeyStageOf(p.trigger) === id);
-    if (held) paused.push(SAY.pausedOn(held.name));
-    else add("playbook", stageInput(id, stage.moment, world), SAY.why.stage(id));
-  }
-  const said = [...(missing.length ? [SAY.notOffered(missing)] : []), ...paused];
-  if (steps.length === 0) return { refused: [SAY.nothingToCover, ...said].join(" ") };
-  return { steps, words: [SAY.cover(steps.length), ...said].join(" ") };
-}
-
 /* ------------------------------------------------------------------ the plan */
 
-/** The steps of an intent against the workspace as it stands, and what the plan says; or why there is no plan. */
+/**
+ * The steps of an intent against the workspace as it stands, what the plan says, and, for a setup that waits on
+ * something, what its answer leads with; or why there is no plan.
+ */
 export function planOf(
   intent: PlanIntent,
   world: PlanWorld,
-): { steps: PlanStep[]; words: string } | { refused: string } {
-  if (intent.intent === "cover_journey") return journeyPlan(intent.stages, world);
+): { steps: PlanStep[]; words: string; lead?: PlanLead | null } | { refused: string } {
+  if (intent.intent === "cover_journey") return journeyPlan(intent, world);
   const read = offerRead(intent.offer, intent.say, world);
   return "refused" in read ? read : offerPlan(read, world);
 }

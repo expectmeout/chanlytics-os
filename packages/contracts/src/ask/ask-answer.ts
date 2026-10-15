@@ -18,6 +18,7 @@ import {
   type AskReadSet,
 } from "./citations";
 import { cardOpenRoute } from "../ask-proposals/page-specs";
+import type { PlanLead } from "../journey/journey-plan";
 import { planCountWords } from "./plan-steps";
 import { rightNowCounts, rightNowLine, type AskWaiting } from "./ask-waiting";
 import { canonicalRoute } from "../shell/address";
@@ -689,18 +690,21 @@ const sentence = (s: string) => (/[.!?]$/.test(s) ? s : `${s}.`);
  * The answer when a round proposed and nothing else, every card made: the cards are the Do, with no second round. A
  * plan's cards are counted as its steps, and a plan's words are the detail, cut on a whole word (plan-steps.ts
  * planCountWords; `words` null for a round that made no plan); the loop's headline for an answer that claimed a write is
- * this one's too.
+ * this one's too. A setup that waits on something leads with it (`lead`, journey-plan.ts PlanLead): its headline, an Open to
+ * where it is set and the question that asks how; null for every other round.
  */
 export function answerForCards(
   cards: ReadonlyArray<Pick<AskProposal, "title" | "plan">>,
   language: AskLanguage,
   words: string | null,
+  lead: PlanLead | null,
 ): AskAnswer {
   const es = language === "es";
   const n = cards.length;
   const plan = planCountWords(cards, language, words);
   const a = structured(
-    plan.headline ??
+    lead?.headline ??
+      plan.headline ??
       (n === 1
         ? es
           ? sentence(`Una tarjeta para revisar: ${cards[0].title}`)
@@ -721,6 +725,11 @@ export function answerForCards(
           : "Each is its own press: approve, change or dismiss each one; nothing happens until you do."),
     ASK_ANSWER_CAPS.detail,
   );
+  // A setup that waits on something (journey-plan.ts PlanLead): Open goes where it is set, and the next question asks how.
+  if (lead) {
+    a.do.open = { ...lead.open, now: false };
+    a.do.next = lead.next.slice(0, ASK_ANSWER_CAPS.next);
+  }
   return a;
 }
 
