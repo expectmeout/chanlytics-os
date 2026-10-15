@@ -10710,7 +10710,7 @@ type Database = {
  * as `emit_event_failed` through the one logger, with the same name.
  */
 
-type Db$L = SupabaseClient<Database>;
+type Db$M = SupabaseClient<Database>;
 /**
  * A JSON object whose keys are open: a provider's own payload, a tally, or a counts function's answer, forwarded as it
  * came. Json's object branch, spelled once for packages/db (reports/report-series.ts and reach-out-sheet.ts read it).
@@ -11036,22 +11036,22 @@ type EmittedKind = keyof EventData;
  * One event on the ledger, and whether it was written. For a writer whose next step needs the record to exist (the
  * back office records before it acts; a broadcast's tally; a lead's email): it reads the error and says so.
  */
-declare function recordEvent<K extends EmittedKind>(db: Db$L, tenantId: string, kind: K, subjectType: ActivitySubjectType | null, subjectId: string | null, data: EventData[K]): Promise<{
+declare function recordEvent<K extends EmittedKind>(db: Db$M, tenantId: string, kind: K, subjectType: ActivitySubjectType | null, subjectId: string | null, data: EventData[K]): Promise<{
     error: string | null;
 }>;
 /** One event on the ledger, best effort: a write that fails is logged by its kind, never thrown. */
-declare function emitEvent<K extends EmittedKind>(db: Db$L, tenantId: string, kind: K, subjectType: ActivitySubjectType | null, subjectId: string | null, data: EventData[K]): Promise<void>;
+declare function emitEvent<K extends EmittedKind>(db: Db$M, tenantId: string, kind: K, subjectType: ActivitySubjectType | null, subjectId: string | null, data: EventData[K]): Promise<void>;
 /**
  * Of `subjectIds`, the ones a kind was already written about in this workspace: what a sweep asks before doing again
  * what it once decided not to (a review reply it held). An empty list asks nothing.
  */
-declare function subjectsWith(db: Db$L, tenantId: string, kind: EmittedKind, subjectIds: string[]): Promise<Set<string>>;
+declare function subjectsWith(db: Db$M, tenantId: string, kind: EmittedKind, subjectIds: string[]): Promise<Set<string>>;
 /**
  * A workspace reached a milestone (the product's analytics: the first line live, the first reply, the first lead
  * search), written once: a milestone already on the ledger writes nothing. Best effort, as emitEvent is; two writers
  * racing may both write, and a funnel counts workspaces, not rows. True when this call wrote it.
  */
-declare function recordActivation(db: Db$L, tenantId: string, milestone: ActivationMilestone, via: string): Promise<boolean>;
+declare function recordActivation(db: Db$M, tenantId: string, milestone: ActivationMilestone, via: string): Promise<boolean>;
 /** The event a delivery is about, as the ledger holds it: what a subscriber is handed. */
 interface DeliveredEvent {
     id: string;
@@ -11074,15 +11074,15 @@ interface DeliveryRow {
  * The first step of every tick (relay_events, 00334): the outbox's events become deliveries and jobs, up to `limit` of
  * them, oldest first and with no cursor. Answers how many events were relayed.
  */
-declare function relayEvents(db: Db$L, limit: number): Promise<number>;
+declare function relayEvents(db: Db$M, limit: number): Promise<number>;
 /** The event a delivery is about; null when the ledger no longer holds it (the evidence purge, 00115). */
-declare function eventOfDelivery(db: Db$L, tenantId: string, eventId: string): Promise<DeliveredEvent | null>;
+declare function eventOfDelivery(db: Db$M, tenantId: string, eventId: string): Promise<DeliveredEvent | null>;
 /** Whether a subscription is paused as its delivery runs; one that is gone reads as paused. */
-declare function subscriptionPaused(db: Db$L, kind: string, subscriber: string): Promise<boolean>;
+declare function subscriptionPaused(db: Db$M, kind: string, subscriber: string): Promise<boolean>;
 /** The delivery row as it stands; null when the relay never wrote it. */
-declare function deliveryOf(db: Db$L, tenantId: string, eventId: string, subscriber: string): Promise<DeliveryRow | null>;
+declare function deliveryOf(db: Db$M, tenantId: string, eventId: string, subscriber: string): Promise<DeliveryRow | null>;
 /** The delivery's verdict after a run: done, failed with why, or paused because its subscription was. */
-declare function settleDelivery(db: Db$L, d: {
+declare function settleDelivery(db: Db$M, d: {
     tenantId: string;
     eventId: string;
     subscriber: string;
@@ -11126,7 +11126,7 @@ interface ActivitySubjects {
  * Every subject of a page of the log: its name, and whose thread or person it is. A subject of a type with no name (a
  * workspace, a channel, a review), one row security hides, and a person with nothing to call them by are absent.
  */
-declare function activitySubjects(db: Db$L, tenantId: string, subjects: readonly ActivitySubject[]): Promise<ActivitySubjects>;
+declare function activitySubjects(db: Db$M, tenantId: string, subjects: readonly ActivitySubject[]): Promise<ActivitySubjects>;
 
 /**
  * The usage ledger (00273 ai_usage): the one writer every model call goes through, the reads that gate and alarm on it,
@@ -11154,16 +11154,16 @@ declare function activitySubjects(db: Db$L, tenantId: string, subjects: readonly
  * job), so nothing here runs them.
  */
 
-type Db$K = SupabaseClient<Database>;
-declare function recordModelUsage(db: Db$K, rows: AiUsageBody | AiUsageBody[]): Promise<void>;
-declare function workspaceMayUseModels(db: Db$K, tenantId: string): Promise<boolean>;
+type Db$L = SupabaseClient<Database>;
+declare function recordModelUsage(db: Db$L, rows: AiUsageBody | AiUsageBody[]): Promise<void>;
+declare function workspaceMayUseModels(db: Db$L, tenantId: string): Promise<boolean>;
 interface AiFailures {
     tenant_id: string;
     failed_calls: number;
     brain_errors: number;
 }
-declare function aiFailuresHour(db: Db$K, min: number): Promise<AiFailures[]>;
-declare function purgeAiUsage(db: Db$K): Promise<number>;
+declare function aiFailuresHour(db: Db$L, min: number): Promise<AiFailures[]>;
+declare function purgeAiUsage(db: Db$L): Promise<number>;
 /** One turn to keep: the conversation it was about, the prompt it read, and the two records of it. */
 interface ModelTurnKept {
     /** The model port's own id for the turn: what the reply's meta names it by. */
@@ -11178,9 +11178,9 @@ interface ModelTurnKept {
     model: string | null;
     latencyMs: number | null;
 }
-declare function keepModelTurn(db: Db$K, turn: ModelTurnKept): Promise<void>;
+declare function keepModelTurn(db: Db$L, turn: ModelTurnKept): Promise<void>;
 /** An erasure's hand: the workspace's kept turns that name any of the person's identifiers, deleted; how many went. */
-declare function scrubModelTurns(db: Db$K, tenantId: string, needles: readonly string[]): Promise<number>;
+declare function scrubModelTurns(db: Db$L, tenantId: string, needles: readonly string[]): Promise<number>;
 interface UsageMonthRow {
     meter: "model" | "voice_seconds" | "wa_conversation";
     purpose: string | null;
@@ -11193,7 +11193,7 @@ interface UsageMonthRow {
     cache_write_tokens: number;
     usd: number | null;
 }
-declare function usageMonth(db: Db$K, tenantId: string, month: string): Promise<UsageMonthRow[]>;
+declare function usageMonth(db: Db$L, tenantId: string, month: string): Promise<UsageMonthRow[]>;
 
 /**
  * The Stripe ledger (00073 billing_events): the one row each delivery leaves, by Stripe's event id. The amount's door
@@ -11212,8 +11212,8 @@ declare function usageMonth(db: Db$K, tenantId: string, month: string): Promise<
  * workspace.
  */
 
-type Db$J = SupabaseClient<Database>;
-declare function keepInvoiceAmount(db: Db$J, eventId: string, amountCents: number, currency: string): Promise<boolean>;
+type Db$K = SupabaseClient<Database>;
+declare function keepInvoiceAmount(db: Db$K, eventId: string, amountCents: number, currency: string): Promise<boolean>;
 
 /**
  * A workspace's billing row (billing_accounts), written through its one door (00382 billing_apply). The edge's billing
@@ -11235,7 +11235,7 @@ declare function keepInvoiceAmount(db: Db$J, eventId: string, amountCents: numbe
  * Not under repositories/: that folder is at its size, and the billing domain's second module earns this folder.
  */
 
-type Db$I = SupabaseClient<Database>;
+type Db$J = SupabaseClient<Database>;
 type BillingRow = Database["public"]["Tables"]["billing_accounts"]["Row"];
 /** What a reading (contracts planBilling) or a stamp writes: these columns, any of them, and no other. */
 type BillingPatch = Partial<Pick<BillingRow, "stripe_customer_id" | "stripe_subscription_id" | "status" | "price_id" | "current_period_end" | "trial_end" | "cancel_at" | "cancel_at_period_end" | "card_brand" | "card_last4" | "last_payment_failed_at" | "last_paid_at">>;
@@ -11246,7 +11246,7 @@ type BillingExpectation = {
 } | {
     stripe_customer_id: string;
 };
-declare function applyBilling(db: Db$I, p: {
+declare function applyBilling(db: Db$J, p: {
     tenantId: string;
     row: BillingPatch;
     expect: BillingExpectation | null;
@@ -11258,7 +11258,7 @@ declare function applyBilling(db: Db$I, p: {
  * fails throws, with the database's own words, so the door can say what it could not read.
  */
 
-type Db$H = SupabaseClient<Database>;
+type Db$I = SupabaseClient<Database>;
 /** The newest migration a database has applied (null before any) and how many it holds. */
 interface MigrationHead {
     head: string | null;
@@ -11269,7 +11269,7 @@ interface MigrationHead {
  * (docs/runbook.md, Deploy). A database the function has not reached yet refuses, and that refusal is thrown as it was
  * worded.
  */
-declare function migrationHead(db: Db$H): Promise<MigrationHead>;
+declare function migrationHead(db: Db$I): Promise<MigrationHead>;
 /** One workspace's day, as the targets read it (decision 0031, invariant 12): the numbers the platform is paged on. */
 interface PlatformDayPromises {
     tenant_id: string;
@@ -11286,7 +11286,7 @@ interface PlatformDayPromises {
  * or test workspace pages nobody), with its name: what the health sweep holds to contracts' PLATFORM_NUMBERS once a day.
  * A read that fails throws, with the database's words.
  */
-declare function platformDay(db: Db$H, day: string): Promise<PlatformDayPromises[]>;
+declare function platformDay(db: Db$I, day: string): Promise<PlatformDayPromises[]>;
 
 /**
  * How an erasure reaches each column of a workspace table that can hold a person's words (decision 0036; 0031's
@@ -11495,7 +11495,7 @@ declare function touchOfCall(input: string | URL | Request, init?: RequestInit):
  */
 declare function namedFetch(base?: typeof fetch): typeof fetch;
 
-type Db$G = SupabaseClient<Database>;
+type Db$H = SupabaseClient<Database>;
 type Tables = Database["public"]["Tables"];
 /** The tables whose every row belongs to one workspace: each has a non-null `tenant_id`. */
 type TenantTable = {
@@ -11504,7 +11504,7 @@ type TenantTable = {
     } ? K : never;
 }[keyof Tables];
 /** The table's builder as `db.from` gives it: the type the scoped builder keeps, read from the call itself. */
-declare function builderOf<T extends TenantTable>(db: Db$G, table: T): _supabase_postgrest_js.PostgrestQueryBuilder<{
+declare function builderOf<T extends TenantTable>(db: Db$H, table: T): _supabase_postgrest_js.PostgrestQueryBuilder<{
     PostgrestVersion: "12";
 }, {
     Tables: {
@@ -40306,14 +40306,14 @@ interface TenantDb {
     from<T extends TenantTable>(table: T): Builder<T>;
 }
 /** One workspace's rows, through the service role: every statement scoped to `tenantId` before anything else. */
-declare function tenantDb(db: Db$G, tenantId: string): TenantDb;
+declare function tenantDb(db: Db$H, tenantId: string): TenantDb;
 /**
  * The service-role client for a statement that reads or writes every workspace on purpose (a sweep, a clock, the
  * platform's own tables), said at the call so the reader and the ratchet see it was chosen.
  */
-declare function platformWide(db: Db$G): Db$G;
+declare function platformWide(db: Db$H): Db$H;
 
-type Db$F = SupabaseClient<Database>;
+type Db$G = SupabaseClient<Database>;
 interface IngestInboundParams {
     tenantId: string;
     channel: "whatsapp" | "sms" | "email";
@@ -40371,10 +40371,10 @@ interface IngestResult {
     consent?: string | null;
     dnc?: boolean | null;
 }
-declare function ingestInbound(db: Db$F, p: IngestInboundParams): Promise<IngestResult>;
+declare function ingestInbound(db: Db$G, p: IngestInboundParams): Promise<IngestResult>;
 /** Stamp a message handled (replied / deliberately skipped) — retry no-ops after this.
  *  One server-side jsonb merge (no read-modify-write, no lost-update race). */
-declare function markProcessed(db: Db$F, tenantId: string, messageId: string): Promise<void>;
+declare function markProcessed(db: Db$G, tenantId: string, messageId: string): Promise<void>;
 /**
  * Say what a customer's message became (the Reports lenses spec, K1): `meta.handled` and, where the model read it,
  * `meta.intent`, merged into the row by message_stamp_handled beside processed_at, never over it, the first answer
@@ -40382,8 +40382,8 @@ declare function markProcessed(db: Db$F, tenantId: string, messageId: string): P
  * written together and fail alone. A failure throws, and the sink that calls it guards it (pgSafe), as it guards every
  * write of a message's bookkeeping.
  */
-declare function stampHandled(db: Db$F, tenantId: string, messageId: string, handled: Handled, intent: BrainIntent | null): Promise<void>;
-declare function recordOutbound(db: Db$F, p: {
+declare function stampHandled(db: Db$G, tenantId: string, messageId: string, handled: Handled, intent: BrainIntent | null): Promise<void>;
+declare function recordOutbound(db: Db$G, p: {
     tenantId: string;
     conversationId: string;
     contactId: string | null;
@@ -40437,7 +40437,7 @@ interface OutboundTarget extends PurposeBearing {
  * `create: false` means "only an existing contact will do" — the guard for a
  * number somebody supplied rather than one that called us.
  */
-declare function resolveOutboundTarget(db: Db$F, p: {
+declare function resolveOutboundTarget(db: Db$G, p: {
     tenantId: string;
     phoneE164: string;
     create?: boolean;
@@ -40449,7 +40449,7 @@ declare function resolveOutboundTarget(db: Db$F, p: {
  * that is gone, erased or merged into another, whose thread is the other's. Carried like resolveOutboundTarget's, so
  * no caller can send without having been handed the consent state.
  */
-declare function resolveOutboundTargetForContact(db: Db$F, p: {
+declare function resolveOutboundTargetForContact(db: Db$G, p: {
     tenantId: string;
     contactId: string;
     touch?: boolean;
@@ -40465,7 +40465,7 @@ declare function resolveOutboundTargetForContact(db: Db$F, p: {
  * again without them, a yes then covers WhatsApp alone and no relationship is on record, as before them: code that ships
  * before its migration must keep every reply, answer and booking link going.
  */
-declare function wireRowOf(db: Db$F, p: {
+declare function wireRowOf(db: Db$G, p: {
     tenantId: string;
     conversationId: string;
     relationship: boolean;
@@ -40480,19 +40480,19 @@ declare function wireRowOf(db: Db$F, p: {
  * no cap at all — a caller who phoned repeatedly, or an agent that called its
  * own tool twice, produced one billable template per attempt.
  */
-declare function countSentToday(db: Db$F, p: {
+declare function countSentToday(db: Db$G, p: {
     tenantId: string;
     conversationId: string;
     source: string;
 }): Promise<number>;
 /** Delivery receipts: update by wamid; monotone rank enforced by trigger. */
-declare function recordStatusByExternalId(db: Db$F, tenantId: string, externalId: string, status: "sent" | "delivered" | "read" | "failed", errorDetail?: Json): Promise<void>;
+declare function recordStatusByExternalId(db: Db$G, tenantId: string, externalId: string, status: "sent" | "delivered" | "read" | "failed", errorDetail?: Json): Promise<void>;
 /**
  * The message of this workspace a provider's id names (Meta's wamid, Twilio's sid), as it stands: what a receipt that
  * reports a failure needs to know before it moves the row (core raiseLateFailure). Null when none carries the id: a
  * receipt for history we never wrote. A read that fails THROWS.
  */
-declare function messageByExternalId(db: Db$F, tenantId: string, externalId: string): Promise<{
+declare function messageByExternalId(db: Db$G, tenantId: string, externalId: string): Promise<{
     messageId: string;
     conversationId: string;
     direction: string;
@@ -40506,24 +40506,7 @@ declare function messageByExternalId(db: Db$F, tenantId: string, externalId: str
  * answer standing. A refusal throws with the database's words; the receipt door that calls it catches that and logs it,
  * so a cost never costs a receipt. Answers whether a row was written.
  */
-declare function keepMessageCost(db: Db$F, tenantId: string, externalId: string, pricing: Json): Promise<boolean>;
-/** Owner replied from the WhatsApp Business app: persist the echo + pause the bot.
- *  Upserts the contact/conversation — an owner-INITIATED thread (customer never
- *  messaged yet) must still record the message and the pause, or the
- *  receptionist answers over the person who just replied.
- *
- *  True when the echo is kept with its pause, or was already (a redelivery); false when a write the database refused
- *  left either undone, which the door answers with a 503 so Meta sends it again (this answered nothing, and the door
- *  acknowledged echoes it had not kept). A pause that fails takes the kept words back out, so the redelivery pauses. */
-declare function recordEchoAndPause(db: Db$F, p: {
-    tenantId: string;
-    customerPhoneDigits: string;
-    body: string | null;
-    externalId: string | null;
-    pausedUntilIso: string;
-    /** The hold reasons a typed reply settles (contracts WAITING_REASONS): its open holds of these are resolved (00438). */
-    settles: readonly string[];
-}): Promise<boolean>;
+declare function keepMessageCost(db: Db$G, tenantId: string, externalId: string, pricing: Json): Promise<boolean>;
 /**
  * The AI-side pause (non-text / escalation): the receptionist steps out of
  * this thread until the given moment.
@@ -40541,10 +40524,34 @@ declare function recordEchoAndPause(db: Db$F, p: {
  * excludes matches zero rows and reports success, so the row count is the only
  * way to tell a write that happened from one that was silently skipped.
  */
-declare function pauseConversation(db: Db$F, tenantId: string, conversationId: string, pausedUntilIso: string, 
+declare function pauseConversation(db: Db$G, tenantId: string, conversationId: string, pausedUntilIso: string, 
 /** The holding message this same handoff queued, which the pause must not withdraw. */
 opts?: {
     keepMessageId?: string | null;
+}): Promise<boolean>;
+
+/**
+ * The owner's reply from the WhatsApp Business app (an echo): kept as a person's words, the receptionist paused on its
+ * thread, and the holds it answers settled when it was typed (00438). Moved from ingest.ts, which keeps the customer's side.
+ */
+
+type Db$F = SupabaseClient<Database>;
+/** Owner replied from the WhatsApp Business app: persist the echo + pause the bot.
+ *  Upserts the contact/conversation — an owner-INITIATED thread (customer never
+ *  messaged yet) must still record the message and the pause, or the
+ *  receptionist answers over the person who just replied.
+ *
+ *  True when the echo is kept with its pause, or was already (a redelivery); false when a write the database refused
+ *  left either undone, which the door answers with a 503 so Meta sends it again (this answered nothing, and the door
+ *  acknowledged echoes it had not kept). A pause that fails takes the kept words back out, so the redelivery pauses. */
+declare function recordEchoAndPause(db: Db$F, p: {
+    tenantId: string;
+    customerPhoneDigits: string;
+    body: string | null;
+    externalId: string | null;
+    pausedUntilIso: string;
+    /** The hold reasons a typed reply settles (contracts WAITING_REASONS): its open holds of these are resolved (00438). */
+    settles: readonly string[];
 }): Promise<boolean>;
 
 /**

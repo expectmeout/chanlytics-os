@@ -204,6 +204,8 @@ test("the owner's echo writes owner_echo's patch, the thread touched at the mome
       body: "On my way",
       externalId: "wamid.echo-1",
       pausedUntilIso: UNTIL,
+      // The move alone: what a typed reply settles is 00438's, proved on a database (whatsapp/echo-replay.db.test.mjs).
+      settles: [],
     });
     const values = written(db);
     const at = Date.parse(values.last_message_at);

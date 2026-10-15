@@ -53,9 +53,9 @@ export {
   recordStatusByExternalId,
   messageByExternalId,
   keepMessageCost,
-  recordEchoAndPause,
   pauseConversation,
 } from "./repositories/ingest";
+export { recordEchoAndPause } from "./repositories/owner-echo";
 export type { IngestInboundParams, IngestResult, OutboundTarget } from "./repositories/ingest";
 export {
   mailboxById,

@@ -433,7 +433,7 @@ export async function notifyOnce(target: NotifyTarget, msg: NotifyMessage, ports
  * What a notice told once came to (keepThenMail): told in full; its row and phones told and its mail owed, which asking
  * again under the same name sends alone; or nothing kept, which asking again keeps.
  */
-export type NoticeOutcome = "told" | "mail_owed" | "not_kept";
+type NoticeOutcome = "told" | "mail_owed" | "not_kept";
 
 /**
  * notifyOnce, answering what it came to (NoticeOutcome), for a caller whose own write must not wait on a mail: the row
