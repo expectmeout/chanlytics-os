@@ -750,7 +750,7 @@ export async function forgetEvent(db: Db, id: string, lease: string): Promise<vo
 }
 
 /** A payment event, as its bells read it: what it says, what the invoice took (absent is a payment), and Stripe's id of it. */
-export interface PaymentNote {
+interface PaymentNote {
   kind: "failed" | "paid";
   amountPaid?: number;
   /** The Stripe event: a bell it rings is kept once under it, so its retry tells nothing twice (S6-12). */
