@@ -202,7 +202,7 @@ test("a rule is read strictly and said in the page's words; what it needs comes 
   assert.equal(r.v, 2, "read as version 2");
   assert.deepEqual(r.all[2], { field: "said_yes", op: "is", to: "offers", yes: true }, "v1's offers_yes, upgraded");
   assert.deepEqual(listRuleParts(r), [
-    "Last visit more than 60 days ago",
+    "Last on the calendar more than 60 days ago",
     "Reaches you by Text",
     "Said yes to offers",
     "At least 1 call",

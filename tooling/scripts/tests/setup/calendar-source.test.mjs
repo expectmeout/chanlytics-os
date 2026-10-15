@@ -274,7 +274,7 @@ test("the fold draws the calendar link's box only where the answer has a link to
     calendarLinkNote("booksy", true),
     "Booksy offers no calendar link. The receptionist sends your booking link instead of naming open times.",
   );
-  assert.match(calendarLinkNote("square", true), /^Square writes your appointments into your own calendar\./);
+  assert.match(calendarLinkNote("square", true), /^Square writes your bookings into your own calendar\./);
   assert.match(calendarLinkNote("acuity", true), /^Acuity offers a calendar link of its own\./);
   assert.match(calendarLinkNote("setmore", true), /^If Setmore offers a calendar link/);
   assert.match(

@@ -115,7 +115,7 @@ export const OFFERS_NOTICE_WORDS = {
     body:
       `We paused your offers and news by email: ${pausedBecause(reason)}. They wait until it is fixed: a broadcast or a ` +
       `campaign that goes only by email stops when it reaches them, and one that also goes another way skips the people ` +
-      `it would reach by email and goes on for everyone else. Messages about a visit, replies by email and everything on ` +
+      `it would reach by email and goes on for everyone else. Reminders, confirmations, replies by email and everything on ` +
       `WhatsApp go on. ${OFFERS_PAUSED_WORDS.fix}`,
   }),
 } as const;

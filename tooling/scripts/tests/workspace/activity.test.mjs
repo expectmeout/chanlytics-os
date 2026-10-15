@@ -43,7 +43,7 @@ beforeEach(() => setRateStore(memoryStore()));
 test("the words: a sentence per kind, the one or two fields a reader wants, nothing else of the payload", () => {
   assert.equal(
     activityWords("consent_change", { consent: "opted_in", source: "in_person", note: "SECRET", previous: "unknown" }),
-    "Recorded a consent answer · yes to messages about their visit · in person",
+    "Recorded a consent answer · yes to messages · in person",
   );
   assert.equal(
     activityWords("contact.consent_changed", {

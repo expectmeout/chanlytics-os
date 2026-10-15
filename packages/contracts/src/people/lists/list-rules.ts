@@ -45,26 +45,26 @@ export const LIST_RULE_FIELDS: readonly {
 }[] = [
   {
     id: "last_visit",
-    label: "Last visit",
+    label: "Last on the calendar",
     kind: "days",
     needs: ["calendar"],
     draft: "days since their last appointment on the calendar",
   },
   {
     id: "next_visit",
-    label: "Next visit",
+    label: "Next on the calendar",
     kind: "days",
     needs: ["calendar"],
     draft: "days until their next appointment; op this_week is Monday to Sunday of this week",
   },
   {
     id: "missed_visit",
-    label: "Missed a visit",
+    label: "Missed one",
     kind: "days",
     needs: ["calendar"],
-    draft: "days since a visit they did not come to, as a member marked it missed on the calendar",
+    draft: "days since an appointment they did not come to, as a member marked it missed on the calendar",
   },
-  { id: "booked", label: "A visit booked", kind: "yesno", needs: ["calendar"], draft: "an appointment booked ahead" },
+  { id: "booked", label: "Booked ahead", kind: "yesno", needs: ["calendar"], draft: "an appointment booked ahead" },
   {
     id: "asked_not_booked",
     label: "Asked, never booked",
@@ -145,7 +145,7 @@ export const LIST_RULE_FIELDS: readonly {
     label: "A consultation",
     kind: "yesno",
     needs: ["calendar", "consult"],
-    draft: "their next or last visit is a consultation",
+    draft: "their next or last appointment is a consultation",
   },
   { id: "step_due", label: "A next step due", kind: "yesno", needs: [], draft: "a next step whose day has come" },
   {
@@ -233,7 +233,7 @@ function factProblem(f: ListFact): string | null {
   )
     return null;
   if ((f.op === "more_than" || f.op === "within") && f.days === undefined) return `${f.field} ${f.op} needs days`;
-  if (f.op === "this_week" && f.field !== "next_visit") return "only the next visit can be this week";
+  if (f.op === "this_week" && f.field !== "next_visit") return "only the next one on the calendar can be this week";
   return null;
 }
 
@@ -460,8 +460,8 @@ const DAY_FACT_ENDS: Record<
   "last_visit" | "missed_visit" | "last_heard" | "first_contact",
   { never: string; ever: string }
 > = {
-  last_visit: { never: "Never visited", ever: "Has visited" },
-  missed_visit: { never: "Never missed a visit", ever: "Has missed a visit" },
+  last_visit: { never: "Never on the calendar", ever: "On the calendar before" },
+  missed_visit: { never: "Never missed one", ever: "Has missed one" },
   last_heard: { never: "Never heard from", ever: "Has written or called" },
   first_contact: { never: "No first contact on file", ever: "Has a first contact" },
 };
@@ -488,9 +488,9 @@ export function listFactWords(f: ListFact, listName: (token: string) => string |
       return f.op === "this_week"
         ? `${label} this week`
         : f.op === "never"
-          ? "No visit ahead"
+          ? "Nothing ahead on the calendar"
           : f.op === "ever"
-            ? "A visit ahead"
+            ? "Something ahead on the calendar"
             : f.op === "within"
               ? `${label} in the next ${plural(f.days ?? 0, "day")}`
               : `${label} more than ${plural(f.days ?? 0, "day")} away`;

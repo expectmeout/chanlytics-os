@@ -8,6 +8,7 @@
 import {
   WORKS_AT_WORDS,
   adRoute,
+  appointmentWords,
   businessTrailOf,
   fromAdWords,
   linkHost,
@@ -43,6 +44,7 @@ import { Button } from "../../kit/button/button";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { completeStep } from "../../step-done";
 import { wantPerson } from "../../people/want-person";
+import { visitWordHere } from "../../visit-line";
 
 // A step due under the head (0007, amended): their next step once its day has come, with Done, so whoever answers
 // them ticks it where they are. People's row carries it, judged as every page judges a step: at the moment People's
@@ -424,7 +426,7 @@ function visitDoor(facts: HeaderFacts) {
     <a
       className={`ix-th-visit ix-th-visit-door${visit.ahead ? " ahead" : ""}`}
       {...routeDoor(visit.line.to)}
-      title={visit.ahead ? "Open their visit" : "Open their last visit"}
+      title={`Open their ${visit.ahead ? "" : "last "}${appointmentWords(visitWordHere()).one}`}
       data-testid="ix-th-visit-door"
     >
       {visitWords(visit)}

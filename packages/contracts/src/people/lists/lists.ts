@@ -128,14 +128,14 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "booked_week",
     label: "Booked this week",
-    tip: "An appointment this week, Monday to Sunday",
+    tip: "Booked this week, Monday to Sunday",
     group: "journey",
     rule: r({ field: "next_visit", op: "this_week" }),
   },
   {
     id: "booked",
     label: "Booked",
-    tip: "An appointment ahead on your calendar — the booking is the conversion",
+    tip: "Something ahead on your calendar — the booking is the conversion",
     group: "journey",
     rule: r({ field: "booked", op: "is", yes: true }),
   },
@@ -151,7 +151,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "lapsed",
     label: "Lapsed",
-    tip: "Forty-five days or more since their last visit, nothing ahead — the win-back list, from visits rather than silence",
+    tip: "Forty-five days or more since they were last on the calendar, nothing ahead — the win-back list, from the calendar rather than silence",
     group: "journey",
     rule: r({ field: "booked", op: "is", yes: false }, { field: "last_visit", op: "more_than", days: 44 }),
   },
@@ -218,7 +218,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "opted_in",
     label: "Said yes to messages",
-    tip: "Said yes to hearing from you — replies and messages about their own visit",
+    tip: "Said yes to messages — replies, reminders and confirmations",
     group: "reach",
     onProfile: false,
     rule: r({ field: "said_yes", op: "is", to: "messages", yes: true }),

@@ -300,9 +300,9 @@ export interface CannotRowVM {
 const CANNOT_ROWS: readonly CannotRowVM[] = [
   {
     id: "book",
-    title: "Book, move or cancel an appointment",
+    title: "Make, move or cancel a booking",
     detail:
-      "Not a setting you could switch on. Nothing in this product can create, move or cancel an appointment: it only records the ones your booking tool reports. Your booking link does that, whichever tool is behind it.",
+      "Not a setting you could switch on. Nothing in this product can make, move or cancel a booking: it only records the ones your booking tool reports. Your booking link does that, whichever tool is behind it.",
   },
   {
     id: "outbound_call",
@@ -322,7 +322,7 @@ const CANNOT_ROWS: readonly CannotRowVM[] = [
 
 /** The two rows whose words lean on a booking link, as said where there is none (the first run's decision 2). */
 const CANNOT_NO_LINK: Partial<Record<CannotRowVM["id"], string>> = {
-  book: "Not a setting you could switch on. Nothing in this product can create, move or cancel an appointment. Your team does that, from the details it takes.",
+  book: "Not a setting you could switch on. Nothing in this product can make, move or cancel a booking. Your team does that, from the details it takes.",
   sms: "Not part of what is sold yet. It arrives with a line the carriers have approved, and Connections will say when.",
 };
 

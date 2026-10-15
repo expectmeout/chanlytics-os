@@ -78,13 +78,14 @@ export const READER_SCOPE = [
   "packages/jobs/src",
   "apps/dashboard/src/server",
   "apps/dashboard/src/legacy-bridge",
-  // A surface that has left the shell (decision 0015) is TSX here, and the words a page draws are scanned where its JSX
-  // was: the sample a demo session draws (sample.ts) is scanned with them. The Inbox's own sample, which still says a salon's
-  // words as its mockup's twin did, is not yet (its surface's lane).
-  "apps/dashboard/src/surfaces/campaigns",
-  "apps/dashboard/src/surfaces/live",
-  // People and a person's page (15 Oct 2026): the appointment words written in survived here, where nothing read them.
-  "apps/dashboard/src/surfaces/people",
+  // Every surface that has left the shell (decision 0015), with the sample a demo session draws (sample.ts) beside its
+  // page, and the pages and refusals of the app itself, the consent pages and sign-in among them. Until 16 Oct 2026 only
+  // Campaigns, Live and People were read, and "visit" written in survived on the Inbox's and Settings' pages.
+  "apps/dashboard/src/surfaces",
+  "apps/dashboard/src/client",
+  "apps/dashboard/src/yes",
+  "apps/dashboard/src/auth",
+  "apps/dashboard/app",
   "apps/dashboard/src/legacy/pages",
   "apps/dashboard/src/legacy/demo/pages",
   "apps/dashboard/src/legacy/components",
@@ -99,7 +100,8 @@ function* readerWalk(dir) {
     const p = path.join(dir, name);
     if (fs.statSync(p).isDirectory()) {
       if (name !== "node_modules" && name !== "dist") yield* readerWalk(p);
-    } else if (READER_EXT.some((e) => name.endsWith(e)) && !name.endsWith(".d.ts") && !name.includes(".test.")) yield p;
+    } else if (READER_EXT.some((e) => name.endsWith(e)) && !name.endsWith(".d.ts") && !/\.(type-)?test\./.test(name))
+      yield p;
   }
 }
 

@@ -639,6 +639,8 @@ test("REGRESSION (S9-7): their visit is a door to the visit beside the head on a
     assert.equal(typeof door(tree).props.onClick, "function");
     assert.equal(textOf(door(tree)).trim(), "Tue, Sep 8 · 2:00 PM", "the visit's own words");
     assert.ok(hasClass("ahead")(door(tree)));
+    // Its tip says the workspace's word for one (visitWordHere), never "visit" written in.
+    assert.equal(door(tree).props.title, "Open their appointment");
     // The chip under the name stays, for a phone, whose head has no room beside it; a desk hides it, so the visit is said once.
     assert.ok(said(tree), "the words under the name are the phone's");
     assert.equal(textOf(said(tree)).trim(), "Tue, Sep 8 · 2:00 PM");

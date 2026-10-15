@@ -52,8 +52,8 @@ export function bookingRulesWords(rules: BookingRulesWordsInput | null | undefin
   if (isNumber(r.buffer_min))
     parts.push(
       r.buffer_min === 0
-        ? "no gap between appointments"
-        : `${pluralGrouped(r.buffer_min, "minute", "minutes")} between appointments`,
+        ? "no gap between bookings"
+        : `${pluralGrouped(r.buffer_min, "minute", "minutes")} between bookings`,
     );
   if (isNumber(r.max_days_ahead)) parts.push(`up to ${pluralGrouped(r.max_days_ahead, "day", "days")} ahead`);
   if (isNumber(r.party_max)) parts.push(`up to ${pluralGrouped(r.party_max, "person", "people")}`);

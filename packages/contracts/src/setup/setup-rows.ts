@@ -266,7 +266,7 @@ function whatsappRow(i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
         : t.pending
           ? `${plural(t.pending, "message")} with Meta for approval`
           : "No approved messages yet",
-      t.startersApproved < 5 ? "Add the starter messages: the visit reminder, how did it go, the win-back" : "",
+      t.startersApproved < 5 ? "Add the starter messages: the reminder, how did it go, the win-back" : "",
       wa.lastInboundAt ? `Last message ${agoWords(Date.parse(wa.lastInboundAt), nowMs)}` : "",
     ].filter(Boolean);
     if (!metaWaits) details.push(activationWords(cap, nowMs));
@@ -438,8 +438,7 @@ function yesRow(i: SetupInputs): SetupRowDraft {
   const talk = i.consent.yes;
   // Offers by email, where this workspace can send them: the people the rule lets one reach, which is not a yes they gave.
   const byEmail = i.consent.offers_by_email ?? 0;
-  const alsoTalk =
-    talk > said ? [`${plural(talk, "person", "people")} said yes to messages about their own visit`] : [];
+  const alsoTalk = talk > said ? [`${plural(talk, "person", "people")} said yes to messages`] : [];
   const alsoEmail = byEmail > 0 ? [`${plural(byEmail, "person", "people")} can be sent an offer by email`] : [];
   return offers > 0 || byEmail > 0
     ? {

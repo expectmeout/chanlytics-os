@@ -65,7 +65,7 @@ const LIST_STEPS: Record<
     text: "Their yes to offers is the phrase and the QR under Get their yes in Sent.",
     answered: { cta: USE_IN_A_BROADCAST, to: "broadcasts/new_week" },
   },
-  booked_week: { cta: "See the week", to: "calendar", text: "Their appointments are on the Calendar." },
+  booked_week: { cta: "See the week", to: "calendar", text: "Their bookings are on the Calendar." },
   asked_never_booked: { cta: "Text the booking link", to: "broadcasts/asked_never_booked", broadcast: true },
   // "Bring them back", never "Win them back": Win-back is the playbook for the quiet (quiet_30), and this list has its
   // own, named Lapsed.
@@ -86,7 +86,7 @@ const LIST_STEPS: Record<
   opted_in: {
     cta: "Get their yes to offers",
     to: GET_YES_ROUTE,
-    text: "They answer and hear about their own visits. Offers need a second, separate yes.",
+    text: "They get replies, reminders and confirmations. Offers need a second, separate yes.",
     answered: OFFERS_STEP,
   },
   offers_ok: OFFERS_STEP,

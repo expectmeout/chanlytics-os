@@ -169,12 +169,7 @@ test("a list reads missed_visit as it reads the last visit: in the last N days, 
       listFactWords({ field: "missed_visit", op: "never" }),
       listFactWords({ field: "missed_visit", op: "ever" }),
     ],
-    [
-      "Missed a visit in the last 7 days",
-      "Missed a visit more than 30 days ago",
-      "Never missed a visit",
-      "Has missed a visit",
-    ],
+    ["Missed one in the last 7 days", "Missed one more than 30 days ago", "Never missed one", "Has missed one"],
   );
 });
 

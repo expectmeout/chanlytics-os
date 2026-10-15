@@ -643,11 +643,7 @@ test("a yes to offers is written or it is not recorded; a no is honoured however
   assert.equal(offersYesRefusal("customer_message"), null, "their own message");
   for (const spoken of ["in_person", "phone"]) {
     assert.match(offersYesRefusal(spoken), /in writing/, `${spoken}: a spoken yes is not one to offers`);
-    assert.match(
-      offersYesRefusal(spoken),
-      /covers messages about their visit/,
-      "and it says what a spoken yes IS good for",
-    );
+    assert.match(offersYesRefusal(spoken), /covers messages, not offers/, "and it says what a spoken yes IS good for");
   }
   for (const other of ["operator", "", null, undefined, "import"])
     assert.ok(offersYesRefusal(other), `${String(other)} is not a written yes`);

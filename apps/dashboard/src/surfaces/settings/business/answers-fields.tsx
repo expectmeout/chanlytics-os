@@ -197,7 +197,7 @@ export const BtaLanguages = ({
 // switch stood for one fact).
 const BTA_RULES: [GuardrailKey, string, string][] = [
   ["never_quote_prices", "Never quote a price", "Never quotes a price"],
-  ["never_confirm_booking", "Never confirm an appointment", "Never confirms a booking"],
+  ["never_confirm_booking", "Never confirm a booking", "Never confirms a booking"],
   ["disclose_ai", "Says it's an automated assistant", "Says it's an assistant"],
   ["no_health_advice", "No health advice", "No health advice"],
 ];
@@ -508,7 +508,7 @@ export const BtaHandoff = ({
         value={draft as string}
         onChange={(v) => update(() => v, ["escalate_when"])}
         problem={problems.escalate_when || null}
-        placeholder={"They ask for the owner by name\nThey're unhappy about a visit"}
+        placeholder={"They ask for the owner by name\nThey're unhappy with how it went"}
         readOnly={readOnly || undefined}
         testid="rec-handoff-reasons"
       />

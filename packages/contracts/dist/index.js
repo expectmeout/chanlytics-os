@@ -3280,7 +3280,7 @@ var BOOKING_TOOL_STEPS = {
   acuity: {
     way: "recipient",
     steps: [
-      "In Acuity, open the calendar your appointments land on, then Calendar notifications.",
+      "In Acuity, open the calendar your bookings land on, then Calendar notifications.",
       "Under \u201CSend booking notifications to\u201D, add the address above beside your own."
     ]
   },
@@ -3363,7 +3363,7 @@ var NOTICE_HOLD_WORDS = {
   unreadable: "It could not be read as a booking.",
   // Kept on the ledger and set aside, never held: nobody is asked to look at a tool's receipt or its newsletter.
   not_a_booking: "It is from your booking tool, but not about one booking.",
-  no_time: "No appointment time could be read from it.",
+  no_time: "No time for the booking could be read from it.",
   no_client: "No client could be read from it.",
   gone: "The email was gone before it could be read."
 };
@@ -3936,7 +3936,7 @@ function readAgoLabel(iso, now) {
 function ruleParts(rules) {
   const r2 = { ...BOOKING_DEFAULTS, ...rules ?? {} };
   const parts2 = [`at least ${r2.lead_hours}h notice`];
-  if (r2.buffer_min > 0) parts2.push(`${r2.buffer_min} min between appointments`);
+  if (r2.buffer_min > 0) parts2.push(`${r2.buffer_min} min between bookings`);
   parts2.push(`up to ${r2.max_days_ahead} days ahead`, `${r2.slot_min}-min slots`);
   if (rules?.party_max)
     parts2.push(`up to ${rules.party_max} ${rules.party_max === 1 ? "person" : "people"} per booking`);
@@ -4764,13 +4764,13 @@ function calendarLinkShown(withWhat, held) {
 function calendarLinkNote(withWhat, bookingLink) {
   if (!withWhat) return "";
   if (withWhat === BOOKS_BY_HAND) return `Nothing to connect. ${noTimesWords(bookingLink)}`;
-  if (withWhat === BOOKS_WITH_CALENDAR) return "Paste the private address of the calendar your appointments land in.";
+  if (withWhat === BOOKS_WITH_CALENDAR) return "Paste the private address of the calendar your bookings land in.";
   const tool = bookingToolName(withWhat) ?? "Your tool";
   const kind = bookingToolCalendar(withWhat);
   if (kind === "none") return `${tool} offers no calendar link. ${noTimesWords(bookingLink)}`;
   if (kind === "own") return `${tool} offers a calendar link of its own. Paste it here.`;
   if (kind === "writes")
-    return `${tool} writes your appointments into your own calendar. Paste that calendar's private address here.`;
+    return `${tool} writes your bookings into your own calendar. Paste that calendar's private address here.`;
   return `If ${tool} offers a calendar link, or writes into your own calendar, paste that address here.`;
 }
 
@@ -6782,7 +6782,7 @@ var PURPOSE_REFUSALS = {
   human_has_it: "Someone on your team has this conversation, so nothing automatic was sent.",
   superseded_by_human: "Someone on your team answered first, so this was not sent.",
   // Reach out's, at the wire (deliver.ts): a cold email goes only as the rules it was built under allow.
-  unsubscribed: "This person unsubscribed from your marketing emails. No offers or first emails go to them by email; replies and messages about their visits still can.",
+  unsubscribed: "This person unsubscribed from your marketing emails. No offers or first emails go to them by email; replies, reminders and confirmations still can.",
   outreach_is_email_only: "Cold messages go only by email: never by text or WhatsApp.",
   outreach_not_a_lead: "Cold email goes only to a business your searches found.",
   outreach_lead_closed: "This business is no longer being written to: it said no, became a customer, or was set aside.",
@@ -13158,26 +13158,26 @@ var LIST_NEEDS = ["calendar", "consult", "deals", "viewer"];
 var LIST_RULE_FIELDS = [
   {
     id: "last_visit",
-    label: "Last visit",
+    label: "Last on the calendar",
     kind: "days",
     needs: ["calendar"],
     draft: "days since their last appointment on the calendar"
   },
   {
     id: "next_visit",
-    label: "Next visit",
+    label: "Next on the calendar",
     kind: "days",
     needs: ["calendar"],
     draft: "days until their next appointment; op this_week is Monday to Sunday of this week"
   },
   {
     id: "missed_visit",
-    label: "Missed a visit",
+    label: "Missed one",
     kind: "days",
     needs: ["calendar"],
-    draft: "days since a visit they did not come to, as a member marked it missed on the calendar"
+    draft: "days since an appointment they did not come to, as a member marked it missed on the calendar"
   },
-  { id: "booked", label: "A visit booked", kind: "yesno", needs: ["calendar"], draft: "an appointment booked ahead" },
+  { id: "booked", label: "Booked ahead", kind: "yesno", needs: ["calendar"], draft: "an appointment booked ahead" },
   {
     id: "asked_not_booked",
     label: "Asked, never booked",
@@ -13257,7 +13257,7 @@ var LIST_RULE_FIELDS = [
     label: "A consultation",
     kind: "yesno",
     needs: ["calendar", "consult"],
-    draft: "their next or last visit is a consultation"
+    draft: "their next or last appointment is a consultation"
   },
   { id: "step_due", label: "A next step due", kind: "yesno", needs: [], draft: "a next step whose day has come" },
   {
@@ -13323,7 +13323,7 @@ function factProblem(f) {
   if (f.field !== "last_visit" && f.field !== "next_visit" && f.field !== "missed_visit" && f.field !== "last_heard" && f.field !== "first_contact")
     return null;
   if ((f.op === "more_than" || f.op === "within") && f.days === void 0) return `${f.field} ${f.op} needs days`;
-  if (f.op === "this_week" && f.field !== "next_visit") return "only the next visit can be this week";
+  if (f.op === "this_week" && f.field !== "next_visit") return "only the next one on the calendar can be this week";
   return null;
 }
 var ListRuleSchema = z3.strictObject({
@@ -13490,8 +13490,8 @@ var DEAL_STAGE_LIST_WORDS = {
 };
 var PURPOSE_WORDS = { offers: "offers", messages: "messages" };
 var DAY_FACT_ENDS = {
-  last_visit: { never: "Never visited", ever: "Has visited" },
-  missed_visit: { never: "Never missed a visit", ever: "Has missed a visit" },
+  last_visit: { never: "Never on the calendar", ever: "On the calendar before" },
+  missed_visit: { never: "Never missed one", ever: "Has missed one" },
   last_heard: { never: "Never heard from", ever: "Has written or called" },
   first_contact: { never: "No first contact on file", ever: "Has a first contact" }
 };
@@ -13504,7 +13504,7 @@ function listFactWords(f, listName = () => null) {
     case "first_contact":
       return f.op === "never" ? DAY_FACT_ENDS[f.field].never : f.op === "ever" ? DAY_FACT_ENDS[f.field].ever : f.op === "more_than" ? `${label} more than ${plural(f.days ?? 0, "day")} ago` : `${label} in the last ${plural(f.days ?? 0, "day")}`;
     case "next_visit":
-      return f.op === "this_week" ? `${label} this week` : f.op === "never" ? "No visit ahead" : f.op === "ever" ? "A visit ahead" : f.op === "within" ? `${label} in the next ${plural(f.days ?? 0, "day")}` : `${label} more than ${plural(f.days ?? 0, "day")} away`;
+      return f.op === "this_week" ? `${label} this week` : f.op === "never" ? "Nothing ahead on the calendar" : f.op === "ever" ? "Something ahead on the calendar" : f.op === "within" ? `${label} in the next ${plural(f.days ?? 0, "day")}` : `${label} more than ${plural(f.days ?? 0, "day")} away`;
     case "booked":
     case "asked_not_booked":
     case "has_chat":
@@ -13659,14 +13659,14 @@ var BUILTIN_LISTS = [
   {
     id: "booked_week",
     label: "Booked this week",
-    tip: "An appointment this week, Monday to Sunday",
+    tip: "Booked this week, Monday to Sunday",
     group: "journey",
     rule: r({ field: "next_visit", op: "this_week" })
   },
   {
     id: "booked",
     label: "Booked",
-    tip: "An appointment ahead on your calendar \u2014 the booking is the conversion",
+    tip: "Something ahead on your calendar \u2014 the booking is the conversion",
     group: "journey",
     rule: r({ field: "booked", op: "is", yes: true })
   },
@@ -13682,7 +13682,7 @@ var BUILTIN_LISTS = [
   {
     id: "lapsed",
     label: "Lapsed",
-    tip: "Forty-five days or more since their last visit, nothing ahead \u2014 the win-back list, from visits rather than silence",
+    tip: "Forty-five days or more since they were last on the calendar, nothing ahead \u2014 the win-back list, from the calendar rather than silence",
     group: "journey",
     rule: r({ field: "booked", op: "is", yes: false }, { field: "last_visit", op: "more_than", days: 44 })
   },
@@ -13749,7 +13749,7 @@ var BUILTIN_LISTS = [
   {
     id: "opted_in",
     label: "Said yes to messages",
-    tip: "Said yes to hearing from you \u2014 replies and messages about their own visit",
+    tip: "Said yes to messages \u2014 replies, reminders and confirmations",
     group: "reach",
     onProfile: false,
     rule: r({ field: "said_yes", op: "is", to: "messages", yes: true })
@@ -14243,7 +14243,7 @@ var HELD_REASONS = {
   missing_value: "a value was missing",
   // A reminder's appointment moved, was cancelled or marked missed, or left the calendar between the run and the send
   // (calendar/feed-appointments.ts appointmentHolds): held, never sent for a time that no longer stands.
-  appointment_changed: "their appointment moved or was cancelled",
+  appointment_changed: "their booking moved or was cancelled",
   // Spelled out rather than computed from OUTCOME_UNKNOWN: a computed key makes
   // this object opaque to the bundler, which then carries the whole map into
   // every package that imports anything from here. core-broadcast.test.mjs
@@ -14411,7 +14411,7 @@ var LIST_STEPS = {
     text: "Their yes to offers is the phrase and the QR under Get their yes in Sent.",
     answered: { cta: USE_IN_A_BROADCAST, to: "broadcasts/new_week" }
   },
-  booked_week: { cta: "See the week", to: "calendar", text: "Their appointments are on the Calendar." },
+  booked_week: { cta: "See the week", to: "calendar", text: "Their bookings are on the Calendar." },
   asked_never_booked: { cta: "Text the booking link", to: "broadcasts/asked_never_booked", broadcast: true },
   // "Bring them back", never "Win them back": Win-back is the playbook for the quiet (quiet_30), and this list has its
   // own, named Lapsed.
@@ -14432,7 +14432,7 @@ var LIST_STEPS = {
   opted_in: {
     cta: "Get their yes to offers",
     to: GET_YES_ROUTE,
-    text: "They answer and hear about their own visits. Offers need a second, separate yes.",
+    text: "They get replies, reminders and confirmations. Offers need a second, separate yes.",
     answered: OFFERS_STEP
   },
   offers_ok: OFFERS_STEP
@@ -14705,7 +14705,7 @@ var WHATSAPP_CONSENT_SOURCE = "whatsapp";
 var OFFERS_YES_SOURCES = ["form", "customer_message"];
 function offersYesRefusal(source) {
   if (source && OFFERS_YES_SOURCES.includes(source)) return null;
-  return "A yes to offers has to be in writing: a sign-up form they signed, or their own message. A spoken yes covers messages about their visit, not offers.";
+  return "A yes to offers has to be in writing: a sign-up form they signed, or their own message. A spoken yes covers messages, not offers.";
 }
 var OWN_MESSAGE_REFUSALS = {
   /** Their own message, with no message named. */
@@ -14811,7 +14811,7 @@ var OFFERS_PAUSED_WORDS = {
 var OFFERS_NOTICE_WORDS = {
   paused: (reason) => ({
     title: "Offers and news by email are paused",
-    body: `We paused your offers and news by email: ${pausedBecause(reason)}. They wait until it is fixed: a broadcast or a campaign that goes only by email stops when it reaches them, and one that also goes another way skips the people it would reach by email and goes on for everyone else. Messages about a visit, replies by email and everything on WhatsApp go on. ${OFFERS_PAUSED_WORDS.fix}`
+    body: `We paused your offers and news by email: ${pausedBecause(reason)}. They wait until it is fixed: a broadcast or a campaign that goes only by email stops when it reaches them, and one that also goes another way skips the people it would reach by email and goes on for everyone else. Reminders, confirmations, replies by email and everything on WhatsApp go on. ${OFFERS_PAUSED_WORDS.fix}`
   })
 };
 function emailOffersOpen(f, couldNotBeChecked) {
@@ -21432,7 +21432,7 @@ var KIND_WORDS = {
     playbook: "Campaign",
     template: "Template",
     mailbox: "Mailbox",
-    visit: "Appointment",
+    visit: "Booking",
     review: "Review"
   },
   es: {
@@ -22983,7 +22983,7 @@ function heldWords(held, purpose) {
     case "stopped":
       return PURPOSE_REFUSALS.opted_out;
     case "unsubscribed":
-      return "They unsubscribed from offers by email. Messages about their visits and replies still reach them.";
+      return "They unsubscribed from offers by email. Reminders, confirmations and replies still reach them.";
     case "no_yes":
       return PURPOSE_REFUSALS[purpose === "marketing" ? "no_marketing_consent" : "not_opted_in"];
     default: {
@@ -23669,8 +23669,8 @@ var SILENT = {
 };
 var STAGE_WORDS = {
   first_contact: "at first contact",
-  before: "the day before an appointment",
-  after: "the day after an appointment",
+  before: "the day before a booked time",
+  after: "the day after a booked time",
   proposal: "while a proposal waits",
   quiet: "once they go quiet"
 };
@@ -25206,14 +25206,14 @@ var FEED_GUIDES = [
     name: "Google Calendar",
     steps: [
       "On a computer, open Google Calendar and go to Settings.",
-      "Under \u201CSettings for my calendars\u201D, pick the calendar your appointments land in.",
+      "Under \u201CSettings for my calendars\u201D, pick the calendar your bookings land in.",
       "Open \u201CIntegrate calendar\u201D and copy \u201CSecret address in iCal format\u201D."
     ]
   },
   {
     name: "Apple Calendar (iCloud)",
     steps: [
-      "In the Calendar app, open Calendars and press \u24D8 beside the calendar your appointments land in.",
+      "In the Calendar app, open Calendars and press \u24D8 beside the calendar your bookings land in.",
       "Turn on Public Calendar, then Share Link, and copy it."
     ]
   },
@@ -25229,7 +25229,7 @@ var FEED_GUIDES = [
 var FEED_CHECK_WORDS = {
   guide: "Where do I find it?",
   reading: "Reading it\u2026",
-  read: (events, next) => events === 0 ? "Read it: it's empty so far. Your receptionist will see new appointments as they land." : `Read it: ${events} ${events === 1 ? "event" : "events"}, ${next ? `the next ${next}` : "none in the next 30 days"}.`
+  read: (events, next) => events === 0 ? "Read it: it's empty so far. Your receptionist will see new bookings as they land." : `Read it: ${events} ${events === 1 ? "event" : "events"}, ${next ? `the next ${next}` : "none in the next 30 days"}.`
 };
 var FEED_MAX_BYTES = 2e6;
 function feedProblemWords(reason, status) {
@@ -30262,7 +30262,7 @@ var STRENGTHS = /* @__PURE__ */ (() => ({
   never_confirm_booking: {
     strength: "structural",
     chip: "Built in",
-    sentence: "It can't book, move or cancel an appointment anyway. Off only stops it being told not to claim it did.",
+    sentence: "It can't make, move or cancel a booking anyway. Off only stops it being told not to claim it did.",
     checkedOn: null
   },
   never_quote_prices: {
@@ -30309,7 +30309,7 @@ var STRENGTHS = /* @__PURE__ */ (() => ({
   no_health_advice: {
     strength: "instructed",
     chip: "Told",
-    sentence: "A professional advises at the appointment. It's told this, and nothing checks its answer.",
+    sentence: "It leaves health questions to a professional. It's told this, and nothing checks its answer.",
     checkedOn: null
   }
 }))();
@@ -30531,7 +30531,7 @@ function bookingRulesWords(rules) {
   if (isNumber(r2.slot_min)) parts2.push(`${count(r2.slot_min)}-minute slots`);
   if (isNumber(r2.buffer_min))
     parts2.push(
-      r2.buffer_min === 0 ? "no gap between appointments" : `${pluralGrouped(r2.buffer_min, "minute", "minutes")} between appointments`
+      r2.buffer_min === 0 ? "no gap between bookings" : `${pluralGrouped(r2.buffer_min, "minute", "minutes")} between bookings`
     );
   if (isNumber(r2.max_days_ahead)) parts2.push(`up to ${pluralGrouped(r2.max_days_ahead, "day", "days")} ahead`);
   if (isNumber(r2.party_max)) parts2.push(`up to ${pluralGrouped(r2.party_max, "person", "people")}`);
@@ -30857,8 +30857,8 @@ function abilityRows(i) {
 var CANNOT_ROWS = [
   {
     id: "book",
-    title: "Book, move or cancel an appointment",
-    detail: "Not a setting you could switch on. Nothing in this product can create, move or cancel an appointment: it only records the ones your booking tool reports. Your booking link does that, whichever tool is behind it."
+    title: "Make, move or cancel a booking",
+    detail: "Not a setting you could switch on. Nothing in this product can make, move or cancel a booking: it only records the ones your booking tool reports. Your booking link does that, whichever tool is behind it."
   },
   {
     id: "outbound_call",
@@ -30874,7 +30874,7 @@ var CANNOT_ROWS = [
   }
 ];
 var CANNOT_NO_LINK = {
-  book: "Not a setting you could switch on. Nothing in this product can create, move or cancel an appointment. Your team does that, from the details it takes.",
+  book: "Not a setting you could switch on. Nothing in this product can make, move or cancel a booking. Your team does that, from the details it takes.",
   sms: "Not part of what is sold yet. It arrives with a line the carriers have approved, and Connections will say when."
 };
 var CANNOT_REQUESTS_BOOK = "Not a setting you could switch on: it never books, moves or cancels an appointment itself. A time a customer picks by text waits on Today for your Booked it or Can't.";
@@ -43456,7 +43456,7 @@ function toBookingReportVM(dto) {
       rest: ""
     };
   const pct2 = Math.round(dto.booked / dto.asked * 100);
-  const words3 = `of the people who wrote or called in the last ${plural(dto.days, "day")} have an appointment on the calendar`;
+  const words3 = `of the people who wrote or called in the last ${plural(dto.days, "day")} have booked`;
   const unbooked = dto.asked - dto.booked;
   return {
     present: true,
@@ -43470,7 +43470,7 @@ function toBookingReportVM(dto) {
     unbooked,
     // The other side of the same share, said once: who is still waiting to be
     // given a time. It is the half an owner can do something about.
-    rest: unbooked === 0 ? `Everyone who asked in the last ${plural(dto.days, "day")} has an appointment.` : `${unbooked} of the ${dto.asked} who asked ${unbooked === 1 ? "has" : "have"} nothing on the calendar yet.`
+    rest: unbooked === 0 ? `Everyone who asked in the last ${plural(dto.days, "day")} has booked.` : `${unbooked} of the ${dto.asked} who asked ${unbooked === 1 ? "has" : "have"} nothing on the calendar yet.`
   };
 }
 
@@ -43957,7 +43957,7 @@ var METRIC_WORDS = {
   handovers: "How many times the receptionist stopped and held a conversation for you, counted when it stopped, whatever the reason. A conversation held twice counts twice.",
   calls: "Calls to the receptionist that connected. A call that rang out or dropped before anyone spoke is not counted.",
   new_people: "People whose first message in their own words, or first connected call to you, fell in this period, counted once. A message you or the receptionist sent, an automatic reply or a list's mail, a call you placed, people brought in with their history, people who asked to be forgotten, and people who have not written or phoned yet are not counted.",
-  booked: "Of the people who wrote or called in this period, how many have an appointment ahead on your calendar, or one that began no more than a day before they asked. It is a dash where no calendar is connected or it could not be read.",
+  booked: "Of the people who wrote or called in this period, how many have a booking on your calendar, ahead or begun no more than a day before they asked. It is a dash where no calendar is connected or it could not be read.",
   delivered_share: `Of the messages sent, the share the channel reports as delivered or read (${DELIVERY_RECEIPTS_WORDS}). A message with no receipt yet is not counted as delivered.`,
   said_yes: `People who said yes to being messaged ${REPLY_WINDOW_WORDS} of a campaign or a broadcast reaching them, in their own words or recorded at the desk, counted once in the period. A yes with no campaign before it, a merge restating an answer and a person who asked to be forgotten are not counted.`,
   asked_to_stop: `People who asked to stop being messaged ${REPLY_WINDOW_WORDS} of a campaign or a broadcast reaching them, by STOP, a carrier's report or at the desk, and for email by the unsubscribe in the message however late it is used, counted once in the period. A stop with no campaign before it, a merge restating an answer and a person who asked to be forgotten are not counted.`,
@@ -43976,7 +43976,7 @@ var METRIC_WORDS = {
   call_backs: "Of the conversations that need you, the ones where the customer asked to be rung back, as of now, whatever period is picked. A call-back someone has taken over, or put aside until later, is not counted.",
   replies_held_back: "Replies the receptionist wrote in this period that the send door refused, such as a person having the thread or the customer having asked to stop. A reply you cancelled or a person answered first, which the hold counts, and a broadcast or campaign message the door held are not counted.",
   people_reached: "People who wrote in their own words, or phoned and were spoken to, in this period, counted once however often they did. An automatic reply, a message or call you placed, a call that rang out, people brought in with their history, and people who asked to be forgotten are not counted.",
-  yeses_won: "The yeses people gave in this period, one for each person and each kind of message (their visit, offers, offers by email), in their own words or recorded at the desk. A merge restating a yes, a client list imported, which never records a yes, a person who asked to be forgotten, and a record merged into another are not counted.",
+  yeses_won: "The yeses people gave in this period, one for each person and each kind of message (messages, offers, offers by email), in their own words or recorded at the desk. A merge restating a yes, a client list imported, which never records a yes, a person who asked to be forgotten, and a record merged into another are not counted.",
   stops_recorded: "The stops people gave in this period, one for each person and each kind of message they stopped, by their own STOP, an unsubscribe link, a complaint, the carrier or at the desk. A merge restating a stop, the end of a yes to offers that a STOP brings with it, a person who asked to be forgotten, and a record merged into another are not counted.",
   steps_overdue: "People whose earliest open step has a day before today, as of now, whatever period is picked. A step with no day, a step already done, and a later step of the same person are not counted.",
   steps_due_today: "People whose earliest open step has today for its day, as of now, whatever period is picked. A step with no day, a step already done, and a later step of the same person are not counted.",
@@ -46491,7 +46491,7 @@ function whatsappRow(i, ctx) {
     const details = [
       wa.quality ? `Quality ${wa.quality.toLowerCase()}` : "",
       t.approved ? `${plural(t.approved, "approved message")}` : t.pending ? `${plural(t.pending, "message")} with Meta for approval` : "No approved messages yet",
-      t.startersApproved < 5 ? "Add the starter messages: the visit reminder, how did it go, the win-back" : "",
+      t.startersApproved < 5 ? "Add the starter messages: the reminder, how did it go, the win-back" : "",
       wa.lastInboundAt ? `Last message ${agoWords(Date.parse(wa.lastInboundAt), nowMs)}` : ""
     ].filter(Boolean);
     if (!metaWaits) details.push(activationWords(cap2, nowMs));
@@ -46606,7 +46606,7 @@ function yesRow(i) {
   const said = i.consent.offersSaidYes;
   const talk = i.consent.yes;
   const byEmail = i.consent.offers_by_email ?? 0;
-  const alsoTalk = talk > said ? [`${plural(talk, "person", "people")} said yes to messages about their own visit`] : [];
+  const alsoTalk = talk > said ? [`${plural(talk, "person", "people")} said yes to messages`] : [];
   const alsoEmail = byEmail > 0 ? [`${plural(byEmail, "person", "people")} can be sent an offer by email`] : [];
   return offers > 0 || byEmail > 0 ? {
     id: "yes",
@@ -46817,6 +46817,7 @@ var SUGGESTIONS = {
   tanning_studio: ["Spray tan", "Tanning session", "Tanning package", "Rapid tan"],
   body_art_service: ["Tattoo", "Piercing", "Touch-up", "Cover-up", "Consultation"],
   dentist: ["Cleaning", "Checkup", "Whitening", "Filling", "Crown", "Emergency visit"],
+  // trade-word: a dentist's own service, suggested only where Google lists a dentist
   chiropractor: ["New patient exam", "Adjustment", "Massage", "Spinal decompression", "Consultation"],
   physiotherapist: [
     "Evaluation",
@@ -46826,9 +46827,11 @@ var SUGGESTIONS = {
     "Dry needling"
   ],
   doctor: ["New patient visit", "Annual physical", "Sick visit", "Follow-up", "Telehealth visit", "Vaccination"],
+  // trade-word: a doctor's own services, suggested only where Google lists a doctor
   foot_care: ["Foot exam", "Nail care", "Callus removal", "Orthotics fitting", "Diabetic foot check"],
   wellness_center: ["Consultation", "Massage", "Acupuncture", "IV drip", "Membership"],
   veterinary_care: ["Wellness exam", "Vaccinations", "Dental cleaning", "Spay or neuter", "Sick visit", "Microchip"],
+  // trade-word: a vet's own service, suggested only where Google lists a vet
   pet_care: ["Full groom", "Bath and brush", "Nail trim", "Boarding", "Daycare", "Dog walking"],
   fitness_center: ["Personal training", "Group class", "Membership", "Day pass", "Nutrition coaching"],
   yoga_studio: ["Drop-in class", "Class pack", "Private session", "Beginners series", "Membership"],
@@ -51822,7 +51825,7 @@ var ALERT_TOPICS = [
     key: "sweep",
     group: "worth_knowing",
     title: "Sending is paused",
-    what: "Offers and news by email, or a mailbox your reach-outs write from, are held after bounces or complaints, or when its provider signs it out, and you are told. Messages about a visit and everything on WhatsApp go on.",
+    what: "Offers and news by email, or a mailbox your reach-outs write from, are held after bounces or complaints, or when its provider signs it out, and you are told. Reminders, confirmations and everything on WhatsApp go on.",
     email: "choice",
     phone: false,
     kinds: ["sweep"]
@@ -53109,7 +53112,7 @@ var WORDS2 = {
   archive_list: "Archived a list",
   restore_list: "Restored a list",
   delete_list: "Deleted a list",
-  mark_visit: "Said what became of a visit",
+  mark_visit: "Said whether they came",
   change_step: "Changed a sequence's step",
   leave_sequence: "Took people out of a sequence",
   make_sequence: "Made a sequence",
@@ -53146,7 +53149,7 @@ var WORDS2 = {
   "contact.erased": "A person was erased",
   "contact.merged": "Two records of one person became one",
   "person.resolved": "A door resolved who a person is",
-  "appointment.changed": "An appointment on the calendar changed",
+  "appointment.changed": "A booking on the calendar changed",
   // Retired with the Blob store (00151): nothing writes it, but rows written before survive in `events` and still need their sentence.
   "contact.blob_erased": "A person's stored thread was erased",
   "conversation.reopened": "A thread reopened",
@@ -53485,7 +53488,7 @@ function activityWords(kind, payload) {
     }
     case "consent_change":
     case "contact.consent_changed": {
-      const purpose = textAt(p, "purpose") === "marketing" ? "offers" : textAt(p, "purpose") === "email_marketing" ? "marketing email" : "messages about their visit";
+      const purpose = textAt(p, "purpose") === "marketing" ? "offers" : textAt(p, "purpose") === "email_marketing" ? "marketing email" : "messages";
       const consent = textAt(p, "consent");
       bits2.push(
         consent === "opted_in" ? `yes to ${purpose}` : consent === "opted_out" ? `no to ${purpose}` : `${purpose}: not asked`

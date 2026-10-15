@@ -1153,6 +1153,64 @@ export function stringsIn(sf) {
   return out;
 }
 
+/** The whole word "visit" (and its forms), as a page or a sentence would say it. */
+const VISIT_WORD = /\bvisit(?:s|ed)?\b/i;
+/** A route's key, `POST calendar/visits/[id]`: an id with a space in it, never a word. */
+const ROUTE_KEY = /^(GET|POST|PUT|PATCH|DELETE) \S+$/;
+/** The attributes a person never reads: a style, a key, a test's handle, an address, a kind. */
+const UNREAD_ATTRIBUTE =
+  /^(className|key|id|htmlFor|href|to|role|type|name|variant|size|tone|icon|kind|testid|testId|data-[\w-]+)$/;
+
+/** Whether a string stands for an id where it is: imported, a key, a type, compared, a case, an index, an unread attribute. */
+function idPlace(node) {
+  for (let n = node; n.parent; n = n.parent) {
+    const p = n.parent;
+    if (ts.isJsxAttribute(p)) return UNREAD_ATTRIBUTE.test(p.name.getText());
+    if (ts.isJsxElement(p) || ts.isJsxSelfClosingElement(p) || ts.isBlock(p) || ts.isSourceFile(p)) return false;
+    if (n !== node) continue;
+    if (ts.isImportDeclaration(p) || ts.isExportDeclaration(p) || ts.isExternalModuleReference(p)) return true;
+    if ((ts.isPropertyAssignment(p) || ts.isPropertySignature(p) || ts.isMethodDeclaration(p)) && p.name === n)
+      return true;
+    if (ts.isLiteralTypeNode(p) || ts.isCaseClause(p)) return true;
+    if (ts.isElementAccessExpression(p) && p.argumentExpression === n) return true;
+    if (ts.isBinaryExpression(p) && EQUALITY.has(p.operatorToken.kind)) return true;
+  }
+  return false;
+}
+
+/**
+ * Every place a file says "visit" to a person (the appointment words' ratchet, journey.test.mjs): a string, a template's
+ * own text (its `${…}` code is no word), or a JSX text, whose words name a visit: a sentence (it holds a space) or a label
+ * (a capital: "Visits"). A lowercase word alone ("visit", "visits") is an id, and so is a route's key and any string
+ * standing where an id stands (idPlace). A line, or the comment line over it, that says `trade-word:` keeps its word.
+ */
+export function visitsWrittenIn(sf) {
+  const lines = sf.text.split(/\r?\n/);
+  const exempt = (node) => {
+    const at = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line;
+    const above = (lines[at - 1] ?? "").trim();
+    return /trade-word:/.test(lines[at] ?? "") || (/^(\/\/|\/\*|\*|\{\/\*)/.test(above) && /trade-word:/.test(above));
+  };
+  const out = [];
+  const say = (node, text) => {
+    const t = text.trim();
+    if (!VISIT_WORD.test(t) || ROUTE_KEY.test(t)) return;
+    if (!/\s/.test(t) && !/^[A-Z]/.test(t)) return;
+    if (exempt(node)) return;
+    out.push({ line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1, text: t });
+  };
+  const visit = (n) => {
+    if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) {
+      if (!idPlace(n)) say(n, n.text);
+    } else if (ts.isTemplateExpression(n)) {
+      if (!idPlace(n)) say(n, [n.head.text, ...n.templateSpans.map((s) => s.literal.text)].join("…"));
+    } else if (ts.isJsxText(n)) say(n, n.text);
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}
+
 /**
  * A demo's seeds: a module that holds invented rows (a surface's `sample` or `examples`, its `sample-*` parts, a
  * `*-sample`, a `demo-*` or `*-demo`, a `*-mock`, anything under a `sample/` folder), by the path an import names or a
