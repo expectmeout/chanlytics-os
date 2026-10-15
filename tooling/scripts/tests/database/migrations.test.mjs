@@ -73,6 +73,16 @@ test("every migration is in the ledger with the text it was recorded with, in th
 const BUSY_TABLES = ["messages", "events", "calls", "contacts", "broadcast_recipients", "jobs", "conversations"];
 /** The first migration held to it. The ones before were applied while the tables were small, and are history. */
 const ONLINE_FROM = 355;
+/**
+ * The plain builds on a partitioned busy table, each with why. Postgres refuses CONCURRENTLY on a partitioned table,
+ * and the online way (one concurrent build per partition, then attached) cannot be written as files: a replay's
+ * partitions are not production's. So a build there holds the writes, and is named here with what it held them for.
+ */
+const PARTITIONED_TABLES = ["events"];
+const PLAIN_ON_PARTITIONED = {
+  "00446_the_people_list_finds_each_person_s_door_by_its_own_index.sql":
+    "a partial index of events' contact.added rows; production held 6,275 events (5 MB) on 15 Oct 2026, a build of milliseconds",
+};
 
 /** A migration's statements, its comments set aside: split at semicolons, which no index statement holds inside it. */
 function migrationStatements(sql) {
@@ -96,6 +106,7 @@ test("an index on a table that is always being written is built without holding 
     for (const s of statements) {
       const made = INDEX.exec(s);
       if (!made || !BUSY_TABLES.includes(made[2].toLowerCase())) continue;
+      if (f in PLAIN_ON_PARTITIONED && PARTITIONED_TABLES.includes(made[2].toLowerCase())) continue;
       assert.ok(made[1], `${f}: an index on ${made[2]} is created CONCURRENTLY, so no write waits on its build`);
       assert.equal(
         statements.length,
