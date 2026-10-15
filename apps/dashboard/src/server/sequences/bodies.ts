@@ -6,6 +6,7 @@ import {
   SEQUENCE_DRAFT_THEN_MAX,
   SEQUENCE_DRAFT_WORDS_MAX,
   UUID,
+  isListToken,
 } from "@chanlytics/contracts";
 
 /**
@@ -77,8 +78,9 @@ export const NEW_SEQUENCE_BODY = z.strictObject({
 export type NewSequenceBody = z.infer<typeof NEW_SEQUENCE_BODY>;
 
 /**
- * POST sequences/draft: the owner's line, and the draft it rewrites when they say it again (`previous`, its name and
- * how many steps it had: what the model is told of it).
+ * POST sequences/draft: the owner's line, the draft it rewrites when they say it again (`previous`, its name and how many
+ * steps it had: what the model is told of it), and the list it starts on where it starts on one (`list`, its token and
+ * name as the composer offers it; whether the workspace keeps it is judged where it is made, POST sequences).
  */
 export const DRAFT_BODY = z.strictObject({
   words: z
@@ -94,6 +96,12 @@ export const DRAFT_BODY = z.strictObject({
         .int()
         .min(1)
         .max(SEQUENCE_DRAFT_THEN_MAX + 1),
+    })
+    .optional(),
+  list: z
+    .strictObject({
+      token: z.string().refine(isListToken, "Which list?"),
+      label: z.string().trim().min(1).max(120),
     })
     .optional(),
 });

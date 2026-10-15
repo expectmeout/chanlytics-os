@@ -131,26 +131,42 @@ function StateAct({ rec, flash, moved }: { rec: SequenceRecordDto; flash: Flash;
   );
 }
 
-/** The one notice (D8): what needs you most, and its act where it has one here. */
+/** The one notice (D8): what needs you most, and its acts where it has them here: Look first, Skip (asked), Approve. */
 function OneNotice({ rec, flash, moved }: { rec: SequenceRecordDto; flash: Flash; moved: () => void }) {
   const [busy, setBusy] = useState(false);
+  const [skipping, setSkipping] = useState(false);
   const notice = sequenceNotice(rec.sequence, rec.steps, rec.timezone, Date.now());
   if (!notice) return null;
   const batch = notice.batchId;
-  const approve = async () => {
+  // A batch waiting for an OK is a run's, decided through the run's own verb: approved (its receipt, and Cancel as its
+  // undo), or skipped, which sends none of it.
+  const decide = async (verb: "approve" | "skip") => {
     if (!batch) return;
     setBusy(true);
-    // A batch waiting for an OK is a run's, approved through the run's own verb (its receipt, and Cancel as its undo).
     const waiting = rec.sequence.needs.batches.find((b) => b.id === batch);
     await pressed(
       "run",
-      { broadcast_id: batch, verb: "approve", name: rec.sequence.name, people: waiting?.people ?? 0 },
+      { broadcast_id: batch, verb, name: rec.sequence.name, people: waiting?.people ?? 0 },
       flash,
       moved,
     );
     setBusy(false);
+    setSkipping(false);
   };
   const people = rec.sequence.id;
+  if (skipping)
+    return (
+      <Confirm
+        question={SEQUENCE_WORDS.skipAsk}
+        detail={SEQUENCE_WORDS.skipDetail}
+        yes={SEQUENCE_WORDS.skip}
+        danger
+        busy={busy}
+        onYes={() => void decide("skip")}
+        onNo={() => setSkipping(false)}
+        testid="sq-skip"
+      />
+    );
   return (
     <Notice
       line
@@ -164,13 +180,22 @@ function OneNotice({ rec, flash, moved }: { rec: SequenceRecordDto; flash: Flash
       act={
         notice.kind === "waiting" && batch ? (
           <>
-            <Button size="sm" {...routeDoor(sequenceRoute(people, "people"))} data-testid="sq-look">
+            <Button size="sm" variant="quiet" {...routeDoor(sequenceRoute(people, "people"))} data-testid="sq-look">
               {SEQUENCE_WORDS.lookFirst}
             </Button>
             <Button
               size="sm"
+              onClick={() => setSkipping(true)}
+              disabled={busy}
+              data-testid="sq-skip-ask"
+              {...gate("approve")}
+            >
+              {SEQUENCE_WORDS.skip}
+            </Button>
+            <Button
+              size="sm"
               variant="primary"
-              onClick={() => void approve()}
+              onClick={() => void decide("approve")}
               disabled={busy}
               data-testid="sq-approve"
               {...gate("approve")}
@@ -218,19 +243,22 @@ export function SequenceRecord({ id, tab }: SequenceRecordProps) {
   }
   const rec = read.data;
   const row = rec.sequence;
+  // The People tab counts the emails that need you where any do (amber, as every count of it is), and who is in it
+  // otherwise. A batch waiting for an OK is the notice's: its size counts everyone it was made for, held back or not.
+  const needPeople = row.needs.held + row.needs.to_send;
   return (
     <CmPane
       title={row.name}
       badge={<StatePill kind="tone" value={sequenceStateTone(row)} label={sequenceStateWords(row)} />}
       sub={sequenceHeadLine(row, rec.word, rec.timezone, Date.now())}
-      tools={<StateAct rec={rec} flash={flash} moved={moved} />}
+      tools={<StateAct key={`${row.id}-act`} rec={rec} flash={flash} moved={moved} />}
       onClose={close}
       testid="sq-record"
     >
       {row.state === "draft" ? (
-        <DraftNotice rec={rec} flash={flash} />
+        <DraftNotice key={`${row.id}-notice`} rec={rec} flash={flash} />
       ) : (
-        <OneNotice rec={rec} flash={flash} moved={moved} />
+        <OneNotice key={`${row.id}-notice`} rec={rec} flash={flash} moved={moved} />
       )}
       <SubTabs
         label={row.name}
@@ -241,7 +269,11 @@ export function SequenceRecord({ id, tab }: SequenceRecordProps) {
           {
             id: "people",
             label: peopleTabWord(row),
-            count: row.in_it || undefined,
+            ...(needPeople > 0
+              ? { count: needPeople, tone: "warn" as const, hint: SEQUENCE_WORDS.filters.needs }
+              : row.in_it > 0
+                ? { count: row.in_it }
+                : {}),
             href: routeDoor(sequenceRoute(row.id, "people")).href,
           },
           {
@@ -251,9 +283,13 @@ export function SequenceRecord({ id, tab }: SequenceRecordProps) {
           },
         ]}
       />
-      {tab === "steps" ? <SequenceSteps rec={rec} flash={flash} moved={moved} /> : null}
-      {tab === "people" ? <SequencePeople rec={rec} flash={flash} again={again} moved={moved} /> : null}
-      {tab === "history" ? <SequenceHistory rec={rec} again={again} /> : null}
+      {/* Each tab is the sequence's own: keyed by it, so a step open, a period picked or a page read back never
+          carries over to the next sequence opened. */}
+      {tab === "steps" ? <SequenceSteps key={`${row.id}-steps`} rec={rec} flash={flash} moved={moved} /> : null}
+      {tab === "people" ? (
+        <SequencePeople key={`${row.id}-people`} rec={rec} flash={flash} again={again} moved={moved} />
+      ) : null}
+      {tab === "history" ? <SequenceHistory key={`${row.id}-history`} rec={rec} again={again} moved={moved} /> : null}
       {toast}
     </CmPane>
   );

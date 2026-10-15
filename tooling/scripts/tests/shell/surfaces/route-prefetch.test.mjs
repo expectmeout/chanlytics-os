@@ -150,6 +150,10 @@ test("every page opens on its own reads, named by the path's word or the hash's;
     // Campaigns' home, and a moment open over it: the same page.
     ["campaigns", "campaigns"],
     ["campaigns/new", "campaigns"],
+    // Sequences, its list, a record and a new one: its own read (decision 0060).
+    ["campaigns/sequences", "campaigns/sequences"],
+    ["campaigns/sequences/3f6c1a52-0d1e-4b8a-9c2f-5e7d8a9b0c1d/history", "campaigns/sequences"],
+    ["campaigns/sequences/new", "campaigns/sequences"],
     ["broadcasts", "broadcasts"],
     ["playbooks", "outbound"],
     ["outbound", "outbound"],
@@ -616,6 +620,7 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
       (await importSrc(`${S}/surfaces/campaigns/playbooks/surface.ts`)).playbooksOverride,
       (await importSrc(`${S}/surfaces/campaigns/home/results-surface.ts`)).campaignResultsOverride,
       (await importSrc(`${S}/surfaces/campaigns/reach-out/surface.ts`)).reachOutsOverride,
+      (await importSrc(`${S}/surfaces/campaigns/sequences/surface.ts`)).sequencesOverride,
       (await importSrc(`${S}/legacy-bridge/surfaces/settings.ts`)).settingsOverride,
       // The channels read every page that draws a number is made of (Live, the composers, the Library, Connections).
       (await importSrc(`${S}/surfaces/channels/surface.ts`)).channelsOverride,
@@ -649,6 +654,7 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
   const alsoDrawn = {
     today: ["calendar"],
     campaigns: ["broadcasts", "campaign_results", "reach_outs", "settings", "channels"],
+    "campaigns/sequences": ["settings"],
     calendar: ["calendar_runs"],
     live: ["channels"],
     broadcasts: ["channels"],

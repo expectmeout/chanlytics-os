@@ -20,6 +20,7 @@ import {
   type ReachOutSaidOutcome,
   type ToSendRowVM,
 } from "@chanlytics/contracts";
+import { commitVerb } from "@/legacy-bridge/verbs/commit";
 import { canDo, gateTitle, navigate } from "../../legacy-verbs";
 import { surfaceValue } from "../../surface-values";
 import { Button } from "../../kit/button/button";
@@ -217,13 +218,18 @@ export function RoToSend({
     if (busy) return;
     setBusy(row.id);
     setRefused(null);
-    const r = await reachOuts.say(row.id, outcome);
+    // The owner's word is the `sequence_send_said` verb: its receipt says what it did (contracts toSendSaidWords).
+    const r = await commitVerb("sequence_send_said", {
+      send_id: row.id,
+      outcome,
+      name: row.name,
+      run_id: d.broadcast.id,
+    });
     setBusy(null);
-    if (r && r.ok) {
-      const said = reachOuts.saidWords(row.name, r.data);
-      setDone(said);
-      onSaid(said);
-    } else setRefused({ id: row.id, text: (r && r.message) || "" });
+    if (r.ok) {
+      setDone(r.receipt);
+      onSaid(r.receipt);
+    } else setRefused({ id: row.id, text: r.message || "" });
   };
   // What the business wrote back to the email before, said as the peek says it: its drafts go with its waiting sends.
   const tell = async (row: ToSendRowVM, intent: OwnerSaidIntent, more: SaidMore) => {
