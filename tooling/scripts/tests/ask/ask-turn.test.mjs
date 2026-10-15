@@ -51,6 +51,7 @@ import {
   clockStamp,
   emptyReadSet,
   failedAnswer,
+  stoppedAnswer,
   normalizeAnswer,
   proseAnswer,
   v1FromAnswer,
@@ -688,7 +689,7 @@ test("cards alone are the answer: every card made, no second round, the cards sa
   assert.match(back.content, /not an email address/);
 });
 
-test("every refusal of the gateway ends the turn in its sentence, in the person's language, and says why in the result", async () => {
+test("every refusal of the gateway ends the turn in its sentence, in the person's language, and says why in the result; a request refused is ours, never the question's, and logged on its own name", async () => {
   const cases = [
     [
       { kind: "preview" },
@@ -708,16 +709,25 @@ test("every refusal of the gateway ends the turn in its sentence, in the person'
     ],
     [
       { kind: "bad_request", message: "400 messages: too long" },
-      "The model refused the question. Try it another way.",
-      "El modelo rechazó la pregunta. Inténtalo de otra forma.",
+      "Something went wrong on our side, not with your question. Try again.",
+      "Algo falló de nuestro lado, no con tu pregunta. Inténtalo de nuevo.",
     ],
   ];
   for (const [refusal, en, es] of cases) {
-    const r = await runAskTurn(
-      turn(ctxFor()).input,
-      ports(async () => {
-        throw new GatewayRefused(refusal);
-      }),
+    // Our own request refused is said loudly on its own name; every other refusal is the gateway's.
+    const event = refusal.kind === "bad_request" ? "ask_request_refused" : "ask_gateway_refused";
+    const { result: r, lines } = await logged(event, () =>
+      runAskTurn(
+        turn(ctxFor()).input,
+        ports(async () => {
+          throw new GatewayRefused(refusal);
+        }),
+      ),
+    );
+    assert.deepEqual(
+      lines.map((l) => JSON.parse(l)).map((l) => [l.kind, l.round, l.message]),
+      [[refusal.kind, 1, refusal.message]],
+      `${refusal.kind} is logged once, as ${event}`,
     );
     assert.deepEqual([r.text, r.failed, r.failure, r.rounds], [en, true, refusal.kind, 1], refusal.kind);
     assert.deepEqual([r.answer.form, r.answer.say.headline], ["structured", en], "the sentence is the headline");
@@ -729,6 +739,83 @@ test("every refusal of the gateway ends the turn in its sentence, in the person'
     );
     assert.equal(r2.text, es, `${refusal.kind} in Spanish`);
   }
+});
+
+/** A model stream as the gateway reads it: it runs until the signal it was given ends it. */
+const cutBy = (signal) =>
+  new Promise((r) => (signal.aborted ? r() : signal.addEventListener("abort", r, { once: true })));
+/** What the gateway throws for a request whose signal ended before it was answered (gateway.ts streamModel). */
+const unreached = () => new GatewayRefused({ kind: "unreachable", message: "This operation was aborted" });
+
+test("Stop reaches the model: the person's signal cuts the round's stream, no round is asked after it, and the turn ends as stopped, never as a refusal or a dropped connection", async () => {
+  const stop = new AbortController();
+  const s = scripted([
+    async (c, onText) => {
+      onText(answerJson("Three people wrote this week.").slice(0, 40));
+      stop.abort();
+      await cutBy(c.signal);
+      return { blocks: [], stopReason: null, streamError: "This operation was aborted" };
+    },
+  ]);
+  const t = turn(ctxFor(), { signal: stop.signal });
+  const { result: r, lines } = await logged("ask_gateway_refused", () => runAskTurn(t.input, ports(s.round)));
+  assert.deepEqual([r.failed, r.failure, r.rounds, s.requests.length], [true, "stopped", 1, 1]);
+  assert.ok(
+    t.events.some((e) => e.t === "say" && e.headline.startsWith("Three")),
+    "the Say was written before the Stop",
+  );
+  assert.equal(lines.length, 0, "a Stop is no refusal");
+});
+
+test("Stop while a read runs: the next round is never answered, and the turn ends as stopped, not as a model that could not be reached", async () => {
+  const stop = new AbortController();
+  const s = scripted([
+    ROUND([tool("inbox", { action: "list", filter: "recent" })]),
+    async (c) => {
+      assert.ok(c.signal.aborted, "the round after the Stop is asked with its signal already ended");
+      throw unreached();
+    },
+  ]);
+  // The person stops while the model's own read runs (not the page's reads made before the first round).
+  const read = async (_tc, run) => {
+    if (run.name === "inbox") stop.abort();
+    return { result: "{}", isError: false };
+  };
+  const t = turn(ctxFor(), { signal: stop.signal });
+  const { result: r, lines } = await logged("ask_gateway_refused", () =>
+    runAskTurn(t.input, ports(s.round, { tool: read })),
+  );
+  assert.deepEqual([r.failed, r.failure, r.rounds], [true, "stopped", 2]);
+  assert.equal(lines.length, 0);
+});
+
+test("the turn's own time run out is said as ours, before the stream as within it: never 'could not reach the model' or 'the connection dropped', and never the question's fault", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const ranOut = async (round, language = "en") =>
+    runAskTurn(turn(ctxFor(), { language }).input, ports(scripted([round]).round));
+  // Before the model answered: the gateway throws for the request its signal ended.
+  const before = async (c) => {
+    t.mock.timers.tick(ASK_TURN_BUDGET_MS);
+    await cutBy(c.signal);
+    throw unreached();
+  };
+  const r = await ranOut(before);
+  assert.deepEqual(
+    [r.text, r.failed, r.failure],
+    ["I ran out of time on that one. Try again, or ask about one thing at a time.", true, "timeout"],
+  );
+  assert.equal(
+    (await ranOut(before, "es")).text,
+    "Se me acabó el tiempo con esta. Inténtalo de nuevo, o pregunta por una cosa a la vez.",
+  );
+  // Within the stream: what it had written is cut, and the time is still what ended it.
+  const within = await ranOut(async (c, onText) => {
+    onText(answerJson("Three people").slice(0, 30));
+    t.mock.timers.tick(ASK_TURN_BUDGET_MS);
+    await cutBy(c.signal);
+    return { blocks: [prose(answerJson("Three").slice(0, 30))], stopReason: null, streamError: "aborted" };
+  });
+  assert.deepEqual([within.failed, within.failure], [true, "timeout"]);
 });
 
 test("a format the API refuses is dropped and the same round asked again: words that come back are prose, JSON is read as JSON, and a second refusal is the turn's", async () => {
@@ -766,7 +853,7 @@ test("a format the API refuses is dropped and the same round asked again: words 
   const always = await refusing(["400 schema too complex", "400 schema too complex"], answer("Never read."));
   assert.deepEqual(
     [always.r.text, always.r.failed, always.r.failure, always.requests.length],
-    ["The model refused the question. Try it another way.", true, "bad_request", 2],
+    ["Something went wrong on our side, not with your question. Try again.", true, "bad_request", 2],
     "with nothing left to drop, the refusal is the turn's",
   );
   const other = await refusing(["400 messages: too long"], answer("Never read."));
@@ -853,8 +940,10 @@ test("an answer that does not shape is a stated failure -- JSON cut off by the c
   const nothing = await one([], { stopReason: "end_turn" });
   assert.deepEqual(
     [nothing.text, nothing.failed, nothing.failure],
-    ["I found nothing to read for that question.", true, "no_tool_no_text"],
+    ["I lost my train of thought. Ask me again.", true, "no_tool_no_text"],
+    "a round with nothing in it is our glitch, never an empty read the question asked for",
   );
+  assert.equal((await one([], { stopReason: "end_turn" }, "es")).text, "Perdí el hilo. Pregúntamelo de nuevo.");
 });
 
 test("Say streams from the answer's JSON as it is written: only what changed, at most every 50ms, never an empty one; the final message is the answer", async () => {
@@ -8763,12 +8852,18 @@ test("an earlier answer, as a cold turn's history says it (the Phase 5 plan, D4)
   // A turn that failed says so first, and keeps the cards it made before it failed.
   const failed = answered({
     failed: true,
-    answer: failedAnswer("The model refused the question. Try it another way.", "en"),
+    answer: failedAnswer("Something went wrong on our side, not with your question. Try again.", "en"),
     proposals: [cardOf("p-1", "Reply to Rosa")],
   });
   assert.equal(
     answerLine(failed, TURN_CHARS),
-    "(This turn failed.) The model refused the question. Try it another way. Cards: p-1 · reply · Reply to Rosa · not pressed yet.",
+    "(This turn failed.) Something went wrong on our side, not with your question. Try again. Cards: p-1 · reply · Reply to Rosa · not pressed yet.",
+  );
+  // A turn the person stopped says it was stopped before its answer, and never the half it had written.
+  const halfSaid = { headline: "Three people wrote this week.", detail: "Rosa asked about" };
+  assert.equal(
+    answerLine(answered({ failed: true, answer: stoppedAnswer(halfSaid, "en") }), TURN_CHARS),
+    "(This turn failed.) Stopped before the answer was finished.",
   );
   // At the caps: four long cards and five long rows would pass the history's cut; the rows the line has no room for go
   // whole into "and N more", so the cut never lands inside an id.

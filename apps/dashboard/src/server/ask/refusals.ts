@@ -1,6 +1,40 @@
 import "server-only";
-import type { DashboardLogEvent } from "@/server/log";
+import { log, type DashboardLogEvent } from "@/server/log";
+import type { GatewayRefusal } from "./gateway";
 import { featureRejected } from "./sse";
+
+/**
+ * A refusal the turn could not do without, as the person is told it in their language, and logged. A request refused
+ * (bad_request) is one we built, or an edge that would not take it: our fault, never the question's, so it is said as
+ * ours and logged loudly under its own name (ask_request_refused); the rest are the gateway's (ask_gateway_refused).
+ */
+export function refusalSaid(r: GatewayRefusal, es: boolean, at: { tenant_id: string; round: number }): string {
+  const said = { kind: r.kind, ...at, message: "message" in r ? String(r.message).slice(0, 300) : undefined };
+  if (r.kind === "bad_request") log.error("ask_request_refused", said);
+  else log.error("ask_gateway_refused", said);
+  switch (r.kind) {
+    case "preview":
+      return es ? "Ask solo responde en el panel de producción." : "Ask only answers on the production dashboard.";
+    case "budget":
+      return es
+        ? "Ask usó su presupuesto diario. Vuelve mañana; las páginas siguen funcionando."
+        : "Ask has used its daily budget. Try again tomorrow; the pages still work.";
+    case "no_key":
+      return es ? "Ask no está conectado a un modelo todavía." : "Ask is not connected to a model yet.";
+    case "paused":
+      return es
+        ? "Ask está apagado mientras este espacio de trabajo está en pausa. Reactívalo en Ajustes › Facturación."
+        : "Ask is off while this workspace is paused. Resume it from Settings › Billing.";
+    case "unreachable":
+      return es
+        ? "No pude llegar al modelo. Inténtalo de nuevo en un momento."
+        : "I could not reach the model. Try again in a moment.";
+    default:
+      return es
+        ? "Algo falló de nuestro lado, no con tu pregunta. Inténtalo de nuevo."
+        : "Something went wrong on our side, not with your question. Try again.";
+  }
+}
 
 /**
  * What a turn gives up when the API refuses its request for it, once each and in this order: the replay of the

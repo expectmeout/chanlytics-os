@@ -40,6 +40,7 @@ export { detectLanguage, ASK_LANGUAGES } from "./ask/ask-language";
 export { askModelProfile, ASK_EFFORT, ASK_MODEL, ASK_SPEED } from "./ask/ask-model";
 export { applySettingsChange, describeSettingsChange } from "./ask/ask-settings-change";
 export { cacheHitOf } from "./ask/ask-shape";
+export { stoppedAnswer } from "./ask/ask-stopped";
 export { buildAskSuggestions } from "./ask/ask-suggestions";
 export { rightNowLine, rightNowCounts } from "./ask/ask-waiting";
 export { emptyReadSet, noteRows, groundCitations, citationRoute, ASK_CITATION_KINDS, ASK_PAGE_ROUTES, ASK_ROW_WORDS } from "./ask/citations";

@@ -748,7 +748,7 @@ test("Esc while Ask reads stops waiting: the turn says so, and what the stream s
   assert.equal(closed, 0, "the first Esc stops the answer, and the Line stays");
   finish();
   tree = await later(Palette, props);
-  assert.ok(textOf(byTestId(tree, "ask-say")).startsWith("Stopped."), textOf(tree));
+  assert.ok(textOf(byTestId(tree, "ask-say")).startsWith("Stopped before the answer was finished."), textOf(tree));
   assert.ok(!textOf(tree).includes("Too late."), "the late answer changed nothing");
   keyed(tree, "Escape");
   assert.equal(closed, 1, "then Esc closes");
@@ -783,7 +783,142 @@ test("REGRESSION: a turn left behind writes nothing -- the palette ignored only 
   finish["second question"]();
   tree = await later(Palette, OPEN);
   assert.ok(!textOf(tree).includes("Late answer"), `a stopped turn's answer changed the line: ${textOf(tree)}`);
-  assert.ok(textOf(byTestId(tree, "ask-say")).startsWith("Stopped."), "the line still says it stopped");
+  assert.ok(
+    textOf(byTestId(tree, "ask-say")).startsWith("Stopped before the answer was finished."),
+    "the line still says it stopped",
+  );
+  await closes();
+});
+
+test("Stop keeps what the Say had written under the words that say it stopped, as the thread will keep it, and lets go of the turn's request; the reading line says Writing… once the Say begins", async () => {
+  ask([]);
+  let input = null;
+  let say = () => {};
+  globalThis.window.__ask.send = (sent, on) =>
+    new Promise((res) => {
+      input = sent;
+      on({ t: "thread", id: TH(7).id, title: sent.text });
+      on({ t: "trace", text: "Reading the inbox…" });
+      say = () => on({ t: "say", headline: "Three people wrote this week.", detail: "Rosa asked about" });
+      sent.signal.addEventListener("abort", () => res(), { once: true });
+    });
+  render(Palette, OPEN);
+  let tree = await later(Palette, OPEN);
+  typed(tree, "who wrote this week?");
+  tree = await later(Palette, OPEN);
+  keyed(tree, "Enter");
+  tree = await later(Palette, OPEN);
+  assert.equal(textOf(byTestId(tree, "ask-reading")), "Reading the inbox…", "what it reads, until the answer begins");
+  say();
+  tree = await later(Palette, OPEN);
+  assert.equal(textOf(byTestId(tree, "ask-reading")), "Writing…", "not the last read, once the answer writes itself");
+  assert.equal(input.signal.aborted, false);
+  keyed(tree, "Escape");
+  tree = await later(Palette, OPEN);
+  assert.equal(input.signal.aborted, true, "the turn's request is let go of: the server stops it");
+  assert.equal(
+    textOf(byTestId(tree, "ask-say")),
+    "Stopped before the answer was finished.Three people wrote this week. Rosa asked about",
+    "what was written stays, under the words that say it stopped",
+  );
+  assert.equal(byTestId(tree, "ask-reading"), null, "nothing reads on");
+  await closes();
+});
+
+test("REGRESSION: a Stop before the turn's thread is named keeps the conversation on that thread once the name comes -- the next question opened a second thread for the same conversation", async () => {
+  const calls = ask([]);
+  const turns = [];
+  globalThis.window.__ask.send = (sent, on) =>
+    new Promise((res) => {
+      calls.sent.push(sent.text);
+      turns.push({ sent, on, res });
+    });
+  render(Palette, OPEN);
+  let tree = await later(Palette, OPEN);
+  typed(tree, "summarize every conversation");
+  tree = await later(Palette, OPEN);
+  keyed(tree, "Enter");
+  tree = await later(Palette, OPEN);
+  keyed(tree, "Escape");
+  await later(Palette, OPEN);
+  // The bridge hands the name on after the Stop (ask/api.ts send), and lets go of the request then.
+  turns[0].on({ t: "thread", id: TH(7).id, title: "summarize every conversation" });
+  turns[0].res();
+  tree = await later(Palette, OPEN);
+  typed(tree, "never mind, how many calls this week?");
+  tree = await later(Palette, OPEN);
+  keyed(tree, "Enter");
+  await later(Palette, OPEN);
+  assert.deepEqual(calls.sent, ["summarize every conversation", "never mind, how many calls this week?"]);
+  assert.equal(turns[1].sent.threadId, TH(7).id, "the next question carries on in the stopped turn's thread");
+  turns[1].res();
+  await closes();
+});
+
+test("REGRESSION: a thread stored question, question, answer, answer pairs each answer with its own question -- a stopped turn saved after the next question showed the second question answered by the stopped one", () => {
+  const { turns } = askPalette(globalThis.window, globalThis.localStorage);
+  const m = (id, role) => ({ id, role });
+  const pairs = (rows) => turns(rows).map((tn) => [tn.q?.id ?? null, tn.a?.id ?? null]);
+  assert.deepEqual(pairs([m("q1", "user"), m("q2", "user"), m("a1", "assistant"), m("a2", "assistant")]), [
+    ["q1", "a1"],
+    ["q2", "a2"],
+  ]);
+  assert.deepEqual(
+    pairs([m("q1", "user"), m("a1", "assistant"), m("q2", "user"), m("a2", "assistant")]),
+    [
+      ["q1", "a1"],
+      ["q2", "a2"],
+    ],
+    "an ordinary thread as it always paired",
+  );
+  assert.deepEqual(
+    pairs([m("q1", "user"), m("q2", "user"), m("a2", "assistant")]),
+    [
+      ["q1", null],
+      ["q2", "a2"],
+    ],
+    "a question whose turn never landed stands unanswered; the answer is the newer question's",
+  );
+  assert.deepEqual(pairs([m("q1", "user")]), [["q1", null]], "a question on its way");
+  assert.deepEqual(pairs([m("a0", "assistant"), m("q1", "user"), m("a1", "assistant"), m("a1b", "assistant")]), [
+    [null, "a0"],
+    ["q1", "a1"],
+    [null, "a1b"],
+  ]);
+});
+
+test("the desk field takes lines: Shift and Enter breaks one, Enter asks the words with their lines, and while it holds several lines the arrows move in it, not over the rows; the dialog is named in the Line's language", async () => {
+  const calls = ask([]);
+  render(Palette, OPEN);
+  let tree = await later(Palette, OPEN);
+  assert.equal(inputOf(tree).type, "textarea", "a field that grows, not one line");
+  typed(tree, "Draft a reply to Ana:\nthanks for waiting");
+  tree = await later(Palette, OPEN);
+  const shifted = { ...pressOf("Enter"), shiftKey: true };
+  inputOf(tree).props.onKeyDown(shifted);
+  assert.equal(shifted.prevented, false, "Shift and Enter is the field's: a new line");
+  for (const k of ["ArrowDown", "ArrowUp"]) {
+    const arrow = pressOf(k);
+    inputOf(tree).props.onKeyDown(arrow);
+    assert.equal(arrow.prevented, false, `${k} moves the caret between the lines`);
+  }
+  await later(Palette, OPEN);
+  assert.deepEqual(calls.sent, [], "nothing asked yet");
+  keyed(tree, "Enter");
+  tree = await later(Palette, OPEN);
+  assert.deepEqual(calls.sent, ["Draft a reply to Ana:\nthanks for waiting"], "asked with its lines");
+  assert.equal(byTestId(tree, "ask-real").props["aria-label"], "Ask Chanlytics");
+  await closes();
+
+  ask([]);
+  render(Palette, OPEN);
+  tree = await later(Palette, OPEN);
+  typed(tree, "¿Quién me escribió hoy?");
+  tree = await later(Palette, OPEN);
+  keyed(tree, "Enter");
+  tree = await later(Palette, OPEN);
+  assert.equal(byTestId(tree, "ask-real").props["aria-label"], "Pregunta a Chanlytics", "the dialog's name in Spanish");
+  assert.equal(inputOf(tree).props["aria-label"], "Pregunta a Chanlytics");
   await closes();
 });
 
@@ -2439,7 +2574,7 @@ test("the Line's recogniser listens in the Line's language: Spanish where the Li
       render(Probe, {});
       talk.start();
     }
-    assert.deepEqual(langs, ["es-ES", navigator.language || "en-US"]);
+    assert.deepEqual(langs, ["es-US", navigator.language || "en-US"]);
   } finally {
     delete globalThis.window.SpeechRecognition;
   }

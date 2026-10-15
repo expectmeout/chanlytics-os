@@ -9,6 +9,7 @@ import {
   type PageContext,
   HOUR_MS,
 } from "@chanlytics/contracts";
+import { after } from "next/server";
 import { write, workspace } from "@/server/route";
 import { log } from "@/server/log";
 import { requireUuid } from "@/server/request-guards";
@@ -50,6 +51,10 @@ import { searchRow } from "@/server/leads/leads";
  *
  * withRoute's envelope is for JSON; a stream is returned as-is, and withRoute
  * still refuses a cross-site POST and still verifies the session first.
+ *
+ * A stream the reader lets go of (the Line's Stop) stops the turn: the model
+ * is asked no further, and the thread keeps the turn as stopped, with what its
+ * Say had written (server/ask/turn.ts), never the answer nobody read.
  */
 
 export const maxDuration = 60;
@@ -61,6 +66,65 @@ const SURFACES = new Set<string>(ASK_SURFACES);
 
 function line(ev: AskTurnLine): string {
   return `${JSON.stringify(ev)}\n`;
+}
+
+/**
+ * The platform waits for the turn after the response has gone (next/server's `after`): a Stop lets go of the stream
+ * while the turn it stopped is still to be saved. Outside a request (a test calling the route) there is no one to tell.
+ */
+function waitFor(turn: Promise<unknown>): void {
+  try {
+    after(turn);
+  } catch {
+    /* no request scope */
+  }
+}
+
+/**
+ * The question as the turn takes it: its lines kept (a pasted message, a draft the Line's field took over several
+ * lines), runs of spaces within a line made one. Anything but words is no question.
+ */
+function questionOf(raw: unknown): string {
+  return typeof raw === "string"
+    ? raw
+        .replace(/\r\n?/g, "\n")
+        .replace(/[^\S\n]+/g, " ")
+        .trim()
+    : "";
+}
+
+/**
+ * The turn run and stored, each line as it comes: the thread first, the reads, the Say, then the answer (the turn's
+ * second half). The voice door runs the same two halves and speaks the Say instead. The person's Stop lets go of the
+ * stream, which cancels it, or the request goes before the stream opened (a tab closed, a network gone): either stops
+ * the turn where it is, and it is kept as stopped (turn.ts).
+ */
+function turnStream(prepared: Parameters<typeof finishAskTurn>[0], gone: AbortSignal): ReadableStream<Uint8Array> {
+  const stop = new AbortController();
+  gone.addEventListener("abort", () => stop.abort(), { once: true });
+  const encoder = new TextEncoder();
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (s: string) => {
+        try {
+          controller.enqueue(encoder.encode(s));
+        } catch {
+          /* the reader went away */
+        }
+      };
+      const turn = finishAskTurn(prepared, (ev) => send(line(ev)), stop.signal);
+      waitFor(turn);
+      await turn;
+      try {
+        controller.close();
+      } catch {
+        /* already closed */
+      }
+    },
+    cancel() {
+      stop.abort();
+    },
+  });
 }
 
 /**
@@ -97,7 +161,7 @@ export const POST = write({
       opened_ms?: unknown;
       context?: unknown;
     } | null;
-    const text = typeof body?.text === "string" ? body.text.replace(/\s+/g, " ").trim() : "";
+    const text = questionOf(body?.text);
     if (!text) throw new AppError("validation", "Ask something.");
     if (text.length > ASK_MAX_CHARS)
       throw new AppError("validation", `Keep a question under ${ASK_MAX_CHARS} characters.`);
@@ -166,27 +230,7 @@ export const POST = write({
       answering,
     });
 
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream<Uint8Array>({
-      async start(controller) {
-        const send = (s: string) => {
-          try {
-            controller.enqueue(encoder.encode(s));
-          } catch {
-            /* the reader went away */
-          }
-        };
-        // The turn run and stored, each line as it comes: the thread first, the reads, the Say, then the answer
-        // (the turn's second half). The voice door runs the same two halves and speaks the Say instead.
-        await finishAskTurn(prepared, (ev) => send(line(ev)));
-        try {
-          controller.close();
-        } catch {
-          /* already closed */
-        }
-      },
-    });
-    return new Response(stream, {
+    return new Response(turnStream(prepared, req.signal), {
       status: 200,
       headers: {
         "content-type": "application/x-ndjson; charset=utf-8",

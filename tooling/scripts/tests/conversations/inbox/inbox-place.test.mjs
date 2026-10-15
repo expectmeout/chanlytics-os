@@ -790,6 +790,30 @@ test("REGRESSION: Cmd or Ctrl with Enter pressed inside a dialog over the thread
   assert.deepEqual(sent, ["Friday at 3 works for us"], "on the page it still sends");
 });
 
+test("REGRESSION: Ask's Edit in the composer names its thread: the box open on that thread takes the words, and a box on another thread keeps its own", () => {
+  fresh();
+  const rosa = threadOf({
+    id: "th-rosa",
+    real: true,
+    who: "Rosa Díaz",
+    primaryChannel: "whatsapp",
+    hasChat: true,
+    windowOpen: true,
+    optedOut: false,
+  });
+  const drawn = () =>
+    find(
+      again(() => Composer({ thread: rosa, reply: "Friday at 3 works for us" })),
+      (n) => n.type === "textarea",
+    );
+  drawn();
+  // Sent as the card's press moves to Nina's thread, before Rosa's box is gone (legacy-bridge/ask/commit.ts editReply).
+  hear({ type: "inbox:focus-composer", detail: { text: "On our way.", threadId: "th-nina" } });
+  assert.equal(drawn().props.value, "Friday at 3 works for us", "another thread's words never land in this box");
+  hear({ type: "inbox:focus-composer", detail: { text: "On our way.", threadId: "th-rosa" } });
+  assert.equal(drawn().props.value, "On our way.", "its own thread's do");
+});
+
 test("REGRESSION: j, k and the arrows pressed inside a dialog over the Inbox move nothing behind it; on the page they still walk the list", () => {
   const drawn = [];
   const rosa = threadOf({

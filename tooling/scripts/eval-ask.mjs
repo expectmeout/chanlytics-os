@@ -533,9 +533,9 @@ process.stderr.write(
 // still be on its way (the edge writes it after its stream settles), so the window opens no earlier than this.
 const startedAt = new Date(Date.now() - 1_000).toISOString();
 const results = [];
-/** The loop's own refusal sentences (loop.ts refusalText): the key, its credit, the model or the edge, never the case. */
+/** The turn's own refusal sentences (refusals.ts refusalSaid): the key, its credit, the model or the edge, never the case. */
 const REFUSED =
-  /refused the question|rechazó la pregunta|not connected to a model|no está conectado|could not reach the model|No pude llegar al modelo/;
+  /went wrong on our side|falló de nuestro lado|not connected to a model|no está conectado|could not reach the model|No pude llegar al modelo/;
 let refusals = 0;
 let stopped = null;
 /** A turn's name in the log: its case, which turn a second one is, and its repetition. */

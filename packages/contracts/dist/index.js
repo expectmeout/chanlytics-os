@@ -25093,6 +25093,17 @@ function askModelProfile(name, effort, speed) {
   };
 }
 
+// src/ask/ask-stopped.ts
+var ASK_STOPPED_WORDS = {
+  en: "Stopped before the answer was finished.",
+  es: "Detenido antes de terminar la respuesta."
+};
+function stoppedAnswer(said, language) {
+  const a = failedAnswer(ASK_STOPPED_WORDS[language === "es" ? "es" : "en"], language);
+  const so = [said?.headline, said?.detail].filter(Boolean).join(" ");
+  return { ...a, say: { ...a.say, detail: clip(so, ASK_ANSWER_CAPS.detail) } };
+}
+
 // src/ask/answer-format.ts
 var SOURCE = {
   type: "object",
@@ -57997,6 +58008,7 @@ export {
   stepsStopSentence,
   stopRequestQuestion,
   stopToldBesideState,
+  stoppedAnswer,
   stoppedRunFix,
   suggestLocalPart,
   sum,

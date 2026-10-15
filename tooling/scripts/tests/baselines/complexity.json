@@ -1,7 +1,7 @@
 {
   "apps/dashboard/app/api/v1/ask/route.ts::handle#1": {
-    "lines": 108,
-    "branches": 36,
+    "lines": 88,
+    "branches": 35,
     "depth": 2
   },
   "apps/dashboard/app/privacy/page.tsx::PrivacyPage#1": {
@@ -105,8 +105,8 @@
     "depth": 0
   },
   "apps/dashboard/src/server/ask/loop.ts::runAskTurn#1": {
-    "lines": 467,
-    "branches": 72,
+    "lines": 463,
+    "branches": 71,
     "depth": 6
   },
   "apps/dashboard/src/server/ask/sse.ts::parseFrame#1": {

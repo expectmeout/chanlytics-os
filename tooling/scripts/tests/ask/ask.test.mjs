@@ -921,12 +921,13 @@ test("the turn route: same-origin POST, a rate bucket, the thread saved before t
     "the question is saved before the answer is attempted",
   );
   assert.ok(
-    r.includes("const prepared = await prepareAskTurn(ctx, member, {") && r.includes("await finishAskTurn(prepared, "),
+    r.includes("const prepared = await prepareAskTurn(ctx, member, {") &&
+      r.includes("new Response(turnStream(prepared, "),
     "the route keeps the thread before its stream opens, and streams the turn's second half",
   );
   assert.ok(r.includes('"content-type": "application/x-ndjson; charset=utf-8"'));
   assert.ok(r.includes('"cache-control": "private, no-store"'));
-  assert.ok(turn.includes("const result = await runAskTurn({"));
+  assert.ok(turn.includes("const ran = await runAskTurn({"));
   assert.ok(
     ![r, memory, turn].some((code) => code.includes("service")),
     "the turn and the thread it keeps run on the session client, never the service role",

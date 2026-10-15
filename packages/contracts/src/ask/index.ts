@@ -76,6 +76,7 @@ export type { AskCitationKind, AskCitation, AskReadSet, AskRowRef } from "./cita
 export { cacheHitOf } from "./ask-shape";
 export type { AskTurnShape, AskTurnTokens } from "./ask-shape";
 export { askModelProfile, ASK_EFFORT, ASK_MODEL, ASK_SPEED } from "./ask-model";
+export { stoppedAnswer } from "./ask-stopped";
 export { rightNowLine, rightNowCounts } from "./ask-waiting";
 export type { AskWaiting } from "./ask-waiting";
 export type { AskModelProfile } from "./ask-model";
