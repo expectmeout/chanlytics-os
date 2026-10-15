@@ -7833,14 +7833,15 @@ var THINKING_TYPES = ["adaptive", "between_tools", "disabled"];
 var { OPUS_5_5, OPUS_5, SONNET_5_5, SONNET_5, HAIKU_5_5, HAIKU_4_5 } = MODELS;
 var MODEL_TAKES = {
   // Thinking can't be turned off on Opus 5.5: effort is its only control.
-  [OPUS_5_5]: { thinking: ["adaptive"], fast: true },
-  [OPUS_5]: { thinking: ["adaptive", "disabled"], fast: true },
-  [SONNET_5_5]: { thinking: ["adaptive", "between_tools"], fast: false },
-  [SONNET_5]: { thinking: ["adaptive", "disabled"], fast: false },
-  // Haiku 5.5 takes `disabled` at effort high or below, which is every effort the gateway lets through.
-  [HAIKU_5_5]: { thinking: ["adaptive", "disabled"], fast: false },
+  [OPUS_5_5]: { thinking: ["adaptive"], fast: true, effortMessages: true },
+  [OPUS_5]: { thinking: ["adaptive", "disabled"], fast: true, effortMessages: true },
+  // Sonnet 5.5 takes an effort message only while it thinks: never beside `between_tools`, which no route sends.
+  [SONNET_5_5]: { thinking: ["adaptive", "between_tools"], fast: false, effortMessages: true },
+  [SONNET_5]: { thinking: ["adaptive", "disabled"], fast: false, effortMessages: false },
+  // Haiku 5.5 takes `disabled` at effort high or below; no route sends it either.
+  [HAIKU_5_5]: { thinking: ["adaptive", "disabled"], fast: false, effortMessages: true },
   // Haiku 4.5 thinks only on a token budget, which no route sends: it runs without.
-  [HAIKU_4_5]: { thinking: ["disabled"], fast: false }
+  [HAIKU_4_5]: { thinking: ["disabled"], fast: false, effortMessages: false }
 };
 function modelTakes(model) {
   return MODEL_TAKES[model] ?? null;
@@ -7848,7 +7849,7 @@ function modelTakes(model) {
 function hasFastMode(model) {
   return modelTakes(model)?.fast === true;
 }
-var MODEL_EFFORTS = ["low", "medium", "high"];
+var MODEL_EFFORTS = ["low", "medium", "high", "xhigh", "max"];
 var MODEL_PURPOSES = [
   "receptionist",
   "reply_draft",
@@ -7930,6 +7931,38 @@ function readsAsModel(v) {
   return typeof v === "string" && /^claude-[a-z0-9][a-z0-9.-]{0,62}$/.test(v);
 }
 var RETELL_MODELS = { llm: "claude-4.5-haiku", analysis: "gpt-4.1" };
+
+// src/ai/effort.ts
+var EFFORT_MESSAGE_BETA = "mid-conversation-output-config-2026-07-01";
+function effortMessage(effort) {
+  return { role: "system", content: [], output_config: { effort } };
+}
+var isRecord = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+function isEffortMessage(m) {
+  if (!isRecord(m)) return false;
+  const { role, content, output_config: oc, ...rest } = m;
+  if (role !== "system" || !Array.isArray(content) || content.length > 0 || Object.keys(rest).length > 0) return false;
+  if (!isRecord(oc)) return false;
+  const { effort, ...more } = oc;
+  return Object.keys(more).length === 0 && MODEL_EFFORTS.includes(effort);
+}
+function effortInForce(messages, base) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (isEffortMessage(m)) return m.output_config.effort;
+  }
+  return base;
+}
+function effortAbove(a, b) {
+  return MODEL_EFFORTS.indexOf(a) > MODEL_EFFORTS.indexOf(b);
+}
+function foldEffortMessages(body) {
+  const messages = Array.isArray(body.messages) ? body.messages : [];
+  const effort = effortInForce(messages, null);
+  if (effort === null) return body;
+  const own = isRecord(body.output_config) ? body.output_config : {};
+  return { ...body, messages: messages.filter((m) => !isEffortMessage(m)), output_config: { ...own, effort } };
+}
 
 // src/ai/system-one.ts
 import { z } from "zod";
@@ -24932,15 +24965,26 @@ function cacheHitOf(t) {
 var ASK_MODEL = MODEL_ROUTES.ask.model;
 var ASK_EFFORT = "low";
 var ASK_SPEED = "fast";
-function askModelProfile(name, effort, speed) {
+var ASK_DRAFT_EFFORT = "high";
+var ASK_DRAFT_MAX_TOKENS = 32e3;
+function askRoundCap(effort) {
+  return effort !== null && effortAbove(effort, "medium") ? ASK_DRAFT_MAX_TOKENS : ASK_MAX_TOKENS;
+}
+var effortOf = (raw) => {
+  const asked = (raw ?? "").trim();
+  return MODEL_EFFORTS.includes(asked) ? asked : null;
+};
+function askModelProfile(name, effort, speed, draft) {
   const named = (name ?? "").trim();
   const id = readsAsModel(named) ? named : ASK_MODEL;
-  const asked = (effort ?? "").trim();
   const wanted = (speed ?? "").trim() === "standard" ? "standard" : ASK_SPEED;
+  const at3 = effortOf(effort) ?? ASK_EFFORT;
+  const drafted2 = (draft ?? "").trim() === "off" ? null : effortOf(draft) ?? ASK_DRAFT_EFFORT;
   return {
     id,
-    effort: MODEL_EFFORTS.includes(asked) ? asked : ASK_EFFORT,
-    speed: wanted === "fast" && hasFastMode(id) ? "fast" : "standard"
+    effort: at3,
+    speed: wanted === "fast" && hasFastMode(id) ? "fast" : "standard",
+    draft: drafted2 && effortAbove(drafted2, at3) && modelTakes(id)?.effortMessages === true ? drafted2 : null
   };
 }
 
@@ -36907,7 +36951,7 @@ var APP_FILE_TYPES = ["text/csv", "text/plain"];
 var APP_FILE_MAX_CHARS = 2e6;
 var APP_FILE_NAME_RE = /^[\w .()-]{1,100}\.(csv|txt)$/;
 var PUSH_TOKEN_MAX = 200;
-var isRecord = (v) => typeof v === "object" && v !== null;
+var isRecord2 = (v) => typeof v === "object" && v !== null;
 var PAGE_MESSAGES = {
   route: (v) => typeof v.route === "string" && APP_ROUTE_RE.test(v.route) ? { t: "route", route: v.route } : null,
   needs: (v) => isCount(v.inbox) ? { t: "needs", inbox: v.inbox } : null,
@@ -36931,13 +36975,13 @@ function parsePageMessage(raw) {
   } catch {
     return null;
   }
-  if (!isRecord(v) || typeof v.t !== "string") return null;
+  if (!isRecord2(v) || typeof v.t !== "string") return null;
   if (!Object.prototype.hasOwnProperty.call(PAGE_MESSAGES, v.t)) return null;
   return PAGE_MESSAGES[v.t](v);
 }
 var token = (v) => typeof v === "string" && v.trim() && v.trim().length <= PUSH_TOKEN_MAX ? v.trim() : null;
 function parseShellMessage(v) {
-  if (!isRecord(v)) return null;
+  if (!isRecord2(v)) return null;
   switch (v.t) {
     case "navigate":
       if (typeof v.route !== "string" || !APP_ROUTE_RE.test(v.route)) return null;
@@ -55007,6 +55051,8 @@ export {
   ASK_CITATION_KINDS,
   ASK_CONTEXT_MAX_ROWS,
   ASK_CONTEXT_ROW_KINDS,
+  ASK_DRAFT_EFFORT,
+  ASK_DRAFT_MAX_TOKENS,
   ASK_EFFORT,
   ASK_LANGUAGES,
   ASK_MAX_CHARS,
@@ -55229,6 +55275,7 @@ export {
   EARLIER_FALLBACK_DEFAULTS,
   EDGE_ERROR_CODES,
   EDIT,
+  EFFORT_MESSAGE_BETA,
   EMAILED_NOTIFICATION_KINDS,
   EMAIL_ALWAYS_KINDS,
   EMAIL_BODY_MAX,
@@ -56228,6 +56275,7 @@ export {
   askJump,
   askModelProfile,
   askPages,
+  askRoundCap,
   askUndoOpen,
   askWhy,
   askedDayOf,
@@ -56539,6 +56587,9 @@ export {
   editFootOf,
   editOf,
   effectiveMode,
+  effortAbove,
+  effortInForce,
+  effortMessage,
   eligibleFor,
   eligibleForPlaybook,
   emailDomainOf,
@@ -56627,6 +56678,7 @@ export {
   fmtClock,
   fmtDay,
   fmtSeconds,
+  foldEffortMessages,
   foldName,
   followUpIsFor,
   followUpKey,
@@ -56779,6 +56831,7 @@ export {
   isDealStage,
   isDraftWhy,
   isE164,
+  isEffortMessage,
   isEmailStopped,
   isForReader,
   isForwardingMode,

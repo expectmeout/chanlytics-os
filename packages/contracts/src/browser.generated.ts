@@ -17,6 +17,7 @@ export { ACTIVITY_SUBJECT_HOMES } from "./activity/subjects";
 export { activityTone } from "./activity/tones";
 export { ADS_ROUTE, ADS_SCOPE_ALL, ADS_WORDS, adRoute, adsPreviewOf, adsResultsRoute, adsScopeKey, adsScopeOfKey, isAdsParam, newAdFromRoute, newAdRoute, parseAds } from "./ads/address";
 export { MINOR_PER_UNIT, aboutADayAfter, addDays, adWith, daysBetween, patchRestarts, sameArea } from "./ads/ads";
+export { EFFORT_MESSAGE_BETA, effortAbove, effortInForce, effortMessage, foldEffortMessages, isEffortMessage } from "./ai/effort";
 export { DATA_NOT_INSTRUCTIONS, PROFILE_NAME_MAX, fenceActed, fenced, fencedInline, injectionQuestion, promptSafeName } from "./ai/fence";
 export { FLAGS, FLAG_MECHANISMS, daysToSunset } from "./ai/flags";
 export { MODELS, MODEL_IDS, MODEL_EFFORTS, MODEL_PURPOSES, MODEL_ROUTES, MODEL_PORTS, MODEL_SPEEDS, MODEL_TAKES, FAST_MODE_BETA, THINKING_TYPES, RETELL_MODELS, modelRoute, fallbackModel, shadowPortOf, isModelId, readsAsModel, modelTakes, hasFastMode } from "./ai/models";
@@ -37,7 +38,7 @@ export { ASK_CONTEXT_MAX_ROWS, ASK_CONTEXT_ROW_KINDS, itemFocus } from "./ask/as
 export { dayFromQuestion, askIntent, callsToday } from "./ask/ask-fast-paths";
 export { askJump, askPages, ASK_PAGES } from "./ask/ask-jump";
 export { detectLanguage, ASK_LANGUAGES } from "./ask/ask-language";
-export { askModelProfile, ASK_EFFORT, ASK_MODEL, ASK_SPEED } from "./ask/ask-model";
+export { askModelProfile, askRoundCap, ASK_DRAFT_EFFORT, ASK_DRAFT_MAX_TOKENS, ASK_EFFORT, ASK_MODEL, ASK_SPEED } from "./ask/ask-model";
 export { applySettingsChange, describeSettingsChange } from "./ask/ask-settings-change";
 export { cacheHitOf } from "./ask/ask-shape";
 export { buildAskSuggestions } from "./ask/ask-suggestions";

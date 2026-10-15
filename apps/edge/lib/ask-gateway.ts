@@ -12,7 +12,9 @@
  *     the key is spent. Ask may name any model that reads as one (its deployment's ASK_MODEL); the small drafts
  *     name the registry's for their route. A request may ask for fast mode (`speed`), a thinking type and the betas
  *     GATEWAY_BETAS lists, each dropped when it is none of those (extrasOf); the port sends each model only what it
- *     takes (channels models/anthropic.ts).
+ *     takes (channels models/anthropic.ts). A system message among the messages is an effort said there (contracts
+ *     ai/effort.ts: Ask's draft, asked harder) or the request is refused, and Ask's round may write what the effort in
+ *     force at its messages' end earns (askRoundCap).
  *   - modelPurposeOf: the registry's purpose a gateway purpose is asked as.
  *
  * Two records of one round, on purpose: the event above is the budget's count (a sum over 24 hours, purged with the
@@ -21,13 +23,16 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  ASK_MAX_TOKENS,
   ASK_WARM_MAX_TOKENS,
+  EFFORT_MESSAGE_BETA,
   FAST_MODE_BETA,
   MODELS,
   MODEL_EFFORTS,
   MODEL_ROUTES,
   THINKING_TYPES,
+  askRoundCap,
+  effortInForce,
+  isEffortMessage,
   readsAsModel,
   type ModelEffort,
   type ModelPurpose,
@@ -217,9 +222,10 @@ const EFFORTS: ReadonlySet<string> = new Set(MODEL_EFFORTS);
 
 /**
  * The betas a gateway request may name; another is dropped before the key is spent. Fast mode's is the port's to add
- * for a fast request, and may be named too; a beta joins the list with the feature that needs it.
+ * for a fast request, and an effort message's for a request that carries one (contracts ai/effort.ts); each may be
+ * named too. A beta joins the list with the feature that needs it.
  */
-const GATEWAY_BETAS: readonly string[] = [FAST_MODE_BETA];
+const GATEWAY_BETAS: readonly string[] = [FAST_MODE_BETA, EFFORT_MESSAGE_BETA];
 const THINKING: ReadonlySet<string> = new Set(THINKING_TYPES);
 
 /**
@@ -314,7 +320,7 @@ export const GATEWAY_MODELS: readonly string[] = [
  * (contracts ASK_MODEL) moves Ask alone.
  */
 export const GATEWAY_FALLBACK_MODEL = MODELS.SONNET_5;
-/** The lead purposes' ceiling. Ask's own is ASK_MAX_TOKENS (contracts), the number its loop asks for. */
+/** The lead purposes' ceiling. Ask's own is askRoundCap's (contracts), the rule its loop asks by. */
 export const GATEWAY_MAX_TOKENS = 2000;
 export const GATEWAY_MAX_MESSAGES = 60;
 export const GATEWAY_MAX_TOOLS = 40;
@@ -324,9 +330,12 @@ export const GATEWAY_MAX_BODY = 700_000;
 const mayName = (purpose: GatewayPurpose, model: string): boolean =>
   isAsk(purpose) ? readsAsModel(model) : GATEWAY_MODELS.includes(model);
 
-/** The most a purpose's request may write: Ask's turn its own ceiling, a warm next to nothing, a draft the drafts'. */
-const ceilingOf = (purpose: GatewayPurpose): number =>
-  purpose === "ask" ? ASK_MAX_TOKENS : purpose === "ask_warm" ? ASK_WARM_MAX_TOKENS : GATEWAY_MAX_TOKENS;
+/**
+ * The most a purpose's request may write: Ask's round what the effort in force at its messages' end earns (askRoundCap:
+ * a draft's thinking counts), a warm next to nothing, a small draft the drafts'.
+ */
+const ceilingOf = (purpose: GatewayPurpose, effort: ModelEffort | null): number =>
+  purpose === "ask" ? askRoundCap(effort) : purpose === "ask_warm" ? ASK_WARM_MAX_TOKENS : GATEWAY_MAX_TOKENS;
 
 /** A request the gateway will not send: `bad_request`, with the rule it broke in `detail`. */
 const badRequest = (detail: string) => ({ ok: false as const, error: "bad_request" as const, detail });
@@ -339,9 +348,13 @@ export function validateGatewayRequest(
   if (!r || typeof r !== "object") return badRequest("request required");
   const model = typeof r.model === "string" ? r.model : GATEWAY_FALLBACK_MODEL;
   if (!mayName(purpose, model)) return badRequest("unknown model");
-  const maxTokens = Math.min(ceilingOf(purpose), Math.max(64, Math.round(num(r.max_tokens) || 800)));
   if (!Array.isArray(r.messages) || !r.messages.length || r.messages.length > GATEWAY_MAX_MESSAGES) {
     return badRequest(`messages: 1-${GATEWAY_MAX_MESSAGES} turns`);
+  }
+  // A system message says an effort and nothing else (contracts ai/effort.ts): an instruction is the prompt's, never the
+  // messages'.
+  if (r.messages.some((m) => (m as { role?: unknown } | null)?.role === "system" && !isEffortMessage(m))) {
+    return badRequest("messages: a system message carries an effort alone");
   }
   if (r.tools !== undefined && (!Array.isArray(r.tools) || r.tools.length > GATEWAY_MAX_TOOLS)) {
     return badRequest(`tools: up to ${GATEWAY_MAX_TOOLS}`);
@@ -354,6 +367,8 @@ export function validateGatewayRequest(
       ? (r.output_config as { effort?: unknown; format?: unknown })
       : null;
   const effort = oc && EFFORTS.has(String(oc.effort)) ? (oc.effort as ModelEffort) : null;
+  const ceiling = ceilingOf(purpose, effortInForce(r.messages, effort));
+  const maxTokens = Math.min(ceiling, Math.max(64, Math.round(num(r.max_tokens) || 800)));
   // A format rides through for every purpose: the lead purposes answer as
   // records, and Ask's turn answers in its answer schema (the Line, D3).
   const format = formatOf(oc ? oc.format : undefined);
