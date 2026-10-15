@@ -1174,13 +1174,22 @@ function asksDemo(n) {
   return hit;
 }
 
+/**
+ * A condition's side, from what one of its parts says (`says`: +1 where the part holds on the side asked about, -1 where
+ * it holds off it, else 0), read through parentheses and a negation: `!demoSession()` is the far side of a demo.
+ */
+const sideBy = (says) => {
+  const side = (cond) => {
+    let c = cond;
+    while (ts.isParenthesizedExpression(c)) c = c.expression;
+    if (ts.isPrefixUnaryExpression(c) && c.operator === ts.SyntaxKind.ExclamationToken) return -side(c.operand);
+    return says(c);
+  };
+  return side;
+};
+
 /** +1 when a condition holds in a demo (`demoSession()`, `demo && x`), -1 when it holds outside one (`!demoSession()`), else 0. */
-function demoSide(cond) {
-  let c = cond;
-  while (ts.isParenthesizedExpression(c)) c = c.expression;
-  if (ts.isPrefixUnaryExpression(c) && c.operator === ts.SyntaxKind.ExclamationToken) return -demoSide(c.operand);
-  return asksDemo(c) ? 1 : 0;
-}
+const demoSide = sideBy((c) => (asksDemo(c) ? 1 : 0));
 
 /** Whether a statement always leaves its block: a return or a throw, or a block that ends in one. */
 const leaves = (s) =>
@@ -1188,42 +1197,47 @@ const leaves = (s) =>
   ts.isThrowStatement(s) ||
   (ts.isBlock(s) && s.statements.length > 0 && leaves(s.statements[s.statements.length - 1]));
 
-/** Whether a condition holds whenever the session is no demo: `!demoSession()`, or an `||` with that among its sides. */
-function holdsOutsideADemo(cond) {
+/** Whether a condition holds whenever its side does not: the far side itself, or an `||` with it among its parts. */
+function holdsOffSide(cond, side) {
   let c = cond;
   while (ts.isParenthesizedExpression(c)) c = c.expression;
   if (ts.isBinaryExpression(c) && c.operatorToken.kind === ts.SyntaxKind.BarBarToken)
-    return holdsOutsideADemo(c.left) || holdsOutsideADemo(c.right);
-  return demoSide(c) < 0;
+    return holdsOffSide(c.left, side) || holdsOffSide(c.right, side);
+  return side(c) < 0;
 }
 
-/** A guard before `child` in its block that leaves the block outside a demo (`if (!demoSession() || …) return …;`). */
-const guardedBefore = (block, child) =>
+/** A guard before `child` in its block that leaves the block off the side (`if (!demoSession() || …) return …;`). */
+const guardedBefore = (block, child, side) =>
   block.statements
     .slice(0, block.statements.indexOf(child))
-    .some((s) => ts.isIfStatement(s) && !s.elseStatement && leaves(s.thenStatement) && holdsOutsideADemo(s.expression));
+    .some(
+      (s) => ts.isIfStatement(s) && !s.elseStatement && leaves(s.thenStatement) && holdsOffSide(s.expression, side),
+    );
 
 /**
- * Whether `n` runs only in a demo: under the true side of a condition that asks for one, the false side of its negation, or
- * after a guard that leaves its block outside one.
+ * Whether `n` runs only on a condition's side: under the true branch of a condition on it, the false branch of its
+ * negation, the right of an `&&` after it (or of an `||` after its negation), or after a guard that leaves its block off it.
  */
-function behindADemo(n) {
+function behind(n, side) {
   for (let child = n, p = n.parent; p; child = p, p = p.parent) {
-    if ((ts.isBlock(p) || ts.isSourceFile(p)) && guardedBefore(p, child)) return true;
+    if ((ts.isBlock(p) || ts.isSourceFile(p)) && guardedBefore(p, child, side)) return true;
     if (ts.isConditionalExpression(p)) {
-      const side = demoSide(p.condition);
-      if ((child === p.whenTrue && side > 0) || (child === p.whenFalse && side < 0)) return true;
+      const at = side(p.condition);
+      if ((child === p.whenTrue && at > 0) || (child === p.whenFalse && at < 0)) return true;
     } else if (ts.isIfStatement(p)) {
-      const side = demoSide(p.expression);
-      if ((child === p.thenStatement && side > 0) || (child === p.elseStatement && side < 0)) return true;
+      const at = side(p.expression);
+      if ((child === p.thenStatement && at > 0) || (child === p.elseStatement && at < 0)) return true;
     } else if (ts.isBinaryExpression(p) && child === p.right) {
       const op = p.operatorToken.kind;
-      if (op === ts.SyntaxKind.AmpersandAmpersandToken && demoSide(p.left) > 0) return true;
-      if (op === ts.SyntaxKind.BarBarToken && demoSide(p.left) < 0) return true;
+      if (op === ts.SyntaxKind.AmpersandAmpersandToken && side(p.left) > 0) return true;
+      if (op === ts.SyntaxKind.BarBarToken && side(p.left) < 0) return true;
     }
   }
   return false;
 }
+
+/** Whether `n` runs only in a demo session. */
+const behindADemo = (n) => behind(n, demoSide);
 
 /**
  * Each read of a demo's seeds outside a demo's gate (the wiring's second audit, X6-1, X6-3): a value a module imports from a
@@ -1258,6 +1272,143 @@ export function seedReadsOutsideADemo(sf) {
         (ts.isPropertyAccessExpression(p) && p.name === m) || (ts.isPropertyAssignment(p) && p.name === m);
       if (!ownName) n += 1;
     }
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return n;
+}
+
+/** The standing rule's own modules, where the raw `needs_human` state is read to decide who has a thread. */
+export const STANDING_RULE = [
+  "packages/contracts/src/conversations/standing.ts",
+  "packages/contracts/src/people/person-state.ts",
+  "packages/contracts/src/conversations/conversation-moves.ts",
+];
+const EQUALITY = new Set([
+  ts.SyntaxKind.EqualsEqualsEqualsToken,
+  ts.SyntaxKind.ExclamationEqualsEqualsToken,
+  ts.SyntaxKind.EqualsEqualsToken,
+  ts.SyntaxKind.ExclamationEqualsToken,
+]);
+/** The query filters and set reads that compare a column with a value they are handed. */
+const COMPARED_BY = new Set(["eq", "neq", "is", "in", "includes", "not", "filter", "match"]);
+
+/**
+ * Each comparison with the raw `needs_human` state outside the standing rule (the wiring's second audit, S9-1): an equality,
+ * a `case`, or a filter or set read handed the literal. The column says a thread was flagged; who has it (yours, a
+ * teammate's, nobody's) is standingOf's answer, and two readers that compared the column said "Needs you" of replies a
+ * member had already taken. A write of the state (`state: "needs_human"`) is no comparison.
+ */
+export function needsHumanReads(sf) {
+  if (STANDING_RULE.includes(sf.fileName) || SEED_MODULE.test(sf.fileName)) return 0;
+  let n = 0;
+  const visit = (m) => {
+    if ((ts.isStringLiteral(m) || ts.isNoSubstitutionTemplateLiteral(m)) && m.text === "needs_human") {
+      const p = m.parent;
+      if (
+        (ts.isBinaryExpression(p) && EQUALITY.has(p.operatorToken.kind)) ||
+        (ts.isCaseClause(p) && p.expression === m) ||
+        (ts.isCallExpression(p) &&
+          p.arguments.includes(m) &&
+          ts.isPropertyAccessExpression(p.expression) &&
+          COMPARED_BY.has(p.expression.name.text)) ||
+        // A list of states asked whether it holds one (`["needs_human", …].includes(s)`).
+        (ts.isArrayLiteralExpression(p) &&
+          ts.isPropertyAccessExpression(p.parent) &&
+          p.parent.expression === p &&
+          COMPARED_BY.has(p.parent.name.text))
+      )
+        n += 1;
+    }
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return n;
+}
+
+/** Where a campaign's and a reach-out's Resume are sent (the playbooks' verbs, the chains' surface), and where it is asked. */
+const RESUME_VERBS = /(^|\/)(playbooks\/verbs|reach-out\/surface)$/;
+const RESUME_ASKED = /(^|\/)ledger\/ledger-acts$/;
+const RESUME_QUESTION = new Set(["ResumeQuestion", "ResumeAct", "useResumeAsk"]);
+
+/** +1 for a test that an act is a Resume (`act.kind === "resume"`), -1 for one that it is not, else 0. */
+const resumeSide = sideBy((c) => {
+  if (!ts.isBinaryExpression(c)) return 0;
+  const [a, b] = [c.left, c.right];
+  const isKind = (x) => ts.isPropertyAccessExpression(x) && x.name.text === "kind";
+  const isResume = (x) => ts.isStringLiteralLike(x) && x.text === "resume";
+  if (!((isKind(a) && isResume(b)) || (isKind(b) && isResume(a)))) return 0;
+  const op = c.operatorToken.kind;
+  return op === ts.SyntaxKind.EqualsEqualsEqualsToken || op === ts.SyntaxKind.EqualsEqualsToken ? 1 : -1;
+});
+
+/** The name a function is held by (`const resume = async () => …`, `function resume()`), or null. */
+function heldAs(fn) {
+  if (ts.isFunctionDeclaration(fn)) return fn.name ?? null;
+  const p = fn.parent;
+  return p && ts.isVariableDeclaration(p) && ts.isIdentifier(p.name) && p.initializer === fn ? p.name : null;
+}
+
+/**
+ * Whether a Resume's call runs only once a Resume act was answered: behind `act.kind === "resume"`, or in a function
+ * every use of which is (the Campaigns home's runner, whose acts come from the ledger's ResumeAct, which asks).
+ */
+function resumeAnswered(call, sf) {
+  if (behind(call, resumeSide)) return true;
+  for (let p = call.parent; p; p = p.parent) {
+    if (!(ts.isArrowFunction(p) || ts.isFunctionExpression(p) || ts.isFunctionDeclaration(p))) continue;
+    const name = heldAs(p);
+    if (!name) continue;
+    const uses = [];
+    const visit = (m) => {
+      // A property of that name (`verbs.resume`, `{ resume: … }`) is not the function.
+      const own = (p) => (ts.isPropertyAccessExpression(p) || ts.isPropertyAssignment(p)) && p.name === m;
+      if (ts.isIdentifier(m) && m.text === name.text && m !== name && !own(m.parent)) uses.push(m);
+      ts.forEachChild(m, visit);
+    };
+    visit(sf);
+    return uses.length > 0 && uses.every((u) => behind(u, resumeSide));
+  }
+  return false;
+}
+
+/**
+ * Each Resume of a campaign or a reach-out sent where nothing asks first (the wiring's second audit, S9-2): a `.resume(`
+ * on the playbooks' verbs or the chains' surface (or a name a module gives them), in a module that draws none of the
+ * ledger's question (ResumeQuestion, ResumeAct, useResumeAsk) and not behind a Resume act already answered. The list
+ * asked "Resume Win-back? Next run tomorrow, about 25 people" where a drawer, a reach-out's drawer and the Leads strip
+ * resumed on one tap.
+ */
+export function resumesUnasked(sf) {
+  const verbs = new Set();
+  let asks = false;
+  for (const st of sf.statements) {
+    if (!ts.isImportDeclaration(st) || !ts.isStringLiteral(st.moduleSpecifier)) continue;
+    const clause = st.importClause;
+    const named = clause && !clause.isTypeOnly ? clause.namedBindings : null;
+    if (!named || !ts.isNamedImports(named)) continue;
+    for (const e of named.elements) {
+      if (e.isTypeOnly) continue;
+      if (RESUME_VERBS.test(st.moduleSpecifier.text)) verbs.add(e.name.text);
+      if (RESUME_ASKED.test(st.moduleSpecifier.text) && RESUME_QUESTION.has((e.propertyName ?? e.name).text))
+        asks = true;
+    }
+  }
+  if (!verbs.size || asks) return 0;
+  let n = 0;
+  const visit = (m) => {
+    // A name given to the verbs (`const V = reachOuts`) is the verbs.
+    if (ts.isVariableDeclaration(m) && ts.isIdentifier(m.name) && m.initializer && ts.isIdentifier(m.initializer))
+      if (verbs.has(m.initializer.text)) verbs.add(m.name.text);
+    if (
+      ts.isCallExpression(m) &&
+      ts.isPropertyAccessExpression(m.expression) &&
+      m.expression.name.text === "resume" &&
+      ts.isIdentifier(m.expression.expression) &&
+      verbs.has(m.expression.expression.text) &&
+      !resumeAnswered(m, sf)
+    )
+      n += 1;
     ts.forEachChild(m, visit);
   };
   visit(sf);

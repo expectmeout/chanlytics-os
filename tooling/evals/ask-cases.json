@@ -1786,5 +1786,25 @@
     "surface": "campaigns",
     "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
     "expect": { "tools_any": ["campaigns.messages"], "no_write": true }
+  },
+  {
+    "id": "needs_me_after_a_snooze",
+    "text": "who needs me right now?",
+    "surface": "today",
+    "needs": ["escalated_thread"],
+    "expect": {
+      "tools_any": ["today", "inbox.list"],
+      "language": "en",
+      "no_write": true
+    },
+    "then": {
+      "text": "and now?",
+      "between": "snooze",
+      "expect": {
+        "tools_any": ["today", "inbox.list"],
+        "omits_snoozed": true,
+        "no_write": true
+      }
+    }
   }
 ]

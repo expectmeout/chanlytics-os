@@ -258,9 +258,9 @@ export function resolveContext(spec, answers = {}, now = Date.now(), first = nul
 /** What a second turn may say: its words, what they must do, its page, its surface, and what happens before it. */
 const THEN_KEYS = ["text", "expect", "context", "surface", "between"];
 /** What may happen between the turns: turn 1's card approved as the Line approves it, and put back after turn 2. */
-const BETWEEN = ["approve"];
+const BETWEEN = ["approve", "snooze"];
 /** The checks that judge a second turn against its first (followUpFails): a first turn has none before it. */
-const FOLLOW_UP_CHECKS = ["names_card", "opens_item", "drops_first_scope"];
+const FOLLOW_UP_CHECKS = ["names_card", "opens_item", "drops_first_scope", "omits_snoozed"];
 
 const isObject = (v) => !!v && typeof v === "object" && !Array.isArray(v);
 
@@ -338,6 +338,13 @@ function secondTurnProblems(c) {
     out.push(
       `between: "approve" approves a settings card whose change is add_note, and turn 1 expects ${JSON.stringify(c.expect?.proposals_any ?? [])}`,
     );
+  // A snooze moves a thread an open escalation flags, which a wake puts back to waiting on you (snoozeBetween), and turn
+  // 2 is judged on not naming it: a case that snoozes needs such a thread and asks for that judgement.
+  if (t.between === "snooze") {
+    if (![c.needs ?? []].flat().includes("escalated_thread"))
+      out.push(`between: "snooze" snoozes a thread an open escalation flags: the case needs "escalated_thread"`);
+    if (t.expect?.omits_snoozed !== true) out.push(`between: "snooze" is judged by then.expect.omits_snoozed`);
+  }
   return out;
 }
 
@@ -359,6 +366,10 @@ function secondTurnProblems(c) {
  * workspace that holds it holds offers_channel too, and names both. `no_offers_channel` is none, as on the nightly's
  * workspace (e2e-workspace.mjs: a +1 WhatsApp number and no mailbox), where an offer's plan is refused in
  * PLAN_WORDS.noChannel's words and makes no card.
+ *
+ * `escalated_thread` is a thread an open escalation flags and nobody has, among the first turn 1 names: what a snooze
+ * between two turns moves out of who needs you, and a wake puts back (snoozeBetween; the wiring's second audit, X5-4).
+ * The nightly's workspace keeps none (e2e-workspace.mjs resolves its handovers), so a case that needs one is run by hand.
  */
 export const WORKSPACE_NEEDS = [
   "calendar",
@@ -371,6 +382,7 @@ export const WORKSPACE_NEEDS = [
   "live_call",
   "deals_on",
   "winback_seed",
+  "escalated_thread",
 ];
 
 /** The line a case is skipped with, `skip <id> (needs <tokens>)`, or null for a case this workspace (`has`) runs. */
@@ -424,10 +436,12 @@ export function announcement(cases, reps, perTurn) {
   });
   const warms = turns.filter((t) => t.warm).length * reps;
   const notes = cases.filter((c) => secondTurn(c)?.between === "approve").length * reps;
+  const snoozes = cases.filter((c) => secondTurn(c)?.between === "snooze").length * reps;
   lines.push(
     `${cases.length} cases, ${turns.length} turns × ${reps} = ${turns.length * reps} turns ≈ ${cost(turns.length)} at the baseline $${perTurn} a turn (spec §9)` +
       (warms ? `, and ${warms} warms (POST ask/warm, no model)` : "") +
-      (notes ? `; ${notes} settings note(s) approved between the turns and put back` : ""),
+      (notes ? `; ${notes} settings note(s) approved between the turns and put back` : "") +
+      (snoozes ? `; ${snoozes} thread(s) snoozed between the turns and woken` : ""),
   );
   return lines.join("\n") + "\n";
 }
@@ -633,6 +647,13 @@ export function opensItem(m, first, n, sent = null) {
   return [`opened ${to}${focus}, where turn 1's item ${n} (${it.title}) opens at ${want}`];
 }
 
+/** A word said whole in an answer's text, whatever its case: "Dana", never inside "Danae". */
+function saysWord(text, word) {
+  return new RegExp(`(?<![\\p{L}\\p{N}])${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}])`, "iu").test(
+    text ?? "",
+  );
+}
+
 /**
  * `drops_first_scope`: turn 2 was asked on another row than turn 1's, and names turn 1's row nowhere -- no citation,
  * item, Open or navigation carries its id (named), and the words never say the first word of its name, whole.
@@ -643,8 +664,7 @@ export function dropsFirstScope(m, scope) {
   if (named(m).some((p) => p.includes(scope.id)))
     fails.push(`the answer still names turn 1's ${scope.kind}, ${scope.label}`);
   const word = scope.label.split(/\s+/)[0] ?? "";
-  const whole = new RegExp(`(?<![\\p{L}\\p{N}])${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}])`, "iu");
-  if (word.length >= 2 && !/^this$/i.test(word) && whole.test(m?.text ?? ""))
+  if (word.length >= 2 && !/^this$/i.test(word) && saysWord(m?.text, word))
     fails.push(`the answer still says ${word}, turn 1's ${scope.kind}`);
   return fails;
 }
@@ -661,6 +681,23 @@ export function followUpFails(e, r, first) {
   if (e.names_card) fails.push(...namesCard(r.final, first));
   if (e.opens_item) fails.push(...opensItem(r.final, first, e.opens_item, r.context));
   if (e.drops_first_scope) fails.push(...dropsFirstScope(r.final, first.scope));
+  if (e.omits_snoozed) fails.push(...omitsSnoozed(r.final, first.snoozed ?? null));
+  return fails;
+}
+
+/**
+ * Turn 2 after a thread was snoozed between the turns (`between: "snooze"`; the wiring's second audit, X5-4): a warm
+ * turn replays turn 1's reads, and the model may answer from them; the snoozed thread waits on nobody now, so the answer
+ * names it nowhere -- no citation, row, Open or navigation, and not the first word of who it is with.
+ */
+export function omitsSnoozed(m, snoozed) {
+  if (!snoozed) return ["nothing was snoozed between the turns to look for"];
+  const fails = [];
+  if (named(m).some((p) => p.includes(snoozed.id)))
+    fails.push(`the answer still names the thread snoozed between the turns, ${snoozed.who}'s`);
+  const word = (snoozed.who ?? "").split(/\s+/)[0] ?? "";
+  if (word.length >= 2 && saysWord(m?.text, word))
+    fails.push(`the answer still says ${word}, whose thread was snoozed between the turns`);
   return fails;
 }
 
@@ -879,6 +916,95 @@ export async function approveThenAsk(io, message, askSecond, interrupted = () =>
     out.error = e;
   } finally {
     if (out.approval) out.back = await putBack(io, out.approval);
+  }
+  out.stop = (!!out.back && !out.back.ok) || interrupted();
+  return out;
+}
+
+/* ---- a thread snoozed between the turns, and woken ---- */
+
+/** How long a thread is snoozed between the turns: far past the second turn, woken by the eval as soon as it answers. */
+const SNOOZE_MS = 2 * 60 * 60 * 1000;
+
+/** The first thread turn 1 named, from the rows its answer shows, then its citations: `{ id, who }`, or null. */
+export function firstThreadNamed(m) {
+  const shown = (m?.answer?.show?.items ?? []).map((i) => i.source).filter((s) => s?.kind === "thread");
+  const cited = (m?.citations ?? []).filter((x) => x.kind === "thread");
+  const t = [...shown, ...cited][0];
+  return t ? { id: t.id, who: t.label } : null;
+}
+
+/** A thread as GET conversations/:id answers it: its state, or why it could not be read. */
+async function readThread(io, id) {
+  const r = await send(io, "GET", `/api/v1/conversations/${id}`);
+  const state = r.data?.conversation?.state;
+  return r.ok && typeof state === "string"
+    ? { state }
+    : { why: `GET conversations/${id} ${r.status}: ${r.error ?? "no state"}` };
+}
+
+/**
+ * The first thread turn 1 named, snoozed between the turns as the Inbox snoozes it (POST conversations/:id/snooze), for
+ * `then.between: "snooze"`: a warm turn 2 then asks again, and is judged on not naming it (omitsSnoozed). Only a thread
+ * that is open or waits on a person; the case's workspace holds one an open escalation flags (`escalated_thread`),
+ * which a wake puts back to waiting on you. `{ ok, why?, snooze }`: `snooze` is `{ id, who, was }`, to wake
+ * (wakeBack) whatever happens next -- beside a failure too, where the snooze may have been written all the same.
+ */
+export async function snoozeBetween(io, message) {
+  const thread = firstThreadNamed(message);
+  if (!thread) return { ok: false, why: "turn 1 named no thread to snooze", snooze: null };
+  const before = await readThread(io, thread.id);
+  if (before.why) return { ok: false, why: before.why, snooze: null };
+  if (before.state !== "needs_human" && before.state !== "open")
+    return {
+      ok: false,
+      why: `the thread turn 1 named first is ${before.state}, which a snooze does not move`,
+      snooze: null,
+    };
+  const snooze = { ...thread, was: before.state };
+  const until = new Date(io.now() + SNOOZE_MS).toISOString();
+  const r = await send(io, "POST", `/api/v1/conversations/${thread.id}/snooze`, { until });
+  if (r.ok) return { ok: true, snooze };
+  const why = `POST conversations/${thread.id}/snooze ${r.status}: ${r.error ?? "no answer"}`;
+  // A refusal wrote nothing; a failure, or no answer, may have: it is woken all the same if it reads snoozed.
+  return { ok: false, why, snooze: r.status >= 400 && r.status < 500 ? null : snooze };
+}
+
+/**
+ * A snoozed thread woken once turn 2 has answered (POST conversations/:id/wake), and read again: `{ ok: true, woken }`
+ * when it no longer reads snoozed (woken false: it never was), or `{ ok: false, why, byHand }`: the thread to wake from
+ * the Inbox's Snoozed by hand.
+ */
+export async function wakeBack(io, snooze) {
+  const now = await readThread(io, snooze.id);
+  if (now.why) return { ok: false, why: now.why, byHand: snooze };
+  if (now.state !== "snoozed") return { ok: true, woken: false };
+  const r = await send(io, "POST", `/api/v1/conversations/${snooze.id}/wake`);
+  const after = await readThread(io, snooze.id);
+  if (!after.why && after.state !== "snoozed") return { ok: true, woken: true };
+  const why = r.ok ? (after.why ?? "it still reads snoozed") : `POST wake ${r.status}: ${r.error ?? "no answer"}`;
+  return { ok: false, why, byHand: snooze };
+}
+
+/**
+ * A second turn asked after turn 1's first thread is snoozed (`then.between: "snooze"`), as approveThenAsk asks after a
+ * card: the thread snoozed (snoozeBetween), turn 2 asked (`askSecond(snooze)`), and the thread woken (wakeBack) in a
+ * finally, whatever turn 2 did. `{ why, snooze, second, back, error, stop }`, as approveThenAsk's: the run stops at a
+ * thread it could not wake, or an interrupt.
+ */
+export async function snoozeThenAsk(io, message, askSecond, interrupted = () => false) {
+  const out = { why: null, snooze: null, second: null, back: null, error: null, stop: false };
+  if (interrupted()) return { ...out, why: "the run was stopped before it", stop: true };
+  try {
+    const s = await snoozeBetween(io, message);
+    out.snooze = s.snooze;
+    if (!s.ok) out.why = `turn 1's thread could not be snoozed: ${s.why}`;
+    else if (interrupted()) out.why = "the run was stopped before it";
+    else out.second = await askSecond(s.snooze);
+  } catch (e) {
+    out.error = e;
+  } finally {
+    if (out.snooze) out.back = await wakeBack(io, out.snooze);
   }
   out.stop = (!!out.back && !out.back.ok) || interrupted();
   return out;

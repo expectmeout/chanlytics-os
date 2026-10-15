@@ -265,6 +265,45 @@ test("the strip says how many, today's of the day's share, and its doors go wher
   role.may = true;
 });
 
+test("REGRESSION (S9-2): a paused reach-out's Resume on Leads asks first, in its row's words -- it resumed on one tap", async () => {
+  const asked = world({ lines: leadsDto({ chain: { root_id: "r1", name: "Trainers in Austin", state: "paused" } }) });
+  const ro = await hooked("s1");
+  const draw = () => again(() => W.React.createElement(ReachOutLeadsStrip, { leads: ro }));
+  fresh();
+  let tree = draw();
+  assert.equal(byTestId(tree, "strip-toggle"), null, "no one-tap Resume among the strip's doors");
+  press(byTestId(tree, "strip-resume"));
+  await settle();
+  assert.equal(
+    asked.filter(([k]) => k === "resume").length,
+    0,
+    "REGRESSION: the press resumed it before anything was asked",
+  );
+  tree = draw();
+  const ask = contracts.chainResumeOf({ root_id: "r1", name: "Trainers in Austin" }).ask;
+  const question = byTestId(tree, "strip-resume-confirm");
+  assert.ok(textOf(question).includes(ask.question), "the question its row and its drawer ask");
+  assert.ok(textOf(question).includes(ask.detail), "and that its next emails go out on its next run");
+  // No puts the press back, and nothing was sent.
+  press(byTestId(tree, "strip-resume-no"));
+  tree = draw();
+  assert.ok(byTestId(tree, "strip-resume"));
+  assert.equal(asked.filter(([k]) => k === "resume").length, 0);
+  // Yes resumes it, once, and says so.
+  press(byTestId(tree, "strip-resume"));
+  press(byTestId(draw(), "strip-resume-yes"));
+  await settle();
+  assert.deepEqual(
+    asked.filter(([k]) => k === "resume"),
+    [["resume", "r1"]],
+  );
+  assert.match(flashed.at(-1).msg, /Trainers in Austin/);
+  // A role that may not approve sees no Resume.
+  role.may = false;
+  assert.equal(byTestId(drawStrip(ro), "strip-resume"), null);
+  role.may = true;
+});
+
 const storyDto = (over = {}) => ({
   lead_id: "l1",
   business_name: "Zilker Kettlebell Club",

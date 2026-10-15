@@ -393,6 +393,59 @@ test("a failed payment marks the row and rings, and the receptionist keeps answe
   );
 });
 
+test("REGRESSION (S6-12): a pause whose bell could not be kept is not written: Stripe's retry tells it and applies it, once", async () => {
+  // The row was written, then the bell: a bell that failed was lost for good, since the retry read the row already paused,
+  // planned no change and rang nothing. Now the bell is kept first, under the change, and a bell that cannot be kept
+  // gives the delivery back before the row moves.
+  const state = tables();
+  const was = state.billing_accounts[0].status;
+  const faults = { "notifications.insert": { message: "connection reset" } };
+  const db = fakeDb(state, faults);
+  setPg(db);
+  subs.set("sub_1", sub({ status: "paused" }));
+  const failed = await deliver("customer.subscription.paused", sub({ status: "paused" }), "evt_bell");
+  assert.equal(failed.status, 500, "the bell could not be kept, so Stripe is asked to try again");
+  assert.equal(state.billing_accounts[0].status, was, "and the row has not moved, so the retry plans the same change");
+  assert.equal(state.tenants[0].status, "active");
+  assert.deepEqual(state.billing_events, [], "the claim given back");
+  delete faults["notifications.insert"];
+  const retried = await deliver("customer.subscription.paused", sub({ status: "paused" }), "evt_bell");
+  assert.deepEqual(await retried.json(), { ok: true, status: "paused", switched: "paused" });
+  assert.equal(state.tenants[0].status, "paused", "applied");
+  assert.deepEqual(
+    state.notifications.map((n) => [n.kind, n.title]),
+    [["billing", "Your receptionist is paused"]],
+    "told once",
+  );
+  // Another event for the same change, as Stripe sends several: no second bell.
+  await deliver("customer.subscription.updated", sub({ status: "paused" }), "evt_bell_twin");
+  assert.equal(state.notifications.length, 1, "one change, one bell");
+});
+
+test("REGRESSION (S6-12): a declined card's bell that could not be kept is told on the retry of its event, and never twice", async () => {
+  const declined = () => ({ id: "in_1", object: "invoice", customer: "cus_1", metadata: {} });
+  const state = tables({ billing_accounts: [row({ status: "past_due" })] });
+  const faults = { "notifications.insert": { message: "connection reset" } };
+  setPg(fakeDb(state, faults));
+  const failed = await deliver("invoice.payment_failed", declined(), "evt_declined");
+  assert.equal(failed.status, 500, "REGRESSION: answered 200 with no bell, and Stripe never asked again");
+  assert.deepEqual(state.notifications, []);
+  assert.deepEqual(state.events, [], "its event waits for the bell, so the retry writes neither twice");
+  delete faults["notifications.insert"];
+  assert.deepEqual(await (await deliver("invoice.payment_failed", declined(), "evt_declined")).json(), { ok: true });
+  assert.deepEqual(
+    state.notifications.map((n) => n.title),
+    ["A payment did not go through"],
+  );
+  assert.deepEqual(
+    state.events.map((e) => e.kind),
+    ["billing.payment_failed"],
+  );
+  // The same event again is a duplicate of a completed claim: still one bell.
+  await deliver("invoice.payment_failed", declined(), "evt_declined");
+  assert.equal(state.notifications.length, 1);
+});
+
 /* ------------------------------------------------ what an invoice moved (K8) */
 
 /** The database's door for an invoice's amount, recording each call; `over` makes it answer another way. */
