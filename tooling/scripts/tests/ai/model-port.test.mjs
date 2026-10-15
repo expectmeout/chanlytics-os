@@ -9,7 +9,7 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { askModel, streamModel, formatRejected, resetBreakers, resetFastHolds } from "@chanlytics/channels";
-import { FAST_MODE_BETA, MODELS, MODEL_ROUTES } from "@chanlytics/contracts";
+import { EFFORT_MESSAGE_BETA, FAST_MODE_BETA, MODELS, MODEL_ROUTES } from "@chanlytics/contracts";
 import { scripted, said, status, hang, thrown, streamed } from "./_model-world.mjs";
 
 const KEY = "model-key-for-this-file";
@@ -276,4 +276,37 @@ test("a fallback is sent only what it takes: Opus 5.5's fast request falls back 
   const unlisted = scripted(said("Here."));
   await askModel(KEY, fastAsk({ model: "claude-some-model-9" }), { fetch: unlisted.fetch, ...noWait });
   assert.equal(unlisted.calls[0].body.speed, "fast");
+});
+
+test("an effort said in the messages goes, with its beta, to a model that takes one; its fallback that takes none (Sonnet 5) is asked at the effort they ended on, the messages without them", async () => {
+  const q = { role: "user", content: [{ type: "text", text: "set up my campaigns" }] };
+  const raised = { role: "system", content: [], output_config: { effort: "high" } };
+  const body = { messages: [q, raised], output_config: { effort: "low", format: { type: "json_schema", schema: {} } } };
+  const api = scripted(status(529, "Overloaded"), said("Here."));
+  const r = await askModel(KEY, ask({ purpose: "ask", body, betas: [EFFORT_MESSAGE_BETA] }), {
+    fetch: api.fetch,
+    ...noWait,
+  });
+  assert.equal(r.outcome, "ok");
+  assert.equal(api.calls[0].model, MODELS.OPUS_5_5);
+  assert.deepEqual(api.calls[0].body.messages, [q, raised], "Opus 5.5 is sent the message where it stands");
+  assert.equal(api.calls[0].body.output_config.effort, "low", "and the request's own effort, as the cache keys it");
+  assert.equal(api.calls[0].headers["anthropic-beta"], EFFORT_MESSAGE_BETA);
+  assert.equal(api.calls[1].model, MODEL_ROUTES.ask.fallback);
+  assert.deepEqual(api.calls[1].body.messages, [q], "Sonnet 5 refuses an effort message: left out");
+  assert.deepEqual(
+    api.calls[1].body.output_config,
+    { effort: "high", format: { type: "json_schema", schema: {} } },
+    "asked as hard, as its own effort",
+  );
+  assert.equal(api.calls[1].headers["anthropic-beta"], undefined, "and without the beta");
+
+  // The beta is the port's to add, named or not, beside fast mode's.
+  const unnamed = scripted(said("Here."));
+  await askModel(KEY, ask({ purpose: "ask", body: { ...body, speed: "fast" } }), { fetch: unnamed.fetch, ...noWait });
+  assert.equal(unnamed.calls[0].headers["anthropic-beta"], `${EFFORT_MESSAGE_BETA},${FAST_MODE_BETA}`);
+  // And a request that says none is sent no beta for it.
+  const none = scripted(said("Here."));
+  await askModel(KEY, ask({ purpose: "ask", betas: [EFFORT_MESSAGE_BETA] }), { fetch: none.fetch, ...noWait });
+  assert.equal(none.calls[0].headers["anthropic-beta"], undefined);
 });

@@ -9,7 +9,8 @@
  * and the dollars a turn cost at the models' list prices. A model's turns in
  * fast mode (15 Oct 2026) are a line of their own, "(fast)", and their rounds
  * priced at fast mode's own rate, so first words before and after read side by
- * side; a turn stored before has no speed and ran at standard. Read-only; the
+ * side; a turn stored before has no speed and ran at standard. The drafts asked
+ * harder (AskTurnShape.draft) are a line of their own under the table. Read-only; the
  * service role, because a day's turns belong to every member of every workspace.
  *
  *   NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… [HOURS=24] [TENANT=<uuid>] node tooling/scripts/ops/ask-day.mjs [--json] [--check]
@@ -188,6 +189,16 @@ console.log(
   `\ncache misses by reason: ${whole.misses.length ? whole.misses.map((m) => `${m.reason} ${m.rounds}`).join(", ") : "none said"}` +
     ` · the hop through the edge, median ${ms(whole.hop.median)}, p90 ${ms(whole.hop.p90)}`,
 );
+// The drafts asked harder (15 Oct 2026, AskTurnShape.draft): how many, what found them, how long they took.
+const drafts = turns.filter((t) => t.shape.draft);
+if (drafts.length) {
+  const by = (found) => drafts.filter((t) => t.shape.draft.by === found).length;
+  const d = summarise(drafts);
+  console.log(
+    `drafts asked harder: ${drafts.length} turns (${by("question")} by their question, ${by("call")} by a call set aside)` +
+      ` · final median ${ms(d.final.median)}, p90 ${ms(d.final.p90)} · at the cap ${d.cap_hits}`,
+  );
+}
 for (const [model, c] of Object.entries(cost))
   if (!byModel[model])
     console.log(

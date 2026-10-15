@@ -50,6 +50,8 @@ export const TESTED_IN = {
   "packages/core/src/inbound/": ["whatsapp", "sms", "email", "intake", "receptionist", "conversations"],
   "packages/core/src/campaigns/": ["playbooks", "broadcasts"],
   "packages/contracts/src/people/lists/": ["ask"],
+  // The effort a turn is asked at is the model layer's (contracts ai/effort.ts): its test is tests/ai/ask-effort.
+  "apps/dashboard/src/server/ask/effort.ts": ["ai"],
 };
 
 /**

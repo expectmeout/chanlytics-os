@@ -26,16 +26,20 @@
  * before the first byte.
  *
  * Each model is sent only what it takes (contracts MODEL_TAKES): fast mode's `speed` and its beta to a model that runs
- * it, a thinking type to a model that accepts it, so a request written for one model is still an answer from its
+ * it, a thinking type to a model that accepts it, an effort said in the messages and its beta to a model that takes
+ * one (the request's own effort for one that does not), so a request written for one model is still an answer from its
  * fallback. And fast mode has a limit and a capacity of its own: a fast request
  * either refuses (a 429 or a 529) is asked once more of the same model at standard speed while the deadline leaves
  * room, so a turn never fails for it, and the answer says it was slowed; the model is then held at standard speed on
  * this instance for FAST_HOLD_MS (fastHeld).
  */
 import {
+  EFFORT_MESSAGE_BETA,
   FAST_MODE_BETA,
   MIN_MS,
   fallbackModel,
+  foldEffortMessages,
+  isEffortMessage,
   modelRoute,
   modelTakes,
   usageOf,
@@ -198,19 +202,24 @@ interface Sent {
 /**
  * The request as `model` takes it (contracts MODEL_TAKES): fast mode only for a model that runs it, and never once it
  * was `slowed` (fast mode refused it, or the model is held), the beta with it; a thinking type only for a model that
- * accepts it, which otherwise thinks as it does by default. A model the registry does not list is sent what it was
- * asked.
+ * accepts it, which otherwise thinks as it does by default; an effort said in the messages (contracts ai/effort.ts),
+ * with its beta, only to a model that takes one, and for one that does not, the effort they ended on as the request's
+ * own (foldEffortMessages): Opus 5.5's draft falls back to Sonnet 5 asked as hard. A model the registry does not list
+ * is sent what it was asked.
  */
 function sentFor(ask: ModelAsk, model: string, slowed: boolean): Sent {
   const takes = modelTakes(model);
-  const { speed, thinking, ...body } = ask.body;
+  const { speed, thinking, ...asked } = ask.body;
   const fast = speed === "fast" && !slowed && (takes?.fast ?? true);
   const type = thinking && typeof thinking === "object" ? (thinking as { type?: unknown }).type : undefined;
   const thinks = thinking !== undefined && (!takes || (takes.thinking as readonly unknown[]).includes(type));
-  const betas = (ask.betas ?? []).filter((b) => b !== FAST_MODE_BETA);
+  const said = Array.isArray(asked.messages) && asked.messages.some(isEffortMessage);
+  const told = said && (takes?.effortMessages ?? true);
+  const body = said && !told ? foldEffortMessages(asked) : asked;
+  const betas = (ask.betas ?? []).filter((b) => b !== FAST_MODE_BETA && b !== EFFORT_MESSAGE_BETA);
   return {
     body: { ...body, ...(thinks ? { thinking } : {}), ...(fast ? { speed: "fast" } : {}) },
-    betas: fast ? [...betas, FAST_MODE_BETA] : betas,
+    betas: [...betas, ...(told ? [EFFORT_MESSAGE_BETA] : []), ...(fast ? [FAST_MODE_BETA] : [])],
     speed: fast ? "fast" : "standard",
   };
 }
