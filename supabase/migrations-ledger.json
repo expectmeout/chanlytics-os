@@ -41,7 +41,8 @@
     "00322": "the tables leave Postgres Changes held this number in #1411 and landed as 00324, above the head by then; a stop ends the yes to offers had moved to 00323 to leave it room (#1409)",
     "00325": "unused: #1417 (a message's status is told to its workspace) held it, but 00326 (two records of one person become one) reached production first, so #1417 landed as 00327 above the head",
     "00378": "held for the doors lane (#1537), whose eleven moved above #1539's 00379 and 00380 when that merged first: they landed as 00381 to 00391",
-    "00428": "the silent records are told (the wiring's second audit, R6) took it and was applied to production on 14 Oct before its merge; main's head passed it (#1588), and it landed as 00431, production's ledger row re-keyed to it by migration repair"
+    "00428": "the silent records are told (the wiring's second audit, R6) took it and was applied to production on 14 Oct before its merge; main's head passed it (#1588), and it landed as 00431, production's ledger row re-keyed to it by migration repair",
+    "00445": "claimed by the sequences phone lane (cm-phone, sequences/phone-and-wiring), not on main when 00446 took the next number; its file fills it"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -446,6 +447,7 @@
     "00441_one_loop_runs_every_sequence.sql": "f002e4ac978aa6912c546ddb20a3373039968ffafae8fd1ddfabd33f836804af",
     "00442_a_sequence_is_read_and_changed_through_its_doors.sql": "e65c0b3364cc4e11e83cef21656a1b21edee90e81ded4a503eb49fe9d5eda9d2",
     "00443_a_booking_the_receptionist_asks_for.sql": "72e9e4d03c9f6a80656acf43b8bc7c56cd331a3d9d87ce4e6cba28f5e3294e25",
-    "00444_a_sequence_s_people_are_found_by_an_index.sql": "d3a7e06e55be0b45690076e888d57f9bd4f7def0cc9b793a16408a330204e17f"
+    "00444_a_sequence_s_people_are_found_by_an_index.sql": "d3a7e06e55be0b45690076e888d57f9bd4f7def0cc9b793a16408a330204e17f",
+    "00446_the_people_list_finds_each_person_s_door_by_its_own_index.sql": "d12a6b22c3a0d99a74b7a8de19a95c332960920d44a8288b389dcb97b3137cee"
   }
 }
