@@ -17,7 +17,7 @@ import {
   type AskCitationKind,
   type AskReadSet,
 } from "./citations";
-import { PROPOSAL_SPECS, proposalSpec } from "../ask-proposals/proposals";
+import { cardOpenRoute } from "../ask-proposals/page-specs";
 import { planCountWords } from "./plan-steps";
 import { rightNowCounts, rightNowLine, type AskWaiting } from "./ask-waiting";
 import { canonicalRoute } from "../shell/address";
@@ -59,12 +59,24 @@ export interface AskOpen {
   /** Opened 250ms after the answer lands (ask-real.jsx), when the person asked to open, show or see it. */
   now: boolean;
 }
+/** How a list is marked: a bullet, a number (steps, an order), or nothing, one entry to a line. */
+export const ASK_LIST_STYLES = ["bullets", "numbers", "lines"] as const;
+type AskListStyle = (typeof ASK_LIST_STYLES)[number];
+/**
+ * What the person asked to see as a list, and steps to follow: points in words, never rows (a row is an item, its own
+ * door). Each entry is one point with no mark of its own: the Line draws the bullet, the number or the line. With no
+ * entries, `numbers` numbers the items instead (a numbered list of who needs you is its rows, numbered).
+ */
+export interface AskList {
+  style: AskListStyle;
+  entries: string[];
+}
 export interface AskAnswer {
   v: 2;
   /** Structured has a headline; prose is words only (every answer made before the Line, and a refused format). */
   form: "structured" | "prose";
   say: { headline: string; detail: string };
-  show: { figures: AskFigure[]; items: AskItem[]; breakdown: AskBreakdown | null };
+  show: { figures: AskFigure[]; items: AskItem[]; breakdown: AskBreakdown | null; list: AskList };
   do: { open: AskOpen | null; next: string[] };
   language: AskLanguage;
 }
@@ -76,6 +88,8 @@ export const ASK_ANSWER_CAPS = {
   figures: 4,
   items: 5,
   parts: 4,
+  entries: 15,
+  entry: 160,
   next: 2,
   value: 24,
   label: 60,
@@ -86,43 +100,90 @@ export const ASK_ANSWER_CAPS = {
   question: 90,
 } as const;
 
-/**
- * One line of words in at most n characters; a longer one ends on a whole word, with an ellipsis. Every part of an
- * answer is cut by it, and so is every part of an earlier answer's line in a cold turn's history (server/ask/prompt.ts).
- */
-export const clip = (s: string | null | undefined, n: number) => {
-  const t = (s ?? "").replace(/\s+/g, " ").trim();
+/** No list: what every answer carries until one is asked for, and what an answer stored before the list part reads as. */
+const noList = (): AskList => ({ style: "bullets", entries: [] });
+
+/** An answer as it was stored, whole: one stored before the list part has none, and reads as having no list. */
+export function storedAnswer(a: AskAnswer): AskAnswer {
+  return a.show.list ? a : { ...a, show: { ...a.show, list: noList() } };
+}
+
+/** `t`, at most n characters: a longer one ends on a whole word, with an ellipsis. */
+const cutAt = (t: string, n: number) => {
   if (t.length <= n) return t;
   const cut = t.slice(0, n - 1);
-  const space = cut.lastIndexOf(" ");
+  const space = cut.search(/\s\S*$/);
   return `${(space > n / 2 ? cut.slice(0, space) : cut).trimEnd()}…`;
 };
+
+/**
+ * One line of words in at most n characters; a longer one ends on a whole word, with an ellipsis. Every part of an
+ * answer but the detail is cut by it, and so is every part of an earlier answer's line in a cold turn's history
+ * (server/ask/prompt.ts).
+ */
+export const clip = (s: string | null | undefined, n: number) => cutAt((s ?? "").replace(/\s+/g, " ").trim(), n);
+
+/**
+ * Words that keep their lines, in at most n characters: spaces run together within a line, each line trimmed, at most
+ * one empty line between two, cut on a whole word as clip cuts. The detail is cut by it, while it streams and when it
+ * lands, so the lines the preview showed are the lines the answer keeps.
+ */
+const clipLines = (s: string | null | undefined, n: number) =>
+  cutAt(
+    (s ?? "")
+      .replace(/\r\n?/g, "\n")
+      .split("\n")
+      .map((l) => l.replace(/\s+/g, " ").trim())
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim(),
+    n,
+  );
 
 const structured = (headline: string, language: AskLanguage): AskAnswer => ({
   v: 2,
   form: "structured",
   say: { headline: clip(headline, ASK_ANSWER_CAPS.headline), detail: "" },
-  show: { figures: [], items: [], breakdown: null },
+  show: { figures: [], items: [], breakdown: null, list: noList() },
   do: { open: null, next: [] },
   language,
 });
 
-/** The answer's words, for copy, reading aloud and a folded turn: the headline, then the detail. */
+/** A list's entries as lines of text, each with its mark: "• ", "1. ", or none. */
+function listLines(l: AskList): string[] {
+  return l.entries.map((e, i) => (l.style === "numbers" ? `${i + 1}. ${e}` : l.style === "bullets" ? `• ${e}` : e));
+}
+
+/** The answer's words, for copy, a folded turn and the history: the headline, then the detail, then the list, a line each. */
 export function answerText(a: AskAnswer): string {
-  return [a.say.headline, a.say.detail].filter(Boolean).join(a.form === "prose" ? "\n" : " ");
+  const say = [a.say.headline, a.say.detail].filter(Boolean).join(a.form === "prose" ? "\n" : " ");
+  return [say, ...listLines(a.show.list ?? noList())].filter(Boolean).join("\n");
+}
+
+/** Lines said one after another: each ends as a sentence does, so a voice pauses between them. */
+const sentences = (lines: string[]) =>
+  lines
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => (/[.!?…:;,]$/.test(l) ? l : `${l}.`))
+    .join(" ");
+
+/** A list as a voice reads it: each entry its own sentence, a numbered one with its number; nothing for no entries. */
+export function listSpoken(l: AskList): string {
+  return sentences(l.entries.map((e, i) => (l.style === "numbers" ? `${i + 1}. ${e}` : e)));
+}
+
+/**
+ * The answer's words as a voice reads them (Read aloud, a spoken question, the voice door): the headline, the detail's
+ * lines, then the list (listSpoken). The figures and rows are drawn, never read.
+ */
+export function answerSpoken(a: AskAnswer): string {
+  return [sentences([a.say.headline, ...a.say.detail.split("\n")]), listSpoken(a.show.list ?? noList())]
+    .filter(Boolean)
+    .join(" ");
 }
 
 /* ------------------------------------------------------------- one door */
-
-/**
- * Where a card's Open goes, or null for the kinds that have none (a reply, a rewrite, a whisper, an invite): its
- * spec's `open` (ask-proposals/). A lead search's, once approved, is the search the commit made. A kind no card has
- * opens the thread its payload names, as a thread card does.
- */
-export function cardOpenRoute(p: Pick<AskProposal, "kind" | "payload" | "outcome">): string | null {
-  const card = { payload: (p.payload ?? {}) as Record<string, unknown> };
-  return (proposalSpec(p.kind) ?? PROPOSAL_SPECS.thread_verb).open(card, p.outcome ?? null);
-}
 
 function nextQuestions(next: string[], places: string[]): string[] {
   const out: string[] = [];
@@ -172,7 +233,11 @@ export function oneDoor(
   const breakdown = a.show.breakdown ? { ...a.show.breakdown, source: receipt(a.show.breakdown.source) } : null;
   const figures = a.show.figures.map((f) => ({ ...f, source: receipt(f.source) }));
   return {
-    answer: { ...a, show: { figures, items, breakdown }, do: { open, next: nextQuestions(a.do.next, [...offered]) } },
+    answer: {
+      ...a,
+      show: { figures, items, breakdown, list: a.show.list ?? noList() },
+      do: { open, next: nextQuestions(a.do.next, [...offered]) },
+    },
     cardOpen,
   };
 }
@@ -248,7 +313,7 @@ export function answerFromV1(
     v: 2,
     form: "prose",
     say: { headline: "", detail: (m.text ?? "").trim() },
-    show: { figures: [], items, breakdown: null },
+    show: { figures: [], items, breakdown: null, list: noList() },
     do: { open, next: m.followups ?? [] },
     language,
   };
@@ -441,8 +506,22 @@ const C = ASK_ANSWER_CAPS;
 const asObj = (v: unknown): Record<string, unknown> =>
   v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 const asArr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
-/** A string as the Line may draw it: no tags (cleanAnswer), one line of words, at most its cap. */
-const words = (v: unknown, n: number) => clip(cleanAnswer(typeof v === "string" ? v : ""), n);
+/** Markdown's emphasis, which the Line never draws: `**word**` and `__word__` are the word. */
+const unbold = (s: string) => s.replace(/\*\*(.+?)\*\*|__(.+?)__/g, "$1$2");
+const drawnText = (v: unknown) => unbold(cleanAnswer(typeof v === "string" ? v : ""));
+/** A string as the Line may draw it: no tags (cleanAnswer), no emphasis marks, one line of words, at most its cap. */
+const words = (v: unknown, n: number) => clip(drawnText(v), n);
+/** A list's entry: its words, without the bullet or number the model now and then writes, since the Line draws its own. */
+const entry = (v: unknown) =>
+  words(typeof v === "string" ? v.replace(/^\s*(?:[-*•·–]|\d{1,2}[.)])\s+/, "") : "", C.entry);
+
+/**
+ * Say as the Line draws it, the same while it streams (partialSay) and when it lands (normalizeAnswer): the headline
+ * one line of words, the detail its own lines (clipLines), each cleaned as every string is and cut at its cap.
+ */
+export function sayAsDrawn(say: { headline?: unknown; detail?: unknown }): { headline: string; detail: string } {
+  return { headline: words(say.headline, C.headline), detail: clipLines(drawnText(say.detail), C.detail) };
+}
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : Number.NaN);
 
 /** Every id in what the model spelled: global, so a route that carries two is read whole (groundRef takes the last). */
@@ -509,8 +588,8 @@ export function normalizeAnswer(raw: unknown, read: AskReadSet, fallback: AskLan
     }
   }
   const root = asObj(json);
-  const say = asObj(root.say);
-  const headline = words(say.headline, C.headline);
+  const say = sayAsDrawn(asObj(root.say));
+  const headline = say.headline;
   if (!headline) return { ok: false, error: "no headline" };
   // English or Spanish as the model says; anything else is the turn's own (detectLanguage), as it was before the Line.
   const language: AskLanguage = root.language === "en" || root.language === "es" ? root.language : fallback;
@@ -551,6 +630,11 @@ export function normalizeAnswer(raw: unknown, read: AskReadSet, fallback: AskLan
     Number.isFinite(total) &&
     Math.abs(parts.reduce((s, p) => s + p.value, 0) - total) < 1e-9;
   const breakdown: AskBreakdown | null = adds ? { label: whole, total, parts, source: ground(b.source) } : null;
+  const l = asObj(show.list);
+  const list: AskList = {
+    style: ASK_LIST_STYLES.find((x) => x === l.style) ?? "bullets",
+    entries: asArr(l.entries).map(entry).filter(Boolean).slice(0, C.entries),
+  };
   const d = asObj(root.do);
   const o = asObj(d.open);
   const at = ground(o.source);
@@ -570,8 +654,8 @@ export function normalizeAnswer(raw: unknown, read: AskReadSet, fallback: AskLan
     answer: {
       v: 2,
       form: "structured",
-      say: { headline, detail: words(say.detail, C.detail) },
-      show: { figures, items, breakdown },
+      say,
+      show: { figures, items, breakdown, list },
       do: { open, next },
       language,
     },
@@ -593,57 +677,10 @@ export function answerWords(a: AskAnswer): string {
           ...a.show.breakdown.parts.flatMap((p) => [p.label, String(p.value)]),
         ]
       : []),
+    ...a.show.list.entries,
   ]
     .filter(Boolean)
     .join(" ");
-}
-
-/**
- * The string value of `"key": "…"` in a JSON prefix, decoded as far as it has arrived: up to the first unescaped
- * quote, or the end of what is there.
- */
-function partialField(s: string, key: string): string {
-  const k = s.indexOf(`"${key}"`);
-  if (k < 0) return "";
-  const colon = s.indexOf(":", k + key.length + 2);
-  if (colon < 0) return "";
-  let i = colon + 1;
-  while (i < s.length && /\s/.test(s[i])) i++;
-  if (s[i] !== '"') return "";
-  i++;
-  let out = "";
-  while (i < s.length) {
-    const c = s[i];
-    if (c === '"') break;
-    if (c === "\\") {
-      const n = s[i + 1];
-      if (n === undefined) break;
-      if (n === "u") {
-        const hex = s.slice(i + 2, i + 6);
-        if (hex.length < 4) break;
-        out += String.fromCharCode(parseInt(hex, 16) || 0x20);
-        i += 6;
-        continue;
-      }
-      out += n === "n" ? "\n" : n === "t" ? "\t" : n === "r" ? "\r" : n === "b" ? "\b" : n === "f" ? "\f" : n;
-      i += 2;
-      continue;
-    }
-    out += c;
-    i++;
-  }
-  return out;
-}
-
-/**
- * Say while the answer's JSON is still arriving (spec 7.4): the headline and the detail so far, from wherever `say`
- * appears; null before it does. A preview only: the final message is the truth.
- */
-export function partialSay(prefix: string): { headline: string; detail: string } | null {
-  const at = prefix.indexOf('"say"');
-  if (at < 0) return null;
-  const rest = prefix.slice(at);
-  return { headline: partialField(rest, "headline"), detail: partialField(rest, "detail") };
 }
 
 const sentence = (s: string) => (/[.!?]$/.test(s) ? s : `${s}.`);
@@ -701,7 +738,7 @@ export function proseAnswer(text: string, language: AskLanguage): AskAnswer {
     v: 2,
     form: "prose",
     say: { headline: "", detail: cleanAnswer(text).slice(0, PROSE_MAX) },
-    show: { figures: [], items: [], breakdown: null },
+    show: { figures: [], items: [], breakdown: null, list: noList() },
     do: { open: null, next: [] },
     language,
   };

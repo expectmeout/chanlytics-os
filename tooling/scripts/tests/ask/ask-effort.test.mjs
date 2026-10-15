@@ -180,7 +180,7 @@ test("a draft its question did not name is found by the round that begins one: i
   const text = "Get the quiet ones back";
   assert.equal(draftAsked(text), false, "a draft its words do not name");
   const s = sentAs([
-    CALLED("propose_campaign", { action: "plan", intent: "win back the quiet clients" }),
+    CALLED("propose_plan", { action: "offer", intent: "win back the quiet clients" }),
     ANSWERED("A win-back to review."),
   ]);
   const { input, events } = turn({ text });
@@ -208,10 +208,10 @@ test("a draft its question did not name is found by the round that begins one: i
 
   process.env.ASK_DRAFT_EFFORT = "off";
   try {
-    const off = sentAs([CALLED("propose_campaign", { action: "plan", intent: "win back" }), ANSWERED("Here.")]);
+    const off = sentAs([CALLED("propose_plan", { action: "offer", intent: "win back" }), ANSWERED("Here.")]);
     const o = await runAskTurn(turn({ text }).input, ports(off.round));
     assert.equal(o.failed, false, o.failure ?? "");
-    assert.deepEqual(proposed, ["propose_campaign"], "off: the call runs at the turn's own effort");
+    assert.deepEqual(proposed, ["propose_plan"], "off: the call runs at the turn's own effort");
     assert.ok(
       off.requests.every((q) => q.max_tokens === ASK_MAX_TOKENS && q.betas === undefined),
       "and no round is raised",
@@ -228,8 +228,8 @@ test("a draft its question did not name is found by the round that begins one: i
 
 test("a read before the draft keeps its round: the draft's call after it is set aside, and the round asked again after the read's results", async () => {
   const s = sentAs([
-    CALLED("campaigns", { action: "playbooks" }),
-    CALLED("propose_campaign", { action: "message", name: "winback" }),
+    CALLED("sequences", { action: "moments" }),
+    CALLED("propose_sequence", { action: "message", name: "winback" }),
     ANSWERED("A message to review."),
   ]);
   const r = await runAskTurn(turn({ text: "the ones gone quiet since summer" }).input, ports(s.round));

@@ -32,11 +32,18 @@ import type { turnMeter } from "./turn-end";
  * spoken turn is never raised: a listener waits on silence, and the voice door's budget is a typed turn's.
  */
 
-/** The calls that write a draft: an offer's or a setup's plan, a standing rule, a new message, a lead search's plan. */
+/**
+ * The calls that write a draft: an offer's or a setup's plan, a plan across pages, a sequence made whole, a standing
+ * rule, a new message, a cold email sequence, a lead search's plan. A change to one that is there (its words, a step,
+ * its clock) is no draft.
+ */
 const DRAFT_CALLS: ReadonlySet<string> = new Set([
-  "propose_campaign.plan",
-  "propose_campaign.playbook",
-  "propose_campaign.message",
+  "propose_plan.offer",
+  "propose_plan.steps",
+  "propose_sequence.make",
+  "propose_sequence.moment",
+  "propose_sequence.message",
+  "propose_sequence.cold_email",
   "propose_lead_search",
 ]);
 

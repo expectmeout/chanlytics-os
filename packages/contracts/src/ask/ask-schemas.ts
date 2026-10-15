@@ -7,6 +7,7 @@
 import { z } from "zod";
 import { ASK_SURFACES, ASK_SCOPE_KINDS } from "./ask";
 import { ASK_CONTEXT_ROW_KINDS, ASK_CONTEXT_MAX_ROWS } from "./ask-context";
+import { ASK_GOAL_MAX } from "../config/workspace-config/config-schema";
 
 const Id = z.string().min(1).max(120);
 
@@ -72,4 +73,6 @@ export const AskSettingsChangeSchema = z.discriminatedUnion("op", [
     name: z.string().min(1).max(80),
     duration_min: z.number().int().min(1).max(1440).optional(),
   }),
+  // The owner's goal for Ask (the operator, 15 Oct 2026): one line, or empty to clear it.
+  z.object({ op: z.literal("set_goal"), goal: z.string().max(ASK_GOAL_MAX) }),
 ]);

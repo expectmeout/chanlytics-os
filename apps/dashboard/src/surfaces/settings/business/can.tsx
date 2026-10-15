@@ -216,14 +216,22 @@ const btcAbilities = (
     // Exactly as stored: usually nothing, which contracts reads as a day, as the Autonomy pane does.
     pauseHours: reply && reply.limits ? reply.limits.pause_hours : undefined,
     visionOn: config?.features?.vision === true,
-    // The edge's own question about the BOOKING row (retell-fn.ts), never a copy of the rule.
-    bookingHeld: BUSINESS_TAB.bookingHeld(
-      Object.fromEntries(rows.filter((r) => r && r.class).map((r) => [r.class, { mode: r.mode }])),
-    ),
+    bookingHeld: btcBookingHeld(rows),
     // And the REPLIES row, with the edge's own default for a row that is not there (reply-posture.ts: "ask").
     replyMode: btcReplyMode(reply ? reply.mode : "ask"),
   });
 };
+
+/**
+ * The edge's own question about the BOOKING row (retell-fn.ts), never a copy of the rule: the abilities and the limits
+ * both read it. A policies read that failed holds nothing.
+ */
+function btcBookingHeld(rows: CanReads["rows"]): boolean {
+  if (!rows) return false;
+  return BUSINESS_TAB.bookingHeld(
+    Object.fromEntries(rows.filter((r) => r && r.class).map((r) => [r.class, { mode: r.mode }])),
+  );
+}
 
 /** What holds the whole card back, said once above the rows, with the door to the tab that fixes it. */
 const BtcHeld = ({ held }: { held: NonNullable<Abilities["held"]> }) => (
@@ -330,6 +338,12 @@ export const BtCanCard = ({
   const limits = BUSINESS_TAB.cannotRows({
     smsLive: BUSINESS_TAB.capabilityStatus("sms", dto).ready,
     hasBookingLink: BUSINESS_TAB.offersBookingLink(brain),
+    // A time a customer picks waits for the owner where the workspace takes booking requests (decision 0061).
+    takesRequests: BUSINESS_TAB.takesBookingRequests({
+      switchOn: config?.features?.booking_requests === true,
+      linkInChat: BUSINESS_TAB.offersBookingLink(brain),
+      bookingHeld: btcBookingHeld(rows),
+    }),
   });
   return btcCard(
     true,

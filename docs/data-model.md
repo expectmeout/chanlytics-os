@@ -231,10 +231,13 @@ One visit as a source stated it (decision 0002): a booking tool's notice, the ca
 | `created_by` | uuid | yes |  |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
+| `expires_at` | timestamp with time zone | yes |  | When a request the receptionist took stops taking its slot (00443): the sooner of a day after it was asked and an hour before the slot. Null for every other row. |
+| `conversation_id` | uuid | yes |  | The thread a request the receptionist took came from (00443): where its hold is, and where the owner answers the customer. |
 
 Foreign keys:
 
 - `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete set null
+- `tenant_id`, `conversation_id` → [`conversations`](#conversations) (`tenant_id`, `id`), on delete set null
 - `created_by` → `auth.users` (`id`), on delete set null
 - `tenant_id`, `lead_id` → [`leads`](#leads) (`tenant_id`, `id`), on delete set null
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade

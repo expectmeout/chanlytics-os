@@ -226,7 +226,7 @@ type DeleteResult = ApiResult<unknown>;
 
 /**
  * A verb's answer as this courier's callers read it: the door's answer, or its refusal. Each writer below commits through
- * its verb's spec (legacy-bridge/verbs, contracts VERB_SPECS), the walk Ask's cards take too, so the same act makes the
+ * its verb's spec (legacy-bridge/verbs, contracts PROPOSAL_SPECS), the walk Ask's cards take too, so the same act makes the
  * same call whichever hand pressed it (the sheets as verbs, 14 Oct 2026).
  */
 function verbAnswer<O>(r: VerbResult): ApiResult<O> {

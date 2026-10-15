@@ -127,11 +127,14 @@ const LIVE_NAME = [
   { table: "segments", name: "segments_live_name", columns: ["tenant_id", "name"], where: (r) => !r.archived_at },
 ];
 
-/** One call the model makes, through the registry, over a fresh world: what it came to, what it read, the read set. */
+/**
+ * One call the model makes, through the registry, over a fresh world: what it came to, what it read, the read set. A
+ * call that names no action makes a list (propose_list's action make, since the operator, 15 Oct 2026).
+ */
 async function listCall(input, role = "operator") {
   const supabase = fakeDb(world(role), {}, RPCS);
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, role, TZ, NOW);
-  const out = await buildProposal(t, "propose_list", input);
+  const out = await buildProposal(t, "propose_list", "action" in input ? input : { action: "make", ...input });
   const p = out.proposal;
   return {
     got: p
@@ -371,11 +374,12 @@ function canonical(node) {
   );
 }
 
-test("the rule the model is shown is the drafter's own: all as LIST_DRAFT_JSON_SCHEMA says it, imported, and the vocabulary's lines, every field from listDraftFieldLines; name and cannot beside it, every one required", () => {
+test("the rule the model is shown is the drafter's own: all as LIST_DRAFT_JSON_SCHEMA says it, imported, and the vocabulary's lines, every field from listDraftFieldLines; name and cannot beside it, under the actions that make, change and take down a list", () => {
   for (const role of ["operator", "partner", "owner"]) {
     const t = toApiTools(role, true).find((x) => x.name === "propose_list");
-    assert.deepEqual(Object.keys(t.input_schema.properties), ["name", "all", "cannot"]);
-    assert.deepEqual(t.input_schema.required, ["name", "all", "cannot"]);
+    assert.deepEqual(t.input_schema.properties.action.enum, ["make", "change", "delete"]);
+    assert.deepEqual(Object.keys(t.input_schema.properties), ["action", "name", "all", "cannot", "list_id"]);
+    assert.deepEqual(t.input_schema.required, ["action"], "each action's own zod requires its fields");
     assert.deepEqual(canonical(t.input_schema.properties.all), canonical(LIST_DRAFT_JSON_SCHEMA.properties.all));
     assert.ok(!JSON.stringify(t.input_schema).includes('"in_list"'), "a draft never reads another list");
     assert.ok(!/another list/.test(t.description), "and nothing warns of a field the model is never shown");
@@ -451,7 +455,12 @@ const ledger = (tables) => tables.decisions.map((d) => [d.verb, d.subject_type])
 test("a list card, walked end to end: the model's call makes it, Approve makes the list through the lists route with its rule, People is read again, Open goes to it, and Delete it takes it away by the id the route answered", async () => {
   const tables = world();
   const tab = tabOver(tables);
-  const built = await buildProposal(tab.t, "propose_list", { name: "Talkers", all: TALKERS, cannot: "" });
+  const built = await buildProposal(tab.t, "propose_list", {
+    action: "make",
+    name: "Talkers",
+    all: TALKERS,
+    cannot: "",
+  });
   assert.equal(built.isError, false, built.result);
   const card = built.proposal;
   const done = await commitProposal(tab.win, card, tab.client);
@@ -462,7 +471,7 @@ test("a list card, walked end to end: the model's call makes it, Approve makes t
     ok: true,
     receipt: "Talkers made. It keeps itself current.",
     undo: { list_id: made.id },
-    made: null,
+    made: { id: made.id, kind: "list" },
   });
   assert.deepEqual(tab.sent, [{ key: "POST /api/v1/segments", body: { name: "Talkers", rule: rule(TALKERS) } }]);
   assert.ok(tab.events.includes("refresh POST segments"), "People, Broadcasts and Playbooks read again behind it");
@@ -481,7 +490,9 @@ test("a list card, walked end to end: the model's call makes it, Approve makes t
 test("a list card undone after a playbook came to run on it: the route archives it rather than delete it, the playbook pauses, and the undo's receipt says so in People's words", async () => {
   const tables = world();
   const tab = tabOver(tables);
-  const card = (await buildProposal(tab.t, "propose_list", { name: "Talkers", all: TALKERS, cannot: "" })).proposal;
+  const card = (
+    await buildProposal(tab.t, "propose_list", { action: "make", name: "Talkers", all: TALKERS, cannot: "" })
+  ).proposal;
   const done = await commitProposal(tab.win, card, tab.client);
   const id = done.undo.list_id;
   // Within the undo's ten minutes, a playbook is put on the list.
@@ -508,7 +519,9 @@ test("a list card undone after a playbook came to run on it: the route archives 
 test("a list card whose name another list took before it was approved fails in the route's own words, and keeps no undo", async () => {
   const tables = world();
   const tab = tabOver(tables);
-  const card = (await buildProposal(tab.t, "propose_list", { name: "Talkers", all: TALKERS, cannot: "" })).proposal;
+  const card = (
+    await buildProposal(tab.t, "propose_list", { action: "make", name: "Talkers", all: TALKERS, cannot: "" })
+  ).proposal;
   // Someone made a list of that name on People while the card waited.
   tables.segments.push({
     id: "5e5e5e5e-0000-4000-8000-000000000009",

@@ -22,6 +22,7 @@ import {
   recordActivation,
   readThreadState,
   repliedTo,
+  openBookingRequest,
   type IngestResult,
 } from "../packages/db.js";
 import type { Database, Json } from "../packages/db.js";
@@ -30,6 +31,7 @@ import {
   deliverSafely,
   IngestFailed,
   unreadableThread,
+  type BookingRequestHold,
   type Delivered,
   type SendKind,
   type ThreadState,
@@ -213,6 +215,7 @@ export async function pgIngest(
 /** The steps pgSafe guards; each logs `pg_<step>_failed`, a name in LOG_EVENTS, when it throws. */
 type PgStep =
   | "allowlist_evt"
+  | "booking_request"
   | "cost"
   | "echo"
   | "escalation"
@@ -325,6 +328,29 @@ const AN_ANSWER = { proactive: false, about: "theirs", trigger: null } as const;
  * business's token against their WABA, which cannot succeed: every voice note
  * and photo their customers send would fail to store.
  */
+/**
+ * A booking the receptionist asks for (decision 0061), the sink's `request`: the request and its hold opened together
+ * (00443 booking_request_open), so neither is ever there without the other. A slot an hour away or less, or a door that
+ * failed, is a person's to answer (booking_reply): the customer was told the team will confirm.
+ */
+async function requestOpened(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+  ing: IngestResult,
+  req: BookingRequestHold,
+  details: string,
+): Promise<EscalationOutcome | undefined> {
+  try {
+    const at = { tenantId, conversationId: ing.conversation_id, contactId: ing.contact_id };
+    const got = await openBookingRequest(db, { ...at, ...req });
+    if (!("error" in got)) return got.hold;
+    logger().info("booking_request_too_soon", { tenant_id: tenantId });
+  } catch (e) {
+    logger().error("booking_request_open_failed", { tenant_id: tenantId, error: errField(e) });
+  }
+  return upsertEscalation(db, tenantId, ing.conversation_id, "booking_reply", details.slice(0, 400));
+}
+
 export function pgSink(
   db: SupabaseClient<Database> | null,
   tenantId: string | null,
@@ -339,19 +365,15 @@ export function pgSink(
   return {
     on,
     /**
-     * The words leave through the one door (packages/core deliver): the
-     * person's consent, the thread's pause and the workspace's status are
-     * re-read at the wire, the send goes on THIS message's wire, and the row
-     * is recorded either way -- sent with its id, or failed with the status
-     * and a message.send_failed event. Without Postgres there is no thread to
-     * re-read and no row to write, so nothing is sent: the handler has
-     * already handed such a message to a person.
+     * The words leave through the one door (packages/core deliver): the person's consent, the thread's pause and the
+     * workspace's status are re-read at the wire, the send goes on THIS message's wire, and the row is recorded either
+     * way -- sent with its id, or failed with the status and a message.send_failed event. Without Postgres there is no
+     * thread to re-read and no row to write, so nothing is sent: the handler has already handed such a message to a
+     * person.
      *
-     * The PURPOSE is the caller's, not a constant. It was hardcoded
-     * "conversational", so the one send this handler makes that is genuinely
-     * marketing -- the confirmation of a YES OFFERS -- reached the door
-     * claiming to be a reply, and the two rules that exist for it (the
-     * marketing yes, and offers never going by text) were never asked. The
+     * The PURPOSE is the caller's, not a constant. It was hardcoded "conversational", so the one send this handler
+     * makes that is genuinely marketing -- the confirmation of a YES OFFERS -- reached the door claiming to be a reply,
+     * and the two rules that exist for it (the marketing yes, and offers never going by text) were never asked. The
      * default is the honest one for everything else the receptionist says.
      */
     deliver: (
@@ -466,6 +488,8 @@ export function pgSink(
       on
         ? pgSafe("escalation", () => upsertEscalation(db, tenantId, ing.conversation_id, reason, details.slice(0, 400)))
         : Promise.resolve(undefined),
+    request: (req: BookingRequestHold, details: string) =>
+      on ? pgSafe("booking_request", () => requestOpened(db, tenantId, ing, req, details)) : Promise.resolve(undefined),
     /** Download from Meta, upload to storage, record where it went. Resolves
      *  to the bytes when they were fetched — a photo the receptionist looks
      *  at reads them — and to nothing on failure. */

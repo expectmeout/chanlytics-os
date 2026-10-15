@@ -33,6 +33,10 @@ export interface AppointmentLike {
   client_phone: string | null;
   client_email: string | null;
   contact_id: string | null;
+  /** Where the row came from (00345, 00443); a request the receptionist took is 'receptionist'. Absent on an older read. */
+  source?: string | null;
+  /** The thread a request the receptionist took came from (00443): where it is answered. */
+  conversation_id?: string | null;
 }
 
 /** The words the block carries: the service and the client, as the notice gave them; the title the row kept; else this. */
@@ -195,6 +199,10 @@ export function itemOfAppointment(row: AppointmentLike, people: PersonLike[]): C
     staff: row.staff,
     price: row.price,
     visit: visitMarkOf(row),
+    // A time a customer picked by text: answered in its thread, Booked it or Can't, while it is open (decision 0061).
+    ...(row.source === "receptionist" && row.conversation_id
+      ? { request: { thread_id: row.conversation_id, open: row.status === "proposed" } }
+      : {}),
   };
 }
 

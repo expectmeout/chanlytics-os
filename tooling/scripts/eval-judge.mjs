@@ -48,6 +48,9 @@ export function judgeCase(c, r, allowed) {
   for (const p of e.excludes ?? []) if (new RegExp(p, "i").test(text)) failures.push(`must not say /${p}/`);
   if (e.min_confidence !== undefined && !((r.meta?.confidence ?? 0) >= e.min_confidence))
     failures.push(`confidence ${r.meta?.confidence ?? "none"} < ${e.min_confidence}`);
+  // A time picked, where the workspace takes booking requests (decision 0061): written as one, or not, as the case says.
+  if (e.booking !== undefined && r.takes_requests && !!r.booking?.slot !== e.booking)
+    failures.push(`booking ${r.booking?.slot || "none"}, wanted ${e.booking ? "the time picked" : "none"}`);
   // An answer that is a fact of the business says which fact: a right hour with nothing named is a guess that landed.
   if (e.grounded && !(r.meta?.facts_used ?? []).some((f) => typeof f === "string" && f.trim()))
     failures.push("named no fact it relied on");
@@ -79,6 +82,7 @@ export function validateCases(cases) {
       if (c[flag] !== undefined && typeof c[flag] !== "boolean") problems.push(`${c.id}: ${flag} is true or false`);
     if (e.grounded !== undefined && typeof e.grounded !== "boolean")
       problems.push(`${c.id}: grounded is true or false`);
+    if (e.booking !== undefined && typeof e.booking !== "boolean") problems.push(`${c.id}: booking is true or false`);
     if (c.hard && c.provisional) problems.push(`${c.id}: a hard case is never on trial`);
     // Who the case is speaking with (nightly.mjs whoOf): a name, at least, as the database would hold it.
     if (c.who !== undefined && (typeof c.who !== "object" || c.who === null || typeof c.who.name !== "string"))

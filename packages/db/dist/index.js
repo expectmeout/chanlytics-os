@@ -4462,6 +4462,12 @@ async function pushNamesFor(db, p) {
     business: tenant.data?.name?.trim() || null
   };
 }
+async function memberViewsOf(db, p) {
+  const { data, error } = await db.from("memberships").select("views").eq("tenant_id", p.tenantId).eq("user_id", p.userId).maybeSingle();
+  if (error) throw new Error(error.message);
+  const views = data?.views;
+  return views && typeof views === "object" && !Array.isArray(views) ? views : {};
+}
 
 // src/repositories/campaigns/workspace.ts
 async function workspacePaused(db, tenantId) {
@@ -6438,6 +6444,7 @@ import {
   recordKeyOf
 } from "../../contracts/dist/index.js";
 var LIVE_STATUSES = ["proposed", "booked"];
+var unexpired = (now = /* @__PURE__ */ new Date()) => `expires_at.is.null,expires_at.gt.${now.toISOString()}`;
 var SPAN_MAX = 2e3;
 function clientFilter(client) {
   const parts = [
@@ -6472,8 +6479,42 @@ async function updateAppointment(db, tenantId, id, patch) {
   if (error.code === "23514") return "refused";
   throw new Error(`appointment_update: ${error.message}`);
 }
+async function openBookingRequest(db, p) {
+  const { data, error } = await db.rpc("booking_request_open", {
+    p_tenant_id: p.tenantId,
+    p_conversation_id: p.conversationId,
+    p_contact_id: p.contactId,
+    p_starts_at: p.startsAt,
+    p_ends_at: p.endsAt,
+    p_service: p.service ?? "",
+    p_timezone: p.timezone,
+    p_words: p.words
+  });
+  if (error) throw new Error(`booking_request_open: ${error.message}`);
+  const said = data ?? {};
+  if (said.error === "too_soon") return { error: "too_soon" };
+  const hold = said.hold;
+  const id = said.appointment?.id;
+  if (hold !== "opened" && hold !== "changed" && hold !== "refreshed" || typeof id !== "string")
+    throw new Error(`booking_request_open: the door answered ${JSON.stringify(data)}`);
+  return { hold, appointmentId: id };
+}
+async function answerBookingRequest(db, p) {
+  const { data, error } = await db.rpc("booking_request_answer", {
+    p_appointment_id: p.appointmentId,
+    p_booked: p.booked,
+    ...p.via ? { p_via: p.via } : {},
+    ...p.replyWords ? { p_reply_words: p.replyWords } : {}
+  });
+  return { data, error };
+}
+async function openRequestOfThread(db, conversationId) {
+  const { data, error } = await db.from("appointments").select("*").eq("conversation_id", conversationId).eq("source", "receptionist").eq("status", "proposed").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error(`open_request_of_thread: ${error.message}`);
+  return data ?? null;
+}
 async function appointmentsBetween(db, tenantId, fromIso, toIso) {
-  const { data, error } = await db.from("appointments").select("*").eq("tenant_id", tenantId).in("status", [...LIVE_STATUSES]).neq("source", "calendar_feed").gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).limit(SPAN_MAX);
+  const { data, error } = await db.from("appointments").select("*").eq("tenant_id", tenantId).in("status", [...LIVE_STATUSES]).neq("source", "calendar_feed").or(unexpired()).gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).limit(SPAN_MAX);
   if (error) throw new Error(`appointments_between: ${error.message}`);
   return data ?? [];
 }
@@ -6481,7 +6522,7 @@ async function visitsOver(db, tenantId, fromIso, toIso) {
   const [noted, feed] = await Promise.all([
     readAllRows(
       "visits_over_noted",
-      (from, to) => db.from("appointments").select("*").eq("tenant_id", tenantId).neq("source", "calendar_feed").gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).order("id", { ascending: true }).range(from, to)
+      (from, to) => db.from("appointments").select("*").eq("tenant_id", tenantId).neq("source", "calendar_feed").or(unexpired()).gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).order("id", { ascending: true }).range(from, to)
     ),
     readAllRows(
       "visits_over_feed",
@@ -6507,7 +6548,7 @@ async function recordOver(db, tenantId, fromIso, toIso) {
 async function notedOver(db, tenantId, fromIso, toIso) {
   return readAllRows(
     "appointments_noted",
-    (from, to) => db.from("appointments").select("*").eq("tenant_id", tenantId).neq("source", "calendar_feed").gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).order("id", { ascending: true }).range(from, to)
+    (from, to) => db.from("appointments").select("*").eq("tenant_id", tenantId).neq("source", "calendar_feed").or(unexpired()).gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).order("id", { ascending: true }).range(from, to)
   );
 }
 async function appointmentWorkspace(db, id) {
@@ -6701,6 +6742,7 @@ export {
   addressesSuppressed,
   adoptPersonName,
   aiFailuresHour,
+  answerBookingRequest,
   answeredReachOutEmail,
   applyBilling,
   applyReplyReading,
@@ -6910,6 +6952,7 @@ export {
   memberEmailOf,
   memberHasAddress,
   memberJoinedOf,
+  memberViewsOf,
   memberWithdrawDrafts,
   memberWithdrawMessage,
   membersPushedFor,
@@ -6938,9 +6981,11 @@ export {
   offersEmailReach,
   olderUnreadFor,
   oldestActiveChannel,
+  openBookingRequest,
   openConversation,
   openDoubtsOf,
   openEscalation,
+  openRequestOfThread,
   optOutTold,
   ourLastWire,
   outreachFactsOf,

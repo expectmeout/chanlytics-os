@@ -3,6 +3,7 @@
  */
 import { ASK_THREAD_VERBS, type AskProposal, type AskThreadVerb } from "../ask/ask";
 import type { ApiRouteKey } from "../route-keys.generated";
+import { BOOKING_REQUEST_WORDS } from "../calendar/visit/booking-request";
 import {
   PROPOSAL_WORDS,
   asText,
@@ -134,6 +135,26 @@ export const threadVerbSpec: ProposalSpec = {
   open: cardThreadRoute,
 };
 
+/**
+ * A booking the receptionist asked for, answered (decision 0061): Booked it or Can't, from Today's row, the Inbox's thread
+ * or the Calendar's visit. Booked it's answer carries the reply it drafts; nothing is sent by the answer itself. No undo:
+ * a booking confirmed, or a time let go, is answered again in the thread.
+ */
+export const bookingRequestSpec: ProposalSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: (p) => ({
+    route: "POST conversations/[id]/booking-request",
+    params: { id: asText(p.payload.conversation_id) },
+    body: { booked: p.payload.booked === true },
+  }),
+  receipt: (p) =>
+    p.payload.booked === true
+      ? BOOKING_REQUEST_WORDS.said.booked(asText(p.payload.who))
+      : BOOKING_REQUEST_WORDS.said.cant(asText(p.payload.who)),
+  open: cardThreadRoute,
+};
+
 export const whisperSpec: ProposalSpec = {
   needs: "operator",
   gate: "approve",
@@ -144,4 +165,20 @@ export const whisperSpec: ProposalSpec = {
   }),
   receipt: () => "Whispered — the receptionist works it into its next answer",
   open: () => null,
+};
+
+/**
+ * A call in progress passed to the business's own line (POST calls/:id/hand-over): the receptionist tells the caller
+ * someone is picking up and transfers them, and the owner's phone rings. The door refuses a call that has ended, or a
+ * workspace with no line to ring, in its own words. Nothing undoes it: the caller is on the owner's phone by then.
+ */
+export const callHandOverSpec: ProposalSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: (p) =>
+    idIn(p.payload, "call_id")
+      ? { route: "POST calls/[id]/hand-over", params: { id: asText(p.payload.call_id) } }
+      : refuseWith(PROPOSAL_WORDS.cannotApprove),
+  receipt: (p) => `Handing ${asText(p.payload.who) || "the caller"} to your phone — it rings now`,
+  open: () => "live",
 };

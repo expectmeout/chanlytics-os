@@ -316,6 +316,7 @@ export {
   setMemberPushOff,
   membersPushedFor,
   pushNamesFor,
+  memberViewsOf,
 } from "./repositories/notices/member-alerts";
 export type { MemberAlertsRow } from "./repositories/notices/member-alerts";
 export { threadIdsWaitingOnYou } from "./repositories/waiting-on-you";
@@ -659,6 +660,10 @@ export {
   notedOver,
   feedWordsOver,
   markVisit,
+  openBookingRequest,
+  answerBookingRequest,
+  openRequestOfThread,
+  type BookingRequestOpen,
   appointmentWorkspace,
   appointmentsForClient,
   earlierVisitRows,

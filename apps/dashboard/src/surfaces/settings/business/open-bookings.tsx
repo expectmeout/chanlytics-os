@@ -16,6 +16,7 @@
 import { useEffect, useState } from "react";
 import type { ComponentProps } from "react";
 import {
+  BOOKING_REQUEST_WORDS,
   BOOKING_TOOL_STEPS,
   BOOKING_TOOL_WORDS,
   BOOKING_TRY_NOTE,
@@ -37,6 +38,8 @@ import { api } from "@/legacy-bridge/api";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import type { WorkspaceSettings } from "@/legacy-bridge/surfaces/settings";
 import { RecordCombobox } from "../../kit/record/combobox";
+import { RecordSwitch } from "../../kit/record/field";
+import { Panel } from "../../kit/panel/panel";
 import { gate, navigate } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { BtFold } from "./gestures/fold";
@@ -394,6 +397,38 @@ const BtoEmailsPart = ({ tool, name }: { tool: string; name: string }) => {
 };
 
 /**
+ * Booking requests (decision 0061): where the team confirms its own bookings, a time a customer picks by text waits on
+ * Today for Booked it or Can't. Off by default; the edge asks for one only where it is on.
+ */
+const BtoRequestsPart = ({ f }: { f: FoldFields<CalendarDraft> }) => {
+  const W = BOOKING_REQUEST_WORDS.setting;
+  return (
+    <Panel variant="inset" size="flush" className="bt-lines" data-testid="bto-requests">
+      <div className="bt-line">
+        <span className="bt-line-words">
+          <span className="bt-line-name" id="bto-requests-label">
+            {W.name}
+          </span>
+          <span className="bt-line-sub" id="bto-requests-says">
+            {W.says}
+          </span>
+        </span>
+        <span className="bt-line-end">
+          <RecordSwitch
+            on={f.draft.requests === true}
+            onChange={(v) => f.update((x) => ({ ...x, requests: v }), ["requests"])}
+            labelledBy="bto-requests-label"
+            describedBy="bto-requests-says"
+            readOnly={!!f.readOnly}
+            testid="bto-requests-switch"
+          />
+        </span>
+      </div>
+    </Panel>
+  );
+};
+
+/**
  * The fold: what the owner books with, then only what that answer has. With nothing said yet and a booking link on a
  * platform the product knows, the tool is offered by name (contracts bookingToolOfLink): the owner said where
  * customers book, and is not asked which tool that is.
@@ -424,6 +459,7 @@ const BtoSourceBody = ({ f, stored, offers, bookingLink, name }: PartProps & { b
       ) : null}
       {d.with ? <BtoLinkPart f={f} stored={stored} offers={offers} /> : null}
       {isBookingTool(d.with) ? <BtoEmailsPart tool={d.with} name={name} /> : null}
+      <BtoRequestsPart f={f} />
     </>
   );
 };

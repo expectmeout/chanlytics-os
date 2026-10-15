@@ -101,12 +101,27 @@ export const FeaturesConfigSchema = z
     ads_preview: z.boolean().optional(),
     /** Campaigns › Sequences (decision 0060), drawn in this workspace before it replaces the home (contracts sequences). */
     sequences_preview: z.boolean().optional(),
+    /**
+     * Booking requests (decision 0061): where the team confirms its own bookings, a time a customer picks by text is held
+     * for the owner as a request (Booked it or Can't). Off, the conversation is a person's to read, as before.
+     */
+    booking_requests: z.boolean().optional(),
   })
   .strip();
 export type FeaturesConfig = z.infer<typeof FeaturesConfigSchema>;
 
+/** The owner's goal in their own words, at most this long: what Ask weighs every plan against (the operator, 15 Oct 2026). */
+export const ASK_GOAL_MAX = 200;
+
+/**
+ * Ask's own section (the operator, 15 Oct 2026, D13): the owner's goal in one line ("twenty new salon clients a month"),
+ * which Ask reads on every turn and weighs every signal and plan against. The receptionist never reads it.
+ */
+const AskConfigSchema = z.object({ goal: z.string().max(ASK_GOAL_MAX).optional() }).strip();
+
 export const TenantConfigSchema = z.object({
   brain: BrainConfigSchema.optional(),
+  ask: AskConfigSchema.optional(),
   notifications: NotificationsConfigSchema.optional(),
   calendar: CalendarConfigSchema.optional(),
   bookings: BookingsConfigSchema.optional(),

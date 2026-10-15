@@ -3,7 +3,7 @@
  * `output_config.format` and read back by normalizeAnswer. It rides in every request. Pure.
  */
 import { ASK_LANGUAGES } from "./ask-language";
-import { ASK_ANSWER_CAPS as C } from "./ask-answer";
+import { ASK_ANSWER_CAPS as C, ASK_LIST_STYLES } from "./ask-answer";
 import { ASK_CITATION_KINDS, ASK_ROW_WORDS } from "./citations";
 
 const SOURCE = {
@@ -37,7 +37,7 @@ export const ASK_ANSWER_FORMAT = {
         },
         detail: {
           type: "string",
-          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${C.detail} characters.`,
+          description: `Only what the headline needs, in sentences: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail, or the length they asked for; a list goes in show.list, never here; at most ${C.detail} characters.`,
         },
       },
       required: ["headline", "detail"],
@@ -112,8 +112,28 @@ export const ASK_ANSWER_FORMAT = {
           required: ["label", "total", "parts", "source"],
           additionalProperties: false,
         },
+        list: {
+          type: "object",
+          description:
+            "What they asked to see as a list (bullets, numbered, steps, one per line), and steps to follow: points in words, never the rows items hold; entries empty when nothing is a list.",
+          properties: {
+            style: {
+              type: "string",
+              enum: [...ASK_LIST_STYLES],
+              description:
+                "bullets; numbers for steps or an order; lines for one entry to a line with no mark. With entries empty, numbers numbers the items.",
+            },
+            entries: {
+              type: "array",
+              description: `At most ${C.entries}, each one point of at most ${C.entry} characters, with no bullet or number of its own: the page draws them.`,
+              items: { type: "string" },
+            },
+          },
+          required: ["style", "entries"],
+          additionalProperties: false,
+        },
       },
-      required: ["figures", "items", "breakdown"],
+      required: ["figures", "items", "breakdown", "list"],
       additionalProperties: false,
     },
     do: {

@@ -225,10 +225,20 @@ beforeEach(async () => {
 });
 after(() => (globalThis.fetch = real));
 
+/**
+ * A call as propose_campaign took it, to the tool and action that take it since the operator (15 Oct 2026): the plan is
+ * propose_plan's offer; a broadcast, a playbook and a run are propose_sequence's once, moment and batch; the rest keep
+ * their names under propose_sequence.
+ */
+const SEQUENCE_ACTIONS = { broadcast: "once", playbook: "moment", run: "batch" };
+const asSequence = (input) =>
+  input?.action === "plan"
+    ? ["propose_plan", { ...input, action: "offer" }]
+    : ["propose_sequence", { ...input, action: SEQUENCE_ACTIONS[input?.action] ?? input?.action }];
 const propose = (input, db = {}, people = PEOPLE) => {
   const supabase = fakeDb(tables(db), {}, { people_list: () => people });
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
-  return buildProposal(t, "propose_campaign", input);
+  return buildProposal(t, ...asSequence(input));
 };
 const said = (r) => JSON.parse(r.result).error;
 const BROADCAST = { action: "broadcast", template_id: REMINDER, audience_kind: "everyone", params: [] };
@@ -408,7 +418,7 @@ test("one rule for the channels a new campaign opens on, read by the composer an
   assert.deepEqual(opensOn(visit, holds(true, true, true), ready(false, false, false)), ["whatsapp"]);
   // What the tool tells the model of a playbook that names no channel follows the same switch: it said "every one"
   // whichever way the switch stood.
-  const told = toApiTools("owner", true).find((x) => x.name === "propose_campaign").description;
+  const told = toApiTools("owner", true).find((x) => x.name === "propose_sequence").description;
   const unnamedGoesBy = (which) =>
     told.includes(`when none is named it goes by ${which} the workspace can send on now`);
   assert.deepEqual([unnamedGoesBy("every one"), unnamedGoesBy("the first one")], [true, false]);
@@ -486,7 +496,7 @@ const askOver = (rows) => {
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
   return {
     channels: (channels, id = VISIT_PB) =>
-      buildProposal(t, "propose_campaign", { action: "channels", playbook_id: id, channels }),
+      buildProposal(t, "propose_sequence", { action: "channels", playbook_id: id, channels }),
     reads: () => [...new Set(supabase.seen.map((q) => (q.rpc ? `rpc:${q.rpc}` : q.table)))],
     pool: () => pool,
   };
@@ -714,7 +724,7 @@ test("campaigns with action playbooks says the channels each playbook goes by no
     },
   );
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
-  const out = await runTool(t, { name: "campaigns", input: { action: "playbooks" } });
+  const out = await runTool(t, { name: "sequences", input: { action: "moments" } });
   assert.equal(out.isError, false, out.result);
   const listed = Object.fromEntries(JSON.parse(out.result).playbooks.map((p) => [p.name, p.channels]));
   assert.deepEqual(listed, {
@@ -891,7 +901,7 @@ test("campaigns.audiences lists a message with an email version and no WhatsApp 
     { people_list: () => PEOPLE },
   );
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
-  const out = await runTool(t, { name: "campaigns", input: { action: "audiences" } });
+  const out = await runTool(t, { name: "sequences", input: { action: "lists" } });
   assert.equal(out.isError, false, out.result);
   const { templates } = JSON.parse(out.result);
   assert.deepEqual(
@@ -918,7 +928,7 @@ test("campaigns.audiences says its counts are by WhatsApp: with no number a mess
   const world = { ...NO_NUMBER, templates: [emailNote()] };
   const supabase = fakeDb(tables(world), {}, { people_list: () => PEOPLE });
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
-  const out = await runTool(t, { name: "campaigns", input: { action: "audiences" } });
+  const out = await runTool(t, { name: "sequences", input: { action: "lists" } });
   assert.equal(out.isError, false, out.result);
   const read = JSON.parse(out.result);
   const everyone = read.audiences.find((a) => a.kind === "everyone");
@@ -946,10 +956,10 @@ test("campaigns.audiences says its counts are by WhatsApp: with no number a mess
   assert.match(card.proposal.summary, /^2 people who said yes · by email/);
   // The tool's own words say the same, in the listing's sentences and in the tail the model reads before it quotes a count.
   const { toApiTools } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-  const listing = toApiTools("owner", true).find((x) => x.name === "campaigns").description;
+  const listing = toApiTools("owner", true).find((x) => x.name === "sequences").description;
   for (const words of [
     "four counts, all by WhatsApp,",
-    "(who a promotional, or a utility or authentication, template reaches on WhatsApp)",
+    "(who a promotional, or a utility or authentication, message reaches on WhatsApp)",
     "a message that holds email or sms is proposed with channels naming them, and its card then counts the people those channels reach, so a 0 in the four counts above does not mean nobody can be reached",
     "never a larger one, for a message that goes by WhatsApp; for a message whose channels hold email or sms, propose it with channels naming them and quote the card's count, since the can_be_sent counts are by WhatsApp alone and a 0 there does not mean nobody can be reached;",
     "when a WhatsApp message's count is 0 and its said_yes is not, and its channels hold no other, the ones who said yes have no number to send to",
@@ -1074,7 +1084,7 @@ test("a hidden message is refused a playbook, and a message whose WhatsApp row i
   assert.equal(hidden.isError, true);
   assert.equal(
     said(hidden),
-    "that template is one the workspace keeps out of the composers; campaigns with action audiences names the ones that may send",
+    "that template is one the workspace keeps out of the composers; sequences with action lists names the ones that may send",
   );
   // A WhatsApp row still in review, beside an approved email: WhatsApp's tick says what WhatsApp says, alone or beside email.
   const waiting = {
@@ -1106,7 +1116,7 @@ test("a WhatsApp version in review is no longer lost to Ask: its message is list
   ];
   const supabase = fakeDb(tables({ templates: reviewing }), {}, { people_list: () => PEOPLE });
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
-  const out = await runTool(t, { name: "campaigns", input: { action: "audiences" } });
+  const out = await runTool(t, { name: "sequences", input: { action: "lists" } });
   assert.equal(out.isError, false, out.result);
   const { templates } = JSON.parse(out.result);
   assert.deepEqual(
@@ -1156,14 +1166,14 @@ test("Ask is told what a message is: a name with a version on each channel it is
   );
   const tools = toApiTools("owner", true);
   const described = (name) => tools.find((t) => t.name === name).description;
-  const listing = described("campaigns");
-  const proposing = described("propose_campaign");
+  const listing = described("sequences");
+  const proposing = described("propose_sequence");
   assert.ok(
     listing.includes("channels (true for each of whatsapp, email and sms it can be sent on now;"),
     "the listing's channels are described",
   );
   assert.equal(
-    proposing.split("name the channels its `channels` in action audiences say it holds").length - 1,
+    proposing.split("name the channels its `channels` in sequences with action lists say it holds").length - 1,
     1,
     "a broadcast is proposed by the channels the listing says a message holds",
   );
@@ -1263,7 +1273,7 @@ test("campaigns.audiences counts what a card would: who it sends to, with how ma
   const listing = async (db, faults = {}) => {
     const supabase = fakeDb(tables(db), faults, { people_list: () => PEOPLE });
     const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
-    return JSON.parse((await runTool(t, { name: "campaigns", input: { action: "audiences" } })).result);
+    return JSON.parse((await runTool(t, { name: "sequences", input: { action: "lists" } })).result);
   };
   const everyone = (r) => r.audiences.find((a) => a.kind === "everyone");
   // Nobody heard: the counts and the note are what they always were, and nothing is said of anyone left out.
@@ -1304,7 +1314,7 @@ test("a card whose week could not be read is no card, and the failed read is sai
       { people_list: () => PEOPLE },
     );
     const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
-    return buildProposal(t, "propose_campaign", input);
+    return buildProposal(t, ...asSequence(input));
   };
   const lines = [];
   const was = console.error;
@@ -1330,8 +1340,8 @@ test("a card whose week could not be read is no card, and the failed read is sai
     .filter((l) => l?.event === "ask_tool_read_failed")
     .map((l) => [l.tool, l.read]);
   assert.deepEqual(failed, [
-    ["propose_campaign.broadcast", "touches"],
-    ["propose_campaign.playbook", "touches"],
+    ["propose_sequence.once", "touches"],
+    ["propose_sequence.moment", "touches"],
   ]);
 });
 

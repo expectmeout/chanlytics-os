@@ -87,11 +87,11 @@ async function world({ session = {}, row = {} } = {}) {
 }
 
 /** The model, scripted: one round that writes the answer as its format, after `waitMs` of silence. */
-function model(waitMs = 0, headline = HEADLINE) {
+function model(waitMs = 0, headline = HEADLINE, list = { style: "bullets", entries: [] }) {
   const none = { kind: "none", id: "", label: "" };
   const written = JSON.stringify({
     say: { headline, detail: "" },
-    show: { figures: [], items: [], breakdown: { label: "", total: 0, parts: [], source: none } },
+    show: { figures: [], items: [], breakdown: { label: "", total: 0, parts: [], source: none }, list },
     do: { open: null, next: [] },
     language: "en",
   });
@@ -295,6 +295,15 @@ test("one turn, however many requests: the same words at the same place, asked t
   const said = (ws) => ws.filter((x) => x !== "... ").join("");
   assert.equal(said(wa), HEADLINE);
   assert.equal(said(wb), HEADLINE, "the follower speaks what the owner stored");
+});
+
+test("a list is read once the answer lands, after the Say, an entry a sentence and a step with its number; a follower speaks it too", async () => {
+  const w = await world();
+  model(40, HEADLINE, { style: "numbers", entries: ["Reply to Nora", "Call Sam back"] });
+  const [a, b] = await Promise.all([knock(w), knock(w)]);
+  const said = (ws) => ws.filter((x) => x !== "... ");
+  assert.deepEqual(said(spoken(await frames(a))), [HEADLINE, " 1. Reply to Nora. 2. Call Sam back."]);
+  assert.deepEqual(said(spoken(await frames(b))), [`${HEADLINE} 1. Reply to Nora. 2. Call Sam back.`]);
 });
 
 test("the same words at another place in the conversation are a new turn", async () => {

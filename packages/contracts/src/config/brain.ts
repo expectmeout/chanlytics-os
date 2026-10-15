@@ -16,6 +16,7 @@
 import { POLICY_COVERS } from "./workspace-config/policy-classes";
 import type { BrainOutput } from "./brain-schema";
 import { INTENT_LABELS } from "./intent-labels";
+import { BOOKING_REQUEST_SCHEMA_FIELDS } from "../calendar/visit/booking-request";
 
 export const BRAIN_INTENTS = [
   "booking",
@@ -81,6 +82,19 @@ export const BRAIN_OUTPUT_JSON_SCHEMA = {
   required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
   additionalProperties: false,
 } as const;
+
+/**
+ * The answer's schema for one turn: the record, and where the workspace takes booking requests on this turn, the two
+ * fields a time the customer picked is written in (decision 0061). A turn that takes none is sent exactly the record.
+ */
+export function brainOutputSchemaFor(o: { bookingRequests: boolean }) {
+  if (!o.bookingRequests) return BRAIN_OUTPUT_JSON_SCHEMA;
+  return {
+    ...BRAIN_OUTPUT_JSON_SCHEMA,
+    properties: { ...BRAIN_OUTPUT_JSON_SCHEMA.properties, ...BOOKING_REQUEST_SCHEMA_FIELDS },
+    required: [...BRAIN_OUTPUT_JSON_SCHEMA.required, "booking_slot", "booking_service"],
+  };
+}
 
 /**
  * What a message row remembers about its own reasoning. Written by the edge

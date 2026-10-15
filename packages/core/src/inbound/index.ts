@@ -7,6 +7,7 @@ export type {
   InboundHandoff,
   InboundBrainReply,
   BrainCall,
+  BookingRequestHold,
   InboundSink,
   InboundPorts,
 } from "./ports";
