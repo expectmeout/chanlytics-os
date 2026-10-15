@@ -2,6 +2,7 @@ import "server-only";
 import { MEMBERSHIP_ROLES, type MembershipRole } from "@chanlytics/contracts";
 import { NO_ACTION, type ActTool, type ReadTool, type Tool, type ToolDef } from "./context";
 import { ACT_DEFS, CORE_TOOLS, READ_DEFS, inputOf, offeredActions, toolSchema } from "./registry";
+import { ANSWER_TOOL } from "./answer";
 
 /**
  * What each role is offered (the Phase 4 plan, D2): per tool, the actions the role may use -- a read's own `needs`, or
@@ -67,16 +68,19 @@ type ApiTool = (ToolDef & { defer_loading?: true }) | typeof TOOL_SEARCH;
  * role may use -- four prefixes, a viewer's, an operator's, a partner's and an owner's -- each with its three fields
  * and, while `examples`, its examples (D9). With `search` (the operator, D11), every tool outside the core is deferred
  * and found by tool search, which rides last: the deferred tools are out of the cached prefix until one is found, and
- * the core never changes, so the prefix holds. Everyone of one role gets the same bytes on every round; a turn the API
- * refused for the examples asks without them, and one refused for the search asks with every tool loaded.
+ * the core never changes, so the prefix holds. With `answer` (ASK_ANSWER_TOOL), the answer tool first (answer.ts):
+ * every role is offered it, it sorts first by its name, and it is never deferred. Everyone of one role gets the same
+ * bytes on every round; a turn the API refused for the examples asks without them, and one refused for the search asks
+ * with every tool loaded.
  */
-export function toApiTools(role: MembershipRole, examples: boolean, search = true): ApiTool[] {
-  const tools: ApiTool[] = (OFFER.get(role) ?? []).map((d) => ({
+export function toApiTools(role: MembershipRole, examples: boolean, search = true, answer = false): ApiTool[] {
+  const offered: ApiTool[] = (OFFER.get(role) ?? []).map((d) => ({
     name: d.name,
     description: d.description,
     input_schema: d.input_schema,
     ...(examples && d.input_examples ? { input_examples: d.input_examples } : {}),
     ...(search && !CORE_TOOLS.has(d.name) ? { defer_loading: true as const } : {}),
   }));
+  const tools = answer ? [ANSWER_TOOL, ...offered] : offered;
   return search ? [...tools, TOOL_SEARCH] : tools;
 }

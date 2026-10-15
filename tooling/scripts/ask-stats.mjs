@@ -77,3 +77,63 @@ export const pct = (x) => `${Math.round(x * 100)}%`;
 
 /** A millisecond figure for a table cell; a dash where there is none. */
 export const ms = (n) => (typeof n === "number" ? `${Math.round(n)} ms` : "—");
+
+/** A Say as the stream checks compare it: headline and detail, every whitespace run one space (the final's clip). */
+const flatSay = (s) => `${s.headline ?? ""}\n${s.detail ?? ""}`.replace(/\s+/g, " ").trim();
+/** What a preview should never show: a backslash escape, a key and its colon, a comma between quotes, a brace by one. */
+const LEAK = /\\[nrtu"\\/]|\{\s*"|"\s*:|"\s*,\s*"|"\s*\}/;
+
+/**
+ * A turn's stream as the person saw it, from every `say` the turn sent with when it came (`says`: { ms, headline,
+ * detail, shown }: `shown` the figures and rows its Show held, an empty one a Say taken back) and the final's Say and
+ * time: how many previews, how many drew Show and when the first did, when the first came, how
+ * long the last waited for the final, how the last met the final -- the same, a prefix of it (the last words came with
+ * the final), or a jump (words the final does not keep: the preview showed what the answer took back) -- the previews
+ * that showed JSON or an escape, and whether the preview's line breaks were lost when the final landed.
+ */
+export function streamOf(says, finalMs, finalSay) {
+  const shown = says.filter((s) => s.headline || s.detail);
+  const last = shown.at(-1) ?? null;
+  const was = last ? flatSay(last) : null;
+  const fin = finalSay ? flatSay(finalSay) : null;
+  const meets = was === null || fin === null ? null : was === fin ? "same" : fin.startsWith(was) ? "prefix" : "jump";
+  return {
+    previews: shown.length,
+    taken_back: says.length - shown.length,
+    show_previews: shown.filter((s) => (s.shown ?? 0) > 0).length,
+    first_show_ms: shown.find((s) => (s.shown ?? 0) > 0)?.ms ?? null,
+    first_ms: shown[0]?.ms ?? null,
+    last_to_final_ms: last && typeof finalMs === "number" ? finalMs - last.ms : null,
+    meets,
+    ...(meets === "jump" ? { last: was, final: fin } : {}),
+    leaks: shown.filter((s) => LEAK.test(`${s.headline}\n${s.detail}`)).length,
+    lines_lost: !!last && /\n/.test(last.detail ?? "") && !/\n/.test(finalSay?.detail ?? ""),
+  };
+}
+
+/**
+ * The stream checks over a run's turns that answered (rows with `rounds`, `first_ms`, `stream` and the stored shape's
+ * `answer_in`), by how many rounds each took: how many previews, first words, the last preview's wait for the final,
+ * and how many streamed (three previews or more); then the jumps, the previews that leaked JSON, the lost line breaks,
+ * and how each answer was written (the answer tool's input, text, or none: cards alone or a failure).
+ */
+export function streamSummary(rows) {
+  const answered = rows.filter((r) => r.stream);
+  const band = (rs) => ({
+    n: rs.length,
+    previews: spread(rs.map((r) => r.stream.previews)).median,
+    first: spread(rs.map((r) => r.first_ms)),
+    tail: spread(rs.map((r) => r.stream.last_to_final_ms)),
+    streamed: rs.filter((r) => r.stream.previews >= 3).length,
+  });
+  const via = (v) => answered.filter((r) => r.shape && (r.shape.answer_in ?? null) === v).length;
+  return {
+    one: band(answered.filter((r) => r.rounds === 1)),
+    more: band(answered.filter((r) => (r.rounds ?? 0) >= 2)),
+    jumps: answered.filter((r) => r.stream.meets === "jump").length,
+    leaks: answered.filter((r) => r.stream.leaks > 0).length,
+    lines_lost: answered.filter((r) => r.stream.lines_lost).length,
+    show_streamed: answered.filter((r) => r.stream.show_previews > 0).length,
+    via: { tool: via("tool"), text: via("text"), none: via(null), unread: answered.filter((r) => !r.shape).length },
+  };
+}

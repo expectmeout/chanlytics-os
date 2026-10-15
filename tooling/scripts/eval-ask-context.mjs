@@ -1138,7 +1138,7 @@ export async function usageRows(rest, tenantId, since) {
  * kind, its cache hit, whether it followed another turn and how long after, and how its history was sent, once PR 5.4
  * records that (`replay`).
  */
-const SHAPE_FIELDS = ["tokens", "cache_hit", "follow_up", "since_last_ms", "replay"];
+const SHAPE_FIELDS = ["tokens", "cache_hit", "follow_up", "since_last_ms", "replay", "answer_tool", "answer_in"];
 /** Message ids named in one read: a much longer `in.(…)` list is a URI PostgREST refuses (about two hundred ids). */
 const IDS_PER_READ = 50;
 
