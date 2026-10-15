@@ -391,8 +391,14 @@ test(
     assert.deepEqual(operator.data ?? [], [], "RLS: an operator's update matches no row, and raises nothing");
     const bad = await set(w.owner, "banana");
     assert.match(bad.error?.message ?? "", /tenants_sells_by_check/);
-    const name = await w.owner.from("tenants").update({ name: "Renamed" }).eq("id", w.tenant).select("id");
-    assert.match(name.error?.message ?? "", /permission denied/, "the grant is the column, never the row");
+    // A column the session was never granted: the address. The name is granted since 00439 (an owner's rename), so it no
+    // longer shows this.
+    const slug = await w.owner
+      .from("tenants")
+      .update({ slug: `renamed-${w.tenant}` })
+      .eq("id", w.tenant)
+      .select("id");
+    assert.match(slug.error?.message ?? "", /permission denied/, "the grant is the column, never the row");
     const row = ok(await w.admin.from("tenants").select("sells_by, name").eq("id", w.tenant).single());
     assert.deepEqual(row, { sells_by: "proposal", name: "Deals" });
   },
