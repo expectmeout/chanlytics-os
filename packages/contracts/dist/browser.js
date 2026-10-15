@@ -3640,7 +3640,8 @@ var RENAME_WORDS = {
   held: (filed) => `The carriers still hold \u201C${filed}\u201D as you filed it, and the text confirming a START says it until it is changed with them.`,
   ask: "Request a name change",
   kept: "Saved. The workspace could not be renamed, so your sign-up page and your sign still say its old name.",
-  requested: (at3, nowMs) => `Requested ${agoWords(Date.parse(at3), nowMs)}: a person at Chanlytics changes the name with the carriers and writes to you.`
+  requested: "Requested: a person at Chanlytics changes the name with the carriers and writes to you.",
+  already: "Already asked: a person at Chanlytics is changing the name with the carriers."
 };
 var FILINGS = RECORD_FILINGS;
 function recordSavedOf(raw) {
@@ -8405,6 +8406,13 @@ function humanize(kind) {
 var activityKindWords = (kind) => WORDS[kind] ?? humanize(kind);
 var textAt = (o, k) => typeof o[k] === "string" && o[k] ? o[k] : null;
 var numberAt = (o, k) => typeof o[k] === "number" ? o[k] : null;
+function settingsChangedWords(p) {
+  const from = textAt(p, "from");
+  const to = textAt(p, "to");
+  if (from && to) return `renamed from \u201C${from}\u201D to \u201C${to}\u201D`;
+  const fields = Array.isArray(p.fields) ? p.fields.filter((f) => typeof f === "string") : [];
+  return fields.length ? fields.slice(0, 4).join(", ") : null;
+}
 function importWords(p) {
   const n = (k) => numberAt(p, k) ?? 0;
   const counts = `${n("added")} new, ${n("existed")} already here, ${n("skipped")} skipped`;
@@ -8642,14 +8650,8 @@ function activityWords(kind, payload) {
       break;
     }
     case "settings.changed": {
-      const from = textAt(p, "from");
-      const to = textAt(p, "to");
-      if (from && to) {
-        bits2.push(`renamed from \u201C${from}\u201D to \u201C${to}\u201D`);
-        break;
-      }
-      const fields = Array.isArray(p.fields) ? p.fields.filter((f) => typeof f === "string") : [];
-      if (fields.length) bits2.push(fields.slice(0, 4).join(", "));
+      const said = settingsChangedWords(p);
+      if (said) bits2.push(said);
       break;
     }
     case "policy.changed": {

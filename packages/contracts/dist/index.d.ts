@@ -32133,7 +32133,8 @@ declare const RENAME_WORDS: {
     readonly held: (filed: string) => string;
     readonly ask: "Request a name change";
     readonly kept: "Saved. The workspace could not be renamed, so your sign-up page and your sign still say its old name.";
-    readonly requested: (at: string, nowMs: number) => string;
+    readonly requested: "Requested: a person at Chanlytics changes the name with the carriers and writes to you.";
+    readonly already: "Already asked: a person at Chanlytics is changing the name with the carriers.";
 };
 /** What the save door answers beside the record: what moved, and what the carriers hold of it. */
 interface RecordSavedDto {

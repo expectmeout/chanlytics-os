@@ -339,6 +339,20 @@ const textAt = (o: Record<string, unknown>, k: string): string | null =>
 const numberAt = (o: Record<string, unknown>, k: string): number | null => (typeof o[k] === "number" ? o[k] : null);
 
 /**
+ * What a settings change says: which settings moved, four at most; or a rename, by the names it changed from and to
+ * (X4-5; Ruben, 15 October 2026), the one setting the log says in full. Null when the row names neither.
+ */
+function settingsChangedWords(p: Record<string, unknown>): string | null {
+  const from = textAt(p, "from");
+  const to = textAt(p, "to");
+  if (from && to) return `renamed from “${from}” to “${to}”`;
+  const fields = Array.isArray(p.fields)
+    ? (p.fields as unknown[]).filter((f): f is string => typeof f === "string")
+    : [];
+  return fields.length ? fields.slice(0, 4).join(", ") : null;
+}
+
+/**
  * An import's sentence. One row per part of fifty, and the counts are the news: the sentence is them, not the verb's
  * words. A part that stopped at a fault says so, or it would read as a clean import.
  */
@@ -691,17 +705,8 @@ export function activityWords(kind: string, payload: unknown): string {
       break;
     }
     case "settings.changed": {
-      // A rename keeps what it changed from and to (X4-5; Ruben, 15 October 2026): the one setting the log says in full.
-      const from = textAt(p, "from");
-      const to = textAt(p, "to");
-      if (from && to) {
-        bits.push(`renamed from “${from}” to “${to}”`);
-        break;
-      }
-      const fields = Array.isArray(p.fields)
-        ? (p.fields as unknown[]).filter((f): f is string => typeof f === "string")
-        : [];
-      if (fields.length) bits.push(fields.slice(0, 4).join(", "));
+      const said = settingsChangedWords(p);
+      if (said) bits.push(said);
       break;
     }
     case "policy.changed": {

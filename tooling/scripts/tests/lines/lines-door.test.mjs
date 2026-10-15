@@ -1495,7 +1495,12 @@ test("register: a rehearsal made real — refile takes the mock campaign off, ch
   );
   // And no name written over them: the real brand goes under the customer profile the rehearsal submitted, whose name
   // this filing did not send (the wiring's second audit, X4-3; a2p-register.ts sendsBrandName).
-  assert.deepEqual(row.facts, rehearsal().facts, "the four receipts that cost a person's time survive");
+  // The real campaign keeps the name it states, the workspace's (X4-5): the rehearsal's came off with its campaign.
+  assert.deepEqual(
+    row.facts,
+    { ...rehearsal().facts, a2p_campaign_name: "Harbor Moving" },
+    "the four receipts that cost a person's time survive",
+  );
 });
 
 test("register: a first real filing walks the whole registration as the workspace's subaccount from this deployment's pages, and the row ends with every receipt; mock files against the test registry and says so on the row", async () => {

@@ -1276,10 +1276,10 @@ test("a save in Workspace and a WhatsApp connect repaint Setup too", async () =>
   const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
   // Both also move what the composers and People's reach read of the channels (refresh-coverage.test.mjs says which): each where
   // a page draws it, and no page is on screen here (S4-6). A connect repaints Connections' own rows, the channels read's (R6).
-  // And the workspace's own list: a save of the business's name renames it, which the sidebar and switcher say (X4-5).
+  // And the workspace's own list, last: a save of the business's name renames it, which the sidebar and switcher say (X4-5).
   assert.deepEqual(
     AFTER["PUT settings"]().map((o) => o.key),
-    ["workspace", "settings", "calendar", "setup"],
+    ["settings", "calendar", "setup", "workspace"],
   );
   assert.deepEqual(
     AFTER["POST channels/whatsapp/connect"]().map((o) => o.key),

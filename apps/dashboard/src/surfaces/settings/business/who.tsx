@@ -13,7 +13,6 @@
 import { RENAME_WORDS } from "@chanlytics/contracts";
 import type { Fact, FactConflict, FactSource, ResolvedFacts } from "@chanlytics/contracts";
 import type { ReactNode } from "react";
-import { api } from "@/legacy-bridge/api";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import { gate, navigate } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
@@ -26,7 +25,7 @@ import type { BtDisputed } from "./gestures/row";
 import { phoneShown } from "./save";
 import type { Brain, Config, Saver } from "./save";
 import { businessTabSave } from "./saver";
-import { factsNow, samePhone } from "./shell";
+import { factsNow, samePhone, setupApi } from "./shell";
 
 /** What a row's box is handed to draw: the draft, its setter, what stops it, the field's own props, the row's gate. */
 interface BoxProps<D> {
@@ -255,12 +254,16 @@ const btNameSaved = (flash: (f: LegacyFlash) => void) => (d: string) => ({
   },
 });
 
-/** Ask a person at Chanlytics to change the name the carriers hold (setup_request 'name'), and say what was asked. */
+/**
+ * Ask a person at Chanlytics to change the name the carriers hold (setup_request 'name'), through Setup's verb as the
+ * Workspace pane asks for a repair, and say what was asked.
+ */
 const btAskNameChange = async (flash: (f: LegacyFlash) => void) => {
-  const r = await api()("POST setup/request", { body: { what: "name" }, once: true });
+  const setup = setupApi();
+  if (!setup) return;
+  const r = await setup.request("name");
   if (!r.ok) return flash({ tone: "danger", msg: r.message || "That didn't go through." });
-  const at = (r.data.request as { requested_at?: unknown } | null)?.requested_at;
-  flash({ msg: RENAME_WORDS.requested(typeof at === "string" ? at : new Date().toISOString(), Date.now()) });
+  flash({ msg: r.already ? RENAME_WORDS.already : RENAME_WORDS.requested });
 };
 
 /** What every card's row is handed by the card. */

@@ -230,15 +230,15 @@ const visits = () => [
 // from the calendar link and the zone (the Booking gap line), so it is read where Today is on screen and forgotten elsewhere (the
 // wiring's second audit, W-visit-deal-4). The one list for the two writes that carry them, so they cannot drift.
 // A save that changes the business's name renames the workspace (00439, X4-5): the sidebar and the switcher say it from the
-// boot's own list, as they do the logo.
+// boot's own list, as they do the logo, read last (the settings first, for the next save's version).
 const settingsWrite = () => [
-  workspaceOverride,
   settingsOverride,
   calendarOverride,
   setupOverride,
   ...channelChange(),
   ...receptionist(),
   ...headlineIfDrawn(),
+  workspaceOverride,
 ];
 
 /** Exported for the tests that hold a verb to its surfaces by running this, not by reading a courier. */

@@ -12,7 +12,6 @@
  * (apps/dashboard/src/server/public/public-facts.type-test.ts).
  */
 import type { SchemaSet } from "../shared/schema-sets";
-import { agoWords } from "../shared/time";
 import type { BusinessRecordDto } from "./business-record";
 
 /** A column of the business on record that an owner fills (the row's own clock is not one). */
@@ -137,8 +136,8 @@ export const RENAME_WORDS = {
     `The carriers still hold “${filed}” as you filed it, and the text confirming a START says it until it is changed with them.`,
   ask: "Request a name change",
   kept: "Saved. The workspace could not be renamed, so your sign-up page and your sign still say its old name.",
-  requested: (at: string, nowMs: number) =>
-    `Requested ${agoWords(Date.parse(at), nowMs)}: a person at Chanlytics changes the name with the carriers and writes to you.`,
+  requested: "Requested: a person at Chanlytics changes the name with the carriers and writes to you.",
+  already: "Already asked: a person at Chanlytics is changing the name with the carriers.",
 } as const;
 
 /** What the save door answers beside the record: what moved, and what the carriers hold of it. */

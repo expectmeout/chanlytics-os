@@ -1566,23 +1566,18 @@ test("a save of the name says what the sign-up page and sign say now, and where 
   assert.match(textOf(held.msg), /say “Marisa's Salon & Spa” now\. The carriers still hold “Marisa's Beauty Salon”/);
   assert.equal(held.action.label, "Request a name change");
 
-  // The press asks a person at Chanlytics (setup_request 'name'), and says what was asked.
+  // The press asks a person at Chanlytics (setup_request 'name') through Setup's verb, and says what was asked.
   const asked = [];
-  const fetchWas = globalThis.fetch;
-  globalThis.fetch = async (url, init = {}) => {
-    asked.push({ url: String(url), method: init.method, body: init.body ? JSON.parse(String(init.body)) : null });
-    const data = { request: { ok: true, already: false, requested_at: new Date().toISOString() }, told: false };
-    const body = { ok: true, data };
-    return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
-  };
+  const setupWas = W.__setup;
+  W.__setup = { request: async (what) => (asked.push(what), { ok: true, already: asked.length > 1, message: "" }) };
   try {
     await held.action.onClick();
-    assert.equal(asked.length, 1, "one request, for one press");
-    assert.match(asked[0].url, /^\/api\/v1\/setup\/request(\?|$)/);
-    assert.deepEqual([asked[0].method, asked[0].body], ["POST", { what: "name" }]);
-    assert.match(textOf(flashes.at(-1).msg), /^Requested .*a person at Chanlytics changes the name with the carriers/);
+    assert.deepEqual(asked, ["name"], "one request, for one press");
+    assert.match(textOf(flashes.at(-1).msg), /^Requested: a person at Chanlytics changes the name with the carriers/);
+    await held.action.onClick();
+    assert.match(textOf(flashes.at(-1).msg), /^Already asked/, "a second press the same day is said as the one before");
   } finally {
-    globalThis.fetch = fetchWas;
+    W.__setup = setupWas;
   }
 
   // The workspace kept its name: the save is said, and so is what still says the old name.
