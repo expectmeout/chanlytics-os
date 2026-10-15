@@ -437,7 +437,11 @@ export const PL_COLUMNS: PeopleColumn[] = [
     sortValue: plVisitsSort,
     needs: (x) => !!x.withCalendar,
     width: { base: 144, min: 120, max: 240, grow: 1 },
-    csv: { head: "Next visit", cell: (p) => p.nextVisit || "" },
+    csv: {
+      head: "Next appointment",
+      headOf: (x) => appointmentWords(appointmentWordWhere(!!x.dealsOn)).next,
+      cell: (p) => p.nextVisit || "",
+    },
     cell: plVisitsCell,
   },
   // The receptionist's standing as the one pill (tone.ts, standing), off until asked for: "Answering" on every row said

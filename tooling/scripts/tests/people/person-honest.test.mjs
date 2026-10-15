@@ -2486,7 +2486,7 @@ test("the Deal section stands on the Overview above Coming up, only where deals 
       all(byTestId(tree, "person-settings"), (n) => cls(n).split(" ").includes("rec-row")).map((r) =>
         textOf(find(r, (n) => cls(n) === "rec-row-key")),
       ),
-      ["Visit messages", "Offers & news", "Receptionist"],
+      ["Messages", "Offers & news", "Receptionist"],
       "REGRESSION: the deal was a row of the card and a fold under it (canvas A's order: the answers, then who answers)",
     );
     assert.equal(byTestId(tree, "rec-row-person-deal"), null);
@@ -2745,7 +2745,7 @@ test("the card's settings are one line each, and Change opens the editor under i
   const rows = all(settings, (n) => cls(n).split(" ").includes("rec-row"));
   assert.deepEqual(
     rows.map((r) => textOf(find(r, (n) => cls(n) === "rec-row-key"))),
-    ["Visit messages", "Offers & news", "Receptionist"],
+    ["Messages", "Offers & news", "Receptionist"],
     "REGRESSION: three stacked controls with a paragraph under each were 1,249px of rail (canvas A: the key over its answer)",
   );
   assert.ok(

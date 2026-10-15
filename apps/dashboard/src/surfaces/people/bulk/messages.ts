@@ -1,6 +1,6 @@
 /**
  * What may go to a selection, and who answers them: the person page's own group, Messages and receptionist (contracts
- * PERSON_ABOUT_WORDS.messages), for many at once. A yes to messages about their visit and how it was given, a yes to
+ * PERSON_ABOUT_WORDS.messages), for many at once. A yes to messages and how it was given, a yes to
  * offers and news by the form they signed, and the receptionist's mode, an owner's. One list, drawn as a desk bar's one
  * menu and a phone's one step (the sheets as verbs, 14 Oct 2026: a desk drew two menus, Record a yes and Receptionist,
  * and a phone two steps, from the same three sets). What a choice does is the bar's (bulk-acts.tsx), handed in.
@@ -39,7 +39,7 @@ export function messagesChoices(
     }));
   const groups: { header: string; items: MessagesChoice[] }[] = [];
   if (b.keeps("consent") && b.sources.length > 0) {
-    groups.push({ header: "Yes to messages about their visit", items: yesTo("conversational", b.sources, "check") });
+    groups.push({ header: "Yes to messages", items: yesTo("conversational", b.sources, "check") });
     if (b.offersSources.length > 0)
       groups.push({ header: "Yes to offers and news", items: yesTo("marketing", b.offersSources, "tag") });
   }

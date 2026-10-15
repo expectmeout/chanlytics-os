@@ -11,6 +11,7 @@ export {
   stepOfferWords,
   twinRunsWords,
 } from "./campaigns";
+export { answerSaidOf } from "./people-verbs";
 export { PERSON_DETAIL_WORDS } from "./person";
 export { PROPOSAL_WORDS } from "./spec";
 export type {

@@ -27,6 +27,8 @@ import {
   leadBand,
   memberWords,
   messageStatusLabel,
+  messagesSummaryOf,
+  personTabWord,
   replyChipOf,
   replyChipStateOf,
   reviewsWords,
@@ -43,6 +45,8 @@ import { importSrc } from "../../_source.mjs";
 const { CALL_OUTCOME_WORDS } = await importSrc("packages/contracts/src/conversations/call-dto.ts");
 const { invitationExpired } = await importSrc("packages/contracts/src/shell/identity.ts");
 const { plShownColumns, plColumnOptions } = await importSrc("apps/dashboard/src/surfaces/people/table/columns.ts");
+const { plSortedBy } = await importSrc("apps/dashboard/src/surfaces/people/words.ts");
+const { peopleSortItems } = await importSrc("apps/dashboard/src/surfaces/people/page/phone-menu.ts");
 
 const TZ = "America/New_York";
 const NOW = new Date("2026-09-18T18:00:00Z");
@@ -438,6 +442,31 @@ test("D1-visit-words: the person's page says the workspace's word for an appoint
   assert.equal("past" in W, false);
 });
 
+test("D1-visit-words: the person's tab for them, its figure and an untitled one's row say the workspace's word; Up next's yes says the Messages summary's", () => {
+  // Ten messages, so the record is not thin and draws its tabs and figures; one past visit the calendar names nothing for.
+  const messages = Array.from({ length: 10 }, (_, i) => message(`m${i}`, 100 + i * 10));
+  const visits = { ...VISITS, all: [VISITS.next, { ...VISITS.last, title: "" }] };
+  for (const [dealsOn, Many, Title] of [
+    [false, "Appointments", "Appointment"],
+    [true, "Meetings", "Meeting"],
+  ]) {
+    const p = personFor({ messages, visits, dealsOn });
+    const tab = (tabs) => tabs.find((t) => t.id === "visits")?.label;
+    assert.deepEqual([tab(p.tabs.desk), tab(p.tabs.phone)], [Many, Many], "the tab, on a desk and a phone");
+    assert.equal(p.figures.find((f) => f.id === "visits")?.label, Many, "the figure that opens it");
+    assert.equal(personTabWord("visits", dealsOn), Many, "and the tab's heading");
+    const rows = [...p.visitTab.toMark, ...p.visitTab.ahead, ...p.visitTab.past];
+    assert.deepEqual(rows.map((r) => r.title).sort(), [Title, VISITS.next.title].sort(), "an untitled one is the word");
+  }
+  assert.equal(personTabWord("history", true), "History", "the other tabs keep their own");
+  // Not asked, with one ahead and a number: Up next asks the yes in the folded summary's words.
+  const p = personFor({ messages, visits });
+  const rung = p.next.rows.find((r) => r.id === "consent:visit");
+  const [lead] = messagesSummaryOf({ label: "Not asked", unknown: true }, { label: "Not asked", unknown: true }, "");
+  assert.equal(rung?.title, `${lead.lead} not asked`);
+  assert.equal(rung.title, "Messages not asked");
+});
+
 test("D1-visit-words: People's table heads the column in the workspace's word, in the table and in the Columns menu", () => {
   const column = {
     key: "visits",
@@ -462,6 +491,15 @@ test("D1-visit-words: People's table heads the column in the workspace's word, i
     ),
     ["Last contact"],
   );
+  // How the list is ordered, and a phone's sort that orders it so, say the same word as the column.
+  assert.deepEqual(
+    [plSortedBy("visits", false), plSortedBy("visits", true), plSortedBy("last", true)],
+    ["Sorted by appointments", "Sorted by meetings", "Sorted by last contact"],
+  );
+  const sorts = (dealsOn) =>
+    peopleSortItems({ withCalendar: true, dealsOn, sortBy: "", sortDir: "", pickSort: () => {} }).map((i) => i.label);
+  assert.equal(sorts(false).at(-1), "Soonest appointment first");
+  assert.equal(sorts(true).at(-1), "Soonest meeting first");
 });
 
 test("REGRESSION (S9-9): a deal's stage is said in its stage's word on the sheet's receipt and its list; a thread moved says its tab's word", async () => {

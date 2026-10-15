@@ -24,6 +24,7 @@ export { MODEL_TURN_WRITE_MS, modelTurnRequestOf, modelTurnResponseOf } from "./
 export { MODEL_PRICES, MODEL_CALL_OUTCOMES, NO_USAGE, priceOf, usageDollars, usageTokens, usageOf, aiUsageBodyOf, usageMonthOf } from "./ai/usage";
 export { RUN_VERBS, PLAYBOOK_CARD_REFUSALS, PLAYBOOK_CARD_WORDS, MESSAGE_WORDS, proposalChannelsWords, stepOfferWords, twinRunsWords } from "./ask-proposals/campaigns";
 export { ASK_THREAD_ROUTES } from "./ask-proposals/inbox";
+export { answerSaidOf } from "./ask-proposals/people-verbs";
 export { PERSON_DETAIL_WORDS } from "./ask-proposals/person";
 export { PROPOSAL_SPECS, proposalSpec, verbSpec, proposalBelowNeeds, PROPOSAL_GATE, askUndoOpen } from "./ask-proposals/proposals";
 export { PROPOSAL_WORDS } from "./ask-proposals/spec";
@@ -240,7 +241,7 @@ export { LAST_WORDS_TITLE, lastWordsOf } from "./person-page/last-words";
 export { NEW_SINCE_WORDS, newSinceOf } from "./person-page/new-since";
 export { personNextOf, UP_NEXT_WORDS } from "./person-page/next";
 export { personNoticesOf } from "./person-page/notices";
-export { PERSON_FIGURES_LABEL, PERSON_TAB_WORDS, PERSON_TABS_LABEL, personRouteOf, personTabRoute, personTabsOf } from "./person-page/route";
+export { PERSON_FIGURES_LABEL, PERSON_TAB_WORDS, PERSON_TABS_LABEL, personRouteOf, personTabRoute, personTabsOf, personTabWord } from "./person-page/route";
 export { AUTOMATIC_NAMING, signerAgrees, signerOf } from "./person-page/signer";
 export { earlierVisitsOf, VISITS_TAB_WORDS } from "./person-page/visits";
 export { asNameSource, BUSINESS_DOOR_LABEL, CALL_FACT_WORDS, messagesSummaryOf, NAME_SOURCES, PERSON_ABOUT_WORDS, PERSON_LISTS_SHEET_WORDS, PERSON_NAME_WORDS, PERSON_PEEK_WORDS, PERSON_WALK_WORDS, PERSON_WASH_WORDS, receptionistKnowsOf, WORKS_AT_WORDS } from "./person-page/words";

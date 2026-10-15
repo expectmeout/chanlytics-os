@@ -1,6 +1,6 @@
 /**
  * What the person page changes about them (moved from legacy/pages/client-profile.jsx, decision 0015, step 5): the record kit's
- * rows (Receptionist, Visit messages, Offers & news), one line each at rest, and Change opens each one's editor in a `RecordFold`
+ * rows (Receptionist, Messages, Offers & news), one line each at rest, and Change opens each one's editor in a `RecordFold`
  * under the row (a sheet on a phone). These save as they are chosen, so their folds are given no `onSave` and draw only Close,
  * and a recorded answer closes its fold. Each row stays in the card behind its sheet on a phone (`behind`), as Settings ›
  * Business keeps its rows: taken out, the card was a row shorter under the wash, and everything under it moved up and back down.
@@ -17,6 +17,9 @@ import {
   OFFERS_IN_WRITING_WORDS,
   PERSON_ABOUT_WORDS,
   UP_NEXT_WORDS,
+  answerSaidOf,
+  appointmentWordWhere,
+  appointmentWords,
   isIdentifierName,
   messagesSummaryOf,
   offersYesRefusal,
@@ -49,42 +52,11 @@ const rmWord = (m: unknown): string => stateOf("mode", m).label;
 /** What recording an answer comes back with: the door's answer, or what stopped it. */
 type Recorded = { ok: boolean; message?: string };
 
-/** Their answer to a question, said in a toast: to offers, or to messages about their visit. */
+/** Their answer to a question, said in a toast as its receipt says it (contracts answerSaidOf), the name bold. */
 function saidAnswer(purpose: "marketing" | "conversational", consent: Answer, who: string): ReactNode {
-  if (purpose === "marketing") {
-    if (consent === "opted_in")
-      return (
-        <>
-          <b>{who}</b> said yes to offers and news
-        </>
-      );
-    if (consent === "opted_out")
-      return (
-        <>
-          <b>{who}</b> said no to offers — messages about their own visit still reach them
-        </>
-      );
-    return (
-      <>
-        <b>{who}</b> has not been asked about offers
-      </>
-    );
-  }
-  if (consent === "opted_in")
-    return (
-      <>
-        <b>{who}</b> said yes to messages about their visit
-      </>
-    );
-  if (consent === "opted_out")
-    return (
-      <>
-        <b>{who}</b> said stop — nothing goes out to them at all
-      </>
-    );
   return (
     <>
-      <b>{who}</b> is back to &quot;not asked&quot;
+      <b>{who}</b> {answerSaidOf(purpose, consent)}
     </>
   );
 }
@@ -209,10 +181,11 @@ function receptionistFold(c: PageCtx, row: ReactNode) {
   );
 }
 
-/** What is on record about messages for their visit, in a sentence. */
+/** What is on record about their messages, in a sentence: a yes says what may go to them, in the workspace's word. */
 function visitHint(c: PageCtx): string {
-  const { consent } = c.p;
-  if (consent.state === "opted_in") return `Yes — ${consent.sub}. Reminders about their visit may go to them.`;
+  const { consent, dealsOn } = c.p;
+  if (consent.state === "opted_in")
+    return `Yes — ${consent.sub}. Reminders about their ${appointmentWords(appointmentWordWhere(dealsOn)).many} may go to them.`;
   if (consent.state === "opted_out")
     return consent.source === "customer_message"
       ? `${consent.sub}. Nothing goes out. Record a yes only if they ask again.`
@@ -220,7 +193,7 @@ function visitHint(c: PageCtx): string {
   return "No answer yet. Replying to them is fine; anything we start needs their yes.";
 }
 
-/** Messages about their visit: the ask, with the words a yes is asked for in person. */
+/** Messages: the ask, with the words a yes is asked for in person. */
 function visitFold(c: PageCtx, row: ReactNode) {
   const { p, canRecord, folds } = c;
   // What to ask when the yes is spoken. The campaign files this sentence as the way a yes is given in person or on the
@@ -230,7 +203,7 @@ function visitFold(c: PageCtx, row: ReactNode) {
     <RecordFold
       wide
       id="person-visit"
-      label="Visit messages"
+      label="Messages"
       open={folds.visit.open}
       onCancel={folds.visit.close}
       behind={row}
@@ -238,7 +211,7 @@ function visitFold(c: PageCtx, row: ReactNode) {
       <ConsentAsk
         bare
         testid="consent-control"
-        label="Messages about their visit"
+        label="Messages"
         value={p.consent.state}
         sources={CONSENT_SOURCES}
         yesHow={askScript ? `Asking in person or on the phone? Say: “${askScript}”` : undefined}
@@ -258,7 +231,7 @@ function offersHint(c: PageCtx): string {
   const { consent } = c.p;
   if (consent.state === "opted_out") return `${STOP_WORDS.said("They")}, offers included.`;
   if (consent.marketing === "opted_in") return `Yes — ${consent.marketingSub}.`;
-  if (consent.marketing === "opted_out") return `No — ${consent.marketingSub}. Visit messages still reach them.`;
+  if (consent.marketing === "opted_out") return `No — ${consent.marketingSub}. Other messages still reach them.`;
   if (consent.marketingSource === STOP_ENDED_OFFERS_SOURCE)
     return `Not asked — ${consent.marketingSub}. A new yes must come in writing.`;
   return "Not asked. Offers go only to a yes in writing.";
@@ -356,7 +329,7 @@ function settingsCard(c: PageCtx) {
   const visitRow = (
     <RecordRow
       id="person-visit"
-      label="Visit messages"
+      label="Messages"
       value={stopped ? STOP_WORDS.mark : p.consent.answerLabel}
       act={canRecord && !stopped ? { label: askOr(p.consent.state), onClick: folds.visit.request } : null}
       stacked

@@ -124,7 +124,7 @@ function sampleRows(nowMs: number): PersonRowDto[] {
       open_escalation_since: ago(94),
       escalation_count: 1,
       latest_state: "needs_human",
-      visits: calendar(visit("v-aisha", "Balayage", nowMs + 3 * DAY_MS, 0), null),
+      visits: calendar(visit("v-aisha", "Follow-up", nowMs + 3 * DAY_MS, 0), null),
     }),
     baseRow("c-thewellness", "@thewellness.co", "02", {
       phone_e164: null,
@@ -145,7 +145,10 @@ function sampleRows(nowMs: number): PersonRowDto[] {
       earliest_row_at: ago(30),
     }),
     answered(["c-marcus", "Marcus Lee", "03"], 180, "Yes, Thursday at 4 works. See you then.", {
-      visits: calendar(visit("v-marcus", "Haircut", nowMs + 2 * DAY_MS, 0), visit("v-marcus-0", "Haircut", nowMs, -28)),
+      visits: calendar(
+        visit("v-marcus", "Check-in", nowMs + 2 * DAY_MS, 0),
+        visit("v-marcus-0", "Check-in", nowMs, -28),
+      ),
     }),
     answered(["c-david-chen", "David Chen", "04"], 26 * 60, "Thanks, I have put it in my calendar.", {
       visits: calendar(visit("v-david-chen", "Colour", nowMs + 4 * DAY_MS, 0), null),
@@ -177,7 +180,7 @@ function sampleRows(nowMs: number): PersonRowDto[] {
       call_seconds: 310,
       last_call_at: ago(5 * 60),
       last_inbound_call_at: ago(5 * 60),
-      last_inbound_call_summary: "Asked about a keratin treatment and left a callback number.",
+      last_inbound_call_summary: "Asked about prices and left a callback number.",
       first_contact_at: ago(9 * 24 * 60),
       earliest_row_at: ago(9 * 24 * 60),
     }),
