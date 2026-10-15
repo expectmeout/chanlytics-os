@@ -1,12 +1,13 @@
 /**
  * The Ask routes, from the browser: threads, one thread, a deletion, the
- * openings fast path, a card's outcome, and the turn itself as a stream of
+ * openings fast path, a quick answer kept, a card's outcome, and the turn itself as a stream of
  * JSON lines. Every call goes through the typed client, which names the
  * workspace, reads the envelope and signs the tab out on a 401; a card's
  * commit is marked `via: "ask"`, which the client sends as the x-via header
  * the ledger reads. Nothing here knows what the palette does with it.
  */
 import type {
+  AskAnswer,
   AskMessageVM,
   AskProposalOutcome,
   AskScope,
@@ -151,6 +152,30 @@ function speechCalls(client: Api) {
   };
 }
 
+/**
+ * A quick answer kept as a turn (POST ask/quick): the question and the answer the Line drew without a model, in the
+ * thread named or a new one. The thread it landed in, or null where it could not be kept: the answer stays drawn, and
+ * the next question opens a conversation of its own.
+ */
+function quickCalls(client: Api) {
+  return {
+    keepQuick: async (input: {
+      text: string;
+      answer: AskAnswer;
+      threadId: string | null;
+    }): Promise<{ id: string; title: string } | null> => {
+      try {
+        const r = await client("POST ask/quick", {
+          body: { text: input.text, answer: input.answer, ...(input.threadId ? { thread_id: input.threadId } : {}) },
+        });
+        return r.ok ? r.data.thread : null;
+      } catch {
+        return null;
+      }
+    },
+  };
+}
+
 /** The clip's whole wait: the route's own ceiling is a minute; a brief streams in well under ten seconds. */
 const SPEECH_MS = MIN_MS;
 
@@ -239,6 +264,7 @@ export function askApi(client: Api = api()) {
       }
     },
     warmModel: head.warmModel,
+    ...quickCalls(client),
     ...voiceCalls(client),
     ...speechCalls(client),
     send: async (

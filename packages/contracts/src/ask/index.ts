@@ -60,7 +60,7 @@ export { askJump, askPages, ASK_PAGES } from "./ask-jump";
 export type { JumpEntry } from "./ask-jump";
 export { buildAskSuggestions } from "./ask-suggestions";
 export type { AskSuggestion, SuggestionInput } from "./ask-suggestions";
-export { dayFromQuestion, askIntent, callsToday } from "./ask-fast-paths";
+export { dayFromQuestion, askIntent, callsToday, quickAnswerOf } from "./ask-fast-paths";
 export type { FastCall, AskIntent } from "./ask-fast-paths";
 export { callJumpSub, askCallOutcome } from "./ask-calls";
 export { applySettingsChange, describeSettingsChange } from "./ask-settings-change";
