@@ -473,7 +473,7 @@ const arQuickTurn = async (ln, q, pending, spoken) => {
   setQuick(null); setActive({ id: null, title: q, scope: null, kept, messages: [{ ...m, id: "u-" + m.atMs, role: "user", text: q }, { ...m, id: "k-" + m.atMs, role: "assistant", text: A.answerText(answer), answer }] });
   kept.then((th) => { if (th) { setActive((prev) => (prev && prev.kept === kept ? { ...prev, id: th.id, title: th.title } : prev)); A.threads().then(setThreads); } });
   if (M) { M.mood.set("idle"); M.mood.react("nod"); }
-  if (spoken) arAnswerAloud(ln, A.answerText(answer));
+  if (spoken) arAnswerAloud(ln, A.answerSpoken(answer));
 };
 /** A conversation a quick answer opened, once its turn is kept: in the thread it landed in, or in none if it was not. */
 const arKept = async (c) => { const th = await c.kept; return { ...c, kept: null, ...(th ? { id: th.id, title: th.title } : {}) }; };
@@ -557,7 +557,7 @@ const arTurnLanded = ({ A, M, t, turnSeq, setLive, setActive, setThreads, buzz, 
     else if (!turn.spoke) M.mood.react("nod");
   }
   setActive((prev) => (prev ? { ...prev, id: turn.threadId || prev.id, messages: [...prev.messages, turn.final] } : prev));
-  if (turn.spoken && !turn.final.failed) arAnswerAloud({ speech, flash, t }, A.answerText(A.answer(turn.final).answer));
+  if (turn.spoken && !turn.final.failed) arAnswerAloud({ speech, flash, t }, A.answerSpoken(A.answer(turn.final).answer));
   if (turn.threadId) A.threads().then((list) => {
     setThreads(list);
     const now = list.find((x) => x.id === turn.threadId);
@@ -603,9 +603,9 @@ const arUnder = ({ A, t, lang, query, surface, scope, threads, view, phone, acti
   const rows = flatRows(sections);
   const drawn = showRows || talk.listening || live || quick || !answerMsg ? null : A.answer(answerMsg);
   const moves = drawn ? answerMoves(drawn.answer) : [];
-  const words = drawn ? A.answerText(drawn.answer) : "";
+  const [words, spoken] = drawn ? [A.answerText(drawn.answer), A.answerSpoken(drawn.answer)] : ["", ""];
   const th = arThreadOf({ phone, view, active, quick, showRows, composing, talk, live, latest });
-  return { latest, folded, shownFolds, answerMsg, showRows, composingRows: composingRows && !th.thread, rowsDrawn, sections, rows, drawn, moves, words, ...th };
+  return { latest, folded, shownFolds, answerMsg, showRows, composingRows: composingRows && !th.thread, rowsDrawn, sections, rows, drawn, moves, words, spoken, ...th };
 };
 
 /** Whether the rows show: Earlier, words typed (a phone conversation's draft keeps its thread, D1), or nothing to answer yet. */
@@ -676,7 +676,7 @@ const arOnKey = ({ hold, live, stop, onClose, showRows, rows, moves, sel, setSel
 
 /** The field's end: the one button (the mic held to talk, Send, or Stop), with Copy, Read aloud and Clear before it beside a desktop's answer. */
 const arLineEnd = (ln) => {
-  const { words, flash, t, phone, buzz, talk, held, speech, query, live, stop, submit, drawn, lang, clearLine, AskActs, begin, end } = ln;
+  const { words, spoken, flash, t, phone, buzz, talk, held, speech, query, live, stop, submit, drawn, lang, clearLine, AskActs, begin, end } = ln;
   // Held to talk. The button keeps the finger (pointer capture), so the lift reaches it even once a phone's foot has
   // turned into "Let go to ask" over it; a phone buzzes as it starts (S16). The recogniser may end on its own before
   // the finger lifts (a pause ends it on Android Chrome and iOS Safari) and the words heard are asked then, so by the
@@ -734,7 +734,7 @@ const arLineEnd = (ln) => {
   // stays the same element); a phone's foot keeps only the one button, its acts under the answer, Clear the head's.
   const right = drawn && !phone ? (
     <>
-      <AskActs key="acts" words={words} speech={speech} flash={flash} t={t} />
+      <AskActs key="acts" words={words} spoken={spoken} speech={speech} flash={flash} t={t} />
       <button key="clear" type="button" className="ask-line-btn quiet" onClick={clearLine} aria-label={t.clear} title={t.clear} data-testid="ask-clear">
         <Icon name="x" size={14} />
       </button>
@@ -916,7 +916,7 @@ const arStage = ({ H, talk, live, stageRef, phone, faceRef, AskFace, scope, setS
 // it once it is whole (D14). A desktop's is the rows or the answer. At rest, while it listens at home and while the
 // field is in use there, what it holds stands centred (`rest`, `composing`; spec 5.2, 5.9); a thread dims under the
 // three come forward (`dim`, D4).
-const arMiddle = ({ phone, thread, listen, restful, composingRows, bodyRef, body, hero, folded, nowQ, drawn, words, speech, flash, t, lang, nav, submit, noteOutcome, editWords, AskThread, AskQuestion, AskActs }) => (
+const arMiddle = ({ phone, thread, listen, restful, composingRows, bodyRef, body, hero, folded, nowQ, drawn, words, spoken, speech, flash, t, lang, nav, submit, noteOutcome, editWords, AskThread, AskQuestion, AskActs }) => (
   <div className={`ask-line-body${restful ? " rest" : ""}${composingRows ? " composing" : ""}${thread ? " thread" : ""}${listen ? " dim" : ""}`} ref={bodyRef}>
     {thread ? <AskThread turns={folded} t={t} lang={lang} onNav={nav} onFollow={submit} onOutcome={noteOutcome} onEdit={editWords} /> : null}
     {phone ? (
@@ -924,7 +924,7 @@ const arMiddle = ({ phone, thread, listen, restful, composingRows, bodyRef, body
         {thread && nowQ ? <AskQuestion text={nowQ} now /> : null}
         {hero}
         {body}
-        {thread && drawn ? <AskActs words={words} speech={speech} flash={flash} t={t} /> : null}
+        {thread && drawn ? <AskActs words={words} spoken={spoken} speech={speech} flash={flash} t={t} /> : null}
       </div>
     ) : body}
   </div>

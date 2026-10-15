@@ -197,7 +197,7 @@ const appRoute = (v: unknown): string | null =>
 /**
  * A quick answer as POST ask/quick keeps it, the turn the Line drew without a model (the review's A1): its headline
  * and detail, its rows, each a row of the workspace with its door, and its Open -- every string cut to its cap, as the
- * answers say them. A quick answer has no figures, no breakdown and no next questions, so none is kept. Null for a
+ * answers say them. A quick answer has no figures, breakdown, list or next questions, so none is kept. Null for a
  * shape the Line never draws: no headline, a row with no kind, id or door, or a door that leaves the app.
  */
 export function quickAnswerOf(raw: unknown): AskAnswer | null {
@@ -226,7 +226,7 @@ export function quickAnswerOf(raw: unknown): AskAnswer | null {
     v: 2,
     form: "structured",
     say: { headline, detail: capTo(say.detail, C.detail) },
-    show: { figures: [], items, breakdown: null },
+    show: { figures: [], items, breakdown: null, list: { style: "bullets", entries: [] } },
     do: { open, next: [] },
     language: a.language === "es" || a.language === "en" ? a.language : "other",
   };

@@ -693,10 +693,10 @@ test("a quick answer as POST ask/quick keeps it: the answer the Line drew, cut t
   // Parts a quick answer never has are not kept.
   const extra = quickAnswerOf({
     ...calls,
-    show: { ...calls.show, figures: [{ value: "9" }] },
+    show: { ...calls.show, figures: [{ value: "9" }], list: { style: "numbers", entries: ["Call Robin"] } },
     do: { ...calls.do, next: ["Why?"] },
   });
-  assert.deepEqual([extra.show.figures, extra.do.next], [[], []]);
+  assert.deepEqual([extra.show.figures, extra.show.list, extra.do.next], [[], { style: "bullets", entries: [] }, []]);
   // Shapes the Line never draws.
   const item = (over) => ({
     ...open,
