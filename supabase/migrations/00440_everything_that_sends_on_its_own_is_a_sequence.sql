@@ -1,4 +1,4 @@
--- 00439 · Everything that sends on its own is a sequence: one storage for every kind (decision 0060, step S1).
+-- 00440 · Everything that sends on its own is a sequence: one storage for every kind (decision 0060, step S1).
 --
 -- A reminder before a visit, a win-back, a one-off for a date and emails to leads were kept in five tables under four
 -- names. They are now one model, each workspace's own:
@@ -740,11 +740,11 @@ create trigger workspace_tell_delete after delete on public.sequences
   referencing old table as changed for each statement execute function public.workspace_tell_changes();
 
 comment on table public.sequence_steps is
-  'Decision 0060: each step of a sequence in its place (playbooks until 00439). A step is one message (a template, on the channels it ticks) or, last in a sequence to leads, a call or note for the team (hand).';
+  'Decision 0060: each step of a sequence in its place (playbooks until 00440). A step is one message (a template, on the channels it ticks) or, last in a sequence to leads, a call or note for the team (hand).';
 comment on table public.sequence_batches is
-  'Decision 0060: what goes at one time in a sequence, the unit a person approves (broadcasts until 00439): a step''s run for a day (run_for), or a one-off''s only batch.';
+  'Decision 0060: what goes at one time in a sequence, the unit a person approves (broadcasts until 00440): a step''s run for a day (run_for), or a one-off''s only batch.';
 comment on table public.sequence_replies is
-  'Decision 0060: one reading of one reply to a sequence''s send, keyed by the message (reach_out_replies until 00439). The intent (or other, with why it could not be read), what the reading did (plan), and the draft it wrote.';
+  'Decision 0060: one reading of one reply to a sequence''s send, keyed by the message (reach_out_replies until 00440). The intent (or other, with why it could not be read), what the reading did (plan), and the draft it wrote.';
 
 -- The rows just carried, read by the planner as they are.
 analyze public.sequences, public.sequence_steps, public.sequence_batches, public.sequence_sends, public.sequence_replies;

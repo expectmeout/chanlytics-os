@@ -1,5 +1,5 @@
 /**
- * Decision 0060 on a real Postgres (00441): a sequence is read and changed through its doors, on the member's own session.
+ * Decision 0060 on a real Postgres (00442): a sequence is read and changed through its doors, on the member's own session.
  *
  *   1. The readers answer a member what the page draws, and a stranger nothing.
  *   2. A customer's step after the last is added under the first step's class, named as its message's row names it,

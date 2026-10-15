@@ -678,7 +678,7 @@ const TENANT_TABLES = {
       trigger: "new_week",
     }),
   ],
-  // Decision 0060 (00439): a sequence, its steps, its batches, its sends and its replies are each the workspace's. The five
+  // Decision 0060 (00440): a sequence, its steps, its batches, its sends and its replies are each the workspace's. The five
   // names above are views of them, under the caller's own rights; these are the tables.
   sequences: ["member", () => ({ tenant_id: A, name: "stranger sequence", starts: "date" })],
   sequence_steps: [
@@ -705,7 +705,7 @@ const TENANT_TABLES = {
     }),
   ],
   sequence_sends: ["member", () => ({ tenant_id: A, batch_id: ctx.broadcast, contact_id: ctx.contact2 })],
-  // Someone in a sequence (00440): members read where people stand; only the sends' trigger and the leave door write it.
+  // Someone in a sequence (00441): members read where people stand; only the sends' trigger and the leave door write it.
   sequence_enrollments: ["member", () => ({ tenant_id: A, sequence_id: ctx.broadcast, contact_id: ctx.contact2 })],
   sequence_replies: [
     "member",

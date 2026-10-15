@@ -1,4 +1,4 @@
--- 00441 · A sequence is read and changed through its own doors (decision 0060, steps S0 and S3).
+-- 00442 · A sequence is read and changed through its own doors (decision 0060, steps S0 and S3).
 --
 -- The Sequences page and Ask read the same four answers and press the same doors:
 --
@@ -28,10 +28,10 @@
 --   sequence_discard           A sequence that never made a batch taken away whole: a draft let go, or a new one undone;
 --                              discard_sequence.
 --
--- A draft stays a draft while its first step does not run: the first step's state says the sequence's (00439), and a
+-- A draft stays a draft while its first step does not run: the first step's state says the sequence's (00440), and a
 -- draft's turns 'on' when it runs, never 'paused' before.
 --
--- Deploy order: this migration first (00439, 00440 before it). A dashboard from before cancels a run by writing its
+-- Deploy order: this migration first (00440, 00441 before it). A dashboard from before cancels a run by writing its
 -- state from the member's session, which this takes away: its Stop says the run could not be stopped until it deploys.
 -- Re-runnable.
 
@@ -648,7 +648,7 @@ begin
 end $$;
 
 comment on function public.sequence_step_words(uuid, uuid, uuid, jsonb, jsonb, text, uuid) is
-  'A step''s message changed (0060): at once where the step does not go by WhatsApp or the message''s WhatsApp version is approved; else the new words wait for WhatsApp (next_template_*) while the step sends its own, and take its place when WhatsApp approves them (00440). On the member''s own rights; the change_step decision rides in the same transaction. Answers whether the words wait.';
+  'A step''s message changed (0060): at once where the step does not go by WhatsApp or the message''s WhatsApp version is approved; else the new words wait for WhatsApp (next_template_*) while the step sends its own, and take its place when WhatsApp approves them (00441). On the member''s own rights; the change_step decision rides in the same transaction. Answers whether the words wait.';
 
 create or replace function public.sequence_leave(p_tenant_id uuid, p_sequence_id uuid, p_enrollment_ids uuid[],
                                                 p_why text default 'removed',
@@ -722,7 +722,7 @@ as $$
               else 'paused' end
 $$;
 
--- The first step's name and state are its sequence's (00439), and a draft stays one until its first step runs.
+-- The first step's name and state are its sequence's (00440), and a draft stays one until its first step runs.
 create or replace function public.sequence_steps_say_sequence() returns trigger
 language plpgsql security definer
 set search_path = public
@@ -847,7 +847,7 @@ begin
     raise exception 'It has sent: pause it instead.' using errcode = 'P0001';
   end if;
   select count(*) into v_steps from public.sequence_steps where sequence_id = p_sequence_id;
-  -- Its first step goes, the steps after it with it (after_step_id cascades), and the sequence with them (00439).
+  -- Its first step goes, the steps after it with it (after_step_id cascades), and the sequence with them (00440).
   delete from public.sequence_steps where id = p_sequence_id;
   return jsonb_build_object('id', p_sequence_id, 'steps', v_steps)
     || public.team_decision(p_tenant_id, v_actor, 'sequence', p_sequence_id, 'discard_sequence',

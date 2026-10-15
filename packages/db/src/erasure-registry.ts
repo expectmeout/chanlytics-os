@@ -46,7 +46,7 @@ export const ERASURE_LEGS = {
   signer_trigger:
     "person_signer_erase_on_contact: the name and title a reply's reading found as its signer, and what became of it, cleared (00413)",
   recipients_trigger:
-    "sequence_sends_on_erase: the words each batch kept for them, a visit's time, service and key and a proposal's link, cleared (00391, 00439)",
+    "sequence_sends_on_erase: the words each batch kept for them, a visit's time, service and key and a proposal's link, cleared (00391, 00440)",
   jobs_scrub:
     "scrubErasedJobs and erase_contact: a job's payload that carried their number or words overwritten, and its error cleared",
   ask_scrub: "scrub_ask_for_contact: the assistant's turns that name them deleted (00238)",

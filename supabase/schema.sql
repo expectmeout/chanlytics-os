@@ -24800,7 +24800,7 @@ begin
     raise exception 'It has sent: pause it instead.' using errcode = 'P0001';
   end if;
   select count(*) into v_steps from public.sequence_steps where sequence_id = p_sequence_id;
-  -- Its first step goes, the steps after it with it (after_step_id cascades), and the sequence with them (00439).
+  -- Its first step goes, the steps after it with it (after_step_id cascades), and the sequence with them (00440).
   delete from public.sequence_steps where id = p_sequence_id;
   return jsonb_build_object('id', p_sequence_id, 'steps', v_steps)
     || public.team_decision(p_tenant_id, v_actor, 'sequence', p_sequence_id, 'discard_sequence',
@@ -25665,7 +25665,7 @@ end $$;
 -- Name: FUNCTION sequence_step_words(p_tenant_id uuid, p_step_id uuid, p_template_id uuid, p_params jsonb, p_decision jsonb, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_step_words(p_tenant_id uuid, p_step_id uuid, p_template_id uuid, p_params jsonb, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A step''s message changed (0060): at once where the step does not go by WhatsApp or the message''s WhatsApp version is approved; else the new words wait for WhatsApp (next_template_*) while the step sends its own, and take its place when WhatsApp approves them (00440). On the member''s own rights; the change_step decision rides in the same transaction. Answers whether the words wait.';
+COMMENT ON FUNCTION public.sequence_step_words(p_tenant_id uuid, p_step_id uuid, p_template_id uuid, p_params jsonb, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A step''s message changed (0060): at once where the step does not go by WhatsApp or the message''s WhatsApp version is approved; else the new words wait for WhatsApp (next_template_*) while the step sends its own, and take its place when WhatsApp approves them (00441). On the member''s own rights; the change_step decision rides in the same transaction. Answers whether the words wait.';
 
 
 --
@@ -29147,7 +29147,7 @@ CREATE TABLE public.sequence_batches (
 -- Name: TABLE sequence_batches; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.sequence_batches IS 'Decision 0060: what goes at one time in a sequence, the unit a person approves (broadcasts until 00439): a step''s run for a day (run_for), or a one-off''s only batch.';
+COMMENT ON TABLE public.sequence_batches IS 'Decision 0060: what goes at one time in a sequence, the unit a person approves (broadcasts until 00440): a step''s run for a day (run_for), or a one-off''s only batch.';
 
 
 --
@@ -31839,7 +31839,7 @@ END),
 -- Name: TABLE sequence_steps; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.sequence_steps IS 'Decision 0060: each step of a sequence in its place (playbooks until 00439). A step is one message (a template, on the channels it ticks) or, last in a sequence to leads, a call or note for the team (hand).';
+COMMENT ON TABLE public.sequence_steps IS 'Decision 0060: each step of a sequence in its place (playbooks until 00440). A step is one message (a template, on the channels it ticks) or, last in a sequence to leads, a call or note for the team (hand).';
 
 
 --
@@ -32171,7 +32171,7 @@ CREATE TABLE public.sequence_replies (
 -- Name: TABLE sequence_replies; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.sequence_replies IS 'Decision 0060: one reading of one reply to a sequence''s send, keyed by the message (reach_out_replies until 00439). The intent (or other, with why it could not be read), what the reading did (plan), and the draft it wrote.';
+COMMENT ON TABLE public.sequence_replies IS 'Decision 0060: one reading of one reply to a sequence''s send, keyed by the message (reach_out_replies until 00440). The intent (or other, with why it could not be read), what the reading did (plan), and the draft it wrote.';
 
 
 --

@@ -13,7 +13,7 @@ import { makeSequenceNow } from "@/server/sequences/doors";
  *      first step a campaign's own body (as POST playbooks takes one, judged by the same check), up to three steps after
  *      it, each a wait, what must still hold and a message with its values; kept as a draft that sends nothing until it
  *      is started (`start` false), or started. Owner or operator; written in one transaction with its make_sequence
- *      decision (00441 sequence_create). Answers its id, how many steps and its state.
+ *      decision (00442 sequence_create). Answers its id, how many steps and its state.
  *
  * The body is its reader's (readers/sequences.ts), which Ask reads too.
  */

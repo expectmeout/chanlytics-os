@@ -206,7 +206,7 @@ function world() {
       delete from public.person_notes where tenant_id = b;
       ${told("note_removed")}
 
-      -- A sequence made, paused and removed by a teammate through its first step (00376, 00439): Campaigns' rows and acts
+      -- A sequence made, paused and removed by a teammate through its first step (00376, 00440): Campaigns' rows and acts
       -- repaint. Its template is told on its own account (00408).
       insert into public.templates (tenant_id, channel, name, language, meta_status)
         values (a, 'whatsapp', 'told_offer', 'en_US', 'approved') returning id into tpl;
@@ -621,7 +621,7 @@ test(
       "its template is told on its own (00408)",
     );
     // A first step made through the old name makes its sequence, a pause is the sequence's too, and a first step removed
-    // that never ran takes its sequence (00439): each table told once.
+    // that never ran takes its sequence (00440): each table told once.
     assert.deepEqual(steps.playbook_made, [
       notice("a", "INSERT", "sequence_steps"),
       notice("a", "INSERT", "sequences"),

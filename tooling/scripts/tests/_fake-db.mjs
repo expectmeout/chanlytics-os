@@ -785,10 +785,10 @@ function recordProviderStopIn(tables, args, insertRow) {
   return true;
 }
 
-/* ------------------------------------------------------------ the sequence tables (decision 0060, 00439) -- */
+/* ------------------------------------------------------------ the sequence tables (decision 0060, 00440) -- */
 
 /**
- * The five old names, each a view of its sequence table (00439): its base, its columns' old names, and which of the
+ * The five old names, each a view of its sequence table (00440): its base, its columns' old names, and which of the
  * base's rows it shows. A fixture that seeds an old name is written into the base, as a write through the view is; a
  * read of an old name draws the base's rows under the view's columns; a write through it lands on the base.
  */
@@ -835,7 +835,7 @@ function throughOldName(name, base) {
   });
 }
 
-/** A first step's sequence (00439 sequence_steps_place): its id, its name, how it starts and whether it is on. */
+/** A first step's sequence (00440 sequence_steps_place): its id, its name, how it starts and whether it is on. */
 const sequenceOfFirstStep = (row) => ({
   id: row.id,
   tenant_id: row.tenant_id,
@@ -845,7 +845,7 @@ const sequenceOfFirstStep = (row) => ({
 });
 
 /**
- * What a sequence table's BEFORE INSERT trigger fills (00439 sequence_steps_place, sequence_batches_place,
+ * What a sequence table's BEFORE INSERT trigger fills (00440 sequence_steps_place, sequence_batches_place,
  * sequence_sends_place): a step's sequence and place (a first step makes its sequence with its id), a batch's
  * sequence (a one-off is a sequence of its own on a date), a send's sequence and step from its batch, and its first
  * state by its family. The row is filled in place and answered.
@@ -994,7 +994,7 @@ function viewsOverBases(tables) {
  */
 export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
   const seen = [];
-  // The five old names are views of the sequence tables (00439): a fixture seeded under one is written into its base.
+  // The five old names are views of the sequence tables (00440): a fixture seeded under one is written into its base.
   viewsOverBases(tables);
 
   /**
@@ -1428,7 +1428,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         })),
     }),
     /**
-     * A batch canceled by a member (00441 sequence_batch_cancel), only from the state it was read in: true when it moved.
+     * A batch canceled by a member (00442 sequence_batch_cancel), only from the state it was read in: true when it moved.
      * The member is judged by the route before it, as the definer door judges them; the SQL is proved on a stack
      * (sequences/sequence-doors.db.test.mjs).
      */
@@ -1442,7 +1442,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       return true;
     },
     /**
-     * The hourly sweeps' pages (00440 sequence_steps_due, calendars_due), answered from the rows a fixture sets the way
+     * The hourly sweeps' pages (00441 sequence_steps_due, calendars_due), answered from the rows a fixture sets the way
      * the database answers them: only what is due, a paused workspace's never, the longest waiting first, `p_limit`
      * of them, every row carrying `due_total`, the count of all that were due. A door test runs the real sweep over
      * what the database would have judged due; the SQL itself is proved on a stack in ops/sweep-pages.db.test.mjs.
@@ -1450,8 +1450,8 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     sequence_steps_due: ({ p_kind, p_at, p_last_hour, p_limit, p_tenant_id }) => {
       const at = new Date(p_at);
       const steps = tables.sequence_steps ?? [];
-      // A customer's step after the first runs only while its first step runs and its sequence is on (00440). A sequence
-      // is on while its first step runs (00439 sequence_steps_say_sequence keeps the two together), unless it ended.
+      // A customer's step after the first runs only while its first step runs and its sequence is on (00441). A sequence
+      // is on while its first step runs (00440 sequence_steps_say_sequence keeps the two together), unless it ended.
       const sequenceOn = (p) =>
         p.kind === "reach_out" ||
         ((steps.find((r) => r.id === p.sequence_id)?.state ?? "running") === "running" &&
@@ -1742,7 +1742,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       },
       insert(values) {
         q.op = "insert";
-        // A sequence table's row as its BEFORE INSERT trigger fills it (00439), judged after.
+        // A sequence table's row as its BEFORE INSERT trigger fills it (00440), judged after.
         q.values = (Array.isArray(values) ? values : [values]).map((v) =>
           filledBySequenceTriggers(tables, table, { ...v }),
         );

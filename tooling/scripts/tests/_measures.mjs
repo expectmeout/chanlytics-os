@@ -228,7 +228,7 @@ const isSqlWord = (t, v) => t?.type === "word" && t.value.toLowerCase() === v;
 
 /**
  * The schema's tables, by name: each `create table public.<name>` the replayed migrations' snapshot holds. Its `views`
- * names each view drawn from one table with that table (00439's old names): a write through such a view is a write of
+ * names each view drawn from one table with that table (00440's old names): a write through such a view is a write of
  * its table.
  */
 function schemaTables(sql) {

@@ -1,6 +1,6 @@
 /**
  * A sequence's History (D3: Sent becomes History; the canvas's History board): what it sent, a batch a row, newest first
- * (00441 sequence_history): when, to how many, and what became of its sends (sent, replied, held, failed), with why a
+ * (00442 sequence_history): when, to how many, and what became of its sends (sent, replied, held, failed), with why a
  * batch failed. Older batches are read a page at a time; a batch opens where Sent opens a run.
  */
 import { useState } from "react";

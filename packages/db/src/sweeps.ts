@@ -49,14 +49,14 @@ function remainingOf(rows: Array<{ due_total: unknown }>): number {
 type StepRow = Database["public"]["Tables"]["sequence_steps"]["Row"];
 
 export interface DueStep {
-  /** The step as its row reads (sequence_steps, 00439). */
+  /** The step as its row reads (sequence_steps, 00440). */
   step: StepRow;
   /** The zone it was judged due in: its workspace's own (tenants.timezone), the one its run keeps to. */
   timezone: string;
 }
 
 /**
- * The running steps of one kind due at `at` (00245 playbooks_due's rule; sequence_steps_due, 00440): at or past their hour
+ * The running steps of one kind due at `at` (00245 playbooks_due's rule; sequence_steps_due, 00441): at or past their hour
  * by their workspace's own clock, not past the last hour a message may go out, and not yet run for that clock's day --
  * runDueNow's rule, judged in the database -- never run first, then the least recently run, `limit` of them, with the
  * exact count of due steps beyond the page. A paused workspace's are not due: they run the hour after it resumes, their

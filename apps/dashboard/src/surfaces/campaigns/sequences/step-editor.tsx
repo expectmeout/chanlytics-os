@@ -2,7 +2,7 @@
  * A customer's step after the first, opened in place (D6, the canvas's editor): how long after the step before it, what
  * must still be true (they haven't booked, haven't written back), and the message it sends, with a box for each value the
  * message takes that is typed rather than filled by the run (contracts defaultParamSpecs). Saved through the sequence's
- * own doors (00441): a new step at the end, or this one changed; its words changed apart, since a WhatsApp version not
+ * own doors (00442): a new step at the end, or this one changed; its words changed apart, since a WhatsApp version not
  * yet approved waits while the step sends its own (`waits`). The server judges the values against the message (core
  * templateValues) and says what it refused in words.
  */
@@ -26,7 +26,7 @@ import { pressed } from "./verbs";
 
 type Flash = (flash: LegacyFlash) => void;
 
-/** The waits a step may take, in days (00440: one to ninety). */
+/** The waits a step may take, in days (00441: one to ninety). */
 const WAITS = [1, 2, 3, 4, 5, 7, 10, 14, 21, 28, 30, 45, 60, 90] as const;
 
 /** What must still hold, as one choice: the page's four, each a set of conditions. */

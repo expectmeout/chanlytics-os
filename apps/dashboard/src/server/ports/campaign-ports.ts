@@ -200,7 +200,7 @@ export function approveRunPorts(ctx: RouteContext, tenantId: string): ApproveRun
 export function cancelBroadcastPorts(ctx: RouteContext, tenantId: string): CancelBroadcastPorts {
   return {
     withdraw: (id) => cancelKindFor(tenantId, "broadcast_send", "broadcast_id", id),
-    // The batch door (00441 sequence_batch_cancel): members no longer write a batch's row themselves.
+    // The batch door (00442 sequence_batch_cancel): members no longer write a batch's row themselves.
     cancel: (id, from) => cancelSequenceBatch(ctx.supabase, { tenantId, batchId: id, from }),
     record: (subject, id, verb, payload) => recordDecision(ctx, tenantId, subject, id, verb, payload),
   };

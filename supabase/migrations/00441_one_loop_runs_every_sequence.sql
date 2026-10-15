@@ -1,6 +1,6 @@
--- 00440 · One loop runs every sequence (decision 0060, step S2).
+-- 00441 · One loop runs every sequence (decision 0060, step S2).
 --
--- 00439 made one storage. This moves the loop onto it:
+-- 00440 made one storage. This moves the loop onto it:
 --
 --   sequence_claim_from        A mailbox's due sends to leads, claimed within its day under its lock: reach_out_claim_from
 --                              over sequence_sends, its body the same. The lock's key is the old one, so a clock of either
@@ -12,7 +12,7 @@
 -- Each returns sequence_sends' own rows, so the clock reads a send by its new names (batch_id, step_id, sequence_id). The
 -- old five stay over their view until the deploy, and go with it (S6).
 --
--- Deploy order: this migration first (00439 before it). Re-runnable.
+-- Deploy order: this migration first (00440 before it). Re-runnable.
 
 set local lock_timeout = '3s';
 

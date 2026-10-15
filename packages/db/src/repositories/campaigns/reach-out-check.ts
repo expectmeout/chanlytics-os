@@ -32,7 +32,7 @@ export interface ReachOutRecordRow {
   claimed: boolean | null;
 }
 
-/** A send to check (00197; sequence_unchecked, 00440), leased to this tick: the send, its step, its sequence and its record. */
+/** A send to check (00197; sequence_unchecked, 00441), leased to this tick: the send, its step, its sequence and its record. */
 export interface UncheckedSend {
   send: ReachOutSendRow;
   /** The words' version the send was read at: the check writes only while it is still this (R5). */

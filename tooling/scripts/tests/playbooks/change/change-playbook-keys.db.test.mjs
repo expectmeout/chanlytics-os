@@ -1,7 +1,7 @@
 /**
  * 00416 on a real Postgres: a campaign ends, runs on trial, and changes its words.
  *
- *   1. The two columns stand where 00439 moved the playbooks (decision 0060, sequence_steps): until is a date and
+ *   1. The two columns stand where 00440 moved the playbooks (decision 0060, sequence_steps): until is a date and
  *      trial_until a timestamptz, both null with no default, each saying what it is, a member's session may write both,
  *      and the change_playbook and start_playbook doors are a member's. 00416 is not run again: the table it altered
  *      is sequence_steps now, and its old name a view.

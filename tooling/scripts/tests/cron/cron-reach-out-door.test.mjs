@@ -92,7 +92,7 @@ const email = (id, status, over = {}) => ({
   ...over,
 });
 
-/** A lead's send as sequence_sends holds it (00439): what the clock's readers hand back since 00440. */
+/** A lead's send as sequence_sends holds it (00440): what the clock's readers hand back since 00441. */
 const stored = ({ broadcast_id, playbook_id, root_id, ...s }) => ({
   ...s,
   batch_id: broadcast_id,

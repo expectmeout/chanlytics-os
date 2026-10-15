@@ -12,7 +12,7 @@ import { changeSequenceStep, dropSequenceStep } from "@/server/sequences/doors";
  *        is left of the sequence. Never the first step, which is the sequence.
  *
  * Owner or operator; the sequence is the row (sequenceScope), the step is found inside it by its door, and the
- * change_step decision is written in the same transaction (00441).
+ * change_step decision is written in the same transaction (00442).
  */
 export const PUT = write({
   scope: sequenceScope,

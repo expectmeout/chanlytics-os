@@ -192,7 +192,7 @@ export async function runningTwins(
 
 /**
  * Whether this workspace already has a playbook on the proposal follow-up's moment (`trigger`), in any state: what the
- * database's one-follow-up index (00167, sequence_steps_one_follow_up since 00439) holds a workspace to one of, read before a second is
+ * database's one-follow-up index (00167, sequence_steps_one_follow_up since 00440) holds a workspace to one of, read before a second is
  * proposed (Ask's card) or a starter is filed for one (POST playbooks), so the index is the last word and never the first.
  * Under the caller's row security. Throws on a failed read.
  */
@@ -212,7 +212,7 @@ export async function followUpOnFile(db: Db, tenantId: string, trigger: string):
  * person's `consent_channels` and `marketing_channels` (00297). Postgres's 42703, "column ... does not exist", read by
  * its words as readLeadContext reads it. The caller reads again without the columns: the arrays then read as null
  * (WhatsApp alone), so every reply, booking link and WhatsApp broadcast of code that shipped before its migration goes
- * on. Either deploy order works. (A send's own channel needs no second read: 00439's one table of sends has it.)
+ * on. Either deploy order works. (A send's own channel needs no second read: 00440's one table of sends has it.)
  */
 export function noChannelColumns(error: { message: string } | null | undefined): boolean {
   return (

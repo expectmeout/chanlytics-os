@@ -179,7 +179,7 @@ test(
           ...over,
         })
         .select("id");
-    // 00441: a member writes no batch of their own (the doors make and decide one), so the fence is the database's for
+    // 00442: a member writes no batch of their own (the doors make and decide one), so the fence is the database's for
     // whoever writes: another workspace's template is no batch's, by its same-workspace key.
     refused(await run(me.session, { template_id: mine.template }), "a member's own batch: the doors' to make");
     const own = ok(

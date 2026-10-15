@@ -176,7 +176,7 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof POLICY_MODES>, SchemaSet<"policies.mode">>>,
   Holds<Exactly<Of<typeof SERVER_NOTIFICATION_KINDS>, SchemaSet<"notifications.kind">>>,
 
-  // Sequences (decision 0060, 00439): how one starts and where it stands; a batch's states; a send's, a customer's four within
+  // Sequences (decision 0060, 00440): how one starts and where it stands; a batch's states; a send's, a customer's four within
   // a lead's nine. A step runs under one of the policy classes.
   Holds<Exactly<Of<typeof SEQUENCE_STARTS>, SchemaSet<"sequences.starts">>>,
   Holds<Exactly<Of<typeof SEQUENCE_STATES>, SchemaSet<"sequences.state">>>,

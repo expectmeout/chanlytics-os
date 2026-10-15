@@ -12,7 +12,7 @@ import { FOLLOW_UP_CONDITIONS, type FollowUpCondition } from "./follow-up";
 /** How long the owner's line may be, and how many steps may follow the first. */
 export const SEQUENCE_DRAFT_WORDS_MAX = 500;
 export const SEQUENCE_DRAFT_THEN_MAX = 3;
-/** The wait before a step after the first, in days: the steps' own bounds (00440 sequence_steps_shape). */
+/** The wait before a step after the first, in days: the steps' own bounds (00441 sequence_steps_shape). */
 export const SEQUENCE_WAIT_DAYS = { min: 1, max: 90 } as const;
 
 /**

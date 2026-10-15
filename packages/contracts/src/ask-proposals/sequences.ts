@@ -1,5 +1,5 @@
 /**
- * The Sequences page's own verbs (decision 0060, 00441's doors), committed through the one walk every sheet and card
+ * The Sequences page's own verbs (decision 0060, 00442's doors), committed through the one walk every sheet and card
  * goes through (the sheets as verbs, VERB_SPECS): a customer's step after the first added or changed, taken away, given
  * new words, people taken out, and a sequence made from its draft or a draft let go. Each says the same receipt and
  * offers the same undo whichever hand pressed it. A sequence's state and a batch's approval are the campaign's and the run's own verbs (`playbook_change`, `run`).
@@ -209,7 +209,7 @@ export const sequenceMakeSpec: ProposalSpec = {
 
 /**
  * A draft started: its first step runs, through the campaign's own door (PUT playbooks/:id, its change_playbook line), so
- * the sequence is on (00441 sequence_state_of). The undo pauses it; it is never a draft again, having been on.
+ * the sequence is on (00442 sequence_state_of). The undo pauses it; it is never a draft again, having been on.
  */
 export const sequenceStartSpec: ProposalSpec = {
   needs: "operator",

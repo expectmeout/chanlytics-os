@@ -10,7 +10,7 @@ import { discardSequenceNow } from "@/server/sequences/doors";
  * sequence is the row (sequenceScope), found under RLS, so one the caller cannot see is 404. Any member.
  * DELETE /api/v1/sequences/:id — a sequence that never made a batch nor took anyone in, taken away whole (S4): a draft
  *      let go, or a new one undone. One that has sent is refused (409): it is paused, its history kept. Owner or
- *      operator; the discard_sequence decision is written in the same transaction (00441 sequence_discard).
+ *      operator; the discard_sequence decision is written in the same transaction (00442 sequence_discard).
  */
 export const GET = read({
   scope: sequenceScope,

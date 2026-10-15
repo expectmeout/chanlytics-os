@@ -1,5 +1,5 @@
 /**
- * A sequence's sends to leads and the doors they go through (Reach out Part 3; `sequence_sends` since 00439, decision
+ * A sequence's sends to leads and the doors they go through (Reach out Part 3; `sequence_sends` since 00440, decision
  * 0060): the one place a lead's send is typed, and the doors of 00184. The service role asks every one of them (the edge's clock and run); a read or a door that fails throws,
  * because "we could not check" is not "yes". Cross-workspace: the reach-out clock's sweeps read every workspace; each
  * door given a tenant keeps to it.
@@ -12,7 +12,7 @@ import { withdrawQueued } from "./control";
 import { recordEvent } from "../events";
 
 type Db = SupabaseClient<Database>;
-/** One message of a sequence to one person (00439): a customer's (contact_id, no lead_id) or a lead's. */
+/** One message of a sequence to one person (00440): a customer's (contact_id, no lead_id) or a lead's. */
 export type SequenceSendRow = Database["public"]["Tables"]["sequence_sends"]["Row"];
 /** A send to a lead: its lead always named (sequence_sends_someone, and every reader here keeps to a lead's sends). */
 export type ReachOutSendRow = Omit<SequenceSendRow, "lead_id"> & { lead_id: string };
@@ -163,7 +163,7 @@ export interface QueuedOutcome {
   written_at: string | null;
 }
 
-/** Queued sends with their emails, the ones with an outcome to read first (00186; sequence_queued_outcomes, 00440). */
+/** Queued sends with their emails, the ones with an outcome to read first (00186; sequence_queued_outcomes, 00441). */
 export async function queuedOutcomes(db: Db, limit: number, tenantId?: string): Promise<QueuedOutcome[]> {
   const { data, error } = await db.rpc("sequence_queued_outcomes", {
     p_limit: limit,
@@ -185,7 +185,7 @@ export async function stuckClaims(db: Db, before: Date, limit: number, tenantId?
   return leadSends(data);
 }
 
-/** Planned sends left past `before` in runs that go ahead on running chains (00186; sequence_stale_sends, 00440). */
+/** Planned sends left past `before` in runs that go ahead on running chains (00186; sequence_stale_sends, 00441). */
 export async function staleSends(db: Db, before: Date, limit: number, tenantId?: string): Promise<ReachOutSendRow[]> {
   const { data, error } = await db.rpc("sequence_stale_sends", {
     p_before: before.toISOString(),
@@ -196,7 +196,7 @@ export async function staleSends(db: Db, before: Date, limit: number, tenantId?:
   return leadSends(data);
 }
 
-/** The open sends of canceled or failed runs, with their email's state (00186; sequence_closed_sends, 00440). */
+/** The open sends of canceled or failed runs, with their email's state (00186; sequence_closed_sends, 00441). */
 export async function closedRunSends(
   db: Db,
   stuckBefore: Date,

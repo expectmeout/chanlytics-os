@@ -2615,7 +2615,7 @@ Foreign keys:
 
 ### sequence_batches
 
-Decision 0060: what goes at one time in a sequence, the unit a person approves (broadcasts until 00439): a step's run for a day (run_for), or a one-off's only batch.
+Decision 0060: what goes at one time in a sequence, the unit a person approves (broadcasts until 00440): a step's run for a day (run_for), or a one-off's only batch.
 
 - Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts`
 - Primary key: `id`
@@ -2696,7 +2696,7 @@ Foreign keys:
 
 ### sequence_replies
 
-Decision 0060: one reading of one reply to a sequence's send, keyed by the message (reach_out_replies until 00439). The intent (or other, with why it could not be read), what the reading did (plan), and the draft it wrote.
+Decision 0060: one reading of one reply to a sequence's send, keyed by the message (reach_out_replies until 00440). The intent (or other, with why it could not be read), what the reading did (plan), and the draft it wrote.
 
 - Owned by: `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/workspace-export.ts`
 - Primary key: `message_id`
@@ -2822,7 +2822,7 @@ Foreign keys:
 
 ### sequence_steps
 
-Decision 0060: each step of a sequence in its place (playbooks until 00439). A step is one message (a template, on the channels it ticks) or, last in a sequence to leads, a call or note for the team (hand).
+Decision 0060: each step of a sequence in its place (playbooks until 00440). A step is one message (a template, on the channels it ticks) or, last in a sequence to leads, a call or note for the team (hand).
 
 - Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/workspace-export.ts`, `packages/db/src/sweeps.ts`
 - Primary key: `id`

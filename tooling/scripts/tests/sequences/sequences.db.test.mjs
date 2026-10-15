@@ -1,5 +1,5 @@
 /**
- * Decision 0060 on a real Postgres (00439, 00440): one storage for every sequence, and the loop's own reads and door.
+ * Decision 0060 on a real Postgres (00440, 00441): one storage for every sequence, and the loop's own reads and door.
  *
  *   1. A first step made through the old name makes its sequence with its id; a step after it joins it one place on; the
  *      sequence says the first step's name and state; a step stays in its sequence and its place.

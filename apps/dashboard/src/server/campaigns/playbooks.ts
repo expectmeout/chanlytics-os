@@ -485,7 +485,7 @@ export function playbookPatchPorts(ctx: RouteContext, tenantId: string): CheckPl
 
 /**
  * A write of a playbook the database refused, in words where it is the workspace's one proposal follow-up (00167,
- * sequence_steps_one_follow_up since 00439: two would each owe every proposal its nudge, 0006); any other refusal as it came.
+ * sequence_steps_one_follow_up since 00440: two would each owe every proposal its nudge, 0006); any other refusal as it came.
  */
 export function playbookWriteError(error: { code?: string; message: string }): Error {
   return error.code === "23505" && error.message.includes("sequence_steps_one_follow_up")

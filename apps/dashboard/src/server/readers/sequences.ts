@@ -16,7 +16,7 @@ import * as readers from "./facts";
 /**
  * The Sequences page's reads (decision 0060), one reader each, which Ask's tools read too, so the number Ask says is the
  * number the page shows: the workspace's sequences, one sequence with its steps and who approves its batches, who is in
- * one, and what one sent. Each runs on the member's own session (00441's readers are under their row security), and
+ * one, and what one sent. Each runs on the member's own session (00442's readers are under their row security), and
  * says the workspace's clock beside what it read.
  */
 

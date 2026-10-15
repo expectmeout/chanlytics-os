@@ -1,5 +1,5 @@
 /**
- * What the sequence readers answer (00441): `sequence_overview` a row a sequence, `sequence_steps_of` its steps,
+ * What the sequence readers answer (00442): `sequence_overview` a row a sequence, `sequence_steps_of` its steps,
  * `sequence_people` who is in it by where they stand, `sequence_history` what it sent, a batch a row. The page and Ask
  * read these and nothing else of a sequence, so the number Ask says is the number the page shows.
  */
@@ -85,7 +85,7 @@ export interface SequenceRowDto {
   in_it: number;
 }
 
-/** New words for a step that wait for WhatsApp to approve them (00440), with WhatsApp's answer so far. */
+/** New words for a step that wait for WhatsApp to approve them (00441), with WhatsApp's answer so far. */
 export interface SequenceNextWordsDto {
   template_id: string | null;
   name: string;

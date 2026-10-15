@@ -8,7 +8,7 @@ import { changeSequenceWords } from "@/server/sequences/doors";
  * values its slots take, judged against it (decision 0060). At once where the step does not go by WhatsApp or the
  * message's WhatsApp version is approved; else the new words and their values wait for WhatsApp while the step sends its
  * own, and take their place when WhatsApp approves them (`waits`). Owner or operator; the change_step decision is written
- * in the same transaction (00441 sequence_step_words).
+ * in the same transaction (00442 sequence_step_words).
  */
 export const POST = write({
   scope: sequenceScope,

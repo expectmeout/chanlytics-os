@@ -157,7 +157,7 @@ const messageRow = async (id) => ok(await db.from("messages").select("*").eq("id
 const leadOf = async (id) => ok(await db.from("leads").select("*").eq("id", id).single());
 const readingOf = async (id) => ok(await db.from("reach_out_replies").select("*").eq("message_id", id).maybeSingle());
 const sendsOf = async (runId) => ok(await db.from("reach_out_sends").select("*").eq("broadcast_id", runId));
-// A step as the sweep hands it to its runner: its table's row (00439), its sequence named.
+// A step as the sweep hands it to its runner: its table's row (00440), its sequence named.
 const playbook = async (id) => ok(await db.from("sequence_steps").select("*").eq("id", id).single());
 const noticesOn = async (conversationId) =>
   ok(

@@ -2,7 +2,7 @@
  * A sequence's People (Leads for a sequence to leads; the canvas's People board): who is in it, by where they stand, in
  * the People tab's order (contracts SEQUENCE_PEOPLE_GROUPS): waiting for your OK, held by the check, for you to send, up
  * next, in it, done and left, each group's whole count and its first rows. Someone still in it may be taken out, alone or
- * with the rest of their group: a send of theirs not yet gone is skipped with them (00441 sequence_leave). A held email and
+ * with the rest of their group: a send of theirs not yet gone is skipped with them (00442 sequence_leave). A held email and
  * one the owner sends from their own mail are decided where every such email is (the run's sheet, and Sent's one To send),
  * each row a door there, until this tab decides them in place (the plan's S6).
  */

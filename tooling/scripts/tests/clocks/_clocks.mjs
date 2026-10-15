@@ -62,7 +62,7 @@ export const CLOCKS = {
   platform_metrics_roll: { kind: "roll", why: "counts each workspace's day" },
   playbooks: {
     kind: "due",
-    why: "runs each step of every sequence once a day, at its hour in its workspace's zone, judged from the hour and the day it last ran on its row (00245; sequence_steps_due, 00440); skips a playbook's run still waiting for approval once the day it was made for has passed (its row's run_for, the approve verb's own rule: contracts runTooLate); and writes the day's reach-out line at six",
+    why: "runs each step of every sequence once a day, at its hour in its workspace's zone, judged from the hour and the day it last ran on its row (00245; sequence_steps_due, 00441); skips a playbook's run still waiting for approval once the day it was made for has passed (its row's run_for, the approve verb's own rule: contracts runTooLate); and writes the day's reach-out line at six",
     times: ["sequence_steps.run_hour", "sequence_steps.last_run_for"],
     fn: "sequence_steps_due",
   },

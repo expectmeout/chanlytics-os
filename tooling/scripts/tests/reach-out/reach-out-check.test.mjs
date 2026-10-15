@@ -345,7 +345,7 @@ function world({ sends = [], records = {}, billing = "active", monthSent = 0, sp
           leased.push(s.id);
         }
         return picked.map((s) => ({
-          // As sequence_sends holds it (00439): what sequence_unchecked hands back since 00440.
+          // As sequence_sends holds it (00440): what sequence_unchecked hands back since 00441.
           send: (({ broadcast_id, playbook_id, root_id, ...x }) => ({
             ...x,
             batch_id: broadcast_id,

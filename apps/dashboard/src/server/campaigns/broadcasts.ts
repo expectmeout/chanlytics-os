@@ -564,7 +564,7 @@ const RECIPIENT_COLUMNS =
 
 /**
  * Every person on a run, a page at a time, each with the channel the send picked for them (00298; every send has its
- * column since 00439 made the one table of sends).
+ * column since 00440 made the one table of sends).
  */
 async function recipientsOf(ctx: RouteContext, tenantId: string, id: string): Promise<RecipientRow[]> {
   // The person is the tiebreak the pager needs (the key is broadcast_id, contact_id).

@@ -4,7 +4,7 @@
  * reach production before they do. Where the database answers that such a column does not exist (42703), each read is
  * made again without it -- the arrays read as null, which is WhatsApp alone -- so every reply, receptionist answer,
  * booking link and WhatsApp broadcast keeps going. A send's channel and attempt (00298, 00301) are no longer read twice:
- * 00439 made the one table of sends with both, so no database the code meets lacks them.
+ * 00440 made the one table of sends with both, so no database the code meets lacks them.
  *
  * The database in memory is made the older one by `withoutColumns` (_schema.mjs): it refuses a read that names a column
  * the older schema lacks, as the real one does, so a read that still named one would fail here as it would there.

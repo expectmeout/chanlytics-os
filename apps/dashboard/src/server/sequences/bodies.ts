@@ -13,7 +13,7 @@ import {
  * alone. What a value means (a message's slots, a step of this sequence) is the doors' to judge (doors.ts).
  */
 
-/** The wait before a customer's step after the first, in days: the steps' own bounds (00440 sequence_steps_shape). */
+/** The wait before a customer's step after the first, in days: the steps' own bounds (00441 sequence_steps_shape). */
 const AFTER_DAYS = z.number().int().min(1, "Wait at least a day.").max(90, "Wait at most 90 days.");
 const ONLY_IF = z.array(z.enum(FOLLOW_UP_CONDITIONS)).max(FOLLOW_UP_CONDITIONS.length);
 const CHANNELS = z.array(z.enum(CONSENT_CHANNELS)).min(1, "Name a channel.").max(CONSENT_CHANNELS.length);

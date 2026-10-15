@@ -2,7 +2,7 @@
  * A customer's sequence takes more steps (decision 0060, D6): a step some days after the one before, which goes only if
  * what it was for still holds (no booking, no reply), and stops a person who booked or wrote back since. The step runs
  * through the moment's own run (core run-playbook.ts), over the people the database says are due it
- * (`sequence_follow_ups_due`, 00440); these are the rules it judges them by.
+ * (`sequence_follow_ups_due`, 00441); these are the rules it judges them by.
  */
 import type { CampaignHow } from "../broadcasts/broadcast-audience";
 import { reachFor, type HeldOn } from "../broadcasts/reach-for";

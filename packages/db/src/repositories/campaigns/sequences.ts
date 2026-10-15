@@ -1,6 +1,6 @@
 /**
  * Sequences (decision 0060): what the loop reads of someone in a sequence, the door that takes them out, and what the
- * Sequences page and Ask read and press (00441). The loop's two are the service role's (the hourly sweep's run of a
+ * Sequences page and Ask read and press (00442). The loop's two are the service role's (the hourly sweep's run of a
  * customer's step after the first); the readers run on the member's own session, where row security decides, and the
  * doors on it too, each writing its decision in its own transaction. A read that fails throws; a door answers its
  * refusal with its SQLSTATE and its own words (DoorResult).
@@ -12,7 +12,7 @@ import { answer, type DoorResult } from "./reach-out-leads";
 
 type Db = SupabaseClient<Database>;
 
-/** Someone a customer's step after the first is due to (00440 sequence_follow_ups_due). */
+/** Someone a customer's step after the first is due to (00441 sequence_follow_ups_due). */
 interface FollowUpDueRow {
   enrollment_id: string;
   contact_id: string;
@@ -35,7 +35,7 @@ export async function followUpsDue(db: Db, stepId: string, runFor: string): Prom
 }
 
 /**
- * People taken out of their sequence (00440 sequence_enrollments_leave): each still in it leaves with `why`, and a send
+ * People taken out of their sequence (00441 sequence_enrollments_leave): each still in it leaves with `why`, and a send
  * of theirs not yet gone is skipped with it. `by` names the member who did it. How many left.
  */
 export async function leaveSequence(
@@ -88,7 +88,7 @@ export async function sequencesOfPerson(
   });
 }
 
-/* ---------------------------------------------------------------------------------- the page's reads (00441) -- */
+/* ---------------------------------------------------------------------------------- the page's reads (00442) -- */
 
 /**
  * A sequence by its id, or by the id of one of its parts, under the caller's row security: an old address names a
@@ -126,7 +126,7 @@ function readerRowsOf<T>(data: unknown): T[] {
   return Array.isArray(data) ? data.filter((r): r is T => typeof r === "object" && r !== null) : [];
 }
 
-/** The workspace's sequences, newest first, or the one named (00441 sequence_overview). */
+/** The workspace's sequences, newest first, or the one named (00442 sequence_overview). */
 export async function sequenceOverview(db: Db, tenantId: string, sequenceId?: string): Promise<SequenceRowDto[]> {
   const { data, error } = await db.rpc("sequence_overview", {
     p_tenant_id: tenantId,
@@ -136,14 +136,14 @@ export async function sequenceOverview(db: Db, tenantId: string, sequenceId?: st
   return readerRowsOf<SequenceRowDto>(data);
 }
 
-/** A sequence's steps in their places, with what each sent in the last 30 days (00441 sequence_steps_of). */
+/** A sequence's steps in their places, with what each sent in the last 30 days (00442 sequence_steps_of). */
 export async function sequenceStepsOf(db: Db, tenantId: string, sequenceId: string): Promise<SequenceStepDto[]> {
   const { data, error } = await db.rpc("sequence_steps_of", { p_tenant_id: tenantId, p_sequence_id: sequenceId });
   if (error) throw new Error(`cannot read the sequence's steps: ${error.message}`);
   return readerRowsOf<SequenceStepDto>(data);
 }
 
-/** Who is in a sequence, by where they stand (00441 sequence_people). */
+/** Who is in a sequence, by where they stand (00442 sequence_people). */
 export async function sequencePeopleOf(
   db: Db,
   p: { tenantId: string; sequenceId: string; limit?: number },
@@ -158,7 +158,7 @@ export async function sequencePeopleOf(
   return { counts: got.counts ?? {}, rows: Array.isArray(got.rows) ? got.rows : [] };
 }
 
-/** What a sequence sent, a batch a row, newest first (00441 sequence_history). */
+/** What a sequence sent, a batch a row, newest first (00442 sequence_history). */
 export async function sequenceHistoryOf(
   db: Db,
   p: { tenantId: string; sequenceId: string; before?: string | null; limit?: number },
@@ -174,7 +174,7 @@ export async function sequenceHistoryOf(
   return { batches: Array.isArray(got.batches) ? got.batches : [], more: got.more === true };
 }
 
-/* ------------------------------------------------------------------------------------ the doors (00441) -- */
+/* ------------------------------------------------------------------------------------ the doors (00442) -- */
 
 /** What a member's door on a sequence answers: the row it wrote, and its decision's id. */
 export interface SequenceDoorAnswer {
@@ -204,7 +204,7 @@ const decided = (d: DoorDecision) => ({
   ...(d.undoOf ? { p_undo_of: d.undoOf } : {}),
 });
 
-/** A customer's step after the first added at the end of its sequence, or changed (00441 sequence_step_save). */
+/** A customer's step after the first added at the end of its sequence, or changed (00442 sequence_step_save). */
 export async function saveSequenceStep(
   db: Db,
   p: { tenantId: string; sequenceId: string; step: Json } & DoorDecision,
@@ -218,7 +218,7 @@ export async function saveSequenceStep(
   return answer<SequenceDoorAnswer>(data, error);
 }
 
-/** A customer's step after the first taken away, with the steps after it (00441 sequence_step_remove). */
+/** A customer's step after the first taken away, with the steps after it (00442 sequence_step_remove). */
 export async function removeSequenceStep(
   db: Db,
   p: { tenantId: string; stepId: string } & DoorDecision,
@@ -231,7 +231,7 @@ export async function removeSequenceStep(
   return answer<SequenceDoorAnswer>(data, error);
 }
 
-/** A step given another message and the values it takes: at once, or waiting for WhatsApp (00441 sequence_step_words). */
+/** A step given another message and the values it takes: at once, or waiting for WhatsApp (00442 sequence_step_words). */
 export async function setSequenceStepWords(
   db: Db,
   p: { tenantId: string; stepId: string; templateId: string; params?: Json } & DoorDecision,
@@ -246,7 +246,7 @@ export async function setSequenceStepWords(
   return answer<SequenceDoorAnswer>(data, error);
 }
 
-/** People taken out of a sequence by a member (00441 sequence_leave): only theirs in that sequence. */
+/** People taken out of a sequence by a member (00442 sequence_leave): only theirs in that sequence. */
 export async function takeOutOfSequence(
   db: Db,
   p: { tenantId: string; sequenceId: string; enrollmentIds: readonly string[]; why?: string } & DoorDecision,
@@ -262,7 +262,7 @@ export async function takeOutOfSequence(
 }
 
 /**
- * A new customer's sequence made whole (00441 sequence_create, S4): its first step as start_playbook takes one, and the
+ * A new customer's sequence made whole (00442 sequence_create, S4): its first step as start_playbook takes one, and the
  * steps after it, kept as a draft or started; the make_sequence decision rides in the write.
  */
 export async function makeSequence(
@@ -279,7 +279,7 @@ export async function makeSequence(
   return answer<SequenceDoorAnswer>(data, error);
 }
 
-/** A sequence that never sent taken away whole (00441 sequence_discard): a draft let go, or a new one undone. */
+/** A sequence that never sent taken away whole (00442 sequence_discard): a draft let go, or a new one undone. */
 export async function discardSequence(
   db: Db,
   p: { tenantId: string; sequenceId: string } & DoorDecision,
@@ -292,7 +292,7 @@ export async function discardSequence(
   return answer<SequenceDoorAnswer>(data, error);
 }
 
-/** A batch canceled by a member, only from the state it was read in (00441 sequence_batch_cancel). True when it moved. */
+/** A batch canceled by a member, only from the state it was read in (00442 sequence_batch_cancel). True when it moved. */
 export async function cancelSequenceBatch(
   db: Db,
   p: { tenantId: string; batchId: string; from: string },

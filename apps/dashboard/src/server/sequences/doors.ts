@@ -20,7 +20,7 @@ import { dbRefusal, type RouteContext } from "@/server/with-route";
 import type { LeaveBody, NewSequenceBody, NewStepBody, StepChangeBody, StepWordsBody } from "./bodies";
 
 /**
- * A sequence's doors (decision 0060, 00441), as the routes under sequences press them: a new sequence made whole and one
+ * A sequence's doors (decision 0060, 00442), as the routes under sequences press them: a new sequence made whole and one
  * that never sent let go, a customer's step after the first added, changed or taken away, a step given another message,
  * and people taken out. A step's values are judged
  * against its message here (core templateValues, the one judgement a playbook's values meet); each door judges the
