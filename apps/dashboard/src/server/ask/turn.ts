@@ -200,6 +200,7 @@ export async function finishAskTurn(p: PreparedTurn, emit: (ev: AskTurnLine) => 
     form: result.answer.form,
     language: result.answer.language,
     first_say_ms: result.shape.first_say_ms,
+    speed: result.shape.speed,
     cache_hit: result.shape.cache_hit,
     follow_up: result.shape.follow_up,
     opened_ms: openedMs,

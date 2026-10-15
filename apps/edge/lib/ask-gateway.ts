@@ -10,7 +10,9 @@
  *     count that cannot be read holds the turn. The tee reads a round's usage off the stream as it is forwarded.
  *   - validateGatewayRequest and its limits: what a request may ask for; anything else is refused (bad_request) before
  *     the key is spent. Ask may name any model that reads as one (its deployment's ASK_MODEL); the small drafts
- *     name the registry's for their route.
+ *     name the registry's for their route. A request may ask for fast mode (`speed`), a thinking type and the betas
+ *     GATEWAY_BETAS lists, each dropped when it is none of those (extrasOf); the port sends each model only what it
+ *     takes (channels models/anthropic.ts).
  *   - modelPurposeOf: the registry's purpose a gateway purpose is asked as.
  *
  * Two records of one round, on purpose: the event above is the budget's count (a sum over 24 hours, purged with the
@@ -21,12 +23,16 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   ASK_MAX_TOKENS,
   ASK_WARM_MAX_TOKENS,
+  FAST_MODE_BETA,
   MODELS,
   MODEL_EFFORTS,
   MODEL_ROUTES,
+  THINKING_TYPES,
   readsAsModel,
   type ModelEffort,
   type ModelPurpose,
+  type ModelSpeed,
+  type ThinkingType,
 } from "./packages/contracts.js";
 import type { Database } from "./packages/db.js";
 import { emitEvent } from "./packages/db.js";
@@ -39,6 +45,8 @@ export interface AskUsage {
   output_tokens: number;
   cache_read_input_tokens: number;
   cache_creation_input_tokens: number;
+  /** The speed the round ran at, as the API's usage said it; absent when it said none (the door then says the asked). */
+  speed?: ModelSpeed;
 }
 
 const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
@@ -118,6 +126,10 @@ export function teeUsage(
   let stopReason: string | null = null;
   let carry = "";
   const decoder = new TextDecoder();
+  // The API says the speed a round ran at in its usage (fast mode's prices are their own): kept when it says one.
+  const noteSpeed = (v: unknown) => {
+    if (v === "fast" || v === "standard") usage.speed = v;
+  };
   const scan = (text: string) => {
     carry += text;
     const lines = carry.split("\n");
@@ -142,8 +154,10 @@ export function teeUsage(
         usage.input_tokens = num(u.input_tokens);
         usage.cache_read_input_tokens = num(u.cache_read_input_tokens);
         usage.cache_creation_input_tokens = num(u.cache_creation_input_tokens);
+        noteSpeed(u.speed);
       } else if (ev.type === "message_delta") {
         if (ev.usage) usage.output_tokens = num(ev.usage.output_tokens) || usage.output_tokens;
+        noteSpeed(ev.usage?.speed);
         if (ev.delta?.stop_reason) stopReason = ev.delta.stop_reason;
       }
     }
@@ -187,9 +201,42 @@ export interface GatewayRequest {
   };
   /** The cache diagnostics (the Phase 6 plan, D2): the message this request follows on, or null to start comparing. */
   diagnostics?: { previous_message_id: string | null };
+  /**
+   * Fast mode (contracts MODEL_SPEEDS): "fast" rides through, any other word is standard, which is a request that names
+   * none. The port sends it, with FAST_MODE_BETA, only to a model that runs it, and asks again at standard speed when
+   * fast mode's own limit refuses it.
+   */
+  speed?: "fast";
+  /** How the model thinks (contracts THINKING_TYPES); the port sends it only to a model that accepts the type. */
+  thinking?: { type: ThinkingType };
+  /** The betas the request names, each one GATEWAY_BETAS lists: the anthropic-beta header, never the body. */
+  betas?: string[];
 }
 
 const EFFORTS: ReadonlySet<string> = new Set(MODEL_EFFORTS);
+
+/**
+ * The betas a gateway request may name; another is dropped before the key is spent. Fast mode's is the port's to add
+ * for a fast request, and may be named too; a beta joins the list with the feature that needs it.
+ */
+const GATEWAY_BETAS: readonly string[] = [FAST_MODE_BETA];
+const THINKING: ReadonlySet<string> = new Set(THINKING_TYPES);
+
+/**
+ * What a request asks of the model beyond its words, each dropped when it is not one the gateway knows, never refused,
+ * as an effort is: fast mode ("fast" rides through; any other speed is standard, a request that names none), a
+ * thinking type of THINKING_TYPES (its type alone: a budget is a 400 on every model Ask runs), and the betas
+ * GATEWAY_BETAS lists, each once.
+ */
+function extrasOf(r: Partial<GatewayRequest>): Pick<GatewayRequest, "speed" | "thinking" | "betas"> {
+  const type = r.thinking && typeof r.thinking === "object" ? (r.thinking as { type?: unknown }).type : undefined;
+  const betas = Array.isArray(r.betas) ? [...new Set(r.betas.filter((b) => GATEWAY_BETAS.includes(b)))] : [];
+  return {
+    ...(r.speed === "fast" ? { speed: "fast" as const } : {}),
+    ...(typeof type === "string" && THINKING.has(type) ? { thinking: { type: type as ThinkingType } } : {}),
+    ...(betas.length ? { betas } : {}),
+  };
+}
 
 /**
  * What the gateway spends the key on. Every purpose counts in Ask's own daily budget (ASK_USAGE_KIND). A warm
@@ -323,6 +370,7 @@ export function validateGatewayRequest(
       ...(typeof r.temperature === "number" ? { temperature: Math.min(1, Math.max(0, r.temperature)) } : {}),
       ...(effort || format ? { output_config: { ...(effort ? { effort } : {}), ...(format ? { format } : {}) } } : {}),
       ...diagnosticsOf(r.diagnostics),
+      ...extrasOf(r),
     },
   };
 }

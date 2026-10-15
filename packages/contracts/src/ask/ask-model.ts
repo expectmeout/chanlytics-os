@@ -16,6 +16,14 @@
  * that names no model gets the edge's own fallback (GATEWAY_FALLBACK_MODEL),
  * for a dashboard older than the profile, never this default.
  *
+ * Fast mode is on by default (Ruben, 15 Oct 2026: "lets never focus on cost
+ * rather then efficiency"): every round of a model that runs it (ai/models.ts
+ * hasFastMode: Opus 5.5 and Opus 5) is asked at `speed: "fast"`, typed and
+ * spoken alike, at twice the price (ai/usage.ts FAST_MODE_PRICES). ASK_SPEED
+ * =standard turns it off without a code change; a model without fast mode runs
+ * at standard whatever it says. The warm asks at the turn's speed, since a
+ * cache written at one speed is not read at the other.
+ *
  * A model the registry prices (ai/usage.ts MODEL_PRICES) has its dollars in
  * the ledger; one it does not is run all the same and its dollars are left
  * unsaid, never guessed. The day's cap counts tokens, so it holds either way.
@@ -40,29 +48,48 @@
  * another model is replayed as words, never as that model's blocks
  * (memory.ts replayFor).
  */
-import { MODEL_EFFORTS, MODEL_ROUTES, readsAsModel, type ModelEffort } from "../ai/models";
+import {
+  MODEL_EFFORTS,
+  MODEL_ROUTES,
+  hasFastMode,
+  readsAsModel,
+  type ModelEffort,
+  type ModelSpeed,
+} from "../ai/models";
 
 export interface AskModelProfile {
   /** The model's id as the API takes it: the registry's, or any other a deployment names. */
   id: string;
   /** The effort every round is asked at, identical on every round of a thread: a change mid-thread misses the cache. */
   effort: ModelEffort;
+  /** The speed every round is asked at: fast mode where the model runs it and ASK_SPEED does not say standard. */
+  speed: ModelSpeed;
 }
 
 /** The default model: the one a deployment runs when its environment names none (the registry's, ai/models.ts). */
 export const ASK_MODEL = MODEL_ROUTES.ask.model;
 /** The default effort: low, what the gate was run at and production has answered at since. */
 export const ASK_EFFORT: ModelEffort = "low";
+/** The default speed: fast, on a model that runs it (Ruben, 15 Oct 2026). ASK_SPEED=standard is the switch off. */
+export const ASK_SPEED: ModelSpeed = "fast";
 
 /**
- * The profile two variables pick: the model `name` reads as, else the default; the effort `effort` is, else the
- * default. Never a throw: a variable that reads as nothing runs the default, and the caller says so.
+ * The profile three variables pick: the model `name` reads as, else the default; the effort `effort` is, else the
+ * default; fast mode unless `speed` says standard, on a model that runs it. Never a throw: a variable that reads as
+ * nothing runs the default, and the caller says so.
  */
-export function askModelProfile(name: string | null | undefined, effort?: string | null): AskModelProfile {
-  const id = (name ?? "").trim();
+export function askModelProfile(
+  name: string | null | undefined,
+  effort?: string | null,
+  speed?: string | null,
+): AskModelProfile {
+  const named = (name ?? "").trim();
+  const id = readsAsModel(named) ? named : ASK_MODEL;
   const asked = (effort ?? "").trim();
+  const wanted: ModelSpeed = (speed ?? "").trim() === "standard" ? "standard" : ASK_SPEED;
   return {
-    id: readsAsModel(id) ? id : ASK_MODEL,
+    id,
     effort: (MODEL_EFFORTS as readonly string[]).includes(asked) ? (asked as ModelEffort) : ASK_EFFORT,
+    speed: wanted === "fast" && hasFastMode(id) ? "fast" : "standard",
   };
 }

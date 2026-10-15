@@ -6,14 +6,30 @@ export {
   MODEL_PURPOSES,
   MODEL_ROUTES,
   MODEL_PORTS,
+  MODEL_SPEEDS,
+  MODEL_TAKES,
+  FAST_MODE_BETA,
+  THINKING_TYPES,
   RETELL_MODELS,
   modelRoute,
   fallbackModel,
   shadowPortOf,
   isModelId,
   readsAsModel,
+  modelTakes,
+  hasFastMode,
 } from "./models";
-export type { ModelEffort, ModelId, ModelPort, ModelPurpose, ModelRoute, ShadowPort } from "./models";
+export type {
+  ModelEffort,
+  ModelId,
+  ModelPort,
+  ModelPurpose,
+  ModelRoute,
+  ModelSpeed,
+  ModelTakes,
+  ShadowPort,
+  ThinkingType,
+} from "./models";
 export {
   SYSTEM_ONE_MODEL,
   SYSTEM_ONE_STATE_MAX_CHARS,
@@ -41,6 +57,7 @@ export {
 export type { ShadowCallFor, ShadowCallOutcome, ShadowCallSpec, ShadowRead } from "./shadow";
 export {
   MODEL_PRICES,
+  FAST_MODE_PRICES,
   MODEL_CALL_OUTCOMES,
   NO_USAGE,
   priceOf,

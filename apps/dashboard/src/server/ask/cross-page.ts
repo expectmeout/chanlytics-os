@@ -158,12 +158,14 @@ const OFFER_ASKED = new RegExp(
 /**
  * The reads each page's own rows already answer, by tool and action: on that page, its context answers the question.
  * Campaigns' rows are its campaigns and offers, so AUDIENCES' words name them there; who a send can reach is no row of
- * it, and is read when asked in REACH's words.
+ * it, and is read when asked in REACH's words. Today is not one (the speed plan, A1, 15 Oct 2026): its page block
+ * holds the day's rows, and the `today` read holds what it does not -- the standing, who needs you with the reasons and
+ * their last words, the recap -- so the model called it in 27 of production's 39 two-round turns. A question of how
+ * things stand reads it ahead there too, as it does on every other page.
  */
 const ON_PAGE: Partial<Record<AskSurface, ReadonlySet<string>>> = {
   calendar: new Set(["calendar.openings", "calendar.week"]),
   campaigns: new Set(["campaigns.playbooks", "campaigns.audiences"]),
-  today: new Set(["today"]),
   pipeline: new Set(["people.pipeline"]),
   conversations: new Set(["calls.list"]),
   live: new Set(["calls.list"]),

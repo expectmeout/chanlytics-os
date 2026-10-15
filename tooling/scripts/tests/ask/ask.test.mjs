@@ -1771,11 +1771,13 @@ test("the cross-page reads: what a question names plainly of another page is rea
   // Today counts the day's calls and lists none of them: a question about them reads the list there too.
   assert.deepEqual(names("Were there any calls today?", "today"), ['calls {"action":"list","filter":"recent"}']);
   // The questions that cost a second round in production (the week to 5 Oct 2026), each read ahead now. How things
-  // stand, asked in the open: Today's own read and the week's report; on Today the page is the context already.
+  // stand, asked in the open: Today's own read and the week's report, on Today too, whose page block holds the day's
+  // rows and not the read's standing, reasons and recap (the speed plan, A1, 15 Oct 2026).
   assert.deepEqual(names("Hey how's the business", "calendar"), ["today {}", 'report {"days":7}']);
   assert.deepEqual(names("¿cómo va el negocio?", "inbox"), ["today {}", 'report {"days":7}']);
   assert.deepEqual(names("catch me up"), ["today {}", 'report {"days":7}']);
-  assert.deepEqual(names("What should I do next?", "today"), ['report {"days":7}']);
+  assert.deepEqual(names("What should I do next?", "today"), ["today {}", 'report {"days":7}']);
+  assert.deepEqual(names("Brief me on today", "today"), ["today {}", 'report {"days":7}']);
   // What is booked, however it is asked.
   assert.deepEqual(names("What do I have tomorrow?", "today"), ['calendar {"action":"week","day":"tomorrow"}']);
   assert.deepEqual(names("Who are the upcoming bookings", "today"), ['calendar {"action":"week","day":"today"}']);

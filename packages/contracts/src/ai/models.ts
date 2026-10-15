@@ -21,12 +21,16 @@
  * here so every model the platform pays for is in one list.
  */
 
-/** The models the platform asks, by their API ids: the only place an id is written (model-registry.test.mjs). */
+/**
+ * The models the platform asks, by their API ids: the only place an id is written (model-registry.test.mjs). Haiku 5.5
+ * (15 Oct 2026, the speed plan's step 1) is listed for the lookup tier the eval will try; no route asks it yet.
+ */
 export const MODELS = {
   OPUS_5_5: "claude-opus-5-5",
   OPUS_5: "claude-opus-5",
   SONNET_5_5: "claude-sonnet-5-5",
   SONNET_5: "claude-sonnet-5",
+  HAIKU_5_5: "claude-haiku-5-5",
   HAIKU_4_5: "claude-haiku-4-5-20251001",
 } as const;
 /** The same ids as a closed set: a new one is added above, with its price (usage.ts MODEL_PRICES). */
@@ -35,9 +39,70 @@ export const MODEL_IDS = [
   MODELS.OPUS_5,
   MODELS.SONNET_5_5,
   MODELS.SONNET_5,
+  MODELS.HAIKU_5_5,
   MODELS.HAIKU_4_5,
 ] as const;
 export type ModelId = (typeof MODEL_IDS)[number];
+
+/**
+ * How fast a model writes: at its standard speed, or in fast mode (Anthropic's research preview, the Claude API only:
+ * up to 2.5 times the output tokens a second, at twice the price; usage.ts FAST_MODE_PRICES). A request asks for fast
+ * mode with `speed: "fast"` in its body and FAST_MODE_BETA in its anthropic-beta header; standard is the request
+ * that names no speed. Fast mode has its own rate limit, apart from the model's: the port asks a fast request that
+ * limit refuses (a 429) once more at standard speed (channels models/anthropic.ts).
+ */
+export const MODEL_SPEEDS = ["standard", "fast"] as const;
+export type ModelSpeed = (typeof MODEL_SPEEDS)[number];
+/** The beta a fast request names (Anthropic's fast mode page, read 15 Oct 2026). */
+export const FAST_MODE_BETA = "fast-mode-2026-02-01";
+
+/**
+ * A thinking setting a request may name (`thinking.type`): adaptive (the model decides how much, the default of every
+ * model here that thinks), between_tools (Sonnet 5.5's lowest: no thinking but between tool calls), or disabled.
+ */
+export const THINKING_TYPES = ["adaptive", "between_tools", "disabled"] as const;
+export type ThinkingType = (typeof THINKING_TYPES)[number];
+
+/**
+ * What each model takes of the settings the gateway lets a request name (Anthropic's model pages and migration guide,
+ * read 15 Oct 2026): the thinking types it accepts, and whether it runs fast mode. The port sends a model only what it
+ * takes (channels models/anthropic.ts), so a fallback asked with a request written for another model still answers:
+ * Opus 5.5's fast request falls back to Sonnet 5 at standard speed, Sonnet 5.5's `between_tools` to Opus 5.5 thinking
+ * as it does.
+ *
+ * Haiku 5.5 also refuses three things no route sends it: a server-side `fallbacks` list (its refusals have no fallback;
+ * the lead judge's `fallbacks: "default"` is taken and does nothing), an assistant prefill (Ask's requests end on the
+ * person's turn), and a temperature other than its default (Ask sends none, ask-model.ts). Our routes fall back in our
+ * own code (MODEL_ROUTES), so none of them changes anything here.
+ */
+export interface ModelTakes {
+  thinking: readonly ThinkingType[];
+  fast: boolean;
+}
+
+const { OPUS_5_5, OPUS_5, SONNET_5_5, SONNET_5, HAIKU_5_5, HAIKU_4_5 } = MODELS;
+
+export const MODEL_TAKES: Record<ModelId, ModelTakes> = {
+  // Thinking can't be turned off on Opus 5.5: effort is its only control.
+  [OPUS_5_5]: { thinking: ["adaptive"], fast: true },
+  [OPUS_5]: { thinking: ["adaptive", "disabled"], fast: true },
+  [SONNET_5_5]: { thinking: ["adaptive", "between_tools"], fast: false },
+  [SONNET_5]: { thinking: ["adaptive", "disabled"], fast: false },
+  // Haiku 5.5 takes `disabled` at effort high or below, which is every effort the gateway lets through.
+  [HAIKU_5_5]: { thinking: ["adaptive", "disabled"], fast: false },
+  // Haiku 4.5 thinks only on a token budget, which no route sends: it runs without.
+  [HAIKU_4_5]: { thinking: ["disabled"], fast: false },
+};
+
+/** What a model takes; null for one the registry does not list (a variable's), which is sent what it is asked. */
+export function modelTakes(model: string): ModelTakes | null {
+  return (MODEL_TAKES as Record<string, ModelTakes>)[model] ?? null;
+}
+
+/** Whether a model runs fast mode: the registry's word, and no for a model it does not list. */
+export function hasFastMode(model: string): boolean {
+  return modelTakes(model)?.fast === true;
+}
 
 /**
  * How hard a request asks a model to think (`output_config.effort`): the levels the gateway lets through, which every
@@ -45,8 +110,6 @@ export type ModelId = (typeof MODEL_IDS)[number];
  */
 export const MODEL_EFFORTS = ["low", "medium", "high"] as const;
 export type ModelEffort = (typeof MODEL_EFFORTS)[number];
-
-const { OPUS_5_5, OPUS_5, SONNET_5_5, SONNET_5, HAIKU_4_5 } = MODELS;
 
 /** Why the platform spends its model key. The usage ledger (ai_usage.purpose) keeps these words. */
 export const MODEL_PURPOSES = [
